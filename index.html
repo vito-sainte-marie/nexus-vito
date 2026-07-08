@@ -69,8 +69,9 @@
 <div class="app">
   <div class="header">
     <span class="mark">NEXUS</span>
-    <div class="title">Vito Sainte-Marie Usine</div>
+    <div class="title" id="stationTitle">Vito Sainte-Marie Usine</div>
     <div class="subtitle">Système d'exploitation pour le commerce de proximité</div>
+    <div class="subtitle" id="sessionInfo" style="margin-top:8px;"></div>
   </div>
 
   <div class="status-strip">
@@ -82,7 +83,7 @@
 
   <div class="section-label">Écrans du jour</div>
   <nav>
-    <a class="nav-item" href="NEXUS-Cockpit-v2.html">
+    <a class="nav-item" data-role="manager" href="NEXUS-Cockpit-v2.html">
       <div class="nav-icon">🏠</div>
       <div class="nav-body">
         <div class="nav-title">HOME <span class="nav-badge badge-ready">Prêt</span></div>
@@ -91,7 +92,7 @@
       <div class="nav-arrow">→</div>
     </a>
 
-    <a class="nav-item" href="NEXUS-Rayon-v1.html">
+    <a class="nav-item" data-role="manager" href="NEXUS-Rayon-v1.html">
       <div class="nav-icon">📊</div>
       <div class="nav-body">
         <div class="nav-title">RAYON <span class="nav-badge badge-ready">Prêt</span></div>
@@ -100,7 +101,7 @@
       <div class="nav-arrow">→</div>
     </a>
 
-    <a class="nav-item" href="NEXUS-Produits-v1.html">
+    <a class="nav-item" data-role="manager" href="NEXUS-Produits-v1.html">
       <div class="nav-icon">🔍</div>
       <div class="nav-body">
         <div class="nav-title">PRODUITS <span class="nav-badge badge-ready">Prêt</span></div>
@@ -109,7 +110,7 @@
       <div class="nav-arrow">→</div>
     </a>
 
-    <a class="nav-item" href="NEXUS-Vitrine-Scan-v1.html">
+    <a class="nav-item" data-role="manager" href="NEXUS-Vitrine-Scan-v1.html">
       <div class="nav-icon">📷</div>
       <div class="nav-body">
         <div class="nav-title">PLANOGRAMMES (Photo) <span class="nav-badge badge-ready">Prêt</span></div>
@@ -118,7 +119,7 @@
       <div class="nav-arrow">→</div>
     </a>
 
-    <a class="nav-item" href="NEXUS-Planogramme-Manuel-v1.html">
+    <a class="nav-item" data-role="manager" href="NEXUS-Planogramme-Manuel-v1.html">
       <div class="nav-icon">🧮</div>
       <div class="nav-body">
         <div class="nav-title">PLANOGRAMMES (Manuel) <span class="nav-badge badge-ready">Prêt</span></div>
@@ -127,7 +128,7 @@
       <div class="nav-arrow">→</div>
     </a>
 
-    <a class="nav-item" href="NEXUS-Mon-Evolution-v1.html">
+    <a class="nav-item" data-role="all" href="NEXUS-Mon-Evolution-v1.html">
       <div class="nav-icon">📈</div>
       <div class="nav-body">
         <div class="nav-title">MON ÉVOLUTION <span class="nav-badge badge-ready">Prêt</span></div>
@@ -135,6 +136,14 @@
       </div>
       <div class="nav-arrow">→</div>
     </a>
+
+    <div class="nav-item" data-role="all" style="opacity:0.5; cursor:default;">
+      <div class="nav-icon">✅</div>
+      <div class="nav-body">
+        <div class="nav-title">MISSIONS <span class="nav-badge badge-soon">Moteur prêt, écran à venir</span></div>
+        <div class="nav-desc">Vos missions du jour — le moteur tourne, l'écran n'existe pas encore</div>
+      </div>
+    </div>
   </nav>
 
   <div class="section-label">En construction</div>
@@ -158,5 +167,24 @@
 
   <footer>NEXUS v1 · Sprint 1 · 07/07/2026 · Rayon pilote : Bières &amp; Softs</footer>
 </div>
+
+<script>
+  const session = JSON.parse(localStorage.getItem('nexus_session') || 'null');
+  if (!session) {
+    window.location.href = 'NEXUS-Login-v1.html';
+  } else {
+    document.getElementById('sessionInfo').innerHTML =
+      `Connecté(e) : ${session.prenom} (${session.role}) · <a href="#" id="logout" style="color:var(--cyan);">Se déconnecter</a>`;
+    document.getElementById('logout').addEventListener('click', (e) => {
+      e.preventDefault();
+      localStorage.removeItem('nexus_session');
+      window.location.href = 'NEXUS-Login-v1.html';
+    });
+
+    if (session.role !== 'manager') {
+      document.querySelectorAll('[data-role="manager"]').forEach(el => el.style.display = 'none');
+    }
+  }
+</script>
 </body>
 </html>
