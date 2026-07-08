@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NEXUS — Mon Évolution</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
+    --text:#EDF1F5; --text-mid:#8A96A5; --text-dim:#57626F;
+    --green:#34D399; --green-dim:#153629;
+    --amber:#F5A623; --amber-dim:#3A2E14;
+    --cyan:#4FC3D9;
+    --mono:'IBM Plex Mono',monospace; --sans:'IBM Plex Sans',sans-serif;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{background:var(--bg); font-family:var(--sans); color:var(--text);}
+  body{display:flex; justify-content:center; min-height:100vh;}
+  .phone{width:100%; max-width:460px; min-height:100vh; display:flex; flex-direction:column; border-left:1px solid var(--hairline); border-right:1px solid var(--hairline);}
+
+  .header{padding:22px 20px 16px; text-align:center;}
+  .eyebrow{font-family:var(--mono); font-size:11px; letter-spacing:0.12em; text-transform:uppercase; color:var(--cyan);}
+  .title{font-size:22px; font-weight:600; margin-top:4px;}
+  .subtitle{font-family:var(--mono); font-size:11px; color:var(--text-dim); margin-top:4px;}
+  .divider{height:1px; background:var(--hairline); margin:0 20px;}
+
+  .section{padding:16px 20px;}
+  .card{background:var(--panel); border:1px solid var(--hairline); border-radius:12px; padding:18px; margin-bottom:14px;}
+
+  .section-label{font-family:var(--mono); font-size:10.5px; letter-spacing:0.08em; text-transform:uppercase; color:var(--text-dim); margin-bottom:12px; display:flex; align-items:center; gap:8px;}
+  .section-label::after{content:''; flex:1; height:1px; background:var(--hairline);}
+
+  .empty-note{
+    font-size:12.5px; color:var(--text-mid); line-height:1.6; padding:14px;
+    background:var(--panel-raised); border-radius:8px; border:1px dashed var(--hairline);
+  }
+  .empty-note b{color:var(--text);}
+
+  .competence-row{display:flex; align-items:center; gap:12px; padding:10px 0; border-bottom:1px solid var(--hairline);}
+  .competence-row:last-child{border-bottom:none;}
+  .medal{font-size:18px; width:24px; text-align:center;}
+  .competence-name{flex:1; font-size:13.5px;}
+  .competence-score{font-family:var(--mono); font-size:14px; font-weight:600; color:var(--green);}
+  .competence-score.faible{color:var(--amber);}
+  .competence-occ{font-family:var(--mono); font-size:10px; color:var(--text-dim); margin-top:2px;}
+
+  .insuff-row{display:flex; justify-content:space-between; align-items:center; padding:9px 0; border-bottom:1px solid var(--hairline); font-size:12px; color:var(--text-mid);}
+  .insuff-row:last-child{border-bottom:none;}
+  .insuff-bar-track{width:70px; height:5px; background:var(--panel-raised); border-radius:3px; overflow:hidden; margin-left:10px;}
+  .insuff-bar{height:100%; background:var(--cyan); border-radius:3px;}
+
+  .formation-card{background:rgba(79,195,217,0.08); border:1px solid rgba(79,195,217,0.25); border-radius:10px; padding:14px; margin-top:10px;}
+  .formation-title{font-size:13px; font-weight:600; color:var(--cyan);}
+  .formation-desc{font-size:11.5px; color:var(--text-mid); margin-top:4px; line-height:1.5;}
+
+  footer{margin-top:auto; padding:16px 20px 24px; font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:center; border-top:1px solid var(--hairline);}
+</style>
+</head>
+<body>
+<div class="phone">
+  <div class="header">
+    <div class="eyebrow">NEXUS · Mon évolution</div>
+    <div class="title" id="empName">—</div>
+    <div class="subtitle">Basé uniquement sur des missions réellement archivées et prouvées par photo</div>
+  </div>
+  <div class="divider"></div>
+
+  <div class="section" id="content"></div>
+
+  <footer>NEXUS Mon Évolution v1 · Seuil minimum 5 occurrences par compétence</footer>
+</div>
+
+<script>
+  const DATA = {"employe_id": "Thomas", "competences": {}, "competences_insuffisantes": [{"competence": "Vitrine", "nb_occurrences": 2, "raison": "2/5 occurrences minimum"}, {"competence": "Merchandising", "nb_occurrences": 2, "raison": "2/5 occurrences minimum"}], "formations": {"Vitrine": "Vitrine Niveau 1", "Merchandising": "Merchandising Niveau 1", "Réassort": "Réassort Niveau 1", "Réception": "Réception Fournisseur Niveau 1", "Inventaire": "Inventaire Niveau 1", "Machine à café": "Machine à café Niveau 1", "Accueil": "Accueil Client Niveau 1", "Ouverture": "Ouverture Niveau 1", "Fermeture": "Fermeture Niveau 1", "Caisse": "Caisse & Sécurité des fonds"}};
+  const content = document.getElementById('content');
+  document.getElementById('empName').textContent = DATA.employe_id;
+
+  function fmtPct(v){ return v.toFixed(1) + '%'; }
+
+  const competencesArr = Object.entries(DATA.competences)
+    .map(([nom, d]) => ({nom, ...d}))
+    .sort((a,b) => b.score_moyen - a.score_moyen);
+
+  let html = '';
+
+  if (competencesArr.length === 0) {
+    html += `
+      <div class="card">
+        <div class="section-label">Compétences</div>
+        <div class="empty-note">
+          <b>Pas encore assez de données.</b><br><br>
+          Chaque compétence nécessite au moins 5 missions archivées avec preuve photo pour afficher un score fiable.
+          Continuez à valider vos missions — cet écran se remplira automatiquement au fil du temps, jamais avec un chiffre estimé.
+        </div>
+      </div>`;
+  } else {
+    const top3 = competencesArr.slice(0, 3);
+    const faibles = competencesArr.filter(c => c.score_moyen < 80);
+
+    html += `<div class="card"><div class="section-label">Meilleures compétences</div>`;
+    top3.forEach((c, i) => {
+      const medals = ['🥇','🥈','🥉'];
+      html += `
+        <div class="competence-row">
+          <span class="medal">${medals[i]||''}</span>
+          <div class="competence-name">${c.nom}<div class="competence-occ">${c.nb_occurrences} missions évaluées</div></div>
+          <span class="competence-score">${fmtPct(c.score_moyen)}</span>
+        </div>`;
+    });
+    html += `</div>`;
+
+    if (faibles.length) {
+      html += `<div class="card"><div class="section-label">À travailler</div>`;
+      faibles.forEach(c => {
+        html += `
+          <div class="competence-row">
+            <span class="medal">📌</span>
+            <div class="competence-name">${c.nom}<div class="competence-occ">${c.nb_occurrences} missions évaluées</div></div>
+            <span class="competence-score faible">${fmtPct(c.score_moyen)}</span>
+          </div>`;
+        const formation = DATA.formations[c.nom];
+        if (formation) {
+          html += `<div class="formation-card"><div class="formation-title">📚 Formation proposée : ${formation}</div>
+            <div class="formation-desc">Suggestion basée sur un score moyen sous 80% — proposition, pas une obligation.</div></div>`;
+        }
+      });
+      html += `</div>`;
+    }
+  }
+
+  if (DATA.competences_insuffisantes && DATA.competences_insuffisantes.length) {
+    html += `<div class="card"><div class="section-label">En cours de mesure</div>`;
+    DATA.competences_insuffisantes.forEach(c => {
+      const pct = c.nb_occurrences / 5 * 100;
+      html += `
+        <div class="insuff-row">
+          <span>${c.competence}</span>
+          <span style="display:flex; align-items:center;">
+            ${c.nb_occurrences}/5 missions
+            <span class="insuff-bar-track"><span class="insuff-bar" style="width:${pct}%"></span></span>
+          </span>
+        </div>`;
+    });
+    html += `</div>`;
+  }
+
+  content.innerHTML = html;
+</script>
+</body>
+</html>
