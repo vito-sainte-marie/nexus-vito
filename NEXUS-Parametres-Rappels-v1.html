@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NEXUS — Paramètres Rappels</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
+    --text:#EDF1F5; --text-mid:#8A96A5; --text-dim:#57626F;
+    --green:#34D399; --green-dim:#153629; --amber:#F5A623; --amber-dim:#3A2E14;
+    --red:#F0575A; --red-dim:#3A1D1F; --cyan:#4FC3D9;
+    --mono:'IBM Plex Mono',monospace; --sans:'IBM Plex Sans',sans-serif;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{background:var(--bg); font-family:var(--sans); color:var(--text);}
+  body{display:flex; justify-content:center; min-height:100vh;}
+  .phone{width:100%; max-width:460px; min-height:100vh; display:flex; flex-direction:column; border-left:1px solid var(--hairline); border-right:1px solid var(--hairline);}
+
+  .header{padding:20px 20px 14px;}
+  .eyebrow{font-family:var(--mono); font-size:11px; letter-spacing:0.12em; text-transform:uppercase; color:var(--cyan);}
+  .title{font-size:20px; font-weight:600; margin-top:4px;}
+  .subtitle{font-family:var(--mono); font-size:10.5px; color:var(--text-dim); margin-top:4px;}
+  .divider{height:1px; background:var(--hairline); margin:0 20px;}
+
+  .section{padding:16px 20px;}
+  .card{background:var(--panel); border:1px solid var(--hairline); border-radius:12px; padding:18px; margin-bottom:14px;}
+  .section-label{font-family:var(--mono); font-size:10.5px; letter-spacing:0.08em; text-transform:uppercase; color:var(--text-dim); margin-bottom:12px; display:flex; align-items:center; gap:8px;}
+  .section-label::after{content:''; flex:1; height:1px; background:var(--hairline);}
+
+  .next-banner{padding:16px; border-radius:12px; text-align:center; margin-bottom:14px;}
+  .next-days{font-family:var(--mono); font-size:32px; font-weight:700;}
+  .next-label{font-size:12px; margin-top:4px;}
+  .next-detail{font-family:var(--mono); font-size:10px; color:var(--text-dim); margin-top:8px;}
+
+  .cal-row{display:flex; justify-content:space-between; align-items:center; padding:9px 0; border-bottom:1px solid var(--hairline); font-size:12px;}
+  .cal-row:last-child{border-bottom:none;}
+  .cal-row.passe{opacity:0.4;}
+  .cal-date{font-weight:600;}
+  .cal-periode{font-family:var(--mono); font-size:10px; color:var(--text-dim);}
+
+  input, select{
+    width:100%; background:var(--panel-raised); border:1px solid var(--hairline); border-radius:8px;
+    padding:10px 12px; color:var(--text); font-family:var(--sans); font-size:13px; margin-bottom:10px;
+  }
+  .btn{font-family:var(--sans); font-size:13.5px; font-weight:600; border:none; border-radius:8px; padding:12px; cursor:pointer; width:100%; background:var(--cyan); color:#04141a;}
+
+  .rappel-manuel{display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px solid var(--hairline); font-size:12.5px;}
+  .rappel-manuel button{background:var(--red-dim); color:var(--red); border:none; border-radius:6px; padding:5px 9px; cursor:pointer; font-size:11px;}
+
+  .info-box{background:var(--panel-raised); border:1px dashed var(--hairline); border-radius:10px; padding:13px; font-size:11.5px; color:var(--text-mid); line-height:1.6;}
+
+  .four-row{padding:9px 0; border-bottom:1px solid var(--hairline);}
+  .four-row:last-child{border-bottom:none;}
+  .four-top{display:flex; align-items:center; justify-content:space-between; gap:8px;}
+  .four-name{font-size:12px; font-weight:600; flex:1;}
+  .four-toggles{display:flex; gap:5px;}
+  .four-btn{font-family:var(--mono); font-size:9.5px; font-weight:700; padding:5px 10px; border-radius:6px; border:1px solid var(--hairline); background:var(--panel-raised); color:var(--text-dim); cursor:pointer;}
+  .four-btn.oui-actif{background:var(--green-dim); color:var(--green); border-color:var(--green);}
+  .four-btn.non-actif{background:var(--red-dim); color:var(--red); border-color:var(--red);}
+  .four-comment{width:100%; margin-top:6px; padding:6px 8px; font-size:11px; background:var(--panel-raised); border:1px solid var(--hairline); border-radius:6px; color:var(--text);}
+
+  .fuel-header{display:flex; align-items:center; gap:10px; margin-bottom:14px;}
+  .fuel-header-icon{font-size:26px;}
+  .cuves-wrap{display:flex; gap:16px; justify-content:center; margin:16px 0;}
+  .cuve-block{text-align:center;}
+  .cuve-label{font-family:var(--mono); font-size:10px; color:var(--text-dim); margin-top:8px; text-transform:uppercase; letter-spacing:0.05em;}
+  .cuve-pct{font-family:var(--mono); font-size:15px; font-weight:700; margin-top:2px;}
+  .fuel-result-card{border-radius:14px; padding:16px; margin-top:12px; position:relative; overflow:hidden;}
+  .fuel-result-head{display:flex; align-items:center; gap:10px;}
+  .fuel-result-icon{font-size:22px;}
+  .fuel-result-title{font-size:14px; font-weight:700;}
+  .fuel-caveat{font-size:10px; color:var(--text-dim); margin-top:6px; padding-top:8px; border-top:1px solid rgba(255,255,255,0.08);}
+
+  .fuel-block{border-radius:12px; padding:14px; margin-bottom:14px;}
+  .fuel-block.sp{background:rgba(52,211,153,0.08); border:1px solid rgba(52,211,153,0.3);}
+  .fuel-block.go{background:rgba(245,166,35,0.08); border:1px solid rgba(245,166,35,0.3);}
+  .fuel-block-title{font-family:var(--mono); font-size:11px; font-weight:700; letter-spacing:0.04em; text-transform:uppercase; margin-bottom:10px; display:flex; align-items:center; gap:6px;}
+  .fuel-block.sp .fuel-block-title{color:var(--green);}
+  .fuel-block.go .fuel-block-title{color:var(--amber);}
+  .fuel-block input{margin-bottom:8px;}
+
+  footer{margin-top:auto; padding:16px 20px 24px; font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:center; border-top:1px solid var(--hairline);}
+</style>
+</head>
+<body>
+<div class="phone">
+  <div class="header">
+    <div class="eyebrow">NEXUS · Manager</div>
+    <div class="title">Paramètres Rappels</div>
+    <div class="subtitle">Ces rappels remontent dans les Plans d'action quand ils sont dus</div>
+  </div>
+  <div class="divider"></div>
+
+  <div class="section">
+    <div id="nextBanner"></div>
+
+    <div class="card">
+      <div class="section-label">Calendrier fournisseurs boutique — 2026</div>
+      <div style="font-size:11px; color:var(--text-mid); margin-bottom:10px;">Passation obligatoire tous les 15 jours, le vendredi (géré par Decenium — NEXUS rappelle uniquement).</div>
+      <div id="calendrierList" style="max-height:280px; overflow-y:auto;"></div>
+    </div>
+
+    <div class="card">
+      <div class="section-label">Suivi commande — échéance en cours <span id="suiviCount" style="color:var(--cyan);"></span></div>
+      <div style="font-size:11px; color:var(--text-mid); margin-bottom:10px;">Cochez chaque fournisseur au fur et à mesure — pour ne plus en oublier aucun.</div>
+      <div id="fournisseursListe" style="max-height:380px; overflow-y:auto;"></div>
+    </div>
+
+    <div class="card">
+      <div class="fuel-header"><span class="fuel-header-icon">⛽</span><div class="section-label" style="margin:0; border:none;">Jaugeage carburant du jour</div></div>
+      <div style="font-size:11px; color:var(--text-mid); margin-bottom:14px;">Saisie manuelle quotidienne — remplace la photo. Écart tampon de 1 500 L appliqué par cuve : Sans Plomb 28 500 L utiles (sur 30 000 L), Gasoil 27 000 L utiles au total (18 500 + 8 500 L, tampon sur chaque cuve). Stock de sécurité minimal : <b style="color:var(--text);">3 jours de consommation</b>, à tout moment — les livraisons ne se faisant que les jours ouvrables, le calcul recule automatiquement la commande avant un week-end ou un jour férié pour ne jamais descendre sous ce seuil.</div>
+      <div class="info-box" style="margin-bottom:14px;">💰 <b style="color:var(--text);">Pourquoi le stock minimal, pas un camion complet :</b> le carburant est payé au comptant — chaque litre stocké immobilise de la trésorerie. Le prix étant indexé par la préfecture de Martinique (identique pour toutes les stations, concurrentes comprises), il n'y a aucun avantage commercial à sur-stocker. La seule règle non négociable : ne jamais tomber en rupture.</div>
+
+      <div class="fuel-block sp">
+        <div class="fuel-block-title">🟢 Sans Plomb — cuve unique 30 000 L</div>
+        <input type="number" id="j_sp" placeholder="Jaugeage (litres) — ex: 22656">
+        <input type="number" id="j_sp_livraison" placeholder="Livraison reçue depuis hier (litres, si applicable)">
+      </div>
+
+      <div class="fuel-block go">
+        <div class="fuel-block-title">🟡 Gasoil — deux cuves distinctes</div>
+        <input type="number" id="j_go1" placeholder="Cuve 20 000 L — ex: 14161">
+        <input type="number" id="j_go2" placeholder="Cuve 10 000 L — ex: 6524">
+        <input type="number" id="j_go_livraison" placeholder="Livraison reçue depuis hier (litres, si applicable)">
+        <div style="font-size:10px; color:var(--text-dim);">NEXUS additionne automatiquement les deux pour le calcul global.</div>
+      </div>
+
+      <input type="number" id="j_gnr" placeholder="GNR (litres, optionnel)">
+      <button class="btn" id="calculerCarburant">Calculer la recommandation</button>
+      <div id="venteTheoriqueBox"></div>
+      <div class="cuves-wrap" id="cuvesVisuel"></div>
+      <div id="resultCarburant"></div>
+    </div>
+
+    <div class="card">
+      <div class="section-label">Ajouter un rappel manuel</div>
+      <input type="text" id="r_titre" placeholder="Ex: Renouveler assurance véhicule">
+      <div style="display:flex; gap:8px;">
+        <input type="date" id="r_date" style="flex:1;">
+        <input type="time" id="r_heure" style="flex:1;" value="08:00">
+      </div>
+      <select id="r_frequence" style="width:100%; background:var(--panel-raised); border:1px solid var(--hairline); border-radius:8px; padding:10px 12px; color:var(--text); font-family:var(--sans); font-size:13px; margin-bottom:10px;">
+        <option value="une_fois">Une seule fois</option>
+        <option value="journalier">Tous les jours</option>
+        <option value="hebdomadaire">Toutes les semaines</option>
+        <option value="mensuel">Tous les mois</option>
+        <option value="annuel">Tous les ans (ex: anniversaire)</option>
+      </select>
+      <button class="btn" id="ajouterRappel">+ Ajouter</button>
+      <div id="rappelsManuelsListe" style="margin-top:12px;"></div>
+    </div>
+
+    <div class="info-box">
+      💡 Aujourd'hui, ce calendrier est intégré directement par NEXUS à partir de votre fichier réel. Une future version permettra l'import automatique par photo ou PDF — ça demande une IA de vision connectée (clé API + serveur), pas encore en place.
+    </div>
+  </div>
+
+  <footer>NEXUS Rappels v1 · Vito Sainte-Marie Usine</footer>
+</div>
+
+<script>
+  const session = JSON.parse(localStorage.getItem('nexus_session') || 'null');
+  if (!session || session.role !== 'manager') { window.location.href = 'NEXUS-Login-v1.html'; }
+
+  const CALENDRIER = {
+  "_source": "PLANNING_COMMANDE.xlsx",
+  "_logique": "Passation obligatoire tous les 15 jours, le vendredi",
+  "dates": [
+    {
+      "date_commande": "2026-01-09",
+      "semaine": 2,
+      "periode_debut": "2026-01-11",
+      "periode_fin": "2026-02-01"
+    },
+    {
+      "date_commande": "2026-01-23",
+      "semaine": 4,
+      "periode_debut": "2026-01-25",
+      "periode_fin": "2026-02-15"
+    },
+    {
+      "date_commande": "2026-02-06",
+      "semaine": 6,
+      "periode_debut": "2026-02-08",
+      "periode_fin": "2026-03-01"
+    },
+    {
+      "date_commande": "2026-02-20",
+      "semaine": 8,
+      "periode_debut": "2026-02-22",
+      "periode_fin": "2026-03-15"
+    },
+    {
+      "date_commande": "2026-03-06",
+      "semaine": 10,
+      "periode_debut": "2026-03-08",
+      "periode_fin": "2026-03-29"
+    },
+    {
+      "date_commande": "2026-03-20",
+      "semaine": 12,
+      "periode_debut": "2026-03-22",
+      "periode_fin": "2026-04-12"
+    },
+    {
+      "date_commande": "2026-04-03",
+      "semaine": 14,
+      "periode_debut": "2026-04-05",
+      "periode_fin": "2026-04-26"
+    },
+    {
+      "date_commande": "2026-04-17",
+      "semaine": 16,
+      "periode_debut": "2026-04-19",
+      "periode_fin": "2026-05-10"
+    },
+    {
+      "date_commande": "2026-05-01",
+      "semaine": 18,
+      "periode_debut": "2026-05-03",
+      "periode_fin": "2026-05-24"
+    },
+    {
+      "date_commande": "2026-05-15",
+      "semaine": 20,
+      "periode_debut": "2026-05-17",
+      "periode_fin": "2026-06-07"
+    },
+    {
+      "date_commande": "2026-05-29",
+      "semaine": 22,
+      "periode_debut": "2026-05-31",
+      "periode_fin": "2026-06-21"
+    },
+    {
+      "date_commande": "2026-06-12",
+      "semaine": 24,
+      "periode_debut": "2026-06-14",
+      "periode_fin": "2026-07-05"
+    },
+    {
+      "date_commande": "2026-06-26",
+      "semaine": 26,
+      "periode_debut": "2026-06-28",
+      "periode_fin": "2026-07-19"
+    },
+    {
+      "date_commande": "2026-07-10",
+      "semaine": 28,
+      "periode_debut": "2026-07-12",
+      "periode_fin": "2026-08-02"
+    },
+    {
+      "date_commande": "2026-07-24",
+      "semaine": 30,
+      "periode_debut": "2026-07-26",
+      "periode_fin": "2026-08-16"
+    },
+    {
+      "date_commande": "2026-08-07",
+      "semaine": 32,
+      "periode_debut": "2026-08-09",
+      "periode_fin": "2026-08-30"
+    },
+    {
+      "date_commande": "2026-08-21",
+      "semaine": 34,
+      "periode_debut": "2026-08-23",
+      "periode_fin": "2026-09-13"
+    },
+    {
+      "date_commande": "2026-09-04",
+      "semaine": 36,
+      "periode_debut": "2026-09-06",
+      "periode_fin": "2026-09-27"
+    },
+    {
+      "date_commande": "2026-09-18",
+      "semaine": 38,
+      "periode_debut": "2026-09-20",
+      "periode_fin": "2026-10-11"
+    },
+    {
+      "date_commande": "2026-10-02",
+      "semaine": 40,
+      "periode_debut": "2026-10-04",
+      "periode_fin": "2026-10-25"
+    },
+    {
+      "date_commande": "2026-10-16",
+      "semaine": 42,
+      "periode_debut": "2026-10-18",
+      "periode_fin": "2026-11-08"
+    },
+    {
+      "date_commande": "2026-10-30",
+      "semaine": 44,
+      "periode_debut": "2026-11-01",
+      "periode_fin": "2026-11-22"
+    },
+    {
+      "date_commande": "2026-11-13",
+      "semaine": 46,
+      "periode_debut": "2026-11-15",
+      "periode_fin": "2026-12-06"
+    },
+    {
+      "date_commande": "2026-11-27",
+      "semaine": 48,
+      "periode_debut": "2026-11-29",
+      "periode_fin": "2026-12-20"
+    },
+    {
+      "date_commande": "2026-12-11",
+      "semaine": 50,
+      "periode_debut": "2026-12-13",
+      "periode_fin": "2027-01-03"
+    },
+    {
+      "date_commande": "2026-12-25",
+      "semaine": 52,
+      "periode_debut": "2026-12-27",
+      "periode_fin": "2027-01-17"
+    },
+    {
+      "date_commande": "2027-01-08",
+      "semaine": 54,
+      "periode_debut": "2027-01-10",
+      "periode_fin": "2027-01-31"
+    },
+    {
+      "date_commande": "2027-01-22",
+      "semaine": 56,
+      "periode_debut": "2027-01-24",
+      "periode_fin": "2027-02-14"
+    },
+    {
+      "date_commande": "2027-02-05",
+      "semaine": 58,
+      "periode_debut": "2027-02-07",
+      "periode_fin": "2027-02-28"
+    }
+  ]
+};
+  const aujourdhui = new Date(); aujourdhui.setHours(0,0,0,0);
+
+  function joursRestants(dateStr) {
+    const d = new Date(dateStr); d.setHours(0,0,0,0);
+    return Math.round((d - aujourdhui) / 86400000);
+  }
+
+  const prochaine = CALENDRIER.dates.find(d => joursRestants(d.date_commande) >= 0);
+
+  function afficherBanner() {
+    if (!prochaine) return;
+    const j = joursRestants(prochaine.date_commande);
+    let couleur = 'var(--green-dim)', texteCouleur = 'var(--green)', label = `Dans ${j} jours`;
+    if (j === 0) { couleur = 'var(--red-dim)'; texteCouleur = 'var(--red)'; label = "Aujourd'hui"; }
+    else if (j === 1) { couleur = 'var(--amber-dim)'; texteCouleur = 'var(--amber)'; label = 'Demain'; }
+
+    document.getElementById('nextBanner').innerHTML = `
+      <div class="next-banner" style="background:${couleur}; color:${texteCouleur};">
+        <div class="next-days">${j === 0 ? "J" : j === 1 ? "J-1" : "J-"+j}</div>
+        <div class="next-label">${label} — passation commande fournisseurs (semaine ${prochaine.semaine})</div>
+        <div class="next-detail">Période prévisionnelle couverte : ${prochaine.periode_debut} → ${prochaine.periode_fin}</div>
+      </div>`;
+  }
+  afficherBanner();
+
+  document.getElementById('calendrierList').innerHTML = CALENDRIER.dates.map(d => {
+    const j = joursRestants(d.date_commande);
+    return `<div class="cal-row ${j<0?'passe':''}">
+      <div><div class="cal-date">${d.date_commande}</div><div class="cal-periode">Semaine ${d.semaine} · couvre ${d.periode_debut} → ${d.periode_fin}</div></div>
+      <div style="font-family:var(--mono); font-size:11px; color:${j===0?'var(--red)':j===1?'var(--amber)':'var(--text-dim)'};">${j<0?'Passé':j===0?"Aujourd'hui":j===1?'Demain':'J-'+j}</div>
+    </div>`;
+  }).join('');
+
+  // Rappels manuels — pour tout ce qui n'est pas le calendrier fournisseur
+  function chargerRappelsManuels() { return JSON.parse(localStorage.getItem('nexus_rappels_manuels') || '[]'); }
+  function sauvegarderRappelsManuels(r) { localStorage.setItem('nexus_rappels_manuels', JSON.stringify(r)); }
+
+  const LABEL_FREQUENCE = { une_fois: 'Une fois', journalier: 'Tous les jours', hebdomadaire: 'Toutes les semaines', mensuel: 'Tous les mois', annuel: 'Tous les ans' };
+
+  // Determine si un rappel (avec sa recurrence) tombe un jour donne —
+  // reutilisable telle quelle dans index.html pour la cloche de notification.
+  function estRappelDuJour(rappel, jourCible) {
+    const debut = new Date(rappel.date); debut.setHours(0,0,0,0);
+    const cible = new Date(jourCible); cible.setHours(0,0,0,0);
+    if (cible < debut) return false;
+    switch (rappel.frequence) {
+      case 'journalier': return true;
+      case 'hebdomadaire': return cible.getDay() === debut.getDay();
+      case 'mensuel': return cible.getDate() === debut.getDate();
+      case 'annuel': return cible.getDate() === debut.getDate() && cible.getMonth() === debut.getMonth();
+      default: return cible.getTime() === debut.getTime(); // une_fois
+    }
+  }
+
+  function afficherRappelsManuels() {
+    const rappels = chargerRappelsManuels();
+    const aujourdhui = new Date();
+    document.getElementById('rappelsManuelsListe').innerHTML = rappels.map((r, i) => {
+      const duJour = estRappelDuJour(r, aujourdhui);
+      return `
+      <div class="rappel-manuel" style="${duJour ? 'background:rgba(245,166,35,0.12); border-radius:8px; padding:8px;' : ''}">
+        <span>${duJour ? '🔔 ' : ''}${r.titre} — ${r.heure || '08:00'} · ${LABEL_FREQUENCE[r.frequence] || 'Une fois'} (depuis le ${r.date})</span>
+        <button data-i="${i}">Supprimer</button>
+      </div>`;
+    }).join('') || '<div style="color:var(--text-dim); font-size:11.5px;">Aucun rappel manuel.</div>';
+
+    document.querySelectorAll('.rappel-manuel button').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const rappels = chargerRappelsManuels();
+        rappels.splice(parseInt(btn.dataset.i), 1);
+        sauvegarderRappelsManuels(rappels);
+        afficherRappelsManuels();
+      });
+    });
+  }
+  afficherRappelsManuels();
+
+  document.getElementById('ajouterRappel').addEventListener('click', () => {
+    const titre = document.getElementById('r_titre').value.trim();
+    const date = document.getElementById('r_date').value;
+    const heure = document.getElementById('r_heure').value || '08:00';
+    const frequence = document.getElementById('r_frequence').value;
+    if (!titre || !date) return;
+    const rappels = chargerRappelsManuels();
+    rappels.push({ titre, date, heure, frequence });
+    sauvegarderRappelsManuels(rappels);
+    document.getElementById('r_titre').value = '';
+    document.getElementById('r_date').value = '';
+    document.getElementById('r_heure').value = '08:00';
+    document.getElementById('r_frequence').value = 'une_fois';
+    afficherRappelsManuels();
+  });
+
+  // --- Suivi fournisseurs, par echeance de commande ---
+  const FOURNISSEURS = {
+  "_source": "FEUILLE_DE_ROUTE_COMMANDE_FOURNISSEURS_BI_MENSUELS.xlsx",
+  "fournisseurs": [
+    "ACI CARAIBES",
+    "ANT CLAU",
+    "ANTILLES SNACKING",
+    "BIGIN",
+    "BLANC MARINE &CO",
+    "BOOSTER AUTO",
+    "CAPRICORNE DISTRIB",
+    "CARIDRINK",
+    "CHIPSO",
+    "CHR",
+    "CLEMENT",
+    "CONBA",
+    "DE NEGRI",
+    "DELICES PROD",
+    "DENEL",
+    "DIAMS",
+    "DIDIER",
+    "DISTRADEL",
+    "DISTRI EXPRESS",
+    "DISTRIVIT SAS",
+    "EMD",
+    "FCDD",
+    "GALION",
+    "GEREMBAL",
+    "GOLAX",
+    "HO HIO HEN",
+    "HSE",
+    "IMPEC",
+    "K RIBBEAN FWI",
+    "KYLIANE",
+    "MAXICAR DISTRI",
+    "MBS",
+    "MEGADUSTRIES",
+    "PAINS & COMPAGNIE",
+    "POMAL",
+    "PREVOTEAU",
+    "PROCHIMIE",
+    "PRODIF SODIGROS",
+    "PRODILES",
+    "RAGALD MANIOC",
+    "RGC",
+    "ROGER ALBERT",
+    "ROGER COCO",
+    "RUBIS LUBRIFIANT",
+    "SAVEURS CACHEES",
+    "SDGM",
+    "SMCR GAZ",
+    "SNEMBG",
+    "SOCARA",
+    "SODIMAR",
+    "SODITEK",
+    "SOFT DRINK",
+    "SOGEDIS",
+    "SOMABI",
+    "SOMES",
+    "ST JAMES",
+    "TCS",
+    "TI CHOUCHOU",
+    "UNIMPEX"
+  ]
+};
+  const echeanceActuelle = prochaine ? prochaine.date_commande : null;
+
+  function chargerSuivi() { return JSON.parse(localStorage.getItem('nexus_suivi_fournisseurs') || '{}'); }
+  function sauvegarderSuivi(s) { localStorage.setItem('nexus_suivi_fournisseurs', JSON.stringify(s)); }
+
+  function afficherFournisseurs() {
+    if (!echeanceActuelle) {
+      document.getElementById('fournisseursListe').innerHTML = '<div style="color:var(--text-dim); font-size:11.5px;">Aucune échéance à venir dans le calendrier.</div>';
+      return;
+    }
+    const suivi = chargerSuivi();
+    if (!suivi[echeanceActuelle]) suivi[echeanceActuelle] = {};
+    const etatEcheance = suivi[echeanceActuelle];
+
+    const traites = FOURNISSEURS.fournisseurs.filter(f => etatEcheance[f]).length;
+    document.getElementById('suiviCount').textContent = `(${traites}/${FOURNISSEURS.fournisseurs.length})`;
+
+    document.getElementById('fournisseursListe').innerHTML = FOURNISSEURS.fournisseurs.map(f => {
+      const etat = etatEcheance[f] || {};
+      return `<div class="four-row">
+        <div class="four-top">
+          <span class="four-name">${f}</span>
+          <div class="four-toggles">
+            <button class="four-btn ${etat.statut==='oui'?'oui-actif':''}" data-f="${f}" data-v="oui">OUI</button>
+            <button class="four-btn ${etat.statut==='non'?'non-actif':''}" data-f="${f}" data-v="non">NON</button>
+          </div>
+        </div>
+        <input class="four-comment" data-fc="${f}" placeholder="Commentaire..." value="${etat.commentaire||''}">
+      </div>`;
+    }).join('');
+
+    document.querySelectorAll('.four-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const s = chargerSuivi();
+        if (!s[echeanceActuelle]) s[echeanceActuelle] = {};
+        if (!s[echeanceActuelle][btn.dataset.f]) s[echeanceActuelle][btn.dataset.f] = {};
+        s[echeanceActuelle][btn.dataset.f].statut = btn.dataset.v;
+        sauvegarderSuivi(s);
+        afficherFournisseurs();
+      });
+    });
+    document.querySelectorAll('.four-comment').forEach(inp => {
+      inp.addEventListener('change', () => {
+        const s = chargerSuivi();
+        if (!s[echeanceActuelle]) s[echeanceActuelle] = {};
+        if (!s[echeanceActuelle][inp.dataset.fc]) s[echeanceActuelle][inp.dataset.fc] = {};
+        s[echeanceActuelle][inp.dataset.fc].commentaire = inp.value;
+        sauvegarderSuivi(s);
+      });
+    });
+  }
+  afficherFournisseurs();
+
+  // --- Carburant : jaugeage quotidien + recommandation de commande ---
+  const JOURS_FERIES_MARTINIQUE_2026 = ["2026-01-01","2026-04-06","2026-05-01","2026-05-08",
+    "2026-05-14","2026-05-22","2026-05-25","2026-07-14","2026-07-21","2026-08-15",
+    "2026-11-01","2026-11-11","2026-12-25"];
+  function estJourOuvrable(d) {
+    const iso = d.toISOString().slice(0,10);
+    return d.getDay() !== 0 && d.getDay() !== 6 && !JOURS_FERIES_MARTINIQUE_2026.includes(iso);
+  }
+  const CONSO_MOYENNE_HISTORIQUE = { sp: 3138.92, go: 2810.10 }; // valeurs de secours, calculees sur l'historique du fichier fourni au depart
+
+  // Calcule la vente theorique du jour : stock d'hier + livraison recue - stock d'aujourd'hui.
+  // Le champ livraison evite une valeur negative artificielle quand une
+  // livraison a eu lieu entre les deux releves.
+  function calculerVenteTheorique(historique, cle, stockActuel, livraisonRecue) {
+    if (historique.length === 0) return null;
+    const hier = historique[historique.length - 1];
+    const stockHier = hier[cle];
+    if (stockHier === null || stockHier === undefined || isNaN(stockHier)) return null;
+    return (stockHier + (livraisonRecue || 0)) - stockActuel;
+  }
+
+  // Moyenne glissante sur toutes les ventes theoriques reellement calculees
+  // jusqu'ici. Sous 2 points, on retombe sur l'historique de secours —
+  // une moyenne sur 1 seul jour n'est pas fiable.
+  function calculerConsoMoyenneReelle(historique, cle) {
+    const ventes = historique.map(h => h['vente_'+cle]).filter(v => v !== null && v !== undefined && !isNaN(v) && v >= 0);
+    if (ventes.length < 2) return { valeur: CONSO_MOYENNE_HISTORIQUE[cle], source: 'historique_fichier', nbJours: ventes.length };
+    const moyenne = ventes.reduce((s,v)=>s+v,0) / ventes.length;
+    return { valeur: moyenne, source: 'calculee', nbJours: ventes.length };
+  }
+  const CAPACITE_CUVE = { sp: 28500, go: 27000 }; // SP: cuve unique 30000L - 1500L tampon. GO: (20000-1500) + (10000-1500) = 18500+8500 = 27000L, tampon applique separement par cuve
+  const CAMION_CAPACITE = 36000;
+
+  function prochainOuvrableApres(d) {
+    let candidat = new Date(d.getTime() + 86400000);
+    while (!estJourOuvrable(candidat)) candidat = new Date(candidat.getTime() + 86400000);
+    return candidat;
+  }
+
+  function calculerRecommandationCombinee(stockSP, stockGO, consoSP, consoGO, capSP, capGO, camion) {
+    const maintenant = new Date();
+    const aujourdhui = new Date(); aujourdhui.setHours(0,0,0,0);
+    const avant11h = maintenant.getHours() < 11;
+    const seuilSP = consoSP*3, seuilGO = consoGO*3;
+
+    // Commande 1 : aujourd'hui si jour ouvrable ET avant 11h (coupure fournisseur),
+    // sinon le prochain jour ouvrable.
+    const commande1 = (estJourOuvrable(aujourdhui) && avant11h) ? aujourdhui : prochainOuvrableApres(aujourdhui);
+    // Livraison = jour ouvrable suivant la commande — la commande, elle, ne
+    // recule JAMAIS pour eviter un ferie : c'est la livraison qui glisse en avant.
+    const dl = prochainOuvrableApres(commande1);
+    const dc = commande1;
+    const joursAvantLivraison = Math.round((dl-aujourdhui)/86400000);
+
+    const stockSPaLivraison = stockSP !== null ? stockSP - consoSP*joursAvantLivraison : null;
+    const stockGOaLivraison = stockGO !== null ? stockGO - consoGO*joursAvantLivraison : null;
+
+    // Cycle suivant : commande 2 = prochain jour ouvrable APRES cette
+    // livraison (pas apres la commande) — c'est le vrai rythme operationnel,
+    // confirme le 09/07/2026 sur le cas reel du 14 juillet ferie.
+    const commande2 = prochainOuvrableApres(dl);
+    const livraison2 = prochainOuvrableApres(commande2);
+    const joursACouvrir = Math.round((livraison2-dl)/86400000);
+
+    const besoinSP = seuilSP + consoSP*joursACouvrir;
+    const besoinGO = seuilGO + consoGO*joursACouvrir;
+    const spUrgent = stockSPaLivraison !== null && stockSPaLivraison < besoinSP;
+    const goUrgent = stockGOaLivraison !== null && stockGOaLivraison < besoinGO;
+
+    if (!spUrgent && !goUrgent) {
+      return { action: 'ATTENDRE',
+        message: `Stock suffisant pour couvrir jusqu'à la prochaine livraison possible (${livraison2.toLocaleDateString('fr-FR')}) avec 3 jours de marge. Aucune commande nécessaire.` };
+    }
+
+    // Quantite MINIMALE (plancher de securite absolu, jamais en dessous)
+    let qSPmin = spUrgent ? Math.max(0, Math.min(besoinSP-stockSPaLivraison, capSP-stockSPaLivraison)) : 0;
+    let qGOmin = goUrgent ? Math.max(0, Math.min(besoinGO-stockGOaLivraison, capGO-stockGOaLivraison)) : 0;
+
+    // Quantite CAMION COMPLET (par defaut vise) — remplir au max les cuves,
+    // 36 000L combines SP+GO.
+    const espaceSP = Math.max(0, capSP-stockSPaLivraison), espaceGO = Math.max(0, capGO-stockGOaLivraison);
+    const espaceTotal = espaceSP+espaceGO;
+    const totalCamion = Math.min(espaceTotal, camion);
+    let qSPcamion = espaceTotal>0 ? totalCamion*(espaceSP/espaceTotal) : 0;
+    let qGOcamion = totalCamion-qSPcamion;
+
+    // Regle fin de mois : le camion complet ne doit jamais laisser un
+    // surstock a la fin du mois (au-dela de 2x le seuil de securite, soit
+    // 6 jours de conso) — sinon on retombe sur le complement minimal.
+    const finMois = new Date(aujourdhui.getFullYear(), aujourdhui.getMonth()+1, 0);
+    const joursLivraisonAFinMois = Math.max(0, Math.round((finMois-dl)/86400000));
+    const projSPfinMois = (stockSPaLivraison+qSPcamion) - consoSP*joursLivraisonAFinMois;
+    const projGOfinMois = (stockGOaLivraison+qGOcamion) - consoGO*joursLivraisonAFinMois;
+    const surstock = (projSPfinMois > seuilSP*2) || (projGOfinMois > seuilGO*2);
+
+    let qSP, qGO, mode;
+    if (!surstock) { qSP = qSPcamion; qGO = qGOcamion; mode = 'CAMION_COMPLET'; }
+    else { qSP = qSPmin; qGO = qGOmin; mode = 'COMPLEMENT'; }
+
+    const totalBrut = qSP + qGO;
+    if (totalBrut > camion) { const ratio = camion/totalBrut; qSP *= ratio; qGO *= ratio; }
+    if (mode === 'CAMION_COMPLET') {
+      // Arrondi vers le BAS pour les deux — un camion complet ne peut
+      // physiquement jamais depasser 36 000L, deux arrondis vers le haut
+      // separement pourraient sinon donner 37 000L (bug reel corrige le 09/07).
+      qSP = Math.floor(qSP/1000)*1000;
+      qGO = Math.floor(qGO/1000)*1000;
+    } else {
+      // Complement de securite : arrondi vers le HAUT — sous-estimer serait risquer la rupture
+      qSP = Math.ceil(qSP/1000)*1000;
+      qGO = Math.ceil(qGO/1000)*1000;
+    }
+
+    return {
+      action: 'COMMANDER', mode,
+      dateCommande: dc.toLocaleDateString('fr-FR', {weekday:'long', day:'2-digit', month:'2-digit'}),
+      dateLivraison: dl.toLocaleDateString('fr-FR', {weekday:'long', day:'2-digit', month:'2-digit'}),
+      qSP, qGO,
+      message: mode === 'CAMION_COMPLET'
+        ? `Camion complet visé (${(qSP+qGO).toLocaleString('fr-FR')} L), réparti selon la place disponible — vérifié : ceci ne crée pas de surstock en fin de mois (${finMois.toLocaleDateString('fr-FR')}).`
+        : `Complément minimal uniquement — un camion complet laisserait un surstock en fin de mois. Prochaine livraison possible : ${livraison2.toLocaleDateString('fr-FR')} (${joursACouvrir} jours d'écart) si besoin de recommander avant la fin du mois.`,
+    };
+  }
+
+  function dessinerCuve(nom, stock, capacite, couleur) {
+    const pct = Math.max(0, Math.min(100, (stock/capacite)*100));
+    const hautLiquide = 130 * (pct/100);
+    return `
+      <div class="cuve-block">
+        <svg width="70" height="150" viewBox="0 0 70 150">
+          <rect x="5" y="10" width="60" height="130" rx="10" fill="#1A222C" stroke="#242E38" stroke-width="2"/>
+          <clipPath id="clip-${nom}"><rect x="7" y="12" width="56" height="126" rx="8"/></clipPath>
+          <rect x="7" y="${142-hautLiquide}" width="56" height="${hautLiquide}" fill="${couleur}" opacity="0.85" clip-path="url(#clip-${nom})"/>
+          <rect x="20" y="0" width="30" height="12" rx="3" fill="#242E38"/>
+        </svg>
+        <div class="cuve-label">${nom}</div>
+        <div class="cuve-pct" style="color:${couleur};">${Math.round(pct)}%</div>
+      </div>`;
+  }
+
+  document.getElementById('calculerCarburant').addEventListener('click', () => {
+    const sp = parseFloat(document.getElementById('j_sp').value);
+    const go1 = parseFloat(document.getElementById('j_go1').value);
+    const go2 = parseFloat(document.getElementById('j_go2').value);
+    const goSaisi = !isNaN(go1) || !isNaN(go2);
+    const go = goSaisi ? (isNaN(go1)?0:go1) + (isNaN(go2)?0:go2) : null;
+    const spSaisi = !isNaN(sp);
+    const livraisonSP = parseFloat(document.getElementById('j_sp_livraison').value) || 0;
+    const livraisonGO = parseFloat(document.getElementById('j_go_livraison').value) || 0;
+    const box = document.getElementById('resultCarburant');
+    if (!spSaisi && !goSaisi) { box.innerHTML = '<div style="color:var(--red); font-size:12px; margin-top:10px;">Saisissez au moins un jaugeage.</div>'; return; }
+
+    let cuvesHtml = '';
+    if (spSaisi) cuvesHtml += dessinerCuve('SP', sp, CAPACITE_CUVE.sp, '#34D399');
+    if (!isNaN(go1)) cuvesHtml += dessinerCuve('GO 20K', go1, 20000, '#F5A623');
+    if (!isNaN(go2)) cuvesHtml += dessinerCuve('GO 10K', go2, 10000, '#F5A623');
+    document.getElementById('cuvesVisuel').innerHTML = cuvesHtml;
+
+    const historique = JSON.parse(localStorage.getItem('nexus_jaugeage_historique') || '[]');
+
+    // Vente theorique du jour = stock d'hier + livraison recue - stock d'aujourd'hui
+    const venteSP = spSaisi ? calculerVenteTheorique(historique, 'sp', sp, livraisonSP) : null;
+    const venteGO = goSaisi ? calculerVenteTheorique(historique, 'go', go, livraisonGO) : null;
+
+    historique.push({
+      date: new Date().toISOString().slice(0,10), sp, go, go1, go2,
+      livraison_sp: livraisonSP || null, livraison_go: livraisonGO || null,
+      vente_sp: venteSP, vente_go: venteGO,
+      gnr: parseFloat(document.getElementById('j_gnr').value)||null,
+    });
+    localStorage.setItem('nexus_jaugeage_historique', JSON.stringify(historique));
+
+    // Affichage de la vente du jour + moyenne glissante
+    const consoSPinfo = calculerConsoMoyenneReelle(historique, 'sp');
+    const consoGOinfo = calculerConsoMoyenneReelle(historique, 'go');
+    let venteHtml = '<div class="info-box" style="margin-bottom:14px;">';
+    if (venteSP !== null) venteHtml += `🟢 Vente théorique SP aujourd'hui : <b style="color:var(--text);">${Math.round(venteSP).toLocaleString('fr-FR')} L</b>${livraisonSP>0?` (livraison de ${livraisonSP.toLocaleString('fr-FR')} L déduite)`:''}<br>`;
+    if (venteGO !== null) venteHtml += `🟡 Vente théorique GO aujourd'hui : <b style="color:var(--text);">${Math.round(venteGO).toLocaleString('fr-FR')} L</b>${livraisonGO>0?` (livraison de ${livraisonGO.toLocaleString('fr-FR')} L déduite)`:''}<br>`;
+    venteHtml += `<span style="font-size:10px; color:var(--text-dim);">Moyenne utilisée pour les calculs : SP ${Math.round(consoSPinfo.valeur).toLocaleString('fr-FR')} L/j (${consoSPinfo.source==='calculee'?`calculée sur ${consoSPinfo.nbJours} jours réels`:'historique de départ, pas encore assez de jours saisis'}), GO ${Math.round(consoGOinfo.valeur).toLocaleString('fr-FR')} L/j (${consoGOinfo.source==='calculee'?`calculée sur ${consoGOinfo.nbJours} jours réels`:'historique de départ'}).</span></div>`;
+    document.getElementById('venteTheoriqueBox').innerHTML = (venteSP!==null || venteGO!==null) ? venteHtml : '';
+
+    const r = calculerRecommandationCombinee(
+      spSaisi ? sp : null, goSaisi ? go : null,
+      consoSPinfo.valeur, consoGOinfo.valeur, CAPACITE_CUVE.sp, CAPACITE_CUVE.go, CAMION_CAPACITE
+    );
+
+    const couleur = r.action === 'COMMANDER' ? 'var(--amber-dim)' : 'var(--green-dim)';
+    const texteCouleur = r.action === 'COMMANDER' ? 'var(--amber)' : 'var(--green)';
+    let html = `<div class="fuel-result-card" style="background:${couleur}; color:${texteCouleur};">
+      <div class="fuel-result-head">
+        <span class="fuel-result-icon">${r.action === 'COMMANDER' ? '🚛' : '✅'}</span>
+        <span class="fuel-result-title">${r.action === 'COMMANDER' ? 'Commander' : 'Attendre'}</span>
+      </div>
+      <div style="font-size:11.5px; margin-top:8px;">${r.message}</div>`;
+    if (r.action === 'COMMANDER') {
+      html += `<div style="font-family:var(--mono); font-size:12px; margin-top:8px; font-weight:700;">📅 ${r.dateCommande} → livraison ${r.dateLivraison}<br>`;
+      if (r.qSP > 0) html += `🟢 Sans Plomb : ~${r.qSP.toLocaleString('fr-FR')} L<br>`;
+      if (r.qGO > 0) html += `🟡 Gasoil : ~${r.qGO.toLocaleString('fr-FR')} L<br>`;
+      html += `Total : ~${(r.qSP+r.qGO).toLocaleString('fr-FR')} L</div>
+      <div class="fuel-caveat">Répartition exacte en compartiments à confirmer avec le fournisseur selon le camion disponible ce jour-là.</div>`;
+    }
+    html += `</div>`;
+    box.innerHTML = html;
+  });
+</script>
+</body>
+</html>
