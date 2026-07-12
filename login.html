@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NEXUS — Connexion</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    background: #0b0d10; color: #f2f2f2; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    padding: 24px;
+  }
+  h1 { font-size: 1.1rem; font-weight: 600; letter-spacing: 0.04em; color: #9ea4ad; margin-bottom: 32px; }
+  #step-name { width: 100%; max-width: 360px; }
+  .employee-list { display: flex; flex-direction: column; gap: 10px; }
+  .employee-btn {
+    background: #16191d; border: 1px solid #262b31; color: #f2f2f2; border-radius: 12px;
+    padding: 16px; font-size: 1rem; text-align: left; cursor: pointer;
+  }
+  .employee-btn:active { background: #20242a; }
+  #step-pin { display: none; width: 100%; max-width: 320px; text-align: center; }
+  #pin-dots { display: flex; justify-content: center; gap: 12px; margin-bottom: 28px; }
+  .dot { width: 14px; height: 14px; border-radius: 50%; border: 1px solid #4a5058; background: transparent; }
+  .dot.filled { background: #f2f2f2; }
+  .keypad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .key {
+    background: #16191d; border: 1px solid #262b31; color: #f2f2f2; border-radius: 12px;
+    padding: 20px 0; font-size: 1.3rem; cursor: pointer;
+  }
+  .key:active { background: #20242a; }
+  #back-btn, #retry-btn { margin-top: 20px; background: none; border: none; color: #9ea4ad; font-size: 0.9rem; cursor: pointer; }
+  #error-msg { color: #e5787a; font-size: 0.9rem; margin-top: 16px; min-height: 1.2em; }
+</style>
+</head>
+<body>
+
+<h1>NEXUS · Connexion</h1>
+
+<div id="step-name">
+  <div id="employee-list" class="employee-list">Chargement…</div>
+</div>
+
+<div id="step-pin">
+  <div id="pin-dots">
+    <div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div>
+  </div>
+  <div class="keypad" id="keypad"></div>
+  <div id="error-msg"></div>
+  <button id="back-btn">← Changer de personne</button>
+</div>
+
+<script>
+  const SUPABASE_URL = "https://VOTRE-PROJET.supabase.co"; // à remplacer
+  const SUPABASE_ANON_KEY = "VOTRE-CLE-ANON-PUBLIQUE";      // à remplacer
+  const client = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  const PIN_LENGTH = 4;
+  let selectedUsername = null;
+  let pin = "";
+
+  const stepName = document.getElementById("step-name");
+  const stepPin = document.getElementById("step-pin");
+  const employeeList = document.getElementById("employee-list");
+  const dots = document.querySelectorAll(".dot");
+  const errorMsg = document.getElementById("error-msg");
+  const keypad = document.getElementById("keypad");
+
+  // Redirige automatiquement si déjà connecté
+  client.auth.getSession().then(({ data: { session } }) => {
+    if (session) window.location.href = "index.html";
+  });
+
+  // Charge la liste des employés actifs (vue publique, pas de données sensibles)
+  async function loadEmployees() {
+    const { data, error } = await client.from("employees_public").select("username, nom").order("nom");
+    employeeList.innerHTML = "";
+    if (error || !data || data.length === 0) {
+      employeeList.innerHTML = "Impossible de charger la liste. Vérifiez la connexion.";
+      return;
+    }
+    data.forEach(emp => {
+      const btn = document.createElement("button");
+      btn.className = "employee-btn";
+      btn.textContent = emp.nom;
+      btn.onclick = () => showPinStep(emp.username);
+      employeeList.appendChild(btn);
+    });
+  }
+
+  function showPinStep(username) {
+    selectedUsername = username;
+    pin = "";
+    updateDots();
+    errorMsg.textContent = "";
+    stepName.style.display = "none";
+    stepPin.style.display = "block";
+  }
+
+  document.getElementById("back-btn").onclick = () => {
+    stepPin.style.display = "none";
+    stepName.style.display = "block";
+  };
+
+  function updateDots() {
+    dots.forEach((d, i) => d.classList.toggle("filled", i < pin.length));
+  }
+
+  function buildKeypad() {
+    const keys = ["1","2","3","4","5","6","7","8","9","","0","⌫"];
+    keys.forEach(k => {
+      const btn = document.createElement("button");
+      btn.className = "key";
+      btn.textContent = k;
+      btn.style.visibility = k === "" ? "hidden" : "visible";
+      btn.onclick = () => handleKey(k);
+      keypad.appendChild(btn);
+    });
+  }
+
+  async function handleKey(k) {
+    if (k === "⌫") {
+      pin = pin.slice(0, -1);
+      updateDots();
+      return;
+    }
+    if (k === "" || pin.length >= PIN_LENGTH) return;
+    pin += k;
+    updateDots();
+    if (pin.length === PIN_LENGTH) await tryLogin();
+  }
+
+  async function tryLogin() {
+    errorMsg.textContent = "";
+    const { error } = await client.auth.signInWithPassword({
+      email: `${selectedUsername}@vito-nexus.local`,
+      password: pin
+    });
+    if (error) {
+      errorMsg.textContent = "Code incorrect. Réessayez.";
+      pin = "";
+      updateDots();
+      return;
+    }
+    window.location.href = "index.html";
+  }
+
+  buildKeypad();
+  loadEmployees();
+</script>
+
+</body>
+</html>
