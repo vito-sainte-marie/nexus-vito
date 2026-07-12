@@ -3,8 +3,8 @@
 // <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 // <script src="nexus-auth.js"></script>
 
-const NEXUS_SUPABASE_URL = "https://VOTRE-PROJET.supabase.co"; // à remplacer
-const NEXUS_SUPABASE_ANON_KEY = "VOTRE-CLE-ANON-PUBLIQUE";      // à remplacer (clé publique, sans risque à exposer)
+const NEXUS_SUPABASE_URL = "https://uzhjpqpctpvxytxpxoqz.supabase.co"; // à remplacer
+const NEXUS_SUPABASE_ANON_KEY = "sb_publishable_7dV43gZxDYg6MOa6xzmdDQ_m8Mean5p";      // à remplacer (clé publique, sans risque à exposer)
 
 const nexusClient = supabase.createClient(NEXUS_SUPABASE_URL, NEXUS_SUPABASE_ANON_KEY);
 
