@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NEXUS — Capital NEXUS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
+  --text:#EDF1F5; --text-mid:#8A96A5; --text-dim:#57626F;
+  --green:#34D399; --green-dim:#153629;
+  --amber:#F5A623; --amber-dim:#3A2E14;
+  --cyan:#4FC3D9; --cyan-dim:#123138;
+  --violet:#8B7FE8; --violet-dim:#241F3D;
+  --red:#F0575A; --red-dim:#3A1D1F;
+  --mono:'IBM Plex Mono',monospace; --sans:'IBM Plex Sans',sans-serif;
+}
+*{box-sizing:border-box; margin:0; padding:0;}
+html,body{background:var(--bg); font-family:var(--sans); color:var(--text); min-height:100vh;}
+body{display:flex; justify-content:center; background-image:radial-gradient(circle at 50% 0%, rgba(79,195,217,0.07), transparent 45%);}
+a{color:inherit; text-decoration:none;}
+
+.app{width:100%; max-width:520px; min-height:100vh; display:flex; flex-direction:column; border-left:1px solid var(--hairline); border-right:1px solid var(--hairline); padding-bottom:78px; position:relative;}
+
+/* ---------- bandeau démonstration ---------- */
+.demo-banner{
+  background:var(--amber-dim); border-bottom:1px solid rgba(245,166,35,0.3); color:var(--amber);
+  font-family:var(--mono); font-size:10.5px; letter-spacing:0.04em; text-align:center; padding:9px 20px; line-height:1.5;
+}
+.demo-banner b{color:var(--amber);}
+
+.topbar{display:flex; align-items:center; justify-content:space-between; padding:20px 20px 16px;}
+.icon-btn{width:38px; height:38px; border-radius:10px; background:var(--panel); border:1px solid var(--hairline); display:flex; align-items:center; justify-content:center; font-size:16px; color:var(--text-mid); flex-shrink:0;}
+.topbar-title{text-align:center; flex:1;}
+.topbar-title h1{font-size:19px; font-weight:600;}
+.topbar-title p{font-family:var(--mono); font-size:11px; color:var(--text-mid); margin-top:2px; letter-spacing:0.02em;}
+.topbar-actions{display:flex; gap:8px;}
+
+.section{padding:0 20px;}
+.section-label{
+  font-family:var(--mono); font-size:11px; letter-spacing:0.1em; text-transform:uppercase; color:var(--text-dim);
+  display:flex; align-items:center; gap:10px; margin:26px 0 12px;
+}
+.section-label::after{content:''; flex:1; height:1px; background:var(--hairline);}
+.section-label .link{color:var(--cyan); text-transform:none; letter-spacing:0; font-size:12px; margin-left:auto; flex:none;}
+
+.capital-panel{
+  background:var(--panel); border:1px solid var(--hairline); border-radius:16px; padding:22px 22px 20px; margin:0 20px;
+  position:relative; overflow:hidden;
+}
+.capital-eyebrow{font-family:var(--mono); font-size:11px; letter-spacing:0.14em; color:var(--green); text-transform:uppercase; display:flex; align-items:center; gap:6px;}
+.capital-info{margin-left:auto; width:20px; height:20px; border-radius:50%; border:1px solid var(--hairline); display:flex; align-items:center; justify-content:center; font-size:10px; color:var(--text-dim);}
+.capital-row-top{display:flex; align-items:center;}
+.capital-amount{font-family:var(--sans); font-size:44px; font-weight:700; color:var(--green); margin-top:10px; letter-spacing:-0.01em;}
+.capital-sub{font-size:14px; font-weight:600; margin-top:2px;}
+.capital-desc{font-size:12px; color:var(--text-mid); margin-top:8px; line-height:1.5; max-width:60%;}
+.capital-chart{position:absolute; right:18px; top:56px; width:150px; height:70px;}
+.capital-badge{
+  display:inline-flex; align-items:center; gap:6px; margin-top:16px; font-family:var(--mono); font-size:11.5px;
+  background:var(--green-dim); color:var(--green); padding:6px 12px; border-radius:20px; font-weight:600;
+}
+
+.levers-grid{display:grid; grid-template-columns:repeat(2,1fr); gap:10px;}
+.lever-card{background:var(--panel); border:1px solid var(--hairline); border-radius:14px; padding:16px;}
+.lever-icon{width:38px; height:38px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:17px; margin-bottom:12px;}
+.lever-title{font-size:12.5px; color:var(--text-mid); line-height:1.35; margin-bottom:10px; min-height:34px;}
+.lever-amount{font-family:var(--sans); font-size:19px; font-weight:700;}
+.lever-meta{font-family:var(--mono); font-size:10.5px; color:var(--text-dim); margin-top:3px;}
+.lever-card.span2{grid-column:span 2;}
+
+.roi-panel{background:var(--panel); border:1px solid var(--hairline); border-radius:16px; padding:24px 18px; display:flex; align-items:center; justify-content:space-between;}
+.roi-col{text-align:center; flex:1;}
+.roi-label{font-family:var(--mono); font-size:10px; letter-spacing:0.08em; text-transform:uppercase; color:var(--text-mid); margin-bottom:8px;}
+.roi-value{font-size:18px; font-weight:700;}
+.roi-value.green{color:var(--green);}
+.roi-meta{font-size:10.5px; color:var(--text-dim); margin-top:3px;}
+.roi-donut{position:relative; width:104px; height:104px; flex:none;}
+.roi-donut .center{position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;}
+.roi-donut .center .roi-tag{font-family:var(--mono); font-size:9px; color:var(--text-mid); letter-spacing:0.08em; text-transform:uppercase;}
+.roi-donut .center .roi-pct{font-size:22px; font-weight:700; color:var(--green); margin-top:2px;}
+
+.decision-item{display:flex; align-items:center; gap:14px; padding:14px; background:var(--panel); border:1px solid var(--hairline); border-radius:12px; margin-bottom:10px;}
+.decision-rank{width:26px; height:26px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-family:var(--mono); font-size:11px; font-weight:700; flex-shrink:0;}
+.rank-1{background:var(--amber-dim); color:var(--amber);}
+.rank-2{background:var(--panel-raised); color:var(--text-mid);}
+.rank-3{background:var(--red-dim); color:#D98A85;}
+.decision-body{flex:1; min-width:0;}
+.decision-title{font-size:13.5px; font-weight:600;}
+.decision-meta{font-family:var(--mono); font-size:10.5px; color:var(--text-dim); margin-top:2px;}
+.decision-amount{font-size:14.5px; font-weight:700; color:var(--green); flex-shrink:0;}
+
+.two-col{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+.mini-panel{background:var(--panel); border:1px solid var(--hairline); border-radius:14px; padding:16px;}
+.mini-label{font-family:var(--mono); font-size:9.5px; letter-spacing:0.06em; text-transform:uppercase; color:var(--text-mid); margin-bottom:10px;}
+.mini-label.amber{color:var(--amber);}
+.opp-number{font-size:30px; font-weight:700; color:var(--amber);}
+.opp-desc{font-size:11px; color:var(--text-mid); margin-top:4px; line-height:1.4;}
+.opp-potential{font-size:15px; font-weight:700; color:var(--amber); margin-top:10px;}
+
+.advisor-panel{display:flex; gap:14px; background:var(--panel); border:1px solid var(--hairline); border-radius:14px; padding:18px;}
+.advisor-avatar{width:44px; height:44px; border-radius:50%; background:linear-gradient(135deg, var(--cyan), var(--violet)); display:flex; align-items:center; justify-content:center; font-family:var(--mono); font-weight:700; font-size:15px; color:#06181C; flex-shrink:0;}
+.advisor-body .advisor-title{font-family:var(--mono); font-size:10.5px; letter-spacing:0.06em; text-transform:uppercase; color:var(--cyan); margin-bottom:8px;}
+.advisor-body p{font-size:13px; line-height:1.55; color:var(--text);}
+
+.reliability-panel{background:var(--panel); border:1px solid var(--hairline); border-radius:14px; padding:16px 18px;}
+.reliability-head{display:flex; align-items:center; gap:8px; margin-bottom:12px;}
+.reliability-head span.pct{margin-left:auto; font-size:15px; font-weight:700; color:var(--green);}
+.reliability-bar{display:flex; gap:3px;}
+.reliability-bar i{flex:1; height:6px; border-radius:3px; background:var(--green);}
+.reliability-bar i.off{background:var(--hairline);}
+.reliability-note{font-size:11px; color:var(--text-mid); margin-top:10px; line-height:1.4;}
+
+.journal-day{margin-bottom:16px;}
+.journal-date{font-family:var(--mono); font-size:10.5px; letter-spacing:0.06em; text-transform:uppercase; color:var(--text-dim); margin-bottom:8px;}
+.journal-entry{display:flex; align-items:center; gap:10px; padding:12px 14px; background:var(--panel); border:1px solid var(--hairline); border-radius:10px;}
+.journal-check{color:var(--green); font-size:14px; flex-shrink:0;}
+.journal-text{flex:1; font-size:13px;}
+.journal-amount{font-size:13.5px; font-weight:700; color:var(--green);}
+.journal-summary{
+  background:var(--cyan-dim); border:1px solid rgba(79,195,217,0.3); border-radius:12px; padding:14px 16px; margin-top:6px;
+  font-size:12.5px; color:var(--text); line-height:1.5;
+}
+.journal-summary b{color:var(--cyan);}
+
+.cta-panel{background:var(--panel); border:1px solid rgba(79,195,217,0.35); border-radius:14px; padding:20px; text-align:center;}
+.cta-panel .ct{font-size:14.5px; font-weight:600;}
+.cta-panel .cd{font-size:12px; color:var(--text-mid); margin-top:8px; line-height:1.5;}
+.cta-btn{display:inline-block; margin-top:14px; font-family:var(--mono); font-size:11.5px; font-weight:600; color:#06181C; background:var(--cyan); padding:10px 18px; border-radius:8px;}
+
+.disclaimer{font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:center; line-height:1.6; padding:20px 20px 8px;}
+
+.tabbar{
+  position:fixed; bottom:0; left:50%; transform:translateX(-50%); width:100%; max-width:520px;
+  background:rgba(20,27,34,0.95); backdrop-filter:blur(8px); border-top:1px solid var(--hairline);
+  display:flex; padding:10px 8px 14px;
+}
+.tab{flex:1; display:flex; flex-direction:column; align-items:center; gap:4px; position:relative; color:var(--text-dim);}
+.tab.active{color:var(--cyan);}
+.tab .tab-icon{font-size:19px;}
+.tab .tab-label{font-family:var(--mono); font-size:9.5px; letter-spacing:0.02em;}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <div class="demo-banner">🔎 <b>DÉMONSTRATION</b> — exemple de ce que Capital NEXUS affichera une fois vos décisions suivies dans le temps</div>
+
+  <div class="topbar">
+    <div class="icon-btn">☰</div>
+    <div class="topbar-title">
+      <h1>Capital NEXUS™</h1>
+      <p>Ce que vos décisions vous rapportent</p>
+    </div>
+    <div class="topbar-actions">
+      <div class="icon-btn">📅</div>
+      <div class="icon-btn">↗</div>
+    </div>
+  </div>
+
+  <div class="capital-panel">
+    <div class="capital-row-top">
+      <div class="capital-eyebrow">● Capital NEXUS™</div>
+      <div class="capital-info">i</div>
+    </div>
+    <div class="capital-amount">+18 742 €</div>
+    <div class="capital-sub">Valeur créée pour votre commerce</div>
+    <div class="capital-desc">Estimation basée sur les décisions appliquées, les performances observées et vos données.</div>
+    <svg class="capital-chart" viewBox="0 0 150 70" fill="none">
+      <polyline points="2,58 20,52 38,44 56,46 74,34 92,30 110,18 128,14 148,4"
+        stroke="#34D399" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="148" cy="4" r="4" fill="#34D399"/>
+    </svg>
+    <div class="capital-badge">↑ +24,7% vs période précédente</div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Les 5 leviers de valeur <span class="link">Voir le détail →</span></div>
+  </div>
+  <div class="section">
+    <div class="levers-grid">
+      <div class="lever-card">
+        <div class="lever-icon" style="background:var(--green-dim); color:var(--green);">📈</div>
+        <div class="lever-title">Chiffre d'affaires supplémentaire</div>
+        <div class="lever-amount" style="color:var(--green);">+4 350 €</div>
+        <div class="lever-meta">+8,4 %</div>
+      </div>
+      <div class="lever-card">
+        <div class="lever-icon" style="background:var(--amber-dim); color:var(--amber);">🪙</div>
+        <div class="lever-title">Marge supplémentaire</div>
+        <div class="lever-amount" style="color:var(--amber);">+2 910 €</div>
+        <div class="lever-meta">+5,6 %</div>
+      </div>
+      <div class="lever-card">
+        <div class="lever-icon" style="background:var(--cyan-dim); color:var(--cyan);">📦</div>
+        <div class="lever-title">Ruptures évitées</div>
+        <div class="lever-amount" style="color:var(--cyan);">+1 270 €</div>
+        <div class="lever-meta">17 évitées</div>
+      </div>
+      <div class="lever-card">
+        <div class="lever-icon" style="background:var(--violet-dim); color:var(--violet);">⏱️</div>
+        <div class="lever-title">Temps manager économisé</div>
+        <div class="lever-amount" style="color:var(--violet);">148 h</div>
+        <div class="lever-meta">+3 250 €</div>
+      </div>
+      <div class="lever-card span2">
+        <div class="lever-icon" style="background:var(--red-dim); color:var(--red);">🛡️</div>
+        <div class="lever-title">Pertes évitées grâce aux alertes NEXUS</div>
+        <div class="lever-amount" style="color:var(--red);">706 €</div>
+        <div class="lever-meta">Alertes traitées à temps</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="roi-panel">
+      <div class="roi-col">
+        <div class="roi-label">Coût de NEXUS</div>
+        <div class="roi-value">2 388 €</div>
+        <div class="roi-meta">Abonnement</div>
+      </div>
+      <div class="roi-donut">
+        <svg viewBox="0 0 104 104" width="104" height="104">
+          <circle cx="52" cy="52" r="45" fill="none" stroke="#242E38" stroke-width="9"/>
+          <circle cx="52" cy="52" r="45" fill="none" stroke="#34D399" stroke-width="9"
+            stroke-linecap="round" stroke-dasharray="282.7" stroke-dashoffset="18"
+            transform="rotate(-90 52 52)"/>
+        </svg>
+        <div class="center">
+          <div class="roi-tag">ROI</div>
+          <div class="roi-pct">785%</div>
+        </div>
+      </div>
+      <div class="roi-col">
+        <div class="roi-label">Valeur créée</div>
+        <div class="roi-value green">18 742 €</div>
+        <div class="roi-meta">Depuis le début</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">🏆 Top 3 des décisions les plus rentables <span class="link">Voir toutes →</span></div>
+    <div class="decision-item">
+      <div class="decision-rank rank-1">1</div>
+      <div class="decision-body">
+        <div class="decision-title">Renforcement facing Heineken</div>
+        <div class="decision-meta">26/03 · Merchandising</div>
+      </div>
+      <div class="decision-amount">+428 €</div>
+    </div>
+    <div class="decision-item">
+      <div class="decision-rank rank-2">2</div>
+      <div class="decision-body">
+        <div class="decision-title">Réimplantation Coca</div>
+        <div class="decision-meta">18/03 · Implantation</div>
+      </div>
+      <div class="decision-amount">+392 €</div>
+    </div>
+    <div class="decision-item">
+      <div class="decision-rank rank-3">3</div>
+      <div class="decision-body">
+        <div class="decision-title">Nouvelle offre petit déjeuner</div>
+        <div class="decision-meta">12/03 · Commercial</div>
+      </div>
+      <div class="decision-amount">+287 €</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="two-col">
+      <div class="mini-panel">
+        <div class="mini-label">Évolution de la valeur créée</div>
+        <svg viewBox="0 0 130 70" width="100%" height="70">
+          <polyline points="4,58 30,44 56,38 82,30 108,10 126,4"
+            stroke="#34D399" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+          <circle cx="126" cy="4" r="3" fill="#34D399"/>
+        </svg>
+        <div class="roi-meta" style="display:flex; justify-content:space-between; margin-top:6px; font-family:var(--mono);">
+          <span>Janv.</span><span>Mai</span>
+        </div>
+      </div>
+      <div class="mini-panel">
+        <div class="mini-label amber">Opportunités non appliquées</div>
+        <div class="opp-number">111</div>
+        <div class="opp-desc">recommandations en attente</div>
+        <div class="opp-potential">Potentiel +8 900 €</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="advisor-panel">
+      <div class="advisor-avatar">N</div>
+      <div class="advisor-body">
+        <div class="advisor-title">L'avis du conseiller NEXUS</div>
+        <p>"Vos gains proviennent principalement de l'amélioration du merchandising et de la gestion des ruptures. Le prochain levier le plus rentable sera probablement le snacking."</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Journal de la Valeur™</div>
+    <div class="journal-day">
+      <div class="journal-date">Aujourd'hui</div>
+      <div class="journal-entry">
+        <span class="journal-check">✅</span>
+        <span class="journal-text">Facing Heineken validé</span>
+        <span class="journal-amount">+37 €</span>
+      </div>
+    </div>
+    <div class="journal-day">
+      <div class="journal-date">Hier</div>
+      <div class="journal-entry">
+        <span class="journal-check">✅</span>
+        <span class="journal-text">Réduction de rupture Coca</span>
+        <span class="journal-amount">+82 €</span>
+      </div>
+    </div>
+    <div class="journal-day">
+      <div class="journal-date">Lundi</div>
+      <div class="journal-entry">
+        <span class="journal-check">✅</span>
+        <span class="journal-text">Réimplantation viennoiseries</span>
+        <span class="journal-amount">+126 €</span>
+      </div>
+    </div>
+    <div class="journal-summary">
+      Ce mois-ci, NEXUS estime avoir créé <b>1 482 €</b> de valeur supplémentaire grâce à <b>23 décisions</b> appliquées.
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Fiabilité des estimations</div>
+    <div class="reliability-panel">
+      <div class="reliability-head">
+        <span>🛡️</span>
+        <span class="pct">92%</span>
+      </div>
+      <div class="reliability-bar">
+        <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+        <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i class="off"></i>
+      </div>
+      <div class="reliability-note">Plus NEXUS apprend de votre commerce, plus ses estimations deviennent précises.</div>
+    </div>
+  </div>
+
+  <div class="section" style="margin-top:6px;">
+    <div class="cta-panel">
+      <div class="ct">Voir l'état réel de votre magasin dès aujourd'hui</div>
+      <div class="cd">Capital NEXUS s'activera une fois vos décisions suivies dans le temps. En attendant, Scanner NEXUS vous montre déjà votre CA, votre marge et votre répartition ABC — sur vos vraies données.</div>
+      <a class="cta-btn" href="NEXUS-Scanner-v1.html">Ouvrir Scanner NEXUS →</a>
+    </div>
+  </div>
+
+  <div class="disclaimer">Page de démonstration à usage commercial — les chiffres illustrent le fonctionnement de Capital NEXUS et ne représentent pas encore la performance réelle de votre station.</div>
+
+  <div class="tabbar">
+    <a class="tab" href="index.html"><span class="tab-icon">🏠</span><span class="tab-label">Cockpit</span></a>
+    <a class="tab" href="NEXUS-Missions-v1.html"><span class="tab-icon">✅</span><span class="tab-label">Actions</span></a>
+    <a class="tab" href="NEXUS-Scanner-v1.html"><span class="tab-icon">🧭</span><span class="tab-label">Scanner</span></a>
+    <a class="tab active" href="NEXUS-Capital-v1.html"><span class="tab-icon">💎</span><span class="tab-label">Capital</span></a>
+    <a class="tab" href="index.html"><span class="tab-icon">▦</span><span class="tab-label">Plus</span></a>
+  </div>
+
+</div>
+</body>
+</html>
