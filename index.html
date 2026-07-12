@@ -200,7 +200,7 @@
 <script>
   const session = JSON.parse(localStorage.getItem('nexus_session') || 'null');
   if (!session) {
-    window.location.href = 'NEXUS-Login-v1.html';
+    window.location.href = 'presentation.html';
   } else {
     document.getElementById('sessionInfo').innerHTML =
       `Bonjour ${session.prenom} · <a href="#" id="logout" style="color:var(--cyan);">Se déconnecter</a>`;
