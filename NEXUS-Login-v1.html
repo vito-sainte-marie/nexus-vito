@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NEXUS — Connexion</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{
+    --bg:#0B0F14; --panel:#141B22; --hairline:#242E38;
+    --text:#EDF1F5; --text-mid:#8A96A5; --text-dim:#57626F;
+    --cyan:#4FC3D9; --red:#F0575A; --red-dim:#3A1D1F;
+    --mono:'IBM Plex Mono',monospace; --sans:'IBM Plex Sans',sans-serif;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{background:var(--bg); font-family:var(--sans); color:var(--text); min-height:100vh;}
+  body{display:flex; flex-direction:column; justify-content:center; align-items:center;}
+  .card{width:100%; max-width:380px; padding:20px;}
+  .mark{display:block; text-align:center; font-family:var(--mono); font-weight:700; font-size:13px; letter-spacing:0.16em; color:var(--cyan); margin-bottom:8px;}
+  .title{text-align:center; font-size:22px; font-weight:600; margin-bottom:28px;}
+
+  .field{margin-bottom:16px;}
+  .field label{font-family:var(--mono); font-size:10.5px; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.05em; display:block; margin-bottom:6px;}
+  .field input{
+    width:100%; background:var(--panel); border:1px solid var(--hairline); border-radius:10px;
+    padding:14px; color:var(--text); font-family:var(--sans); font-size:15px;
+  }
+  .field input:focus{outline:none; border-color:var(--cyan);}
+  #pin{font-family:var(--mono); letter-spacing:8px; font-size:20px; text-align:center;}
+
+  .btn{
+    width:100%; background:var(--cyan); color:#04141a; border:none; border-radius:10px;
+    padding:14px; font-size:15px; font-weight:600; cursor:pointer; margin-top:8px;
+  }
+  .btn:disabled{opacity:0.5; cursor:default;}
+  .error{
+    display:none; background:var(--red-dim); color:var(--red); border-radius:8px; padding:10px 14px;
+    font-size:12.5px; margin-top:14px; text-align:center;
+  }
+  .note{font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:center; margin-top:24px; line-height:1.6;}
+
+  .logo-footer{
+    display:flex; flex-direction:column; align-items:center; gap:10px;
+    margin-top:36px; padding-top:24px; border-top:1px solid var(--hairline);
+  }
+  .logo-footer img{width:56px; height:56px; opacity:0.92;}
+  .logo-footer .logo-caption{font-family:var(--mono); font-size:9.5px; color:var(--text-dim); letter-spacing:0.08em; text-transform:uppercase;}
+  .hero-avatar{
+    display:block; margin:0 auto 12px; max-width:200px; width:60%; height:auto;
+    filter: drop-shadow(0 0 18px rgba(79,195,217,0.45)) drop-shadow(0 0 40px rgba(79,195,217,0.22));
+  }
+</style>
+</head>
+<body>
+<div class="card">
+
+  <img class="hero-avatar" src="assets/nexus-avatar.png" alt="NEXUS">
+
+  <span class="mark">NEXUS</span>
+  <div class="title">Connexion</div>
+
+  <div class="field">
+    <label for="prenom">Prénom</label>
+    <input type="text" id="prenom" placeholder="Thomas" autocomplete="off">
+  </div>
+
+  <div class="field">
+    <label for="pin">Code PIN</label>
+    <input type="password" id="pin" maxlength="6" inputmode="numeric" placeholder="••••">
+  </div>
+
+  <button class="btn" id="connexion">Se connecter</button>
+
+  <div class="error" id="errorConnexion"></div>
+
+  <div class="logo-footer">
+    <img src="assets/nexus-logo-cyan.png" alt="NEXUS">
+    <div class="logo-caption">Vito Sainte-Marie Usine · NEXUS v1</div>
+  </div>
+
+  <div class="note">Connexion sécurisée · Supabase Auth</div>
+</div>
+
+<script>
+  const SUPABASE_URL = "https://uzhjpqpctpvxytxpxoqz.supabase.co";
+  const SUPABASE_ANON_KEY = "sb_publishable_7dV43gZxDYg6MOa6xzmdDQ_m8Mean5p";
+  const client = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  // Si déjà connecté, on saute directement l'écran de login
+  client.auth.getSession().then(({ data: { session } }) => {
+    if (session) window.location.href = "index.html";
+  });
+
+  const prenomInput = document.getElementById("prenom");
+  const pinInput = document.getElementById("pin");
+  const btn = document.getElementById("connexion");
+  const errBox = document.getElementById("errorConnexion");
+
+  async function tryLogin() {
+    const prenom = prenomInput.value.trim();
+    const pin = pinInput.value.trim();
+    errBox.style.display = "none";
+
+    if (!prenom || !pin) {
+      errBox.textContent = "Entrez votre prénom et votre code PIN.";
+      errBox.style.display = "block";
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = "Connexion...";
+
+    // On retrouve le username (identifiant technique) à partir du prénom affiché
+    const { data: employee, error: lookupError } = await client
+      .from("employees_public")
+      .select("username")
+      .ilike("nom", prenom)
+      .maybeSingle();
+
+    if (lookupError || !employee) {
+      errBox.textContent = "Prénom non reconnu. Vérifiez l'orthographe ou contactez le manager.";
+      errBox.style.display = "block";
+      btn.disabled = false;
+      btn.textContent = "Se connecter";
+      return;
+    }
+
+    const { error: authError } = await client.auth.signInWithPassword({
+      email: `${employee.username}@vito-nexus.local`,
+      password: pin
+    });
+
+    if (authError) {
+      errBox.textContent = "Code PIN incorrect.";
+      errBox.style.display = "block";
+      pinInput.value = "";
+      btn.disabled = false;
+      btn.textContent = "Se connecter";
+      return;
+    }
+
+    window.location.href = "index.html";
+  }
+
+  btn.addEventListener("click", tryLogin);
+  pinInput.addEventListener("keypress", (e) => { if (e.key === "Enter") tryLogin(); });
+</script>
+</body>
+</html>
