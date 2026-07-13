@@ -3,8 +3,8 @@
 // <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 // <script src="nexus-auth.js"></script>
 
-const NEXUS_SUPABASE_URL = "https://uzhjpqpctpvxytxpxoqz.supabase.co"; // à remplacer
-const NEXUS_SUPABASE_ANON_KEY = "sb_publishable_7dV43gZxDYg6MOa6xzmdDQ_m8Mean5p";      // à remplacer (clé publique, sans risque à exposer)
+const NEXUS_SUPABASE_URL = "https://uzhjpqpctpvxytxpxoqz.supabase.co";
+const NEXUS_SUPABASE_ANON_KEY = "sb_publishable_7dV43gZxDYg6MOa6xzmdDQ_m8Mean5p";
 
 const nexusClient = supabase.createClient(NEXUS_SUPABASE_URL, NEXUS_SUPABASE_ANON_KEY);
 
@@ -14,7 +14,7 @@ async function nexusRequireAuth() {
   const { data: { session } } = await nexusClient.auth.getSession();
 
   if (!session) {
-    window.location.href = "login.html";
+    window.location.href = "NEXUS-Login-v1.html";
     return null;
   }
 
@@ -27,7 +27,7 @@ async function nexusRequireAuth() {
   if (error || !employee) {
     // Session valide mais pas de fiche employé associée -> déconnexion de sécurité
     await nexusClient.auth.signOut();
-    window.location.href = "login.html";
+    window.location.href = "NEXUS-Login-v1.html";
     return null;
   }
 
@@ -37,7 +37,7 @@ async function nexusRequireAuth() {
 // Déconnexion (à appeler depuis un bouton "Se déconnecter")
 async function nexusLogout() {
   await nexusClient.auth.signOut();
-  window.location.href = "login.html";
+  window.location.href = "NEXUS-Login-v1.html";
 }
 
 // Exemple d'utilisation en haut de chaque page protégée :
