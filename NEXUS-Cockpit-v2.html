@@ -441,6 +441,65 @@
         </div>`;
     }
 
+    // Le geste concret ne peut pas être "le facing" pour tout — un gaz stocké en
+    // cage, une carte prépayée dématérialisée ou une viennoiserie fraîche ne se
+    // gèrent pas comme une bière en linéaire. Ce mapping évite au Conseiller de
+    // tenir un discours générique et donc peu crédible sur le terrain.
+    function typeActionPourCategorie(categorie) {
+      const c = (categorie || '').toLowerCase();
+      if (c.includes('gaz')) return 'stock';
+      if (c.includes('carte') || c.includes('prépayé') || c.includes('prepaye') || c.includes('transcash') || c.includes('pcs')) return 'support';
+      if (c.includes('pain') || c.includes('patisserie') || c.includes('pâtisserie') || c.includes('viennoiserie') || c.includes('sandwich') || c.includes('snack')) return 'production';
+      if (c.includes('tabac') || c.includes('cigarette') || c.includes('paquet de')) return 'comptoir';
+      if (c.includes('presse')) return 'presentoir';
+      return 'facing';
+    }
+
+    const LANGAGE_ACTION = {
+      facing: {
+        analyseAgir: "Une référence à ce niveau de contribution mérite un facing à la hauteur de son poids réel.",
+        recoAgir: a => `Je recommande de vérifier et renforcer le facing de ${a}.`,
+        consAgir: m => `Un sous-dimensionnement de facing sur cette référence représente un risque estimé à ${m} €.`,
+        recoHausse: a => `Il serait utile de renforcer le facing de ${a} avant la période suivante.`,
+        recoBaisse: a => `Vérifiez la présence en rayon de ${a} avant toute décision.`,
+      },
+      stock: {
+        analyseAgir: "Une référence à ce niveau de contribution ne doit jamais être en rupture en dépôt — elle n'est pas exposée en rayon comme les autres.",
+        recoAgir: a => `Je recommande de vérifier le stock disponible en dépôt/cage pour ${a}.`,
+        consAgir: m => `Une rupture de stock sur cette référence représente un risque estimé à ${m} €.`,
+        recoHausse: a => `Sécurisez davantage de stock de ${a} avant la période suivante.`,
+        recoBaisse: a => `Vérifiez le stock en dépôt/cage de ${a} avant toute décision.`,
+      },
+      support: {
+        analyseAgir: "Une référence à ce niveau de contribution dépend surtout de la disponibilité du support et de son activation en caisse, pas d'un emplacement en rayon.",
+        recoAgir: a => `Je recommande de vérifier le stock de cartes et la bonne activation en caisse pour ${a}.`,
+        consAgir: m => `Une indisponibilité de ce support représente un risque estimé à ${m} €.`,
+        recoHausse: a => `Prévoyez davantage de support et d'activation pour ${a} avant la période suivante.`,
+        recoBaisse: a => `Vérifiez la disponibilité du support et son activation en caisse pour ${a} avant toute décision.`,
+      },
+      production: {
+        analyseAgir: "Une référence à ce niveau de contribution dépend surtout de la quantité produite ou commandée chaque jour — c'est un produit frais, pas un facing.",
+        recoAgir: a => `Je recommande d'ajuster la quantité commandée ou produite de ${a} au niveau réel de la demande.`,
+        consAgir: m => `Une quantité insuffisante sur cette référence fraîche représente un risque estimé à ${m} €.`,
+        recoHausse: a => `Augmentez la quantité commandée ou produite de ${a} avant la période suivante.`,
+        recoBaisse: a => `Vérifiez si la quantité produite ou commandée de ${a} a été réduite avant toute décision.`,
+      },
+      comptoir: {
+        analyseAgir: "Une référence à ce niveau de contribution doit rester visible et disponible au comptoir en priorité.",
+        recoAgir: a => `Je recommande de vérifier la disponibilité au comptoir de ${a}.`,
+        consAgir: m => `Une rupture au comptoir sur cette référence représente un risque estimé à ${m} €.`,
+        recoHausse: a => `Garantissez la disponibilité au comptoir de ${a} avant la période suivante.`,
+        recoBaisse: a => `Vérifiez la disponibilité au comptoir de ${a} avant toute décision.`,
+      },
+      presentoir: {
+        analyseAgir: "Une référence à ce niveau de contribution mérite une bonne visibilité sur le présentoir.",
+        recoAgir: a => `Je recommande de vérifier l'emplacement de ${a} sur le présentoir.`,
+        consAgir: m => `Un mauvais emplacement sur cette référence représente un risque estimé à ${m} €.`,
+        recoHausse: a => `Améliorez l'emplacement de ${a} sur le présentoir avant la période suivante.`,
+        recoBaisse: a => `Vérifiez l'emplacement de ${a} sur le présentoir avant toute décision.`,
+      },
+    };
+
     async function construirePlansAction() {
       const { data, error } = await nexusClient
         .from('products')
@@ -474,15 +533,16 @@
         const caPrec = precedentParArticle[cle];
         const evolution = (caPrec && caPrec > 0) ? (p.ca - caPrec) / caPrec : null;
 
-        // R4-RENFORT-A : contribution forte au CA de son rayon -> facing a verifier
+        // R4-RENFORT-A : contribution forte au CA de son rayon -> geste concret adapté au type de rayon
         if (contribution >= 0.15 && p.ca > 0) {
+          const lang = LANGAGE_ACTION[typeActionPourCategorie(p.categorie)];
           candidats.push({
             etat: "🔥 À AGIR", rule_id: "R4-RENFORT-A", article: p.article,
             situation: `${p.article} représente ${(contribution*100).toFixed(1)} % du chiffre d'affaires du rayon ${p.categorie}.`,
             contexte: "Cette contribution est calculée sur l'ensemble des références du rayon.",
-            analyse: "Une référence à ce niveau de contribution mérite un facing à la hauteur de son poids réel.",
-            consequence: `Un sous-dimensionnement de facing sur cette référence représente un risque estimé à ${fmt(p.ca)} €.`,
-            recommandation: `Je recommande de vérifier et renforcer le facing de ${p.article}.`,
+            analyse: lang.analyseAgir,
+            consequence: lang.consAgir(fmt(p.ca)),
+            recommandation: lang.recoAgir(p.article),
             impact: `Vous sécurisez environ ${fmt(p.ca)} € de chiffre d'affaires déjà généré par cette référence.`,
             candidate_id: `LIVE-R4-${cle}`, impact_eur: p.ca,
           });
@@ -491,13 +551,14 @@
         // R3-HAUSSE : progression significative vs periode precedente
         if (evolution !== null && evolution >= 0.20) {
           const gain = Math.max(p.ca - caPrec, 0);
+          const lang = LANGAGE_ACTION[typeActionPourCategorie(p.categorie)];
           candidats.push({
             etat: "📈 OPPORTUNITÉ", rule_id: "R3-HAUSSE", article: p.article,
             situation: `Les ventes de ${p.article} progressent de ${(evolution*100).toFixed(1)} % sur la période.`,
             contexte: "Cette progression est mesurée entre les deux périodes importées.",
             analyse: "Cette dynamique dépasse une croissance ordinaire.",
-            consequence: "Cette croissance peut être amplifiée si l'espace en rayon suit la demande.",
-            recommandation: `Il serait utile de renforcer le facing de ${p.article} avant la période suivante.`,
+            consequence: "Cette croissance peut être amplifiée si l'offre suit la demande.",
+            recommandation: lang.recoHausse(p.article),
             impact: `Vous avez gagné environ ${fmt(gain)} € sur cette référence depuis la période précédente.`,
             candidate_id: `LIVE-R3-${cle}`, impact_eur: gain,
           });
@@ -506,13 +567,14 @@
         // R2-BAISSE : chute forte -> prudence, pas de conclusion ferme (pas de donnee de stock)
         if (evolution !== null && evolution <= -0.30) {
           const perte = Math.max(caPrec - p.ca, 0);
+          const lang = LANGAGE_ACTION[typeActionPourCategorie(p.categorie)];
           candidats.push({
             etat: "🟡 À SURVEILLER", rule_id: "R2-BAISSE", article: p.article,
             situation: `Les ventes de ${p.article} chutent de ${(evolution*100).toFixed(1)} % sur la période.`,
             contexte: "NEXUS ne dispose pas de la donnée de stock pour cette référence.",
             analyse: "Je ne peux pas encore conclure à une vraie tendance sans vérification terrain.",
             consequence: "Une rupture non détectée expliquerait aussi bien cette baisse qu'un désintérêt réel.",
-            recommandation: `Vérifiez la présence en rayon de ${p.article} avant toute décision.`,
+            recommandation: lang.recoBaisse(p.article),
             impact: "Vérification demandée — aucune conclusion tant que le stock n'est pas confirmé.",
             candidate_id: `LIVE-R2-${cle}`, impact_eur: perte,
           });
@@ -520,7 +582,8 @@
       });
 
       candidats.sort((a, b) => b.impact_eur - a.impact_eur);
-      return candidats.slice(0, 5);
+      return candidats; // toutes les candidates qualifiées — renderPlansAction() pioche les 5 à afficher
+                         // et laisse apparaitre la suivante au fur et a mesure qu'on en valide
     }
 
     let PLANS_ACTION = [];
