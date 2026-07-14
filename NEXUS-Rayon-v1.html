@@ -248,12 +248,19 @@ nexusRequireAuth().then(async employee => {
       </div>
 
       <div class="card">
-        <div class="section-label">Produits faibles — candidats déréférencement</div>
-        ${r.produits_faibles.length ? r.produits_faibles.map((p,i) => `
+        <div class="section-label">Réalité vs instinct</div>
+        <div style="font-size:12px; color:var(--text-mid); line-height:1.55; margin-bottom:12px;">
+          Ces références donnent souvent l'impression de bien tourner — visibles en rayon, familières, parfois demandées à voix haute. Les chiffres disent autrement : sur la période, ce sont elles qui pèsent le moins dans le chiffre d'affaires de ${r.nom}.
+        </div>
+        ${r.produits_faibles.length ? r.produits_faibles.map((p,i) => {
+          const part = r.ca_total > 0 ? (p.ca / r.ca_total * 100) : 0;
+          return `
           <div class="rank-row">
             <span class="rank-name">${p.article}</span>
-            <span class="rank-val weak">${fmtEur(p.ca)}</span>
-          </div>`).join('') : '<div style="font-size:12.5px; color:var(--text-dim); font-style:italic;">Aucun candidat actuellement.</div>'}
+            <span class="rank-val weak">${fmtEur(p.ca)} <span style="opacity:0.6; font-size:10.5px;">(${part.toFixed(1)}% du rayon)</span></span>
+          </div>`;
+        }).join('') : '<div style="font-size:12.5px; color:var(--text-dim); font-style:italic;">Aucun candidat actuellement.</div>'}
+        ${r.produits_faibles.length ? '<div style="font-family:var(--mono); font-size:10px; color:var(--text-dim); margin-top:10px; line-height:1.5;">Avant de déréférencer : vérifiez le facing réel et la fraîcheur/rotation — un chiffre faible peut aussi venir d\'un mauvais emplacement, pas seulement d\'un manque de demande.</div>' : ''}
       </div>
 
       <div class="card">
