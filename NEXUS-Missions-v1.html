@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NEXUS — Missions</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="nexus-auth.js"></script>
+<style>
+  :root{
+    --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
+    --text:#EDF1F5; --text-mid:#8A96A5; --text-dim:#57626F;
+    --green:#34D399; --green-dim:#153629;
+    --amber:#F5A623; --amber-dim:#3A2E14;
+    --red:#F0575A; --red-dim:#3A1D1F;
+    --cyan:#4FC3D9;
+    --mono:'IBM Plex Mono',monospace; --sans:'IBM Plex Sans',sans-serif;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{background:var(--bg); font-family:var(--sans); color:var(--text);}
+  body{display:flex; justify-content:center; min-height:100vh;}
+  .phone{width:100%; max-width:460px; min-height:100vh; display:flex; flex-direction:column; border-left:1px solid var(--hairline); border-right:1px solid var(--hairline);}
+
+  .header{padding:20px 20px 14px;}
+  .eyebrow{font-family:var(--mono); font-size:11px; letter-spacing:0.12em; text-transform:uppercase; color:var(--cyan);}
+  .title{font-size:20px; font-weight:600; margin-top:4px;}
+  .divider{height:1px; background:var(--hairline); margin:0 20px;}
+
+  .search-wrap{padding:14px 20px 8px;}
+  .search-box{display:flex; align-items:center; gap:10px; background:var(--panel); border:1px solid var(--hairline); border-radius:10px; padding:11px 14px;}
+  .search-box input{flex:1; background:none; border:none; outline:none; color:var(--text); font-family:var(--sans); font-size:13.5px;}
+  .search-box input::placeholder{color:var(--text-dim);}
+
+  .tabs{display:flex; gap:6px; padding:10px 20px; overflow-x:auto;}
+  .tab{
+    flex-shrink:0; padding:7px 13px; border-radius:20px; font-size:11.5px; font-weight:600;
+    background:var(--panel); border:1px solid var(--hairline); cursor:pointer; color:var(--text-mid); white-space:nowrap;
+  }
+  .tab.active{background:rgba(79,195,217,0.12); border-color:var(--cyan); color:var(--cyan);}
+
+  .section{padding:6px 20px 20px;}
+  .section-label{font-family:var(--mono); font-size:10.5px; letter-spacing:0.08em; text-transform:uppercase; color:var(--text-dim); margin:14px 0 10px; display:flex; align-items:center; gap:8px;}
+  .section-label::after{content:''; flex:1; height:1px; background:var(--hairline);}
+
+  .mission-card{background:var(--panel); border:1px solid var(--hairline); border-radius:12px; margin-bottom:10px; overflow:hidden;}
+  .mission-head{padding:14px 16px; cursor:pointer; display:flex; justify-content:space-between; align-items:center; gap:10px;}
+  .mission-titre{font-size:13.5px; font-weight:600; flex:1;}
+  .mission-meta{font-family:var(--mono); font-size:10px; color:var(--text-dim); margin-top:3px;}
+  .badge{font-family:var(--mono); font-size:9.5px; padding:3px 8px; border-radius:20px; font-weight:600; white-space:nowrap;}
+  .badge-critique{background:var(--red-dim); color:var(--red);}
+  .badge-haute{background:var(--amber-dim); color:var(--amber);}
+  .badge-normale{background:rgba(79,195,217,0.12); color:var(--cyan);}
+  .badge-basse{background:var(--panel-raised); color:var(--text-dim);}
+  .badge-auto{background:var(--green-dim); color:var(--green);}
+
+  .mission-body{display:none; padding:0 16px 16px; border-top:1px solid var(--hairline);}
+  .mission-body.open{display:block;}
+  .mission-pourquoi{font-size:12px; color:var(--text-mid); line-height:1.5; margin:12px 0;}
+  .check-item{display:flex; align-items:flex-start; gap:10px; padding:8px 0; font-size:12.5px; cursor:pointer;}
+  .check-box{width:18px; height:18px; border:1.5px solid var(--text-dim); border-radius:5px; flex-shrink:0; margin-top:1px; display:flex; align-items:center; justify-content:center; font-size:12px;}
+  .check-box.checked{background:var(--green); border-color:var(--green); color:#04141a;}
+  .check-text.checked{color:var(--text-dim); text-decoration:line-through;}
+  .mission-photo{font-family:var(--mono); font-size:10px; color:var(--amber); margin-top:10px;}
+  .btn-valider{
+    width:100%; margin-top:12px; padding:12px; border:none; border-radius:8px; font-size:13px; font-weight:600;
+    background:var(--cyan); color:#04141a; cursor:pointer;
+  }
+  .btn-valider:disabled{opacity:0.3; cursor:not-allowed;}
+  .validation-ok{margin-top:12px; padding:10px; text-align:center; background:var(--green-dim); color:var(--green); border-radius:8px; font-size:12.5px; font-weight:600;}
+
+  .empty-note{padding:30px 20px; text-align:center; color:var(--text-dim); font-size:12.5px;}
+
+  footer{margin-top:auto; padding:16px 20px 24px; font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:center; border-top:1px solid var(--hairline);}
+  .plan-card{background:var(--panel); border:1px solid var(--hairline); border-radius:12px; margin-bottom:10px; overflow:hidden; border-left:3px solid var(--hairline);}
+  .plan-card.etat-agir{border-left-color:#F0575A;}
+  .plan-card.etat-opportunite{border-left-color:#34D399;}
+  .plan-card.etat-surveiller{border-left-color:#F5A623;}
+  .plan-card.etat-decider{border-left-color:#F0575A;}
+  .plan-card.etat-recommandation{border-left-color:#4FC3D9;}
+  .plan-head{padding:14px 16px; cursor:pointer; display:flex; align-items:center; gap:12px;}
+  .plan-etat{font-family:var(--mono); font-size:9.5px; letter-spacing:0.05em; padding:3px 9px; border-radius:20px; font-weight:700; white-space:nowrap;}
+  .etat-agir .plan-etat{background:#3A1D1F; color:#F0575A;}
+  .etat-opportunite .plan-etat{background:#153629; color:#34D399;}
+  .etat-surveiller .plan-etat{background:#3A2E14; color:#F5A623;}
+  .etat-decider .plan-etat{background:#3A1D1F; color:#F0575A;}
+  .etat-recommandation .plan-etat{background:rgba(79,195,217,0.12); color:#4FC3D9;}
+  .plan-action-teaser{flex:1; font-size:13.5px; font-weight:600; line-height:1.4;}
+  .plan-chevron{color:var(--text-dim); font-size:14px; transition:0.15s;}
+  .plan-card.open .plan-chevron{transform:rotate(90deg);}
+  .plan-body{display:none; padding:0 16px 16px;}
+  .plan-card.open .plan-body{display:block;}
+  .plan-story{font-size:12.5px; line-height:1.75; color:var(--text-mid);}
+  .plan-story .story-label{font-family:var(--mono); font-size:9.5px; text-transform:uppercase; letter-spacing:0.06em; color:var(--text-dim); display:block; margin-top:10px; margin-bottom:2px;}
+  .plan-impact{margin-top:12px; padding:10px 12px; background:var(--panel-raised); border-radius:8px; font-size:12px;}
+  .plan-impact b{color:#34D399;}
+  .plan-valider{width:100%; margin-top:12px; padding:11px; border:none; border-radius:8px; font-size:12.5px; font-weight:600; background:var(--green); color:#04141a; cursor:pointer;}
+</style>
+</head>
+<body>
+<div class="phone">
+  <div class="header">
+    <div class="eyebrow">NEXUS · Plans d'action</div>
+    <div class="title">Vos plans d'action</div>
+  </div>
+  <div class="divider"></div>
+
+  <div class="search-wrap">
+    <div class="search-box"><span>🔍</span><input type="text" id="search" placeholder="Rechercher un plan d'action..."></div>
+  </div>
+  <div class="tabs" id="tabs"></div>
+
+  <div class="section" id="content"></div>
+  <footer>NEXUS Plans d'action v1 · 55 procédures · Cahier de Notes de Services intégré</footer>
+</div>
+
+<script>
+  let catalogue = [];
+  let roleDuJour = null;
+
+  async function chargerCatalogue() {
+    const { data, error } = await nexusClient
+      .from('mission_catalog')
+      .select('*')
+      .eq('actif', true);
+    if (error) { console.error('Chargement catalogue:', error); return []; }
+    return data || [];
+  }
+
+  async function chargerShiftAujourdhui(employeeId) {
+    const aujourdISO = new Date().toISOString().slice(0, 10);
+    const { data, error } = await nexusClient
+      .from('shifts')
+      .select('role')
+      .eq('employee_id', employeeId)
+      .gte('heure_debut', aujourdISO + 'T00:00:00')
+      .lte('heure_debut', aujourdISO + 'T23:59:59')
+      .order('heure_debut', { ascending: false })
+      .limit(1);
+    if (error) { console.error('Chargement shift du jour:', error); return null; }
+    return (data && data[0]) ? data[0].role : null;
+  }
+  const FAMILLES = ["Toutes","Commerce","Qualité","Sécurité","Exploitation","Management"];
+  let familleActive = "Toutes";
+  const missionsOuvertes = new Set();
+  const PLANS_ACTION = [{"etat": "🔥 À AGIR", "rule_id": "R4-RENFORT-A", "article": "Biere Heineken 50cl - 24P", "situation": "Biere Heineken 50cl - 24P représente 15.0 % du chiffre d'affaires du rayon.", "contexte": "Cette contribution est calculée sur l'ensemble des références du rayon, pas seulement sa catégorie.", "analyse": "Une référence à ce niveau de contribution mérite un facing à la hauteur de son poids réel.", "consequence": "Un sous-dimensionnement de facing sur cette référence représente un risque estimé à 9791 €.", "recommandation": "Je pense qu'il est temps de confirmer un facing renforcé (6 à 10 faces) pour Biere Heineken 50cl - 24P.", "impact": "Vous sécurisez environ 9791 € de chiffre d'affaires déjà généré par cette référence.", "candidate_id": "RET-R4-Biere_Hein_401e69", "score_final": 81.2, "impact_eur": 9791.220000000001}, {"etat": "🔥 À AGIR", "rule_id": "R4-RENFORT-A", "article": "Pain Chocolat - 68P", "situation": "Pain Chocolat - 68P représente 30.0 % du chiffre d'affaires du rayon.", "contexte": "Cette contribution est calculée sur l'ensemble des références du rayon, pas seulement sa catégorie.", "analyse": "Une référence à ce niveau de contribution mérite un facing à la hauteur de son poids réel.", "consequence": "Un sous-dimensionnement de facing sur cette référence représente un risque estimé à 6585 €.", "recommandation": "Je proposerais de confirmer un facing renforcé (6 à 10 faces) pour Pain Chocolat - 68P.", "impact": "Vous sécurisez environ 6585 € de chiffre d'affaires déjà généré par cette référence.", "candidate_id": "RET-R4-Pain_Choco_24bfda", "score_final": 68.3, "impact_eur": 6584.95}, {"etat": "🔥 À AGIR", "rule_id": "R4-RENFORT-A", "article": "Boisson Coca cola 50cl - 8P", "situation": "Boisson Coca cola 50cl - 8P représente 24.2 % du chiffre d'affaires du rayon.", "contexte": "Cette contribution est calculée sur l'ensemble des références du rayon, pas seulement sa catégorie.", "analyse": "Une référence à ce niveau de contribution mérite un facing à la hauteur de son poids réel.", "consequence": "Un sous-dimensionnement de facing sur cette référence représente un risque estimé à 6521 €.", "recommandation": "Je recommande de confirmer un facing renforcé (6 à 10 faces) pour Boisson Coca cola 50cl - 8P.", "impact": "Vous sécurisez environ 6521 € de chiffre d'affaires déjà généré par cette référence.", "candidate_id": "RET-R4-Boisson_Co_e88036", "score_final": 68.1, "impact_eur": 6520.92}, {"etat": "🔥 À AGIR", "rule_id": "R4-RENFORT-A", "article": "Jus FRUITYBON Local 50 cl", "situation": "Jus FRUITYBON Local 50 cl représente 17.9 % du chiffre d'affaires du rayon.", "contexte": "Cette contribution est calculée sur l'ensemble des références du rayon, pas seulement sa catégorie.", "analyse": "Une référence à ce niveau de contribution mérite un facing à la hauteur de son poids réel.", "consequence": "Un sous-dimensionnement de facing sur cette référence représente un risque estimé à 5360 €.", "recommandation": "Le plus efficace serait de confirmer un facing renforcé (6 à 10 faces) pour Jus FRUITYBON Local 50 cl.", "impact": "Vous sécurisez environ 5360 € de chiffre d'affaires déjà généré par cette référence.", "candidate_id": "RET-R4-Jus_FRUITY_1fa643", "score_final": 63.4, "impact_eur": 5359.62}, {"etat": "🔥 À AGIR", "rule_id": "R4-RENFORT-A", "article": "Jus caresse 1L ts parf", "situation": "Jus caresse 1L ts parf représente 16.3 % du chiffre d'affaires du rayon.", "contexte": "Cette contribution est calculée sur l'ensemble des références du rayon, pas seulement sa catégorie.", "analyse": "Une référence à ce niveau de contribution mérite un facing à la hauteur de son poids réel.", "consequence": "Un sous-dimensionnement de facing sur cette référence représente un risque estimé à 4880 €.", "recommandation": "Il serait utile de confirmer un facing renforcé (6 à 10 faces) pour Jus caresse 1L ts parf.", "impact": "Vous sécurisez environ 4880 € de chiffre d'affaires déjà généré par cette référence.", "candidate_id": "RET-R4-Jus_caress_3f2521", "score_final": 61.5, "impact_eur": 4880.279999999999}, {"etat": "🔥 À AGIR", "rule_id": "R4-RENFORT-A", "article": "Jus caresse 50cl TS PARF", "situation": "Jus caresse 50cl TS PARF représente 14.3 % du chiffre d'affaires du rayon.", "contexte": "Cette contribution est calculée sur l'ensemble des références du rayon, pas seulement sa catégorie.", "analyse": "Une référence à ce niveau de contribution mérite un facing à la hauteur de son poids réel.", "consequence": "Un sous-dimensionnement de facing sur cette référence représente un risque estimé à 4291 €.", "recommandation": "Le plus efficace serait de confirmer un facing renforcé (6 à 10 faces) pour Jus caresse 50cl TS PARF.", "impact": "Vous sécurisez environ 4291 € de chiffre d'affaires déjà généré par cette référence.", "candidate_id": "RET-R4-Jus_caress_8664c7", "score_final": 59.2, "impact_eur": 4290.84}, {"etat": "📈 OPPORTUNITÉ", "rule_id": "R3-HAUSSE", "article": "PCS Creacard de 20€ a 199€", "situation": "Les ventes de PCS Creacard de 20€ a 199€ progressent de 25.8 %.", "contexte": "Cette progression est mesurée entre les deux périodes suivies (T1 et T2).", "analyse": "Cette dynamique dépasse la progression moyenne du rayon.", "consequence": "Cette croissance peut être amplifiée si l'espace en vitrine suit la demande.", "recommandation": "Il serait utile de renforcer le facing de PCS Creacard de 20€ a 199€ avant la période suivante.", "impact": "Vous sécurisez un gain potentiel estimé à 4061 € si la tendance se poursuit.", "candidate_id": "RET-R3-PCS_Creaca_1e9b80", "score_final": 58.2, "impact_eur": 4060.620000000001}, {"etat": "🔥 À AGIR", "rule_id": "R4-RENFORT-A", "article": "Jeton Lavazza 1.60€", "situation": "Jeton Lavazza 1.60€ représente 73.2 % du chiffre d'affaires du rayon.", "contexte": "Cette contribution est calculée sur l'ensemble des références du rayon, pas seulement sa catégorie.", "analyse": "Une référence à ce niveau de contribution mérite un facing à la hauteur de son poids réel.", "consequence": "Un sous-dimensionnement de facing sur cette référence représente un risque estimé à 3771 €.", "recommandation": "Je recommande de confirmer un facing renforcé (6 à 10 faces) pour Jeton Lavazza 1.60€.", "impact": "Vous sécurisez environ 3771 € de chiffre d'affaires déjà généré par cette référence.", "candidate_id": "RET-R4-Jeton_Lava_d066e6", "score_final": 57.1, "impact_eur": 3771.1400000000003}, {"etat": "🔥 À AGIR", "rule_id": "R4-RENFORT-A", "article": "Sandwich Autres 4.80", "situation": "Sandwich Autres 4.80 représente 17.1 % du chiffre d'affaires du rayon.", "contexte": "Cette contribution est calculée sur l'ensemble des références du rayon, pas seulement sa catégorie.", "analyse": "Une référence à ce niveau de contribution mérite un facing à la hauteur de son poids réel.", "consequence": "Un sous-dimensionnement de facing sur cette référence représente un risque estimé à 3749 €.", "recommandation": "Je vous suggère de confirmer un facing renforcé (6 à 10 faces) pour Sandwich Autres 4.80.", "impact": "Vous sécurisez environ 3749 € de chiffre d'affaires déjà généré par cette référence.", "candidate_id": "RET-R4-Sandwich_A_c69dfd", "score_final": 57.0, "impact_eur": 3748.8}, {"etat": "🔥 À AGIR", "rule_id": "R4-RENFORT-A", "article": "Glace floup -20P", "situation": "Glace floup -20P représente 22.9 % du chiffre d'affaires du rayon.", "contexte": "Cette contribution est calculée sur l'ensemble des références du rayon, pas seulement sa catégorie.", "analyse": "Une référence à ce niveau de contribution mérite un facing à la hauteur de son poids réel.", "consequence": "Un sous-dimensionnement de facing sur cette référence représente un risque estimé à 3460 €.", "recommandation": "Le bon geste ici serait de confirmer un facing renforcé (6 à 10 faces) pour Glace floup -20P.", "impact": "Vous sécurisez environ 3460 € de chiffre d'affaires déjà généré par cette référence.", "candidate_id": "RET-R4-Glace_flou_2ef1a0", "score_final": 55.8, "impact_eur": 3460.16}, {"etat": "🔥 À AGIR", "rule_id": "R4-RENFORT-A", "article": "Magnum TT PARF -20P", "situation": "Magnum TT PARF -20P représente 22.7 % du chiffre d'affaires du rayon.", "contexte": "Cette contribution est calculée sur l'ensemble des références du rayon, pas seulement sa catégorie.", "analyse": "Une référence à ce niveau de contribution mérite un facing à la hauteur de son poids réel.", "consequence": "Un sous-dimensionnement de facing sur cette référence représente un risque estimé à 3429 €.", "recommandation": "Je recommande de confirmer un facing renforcé (6 à 10 faces) pour Magnum TT PARF -20P.", "impact": "Vous sécurisez environ 3429 € de chiffre d'affaires déjà généré par cette référence.", "candidate_id": "RET-R4-Magnum_TT_9cd814", "score_final": 55.7, "impact_eur": 3428.65}, {"etat": "🔥 À AGIR", "rule_id": "R4-RENFORT-A", "article": "Feuille a rouler OCB slim+ filtre - 32P", "situation": "Feuille a rouler OCB slim+ filtre - 32P représente 38.8 % du chiffre d'affaires du rayon.", "contexte": "Cette contribution est calculée sur l'ensemble des références du rayon, pas seulement sa catégorie.", "analyse": "Une référence à ce niveau de contribution mérite un facing à la hauteur de son poids réel.", "consequence": "Un sous-dimensionnement de facing sur cette référence représente un risque estimé à 3177 €.", "recommandation": "Mon conseil serait de confirmer un facing renforcé (6 à 10 faces) pour Feuille a rouler OCB slim+ filtre - 32P.", "impact": "Vous sécurisez environ 3177 € de chiffre d'affaires déjà généré par cette référence.", "candidate_id": "RET-R4-Feuille_a_ba5e92", "score_final": 54.7, "impact_eur": 3177.46}, {"etat": "🔥 À AGIR", "rule_id": "R4-RENFORT-A", "article": "neos mini rouge 10 -P10", "situation": "neos mini rouge 10 -P10 représente 24.6 % du chiffre d'affaires du rayon.", "contexte": "Cette contribution est calculée sur l'ensemble des références du rayon, pas seulement sa catégorie.", "analyse": "Une référence à ce niveau de contribution mérite un facing à la hauteur de son poids réel.", "consequence": "Un sous-dimensionnement de facing sur cette référence représente un risque estimé à 2804 €.", "recommandation": "Il serait utile de confirmer un facing renforcé (6 à 10 faces) pour neos mini rouge 10 -P10.", "impact": "Vous sécurisez environ 2804 € de chiffre d'affaires déjà généré par cette référence.", "candidate_id": "RET-R4-neos_mini_687004", "score_final": 53.2, "impact_eur": 2804.0}, {"etat": "🔥 À AGIR", "rule_id": "R4-RENFORT-A", "article": "Bière Porter 39 25cl -24P", "situation": "Bière Porter 39 25cl -24P représente 44.9 % du chiffre d'affaires du rayon.", "contexte": "Cette contribution est calculée sur l'ensemble des références du rayon, pas seulement sa catégorie.", "analyse": "Une référence à ce niveau de contribution mérite un facing à la hauteur de son poids réel.", "consequence": "Un sous-dimensionnement de facing sur cette référence représente un risque estimé à 2691 €.", "recommandation": "Le plus efficace serait de confirmer un facing renforcé (6 à 10 faces) pour Bière Porter 39 25cl -24P.", "impact": "Vous sécurisez environ 2691 € de chiffre d'affaires déjà généré par cette référence.", "candidate_id": "RET-R4-Bière_Port_3a6335", "score_final": 52.8, "impact_eur": 2691.3599999999997}, {"etat": "📈 OPPORTUNITÉ", "rule_id": "R3-HAUSSE", "article": "TRANSCASH 160", "situation": "Les ventes de TRANSCASH 160 progressent de 57.1 %.", "contexte": "Cette progression est mesurée entre les deux périodes suivies (T1 et T2).", "analyse": "Cette dynamique dépasse la progression moyenne du rayon.", "consequence": "Cette croissance peut être amplifiée si l'espace en vitrine suit la demande.", "recommandation": "Je vous suggère de renforcer le facing de TRANSCASH 160 avant la période suivante.", "impact": "Vous sécurisez un gain potentiel estimé à 2640 € si la tendance se poursuit.", "candidate_id": "RET-R3-TRANSCASH_8d7700", "score_final": 52.6, "impact_eur": 2640.0}];
+  const ETAT_CLASS = {
+    "🔥 À AGIR": "etat-agir", "📈 OPPORTUNITÉ": "etat-opportunite",
+    "🟡 À SURVEILLER": "etat-surveiller", "🔴 À DÉCIDER": "etat-decider",
+    "💡 RECOMMANDATION": "etat-recommandation",
+  };
+  function chargerValidees() { return JSON.parse(localStorage.getItem('nexus_recommandations_validees') || '[]'); }
+  function sauvegarderValidees(v) { localStorage.setItem('nexus_recommandations_validees', JSON.stringify(v)); }
+
+  function renderPlansActionMissions() {
+    const el = document.getElementById('plansActionMissions');
+    if (!el) return;
+    const validees = chargerValidees();
+    const disponibles = PLANS_ACTION.filter(p => !validees.includes(p.candidate_id));
+    const aAfficher = disponibles.slice(0, 5);
+
+    el.innerHTML = aAfficher.map((p, i) => `
+      <div class="plan-card ${ETAT_CLASS[p.etat]||''}" id="planm-${i}">
+        <div class="plan-head" onclick="document.getElementById('planm-${i}').classList.toggle('open')">
+          <span class="plan-etat">${p.etat}</span>
+          <span class="plan-action-teaser">${p.recommandation}</span>
+          <span class="plan-chevron">›</span>
+        </div>
+        <div class="plan-body">
+          <div class="plan-story">
+            <span class="story-label">Situation</span>${p.situation}
+            <span class="story-label">Contexte</span>${p.contexte}
+            <span class="story-label">Analyse</span>${p.analyse}
+            <span class="story-label">Conséquence</span>${p.consequence}
+          </div>
+          <div class="plan-impact">📊 Impact — <b>${p.impact}</b></div>
+          <button class="plan-valider" data-id="${p.candidate_id}">✓ Valider cette recommandation</button>
+        </div>
+      </div>`).join('') || `<div style="padding:20px; text-align:center; color:var(--text-dim); font-size:12.5px;">
+        Toutes les recommandations disponibles ont été validées (${validees.length}/${PLANS_ACTION.length}).<br><br>
+        <a href="#" id="resetValideesM" style="color:var(--cyan);">Réinitialiser mes validations</a>
+      </div>`;
+
+    const resetLinkM = document.getElementById('resetValideesM');
+    if (resetLinkM) resetLinkM.addEventListener('click', (e) => {
+      e.preventDefault();
+      sauvegarderValidees([]);
+      renderPlansActionMissions();
+    });
+
+    el.querySelectorAll('.plan-valider').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const v = chargerValidees();
+        v.push(btn.dataset.id);
+        sauvegarderValidees(v);
+        renderPlansActionMissions();
+      });
+    });
+  }
+  let employeActuel = null;
+  let employeeId = null;
+  let checkState = {};
+  let completionsCache = [];
+
+  async function chargerProgressionSupabase(empId) {
+    const { data, error } = await nexusClient
+      .from('mission_progress')
+      .select('mission_id, checklist_index, checked')
+      .eq('employee_id', empId);
+    if (error) { console.error('Chargement progression:', error); return {}; }
+    const state = {};
+    (data || []).forEach(row => {
+      if (row.checked) state[`${row.mission_id}_${row.checklist_index}`] = true;
+    });
+    return state;
+  }
+
+  async function sauvegarderProgressionItem(empId, missionId, index, checked) {
+    const { error } = await nexusClient
+      .from('mission_progress')
+      .upsert(
+        { employee_id: empId, mission_id: missionId, checklist_index: index, checked, updated_at: new Date().toISOString() },
+        { onConflict: 'employee_id,mission_id,checklist_index' }
+      );
+    if (error) console.error('Sauvegarde progression:', error);
+  }
+
+  function priorityBadge(p) {
+    return `<span class="badge badge-${p}">${p}</span>`;
+  }
+
+  function renderChecklist(missionId, checklist) {
+    return checklist.map((item, i) => {
+      const key = `${missionId}_${i}`;
+      const checked = checkState[key];
+      return `<div class="check-item" data-key="${key}">
+        <div class="check-box ${checked?'checked':''}">${checked?'✓':''}</div>
+        <div class="check-text ${checked?'checked':''}">${item}</div>
+      </div>`;
+    }).join('');
+  }
+
+  async function chargerCompletionsSupabase(empId) {
+    const { data, error } = await nexusClient
+      .from('mission_completions')
+      .select('*')
+      .eq('employee_id', empId);
+    if (error) { console.error('Chargement complétions:', error); return []; }
+    return data || [];
+  }
+
+  async function sauvegarderCompletionSupabase(empId, entry) {
+    const { error } = await nexusClient
+      .from('mission_completions')
+      .insert({
+        employee_id: empId, mission_id: entry.mission_id, titre: entry.titre,
+        date: entry.date, heure: entry.heure, photo_fournie: entry.photo_fournie, points: entry.points,
+      });
+    if (error) console.error('Sauvegarde complétion:', error);
+  }
+
+  const POINTS_PAR_PRIORITE = {critique:10, haute:7, normale:5, basse:3};
+
+  function toutCoche(mission) {
+    return mission.checklist.every((_, i) => checkState[`${mission.mission_id}_${i}`]);
+  }
+
+  function renderMissionCard(m, isAuto) {
+    const priorite = m.priority || 'normale';
+    const complet = toutCoche(m);
+    const dejaValidee = completionsCache.some(c => c.mission_id === m.mission_id && c.date === new Date().toISOString().slice(0,10));
+    return `
+      <div class="mission-card">
+        <div class="mission-head" data-id="${m.mission_id}">
+          <div>
+            <div class="mission-titre">${m.titre}</div>
+            <div class="mission-meta">${m.famille || 'Auto'} · ${m.estimated_duration_min} min${isAuto && m.impact_attendu_eur ? ' · Impact ' + m.impact_attendu_eur + '€' : ''}</div>
+          </div>
+          ${isAuto ? '<span class="badge badge-auto">Conseiller NEXUS</span>' : priorityBadge(priorite)}
+        </div>
+        <div class="mission-body ${missionsOuvertes.has(m.mission_id)?'open':''}" id="body-${m.mission_id}">
+          <div class="mission-pourquoi">${m.pourquoi}</div>
+          ${renderChecklist(m.mission_id, m.checklist)}
+          ${m.proof_required ? `<div class="mission-photo">📷 Photo requise pour valider</div>
+            <input type="file" accept="image/*" capture="environment" id="photo-${m.mission_id}" style="display:none;">` : ''}
+          ${dejaValidee
+            ? `<div class="validation-ok">✓ Validée aujourd'hui</div>`
+            : `<button class="btn-valider" data-mission="${m.mission_id}" ${!complet?'disabled':''}>${complet ? 'Valider la mission' : 'Cochez tout pour valider'}</button>`}
+        </div>
+      </div>`;
+  }
+
+  function render() {
+    document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.textContent === familleActive));
+    const q = document.getElementById('search').value.trim().toLowerCase();
+    const content = document.getElementById('content');
+
+    let html = '';
+
+    // Les recommandations du Conseiller NEXUS s'adressent au manager, pas aux employés —
+    // c'est lui qui décide ensuite de déléguer une mission.
+    if (!q && roleDuJour === 'manager') {
+      html += `<div class="section-label">Aujourd'hui — recommandé par le Conseiller NEXUS</div>`;
+      html += `<div id="plansActionMissions"></div>`;
+    }
+
+    let lib = catalogue.filter(m => Array.isArray(m.role_required) && m.role_required.includes(roleDuJour));
+    lib = lib.filter(m => familleActive==='Toutes' || m.famille===familleActive);
+    if (q) lib = lib.filter(m => m.titre.toLowerCase().includes(q) || (m.pourquoi||'').toLowerCase().includes(q));
+
+    html += `<div class="section-label">${q ? 'Résultats' : 'Vos missions — rôle ' + roleDuJour} (${lib.length})</div>`;
+    if (lib.length === 0) {
+      html += `<div class="empty-note">Aucune mission ne correspond à votre rôle du jour.</div>`;
+    } else {
+      lib.forEach(m => html += renderMissionCard(m, m.mission_id.startsWith('MISSION-')));
+    }
+
+    content.innerHTML = html;
+    if (roleDuJour === 'manager') renderPlansActionMissions();
+
+    content.querySelectorAll('.mission-head').forEach(el => {
+      el.addEventListener('click', () => {
+        const id = el.dataset.id;
+        if (missionsOuvertes.has(id)) missionsOuvertes.delete(id); else missionsOuvertes.add(id);
+        document.getElementById(`body-${id}`).classList.toggle('open');
+      });
+    });
+    content.querySelectorAll('.check-item').forEach(el => {
+      el.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const key = el.dataset.key;
+        checkState[key] = !checkState[key];
+        render(); // re-rendu immédiat (optimiste) pour activer/desactiver le bouton Valider
+
+        const lastUnderscore = key.lastIndexOf('_');
+        const missionId = key.slice(0, lastUnderscore);
+        const idx = parseInt(key.slice(lastUnderscore + 1), 10);
+        sauvegarderProgressionItem(employeeId, missionId, idx, checkState[key]);
+      });
+    });
+
+    content.querySelectorAll('.btn-valider').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const missionId = btn.dataset.mission;
+        const mission = catalogue.find(m => m.mission_id === missionId);
+        if (!mission) return;
+
+        const finaliser = (photoFournie) => {
+          if (mission.proof_required && !photoFournie) {
+            alert('Photo requise — la mission ne peut pas être validée sans preuve.');
+            return;
+          }
+          const points = mission.proof_required ? (mission.points || 5) + 2 : (mission.points || 5);
+          const entry = {
+            mission_id: missionId, titre: mission.titre,
+            date: new Date().toISOString().slice(0,10), heure: new Date().toTimeString().slice(0,5),
+            photo_fournie: !!photoFournie, points,
+          };
+          completionsCache.push(entry); // re-rendu optimiste
+          render();
+          sauvegarderCompletionSupabase(employeeId, entry);
+        };
+
+        if (mission.proof_required) {
+          const input = document.getElementById(`photo-${missionId}`);
+          input.onchange = () => finaliser(input.files && input.files.length > 0);
+          input.click();
+        } else {
+          finaliser(false);
+        }
+      });
+    });
+  }
+
+  nexusRequireAuth().then(async employee => {
+    if (!employee) return; // nexus-auth.js gère déjà la redirection vers NEXUS-Login-v1.html
+
+    employeActuel = employee.nom;
+    employeeId = employee.id;
+
+    roleDuJour = await chargerShiftAujourdhui(employeeId);
+    if (!roleDuJour) {
+      window.location.href = 'NEXUS-Prise-De-Poste-v1.html';
+      return;
+    }
+
+    document.querySelector('.eyebrow').textContent = roleDuJour === 'manager' ? "NEXUS · Plans d'action" : 'NEXUS · Missions';
+    document.querySelector('.title').textContent = roleDuJour === 'manager' ? "Vos plans d'action" : 'Vos missions du jour';
+
+    catalogue = await chargerCatalogue();
+    checkState = await chargerProgressionSupabase(employeeId);
+    completionsCache = await chargerCompletionsSupabase(employeeId);
+
+    const tabsEl = document.getElementById('tabs');
+    FAMILLES.forEach(f => {
+      const t = document.createElement('div');
+      t.className = 'tab' + (f===familleActive ? ' active' : '');
+      t.textContent = f;
+      t.onclick = () => { familleActive = f; render(); };
+      tabsEl.appendChild(t);
+    });
+
+    document.getElementById('search').addEventListener('input', render);
+
+    render();
+
+    // Rappel carburant — meme source unique de verite que HOME (le resultat
+    // deja calcule dans Parametres Rappels), injecte une seule fois au
+    // chargement, pas a chaque re-rendu de la liste.
+    (function injecterRappelCarburantMissions() {
+      try {
+        const derniereRecommandation = JSON.parse(localStorage.getItem('nexus_derniere_recommandation_carburant') || 'null');
+        if (!derniereRecommandation) return;
+        const aujourdISO = new Date().toISOString().slice(0,10);
+        if (derniereRecommandation.date !== aujourdISO) return;
+        if (derniereRecommandation.action !== 'COMMANDER') return;
+
+        const r = derniereRecommandation;
+        const total = (r.qSP||0) + (r.qGO||0);
+        PLANS_ACTION.unshift({
+          etat: r.mode === 'CAMION_COMPLET' ? "🔥 À AGIR" : "🔴 À DÉCIDER",
+          candidate_id: "RAPPEL-CARBU-" + r.date,
+          recommandation: `Je vous recommande de commander le carburant aujourd'hui — ${r.qSP>0?`Sans Plomb ~${r.qSP.toLocaleString('fr-FR')} L`:''}${r.qSP>0&&r.qGO>0?', ':''}${r.qGO>0?`Gasoil ~${r.qGO.toLocaleString('fr-FR')} L`:''}.`,
+          situation: `Calcul réalisé aujourd'hui dans Paramètres Rappels : ${r.mode === 'CAMION_COMPLET' ? 'camion complet visé' : 'complément de sécurité'} (${total.toLocaleString('fr-FR')} L au total).`,
+          contexte: r.message,
+          analyse: "Ce résultat vient directement du calcul complet — pas d'une version simplifiée.",
+          consequence: `Commande à passer le ${r.dateCommande} pour livraison le ${r.dateLivraison}.`,
+          impact: "Vous évitez une rupture tout en respectant la règle de stock minimal en fin de mois.",
+        });
+        renderPlansActionMissions();
+      } catch (err) { console.error('Rappel carburant:', err); }
+    })();
+  });
+</script>
+</body>
+</html>
