@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NEXUS — Debug</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="nexus-auth.js"></script>
+<style>
+  :root{
+    --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
+    --text:#EDF1F5; --text-mid:#8A96A5; --text-dim:#57626F;
+    --green:#34D399; --green-dim:#153629;
+    --amber:#F5A623; --amber-dim:#3A2E14;
+    --red:#F0575A; --red-dim:#3A1D1F;
+    --cyan:#4FC3D9;
+    --mono:'IBM Plex Mono',monospace; --sans:'IBM Plex Sans',sans-serif;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{background:var(--bg); font-family:var(--sans); color:var(--text);}
+  body{display:flex; justify-content:center; min-height:100vh;}
+  .phone{width:100%; max-width:460px; min-height:100vh; display:flex; flex-direction:column; border-left:1px solid var(--hairline); border-right:1px solid var(--hairline);}
+
+  .header{padding:20px 20px 14px; position:relative;}
+  .menu-btn{
+    position:absolute; top:18px; right:18px; display:flex; align-items:center; gap:6px;
+    font-family:var(--mono); font-size:10.5px; font-weight:600; letter-spacing:0.03em; text-transform:uppercase;
+    color:var(--cyan); background:rgba(79,195,217,0.1); border:1px solid rgba(79,195,217,0.3);
+    border-radius:20px; padding:7px 12px; text-decoration:none; white-space:nowrap; z-index:5;
+  }
+  .eyebrow{font-family:var(--mono); font-size:11px; letter-spacing:0.12em; text-transform:uppercase; color:var(--amber);}
+  .title{font-size:20px; font-weight:600; margin-top:4px;}
+  .subtitle{font-family:var(--mono); font-size:10.5px; color:var(--text-dim); margin-top:4px;}
+  .divider{height:1px; background:var(--hairline); margin:0 20px;}
+
+  .section{padding:16px 20px;}
+  .card{background:var(--panel); border:1px solid var(--hairline); border-radius:12px; padding:18px; margin-bottom:14px;}
+  .card.danger{border-color:rgba(240,87,90,0.35);}
+  .section-label{font-family:var(--mono); font-size:10.5px; letter-spacing:0.08em; text-transform:uppercase; color:var(--text-dim); margin-bottom:12px; display:flex; align-items:center; gap:8px;}
+  .section-label::after{content:''; flex:1; height:1px; background:var(--hairline);}
+
+  .field{margin-bottom:12px;}
+  .field label{font-family:var(--mono); font-size:10px; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.04em; display:block; margin-bottom:5px;}
+  .field input{
+    width:100%; background:var(--panel-raised); border:1px solid var(--hairline); border-radius:8px;
+    padding:11px 12px; color:var(--text); font-family:var(--sans); font-size:14px;
+  }
+
+  .btn{width:100%; padding:12px; border:none; border-radius:8px; font-size:13px; font-weight:600; cursor:pointer; margin-top:4px;}
+  .btn-primary{background:var(--cyan); color:#04141a;}
+  .btn-danger{background:transparent; color:var(--red); border:1px solid var(--red);}
+  .btn:disabled{opacity:0.35; cursor:not-allowed;}
+
+  .msg{font-size:12px; margin-top:12px; padding:10px; border-radius:8px; text-align:center; display:none;}
+  .msg.ok{background:var(--green-dim); color:var(--green); display:block;}
+  .msg.err{background:var(--red-dim); color:var(--red); display:block;}
+
+  .kv-row{display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid var(--hairline); font-size:12px;}
+  .kv-row:last-child{border-bottom:none;}
+  .kv-key{color:var(--text-mid); font-family:var(--mono); font-size:11px;}
+  .kv-val{font-family:var(--mono); color:var(--text);}
+  .kv-names{font-size:10.5px; color:var(--text-dim); margin-top:2px;}
+
+  .note{font-size:11px; color:var(--text-dim); line-height:1.6; margin-top:10px;}
+  .locked{padding:60px 20px; text-align:center; color:var(--text-dim); font-size:13px;}
+  .loading{padding:60px 20px; text-align:center; color:var(--text-dim); font-size:13px;}
+
+  footer{margin-top:auto; padding:16px 20px 24px; font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:center; border-top:1px solid var(--hairline);}
+</style>
+</head>
+<body>
+<div class="phone">
+  <div class="header">
+    <a href="index.html" class="menu-btn">☰ Menu</a>
+    <div class="eyebrow">NEXUS · Écran technique</div>
+    <div class="title">🛠 Debug — Données locales</div>
+    <div class="subtitle">Non listé dans le menu — accessible uniquement par cette URL</div>
+  </div>
+  <div class="divider"></div>
+
+  <div class="section" id="root">
+    <div class="loading">Chargement…</div>
+  </div>
+
+  <footer>NEXUS Debug v1 · Agit uniquement sur cet appareil, jamais sur Supabase</footer>
+</div>
+
+<script>
+  // Compare sans tenir compte des accents/majuscules — "Frédéric", "Frederic",
+  // "FREDERIC" doivent tous matcher la meme entree.
+  function normaliser(s) {
+    return (s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
+  }
+
+  function etatLocalStorage() {
+    const retards = JSON.parse(localStorage.getItem('nexus_retards') || '{}');
+    const pointages = JSON.parse(localStorage.getItem('nexus_pointages') || '{}');
+    const validees = JSON.parse(localStorage.getItem('nexus_recommandations_validees') || '[]');
+    const journal = JSON.parse(localStorage.getItem('nexus_journal_decisions') || '[]');
+
+    const nomsRetards = Object.keys(retards);
+    const nomsPointages = new Set();
+    Object.values(pointages).forEach(jour => Object.keys(jour).forEach(n => nomsPointages.add(n)));
+
+    return { retards, pointages, validees, journal, nomsRetards, nomsPointages: [...nomsPointages] };
+  }
+
+  function renderRoot() {
+    const etat = etatLocalStorage();
+    const root = document.getElementById('root');
+    root.innerHTML = `
+      <div class="card">
+        <div class="section-label">État actuel — cet appareil</div>
+        <div class="kv-row"><span class="kv-key">Employés dans Retards</span><span class="kv-val">${etat.nomsRetards.length}</span></div>
+        <div class="kv-names">${etat.nomsRetards.join(', ') || '—'}</div>
+        <div class="kv-row" style="margin-top:10px;"><span class="kv-key">Employés dans Pointages</span><span class="kv-val">${etat.nomsPointages.length}</span></div>
+        <div class="kv-names">${etat.nomsPointages.join(', ') || '—'}</div>
+        <div class="kv-row" style="margin-top:10px;"><span class="kv-key">Décisions validées</span><span class="kv-val">${etat.validees.length}</span></div>
+        <div class="kv-row"><span class="kv-key">Entrées Journal</span><span class="kv-val">${etat.journal.length}</span></div>
+      </div>
+
+      <div class="card">
+        <div class="section-label">Retirer un employé des données locales</div>
+        <div class="field">
+          <label>Nom (Pointage &amp; Retards uniquement)</label>
+          <input type="text" id="nomCible" placeholder="Frédéric">
+        </div>
+        <button class="btn btn-primary" id="btnNettoyer">Retirer cet employé</button>
+        <div class="msg" id="msgNettoyer"></div>
+        <div class="note">Ne touche pas à Supabase. N'affecte que Pointage et Retards, stockés uniquement sur cet appareil — Résultats Équipe et Radar du Manager en dépendent pour les retards.</div>
+      </div>
+
+      <div class="card danger">
+        <div class="section-label">Zone sensible</div>
+        <button class="btn btn-danger" id="btnReset">Réinitialiser toutes les données locales de cet appareil</button>
+        <div class="msg" id="msgReset"></div>
+        <div class="note">Efface Pointage, Retards, décisions validées et Journal NEXUS sur cet appareil. Ne touche pas à Supabase (employés, missions, produits). Irréversible — deux confirmations demandées.</div>
+      </div>
+    `;
+
+    document.getElementById('btnNettoyer').addEventListener('click', () => {
+      const brut = document.getElementById('nomCible').value;
+      const cible = normaliser(brut);
+      const msg = document.getElementById('msgNettoyer');
+      if (!cible) {
+        msg.textContent = 'Entrez un nom.'; msg.className = 'msg err';
+        return;
+      }
+
+      const retards = JSON.parse(localStorage.getItem('nexus_retards') || '{}');
+      const pointages = JSON.parse(localStorage.getItem('nexus_pointages') || '{}');
+
+      let touche = false;
+      Object.keys(retards).forEach(nom => { if (normaliser(nom) === cible) { delete retards[nom]; touche = true; } });
+      Object.keys(pointages).forEach(date => {
+        Object.keys(pointages[date]).forEach(nom => { if (normaliser(nom) === cible) { delete pointages[date][nom]; touche = true; } });
+      });
+
+      if (!touche) {
+        msg.textContent = `Aucune entrée trouvée pour "${brut}".`; msg.className = 'msg err';
+        return;
+      }
+
+      localStorage.setItem('nexus_retards', JSON.stringify(retards));
+      localStorage.setItem('nexus_pointages', JSON.stringify(pointages));
+      msg.textContent = `"${brut}" retiré des Retards et Pointages de cet appareil.`; msg.className = 'msg ok';
+      renderRoot();
+    });
+
+    document.getElementById('btnReset').addEventListener('click', () => {
+      if (!confirm('Effacer Pointage, Retards, décisions validées et Journal NEXUS sur cet appareil ?')) return;
+      if (!confirm('Confirmation finale — cette action est irréversible sur cet appareil. Continuer ?')) return;
+      ['nexus_retards', 'nexus_pointages', 'nexus_recommandations_validees', 'nexus_journal_decisions'].forEach(k => localStorage.removeItem(k));
+      const msg = document.getElementById('msgReset');
+      msg.textContent = 'Données locales réinitialisées.'; msg.className = 'msg ok';
+      renderRoot();
+    });
+  }
+
+  nexusRequireAuth().then(employee => {
+    if (!employee) return; // nexus-auth.js gère déjà la redirection vers NEXUS-Login-v1.html
+    if (employee.role !== 'manager' && employee.role !== 'gerant') {
+      document.getElementById('root').innerHTML = `<div class="locked">Cet écran est réservé aux managers.</div>`;
+      return;
+    }
+    renderRoot();
+  });
+</script>
+</body>
+</html>
