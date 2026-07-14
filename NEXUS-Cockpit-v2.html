@@ -21,6 +21,7 @@
     --red:#F0575A;
     --red-dim:#3A1D1F;
     --cyan:#4FC3D9;
+    --gold:#D4AF37; --gold-dim:#332B12;
     --mono:'IBM Plex Mono',monospace;
     --sans:'IBM Plex Sans',sans-serif;
   }
@@ -74,7 +75,7 @@
     opacity:0; transform:translateY(6px); animation:storyIn .5s ease forwards;
   }
   .story-indice-label{font-family:var(--mono); font-size:11px; letter-spacing:0.06em; text-transform:uppercase; color:var(--text-dim);}
-  .story-indice-value{font-family:var(--mono); font-size:34px; font-weight:700; color:var(--cyan);}
+  .story-indice-value{font-family:var(--mono); font-size:34px; font-weight:700; color:var(--gold); text-shadow:0 0 16px rgba(212,175,55,0.35);}
   .story-gain{
     font-size:18px; font-weight:700; line-height:1.4; max-width:300px; margin-top:2px;
     opacity:0; transform:translateY(6px); animation:storyIn .5s ease forwards;
@@ -88,7 +89,16 @@
 
   .sante{padding:26px 20px; display:flex; flex-direction:column; align-items:center; gap:6px;}
   .sante-label{font-family:var(--mono); font-size:11px; letter-spacing:0.12em; text-transform:uppercase; color:var(--text-dim);}
-  .sante-score{font-family:var(--mono); font-size:64px; font-weight:700; line-height:1; display:flex; align-items:baseline; gap:10px;}
+  .sante-score{font-family:var(--mono); font-size:64px; font-weight:700; line-height:1; display:flex; align-items:baseline; gap:10px; color:var(--gold); text-shadow:0 0 20px rgba(212,175,55,0.3);}
+
+  .toast-or{
+    position:fixed; left:50%; bottom:28px; transform:translateX(-50%) translateY(20px); z-index:999;
+    background:linear-gradient(145deg, var(--gold-dim), #241d0c); border:1px solid rgba(212,175,55,0.45);
+    color:var(--gold); font-family:var(--mono); font-size:12.5px; font-weight:600; letter-spacing:0.02em;
+    padding:13px 22px; border-radius:30px; box-shadow:0 8px 28px rgba(212,175,55,0.25), 0 0 0 1px rgba(212,175,55,0.15) inset;
+    opacity:0; transition:opacity .35s ease, transform .35s ease; pointer-events:none; white-space:nowrap;
+  }
+  .toast-or.show{opacity:1; transform:translateX(-50%) translateY(0);}
   .sante-dot{width:14px; height:14px; border-radius:50%; background:var(--amber); box-shadow:0 0 12px rgba(245,166,35,0.6); margin-bottom:10px;}
   .sante-sub{font-size:12px; color:var(--text-mid);}
   .indice-facteur{display:flex; justify-content:space-between; align-items:center; padding:9px 0; border-bottom:1px solid var(--hairline); font-size:12.5px;}
@@ -616,6 +626,22 @@
 
     let dernierAffichage = []; // les 5 plans reellement visibles a l'ecran, partages avec le briefing
 
+    // L'or est réservé aux moments qui comptent vraiment (Indice NEXUS, Capital NEXUS,
+    // gains validés) — jamais utilisé pour de l'ordinaire, pour garder sa valeur.
+    function afficherToastOr(texte) {
+      let toast = document.getElementById('toastOr');
+      if (!toast) {
+        toast = document.createElement('div');
+        toast.id = 'toastOr';
+        toast.className = 'toast-or';
+        document.body.appendChild(toast);
+      }
+      toast.textContent = texte;
+      requestAnimationFrame(() => toast.classList.add('show'));
+      clearTimeout(toast._timeout);
+      toast._timeout = setTimeout(() => toast.classList.remove('show'), 2600);
+    }
+
     function renderPlansAction() {
       const validees = chargerValidees();
       const disponibles = PLANS_ACTION.filter(p => !validees.includes(p.candidate_id));
@@ -656,9 +682,11 @@
       el.querySelectorAll('.plan-valider').forEach(btn => {
         btn.addEventListener('click', (e) => {
           e.stopPropagation();
+          const plan = PLANS_ACTION.find(p => p.candidate_id === btn.dataset.id);
           const v = chargerValidees();
           v.push(btn.dataset.id);
           sauvegarderValidees(v);
+          if (plan) afficherToastOr(`✓ Gain sécurisé — ${Math.round(plan.impact_eur).toLocaleString('fr-FR')} €`);
           renderPlansAction(); // la suivante du classement prend la place
         });
       });
