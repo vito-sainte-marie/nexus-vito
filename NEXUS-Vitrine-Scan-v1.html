@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NEXUS — Scan Vitrine</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0B0F14; --panel:#141B22; --hairline:#242E38;
+    --text:#EDF1F5; --text-mid:#8A96A5; --text-dim:#57626F;
+    --green:#34D399; --green-dim:#153629;
+    --amber:#F5A623; --amber-dim:#3A2E14;
+    --red:#F0575A; --red-dim:#3A1D1F;
+    --cyan:#4FC3D9;
+    --mono:'IBM Plex Mono',monospace; --sans:'IBM Plex Sans',sans-serif;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{background:var(--bg); font-family:var(--sans); color:var(--text);}
+  body{display:flex; justify-content:center; min-height:100vh;}
+  .phone{width:100%; max-width:460px; min-height:100vh; display:flex; flex-direction:column; border-left:1px solid var(--hairline); border-right:1px solid var(--hairline);}
+
+  .header{padding:20px 20px 14px; position:relative;}
+  .menu-btn{
+    position:absolute; top:18px; right:18px; display:flex; align-items:center; gap:6px;
+    font-family:var(--mono); font-size:10.5px; font-weight:600; letter-spacing:0.03em; text-transform:uppercase;
+    color:var(--cyan); background:rgba(79,195,217,0.1); border:1px solid rgba(79,195,217,0.3);
+    border-radius:20px; padding:7px 12px; text-decoration:none; white-space:nowrap; z-index:5;
+  }
+  .menu-btn:active{background:rgba(79,195,217,0.2);}
+
+  .eyebrow{font-family:var(--mono); font-size:11px; letter-spacing:0.12em; text-transform:uppercase; color:var(--cyan);}
+  .title{font-size:20px; font-weight:600; margin-top:4px;}
+  .subtitle{font-family:var(--mono); font-size:11px; color:var(--text-dim); margin-top:4px;}
+  .divider{height:1px; background:var(--hairline); margin:0 20px;}
+
+  .section{padding:20px;}
+
+  .capture-zone{
+    border:2px dashed var(--hairline); border-radius:12px; padding:28px 20px;
+    display:flex; flex-direction:column; align-items:center; gap:12px; text-align:center;
+    background:var(--panel);
+  }
+  .capture-zone.has-image{border-style:solid; border-color:var(--cyan); padding:12px;}
+  .capture-icon{font-size:34px;}
+  .capture-text{font-size:13px; color:var(--text-mid); line-height:1.5;}
+  .preview{width:100%; border-radius:8px; display:block;}
+
+  .btn{
+    font-family:var(--sans); font-size:14px; font-weight:600; border:none; border-radius:8px;
+    padding:13px 18px; cursor:pointer; width:100%; margin-top:10px;
+  }
+  .btn-primary{background:var(--cyan); color:#04141a;}
+  .btn-secondary{background:transparent; color:var(--text-mid); border:1px solid var(--hairline);}
+  input[type=file]{display:none;}
+
+  .result-card{background:var(--panel); border:1px solid var(--hairline); border-radius:10px; padding:16px; margin-top:12px;}
+
+  .limits{font-size:11px; color:var(--text-dim); line-height:1.6; margin-top:10px; padding:12px; background:rgba(245,166,35,0.08); border-radius:8px; border:1px solid rgba(245,166,35,0.2);}
+
+  footer{margin-top:auto; padding:16px 20px 24px; font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:center; border-top:1px solid var(--hairline);}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="nexus-auth.js"></script>
+</head>
+<body>
+<div class="phone">
+
+  <div class="header">
+    <a href="index.html" class="menu-btn">☰ Menu</a>
+    <div class="eyebrow">NEXUS · Planogrammes</div>
+    <div class="title">Scan Vitrine</div>
+    <div class="subtitle">Capture → envoi au chat NEXUS → proposition de planogramme (règle R8)</div>
+  </div>
+  <div class="divider"></div>
+
+  <div class="section">
+    <div class="capture-zone" id="captureZone">
+      <div class="capture-icon">📷</div>
+      <div class="capture-text">Prenez en photo la vitrine ou le rayon à analyser.<br>Fonctionne sur mobile (appareil photo natif) comme sur desktop (fichier).</div>
+      <input type="file" id="fileInput" accept="image/*" capture="environment">
+      <button class="btn btn-primary" id="captureBtn">Prendre une photo / choisir un fichier</button>
+    </div>
+
+    <button class="btn btn-primary" id="analyzeBtn" style="display:none;">Comment faire analyser cette photo</button>
+    <button class="btn btn-secondary" id="resetBtn" style="display:none;">Reprendre une photo</button>
+
+    <div id="resultsBox"></div>
+  </div>
+
+  <footer>NEXUS Vitrine Scan v2 · Règle R8-PLANOGRAMME · Analyse au niveau marque</footer>
+</div>
+
+<script>
+nexusRequireAuth().then(employee => {
+  if (!employee) return; // nexus-auth.js gère déjà la redirection vers NEXUS-Login-v1.html
+  if (employee.role !== 'manager' && employee.role !== 'gerant') {
+    document.body.innerHTML = '<div style="padding:60px 20px; text-align:center; color:var(--text-dim); font-family:sans-serif;">Cet écran est réservé aux managers.</div>';
+    return;
+  }
+
+  const fileInput = document.getElementById('fileInput');
+  const captureBtn = document.getElementById('captureBtn');
+  const captureZone = document.getElementById('captureZone');
+  const analyzeBtn = document.getElementById('analyzeBtn');
+  const resetBtn = document.getElementById('resetBtn');
+  const resultsBox = document.getElementById('resultsBox');
+
+  captureBtn.addEventListener('click', () => fileInput.click());
+
+  fileInput.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      captureZone.classList.add('has-image');
+      captureZone.innerHTML = `<img class="preview" src="${reader.result}">`;
+      analyzeBtn.style.display = 'block';
+      resetBtn.style.display = 'block';
+      resultsBox.innerHTML = '';
+    };
+    reader.readAsDataURL(file);
+  });
+
+  resetBtn.addEventListener('click', () => {
+    captureZone.classList.remove('has-image');
+    captureZone.innerHTML = `
+      <div class="capture-icon">📷</div>
+      <div class="capture-text">Prenez en photo la vitrine ou le rayon à analyser.<br>Fonctionne sur mobile (appareil photo natif) comme sur desktop (fichier).</div>
+      <button class="btn btn-primary" id="captureBtn2">Prendre une photo / choisir un fichier</button>`;
+    document.getElementById('captureBtn2').addEventListener('click', () => fileInput.click());
+    analyzeBtn.style.display = 'none';
+    resetBtn.style.display = 'none';
+    resultsBox.innerHTML = '';
+  });
+
+  analyzeBtn.addEventListener('click', () => {
+    resultsBox.innerHTML = `
+      <div class="result-card">
+        <div style="font-size:13px; line-height:1.6;">
+          <b>Cet outil capture la photo — l'analyse se fait dans la conversation NEXUS.</b><br><br>
+          1. La photo est déjà enregistrée sur votre appareil (pellicule).<br>
+          2. Envoyez-la directement dans le chat NEXUS.<br>
+          3. NEXUS identifie les marques, compte les facings, et vous renvoie une proposition de planogramme complète — comme pour les deux frigos déjà analysés.
+        </div>
+      </div>
+      <div class="limits">⚠ Pas d'analyse automatique ici : ce fichier, une fois téléchargé, ne peut plus appeler l'IA directement — seule la conversation NEXUS le peut. Cet écran reste utile pour cadrer et vérifier la photo avant envoi.</div>`;
+  });
+
+});
+</script>
+</body>
+</html>

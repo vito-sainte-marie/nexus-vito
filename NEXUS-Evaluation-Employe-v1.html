@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NEXUS — Évaluation Employé</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
+    --text:#EDF1F5; --text-mid:#8A96A5; --text-dim:#57626F;
+    --green:#34D399; --green-dim:#153629;
+    --amber:#F5A623; --amber-dim:#3A2E14;
+    --red:#F0575A; --red-dim:#3A1D1F;
+    --cyan:#4FC3D9;
+    --mono:'IBM Plex Mono',monospace; --sans:'IBM Plex Sans',sans-serif;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{background:var(--bg); font-family:var(--sans); color:var(--text);}
+  body{display:flex; justify-content:center; min-height:100vh;}
+  .phone{width:100%; max-width:460px; min-height:100vh; display:flex; flex-direction:column; border-left:1px solid var(--hairline); border-right:1px solid var(--hairline);}
+
+  .header{padding:20px 20px 14px; position:relative;}
+  .menu-btn{
+    position:absolute; top:18px; right:18px; display:flex; align-items:center; gap:6px;
+    font-family:var(--mono); font-size:10.5px; font-weight:600; letter-spacing:0.03em; text-transform:uppercase;
+    color:var(--cyan); background:rgba(79,195,217,0.1); border:1px solid rgba(79,195,217,0.3);
+    border-radius:20px; padding:7px 12px; text-decoration:none; white-space:nowrap; z-index:5;
+  }
+  .menu-btn:active{background:rgba(79,195,217,0.2);}
+
+  .eyebrow{font-family:var(--mono); font-size:11px; letter-spacing:0.12em; text-transform:uppercase; color:var(--cyan);}
+  .title{font-size:20px; font-weight:600; margin-top:4px;}
+  .divider{height:1px; background:var(--hairline); margin:0 20px;}
+
+  .section{padding:16px 20px;}
+  .card{background:var(--panel); border:1px solid var(--hairline); border-radius:12px; padding:18px; margin-bottom:14px;}
+  .section-label{font-family:var(--mono); font-size:10.5px; letter-spacing:0.08em; text-transform:uppercase; color:var(--text-dim); margin-bottom:12px; display:flex; align-items:center; gap:8px;}
+  .section-label::after{content:''; flex:1; height:1px; background:var(--hairline);}
+
+  select, input[type=text]{
+    width:100%; background:var(--panel-raised); border:1px solid var(--hairline); border-radius:8px;
+    padding:11px 12px; color:var(--text); font-family:var(--sans); font-size:13.5px; margin-bottom:10px;
+  }
+
+  .check-item{display:flex; align-items:center; justify-content:space-between; padding:10px 0; border-bottom:1px solid var(--hairline);}
+  .check-item:last-child{border-bottom:none;}
+  .check-item label{font-size:13px;}
+  .toggle{width:44px; height:24px; background:var(--panel-raised); border-radius:14px; position:relative; cursor:pointer; border:1px solid var(--hairline);}
+  .toggle.on{background:var(--green-dim); border-color:var(--green);}
+  .toggle-dot{width:18px; height:18px; background:var(--text-dim); border-radius:50%; position:absolute; top:2px; left:2px; transition:0.15s;}
+  .toggle.on .toggle-dot{background:var(--green); left:22px;}
+
+  .btn{
+    font-family:var(--sans); font-size:14px; font-weight:600; border:none; border-radius:8px;
+    padding:13px 18px; cursor:pointer; width:100%; margin-top:10px;
+  }
+  .btn-primary{background:var(--cyan); color:#04141a;}
+
+  .result-box{margin-top:14px; padding:14px; border-radius:10px; text-align:center;}
+  .result-box.ok{background:var(--green-dim); color:var(--green);}
+  .result-box.warn{background:var(--amber-dim); color:var(--amber);}
+  .result-score{font-family:var(--mono); font-size:26px; font-weight:700;}
+  .result-detail{font-size:11.5px; margin-top:4px;}
+
+  .critere-row{margin-bottom:14px;}
+  .critere-row label{font-size:12.5px; display:flex; justify-content:space-between; margin-bottom:6px;}
+  .critere-row .max{font-family:var(--mono); color:var(--text-dim); font-size:10.5px;}
+  .critere-row input[type=range]{width:100%; accent-color:var(--cyan);}
+  .critere-note{font-family:var(--mono); font-size:11px; color:var(--cyan); text-align:right;}
+
+  .prime-result{text-align:center; padding:18px; border-radius:10px; margin-top:14px;}
+  .prime-pct{font-family:var(--mono); font-size:32px; font-weight:700;}
+
+  footer{margin-top:auto; padding:16px 20px 24px; font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:center; border-top:1px solid var(--hairline);}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="nexus-auth.js"></script>
+</head>
+<body>
+<div class="phone">
+  <div class="header">
+    <a href="index.html" class="menu-btn">☰ Menu</a>
+    <div class="eyebrow">NEXUS · Manager</div>
+    <div class="title">Évaluation Employé</div>
+  </div>
+  <div class="divider"></div>
+
+  <div class="section">
+    <div class="card">
+      <div class="section-label">Employé</div>
+      <select id="employeSelect"></select>
+    </div>
+
+    <div class="card">
+      <div class="section-label">Contrôle tenue du jour</div>
+      <div class="check-item"><label>Polo Vito</label><div class="toggle" data-item="polo_vito"><div class="toggle-dot"></div></div></div>
+      <div class="check-item"><label>Jean</label><div class="toggle" data-item="jean"><div class="toggle-dot"></div></div></div>
+      <div class="check-item"><label>Bien coiffé</label><div class="toggle" data-item="coiffure"><div class="toggle-dot"></div></div></div>
+      <div class="check-item"><label>Chaussures de sécurité</label><div class="toggle" data-item="chaussures_securite"><div class="toggle-dot"></div></div></div>
+      <div class="check-item"><label>Ceinture au jean <span id="ceintureAuto" style="font-family:var(--mono); font-size:9.5px; color:var(--text-dim);"></span></label><div class="toggle" data-item="ceinture"><div class="toggle-dot"></div></div></div>
+      <button class="btn btn-primary" id="validerTenue">Valider le contrôle</button>
+      <div id="resultTenue"></div>
+    </div>
+
+    <div class="card" id="cardGrillePrime">
+      <div class="section-label">Grille d'évaluation — prime</div>
+      <div id="criteres"></div>
+      <button class="btn btn-primary" id="calculerPrime">Calculer la prime</button>
+      <div id="resultPrime"></div>
+    </div>
+
+    <div class="card" id="cardGrilleRenfort" style="display:none;">
+      <div class="section-label">Évaluation des performances — Renfort</div>
+      <div id="criteresRenfort"></div>
+
+      <div class="section-label" style="margin-top:20px;">Auto-critique (à remplir avec l'employé)</div>
+      <label style="font-size:11.5px; color:var(--text-mid); display:block; margin-bottom:4px;">Points forts</label>
+      <textarea id="r_forts" style="width:100%; min-height:50px; background:var(--panel-raised); border:1px solid var(--hairline); border-radius:8px; padding:10px; color:var(--text); font-family:var(--sans); font-size:12.5px; margin-bottom:10px;"></textarea>
+      <label style="font-size:11.5px; color:var(--text-mid); display:block; margin-bottom:4px;">Aspects à améliorer</label>
+      <textarea id="r_ameliorer" style="width:100%; min-height:50px; background:var(--panel-raised); border:1px solid var(--hairline); border-radius:8px; padding:10px; color:var(--text); font-family:var(--sans); font-size:12.5px; margin-bottom:10px;"></textarea>
+
+      <div class="section-label" style="margin-top:16px;">Commentaires du responsable</div>
+      <textarea id="r_commentaires" style="width:100%; min-height:60px; background:var(--panel-raised); border:1px solid var(--hairline); border-radius:8px; padding:10px; color:var(--text); font-family:var(--sans); font-size:12.5px; margin-bottom:10px;"></textarea>
+
+      <button class="btn btn-primary" id="calculerRenfort">Enregistrer l'évaluation</button>
+      <div id="resultRenfort"></div>
+    </div>
+  </div>
+
+  <footer>NEXUS Évaluation v1 · Barème : 9-10→100% · 7-8,5→70% · 6-6,5→40% · &lt;6→0%</footer>
+</div>
+
+<script>
+  nexusRequireAuth().then(employee => {
+    if (!employee) return; // nexus-auth.js gère déjà la redirection vers NEXUS-Login-v1.html
+    if (employee.role !== 'manager' && employee.role !== 'gerant') {
+      document.body.innerHTML = '<div style="padding:60px 20px; text-align:center; color:var(--text-dim); font-family:var(--sans);">Cet écran est réservé aux managers.</div>';
+      return;
+    }
+    const session = { prenom: employee.nom, role: employee.role };
+
+
+  const ROSTER_DEFAUT = [
+    {"prenom":"Frédéric","nom":"Bragance","role":"manager","sexe":null},
+    {"prenom":"Thomas","nom":"Dupont","role":"pompiste","sexe":"homme"},
+    {"prenom":"Estelle","nom":"Bragance","role":"caissier","sexe":"femme"}
+  ];
+  const inscrits = JSON.parse(localStorage.getItem('nexus_roster_inscrits') || '[]');
+  const roster = ROSTER_DEFAUT.concat(inscrits);
+
+  const empSelect = document.getElementById('employeSelect');
+  roster.forEach(e => {
+    const opt = document.createElement('option');
+    opt.value = e.prenom; opt.textContent = `${e.prenom} ${e.nom} (${e.role})`;
+    opt.dataset.sexe = e.sexe || '';
+    empSelect.appendChild(opt);
+  });
+
+  function empActuel() { return roster.find(e => e.prenom === empSelect.value); }
+
+  function updateCeintureDefault() {
+    const emp = empActuel();
+    const applicable = emp && emp.sexe === 'homme';
+    document.getElementById('ceintureAuto').textContent = applicable ? '(applicable)' : '(non applicable par défaut)';
+    const toggle = document.querySelector('.toggle[data-item="ceinture"]');
+    toggle.dataset.forced = 'false';
+
+    // Bascule de grille selon le role — Renfort a sa propre grille specifique,
+    // les autres roles gardent la grille de prime /10
+    const estRenfort = emp && emp.role === 'renfort';
+    document.getElementById('cardGrillePrime').style.display = estRenfort ? 'none' : 'block';
+    document.getElementById('cardGrilleRenfort').style.display = estRenfort ? 'block' : 'none';
+  }
+  empSelect.addEventListener('change', updateCeintureDefault);
+  updateCeintureDefault();
+
+  document.querySelectorAll('.toggle').forEach(t => {
+    t.addEventListener('click', () => { t.classList.toggle('on'); t.dataset.forced = 'true'; });
+  });
+
+  const POINTS_CONFORME = 5, PENALITE_ITEM = -1;
+  document.getElementById('validerTenue').addEventListener('click', () => {
+    const emp = empActuel();
+    const ceintureApplicable = emp && emp.sexe === 'homme';
+    let items = {};
+    document.querySelectorAll('.toggle').forEach(t => {
+      const item = t.dataset.item;
+      if (item === 'ceinture' && !ceintureApplicable) return; // exclu par defaut
+      items[item] = t.classList.contains('on');
+    });
+    const manquants = Object.values(items).filter(v => !v).length;
+    const conforme = manquants === 0;
+    const points = Math.max(POINTS_CONFORME + manquants * PENALITE_ITEM, PENALITE_ITEM * Object.keys(items).length);
+
+    const box = document.getElementById('resultTenue');
+    box.innerHTML = `<div class="result-box ${conforme?'ok':'warn'}">
+      <div class="result-score">${points} pts</div>
+      <div class="result-detail">${conforme ? 'Tenue conforme' : manquants + ' item(s) manquant(s)'} — ${emp.prenom}, ${new Date().toLocaleDateString('fr-FR')}</div>
+    </div>`;
+  });
+
+  // Grille d'evaluation prime — 6 criteres reels
+  const CRITERES = [
+    {id:'accueil', label:"Qualité de l'accueil client", max:2},
+    {id:'organisation', label:"Organisation et mise en place du poste", max:2},
+    {id:'cohesion', label:"Cohésion et esprit d'équipe", max:2},
+    {id:'comportement', label:"Comportement général", max:2},
+    {id:'assiduite', label:"Assiduité", max:1},
+    {id:'rigueur', label:"Rigueur administrative et opérationnelle", max:1},
+  ];
+  const critEl = document.getElementById('criteres');
+  CRITERES.forEach(c => {
+    const div = document.createElement('div');
+    div.className = 'critere-row';
+    div.innerHTML = `<label>${c.label} <span class="max">/ ${c.max}</span></label>
+      <input type="range" min="0" max="${c.max}" step="0.5" value="0" id="crit_${c.id}">
+      <div class="critere-note" id="note_${c.id}">0 / ${c.max}</div>`;
+    critEl.appendChild(div);
+    div.querySelector('input').addEventListener('input', (e) => {
+      document.getElementById(`note_${c.id}`).textContent = `${e.target.value} / ${c.max}`;
+    });
+  });
+
+  function calculerPrime(totalSur10) {
+    if (totalSur10 >= 9) return 100;
+    if (totalSur10 >= 7) return 70;
+    if (totalSur10 >= 6) return 40;
+    return 0;
+  }
+
+  document.getElementById('calculerPrime').addEventListener('click', () => {
+    let total = 0;
+    CRITERES.forEach(c => total += parseFloat(document.getElementById(`crit_${c.id}`).value));
+    const pct = calculerPrime(total);
+    const box = document.getElementById('resultPrime');
+    box.innerHTML = `<div class="prime-result" style="background:${pct>0?'var(--green-dim)':'var(--red-dim)'};">
+      <div style="font-family:var(--mono); font-size:11px; color:var(--text-mid);">Total : ${total.toFixed(1)} / 10</div>
+      <div class="prime-pct" style="color:${pct>0?'var(--green)':'var(--red)'};">${pct}%</div>
+      <div style="font-family:var(--mono); font-size:10px; color:var(--text-dim);">de la prime</div>
+    </div>`;
+  });
+
+  // Grille specifique Renfort — echelle 1 a 5 par critere, PAS de bareme prime
+  // (entretien de performance qualitatif, distinct de la grille prime generale)
+  const CRITERES_RENFORT = [
+    {id:'ponctualite', label:"Ponctualité, assiduité et respect des consignes de sécurité"},
+    {id:'rigueur', label:"Rigueur dans l'exécution des tâches"},
+    {id:'service', label:"Qualité du service client"},
+    {id:'reactivite', label:"Réactivité et adaptabilité"},
+    {id:'proprete', label:"Maintien de la propreté et de l'hygiène"},
+    {id:'equipe', label:"Travail en équipe et entraide"},
+  ];
+  const critRenfortEl = document.getElementById('criteresRenfort');
+  CRITERES_RENFORT.forEach(c => {
+    const div = document.createElement('div');
+    div.className = 'critere-row';
+    div.innerHTML = `<label>${c.label} <span class="max">/ 5</span></label>
+      <input type="range" min="1" max="5" step="1" value="3" id="critr_${c.id}">
+      <div class="critere-note" id="noter_${c.id}">3 / 5 — Satisfaisant</div>`;
+    critRenfortEl.appendChild(div);
+    const echelle = {1:'Insuffisant',2:'À améliorer',3:'Satisfaisant',4:'Bon',5:'Excellent'};
+    div.querySelector('input').addEventListener('input', (e) => {
+      document.getElementById(`noter_${c.id}`).textContent = `${e.target.value} / 5 — ${echelle[e.target.value]}`;
+    });
+  });
+
+  document.getElementById('calculerRenfort').addEventListener('click', () => {
+    let total = 0;
+    CRITERES_RENFORT.forEach(c => total += parseInt(document.getElementById(`critr_${c.id}`).value));
+    const moyenne = (total / CRITERES_RENFORT.length).toFixed(1);
+    const emp = empActuel();
+    const box = document.getElementById('resultRenfort');
+    box.innerHTML = `<div class="prime-result" style="background:var(--panel-raised);">
+      <div style="font-family:var(--mono); font-size:11px; color:var(--text-mid);">Moyenne des 6 critères</div>
+      <div class="prime-pct" style="color:var(--cyan);">${moyenne} / 5</div>
+      <div style="font-family:var(--mono); font-size:10px; color:var(--text-dim); margin-top:6px;">${emp.prenom} · ${new Date().toLocaleDateString('fr-FR')} · entretien qualitatif, sans lien direct avec la prime</div>
+    </div>`;
+  });
+
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NEXUS — Import</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root{
+  --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
+  --text:#EDF1F5; --text-mid:#8A96A5; --text-dim:#57626F;
+  --green:#34D399; --green-dim:#153629;
+  --amber:#F5A623; --amber-dim:#3A2E14;
+  --cyan:#4FC3D9; --cyan-dim:#123138;
+  --red:#F0575A; --red-dim:#3A1D1F;
+  --mono:'IBM Plex Mono',monospace; --sans:'IBM Plex Sans',sans-serif;
+}
+*{box-sizing:border-box; margin:0; padding:0;}
+html,body{background:var(--bg); font-family:var(--sans); color:var(--text); min-height:100vh;}
+body{display:flex; justify-content:center; background-image:radial-gradient(circle at 50% 0%, rgba(79,195,217,0.07), transparent 45%);}
+a{color:inherit; text-decoration:none;}
+
+.app{width:100%; max-width:560px; min-height:100vh; display:flex; flex-direction:column; border-left:1px solid var(--hairline); border-right:1px solid var(--hairline); padding-bottom:32px;}
+
+.topbar{display:flex; align-items:center; gap:14px; padding:20px 20px 16px;}
+.icon-btn{width:38px; height:38px; border-radius:10px; background:var(--panel); border:1px solid var(--hairline); display:flex; align-items:center; justify-content:center; font-size:16px; color:var(--text-mid); flex-shrink:0; cursor:pointer;}
+.topbar-title h1{font-size:19px; font-weight:600;}
+.topbar-title p{font-family:var(--mono); font-size:11px; color:var(--text-mid); margin-top:2px;}
+
+.section{padding:0 20px;}
+.section-label{
+  font-family:var(--mono); font-size:11px; letter-spacing:0.1em; text-transform:uppercase; color:var(--text-dim);
+  display:flex; align-items:center; gap:10px; margin:24px 0 12px;
+}
+.section-label::after{content:''; flex:1; height:1px; background:var(--hairline);}
+
+/* ---------- dropzone ---------- */
+.dropzone{
+  margin:0 20px; border:1.5px dashed var(--hairline); border-radius:16px; padding:38px 20px;
+  text-align:center; background:var(--panel); transition:border-color .15s, background .15s; cursor:pointer;
+}
+.dropzone.drag{border-color:var(--cyan); background:var(--cyan-dim);}
+.dropzone .dz-icon{font-size:30px; margin-bottom:12px;}
+.dropzone .dz-title{font-size:15px; font-weight:600;}
+.dropzone .dz-sub{font-size:12px; color:var(--text-mid); margin-top:6px; line-height:1.5;}
+.dropzone .dz-formats{font-family:var(--mono); font-size:10px; color:var(--text-dim); margin-top:14px; letter-spacing:0.04em;}
+input[type=file]{display:none;}
+
+.file-chip{
+  display:flex; align-items:center; gap:12px; background:var(--panel); border:1px solid var(--hairline);
+  border-radius:12px; padding:14px; margin:0 20px;
+}
+.file-chip .fi{width:36px; height:36px; border-radius:9px; background:var(--green-dim); color:var(--green); display:flex; align-items:center; justify-content:center; font-size:16px; flex-shrink:0;}
+.file-chip .fname{font-size:13.5px; font-weight:600; word-break:break-all;}
+.file-chip .fmeta{font-family:var(--mono); font-size:10.5px; color:var(--text-mid); margin-top:2px;}
+.file-chip .remove{margin-left:auto; color:var(--text-dim); font-size:16px; cursor:pointer; flex-shrink:0;}
+
+/* ---------- mapping panel ---------- */
+.mapping-grid{display:grid; grid-template-columns:1fr 1fr; gap:8px;}
+.map-item{display:flex; align-items:center; gap:8px; background:var(--panel); border:1px solid var(--hairline); border-radius:10px; padding:10px 12px;}
+.map-item .dot{width:8px; height:8px; border-radius:50%; flex-shrink:0;}
+.map-item.ok .dot{background:var(--green);}
+.map-item.missing .dot{background:var(--amber);}
+.map-item .mlabel{font-size:12px; font-weight:600;}
+.map-item .msrc{font-family:var(--mono); font-size:9.5px; color:var(--text-dim); margin-top:1px;}
+
+/* ---------- summary cards ---------- */
+.summary-grid{display:grid; grid-template-columns:repeat(2,1fr); gap:10px;}
+.sum-card{background:var(--panel); border:1px solid var(--hairline); border-radius:12px; padding:14px 16px;}
+.sum-card .slabel{font-family:var(--mono); font-size:9.5px; letter-spacing:0.06em; text-transform:uppercase; color:var(--text-mid); margin-bottom:8px;}
+.sum-card .sval{font-size:22px; font-weight:700;}
+.sum-card.alert .sval{color:var(--amber);}
+.sum-card.ok .sval{color:var(--green);}
+.sum-card.cyan .sval{color:var(--cyan);}
+
+/* ---------- preview table ---------- */
+.table-wrap{overflow-x:auto; margin:0 20px; border:1px solid var(--hairline); border-radius:12px;}
+table{border-collapse:collapse; width:100%; font-size:11.5px; min-width:520px;}
+thead th{
+  background:var(--panel-raised); color:var(--text-mid); font-family:var(--mono); font-weight:600; font-size:10px;
+  text-transform:uppercase; letter-spacing:0.04em; padding:10px 12px; text-align:left; border-bottom:1px solid var(--hairline); white-space:nowrap;
+}
+tbody td{padding:9px 12px; border-bottom:1px solid var(--hairline); color:var(--text); white-space:nowrap;}
+tbody tr:last-child td{border-bottom:none;}
+tbody tr:hover{background:var(--panel);}
+.table-more{padding:10px 12px; font-family:var(--mono); font-size:10.5px; color:var(--text-dim); text-align:center; background:var(--panel);}
+
+/* ---------- buttons ---------- */
+.btn{
+  display:inline-flex; align-items:center; justify-content:center; gap:8px; font-family:var(--mono); font-size:12px; letter-spacing:0.04em;
+  text-transform:uppercase; padding:13px 20px; border-radius:10px; font-weight:600; cursor:pointer; border:1px solid transparent; width:100%;
+}
+.btn-primary{background:var(--cyan); color:#06181C;}
+.btn-primary:disabled{opacity:0.4; cursor:not-allowed;}
+.btn-ghost{background:var(--panel); color:var(--text); border:1px solid var(--hairline);}
+.btn-row{display:flex; gap:10px; margin:0 20px;}
+.btn-row .btn{flex:1;}
+
+.empty-note{font-size:12px; color:var(--text-dim); text-align:center; padding:20px;}
+.privacy-note{font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:center; line-height:1.6; padding:18px 20px 4px;}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="nexus-auth.js"></script>
+</head>
+<body>
+<div class="app">
+
+  <div class="topbar">
+    <a class="icon-btn" href="index.html">←</a>
+    <div class="topbar-title">
+      <h1>Import de données</h1>
+      <p>Ventes, stock ou catalogue — fichier Excel / CSV</p>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="dropzone" id="dropzone">
+      <div class="dz-icon">📥</div>
+      <div class="dz-title">Déposez votre fichier ici</div>
+      <div class="dz-sub">ou cliquez pour parcourir vos fichiers</div>
+      <div class="dz-formats">.XLSX · .XLS · .CSV</div>
+    </div>
+    <input type="file" id="fileInput" accept=".xlsx,.xls,.csv">
+  </div>
+
+  <div id="fileArea" style="display:none;">
+    <div class="section" style="margin-top:14px;">
+      <div class="file-chip">
+        <div class="fi">📄</div>
+        <div style="flex:1; min-width:0;">
+          <div class="fname" id="fname">—</div>
+          <div class="fmeta" id="fmeta">—</div>
+        </div>
+        <div class="remove" id="removeFile">✕</div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-label">Colonnes détectées</div>
+      <div class="mapping-grid" id="mappingGrid"></div>
+    </div>
+
+    <div class="section">
+      <div class="section-label">Résumé</div>
+      <div class="summary-grid">
+        <div class="sum-card ok"><div class="slabel">Lignes lues</div><div class="sval" id="statRows">—</div></div>
+        <div class="sum-card cyan"><div class="slabel">Catégories</div><div class="sval" id="statCats">—</div></div>
+        <div class="sum-card ok"><div class="slabel">CA estimé</div><div class="sval" id="statCA">—</div></div>
+        <div class="sum-card alert"><div class="slabel">Anomalies</div><div class="sval" id="statAnom">—</div></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-label">Aperçu (15 premières lignes)</div>
+    </div>
+    <div class="table-wrap">
+      <table id="previewTable">
+        <thead><tr id="previewHead"></tr></thead>
+        <tbody id="previewBody"></tbody>
+      </table>
+      <div class="table-more" id="moreRows"></div>
+    </div>
+
+    <div class="section" style="margin-top:20px;">
+      <div class="btn-row">
+        <div class="btn btn-ghost" id="downloadClean">Télécharger le résumé (.xlsx)</div>
+        <div class="btn btn-primary" id="sendPilot">Envoyer à NEXUS Pilot →</div>
+      </div>
+    </div>
+
+    <div class="privacy-note">Le fichier est traité entièrement dans votre navigateur — rien n'est envoyé à un serveur à ce stade.</div>
+  </div>
+
+</div>
+
+<script>
+nexusRequireAuth().then(employee => {
+  if (!employee) return; // nexus-auth.js gère déjà la redirection vers NEXUS-Login-v1.html
+  if (employee.role !== 'manager' && employee.role !== 'gerant') {
+    document.body.innerHTML = '<div style="padding:60px 20px; text-align:center; color:var(--text-dim); font-family:sans-serif;">Cet écran est réservé aux managers.</div>';
+    return;
+  }
+
+const dropzone = document.getElementById('dropzone');
+const fileInput = document.getElementById('fileInput');
+const fileArea = document.getElementById('fileArea');
+const fname = document.getElementById('fname');
+const fmeta = document.getElementById('fmeta');
+const removeFile = document.getElementById('removeFile');
+const mappingGrid = document.getElementById('mappingGrid');
+const statRows = document.getElementById('statRows');
+const statCats = document.getElementById('statCats');
+const statCA = document.getElementById('statCA');
+const statAnom = document.getElementById('statAnom');
+const previewHead = document.getElementById('previewHead');
+const previewBody = document.getElementById('previewBody');
+const moreRows = document.getElementById('moreRows');
+const downloadClean = document.getElementById('downloadClean');
+const sendPilot = document.getElementById('sendPilot');
+
+let currentRows = [];
+let currentHeaders = [];
+let cleanedSummary = [];
+
+// Champs attendus par NEXUS Pilot, avec synonymes possibles pour l'auto-mapping
+const FIELD_DEFS = [
+  {key:'categorie', label:'Catégorie', synonyms:['categ','categorie','famille','rayon']},
+  {key:'article', label:'Article', synonyms:['lib article','libelle','designation','produit','article']},
+  {key:'quantite', label:'Quantité', synonyms:['qte','quantite','qty']},
+  {key:'prix_achat', label:"Prix d'achat", synonyms:['pma','prix achat','cout','cost']},
+  {key:'prix_vente', label:'Prix de vente HT', synonyms:['pu ht','prix vente','prix','pvht']},
+  {key:'tva', label:'TVA', synonyms:['tva','vat']},
+  {key:'code_barres', label:'Code-barres', synonyms:['code barres','ean','codebarre']},
+];
+
+function norm(s){ return (s||'').toString().toLowerCase().trim(); }
+
+function detectMapping(headers){
+  const mapping = {};
+  FIELD_DEFS.forEach(f=>{
+    const found = headers.find(h => f.synonyms.some(s => norm(h).includes(s)));
+    mapping[f.key] = found || null;
+  });
+  return mapping;
+}
+
+function toNumber(v){
+  if (typeof v === 'number') return v;
+  if (v == null) return NaN;
+  let s = String(v).replace(/\s|\u00a0|\u202f/g,'').replace(',', '.');
+  const n = parseFloat(s);
+  return isNaN(n) ? NaN : n;
+}
+
+function renderMapping(mapping){
+  mappingGrid.innerHTML = '';
+  FIELD_DEFS.forEach(f=>{
+    const found = mapping[f.key];
+    const div = document.createElement('div');
+    div.className = 'map-item ' + (found ? 'ok' : 'missing');
+    div.innerHTML = `<span class="dot"></span><div><div class="mlabel">${f.label}</div><div class="msrc">${found ? '"'+found+'"' : 'non détecté'}</div></div>`;
+    mappingGrid.appendChild(div);
+  });
+}
+
+function renderPreview(headers, rows){
+  previewHead.innerHTML = headers.map(h=>`<th>${h}</th>`).join('');
+  const slice = rows.slice(0,15);
+  previewBody.innerHTML = slice.map(r =>
+    '<tr>' + headers.map(h => `<td>${r[h] ?? ''}</td>`).join('') + '</tr>'
+  ).join('');
+  moreRows.textContent = rows.length > 15 ? `+ ${rows.length - 15} autres lignes` : `${rows.length} ligne(s) au total`;
+}
+
+function computeSummary(mapping, rows){
+  const catKey = mapping['categorie'], qKey = mapping['quantite'], pvKey = mapping['prix_vente'];
+  const cats = new Set();
+  let ca = 0, anomalies = 0;
+  const catTotals = {};
+  rows.forEach(r=>{
+    if (catKey && r[catKey]) cats.add(r[catKey]);
+    const q = qKey ? toNumber(r[qKey]) : NaN;
+    const pv = pvKey ? toNumber(r[pvKey]) : NaN;
+    const lineCA = (!isNaN(q) && !isNaN(pv)) ? q*pv : 0;
+    ca += lineCA;
+    if ((pvKey && (isNaN(pv) || pv<=0)) || (qKey && (isNaN(q) || q<0))) anomalies++;
+    if (catKey && r[catKey]){
+      const c = r[catKey];
+      catTotals[c] = (catTotals[c]||0) + lineCA;
+    }
+  });
+  cleanedSummary = Object.entries(catTotals).map(([Categorie, CA_estime])=>({Categorie, CA_estime: Math.round(CA_estime*100)/100}))
+    .sort((a,b)=>b.CA_estime-a.CA_estime);
+
+  statRows.textContent = rows.length;
+  statCats.textContent = cats.size || '—';
+  statCA.textContent = ca ? Math.round(ca).toLocaleString('fr-FR') + ' €' : '—';
+  statAnom.textContent = anomalies;
+}
+
+function handleFile(file){
+  const reader = new FileReader();
+  reader.onload = function(e){
+    const data = new Uint8Array(e.target.result);
+    const wb = XLSX.read(data, {type:'array'});
+    const sheet = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(sheet, {defval:''});
+    if (!rows.length){ alert("Le fichier semble vide ou illisible."); return; }
+    const headers = Object.keys(rows[0]);
+    currentRows = rows; currentHeaders = headers;
+
+    fname.textContent = file.name;
+    fmeta.textContent = `${(file.size/1024).toFixed(0)} Ko · ${rows.length} lignes · ${headers.length} colonnes`;
+
+    const mapping = detectMapping(headers);
+    renderMapping(mapping);
+    renderPreview(headers, rows);
+    computeSummary(mapping, rows);
+
+    dropzone.style.display = 'none';
+    fileArea.style.display = 'block';
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+dropzone.addEventListener('click', ()=> fileInput.click());
+fileInput.addEventListener('change', e=>{ if (e.target.files[0]) handleFile(e.target.files[0]); });
+
+['dragenter','dragover'].forEach(evt=>{
+  dropzone.addEventListener(evt, e=>{ e.preventDefault(); dropzone.classList.add('drag'); });
+});
+['dragleave','drop'].forEach(evt=>{
+  dropzone.addEventListener(evt, e=>{ e.preventDefault(); dropzone.classList.remove('drag'); });
+});
+dropzone.addEventListener('drop', e=>{
+  const file = e.dataTransfer.files[0];
+  if (file) handleFile(file);
+});
+
+removeFile.addEventListener('click', ()=>{
+  currentRows = []; currentHeaders = []; cleanedSummary = [];
+  fileInput.value = '';
+  fileArea.style.display = 'none';
+  dropzone.style.display = 'block';
+});
+
+downloadClean.addEventListener('click', ()=>{
+  if (!cleanedSummary.length){ alert("Aucune donnée catégorisée à exporter — vérifiez la colonne Catégorie."); return; }
+  const ws = XLSX.utils.json_to_sheet(cleanedSummary);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Résumé catégories');
+  XLSX.writeFile(wb, 'nexus-resume-import.xlsx');
+});
+
+sendPilot.addEventListener('click', ()=>{
+  alert("Cette action enverra le fichier à NEXUS Pilot une fois la connexion mise en place. Pour l'instant, utilisez l'import direct dans NEXUS Pilot.");
+});
+
+});
+</script>
+</body>
+</html>

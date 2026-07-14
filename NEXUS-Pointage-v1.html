@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NEXUS — Pointage</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
+    --text:#EDF1F5; --text-mid:#8A96A5; --text-dim:#57626F;
+    --green:#34D399; --green-dim:#153629;
+    --amber:#F5A623; --amber-dim:#3A2E14;
+    --red:#F0575A; --red-dim:#3A1D1F;
+    --cyan:#4FC3D9;
+    --mono:'IBM Plex Mono',monospace; --sans:'IBM Plex Sans',sans-serif;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{background:var(--bg); font-family:var(--sans); color:var(--text);}
+  body{display:flex; justify-content:center; min-height:100vh;}
+  .phone{width:100%; max-width:460px; min-height:100vh; display:flex; flex-direction:column; border-left:1px solid var(--hairline); border-right:1px solid var(--hairline);}
+
+  .header{padding:22px 20px 14px; text-align:center; position:relative;}
+  .menu-btn{
+    position:absolute; top:18px; right:18px; display:flex; align-items:center; gap:6px;
+    font-family:var(--mono); font-size:10.5px; font-weight:600; letter-spacing:0.03em; text-transform:uppercase;
+    color:var(--cyan); background:rgba(79,195,217,0.1); border:1px solid rgba(79,195,217,0.3);
+    border-radius:20px; padding:7px 12px; text-decoration:none; white-space:nowrap; z-index:5;
+  }
+  .menu-btn:active{background:rgba(79,195,217,0.2);}
+
+  .eyebrow{font-family:var(--mono); font-size:11px; letter-spacing:0.12em; text-transform:uppercase; color:var(--cyan);}
+  .title{font-size:20px; font-weight:600; margin-top:4px;}
+  .clock{font-family:var(--mono); font-size:38px; font-weight:700; margin-top:14px;}
+  .date{font-family:var(--mono); font-size:11.5px; color:var(--text-dim); margin-top:4px;}
+  .divider{height:1px; background:var(--hairline); margin:0 20px;}
+
+  .section{padding:16px 20px;}
+  .card{background:var(--panel); border:1px solid var(--hairline); border-radius:12px; padding:18px; margin-bottom:14px;}
+  .section-label{font-family:var(--mono); font-size:10.5px; letter-spacing:0.08em; text-transform:uppercase; color:var(--text-dim); margin-bottom:12px; display:flex; align-items:center; gap:8px;}
+  .section-label::after{content:''; flex:1; height:1px; background:var(--hairline);}
+
+  select{
+    width:100%; background:var(--panel-raised); border:1px solid var(--hairline); border-radius:8px;
+    padding:11px 12px; color:var(--text); font-family:var(--sans); font-size:13.5px; margin-bottom:10px;
+  }
+
+  .btn{
+    font-family:var(--sans); font-size:14px; font-weight:600; border:none; border-radius:10px;
+    padding:16px; cursor:pointer; width:100%; margin-top:8px;
+  }
+  .btn-arrivee{background:var(--green); color:#04141a;}
+  .btn-pause{background:var(--amber); color:#04141a;}
+  .btn-depart{background:var(--red); color:#04141a;}
+  .btn:disabled{opacity:0.35; cursor:not-allowed;}
+
+  .result-box{margin-top:14px; padding:14px; border-radius:10px; text-align:center;}
+  .result-box.ok{background:var(--green-dim); color:var(--green);}
+  .result-box.warn{background:var(--red-dim); color:var(--red);}
+  .result-detail{font-size:11.5px; margin-top:4px; color:var(--text-mid);}
+
+  .histo-row{display:flex; justify-content:space-between; padding:9px 0; border-bottom:1px solid var(--hairline); font-size:12px;}
+  .histo-row:last-child{border-bottom:none;}
+  .histo-type{color:var(--text-mid);}
+  .histo-retard{font-family:var(--mono); color:var(--red);}
+
+  footer{margin-top:auto; padding:16px 20px 24px; font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:center; border-top:1px solid var(--hairline);}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="nexus-auth.js"></script>
+</head>
+<body>
+<div class="phone">
+  <div class="header">
+    <a href="index.html" class="menu-btn">☰ Menu</a>
+    <div class="eyebrow">NEXUS · Pointage</div>
+    <div class="title" id="empName">—</div>
+    <div class="clock" id="horloge">--:--:--</div>
+    <div class="date" id="dateJour"></div>
+  </div>
+  <div class="divider"></div>
+
+  <div class="section">
+    <div class="card">
+      <div class="section-label">Quart</div>
+      <select id="quartSelect">
+        <option value="1">Quart 1 (matin)</option>
+        <option value="2">Quart 2 (soir)</option>
+      </select>
+
+      <button class="btn btn-arrivee" id="btnArrivee">Pointer l'arrivée</button>
+      <button class="btn btn-pause" id="btnPauseDebut" disabled>Début de pause</button>
+      <button class="btn btn-pause" id="btnPauseFin" disabled>Fin de pause</button>
+      <button class="btn btn-depart" id="btnDepart" disabled>Pointer le départ</button>
+
+      <div id="resultPointage"></div>
+    </div>
+
+    <div class="card">
+      <div class="section-label">Historique du jour</div>
+      <div id="historique"><div style="font-size:12px; color:var(--text-dim);">Aucun pointage aujourd'hui.</div></div>
+    </div>
+  </div>
+
+  <footer>NEXUS Pointage v1 · Horaires réels · Retards enregistrés pour la grille assiduité</footer>
+</div>
+
+<script>
+  nexusRequireAuth().then(employee => {
+    if (!employee) return; // nexus-auth.js gère déjà la redirection vers NEXUS-Login-v1.html
+    const session = { prenom: employee.nom, role: employee.role };
+    document.getElementById('empName').textContent = session.prenom;
+
+  // Horaires PAR DEFAUT (vraie feuille "La Team", Vito Sainte-Marie Usine).
+  // Ce sont des valeurs de depart pour la station pilote — surchargees si
+  // un manager les modifie via l'ecran Parametres (nexus_config_horaires).
+  const HORAIRES_DEFAUT = {
+    quart1: { normal: "05:45", etendu: "05:45" },   // Dim-Mer / Jeu-Sam (meme heure de debut)
+    quart2: { normal: "12:40", etendu: "13:40" },   // Dim-Mer / Jeu-Sam
+    renfort: { debut: "09:00", fin: "17:00", pause_debut: "13:00", pause_fin: "14:00" },
+  };
+  function chargerHoraires() {
+    const config = JSON.parse(localStorage.getItem('nexus_config_horaires') || 'null');
+    return config || HORAIRES_DEFAUT;
+  }
+  const HORAIRES = chargerHoraires();
+  const estRenfort = session && session.role === 'renfort';
+
+  if (estRenfort) {
+    document.getElementById('quartSelect').style.display = 'none';
+  }
+
+  const JOURS_ETENDUS = [4, 5, 6]; // Jeudi=4, Vendredi=5, Samedi=6 (0=Dimanche)
+
+  function heureAttendue(quartValeur) {
+    if (quartValeur === 'renfort') return HORAIRES.renfort.debut;
+    const jour = new Date().getDay();
+    const etendu = JOURS_ETENDUS.includes(jour);
+    return etendu ? HORAIRES[`quart${quartValeur}`].etendu : HORAIRES[`quart${quartValeur}`].normal;
+  }
+
+  function maintenant() { return new Date().toTimeString().slice(0,8); }
+  function toMinutes(hhmm) { const [h,m] = hhmm.split(':').map(Number); return h*60+m; }
+
+  setInterval(() => {
+    document.getElementById('horloge').textContent = maintenant();
+    document.getElementById('dateJour').textContent = new Date().toLocaleDateString('fr-FR', {weekday:'long', day:'numeric', month:'long'});
+  }, 1000);
+
+  function chargerPointages() { return JSON.parse(localStorage.getItem('nexus_pointages') || '{}'); }
+  function sauvegarderPointages(p) { localStorage.setItem('nexus_pointages', JSON.stringify(p)); }
+
+  const aujourdhui = new Date().toISOString().slice(0,10);
+  const empActuel = session ? session.prenom : 'Anonyme';
+  const pointages = chargerPointages();
+  if (!pointages[aujourdhui]) pointages[aujourdhui] = {};
+  if (!pointages[aujourdhui][empActuel]) pointages[aujourdhui][empActuel] = [];
+  const mesPointages = pointages[aujourdhui][empActuel];
+
+  function dernierType() {
+    return mesPointages.length ? mesPointages[mesPointages.length-1].type : null;
+  }
+
+  function majBoutons() {
+    const dernier = dernierType();
+    document.getElementById('btnArrivee').disabled = dernier !== null;
+    document.getElementById('btnPauseDebut').disabled = dernier !== 'arrivee' && dernier !== 'pause_fin';
+    document.getElementById('btnPauseFin').disabled = dernier !== 'pause_debut';
+    document.getElementById('btnDepart').disabled = dernier === null || dernier === 'depart' || dernier === 'pause_debut';
+  }
+
+  function afficherHistorique() {
+    const el = document.getElementById('historique');
+    if (mesPointages.length === 0) { el.innerHTML = '<div style="font-size:12px; color:var(--text-dim);">Aucun pointage aujourd\u2019hui.</div>'; return; }
+    const labels = {arrivee:'Arrivée', pause_debut:'Début pause', pause_fin:'Fin pause', depart:'Départ'};
+    el.innerHTML = mesPointages.map(p => `
+      <div class="histo-row">
+        <span class="histo-type">${labels[p.type]}</span>
+        <span>${p.heure}${p.retard_min > 0 ? ` <span class="histo-retard">+${p.retard_min} min</span>` : ''}</span>
+      </div>`).join('');
+  }
+
+  function pointer(type) {
+    const heure = maintenant();
+    const quartValeur = estRenfort ? 'renfort' : document.getElementById('quartSelect').value;
+    let retard_min = 0;
+    if (type === 'arrivee') {
+      const attendue = heureAttendue(quartValeur);
+      retard_min = Math.max(0, toMinutes(heure.slice(0,5)) - toMinutes(attendue));
+    }
+    mesPointages.push({ type, heure, quart: quartValeur, retard_min });
+    pointages[aujourdhui][empActuel] = mesPointages;
+    sauvegarderPointages(pointages);
+
+    // Registre separe des retards, pour alimenter la grille assiduite
+    if (type === 'arrivee' && retard_min > 0) {
+      const retards = JSON.parse(localStorage.getItem('nexus_retards') || '{}');
+      if (!retards[empActuel]) retards[empActuel] = [];
+      retards[empActuel].push({ date: aujourdhui, retard_min });
+      localStorage.setItem('nexus_retards', JSON.stringify(retards));
+    }
+
+    const box = document.getElementById('resultPointage');
+    if (type === 'arrivee') {
+      box.innerHTML = retard_min > 0
+        ? `<div class="result-box warn"><b>Retard de ${retard_min} min</b><div class="result-detail">Enregistré — comptera dans le critère Assiduité</div></div>`
+        : `<div class="result-box ok"><b>À l'heure</b><div class="result-detail">Arrivée pointée à ${heure.slice(0,5)}</div></div>`;
+    } else {
+      box.innerHTML = `<div class="result-box ok">Pointage enregistré — ${heure.slice(0,5)}</div>`;
+    }
+
+    majBoutons();
+    afficherHistorique();
+  }
+
+  document.getElementById('btnArrivee').addEventListener('click', () => pointer('arrivee'));
+  document.getElementById('btnPauseDebut').addEventListener('click', () => pointer('pause_debut'));
+  document.getElementById('btnPauseFin').addEventListener('click', () => pointer('pause_fin'));
+  document.getElementById('btnDepart').addEventListener('click', () => pointer('depart'));
+
+  majBoutons();
+  afficherHistorique();
+
+  });
+</script>
+</body>
+</html>
