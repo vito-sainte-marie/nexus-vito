@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NEXUS — Scanner Stock</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="nexus-auth.js"></script>
+<style>
+  :root{
+    --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
+    --text:#EDF1F5; --text-mid:#8A96A5; --text-dim:#57626F;
+    --green:#34D399; --green-dim:#153629;
+    --amber:#F5A623; --amber-dim:#3A2E14;
+    --red:#F0575A; --red-dim:#3A1D1F;
+    --cyan:#4FC3D9;
+    --gold:#D4AF37; --gold-dim:#332B12;
+    --gris:#57626F; --gris-dim:#1A222C;
+    --mono:'IBM Plex Mono',monospace; --sans:'IBM Plex Sans',sans-serif;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{background:var(--bg); font-family:var(--sans); color:var(--text);}
+  body{display:flex; justify-content:center; min-height:100vh; background-image:radial-gradient(circle at 50% 0%, rgba(212,175,55,0.06), transparent 45%);}
+  .phone{width:100%; max-width:480px; min-height:100vh; display:flex; flex-direction:column; border-left:1px solid var(--hairline); border-right:1px solid var(--hairline);}
+
+  .header{padding:20px 20px 14px; position:relative;}
+  .menu-btn{
+    position:absolute; top:18px; right:18px; display:flex; align-items:center; gap:6px;
+    font-family:var(--mono); font-size:10.5px; font-weight:600; letter-spacing:0.03em; text-transform:uppercase;
+    color:var(--cyan); background:rgba(79,195,217,0.1); border:1px solid rgba(79,195,217,0.3);
+    border-radius:20px; padding:7px 12px; text-decoration:none; white-space:nowrap; z-index:5;
+  }
+  .menu-btn:active{background:rgba(79,195,217,0.2);}
+  .eyebrow{font-family:var(--mono); font-size:11px; letter-spacing:0.12em; text-transform:uppercase; color:var(--gold);}
+  .title{font-size:21px; font-weight:600; margin-top:4px;}
+  .divider{height:1px; background:var(--hairline); margin:0 20px;}
+
+  .conseiller-mini{display:flex; align-items:flex-start; gap:12px; padding:16px 20px;}
+  .conseiller-avatar{width:52px; height:52px; object-fit:contain; flex-shrink:0; filter:drop-shadow(0 0 8px rgba(212,175,55,0.4));}
+  .conseiller-bubble{
+    position:relative; flex:1; background:var(--panel); border:1px solid rgba(212,175,55,0.3); border-radius:14px;
+    padding:13px 16px; box-shadow:0 4px 14px rgba(0,0,0,0.2);
+  }
+  .conseiller-bubble::before{
+    content:''; position:absolute; left:-6px; top:16px; width:12px; height:12px; background:var(--panel);
+    border-left:1px solid rgba(212,175,55,0.3); border-bottom:1px solid rgba(212,175,55,0.3); transform:rotate(45deg);
+  }
+  .conseiller-label{font-family:var(--mono); font-size:9.5px; letter-spacing:0.06em; text-transform:uppercase; color:var(--gold); margin-bottom:4px;}
+  .conseiller-text{font-size:12.5px; line-height:1.55; color:var(--text);}
+
+  .section{padding:6px 20px 20px;}
+  .section-label{
+    font-family:var(--mono); font-size:10.5px; letter-spacing:0.08em; text-transform:uppercase; color:var(--text-dim);
+    margin:18px 0 10px; display:flex; align-items:center; gap:8px;
+  }
+  .section-label::after{content:''; flex:1; height:1px; background:var(--hairline);}
+
+  .confiance-card{
+    background:linear-gradient(145deg, var(--panel), var(--panel-raised)); border:1px solid var(--hairline); border-radius:18px;
+    padding:26px 20px; text-align:center; position:relative; overflow:hidden;
+  }
+  .confiance-card::before{content:''; position:absolute; top:-40%; left:-20%; width:140%; height:140%; background:radial-gradient(circle, rgba(212,175,55,0.08), transparent 60%); pointer-events:none;}
+  .confiance-label{font-family:var(--mono); font-size:10.5px; letter-spacing:0.08em; text-transform:uppercase; color:var(--text-dim);}
+  .confiance-value{font-family:var(--mono); font-size:56px; font-weight:700; line-height:1.1; margin-top:6px;}
+  .confiance-sub{font-size:12.5px; color:var(--text-mid); margin-top:6px;}
+
+  .kpi-grid{display:grid; grid-template-columns:repeat(2,1fr); gap:10px; margin-top:12px;}
+  .kpi-box{background:var(--panel); border:1px solid var(--hairline); border-radius:12px; padding:14px 16px;}
+  .kpi-label{font-family:var(--mono); font-size:9.5px; letter-spacing:0.05em; text-transform:uppercase; color:var(--text-dim);}
+  .kpi-value{font-family:var(--mono); font-size:22px; font-weight:700; margin-top:6px;}
+  .kpi-sub{font-size:10.5px; color:var(--text-mid); margin-top:3px;}
+
+  .priorites-row{display:flex; gap:8px; margin-top:12px; flex-wrap:wrap;}
+  .priorite-chip{
+    flex:1; min-width:100px; display:flex; flex-direction:column; align-items:center; gap:4px;
+    padding:12px 8px; border-radius:12px; font-family:var(--mono); font-size:10.5px; text-align:center;
+  }
+  .priorite-chip .n{font-size:20px; font-weight:700;}
+  .chip-rouge{background:var(--red-dim); color:var(--red);}
+  .chip-ambre{background:var(--amber-dim); color:var(--amber);}
+  .chip-vert{background:var(--green-dim); color:var(--green);}
+  .chip-gris{background:var(--gris-dim); color:var(--text-dim);}
+
+  .inventaire-card{
+    background:var(--gold-dim); border:1px solid rgba(212,175,55,0.4); border-radius:14px; padding:18px 20px; margin-top:14px;
+    display:flex; align-items:center; gap:14px;
+  }
+  .inventaire-icon{font-size:26px;}
+  .inventaire-title{font-size:14px; font-weight:700; color:var(--gold);}
+  .inventaire-detail{font-size:11.5px; color:var(--text-mid); margin-top:3px;}
+
+  .search-wrap{padding:4px 20px 8px;}
+  .search-box{display:flex; align-items:center; gap:10px; background:var(--panel); border:1px solid var(--hairline); border-radius:10px; padding:11px 14px;}
+  .search-box input{flex:1; background:none; border:none; outline:none; color:var(--text); font-family:var(--sans); font-size:13.5px;}
+  .search-box input::placeholder{color:var(--text-dim);}
+
+  .filter-row{display:flex; gap:6px; padding:10px 20px; overflow-x:auto;}
+  .filter-chip{
+    flex-shrink:0; padding:7px 13px; border-radius:20px; font-size:11.5px; font-weight:600;
+    background:var(--panel); border:1px solid var(--hairline); cursor:pointer; color:var(--text-mid); white-space:nowrap;
+  }
+  .filter-chip.active{background:rgba(212,175,55,0.12); border-color:var(--gold); color:var(--gold);}
+
+  .produit-card{background:var(--panel); border:1px solid var(--hairline); border-radius:12px; margin-bottom:10px; overflow:hidden;}
+  .produit-head{padding:14px 16px; cursor:pointer; display:flex; align-items:center; gap:12px;}
+  .produit-etat-dot{width:10px; height:10px; border-radius:50%; flex-shrink:0;}
+  .dot-vert{background:var(--green); box-shadow:0 0 8px rgba(52,211,153,0.6);}
+  .dot-ambre{background:var(--amber); box-shadow:0 0 8px rgba(245,166,35,0.6);}
+  .dot-rouge{background:var(--red); box-shadow:0 0 8px rgba(240,87,90,0.6);}
+  .dot-gris{background:var(--text-dim);}
+  .produit-info{flex:1; min-width:0;}
+  .produit-nom{font-size:13.5px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .produit-meta{font-family:var(--mono); font-size:10px; color:var(--text-dim); margin-top:2px;}
+  .produit-confiance{font-family:var(--mono); font-size:13px; font-weight:700; flex-shrink:0;}
+  .produit-chevron{color:var(--text-dim); font-size:14px; flex-shrink:0;}
+  .produit-body{display:none; padding:0 16px 16px; border-top:1px solid var(--hairline);}
+  .produit-body.open{display:block;}
+  .produit-detail-row{display:flex; justify-content:space-between; padding:9px 0; border-bottom:1px solid var(--hairline); font-size:12px;}
+  .produit-detail-row:last-of-type{border-bottom:none;}
+  .produit-detail-label{color:var(--text-mid);}
+  .sensible-etoiles{color:var(--gold); letter-spacing:2px; margin-top:10px; font-size:13px;}
+  .sensible-note{font-family:var(--mono); font-size:10px; color:var(--text-dim); margin-top:4px; line-height:1.5;}
+  .btn-compter{
+    width:100%; margin-top:12px; padding:11px; border:none; border-radius:8px; font-size:12.5px; font-weight:600;
+    background:var(--gold); color:#241d0c; cursor:pointer;
+  }
+  .compter-form{display:none; margin-top:10px; gap:8px;}
+  .compter-form.open{display:flex;}
+  .compter-form input{
+    flex:1; background:var(--panel-raised); border:1px solid var(--hairline); border-radius:8px;
+    padding:10px 12px; color:var(--text); font-family:var(--mono); font-size:14px; text-align:center;
+  }
+  .compter-form button{padding:0 16px; border:none; border-radius:8px; background:var(--green); color:#04141a; font-weight:700; cursor:pointer;}
+
+  .empty-note{padding:40px 20px; text-align:center; color:var(--text-dim); font-size:12.5px; line-height:1.6;}
+  .locked{padding:60px 20px; text-align:center; color:var(--text-dim); font-family:var(--sans);}
+
+  footer{margin-top:auto; padding:16px 20px 24px; font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:center; border-top:1px solid var(--hairline);}
+</style>
+</head>
+<body>
+<div class="phone">
+  <div class="header">
+    <a href="index.html" class="menu-btn">☰ Menu</a>
+    <div class="eyebrow">NEXUS · Scanner Stock</div>
+    <div class="title">Où perdez-vous de l'argent ?</div>
+  </div>
+  <div class="divider"></div>
+
+  <div id="root">
+    <div class="empty-note">Chargement…</div>
+  </div>
+
+  <footer>NEXUS Scanner Stock v1 · Indice de confiance, pas un simple inventaire</footer>
+</div>
+
+<script>
+  const ETATS = {
+    stable:      { label: '🟢 Stable',                    dot: 'dot-vert'  },
+    surveiller:  { label: '🟡 À surveiller',               dot: 'dot-ambre' },
+    verifier:    { label: '🔴 Vérification recommandée',   dot: 'dot-rouge' },
+    inconnu:     { label: '⚫ Impossible à conclure',      dot: 'dot-gris'  },
+  };
+
+  let ANALYSE = [];        // une entree par article, avec etat/confiance/ecart
+  let employeeCourant = null;
+  let filtreActuel = 'tous';
+
+  async function chargerAnalyse() {
+    const { data: releves, error: err1 } = await nexusClient
+      .from('stock_releves')
+      .select('article, categorie, quantite_theorique, releve_le')
+      .eq('site', 'vito-sainte-marie')
+      .order('releve_le', { ascending: true });
+    if (err1) { console.error('Chargement stock_releves:', err1); return []; }
+    if (!releves || releves.length === 0) return [];
+
+    const { data: ventes } = await nexusClient
+      .from('products')
+      .select('article, quantite, prix_vente, periode_debut, periode_fin')
+      .eq('site', 'vito-sainte-marie');
+
+    const { data: controles } = await nexusClient
+      .from('controles_stock')
+      .select('article, ecart, controle_le')
+      .eq('site', 'vito-sainte-marie')
+      .order('controle_le', { ascending: false });
+
+    const parArticle = {};
+    releves.forEach(r => {
+      if (!parArticle[r.article]) parArticle[r.article] = [];
+      parArticle[r.article].push(r);
+    });
+
+    const maintenant = new Date();
+
+    return Object.entries(parArticle).map(([article, snaps]) => {
+      const dernier = snaps[snaps.length - 1];
+      const avantDernier = snaps.length >= 2 ? snaps[snaps.length - 2] : null;
+      const categorie = dernier.categorie;
+
+      const dernierControle = (controles || []).find(c => c.article === article);
+      const joursDepuisControle = dernierControle
+        ? Math.round((maintenant - new Date(dernierControle.controle_le)) / 86400000)
+        : null;
+
+      const prixVenteInfo = (ventes || []).find(v => v.article === article && v.prix_vente);
+      const prixVente = prixVenteInfo ? prixVenteInfo.prix_vente : null;
+
+      const quantiteVendueTotale = (ventes || [])
+        .filter(v => v.article === article)
+        .reduce((s, v) => s + (v.quantite || 0), 0);
+
+      let etat = 'inconnu', ecart = null, ecartPct = null, confiance = 30, note = "Un seul relevé disponible pour l'instant — je ne peux rien comparer.";
+
+      if (avantDernier) {
+        const ventesEntreDeux = (ventes || []).filter(v =>
+          v.article === article &&
+          v.periode_debut && new Date(v.periode_debut) >= new Date(avantDernier.releve_le) &&
+          v.periode_fin && new Date(v.periode_fin) <= new Date(dernier.releve_le)
+        ).reduce((s, v) => s + (v.quantite || 0), 0);
+
+        const aDesVentes = (ventes || []).some(v => v.article === article);
+        const attendu = avantDernier.quantite_theorique - ventesEntreDeux;
+        ecart = dernier.quantite_theorique - attendu;
+        const base = Math.max(avantDernier.quantite_theorique, 1);
+        ecartPct = ecart / base;
+
+        confiance = 50;
+        if (aDesVentes) confiance += 20; else confiance -= 10;
+        confiance -= Math.min(40, Math.abs(ecartPct) * 100);
+        if (dernierControle) {
+          confiance += Math.max(-15, Math.min(15, 15 - Math.abs(dernierControle.ecart)));
+        }
+        confiance = Math.max(5, Math.min(99, Math.round(confiance)));
+
+        if (Math.abs(ecartPct) < 0.10 || Math.abs(ecart) < 2) {
+          etat = 'stable'; note = "Le mouvement de stock correspond à ce que les ventes expliquent.";
+        } else if (Math.abs(ecartPct) < 0.25) {
+          etat = 'surveiller'; note = ecart < 0
+            ? "Écart modéré non expliqué par les ventes connues — à garder à l'œil."
+            : "Plus de stock que prévu — probablement une livraison non suivie par NEXUS.";
+        } else {
+          etat = ecart < 0 ? 'verifier' : 'surveiller';
+          note = ecart < 0
+            ? "Écart important et non expliqué par les ventes — je recommande un comptage réel avant toute conclusion."
+            : "Écart important au-dessus de l'attendu — probablement une livraison, mais à vérifier.";
+        }
+
+        if (!aDesVentes) {
+          etat = 'inconnu'; confiance = Math.min(confiance, 35);
+          note = "Aucune donnée de vente sur la période pour recouper ce mouvement — je ne peux pas conclure honnêtement.";
+        }
+      }
+
+      return {
+        article, categorie, etat, ecart, ecartPct, confiance, note,
+        quantiteActuelle: dernier.quantite_theorique, nbReleves: snaps.length,
+        prixVente, quantiteVendueTotale, joursDepuisControle,
+        risqueEur: (etat === 'verifier' && ecart < 0 && prixVente) ? Math.abs(ecart) * prixVente : 0,
+      };
+    });
+  }
+
+  function calculerSensibilite(p) {
+    let pts = 0;
+    if (p.quantiteVendueTotale > 50) pts++;
+    if (p.prixVente && p.prixVente > 3) pts++;
+    if (p.etat === 'verifier') pts++;
+    if (p.joursDepuisControle === null || p.joursDepuisControle > 30) pts++;
+    if (Math.abs(p.ecartPct || 0) > 0.15) pts++;
+    return pts;
+  }
+
+  async function marquerControle(article, quantiteTheorique, quantiteComptee) {
+    const ecart = quantiteComptee - quantiteTheorique;
+    const { error } = await nexusClient.from('controles_stock').insert({
+      site: 'vito-sainte-marie', article, quantite_theorique: quantiteTheorique,
+      quantite_comptee: quantiteComptee, ecart, controle_par: employeeCourant.id,
+    });
+    if (error) { console.error('Enregistrement controle:', error); alert('Erreur — réessayez.'); return false; }
+    return true;
+  }
+
+  function renderRoot() {
+    const root = document.getElementById('root');
+
+    if (ANALYSE.length === 0) {
+      root.innerHTML = `<div class="empty-note">
+        Aucun relevé de stock importé pour l'instant.<br><br>
+        Rendez-vous dans <b>Import</b>, choisissez "Stock instantané", et déposez votre premier fichier — je commencerai l'analyse dès que j'aurai au moins deux relevés à comparer.
+      </div>`;
+      return;
+    }
+
+    const nbStable = ANALYSE.filter(p => p.etat === 'stable').length;
+    const nbSurveiller = ANALYSE.filter(p => p.etat === 'surveiller').length;
+    const nbVerifier = ANALYSE.filter(p => p.etat === 'verifier').length;
+    const nbInconnu = ANALYSE.filter(p => p.etat === 'inconnu').length;
+    const total = ANALYSE.length;
+
+    const confianceGlobale = Math.round(ANALYSE.reduce((s, p) => s + p.confiance, 0) / total);
+    const risqueEstime = Math.round(ANALYSE.reduce((s, p) => s + p.risqueEur, 0));
+
+    const sensibles = ANALYSE.map(p => ({ ...p, etoiles: calculerSensibilite(p) })).filter(p => p.etoiles >= 3);
+
+    const aRecompter = [
+      ...ANALYSE.filter(p => p.etat === 'verifier'),
+      ...sensibles.filter(p => p.etat !== 'verifier' && (p.joursDepuisControle === null || p.joursDepuisControle > 20)),
+    ].filter((p, i, arr) => arr.findIndex(x => x.article === p.article) === i).slice(0, 20);
+    const dureeMin = Math.max(1, Math.round(aRecompter.length * 40 / 60));
+
+    const confCouleur = confianceGlobale >= 80 ? 'var(--green)' : confianceGlobale >= 55 ? 'var(--amber)' : 'var(--red)';
+
+    root.innerHTML = `
+      <div class="conseiller-mini">
+        <img class="conseiller-avatar" src="assets/nexus-avatar.png" alt="Conseiller NEXUS">
+        <div class="conseiller-bubble">
+          <div class="conseiller-label">Conseiller NEXUS</div>
+          <div class="conseiller-text" id="conseillerStockMsg">Calcul en cours…</div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="confiance-card">
+          <div class="confiance-label">Indice de confiance</div>
+          <div class="confiance-value" style="color:${confCouleur};">${confianceGlobale}%</div>
+          <div class="confiance-sub">${total} référence${total>1?'s':''} suivie${total>1?'s':''} · confiance dans ce que je vois, pas le stock lui-même</div>
+        </div>
+
+        <div class="priorites-row">
+          <div class="priorite-chip chip-rouge"><span class="n">${nbVerifier}</span>à vérifier</div>
+          <div class="priorite-chip chip-ambre"><span class="n">${nbSurveiller}</span>sensibles</div>
+          <div class="priorite-chip chip-vert"><span class="n">${nbStable}</span>stables</div>
+          <div class="priorite-chip chip-gris"><span class="n">${nbInconnu}</span>non concluants</div>
+        </div>
+
+        <div class="kpi-grid">
+          <div class="kpi-box"><div class="kpi-label">Risque estimé</div><div class="kpi-value" style="color:var(--red);">${risqueEstime.toLocaleString('fr-FR')} €</div><div class="kpi-sub">si les écarts sont confirmés</div></div>
+          <div class="kpi-box"><div class="kpi-label">Produits sensibles</div><div class="kpi-value" style="color:var(--gold);">${sensibles.length}</div><div class="kpi-sub">cumul de facteurs de risque</div></div>
+        </div>
+
+        ${aRecompter.length > 0 ? `
+        <div class="inventaire-card">
+          <div class="inventaire-icon">📋</div>
+          <div>
+            <div class="inventaire-title">Inventaire conseillé aujourd'hui</div>
+            <div class="inventaire-detail">${aRecompter.length} produit${aRecompter.length>1?'s':''} · environ ${dureeMin} minute${dureeMin>1?'s':''}</div>
+          </div>
+        </div>` : ''}
+      </div>
+
+      <div class="search-wrap">
+        <div class="search-box"><span>🔍</span><input type="text" id="searchStock" placeholder="Rechercher une référence..."></div>
+      </div>
+      <div class="filter-row" id="filterRow">
+        <div class="filter-chip ${filtreActuel==='tous'?'active':''}" data-filtre="tous">Tous (${total})</div>
+        <div class="filter-chip ${filtreActuel==='verifier'?'active':''}" data-filtre="verifier">🔴 À vérifier (${nbVerifier})</div>
+        <div class="filter-chip ${filtreActuel==='surveiller'?'active':''}" data-filtre="surveiller">🟡 À surveiller (${nbSurveiller})</div>
+        <div class="filter-chip ${filtreActuel==='sensibles'?'active':''}" data-filtre="sensibles">⭐ Sensibles (${sensibles.length})</div>
+      </div>
+
+      <div class="section" id="listeProduits"></div>
+    `;
+
+    document.getElementById('conseillerStockMsg').textContent = genererMessageConseiller(nbVerifier, nbSurveiller, risqueEstime, aRecompter);
+
+    renderListe();
+
+    document.getElementById('searchStock').addEventListener('input', renderListe);
+    document.querySelectorAll('.filter-chip').forEach(chip => {
+      chip.addEventListener('click', () => { filtreActuel = chip.dataset.filtre; renderRoot(); });
+    });
+  }
+
+  function genererMessageConseiller(nbVerifier, nbSurveiller, risqueEstime, aRecompter) {
+    const prenom = employeeCourant ? employeeCourant.nom : '';
+    if (nbVerifier === 0 && nbSurveiller === 0) {
+      return `${prenom}, tout est cohérent pour l'instant — aucune référence ne mérite une vérification prioritaire aujourd'hui.`;
+    }
+    let msg = `${prenom}, je vous recommande de vérifier les ${aRecompter.length} référence${aRecompter.length>1?'s':''} ci-dessous en priorité. `;
+    if (risqueEstime > 0) msg += `Elles représentent environ ${risqueEstime.toLocaleString('fr-FR')} € de risque estimé si les écarts se confirment.`;
+    else msg += `Aucun écart chiffrable pour l'instant, mais leur profil justifie un contrôle.`;
+    return msg;
+  }
+
+  function renderListe() {
+    const q = document.getElementById('searchStock').value.trim().toLowerCase();
+    let liste = ANALYSE.map(p => ({ ...p, etoiles: calculerSensibilite(p) }));
+
+    if (filtreActuel === 'verifier') liste = liste.filter(p => p.etat === 'verifier');
+    else if (filtreActuel === 'surveiller') liste = liste.filter(p => p.etat === 'surveiller');
+    else if (filtreActuel === 'sensibles') liste = liste.filter(p => p.etoiles >= 3);
+
+    if (q) liste = liste.filter(p => p.article.toLowerCase().includes(q));
+
+    const ordre = { verifier: 0, surveiller: 1, inconnu: 2, stable: 3 };
+    liste.sort((a, b) => (ordre[a.etat] - ordre[b.etat]) || (b.risqueEur - a.risqueEur));
+
+    const el = document.getElementById('listeProduits');
+    if (liste.length === 0) {
+      el.innerHTML = `<div class="empty-note">Aucune référence ne correspond.</div>`;
+      return;
+    }
+
+    el.innerHTML = liste.map((p, i) => {
+      const e = ETATS[p.etat];
+      return `
+      <div class="produit-card">
+        <div class="produit-head" data-idx="${i}">
+          <div class="produit-etat-dot ${e.dot}"></div>
+          <div class="produit-info">
+            <div class="produit-nom">${p.article}</div>
+            <div class="produit-meta">${p.categorie || 'Non classé'} · stock actuel ${p.quantiteActuelle}</div>
+          </div>
+          <div class="produit-confiance" style="color:${p.confiance>=70?'var(--green)':p.confiance>=45?'var(--amber)':'var(--red)'};">${p.confiance}%</div>
+          <div class="produit-chevron">›</div>
+        </div>
+        <div class="produit-body" id="body-${i}">
+          <div class="produit-detail-row"><span class="produit-detail-label">État</span><span>${e.label}</span></div>
+          ${p.ecart !== null ? `<div class="produit-detail-row"><span class="produit-detail-label">Écart estimé</span><span>${p.ecart>0?'+':''}${Math.round(p.ecart)} unités</span></div>` : ''}
+          ${p.risqueEur > 0 ? `<div class="produit-detail-row"><span class="produit-detail-label">Risque</span><span style="color:var(--red);">${Math.round(p.risqueEur).toLocaleString('fr-FR')} €</span></div>` : ''}
+          <div class="produit-detail-row"><span class="produit-detail-label">Dernier contrôle réel</span><span>${p.joursDepuisControle !== null ? p.joursDepuisControle + ' jour(s)' : 'Jamais'}</span></div>
+          <div class="sensible-note">${p.note}</div>
+          ${p.etoiles >= 3 ? `<div class="sensible-etoiles">${'★'.repeat(p.etoiles)}${'☆'.repeat(5-p.etoiles)} <span class="sensible-note" style="display:inline; color:var(--gold);">produit sensible</span></div>` : ''}
+          <button class="btn-compter" data-idx="${i}">📷 Compter maintenant</button>
+          <div class="compter-form" id="form-${i}">
+            <input type="number" id="input-${i}" placeholder="Quantité réelle">
+            <button data-idx="${i}">✓</button>
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+
+    el.querySelectorAll('.produit-head').forEach(h => {
+      h.addEventListener('click', () => document.getElementById(`body-${h.dataset.idx}`).classList.toggle('open'));
+    });
+    el.querySelectorAll('.btn-compter').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        document.getElementById(`form-${btn.dataset.idx}`).classList.add('open');
+        btn.style.display = 'none';
+      });
+    });
+    el.querySelectorAll('.compter-form button').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const idx = btn.dataset.idx;
+        const input = document.getElementById(`input-${idx}`);
+        const val = parseFloat(input.value);
+        if (isNaN(val)) { input.focus(); return; }
+        const article = liste[idx].article;
+        const theorique = liste[idx].quantiteActuelle;
+        btn.disabled = true; btn.textContent = '…';
+        const ok = await marquerControle(article, theorique, val);
+        if (ok) {
+          ANALYSE = await chargerAnalyse();
+          renderRoot();
+        } else {
+          btn.disabled = false; btn.textContent = '✓';
+        }
+      });
+    });
+  }
+
+  nexusRequireAuth().then(async employee => {
+    if (!employee) return; // nexus-auth.js gère déjà la redirection vers NEXUS-Login-v1.html
+    if (employee.role !== 'manager' && employee.role !== 'gerant') {
+      document.getElementById('root').innerHTML = `<div class="locked">Cet écran est réservé aux managers.</div>`;
+      return;
+    }
+    employeeCourant = employee;
+    ANALYSE = await chargerAnalyse();
+    renderRoot();
+
+    if (ANALYSE.length > 0) {
+      const total = ANALYSE.length;
+      await nexusClient.from('stock_sante_historique').insert({
+        site: 'vito-sainte-marie',
+        indice_confiance: Math.round(ANALYSE.reduce((s, p) => s + p.confiance, 0) / total),
+        nb_references_stables: ANALYSE.filter(p => p.etat === 'stable').length,
+        nb_references_a_surveiller: ANALYSE.filter(p => p.etat === 'surveiller').length,
+        nb_references_a_verifier: ANALYSE.filter(p => p.etat === 'verifier').length,
+        nb_references_non_concluantes: ANALYSE.filter(p => p.etat === 'inconnu').length,
+        risque_estime_eur: Math.round(ANALYSE.reduce((s, p) => s + p.risqueEur, 0)),
+      });
+    }
+  });
+</script>
+</body>
+</html>
