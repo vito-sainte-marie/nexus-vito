@@ -224,8 +224,8 @@ nexusRequireAuth().then(async employee => {
   const msgEl = document.getElementById('conseillerImportMsg');
   if (msgEl) {
     msgEl.textContent = count && count > 0
-      ? `Vous avez déjà ${count.toLocaleString('fr-FR')} référence(s) importée(s). Ce nouvel envoi vient compléter l'historique — je pourrai comparer les deux périodes automatiquement.`
-      : `C'est votre premier import — bienvenue. Une fois envoyé, je commence à calculer les vrais chiffres de vos rayons, plus aucune estimation.`;
+      ? `${employee.nom}, vous avez déjà ${count.toLocaleString('fr-FR')} référence(s) importée(s). Ce nouvel envoi vient compléter l'historique — je pourrai comparer les deux périodes automatiquement.`
+      : `${employee.nom}, c'est votre premier import — bienvenue. Une fois envoyé, je commence à calculer les vrais chiffres de vos rayons, plus aucune estimation.`;
   }
 
 const dropzone = document.getElementById('dropzone');

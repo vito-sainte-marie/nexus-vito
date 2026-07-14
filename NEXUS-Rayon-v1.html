@@ -201,13 +201,21 @@ nexusRequireAuth().then(async employee => {
     const rang = nomsCategories.indexOf(key) + 1;
     const conseillerMsg = document.getElementById('conseillerRayonMsg');
     if (conseillerMsg) {
-      let msg = `${r.nom} pèse ${fmtEur(r.ca_total)} sur la période — votre ${rang}${rang===1?'er':'ᵉ'} rayon sur ${nomsCategories.length} en chiffre d'affaires. `;
+      const margePct = r.marge_pct_moyenne;
+      let msg = `${employee.nom}, ${r.nom} reste votre ${rang}${rang===1?'er':'ᵉ'} rayon en chiffre d'affaires (${fmtEur(r.ca_total)}). `;
+      if (margePct < 0.25) {
+        msg += `Sa marge est plutôt faible (${fmtPct(margePct)}) — je ne vous recommande pas d'en pousser la vente. Concentrons plutôt nos efforts sur les rayons à plus forte marge. `;
+      } else if (margePct >= 0.40) {
+        msg += `Sa marge est solide (${fmtPct(margePct)}) — c'est un vrai levier, pas seulement du volume. `;
+      } else {
+        msg += `Sa marge reste correcte (${fmtPct(margePct)}), sans être exceptionnelle. `;
+      }
       if (r.evolution_ca !== null) {
         msg += r.evolution_ca >= 0
-          ? `La dynamique est positive (+${fmtPct(r.evolution_ca)}) : c'est le bon moment pour sécuriser vos meilleures ventes.`
-          : `La tendance recule (${fmtPct(r.evolution_ca)}) — regardez d'abord vos ${r.produits_faibles.length} référence(s) les plus faibles avant de tirer une conclusion.`;
+          ? `Et sa dynamique est bonne (+${fmtPct(r.evolution_ca)}) — sécurisons ce qui marche déjà.`
+          : `Elle recule de ${fmtPct(Math.abs(r.evolution_ca))} — avant d'en tirer une conclusion, allons vérifier le terrain.`;
       } else {
-        msg += `Je n'ai pas encore de période précédente pour ce rayon — pas d'évolution fiable à vous donner pour l'instant, j'attends votre prochain import.`;
+        msg += `Je n'ai pas encore de période précédente pour ce rayon, donc pas d'évolution fiable — ça viendra avec votre prochain import.`;
       }
       conseillerMsg.textContent = msg;
     }

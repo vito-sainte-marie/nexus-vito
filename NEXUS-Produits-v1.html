@@ -289,15 +289,25 @@ nexusRequireAuth().then(async employee => {
 
     const conseillerMsg = document.getElementById('conseillerProduitMsg');
     if (conseillerMsg) {
-      let msg = `${p.article} pèse ${fmtEur(p.ca_t2)} sur la période`;
-      msg += p.pct_contrib !== null ? `, soit ${fmtPct(p.pct_contrib)} du CA de son rayon. ` : `. `;
+      let msg = `${employee.nom}, `;
+      msg += p.pct_contrib !== null
+        ? `${p.article} pèse ${fmtPct(p.pct_contrib)} du CA de son rayon (${fmtEur(p.ca_t2)}). `
+        : `${p.article} a généré ${fmtEur(p.ca_t2)} sur la période. `;
+
+      if (p.marge_pct < 0.25) {
+        msg += `Sa marge reste faible (${fmtPct(p.marge_pct)}) — ce n'est pas une référence à pousser pour la rentabilité. `;
+      } else if (p.marge_pct >= 0.40) {
+        msg += `Sa marge est bonne (${fmtPct(p.marge_pct)}) — un vrai levier si le volume suit. `;
+      }
+
       if (p.ca_t1 > 0) {
         msg += evolCa >= 0
-          ? `Sa dynamique est positive (+${fmtPct(evolCa)} vs période précédente). `
-          : `Elle recule de ${fmtPct(Math.abs(evolCa))} vs la période précédente — à vérifier avant toute conclusion. `;
+          ? `Sa dynamique est positive (+${fmtPct(evolCa)}). `
+          : `Elle recule de ${fmtPct(Math.abs(evolCa))} — à vérifier avant toute conclusion. `;
       } else {
-        msg += `Je n'ai pas de période précédente pour cette référence, donc pas d'évolution fiable. `;
+        msg += `Je n'ai pas encore de période précédente pour elle. `;
       }
+
       msg += p.statut ? p.statut.texte : `Elle ne déclenche aucune alerte particulière pour l'instant.`;
       conseillerMsg.textContent = msg;
     }
