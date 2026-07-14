@@ -237,17 +237,23 @@ nexusRequireAuth().then(async employee => {
     return;
   }
 
-  const [{ count: countVentes }, { data: dernierReleve, count: countStock }] = await Promise.all([
-    nexusClient.from('products').select('id', { count: 'exact', head: true }),
-    nexusClient.from('stock_releves').select('releve_le', { count: 'exact' }).order('releve_le', { ascending: false }).limit(1),
-  ]);
+  let countVentes = 0, countStock = 0, dernierReleve = null;
+  try {
+    const resVentes = await nexusClient.from('products').select('id', { count: 'exact', head: true });
+    countVentes = resVentes.count || 0;
+  } catch (err) { console.error('Comptage products:', err); }
+  try {
+    const resStock = await nexusClient.from('stock_releves').select('releve_le', { count: 'exact' }).order('releve_le', { ascending: false }).limit(1);
+    countStock = resStock.count || 0;
+    dernierReleve = resStock.data;
+  } catch (err) { console.error('Comptage stock_releves (table pas encore créée ?):', err); }
 
-  const msgVentes = countVentes && countVentes > 0
+  const msgVentes = countVentes > 0
     ? `${employee.nom}, vous avez déjà ${countVentes.toLocaleString('fr-FR')} référence(s) importée(s). Ce nouvel envoi vient compléter l'historique — je pourrai comparer les deux périodes automatiquement.`
     : `${employee.nom}, c'est votre premier import — bienvenue. Une fois envoyé, je commence à calculer les vrais chiffres de vos rayons, plus aucune estimation.`;
 
   const dernierReleveDate = dernierReleve && dernierReleve[0] ? new Date(dernierReleve[0].releve_le).toLocaleDateString('fr-FR') : null;
-  const msgStock = countStock && countStock > 0
+  const msgStock = countStock > 0
     ? `${employee.nom}, j'ai déjà ${countStock.toLocaleString('fr-FR')} référence(s) de stock en mémoire, le dernier relevé date du ${dernierReleveDate}. Ce nouveau relevé va me permettre de comparer et de repérer d'éventuels mouvements suspects.`
     : `${employee.nom}, aucun relevé de stock encore importé — c'est le tout premier. Une fois envoyé, je pourrai commencer à surveiller la cohérence de votre stock dans le temps.`;
 
