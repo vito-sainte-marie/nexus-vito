@@ -99,6 +99,18 @@
     opacity:0; transition:opacity .35s ease, transform .35s ease; pointer-events:none; white-space:nowrap;
   }
   .toast-or.show{opacity:1; transform:translateX(-50%) translateY(0);}
+
+  .succes-card{
+    background:linear-gradient(145deg, var(--gold-dim), rgba(212,175,55,0.04)); border:1px solid rgba(212,175,55,0.35);
+    border-radius:16px; padding:18px 20px; display:flex; align-items:center; gap:14px;
+    box-shadow:0 6px 22px rgba(212,175,55,0.15);
+    opacity:0; transform:translateY(8px); animation:succesIn .5s ease forwards;
+  }
+  @keyframes succesIn{ to{ opacity:1; transform:translateY(0); } }
+  .succes-icon{font-size:26px; flex-shrink:0;}
+  .succes-title{font-size:14.5px; font-weight:700; color:var(--gold);}
+  .succes-detail{font-size:12.5px; color:var(--text-mid); margin-top:4px; line-height:1.5;}
+  .succes-detail b{color:var(--gold);}
   .sante-dot{width:14px; height:14px; border-radius:50%; background:var(--amber); box-shadow:0 0 12px rgba(245,166,35,0.6); margin-bottom:10px;}
   .sante-sub{font-size:12px; color:var(--text-mid);}
   .indice-facteur{display:flex; justify-content:space-between; align-items:center; padding:9px 0; border-bottom:1px solid var(--hairline); font-size:12.5px;}
@@ -215,6 +227,8 @@
 
   <div class="section" id="storySection"></div>
   <div class="divider"></div>
+
+  <div class="section" id="succesSection"></div>
 
   <div class="section" id="conseillerSection"></div>
   <div class="divider"></div>
@@ -524,6 +538,8 @@
 
     let employeeCourantId = null;
 
+    let MEILLEUR_SUCCES = null;
+
     async function construirePlansAction() {
       const [{ data, error }, produitsAppel] = await Promise.all([
         nexusClient
@@ -554,6 +570,7 @@
 
       const candidats = [];
       const fmt = v => Math.round(v).toLocaleString('fr-FR');
+      MEILLEUR_SUCCES = null; // reinitialise a chaque calcul, jamais garde d'une periode perimee
 
       rowsActuels.forEach(p => {
         const caRayon = caTotalParRayon[p.categorie] || 0;
@@ -607,6 +624,13 @@
             impact: "Vérification demandée — aucune conclusion tant que le stock n'est pas confirmé.",
             candidate_id: `LIVE-R2-${cle}`, impact_eur: perte,
           });
+        }
+        // Succès à féliciter — la plus forte progression, sur une base assez significative
+        // pour ne pas célébrer un pourcentage gonflé par un tout petit chiffre de départ.
+        if (evolution !== null && evolution > 0 && caPrec >= 50) {
+          if (!MEILLEUR_SUCCES || evolution > MEILLEUR_SUCCES.evolution) {
+            MEILLEUR_SUCCES = { article: p.article, evolution, gain: Math.max(p.ca - caPrec, 0) };
+          }
         }
       });
 
@@ -700,6 +724,7 @@
           if (ok) {
             PLANS_ACTION = await construirePlansAction(); // rafraichi sans ce produit, partout, pour tout le monde
             renderPlansAction();
+            renderSucces();
           } else {
             btn.disabled = false;
             btn.textContent = "🚫 Produit d'appel — ne plus le recommander";
@@ -764,6 +789,22 @@
           <div class="story-arrow" style="animation-delay:.55s;">↓</div>
           <div class="story-gain" style="animation-delay:.7s;">${gainHtml}</div>
           <div class="story-source" style="animation-delay:.85s;">Estimation basée sur les ${nbDecisions} décisions prioritaires du rayon pilote (Bières &amp; Softs) — pas encore un chiffre validé sur l'ensemble du magasin.</div>
+        </div>`;
+    }
+
+    function renderSucces() {
+      const el = document.getElementById('succesSection');
+      if (!el) return;
+      if (!MEILLEUR_SUCCES) { el.innerHTML = ''; return; }
+      const prenom = (typeof STATION_CONFIG !== 'undefined' && STATION_CONFIG.manager_prenom) ? STATION_CONFIG.manager_prenom : '';
+      const pct = Math.round(MEILLEUR_SUCCES.evolution * 100);
+      el.innerHTML = `
+        <div class="succes-card">
+          <div class="succes-icon">🏆</div>
+          <div>
+            <div class="succes-title">Bravo ${prenom} — ${MEILLEUR_SUCCES.article} progresse de +${pct} %</div>
+            <div class="succes-detail">Soit environ <b>+${Math.round(MEILLEUR_SUCCES.gain).toLocaleString('fr-FR')} €</b> depuis la période précédente. Continuez sur cette voie.</div>
+          </div>
         </div>`;
     }
 
@@ -1093,6 +1134,7 @@
 
       renderConseiller(); // appele ici, une fois STATION_CONFIG disponible (evite une ReferenceError sur const en temporal dead zone)
       renderStory();
+      renderSucces();
 
       // Detail de l'Indice NEXUS au clic — uniquement les facteurs reellement
       // connus (Marge, Evolution). Le formule exacte de ponderation qui
