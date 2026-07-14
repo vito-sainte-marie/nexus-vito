@@ -80,6 +80,10 @@
     opacity:0; transform:translateY(6px); animation:storyIn .5s ease forwards;
   }
   .story-gain b{color:var(--green); font-size:21px;}
+  .story-source{
+    font-family:var(--mono); font-size:9.5px; color:var(--text-dim); line-height:1.5; max-width:280px; margin-top:10px;
+    opacity:0; animation:storyIn .5s ease forwards;
+  }
   @keyframes storyIn{ to{ opacity:1; transform:translateY(0); } }
 
   .sante{padding:26px 20px; display:flex; flex-direction:column; align-items:center; gap:6px;}
@@ -518,13 +522,30 @@
       const el = document.getElementById('storySection');
       if (!el) return;
       const nbDecisions = dernierAffichage.length;
-      const gainSemaine = Math.round(dernierAffichage.reduce((s, p) => s + (p.impact_eur || 0), 0));
+      const securise = Math.round(dernierAffichage
+        .filter(p => p.etat.includes('AGIR') || p.etat.includes('DÉCIDER'))
+        .reduce((s, p) => s + (p.impact_eur || 0), 0));
+      const potentiel = Math.round(dernierAffichage
+        .filter(p => p.etat.includes('OPPORTUNITÉ'))
+        .reduce((s, p) => s + (p.impact_eur || 0), 0));
       const prenom = (typeof STATION_CONFIG !== 'undefined' && STATION_CONFIG.manager_prenom) ? STATION_CONFIG.manager_prenom : '';
+      const verbeDecision = nbDecisions > 1 ? 'auront' : 'aura';
+
+      let gainHtml;
+      if (securise > 0 && potentiel > 0) {
+        gainHtml = `Vous pouvez sécuriser environ <b>+${securise.toLocaleString('fr-FR')} €</b> déjà générés, et gagner jusqu'à <b>+${potentiel.toLocaleString('fr-FR')} €</b> de plus si les tendances se confirment.`;
+      } else if (securise > 0) {
+        gainHtml = `Vous pouvez sécuriser environ <b>+${securise.toLocaleString('fr-FR')} €</b> de chiffre d'affaires déjà généré.`;
+      } else if (potentiel > 0) {
+        gainHtml = `Vous pouvez gagner jusqu'à <b>+${potentiel.toLocaleString('fr-FR')} €</b> si les tendances actuelles se confirment.`;
+      } else {
+        gainHtml = `Aucune estimation chiffrée fiable pour l'instant — les données disponibles ne le permettent pas.`;
+      }
 
       el.innerHTML = `
         <div class="story">
           <div class="story-line" style="animation-delay:.05s;">
-            Bonjour ${prenom} — aujourd'hui ${nbDecisions} décision${nbDecisions>1?'s':''} aura${nbDecisions>1?'ont':''} un impact direct sur votre résultat.
+            Bonjour ${prenom} — aujourd'hui ${nbDecisions} décision${nbDecisions>1?'s':''} ${verbeDecision} un impact direct sur votre résultat.
           </div>
           <div class="story-arrow" style="animation-delay:.25s;">↓</div>
           <div class="story-indice" style="animation-delay:.4s;">
@@ -532,9 +553,8 @@
             <span class="story-indice-value">${INDICE_NEXUS}</span>
           </div>
           <div class="story-arrow" style="animation-delay:.55s;">↓</div>
-          <div class="story-gain" style="animation-delay:.7s;">
-            Vous pouvez générer environ <b>+${gainSemaine.toLocaleString('fr-FR')} €</b> cette semaine.
-          </div>
+          <div class="story-gain" style="animation-delay:.7s;">${gainHtml}</div>
+          <div class="story-source" style="animation-delay:.85s;">Estimation basée sur les ${nbDecisions} décisions prioritaires du rayon pilote (Bières &amp; Softs) — pas encore un chiffre validé sur l'ensemble du magasin.</div>
         </div>`;
     }
 
