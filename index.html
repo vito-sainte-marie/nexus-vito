@@ -13,6 +13,7 @@
     --green:#34D399; --green-dim:#153629;
     --amber:#F5A623; --amber-dim:#3A2E14;
     --cyan:#4FC3D9;
+    --gold:#D4AF37; --gold-dim:#332B12;
     --mono:'IBM Plex Mono',monospace; --sans:'IBM Plex Sans',sans-serif;
   }
   *{box-sizing:border-box; margin:0; padding:0;}
@@ -23,52 +24,73 @@
   }
   .app{width:100%; max-width:520px; min-height:100vh; display:flex; flex-direction:column; border-left:1px solid var(--hairline); border-right:1px solid var(--hairline);}
 
-  .header{padding:32px 24px 20px; text-align:center;}
+  .header{padding:28px 24px 8px; text-align:center;}
   .mark{
     display:inline-block; font-family:var(--mono); font-weight:700; font-size:13px; letter-spacing:0.16em;
     color:var(--cyan); border:1px solid rgba(79,195,217,0.35); padding:4px 10px; border-radius:4px; margin-bottom:10px;
   }
-  .title{font-size:26px; font-weight:600;}
-  .subtitle{font-family:var(--sans); font-size:13px; color:var(--text-mid); margin-top:8px; line-height:1.5; max-width:340px; margin-left:auto; margin-right:auto;}
-  .divider{height:1px; background:var(--hairline); margin:0 24px;}
+  .title{font-size:24px; font-weight:600;}
+  .subtitle{font-family:var(--sans); font-size:13px; color:var(--text-mid); margin-top:6px; line-height:1.5; max-width:340px; margin-left:auto; margin-right:auto;}
 
-  .status-strip{display:flex; justify-content:center; gap:18px; padding:16px 24px; font-family:var(--mono); font-size:10.5px; color:var(--text-mid);}
-  .status-strip b{color:var(--green);}
-
-  nav{padding:16px 20px; display:flex; flex-direction:column; gap:12px;}
-  .nav-item{
-    display:flex; align-items:center; gap:14px; padding:16px; background:var(--panel);
-    border:1px solid var(--hairline); border-radius:12px; text-decoration:none; color:var(--text);
-    transition:border-color 0.15s;
+  .hero{margin:18px 20px 6px; padding:22px; border-radius:20px; text-decoration:none; color:var(--text); display:block; position:relative; overflow:hidden;
+    background:linear-gradient(150deg, var(--panel-raised), var(--panel)); border:1px solid rgba(79,195,217,0.28);
+    box-shadow:0 10px 34px rgba(0,0,0,0.35);
   }
-  .nav-item:hover{border-color:var(--cyan);}
+  .hero::before{content:''; position:absolute; top:-50%; right:-30%; width:180%; height:180%; background:radial-gradient(circle, rgba(79,195,217,0.10), transparent 60%); pointer-events:none;}
+  .hero-top{display:flex; align-items:center; gap:14px; position:relative;}
+  .hero-icon{width:52px; height:52px; border-radius:14px; overflow:hidden; flex-shrink:0; background:var(--panel); box-shadow:0 0 0 1px rgba(79,195,217,0.25) inset;}
+  .hero-icon img{width:100%; height:100%; object-fit:cover;}
+  .hero-title{font-size:17px; font-weight:700;}
+  .hero-desc{font-size:12px; color:var(--text-mid); margin-top:3px; line-height:1.5;}
+  .hero-arrow{margin-left:auto; color:var(--cyan); font-size:18px; flex-shrink:0;}
+  .hero-stats{display:flex; gap:18px; margin-top:18px; padding-top:16px; border-top:1px solid var(--hairline); position:relative;}
+  .hero-stat b{color:var(--cyan); font-family:var(--mono); font-size:14px; display:block;}
+  .hero-stat span{font-family:var(--mono); font-size:9.5px; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.04em;}
+
+  .section-label{
+    font-family:var(--mono); font-size:10px; letter-spacing:0.1em; text-transform:uppercase; color:var(--text-dim);
+    padding:22px 24px 10px; display:flex; align-items:center; gap:8px;
+  }
+  .section-label::after{content:''; flex:1; height:1px; background:var(--hairline);}
+
+  nav{padding:0 20px; display:flex; flex-direction:column; gap:8px;}
+  .nav-item{
+    display:flex; align-items:center; gap:13px; padding:13px 14px; background:var(--panel);
+    border:1px solid var(--hairline); border-radius:12px; text-decoration:none; color:var(--text);
+    transition:border-color 0.15s, transform 0.15s;
+  }
+  .nav-item:hover{border-color:rgba(79,195,217,0.4); transform:translateY(-1px);}
   .nav-icon{
-    width:42px; height:42px; border-radius:10px; display:flex; align-items:center; justify-content:center;
-    font-size:20px; flex-shrink:0; background:var(--panel-raised); overflow:hidden;
+    width:38px; height:38px; border-radius:10px; display:flex; align-items:center; justify-content:center;
+    font-size:18px; flex-shrink:0; background:var(--panel-raised); overflow:hidden;
   }
   .nav-icon img{width:100%; height:100%; object-fit:cover; display:block;}
-  .nav-body{flex:1;}
-  .nav-title{font-size:14.5px; font-weight:600;}
-  .nav-desc{font-size:11.5px; color:var(--text-mid); margin-top:2px; line-height:1.4;}
-  .nav-arrow{color:var(--text-dim); font-size:16px;}
+  .nav-body{flex:1; min-width:0;}
+  .nav-title{font-size:13.5px; font-weight:600; display:flex; align-items:center;}
+  .nav-desc{font-size:11px; color:var(--text-mid); margin-top:2px; line-height:1.4; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .nav-arrow{color:var(--text-dim); font-size:15px; flex-shrink:0;}
   .nav-badge{
-    font-family:var(--mono); font-size:9px; padding:2px 7px; border-radius:20px; font-weight:600; margin-left:8px;
+    font-family:var(--mono); font-size:8.5px; padding:2px 7px; border-radius:20px; font-weight:600; margin-left:8px;
   }
-  .badge-ready{background:var(--green-dim); color:var(--green);}
   .badge-soon{background:var(--amber-dim); color:var(--amber);}
-  .badge-premium{background:rgba(212,175,55,0.14); color:#D4AF37;}
-  .badge-urgent{background:#3A1D1F; color:#F0575A; font-family:var(--mono); font-size:9px; padding:2px 7px; border-radius:20px; font-weight:700; margin-left:6px; animation:pulse-urgent 1.6s infinite;}
+  .badge-premium{background:rgba(212,175,55,0.14); color:var(--gold);}
+  .badge-urgent{background:#3A1D1F; color:#F0575A; font-family:var(--mono); font-size:8.5px; padding:2px 7px; border-radius:20px; font-weight:700; margin-left:6px; animation:pulse-urgent 1.6s infinite;}
   .nav-item.urgent{border-color:#F0575A; background:rgba(240,87,90,0.06);}
   .nav-item.urgent .nav-icon{animation:pulse-urgent 1.6s infinite;}
   @keyframes pulse-urgent{0%,100%{opacity:1;} 50%{opacity:0.5;}}
 
-  .section-label{
-    font-family:var(--mono); font-size:10px; letter-spacing:0.1em; text-transform:uppercase; color:var(--text-dim);
-    padding:20px 24px 4px; display:flex; align-items:center; gap:8px;
-  }
-  .section-label::after{content:''; flex:1; height:1px; background:var(--hairline);}
+  .construction-item{opacity:0.45; display:flex; align-items:center; gap:13px; padding:13px 14px; background:var(--panel); border:1px solid var(--hairline); border-radius:12px;}
 
-  footer{margin-top:auto; padding:20px 24px 28px; font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:center; border-top:1px solid var(--hairline);}
+  .group-toggle{
+    display:flex; align-items:center; justify-content:center; gap:6px;
+    font-family:var(--mono); font-size:10.5px; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.04em;
+    padding:9px; cursor:pointer; border-radius:10px; transition:color .15s, background .15s;
+  }
+  .group-toggle:hover{color:var(--cyan); background:var(--panel);}
+  .group-toggle::before{content:'⌄'; font-size:13px; transition:transform .2s;}
+  .group-toggle.open::before{transform:rotate(180deg);}
+
+  footer{margin-top:auto; padding:24px 24px 28px; font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:center; border-top:1px solid var(--hairline); margin-top:28px;}
 </style>
 </head>
 <body>
@@ -77,173 +99,187 @@
     <span class="mark">NEXUS</span>
     <div class="title" id="stationTitle">Vito Sainte-Marie Usine</div>
     <div class="subtitle" id="taglineRole">Le premier directeur d'exploitation numérique qui accompagne les managers dans leurs décisions quotidiennes.</div>
-    <div class="subtitle" id="sessionInfo" style="margin-top:8px;"></div>
+    <div class="subtitle" id="sessionInfo" style="margin-top:6px;"></div>
   </div>
 
-  <div class="status-strip">
-    <span>Santé <b>74</b>/100</span>
-    <span><b>228</b> références suivies</span>
-    <span><b>50</b> missions au socle</span>
-  </div>
-  <div class="divider"></div>
+  <a class="hero" data-role="manager" href="NEXUS-Cockpit-v2.html" id="heroManager">
+    <div class="hero-top">
+      <div class="hero-icon"><img src="assets/icons/icon-home.png" alt=""></div>
+      <div>
+        <div class="hero-title">Cockpit</div>
+        <div class="hero-desc">Votre tableau de bord — santé, missions, opportunités, risques</div>
+      </div>
+      <div class="hero-arrow">→</div>
+    </div>
+    <div class="hero-stats">
+      <div class="hero-stat"><b>74</b><span>Indice santé</span></div>
+      <div class="hero-stat"><b>228</b><span>Références</span></div>
+      <div class="hero-stat"><b>50</b><span>Missions</span></div>
+    </div>
+  </a>
 
-  <div class="section-label">Écrans du jour</div>
-  <nav>
+  <a class="hero" data-role="employe" href="NEXUS-Missions-v1.html" id="heroEmploye" style="display:none;">
+    <div class="hero-top">
+      <div class="hero-icon"><img src="assets/icons/icon-missions.png" alt=""></div>
+      <div>
+        <div class="hero-title">Vos missions du jour</div>
+        <div class="hero-desc">Vos procédures, adaptées à votre rôle du jour</div>
+      </div>
+      <div class="hero-arrow">→</div>
+    </div>
+  </a>
+
+  <div class="section-label">Votre journée</div>
+  <nav data-group="journee">
     <a class="nav-item" data-role="all" href="NEXUS-Prise-De-Poste-v1.html">
       <div class="nav-icon"><img src="assets/icons/icon-prise-de-poste.png" alt="Prise de poste"></div>
       <div class="nav-body">
-        <div class="nav-title">PRISE DE POSTE <span class="nav-badge badge-ready">Prêt</span></div>
-        <div class="nav-desc">Confirmez votre rôle du jour — vos missions s'adaptent automatiquement</div>
+        <div class="nav-title">Prise de poste</div>
+        <div class="nav-desc">Confirmez votre rôle du jour</div>
       </div>
       <div class="nav-arrow">→</div>
     </a>
-
-    <a class="nav-item" data-role="manager" href="NEXUS-Cockpit-v2.html">
-      <div class="nav-icon"><img src="assets/icons/icon-home.png" alt="Home"></div>
-      <div class="nav-body">
-        <div class="nav-title">HOME <span class="nav-badge badge-ready">Prêt</span></div>
-        <div class="nav-desc">L'écran qu'on ouvre 15 fois par jour — santé, missions, opportunités, risques</div>
-      </div>
-      <div class="nav-arrow">→</div>
-    </a>
-
-    <a class="nav-item" data-role="manager" href="NEXUS-Radar-Manager-v1.html">
-      <div class="nav-icon"><img src="assets/icons/icon-radar.png" alt="Radar du manager"></div>
-      <div class="nav-body">
-        <div class="nav-title">RADAR DU MANAGER <span class="nav-badge badge-ready">Prêt</span></div>
-        <div class="nav-desc">8 domaines de responsabilité — 2-3 mesurés aujourd'hui, le reste marqué honnêtement</div>
-      </div>
-      <div class="nav-arrow">→</div>
-    </a>
-
-    <a class="nav-item" data-role="manager" href="NEXUS-Rayon-v1.html">
-      <div class="nav-icon"><img src="assets/icons/icon-rayon.png" alt="Rayon"></div>
-      <div class="nav-body">
-        <div class="nav-title">RAYON <span class="nav-badge badge-ready">Prêt</span></div>
-        <div class="nav-desc">Vue d'ensemble Bières / Softs — CA, marge, top ventes, produits faibles</div>
-      </div>
-      <div class="nav-arrow">→</div>
-    </a>
-
-    <a class="nav-item" data-role="manager" href="NEXUS-Produits-v1.html">
-      <div class="nav-icon"><img src="assets/icons/icon-produits.png" alt="Produits"></div>
-      <div class="nav-body">
-        <div class="nav-title">PRODUITS <span class="nav-badge badge-ready">Prêt</span></div>
-        <div class="nav-desc">Fiche complète par référence — prix, marge, mission, décisions liées</div>
-      </div>
-      <div class="nav-arrow">→</div>
-    </a>
-
     <a class="nav-item" data-role="all" href="NEXUS-Pointage-v1.html">
       <div class="nav-icon"><img src="assets/icons/icon-pointage.png" alt="Pointage"></div>
       <div class="nav-body">
-        <div class="nav-title">POINTAGE <span class="nav-badge badge-ready">Prêt</span></div>
-        <div class="nav-desc">Arrivée, pause, départ — horaires réels, retards enregistrés</div>
+        <div class="nav-title">Pointage</div>
+        <div class="nav-desc">Arrivée, pause, départ</div>
       </div>
       <div class="nav-arrow">→</div>
     </a>
-
-    <a class="nav-item" data-role="all" href="NEXUS-Mon-Evolution-v1.html">
-      <div class="nav-icon"><img src="assets/icons/icon-evolution.png" alt="Mon évolution"></div>
-      <div class="nav-body">
-        <div class="nav-title">MON ÉVOLUTION <span class="nav-badge badge-ready">Prêt</span></div>
-        <div class="nav-desc">Compétences employé — basé sur les missions réellement archivées et prouvées</div>
-      </div>
-      <div class="nav-arrow">→</div>
-    </a>
-
-    <a class="nav-item" data-role="all" href="NEXUS-Missions-v1.html">
+    <a class="nav-item" data-role="manager" data-preview="true" href="NEXUS-Missions-v1.html">
       <div class="nav-icon"><img src="assets/icons/icon-missions.png" alt="Plans d'action"></div>
       <div class="nav-body">
-        <div class="nav-title">PLANS D'ACTION <span class="nav-badge badge-ready">Prêt</span></div>
-        <div class="nav-desc">55 procédures, dont le Cahier de Notes de Services · checklist interactive</div>
-      </div>
-      <div class="nav-arrow">→</div>
-    </a>
-    <a class="nav-item" data-role="manager" href="NEXUS-Assignations-v1.html">
-      <div class="nav-icon"><img src="assets/icons/icon-assignations.png" alt="Assignations"></div>
-      <div class="nav-body">
-        <div class="nav-title">ASSIGNATIONS <span class="nav-badge badge-ready">Prêt</span></div>
-        <div class="nav-desc">Assigner une mission à un rôle ou une personne, suivre, valider, réaffecter</div>
-      </div>
-      <div class="nav-arrow">→</div>
-    </a>
-    <a class="nav-item" data-role="manager" href="NEXUS-Evaluation-Employe-v1.html">
-      <div class="nav-icon"><img src="assets/icons/icon-evaluation.png" alt="Évaluation"></div>
-      <div class="nav-body">
-        <div class="nav-title">ÉVALUATION <span class="nav-badge badge-ready">Prêt</span></div>
-        <div class="nav-desc">Contrôle tenue quotidien + grille de prime — réservé au manager</div>
-      </div>
-      <div class="nav-arrow">→</div>
-    </a>
-    <a class="nav-item" data-role="manager" href="NEXUS-Resultats-Equipe-v1.html">
-      <div class="nav-icon"><img src="assets/icons/icon-resultats-equipe.png" alt="Résultats équipe"></div>
-      <div class="nav-body">
-        <div class="nav-title">RÉSULTATS ÉQUIPE <span class="nav-badge badge-ready">Prêt</span></div>
-        <div class="nav-desc">Progression réelle des missions par employé — sur cet appareil</div>
-      </div>
-      <div class="nav-arrow">→</div>
-    </a>
-    <a class="nav-item" data-role="manager" href="NEXUS-Planogramme-Manuel-v1.html">
-      <div class="nav-icon"><img src="assets/icons/icon-planogramme.png" alt="Planogrammes"></div>
-      <div class="nav-body">
-        <div class="nav-title">PLANOGRAMMES <span class="nav-badge badge-ready">Prêt</span></div>
-        <div class="nav-desc">Saisie manuelle des facings — calcul 100% règles, sans IA, gratuit et hors ligne</div>
+        <div class="nav-title">Plans d'action</div>
+        <div class="nav-desc">55 procédures · checklist interactive</div>
       </div>
       <div class="nav-arrow">→</div>
     </a>
     <a class="nav-item" data-role="manager" href="NEXUS-Parametres-Rappels-v1.html" id="navRappels">
       <div class="nav-icon" id="navRappelsIcon"><img src="assets/icons/icon-rappels.png" alt="Rappels"></div>
       <div class="nav-body">
-        <div class="nav-title">RAPPELS <span class="nav-badge badge-ready">Prêt</span><span id="navRappelsBadge"></span></div>
-        <div class="nav-desc">Calendrier commandes fournisseurs réel — remonte dans les Plans d'action</div>
-      </div>
-      <div class="nav-arrow">→</div>
-    </a>
-    <a class="nav-item" data-role="manager" href="NEXUS-Import-v1.html">
-      <div class="nav-icon"><img src="assets/icons/icon-import.png" alt="Import"></div>
-      <div class="nav-body">
-        <div class="nav-title">IMPORT <span class="nav-badge badge-ready">Prêt</span></div>
-        <div class="nav-desc">Déposer un fichier Excel/CSV — ventes, stock ou catalogue, avec aperçu et détection automatique des colonnes</div>
-      </div>
-      <div class="nav-arrow">→</div>
-    </a>
-
-    <a class="nav-item" data-role="manager" href="NEXUS-Scanner-v1.html">
-      <div class="nav-icon"><img src="assets/icons/icon-scanner.png" alt="Scanner NEXUS"></div>
-      <div class="nav-body">
-        <div class="nav-title">SCANNER NEXUS <span class="nav-badge badge-ready">Prêt</span></div>
-        <div class="nav-desc">CA, marge et répartition ABC du magasin — photo à date, pas encore l'impact des décisions</div>
-      </div>
-      <div class="nav-arrow">→</div>
-    </a>
-
-    <a class="nav-item" data-role="manager" href="NEXUS-Scanner-Stock-v1.html">
-      <div class="nav-icon"><img src="assets/icons/icon-scanner-stock.png" alt="Scanner Stock"></div>
-      <div class="nav-body">
-        <div class="nav-title">SCANNER STOCK <span class="nav-badge badge-premium">Premium</span></div>
-        <div class="nav-desc">Où vous perdez de l'argent, quoi recompter aujourd'hui — indice de confiance, pas un simple inventaire</div>
-      </div>
-      <div class="nav-arrow">→</div>
-    </a>
-
-    <a class="nav-item" data-role="manager" href="NEXUS-Capital-v1.html">
-      <div class="nav-icon"><img src="assets/icons/icon-capital.png" alt="Capital NEXUS"></div>
-      <div class="nav-body">
-        <div class="nav-title">CAPITAL NEXUS <span class="nav-badge badge-soon">Démo</span></div>
-        <div class="nav-desc">La valeur créée par vos décisions — page de démonstration commerciale</div>
+        <div class="nav-title">Rappels<span id="navRappelsBadge"></span></div>
+        <div class="nav-desc">Commandes fournisseurs, carburant</div>
       </div>
       <div class="nav-arrow">→</div>
     </a>
   </nav>
 
-  <div class="section-label">En construction</div>
-  <nav>
-    <div class="nav-item" style="opacity:0.5; cursor:default;">
+  <div class="section-label" data-role="manager">Analyse &amp; pilotage</div>
+  <nav data-role="manager" data-group="analyse">
+    <a class="nav-item" data-role="manager" href="NEXUS-Radar-Manager-v1.html">
+      <div class="nav-icon"><img src="assets/icons/icon-radar.png" alt="Radar du manager"></div>
+      <div class="nav-body">
+        <div class="nav-title">Radar du Manager</div>
+        <div class="nav-desc">8 domaines de responsabilité</div>
+      </div>
+      <div class="nav-arrow">→</div>
+    </a>
+    <a class="nav-item" data-role="manager" data-preview="true" href="NEXUS-Rayon-v1.html">
+      <div class="nav-icon"><img src="assets/icons/icon-rayon.png" alt="Rayon"></div>
+      <div class="nav-body">
+        <div class="nav-title">Rayon</div>
+        <div class="nav-desc">CA, marge, top ventes par catégorie</div>
+      </div>
+      <div class="nav-arrow">→</div>
+    </a>
+    <a class="nav-item" data-role="manager" href="NEXUS-Produits-v1.html">
+      <div class="nav-icon"><img src="assets/icons/icon-produits.png" alt="Produits"></div>
+      <div class="nav-body">
+        <div class="nav-title">Produits</div>
+        <div class="nav-desc">Fiche complète par référence</div>
+      </div>
+      <div class="nav-arrow">→</div>
+    </a>
+    <a class="nav-item" data-role="manager" href="NEXUS-Scanner-Stock-v1.html">
+      <div class="nav-icon"><img src="assets/icons/icon-scanner-stock.png" alt="Scanner Stock"></div>
+      <div class="nav-body">
+        <div class="nav-title">Scanner Stock <span class="nav-badge badge-premium">Premium</span></div>
+        <div class="nav-desc">Où vous perdez de l'argent, quoi recompter</div>
+      </div>
+      <div class="nav-arrow">→</div>
+    </a>
+    <a class="nav-item" data-role="manager" href="NEXUS-Planogramme-Manuel-v1.html">
+      <div class="nav-icon"><img src="assets/icons/icon-planogramme.png" alt="Planogrammes"></div>
+      <div class="nav-body">
+        <div class="nav-title">Planogrammes</div>
+        <div class="nav-desc">Saisie des facings, calcul par règles</div>
+      </div>
+      <div class="nav-arrow">→</div>
+    </a>
+  </nav>
+
+  <div class="section-label">Équipe</div>
+  <nav data-group="equipe">
+    <a class="nav-item" data-role="manager" href="NEXUS-Assignations-v1.html">
+      <div class="nav-icon"><img src="assets/icons/icon-assignations.png" alt="Assignations"></div>
+      <div class="nav-body">
+        <div class="nav-title">Assignations</div>
+        <div class="nav-desc">Assigner, suivre, valider une mission</div>
+      </div>
+      <div class="nav-arrow">→</div>
+    </a>
+    <a class="nav-item" data-role="manager" data-preview="true" href="NEXUS-Resultats-Equipe-v1.html">
+      <div class="nav-icon"><img src="assets/icons/icon-resultats-equipe.png" alt="Résultats équipe"></div>
+      <div class="nav-body">
+        <div class="nav-title">Résultats Équipe</div>
+        <div class="nav-desc">Progression réelle par employé</div>
+      </div>
+      <div class="nav-arrow">→</div>
+    </a>
+    <a class="nav-item" data-role="manager" href="NEXUS-Evaluation-Employe-v1.html">
+      <div class="nav-icon"><img src="assets/icons/icon-evaluation.png" alt="Évaluation"></div>
+      <div class="nav-body">
+        <div class="nav-title">Évaluation</div>
+        <div class="nav-desc">Contrôle tenue + grille de prime</div>
+      </div>
+      <div class="nav-arrow">→</div>
+    </a>
+    <a class="nav-item" data-role="all" href="NEXUS-Mon-Evolution-v1.html">
+      <div class="nav-icon"><img src="assets/icons/icon-evolution.png" alt="Mon évolution"></div>
+      <div class="nav-body">
+        <div class="nav-title">Mon Évolution</div>
+        <div class="nav-desc">Vos compétences, missions prouvées</div>
+      </div>
+      <div class="nav-arrow">→</div>
+    </a>
+  </nav>
+
+  <div class="section-label" data-role="manager">Gérer</div>
+  <nav data-role="manager" data-group="gerer">
+    <a class="nav-item" data-role="manager" href="NEXUS-Import-v1.html">
+      <div class="nav-icon"><img src="assets/icons/icon-import.png" alt="Import"></div>
+      <div class="nav-body">
+        <div class="nav-title">Import</div>
+        <div class="nav-desc">Ventes, catalogue ou stock instantané</div>
+      </div>
+      <div class="nav-arrow">→</div>
+    </a>
+  </nav>
+
+  <div class="section-label" data-role="manager">Découvrir</div>
+  <nav data-role="manager" data-group="decouvrir">
+    <a class="nav-item" data-role="manager" data-preview="true" href="NEXUS-Capital-v1.html">
+      <div class="nav-icon"><img src="assets/icons/icon-capital.png" alt="Capital NEXUS"></div>
+      <div class="nav-body">
+        <div class="nav-title">Capital NEXUS <span class="nav-badge badge-soon">Démo</span></div>
+        <div class="nav-desc">La valeur créée par vos décisions</div>
+      </div>
+      <div class="nav-arrow">→</div>
+    </a>
+    <a class="nav-item" data-role="manager" href="NEXUS-Scanner-v1.html">
+      <div class="nav-icon"><img src="assets/icons/icon-scanner.png" alt="Scanner NEXUS"></div>
+      <div class="nav-body">
+        <div class="nav-title">Scanner NEXUS</div>
+        <div class="nav-desc">CA, marge et répartition ABC du magasin</div>
+      </div>
+      <div class="nav-arrow">→</div>
+    </a>
+    <div class="construction-item">
       <div class="nav-icon">🤖</div>
       <div class="nav-body">
         <div class="nav-title">Conseiller NEXUS <span class="nav-badge badge-soon">Intégré au Cockpit</span></div>
-        <div class="nav-desc">Recommandations visibles aujourd'hui dans le Cockpit, pas encore d'écran dédié</div>
+        <div class="nav-desc">Pas encore d'écran dédié</div>
       </div>
     </div>
   </nav>
@@ -257,7 +293,6 @@
   nexusRequireAuth().then(async employee => {
     if (!employee) return; // nexus-auth.js gère déjà la redirection vers NEXUS-Login-v1.html
 
-    // Prise de poste obligatoire une fois par jour, avant d'accéder au menu
     const aujourdISO = new Date().toISOString().slice(0, 10);
     const { data: shiftsAujourdhui, error: erreurShift } = await nexusClient
       .from('shifts')
@@ -279,7 +314,6 @@
       nexusLogout();
     });
 
-    // Message sous le logo, adapte au profil connecte
     const tagline = document.getElementById('taglineRole');
     if (tagline) {
       tagline.textContent = employee.role === 'manager'
@@ -287,190 +321,47 @@
         : "Chaque mission réalisée contribue à la performance de votre équipe.";
     }
 
-    if (employee.role !== 'manager') {
+    if (employee.role === 'manager') {
+      document.getElementById('heroEmploye').style.display = 'none';
+    } else {
+      document.getElementById('heroManager').style.display = 'none';
       document.querySelectorAll('[data-role="manager"]').forEach(el => el.style.display = 'none');
     }
 
-    // Cloche RAPPELS — active seulement s'il y a une vraie echeance a J ou J-1
     (function verifierRappelsUrgents() {
       const CAL_FOURNISSEURS = {
   "_source": "PLANNING_COMMANDE.xlsx",
   "_logique": "Passation obligatoire tous les 15 jours, le vendredi",
   "dates": [
-    {
-      "date_commande": "2026-01-09",
-      "semaine": 2,
-      "periode_debut": "2026-01-11",
-      "periode_fin": "2026-02-01"
-    },
-    {
-      "date_commande": "2026-01-23",
-      "semaine": 4,
-      "periode_debut": "2026-01-25",
-      "periode_fin": "2026-02-15"
-    },
-    {
-      "date_commande": "2026-02-06",
-      "semaine": 6,
-      "periode_debut": "2026-02-08",
-      "periode_fin": "2026-03-01"
-    },
-    {
-      "date_commande": "2026-02-20",
-      "semaine": 8,
-      "periode_debut": "2026-02-22",
-      "periode_fin": "2026-03-15"
-    },
-    {
-      "date_commande": "2026-03-06",
-      "semaine": 10,
-      "periode_debut": "2026-03-08",
-      "periode_fin": "2026-03-29"
-    },
-    {
-      "date_commande": "2026-03-20",
-      "semaine": 12,
-      "periode_debut": "2026-03-22",
-      "periode_fin": "2026-04-12"
-    },
-    {
-      "date_commande": "2026-04-03",
-      "semaine": 14,
-      "periode_debut": "2026-04-05",
-      "periode_fin": "2026-04-26"
-    },
-    {
-      "date_commande": "2026-04-17",
-      "semaine": 16,
-      "periode_debut": "2026-04-19",
-      "periode_fin": "2026-05-10"
-    },
-    {
-      "date_commande": "2026-05-01",
-      "semaine": 18,
-      "periode_debut": "2026-05-03",
-      "periode_fin": "2026-05-24"
-    },
-    {
-      "date_commande": "2026-05-15",
-      "semaine": 20,
-      "periode_debut": "2026-05-17",
-      "periode_fin": "2026-06-07"
-    },
-    {
-      "date_commande": "2026-05-29",
-      "semaine": 22,
-      "periode_debut": "2026-05-31",
-      "periode_fin": "2026-06-21"
-    },
-    {
-      "date_commande": "2026-06-12",
-      "semaine": 24,
-      "periode_debut": "2026-06-14",
-      "periode_fin": "2026-07-05"
-    },
-    {
-      "date_commande": "2026-06-26",
-      "semaine": 26,
-      "periode_debut": "2026-06-28",
-      "periode_fin": "2026-07-19"
-    },
-    {
-      "date_commande": "2026-07-10",
-      "semaine": 28,
-      "periode_debut": "2026-07-12",
-      "periode_fin": "2026-08-02"
-    },
-    {
-      "date_commande": "2026-07-24",
-      "semaine": 30,
-      "periode_debut": "2026-07-26",
-      "periode_fin": "2026-08-16"
-    },
-    {
-      "date_commande": "2026-08-07",
-      "semaine": 32,
-      "periode_debut": "2026-08-09",
-      "periode_fin": "2026-08-30"
-    },
-    {
-      "date_commande": "2026-08-21",
-      "semaine": 34,
-      "periode_debut": "2026-08-23",
-      "periode_fin": "2026-09-13"
-    },
-    {
-      "date_commande": "2026-09-04",
-      "semaine": 36,
-      "periode_debut": "2026-09-06",
-      "periode_fin": "2026-09-27"
-    },
-    {
-      "date_commande": "2026-09-18",
-      "semaine": 38,
-      "periode_debut": "2026-09-20",
-      "periode_fin": "2026-10-11"
-    },
-    {
-      "date_commande": "2026-10-02",
-      "semaine": 40,
-      "periode_debut": "2026-10-04",
-      "periode_fin": "2026-10-25"
-    },
-    {
-      "date_commande": "2026-10-16",
-      "semaine": 42,
-      "periode_debut": "2026-10-18",
-      "periode_fin": "2026-11-08"
-    },
-    {
-      "date_commande": "2026-10-30",
-      "semaine": 44,
-      "periode_debut": "2026-11-01",
-      "periode_fin": "2026-11-22"
-    },
-    {
-      "date_commande": "2026-11-13",
-      "semaine": 46,
-      "periode_debut": "2026-11-15",
-      "periode_fin": "2026-12-06"
-    },
-    {
-      "date_commande": "2026-11-27",
-      "semaine": 48,
-      "periode_debut": "2026-11-29",
-      "periode_fin": "2026-12-20"
-    },
-    {
-      "date_commande": "2026-12-11",
-      "semaine": 50,
-      "periode_debut": "2026-12-13",
-      "periode_fin": "2027-01-03"
-    },
-    {
-      "date_commande": "2026-12-25",
-      "semaine": 52,
-      "periode_debut": "2026-12-27",
-      "periode_fin": "2027-01-17"
-    },
-    {
-      "date_commande": "2027-01-08",
-      "semaine": 54,
-      "periode_debut": "2027-01-10",
-      "periode_fin": "2027-01-31"
-    },
-    {
-      "date_commande": "2027-01-22",
-      "semaine": 56,
-      "periode_debut": "2027-01-24",
-      "periode_fin": "2027-02-14"
-    },
-    {
-      "date_commande": "2027-02-05",
-      "semaine": 58,
-      "periode_debut": "2027-02-07",
-      "periode_fin": "2027-02-28"
-    }
+    { "date_commande": "2026-01-09", "semaine": 2,  "periode_debut": "2026-01-11", "periode_fin": "2026-02-01" },
+    { "date_commande": "2026-01-23", "semaine": 4,  "periode_debut": "2026-01-25", "periode_fin": "2026-02-15" },
+    { "date_commande": "2026-02-06", "semaine": 6,  "periode_debut": "2026-02-08", "periode_fin": "2026-03-01" },
+    { "date_commande": "2026-02-20", "semaine": 8,  "periode_debut": "2026-02-22", "periode_fin": "2026-03-15" },
+    { "date_commande": "2026-03-06", "semaine": 10, "periode_debut": "2026-03-08", "periode_fin": "2026-03-29" },
+    { "date_commande": "2026-03-20", "semaine": 12, "periode_debut": "2026-03-22", "periode_fin": "2026-04-12" },
+    { "date_commande": "2026-04-03", "semaine": 14, "periode_debut": "2026-04-05", "periode_fin": "2026-04-26" },
+    { "date_commande": "2026-04-17", "semaine": 16, "periode_debut": "2026-04-19", "periode_fin": "2026-05-10" },
+    { "date_commande": "2026-05-01", "semaine": 18, "periode_debut": "2026-05-03", "periode_fin": "2026-05-24" },
+    { "date_commande": "2026-05-15", "semaine": 20, "periode_debut": "2026-05-17", "periode_fin": "2026-06-07" },
+    { "date_commande": "2026-05-29", "semaine": 22, "periode_debut": "2026-05-31", "periode_fin": "2026-06-21" },
+    { "date_commande": "2026-06-12", "semaine": 24, "periode_debut": "2026-06-14", "periode_fin": "2026-07-05" },
+    { "date_commande": "2026-06-26", "semaine": 26, "periode_debut": "2026-06-28", "periode_fin": "2026-07-19" },
+    { "date_commande": "2026-07-10", "semaine": 28, "periode_debut": "2026-07-12", "periode_fin": "2026-08-02" },
+    { "date_commande": "2026-07-24", "semaine": 30, "periode_debut": "2026-07-26", "periode_fin": "2026-08-16" },
+    { "date_commande": "2026-08-07", "semaine": 32, "periode_debut": "2026-08-09", "periode_fin": "2026-08-30" },
+    { "date_commande": "2026-08-21", "semaine": 34, "periode_debut": "2026-08-23", "periode_fin": "2026-09-13" },
+    { "date_commande": "2026-09-04", "semaine": 36, "periode_debut": "2026-09-06", "periode_fin": "2026-09-27" },
+    { "date_commande": "2026-09-18", "semaine": 38, "periode_debut": "2026-09-20", "periode_fin": "2026-10-11" },
+    { "date_commande": "2026-10-02", "semaine": 40, "periode_debut": "2026-10-04", "periode_fin": "2026-10-25" },
+    { "date_commande": "2026-10-16", "semaine": 42, "periode_debut": "2026-10-18", "periode_fin": "2026-11-08" },
+    { "date_commande": "2026-10-30", "semaine": 44, "periode_debut": "2026-11-01", "periode_fin": "2026-11-22" },
+    { "date_commande": "2026-11-13", "semaine": 46, "periode_debut": "2026-11-15", "periode_fin": "2026-12-06" },
+    { "date_commande": "2026-11-27", "semaine": 48, "periode_debut": "2026-11-29", "periode_fin": "2026-12-20" },
+    { "date_commande": "2026-12-11", "semaine": 50, "periode_debut": "2026-12-13", "periode_fin": "2027-01-03" },
+    { "date_commande": "2026-12-25", "semaine": 52, "periode_debut": "2026-12-27", "periode_fin": "2027-01-17" },
+    { "date_commande": "2027-01-08", "semaine": 54, "periode_debut": "2027-01-10", "periode_fin": "2027-01-31" },
+    { "date_commande": "2027-01-22", "semaine": 56, "periode_debut": "2027-01-24", "periode_fin": "2027-02-14" },
+    { "date_commande": "2027-02-05", "semaine": 58, "periode_debut": "2027-02-07", "periode_fin": "2027-02-28" }
   ]
 };
       const today = new Date(); today.setHours(0,0,0,0);
@@ -483,16 +374,49 @@
 
       const rappelsManuels = JSON.parse(localStorage.getItem('nexus_rappels_manuels') || '[]');
       rappelsManuels.forEach(r => { if (jours(r.date) >= 0 && jours(r.date) <= 1) { urgent = true; motif = motif || r.titre; } });
-      // Note : le rappel carburant n'est pas verifie ici (la formule complete
-      // vit dans Parametres Rappels et Cockpit) — pour eviter un faux "urgent"
-      // rien qu'a la presence d'une saisie du jour, meme si elle dit "Attendre".
 
       if (urgent) {
-        document.getElementById('navRappels').classList.add('urgent');
-        document.getElementById('navRappelsBadge').innerHTML = '<span class="badge-urgent">● Urgent</span>';
+        const navRappels = document.getElementById('navRappels');
+        if (navRappels) {
+          navRappels.classList.add('urgent');
+          document.getElementById('navRappelsBadge').innerHTML = ' <span class="badge-urgent">● Urgent</span>';
+        }
       }
     })();
+
+    initGroupes();
   });
+
+  // Chaque groupe ne montre que son element le plus parlant au depart, pour voir
+  // toute la page sans defiler. S'il y a un item urgent (Rappels), il prend
+  // toujours la place visible — jamais caché derriere un clic.
+  function initGroupes() {
+    document.querySelectorAll('nav[data-group]').forEach(navEl => {
+      const items = Array.from(navEl.children).filter(el =>
+        (el.classList.contains('nav-item') || el.classList.contains('construction-item')) &&
+        el.style.display !== 'none'
+      );
+      if (items.length <= 1) return; // rien a replier
+
+      const preview = items.find(el => el.classList.contains('urgent'))
+        || items.find(el => el.dataset.preview === 'true')
+        || items[0];
+      const autres = items.filter(el => el !== preview);
+      autres.forEach(el => el.style.display = 'none');
+
+      const toggle = document.createElement('div');
+      toggle.className = 'group-toggle';
+      const labelFerme = `${autres.length} autre${autres.length>1?'s':''} écran${autres.length>1?'s':''}`;
+      toggle.textContent = labelFerme;
+      preview.insertAdjacentElement('afterend', toggle);
+
+      toggle.addEventListener('click', () => {
+        const estOuvert = toggle.classList.toggle('open');
+        autres.forEach(el => el.style.display = estOuvert ? 'flex' : 'none');
+        toggle.textContent = estOuvert ? 'Réduire' : labelFerme;
+      });
+    });
+  }
 </script>
 </body>
 </html>
