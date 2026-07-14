@@ -25,6 +25,19 @@ a{color:inherit; text-decoration:none;}
 .app{width:100%; max-width:560px; min-height:100vh; display:flex; flex-direction:column; border-left:1px solid var(--hairline); border-right:1px solid var(--hairline); padding-bottom:32px;}
 
 .topbar{display:flex; align-items:center; gap:14px; padding:20px 20px 16px;}
+
+.conseiller-mini{display:flex; align-items:flex-start; gap:12px; padding:4px 20px 20px;}
+.conseiller-avatar{width:52px; height:52px; object-fit:contain; flex-shrink:0; filter:drop-shadow(0 0 8px rgba(79,195,217,0.45));}
+.conseiller-bubble{
+  position:relative; flex:1; background:var(--panel); border:1px solid rgba(79,195,217,0.25); border-radius:14px;
+  padding:13px 16px; box-shadow:0 4px 14px rgba(0,0,0,0.2);
+}
+.conseiller-bubble::before{
+  content:''; position:absolute; left:-6px; top:16px; width:12px; height:12px; background:var(--panel);
+  border-left:1px solid rgba(79,195,217,0.25); border-bottom:1px solid rgba(79,195,217,0.25); transform:rotate(45deg);
+}
+.conseiller-label{font-family:var(--mono); font-size:9.5px; letter-spacing:0.06em; text-transform:uppercase; color:var(--cyan); margin-bottom:4px;}
+.conseiller-text{font-size:12.5px; line-height:1.55; color:var(--text);}
 .icon-btn{width:38px; height:38px; border-radius:10px; background:var(--panel); border:1px solid var(--hairline); display:flex; align-items:center; justify-content:center; font-size:16px; color:var(--text-mid); flex-shrink:0; cursor:pointer;}
 .topbar-title h1{font-size:19px; font-weight:600;}
 .topbar-title p{font-family:var(--mono); font-size:11px; color:var(--text-mid); margin-top:2px;}
@@ -115,6 +128,14 @@ tbody tr:hover{background:var(--panel);}
     </div>
   </div>
 
+  <div class="conseiller-mini">
+    <img class="conseiller-avatar" src="assets/nexus-avatar.png" alt="Conseiller NEXUS">
+    <div class="conseiller-bubble">
+      <div class="conseiller-label">Conseiller NEXUS</div>
+      <div class="conseiller-text" id="conseillerImportMsg">Envoyez-moi vos chiffres, je m'occupe du reste. Précisez bien la période couverte — c'est ce qui me permet de mesurer une vraie évolution plutôt qu'une simple photo.</div>
+    </div>
+  </div>
+
   <div class="section">
     <div class="dropzone" id="dropzone">
       <div class="dz-icon">📥</div>
@@ -163,11 +184,27 @@ tbody tr:hover{background:var(--panel);}
       <div class="table-more" id="moreRows"></div>
     </div>
 
-    <div class="section" style="margin-top:20px;">
+    <div class="section">
+      <div class="section-label">Période couverte par ce fichier</div>
+      <div class="btn-row">
+        <div style="flex:1;">
+          <label style="font-family:var(--mono); font-size:10px; color:var(--text-mid); text-transform:uppercase; letter-spacing:0.04em;">Début</label>
+          <input type="date" id="periodeDebut" style="width:100%; margin-top:6px; background:var(--panel); border:1px solid var(--hairline); border-radius:10px; padding:11px 12px; color:var(--text); font-family:var(--sans); font-size:13.5px;">
+        </div>
+        <div style="flex:1;">
+          <label style="font-family:var(--mono); font-size:10px; color:var(--text-mid); text-transform:uppercase; letter-spacing:0.04em;">Fin</label>
+          <input type="date" id="periodeFin" style="width:100%; margin-top:6px; background:var(--panel); border:1px solid var(--hairline); border-radius:10px; padding:11px 12px; color:var(--text); font-family:var(--sans); font-size:13.5px;">
+        </div>
+      </div>
+      <div style="font-family:var(--mono); font-size:10px; color:var(--text-dim); margin-top:8px; line-height:1.5;">Sert à calculer l'évolution automatiquement en comparant avec la période précédente déjà importée.</div>
+    </div>
+
+    <div class="section" style="margin-top:8px;">
       <div class="btn-row">
         <div class="btn btn-ghost" id="downloadClean">Télécharger le résumé (.xlsx)</div>
         <div class="btn btn-primary" id="sendPilot">Envoyer à NEXUS Pilot →</div>
       </div>
+      <div id="sendMsg" style="font-family:var(--mono); font-size:11px; text-align:center; margin-top:10px;"></div>
     </div>
 
     <div class="privacy-note">Le fichier est traité entièrement dans votre navigateur — rien n'est envoyé à un serveur à ce stade.</div>
@@ -176,11 +213,19 @@ tbody tr:hover{background:var(--panel);}
 </div>
 
 <script>
-nexusRequireAuth().then(employee => {
+nexusRequireAuth().then(async employee => {
   if (!employee) return; // nexus-auth.js gère déjà la redirection vers NEXUS-Login-v1.html
   if (employee.role !== 'manager' && employee.role !== 'gerant') {
     document.body.innerHTML = '<div style="padding:60px 20px; text-align:center; color:var(--text-dim); font-family:sans-serif;">Cet écran est réservé aux managers.</div>';
     return;
+  }
+
+  const { count } = await nexusClient.from('products').select('id', { count: 'exact', head: true });
+  const msgEl = document.getElementById('conseillerImportMsg');
+  if (msgEl) {
+    msgEl.textContent = count && count > 0
+      ? `Vous avez déjà ${count.toLocaleString('fr-FR')} référence(s) importée(s). Ce nouvel envoi vient compléter l'historique — je pourrai comparer les deux périodes automatiquement.`
+      : `C'est votre premier import — bienvenue. Une fois envoyé, je commence à calculer les vrais chiffres de vos rayons, plus aucune estimation.`;
   }
 
 const dropzone = document.getElementById('dropzone');
@@ -201,6 +246,7 @@ const downloadClean = document.getElementById('downloadClean');
 const sendPilot = document.getElementById('sendPilot');
 
 let currentRows = [];
+let currentMapping = {};
 let currentHeaders = [];
 let cleanedSummary = [];
 
@@ -295,6 +341,7 @@ function handleFile(file){
     fmeta.textContent = `${(file.size/1024).toFixed(0)} Ko · ${rows.length} lignes · ${headers.length} colonnes`;
 
     const mapping = detectMapping(headers);
+    currentMapping = mapping;
     renderMapping(mapping);
     renderPreview(headers, rows);
     computeSummary(mapping, rows);
@@ -334,8 +381,77 @@ downloadClean.addEventListener('click', ()=>{
   XLSX.writeFile(wb, 'nexus-resume-import.xlsx');
 });
 
-sendPilot.addEventListener('click', ()=>{
-  alert("Cette action enverra le fichier à NEXUS Pilot une fois la connexion mise en place. Pour l'instant, utilisez l'import direct dans NEXUS Pilot.");
+sendPilot.addEventListener('click', async ()=>{
+  const msg = document.getElementById('sendMsg');
+  const debut = document.getElementById('periodeDebut').value;
+  const fin = document.getElementById('periodeFin').value;
+
+  if (!debut || !fin) {
+    msg.textContent = "Indiquez la période (début et fin) avant d'envoyer.";
+    msg.style.color = 'var(--red)';
+    return;
+  }
+  if (!currentRows.length) {
+    msg.textContent = "Aucune donnée à envoyer.";
+    msg.style.color = 'var(--red)';
+    return;
+  }
+
+  const { categorie: catKey, article: artKey, quantite: qKey, prix_achat: paKey, prix_vente: pvKey, tva: tvaKey, code_barres: cbKey } = currentMapping;
+
+  if (!catKey || !artKey) {
+    msg.textContent = "Catégorie et Article doivent être détectés pour pouvoir importer.";
+    msg.style.color = 'var(--red)';
+    return;
+  }
+
+  sendPilot.textContent = 'Envoi en cours…';
+  sendPilot.style.pointerEvents = 'none';
+
+  const lignes = currentRows.map(r => {
+    const q = qKey ? toNumber(r[qKey]) : NaN;
+    const pa = paKey ? toNumber(r[paKey]) : NaN;
+    const pv = pvKey ? toNumber(r[pvKey]) : NaN;
+    const ca = (!isNaN(q) && !isNaN(pv)) ? q * pv : 0;
+    const marge = (!isNaN(q) && !isNaN(pa) && !isNaN(pv)) ? q * (pv - pa) : 0;
+    return {
+      site: 'vito-sainte-marie',
+      periode_debut: debut,
+      periode_fin: fin,
+      categorie: String(r[catKey] || 'Non classé'),
+      article: String(r[artKey] || ''),
+      code_barres: cbKey ? String(r[cbKey] || '') : null,
+      quantite: isNaN(q) ? null : q,
+      prix_achat: isNaN(pa) ? null : pa,
+      prix_vente: isNaN(pv) ? null : pv,
+      tva: tvaKey ? toNumber(r[tvaKey]) : null,
+      ca: Math.round(ca * 100) / 100,
+      marge: Math.round(marge * 100) / 100,
+      imported_by: employee.id,
+    };
+  }).filter(l => l.article);
+
+  // Envoi par lots de 500 pour rester sous les limites de l'API
+  const TAILLE_LOT = 500;
+  let envoyees = 0;
+  for (let i = 0; i < lignes.length; i += TAILLE_LOT) {
+    const lot = lignes.slice(i, i + TAILLE_LOT);
+    const { error } = await nexusClient.from('products').insert(lot);
+    if (error) {
+      console.error('Import products:', error);
+      msg.textContent = `Erreur après ${envoyees} ligne(s) envoyée(s) — réessayez.`;
+      msg.style.color = 'var(--red)';
+      sendPilot.textContent = 'Envoyer à NEXUS Pilot →';
+      sendPilot.style.pointerEvents = 'auto';
+      return;
+    }
+    envoyees += lot.length;
+  }
+
+  msg.textContent = `✓ ${envoyees} référence(s) importée(s) pour la période ${debut} → ${fin}.`;
+  msg.style.color = 'var(--green)';
+  sendPilot.textContent = 'Envoyer à NEXUS Pilot →';
+  sendPilot.style.pointerEvents = 'auto';
 });
 
 });
