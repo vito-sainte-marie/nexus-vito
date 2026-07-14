@@ -237,13 +237,23 @@ nexusRequireAuth().then(async employee => {
     return;
   }
 
-  const { count } = await nexusClient.from('products').select('id', { count: 'exact', head: true });
+  const [{ count: countVentes }, { data: dernierReleve, count: countStock }] = await Promise.all([
+    nexusClient.from('products').select('id', { count: 'exact', head: true }),
+    nexusClient.from('stock_releves').select('releve_le', { count: 'exact' }).order('releve_le', { ascending: false }).limit(1),
+  ]);
+
+  const msgVentes = countVentes && countVentes > 0
+    ? `${employee.nom}, vous avez déjà ${countVentes.toLocaleString('fr-FR')} référence(s) importée(s). Ce nouvel envoi vient compléter l'historique — je pourrai comparer les deux périodes automatiquement.`
+    : `${employee.nom}, c'est votre premier import — bienvenue. Une fois envoyé, je commence à calculer les vrais chiffres de vos rayons, plus aucune estimation.`;
+
+  const dernierReleveDate = dernierReleve && dernierReleve[0] ? new Date(dernierReleve[0].releve_le).toLocaleDateString('fr-FR') : null;
+  const msgStock = countStock && countStock > 0
+    ? `${employee.nom}, j'ai déjà ${countStock.toLocaleString('fr-FR')} référence(s) de stock en mémoire, le dernier relevé date du ${dernierReleveDate}. Ce nouveau relevé va me permettre de comparer et de repérer d'éventuels mouvements suspects.`
+    : `${employee.nom}, aucun relevé de stock encore importé — c'est le tout premier. Une fois envoyé, je pourrai commencer à surveiller la cohérence de votre stock dans le temps.`;
+
+  const MESSAGES_CONSEILLER_IMPORT = { ventes: msgVentes, stock: msgStock };
   const msgEl = document.getElementById('conseillerImportMsg');
-  if (msgEl) {
-    msgEl.textContent = count && count > 0
-      ? `${employee.nom}, vous avez déjà ${count.toLocaleString('fr-FR')} référence(s) importée(s). Ce nouvel envoi vient compléter l'historique — je pourrai comparer les deux périodes automatiquement.`
-      : `${employee.nom}, c'est votre premier import — bienvenue. Une fois envoyé, je commence à calculer les vrais chiffres de vos rayons, plus aucune estimation.`;
-  }
+  if (msgEl) msgEl.textContent = MESSAGES_CONSEILLER_IMPORT.ventes;
 
 const dropzone = document.getElementById('dropzone');
 const fileInput = document.getElementById('fileInput');
@@ -284,6 +294,11 @@ function choisirTypeImport(type) {
   typeExplication.textContent = estVentes
     ? "CA, marge, évolution — un fichier par période de vente."
     : "Quantités théoriques par référence, à un instant précis — sert à préparer Scanner Stock.";
+
+  const msgEl = document.getElementById('conseillerImportMsg');
+  if (msgEl && typeof MESSAGES_CONSEILLER_IMPORT !== 'undefined') {
+    msgEl.textContent = MESSAGES_CONSEILLER_IMPORT[type];
+  }
 }
 btnTypeVentes.addEventListener('click', () => choisirTypeImport('ventes'));
 btnTypeStock.addEventListener('click', () => choisirTypeImport('stock'));
