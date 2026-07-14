@@ -39,6 +39,13 @@
 
   /* HEADER */
   .header{padding:20px 20px 14px; display:flex; align-items:center; gap:12px;}
+  .menu-btn{
+    margin-left:auto; flex-shrink:0; display:flex; align-items:center; gap:6px;
+    font-family:var(--mono); font-size:10.5px; font-weight:600; letter-spacing:0.03em; text-transform:uppercase;
+    color:var(--cyan); background:rgba(79,195,217,0.1); border:1px solid rgba(79,195,217,0.3);
+    border-radius:20px; padding:7px 12px; text-decoration:none; white-space:nowrap;
+  }
+  .menu-btn:active{background:rgba(79,195,217,0.2);}
   .header .logo{height:52px; width:52px; object-fit:cover; object-position:center; border-radius:50%; flex-shrink:0; border:2px solid var(--hairline); background:#fff;}
   .header .id{display:flex; flex-direction:column;}
   .greet{font-size:20px; font-weight:600;}
@@ -51,6 +58,30 @@
   .divider{height:1px; background:var(--hairline); margin:0 20px;}
 
   /* SANTE */
+  .story{
+    padding:22px 24px 8px; display:flex; flex-direction:column; align-items:center; text-align:center; gap:2px;
+  }
+  .story-line{
+    font-size:15px; line-height:1.5; color:var(--text); max-width:300px;
+    opacity:0; transform:translateY(6px); animation:storyIn .5s ease forwards;
+  }
+  .story-arrow{
+    font-size:14px; color:var(--text-dim); margin:6px 0;
+    opacity:0; animation:storyIn .5s ease forwards;
+  }
+  .story-indice{
+    display:flex; align-items:baseline; gap:8px;
+    opacity:0; transform:translateY(6px); animation:storyIn .5s ease forwards;
+  }
+  .story-indice-label{font-family:var(--mono); font-size:11px; letter-spacing:0.06em; text-transform:uppercase; color:var(--text-dim);}
+  .story-indice-value{font-family:var(--mono); font-size:34px; font-weight:700; color:var(--cyan);}
+  .story-gain{
+    font-size:18px; font-weight:700; line-height:1.4; max-width:300px; margin-top:2px;
+    opacity:0; transform:translateY(6px); animation:storyIn .5s ease forwards;
+  }
+  .story-gain b{color:var(--green); font-size:21px;}
+  @keyframes storyIn{ to{ opacity:1; transform:translateY(0); } }
+
   .sante{padding:26px 20px; display:flex; flex-direction:column; align-items:center; gap:6px;}
   .sante-label{font-family:var(--mono); font-size:11px; letter-spacing:0.12em; text-transform:uppercase; color:var(--text-dim);}
   .sante-score{font-family:var(--mono); font-size:64px; font-weight:700; line-height:1; display:flex; align-items:baseline; gap:10px;}
@@ -168,7 +199,8 @@
   <div class="header" id="nexus-header"></div>
   <div class="divider"></div>
 
-  
+  <div class="section" id="storySection"></div>
+  <div class="divider"></div>
 
   <div class="section" id="conseillerSection"></div>
   <div class="divider"></div>
@@ -479,6 +511,32 @@
       '🔥 À AGIR': 6, '📈 OPPORTUNITÉ': 5, '🟡 À SURVEILLER': 4,
       '🔴 À DÉCIDER': 8, '💡 RECOMMANDATION': 5,
     };
+
+    const INDICE_NEXUS = 74;
+
+    function renderStory() {
+      const el = document.getElementById('storySection');
+      if (!el) return;
+      const nbDecisions = dernierAffichage.length;
+      const gainSemaine = Math.round(dernierAffichage.reduce((s, p) => s + (p.impact_eur || 0), 0));
+      const prenom = (typeof STATION_CONFIG !== 'undefined' && STATION_CONFIG.manager_prenom) ? STATION_CONFIG.manager_prenom : '';
+
+      el.innerHTML = `
+        <div class="story">
+          <div class="story-line" style="animation-delay:.05s;">
+            Bonjour ${prenom} — aujourd'hui ${nbDecisions} décision${nbDecisions>1?'s':''} aura${nbDecisions>1?'ont':''} un impact direct sur votre résultat.
+          </div>
+          <div class="story-arrow" style="animation-delay:.25s;">↓</div>
+          <div class="story-indice" style="animation-delay:.4s;">
+            <span class="story-indice-label">Indice NEXUS</span>
+            <span class="story-indice-value">${INDICE_NEXUS}</span>
+          </div>
+          <div class="story-arrow" style="animation-delay:.55s;">↓</div>
+          <div class="story-gain" style="animation-delay:.7s;">
+            Vous pouvez générer environ <b>+${gainSemaine.toLocaleString('fr-FR')} €</b> cette semaine.
+          </div>
+        </div>`;
+    }
 
     function renderConseiller() {
       const nb = { agir: 0, opportunite: 0, surveiller: 0, decider: 0, recommandation: 0 };
@@ -795,9 +853,11 @@
         <div class="id">
           <div class="greet">Bonjour ${STATION_CONFIG.manager_prenom} <span class="role-badge">${STATION_CONFIG.manager_role}</span></div>
           <div class="station">${STATION_CONFIG.station_nom}</div>
-        </div>`;
+        </div>
+        <a href="index.html" class="menu-btn">☰ Menu</a>`;
 
       renderConseiller(); // appele ici, une fois STATION_CONFIG disponible (evite une ReferenceError sur const en temporal dead zone)
+      renderStory();
 
       // Detail de l'Indice NEXUS au clic — uniquement les facteurs reellement
       // connus (Marge, Evolution). Le formule exacte de ponderation qui
