@@ -420,7 +420,7 @@ sendPilot.addEventListener('click', async ()=>{
       periode_fin: fin,
       categorie: String(r[catKey] || 'Non classé'),
       article: String(r[artKey] || ''),
-      code_barres: cbKey ? String(r[cbKey] || '') : null,
+      code_barres: cbKey ? String(r[cbKey] || '').replace(/[\s\u00a0\u202f]+/g, '').trim() || null : null,
       quantite: isNaN(q) ? null : q,
       prix_achat: isNaN(pa) ? null : pa,
       prix_vente: isNaN(pv) ? null : pv,
