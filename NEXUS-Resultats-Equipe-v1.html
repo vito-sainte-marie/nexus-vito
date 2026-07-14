@@ -62,11 +62,28 @@
   </div>
   <div class="divider"></div>
   <div class="section" id="content"></div>
-  <footer>NEXUS Résultats Équipe v1 · Basé sur les cases cochées sur cet appareil</footer>
+  <footer>NEXUS Résultats Équipe v1 · Missions Supabase · Retards sur cet appareil</footer>
 </div>
 
 <script>
-  nexusRequireAuth().then(employee => {
+  // Source authentique des missions : Supabase (mission_completions), la table que
+  // NEXUS-Missions-v1.html ecrit reellement depuis son passage a Supabase. L'ancienne
+  // lecture depuis localStorage('nexus_missions_completees') a ete retiree ici — plus
+  // personne n'ecrit dans cette cle, l'ecran affichait donc des donnees perimees ou
+  // vides (corrige le 14/07/2026). Les pointages/retards restent sur localStorage,
+  // Pointage n'ayant pas encore de table Supabase dediee.
+  async function chargerCompletions() {
+    const { data, error } = await nexusClient.from('mission_completions').select('*').order('date', { ascending: false });
+    if (error) { console.error('Chargement mission_completions:', error); return []; }
+    return data || [];
+  }
+  async function chargerEquipeActive() {
+    const { data, error } = await nexusClient.from('employees').select('id, nom').eq('actif', true).order('nom');
+    if (error) { console.error('Chargement employees:', error); return []; }
+    return data || [];
+  }
+
+  nexusRequireAuth().then(async employee => {
     if (!employee) return; // nexus-auth.js gère déjà la redirection vers NEXUS-Login-v1.html
     if (employee.role !== 'manager' && employee.role !== 'gerant') {
       document.body.innerHTML = '<div style="padding:60px 20px; text-align:center; color:var(--text-dim); font-family:var(--sans);">Cet écran est réservé aux managers.</div>';
@@ -75,26 +92,28 @@
     const session = { prenom: employee.nom, role: employee.role };
 
 
-  const progression = JSON.parse(localStorage.getItem('nexus_missions_progression') || '{}');
-  const completions = JSON.parse(localStorage.getItem('nexus_missions_completees') || '[]');
+  const [equipeActive, completions] = await Promise.all([chargerEquipeActive(), chargerCompletions()]);
+  const nomParId = {};
+  equipeActive.forEach(e => { nomParId[e.id] = e.nom; });
   const retards = JSON.parse(localStorage.getItem('nexus_retards') || '{}');
   const content = document.getElementById('content');
 
-  const employesProgression = Object.keys(progression);
-  const employesCompletions = [...new Set(completions.map(c => c.employe))];
+  const employesEquipe = equipeActive.map(e => e.nom);
+  const employesCompletions = [...new Set(completions.map(c => nomParId[c.employee_id]).filter(Boolean))];
   const employesRetards = Object.keys(retards);
-  const tousEmployes = [...new Set([...employesProgression, ...employesCompletions, ...employesRetards])];
+  const tousEmployes = [...new Set([...employesEquipe, ...employesCompletions, ...employesRetards])];
 
   if (tousEmployes.length === 0) {
     content.innerHTML = `<div class="card"><div class="empty-note">
-      Aucune activité enregistrée pour l'instant sur cet appareil.<br><br>
-      Dès qu'un employé pointe, valide une mission ou coche des items, ses résultats apparaîtront ici.
+      Aucune activité enregistrée pour l'instant.<br><br>
+      Dès qu'un employé pointe ou valide une mission, ses résultats apparaîtront ici.
     </div></div>`;
   } else {
     let html = '';
     tousEmployes.forEach(emp => {
-      const missionsEmp = completions.filter(c => c.employe === emp);
-      const pointsTotal = missionsEmp.reduce((s, m) => s + m.points, 0);
+      const idEmp = equipeActive.find(e => e.nom === emp)?.id;
+      const missionsEmp = completions.filter(c => c.employee_id === idEmp);
+      const pointsTotal = missionsEmp.reduce((s, m) => s + (m.points || 0), 0);
       const avecPhoto = missionsEmp.filter(m => m.photo_fournie).length;
       const retardsEmp = retards[emp] || [];
       const totalRetardMin = retardsEmp.reduce((s, r) => s + r.retard_min, 0);
@@ -117,7 +136,7 @@
 
       if (missionsEmp.length > 0) {
         html += `<div style="margin-top:10px;">`;
-        missionsEmp.slice(-5).reverse().forEach(m => {
+        missionsEmp.slice(0, 5).forEach(m => {
           html += `<div class="histo-row" style="border-bottom:1px solid var(--hairline); padding:7px 0;">
             <span style="font-size:11.5px;">${m.titre} ${m.photo_fournie ? '📷' : ''}</span>
             <span style="font-family:var(--mono); font-size:10.5px; color:var(--green);">+${m.points} pts</span>
@@ -140,7 +159,8 @@
 
     html += `<div class="card"><div class="section-label">Limite honnête</div>
       <div class="empty-note" style="padding:8px 0; text-align:left;">
-        Ces chiffres ne sont fiables que si toute l'équipe utilise ce même appareil pour pointer et valider ses missions (décision actée le 08/07/2026).
+        Les missions viennent de Supabase et sont fiables pour toute l'équipe, tous appareils confondus.
+        Les retards restent enregistrés uniquement sur cet appareil (décision actée le 08/07/2026) tant que Pointage n'a pas sa propre table Supabase.
       </div></div>`;
 
     content.innerHTML = html;
