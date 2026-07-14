@@ -137,6 +137,15 @@ tbody tr:hover{background:var(--panel);}
   </div>
 
   <div class="section">
+    <div class="section-label">Type d'import</div>
+    <div class="btn-row" style="gap:8px;">
+      <div class="btn btn-primary" id="typeVentes" style="cursor:pointer;">Ventes / Catalogue</div>
+      <div class="btn btn-ghost" id="typeStock" style="cursor:pointer;">Stock instantané</div>
+    </div>
+    <div style="font-family:var(--mono); font-size:10px; color:var(--text-dim); margin-top:8px; line-height:1.5;" id="typeExplication">CA, marge, évolution — un fichier par période de vente.</div>
+  </div>
+
+  <div class="section">
     <div class="dropzone" id="dropzone">
       <div class="dz-icon">📥</div>
       <div class="dz-title">Déposez votre fichier ici</div>
@@ -184,7 +193,7 @@ tbody tr:hover{background:var(--panel);}
       <div class="table-more" id="moreRows"></div>
     </div>
 
-    <div class="section">
+    <div class="section" id="periodeVentesSection">
       <div class="section-label">Période couverte par ce fichier</div>
       <div class="btn-row">
         <div style="flex:1;">
@@ -197,6 +206,13 @@ tbody tr:hover{background:var(--panel);}
         </div>
       </div>
       <div style="font-family:var(--mono); font-size:10px; color:var(--text-dim); margin-top:8px; line-height:1.5;">Sert à calculer l'évolution automatiquement en comparant avec la période précédente déjà importée.</div>
+    </div>
+
+    <div class="section" id="periodeStockSection" style="display:none;">
+      <div class="section-label">Date du relevé</div>
+      <label style="font-family:var(--mono); font-size:10px; color:var(--text-mid); text-transform:uppercase; letter-spacing:0.04em;">Date</label>
+      <input type="date" id="dateReleve" style="width:100%; margin-top:6px; background:var(--panel); border:1px solid var(--hairline); border-radius:10px; padding:11px 12px; color:var(--text); font-family:var(--sans); font-size:13.5px;">
+      <div style="font-family:var(--mono); font-size:10px; color:var(--text-dim); margin-top:8px; line-height:1.5;">L'heure du dépôt est capturée automatiquement — c'est cette photo datée qui permettra à Scanner Stock de repérer les mouvements suspects.</div>
     </div>
 
     <div class="section" style="margin-top:8px;">
@@ -249,6 +265,27 @@ let currentRows = [];
 let currentMapping = {};
 let currentHeaders = [];
 let cleanedSummary = [];
+let typeImportActuel = 'ventes';
+
+const btnTypeVentes = document.getElementById('typeVentes');
+const btnTypeStock = document.getElementById('typeStock');
+const periodeVentesSection = document.getElementById('periodeVentesSection');
+const periodeStockSection = document.getElementById('periodeStockSection');
+const typeExplication = document.getElementById('typeExplication');
+
+function choisirTypeImport(type) {
+  typeImportActuel = type;
+  const estVentes = type === 'ventes';
+  btnTypeVentes.className = estVentes ? 'btn btn-primary' : 'btn btn-ghost';
+  btnTypeStock.className = estVentes ? 'btn btn-ghost' : 'btn btn-primary';
+  periodeVentesSection.style.display = estVentes ? 'block' : 'none';
+  periodeStockSection.style.display = estVentes ? 'none' : 'block';
+  typeExplication.textContent = estVentes
+    ? "CA, marge, évolution — un fichier par période de vente."
+    : "Quantités théoriques par référence, à un instant précis — sert à préparer Scanner Stock.";
+}
+btnTypeVentes.addEventListener('click', () => choisirTypeImport('ventes'));
+btnTypeStock.addEventListener('click', () => choisirTypeImport('stock'));
 
 // Champs attendus par NEXUS Pilot, avec synonymes possibles pour l'auto-mapping
 const FIELD_DEFS = [
@@ -383,16 +420,25 @@ downloadClean.addEventListener('click', ()=>{
 
 sendPilot.addEventListener('click', async ()=>{
   const msg = document.getElementById('sendMsg');
+  if (!currentRows.length) {
+    msg.textContent = "Aucune donnée à envoyer.";
+    msg.style.color = 'var(--red)';
+    return;
+  }
+
+  if (typeImportActuel === 'stock') {
+    await envoyerStockInstantane(msg);
+  } else {
+    await envoyerVentes(msg);
+  }
+});
+
+async function envoyerVentes(msg) {
   const debut = document.getElementById('periodeDebut').value;
   const fin = document.getElementById('periodeFin').value;
 
   if (!debut || !fin) {
     msg.textContent = "Indiquez la période (début et fin) avant d'envoyer.";
-    msg.style.color = 'var(--red)';
-    return;
-  }
-  if (!currentRows.length) {
-    msg.textContent = "Aucune donnée à envoyer.";
     msg.style.color = 'var(--red)';
     return;
   }
@@ -431,28 +477,82 @@ sendPilot.addEventListener('click', async ()=>{
     };
   }).filter(l => l.article);
 
-  // Envoi par lots de 500 pour rester sous les limites de l'API
-  const TAILLE_LOT = 500;
-  let envoyees = 0;
-  for (let i = 0; i < lignes.length; i += TAILLE_LOT) {
-    const lot = lignes.slice(i, i + TAILLE_LOT);
-    const { error } = await nexusClient.from('products').insert(lot);
-    if (error) {
-      console.error('Import products:', error);
-      msg.textContent = `Erreur après ${envoyees} ligne(s) envoyée(s) — réessayez.`;
-      msg.style.color = 'var(--red)';
-      sendPilot.textContent = 'Envoyer à NEXUS Pilot →';
-      sendPilot.style.pointerEvents = 'auto';
-      return;
-    }
-    envoyees += lot.length;
-  }
+  const envoyees = await envoyerParLots('products', lignes, msg);
+  if (envoyees === null) return;
 
   msg.textContent = `✓ ${envoyees} référence(s) importée(s) pour la période ${debut} → ${fin}.`;
   msg.style.color = 'var(--green)';
   sendPilot.textContent = 'Envoyer à NEXUS Pilot →';
   sendPilot.style.pointerEvents = 'auto';
-});
+}
+
+async function envoyerStockInstantane(msg) {
+  const dateReleve = document.getElementById('dateReleve').value;
+
+  if (!dateReleve) {
+    msg.textContent = "Indiquez la date du relevé avant d'envoyer.";
+    msg.style.color = 'var(--red)';
+    return;
+  }
+
+  const { categorie: catKey, article: artKey, quantite: qKey, code_barres: cbKey } = currentMapping;
+
+  if (!artKey || !qKey) {
+    msg.textContent = "Article et Quantité doivent être détectés pour pouvoir importer un stock.";
+    msg.style.color = 'var(--red)';
+    return;
+  }
+
+  sendPilot.textContent = 'Envoi en cours…';
+  sendPilot.style.pointerEvents = 'none';
+
+  // Date choisie par le manager + heure exacte du dépôt, capturée automatiquement —
+  // c'est cette photo précisément datée qui permettra à Scanner Stock de comparer
+  // les relevés entre eux plus tard.
+  const maintenant = new Date();
+  const heureActuelle = maintenant.toTimeString().slice(0, 8);
+  const releveLe = new Date(`${dateReleve}T${heureActuelle}`).toISOString();
+
+  const lignes = currentRows.map(r => {
+    const q = toNumber(r[qKey]);
+    return {
+      site: 'vito-sainte-marie',
+      releve_le: releveLe,
+      categorie: catKey ? String(r[catKey] || 'Non classé') : null,
+      article: String(r[artKey] || ''),
+      code_barres: cbKey ? String(r[cbKey] || '').replace(/[\s\u00a0\u202f]+/g, '').trim() || null : null,
+      quantite_theorique: isNaN(q) ? 0 : q,
+      importe_par: employee.id,
+    };
+  }).filter(l => l.article);
+
+  const envoyees = await envoyerParLots('stock_releves', lignes, msg);
+  if (envoyees === null) return;
+
+  msg.textContent = `✓ ${envoyees} référence(s) de stock enregistrées — relevé du ${dateReleve} à ${heureActuelle.slice(0,5)}.`;
+  msg.style.color = 'var(--green)';
+  sendPilot.textContent = 'Envoyer à NEXUS Pilot →';
+  sendPilot.style.pointerEvents = 'auto';
+}
+
+async function envoyerParLots(table, lignes, msg) {
+  const TAILLE_LOT = 500;
+  let envoyees = 0;
+  for (let i = 0; i < lignes.length; i += TAILLE_LOT) {
+    const lot = lignes.slice(i, i + TAILLE_LOT);
+    const { error } = await nexusClient.from(table).insert(lot);
+    if (error) {
+      console.error(`Import ${table}:`, error);
+      msg.textContent = `Erreur après ${envoyees} ligne(s) envoyée(s) — réessayez.`;
+      msg.style.color = 'var(--red)';
+      sendPilot.textContent = 'Envoyer à NEXUS Pilot →';
+      sendPilot.style.pointerEvents = 'auto';
+      return null;
+    }
+    envoyees += lot.length;
+  }
+  return envoyees;
+}
 
 });
 </script>
