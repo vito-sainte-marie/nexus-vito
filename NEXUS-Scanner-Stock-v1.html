@@ -67,6 +67,15 @@
   .confiance-sub{font-size:12.5px; color:var(--text-mid); margin-top:6px;}
 
   .kpi-grid{display:grid; grid-template-columns:repeat(2,1fr); gap:10px; margin-top:12px;}
+  .kpi-box.clickable{cursor:pointer;}
+  .kpi-toggle{font-family:var(--mono); font-size:9px; color:var(--cyan); opacity:0.75; margin-top:6px; display:flex; align-items:center; gap:4px;}
+  .kpi-toggle .chev{transition:transform .15s; display:inline-block;}
+  .kpi-box.open .kpi-toggle .chev{transform:rotate(90deg);}
+  .kpi-explain{display:none; margin-top:12px; padding-top:12px; border-top:1px solid var(--hairline); font-size:11.5px; color:var(--text-mid); line-height:1.6; grid-column:1/-1;}
+  .kpi-explain.open{display:block;}
+  .kpi-explain b{color:var(--text);}
+  .kpi-explain ul{margin:8px 0 0 18px;}
+  .kpi-explain li{margin-bottom:4px;}
   .kpi-box{background:var(--panel); border:1px solid var(--hairline); border-radius:12px; padding:14px 16px;}
   .kpi-label{font-family:var(--mono); font-size:9.5px; letter-spacing:0.05em; text-transform:uppercase; color:var(--text-dim);}
   .kpi-value{font-family:var(--mono); font-size:22px; font-weight:700; margin-top:6px;}
@@ -354,6 +363,7 @@
 
     const confianceGlobale = Math.round(ANALYSE.reduce((s, p) => s + p.confiance, 0) / total);
     const risqueEstime = Math.round(ANALYSE.reduce((s, p) => s + p.risqueEur, 0));
+    const nbChiffrable = ANALYSE.filter(p => p.risqueEur > 0).length;
 
     const sensibles = ANALYSE.map(p => ({ ...p, etoiles: calculerSensibilite(p) })).filter(p => p.etoiles >= 3);
 
@@ -391,8 +401,17 @@
         </div>
 
         <div class="kpi-grid">
-          <div class="kpi-box"><div class="kpi-label">Risque estimé</div><div class="kpi-value" style="color:var(--red);">${risqueEstime.toLocaleString('fr-FR')} €</div><div class="kpi-sub">si les écarts sont confirmés</div></div>
+          <div class="kpi-box clickable" id="carteRisque"><div class="kpi-label">Risque estimé</div><div class="kpi-value" style="color:var(--red);">${risqueEstime.toLocaleString('fr-FR')} €</div><div class="kpi-sub">si les écarts sont confirmés</div><div class="kpi-toggle"><span class="chev">›</span> D'où vient ce chiffre ?</div></div>
           <div class="kpi-box"><div class="kpi-label">Produits sensibles</div><div class="kpi-value" style="color:var(--gold);">${sensibles.length}</div><div class="kpi-sub">cumul de facteurs de risque</div></div>
+          <div class="kpi-explain" id="explicationRisque">
+            <b>${nbChiffrable}</b> référence${nbChiffrable>1?'s':''} sur ${total} entre${nbChiffrable>1?'nt':''} dans ce total — seules celles qui remplissent les <b>trois conditions</b> à la fois :
+            <ul>
+              <li>état 🔴 <b>À vérifier</b> (ni "à surveiller", ni "sensible", ni "non concluant")</li>
+              <li>écart <b>négatif</b> (moins de stock que prévu, pas un surplus)</li>
+              <li>prix de vente <b>connu</b> (sinon impossible de convertir en euros)</li>
+            </ul>
+            Pour chacune : <b>quantité manquante × prix de vente</b>, additionné. Les ${sensibles.length} "sensibles" ne sont pas ignorés — ils n'ont simplement pas encore un écart chiffrable aujourd'hui.
+          </div>
         </div>
 
         ${aRecompter.length > 0 ? `
@@ -430,6 +449,15 @@
     });
     const carteInv = document.getElementById('carteInventaire');
     if (carteInv) carteInv.addEventListener('click', () => { filtreActuel = 'recommande'; renderRoot(); });
+
+    const carteRisque = document.getElementById('carteRisque');
+    const explication = document.getElementById('explicationRisque');
+    if (carteRisque && explication) {
+      carteRisque.addEventListener('click', () => {
+        carteRisque.classList.toggle('open');
+        explication.classList.toggle('open');
+      });
+    }
   }
 
   function genererMessageConseiller(nbVerifier, nbSurveiller, risqueEstime, aRecompter) {
