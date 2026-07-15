@@ -3,433 +3,343 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>NEXUS</title>
+<title>NEXUS — Présentation</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-  :root{
-    --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
-    --text:#EDF1F5; --text-mid:#8A96A5; --text-dim:#57626F;
-    --green:#34D399; --green-dim:#153629;
-    --amber:#F5A623; --amber-dim:#3A2E14;
-    --cyan:#4FC3D9;
-    --gold:#D4AF37; --gold-dim:#332B12;
-    --mono:'IBM Plex Mono',monospace; --sans:'IBM Plex Sans',sans-serif;
-  }
-  *{box-sizing:border-box; margin:0; padding:0;}
-  html,body{background:var(--bg); font-family:var(--sans); color:var(--text); min-height:100vh;}
-  body{
-    display:flex; justify-content:center;
-    background-image: radial-gradient(circle at 50% 0%, rgba(79,195,217,0.07), transparent 45%);
-  }
-  .app{width:100%; max-width:520px; min-height:100vh; display:flex; flex-direction:column; border-left:1px solid var(--hairline); border-right:1px solid var(--hairline);}
+:root{
+  --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
+  --text:#EDF1F5; --text-mid:#8A96A5; --text-dim:#57626F;
+  --green:#34D399; --green-dim:#153629;
+  --amber:#F5A623; --amber-dim:#3A2E14;
+  --cyan:#4FC3D9; --cyan-dim:#123138;
+  --mono:'IBM Plex Mono',monospace; --sans:'IBM Plex Sans',sans-serif;
+}
+*{box-sizing:border-box; margin:0; padding:0;}
+html{scroll-behavior:smooth;}
+html,body{background:var(--bg); font-family:var(--sans); color:var(--text); min-height:100vh;}
+body{
+  background-image: radial-gradient(circle at 50% 0%, rgba(79,195,217,0.09), transparent 45%);
+}
+a{color:inherit; text-decoration:none;}
+img{display:block; max-width:100%;}
 
-  .header{padding:28px 24px 8px; text-align:center;}
-  .mark{
-    display:inline-block; font-family:var(--mono); font-weight:700; font-size:13px; letter-spacing:0.16em;
-    color:var(--cyan); border:1px solid rgba(79,195,217,0.35); padding:4px 10px; border-radius:4px; margin-bottom:10px;
-  }
-  .title{font-size:24px; font-weight:600;}
-  .subtitle{font-family:var(--sans); font-size:13px; color:var(--text-mid); margin-top:6px; line-height:1.5; max-width:340px; margin-left:auto; margin-right:auto;}
+.wrap{max-width:1040px; margin:0 auto; padding:0 24px;}
 
-  .hero{margin:18px 20px 6px; padding:22px; border-radius:20px; text-decoration:none; color:var(--text); display:block; position:relative; overflow:hidden;
-    background:linear-gradient(150deg, var(--panel-raised), var(--panel)); border:1px solid rgba(79,195,217,0.28);
-    box-shadow:0 10px 34px rgba(0,0,0,0.35);
-  }
-  .hero::before{content:''; position:absolute; top:-50%; right:-30%; width:180%; height:180%; background:radial-gradient(circle, rgba(79,195,217,0.10), transparent 60%); pointer-events:none;}
-  .hero-top{display:flex; align-items:center; gap:14px; position:relative;}
-  .hero-icon{width:52px; height:52px; border-radius:14px; overflow:hidden; flex-shrink:0; background:var(--panel); box-shadow:0 0 0 1px rgba(79,195,217,0.25) inset;}
-  .hero-icon img{width:100%; height:100%; object-fit:cover;}
-  .hero-title{font-size:17px; font-weight:700;}
-  .hero-desc{font-size:12px; color:var(--text-mid); margin-top:3px; line-height:1.5;}
-  .hero-arrow{margin-left:auto; color:var(--cyan); font-size:18px; flex-shrink:0;}
-  .hero-stats{display:flex; gap:18px; margin-top:18px; padding-top:16px; border-top:1px solid var(--hairline); position:relative;}
-  .hero-stat b{color:var(--cyan); font-family:var(--mono); font-size:14px; display:block;}
-  .hero-stat span{font-family:var(--mono); font-size:9.5px; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.04em;}
+/* ---------- header ---------- */
+header{position:sticky; top:0; z-index:50; background:rgba(11,15,20,0.92); backdrop-filter:blur(6px); border-bottom:1px solid var(--hairline);}
+.nav-wrap{display:flex; align-items:center; justify-content:space-between; padding:16px 24px; max-width:1040px; margin:0 auto;}
+.brand{display:flex; align-items:center; gap:9px;}
+.brand-logo{width:26px; height:26px; object-fit:contain; flex:none;}
+.mark{
+  display:inline-block; font-family:var(--mono); font-weight:700; font-size:14px; letter-spacing:0.14em;
+  color:var(--cyan);
+}
+.brand-name{font-size:16px; font-weight:600;}
+nav.links{display:flex; align-items:center; gap:28px;}
+nav.links a{font-family:var(--mono); font-size:12px; letter-spacing:0.04em; color:var(--text-mid); text-transform:uppercase;}
+nav.links a:hover{color:var(--text);}
+.btn{
+  display:inline-flex; align-items:center; gap:8px; font-family:var(--mono); font-size:12px; letter-spacing:0.04em;
+  text-transform:uppercase; padding:11px 18px; border-radius:8px; font-weight:600; cursor:pointer;
+  transition:border-color .15s ease, transform .15s ease, background .15s ease; white-space:nowrap; border:1px solid transparent;
+}
+.btn-primary{background:var(--cyan); color:#06181C;}
+.btn-primary:hover{background:#6FD3E5; transform:translateY(-1px);}
+.btn-ghost{background:var(--panel); color:var(--text); border:1px solid var(--hairline);}
+.btn-ghost:hover{border-color:var(--cyan); transform:translateY(-1px);}
+.burger{display:none; flex-direction:column; gap:5px; cursor:pointer; background:none; border:none;}
+.burger span{width:20px; height:2px; background:var(--text); display:block;}
 
-  .section-label{
-    font-family:var(--mono); font-size:10px; letter-spacing:0.1em; text-transform:uppercase; color:var(--text-dim);
-    padding:22px 24px 10px; display:flex; align-items:center; gap:8px;
-  }
-  .section-label::after{content:''; flex:1; height:1px; background:var(--hairline);}
+/* ---------- hero ---------- */
+.hero{padding:88px 0 56px; text-align:center;}
+.eyebrow{font-family:var(--mono); font-size:12px; letter-spacing:0.14em; text-transform:uppercase; color:var(--cyan);}
+.hero-setup{font-size:17px; color:var(--text-mid); margin-top:22px; max-width:34ch; margin-left:auto; margin-right:auto;}
+h1{font-size:clamp(34px,5vw,52px); font-weight:600; line-height:1.12; margin-top:10px; max-width:20ch; margin-left:auto; margin-right:auto;}
+h1 .hl-amber{color:var(--amber);}
+h1 .hl{color:var(--cyan);}
+.lead{font-size:16px; line-height:1.6; color:var(--text-mid); max-width:48ch; margin:20px auto 0;}
+.hero-ctas{display:flex; gap:12px; justify-content:center; margin-top:32px; flex-wrap:wrap;}
 
-  nav{padding:0 20px; display:flex; flex-direction:column; gap:8px;}
-  .nav-item{
-    display:flex; align-items:center; gap:13px; padding:13px 14px; background:var(--panel);
-    border:1px solid var(--hairline); border-radius:12px; text-decoration:none; color:var(--text);
-    transition:border-color 0.15s, transform 0.15s;
-  }
-  .nav-item:hover{border-color:rgba(79,195,217,0.4); transform:translateY(-1px);}
-  .nav-icon{
-    width:38px; height:38px; border-radius:10px; display:flex; align-items:center; justify-content:center;
-    font-size:18px; flex-shrink:0; background:var(--panel-raised); overflow:hidden;
-  }
-  .nav-icon img{width:100%; height:100%; object-fit:cover; display:block;}
-  .nav-body{flex:1; min-width:0;}
-  .nav-title{font-size:13.5px; font-weight:600; display:flex; align-items:center;}
-  .nav-desc{font-size:11px; color:var(--text-mid); margin-top:2px; line-height:1.4; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
-  .nav-arrow{color:var(--text-dim); font-size:15px; flex-shrink:0;}
-  .nav-badge{
-    font-family:var(--mono); font-size:8.5px; padding:2px 7px; border-radius:20px; font-weight:600; margin-left:8px;
-  }
-  .badge-soon{background:var(--amber-dim); color:var(--amber);}
-  .badge-premium{background:rgba(212,175,55,0.14); color:var(--gold);}
-  .badge-urgent{background:#3A1D1F; color:#F0575A; font-family:var(--mono); font-size:8.5px; padding:2px 7px; border-radius:20px; font-weight:700; margin-left:6px; animation:pulse-urgent 1.6s infinite;}
-  .nav-item.urgent{border-color:#F0575A; background:rgba(240,87,90,0.06);}
-  .nav-item.urgent .nav-icon{animation:pulse-urgent 1.6s infinite;}
-  @keyframes pulse-urgent{0%,100%{opacity:1;} 50%{opacity:0.5;}}
+.status-strip{
+  display:flex; justify-content:center; gap:28px; padding:18px 24px; font-family:var(--mono); font-size:11.5px;
+  color:var(--text-mid); flex-wrap:wrap; margin-top:44px; border-top:1px solid var(--hairline); border-bottom:1px solid var(--hairline);
+}
+.status-strip b{color:var(--green); font-size:13px;}
 
-  .construction-item{opacity:0.45; display:flex; align-items:center; gap:13px; padding:13px 14px; background:var(--panel); border:1px solid var(--hairline); border-radius:12px;}
+/* ---------- trust ---------- */
+.trust{padding:40px 0;}
+.trust-panel{
+  display:flex; align-items:center; gap:18px; background:var(--panel); border:1px solid var(--hairline);
+  border-radius:14px; padding:18px 22px; flex-wrap:wrap;
+}
+.trust-thumb{width:56px; height:56px; border-radius:10px; object-fit:cover; border:1px solid var(--hairline); flex-shrink:0;}
+.trust-text{flex:1; min-width:200px;}
+.trust-text .who{font-size:14.5px; font-weight:600;}
+.trust-text .what{font-size:12.5px; color:var(--text-mid); margin-top:3px;}
+.pill{
+  font-family:var(--mono); font-size:10px; padding:4px 10px; border-radius:20px; font-weight:600;
+  background:var(--green-dim); color:var(--green); display:inline-flex; align-items:center; gap:6px; white-space:nowrap;
+}
+.pill .dot{width:6px; height:6px; border-radius:50%; background:var(--green);}
 
-  .group-toggle{
-    display:flex; align-items:center; justify-content:center; gap:6px;
-    font-family:var(--mono); font-size:10.5px; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.04em;
-    padding:9px; cursor:pointer; border-radius:10px; transition:color .15s, background .15s;
-  }
-  .group-toggle:hover{color:var(--cyan); background:var(--panel);}
-  .group-toggle::before{content:'⌄'; font-size:13px; transition:transform .2s;}
-  .group-toggle.open::before{transform:rotate(180deg);}
+/* ---------- section shell ---------- */
+.section{padding:64px 0;}
+.section-label{
+  font-family:var(--mono); font-size:11px; letter-spacing:0.1em; text-transform:uppercase; color:var(--text-dim);
+  display:flex; align-items:center; gap:10px; margin-bottom:8px;
+}
+.section-label::after{content:''; flex:1; height:1px; background:var(--hairline);}
+.section h2{font-size:clamp(22px,3vw,30px); font-weight:600; margin-bottom:10px;}
+.section > p.section-desc{color:var(--text-mid); font-size:14.5px; max-width:56ch; line-height:1.6; margin-bottom:32px;}
 
-  footer{margin-top:auto; padding:24px 24px 28px; font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:center; border-top:1px solid var(--hairline); margin-top:28px;}
+/* ---------- modules : reuses the app's own nav-item component ---------- */
+.mod-list{display:flex; flex-direction:column; gap:12px;}
+.nav-item{
+  display:flex; align-items:center; gap:16px; padding:18px; background:var(--panel);
+  border:1px solid var(--hairline); border-radius:12px; transition:border-color .15s;
+}
+.nav-item:hover{border-color:var(--cyan);}
+.nav-icon{
+  width:44px; height:44px; border-radius:10px; display:flex; align-items:center; justify-content:center;
+  font-size:20px; flex-shrink:0; background:var(--panel-raised); overflow:hidden;
+}
+.nav-icon img{width:100%; height:100%; object-fit:cover;}
+.nav-body{flex:1;}
+.nav-title{font-size:15px; font-weight:600; display:flex; align-items:center; gap:8px; flex-wrap:wrap;}
+.nav-desc{font-size:12.5px; color:var(--text-mid); margin-top:4px; line-height:1.5;}
+.badge-ready{font-family:var(--mono); font-size:9px; padding:2px 8px; border-radius:20px; font-weight:600; background:var(--green-dim); color:var(--green);}
+
+/* ---------- roadmap ---------- */
+.roadmap-item{opacity:0.6; display:flex; align-items:center; gap:16px; padding:18px; background:var(--panel); border:1px solid var(--hairline); border-radius:12px;}
+.badge-soon{font-family:var(--mono); font-size:9px; padding:2px 8px; border-radius:20px; font-weight:600; background:var(--amber-dim); color:var(--amber);}
+
+/* ---------- quote ---------- */
+.quote-panel{
+  background:var(--panel); border:1px solid var(--hairline); border-radius:14px; padding:40px 36px;
+  position:relative;
+}
+.quote-mark{font-family:var(--mono); font-size:44px; color:var(--cyan); line-height:0.5; margin-bottom:14px; display:block;}
+blockquote{font-size:clamp(18px,2.4vw,24px); font-weight:500; line-height:1.4; color:var(--text); max-width:34ch;}
+.quote-attrib{margin-top:18px; font-family:var(--mono); font-size:12px; color:var(--text-mid);}
+.quote-attrib b{color:var(--cyan);}
+
+/* ---------- final cta ---------- */
+.cta-band{
+  background:var(--panel); border:1px solid var(--hairline); border-radius:16px; padding:56px 32px; text-align:center;
+  margin:8px 0 24px;
+}
+.cta-band h2{font-size:clamp(24px,3.4vw,34px);}
+.cta-band p{color:var(--text-mid); font-size:14.5px; max-width:48ch; margin:14px auto 0;}
+.cta-buttons{display:flex; gap:12px; justify-content:center; margin-top:28px; flex-wrap:wrap;}
+
+footer{margin-top:20px; padding:24px; font-family:var(--mono); font-size:10.5px; color:var(--text-dim); text-align:center; border-top:1px solid var(--hairline);}
+footer a{color:var(--text-dim);}
+footer a:hover{color:var(--cyan);}
+.footer-trust{display:flex; flex-direction:column; align-items:center; gap:10px; text-transform:uppercase; letter-spacing:0.08em;}
+.footer-logo{height:52px; width:auto; object-fit:contain; opacity:0.95;}
+
+@media (max-width: 720px){
+  nav.links{display:none;}
+  .burger{display:flex;}
+  .status-strip{gap:18px;}
+  .quote-panel{padding:28px 22px;}
+}
 </style>
 </head>
 <body>
-<div class="app">
-  <div class="header">
-    <span class="mark">NEXUS</span>
-    <div class="title" id="stationTitle">Vito Sainte-Marie Usine</div>
-    <div class="subtitle" id="taglineRole">Le premier directeur d'exploitation numérique qui accompagne les managers dans leurs décisions quotidiennes.</div>
-    <div class="subtitle" id="sessionInfo" style="margin-top:6px;"></div>
+
+<header>
+  <div class="nav-wrap">
+    <div class="brand">
+      <img class="brand-logo" src="assets/nexus-logo-cyan.png" alt="">
+      <span class="mark">NEXUS</span>
+    </div>
+    <nav class="links">
+      <a href="#modules">Écrans</a>
+      <a href="#fonctionnement">Fonctionnement</a>
+      <a href="#contact">Contact</a>
+    </nav>
+    <div style="display:flex; align-items:center; gap:12px;">
+      <a class="btn btn-primary" href="NEXUS-Login-v1.html" target="_blank" rel="noopener">Se connecter</a>
+      <button class="burger" aria-label="Menu"><span></span><span></span><span></span></button>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <section class="hero">
+    <div class="eyebrow">Système d'exploitation décisionnel · Station-service</div>
+    <p class="hero-setup">Chaque jour, un manager de station-service prend des dizaines de décisions.</p>
+    <h1>La plupart sont prises <span class="hl-amber">à l'instinct.</span></h1>
+    <p class="lead"><b style="color:var(--cyan); font-weight:600;">NEXUS</b> les transforme en décisions pilotées par les données — il suit l'activité de la station, lit les ventes de la boutique et organise l'équipe. Un seul outil, conçu pour le poste, pas un tableau de bord générique.</p>
+    <div class="hero-ctas">
+      <a class="btn btn-primary" href="NEXUS-Login-v1.html" target="_blank" rel="noopener">Voir l'app en direct →</a>
+      <a class="btn btn-ghost" href="mailto:fredbragance@nexusconseil.net?subject=Demande%20de%20d%C3%A9mo%20NEXUS">Demander une démo</a>
+    </div>
+  </section>
+
+  <div class="status-strip">
+    <span><b>13</b> écrans opérationnels</span>
+    <span><b>228</b> références suivies</span>
+    <span><b>50</b> missions au socle</span>
+    <span><b>1</b> station pilote</span>
   </div>
 
-  <a class="hero" data-role="manager" href="NEXUS-Cockpit-v2.html" id="heroManager">
-    <div class="hero-top">
-      <div class="hero-icon"><img src="assets/icons/icon-home.png" alt=""></div>
-      <div>
-        <div class="hero-title">Cockpit</div>
-        <div class="hero-desc">Votre tableau de bord — santé, missions, opportunités, risques</div>
+  <section class="trust">
+    <div class="trust-panel">
+      <img class="trust-thumb" src="assets/station-vito.jpg" alt="Station ViTO Sainte-Marie">
+      <div class="trust-text">
+        <div class="who">ViTO Sainte-Marie</div>
+        <div class="what">Station pilote — NEXUS en production sur le terrain</div>
       </div>
-      <div class="hero-arrow">→</div>
+      <span class="pill"><span class="dot"></span>En production</span>
     </div>
-    <div class="hero-stats">
-      <div class="hero-stat"><b>74</b><span>Indice santé</span></div>
-      <div class="hero-stat"><b>228</b><span>Références</span></div>
-      <div class="hero-stat"><b>50</b><span>Missions</span></div>
+  </section>
+
+  <section class="section" id="modules">
+    <div class="section-label">Écrans du jour</div>
+    <h2>Ce qui tourne déjà, en poste.</h2>
+    <p class="section-desc">Chaque écran répond à une tâche précise du quotidien de la station — rien de superflu, rien de générique.</p>
+    <div class="mod-list">
+      <div class="nav-item">
+        <div class="nav-icon"><img src="assets/icons/icon-prise-de-poste.png" alt=""></div>
+        <div class="nav-body">
+          <div class="nav-title">PRISE DE POSTE <span class="badge-ready">Prêt</span></div>
+          <div class="nav-desc">Le rôle du jour se confirme à l'arrivée — les missions s'adaptent automatiquement</div>
+        </div>
+      </div>
+      <div class="nav-item">
+        <div class="nav-icon"><img src="assets/icons/icon-home.png" alt=""></div>
+        <div class="nav-body">
+          <div class="nav-title">HOME <span class="badge-ready">Prêt</span></div>
+          <div class="nav-desc">L'écran qu'on ouvre 15 fois par jour — santé, missions, opportunités, risques</div>
+        </div>
+      </div>
+      <div class="nav-item">
+        <div class="nav-icon"><img src="assets/icons/icon-radar.png" alt=""></div>
+        <div class="nav-body">
+          <div class="nav-title">RADAR DU MANAGER <span class="badge-ready">Prêt</span></div>
+          <div class="nav-desc">8 domaines de responsabilité, mesurés honnêtement — pas de faux indicateurs</div>
+        </div>
+      </div>
+      <div class="nav-item">
+        <div class="nav-icon"><img src="assets/icons/icon-rayon.png" alt=""></div>
+        <div class="nav-body">
+          <div class="nav-title">RAYON <span class="badge-ready">Prêt</span></div>
+          <div class="nav-desc">Vue d'ensemble Bières / Softs — CA, marge, top ventes, produits faibles</div>
+        </div>
+      </div>
+      <div class="nav-item">
+        <div class="nav-icon"><img src="assets/icons/icon-produits.png" alt=""></div>
+        <div class="nav-body">
+          <div class="nav-title">PRODUITS <span class="badge-ready">Prêt</span></div>
+          <div class="nav-desc">Fiche complète par référence — prix, marge, mission, décisions liées</div>
+        </div>
+      </div>
+      <div class="nav-item">
+        <div class="nav-icon"><img src="assets/icons/icon-pointage.png" alt=""></div>
+        <div class="nav-body">
+          <div class="nav-title">POINTAGE <span class="badge-ready">Prêt</span></div>
+          <div class="nav-desc">Arrivée, pause, départ — horaires réels, retards enregistrés</div>
+        </div>
+      </div>
+      <div class="nav-item">
+        <div class="nav-icon"><img src="assets/icons/icon-evolution.png" alt=""></div>
+        <div class="nav-body">
+          <div class="nav-title">MON ÉVOLUTION <span class="badge-ready">Prêt</span></div>
+          <div class="nav-desc">Compétences employé — basées sur les missions réellement archivées et prouvées</div>
+        </div>
+      </div>
+      <div class="nav-item">
+        <div class="nav-icon"><img src="assets/icons/icon-planogramme.png" alt=""></div>
+        <div class="nav-body">
+          <div class="nav-title">PLANOGRAMMES <span class="badge-ready">Prêt</span></div>
+          <div class="nav-desc">Saisie manuelle des facings — calcul par règles, sans IA, gratuit et hors ligne</div>
+        </div>
+      </div>
     </div>
-  </a>
+  </section>
 
-  <a class="hero" data-role="employe" href="NEXUS-Missions-v1.html" id="heroEmploye" style="display:none;">
-    <div class="hero-top">
-      <div class="hero-icon"><img src="assets/icons/icon-missions.png" alt=""></div>
-      <div>
-        <div class="hero-title">Vos missions du jour</div>
-        <div class="hero-desc">Vos procédures, adaptées à votre rôle du jour</div>
+  <section class="section" id="fonctionnement">
+    <div class="section-label">Fonctionnement</div>
+    <h2>De la donnée à la décision</h2>
+    <p class="section-desc">Le même chemin à chaque fois : les ventes entrent, NEXUS les met en forme, la station voit où agir.</p>
+    <div class="mod-list">
+      <div class="nav-item">
+        <div class="nav-icon"><img src="assets/icons/icon-import.png" alt=""></div>
+        <div class="nav-body">
+          <div class="nav-title">1 · IMPORT</div>
+          <div class="nav-desc">Les ventes de la boutique sont importées, sans ressaisie manuelle</div>
+        </div>
       </div>
-      <div class="hero-arrow">→</div>
+      <div class="nav-item">
+        <div class="nav-icon"><img src="assets/icons/icon-scanner.png" alt=""></div>
+        <div class="nav-body">
+          <div class="nav-title">2 · CLASSEMENT</div>
+          <div class="nav-desc">Chaque référence est classée selon son poids réel dans les ventes</div>
+        </div>
+      </div>
+      <div class="nav-item">
+        <div class="nav-icon"><img src="assets/icons/icon-radar.png" alt=""></div>
+        <div class="nav-body">
+          <div class="nav-title">3 · PRIORISATION</div>
+          <div class="nav-desc">Le Cockpit fait remonter les 2 ou 3 décisions qui comptent aujourd'hui</div>
+        </div>
+      </div>
+      <div class="nav-item">
+        <div class="nav-icon"><img src="assets/icons/icon-missions.png" alt=""></div>
+        <div class="nav-body">
+          <div class="nav-title">4 · ACTION</div>
+          <div class="nav-desc">Chaque mission validée nourrit le radar et l'évolution de l'employé</div>
+        </div>
+      </div>
     </div>
-  </a>
+  </section>
 
-  <div class="section-label">Votre journée</div>
-  <nav data-group="journee">
-    <a class="nav-item" data-role="all" href="NEXUS-Prise-De-Poste-v1.html">
-      <div class="nav-icon"><img src="assets/icons/icon-prise-de-poste.png" alt="Prise de poste"></div>
-      <div class="nav-body">
-        <div class="nav-title">Prise de poste</div>
-        <div class="nav-desc">Confirmez votre rôle du jour</div>
+  <section class="section">
+    <div class="section-label">En préparation</div>
+    <h2>Ce qui arrive ensuite</h2>
+    <div class="mod-list">
+      <div class="roadmap-item">
+        <div class="nav-icon">🤖</div>
+        <div class="nav-body">
+          <div class="nav-title">Conseiller NEXUS <span class="badge-soon">Intégré au Cockpit</span></div>
+          <div class="nav-desc">Recommandations déjà visibles dans le Cockpit — écran dédié à venir</div>
+        </div>
       </div>
-      <div class="nav-arrow">→</div>
-    </a>
-    <a class="nav-item" data-role="all" href="NEXUS-Pointage-v1.html">
-      <div class="nav-icon"><img src="assets/icons/icon-pointage.png" alt="Pointage"></div>
-      <div class="nav-body">
-        <div class="nav-title">Pointage</div>
-        <div class="nav-desc">Arrivée, pause, départ</div>
-      </div>
-      <div class="nav-arrow">→</div>
-    </a>
-    <a class="nav-item" data-role="manager" data-preview="true" href="NEXUS-Missions-v1.html">
-      <div class="nav-icon"><img src="assets/icons/icon-missions.png" alt="Plans d'action"></div>
-      <div class="nav-body">
-        <div class="nav-title">Plans d'action</div>
-        <div class="nav-desc">55 procédures · checklist interactive</div>
-      </div>
-      <div class="nav-arrow">→</div>
-    </a>
-    <a class="nav-item" data-role="manager" href="NEXUS-Parametres-Rappels-v1.html" id="navRappels">
-      <div class="nav-icon" id="navRappelsIcon"><img src="assets/icons/icon-rappels.png" alt="Rappels"></div>
-      <div class="nav-body">
-        <div class="nav-title">Rappels<span id="navRappelsBadge"></span></div>
-        <div class="nav-desc">Commandes fournisseurs, carburant</div>
-      </div>
-      <div class="nav-arrow">→</div>
-    </a>
-  </nav>
+    </div>
+  </section>
 
-  <div class="section-label" data-role="manager">Analyse &amp; pilotage</div>
-  <nav data-role="manager" data-group="analyse">
-    <a class="nav-item" data-role="manager" href="NEXUS-Radar-Manager-v1.html">
-      <div class="nav-icon"><img src="assets/icons/icon-radar.png" alt="Radar du manager"></div>
-      <div class="nav-body">
-        <div class="nav-title">Radar du Manager</div>
-        <div class="nav-desc">8 domaines de responsabilité</div>
-      </div>
-      <div class="nav-arrow">→</div>
-    </a>
-    <a class="nav-item" data-role="manager" data-preview="true" href="NEXUS-Rayon-v1.html">
-      <div class="nav-icon"><img src="assets/icons/icon-rayon.png" alt="Rayon"></div>
-      <div class="nav-body">
-        <div class="nav-title">Rayon</div>
-        <div class="nav-desc">CA, marge, top ventes par catégorie</div>
-      </div>
-      <div class="nav-arrow">→</div>
-    </a>
-    <a class="nav-item" data-role="manager" href="NEXUS-Produits-v1.html">
-      <div class="nav-icon"><img src="assets/icons/icon-produits.png" alt="Produits"></div>
-      <div class="nav-body">
-        <div class="nav-title">Produits</div>
-        <div class="nav-desc">Fiche complète par référence</div>
-      </div>
-      <div class="nav-arrow">→</div>
-    </a>
-    <a class="nav-item" data-role="manager" href="NEXUS-Scanner-Stock-v1.html">
-      <div class="nav-icon"><img src="assets/icons/icon-scanner-stock.png" alt="Scanner Stock"></div>
-      <div class="nav-body">
-        <div class="nav-title">Scanner Stock <span class="nav-badge badge-premium">Premium</span></div>
-        <div class="nav-desc">Où vous perdez de l'argent, quoi recompter</div>
-      </div>
-      <div class="nav-arrow">→</div>
-    </a>
-  </nav>
+  <section class="section">
+    <div class="quote-panel">
+      <span class="quote-mark">"</span>
+      <blockquote>NEXUS ne remplace pas les décisions de la station. Il montre où regarder en premier.</blockquote>
+      <div class="quote-attrib">Retour terrain — <b>ViTO Sainte-Marie</b></div>
+    </div>
+  </section>
 
-  <div class="section-label">Équipe</div>
-  <nav data-group="equipe">
-    <a class="nav-item" data-role="manager" href="NEXUS-Assignations-v1.html">
-      <div class="nav-icon"><img src="assets/icons/icon-assignations.png" alt="Assignations"></div>
-      <div class="nav-body">
-        <div class="nav-title">Assignations</div>
-        <div class="nav-desc">Assigner, suivre, valider une mission</div>
+  <section class="section" id="contact">
+    <div class="cta-band">
+      <div class="section-label" style="justify-content:center;"><span style="flex:none;">Accès</span></div>
+      <h2>Prêt à équiper votre station ?</h2>
+      <p>NEXUS est déjà en poste chez ViTO Sainte-Marie. Pour une démonstration ou une question, écrivez directement.</p>
+      <div class="cta-buttons">
+        <a class="btn btn-primary" href="NEXUS-Login-v1.html" target="_blank" rel="noopener">Voir l'app en direct →</a>
+        <a class="btn btn-ghost" href="mailto:fredbragance@nexusconseil.net?subject=Demande%20de%20d%C3%A9mo%20NEXUS">Écrire un email</a>
       </div>
-      <div class="nav-arrow">→</div>
-    </a>
-    <a class="nav-item" data-role="manager" data-preview="true" href="NEXUS-Resultats-Equipe-v1.html">
-      <div class="nav-icon"><img src="assets/icons/icon-resultats-equipe.png" alt="Résultats équipe"></div>
-      <div class="nav-body">
-        <div class="nav-title">Résultats Équipe</div>
-        <div class="nav-desc">Progression réelle par employé</div>
-      </div>
-      <div class="nav-arrow">→</div>
-    </a>
-    <a class="nav-item" data-role="manager" href="NEXUS-Evaluation-Employe-v1.html">
-      <div class="nav-icon"><img src="assets/icons/icon-evaluation.png" alt="Évaluation"></div>
-      <div class="nav-body">
-        <div class="nav-title">Évaluation</div>
-        <div class="nav-desc">Contrôle tenue + grille de prime</div>
-      </div>
-      <div class="nav-arrow">→</div>
-    </a>
-    <a class="nav-item" data-role="all" href="NEXUS-Mon-Evolution-v1.html">
-      <div class="nav-icon"><img src="assets/icons/icon-evolution.png" alt="Mon évolution"></div>
-      <div class="nav-body">
-        <div class="nav-title">Mon Évolution</div>
-        <div class="nav-desc">Vos compétences, missions prouvées</div>
-      </div>
-      <div class="nav-arrow">→</div>
-    </a>
-  </nav>
+    </div>
+  </section>
 
-  <div class="section-label" data-role="manager">Gérer</div>
-  <nav data-role="manager" data-group="gerer">
-    <a class="nav-item" data-role="manager" href="NEXUS-Import-v1.html">
-      <div class="nav-icon"><img src="assets/icons/icon-import.png" alt="Import"></div>
-      <div class="nav-body">
-        <div class="nav-title">Import</div>
-        <div class="nav-desc">Ventes, catalogue ou stock instantané</div>
-      </div>
-      <div class="nav-arrow">→</div>
-    </a>
-    <a class="nav-item" data-role="manager" href="NEXUS-Parametres-Station-v1.html">
-      <div class="nav-icon">⚙️</div>
-      <div class="nav-body">
-        <div class="nav-title">Paramètres Station</div>
-        <div class="nav-desc">Horaires de service — utilisés pour calculer les retards</div>
-      </div>
-      <div class="nav-arrow">→</div>
-    </a>
-  </nav>
-
-  <div class="section-label" data-role="manager">Découvrir</div>
-  <nav data-role="manager" data-group="decouvrir">
-    <a class="nav-item" data-role="manager" data-preview="true" href="NEXUS-Capital-v1.html">
-      <div class="nav-icon"><img src="assets/icons/icon-capital.png" alt="Capital NEXUS"></div>
-      <div class="nav-body">
-        <div class="nav-title">Capital NEXUS <span class="nav-badge badge-soon">Démo</span></div>
-        <div class="nav-desc">La valeur créée par vos décisions</div>
-      </div>
-      <div class="nav-arrow">→</div>
-    </a>
-    <a class="nav-item" data-role="manager" href="NEXUS-Scanner-v1.html">
-      <div class="nav-icon"><img src="assets/icons/icon-scanner.png" alt="Scanner NEXUS"></div>
-      <div class="nav-body">
-        <div class="nav-title">Scanner NEXUS</div>
-        <div class="nav-desc">CA, marge et répartition ABC du magasin</div>
-      </div>
-      <div class="nav-arrow">→</div>
-    </a>
-  </nav>
-
-  <div class="section-label" data-role="manager">Intelligence NEXUS</div>
-  <nav data-role="manager" data-group="intelligence">
-    <a class="nav-item" data-role="manager" data-preview="true" href="NEXUS-Centre-Intelligence-v1.html">
-      <div class="nav-icon"><img src="assets/icons/icon-centre-intelligence.png" alt="Centre d'Intelligence NEXUS"></div>
-      <div class="nav-body">
-        <div class="nav-title">Centre d'Intelligence NEXUS</div>
-        <div class="nav-desc">Que détecte NEXUS dans mon commerce ?</div>
-      </div>
-      <div class="nav-arrow">→</div>
-    </a>
-    <a class="nav-item" data-role="manager" href="NEXUS-Journal-v1.html">
-      <div class="nav-icon"><img src="assets/icons/icon-journal-nexus.png" alt="Journal NEXUS"></div>
-      <div class="nav-body">
-        <div class="nav-title">Journal NEXUS</div>
-        <div class="nav-desc">Qu'est-ce qui a été fait aujourd'hui ?</div>
-      </div>
-      <div class="nav-arrow">→</div>
-    </a>
-  </nav>
-
-  <footer>NEXUS v1 · Sprint 1 · 07/07/2026 · Vito Sainte-Marie Usine — toutes catégories</footer>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="nexus-auth.js"></script>
-<script>
-  nexusRequireAuth().then(async employee => {
-    if (!employee) return; // nexus-auth.js gère déjà la redirection vers NEXUS-Login-v1.html
+<footer>
+  <div class="footer-trust">
+    <span>Ils nous ont fait confiance</span>
+    <img src="assets/vito-logo.png" alt="ViTO Sainte-Marie" class="footer-logo">
+  </div>
+</footer>
 
-    const aujourdISO = new Date().toISOString().slice(0, 10);
-    const { data: shiftsAujourdhui, error: erreurShift } = await nexusClient
-      .from('shifts')
-      .select('id')
-      .eq('employee_id', employee.id)
-      .gte('heure_debut', aujourdISO + 'T00:00:00')
-      .lte('heure_debut', aujourdISO + 'T23:59:59')
-      .limit(1);
-
-    if (!erreurShift && (!shiftsAujourdhui || shiftsAujourdhui.length === 0)) {
-      window.location.href = 'NEXUS-Prise-De-Poste-v1.html';
-      return;
-    }
-
-    document.getElementById('sessionInfo').innerHTML =
-      `Bonjour ${employee.nom} · <a href="#" id="logout" style="color:var(--cyan);">Se déconnecter</a>`;
-    document.getElementById('logout').addEventListener('click', (e) => {
-      e.preventDefault();
-      nexusLogout();
-    });
-
-    const tagline = document.getElementById('taglineRole');
-    if (tagline) {
-      tagline.textContent = employee.role === 'manager'
-        ? "Chaque décision compte. NEXUS vous aide à prendre les bonnes."
-        : "Chaque mission réalisée contribue à la performance de votre équipe.";
-    }
-
-    if (employee.role === 'manager') {
-      document.getElementById('heroEmploye').style.display = 'none';
-    } else {
-      document.getElementById('heroManager').style.display = 'none';
-      document.querySelectorAll('[data-role="manager"]').forEach(el => el.style.display = 'none');
-    }
-
-    (function verifierRappelsUrgents() {
-      const CAL_FOURNISSEURS = {
-  "_source": "PLANNING_COMMANDE.xlsx",
-  "_logique": "Passation obligatoire tous les 15 jours, le vendredi",
-  "dates": [
-    { "date_commande": "2026-01-09", "semaine": 2,  "periode_debut": "2026-01-11", "periode_fin": "2026-02-01" },
-    { "date_commande": "2026-01-23", "semaine": 4,  "periode_debut": "2026-01-25", "periode_fin": "2026-02-15" },
-    { "date_commande": "2026-02-06", "semaine": 6,  "periode_debut": "2026-02-08", "periode_fin": "2026-03-01" },
-    { "date_commande": "2026-02-20", "semaine": 8,  "periode_debut": "2026-02-22", "periode_fin": "2026-03-15" },
-    { "date_commande": "2026-03-06", "semaine": 10, "periode_debut": "2026-03-08", "periode_fin": "2026-03-29" },
-    { "date_commande": "2026-03-20", "semaine": 12, "periode_debut": "2026-03-22", "periode_fin": "2026-04-12" },
-    { "date_commande": "2026-04-03", "semaine": 14, "periode_debut": "2026-04-05", "periode_fin": "2026-04-26" },
-    { "date_commande": "2026-04-17", "semaine": 16, "periode_debut": "2026-04-19", "periode_fin": "2026-05-10" },
-    { "date_commande": "2026-05-01", "semaine": 18, "periode_debut": "2026-05-03", "periode_fin": "2026-05-24" },
-    { "date_commande": "2026-05-15", "semaine": 20, "periode_debut": "2026-05-17", "periode_fin": "2026-06-07" },
-    { "date_commande": "2026-05-29", "semaine": 22, "periode_debut": "2026-05-31", "periode_fin": "2026-06-21" },
-    { "date_commande": "2026-06-12", "semaine": 24, "periode_debut": "2026-06-14", "periode_fin": "2026-07-05" },
-    { "date_commande": "2026-06-26", "semaine": 26, "periode_debut": "2026-06-28", "periode_fin": "2026-07-19" },
-    { "date_commande": "2026-07-10", "semaine": 28, "periode_debut": "2026-07-12", "periode_fin": "2026-08-02" },
-    { "date_commande": "2026-07-24", "semaine": 30, "periode_debut": "2026-07-26", "periode_fin": "2026-08-16" },
-    { "date_commande": "2026-08-07", "semaine": 32, "periode_debut": "2026-08-09", "periode_fin": "2026-08-30" },
-    { "date_commande": "2026-08-21", "semaine": 34, "periode_debut": "2026-08-23", "periode_fin": "2026-09-13" },
-    { "date_commande": "2026-09-04", "semaine": 36, "periode_debut": "2026-09-06", "periode_fin": "2026-09-27" },
-    { "date_commande": "2026-09-18", "semaine": 38, "periode_debut": "2026-09-20", "periode_fin": "2026-10-11" },
-    { "date_commande": "2026-10-02", "semaine": 40, "periode_debut": "2026-10-04", "periode_fin": "2026-10-25" },
-    { "date_commande": "2026-10-16", "semaine": 42, "periode_debut": "2026-10-18", "periode_fin": "2026-11-08" },
-    { "date_commande": "2026-10-30", "semaine": 44, "periode_debut": "2026-11-01", "periode_fin": "2026-11-22" },
-    { "date_commande": "2026-11-13", "semaine": 46, "periode_debut": "2026-11-15", "periode_fin": "2026-12-06" },
-    { "date_commande": "2026-11-27", "semaine": 48, "periode_debut": "2026-11-29", "periode_fin": "2026-12-20" },
-    { "date_commande": "2026-12-11", "semaine": 50, "periode_debut": "2026-12-13", "periode_fin": "2027-01-03" },
-    { "date_commande": "2026-12-25", "semaine": 52, "periode_debut": "2026-12-27", "periode_fin": "2027-01-17" },
-    { "date_commande": "2027-01-08", "semaine": 54, "periode_debut": "2027-01-10", "periode_fin": "2027-01-31" },
-    { "date_commande": "2027-01-22", "semaine": 56, "periode_debut": "2027-01-24", "periode_fin": "2027-02-14" },
-    { "date_commande": "2027-02-05", "semaine": 58, "periode_debut": "2027-02-07", "periode_fin": "2027-02-28" }
-  ]
-};
-      const today = new Date(); today.setHours(0,0,0,0);
-      const jours = d => Math.round((new Date(d) - today) / 86400000);
-
-      let urgent = false, motif = '';
-
-      const prochaine = CAL_FOURNISSEURS.dates.find(d => jours(d.date_commande) >= 0);
-      if (prochaine && jours(prochaine.date_commande) <= 1) { urgent = true; motif = 'Commande fournisseurs'; }
-
-      const rappelsManuels = JSON.parse(localStorage.getItem('nexus_rappels_manuels') || '[]');
-      rappelsManuels.forEach(r => { if (jours(r.date) >= 0 && jours(r.date) <= 1) { urgent = true; motif = motif || r.titre; } });
-
-      if (urgent) {
-        const navRappels = document.getElementById('navRappels');
-        if (navRappels) {
-          navRappels.classList.add('urgent');
-          document.getElementById('navRappelsBadge').innerHTML = ' <span class="badge-urgent">● Urgent</span>';
-        }
-      }
-    })();
-
-    initGroupes();
-  });
-
-  // Chaque groupe ne montre que son element le plus parlant au depart, pour voir
-  // toute la page sans defiler. S'il y a un item urgent (Rappels), il prend
-  // toujours la place visible — jamais caché derriere un clic.
-  function initGroupes() {
-    document.querySelectorAll('nav[data-group]').forEach(navEl => {
-      const items = Array.from(navEl.children).filter(el =>
-        (el.classList.contains('nav-item') || el.classList.contains('construction-item')) &&
-        el.style.display !== 'none'
-      );
-      if (items.length <= 1) return; // rien a replier
-
-      const preview = items.find(el => el.classList.contains('urgent'))
-        || items.find(el => el.dataset.preview === 'true')
-        || items[0];
-      const autres = items.filter(el => el !== preview);
-      autres.forEach(el => el.style.display = 'none');
-
-      const toggle = document.createElement('div');
-      toggle.className = 'group-toggle';
-      const labelFerme = `${autres.length} autre${autres.length>1?'s':''} écran${autres.length>1?'s':''}`;
-      toggle.textContent = labelFerme;
-      preview.insertAdjacentElement('afterend', toggle);
-
-      toggle.addEventListener('click', () => {
-        const estOuvert = toggle.classList.toggle('open');
-        autres.forEach(el => el.style.display = estOuvert ? 'flex' : 'none');
-        toggle.textContent = estOuvert ? 'Réduire' : labelFerme;
-      });
-    });
-  }
-</script>
 </body>
 </html>

@@ -90,7 +90,7 @@
 
   // Si déjà connecté, on saute directement l'écran de login
   client.auth.getSession().then(({ data: { session } }) => {
-    if (session) window.location.href = "index.html";
+    if (session) window.location.href = "NEXUS-App-v1.html";
   });
 
   const prenomInput = document.getElementById("prenom");
@@ -141,7 +141,7 @@
       return;
     }
 
-    window.location.href = "index.html";
+    window.location.href = "NEXUS-App-v1.html";
   }
 
   btn.addEventListener("click", tryLogin);

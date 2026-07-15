@@ -98,7 +98,7 @@
 <body>
 <div class="phone">
   <div class="header">
-    <a href="index.html" class="menu-btn">☰ Menu</a>
+    <a href="NEXUS-App-v1.html" class="menu-btn">☰ Menu</a>
     <div class="eyebrow">NEXUS · Manager</div>
     <div class="title">Paramètres Rappels</div>
     <div class="subtitle">Ces rappels remontent dans les Plans d'action quand ils sont dus</div>
@@ -148,7 +148,7 @@
 
     <div class="card">
       <div class="section-label">Ajouter un rappel manuel</div>
-      <input type="text" id="r_titre" placeholder="Ex: Contrôler la re-facturation des vitocartes">
+      <input type="text" id="r_titre" placeholder="Ex: Renouveler assurance véhicule">
       <div style="display:flex; gap:8px;">
         <input type="date" id="r_date" style="flex:1;">
         <input type="time" id="r_heure" style="flex:1;" value="08:00">
@@ -402,7 +402,7 @@
   const LABEL_FREQUENCE = { une_fois: 'Une fois', journalier: 'Tous les jours', hebdomadaire: 'Toutes les semaines', mensuel: 'Tous les mois', annuel: 'Tous les ans' };
 
   // Determine si un rappel (avec sa recurrence) tombe un jour donne —
-  // reutilisable telle quelle dans index.html pour la cloche de notification.
+  // reutilisable telle quelle dans NEXUS-App-v1.html pour la cloche de notification.
   function estRappelDuJour(rappel, jourCible) {
     const debut = new Date(rappel.date); debut.setHours(0,0,0,0);
     const cible = new Date(jourCible); cible.setHours(0,0,0,0);
