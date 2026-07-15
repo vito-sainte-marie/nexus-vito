@@ -399,8 +399,15 @@
     return JSON.parse(localStorage.getItem('nexus_journal_decisions') || '[]');
   }
 
-  function chargerRetardsTous() {
-    return JSON.parse(localStorage.getItem('nexus_retards') || '{}');
+  // Table Supabase pointages — remplace localStorage('nexus_retards'), qui ne
+  // comptait que les retards saisis sur cet appareil precis (corrige le
+  // 15/07/2026, avec la migration Pointage vers Supabase — ce fichier avait
+  // ete oublie lors de cette migration, meme classe de bug que Radar du
+  // Manager et Resultats Equipe avant eux).
+  async function chargerRetardsTous() {
+    const { data, error } = await nexusClient.from('pointages').select('employee_id, retard_min').eq('type', 'arrivee').gt('retard_min', 0);
+    if (error) { console.error('Chargement pointages:', error); return []; }
+    return data || [];
   }
 
   // 1. Suivi des decisions passees — la memoire promise depuis le debut :
@@ -422,11 +429,17 @@
   // 2. Assiduite — un retard isole est un incident, trois retards ou plus
   // sur l'historique sont un motif (reprend le principe du rapport strategique :
   // "repetition sur plusieurs periodes -> ouvrir un accompagnement").
-  function patternAssiduite(retards) {
-    return Object.keys(retards).map(emp => {
-      const events = retards[emp];
-      return { employe: emp, nb: events.length, total: events.reduce((s,r) => s + r.retard_min, 0) };
-    }).filter(x => x.nb >= 3).sort((a,b) => b.nb - a.nb);
+  function patternAssiduite(retardsHisto, equipeMap) {
+    const compte = {};
+    (retardsHisto || []).forEach(p => {
+      if (!compte[p.employee_id]) compte[p.employee_id] = { nb: 0, total: 0 };
+      compte[p.employee_id].nb += 1;
+      compte[p.employee_id].total += (p.retard_min || 0);
+    });
+    return Object.entries(compte)
+      .filter(([,v]) => v.nb >= 3)
+      .map(([id,v]) => ({ employe: equipeMap[id] || 'Employé', nb: v.nb, total: v.total }))
+      .sort((a,b) => b.nb - a.nb);
   }
 
   // 3. Recurrence par rayon — si le meme rayon revient plusieurs fois dans
@@ -462,11 +475,11 @@
       });
     });
 
-    patternAssiduite(retards).forEach(p => {
+    patternAssiduite(retards, equipeMap).forEach(p => {
       patterns.push({
         tag: 'ASSIDUITÉ', tagClasse: 'tag-persiste',
         titre: `${p.employe} — retards répétés`,
-        texte: `<b>${p.nb} retards</b> enregistrés sur l'historique de cet appareil, pour un total de <b>${p.total} minutes</b>. Un retard isolé est un incident ; répété, c'est un motif qui justifie un point avec l'employé.`,
+        texte: `<b>${p.nb} retards</b> enregistrés, pour un total de <b>${p.total} minutes</b>. Un retard isolé est un incident ; répété, c'est un motif qui justifie un point avec l'employé.`,
         source: 'Appris du Journal · pointages',
       });
     });
@@ -669,9 +682,8 @@
     PRENOM_MANAGER = employee.nom;
     EMPLOYEE_ID_CIN = employee.id;
 
-    const [equipeMap, missionsHisto] = await Promise.all([chargerEquipeMap(), chargerMissionsHistorique()]);
+    const [equipeMap, missionsHisto, retards] = await Promise.all([chargerEquipeMap(), chargerMissionsHistorique(), chargerRetardsTous()]);
     const journalToutes = chargerJournalDecisionsToutes();
-    const retards = chargerRetardsTous();
     PATTERNS = construirePatterns(journalToutes, retards, missionsHisto, equipeMap, TOUTES_DETECTIONS);
 
     renderRoot();
