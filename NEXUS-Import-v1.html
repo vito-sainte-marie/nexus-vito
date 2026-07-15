@@ -314,8 +314,8 @@ const FIELD_DEFS = [
   {key:'categorie', label:'Catégorie', synonyms:['categ','categorie','famille','rayon']},
   {key:'article', label:'Article', synonyms:['lib article','libelle','designation','produit','article']},
   {key:'quantite', label:'Quantité', synonyms:['qte','quantite','qty']},
-  {key:'prix_achat', label:"Prix d'achat", synonyms:['pma','prix achat','cout','cost']},
-  {key:'prix_vente', label:'Prix de vente HT', synonyms:['pu ht','prix vente','prix','pvht']},
+  {key:'prix_achat', label:"Prix d'achat", synonyms:['pma','pa ht','prix achat','cout','cost']},
+  {key:'prix_vente', label:'Prix de vente HT', synonyms:['pu ht','pv ht','prix vente','prix','pvht']},
   {key:'tva', label:'TVA', synonyms:['tva','vat']},
   {key:'code_barres', label:'Code-barres', synonyms:['code barres','ean','codebarre']},
 ];
@@ -480,6 +480,17 @@ async function envoyerVentes(msg) {
 
   if (!catKey || !artKey) {
     msg.textContent = "Catégorie et Article doivent être détectés pour pouvoir importer.";
+    msg.style.color = 'var(--red)';
+    return;
+  }
+
+  // Sans ces trois colonnes, le CA et la marge tombent silencieusement a 0
+  // pour toutes les lignes — c'est exactement ce qui est arrive avec T2 le
+  // 15/07/2026 (en-tetes "PA HT"/"PV HT" non reconnus a l'epoque). On bloque
+  // desormais plutot que de laisser un import "reussi" avec des zeros partout.
+  if (!qKey || !paKey || !pvKey) {
+    const manquants = [!qKey && 'Quantité', !paKey && "Prix d'achat", !pvKey && 'Prix de vente HT'].filter(Boolean).join(', ');
+    msg.textContent = `Colonne(s) non détectée(s) : ${manquants}. Sans elles, le CA et la marge seraient à 0 pour toutes les lignes — vérifiez les en-têtes du fichier.`;
     msg.style.color = 'var(--red)';
     return;
   }
