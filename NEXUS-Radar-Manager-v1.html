@@ -101,7 +101,7 @@
 </div>
 
 <script>
-  nexusRequireAuth().then(employee => {
+  nexusRequireAuth().then(async employee => {
     if (!employee) return; // nexus-auth.js gère déjà la redirection vers NEXUS-Login-v1.html
     if (employee.role !== 'manager' && employee.role !== 'gerant') {
       document.body.innerHTML = '<div style="padding:60px 20px; text-align:center; color:var(--text-dim); font-family:var(--sans);">Cet écran est réservé aux managers.</div>';
@@ -110,13 +110,16 @@
     const session = { prenom: employee.nom, role: employee.role };
 
 
-  // Resultats : reel, calcule cote serveur (Sante du rayon pilote, Cockpit)
+  // Resultats : reel, calcule cote serveur (Sante du magasin, Cockpit)
   const SANTE_SCORE = 74;
 
-  // Equipe (Presence, via Pointage/retards) et Developpement (Progression,
-  // via points de missions) : calcules cote client a partir du meme
-  // localStorage que Resultats Equipe / Mon Evolution — coherent avec
-  // l'architecture "appareil unique" deja actee.
+  // Equipe (Presence, via Pointage/retards) : calcule cote client depuis le
+  // localStorage de cet appareil, coherent avec Resultats Equipe.
+  // Developpement (Progression, via points de missions) : lit desormais
+  // Supabase (mission_completions), la source reellement alimentee par
+  // l'ecran Missions — l'ancienne lecture localStorage('nexus_missions_completees')
+  // ne recevait plus rien depuis le passage a Supabase et affichait toujours
+  // "Pas mesurable" (corrige le 15/07/2026, meme bug que Resultats Equipe).
   function calculerEquipe() {
     const retards = JSON.parse(localStorage.getItem('nexus_retards') || '{}');
     const employes = Object.keys(retards);
@@ -127,20 +130,23 @@
     return Math.round(score);
   }
 
-  function calculerDeveloppement() {
-    const completions = JSON.parse(localStorage.getItem('nexus_missions_completees') || '[]');
-    if (completions.length === 0) return null;
-    const points = completions.reduce((s,c)=>s+c.points,0);
-    const maxTheorique = completions.length * 12; // barème max (10 + bonus photo 2)
+  function calculerDeveloppement(completionsHisto) {
+    if (!completionsHisto || completionsHisto.length === 0) return null;
+    const points = completionsHisto.reduce((s,c)=>s+(c.points||0),0);
+    const maxTheorique = completionsHisto.length * 12; // barème max (10 + bonus photo 2)
     return Math.round(Math.max(0, points) / maxTheorique * 100);
   }
+
+  const { data: completionsHisto, error: erreurCompletions } = await nexusClient.from('mission_completions').select('points');
+  if (erreurCompletions) console.error('Chargement mission_completions:', erreurCompletions);
+  const devScore = calculerDeveloppement(completionsHisto);
 
   const DOMAINES = [
     { nom: "Résultats", icone: "💰", sous: "CA, Marge (Objectifs non mesurés)", valeur: SANTE_SCORE, mesure: true },
     { nom: "Équipe", icone: "👥", sous: "Présence uniquement (Motivation, Formation, Cohésion non mesurées)", valeur: calculerEquipe(), mesure: calculerEquipe() !== null },
     { nom: "Exploitation", icone: "🏪", sous: "Propreté, Sécurité, Disponibilité", valeur: null, mesure: false },
     { nom: "Conformité", icone: "⚖️", sous: "Procédures, Audits, Tenues, Sécurité", valeur: null, mesure: false },
-    { nom: "Développement", icone: "📈", sous: "Progression équipe uniquement", valeur: calculerDeveloppement(), mesure: calculerDeveloppement() !== null },
+    { nom: "Développement", icone: "📈", sous: "Progression équipe uniquement", valeur: devScore, mesure: devScore !== null },
     { nom: "Stocks", icone: "📦", sous: "Bloqué — Capability 006 (Decenium)", valeur: null, mesure: false },
     { nom: "Achats", icone: "🛒", sous: "Bloqué — Capability 006 (Decenium)", valeur: null, mesure: false },
     { nom: "Clients", icone: "😊", sous: "Aucune donnée collectée aujourd'hui", valeur: null, mesure: false },
