@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NEXUS — Centre d'Intelligence</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="nexus-auth.js"></script>
+<style>
+  :root{
+    --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
+    --text:#EDF1F5; --text-mid:#8A96A5; --text-dim:#57626F;
+    --green:#34D399; --green-dim:#153629;
+    --amber:#F5A623; --amber-dim:#3A2E14;
+    --red:#F0575A; --red-dim:#3A1D1F;
+    --cyan:#4FC3D9; --gold:#D4AF37;
+    --mono:'IBM Plex Mono',monospace; --sans:'IBM Plex Sans',sans-serif;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{background:var(--bg); font-family:var(--sans); color:var(--text);}
+  body{display:flex; justify-content:center; min-height:100vh;}
+  .phone{width:100%; max-width:460px; min-height:100vh; display:flex; flex-direction:column; border-left:1px solid var(--hairline); border-right:1px solid var(--hairline);}
+
+  .header{padding:20px 20px 14px; position:relative;}
+  .menu-btn{
+    position:absolute; top:18px; right:18px; display:flex; align-items:center; gap:6px;
+    font-family:var(--mono); font-size:10.5px; font-weight:600; letter-spacing:0.03em; text-transform:uppercase;
+    color:var(--cyan); background:rgba(79,195,217,0.1); border:1px solid rgba(79,195,217,0.3);
+    border-radius:20px; padding:7px 12px; text-decoration:none; white-space:nowrap; z-index:5;
+  }
+  .menu-btn:active{background:rgba(79,195,217,0.2);}
+  .header-row{display:flex; align-items:center; gap:13px; padding-right:70px;}
+  .header-icon{width:46px; height:46px; border-radius:13px; object-fit:cover; flex-shrink:0; box-shadow:0 0 0 1px rgba(79,195,217,0.25) inset;}
+  .eyebrow{font-family:var(--mono); font-size:11px; letter-spacing:0.12em; text-transform:uppercase; color:var(--cyan);}
+  .title{font-size:19px; font-weight:600; margin-top:2px;}
+  .subtitle{font-family:var(--mono); font-size:10.5px; color:var(--text-dim); margin-top:4px;}
+  .divider{height:1px; background:var(--hairline); margin:0 20px;}
+
+  .section{padding:16px 20px;}
+  .card{background:var(--panel); border:1px solid var(--hairline); border-radius:12px; padding:18px; margin-bottom:14px;}
+  .section-label{font-family:var(--mono); font-size:10.5px; letter-spacing:0.08em; text-transform:uppercase; color:var(--text-dim); margin-bottom:12px; display:flex; align-items:center; gap:8px;}
+  .section-label::after{content:''; flex:1; height:1px; background:var(--hairline);}
+
+  .stat-row{display:flex; justify-content:space-between; align-items:center; padding:9px 0; border-bottom:1px solid var(--hairline);}
+  .stat-row:last-child{border-bottom:none;}
+  .stat-label{font-size:12.5px; color:var(--text-mid);}
+  .stat-value{font-family:var(--mono); font-size:15px; font-weight:700;}
+
+  .tabs{display:flex; gap:6px; padding:2px 20px 12px; overflow-x:auto;}
+  .tab{flex-shrink:0; padding:7px 13px; border-radius:20px; font-size:11.5px; font-weight:600; background:var(--panel); border:1px solid var(--hairline); cursor:pointer; color:var(--text-mid); white-space:nowrap;}
+  .tab.active{background:rgba(79,195,217,0.12); border-color:var(--cyan); color:var(--cyan);}
+
+  .plan-card{background:var(--panel); border:1px solid var(--hairline); border-radius:12px; margin-bottom:10px; overflow:hidden; border-left:3px solid var(--hairline);}
+  .plan-card.etat-agir{border-left-color:#F0575A;}
+  .plan-card.etat-opportunite{border-left-color:#34D399;}
+  .plan-card.etat-surveiller{border-left-color:#F5A623;}
+  .plan-head{padding:14px 16px; cursor:pointer; display:flex; align-items:center; gap:12px;}
+  .plan-etat{font-family:var(--mono); font-size:9.5px; letter-spacing:0.05em; padding:3px 9px; border-radius:20px; font-weight:700; white-space:nowrap;}
+  .etat-agir .plan-etat{background:#3A1D1F; color:#F0575A;}
+  .etat-opportunite .plan-etat{background:#153629; color:#34D399;}
+  .etat-surveiller .plan-etat{background:#3A2E14; color:#F5A623;}
+  .plan-action-teaser{flex:1; font-size:13.5px; font-weight:600; line-height:1.4;}
+  .plan-chevron{color:var(--text-dim); font-size:14px; transition:0.15s;}
+  .plan-card.open .plan-chevron{transform:rotate(90deg);}
+  .plan-body{display:none; padding:0 16px 16px;}
+  .plan-card.open .plan-body{display:block;}
+  .plan-story{font-size:12.5px; line-height:1.75; color:var(--text-mid);}
+  .plan-story .story-label{font-family:var(--mono); font-size:9.5px; text-transform:uppercase; letter-spacing:0.06em; color:var(--text-dim); display:block; margin-top:11px; margin-bottom:2px;}
+  .plan-story .story-label:first-child{margin-top:0;}
+  .plan-story b{color:var(--text);}
+  .projection-box{margin-top:12px; padding:10px 12px; background:rgba(212,175,55,0.08); border:1px solid rgba(212,175,55,0.25); border-radius:8px; font-size:12px; color:var(--text-mid);}
+  .projection-box b{color:var(--gold);}
+  .plan-impact{margin-top:12px; padding:10px 12px; background:var(--panel-raised); border-radius:8px; font-size:12px;}
+  .plan-impact b{color:#34D399;}
+  .decision-box{margin-top:12px; padding:10px 12px; border:1px dashed rgba(79,195,217,0.35); border-radius:8px; font-size:12.5px; font-weight:600; color:var(--text);}
+  .plan-valider{width:100%; margin-top:10px; padding:11px; border:none; border-radius:8px; font-size:12.5px; font-weight:600; background:var(--green); color:#04141a; cursor:pointer;}
+
+  .confiance-row{display:flex; align-items:center; gap:8px; margin-top:12px; padding:9px 11px; background:rgba(79,195,217,0.06); border:1px solid rgba(79,195,217,0.2); border-radius:8px;}
+  .confiance-badge{font-family:var(--mono); font-size:10px; font-weight:700; padding:2px 7px; border-radius:10px; flex-shrink:0;}
+  .confiance-A{background:var(--green-dim); color:var(--green);}
+  .confiance-B{background:rgba(79,195,217,0.14); color:var(--cyan);}
+  .confiance-C{background:var(--amber-dim); color:var(--amber);}
+  .confiance-desc{font-size:11px; color:var(--text-mid); line-height:1.4;}
+  .rule-tag{font-family:var(--mono); font-size:9px; color:var(--text-dim); margin-top:8px;}
+
+  .conseiller-card{background:linear-gradient(135deg, rgba(79,195,217,0.08), rgba(79,195,217,0.02)); border:1px solid rgba(79,195,217,0.25); border-radius:14px; padding:18px; margin-bottom:14px;}
+  .conseiller-head{display:flex; align-items:center; gap:11px; margin-bottom:10px;}
+  .conseiller-avatar{width:44px; height:44px; border-radius:50%; object-fit:cover; flex-shrink:0; background:var(--panel-raised); filter:drop-shadow(0 0 9px rgba(79,195,217,0.5));}
+  .conseiller-name{font-family:var(--mono); font-size:11.5px; font-weight:700; color:var(--cyan); letter-spacing:0.03em;}
+  .conseiller-sub{font-family:var(--mono); font-size:9px; color:var(--text-dim);}
+  .conseiller-text{font-size:13px; line-height:1.65; color:var(--text);}
+  .conseiller-text b{color:var(--cyan);}
+
+  .empty-note{padding:30px 20px; text-align:center; color:var(--text-dim); font-size:12.5px; line-height:1.6;}
+  .loading{padding:60px 20px; text-align:center; color:var(--text-dim); font-size:13px;}
+  .locked{padding:60px 20px; text-align:center; color:var(--text-dim); font-size:13px;}
+
+  .journal-link{display:block; text-align:center; padding:13px; margin-top:4px; border:1px dashed var(--hairline); border-radius:10px; color:var(--cyan); font-size:12.5px; text-decoration:none;}
+
+  .pattern-card{background:var(--panel); border:1px solid var(--hairline); border-left:3px solid var(--cyan); border-radius:12px; margin-bottom:10px; padding:14px 16px;}
+  .pattern-tag{font-family:var(--mono); font-size:9px; letter-spacing:0.05em; text-transform:uppercase; padding:3px 8px; border-radius:20px; font-weight:700; background:rgba(79,195,217,0.12); color:var(--cyan);}
+  .pattern-tag.tag-resolu{background:var(--green-dim); color:var(--green);}
+  .pattern-tag.tag-persiste{background:var(--amber-dim); color:var(--amber);}
+  .pattern-title{font-size:13px; font-weight:600; margin-top:8px;}
+  .pattern-text{font-size:12.5px; color:var(--text-mid); line-height:1.6; margin-top:5px;}
+  .pattern-text b{color:var(--text);}
+  .pattern-source{font-family:var(--mono); font-size:9px; color:var(--text-dim); margin-top:8px;}
+
+  .toast-or{
+    position:fixed; bottom:24px; left:50%; transform:translateX(-50%) translateY(20px); opacity:0;
+    background:#332B12; color:#D4AF37; border:1px solid rgba(212,175,55,0.4); padding:11px 18px; border-radius:30px;
+    font-family:var(--mono); font-size:12px; font-weight:600; transition:opacity .25s, transform .25s; z-index:20; white-space:nowrap;
+  }
+  .toast-or.show{opacity:1; transform:translateX(-50%) translateY(0);}
+
+  footer{margin-top:auto; padding:16px 20px 24px; font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:center; border-top:1px solid var(--hairline);}
+</style>
+</head>
+<body>
+<div class="phone">
+  <div class="header">
+    <a href="index.html" class="menu-btn">☰ Menu</a>
+    <div class="header-row">
+      <img class="header-icon" src="assets/icons/icon-centre-intelligence.png" alt="Centre d'Intelligence NEXUS">
+      <div>
+        <div class="eyebrow">NEXUS · Manager</div>
+        <div class="title">Centre d'Intelligence NEXUS</div>
+        <div class="subtitle">Pourquoi cela arrive-t-il, et quelle est la meilleure décision ?</div>
+      </div>
+    </div>
+  </div>
+  <div class="divider"></div>
+
+  <div class="section" id="root">
+    <div class="loading">Analyse en cours…</div>
+  </div>
+
+  <footer>NEXUS Centre d'Intelligence v1 · Analyse, anticipation et stratégie · Vito Sainte-Marie Usine</footer>
+</div>
+
+<script>
+  // --- Meme moteur de detection que le Cockpit (construirePlansAction) ---
+  // Duplique volontairement (architecture "chaque ecran autonome, sans build step") mais
+  // logique identique afin que le CIN ne raconte jamais une autre histoire que le
+  // Cockpit sur les memes donnees. Le Cockpit dit CE QUI se passe ("indice a 74") ;
+  // le CIN explique POURQUOI (cause, projection, decision recommandee).
+
+  function typeActionPourCategorie(categorie) {
+    const c = (categorie || '').toLowerCase();
+    if (c.includes('gaz')) return 'stock';
+    if (c.includes('carte') || c.includes('prépayé') || c.includes('prepaye') || c.includes('transcash') || c.includes('pcs')) return 'support';
+    if (c.includes('pain') || c.includes('patisserie') || c.includes('pâtisserie') || c.includes('viennoiserie') || c.includes('sandwich') || c.includes('snack')) return 'production';
+    if (c.includes('tabac') || c.includes('cigarette') || c.includes('paquet de')) return 'comptoir';
+    if (c.includes('presse')) return 'presentoir';
+    return 'facing';
+  }
+
+  const LANGAGE_ACTION = {
+    facing: {
+      analyseAgir: "Une référence à ce niveau de contribution mérite un facing à la hauteur de son poids réel.",
+      recoAgir: a => `Vérifier et renforcer le facing de ${a}.`,
+      consAgir: m => `Un sous-dimensionnement de facing sur cette référence représente un risque estimé à ${m} €.`,
+      recoHausse: a => `Renforcer le facing de ${a} avant la période suivante.`,
+      recoBaisse: a => `Vérifier la présence en rayon de ${a} avant toute décision.`,
+    },
+    stock: {
+      analyseAgir: "Une référence à ce niveau de contribution ne doit jamais être en rupture en dépôt — elle n'est pas exposée en rayon comme les autres.",
+      recoAgir: a => `Vérifier le stock disponible en dépôt/cage pour ${a}.`,
+      consAgir: m => `Une rupture de stock sur cette référence représente un risque estimé à ${m} €.`,
+      recoHausse: a => `Sécuriser davantage de stock de ${a} avant la période suivante.`,
+      recoBaisse: a => `Vérifier le stock en dépôt/cage de ${a} avant toute décision.`,
+    },
+    support: {
+      analyseAgir: "Une référence à ce niveau de contribution dépend surtout de la disponibilité du support et de son activation en caisse, pas d'un emplacement en rayon.",
+      recoAgir: a => `Vérifier le stock de cartes et la bonne activation en caisse pour ${a}.`,
+      consAgir: m => `Une indisponibilité de ce support représente un risque estimé à ${m} €.`,
+      recoHausse: a => `Prévoir davantage de support et d'activation pour ${a} avant la période suivante.`,
+      recoBaisse: a => `Vérifier la disponibilité du support et son activation en caisse pour ${a} avant toute décision.`,
+    },
+    production: {
+      analyseAgir: "Une référence à ce niveau de contribution dépend surtout de la quantité produite ou commandée chaque jour — c'est un produit frais, pas un facing.",
+      recoAgir: a => `Ajuster la quantité commandée ou produite de ${a} au niveau réel de la demande.`,
+      consAgir: m => `Une quantité insuffisante sur cette référence fraîche représente un risque estimé à ${m} €.`,
+      recoHausse: a => `Augmenter la quantité commandée ou produite de ${a} avant la période suivante.`,
+      recoBaisse: a => `Vérifier si la quantité produite ou commandée de ${a} a été réduite avant toute décision.`,
+    },
+    comptoir: {
+      analyseAgir: "Une référence à ce niveau de contribution doit rester visible et disponible au comptoir en priorité.",
+      recoAgir: a => `Vérifier la disponibilité au comptoir de ${a}.`,
+      consAgir: m => `Une rupture au comptoir sur cette référence représente un risque estimé à ${m} €.`,
+      recoHausse: a => `Garantir la disponibilité au comptoir de ${a} avant la période suivante.`,
+      recoBaisse: a => `Vérifier la disponibilité au comptoir de ${a} avant toute décision.`,
+    },
+    presentoir: {
+      analyseAgir: "Une référence à ce niveau de contribution mérite une bonne visibilité sur le présentoir.",
+      recoAgir: a => `Vérifier l'emplacement de ${a} sur le présentoir.`,
+      consAgir: m => `Un mauvais emplacement sur cette référence représente un risque estimé à ${m} €.`,
+      recoHausse: a => `Améliorer l'emplacement de ${a} sur le présentoir avant la période suivante.`,
+      recoBaisse: a => `Vérifier l'emplacement de ${a} sur le présentoir avant toute décision.`,
+    },
+  };
+
+  // Systeme de confiance (rapport strategique, section 12) — visible a l'ecran,
+  // relie directement a la regle qui a produit la detection.
+  const CONFIANCE_PAR_RULE = {
+    'R4-RENFORT-A': { niveau: 'A', label: 'Confirmé', desc: "Donnée de vente directe et actuelle sur cette référence." },
+    'R3-HAUSSE':    { niveau: 'B', label: 'Très probable', desc: "Mesuré sur deux périodes réelles importées — tendance à confirmer dans la durée." },
+    'R2-BAISSE':    { niveau: 'C', label: 'Hypothèse à vérifier', desc: "La donnée de stock est absente : NEXUS ne conclut pas, il demande une vérification terrain." },
+  };
+
+  async function chargerProduitsAppel() {
+    const { data, error } = await nexusClient.from('produits_appel').select('article').eq('site', 'vito-sainte-marie');
+    if (error) { console.error(error); return new Set(); }
+    return new Set((data || []).map(r => r.article));
+  }
+
+  async function construireDetections() {
+    const [{ data, error }, produitsAppel] = await Promise.all([
+      nexusClient
+        .from('products')
+        .select('categorie, article, ca, marge, periode_debut, periode_fin')
+        .eq('site', 'vito-sainte-marie')
+        .order('periode_debut', { ascending: false }),
+      chargerProduitsAppel(),
+    ]);
+    if (error || !data || !data.length) { console.error('Chargement products:', error); return []; }
+
+    const rowsBrut = data.filter(r => !produitsAppel.has(r.article));
+    const periodes = [...new Set(rowsBrut.map(r => r.periode_debut))].sort().reverse();
+    const periodeActuelle = periodes[0];
+    const periodePrecedente = periodes[1] || null;
+    const rowsActuels = rowsBrut.filter(r => r.periode_debut === periodeActuelle);
+    const rowsPrecedents = periodePrecedente ? rowsBrut.filter(r => r.periode_debut === periodePrecedente) : [];
+
+    const caTotalParRayon = {};
+    rowsActuels.forEach(r => { caTotalParRayon[r.categorie] = (caTotalParRayon[r.categorie] || 0) + (r.ca || 0); });
+
+    const precedentParArticle = {};
+    rowsPrecedents.forEach(r => {
+      const cle = r.categorie + '|' + r.article;
+      precedentParArticle[cle] = (precedentParArticle[cle] || 0) + (r.ca || 0);
+    });
+
+    const candidats = [];
+    const fmt = v => Math.round(v).toLocaleString('fr-FR');
+
+    rowsActuels.forEach(p => {
+      const caRayon = caTotalParRayon[p.categorie] || 0;
+      const contribution = caRayon > 0 ? p.ca / caRayon : 0;
+      const cle = p.categorie + '|' + p.article;
+      const caPrec = precedentParArticle[cle];
+      const evolution = (caPrec && caPrec > 0) ? (p.ca - caPrec) / caPrec : null;
+
+      if (contribution >= 0.15 && p.ca > 0) {
+        const lang = LANGAGE_ACTION[typeActionPourCategorie(p.categorie)];
+        candidats.push({
+          etat: "🔥 À AGIR", rule_id: "R4-RENFORT-A", article: p.article, categorie: p.categorie,
+          contribution, evolution: null,
+          situation: `${p.article} représente ${(contribution*100).toFixed(1)} % du chiffre d'affaires du rayon ${p.categorie}.`,
+          contexte: "Cette contribution est calculée sur l'ensemble des références du rayon.",
+          analyse: lang.analyseAgir, consequence: lang.consAgir(fmt(p.ca)),
+          recommandation: lang.recoAgir(p.article),
+          impact: `Vous sécurisez environ ${fmt(p.ca)} € de chiffre d'affaires déjà généré par cette référence.`,
+          candidate_id: `LIVE-R4-${cle}`, impact_eur: p.ca,
+        });
+      }
+      if (evolution !== null && evolution >= 0.20) {
+        const gain = Math.max(p.ca - caPrec, 0);
+        const lang = LANGAGE_ACTION[typeActionPourCategorie(p.categorie)];
+        candidats.push({
+          etat: "📈 OPPORTUNITÉ", rule_id: "R3-HAUSSE", article: p.article, categorie: p.categorie,
+          contribution: null, evolution,
+          situation: `Les ventes de ${p.article} progressent de ${(evolution*100).toFixed(1)} % sur la période.`,
+          contexte: "Cette progression est mesurée entre les deux périodes importées.",
+          analyse: "Cette dynamique dépasse une croissance ordinaire.",
+          consequence: "Cette croissance peut être amplifiée si l'offre suit la demande.",
+          recommandation: lang.recoHausse(p.article),
+          impact: `Vous avez gagné environ ${fmt(gain)} € sur cette référence depuis la période précédente.`,
+          candidate_id: `LIVE-R3-${cle}`, impact_eur: gain,
+        });
+      }
+      if (evolution !== null && evolution <= -0.30) {
+        const perte = Math.max(caPrec - p.ca, 0);
+        const lang = LANGAGE_ACTION[typeActionPourCategorie(p.categorie)];
+        candidats.push({
+          etat: "🟡 À SURVEILLER", rule_id: "R2-BAISSE", article: p.article, categorie: p.categorie,
+          contribution: null, evolution,
+          situation: `Les ventes de ${p.article} chutent de ${(evolution*100).toFixed(1)} % sur la période.`,
+          contexte: "NEXUS ne dispose pas de la donnée de stock pour cette référence.",
+          analyse: "Je ne peux pas encore conclure à une vraie tendance sans vérification terrain.",
+          consequence: "Une rupture non détectée expliquerait aussi bien cette baisse qu'un désintérêt réel.",
+          recommandation: lang.recoBaisse(p.article),
+          impact: "Vérification demandée — aucune conclusion tant que le stock n'est pas confirmé.",
+          candidate_id: `LIVE-R2-${cle}`, impact_eur: perte,
+        });
+      }
+    });
+
+    candidats.sort((a, b) => b.impact_eur - a.impact_eur);
+    return candidats;
+  }
+
+  // Projection — la seule chose que le CIN peut honnetement affirmer avec deux
+  // periodes de donnees : si le rythme actuel se maintient, un mouvement du
+  // meme ordre de grandeur est probable sur la periode suivante. Pas de faux
+  // "trimestre" invente sans connaitre la duree reelle des periodes importees.
+  function projection(p) {
+    const fmt = v => Math.round(v).toLocaleString('fr-FR');
+    if (p.rule_id === 'R3-HAUSSE') {
+      return `Si ce rythme se maintient, un gain du même ordre — environ <b>${fmt(p.impact_eur)} €</b> — est probable sur la prochaine période comparable.`;
+    }
+    if (p.rule_id === 'R2-BAISSE') {
+      return `Si la baisse se confirme (et n'est pas une rupture de stock non détectée), une perte supplémentaire du même ordre — environ <b>${fmt(p.impact_eur)} €</b> — est à anticiper sur la prochaine période.`;
+    }
+    return `Cette contribution est structurelle : ${p.article} pèse <b>${(p.contribution*100).toFixed(1)} %</b> du rayon ${p.categorie} à chaque période, pas seulement celle-ci.`;
+  }
+
+  const ETAT_CLASS = { "🔥 À AGIR": "etat-agir", "📈 OPPORTUNITÉ": "etat-opportunite", "🟡 À SURVEILLER": "etat-surveiller" };
+
+  function chargerValidees() { return JSON.parse(localStorage.getItem('nexus_recommandations_validees') || '[]'); }
+  function sauvegarderValidees(v) { localStorage.setItem('nexus_recommandations_validees', JSON.stringify(v)); }
+
+  // Ecrit une trace datee et chiffree de la decision — le Journal NEXUS ne fait
+  // qu'enregistrer ce fait, sans jamais le commenter ni le juger.
+  function enregistrerJournalDecision(plan) {
+    const journal = JSON.parse(localStorage.getItem('nexus_journal_decisions') || '[]');
+    journal.push({
+      candidate_id: plan.candidate_id, rule_id: plan.rule_id, etat: plan.etat,
+      recommandation: plan.recommandation, impact_eur: plan.impact_eur,
+      article: plan.article, categorie: plan.categorie,
+      date: new Date().toISOString().slice(0,10), heure: new Date().toTimeString().slice(0,5),
+    });
+    localStorage.setItem('nexus_journal_decisions', JSON.stringify(journal));
+  }
+
+  function afficherToastOr(texte) {
+    let toast = document.getElementById('toastOr');
+    if (!toast) {
+      toast = document.createElement('div');
+      toast.id = 'toastOr'; toast.className = 'toast-or';
+      document.body.appendChild(toast);
+    }
+    toast.textContent = texte;
+    requestAnimationFrame(() => toast.classList.add('show'));
+    clearTimeout(toast._timeout);
+    toast._timeout = setTimeout(() => toast.classList.remove('show'), 2600);
+  }
+
+  let TOUTES_DETECTIONS = [];
+
+  // --- Ce que le CIN apprend du Journal ---
+  // Le Cockpit et les detections ci-dessus lisent les ventes en direct.
+  // Ce qui suit lit l'HISTORIQUE accumule dans le Journal (toutes les
+  // decisions passees, tous les retards, toutes les missions terminees)
+  // pour en tirer des motifs qu'aucun ecran instantane ne peut voir.
+
+  async function chargerEquipeMap() {
+    const { data, error } = await nexusClient.from('employees').select('id, nom').eq('actif', true);
+    if (error) { console.error(error); return {}; }
+    const map = {};
+    (data || []).forEach(e => { map[e.id] = e.nom; });
+    return map;
+  }
+
+  async function chargerMissionsHistorique() {
+    const { data, error } = await nexusClient.from('mission_completions').select('*');
+    if (error) { console.error('Chargement historique missions:', error); return []; }
+    return data || [];
+  }
+
+  function chargerJournalDecisionsToutes() {
+    return JSON.parse(localStorage.getItem('nexus_journal_decisions') || '[]');
+  }
+
+  function chargerRetardsTous() {
+    return JSON.parse(localStorage.getItem('nexus_retards') || '{}');
+  }
+
+  // 1. Suivi des decisions passees — la memoire promise depuis le debut :
+  // "il y a X jours, vous avez applique une decision sur cet article —
+  // est-ce que le signal est toujours actif aujourd'hui ?"
+  function suiviDecisionsPassees(journalToutes, detectionsActuelles) {
+    const passees = journalToutes.filter(d => d.date !== AUJOURD_ISO_CIN);
+    if (passees.length === 0) return [];
+    const parArticle = {};
+    passees.forEach(d => {
+      if (!parArticle[d.article] || d.date > parArticle[d.article].date) parArticle[d.article] = d;
+    });
+    return Object.values(parArticle).map(d => {
+      const encoreActif = detectionsActuelles.find(a => a.article === d.article);
+      return { ...d, resolu: !encoreActif };
+    }).slice(0, 5);
+  }
+
+  // 2. Assiduite — un retard isole est un incident, trois retards ou plus
+  // sur l'historique sont un motif (reprend le principe du rapport strategique :
+  // "repetition sur plusieurs periodes -> ouvrir un accompagnement").
+  function patternAssiduite(retards) {
+    return Object.keys(retards).map(emp => {
+      const events = retards[emp];
+      return { employe: emp, nb: events.length, total: events.reduce((s,r) => s + r.retard_min, 0) };
+    }).filter(x => x.nb >= 3).sort((a,b) => b.nb - a.nb);
+  }
+
+  // 3. Recurrence par rayon — si le meme rayon revient plusieurs fois dans
+  // les decisions du Journal, le probleme est structurel, pas ponctuel.
+  function patternRecurrenceRayon(journalToutes) {
+    const compte = {};
+    journalToutes.forEach(d => { if (d.categorie) compte[d.categorie] = (compte[d.categorie] || 0) + 1; });
+    return Object.entries(compte).filter(([,n]) => n >= 2).sort((a,b) => b[1] - a[1]);
+  }
+
+  // 4. Regularite — meme seuil que Mon Evolution (5 missions minimum) pour
+  // rester coherent avec le reste de l'application.
+  function patternRegularite(missionsHisto, equipeMap) {
+    const compte = {};
+    missionsHisto.forEach(m => { compte[m.employee_id] = (compte[m.employee_id] || 0) + 1; });
+    return Object.entries(compte)
+      .filter(([,n]) => n >= 5)
+      .map(([id,n]) => ({ nom: equipeMap[id] || 'Employé', nb: n }))
+      .sort((a,b) => b.nb - a.nb).slice(0, 3);
+  }
+
+  function construirePatterns(journalToutes, retards, missionsHisto, equipeMap, detectionsActuelles) {
+    const patterns = [];
+
+    suiviDecisionsPassees(journalToutes, detectionsActuelles).forEach(d => {
+      patterns.push({
+        tag: d.resolu ? 'RÉSOLU' : 'PERSISTE', tagClasse: d.resolu ? 'tag-resolu' : 'tag-persiste',
+        titre: `Suivi — ${d.article}`,
+        texte: d.resolu
+          ? `Le ${d.date}, une décision a été appliquée sur cette référence. Elle ne fait plus partie des signaux actifs aujourd'hui — la situation semble s'être stabilisée.`
+          : `Le ${d.date}, une décision a été appliquée sur cette référence. Elle réapparaît pourtant dans les signaux actifs — la décision n'a pas suffi, ou trop peu de temps s'est écoulé pour en juger.`,
+        source: 'Appris du Journal · décisions passées',
+      });
+    });
+
+    patternAssiduite(retards).forEach(p => {
+      patterns.push({
+        tag: 'ASSIDUITÉ', tagClasse: 'tag-persiste',
+        titre: `${p.employe} — retards répétés`,
+        texte: `<b>${p.nb} retards</b> enregistrés sur l'historique de cet appareil, pour un total de <b>${p.total} minutes</b>. Un retard isolé est un incident ; répété, c'est un motif qui justifie un point avec l'employé.`,
+        source: 'Appris du Journal · pointages',
+      });
+    });
+
+    patternRecurrenceRayon(journalToutes).forEach(([categorie, n]) => {
+      patterns.push({
+        tag: 'STRUCTUREL', tagClasse: 'tag-persiste',
+        titre: `Rayon ${categorie} — alertes récurrentes`,
+        texte: `<b>${n} décisions</b> ont concerné ce rayon depuis le début du suivi. Quand un rayon revient plusieurs fois, le problème est rarement un accident isolé — il mérite d'être regardé dans son ensemble (implantation, fournisseur, saisonnalité).`,
+        source: 'Appris du Journal · décisions par rayon',
+      });
+    });
+
+    patternRegularite(missionsHisto, equipeMap).forEach(p => {
+      patterns.push({
+        tag: 'RÉGULARITÉ', tagClasse: 'tag-resolu',
+        titre: `${p.nom} — régularité mesurée`,
+        texte: `<b>${p.nb} missions</b> validées au total, un volume suffisant pour parler d'une vraie régularité plutôt que d'un coup ponctuel.`,
+        source: 'Appris du Journal · missions terminées',
+      });
+    });
+
+    return patterns;
+  }
+
+  let filtreActif = 'Toutes';
+  let PRENOM_MANAGER = '';
+  let PATTERNS = [];
+  const AUJOURD_ISO_CIN = new Date().toISOString().slice(0,10);
+  const FILTRES = ['Toutes', '🔥 À AGIR', '📈 OPPORTUNITÉ', '🟡 À SURVEILLER'];
+
+  // Le Conseiller du CIN parle en analyste, pas en chatbot : une phrase de
+  // synthese construite a partir des vraies causes detectees, jamais un texte
+  // fixe. Il explique le "pourquoi" avant le "quoi faire" — le Cockpit fait
+  // deja le "quoi faire" en une ligne.
+  function messageConseillerCIN(actives) {
+    if (actives.length === 0) {
+      return "Sur les données actuellement importées, je n'identifie aucun signal justifiant une analyse approfondie. Rien n'explique une anomalie en ce moment — je continue de surveiller en arrière-plan.";
+    }
+    const nbAgir = actives.filter(p => p.etat === '🔥 À AGIR').length;
+    const top = actives[0];
+    let texte = `J'ai analysé <b>${actives.length}</b> signal${actives.length>1?'aux':''} sur vos données actuelles`;
+    texte += nbAgir > 0 ? `, dont <b>${nbAgir}</b> qui appellent une action aujourd'hui. ` : `. `;
+    texte += `Le cas le plus significatif concerne <b>${top.article}</b> : ${top.analyse.charAt(0).toLowerCase()}${top.analyse.slice(1)} `;
+    texte += top.consequence;
+    const patternFort = PATTERNS.find(p => p.tagClasse === 'tag-persiste');
+    if (patternFort) {
+      texte += ` J'ai aussi repéré, dans le Journal, un motif qui mérite votre attention : <b>${patternFort.titre.toLowerCase()}</b>.`;
+    }
+    return texte;
+  }
+
+  function renderRoot() {
+    const validees = chargerValidees();
+    const actives = TOUTES_DETECTIONS.filter(p => !validees.includes(p.candidate_id));
+    const nbAgir = actives.filter(p => p.etat === '🔥 À AGIR').length;
+    const nbOpp = actives.filter(p => p.etat === '📈 OPPORTUNITÉ').length;
+    const nbSurv = actives.filter(p => p.etat === '🟡 À SURVEILLER').length;
+    const valeurTotale = actives.reduce((s,p) => s + (p.impact_eur||0), 0);
+
+    const root = document.getElementById('root');
+    root.innerHTML = `
+      <div class="conseiller-card">
+        <div class="conseiller-head">
+          <img class="conseiller-avatar" src="assets/nexus-avatar.png" alt="Conseiller NEXUS">
+          <div>
+            <div class="conseiller-name">CONSEILLER NEXUS</div>
+            <div class="conseiller-sub">Analyse pour ${PRENOM_MANAGER}</div>
+          </div>
+        </div>
+        <div class="conseiller-text">${messageConseillerCIN(actives)}</div>
+      </div>
+      <div class="card">
+        <div class="section-label">Vue d'ensemble</div>
+        <div class="stat-row"><span class="stat-label">Signaux analysés</span><span class="stat-value" style="color:var(--cyan);">${actives.length}</span></div>
+        <div class="stat-row"><span class="stat-label">🔥 À agir</span><span class="stat-value" style="color:#F0575A;">${nbAgir}</span></div>
+        <div class="stat-row"><span class="stat-label">📈 Opportunités</span><span class="stat-value" style="color:#34D399;">${nbOpp}</span></div>
+        <div class="stat-row"><span class="stat-label">🟡 À surveiller</span><span class="stat-value" style="color:#F5A623;">${nbSurv}</span></div>
+        <div class="stat-row"><span class="stat-label">Valeur potentielle non traitée</span><span class="stat-value" style="color:var(--gold);">${Math.round(valeurTotale).toLocaleString('fr-FR')} €</span></div>
+      </div>
+      <div class="tabs" id="tabs"></div>
+      <div id="liste"></div>
+      <div class="card" style="margin-top:4px;">
+        <div class="section-label">🧠 Ce que le Journal m'apprend</div>
+        <div style="font-size:11.5px; color:var(--text-dim); margin-bottom:12px; line-height:1.5;">
+          Les cartes ci-dessus lisent les ventes en direct. Ce qui suit lit l'historique accumulé dans le Journal — décisions passées, retards, missions — pour repérer des motifs qu'aucune donnée instantanée ne montre.
+        </div>
+        <div id="patterns"></div>
+      </div>
+      <a class="journal-link" href="NEXUS-Journal-v1.html">🗒 Voir le Journal NEXUS — ce qui s'est réellement passé</a>
+    `;
+
+    const tabsEl = document.getElementById('tabs');
+    FILTRES.forEach(f => {
+      const t = document.createElement('div');
+      t.className = 'tab' + (f === filtreActif ? ' active' : '');
+      t.textContent = f;
+      t.onclick = () => { filtreActif = f; renderRoot(); };
+      tabsEl.appendChild(t);
+    });
+
+    renderListe(actives);
+    renderPatterns();
+  }
+
+  function renderPatterns() {
+    const el = document.getElementById('patterns');
+    if (!el) return;
+    if (PATTERNS.length === 0) {
+      el.innerHTML = `<div class="empty-note">Pas encore assez d'historique dans le Journal pour en tirer un motif fiable. Revenez après quelques jours d'utilisation.</div>`;
+      return;
+    }
+    el.innerHTML = PATTERNS.map(p => `
+      <div class="pattern-card">
+        <span class="pattern-tag ${p.tagClasse}">${p.tag}</span>
+        <div class="pattern-title">${p.titre}</div>
+        <div class="pattern-text">${p.texte}</div>
+        <div class="pattern-source">${p.source}</div>
+      </div>`).join('');
+  }
+
+  function renderListe(actives) {
+    const el = document.getElementById('liste');
+    const filtrees = filtreActif === 'Toutes' ? actives : actives.filter(p => p.etat === filtreActif);
+
+    if (filtrees.length === 0) {
+      el.innerHTML = `<div class="empty-note">
+        ${actives.length === 0
+          ? "Aucun signal actif pour l'instant. Rien à expliquer aujourd'hui sur les données importées."
+          : "Aucun signal dans cette catégorie pour l'instant."}
+      </div>`;
+      return;
+    }
+
+    el.innerHTML = filtrees.map((p, i) => {
+      const conf = CONFIANCE_PAR_RULE[p.rule_id] || { niveau: 'B', label: 'Très probable', desc: '' };
+      return `
+      <div class="plan-card ${ETAT_CLASS[p.etat]||''}" id="det-${i}">
+        <div class="plan-head" onclick="document.getElementById('det-${i}').classList.toggle('open')">
+          <span class="plan-etat">${p.etat}</span>
+          <span class="plan-action-teaser">${p.article}</span>
+          <span class="plan-chevron">›</span>
+        </div>
+        <div class="plan-body">
+          <div class="plan-story">
+            <span class="story-label">Constat</span>${p.situation}
+            <span class="story-label">Contexte</span>${p.contexte}
+            <span class="story-label">Pourquoi</span>${p.analyse}
+            <span class="story-label">Si rien ne change</span>${p.consequence}
+          </div>
+          <div class="projection-box">📈 <b>Projection</b> — ${projection(p)}</div>
+          <div class="plan-impact">📊 Impact — <b>${p.impact}</b></div>
+          <div class="confiance-row">
+            <span class="confiance-badge confiance-${conf.niveau}">Niveau ${conf.niveau}</span>
+            <span class="confiance-desc"><b style="color:var(--text);">${conf.label}.</b> ${conf.desc}</span>
+          </div>
+          <div class="decision-box">✅ Décision recommandée — ${p.recommandation}</div>
+          <div class="rule-tag">Règle ${p.rule_id} · Traçable et auditable</div>
+          <button class="plan-valider" data-id="${p.candidate_id}">✓ Appliquer cette décision</button>
+        </div>
+      </div>`;
+    }).join('');
+
+    el.querySelectorAll('.plan-valider').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const plan = TOUTES_DETECTIONS.find(p => p.candidate_id === btn.dataset.id);
+        const v = chargerValidees();
+        v.push(btn.dataset.id);
+        sauvegarderValidees(v);
+        if (plan) {
+          enregistrerJournalDecision(plan);
+          afficherToastOr(`✓ Gain sécurisé — ${Math.round(plan.impact_eur).toLocaleString('fr-FR')} €`);
+        }
+        renderRoot();
+      });
+    });
+  }
+
+  nexusRequireAuth().then(async employee => {
+    if (!employee) return; // nexus-auth.js gère déjà la redirection vers NEXUS-Login-v1.html
+    if (employee.role !== 'manager' && employee.role !== 'gerant') {
+      document.getElementById('root').innerHTML = `<div class="locked">Cet écran est réservé aux managers.</div>`;
+      return;
+    }
+    TOUTES_DETECTIONS = await construireDetections();
+    PRENOM_MANAGER = employee.nom;
+
+    const [equipeMap, missionsHisto] = await Promise.all([chargerEquipeMap(), chargerMissionsHistorique()]);
+    const journalToutes = chargerJournalDecisionsToutes();
+    const retards = chargerRetardsTous();
+    PATTERNS = construirePatterns(journalToutes, retards, missionsHisto, equipeMap, TOUTES_DETECTIONS);
+
+    renderRoot();
+  });
+</script>
+</body>
+</html>

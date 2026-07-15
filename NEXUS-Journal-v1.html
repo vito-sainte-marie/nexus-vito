@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NEXUS — Journal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="nexus-auth.js"></script>
+<style>
+  :root{
+    --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
+    --text:#EDF1F5; --text-mid:#8A96A5; --text-dim:#57626F;
+    --green:#34D399; --green-dim:#153629;
+    --amber:#F5A623; --amber-dim:#3A2E14;
+    --red:#F0575A; --red-dim:#3A1D1F;
+    --cyan:#4FC3D9; --gold:#D4AF37;
+    --mono:'IBM Plex Mono',monospace; --sans:'IBM Plex Sans',sans-serif;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{background:var(--bg); font-family:var(--sans); color:var(--text);}
+  body{display:flex; justify-content:center; min-height:100vh;}
+  .phone{width:100%; max-width:460px; min-height:100vh; display:flex; flex-direction:column; border-left:1px solid var(--hairline); border-right:1px solid var(--hairline);}
+
+  .header{padding:20px 20px 14px; position:relative;}
+  .menu-btn{
+    position:absolute; top:18px; right:18px; display:flex; align-items:center; gap:6px;
+    font-family:var(--mono); font-size:10.5px; font-weight:600; letter-spacing:0.03em; text-transform:uppercase;
+    color:var(--cyan); background:rgba(79,195,217,0.1); border:1px solid rgba(79,195,217,0.3);
+    border-radius:20px; padding:7px 12px; text-decoration:none; white-space:nowrap; z-index:5;
+  }
+  .menu-btn:active{background:rgba(79,195,217,0.2);}
+  .header-row{display:flex; align-items:center; gap:13px; padding-right:70px;}
+  .header-icon{width:46px; height:46px; border-radius:13px; object-fit:cover; flex-shrink:0; box-shadow:0 0 0 1px rgba(79,195,217,0.25) inset;}
+  .eyebrow{font-family:var(--mono); font-size:11px; letter-spacing:0.12em; text-transform:uppercase; color:var(--cyan);}
+  .title{font-size:19px; font-weight:600; margin-top:2px;}
+  .subtitle{font-family:var(--mono); font-size:10.5px; color:var(--text-dim); margin-top:4px;}
+  .divider{height:1px; background:var(--hairline); margin:0 20px;}
+
+  .registre-tag{
+    display:flex; align-items:center; gap:8px; margin:14px 20px 0; padding:9px 12px;
+    background:var(--panel-raised); border:1px dashed var(--hairline); border-radius:8px;
+    font-size:11px; color:var(--text-dim); line-height:1.5;
+  }
+
+  .section{padding:16px 20px;}
+  .card{background:var(--panel); border:1px solid var(--hairline); border-radius:12px; padding:18px; margin-bottom:14px;}
+  .section-label{font-family:var(--mono); font-size:10.5px; letter-spacing:0.08em; text-transform:uppercase; color:var(--text-dim); margin-bottom:12px; display:flex; align-items:center; gap:8px;}
+  .section-label::after{content:''; flex:1; height:1px; background:var(--hairline);}
+
+  .hero-stat-row{display:flex; gap:14px;}
+  .hero-stat{flex:1; text-align:center; padding:14px 6px; background:var(--panel-raised); border-radius:10px;}
+  .hero-stat b{display:block; font-family:var(--mono); font-size:20px; color:var(--gold); text-shadow:0 0 14px rgba(212,175,55,0.25);}
+  .hero-stat span{font-family:var(--mono); font-size:9px; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.03em;}
+
+  .filters{display:flex; gap:6px; padding:2px 20px 12px; overflow-x:auto;}
+  .filter-tab{flex-shrink:0; padding:7px 13px; border-radius:20px; font-size:11.5px; font-weight:600; background:var(--panel); border:1px solid var(--hairline); cursor:pointer; color:var(--text-mid); white-space:nowrap;}
+  .filter-tab.active{background:rgba(79,195,217,0.12); border-color:var(--cyan); color:var(--cyan);}
+
+  .timeline{position:relative; padding-left:20px;}
+  .timeline::before{content:''; position:absolute; left:5px; top:6px; bottom:6px; width:1px; background:var(--hairline);}
+  .tl-entry{position:relative; padding-bottom:16px;}
+  .tl-entry:last-child{padding-bottom:0;}
+  .tl-dot{position:absolute; left:-20px; top:3px; width:10px; height:10px; border-radius:50%; background:var(--panel-raised); border:2px solid var(--text-dim);}
+  .tl-dot.dot-decision{border-color:var(--gold);}
+  .tl-dot.dot-mission{border-color:var(--green);}
+  .tl-dot.dot-pointage{border-color:var(--cyan);}
+  .tl-dot.dot-retard{border-color:var(--red);}
+  .tl-heure{font-family:var(--mono); font-size:10px; color:var(--text-dim);}
+  .tl-texte{font-size:13px; color:var(--text); margin-top:2px; line-height:1.4;}
+  .tl-texte b{color:var(--text);}
+  .tl-meta{font-family:var(--mono); font-size:10px; color:var(--text-dim); margin-top:2px;}
+  .tl-value{font-family:var(--mono); font-size:11.5px; font-weight:700; margin-left:6px;}
+  .val-gold{color:var(--gold);}
+  .val-green{color:var(--green);}
+  .val-red{color:var(--red);}
+
+  .empty-note{padding:18px; text-align:center; color:var(--text-dim); font-size:12px; line-height:1.6; background:var(--panel-raised); border-radius:8px; border:1px dashed var(--hairline);}
+  .loading{padding:60px 20px; text-align:center; color:var(--text-dim); font-size:13px;}
+  .locked{padding:60px 20px; text-align:center; color:var(--text-dim); font-size:13px;}
+
+  .source-note{font-size:10.5px; color:var(--text-dim); line-height:1.6; margin-top:14px; padding-top:12px; border-top:1px dashed var(--hairline);}
+  .centre-link{display:block; text-align:center; padding:13px; margin-top:4px; border:1px dashed var(--hairline); border-radius:10px; color:var(--cyan); font-size:12.5px; text-decoration:none;}
+
+  footer{margin-top:auto; padding:16px 20px 24px; font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:center; border-top:1px solid var(--hairline);}
+</style>
+</head>
+<body>
+<div class="phone">
+  <div class="header">
+    <a href="index.html" class="menu-btn">☰ Menu</a>
+    <div class="header-row">
+      <img class="header-icon" src="assets/icons/icon-journal-nexus.png" alt="Journal NEXUS">
+      <div>
+        <div class="eyebrow">NEXUS · Manager</div>
+        <div class="title">Journal NEXUS</div>
+        <div class="subtitle">Qu'est-ce qui s'est réellement passé ?</div>
+      </div>
+    </div>
+  </div>
+  <div class="divider"></div>
+  <div class="registre-tag">🗒 Registre officiel — le Journal n'analyse rien et ne juge rien. Il enregistre chaque fait avec son heure, comme une boîte noire.</div>
+
+  <div class="section" id="root">
+    <div class="loading">Chargement…</div>
+  </div>
+
+  <footer>NEXUS Journal v1 · Mémoire, historique et traçabilité · Vito Sainte-Marie Usine</footer>
+</div>
+
+<script>
+  const AUJOURD_ISO = new Date().toISOString().slice(0,10);
+
+  async function chargerEquipe() {
+    const { data, error } = await nexusClient.from('employees').select('id, nom').eq('actif', true);
+    if (error) { console.error(error); return {}; }
+    const map = {};
+    (data || []).forEach(e => { map[e.id] = e.nom; });
+    return map;
+  }
+
+  // Source authentique : la meme table Supabase (mission_completions) que
+  // l'ecran Missions ecrit reellement — pas le localStorage historique
+  // (nexus_missions_completees) que Resultats Equipe lisait avant correction.
+  async function chargerMissionsDuJour() {
+    const { data, error } = await nexusClient
+      .from('mission_completions')
+      .select('*')
+      .eq('date', AUJOURD_ISO);
+    if (error) { console.error('Chargement missions du jour:', error); return []; }
+    return data || [];
+  }
+
+  function chargerDecisionsDuJour() {
+    const journal = JSON.parse(localStorage.getItem('nexus_journal_decisions') || '[]');
+    return journal.filter(d => d.date === AUJOURD_ISO);
+  }
+
+  function chargerPointagesDuJour() {
+    const pointages = JSON.parse(localStorage.getItem('nexus_pointages') || '{}');
+    return pointages[AUJOURD_ISO] || {};
+  }
+
+  const LABEL_POINTAGE = { arrivee: 'Arrivée', pause_debut: 'Début de pause', pause_fin: 'Reprise', depart: 'Départ' };
+  const FILTRES = ['Tout', '🥇 Décisions', '✓ Missions', '⏱ Pointages'];
+  let filtreActif = 'Tout';
+  let EVENEMENTS = [];
+
+  // Construit une timeline unique, triee par heure decroissante — le Journal
+  // ne regroupe pas par categorie et ne resume pas : il liste les faits dans
+  // l'ordre ou ils sont arrives, chacun avec son heure exacte, sans commentaire.
+  function construireEvenements(decisions, missions, pointages, equipe) {
+    const evts = [];
+
+    decisions.forEach(d => {
+      evts.push({
+        heure: d.heure, type: 'decision', dot: 'dot-decision',
+        texte: `Décision appliquée — <b>${d.article}</b>`,
+        meta: `Règle ${d.rule_id}`,
+        valeur: `+${Math.round(d.impact_eur).toLocaleString('fr-FR')}€`, valClasse: 'val-gold',
+      });
+    });
+
+    missions.forEach(m => {
+      evts.push({
+        heure: (m.heure||'').slice(0,5), type: 'mission', dot: 'dot-mission',
+        texte: `Mission terminée — <b>${m.titre}</b>${m.photo_fournie ? ' 📷' : ''}`,
+        meta: equipe[m.employee_id] || 'Employé',
+        valeur: `+${m.points} pts`, valClasse: 'val-green',
+      });
+    });
+
+    Object.keys(pointages).forEach(emp => {
+      pointages[emp].forEach(p => {
+        const retard = p.type === 'arrivee' && p.retard_min > 0;
+        evts.push({
+          heure: (p.heure||'').slice(0,5), type: 'pointage', dot: retard ? 'dot-retard' : 'dot-pointage',
+          texte: `${emp} — ${LABEL_POINTAGE[p.type] || p.type}`,
+          meta: retard ? 'Retard enregistré' : '',
+          valeur: retard ? `+${p.retard_min} min` : '', valClasse: 'val-red',
+        });
+      });
+    });
+
+    evts.sort((a,b) => (b.heure||'').localeCompare(a.heure||''));
+    return evts;
+  }
+
+  function renderRoot(decisions, missions, pointages) {
+    const valeurDecisions = decisions.reduce((s,d) => s + (d.impact_eur||0), 0);
+    const employesPointes = Object.keys(pointages).length;
+
+    const root = document.getElementById('root');
+    root.innerHTML = `
+      <div class="card">
+        <div class="section-label">Aujourd'hui en chiffres</div>
+        <div class="hero-stat-row">
+          <div class="hero-stat"><b>${Math.round(valeurDecisions).toLocaleString('fr-FR')}€</b><span>Valeur décidée</span></div>
+          <div class="hero-stat"><b>${missions.length}</b><span>Missions faites</span></div>
+          <div class="hero-stat"><b>${employesPointes}</b><span>Employés actifs</span></div>
+        </div>
+      </div>
+      <div class="filters" id="filtres"></div>
+      <div class="card">
+        <div class="section-label">Chronologie</div>
+        <div id="timeline"></div>
+      </div>
+      <a class="centre-link" href="NEXUS-Centre-Intelligence-v1.html">🧠 Voir le Centre d'Intelligence NEXUS — comprendre le pourquoi</a>
+      <div class="source-note">Décisions et missions viennent de sources partagées, valables pour toute l'équipe. Les pointages sont enregistrés sur cet appareil uniquement, comme sur Résultats Équipe et Radar du Manager.</div>
+    `;
+
+    const filtresEl = document.getElementById('filtres');
+    FILTRES.forEach(f => {
+      const t = document.createElement('div');
+      t.className = 'filter-tab' + (f === filtreActif ? ' active' : '');
+      t.textContent = f;
+      t.onclick = () => { filtreActif = f; renderTimeline(); };
+      filtresEl.appendChild(t);
+    });
+
+    renderTimeline();
+  }
+
+  const TYPE_PAR_FILTRE = { '🥇 Décisions': 'decision', '✓ Missions': 'mission', '⏱ Pointages': 'pointage' };
+
+  function renderTimeline() {
+    const el = document.getElementById('timeline');
+    const type = TYPE_PAR_FILTRE[filtreActif];
+    const filtres = type ? EVENEMENTS.filter(e => e.type === type) : EVENEMENTS;
+
+    if (filtres.length === 0) {
+      el.innerHTML = `<div class="empty-note">Aucun événement enregistré ${filtreActif === 'Tout' ? "pour l'instant aujourd'hui" : 'dans cette catégorie aujourd\u2019hui'}.</div>`;
+      return;
+    }
+
+    el.innerHTML = `<div class="timeline">` + filtres.map(e => `
+      <div class="tl-entry">
+        <div class="tl-dot ${e.dot}"></div>
+        <div class="tl-heure">${e.heure}</div>
+        <div class="tl-texte">${e.texte}${e.valeur ? `<span class="tl-value ${e.valClasse}">${e.valeur}</span>` : ''}</div>
+        ${e.meta ? `<div class="tl-meta">${e.meta}</div>` : ''}
+      </div>`).join('') + `</div>`;
+  }
+
+  nexusRequireAuth().then(async employee => {
+    if (!employee) return; // nexus-auth.js gère déjà la redirection vers NEXUS-Login-v1.html
+    if (employee.role !== 'manager' && employee.role !== 'gerant') {
+      document.getElementById('root').innerHTML = `<div class="locked">Cet écran est réservé aux managers.</div>`;
+      return;
+    }
+    const [equipe, missions] = await Promise.all([chargerEquipe(), chargerMissionsDuJour()]);
+    const decisions = chargerDecisionsDuJour();
+    const pointages = chargerPointagesDuJour();
+    EVENEMENTS = construireEvenements(decisions, missions, pointages, equipe);
+    renderRoot(decisions, missions, pointages);
+  });
+</script>
+</body>
+</html>

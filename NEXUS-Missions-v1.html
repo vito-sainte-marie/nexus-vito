@@ -153,6 +153,19 @@
   function chargerValidees() { return JSON.parse(localStorage.getItem('nexus_recommandations_validees') || '[]'); }
   function sauvegarderValidees(v) { localStorage.setItem('nexus_recommandations_validees', JSON.stringify(v)); }
 
+  // Meme trace que celle ecrite par le Cockpit et le Centre d'Intelligence —
+  // pour que valider une recommandation depuis N'IMPORTE lequel des trois
+  // ecrans finisse toujours dans le meme Journal NEXUS.
+  function enregistrerJournalDecision(plan) {
+    const journal = JSON.parse(localStorage.getItem('nexus_journal_decisions') || '[]');
+    journal.push({
+      candidate_id: plan.candidate_id, rule_id: plan.rule_id, etat: plan.etat,
+      recommandation: plan.recommandation, impact_eur: plan.impact_eur, article: plan.article,
+      date: new Date().toISOString().slice(0,10), heure: new Date().toTimeString().slice(0,5),
+    });
+    localStorage.setItem('nexus_journal_decisions', JSON.stringify(journal));
+  }
+
   function renderPlansActionMissions() {
     const el = document.getElementById('plansActionMissions');
     if (!el) return;
@@ -192,9 +205,11 @@
     el.querySelectorAll('.plan-valider').forEach(btn => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
+        const plan = PLANS_ACTION.find(p => p.candidate_id === btn.dataset.id);
         const v = chargerValidees();
         v.push(btn.dataset.id);
         sauvegarderValidees(v);
+        if (plan) enregistrerJournalDecision(plan);
         renderPlansActionMissions();
       });
     });

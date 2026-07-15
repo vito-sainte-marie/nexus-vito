@@ -648,6 +648,19 @@
     function chargerValidees() { return JSON.parse(localStorage.getItem('nexus_recommandations_validees') || '[]'); }
     function sauvegarderValidees(v) { localStorage.setItem('nexus_recommandations_validees', JSON.stringify(v)); }
 
+    // Trace datee et chiffree de chaque decision validee — lue par Journal NEXUS
+    // pour repondre a "qu'est-ce qui a ete fait aujourd'hui ?". N'affecte pas
+    // le comportement existant de nexus_recommandations_validees.
+    function enregistrerJournalDecision(plan) {
+      const journal = JSON.parse(localStorage.getItem('nexus_journal_decisions') || '[]');
+      journal.push({
+        candidate_id: plan.candidate_id, rule_id: plan.rule_id, etat: plan.etat,
+        recommandation: plan.recommandation, impact_eur: plan.impact_eur, article: plan.article,
+        date: new Date().toISOString().slice(0,10), heure: new Date().toTimeString().slice(0,5),
+      });
+      localStorage.setItem('nexus_journal_decisions', JSON.stringify(journal));
+    }
+
     let dernierAffichage = []; // les 5 plans reellement visibles a l'ecran, partages avec le briefing
 
     // L'or est réservé aux moments qui comptent vraiment (Indice NEXUS, Capital NEXUS,
@@ -710,7 +723,10 @@
           const v = chargerValidees();
           v.push(btn.dataset.id);
           sauvegarderValidees(v);
-          if (plan) afficherToastOr(`✓ Gain sécurisé — ${Math.round(plan.impact_eur).toLocaleString('fr-FR')} €`);
+          if (plan) {
+            enregistrerJournalDecision(plan);
+            afficherToastOr(`✓ Gain sécurisé — ${Math.round(plan.impact_eur).toLocaleString('fr-FR')} €`);
+          }
           renderPlansAction(); // la suivante du classement prend la place
         });
       });
@@ -856,6 +872,7 @@
             <div class="conseiller-text" style="margin-bottom:10px;">Aujourd'hui, je recommande de concentrer votre énergie sur ${top3.length || 'aucun'} sujet${top3.length>1?'s':''} :</div>
             <div class="priorites-liste">${listeHtml}</div>
             ${top3.length ? `<div class="priorite-temps">⏱ Temps estimé : ${tempsTotal} minutes <span style="opacity:0.6;">(estimation, pas une durée mesurée)</span></div>` : ''}
+            <a href="NEXUS-Centre-Intelligence-v1.html" style="display:block; text-align:center; margin-top:12px; padding-top:12px; border-top:1px solid var(--hairline); font-family:var(--mono); font-size:10.5px; color:var(--cyan); text-decoration:none;">🧠 Voir toutes les détections →</a>
           </div>
         </div>`;
     }
