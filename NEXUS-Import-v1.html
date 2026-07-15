@@ -313,14 +313,21 @@ btnTypeStock.addEventListener('click', () => choisirTypeImport('stock'));
 const FIELD_DEFS = [
   {key:'categorie', label:'Catégorie', synonyms:['categ','categorie','famille','rayon']},
   {key:'article', label:'Article', synonyms:['lib article','libelle','designation','produit','article']},
-  {key:'quantite', label:'Quantité', synonyms:['qte','quantite','qty']},
+  {key:'quantite', label:'Quantité', synonyms:['qte','quantite','qty','stock actuel']},
   {key:'prix_achat', label:"Prix d'achat", synonyms:['pma','pa ht','prix achat','cout','cost']},
   {key:'prix_vente', label:'Prix de vente HT', synonyms:['pu ht','pv ht','prix vente','prix','pvht']},
   {key:'tva', label:'TVA', synonyms:['tva','vat']},
   {key:'code_barres', label:'Code-barres', synonyms:['code barres','ean','codebarre']},
 ];
 
-function norm(s){ return (s||'').toString().toLowerCase().trim(); }
+// Insensible aux accents : "Catégorie"/"Libellé" (export valorisation stock)
+// ne matchaient pas 'categ'/'libelle' auparavant, puisque norm() ne faisait
+// que mettre en minuscules sans retirer les accents (trouve le 15/07/2026).
+function norm(s){
+  return (s||'').toString()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase().trim();
+}
 
 function detectMapping(headers){
   const mapping = {};
