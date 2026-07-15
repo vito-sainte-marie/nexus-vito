@@ -248,30 +248,9 @@
   </div>
   <div class="divider"></div>
 
-  <div class="section">
-    <div class="section-title">Opportunités <span class="badge badge-real">Mesuré</span></div>
-    <div class="opp-card">
-      <div class="opp-value">+2 732 €</div>
-      <div class="opp-desc">Vous avez gagné 2 732 € grâce aux décisions prises depuis le dernier trimestre, sur les 17 références en forte progression. Le merchandising fonctionne — continuez cette stratégie, en vérifiant que le facing suit bien l'élan.</div>
-    </div>
-  </div>
-  <div class="divider"></div>
+  <div class="section" id="risqueSection"></div>
 
-  <div class="section">
-    <div class="section-title">Risques <span class="badge badge-real">Mesuré</span></div>
-    <div class="risk-card">
-      <div class="risk-title">Guinness 27,5cl</div>
-      <div class="risk-desc">Je ne peux pas encore conclure. Les ventes sont en forte baisse (-99,1 % vs T1). Avant de prendre une décision, j'ai besoin que quelqu'un vérifie la présence du produit en rayon — je n'ai pas accès à la donnée de stock pour trancher seul.</div>
-    </div>
-  </div>
-  <div class="divider"></div>
-
-  <div class="section">
-    <div class="section-title">Top ventes <span class="badge badge-real">Mesuré</span></div>
-    <div class="top-item"><span class="top-rank">01</span><span class="top-name">Heineken</span><span class="top-val">9 791 € + 7 766 €</span></div>
-    <div class="top-item"><span class="top-rank">02</span><span class="top-name">Desperados</span><span class="top-val">5 510 €</span></div>
-    <div class="top-item"><span class="top-rank">03</span><span class="top-name">Lorraine</span><span class="top-val">5 371 €</span></div>
-  </div>
+  <div class="section" id="topVentesSection"></div>
 
   <div class="divider"></div>
   <div class="section" id="mentorSection"></div>
@@ -536,9 +515,34 @@
       return true;
     }
 
+    // Exclut une reference des recommandations ET laisse une trace dans le
+    // Journal — un commentaire optionnel explique le POURQUOI (ex : "vendu
+    // desormais en pack de 6"), pour que la decision d'exclusion soit
+    // auditable plus tard, pas juste silencieuse. Aucune table Supabase
+    // supplementaire requise : le commentaire vit dans le meme
+    // nexus_journal_decisions que le reste, lu par Journal NEXUS.
+    async function exclureAvecCommentaire(article) {
+      const commentaire = prompt(`Pourquoi exclure "${article}" des recommandations ? (optionnel)`, '');
+      if (commentaire === null) return false; // annule
+      const ok = await marquerProduitAppel(article);
+      if (ok) {
+        const journal = JSON.parse(localStorage.getItem('nexus_journal_decisions') || '[]');
+        journal.push({
+          candidate_id: `EXCLUSION-${article}-${Date.now()}`, rule_id: 'EXCLUSION-MANUELLE', etat: '🚫 EXCLU',
+          recommandation: commentaire ? `Exclu des recommandations — ${commentaire}` : `Exclu des recommandations`,
+          impact_eur: 0, article, categorie: null,
+          date: new Date().toISOString().slice(0,10), heure: new Date().toTimeString().slice(0,5),
+        });
+        localStorage.setItem('nexus_journal_decisions', JSON.stringify(journal));
+      }
+      return ok;
+    }
+
     let employeeCourantId = null;
 
     let MEILLEUR_SUCCES = null;
+    let PIRE_RISQUE = null;
+    let TOP_VENTES = [];
 
     async function construirePlansAction() {
       const [{ data, error }, produitsAppel] = await Promise.all([
@@ -571,6 +575,8 @@
       const candidats = [];
       const fmt = v => Math.round(v).toLocaleString('fr-FR');
       MEILLEUR_SUCCES = null; // reinitialise a chaque calcul, jamais garde d'une periode perimee
+      PIRE_RISQUE = null;
+      TOP_VENTES = [...rowsActuels].sort((a,b) => (b.ca||0) - (a.ca||0)).slice(0,3);
 
       rowsActuels.forEach(p => {
         const caRayon = caTotalParRayon[p.categorie] || 0;
@@ -635,6 +641,8 @@
       });
 
       candidats.sort((a, b) => b.impact_eur - a.impact_eur);
+      const risques = candidats.filter(c => c.rule_id === 'R2-BAISSE').sort((a,b) => b.impact_eur - a.impact_eur);
+      PIRE_RISQUE = risques[0] || null;
       return candidats; // toutes les candidates qualifiées — renderPlansAction() pioche les 5 à afficher
                          // et laisse apparaitre la suivante au fur et a mesure qu'on en valide
     }
@@ -734,16 +742,13 @@
       el.querySelectorAll('.plan-appel').forEach(btn => {
         btn.addEventListener('click', async (e) => {
           e.stopPropagation();
-          btn.disabled = true;
-          btn.textContent = 'Enregistrement…';
-          const ok = await marquerProduitAppel(btn.dataset.article);
+          const ok = await exclureAvecCommentaire(btn.dataset.article);
           if (ok) {
             PLANS_ACTION = await construirePlansAction(); // rafraichi sans ce produit, partout, pour tout le monde
             renderPlansAction();
             renderSucces();
-          } else {
-            btn.disabled = false;
-            btn.textContent = "🚫 Produit d'appel — ne plus le recommander";
+            renderRisques();
+            renderTopVentes();
           }
         });
       });
@@ -822,6 +827,56 @@
             <div class="succes-detail">Soit environ <b>+${Math.round(MEILLEUR_SUCCES.gain).toLocaleString('fr-FR')} €</b> depuis la période précédente. Continuez sur cette voie.</div>
           </div>
         </div>`;
+    }
+
+    // Remplace l'ancien bloc "Risques" fige en dur — celui-ci lit PIRE_RISQUE,
+    // calcule a chaque chargement par le meme moteur que les Plans d'action.
+    // Un produit exclu (via 🚫) disparait ici comme partout ailleurs, des le
+    // prochain calcul, car construirePlansAction() ne le reprend plus.
+    function renderRisques() {
+      const el = document.getElementById('risqueSection');
+      if (!el) return;
+      if (!PIRE_RISQUE) {
+        el.innerHTML = `<div class="section-title">Risques <span class="badge badge-real">Mesuré</span></div>
+          <div class="risk-card" style="border-color:var(--hairline); background:var(--panel);">
+            <div class="risk-desc" style="color:var(--text-dim);">Aucun risque significatif actif sur les données actuelles.</div>
+          </div>`;
+        return;
+      }
+      const r = PIRE_RISQUE;
+      el.innerHTML = `
+        <div class="section-title">Risques <span class="badge badge-real">Mesuré</span></div>
+        <div class="risk-card">
+          <div class="risk-title">${r.article}</div>
+          <div class="risk-desc">${r.analyse} ${r.situation} ${r.contexte}</div>
+          <button class="plan-appel" data-article="${r.article}" style="width:100%; margin-top:10px; padding:10px; border:1px solid rgba(240,87,90,0.35); border-radius:8px; background:none; color:var(--red); font-size:11.5px; cursor:pointer;">🚫 Je comprends — ne plus me signaler ce produit</button>
+        </div>`;
+      el.querySelector('.plan-appel').addEventListener('click', async () => {
+        const ok = await exclureAvecCommentaire(r.article);
+        if (ok) {
+          PLANS_ACTION = await construirePlansAction();
+          renderPlansAction();
+          renderSucces();
+          renderRisques();
+          renderTopVentes();
+        }
+      });
+    }
+
+    // Remplace l'ancien "Top ventes" fige — TOP_VENTES vient des memes lignes
+    // rowsActuels que le reste du moteur, jamais un texte recopie a la main.
+    function renderTopVentes() {
+      const el = document.getElementById('topVentesSection');
+      if (!el) return;
+      if (!TOP_VENTES.length) { el.innerHTML = ''; return; }
+      el.innerHTML = `
+        <div class="section-title">Top ventes <span class="badge badge-real">Mesuré</span></div>
+        ${TOP_VENTES.map((p, i) => `
+          <div class="top-item">
+            <span class="top-rank">0${i+1}</span>
+            <span class="top-name">${p.article}</span>
+            <span class="top-val">${Math.round(p.ca).toLocaleString('fr-FR')} €</span>
+          </div>`).join('')}`;
     }
 
     function renderConseiller() {
@@ -1152,6 +1207,8 @@
       renderConseiller(); // appele ici, une fois STATION_CONFIG disponible (evite une ReferenceError sur const en temporal dead zone)
       renderStory();
       renderSucces();
+      renderRisques();
+      renderTopVentes();
 
       // Detail de l'Indice NEXUS au clic — uniquement les facteurs reellement
       // connus (Marge, Evolution). Le formule exacte de ponderation qui

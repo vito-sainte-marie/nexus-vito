@@ -154,11 +154,17 @@
     const evts = [];
 
     decisions.forEach(d => {
+      const estExclusion = d.rule_id === 'EXCLUSION-MANUELLE';
       evts.push({
-        heure: d.heure, type: 'decision', dot: 'dot-decision',
-        texte: `Décision appliquée — <b>${d.article}</b>`,
-        meta: `Règle ${d.rule_id}`,
-        valeur: `+${Math.round(d.impact_eur).toLocaleString('fr-FR')}€`, valClasse: 'val-gold',
+        heure: d.heure, type: 'decision', dot: estExclusion ? 'dot-pointage' : 'dot-decision',
+        texte: estExclusion
+          ? `Produit exclu des recommandations — <b>${d.article}</b>`
+          : `Décision appliquée — <b>${d.article}</b>`,
+        meta: estExclusion
+          ? (d.recommandation.includes('—') ? d.recommandation.split('—')[1].trim() : 'Sans commentaire')
+          : `Règle ${d.rule_id}`,
+        valeur: estExclusion ? '' : `+${Math.round(d.impact_eur).toLocaleString('fr-FR')}€`,
+        valClasse: 'val-gold',
       });
     });
 
