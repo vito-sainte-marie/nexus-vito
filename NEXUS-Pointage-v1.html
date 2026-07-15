@@ -73,7 +73,7 @@
 <body>
 <div class="phone">
   <div class="header">
-    <a href="NEXUS-App-v1.html" class="menu-btn">☰ Menu</a>
+    <a href="index.html" class="menu-btn">☰ Menu</a>
     <div class="eyebrow">NEXUS · Pointage</div>
     <div class="title" id="empName">—</div>
     <div class="clock" id="horloge">--:--:--</div>
@@ -107,24 +107,26 @@
 </div>
 
 <script>
-  nexusRequireAuth().then(employee => {
+  nexusRequireAuth().then(async employee => {
     if (!employee) return; // nexus-auth.js gère déjà la redirection vers NEXUS-Login-v1.html
     const session = { prenom: employee.nom, role: employee.role };
     document.getElementById('empName').textContent = session.prenom;
 
   // Horaires PAR DEFAUT (vraie feuille "La Team", Vito Sainte-Marie Usine).
-  // Ce sont des valeurs de depart pour la station pilote — surchargees si
-  // un manager les modifie via l'ecran Parametres (nexus_config_horaires).
+  // Valeurs de depart pour la station — surchargees si un manager les modifie
+  // via l'ecran Parametres (desormais table Supabase station_config, partagee
+  // par tous les appareils — corrige le decalage possible entre appareils).
   const HORAIRES_DEFAUT = {
     quart1: { normal: "05:45", etendu: "05:45" },   // Dim-Mer / Jeu-Sam (meme heure de debut)
     quart2: { normal: "12:40", etendu: "13:40" },   // Dim-Mer / Jeu-Sam
     renfort: { debut: "09:00", fin: "17:00", pause_debut: "13:00", pause_fin: "14:00" },
   };
-  function chargerHoraires() {
-    const config = JSON.parse(localStorage.getItem('nexus_config_horaires') || 'null');
-    return config || HORAIRES_DEFAUT;
+  async function chargerHoraires() {
+    const { data, error } = await nexusClient.from('station_config').select('horaires').eq('site', 'vito-sainte-marie').maybeSingle();
+    if (error) { console.error('Chargement station_config:', error); return HORAIRES_DEFAUT; }
+    return (data && data.horaires) || HORAIRES_DEFAUT;
   }
-  const HORAIRES = chargerHoraires();
+  const HORAIRES = await chargerHoraires();
   const estRenfort = session && session.role === 'renfort';
 
   if (estRenfort) {
@@ -148,15 +150,24 @@
     document.getElementById('dateJour').textContent = new Date().toLocaleDateString('fr-FR', {weekday:'long', day:'numeric', month:'long'});
   }, 1000);
 
-  function chargerPointages() { return JSON.parse(localStorage.getItem('nexus_pointages') || '{}'); }
-  function sauvegarderPointages(p) { localStorage.setItem('nexus_pointages', JSON.stringify(p)); }
-
   const aujourdhui = new Date().toISOString().slice(0,10);
-  const empActuel = session ? session.prenom : 'Anonyme';
-  const pointages = chargerPointages();
-  if (!pointages[aujourdhui]) pointages[aujourdhui] = {};
-  if (!pointages[aujourdhui][empActuel]) pointages[aujourdhui][empActuel] = [];
-  const mesPointages = pointages[aujourdhui][empActuel];
+
+  // Source authentique : table Supabase `pointages`, partagee par tous les
+  // appareils — remplace localStorage('nexus_pointages') et ('nexus_retards'),
+  // qui ne survivaient que sur l'appareil utilise pour pointer (corrige le
+  // 15/07/2026, meme classe de bug que Resultats Equipe / Radar du Manager).
+  async function chargerMesPointagesDuJour() {
+    const { data, error } = await nexusClient
+      .from('pointages')
+      .select('*')
+      .eq('employee_id', employee.id)
+      .eq('date', aujourdhui)
+      .order('created_at', { ascending: true });
+    if (error) { console.error('Chargement pointages:', error); return []; }
+    return data || [];
+  }
+
+  let mesPointages = await chargerMesPointagesDuJour();
 
   function dernierType() {
     return mesPointages.length ? mesPointages[mesPointages.length-1].type : null;
@@ -177,11 +188,11 @@
     el.innerHTML = mesPointages.map(p => `
       <div class="histo-row">
         <span class="histo-type">${labels[p.type]}</span>
-        <span>${p.heure}${p.retard_min > 0 ? ` <span class="histo-retard">+${p.retard_min} min</span>` : ''}</span>
+        <span>${p.heure.slice(0,5)}${p.retard_min > 0 ? ` <span class="histo-retard">+${p.retard_min} min</span>` : ''}</span>
       </div>`).join('');
   }
 
-  function pointer(type) {
+  async function pointer(type) {
     const heure = maintenant();
     const quartValeur = estRenfort ? 'renfort' : document.getElementById('quartSelect').value;
     let retard_min = 0;
@@ -189,17 +200,23 @@
       const attendue = heureAttendue(quartValeur);
       retard_min = Math.max(0, toMinutes(heure.slice(0,5)) - toMinutes(attendue));
     }
-    mesPointages.push({ type, heure, quart: quartValeur, retard_min });
-    pointages[aujourdhui][empActuel] = mesPointages;
-    sauvegarderPointages(pointages);
 
-    // Registre separe des retards, pour alimenter la grille assiduite
-    if (type === 'arrivee' && retard_min > 0) {
-      const retards = JSON.parse(localStorage.getItem('nexus_retards') || '{}');
-      if (!retards[empActuel]) retards[empActuel] = [];
-      retards[empActuel].push({ date: aujourdhui, retard_min });
-      localStorage.setItem('nexus_retards', JSON.stringify(retards));
+    const boutons = ['btnArrivee','btnPauseDebut','btnPauseFin','btnDepart'];
+    boutons.forEach(id => document.getElementById(id).disabled = true);
+
+    const { error } = await nexusClient.from('pointages').insert({
+      employee_id: employee.id, site: 'vito-sainte-marie', date: aujourdhui,
+      type, heure, quart: quartValeur, retard_min,
+    });
+
+    if (error) {
+      console.error('Enregistrement pointage:', error);
+      document.getElementById('resultPointage').innerHTML = `<div class="result-box warn"><b>Erreur d'enregistrement</b><div class="result-detail">Réessayez — rien n'a été perdu côté serveur si ça se reproduit.</div></div>`;
+      majBoutons();
+      return;
     }
+
+    mesPointages = await chargerMesPointagesDuJour();
 
     const box = document.getElementById('resultPointage');
     if (type === 'arrivee') {

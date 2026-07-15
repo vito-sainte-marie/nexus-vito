@@ -113,19 +113,15 @@
   // Resultats : reel, calcule cote serveur (Sante du magasin, Cockpit)
   const SANTE_SCORE = 74;
 
-  // Equipe (Presence, via Pointage/retards) : calcule cote client depuis le
-  // localStorage de cet appareil, coherent avec Resultats Equipe.
-  // Developpement (Progression, via points de missions) : lit desormais
-  // Supabase (mission_completions), la source reellement alimentee par
-  // l'ecran Missions — l'ancienne lecture localStorage('nexus_missions_completees')
-  // ne recevait plus rien depuis le passage a Supabase et affichait toujours
-  // "Pas mesurable" (corrige le 15/07/2026, meme bug que Resultats Equipe).
-  function calculerEquipe() {
-    const retards = JSON.parse(localStorage.getItem('nexus_retards') || '{}');
-    const employes = Object.keys(retards);
-    if (employes.length === 0) return null; // aucun pointage encore enregistre
-    let totalRetardMin = 0, totalPointages = 0;
-    employes.forEach(e => { totalRetardMin += retards[e].reduce((s,r)=>s+r.retard_min,0); totalPointages += retards[e].length; });
+  // Equipe (Presence, via retards) : lit desormais Supabase (pointages),
+  // partagee par tous les appareils — remplace localStorage('nexus_retards')
+  // qui ne comptait que les retards saisis sur cet appareil precis
+  // (corrige le 15/07/2026, avec la migration Pointage vers Supabase).
+  // Developpement (Progression, via points de missions) : lit Supabase
+  // (mission_completions), la source reellement alimentee par l'ecran Missions.
+  function calculerEquipe(pointagesHisto) {
+    if (!pointagesHisto || pointagesHisto.length === 0) return null; // aucun pointage encore enregistre
+    const totalRetardMin = pointagesHisto.reduce((s,p) => s + (p.retard_min||0), 0);
     const score = Math.max(0, 100 - totalRetardMin); // 1 point perdu par minute de retard cumulee
     return Math.round(score);
   }
@@ -137,13 +133,18 @@
     return Math.round(Math.max(0, points) / maxTheorique * 100);
   }
 
-  const { data: completionsHisto, error: erreurCompletions } = await nexusClient.from('mission_completions').select('points');
+  const [{ data: completionsHisto, error: erreurCompletions }, { data: pointagesHisto, error: erreurPointages }] = await Promise.all([
+    nexusClient.from('mission_completions').select('points'),
+    nexusClient.from('pointages').select('retard_min').eq('type', 'arrivee').gt('retard_min', 0),
+  ]);
   if (erreurCompletions) console.error('Chargement mission_completions:', erreurCompletions);
+  if (erreurPointages) console.error('Chargement pointages:', erreurPointages);
   const devScore = calculerDeveloppement(completionsHisto);
+  const equipeScore = calculerEquipe(pointagesHisto);
 
   const DOMAINES = [
     { nom: "Résultats", icone: "💰", sous: "CA, Marge (Objectifs non mesurés)", valeur: SANTE_SCORE, mesure: true },
-    { nom: "Équipe", icone: "👥", sous: "Présence uniquement (Motivation, Formation, Cohésion non mesurées)", valeur: calculerEquipe(), mesure: calculerEquipe() !== null },
+    { nom: "Équipe", icone: "👥", sous: "Présence uniquement (Motivation, Formation, Cohésion non mesurées)", valeur: equipeScore, mesure: equipeScore !== null },
     { nom: "Exploitation", icone: "🏪", sous: "Propreté, Sécurité, Disponibilité", valeur: null, mesure: false },
     { nom: "Conformité", icone: "⚖️", sous: "Procédures, Audits, Tenues, Sécurité", valeur: null, mesure: false },
     { nom: "Développement", icone: "📈", sous: "Progression équipe uniquement", valeur: devScore, mesure: devScore !== null },

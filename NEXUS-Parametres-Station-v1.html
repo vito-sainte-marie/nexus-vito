@@ -61,7 +61,7 @@
 <body>
 <div class="phone">
   <div class="header">
-    <a href="NEXUS-App-v1.html" class="menu-btn">☰ Menu</a>
+    <a href="index.html" class="menu-btn">☰ Menu</a>
     <div class="eyebrow">NEXUS · Manager</div>
     <div class="title">Paramètres Station</div>
     <div class="subtitle">Ces horaires servent au calcul des retards (Pointage)</div>
@@ -98,7 +98,7 @@
 </div>
 
 <script>
-  nexusRequireAuth().then(employee => {
+  nexusRequireAuth().then(async employee => {
     if (!employee) return; // nexus-auth.js gère déjà la redirection vers NEXUS-Login-v1.html
     if (employee.role !== 'manager' && employee.role !== 'gerant') {
       document.body.innerHTML = '<div style="padding:60px 20px; text-align:center; color:var(--text-dim); font-family:var(--sans);">Cet écran est réservé aux managers.</div>';
@@ -113,8 +113,17 @@
     renfort: { debut: "09:00", fin: "17:00", pause_debut: "13:00", pause_fin: "14:00" },
   };
 
-  function charger() {
-    const config = JSON.parse(localStorage.getItem('nexus_config_horaires') || 'null') || HORAIRES_DEFAUT;
+  // Table Supabase station_config — remplace localStorage('nexus_config_horaires'),
+  // qui ne s'appliquait qu'a l'appareil sur lequel un manager l'avait modifie
+  // (corrige le 15/07/2026 : les autres appareils continuaient a calculer les
+  // retards sur les valeurs par defaut sans que personne ne s'en rende compte).
+  async function chargerConfig() {
+    const { data, error } = await nexusClient.from('station_config').select('horaires').eq('site', 'vito-sainte-marie').maybeSingle();
+    if (error) { console.error('Chargement station_config:', error); return HORAIRES_DEFAUT; }
+    return (data && data.horaires) || HORAIRES_DEFAUT;
+  }
+
+  function remplirFormulaire(config) {
     document.getElementById('q1_normal').value = config.quart1.normal;
     document.getElementById('q1_etendu').value = config.quart1.etendu;
     document.getElementById('q2_normal').value = config.quart2.normal;
@@ -125,7 +134,11 @@
     document.getElementById('r_fin').value = config.renfort.fin;
   }
 
-  document.getElementById('sauvegarder').addEventListener('click', () => {
+  remplirFormulaire(await chargerConfig());
+
+  document.getElementById('sauvegarder').addEventListener('click', async () => {
+    const btn = document.getElementById('sauvegarder');
+    btn.disabled = true;
     const config = {
       quart1: { normal: document.getElementById('q1_normal').value, etendu: document.getElementById('q1_etendu').value },
       quart2: { normal: document.getElementById('q2_normal').value, etendu: document.getElementById('q2_etendu').value },
@@ -134,18 +147,20 @@
         pause_debut: document.getElementById('r_pause_debut').value, pause_fin: document.getElementById('r_pause_fin').value,
       },
     };
-    localStorage.setItem('nexus_config_horaires', JSON.stringify(config));
+    const { error } = await nexusClient.from('station_config').upsert({ site: 'vito-sainte-marie', horaires: config, updated_at: new Date().toISOString() });
+    btn.disabled = false;
+    if (error) { console.error('Enregistrement station_config:', error); alert('Erreur — réessayez.'); return; }
     const note = document.getElementById('savedNote');
+    note.textContent = '✓ Horaires enregistrés — pris en compte sur tous les appareils au prochain pointage';
     note.style.display = 'block';
     setTimeout(() => note.style.display = 'none', 3000);
   });
 
-  document.getElementById('reinitialiser').addEventListener('click', () => {
-    localStorage.removeItem('nexus_config_horaires');
-    charger();
+  document.getElementById('reinitialiser').addEventListener('click', async () => {
+    const { error } = await nexusClient.from('station_config').upsert({ site: 'vito-sainte-marie', horaires: HORAIRES_DEFAUT, updated_at: new Date().toISOString() });
+    if (error) { console.error('Réinitialisation station_config:', error); alert('Erreur — réessayez.'); return; }
+    remplirFormulaire(HORAIRES_DEFAUT);
   });
-
-  charger();
 
 });
 </script>
