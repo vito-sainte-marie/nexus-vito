@@ -162,9 +162,11 @@
     surveiller:  { label: '🟡 À surveiller',               dot: 'dot-ambre' },
     verifier:    { label: '🔴 Vérification recommandée',   dot: 'dot-rouge' },
     inconnu:     { label: '⚫ Impossible à conclure',      dot: 'dot-gris'  },
+    impossible:  { label: '⚠️ Stock négatif — signalé, non modifié', dot: 'dot-rouge' },
   };
 
   let ANALYSE = [];        // une entree par article, avec etat/confiance/ecart
+  let LISTE_RECOMMANDEE = new Set(); // articles du "recompter aujourd'hui", pour le filtre dedie
   let employeeCourant = null;
   let filtreActuel = 'tous';
 
@@ -216,6 +218,21 @@
 
     const maintenant = new Date();
 
+    // Causes reelles d'un stock negatif, d'apres Frederic (15/07/2026) :
+    // erreur de saisie de facture, facture oubliee, mauvais comptage a
+    // l'inventaire — ou, pour certaines categories, un decalage NORMAL
+    // entre vente et facturation (presse quotidienne, recharges telephoniques
+    // digitalisees : la vente est instantanee, la facture fournisseur arrive
+    // et s'enregistre plus tard). Pas systematiquement une erreur.
+    function causeProbableStockNegatif(categorie) {
+      const c = (categorie || '').toLowerCase();
+      const decalageNormal = c.includes('presse') || c.includes('carte') || c.includes('prépayé') || c.includes('prepaye') || c.includes('transcash') || c.includes('pcs');
+      if (decalageNormal) {
+        return "Cause probable pour cette catégorie : vente enregistrée avant la facturation fournisseur (presse quotidienne, recharges téléphoniques digitalisées...) — souvent un décalage normal, pas une erreur.";
+      }
+      return "Causes possibles : erreur de saisie de facture, facture fournisseur oubliée, mauvais comptage à l'inventaire, ou décalage entre vente et facturation.";
+    }
+
     return Object.entries(parArticle).map(([article, snaps]) => {
       const dernier = snaps[snaps.length - 1];
       const avantDernier = snaps.length >= 2 ? snaps[snaps.length - 2] : null;
@@ -234,6 +251,10 @@
         .reduce((s, v) => s + (v.quantite || 0), 0);
 
       let etat = 'inconnu', ecart = null, ecartPct = null, confiance = 30, note = "Un seul relevé disponible pour l'instant — je ne peux rien comparer.";
+      if (dernier.quantite_theorique < 0) {
+        etat = 'impossible'; confiance = 15;
+        note = `Stock théorique négatif (${dernier.quantite_theorique}) dès le premier relevé — valeur conservée telle quelle, signalée ici. ${causeProbableStockNegatif(categorie)}`;
+      }
 
       if (avantDernier) {
         const ventesEntreDeux = (ventes || []).filter(v =>
@@ -272,6 +293,15 @@
         if (!aDesVentes) {
           etat = 'inconnu'; confiance = Math.min(confiance, 35);
           note = "Aucune donnée de vente sur la période pour recouper ce mouvement — je ne peux pas conclure honnêtement.";
+        }
+
+        // Un stock theorique negatif n'a pas de sens physique — signale
+        // explicitement plutot que laisse se fondre dans un etat normal.
+        // La valeur n'est jamais modifiee ni clampee, seulement rapportee.
+        if (dernier.quantite_theorique < 0) {
+          etat = 'impossible';
+          note = `Stock théorique négatif (${dernier.quantite_theorique}) — valeur conservée telle quelle, signalée ici. ${causeProbableStockNegatif(categorie)}`;
+          confiance = Math.min(confiance, 20);
         }
       }
 
@@ -319,6 +349,7 @@
     const nbSurveiller = ANALYSE.filter(p => p.etat === 'surveiller').length;
     const nbVerifier = ANALYSE.filter(p => p.etat === 'verifier').length;
     const nbInconnu = ANALYSE.filter(p => p.etat === 'inconnu').length;
+    const nbImpossible = ANALYSE.filter(p => p.etat === 'impossible').length;
     const total = ANALYSE.length;
 
     const confianceGlobale = Math.round(ANALYSE.reduce((s, p) => s + p.confiance, 0) / total);
@@ -330,6 +361,7 @@
       ...ANALYSE.filter(p => p.etat === 'verifier'),
       ...sensibles.filter(p => p.etat !== 'verifier' && (p.joursDepuisControle === null || p.joursDepuisControle > 20)),
     ].filter((p, i, arr) => arr.findIndex(x => x.article === p.article) === i).slice(0, 20);
+    LISTE_RECOMMANDEE = new Set(aRecompter.map(p => p.article));
     const dureeMin = Math.max(1, Math.round(aRecompter.length * 40 / 60));
 
     const confCouleur = confianceGlobale >= 80 ? 'var(--green)' : confianceGlobale >= 55 ? 'var(--amber)' : 'var(--red)';
@@ -355,6 +387,7 @@
           <div class="priorite-chip chip-ambre"><span class="n">${nbSurveiller}</span>sensibles</div>
           <div class="priorite-chip chip-vert"><span class="n">${nbStable}</span>stables</div>
           <div class="priorite-chip chip-gris"><span class="n">${nbInconnu}</span>non concluants</div>
+          ${nbImpossible > 0 ? `<div class="priorite-chip chip-rouge"><span class="n">${nbImpossible}</span>stock négatif</div>` : ''}
         </div>
 
         <div class="kpi-grid">
@@ -363,11 +396,11 @@
         </div>
 
         ${aRecompter.length > 0 ? `
-        <div class="inventaire-card">
+        <div class="inventaire-card" id="carteInventaire" style="cursor:pointer;">
           <div class="inventaire-icon">📋</div>
           <div>
             <div class="inventaire-title">Inventaire conseillé aujourd'hui</div>
-            <div class="inventaire-detail">${aRecompter.length} produit${aRecompter.length>1?'s':''} · environ ${dureeMin} minute${dureeMin>1?'s':''}</div>
+            <div class="inventaire-detail">${aRecompter.length} produit${aRecompter.length>1?'s':''} · environ ${dureeMin} minute${dureeMin>1?'s':''} · <span style="text-decoration:underline;">voir la liste →</span></div>
           </div>
         </div>` : ''}
       </div>
@@ -377,9 +410,11 @@
       </div>
       <div class="filter-row" id="filterRow">
         <div class="filter-chip ${filtreActuel==='tous'?'active':''}" data-filtre="tous">Tous (${total})</div>
+        <div class="filter-chip ${filtreActuel==='recommande'?'active':''}" data-filtre="recommande">📋 Recommandés (${aRecompter.length})</div>
         <div class="filter-chip ${filtreActuel==='verifier'?'active':''}" data-filtre="verifier">🔴 À vérifier (${nbVerifier})</div>
         <div class="filter-chip ${filtreActuel==='surveiller'?'active':''}" data-filtre="surveiller">🟡 À surveiller (${nbSurveiller})</div>
         <div class="filter-chip ${filtreActuel==='sensibles'?'active':''}" data-filtre="sensibles">⭐ Sensibles (${sensibles.length})</div>
+        ${nbImpossible > 0 ? `<div class="filter-chip ${filtreActuel==='impossible'?'active':''}" data-filtre="impossible">⚠️ Stock négatif (${nbImpossible})</div>` : ''}
       </div>
 
       <div class="section" id="listeProduits"></div>
@@ -393,6 +428,8 @@
     document.querySelectorAll('.filter-chip').forEach(chip => {
       chip.addEventListener('click', () => { filtreActuel = chip.dataset.filtre; renderRoot(); });
     });
+    const carteInv = document.getElementById('carteInventaire');
+    if (carteInv) carteInv.addEventListener('click', () => { filtreActuel = 'recommande'; renderRoot(); });
   }
 
   function genererMessageConseiller(nbVerifier, nbSurveiller, risqueEstime, aRecompter) {
@@ -413,10 +450,12 @@
     if (filtreActuel === 'verifier') liste = liste.filter(p => p.etat === 'verifier');
     else if (filtreActuel === 'surveiller') liste = liste.filter(p => p.etat === 'surveiller');
     else if (filtreActuel === 'sensibles') liste = liste.filter(p => p.etoiles >= 3);
+    else if (filtreActuel === 'recommande') liste = liste.filter(p => LISTE_RECOMMANDEE.has(p.article));
+    else if (filtreActuel === 'impossible') liste = liste.filter(p => p.etat === 'impossible');
 
     if (q) liste = liste.filter(p => p.article.toLowerCase().includes(q));
 
-    const ordre = { verifier: 0, surveiller: 1, inconnu: 2, stable: 3 };
+    const ordre = { impossible: -1, verifier: 0, surveiller: 1, inconnu: 2, stable: 3 };
     liste.sort((a, b) => (ordre[a.etat] - ordre[b.etat]) || (b.risqueEur - a.risqueEur));
 
     const el = document.getElementById('listeProduits');
