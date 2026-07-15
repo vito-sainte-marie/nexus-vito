@@ -9,7 +9,9 @@ const NEXUS_SUPABASE_ANON_KEY = "sb_publishable_7dV43gZxDYg6MOa6xzmdDQ_m8Mean5p"
 const nexusClient = supabase.createClient(NEXUS_SUPABASE_URL, NEXUS_SUPABASE_ANON_KEY);
 
 // Vérifie qu'une session existe, sinon renvoie vers l'écran de connexion.
-// Retourne les infos de l'employé connecté (id, username, nom, role) si OK.
+// Retourne les infos de l'employé connecté (id, username, nom, role,
+// est_createur, site_id) si OK. est_createur et site_id ajoutés le
+// 15/07/2026 — fondation multi-site, voir migration-multisite-fondation.sql.
 async function nexusRequireAuth() {
   const { data: { session } } = await nexusClient.auth.getSession();
 
@@ -20,7 +22,7 @@ async function nexusRequireAuth() {
 
   const { data: employee, error } = await nexusClient
     .from("employees")
-    .select("id, username, nom, role")
+    .select("id, username, nom, role, est_createur, site_id")
     .eq("id", session.user.id)
     .single();
 
