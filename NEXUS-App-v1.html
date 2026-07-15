@@ -297,6 +297,18 @@
     </a>
   </nav>
 
+  <div class="section-label" data-role="createur" style="display:none;">Créateur</div>
+  <nav data-role="createur" data-group="createur" style="display:none;">
+    <a class="nav-item" data-role="createur" href="NEXUS-Admin-Sites-v1.html">
+      <div class="nav-icon">⚙️</div>
+      <div class="nav-body">
+        <div class="nav-title">Administration multi-site</div>
+        <div class="nav-desc">Nom, logo et création de nouveaux sites</div>
+      </div>
+      <div class="nav-arrow">→</div>
+    </a>
+  </nav>
+
   <footer>NEXUS v1 · Sprint 1 · 07/07/2026 · Vito Sainte-Marie Usine — toutes catégories</footer>
 </div>
 
@@ -340,6 +352,32 @@
       document.getElementById('heroManager').style.display = 'none';
       document.querySelectorAll('[data-role="manager"]').forEach(el => el.style.display = 'none');
     }
+
+    if (employee.est_createur) {
+      document.querySelectorAll('[data-role="createur"]').forEach(el => el.style.display = '');
+    }
+
+    // Marque dynamique — lit la table `sites` pour le site de l'employe
+    // connecte. Fondation multi-site (15/07/2026) : le site vient encore de
+    // employee.site_id, initialise a 'vito-sainte-marie' pour tout le monde
+    // tant que la migration complete n'est pas terminee.
+    (async function chargerMarqueSite() {
+      const siteId = employee.site_id || 'vito-sainte-marie';
+      const { data: site, error } = await nexusClient.from('sites').select('nom_entreprise, logo_url').eq('site_id', siteId).maybeSingle();
+      if (error || !site) return;
+      const titre = document.getElementById('stationTitle');
+      if (titre && site.nom_entreprise) titre.textContent = site.nom_entreprise;
+      if (site.logo_url) {
+        const mark = document.querySelector('.header .mark');
+        if (mark) {
+          const img = document.createElement('img');
+          img.src = site.logo_url;
+          img.alt = site.nom_entreprise || 'Logo';
+          img.style.cssText = 'width:22px; height:22px; border-radius:6px; object-fit:cover; vertical-align:middle; margin-right:6px;';
+          mark.prepend(img);
+        }
+      }
+    })();
 
     (function verifierRappelsUrgents() {
       const CAL_FOURNISSEURS = {

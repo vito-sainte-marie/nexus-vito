@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NEXUS — Administration</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="nexus-auth.js"></script>
+<style>
+  :root{
+    --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
+    --text:#EDF1F5; --text-mid:#8A96A5; --text-dim:#57626F;
+    --green:#34D399; --green-dim:#153629;
+    --amber:#F5A623; --amber-dim:#3A2E14;
+    --red:#F0575A; --red-dim:#3A1D1F;
+    --cyan:#4FC3D9;
+    --mono:'IBM Plex Mono',monospace; --sans:'IBM Plex Sans',sans-serif;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{background:var(--bg); font-family:var(--sans); color:var(--text);}
+  body{display:flex; justify-content:center; min-height:100vh;}
+  .phone{width:100%; max-width:480px; min-height:100vh; display:flex; flex-direction:column; border-left:1px solid var(--hairline); border-right:1px solid var(--hairline);}
+
+  .header{padding:20px 20px 14px; position:relative;}
+  .menu-btn{
+    position:absolute; top:18px; right:18px; display:flex; align-items:center; gap:6px;
+    font-family:var(--mono); font-size:10.5px; font-weight:600; letter-spacing:0.03em; text-transform:uppercase;
+    color:var(--cyan); background:rgba(79,195,217,0.1); border:1px solid rgba(79,195,217,0.3);
+    border-radius:20px; padding:7px 12px; text-decoration:none; white-space:nowrap; z-index:5;
+  }
+  .eyebrow{font-family:var(--mono); font-size:11px; letter-spacing:0.12em; text-transform:uppercase; color:var(--amber);}
+  .title{font-size:20px; font-weight:600; margin-top:4px;}
+  .subtitle{font-family:var(--mono); font-size:10.5px; color:var(--text-dim); margin-top:4px;}
+  .divider{height:1px; background:var(--hairline); margin:0 20px;}
+
+  .warning-band{
+    margin:14px 20px 0; padding:12px 14px; background:var(--amber-dim); border:1px solid rgba(245,166,35,0.3);
+    border-radius:10px; font-size:11.5px; color:var(--amber); line-height:1.6;
+  }
+
+  .section{padding:16px 20px;}
+  .card{background:var(--panel); border:1px solid var(--hairline); border-radius:12px; padding:18px; margin-bottom:14px;}
+  .section-label{font-family:var(--mono); font-size:10.5px; letter-spacing:0.08em; text-transform:uppercase; color:var(--text-dim); margin-bottom:12px; display:flex; align-items:center; gap:8px;}
+  .section-label::after{content:''; flex:1; height:1px; background:var(--hairline);}
+
+  .site-row{display:flex; align-items:center; gap:12px; padding:12px; border-radius:10px; cursor:pointer; border:1px solid transparent;}
+  .site-row:hover, .site-row.active{background:var(--panel-raised); border-color:var(--hairline);}
+  .site-logo{width:38px; height:38px; border-radius:9px; object-fit:cover; background:var(--panel-raised); flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:14px; color:var(--text-dim);}
+  .site-name{font-size:13.5px; font-weight:600;}
+  .site-id{font-family:var(--mono); font-size:10px; color:var(--text-dim); margin-top:2px;}
+
+  .field{margin-bottom:14px;}
+  .field label{font-family:var(--mono); font-size:10px; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.04em; display:block; margin-bottom:6px;}
+  .field input[type=text], .field input[type=color]{
+    width:100%; background:var(--panel-raised); border:1px solid var(--hairline); border-radius:8px;
+    padding:11px 12px; color:var(--text); font-family:var(--sans); font-size:13.5px;
+  }
+  .field input[type=color]{height:42px; padding:4px; cursor:pointer;}
+  .logo-preview{display:flex; align-items:center; gap:12px; margin-bottom:10px;}
+  .logo-preview img{width:56px; height:56px; border-radius:12px; object-fit:cover; background:var(--panel-raised);}
+  .logo-preview .none{width:56px; height:56px; border-radius:12px; background:var(--panel-raised); display:flex; align-items:center; justify-content:center; font-size:20px; color:var(--text-dim); border:1px dashed var(--hairline);}
+
+  .btn{width:100%; padding:12px; border:none; border-radius:8px; font-size:13px; font-weight:600; cursor:pointer; margin-top:4px;}
+  .btn-primary{background:var(--cyan); color:#04141a;}
+  .btn-secondary{background:transparent; color:var(--text-mid); border:1px solid var(--hairline);}
+  .btn:disabled{opacity:0.4; cursor:not-allowed;}
+
+  .msg{font-size:12px; margin-top:10px; padding:9px; border-radius:8px; text-align:center; display:none;}
+  .msg.ok{background:var(--green-dim); color:var(--green); display:block;}
+  .msg.err{background:var(--red-dim); color:var(--red); display:block;}
+
+  .locked{padding:60px 20px; text-align:center; color:var(--text-dim); font-size:13px;}
+  .loading{padding:60px 20px; text-align:center; color:var(--text-dim); font-size:13px;}
+
+  footer{margin-top:auto; padding:16px 20px 24px; font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:center; border-top:1px solid var(--hairline);}
+</style>
+</head>
+<body>
+<div class="phone">
+  <div class="header">
+    <a href="NEXUS-App-v1.html" class="menu-btn">☰ Menu</a>
+    <div class="eyebrow">NEXUS · Créateur</div>
+    <div class="title">Administration multi-site</div>
+    <div class="subtitle">Réservé au compte créateur</div>
+  </div>
+  <div class="divider"></div>
+  <div class="warning-band">⚠ Cet écran configure le <b>nom et le logo</b> d'un site. Il ne crée pas encore d'isolation complète des données — tant que la migration multi-site n'est pas terminée, un nouveau site partage employés, missions et pointages avec les sites existants. Voir la note de suivi fournie séparément.</div>
+
+  <div class="section" id="root">
+    <div class="loading">Chargement…</div>
+  </div>
+
+  <footer>NEXUS Administration v1 · Accès créateur uniquement</footer>
+</div>
+
+<script>
+  let SITES = [];
+  let siteActifId = null;
+
+  async function chargerSites() {
+    const { data, error } = await nexusClient.from('sites').select('*').order('created_at', { ascending: true });
+    if (error) { console.error('Chargement sites:', error); return []; }
+    return data || [];
+  }
+
+  async function uploaderLogo(siteId, file) {
+    const ext = (file.name && file.name.includes('.')) ? file.name.split('.').pop().toLowerCase() : 'png';
+    const chemin = `${siteId}-${Date.now()}.${ext}`;
+    const { error: erreurUpload } = await nexusClient.storage
+      .from('logos-sites')
+      .upload(chemin, file, { contentType: file.type || 'image/png', upsert: true });
+    if (erreurUpload) { console.error('Upload logo:', erreurUpload); return null; }
+    const { data } = nexusClient.storage.from('logos-sites').getPublicUrl(chemin);
+    return data.publicUrl;
+  }
+
+  function renderRoot() {
+    const root = document.getElementById('root');
+    const siteActif = SITES.find(s => s.site_id === siteActifId) || SITES[0];
+    if (siteActif) siteActifId = siteActif.site_id;
+
+    root.innerHTML = `
+      <div class="card">
+        <div class="section-label">Sites configurés (${SITES.length})</div>
+        <div id="listeSites"></div>
+      </div>
+
+      ${siteActif ? `
+      <div class="card">
+        <div class="section-label">Marque — ${siteActif.site_id}</div>
+        <div class="logo-preview">
+          ${siteActif.logo_url ? `<img src="${siteActif.logo_url}" alt="">` : `<div class="none">?</div>`}
+          <div>
+            <input type="file" id="inputLogo" accept="image/*" style="display:none;">
+            <button class="btn btn-secondary" id="btnChoisirLogo" style="margin-top:0; width:auto; padding:9px 14px;">Changer le logo</button>
+          </div>
+        </div>
+        <div class="field">
+          <label>Nom de l'entreprise</label>
+          <input type="text" id="champNom" value="${siteActif.nom_entreprise || ''}">
+        </div>
+        <div class="field">
+          <label>Couleur d'accent</label>
+          <input type="color" id="champCouleur" value="${siteActif.couleur_accent || '#4FC3D9'}">
+        </div>
+        <button class="btn btn-primary" id="btnEnregistrer">Enregistrer</button>
+        <div class="msg" id="msgSite"></div>
+      </div>` : ''}
+
+      <div class="card">
+        <div class="section-label">Créer un nouveau site</div>
+        <div class="field">
+          <label>Identifiant technique (slug, sans espace)</label>
+          <input type="text" id="champNouvId" placeholder="boulangerie-dupont">
+        </div>
+        <div class="field">
+          <label>Nom de l'entreprise</label>
+          <input type="text" id="champNouvNom" placeholder="Boulangerie Dupont">
+        </div>
+        <button class="btn btn-primary" id="btnCreerSite">Créer ce site</button>
+        <div class="msg" id="msgNouveau"></div>
+      </div>
+    `;
+
+    document.getElementById('listeSites').innerHTML = SITES.map(s => `
+      <div class="site-row ${s.site_id === siteActifId ? 'active' : ''}" data-id="${s.site_id}">
+        ${s.logo_url ? `<img class="site-logo" src="${s.logo_url}" alt="">` : `<div class="site-logo">?</div>`}
+        <div>
+          <div class="site-name">${s.nom_entreprise}</div>
+          <div class="site-id">${s.site_id}</div>
+        </div>
+      </div>`).join('');
+
+    document.querySelectorAll('.site-row').forEach(el => {
+      el.addEventListener('click', () => { siteActifId = el.dataset.id; renderRoot(); });
+    });
+
+    if (siteActif) {
+      let logoFile = null;
+      document.getElementById('btnChoisirLogo').addEventListener('click', () => document.getElementById('inputLogo').click());
+      document.getElementById('inputLogo').addEventListener('change', (e) => { logoFile = e.target.files[0] || null; });
+
+      document.getElementById('btnEnregistrer').addEventListener('click', async () => {
+        const btn = document.getElementById('btnEnregistrer');
+        const msg = document.getElementById('msgSite');
+        btn.disabled = true; btn.textContent = 'Enregistrement…';
+
+        let logoUrl = siteActif.logo_url;
+        if (logoFile) {
+          const nouveauLogo = await uploaderLogo(siteActif.site_id, logoFile);
+          if (!nouveauLogo) {
+            msg.textContent = "Erreur lors de l'envoi du logo — le reste a été annulé, réessayez.";
+            msg.className = 'msg err';
+            btn.disabled = false; btn.textContent = 'Enregistrer';
+            return;
+          }
+          logoUrl = nouveauLogo;
+        }
+
+        const { error } = await nexusClient.from('sites').update({
+          nom_entreprise: document.getElementById('champNom').value.trim(),
+          couleur_accent: document.getElementById('champCouleur').value,
+          logo_url: logoUrl,
+        }).eq('site_id', siteActif.site_id);
+
+        btn.disabled = false; btn.textContent = 'Enregistrer';
+        if (error) { console.error('Enregistrement site:', error); msg.textContent = 'Erreur — réessayez.'; msg.className = 'msg err'; return; }
+
+        msg.textContent = '✓ Enregistré.';
+        msg.className = 'msg ok';
+        SITES = await chargerSites();
+        renderRoot();
+      });
+    }
+
+    document.getElementById('btnCreerSite').addEventListener('click', async () => {
+      const btn = document.getElementById('btnCreerSite');
+      const msg = document.getElementById('msgNouveau');
+      const id = document.getElementById('champNouvId').value.trim().toLowerCase().replace(/[^a-z0-9-]/g, '-');
+      const nom = document.getElementById('champNouvNom').value.trim();
+      if (!id || !nom) {
+        msg.textContent = 'Identifiant et nom sont obligatoires.';
+        msg.className = 'msg err';
+        return;
+      }
+      btn.disabled = true; btn.textContent = 'Création…';
+      const { error } = await nexusClient.from('sites').insert({ site_id: id, nom_entreprise: nom });
+      btn.disabled = false; btn.textContent = 'Créer ce site';
+      if (error) {
+        console.error('Création site:', error);
+        msg.textContent = error.code === '23505' ? 'Cet identifiant existe déjà.' : 'Erreur — réessayez.';
+        msg.className = 'msg err';
+        return;
+      }
+      msg.textContent = `✓ Site "${nom}" créé — branding uniquement, isolation des données non incluse (voir bandeau ci-dessus).`;
+      msg.className = 'msg ok';
+      siteActifId = id;
+      SITES = await chargerSites();
+      renderRoot();
+    });
+  }
+
+  nexusRequireAuth().then(async employee => {
+    if (!employee) return; // nexus-auth.js gère déjà la redirection vers NEXUS-Login-v1.html
+    if (!employee.est_createur) {
+      document.getElementById('root').innerHTML = `<div class="locked">Cet écran est réservé au compte créateur.</div>`;
+      return;
+    }
+    SITES = await chargerSites();
+    renderRoot();
+  });
+</script>
+</body>
+</html>

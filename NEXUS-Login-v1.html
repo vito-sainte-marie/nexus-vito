@@ -77,7 +77,7 @@
 
   <div class="logo-footer">
     <img src="assets/nexus-logo-cyan.png" alt="NEXUS">
-    <div class="logo-caption">Vito Sainte-Marie Usine · NEXUS v1</div>
+    <div class="logo-caption" id="logoCaption">Vito Sainte-Marie Usine · NEXUS v1</div>
   </div>
 
   <div class="note">Connexion sécurisée · Supabase Auth</div>
@@ -87,6 +87,16 @@
   const SUPABASE_URL = "https://uzhjpqpctpvxytxpxoqz.supabase.co";
   const SUPABASE_ANON_KEY = "sb_publishable_7dV43gZxDYg6MOa6xzmdDQ_m8Mean5p";
   const client = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  // Marque dynamique — tant qu'un seul site existe reellement, on affiche
+  // celui par defaut. Une fois plusieurs sites operationnels, cet ecran
+  // devra savoir lequel afficher AVANT la connexion (sous-domaine, ou choix
+  // explicite) — pas encore construit, note dans le suivi multi-site.
+  (async function chargerMarqueLogin() {
+    const { data: site } = await client.from('sites').select('nom_entreprise').eq('site_id', 'vito-sainte-marie').maybeSingle();
+    const caption = document.getElementById('logoCaption');
+    if (site && site.nom_entreprise && caption) caption.textContent = `${site.nom_entreprise} · NEXUS v1`;
+  })();
 
   // Si déjà connecté, on saute directement l'écran de login
   client.auth.getSession().then(({ data: { session } }) => {
