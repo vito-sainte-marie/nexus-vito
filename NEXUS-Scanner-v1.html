@@ -64,9 +64,9 @@ a{color:inherit; text-decoration:none;}
 .lever-card:active{border-color:rgba(79,195,217,0.4);}
 .lever-toggle{font-family:var(--mono); font-size:9.5px; color:var(--cyan); opacity:0.75; margin-top:8px; display:flex; align-items:center; gap:4px;}
 .lever-toggle .chev{transition:transform .15s; display:inline-block;}
-.lever-card.open .lever-toggle .chev{transform:rotate(90deg);}
+.lever-card.open .lever-toggle .chev, .mini-panel.open .lever-toggle .chev{transform:rotate(90deg);}
 .lever-detail{display:none; margin-top:12px; padding-top:12px; border-top:1px solid var(--hairline);}
-.lever-card.open .lever-detail{display:block;}
+.lever-card.open .lever-detail, .mini-panel.open .lever-detail{display:block;}
 .detail-row{display:flex; justify-content:space-between; align-items:baseline; padding:5px 0; font-size:11px; gap:8px;}
 .detail-row .dn{color:var(--text-mid); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
 .detail-row .dv{font-family:var(--mono); color:var(--text); flex-shrink:0;}
@@ -205,12 +205,21 @@ a{color:inherit; text-decoration:none;}
   // (A jusqu'a 80% du CA cumule, B jusqu'a 95%, C le reste) — meme logique
   // que la classification ABC deja utilisee sur NEXUS Pilot.
   function construireStats(rows) {
-    const caTotal = rows.reduce((s,r) => s + (r.ca || 0), 0);
-    const margeTotal = rows.reduce((s,r) => s + (r.marge || 0), 0);
+    // Anomalie = ligne dont le CA ou la marge n'a pas de sens economique
+    // (marge negative, marge superieure au CA, ou CA nul/negatif). Detectee
+    // AVANT les agregats et exclue de tous les calculs qui suivent — sinon
+    // une seule ligne aberrante peut fausser le pourcentage de toute une
+    // categorie (corrige le 15/07/2026 : "Tabac 53,7%" venait de la, pas
+    // d'une vraie marge).
+    const anomalies = rows.filter(r => (r.ca||0) <= 0 || (r.marge||0) < 0 || (r.marge||0) > (r.ca||0));
+    const rowsPropres = rows.filter(r => !anomalies.includes(r));
+
+    const caTotal = rowsPropres.reduce((s,r) => s + (r.ca || 0), 0);
+    const margeTotal = rowsPropres.reduce((s,r) => s + (r.marge || 0), 0);
     const nbRefs = rows.length;
 
     const parCategorie = {};
-    rows.forEach(r => {
+    rowsPropres.forEach(r => {
       if (!parCategorie[r.categorie]) parCategorie[r.categorie] = { categorie: r.categorie, ca: 0, marge: 0 };
       parCategorie[r.categorie].ca += (r.ca || 0);
       parCategorie[r.categorie].marge += (r.marge || 0);
@@ -232,10 +241,6 @@ a{color:inherit; text-decoration:none;}
 
     const top5CA = [...catArr].sort((a,b) => b.ca - a.ca).slice(0,5);
     const top5Marge = [...catArr].sort((a,b) => b.marge - a.marge).slice(0,5);
-
-    // Anomalie = ligne dont le CA ou la marge n'a pas de sens economique
-    // (marge negative, marge superieure au CA, ou CA nul/negatif).
-    const anomalies = rows.filter(r => (r.ca||0) <= 0 || (r.marge||0) < 0 || (r.marge||0) > (r.ca||0));
 
     return { caTotal, margeTotal, nbRefs, nbCategories, classes, top5CA, top5Marge, anomalies, catArr };
   }
