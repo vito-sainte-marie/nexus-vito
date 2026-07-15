@@ -199,6 +199,132 @@
     renderRoot();
   }
 
+  // Correction ponctuelle — les futurs imports classent deja correctement
+  // les produits CBD (voir NEXUS-Import-v1.html, corrigerCategorie()), mais
+  // ce qui a ete importe AVANT cette correction reste mal classe en base
+  // tant que personne ne le corrige explicitement. Rejouable sans risque :
+  // une fois toutes les lignes reclassees, il n'y a plus rien a corriger.
+  async function corrigerCategoriesCBD() {
+    const msg = document.getElementById('msgCBD');
+    const btn = document.getElementById('btnCorrigerCBD');
+    msg.className = 'msg'; msg.textContent = '';
+
+    const { data: lignesConcernees, error: erreurRecherche } = await nexusClient
+      .from('products')
+      .select('categorie, article')
+      .eq('site', 'vito-sainte-marie')
+      .ilike('article', '%cbd%')
+      .neq('categorie', 'CBD');
+
+    if (erreurRecherche) {
+      console.error('Recherche CBD:', erreurRecherche);
+      msg.textContent = 'Erreur de recherche — réessayez.';
+      msg.className = 'msg err';
+      return;
+    }
+
+    if (!lignesConcernees || lignesConcernees.length === 0) {
+      msg.textContent = 'Rien à corriger — toutes les lignes CBD sont déjà classées correctement.';
+      msg.className = 'msg ok';
+      return;
+    }
+
+    const categoriesActuelles = [...new Set(lignesConcernees.map(l => l.categorie))].join(', ');
+    if (!confirm(`${lignesConcernees.length} ligne(s) contenant "CBD" sont actuellement classées sous : ${categoriesActuelles}. Les reclasser sous "CBD" ?`)) return;
+
+    btn.disabled = true; btn.textContent = 'Correction en cours…';
+
+    const { error: erreurMaj } = await nexusClient
+      .from('products')
+      .update({ categorie: 'CBD' })
+      .eq('site', 'vito-sainte-marie')
+      .ilike('article', '%cbd%')
+      .neq('categorie', 'CBD');
+
+    btn.disabled = false; btn.textContent = 'Corriger les catégories CBD';
+
+    if (erreurMaj) {
+      console.error('Correction CBD:', erreurMaj);
+      msg.textContent = 'Erreur lors de la correction — réessayez.';
+      msg.className = 'msg err';
+      return;
+    }
+
+    msg.textContent = `✓ ${lignesConcernees.length} ligne(s) reclassée(s) sous "CBD".`;
+    msg.className = 'msg ok';
+  }
+
+  // Diagnostic doublons — compare le nombre total de lignes au nombre
+  // d'articles distincts par periode. Un ratio > 1 signifie que des articles
+  // apparaissent plusieurs fois pour la meme periode, signe d'un reimport
+  // qui a ajoute au lieu de remplacer (avant la correction du 15/07/2026).
+  async function diagnostiquerPeriodes() {
+    const msg = document.getElementById('msgPeriodes');
+    const zone = document.getElementById('resultatPeriodes');
+    msg.className = 'msg'; msg.textContent = '';
+    zone.innerHTML = '<div class="note">Analyse en cours…</div>';
+
+    const { data, error } = await nexusClient
+      .from('products')
+      .select('periode_debut, periode_fin, article')
+      .eq('site', 'vito-sainte-marie');
+
+    if (error) {
+      console.error('Diagnostic périodes:', error);
+      zone.innerHTML = '';
+      msg.textContent = 'Erreur de chargement — réessayez.';
+      msg.className = 'msg err';
+      return;
+    }
+
+    const parPeriode = {};
+    (data || []).forEach(r => {
+      const cle = `${r.periode_debut}|${r.periode_fin}`;
+      if (!parPeriode[cle]) parPeriode[cle] = { debut: r.periode_debut, fin: r.periode_fin, total: 0, articles: new Set() };
+      parPeriode[cle].total += 1;
+      parPeriode[cle].articles.add(r.article);
+    });
+
+    const periodes = Object.values(parPeriode).map(p => ({
+      ...p, distincts: p.articles.size, ratio: p.articles.size > 0 ? p.total / p.articles.size : 0,
+    })).sort((a,b) => a.debut.localeCompare(b.debut));
+
+    if (periodes.length === 0) {
+      zone.innerHTML = '<div class="empty-note">Aucune donnée dans products pour l\'instant.</div>';
+      return;
+    }
+
+    zone.innerHTML = periodes.map(p => {
+      const suspect = p.ratio >= 1.5;
+      return `
+        <div class="kv-row" style="flex-direction:column; align-items:stretch; gap:4px; padding:10px 0;">
+          <div style="display:flex; justify-content:space-between;">
+            <span class="kv-key">${p.debut} → ${p.fin}</span>
+            <span class="kv-val" style="color:${suspect?'var(--red)':'var(--green)'};">${p.total} ligne${p.total>1?'s':''} · ${p.distincts} article${p.distincts>1?'s':''} distinct${p.distincts>1?'s':''}${suspect?' ⚠ doublon probable':''}</span>
+          </div>
+          ${suspect ? `<button class="btn btn-danger" style="margin-top:4px;" data-debut="${p.debut}" data-fin="${p.fin}" onclick="supprimerPeriode(this)">Supprimer cette période (pour réimporter proprement)</button>` : ''}
+        </div>`;
+    }).join('');
+
+    msg.textContent = `${periodes.length} période(s) analysée(s).`;
+    msg.className = 'msg ok';
+  }
+
+  async function supprimerPeriode(btn) {
+    const debut = btn.dataset.debut, fin = btn.dataset.fin;
+    if (!confirm(`Supprimer TOUTES les lignes products de la période ${debut} → ${fin} ? Cette action est irréversible — réimportez ensuite le fichier propre depuis Import.`)) return;
+    btn.disabled = true; btn.textContent = 'Suppression…';
+    const { error } = await nexusClient.from('products').delete()
+      .eq('site', 'vito-sainte-marie').eq('periode_debut', debut).eq('periode_fin', fin);
+    if (error) {
+      console.error('Suppression période:', error);
+      alert('Erreur lors de la suppression — réessayez.');
+      btn.disabled = false; btn.textContent = 'Supprimer cette période (pour réimporter proprement)';
+      return;
+    }
+    diagnostiquerPeriodes();
+  }
+
   function renderRoot() {
     const etat = etatLocalStorage();
     const root = document.getElementById('root');
@@ -231,6 +357,21 @@
         <div class="msg" id="msgMigration"></div>
       </div>
 
+      <div class="card">
+        <div class="section-label">Correction ponctuelle — Catégories CBD</div>
+        <p class="note" style="margin-top:0;">Reclasse sous "CBD" toute ligne déjà importée dans <code>products</code> dont l'article contient "CBD" mais qui est encore classée ailleurs (ex : sous "Tabac"). Corrige l'historique déjà en base — les futurs imports sont déjà corrigés automatiquement. Sans danger à relancer plusieurs fois.</p>
+        <button class="btn btn-primary" id="btnCorrigerCBD">Corriger les catégories CBD</button>
+        <div class="msg" id="msgCBD"></div>
+      </div>
+
+      <div class="card">
+        <div class="section-label">Diagnostic — Doublons de période (products)</div>
+        <p class="note" style="margin-top:0;">L'import ne remplace pas automatiquement une période déjà envoyée (sauf depuis la correction du 15/07/2026) — un réimport avant cette date a pu créer des doublons. Ce diagnostic compte les lignes par période pour repérer un total anormalement élevé.</p>
+        <button class="btn btn-primary" id="btnDiagPeriodes">Analyser les périodes</button>
+        <div id="resultatPeriodes"></div>
+        <div class="msg" id="msgPeriodes"></div>
+      </div>
+
       <div class="card danger">
         <div class="section-label">Zone sensible</div>
         <button class="btn btn-danger" id="btnReset">Réinitialiser toutes les données locales de cet appareil</button>
@@ -240,6 +381,8 @@
     `;
 
     document.getElementById('btnMigrer').addEventListener('click', migrerPointagesVersSupabase);
+    document.getElementById('btnCorrigerCBD').addEventListener('click', corrigerCategoriesCBD);
+    document.getElementById('btnDiagPeriodes').addEventListener('click', diagnostiquerPeriodes);
 
     document.getElementById('btnNettoyer').addEventListener('click', () => {
       const brut = document.getElementById('nomCible').value;

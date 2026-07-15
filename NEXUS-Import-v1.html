@@ -339,6 +339,17 @@ function toNumber(v){
   return isNaN(n) ? NaN : n;
 }
 
+// Correction automatique de categorisation — trouvee le 15/07/2026 : Decenium
+// range parfois des produits CBD sous la categorie generique "Tabac", ce qui
+// noie leur marge (non reglementee, ~50%) avec celle du vrai tabac a rouler
+// (reglementee, ~14%) et fausse la lecture par categorie dans Scanner NEXUS.
+// Regle : si le nom de l'article contient "CBD", la categorie devient "CBD"
+// quel que soit ce que dit l'export d'origine.
+function corrigerCategorie(categorieBrute, article) {
+  if (/cbd/i.test(article || '')) return 'CBD';
+  return categorieBrute;
+}
+
 function renderMapping(mapping){
   mappingGrid.innerHTML = '';
   FIELD_DEFS.forEach(f=>{
@@ -360,20 +371,20 @@ function renderPreview(headers, rows){
 }
 
 function computeSummary(mapping, rows){
-  const catKey = mapping['categorie'], qKey = mapping['quantite'], pvKey = mapping['prix_vente'];
+  const catKey = mapping['categorie'], qKey = mapping['quantite'], pvKey = mapping['prix_vente'], artKey = mapping['article'];
   const cats = new Set();
   let ca = 0, anomalies = 0;
   const catTotals = {};
   rows.forEach(r=>{
-    if (catKey && r[catKey]) cats.add(r[catKey]);
+    const categorieCorrigee = catKey && r[catKey] ? corrigerCategorie(r[catKey], artKey ? r[artKey] : '') : null;
+    if (categorieCorrigee) cats.add(categorieCorrigee);
     const q = qKey ? toNumber(r[qKey]) : NaN;
     const pv = pvKey ? toNumber(r[pvKey]) : NaN;
     const lineCA = (!isNaN(q) && !isNaN(pv)) ? q*pv : 0;
     ca += lineCA;
     if ((pvKey && (isNaN(pv) || pv<=0)) || (qKey && (isNaN(q) || q<0))) anomalies++;
-    if (catKey && r[catKey]){
-      const c = r[catKey];
-      catTotals[c] = (catTotals[c]||0) + lineCA;
+    if (categorieCorrigee){
+      catTotals[categorieCorrigee] = (catTotals[categorieCorrigee]||0) + lineCA;
     }
   });
   cleanedSummary = Object.entries(catTotals).map(([Categorie, CA_estime])=>({Categorie, CA_estime: Math.round(CA_estime*100)/100}))
@@ -473,6 +484,41 @@ async function envoyerVentes(msg) {
     return;
   }
 
+  // Verifie qu'on ne va pas dupliquer une periode deja importee — envoyerParLots
+  // ne fait qu'ajouter, jamais remplacer. Sans ce controle, reimporter la meme
+  // periode double silencieusement le CA et la marge partout dans l'app
+  // (trouve le 15/07/2026, apres un reimport de T1 et T2).
+  const { count: nbExistant, error: erreurVerif } = await nexusClient
+    .from('products')
+    .select('id', { count: 'exact', head: true })
+    .eq('site', 'vito-sainte-marie')
+    .eq('periode_debut', debut)
+    .eq('periode_fin', fin);
+
+  if (erreurVerif) { console.error('Vérification période existante:', erreurVerif); }
+
+  if (nbExistant && nbExistant > 0) {
+    const remplacer = confirm(`${nbExistant} ligne(s) existent déjà pour cette période (${debut} → ${fin}). Les remplacer par ce nouvel import ? (Annuler = ne rien envoyer, pour éviter un doublon)`);
+    if (!remplacer) {
+      msg.textContent = "Import annulé — rien n'a été envoyé.";
+      msg.style.color = 'var(--text-mid)';
+      return;
+    }
+    sendPilot.textContent = 'Suppression des anciennes lignes…';
+    sendPilot.style.pointerEvents = 'none';
+    const { error: erreurSuppr } = await nexusClient
+      .from('products').delete()
+      .eq('site', 'vito-sainte-marie').eq('periode_debut', debut).eq('periode_fin', fin);
+    if (erreurSuppr) {
+      console.error('Suppression avant remplacement:', erreurSuppr);
+      msg.textContent = "Erreur lors du remplacement — rien n'a été modifié, réessayez.";
+      msg.style.color = 'var(--red)';
+      sendPilot.textContent = 'Envoyer';
+      sendPilot.style.pointerEvents = 'auto';
+      return;
+    }
+  }
+
   sendPilot.textContent = 'Envoi en cours…';
   sendPilot.style.pointerEvents = 'none';
 
@@ -482,12 +528,13 @@ async function envoyerVentes(msg) {
     const pv = pvKey ? toNumber(r[pvKey]) : NaN;
     const ca = (!isNaN(q) && !isNaN(pv)) ? q * pv : 0;
     const marge = (!isNaN(q) && !isNaN(pa) && !isNaN(pv)) ? q * (pv - pa) : 0;
+    const articleNom = String(r[artKey] || '');
     return {
       site: 'vito-sainte-marie',
       periode_debut: debut,
       periode_fin: fin,
-      categorie: String(r[catKey] || 'Non classé'),
-      article: String(r[artKey] || ''),
+      categorie: corrigerCategorie(String(r[catKey] || 'Non classé'), articleNom),
+      article: articleNom,
       code_barres: cbKey ? String(r[cbKey] || '').replace(/[\s\u00a0\u202f]+/g, '').trim() || null : null,
       quantite: isNaN(q) ? null : q,
       prix_achat: isNaN(pa) ? null : pa,
@@ -537,11 +584,12 @@ async function envoyerStockInstantane(msg) {
 
   const lignes = currentRows.map(r => {
     const q = toNumber(r[qKey]);
+    const articleNom = String(r[artKey] || '');
     return {
       site: 'vito-sainte-marie',
       releve_le: releveLe,
-      categorie: catKey ? String(r[catKey] || 'Non classé') : null,
-      article: String(r[artKey] || ''),
+      categorie: catKey ? corrigerCategorie(String(r[catKey] || 'Non classé'), articleNom) : null,
+      article: articleNom,
       code_barres: cbKey ? String(r[cbKey] || '').replace(/[\s\u00a0\u202f]+/g, '').trim() || null : null,
       quantite_theorique: isNaN(q) ? 0 : q,
       importe_par: employee.id,
