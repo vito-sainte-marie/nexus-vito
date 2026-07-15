@@ -433,10 +433,14 @@
     employeActuel = employee.nom;
     employeeId = employee.id;
 
-    roleDuJour = await chargerShiftAujourdhui(employeeId);
-    if (!roleDuJour) {
-      window.location.href = 'NEXUS-Prise-De-Poste-v1.html';
-      return;
+    if (!employee.consultation_externe) {
+      roleDuJour = await chargerShiftAujourdhui(employeeId);
+      if (!roleDuJour) {
+        window.location.href = 'NEXUS-Prise-De-Poste-v1.html';
+        return;
+      }
+    } else {
+      roleDuJour = 'manager'; // vue d'ensemble par defaut pour une consultation externe
     }
 
     document.querySelector('.eyebrow').textContent = roleDuJour === 'manager' ? "NEXUS · Plans d'action" : 'NEXUS · Missions';

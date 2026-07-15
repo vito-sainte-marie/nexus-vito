@@ -147,6 +147,19 @@
         </div>
         <button class="btn btn-primary" id="btnEnregistrer">Enregistrer</button>
         <div class="msg" id="msgSite"></div>
+      </div>
+
+      <div class="card">
+        <div class="section-label">Accès et consultation — ${siteActif.site_id}</div>
+        <label style="display:flex; align-items:flex-start; gap:10px; cursor:pointer; margin-bottom:14px;">
+          <input type="checkbox" id="champConsentement" ${siteActif.acces_createur_autorise ? 'checked' : ''} style="margin-top:3px; width:16px; height:16px; flex-shrink:0;">
+          <span style="font-size:12.5px; color:var(--text-mid); line-height:1.5;">Ce client a donné son accord pour que le créateur consulte ses données (support, diagnostic). À ne cocher qu'après un accord réel obtenu en dehors de l'application.</span>
+        </label>
+        <button class="btn btn-secondary" id="btnEnregistrerConsentement" style="margin-top:0;">Enregistrer ce choix</button>
+        <div class="msg" id="msgConsentement"></div>
+        <div class="divider" style="margin:16px -18px;"></div>
+        <button class="btn btn-primary" id="btnConsulter" style="margin-top:0;">Consulter les données de ce site →</button>
+        <div class="msg" id="msgConsultation"></div>
       </div>` : ''}
 
       <div class="card">
@@ -212,6 +225,40 @@
         msg.className = 'msg ok';
         SITES = await chargerSites();
         renderRoot();
+      });
+
+      document.getElementById('btnEnregistrerConsentement').addEventListener('click', async () => {
+        const btn = document.getElementById('btnEnregistrerConsentement');
+        const msg = document.getElementById('msgConsentement');
+        const autorise = document.getElementById('champConsentement').checked;
+        btn.disabled = true; btn.textContent = 'Enregistrement…';
+
+        const { error } = await nexusClient.from('sites')
+          .update({ acces_createur_autorise: autorise })
+          .eq('site_id', siteActif.site_id);
+
+        btn.disabled = false; btn.textContent = 'Enregistrer ce choix';
+        if (error) { console.error('Enregistrement consentement:', error); msg.textContent = 'Erreur — réessayez.'; msg.className = 'msg err'; return; }
+
+        msg.textContent = autorise ? '✓ Accès autorisé pour ce site.' : '✓ Accès retiré pour ce site.';
+        msg.className = 'msg ok';
+        SITES = await chargerSites();
+        renderRoot();
+      });
+
+      // Le clic verifie le consentement cote client pour un message clair et
+      // immediat — mais la vraie protection est cote serveur (RLS) : meme en
+      // contournant ce bouton, aucune donnee ne remonterait sans le meme
+      // consentement verifie dans la base (voir migration-acces-createur.sql).
+      document.getElementById('btnConsulter').addEventListener('click', () => {
+        const msg = document.getElementById('msgConsultation');
+        if (!siteActif.acces_createur_autorise) {
+          msg.textContent = "Non habilité — ce site n'a pas donné son accord. Aucune donnée ne sera accessible.";
+          msg.className = 'msg err';
+          return;
+        }
+        localStorage.setItem('nexus_site_consulte_createur', siteActif.site_id);
+        window.location.href = 'NEXUS-App-v1.html';
       });
     }
 
