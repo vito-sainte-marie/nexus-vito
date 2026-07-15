@@ -421,11 +421,13 @@ a{color:inherit; text-decoration:none;}
 
       <div class="section">
         <div class="section-label">🏆 Top 5 catégories par chiffre d'affaires</div>
+        <div style="font-family:var(--mono); font-size:10.5px; color:var(--text-dim); margin:-6px 0 12px;">Classées par CA généré — le taux de marge est indiqué à titre d'information</div>
         ${renderTop5(stats.top5CA, 'ca')}
       </div>
 
       <div class="section">
         <div class="section-label">💰 Top 5 catégories par marge</div>
+        <div style="font-family:var(--mono); font-size:10.5px; color:var(--text-dim); margin:-6px 0 12px;">Classées par marge générée en euros, pas par taux — un fort volume à faible taux peut dépasser un petit volume à fort taux</div>
         ${renderTop5(stats.top5Marge, 'marge')}
       </div>
 
