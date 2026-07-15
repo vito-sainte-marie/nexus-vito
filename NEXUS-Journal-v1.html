@@ -137,9 +137,13 @@
     return journal.filter(d => d.date === AUJOURD_ISO);
   }
 
-  function chargerPointagesDuJour() {
-    const pointages = JSON.parse(localStorage.getItem('nexus_pointages') || '{}');
-    return pointages[AUJOURD_ISO] || {};
+  // Table Supabase pointages — remplace localStorage('nexus_pointages'), qui ne
+  // montrait que les pointages saisis sur cet appareil (corrige le 15/07/2026,
+  // migration Pointage vers Supabase).
+  async function chargerPointagesDuJour() {
+    const { data, error } = await nexusClient.from('pointages').select('employee_id, type, heure, retard_min').eq('date', AUJOURD_ISO);
+    if (error) { console.error('Chargement pointages:', error); return []; }
+    return data || [];
   }
 
   const LABEL_POINTAGE = { arrivee: 'Arrivée', pause_debut: 'Début de pause', pause_fin: 'Reprise', depart: 'Départ' };
@@ -177,15 +181,14 @@
       });
     });
 
-    Object.keys(pointages).forEach(emp => {
-      pointages[emp].forEach(p => {
-        const retard = p.type === 'arrivee' && p.retard_min > 0;
-        evts.push({
-          heure: (p.heure||'').slice(0,5), type: 'pointage', dot: retard ? 'dot-retard' : 'dot-pointage',
-          texte: `${emp} — ${LABEL_POINTAGE[p.type] || p.type}`,
-          meta: retard ? 'Retard enregistré' : '',
-          valeur: retard ? `+${p.retard_min} min` : '', valClasse: 'val-red',
-        });
+    pointages.forEach(p => {
+      const nom = equipe[p.employee_id] || 'Employé';
+      const retard = p.type === 'arrivee' && p.retard_min > 0;
+      evts.push({
+        heure: (p.heure||'').slice(0,5), type: 'pointage', dot: retard ? 'dot-retard' : 'dot-pointage',
+        texte: `${nom} — ${LABEL_POINTAGE[p.type] || p.type}`,
+        meta: retard ? 'Retard enregistré' : '',
+        valeur: retard ? `+${p.retard_min} min` : '', valClasse: 'val-red',
       });
     });
 
@@ -195,7 +198,7 @@
 
   function renderRoot(decisions, missions, pointages) {
     const valeurDecisions = decisions.reduce((s,d) => s + (d.impact_eur||0), 0);
-    const employesPointes = Object.keys(pointages).length;
+    const employesPointes = new Set(pointages.map(p => p.employee_id)).size;
 
     const root = document.getElementById('root');
     root.innerHTML = `
@@ -213,7 +216,7 @@
         <div id="timeline"></div>
       </div>
       <a class="centre-link" href="NEXUS-Centre-Intelligence-v1.html">🧠 Voir le Centre d'Intelligence NEXUS — comprendre le pourquoi</a>
-      <div class="source-note">Décisions et missions viennent de sources partagées, valables pour toute l'équipe. Les pointages sont enregistrés sur cet appareil uniquement, comme sur Résultats Équipe et Radar du Manager.</div>
+      <div class="source-note">Décisions, missions et pointages viennent tous de sources partagées, valables pour toute l'équipe et tous les appareils (migration Pointage terminée le 15/07/2026).</div>
     `;
 
     const filtresEl = document.getElementById('filtres');
@@ -255,9 +258,8 @@
       document.getElementById('root').innerHTML = `<div class="locked">Cet écran est réservé aux managers.</div>`;
       return;
     }
-    const [equipe, missions] = await Promise.all([chargerEquipe(), chargerMissionsDuJour()]);
+    const [equipe, missions, pointages] = await Promise.all([chargerEquipe(), chargerMissionsDuJour(), chargerPointagesDuJour()]);
     const decisions = chargerDecisionsDuJour();
-    const pointages = chargerPointagesDuJour();
     EVENEMENTS = construireEvenements(decisions, missions, pointages, equipe);
     renderRoot(decisions, missions, pointages);
   });
