@@ -403,13 +403,42 @@ function computeSummary(mapping, rows){
   statAnom.textContent = anomalies;
 }
 
+// Certains exports Decenium sont en realite des pages HTML deguisees en
+// .xls (deja vu avec valorisation-stock--2.xls). Dans ce cas, XLSX.js tente
+// de deviner les types de cellules depuis du texte et peut confondre une
+// virgule decimale francaise ("7,00") avec un separateur de milliers
+// anglo-saxon, ce qui transformait 7 en 700 (trouve le 15/07/2026). On
+// parse alors le HTML nous-memes, en gardant chaque cellule en texte brut
+// — c'est ensuite toNumber() (qui gere deja la virgule francaise) qui fait
+// la conversion, jamais XLSX.js.
+function parserTableHTML(html) {
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  const table = doc.querySelector('table');
+  if (!table) return [];
+  const trs = Array.from(table.querySelectorAll('tr')).filter(tr => tr.querySelectorAll('td,th').length > 0);
+  if (trs.length === 0) return [];
+  const headers = Array.from(trs[0].querySelectorAll('th,td')).map(td => td.textContent.trim());
+  return trs.slice(1).map(tr => {
+    const cells = Array.from(tr.querySelectorAll('td,th')).map(td => td.textContent.trim());
+    const obj = {};
+    headers.forEach((h,i) => { obj[h] = cells[i] !== undefined ? cells[i] : ''; });
+    return obj;
+  }).filter(r => Object.values(r).some(v => v !== ''));
+}
+
 function handleFile(file){
   const reader = new FileReader();
   reader.onload = function(e){
     const data = new Uint8Array(e.target.result);
-    const wb = XLSX.read(data, {type:'array'});
-    const sheet = wb.Sheets[wb.SheetNames[0]];
-    const rows = XLSX.utils.sheet_to_json(sheet, {defval:''});
+    const debut = new TextDecoder('utf-8').decode(data.slice(0, 512)).toLowerCase();
+    let rows;
+    if (debut.includes('<html') || debut.includes('<table')) {
+      rows = parserTableHTML(new TextDecoder('utf-8').decode(data));
+    } else {
+      const wb = XLSX.read(data, {type:'array'});
+      const sheet = wb.Sheets[wb.SheetNames[0]];
+      rows = XLSX.utils.sheet_to_json(sheet, {defval:''});
+    }
     if (!rows.length){ alert("Le fichier semble vide ou illisible."); return; }
     const headers = Object.keys(rows[0]);
     currentRows = rows; currentHeaders = headers;
