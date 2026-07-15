@@ -211,13 +211,13 @@
   };
 
   async function chargerProduitsAppel() {
-    const { data, error } = await nexusClient.from('produits_appel').select('article').eq('site', 'vito-sainte-marie');
+    const { data, error } = await nexusClient.from('produits_appel').select('article').eq('site', SITE_ACTUEL);
     if (error) { console.error(error); return new Set(); }
     return new Set((data || []).map(r => r.article));
   }
 
   async function marquerProduitAppel(article, employeeId) {
-    const { error } = await nexusClient.from('produits_appel').insert({ site: 'vito-sainte-marie', article, ajoute_par: employeeId });
+    const { error } = await nexusClient.from('produits_appel').insert({ site: SITE_ACTUEL, article, ajoute_par: employeeId });
     if (error) { console.error('Ajout produit d\u2019appel:', error); alert('Erreur — réessayez.'); return false; }
     return true;
   }
@@ -263,7 +263,7 @@
       fetchAllRows(() => nexusClient
         .from('products')
         .select('categorie, article, ca, marge, periode_debut, periode_fin')
-        .eq('site', 'vito-sainte-marie')
+        .eq('site', SITE_ACTUEL)
         .order('periode_debut', { ascending: false })
         .order('article', { ascending: true })),
       chargerProduitsAppel(),
@@ -526,6 +526,7 @@
   let filtreActif = 'Toutes';
   let PRENOM_MANAGER = '';
   let EMPLOYEE_ID_CIN = null;
+  let SITE_ACTUEL = 'vito-sainte-marie'; // ecrase par employee.site_id une fois connecte
   let PATTERNS = [];
   const AUJOURD_ISO_CIN = new Date().toISOString().slice(0,10);
   const FILTRES = ['Toutes', '🔥 À AGIR', '📈 OPPORTUNITÉ', '🟡 À SURVEILLER'];
@@ -696,6 +697,7 @@
       document.getElementById('root').innerHTML = `<div class="locked">Cet écran est réservé aux managers.</div>`;
       return;
     }
+    SITE_ACTUEL = employee.site_id || 'vito-sainte-marie';
     TOUTES_DETECTIONS = await construireDetections();
     PRENOM_MANAGER = employee.nom;
     EMPLOYEE_ID_CIN = employee.id;
