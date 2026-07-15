@@ -173,9 +173,12 @@
     });
 
     missions.forEach(m => {
+      const photo = m.photo_fournie
+        ? (m.photo_url ? ` <a href="${m.photo_url}" target="_blank" rel="noopener" style="text-decoration:none;">📷</a>` : ' 📷')
+        : '';
       evts.push({
         heure: (m.heure||'').slice(0,5), type: 'mission', dot: 'dot-mission',
-        texte: `Mission terminée — <b>${m.titre}</b>${m.photo_fournie ? ' 📷' : ''}`,
+        texte: `Mission terminée — <b>${m.titre}</b>${photo}`,
         meta: equipe[m.employee_id] || 'Employé',
         valeur: `+${m.points} pts`, valClasse: 'val-green',
       });

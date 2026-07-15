@@ -271,9 +271,30 @@
       .from('mission_completions')
       .insert({
         employee_id: empId, mission_id: entry.mission_id, titre: entry.titre,
-        date: entry.date, heure: entry.heure, photo_fournie: entry.photo_fournie, points: entry.points,
+        date: entry.date, heure: entry.heure, photo_fournie: entry.photo_fournie,
+        photo_url: entry.photo_url || null, points: entry.points,
       });
     if (error) console.error('Sauvegarde complétion:', error);
+  }
+
+  // Upload reel du fichier vers Supabase Storage (bucket prive) + lien signe
+  // longue duree, enregistre directement en base — remplace l'ancien
+  // comportement qui ne verifiait qu'un booleen sans jamais conserver le
+  // fichier (corrige le 15/07/2026, a la demande explicite de Frederic).
+  async function uploaderPreuvePhoto(missionId, file) {
+    const ext = (file.name && file.name.includes('.')) ? file.name.split('.').pop().toLowerCase() : 'jpg';
+    const chemin = `${employeeId}/${missionId}-${Date.now()}.${ext}`;
+    const { error: erreurUpload } = await nexusClient.storage
+      .from('preuves-missions')
+      .upload(chemin, file, { contentType: file.type || 'image/jpeg' });
+    if (erreurUpload) { console.error('Upload preuve photo:', erreurUpload); return null; }
+
+    const DIX_ANS = 315360000;
+    const { data: signee, error: erreurSignee } = await nexusClient.storage
+      .from('preuves-missions')
+      .createSignedUrl(chemin, DIX_ANS);
+    if (erreurSignee) { console.error('URL signée preuve photo:', erreurSignee); return null; }
+    return signee.signedUrl;
   }
 
   const POINTS_PAR_PRIORITE = {critique:10, haute:7, normale:5, basse:3};
@@ -363,16 +384,32 @@
         const mission = catalogue.find(m => m.mission_id === missionId);
         if (!mission) return;
 
-        const finaliser = (photoFournie) => {
-          if (mission.proof_required && !photoFournie) {
+        const libelleInitial = btn.textContent;
+
+        const finaliser = async (file) => {
+          if (mission.proof_required && !file) {
             alert('Photo requise — la mission ne peut pas être validée sans preuve.');
             return;
           }
+
+          let photoUrl = null;
+          if (file) {
+            btn.disabled = true;
+            btn.textContent = 'Envoi de la photo…';
+            photoUrl = await uploaderPreuvePhoto(missionId, file);
+            if (mission.proof_required && !photoUrl) {
+              alert("Erreur lors de l'envoi de la photo — réessayez. La mission n'a pas été validée.");
+              btn.disabled = false;
+              btn.textContent = libelleInitial;
+              return;
+            }
+          }
+
           const points = mission.proof_required ? (mission.points || 5) + 2 : (mission.points || 5);
           const entry = {
             mission_id: missionId, titre: mission.titre,
             date: new Date().toISOString().slice(0,10), heure: new Date().toTimeString().slice(0,5),
-            photo_fournie: !!photoFournie, points,
+            photo_fournie: !!photoUrl, photo_url: photoUrl, points,
           };
           completionsCache.push(entry); // re-rendu optimiste
           render();
@@ -381,10 +418,10 @@
 
         if (mission.proof_required) {
           const input = document.getElementById(`photo-${missionId}`);
-          input.onchange = () => finaliser(input.files && input.files.length > 0);
+          input.onchange = () => finaliser(input.files && input.files[0]);
           input.click();
         } else {
-          finaliser(false);
+          finaliser(null);
         }
       });
     });

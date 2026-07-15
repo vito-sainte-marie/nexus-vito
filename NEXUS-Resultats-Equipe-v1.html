@@ -149,8 +149,11 @@
       if (missionsEmp.length > 0) {
         html += `<div style="margin-top:10px;">`;
         missionsEmp.slice(0, 5).forEach(m => {
+          const photo = m.photo_fournie
+            ? (m.photo_url ? `<a href="${m.photo_url}" target="_blank" rel="noopener" style="text-decoration:none;">📷</a>` : '📷 <span style="opacity:0.5; font-size:9.5px;">(non conservée)</span>')
+            : '';
           html += `<div class="histo-row" style="border-bottom:1px solid var(--hairline); padding:7px 0;">
-            <span style="font-size:11.5px;">${m.titre} ${m.photo_fournie ? '📷' : ''}</span>
+            <span style="font-size:11.5px;">${m.titre} ${photo}</span>
             <span style="font-family:var(--mono); font-size:10.5px; color:var(--green);">+${m.points} pts</span>
           </div>`;
         });
