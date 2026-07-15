@@ -60,7 +60,17 @@ a{color:inherit; text-decoration:none;}
 }
 
 .levers-grid{display:grid; grid-template-columns:repeat(2,1fr); gap:10px;}
-.lever-card{background:var(--panel); border:1px solid var(--hairline); border-radius:14px; padding:16px;}
+.lever-card{background:var(--panel); border:1px solid var(--hairline); border-radius:14px; padding:16px; cursor:pointer; transition:border-color .15s;}
+.lever-card:active{border-color:rgba(79,195,217,0.4);}
+.lever-toggle{font-family:var(--mono); font-size:9.5px; color:var(--cyan); opacity:0.75; margin-top:8px; display:flex; align-items:center; gap:4px;}
+.lever-toggle .chev{transition:transform .15s; display:inline-block;}
+.lever-card.open .lever-toggle .chev{transform:rotate(90deg);}
+.lever-detail{display:none; margin-top:12px; padding-top:12px; border-top:1px solid var(--hairline);}
+.lever-card.open .lever-detail{display:block;}
+.detail-row{display:flex; justify-content:space-between; align-items:baseline; padding:5px 0; font-size:11px; gap:8px;}
+.detail-row .dn{color:var(--text-mid); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.detail-row .dv{font-family:var(--mono); color:var(--text); flex-shrink:0;}
+.detail-empty{font-size:11px; color:var(--text-dim); font-style:italic; padding:4px 0;}
 .lever-icon{width:38px; height:38px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:17px; margin-bottom:12px; font-family:var(--mono); font-weight:700;}
 .lever-title{font-size:12.5px; color:var(--text-mid); line-height:1.35; margin-bottom:10px; min-height:34px;}
 .lever-amount{font-family:var(--sans); font-size:19px; font-weight:700;}
@@ -91,6 +101,8 @@ a{color:inherit; text-decoration:none;}
 
 .two-col{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
 .mini-panel{background:var(--panel); border:1px solid var(--hairline); border-radius:14px; padding:16px;}
+.mini-panel.clickable{cursor:pointer; transition:border-color .15s;}
+.mini-panel.clickable:active{border-color:rgba(79,195,217,0.4);}
 .mini-label{font-family:var(--mono); font-size:9.5px; letter-spacing:0.06em; text-transform:uppercase; color:var(--text-mid); margin-bottom:10px;}
 .mini-label.amber{color:var(--amber);}
 .opp-number{font-size:30px; font-weight:700; color:var(--amber);}
@@ -114,6 +126,7 @@ a{color:inherit; text-decoration:none;}
 .empty-panel .btn-link{display:inline-block; margin-top:14px; font-family:var(--mono); font-size:11.5px; color:var(--cyan); padding:8px 14px; border:1px solid rgba(79,195,217,0.35); border-radius:8px;}
 
 .disclaimer{font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:center; line-height:1.6; padding:20px 20px 8px;}
+.loading{padding:60px 20px; text-align:center; color:var(--text-dim); font-size:13px;}
 
 .tabbar{
   position:fixed; bottom:0; left:50%; transform:translateX(-50%); width:100%; max-width:520px;
@@ -136,7 +149,7 @@ a{color:inherit; text-decoration:none;}
     <a href="NEXUS-App-v1.html" class="icon-btn" style="text-decoration:none;">☰</a>
     <div class="topbar-title">
       <h1>Scanner NEXUS</h1>
-      <p>Scan du magasin — export du 12/07/2026</p>
+      <p id="scanSubtitle">Chargement…</p>
     </div>
     <div class="topbar-actions">
       <div class="icon-btn">📅</div>
@@ -144,172 +157,9 @@ a{color:inherit; text-decoration:none;}
     </div>
   </div>
 
-  <div class="capital-panel">
-    <div class="capital-row-top">
-      <div class="capital-eyebrow">● Chiffre d'affaires analysé</div>
-      <div class="capital-info">i</div>
-    </div>
-    <div class="capital-amount">906 929 €</div>
-    <div class="capital-sub">Sur 1 192 références, 91 catégories</div>
-    <div class="capital-desc">Calculé à partir de l'export produits (quantité × prix de vente HT). Ne mesure pas encore la valeur créée par vos décisions — voir note en bas de page.</div>
-    <div class="capital-badge">Marge totale : 206 016 € (22,7%)</div>
-    <div class="data-tag">📄 Source : Export-3.xls</div>
+  <div id="root">
+    <div class="loading">Analyse des données en cours…</div>
   </div>
-
-  <div class="section">
-    <div class="section-label">Répartition ABC (par catégorie) <span class="link">Voir le détail →</span></div>
-  </div>
-  <div class="section">
-    <div class="levers-grid">
-      <div class="lever-card">
-        <div class="lever-icon" style="background:var(--green-dim); color:var(--green);">A</div>
-        <div class="lever-title">Catégories qui font l'essentiel du chiffre d'affaires</div>
-        <div class="lever-amount" style="color:var(--green);">12 catégories</div>
-        <div class="lever-meta">79,2 % du CA</div>
-      </div>
-      <div class="lever-card">
-        <div class="lever-icon" style="background:var(--amber-dim); color:var(--amber);">B</div>
-        <div class="lever-title">Catégories à poids intermédiaire</div>
-        <div class="lever-amount" style="color:var(--amber);">19 catégories</div>
-        <div class="lever-meta">~15 % du CA</div>
-      </div>
-      <div class="lever-card">
-        <div class="lever-icon" style="background:var(--cyan-dim); color:var(--cyan);">C</div>
-        <div class="lever-title">Longue traîne — nombreuses réf., faible CA unitaire</div>
-        <div class="lever-amount" style="color:var(--cyan);">61 catégories</div>
-        <div class="lever-meta">~6 % du CA</div>
-      </div>
-      <div class="lever-card">
-        <div class="lever-icon" style="background:var(--violet-dim); color:var(--violet);">%</div>
-        <div class="lever-title">Marge moyenne pondérée du magasin</div>
-        <div class="lever-amount" style="color:var(--violet);">22,7 %</div>
-        <div class="lever-meta">206 016 € de marge totale</div>
-      </div>
-    </div>
-  </div>
-
-  <div class="section">
-    <div class="section-label">Vue financière</div>
-    <div class="roi-panel">
-      <div class="roi-col">
-        <div class="roi-label">Chiffre d'affaires</div>
-        <div class="roi-value">906 929 €</div>
-        <div class="roi-meta">1 192 réf.</div>
-      </div>
-      <div class="roi-donut">
-        <svg viewBox="0 0 104 104" width="104" height="104">
-          <circle cx="52" cy="52" r="45" fill="none" stroke="#242E38" stroke-width="9"/>
-          <circle cx="52" cy="52" r="45" fill="none" stroke="#34D399" stroke-width="9"
-            stroke-linecap="round" stroke-dasharray="282.7" stroke-dashoffset="218"
-            transform="rotate(-90 52 52)"/>
-        </svg>
-        <div class="center">
-          <div class="roi-tag">Marge</div>
-          <div class="roi-pct">22,7%</div>
-        </div>
-      </div>
-      <div class="roi-col">
-        <div class="roi-label">Marge totale</div>
-        <div class="roi-value green">206 016 €</div>
-        <div class="roi-meta">Toutes catégories</div>
-      </div>
-    </div>
-  </div>
-
-  <div class="section">
-    <div class="section-label">🏆 Top 5 catégories par chiffre d'affaires <span class="link">Voir toutes →</span></div>
-    <div class="decision-item">
-      <div class="decision-rank rank-1">1</div>
-      <div class="decision-body">
-        <div class="decision-title">Cartes prépayées</div>
-        <div class="decision-meta">24,5 % du CA · marge 2,8 %</div>
-      </div>
-      <div class="decision-amount">221 973 €</div>
-    </div>
-    <div class="decision-item">
-      <div class="decision-rank rank-2">2</div>
-      <div class="decision-body">
-        <div class="decision-title">Cigarettes (paquet de 20)</div>
-        <div class="decision-meta">17,9 % du CA · marge 9,5 %</div>
-      </div>
-      <div class="decision-amount">162 741 €</div>
-    </div>
-    <div class="decision-item">
-      <div class="decision-rank rank-3">3</div>
-      <div class="decision-body">
-        <div class="decision-title">Gaz</div>
-        <div class="decision-meta">8,3 % du CA · marge 4,2 %</div>
-      </div>
-      <div class="decision-amount">75 274 €</div>
-    </div>
-    <div class="decision-item">
-      <div class="decision-rank rank-4">4</div>
-      <div class="decision-body">
-        <div class="decision-title">Bières, Cidres et Panachés</div>
-        <div class="decision-meta">7,6 % du CA · marge 50,5 %</div>
-      </div>
-      <div class="decision-amount">68 943 €</div>
-    </div>
-    <div class="decision-item">
-      <div class="decision-rank rank-5">5</div>
-      <div class="decision-body">
-        <div class="decision-title">Cigarettes (paquet de 25)</div>
-        <div class="decision-meta">4,5 % du CA · marge 10,3 %</div>
-      </div>
-      <div class="decision-amount">41 170 €</div>
-    </div>
-  </div>
-
-  <div class="section">
-    <div class="two-col">
-      <div class="mini-panel">
-        <div class="mini-label">Poids du CA par classe</div>
-        <div class="bar-row">
-          <span class="bar-label">A</span>
-          <div class="bar-track"><div class="bar-fill" style="width:79%; background:var(--green);"></div></div>
-          <span class="bar-val">79%</span>
-        </div>
-        <div class="bar-row">
-          <span class="bar-label">B</span>
-          <div class="bar-track"><div class="bar-fill" style="width:15%; background:var(--amber);"></div></div>
-          <span class="bar-val">15%</span>
-        </div>
-        <div class="bar-row">
-          <span class="bar-label">C</span>
-          <div class="bar-track"><div class="bar-fill" style="width:6%; background:var(--cyan);"></div></div>
-          <span class="bar-val">6%</span>
-        </div>
-      </div>
-      <div class="mini-panel">
-        <div class="mini-label amber">Anomalies détectées</div>
-        <div class="opp-number">3</div>
-        <div class="opp-desc">lignes sur 1 192 à corriger (prix ou marge invalides)</div>
-        <div class="opp-potential">99,7 % des lignes exploitables</div>
-      </div>
-    </div>
-  </div>
-
-  <div class="section">
-    <div class="advisor-panel">
-      <div class="advisor-avatar">N</div>
-      <div class="advisor-body">
-        <div class="advisor-title">Lecture des données</div>
-        <p>Vos 12 catégories A pèsent 79% du chiffre d'affaires mais pas la marge : cartes prépayées et gaz tirent le volume avec une marge sous 5%, alors que bières/cidres tournent à plus de 50% de marge pour un poids CA bien plus faible.</p>
-      </div>
-    </div>
-  </div>
-
-  <div class="section">
-    <div class="section-label">Voir plus loin</div>
-    <div class="empty-panel">
-      <div class="ei">🧠</div>
-      <div class="et">Comprendre le pourquoi et suivre les décisions</div>
-      <div class="ed">Cette page décrit l'état du magasin à un instant T. Pour l'analyse des causes et l'historique réel des décisions prises, direction le Centre d'Intelligence NEXUS et le Journal NEXUS.</div>
-      <a class="btn-link" href="NEXUS-Centre-Intelligence-v1.html">Voir le Centre d'Intelligence NEXUS →</a>
-    </div>
-  </div>
-
-  <div class="disclaimer">Cette page décrit l'état du magasin à un instant T (chiffre d'affaires, marge, catégories) — ce n'est pas encore la mesure de l'impact des décisions NEXUS. Cette mesure viendra avec le suivi des actions dans le temps.</div>
 
   <div class="tabbar">
     <a class="tab" href="NEXUS-App-v1.html"><span class="tab-icon">🏠</span><span class="tab-label">Cockpit</span></a>
@@ -322,11 +172,319 @@ a{color:inherit; text-decoration:none;}
 </div>
 
 <script>
-  nexusRequireAuth().then(employee => {
+  // Meme moteur que Cockpit et le CIN : donnees reelles de la table products,
+  // exclusion des produits d'appel, periode la plus recente uniquement (cette
+  // page decrit l'etat du magasin a un instant T, pas une evolution).
+  async function chargerProduitsAppel() {
+    const { data, error } = await nexusClient.from('produits_appel').select('article').eq('site', 'vito-sainte-marie');
+    if (error) { console.error(error); return new Set(); }
+    return new Set((data || []).map(r => r.article));
+  }
+
+  async function chargerDonneesScanner() {
+    const [{ data, error }, produitsAppel] = await Promise.all([
+      nexusClient
+        .from('products')
+        .select('categorie, article, ca, marge, periode_debut, periode_fin')
+        .eq('site', 'vito-sainte-marie')
+        .order('periode_debut', { ascending: false }),
+      chargerProduitsAppel(),
+    ]);
+    if (error || !data || !data.length) { console.error('Chargement products:', error); return null; }
+
+    const rowsBrut = data.filter(r => !produitsAppel.has(r.article));
+    const periodes = [...new Set(rowsBrut.map(r => r.periode_debut))].sort().reverse();
+    const periodeActuelle = periodes[0];
+    const rows = rowsBrut.filter(r => r.periode_debut === periodeActuelle);
+    const periodeFin = rows.find(r => r.periode_fin)?.periode_fin || periodeActuelle;
+    return { rows, periodeDebut: periodeActuelle, periodeFin };
+  }
+
+  // Regroupe par categorie, classe en A/B/C par methode Pareto standard
+  // (A jusqu'a 80% du CA cumule, B jusqu'a 95%, C le reste) — meme logique
+  // que la classification ABC deja utilisee sur NEXUS Pilot.
+  function construireStats(rows) {
+    const caTotal = rows.reduce((s,r) => s + (r.ca || 0), 0);
+    const margeTotal = rows.reduce((s,r) => s + (r.marge || 0), 0);
+    const nbRefs = rows.length;
+
+    const parCategorie = {};
+    rows.forEach(r => {
+      if (!parCategorie[r.categorie]) parCategorie[r.categorie] = { categorie: r.categorie, ca: 0, marge: 0 };
+      parCategorie[r.categorie].ca += (r.ca || 0);
+      parCategorie[r.categorie].marge += (r.marge || 0);
+    });
+    const catArr = Object.values(parCategorie);
+    const nbCategories = catArr.length;
+
+    const parCA = [...catArr].sort((a,b) => b.ca - a.ca);
+    let cumul = 0;
+    const classes = { A: { n:0, ca:0 }, B: { n:0, ca:0 }, C: { n:0, ca:0 } };
+    parCA.forEach(c => {
+      cumul += c.ca;
+      const pctCumul = caTotal > 0 ? cumul / caTotal : 0;
+      const classe = pctCumul <= 0.80 ? 'A' : (pctCumul <= 0.95 ? 'B' : 'C');
+      c.classe = classe;
+      classes[classe].n += 1;
+      classes[classe].ca += c.ca;
+    });
+
+    const top5CA = [...catArr].sort((a,b) => b.ca - a.ca).slice(0,5);
+    const top5Marge = [...catArr].sort((a,b) => b.marge - a.marge).slice(0,5);
+
+    // Anomalie = ligne dont le CA ou la marge n'a pas de sens economique
+    // (marge negative, marge superieure au CA, ou CA nul/negatif).
+    const anomalies = rows.filter(r => (r.ca||0) <= 0 || (r.marge||0) < 0 || (r.marge||0) > (r.ca||0));
+
+    return { caTotal, margeTotal, nbRefs, nbCategories, classes, top5CA, top5Marge, anomalies, catArr };
+  }
+
+  function texteLecture(stats) {
+    if (stats.top5CA.length === 0) return "Pas assez de données pour une lecture fiable.";
+    const topCA = stats.top5CA[0];
+    const topMarge = stats.top5Marge[0];
+    const pctCA_A = stats.caTotal > 0 ? (stats.classes.A.ca / stats.caTotal * 100) : 0;
+
+    if (topCA.categorie === topMarge.categorie) {
+      return `${topCA.categorie} est à la fois votre première source de chiffre d'affaires et de marge — une catégorie qui mérite une attention prioritaire, dans un sens comme dans l'autre.`;
+    }
+    const margeTopCA = topCA.ca > 0 ? (topCA.marge / topCA.ca * 100) : 0;
+    const margeTopMarge = topMarge.ca > 0 ? (topMarge.marge / topMarge.ca * 100) : 0;
+    return `Vos ${stats.classes.A.n} catégorie${stats.classes.A.n>1?'s':''} A pèsent ${fmtPct(pctCA_A)} du chiffre d'affaires. ${topCA.categorie} tire le volume avec une marge de ${fmtPct(margeTopCA)}, alors que ${topMarge.categorie} génère le plus de marge en valeur avec un taux de ${fmtPct(margeTopMarge)}.`;
+  }
+
+  function fmtEur(v) { return Math.round(v).toLocaleString('fr-FR') + ' €'; }
+
+  // Deplie/replie une carte au clic — l'ecran reste sobre par defaut, le
+  // detail n'apparait que si on le demande explicitement.
+  function toggleCard(el) {
+    el.classList.toggle('open');
+  }
+
+  const LIMITE_DETAIL = 12;
+
+  function renderDetailListe(categories, metric) {
+    const tri = [...categories].sort((a,b) => metric === 'margePct'
+      ? (b.ca>0 ? b.marge/b.ca : 0) - (a.ca>0 ? a.marge/a.ca : 0)
+      : b.ca - a.ca);
+    if (tri.length === 0) return '<div class="detail-empty">Aucune catégorie dans ce groupe.</div>';
+    const visibles = tri.slice(0, LIMITE_DETAIL);
+    const reste = tri.length - visibles.length;
+    let html = visibles.map(c => `
+      <div class="detail-row">
+        <span class="dn">${c.categorie}</span>
+        <span class="dv">${metric === 'margePct' ? fmtPct(c.ca>0 ? c.marge/c.ca*100 : 0) : fmtEur(c.ca)}</span>
+      </div>`).join('');
+    if (reste > 0) html += `<div class="detail-empty">+ ${reste} autre${reste>1?'s':''} catégorie${reste>1?'s':''}</div>`;
+    return html;
+  }
+
+  function renderDetailAnomalies(anomalies) {
+    const visibles = anomalies.slice(0, 15);
+    const reste = anomalies.length - visibles.length;
+    let html = visibles.map(r => `
+      <div class="detail-row">
+        <span class="dn">${r.article} <span style="opacity:0.6;">(${r.categorie})</span></span>
+        <span class="dv">CA ${fmtEur(r.ca)} · marge ${fmtEur(r.marge)}</span>
+      </div>`).join('');
+    if (reste > 0) html += `<div class="detail-empty">+ ${reste} autre${reste>1?'s':''} ligne${reste>1?'s':''}</div>`;
+    return html;
+  }
+
+  function fmtPct(v) { return v.toFixed(1).replace('.', ',') + ' %'; }
+  function fmtDate(iso) {
+    if (!iso) return '';
+    const d = new Date(iso);
+    return d.toLocaleDateString('fr-FR', { day:'2-digit', month:'2-digit', year:'numeric' });
+  }
+
+  const RANK_CLASS = ['rank-1','rank-2','rank-3','rank-4','rank-5'];
+
+  function renderTop5(items, cle) {
+    return items.map((c,i) => `
+      <div class="decision-item">
+        <div class="decision-rank ${RANK_CLASS[i]}">${i+1}</div>
+        <div class="decision-body">
+          <div class="decision-title">${c.categorie}</div>
+          <div class="decision-meta">${cle === 'ca'
+            ? `marge ${fmtPct(c.ca>0 ? c.marge/c.ca*100 : 0)}`
+            : `${fmtPct(c.ca>0 ? c.marge/c.ca*100 : 0)} de marge · CA ${fmtEur(c.ca)}`}</div>
+        </div>
+        <div class="decision-amount">${fmtEur(cle === 'ca' ? c.ca : c.marge)}</div>
+      </div>`).join('');
+  }
+
+  function renderRoot(donnees) {
+    const root = document.getElementById('root');
+    if (!donnees || donnees.rows.length === 0) {
+      root.innerHTML = `<div class="section"><div class="empty-panel"><div class="ei">📄</div><div class="et">Aucune donnée importée</div><div class="ed">Importez un export produits pour que le Scanner puisse analyser le magasin.</div><a class="btn-link" href="NEXUS-Import-v1.html">Aller à Import →</a></div></div>`;
+      return;
+    }
+
+    const stats = construireStats(donnees.rows);
+    const margePctGlobal = stats.caTotal > 0 ? (stats.margeTotal / stats.caTotal * 100) : 0;
+    const circonference = 282.7;
+    const dashoffset = circonference * (1 - Math.min(margePctGlobal,100) / 100);
+    const pctExploitable = stats.nbRefs > 0 ? ((stats.nbRefs - stats.anomalies.length) / stats.nbRefs * 100) : 100;
+    const pctA = stats.caTotal > 0 ? stats.classes.A.ca/stats.caTotal*100 : 0;
+    const pctB = stats.caTotal > 0 ? stats.classes.B.ca/stats.caTotal*100 : 0;
+    const pctC = stats.caTotal > 0 ? stats.classes.C.ca/stats.caTotal*100 : 0;
+
+    document.getElementById('scanSubtitle').textContent = `Scan du magasin — au ${fmtDate(donnees.periodeFin)}`;
+
+    root.innerHTML = `
+      <div class="capital-panel">
+        <div class="capital-row-top">
+          <div class="capital-eyebrow">● Chiffre d'affaires analysé</div>
+          <div class="capital-info">i</div>
+        </div>
+        <div class="capital-amount">${fmtEur(stats.caTotal)}</div>
+        <div class="capital-sub">Sur ${stats.nbRefs.toLocaleString('fr-FR')} références, ${stats.nbCategories} catégories</div>
+        <div class="capital-desc">Calculé à partir de l'export produits (quantité × prix de vente HT). Ne mesure pas encore la valeur créée par vos décisions — voir note en bas de page.</div>
+        <div class="capital-badge">Marge totale : ${fmtEur(stats.margeTotal)} (${fmtPct(margePctGlobal)})</div>
+        <div class="data-tag">📄 Période : ${fmtDate(donnees.periodeDebut)} → ${fmtDate(donnees.periodeFin)}</div>
+      </div>
+
+      <div class="section">
+        <div class="section-label">Répartition ABC (par catégorie)</div>
+      </div>
+      <div class="section">
+        <div class="levers-grid">
+          <div class="lever-card" onclick="toggleCard(this)">
+            <div class="lever-icon" style="background:var(--green-dim); color:var(--green);">A</div>
+            <div class="lever-title">Catégories qui font l'essentiel du chiffre d'affaires</div>
+            <div class="lever-amount" style="color:var(--green);">${stats.classes.A.n} catégorie${stats.classes.A.n>1?'s':''}</div>
+            <div class="lever-meta">${fmtPct(pctA)} du CA</div>
+            <div class="lever-toggle"><span class="chev">›</span> Voir le détail</div>
+            <div class="lever-detail">${renderDetailListe(stats.catArr.filter(c => c.classe==='A'), 'ca')}</div>
+          </div>
+          <div class="lever-card" onclick="toggleCard(this)">
+            <div class="lever-icon" style="background:var(--amber-dim); color:var(--amber);">B</div>
+            <div class="lever-title">Catégories à poids intermédiaire</div>
+            <div class="lever-amount" style="color:var(--amber);">${stats.classes.B.n} catégorie${stats.classes.B.n>1?'s':''}</div>
+            <div class="lever-meta">${fmtPct(pctB)} du CA</div>
+            <div class="lever-toggle"><span class="chev">›</span> Voir le détail</div>
+            <div class="lever-detail">${renderDetailListe(stats.catArr.filter(c => c.classe==='B'), 'ca')}</div>
+          </div>
+          <div class="lever-card" onclick="toggleCard(this)">
+            <div class="lever-icon" style="background:var(--cyan-dim); color:var(--cyan);">C</div>
+            <div class="lever-title">Longue traîne — nombreuses réf., faible CA unitaire</div>
+            <div class="lever-amount" style="color:var(--cyan);">${stats.classes.C.n} catégorie${stats.classes.C.n>1?'s':''}</div>
+            <div class="lever-meta">${fmtPct(pctC)} du CA</div>
+            <div class="lever-toggle"><span class="chev">›</span> Voir le détail</div>
+            <div class="lever-detail">${renderDetailListe(stats.catArr.filter(c => c.classe==='C'), 'ca')}</div>
+          </div>
+          <div class="lever-card" onclick="toggleCard(this)">
+            <div class="lever-icon" style="background:var(--violet-dim); color:var(--violet);">%</div>
+            <div class="lever-title">Marge moyenne pondérée du magasin</div>
+            <div class="lever-amount" style="color:var(--violet);">${fmtPct(margePctGlobal)}</div>
+            <div class="lever-meta">${fmtEur(stats.margeTotal)} de marge totale</div>
+            <div class="lever-toggle"><span class="chev">›</span> Voir le détail</div>
+            <div class="lever-detail">${renderDetailListe(stats.catArr, 'margePct')}</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-label">Vue financière</div>
+        <div class="roi-panel">
+          <div class="roi-col">
+            <div class="roi-label">Chiffre d'affaires</div>
+            <div class="roi-value">${fmtEur(stats.caTotal)}</div>
+            <div class="roi-meta">${stats.nbRefs.toLocaleString('fr-FR')} réf.</div>
+          </div>
+          <div class="roi-donut">
+            <svg viewBox="0 0 104 104" width="104" height="104">
+              <circle cx="52" cy="52" r="45" fill="none" stroke="#242E38" stroke-width="9"/>
+              <circle cx="52" cy="52" r="45" fill="none" stroke="#34D399" stroke-width="9"
+                stroke-linecap="round" stroke-dasharray="${circonference}" stroke-dashoffset="${dashoffset.toFixed(1)}"
+                transform="rotate(-90 52 52)"/>
+            </svg>
+            <div class="center">
+              <div class="roi-tag">Marge</div>
+              <div class="roi-pct">${fmtPct(margePctGlobal)}</div>
+            </div>
+          </div>
+          <div class="roi-col">
+            <div class="roi-label">Marge totale</div>
+            <div class="roi-value green">${fmtEur(stats.margeTotal)}</div>
+            <div class="roi-meta">Toutes catégories</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-label">🏆 Top 5 catégories par chiffre d'affaires</div>
+        ${renderTop5(stats.top5CA, 'ca')}
+      </div>
+
+      <div class="section">
+        <div class="section-label">💰 Top 5 catégories par marge</div>
+        ${renderTop5(stats.top5Marge, 'marge')}
+      </div>
+
+      <div class="section">
+        <div class="two-col">
+          <div class="mini-panel">
+            <div class="mini-label">Poids du CA par classe</div>
+            <div class="bar-row">
+              <span class="bar-label">A</span>
+              <div class="bar-track"><div class="bar-fill" style="width:${pctA.toFixed(0)}%; background:var(--green);"></div></div>
+              <span class="bar-val">${pctA.toFixed(0)}%</span>
+            </div>
+            <div class="bar-row">
+              <span class="bar-label">B</span>
+              <div class="bar-track"><div class="bar-fill" style="width:${pctB.toFixed(0)}%; background:var(--amber);"></div></div>
+              <span class="bar-val">${pctB.toFixed(0)}%</span>
+            </div>
+            <div class="bar-row">
+              <span class="bar-label">C</span>
+              <div class="bar-track"><div class="bar-fill" style="width:${pctC.toFixed(0)}%; background:var(--cyan);"></div></div>
+              <span class="bar-val">${pctC.toFixed(0)}%</span>
+            </div>
+          </div>
+          <div class="mini-panel${stats.anomalies.length>0?' clickable':''}" ${stats.anomalies.length>0?'onclick="toggleCard(this)"':''}>
+            <div class="mini-label amber">Anomalies détectées</div>
+            <div class="opp-number">${stats.anomalies.length}</div>
+            <div class="opp-desc">ligne${stats.anomalies.length>1?'s':''} sur ${stats.nbRefs.toLocaleString('fr-FR')} à corriger (CA ou marge invalides)</div>
+            <div class="opp-potential">${fmtPct(pctExploitable)} des lignes exploitables</div>
+            ${stats.anomalies.length>0 ? `<div class="lever-toggle"><span class="chev">›</span> Voir le détail</div><div class="lever-detail">${renderDetailAnomalies(stats.anomalies)}</div>` : ''}
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="advisor-panel">
+          <div class="advisor-avatar">N</div>
+          <div class="advisor-body">
+            <div class="advisor-title">Lecture des données</div>
+            <p>${texteLecture(stats)}</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-label">Voir plus loin</div>
+        <div class="empty-panel">
+          <div class="ei">🧠</div>
+          <div class="et">Comprendre le pourquoi et suivre les décisions</div>
+          <div class="ed">Cette page décrit l'état du magasin à un instant T. Pour l'analyse des causes et l'historique réel des décisions prises, direction le Centre d'Intelligence NEXUS et le Journal NEXUS.</div>
+          <a class="btn-link" href="NEXUS-Centre-Intelligence-v1.html">Voir le Centre d'Intelligence NEXUS →</a>
+        </div>
+      </div>
+
+      <div class="disclaimer">Cette page décrit l'état du magasin à un instant T (chiffre d'affaires, marge, catégories) — ce n'est pas encore la mesure de l'impact des décisions NEXUS. Cette mesure viendra avec le suivi des actions dans le temps.</div>
+    `;
+  }
+
+  nexusRequireAuth().then(async employee => {
     if (!employee) return; // nexus-auth.js gère déjà la redirection vers NEXUS-Login-v1.html
     if (employee.role !== 'manager' && employee.role !== 'gerant') {
       document.body.innerHTML = '<div style="padding:60px 20px; text-align:center; color:#8A96A5; font-family:sans-serif; background:#0B0F14; min-height:100vh;">Cet écran est réservé aux managers.</div>';
+      return;
     }
+    const donnees = await chargerDonneesScanner();
+    renderRoot(donnees);
   });
 </script>
 </body>
