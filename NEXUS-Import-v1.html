@@ -546,6 +546,19 @@ async function envoyerVentes(msg) {
     };
   }).filter(l => l.article);
 
+  // Garde-fou : si le mapping de colonnes rate silencieusement (ex: la
+  // colonne Article detectee est vide pour ce fichier precis), lignes finit
+  // vide et l'ancien comportement affichait quand meme "✓ 0 reference(s)
+  // importee(s)" — un succes en apparence, alors que rien n'a ete envoye.
+  // Trouve le 15/07/2026 apres un import T2 disparu sans message d'erreur visible.
+  if (lignes.length === 0) {
+    msg.textContent = "Aucune ligne valide à envoyer — vérifiez que la colonne \"Article\" (mapping ci-dessus) contient bien des valeurs dans ce fichier.";
+    msg.style.color = 'var(--red)';
+    sendPilot.textContent = 'Envoyer à NEXUS Pilot →';
+    sendPilot.style.pointerEvents = 'auto';
+    return;
+  }
+
   const envoyees = await envoyerParLots('products', lignes, msg);
   if (envoyees === null) return;
 
@@ -595,6 +608,14 @@ async function envoyerStockInstantane(msg) {
       importe_par: employee.id,
     };
   }).filter(l => l.article);
+
+  if (lignes.length === 0) {
+    msg.textContent = "Aucune ligne valide à envoyer — vérifiez que la colonne \"Article\" (mapping ci-dessus) contient bien des valeurs dans ce fichier.";
+    msg.style.color = 'var(--red)';
+    sendPilot.textContent = 'Envoyer à NEXUS Pilot →';
+    sendPilot.style.pointerEvents = 'auto';
+    return;
+  }
 
   const envoyees = await envoyerParLots('stock_releves', lignes, msg);
   if (envoyees === null) return;
