@@ -107,6 +107,98 @@
     return { retards, pointages, validees, journal, nomsRetards, nomsPointages: [...nomsPointages] };
   }
 
+  // Migration ponctuelle — reprend l'historique local (nexus_pointages) et
+  // l'insere dans Supabase (pointages). Concue pour etre relancee sans risque :
+  // toute entree deja presente (meme employe + date + type + heure) est ignoree.
+  async function migrerPointagesVersSupabase() {
+    const msg = document.getElementById('msgMigration');
+    const btn = document.getElementById('btnMigrer');
+    msg.className = 'msg'; msg.textContent = '';
+
+    const pointagesLocal = JSON.parse(localStorage.getItem('nexus_pointages') || '{}');
+    const dates = Object.keys(pointagesLocal);
+    if (dates.length === 0) {
+      msg.textContent = 'Aucun historique de pointage trouvé sur cet appareil.';
+      msg.className = 'msg err';
+      return;
+    }
+
+    if (!confirm(`Cet appareil contient des pointages sur ${dates.length} jour(s). Lancer la migration vers Supabase ?`)) return;
+
+    btn.disabled = true; btn.textContent = 'Migration en cours…';
+
+    const { data: employesData, error: erreurEmployes } = await nexusClient.from('employees').select('id, nom');
+    if (erreurEmployes) {
+      console.error('Chargement employees:', erreurEmployes);
+      msg.textContent = 'Erreur de chargement des employés — réessayez.';
+      msg.className = 'msg err';
+      btn.disabled = false; btn.textContent = 'Lancer la migration';
+      return;
+    }
+    const idParNom = {};
+    (employesData || []).forEach(e => { idParNom[normaliser(e.nom)] = e.id; });
+
+    const aInserer = [];
+    const nomsNonReconnus = new Set();
+    dates.forEach(date => {
+      const parEmploye = pointagesLocal[date] || {};
+      Object.keys(parEmploye).forEach(nom => {
+        const empId = idParNom[normaliser(nom)];
+        if (!empId) { nomsNonReconnus.add(nom); return; }
+        (parEmploye[nom] || []).forEach(p => {
+          aInserer.push({
+            employee_id: empId, site: 'vito-sainte-marie', date,
+            type: p.type, heure: p.heure, quart: p.quart || 'inconnu', retard_min: p.retard_min || 0,
+          });
+        });
+      });
+    });
+
+    if (aInserer.length === 0) {
+      msg.textContent = nomsNonReconnus.size
+        ? `Aucune entrée migrable — noms non reconnus dans Supabase : ${[...nomsNonReconnus].join(', ')}.`
+        : 'Rien à migrer.';
+      msg.className = 'msg err';
+      btn.disabled = false; btn.textContent = 'Lancer la migration';
+      return;
+    }
+
+    // Detection des doublons — indispensable si la migration est relancee
+    const idsConcernes = [...new Set(aInserer.map(e => e.employee_id))];
+    const { data: dejaPresent, error: erreurExistant } = await nexusClient
+      .from('pointages').select('employee_id, date, type, heure').in('employee_id', idsConcernes);
+    if (erreurExistant) console.error('Vérification doublons:', erreurExistant);
+    const cleExistante = new Set((dejaPresent || []).map(p => `${p.employee_id}|${p.date}|${p.type}|${p.heure}`));
+    const nouveauxSeuls = aInserer.filter(e => !cleExistante.has(`${e.employee_id}|${e.date}|${e.type}|${e.heure}`));
+    const doublons = aInserer.length - nouveauxSeuls.length;
+
+    if (nouveauxSeuls.length === 0) {
+      msg.textContent = `Tout est déjà présent dans Supabase (${doublons} entrée(s) déjà migrées). Rien à faire.`;
+      msg.className = 'msg ok';
+      btn.disabled = false; btn.textContent = 'Lancer la migration';
+      return;
+    }
+
+    let inseres = 0, erreurs = 0;
+    for (let i = 0; i < nouveauxSeuls.length; i += 200) {
+      const lot = nouveauxSeuls.slice(i, i + 200);
+      const { error } = await nexusClient.from('pointages').insert(lot);
+      if (error) { console.error('Insertion migration:', error); erreurs += lot.length; }
+      else inseres += lot.length;
+    }
+
+    btn.disabled = false; btn.textContent = 'Lancer la migration';
+
+    let resume = `✓ ${inseres} pointage(s) migré(s) vers Supabase.`;
+    if (doublons > 0) resume += ` ${doublons} déjà présents, ignorés.`;
+    if (erreurs > 0) resume += ` ${erreurs} en erreur (voir la console).`;
+    if (nomsNonReconnus.size > 0) resume += ` Noms non reconnus, non migrés : ${[...nomsNonReconnus].join(', ')}.`;
+
+    msg.textContent = resume;
+    msg.className = erreurs > 0 ? 'msg err' : 'msg ok';
+    renderRoot();
+  }
+
   function renderRoot() {
     const etat = etatLocalStorage();
     const root = document.getElementById('root');
@@ -132,6 +224,13 @@
         <div class="note">Ne touche pas à Supabase. N'affecte que Pointage et Retards, stockés uniquement sur cet appareil — Résultats Équipe et Radar du Manager en dépendent pour les retards.</div>
       </div>
 
+      <div class="card">
+        <div class="section-label">Migration ponctuelle — Pointage vers Supabase</div>
+        <p class="note" style="margin-top:0;">Reprend l'historique local (<code>nexus_pointages</code>) de cet appareil et l'insère dans la table Supabase <code>pointages</code>, en retrouvant chaque employé par son nom. Sans danger à relancer plusieurs fois — les entrées déjà migrées sont détectées et ignorées.</p>
+        <button class="btn btn-primary" id="btnMigrer">Lancer la migration</button>
+        <div class="msg" id="msgMigration"></div>
+      </div>
+
       <div class="card danger">
         <div class="section-label">Zone sensible</div>
         <button class="btn btn-danger" id="btnReset">Réinitialiser toutes les données locales de cet appareil</button>
@@ -139,6 +238,8 @@
         <div class="note">Efface Pointage, Retards, décisions validées et Journal NEXUS sur cet appareil. Ne touche pas à Supabase (employés, missions, produits). Irréversible — deux confirmations demandées.</div>
       </div>
     `;
+
+    document.getElementById('btnMigrer').addEventListener('click', migrerPointagesVersSupabase);
 
     document.getElementById('btnNettoyer').addEventListener('click', () => {
       const brut = document.getElementById('nomCible').value;
