@@ -162,12 +162,30 @@ nexusRequireAuth().then(async employee => {
 
   let PRODUCTS = [];
 
+  // Supabase plafonne chaque requete a 1000 lignes par defaut, sans erreur —
+  // au-dela, le reste est silencieusement absent. Ce helper boucle par pages
+  // de 1000 jusqu'a tout recuperer (trouve le 15/07/2026, meme bug que
+  // Cockpit/CIN/Scanner des que products a depasse 1000 lignes).
+  async function fetchAllRows(builderFactory, pageSize = 1000) {
+    let toutes = [];
+    let from = 0;
+    while (true) {
+      const { data, error } = await builderFactory().range(from, from + pageSize - 1);
+      if (error) return { data: null, error };
+      toutes = toutes.concat(data || []);
+      if (!data || data.length < pageSize) break;
+      from += pageSize;
+    }
+    return { data: toutes, error: null };
+  }
+
   async function construireProduitsLive() {
-    const { data, error } = await nexusClient
+    const { data, error } = await fetchAllRows(() => nexusClient
       .from('products')
       .select('categorie, article, ca, marge, prix_achat, prix_vente, quantite, periode_debut, periode_fin')
       .eq('site', 'vito-sainte-marie')
-      .order('periode_debut', { ascending: false });
+      .order('periode_debut', { ascending: false })
+      .order('article', { ascending: true }));
     if (error || !data || !data.length) { console.error('Chargement products (fiche produit):', error); return []; }
 
     const periodes = [...new Set(data.map(r => r.periode_debut))].sort().reverse();

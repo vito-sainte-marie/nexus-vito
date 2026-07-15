@@ -258,16 +258,35 @@
   // d'articles distincts par periode. Un ratio > 1 signifie que des articles
   // apparaissent plusieurs fois pour la meme periode, signe d'un reimport
   // qui a ajoute au lieu de remplacer (avant la correction du 15/07/2026).
+  // Supabase plafonne chaque requete a 1000 lignes par defaut, sans erreur —
+  // au-dela, le reste est silencieusement absent du resultat. Ce helper
+  // boucle par pages de 1000 jusqu'a tout recuperer. Trouve le 15/07/2026 :
+  // un import T2 pourtant reussi restait invisible partout des que le total
+  // de products a depasse 1000 lignes (T1 = exactement 1000).
+  async function fetchAllRows(builderFactory, pageSize = 1000) {
+    let toutes = [];
+    let from = 0;
+    while (true) {
+      const { data, error } = await builderFactory().range(from, from + pageSize - 1);
+      if (error) return { data: null, error };
+      toutes = toutes.concat(data || []);
+      if (!data || data.length < pageSize) break;
+      from += pageSize;
+    }
+    return { data: toutes, error: null };
+  }
+
   async function diagnostiquerPeriodes() {
     const msg = document.getElementById('msgPeriodes');
     const zone = document.getElementById('resultatPeriodes');
     msg.className = 'msg'; msg.textContent = '';
     zone.innerHTML = '<div class="note">Analyse en cours…</div>';
 
-    const { data, error } = await nexusClient
+    const { data, error } = await fetchAllRows(() => nexusClient
       .from('products')
       .select('periode_debut, periode_fin, article')
-      .eq('site', 'vito-sainte-marie');
+      .eq('site', 'vito-sainte-marie')
+      .order('article', { ascending: true }));
 
     if (error) {
       console.error('Diagnostic périodes:', error);
