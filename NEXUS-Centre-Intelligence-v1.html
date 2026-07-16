@@ -573,9 +573,9 @@
     return options[h % options.length];
   }
   const OUVERTURES = [
-    n => `J'ai passé vos données au crible : <b>${n}</b> signal${n>1?'aux':''} en ressortent`,
+    n => `J'ai passé vos données au crible : <b>${n}</b> ${n>1?'signaux en ressortent':'signal en ressort'}`,
     n => `Après analyse de la situation actuelle, <b>${n}</b> point${n>1?'s retiennent':' retient'} mon attention`,
-    n => `Voici ce que les chiffres révèlent aujourd'hui : <b>${n}</b> signal${n>1?'aux':''}`,
+    n => `Voici ce que les chiffres révèlent aujourd'hui : <b>${n}</b> ${n>1?'signaux':'signal'}`,
   ];
   const PRIORITE_INTRO = [
     'Le plus prioritaire concerne',
