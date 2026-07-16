@@ -268,13 +268,16 @@ a{color:inherit; text-decoration:none;}
     const topCA = stats.top5CA[0];
     const topMarge = stats.top5Marge[0];
     const pctCA_A = stats.caTotal > 0 ? (stats.classes.A.ca / stats.caTotal * 100) : 0;
+    const concentration = pctCA_A >= 70
+      ? ` Un poids aussi concentré sur si peu de catégories est un vrai moteur, mais aussi une vraie fragilité — un incident sur l'une d'elles pèserait immédiatement sur l'ensemble du magasin.`
+      : ``;
 
     if (topCA.categorie === topMarge.categorie) {
-      return `${topCA.categorie} est à la fois votre première source de chiffre d'affaires et de marge — une catégorie qui mérite une attention prioritaire, dans un sens comme dans l'autre.`;
+      return `${topCA.categorie} est à la fois votre première source de chiffre d'affaires et de marge — une catégorie qui mérite une attention prioritaire, dans un sens comme dans l'autre.${concentration}`;
     }
     const margeTopCA = topCA.ca > 0 ? (topCA.marge / topCA.ca * 100) : 0;
     const margeTopMarge = topMarge.ca > 0 ? (topMarge.marge / topMarge.ca * 100) : 0;
-    return `Vos ${stats.classes.A.n} catégorie${stats.classes.A.n>1?'s':''} A pèsent ${fmtPct(pctCA_A)} du chiffre d'affaires. ${topCA.categorie} tire le volume avec une marge de ${fmtPct(margeTopCA)}, alors que ${topMarge.categorie} génère le plus de marge en valeur avec un taux de ${fmtPct(margeTopMarge)}.`;
+    return `Vos ${stats.classes.A.n} catégorie${stats.classes.A.n>1?'s':''} A pèsent ${fmtPct(pctCA_A)} du chiffre d'affaires. ${topCA.categorie} tire le volume avec une marge de ${fmtPct(margeTopCA)}, alors que ${topMarge.categorie} génère le plus de marge en valeur avec un taux de ${fmtPct(margeTopMarge)}.${concentration}`;
   }
 
   function fmtEur(v) { return Math.round(v).toLocaleString('fr-FR') + ' €'; }
