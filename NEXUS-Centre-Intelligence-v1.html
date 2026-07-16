@@ -159,42 +159,42 @@
 
   const LANGAGE_ACTION = {
     facing: {
-      analyseAgir: "Une référence à ce niveau de contribution mérite un facing à la hauteur de son poids réel.",
+      analyseAgir: "Le facing doit refléter ce poids réel dans les ventes.",
       recoAgir: a => `Vérifier et renforcer le facing de ${a}.`,
       consAgir: m => `Un sous-dimensionnement de facing sur cette référence représente un risque estimé à ${m} €.`,
       recoHausse: a => `Renforcer le facing de ${a} avant la période suivante.`,
       recoBaisse: a => `Vérifier la présence en rayon de ${a} avant toute décision.`,
     },
     stock: {
-      analyseAgir: "Une référence à ce niveau de contribution ne doit jamais être en rupture en dépôt — elle n'est pas exposée en rayon comme les autres.",
+      analyseAgir: "Elle ne doit jamais être en rupture en dépôt — elle n'est pas exposée en rayon comme les autres.",
       recoAgir: a => `Vérifier le stock disponible en dépôt/cage pour ${a}.`,
       consAgir: m => `Une rupture de stock sur cette référence représente un risque estimé à ${m} €.`,
       recoHausse: a => `Sécuriser davantage de stock de ${a} avant la période suivante.`,
       recoBaisse: a => `Vérifier le stock en dépôt/cage de ${a} avant toute décision.`,
     },
     support: {
-      analyseAgir: "Une référence à ce niveau de contribution dépend surtout de la disponibilité du support et de son activation en caisse, pas d'un emplacement en rayon.",
+      analyseAgir: "Tout dépend du support et de son activation en caisse, pas d'un emplacement en rayon.",
       recoAgir: a => `Vérifier le stock de cartes et la bonne activation en caisse pour ${a}.`,
       consAgir: m => `Une indisponibilité de ce support représente un risque estimé à ${m} €.`,
       recoHausse: a => `Prévoir davantage de support et d'activation pour ${a} avant la période suivante.`,
       recoBaisse: a => `Vérifier la disponibilité du support et son activation en caisse pour ${a} avant toute décision.`,
     },
     production: {
-      analyseAgir: "Une référence à ce niveau de contribution dépend surtout de la quantité produite ou commandée chaque jour — c'est un produit frais, pas un facing.",
+      analyseAgir: "C'est la quantité produite ou commandée chaque jour qui compte ici — un produit frais, pas un facing.",
       recoAgir: a => `Ajuster la quantité commandée ou produite de ${a} au niveau réel de la demande.`,
       consAgir: m => `Une quantité insuffisante sur cette référence fraîche représente un risque estimé à ${m} €.`,
       recoHausse: a => `Augmenter la quantité commandée ou produite de ${a} avant la période suivante.`,
       recoBaisse: a => `Vérifier si la quantité produite ou commandée de ${a} a été réduite avant toute décision.`,
     },
     comptoir: {
-      analyseAgir: "Une référence à ce niveau de contribution doit rester visible et disponible au comptoir en priorité.",
+      analyseAgir: "Elle doit rester visible et disponible au comptoir en priorité.",
       recoAgir: a => `Vérifier la disponibilité au comptoir de ${a}.`,
       consAgir: m => `Une rupture au comptoir sur cette référence représente un risque estimé à ${m} €.`,
       recoHausse: a => `Garantir la disponibilité au comptoir de ${a} avant la période suivante.`,
       recoBaisse: a => `Vérifier la disponibilité au comptoir de ${a} avant toute décision.`,
     },
     presentoir: {
-      analyseAgir: "Une référence à ce niveau de contribution mérite une bonne visibilité sur le présentoir.",
+      analyseAgir: "Elle mérite une bonne visibilité sur le présentoir.",
       recoAgir: a => `Vérifier l'emplacement de ${a} sur le présentoir.`,
       consAgir: m => `Un mauvais emplacement sur cette référence représente un risque estimé à ${m} €.`,
       recoHausse: a => `Améliorer l'emplacement de ${a} sur le présentoir avant la période suivante.`,
@@ -302,7 +302,7 @@
           etat: "🔥 À AGIR", rule_id: "R4-RENFORT-A", article: p.article, categorie: p.categorie,
           contribution, evolution: null,
           situation: `${p.article} représente ${(contribution*100).toFixed(1)} % du chiffre d'affaires du rayon ${p.categorie}.`,
-          contexte: "Cette contribution est calculée sur l'ensemble des références du rayon.",
+          contexte: "Calculée sur l'ensemble du rayon.",
           analyse: lang.analyseAgir, consequence: lang.consAgir(fmt(p.ca)),
           recommandation: lang.recoAgir(p.article),
           impact: `Vous sécurisez environ ${fmt(p.ca)} € de chiffre d'affaires déjà généré par cette référence.`,
@@ -316,7 +316,7 @@
           etat: "📈 OPPORTUNITÉ", rule_id: "R3-HAUSSE", article: p.article, categorie: p.categorie,
           contribution: null, evolution,
           situation: `Les ventes de ${p.article} progressent de ${(evolution*100).toFixed(1)} % sur la période.`,
-          contexte: "Cette progression est mesurée entre les deux périodes importées.",
+          contexte: "Mesurée entre les deux périodes importées.",
           analyse: "Cette dynamique dépasse une croissance ordinaire.",
           consequence: "Cette croissance peut être amplifiée si l'offre suit la demande.",
           recommandation: lang.recoHausse(p.article),
@@ -487,8 +487,8 @@
         tag: d.resolu ? 'RÉSOLU' : 'PERSISTE', tagClasse: d.resolu ? 'tag-resolu' : 'tag-persiste',
         titre: `Suivi — ${d.article}`,
         texte: d.resolu
-          ? `Le ${d.date}, une décision a été appliquée sur cette référence. Elle ne fait plus partie des signaux actifs aujourd'hui — la situation semble s'être stabilisée.`
-          : `Le ${d.date}, une décision a été appliquée sur cette référence. Elle réapparaît pourtant dans les signaux actifs — la décision n'a pas suffi, ou trop peu de temps s'est écoulé pour en juger.`,
+          ? `Décision appliquée le ${d.date} — elle ne fait plus partie des signaux actifs, la situation semble s'être stabilisée.`
+          : `Décision appliquée le ${d.date} — elle réapparaît pourtant : la décision n'a pas suffi, ou trop peu de temps s'est écoulé pour en juger.`,
         source: 'Appris du Journal · décisions passées',
       });
     });
@@ -506,7 +506,7 @@
       patterns.push({
         tag: 'STRUCTUREL', tagClasse: 'tag-persiste',
         titre: `Rayon ${categorie} — alertes récurrentes`,
-        texte: `<b>${n} décisions</b> ont concerné ce rayon depuis le début du suivi. Quand un rayon revient plusieurs fois, le problème est rarement un accident isolé — il mérite d'être regardé dans son ensemble (implantation, fournisseur, saisonnalité).`,
+        texte: `<b>${n} décisions</b> ont concerné ce rayon depuis le début du suivi. Rarement un accident isolé — à regarder dans son ensemble (implantation, fournisseur, saisonnalité).`,
         source: 'Appris du Journal · décisions par rayon',
       });
     });
@@ -537,7 +537,7 @@
   // deja le "quoi faire" en une ligne.
   function messageConseillerCIN(actives) {
     if (actives.length === 0) {
-      return "Sur les données actuellement importées, je n'identifie aucun signal justifiant une analyse approfondie. Rien n'explique une anomalie en ce moment — je continue de surveiller en arrière-plan.";
+      return "Aucun signal ne justifie une analyse approfondie en ce moment. Je continue de surveiller en arrière-plan.";
     }
     const nbAgir = actives.filter(p => p.etat === '🔥 À AGIR').length;
     const top = actives[0];
@@ -547,7 +547,7 @@
     texte += top.consequence;
     const patternFort = PATTERNS.find(p => p.tagClasse === 'tag-persiste');
     if (patternFort) {
-      texte += ` J'ai aussi repéré, dans le Journal, un motif qui mérite votre attention : <b>${patternFort.titre.toLowerCase()}</b>.`;
+      texte += ` Autre motif repéré dans le Journal : <b>${patternFort.titre.toLowerCase()}</b>.`;
     }
     return texte;
   }
