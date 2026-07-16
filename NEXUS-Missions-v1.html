@@ -150,8 +150,20 @@
     "🟡 À SURVEILLER": "etat-surveiller", "🔴 À DÉCIDER": "etat-decider",
     "💡 RECOMMANDATION": "etat-recommandation",
   };
-  function chargerValidees() { return JSON.parse(localStorage.getItem('nexus_recommandations_validees') || '[]'); }
-  function sauvegarderValidees(v) { localStorage.setItem('nexus_recommandations_validees', JSON.stringify(v)); }
+  async function chargerValidees() {
+    const { data, error } = await nexusClient.from('recommandations_validees').select('candidate_id').eq('site', SITE_ACTUEL);
+    if (error) { console.error('Lecture recommandations validées:', error); return []; }
+    return (data || []).map(r => r.candidate_id);
+  }
+  async function marquerValidee(candidateId) {
+    const { error } = await nexusClient.from('recommandations_validees')
+      .upsert({ site: SITE_ACTUEL, candidate_id: candidateId, employee_id: employeeId }, { onConflict: 'site,candidate_id' });
+    if (error) console.error('Marquage validée:', error);
+  }
+  async function reinitialiserValidees() {
+    const { error } = await nexusClient.from('recommandations_validees').delete().eq('site', SITE_ACTUEL);
+    if (error) console.error('Réinitialisation validées:', error);
+  }
 
   // Meme trace que celle ecrite par le Cockpit et le Centre d'Intelligence —
   // pour que valider une recommandation depuis N'IMPORTE lequel des trois
@@ -168,10 +180,10 @@
     if (error) console.error('Écriture Journal:', error);
   }
 
-  function renderPlansActionMissions() {
+  async function renderPlansActionMissions() {
     const el = document.getElementById('plansActionMissions');
     if (!el) return;
-    const validees = chargerValidees();
+    const validees = await chargerValidees();
     const disponibles = PLANS_ACTION.filter(p => !validees.includes(p.candidate_id));
     const aAfficher = disponibles.slice(0, 5);
 
@@ -198,21 +210,19 @@
       </div>`;
 
     const resetLinkM = document.getElementById('resetValideesM');
-    if (resetLinkM) resetLinkM.addEventListener('click', (e) => {
+    if (resetLinkM) resetLinkM.addEventListener('click', async (e) => {
       e.preventDefault();
-      sauvegarderValidees([]);
-      renderPlansActionMissions();
+      await reinitialiserValidees();
+      await renderPlansActionMissions();
     });
 
     el.querySelectorAll('.plan-valider').forEach(btn => {
       btn.addEventListener('click', async (e) => {
         e.stopPropagation();
         const plan = PLANS_ACTION.find(p => p.candidate_id === btn.dataset.id);
-        const v = chargerValidees();
-        v.push(btn.dataset.id);
-        sauvegarderValidees(v);
+        await marquerValidee(btn.dataset.id);
         if (plan) await enregistrerJournalDecision(plan);
-        renderPlansActionMissions();
+        await renderPlansActionMissions();
       });
     });
   }
@@ -470,7 +480,7 @@
     // Rappel carburant — meme source unique de verite que HOME (le resultat
     // deja calcule dans Parametres Rappels), injecte une seule fois au
     // chargement, pas a chaque re-rendu de la liste.
-    (function injecterRappelCarburantMissions() {
+    (async function injecterRappelCarburantMissions() {
       try {
         const derniereRecommandation = JSON.parse(localStorage.getItem('nexus_derniere_recommandation_carburant') || 'null');
         if (!derniereRecommandation) return;
@@ -490,7 +500,7 @@
           consequence: `Commande à passer le ${r.dateCommande} pour livraison le ${r.dateLivraison}.`,
           impact: "Vous évitez une rupture tout en respectant la règle de stock minimal en fin de mois.",
         });
-        renderPlansActionMissions();
+        await renderPlansActionMissions();
       } catch (err) { console.error('Rappel carburant:', err); }
     })();
   });
