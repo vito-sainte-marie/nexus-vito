@@ -42,6 +42,11 @@
 
   .section{padding:16px 20px;}
   .card{background:var(--panel); border:1px solid var(--hairline); border-radius:12px; padding:18px; margin-bottom:14px;}
+  .note{font-family:var(--sans); font-size:12px; color:var(--text-dim); line-height:1.55;}
+  .tableau-fondateur{width:100%; border-collapse:collapse; font-size:13px;}
+  .tableau-fondateur th{text-align:left; font-family:var(--mono); font-size:10.5px; text-transform:uppercase; letter-spacing:0.06em; color:var(--text-dim); padding:8px 10px; border-bottom:1px solid var(--hairline);}
+  .tableau-fondateur td{padding:9px 10px; border-bottom:1px solid var(--hairline);}
+  .tableau-fondateur tr.total td{font-weight:600; color:var(--cyan); border-top:1px solid var(--hairline); border-bottom:none;}
   .section-label{font-family:var(--mono); font-size:10.5px; letter-spacing:0.08em; text-transform:uppercase; color:var(--text-dim); margin-bottom:12px; display:flex; align-items:center; gap:8px;}
   .section-label::after{content:''; flex:1; height:1px; background:var(--hairline);}
 
@@ -98,10 +103,17 @@
 <script>
   let SITES = [];
   let siteActifId = null;
+  let STATS_FONDATEUR = [];
 
   async function chargerSites() {
     const { data, error } = await nexusClient.from('sites').select('*').order('created_at', { ascending: true });
     if (error) { console.error('Chargement sites:', error); return []; }
+    return data || [];
+  }
+
+  async function chargerStatsFondateur() {
+    const { data, error } = await nexusClient.rpc('stats_fondateur');
+    if (error) { console.error('Chargement stats fondateur:', error); return []; }
     return data || [];
   }
 
@@ -116,12 +128,52 @@
     return data.publicUrl;
   }
 
+  function renderTableauFondateur() {
+    if (STATS_FONDATEUR.length === 0) {
+      return `<p class="note">Aucune donnée pour l'instant.</p>`;
+    }
+    const totalAssignees = STATS_FONDATEUR.reduce((s, r) => s + Number(r.missions_assignees), 0);
+    const totalTerminees = STATS_FONDATEUR.reduce((s, r) => s + Number(r.missions_terminees), 0);
+    const totalDecisions = STATS_FONDATEUR.reduce((s, r) => s + Number(r.decisions_30j), 0);
+    const tauxGlobal = totalAssignees > 0 ? Math.round(totalTerminees / totalAssignees * 100) : 0;
+
+    const lignes = STATS_FONDATEUR.map(r => {
+      const taux = r.missions_assignees > 0 ? Math.round(r.missions_terminees / r.missions_assignees * 100) : 0;
+      return `
+        <tr>
+          <td>${r.nom_entreprise || r.site_id}</td>
+          <td>${taux} %</td>
+          <td>${r.decisions_30j}</td>
+        </tr>`;
+    }).join('');
+
+    return `
+      <table class="tableau-fondateur">
+        <thead><tr><th>Site</th><th>Taux missions terminées</th><th>Décisions suivies (30j)</th></tr></thead>
+        <tbody>
+          ${lignes}
+          <tr class="total"><td>Ensemble des sites</td><td>${tauxGlobal} %</td><td>${totalDecisions}</td></tr>
+        </tbody>
+      </table>
+      <div class="note" style="margin-top:14px;">
+        <b>Pas encore mesurables</b> — connexions par jour, temps moyen passé, bugs détectés, corrections réalisées,
+        idées retenues, temps gagné (restera toujours une estimation, pas une mesure), valeur économique générée
+        (Capital NEXUS reste en démonstration), satisfaction mensuelle.
+      </div>`;
+  }
+
   function renderRoot() {
     const root = document.getElementById('root');
     const siteActif = SITES.find(s => s.site_id === siteActifId) || SITES[0];
     if (siteActif) siteActifId = siteActif.site_id;
 
     root.innerHTML = `
+      <div class="card">
+        <div class="section-label">Tableau de bord fondateur</div>
+        <p class="note" style="margin-top:0;">Dix indicateurs pour savoir si NEXUS progresse réellement. Deux sont mesurables aujourd'hui, chiffrés ci-dessous par site. Les huit autres demandent une brique technique qui n'existe pas encore — listés honnêtement plutôt que masqués.</p>
+        ${renderTableauFondateur()}
+      </div>
+
       <div class="card">
         <div class="section-label">Sites configurés (${SITES.length})</div>
         <div id="listeSites"></div>
@@ -296,6 +348,7 @@
       return;
     }
     SITES = await chargerSites();
+    STATS_FONDATEUR = await chargerStatsFondateur();
     renderRoot();
   });
 </script>
