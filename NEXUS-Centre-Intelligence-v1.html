@@ -535,16 +535,46 @@
   // synthese construite a partir des vraies causes detectees, jamais un texte
   // fixe. Il explique le "pourquoi" avant le "quoi faire" — le Cockpit fait
   // deja le "quoi faire" en une ligne.
+  // Le message ne se fige plus sur "le plus gros montant en euros" a chaque
+  // fois — un gros contributeur stable (ex: le meilleur vendeur du rayon)
+  // gagnerait ce classement indefiniment et donnerait l'impression que le
+  // Conseiller ne connait qu'un seul produit. On pioche desormais le
+  // meilleur signal PAR TYPE (agir / opportunite / a surveiller) pour
+  // refleter la vraie variete de ce que les donnees montrent aujourd'hui,
+  // pas seulement le chiffre le plus impressionnant.
   function messageConseillerCIN(actives) {
     if (actives.length === 0) {
       return "Aucun signal ne justifie une analyse approfondie en ce moment. Je continue de surveiller en arrière-plan.";
     }
-    const nbAgir = actives.filter(p => p.etat === '🔥 À AGIR').length;
-    const top = actives[0];
+    const parEtat = {
+      agir: actives.filter(p => p.etat === '🔥 À AGIR'),
+      opportunite: actives.filter(p => p.etat === '📈 OPPORTUNITÉ'),
+      surveiller: actives.filter(p => p.etat === '🟡 À SURVEILLER'),
+    };
+    const nbAgir = parEtat.agir.length;
+
     let texte = `J'ai analysé <b>${actives.length}</b> signal${actives.length>1?'aux':''} sur vos données actuelles`;
     texte += nbAgir > 0 ? `, dont <b>${nbAgir}</b> qui appellent une action aujourd'hui. ` : `. `;
-    texte += `Le cas le plus significatif concerne <b>${top.article}</b> : ${top.analyse.charAt(0).toLowerCase()}${top.analyse.slice(1)} `;
+
+    // Le signal "a agir" le plus significatif reste mentionne — c'est une
+    // vraie priorite, pas un artefact — mais il n'occupe plus tout le message.
+    const top = parEtat.agir[0] || parEtat.opportunite[0] || parEtat.surveiller[0];
+    texte += `Le plus prioritaire concerne <b>${top.article}</b> : ${top.analyse.charAt(0).toLowerCase()}${top.analyse.slice(1)} `;
     texte += top.consequence;
+
+    // Deuxieme voix, deliberement differente du premier signal — une
+    // opportunite en croissance si elle existe et concerne un autre
+    // article, sinon un signal a surveiller. C'est ce qui rend le
+    // Conseiller vivant : il ne repete jamais le meme produit deux fois
+    // dans la meme phrase.
+    const opportunite = parEtat.opportunite.find(p => p.article !== top.article);
+    const surveillance = parEtat.surveiller.find(p => p.article !== top.article);
+    if (opportunite) {
+      texte += ` À l'inverse, <b>${opportunite.article}</b> progresse : ${opportunite.consequence.charAt(0).toLowerCase()}${opportunite.consequence.slice(1)}`;
+    } else if (surveillance) {
+      texte += ` Autre point à surveiller : <b>${surveillance.article}</b> — ${surveillance.analyse.charAt(0).toLowerCase()}${surveillance.analyse.slice(1)}`;
+    }
+
     const patternFort = PATTERNS.find(p => p.tagClasse === 'tag-persiste');
     if (patternFort) {
       texte += ` Autre motif repéré dans le Journal : <b>${patternFort.titre.toLowerCase()}</b>.`;
