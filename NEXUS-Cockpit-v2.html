@@ -47,17 +47,22 @@
     border-radius:20px; padding:7px 12px; text-decoration:none; white-space:nowrap;
   }
   .menu-btn:active{background:rgba(79,195,217,0.2);}
-  .header .logo{
-    height:52px; width:52px; object-fit:cover; object-position:center; border-radius:50%; flex-shrink:0;
-    border:3px solid #4FC3D9;
-    background:#fff;
+  .header .logo-frame{
+    width:64px; height:64px; border-radius:20px; flex-shrink:0;
+    background:#0B0F14;
+    display:flex; align-items:center; justify-content:center;
+    border:2px solid #4FC3D9;
     box-shadow:
-      0 4px 10px rgba(0,0,0,0.45),
-      inset 0 2px 3px rgba(255,255,255,0.55),
-      inset 0 -3px 5px rgba(0,0,0,0.3),
-      0 0 6px rgba(79,195,217,0.95),
-      0 0 16px rgba(79,195,217,0.7),
-      0 0 30px rgba(79,195,217,0.4);
+      0 0 0 4px #0B0F14,
+      0 0 0 6px #4FC3D9,
+      0 4px 10px rgba(0,0,0,0.5),
+      0 0 8px rgba(79,195,217,0.95),
+      0 0 20px rgba(79,195,217,0.75),
+      0 0 40px rgba(79,195,217,0.45);
+  }
+  .header .logo{
+    height:44px; width:44px; object-fit:cover; object-position:center; border-radius:12px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.4);
   }
   .header .id{display:flex; flex-direction:column;}
   .greet{font-size:20px; font-weight:600;}
@@ -1237,7 +1242,7 @@
 
       const header = document.getElementById('nexus-header');
       header.innerHTML = `
-        <img class="logo" src="${STATION_CONFIG.logo_url}" alt="${STATION_CONFIG.station_nom}" onerror="this.style.display='none'">
+        <div class="logo-frame"><img class="logo" src="${STATION_CONFIG.logo_url}" alt="${STATION_CONFIG.station_nom}" onerror="this.style.display='none'"></div>
         <div class="id">
           <div class="greet">Bonjour ${STATION_CONFIG.manager_prenom} <span class="role-badge">${STATION_CONFIG.manager_role}</span></div>
           <div class="station">${STATION_CONFIG.station_nom}</div>
