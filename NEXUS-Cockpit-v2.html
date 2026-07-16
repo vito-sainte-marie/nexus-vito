@@ -1220,6 +1220,15 @@
       STATION_CONFIG.manager_prenom = employee.nom;
       STATION_CONFIG.manager_role = employee.role;
 
+      // Marque dynamique — lit la table `sites` pour le site de l'employe
+      // connecte, et ne remplace le nom/logo fige que si elle trouve une
+      // valeur reelle. Sinon les valeurs historiques ci-dessus restent le
+      // filet de securite (trouve le 15/07/2026 : ce header etait le seul
+      // endroit encore fige alors que le menu et la connexion l'etaient deja).
+      const { data: siteActuel } = await nexusClient.from('sites').select('nom_entreprise, logo_url').eq('site_id', SITE_ACTUEL).maybeSingle();
+      if (siteActuel && siteActuel.nom_entreprise) STATION_CONFIG.station_nom = siteActuel.nom_entreprise;
+      if (siteActuel && siteActuel.logo_url) STATION_CONFIG.logo_url = siteActuel.logo_url;
+
       const header = document.getElementById('nexus-header');
       header.innerHTML = `
         <img class="logo" src="${STATION_CONFIG.logo_url}" alt="${STATION_CONFIG.station_nom}" onerror="this.style.display='none'">
