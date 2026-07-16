@@ -526,22 +526,22 @@
     // Exclut une reference des recommandations ET laisse une trace dans le
     // Journal — un commentaire optionnel explique le POURQUOI (ex : "vendu
     // desormais en pack de 6"), pour que la decision d'exclusion soit
-    // auditable plus tard, pas juste silencieuse. Aucune table Supabase
-    // supplementaire requise : le commentaire vit dans le meme
-    // nexus_journal_decisions que le reste, lu par Journal NEXUS.
+    // auditable plus tard, pas juste silencieuse. La trace vit dans la meme
+    // table journal_decisions que le reste, lue par Journal NEXUS.
     async function exclureAvecCommentaire(article) {
       const commentaire = prompt(`Pourquoi exclure "${article}" des recommandations ? (optionnel)`, '');
       if (commentaire === null) return false; // annule
       const ok = await marquerProduitAppel(article);
       if (ok) {
-        const journal = JSON.parse(localStorage.getItem('nexus_journal_decisions') || '[]');
-        journal.push({
+        const { error } = await nexusClient.from('journal_decisions').insert({
+          site: SITE_ACTUEL,
           candidate_id: `EXCLUSION-${article}-${Date.now()}`, rule_id: 'EXCLUSION-MANUELLE', etat: '🚫 EXCLU',
           recommandation: commentaire ? `Exclu des recommandations — ${commentaire}` : `Exclu des recommandations`,
           impact_eur: 0, article, categorie: null,
           date: new Date().toISOString().slice(0,10), heure: new Date().toTimeString().slice(0,5),
+          employee_id: employeeCourantId,
         });
-        localStorage.setItem('nexus_journal_decisions', JSON.stringify(journal));
+        if (error) console.error('Écriture Journal (exclusion):', error);
       }
       return ok;
     }
@@ -686,14 +686,16 @@
     // Trace datee et chiffree de chaque decision validee — lue par Journal NEXUS
     // pour repondre a "qu'est-ce qui a ete fait aujourd'hui ?". N'affecte pas
     // le comportement existant de nexus_recommandations_validees.
-    function enregistrerJournalDecision(plan) {
-      const journal = JSON.parse(localStorage.getItem('nexus_journal_decisions') || '[]');
-      journal.push({
+    async function enregistrerJournalDecision(plan) {
+      const { error } = await nexusClient.from('journal_decisions').insert({
+        site: SITE_ACTUEL,
         candidate_id: plan.candidate_id, rule_id: plan.rule_id, etat: plan.etat,
         recommandation: plan.recommandation, impact_eur: plan.impact_eur, article: plan.article,
+        categorie: plan.categorie || null,
         date: new Date().toISOString().slice(0,10), heure: new Date().toTimeString().slice(0,5),
+        employee_id: employeeCourantId,
       });
-      localStorage.setItem('nexus_journal_decisions', JSON.stringify(journal));
+      if (error) console.error('Écriture Journal:', error);
     }
 
     let dernierAffichage = []; // les 5 plans reellement visibles a l'ecran, partages avec le briefing
@@ -752,14 +754,14 @@
       });
 
       el.querySelectorAll('.plan-valider').forEach(btn => {
-        btn.addEventListener('click', (e) => {
+        btn.addEventListener('click', async (e) => {
           e.stopPropagation();
           const plan = PLANS_ACTION.find(p => p.candidate_id === btn.dataset.id);
           const v = chargerValidees();
           v.push(btn.dataset.id);
           sauvegarderValidees(v);
           if (plan) {
-            enregistrerJournalDecision(plan);
+            await enregistrerJournalDecision(plan);
             afficherToastOr(`✓ Gain sécurisé — ${Math.round(plan.impact_eur).toLocaleString('fr-FR')} €`);
           }
           renderPlansAction(); // la suivante du classement prend la place

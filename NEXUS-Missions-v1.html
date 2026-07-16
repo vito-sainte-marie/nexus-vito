@@ -156,14 +156,16 @@
   // Meme trace que celle ecrite par le Cockpit et le Centre d'Intelligence —
   // pour que valider une recommandation depuis N'IMPORTE lequel des trois
   // ecrans finisse toujours dans le meme Journal NEXUS.
-  function enregistrerJournalDecision(plan) {
-    const journal = JSON.parse(localStorage.getItem('nexus_journal_decisions') || '[]');
-    journal.push({
+  async function enregistrerJournalDecision(plan) {
+    const { error } = await nexusClient.from('journal_decisions').insert({
+      site: SITE_ACTUEL,
       candidate_id: plan.candidate_id, rule_id: plan.rule_id, etat: plan.etat,
       recommandation: plan.recommandation, impact_eur: plan.impact_eur, article: plan.article,
+      categorie: plan.categorie || null,
       date: new Date().toISOString().slice(0,10), heure: new Date().toTimeString().slice(0,5),
+      employee_id: employeeId,
     });
-    localStorage.setItem('nexus_journal_decisions', JSON.stringify(journal));
+    if (error) console.error('Écriture Journal:', error);
   }
 
   function renderPlansActionMissions() {
@@ -203,19 +205,20 @@
     });
 
     el.querySelectorAll('.plan-valider').forEach(btn => {
-      btn.addEventListener('click', (e) => {
+      btn.addEventListener('click', async (e) => {
         e.stopPropagation();
         const plan = PLANS_ACTION.find(p => p.candidate_id === btn.dataset.id);
         const v = chargerValidees();
         v.push(btn.dataset.id);
         sauvegarderValidees(v);
-        if (plan) enregistrerJournalDecision(plan);
+        if (plan) await enregistrerJournalDecision(plan);
         renderPlansActionMissions();
       });
     });
   }
   let employeActuel = null;
   let employeeId = null;
+  let SITE_ACTUEL = 'vito-sainte-marie'; // ecrase par employee.site_id une fois connecte
   let checkState = {};
   let completionsCache = [];
 
@@ -432,6 +435,7 @@
 
     employeActuel = employee.nom;
     employeeId = employee.id;
+    SITE_ACTUEL = employee.site_id || 'vito-sainte-marie';
 
     if (!employee.consultation_externe) {
       roleDuJour = await chargerShiftAujourdhui(employeeId);

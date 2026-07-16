@@ -88,6 +88,8 @@
 </div>
 
 <script>
+  let SITE_ACTUEL = 'vito-sainte-marie'; // ecrase par employee.site_id une fois connecte
+
   // Compare sans tenir compte des accents/majuscules — "Frédéric", "Frederic",
   // "FREDERIC" doivent tous matcher la meme entree.
   function normaliser(s) {
@@ -147,7 +149,7 @@
         if (!empId) { nomsNonReconnus.add(nom); return; }
         (parEmploye[nom] || []).forEach(p => {
           aInserer.push({
-            employee_id: empId, site: 'vito-sainte-marie', date,
+            employee_id: empId, site: SITE_ACTUEL, date,
             type: p.type, heure: p.heure, quart: p.quart || 'inconnu', retard_min: p.retard_min || 0,
           });
         });
@@ -199,6 +201,68 @@
     renderRoot();
   }
 
+  // Migration ponctuelle — reprend l'historique local (nexus_journal_decisions)
+  // et l'insere dans Supabase (journal_decisions). L'employee_id n'existait pas
+  // dans les entrees locales, il reste donc vide pour l'historique migre —
+  // seules les nouvelles decisions, ecrites directement par Cockpit/CIN/
+  // Missions, l'auront desormais. Deduplique par candidate_id (deja unique
+  // dans chaque entree), sans danger a relancer plusieurs fois.
+  async function migrerJournalVersSupabase() {
+    const msg = document.getElementById('msgMigrationJournal');
+    const btn = document.getElementById('btnMigrerJournal');
+    msg.className = 'msg'; msg.textContent = '';
+
+    const journalLocal = JSON.parse(localStorage.getItem('nexus_journal_decisions') || '[]');
+    if (journalLocal.length === 0) {
+      msg.textContent = 'Aucun historique de Journal trouvé sur cet appareil.';
+      msg.className = 'msg err';
+      return;
+    }
+
+    if (!confirm(`Cet appareil contient ${journalLocal.length} décision(s) dans le Journal. Lancer la migration vers Supabase ?`)) return;
+
+    btn.disabled = true; btn.textContent = 'Migration en cours…';
+
+    const { data: dejaPresent, error: erreurExistant } = await nexusClient
+      .from('journal_decisions').select('candidate_id').eq('site', SITE_ACTUEL);
+    if (erreurExistant) console.error('Vérification doublons Journal:', erreurExistant);
+    const idsExistants = new Set((dejaPresent || []).map(d => d.candidate_id));
+
+    const aInserer = journalLocal
+      .filter(d => !idsExistants.has(d.candidate_id))
+      .map(d => ({
+        site: SITE_ACTUEL,
+        candidate_id: d.candidate_id, rule_id: d.rule_id, etat: d.etat,
+        recommandation: d.recommandation, impact_eur: d.impact_eur || 0,
+        article: d.article, categorie: d.categorie || null,
+        date: d.date, heure: d.heure, employee_id: null,
+      }));
+    const doublons = journalLocal.length - aInserer.length;
+
+    if (aInserer.length === 0) {
+      msg.textContent = `Tout est déjà présent dans Supabase (${doublons} entrée(s) déjà migrées). Rien à faire.`;
+      msg.className = 'msg ok';
+      btn.disabled = false; btn.textContent = 'Lancer la migration';
+      return;
+    }
+
+    let inseres = 0, erreurs = 0;
+    for (let i = 0; i < aInserer.length; i += 200) {
+      const lot = aInserer.slice(i, i + 200);
+      const { error } = await nexusClient.from('journal_decisions').insert(lot);
+      if (error) { console.error('Insertion migration Journal:', error); erreurs += lot.length; }
+      else inseres += lot.length;
+    }
+
+    btn.disabled = false; btn.textContent = 'Lancer la migration';
+
+    let resume = `✓ ${inseres} décision(s) migrée(s) vers Supabase.`;
+    if (doublons > 0) resume += ` ${doublons} déjà présentes, ignorées.`;
+    if (erreurs > 0) resume += ` ${erreurs} en erreur (voir la console).`;
+
+    msg.textContent = resume;
+    msg.className = erreurs > 0 ? 'msg err' : 'msg ok';
+  }
   // Correction ponctuelle — les futurs imports classent deja correctement
   // les produits CBD (voir NEXUS-Import-v1.html, corrigerCategorie()), mais
   // ce qui a ete importe AVANT cette correction reste mal classe en base
@@ -212,7 +276,7 @@
     const { data: lignesConcernees, error: erreurRecherche } = await nexusClient
       .from('products')
       .select('categorie, article')
-      .eq('site', 'vito-sainte-marie')
+      .eq('site', SITE_ACTUEL)
       .ilike('article', '%cbd%')
       .neq('categorie', 'CBD');
 
@@ -237,7 +301,7 @@
     const { error: erreurMaj } = await nexusClient
       .from('products')
       .update({ categorie: 'CBD' })
-      .eq('site', 'vito-sainte-marie')
+      .eq('site', SITE_ACTUEL)
       .ilike('article', '%cbd%')
       .neq('categorie', 'CBD');
 
@@ -285,7 +349,7 @@
     const { data, error } = await fetchAllRows(() => nexusClient
       .from('products')
       .select('periode_debut, periode_fin, article')
-      .eq('site', 'vito-sainte-marie')
+      .eq('site', SITE_ACTUEL)
       .order('article', { ascending: true }));
 
     if (error) {
@@ -334,7 +398,7 @@
     if (!confirm(`Supprimer TOUTES les lignes products de la période ${debut} → ${fin} ? Cette action est irréversible — réimportez ensuite le fichier propre depuis Import.`)) return;
     btn.disabled = true; btn.textContent = 'Suppression…';
     const { error } = await nexusClient.from('products').delete()
-      .eq('site', 'vito-sainte-marie').eq('periode_debut', debut).eq('periode_fin', fin);
+      .eq('site', SITE_ACTUEL).eq('periode_debut', debut).eq('periode_fin', fin);
     if (error) {
       console.error('Suppression période:', error);
       alert('Erreur lors de la suppression — réessayez.');
@@ -377,6 +441,13 @@
       </div>
 
       <div class="card">
+        <div class="section-label">Migration ponctuelle — Journal NEXUS vers Supabase</div>
+        <p class="note" style="margin-top:0;">Reprend l'historique local (<code>nexus_journal_decisions</code>) de cet appareil et l'insère dans la table Supabase <code>journal_decisions</code>. Sans danger à relancer plusieurs fois — les entrées déjà migrées (même identifiant de décision) sont détectées et ignorées.</p>
+        <button class="btn btn-primary" id="btnMigrerJournal">Lancer la migration</button>
+        <div class="msg" id="msgMigrationJournal"></div>
+      </div>
+
+      <div class="card">
         <div class="section-label">Correction ponctuelle — Catégories CBD</div>
         <p class="note" style="margin-top:0;">Reclasse sous "CBD" toute ligne déjà importée dans <code>products</code> dont l'article contient "CBD" mais qui est encore classée ailleurs (ex : sous "Tabac"). Corrige l'historique déjà en base — les futurs imports sont déjà corrigés automatiquement. Sans danger à relancer plusieurs fois.</p>
         <button class="btn btn-primary" id="btnCorrigerCBD">Corriger les catégories CBD</button>
@@ -400,6 +471,7 @@
     `;
 
     document.getElementById('btnMigrer').addEventListener('click', migrerPointagesVersSupabase);
+    document.getElementById('btnMigrerJournal').addEventListener('click', migrerJournalVersSupabase);
     document.getElementById('btnCorrigerCBD').addEventListener('click', corrigerCategoriesCBD);
     document.getElementById('btnDiagPeriodes').addEventListener('click', diagnostiquerPeriodes);
 
@@ -448,6 +520,7 @@
       document.getElementById('root').innerHTML = `<div class="locked">Cet écran est réservé aux managers.</div>`;
       return;
     }
+    SITE_ACTUEL = employee.site_id || 'vito-sainte-marie';
     renderRoot();
   });
 </script>

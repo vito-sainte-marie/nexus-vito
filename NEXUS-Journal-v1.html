@@ -132,9 +132,10 @@
     return data || [];
   }
 
-  function chargerDecisionsDuJour() {
-    const journal = JSON.parse(localStorage.getItem('nexus_journal_decisions') || '[]');
-    return journal.filter(d => d.date === AUJOURD_ISO);
+  async function chargerDecisionsDuJour() {
+    const { data, error } = await nexusClient.from('journal_decisions').select('*').eq('site', SITE_ACTUEL).eq('date', AUJOURD_ISO);
+    if (error) { console.error('Chargement décisions du jour:', error); return []; }
+    return data || [];
   }
 
   // Table Supabase pointages — remplace localStorage('nexus_pointages'), qui ne
@@ -150,6 +151,7 @@
   const FILTRES = ['Tout', '🥇 Décisions', '✓ Missions', '⏱ Pointages'];
   let filtreActif = 'Tout';
   let EVENEMENTS = [];
+  let SITE_ACTUEL = 'vito-sainte-marie'; // ecrase par employee.site_id une fois connecte
 
   // Construit une timeline unique, triee par heure decroissante — le Journal
   // ne regroupe pas par categorie et ne resume pas : il liste les faits dans
@@ -261,8 +263,8 @@
       document.getElementById('root').innerHTML = `<div class="locked">Cet écran est réservé aux managers.</div>`;
       return;
     }
-    const [equipe, missions, pointages] = await Promise.all([chargerEquipe(), chargerMissionsDuJour(), chargerPointagesDuJour()]);
-    const decisions = chargerDecisionsDuJour();
+    SITE_ACTUEL = employee.site_id || 'vito-sainte-marie';
+    const [equipe, missions, pointages, decisions] = await Promise.all([chargerEquipe(), chargerMissionsDuJour(), chargerPointagesDuJour(), chargerDecisionsDuJour()]);
     EVENEMENTS = construireEvenements(decisions, missions, pointages, equipe);
     renderRoot(decisions, missions, pointages);
   });
