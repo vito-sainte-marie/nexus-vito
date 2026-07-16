@@ -25,6 +25,22 @@
   .app{width:100%; max-width:520px; min-height:100vh; display:flex; flex-direction:column; border-left:1px solid var(--hairline); border-right:1px solid var(--hairline);}
 
   .header{padding:28px 24px 8px; text-align:center;}
+  .logo-frame{
+    width:72px; height:72px; border-radius:22px;
+    background:transparent;
+    display:flex; align-items:center; justify-content:center;
+    border:2px solid #4FC3D9;
+    box-shadow:
+      0 4px 10px rgba(0,0,0,0.35),
+      0 0 8px rgba(79,195,217,0.9),
+      0 0 18px rgba(79,195,217,0.65),
+      0 0 34px rgba(79,195,217,0.4);
+    margin:0 auto 14px;
+  }
+  .logo-frame img{
+    height:50px; width:50px; object-fit:cover; object-position:center; border-radius:13px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.4);
+  }
   .mark{
     display:inline-block; font-family:var(--mono); font-weight:700; font-size:13px; letter-spacing:0.16em;
     color:var(--cyan); border:1px solid rgba(79,195,217,0.35); padding:4px 10px; border-radius:4px; margin-bottom:10px;
@@ -96,6 +112,7 @@
 <body>
 <div class="app">
   <div class="header">
+    <div id="logoFrameHote"></div>
     <span class="mark">NEXUS</span>
     <div class="title" id="stationTitle">Vito Sainte-Marie Usine</div>
     <div class="subtitle" id="taglineRole">Le premier directeur d'exploitation numérique qui accompagne les managers dans leurs décisions quotidiennes.</div>
@@ -389,13 +406,9 @@
       const titre = document.getElementById('stationTitle');
       if (titre && site.nom_entreprise) titre.textContent = site.nom_entreprise;
       if (site.logo_url) {
-        const mark = document.querySelector('.header .mark');
-        if (mark) {
-          const img = document.createElement('img');
-          img.src = site.logo_url;
-          img.alt = site.nom_entreprise || 'Logo';
-          img.style.cssText = 'width:22px; height:22px; border-radius:6px; object-fit:cover; vertical-align:middle; margin-right:6px;';
-          mark.prepend(img);
+        const hote = document.getElementById('logoFrameHote');
+        if (hote) {
+          hote.innerHTML = `<div class="logo-frame"><img src="${site.logo_url}" alt="${site.nom_entreprise || 'Logo'}"></div>`;
         }
       }
     })();
