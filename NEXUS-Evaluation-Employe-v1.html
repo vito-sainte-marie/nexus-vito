@@ -34,12 +34,16 @@
   .title{font-size:20px; font-weight:600; margin-top:4px;}
   .divider{height:1px; background:var(--hairline); margin:0 20px;}
 
+  .tabs{display:flex; gap:8px; padding:14px 20px 0;}
+  .tab{flex:1; text-align:center; padding:10px; border-radius:8px; font-family:var(--mono); font-size:11px; letter-spacing:0.04em; text-transform:uppercase; color:var(--text-dim); background:var(--panel-raised); border:1px solid var(--hairline); cursor:pointer;}
+  .tab.active{color:var(--cyan); border-color:rgba(79,195,217,0.4); background:rgba(79,195,217,0.08);}
+
   .section{padding:16px 20px;}
   .card{background:var(--panel); border:1px solid var(--hairline); border-radius:12px; padding:18px; margin-bottom:14px;}
   .section-label{font-family:var(--mono); font-size:10.5px; letter-spacing:0.08em; text-transform:uppercase; color:var(--text-dim); margin-bottom:12px; display:flex; align-items:center; gap:8px;}
   .section-label::after{content:''; flex:1; height:1px; background:var(--hairline);}
 
-  select, input[type=text]{
+  select, input[type=text], textarea{
     width:100%; background:var(--panel-raised); border:1px solid var(--hairline); border-radius:8px;
     padding:11px 12px; color:var(--text); font-family:var(--sans); font-size:13.5px; margin-bottom:10px;
   }
@@ -47,7 +51,7 @@
   .check-item{display:flex; align-items:center; justify-content:space-between; padding:10px 0; border-bottom:1px solid var(--hairline);}
   .check-item:last-child{border-bottom:none;}
   .check-item label{font-size:13px;}
-  .toggle{width:44px; height:24px; background:var(--panel-raised); border-radius:14px; position:relative; cursor:pointer; border:1px solid var(--hairline);}
+  .toggle{width:44px; height:24px; background:var(--panel-raised); border-radius:14px; position:relative; cursor:pointer; border:1px solid var(--hairline); flex-shrink:0;}
   .toggle.on{background:var(--green-dim); border-color:var(--green);}
   .toggle-dot{width:18px; height:18px; background:var(--text-dim); border-radius:50%; position:absolute; top:2px; left:2px; transition:0.15s;}
   .toggle.on .toggle-dot{background:var(--green); left:22px;}
@@ -57,10 +61,12 @@
     padding:13px 18px; cursor:pointer; width:100%; margin-top:10px;
   }
   .btn-primary{background:var(--cyan); color:#04141a;}
+  .btn-primary:disabled{opacity:0.5; cursor:default;}
 
   .result-box{margin-top:14px; padding:14px; border-radius:10px; text-align:center;}
   .result-box.ok{background:var(--green-dim); color:var(--green);}
   .result-box.warn{background:var(--amber-dim); color:var(--amber);}
+  .result-box.err{background:var(--red-dim); color:var(--red);}
   .result-score{font-family:var(--mono); font-size:26px; font-weight:700;}
   .result-detail{font-size:11.5px; margin-top:4px;}
 
@@ -72,6 +78,19 @@
 
   .prime-result{text-align:center; padding:18px; border-radius:10px; margin-top:14px;}
   .prime-pct{font-family:var(--mono); font-size:32px; font-weight:700;}
+
+  .bilan-box{background:var(--panel-raised); border:1px solid rgba(79,195,217,0.3); border-radius:10px; padding:16px; margin-bottom:14px; text-align:center;}
+  .bilan-pct{font-family:var(--mono); font-size:30px; font-weight:700; color:var(--cyan);}
+  .bilan-label{font-family:var(--mono); font-size:10px; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.06em; margin-top:4px;}
+
+  .histo-item{padding:12px 0; border-bottom:1px solid var(--hairline);}
+  .histo-item:last-child{border-bottom:none;}
+  .histo-top{display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;}
+  .histo-type{font-family:var(--mono); font-size:9.5px; color:var(--text-dim); text-transform:uppercase;}
+  .histo-date{font-family:var(--mono); font-size:10.5px; color:var(--text-mid);}
+  .histo-score{font-family:var(--mono); font-size:15px; font-weight:700; color:var(--cyan);}
+  .histo-comment{font-size:11.5px; color:var(--text-mid); margin-top:4px; line-height:1.4;}
+  .empty{text-align:center; padding:24px; color:var(--text-dim); font-size:12.5px;}
 
   footer{margin-top:auto; padding:16px 20px 24px; font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:center; border-top:1px solid var(--hairline);}
 </style>
@@ -87,7 +106,12 @@
   </div>
   <div class="divider"></div>
 
-  <div class="section">
+  <div class="tabs">
+    <div class="tab active" id="tabNouvelle">Nouvelle évaluation</div>
+    <div class="tab" id="tabHistorique">Historique &amp; bilan</div>
+  </div>
+
+  <div class="section" id="vueNouvelle">
     <div class="card">
       <div class="section-label">Employé</div>
       <select id="employeSelect"></select>
@@ -99,7 +123,7 @@
       <div class="check-item"><label>Jean</label><div class="toggle" data-item="jean"><div class="toggle-dot"></div></div></div>
       <div class="check-item"><label>Bien coiffé</label><div class="toggle" data-item="coiffure"><div class="toggle-dot"></div></div></div>
       <div class="check-item"><label>Chaussures de sécurité</label><div class="toggle" data-item="chaussures_securite"><div class="toggle-dot"></div></div></div>
-      <div class="check-item"><label>Ceinture au jean <span id="ceintureAuto" style="font-family:var(--mono); font-size:9.5px; color:var(--text-dim);"></span></label><div class="toggle" data-item="ceinture"><div class="toggle-dot"></div></div></div>
+      <div class="check-item"><label>Ceinture au jean (si applicable)</label><div class="toggle" data-item="ceinture"><div class="toggle-dot"></div></div></div>
       <button class="btn btn-primary" id="validerTenue">Valider le contrôle</button>
       <div id="resultTenue"></div>
     </div>
@@ -107,7 +131,7 @@
     <div class="card" id="cardGrillePrime">
       <div class="section-label">Grille d'évaluation — prime</div>
       <div id="criteres"></div>
-      <button class="btn btn-primary" id="calculerPrime">Calculer la prime</button>
+      <button class="btn btn-primary" id="calculerPrime">Enregistrer l'évaluation</button>
       <div id="resultPrime"></div>
     </div>
 
@@ -117,169 +141,335 @@
 
       <div class="section-label" style="margin-top:20px;">Auto-critique (à remplir avec l'employé)</div>
       <label style="font-size:11.5px; color:var(--text-mid); display:block; margin-bottom:4px;">Points forts</label>
-      <textarea id="r_forts" style="width:100%; min-height:50px; background:var(--panel-raised); border:1px solid var(--hairline); border-radius:8px; padding:10px; color:var(--text); font-family:var(--sans); font-size:12.5px; margin-bottom:10px;"></textarea>
+      <textarea id="r_forts" style="min-height:50px;"></textarea>
       <label style="font-size:11.5px; color:var(--text-mid); display:block; margin-bottom:4px;">Aspects à améliorer</label>
-      <textarea id="r_ameliorer" style="width:100%; min-height:50px; background:var(--panel-raised); border:1px solid var(--hairline); border-radius:8px; padding:10px; color:var(--text); font-family:var(--sans); font-size:12.5px; margin-bottom:10px;"></textarea>
+      <textarea id="r_ameliorer" style="min-height:50px;"></textarea>
 
       <div class="section-label" style="margin-top:16px;">Commentaires du responsable</div>
-      <textarea id="r_commentaires" style="width:100%; min-height:60px; background:var(--panel-raised); border:1px solid var(--hairline); border-radius:8px; padding:10px; color:var(--text); font-family:var(--sans); font-size:12.5px; margin-bottom:10px;"></textarea>
+      <textarea id="r_commentaires" style="min-height:60px;"></textarea>
 
       <button class="btn btn-primary" id="calculerRenfort">Enregistrer l'évaluation</button>
       <div id="resultRenfort"></div>
     </div>
   </div>
 
-  <footer>NEXUS Évaluation v1 · Barème : 9-10→100% · 7-8,5→70% · 6-6,5→40% · &lt;6→0%</footer>
+  <div class="section" id="vueHistorique" style="display:none;">
+    <div class="card">
+      <div class="section-label">Employé</div>
+      <select id="employeSelectHisto"></select>
+    </div>
+    <div id="bilanAnnuel"></div>
+    <div class="card">
+      <div class="section-label">Historique des évaluations</div>
+      <div id="listeHistorique"></div>
+    </div>
+  </div>
+
+  <footer>NEXUS Évaluation v1 · Barème prime : 9-10→100% · 7-8,5→70% · 6-6,5→40% · &lt;6→0%</footer>
 </div>
 
 <script>
-  nexusRequireAuth().then(employee => {
+  let SITE_ACTUEL = 'vito-sainte-marie'; // ecrase par employee.site_id une fois connecte
+  let EVALUATEUR_ID = null;
+  let ROSTER = [];
+
+  nexusRequireAuth().then(async employee => {
     if (!employee) return; // nexus-auth.js gère déjà la redirection vers NEXUS-Login-v1.html
     if (employee.role !== 'manager' && employee.role !== 'gerant') {
       document.body.innerHTML = '<div style="padding:60px 20px; text-align:center; color:var(--text-dim); font-family:var(--sans);">Cet écran est réservé aux managers.</div>';
       return;
     }
-    const session = { prenom: employee.nom, role: employee.role };
+    SITE_ACTUEL = employee.site_id || 'vito-sainte-marie';
+    EVALUATEUR_ID = employee.id;
 
+    // nexusClient est déjà disponible globalement (défini dans nexus-auth.js)
 
-  const ROSTER_DEFAUT = [
-    {"prenom":"Frédéric","nom":"Bragance","role":"manager","sexe":null},
-    {"prenom":"Thomas","nom":"Dupont","role":"pompiste","sexe":"homme"},
-    {"prenom":"Estelle","nom":"Bragance","role":"caissier","sexe":"femme"}
-  ];
-  const inscrits = JSON.parse(localStorage.getItem('nexus_roster_inscrits') || '[]');
-  const roster = ROSTER_DEFAUT.concat(inscrits);
+    // ------------------------------------------------------------
+    // Roster reel — remplace l'ancienne liste d'exemple codee en dur
+    // (localStorage nexus_roster_inscrits). Aucun champ "sexe" n'existe
+    // dans employees, donc la ceinture n'est plus auto-cochee/decochee
+    // selon le genre — le manager la coche manuellement si applicable.
+    // ------------------------------------------------------------
+    async function chargerRoster() {
+      const { data, error } = await nexusClient.from('employees').select('id, nom, role').eq('site_id', SITE_ACTUEL).eq('actif', true).order('nom');
+      if (error) { console.error('Chargement employés:', error); return []; }
+      return data || [];
+    }
+    ROSTER = await chargerRoster();
 
-  const empSelect = document.getElementById('employeSelect');
-  roster.forEach(e => {
-    const opt = document.createElement('option');
-    opt.value = e.prenom; opt.textContent = `${e.prenom} ${e.nom} (${e.role})`;
-    opt.dataset.sexe = e.sexe || '';
-    empSelect.appendChild(opt);
-  });
+    function remplirSelect(selectEl) {
+      selectEl.innerHTML = '';
+      ROSTER.forEach(e => {
+        const opt = document.createElement('option');
+        opt.value = e.id; opt.textContent = `${e.nom} (${e.role})`;
+        opt.dataset.role = e.role;
+        selectEl.appendChild(opt);
+      });
+    }
+    const empSelect = document.getElementById('employeSelect');
+    const empSelectHisto = document.getElementById('employeSelectHisto');
+    remplirSelect(empSelect);
+    remplirSelect(empSelectHisto);
 
-  function empActuel() { return roster.find(e => e.prenom === empSelect.value); }
+    function empActuel() { return ROSTER.find(e => e.id === empSelect.value); }
+    function empActuelHisto() { return ROSTER.find(e => e.id === empSelectHisto.value); }
 
-  function updateCeintureDefault() {
-    const emp = empActuel();
-    const applicable = emp && emp.sexe === 'homme';
-    document.getElementById('ceintureAuto').textContent = applicable ? '(applicable)' : '(non applicable par défaut)';
-    const toggle = document.querySelector('.toggle[data-item="ceinture"]');
-    toggle.dataset.forced = 'false';
+    function basculerGrille() {
+      const emp = empActuel();
+      const estRenfort = emp && emp.role === 'renfort';
+      document.getElementById('cardGrillePrime').style.display = estRenfort ? 'none' : 'block';
+      document.getElementById('cardGrilleRenfort').style.display = estRenfort ? 'block' : 'none';
+    }
+    empSelect.addEventListener('change', basculerGrille);
+    basculerGrille();
 
-    // Bascule de grille selon le role — Renfort a sa propre grille specifique,
-    // les autres roles gardent la grille de prime /10
-    const estRenfort = emp && emp.role === 'renfort';
-    document.getElementById('cardGrillePrime').style.display = estRenfort ? 'none' : 'block';
-    document.getElementById('cardGrilleRenfort').style.display = estRenfort ? 'block' : 'none';
-  }
-  empSelect.addEventListener('change', updateCeintureDefault);
-  updateCeintureDefault();
+    // ------------------------------------------------------------
+    // Onglets
+    // ------------------------------------------------------------
+    const tabNouvelle = document.getElementById('tabNouvelle');
+    const tabHistorique = document.getElementById('tabHistorique');
+    tabNouvelle.addEventListener('click', () => {
+      tabNouvelle.classList.add('active'); tabHistorique.classList.remove('active');
+      document.getElementById('vueNouvelle').style.display = 'block';
+      document.getElementById('vueHistorique').style.display = 'none';
+    });
+    tabHistorique.addEventListener('click', async () => {
+      tabHistorique.classList.add('active'); tabNouvelle.classList.remove('active');
+      document.getElementById('vueNouvelle').style.display = 'none';
+      document.getElementById('vueHistorique').style.display = 'block';
+      await afficherHistorique();
+    });
+    empSelectHisto.addEventListener('change', afficherHistorique);
 
-  document.querySelectorAll('.toggle').forEach(t => {
-    t.addEventListener('click', () => { t.classList.toggle('on'); t.dataset.forced = 'true'; });
-  });
-
-  const POINTS_CONFORME = 5, PENALITE_ITEM = -1;
-  document.getElementById('validerTenue').addEventListener('click', () => {
-    const emp = empActuel();
-    const ceintureApplicable = emp && emp.sexe === 'homme';
-    let items = {};
+    // ------------------------------------------------------------
+    // Contrôle tenue — sauvegarde reelle dans controles_tenue
+    // ------------------------------------------------------------
     document.querySelectorAll('.toggle').forEach(t => {
-      const item = t.dataset.item;
-      if (item === 'ceinture' && !ceintureApplicable) return; // exclu par defaut
-      items[item] = t.classList.contains('on');
+      t.addEventListener('click', () => t.classList.toggle('on'));
     });
-    const manquants = Object.values(items).filter(v => !v).length;
-    const conforme = manquants === 0;
-    const points = Math.max(POINTS_CONFORME + manquants * PENALITE_ITEM, PENALITE_ITEM * Object.keys(items).length);
 
-    const box = document.getElementById('resultTenue');
-    box.innerHTML = `<div class="result-box ${conforme?'ok':'warn'}">
-      <div class="result-score">${points} pts</div>
-      <div class="result-detail">${conforme ? 'Tenue conforme' : manquants + ' item(s) manquant(s)'} — ${emp.prenom}, ${new Date().toLocaleDateString('fr-FR')}</div>
-    </div>`;
-  });
+    const POINTS_CONFORME = 5, PENALITE_ITEM = -1;
+    document.getElementById('validerTenue').addEventListener('click', async () => {
+      const emp = empActuel();
+      if (!emp) return;
+      let items = {};
+      document.querySelectorAll('.toggle').forEach(t => { items[t.dataset.item] = t.classList.contains('on'); });
+      const manquants = Object.values(items).filter(v => !v).length;
+      const conforme = manquants === 0;
+      const points = Math.max(POINTS_CONFORME + manquants * PENALITE_ITEM, PENALITE_ITEM * Object.keys(items).length);
 
-  // Grille d'evaluation prime — 6 criteres reels
-  const CRITERES = [
-    {id:'accueil', label:"Qualité de l'accueil client", max:2},
-    {id:'organisation', label:"Organisation et mise en place du poste", max:2},
-    {id:'cohesion', label:"Cohésion et esprit d'équipe", max:2},
-    {id:'comportement', label:"Comportement général", max:2},
-    {id:'assiduite', label:"Assiduité", max:1},
-    {id:'rigueur', label:"Rigueur administrative et opérationnelle", max:1},
-  ];
-  const critEl = document.getElementById('criteres');
-  CRITERES.forEach(c => {
-    const div = document.createElement('div');
-    div.className = 'critere-row';
-    div.innerHTML = `<label>${c.label} <span class="max">/ ${c.max}</span></label>
-      <input type="range" min="0" max="${c.max}" step="0.5" value="0" id="crit_${c.id}">
-      <div class="critere-note" id="note_${c.id}">0 / ${c.max}</div>`;
-    critEl.appendChild(div);
-    div.querySelector('input').addEventListener('input', (e) => {
-      document.getElementById(`note_${c.id}`).textContent = `${e.target.value} / ${c.max}`;
+      const box = document.getElementById('resultTenue');
+      const { error } = await nexusClient.from('controles_tenue').insert({
+        site: SITE_ACTUEL, employee_id: emp.id, controleur_id: EVALUATEUR_ID,
+        conforme, items, points,
+      });
+      if (error) {
+        console.error('Enregistrement contrôle tenue:', error);
+        box.innerHTML = `<div class="result-box err"><div class="result-detail">Erreur d'enregistrement — réessayez.</div></div>`;
+        return;
+      }
+      box.innerHTML = `<div class="result-box ${conforme?'ok':'warn'}">
+        <div class="result-score">${points} pts</div>
+        <div class="result-detail">✓ Enregistré — ${conforme ? 'Tenue conforme' : manquants + ' item(s) manquant(s)'} — ${emp.nom}, ${new Date().toLocaleDateString('fr-FR')}</div>
+      </div>`;
     });
-  });
 
-  function calculerPrime(totalSur10) {
-    if (totalSur10 >= 9) return 100;
-    if (totalSur10 >= 7) return 70;
-    if (totalSur10 >= 6) return 40;
-    return 0;
-  }
+    // ------------------------------------------------------------
+    // Grille d'evaluation prime — 6 criteres reels
+    // ------------------------------------------------------------
+    const CRITERES = [
+      {id:'accueil', label:"Qualité de l'accueil client", max:2},
+      {id:'organisation', label:"Organisation et mise en place du poste", max:2},
+      {id:'cohesion', label:"Cohésion et esprit d'équipe", max:2},
+      {id:'comportement', label:"Comportement général", max:2},
+      {id:'assiduite', label:"Assiduité", max:1},
+      {id:'rigueur', label:"Rigueur administrative et opérationnelle", max:1},
+    ];
+    const critEl = document.getElementById('criteres');
+    CRITERES.forEach(c => {
+      const div = document.createElement('div');
+      div.className = 'critere-row';
+      div.innerHTML = `<label>${c.label} <span class="max">/ ${c.max}</span></label>
+        <input type="range" min="0" max="${c.max}" step="0.5" value="0" id="crit_${c.id}">
+        <div class="critere-note" id="note_${c.id}">0 / ${c.max}</div>`;
+      critEl.appendChild(div);
+      div.querySelector('input').addEventListener('input', (e) => {
+        document.getElementById(`note_${c.id}`).textContent = `${e.target.value} / ${c.max}`;
+      });
+    });
 
-  document.getElementById('calculerPrime').addEventListener('click', () => {
-    let total = 0;
-    CRITERES.forEach(c => total += parseFloat(document.getElementById(`crit_${c.id}`).value));
-    const pct = calculerPrime(total);
-    const box = document.getElementById('resultPrime');
-    box.innerHTML = `<div class="prime-result" style="background:${pct>0?'var(--green-dim)':'var(--red-dim)'};">
-      <div style="font-family:var(--mono); font-size:11px; color:var(--text-mid);">Total : ${total.toFixed(1)} / 10</div>
-      <div class="prime-pct" style="color:${pct>0?'var(--green)':'var(--red)'};">${pct}%</div>
-      <div style="font-family:var(--mono); font-size:10px; color:var(--text-dim);">de la prime</div>
-    </div>`;
-  });
+    function calculerPrimePct(totalSur10) {
+      if (totalSur10 >= 9) return 100;
+      if (totalSur10 >= 7) return 70;
+      if (totalSur10 >= 6) return 40;
+      return 0;
+    }
 
-  // Grille specifique Renfort — echelle 1 a 5 par critere, PAS de bareme prime
-  // (entretien de performance qualitatif, distinct de la grille prime generale)
-  const CRITERES_RENFORT = [
-    {id:'ponctualite', label:"Ponctualité, assiduité et respect des consignes de sécurité"},
-    {id:'rigueur', label:"Rigueur dans l'exécution des tâches"},
-    {id:'service', label:"Qualité du service client"},
-    {id:'reactivite', label:"Réactivité et adaptabilité"},
-    {id:'proprete', label:"Maintien de la propreté et de l'hygiène"},
-    {id:'equipe', label:"Travail en équipe et entraide"},
-  ];
-  const critRenfortEl = document.getElementById('criteresRenfort');
-  CRITERES_RENFORT.forEach(c => {
-    const div = document.createElement('div');
-    div.className = 'critere-row';
-    div.innerHTML = `<label>${c.label} <span class="max">/ 5</span></label>
-      <input type="range" min="1" max="5" step="1" value="3" id="critr_${c.id}">
-      <div class="critere-note" id="noter_${c.id}">3 / 5 — Satisfaisant</div>`;
-    critRenfortEl.appendChild(div);
+    document.getElementById('calculerPrime').addEventListener('click', async () => {
+      const emp = empActuel();
+      if (!emp) return;
+      let total = 0;
+      const criteresDetail = {};
+      CRITERES.forEach(c => {
+        const v = parseFloat(document.getElementById(`crit_${c.id}`).value);
+        criteresDetail[c.id] = v;
+        total += v;
+      });
+      const pct = calculerPrimePct(total);
+      const box = document.getElementById('resultPrime');
+
+      const { error } = await nexusClient.from('evaluations_employes').insert({
+        site: SITE_ACTUEL, employee_id: emp.id, evaluateur_id: EVALUATEUR_ID,
+        type: 'standard', criteres: criteresDetail, total, prime_pct: pct,
+      });
+      if (error) {
+        console.error('Enregistrement évaluation:', error);
+        box.innerHTML = `<div class="result-box err"><div class="result-detail">Erreur d'enregistrement — réessayez.</div></div>`;
+        return;
+      }
+      box.innerHTML = `<div class="prime-result" style="background:${pct>0?'var(--green-dim)':'var(--red-dim)'};">
+        <div style="font-family:var(--mono); font-size:11px; color:var(--text-mid);">Total : ${total.toFixed(1)} / 10 — ✓ enregistré</div>
+        <div class="prime-pct" style="color:${pct>0?'var(--green)':'var(--red)'};">${pct}%</div>
+        <div style="font-family:var(--mono); font-size:10px; color:var(--text-dim);">de la prime</div>
+      </div>`;
+    });
+
+    // ------------------------------------------------------------
+    // Grille specifique Renfort — echelle 1 a 5 par critere
+    // ------------------------------------------------------------
+    const CRITERES_RENFORT = [
+      {id:'ponctualite', label:"Ponctualité, assiduité et respect des consignes de sécurité"},
+      {id:'rigueur', label:"Rigueur dans l'exécution des tâches"},
+      {id:'service', label:"Qualité du service client"},
+      {id:'reactivite', label:"Réactivité et adaptabilité"},
+      {id:'proprete', label:"Maintien de la propreté et de l'hygiène"},
+      {id:'equipe', label:"Travail en équipe et entraide"},
+    ];
+    const critRenfortEl = document.getElementById('criteresRenfort');
     const echelle = {1:'Insuffisant',2:'À améliorer',3:'Satisfaisant',4:'Bon',5:'Excellent'};
-    div.querySelector('input').addEventListener('input', (e) => {
-      document.getElementById(`noter_${c.id}`).textContent = `${e.target.value} / 5 — ${echelle[e.target.value]}`;
+    CRITERES_RENFORT.forEach(c => {
+      const div = document.createElement('div');
+      div.className = 'critere-row';
+      div.innerHTML = `<label>${c.label} <span class="max">/ 5</span></label>
+        <input type="range" min="1" max="5" step="1" value="3" id="critr_${c.id}">
+        <div class="critere-note" id="noter_${c.id}">3 / 5 — Satisfaisant</div>`;
+      critRenfortEl.appendChild(div);
+      div.querySelector('input').addEventListener('input', (e) => {
+        document.getElementById(`noter_${c.id}`).textContent = `${e.target.value} / 5 — ${echelle[e.target.value]}`;
+      });
     });
-  });
 
-  document.getElementById('calculerRenfort').addEventListener('click', () => {
-    let total = 0;
-    CRITERES_RENFORT.forEach(c => total += parseInt(document.getElementById(`critr_${c.id}`).value));
-    const moyenne = (total / CRITERES_RENFORT.length).toFixed(1);
-    const emp = empActuel();
-    const box = document.getElementById('resultRenfort');
-    box.innerHTML = `<div class="prime-result" style="background:var(--panel-raised);">
-      <div style="font-family:var(--mono); font-size:11px; color:var(--text-mid);">Moyenne des 6 critères</div>
-      <div class="prime-pct" style="color:var(--cyan);">${moyenne} / 5</div>
-      <div style="font-family:var(--mono); font-size:10px; color:var(--text-dim); margin-top:6px;">${emp.prenom} · ${new Date().toLocaleDateString('fr-FR')} · entretien qualitatif, sans lien direct avec la prime</div>
-    </div>`;
-  });
+    document.getElementById('calculerRenfort').addEventListener('click', async () => {
+      const emp = empActuel();
+      if (!emp) return;
+      let total = 0;
+      const criteresDetail = {};
+      CRITERES_RENFORT.forEach(c => {
+        const v = parseInt(document.getElementById(`critr_${c.id}`).value);
+        criteresDetail[c.id] = v;
+        total += v;
+      });
+      const moyenne = total / CRITERES_RENFORT.length;
+      const box = document.getElementById('resultRenfort');
 
-});
+      const { error } = await nexusClient.from('evaluations_employes').insert({
+        site: SITE_ACTUEL, employee_id: emp.id, evaluateur_id: EVALUATEUR_ID,
+        type: 'renfort', criteres: criteresDetail, total: moyenne,
+        autocritique_forts: document.getElementById('r_forts').value || null,
+        autocritique_ameliorer: document.getElementById('r_ameliorer').value || null,
+        commentaires: document.getElementById('r_commentaires').value || null,
+      });
+      if (error) {
+        console.error('Enregistrement évaluation renfort:', error);
+        box.innerHTML = `<div class="result-box err"><div class="result-detail">Erreur d'enregistrement — réessayez.</div></div>`;
+        return;
+      }
+      box.innerHTML = `<div class="prime-result" style="background:var(--panel-raised);">
+        <div style="font-family:var(--mono); font-size:11px; color:var(--text-mid);">Moyenne des 6 critères — ✓ enregistré</div>
+        <div class="prime-pct" style="color:var(--cyan);">${moyenne.toFixed(1)} / 5</div>
+        <div style="font-family:var(--mono); font-size:10px; color:var(--text-dim); margin-top:6px;">${emp.nom} · ${new Date().toLocaleDateString('fr-FR')}</div>
+      </div>`;
+    });
+
+    // ------------------------------------------------------------
+    // Historique & bilan annuel — ce qui manquait pour decider d'une
+    // prime en fin d'annee : toutes les evaluations d'un employe, plus
+    // une moyenne sur l'annee en cours.
+    // ------------------------------------------------------------
+    async function afficherHistorique() {
+      const emp = empActuelHisto();
+      const bilanEl = document.getElementById('bilanAnnuel');
+      const listeEl = document.getElementById('listeHistorique');
+      if (!emp) { bilanEl.innerHTML = ''; listeEl.innerHTML = ''; return; }
+
+      const anneeDebut = `${new Date().getFullYear()}-01-01`;
+      const [{ data: evals, error: e1 }, { data: tenues, error: e2 }] = await Promise.all([
+        nexusClient.from('evaluations_employes').select('*').eq('site', SITE_ACTUEL).eq('employee_id', emp.id).order('date', { ascending: false }),
+        nexusClient.from('controles_tenue').select('*').eq('site', SITE_ACTUEL).eq('employee_id', emp.id).order('date', { ascending: false }),
+      ]);
+      if (e1) console.error('Chargement évaluations:', e1);
+      if (e2) console.error('Chargement contrôles tenue:', e2);
+      const evaluations = evals || [];
+      const controles = tenues || [];
+
+      // Bilan annuel — uniquement sur l'annee en cours, pour rester
+      // pertinent au moment de decider d'une prime.
+      const evalsAnnee = evaluations.filter(e => e.date >= anneeDebut);
+      const standardAnnee = evalsAnnee.filter(e => e.type === 'standard');
+      const renfortAnnee = evalsAnnee.filter(e => e.type === 'renfort');
+      const tenueAnnee = controles.filter(c => c.date >= anneeDebut);
+      const tauxConformite = tenueAnnee.length > 0 ? Math.round(tenueAnnee.filter(c => c.conforme).length / tenueAnnee.length * 100) : null;
+
+      let bilanHtml = '';
+      if (standardAnnee.length > 0) {
+        const moyPrime = standardAnnee.reduce((s,e) => s + (e.prime_pct||0), 0) / standardAnnee.length;
+        bilanHtml += `<div class="bilan-box">
+          <div class="bilan-pct">${Math.round(moyPrime)}%</div>
+          <div class="bilan-label">Moyenne prime — ${standardAnnee.length} évaluation${standardAnnee.length>1?'s':''} en ${new Date().getFullYear()}</div>
+        </div>`;
+      }
+      if (renfortAnnee.length > 0) {
+        const moyRenfort = renfortAnnee.reduce((s,e) => s + (e.total||0), 0) / renfortAnnee.length;
+        bilanHtml += `<div class="bilan-box">
+          <div class="bilan-pct">${moyRenfort.toFixed(1)} / 5</div>
+          <div class="bilan-label">Moyenne performance — ${renfortAnnee.length} évaluation${renfortAnnee.length>1?'s':''} en ${new Date().getFullYear()}</div>
+        </div>`;
+      }
+      if (tauxConformite !== null) {
+        bilanHtml += `<div class="bilan-box">
+          <div class="bilan-pct">${tauxConformite}%</div>
+          <div class="bilan-label">Conformité tenue — ${tenueAnnee.length} contrôle${tenueAnnee.length>1?'s':''} en ${new Date().getFullYear()}</div>
+        </div>`;
+      }
+      bilanEl.innerHTML = bilanHtml || `<div class="empty">Aucune évaluation enregistrée pour ${emp.nom} cette année.</div>`;
+
+      // Liste complete, toutes annees confondues
+      const tousEvenements = [
+        ...evaluations.map(e => ({ ...e, kind: e.type === 'renfort' ? 'Évaluation Renfort' : 'Évaluation prime' })),
+        ...controles.map(c => ({ ...c, kind: 'Contrôle tenue' })),
+      ].sort((a,b) => (b.date||'').localeCompare(a.date||''));
+
+      if (tousEvenements.length === 0) {
+        listeEl.innerHTML = `<div class="empty">Aucun historique pour cet employé.</div>`;
+        return;
+      }
+      listeEl.innerHTML = tousEvenements.map(ev => {
+        let scoreTxt = '';
+        if (ev.kind === 'Contrôle tenue') scoreTxt = `${ev.points} pts`;
+        else if (ev.kind === 'Évaluation Renfort') scoreTxt = `${(ev.total||0).toFixed(1)} / 5`;
+        else scoreTxt = `${ev.prime_pct||0}%`;
+        const commentaire = ev.commentaires ? `<div class="histo-comment">${ev.commentaires}</div>` : '';
+        return `<div class="histo-item">
+          <div class="histo-top">
+            <span class="histo-type">${ev.kind}</span>
+            <span class="histo-score">${scoreTxt}</span>
+          </div>
+          <div class="histo-date">${new Date(ev.date).toLocaleDateString('fr-FR')}</div>
+          ${commentaire}
+        </div>`;
+      }).join('');
+    }
+  });
 </script>
 </body>
 </html>
