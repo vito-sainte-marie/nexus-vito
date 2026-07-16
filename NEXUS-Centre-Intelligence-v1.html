@@ -479,6 +479,25 @@
       .sort((a,b) => b.nb - a.nb).slice(0, 3);
   }
 
+  // 5. Reconnaissance — angle leadership, distinct de la regularite (volume
+  // brut). Ici on croise volume ET preuve (photo jointe), pour distinguer un
+  // travail reellement documente d'un simple defilement de cases cochees.
+  // Sert a ce que le Conseiller felicite autant qu'il alerte — un vrai
+  // directeur d'exploitation ne fait pas que pointer des problemes.
+  function patternReconnaissance(missionsHisto, equipeMap) {
+    const compte = {};
+    missionsHisto.forEach(m => {
+      if (!compte[m.employee_id]) compte[m.employee_id] = { nb: 0, avecPreuve: 0, points: 0 };
+      compte[m.employee_id].nb += 1;
+      if (m.photo_url) compte[m.employee_id].avecPreuve += 1;
+      compte[m.employee_id].points += (m.points || 0);
+    });
+    return Object.entries(compte)
+      .filter(([,v]) => v.nb >= 5 && (v.avecPreuve / v.nb) >= 0.6)
+      .map(([id,v]) => ({ nom: equipeMap[id] || 'Employé', nb: v.nb, tauxPreuve: Math.round(v.avecPreuve/v.nb*100), points: v.points }))
+      .sort((a,b) => b.points - a.points).slice(0, 1);
+  }
+
   function construirePatterns(journalToutes, retards, missionsHisto, equipeMap, detectionsActuelles) {
     const patterns = [];
 
@@ -487,7 +506,7 @@
         tag: d.resolu ? 'RÉSOLU' : 'PERSISTE', tagClasse: d.resolu ? 'tag-resolu' : 'tag-persiste',
         titre: `Suivi — ${d.article}`,
         texte: d.resolu
-          ? `Décision appliquée le ${d.date} — elle ne fait plus partie des signaux actifs, la situation semble s'être stabilisée.`
+          ? `Décision appliquée le ${d.date} — signal disparu depuis, environ <b>${Math.round(d.impact_eur||0).toLocaleString('fr-FR')} €</b> de risque écarté si l'estimation initiale tenait. La situation semble s'être stabilisée.`
           : `Décision appliquée le ${d.date} — elle réapparaît pourtant : la décision n'a pas suffi, ou trop peu de temps s'est écoulé pour en juger.`,
         source: 'Appris du Journal · décisions passées',
       });
@@ -520,6 +539,15 @@
       });
     });
 
+    patternReconnaissance(missionsHisto, equipeMap).forEach(p => {
+      patterns.push({
+        tag: 'BRAVO', tagClasse: 'tag-resolu',
+        titre: `${p.nom} — à féliciter`,
+        texte: `<b>${p.nb} missions</b> menées, dont <b>${p.tauxPreuve} %</b> documentées par une photo — un travail réellement prouvé, pas seulement déclaré. Un mot de reconnaissance a plus de valeur qu'on ne le pense.`,
+        source: 'Appris du Journal · qualité du travail',
+      });
+    });
+
     return patterns;
   }
 
@@ -530,6 +558,36 @@
   let PATTERNS = [];
   const AUJOURD_ISO_CIN = new Date().toISOString().slice(0,10);
   const FILTRES = ['Toutes', '🔥 À AGIR', '📈 OPPORTUNITÉ', '🟡 À SURVEILLER'];
+
+  // Banques de formulations — un meme constat ne s'exprime jamais deux fois
+  // avec les memes mots. Le choix est stable sur une journee (seed = date du
+  // jour), pas aleatoire a chaque rafraichissement — sinon l'ecran semble
+  // instable plutot que vivant.
+  function choixDuJour(options) {
+    let h = 0;
+    for (let i = 0; i < AUJOURD_ISO_CIN.length; i++) h = (h * 31 + AUJOURD_ISO_CIN.charCodeAt(i)) >>> 0;
+    return options[h % options.length];
+  }
+  const OUVERTURES = [
+    n => `J'ai passé vos données au crible : <b>${n}</b> signal${n>1?'aux':''} en ressortent`,
+    n => `Après analyse de la situation actuelle, <b>${n}</b> point${n>1?'s retiennent':' retient'} mon attention`,
+    n => `Voici ce que les chiffres révèlent aujourd'hui : <b>${n}</b> signal${n>1?'aux':''}`,
+  ];
+  const PRIORITE_INTRO = [
+    'Le plus prioritaire concerne',
+    'Ce qui mérite votre attention en premier :',
+    'Commençons par le plus urgent —',
+  ];
+  const OPPORTUNITE_INTRO = [
+    'À l\'inverse,',
+    'Sur une note plus positive,',
+    'Autre tendance à noter :',
+  ];
+  const SURVEILLANCE_INTRO = [
+    'Autre point à surveiller :',
+    'Je garde également un œil sur',
+    'À ne pas perdre de vue :',
+  ];
 
   // Le Conseiller du CIN parle en analyste, pas en chatbot : une phrase de
   // synthese construite a partir des vraies causes detectees, jamais un texte
@@ -544,7 +602,7 @@
   // pas seulement le chiffre le plus impressionnant.
   function messageConseillerCIN(actives) {
     if (actives.length === 0) {
-      return "Aucun signal ne justifie une analyse approfondie en ce moment. Je continue de surveiller en arrière-plan.";
+      return "Aucun signal ne justifie une analyse approfondie en ce moment. Je continue de surveiller en arrière-plan — un commerce calme un jour donné n'est pas un commerce sans opportunités, juste un jour sans urgence.";
     }
     const parEtat = {
       agir: actives.filter(p => p.etat === '🔥 À AGIR'),
@@ -553,13 +611,13 @@
     };
     const nbAgir = parEtat.agir.length;
 
-    let texte = `J'ai analysé <b>${actives.length}</b> signal${actives.length>1?'aux':''} sur vos données actuelles`;
-    texte += nbAgir > 0 ? `, dont <b>${nbAgir}</b> qui appellent une action aujourd'hui. ` : `. `;
+    let texte = choixDuJour(OUVERTURES)(actives.length);
+    texte += nbAgir > 0 ? `, dont <b>${nbAgir}</b> qui appelle${nbAgir>1?'nt':''} une action aujourd'hui. ` : `. `;
 
     // Le signal "a agir" le plus significatif reste mentionne — c'est une
     // vraie priorite, pas un artefact — mais il n'occupe plus tout le message.
     const top = parEtat.agir[0] || parEtat.opportunite[0] || parEtat.surveiller[0];
-    texte += `Le plus prioritaire concerne <b>${top.article}</b> : ${top.analyse.charAt(0).toLowerCase()}${top.analyse.slice(1)} `;
+    texte += `${choixDuJour(PRIORITE_INTRO)} <b>${top.article}</b> : ${top.analyse.charAt(0).toLowerCase()}${top.analyse.slice(1)} `;
     texte += top.consequence;
 
     // Deuxieme voix, deliberement differente du premier signal — une
@@ -570,9 +628,9 @@
     const opportunite = parEtat.opportunite.find(p => p.article !== top.article);
     const surveillance = parEtat.surveiller.find(p => p.article !== top.article);
     if (opportunite) {
-      texte += ` À l'inverse, <b>${opportunite.article}</b> progresse : ${opportunite.consequence.charAt(0).toLowerCase()}${opportunite.consequence.slice(1)}`;
+      texte += ` ${choixDuJour(OPPORTUNITE_INTRO)} <b>${opportunite.article}</b> progresse : ${opportunite.consequence.charAt(0).toLowerCase()}${opportunite.consequence.slice(1)}`;
     } else if (surveillance) {
-      texte += ` Autre point à surveiller : <b>${surveillance.article}</b> — ${surveillance.analyse.charAt(0).toLowerCase()}${surveillance.analyse.slice(1)}`;
+      texte += ` ${choixDuJour(SURVEILLANCE_INTRO)} <b>${surveillance.article}</b> — ${surveillance.analyse.charAt(0).toLowerCase()}${surveillance.analyse.slice(1)}`;
     }
 
     const patternFort = PATTERNS.find(p => p.tagClasse === 'tag-persiste');
