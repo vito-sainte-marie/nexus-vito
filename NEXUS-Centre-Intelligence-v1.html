@@ -259,7 +259,7 @@
     return { data: toutes, error: null };
   }
 
-  async function construireDetections() {
+  async function construireDetections(journalDecisions = []) {
     const [{ data, error }, produitsAppel] = await Promise.all([
       fetchAllRows(() => nexusClient
         .from('products')
@@ -290,6 +290,25 @@
     const candidats = [];
     const fmt = v => Math.round(v).toLocaleString('fr-FR');
 
+    // Cas R4 (facing) : c'est une regle structurelle, pas un changement — si
+    // elle a deja ete validee recemment et que la situation se maintient
+    // (contribution stable ou en hausse), la reformuler en confirmation
+    // plutot que la represente comme une alerte neuve. Evite l'impression
+    // de radoter sur un produit dont le facing est deja correct.
+    // Fenetre plus large que les 30 jours de masquage (recommandations_validees) :
+    // la carte redevient visible le jour 31, il faut donc regarder plus loin
+    // que 30 jours en arriere pour retrouver la validation d'origine a ce
+    // moment-la, sinon la reconnaissance ne se declencherait jamais.
+    const il60jISO = new Date(Date.now() - 60*24*60*60*1000).toISOString().slice(0,10);
+    const derniereValidationParCandidate = {};
+    journalDecisions
+      .filter(d => d.rule_id !== 'EXCLUSION-MANUELLE' && d.date >= il60jISO)
+      .forEach(d => {
+        if (!derniereValidationParCandidate[d.candidate_id] || d.date > derniereValidationParCandidate[d.candidate_id].date) {
+          derniereValidationParCandidate[d.candidate_id] = d;
+        }
+      });
+
     rowsActuels.forEach(p => {
       const caRayon = caTotalParRayon[p.categorie] || 0;
       const contribution = caRayon > 0 ? p.ca / caRayon : 0;
@@ -299,16 +318,34 @@
 
       if (contribution >= 0.15 && p.ca > 0) {
         const lang = LANGAGE_ACTION[typeActionPourCategorie(p.categorie)];
-        candidats.push({
-          etat: "🔥 À AGIR", rule_id: "R4-RENFORT-A", article: p.article, categorie: p.categorie,
-          contribution, evolution: null,
-          situation: `${p.article} représente ${(contribution*100).toFixed(1)} % du chiffre d'affaires du rayon ${p.categorie}.`,
-          contexte: "Calculée sur l'ensemble du rayon.",
-          analyse: lang.analyseAgir, consequence: lang.consAgir(fmt(p.ca)),
-          recommandation: lang.recoAgir(p.article),
-          impact: `Vous sécurisez environ ${fmt(p.ca)} € de chiffre d'affaires déjà généré par cette référence.`,
-          candidate_id: `LIVE-R4-${cle}`, impact_eur: p.ca,
-        });
+        const candidateId = `LIVE-R4-${cle}`;
+        const validationRecente = derniereValidationParCandidate[candidateId];
+        const situationMaintenue = validationRecente && p.ca >= (validationRecente.impact_eur || 0) * 0.9;
+
+        if (situationMaintenue) {
+          candidats.push({
+            etat: "🔥 À AGIR", rule_id: "R4-RENFORT-A", article: p.article, categorie: p.categorie,
+            contribution, evolution: null,
+            situation: `${p.article} reste à ${(contribution*100).toFixed(1)} % du chiffre d'affaires du rayon ${p.categorie} — confirmé depuis votre décision du ${validationRecente.date}.`,
+            contexte: "Calculée sur l'ensemble du rayon.",
+            analyse: "Toujours d'actualité, pas un nouveau problème : la situation se maintient depuis votre dernière décision sur ce produit.",
+            consequence: `Rien à changer pour l'instant — ${fmt(p.ca)} € de chiffre d'affaires reste bien sécurisé.`,
+            recommandation: `Restez attentif si la tendance s'inverse sur ${p.article} — aucune action requise aujourd'hui.`,
+            impact: `Vous confirmez que ${fmt(p.ca)} € de chiffre d'affaires généré par cette référence reste bien couvert.`,
+            candidate_id: candidateId, impact_eur: p.ca,
+          });
+        } else {
+          candidats.push({
+            etat: "🔥 À AGIR", rule_id: "R4-RENFORT-A", article: p.article, categorie: p.categorie,
+            contribution, evolution: null,
+            situation: `${p.article} représente ${(contribution*100).toFixed(1)} % du chiffre d'affaires du rayon ${p.categorie}.`,
+            contexte: "Calculée sur l'ensemble du rayon.",
+            analyse: lang.analyseAgir, consequence: lang.consAgir(fmt(p.ca)),
+            recommandation: lang.recoAgir(p.article),
+            impact: `Vous sécurisez environ ${fmt(p.ca)} € de chiffre d'affaires déjà généré par cette référence.`,
+            candidate_id: candidateId, impact_eur: p.ca,
+          });
+        }
       }
       if (evolution !== null && evolution >= 0.20) {
         const gain = Math.max(p.ca - caPrec, 0);
@@ -363,8 +400,21 @@
 
   const ETAT_CLASS = { "🔥 À AGIR": "etat-agir", "📈 OPPORTUNITÉ": "etat-opportunite", "🟡 À SURVEILLER": "etat-surveiller" };
 
-  function chargerValidees() { return JSON.parse(localStorage.getItem('nexus_recommandations_validees') || '[]'); }
-  function sauvegarderValidees(v) { localStorage.setItem('nexus_recommandations_validees', JSON.stringify(v)); }
+  async function chargerValidees() {
+    const il30j = new Date(Date.now() - 30*24*60*60*1000).toISOString();
+    const { data, error } = await nexusClient.from('recommandations_validees').select('candidate_id').eq('site', SITE_ACTUEL).gte('created_at', il30j);
+    if (error) { console.error('Lecture recommandations validées:', error); return []; }
+    return (data || []).map(r => r.candidate_id);
+  }
+  async function marquerValidee(candidateId) {
+    const { error } = await nexusClient.from('recommandations_validees')
+      .upsert({ site: SITE_ACTUEL, candidate_id: candidateId, employee_id: EMPLOYEE_ID_CIN }, { onConflict: 'site,candidate_id' });
+    if (error) console.error('Marquage validée:', error);
+  }
+  async function reinitialiserValidees() {
+    const { error } = await nexusClient.from('recommandations_validees').delete().eq('site', SITE_ACTUEL);
+    if (error) console.error('Réinitialisation validées:', error);
+  }
 
   // Ecrit une trace datee et chiffree de la decision — le Journal NEXUS ne fait
   // qu'enregistrer ce fait, sans jamais le commenter ni le juger.
@@ -394,6 +444,7 @@
   }
 
   let TOUTES_DETECTIONS = [];
+  let JOURNAL_TOUTES = [];
 
   // --- Ce que le CIN apprend du Journal ---
   // Le Cockpit et les detections ci-dessus lisent les ventes en direct.
@@ -644,8 +695,8 @@
     return texte;
   }
 
-  function renderRoot() {
-    const validees = chargerValidees();
+  async function renderRoot() {
+    const validees = await chargerValidees();
     const actives = TOUTES_DETECTIONS.filter(p => !validees.includes(p.candidate_id));
     const nbAgir = actives.filter(p => p.etat === '🔥 À AGIR').length;
     const nbOpp = actives.filter(p => p.etat === '📈 OPPORTUNITÉ').length;
@@ -689,7 +740,7 @@
       const t = document.createElement('div');
       t.className = 'tab' + (f === filtreActif ? ' active' : '');
       t.textContent = f;
-      t.onclick = () => { filtreActif = f; renderRoot(); };
+      t.onclick = async () => { filtreActif = f; await renderRoot(); };
       tabsEl.appendChild(t);
     });
 
@@ -760,14 +811,12 @@
       btn.addEventListener('click', async (e) => {
         e.stopPropagation();
         const plan = TOUTES_DETECTIONS.find(p => p.candidate_id === btn.dataset.id);
-        const v = chargerValidees();
-        v.push(btn.dataset.id);
-        sauvegarderValidees(v);
+        await marquerValidee(btn.dataset.id);
         if (plan) {
           await enregistrerJournalDecision(plan);
           afficherToastOr(`✓ Gain sécurisé — ${Math.round(plan.impact_eur).toLocaleString('fr-FR')} €`);
         }
-        renderRoot();
+        await renderRoot();
       });
     });
 
@@ -776,8 +825,8 @@
         e.stopPropagation();
         const ok = await exclureAvecCommentaire(btn.dataset.article);
         if (ok) {
-          TOUTES_DETECTIONS = await construireDetections(); // rafraichi sans ce produit, partout
-          renderRoot();
+          TOUTES_DETECTIONS = await construireDetections(JOURNAL_TOUTES); // rafraichi sans ce produit, partout
+          await renderRoot();
         }
       });
     });
@@ -790,14 +839,15 @@
       return;
     }
     SITE_ACTUEL = employee.site_id || 'vito-sainte-marie';
-    TOUTES_DETECTIONS = await construireDetections();
     PRENOM_MANAGER = employee.nom;
     EMPLOYEE_ID_CIN = employee.id;
 
     const [equipeMap, missionsHisto, retards, journalToutes] = await Promise.all([chargerEquipeMap(), chargerMissionsHistorique(), chargerRetardsTous(), chargerJournalDecisionsToutes()]);
+    JOURNAL_TOUTES = journalToutes;
+    TOUTES_DETECTIONS = await construireDetections(journalToutes);
     PATTERNS = construirePatterns(journalToutes, retards, missionsHisto, equipeMap, TOUTES_DETECTIONS);
 
-    renderRoot();
+    await renderRoot();
   });
 </script>
 </body>
