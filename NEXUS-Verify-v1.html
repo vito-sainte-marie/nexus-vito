@@ -345,18 +345,20 @@
       const commentaire = document.getElementById('v_commentaire').value || null;
 
       // Piste : compare au pupitre (source la plus fiable). Le transfert
-      // ("Piste réglé à la caisse") s'ajoute au theorique attendu, puisque
-      // c'est de l'argent boutique qui vient couvrir de la vente piste.
+      // ("Piste réglé à la caisse") se retranche du théorique attendu, puisque
+      // cet argent a été encaissé au comptoir boutique et ne se retrouvera
+      // donc pas dans les drops de la caisse piste.
       const expliquePiste = drop_piste_billets + drop_piste_pieces + drop_piste_chq + drop_piste_cb + drop_piste_vitocarte
         + clients_compte_piste + depense_piste;
-      const attenduPiste = vente_piste + transfert;
+      const attenduPiste = vente_piste - transfert;
       const ecart_piste = expliquePiste - attenduPiste;
 
-      // Boutique : compare a Decenium. Le meme transfert se retranche ici,
-      // puisque cet argent a virtuellement quitte la boutique pour la piste.
+      // Boutique : compare a Decenium. Le meme transfert s'ajoute ici,
+      // puisque cet argent est de la vente piste encaissée virtuellement
+      // dans la caisse boutique (elle a donc un surplus attendu).
       const expliqueBoutique = drop_boutique_billets + drop_boutique_pieces + drop_boutique_chq + drop_boutique_cb
         + clients_compte_boutique + depense_boutique;
-      const attenduBoutique = vente_boutique - transfert;
+      const attenduBoutique = vente_boutique + transfert;
       const ecart_boutique = expliqueBoutique - attenduBoutique;
 
       const ecart_total = ecart_piste + ecart_boutique;
