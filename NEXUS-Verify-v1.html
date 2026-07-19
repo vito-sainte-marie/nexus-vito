@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>NEXUS VERIFY — Audit Caisse</title>
+<title>Nexus Verify — Audit Caisse</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -92,10 +92,10 @@
   <div class="header">
     <a href="NEXUS-App-v1.html" class="menu-btn">☰ Menu</a>
     <div class="brand-row">
-      <img src="assets/icons/icon-nexus-verify.png" alt="NEXUS VERIFY" class="brand-icon">
+      <img src="assets/icons/icon-nexus-verify.png" alt="Nexus Verify" class="brand-icon">
       <div>
         <div class="eyebrow">NEXUS · Manager</div>
-        <div class="title">NEXUS VERIFY</div>
+        <div class="title">Nexus Verify</div>
       </div>
     </div>
     <div class="subtitle">Rapproche les chiffres de caisse, calcule les écarts par moyen de paiement, et vous dit ce qui mérite vérification.</div>
@@ -173,7 +173,7 @@
     </div>
   </div>
 
-  <footer>NEXUS VERIFY v1 · Rapprochement Espèces / Chèques / CB · Réservé manager &amp; gérant</footer>
+  <footer>Nexus Verify v1 · Rapprochement Espèces / Chèques / CB · Réservé manager &amp; gérant</footer>
 </div>
 
 <script>
@@ -207,7 +207,7 @@
   nexusRequireAuth().then(async employee => {
     if (!employee) return; // nexus-auth.js gère déjà la redirection vers NEXUS-Login-v1.html
     if (employee.role !== 'manager' && employee.role !== 'gerant') {
-      document.getElementById('app').innerHTML = '<div class="locked">NEXUS VERIFY est réservé aux managers et gérants.</div>';
+      document.getElementById('app').innerHTML = '<div class="locked">Nexus Verify est réservé aux managers et gérants.</div>';
       return;
     }
     SITE_ACTUEL = employee.site_id || 'vito-sainte-marie';
