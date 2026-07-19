@@ -453,6 +453,14 @@
       const cleRappel = 'nexus_rappel_prix_carburants_' + siteId;
       const uneHeure = 60 * 60 * 1000;
 
+      // <input type=number> rejette la virgule decimale d'un clavier
+      // francais (valeur vide -> NaN) ; on saisit en texte et on accepte
+      // virgule et point ici.
+      function numFR(valeur) {
+        if (valeur == null) return NaN;
+        return parseFloat(String(valeur).trim().replace(',', '.'));
+      }
+
       async function chargerPrixCarburantsRappel() {
         const { data, error } = await nexusClient.from('station_config').select('prix_carburants').eq('site', siteId).maybeSingle();
         if (error) { console.error('Chargement prix_carburants:', error); return null; }
@@ -465,8 +473,8 @@
         const champ = (id, label, ancien) => `
           <div class="prix-row">
             <label>${label}</label>
-            <input class="prix-ancien" value="${ancien != null ? Number(ancien).toFixed(3) : '—'}" disabled>
-            <input class="prix-nouveau" type="number" step="0.001" id="${id}" placeholder="0.000">
+            <input class="prix-ancien" value="${ancien != null ? Number(ancien).toFixed(3).replace('.', ',') : '—'}" disabled>
+            <input class="prix-nouveau" type="text" inputmode="decimal" id="${id}" placeholder="0,000">
           </div>`;
         conteneur.innerHTML = `
           <div class="conseiller-card">
@@ -486,9 +494,9 @@
           </div>`;
 
         document.getElementById('rappelSauvegarderPrix').addEventListener('click', async () => {
-          const sp = parseFloat(document.getElementById('rappel_prix_sp').value);
-          const go = parseFloat(document.getElementById('rappel_prix_go').value);
-          const gnr = parseFloat(document.getElementById('rappel_prix_gnr').value);
+          const sp = numFR(document.getElementById('rappel_prix_sp').value);
+          const go = numFR(document.getElementById('rappel_prix_go').value);
+          const gnr = numFR(document.getElementById('rappel_prix_gnr').value);
           if (isNaN(sp) || isNaN(go) || isNaN(gnr)) { alert('Renseignez les 3 nouveaux prix (SP, GO, GNR).'); return; }
           const btn = document.getElementById('rappelSauvegarderPrix');
           btn.disabled = true;

@@ -189,11 +189,11 @@
       <div class="note">Litrage remis en cuve par carburant — le montant est calculé automatiquement avec le prix du mois en cours (indexé par la préfecture de Martinique, à saisir dans Paramètres Station le 1ᵉʳ de chaque mois). Ce montant est déduit du théorique piste : ce carburant a été débité par la pompe mais jamais payé par un client.</div>
       <div id="alertePrixCarburants" style="display:none; font-family:var(--mono); font-size:11px; color:var(--amber); background:var(--amber-dim); border-radius:8px; padding:8px 10px; margin-bottom:12px; line-height:1.5;"></div>
       <label class="f">Sans plomb (SP) — litres</label>
-      <input type="number" step="0.01" id="v_cuve_sp_litres" placeholder="0.00">
+      <input type="text" inputmode="decimal" id="v_cuve_sp_litres" placeholder="0,00">
       <label class="f">Gasoil (GO) — litres</label>
-      <input type="number" step="0.01" id="v_cuve_go_litres" placeholder="0.00">
+      <input type="text" inputmode="decimal" id="v_cuve_go_litres" placeholder="0,00">
       <label class="f">Gasoil non routier (GNR) — litres</label>
-      <input type="number" step="0.01" id="v_cuve_gnr_litres" placeholder="0.00">
+      <input type="text" inputmode="decimal" id="v_cuve_gnr_litres" placeholder="0,00">
       <div class="total-ligne">Montant remise en cuve : <span id="v_remise_cuve_montant">0,00 €</span></div>
     </div>
 
