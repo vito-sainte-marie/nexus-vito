@@ -125,23 +125,55 @@
     </div>
 
     <div class="card">
-      <div class="section-label">Total Règlements Boutique (Decenium)</div>
-      <label class="f">Espèces</label>
-      <input type="number" step="0.01" id="v_reg_esp" placeholder="0.00">
-      <label class="f">Chèques</label>
-      <input type="number" step="0.01" id="v_reg_chq" placeholder="0.00">
-      <label class="f">Carte bancaire</label>
-      <input type="number" step="0.01" id="v_reg_cb" placeholder="0.00">
+      <div class="section-label">Caisse Piste — Pompiste</div>
+      <div class="row2">
+        <div>
+          <label class="f">Règlements — Billets</label>
+          <input type="number" step="0.01" id="v_reg_piste_billets" placeholder="0.00">
+          <label class="f">Règlements — Pièces</label>
+          <input type="number" step="0.01" id="v_reg_piste_pieces" placeholder="0.00">
+          <label class="f">Règlements — Chèques</label>
+          <input type="number" step="0.01" id="v_reg_piste_chq" placeholder="0.00">
+          <label class="f">Règlements — CB</label>
+          <input type="number" step="0.01" id="v_reg_piste_cb" placeholder="0.00">
+        </div>
+        <div>
+          <label class="f">Drops — Billets</label>
+          <input type="number" step="0.01" id="v_drop_piste_billets" placeholder="0.00">
+          <label class="f">Drops — Pièces</label>
+          <input type="number" step="0.01" id="v_drop_piste_pieces" placeholder="0.00">
+          <label class="f">Drops — Chèques</label>
+          <input type="number" step="0.01" id="v_drop_piste_chq" placeholder="0.00">
+          <label class="f">Drops — CB</label>
+          <input type="number" step="0.01" id="v_drop_piste_cb" placeholder="0.00">
+        </div>
+      </div>
     </div>
 
     <div class="card">
-      <div class="section-label">Total Drops (Decenium)</div>
-      <label class="f">Espèces</label>
-      <input type="number" step="0.01" id="v_drop_esp" placeholder="0.00">
-      <label class="f">Chèques</label>
-      <input type="number" step="0.01" id="v_drop_chq" placeholder="0.00">
-      <label class="f">Carte bancaire</label>
-      <input type="number" step="0.01" id="v_drop_cb" placeholder="0.00">
+      <div class="section-label">Caisse Boutique — Caissière</div>
+      <div class="row2">
+        <div>
+          <label class="f">Règlements — Billets</label>
+          <input type="number" step="0.01" id="v_reg_boutique_billets" placeholder="0.00">
+          <label class="f">Règlements — Pièces</label>
+          <input type="number" step="0.01" id="v_reg_boutique_pieces" placeholder="0.00">
+          <label class="f">Règlements — Chèques</label>
+          <input type="number" step="0.01" id="v_reg_boutique_chq" placeholder="0.00">
+          <label class="f">Règlements — CB</label>
+          <input type="number" step="0.01" id="v_reg_boutique_cb" placeholder="0.00">
+        </div>
+        <div>
+          <label class="f">Drops — Billets</label>
+          <input type="number" step="0.01" id="v_drop_boutique_billets" placeholder="0.00">
+          <label class="f">Drops — Pièces</label>
+          <input type="number" step="0.01" id="v_drop_boutique_pieces" placeholder="0.00">
+          <label class="f">Drops — Chèques</label>
+          <input type="number" step="0.01" id="v_drop_boutique_chq" placeholder="0.00">
+          <label class="f">Drops — CB</label>
+          <input type="number" step="0.01" id="v_drop_boutique_cb" placeholder="0.00">
+        </div>
+      </div>
     </div>
 
     <div class="card">
@@ -241,27 +273,55 @@
       if (!date) { alert('Renseignez une date.'); return; }
 
       const ca_piste = v('v_ca_piste'), ca_boutique = v('v_ca_boutique');
-      const reg_esp = v('v_reg_esp'), reg_chq = v('v_reg_chq'), reg_cb = v('v_reg_cb');
-      const drop_esp = v('v_drop_esp'), drop_chq = v('v_drop_chq'), drop_cb = v('v_drop_cb');
+
+      const reg_piste_billets = v('v_reg_piste_billets'), reg_piste_pieces = v('v_reg_piste_pieces');
+      const reg_piste_chq = v('v_reg_piste_chq'), reg_piste_cb = v('v_reg_piste_cb');
+      const drop_piste_billets = v('v_drop_piste_billets'), drop_piste_pieces = v('v_drop_piste_pieces');
+      const drop_piste_chq = v('v_drop_piste_chq'), drop_piste_cb = v('v_drop_piste_cb');
+
+      const reg_boutique_billets = v('v_reg_boutique_billets'), reg_boutique_pieces = v('v_reg_boutique_pieces');
+      const reg_boutique_chq = v('v_reg_boutique_chq'), reg_boutique_cb = v('v_reg_boutique_cb');
+      const drop_boutique_billets = v('v_drop_boutique_billets'), drop_boutique_pieces = v('v_drop_boutique_pieces');
+      const drop_boutique_chq = v('v_drop_boutique_chq'), drop_boutique_cb = v('v_drop_boutique_cb');
+
       const nepting_cb = v('v_nepting_cb');
       const clients_compte = v('v_clients_compte'), remise_cuve = v('v_remise_cuve'), incidents = v('v_incidents');
       const commentaire = document.getElementById('v_commentaire').value || null;
 
       // Ecart = ce qui a ete depose/reconnu (drop) moins ce qui a ete
       // declare en reglement — meme logique que le "Diff" que Decenium
-      // calcule deja lui-meme sur la Feuille de caisse.
-      const ecart_esp = drop_esp - reg_esp;
-      const ecart_chq = drop_chq - reg_chq;
-      const ecart_cb = drop_cb - reg_cb;
-      // Ecart Nepting : croise le CB reellement traite par le terminal
-      // contre le CB declare cote Decenium — les deux devraient converger.
-      const ecart_nepting = nepting_cb - reg_cb;
-      const ecart_total = ecart_esp + ecart_chq + ecart_cb;
+      // calcule deja lui-meme sur la Feuille de caisse. Billets et pieces
+      // sont regroupes en un seul ecart "especes" par caisse : la
+      // distinction sert a la saisie, pas au calcul de l'ecart lui-meme.
+      const ecart_piste_espece = (drop_piste_billets + drop_piste_pieces) - (reg_piste_billets + reg_piste_pieces);
+      const ecart_piste_chq = drop_piste_chq - reg_piste_chq;
+      const ecart_boutique_espece = (drop_boutique_billets + drop_boutique_pieces) - (reg_boutique_billets + reg_boutique_pieces);
+      const ecart_boutique_chq = drop_boutique_chq - reg_boutique_chq;
+      // Ecart CB : croise le CB reellement traite par Nepting contre le CB
+      // declare cote Decenium, les deux caisses cumulees.
+      const ecart_cb_nepting = nepting_cb - (reg_piste_cb + reg_boutique_cb);
 
-      const statutsComposants = [
-        classifierEcart(ecart_esp), classifierEcart(ecart_chq),
-        classifierEcart(ecart_cb), classifierEcart(ecart_nepting),
-      ];
+      const ecart_espece_global = ecart_piste_espece + ecart_boutique_espece;
+      const ecart_total = ecart_espece_global + ecart_piste_chq + ecart_boutique_chq + ecart_cb_nepting;
+
+      // Detection du decalage de categorisation : une vente CB enregistree
+      // par erreur en especes (ou l'inverse) fait apparaitre un manque
+      // espece et un exces CB de meme ampleur, en sens oppose — la caisse
+      // est juste au global, ce n'est pas un vrai trou. On ne le suppose
+      // que si les deux ecarts individuels sont deja significatifs ET que
+      // leur somme s'annule presque.
+      const signesOpposes = (ecart_espece_global > 0) !== (ecart_cb_nepting > 0);
+      const categorisation_probable = signesOpposes
+        && Math.abs(ecart_espece_global) > 2 && Math.abs(ecart_cb_nepting) > 2
+        && Math.abs(ecart_espece_global + ecart_cb_nepting) <= 5;
+
+      // Gravite : si la categorisation probable est detectee, l'espece et
+      // le CB comptent ensemble pour leur montant NET (qui s'annule
+      // presque), pas chacun pour son montant brut — sinon un simple
+      // decalage de saisie remonterait comme deux anomalies separees.
+      const statutsComposants = categorisation_probable
+        ? [classifierEcart(ecart_espece_global + ecart_cb_nepting), classifierEcart(ecart_piste_chq), classifierEcart(ecart_boutique_chq)]
+        : [classifierEcart(ecart_espece_global), classifierEcart(ecart_cb_nepting), classifierEcart(ecart_piste_chq), classifierEcart(ecart_boutique_chq)];
       const statut = statutsComposants.reduce((pire, s) => GRAVITE_ORDRE[s] > GRAVITE_ORDRE[pire] ? s : pire, 'conforme');
 
       const btn = document.getElementById('btnCalculer');
@@ -271,11 +331,14 @@
       const { error } = await nexusClient.from('audits_caisse').upsert({
         site: SITE_ACTUEL, date, quart,
         ca_piste, ca_boutique,
-        reglements_esp: reg_esp, reglements_chq: reg_chq, reglements_cb: reg_cb,
-        drops_esp: drop_esp, drops_chq: drop_chq, drops_cb: drop_cb,
-        clients_compte, remise_cuve, caisse_incidents: incidents,
+        reg_piste_billets, reg_piste_pieces, reg_piste_chq, reg_piste_cb,
+        drop_piste_billets, drop_piste_pieces, drop_piste_chq, drop_piste_cb,
+        reg_boutique_billets, reg_boutique_pieces, reg_boutique_chq, reg_boutique_cb,
+        drop_boutique_billets, drop_boutique_pieces, drop_boutique_chq, drop_boutique_cb,
         nepting_cb_total: nepting_cb,
-        ecart_esp, ecart_chq, ecart_cb, ecart_nepting, ecart_total,
+        clients_compte, remise_cuve, caisse_incidents: incidents,
+        ecart_piste_espece, ecart_piste_chq, ecart_boutique_espece, ecart_boutique_chq,
+        ecart_cb_nepting, ecart_total, categorisation_probable,
         statut, commentaire, employee_id: EMPLOYEE_ID,
       }, { onConflict: 'site,date,quart' });
 
@@ -287,16 +350,23 @@
         return;
       }
 
+      const ligneCategorisation = categorisation_probable
+        ? `<div class="resume-line" style="color:var(--cyan);"><b>Probable erreur de catégorisation</b> — l'écart espèces (${ecart_espece_global.toFixed(2)} €) et l'écart CB (${ecart_cb_nepting.toFixed(2)} €) sont de sens opposé et se compensent presque. Une transaction a vraisemblablement été encaissée dans le mauvais moyen de paiement. La caisse est probablement juste au global — vérifiez le ticket concerné plutôt que de chercher un manque réel.</div>`
+        : '';
+
       box.innerHTML = `
         <div class="resume-box">
           <span class="statut-badge statut-${statut}">${STATUT_LABEL[statut]}</span>
           <div class="resume-total" style="color:${Math.abs(ecart_total)<=2?'var(--green)':'var(--red)'};">${ecart_total>=0?'+':''}${ecart_total.toFixed(2)} €</div>
           <div class="resume-line">Écart total, quart ${quart} du ${new Date(date).toLocaleDateString('fr-FR')}.</div>
-          <div class="resume-line">${phraseComposant('Espèces', ecart_esp)}</div>
-          <div class="resume-line">${phraseComposant('Chèques', ecart_chq)}</div>
-          <div class="resume-line">${phraseComposant('Carte bancaire (drops)', ecart_cb)}</div>
-          <div class="resume-line">${phraseComposant('Carte bancaire (Nepting vs Decenium)', ecart_nepting)}</div>
-          ${statut !== 'conforme' ? `<div class="resume-line" style="color:var(--amber);"><b>Action recommandée</b> — vérifiez le justificatif du composant en écart avant de considérer ce quart comme clôturé. ✓ Enregistré dans l'historique.</div>` : `<div class="resume-line" style="color:var(--green);">Tous les moyens de paiement rapprochés sans écart significatif. ✓ Enregistré.</div>`}
+          ${ligneCategorisation}
+          <div class="resume-line">${phraseComposant('Espèces piste', ecart_piste_espece)}</div>
+          <div class="resume-line">${phraseComposant('Chèques piste', ecart_piste_chq)}</div>
+          <div class="resume-line">${phraseComposant('Espèces boutique', ecart_boutique_espece)}</div>
+          <div class="resume-line">${phraseComposant('Chèques boutique', ecart_boutique_chq)}</div>
+          <div class="resume-line">${phraseComposant('Carte bancaire (Nepting vs Decenium)', ecart_cb_nepting)}</div>
+          ${statut !== 'conforme' && !categorisation_probable ? `<div class="resume-line" style="color:var(--amber);"><b>Action recommandée</b> — vérifiez le justificatif du composant en écart avant de considérer ce quart comme clôturé. ✓ Enregistré dans l'historique.</div>` : ''}
+          ${statut === 'conforme' ? `<div class="resume-line" style="color:var(--green);">Tous les moyens de paiement rapprochés sans écart significatif. ✓ Enregistré.</div>` : `<div class="resume-line" style="color:var(--text-dim);">✓ Enregistré dans l'historique.</div>`}
         </div>`;
     });
 
@@ -321,10 +391,12 @@
             </div>
           </div>
           <div class="histo-detail" id="detail-${i}">
-            ${phraseComposant('Espèces', a.ecart_esp)}<br>
-            ${phraseComposant('Chèques', a.ecart_chq)}<br>
-            ${phraseComposant('Carte bancaire (drops)', a.ecart_cb)}<br>
-            ${phraseComposant('Carte bancaire (Nepting)', a.ecart_nepting)}
+            ${a.categorisation_probable ? `<b style="color:var(--cyan);">Probable erreur de catégorisation espèces/CB — caisse juste au global.</b><br>` : ''}
+            ${phraseComposant('Espèces piste', a.ecart_piste_espece)}<br>
+            ${phraseComposant('Chèques piste', a.ecart_piste_chq)}<br>
+            ${phraseComposant('Espèces boutique', a.ecart_boutique_espece)}<br>
+            ${phraseComposant('Chèques boutique', a.ecart_boutique_chq)}<br>
+            ${phraseComposant('Carte bancaire (Nepting)', a.ecart_cb_nepting)}
             ${a.commentaire ? `<br><br><i>${a.commentaire}</i>` : ''}
           </div>
         </div>`).join('');
