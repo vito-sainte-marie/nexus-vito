@@ -57,6 +57,15 @@
   .hero-stat b{color:var(--cyan); font-family:var(--mono); font-size:14px; display:block;}
   .hero-stat span{font-family:var(--mono); font-size:9.5px; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.04em;}
 
+  .hero-secondary{margin:0 20px 6px; padding:16px 18px; border-radius:16px; text-decoration:none; color:var(--text); display:flex; align-items:center; gap:13px;
+    background:var(--panel); border:1px solid var(--hairline);
+  }
+  .hero-secondary:active{background:var(--panel-raised);}
+  .hero-secondary .hero-icon{width:40px; height:40px; border-radius:11px;}
+  .hero-secondary .hero-title{font-size:14.5px; font-weight:700;}
+  .hero-secondary .hero-desc{font-size:11.5px; margin-top:2px;}
+  .hero-secondary .hero-arrow{font-size:16px;}
+
   .section-label{
     font-family:var(--mono); font-size:10px; letter-spacing:0.1em; text-transform:uppercase; color:var(--text-dim);
     padding:22px 24px 10px; display:flex; align-items:center; gap:8px;
@@ -128,6 +137,15 @@
       <div class="hero-stat"><b>228</b><span>Références</span></div>
       <div class="hero-stat"><b>50</b><span>Missions</span></div>
     </div>
+  </a>
+
+  <a class="hero-secondary" data-role="manager" href="NEXUS-Verify-v1.html">
+    <div class="hero-icon"><img src="assets/icons/icon-nexus-verify.png" alt=""></div>
+    <div style="flex:1;">
+      <div class="hero-title">Nexus Verify</div>
+      <div class="hero-desc">Le premier contrôle du poste — audit caisse, écarts par moyen de paiement</div>
+    </div>
+    <div class="hero-arrow">→</div>
   </a>
 
   <a class="hero" data-role="employe" href="NEXUS-Missions-v1.html" id="heroEmploye" style="display:none;">
@@ -236,14 +254,6 @@
       <div class="nav-body">
         <div class="nav-title">Évaluation</div>
         <div class="nav-desc">Contrôle tenue + grille de prime</div>
-      </div>
-      <div class="nav-arrow">→</div>
-    </a>
-    <a class="nav-item" data-role="manager" href="NEXUS-Verify-v1.html">
-      <div class="nav-icon"><img src="assets/icons/icon-nexus-verify.png" alt="Nexus Verify"></div>
-      <div class="nav-body">
-        <div class="nav-title">Nexus Verify</div>
-        <div class="nav-desc">Audit caisse — rapprochement des écarts</div>
       </div>
       <div class="nav-arrow">→</div>
     </a>
