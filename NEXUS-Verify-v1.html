@@ -165,7 +165,7 @@
 
     <div class="card">
       <div class="section-label">Caisse Boutique — Drops</div>
-      <div class="note">Même règle : justificatifs physiques (bons de drop, bons clients signés, factures fournisseurs), pas Decenium.</div>
+      <div class="note">Justificatifs physiques (bons de drop, factures fournisseurs) — pas des chiffres affichés dans Decenium. Le compte client n'est pas à saisir ici : Decenium l'inclut déjà dans la vente boutique.</div>
       <label class="f">Billets</label>
       <input type="number" step="0.01" id="v_drop_boutique_billets" placeholder="0.00">
       <label class="f">Pièces</label>
@@ -174,10 +174,6 @@
       <input type="number" step="0.01" id="v_drop_boutique_chq" placeholder="0.00">
       <label class="f">Carte bancaire</label>
       <input type="number" step="0.01" id="v_drop_boutique_cb" placeholder="0.00">
-      <label class="f">Clients en compte — un bon par ligne</label>
-      <div id="bonsBoutiqueListe"></div>
-      <button type="button" class="btn-add" data-caisse="boutique">+ Ajouter un bon client</button>
-      <div class="total-ligne">Total clients en compte boutique : <span id="totalBonsBoutique">0,00 €</span></div>
     </div>
 
     <div class="card">
@@ -189,9 +185,20 @@
     </div>
 
     <div class="card">
+      <div class="section-label">Remise en cuve</div>
+      <div class="note">Litrage remis en cuve par carburant — le montant est calculé automatiquement avec le prix du mois en cours (indexé par la préfecture de Martinique, à saisir dans Paramètres Station le 1ᵉʳ de chaque mois). Ce montant est déduit du théorique piste : ce carburant a été débité par la pompe mais jamais payé par un client.</div>
+      <div id="alertePrixCarburants" style="display:none; font-family:var(--mono); font-size:11px; color:var(--amber); background:var(--amber-dim); border-radius:8px; padding:8px 10px; margin-bottom:12px; line-height:1.5;"></div>
+      <label class="f">Sans plomb (SP) — litres</label>
+      <input type="number" step="0.01" id="v_cuve_sp_litres" placeholder="0.00">
+      <label class="f">Gasoil (GO) — litres</label>
+      <input type="number" step="0.01" id="v_cuve_go_litres" placeholder="0.00">
+      <label class="f">Gasoil non routier (GNR) — litres</label>
+      <input type="number" step="0.01" id="v_cuve_gnr_litres" placeholder="0.00">
+      <div class="total-ligne">Montant remise en cuve : <span id="v_remise_cuve_montant">0,00 €</span></div>
+    </div>
+
+    <div class="card">
       <div class="section-label">Autres éléments</div>
-      <label class="f">Remise en cuve</label>
-      <input type="number" step="0.01" id="v_remise_cuve" placeholder="0.00">
       <label class="f">Caisse incidents</label>
       <input type="number" step="0.01" id="v_incidents" placeholder="0.00">
       <label class="f">Commentaire (optionnel)</label>
@@ -250,6 +257,50 @@
     EMPLOYEE_ID = employee.id;
 
     // ------------------------------------------------------------
+    // Prix carburants du mois — utilises pour calculer le montant de la
+    // remise en cuve a partir du litrage (SP / GO / GNR). Prix indexes par
+    // la prefecture de Martinique, saisis par le manager dans Parametres
+    // Station le 1er de chaque mois (station_config.prix_carburants).
+    // ------------------------------------------------------------
+    let PRIX_CARBURANTS_MOIS = null;
+
+    async function chargerPrixCarburants() {
+      const { data, error } = await nexusClient.from('station_config').select('prix_carburants').eq('site', SITE_ACTUEL).maybeSingle();
+      if (error) { console.error('Chargement prix_carburants:', error); return null; }
+      const prix = data && data.prix_carburants;
+      const moisCourant = new Date().toISOString().slice(0, 7);
+      return (prix && prix.mois === moisCourant) ? prix : null;
+    }
+
+    function lireLitragesCuve() {
+      return {
+        sp_l: parseFloat(document.getElementById('v_cuve_sp_litres').value) || 0,
+        go_l: parseFloat(document.getElementById('v_cuve_go_litres').value) || 0,
+        gnr_l: parseFloat(document.getElementById('v_cuve_gnr_litres').value) || 0,
+      };
+    }
+
+    function calculerMontantCuve() {
+      const { sp_l, go_l, gnr_l } = lireLitragesCuve();
+      if (!PRIX_CARBURANTS_MOIS) return 0;
+      return sp_l * PRIX_CARBURANTS_MOIS.sp + go_l * PRIX_CARBURANTS_MOIS.go + gnr_l * PRIX_CARBURANTS_MOIS.gnr;
+    }
+
+    function majAffichageCuve() {
+      document.getElementById('v_remise_cuve_montant').textContent = calculerMontantCuve().toFixed(2).replace('.', ',') + ' €';
+    }
+    ['v_cuve_sp_litres', 'v_cuve_go_litres', 'v_cuve_gnr_litres'].forEach(id => {
+      document.getElementById(id).addEventListener('input', majAffichageCuve);
+    });
+
+    PRIX_CARBURANTS_MOIS = await chargerPrixCarburants();
+    if (!PRIX_CARBURANTS_MOIS) {
+      const alerte = document.getElementById('alertePrixCarburants');
+      alerte.style.display = 'block';
+      alerte.innerHTML = `⚠ Prix carburants du mois non renseignés — la remise en cuve restera à 0,00 € tant qu'ils ne sont pas saisis dans <a href="NEXUS-Parametres-Station-v1.html" style="color:var(--amber);">Paramètres Station</a>.`;
+    }
+
+    // ------------------------------------------------------------
     // Onglets
     // ------------------------------------------------------------
     const tabNouveau = document.getElementById('tabNouveau');
@@ -270,11 +321,13 @@
     // Calcul et enregistrement
     // ------------------------------------------------------------
     // ------------------------------------------------------------
-    // Listes dynamiques — un bon client par ligne, une depense par ligne.
-    // Nexus Verify fait la somme, pas besoin de l'additionner a la main.
+    // Listes dynamiques — un bon client par ligne (piste uniquement ; le
+    // compte client boutique est deja compte par Decenium, cf. note dans la
+    // carte "Caisse Boutique — Drops"), une depense par ligne. Nexus Verify
+    // fait la somme, pas besoin de l'additionner a la main.
     // ------------------------------------------------------------
-    function ajouterLigneBon(caisse) {
-      const conteneur = document.getElementById(caisse === 'piste' ? 'bonsPisteListe' : 'bonsBoutiqueListe');
+    function ajouterLigneBon() {
+      const conteneur = document.getElementById('bonsPisteListe');
       const ligne = document.createElement('div');
       ligne.className = 'ligne-item';
       ligne.innerHTML = `
@@ -285,7 +338,7 @@
       ligne.querySelector('.btn-remove').addEventListener('click', () => { ligne.remove(); majTotauxListes(); });
     }
     document.querySelectorAll('.btn-add[data-caisse]').forEach(btn => {
-      btn.addEventListener('click', () => ajouterLigneBon(btn.dataset.caisse));
+      btn.addEventListener('click', () => ajouterLigneBon());
     });
 
     function ajouterLigneDepense() {
@@ -306,8 +359,8 @@
     }
     document.getElementById('btnAddDepense').addEventListener('click', ajouterLigneDepense);
 
-    function sommeBons(caisse) {
-      const conteneur = document.getElementById(caisse === 'piste' ? 'bonsPisteListe' : 'bonsBoutiqueListe');
+    function sommeBons() {
+      const conteneur = document.getElementById('bonsPisteListe');
       let total = 0;
       conteneur.querySelectorAll('.montant-bon').forEach(el => { total += parseFloat(el.value) || 0; });
       return total;
@@ -322,14 +375,12 @@
       return total;
     }
     function majTotauxListes() {
-      document.getElementById('totalBonsPiste').textContent = sommeBons('piste').toFixed(2).replace('.', ',') + ' €';
-      document.getElementById('totalBonsBoutique').textContent = sommeBons('boutique').toFixed(2).replace('.', ',') + ' €';
+      document.getElementById('totalBonsPiste').textContent = sommeBons().toFixed(2).replace('.', ',') + ' €';
       document.getElementById('totalDepensesPiste').textContent = sommeDepenses('piste').toFixed(2).replace('.', ',') + ' €';
       document.getElementById('totalDepensesBoutique').textContent = sommeDepenses('boutique').toFixed(2).replace('.', ',') + ' €';
     }
-    // Une ligne vide par defaut dans chaque liste, pour ne pas partir d'un ecran nu
-    ajouterLigneBon('piste');
-    ajouterLigneBon('boutique');
+    // Une ligne vide par defaut, pour ne pas partir d'un ecran nu
+    ajouterLigneBon();
     ajouterLigneDepense();
 
     function v(id) { return parseFloat(document.getElementById(id).value) || 0; }
@@ -344,29 +395,43 @@
 
       const drop_piste_billets = v('v_drop_piste_billets'), drop_piste_pieces = v('v_drop_piste_pieces');
       const drop_piste_chq = v('v_drop_piste_chq'), drop_piste_cb = v('v_drop_piste_cb'), drop_piste_vitocarte = v('v_drop_piste_vitocarte');
-      const clients_compte_piste = sommeBons('piste'), depense_piste = sommeDepenses('piste');
+      const clients_compte_piste = sommeBons(), depense_piste = sommeDepenses('piste');
 
       const drop_boutique_billets = v('v_drop_boutique_billets'), drop_boutique_pieces = v('v_drop_boutique_pieces');
       const drop_boutique_chq = v('v_drop_boutique_chq'), drop_boutique_cb = v('v_drop_boutique_cb');
-      const clients_compte_boutique = sommeBons('boutique'), depense_boutique = sommeDepenses('boutique');
+      const depense_boutique = sommeDepenses('boutique');
 
-      const remise_cuve = v('v_remise_cuve'), incidents = v('v_incidents');
+      const { sp_l, go_l, gnr_l } = lireLitragesCuve();
+      const remise_cuve = calculerMontantCuve(), incidents = v('v_incidents');
+      const remise_cuve_detail = { sp_litres: sp_l, go_litres: go_l, gnr_litres: gnr_l,
+        prix_sp: PRIX_CARBURANTS_MOIS ? PRIX_CARBURANTS_MOIS.sp : null,
+        prix_go: PRIX_CARBURANTS_MOIS ? PRIX_CARBURANTS_MOIS.go : null,
+        prix_gnr: PRIX_CARBURANTS_MOIS ? PRIX_CARBURANTS_MOIS.gnr : null,
+        mois: PRIX_CARBURANTS_MOIS ? PRIX_CARBURANTS_MOIS.mois : null };
       const commentaire = document.getElementById('v_commentaire').value || null;
 
       // Piste : compare au pupitre (source la plus fiable). Le transfert
       // ("Piste réglé à la caisse") se retranche du théorique attendu, puisque
       // cet argent a été encaissé au comptoir boutique et ne se retrouvera
-      // donc pas dans les drops de la caisse piste.
+      // donc pas dans les drops de la caisse piste. La remise en cuve se
+      // retranche elle aussi : ce carburant a été débité par la pompe (donc
+      // déjà compté dans vente_piste) mais rendu au réservoir, jamais payé
+      // par un client — sans cette soustraction, le théorique attendu serait
+      // gonflé du montant de carburant jamais vendu.
       const expliquePiste = drop_piste_billets + drop_piste_pieces + drop_piste_chq + drop_piste_cb + drop_piste_vitocarte
         + clients_compte_piste + depense_piste;
-      const attenduPiste = vente_piste - transfert;
+      const attenduPiste = vente_piste - transfert - remise_cuve;
       const ecart_piste = expliquePiste - attenduPiste;
 
       // Boutique : compare a Decenium. Le meme transfert s'ajoute ici,
       // puisque cet argent est de la vente piste encaissée virtuellement
       // dans la caisse boutique (elle a donc un surplus attendu).
+      // Contrairement a la piste, le compte client boutique est deja compte
+      // par Decenium comme mode de reglement dans le montant "vente boutique"
+      // — l'ajouter ici ferait un double comptage. Le champ reste saisissable
+      // pour tracabilite mais n'entre pas dans le calcul de l'ecart.
       const expliqueBoutique = drop_boutique_billets + drop_boutique_pieces + drop_boutique_chq + drop_boutique_cb
-        + clients_compte_boutique + depense_boutique;
+        + depense_boutique;
       const attenduBoutique = vente_boutique + transfert;
       const ecart_boutique = expliqueBoutique - attenduBoutique;
 
@@ -388,8 +453,8 @@
         drop_piste_billets, drop_piste_pieces, drop_piste_chq, drop_piste_cb, drop_piste_vitocarte,
         clients_compte_piste, depense_ponctuelle_piste: depense_piste,
         drop_boutique_billets, drop_boutique_pieces, drop_boutique_chq, drop_boutique_cb,
-        clients_compte_boutique, depense_ponctuelle_boutique: depense_boutique,
-        remise_cuve, caisse_incidents: incidents,
+        clients_compte_boutique: 0, depense_ponctuelle_boutique: depense_boutique,
+        remise_cuve, remise_cuve_detail, caisse_incidents: incidents,
         ecart_piste, ecart_boutique, ecart_total,
         statut, commentaire, employee_id: EMPLOYEE_ID,
       }, { onConflict: 'site,date,quart' });

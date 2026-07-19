@@ -11,6 +11,7 @@
     --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
     --text:#EDF1F5; --text-mid:#8A96A5; --text-dim:#57626F;
     --green:#34D399; --green-dim:#153629; --cyan:#4FC3D9;
+    --amber:#F5A623; --amber-dim:#3A2E14;
     --mono:'IBM Plex Mono',monospace; --sans:'IBM Plex Sans',sans-serif;
   }
   *{box-sizing:border-box; margin:0; padding:0;}
@@ -36,6 +37,7 @@
   .card{background:var(--panel); border:1px solid var(--hairline); border-radius:12px; padding:18px; margin-bottom:14px;}
   .section-label{font-family:var(--mono); font-size:10.5px; letter-spacing:0.08em; text-transform:uppercase; color:var(--text-dim); margin-bottom:12px; display:flex; align-items:center; gap:8px;}
   .section-label::after{content:''; flex:1; height:1px; background:var(--hairline);}
+  .note{font-family:var(--sans); font-size:11.5px; color:var(--text-mid); line-height:1.5; margin:-4px 0 12px;}
 
   .row{display:flex; align-items:center; gap:10px; margin-bottom:10px;}
   .row label{flex:1; font-size:12.5px; color:var(--text-mid);}
@@ -43,6 +45,12 @@
     background:var(--panel-raised); border:1px solid var(--hairline); border-radius:6px;
     padding:8px 10px; color:var(--text); font-family:var(--mono); font-size:13px;
   }
+  .row input[type=number]{
+    background:var(--panel-raised); border:1px solid var(--hairline); border-radius:6px;
+    padding:8px 10px; color:var(--text); font-family:var(--mono); font-size:13px; width:110px;
+  }
+
+  .statut-prix{font-family:var(--mono); font-size:11px; line-height:1.5; margin-bottom:10px;}
 
   .btn{
     font-family:var(--sans); font-size:14px; font-weight:600; border:none; border-radius:8px;
@@ -92,6 +100,17 @@
     <button class="btn btn-primary" id="sauvegarder">Enregistrer les horaires</button>
     <button class="btn btn-secondary" id="reinitialiser">Réinitialiser aux valeurs Vito Sainte-Marie Usine</button>
     <div class="saved-note" id="savedNote">✓ Horaires enregistrés — pris en compte au prochain pointage</div>
+
+    <div class="card" id="cardPrixCarburants">
+      <div class="section-label">Prix carburants — mois en cours</div>
+      <div class="note">Indexés par la préfecture de Martinique, ces prix ne changent qu'au 1ᵉʳ de chaque mois. Ils servent à calculer le montant de la remise en cuve dans Nexus Verify à partir du litrage saisi.</div>
+      <div id="statutPrixMois" class="statut-prix"></div>
+      <div class="row"><label>Sans plomb (SP) — €/L</label><input type="number" step="0.001" id="prix_sp" placeholder="0.000"></div>
+      <div class="row"><label>Gasoil (GO) — €/L</label><input type="number" step="0.001" id="prix_go" placeholder="0.000"></div>
+      <div class="row"><label>Gasoil non routier (GNR) — €/L</label><input type="number" step="0.001" id="prix_gnr" placeholder="0.000"></div>
+      <button class="btn btn-primary" id="sauvegarderPrix">Enregistrer les prix du mois</button>
+      <div class="saved-note" id="savedNotePrix">✓ Prix enregistrés pour ce mois</div>
+    </div>
   </div>
 
   <footer>NEXUS Paramètres v1 · Modifiable sans toucher au code — prêt pour un déploiement multi-station</footer>
@@ -160,6 +179,68 @@
     const { error } = await nexusClient.from('station_config').upsert({ site: employee.site_id || 'vito-sainte-marie', horaires: HORAIRES_DEFAUT, updated_at: new Date().toISOString() });
     if (error) { console.error('Réinitialisation station_config:', error); alert('Erreur — réessayez.'); return; }
     remplirFormulaire(HORAIRES_DEFAUT);
+  });
+
+  // ------------------------------------------------------------
+  // Prix carburants du mois — SP / GO / GNR, indexes par la prefecture de
+  // Martinique. Ne changent qu'au 1er de chaque mois : stockes a part dans
+  // station_config.prix_carburants ({ mois: "YYYY-MM", sp, go, gnr }), pour
+  // que Nexus Verify calcule automatiquement le montant de la remise en
+  // cuve a partir du litrage plutot que d'une saisie manuelle du montant.
+  // ------------------------------------------------------------
+  const MOIS_LABELS = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+  function moisCourantISO() {
+    const d = new Date();
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+  }
+  function moisLabel(iso) {
+    if (!iso) return '';
+    const [y, m] = iso.split('-');
+    return `${MOIS_LABELS[parseInt(m, 10) - 1]} ${y}`;
+  }
+
+  async function chargerPrixCarburants() {
+    const { data, error } = await nexusClient.from('station_config').select('prix_carburants').eq('site', employee.site_id || 'vito-sainte-marie').maybeSingle();
+    if (error) { console.error('Chargement prix_carburants:', error); return null; }
+    return (data && data.prix_carburants) || null;
+  }
+
+  (async function initPrixCarburants() {
+    const prix = await chargerPrixCarburants();
+    const statutEl = document.getElementById('statutPrixMois');
+    const moisCourant = moisCourantISO();
+    if (prix && prix.mois === moisCourant) {
+      document.getElementById('prix_sp').value = prix.sp;
+      document.getElementById('prix_go').value = prix.go;
+      document.getElementById('prix_gnr').value = prix.gnr;
+      statutEl.textContent = `✓ Prix à jour pour ${moisLabel(moisCourant)}.`;
+      statutEl.style.color = 'var(--green)';
+    } else if (prix) {
+      statutEl.innerHTML = `⚠ Dernier prix enregistré pour ${moisLabel(prix.mois)} (SP ${Number(prix.sp).toFixed(3)} · GO ${Number(prix.go).toFixed(3)} · GNR ${Number(prix.gnr).toFixed(3)}) — à mettre à jour pour ${moisLabel(moisCourant)}.`;
+      statutEl.style.color = 'var(--amber)';
+    } else {
+      statutEl.textContent = `⚠ Aucun prix enregistré pour ${moisLabel(moisCourant)}.`;
+      statutEl.style.color = 'var(--amber)';
+    }
+  })();
+
+  document.getElementById('sauvegarderPrix').addEventListener('click', async () => {
+    const btn = document.getElementById('sauvegarderPrix');
+    const sp = parseFloat(document.getElementById('prix_sp').value);
+    const go = parseFloat(document.getElementById('prix_go').value);
+    const gnr = parseFloat(document.getElementById('prix_gnr').value);
+    if (isNaN(sp) || isNaN(go) || isNaN(gnr)) { alert('Renseignez les 3 prix (SP, GO, GNR).'); return; }
+    btn.disabled = true;
+    const prix_carburants = { mois: moisCourantISO(), sp, go, gnr, maj_par: employee.nom, maj_le: new Date().toISOString() };
+    const { error } = await nexusClient.from('station_config').upsert({ site: employee.site_id || 'vito-sainte-marie', prix_carburants, updated_at: new Date().toISOString() });
+    btn.disabled = false;
+    if (error) { console.error('Enregistrement prix_carburants:', error); alert('Erreur — réessayez.'); return; }
+    const note = document.getElementById('savedNotePrix');
+    note.style.display = 'block';
+    setTimeout(() => note.style.display = 'none', 3000);
+    const statutEl = document.getElementById('statutPrixMois');
+    statutEl.textContent = `✓ Prix à jour pour ${moisLabel(moisCourantISO())}.`;
+    statutEl.style.color = 'var(--green)';
   });
 
 });
