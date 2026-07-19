@@ -153,7 +153,12 @@
     document.getElementById('r_fin').value = config.renfort.fin;
   }
 
-  remplirFormulaire(await chargerConfig());
+  // Garde les horaires actuellement charges en memoire : station_config.horaires
+  // est NOT NULL en base, donc tout upsert qui ne le fournirait pas (ex. un
+  // enregistrement de prix carburants seul) echouerait si la ligne n'existe
+  // pas encore pour ce site (23502 — null value in column "horaires").
+  let CONFIG_HORAIRES_ACTUEL = await chargerConfig();
+  remplirFormulaire(CONFIG_HORAIRES_ACTUEL);
 
   document.getElementById('sauvegarder').addEventListener('click', async () => {
     const btn = document.getElementById('sauvegarder');
@@ -166,9 +171,13 @@
         pause_debut: document.getElementById('r_pause_debut').value, pause_fin: document.getElementById('r_pause_fin').value,
       },
     };
-    const { error } = await nexusClient.from('station_config').upsert({ site: employee.site_id || 'vito-sainte-marie', horaires: config, updated_at: new Date().toISOString() });
+    const { error } = await nexusClient.from('station_config').upsert(
+      { site: employee.site_id || 'vito-sainte-marie', horaires: config, updated_at: new Date().toISOString() },
+      { onConflict: 'site' }
+    );
     btn.disabled = false;
     if (error) { console.error('Enregistrement station_config:', error); alert('Erreur — réessayez.'); return; }
+    CONFIG_HORAIRES_ACTUEL = config;
     const note = document.getElementById('savedNote');
     note.textContent = '✓ Horaires enregistrés — pris en compte sur tous les appareils au prochain pointage';
     note.style.display = 'block';
@@ -176,8 +185,12 @@
   });
 
   document.getElementById('reinitialiser').addEventListener('click', async () => {
-    const { error } = await nexusClient.from('station_config').upsert({ site: employee.site_id || 'vito-sainte-marie', horaires: HORAIRES_DEFAUT, updated_at: new Date().toISOString() });
+    const { error } = await nexusClient.from('station_config').upsert(
+      { site: employee.site_id || 'vito-sainte-marie', horaires: HORAIRES_DEFAUT, updated_at: new Date().toISOString() },
+      { onConflict: 'site' }
+    );
     if (error) { console.error('Réinitialisation station_config:', error); alert('Erreur — réessayez.'); return; }
+    CONFIG_HORAIRES_ACTUEL = HORAIRES_DEFAUT;
     remplirFormulaire(HORAIRES_DEFAUT);
   });
 
@@ -241,7 +254,10 @@
     if (isNaN(sp) || isNaN(go) || isNaN(gnr)) { alert('Renseignez les 3 prix (SP, GO, GNR).'); return; }
     btn.disabled = true;
     const prix_carburants = { mois: moisCourantISO(), sp, go, gnr, maj_par: employee.nom, maj_le: new Date().toISOString() };
-    const { error } = await nexusClient.from('station_config').upsert({ site: employee.site_id || 'vito-sainte-marie', prix_carburants, updated_at: new Date().toISOString() });
+    const { error } = await nexusClient.from('station_config').upsert(
+      { site: employee.site_id || 'vito-sainte-marie', prix_carburants, horaires: CONFIG_HORAIRES_ACTUEL, updated_at: new Date().toISOString() },
+      { onConflict: 'site' }
+    );
     btn.disabled = false;
     if (error) { console.error('Enregistrement prix_carburants:', error); alert('Erreur — réessayez.'); return; }
     const note = document.getElementById('savedNotePrix');
