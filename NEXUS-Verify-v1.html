@@ -272,11 +272,19 @@
       return (prix && prix.mois === moisCourant) ? prix : null;
     }
 
+    // <input type=number> rejette la virgule decimale d'un clavier francais
+    // (valeur vide -> 0 silencieusement, sans erreur) ; ces champs sont donc
+    // en saisie texte, et on accepte virgule et point ici.
+    function numFR(valeur) {
+      if (valeur == null) return NaN;
+      return parseFloat(String(valeur).trim().replace(',', '.'));
+    }
+
     function lireLitragesCuve() {
       return {
-        sp_l: parseFloat(document.getElementById('v_cuve_sp_litres').value) || 0,
-        go_l: parseFloat(document.getElementById('v_cuve_go_litres').value) || 0,
-        gnr_l: parseFloat(document.getElementById('v_cuve_gnr_litres').value) || 0,
+        sp_l: numFR(document.getElementById('v_cuve_sp_litres').value) || 0,
+        go_l: numFR(document.getElementById('v_cuve_go_litres').value) || 0,
+        gnr_l: numFR(document.getElementById('v_cuve_gnr_litres').value) || 0,
       };
     }
 

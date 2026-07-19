@@ -461,6 +461,22 @@
         return parseFloat(String(valeur).trim().replace(',', '.'));
       }
 
+      // station_config.horaires est NOT NULL en base. Ce rappel n'a pas le
+      // formulaire des horaires sous la main (contrairement a Parametres
+      // Station) : on doit donc les recharger (ou defaut) avant d'upserter,
+      // sinon un site sans ligne station_config existante echouerait avec
+      // "null value in column horaires violates not-null constraint".
+      const HORAIRES_DEFAUT_RAPPEL = {
+        quart1: { normal: "05:45", etendu: "05:45" },
+        quart2: { normal: "12:40", etendu: "13:40" },
+        renfort: { debut: "09:00", fin: "17:00", pause_debut: "13:00", pause_fin: "14:00" },
+      };
+      async function chargerHorairesPourUpsert() {
+        const { data, error } = await nexusClient.from('station_config').select('horaires').eq('site', siteId).maybeSingle();
+        if (error) { console.error('Chargement horaires (rappel prix):', error); return HORAIRES_DEFAUT_RAPPEL; }
+        return (data && data.horaires) || HORAIRES_DEFAUT_RAPPEL;
+      }
+
       async function chargerPrixCarburantsRappel() {
         const { data, error } = await nexusClient.from('station_config').select('prix_carburants').eq('site', siteId).maybeSingle();
         if (error) { console.error('Chargement prix_carburants:', error); return null; }
@@ -501,7 +517,11 @@
           const btn = document.getElementById('rappelSauvegarderPrix');
           btn.disabled = true;
           const prix_carburants = { mois: moisCourant, sp, go, gnr, maj_par: employee.nom, maj_le: new Date().toISOString() };
-          const { error } = await nexusClient.from('station_config').upsert({ site: siteId, prix_carburants, updated_at: new Date().toISOString() });
+          const horaires = await chargerHorairesPourUpsert();
+          const { error } = await nexusClient.from('station_config').upsert(
+            { site: siteId, prix_carburants, horaires, updated_at: new Date().toISOString() },
+            { onConflict: 'site' }
+          );
           btn.disabled = false;
           if (error) { console.error('Enregistrement prix_carburants:', error); alert('Erreur — réessayez.'); return; }
           document.getElementById('rappelPrixSaved').style.display = 'block';
