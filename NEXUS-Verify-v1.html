@@ -46,6 +46,14 @@
   .section-label::after{content:''; flex:1; height:1px; background:var(--hairline);}
   .note{font-family:var(--sans); font-size:11px; color:var(--text-dim); line-height:1.5; margin:-4px 0 12px;}
 
+  .ligne-item{display:flex; gap:8px; align-items:center; margin-bottom:8px;}
+  .ligne-item input[type=number]{margin-bottom:0; flex:1;}
+  .ligne-item select{margin-bottom:0; flex:0 0 110px; font-family:var(--sans); font-size:12.5px;}
+  .btn-remove{flex-shrink:0; width:32px; height:32px; border:1px solid var(--hairline); background:var(--panel-raised); color:var(--red); border-radius:8px; cursor:pointer; font-size:14px;}
+  .btn-add{width:100%; padding:9px; border-radius:8px; border:1px dashed rgba(79,195,217,0.4); background:transparent; color:var(--cyan); font-family:var(--sans); font-size:12.5px; font-weight:600; cursor:pointer; margin-bottom:10px;}
+  .btn-add:active{background:rgba(79,195,217,0.08);}
+  .total-ligne{font-family:var(--mono); font-size:11.5px; color:var(--text-mid); text-align:right;}
+
   .row2{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
   label.f{font-size:11.5px; color:var(--text-mid); display:block; margin-bottom:5px;}
   select, input[type=text], input[type=number], input[type=date], textarea{
@@ -140,10 +148,10 @@
       <input type="number" step="0.01" id="v_drop_piste_cb" placeholder="0.00">
       <label class="f">Vitocarte</label>
       <input type="number" step="0.01" id="v_drop_piste_vitocarte" placeholder="0.00">
-      <label class="f">Clients en compte (bon client signé)</label>
-      <input type="number" step="0.01" id="v_clients_compte_piste" placeholder="0.00">
-      <label class="f">Dépense ponctuelle (facture fournisseur)</label>
-      <input type="number" step="0.01" id="v_depense_piste" placeholder="0.00">
+      <label class="f">Clients en compte — un bon par ligne</label>
+      <div id="bonsPisteListe"></div>
+      <button type="button" class="btn-add" data-caisse="piste">+ Ajouter un bon client</button>
+      <div class="total-ligne">Total clients en compte piste : <span id="totalBonsPiste">0,00 €</span></div>
     </div>
 
     <div class="card">
@@ -157,16 +165,18 @@
       <input type="number" step="0.01" id="v_drop_boutique_chq" placeholder="0.00">
       <label class="f">Carte bancaire</label>
       <input type="number" step="0.01" id="v_drop_boutique_cb" placeholder="0.00">
-      <label class="f">Clients en compte (bon client signé)</label>
-      <input type="number" step="0.01" id="v_clients_compte_boutique" placeholder="0.00">
-      <label class="f">Dépense ponctuelle (facture fournisseur)</label>
-      <input type="number" step="0.01" id="v_depense_boutique" placeholder="0.00">
+      <label class="f">Clients en compte — un bon par ligne</label>
+      <div id="bonsBoutiqueListe"></div>
+      <button type="button" class="btn-add" data-caisse="boutique">+ Ajouter un bon client</button>
+      <div class="total-ligne">Total clients en compte boutique : <span id="totalBonsBoutique">0,00 €</span></div>
     </div>
 
     <div class="card">
-      <div class="section-label">Récap Nepting</div>
-      <label class="f">Total CB (tous opérateurs, Nepting)</label>
-      <input type="number" step="0.01" id="v_nepting_cb" placeholder="0.00">
+      <div class="section-label">Dépenses ponctuelles / Règlements fournisseurs</div>
+      <div class="note">Rare — une ligne par dépense, avec la caisse concernée (facture fournisseur comme justificatif).</div>
+      <div id="depensesListe"></div>
+      <button type="button" class="btn-add" id="btnAddDepense">+ Ajouter une dépense</button>
+      <div class="total-ligne">Piste : <span id="totalDepensesPiste">0,00 €</span> · Boutique : <span id="totalDepensesBoutique">0,00 €</span></div>
     </div>
 
     <div class="card">
@@ -250,6 +260,69 @@
     // ------------------------------------------------------------
     // Calcul et enregistrement
     // ------------------------------------------------------------
+    // ------------------------------------------------------------
+    // Listes dynamiques — un bon client par ligne, une depense par ligne.
+    // Nexus Verify fait la somme, pas besoin de l'additionner a la main.
+    // ------------------------------------------------------------
+    function ajouterLigneBon(caisse) {
+      const conteneur = document.getElementById(caisse === 'piste' ? 'bonsPisteListe' : 'bonsBoutiqueListe');
+      const ligne = document.createElement('div');
+      ligne.className = 'ligne-item';
+      ligne.innerHTML = `
+        <input type="number" step="0.01" class="montant-bon" placeholder="Montant du bon">
+        <button type="button" class="btn-remove">✕</button>`;
+      conteneur.appendChild(ligne);
+      ligne.querySelector('.montant-bon').addEventListener('input', () => majTotauxListes());
+      ligne.querySelector('.btn-remove').addEventListener('click', () => { ligne.remove(); majTotauxListes(); });
+    }
+    document.querySelectorAll('.btn-add[data-caisse]').forEach(btn => {
+      btn.addEventListener('click', () => ajouterLigneBon(btn.dataset.caisse));
+    });
+
+    function ajouterLigneDepense() {
+      const conteneur = document.getElementById('depensesListe');
+      const ligne = document.createElement('div');
+      ligne.className = 'ligne-item';
+      ligne.innerHTML = `
+        <input type="number" step="0.01" class="montant-depense" placeholder="Montant">
+        <select class="cible-depense">
+          <option value="piste">Piste</option>
+          <option value="boutique">Boutique</option>
+        </select>
+        <button type="button" class="btn-remove">✕</button>`;
+      conteneur.appendChild(ligne);
+      ligne.querySelector('.montant-depense').addEventListener('input', () => majTotauxListes());
+      ligne.querySelector('.cible-depense').addEventListener('change', () => majTotauxListes());
+      ligne.querySelector('.btn-remove').addEventListener('click', () => { ligne.remove(); majTotauxListes(); });
+    }
+    document.getElementById('btnAddDepense').addEventListener('click', ajouterLigneDepense);
+
+    function sommeBons(caisse) {
+      const conteneur = document.getElementById(caisse === 'piste' ? 'bonsPisteListe' : 'bonsBoutiqueListe');
+      let total = 0;
+      conteneur.querySelectorAll('.montant-bon').forEach(el => { total += parseFloat(el.value) || 0; });
+      return total;
+    }
+    function sommeDepenses(cible) {
+      let total = 0;
+      document.querySelectorAll('#depensesListe .ligne-item').forEach(ligne => {
+        if (ligne.querySelector('.cible-depense').value === cible) {
+          total += parseFloat(ligne.querySelector('.montant-depense').value) || 0;
+        }
+      });
+      return total;
+    }
+    function majTotauxListes() {
+      document.getElementById('totalBonsPiste').textContent = sommeBons('piste').toFixed(2).replace('.', ',') + ' €';
+      document.getElementById('totalBonsBoutique').textContent = sommeBons('boutique').toFixed(2).replace('.', ',') + ' €';
+      document.getElementById('totalDepensesPiste').textContent = sommeDepenses('piste').toFixed(2).replace('.', ',') + ' €';
+      document.getElementById('totalDepensesBoutique').textContent = sommeDepenses('boutique').toFixed(2).replace('.', ',') + ' €';
+    }
+    // Une ligne vide par defaut dans chaque liste, pour ne pas partir d'un ecran nu
+    ajouterLigneBon('piste');
+    ajouterLigneBon('boutique');
+    ajouterLigneDepense();
+
     function v(id) { return parseFloat(document.getElementById(id).value) || 0; }
 
     document.getElementById('btnCalculer').addEventListener('click', async () => {
@@ -262,13 +335,12 @@
 
       const drop_piste_billets = v('v_drop_piste_billets'), drop_piste_pieces = v('v_drop_piste_pieces');
       const drop_piste_chq = v('v_drop_piste_chq'), drop_piste_cb = v('v_drop_piste_cb'), drop_piste_vitocarte = v('v_drop_piste_vitocarte');
-      const clients_compte_piste = v('v_clients_compte_piste'), depense_piste = v('v_depense_piste');
+      const clients_compte_piste = sommeBons('piste'), depense_piste = sommeDepenses('piste');
 
       const drop_boutique_billets = v('v_drop_boutique_billets'), drop_boutique_pieces = v('v_drop_boutique_pieces');
       const drop_boutique_chq = v('v_drop_boutique_chq'), drop_boutique_cb = v('v_drop_boutique_cb');
-      const clients_compte_boutique = v('v_clients_compte_boutique'), depense_boutique = v('v_depense_boutique');
+      const clients_compte_boutique = sommeBons('boutique'), depense_boutique = sommeDepenses('boutique');
 
-      const nepting_cb = v('v_nepting_cb');
       const remise_cuve = v('v_remise_cuve'), incidents = v('v_incidents');
       const commentaire = document.getElementById('v_commentaire').value || null;
 
@@ -287,25 +359,9 @@
       const attenduBoutique = vente_boutique - transfert;
       const ecart_boutique = expliqueBoutique - attenduBoutique;
 
-      // Ecart CB : croise le CB reellement traite par Nepting contre les
-      // drops CB des deux caisses cumulees — verification independante,
-      // separee de l'equilibre physique de chaque caisse.
-      const ecart_cb_nepting = nepting_cb - (drop_piste_cb + drop_boutique_cb);
-
       const ecart_total = ecart_piste + ecart_boutique;
 
-      // Detection du decalage de categorisation : avec cette formule, un
-      // mélange espèces/CB au moment de l'encaissement n'affecte plus
-      // l'ecart de la caisse elle-meme (le total d'argent collecte reste
-      // juste) — il ne ressort QUE sur la comparaison CB/Nepting. Si les
-      // deux caisses sont equilibrees mais que Nepting ne correspond pas
-      // au CB declare, c'est le signe caracteristique d'une transaction
-      // mal categorisee, pas d'un vrai trou.
-      const categorisation_probable = Math.abs(ecart_cb_nepting) > 5
-        && Math.abs(ecart_piste) <= 2 && Math.abs(ecart_boutique) <= 2;
-
       const statutsComposants = [classifierEcart(ecart_piste), classifierEcart(ecart_boutique)];
-      statutsComposants.push(categorisation_probable ? 'surveiller' : classifierEcart(ecart_cb_nepting));
       const statut = statutsComposants.reduce((pire, s) => GRAVITE_ORDRE[s] > GRAVITE_ORDRE[pire] ? s : pire, 'conforme');
 
       const btn = document.getElementById('btnCalculer');
@@ -319,9 +375,8 @@
         clients_compte_piste, depense_ponctuelle_piste: depense_piste,
         drop_boutique_billets, drop_boutique_pieces, drop_boutique_chq, drop_boutique_cb,
         clients_compte_boutique, depense_ponctuelle_boutique: depense_boutique,
-        nepting_cb_total: nepting_cb,
         remise_cuve, caisse_incidents: incidents,
-        ecart_piste, ecart_boutique, ecart_cb_nepting, ecart_total, categorisation_probable,
+        ecart_piste, ecart_boutique, ecart_total,
         statut, commentaire, employee_id: EMPLOYEE_ID,
       }, { onConflict: 'site,date,quart' });
 
@@ -333,21 +388,14 @@
         return;
       }
 
-      const ligneCategorisation = categorisation_probable
-        ? `<div class="resume-line" style="color:var(--cyan);"><b>Probable erreur de catégorisation</b> — les deux caisses sont équilibrées, mais le CB déclaré ne correspond pas à Nepting (écart de ${ecart_cb_nepting.toFixed(2)} €). Une transaction a vraisemblablement été encaissée dans le mauvais moyen de paiement. L'argent est là — vérifiez le ticket concerné plutôt que de chercher un manque réel.</div>`
-        : '';
-
       box.innerHTML = `
         <div class="resume-box">
           <span class="statut-badge statut-${statut}">${STATUT_LABEL[statut]}</span>
           <div class="resume-total" style="color:${Math.abs(ecart_total)<=2?'var(--green)':'var(--red)'};">${ecart_total>=0?'+':''}${ecart_total.toFixed(2)} €</div>
           <div class="resume-line">Écart total (piste + boutique), quart ${quart} du ${new Date(date).toLocaleDateString('fr-FR')}.</div>
-          ${ligneCategorisation}
           <div class="resume-line">${phraseComposant('Caisse piste (vs pupitre)', ecart_piste)}</div>
           <div class="resume-line">${phraseComposant('Caisse boutique (vs Decenium)', ecart_boutique)}</div>
-          <div class="resume-line">${phraseComposant('Carte bancaire (Nepting vs drops)', ecart_cb_nepting)}</div>
-          ${statut !== 'conforme' && !categorisation_probable ? `<div class="resume-line" style="color:var(--amber);"><b>Action recommandée</b> — vérifiez le justificatif du composant en écart avant de considérer ce quart comme clôturé. ✓ Enregistré dans l'historique.</div>` : ''}
-          ${statut === 'conforme' ? `<div class="resume-line" style="color:var(--green);">Les deux caisses sont rapprochées sans écart significatif. ✓ Enregistré.</div>` : `<div class="resume-line" style="color:var(--text-dim);">✓ Enregistré dans l'historique.</div>`}
+          ${statut !== 'conforme' ? `<div class="resume-line" style="color:var(--amber);"><b>Action recommandée</b> — vérifiez le justificatif du composant en écart avant de considérer ce quart comme clôturé. ✓ Enregistré dans l'historique.</div>` : `<div class="resume-line" style="color:var(--green);">Les deux caisses sont rapprochées sans écart significatif. ✓ Enregistré.</div>`}
         </div>`;
     });
 
@@ -372,10 +420,8 @@
             </div>
           </div>
           <div class="histo-detail" id="detail-${i}">
-            ${a.categorisation_probable ? `<b style="color:var(--cyan);">Probable erreur de catégorisation espèces/CB — caisses juste au global.</b><br>` : ''}
             ${phraseComposant('Caisse piste (vs pupitre)', a.ecart_piste)}<br>
-            ${phraseComposant('Caisse boutique (vs Decenium)', a.ecart_boutique)}<br>
-            ${phraseComposant('Carte bancaire (Nepting)', a.ecart_cb_nepting)}
+            ${phraseComposant('Caisse boutique (vs Decenium)', a.ecart_boutique)}
             ${a.commentaire ? `<br><br><i>${a.commentaire}</i>` : ''}
           </div>
         </div>`).join('');
