@@ -156,6 +156,16 @@
     return ROLES.find(r => r.value === value) || { value, label: value, icon: '❔' };
   }
 
+  // Securite : "Manager" ne doit jamais etre choisissable comme role du
+  // jour par un employe dont le vrai role (employees.role, fixe par
+  // l'admin) n'est pas deja manager ou gerant. Sans ce filtre, n'importe
+  // quel employe pouvait selectionner Manager a la prise de poste et
+  // voir la vue manager de Missions, meme sans y etre habilite.
+  function rolesDisponibles() {
+    const estManager = employeeCourant.role === 'manager' || employeeCourant.role === 'gerant';
+    return estManager ? ROLES : ROLES.filter(r => r.value !== 'manager');
+  }
+
   function quartDuMoment() {
     const h = new Date().getHours();
     return h < 13 ? 'matin' : 'soir';
@@ -179,9 +189,10 @@
     document.getElementById('sousTitre').textContent = 'Quel est votre rôle pour ce quart ?';
 
     const suggestion = employeeCourant.role;
+    const rolesAffiches = rolesDisponibles();
     const html = `
       <div class="role-grid" id="roleGrid">
-        ${ROLES.map(r => `
+        ${rolesAffiches.map(r => `
           <div class="role-card ${r.value===roleChoisi?'selected':''}" data-role="${r.value}">
             <div class="role-icon"><img src="assets/icons/${r.icon}" alt=""></div>
             <div>
