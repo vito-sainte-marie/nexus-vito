@@ -45,7 +45,7 @@
     background:var(--panel-raised); border:1px solid var(--hairline); border-radius:6px;
     padding:8px 10px; color:var(--text); font-family:var(--mono); font-size:13px;
   }
-  .row input[type=number]{
+  .row input[type=number], .row input[type=text]{
     background:var(--panel-raised); border:1px solid var(--hairline); border-radius:6px;
     padding:8px 10px; color:var(--text); font-family:var(--mono); font-size:13px; width:110px;
   }
@@ -105,9 +105,9 @@
       <div class="section-label">Prix carburants — mois en cours</div>
       <div class="note">Indexés par la préfecture de Martinique, ces prix ne changent qu'au 1ᵉʳ de chaque mois. Ils servent à calculer le montant de la remise en cuve dans Nexus Verify à partir du litrage saisi.</div>
       <div id="statutPrixMois" class="statut-prix"></div>
-      <div class="row"><label>Sans plomb (SP) — €/L</label><input type="number" step="0.001" id="prix_sp" placeholder="0.000"></div>
-      <div class="row"><label>Gasoil (GO) — €/L</label><input type="number" step="0.001" id="prix_go" placeholder="0.000"></div>
-      <div class="row"><label>Gasoil non routier (GNR) — €/L</label><input type="number" step="0.001" id="prix_gnr" placeholder="0.000"></div>
+      <div class="row"><label>Sans plomb (SP) — €/L</label><input type="text" inputmode="decimal" id="prix_sp" placeholder="0,000"></div>
+      <div class="row"><label>Gasoil (GO) — €/L</label><input type="text" inputmode="decimal" id="prix_go" placeholder="0,000"></div>
+      <div class="row"><label>Gasoil non routier (GNR) — €/L</label><input type="text" inputmode="decimal" id="prix_gnr" placeholder="0,000"></div>
       <button class="btn btn-primary" id="sauvegarderPrix">Enregistrer les prix du mois</button>
       <div class="saved-note" id="savedNotePrix">✓ Prix enregistrés pour ce mois</div>
     </div>
@@ -199,6 +199,15 @@
     return `${MOIS_LABELS[parseInt(m, 10) - 1]} ${y}`;
   }
 
+  // Les champs prix sont en saisie texte (pas type=number) car un clavier
+  // francais tape une virgule decimale, que <input type=number> rejette
+  // silencieusement (valeur vide -> NaN -> "erreur, renseignez les 3 prix").
+  // On accepte virgule et point ici.
+  function numFR(valeur) {
+    if (valeur == null) return NaN;
+    return parseFloat(String(valeur).trim().replace(',', '.'));
+  }
+
   async function chargerPrixCarburants() {
     const { data, error } = await nexusClient.from('station_config').select('prix_carburants').eq('site', employee.site_id || 'vito-sainte-marie').maybeSingle();
     if (error) { console.error('Chargement prix_carburants:', error); return null; }
@@ -210,9 +219,9 @@
     const statutEl = document.getElementById('statutPrixMois');
     const moisCourant = moisCourantISO();
     if (prix && prix.mois === moisCourant) {
-      document.getElementById('prix_sp').value = prix.sp;
-      document.getElementById('prix_go').value = prix.go;
-      document.getElementById('prix_gnr').value = prix.gnr;
+      document.getElementById('prix_sp').value = String(prix.sp).replace('.', ',');
+      document.getElementById('prix_go').value = String(prix.go).replace('.', ',');
+      document.getElementById('prix_gnr').value = String(prix.gnr).replace('.', ',');
       statutEl.textContent = `✓ Prix à jour pour ${moisLabel(moisCourant)}.`;
       statutEl.style.color = 'var(--green)';
     } else if (prix) {
@@ -226,9 +235,9 @@
 
   document.getElementById('sauvegarderPrix').addEventListener('click', async () => {
     const btn = document.getElementById('sauvegarderPrix');
-    const sp = parseFloat(document.getElementById('prix_sp').value);
-    const go = parseFloat(document.getElementById('prix_go').value);
-    const gnr = parseFloat(document.getElementById('prix_gnr').value);
+    const sp = numFR(document.getElementById('prix_sp').value);
+    const go = numFR(document.getElementById('prix_go').value);
+    const gnr = numFR(document.getElementById('prix_gnr').value);
     if (isNaN(sp) || isNaN(go) || isNaN(gnr)) { alert('Renseignez les 3 prix (SP, GO, GNR).'); return; }
     btn.disabled = true;
     const prix_carburants = { mois: moisCourantISO(), sp, go, gnr, maj_par: employee.nom, maj_le: new Date().toISOString() };
