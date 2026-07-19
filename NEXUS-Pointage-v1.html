@@ -73,7 +73,7 @@
 <body>
 <div class="phone">
   <div class="header">
-    <a href="index.html" class="menu-btn">☰ Menu</a>
+    <a href="NEXUS-App-v1.html" class="menu-btn">☰ Menu</a>
     <div class="eyebrow">NEXUS · Pointage</div>
     <div class="title" id="empName">—</div>
     <div class="clock" id="horloge">--:--:--</div>
@@ -122,7 +122,7 @@
     renfort: { debut: "09:00", fin: "17:00", pause_debut: "13:00", pause_fin: "14:00" },
   };
   async function chargerHoraires() {
-    const { data, error } = await nexusClient.from('station_config').select('horaires').eq('site', 'vito-sainte-marie').maybeSingle();
+    const { data, error } = await nexusClient.from('station_config').select('horaires').eq('site', employee.site_id || 'vito-sainte-marie').maybeSingle();
     if (error) { console.error('Chargement station_config:', error); return HORAIRES_DEFAUT; }
     return (data && data.horaires) || HORAIRES_DEFAUT;
   }
@@ -205,7 +205,7 @@
     boutons.forEach(id => document.getElementById(id).disabled = true);
 
     const { error } = await nexusClient.from('pointages').insert({
-      employee_id: employee.id, site: 'vito-sainte-marie', date: aujourdhui,
+      employee_id: employee.id, site: employee.site_id || 'vito-sainte-marie', date: aujourdhui,
       type, heure, quart: quartValeur, retard_min,
     });
 
