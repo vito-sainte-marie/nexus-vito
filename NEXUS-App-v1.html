@@ -365,6 +365,13 @@
   nexusRequireAuth().then(async employee => {
     if (!employee) return; // nexus-auth.js gère déjà la redirection vers NEXUS-Login-v1.html
 
+    // "gerant" a les memes droits d'affichage que "manager" (cf. RLS et
+    // logique metier ailleurs dans NEXUS, ex: caisse_sante_historique).
+    // Corrige le bug du 20/07 : un employe role='gerant' se retrouvait
+    // avec le menu employe de base car ce fichier ne testait que
+    // employee.role === 'manager' en egalite stricte.
+    const estNiveauManager = employee.role === 'manager' || employee.role === 'gerant';
+
     const aujourdISO = new Date().toISOString().slice(0, 10);
     if (!employee.consultation_externe) {
       const { data: shiftsAujourdhui, error: erreurShift } = await nexusClient
@@ -408,12 +415,12 @@
 
     const tagline = document.getElementById('taglineRole');
     if (tagline) {
-      tagline.textContent = employee.role === 'manager'
+      tagline.textContent = estNiveauManager
         ? "Chaque décision compte. NEXUS vous aide à prendre les bonnes."
         : "Chaque mission réalisée contribue à la performance de votre équipe.";
     }
 
-    if (employee.role === 'manager') {
+    if (estNiveauManager) {
       document.getElementById('heroEmploye').style.display = 'none';
     } else {
       document.getElementById('heroManager').style.display = 'none';
@@ -450,7 +457,7 @@
     // Conseiller (pas un simple bandeau), et se represente toutes les
     // heures tant que les prix du mois ne sont pas renseignes — que ce soit
     // via ce rappel ou via Parametres Station.
-    if (employee.role === 'manager' && !employee.consultation_externe) {
+    if (estNiveauManager && !employee.consultation_externe) {
       const siteId = employee.site_id || 'vito-sainte-marie';
       const cleRappel = 'nexus_rappel_prix_carburants_' + siteId;
       const uneHeure = 60 * 60 * 1000;
