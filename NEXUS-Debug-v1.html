@@ -62,6 +62,7 @@
   .kv-key{color:var(--text-mid); font-family:var(--mono); font-size:11px;}
   .kv-val{font-family:var(--mono); color:var(--text);}
   .kv-names{font-size:10.5px; color:var(--text-dim); margin-top:2px;}
+  .empty-note{padding:12px 0; text-align:center; color:var(--text-dim); font-size:12px;}
 
   .note{font-size:11px; color:var(--text-dim); line-height:1.6; margin-top:10px;}
   .locked{padding:60px 20px; text-align:center; color:var(--text-dim); font-size:13px;}
@@ -84,7 +85,7 @@
     <div class="loading">Chargement…</div>
   </div>
 
-  <footer>NEXUS Debug v1 · Agit uniquement sur cet appareil, jamais sur Supabase</footer>
+  <footer>NEXUS Debug v1 · Certains outils agissent directement sur Supabase — chaque carte précise sa portée</footer>
 </div>
 
 <script>
@@ -93,7 +94,7 @@
   // Compare sans tenir compte des accents/majuscules — "Frédéric", "Frederic",
   // "FREDERIC" doivent tous matcher la meme entree.
   function normaliser(s) {
-    return (s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
+    return (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toLowerCase();
   }
 
   function etatLocalStorage() {
@@ -464,6 +465,98 @@
     diagnostiquerPeriodes();
   }
 
+  // ============================================================
+  // Correction ponctuelle — supprimer un audit de caisse erroné (ex:
+  // erreur de saisie du 19/07/2026). Recherche par date (un audit_caisse
+  // peut avoir plusieurs quarts le meme jour), suppression individuelle
+  // par ligne, avec double confirmation vu le caractere irreversible.
+  //
+  // Apres suppression, recalcule immediatement caisse_sante_historique
+  // pour le mois concerne (meme fonction que celle appelee par le CIN,
+  // cf. migration-conseiller-caisse-sante-v1.sql) — la Vue d'ensemble du
+  // Centre d'Intelligence reflete donc la correction des le prochain
+  // chargement, sans attendre un recalcul automatique differe.
+  //
+  // Limite assumee : si un signal Caisse (advisor_messages) a deja ete
+  // genere en citant cet audit comme preuve, ce signal n'est pas
+  // retire automatiquement — la preuve deja affichee reste un
+  // instantane de ce qui etait vrai au moment de sa creation. Marquer
+  // le signal comme resolu depuis le Centre d'Intelligence si besoin.
+  // ============================================================
+  async function rechercherAuditsCaisse() {
+    const dateInput = document.getElementById('dateAuditCible').value;
+    const zone = document.getElementById('resultatAuditsCaisse');
+    const msg = document.getElementById('msgAuditsCaisse');
+    msg.className = 'msg'; msg.textContent = '';
+
+    if (!dateInput) {
+      msg.textContent = 'Choisissez une date.';
+      msg.className = 'msg err';
+      return;
+    }
+
+    zone.innerHTML = '<div class="note">Recherche…</div>';
+
+    const { data, error } = await nexusClient
+      .from('audits_caisse')
+      .select('id, date, quart, ecart_piste, ecart_boutique, ecart_total, statut, commentaire')
+      .eq('site', SITE_ACTUEL)
+      .eq('date', dateInput)
+      .order('quart', { ascending: true });
+
+    if (error) {
+      console.error('Recherche audits caisse:', error);
+      zone.innerHTML = '';
+      msg.textContent = 'Erreur de recherche — réessayez.';
+      msg.className = 'msg err';
+      return;
+    }
+
+    if (!data || data.length === 0) {
+      zone.innerHTML = `<div class="empty-note">Aucun audit de caisse trouvé pour le ${new Date(dateInput + 'T00:00:00').toLocaleDateString('fr-FR')}.</div>`;
+      msg.textContent = '';
+      return;
+    }
+
+    zone.innerHTML = data.map(a => `
+      <div class="kv-row" style="flex-direction:column; align-items:stretch; gap:6px; padding:12px 0;">
+        <div style="display:flex; justify-content:space-between;">
+          <span class="kv-key">Quart ${a.quart} · statut ${a.statut || '—'}</span>
+          <span class="kv-val" style="color:${(a.ecart_total||0)===0?'var(--green)':'var(--red)'};">${(a.ecart_total||0)>=0?'+':''}${Math.round(a.ecart_total||0)} €</span>
+        </div>
+        <div class="kv-names">Piste ${(a.ecart_piste||0)>=0?'+':''}${Math.round(a.ecart_piste||0)} € · Boutique ${(a.ecart_boutique||0)>=0?'+':''}${Math.round(a.ecart_boutique||0)} €${a.commentaire ? ' · ' + a.commentaire : ''}</div>
+        <button class="btn btn-danger" data-id="${a.id}" data-date="${a.date}" onclick="supprimerAuditCaisse(this)">Supprimer cet audit</button>
+      </div>`).join('');
+
+    msg.textContent = `${data.length} audit(s) trouvé(s) pour cette date.`;
+    msg.className = 'msg ok';
+  }
+
+  async function supprimerAuditCaisse(btn) {
+    const id = btn.dataset.id;
+    const date = btn.dataset.date;
+    const dateLisible = new Date(date + 'T00:00:00').toLocaleDateString('fr-FR');
+    if (!confirm(`Supprimer définitivement cet audit de caisse du ${dateLisible} ? Cette action est irréversible.`)) return;
+    if (!confirm('Confirmation finale — l\'audit sera perdu de manière permanente. Continuer ?')) return;
+
+    btn.disabled = true; btn.textContent = 'Suppression…';
+
+    const { error } = await nexusClient.from('audits_caisse').delete().eq('id', id);
+    if (error) {
+      console.error('Suppression audit caisse:', error);
+      alert('Erreur lors de la suppression — réessayez.');
+      btn.disabled = false; btn.textContent = 'Supprimer cet audit';
+      return;
+    }
+
+    // Recalcule le suivi mensuel du mois concerne (meme fonction que le CIN).
+    const premierJourMois = date.slice(0, 8) + '01';
+    const { error: erreurRecalcul } = await nexusClient.rpc('calculer_caisse_sante', { p_site: SITE_ACTUEL, p_mois: premierJourMois });
+    if (erreurRecalcul) console.error('Recalcul santé caisse après suppression:', erreurRecalcul);
+
+    rechercherAuditsCaisse();
+  }
+
   function renderRoot() {
     const etat = etatLocalStorage();
     const root = document.getElementById('root');
@@ -525,6 +618,18 @@
         <div class="msg" id="msgPeriodes"></div>
       </div>
 
+      <div class="card">
+        <div class="section-label">Correction — Supprimer un audit de caisse</div>
+        <p class="note" style="margin-top:0;">Pour retirer un audit de caisse issu d'une erreur de saisie (ex : le 19/07/2026). Recherche par date, puis suppression ligne par ligne — un jour peut contenir plusieurs quarts. Agit directement sur Supabase (<code>audits_caisse</code>), irréversible. Le suivi mensuel (Centre d'Intelligence) est recalculé automatiquement juste après.</p>
+        <div class="field">
+          <label>Date de l'audit</label>
+          <input type="date" id="dateAuditCible">
+        </div>
+        <button class="btn btn-primary" id="btnChercherAudit">Rechercher</button>
+        <div id="resultatAuditsCaisse"></div>
+        <div class="msg" id="msgAuditsCaisse"></div>
+      </div>
+
       <div class="card danger">
         <div class="section-label">Zone sensible</div>
         <button class="btn btn-danger" id="btnReset">Réinitialiser toutes les données locales de cet appareil</button>
@@ -538,6 +643,7 @@
     document.getElementById('btnMigrerValidees').addEventListener('click', migrerValideesVersSupabase);
     document.getElementById('btnCorrigerCBD').addEventListener('click', corrigerCategoriesCBD);
     document.getElementById('btnDiagPeriodes').addEventListener('click', diagnostiquerPeriodes);
+    document.getElementById('btnChercherAudit').addEventListener('click', rechercherAuditsCaisse);
 
     document.getElementById('btnNettoyer').addEventListener('click', () => {
       const brut = document.getElementById('nomCible').value;
