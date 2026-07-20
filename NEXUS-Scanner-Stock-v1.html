@@ -177,7 +177,22 @@
   let ANALYSE = [];        // une entree par article, avec etat/confiance/ecart
   let LISTE_RECOMMANDEE = new Set(); // articles du "recompter aujourd'hui", pour le filtre dedie
   let employeeCourant = null;
+  let SITE_ACTUEL = 'vito-sainte-marie'; // ecrase par employee.site_id une fois connecte
   let filtreActuel = 'tous';
+
+  // Produits digitaux, jamais mis en rayon (pas de comptage physique possible) :
+  // cartes prepayees (recharges telephoniques, transcash, pcs...) et l'article
+  // "Acompte" (encaissement d'un acompte client, pas un produit). Exclus des
+  // le chargement pour ne jamais apparaitre dans l'analyse ni les recommandations
+  // de comptage — demande Frederic, 20/07/2026.
+  function estProduitNonRayon(article, categorie) {
+    const a = (article || '').toLowerCase();
+    const c = (categorie || '').toLowerCase();
+    if (a.includes('acompte')) return true;
+    if (c.includes('carte') && (c.includes('prépayé') || c.includes('prepaye'))) return true;
+    if (c.includes('transcash') || c.includes('pcs')) return true;
+    return false;
+  }
 
   // Supabase plafonne chaque requete a 1000 lignes par defaut, sans erreur —
   // au-dela, le reste est silencieusement absent. Ce helper boucle par pages
@@ -197,25 +212,28 @@
   }
 
   async function chargerAnalyse() {
-    const { data: releves, error: err1 } = await fetchAllRows(() => nexusClient
+    const { data: relevesTous, error: err1 } = await fetchAllRows(() => nexusClient
       .from('stock_releves')
       .select('article, categorie, quantite_theorique, releve_le')
-      .eq('site', 'vito-sainte-marie')
+      .eq('site', SITE_ACTUEL)
       .order('releve_le', { ascending: true })
       .order('article', { ascending: true }));
     if (err1) { console.error('Chargement stock_releves:', err1); return []; }
-    if (!releves || releves.length === 0) return [];
+    if (!relevesTous || relevesTous.length === 0) return [];
+
+    const releves = relevesTous.filter(r => !estProduitNonRayon(r.article, r.categorie));
+    if (releves.length === 0) return [];
 
     const { data: ventes } = await fetchAllRows(() => nexusClient
       .from('products')
       .select('article, quantite, prix_vente, periode_debut, periode_fin')
-      .eq('site', 'vito-sainte-marie')
+      .eq('site', SITE_ACTUEL)
       .order('article', { ascending: true }));
 
     const { data: controles } = await fetchAllRows(() => nexusClient
       .from('controles_stock')
       .select('article, ecart, controle_le')
-      .eq('site', 'vito-sainte-marie')
+      .eq('site', SITE_ACTUEL)
       .order('controle_le', { ascending: false })
       .order('article', { ascending: true }));
 
@@ -336,7 +354,7 @@
   async function marquerControle(article, quantiteTheorique, quantiteComptee) {
     const ecart = quantiteComptee - quantiteTheorique;
     const { error } = await nexusClient.from('controles_stock').insert({
-      site: 'vito-sainte-marie', article, quantite_theorique: quantiteTheorique,
+      site: SITE_ACTUEL, article, quantite_theorique: quantiteTheorique,
       quantite_comptee: quantiteComptee, ecart, controle_par: employeeCourant.id,
     });
     if (error) { console.error('Enregistrement controle:', error); alert('Erreur — réessayez.'); return false; }
@@ -559,13 +577,14 @@
       return;
     }
     employeeCourant = employee;
+    SITE_ACTUEL = employee.site_id || 'vito-sainte-marie';
     ANALYSE = await chargerAnalyse();
     renderRoot();
 
     if (ANALYSE.length > 0) {
       const total = ANALYSE.length;
       await nexusClient.from('stock_sante_historique').insert({
-        site: 'vito-sainte-marie',
+        site: SITE_ACTUEL,
         indice_confiance: Math.round(ANALYSE.reduce((s, p) => s + p.confiance, 0) / total),
         nb_references_stables: ANALYSE.filter(p => p.etat === 'stable').length,
         nb_references_a_surveiller: ANALYSE.filter(p => p.etat === 'surveiller').length,
