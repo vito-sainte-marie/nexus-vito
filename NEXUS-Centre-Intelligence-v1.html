@@ -82,6 +82,7 @@
   .confiance-A{background:var(--green-dim); color:var(--green);}
   .confiance-B{background:rgba(79,195,217,0.14); color:var(--cyan);}
   .confiance-C{background:var(--amber-dim); color:var(--amber);}
+  .confiance-D{background:var(--red-dim); color:var(--red);}
   .confiance-desc{font-size:11px; color:var(--text-mid); line-height:1.4;}
   .rule-tag{font-family:var(--mono); font-size:9px; color:var(--text-dim); margin-top:8px;}
 
@@ -137,7 +138,7 @@
     <div class="loading">Analyse en cours…</div>
   </div>
 
-  <footer>NEXUS Centre d'Intelligence v1 · Analyse, anticipation et stratégie · Vito Sainte-Marie Usine</footer>
+  <footer>NEXUS Centre d'Intelligence v2 · Analyse, anticipation et stratégie · Vito Sainte-Marie Usine</footer>
 </div>
 
 <script>
@@ -218,7 +219,7 @@
 
   async function marquerProduitAppel(article, employeeId) {
     const { error } = await nexusClient.from('produits_appel').insert({ site: SITE_ACTUEL, article, ajoute_par: employeeId });
-    if (error) { console.error('Ajout produit d\u2019appel:', error); alert('Erreur — réessayez.'); return false; }
+    if (error) { console.error('Ajout produit d’appel:', error); alert('Erreur — réessayez.'); return false; }
     return true;
   }
 
@@ -695,6 +696,142 @@
     return texte;
   }
 
+  // ============================================================
+  // Conseiller structuré — advisor_messages (Qualité, Caisse, ...)
+  // ============================================================
+  // Couche distincte des detections commerce ci-dessus : ici, la
+  // detection, le scoring et la redaction du message sont deja faits
+  // COTE BASE (fonctions SQL generer_message_*), pas recalcules en JS.
+  // Le CIN se contente de : declencher la generation (idempotente et
+  // anti-repetition geree en SQL, cf. migration-conseiller-agregation-
+  // assignations-v1.sql), charger les messages actifs du site, les
+  // afficher, et permettre d'agir (assigner / marquer resolu) sans
+  // passer par Supabase directement.
+  //
+  // Design assume : le message reste TOUJOURS agrege (un message =
+  // une situation, jamais une personne nommee cote Qualite/Caisse) —
+  // c'est seulement au moment "Assigner" que la situation se
+  // decompose en autant de taches reelles que necessaire.
+
+  const GENERATEURS_ADVISOR = [
+    'generer_message_controle_tenue_absent',
+    'generer_message_caisse_ecart_non_justifie',
+    'generer_message_caisse_ecart_recurrent',
+  ];
+
+  // Code de regle -> fonction RPC d'assignation, uniquement pour les
+  // regles qui ont un fan-out en taches individuelles (cf. limite
+  // assumee : CAISSE_ECART_RECURRENT n'en a pas, c'est volontaire).
+  const ASSIGNATEURS_ADVISOR = {
+    'QUALITE_CONTROLE_TENUE_ABSENT': 'assigner_controles_tenue_depuis_message',
+    'CAISSE_ECART_NON_JUSTIFIE': 'assigner_justifications_caisse_depuis_message',
+  };
+
+  const PRIORITE_LABEL_ADVISOR = {
+    critique: 'Critique', haute: 'Haute', a_surveiller: 'À surveiller', normale: 'Normale', information: 'Information',
+  };
+  const CONFIANCE_LABEL_ADVISOR = {
+    A: 'Confirmé', B: 'Très probable', C: 'Hypothèse à vérifier', D: 'Non mesurable',
+  };
+  const PRIORITE_RANG_ADVISOR = { critique: 0, haute: 1, a_surveiller: 2, normale: 3, information: 4 };
+
+  let MESSAGES_ADVISOR = [];
+
+  // Declenche chaque generateur pour le site courant. Chaque fonction
+  // gere elle-meme son anti-repetition (fingerprint + cooldown_hours) —
+  // appeler ceci a chaque chargement d'ecran est donc sans danger, ca
+  // ne cree pas de doublon si rien n'a change depuis le dernier appel.
+  async function genererMessagesAdvisor() {
+    for (const fn of GENERATEURS_ADVISOR) {
+      const { error } = await nexusClient.rpc(fn, { p_site: SITE_ACTUEL });
+      if (error) console.error(`Génération ${fn}:`, error);
+    }
+  }
+
+  async function chargerMessagesAdvisor() {
+    const { data, error } = await nexusClient
+      .from('advisor_messages')
+      .select('*, advisor_rules(code)')
+      .eq('site_id', SITE_ACTUEL)
+      .not('status', 'in', '(resolu,expire)')
+      .order('generated_at', { ascending: false });
+    if (error) { console.error('Chargement advisor_messages:', error); return []; }
+    // Tri cote client par gravite reelle — l'ordre alphabetique du
+    // champ texte 'priority' ne correspond pas a l'ordre de gravite.
+    return (data || []).sort((a, b) => (PRIORITE_RANG_ADVISOR[a.priority] ?? 9) - (PRIORITE_RANG_ADVISOR[b.priority] ?? 9));
+  }
+
+  function iconePourRuleAdvisor(code) {
+    if ((code || '').startsWith('SECURITE')) return '🛡';
+    if ((code || '').startsWith('CAISSE')) return '💶';
+    if ((code || '').startsWith('QUALITE')) return '🧼';
+    return '🧭';
+  }
+
+  function renderMessagesAdvisor() {
+    const el = document.getElementById('advisorMessages');
+    if (!el) return;
+    if (MESSAGES_ADVISOR.length === 0) {
+      el.innerHTML = `<div class="empty-note">Aucun signal structuré actif sur les domaines connectés (Qualité, Caisse) pour l'instant.</div>`;
+      return;
+    }
+    el.innerHTML = MESSAGES_ADVISOR.map((m, i) => {
+      const ruleCode = (m.advisor_rules && m.advisor_rules.code) || '';
+      const peutAssigner = !!ASSIGNATEURS_ADVISOR[ruleCode] && m.status !== 'converti_action';
+      const prioClasse = (m.priority === 'critique' || m.priority === 'haute') ? 'etat-agir' : (m.priority === 'a_surveiller' ? 'etat-surveiller' : '');
+      const dejaAssigne = m.status === 'converti_action';
+      return `
+      <div class="plan-card ${prioClasse}" id="adv-${i}">
+        <div class="plan-head" onclick="document.getElementById('adv-${i}').classList.toggle('open')">
+          <span class="plan-etat">${iconePourRuleAdvisor(ruleCode)} ${PRIORITE_LABEL_ADVISOR[m.priority] || m.priority || ''}</span>
+          <span class="plan-action-teaser">${(m.message_text || '').slice(0, 58)}${(m.message_text || '').length > 58 ? '…' : ''}</span>
+          <span class="plan-chevron">›</span>
+        </div>
+        <div class="plan-body">
+          <div class="plan-story">${m.message_text || ''}</div>
+          <div class="confiance-row">
+            <span class="confiance-badge confiance-${m.confidence_level || 'B'}">Niveau ${m.confidence_level || '?'}</span>
+            <span class="confiance-desc"><b style="color:var(--text);">${CONFIANCE_LABEL_ADVISOR[m.confidence_level] || ''}.</b></span>
+          </div>
+          <div class="rule-tag">Règle ${ruleCode || '—'} · statut ${m.status}${dejaAssigne ? ' · déjà assigné' : ''}</div>
+          ${peutAssigner ? `<button class="advisor-assigner" data-id="${m.id}" data-rule="${ruleCode}" style="width:100%; margin-top:10px; padding:11px; border:none; border-radius:8px; font-size:12.5px; font-weight:600; background:var(--cyan); color:#04141a; cursor:pointer;">✓ Assigner les actions correspondantes</button>` : ''}
+          <button class="advisor-resoudre" data-id="${m.id}" style="width:100%; margin-top:8px; padding:10px; border:1px solid var(--hairline); border-radius:8px; background:none; color:var(--text-dim); font-size:11.5px; cursor:pointer;">Marquer comme résolu</button>
+        </div>
+      </div>`;
+    }).join('');
+
+    el.querySelectorAll('.advisor-assigner').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const fnName = ASSIGNATEURS_ADVISOR[btn.dataset.rule];
+        if (!fnName) return;
+        btn.disabled = true; btn.textContent = 'Assignation…';
+        const { data, error } = await nexusClient.rpc(fnName, { p_message_id: btn.dataset.id, p_assigne_par: EMPLOYEE_ID_CIN });
+        if (error) {
+          console.error('Assignation:', error);
+          alert('Erreur — réessayez.');
+          btn.disabled = false; btn.textContent = '✓ Assigner les actions correspondantes';
+          return;
+        }
+        afficherToastOr(`✓ ${data} assignation(s) créée(s)`);
+        MESSAGES_ADVISOR = await chargerMessagesAdvisor();
+        renderMessagesAdvisor();
+      });
+    });
+
+    el.querySelectorAll('.advisor-resoudre').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const { error } = await nexusClient.from('advisor_messages')
+          .update({ status: 'resolu', resolved_at: new Date().toISOString() })
+          .eq('id', btn.dataset.id);
+        if (error) { console.error('Résolution message:', error); alert('Erreur — réessayez.'); return; }
+        MESSAGES_ADVISOR = await chargerMessagesAdvisor();
+        renderMessagesAdvisor();
+      });
+    });
+  }
+
   async function renderRoot() {
     const validees = await chargerValidees();
     const actives = TOUTES_DETECTIONS.filter(p => !validees.includes(p.candidate_id));
@@ -726,6 +863,13 @@
       <div class="tabs" id="tabs"></div>
       <div id="liste"></div>
       <div class="card" style="margin-top:4px;">
+        <div class="section-label">🧭 Signaux structurés — Qualité, Caisse</div>
+        <div style="font-size:11.5px; color:var(--text-dim); margin-bottom:12px; line-height:1.5;">
+          Détections calculées côté base à partir des contrôles de tenue et des audits de caisse — même principe que les signaux commerce ci-dessus (règle, priorité, niveau de confiance), sur des domaines différents.
+        </div>
+        <div id="advisorMessages"></div>
+      </div>
+      <div class="card" style="margin-top:4px;">
         <div class="section-label">🧠 Ce que le Journal m'apprend</div>
         <div style="font-size:11.5px; color:var(--text-dim); margin-bottom:12px; line-height:1.5;">
           Les cartes ci-dessus lisent les ventes en direct. Ce qui suit lit l'historique accumulé dans le Journal — décisions passées, retards, missions — pour repérer des motifs qu'aucune donnée instantanée ne montre.
@@ -746,6 +890,7 @@
 
     renderListe(actives);
     renderPatterns();
+    renderMessagesAdvisor();
   }
 
   function renderPatterns() {
@@ -846,6 +991,12 @@
     JOURNAL_TOUTES = journalToutes;
     TOUTES_DETECTIONS = await construireDetections(journalToutes);
     PATTERNS = construirePatterns(journalToutes, retards, missionsHisto, equipeMap, TOUTES_DETECTIONS);
+
+    // Declenche la generation des signaux structures (Qualite, Caisse) puis
+    // les charge — anti-repetition geree cote SQL, sans risque a rappeler
+    // a chaque ouverture d'ecran.
+    await genererMessagesAdvisor();
+    MESSAGES_ADVISOR = await chargerMessagesAdvisor();
 
     await renderRoot();
   });
