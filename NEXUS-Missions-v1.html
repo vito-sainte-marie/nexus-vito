@@ -61,6 +61,7 @@
   .badge-normale{background:rgba(79,195,217,0.12); color:var(--cyan);}
   .badge-basse{background:var(--panel-raised); color:var(--text-dim);}
   .badge-auto{background:var(--green-dim); color:var(--green);}
+  .badge-controle{background:rgba(79,195,217,0.12); color:var(--cyan);}
 
   .mission-body{display:none; padding:0 16px 16px; border-top:1px solid var(--hairline);}
   .mission-body.open{display:block;}
@@ -76,6 +77,14 @@
   }
   .btn-valider:disabled{opacity:0.3; cursor:not-allowed;}
   .validation-ok{margin-top:12px; padding:10px; text-align:center; background:var(--green-dim); color:var(--green); border-radius:8px; font-size:12.5px; font-weight:600;}
+
+  .controle-banner{background:rgba(79,195,217,0.08); border:1px solid rgba(79,195,217,0.3); border-radius:8px; padding:10px 12px; font-size:11.5px; color:var(--cyan); line-height:1.5; margin:12px 0;}
+  .presence-label{font-family:var(--mono); font-size:10.5px; letter-spacing:0.05em; text-transform:uppercase; color:var(--text-dim); margin:16px 0 6px;}
+  .presence-item{display:flex; align-items:center; gap:10px; padding:6px 0; font-size:12.5px; cursor:pointer;}
+  .presence-box{width:16px; height:16px; border:1.5px solid var(--text-dim); border-radius:4px; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:11px;}
+  .presence-box.checked{background:var(--cyan); border-color:var(--cyan); color:#04141a;}
+  .evaluer-liens{margin-top:10px; display:flex; flex-direction:column; gap:6px;}
+  .evaluer-lien{font-family:var(--mono); font-size:11.5px; color:var(--cyan); text-decoration:none;}
 
   .empty-note{padding:30px 20px; text-align:center; color:var(--text-dim); font-size:12.5px;}
 
@@ -149,6 +158,27 @@
     if (error) { console.error('Chargement shift du jour:', error); return null; }
     return (data && data[0]) ? data[0].role : null;
   }
+
+  // Employes actifs du site — utilise pour le "controle manager" (cf.
+  // estMissionControleManager) : le manager coche qui etait present sur
+  // site au moment du controle, puis peut les evaluer directement.
+  async function chargerEmployesSite() {
+    const { data, error } = await nexusClient.from('employees').select('id, nom').eq('site_id', SITE_ACTUEL).eq('actif', true).order('nom');
+    if (error) { console.error('Chargement employés (contrôle mission):', error); return []; }
+    return data || [];
+  }
+  let EMPLOYES_SITE = [];
+  let presentsState = {};
+
+  // Nuance demandee par Frederic (20/07/2026) : pour le manager, le nettoyage
+  // et la gestion des dechets (et plus largement les missions Qualite et
+  // Securite) sont des CONTROLES — il verifie que l'equipe l'a fait, il ne le
+  // fait pas lui-meme. Applique uniquement quand l'ecran est vu par un
+  // manager (les employes gardent leurs missions "a faire" normales).
+  function estMissionControleManager(m) {
+    return roleDuJour === 'manager' && (m.famille === 'Qualité' || m.famille === 'Sécurité');
+  }
+
   const FAMILLES = ["Toutes","Commerce","Qualité","Sécurité","Exploitation","Management"];
   let familleActive = "Toutes";
   const missionsOuvertes = new Set();
@@ -294,6 +324,7 @@
         employee_id: empId, mission_id: entry.mission_id, titre: entry.titre,
         date: entry.date, heure: entry.heure, photo_fournie: entry.photo_fournie,
         photo_url: entry.photo_url || null, points: entry.points,
+        employes_presents: entry.employes_presents || null,
       });
     if (error) console.error('Sauvegarde complétion:', error);
   }
@@ -327,7 +358,34 @@
   function renderMissionCard(m, isAuto) {
     const priorite = m.priority || 'normale';
     const complet = toutCoche(m);
-    const dejaValidee = completionsCache.some(c => c.mission_id === m.mission_id && c.date === new Date().toISOString().slice(0,10));
+    const controle = !isAuto && estMissionControleManager(m);
+    const completionAujourdhui = completionsCache.find(c => c.mission_id === m.mission_id && c.date === new Date().toISOString().slice(0,10));
+    const dejaValidee = !!completionAujourdhui;
+
+    const libelleBouton = complet
+      ? (controle ? 'Valider le contrôle' : 'Valider la mission')
+      : (controle ? 'Cochez tout pour valider le contrôle' : 'Cochez tout pour valider');
+
+    const blocPresence = controle ? `
+        <div class="presence-label">Employés présents au moment du contrôle</div>
+        ${EMPLOYES_SITE.length === 0
+          ? `<div class="mission-pourquoi" style="margin:4px 0;">Aucun employé actif trouvé pour ce site.</div>`
+          : EMPLOYES_SITE.map(e => {
+              const key = `${m.mission_id}_${e.id}`;
+              const checked = !!presentsState[key];
+              return `<div class="presence-item" data-key="${key}">
+                <div class="presence-box ${checked?'checked':''}">${checked?'✓':''}</div>
+                <div>${e.nom}</div>
+              </div>`;
+            }).join('')}` : '';
+
+    const liensEvaluer = (controle && dejaValidee && completionAujourdhui.employes_presents && completionAujourdhui.employes_presents.length)
+      ? `<div class="evaluer-liens">${completionAujourdhui.employes_presents.map(pid => {
+          const emp = EMPLOYES_SITE.find(e => e.id === pid);
+          return emp ? `<a class="evaluer-lien" href="NEXUS-Evaluation-Employe-v1.html?employe=${emp.id}">→ Évaluer ${emp.nom}</a>` : '';
+        }).join('')}</div>`
+      : '';
+
     return `
       <div class="mission-card">
         <div class="mission-head" data-id="${m.mission_id}">
@@ -335,16 +393,18 @@
             <div class="mission-titre">${m.titre}</div>
             <div class="mission-meta">${m.famille || 'Auto'} · ${m.estimated_duration_min} min${isAuto && m.impact_attendu_eur ? ' · Impact ' + m.impact_attendu_eur + '€' : ''}</div>
           </div>
-          ${isAuto ? '<span class="badge badge-auto">Conseiller NEXUS</span>' : priorityBadge(priorite)}
+          ${isAuto ? '<span class="badge badge-auto">Conseiller NEXUS</span>' : (controle ? '<span class="badge badge-controle">🔍 Contrôle</span>' : priorityBadge(priorite))}
         </div>
         <div class="mission-body ${missionsOuvertes.has(m.mission_id)?'open':''}" id="body-${m.mission_id}">
+          ${controle ? `<div class="controle-banner">🔍 Mode contrôle manager — vous vérifiez que l'équipe a bien réalisé ces points, vous ne les faites pas vous-même.</div>` : ''}
           <div class="mission-pourquoi">${m.pourquoi}</div>
           ${renderChecklist(m.mission_id, m.checklist)}
           ${m.proof_required ? `<div class="mission-photo">📷 Photo requise pour valider</div>
             <input type="file" accept="image/*" capture="environment" id="photo-${m.mission_id}" style="display:none;">` : ''}
+          ${blocPresence}
           ${dejaValidee
-            ? `<div class="validation-ok">✓ Validée aujourd'hui</div>`
-            : `<button class="btn-valider" data-mission="${m.mission_id}" ${!complet?'disabled':''}>${complet ? 'Valider la mission' : 'Cochez tout pour valider'}</button>`}
+            ? `<div class="validation-ok">✓ ${controle ? 'Contrôlée' : 'Validée'} aujourd'hui</div>${liensEvaluer}`
+            : `<button class="btn-valider" data-mission="${m.mission_id}" ${!complet?'disabled':''}>${libelleBouton}</button>`}
         </div>
       </div>`;
   }
@@ -397,6 +457,14 @@
         sauvegarderProgressionItem(employeeId, missionId, idx, checkState[key]);
       });
     });
+    content.querySelectorAll('.presence-item').forEach(el => {
+      el.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const key = el.dataset.key;
+        presentsState[key] = !presentsState[key];
+        render();
+      });
+    });
 
     content.querySelectorAll('.btn-valider').forEach(btn => {
       btn.addEventListener('click', (e) => {
@@ -406,6 +474,7 @@
         if (!mission) return;
 
         const libelleInitial = btn.textContent;
+        const controle = estMissionControleManager(mission);
 
         const finaliser = async (file) => {
           if (mission.proof_required && !file) {
@@ -427,10 +496,14 @@
           }
 
           const points = mission.proof_required ? (mission.points || 5) + 2 : (mission.points || 5);
+          const employesPresents = controle
+            ? EMPLOYES_SITE.filter(e => presentsState[`${missionId}_${e.id}`]).map(e => e.id)
+            : null;
           const entry = {
             mission_id: missionId, titre: mission.titre,
             date: new Date().toISOString().slice(0,10), heure: new Date().toTimeString().slice(0,5),
             photo_fournie: !!photoUrl, photo_url: photoUrl, points,
+            employes_presents: employesPresents,
           };
           completionsCache.push(entry); // re-rendu optimiste
           render();
@@ -471,6 +544,7 @@
     catalogue = await chargerCatalogue();
     checkState = await chargerProgressionSupabase(employeeId);
     completionsCache = await chargerCompletionsSupabase(employeeId);
+    if (roleDuJour === 'manager') EMPLOYES_SITE = await chargerEmployesSite();
 
     const tabsEl = document.getElementById('tabs');
     FAMILLES.forEach(f => {

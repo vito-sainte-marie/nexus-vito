@@ -211,6 +211,16 @@
     remplirSelect(empSelect);
     remplirSelect(empSelectHisto);
 
+    // Lien direct depuis Missions (controle manager, famille Qualite/Securite) :
+    // ?employe=<id> preselectionne l'employe pour eviter de le rechercher a
+    // nouveau dans la liste — demande Frederic, 20/07/2026.
+    const paramsUrl = new URLSearchParams(window.location.search);
+    const employePreselectionne = paramsUrl.get('employe');
+    if (employePreselectionne && ROSTER.some(e => e.id === employePreselectionne)) {
+      empSelect.value = employePreselectionne;
+      empSelectHisto.value = employePreselectionne;
+    }
+
     function empActuel() { return ROSTER.find(e => e.id === empSelect.value); }
     function empActuelHisto() { return ROSTER.find(e => e.id === empSelectHisto.value); }
 
