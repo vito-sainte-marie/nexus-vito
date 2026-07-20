@@ -767,9 +767,12 @@
 
   let CAISSE_SANTE_MOIS = null;
   let CAISSE_SANTE_MOIS_PRECEDENT = null;
+  let AUDITS_CAISSE_MOIS = [];
+  let caisseDetailOuvert = false;
 
   async function rafraichirCaisseSante() {
     const moisActuel = premierJourMoisCIN(0);
+    const moisSuivant = premierJourMoisCIN(1);
     const moisPrecedent = premierJourMoisCIN(-1);
 
     const [{ error: e1 }, { error: e2 }] = await Promise.all([
@@ -788,6 +791,26 @@
 
     CAISSE_SANTE_MOIS = (data || []).find(r => r.mois === moisActuel) || null;
     CAISSE_SANTE_MOIS_PRECEDENT = (data || []).find(r => r.mois === moisPrecedent) || null;
+
+    // Detail traçable : les vraies lignes audits_caisse qui composent le
+    // total du mois en cours — pour que le chiffre agrégé ne soit jamais
+    // une boîte noire (cf. échange du 20/07 : "fait-il référence au
+    // contrôle du 18 juillet quart 1 ?" — oui, et voici la preuve).
+    const { data: audits, error: e3 } = await nexusClient
+      .from('audits_caisse')
+      .select('id, date, quart, ecart_total, statut')
+      .eq('site', SITE_ACTUEL)
+      .gte('date', moisActuel)
+      .lt('date', moisSuivant)
+      .order('date', { ascending: true })
+      .order('quart', { ascending: true });
+    if (e3) { console.error('Chargement détail audits du mois:', e3); AUDITS_CAISSE_MOIS = []; return; }
+    AUDITS_CAISSE_MOIS = audits || [];
+  }
+
+  function toggleCaisseDetail() {
+    caisseDetailOuvert = !caisseDetailOuvert;
+    renderRoot();
   }
 
   function flecheTendance(actuel, precedent) {
@@ -813,6 +836,18 @@
     const netPrec = CAISSE_SANTE_MOIS_PRECEDENT ? CAISSE_SANTE_MOIS_PRECEDENT.ecart_net_cumule : null;
     const absoluPrec = CAISSE_SANTE_MOIS_PRECEDENT ? CAISSE_SANTE_MOIS_PRECEDENT.ecart_absolu_cumule : null;
 
+    const detailToggleLabel = caisseDetailOuvert ? '▴ Masquer le détail' : `▾ Voir le détail des ${CAISSE_SANTE_MOIS.nb_audits} audit${CAISSE_SANTE_MOIS.nb_audits > 1 ? 's' : ''} du mois`;
+
+    const detailListe = !caisseDetailOuvert ? '' : (AUDITS_CAISSE_MOIS.length === 0
+      ? `<div style="font-size:11.5px; color:var(--text-dim); margin-top:10px;">Aucun audit trouvé pour ce mois — le total ci-dessus devrait être à 0.</div>`
+      : `<div style="margin-top:10px; border-top:1px solid var(--hairline); padding-top:8px;">
+          ${AUDITS_CAISSE_MOIS.map(a => `
+            <div style="display:flex; justify-content:space-between; align-items:center; padding:7px 0; border-bottom:1px solid var(--hairline); font-size:11.5px;">
+              <span style="color:var(--text-mid);">${new Date(a.date + 'T00:00:00').toLocaleDateString('fr-FR')} · quart ${a.quart}</span>
+              <span style="font-family:var(--mono); font-weight:600; color:${a.statut === 'conforme' ? 'var(--text)' : 'var(--amber)'};">${(a.ecart_total || 0) >= 0 ? '+' : ''}${Math.round(a.ecart_total || 0)} €</span>
+            </div>`).join('')}
+        </div>`);
+
     return `<div class="card" style="margin-top:4px;">
       <div class="section-label">💶 Caisse — vue d'ensemble de ${libelleMois}</div>
       <div class="stat-row"><span class="stat-label">Écart net cumulé</span><span class="stat-value" style="color:var(--text);">${net >= 0 ? '+' : ''}${fmt(net)} €${flecheTendance(net, netPrec)}</span></div>
@@ -820,6 +855,8 @@
       <div class="stat-row"><span class="stat-label">Audits enregistrés</span><span class="stat-value">${CAISSE_SANTE_MOIS.nb_audits}</span></div>
       <div class="stat-row"><span class="stat-label">Dont anomalies</span><span class="stat-value" style="color:var(--amber);">${CAISSE_SANTE_MOIS.nb_anomalies}</span></div>
       ${CAISSE_SANTE_MOIS_PRECEDENT ? `<div style="font-size:10.5px; color:var(--text-dim); margin-top:8px; font-family:var(--mono);">Mois précédent — net ${CAISSE_SANTE_MOIS_PRECEDENT.ecart_net_cumule >= 0 ? '+' : ''}${fmt(CAISSE_SANTE_MOIS_PRECEDENT.ecart_net_cumule)} € · absolu ${fmt(CAISSE_SANTE_MOIS_PRECEDENT.ecart_absolu_cumule)} €</div>` : `<div style="font-size:10.5px; color:var(--text-dim); margin-top:8px; font-family:var(--mono);">Pas de donnée pour le mois précédent — comparaison indisponible.</div>`}
+      <div style="text-align:center; margin-top:10px; font-size:11px; font-weight:600; color:var(--cyan); cursor:pointer;" onclick="toggleCaisseDetail()">${detailToggleLabel}</div>
+      ${detailListe}
     </div>`;
   }
 
