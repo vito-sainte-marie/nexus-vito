@@ -1,0 +1,1005 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NEXUS — Centre d'Intelligence</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="nexus-auth.js"></script>
+<style>
+  :root{
+    --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
+    --text:#EDF1F5; --text-mid:#8A96A5; --text-dim:#57626F;
+    --green:#34D399; --green-dim:#153629;
+    --amber:#F5A623; --amber-dim:#3A2E14;
+    --red:#F0575A; --red-dim:#3A1D1F;
+    --cyan:#4FC3D9; --gold:#D4AF37;
+    --mono:'IBM Plex Mono',monospace; --sans:'IBM Plex Sans',sans-serif;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{background:var(--bg); font-family:var(--sans); color:var(--text);}
+  body{display:flex; justify-content:center; min-height:100vh;}
+  .phone{width:100%; max-width:460px; min-height:100vh; display:flex; flex-direction:column; border-left:1px solid var(--hairline); border-right:1px solid var(--hairline);}
+
+  .header{padding:20px 20px 14px; position:relative;}
+  .menu-btn{
+    position:absolute; top:18px; right:18px; display:flex; align-items:center; gap:6px;
+    font-family:var(--mono); font-size:10.5px; font-weight:600; letter-spacing:0.03em; text-transform:uppercase;
+    color:var(--cyan); background:rgba(79,195,217,0.1); border:1px solid rgba(79,195,217,0.3);
+    border-radius:20px; padding:7px 12px; text-decoration:none; white-space:nowrap; z-index:5;
+  }
+  .menu-btn:active{background:rgba(79,195,217,0.2);}
+  .header-row{display:flex; align-items:center; gap:13px; padding-right:70px;}
+  .header-icon{width:46px; height:46px; border-radius:13px; object-fit:cover; flex-shrink:0; box-shadow:0 0 0 1px rgba(79,195,217,0.25) inset;}
+  .eyebrow{font-family:var(--mono); font-size:11px; letter-spacing:0.12em; text-transform:uppercase; color:var(--cyan);}
+  .title{font-size:19px; font-weight:600; margin-top:2px;}
+  .subtitle{font-family:var(--mono); font-size:10.5px; color:var(--text-dim); margin-top:4px;}
+  .divider{height:1px; background:var(--hairline); margin:0 20px;}
+
+  .section{padding:16px 20px;}
+  .card{background:var(--panel); border:1px solid var(--hairline); border-radius:12px; padding:18px; margin-bottom:14px;}
+  .section-label{font-family:var(--mono); font-size:10.5px; letter-spacing:0.08em; text-transform:uppercase; color:var(--text-dim); margin-bottom:12px; display:flex; align-items:center; gap:8px;}
+  .section-label::after{content:''; flex:1; height:1px; background:var(--hairline);}
+
+  .stat-row{display:flex; justify-content:space-between; align-items:center; padding:9px 0; border-bottom:1px solid var(--hairline);}
+  .stat-row:last-child{border-bottom:none;}
+  .stat-label{font-size:12.5px; color:var(--text-mid);}
+  .stat-value{font-family:var(--mono); font-size:15px; font-weight:700;}
+
+  .tabs{display:flex; gap:6px; padding:2px 20px 12px; overflow-x:auto;}
+  .tab{flex-shrink:0; padding:7px 13px; border-radius:20px; font-size:11.5px; font-weight:600; background:var(--panel); border:1px solid var(--hairline); cursor:pointer; color:var(--text-mid); white-space:nowrap;}
+  .tab.active{background:rgba(79,195,217,0.12); border-color:var(--cyan); color:var(--cyan);}
+
+  .plan-card{background:var(--panel); border:1px solid var(--hairline); border-radius:12px; margin-bottom:10px; overflow:hidden; border-left:3px solid var(--hairline);}
+  .plan-card.etat-agir{border-left-color:#F0575A;}
+  .plan-card.etat-opportunite{border-left-color:#34D399;}
+  .plan-card.etat-surveiller{border-left-color:#F5A623;}
+  .plan-head{padding:14px 16px; cursor:pointer; display:flex; align-items:center; gap:12px;}
+  .plan-etat{font-family:var(--mono); font-size:9.5px; letter-spacing:0.05em; padding:3px 9px; border-radius:20px; font-weight:700; white-space:nowrap;}
+  .etat-agir .plan-etat{background:#3A1D1F; color:#F0575A;}
+  .etat-opportunite .plan-etat{background:#153629; color:#34D399;}
+  .etat-surveiller .plan-etat{background:#3A2E14; color:#F5A623;}
+  .plan-action-teaser{flex:1; font-size:13.5px; font-weight:600; line-height:1.4;}
+  .plan-chevron{color:var(--text-dim); font-size:14px; transition:0.15s;}
+  .plan-card.open .plan-chevron{transform:rotate(90deg);}
+  .plan-body{display:none; padding:0 16px 16px;}
+  .plan-card.open .plan-body{display:block;}
+  .plan-story{font-size:12.5px; line-height:1.75; color:var(--text-mid);}
+  .plan-story .story-label{font-family:var(--mono); font-size:9.5px; text-transform:uppercase; letter-spacing:0.06em; color:var(--text-dim); display:block; margin-top:11px; margin-bottom:2px;}
+  .plan-story .story-label:first-child{margin-top:0;}
+  .plan-story b{color:var(--text);}
+  .projection-box{margin-top:12px; padding:10px 12px; background:rgba(212,175,55,0.08); border:1px solid rgba(212,175,55,0.25); border-radius:8px; font-size:12px; color:var(--text-mid);}
+  .projection-box b{color:var(--gold);}
+  .plan-impact{margin-top:12px; padding:10px 12px; background:var(--panel-raised); border-radius:8px; font-size:12px;}
+  .plan-impact b{color:#34D399;}
+  .decision-box{margin-top:12px; padding:10px 12px; border:1px dashed rgba(79,195,217,0.35); border-radius:8px; font-size:12.5px; font-weight:600; color:var(--text);}
+  .plan-valider{width:100%; margin-top:10px; padding:11px; border:none; border-radius:8px; font-size:12.5px; font-weight:600; background:var(--green); color:#04141a; cursor:pointer;}
+
+  .confiance-row{display:flex; align-items:center; gap:8px; margin-top:12px; padding:9px 11px; background:rgba(79,195,217,0.06); border:1px solid rgba(79,195,217,0.2); border-radius:8px;}
+  .confiance-badge{font-family:var(--mono); font-size:10px; font-weight:700; padding:2px 7px; border-radius:10px; flex-shrink:0;}
+  .confiance-A{background:var(--green-dim); color:var(--green);}
+  .confiance-B{background:rgba(79,195,217,0.14); color:var(--cyan);}
+  .confiance-C{background:var(--amber-dim); color:var(--amber);}
+  .confiance-D{background:var(--red-dim); color:var(--red);}
+  .confiance-desc{font-size:11px; color:var(--text-mid); line-height:1.4;}
+  .rule-tag{font-family:var(--mono); font-size:9px; color:var(--text-dim); margin-top:8px;}
+
+  .conseiller-card{background:linear-gradient(135deg, rgba(79,195,217,0.08), rgba(79,195,217,0.02)); border:1px solid rgba(79,195,217,0.25); border-radius:14px; padding:18px; margin-bottom:14px;}
+  .conseiller-head{display:flex; align-items:center; gap:11px; margin-bottom:10px;}
+  .conseiller-avatar{width:44px; height:44px; border-radius:50%; object-fit:cover; flex-shrink:0; background:var(--panel-raised); filter:drop-shadow(0 0 9px rgba(79,195,217,0.5));}
+  .conseiller-name{font-family:var(--mono); font-size:11.5px; font-weight:700; color:var(--cyan); letter-spacing:0.03em;}
+  .conseiller-sub{font-family:var(--mono); font-size:9px; color:var(--text-dim);}
+  .conseiller-text{font-size:13px; line-height:1.65; color:var(--text);}
+  .conseiller-text b{color:var(--cyan);}
+
+  .empty-note{padding:30px 20px; text-align:center; color:var(--text-dim); font-size:12.5px; line-height:1.6;}
+  .loading{padding:60px 20px; text-align:center; color:var(--text-dim); font-size:13px;}
+  .locked{padding:60px 20px; text-align:center; color:var(--text-dim); font-size:13px;}
+
+  .journal-link{display:block; text-align:center; padding:13px; margin-top:4px; border:1px dashed var(--hairline); border-radius:10px; color:var(--cyan); font-size:12.5px; text-decoration:none;}
+
+  .pattern-card{background:var(--panel); border:1px solid var(--hairline); border-left:3px solid var(--cyan); border-radius:12px; margin-bottom:10px; padding:14px 16px;}
+  .pattern-tag{font-family:var(--mono); font-size:9px; letter-spacing:0.05em; text-transform:uppercase; padding:3px 8px; border-radius:20px; font-weight:700; background:rgba(79,195,217,0.12); color:var(--cyan);}
+  .pattern-tag.tag-resolu{background:var(--green-dim); color:var(--green);}
+  .pattern-tag.tag-persiste{background:var(--amber-dim); color:var(--amber);}
+  .pattern-title{font-size:13px; font-weight:600; margin-top:8px;}
+  .pattern-text{font-size:12.5px; color:var(--text-mid); line-height:1.6; margin-top:5px;}
+  .pattern-text b{color:var(--text);}
+  .pattern-source{font-family:var(--mono); font-size:9px; color:var(--text-dim); margin-top:8px;}
+
+  .toast-or{
+    position:fixed; bottom:24px; left:50%; transform:translateX(-50%) translateY(20px); opacity:0;
+    background:#332B12; color:#D4AF37; border:1px solid rgba(212,175,55,0.4); padding:11px 18px; border-radius:30px;
+    font-family:var(--mono); font-size:12px; font-weight:600; transition:opacity .25s, transform .25s; z-index:20; white-space:nowrap;
+  }
+  .toast-or.show{opacity:1; transform:translateX(-50%) translateY(0);}
+
+  footer{margin-top:auto; padding:16px 20px 24px; font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:center; border-top:1px solid var(--hairline);}
+</style>
+</head>
+<body>
+<div class="phone">
+  <div class="header">
+    <a href="NEXUS-App-v1.html" class="menu-btn">☰ Menu</a>
+    <div class="header-row">
+      <img class="header-icon" src="assets/icons/icon-centre-intelligence.png" alt="Centre d'Intelligence NEXUS">
+      <div>
+        <div class="eyebrow">NEXUS · Manager</div>
+        <div class="title">Centre d'Intelligence NEXUS</div>
+        <div class="subtitle">Pourquoi cela arrive-t-il, et quelle est la meilleure décision ?</div>
+      </div>
+    </div>
+  </div>
+  <div class="divider"></div>
+
+  <div class="section" id="root">
+    <div class="loading">Analyse en cours…</div>
+  </div>
+
+  <footer>NEXUS Centre d'Intelligence v2 · Analyse, anticipation et stratégie · Vito Sainte-Marie Usine</footer>
+</div>
+
+<script>
+  // --- Meme moteur de detection que le Cockpit (construirePlansAction) ---
+  // Duplique volontairement (architecture "chaque ecran autonome, sans build step") mais
+  // logique identique afin que le CIN ne raconte jamais une autre histoire que le
+  // Cockpit sur les memes donnees. Le Cockpit dit CE QUI se passe ("indice a 74") ;
+  // le CIN explique POURQUOI (cause, projection, decision recommandee).
+
+  function typeActionPourCategorie(categorie) {
+    const c = (categorie || '').toLowerCase();
+    if (c.includes('gaz')) return 'stock';
+    if (c.includes('carte') || c.includes('prépayé') || c.includes('prepaye') || c.includes('transcash') || c.includes('pcs')) return 'support';
+    if (c.includes('pain') || c.includes('patisserie') || c.includes('pâtisserie') || c.includes('viennoiserie') || c.includes('sandwich') || c.includes('snack')) return 'production';
+    if (c.includes('tabac') || c.includes('cigarette') || c.includes('paquet de')) return 'comptoir';
+    if (c.includes('presse')) return 'presentoir';
+    return 'facing';
+  }
+
+  const LANGAGE_ACTION = {
+    facing: {
+      analyseAgir: "Le facing doit refléter ce poids réel dans les ventes.",
+      recoAgir: a => `Vérifier et renforcer le facing de ${a}.`,
+      consAgir: m => `Un sous-dimensionnement de facing sur cette référence représente un risque estimé à ${m} €.`,
+      recoHausse: a => `Renforcer le facing de ${a} avant la période suivante.`,
+      recoBaisse: a => `Vérifier la présence en rayon de ${a} avant toute décision.`,
+    },
+    stock: {
+      analyseAgir: "Elle ne doit jamais être en rupture en dépôt — elle n'est pas exposée en rayon comme les autres.",
+      recoAgir: a => `Vérifier le stock disponible en dépôt/cage pour ${a}.`,
+      consAgir: m => `Une rupture de stock sur cette référence représente un risque estimé à ${m} €.`,
+      recoHausse: a => `Sécuriser davantage de stock de ${a} avant la période suivante.`,
+      recoBaisse: a => `Vérifier le stock en dépôt/cage de ${a} avant toute décision.`,
+    },
+    support: {
+      analyseAgir: "Tout dépend du support et de son activation en caisse, pas d'un emplacement en rayon.",
+      recoAgir: a => `Vérifier le stock de cartes et la bonne activation en caisse pour ${a}.`,
+      consAgir: m => `Une indisponibilité de ce support représente un risque estimé à ${m} €.`,
+      recoHausse: a => `Prévoir davantage de support et d'activation pour ${a} avant la période suivante.`,
+      recoBaisse: a => `Vérifier la disponibilité du support et son activation en caisse pour ${a} avant toute décision.`,
+    },
+    production: {
+      analyseAgir: "C'est la quantité produite ou commandée chaque jour qui compte ici — un produit frais, pas un facing.",
+      recoAgir: a => `Ajuster la quantité commandée ou produite de ${a} au niveau réel de la demande.`,
+      consAgir: m => `Une quantité insuffisante sur cette référence fraîche représente un risque estimé à ${m} €.`,
+      recoHausse: a => `Augmenter la quantité commandée ou produite de ${a} avant la période suivante.`,
+      recoBaisse: a => `Vérifier si la quantité produite ou commandée de ${a} a été réduite avant toute décision.`,
+    },
+    comptoir: {
+      analyseAgir: "Elle doit rester visible et disponible au comptoir en priorité.",
+      recoAgir: a => `Vérifier la disponibilité au comptoir de ${a}.`,
+      consAgir: m => `Une rupture au comptoir sur cette référence représente un risque estimé à ${m} €.`,
+      recoHausse: a => `Garantir la disponibilité au comptoir de ${a} avant la période suivante.`,
+      recoBaisse: a => `Vérifier la disponibilité au comptoir de ${a} avant toute décision.`,
+    },
+    presentoir: {
+      analyseAgir: "Elle mérite une bonne visibilité sur le présentoir.",
+      recoAgir: a => `Vérifier l'emplacement de ${a} sur le présentoir.`,
+      consAgir: m => `Un mauvais emplacement sur cette référence représente un risque estimé à ${m} €.`,
+      recoHausse: a => `Améliorer l'emplacement de ${a} sur le présentoir avant la période suivante.`,
+      recoBaisse: a => `Vérifier l'emplacement de ${a} sur le présentoir avant toute décision.`,
+    },
+  };
+
+  // Systeme de confiance (rapport strategique, section 12) — visible a l'ecran,
+  // relie directement a la regle qui a produit la detection.
+  const CONFIANCE_PAR_RULE = {
+    'R4-RENFORT-A': { niveau: 'A', label: 'Confirmé', desc: "Donnée de vente directe et actuelle sur cette référence." },
+    'R3-HAUSSE':    { niveau: 'B', label: 'Très probable', desc: "Mesuré sur deux périodes réelles importées — tendance à confirmer dans la durée." },
+    'R2-BAISSE':    { niveau: 'C', label: 'Hypothèse à vérifier', desc: "La donnée de stock est absente : NEXUS ne conclut pas, il demande une vérification terrain." },
+  };
+
+  async function chargerProduitsAppel() {
+    const { data, error } = await nexusClient.from('produits_appel').select('article').eq('site', SITE_ACTUEL);
+    if (error) { console.error(error); return new Set(); }
+    return new Set((data || []).map(r => r.article));
+  }
+
+  async function marquerProduitAppel(article, employeeId) {
+    const { error } = await nexusClient.from('produits_appel').insert({ site: SITE_ACTUEL, article, ajoute_par: employeeId });
+    if (error) { console.error('Ajout produit d’appel:', error); alert('Erreur — réessayez.'); return false; }
+    return true;
+  }
+
+  // Meme mecanisme que le Cockpit : exclure une reference laisse une trace
+  // commentee dans le Journal, plutot que de disparaitre silencieusement.
+  async function exclureAvecCommentaire(article) {
+    const commentaire = prompt(`Pourquoi exclure "${article}" des recommandations ? (optionnel)`, '');
+    if (commentaire === null) return false;
+    const ok = await marquerProduitAppel(article, EMPLOYEE_ID_CIN);
+    if (ok) {
+      const { error } = await nexusClient.from('journal_decisions').insert({
+        site: SITE_ACTUEL,
+        candidate_id: `EXCLUSION-${article}-${Date.now()}`, rule_id: 'EXCLUSION-MANUELLE', etat: '🚫 EXCLU',
+        recommandation: commentaire ? `Exclu des recommandations — ${commentaire}` : `Exclu des recommandations`,
+        impact_eur: 0, article, categorie: null,
+        date: new Date().toISOString().slice(0,10), heure: new Date().toTimeString().slice(0,5),
+        employee_id: EMPLOYEE_ID_CIN,
+      });
+      if (error) console.error('Écriture Journal (exclusion):', error);
+    }
+    return ok;
+  }
+
+  // Supabase plafonne chaque requete a 1000 lignes par defaut, sans erreur —
+  // au-dela, le reste est silencieusement absent. Ce helper boucle par pages
+  // de 1000 jusqu'a tout recuperer (trouve le 15/07/2026 : un import T2
+  // reussi restait invisible partout des que products a depasse 1000 lignes).
+  async function fetchAllRows(builderFactory, pageSize = 1000) {
+    let toutes = [];
+    let from = 0;
+    while (true) {
+      const { data, error } = await builderFactory().range(from, from + pageSize - 1);
+      if (error) return { data: null, error };
+      toutes = toutes.concat(data || []);
+      if (!data || data.length < pageSize) break;
+      from += pageSize;
+    }
+    return { data: toutes, error: null };
+  }
+
+  async function construireDetections(journalDecisions = []) {
+    const [{ data, error }, produitsAppel] = await Promise.all([
+      fetchAllRows(() => nexusClient
+        .from('products')
+        .select('categorie, article, ca, marge, periode_debut, periode_fin')
+        .eq('site', SITE_ACTUEL)
+        .order('periode_debut', { ascending: false })
+        .order('article', { ascending: true })),
+      chargerProduitsAppel(),
+    ]);
+    if (error || !data || !data.length) { console.error('Chargement products:', error); return []; }
+
+    const rowsBrut = data.filter(r => !produitsAppel.has(r.article));
+    const periodes = [...new Set(rowsBrut.map(r => r.periode_debut))].sort().reverse();
+    const periodeActuelle = periodes[0];
+    const periodePrecedente = periodes[1] || null;
+    const rowsActuels = rowsBrut.filter(r => r.periode_debut === periodeActuelle);
+    const rowsPrecedents = periodePrecedente ? rowsBrut.filter(r => r.periode_debut === periodePrecedente) : [];
+
+    const caTotalParRayon = {};
+    rowsActuels.forEach(r => { caTotalParRayon[r.categorie] = (caTotalParRayon[r.categorie] || 0) + (r.ca || 0); });
+
+    const precedentParArticle = {};
+    rowsPrecedents.forEach(r => {
+      const cle = r.categorie + '|' + r.article;
+      precedentParArticle[cle] = (precedentParArticle[cle] || 0) + (r.ca || 0);
+    });
+
+    const candidats = [];
+    const fmt = v => Math.round(v).toLocaleString('fr-FR');
+
+    // Cas R4 (facing) : c'est une regle structurelle, pas un changement — si
+    // elle a deja ete validee recemment et que la situation se maintient
+    // (contribution stable ou en hausse), la reformuler en confirmation
+    // plutot que la represente comme une alerte neuve. Evite l'impression
+    // de radoter sur un produit dont le facing est deja correct.
+    // Fenetre plus large que les 30 jours de masquage (recommandations_validees) :
+    // la carte redevient visible le jour 31, il faut donc regarder plus loin
+    // que 30 jours en arriere pour retrouver la validation d'origine a ce
+    // moment-la, sinon la reconnaissance ne se declencherait jamais.
+    const il60jISO = new Date(Date.now() - 60*24*60*60*1000).toISOString().slice(0,10);
+    const derniereValidationParCandidate = {};
+    journalDecisions
+      .filter(d => d.rule_id !== 'EXCLUSION-MANUELLE' && d.date >= il60jISO)
+      .forEach(d => {
+        if (!derniereValidationParCandidate[d.candidate_id] || d.date > derniereValidationParCandidate[d.candidate_id].date) {
+          derniereValidationParCandidate[d.candidate_id] = d;
+        }
+      });
+
+    rowsActuels.forEach(p => {
+      const caRayon = caTotalParRayon[p.categorie] || 0;
+      const contribution = caRayon > 0 ? p.ca / caRayon : 0;
+      const cle = p.categorie + '|' + p.article;
+      const caPrec = precedentParArticle[cle];
+      const evolution = (caPrec && caPrec > 0) ? (p.ca - caPrec) / caPrec : null;
+
+      if (contribution >= 0.15 && p.ca > 0) {
+        const lang = LANGAGE_ACTION[typeActionPourCategorie(p.categorie)];
+        const candidateId = `LIVE-R4-${cle}`;
+        const validationRecente = derniereValidationParCandidate[candidateId];
+        const situationMaintenue = validationRecente && p.ca >= (validationRecente.impact_eur || 0) * 0.9;
+
+        if (situationMaintenue) {
+          candidats.push({
+            etat: "🔥 À AGIR", rule_id: "R4-RENFORT-A", article: p.article, categorie: p.categorie,
+            contribution, evolution: null,
+            situation: `${p.article} reste à ${(contribution*100).toFixed(1)} % du chiffre d'affaires du rayon ${p.categorie} — confirmé depuis votre décision du ${validationRecente.date}.`,
+            contexte: "Calculée sur l'ensemble du rayon.",
+            analyse: "Toujours d'actualité, pas un nouveau problème : la situation se maintient depuis votre dernière décision sur ce produit.",
+            consequence: `Rien à changer pour l'instant — ${fmt(p.ca)} € de chiffre d'affaires reste bien sécurisé.`,
+            recommandation: `Restez attentif si la tendance s'inverse sur ${p.article} — aucune action requise aujourd'hui.`,
+            impact: `Vous confirmez que ${fmt(p.ca)} € de chiffre d'affaires généré par cette référence reste bien couvert.`,
+            candidate_id: candidateId, impact_eur: p.ca,
+          });
+        } else {
+          candidats.push({
+            etat: "🔥 À AGIR", rule_id: "R4-RENFORT-A", article: p.article, categorie: p.categorie,
+            contribution, evolution: null,
+            situation: `${p.article} représente ${(contribution*100).toFixed(1)} % du chiffre d'affaires du rayon ${p.categorie}.`,
+            contexte: "Calculée sur l'ensemble du rayon.",
+            analyse: lang.analyseAgir, consequence: lang.consAgir(fmt(p.ca)),
+            recommandation: lang.recoAgir(p.article),
+            impact: `Vous sécurisez environ ${fmt(p.ca)} € de chiffre d'affaires déjà généré par cette référence.`,
+            candidate_id: candidateId, impact_eur: p.ca,
+          });
+        }
+      }
+      if (evolution !== null && evolution >= 0.20) {
+        const gain = Math.max(p.ca - caPrec, 0);
+        const lang = LANGAGE_ACTION[typeActionPourCategorie(p.categorie)];
+        candidats.push({
+          etat: "📈 OPPORTUNITÉ", rule_id: "R3-HAUSSE", article: p.article, categorie: p.categorie,
+          contribution: null, evolution,
+          situation: `Les ventes de ${p.article} progressent de ${(evolution*100).toFixed(1)} % sur la période.`,
+          contexte: "Mesurée entre les deux périodes importées.",
+          analyse: "Cette dynamique dépasse une croissance ordinaire.",
+          consequence: "Cette croissance peut être amplifiée si l'offre suit la demande.",
+          recommandation: lang.recoHausse(p.article),
+          impact: `Vous avez gagné environ ${fmt(gain)} € sur cette référence depuis la période précédente.`,
+          candidate_id: `LIVE-R3-${cle}`, impact_eur: gain,
+        });
+      }
+      if (evolution !== null && evolution <= -0.30) {
+        const perte = Math.max(caPrec - p.ca, 0);
+        const lang = LANGAGE_ACTION[typeActionPourCategorie(p.categorie)];
+        candidats.push({
+          etat: "🟡 À SURVEILLER", rule_id: "R2-BAISSE", article: p.article, categorie: p.categorie,
+          contribution: null, evolution,
+          situation: `Les ventes de ${p.article} chutent de ${(evolution*100).toFixed(1)} % sur la période.`,
+          contexte: "NEXUS ne dispose pas de la donnée de stock pour cette référence.",
+          analyse: "Je ne peux pas encore conclure à une vraie tendance sans vérification terrain.",
+          consequence: "Une rupture non détectée expliquerait aussi bien cette baisse qu'un désintérêt réel.",
+          recommandation: lang.recoBaisse(p.article),
+          impact: "Vérification demandée — aucune conclusion tant que le stock n'est pas confirmé.",
+          candidate_id: `LIVE-R2-${cle}`, impact_eur: perte,
+        });
+      }
+    });
+
+    candidats.sort((a, b) => b.impact_eur - a.impact_eur);
+    return candidats;
+  }
+
+  // Projection — la seule chose que le CIN peut honnetement affirmer avec deux
+  // periodes de donnees : si le rythme actuel se maintient, un mouvement du
+  // meme ordre de grandeur est probable sur la periode suivante. Pas de faux
+  // "trimestre" invente sans connaitre la duree reelle des periodes importees.
+  function projection(p) {
+    const fmt = v => Math.round(v).toLocaleString('fr-FR');
+    if (p.rule_id === 'R3-HAUSSE') {
+      return `Si ce rythme se maintient, un gain du même ordre — environ <b>${fmt(p.impact_eur)} €</b> — est probable sur la prochaine période comparable.`;
+    }
+    if (p.rule_id === 'R2-BAISSE') {
+      return `Si la baisse se confirme (et n'est pas une rupture de stock non détectée), une perte supplémentaire du même ordre — environ <b>${fmt(p.impact_eur)} €</b> — est à anticiper sur la prochaine période.`;
+    }
+    return `Cette contribution est structurelle : ${p.article} pèse <b>${(p.contribution*100).toFixed(1)} %</b> du rayon ${p.categorie} à chaque période, pas seulement celle-ci.`;
+  }
+
+  const ETAT_CLASS = { "🔥 À AGIR": "etat-agir", "📈 OPPORTUNITÉ": "etat-opportunite", "🟡 À SURVEILLER": "etat-surveiller" };
+
+  async function chargerValidees() {
+    const il30j = new Date(Date.now() - 30*24*60*60*1000).toISOString();
+    const { data, error } = await nexusClient.from('recommandations_validees').select('candidate_id').eq('site', SITE_ACTUEL).gte('created_at', il30j);
+    if (error) { console.error('Lecture recommandations validées:', error); return []; }
+    return (data || []).map(r => r.candidate_id);
+  }
+  async function marquerValidee(candidateId) {
+    const { error } = await nexusClient.from('recommandations_validees')
+      .upsert({ site: SITE_ACTUEL, candidate_id: candidateId, employee_id: EMPLOYEE_ID_CIN }, { onConflict: 'site,candidate_id' });
+    if (error) console.error('Marquage validée:', error);
+  }
+  async function reinitialiserValidees() {
+    const { error } = await nexusClient.from('recommandations_validees').delete().eq('site', SITE_ACTUEL);
+    if (error) console.error('Réinitialisation validées:', error);
+  }
+
+  // Ecrit une trace datee et chiffree de la decision — le Journal NEXUS ne fait
+  // qu'enregistrer ce fait, sans jamais le commenter ni le juger.
+  async function enregistrerJournalDecision(plan) {
+    const { error } = await nexusClient.from('journal_decisions').insert({
+      site: SITE_ACTUEL,
+      candidate_id: plan.candidate_id, rule_id: plan.rule_id, etat: plan.etat,
+      recommandation: plan.recommandation, impact_eur: plan.impact_eur,
+      article: plan.article, categorie: plan.categorie,
+      date: new Date().toISOString().slice(0,10), heure: new Date().toTimeString().slice(0,5),
+      employee_id: EMPLOYEE_ID_CIN,
+    });
+    if (error) console.error('Écriture Journal:', error);
+  }
+
+  function afficherToastOr(texte) {
+    let toast = document.getElementById('toastOr');
+    if (!toast) {
+      toast = document.createElement('div');
+      toast.id = 'toastOr'; toast.className = 'toast-or';
+      document.body.appendChild(toast);
+    }
+    toast.textContent = texte;
+    requestAnimationFrame(() => toast.classList.add('show'));
+    clearTimeout(toast._timeout);
+    toast._timeout = setTimeout(() => toast.classList.remove('show'), 2600);
+  }
+
+  let TOUTES_DETECTIONS = [];
+  let JOURNAL_TOUTES = [];
+
+  // --- Ce que le CIN apprend du Journal ---
+  // Le Cockpit et les detections ci-dessus lisent les ventes en direct.
+  // Ce qui suit lit l'HISTORIQUE accumule dans le Journal (toutes les
+  // decisions passees, tous les retards, toutes les missions terminees)
+  // pour en tirer des motifs qu'aucun ecran instantane ne peut voir.
+
+  async function chargerEquipeMap() {
+    const { data, error } = await nexusClient.from('employees').select('id, nom').eq('actif', true);
+    if (error) { console.error(error); return {}; }
+    const map = {};
+    (data || []).forEach(e => { map[e.id] = e.nom; });
+    return map;
+  }
+
+  async function chargerMissionsHistorique() {
+    const { data, error } = await nexusClient.from('mission_completions').select('*');
+    if (error) { console.error('Chargement historique missions:', error); return []; }
+    return data || [];
+  }
+
+  async function chargerJournalDecisionsToutes() {
+    const { data, error } = await nexusClient.from('journal_decisions').select('*').eq('site', SITE_ACTUEL).order('date', { ascending: false });
+    if (error) { console.error('Lecture Journal:', error); return []; }
+    return data || [];
+  }
+
+  // Table Supabase pointages — remplace localStorage('nexus_retards'), qui ne
+  // comptait que les retards saisis sur cet appareil precis (corrige le
+  // 15/07/2026, avec la migration Pointage vers Supabase — ce fichier avait
+  // ete oublie lors de cette migration, meme classe de bug que Radar du
+  // Manager et Resultats Equipe avant eux).
+  async function chargerRetardsTous() {
+    const { data, error } = await nexusClient.from('pointages').select('employee_id, retard_min').eq('type', 'arrivee').gt('retard_min', 0);
+    if (error) { console.error('Chargement pointages:', error); return []; }
+    return data || [];
+  }
+
+  // 1. Suivi des decisions passees — la memoire promise depuis le debut :
+  // "il y a X jours, vous avez applique une decision sur cet article —
+  // est-ce que le signal est toujours actif aujourd'hui ?"
+  function suiviDecisionsPassees(journalToutes, detectionsActuelles) {
+    const passees = journalToutes.filter(d => d.date !== AUJOURD_ISO_CIN && d.rule_id !== 'EXCLUSION-MANUELLE');
+    if (passees.length === 0) return [];
+    const parArticle = {};
+    passees.forEach(d => {
+      if (!parArticle[d.article] || d.date > parArticle[d.article].date) parArticle[d.article] = d;
+    });
+    return Object.values(parArticle).map(d => {
+      const encoreActif = detectionsActuelles.find(a => a.article === d.article);
+      return { ...d, resolu: !encoreActif };
+    }).slice(0, 5);
+  }
+
+  // 2. Assiduite — un retard isole est un incident, trois retards ou plus
+  // sur l'historique sont un motif (reprend le principe du rapport strategique :
+  // "repetition sur plusieurs periodes -> ouvrir un accompagnement").
+  function patternAssiduite(retardsHisto, equipeMap) {
+    const compte = {};
+    (retardsHisto || []).forEach(p => {
+      if (!compte[p.employee_id]) compte[p.employee_id] = { nb: 0, total: 0 };
+      compte[p.employee_id].nb += 1;
+      compte[p.employee_id].total += (p.retard_min || 0);
+    });
+    return Object.entries(compte)
+      .filter(([,v]) => v.nb >= 3)
+      .map(([id,v]) => ({ employe: equipeMap[id] || 'Employé', nb: v.nb, total: v.total }))
+      .sort((a,b) => b.nb - a.nb);
+  }
+
+  // 3. Recurrence par rayon — si le meme rayon revient plusieurs fois dans
+  // les decisions du Journal, le probleme est structurel, pas ponctuel.
+  function patternRecurrenceRayon(journalToutes) {
+    const compte = {};
+    journalToutes.forEach(d => { if (d.categorie) compte[d.categorie] = (compte[d.categorie] || 0) + 1; });
+    return Object.entries(compte).filter(([,n]) => n >= 2).sort((a,b) => b[1] - a[1]);
+  }
+
+  // 4. Regularite — meme seuil que Mon Evolution (5 missions minimum) pour
+  // rester coherent avec le reste de l'application.
+  function patternRegularite(missionsHisto, equipeMap) {
+    const compte = {};
+    missionsHisto.forEach(m => { compte[m.employee_id] = (compte[m.employee_id] || 0) + 1; });
+    return Object.entries(compte)
+      .filter(([,n]) => n >= 5)
+      .map(([id,n]) => ({ nom: equipeMap[id] || 'Employé', nb: n }))
+      .sort((a,b) => b.nb - a.nb).slice(0, 3);
+  }
+
+  // 5. Reconnaissance — angle leadership, distinct de la regularite (volume
+  // brut). Ici on croise volume ET preuve (photo jointe), pour distinguer un
+  // travail reellement documente d'un simple defilement de cases cochees.
+  // Sert a ce que le Conseiller felicite autant qu'il alerte — un vrai
+  // directeur d'exploitation ne fait pas que pointer des problemes.
+  function patternReconnaissance(missionsHisto, equipeMap) {
+    const compte = {};
+    missionsHisto.forEach(m => {
+      if (!compte[m.employee_id]) compte[m.employee_id] = { nb: 0, avecPreuve: 0, points: 0 };
+      compte[m.employee_id].nb += 1;
+      if (m.photo_url) compte[m.employee_id].avecPreuve += 1;
+      compte[m.employee_id].points += (m.points || 0);
+    });
+    return Object.entries(compte)
+      .filter(([,v]) => v.nb >= 5 && (v.avecPreuve / v.nb) >= 0.6)
+      .map(([id,v]) => ({ nom: equipeMap[id] || 'Employé', nb: v.nb, tauxPreuve: Math.round(v.avecPreuve/v.nb*100), points: v.points }))
+      .sort((a,b) => b.points - a.points).slice(0, 1);
+  }
+
+  function construirePatterns(journalToutes, retards, missionsHisto, equipeMap, detectionsActuelles) {
+    const patterns = [];
+
+    suiviDecisionsPassees(journalToutes, detectionsActuelles).forEach(d => {
+      patterns.push({
+        tag: d.resolu ? 'RÉSOLU' : 'PERSISTE', tagClasse: d.resolu ? 'tag-resolu' : 'tag-persiste',
+        titre: `Suivi — ${d.article}`,
+        texte: d.resolu
+          ? `Décision appliquée le ${d.date} — signal disparu depuis, environ <b>${Math.round(d.impact_eur||0).toLocaleString('fr-FR')} €</b> de risque écarté si l'estimation initiale tenait. La situation semble s'être stabilisée.`
+          : `Décision appliquée le ${d.date} — elle réapparaît pourtant : la décision n'a pas suffi, ou trop peu de temps s'est écoulé pour en juger.`,
+        source: 'Appris du Journal · décisions passées',
+      });
+    });
+
+    patternAssiduite(retards, equipeMap).forEach(p => {
+      patterns.push({
+        tag: 'ASSIDUITÉ', tagClasse: 'tag-persiste',
+        titre: `${p.employe} — retards répétés`,
+        texte: `<b>${p.nb} retards</b> enregistrés, pour un total de <b>${p.total} minutes</b>. Un retard isolé est un incident ; répété, c'est un motif qui justifie un point avec l'employé.`,
+        source: 'Appris du Journal · pointages',
+      });
+    });
+
+    patternRecurrenceRayon(journalToutes).forEach(([categorie, n]) => {
+      patterns.push({
+        tag: 'STRUCTUREL', tagClasse: 'tag-persiste',
+        titre: `Rayon ${categorie} — alertes récurrentes`,
+        texte: `<b>${n} décisions</b> ont concerné ce rayon depuis le début du suivi. Rarement un accident isolé — à regarder dans son ensemble (implantation, fournisseur, saisonnalité).`,
+        source: 'Appris du Journal · décisions par rayon',
+      });
+    });
+
+    patternRegularite(missionsHisto, equipeMap).forEach(p => {
+      patterns.push({
+        tag: 'RÉGULARITÉ', tagClasse: 'tag-resolu',
+        titre: `${p.nom} — régularité mesurée`,
+        texte: `<b>${p.nb} missions</b> validées au total, un volume suffisant pour parler d'une vraie régularité plutôt que d'un coup ponctuel.`,
+        source: 'Appris du Journal · missions terminées',
+      });
+    });
+
+    patternReconnaissance(missionsHisto, equipeMap).forEach(p => {
+      patterns.push({
+        tag: 'BRAVO', tagClasse: 'tag-resolu',
+        titre: `${p.nom} — à féliciter`,
+        texte: `<b>${p.nb} missions</b> menées, dont <b>${p.tauxPreuve} %</b> documentées par une photo — un travail réellement prouvé, pas seulement déclaré. Un mot de reconnaissance a plus de valeur qu'on ne le pense.`,
+        source: 'Appris du Journal · qualité du travail',
+      });
+    });
+
+    return patterns;
+  }
+
+  let filtreActif = 'Toutes';
+  let PRENOM_MANAGER = '';
+  let EMPLOYEE_ID_CIN = null;
+  let SITE_ACTUEL = 'vito-sainte-marie'; // ecrase par employee.site_id une fois connecte
+  let PATTERNS = [];
+  const AUJOURD_ISO_CIN = new Date().toISOString().slice(0,10);
+  const FILTRES = ['Toutes', '🔥 À AGIR', '📈 OPPORTUNITÉ', '🟡 À SURVEILLER'];
+
+  // Banques de formulations — un meme constat ne s'exprime jamais deux fois
+  // avec les memes mots. Le choix est stable sur une journee (seed = date du
+  // jour), pas aleatoire a chaque rafraichissement — sinon l'ecran semble
+  // instable plutot que vivant.
+  function choixDuJour(options) {
+    let h = 0;
+    for (let i = 0; i < AUJOURD_ISO_CIN.length; i++) h = (h * 31 + AUJOURD_ISO_CIN.charCodeAt(i)) >>> 0;
+    return options[h % options.length];
+  }
+  const OUVERTURES = [
+    n => `J'ai passé vos données au crible : <b>${n}</b> ${n>1?'signaux en ressortent':'signal en ressort'}`,
+    n => `Après analyse de la situation actuelle, <b>${n}</b> point${n>1?'s retiennent':' retient'} mon attention`,
+    n => `Voici ce que les chiffres révèlent aujourd'hui : <b>${n}</b> ${n>1?'signaux':'signal'}`,
+  ];
+  const PRIORITE_INTRO = [
+    'Le plus prioritaire concerne',
+    'Ce qui mérite votre attention en premier :',
+    'Commençons par le plus urgent —',
+  ];
+  const OPPORTUNITE_INTRO = [
+    'À l\'inverse,',
+    'Sur une note plus positive,',
+    'Autre tendance à noter :',
+  ];
+  const SURVEILLANCE_INTRO = [
+    'Autre point à surveiller :',
+    'Je garde également un œil sur',
+    'À ne pas perdre de vue :',
+  ];
+
+  // Le Conseiller du CIN parle en analyste, pas en chatbot : une phrase de
+  // synthese construite a partir des vraies causes detectees, jamais un texte
+  // fixe. Il explique le "pourquoi" avant le "quoi faire" — le Cockpit fait
+  // deja le "quoi faire" en une ligne.
+  // Le message ne se fige plus sur "le plus gros montant en euros" a chaque
+  // fois — un gros contributeur stable (ex: le meilleur vendeur du rayon)
+  // gagnerait ce classement indefiniment et donnerait l'impression que le
+  // Conseiller ne connait qu'un seul produit. On pioche desormais le
+  // meilleur signal PAR TYPE (agir / opportunite / a surveiller) pour
+  // refleter la vraie variete de ce que les donnees montrent aujourd'hui,
+  // pas seulement le chiffre le plus impressionnant.
+  function messageConseillerCIN(actives) {
+    if (actives.length === 0) {
+      return "Aucun signal ne justifie une analyse approfondie en ce moment. Je continue de surveiller en arrière-plan — un commerce calme un jour donné n'est pas un commerce sans opportunités, juste un jour sans urgence.";
+    }
+    const parEtat = {
+      agir: actives.filter(p => p.etat === '🔥 À AGIR'),
+      opportunite: actives.filter(p => p.etat === '📈 OPPORTUNITÉ'),
+      surveiller: actives.filter(p => p.etat === '🟡 À SURVEILLER'),
+    };
+    const nbAgir = parEtat.agir.length;
+
+    let texte = choixDuJour(OUVERTURES)(actives.length);
+    texte += nbAgir > 0 ? `, dont <b>${nbAgir}</b> qui appelle${nbAgir>1?'nt':''} une action aujourd'hui. ` : `. `;
+
+    // Le signal "a agir" le plus significatif reste mentionne — c'est une
+    // vraie priorite, pas un artefact — mais il n'occupe plus tout le message.
+    const top = parEtat.agir[0] || parEtat.opportunite[0] || parEtat.surveiller[0];
+    texte += `${choixDuJour(PRIORITE_INTRO)} <b>${top.article}</b> : ${top.analyse.charAt(0).toLowerCase()}${top.analyse.slice(1)} `;
+    texte += top.consequence;
+
+    // Deuxieme voix, deliberement differente du premier signal — une
+    // opportunite en croissance si elle existe et concerne un autre
+    // article, sinon un signal a surveiller. C'est ce qui rend le
+    // Conseiller vivant : il ne repete jamais le meme produit deux fois
+    // dans la meme phrase.
+    const opportunite = parEtat.opportunite.find(p => p.article !== top.article);
+    const surveillance = parEtat.surveiller.find(p => p.article !== top.article);
+    if (opportunite) {
+      texte += ` ${choixDuJour(OPPORTUNITE_INTRO)} <b>${opportunite.article}</b> progresse : ${opportunite.consequence.charAt(0).toLowerCase()}${opportunite.consequence.slice(1)}`;
+    } else if (surveillance) {
+      texte += ` ${choixDuJour(SURVEILLANCE_INTRO)} <b>${surveillance.article}</b> — ${surveillance.analyse.charAt(0).toLowerCase()}${surveillance.analyse.slice(1)}`;
+    }
+
+    const patternFort = PATTERNS.find(p => p.tagClasse === 'tag-persiste');
+    if (patternFort) {
+      texte += ` Autre motif repéré dans le Journal : <b>${patternFort.titre.toLowerCase()}</b>.`;
+    }
+    return texte;
+  }
+
+  // ============================================================
+  // Conseiller structuré — advisor_messages (Qualité, Caisse, ...)
+  // ============================================================
+  // Couche distincte des detections commerce ci-dessus : ici, la
+  // detection, le scoring et la redaction du message sont deja faits
+  // COTE BASE (fonctions SQL generer_message_*), pas recalcules en JS.
+  // Le CIN se contente de : declencher la generation (idempotente et
+  // anti-repetition geree en SQL, cf. migration-conseiller-agregation-
+  // assignations-v1.sql), charger les messages actifs du site, les
+  // afficher, et permettre d'agir (assigner / marquer resolu) sans
+  // passer par Supabase directement.
+  //
+  // Design assume : le message reste TOUJOURS agrege (un message =
+  // une situation, jamais une personne nommee cote Qualite/Caisse) —
+  // c'est seulement au moment "Assigner" que la situation se
+  // decompose en autant de taches reelles que necessaire.
+
+  const GENERATEURS_ADVISOR = [
+    'generer_message_controle_tenue_absent',
+    'generer_message_caisse_ecart_non_justifie',
+    'generer_message_caisse_ecart_recurrent',
+  ];
+
+  // Code de regle -> fonction RPC d'assignation, uniquement pour les
+  // regles qui ont un fan-out en taches individuelles (cf. limite
+  // assumee : CAISSE_ECART_RECURRENT n'en a pas, c'est volontaire).
+  const ASSIGNATEURS_ADVISOR = {
+    'QUALITE_CONTROLE_TENUE_ABSENT': 'assigner_controles_tenue_depuis_message',
+    'CAISSE_ECART_NON_JUSTIFIE': 'assigner_justifications_caisse_depuis_message',
+  };
+
+  const PRIORITE_LABEL_ADVISOR = {
+    critique: 'Critique', haute: 'Haute', a_surveiller: 'À surveiller', normale: 'Normale', information: 'Information',
+  };
+  const CONFIANCE_LABEL_ADVISOR = {
+    A: 'Confirmé', B: 'Très probable', C: 'Hypothèse à vérifier', D: 'Non mesurable',
+  };
+  const PRIORITE_RANG_ADVISOR = { critique: 0, haute: 1, a_surveiller: 2, normale: 3, information: 4 };
+
+  let MESSAGES_ADVISOR = [];
+
+  // Declenche chaque generateur pour le site courant. Chaque fonction
+  // gere elle-meme son anti-repetition (fingerprint + cooldown_hours) —
+  // appeler ceci a chaque chargement d'ecran est donc sans danger, ca
+  // ne cree pas de doublon si rien n'a change depuis le dernier appel.
+  async function genererMessagesAdvisor() {
+    for (const fn of GENERATEURS_ADVISOR) {
+      const { error } = await nexusClient.rpc(fn, { p_site: SITE_ACTUEL });
+      if (error) console.error(`Génération ${fn}:`, error);
+    }
+  }
+
+  async function chargerMessagesAdvisor() {
+    const { data, error } = await nexusClient
+      .from('advisor_messages')
+      .select('*, advisor_rules(code)')
+      .eq('site_id', SITE_ACTUEL)
+      .not('status', 'in', '(resolu,expire)')
+      .order('generated_at', { ascending: false });
+    if (error) { console.error('Chargement advisor_messages:', error); return []; }
+    // Tri cote client par gravite reelle — l'ordre alphabetique du
+    // champ texte 'priority' ne correspond pas a l'ordre de gravite.
+    return (data || []).sort((a, b) => (PRIORITE_RANG_ADVISOR[a.priority] ?? 9) - (PRIORITE_RANG_ADVISOR[b.priority] ?? 9));
+  }
+
+  function iconePourRuleAdvisor(code) {
+    if ((code || '').startsWith('SECURITE')) return '🛡';
+    if ((code || '').startsWith('CAISSE')) return '💶';
+    if ((code || '').startsWith('QUALITE')) return '🧼';
+    return '🧭';
+  }
+
+  function renderMessagesAdvisor() {
+    const el = document.getElementById('advisorMessages');
+    if (!el) return;
+    if (MESSAGES_ADVISOR.length === 0) {
+      el.innerHTML = `<div class="empty-note">Aucun signal structuré actif sur les domaines connectés (Qualité, Caisse) pour l'instant.</div>`;
+      return;
+    }
+    el.innerHTML = MESSAGES_ADVISOR.map((m, i) => {
+      const ruleCode = (m.advisor_rules && m.advisor_rules.code) || '';
+      const peutAssigner = !!ASSIGNATEURS_ADVISOR[ruleCode] && m.status !== 'converti_action';
+      const prioClasse = (m.priority === 'critique' || m.priority === 'haute') ? 'etat-agir' : (m.priority === 'a_surveiller' ? 'etat-surveiller' : '');
+      const dejaAssigne = m.status === 'converti_action';
+      return `
+      <div class="plan-card ${prioClasse}" id="adv-${i}">
+        <div class="plan-head" onclick="document.getElementById('adv-${i}').classList.toggle('open')">
+          <span class="plan-etat">${iconePourRuleAdvisor(ruleCode)} ${PRIORITE_LABEL_ADVISOR[m.priority] || m.priority || ''}</span>
+          <span class="plan-action-teaser">${(m.message_text || '').slice(0, 58)}${(m.message_text || '').length > 58 ? '…' : ''}</span>
+          <span class="plan-chevron">›</span>
+        </div>
+        <div class="plan-body">
+          <div class="plan-story">${m.message_text || ''}</div>
+          <div class="confiance-row">
+            <span class="confiance-badge confiance-${m.confidence_level || 'B'}">Niveau ${m.confidence_level || '?'}</span>
+            <span class="confiance-desc"><b style="color:var(--text);">${CONFIANCE_LABEL_ADVISOR[m.confidence_level] || ''}.</b></span>
+          </div>
+          <div class="rule-tag">Règle ${ruleCode || '—'} · statut ${m.status}${dejaAssigne ? ' · déjà assigné' : ''}</div>
+          ${peutAssigner ? `<button class="advisor-assigner" data-id="${m.id}" data-rule="${ruleCode}" style="width:100%; margin-top:10px; padding:11px; border:none; border-radius:8px; font-size:12.5px; font-weight:600; background:var(--cyan); color:#04141a; cursor:pointer;">✓ Assigner les actions correspondantes</button>` : ''}
+          <button class="advisor-resoudre" data-id="${m.id}" style="width:100%; margin-top:8px; padding:10px; border:1px solid var(--hairline); border-radius:8px; background:none; color:var(--text-dim); font-size:11.5px; cursor:pointer;">Marquer comme résolu</button>
+        </div>
+      </div>`;
+    }).join('');
+
+    el.querySelectorAll('.advisor-assigner').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const fnName = ASSIGNATEURS_ADVISOR[btn.dataset.rule];
+        if (!fnName) return;
+        btn.disabled = true; btn.textContent = 'Assignation…';
+        const { data, error } = await nexusClient.rpc(fnName, { p_message_id: btn.dataset.id, p_assigne_par: EMPLOYEE_ID_CIN });
+        if (error) {
+          console.error('Assignation:', error);
+          alert('Erreur — réessayez.');
+          btn.disabled = false; btn.textContent = '✓ Assigner les actions correspondantes';
+          return;
+        }
+        afficherToastOr(`✓ ${data} assignation(s) créée(s)`);
+        MESSAGES_ADVISOR = await chargerMessagesAdvisor();
+        renderMessagesAdvisor();
+      });
+    });
+
+    el.querySelectorAll('.advisor-resoudre').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const { error } = await nexusClient.from('advisor_messages')
+          .update({ status: 'resolu', resolved_at: new Date().toISOString() })
+          .eq('id', btn.dataset.id);
+        if (error) { console.error('Résolution message:', error); alert('Erreur — réessayez.'); return; }
+        MESSAGES_ADVISOR = await chargerMessagesAdvisor();
+        renderMessagesAdvisor();
+      });
+    });
+  }
+
+  async function renderRoot() {
+    const validees = await chargerValidees();
+    const actives = TOUTES_DETECTIONS.filter(p => !validees.includes(p.candidate_id));
+    const nbAgir = actives.filter(p => p.etat === '🔥 À AGIR').length;
+    const nbOpp = actives.filter(p => p.etat === '📈 OPPORTUNITÉ').length;
+    const nbSurv = actives.filter(p => p.etat === '🟡 À SURVEILLER').length;
+    const valeurTotale = actives.reduce((s,p) => s + (p.impact_eur||0), 0);
+
+    const root = document.getElementById('root');
+    root.innerHTML = `
+      <div class="conseiller-card">
+        <div class="conseiller-head">
+          <img class="conseiller-avatar" src="assets/nexus-avatar.png" alt="Conseiller NEXUS">
+          <div>
+            <div class="conseiller-name">CONSEILLER NEXUS</div>
+            <div class="conseiller-sub">Analyse pour ${PRENOM_MANAGER}</div>
+          </div>
+        </div>
+        <div class="conseiller-text">${messageConseillerCIN(actives)}</div>
+      </div>
+      <div class="card">
+        <div class="section-label">Vue d'ensemble</div>
+        <div class="stat-row"><span class="stat-label">Signaux analysés</span><span class="stat-value" style="color:var(--cyan);">${actives.length}</span></div>
+        <div class="stat-row"><span class="stat-label">🔥 À agir</span><span class="stat-value" style="color:#F0575A;">${nbAgir}</span></div>
+        <div class="stat-row"><span class="stat-label">📈 Opportunités</span><span class="stat-value" style="color:#34D399;">${nbOpp}</span></div>
+        <div class="stat-row"><span class="stat-label">🟡 À surveiller</span><span class="stat-value" style="color:#F5A623;">${nbSurv}</span></div>
+        <div class="stat-row"><span class="stat-label">Valeur potentielle non traitée</span><span class="stat-value" style="color:var(--gold);">${Math.round(valeurTotale).toLocaleString('fr-FR')} €</span></div>
+      </div>
+      <div class="tabs" id="tabs"></div>
+      <div id="liste"></div>
+      <div class="card" style="margin-top:4px;">
+        <div class="section-label">🧭 Signaux structurés — Qualité, Caisse</div>
+        <div style="font-size:11.5px; color:var(--text-dim); margin-bottom:12px; line-height:1.5;">
+          Détections calculées côté base à partir des contrôles de tenue et des audits de caisse — même principe que les signaux commerce ci-dessus (règle, priorité, niveau de confiance), sur des domaines différents.
+        </div>
+        <div id="advisorMessages"></div>
+      </div>
+      <div class="card" style="margin-top:4px;">
+        <div class="section-label">🧠 Ce que le Journal m'apprend</div>
+        <div style="font-size:11.5px; color:var(--text-dim); margin-bottom:12px; line-height:1.5;">
+          Les cartes ci-dessus lisent les ventes en direct. Ce qui suit lit l'historique accumulé dans le Journal — décisions passées, retards, missions — pour repérer des motifs qu'aucune donnée instantanée ne montre.
+        </div>
+        <div id="patterns"></div>
+      </div>
+      <a class="journal-link" href="NEXUS-Journal-v1.html">🗒 Voir le Journal NEXUS — ce qui s'est réellement passé</a>
+    `;
+
+    const tabsEl = document.getElementById('tabs');
+    FILTRES.forEach(f => {
+      const t = document.createElement('div');
+      t.className = 'tab' + (f === filtreActif ? ' active' : '');
+      t.textContent = f;
+      t.onclick = async () => { filtreActif = f; await renderRoot(); };
+      tabsEl.appendChild(t);
+    });
+
+    renderListe(actives);
+    renderPatterns();
+    renderMessagesAdvisor();
+  }
+
+  function renderPatterns() {
+    const el = document.getElementById('patterns');
+    if (!el) return;
+    if (PATTERNS.length === 0) {
+      el.innerHTML = `<div class="empty-note">Pas encore assez d'historique dans le Journal pour en tirer un motif fiable. Revenez après quelques jours d'utilisation.</div>`;
+      return;
+    }
+    el.innerHTML = PATTERNS.map(p => `
+      <div class="pattern-card">
+        <span class="pattern-tag ${p.tagClasse}">${p.tag}</span>
+        <div class="pattern-title">${p.titre}</div>
+        <div class="pattern-text">${p.texte}</div>
+        <div class="pattern-source">${p.source}</div>
+      </div>`).join('');
+  }
+
+  function renderListe(actives) {
+    const el = document.getElementById('liste');
+    const filtrees = filtreActif === 'Toutes' ? actives : actives.filter(p => p.etat === filtreActif);
+
+    if (filtrees.length === 0) {
+      el.innerHTML = `<div class="empty-note">
+        ${actives.length === 0
+          ? "Aucun signal actif pour l'instant. Rien à expliquer aujourd'hui sur les données importées."
+          : "Aucun signal dans cette catégorie pour l'instant."}
+      </div>`;
+      return;
+    }
+
+    el.innerHTML = filtrees.map((p, i) => {
+      const conf = CONFIANCE_PAR_RULE[p.rule_id] || { niveau: 'B', label: 'Très probable', desc: '' };
+      return `
+      <div class="plan-card ${ETAT_CLASS[p.etat]||''}" id="det-${i}">
+        <div class="plan-head" onclick="document.getElementById('det-${i}').classList.toggle('open')">
+          <span class="plan-etat">${p.etat}</span>
+          <span class="plan-action-teaser">${p.article}</span>
+          <span class="plan-chevron">›</span>
+        </div>
+        <div class="plan-body">
+          <div class="plan-story">
+            <span class="story-label">Constat</span>${p.situation}
+            <span class="story-label">Contexte</span>${p.contexte}
+            <span class="story-label">Pourquoi</span>${p.analyse}
+            <span class="story-label">Si rien ne change</span>${p.consequence}
+          </div>
+          <div class="projection-box">📈 <b>Projection</b> — ${projection(p)}</div>
+          <div class="plan-impact">📊 Impact — <b>${p.impact}</b></div>
+          <div class="confiance-row">
+            <span class="confiance-badge confiance-${conf.niveau}">Niveau ${conf.niveau}</span>
+            <span class="confiance-desc"><b style="color:var(--text);">${conf.label}.</b> ${conf.desc}</span>
+          </div>
+          <div class="decision-box">✅ Décision recommandée — ${p.recommandation}</div>
+          <div class="rule-tag">Règle ${p.rule_id} · Traçable et auditable</div>
+          <button class="plan-valider" data-id="${p.candidate_id}">✓ Appliquer cette décision</button>
+          <button class="plan-exclure" data-article="${p.article}" style="width:100%; margin-top:8px; padding:10px; border:1px solid var(--hairline); border-radius:8px; background:none; color:var(--text-dim); font-size:11.5px; cursor:pointer;">🚫 Je comprends — ne plus me signaler ce produit</button>
+        </div>
+      </div>`;
+    }).join('');
+
+    el.querySelectorAll('.plan-valider').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const plan = TOUTES_DETECTIONS.find(p => p.candidate_id === btn.dataset.id);
+        await marquerValidee(btn.dataset.id);
+        if (plan) {
+          await enregistrerJournalDecision(plan);
+          afficherToastOr(`✓ Gain sécurisé — ${Math.round(plan.impact_eur).toLocaleString('fr-FR')} €`);
+        }
+        await renderRoot();
+      });
+    });
+
+    el.querySelectorAll('.plan-exclure').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const ok = await exclureAvecCommentaire(btn.dataset.article);
+        if (ok) {
+          TOUTES_DETECTIONS = await construireDetections(JOURNAL_TOUTES); // rafraichi sans ce produit, partout
+          await renderRoot();
+        }
+      });
+    });
+  }
+
+  nexusRequireAuth().then(async employee => {
+    if (!employee) return; // nexus-auth.js gère déjà la redirection vers NEXUS-Login-v1.html
+    if (employee.role !== 'manager' && employee.role !== 'gerant') {
+      document.getElementById('root').innerHTML = `<div class="locked">Cet écran est réservé aux managers.</div>`;
+      return;
+    }
+    SITE_ACTUEL = employee.site_id || 'vito-sainte-marie';
+    PRENOM_MANAGER = employee.nom;
+    EMPLOYEE_ID_CIN = employee.id;
+
+    const [equipeMap, missionsHisto, retards, journalToutes] = await Promise.all([chargerEquipeMap(), chargerMissionsHistorique(), chargerRetardsTous(), chargerJournalDecisionsToutes()]);
+    JOURNAL_TOUTES = journalToutes;
+    TOUTES_DETECTIONS = await construireDetections(journalToutes);
+    PATTERNS = construirePatterns(journalToutes, retards, missionsHisto, equipeMap, TOUTES_DETECTIONS);
+
+    // Declenche la generation des signaux structures (Qualite, Caisse) puis
+    // les charge — anti-repetition geree cote SQL, sans risque a rappeler
+    // a chaque ouverture d'ecran.
+    await genererMessagesAdvisor();
+    MESSAGES_ADVISOR = await chargerMessagesAdvisor();
+
+    await renderRoot();
+  });
+</script>
+</body>
+</html>
