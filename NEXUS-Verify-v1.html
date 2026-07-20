@@ -54,6 +54,19 @@
   .btn-add:active{background:rgba(79,195,217,0.08);}
   .total-ligne{font-family:var(--mono); font-size:11.5px; color:var(--text-mid); text-align:right;}
 
+  .emp-dropdown{position:relative; margin-bottom:10px;}
+  .emp-dropdown-toggle{width:100%; text-align:left; background:var(--panel-raised); border:1px solid var(--hairline); border-radius:8px; padding:11px 12px; color:var(--text); font-family:var(--sans); font-size:13px; cursor:pointer; display:flex; justify-content:space-between; align-items:center; gap:8px;}
+  .emp-dropdown-toggle span:first-child{overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .emp-dropdown-toggle .chevron{color:var(--text-dim); font-size:12px; flex-shrink:0; transition:0.15s;}
+  .emp-dropdown.open .chevron{transform:rotate(180deg);}
+  .emp-dropdown-menu{display:none; margin-top:6px; background:var(--panel-raised); border:1px solid var(--hairline); border-radius:8px; padding:6px; max-height:220px; overflow-y:auto;}
+  .emp-dropdown.open .emp-dropdown-menu{display:block;}
+  .emp-item{display:flex; align-items:center; gap:10px; padding:8px 6px; font-size:13px; cursor:pointer; border-radius:6px;}
+  .emp-item:active{background:var(--panel);}
+  .emp-checkbox{width:18px; height:18px; border:1.5px solid var(--text-dim); border-radius:5px; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:12px;}
+  .emp-checkbox.checked{background:var(--cyan); border-color:var(--cyan); color:#04141a;}
+  .emp-empty{padding:10px 6px; color:var(--text-dim); font-size:12px;}
+
   .row2{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
   label.f{font-size:11.5px; color:var(--text-mid); display:block; margin-bottom:5px;}
   select, input[type=text], input[type=number], input[type=date], textarea{
@@ -131,6 +144,21 @@
       <div class="row2">
         <div><label class="f">Date</label><input type="date" id="v_date"></div>
         <div><label class="f">Quart</label><input type="text" id="v_quart" value="1"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="section-label">Employés présents</div>
+      <div class="note">Cochez qui était présent sur chaque caisse pour ce quart. Pour l'instant à renseigner à la main — une prochaine version le pré-remplira automatiquement à partir des prises de poste (rôle, date, heure, quart) saisies à la connexion.</div>
+      <label class="f">Caisse piste</label>
+      <div class="emp-dropdown" id="dropEmployesPiste">
+        <div class="emp-dropdown-toggle"><span id="labelEmployesPiste">Sélectionner les employés</span><span class="chevron">▾</span></div>
+        <div class="emp-dropdown-menu" id="menuEmployesPiste"></div>
+      </div>
+      <label class="f">Caisse boutique</label>
+      <div class="emp-dropdown" id="dropEmployesBoutique">
+        <div class="emp-dropdown-toggle"><span id="labelEmployesBoutique">Sélectionner les employés</span><span class="chevron">▾</span></div>
+        <div class="emp-dropdown-menu" id="menuEmployesBoutique"></div>
       </div>
     </div>
 
@@ -255,6 +283,75 @@
     }
     SITE_ACTUEL = employee.site_id || 'vito-sainte-marie';
     EMPLOYEE_ID = employee.id;
+
+    // ------------------------------------------------------------
+    // Employés présents (piste / boutique) — cochés à la main pour l'instant
+    // (Nexus est en phase de test). À terme, chaque connexion enregistrant un
+    // rôle + date/heure/quart (prise de poste), Nexus pourra pré-remplir
+    // automatiquement ces listes pour le quart et la date choisis ici.
+    // Tous les employés actifs du site sauf le gérant.
+    // ------------------------------------------------------------
+    let EMPLOYES_SITE = [];
+    const employesSelectionnes = { piste: new Set(), boutique: new Set() };
+    const CLE_CAISSE = { piste: 'Piste', boutique: 'Boutique' };
+
+    async function chargerEmployesSite() {
+      const { data, error } = await nexusClient.from('employees')
+        .select('id, nom, role').eq('site_id', SITE_ACTUEL).eq('actif', true).neq('role', 'gerant').order('nom');
+      if (error) { console.error('Chargement employés (Verify):', error); return []; }
+      return data || [];
+    }
+
+    function nomsEmployes(ids) {
+      if (!ids || !ids.length) return '—';
+      const noms = ids.map(id => { const e = EMPLOYES_SITE.find(x => x.id === id); return e ? e.nom : null; }).filter(Boolean);
+      return noms.length ? noms.join(', ') : '—';
+    }
+
+    function majLabelEmployes(caisse) {
+      const label = document.getElementById(`labelEmployes${CLE_CAISSE[caisse]}`);
+      const set = employesSelectionnes[caisse];
+      label.textContent = set.size === 0 ? 'Sélectionner les employés' : nomsEmployes([...set]);
+    }
+
+    function renderMenuEmployes(caisse) {
+      const menu = document.getElementById(`menuEmployes${CLE_CAISSE[caisse]}`);
+      if (EMPLOYES_SITE.length === 0) { menu.innerHTML = `<div class="emp-empty">Aucun employé actif trouvé pour ce site.</div>`; return; }
+      menu.innerHTML = EMPLOYES_SITE.map(e => {
+        const checked = employesSelectionnes[caisse].has(e.id);
+        return `<div class="emp-item" data-id="${e.id}">
+          <div class="emp-checkbox ${checked?'checked':''}">${checked?'✓':''}</div>
+          <div>${e.nom}</div>
+        </div>`;
+      }).join('');
+      menu.querySelectorAll('.emp-item').forEach(el => {
+        el.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const id = el.dataset.id;
+          const set = employesSelectionnes[caisse];
+          if (set.has(id)) set.delete(id); else set.add(id);
+          renderMenuEmployes(caisse);
+          majLabelEmployes(caisse);
+        });
+      });
+    }
+
+    ['piste', 'boutique'].forEach(caisse => {
+      const drop = document.getElementById(`dropEmployes${CLE_CAISSE[caisse]}`);
+      drop.querySelector('.emp-dropdown-toggle').addEventListener('click', (e) => {
+        e.stopPropagation();
+        const estOuvert = drop.classList.contains('open');
+        document.querySelectorAll('.emp-dropdown.open').forEach(d => d.classList.remove('open'));
+        if (!estOuvert) drop.classList.add('open');
+      });
+    });
+    document.addEventListener('click', () => {
+      document.querySelectorAll('.emp-dropdown.open').forEach(d => d.classList.remove('open'));
+    });
+
+    EMPLOYES_SITE = await chargerEmployesSite();
+    renderMenuEmployes('piste');
+    renderMenuEmployes('boutique');
 
     // ------------------------------------------------------------
     // Prix carburants du mois — utilises pour calculer le montant de la
@@ -464,6 +561,7 @@
         clients_compte_boutique: 0, depense_ponctuelle_boutique: depense_boutique,
         remise_cuve, remise_cuve_detail, caisse_incidents: incidents,
         ecart_piste, ecart_boutique, ecart_total,
+        employes_piste: [...employesSelectionnes.piste], employes_boutique: [...employesSelectionnes.boutique],
         statut, commentaire, employee_id: EMPLOYEE_ID,
       }, { onConflict: 'site,date,quart' });
 
@@ -496,6 +594,9 @@
             <div class="ecart-montant" style="color:${Math.abs(ecart_boutique)<=2?'var(--green)':'var(--red)'};">${ecart_boutique>=0?'+':''}${ecart_boutique.toFixed(2)} €</div>
             <div class="resume-line" style="margin-bottom:0;">${phraseComposant('Caisse boutique (vs Decenium)', ecart_boutique)}</div>
           </div>
+
+          <div class="resume-line">Présents piste : <b>${nomsEmployes([...employesSelectionnes.piste])}</b></div>
+          <div class="resume-line" style="margin-bottom:0;">Présents boutique : <b>${nomsEmployes([...employesSelectionnes.boutique])}</b></div>
 
           ${statut !== 'conforme' ? `<div class="resume-line" style="color:var(--amber); margin-top:12px;"><b>Action recommandée</b> — vérifiez le justificatif du composant en écart avant de considérer ce quart comme clôturé. ✓ Enregistré dans l'historique.</div>` : `<div class="resume-line" style="color:var(--green); margin-top:12px;">Les deux caisses sont rapprochées sans écart significatif. ✓ Enregistré.</div>`}
         </div>`;
@@ -535,6 +636,8 @@
           <div class="histo-detail" id="detail-${i}">
             ${phraseComposant('Caisse piste (vs pupitre)', a.ecart_piste)}<br>
             ${phraseComposant('Caisse boutique (vs Decenium)', a.ecart_boutique)}
+            <br><br>Présents piste : ${nomsEmployes(a.employes_piste)}<br>
+            Présents boutique : ${nomsEmployes(a.employes_boutique)}
             ${a.commentaire ? `<br><br><i>${a.commentaire}</i>` : ''}
           </div>
         </div>`;
