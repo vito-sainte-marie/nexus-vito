@@ -747,6 +747,8 @@
   const PRIORITE_RANG_ADVISOR = { critique: 0, haute: 1, a_surveiller: 2, normale: 3, information: 4 };
 
   let MESSAGES_ADVISOR = [];
+  let EVIDENCE_PAR_MESSAGE = {};
+  let EQUIPE_MAP_CIN = {};
 
   // ============================================================
   // Santé caisse — écarts cumulés du mois, avec comparatif mois-1.
@@ -884,6 +886,47 @@
     return (data || []).sort((a, b) => (PRIORITE_RANG_ADVISOR[a.priority] ?? 9) - (PRIORITE_RANG_ADVISOR[b.priority] ?? 9));
   }
 
+  // Charge les preuves (advisor_message_evidence) de tous les messages
+  // actifs en une seule requete, regroupees par message — repond au
+  // "Pourquoi NEXUS me montre cela ?" directement dans la carte, plutot
+  // que de laisser le chiffre agrege sans trace consultable.
+  async function chargerEvidenceAdvisor(messageIds) {
+    if (!messageIds || messageIds.length === 0) return {};
+    const { data, error } = await nexusClient
+      .from('advisor_message_evidence')
+      .select('*')
+      .in('advisor_message_id', messageIds);
+    if (error) { console.error('Chargement advisor_message_evidence:', error); return {}; }
+    const map = {};
+    (data || []).forEach(ev => {
+      if (!map[ev.advisor_message_id]) map[ev.advisor_message_id] = [];
+      map[ev.advisor_message_id].push(ev);
+    });
+    return map;
+  }
+
+  // Recharge messages + preuves ensemble — a utiliser partout plutot que
+  // chargerMessagesAdvisor() seul, pour ne jamais afficher un message
+  // sans pouvoir en montrer la preuve.
+  async function rafraichirMessagesEtPreuvesAdvisor() {
+    MESSAGES_ADVISOR = await chargerMessagesAdvisor();
+    EVIDENCE_PAR_MESSAGE = await chargerEvidenceAdvisor(MESSAGES_ADVISOR.map(m => m.id));
+  }
+
+  function formatterPreuveAdvisor(ev) {
+    if (ev.source_type === 'controles_tenue') {
+      const nom = EQUIPE_MAP_CIN[ev.source_id] || 'Employé';
+      const jours = ev.observed_value;
+      return `${nom} — ${(jours >= 9999) ? 'jamais contrôlé' : Math.round(jours) + ' jour(s) sans contrôle'}`;
+    }
+    if (ev.source_type === 'audits_caisse') {
+      const date = ev.period_end ? new Date(ev.period_end + 'T00:00:00').toLocaleDateString('fr-FR') : 'date inconnue';
+      const montant = ev.observed_value || 0;
+      return `Quart du ${date} — écart de ${montant >= 0 ? '+' : ''}${Math.round(montant)} €`;
+    }
+    return `${ev.source_type} · ${ev.metric_code} · ${ev.observed_value ?? '?'}`;
+  }
+
   function iconePourRuleAdvisor(code) {
     if ((code || '').startsWith('SECURITE')) return '🛡';
     if ((code || '').startsWith('CAISSE')) return '💶';
@@ -903,6 +946,12 @@
       const peutAssigner = !!ASSIGNATEURS_ADVISOR[ruleCode] && m.status !== 'converti_action';
       const prioClasse = (m.priority === 'critique' || m.priority === 'haute') ? 'etat-agir' : (m.priority === 'a_surveiller' ? 'etat-surveiller' : '');
       const dejaAssigne = m.status === 'converti_action';
+      const preuves = EVIDENCE_PAR_MESSAGE[m.id] || [];
+      const preuvesHtml = preuves.length === 0 ? '' : `
+        <div style="margin-top:10px; border-top:1px solid var(--hairline); padding-top:8px;">
+          <span class="story-label">Preuves (${preuves.length})</span>
+          ${preuves.map(ev => `<div style="font-size:11.5px; color:var(--text-mid); padding:5px 0; border-bottom:1px solid var(--hairline);">${formatterPreuveAdvisor(ev)}</div>`).join('')}
+        </div>`;
       return `
       <div class="plan-card ${prioClasse}" id="adv-${i}">
         <div class="plan-head" onclick="document.getElementById('adv-${i}').classList.toggle('open')">
@@ -917,6 +966,7 @@
             <span class="confiance-desc"><b style="color:var(--text);">${CONFIANCE_LABEL_ADVISOR[m.confidence_level] || ''}.</b></span>
           </div>
           <div class="rule-tag">Règle ${ruleCode || '—'} · statut ${m.status}${dejaAssigne ? ' · déjà assigné' : ''}</div>
+          ${preuvesHtml}
           ${peutAssigner ? `<button class="advisor-assigner" data-id="${m.id}" data-rule="${ruleCode}" style="width:100%; margin-top:10px; padding:11px; border:none; border-radius:8px; font-size:12.5px; font-weight:600; background:var(--cyan); color:#04141a; cursor:pointer;">✓ Assigner les actions correspondantes</button>` : ''}
           <button class="advisor-resoudre" data-id="${m.id}" style="width:100%; margin-top:8px; padding:10px; border:1px solid var(--hairline); border-radius:8px; background:none; color:var(--text-dim); font-size:11.5px; cursor:pointer;">Marquer comme résolu</button>
         </div>
@@ -937,7 +987,7 @@
           return;
         }
         afficherToastOr(`✓ ${data} assignation(s) créée(s)`);
-        MESSAGES_ADVISOR = await chargerMessagesAdvisor();
+        await rafraichirMessagesEtPreuvesAdvisor();
         renderMessagesAdvisor();
       });
     });
@@ -949,7 +999,7 @@
           .update({ status: 'resolu', resolved_at: new Date().toISOString() })
           .eq('id', btn.dataset.id);
         if (error) { console.error('Résolution message:', error); alert('Erreur — réessayez.'); return; }
-        MESSAGES_ADVISOR = await chargerMessagesAdvisor();
+        await rafraichirMessagesEtPreuvesAdvisor();
         renderMessagesAdvisor();
       });
     });
@@ -1126,14 +1176,15 @@
 
     const [equipeMap, missionsHisto, retards, journalToutes] = await Promise.all([chargerEquipeMap(), chargerMissionsHistorique(), chargerRetardsTous(), chargerJournalDecisionsToutes()]);
     JOURNAL_TOUTES = journalToutes;
+    EQUIPE_MAP_CIN = equipeMap; // conserve globalement pour resoudre les noms dans les preuves des signaux structures
     TOUTES_DETECTIONS = await construireDetections(journalToutes);
     PATTERNS = construirePatterns(journalToutes, retards, missionsHisto, equipeMap, TOUTES_DETECTIONS);
 
     // Declenche la generation des signaux structures (Qualite, Caisse) puis
-    // les charge — anti-repetition geree cote SQL, sans risque a rappeler
-    // a chaque ouverture d'ecran.
+    // les charge, preuves incluses — anti-repetition geree cote SQL, sans
+    // risque a rappeler a chaque ouverture d'ecran.
     await genererMessagesAdvisor();
-    MESSAGES_ADVISOR = await chargerMessagesAdvisor();
+    await rafraichirMessagesEtPreuvesAdvisor();
     await rafraichirCaisseSante();
 
     await renderRoot();
