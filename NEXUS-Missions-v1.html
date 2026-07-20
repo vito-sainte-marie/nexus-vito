@@ -170,13 +170,17 @@
   let EMPLOYES_SITE = [];
   let presentsState = {};
 
-  // Nuance demandee par Frederic (20/07/2026) : pour le manager, le nettoyage
-  // et la gestion des dechets (et plus largement les missions Qualite et
-  // Securite) sont des CONTROLES — il verifie que l'equipe l'a fait, il ne le
-  // fait pas lui-meme. Applique uniquement quand l'ecran est vu par un
-  // manager (les employes gardent leurs missions "a faire" normales).
+  // Nuance demandee par Frederic (20/07/2026, precisee le 20/07/2026) : pour
+  // le manager, le nettoyage et la gestion des dechets sont des CONTROLES —
+  // il verifie que l'equipe l'a fait, il ne le fait pas lui-meme. Cible sur
+  // le titre de la mission (pas sur toute la famille Qualite/Securite, qui
+  // peut contenir d'autres missions que le manager execute lui-meme).
+  // Applique uniquement quand l'ecran est vu par un manager (les employes
+  // gardent leurs missions "a faire" normales).
   function estMissionControleManager(m) {
-    return roleDuJour === 'manager' && (m.famille === 'Qualité' || m.famille === 'Sécurité');
+    if (roleDuJour !== 'manager') return false;
+    const titre = (m.titre || '').toLowerCase();
+    return titre.includes('nettoyage') || titre.includes('déchet') || titre.includes('dechet');
   }
 
   const FAMILLES = ["Toutes","Commerce","Qualité","Sécurité","Exploitation","Management"];
