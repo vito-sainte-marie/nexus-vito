@@ -186,14 +186,194 @@
   const FAMILLES = ["Toutes","Commerce","Qualité","Sécurité","Exploitation","Management"];
   let familleActive = "Toutes";
   const missionsOuvertes = new Set();
-  const PLANS_ACTION = [{"etat": "🔥 À AGIR", "rule_id": "R4-RENFORT-A", "article": "Biere Heineken 50cl - 24P", "situation": "Biere Heineken 50cl - 24P représente 15.0 % du chiffre d'affaires du rayon.", "contexte": "Cette contribution est calculée sur l'ensemble des références du rayon, pas seulement sa catégorie.", "analyse": "Une référence à ce niveau de contribution mérite un facing à la hauteur de son poids réel.", "consequence": "Un sous-dimensionnement de facing sur cette référence représente un risque estimé à 9791 €.", "recommandation": "Je pense qu'il est temps de confirmer un facing renforcé (6 à 10 faces) pour Biere Heineken 50cl - 24P.", "impact": "Vous sécurisez environ 9791 € de chiffre d'affaires déjà généré par cette référence.", "candidate_id": "RET-R4-Biere_Hein_401e69", "score_final": 81.2, "impact_eur": 9791.220000000001}, {"etat": "🔥 À AGIR", "rule_id": "R4-RENFORT-A", "article": "Pain Chocolat - 68P", "situation": "Pain Chocolat - 68P représente 30.0 % du chiffre d'affaires du rayon.", "contexte": "Cette contribution est calculée sur l'ensemble des références du rayon, pas seulement sa catégorie.", "analyse": "Une référence à ce niveau de contribution mérite un facing à la hauteur de son poids réel.", "consequence": "Un sous-dimensionnement de facing sur cette référence représente un risque estimé à 6585 €.", "recommandation": "Je proposerais de confirmer un facing renforcé (6 à 10 faces) pour Pain Chocolat - 68P.", "impact": "Vous sécurisez environ 6585 € de chiffre d'affaires déjà généré par cette référence.", "candidate_id": "RET-R4-Pain_Choco_24bfda", "score_final": 68.3, "impact_eur": 6584.95}, {"etat": "🔥 À AGIR", "rule_id": "R4-RENFORT-A", "article": "Boisson Coca cola 50cl - 8P", "situation": "Boisson Coca cola 50cl - 8P représente 24.2 % du chiffre d'affaires du rayon.", "contexte": "Cette contribution est calculée sur l'ensemble des références du rayon, pas seulement sa catégorie.", "analyse": "Une référence à ce niveau de contribution mérite un facing à la hauteur de son poids réel.", "consequence": "Un sous-dimensionnement de facing sur cette référence représente un risque estimé à 6521 €.", "recommandation": "Je recommande de confirmer un facing renforcé (6 à 10 faces) pour Boisson Coca cola 50cl - 8P.", "impact": "Vous sécurisez environ 6521 € de chiffre d'affaires déjà généré par cette référence.", "candidate_id": "RET-R4-Boisson_Co_e88036", "score_final": 68.1, "impact_eur": 6520.92}, {"etat": "🔥 À AGIR", "rule_id": "R4-RENFORT-A", "article": "Jus FRUITYBON Local 50 cl", "situation": "Jus FRUITYBON Local 50 cl représente 17.9 % du chiffre d'affaires du rayon.", "contexte": "Cette contribution est calculée sur l'ensemble des références du rayon, pas seulement sa catégorie.", "analyse": "Une référence à ce niveau de contribution mérite un facing à la hauteur de son poids réel.", "consequence": "Un sous-dimensionnement de facing sur cette référence représente un risque estimé à 5360 €.", "recommandation": "Le plus efficace serait de confirmer un facing renforcé (6 à 10 faces) pour Jus FRUITYBON Local 50 cl.", "impact": "Vous sécurisez environ 5360 € de chiffre d'affaires déjà généré par cette référence.", "candidate_id": "RET-R4-Jus_FRUITY_1fa643", "score_final": 63.4, "impact_eur": 5359.62}, {"etat": "🔥 À AGIR", "rule_id": "R4-RENFORT-A", "article": "Jus caresse 1L ts parf", "situation": "Jus caresse 1L ts parf représente 16.3 % du chiffre d'affaires du rayon.", "contexte": "Cette contribution est calculée sur l'ensemble des références du rayon, pas seulement sa catégorie.", "analyse": "Une référence à ce niveau de contribution mérite un facing à la hauteur de son poids réel.", "consequence": "Un sous-dimensionnement de facing sur cette référence représente un risque estimé à 4880 €.", "recommandation": "Il serait utile de confirmer un facing renforcé (6 à 10 faces) pour Jus caresse 1L ts parf.", "impact": "Vous sécurisez environ 4880 € de chiffre d'affaires déjà généré par cette référence.", "candidate_id": "RET-R4-Jus_caress_3f2521", "score_final": 61.5, "impact_eur": 4880.279999999999}, {"etat": "🔥 À AGIR", "rule_id": "R4-RENFORT-A", "article": "Jus caresse 50cl TS PARF", "situation": "Jus caresse 50cl TS PARF représente 14.3 % du chiffre d'affaires du rayon.", "contexte": "Cette contribution est calculée sur l'ensemble des références du rayon, pas seulement sa catégorie.", "analyse": "Une référence à ce niveau de contribution mérite un facing à la hauteur de son poids réel.", "consequence": "Un sous-dimensionnement de facing sur cette référence représente un risque estimé à 4291 €.", "recommandation": "Le plus efficace serait de confirmer un facing renforcé (6 à 10 faces) pour Jus caresse 50cl TS PARF.", "impact": "Vous sécurisez environ 4291 € de chiffre d'affaires déjà généré par cette référence.", "candidate_id": "RET-R4-Jus_caress_8664c7", "score_final": 59.2, "impact_eur": 4290.84}, {"etat": "📈 OPPORTUNITÉ", "rule_id": "R3-HAUSSE", "article": "PCS Creacard de 20€ a 199€", "situation": "Les ventes de PCS Creacard de 20€ a 199€ progressent de 25.8 %.", "contexte": "Cette progression est mesurée entre les deux périodes suivies (T1 et T2).", "analyse": "Cette dynamique dépasse la progression moyenne du rayon.", "consequence": "Cette croissance peut être amplifiée si l'espace en vitrine suit la demande.", "recommandation": "Il serait utile de renforcer le facing de PCS Creacard de 20€ a 199€ avant la période suivante.", "impact": "Vous sécurisez un gain potentiel estimé à 4061 € si la tendance se poursuit.", "candidate_id": "RET-R3-PCS_Creaca_1e9b80", "score_final": 58.2, "impact_eur": 4060.620000000001}, {"etat": "🔥 À AGIR", "rule_id": "R4-RENFORT-A", "article": "Jeton Lavazza 1.60€", "situation": "Jeton Lavazza 1.60€ représente 73.2 % du chiffre d'affaires du rayon.", "contexte": "Cette contribution est calculée sur l'ensemble des références du rayon, pas seulement sa catégorie.", "analyse": "Une référence à ce niveau de contribution mérite un facing à la hauteur de son poids réel.", "consequence": "Un sous-dimensionnement de facing sur cette référence représente un risque estimé à 3771 €.", "recommandation": "Je recommande de confirmer un facing renforcé (6 à 10 faces) pour Jeton Lavazza 1.60€.", "impact": "Vous sécurisez environ 3771 € de chiffre d'affaires déjà généré par cette référence.", "candidate_id": "RET-R4-Jeton_Lava_d066e6", "score_final": 57.1, "impact_eur": 3771.1400000000003}, {"etat": "🔥 À AGIR", "rule_id": "R4-RENFORT-A", "article": "Sandwich Autres 4.80", "situation": "Sandwich Autres 4.80 représente 17.1 % du chiffre d'affaires du rayon.", "contexte": "Cette contribution est calculée sur l'ensemble des références du rayon, pas seulement sa catégorie.", "analyse": "Une référence à ce niveau de contribution mérite un facing à la hauteur de son poids réel.", "consequence": "Un sous-dimensionnement de facing sur cette référence représente un risque estimé à 3749 €.", "recommandation": "Je vous suggère de confirmer un facing renforcé (6 à 10 faces) pour Sandwich Autres 4.80.", "impact": "Vous sécurisez environ 3749 € de chiffre d'affaires déjà généré par cette référence.", "candidate_id": "RET-R4-Sandwich_A_c69dfd", "score_final": 57.0, "impact_eur": 3748.8}, {"etat": "🔥 À AGIR", "rule_id": "R4-RENFORT-A", "article": "Glace floup -20P", "situation": "Glace floup -20P représente 22.9 % du chiffre d'affaires du rayon.", "contexte": "Cette contribution est calculée sur l'ensemble des références du rayon, pas seulement sa catégorie.", "analyse": "Une référence à ce niveau de contribution mérite un facing à la hauteur de son poids réel.", "consequence": "Un sous-dimensionnement de facing sur cette référence représente un risque estimé à 3460 €.", "recommandation": "Le bon geste ici serait de confirmer un facing renforcé (6 à 10 faces) pour Glace floup -20P.", "impact": "Vous sécurisez environ 3460 € de chiffre d'affaires déjà généré par cette référence.", "candidate_id": "RET-R4-Glace_flou_2ef1a0", "score_final": 55.8, "impact_eur": 3460.16}, {"etat": "🔥 À AGIR", "rule_id": "R4-RENFORT-A", "article": "Magnum TT PARF -20P", "situation": "Magnum TT PARF -20P représente 22.7 % du chiffre d'affaires du rayon.", "contexte": "Cette contribution est calculée sur l'ensemble des références du rayon, pas seulement sa catégorie.", "analyse": "Une référence à ce niveau de contribution mérite un facing à la hauteur de son poids réel.", "consequence": "Un sous-dimensionnement de facing sur cette référence représente un risque estimé à 3429 €.", "recommandation": "Je recommande de confirmer un facing renforcé (6 à 10 faces) pour Magnum TT PARF -20P.", "impact": "Vous sécurisez environ 3429 € de chiffre d'affaires déjà généré par cette référence.", "candidate_id": "RET-R4-Magnum_TT_9cd814", "score_final": 55.7, "impact_eur": 3428.65}, {"etat": "🔥 À AGIR", "rule_id": "R4-RENFORT-A", "article": "Feuille a rouler OCB slim+ filtre - 32P", "situation": "Feuille a rouler OCB slim+ filtre - 32P représente 38.8 % du chiffre d'affaires du rayon.", "contexte": "Cette contribution est calculée sur l'ensemble des références du rayon, pas seulement sa catégorie.", "analyse": "Une référence à ce niveau de contribution mérite un facing à la hauteur de son poids réel.", "consequence": "Un sous-dimensionnement de facing sur cette référence représente un risque estimé à 3177 €.", "recommandation": "Mon conseil serait de confirmer un facing renforcé (6 à 10 faces) pour Feuille a rouler OCB slim+ filtre - 32P.", "impact": "Vous sécurisez environ 3177 € de chiffre d'affaires déjà généré par cette référence.", "candidate_id": "RET-R4-Feuille_a_ba5e92", "score_final": 54.7, "impact_eur": 3177.46}, {"etat": "🔥 À AGIR", "rule_id": "R4-RENFORT-A", "article": "neos mini rouge 10 -P10", "situation": "neos mini rouge 10 -P10 représente 24.6 % du chiffre d'affaires du rayon.", "contexte": "Cette contribution est calculée sur l'ensemble des références du rayon, pas seulement sa catégorie.", "analyse": "Une référence à ce niveau de contribution mérite un facing à la hauteur de son poids réel.", "consequence": "Un sous-dimensionnement de facing sur cette référence représente un risque estimé à 2804 €.", "recommandation": "Il serait utile de confirmer un facing renforcé (6 à 10 faces) pour neos mini rouge 10 -P10.", "impact": "Vous sécurisez environ 2804 € de chiffre d'affaires déjà généré par cette référence.", "candidate_id": "RET-R4-neos_mini_687004", "score_final": 53.2, "impact_eur": 2804.0}, {"etat": "🔥 À AGIR", "rule_id": "R4-RENFORT-A", "article": "Bière Porter 39 25cl -24P", "situation": "Bière Porter 39 25cl -24P représente 44.9 % du chiffre d'affaires du rayon.", "contexte": "Cette contribution est calculée sur l'ensemble des références du rayon, pas seulement sa catégorie.", "analyse": "Une référence à ce niveau de contribution mérite un facing à la hauteur de son poids réel.", "consequence": "Un sous-dimensionnement de facing sur cette référence représente un risque estimé à 2691 €.", "recommandation": "Le plus efficace serait de confirmer un facing renforcé (6 à 10 faces) pour Bière Porter 39 25cl -24P.", "impact": "Vous sécurisez environ 2691 € de chiffre d'affaires déjà généré par cette référence.", "candidate_id": "RET-R4-Bière_Port_3a6335", "score_final": 52.8, "impact_eur": 2691.3599999999997}, {"etat": "📈 OPPORTUNITÉ", "rule_id": "R3-HAUSSE", "article": "TRANSCASH 160", "situation": "Les ventes de TRANSCASH 160 progressent de 57.1 %.", "contexte": "Cette progression est mesurée entre les deux périodes suivies (T1 et T2).", "analyse": "Cette dynamique dépasse la progression moyenne du rayon.", "consequence": "Cette croissance peut être amplifiée si l'espace en vitrine suit la demande.", "recommandation": "Je vous suggère de renforcer le facing de TRANSCASH 160 avant la période suivante.", "impact": "Vous sécurisez un gain potentiel estimé à 2640 € si la tendance se poursuit.", "candidate_id": "RET-R3-TRANSCASH_8d7700", "score_final": 52.6, "impact_eur": 2640.0}];
+
+  // ------------------------------------------------------------
+  // Recommandations du Conseiller NEXUS — CORRIGE le 20/07/2026 (Frederic a
+  // signale qu'un facing Heineken valide restait visible ici ET dans
+  // Cockpit). Cause : cette carte utilisait un jeu de donnees fige/de demo
+  // (candidate_id type "RET-R4-..."), totalement decorrele des vraies ventes
+  // et du moteur de detection live utilise par Cockpit et Centre
+  // d'Intelligence (candidate_id type "LIVE-R4-<rayon>|<article>") — valider
+  // une recommandation ailleurs ne pouvait donc jamais faire disparaitre
+  // celle-ci. Missions utilise maintenant le MEME moteur live (memes regles,
+  // memes candidate_id) que Cockpit/CIN, sur les memes donnees "products",
+  // pour que valider une recommandation depuis n'importe quel ecran la fasse
+  // disparaitre partout.
+  // ------------------------------------------------------------
+  function typeActionPourCategorie(categorie) {
+    const c = (categorie || '').toLowerCase();
+    if (c.includes('gaz')) return 'stock';
+    if (c.includes('carte') || c.includes('prépayé') || c.includes('prepaye') || c.includes('transcash') || c.includes('pcs')) return 'support';
+    if (c.includes('pain') || c.includes('patisserie') || c.includes('pâtisserie') || c.includes('viennoiserie') || c.includes('sandwich') || c.includes('snack')) return 'production';
+    if (c.includes('tabac') || c.includes('cigarette') || c.includes('paquet de')) return 'comptoir';
+    if (c.includes('presse')) return 'presentoir';
+    return 'facing';
+  }
+
+  const LANGAGE_ACTION = {
+    facing: {
+      analyseAgir: "Une référence à ce niveau de contribution mérite un facing à la hauteur de son poids réel.",
+      recoAgir: a => `Je recommande de vérifier et renforcer le facing de ${a}.`,
+      consAgir: m => `Un sous-dimensionnement de facing sur cette référence représente un risque estimé à ${m} €.`,
+      recoHausse: a => `Il serait utile de renforcer le facing de ${a} avant la période suivante.`,
+      recoBaisse: a => `Vérifiez la présence en rayon de ${a} avant toute décision.`,
+    },
+    stock: {
+      analyseAgir: "Une référence à ce niveau de contribution ne doit jamais être en rupture en dépôt — elle n'est pas exposée en rayon comme les autres.",
+      recoAgir: a => `Je recommande de vérifier le stock disponible en dépôt/cage pour ${a}.`,
+      consAgir: m => `Une rupture de stock sur cette référence représente un risque estimé à ${m} €.`,
+      recoHausse: a => `Sécurisez davantage de stock de ${a} avant la période suivante.`,
+      recoBaisse: a => `Vérifiez le stock en dépôt/cage de ${a} avant toute décision.`,
+    },
+    support: {
+      analyseAgir: "Une référence à ce niveau de contribution dépend surtout de la disponibilité du support et de son activation en caisse, pas d'un emplacement en rayon.",
+      recoAgir: a => `Je recommande de vérifier le stock de cartes et la bonne activation en caisse pour ${a}.`,
+      consAgir: m => `Une indisponibilité de ce support représente un risque estimé à ${m} €.`,
+      recoHausse: a => `Prévoyez davantage de support et d'activation pour ${a} avant la période suivante.`,
+      recoBaisse: a => `Vérifiez la disponibilité du support et son activation en caisse pour ${a} avant toute décision.`,
+    },
+    production: {
+      analyseAgir: "Une référence à ce niveau de contribution dépend surtout de la quantité produite ou commandée chaque jour — c'est un produit frais, pas un facing.",
+      recoAgir: a => `Je recommande d'ajuster la quantité commandée ou produite de ${a} au niveau réel de la demande.`,
+      consAgir: m => `Une quantité insuffisante sur cette référence fraîche représente un risque estimé à ${m} €.`,
+      recoHausse: a => `Augmentez la quantité commandée ou produite de ${a} avant la période suivante.`,
+      recoBaisse: a => `Vérifiez si la quantité produite ou commandée de ${a} a été réduite avant toute décision.`,
+    },
+    comptoir: {
+      analyseAgir: "Une référence à ce niveau de contribution doit rester visible et disponible au comptoir en priorité.",
+      recoAgir: a => `Je recommande de vérifier la disponibilité au comptoir de ${a}.`,
+      consAgir: m => `Une rupture au comptoir sur cette référence représente un risque estimé à ${m} €.`,
+      recoHausse: a => `Garantissez la disponibilité au comptoir de ${a} avant la période suivante.`,
+      recoBaisse: a => `Vérifiez la disponibilité au comptoir de ${a} avant toute décision.`,
+    },
+    presentoir: {
+      analyseAgir: "Une référence à ce niveau de contribution mérite une bonne visibilité sur le présentoir.",
+      recoAgir: a => `Je recommande de vérifier l'emplacement de ${a} sur le présentoir.`,
+      consAgir: m => `Un mauvais emplacement sur cette référence représente un risque estimé à ${m} €.`,
+      recoHausse: a => `Améliorez l'emplacement de ${a} sur le présentoir avant la période suivante.`,
+      recoBaisse: a => `Vérifiez l'emplacement de ${a} sur le présentoir avant toute décision.`,
+    },
+  };
+
+  async function chargerProduitsAppel() {
+    const { data, error } = await nexusClient.from('produits_appel').select('article').eq('site', SITE_ACTUEL);
+    if (error) { console.error('Chargement produits d’appel:', error); return new Set(); }
+    return new Set((data || []).map(r => r.article));
+  }
+
+  // Supabase plafonne chaque requete a 1000 lignes par defaut, sans erreur —
+  // ce helper boucle par pages de 1000 jusqu'a tout recuperer. Meme correctif
+  // que Cockpit/CIN (trouve le 15/07/2026).
+  async function fetchAllRows(builderFactory, pageSize = 1000) {
+    let toutes = [];
+    let from = 0;
+    while (true) {
+      const { data, error } = await builderFactory().range(from, from + pageSize - 1);
+      if (error) return { data: null, error };
+      toutes = toutes.concat(data || []);
+      if (!data || data.length < pageSize) break;
+      from += pageSize;
+    }
+    return { data: toutes, error: null };
+  }
+
+  async function construirePlansAction() {
+    const [{ data, error }, produitsAppel] = await Promise.all([
+      fetchAllRows(() => nexusClient
+        .from('products')
+        .select('categorie, article, ca, marge, periode_debut, periode_fin')
+        .eq('site', SITE_ACTUEL)
+        .order('periode_debut', { ascending: false })
+        .order('article', { ascending: true })),
+      chargerProduitsAppel(),
+    ]);
+    if (error || !data || !data.length) { if (error) console.error('Chargement products (plans action):', error); return []; }
+
+    const rowsBrut = data.filter(r => !produitsAppel.has(r.article));
+    const periodes = [...new Set(rowsBrut.map(r => r.periode_debut))].sort().reverse();
+    const periodeActuelle = periodes[0];
+    const periodePrecedente = periodes[1] || null;
+    const rowsActuels = rowsBrut.filter(r => r.periode_debut === periodeActuelle);
+    const rowsPrecedents = periodePrecedente ? rowsBrut.filter(r => r.periode_debut === periodePrecedente) : [];
+
+    const caTotalParRayon = {};
+    rowsActuels.forEach(r => { caTotalParRayon[r.categorie] = (caTotalParRayon[r.categorie] || 0) + (r.ca || 0); });
+
+    const precedentParArticle = {};
+    rowsPrecedents.forEach(r => {
+      const cle = r.categorie + '|' + r.article;
+      precedentParArticle[cle] = (precedentParArticle[cle] || 0) + (r.ca || 0);
+    });
+
+    const candidats = [];
+    const fmt = v => Math.round(v).toLocaleString('fr-FR');
+
+    rowsActuels.forEach(p => {
+      const caRayon = caTotalParRayon[p.categorie] || 0;
+      const contribution = caRayon > 0 ? p.ca / caRayon : 0;
+      const cle = p.categorie + '|' + p.article;
+      const caPrec = precedentParArticle[cle];
+      const evolution = (caPrec && caPrec > 0) ? (p.ca - caPrec) / caPrec : null;
+
+      if (contribution >= 0.15 && p.ca > 0) {
+        const lang = LANGAGE_ACTION[typeActionPourCategorie(p.categorie)];
+        candidats.push({
+          etat: "🔥 À AGIR", rule_id: "R4-RENFORT-A", article: p.article, categorie: p.categorie,
+          situation: `${p.article} représente ${(contribution*100).toFixed(1)} % du chiffre d'affaires du rayon ${p.categorie}.`,
+          contexte: "Cette contribution est calculée sur l'ensemble des références du rayon.",
+          analyse: lang.analyseAgir,
+          consequence: lang.consAgir(fmt(p.ca)),
+          recommandation: lang.recoAgir(p.article),
+          impact: `Vous sécurisez environ ${fmt(p.ca)} € de chiffre d'affaires déjà généré par cette référence.`,
+          candidate_id: `LIVE-R4-${cle}`, impact_eur: p.ca,
+        });
+      }
+      if (evolution !== null && evolution >= 0.20) {
+        const gain = Math.max(p.ca - caPrec, 0);
+        const lang = LANGAGE_ACTION[typeActionPourCategorie(p.categorie)];
+        candidats.push({
+          etat: "📈 OPPORTUNITÉ", rule_id: "R3-HAUSSE", article: p.article, categorie: p.categorie,
+          situation: `Les ventes de ${p.article} progressent de ${(evolution*100).toFixed(1)} % sur la période.`,
+          contexte: "Cette progression est mesurée entre les deux périodes importées.",
+          analyse: "Cette dynamique dépasse une croissance ordinaire.",
+          consequence: "Cette croissance peut être amplifiée si l'offre suit la demande.",
+          recommandation: lang.recoHausse(p.article),
+          impact: `Vous avez gagné environ ${fmt(gain)} € sur cette référence depuis la période précédente.`,
+          candidate_id: `LIVE-R3-${cle}`, impact_eur: gain,
+        });
+      }
+      if (evolution !== null && evolution <= -0.30) {
+        const perte = Math.max(caPrec - p.ca, 0);
+        const lang = LANGAGE_ACTION[typeActionPourCategorie(p.categorie)];
+        candidats.push({
+          etat: "🟡 À SURVEILLER", rule_id: "R2-BAISSE", article: p.article, categorie: p.categorie,
+          situation: `Les ventes de ${p.article} chutent de ${(evolution*100).toFixed(1)} % sur la période.`,
+          contexte: "NEXUS ne dispose pas de la donnée de stock pour cette référence.",
+          analyse: "Je ne peux pas encore conclure à une vraie tendance sans vérification terrain.",
+          consequence: "Une rupture non détectée expliquerait aussi bien cette baisse qu'un désintérêt réel.",
+          recommandation: lang.recoBaisse(p.article),
+          impact: "Vérification demandée — aucune conclusion tant que le stock n'est pas confirmé.",
+          candidate_id: `LIVE-R2-${cle}`, impact_eur: perte,
+        });
+      }
+    });
+
+    candidats.sort((a, b) => b.impact_eur - a.impact_eur);
+    return candidats;
+  }
+
+  let PLANS_ACTION = [];
   const ETAT_CLASS = {
     "🔥 À AGIR": "etat-agir", "📈 OPPORTUNITÉ": "etat-opportunite",
     "🟡 À SURVEILLER": "etat-surveiller", "🔴 À DÉCIDER": "etat-decider",
     "💡 RECOMMANDATION": "etat-recommandation",
   };
   async function chargerValidees() {
-    const { data, error } = await nexusClient.from('recommandations_validees').select('candidate_id').eq('site', SITE_ACTUEL);
+    // Fenetre de 30 jours — meme regle que Centre d'Intelligence : une
+    // recommandation validee reste masquee 30 jours, puis peut resurgir si la
+    // situation le justifie encore.
+    const il30j = new Date(Date.now() - 30*24*60*60*1000).toISOString();
+    const { data, error } = await nexusClient.from('recommandations_validees').select('candidate_id').eq('site', SITE_ACTUEL).gte('created_at', il30j);
     if (error) { console.error('Lecture recommandations validées:', error); return []; }
     return (data || []).map(r => r.candidate_id);
   }
@@ -548,7 +728,10 @@
     catalogue = await chargerCatalogue();
     checkState = await chargerProgressionSupabase(employeeId);
     completionsCache = await chargerCompletionsSupabase(employeeId);
-    if (roleDuJour === 'manager') EMPLOYES_SITE = await chargerEmployesSite();
+    if (roleDuJour === 'manager') {
+      EMPLOYES_SITE = await chargerEmployesSite();
+      PLANS_ACTION = await construirePlansAction();
+    }
 
     const tabsEl = document.getElementById('tabs');
     FAMILLES.forEach(f => {
