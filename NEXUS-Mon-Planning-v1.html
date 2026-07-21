@@ -126,12 +126,14 @@
 
     document.getElementById('sousTitre').textContent = `Bonjour ${employee.nom}`;
 
+    const TACHE_LABEL = { piste: 'Piste', caisse: 'Caisse' };
     function chip(ps, estMoi) {
       const s = STATUT_STYLE[ps.statut] || STATUT_STYLE.travail_normal;
       const heures = (ps.heure_debut && ps.heure_fin) ? `<small>${heureCourte(ps.heure_debut)}-${heureCourte(ps.heure_fin)}</small>` : '';
       const site = ps.site_transfert ? ` (${ps.site_transfert})` : '';
+      const tache = (ps.statut === 'travail_normal' && ps.tache) ? ` <small>· ${TACHE_LABEL[ps.tache] || ps.tache}</small>` : '';
       const nom = ps._nom || '';
-      return `<span class="chip${estMoi ? ' chip-moi' : ''}" style="background:${s.bg}; border-color:${s.bd}; color:${s.fg};">${nom}${site}${heures}</span>`;
+      return `<span class="chip${estMoi ? ' chip-moi' : ''}" style="background:${s.bg}; border-color:${s.bd}; color:${s.fg};">${nom}${site}${tache}${heures}</span>`;
     }
 
     // ------------------------------------------------------------
@@ -181,8 +183,9 @@
           chipsHtml = travail.map(r => {
             const s = STATUT_STYLE[r.statut];
             const label = STATUT_LABEL[r.statut] || '';
+            const tacheLabel = (r.statut === 'travail_normal' && r.tache) ? (' · ' + (TACHE_LABEL[r.tache] || r.tache)) : '';
             const heures = (r.heure_debut && r.heure_fin) ? `<small>${heureCourte(r.heure_debut)}-${heureCourte(r.heure_fin)}</small>` : '';
-            return `<span class="chip" style="background:${s.bg}; border-color:${s.bd}; color:${s.fg};">${QUART_LABEL[r.quart] || r.quart}${label ? ' · ' + label : ''}${heures}</span>`;
+            return `<span class="chip" style="background:${s.bg}; border-color:${s.bd}; color:${s.fg};">${QUART_LABEL[r.quart] || r.quart}${label ? ' · ' + label : ''}${tacheLabel}${heures}</span>`;
           }).join('');
         } else {
           chipsHtml = '<span class="chip-vide">—</span>';
