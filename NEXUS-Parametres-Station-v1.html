@@ -72,7 +72,7 @@
     <a href="NEXUS-App-v1.html" class="menu-btn">☰ Menu</a>
     <div class="eyebrow">NEXUS · Manager</div>
     <div class="title">Paramètres Station</div>
-    <div class="subtitle">Ces horaires servent au calcul des retards (Pointage)</div>
+    <div class="subtitle">Ces horaires servent au calcul des retards (Pointage) et à Nexus Planner</div>
   </div>
   <div class="divider"></div>
 
@@ -84,9 +84,22 @@
     </div>
 
     <div class="card">
+      <div class="section-label">Quart 1 — Fin de service</div>
+      <div class="note">Utilisée par Nexus Planner pour calculer la durée réelle du quart (plus une durée devinée).</div>
+      <div class="row"><label>Dimanche à Mercredi</label><input type="time" id="q1_fin_normal"></div>
+      <div class="row"><label>Jeudi à Samedi</label><input type="time" id="q1_fin_etendu"></div>
+    </div>
+
+    <div class="card">
       <div class="section-label">Quart 2 — Début de service attendu</div>
       <div class="row"><label>Dimanche à Mercredi</label><input type="time" id="q2_normal"></div>
       <div class="row"><label>Jeudi à Samedi</label><input type="time" id="q2_etendu"></div>
+    </div>
+
+    <div class="card">
+      <div class="section-label">Quart 2 — Fin de service</div>
+      <div class="row"><label>Dimanche à Mercredi</label><input type="time" id="q2_fin_normal"></div>
+      <div class="row"><label>Jeudi à Samedi</label><input type="time" id="q2_fin_etendu"></div>
     </div>
 
     <div class="card">
@@ -95,6 +108,12 @@
       <div class="row"><label>Début pause</label><input type="time" id="r_pause_debut"></div>
       <div class="row"><label>Fin pause</label><input type="time" id="r_pause_fin"></div>
       <div class="row"><label>Fin</label><input type="time" id="r_fin"></div>
+    </div>
+
+    <div class="card">
+      <div class="section-label">Temps d'habillage</div>
+      <div class="note">Le quart 1 démarre à l'heure de prise de poste (ex: 5h45) ; la station ouvre au public ce temps plus tard (ex: 6h00 si 15 min). Symétriquement, elle ferme au public ce temps avant la fin du dernier quart.</div>
+      <div class="row"><label>Minutes</label><input type="number" id="temps_habillage" min="0" step="1" style="width:80px;"></div>
     </div>
 
     <button class="btn btn-primary" id="sauvegarder">Enregistrer les horaires</button>
@@ -126,10 +145,15 @@
     const session = { prenom: employee.nom, role: employee.role };
 
 
+  // Valeurs par défaut Vito Sainte-Marie Usine. Les fins de quart
+  // reprennent l'ancienne règle devinée (+7h dim-mer, +8h jeu-sam)
+  // comme point de départ raisonnable — modifiable librement une
+  // fois que les vraies heures de fermeture sont connues.
   const HORAIRES_DEFAUT = {
-    quart1: { normal: "05:45", etendu: "05:45" },
-    quart2: { normal: "12:40", etendu: "13:40" },
+    quart1: { normal: "05:45", etendu: "05:45", fin_normal: "12:45", fin_etendu: "13:45" },
+    quart2: { normal: "12:40", etendu: "13:40", fin_normal: "19:40", fin_etendu: "21:40" },
     renfort: { debut: "09:00", fin: "17:00", pause_debut: "13:00", pause_fin: "14:00" },
+    temps_habillage_min: 15,
   };
 
   // Table Supabase station_config — remplace localStorage('nexus_config_horaires'),
@@ -145,12 +169,17 @@
   function remplirFormulaire(config) {
     document.getElementById('q1_normal').value = config.quart1.normal;
     document.getElementById('q1_etendu').value = config.quart1.etendu;
+    document.getElementById('q1_fin_normal').value = config.quart1.fin_normal || HORAIRES_DEFAUT.quart1.fin_normal;
+    document.getElementById('q1_fin_etendu').value = config.quart1.fin_etendu || HORAIRES_DEFAUT.quart1.fin_etendu;
     document.getElementById('q2_normal').value = config.quart2.normal;
     document.getElementById('q2_etendu').value = config.quart2.etendu;
+    document.getElementById('q2_fin_normal').value = config.quart2.fin_normal || HORAIRES_DEFAUT.quart2.fin_normal;
+    document.getElementById('q2_fin_etendu').value = config.quart2.fin_etendu || HORAIRES_DEFAUT.quart2.fin_etendu;
     document.getElementById('r_debut').value = config.renfort.debut;
     document.getElementById('r_pause_debut').value = config.renfort.pause_debut;
     document.getElementById('r_pause_fin').value = config.renfort.pause_fin;
     document.getElementById('r_fin').value = config.renfort.fin;
+    document.getElementById('temps_habillage').value = (config.temps_habillage_min != null) ? config.temps_habillage_min : HORAIRES_DEFAUT.temps_habillage_min;
   }
 
   // Garde les horaires actuellement charges en memoire : station_config.horaires
@@ -164,12 +193,19 @@
     const btn = document.getElementById('sauvegarder');
     btn.disabled = true;
     const config = {
-      quart1: { normal: document.getElementById('q1_normal').value, etendu: document.getElementById('q1_etendu').value },
-      quart2: { normal: document.getElementById('q2_normal').value, etendu: document.getElementById('q2_etendu').value },
+      quart1: {
+        normal: document.getElementById('q1_normal').value, etendu: document.getElementById('q1_etendu').value,
+        fin_normal: document.getElementById('q1_fin_normal').value, fin_etendu: document.getElementById('q1_fin_etendu').value,
+      },
+      quart2: {
+        normal: document.getElementById('q2_normal').value, etendu: document.getElementById('q2_etendu').value,
+        fin_normal: document.getElementById('q2_fin_normal').value, fin_etendu: document.getElementById('q2_fin_etendu').value,
+      },
       renfort: {
         debut: document.getElementById('r_debut').value, fin: document.getElementById('r_fin').value,
         pause_debut: document.getElementById('r_pause_debut').value, pause_fin: document.getElementById('r_pause_fin').value,
       },
+      temps_habillage_min: parseInt(document.getElementById('temps_habillage').value, 10) || 0,
     };
     const { error } = await nexusClient.from('station_config').upsert(
       { site: employee.site_id || 'vito-sainte-marie', horaires: config, updated_at: new Date().toISOString() },
@@ -251,7 +287,7 @@
     const sp = numFR(document.getElementById('prix_sp').value);
     const go = numFR(document.getElementById('prix_go').value);
     const gnr = numFR(document.getElementById('prix_gnr').value);
-    if (isNaN(sp) || isNaN(go) || isNaN(gnr)) { alert('Renseignez les 3 prix (SP, GO, GNR).'); return; }
+    if (isNaN(sp) || isNaN(go) || isNaN(gnr)) { alert('Renseignez les 3 nouveaux prix (SP, GO, GNR).'); return; }
     btn.disabled = true;
     const prix_carburants = { mois: moisCourantISO(), sp, go, gnr, maj_par: employee.nom, maj_le: new Date().toISOString() };
     const { error } = await nexusClient.from('station_config').upsert(
