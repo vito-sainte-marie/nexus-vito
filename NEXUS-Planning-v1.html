@@ -310,7 +310,7 @@
     async function chargerIndisponibilites() {
       const { data, error } = await nexusClient
         .from('employee_indisponibilites')
-        .select('*, employees(nom)')
+        .select('*, employees!employee_indisponibilites_employee_id_fkey(nom)')
         .eq('site_id', siteId)
         .order('date_debut', { ascending: false });
       if (error) { console.error('Chargement employee_indisponibilites:', error); return; }
@@ -454,7 +454,7 @@
       const fin = finMoisISO(MOIS_COURANT);
       const { data, error } = await nexusClient
         .from('planning_shifts')
-        .select('*, employees(nom)')
+        .select('*, employees!planning_shifts_employee_id_fkey(nom)')
         .eq('site_id', siteId)
         .gte('date', debut).lt('date', fin)
         .order('date').order('quart');
