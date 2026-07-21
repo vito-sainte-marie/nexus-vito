@@ -113,10 +113,17 @@
         <div class="mois-label" id="moisLabel"></div>
         <button id="moisSuiv">Mois suiv. →</button>
       </div>
+      <div class="note">La génération ne touche jamais la semaine en cours ni le passé — elle démarre toujours au lundi de la semaine suivante et va jusqu'à la fin du mois choisi.</div>
       <button class="btn btn-primary" id="btnGenerer">Générer le brouillon du mois</button>
       <button class="btn btn-secondary" id="btnPublier">Publier ce mois (visible équipe)</button>
       <div id="resultatGeneration" class="gap-list"></div>
       <div id="resultatDepassements" class="gap-list"></div>
+    </div>
+
+    <div class="card">
+      <div class="section-label">Historique des générations</div>
+      <div class="note">Mémoire des dernières générations sur ce site — plage réellement générée, trous rencontrés, qui et quand. Sert de repère pour que les prochaines générations restent cohérentes.</div>
+      <div id="historiqueGenerations"><div class="note">Chargement…</div></div>
     </div>
 
     <div class="card">
@@ -443,6 +450,30 @@
     });
 
     // ------------------------------------------------------------
+    // Historique des générations (mémoire pour rester cohérent
+    // d'une génération à l'autre — cf. table planning_generations).
+    // ------------------------------------------------------------
+    async function chargerHistoriqueGenerations() {
+      const conteneur = document.getElementById('historiqueGenerations');
+      const { data, error } = await nexusClient
+        .from('planning_generations')
+        .select('*, employees(nom)')
+        .eq('site_id', siteId)
+        .order('genere_le', { ascending: false })
+        .limit(10);
+      if (error) { console.error('Chargement planning_generations:', error); conteneur.innerHTML = '<div class="note">Erreur de chargement.</div>'; return; }
+      if (!data || data.length === 0) { conteneur.innerHTML = '<div class="note">Aucune génération enregistrée pour l\'instant.</div>'; return; }
+      conteneur.innerHTML = data.map(g => {
+        const quand = new Date(g.genere_le).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+        const qui = g.employees ? g.employees.nom : 'Système';
+        const trous = g.nb_trous > 0 ? `<span style="color:var(--amber);">${g.nb_trous} trou(s)</span>` : `<span style="color:var(--green);">complet</span>`;
+        return `<div class="indispo-item">
+          <div>${quand} · ${qui} — plage générée du ${g.debut_reel} au ${g.fin_reel} · ${g.nb_lignes} lignes · ${trous}</div>
+        </div>`;
+      }).join('');
+    }
+
+    // ------------------------------------------------------------
     // Génération + affichage du planning du mois sélectionné.
     // ------------------------------------------------------------
     function renderMoisLabel() {
@@ -540,6 +571,7 @@
       }
 
       chargerEtAfficherPlanning();
+      chargerHistoriqueGenerations();
     });
 
     document.getElementById('btnPublier').addEventListener('click', async () => {
@@ -574,6 +606,7 @@
     await chargerRegles();
     renderMoisLabel();
     await chargerEtAfficherPlanning();
+    await chargerHistoriqueGenerations();
   });
 </script>
 </body>
