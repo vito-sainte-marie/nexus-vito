@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NEXUS — Mon Planning</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
+    --text:#EDF1F5; --text-mid:#8A96A5; --text-dim:#57626F;
+    --green:#34D399; --green-dim:#153629; --cyan:#4FC3D9;
+    --amber:#F5A623; --amber-dim:#3A2E14;
+    --rouge:#F0575A; --rouge-dim:#3A1D1F;
+    --violet:#A883FF; --violet-dim:#241C3A;
+    --mono:'IBM Plex Mono',monospace; --sans:'IBM Plex Sans',sans-serif;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{background:var(--bg); font-family:var(--sans); color:var(--text);}
+  body{display:flex; justify-content:center; min-height:100vh;}
+  .phone{width:100%; max-width:480px; min-height:100vh; display:flex; flex-direction:column; border-left:1px solid var(--hairline); border-right:1px solid var(--hairline);}
+
+  .header{padding:20px 20px 14px; position:relative;}
+  .menu-btn{
+    position:absolute; top:18px; right:18px; display:flex; align-items:center; gap:6px;
+    font-family:var(--mono); font-size:10.5px; font-weight:600; letter-spacing:0.03em; text-transform:uppercase;
+    color:var(--cyan); background:rgba(79,195,217,0.1); border:1px solid rgba(79,195,217,0.3);
+    border-radius:20px; padding:7px 12px; text-decoration:none; white-space:nowrap; z-index:5;
+  }
+  .eyebrow{font-family:var(--mono); font-size:11px; letter-spacing:0.12em; text-transform:uppercase; color:var(--cyan);}
+  .title{font-size:20px; font-weight:600; margin-top:4px;}
+  .subtitle{font-family:var(--mono); font-size:11px; color:var(--text-dim); margin-top:4px;}
+  .divider{height:1px; background:var(--hairline); margin:0 20px;}
+
+  .section{padding:16px 20px;}
+  .card{background:var(--panel); border:1px solid var(--hairline); border-radius:12px; padding:18px; margin-bottom:14px;}
+  .section-label{font-family:var(--mono); font-size:10.5px; letter-spacing:0.08em; text-transform:uppercase; color:var(--text-dim); margin-bottom:12px; display:flex; align-items:center; gap:8px;}
+  .section-label::after{content:''; flex:1; height:1px; background:var(--hairline);}
+  .note{font-family:var(--sans); font-size:11.5px; color:var(--text-mid); line-height:1.5; margin:-4px 0 12px;}
+
+  .mois-nav{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:14px;}
+  .mois-nav button{background:var(--panel-raised); border:1px solid var(--hairline); color:var(--text); border-radius:8px; padding:8px 12px; font-family:var(--mono); cursor:pointer;}
+  .mois-label{font-family:var(--mono); font-size:13px; font-weight:600; text-transform:capitalize;}
+
+  .jour-perso{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 0; border-bottom:1px solid var(--hairline);}
+  .jour-perso:last-child{border-bottom:none;}
+  .jour-perso-date{font-family:var(--mono); font-size:12px; white-space:nowrap;}
+  .jour-perso-date .dow{color:var(--text-dim); text-transform:capitalize; margin-right:6px;}
+  .jour-perso-chips{display:flex; flex-wrap:wrap; gap:6px; justify-content:flex-end;}
+
+  .jour-card{border:1px solid var(--hairline); border-radius:10px; padding:12px; margin-bottom:8px;}
+  .jour-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;}
+  .jour-date{font-family:var(--mono); font-size:12px; font-weight:600;}
+  .jour-date .dow{color:var(--text-dim); text-transform:capitalize; margin-right:6px;}
+  .quart-row{margin-bottom:6px;}
+  .quart-label{font-family:var(--mono); font-size:9.5px; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.05em; margin-bottom:4px;}
+  .chips{display:flex; flex-wrap:wrap; gap:6px;}
+  .chip{font-family:var(--mono); font-size:11px; padding:5px 9px; border-radius:20px; border:1px solid; white-space:nowrap;}
+  .chip small{opacity:0.7; margin-left:4px;}
+  .chip-vide{font-family:var(--mono); font-size:10.5px; color:var(--text-dim); font-style:italic;}
+  .chip-moi{box-shadow:0 0 0 2px var(--cyan) inset;}
+
+  footer{margin-top:auto; padding:16px 20px 24px; font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:center; border-top:1px solid var(--hairline);}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="nexus-auth.js"></script>
+</head>
+<body>
+<div class="phone" id="app">
+  <div class="header">
+    <a href="NEXUS-App-v1.html" class="menu-btn">☰ Menu</a>
+    <div class="eyebrow">NEXUS</div>
+    <div class="title">Mon Planning</div>
+    <div class="subtitle" id="sousTitre">Vos jours de travail et de repos</div>
+  </div>
+  <div class="divider"></div>
+
+  <div class="section">
+    <div class="card">
+      <div class="mois-nav">
+        <button id="moisPrec">← Mois préc.</button>
+        <div class="mois-label" id="moisLabel"></div>
+        <button id="moisSuiv">Mois suiv. →</button>
+      </div>
+      <div class="section-label">Mon planning</div>
+      <div id="monPlanning"><div class="note">Chargement…</div></div>
+    </div>
+
+    <div class="card">
+      <div class="section-label">Planning de l'équipe</div>
+      <div class="note">Votre ligne est mise en évidence.</div>
+      <div id="planningEquipe"><div class="note">Chargement…</div></div>
+    </div>
+  </div>
+
+  <footer>Nexus Planner · Vue employé</footer>
+</div>
+
+<script>
+  const JOURS = ['dimanche','lundi','mardi','mercredi','jeudi','vendredi','samedi'];
+  const MOIS_LABELS = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+  const QUART_LABEL = { quart1:'Quart 1', quart2:'Quart 2', renfort:'Renfort' };
+  const STATUT_LABEL = { travail_normal:'', manager:'Manager', renfort:'Renfort', repos:'Repos', conge:'Congé', transfert_site:'Transfert' };
+  const STATUT_STYLE = {
+    travail_normal: { bg:'var(--panel-raised)', bd:'var(--hairline)', fg:'var(--text)' },
+    manager:        { bg:'rgba(79,195,217,0.15)', bd:'rgba(79,195,217,0.45)', fg:'var(--cyan)' },
+    renfort:        { bg:'rgba(52,211,153,0.15)', bd:'rgba(52,211,153,0.45)', fg:'var(--green)' },
+    repos:          { bg:'var(--rouge-dim)', bd:'rgba(240,87,90,0.45)', fg:'var(--rouge)' },
+    conge:          { bg:'var(--violet-dim)', bd:'rgba(168,131,255,0.45)', fg:'var(--violet)' },
+    transfert_site: { bg:'var(--amber-dim)', bd:'rgba(245,166,35,0.45)', fg:'var(--amber)' },
+  };
+
+  function premierJourMois(d) { return new Date(d.getFullYear(), d.getMonth(), 1); }
+  function moisISO(d) { return premierJourMois(d).toISOString().slice(0, 10); }
+  function moisSuivant(d) { return new Date(d.getFullYear(), d.getMonth() + 1, 1); }
+  function moisPrecedent(d) { return new Date(d.getFullYear(), d.getMonth() - 1, 1); }
+  function finMoisISO(d) { return moisSuivant(d).toISOString().slice(0, 10); }
+  function heureCourte(t) { return t ? t.slice(0, 5) : ''; }
+
+  nexusRequireAuth().then(async employee => {
+    if (!employee) return; // nexus-auth.js gère déjà la redirection vers NEXUS-Login-v1.html
+
+    const siteId = employee.site_id || 'vito-sainte-marie';
+    let MOIS_COURANT = premierJourMois(new Date());
+
+    document.getElementById('sousTitre').textContent = `Bonjour ${employee.nom}`;
+
+    function chip(ps, estMoi) {
+      const s = STATUT_STYLE[ps.statut] || STATUT_STYLE.travail_normal;
+      const heures = (ps.heure_debut && ps.heure_fin) ? `<small>${heureCourte(ps.heure_debut)}-${heureCourte(ps.heure_fin)}</small>` : '';
+      const site = ps.site_transfert ? ` (${ps.site_transfert})` : '';
+      const nom = ps._nom || '';
+      return `<span class="chip${estMoi ? ' chip-moi' : ''}" style="background:${s.bg}; border-color:${s.bd}; color:${s.fg};">${nom}${site}${heures}</span>`;
+    }
+
+    // ------------------------------------------------------------
+    // Mon planning : une ligne par jour, résumée (pas de doublon
+    // quart1/quart2 pour un repos/congé qui couvre toute la journée).
+    // ------------------------------------------------------------
+    async function chargerMonPlanning() {
+      const debut = moisISO(MOIS_COURANT);
+      const fin = finMoisISO(MOIS_COURANT);
+      const { data, error } = await nexusClient
+        .from('planning_shifts')
+        .select('*')
+        .eq('employee_id', employee.id)
+        .eq('site_id', siteId)
+        .gte('date', debut).lt('date', fin)
+        .eq('publie', true)
+        .order('date').order('quart');
+      const conteneur = document.getElementById('monPlanning');
+      if (error) { console.error('Chargement mon planning:', error); conteneur.innerHTML = '<div class="note">Erreur de chargement.</div>'; return; }
+
+      const parJour = {};
+      (data || []).forEach(ps => {
+        if (!parJour[ps.date]) parJour[ps.date] = [];
+        parJour[ps.date].push(ps);
+      });
+
+      const jours = Object.keys(parJour).sort();
+      if (jours.length === 0) { conteneur.innerHTML = '<div class="note">Aucun planning publié pour ce mois pour l\'instant.</div>'; return; }
+
+      conteneur.innerHTML = jours.map(date => {
+        const rows = parJour[date];
+        const dowIdx = new Date(date + 'T12:00:00').getDay();
+        const dow = JOURS[dowIdx];
+        const dateAffichee = new Date(date + 'T12:00:00').toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' });
+
+        let chipsHtml;
+        const conge = rows.find(r => r.statut === 'conge');
+        const repos = rows.find(r => r.statut === 'repos');
+        const travail = rows.filter(r => ['travail_normal', 'manager', 'renfort'].includes(r.statut));
+        if (conge) {
+          const s = STATUT_STYLE.conge;
+          chipsHtml = `<span class="chip" style="background:${s.bg}; border-color:${s.bd}; color:${s.fg};">Congé</span>`;
+        } else if (repos) {
+          const s = STATUT_STYLE.repos;
+          chipsHtml = `<span class="chip" style="background:${s.bg}; border-color:${s.bd}; color:${s.fg};">Repos</span>`;
+        } else if (travail.length > 0) {
+          chipsHtml = travail.map(r => {
+            const s = STATUT_STYLE[r.statut];
+            const label = STATUT_LABEL[r.statut] || '';
+            const heures = (r.heure_debut && r.heure_fin) ? `<small>${heureCourte(r.heure_debut)}-${heureCourte(r.heure_fin)}</small>` : '';
+            return `<span class="chip" style="background:${s.bg}; border-color:${s.bd}; color:${s.fg};">${QUART_LABEL[r.quart] || r.quart}${label ? ' · ' + label : ''}${heures}</span>`;
+          }).join('');
+        } else {
+          chipsHtml = '<span class="chip-vide">—</span>';
+        }
+
+        return `
+          <div class="jour-perso">
+            <div class="jour-perso-date"><span class="dow">${dow}</span>${dateAffichee}</div>
+            <div class="jour-perso-chips">${chipsHtml}</div>
+          </div>`;
+      }).join('');
+    }
+
+    // ------------------------------------------------------------
+    // Planning de l'équipe : même présentation que l'écran manager,
+    // en lecture seule, avec la ligne de l'employé connecté mise en
+    // évidence (contour cyan).
+    // ------------------------------------------------------------
+    async function chargerPlanningEquipe() {
+      const debut = moisISO(MOIS_COURANT);
+      const fin = finMoisISO(MOIS_COURANT);
+      const { data, error } = await nexusClient
+        .from('planning_shifts')
+        .select('*, employees!planning_shifts_employee_id_fkey(nom)')
+        .eq('site_id', siteId)
+        .gte('date', debut).lt('date', fin)
+        .eq('publie', true)
+        .order('date').order('quart');
+      const conteneur = document.getElementById('planningEquipe');
+      if (error) { console.error('Chargement planning equipe:', error); conteneur.innerHTML = '<div class="note">Erreur de chargement.</div>'; return; }
+      if (!data || data.length === 0) { conteneur.innerHTML = '<div class="note">Aucun planning publié pour ce mois pour l\'instant.</div>'; return; }
+
+      const parJour = {};
+      data.forEach(ps => {
+        if (!parJour[ps.date]) parJour[ps.date] = { quart1: [], quart2: [], renfort: [] };
+        ps._nom = ps.employees ? ps.employees.nom : '?';
+        parJour[ps.date][ps.quart].push(ps);
+      });
+
+      conteneur.innerHTML = Object.keys(parJour).sort().map(date => {
+        const j = parJour[date];
+        const dowIdx = new Date(date + 'T12:00:00').getDay();
+        const dow = JOURS[dowIdx];
+        const dateAffichee = new Date(date + 'T12:00:00').toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' });
+        const renfortBloc = j.renfort.length > 0 ? `
+          <div class="quart-row">
+            <div class="quart-label">Renfort</div>
+            <div class="chips">${j.renfort.map(r => chip(r, r.employee_id === employee.id)).join('')}</div>
+          </div>` : '';
+        return `
+          <div class="jour-card">
+            <div class="jour-head">
+              <div class="jour-date"><span class="dow">${dow}</span>${dateAffichee}</div>
+            </div>
+            <div class="quart-row">
+              <div class="quart-label">Quart 1</div>
+              <div class="chips">${j.quart1.length ? j.quart1.map(r => chip(r, r.employee_id === employee.id)).join('') : '<span class="chip-vide">Pas planifié</span>'}</div>
+            </div>
+            <div class="quart-row">
+              <div class="quart-label">Quart 2</div>
+              <div class="chips">${j.quart2.length ? j.quart2.map(r => chip(r, r.employee_id === employee.id)).join('') : '<span class="chip-vide">Pas planifié</span>'}</div>
+            </div>
+            ${renfortBloc}
+          </div>`;
+      }).join('');
+    }
+
+    function renderMoisLabel() {
+      document.getElementById('moisLabel').textContent = `${MOIS_LABELS[MOIS_COURANT.getMonth()]} ${MOIS_COURANT.getFullYear()}`;
+    }
+
+    async function rafraichir() {
+      renderMoisLabel();
+      await Promise.all([chargerMonPlanning(), chargerPlanningEquipe()]);
+    }
+
+    document.getElementById('moisPrec').addEventListener('click', () => { MOIS_COURANT = moisPrecedent(MOIS_COURANT); rafraichir(); });
+    document.getElementById('moisSuiv').addEventListener('click', () => { MOIS_COURANT = moisSuivant(MOIS_COURANT); rafraichir(); });
+
+    await rafraichir();
+  });
+</script>
+</body>
+</html>
