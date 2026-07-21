@@ -457,6 +457,13 @@
     if (estNiveauManager) {
       document.getElementById('heroEmploye').style.display = 'none';
       document.querySelectorAll('[data-role="manager"]').forEach(el => el.style.display = '');
+    } else {
+      // Bug trouve le 21/07/2026 lors d'une relecture generale : heroEmploye
+      // demarre masque (style="display:none;" inline, meme logique FOUC que
+      // les elements manager) mais rien ne le revelait jamais pour un vrai
+      // employe — la carte "Vos missions du jour" restait invisible en
+      // permanence sur l'accueil. Corrige ici.
+      document.getElementById('heroEmploye').style.display = '';
     }
 
     if (employee.est_createur) {
