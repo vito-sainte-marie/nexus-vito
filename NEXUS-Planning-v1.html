@@ -79,6 +79,10 @@
   .jours-check{display:flex; flex-wrap:wrap; gap:6px; font-family:var(--mono); font-size:10px; color:var(--text-mid);}
   .jours-check label{display:flex; align-items:center; gap:3px; flex:none;}
   .renfort-toggle{display:flex; align-items:center; gap:6px; font-family:var(--mono); font-size:10.5px; color:var(--green); margin-left:auto;}
+  .caisse-toggle{display:flex; align-items:center; gap:6px; font-family:var(--mono); font-size:10.5px; color:var(--amber);}
+  .sexe-select{display:flex; align-items:center; gap:6px; font-family:var(--mono); font-size:10.5px; color:var(--text-mid);}
+  .sexe-select select{padding:4px 6px; font-size:10.5px;}
+  .contrainte-ligne2{display:flex; align-items:center; gap:14px; flex-wrap:wrap; width:100%;}
 
   .indispo-item{display:flex; align-items:center; justify-content:space-between; gap:8px; padding:8px 0; border-bottom:1px solid var(--hairline); font-size:12px;}
   .indispo-item:last-child{border-bottom:none;}
@@ -112,6 +116,7 @@
       <button class="btn btn-primary" id="btnGenerer">Générer le brouillon du mois</button>
       <button class="btn btn-secondary" id="btnPublier">Publier ce mois (visible équipe)</button>
       <div id="resultatGeneration" class="gap-list"></div>
+      <div id="resultatDepassements" class="gap-list"></div>
     </div>
 
     <div class="card">
@@ -119,8 +124,20 @@
       <div class="note">Valeur de départ 2/2 proposée le 20/07 — ajustez si besoin. S'applique tous les jours de la semaine dans cette version.</div>
       <div class="row"><label>Quart 1</label><input type="number" id="effectifQ1" min="0" style="width:70px;"></div>
       <div class="row"><label>Quart 2</label><input type="number" id="effectifQ2" min="0" style="width:70px;"></div>
+      <div class="row"><label>Renfort (tous les jours)</label><input type="number" id="effectifRenfort" min="0" style="width:70px;"></div>
       <button class="btn btn-secondary btn-small" id="btnSauverEffectif">Enregistrer</button>
       <div class="saved-note" id="savedEffectif">✓ Enregistré</div>
+
+      <div class="note" style="margin-top:14px;">Exception pour un jour précis (ex: 2 renforts le samedi). S'ajoute en plus de la règle générale — le générateur retient le maximum des règles qui s'appliquent ce jour-là.</div>
+      <div class="row"><label>Quart</label>
+        <select id="excQuart"><option value="quart1">Quart 1</option><option value="quart2">Quart 2</option><option value="renfort" selected>Renfort</option></select>
+      </div>
+      <div class="row"><label>Jour</label>
+        <select id="excJour"></select>
+      </div>
+      <div class="row"><label>Effectif</label><input type="number" id="excEffectif" min="0" value="2" style="width:70px;"></div>
+      <button class="btn btn-secondary btn-small" id="btnAjouterException">Ajouter l'exception</button>
+      <div id="exceptionsListe" style="margin-top:10px;"></div>
     </div>
 
     <div class="card" id="cardPlanning">
@@ -130,7 +147,7 @@
 
     <div class="card">
       <div class="section-label">Contraintes équipe</div>
-      <div class="note">Jours de repos habituels et éligibilité renfort, par employé. Utilisés par le générateur.</div>
+      <div class="note">Jours de repos habituels et éligibilité renfort, par employé. Utilisés par le générateur. Le sexe sert uniquement à la règle sécurité "jamais deux femmes sur quart2". "Ne fait pas la caisse" est enregistré mais pas encore appliqué par le générateur (v1 ne distingue pas les tâches à l'intérieur d'un quart).</div>
       <div id="contraintesListe"><div class="note">Chargement…</div></div>
       <button class="btn btn-secondary btn-small" id="btnSauverContraintes" style="margin-top:12px;">Enregistrer les contraintes</button>
       <div class="saved-note" id="savedContraintes">✓ Enregistré</div>
@@ -205,7 +222,7 @@
     }
 
     function contrainteDe(empId) {
-      return CONTRAINTES[empId] || { heures_contrat_semaine: null, jours_repos_habituels: [], peut_faire_renfort: false };
+      return CONTRAINTES[empId] || { heures_contrat_semaine: null, jours_repos_habituels: [], peut_faire_renfort: false, sexe: null, ne_fait_pas_caisse: false, integre_au_planning: false };
     }
 
     function renderContraintes() {
@@ -217,11 +234,23 @@
         const checks = JOURS.map(j => `
           <label><input type="checkbox" data-emp="${emp.id}" data-jour="${j}" class="chk-repos" ${jours.includes(j) ? 'checked' : ''}> ${JOURS_COURT[j]}</label>
         `).join('');
+        const sexeOptions = ['', 'F', 'M'].map(v => `<option value="${v}" ${c.sexe === v || (!c.sexe && v === '') ? 'selected' : ''}>${v || 'Sexe ?'}</option>`).join('');
+        const estManagerOuGerant = emp.role === 'manager' || emp.role === 'gerant';
+        const toggleIntegration = estManagerOuGerant
+          ? `<label class="renfort-toggle" style="color:var(--cyan);"><input type="checkbox" data-emp="${emp.id}" class="chk-integre" ${c.integre_au_planning ? 'checked' : ''}> Intégrer au planning</label>`
+          : '';
         return `
           <div class="contrainte-row">
             <div class="contrainte-nom">${emp.nom} <span style="color:var(--text-dim); font-weight:400;">· ${emp.role}</span></div>
+            ${estManagerOuGerant ? `<div class="note" style="margin:-4px 0 6px;">Par défaut, un manager/gérant n'est pas assigné automatiquement au planning — cochez pour l'intégrer.</div>` : ''}
             <div class="jours-check">${checks}</div>
-            <label class="renfort-toggle"><input type="checkbox" data-emp="${emp.id}" class="chk-renfort" ${c.peut_faire_renfort ? 'checked' : ''}> Peut faire renfort</label>
+            <div class="contrainte-ligne2">
+              ${toggleIntegration}
+              <label class="renfort-toggle"><input type="checkbox" data-emp="${emp.id}" class="chk-renfort" ${c.peut_faire_renfort ? 'checked' : ''}> Peut faire renfort</label>
+              <label class="caisse-toggle"><input type="checkbox" data-emp="${emp.id}" class="chk-caisse" ${c.ne_fait_pas_caisse ? 'checked' : ''}> Ne fait pas la caisse</label>
+              <label class="sexe-select">Sexe <select data-emp="${emp.id}" class="sel-sexe">${sexeOptions}</select></label>
+              <label class="sexe-select">Heures/sem. <input type="number" data-emp="${emp.id}" class="inp-heures-contrat" min="0" step="0.5" value="${c.heures_contrat_semaine != null ? c.heures_contrat_semaine : ''}" style="width:60px;"></label>
+            </div>
           </div>`;
       }).join('');
     }
@@ -230,18 +259,34 @@
       const btn = document.getElementById('btnSauverContraintes');
       btn.disabled = true;
       const parEmploye = {};
-      EMPLOYES.forEach(emp => { parEmploye[emp.id] = { jours_repos_habituels: [], peut_faire_renfort: false }; });
+      EMPLOYES.forEach(emp => { parEmploye[emp.id] = { jours_repos_habituels: [], peut_faire_renfort: false, ne_fait_pas_caisse: false, sexe: null, heures_contrat_semaine: null, integre_au_planning: false }; });
       document.querySelectorAll('.chk-repos:checked').forEach(el => {
         parEmploye[el.dataset.emp].jours_repos_habituels.push(el.dataset.jour);
       });
       document.querySelectorAll('.chk-renfort:checked').forEach(el => {
         parEmploye[el.dataset.emp].peut_faire_renfort = true;
       });
+      document.querySelectorAll('.chk-caisse:checked').forEach(el => {
+        parEmploye[el.dataset.emp].ne_fait_pas_caisse = true;
+      });
+      document.querySelectorAll('.chk-integre:checked').forEach(el => {
+        parEmploye[el.dataset.emp].integre_au_planning = true;
+      });
+      document.querySelectorAll('.sel-sexe').forEach(el => {
+        parEmploye[el.dataset.emp].sexe = el.value || null;
+      });
+      document.querySelectorAll('.inp-heures-contrat').forEach(el => {
+        parEmploye[el.dataset.emp].heures_contrat_semaine = el.value !== '' ? parseFloat(el.value) : null;
+      });
       const lignes = Object.keys(parEmploye).map(empId => ({
         employee_id: empId,
         site_id: siteId,
         jours_repos_habituels: parEmploye[empId].jours_repos_habituels,
         peut_faire_renfort: parEmploye[empId].peut_faire_renfort,
+        ne_fait_pas_caisse: parEmploye[empId].ne_fait_pas_caisse,
+        sexe: parEmploye[empId].sexe,
+        heures_contrat_semaine: parEmploye[empId].heures_contrat_semaine,
+        integre_au_planning: parEmploye[empId].integre_au_planning,
         updated_at: new Date().toISOString(),
       }));
       const { error } = await nexusClient.from('employee_contraintes').upsert(lignes, { onConflict: 'employee_id' });
@@ -306,16 +351,24 @@
     // Effectif minimum (planning_regles_effectif) — v1 : une seule
     // règle "tous les jours" par quart, pas d'éditeur par jour.
     // ------------------------------------------------------------
-    let REGLE_Q1_ID = null, REGLE_Q2_ID = null;
+    let REGLE_Q1_ID = null, REGLE_Q2_ID = null, REGLE_RENFORT_ID = null;
 
     async function chargerRegles() {
       const { data, error } = await nexusClient
-        .from('planning_regles_effectif').select('*').eq('site_id', siteId).in('quart', ['quart1', 'quart2']);
+        .from('planning_regles_effectif').select('*').eq('site_id', siteId).in('quart', ['quart1', 'quart2', 'renfort']);
       if (error) { console.error('Chargement planning_regles_effectif:', error); return; }
+      // On ne traite ici que les règles "tous les jours" (7 jours dans
+      // jours_semaine) pour les 3 champs généraux — les exceptions
+      // (un seul jour) sont gérées séparément par renderExceptions().
       (data || []).forEach(r => {
+        const tousLesJours = (r.jours_semaine || []).length >= 7;
+        if (!tousLesJours) return;
         if (r.quart === 'quart1' && REGLE_Q1_ID === null) { REGLE_Q1_ID = r.id; document.getElementById('effectifQ1').value = r.effectif_min; }
         if (r.quart === 'quart2' && REGLE_Q2_ID === null) { REGLE_Q2_ID = r.id; document.getElementById('effectifQ2').value = r.effectif_min; }
+        if (r.quart === 'renfort' && REGLE_RENFORT_ID === null) { REGLE_RENFORT_ID = r.id; document.getElementById('effectifRenfort').value = r.effectif_min; }
       });
+      if (REGLE_RENFORT_ID === null) document.getElementById('effectifRenfort').value = 1;
+      renderExceptions(data || []);
     }
 
     document.getElementById('btnSauverEffectif').addEventListener('click', async () => {
@@ -323,14 +376,70 @@
       btn.disabled = true;
       const q1 = parseInt(document.getElementById('effectifQ1').value, 10) || 0;
       const q2 = parseInt(document.getElementById('effectifQ2').value, 10) || 0;
+      const rf = parseInt(document.getElementById('effectifRenfort').value, 10);
       let erreur = null;
       if (REGLE_Q1_ID) { const { error } = await nexusClient.from('planning_regles_effectif').update({ effectif_min: q1, updated_at: new Date().toISOString() }).eq('id', REGLE_Q1_ID); erreur = erreur || error; }
       if (REGLE_Q2_ID) { const { error } = await nexusClient.from('planning_regles_effectif').update({ effectif_min: q2, updated_at: new Date().toISOString() }).eq('id', REGLE_Q2_ID); erreur = erreur || error; }
+      if (!isNaN(rf)) {
+        if (REGLE_RENFORT_ID) {
+          const { error } = await nexusClient.from('planning_regles_effectif').update({ effectif_min: rf, updated_at: new Date().toISOString() }).eq('id', REGLE_RENFORT_ID);
+          erreur = erreur || error;
+        } else {
+          const { data: nouvelle, error } = await nexusClient.from('planning_regles_effectif').insert({
+            site_id: siteId, quart: 'renfort',
+            jours_semaine: ['lundi','mardi','mercredi','jeudi','vendredi','samedi','dimanche'],
+            effectif_min: rf, commentaire: 'Ajouté depuis l\'écran Planning',
+          }).select().single();
+          erreur = erreur || error;
+          if (nouvelle) REGLE_RENFORT_ID = nouvelle.id;
+        }
+      }
       btn.disabled = false;
       if (erreur) { console.error('Sauvegarde regles effectif:', erreur); alert('Erreur — réessayez.'); return; }
       const note = document.getElementById('savedEffectif');
       note.style.display = 'block';
       setTimeout(() => note.style.display = 'none', 2500);
+    });
+
+    // ------------------------------------------------------------
+    // Exceptions par jour (ex: 2 renforts le samedi). Le générateur
+    // retient le maximum des règles qui s'appliquent à un jour donné.
+    // ------------------------------------------------------------
+    function remplirSelectJourException() {
+      const sel = document.getElementById('excJour');
+      sel.innerHTML = JOURS.map(j => `<option value="${j}">${j.charAt(0).toUpperCase() + j.slice(1)}</option>`).join('');
+    }
+
+    function renderExceptions(regles) {
+      const exceptions = (regles || []).filter(r => (r.jours_semaine || []).length < 7);
+      const conteneur = document.getElementById('exceptionsListe');
+      if (exceptions.length === 0) { conteneur.innerHTML = '<div class="note">Aucune exception.</div>'; return; }
+      conteneur.innerHTML = exceptions.map(r => `
+        <div class="indispo-item">
+          <div>${QUART_LABEL[r.quart] || r.quart} · ${r.jours_semaine.join(', ')} · effectif ${r.effectif_min}</div>
+          <button class="indispo-del" data-id="${r.id}">Supprimer</button>
+        </div>`).join('');
+      conteneur.querySelectorAll('.indispo-del').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const { error } = await nexusClient.from('planning_regles_effectif').delete().eq('id', btn.dataset.id);
+          if (error) { console.error('Suppression exception effectif:', error); alert('Erreur — réessayez.'); return; }
+          chargerRegles();
+        });
+      });
+    }
+
+    document.getElementById('btnAjouterException').addEventListener('click', async () => {
+      const quart = document.getElementById('excQuart').value;
+      const jour = document.getElementById('excJour').value;
+      const effectif = parseInt(document.getElementById('excEffectif').value, 10);
+      if (isNaN(effectif) || effectif < 0) { alert('Renseignez un effectif valide.'); return; }
+      const { error } = await nexusClient.from('planning_regles_effectif').insert({
+        site_id: siteId, quart, jours_semaine: [jour], effectif_min: effectif,
+        commentaire: `Exception ajoutée depuis l'écran Planning le ${new Date().toISOString().slice(0, 10)}`,
+      });
+      if (error) { console.error('Ajout exception effectif:', error); alert('Erreur — réessayez.'); return; }
+      REGLE_Q1_ID = null; REGLE_Q2_ID = null; REGLE_RENFORT_ID = null;
+      chargerRegles();
     });
 
     // ------------------------------------------------------------
@@ -412,6 +521,20 @@
           <div class="gap-item">⚠ ${g.date_gap} · ${QUART_LABEL[g.quart_gap] || g.quart_gap} — ${g.effectif_obtenu}/${g.effectif_attendu} planifiés</div>
         `).join('');
       }
+
+      const { data: depassements, error: e2 } = await nexusClient.rpc('verifier_depassements_heures', {
+        p_site: siteId, p_mois: moisISO(MOIS_COURANT),
+      });
+      const conteneurDep = document.getElementById('resultatDepassements');
+      if (e2) { console.error('verifier_depassements_heures:', e2); conteneurDep.innerHTML = ''; }
+      else if (depassements && depassements.length > 0) {
+        conteneurDep.innerHTML = depassements.map(d => `
+          <div class="gap-item">⚠ ${d.nom} dépasse son contrat (${d.heures_contrat}h) la semaine du ${d.semaine_debut} : ${d.heures_planifiees}h planifiées (+${d.depassement}h)</div>
+        `).join('');
+      } else {
+        conteneurDep.innerHTML = '';
+      }
+
       chargerEtAfficherPlanning();
     });
 
@@ -442,6 +565,7 @@
     await chargerEquipe();
     renderContraintes();
     remplirSelectEmployes();
+    remplirSelectJourException();
     await chargerIndisponibilites();
     await chargerRegles();
     renderMoisLabel();
