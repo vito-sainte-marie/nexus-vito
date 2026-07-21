@@ -114,6 +114,17 @@
   .plan-impact{margin-top:12px; padding:10px 12px; background:var(--panel-raised); border-radius:8px; font-size:12px;}
   .plan-impact b{color:#34D399;}
   .plan-valider{width:100%; margin-top:12px; padding:11px; border:none; border-radius:8px; font-size:12.5px; font-weight:600; background:var(--green); color:#04141a; cursor:pointer;}
+
+  .conseiller-perso{background:linear-gradient(135deg, rgba(79,195,217,0.08), rgba(79,195,217,0.02)); border:1px solid rgba(79,195,217,0.25); border-radius:14px; padding:16px 18px; margin:0 20px 14px;}
+  .conseiller-perso-head{display:flex; align-items:center; gap:11px; margin-bottom:10px;}
+  .conseiller-perso-avatar{width:42px; height:42px; border-radius:50%; object-fit:cover; flex-shrink:0; filter:drop-shadow(0 0 9px rgba(79,195,217,0.5));}
+  .conseiller-perso-nom{font-family:var(--mono); font-size:11px; font-weight:700; color:var(--cyan); letter-spacing:0.03em;}
+  .conseiller-perso-sous{font-family:var(--mono); font-size:9px; color:var(--text-dim);}
+  .conseiller-perso-texte{font-size:12.5px; line-height:1.6; color:var(--text);}
+  .conseiller-perso-palier{margin-top:12px;}
+  .conseiller-perso-palier-ligne{font-family:var(--mono); font-size:10px; color:var(--text-mid); display:flex; justify-content:space-between; margin-bottom:5px;}
+  .conseiller-perso-bar-track{height:6px; background:var(--panel-raised); border-radius:3px; overflow:hidden;}
+  .conseiller-perso-bar{height:100%; background:var(--cyan); border-radius:3px;}
 </style>
 </head>
 <body>
@@ -125,6 +136,8 @@
     <div class="role-jour" id="roleJourLigne"></div>
   </div>
   <div class="divider"></div>
+
+  <div id="conseillerPersoSection"></div>
 
   <div class="search-wrap">
     <div class="search-box"><span>🔍</span><input type="text" id="search" placeholder="Rechercher un plan d'action..."></div>
@@ -546,6 +559,101 @@
 
   const POINTS_PAR_PRIORITE = {critique:10, haute:7, normale:5, basse:3};
 
+  // ------------------------------------------------------------
+  // Conseiller NEXUS côté employé (21/07/2026, demande de Frédéric) —
+  // même avatar, même voix que côté manager, mais adressé directement
+  // à la personne connectée. Règle non négociable héritée du Conseiller
+  // Contextuel : jamais un chiffre ou un compliment qui ne vient pas
+  // d'une donnée réelle. Tout ce qui suit est calculé depuis
+  // completionsCache (les missions RÉELLEMENT validées par cet
+  // employé, déjà chargées) — rien n'est estimé ni décoratif.
+  // ------------------------------------------------------------
+  const PALIERS_MISSIONS = [10, 25, 50, 100, 200, 500];
+
+  function calculerStatsPersonnelles(completions) {
+    const parJour = {};
+    completions.forEach(c => {
+      if (!parJour[c.date]) parJour[c.date] = 0;
+      parJour[c.date] += 1;
+    });
+
+    // Streak : jours consécutifs avec au moins une mission validée, en
+    // remontant depuis aujourd'hui. Si rien n'est encore validé
+    // aujourd'hui, on part d'hier plutôt que de casser un vrai streak
+    // juste parce que la journée vient de commencer.
+    const aujISO = new Date().toISOString().slice(0, 10);
+    let curseur = new Date();
+    if (!parJour[aujISO]) curseur.setDate(curseur.getDate() - 1);
+    let streak = 0;
+    while (true) {
+      const iso = curseur.toISOString().slice(0, 10);
+      if (parJour[iso]) { streak += 1; curseur.setDate(curseur.getDate() - 1); } else break;
+    }
+
+    const now = new Date();
+    const jourSemaineISO = (now.getDay() + 6) % 7; // 0 = lundi
+    const lundi = new Date(now);
+    lundi.setDate(now.getDate() - jourSemaineISO);
+    const lundiISO = lundi.toISOString().slice(0, 10);
+    const completionsSemaine = completions.filter(c => c.date >= lundiISO);
+    const missionsSemaine = completionsSemaine.length;
+    const pointsSemaine = completionsSemaine.reduce((s, c) => s + (c.points || 0), 0);
+
+    const totalMissions = completions.length;
+    const totalAvantAujourdhui = totalMissions - (parJour[aujISO] || 0);
+    const palierFrancheAujourdhui = PALIERS_MISSIONS.find(p => totalAvantAujourdhui < p && totalMissions >= p) || null;
+    const prochainPalier = PALIERS_MISSIONS.find(p => totalMissions < p) || null;
+
+    return { streak, missionsSemaine, pointsSemaine, totalMissions, palierFrancheAujourdhui, prochainPalier };
+  }
+
+  function messageConseillerPerso(stats, prenom) {
+    if (stats.palierFrancheAujourdhui) {
+      return `${stats.palierFrancheAujourdhui}ᵉ mission validée aujourd'hui, ${prenom} — un vrai cap franchi. Continuez comme ça.`;
+    }
+    if (stats.streak >= 5) {
+      return `${stats.streak} jours de suite avec au moins une mission validée — belle régularité, ${prenom}.`;
+    }
+    if (stats.streak >= 2) {
+      return `${stats.streak} jours d'affilée avec une mission validée. On continue ?`;
+    }
+    if (stats.missionsSemaine > 0) {
+      return `${stats.missionsSemaine} mission${stats.missionsSemaine > 1 ? 's' : ''} validée${stats.missionsSemaine > 1 ? 's' : ''} cette semaine, pour ${stats.pointsSemaine} points.`;
+    }
+    return `Aucune mission validée pour l'instant cette semaine, ${prenom} — un coup d'œil à celles du jour ?`;
+  }
+
+  function renderConseillerPerso(stats, prenom) {
+    const el = document.getElementById('conseillerPersoSection');
+    if (!el) return;
+
+    let palierHtml;
+    if (stats.prochainPalier) {
+      const precedent = [...PALIERS_MISSIONS].reverse().find(p => p < stats.prochainPalier) || 0;
+      const pct = Math.min(100, Math.round(((stats.totalMissions - precedent) / (stats.prochainPalier - precedent)) * 100));
+      palierHtml = `
+        <div class="conseiller-perso-palier">
+          <div class="conseiller-perso-palier-ligne"><span>${stats.totalMissions} missions au total</span><span>Prochain palier : ${stats.prochainPalier}</span></div>
+          <div class="conseiller-perso-bar-track"><div class="conseiller-perso-bar" style="width:${pct}%;"></div></div>
+        </div>`;
+    } else {
+      palierHtml = `<div class="conseiller-perso-palier conseiller-perso-palier-ligne">${stats.totalMissions} missions validées au total — tous les paliers actuels atteints.</div>`;
+    }
+
+    el.innerHTML = `
+      <div class="conseiller-perso">
+        <div class="conseiller-perso-head">
+          <img class="conseiller-perso-avatar" src="assets/nexus-avatar.png" alt="Conseiller NEXUS">
+          <div>
+            <div class="conseiller-perso-nom">CONSEILLER NEXUS</div>
+            <div class="conseiller-perso-sous">Votre progression</div>
+          </div>
+        </div>
+        <div class="conseiller-perso-texte">${messageConseillerPerso(stats, prenom)}</div>
+        ${palierHtml}
+      </div>`;
+  }
+
   function toutCoche(mission) {
     return mission.checklist.every((_, i) => checkState[`${mission.mission_id}_${i}`]);
   }
@@ -702,6 +810,7 @@
           };
           completionsCache.push(entry); // re-rendu optimiste
           render();
+          renderConseillerPerso(calculerStatsPersonnelles(completionsCache), employeActuel);
           sauvegarderCompletionSupabase(employeeId, entry);
         };
 
@@ -748,6 +857,7 @@
     catalogue = await chargerCatalogue();
     checkState = await chargerProgressionSupabase(employeeId);
     completionsCache = await chargerCompletionsSupabase(employeeId);
+    renderConseillerPerso(calculerStatsPersonnelles(completionsCache), employee.nom);
     if (roleDuJour === 'manager') {
       EMPLOYES_SITE = await chargerEmployesSite();
       PLANS_ACTION = await construirePlansAction();
