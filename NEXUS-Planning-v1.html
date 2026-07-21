@@ -128,7 +128,7 @@
       <button class="btn btn-secondary btn-small" id="btnSauverEffectif">Enregistrer</button>
       <div class="saved-note" id="savedEffectif">✓ Enregistré</div>
 
-      <div class="note" style="margin-top:14px;">Exception pour un jour précis (ex: 2 renforts le samedi). S'ajoute en plus de la règle générale — le générateur retient le maximum des règles qui s'appliquent ce jour-là.</div>
+      <div class="note" style="margin-top:14px;">Exception pour un jour précis (ex: 2 renforts le samedi, 0 renfort le dimanche). Une règle sur un seul jour prime toujours sur la règle générale ce jour-là — vers le haut ou vers le bas, librement.</div>
       <div class="row"><label>Quart</label>
         <select id="excQuart"><option value="quart1">Quart 1</option><option value="quart2">Quart 2</option><option value="renfort" selected>Renfort</option></select>
       </div>
@@ -517,9 +517,13 @@
       if (!data || data.length === 0) {
         resultat.innerHTML = '<div class="gap-ok">✓ Brouillon complet — effectif cible atteint partout.</div>';
       } else {
-        resultat.innerHTML = data.map(g => `
-          <div class="gap-item">⚠ ${g.date_gap} · ${QUART_LABEL[g.quart_gap] || g.quart_gap} — ${g.effectif_obtenu}/${g.effectif_attendu} planifiés</div>
-        `).join('');
+        resultat.innerHTML = data.map(g => {
+          const estCouvertureBase = g.quart_gap === 'quart1' || g.quart_gap === 'quart2';
+          const suggestion = estCouvertureBase
+            ? ' — le renfort a déjà été absorbé pour couvrir ce quart ; envisagez un vacataire pour ce jour.'
+            : '';
+          return `<div class="gap-item">⚠ ${g.date_gap} · ${QUART_LABEL[g.quart_gap] || g.quart_gap} — ${g.effectif_obtenu}/${g.effectif_attendu} planifiés${suggestion}</div>`;
+        }).join('');
       }
 
       const { data: depassements, error: e2 } = await nexusClient.rpc('verifier_depassements_heures', {
