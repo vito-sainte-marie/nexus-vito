@@ -499,11 +499,13 @@
         parJour[ps.date][ps.quart].push(ps);
       });
 
+      const TACHE_LABEL = { piste: 'Piste', caisse: 'Caisse' };
       function chip(ps) {
         const s = STATUT_STYLE[ps.statut] || STATUT_STYLE.travail_normal;
         const heures = (ps.heure_debut && ps.heure_fin) ? `<small>${heureCourte(ps.heure_debut)}-${heureCourte(ps.heure_fin)}</small>` : '';
         const site = ps.site_transfert ? ` (${ps.site_transfert})` : '';
-        return `<span class="chip" style="background:${s.bg}; border-color:${s.bd}; color:${s.fg};">${ps.employees ? ps.employees.nom : '?'}${site}${heures}</span>`;
+        const tache = (ps.statut === 'travail_normal' && ps.tache) ? ` <small>· ${TACHE_LABEL[ps.tache] || ps.tache}</small>` : '';
+        return `<span class="chip" style="background:${s.bg}; border-color:${s.bd}; color:${s.fg};">${ps.employees ? ps.employees.nom : '?'}${site}${tache}${heures}</span>`;
       }
 
       conteneur.innerHTML = Object.keys(parJour).sort().map(date => {
