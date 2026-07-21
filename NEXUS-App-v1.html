@@ -15,8 +15,9 @@
     --cyan:#4FC3D9;
     --gold:#D4AF37; --gold-dim:#332B12;
     --mono:'IBM Plex Mono',monospace; --sans:'IBM Plex Sans',sans-serif;
+    --r-lg:20px; --r-md:14px; --r-sm:10px;
   }
-  *{box-sizing:border-box; margin:0; padding:0;}
+  *{box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent;}
   html,body{background:var(--bg); font-family:var(--sans); color:var(--text); min-height:100vh;}
   body{
     display:flex; justify-content:center;
@@ -24,7 +25,7 @@
   }
   .app{width:100%; max-width:520px; min-height:100vh; display:flex; flex-direction:column; border-left:1px solid var(--hairline); border-right:1px solid var(--hairline);}
 
-  .header{padding:28px 24px 8px; text-align:center;}
+  .header{padding:30px 24px 10px; text-align:center;}
   .logo-frame{
     width:72px; height:72px; border-radius:22px;
     background:transparent;
@@ -36,82 +37,91 @@
     height:50px; width:50px; object-fit:cover; object-position:center; border-radius:13px;
   }
   .mark{
-    display:inline-block; font-family:var(--mono); font-weight:700; font-size:13px; letter-spacing:0.16em;
-    color:var(--cyan); border:1px solid rgba(79,195,217,0.35); padding:4px 10px; border-radius:4px; margin-bottom:10px;
+    display:inline-block; font-family:var(--mono); font-weight:700; font-size:12px; letter-spacing:0.16em;
+    color:var(--cyan); border:1px solid rgba(79,195,217,0.35); padding:4px 10px; border-radius:6px; margin-bottom:12px;
   }
-  .title{font-size:24px; font-weight:600;}
+  .title{font-size:23px; font-weight:600; letter-spacing:-0.01em;}
   .subtitle{font-family:var(--sans); font-size:13px; color:var(--text-mid); margin-top:6px; line-height:1.5; max-width:340px; margin-left:auto; margin-right:auto;}
 
-  .hero{margin:18px 20px 6px; padding:22px; border-radius:20px; text-decoration:none; color:var(--text); display:block; position:relative; overflow:hidden;
+  .hero{margin:20px 20px 8px; padding:22px; border-radius:var(--r-lg); text-decoration:none; color:var(--text); display:block; position:relative; overflow:hidden;
     background:linear-gradient(150deg, var(--panel-raised), var(--panel)); border:1px solid rgba(79,195,217,0.28);
     box-shadow:0 10px 34px rgba(0,0,0,0.35);
+    transition:transform .15s ease, opacity .15s ease;
   }
+  .hero:active{transform:scale(0.985); opacity:0.92;}
   .hero::before{content:''; position:absolute; top:-50%; right:-30%; width:180%; height:180%; background:radial-gradient(circle, rgba(79,195,217,0.10), transparent 60%); pointer-events:none;}
   .hero-top{display:flex; align-items:center; gap:14px; position:relative;}
-  .hero-icon{width:52px; height:52px; border-radius:14px; overflow:hidden; flex-shrink:0; background:var(--panel); box-shadow:0 0 0 1px rgba(79,195,217,0.25) inset;}
+  .hero-icon{width:52px; height:52px; border-radius:var(--r-sm); overflow:hidden; flex-shrink:0; background:var(--panel); box-shadow:0 0 0 1px rgba(79,195,217,0.25) inset;}
   .hero-icon img{width:100%; height:100%; object-fit:cover;}
-  .hero-title{font-size:17px; font-weight:700;}
+  .hero-title{font-size:17px; font-weight:700; letter-spacing:-0.01em;}
   .hero-desc{font-size:12px; color:var(--text-mid); margin-top:3px; line-height:1.5;}
-  .hero-arrow{margin-left:auto; color:var(--cyan); font-size:18px; flex-shrink:0;}
+  .hero-arrow{margin-left:auto; color:var(--cyan); font-size:20px; flex-shrink:0; font-weight:600;}
   .hero-stats{display:flex; gap:18px; margin-top:18px; padding-top:16px; border-top:1px solid var(--hairline); position:relative;}
   .hero-stat b{color:var(--cyan); font-family:var(--mono); font-size:14px; display:block;}
   .hero-stat span{font-family:var(--mono); font-size:9.5px; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.04em;}
 
-  .hero-secondary{margin:0 20px 6px; padding:16px 18px; border-radius:16px; text-decoration:none; color:var(--text); display:flex; align-items:center; gap:13px;
+  .hero-secondary{margin:0 20px 8px; padding:15px 16px; border-radius:var(--r-md); text-decoration:none; color:var(--text); display:flex; align-items:center; gap:13px;
     background:var(--panel); border:1px solid var(--hairline);
+    transition:transform .15s ease, opacity .15s ease, background .12s ease;
   }
-  .hero-secondary:active{background:var(--panel-raised);}
-  .hero-secondary .hero-icon{width:40px; height:40px; border-radius:11px;}
+  .hero-secondary:active{background:var(--panel-raised); transform:scale(0.985); opacity:0.92;}
+  .hero-secondary .hero-icon{width:40px; height:40px; border-radius:var(--r-sm);}
   .hero-secondary .hero-title{font-size:14.5px; font-weight:700;}
   .hero-secondary .hero-desc{font-size:11.5px; margin-top:2px;}
-  .hero-secondary .hero-arrow{font-size:16px;}
+  .hero-secondary .hero-arrow{font-size:17px;}
 
   .section-label{
-    font-family:var(--mono); font-size:10px; letter-spacing:0.1em; text-transform:uppercase; color:var(--text-dim);
-    padding:22px 24px 10px; display:flex; align-items:center; gap:8px;
+    font-family:var(--mono); font-size:10.5px; font-weight:600; letter-spacing:0.07em; text-transform:uppercase; color:var(--text-dim);
+    padding:26px 24px 9px;
   }
-  .section-label::after{content:''; flex:1; height:1px; background:var(--hairline);}
 
-  nav{padding:0 20px; display:flex; flex-direction:column; gap:8px;}
-  .nav-item{
-    display:flex; align-items:center; gap:13px; padding:13px 14px; background:var(--panel);
-    border:1px solid var(--hairline); border-radius:12px; text-decoration:none; color:var(--text);
-    transition:border-color 0.15s, transform 0.15s;
+  nav[data-group]{
+    margin:0 20px 6px;
+    display:flex; flex-direction:column;
+    background:var(--panel);
+    border:1px solid var(--hairline);
+    border-radius:var(--r-md);
+    overflow:hidden;
   }
-  .nav-item:hover{border-color:rgba(79,195,217,0.4); transform:translateY(-1px);}
+  .nav-item, .construction-item, .group-toggle{
+    display:flex; align-items:center; gap:13px; padding:13px 14px;
+    text-decoration:none; color:var(--text);
+    border-bottom:1px solid var(--hairline);
+    transition:background .12s ease;
+  }
+  .nav-item:active, .construction-item:active{background:var(--panel-raised);}
   .nav-icon{
-    width:38px; height:38px; border-radius:10px; display:flex; align-items:center; justify-content:center;
-    font-size:18px; flex-shrink:0; background:var(--panel-raised); overflow:hidden;
+    width:34px; height:34px; border-radius:var(--r-sm); display:flex; align-items:center; justify-content:center;
+    font-size:16px; flex-shrink:0; background:var(--panel-raised); overflow:hidden;
   }
   .nav-icon img{width:100%; height:100%; object-fit:cover; display:block;}
   .nav-body{flex:1; min-width:0;}
   .nav-title{font-size:13.5px; font-weight:600; display:flex; align-items:center;}
   .nav-desc{font-size:11px; color:var(--text-mid); margin-top:2px; line-height:1.4; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
-  .nav-arrow{color:var(--text-dim); font-size:15px; flex-shrink:0;}
+  .nav-arrow{color:var(--text-dim); font-size:19px; flex-shrink:0; font-weight:500;}
   .nav-badge{
     font-family:var(--mono); font-size:8.5px; padding:2px 7px; border-radius:20px; font-weight:600; margin-left:8px;
   }
   .badge-soon{background:var(--amber-dim); color:var(--amber);}
   .badge-premium{background:rgba(212,175,55,0.14); color:var(--gold);}
   .badge-urgent{background:#3A1D1F; color:#F0575A; font-family:var(--mono); font-size:8.5px; padding:2px 7px; border-radius:20px; font-weight:700; margin-left:6px; animation:pulse-urgent 1.6s infinite;}
-  .nav-item.urgent{border-color:#F0575A; background:rgba(240,87,90,0.06);}
+  .nav-item.urgent{background:rgba(240,87,90,0.06);}
   .nav-item.urgent .nav-icon{animation:pulse-urgent 1.6s infinite;}
   @keyframes pulse-urgent{0%,100%{opacity:1;} 50%{opacity:0.5;}}
 
-  .construction-item{opacity:0.45; display:flex; align-items:center; gap:13px; padding:13px 14px; background:var(--panel); border:1px solid var(--hairline); border-radius:12px;}
+  .construction-item{opacity:0.4;}
 
   .group-toggle{
-    display:flex; align-items:center; justify-content:center; gap:6px;
+    justify-content:center; gap:6px; cursor:pointer;
     font-family:var(--mono); font-size:10.5px; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.04em;
-    padding:9px; cursor:pointer; border-radius:10px; transition:color .15s, background .15s;
   }
-  .group-toggle:hover{color:var(--cyan); background:var(--panel);}
+  .group-toggle:hover{color:var(--cyan);}
   .group-toggle::before{content:'⌄'; font-size:13px; transition:transform .2s;}
   .group-toggle.open::before{transform:rotate(180deg);}
 
-  footer{margin-top:auto; padding:24px 24px 28px; font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:center; border-top:1px solid var(--hairline); margin-top:28px;}
+  footer{margin-top:auto; padding:26px 24px 30px; font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:center; border-top:1px solid var(--hairline); margin-top:30px;}
 
-  .conseiller-card{background:linear-gradient(135deg, rgba(79,195,217,0.08), rgba(79,195,217,0.02)); border:1px solid rgba(79,195,217,0.25); border-radius:14px; padding:18px; margin:14px 20px 0;}
+  .conseiller-card{background:linear-gradient(135deg, rgba(79,195,217,0.08), rgba(79,195,217,0.02)); border:1px solid rgba(79,195,217,0.25); border-radius:var(--r-md); padding:18px; margin:16px 20px 0;}
   .conseiller-head{display:flex; align-items:center; gap:11px; margin-bottom:10px;}
   .conseiller-avatar{width:44px; height:44px; border-radius:50%; object-fit:cover; flex-shrink:0; background:var(--panel-raised); filter:drop-shadow(0 0 9px rgba(79,195,217,0.5));}
   .conseiller-name{font-family:var(--mono); font-size:11.5px; font-weight:700; color:var(--cyan); letter-spacing:0.03em;}
@@ -120,10 +130,11 @@
   .conseiller-text b{color:var(--cyan);}
   .prix-row{display:flex; align-items:center; gap:8px; margin-bottom:10px;}
   .prix-row label{flex:1; font-size:12px; color:var(--text-mid);}
-  .prix-ancien{font-family:var(--mono); font-size:12.5px; color:var(--text-dim); background:var(--panel); border:1px solid var(--hairline); border-radius:6px; padding:8px 10px; width:74px; text-align:center; flex-shrink:0;}
-  .prix-nouveau{font-family:var(--mono); font-size:13px; background:var(--panel-raised); border:1px solid rgba(79,195,217,0.4); border-radius:6px; padding:8px 10px; width:74px; color:var(--text); flex-shrink:0;}
-  .conseiller-btn{margin-top:6px; width:100%; padding:11px; border-radius:8px; border:none; background:var(--cyan); color:#04141a; font-family:var(--sans); font-weight:600; font-size:13px; cursor:pointer;}
-  .conseiller-saved{display:none; margin-top:10px; padding:9px; background:var(--green-dim); color:var(--green); border-radius:8px; text-align:center; font-size:12px;}
+  .prix-ancien{font-family:var(--mono); font-size:12.5px; color:var(--text-dim); background:var(--panel); border:1px solid var(--hairline); border-radius:8px; padding:8px 10px; width:74px; text-align:center; flex-shrink:0;}
+  .prix-nouveau{font-family:var(--mono); font-size:13px; background:var(--panel-raised); border:1px solid rgba(79,195,217,0.4); border-radius:8px; padding:8px 10px; width:74px; color:var(--text); flex-shrink:0;}
+  .conseiller-btn{margin-top:6px; width:100%; padding:12px; border-radius:var(--r-sm); border:none; background:var(--cyan); color:#04141a; font-family:var(--sans); font-weight:600; font-size:13px; cursor:pointer; transition:opacity .12s ease;}
+  .conseiller-btn:active{opacity:0.85;}
+  .conseiller-saved{display:none; margin-top:10px; padding:9px; background:var(--green-dim); color:var(--green); border-radius:var(--r-sm); text-align:center; font-size:12px;}
 </style>
 </head>
 <body>
@@ -145,7 +156,7 @@
         <div class="hero-title">Cockpit</div>
         <div class="hero-desc">Votre tableau de bord — santé, missions, opportunités, risques</div>
       </div>
-      <div class="hero-arrow">→</div>
+      <div class="hero-arrow">›</div>
     </div>
     <div class="hero-stats">
       <div class="hero-stat"><b>74</b><span>Indice santé</span></div>
@@ -161,7 +172,7 @@
         <div class="hero-title">Nexus Verify</div>
         <div class="hero-desc">Le premier contrôle du poste — audit caisse, écarts par moyen de paiement</div>
       </div>
-      <div class="hero-arrow">→</div>
+      <div class="hero-arrow">›</div>
     </div>
   </a>
 
@@ -171,7 +182,7 @@
       <div class="hero-title">Nexus Planner <span class="nav-badge badge-premium">Premium</span></div>
       <div class="hero-desc">Le bon collaborateur, au bon endroit, au bon moment</div>
     </div>
-    <div class="hero-arrow">→</div>
+    <div class="hero-arrow">›</div>
   </a>
 
   <a class="hero" data-role="employe" href="NEXUS-Missions-v1.html" id="heroEmploye" style="display:none;">
@@ -181,7 +192,7 @@
         <div class="hero-title">Vos missions du jour</div>
         <div class="hero-desc">Vos procédures, adaptées à votre rôle du jour</div>
       </div>
-      <div class="hero-arrow">→</div>
+      <div class="hero-arrow">›</div>
     </div>
   </a>
 
@@ -193,7 +204,7 @@
         <div class="nav-title">Prise de poste</div>
         <div class="nav-desc">Confirmez votre rôle du jour</div>
       </div>
-      <div class="nav-arrow">→</div>
+      <div class="nav-arrow">›</div>
     </a>
     <a class="nav-item" data-role="all" href="NEXUS-Pointage-v1.html">
       <div class="nav-icon"><img src="assets/icons/icon-pointage.png" alt="Pointage"></div>
@@ -201,7 +212,7 @@
         <div class="nav-title">Pointage</div>
         <div class="nav-desc">Arrivée, pause, départ</div>
       </div>
-      <div class="nav-arrow">→</div>
+      <div class="nav-arrow">›</div>
     </a>
     <a class="nav-item" data-role="all" href="NEXUS-Mon-Planning-v1.html">
       <div class="nav-icon"><img src="assets/icons/icon-planner.png" alt="Mon Planning"></div>
@@ -209,7 +220,7 @@
         <div class="nav-title">Mon Planning</div>
         <div class="nav-desc">Vos jours de travail, votre rôle, vos repos</div>
       </div>
-      <div class="nav-arrow">→</div>
+      <div class="nav-arrow">›</div>
     </a>
     <a class="nav-item" data-role="manager" data-preview="true" href="NEXUS-Missions-v1.html" style="display:none;">
       <div class="nav-icon"><img src="assets/icons/icon-missions.png" alt="Plans d'action"></div>
@@ -217,7 +228,7 @@
         <div class="nav-title">Plans d'action</div>
         <div class="nav-desc">55 procédures · checklist interactive</div>
       </div>
-      <div class="nav-arrow">→</div>
+      <div class="nav-arrow">›</div>
     </a>
     <a class="nav-item" data-role="manager" href="NEXUS-Parametres-Rappels-v1.html" id="navRappels" style="display:none;">
       <div class="nav-icon" id="navRappelsIcon"><img src="assets/icons/icon-rappels.png" alt="Rappels"></div>
@@ -225,7 +236,7 @@
         <div class="nav-title">Rappels<span id="navRappelsBadge"></span></div>
         <div class="nav-desc">Commandes fournisseurs, carburant</div>
       </div>
-      <div class="nav-arrow">→</div>
+      <div class="nav-arrow">›</div>
     </a>
   </nav>
 
@@ -237,7 +248,7 @@
         <div class="nav-title">Radar du Manager</div>
         <div class="nav-desc">8 domaines de responsabilité</div>
       </div>
-      <div class="nav-arrow">→</div>
+      <div class="nav-arrow">›</div>
     </a>
     <a class="nav-item" data-role="manager" data-preview="true" href="NEXUS-Rayon-v1.html">
       <div class="nav-icon"><img src="assets/icons/icon-rayon.png" alt="Rayon"></div>
@@ -245,7 +256,7 @@
         <div class="nav-title">Rayon</div>
         <div class="nav-desc">CA, marge, top ventes par catégorie</div>
       </div>
-      <div class="nav-arrow">→</div>
+      <div class="nav-arrow">›</div>
     </a>
     <a class="nav-item" data-role="manager" href="NEXUS-Produits-v1.html">
       <div class="nav-icon"><img src="assets/icons/icon-produits.png" alt="Produits"></div>
@@ -253,7 +264,7 @@
         <div class="nav-title">Produits</div>
         <div class="nav-desc">Fiche complète par référence</div>
       </div>
-      <div class="nav-arrow">→</div>
+      <div class="nav-arrow">›</div>
     </a>
     <a class="nav-item" data-role="manager" href="NEXUS-Scanner-Stock-v1.html">
       <div class="nav-icon"><img src="assets/icons/icon-scanner-stock.png" alt="Scanner Stock"></div>
@@ -261,7 +272,7 @@
         <div class="nav-title">Scanner Stock <span class="nav-badge badge-premium">Premium</span></div>
         <div class="nav-desc">Où vous perdez de l'argent, quoi recompter</div>
       </div>
-      <div class="nav-arrow">→</div>
+      <div class="nav-arrow">›</div>
     </a>
   </nav>
 
@@ -273,7 +284,7 @@
         <div class="nav-title">Assignations</div>
         <div class="nav-desc">Assigner, suivre, valider une mission</div>
       </div>
-      <div class="nav-arrow">→</div>
+      <div class="nav-arrow">›</div>
     </a>
     <a class="nav-item" data-role="manager" data-preview="true" href="NEXUS-Resultats-Equipe-v1.html" style="display:none;">
       <div class="nav-icon"><img src="assets/icons/icon-resultats-equipe.png" alt="Résultats équipe"></div>
@@ -281,7 +292,7 @@
         <div class="nav-title">Résultats Équipe</div>
         <div class="nav-desc">Progression réelle par employé</div>
       </div>
-      <div class="nav-arrow">→</div>
+      <div class="nav-arrow">›</div>
     </a>
     <a class="nav-item" data-role="manager" href="NEXUS-Evaluation-Employe-v1.html" style="display:none;">
       <div class="nav-icon"><img src="assets/icons/icon-evaluation.png" alt="Évaluation"></div>
@@ -289,15 +300,15 @@
         <div class="nav-title">Évaluation</div>
         <div class="nav-desc">Contrôle tenue + grille de prime</div>
       </div>
-      <div class="nav-arrow">→</div>
+      <div class="nav-arrow">›</div>
     </a>
     <a class="nav-item" data-role="all" href="NEXUS-Mon-Evolution-v1.html">
       <div class="nav-icon"><img src="assets/icons/icon-evolution.png" alt="Mon évolution"></div>
       <div class="nav-body">
         <div class="nav-title">Mon Évolution</div>
-        <div class="nav-desc">Vos compétences, missions prouvées</div>
+        <div class="nav-desc">Vos missions prouvées, votre progression réelle</div>
       </div>
-      <div class="nav-arrow">→</div>
+      <div class="nav-arrow">›</div>
     </a>
   </nav>
 
@@ -309,7 +320,7 @@
         <div class="nav-title">Import</div>
         <div class="nav-desc">Ventes, catalogue ou stock instantané</div>
       </div>
-      <div class="nav-arrow">→</div>
+      <div class="nav-arrow">›</div>
     </a>
     <a class="nav-item" data-role="manager" href="NEXUS-Parametres-Station-v1.html">
       <div class="nav-icon">⚙️</div>
@@ -317,7 +328,7 @@
         <div class="nav-title">Paramètres Station</div>
         <div class="nav-desc">Horaires de service, prix carburants</div>
       </div>
-      <div class="nav-arrow">→</div>
+      <div class="nav-arrow">›</div>
     </a>
   </nav>
 
@@ -329,7 +340,7 @@
         <div class="nav-title">Scanner NEXUS</div>
         <div class="nav-desc">CA, marge et répartition ABC du magasin</div>
       </div>
-      <div class="nav-arrow">→</div>
+      <div class="nav-arrow">›</div>
     </a>
     <a class="nav-item" data-role="manager" href="NEXUS-Capital-v1.html">
       <div class="nav-icon"><img src="assets/icons/icon-capital.png" alt="Capital NEXUS"></div>
@@ -337,7 +348,7 @@
         <div class="nav-title">Capital NEXUS <span class="nav-badge badge-soon">Démo</span></div>
         <div class="nav-desc">La valeur créée par vos décisions</div>
       </div>
-      <div class="nav-arrow">→</div>
+      <div class="nav-arrow">›</div>
     </a>
   </nav>
 
@@ -349,7 +360,7 @@
         <div class="nav-title">Centre d'Intelligence NEXUS</div>
         <div class="nav-desc">Que détecte NEXUS dans mon commerce ?</div>
       </div>
-      <div class="nav-arrow">→</div>
+      <div class="nav-arrow">›</div>
     </a>
     <a class="nav-item" data-role="manager" href="NEXUS-Journal-v1.html">
       <div class="nav-icon"><img src="assets/icons/icon-journal-nexus.png" alt="Journal NEXUS"></div>
@@ -357,7 +368,7 @@
         <div class="nav-title">Journal NEXUS</div>
         <div class="nav-desc">Qu'est-ce qui a été fait aujourd'hui ?</div>
       </div>
-      <div class="nav-arrow">→</div>
+      <div class="nav-arrow">›</div>
     </a>
   </nav>
 
@@ -369,11 +380,11 @@
         <div class="nav-title">Administration multi-site</div>
         <div class="nav-desc">Nom, logo et création de nouveaux sites</div>
       </div>
-      <div class="nav-arrow">→</div>
+      <div class="nav-arrow">›</div>
     </a>
   </nav>
 
-  <footer>NEXUS v1 · Sprint 1 · 07/07/2026 · Vito Sainte-Marie Usine — toutes catégories</footer>
+  <footer>NEXUS · Vito Sainte-Marie Usine</footer>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -651,7 +662,7 @@
         (el.classList.contains('nav-item') || el.classList.contains('construction-item')) &&
         el.style.display !== 'none'
       );
-      if (items.length <= 1) return; // rien a replier
+      if (items.length <= 1) { majSeparateurs(navEl); return; } // rien a replier
 
       const preview = items.find(el => el.classList.contains('urgent'))
         || items.find(el => el.dataset.preview === 'true')
@@ -669,6 +680,26 @@
         const estOuvert = toggle.classList.toggle('open');
         autres.forEach(el => el.style.display = estOuvert ? 'flex' : 'none');
         toggle.textContent = estOuvert ? 'Réduire' : labelFerme;
+        majSeparateurs(navEl);
+      });
+
+      majSeparateurs(navEl);
+    });
+  }
+
+  // Style "liste groupee" façon Réglages iOS : chaque section est UNE seule
+  // carte arrondie, avec un simple trait fin entre les lignes plutot qu'une
+  // carte separee par ecran (ajoute le 21/07/2026 pour harmoniser et
+  // simplifier la lecture). Comme le nombre de lignes visibles change
+  // dynamiquement (repli/depli, droits manager), on retire le trait sous la
+  // derniere ligne REELLEMENT visible a chaque mise a jour, pour que le bas
+  // de chaque carte reste toujours net.
+  function majSeparateurs(navEl) {
+    const conteneurs = navEl ? [navEl] : document.querySelectorAll('nav[data-group]');
+    conteneurs.forEach(nav => {
+      const lignes = Array.from(nav.children).filter(el => el.style.display !== 'none');
+      lignes.forEach((el, i) => {
+        el.style.borderBottom = (i === lignes.length - 1) ? 'none' : '';
       });
     });
   }
