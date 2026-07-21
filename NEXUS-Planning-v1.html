@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NEXUS Planner</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
+    --text:#EDF1F5; --text-mid:#8A96A5; --text-dim:#57626F;
+    --green:#34D399; --green-dim:#153629; --cyan:#4FC3D9;
+    --amber:#F5A623; --amber-dim:#3A2E14;
+    --rouge:#F0575A; --rouge-dim:#3A1D1F;
+    --violet:#A883FF; --violet-dim:#241C3A;
+    --gold:#D4AF37;
+    --mono:'IBM Plex Mono',monospace; --sans:'IBM Plex Sans',sans-serif;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{background:var(--bg); font-family:var(--sans); color:var(--text);}
+  body{display:flex; justify-content:center; min-height:100vh;}
+  .phone{width:100%; max-width:480px; min-height:100vh; display:flex; flex-direction:column; border-left:1px solid var(--hairline); border-right:1px solid var(--hairline);}
+
+  .header{padding:20px 20px 14px; position:relative;}
+  .menu-btn{
+    position:absolute; top:18px; right:18px; display:flex; align-items:center; gap:6px;
+    font-family:var(--mono); font-size:10.5px; font-weight:600; letter-spacing:0.03em; text-transform:uppercase;
+    color:var(--cyan); background:rgba(79,195,217,0.1); border:1px solid rgba(79,195,217,0.3);
+    border-radius:20px; padding:7px 12px; text-decoration:none; white-space:nowrap; z-index:5;
+  }
+  .eyebrow{font-family:var(--mono); font-size:11px; letter-spacing:0.12em; text-transform:uppercase; color:var(--cyan); display:flex; align-items:center; gap:8px;}
+  .badge-premium{font-family:var(--mono); font-size:8.5px; padding:2px 7px; border-radius:20px; font-weight:700; background:rgba(212,175,55,0.14); color:var(--gold);}
+  .title{font-size:20px; font-weight:600; margin-top:4px;}
+  .subtitle{font-family:var(--mono); font-size:11px; color:var(--text-dim); margin-top:4px;}
+  .divider{height:1px; background:var(--hairline); margin:0 20px;}
+
+  .section{padding:16px 20px;}
+  .card{background:var(--panel); border:1px solid var(--hairline); border-radius:12px; padding:18px; margin-bottom:14px;}
+  .section-label{font-family:var(--mono); font-size:10.5px; letter-spacing:0.08em; text-transform:uppercase; color:var(--text-dim); margin-bottom:12px; display:flex; align-items:center; gap:8px;}
+  .section-label::after{content:''; flex:1; height:1px; background:var(--hairline);}
+  .note{font-family:var(--sans); font-size:11.5px; color:var(--text-mid); line-height:1.5; margin:-4px 0 12px;}
+
+  .row{display:flex; align-items:center; gap:10px; margin-bottom:10px;}
+  .row label{flex:1; font-size:12.5px; color:var(--text-mid);}
+  select, input[type=date], input[type=number], input[type=text]{
+    background:var(--panel-raised); border:1px solid var(--hairline); border-radius:6px;
+    padding:8px 10px; color:var(--text); font-family:var(--mono); font-size:12.5px;
+  }
+
+  .btn{font-family:var(--sans); font-size:13.5px; font-weight:600; border:none; border-radius:8px; padding:12px 16px; cursor:pointer; width:100%; margin-top:8px;}
+  .btn-primary{background:var(--cyan); color:#04141a;}
+  .btn-secondary{background:transparent; color:var(--text-mid); border:1px solid var(--hairline);}
+  .btn-small{width:auto; padding:7px 12px; font-size:11.5px; margin-top:0;}
+  .btn:disabled{opacity:0.5; cursor:not-allowed;}
+
+  .mois-nav{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:14px;}
+  .mois-nav button{background:var(--panel-raised); border:1px solid var(--hairline); color:var(--text); border-radius:8px; padding:8px 12px; font-family:var(--mono); cursor:pointer;}
+  .mois-label{font-family:var(--mono); font-size:13px; font-weight:600; text-transform:capitalize;}
+
+  .gap-list{margin-top:10px;}
+  .gap-item{font-family:var(--mono); font-size:11px; color:var(--amber); background:var(--amber-dim); border-radius:6px; padding:8px 10px; margin-bottom:6px;}
+  .gap-ok{font-family:var(--mono); font-size:11.5px; color:var(--green); background:var(--green-dim); border-radius:6px; padding:8px 10px;}
+
+  .jour-card{border:1px solid var(--hairline); border-radius:10px; padding:12px; margin-bottom:8px;}
+  .jour-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;}
+  .jour-date{font-family:var(--mono); font-size:12px; font-weight:600;}
+  .jour-date .dow{color:var(--text-dim); text-transform:capitalize; margin-right:6px;}
+  .quart-row{margin-bottom:6px;}
+  .quart-label{font-family:var(--mono); font-size:9.5px; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.05em; margin-bottom:4px;}
+  .chips{display:flex; flex-wrap:wrap; gap:6px;}
+  .chip{font-family:var(--mono); font-size:11px; padding:5px 9px; border-radius:20px; border:1px solid; white-space:nowrap;}
+  .chip small{opacity:0.7; margin-left:4px;}
+  .chip-vide{font-family:var(--mono); font-size:10.5px; color:var(--text-dim); font-style:italic;}
+
+  .contrainte-row{display:flex; align-items:center; gap:8px; padding:9px 0; border-bottom:1px solid var(--hairline); flex-wrap:wrap;}
+  .contrainte-row:last-child{border-bottom:none;}
+  .contrainte-nom{font-size:12.5px; font-weight:600; width:100%;}
+  .jours-check{display:flex; flex-wrap:wrap; gap:6px; font-family:var(--mono); font-size:10px; color:var(--text-mid);}
+  .jours-check label{display:flex; align-items:center; gap:3px; flex:none;}
+  .renfort-toggle{display:flex; align-items:center; gap:6px; font-family:var(--mono); font-size:10.5px; color:var(--green); margin-left:auto;}
+
+  .indispo-item{display:flex; align-items:center; justify-content:space-between; gap:8px; padding:8px 0; border-bottom:1px solid var(--hairline); font-size:12px;}
+  .indispo-item:last-child{border-bottom:none;}
+  .indispo-del{background:none; border:none; color:var(--rouge); cursor:pointer; font-family:var(--mono); font-size:11px;}
+
+  .saved-note{margin-top:10px; padding:9px; background:var(--green-dim); color:var(--green); border-radius:8px; text-align:center; font-size:12px; display:none;}
+  .reserve{padding:60px 20px; text-align:center; color:var(--text-dim); font-family:var(--sans);}
+  footer{margin-top:auto; padding:16px 20px 24px; font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:center; border-top:1px solid var(--hairline);}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="nexus-auth.js"></script>
+</head>
+<body>
+<div class="phone" id="app">
+  <div class="header">
+    <a href="NEXUS-App-v1.html" class="menu-btn">☰ Menu</a>
+    <div class="eyebrow">NEXUS · Manager <span class="badge-premium">Premium</span></div>
+    <div class="title">Nexus Planner</div>
+    <div class="subtitle">Le bon collaborateur, au bon endroit, au bon moment.</div>
+  </div>
+  <div class="divider"></div>
+
+  <div class="section" id="contenu">
+    <div class="card">
+      <div class="section-label">Génération</div>
+      <div class="mois-nav">
+        <button id="moisPrec">← Mois préc.</button>
+        <div class="mois-label" id="moisLabel"></div>
+        <button id="moisSuiv">Mois suiv. →</button>
+      </div>
+      <button class="btn btn-primary" id="btnGenerer">Générer le brouillon du mois</button>
+      <button class="btn btn-secondary" id="btnPublier">Publier ce mois (visible équipe)</button>
+      <div id="resultatGeneration" class="gap-list"></div>
+    </div>
+
+    <div class="card">
+      <div class="section-label">Effectif minimum par quart</div>
+      <div class="note">Valeur de départ 2/2 proposée le 20/07 — ajustez si besoin. S'applique tous les jours de la semaine dans cette version.</div>
+      <div class="row"><label>Quart 1</label><input type="number" id="effectifQ1" min="0" style="width:70px;"></div>
+      <div class="row"><label>Quart 2</label><input type="number" id="effectifQ2" min="0" style="width:70px;"></div>
+      <button class="btn btn-secondary btn-small" id="btnSauverEffectif">Enregistrer</button>
+      <div class="saved-note" id="savedEffectif">✓ Enregistré</div>
+    </div>
+
+    <div class="card" id="cardPlanning">
+      <div class="section-label">Planning du mois</div>
+      <div id="planningGrille"><div class="note">Chargement…</div></div>
+    </div>
+
+    <div class="card">
+      <div class="section-label">Contraintes équipe</div>
+      <div class="note">Jours de repos habituels et éligibilité renfort, par employé. Utilisés par le générateur.</div>
+      <div id="contraintesListe"><div class="note">Chargement…</div></div>
+      <button class="btn btn-secondary btn-small" id="btnSauverContraintes" style="margin-top:12px;">Enregistrer les contraintes</button>
+      <div class="saved-note" id="savedContraintes">✓ Enregistré</div>
+    </div>
+
+    <div class="card">
+      <div class="section-label">Congés / indisponibilités</div>
+      <div class="row"><label>Employé</label><select id="indispoEmploye" style="flex:1;"></select></div>
+      <div class="row"><label>Du</label><input type="date" id="indispoDebut"></div>
+      <div class="row"><label>Au</label><input type="date" id="indispoFin"></div>
+      <div class="row"><label>Type</label>
+        <select id="indispoType">
+          <option value="conge">Congé</option>
+          <option value="indisponible">Indisponible</option>
+        </select>
+      </div>
+      <button class="btn btn-secondary btn-small" id="btnAjouterIndispo">Ajouter</button>
+      <div id="indispoListe" style="margin-top:12px;"></div>
+    </div>
+  </div>
+
+  <footer>Nexus Planner v1 · Premium · Vito Sainte-Marie Usine</footer>
+</div>
+
+<script>
+  const JOURS = ['dimanche','lundi','mardi','mercredi','jeudi','vendredi','samedi'];
+  const JOURS_COURT = { dimanche:'Dim', lundi:'Lun', mardi:'Mar', mercredi:'Mer', jeudi:'Jeu', vendredi:'Ven', samedi:'Sam' };
+  const MOIS_LABELS = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+  const QUART_LABEL = { quart1:'Quart 1', quart2:'Quart 2', renfort:'Renfort' };
+  const STATUT_STYLE = {
+    travail_normal: { bg:'var(--panel-raised)', bd:'var(--hairline)', fg:'var(--text)' },
+    manager:        { bg:'rgba(79,195,217,0.15)', bd:'rgba(79,195,217,0.45)', fg:'var(--cyan)' },
+    renfort:        { bg:'rgba(52,211,153,0.15)', bd:'rgba(52,211,153,0.45)', fg:'var(--green)' },
+    repos:          { bg:'var(--rouge-dim)', bd:'rgba(240,87,90,0.45)', fg:'var(--rouge)' },
+    conge:          { bg:'var(--violet-dim)', bd:'rgba(168,131,255,0.45)', fg:'var(--violet)' },
+    transfert_site: { bg:'var(--amber-dim)', bd:'rgba(245,166,35,0.45)', fg:'var(--amber)' },
+  };
+
+  function premierJourMois(d) { return new Date(d.getFullYear(), d.getMonth(), 1); }
+  function moisISO(d) { return premierJourMois(d).toISOString().slice(0, 10); }
+  function moisSuivant(d) { return new Date(d.getFullYear(), d.getMonth() + 1, 1); }
+  function moisPrecedent(d) { return new Date(d.getFullYear(), d.getMonth() - 1, 1); }
+  function finMoisISO(d) { return moisSuivant(d).toISOString().slice(0, 10); }
+  function heureCourte(t) { return t ? t.slice(0, 5) : ''; }
+
+  nexusRequireAuth().then(async employee => {
+    if (!employee) return; // nexus-auth.js gère déjà la redirection vers NEXUS-Login-v1.html
+    if (employee.role !== 'manager' && employee.role !== 'gerant') {
+      document.getElementById('app').innerHTML = '<div class="reserve">Cet écran est réservé aux managers.</div>';
+      return;
+    }
+
+    const siteId = employee.site_id || 'vito-sainte-marie';
+    let MOIS_COURANT = premierJourMois(new Date());
+    let EMPLOYES = [];
+    let CONTRAINTES = {}; // employee_id -> { heures_contrat_semaine, jours_repos_habituels, peut_faire_renfort }
+
+    // ------------------------------------------------------------
+    // Chargement initial des employés + de leurs contraintes.
+    // ------------------------------------------------------------
+    async function chargerEquipe() {
+      const { data: emps, error: e1 } = await nexusClient
+        .from('employees').select('id, nom, role').eq('site_id', siteId).eq('actif', true).order('nom');
+      if (e1) { console.error('Chargement employees:', e1); EMPLOYES = []; return; }
+      EMPLOYES = emps || [];
+
+      const { data: contraintes, error: e2 } = await nexusClient
+        .from('employee_contraintes').select('*').eq('site_id', siteId);
+      if (e2) { console.error('Chargement employee_contraintes:', e2); }
+      CONTRAINTES = {};
+      (contraintes || []).forEach(c => { CONTRAINTES[c.employee_id] = c; });
+    }
+
+    function contrainteDe(empId) {
+      return CONTRAINTES[empId] || { heures_contrat_semaine: null, jours_repos_habituels: [], peut_faire_renfort: false };
+    }
+
+    function renderContraintes() {
+      const conteneur = document.getElementById('contraintesListe');
+      if (EMPLOYES.length === 0) { conteneur.innerHTML = '<div class="note">Aucun employé actif trouvé pour ce site.</div>'; return; }
+      conteneur.innerHTML = EMPLOYES.map(emp => {
+        const c = contrainteDe(emp.id);
+        const jours = c.jours_repos_habituels || [];
+        const checks = JOURS.map(j => `
+          <label><input type="checkbox" data-emp="${emp.id}" data-jour="${j}" class="chk-repos" ${jours.includes(j) ? 'checked' : ''}> ${JOURS_COURT[j]}</label>
+        `).join('');
+        return `
+          <div class="contrainte-row">
+            <div class="contrainte-nom">${emp.nom} <span style="color:var(--text-dim); font-weight:400;">· ${emp.role}</span></div>
+            <div class="jours-check">${checks}</div>
+            <label class="renfort-toggle"><input type="checkbox" data-emp="${emp.id}" class="chk-renfort" ${c.peut_faire_renfort ? 'checked' : ''}> Peut faire renfort</label>
+          </div>`;
+      }).join('');
+    }
+
+    document.getElementById('btnSauverContraintes').addEventListener('click', async () => {
+      const btn = document.getElementById('btnSauverContraintes');
+      btn.disabled = true;
+      const parEmploye = {};
+      EMPLOYES.forEach(emp => { parEmploye[emp.id] = { jours_repos_habituels: [], peut_faire_renfort: false }; });
+      document.querySelectorAll('.chk-repos:checked').forEach(el => {
+        parEmploye[el.dataset.emp].jours_repos_habituels.push(el.dataset.jour);
+      });
+      document.querySelectorAll('.chk-renfort:checked').forEach(el => {
+        parEmploye[el.dataset.emp].peut_faire_renfort = true;
+      });
+      const lignes = Object.keys(parEmploye).map(empId => ({
+        employee_id: empId,
+        site_id: siteId,
+        jours_repos_habituels: parEmploye[empId].jours_repos_habituels,
+        peut_faire_renfort: parEmploye[empId].peut_faire_renfort,
+        updated_at: new Date().toISOString(),
+      }));
+      const { error } = await nexusClient.from('employee_contraintes').upsert(lignes, { onConflict: 'employee_id' });
+      btn.disabled = false;
+      if (error) { console.error('Sauvegarde contraintes:', error); alert('Erreur — réessayez.'); return; }
+      await chargerEquipe();
+      renderContraintes();
+      const note = document.getElementById('savedContraintes');
+      note.style.display = 'block';
+      setTimeout(() => note.style.display = 'none', 2500);
+    });
+
+    // ------------------------------------------------------------
+    // Congés / indisponibilités
+    // ------------------------------------------------------------
+    function remplirSelectEmployes() {
+      const sel = document.getElementById('indispoEmploye');
+      sel.innerHTML = EMPLOYES.map(e => `<option value="${e.id}">${e.nom}</option>`).join('');
+    }
+
+    async function chargerIndisponibilites() {
+      const { data, error } = await nexusClient
+        .from('employee_indisponibilites')
+        .select('*, employees(nom)')
+        .eq('site_id', siteId)
+        .order('date_debut', { ascending: false });
+      if (error) { console.error('Chargement employee_indisponibilites:', error); return; }
+      const conteneur = document.getElementById('indispoListe');
+      if (!data || data.length === 0) { conteneur.innerHTML = '<div class="note">Aucune indisponibilité enregistrée.</div>'; return; }
+      conteneur.innerHTML = data.map(i => `
+        <div class="indispo-item">
+          <div>${i.employees ? i.employees.nom : '?'} — ${i.type === 'conge' ? 'Congé' : 'Indisponible'} du ${i.date_debut} au ${i.date_fin}</div>
+          <button class="indispo-del" data-id="${i.id}">Supprimer</button>
+        </div>`).join('');
+      conteneur.querySelectorAll('.indispo-del').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          if (!confirm('Supprimer cette indisponibilité ?')) return;
+          const { error: e2 } = await nexusClient.from('employee_indisponibilites').delete().eq('id', btn.dataset.id);
+          if (e2) { console.error('Suppression indisponibilite:', e2); alert('Erreur — réessayez.'); return; }
+          chargerIndisponibilites();
+        });
+      });
+    }
+
+    document.getElementById('btnAjouterIndispo').addEventListener('click', async () => {
+      const employeeId = document.getElementById('indispoEmploye').value;
+      const dateDebut = document.getElementById('indispoDebut').value;
+      const dateFin = document.getElementById('indispoFin').value;
+      const type = document.getElementById('indispoType').value;
+      if (!employeeId || !dateDebut || !dateFin) { alert('Renseignez l\'employé et les deux dates.'); return; }
+      if (dateFin < dateDebut) { alert('La date de fin doit être après la date de début.'); return; }
+      const { error } = await nexusClient.from('employee_indisponibilites').insert({
+        employee_id: employeeId, site_id: siteId, date_debut: dateDebut, date_fin: dateFin, type, cree_par: employee.id,
+      });
+      if (error) { console.error('Ajout indisponibilite:', error); alert('Erreur — réessayez.'); return; }
+      document.getElementById('indispoDebut').value = '';
+      document.getElementById('indispoFin').value = '';
+      chargerIndisponibilites();
+    });
+
+    // ------------------------------------------------------------
+    // Effectif minimum (planning_regles_effectif) — v1 : une seule
+    // règle "tous les jours" par quart, pas d'éditeur par jour.
+    // ------------------------------------------------------------
+    let REGLE_Q1_ID = null, REGLE_Q2_ID = null;
+
+    async function chargerRegles() {
+      const { data, error } = await nexusClient
+        .from('planning_regles_effectif').select('*').eq('site_id', siteId).in('quart', ['quart1', 'quart2']);
+      if (error) { console.error('Chargement planning_regles_effectif:', error); return; }
+      (data || []).forEach(r => {
+        if (r.quart === 'quart1' && REGLE_Q1_ID === null) { REGLE_Q1_ID = r.id; document.getElementById('effectifQ1').value = r.effectif_min; }
+        if (r.quart === 'quart2' && REGLE_Q2_ID === null) { REGLE_Q2_ID = r.id; document.getElementById('effectifQ2').value = r.effectif_min; }
+      });
+    }
+
+    document.getElementById('btnSauverEffectif').addEventListener('click', async () => {
+      const btn = document.getElementById('btnSauverEffectif');
+      btn.disabled = true;
+      const q1 = parseInt(document.getElementById('effectifQ1').value, 10) || 0;
+      const q2 = parseInt(document.getElementById('effectifQ2').value, 10) || 0;
+      let erreur = null;
+      if (REGLE_Q1_ID) { const { error } = await nexusClient.from('planning_regles_effectif').update({ effectif_min: q1, updated_at: new Date().toISOString() }).eq('id', REGLE_Q1_ID); erreur = erreur || error; }
+      if (REGLE_Q2_ID) { const { error } = await nexusClient.from('planning_regles_effectif').update({ effectif_min: q2, updated_at: new Date().toISOString() }).eq('id', REGLE_Q2_ID); erreur = erreur || error; }
+      btn.disabled = false;
+      if (erreur) { console.error('Sauvegarde regles effectif:', erreur); alert('Erreur — réessayez.'); return; }
+      const note = document.getElementById('savedEffectif');
+      note.style.display = 'block';
+      setTimeout(() => note.style.display = 'none', 2500);
+    });
+
+    // ------------------------------------------------------------
+    // Génération + affichage du planning du mois sélectionné.
+    // ------------------------------------------------------------
+    function renderMoisLabel() {
+      document.getElementById('moisLabel').textContent = `${MOIS_LABELS[MOIS_COURANT.getMonth()]} ${MOIS_COURANT.getFullYear()}`;
+    }
+
+    async function chargerEtAfficherPlanning() {
+      const debut = moisISO(MOIS_COURANT);
+      const fin = finMoisISO(MOIS_COURANT);
+      const { data, error } = await nexusClient
+        .from('planning_shifts')
+        .select('*, employees(nom)')
+        .eq('site_id', siteId)
+        .gte('date', debut).lt('date', fin)
+        .order('date').order('quart');
+      const conteneur = document.getElementById('planningGrille');
+      if (error) { console.error('Chargement planning_shifts:', error); conteneur.innerHTML = '<div class="note">Erreur de chargement.</div>'; return; }
+      if (!data || data.length === 0) { conteneur.innerHTML = '<div class="note">Aucun planning généré pour ce mois. Utilisez "Générer le brouillon" ci-dessus.</div>'; return; }
+
+      const parJour = {};
+      data.forEach(ps => {
+        if (!parJour[ps.date]) parJour[ps.date] = { quart1: [], quart2: [], renfort: [] };
+        parJour[ps.date][ps.quart].push(ps);
+      });
+
+      function chip(ps) {
+        const s = STATUT_STYLE[ps.statut] || STATUT_STYLE.travail_normal;
+        const heures = (ps.heure_debut && ps.heure_fin) ? `<small>${heureCourte(ps.heure_debut)}-${heureCourte(ps.heure_fin)}</small>` : '';
+        const site = ps.site_transfert ? ` (${ps.site_transfert})` : '';
+        return `<span class="chip" style="background:${s.bg}; border-color:${s.bd}; color:${s.fg};">${ps.employees ? ps.employees.nom : '?'}${site}${heures}</span>`;
+      }
+
+      conteneur.innerHTML = Object.keys(parJour).sort().map(date => {
+        const j = parJour[date];
+        const dowIdx = new Date(date + 'T12:00:00').getDay();
+        const dow = JOURS[dowIdx];
+        const dateAffichee = new Date(date + 'T12:00:00').toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' });
+        const renfortBloc = j.renfort.length > 0 ? `
+          <div class="quart-row">
+            <div class="quart-label">Renfort</div>
+            <div class="chips">${j.renfort.map(chip).join('')}</div>
+          </div>` : '';
+        return `
+          <div class="jour-card">
+            <div class="jour-head">
+              <div class="jour-date"><span class="dow">${dow}</span>${dateAffichee}</div>
+            </div>
+            <div class="quart-row">
+              <div class="quart-label">Quart 1</div>
+              <div class="chips">${j.quart1.length ? j.quart1.map(chip).join('') : '<span class="chip-vide">Pas planifié</span>'}</div>
+            </div>
+            <div class="quart-row">
+              <div class="quart-label">Quart 2</div>
+              <div class="chips">${j.quart2.length ? j.quart2.map(chip).join('') : '<span class="chip-vide">Pas planifié</span>'}</div>
+            </div>
+            ${renfortBloc}
+          </div>`;
+      }).join('');
+    }
+
+    document.getElementById('btnGenerer').addEventListener('click', async () => {
+      const btn = document.getElementById('btnGenerer');
+      btn.disabled = true;
+      btn.textContent = 'Génération en cours…';
+      const { data, error } = await nexusClient.rpc('generer_planning_mensuel', {
+        p_site: siteId, p_mois: moisISO(MOIS_COURANT), p_genere_par: employee.id,
+      });
+      btn.disabled = false;
+      btn.textContent = 'Générer le brouillon du mois';
+      const resultat = document.getElementById('resultatGeneration');
+      if (error) { console.error('generer_planning_mensuel:', error); resultat.innerHTML = `<div class="gap-item">Erreur : ${error.message}</div>`; return; }
+      if (!data || data.length === 0) {
+        resultat.innerHTML = '<div class="gap-ok">✓ Brouillon complet — effectif cible atteint partout.</div>';
+      } else {
+        resultat.innerHTML = data.map(g => `
+          <div class="gap-item">⚠ ${g.date_gap} · ${QUART_LABEL[g.quart_gap] || g.quart_gap} — ${g.effectif_obtenu}/${g.effectif_attendu} planifiés</div>
+        `).join('');
+      }
+      chargerEtAfficherPlanning();
+    });
+
+    document.getElementById('btnPublier').addEventListener('click', async () => {
+      if (!confirm('Publier le planning de ce mois ? Il devient visible par toute l\'équipe.')) return;
+      const debut = moisISO(MOIS_COURANT);
+      const fin = finMoisISO(MOIS_COURANT);
+      const { error } = await nexusClient
+        .from('planning_shifts')
+        .update({ publie: true, modifie_le: new Date().toISOString(), modifie_par: employee.id })
+        .eq('site_id', siteId).gte('date', debut).lt('date', fin).eq('publie', false);
+      if (error) { console.error('Publication planning:', error); alert('Erreur — réessayez.'); return; }
+      alert('Planning publié.');
+    });
+
+    document.getElementById('moisPrec').addEventListener('click', () => { MOIS_COURANT = moisPrecedent(MOIS_COURANT); rafraichirMois(); });
+    document.getElementById('moisSuiv').addEventListener('click', () => { MOIS_COURANT = moisSuivant(MOIS_COURANT); rafraichirMois(); });
+
+    async function rafraichirMois() {
+      renderMoisLabel();
+      document.getElementById('resultatGeneration').innerHTML = '';
+      await chargerEtAfficherPlanning();
+    }
+
+    // ------------------------------------------------------------
+    // Initialisation
+    // ------------------------------------------------------------
+    await chargerEquipe();
+    renderContraintes();
+    remplirSelectEmployes();
+    await chargerIndisponibilites();
+    await chargerRegles();
+    renderMoisLabel();
+    await chargerEtAfficherPlanning();
+  });
+</script>
+</body>
+</html>
