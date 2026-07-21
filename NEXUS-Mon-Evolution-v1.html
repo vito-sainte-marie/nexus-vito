@@ -12,6 +12,7 @@
     --text:#EDF1F5; --text-mid:#8A96A5; --text-dim:#57626F;
     --green:#34D399; --green-dim:#153629;
     --amber:#F5A623; --amber-dim:#3A2E14;
+    --rouge:#F0575A;
     --cyan:#4FC3D9;
     --mono:'IBM Plex Mono',monospace; --sans:'IBM Plex Sans',sans-serif;
   }
@@ -46,6 +47,8 @@
   }
   .empty-note b{color:var(--text);}
 
+  .note{font-size:11.5px; color:var(--text-mid); line-height:1.5; margin:-4px 0 12px;}
+
   .competence-row{display:flex; align-items:center; gap:12px; padding:10px 0; border-bottom:1px solid var(--hairline);}
   .competence-row:last-child{border-bottom:none;}
   .medal{font-size:18px; width:24px; text-align:center;}
@@ -63,6 +66,14 @@
   .formation-title{font-size:13px; font-weight:600; color:var(--cyan);}
   .formation-desc{font-size:11.5px; color:var(--text-mid); margin-top:4px; line-height:1.5;}
 
+  .cumul-row{display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; padding-bottom:14px; border-bottom:1px solid var(--hairline);}
+  .cumul-label{font-size:12.5px; color:var(--text-mid);}
+  .cumul-montant{font-family:var(--mono); font-size:16px; font-weight:700;}
+  .ecart-row{display:flex; align-items:center; justify-content:space-between; padding:9px 0; border-bottom:1px solid var(--hairline); font-size:12.5px;}
+  .ecart-row:last-child{border-bottom:none;}
+  .ecart-info{color:var(--text-mid);}
+  .ecart-montant{font-family:var(--mono); font-weight:600; white-space:nowrap;}
+
   footer{margin-top:auto; padding:16px 20px 24px; font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:center; border-top:1px solid var(--hairline);}
 </style>
 </head>
@@ -76,6 +87,18 @@
   </div>
   <div class="divider"></div>
 
+  <div class="section" id="ecartsSection">
+    <div class="card">
+      <div class="section-label">Écarts de caisse — ce mois-ci</div>
+      <div class="note">Recalculé à chaque vérification de caisse par le manager. Si un écart est corrigé après un nouveau comptage, la valeur ci-dessous se met à jour automatiquement — rien ne s'additionne en double.</div>
+      <div class="cumul-row">
+        <span class="cumul-label">Écart cumulé du mois</span>
+        <span id="ecartCumule" class="cumul-montant">—</span>
+      </div>
+      <div id="ecartsListe"><div class="empty-note">Chargement…</div></div>
+    </div>
+  </div>
+
   <div class="section" id="content"></div>
 
   <footer>NEXUS Mon Évolution v1 · Seuil minimum 5 occurrences par compétence</footer>
@@ -88,10 +111,80 @@
   const content = document.getElementById('content');
   let DATA = DATA_TEMPLATE;
 
-  nexusRequireAuth().then(employee => {
+  function classifierEcart(montantAbs) {
+    if (montantAbs <= 2) return 'var(--green)';
+    if (montantAbs <= 20) return 'var(--amber)';
+    return 'var(--rouge)';
+  }
+
+  nexusRequireAuth().then(async employee => {
     if (!employee) return; // nexus-auth.js gère déjà la redirection vers NEXUS-Login-v1.html
     DATA = { ...DATA_TEMPLATE, employe_id: employee.nom };
     document.getElementById('empName').textContent = DATA.employe_id;
+
+    const siteId = employee.site_id || 'vito-sainte-marie';
+
+    // ------------------------------------------------------------
+    // Écarts de caisse du mois en cours — données réelles issues
+    // d'audits_caisse (NEXUS Verify). Chaque ligne d'audit couvre un
+    // site + date + quart et liste qui était présent sur la caisse
+    // piste et/ou boutique ce quart-là (employes_piste / employes_
+    // boutique) ; on ne garde que les lignes où l'employé connecté
+    // apparaît, avec l'écart correspondant à SON poste ce quart-là.
+    // Un nouveau comptage écrase l'ancien via upsert côté Verify
+    // (conflit sur site+date+quart) : on lit donc toujours la
+    // dernière valeur, jamais un historique de doublons.
+    // ------------------------------------------------------------
+    async function chargerEcartsCaisse() {
+      const conteneur = document.getElementById('ecartsListe');
+      const cumulEl = document.getElementById('ecartCumule');
+      const now = new Date();
+      const premierJourMois = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+
+      const { data, error } = await nexusClient
+        .from('audits_caisse')
+        .select('date, quart, ecart_piste, ecart_boutique, employes_piste, employes_boutique')
+        .eq('site', siteId)
+        .gte('date', premierJourMois)
+        .order('date', { ascending: false });
+
+      if (error) {
+        console.error('Chargement audits_caisse:', error);
+        conteneur.innerHTML = '<div class="empty-note">Erreur de chargement des écarts de caisse.</div>';
+        cumulEl.textContent = '—';
+        return;
+      }
+
+      const lignes = [];
+      (data || []).forEach(a => {
+        const enPiste = Array.isArray(a.employes_piste) && a.employes_piste.includes(employee.id);
+        const enBoutique = Array.isArray(a.employes_boutique) && a.employes_boutique.includes(employee.id);
+        if (enPiste && a.ecart_piste !== null) lignes.push({ date: a.date, quart: a.quart, role: 'Piste', ecart: Number(a.ecart_piste) });
+        if (enBoutique && a.ecart_boutique !== null) lignes.push({ date: a.date, quart: a.quart, role: 'Boutique', ecart: Number(a.ecart_boutique) });
+      });
+
+      if (lignes.length === 0) {
+        conteneur.innerHTML = '<div class="empty-note">Aucun écart de caisse enregistré pour vous ce mois-ci.</div>';
+        cumulEl.textContent = '0.00 €';
+        cumulEl.style.color = 'var(--green)';
+        return;
+      }
+
+      const cumul = lignes.reduce((s, l) => s + l.ecart, 0);
+      cumulEl.textContent = `${cumul >= 0 ? '+' : ''}${cumul.toFixed(2)} €`;
+      cumulEl.style.color = classifierEcart(Math.abs(cumul));
+
+      conteneur.innerHTML = lignes.map(l => {
+        const dateAffichee = new Date(l.date + 'T12:00:00').toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        return `
+          <div class="ecart-row">
+            <div class="ecart-info">${dateAffichee} · Quart ${l.quart} · ${l.role}</div>
+            <div class="ecart-montant" style="color:${classifierEcart(Math.abs(l.ecart))};">${l.ecart >= 0 ? '+' : ''}${l.ecart.toFixed(2)} €</div>
+          </div>`;
+      }).join('');
+    }
+
+    await chargerEcartsCaisse();
 
   function fmtPct(v){ return v.toFixed(1) + '%'; }
 
