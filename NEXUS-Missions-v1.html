@@ -641,17 +641,30 @@
     return `Aucune mission validée pour l'instant cette semaine, ${prenom} — commençons simple avec ${titre}${duree}.`;
   }
 
+  // Une mission de clôture/fermeture n'a aucun sens suggérée en début de
+  // journée — corrigé le 21/07/2026 (Frédéric l'a signalé). Détection par
+  // mots-clés dans le titre, même logique que estMissionControleManager.
+  function estMissionDeCloture(m) {
+    const titre = (m.titre || '').toLowerCase();
+    return titre.includes('clôture') || titre.includes('cloture') || titre.includes('fermeture');
+  }
+
   // Suggestion d'une mission précise, en guise d'appel à l'action — pas
   // juste un constat de progression. Priorité 1 : une mission dont la
   // checklist est déjà entièrement cochée mais pas encore validée (le
   // geste le plus rapide, on encourage à finir ce qui est presque fait).
   // Sinon : la mission non faite aujourd'hui la plus prioritaire pour le
   // rôle du jour, et parmi celles à égalité, la plus rapide à réaliser.
+  // Les missions de clôture sont exclues tant qu'on n'est pas en fin de
+  // service (16h — la station ouvre dès 5h45, "fin de journée" arrive
+  // largement avant la fermeture réelle).
   function choisirMissionSuggeree() {
     const aujISO = new Date().toISOString().slice(0, 10);
     const faitesAujourdhui = new Set(completionsCache.filter(c => c.date === aujISO).map(c => c.mission_id));
+    const enFinDeService = new Date().getHours() >= 16;
     const candidates = catalogue.filter(m =>
       Array.isArray(m.role_required) && m.role_required.includes(roleDuJour) && !faitesAujourdhui.has(m.mission_id)
+      && (enFinDeService || !estMissionDeCloture(m))
     );
     if (candidates.length === 0) return null;
 
