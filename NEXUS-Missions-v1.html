@@ -125,6 +125,7 @@
   .conseiller-perso-palier-ligne{font-family:var(--mono); font-size:10px; color:var(--text-mid); display:flex; justify-content:space-between; margin-bottom:5px;}
   .conseiller-perso-bar-track{height:6px; background:var(--panel-raised); border-radius:3px; overflow:hidden;}
   .conseiller-perso-bar{height:100%; background:var(--cyan); border-radius:3px;}
+  .conseiller-perso-cta-btn{width:100%; margin-top:13px; padding:11px; border:none; border-radius:8px; font-size:12.5px; font-weight:600; background:var(--cyan); color:#04141a; cursor:pointer;}
 </style>
 </head>
 <body>
@@ -607,38 +608,107 @@
     return { streak, missionsSemaine, pointsSemaine, totalMissions, palierFrancheAujourdhui, prochainPalier };
   }
 
-  function messageConseillerPerso(stats, prenom) {
+  // Un seul fil de pensée, pas un constat suivi d'un ordre séparé — la
+  // suggestion découle explicitement du fait personnel qui précède
+  // ("ne cassons pas cette série", "pour continuer sur cette lancée"),
+  // pour donner l'impression d'un conseil qui connaît la situation,
+  // pas de deux blocs décorrélés. Demande de Frédéric le 21/07/2026.
+  function messageConseillerPerso(stats, suggestion, prenom) {
+    if (!suggestion) {
+      return stats.palierFrancheAujourdhui
+        ? `${stats.palierFrancheAujourdhui}ᵉ mission validée aujourd'hui, ${prenom}, et tout est à jour pour l'instant — beau travail.`
+        : `Tout est à jour pour aujourd'hui, ${prenom}. Rien de plus à faire pour l'instant.`;
+    }
+
+    const duree = suggestion.mission.estimated_duration_min ? ` (~${suggestion.mission.estimated_duration_min} min)` : '';
+    const titre = `« ${suggestion.mission.titre} »`;
+
+    if (suggestion.presqueFinie) {
+      return `La checklist de ${titre} est déjà entièrement cochée, ${prenom} — il ne manque que la validation.`;
+    }
     if (stats.palierFrancheAujourdhui) {
-      return `${stats.palierFrancheAujourdhui}ᵉ mission validée aujourd'hui, ${prenom} — un vrai cap franchi. Continuez comme ça.`;
+      return `${stats.palierFrancheAujourdhui}ᵉ mission validée aujourd'hui, ${prenom}. Pour continuer sur cette lancée : ${titre}${duree}.`;
     }
     if (stats.streak >= 5) {
-      return `${stats.streak} jours de suite avec au moins une mission validée — belle régularité, ${prenom}.`;
+      return `${stats.streak} jours de suite avec au moins une mission validée, ${prenom} — ne cassons pas cette série. ${titre}${duree} vous attend.`;
     }
     if (stats.streak >= 2) {
-      return `${stats.streak} jours d'affilée avec une mission validée. On continue ?`;
+      return `${stats.streak} jours d'affilée, ${prenom}. On enchaîne avec ${titre}${duree} ?`;
     }
     if (stats.missionsSemaine > 0) {
-      return `${stats.missionsSemaine} mission${stats.missionsSemaine > 1 ? 's' : ''} validée${stats.missionsSemaine > 1 ? 's' : ''} cette semaine, pour ${stats.pointsSemaine} points.`;
+      return `${stats.missionsSemaine} mission${stats.missionsSemaine > 1 ? 's' : ''} validée${stats.missionsSemaine > 1 ? 's' : ''} cette semaine, ${prenom}. Prochaine étape : ${titre}${duree}.`;
     }
-    return `Aucune mission validée pour l'instant cette semaine, ${prenom} — un coup d'œil à celles du jour ?`;
+    return `Aucune mission validée pour l'instant cette semaine, ${prenom} — commençons simple avec ${titre}${duree}.`;
+  }
+
+  // Suggestion d'une mission précise, en guise d'appel à l'action — pas
+  // juste un constat de progression. Priorité 1 : une mission dont la
+  // checklist est déjà entièrement cochée mais pas encore validée (le
+  // geste le plus rapide, on encourage à finir ce qui est presque fait).
+  // Sinon : la mission non faite aujourd'hui la plus prioritaire pour le
+  // rôle du jour, et parmi celles à égalité, la plus rapide à réaliser.
+  function choisirMissionSuggeree() {
+    const aujISO = new Date().toISOString().slice(0, 10);
+    const faitesAujourdhui = new Set(completionsCache.filter(c => c.date === aujISO).map(c => c.mission_id));
+    const candidates = catalogue.filter(m =>
+      Array.isArray(m.role_required) && m.role_required.includes(roleDuJour) && !faitesAujourdhui.has(m.mission_id)
+    );
+    if (candidates.length === 0) return null;
+
+    const presqueFinies = candidates.filter(m => Array.isArray(m.checklist) && m.checklist.length > 0 && toutCoche(m));
+    if (presqueFinies.length > 0) {
+      presqueFinies.sort((a, b) => (a.estimated_duration_min || 0) - (b.estimated_duration_min || 0));
+      return { mission: presqueFinies[0], presqueFinie: true };
+    }
+
+    const rang = { critique: 0, haute: 1, normale: 2, basse: 3 };
+    const triees = [...candidates].sort((a, b) => {
+      const ra = rang[a.priority] ?? 2, rb = rang[b.priority] ?? 2;
+      if (ra !== rb) return ra - rb;
+      return (a.estimated_duration_min || 0) - (b.estimated_duration_min || 0);
+    });
+    return { mission: triees[0], presqueFinie: false };
+  }
+
+  // Ouvre la mission suggérée, quels que soient l'onglet famille ou la
+  // recherche en cours, et y amène l'œil directement.
+  function voirMissionSuggeree(missionId) {
+    familleActive = 'Toutes';
+    const champRecherche = document.getElementById('search');
+    if (champRecherche) champRecherche.value = '';
+    missionsOuvertes.add(missionId);
+    render();
+    const corps = document.getElementById(`body-${missionId}`);
+    if (corps) corps.closest('.mission-card').scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
 
   function renderConseillerPerso(stats, prenom) {
     const el = document.getElementById('conseillerPersoSection');
     if (!el) return;
 
-    let palierHtml;
-    if (stats.prochainPalier) {
+    const suggestion = choisirMissionSuggeree();
+
+    // La barre de palier n'apparaît que quand elle est vraiment
+    // parlante (à moins de 30% du prochain cap) — sinon c'est la même
+    // ligne à chaque visite, ce qui use plus qu'elle n'informe. Inutile
+    // aussi le jour même où le palier vient d'être franchi, déjà dit
+    // dans le message.
+    let palierHtml = '';
+    if (!stats.palierFrancheAujourdhui && stats.prochainPalier) {
       const precedent = [...PALIERS_MISSIONS].reverse().find(p => p < stats.prochainPalier) || 0;
-      const pct = Math.min(100, Math.round(((stats.totalMissions - precedent) / (stats.prochainPalier - precedent)) * 100));
-      palierHtml = `
-        <div class="conseiller-perso-palier">
-          <div class="conseiller-perso-palier-ligne"><span>${stats.totalMissions} missions au total</span><span>Prochain palier : ${stats.prochainPalier}</span></div>
-          <div class="conseiller-perso-bar-track"><div class="conseiller-perso-bar" style="width:${pct}%;"></div></div>
-        </div>`;
-    } else {
-      palierHtml = `<div class="conseiller-perso-palier conseiller-perso-palier-ligne">${stats.totalMissions} missions validées au total — tous les paliers actuels atteints.</div>`;
+      const pct = Math.round(((stats.totalMissions - precedent) / (stats.prochainPalier - precedent)) * 100);
+      if (pct >= 70) {
+        const restant = stats.prochainPalier - stats.totalMissions;
+        palierHtml = `
+          <div class="conseiller-perso-palier">
+            <div class="conseiller-perso-palier-ligne"><span>Plus que ${restant} mission${restant > 1 ? 's' : ''}</span><span>palier ${stats.prochainPalier}</span></div>
+            <div class="conseiller-perso-bar-track"><div class="conseiller-perso-bar" style="width:${Math.min(100, pct)}%;"></div></div>
+          </div>`;
+      }
     }
+
+    const boutonHtml = suggestion ? `
+      <button class="conseiller-perso-cta-btn" id="btnSuggestionMission" data-mission="${suggestion.mission.mission_id}">${suggestion.presqueFinie ? 'Valider maintenant →' : 'Voir cette mission →'}</button>` : '';
 
     el.innerHTML = `
       <div class="conseiller-perso">
@@ -649,9 +719,13 @@
             <div class="conseiller-perso-sous">Votre progression</div>
           </div>
         </div>
-        <div class="conseiller-perso-texte">${messageConseillerPerso(stats, prenom)}</div>
+        <div class="conseiller-perso-texte">${messageConseillerPerso(stats, suggestion, prenom)}</div>
         ${palierHtml}
+        ${boutonHtml}
       </div>`;
+
+    const btnCta = document.getElementById('btnSuggestionMission');
+    if (btnCta) btnCta.addEventListener('click', () => voirMissionSuggeree(btnCta.dataset.mission));
   }
 
   function toutCoche(mission) {
