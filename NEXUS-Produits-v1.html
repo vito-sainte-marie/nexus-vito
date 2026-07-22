@@ -482,7 +482,10 @@ nexusRequireAuth().then(async employee => {
       // restriction CORS ne s'applique — voir
       // edge-function-recherche-photo-produit.ts pour le code et les
       // instructions de deploiement.
-      const { data, error: erreurFn } = await nexusClient.functions.invoke('recherche-photo-produit', {
+      // Nom exact de la fonction cote Supabase : "clever-endpoint" (nom
+      // pre-rempli par le tableau de bord Supabase a la creation, garde
+      // tel quel le 22/07/2026 plutot que de faire tout recommencer).
+      const { data, error: erreurFn } = await nexusClient.functions.invoke('clever-endpoint', {
         body: { q: requete },
       });
       if (erreurFn) throw erreurFn;
