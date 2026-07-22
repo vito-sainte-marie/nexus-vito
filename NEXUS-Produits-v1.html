@@ -579,7 +579,14 @@ nexusRequireAuth().then(async employee => {
         // indice : transmis seulement si on a un code-barres (même cassé) pour
         // cet article — la fonction serveur s'en sert pour repérer, parmi les
         // résultats du nom, ceux dont le vrai code OFF partage ces chiffres.
-        body: indiceCodeBarres ? { q: requete, indice: indiceCodeBarres } : { q: requete },
+        // nom : le nom d'article brut (avant nettoyage), transmis à chaque
+        // recherche — la fonction serveur en extrait le format (ex. "50cl")
+        // et les mots significatifs (ex. "Sprite") pour croiser avec la
+        // quantité et la marque de chaque résultat Open Food Facts. Un signal
+        // de plus que le seul code-barres, utile quand celui-ci est cassé ET
+        // absent d'Open Food Facts (donc aucun rapprochement par chiffres
+        // possible).
+        body: { q: requete, nom: p.article, ...(indiceCodeBarres ? { indice: indiceCodeBarres } : {}) },
       });
       if (erreurFn) throw erreurFn;
       if (data && data.error) throw new Error(data.error);
@@ -596,18 +603,19 @@ nexusRequireAuth().then(async employee => {
             quantite: pr.quantity || '',
             vignette,
             pleine: pr.image_front_url || pr.image_url || vignette,
-            // Posé par la fonction serveur quand le vrai code OFF de ce résultat
-            // contient les mêmes chiffres que le code-barres cassé en base —
-            // voir edge-function-recherche-photo-produit.ts.
+            // Posés par la fonction serveur — trois signaux indépendants de
+            // fiabilité décroissante, voir edge-function-recherche-photo-produit.ts :
+            // code-barres proche (chiffres communs avec le code cassé en base),
+            // format proche (volume/poids du nom vs quantité OFF), mot-clé
+            // (mot significatif du nom retrouvé dans le nom/marque OFF).
             correspondCodeBarres: !!pr.code_barres_proche,
+            correspondFormat: !!pr.format_correspond,
+            correspondMotCle: !!pr.mot_correspond,
           };
         })
         .filter(c => c.vignette);
-      // Les correspondances de code-barres passent devant — un rapprochement
-      // par chiffres communs est plus fiable qu'une simple ressemblance de
-      // texte (tri stable : l'ordre de pertinence du nom est conservé au sein
-      // de chaque groupe).
-      candidats.sort((a, b) => (b.correspondCodeBarres ? 1 : 0) - (a.correspondCodeBarres ? 1 : 0));
+      // La fonction serveur a déjà trié par score (code-barres > format >
+      // mot-clé) ; l'ordre reçu est donc conservé tel quel.
     } catch (e) {
       // Message volontairement precis (pas juste "erreur") : si ca echoue
       // encore, Frederic peut nous dire exactement quoi, sans avoir besoin
@@ -630,13 +638,22 @@ nexusRequireAuth().then(async employee => {
       ${noteHtml}
       <div class="section-label" style="margin-bottom:8px;">Choisissez la bonne référence</div>
       <div class="photo-candidats">
-        ${candidats.map((c, i) => `
-          <div class="photo-candidat${c.correspondCodeBarres ? ' pc-match' : ''}" data-i="${i}">
+        ${candidats.map((c, i) => {
+          // Regroupe les signaux concordants en une seule étiquette, du plus
+          // au moins fiable, plutôt que d'empiler des badges séparés.
+          const signaux = [];
+          if (c.correspondCodeBarres) signaux.push('code-barres');
+          if (c.correspondFormat) signaux.push('format');
+          if (c.correspondMotCle) signaux.push('nom');
+          const aUneCorrespondance = signaux.length > 0;
+          return `
+          <div class="photo-candidat${aUneCorrespondance ? ' pc-match' : ''}" data-i="${i}">
             <img src="${c.vignette}" alt="${c.nom}">
             <div class="pc-nom">${c.nom}</div>
             ${c.marque ? `<div class="pc-marque">${c.marque}${c.quantite ? ' · ' + c.quantite : ''}</div>` : ''}
-            ${c.correspondCodeBarres ? '<div class="pc-badge">Code-barres proche</div>' : ''}
-          </div>`).join('')}
+            ${aUneCorrespondance ? `<div class="pc-badge">Correspond : ${signaux.join(', ')}</div>` : ''}
+          </div>`;
+        }).join('')}
       </div>
       <div class="photo-annuler" id="annulerRecherchePhoto">Aucune ne correspond — annuler</div>
     `;
