@@ -100,6 +100,8 @@
   .photo-candidat img{width:100%; aspect-ratio:1/1; object-fit:contain; background:#fff; border-radius:4px;}
   .photo-candidat .pc-nom{font-size:10.5px; margin-top:6px; line-height:1.3; color:var(--text-mid);}
   .photo-candidat .pc-marque{font-family:var(--mono); font-size:9px; color:var(--text-dim); margin-top:2px;}
+  .photo-candidat.pc-match{border-color:var(--cyan);}
+  .pc-badge{display:inline-block; margin-top:5px; padding:2px 6px; border-radius:4px; background:rgba(79,195,217,0.12); color:var(--cyan); font-family:var(--mono); font-size:8.5px; font-weight:600;}
   .photo-annuler{margin-top:10px; text-align:center; font-family:var(--mono); font-size:10.5px; color:var(--text-dim); cursor:pointer; text-decoration:underline;}
   .photo-loading{font-size:12px; color:var(--text-dim); text-align:center; padding:16px 0;}
 
@@ -493,13 +495,20 @@ nexusRequireAuth().then(async employee => {
           });
           return;
         }
-        await chercherPhotoParNom(p, `Code-barres ${p.code_barres} trouvé sur Open Food Facts mais sans photo — recherche par nom.`);
+        await chercherPhotoParNom(p, `Code-barres ${p.code_barres} trouvé sur Open Food Facts mais sans photo — recherche par nom.`, p.code_barres);
         return;
       }
-      await chercherPhotoParNom(p, `Code-barres ${p.code_barres} introuvable sur Open Food Facts — recherche par nom.`);
+      // Trouvé le 22/07/2026 (retour de Frédéric) : quand le code-barres exact
+      // ne matche rien (souvent parce qu'un chiffre a sauté à la saisie/scan —
+      // voir l'analyse de l'export caisse, ex. Sprite "292090000061" au lieu de
+      // "3292090000061"), on transmet quand même ce code cassé à la recherche
+      // par nom comme "indice" : la fonction serveur peut alors repérer, parmi
+      // les résultats textuels, celui dont le VRAI code-barres OFF contient ces
+      // mêmes chiffres — bien plus fiable qu'un rapprochement par nom seul.
+      await chercherPhotoParNom(p, `Code-barres ${p.code_barres} introuvable sur Open Food Facts — recherche par nom.`, p.code_barres);
     } catch (e) {
       console.error('Recherche par code-barres:', e);
-      await chercherPhotoParNom(p, `Recherche par code-barres impossible (${e.message || 'erreur réseau'}) — recherche par nom.`);
+      await chercherPhotoParNom(p, `Recherche par code-barres impossible (${e.message || 'erreur réseau'}) — recherche par nom.`, p.code_barres);
     }
   }
 
@@ -518,10 +527,15 @@ nexusRequireAuth().then(async employee => {
       <div class="photo-annuler" id="annulerRecherchePhoto">Ce n'est pas la bonne référence — chercher par nom à la place</div>
     `;
     document.getElementById('candidatUnique').addEventListener('click', () => confirmerPhotoProduit(p, candidat));
-    document.getElementById('annulerRecherchePhoto').addEventListener('click', () => chercherPhotoParNom(p));
+    document.getElementById('annulerRecherchePhoto').addEventListener('click', () => chercherPhotoParNom(p, undefined, p.code_barres));
   }
 
-  async function chercherPhotoParNom(p, noteAvantRecherche) {
+  // indiceCodeBarres : code-barres qu'on a en base pour cet article, même
+  // s'il n'a rien donné en recherche exacte (souvent cassé — chiffre en
+  // trop/manquant). Transmis à la fonction serveur pour qu'elle repère,
+  // parmi les résultats de la recherche par nom, ceux dont le vrai code OFF
+  // partage ces chiffres — voir edge-function-recherche-photo-produit.ts.
+  async function chercherPhotoParNom(p, noteAvantRecherche, indiceCodeBarres) {
     const zone = document.getElementById('photoCardZone');
     if (!zone) return;
     // Trace le motif du repli (pas de code-barres / code introuvable / code
@@ -562,7 +576,10 @@ nexusRequireAuth().then(async employee => {
       // pre-rempli par le tableau de bord Supabase a la creation, garde
       // tel quel le 22/07/2026 plutot que de faire tout recommencer).
       const { data, error: erreurFn } = await nexusClient.functions.invoke('clever-endpoint', {
-        body: { q: requete },
+        // indice : transmis seulement si on a un code-barres (même cassé) pour
+        // cet article — la fonction serveur s'en sert pour repérer, parmi les
+        // résultats du nom, ceux dont le vrai code OFF partage ces chiffres.
+        body: indiceCodeBarres ? { q: requete, indice: indiceCodeBarres } : { q: requete },
       });
       if (erreurFn) throw erreurFn;
       if (data && data.error) throw new Error(data.error);
@@ -579,9 +596,18 @@ nexusRequireAuth().then(async employee => {
             quantite: pr.quantity || '',
             vignette,
             pleine: pr.image_front_url || pr.image_url || vignette,
+            // Posé par la fonction serveur quand le vrai code OFF de ce résultat
+            // contient les mêmes chiffres que le code-barres cassé en base —
+            // voir edge-function-recherche-photo-produit.ts.
+            correspondCodeBarres: !!pr.code_barres_proche,
           };
         })
         .filter(c => c.vignette);
+      // Les correspondances de code-barres passent devant — un rapprochement
+      // par chiffres communs est plus fiable qu'une simple ressemblance de
+      // texte (tri stable : l'ordre de pertinence du nom est conservé au sein
+      // de chaque groupe).
+      candidats.sort((a, b) => (b.correspondCodeBarres ? 1 : 0) - (a.correspondCodeBarres ? 1 : 0));
     } catch (e) {
       // Message volontairement precis (pas juste "erreur") : si ca echoue
       // encore, Frederic peut nous dire exactement quoi, sans avoir besoin
@@ -605,10 +631,11 @@ nexusRequireAuth().then(async employee => {
       <div class="section-label" style="margin-bottom:8px;">Choisissez la bonne référence</div>
       <div class="photo-candidats">
         ${candidats.map((c, i) => `
-          <div class="photo-candidat" data-i="${i}">
+          <div class="photo-candidat${c.correspondCodeBarres ? ' pc-match' : ''}" data-i="${i}">
             <img src="${c.vignette}" alt="${c.nom}">
             <div class="pc-nom">${c.nom}</div>
             ${c.marque ? `<div class="pc-marque">${c.marque}${c.quantite ? ' · ' + c.quantite : ''}</div>` : ''}
+            ${c.correspondCodeBarres ? '<div class="pc-badge">Code-barres proche</div>' : ''}
           </div>`).join('')}
       </div>
       <div class="photo-annuler" id="annulerRecherchePhoto">Aucune ne correspond — annuler</div>
