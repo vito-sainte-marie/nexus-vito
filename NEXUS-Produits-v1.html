@@ -88,6 +88,21 @@
   .gap-label{color:var(--text-mid);}
   .gap-status{font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:right; max-width:180px;}
 
+  .photo-box{width:100%; aspect-ratio:4/3; background:var(--panel-raised); border-radius:8px; display:flex; align-items:center; justify-content:center; overflow:hidden;}
+  .photo-box img{width:100%; height:100%; object-fit:contain; background:#fff;}
+  .photo-empty{font-size:12px; color:var(--text-dim); text-align:center; padding:20px;}
+  .photo-meta{font-family:var(--mono); font-size:10px; color:var(--text-dim); margin-top:8px;}
+  .photo-btn{margin-top:10px; width:100%; padding:11px; border-radius:8px; border:1px solid rgba(79,195,217,0.35); background:rgba(79,195,217,0.08); color:var(--cyan); font-family:var(--sans); font-weight:600; font-size:12.5px; cursor:pointer;}
+  .photo-btn:active{background:rgba(79,195,217,0.18);}
+  .photo-candidats{display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:12px;}
+  .photo-candidat{background:var(--panel-raised); border:1px solid var(--hairline); border-radius:8px; padding:8px; cursor:pointer; text-align:center;}
+  .photo-candidat:active{border-color:var(--cyan);}
+  .photo-candidat img{width:100%; aspect-ratio:1/1; object-fit:contain; background:#fff; border-radius:4px;}
+  .photo-candidat .pc-nom{font-size:10.5px; margin-top:6px; line-height:1.3; color:var(--text-mid);}
+  .photo-candidat .pc-marque{font-family:var(--mono); font-size:9px; color:var(--text-dim); margin-top:2px;}
+  .photo-annuler{margin-top:10px; text-align:center; font-family:var(--mono); font-size:10.5px; color:var(--text-dim); cursor:pointer; text-decoration:underline;}
+  .photo-loading{font-size:12px; color:var(--text-dim); text-align:center; padding:16px 0;}
+
   .decision-card{
     background:var(--panel-raised); border-left:3px solid var(--cyan); border-radius:6px; padding:12px 14px; margin-top:10px;
   }
@@ -153,14 +168,18 @@
 </div>
 
 <script>
+let SITE_ACTUEL = 'vito-sainte-marie'; // ecrase par employee.site_id une fois connecte
+
 nexusRequireAuth().then(async employee => {
   if (!employee) return; // nexus-auth.js gère déjà la redirection vers NEXUS-Login-v1.html
   if (employee.role !== 'manager' && employee.role !== 'gerant') {
     document.body.innerHTML = '<div style="padding:60px 20px; text-align:center; color:var(--text-dim); font-family:sans-serif;">Cet écran est réservé aux managers.</div>';
     return;
   }
+  SITE_ACTUEL = employee.site_id || 'vito-sainte-marie';
 
   let PRODUCTS = [];
+  let PRODUCT_PHOTOS = {};
 
   // Supabase plafonne chaque requete a 1000 lignes par defaut, sans erreur —
   // au-dela, le reste est silencieusement absent. Ce helper boucle par pages
@@ -183,7 +202,7 @@ nexusRequireAuth().then(async employee => {
     const { data, error } = await fetchAllRows(() => nexusClient
       .from('products')
       .select('categorie, article, ca, marge, prix_achat, prix_vente, quantite, periode_debut, periode_fin')
-      .eq('site', 'vito-sainte-marie')
+      .eq('site', SITE_ACTUEL)
       .order('periode_debut', { ascending: false })
       .order('article', { ascending: true }));
     if (error || !data || !data.length) { console.error('Chargement products (fiche produit):', error); return []; }
@@ -254,7 +273,23 @@ nexusRequireAuth().then(async employee => {
   };
 
 
+  // Photos produits (source Open Food Facts, accord de Frédéric le
+  // 22/07/2026) — table séparée de `products` (voir migration
+  // migration-product-photos-v1.sql pour le pourquoi), lue une fois ici
+  // et indexée par le même couple categorie|article que PRODUCTS.
+  async function chargerPhotosProduits() {
+    const { data, error } = await nexusClient
+      .from('product_photos')
+      .select('categorie, article, photo_url, source, verifie_le')
+      .eq('site', SITE_ACTUEL);
+    if (error) { console.error('Chargement product_photos:', error); return {}; }
+    const map = {};
+    (data || []).forEach(row => { map[row.categorie + '|' + row.article] = row; });
+    return map;
+  }
+
   PRODUCTS = await construireProduitsLive();
+  PRODUCT_PHOTOS = await chargerPhotosProduits();
 
   const searchInput = document.getElementById('searchInput');
   const suggestionsBox = document.getElementById('suggestions');
@@ -345,6 +380,11 @@ nexusRequireAuth().then(async employee => {
       </div>
 
       <div class="card">
+        <div class="section-label">Photo produit</div>
+        <div id="photoCardZone"></div>
+      </div>
+
+      <div class="card">
         <div class="section-label">Historique T1 → T2</div>
         <div class="histo-row">
           <span class="histo-label">T1</span>
@@ -368,7 +408,6 @@ nexusRequireAuth().then(async employee => {
         <div class="gap-row"><span class="gap-label">Rotation réelle</span><span class="gap-status">Proxy CA uniquement, pas de vrai calcul stock/vente</span></div>
         <div class="gap-row"><span class="gap-label">Emplacement</span><span class="gap-status">Non modélisé (pas de notion d'étagère)</span></div>
         <div class="gap-row"><span class="gap-label">Facing actuel</span><span class="gap-status">Non disponible — pas de saisie des facings actuellement</span></div>
-        <div class="gap-row"><span class="gap-label">Photo</span><span class="gap-status">Non disponible — pas de photothèque produit</span></div>
       </div>
 
       <div class="card">
@@ -376,6 +415,121 @@ nexusRequireAuth().then(async employee => {
         ${decisionsHtml}
       </div>
     `;
+
+    renderPhotoCard(p);
+  }
+
+  // ------------------------------------------------------------
+  // Photo produit — recherche Open Food Facts + confirmation manuelle
+  // avant tout enregistrement. Ajouté le 22/07/2026 : products n'a pas
+  // de code-barres, donc le rapprochement se fait par nom d'article,
+  // moins fiable qu'un code-barres exact — d'où l'étape de confirmation
+  // obligatoire (jamais d'association silencieuse). Voir aussi
+  // migration-product-photos-v1.sql.
+  // ------------------------------------------------------------
+  function photoCleClef(p) { return p.categorie + '|' + p.article; }
+
+  function renderPhotoCard(p) {
+    const zone = document.getElementById('photoCardZone');
+    if (!zone) return;
+    const photo = PRODUCT_PHOTOS[photoCleClef(p)];
+
+    if (photo) {
+      const dateConfirmee = photo.verifie_le ? new Date(photo.verifie_le).toLocaleDateString('fr-FR') : null;
+      zone.innerHTML = `
+        <div class="photo-box"><img src="${photo.photo_url}" alt="${p.article}"></div>
+        <div class="photo-meta">${dateConfirmee ? `Confirmée le ${dateConfirmee} · Open Food Facts` : 'Open Food Facts'}</div>
+        <button class="photo-btn" id="btnRechercherPhoto">Chercher une autre photo</button>
+      `;
+    } else {
+      zone.innerHTML = `
+        <div class="photo-box"><div class="photo-empty">Aucune photo confirmée pour cette référence.</div></div>
+        <button class="photo-btn" id="btnRechercherPhoto">🔍 Chercher sur Open Food Facts</button>
+      `;
+    }
+    const btn = document.getElementById('btnRechercherPhoto');
+    if (btn) btn.addEventListener('click', () => chercherPhotoProduit(p));
+  }
+
+  async function chercherPhotoProduit(p) {
+    const zone = document.getElementById('photoCardZone');
+    if (!zone) return;
+    zone.innerHTML = `<div class="photo-loading">Recherche sur Open Food Facts…</div>`;
+
+    let candidats = [];
+    try {
+      const url = `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(p.article)}&search_simple=1&action=process&json=1&page_size=6`;
+      const resp = await fetch(url);
+      const data = await resp.json();
+      candidats = (data.products || [])
+        .filter(pr => pr.image_front_url || pr.image_url || pr.image_small_url)
+        .map(pr => ({
+          code: pr.code || null,
+          nom: pr.product_name || pr.product_name_fr || p.article,
+          marque: pr.brands || '',
+          quantite: pr.quantity || '',
+          vignette: pr.image_front_small_url || pr.image_small_url || pr.image_front_url || pr.image_url,
+          pleine: pr.image_front_url || pr.image_url,
+        }));
+    } catch (e) {
+      console.error('Recherche Open Food Facts:', e);
+      zone.innerHTML = `<div class="photo-empty">Recherche impossible pour l'instant — réessayez plus tard.</div>
+        <div class="photo-annuler" id="annulerRecherchePhoto">← Retour</div>`;
+      document.getElementById('annulerRecherchePhoto').addEventListener('click', () => renderPhotoCard(p));
+      return;
+    }
+
+    if (candidats.length === 0) {
+      zone.innerHTML = `<div class="photo-empty">Aucune photo trouvée pour « ${p.article} » sur Open Food Facts.</div>
+        <div class="photo-annuler" id="annulerRecherchePhoto">← Retour</div>`;
+      document.getElementById('annulerRecherchePhoto').addEventListener('click', () => renderPhotoCard(p));
+      return;
+    }
+
+    zone.innerHTML = `
+      <div class="section-label" style="margin-bottom:8px;">Choisissez la bonne référence</div>
+      <div class="photo-candidats">
+        ${candidats.map((c, i) => `
+          <div class="photo-candidat" data-i="${i}">
+            <img src="${c.vignette}" alt="${c.nom}">
+            <div class="pc-nom">${c.nom}</div>
+            ${c.marque ? `<div class="pc-marque">${c.marque}${c.quantite ? ' · ' + c.quantite : ''}</div>` : ''}
+          </div>`).join('')}
+      </div>
+      <div class="photo-annuler" id="annulerRecherchePhoto">Aucune ne correspond — annuler</div>
+    `;
+    zone.querySelectorAll('.photo-candidat').forEach(el => {
+      el.addEventListener('click', () => confirmerPhotoProduit(p, candidats[Number(el.dataset.i)]));
+    });
+    document.getElementById('annulerRecherchePhoto').addEventListener('click', () => renderPhotoCard(p));
+  }
+
+  async function confirmerPhotoProduit(p, candidat) {
+    const zone = document.getElementById('photoCardZone');
+    if (zone) zone.innerHTML = `<div class="photo-loading">Enregistrement…</div>`;
+
+    const ligne = {
+      site: SITE_ACTUEL, categorie: p.categorie, article: p.article,
+      photo_url: candidat.pleine, source: 'openfoodfacts', code_barre: candidat.code,
+      nom_off: candidat.nom, verifie_par: employee.id, verifie_le: new Date().toISOString(),
+    };
+    const { error } = await nexusClient
+      .from('product_photos')
+      .upsert(ligne, { onConflict: 'site,categorie,article' });
+
+    if (error) {
+      console.error('Enregistrement product_photos:', error);
+      if (zone) {
+        zone.innerHTML = `<div class="photo-empty">Erreur d'enregistrement — réessayez.</div>
+          <div class="photo-annuler" id="annulerRecherchePhoto">← Retour</div>`;
+        const a = document.getElementById('annulerRecherchePhoto');
+        if (a) a.addEventListener('click', () => renderPhotoCard(p));
+      }
+      return;
+    }
+
+    PRODUCT_PHOTOS[photoCleClef(p)] = ligne;
+    renderPhotoCard(p);
   }
 
 });
