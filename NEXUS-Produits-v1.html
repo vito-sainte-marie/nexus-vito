@@ -472,16 +472,22 @@ nexusRequireAuth().then(async employee => {
     const requete = nettoyerRequeteRecherche(p.article);
 
     try {
-      // Le moteur de recherche du site web d'Open Food Facts (cgi/search.pl)
-      // n'est pas systematiquement ouvert aux appels d'un autre domaine
-      // (CORS) — trouve le 22/07/2026 apres retour de Frederic ("Recherche
-      // impossible" a chaque essai). Search-a-licious est l'API dediee,
-      // documentee pour un usage tiers exactement comme celui-ci.
-      const url = `https://search.openfoodfacts.org/search?q=${encodeURIComponent(requete)}&page_size=6&langs=fr`;
-      const resp = await fetch(url);
-      if (!resp.ok) throw new Error('réponse HTTP ' + resp.status);
-      const data = await resp.json();
-      const bruts = data.hits || data.products || [];
+      // Un appel fetch() direct vers Open Food Facts depuis le navigateur
+      // echoue systematiquement ("Load failed") — confirme le 22/07/2026 :
+      // Frederic a ouvert l'URL directement dans Safari, elle repond tres
+      // bien, donc c'est bien un blocage CORS specifique aux appels
+      // cross-origin depuis app.nexusconseil.net, pas un probleme du cote
+      // d'Open Food Facts. On passe donc par une Edge Function Supabase
+      // (recherche-photo-produit) qui fait l'appel cote serveur, ou aucune
+      // restriction CORS ne s'applique — voir
+      // edge-function-recherche-photo-produit.ts pour le code et les
+      // instructions de deploiement.
+      const { data, error: erreurFn } = await nexusClient.functions.invoke('recherche-photo-produit', {
+        body: { q: requete },
+      });
+      if (erreurFn) throw erreurFn;
+      if (data && data.error) throw new Error(data.error);
+      const bruts = (data && (data.hits || data.products)) || [];
       candidats = bruts
         .map(pr => {
           const imagesFront = pr.selected_images && pr.selected_images.front && pr.selected_images.front.display;
