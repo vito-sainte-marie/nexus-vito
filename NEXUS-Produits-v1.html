@@ -406,9 +406,9 @@ nexusRequireAuth().then(async employee => {
 
       <div class="card">
         <div class="section-label">Ce que NEXUS ne sait pas encore</div>
-        <div class="gap-row"><span class="gap-label">Stock</span><span class="gap-status">Non disponible — Capability 006</span></div>
-        <div class="gap-row"><span class="gap-label">Rotation réelle</span><span class="gap-status">Proxy CA uniquement, pas de vrai calcul stock/vente</span></div>
-        <div class="gap-row"><span class="gap-label">Emplacement</span><span class="gap-status">Non modélisé (pas de notion d'étagère)</span></div>
+        <div class="gap-row"><span class="gap-label">Stock</span><span class="gap-status" id="gapStockStatus">Vérification du dernier relevé…</span></div>
+        <div class="gap-row"><span class="gap-label">Rotation réelle</span><span class="gap-status">Le stock est désormais relevé (import « Stock instantané »), mais aucun calcul de rotation vente/stock n'est encore construit — manque réel, pas un oubli d'affichage</span></div>
+        <div class="gap-row"><span class="gap-label">Emplacement</span><span class="gap-status">Non modélisé — aucune colonne emplacement/étagère dans la base actuellement</span></div>
         <div class="gap-row"><span class="gap-label">Facing actuel</span><span class="gap-status">Non disponible — pas de saisie des facings actuellement</span></div>
       </div>
 
@@ -419,6 +419,45 @@ nexusRequireAuth().then(async employee => {
     `;
 
     renderPhotoCard(p);
+    chargerStockGap(p);
+  }
+
+  // Branche la ligne "Stock" de la carte "Ce que NEXUS ne sait pas encore"
+  // sur le vrai dernier relevé stock_releves (table alimentée par l'écran
+  // Import -> "Stock instantané"), au lieu du texte fige "Non disponible"
+  // qui restait affiche meme une fois des relevés importes (repere le
+  // 22/07/2026 : Frederic avait deja importe plusieurs inventaires, la carte
+  // ne le refletait pas car elle n'interrogeait jamais stock_releves).
+  // Rapprochement par nom d'article exact -- stock_releves n'a pas de FK vers
+  // products, donc si le nom differe legerement entre les deux imports
+  // (caisse vs export stock), aucune ligne ne remonte : on le dit
+  // explicitement plutot que d'afficher un chiffre au hasard.
+  async function chargerStockGap(p) {
+    const el = document.getElementById('gapStockStatus');
+    if (!el) return;
+    try {
+      const { data, error } = await nexusClient
+        .from('stock_releves')
+        .select('quantite_theorique, quantite_reelle, releve_le')
+        .eq('site', 'vito-sainte-marie')
+        .eq('article', p.article)
+        .order('releve_le', { ascending: false })
+        .limit(1);
+      if (error) throw error;
+      if (!el.isConnected) return; // le manager a change de produit entre-temps
+      if (!data || !data.length) {
+        el.textContent = `Aucun relevé trouvé pour « ${p.article} » (vérifier que le nom correspond exactement à celui utilisé lors de l'import stock).`;
+        return;
+      }
+      const relv = data[0];
+      const date = new Date(relv.releve_le).toLocaleDateString('fr-FR');
+      el.textContent = relv.quantite_reelle != null
+        ? `Théorique ${relv.quantite_theorique} u., compté ${relv.quantite_reelle} u. — relevé du ${date}`
+        : `Théorique ${relv.quantite_theorique} u. — relevé du ${date} (pas encore contrôlé physiquement)`;
+    } catch (e) {
+      console.error('Chargement stock_releves:', e);
+      if (el.isConnected) el.textContent = "Impossible de vérifier le stock pour l'instant (erreur réseau).";
+    }
   }
 
   // ------------------------------------------------------------
