@@ -201,7 +201,7 @@ nexusRequireAuth().then(async employee => {
   async function construireProduitsLive() {
     const { data, error } = await fetchAllRows(() => nexusClient
       .from('products')
-      .select('categorie, article, ca, marge, prix_achat, prix_vente, quantite, periode_debut, periode_fin')
+      .select('categorie, article, ca, marge, prix_achat, prix_vente, quantite, periode_debut, periode_fin, code_barres')
       .eq('site', SITE_ACTUEL)
       .order('periode_debut', { ascending: false })
       .order('article', { ascending: true }));
@@ -242,7 +242,7 @@ nexusRequireAuth().then(async employee => {
       }
 
       return {
-        article: p.article, categorie: p.categorie,
+        article: p.article, categorie: p.categorie, code_barres: p.code_barres || null,
         pu_ht: p.prix_vente, pma: p.prix_achat,
         marge_pct: p.ca > 0 ? (p.marge || 0) / p.ca : 0, marge_totale: p.marge || 0,
         ca_t1: prec ? prec.ca : 0, ca_t2: p.ca, ca_s1: (prec ? prec.ca : 0) + p.ca,
@@ -451,10 +451,73 @@ nexusRequireAuth().then(async employee => {
     if (btn) btn.addEventListener('click', () => chercherPhotoProduit(p));
   }
 
+  // Trouvé le 22/07/2026 : `products.code_barres` existe bien en base
+  // (Frédéric l'a montré dans le Table Editor Supabase) mais aucune
+  // requête de cet écran ne le sélectionnait — corrigé plus haut dans
+  // construireProduitsLive(). Un code-barres permet un rapprochement
+  // EXACT sur Open Food Facts (contrairement au nom, forcément approximatif),
+  // donc on l'essaie en premier quand il est disponible, et on ne retombe
+  // sur la recherche par nom que s'il est absent ou introuvable.
   async function chercherPhotoProduit(p) {
+    if (p.code_barres) {
+      const zone = document.getElementById('photoCardZone');
+      if (zone) zone.innerHTML = `<div class="photo-loading">Recherche par code-barres (${p.code_barres})…</div>`;
+      try {
+        const { data, error: erreurFn } = await nexusClient.functions.invoke('clever-endpoint', {
+          body: { code: p.code_barres },
+        });
+        if (erreurFn) throw erreurFn;
+        if (data && data.error) throw new Error(data.error);
+        if (data && (data.status === 1 || data.status === '1') && data.product) {
+          const pr = data.product;
+          const imagesFront = pr.selected_images && pr.selected_images.front && pr.selected_images.front.display;
+          const vignetteImagesFront = imagesFront ? (imagesFront.fr || Object.values(imagesFront)[0]) : null;
+          const vignette = pr.image_front_small_url || pr.image_small_url || pr.image_front_url || pr.image_url || vignetteImagesFront || null;
+          if (vignette) {
+            afficherCandidatUnique(p, {
+              code: data.code || p.code_barres,
+              nom: pr.product_name || pr.product_name_fr || p.article,
+              marque: Array.isArray(pr.brands_tags) ? pr.brands_tags.join(', ') : (pr.brands || ''),
+              quantite: pr.quantity || '',
+              vignette,
+              pleine: pr.image_front_url || pr.image_url || vignette,
+            });
+            return;
+          }
+        }
+        // Code-barres absent d'Open Food Facts ou sans photo : on retente
+        // par nom plutôt que d'abandonner tout de suite.
+      } catch (e) {
+        console.error('Recherche par code-barres:', e);
+        // Idem : on retombe sur la recherche par nom plutôt que de bloquer
+        // sur un seul échec technique.
+      }
+    }
+    await chercherPhotoParNom(p);
+  }
+
+  function afficherCandidatUnique(p, candidat) {
     const zone = document.getElementById('photoCardZone');
     if (!zone) return;
-    zone.innerHTML = `<div class="photo-loading">Recherche sur Open Food Facts…</div>`;
+    zone.innerHTML = `
+      <div class="section-label" style="margin-bottom:8px;">Trouvé par code-barres (${candidat.code})</div>
+      <div class="photo-candidats" style="grid-template-columns:1fr;">
+        <div class="photo-candidat" id="candidatUnique">
+          <img src="${candidat.vignette}" alt="${candidat.nom}">
+          <div class="pc-nom">${candidat.nom}</div>
+          ${candidat.marque ? `<div class="pc-marque">${candidat.marque}${candidat.quantite ? ' · ' + candidat.quantite : ''}</div>` : ''}
+        </div>
+      </div>
+      <div class="photo-annuler" id="annulerRecherchePhoto">Ce n'est pas la bonne référence — chercher par nom à la place</div>
+    `;
+    document.getElementById('candidatUnique').addEventListener('click', () => confirmerPhotoProduit(p, candidat));
+    document.getElementById('annulerRecherchePhoto').addEventListener('click', () => chercherPhotoParNom(p));
+  }
+
+  async function chercherPhotoParNom(p) {
+    const zone = document.getElementById('photoCardZone');
+    if (!zone) return;
+    zone.innerHTML = `<div class="photo-loading">Recherche par nom sur Open Food Facts…</div>`;
 
     let candidats = [];
     // Nettoie les mentions de conditionnement/lot ("- 8P", "50CL", "x6")
