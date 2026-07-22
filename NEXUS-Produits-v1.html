@@ -457,30 +457,59 @@ nexusRequireAuth().then(async employee => {
     zone.innerHTML = `<div class="photo-loading">Recherche sur Open Food Facts…</div>`;
 
     let candidats = [];
+    // Nettoie les mentions de conditionnement/lot ("- 8P", "50CL", "x6")
+    // absentes des noms de produits grand public sur Open Food Facts —
+    // sinon la recherche par nom d'article echoue souvent pour rien.
+    function nettoyerRequeteRecherche(article) {
+      let q = article
+        .replace(/-\s*\d+\s*p\b/gi, '')
+        .replace(/\b\d+\s*(cl|ml|l|g|kg)\b/gi, '')
+        .replace(/\bx\s*\d+\b/gi, '')
+        .replace(/\s{2,}/g, ' ')
+        .trim();
+      return q || article;
+    }
+    const requete = nettoyerRequeteRecherche(p.article);
+
     try {
-      const url = `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(p.article)}&search_simple=1&action=process&json=1&page_size=6`;
+      // Le moteur de recherche du site web d'Open Food Facts (cgi/search.pl)
+      // n'est pas systematiquement ouvert aux appels d'un autre domaine
+      // (CORS) — trouve le 22/07/2026 apres retour de Frederic ("Recherche
+      // impossible" a chaque essai). Search-a-licious est l'API dediee,
+      // documentee pour un usage tiers exactement comme celui-ci.
+      const url = `https://search.openfoodfacts.org/search?q=${encodeURIComponent(requete)}&page_size=6&langs=fr`;
       const resp = await fetch(url);
+      if (!resp.ok) throw new Error('réponse HTTP ' + resp.status);
       const data = await resp.json();
-      candidats = (data.products || [])
-        .filter(pr => pr.image_front_url || pr.image_url || pr.image_small_url)
-        .map(pr => ({
-          code: pr.code || null,
-          nom: pr.product_name || pr.product_name_fr || p.article,
-          marque: pr.brands || '',
-          quantite: pr.quantity || '',
-          vignette: pr.image_front_small_url || pr.image_small_url || pr.image_front_url || pr.image_url,
-          pleine: pr.image_front_url || pr.image_url,
-        }));
+      const bruts = data.hits || data.products || [];
+      candidats = bruts
+        .map(pr => {
+          const imagesFront = pr.selected_images && pr.selected_images.front && pr.selected_images.front.display;
+          const vignetteImagesFront = imagesFront ? (imagesFront.fr || Object.values(imagesFront)[0]) : null;
+          const vignette = pr.image_front_small_url || pr.image_small_url || pr.image_front_url || pr.image_url || vignetteImagesFront || null;
+          return {
+            code: pr.code || null,
+            nom: pr.product_name || pr.product_name_fr || requete,
+            marque: Array.isArray(pr.brands_tags) ? pr.brands_tags.join(', ') : (pr.brands || ''),
+            quantite: pr.quantity || '',
+            vignette,
+            pleine: pr.image_front_url || pr.image_url || vignette,
+          };
+        })
+        .filter(c => c.vignette);
     } catch (e) {
+      // Message volontairement precis (pas juste "erreur") : si ca echoue
+      // encore, Frederic peut nous dire exactement quoi, sans avoir besoin
+      // d'ouvrir la console du navigateur.
       console.error('Recherche Open Food Facts:', e);
-      zone.innerHTML = `<div class="photo-empty">Recherche impossible pour l'instant — réessayez plus tard.</div>
+      zone.innerHTML = `<div class="photo-empty">Connexion à Open Food Facts impossible pour l'instant (${(e && e.message) || 'erreur réseau'}).</div>
         <div class="photo-annuler" id="annulerRecherchePhoto">← Retour</div>`;
       document.getElementById('annulerRecherchePhoto').addEventListener('click', () => renderPhotoCard(p));
       return;
     }
 
     if (candidats.length === 0) {
-      zone.innerHTML = `<div class="photo-empty">Aucune photo trouvée pour « ${p.article} » sur Open Food Facts.</div>
+      zone.innerHTML = `<div class="photo-empty">Aucune photo trouvée pour « ${requete} » sur Open Food Facts${requete !== p.article ? ` (recherché depuis « ${p.article} »)` : ''}.</div>
         <div class="photo-annuler" id="annulerRecherchePhoto">← Retour</div>`;
       document.getElementById('annulerRecherchePhoto').addEventListener('click', () => renderPhotoCard(p));
       return;
