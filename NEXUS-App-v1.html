@@ -159,9 +159,8 @@
       <div class="hero-arrow">›</div>
     </div>
     <div class="hero-stats">
-      <div class="hero-stat"><b>74</b><span>Indice santé</span></div>
-      <div class="hero-stat"><b>228</b><span>Références</span></div>
-      <div class="hero-stat"><b>50</b><span>Missions</span></div>
+      <div class="hero-stat"><b id="statReferences">—</b><span>Références</span></div>
+      <div class="hero-stat"><b id="statMissions">—</b><span>Missions</span></div>
     </div>
   </a>
 
@@ -457,6 +456,43 @@
     if (estNiveauManager) {
       document.getElementById('heroEmploye').style.display = 'none';
       document.querySelectorAll('[data-role="manager"]').forEach(el => el.style.display = '');
+
+      // Les stats sous la carte Cockpit ("Indice santé 74", "228 Références",
+      // "50 Missions") étaient des valeurs figées dans le HTML, jamais
+      // branchées à Supabase — trouvé le 21/07/2026 lors d'une relecture
+      // générale. "Indice santé" est retiré : ce chiffre n'a AUCUNE formule
+      // réelle nulle part dans NEXUS — même le "74" est figé en dur dans
+      // NEXUS-Cockpit-v2.html lui-même (vérifié sur le fichier fourni par
+      // Frédéric), donc "connecter" ce chiffre reviendrait à inventer un
+      // calcul. Références et Missions, en revanche, sont désormais de
+      // vrais comptages Supabase.
+      (async function chargerStatsHeroCockpit() {
+        const siteId = employee.site_id || 'vito-sainte-marie';
+        const elRef = document.getElementById('statReferences');
+        const elMissions = document.getElementById('statMissions');
+
+        // Références = nb d'articles distincts sur la période la plus
+        // récente de `products` (même logique que periodeActuelle dans
+        // NEXUS-Cockpit-v2.html : une ligne = un article pour cette
+        // période, donc un simple count suffit sur cette période).
+        const { data: dernierePeriode } = await nexusClient
+          .from('products').select('periode_debut').eq('site', siteId)
+          .order('periode_debut', { ascending: false }).limit(1).maybeSingle();
+        if (dernierePeriode && dernierePeriode.periode_debut) {
+          const { count, error } = await nexusClient
+            .from('products').select('article', { count: 'exact', head: true })
+            .eq('site', siteId).eq('periode_debut', dernierePeriode.periode_debut);
+          if (!error && count != null && elRef) elRef.textContent = count;
+        }
+
+        // Missions = nb de missions actives du catalogue, même requête que
+        // NEXUS-Missions-v1.html (pas de filtre par site dans ce fichier
+        // non plus, pour rester cohérent avec l'existant).
+        const { count: totalMissions, error: errMissions } = await nexusClient
+          .from('mission_catalog').select('mission_id', { count: 'exact', head: true })
+          .eq('actif', true);
+        if (!errMissions && totalMissions != null && elMissions) elMissions.textContent = totalMissions;
+      })();
     } else {
       // Bug trouve le 21/07/2026 lors d'une relecture generale : heroEmploye
       // demarre masque (style="display:none;" inline, meme logique FOUC que
