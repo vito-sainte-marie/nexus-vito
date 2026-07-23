@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NEXUS — Debug Créateur</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="nexus-auth.js"></script>
+<style>
+  :root{
+    --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
+    --text:#EDF1F5; --text-mid:#8A96A5; --text-dim:#57626F;
+    --green:#34D399; --green-dim:#153629;
+    --amber:#F5A623; --amber-dim:#3A2E14;
+    --red:#F0575A; --red-dim:#3A1D1F;
+    --cyan:#4FC3D9;
+    --mono:'IBM Plex Mono',monospace; --sans:'IBM Plex Sans',sans-serif;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{background:var(--bg); font-family:var(--sans); color:var(--text);}
+  body{display:flex; justify-content:center; min-height:100vh;}
+  .phone{width:100%; max-width:460px; min-height:100vh; display:flex; flex-direction:column; border-left:1px solid var(--hairline); border-right:1px solid var(--hairline);}
+
+  .header{padding:20px 20px 14px; position:relative;}
+  .menu-btn{
+    position:absolute; top:18px; right:18px; display:flex; align-items:center; gap:6px;
+    font-family:var(--mono); font-size:10.5px; font-weight:600; letter-spacing:0.03em; text-transform:uppercase;
+    color:var(--cyan); background:rgba(79,195,217,0.1); border:1px solid rgba(79,195,217,0.3);
+    border-radius:20px; padding:7px 12px; text-decoration:none; white-space:nowrap; z-index:5;
+  }
+  .eyebrow{font-family:var(--mono); font-size:11px; letter-spacing:0.12em; text-transform:uppercase; color:var(--amber);}
+  .title{font-size:20px; font-weight:600; margin-top:4px; display:flex; align-items:center; gap:8px; flex-wrap:wrap;}
+  .subtitle{font-family:var(--mono); font-size:10.5px; color:var(--text-dim); margin-top:4px;}
+  .divider{height:1px; background:var(--hairline); margin:0 20px;}
+
+  .warning-band{
+    margin:14px 20px 0; padding:12px 14px; background:var(--red-dim); border:1px solid rgba(240,87,90,0.3);
+    border-radius:10px; font-size:11.5px; color:var(--red); line-height:1.6;
+  }
+
+  .section{padding:16px 20px;}
+  .card{background:var(--panel); border:1px solid var(--hairline); border-radius:12px; padding:18px; margin-bottom:14px;}
+  .card.danger{border-color:rgba(240,87,90,0.35);}
+  .section-label{font-family:var(--mono); font-size:10.5px; letter-spacing:0.08em; text-transform:uppercase; color:var(--text-dim); margin-bottom:12px; display:flex; align-items:center; gap:8px; flex-wrap:wrap;}
+  .section-label::after{content:''; flex:1; height:1px; background:var(--hairline); min-width:16px;}
+
+  .badge-irr{
+    display:inline-flex; align-items:center; gap:4px; font-family:var(--mono); font-size:9px; font-weight:700;
+    letter-spacing:0.04em; text-transform:uppercase; color:var(--red); background:var(--red-dim);
+    border:1px solid rgba(240,87,90,0.4); border-radius:20px; padding:3px 9px; white-space:nowrap;
+  }
+  .badge-createur{
+    display:inline-flex; align-items:center; gap:4px; font-family:var(--mono); font-size:9px; font-weight:700;
+    letter-spacing:0.04em; text-transform:uppercase; color:var(--amber); background:var(--amber-dim);
+    border:1px solid rgba(245,166,35,0.4); border-radius:20px; padding:3px 9px; white-space:nowrap;
+  }
+
+  .field{margin-bottom:12px;}
+  .field label{font-family:var(--mono); font-size:10px; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.04em; display:block; margin-bottom:5px;}
+  .field input{
+    width:100%; background:var(--panel-raised); border:1px solid var(--hairline); border-radius:8px;
+    padding:11px 12px; color:var(--text); font-family:var(--sans); font-size:14px;
+  }
+
+  .btn{width:100%; padding:12px; border:none; border-radius:8px; font-size:13px; font-weight:600; cursor:pointer; margin-top:4px;}
+  .btn-primary{background:var(--cyan); color:#04141a;}
+  .btn-danger{background:transparent; color:var(--red); border:1px solid var(--red);}
+  .btn:disabled{opacity:0.35; cursor:not-allowed;}
+
+  .msg{font-size:12px; margin-top:12px; padding:10px; border-radius:8px; text-align:center; display:none;}
+  .msg.ok{background:var(--green-dim); color:var(--green); display:block;}
+  .msg.err{background:var(--red-dim); color:var(--red); display:block;}
+
+  .kv-row{display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid var(--hairline); font-size:12px;}
+  .kv-row:last-child{border-bottom:none;}
+  .kv-key{color:var(--text-mid); font-family:var(--mono); font-size:11px;}
+  .kv-val{font-family:var(--mono); color:var(--text);}
+  .kv-names{font-size:10.5px; color:var(--text-dim); margin-top:2px;}
+  .empty-note{padding:12px 0; text-align:center; color:var(--text-dim); font-size:12px;}
+
+  .site-row{display:flex; align-items:center; gap:12px; padding:12px; border-radius:10px; cursor:pointer; border:1px solid transparent;}
+  .site-row:hover, .site-row.active{background:var(--panel-raised); border-color:var(--hairline);}
+  .site-row.active{border-color:rgba(79,195,217,0.4);}
+  .site-logo{width:36px; height:36px; border-radius:9px; object-fit:cover; background:var(--panel-raised); flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:14px; color:var(--text-dim);}
+  .site-name{font-size:13.5px; font-weight:600;}
+  .site-id{font-family:var(--mono); font-size:10px; color:var(--text-dim); margin-top:2px;}
+  .site-active-tag{margin-left:auto; font-family:var(--mono); font-size:9px; color:var(--cyan); text-transform:uppercase; letter-spacing:0.04em;}
+
+  .note{font-size:11px; color:var(--text-dim); line-height:1.6; margin-top:10px;}
+  .locked{padding:60px 20px; text-align:center; color:var(--text-dim); font-size:13px;}
+  .loading{padding:60px 20px; text-align:center; color:var(--text-dim); font-size:13px;}
+
+  footer{margin-top:auto; padding:16px 20px 24px; font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:center; border-top:1px solid var(--hairline);}
+</style>
+</head>
+<body>
+<div class="phone">
+  <div class="header">
+    <a href="NEXUS-App-v1.html" class="menu-btn">☰ Menu</a>
+    <div class="eyebrow">NEXUS · Créateur</div>
+    <div class="title">🛠 Debug — Créateur <span class="badge-createur">Multi-site</span></div>
+    <div class="subtitle">Réservé au compte créateur — choisissez un site avant d'agir</div>
+  </div>
+  <div class="divider"></div>
+  <div class="warning-band">⚠ Les outils marqués <b>Irréversible</b> ci-dessous modifient directement Supabase pour le site sélectionné. Aucune confirmation ne peut être annulée après validation — vérifiez le site ciblé avant de cliquer.</div>
+
+  <div class="section" id="root">
+    <div class="loading">Chargement…</div>
+  </div>
+
+  <footer>NEXUS Debug Créateur v1 · Accès créateur uniquement · Chaque carte précise sa portée et son site</footer>
+</div>
+
+<script>
+  let SITES = [];
+  let SITE_ACTUEL = null;
+
+  async function chargerSites() {
+    const { data, error } = await nexusClient.from('sites').select('*').order('created_at', { ascending: true });
+    if (error) { console.error('Chargement sites:', error); return []; }
+    return data || [];
+  }
+
+  // Supabase plafonne chaque requete a 1000 lignes par defaut, sans erreur —
+  // au-dela, le reste est silencieusement absent du resultat (meme piege que
+  // NEXUS-Debug-v1.html, trouve le 15/07/2026). Ce helper boucle par pages
+  // de 1000 jusqu'a tout recuperer, quel que soit le site cible.
+  async function fetchAllRows(builderFactory, pageSize = 1000) {
+    let toutes = [];
+    let from = 0;
+    while (true) {
+      const { data, error } = await builderFactory().range(from, from + pageSize - 1);
+      if (error) return { data: null, error };
+      toutes = toutes.concat(data || []);
+      if (!data || data.length < pageSize) break;
+      from += pageSize;
+    }
+    return { data: toutes, error: null };
+  }
+
+  // ============================================================
+  // Diagnostic doublons de période (products) — même logique que
+  // NEXUS-Debug-v1.html (côté manager), mais paramétrée par le site
+  // sélectionné ici plutôt que par employee.site_id, puisque le créateur
+  // peut avoir besoin d'intervenir sur n'importe quel site client.
+  // ============================================================
+  async function diagnostiquerPeriodes() {
+    const msg = document.getElementById('msgPeriodes');
+    const zone = document.getElementById('resultatPeriodes');
+    msg.className = 'msg'; msg.textContent = '';
+    zone.innerHTML = '<div class="note">Analyse en cours…</div>';
+
+    const { data, error } = await fetchAllRows(() => nexusClient
+      .from('products')
+      .select('periode_debut, periode_fin, article')
+      .eq('site', SITE_ACTUEL)
+      .order('article', { ascending: true }));
+
+    if (error) {
+      console.error('Diagnostic périodes:', error);
+      zone.innerHTML = '';
+      msg.textContent = 'Erreur de chargement — réessayez.';
+      msg.className = 'msg err';
+      return;
+    }
+
+    const parPeriode = {};
+    (data || []).forEach(r => {
+      const cle = `${r.periode_debut}|${r.periode_fin}`;
+      if (!parPeriode[cle]) parPeriode[cle] = { debut: r.periode_debut, fin: r.periode_fin, total: 0, articles: new Set() };
+      parPeriode[cle].total += 1;
+      parPeriode[cle].articles.add(r.article);
+    });
+
+    const periodes = Object.values(parPeriode).map(p => ({
+      ...p, distincts: p.articles.size, ratio: p.articles.size > 0 ? p.total / p.articles.size : 0,
+    })).sort((a,b) => a.debut.localeCompare(b.debut));
+
+    if (periodes.length === 0) {
+      zone.innerHTML = '<div class="empty-note">Aucune donnée dans products pour ce site.</div>';
+      return;
+    }
+
+    zone.innerHTML = periodes.map(p => {
+      const suspect = p.ratio >= 1.5;
+      return `
+        <div class="kv-row" style="flex-direction:column; align-items:stretch; gap:4px; padding:10px 0;">
+          <div style="display:flex; justify-content:space-between;">
+            <span class="kv-key">${p.debut} → ${p.fin}</span>
+            <span class="kv-val" style="color:${suspect?'var(--red)':'var(--green)'};">${p.total} ligne${p.total>1?'s':''} · ${p.distincts} article${p.distincts>1?'s':''} distinct${p.distincts>1?'s':''}${suspect?' ⚠ doublon probable':''}</span>
+          </div>
+          ${suspect ? `<button class="btn btn-danger" style="margin-top:4px;" data-debut="${p.debut}" data-fin="${p.fin}" onclick="supprimerPeriode(this)">Supprimer cette période (pour réimporter proprement)</button>` : ''}
+        </div>`;
+    }).join('');
+
+    msg.textContent = `${periodes.length} période(s) analysée(s) pour ${SITE_ACTUEL}.`;
+    msg.className = 'msg ok';
+  }
+
+  async function supprimerPeriode(btn) {
+    const debut = btn.dataset.debut, fin = btn.dataset.fin;
+    if (!confirm(`Supprimer TOUTES les lignes products de la période ${debut} → ${fin} pour le site "${SITE_ACTUEL}" ? Cette action est irréversible — réimportez ensuite le fichier propre depuis Import.`)) return;
+    btn.disabled = true; btn.textContent = 'Suppression…';
+    const { error } = await nexusClient.from('products').delete()
+      .eq('site', SITE_ACTUEL).eq('periode_debut', debut).eq('periode_fin', fin);
+    if (error) {
+      console.error('Suppression période:', error);
+      alert('Erreur lors de la suppression — réessayez.');
+      btn.disabled = false; btn.textContent = 'Supprimer cette période (pour réimporter proprement)';
+      return;
+    }
+    diagnostiquerPeriodes();
+  }
+
+  // ============================================================
+  // Correction ponctuelle — catégories CBD, même logique que côté manager,
+  // reclasse sous "CBD" les lignes déjà importées mal classées, pour le
+  // site sélectionné.
+  // ============================================================
+  async function corrigerCategoriesCBD() {
+    const msg = document.getElementById('msgCBD');
+    const btn = document.getElementById('btnCorrigerCBD');
+    msg.className = 'msg'; msg.textContent = '';
+
+    const { data: lignesConcernees, error: erreurRecherche } = await nexusClient
+      .from('products')
+      .select('categorie, article')
+      .eq('site', SITE_ACTUEL)
+      .ilike('article', '%cbd%')
+      .neq('categorie', 'CBD');
+
+    if (erreurRecherche) {
+      console.error('Recherche CBD:', erreurRecherche);
+      msg.textContent = 'Erreur de recherche — réessayez.';
+      msg.className = 'msg err';
+      return;
+    }
+
+    if (!lignesConcernees || lignesConcernees.length === 0) {
+      msg.textContent = 'Rien à corriger — toutes les lignes CBD de ce site sont déjà classées correctement.';
+      msg.className = 'msg ok';
+      return;
+    }
+
+    const categoriesActuelles = [...new Set(lignesConcernees.map(l => l.categorie))].join(', ');
+    if (!confirm(`${lignesConcernees.length} ligne(s) contenant "CBD" sont actuellement classées sous : ${categoriesActuelles} (site "${SITE_ACTUEL}"). Les reclasser sous "CBD" ?`)) return;
+
+    btn.disabled = true; btn.textContent = 'Correction en cours…';
+
+    const { error: erreurMaj } = await nexusClient
+      .from('products')
+      .update({ categorie: 'CBD' })
+      .eq('site', SITE_ACTUEL)
+      .ilike('article', '%cbd%')
+      .neq('categorie', 'CBD');
+
+    btn.disabled = false; btn.textContent = 'Corriger les catégories CBD';
+
+    if (erreurMaj) {
+      console.error('Correction CBD:', erreurMaj);
+      msg.textContent = 'Erreur lors de la correction — réessayez.';
+      msg.className = 'msg err';
+      return;
+    }
+
+    msg.textContent = `✓ ${lignesConcernees.length} ligne(s) reclassée(s) sous "CBD".`;
+    msg.className = 'msg ok';
+  }
+
+  // ============================================================
+  // Correction — supprimer un audit de caisse erroné, pour le site
+  // sélectionné. Recalcule caisse_sante_historique juste après (même RPC
+  // que le CIN), pour que la Vue d'ensemble reflète la correction sans
+  // attendre un recalcul différé. Double confirmation vu le caractère
+  // irréversible.
+  // ============================================================
+  async function rechercherAuditsCaisse() {
+    const dateInput = document.getElementById('dateAuditCible').value;
+    const zone = document.getElementById('resultatAuditsCaisse');
+    const msg = document.getElementById('msgAuditsCaisse');
+    msg.className = 'msg'; msg.textContent = '';
+
+    if (!dateInput) {
+      msg.textContent = 'Choisissez une date.';
+      msg.className = 'msg err';
+      return;
+    }
+
+    zone.innerHTML = '<div class="note">Recherche…</div>';
+
+    const { data, error } = await nexusClient
+      .from('audits_caisse')
+      .select('id, date, quart, ecart_piste, ecart_boutique, ecart_total, statut, commentaire')
+      .eq('site', SITE_ACTUEL)
+      .eq('date', dateInput)
+      .order('quart', { ascending: true });
+
+    if (error) {
+      console.error('Recherche audits caisse:', error);
+      zone.innerHTML = '';
+      msg.textContent = 'Erreur de recherche — réessayez.';
+      msg.className = 'msg err';
+      return;
+    }
+
+    if (!data || data.length === 0) {
+      zone.innerHTML = `<div class="empty-note">Aucun audit de caisse trouvé pour le ${new Date(dateInput + 'T00:00:00').toLocaleDateString('fr-FR')} sur ce site.</div>`;
+      msg.textContent = '';
+      return;
+    }
+
+    zone.innerHTML = data.map(a => `
+      <div class="kv-row" style="flex-direction:column; align-items:stretch; gap:6px; padding:12px 0;">
+        <div style="display:flex; justify-content:space-between;">
+          <span class="kv-key">Quart ${a.quart} · statut ${a.statut || '—'}</span>
+          <span class="kv-val" style="color:${(a.ecart_total||0)===0?'var(--green)':'var(--red)'};">${(a.ecart_total||0)>=0?'+':''}${Math.round(a.ecart_total||0)} €</span>
+        </div>
+        <div class="kv-names">Piste ${(a.ecart_piste||0)>=0?'+':''}${Math.round(a.ecart_piste||0)} € · Boutique ${(a.ecart_boutique||0)>=0?'+':''}${Math.round(a.ecart_boutique||0)} €${a.commentaire ? ' · ' + a.commentaire : ''}</div>
+        <button class="btn btn-danger" data-id="${a.id}" data-date="${a.date}" onclick="supprimerAuditCaisse(this)">Supprimer cet audit</button>
+      </div>`).join('');
+
+    msg.textContent = `${data.length} audit(s) trouvé(s) pour cette date.`;
+    msg.className = 'msg ok';
+  }
+
+  async function supprimerAuditCaisse(btn) {
+    const id = btn.dataset.id;
+    const date = btn.dataset.date;
+    const dateLisible = new Date(date + 'T00:00:00').toLocaleDateString('fr-FR');
+    if (!confirm(`Supprimer définitivement cet audit de caisse du ${dateLisible} (site "${SITE_ACTUEL}") ? Cette action est irréversible.`)) return;
+    if (!confirm('Confirmation finale — l\'audit sera perdu de manière permanente. Continuer ?')) return;
+
+    btn.disabled = true; btn.textContent = 'Suppression…';
+
+    const { error } = await nexusClient.from('audits_caisse').delete().eq('id', id);
+    if (error) {
+      console.error('Suppression audit caisse:', error);
+      alert('Erreur lors de la suppression — réessayez.');
+      btn.disabled = false; btn.textContent = 'Supprimer cet audit';
+      return;
+    }
+
+    const premierJourMois = date.slice(0, 8) + '01';
+    const { error: erreurRecalcul } = await nexusClient.rpc('calculer_caisse_sante', { p_site: SITE_ACTUEL, p_mois: premierJourMois });
+    if (erreurRecalcul) console.error('Recalcul santé caisse après suppression:', erreurRecalcul);
+
+    rechercherAuditsCaisse();
+  }
+
+  function renderOutils() {
+    const zone = document.getElementById('zoneOutils');
+    if (!zone) return;
+
+    if (!SITE_ACTUEL) {
+      zone.innerHTML = `<div class="card"><div class="empty-note">Choisissez un site ci-dessus pour afficher les outils.</div></div>`;
+      return;
+    }
+
+    zone.innerHTML = `
+      <div class="card danger">
+        <div class="section-label">Diagnostic — Doublons de période (products) <span class="badge-irr">⚠ Irréversible</span></div>
+        <p class="note" style="margin-top:0;">Compte les lignes par période pour repérer un total anormalement élevé sur <b>${SITE_ACTUEL}</b> — signe d'un réimport qui a ajouté au lieu de remplacer.</p>
+        <button class="btn btn-primary" id="btnDiagPeriodes">Analyser les périodes</button>
+        <div id="resultatPeriodes"></div>
+        <div class="msg" id="msgPeriodes"></div>
+      </div>
+
+      <div class="card">
+        <div class="section-label">Correction ponctuelle — Catégories CBD</div>
+        <p class="note" style="margin-top:0;">Reclasse sous "CBD" toute ligne déjà importée dans <code>products</code> pour <b>${SITE_ACTUEL}</b> dont l'article contient "CBD" mais qui est encore classée ailleurs. Sans danger à relancer plusieurs fois.</p>
+        <button class="btn btn-primary" id="btnCorrigerCBD">Corriger les catégories CBD</button>
+        <div class="msg" id="msgCBD"></div>
+      </div>
+
+      <div class="card danger">
+        <div class="section-label">Correction — Supprimer un audit de caisse <span class="badge-irr">⚠ Irréversible</span></div>
+        <p class="note" style="margin-top:0;">Pour retirer un audit de caisse issu d'une erreur de saisie, sur <b>${SITE_ACTUEL}</b>. Recherche par date, puis suppression ligne par ligne. Le suivi mensuel (Centre d'Intelligence) est recalculé automatiquement juste après.</p>
+        <div class="field">
+          <label>Date de l'audit</label>
+          <input type="date" id="dateAuditCible">
+        </div>
+        <button class="btn btn-primary" id="btnChercherAudit">Rechercher</button>
+        <div id="resultatAuditsCaisse"></div>
+        <div class="msg" id="msgAuditsCaisse"></div>
+      </div>
+    `;
+
+    document.getElementById('btnDiagPeriodes').addEventListener('click', diagnostiquerPeriodes);
+    document.getElementById('btnCorrigerCBD').addEventListener('click', corrigerCategoriesCBD);
+    document.getElementById('btnChercherAudit').addEventListener('click', rechercherAuditsCaisse);
+  }
+
+  function renderRoot() {
+    const root = document.getElementById('root');
+    root.innerHTML = `
+      <div class="card">
+        <div class="section-label">Site ciblé (${SITES.length})</div>
+        <div id="listeSites"></div>
+        <div class="note">Toutes les actions ci-dessous s'appliquent uniquement au site sélectionné ici.</div>
+      </div>
+      <div id="zoneOutils"></div>
+    `;
+
+    document.getElementById('listeSites').innerHTML = SITES.map(s => `
+      <div class="site-row ${s.site_id === SITE_ACTUEL ? 'active' : ''}" data-id="${s.site_id}">
+        ${s.logo_url ? `<img class="site-logo" src="${s.logo_url}" alt="">` : `<div class="site-logo">?</div>`}
+        <div>
+          <div class="site-name">${s.nom_entreprise || s.site_id}</div>
+          <div class="site-id">${s.site_id}</div>
+        </div>
+        ${s.site_id === SITE_ACTUEL ? '<span class="site-active-tag">Ciblé</span>' : ''}
+      </div>`).join('') || `<div class="empty-note">Aucun site configuré.</div>`;
+
+    document.querySelectorAll('.site-row').forEach(el => {
+      el.addEventListener('click', () => { SITE_ACTUEL = el.dataset.id; renderRoot(); });
+    });
+
+    renderOutils();
+  }
+
+  nexusRequireAuth().then(async employee => {
+    if (!employee) return; // nexus-auth.js gère déjà la redirection vers NEXUS-Login-v1.html
+    if (!employee.est_createur) {
+      document.getElementById('root').innerHTML = `<div class="locked">Cet écran est réservé au compte créateur.</div>`;
+      return;
+    }
+    SITES = await chargerSites();
+    if (SITES.length > 0) SITE_ACTUEL = (SITES.find(s => s.site_id === (employee.site_id || 'vito-sainte-marie')) || SITES[0]).site_id;
+    renderRoot();
+  });
+</script>
+</body>
+</html>
