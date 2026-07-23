@@ -123,6 +123,15 @@
     return data || [];
   }
 
+  // Affichage en jj/mm/aa — les dates restent en ISO (YYYY-MM-DD) dans les
+  // données et les attributs data-debut/data-fin (comparaison de chaînes
+  // fiable), seul l'affichage change.
+  function formatDateFr(iso) {
+    if (!iso || iso.length < 10) return iso || '';
+    const [y, m, d] = iso.slice(0, 10).split('-');
+    return `${d}/${m}/${y.slice(2)}`;
+  }
+
   // Supabase plafonne chaque requete a 1000 lignes par defaut, sans erreur —
   // au-dela, le reste est silencieusement absent du resultat (meme piege que
   // NEXUS-Debug-v1.html, trouve le 15/07/2026). Ce helper boucle par pages
@@ -178,6 +187,19 @@
       ...p, distincts: p.articles.size, ratio: p.articles.size > 0 ? p.total / p.articles.size : 0,
     })).sort((a,b) => a.debut.localeCompare(b.debut));
 
+    // Chevauchement entre deux périodes DIFFÉRENTES — un doublon de lignes
+    // dans la MÊME période (ratio ci-dessus) est un cas distinct d'un
+    // chevauchement entre deux imports différents, qui compte les mêmes
+    // ventes deux fois dans le cumul (ex : 2026-04-01→2026-06-30 et
+    // 2026-06-01→2026-07-22 partagent juin). Repéré le 23/07/2026 — ce
+    // diagnostic ne le détectait pas encore, seul l'import bloque désormais
+    // ce cas pour les nouveaux envois (voir NEXUS-Import-v1.html).
+    periodes.forEach(p => {
+      p.chevaucheAvec = periodes
+        .filter(autre => autre !== p && autre.debut <= p.fin && autre.fin >= p.debut)
+        .map(autre => `${formatDateFr(autre.debut)} → ${formatDateFr(autre.fin)}`);
+    });
+
     if (periodes.length === 0) {
       zone.innerHTML = '<div class="empty-note">Aucune donnée dans products pour ce site.</div>';
       return;
@@ -185,13 +207,19 @@
 
     zone.innerHTML = periodes.map(p => {
       const suspect = p.ratio >= 1.5;
+      const chevauche = p.chevaucheAvec.length > 0;
+      const alerte = suspect || chevauche;
+      const motifs = [];
+      if (suspect) motifs.push('doublon probable (lignes en trop dans la même période)');
+      if (chevauche) motifs.push(`chevauche avec ${p.chevaucheAvec.join(', ')}`);
       return `
         <div class="kv-row" style="flex-direction:column; align-items:stretch; gap:4px; padding:10px 0;">
           <div style="display:flex; justify-content:space-between;">
-            <span class="kv-key">${p.debut} → ${p.fin}</span>
-            <span class="kv-val" style="color:${suspect?'var(--red)':'var(--green)'};">${p.total} ligne${p.total>1?'s':''} · ${p.distincts} article${p.distincts>1?'s':''} distinct${p.distincts>1?'s':''}${suspect?' ⚠ doublon probable':''}</span>
+            <span class="kv-key">${formatDateFr(p.debut)} → ${formatDateFr(p.fin)}</span>
+            <span class="kv-val" style="color:${alerte?'var(--red)':'var(--green)'};">${p.total} ligne${p.total>1?'s':''} · ${p.distincts} article${p.distincts>1?'s':''} distinct${p.distincts>1?'s':''}</span>
           </div>
-          ${suspect ? `<button class="btn btn-danger" style="margin-top:4px;" data-debut="${p.debut}" data-fin="${p.fin}" onclick="supprimerPeriode(this)">Supprimer cette période (pour réimporter proprement)</button>` : ''}
+          ${alerte ? `<div class="note" style="color:var(--red); margin-top:0;">⚠ ${motifs.join(' · ')}</div>` : ''}
+          ${alerte ? `<button class="btn btn-danger" style="margin-top:4px;" data-debut="${p.debut}" data-fin="${p.fin}" onclick="supprimerPeriode(this)">Supprimer cette période (pour réimporter proprement)</button>` : ''}
         </div>`;
     }).join('');
 
@@ -201,7 +229,7 @@
 
   async function supprimerPeriode(btn) {
     const debut = btn.dataset.debut, fin = btn.dataset.fin;
-    if (!confirm(`Supprimer TOUTES les lignes products de la période ${debut} → ${fin} pour le site "${SITE_ACTUEL}" ? Cette action est irréversible — réimportez ensuite le fichier propre depuis Import.`)) return;
+    if (!confirm(`Supprimer TOUTES les lignes products de la période ${formatDateFr(debut)} → ${formatDateFr(fin)} pour le site "${SITE_ACTUEL}" ? Cette action est irréversible — réimportez ensuite le fichier propre depuis Import.`)) return;
     btn.disabled = true; btn.textContent = 'Suppression…';
     const { error } = await nexusClient.from('products').delete()
       .eq('site', SITE_ACTUEL).eq('periode_debut', debut).eq('periode_fin', fin);
