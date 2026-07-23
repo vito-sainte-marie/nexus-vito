@@ -444,9 +444,11 @@ nexusRequireAuth().then(async employee => {
   //
   // Cette liste de rayons est un premier brouillon déduit le 22/07/2026
   // des photos réelles des rayons de Vito Sainte-Marie fournies par
-  // Frédéric — pas figée : le champ "Autre" permet de saisir un nom de
-  // rayon libre, donc la vraie liste se construira avec l'usage plutôt
-  // que d'être imposée d'avance.
+  // Frédéric, complétée le même jour avec les vraies catégories du
+  // catalogue (products) pour le pré-remplissage automatique — pas figée :
+  // le champ "Autre" permet de saisir un nom de rayon libre, donc la
+  // vraie liste se construira avec l'usage plutôt que d'être imposée
+  // d'avance.
   const ZONES_BOUTIQUE = [
     'Entretien Auto & Moteurs',
     'Entretien Jardin & Extérieur',
@@ -458,8 +460,20 @@ nexusRequireAuth().then(async employee => {
     'Épicerie & Alimentation',
     'Hygiène & Beauté',
     'Entretien Ménager & Jetable',
+    'Tabac & Comptoir',
+    'Cartes prépayées & Services',
+    'Maison & Déco / Bazar',
   ];
 
+  // MISE À JOUR 22/07/2026 : Frédéric a demandé un pré-remplissage pour
+  // tout le catalogue (voir seed-product-locations-auto-v1.sql), déduit
+  // de la catégorie de vente de chaque article — pas d'un relevé terrain.
+  // Une suggestion automatique n'est PAS une donnée vérifiée : on ne
+  // l'affiche donc jamais comme un fait acquis (pas de "(modifier)"
+  // discret comme pour une confirmation humaine), mais clairement comme
+  // une proposition à valider. Le premier clic d'un manager sur un rayon
+  // — même pour confirmer la même suggestion — bascule la ligne en
+  // source='manuel' (voir enregistrerEmplacement()).
   async function chargerEmplacementProduit(p) {
     const el = document.getElementById('gapEmplacementStatus');
     const picker = document.getElementById('emplacementPickerZone');
@@ -468,16 +482,19 @@ nexusRequireAuth().then(async employee => {
     try {
       const { data, error } = await nexusClient
         .from('product_locations')
-        .select('emplacement, assigne_le')
+        .select('emplacement, assigne_le, source')
         .eq('site', SITE_ACTUEL)
         .eq('categorie', p.categorie)
         .eq('article', p.article)
         .maybeSingle();
       if (error) throw error;
       if (!el.isConnected) return;
-      if (data && data.emplacement) {
+      if (data && data.emplacement && data.source === 'manuel') {
         const date = new Date(data.assigne_le).toLocaleDateString('fr-FR');
         el.innerHTML = `${data.emplacement} · ${date} <span class="emplacement-modifier" id="btnModifierEmplacement">(modifier)</span>`;
+      } else if (data && data.emplacement) {
+        // source = 'auto_categorie' : suggestion non confirmée par un humain.
+        el.innerHTML = `🟡 Suggéré : ${data.emplacement} <span class="emplacement-modifier" id="btnModifierEmplacement">(confirmer/corriger)</span>`;
       } else {
         el.innerHTML = `Non renseigné <span class="emplacement-modifier" id="btnModifierEmplacement">(choisir)</span>`;
       }
@@ -524,7 +541,7 @@ nexusRequireAuth().then(async employee => {
       .from('product_locations')
       .upsert({
         site: SITE_ACTUEL, categorie: p.categorie, article: p.article,
-        emplacement: zone, assigne_par: employee.id, assigne_le: new Date().toISOString(),
+        emplacement: zone, source: 'manuel', assigne_par: employee.id, assigne_le: new Date().toISOString(),
       }, { onConflict: 'site,categorie,article' });
 
     if (error) {
