@@ -249,6 +249,9 @@ nexusRequireAuth().then(async employee => {
         marge_pct: p.ca > 0 ? (p.marge || 0) / p.ca : 0, marge_totale: p.marge || 0,
         ca_t1: prec ? prec.ca : 0, ca_t2: p.ca, ca_s1: (prec ? prec.ca : 0) + p.ca,
         qte_t1: prec ? (prec.quantite || 0) : 0, qte_t2: p.quantite || 0,
+        // Dates de la période actuelle — nécessaires pour estimer une vitesse
+        // de vente quotidienne (rotation réelle), voir chargerStockGap().
+        periode_debut: p.periode_debut, periode_fin: p.periode_fin,
         pct_contrib, statut,
       };
     });
@@ -407,7 +410,7 @@ nexusRequireAuth().then(async employee => {
       <div class="card">
         <div class="section-label">Ce que NEXUS ne sait pas encore</div>
         <div class="gap-row"><span class="gap-label">Stock</span><span class="gap-status" id="gapStockStatus">Vérification du dernier relevé…</span></div>
-        <div class="gap-row"><span class="gap-label">Rotation réelle</span><span class="gap-status">Le stock est désormais relevé (import « Stock instantané »), mais aucun calcul de rotation vente/stock n'est encore construit — manque réel, pas un oubli d'affichage</span></div>
+        <div class="gap-row"><span class="gap-label">Rotation réelle</span><span class="gap-status" id="gapRotationStatus">Vérification…</span></div>
         <div class="gap-row"><span class="gap-label">Emplacement</span><span class="gap-status">Non modélisé — aucune colonne emplacement/étagère dans la base actuellement</span></div>
         <div class="gap-row"><span class="gap-label">Facing actuel</span><span class="gap-status">Non disponible — pas de saisie des facings actuellement</span></div>
       </div>
@@ -422,19 +425,34 @@ nexusRequireAuth().then(async employee => {
     chargerStockGap(p);
   }
 
-  // Branche la ligne "Stock" de la carte "Ce que NEXUS ne sait pas encore"
-  // sur le vrai dernier relevé stock_releves (table alimentée par l'écran
-  // Import -> "Stock instantané"), au lieu du texte fige "Non disponible"
-  // qui restait affiche meme une fois des relevés importes (repere le
-  // 22/07/2026 : Frederic avait deja importe plusieurs inventaires, la carte
-  // ne le refletait pas car elle n'interrogeait jamais stock_releves).
+  // Branche les lignes "Stock" et "Rotation réelle" de la carte "Ce que
+  // NEXUS ne sait pas encore" sur stock_releves (table alimentée par l'écran
+  // Import -> "Stock instantané"), au lieu du texte fige qui restait affiche
+  // meme une fois des relevés importes (repere le 22/07/2026 : Frederic
+  // avait deja importe plusieurs inventaires, la carte ne le refletait pas
+  // car elle n'interrogeait jamais stock_releves).
+  //
   // Rapprochement par nom d'article exact -- stock_releves n'a pas de FK vers
-  // products, donc si le nom differe legerement entre les deux imports
-  // (caisse vs export stock), aucune ligne ne remonte : on le dit
-  // explicitement plutot que d'afficher un chiffre au hasard.
+  // products, et une comparaison des deux exports le 22/07/2026 a montre que
+  // seuls ~40% des articles de stock retrouvent un nom identique cote ventes
+  // (le reste : vrais ecarts de catalogue, ~190 lignes "Nouvel article", et
+  // aucun code-barres cote stock pour servir de repli). Donc: on affiche la
+  // vraie donnee pour les ~40% qui matchent, et on dit explicitement "aucun
+  // relevé trouvé" pour les autres plutot que d'inventer un chiffre.
+  //
+  // Rotation reelle : ce n'est PAS un vrai taux moyen (quantite vendue /
+  // stock moyen sur une periode commune), qui demanderait au moins deux
+  // relevés stock encadrant une periode de ventes deja importee. Aujourd'hui
+  // les relevés stock (mi-juillet) ne recouvrent aucune periode de ventes
+  // importee (la derniere s'arrete le 30/06). On calcule donc une
+  // ESTIMATION : stock actuel / vitesse de vente quotidienne du dernier
+  // trimestre importe, exprimee en "jours de stock" — et on le dit
+  // explicitement dans le texte affiche, pour ne jamais laisser croire a un
+  // vrai calcul de rotation.
   async function chargerStockGap(p) {
-    const el = document.getElementById('gapStockStatus');
-    if (!el) return;
+    const elStock = document.getElementById('gapStockStatus');
+    const elRotation = document.getElementById('gapRotationStatus');
+    if (!elStock && !elRotation) return;
     try {
       const { data, error } = await nexusClient
         .from('stock_releves')
@@ -444,19 +462,38 @@ nexusRequireAuth().then(async employee => {
         .order('releve_le', { ascending: false })
         .limit(1);
       if (error) throw error;
-      if (!el.isConnected) return; // le manager a change de produit entre-temps
       if (!data || !data.length) {
-        el.textContent = `Aucun relevé trouvé pour « ${p.article} » (vérifier que le nom correspond exactement à celui utilisé lors de l'import stock).`;
+        const msg = `Aucun relevé trouvé pour « ${p.article} » (vérifier que le nom correspond exactement à celui utilisé lors de l'import stock).`;
+        if (elStock && elStock.isConnected) elStock.textContent = msg;
+        if (elRotation && elRotation.isConnected) elRotation.textContent = "Non calculable sans relevé de stock pour cet article.";
         return;
       }
       const relv = data[0];
-      const date = new Date(relv.releve_le).toLocaleDateString('fr-FR');
-      el.textContent = relv.quantite_reelle != null
-        ? `Théorique ${relv.quantite_theorique} u., compté ${relv.quantite_reelle} u. — relevé du ${date}`
-        : `Théorique ${relv.quantite_theorique} u. — relevé du ${date} (pas encore contrôlé physiquement)`;
+      const dateRelv = new Date(relv.releve_le).toLocaleDateString('fr-FR');
+      if (elStock && elStock.isConnected) {
+        elStock.textContent = relv.quantite_reelle != null
+          ? `Théorique ${relv.quantite_theorique} u., compté ${relv.quantite_reelle} u. — relevé du ${dateRelv}`
+          : `Théorique ${relv.quantite_theorique} u. — relevé du ${dateRelv} (pas encore contrôlé physiquement)`;
+      }
+
+      if (elRotation && elRotation.isConnected) {
+        const stockQte = relv.quantite_reelle != null ? relv.quantite_reelle : relv.quantite_theorique;
+        const debut = p.periode_debut ? new Date(p.periode_debut) : null;
+        const fin = p.periode_fin ? new Date(p.periode_fin) : null;
+        const nbJours = (debut && fin) ? Math.round((fin - debut) / (1000 * 60 * 60 * 24)) + 1 : 0;
+        const venteJour = nbJours > 0 ? (p.qte_t2 || 0) / nbJours : 0;
+        if (venteJour <= 0) {
+          elRotation.textContent = `Aucune vente enregistrée sur la dernière période importée (${p.periode_debut} → ${p.periode_fin}) — rotation non calculable.`;
+        } else {
+          const joursDeStock = stockQte / venteJour;
+          elRotation.textContent = `Estimation : ${joursDeStock.toFixed(1)} j de stock au rythme de vente du dernier trimestre importé (${venteJour.toFixed(2)} u./jour). Pas une vraie moyenne : le relevé stock du ${dateRelv} ne recouvre pas la période de ventes ${p.periode_debut} → ${p.periode_fin}.`;
+        }
+      }
     } catch (e) {
       console.error('Chargement stock_releves:', e);
-      if (el.isConnected) el.textContent = "Impossible de vérifier le stock pour l'instant (erreur réseau).";
+      const msgErr = "Impossible de vérifier le stock pour l'instant (erreur réseau).";
+      if (elStock && elStock.isConnected) elStock.textContent = msgErr;
+      if (elRotation && elRotation.isConnected) elRotation.textContent = msgErr;
     }
   }
 
