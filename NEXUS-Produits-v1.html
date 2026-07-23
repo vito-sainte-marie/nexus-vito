@@ -536,9 +536,18 @@ nexusRequireAuth().then(async employee => {
   // directement mission_completions, filtrée par article_cible — pas de
   // table intermédiaire, une seule source de vérité. Aucune photo tant
   // qu'aucun employé n'en a pris une : jamais de placeholder inventé.
+  //
+  // MISE À JOUR 22/07/2026 : le manager peut aussi prendre la photo
+  // directement depuis cette fiche, sans repasser par Missions — mêmes
+  // pipeline et bucket Storage (preuves-missions) que côté employé, et la
+  // ligne créée est une complétion normale de "photo-verification-rayon"
+  // (même mission_id, article_cible = ce produit) : pas de table séparée,
+  // pas de statut spécial "photo manager" — le manager fait exactement la
+  // même action de vérification qu'un employé aurait pu faire.
   async function chargerPhotoTerrain(p) {
     const zone = document.getElementById('photoTerrainZone');
     if (!zone) return;
+    let statusHtml;
     try {
       const { data, error } = await nexusClient
         .from('mission_completions')
@@ -551,19 +560,76 @@ nexusRequireAuth().then(async employee => {
       if (error) throw error;
       if (!zone.isConnected) return;
       if (!data || !data.length || !data[0].photo_url) {
-        zone.innerHTML = `<div class="photo-empty">Aucune photo de rayon prise par l'équipe pour l'instant pour « ${p.article} ».</div>`;
-        return;
+        statusHtml = `<div class="photo-empty">Aucune photo de rayon prise pour l'instant pour « ${p.article} ».</div>`;
+      } else {
+        const r = data[0];
+        const date = new Date(r.created_at).toLocaleDateString('fr-FR');
+        const nomEmp = r.employees && r.employees.nom ? r.employees.nom : 'un employé';
+        statusHtml = `
+          <div class="photo-box"><img src="${r.photo_url}" alt="Photo rayon"></div>
+          <div class="photo-meta">Prise par ${nomEmp} le ${date}</div>
+        `;
       }
-      const r = data[0];
-      const date = new Date(r.created_at).toLocaleDateString('fr-FR');
-      const nomEmp = r.employees && r.employees.nom ? r.employees.nom : 'un employé';
-      zone.innerHTML = `
-        <div class="photo-box"><img src="${r.photo_url}" alt="Photo rayon prise par l'équipe"></div>
-        <div class="photo-meta">Prise par ${nomEmp} le ${date}</div>
-      `;
     } catch (e) {
       console.error('Chargement photo terrain:', e);
-      if (zone.isConnected) zone.textContent = "Impossible de charger la photo terrain pour l'instant.";
+      statusHtml = `<div class="photo-empty">Impossible de charger la photo terrain pour l'instant.</div>`;
+    }
+    if (!zone.isConnected) return;
+    zone.innerHTML = `
+      ${statusHtml}
+      <button class="photo-btn" id="btnPrendrePhotoTerrain">📷 Prendre une photo</button>
+      <input type="file" accept="image/*" capture="environment" id="inputPhotoTerrain" style="display:none;">
+      <div id="photoTerrainMsg" style="font-family:var(--mono); font-size:10.5px; margin-top:8px; text-align:center;"></div>
+    `;
+    const btn = document.getElementById('btnPrendrePhotoTerrain');
+    const input = document.getElementById('inputPhotoTerrain');
+    if (btn && input) {
+      btn.addEventListener('click', () => input.click());
+      input.addEventListener('change', () => {
+        if (input.files && input.files[0]) envoyerPhotoTerrainManager(p, input.files[0]);
+      });
+    }
+  }
+
+  async function envoyerPhotoTerrainManager(p, file) {
+    const msg = document.getElementById('photoTerrainMsg');
+    const btn = document.getElementById('btnPrendrePhotoTerrain');
+    if (btn) { btn.disabled = true; btn.textContent = 'Envoi de la photo…'; }
+    if (msg) msg.textContent = '';
+
+    try {
+      const ext = (file.name && file.name.includes('.')) ? file.name.split('.').pop().toLowerCase() : 'jpg';
+      const chemin = `${employee.id}/photo-verification-rayon-${Date.now()}.${ext}`;
+      const { error: erreurUpload } = await nexusClient.storage
+        .from('preuves-missions')
+        .upload(chemin, file, { contentType: file.type || 'image/jpeg' });
+      if (erreurUpload) throw erreurUpload;
+
+      const DIX_ANS = 315360000;
+      const { data: signee, error: erreurSignee } = await nexusClient.storage
+        .from('preuves-missions')
+        .createSignedUrl(chemin, DIX_ANS);
+      if (erreurSignee) throw erreurSignee;
+
+      // Complétion normale de la mission "photo-verification-rayon" (voir
+      // migration-mission-photo-produit-v1.sql) — points = 5 (base
+      // catalogue) + 2 (bonus preuve photo), même barème que côté Missions.
+      const { error: erreurInsert } = await nexusClient
+        .from('mission_completions')
+        .insert({
+          employee_id: employee.id, mission_id: 'photo-verification-rayon',
+          titre: 'Photo de vérification rayon',
+          date: new Date().toISOString().slice(0, 10), heure: new Date().toTimeString().slice(0, 5),
+          photo_fournie: true, photo_url: signee.signedUrl, points: 7,
+          article_cible: p.article, categorie_cible: p.categorie, site_id: SITE_ACTUEL,
+        });
+      if (erreurInsert) throw erreurInsert;
+
+      chargerPhotoTerrain(p);
+    } catch (e) {
+      console.error('Envoi photo terrain (manager):', e);
+      if (msg) { msg.style.color = 'var(--red)'; msg.textContent = "Erreur lors de l'envoi — réessayez."; }
+      if (btn) { btn.disabled = false; btn.textContent = '📷 Prendre une photo'; }
     }
   }
 
