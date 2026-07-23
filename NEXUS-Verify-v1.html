@@ -608,7 +608,7 @@
     // ------------------------------------------------------------
     async function afficherHistorique() {
       const el = document.getElementById('listeHistorique');
-      const { data, error } = await nexusClient.from('audits_caisse').select('*').eq('site', SITE_ACTUEL).order('date', { ascending: false }).order('quart');
+      const { data, error } = await nexusClient.from('audits_caisse').select('*').eq('site', SITE_ACTUEL).order('date', { ascending: false }).order('quart', { ascending: false });
       if (error) { console.error('Chargement historique audits:', error); el.innerHTML = `<div class="empty">Erreur de chargement.</div>`; return; }
       if (!data || data.length === 0) { el.innerHTML = `<div class="empty">Aucun audit enregistré pour l'instant.</div>`; return; }
 
