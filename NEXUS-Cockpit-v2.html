@@ -258,6 +258,8 @@
 
   <div class="section" id="risqueSection"></div>
 
+  <div class="section" id="baisseSection"></div>
+
   <div class="section" id="topVentesSection"></div>
 
   <div class="divider"></div>
@@ -552,6 +554,7 @@
     let MEILLEUR_SUCCES = null;
     let PIRE_RISQUE = null;
     let TOP_VENTES = [];
+    let PRODUITS_EN_BAISSE = []; // toute évolution négative, pas seulement le seuil -30% de R2-BAISSE
 
     // Supabase plafonne chaque requete a 1000 lignes par defaut, sans erreur —
     // au-dela, le reste est silencieusement absent. Ce helper boucle par pages
@@ -603,6 +606,7 @@
       const fmt = v => Math.round(v).toLocaleString('fr-FR');
       MEILLEUR_SUCCES = null; // reinitialise a chaque calcul, jamais garde d'une periode perimee
       PIRE_RISQUE = null;
+      PRODUITS_EN_BAISSE = [];
       TOP_VENTES = [...rowsActuels].sort((a,b) => (b.ca||0) - (a.ca||0)).slice(0,3);
 
       rowsActuels.forEach(p => {
@@ -665,11 +669,21 @@
             MEILLEUR_SUCCES = { article: p.article, evolution, gain: Math.max(p.ca - caPrec, 0) };
           }
         }
+
+        // Vue d'ensemble des produits en baisse — toute évolution négative,
+        // pas seulement le seuil -30% qui déclenche R2-BAISSE. Demande de
+        // Frédéric le 23/07/2026 : une donnée utile au manager, affichée en
+        // dehors des Plans d'action pour ne pas la mélanger aux 5 priorités
+        // scorées (qui restent centrées sur ce qui mérite une action).
+        if (evolution !== null && evolution < 0) {
+          PRODUITS_EN_BAISSE.push({ article: p.article, categorie: p.categorie, evolution, perte: Math.max(caPrec - p.ca, 0) });
+        }
       });
 
       candidats.sort((a, b) => b.impact_eur - a.impact_eur);
       const risques = candidats.filter(c => c.rule_id === 'R2-BAISSE').sort((a,b) => b.impact_eur - a.impact_eur);
       PIRE_RISQUE = risques[0] || null;
+      PRODUITS_EN_BAISSE.sort((a, b) => a.evolution - b.evolution); // le plus en baisse d'abord
       return candidats; // toutes les candidates qualifiées — renderPlansAction() pioche les 5 à afficher
                          // et laisse apparaitre la suivante au fur et a mesure qu'on en valide
     }
@@ -777,6 +791,7 @@
             renderPlansAction();
             renderSucces();
             renderRisques();
+            renderProduitsBaisse();
             renderTopVentes();
           }
         });
@@ -887,9 +902,41 @@
           renderPlansAction();
           renderSucces();
           renderRisques();
+          renderProduitsBaisse();
           renderTopVentes();
         }
       });
+    }
+
+    // Vue d'ensemble des produits en baisse — complète Risques (qui ne montre
+    // que le pire cas) sans mélanger ça aux 5 Plans d'action scorés. Repliée
+    // par défaut (même mécanique .plan-card/.open que les plans) pour ne pas
+    // surcharger l'écran : un manager pressé voit juste le compte, et peut
+    // déplier s'il veut le détail des 5 pires. Demande de Frédéric 23/07/2026.
+    function renderProduitsBaisse() {
+      const el = document.getElementById('baisseSection');
+      if (!el) return;
+      if (!PRODUITS_EN_BAISSE.length) { el.innerHTML = ''; return; }
+
+      const nb = PRODUITS_EN_BAISSE.length;
+      const pires = PRODUITS_EN_BAISSE.slice(0, 5);
+      const reste = nb - pires.length;
+
+      el.innerHTML = `
+        <div class="plan-card etat-surveiller" id="carteBaisse">
+          <div class="plan-head" onclick="document.getElementById('carteBaisse').classList.toggle('open')">
+            <span class="plan-etat">📉 EN BAISSE</span>
+            <span class="plan-action-teaser">${nb} produit${nb>1?'s':''} en baisse sur la période</span>
+            <span class="plan-chevron">›</span>
+          </div>
+          <div class="plan-body">
+            <div class="plan-story">
+              <span class="story-label">Détail</span>
+              ${pires.map(p => `${p.article} (${p.categorie}) — ${(p.evolution*100).toFixed(1)} %`).join('<br>')}
+              ${reste > 0 ? `<br><span style="color:var(--text-dim);">+ ${reste} autre${reste>1?'s':''} — voir Produits pour le détail complet.</span>` : ''}
+            </div>
+          </div>
+        </div>`;
     }
 
     // Remplace l'ancien "Top ventes" fige — TOP_VENTES vient des memes lignes
@@ -1247,6 +1294,7 @@
       renderStory();
       renderSucces();
       renderRisques();
+      renderProduitsBaisse();
       renderTopVentes();
 
       // Detail de l'Indice NEXUS au clic — uniquement les facteurs reellement
