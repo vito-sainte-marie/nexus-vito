@@ -325,7 +325,7 @@ const FIELD_DEFS = [
 // que mettre en minuscules sans retirer les accents (trouve le 15/07/2026).
 function norm(s){
   return (s||'').toString()
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .normalize('NFD').replace(new RegExp('[\\u0300-\\u036f]', 'g'), '')
     .toLowerCase().trim();
 }
 
@@ -341,7 +341,7 @@ function detectMapping(headers){
 function toNumber(v){
   if (typeof v === 'number') return v;
   if (v == null) return NaN;
-  let s = String(v).replace(/\s|\u00a0|\u202f/g,'').replace(',', '.');
+  let s = String(v).replace(new RegExp('[\\s\\u00a0\\u202f]', 'g'), '').replace(',', '.');
   const n = parseFloat(s);
   return isNaN(n) ? NaN : n;
 }
@@ -531,6 +531,40 @@ async function envoyerVentes(msg) {
     return;
   }
 
+  // Empêche le chevauchement de périodes. Deux périodes qui se recouvrent
+  // partiellement (ex : période déjà en base 01/04→30/06, nouvel import
+  // 01/06→22/07) comptent les mêmes ventes de juin deux fois dans le total
+  // — ça fausse silencieusement le CA cumulé et surtout l'évolution T1→T2
+  // affichée sur la fiche produit. Repéré le 23/07/2026 sur les M&M's.
+  // On bloque l'envoi tant que les dates ne sont pas ajustées, plutôt que de
+  // deviner comment "couper" un import déjà fait en deux.
+  const { data: periodesExistantes, error: erreurPeriodes } = await nexusClient
+    .from('products')
+    .select('periode_debut, periode_fin')
+    .eq('site', employee.site_id || 'vito-sainte-marie');
+
+  if (erreurPeriodes) { console.error('Vérification chevauchement périodes:', erreurPeriodes); }
+
+  const periodesVues = new Set();
+  const periodesUniques = [];
+  (periodesExistantes || []).forEach(r => {
+    if (!r.periode_debut || !r.periode_fin) return;
+    const cle = `${r.periode_debut}|${r.periode_fin}`;
+    if (!periodesVues.has(cle)) { periodesVues.add(cle); periodesUniques.push(r); }
+  });
+
+  const estExactementLaMeme = pe => pe.periode_debut === debut && pe.periode_fin === fin;
+  const seChevauche = pe => pe.periode_debut <= fin && pe.periode_fin >= debut;
+
+  const chevauchements = periodesUniques.filter(pe => !estExactementLaMeme(pe) && seChevauche(pe));
+
+  if (chevauchements.length > 0) {
+    const liste = chevauchements.map(pe => `${pe.periode_debut} → ${pe.periode_fin}`).join(', ');
+    msg.textContent = `Cette période (${debut} → ${fin}) chevauche une période déjà importée (${liste}). Pour éviter de compter deux fois les mêmes ventes, ajustez les dates pour qu'elles ne se chevauchent pas — ou supprimez d'abord l'ancienne période dans Debug si elle doit être remplacée.`;
+    msg.style.color = 'var(--red)';
+    return;
+  }
+
   // Verifie qu'on ne va pas dupliquer une periode deja importee — envoyerParLots
   // ne fait qu'ajouter, jamais remplacer. Sans ce controle, reimporter la meme
   // periode double silencieusement le CA et la marge partout dans l'app
@@ -538,7 +572,7 @@ async function envoyerVentes(msg) {
   const { count: nbExistant, error: erreurVerif } = await nexusClient
     .from('products')
     .select('id', { count: 'exact', head: true })
-    .eq('site', 'vito-sainte-marie')
+    .eq('site', employee.site_id || 'vito-sainte-marie')
     .eq('periode_debut', debut)
     .eq('periode_fin', fin);
 
@@ -555,7 +589,7 @@ async function envoyerVentes(msg) {
     sendPilot.style.pointerEvents = 'none';
     const { error: erreurSuppr } = await nexusClient
       .from('products').delete()
-      .eq('site', 'vito-sainte-marie').eq('periode_debut', debut).eq('periode_fin', fin);
+      .eq('site', employee.site_id || 'vito-sainte-marie').eq('periode_debut', debut).eq('periode_fin', fin);
     if (erreurSuppr) {
       console.error('Suppression avant remplacement:', erreurSuppr);
       msg.textContent = "Erreur lors du remplacement — rien n'a été modifié, réessayez.";
@@ -577,12 +611,12 @@ async function envoyerVentes(msg) {
     const marge = (!isNaN(q) && !isNaN(pa) && !isNaN(pv)) ? q * (pv - pa) : 0;
     const articleNom = String(r[artKey] || '');
     return {
-      site: 'vito-sainte-marie',
+      site: employee.site_id || 'vito-sainte-marie',
       periode_debut: debut,
       periode_fin: fin,
       categorie: corrigerCategorie(String(r[catKey] || 'Non classé'), articleNom),
       article: articleNom,
-      code_barres: cbKey ? String(r[cbKey] || '').replace(/[\s\u00a0\u202f]+/g, '').trim() || null : null,
+      code_barres: cbKey ? String(r[cbKey] || '').replace(new RegExp('[\\s\\u00a0\\u202f]+', 'g'), '').trim() || null : null,
       quantite: isNaN(q) ? null : q,
       prix_achat: isNaN(pa) ? null : pa,
       prix_vente: isNaN(pv) ? null : pv,
@@ -646,11 +680,11 @@ async function envoyerStockInstantane(msg) {
     const q = toNumber(r[qKey]);
     const articleNom = String(r[artKey] || '');
     return {
-      site: 'vito-sainte-marie',
+      site: employee.site_id || 'vito-sainte-marie',
       releve_le: releveLe,
       categorie: catKey ? corrigerCategorie(String(r[catKey] || 'Non classé'), articleNom) : null,
       article: articleNom,
-      code_barres: cbKey ? String(r[cbKey] || '').replace(/[\s\u00a0\u202f]+/g, '').trim() || null : null,
+      code_barres: cbKey ? String(r[cbKey] || '').replace(new RegExp('[\\s\\u00a0\\u202f]+', 'g'), '').trim() || null : null,
       quantite_theorique: isNaN(q) ? 0 : q,
       importe_par: employee.id,
     };

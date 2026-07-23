@@ -837,7 +837,15 @@ nexusRequireAuth().then(async employee => {
           elRotation.textContent = `Aucune vente enregistrée sur la dernière période importée (${p.periode_debut} → ${p.periode_fin}) — rotation non calculable.`;
         } else {
           const joursDeStock = stockQte / venteJour;
-          elRotation.textContent = `Estimation : ${joursDeStock.toFixed(1)} j de stock au rythme de vente du dernier trimestre importé (${venteJour.toFixed(2)} u./jour). Pas une vraie moyenne : le relevé stock du ${dateRelv} ne recouvre pas la période de ventes ${p.periode_debut} → ${p.periode_fin}.`;
+          // Le relevé est-il réellement dans la période de ventes ? Comparaison
+          // de dates ISO (YYYY-MM-DD), triable directement en chaîne.
+          const releveIso = relv.releve_le ? String(relv.releve_le).slice(0, 10) : null;
+          const dansLaPeriode = releveIso && p.periode_debut && p.periode_fin
+            && releveIso >= p.periode_debut && releveIso <= p.periode_fin;
+          const caveat = dansLaPeriode
+            ? `Le relevé stock du ${dateRelv} tombe bien dans la période de ventes ${p.periode_debut} → ${p.periode_fin}, mais reste une photo à un instant T, pas une moyenne sur toute la période.`
+            : `Pas une vraie moyenne : le relevé stock du ${dateRelv} ne recouvre pas la période de ventes ${p.periode_debut} → ${p.periode_fin}.`;
+          elRotation.textContent = `Estimation : ${joursDeStock.toFixed(1)} j de stock au rythme de vente du dernier trimestre importé (${venteJour.toFixed(2)} u./jour). ${caveat}`;
         }
       }
       if (elHeroRotVal && elHeroRotVal.isConnected) {
