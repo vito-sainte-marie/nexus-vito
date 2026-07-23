@@ -105,6 +105,14 @@
   .photo-annuler{margin-top:10px; text-align:center; font-family:var(--mono); font-size:10.5px; color:var(--text-dim); cursor:pointer; text-decoration:underline;}
   .photo-loading{font-size:12px; color:var(--text-dim); text-align:center; padding:16px 0;}
 
+  .emplacement-modifier{font-family:var(--mono); font-size:10.5px; color:var(--cyan); cursor:pointer; text-decoration:underline;}
+  .emplacement-zones{display:flex; flex-wrap:wrap; gap:6px; margin-top:10px;}
+  .emplacement-zone{padding:8px 12px; border-radius:20px; border:1px solid var(--hairline); background:var(--panel-raised); color:var(--text); font-family:var(--sans); font-size:11.5px; cursor:pointer;}
+  .emplacement-zone:active{border-color:var(--cyan); color:var(--cyan);}
+  .emplacement-autre{display:flex; gap:8px; margin-top:10px;}
+  .emplacement-autre input{flex:1; background:var(--panel-raised); border:1px solid var(--hairline); border-radius:8px; padding:9px 10px; color:var(--text); font-family:var(--sans); font-size:12.5px;}
+  .emplacement-autre button{padding:9px 14px; border-radius:8px; border:1px solid rgba(79,195,217,0.35); background:rgba(79,195,217,0.08); color:var(--cyan); font-family:var(--sans); font-weight:600; font-size:12px; cursor:pointer;}
+
   .decision-card{
     background:var(--panel-raised); border-left:3px solid var(--cyan); border-radius:6px; padding:12px 14px; margin-top:10px;
   }
@@ -411,8 +419,9 @@ nexusRequireAuth().then(async employee => {
         <div class="section-label">Ce que NEXUS ne sait pas encore</div>
         <div class="gap-row"><span class="gap-label">Stock</span><span class="gap-status" id="gapStockStatus">Vérification du dernier relevé…</span></div>
         <div class="gap-row"><span class="gap-label">Rotation réelle</span><span class="gap-status" id="gapRotationStatus">Vérification…</span></div>
-        <div class="gap-row"><span class="gap-label">Emplacement</span><span class="gap-status">Non modélisé — aucune colonne emplacement/étagère dans la base actuellement</span></div>
+        <div class="gap-row"><span class="gap-label">Emplacement</span><span class="gap-status" id="gapEmplacementStatus">Vérification…</span></div>
         <div class="gap-row"><span class="gap-label">Facing actuel</span><span class="gap-status">Non disponible — pas de saisie des facings actuellement</span></div>
+        <div id="emplacementPickerZone"></div>
       </div>
 
       <div class="card">
@@ -423,6 +432,107 @@ nexusRequireAuth().then(async employee => {
 
     renderPhotoCard(p);
     chargerStockGap(p);
+    chargerEmplacementProduit(p);
+  }
+
+  // ------------------------------------------------------------
+  // Emplacement (rayon physique) — table product_locations, voir
+  // migration-product-locations-v1.sql. Contrairement au stock ou aux
+  // photos, aucune source de données existante ne permet de déduire
+  // l'emplacement automatiquement : uniquement une saisie manuelle par
+  // un manager, jamais d'auto-association.
+  //
+  // Cette liste de rayons est un premier brouillon déduit le 22/07/2026
+  // des photos réelles des rayons de Vito Sainte-Marie fournies par
+  // Frédéric — pas figée : le champ "Autre" permet de saisir un nom de
+  // rayon libre, donc la vraie liste se construira avec l'usage plutôt
+  // que d'être imposée d'avance.
+  const ZONES_BOUTIQUE = [
+    'Entretien Auto & Moteurs',
+    'Entretien Jardin & Extérieur',
+    'Boissons fraîches (frigos)',
+    'Boissons sèches & Jus',
+    'Bières & Spiritueux',
+    'Biscuiterie & Confiserie',
+    'Chips & Apéritif',
+    'Épicerie & Alimentation',
+    'Hygiène & Beauté',
+    'Entretien Ménager & Jetable',
+  ];
+
+  async function chargerEmplacementProduit(p) {
+    const el = document.getElementById('gapEmplacementStatus');
+    const picker = document.getElementById('emplacementPickerZone');
+    if (!el || !picker) return;
+    picker.innerHTML = '';
+    try {
+      const { data, error } = await nexusClient
+        .from('product_locations')
+        .select('emplacement, assigne_le')
+        .eq('site', SITE_ACTUEL)
+        .eq('categorie', p.categorie)
+        .eq('article', p.article)
+        .maybeSingle();
+      if (error) throw error;
+      if (!el.isConnected) return;
+      if (data && data.emplacement) {
+        const date = new Date(data.assigne_le).toLocaleDateString('fr-FR');
+        el.innerHTML = `${data.emplacement} · ${date} <span class="emplacement-modifier" id="btnModifierEmplacement">(modifier)</span>`;
+      } else {
+        el.innerHTML = `Non renseigné <span class="emplacement-modifier" id="btnModifierEmplacement">(choisir)</span>`;
+      }
+      const btn = document.getElementById('btnModifierEmplacement');
+      if (btn) btn.addEventListener('click', () => afficherPickerEmplacement(p));
+    } catch (e) {
+      console.error('Chargement product_locations:', e);
+      if (el.isConnected) el.textContent = "Impossible de vérifier l'emplacement pour l'instant (erreur réseau).";
+    }
+  }
+
+  function afficherPickerEmplacement(p) {
+    const picker = document.getElementById('emplacementPickerZone');
+    if (!picker) return;
+    picker.innerHTML = `
+      <div class="emplacement-zones">
+        ${ZONES_BOUTIQUE.map((z, i) => `<div class="emplacement-zone" data-i="${i}">${z}</div>`).join('')}
+      </div>
+      <div class="emplacement-autre">
+        <input type="text" id="emplacementAutreInput" placeholder="Autre rayon (nom libre)…">
+        <button id="emplacementAutreBtn">Enregistrer</button>
+      </div>
+    `;
+    picker.querySelectorAll('.emplacement-zone').forEach(elz => {
+      elz.addEventListener('click', () => enregistrerEmplacement(p, ZONES_BOUTIQUE[Number(elz.dataset.i)]));
+    });
+    const btnAutre = document.getElementById('emplacementAutreBtn');
+    const inputAutre = document.getElementById('emplacementAutreInput');
+    if (btnAutre && inputAutre) {
+      btnAutre.addEventListener('click', () => {
+        const val = inputAutre.value.trim();
+        if (val) enregistrerEmplacement(p, val);
+      });
+    }
+  }
+
+  async function enregistrerEmplacement(p, zone) {
+    const el = document.getElementById('gapEmplacementStatus');
+    const picker = document.getElementById('emplacementPickerZone');
+    if (el) el.textContent = 'Enregistrement…';
+    if (picker) picker.innerHTML = '';
+
+    const { error } = await nexusClient
+      .from('product_locations')
+      .upsert({
+        site: SITE_ACTUEL, categorie: p.categorie, article: p.article,
+        emplacement: zone, assigne_par: employee.id, assigne_le: new Date().toISOString(),
+      }, { onConflict: 'site,categorie,article' });
+
+    if (error) {
+      console.error('Enregistrement product_locations:', error);
+      if (el) el.textContent = "Erreur d'enregistrement — réessayez.";
+      return;
+    }
+    chargerEmplacementProduit(p);
   }
 
   // Branche les lignes "Stock" et "Rotation réelle" de la carte "Ce que
