@@ -108,6 +108,7 @@
   .histo-ecart-item{flex:1; background:var(--panel); border:1px solid var(--hairline); border-radius:8px; padding:8px 10px;}
   .histo-ecart-top{display:flex; align-items:center; justify-content:space-between; margin-bottom:4px;}
   .histo-ecart-caisse{font-family:var(--mono); font-size:9.5px; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.04em;}
+  .histo-ecart-emp{font-family:var(--mono); font-size:9.5px; color:var(--text-dim); margin-bottom:5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
   .histo-detail{display:none; margin-top:10px; font-size:11.5px; color:var(--text-mid); line-height:1.6;}
   .histo-detail.open{display:block;}
   .empty{text-align:center; padding:24px; color:var(--text-dim); font-size:12.5px;}
@@ -575,7 +576,7 @@
 
       box.innerHTML = `
         <div class="resume-box">
-          <div class="resume-line">Quart ${quart} du ${new Date(date).toLocaleDateString('fr-FR')}.</div>
+          <div class="resume-line">Quart ${quart} du ${new Date(date + 'T00:00:00').toLocaleDateString('fr-FR')}.</div>
 
           <div class="ecart-bloc">
             <div class="ecart-bloc-top">
@@ -616,13 +617,14 @@
         const stB = classifierEcart(Math.abs(a.ecart_boutique));
         return `
         <div class="histo-item" data-idx="${i}">
-          <div class="histo-date">${new Date(a.date).toLocaleDateString('fr-FR')} <span class="histo-quart">· Quart ${a.quart}</span></div>
+          <div class="histo-date">${new Date(a.date + 'T00:00:00').toLocaleDateString('fr-FR')} <span class="histo-quart">· Quart ${a.quart}</span></div>
           <div class="histo-ecarts">
             <div class="histo-ecart-item">
               <div class="histo-ecart-top">
                 <span class="histo-ecart-caisse">Piste</span>
                 <span class="statut-badge statut-${stP}">${STATUT_LABEL[stP]}</span>
               </div>
+              <div class="histo-ecart-emp">${nomsEmployes(a.employes_piste)}</div>
               <div class="histo-ecart" style="color:${Math.abs(a.ecart_piste)<=2?'var(--green)':'var(--red)'};">${a.ecart_piste>=0?'+':''}${Number(a.ecart_piste).toFixed(2)} €</div>
             </div>
             <div class="histo-ecart-item">
@@ -630,6 +632,7 @@
                 <span class="histo-ecart-caisse">Boutique</span>
                 <span class="statut-badge statut-${stB}">${STATUT_LABEL[stB]}</span>
               </div>
+              <div class="histo-ecart-emp">${nomsEmployes(a.employes_boutique)}</div>
               <div class="histo-ecart" style="color:${Math.abs(a.ecart_boutique)<=2?'var(--green)':'var(--red)'};">${a.ecart_boutique>=0?'+':''}${Number(a.ecart_boutique).toFixed(2)} €</div>
             </div>
           </div>
