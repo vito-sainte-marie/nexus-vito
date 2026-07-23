@@ -68,6 +68,39 @@
   .mission-fixe{background:var(--panel-raised); color:var(--text-dim);}
   .mission-reason{font-size:12px; color:var(--text-mid); margin-top:8px; line-height:1.5;}
 
+  /* Carte d'identité produit — ajoutée le 22/07/2026 suite à l'analyse
+     stratégique de Frédéric (NEXUS_Page_Produit_Analyse_V2.pdf) : donner
+     le statut/l'action en 5 secondes, style épuré (cartes arrondies,
+     pastilles de couleur, gros chiffres) plutôt que le format
+     "product-name + kpi-grid" plus dense. */
+  .hero-card{background:linear-gradient(180deg, var(--panel) 0%, var(--panel-raised) 100%); border:1px solid var(--hairline); border-radius:20px; padding:22px 20px;}
+  .hero-nom{font-size:19px; font-weight:700; line-height:1.3;}
+  .hero-cat{font-family:var(--mono); font-size:10.5px; color:var(--text-dim); margin-top:4px; text-transform:uppercase; letter-spacing:0.05em;}
+
+  .statut-pill{display:inline-flex; align-items:center; gap:7px; margin-top:14px; padding:8px 14px; border-radius:24px; font-weight:700; font-size:13px;}
+  .statut-pill .dot{width:7px; height:7px; border-radius:50%; flex-shrink:0;}
+  .statut-pill.st-performant{background:var(--green-dim); color:var(--green);}
+  .statut-pill.st-performant .dot{background:var(--green);}
+  .statut-pill.st-surveiller{background:var(--amber-dim); color:var(--amber);}
+  .statut-pill.st-surveiller .dot{background:var(--amber);}
+  .statut-pill.st-dormant{background:var(--panel-raised); color:var(--text-mid); border:1px solid var(--hairline);}
+  .statut-pill.st-dormant .dot{background:var(--text-dim);}
+  .statut-pill.st-strategique{background:var(--purple-dim); color:var(--purple);}
+  .statut-pill.st-strategique .dot{background:var(--purple);}
+
+  .hero-action{margin-top:14px; padding:13px 15px; border-radius:12px; border-left:3px solid var(--cyan); background:rgba(79,195,217,0.06); font-size:12.5px; line-height:1.5;}
+  .hero-action.st-performant{border-left-color:var(--green); background:rgba(52,211,153,0.06);}
+  .hero-action.st-surveiller{border-left-color:var(--amber); background:rgba(245,166,35,0.06);}
+  .hero-action.st-dormant{border-left-color:var(--text-dim); background:rgba(87,98,111,0.08);}
+  .hero-action.st-strategique{border-left-color:var(--purple); background:rgba(183,148,246,0.06);}
+  .hero-action .ha-label{font-family:var(--mono); font-size:9px; text-transform:uppercase; letter-spacing:0.06em; color:var(--text-dim); margin-bottom:5px;}
+
+  .hero-tiles{display:grid; grid-template-columns:1fr 1fr; gap:9px; margin-top:16px;}
+  .hero-tile{background:var(--panel-raised); border-radius:14px; padding:13px 14px;}
+  .hero-tile .ht-label{font-family:var(--mono); font-size:9px; text-transform:uppercase; letter-spacing:0.05em; color:var(--text-dim);}
+  .hero-tile .ht-val{font-size:18px; font-weight:700; margin-top:5px;}
+  .hero-tile .ht-sub{font-family:var(--mono); font-size:9px; color:var(--text-dim); margin-top:3px;}
+
   .kpi-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:14px;}
   .kpi-box{background:var(--panel-raised); border-radius:8px; padding:12px;}
   .kpi-box .kl{font-family:var(--mono); font-size:10px; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.04em;}
@@ -285,6 +318,44 @@ nexusRequireAuth().then(async employee => {
     presentoir: { analyseAgir: "Une référence à ce niveau de contribution mérite une bonne visibilité sur le présentoir.", recoAgir: a => `Vérifiez l'emplacement de ${a} sur le présentoir.`, recoHausse: a => `Améliorez l'emplacement de ${a} sur le présentoir.`, recoBaisse: a => `Vérifiez l'emplacement de ${a} sur le présentoir.` },
   };
 
+  // Statut simplifié en 4 états exhaustifs (Produit performant / À
+  // surveiller / Produit dormant / Produit stratégique), demandé le
+  // 22/07/2026 (NEXUS_Page_Produit_Analyse_V2.pdf). Reprend EXACTEMENT
+  // les mêmes signaux déjà calculés plus haut (ca_t2, pct_contrib,
+  // evolution) — aucune nouvelle donnée, juste une lecture plus directe
+  // que l'ancien `statut` (qui pouvait être null). Priorité de lecture :
+  // dormant (le plus objectif : aucune vente) > stratégique (poids fort
+  // dans le rayon) > à surveiller (chute nette) > performant par défaut.
+  function calculerStatutSimplifie(p) {
+    const evolution = p.ca_t1 > 0 ? (p.ca_t2 - p.ca_t1) / p.ca_t1 : null;
+    const lang = LANGAGE_ACTION[typeActionPourCategorie(p.categorie)];
+    if (p.ca_t2 === 0) {
+      return {
+        cle: 'dormant', label: 'Produit dormant',
+        action: `Aucune vente enregistrée sur la dernière période pour ${p.article} — vérifiez sa présence en rayon ou envisagez un déréférencement.`,
+      };
+    }
+    if (p.pct_contrib !== null && p.pct_contrib >= 0.15) {
+      return { cle: 'strategique', label: 'Produit stratégique', action: lang.recoAgir(p.article) };
+    }
+    if (evolution !== null && evolution <= -0.30) {
+      return { cle: 'surveiller', label: 'À surveiller', action: lang.recoBaisse(p.article) };
+    }
+    return {
+      cle: 'performant', label: 'Produit performant',
+      action: (evolution !== null && evolution >= 0.20)
+        ? lang.recoHausse(p.article)
+        : `Rien n'indique de risque particulier pour ${p.article} actuellement — maintenez le réassort habituel.`,
+    };
+  }
+
+  // Rang du produit dans son rayon, par CA de la période actuelle — calcul
+  // immédiat à partir de PRODUCTS déjà chargé, aucune requête supplémentaire.
+  function calculerRangRayon(p) {
+    const memeRayon = PRODUCTS.filter(x => x.categorie === p.categorie).slice().sort((a, b) => b.ca_t2 - a.ca_t2);
+    const rang = memeRayon.findIndex(x => x.article === p.article) + 1;
+    return { rang, total: memeRayon.length };
+  }
 
   // Photos produits (source Open Food Facts, accord de Frédéric le
   // 22/07/2026) — table séparée de `products` (voir migration
@@ -346,12 +417,11 @@ nexusRequireAuth().then(async employee => {
     const evolCa = p.ca_t1 ? (p.ca_t2 - p.ca_t1) / p.ca_t1 : 0;
     const maxQte = Math.max(p.qte_t1, p.qte_t2, 1);
 
-    const decisionsHtml = !p.statut
-      ? `<div class="no-decision">Aucune décision prioritaire du Conseiller NEXUS pour ce produit actuellement.</div>`
-      : `<div class="decision-card">
-          <div class="decision-text">${p.statut.etat} — ${p.statut.texte}</div>
-          <div class="decision-meta">${p.statut.analyse}</div>
-        </div>`;
+    // Statut simplifié + rang rayon : voir calculerStatutSimplifie() et
+    // calculerRangRayon() — remplace l'ancien bloc "Décisions prioritaires"
+    // (fusionné dans l'action recommandée de la carte d'identité ci-dessous).
+    const statutSimplifie = calculerStatutSimplifie(p);
+    const rangRayon = calculerRangRayon(p);
 
     const conseillerMsg = document.getElementById('conseillerProduitMsg');
     if (conseillerMsg) {
@@ -374,16 +444,39 @@ nexusRequireAuth().then(async employee => {
         msg += `Je n'ai pas encore de période précédente pour elle. `;
       }
 
-      msg += p.statut ? p.statut.texte : `Elle ne déclenche aucune alerte particulière pour l'instant.`;
+      msg += statutSimplifie.action;
       conseillerMsg.textContent = msg;
     }
 
     resultSection.innerHTML = `
-      <div class="card">
-        <div class="product-name">${p.article}</div>
-        <div class="product-cat">${p.categorie}</div>
-        ${p.statut ? `<div class="mission-badge" style="background:var(--panel-raised); color:var(--cyan);">${p.statut.etat}</div>` : ''}
+      <div class="card hero-card">
+        <div class="hero-nom">${p.article}</div>
+        <div class="hero-cat">${p.categorie}</div>
+        <div class="statut-pill st-${statutSimplifie.cle}"><span class="dot"></span>${statutSimplifie.label}</div>
+        <div class="hero-action st-${statutSimplifie.cle}">
+          <div class="ha-label">Action recommandée</div>
+          ${statutSimplifie.action}
+        </div>
+        <div class="hero-tiles">
+          <div class="hero-tile"><div class="ht-label">Rentabilité</div><div class="ht-val">${fmtPct(p.marge_pct)}</div></div>
+          <div class="hero-tile"><div class="ht-label">Rang dans le rayon</div><div class="ht-val">#${rangRayon.rang} / ${rangRayon.total}</div></div>
+          <div class="hero-tile"><div class="ht-label">CA généré (période)</div><div class="ht-val">${fmtEur(p.ca_t2)}</div></div>
+          <div class="hero-tile"><div class="ht-label">Unités vendues</div><div class="ht-val">${p.qte_t2} u.</div></div>
+          <div class="hero-tile">
+            <div class="ht-label">Rotation</div>
+            <div class="ht-val" id="heroRotationVal">…</div>
+            <div class="ht-sub" id="heroRotationSub">vérification…</div>
+          </div>
+          <div class="hero-tile">
+            <div class="ht-label">Stock (valeur)</div>
+            <div class="ht-val" id="heroStockVal">…</div>
+            <div class="ht-sub" id="heroStockSub">vérification…</div>
+          </div>
+        </div>
+      </div>
 
+      <div class="card">
+        <div class="section-label">Détails tarifaires</div>
         <div class="kpi-grid">
           <div class="kpi-box"><div class="kl">Prix HT</div><div class="kv">${p.pu_ht !== null ? fmtEur(p.pu_ht) : '—'}</div></div>
           <div class="kpi-box"><div class="kl">PMA</div><div class="kv">${p.pma !== null ? fmtEur(p.pma) : '—'}</div></div>
@@ -422,11 +515,6 @@ nexusRequireAuth().then(async employee => {
         <div class="gap-row"><span class="gap-label">Emplacement</span><span class="gap-status" id="gapEmplacementStatus">Vérification…</span></div>
         <div class="gap-row"><span class="gap-label">Facing actuel</span><span class="gap-status">Non disponible — pas de saisie des facings actuellement</span></div>
         <div id="emplacementPickerZone"></div>
-      </div>
-
-      <div class="card">
-        <div class="section-label">Décisions prioritaires — Conseiller NEXUS</div>
-        ${decisionsHtml}
       </div>
     `;
 
@@ -576,10 +664,19 @@ nexusRequireAuth().then(async employee => {
   // trimestre importe, exprimee en "jours de stock" — et on le dit
   // explicitement dans le texte affiche, pour ne jamais laisser croire a un
   // vrai calcul de rotation.
+  // MISE À JOUR 22/07/2026 : alimente aussi les tuiles compactes "Rotation"
+  // et "Stock (valeur)" de la carte d'identité en tête de page (même
+  // requête, pas d'appel supplémentaire) — la carte d'identité montre le
+  // chiffre en un coup d'œil, cette section garde l'explication complète
+  // et les réserves, pour qui veut comprendre d'où il vient.
   async function chargerStockGap(p) {
     const elStock = document.getElementById('gapStockStatus');
     const elRotation = document.getElementById('gapRotationStatus');
-    if (!elStock && !elRotation) return;
+    const elHeroRotVal = document.getElementById('heroRotationVal');
+    const elHeroRotSub = document.getElementById('heroRotationSub');
+    const elHeroStockVal = document.getElementById('heroStockVal');
+    const elHeroStockSub = document.getElementById('heroStockSub');
+    if (!elStock && !elRotation && !elHeroRotVal && !elHeroStockVal) return;
     try {
       const { data, error } = await nexusClient
         .from('stock_releves')
@@ -593,22 +690,39 @@ nexusRequireAuth().then(async employee => {
         const msg = `Aucun relevé trouvé pour « ${p.article} » (vérifier que le nom correspond exactement à celui utilisé lors de l'import stock).`;
         if (elStock && elStock.isConnected) elStock.textContent = msg;
         if (elRotation && elRotation.isConnected) elRotation.textContent = "Non calculable sans relevé de stock pour cet article.";
+        if (elHeroRotVal && elHeroRotVal.isConnected) { elHeroRotVal.textContent = '—'; elHeroRotSub.textContent = 'pas de relevé stock'; }
+        if (elHeroStockVal && elHeroStockVal.isConnected) { elHeroStockVal.textContent = '—'; elHeroStockSub.textContent = 'pas de relevé stock'; }
         return;
       }
       const relv = data[0];
       const dateRelv = new Date(relv.releve_le).toLocaleDateString('fr-FR');
+      const stockQte = relv.quantite_reelle != null ? relv.quantite_reelle : relv.quantite_theorique;
+
       if (elStock && elStock.isConnected) {
         elStock.textContent = relv.quantite_reelle != null
           ? `Théorique ${relv.quantite_theorique} u., compté ${relv.quantite_reelle} u. — relevé du ${dateRelv}`
           : `Théorique ${relv.quantite_theorique} u. — relevé du ${dateRelv} (pas encore contrôlé physiquement)`;
       }
 
+      // Valeur du stock immobilisé = quantité × PMA — seulement si on a un
+      // prix d'achat connu pour ce produit, sinon on affiche "non
+      // calculable" plutôt qu'une fausse valeur à 0€ ou €/u. manquant.
+      if (elHeroStockVal && elHeroStockVal.isConnected) {
+        if (p.pma != null) {
+          elHeroStockVal.textContent = fmtEur(stockQte * p.pma);
+          elHeroStockSub.textContent = `${stockQte} u. · ${dateRelv}`;
+        } else {
+          elHeroStockVal.textContent = `${stockQte} u.`;
+          elHeroStockSub.textContent = `PMA inconnu · ${dateRelv}`;
+        }
+      }
+
+      const debut = p.periode_debut ? new Date(p.periode_debut) : null;
+      const fin = p.periode_fin ? new Date(p.periode_fin) : null;
+      const nbJours = (debut && fin) ? Math.round((fin - debut) / (1000 * 60 * 60 * 24)) + 1 : 0;
+      const venteJour = nbJours > 0 ? (p.qte_t2 || 0) / nbJours : 0;
+
       if (elRotation && elRotation.isConnected) {
-        const stockQte = relv.quantite_reelle != null ? relv.quantite_reelle : relv.quantite_theorique;
-        const debut = p.periode_debut ? new Date(p.periode_debut) : null;
-        const fin = p.periode_fin ? new Date(p.periode_fin) : null;
-        const nbJours = (debut && fin) ? Math.round((fin - debut) / (1000 * 60 * 60 * 24)) + 1 : 0;
-        const venteJour = nbJours > 0 ? (p.qte_t2 || 0) / nbJours : 0;
         if (venteJour <= 0) {
           elRotation.textContent = `Aucune vente enregistrée sur la dernière période importée (${p.periode_debut} → ${p.periode_fin}) — rotation non calculable.`;
         } else {
@@ -616,11 +730,22 @@ nexusRequireAuth().then(async employee => {
           elRotation.textContent = `Estimation : ${joursDeStock.toFixed(1)} j de stock au rythme de vente du dernier trimestre importé (${venteJour.toFixed(2)} u./jour). Pas une vraie moyenne : le relevé stock du ${dateRelv} ne recouvre pas la période de ventes ${p.periode_debut} → ${p.periode_fin}.`;
         }
       }
+      if (elHeroRotVal && elHeroRotVal.isConnected) {
+        if (venteJour <= 0) {
+          elHeroRotVal.textContent = '—';
+          elHeroRotSub.textContent = 'aucune vente période';
+        } else {
+          elHeroRotVal.textContent = `≈${venteJour.toFixed(1)}/j`;
+          elHeroRotSub.textContent = 'estimation, voir détail';
+        }
+      }
     } catch (e) {
       console.error('Chargement stock_releves:', e);
       const msgErr = "Impossible de vérifier le stock pour l'instant (erreur réseau).";
       if (elStock && elStock.isConnected) elStock.textContent = msgErr;
       if (elRotation && elRotation.isConnected) elRotation.textContent = msgErr;
+      if (elHeroRotVal && elHeroRotVal.isConnected) { elHeroRotVal.textContent = '—'; elHeroRotSub.textContent = 'erreur réseau'; }
+      if (elHeroStockVal && elHeroStockVal.isConnected) { elHeroStockVal.textContent = '—'; elHeroStockSub.textContent = 'erreur réseau'; }
     }
   }
 
