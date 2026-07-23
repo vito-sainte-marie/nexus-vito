@@ -491,6 +491,11 @@ nexusRequireAuth().then(async employee => {
       </div>
 
       <div class="card">
+        <div class="section-label">Photo rayon (terrain)</div>
+        <div id="photoTerrainZone">Vérification…</div>
+      </div>
+
+      <div class="card">
         <div class="section-label">Historique T1 → T2</div>
         <div class="histo-row">
           <span class="histo-label">T1</span>
@@ -521,6 +526,45 @@ nexusRequireAuth().then(async employee => {
     renderPhotoCard(p);
     chargerStockGap(p);
     chargerEmplacementProduit(p);
+    chargerPhotoTerrain(p);
+  }
+
+  // Photo rayon (terrain) — prise par un employé via la mission "Photo de
+  // vérification rayon" (NEXUS-Missions-v1.html), pas une photo générique
+  // fabricant comme celle d'Open Food Facts ci-dessus. Voir
+  // migration-mission-photo-produit-v1.sql : la fiche produit lit
+  // directement mission_completions, filtrée par article_cible — pas de
+  // table intermédiaire, une seule source de vérité. Aucune photo tant
+  // qu'aucun employé n'en a pris une : jamais de placeholder inventé.
+  async function chargerPhotoTerrain(p) {
+    const zone = document.getElementById('photoTerrainZone');
+    if (!zone) return;
+    try {
+      const { data, error } = await nexusClient
+        .from('mission_completions')
+        .select('photo_url, created_at, employees(nom)')
+        .eq('site_id', SITE_ACTUEL)
+        .eq('mission_id', 'photo-verification-rayon')
+        .eq('article_cible', p.article)
+        .order('created_at', { ascending: false })
+        .limit(1);
+      if (error) throw error;
+      if (!zone.isConnected) return;
+      if (!data || !data.length || !data[0].photo_url) {
+        zone.innerHTML = `<div class="photo-empty">Aucune photo de rayon prise par l'équipe pour l'instant pour « ${p.article} ».</div>`;
+        return;
+      }
+      const r = data[0];
+      const date = new Date(r.created_at).toLocaleDateString('fr-FR');
+      const nomEmp = r.employees && r.employees.nom ? r.employees.nom : 'un employé';
+      zone.innerHTML = `
+        <div class="photo-box"><img src="${r.photo_url}" alt="Photo rayon prise par l'équipe"></div>
+        <div class="photo-meta">Prise par ${nomEmp} le ${date}</div>
+      `;
+    } catch (e) {
+      console.error('Chargement photo terrain:', e);
+      if (zone.isConnected) zone.textContent = "Impossible de charger la photo terrain pour l'instant.";
+    }
   }
 
   // ------------------------------------------------------------

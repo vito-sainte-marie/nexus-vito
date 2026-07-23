@@ -73,6 +73,16 @@
   .check-box.checked{background:var(--green); border-color:var(--green); color:#04141a;}
   .check-text.checked{color:var(--text-dim); text-decoration:line-through;}
   .mission-photo{font-family:var(--mono); font-size:10px; color:var(--amber); margin-top:10px;}
+
+  .produit-cible-picker{margin-top:12px;}
+  .produit-recherche-wrap{position:relative; margin-top:6px;}
+  .produit-recherche{width:100%; background:var(--panel-raised); border:1px solid var(--hairline); border-radius:8px; padding:10px 12px; color:var(--text); font-family:var(--sans); font-size:12.5px;}
+  .produit-suggestions{margin-top:6px; display:flex; flex-direction:column; gap:4px; max-height:180px; overflow-y:auto;}
+  .produit-suggestion-item{padding:9px 12px; background:var(--panel-raised); border:1px solid var(--hairline); border-radius:8px; cursor:pointer; font-size:12px;}
+  .produit-suggestion-item:active{border-color:var(--cyan);}
+  .produit-suggestion-item .psi-cat{font-family:var(--mono); font-size:9.5px; color:var(--text-dim); margin-top:2px;}
+  .produit-choisi{margin-top:6px; padding:10px 12px; background:var(--green-dim); color:var(--green); border-radius:8px; font-size:12.5px; font-weight:600;}
+  .produit-changer{font-family:var(--mono); font-size:10.5px; font-weight:600; color:var(--text-mid); text-decoration:underline; cursor:pointer; margin-left:6px;}
   .btn-valider{
     width:100%; margin-top:12px; padding:12px; border:none; border-radius:8px; font-size:13px; font-weight:600;
     background:var(--cyan); color:#04141a; cursor:pointer;
@@ -478,6 +488,29 @@
   let SITE_ACTUEL = 'vito-sainte-marie'; // ecrase par employee.site_id une fois connecte
   let checkState = {};
   let completionsCache = [];
+  // Produit choisi pour les missions necessite_produit = true (ex. "Photo
+  // de vérification rayon") — { missionId: {categorie, article} }. Voir
+  // migration-mission-photo-produit-v1.sql.
+  let produitCibleState = {};
+  let PRODUITS_ARTICLES = [];
+
+  // Liste légère (categorie + article seulement) pour le sélecteur de
+  // produit — mêmes lignes que products, mais pas besoin des prix/CA ici.
+  async function chargerProduitsPourPhoto() {
+    const { data, error } = await fetchAllRows(() => nexusClient
+      .from('products')
+      .select('categorie, article')
+      .eq('site', SITE_ACTUEL));
+    if (error) { console.error('Chargement produits (photo rayon):', error); return []; }
+    const vus = new Set();
+    const liste = [];
+    (data || []).forEach(r => {
+      const cle = r.categorie + '|' + r.article;
+      if (!vus.has(cle)) { vus.add(cle); liste.push({ categorie: r.categorie, article: r.article }); }
+    });
+    liste.sort((a, b) => a.article.localeCompare(b.article, 'fr'));
+    return liste;
+  }
 
   async function chargerProgressionSupabase(empId) {
     const { data, error } = await nexusClient
@@ -504,6 +537,30 @@
 
   function priorityBadge(p) {
     return `<span class="badge badge-${p}">${p}</span>`;
+  }
+
+  // Sélecteur de produit pour les missions necessite_produit = true (ex.
+  // "Photo de vérification rayon") — l'employé cherche par nom, choisit
+  // dans la liste réelle du catalogue (pas de saisie libre : ça garantit
+  // que article_cible correspond toujours exactement à products.article,
+  // donc que la fiche produit le retrouvera).
+  function renderPickerProduit(missionId) {
+    const choisi = produitCibleState[missionId];
+    if (choisi) {
+      return `
+        <div class="produit-cible-picker">
+          <div class="mission-photo">🏷️ Produit concerné</div>
+          <div class="produit-choisi">${choisi.article}<span class="produit-changer" data-mission="${missionId}">(changer)</span></div>
+        </div>`;
+    }
+    return `
+      <div class="produit-cible-picker">
+        <div class="mission-photo">🏷️ Choisissez le produit concerné par la photo</div>
+        <div class="produit-recherche-wrap">
+          <input type="text" class="produit-recherche" id="produit-search-${missionId}" placeholder="Rechercher un produit…" autocomplete="off">
+          <div class="produit-suggestions" id="produit-suggestions-${missionId}"></div>
+        </div>
+      </div>`;
   }
 
   function renderChecklist(missionId, checklist) {
@@ -534,6 +591,7 @@
         date: entry.date, heure: entry.heure, photo_fournie: entry.photo_fournie,
         photo_url: entry.photo_url || null, points: entry.points,
         employes_presents: entry.employes_presents || null,
+        article_cible: entry.article_cible || null, categorie_cible: entry.categorie_cible || null,
       });
     if (error) console.error('Sauvegarde complétion:', error);
   }
@@ -747,7 +805,9 @@
 
   function renderMissionCard(m, isAuto) {
     const priorite = m.priority || 'normale';
-    const complet = toutCoche(m);
+    // Une mission necessite_produit ne peut être validée qu'une fois un
+    // produit choisi — même logique de blocage que la checklist.
+    const complet = toutCoche(m) && (!m.necessite_produit || !!produitCibleState[m.mission_id]);
     const controle = !isAuto && estMissionControleManager(m);
     const completionAujourdhui = completionsCache.find(c => c.mission_id === m.mission_id && c.date === new Date().toISOString().slice(0,10));
     const dejaValidee = !!completionAujourdhui;
@@ -789,6 +849,7 @@
           ${controle ? `<div class="controle-banner">🔍 Mode contrôle manager — vous vérifiez que l'équipe a bien réalisé ces points, vous ne les faites pas vous-même.</div>` : ''}
           <div class="mission-pourquoi">${m.pourquoi}</div>
           ${renderChecklist(m.mission_id, m.checklist)}
+          ${m.necessite_produit ? renderPickerProduit(m.mission_id) : ''}
           ${m.proof_required ? `<div class="mission-photo">📷 Photo requise pour valider</div>
             <input type="file" accept="image/*" capture="environment" id="photo-${m.mission_id}" style="display:none;">` : ''}
           ${blocPresence}
@@ -856,6 +917,43 @@
       });
     });
 
+    // Sélecteur de produit (missions necessite_produit) — recherche câblée
+    // directement sur son propre input/suggestions, SANS passer par render()
+    // à chaque frappe (ça ferait perdre le focus du champ à chaque lettre).
+    // render() n'est appelé qu'au clic final (choix ou changement).
+    content.querySelectorAll('.produit-recherche').forEach(input => {
+      input.addEventListener('click', e => e.stopPropagation());
+      input.addEventListener('input', () => {
+        const missionId = input.id.replace('produit-search-', '');
+        const box = document.getElementById(`produit-suggestions-${missionId}`);
+        if (!box) return;
+        const q = input.value.trim().toLowerCase();
+        if (q.length < 2) { box.innerHTML = ''; return; }
+        const matches = PRODUITS_ARTICLES.filter(p => p.article.toLowerCase().includes(q)).slice(0, 8);
+        box.innerHTML = matches.map((p, i) => `
+          <div class="produit-suggestion-item" data-mission="${missionId}" data-i="${i}">
+            <div>${p.article}</div>
+            <div class="psi-cat">${p.categorie}</div>
+          </div>`).join('');
+        box.querySelectorAll('.produit-suggestion-item').forEach(item => {
+          item.addEventListener('click', e => {
+            e.stopPropagation();
+            produitCibleState[missionId] = matches[Number(item.dataset.i)];
+            missionsOuvertes.add(missionId); // reste ouverte après le choix
+            render();
+          });
+        });
+      });
+    });
+    content.querySelectorAll('.produit-changer').forEach(el => {
+      el.addEventListener('click', (e) => {
+        e.stopPropagation();
+        delete produitCibleState[el.dataset.mission];
+        missionsOuvertes.add(el.dataset.mission);
+        render();
+      });
+    });
+
     content.querySelectorAll('.btn-valider').forEach(btn => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -869,6 +967,11 @@
         const finaliser = async (file) => {
           if (mission.proof_required && !file) {
             alert('Photo requise — la mission ne peut pas être validée sans preuve.');
+            return;
+          }
+          const produitCible = mission.necessite_produit ? produitCibleState[missionId] : null;
+          if (mission.necessite_produit && !produitCible) {
+            alert('Choisissez le produit concerné avant de valider.');
             return;
           }
 
@@ -894,8 +997,11 @@
             date: new Date().toISOString().slice(0,10), heure: new Date().toTimeString().slice(0,5),
             photo_fournie: !!photoUrl, photo_url: photoUrl, points,
             employes_presents: employesPresents,
+            article_cible: produitCible ? produitCible.article : null,
+            categorie_cible: produitCible ? produitCible.categorie : null,
           };
           completionsCache.push(entry); // re-rendu optimiste
+          delete produitCibleState[missionId]; // repart propre pour la prochaine fois
           render();
           renderConseillerPerso(calculerStatsPersonnelles(completionsCache), employeActuel);
           sauvegarderCompletionSupabase(employeeId, entry);
@@ -944,6 +1050,11 @@
     catalogue = await chargerCatalogue();
     checkState = await chargerProgressionSupabase(employeeId);
     completionsCache = await chargerCompletionsSupabase(employeeId);
+    // Chargé seulement si le catalogue contient une mission qui en a besoin
+    // — évite une requête inutile pour les sites/rôles qui ne l'utilisent pas.
+    if (catalogue.some(m => m.necessite_produit)) {
+      PRODUITS_ARTICLES = await chargerProduitsPourPhoto();
+    }
     renderConseillerPerso(calculerStatsPersonnelles(completionsCache), employee.nom);
     if (roleDuJour === 'manager') {
       EMPLOYES_SITE = await chargerEmployesSite();
