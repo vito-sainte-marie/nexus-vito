@@ -642,6 +642,8 @@
             <br><br>Présents piste : ${nomsEmployes(a.employes_piste)}<br>
             Présents boutique : ${nomsEmployes(a.employes_boutique)}
             ${a.commentaire ? `<br><br><i>${a.commentaire}</i>` : ''}
+            <br>
+            <button type="button" class="btn-modifier-audit" data-idx="${i}" style="width:auto; padding:9px 14px; margin-top:10px; background:var(--panel-raised); color:var(--amber); border:1px solid rgba(245,166,35,0.35); border-radius:8px; font-family:var(--sans); font-size:12px; font-weight:600; cursor:pointer;">✏️ Modifier cet audit</button>
           </div>
         </div>`;
       }).join('');
@@ -651,6 +653,92 @@
           document.getElementById(`detail-${item.dataset.idx}`).classList.toggle('open');
         });
       });
+
+      // Corriger un audit deja enregistre — ex: le montant des pieces saisi
+      // de travers. Plutot que dupliquer la logique d'enregistrement, on
+      // repart du formulaire "Nouvel audit" deja fiable : on le pre-remplit
+      // avec les valeurs stockees, le manager corrige le ou les champs
+      // concernes, et "Calculer et enregistrer" ecrase la meme ligne grace
+      // a l'upsert existant (onConflict: site,date,quart) — pas de doublon.
+      // Limite assumee : les bons clients et depenses ponctuelles ne sont
+      // stockes qu'en TOTAL (pas ligne par ligne), impossible donc de
+      // reconstituer le detail d'origine — seule la somme est re-proposee.
+      el.querySelectorAll('.btn-modifier-audit').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const idx = parseInt(btn.dataset.idx, 10);
+          prefillFormPourModification(data[idx]);
+        });
+      });
+    }
+
+    function prefillFormPourModification(a) {
+      document.getElementById('v_date').value = a.date;
+      document.getElementById('v_quart').value = a.quart;
+      document.getElementById('v_vente_piste').value = a.vente_piste;
+      document.getElementById('v_vente_boutique').value = a.vente_boutique;
+      document.getElementById('v_transfert').value = a.piste_regle_a_la_caisse;
+
+      document.getElementById('v_drop_piste_billets').value = a.drop_piste_billets;
+      document.getElementById('v_drop_piste_pieces').value = a.drop_piste_pieces;
+      document.getElementById('v_drop_piste_chq').value = a.drop_piste_chq;
+      document.getElementById('v_drop_piste_cb').value = a.drop_piste_cb;
+      document.getElementById('v_drop_piste_vitocarte').value = a.drop_piste_vitocarte;
+
+      document.getElementById('v_drop_boutique_billets').value = a.drop_boutique_billets;
+      document.getElementById('v_drop_boutique_pieces').value = a.drop_boutique_pieces;
+      document.getElementById('v_drop_boutique_chq').value = a.drop_boutique_chq;
+      document.getElementById('v_drop_boutique_cb').value = a.drop_boutique_cb;
+
+      document.getElementById('v_incidents').value = a.caisse_incidents;
+      document.getElementById('v_commentaire').value = a.commentaire || '';
+
+      // Bons clients piste — seul le total est stocké, une ligne unique
+      // pré-remplie avec ce total (à re-détailler si besoin).
+      document.getElementById('bonsPisteListe').innerHTML = '';
+      ajouterLigneBon();
+      const ligneBon = document.querySelector('#bonsPisteListe .montant-bon');
+      if (ligneBon) ligneBon.value = a.clients_compte_piste || '';
+
+      // Dépenses ponctuelles — même limite, seuls les totaux piste/boutique
+      // sont stockés.
+      document.getElementById('depensesListe').innerHTML = '';
+      if (a.depense_ponctuelle_piste) {
+        ajouterLigneDepense();
+        const lignes = document.querySelectorAll('#depensesListe .ligne-item');
+        const derniere = lignes[lignes.length - 1];
+        derniere.querySelector('.montant-depense').value = a.depense_ponctuelle_piste;
+        derniere.querySelector('.cible-depense').value = 'piste';
+      }
+      if (a.depense_ponctuelle_boutique) {
+        ajouterLigneDepense();
+        const lignes = document.querySelectorAll('#depensesListe .ligne-item');
+        const derniere = lignes[lignes.length - 1];
+        derniere.querySelector('.montant-depense').value = a.depense_ponctuelle_boutique;
+        derniere.querySelector('.cible-depense').value = 'boutique';
+      }
+      if (!a.depense_ponctuelle_piste && !a.depense_ponctuelle_boutique) ajouterLigneDepense();
+      majTotauxListes();
+
+      // Remise en cuve — litrages retrouvés dans remise_cuve_detail (JSON).
+      const detail = a.remise_cuve_detail || {};
+      document.getElementById('v_cuve_sp_litres').value = detail.sp_litres != null ? String(detail.sp_litres).replace('.', ',') : '';
+      document.getElementById('v_cuve_go_litres').value = detail.go_litres != null ? String(detail.go_litres).replace('.', ',') : '';
+      document.getElementById('v_cuve_gnr_litres').value = detail.gnr_litres != null ? String(detail.gnr_litres).replace('.', ',') : '';
+      majAffichageCuve();
+
+      // Employés présents
+      employesSelectionnes.piste = new Set(a.employes_piste || []);
+      employesSelectionnes.boutique = new Set(a.employes_boutique || []);
+      renderMenuEmployes('piste'); renderMenuEmployes('boutique');
+      majLabelEmployes('piste'); majLabelEmployes('boutique');
+
+      // Bascule sur "Nouvel audit" avec un bandeau de contexte, pour ne pas
+      // confondre une correction avec un nouvel enregistrement distinct.
+      tabNouveau.click();
+      const box = document.getElementById('resultatAudit');
+      box.innerHTML = `<div class="resume-box" style="border-color:rgba(245,166,35,0.35);"><div class="resume-line" style="color:var(--amber); margin-bottom:0;">✏️ Modification de l'audit du ${new Date(a.date + 'T00:00:00').toLocaleDateString('fr-FR')} — Quart ${a.quart}. Corrigez le ou les champs concernés puis « Calculer et enregistrer » — ça remplace cette entrée, ça n'en crée pas une nouvelle.</div></div>`;
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   });
 </script>
