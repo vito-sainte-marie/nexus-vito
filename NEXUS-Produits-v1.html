@@ -812,7 +812,7 @@ nexusRequireAuth().then(async employee => {
       const { data, error } = await nexusClient
         .from('stock_releves')
         .select('quantite_theorique, quantite_reelle, releve_le')
-        .eq('site', 'vito-sainte-marie')
+        .eq('site', SITE_ACTUEL)
         .eq('article', p.article)
         .order('releve_le', { ascending: false })
         .limit(1);
