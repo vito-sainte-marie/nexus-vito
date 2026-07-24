@@ -184,6 +184,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-auth.js"></script>
 <script src="nexus-vocabulaire.js"></script>
+<script src="nexus-periodes.js"></script>
 </head>
 <body>
 <div class="phone">
@@ -257,22 +258,30 @@ nexusRequireAuth().then(async employee => {
       .order('article', { ascending: true }));
     if (error || !data || !data.length) { console.error('Chargement products (fiche produit):', error); return []; }
 
-    const periodes = [...new Set(data.map(r => r.periode_debut))].sort().reverse();
-    const periodeActuelle = periodes[0];
-    const periodePrecedente = periodes[1] || null;
-    const rowsActuels = data.filter(r => r.periode_debut === periodeActuelle);
-    const rowsPrecedents = periodePrecedente ? data.filter(r => r.periode_debut === periodePrecedente) : [];
+    // CORRECTIF 23/07/2026 (harmonisation demandée par Frédéric : "un système,
+    // pas une succession de pages") — cette page comparait aveuglément les deux
+    // périodes les plus récentes (bug identique à celui trouvé et corrigé sur
+    // Rayon puis Cockpit le même jour : évolution fausse dès que les deux
+    // périodes se chevauchent ou n'ont pas une durée comparable). Le moteur
+    // partagé nexus-periodes.js sépare "période affichée" (la plus récente —
+    // sert à afficher toutes les fiches produit et leur contribution au rayon,
+    // même si elle est encore en cours) de "paire comparable" (utilisée
+    // uniquement pour calculer une évolution T1→T2, et seulement quand la
+    // période affichée en fait elle-même partie).
+    const { periodeAffichage, rowsAffichage, paire, rowsPairePrecedente, periodeEnCours } = NexusPeriodes.analyserPeriodes(data);
+    if (!periodeAffichage) { console.error('Aucune période exploitable dans products.'); return []; }
+    const rowsPrecedentsComparables = (paire && !periodeEnCours) ? rowsPairePrecedente : [];
 
     const caTotalParRayon = {};
-    rowsActuels.forEach(r => { caTotalParRayon[r.categorie] = (caTotalParRayon[r.categorie] || 0) + (r.ca || 0); });
+    rowsAffichage.forEach(r => { caTotalParRayon[r.categorie] = (caTotalParRayon[r.categorie] || 0) + (r.ca || 0); });
 
     const precedentParArticle = {};
-    rowsPrecedents.forEach(r => {
+    rowsPrecedentsComparables.forEach(r => {
       const cle = r.categorie + '|' + r.article;
       precedentParArticle[cle] = precedentParArticle[cle] || r;
     });
 
-    return rowsActuels.map(p => {
+    return rowsAffichage.map(p => {
       const cle = p.categorie + '|' + p.article;
       const prec = precedentParArticle[cle] || null;
       const caRayon = caTotalParRayon[p.categorie] || 0;

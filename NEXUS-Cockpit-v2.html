@@ -274,6 +274,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-auth.js"></script>
 <script src="nexus-vocabulaire.js"></script>
+<script src="nexus-periodes.js"></script>
 </head>
 <body>
 <div class="phone">
@@ -657,9 +658,10 @@
     let PERIODES_TRIEES_MEMOIRE = [];
     let CA_PAR_PERIODE_ARTICLE = {};
 
-    function joursEntre(debut, fin) {
-      return Math.round((new Date(fin) - new Date(debut)) / (1000 * 60 * 60 * 24)) + 1;
-    }
+    // joursEntre/paireValide/analyserPeriodes viennent désormais du moteur
+    // partagé nexus-periodes.js (23/07/2026, harmonisation demandée par
+    // Frédéric : "je ne veux pas que l'appli soit une succession de pages
+    // mais un système") — plus de copie locale de cette logique ici.
 
     // Facteurs réels de l'Indice NEXUS (marge, évolution) — remplis par
     // construirePlansAction(), voir le commentaire à cet endroit pour le
@@ -743,34 +745,12 @@
       // de "paire comparable" (utilisée uniquement pour calculer une
       // évolution). Si aucune paire valable n'existe, aucune évolution
       // n'est calculée pour personne — pas de comparaison bancale.
-      // (joursEntre() est déclarée au niveau module, réutilisée aussi par
-      // renderBouclage() pour la même règle de comparaison de durées.)
+      // (moteur partagé NexusPeriodes, réutilisé aussi par renderBouclage()
+      // pour la même règle de comparaison de durées.)
       // ------------------------------------------------------------
-      const parCle = {};
-      rowsBrut.forEach(r => {
-        const cle = `${r.periode_debut}|${r.periode_fin}`;
-        if (!parCle[cle]) parCle[cle] = { debut: r.periode_debut, fin: r.periode_fin, duree: joursEntre(r.periode_debut, r.periode_fin) };
-      });
-      const periodesTriees = Object.values(parCle).sort((a, b) => b.debut.localeCompare(a.debut));
-      if (!periodesTriees.length) { console.error('Aucune période exploitable dans products.'); return []; }
-      const periodeAffichage = periodesTriees[0];
-      const rowsAffichage = rowsBrut.filter(r => r.periode_debut === periodeAffichage.debut && r.periode_fin === periodeAffichage.fin);
-
-      function paireValide(actuelle, precedente) {
-        if (precedente.fin >= actuelle.debut) return false; // chevauchement -> exclue
-        const ecart = Math.max(actuelle.duree, precedente.duree) > 0
-          ? Math.abs(actuelle.duree - precedente.duree) / Math.max(actuelle.duree, precedente.duree) : 1;
-        return ecart <= 0.2;
-      }
-      let paire = null;
-      for (let i = 0; i < periodesTriees.length - 1 && !paire; i++) {
-        if (paireValide(periodesTriees[i], periodesTriees[i + 1])) {
-          paire = { actuelle: periodesTriees[i], precedente: periodesTriees[i + 1] };
-        }
-      }
+      const { periodesTriees, periodeAffichage, rowsAffichage, paire, rowsPaireActuelle, rowsPairePrecedente } = NexusPeriodes.analyserPeriodes(rowsBrut);
+      if (!periodeAffichage) { console.error('Aucune période exploitable dans products.'); return []; }
       TENDANCE_DISPONIBLE = !!paire;
-      const rowsPaireActuelle = paire ? rowsBrut.filter(r => r.periode_debut === paire.actuelle.debut && r.periode_fin === paire.actuelle.fin) : [];
-      const rowsPairePrecedente = paire ? rowsBrut.filter(r => r.periode_debut === paire.precedente.debut && r.periode_fin === paire.precedente.fin) : [];
 
       // Facteurs réels de l'Indice NEXUS — CORRECTIF 23/07/2026 (découvert en
       // construisant le Brief du matin) : l'Indice affichait un "74" et un
@@ -1141,7 +1121,7 @@
       const resultats = [];
 
       decisions.forEach(d => {
-        const dureeRef = joursEntre(d.periode_reference_debut, d.periode_reference_fin);
+        const dureeRef = NexusPeriodes.joursEntre(d.periode_reference_debut, d.periode_reference_fin);
         const periodeResultat = PERIODES_TRIEES_MEMOIRE
           .filter(p => p.debut > d.periode_reference_fin)
           .filter(p => {

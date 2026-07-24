@@ -36,6 +36,15 @@
   }
   .conseiller-label{font-family:var(--mono); font-size:9.5px; letter-spacing:0.06em; text-transform:uppercase; color:var(--cyan); margin-bottom:4px;}
   .conseiller-text{font-size:12.5px; line-height:1.55; color:var(--text);}
+  /* Cycle Constat → Explication → Décision : la structure fixe imposée à tous
+     les messages du Conseiller (demande de Frédéric le 23/07/2026, vocabulaire
+     NEXUS). Chaque étape est identifiée par une étiquette courte pour que le
+     lecteur voie tout de suite où est le fait, où est le raisonnement, et où
+     est l'action attendue. */
+  .cycle-step{margin-bottom:5px;}
+  .cycle-step:last-child{margin-bottom:0;}
+  .cycle-tag{font-family:var(--mono); font-size:9px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; color:var(--text-dim); margin-right:6px;}
+  .cycle-tag.tag-decision{color:var(--orange);}
   .conseiller-more{margin-top:8px; margin-right:14px; font-family:var(--mono); font-size:10.5px; color:var(--cyan); cursor:pointer; display:inline-block;}
   .conseiller-full{display:none; margin-top:10px; padding-top:10px; border-top:1px solid var(--hairline); font-size:12px; color:var(--text-mid); line-height:1.6;}
   .conseiller-full.open{display:block;}
@@ -127,6 +136,8 @@
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-auth.js"></script>
+<script src="nexus-vocabulaire.js"></script>
+<script src="nexus-periodes.js"></script>
 </head>
 <body>
 <div class="phone">
@@ -224,11 +235,6 @@ function detecterSousFamilles(produits) {
   return partAutres >= 0.95 ? [] : liste;
 }
 
-function joursEntre(debut, fin) {
-  if (!debut || !fin) return 0;
-  return Math.round((new Date(fin + 'T00:00:00') - new Date(debut + 'T00:00:00')) / 86400000) + 1;
-}
-
 async function construireRayons() {
   const { data, error } = await fetchAllRows(() => nexusClient
     .from('products')
@@ -238,46 +244,18 @@ async function construireRayons() {
     .order('article', { ascending: true }));
   if (error || !data || !data.length) { console.error('Chargement products:', error); return { rayons: {}, magasin: null }; }
 
-  // Toutes les périodes distinctes présentes, avec leur durée, du plus
-  // récent au plus ancien.
-  const parCle = {};
-  data.forEach(r => {
-    const cle = `${r.periode_debut}|${r.periode_fin}`;
-    if (!parCle[cle]) parCle[cle] = { debut: r.periode_debut, fin: r.periode_fin, duree: joursEntre(r.periode_debut, r.periode_fin) };
-  });
-  const periodesTriees = Object.values(parCle).sort((a, b) => b.debut.localeCompare(a.debut));
-
-  // Période "affichage" — toujours la plus récente disponible, pour les
-  // chiffres bruts (CA, marge, tops...), même si elle est encore en cours.
-  const periodeAffichage = periodesTriees[0];
-  const rowsAffichage = data.filter(r => r.periode_debut === periodeAffichage.debut && r.periode_fin === periodeAffichage.fin);
-
-  // Comparer deux périodes de durées très différentes (un trimestre complet
-  // contre un mois entamé) produit une "tendance" fictive. Demande de
-  // Frédéric le 23/07/2026 : ne comparer que deux périodes de durée quasi
-  // identique (±20%) et jamais chevauchantes — quitte à remonter avant la
-  // période affichée si celle-ci est encore incomplète.
-  function paireValide(actuelle, precedente) {
-    if (precedente.fin >= actuelle.debut) return false; // chevauchement
-    const ecart = Math.max(actuelle.duree, precedente.duree) > 0
-      ? Math.abs(actuelle.duree - precedente.duree) / Math.max(actuelle.duree, precedente.duree) : 1;
-    return ecart <= 0.2;
-  }
-  let paire = null;
-  for (let i = 0; i < periodesTriees.length - 1 && !paire; i++) {
-    if (paireValide(periodesTriees[i], periodesTriees[i + 1])) {
-      paire = { actuelle: periodesTriees[i], precedente: periodesTriees[i + 1] };
-    }
-  }
-  const periodeEnCours = paire ? (periodeAffichage.debut !== paire.actuelle.debut || periodeAffichage.fin !== paire.actuelle.fin) : periodesTriees.length > 0;
+  // Comparaison de périodes — moteur partagé nexus-periodes.js (23/07/2026,
+  // demande de Frédéric : "je ne veux pas que l'appli soit une succession
+  // de pages mais un système" — même algorithme que Cockpit/Produits/
+  // Centre-Intelligence/Missions au lieu d'une copie locale par page qui
+  // finit par diverger). Voir ce fichier pour le détail de la règle (paire
+  // non chevauchante, durées proches à ±20%).
+  const { periodeAffichage, rowsAffichage, paire, rowsPaireActuelle, rowsPairePrecedente, periodeEnCours } = NexusPeriodes.analyserPeriodes(data);
+  if (!periodeAffichage) { console.error('Aucune période exploitable dans products.'); return { rayons: {}, magasin: null }; }
 
   const caActuelleParCat = {}, caPrecedentParCat = {};
-  if (paire) {
-    data.filter(r => r.periode_debut === paire.actuelle.debut && r.periode_fin === paire.actuelle.fin)
-      .forEach(r => { caActuelleParCat[r.categorie] = (caActuelleParCat[r.categorie] || 0) + (r.ca || 0); });
-    data.filter(r => r.periode_debut === paire.precedente.debut && r.periode_fin === paire.precedente.fin)
-      .forEach(r => { caPrecedentParCat[r.categorie] = (caPrecedentParCat[r.categorie] || 0) + (r.ca || 0); });
-  }
+  rowsPaireActuelle.forEach(r => { caActuelleParCat[r.categorie] = (caActuelleParCat[r.categorie] || 0) + (r.ca || 0); });
+  rowsPairePrecedente.forEach(r => { caPrecedentParCat[r.categorie] = (caPrecedentParCat[r.categorie] || 0) + (r.ca || 0); });
 
   const parCategorie = {};
   rowsAffichage.forEach(r => {
@@ -500,24 +478,40 @@ nexusRequireAuth().then(async employee => {
     verdictRow.innerHTML = `<span class="verdict-pill ${verdict.classe}">${verdict.label}</span>`;
 
     // ------------------------------------------------------------
-    // Conseiller — 3 lignes courtes + détail dépliable, plutôt qu'un
-    // paragraphe dense. Demande de Frédéric le 23/07/2026.
+    // Conseiller — cycle Constat → Explication → Décision, jamais une
+    // simple description de chiffre. Demande de Frédéric le 23/07/2026
+    // (vocabulaire NEXUS) : chaque étape est construite à partir des
+    // mêmes données déjà calculées, et pioche ses mots dans le lexique
+    // commun NexusVocab pour que le ton reste identique d'un rayon à
+    // l'autre et d'une page à l'autre de NEXUS.
     // ------------------------------------------------------------
     const margePct = r.marge_pct_moyenne;
-    const ligne1 = `${r.nom} est votre ${rangCA}${rangCA===1?'er':'ᵉ'} rayon en chiffre d'affaires (${fmtEur(r.ca_total)}), ${libelleMarge} ${margePct < 0.25 ? 'très faible' : margePct >= 0.40 ? 'solide' : 'correcte'} : ${fmtPct(margePct)}.`;
-    let ligne2;
+    const niveauRenta = margePct >= 0.40 ? 'tres_rentable' : margePct >= 0.25 ? 'correcte' : margePct >= 0.10 ? 'faible' : 'insuffisante';
+
+    // --- Constat : le fait chiffré, sans jugement.
+    let constat;
     if (r.trafic) {
-      ligne2 = `Sa fonction est d'attirer et retenir la clientèle, pas de générer de la ${libelleMarge} — ne le jugez pas avec les mêmes critères qu'un rayon de produits physiques.`;
-    } else if (margePct < 0.25) {
-      ligne2 = `Ne poussez pas ses ventes sans regarder d'abord les familles de produits et les conditions fournisseur.`;
+      constat = `${r.nom} représente ${fmtPct(pctCaMagasin)} du CA du magasin (${fmtEur(r.ca_total)}), mais seulement ${fmtPct(pctMargeMagasin)} de la ${libelleMarge} totale (taux de ${fmtPct(margePct)}).`;
     } else {
-      ligne2 = `C'est un vrai levier, pas seulement du volume — sécurisons ce qui marche déjà.`;
+      constat = `${r.nom} est votre ${rangCA}${rangCA===1?'er':'ᵉ'} rayon en chiffre d'affaires (${fmtEur(r.ca_total)}), ${libelleMarge} ${margePct < 0.25 ? 'très faible' : margePct >= 0.40 ? 'solide' : 'correcte'} : ${fmtPct(margePct)}.`;
     }
-    let ligne3;
+
+    // --- Explication : pourquoi ce chiffre n'est pas anormal / ce qu'il révèle.
+    let explication;
+    if (r.trafic) {
+      explication = `${NexusVocab.rentabilite(niveauRenta, true, key) || ''} C'est normal pour un ${NexusVocab.SIGNATURE.PRODUIT_DE_TRAFIC.toLowerCase()} : sa fonction est d'attirer et retenir la clientèle, pas de générer de la ${libelleMarge} — ne le jugez pas avec les mêmes critères qu'un rayon de produits physiques.`;
+    } else if (margePct < 0.25) {
+      explication = `${NexusVocab.rentabilite(niveauRenta, false, key) || ''} Ne poussez pas ses ventes sans regarder d'abord les familles de produits et les conditions fournisseur.`;
+    } else {
+      explication = `${NexusVocab.creationValeur('contribue_fort', key) || 'Contribue fortement.'} C'est un vrai levier, pas seulement du volume — sécurisons ce qui marche déjà.`;
+    }
+
+    // --- Décision : l'action attendue, jamais un simple constat déguisé.
+    let decision;
     if (r.evolution_ca === null) {
-      ligne3 = r.raison_indisponible === 'baseline_nulle'
-        ? `La période précédente comparable (${MAGASIN.paire.precedente.debut} → ${MAGASIN.paire.precedente.fin}) indique 0 € pour ce rayon — vérifiez que cette catégorie a bien été importée sur cette période avant de conclure.`
-        : `Pas encore de période précédente comparable pour ce rayon.`;
+      decision = r.raison_indisponible === 'baseline_nulle'
+        ? `${NexusVocab.decision('controler', key) || ''} La période précédente comparable (${MAGASIN.paire.precedente.debut} → ${MAGASIN.paire.precedente.fin}) indique 0 € pour ce rayon — vérifiez que cette catégorie a bien été importée sur cette période avant de conclure.`
+        : `${NexusVocab.decision('observer', key) || ''} Pas encore de période précédente comparable pour ce rayon.`;
     } else {
       // Depuis le 23/07/2026, r.evolution_ca ne provient plus forcément des
       // deux dernières périodes : si la plus récente est encore en cours,
@@ -526,21 +520,29 @@ nexusRequireAuth().then(async employee => {
       const noteEnCours = MAGASIN.periodeEnCours
         ? ` (tendance mesurée sur ${MAGASIN.paire.precedente.debut} → ${MAGASIN.paire.actuelle.fin} — la période en cours n'est pas encore assez avancée pour être comparée)`
         : '';
+      const tendanceMot = NexusVocab.tendance(r.evolution_ca);
       if (r.evolution_ca <= -0.15) {
-        ligne3 = `Priorité : vérifier l'origine de la baisse de ${fmtPct(Math.abs(r.evolution_ca))} avant toute décision commerciale${noteEnCours}.`;
+        decision = `${tendanceMot ? tendanceMot + ' ' : ''}Priorité : vérifiez l'origine de la baisse de ${fmtPct(Math.abs(r.evolution_ca))} avant toute décision commerciale${noteEnCours}.`;
       } else if (r.evolution_ca > 0) {
-        ligne3 = `Dynamique positive (+${fmtPct(r.evolution_ca)}) — à sécuriser plutôt qu'à ignorer${noteEnCours}.`;
+        decision = `${tendanceMot ? tendanceMot + ' ' : ''}Dynamique positive (+${fmtPct(r.evolution_ca)}) — ${(NexusVocab.decision('renforcer', key) || 'à sécuriser').toLowerCase()}${noteEnCours}.`;
       } else {
-        ligne3 = `Évolution stable${noteEnCours}.`;
+        decision = `${tendanceMot ? tendanceMot + ' ' : ''}${NexusVocab.decision('continuer', key) || 'Évolution stable.'}${noteEnCours}`;
       }
+    }
+    if (r.trafic && r.evolution_ca === null) {
+      decision = `${NexusVocab.decision('maintenir', key) || 'Maintenez ce rayon.'} Concentrez vos actions sur les rayons à plus forte création de valeur.`;
     }
 
     const conseillerMsg = document.getElementById('conseillerRayonMsg');
     const conseillerToggle = document.getElementById('conseillerToggle');
     const conseillerFull = document.getElementById('conseillerFull');
-    conseillerMsg.innerHTML = `${ligne1}<br>${ligne2}<br>${ligne3}`;
+    conseillerMsg.innerHTML = `
+      <div class="cycle-step"><span class="cycle-tag">Constat</span>${constat}</div>
+      <div class="cycle-step"><span class="cycle-tag">Explication</span>${explication}</div>
+      <div class="cycle-step"><span class="cycle-tag tag-decision">Décision</span>${decision}</div>
+    `;
     conseillerFull.classList.remove('open');
-    conseillerFull.innerHTML = `${employee.nom}, ${r.nom} reste votre ${rangCA}${rangCA===1?'er':'ᵉ'} rayon en chiffre d'affaires (${fmtEur(r.ca_total)}) sur ${nbRayons} rayons, et son ${rangMarge}${rangMarge===1?'er':'ᵉ'} en ${libelleMarge} générée. Il pèse ${fmtPct(pctCaMagasin)} du CA du magasin et ${fmtPct(pctMargeMagasin)} de sa ${libelleMarge} totale. ${ligne2} ${r.evolution_ca !== null ? (r.evolution_ca >= 0 ? `Sa dynamique est bonne (+${fmtPct(r.evolution_ca)}).` : `Elle recule de ${fmtPct(Math.abs(r.evolution_ca))}.`) : ''}`;
+    conseillerFull.innerHTML = `${employee.nom}, ${r.nom} reste votre ${rangCA}${rangCA===1?'er':'ᵉ'} rayon en chiffre d'affaires (${fmtEur(r.ca_total)}) sur ${nbRayons} rayons, et son ${rangMarge}${rangMarge===1?'er':'ᵉ'} en ${libelleMarge} générée. Il pèse ${fmtPct(pctCaMagasin)} du CA du magasin et ${fmtPct(pctMargeMagasin)} de sa ${libelleMarge} totale. ${explication} ${r.evolution_ca !== null ? (r.evolution_ca >= 0 ? `Sa dynamique est bonne (+${fmtPct(r.evolution_ca)}).` : `Elle recule de ${fmtPct(Math.abs(r.evolution_ca))}.`) : ''}`;
     conseillerToggle.style.display = 'inline-block';
     conseillerToggle.onclick = () => {
       conseillerFull.classList.toggle('open');
