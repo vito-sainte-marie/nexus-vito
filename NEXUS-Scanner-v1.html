@@ -120,6 +120,19 @@ a{color:inherit; text-decoration:none;}
 .advisor-body .advisor-title{font-family:var(--mono); font-size:10.5px; letter-spacing:0.06em; text-transform:uppercase; color:var(--cyan); margin-bottom:8px;}
 .advisor-body p{font-size:13px; line-height:1.55; color:var(--text);}
 
+.marge-resume{display:flex; align-items:baseline; gap:8px; margin:-6px 20px 12px; font-family:var(--mono); font-size:12px; color:var(--text-mid);}
+.marge-resume b{color:var(--amber); font-size:14px;}
+.marge-card{background:var(--panel); border:1px solid var(--hairline); border-radius:14px; padding:16px; margin:0 20px 10px;}
+.marge-card-head{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px;}
+.marge-badge{font-family:var(--mono); font-size:10px; letter-spacing:0.06em; text-transform:uppercase; color:var(--amber); background:var(--amber-dim); padding:4px 10px; border-radius:20px; font-weight:600;}
+.marge-article{font-size:13.5px; font-weight:600;}
+.marge-step{font-size:12.5px; line-height:1.5; color:var(--text); margin-bottom:8px;}
+.marge-step .marge-tag{font-family:var(--mono); font-size:9px; letter-spacing:0.06em; text-transform:uppercase; color:var(--text-dim); display:block; margin-bottom:2px;}
+.marge-impact{font-size:12.5px; font-weight:600; color:var(--amber); margin:10px 0 12px;}
+.btn-valider{width:100%; background:var(--amber-dim); color:var(--amber); border:1px solid rgba(245,166,35,0.35); border-radius:10px; padding:11px; font-family:var(--sans); font-size:13px; font-weight:600; cursor:pointer;}
+.btn-valider:disabled{opacity:0.5; cursor:default;}
+.marge-empty{font-size:12px; color:var(--text-mid); margin:0 20px; line-height:1.5;}
+
 .empty-panel{background:var(--panel); border:1px dashed var(--hairline); border-radius:14px; padding:22px 20px; text-align:center;}
 .empty-panel .ei{font-size:22px; margin-bottom:10px;}
 .empty-panel .ei img{width:36px; height:36px; border-radius:10px; object-fit:cover; vertical-align:middle;}
@@ -144,6 +157,7 @@ a{color:inherit; text-decoration:none;}
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-auth.js"></script>
 <script src="nexus-periodes.js"></script>
+<script src="nexus-marge.js"></script>
 </head>
 <body>
 <div class="app">
@@ -205,6 +219,109 @@ a{color:inherit; text-decoration:none;}
     return { data: toutes, error: null };
   }
 
+  // ------------------------------------------------------------
+  // Optimisation de marge (R5-MARGE-ECART) — demande de Frédéric le
+  // 24/07/2026 : repérer les produits dont la marge pourrait être
+  // réajustée par rapport à des produits comparables, sans jamais mélanger
+  // des produits qui n'ont pas la même contrainte de prix (voir
+  // nexus-marge.js — l'exemple donné : un paquet de cigarettes, à marge
+  // fixée par le fabricant, n'est pas comparable à une feuille à rouler).
+  // Passe par le même circuit que les autres recommandations NEXUS
+  // (journal_decisions) pour rester validable, mémorisée et mesurable —
+  // pas un chiffre isolé dans Scanner qui ne se relie à rien.
+  // ------------------------------------------------------------
+  let EMPLOYEE_COURANT_ID = null;
+  let VALIDEES_MARGE = new Set();
+
+  async function chargerValideesMarge() {
+    const { data, error } = await nexusClient
+      .from('journal_decisions')
+      .select('candidate_id')
+      .eq('site', SITE_ACTUEL)
+      .eq('rule_id', 'R5-MARGE-ECART');
+    if (error) { console.error('Chargement décisions marge:', error); return; }
+    VALIDEES_MARGE = new Set((data || []).map(d => d.candidate_id));
+  }
+
+  async function enregistrerDecisionMarge(candidat) {
+    const { error } = await nexusClient.from('journal_decisions').insert({
+      site: SITE_ACTUEL,
+      candidate_id: candidat.candidate_id, rule_id: 'R5-MARGE-ECART', etat: candidat.etat,
+      recommandation: candidat.recommandation, impact_eur: candidat.impact_eur,
+      article: candidat.article, categorie: candidat.categorie,
+      date: new Date().toISOString().slice(0,10), heure: new Date().toTimeString().slice(0,5),
+      employee_id: EMPLOYEE_COURANT_ID,
+      ca_reference: candidat.ca_reference, periode_reference_debut: candidat.periode_reference_debut,
+      periode_reference_fin: candidat.periode_reference_fin,
+    });
+    if (error) { console.error('Écriture décision marge:', error); return false; }
+    VALIDEES_MARGE.add(candidat.candidate_id);
+    return true;
+  }
+
+  // Construit les candidats à partir des écarts détectés par NexusMarge —
+  // même schéma Constat/Explication/Décision que les règles R2/R3/R4 du
+  // Cockpit, pour rester cohérent avec le reste de NEXUS.
+  function construireCandidatsMarge(rowsPropres, periodeDebut, periodeFin) {
+    const ecarts = NexusMarge.detecterEcartsMarge(rowsPropres);
+    return ecarts
+      .map(e => {
+        const cle = `${e.categorie}|${e.article}`;
+        return {
+          candidate_id: `LIVE-R5-${cle}`, rule_id: 'R5-MARGE-ECART', etat: '💡 RECOMMANDATION',
+          article: e.article, categorie: e.categorie, impact_eur: e.gainPotentiel,
+          situation: `${e.article} a une marge de ${fmtPct(e.margePct)}, contre ${fmtPct(e.medianeGroupe)} pour les ${e.tailleGroupe} produits comparables du même type.`,
+          contexte: `Comparaison faite uniquement entre produits économiquement comparables — jamais entre catégories entières (voir nexus-marge.js pour les exceptions déjà exclues, comme le tabac réglementé).`,
+          analyse: `Cet écart peut venir d'un prix d'achat renégocié, d'une remise non répercutée, ou d'un choix délibéré — à vérifier avant d'ajuster quoi que ce soit.`,
+          recommandation: `Vérifiez si le prix d'achat ou de vente de ${e.article} peut se rapprocher de la marge médiane de son groupe.`,
+          impact: `Si aligné sur la médiane du groupe, gain potentiel estimé à environ ${fmtEur(e.gainPotentiel)} sur cette période — une hypothèse, pas une garantie.`,
+          ca_reference: e.ca, periode_reference_debut: periodeDebut, periode_reference_fin: periodeFin,
+        };
+      })
+      .filter(c => !VALIDEES_MARGE.has(c.candidate_id));
+  }
+
+  function renderMarge(candidats) {
+    const el = document.getElementById('margeSection');
+    if (!el) return;
+    if (!candidats.length) {
+      el.innerHTML = `<div class="marge-empty">Aucun écart de marge significatif détecté entre produits comparables sur cette période.</div>`;
+      return;
+    }
+    const potentielTotal = candidats.reduce((s, c) => s + c.impact_eur, 0);
+    el.innerHTML = `
+      <div class="marge-resume">Potentiel identifié sur cette période : <b>${fmtEur(potentielTotal)}</b> si les écarts ci-dessous sont corrigés</div>
+      ${candidats.map(c => `
+        <div class="marge-card">
+          <div class="marge-card-head">
+            <span class="marge-article">${c.article}</span>
+            <span class="marge-badge">${c.etat}</span>
+          </div>
+          <div class="marge-step"><span class="marge-tag">Constat</span>${c.situation}</div>
+          <div class="marge-step"><span class="marge-tag">Explication</span>${c.analyse}</div>
+          <div class="marge-step"><span class="marge-tag">Décision</span>${c.recommandation}</div>
+          <div class="marge-impact">${c.impact}</div>
+          <button class="btn-valider" data-id="${c.candidate_id}">Valider cette recommandation</button>
+        </div>`).join('')}
+    `;
+
+    // data-id plutôt qu'un onclick avec l'id interpolé directement — un nom
+    // d'article contenant une apostrophe casserait sinon l'attribut HTML
+    // (même précaution que .plan-valider dans Cockpit).
+    el.querySelectorAll('.btn-valider').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const candidat = (window.CANDIDATS_MARGE || []).find(c => c.candidate_id === btn.dataset.id);
+        if (!candidat) return;
+        btn.disabled = true;
+        btn.textContent = 'Enregistrement…';
+        const ok = await enregistrerDecisionMarge(candidat);
+        if (!ok) { btn.disabled = false; btn.textContent = 'Valider cette recommandation'; return; }
+        window.CANDIDATS_MARGE = (window.CANDIDATS_MARGE || []).filter(c => c.candidate_id !== candidat.candidate_id);
+        renderMarge(window.CANDIDATS_MARGE);
+      });
+    });
+  }
+
   async function chargerDonneesScanner() {
     const [{ data, error }, produitsAppel] = await Promise.all([
       fetchAllRows(() => nexusClient
@@ -264,7 +381,7 @@ a{color:inherit; text-decoration:none;}
     const top5CA = [...catArr].sort((a,b) => b.ca - a.ca).slice(0,5);
     const top5Marge = [...catArr].sort((a,b) => b.marge - a.marge).slice(0,5);
 
-    return { caTotal, margeTotal, nbRefs, nbCategories, classes, top5CA, top5Marge, anomalies, catArr };
+    return { caTotal, margeTotal, nbRefs, nbCategories, classes, top5CA, top5Marge, anomalies, catArr, rowsPropres };
   }
 
   function texteLecture(stats) {
@@ -445,6 +562,11 @@ a{color:inherit; text-decoration:none;}
       </div>
 
       <div class="section">
+        <div class="section-label">Optimisation de marge</div>
+      </div>
+      <div id="margeSection"><div class="marge-empty">Analyse en cours…</div></div>
+
+      <div class="section">
         <div class="mini-panel${stats.anomalies.length>0?' clickable':''}" ${stats.anomalies.length>0?'onclick="toggleCard(this)"':''}>
           <div class="mini-label amber">Anomalies détectées</div>
           <div class="opp-number">${stats.anomalies.length}</div>
@@ -476,6 +598,14 @@ a{color:inherit; text-decoration:none;}
 
       <div class="disclaimer">Cette page décrit l'état du magasin à un instant T (chiffre d'affaires, marge, catégories) — ce n'est pas encore la mesure de l'impact des décisions NEXUS. Cette mesure viendra avec le suivi des actions dans le temps.</div>
     `;
+
+    // Optimisation de marge (R5-MARGE-ECART) — calculée sur les lignes déjà
+    // nettoyées des anomalies par construireStats(), jamais sur les données
+    // brutes. Rendue séparément du gros template ci-dessus car chaque carte
+    // porte un bouton "Valider" qui doit pouvoir se retirer seul, sans tout
+    // reconstruire ni relancer une requête.
+    window.CANDIDATS_MARGE = construireCandidatsMarge(stats.rowsPropres, donnees.periodeDebut, donnees.periodeFin);
+    renderMarge(window.CANDIDATS_MARGE);
   }
 
   let SITE_ACTUEL = 'vito-sainte-marie'; // ecrase par employee.site_id une fois connecte
@@ -487,7 +617,8 @@ a{color:inherit; text-decoration:none;}
       return;
     }
     SITE_ACTUEL = employee.site_id || 'vito-sainte-marie';
-    const donnees = await chargerDonneesScanner();
+    EMPLOYEE_COURANT_ID = employee.id;
+    const [donnees] = await Promise.all([chargerDonneesScanner(), chargerValideesMarge()]);
     renderRoot(donnees);
   });
 </script>
