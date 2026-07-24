@@ -12,8 +12,9 @@
     --text:#EDF1F5; --text-mid:#8A96A5; --text-dim:#57626F;
     --green:#34D399; --green-dim:#153629;
     --amber:#F5A623; --amber-dim:#3A2E14;
+    --orange:#F58A23; --orange-dim:#3A2814;
     --red:#F0575A; --red-dim:#3A1D1F;
-    --cyan:#4FC3D9;
+    --cyan:#4FC3D9; --cyan-dim:#123138;
     --mono:'IBM Plex Mono',monospace; --sans:'IBM Plex Sans',sans-serif;
   }
   *{box-sizing:border-box; margin:0; padding:0;}
@@ -35,6 +36,9 @@
   }
   .conseiller-label{font-family:var(--mono); font-size:9.5px; letter-spacing:0.06em; text-transform:uppercase; color:var(--cyan); margin-bottom:4px;}
   .conseiller-text{font-size:12.5px; line-height:1.55; color:var(--text);}
+  .conseiller-more{margin-top:8px; font-family:var(--mono); font-size:10.5px; color:var(--cyan); cursor:pointer; display:inline-block;}
+  .conseiller-full{display:none; margin-top:10px; padding-top:10px; border-top:1px solid var(--hairline); font-size:12px; color:var(--text-mid); line-height:1.6;}
+  .conseiller-full.open{display:block;}
   .menu-btn{
     position:absolute; top:18px; right:18px; display:flex; align-items:center; gap:6px;
     font-family:var(--mono); font-size:10.5px; font-weight:600; letter-spacing:0.03em; text-transform:uppercase;
@@ -57,6 +61,18 @@
   .search-box input{flex:1; background:none; border:none; outline:none; color:var(--text); font-family:var(--sans); font-size:13px;}
   .search-box input::placeholder{color:var(--text-dim);}
 
+  .verdict-row{display:flex; align-items:center; gap:8px; padding:0 20px; margin-top:4px; flex-wrap:wrap;}
+  .verdict-pill{display:inline-flex; align-items:center; gap:6px; font-family:var(--mono); font-size:11px; font-weight:700; letter-spacing:0.03em; padding:6px 12px; border-radius:20px;}
+  .verdict-valeur{background:var(--green-dim); color:var(--green);}
+  .verdict-strategique{background:var(--amber-dim); color:var(--amber);}
+  .verdict-surveiller{background:var(--orange-dim); color:var(--orange);}
+  .verdict-degradation{background:var(--red-dim); color:var(--red);}
+  .verdict-trafic{background:var(--cyan-dim); color:var(--cyan);}
+
+  .subtabs{display:flex; gap:8px; padding:14px 20px 0;}
+  .subtab{flex:1; text-align:center; padding:10px; border-radius:8px; font-family:var(--mono); font-size:10.5px; letter-spacing:0.03em; text-transform:uppercase; color:var(--text-dim); background:var(--panel-raised); border:1px solid var(--hairline); cursor:pointer;}
+  .subtab.active{color:var(--cyan); border-color:rgba(79,195,217,0.4); background:rgba(79,195,217,0.08);}
+
   .section{padding:0 20px 20px;}
   .card{background:var(--panel); border:1px solid var(--hairline); border-radius:12px; padding:18px; margin-top:14px;}
 
@@ -65,6 +81,18 @@
   .kpi-box .kl{font-family:var(--mono); font-size:10px; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.04em;}
   .kpi-box .kv{font-family:var(--mono); font-size:19px; font-weight:700; margin-top:5px;}
   .kv.up{color:var(--green);} .kv.down{color:var(--red);}
+
+  .fiabilite-row{display:flex; align-items:center; justify-content:space-between; margin-top:10px; font-family:var(--mono); font-size:10.5px; color:var(--text-dim);}
+  .fiabilite-badge{font-family:var(--mono); font-size:9.5px; font-weight:700; padding:3px 9px; border-radius:20px; text-transform:uppercase;}
+  .fiab-elevee{background:var(--green-dim); color:var(--green);}
+  .fiab-moyenne{background:var(--amber-dim); color:var(--amber);}
+  .fiab-faible{background:var(--red-dim); color:var(--red);}
+  .alerte-comparaison{margin-top:10px; padding:10px 12px; background:var(--red-dim); border:1px solid rgba(240,87,90,0.35); border-radius:8px; font-size:11.5px; color:var(--red); line-height:1.55;}
+
+  .poids-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:4px;}
+  .poids-box{background:var(--panel-raised); border-radius:8px; padding:12px 14px;}
+  .poids-box .pl{font-family:var(--mono); font-size:9.5px; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.04em;}
+  .poids-box .pv{font-family:var(--mono); font-size:15px; font-weight:700; margin-top:4px;}
 
   .section-label{font-family:var(--mono); font-size:10.5px; letter-spacing:0.08em; text-transform:uppercase; color:var(--text-dim); margin-bottom:12px; display:flex; align-items:center; gap:8px;}
   .section-label::after{content:''; flex:1; height:1px; background:var(--hairline);}
@@ -79,6 +107,13 @@
   .gap-row:last-child{border-bottom:none;}
   .gap-label{color:var(--text-mid);}
   .gap-status{font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:right; max-width:180px;}
+
+  .expand-toggle{margin-top:10px; font-family:var(--mono); font-size:11px; color:var(--cyan); cursor:pointer; text-align:center; padding:8px; border-radius:8px; background:var(--panel-raised);}
+  .expand-block{display:none;}
+  .expand-block.open{display:block;}
+
+  .terrain-cta{display:block; text-align:center; margin-top:12px; padding:13px; border-radius:8px; background:var(--cyan); color:#04141a; font-family:var(--sans); font-size:13.5px; font-weight:600; text-decoration:none;}
+  .terrain-note{font-size:11.5px; color:var(--text-dim); line-height:1.55; margin-top:8px;}
 
   footer{margin-top:auto; padding:16px 20px 24px; font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:center; border-top:1px solid var(--hairline);}
 </style>
@@ -98,16 +133,29 @@
     <div class="search-box"><span>🔍</span><input type="text" id="searchCat" placeholder="Rechercher une catégorie (ex: tabac, cartes, auto)"></div>
   </div>
   <div class="tabs"><select id="raySelect"></select></div>
+  <div class="verdict-row" id="verdictRow"></div>
 
   <div class="conseiller-mini">
     <img class="conseiller-avatar" src="assets/nexus-avatar.png" alt="Conseiller NEXUS">
     <div class="conseiller-bubble">
       <div class="conseiller-label">Conseiller NEXUS</div>
       <div class="conseiller-text" id="conseillerRayonMsg">Chargement…</div>
+      <div class="conseiller-more" id="conseillerToggle" style="display:none;">Voir l'analyse complète ›</div>
+      <div class="conseiller-full" id="conseillerFull"></div>
     </div>
   </div>
 
-  <div class="section" id="content"></div>
+  <div class="subtabs">
+    <div class="subtab active" data-tab="perf">Performance</div>
+    <div class="subtab" data-tab="ref">Références</div>
+    <div class="subtab" data-tab="terrain">Terrain</div>
+  </div>
+
+  <div class="section">
+    <div class="tabpanel" data-panel="perf" id="panelPerf"></div>
+    <div class="tabpanel" data-panel="ref" id="panelRef" style="display:none;"></div>
+    <div class="tabpanel" data-panel="terrain" id="panelTerrain" style="display:none;"></div>
+  </div>
 
   <footer>NEXUS Rayon v1 · Données réelles S1 2026 · Vito Sainte-Marie Usine</footer>
 </div>
@@ -130,14 +178,55 @@ async function fetchAllRows(builderFactory, pageSize = 1000) {
   return { data: toutes, error: null };
 }
 
+// Rayons "de trafic" — le rôle premier de ces familles n'est pas la marge
+// mais d'attirer/retenir le client (recharges, cartes prépayées, presse,
+// jeux, timbres...). Détection par mot-clé sur le nom de catégorie, même
+// principe que corrigerCategorie() côté Import pour le CBD : transparent,
+// ajustable, jamais une vérité cachée. Demande de Frédéric le 23/07/2026,
+// suite à l'analyse externe sur le rayon Cartes prépayées.
+const MOTCLE_RAYON_TRAFIC = /cart.?e?s?\s*pr[ée]pay|pr[ée]pay[ée]e|\bfdj\b|\bpresse\b|\btimbre/i;
+function estRayonTrafic(nomCategorie) {
+  return MOTCLE_RAYON_TRAFIC.test(nomCategorie || '');
+}
+
+// Sous-familles par mot-clé — utile surtout pour les rayons "trafic" qui
+// regroupent plusieurs opérateurs/marques sous une même catégorie (ex :
+// Transcash, PCS, Digicel, Orange, SFR dans "Cartes prépayées"). Si aucun
+// mot-clé connu ne matche une part significative des références, la
+// section ne s'affiche pas — pas de découpage forcé sur des rayons où ça
+// n'a pas de sens (biscuiterie, entretien...).
+const MOTSCLES_SOUS_FAMILLE = ['Transcash', 'PCS', 'Digicel', 'Orange', 'SFR', 'Claro', 'Vitocarte', 'Lyca', 'Free Mobile', 'Bouygues', 'Western Union', 'MoneyGram'];
+function detecterSousFamilles(produits) {
+  const groupes = {};
+  produits.forEach(p => {
+    const trouve = MOTSCLES_SOUS_FAMILLE.find(m => new RegExp(m.replace(/\s/g, '\\s*'), 'i').test(p.article));
+    const cle = trouve || 'Autres';
+    if (!groupes[cle]) groupes[cle] = { nom: cle, ca: 0, marge: 0, nb: 0 };
+    groupes[cle].ca += p.ca || 0;
+    groupes[cle].marge += p.marge || 0;
+    groupes[cle].nb += 1;
+  });
+  const liste = Object.values(groupes).sort((a, b) => b.ca - a.ca);
+  const caTotal = produits.reduce((s, p) => s + (p.ca || 0), 0);
+  const partAutres = caTotal > 0 ? (groupes['Autres'] ? groupes['Autres'].ca / caTotal : 0) : 1;
+  // Si "Autres" représente la quasi-totalité du CA, aucun mot-clé connu n'a
+  // vraiment matché ce rayon — on n'affiche rien plutôt qu'un faux découpage.
+  return partAutres >= 0.95 ? [] : liste;
+}
+
+function joursEntre(debut, fin) {
+  if (!debut || !fin) return 0;
+  return Math.round((new Date(fin + 'T00:00:00') - new Date(debut + 'T00:00:00')) / 86400000) + 1;
+}
+
 async function construireRayons() {
   const { data, error } = await fetchAllRows(() => nexusClient
     .from('products')
     .select('categorie, article, ca, marge, periode_debut, periode_fin')
-    .eq('site', 'vito-sainte-marie')
+    .eq('site', SITE_ACTUEL)
     .order('periode_debut', { ascending: false })
     .order('article', { ascending: true }));
-  if (error || !data || !data.length) { console.error('Chargement products:', error); return {}; }
+  if (error || !data || !data.length) { console.error('Chargement products:', error); return { rayons: {}, magasin: null }; }
 
   const periodes = [...new Set(data.map(r => r.periode_debut))].sort().reverse();
   const periodeActuelle = periodes[0];
@@ -145,6 +234,24 @@ async function construireRayons() {
 
   const rowsActuels = data.filter(r => r.periode_debut === periodeActuelle);
   const rowsPrecedents = periodePrecedente ? data.filter(r => r.periode_debut === periodePrecedente) : [];
+
+  const finActuelle = rowsActuels[0] ? rowsActuels[0].periode_fin : null;
+  const finPrecedente = rowsPrecedents[0] ? rowsPrecedents[0].periode_fin : null;
+  const dureeActuelle = joursEntre(periodeActuelle, finActuelle);
+  const dureePrecedente = periodePrecedente ? joursEntre(periodePrecedente, finPrecedente) : 0;
+
+  // Fiabilité de la comparaison T1→T2 : un chevauchement de dates (les mêmes
+  // ventes comptées dans les deux périodes) rend l'évolution non fiable ;
+  // un écart de durée important (91 jours vs 52 jours par ex.) la rend
+  // seulement moyennement fiable, même sans chevauchement. Repéré le
+  // 23/07/2026 sur "Cartes prépayées" (chevauchement réel, -70,9% factice).
+  let chevauchement = false, ecartDureePct = 0, fiabilite = null;
+  if (periodePrecedente && finPrecedente) {
+    chevauchement = finPrecedente >= periodeActuelle;
+    ecartDureePct = Math.max(dureeActuelle, dureePrecedente) > 0
+      ? Math.abs(dureeActuelle - dureePrecedente) / Math.max(dureeActuelle, dureePrecedente) : 0;
+    fiabilite = chevauchement ? 'faible' : (ecartDureePct > 0.2 ? 'moyenne' : 'élevée');
+  }
 
   const caPrecedentParCat = {};
   rowsPrecedents.forEach(r => { caPrecedentParCat[r.categorie] = (caPrecedentParCat[r.categorie] || 0) + (r.ca || 0); });
@@ -167,16 +274,33 @@ async function construireRayons() {
     const avecMarge = produits.map(p => ({ ...p, marge_pct: p.ca > 0 ? (p.marge || 0) / p.ca : 0 }));
     const top_ventes = [...produits].sort((a, b) => b.ca - a.ca).slice(0, 5).map(p => ({ article: p.article, ca: p.ca }));
     const top_marge = [...avecMarge].sort((a, b) => b.marge_pct - a.marge_pct).slice(0, 5).map(p => ({ article: p.article, marge_pct: p.marge_pct, ca: p.ca }));
+    const top_marge_eur = [...produits].sort((a, b) => (b.marge || 0) - (a.marge || 0)).slice(0, 5).map(p => ({ article: p.article, marge: p.marge || 0 }));
     const produits_faibles = [...produits].sort((a, b) => a.ca - b.ca).slice(0, 8).map(p => ({ article: p.article, ca: p.ca }));
+    const sous_familles = detecterSousFamilles(produits);
 
     rayons[nom] = {
       nom, nb_references: produits.length, ca_total, marge_total, marge_pct_moyenne,
-      evolution_ca, top_ventes, top_marge, produits_faibles,
+      evolution_ca, top_ventes, top_marge, top_marge_eur, produits_faibles, sous_familles,
+      trafic: estRayonTrafic(nom),
       nb_decisions_actives: 0, // le moteur de recommandations ne tourne pas encore sur les données importées librement
     };
   });
-  return rayons;
+
+  const caTotalMagasin = Object.values(rayons).reduce((s, r) => s + r.ca_total, 0);
+  const margeTotalMagasin = Object.values(rayons).reduce((s, r) => s + r.marge_total, 0);
+
+  return {
+    rayons,
+    magasin: {
+      ca_total: caTotalMagasin, marge_total: margeTotalMagasin,
+      periodeActuelle: { debut: periodeActuelle, fin: finActuelle, duree: dureeActuelle },
+      periodePrecedente: periodePrecedente ? { debut: periodePrecedente, fin: finPrecedente, duree: dureePrecedente } : null,
+      fiabilite, chevauchement,
+    },
+  };
 }
+
+let SITE_ACTUEL = 'vito-sainte-marie'; // ecrase par employee.site_id une fois connecte
 
 nexusRequireAuth().then(async employee => {
   if (!employee) return; // nexus-auth.js gère déjà la redirection vers NEXUS-Login-v1.html
@@ -185,13 +309,18 @@ nexusRequireAuth().then(async employee => {
     return;
   }
 
-  const RAYONS = await construireRayons();
+  SITE_ACTUEL = employee.site_id || 'vito-sainte-marie';
+  const { rayons: RAYONS, magasin: MAGASIN } = await construireRayons();
   const raySelect = document.getElementById('raySelect');
-  const contentEl = document.getElementById('content');
   const titleEl = document.getElementById('rayonTitle');
   const searchCat = document.getElementById('searchCat');
+  const verdictRow = document.getElementById('verdictRow');
+  const panelPerf = document.getElementById('panelPerf');
+  const panelRef = document.getElementById('panelRef');
+  const panelTerrain = document.getElementById('panelTerrain');
 
-  const nomsCategories = Object.keys(RAYONS).sort((a,b) => RAYONS[b].ca_total - RAYONS[a].ca_total);
+  const nomsCategoriesParCA = Object.keys(RAYONS).sort((a,b) => RAYONS[b].ca_total - RAYONS[a].ca_total);
+  const nomsCategoriesParMarge = Object.keys(RAYONS).sort((a,b) => RAYONS[b].marge_total - RAYONS[a].marge_total);
 
   function fmtEur(v) { return v.toLocaleString('fr-FR', {minimumFractionDigits:0, maximumFractionDigits:0}) + ' €'; }
   function fmtPct(v) { return (v*100).toFixed(1) + '%'; }
@@ -199,16 +328,53 @@ nexusRequireAuth().then(async employee => {
   function remplirSelect(filtre) {
     const q = (filtre || '').toLowerCase();
     raySelect.innerHTML = '';
-    nomsCategories.filter(n => n.toLowerCase().includes(q)).forEach(n => {
+    nomsCategoriesParCA.filter(n => n.toLowerCase().includes(q)).forEach(n => {
       const opt = document.createElement('option');
       opt.value = n; opt.textContent = `${n} (${fmtEur(RAYONS[n].ca_total)})`;
       raySelect.appendChild(opt);
     });
     if (raySelect.options.length) showRayon(raySelect.options[0].value);
-    else contentEl.innerHTML = '<div class="card">Aucune catégorie ne correspond.</div>';
+    else { panelPerf.innerHTML = '<div class="card">Aucune catégorie ne correspond.</div>'; panelRef.innerHTML = ''; panelTerrain.innerHTML = ''; verdictRow.innerHTML = ''; }
   }
   raySelect.addEventListener('change', () => showRayon(raySelect.value));
   searchCat.addEventListener('input', () => remplirSelect(searchCat.value));
+
+  // Sous-onglets Performance / Références / Terrain — remplace un long
+  // scroll unique par trois écrans courts, plus rapides à parcourir sur
+  // mobile. Demande de Frédéric le 23/07/2026.
+  document.querySelectorAll('.subtab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.subtab').forEach(b => b.classList.toggle('active', b === btn));
+      const tab = btn.dataset.tab;
+      panelPerf.style.display = tab === 'perf' ? 'block' : 'none';
+      panelRef.style.display = tab === 'ref' ? 'block' : 'none';
+      panelTerrain.style.display = tab === 'terrain' ? 'block' : 'none';
+    });
+  });
+
+  // Verdict global du rayon — un statut immédiat en 5 états, dans l'ordre de
+  // priorité ci-dessous. "Rayon de trafic" prime sur le reste : sa fonction
+  // n'est pas d'être rentable mais d'attirer/retenir le client, une faible
+  // marge n'y est donc pas un signal d'alerte comme ailleurs. L'évolution
+  // n'entre en jeu QUE si la comparaison T1→T2 est fiable (pas de
+  // chevauchement de périodes) — sinon on ne pénalise pas un rayon sur la
+  // base d'un chiffre qu'on sait déjà douteux.
+  function calculerVerdict(r) {
+    const fiable = MAGASIN.fiabilite === 'élevée' || MAGASIN.fiabilite === 'moyenne';
+    if (r.trafic && r.marge_pct_moyenne < 0.10) {
+      return { classe: 'verdict-trafic', label: '🔵 Rayon de trafic à faible marge' };
+    }
+    if (fiable && r.evolution_ca !== null && r.evolution_ca <= -0.30) {
+      return { classe: 'verdict-degradation', label: '🔴 Rayon en dégradation' };
+    }
+    if (fiable && r.evolution_ca !== null && r.evolution_ca <= -0.15) {
+      return { classe: 'verdict-surveiller', label: '🟠 Rayon à surveiller' };
+    }
+    if (r.marge_pct_moyenne < 0.25) {
+      return { classe: 'verdict-strategique', label: '🟡 Rayon stratégique à faible marge' };
+    }
+    return { classe: 'verdict-valeur', label: '🟢 Rayon créateur de valeur' };
+  }
 
   function showRayon(key) {
     const r = RAYONS[key];
@@ -216,47 +382,133 @@ nexusRequireAuth().then(async employee => {
     titleEl.textContent = r.nom;
     if (raySelect.value !== key) raySelect.value = key;
 
-    const rang = nomsCategories.indexOf(key) + 1;
-    const conseillerMsg = document.getElementById('conseillerRayonMsg');
-    if (conseillerMsg) {
-      const margePct = r.marge_pct_moyenne;
-      let msg = `${employee.nom}, ${r.nom} reste votre ${rang}${rang===1?'er':'ᵉ'} rayon en chiffre d'affaires (${fmtEur(r.ca_total)}). `;
-      if (margePct < 0.25) {
-        msg += `Sa marge est plutôt faible (${fmtPct(margePct)}) — je ne vous recommande pas d'en pousser la vente. Concentrons plutôt nos efforts sur les rayons à plus forte marge. `;
-      } else if (margePct >= 0.40) {
-        msg += `Sa marge est solide (${fmtPct(margePct)}) — c'est un vrai levier, pas seulement du volume. `;
-      } else {
-        msg += `Sa marge reste correcte (${fmtPct(margePct)}), sans être exceptionnelle. `;
-      }
-      if (r.evolution_ca !== null) {
-        msg += r.evolution_ca >= 0
-          ? `Et sa dynamique est bonne (+${fmtPct(r.evolution_ca)}) — sécurisons ce qui marche déjà.`
-          : `Elle recule de ${fmtPct(Math.abs(r.evolution_ca))} — avant d'en tirer une conclusion, allons vérifier le terrain.`;
-      } else {
-        msg += `Je n'ai pas encore de période précédente pour ce rayon, donc pas d'évolution fiable — ça viendra avec votre prochain import.`;
-      }
-      conseillerMsg.textContent = msg;
+    const rangCA = nomsCategoriesParCA.indexOf(key) + 1;
+    const rangMarge = nomsCategoriesParMarge.indexOf(key) + 1;
+    const nbRayons = nomsCategoriesParCA.length;
+    const pctCaMagasin = MAGASIN.ca_total > 0 ? r.ca_total / MAGASIN.ca_total : 0;
+    const pctMargeMagasin = MAGASIN.marge_total > 0 ? r.marge_total / MAGASIN.marge_total : 0;
+    const libelleMarge = r.trafic ? 'commission' : 'marge';
+    const libelleMargeMaj = r.trafic ? 'Commission' : 'Marge';
+
+    const verdict = calculerVerdict(r);
+    verdictRow.innerHTML = `<span class="verdict-pill ${verdict.classe}">${verdict.label}</span>`;
+
+    // ------------------------------------------------------------
+    // Conseiller — 3 lignes courtes + détail dépliable, plutôt qu'un
+    // paragraphe dense. Demande de Frédéric le 23/07/2026.
+    // ------------------------------------------------------------
+    const margePct = r.marge_pct_moyenne;
+    const ligne1 = `${r.nom} est votre ${rangCA}${rangCA===1?'er':'ᵉ'} rayon en chiffre d'affaires (${fmtEur(r.ca_total)}), ${libelleMarge} ${margePct < 0.25 ? 'très faible' : margePct >= 0.40 ? 'solide' : 'correcte'} : ${fmtPct(margePct)}.`;
+    let ligne2;
+    if (r.trafic) {
+      ligne2 = `Sa fonction est d'attirer et retenir la clientèle, pas de générer de la ${libelleMarge} — ne le jugez pas avec les mêmes critères qu'un rayon de produits physiques.`;
+    } else if (margePct < 0.25) {
+      ligne2 = `Ne poussez pas ses ventes sans regarder d'abord les familles de produits et les conditions fournisseur.`;
+    } else {
+      ligne2 = `C'est un vrai levier, pas seulement du volume — sécurisons ce qui marche déjà.`;
+    }
+    let ligne3;
+    if (MAGASIN.chevauchement) {
+      ligne3 = `Priorité : la période de comparaison n'est pas fiable actuellement (dates qui se chevauchent) — à corriger dans Debug avant toute conclusion sur l'évolution.`;
+    } else if (r.evolution_ca !== null && r.evolution_ca <= -0.15) {
+      ligne3 = `Priorité : vérifier l'origine de la baisse de ${fmtPct(Math.abs(r.evolution_ca))} avant toute décision commerciale.`;
+    } else if (r.evolution_ca !== null && r.evolution_ca > 0) {
+      ligne3 = `Dynamique positive (+${fmtPct(r.evolution_ca)}) — à sécuriser plutôt qu'à ignorer.`;
+    } else {
+      ligne3 = `Pas encore de période précédente comparable pour ce rayon.`;
     }
 
-    const evolHtml = r.evolution_ca !== null
-      ? `<div class="kpi-box"><div class="kl">Évolution T1→T2</div><div class="kv ${r.evolution_ca>=0?'up':'down'}">${r.evolution_ca>=0?'+':''}${fmtPct(r.evolution_ca)}</div></div>`
-      : `<div class="kpi-box"><div class="kl">Évolution T1→T2</div><div class="kv" style="color:var(--text-dim); font-size:12px;">Non calculable (T1 partiel)</div></div>`;
+    const conseillerMsg = document.getElementById('conseillerRayonMsg');
+    const conseillerToggle = document.getElementById('conseillerToggle');
+    const conseillerFull = document.getElementById('conseillerFull');
+    conseillerMsg.innerHTML = `${ligne1}<br>${ligne2}<br>${ligne3}`;
+    conseillerFull.classList.remove('open');
+    conseillerFull.innerHTML = `${employee.nom}, ${r.nom} reste votre ${rangCA}${rangCA===1?'er':'ᵉ'} rayon en chiffre d'affaires (${fmtEur(r.ca_total)}) sur ${nbRayons} rayons, et son ${rangMarge}${rangMarge===1?'er':'ᵉ'} en ${libelleMarge} générée. Il pèse ${fmtPct(pctCaMagasin)} du CA du magasin et ${fmtPct(pctMargeMagasin)} de sa ${libelleMarge} totale. ${ligne2} ${r.evolution_ca !== null ? (r.evolution_ca >= 0 ? `Sa dynamique est bonne (+${fmtPct(r.evolution_ca)}).` : `Elle recule de ${fmtPct(Math.abs(r.evolution_ca))}.`) : ''}`;
+    conseillerToggle.style.display = 'inline-block';
+    conseillerToggle.onclick = () => {
+      conseillerFull.classList.toggle('open');
+      conseillerToggle.textContent = conseillerFull.classList.contains('open') ? 'Réduire ‹' : "Voir l'analyse complète ›";
+    };
 
-    contentEl.innerHTML = `
+    // ------------------------------------------------------------
+    // Onglet Performance
+    // ------------------------------------------------------------
+    let evolHtml;
+    if (r.evolution_ca === null) {
+      evolHtml = `<div class="kpi-box"><div class="kl">Évolution comparable</div><div class="kv" style="color:var(--text-dim); font-size:12px;">Non calculable (T1 partiel)</div></div>`;
+    } else {
+      evolHtml = `<div class="kpi-box"><div class="kl">Évolution comparable</div><div class="kv ${r.evolution_ca>=0?'up':'down'}">${r.evolution_ca>=0?'+':''}${fmtPct(r.evolution_ca)}</div></div>`;
+    }
+
+    let fiabiliteHtml = '';
+    if (r.evolution_ca !== null && MAGASIN.periodePrecedente) {
+      const fiabClasse = MAGASIN.fiabilite === 'élevée' ? 'fiab-elevee' : (MAGASIN.fiabilite === 'moyenne' ? 'fiab-moyenne' : 'fiab-faible');
+      fiabiliteHtml = `
+        <div class="fiabilite-row">
+          <span>T1 : ${MAGASIN.periodePrecedente.debut} → ${MAGASIN.periodePrecedente.fin} (${MAGASIN.periodePrecedente.duree}j)</span>
+        </div>
+        <div class="fiabilite-row">
+          <span>T2 : ${MAGASIN.periodeActuelle.debut} → ${MAGASIN.periodeActuelle.fin} (${MAGASIN.periodeActuelle.duree}j)</span>
+          <span class="fiabilite-badge ${fiabClasse}">Fiabilité ${MAGASIN.fiabilite}</span>
+        </div>
+        ${MAGASIN.chevauchement ? `<div class="alerte-comparaison">⚠ Comparaison non fiable : les deux périodes se chevauchent (mêmes ventes comptées deux fois). Corrigez dans Debug avant de tirer une conclusion.</div>`
+          : (MAGASIN.fiabilite === 'moyenne' ? `<div class="alerte-comparaison" style="background:var(--amber-dim); border-color:rgba(245,166,35,0.35); color:var(--amber);">⚠ Durées de période différentes — l'évolution donne une tendance, pas une mesure exacte.</div>` : '')}
+      `;
+    }
+
+    panelPerf.innerHTML = `
       <div class="card">
         <div class="kpi-grid">
-          <div class="kpi-box"><div class="kl">CA Total S1</div><div class="kv">${fmtEur(r.ca_total)}</div></div>
-          <div class="kpi-box"><div class="kl">Marge totale</div><div class="kv">${fmtEur(r.marge_total)}</div></div>
-          <div class="kpi-box"><div class="kl">Marge moyenne</div><div class="kv">${fmtPct(r.marge_pct_moyenne)}</div></div>
+          <div class="kpi-box"><div class="kl">CA Total</div><div class="kv">${fmtEur(r.ca_total)}</div></div>
+          <div class="kpi-box"><div class="kl">${libelleMargeMaj} totale</div><div class="kv">${fmtEur(r.marge_total)}</div></div>
+          <div class="kpi-box"><div class="kl">${libelleMargeMaj} moyenne</div><div class="kv">${fmtPct(r.marge_pct_moyenne)}</div></div>
           ${evolHtml}
         </div>
+        ${fiabiliteHtml}
         <div style="margin-top:10px; font-family:var(--mono); font-size:10.5px; color:var(--text-dim);">
           ${r.nb_references} références · ${r.nb_decisions_actives} décisions prioritaires (Conseiller NEXUS)
         </div>
       </div>
 
       <div class="card">
-        <div class="section-label">Top ventes (CA)</div>
+        <div class="section-label">Poids dans le magasin</div>
+        <div class="poids-grid">
+          <div class="poids-box"><div class="pl">Rang en CA</div><div class="pv">${rangCA}ᵉ / ${nbRayons}</div></div>
+          <div class="poids-box"><div class="pl">Rang en ${libelleMarge}</div><div class="pv">${rangMarge}ᵉ / ${nbRayons}</div></div>
+          <div class="poids-box"><div class="pl">% du CA magasin</div><div class="pv">${fmtPct(pctCaMagasin)}</div></div>
+          <div class="poids-box"><div class="pl">% de la ${libelleMarge} magasin</div><div class="pv">${fmtPct(pctMargeMagasin)}</div></div>
+        </div>
+      </div>
+    `;
+
+    // ------------------------------------------------------------
+    // Onglet Références
+    // ------------------------------------------------------------
+    const faiblesVisibles = r.produits_faibles.slice(0, 3);
+    const faiblesCaches = r.produits_faibles.slice(3);
+
+    function renderFaible(p) {
+      const part = r.ca_total > 0 ? (p.ca / r.ca_total * 100) : 0;
+      return `
+        <div class="rank-row">
+          <span class="rank-name">${p.article}</span>
+          <span class="rank-val weak">${fmtEur(p.ca)} <span style="opacity:0.6; font-size:10.5px;">(${part.toFixed(1)}% du rayon)</span></span>
+        </div>`;
+    }
+
+    const sousFamillesHtml = r.sous_familles.length ? `
+      <div class="card">
+        <div class="section-label">Tendances par sous-famille</div>
+        ${r.sous_familles.map(g => `
+          <div class="rank-row">
+            <span class="rank-name">${g.nom} <span style="color:var(--text-dim); font-size:10.5px;">(${g.nb} réf.)</span></span>
+            <span class="rank-val">${fmtEur(g.ca)} · ${fmtPct(g.ca > 0 ? g.marge / g.ca : 0)}</span>
+          </div>`).join('')}
+      </div>` : '';
+
+    panelRef.innerHTML = `
+      <div class="card">
+        <div class="section-label">Top chiffre d'affaires</div>
         ${r.top_ventes.map((p,i) => `
           <div class="rank-row">
             <span class="rank-name">${i+1}. ${p.article}</span>
@@ -265,35 +517,66 @@ nexusRequireAuth().then(async employee => {
       </div>
 
       <div class="card">
-        <div class="section-label">Top marge (%)</div>
-        ${r.top_marge.map((p,i) => `
+        <div class="section-label">Top ${libelleMarge} (€)</div>
+        ${r.top_marge_eur.map((p,i) => `
           <div class="rank-row">
             <span class="rank-name">${i+1}. ${p.article}</span>
-            <span class="rank-val">${fmtPct(p.marge_pct)}</span>
+            <span class="rank-val">${fmtEur(p.marge)}</span>
           </div>`).join('')}
       </div>
 
       <div class="card">
-        <div class="section-label">Réalité vs instinct</div>
-        <div style="font-size:12px; color:var(--text-mid); line-height:1.55; margin-bottom:12px;">
-          Ces références donnent souvent l'impression de bien tourner — visibles en rayon, familières, parfois demandées à voix haute. Les chiffres disent autrement : sur la période, ce sont elles qui pèsent le moins dans le chiffre d'affaires de ${r.nom}.
-        </div>
-        ${r.produits_faibles.length ? r.produits_faibles.map((p,i) => {
-          const part = r.ca_total > 0 ? (p.ca / r.ca_total * 100) : 0;
-          return `
+        <div class="section-label">Top ${libelleMarge} (%)</div>
+        <div class="terrain-note" style="margin-top:-6px; margin-bottom:10px;">Un taux élevé sur un tout petit volume ne représente pas grand-chose — croisez toujours avec le CA à côté.</div>
+        ${r.top_marge.map((p,i) => `
           <div class="rank-row">
-            <span class="rank-name">${p.article}</span>
-            <span class="rank-val weak">${fmtEur(p.ca)} <span style="opacity:0.6; font-size:10.5px;">(${part.toFixed(1)}% du rayon)</span></span>
-          </div>`;
-        }).join('') : '<div style="font-size:12.5px; color:var(--text-dim); font-style:italic;">Aucun candidat actuellement.</div>'}
-        ${r.produits_faibles.length ? '<div style="font-family:var(--mono); font-size:10px; color:var(--text-dim); margin-top:10px; line-height:1.5;">Avant de déréférencer : vérifiez le facing réel et la fraîcheur/rotation — un chiffre faible peut aussi venir d\'un mauvais emplacement, pas seulement d\'un manque de demande.</div>' : ''}
+            <span class="rank-name">${i+1}. ${p.article}</span>
+            <span class="rank-val">${fmtPct(p.marge_pct)} <span style="opacity:0.6; font-size:10.5px;">(${fmtEur(p.ca)} CA)</span></span>
+          </div>`).join('')}
       </div>
 
+      ${sousFamillesHtml}
+
+      <div class="card">
+        <div class="section-label">Réalité vs instinct</div>
+        <div style="font-size:12px; color:var(--text-mid); line-height:1.55; margin-bottom:12px;">
+          Ces références donnent souvent l'impression de bien tourner. Les chiffres disent autrement : sur la période, ce sont elles qui pèsent le moins dans le chiffre d'affaires de ${r.nom}.
+        </div>
+        ${faiblesVisibles.length ? faiblesVisibles.map(renderFaible).join('') : '<div style="font-size:12.5px; color:var(--text-dim); font-style:italic;">Aucun candidat actuellement.</div>'}
+        ${faiblesCaches.length ? `
+          <div class="expand-toggle" id="toggleFaibles">Voir les ${r.produits_faibles.length} références ›</div>
+          <div class="expand-block" id="blocFaibles">${faiblesCaches.map(renderFaible).join('')}</div>
+        ` : ''}
+        ${r.produits_faibles.length ? '<div style="font-family:var(--mono); font-size:10px; color:var(--text-dim); margin-top:10px; line-height:1.5;">Avant de déréférencer : vérifiez l\'existence réelle du produit, son emplacement, son historique, sa disponibilité fournisseur, et testez un repositionnement — le déréférencement vient en dernier.</div>' : ''}
+      </div>
+    `;
+
+    if (faiblesCaches.length) {
+      document.getElementById('toggleFaibles').addEventListener('click', () => {
+        const bloc = document.getElementById('blocFaibles');
+        const toggle = document.getElementById('toggleFaibles');
+        bloc.classList.toggle('open');
+        toggle.textContent = bloc.classList.contains('open') ? 'Réduire ‹' : `Voir les ${r.produits_faibles.length} références ›`;
+      });
+    }
+
+    // ------------------------------------------------------------
+    // Onglet Terrain
+    // ------------------------------------------------------------
+    panelTerrain.innerHTML = `
       <div class="card">
         <div class="section-label">Ce que NEXUS ne sait pas encore sur ce rayon</div>
         <div class="gap-row"><span class="gap-label">Top rotation réelle</span><span class="gap-status">Proxy CA uniquement — Capability 006</span></div>
+        <div class="gap-row"><span class="gap-label">Transactions, panier moyen</span><span class="gap-status">Non disponible — nécessite un import transactionnel (ticket par ticket), pas prévu actuellement</span></div>
+        <div class="gap-row"><span class="gap-label">Dernière vente par référence</span><span class="gap-status">Non disponible — même limite</span></div>
         <div class="gap-row"><span class="gap-label">Planogramme complet</span><span class="gap-status">Non disponible — pas d'écran de saisie des facings actuellement</span></div>
-        <div class="gap-row"><span class="gap-label">Photos du rayon</span><span class="gap-status">Non disponible — pas de photothèque</span></div>
+        <div class="gap-row"><span class="gap-label">Photos du rayon</span><span class="gap-status">Une photo à la fois, par produit (voir ci-dessous)</span></div>
+      </div>
+
+      <div class="card">
+        <div class="section-label">Contrôle terrain</div>
+        <div class="terrain-note">Une vraie photo prise en rayon vaut mieux qu'une impression. Lancez la mission "Photo de vérification rayon" et choisissez un produit de ${r.nom} — la photo sera visible ensuite sur sa fiche Produit.</div>
+        <a class="terrain-cta" href="NEXUS-Missions-v1.html">Lancer un contrôle terrain →</a>
       </div>
     `;
   }
