@@ -68,6 +68,7 @@
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-auth.js"></script>
+<script src="nexus-periodes.js"></script>
 </head>
 <body>
 <div class="phone">
@@ -108,19 +109,57 @@
       return;
     }
     const session = { prenom: employee.nom, role: employee.role };
+    const SITE_ACTUEL = employee.site_id || 'vito-sainte-marie';
 
+  // Supabase plafonne chaque requete a 1000 lignes par defaut, sans erreur —
+  // au-dela, le reste est silencieusement absent. Meme helper que
+  // Cockpit/Rayon/Produits/Missions/Centre-Intelligence/Scanner.
+  async function fetchAllRows(builderFactory, pageSize = 1000) {
+    let toutes = [];
+    let from = 0;
+    while (true) {
+      const { data, error } = await builderFactory().range(from, from + pageSize - 1);
+      if (error) return { data: null, error };
+      toutes = toutes.concat(data || []);
+      if (!data || data.length < pageSize) break;
+      from += pageSize;
+    }
+    return { data: toutes, error: null };
+  }
 
   // CORRECTIF 24/07/2026 (audit doublons de données) : "Résultats" reposait
-  // sur SANTE_SCORE = 74 codé en dur — exactement le même bug de placeholder
-  // déjà corrigé sur l'Indice NEXUS du Cockpit, réapparu ici indépendamment
-  // car les deux écrans n'ont jamais partagé de source commune. Plutôt que
-  // d'inventer une deuxième formule d'Indice NEXUS (qui risquerait de
-  // diverger de celle du Cockpit — le même problème que ce correctif est
-  // censé éviter), ce domaine est marqué "non mesurable" ici, comme le sont
-  // déjà Stocks/Achats/Clients plus bas, en attendant une vraie extraction
-  // partagée du calcul de l'Indice NEXUS (actuellement uniquement dans
-  // NEXUS-Cockpit-v2.html, trop volumineux pour être entièrement relu et
-  // dupliqué en confiance depuis cet écran).
+  // sur SANTE_SCORE = 74 codé en dur. Ce correctif reprend EXACTEMENT le
+  // calcul de l'Indice NEXUS du Cockpit (calculerIndiceNexus + même requête
+  // products + même moteur NexusPeriodes.analyserPeriodes) plutôt que
+  // d'inventer une deuxième formule qui risquerait de diverger. Résultat :
+  // "Résultats" affiche ici le même chiffre que l'Indice NEXUS du Cockpit,
+  // pas un second calcul indépendant.
+  function calculerIndiceNexus(facteurs) {
+    if (facteurs.margeReelle == null) return null;
+    let score = 50 + (facteurs.margeReelle - 0.25) * 100;
+    if (facteurs.evolutionReelle != null) score += facteurs.evolutionReelle * 50;
+    return Math.max(0, Math.min(100, Math.round(score)));
+  }
+
+  async function calculerFacteursIndice() {
+    const { data: rowsBrut, error } = await fetchAllRows(() => nexusClient
+      .from('products')
+      .select('categorie, article, ca, marge, periode_debut, periode_fin')
+      .eq('site', SITE_ACTUEL)
+      .order('periode_debut', { ascending: false })
+      .order('article', { ascending: true }));
+    if (error || !rowsBrut || !rowsBrut.length) { console.error('Chargement products (Indice NEXUS):', error); return null; }
+    const { periodeAffichage, rowsAffichage, paire, rowsPaireActuelle, rowsPairePrecedente } = NexusPeriodes.analyserPeriodes(rowsBrut);
+    if (!periodeAffichage) return null;
+    const caTotalAffichage = rowsAffichage.reduce((s, r) => s + (r.ca || 0), 0);
+    const margeTotaleAffichage = rowsAffichage.reduce((s, r) => s + (r.marge || 0), 0);
+    const caPaireActuelleTotal = rowsPaireActuelle.reduce((s, r) => s + (r.ca || 0), 0);
+    const caPairePrecedenteTotal = rowsPairePrecedente.reduce((s, r) => s + (r.ca || 0), 0);
+    return {
+      margeReelle: caTotalAffichage > 0 ? margeTotaleAffichage / caTotalAffichage : null,
+      evolutionReelle: (paire && caPairePrecedenteTotal > 0) ? (caPaireActuelleTotal - caPairePrecedenteTotal) / caPairePrecedenteTotal : null,
+    };
+  }
 
   // Equipe (Presence, via retards) : lit desormais Supabase (pointages),
   // partagee par tous les appareils — remplace localStorage('nexus_retards')
@@ -165,17 +204,19 @@
     return Math.round(Math.max(0, points) / maxTheorique * 100);
   }
 
-  const [{ data: completionsHisto, error: erreurCompletions }, { data: pointagesHisto, error: erreurPointages }] = await Promise.all([
+  const [{ data: completionsHisto, error: erreurCompletions }, { data: pointagesHisto, error: erreurPointages }, facteursIndice] = await Promise.all([
     nexusClient.from('mission_completions').select('points, mission_id'),
     nexusClient.from('pointages').select('retard_min').eq('type', 'arrivee').gt('retard_min', 0),
+    calculerFacteursIndice(),
   ]);
   if (erreurCompletions) console.error('Chargement mission_completions:', erreurCompletions);
   if (erreurPointages) console.error('Chargement pointages:', erreurPointages);
   const devScore = await calculerDeveloppement(completionsHisto);
   const equipeScore = calculerEquipe(pointagesHisto);
+  const resultatsScore = facteursIndice ? calculerIndiceNexus(facteursIndice) : null;
 
   const DOMAINES = [
-    { nom: "Résultats", icone: "💰", sous: "CA, Marge — pas encore unifié avec l'Indice NEXUS du Cockpit", valeur: null, mesure: false },
+    { nom: "Résultats", icone: "💰", sous: "CA, Marge — même Indice NEXUS que le Cockpit", valeur: resultatsScore, mesure: resultatsScore !== null },
     { nom: "Équipe", icone: "👥", sous: "Présence uniquement (Motivation, Formation, Cohésion non mesurées)", valeur: equipeScore, mesure: equipeScore !== null },
     { nom: "Exploitation", icone: "🏪", sous: "Propreté, Sécurité, Disponibilité", valeur: null, mesure: false },
     { nom: "Conformité", icone: "⚖️", sous: "Procédures, Audits, Tenues, Sécurité", valeur: null, mesure: false },
