@@ -289,11 +289,23 @@ async function construireRayons() {
 
     // Évolution/tendance : toujours calculée sur la paire de périodes
     // comparables trouvée ci-dessus — pas forcément la période affichée.
-    let evolution_ca = null;
-    if (paire) {
+    // raison_indisponible distingue deux cas bien différents pour l'honnêteté
+    // du message affiché : soit aucune paire de périodes comparables n'existe
+    // DU TOUT (aucun historique exploitable), soit une paire existe mais le
+    // CA de CE rayon précis y est à 0 — souvent le signe d'un import où la
+    // catégorie n'a pas été correctement rattachée (repéré le 23/07/2026 :
+    // "Cartes prépayées" a bien une période 01/01→31/03, mais à 0 € dedans).
+    let evolution_ca = null, raison_indisponible = null;
+    if (!paire) {
+      raison_indisponible = 'aucune_paire';
+    } else {
       const caPrec = caPrecedentParCat[nom];
       const caAct = caActuelleParCat[nom] || 0;
-      if (caPrec && caPrec > 0) evolution_ca = (caAct - caPrec) / caPrec;
+      if (caPrec && caPrec > 0) {
+        evolution_ca = (caAct - caPrec) / caPrec;
+      } else {
+        raison_indisponible = 'baseline_nulle';
+      }
     }
 
     const avecMarge = produits.map(p => ({ ...p, marge_pct: p.ca > 0 ? (p.marge || 0) / p.ca : 0 }));
@@ -305,7 +317,7 @@ async function construireRayons() {
 
     rayons[nom] = {
       nom, nb_references: produits.length, ca_total, marge_total, marge_pct_moyenne,
-      evolution_ca, top_ventes, top_marge, top_marge_eur, produits_faibles, sous_familles,
+      evolution_ca, raison_indisponible, top_ventes, top_marge, top_marge_eur, produits_faibles, sous_familles,
       trafic: estRayonTrafic(nom),
       nb_decisions_actives: 0, // le moteur de recommandations ne tourne pas encore sur les données importées librement
     };
@@ -433,7 +445,9 @@ nexusRequireAuth().then(async employee => {
     }
     let ligne3;
     if (r.evolution_ca === null) {
-      ligne3 = `Pas encore de période précédente comparable pour ce rayon.`;
+      ligne3 = r.raison_indisponible === 'baseline_nulle'
+        ? `La période précédente comparable (${MAGASIN.paire.precedente.debut} → ${MAGASIN.paire.precedente.fin}) indique 0 € pour ce rayon — vérifiez que cette catégorie a bien été importée sur cette période avant de conclure.`
+        : `Pas encore de période précédente comparable pour ce rayon.`;
     } else {
       // Depuis le 23/07/2026, r.evolution_ca ne provient plus forcément des
       // deux dernières périodes : si la plus récente est encore en cours,
@@ -468,7 +482,8 @@ nexusRequireAuth().then(async employee => {
     // ------------------------------------------------------------
     let evolHtml;
     if (r.evolution_ca === null) {
-      evolHtml = `<div class="kpi-box"><div class="kl">Tendance comparable</div><div class="kv" style="color:var(--text-dim); font-size:12px;">Non calculable</div></div>`;
+      const raisonCourte = r.raison_indisponible === 'baseline_nulle' ? '0 € en T1 — voir ci-dessous' : 'Non calculable';
+      evolHtml = `<div class="kpi-box"><div class="kl">Tendance comparable</div><div class="kv" style="color:var(--text-dim); font-size:12px;">${raisonCourte}</div></div>`;
     } else {
       evolHtml = `<div class="kpi-box"><div class="kl">Tendance comparable</div><div class="kv ${r.evolution_ca>=0?'up':'down'}">${r.evolution_ca>=0?'+':''}${fmtPct(r.evolution_ca)}</div></div>`;
     }
