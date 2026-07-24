@@ -49,10 +49,21 @@
   ];
 
   // Retourne la famille de marge d'un article : { id, exclue }.
-  // Par défaut (aucune exception ne correspond), la famille est la
-  // catégorie elle-même — comparaison la plus prudente possible tant
-  // qu'aucune règle plus fine n'a été ajoutée et validée par un humain.
-  function familleMarge(categorie, article) {
+  //
+  // `exclusionsManuelles` (optionnel) : un Set de noms d'articles choisis
+  // par un manager dans Paramétrage Station (table marge_exceptions,
+  // migration-marge-exceptions-v1.sql) — vérifié EN PREMIER, avant les
+  // règles codées en dur ci-dessus. Ça permet à quelqu'un qui connaît le
+  // métier de corriger ou compléter la classification sans toucher au
+  // code, exactement comme demandé par Frédéric le 24/07/2026.
+  //
+  // Par défaut (ni exclusion manuelle, ni exception codée ne correspond),
+  // la famille est la catégorie elle-même — comparaison la plus prudente
+  // possible tant qu'aucune règle plus fine n'a été ajoutée.
+  function familleMarge(categorie, article, exclusionsManuelles) {
+    if (exclusionsManuelles && exclusionsManuelles.has(article)) {
+      return { id: 'exclusion-manuelle', exclue: true };
+    }
     for (const regle of EXCEPTIONS) {
       if (regle.test(categorie, article)) return { id: regle.id, exclue: true };
     }
@@ -75,12 +86,14 @@
   // anomalies (marge/CA incohérents) et des produits d'appel — la même
   // exigence que pour tout autre calcul NEXUS : jamais comparer une ligne
   // qu'on sait déjà fausse.
+  // exclusionsManuelles : Set optionnel de noms d'articles exclus par un
+  // manager depuis Paramétrage Station (voir familleMarge ci-dessus).
   // Retourne les écarts détectés, triés par gain potentiel décroissant.
-  function detecterEcartsMarge(rows) {
+  function detecterEcartsMarge(rows, exclusionsManuelles) {
     const parFamille = {};
     (rows || []).forEach(r => {
       if (!(r.ca > 0)) return; // marge % non calculable sans CA positif
-      const famille = familleMarge(r.categorie, r.article);
+      const famille = familleMarge(r.categorie, r.article, exclusionsManuelles);
       if (famille.exclue) return;
       if (!parFamille[famille.id]) parFamille[famille.id] = [];
       parFamille[famille.id].push({ ...r, margePct: (r.marge || 0) / r.ca * 100 });
