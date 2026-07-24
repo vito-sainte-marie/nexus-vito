@@ -150,6 +150,7 @@
   <div class="divider"></div>
 
   <div id="conseillerPersoSection"></div>
+  <div id="missionsAssigneesSection"></div>
 
   <div class="search-wrap">
     <div class="search-box"><span>🔍</span><input type="text" id="search" placeholder="Rechercher un plan d'action..."></div>
@@ -168,7 +169,8 @@
     const { data, error } = await nexusClient
       .from('mission_catalog')
       .select('*')
-      .eq('actif', true);
+      .eq('actif', true)
+      .eq('ponctuelle', false); // exclut les missions ponctuelles NEXUS Marge+ (assignées via mission_assignments, pas destinées à tout le rôle)
     if (error) { console.error('Chargement catalogue:', error); return []; }
     return data || [];
   }
@@ -492,6 +494,86 @@
       });
     });
   }
+
+  // ------------------------------------------------------------
+  // Missions ponctuelles créées depuis NEXUS Marge+ (Scanner) — table
+  // mission_assignments, jusqu'ici sans consommateur (voir
+  // migration-mission-ponctuelle-v1.sql pour le contexte complet).
+  // Affichage volontairement séparé de PLANS_ACTION/renderPlansActionMissions
+  // (R2/R3/R4, propre au rôle manager) : une mission assignée peut concerner
+  // n'importe quel rôle, et ne doit apparaître qu'à la personne assignée —
+  // pas à tout le monde comme une recommandation live.
+  // "Marquer comme faite" ne fait que changer le statut, comme les missions
+  // du catalogue récurrent (mission_completions) : NEXUS ne prétend pas
+  // mesurer automatiquement si la marge s'est réellement corrigée (Article 14
+  // de la Constitution — ne jamais donner l'impression d'un effet non vérifié).
+  // ------------------------------------------------------------
+  let MISSIONS_ASSIGNEES = [];
+
+  async function chargerMissionsAssignees(empId) {
+    const { data, error } = await nexusClient
+      .from('mission_assignments')
+      .select('id, mission_id, due_at, status, note')
+      .eq('assigned_to_employee_id', empId)
+      .in('status', ['assignee', 'en_cours'])
+      .order('due_at', { ascending: true });
+    if (error) { console.error('Chargement missions assignées:', error); return []; }
+    const assignations = data || [];
+    if (!assignations.length) return [];
+
+    const ids = [...new Set(assignations.map(a => a.mission_id))];
+    const { data: fiches, error: erreurFiches } = await nexusClient
+      .from('mission_catalog')
+      .select('mission_id, titre, pourquoi, impact_attendu_eur, priority')
+      .in('mission_id', ids);
+    if (erreurFiches) { console.error('Chargement fiches missions assignées:', erreurFiches); return []; }
+    const ficheParId = {};
+    (fiches || []).forEach(f => { ficheParId[f.mission_id] = f; });
+
+    return assignations.map(a => ({ ...a, fiche: ficheParId[a.mission_id] })).filter(a => a.fiche);
+  }
+
+  async function marquerMissionAssigneeFaite(assignationId) {
+    const { error } = await nexusClient
+      .from('mission_assignments')
+      .update({ status: 'faite' })
+      .eq('id', assignationId);
+    if (error) console.error('Mise à jour mission assignée:', error);
+  }
+
+  async function renderMissionsAssignees() {
+    const el = document.getElementById('missionsAssigneesSection');
+    if (!el) return;
+    if (!MISSIONS_ASSIGNEES.length) { el.innerHTML = ''; return; }
+
+    el.innerHTML = `
+      <div class="section-label">Missions créées depuis NEXUS Marge+</div>
+      ${MISSIONS_ASSIGNEES.map(a => `
+        <div class="mission-card">
+          <div class="mission-head" style="cursor:default;">
+            <div>
+              <div class="mission-titre">${a.fiche.titre}</div>
+              <div class="mission-meta">${a.due_at ? 'Échéance ' + new Date(a.due_at).toLocaleDateString('fr-FR') : ''}${a.fiche.impact_attendu_eur ? ' · Impact ' + Math.round(a.fiche.impact_attendu_eur) + ' €' : ''}</div>
+            </div>
+            <span class="badge badge-auto">NEXUS Marge+</span>
+          </div>
+          <div class="mission-body open">
+            <div class="mission-pourquoi">${a.fiche.pourquoi}</div>
+            <button class="btn-valider mission-assignee-faite" data-id="${a.id}">✓ Marquer comme faite</button>
+          </div>
+        </div>`).join('')}`;
+
+    el.querySelectorAll('.mission-assignee-faite').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        btn.disabled = true;
+        btn.textContent = 'Enregistrement…';
+        await marquerMissionAssigneeFaite(btn.dataset.id);
+        MISSIONS_ASSIGNEES = await chargerMissionsAssignees(employeeId);
+        await renderMissionsAssignees();
+      });
+    });
+  }
+
   let employeActuel = null;
   let employeeId = null;
   let SITE_ACTUEL = 'vito-sainte-marie'; // ecrase par employee.site_id une fois connecte
@@ -1065,6 +1147,12 @@
       PRODUITS_ARTICLES = await chargerProduitsPourPhoto();
     }
     renderConseillerPerso(calculerStatsPersonnelles(completionsCache), employee.nom);
+
+    // Missions ponctuelles NEXUS Marge+ assignées à cette personne — visible
+    // pour tout rôle, indépendamment du filtre famille/recherche en cours.
+    MISSIONS_ASSIGNEES = await chargerMissionsAssignees(employeeId);
+    await renderMissionsAssignees();
+
     if (roleDuJour === 'manager') {
       EMPLOYES_SITE = await chargerEmployesSite();
       PLANS_ACTION = await construirePlansAction();
