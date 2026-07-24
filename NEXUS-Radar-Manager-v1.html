@@ -110,8 +110,17 @@
     const session = { prenom: employee.nom, role: employee.role };
 
 
-  // Resultats : reel, calcule cote serveur (Sante du magasin, Cockpit)
-  const SANTE_SCORE = 74;
+  // CORRECTIF 24/07/2026 (audit doublons de données) : "Résultats" reposait
+  // sur SANTE_SCORE = 74 codé en dur — exactement le même bug de placeholder
+  // déjà corrigé sur l'Indice NEXUS du Cockpit, réapparu ici indépendamment
+  // car les deux écrans n'ont jamais partagé de source commune. Plutôt que
+  // d'inventer une deuxième formule d'Indice NEXUS (qui risquerait de
+  // diverger de celle du Cockpit — le même problème que ce correctif est
+  // censé éviter), ce domaine est marqué "non mesurable" ici, comme le sont
+  // déjà Stocks/Achats/Clients plus bas, en attendant une vraie extraction
+  // partagée du calcul de l'Indice NEXUS (actuellement uniquement dans
+  // NEXUS-Cockpit-v2.html, trop volumineux pour être entièrement relu et
+  // dupliqué en confiance depuis cet écran).
 
   // Equipe (Presence, via retards) : lit desormais Supabase (pointages),
   // partagee par tous les appareils — remplace localStorage('nexus_retards')
@@ -126,24 +135,47 @@
     return Math.round(score);
   }
 
-  function calculerDeveloppement(completionsHisto) {
+  // CORRECTIF 24/07/2026 (audit doublons de données) : ce calcul supposait un
+  // plafond fixe de 12 points par complétion ("barème max (10 + bonus photo
+  // 2)"), alors que le vrai barème appliqué au moment de la validation dans
+  // NEXUS-Missions-v1.html est `(mission.points || 5) + 2` — base 5, pas 10.
+  // Le plafond était donc systématiquement surestimé et le score
+  // "Développement" affiché au manager sous-évalué en conséquence. Ce
+  // correctif va chercher le barème réel de CHAQUE mission concernée dans
+  // mission_catalog (source unique de vérité, la même que celle lue par
+  // Missions) plutôt que de réimplémenter une constante locale.
+  async function calculerDeveloppement(completionsHisto) {
     if (!completionsHisto || completionsHisto.length === 0) return null;
-    const points = completionsHisto.reduce((s,c)=>s+(c.points||0),0);
-    const maxTheorique = completionsHisto.length * 12; // barème max (10 + bonus photo 2)
+    const idsMissions = [...new Set(completionsHisto.map(c => c.mission_id).filter(Boolean))];
+    let baremeParMission = {};
+    if (idsMissions.length > 0) {
+      const { data: catalogue, error: erreurCatalogue } = await nexusClient
+        .from('mission_catalog').select('mission_id, points, proof_required').in('mission_id', idsMissions);
+      if (erreurCatalogue) console.error('Chargement mission_catalog (barème Développement):', erreurCatalogue);
+      (catalogue || []).forEach(m => {
+        baremeParMission[m.mission_id] = (m.points || 5) + (m.proof_required ? 2 : 0);
+      });
+    }
+    const points = completionsHisto.reduce((s,c) => s + (c.points || 0), 0);
+    // Repli à 7 (5+2, le barème par défaut de Missions) uniquement si la
+    // mission a depuis été supprimée du catalogue et n'a donc plus de
+    // barème consultable — jamais un plafond global inventé.
+    const maxTheorique = completionsHisto.reduce((s,c) => s + (baremeParMission[c.mission_id] ?? 7), 0);
+    if (maxTheorique === 0) return null;
     return Math.round(Math.max(0, points) / maxTheorique * 100);
   }
 
   const [{ data: completionsHisto, error: erreurCompletions }, { data: pointagesHisto, error: erreurPointages }] = await Promise.all([
-    nexusClient.from('mission_completions').select('points'),
+    nexusClient.from('mission_completions').select('points, mission_id'),
     nexusClient.from('pointages').select('retard_min').eq('type', 'arrivee').gt('retard_min', 0),
   ]);
   if (erreurCompletions) console.error('Chargement mission_completions:', erreurCompletions);
   if (erreurPointages) console.error('Chargement pointages:', erreurPointages);
-  const devScore = calculerDeveloppement(completionsHisto);
+  const devScore = await calculerDeveloppement(completionsHisto);
   const equipeScore = calculerEquipe(pointagesHisto);
 
   const DOMAINES = [
-    { nom: "Résultats", icone: "💰", sous: "CA, Marge (Objectifs non mesurés)", valeur: SANTE_SCORE, mesure: true },
+    { nom: "Résultats", icone: "💰", sous: "CA, Marge — pas encore unifié avec l'Indice NEXUS du Cockpit", valeur: null, mesure: false },
     { nom: "Équipe", icone: "👥", sous: "Présence uniquement (Motivation, Formation, Cohésion non mesurées)", valeur: equipeScore, mesure: equipeScore !== null },
     { nom: "Exploitation", icone: "🏪", sous: "Propreté, Sécurité, Disponibilité", valeur: null, mesure: false },
     { nom: "Conformité", icone: "⚖️", sous: "Procédures, Audits, Tenues, Sécurité", valeur: null, mesure: false },
