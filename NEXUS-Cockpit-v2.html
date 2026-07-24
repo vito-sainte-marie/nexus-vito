@@ -10,6 +10,7 @@
   :root{
     --bg:#0B0F14;
     --panel:#141B22;
+    --panel-raised:#1A222C;
     --hairline:#242E38;
     --text:#EDF1F5;
     --text-mid:#8A96A5;
@@ -121,6 +122,39 @@
   .succes-detail b{color:var(--gold);}
   .sante-dot{width:14px; height:14px; border-radius:50%; background:var(--amber); box-shadow:0 0 12px rgba(245,166,35,0.6); margin-bottom:10px;}
   .sante-sub{font-size:12px; color:var(--text-mid);}
+
+  /* ============================================================
+     BRIEF DU MATIN — 23/07/2026. Cockpit simplifié en briefing : un seul
+     geste pour "où en est ma station aujourd'hui", tout le reste (anciens
+     5 Plans d'action complets, Top ventes, détail de l'Indice) reste
+     disponible mais replié sous "Explorer" — rien n'est supprimé.
+     ============================================================ */
+  .brief-hero{
+    margin:14px 20px 6px; padding:30px 22px 26px; border-radius:22px; text-align:center;
+    background:radial-gradient(120% 140% at 50% -10%, rgba(212,175,55,0.16), rgba(79,195,217,0.05) 55%, transparent 80%), var(--panel);
+    border:1px solid rgba(212,175,55,0.22);
+    box-shadow:0 12px 36px rgba(0,0,0,0.35), 0 0 0 1px rgba(255,255,255,0.02) inset;
+  }
+  .brief-date{font-family:var(--mono); font-size:10.5px; letter-spacing:0.16em; text-transform:uppercase; color:var(--text-dim); margin-bottom:16px;}
+  .brief-indice-value{font-family:var(--mono); font-size:74px; font-weight:700; line-height:1; text-shadow:0 0 30px currentColor;}
+  .brief-indice-label{font-family:var(--mono); font-size:10.5px; letter-spacing:0.12em; text-transform:uppercase; color:var(--text-dim); margin-top:8px;}
+  .brief-etat{margin-top:18px; display:inline-flex; align-items:center; gap:9px; font-size:13px; color:var(--text-mid); line-height:1.5; padding:10px 18px; border-radius:22px; background:var(--panel-raised); max-width:100%;}
+  .brief-etat-dot{width:9px; height:9px; border-radius:50%; flex-shrink:0; box-shadow:0 0 10px currentColor;}
+
+  .conseiller-more{margin-top:12px; padding-top:12px; border-top:1px solid var(--hairline); text-align:center; font-family:var(--mono); font-size:11px; color:var(--cyan); cursor:pointer;}
+  .conseiller-gain{margin-top:10px; font-size:12.5px; color:var(--text-mid); line-height:1.5;}
+  .conseiller-gain b{color:var(--green); font-size:15px;}
+  .conseiller-calme{font-size:13px; color:var(--text-mid); line-height:1.6; text-align:center; padding:6px 0;}
+
+  .explorer-toggle{
+    margin:8px 20px 0; padding:14px 16px; border-radius:12px; background:var(--panel); border:1px solid var(--hairline);
+    display:flex; justify-content:center; align-items:center; gap:8px; font-family:var(--mono); font-size:11.5px;
+    color:var(--cyan); letter-spacing:0.03em; cursor:pointer;
+  }
+  .explorer-toggle .chev{transition:transform .2s ease; display:inline-block;}
+  .explorer-toggle.open .chev{transform:rotate(180deg);}
+
+  .empty-serein{margin:0 20px; padding:18px; text-align:center; font-size:12.5px; color:var(--text-dim); background:var(--panel-raised); border-radius:12px; line-height:1.5;}
   .indice-facteur{display:flex; justify-content:space-between; align-items:center; padding:9px 0; border-bottom:1px solid var(--hairline); font-size:12.5px;}
   .indice-facteur:last-child{border-bottom:none;}
   .indice-valeur{font-family:var(--mono); font-weight:700;}
@@ -245,42 +279,56 @@
 <div class="phone">
 
   <div class="header" id="nexus-header"></div>
-  <div class="divider"></div>
 
-  <div class="section" id="storySection"></div>
-  <div class="divider"></div>
-
-  <div class="section" id="succesSection"></div>
-
-  <!-- Bouclage des décisions — "qu'est-ce que ça a donné ?" pour les
-       recommandations déjà validées, une fois qu'une période ultérieure
-       comparable existe. Demande de Frédéric le 23/07/2026 : "il faut que
-       NEXUS ait une mémoire". Voir renderBouclage(). -->
-  <div class="section" id="bouclageSection"></div>
+  <!-- ============================================================
+       BRIEF DU MATIN — Cockpit simplifié le 23/07/2026 (demande de
+       Frédéric : la vitrine de NEXUS doit donner une sensation
+       spectaculaire, de confiance et de sérénité, en un seul geste).
+       L'ancien Cockpit empilait 9 sections indépendantes (Story, Succès,
+       Bouclage, Conseiller, Indice, 5 Plans, Risques, Baisse, Top ventes) —
+       rien n'est supprimé, tout reste dans "Explorer" plus bas, mais la
+       lecture par défaut se résume maintenant à : où on en est (Hero),
+       ce que le Conseiller recommande de faire aujourd'hui (Conseiller),
+       ce qui a changé depuis la dernière visite (Nouvelles). -->
+  <div class="brief-hero" id="briefHero"></div>
 
   <div class="section" id="conseillerSection"></div>
-  <div class="divider"></div>
 
-  <div class="sante" id="indiceCard" style="cursor:pointer;">
-    <div class="sante-label">Indice NEXUS <span style="opacity:0.5;">▾ voir le détail</span></div>
-    <div class="sante-score"><span class="sante-dot"></span>74</div>
-    <div class="sante-sub" id="santeNarrative">Marge 50,9 % · Évolution T1→T2 +6,8 %</div>
-    <div id="indiceDetail" style="display:none; margin-top:14px; text-align:left;"></div>
+  <div class="section" id="nouvellesWrap">
+    <div class="section-title" id="nouvellesTitle" style="display:none;">Nouvelles <span class="badge badge-real">Depuis votre dernière visite</span></div>
+    <div id="succesSection"></div>
+    <!-- Bouclage des décisions — "qu'est-ce que ça a donné ?" pour les
+         recommandations déjà validées, une fois qu'une période ultérieure
+         comparable existe. Demande de Frédéric le 23/07/2026 : "il faut
+         que NEXUS ait une mémoire". Voir renderBouclage(). -->
+    <div id="bouclageSection"></div>
+    <div id="risqueSection"></div>
+    <div id="baisseSection"></div>
+    <div class="empty-serein" id="nouvellesVide" style="display:none;">✅ Rien de particulier à signaler depuis votre dernière visite — tout est sous contrôle.</div>
   </div>
-  <div class="divider"></div>
 
-  <div class="section">
-    <div class="section-title">5 Plans d'action <span class="badge badge-real">Conseiller NEXUS · scoré</span></div>
-    <div id="plansAction"></div>
-    <a href="NEXUS-Assignations-v1.html" style="display:block; margin-top:10px; font-family:var(--mono); font-size:11.5px; color:var(--cyan); text-decoration:none;">→ Gérer les assignations</a>
+  <div class="divider"></div>
+  <div class="explorer-toggle" id="explorerToggle">Explorer le détail complet <span class="chev">▾</span></div>
+
+  <div id="explorerZone" style="display:none;">
+    <div class="divider"></div>
+    <div class="sante" id="indiceCard" style="cursor:pointer;">
+      <div class="sante-label">Indice NEXUS <span style="opacity:0.5;">▾ voir le détail</span></div>
+      <div class="sante-score"><span class="sante-dot"></span><span id="santeScoreValeur">—</span></div>
+      <div class="sante-sub" id="santeNarrative">Calcul en cours…</div>
+      <div id="indiceDetail" style="display:none; margin-top:14px; text-align:left;"></div>
+    </div>
+    <div class="divider"></div>
+
+    <div class="section">
+      <div class="section-title">Toutes les priorités <span class="badge badge-real">Conseiller NEXUS · scoré</span></div>
+      <div id="plansAction"></div>
+      <a href="NEXUS-Assignations-v1.html" style="display:block; margin-top:10px; font-family:var(--mono); font-size:11.5px; color:var(--cyan); text-decoration:none;">→ Gérer les assignations</a>
+    </div>
+    <div class="divider"></div>
+
+    <div class="section" id="topVentesSection"></div>
   </div>
-  <div class="divider"></div>
-
-  <div class="section" id="risqueSection"></div>
-
-  <div class="section" id="baisseSection"></div>
-
-  <div class="section" id="topVentesSection"></div>
 
   <div class="divider"></div>
   <div class="section" id="mentorSection"></div>
@@ -474,6 +522,20 @@
         </div>`;
     }
 
+    // Bascule Explorer (Brief du matin, 23/07/2026) — indépendant de
+    // l'authentification, câblé dès le chargement de la page puisqu'il ne
+    // dépend d'aucune donnée serveur.
+    (function initExplorerToggle() {
+      const toggle = document.getElementById('explorerToggle');
+      const zone = document.getElementById('explorerZone');
+      if (!toggle || !zone) return;
+      toggle.addEventListener('click', () => {
+        const estOuvert = zone.style.display !== 'none';
+        zone.style.display = estOuvert ? 'none' : 'block';
+        toggle.classList.toggle('open', !estOuvert);
+      });
+    })();
+
     // Le geste concret ne peut pas être "le facing" pour tout — un gaz stocké en
     // cage, une carte prépayée dématérialisée ou une viennoiserie fraîche ne se
     // gèrent pas comme une bière en linéaire. Ce mapping évite au Conseiller de
@@ -599,6 +661,28 @@
       return Math.round((new Date(fin) - new Date(debut)) / (1000 * 60 * 60 * 24)) + 1;
     }
 
+    // Facteurs réels de l'Indice NEXUS (marge, évolution) — remplis par
+    // construirePlansAction(), voir le commentaire à cet endroit pour le
+    // correctif du 23/07/2026 (l'Indice était figé à "74", jamais recalculé).
+    let INDICE_FACTEURS = { margeReelle: null, evolutionReelle: null, periodeEnCours: null };
+
+    // Score 0-100 dérivé des deux SEULS facteurs réellement mesurés
+    // (marge, évolution) — pondération volontairement simple et documentée
+    // ici plutôt qu'une formule opaque : 25 % de marge = point neutre (seuil
+    // "correct" déjà utilisé ailleurs dans NEXUS, voir nexus-vocabulaire.js),
+    // chaque point de marge au-dessus/en-dessous vaut 1 point d'indice,
+    // chaque point d'évolution en vaut 0,5 (l'évolution pèse moins car elle
+    // n'est pas toujours disponible). Reste une pondération PROVISOIRE, non
+    // recalibrée avec assez d'historique pour être validée statistiquement —
+    // NEXUS le dit explicitement dans le détail affiché, jamais présenté
+    // comme une science exacte.
+    function calculerIndiceNexus(facteurs) {
+      if (facteurs.margeReelle == null) return null;
+      let score = 50 + (facteurs.margeReelle - 0.25) * 100;
+      if (facteurs.evolutionReelle != null) score += facteurs.evolutionReelle * 50;
+      return Math.max(0, Math.min(100, Math.round(score)));
+    }
+
     // Supabase plafonne chaque requete a 1000 lignes par defaut, sans erreur —
     // au-dela, le reste est silencieusement absent. Ce helper boucle par pages
     // de 1000 jusqu'a tout recuperer (trouve le 15/07/2026 : un import T2
@@ -687,6 +771,23 @@
       TENDANCE_DISPONIBLE = !!paire;
       const rowsPaireActuelle = paire ? rowsBrut.filter(r => r.periode_debut === paire.actuelle.debut && r.periode_fin === paire.actuelle.fin) : [];
       const rowsPairePrecedente = paire ? rowsBrut.filter(r => r.periode_debut === paire.precedente.debut && r.periode_fin === paire.precedente.fin) : [];
+
+      // Facteurs réels de l'Indice NEXUS — CORRECTIF 23/07/2026 (découvert en
+      // construisant le Brief du matin) : l'Indice affichait un "74" et un
+      // détail "Marge 50,9 % · Évolution +6,8 %" écrits en dur dans le HTML,
+      // jamais recalculés depuis de vraies données malgré le commentaire du
+      // code qui prétendait déjà "les deux facteurs sont réellement
+      // mesurés". Ils le sont, maintenant : marge et évolution du magasin
+      // entier, calculées ici comme pour tout le reste de la page.
+      const caTotalAffichage = rowsAffichage.reduce((s, r) => s + (r.ca || 0), 0);
+      const margeTotaleAffichage = rowsAffichage.reduce((s, r) => s + (r.marge || 0), 0);
+      const caPaireActuelleTotal = rowsPaireActuelle.reduce((s, r) => s + (r.ca || 0), 0);
+      const caPairePrecedenteTotal = rowsPairePrecedente.reduce((s, r) => s + (r.ca || 0), 0);
+      INDICE_FACTEURS = {
+        margeReelle: caTotalAffichage > 0 ? margeTotaleAffichage / caTotalAffichage : null,
+        evolutionReelle: (paire && caPairePrecedenteTotal > 0) ? (caPaireActuelleTotal - caPairePrecedenteTotal) / caPairePrecedenteTotal : null,
+        periodeEnCours: paire ? (periodeAffichage.debut !== paire.actuelle.debut || periodeAffichage.fin !== paire.actuelle.fin) : periodesTriees.length > 0,
+      };
 
       const caTotalParRayon = {};
       rowsAffichage.forEach(r => { caTotalParRayon[r.categorie] = (caTotalParRayon[r.categorie] || 0) + (r.ca || 0); });
@@ -913,7 +1014,9 @@
           if (ok) {
             afficherToastOr(`✓ Gain sécurisé — ${Math.round(plan.impact_eur).toLocaleString('fr-FR')} €`);
             renderPlansAction(); // la suivante du classement prend la place
-            renderBouclage();
+            renderConseiller();
+            renderBriefHero();
+            renderNouvelles();
           } else {
             btn.disabled = false;
             alert("Erreur d'enregistrement — réessayez.");
@@ -928,11 +1031,10 @@
           if (ok) {
             PLANS_ACTION = await construirePlansAction(); // rafraichi sans ce produit, partout, pour tout le monde
             renderPlansAction();
-            renderSucces();
-            renderRisques();
-            renderProduitsBaisse();
+            renderConseiller();
+            renderBriefHero();
+            renderNouvelles();
             renderTopVentes();
-            renderBouclage();
           }
         });
       });
@@ -955,46 +1057,51 @@
       '🔴 À DÉCIDER': 8, '💡 RECOMMANDATION': 5,
     };
 
-    const INDICE_NEXUS = 74;
-
-    function renderStory() {
-      const el = document.getElementById('storySection');
+    // ------------------------------------------------------------
+    // Brief du matin — Hero (23/07/2026). Remplace l'ancien renderStory() :
+    // un seul geste pour "où en est ma station", plutôt qu'une succession
+    // de lignes façon diaporama. Le score vient de calculerIndiceNexus()
+    // (voir sa définition et l'historique du correctif plus haut) — jamais
+    // le "74" figé d'avant.
+    // ------------------------------------------------------------
+    function renderBriefHero() {
+      const el = document.getElementById('briefHero');
       if (!el) return;
-      const nbDecisions = dernierAffichage.length;
-      const securise = Math.round(dernierAffichage
-        .filter(p => p.etat.includes('AGIR') || p.etat.includes('DÉCIDER'))
-        .reduce((s, p) => s + (p.impact_eur || 0), 0));
-      const potentiel = Math.round(dernierAffichage
-        .filter(p => p.etat.includes('OPPORTUNITÉ'))
-        .reduce((s, p) => s + (p.impact_eur || 0), 0));
-      const prenom = (typeof STATION_CONFIG !== 'undefined' && STATION_CONFIG.manager_prenom) ? STATION_CONFIG.manager_prenom : '';
-      const verbeDecision = nbDecisions > 1 ? 'auront' : 'aura';
 
-      let gainHtml;
-      if (securise > 0 && potentiel > 0) {
-        gainHtml = `Vous pouvez sécuriser environ <b>+${securise.toLocaleString('fr-FR')} €</b> déjà générés, et gagner jusqu'à <b>+${potentiel.toLocaleString('fr-FR')} €</b> de plus si les tendances se confirment.`;
-      } else if (securise > 0) {
-        gainHtml = `Vous pouvez sécuriser environ <b>+${securise.toLocaleString('fr-FR')} €</b> de chiffre d'affaires déjà généré.`;
-      } else if (potentiel > 0) {
-        gainHtml = `Vous pouvez gagner jusqu'à <b>+${potentiel.toLocaleString('fr-FR')} €</b> si les tendances actuelles se confirment.`;
+      const score = calculerIndiceNexus(INDICE_FACTEURS);
+      const nb = { agir: 0, decider: 0 };
+      dernierAffichage.forEach(p => {
+        if (p.etat.includes('AGIR')) nb.agir++;
+        else if (p.etat.includes('DÉCIDER')) nb.decider++;
+      });
+      const nbUrgent = nb.agir + nb.decider;
+      const dateTexte = new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' }).toUpperCase();
+
+      let couleur, etatTexte;
+      if (score == null) {
+        couleur = 'var(--text-dim)';
+        etatTexte = "Pas encore assez de données pour calculer l'indice.";
+      } else if (score >= 70) {
+        couleur = 'var(--green)';
+        etatTexte = nbUrgent > 0
+          ? `Situation saine. ${nbUrgent} décision${nbUrgent>1?'s':''} mérite${nbUrgent>1?'nt':''} votre attention avant midi.`
+          : 'Situation saine — aucune décision urgente ce matin.';
+      } else if (score >= 40) {
+        couleur = 'var(--amber)';
+        etatTexte = nbUrgent > 0
+          ? `Situation sous contrôle, à surveiller. ${nbUrgent} décision${nbUrgent>1?'s':''} à traiter.`
+          : 'Situation sous contrôle, à surveiller.';
       } else {
-        gainHtml = `Aucune estimation chiffrée fiable pour l'instant — les données disponibles ne le permettent pas.`;
+        couleur = 'var(--red)';
+        etatTexte = `Plusieurs indicateurs se dégradent — ${nbUrgent || 'certaines'} décision${nbUrgent>1?'s':''} à traiter en priorité.`;
       }
 
       el.innerHTML = `
-        <div class="story">
-          <div class="story-line" style="animation-delay:.05s;">
-            Bonjour ${prenom} — aujourd'hui ${nbDecisions} décision${nbDecisions>1?'s':''} ${verbeDecision} un impact direct sur votre résultat.
-          </div>
-          <div class="story-arrow" style="animation-delay:.25s;">↓</div>
-          <div class="story-indice" style="animation-delay:.4s;">
-            <span class="story-indice-label">Indice NEXUS</span>
-            <span class="story-indice-value">${INDICE_NEXUS}</span>
-          </div>
-          <div class="story-arrow" style="animation-delay:.55s;">↓</div>
-          <div class="story-gain" style="animation-delay:.7s;">${gainHtml}</div>
-          <div class="story-source" style="animation-delay:.85s;">Estimation basée sur les ${nbDecisions} décisions prioritaires identifiées sur l'ensemble du magasin — pas encore un chiffre validé par la comptabilité.</div>
-        </div>`;
+        <div class="brief-date">${dateTexte}</div>
+        <div class="brief-indice-value" style="color:${couleur};">${score != null ? score : '—'}</div>
+        <div class="brief-indice-label">Indice NEXUS</div>
+        <div class="brief-etat"><span class="brief-etat-dot" style="background:${couleur};"></span>${etatTexte}</div>
+      `;
     }
 
     function renderSucces() {
@@ -1109,11 +1216,10 @@
         if (ok) {
           PLANS_ACTION = await construirePlansAction();
           renderPlansAction();
-          renderSucces();
-          renderRisques();
-          renderProduitsBaisse();
+          renderConseiller();
+          renderBriefHero();
+          renderNouvelles();
           renderTopVentes();
-          renderBouclage();
         }
       });
     }
@@ -1166,37 +1272,87 @@
           </div>`).join('')}`;
     }
 
+    // ------------------------------------------------------------
+    // Nouvelles — regroupe Succès, Bouclage, Risques et Produits en baisse
+    // sous un seul titre (23/07/2026) : ce sont quatre facettes de la même
+    // question ("qu'est-ce qui a changé depuis ma dernière visite ?"), pas
+    // quatre sujets différents. Les fonctions internes (renderSucces,
+    // renderBouclage, renderRisques, renderProduitsBaisse) gardent leur
+    // logique et leurs boutons d'exclusion exactement comme avant — seul
+    // le regroupement visuel change, pour ne prendre aucun risque sur des
+    // interactions déjà éprouvées. Si les quatre sont vides, un message
+    // serein le dit explicitement plutôt que de laisser un vide silencieux.
+    // ------------------------------------------------------------
+    function renderNouvelles() {
+      renderSucces();
+      renderBouclage();
+      renderRisques();
+      renderProduitsBaisse();
+      const zones = ['succesSection', 'bouclageSection', 'risqueSection', 'baisseSection'].map(id => document.getElementById(id));
+      const vide = zones.every(el => !el || !el.innerHTML.trim());
+      const titre = document.getElementById('nouvellesTitle');
+      const videEl = document.getElementById('nouvellesVide');
+      if (titre) titre.style.display = vide ? 'none' : 'flex';
+      if (videEl) videEl.style.display = vide ? 'block' : 'none';
+    }
+
+    // Explorer — replie par défaut tout ce qui n'est pas indispensable au
+    // premier coup d'œil (détail de l'Indice, toutes les priorités, Top
+    // ventes). Rien n'est supprimé, juste à un clic. 23/07/2026.
+    function ouvrirExplorer() {
+      const toggle = document.getElementById('explorerToggle');
+      const zone = document.getElementById('explorerZone');
+      if (!toggle || !zone) return;
+      zone.style.display = 'block';
+      toggle.classList.add('open');
+      zone.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    // ------------------------------------------------------------
+    // Conseiller NEXUS — depuis le 23/07/2026, porte LA priorité du jour
+    // (plus scorée de dernierAffichage) avec son bouton de validation et le
+    // gain estimé, au lieu d'une liste de 3 priorités qui faisait doublon
+    // avec les Plans d'action juste en dessous. Le reste (toutes les
+    // priorités) est à un clic, dans Explorer — rien n'est perdu, juste
+    // hiérarchisé. Le gain estimé (sécurisé/potentiel) vient de l'ancien
+    // renderStory(), rattaché ici pour la même raison.
+    // ------------------------------------------------------------
     function renderConseiller() {
-      const nb = { agir: 0, opportunite: 0, surveiller: 0, decider: 0, recommandation: 0 };
-      dernierAffichage.forEach(p => {
-        if (p.etat.includes('AGIR')) nb.agir++;
-        else if (p.etat.includes('OPPORTUNITÉ')) nb.opportunite++;
-        else if (p.etat.includes('SURVEILLER')) nb.surveiller++;
-        else if (p.etat.includes('DÉCIDER')) nb.decider++;
-        else nb.recommandation++;
-      });
-      const nbUrgent = nb.agir + nb.decider;
-
-      const santeTexte = nbUrgent > 0
-        ? `La station est globalement sous contrôle. ${nbUrgent} décision${nbUrgent>1?'s':''} mérite${nbUrgent>1?'nt':''} votre attention avant midi.`
-        : "La station est globalement sous contrôle. Aucune décision urgente ce matin.";
-      const santeSubEl = document.getElementById('santeNarrative');
-      if (santeSubEl) santeSubEl.textContent = santeTexte;
-
       const prenom = (typeof STATION_CONFIG !== 'undefined' && STATION_CONFIG.manager_prenom) ? STATION_CONFIG.manager_prenom : '';
 
-      // Top 3 reels, tries par score (deja l'ordre de dernierAffichage), pas invente
-      const top3 = dernierAffichage.slice(0, 3);
-      const tempsTotal = top3.reduce((s,p) => s + (TEMPS_ESTIME_PAR_ETAT[p.etat] || 5), 0);
+      const securise = Math.round(dernierAffichage
+        .filter(p => p.etat.includes('AGIR') || p.etat.includes('DÉCIDER'))
+        .reduce((s, p) => s + (p.impact_eur || 0), 0));
+      const potentiel = Math.round(dernierAffichage
+        .filter(p => p.etat.includes('OPPORTUNITÉ'))
+        .reduce((s, p) => s + (p.impact_eur || 0), 0));
+      let gainHtml = '';
+      if (securise > 0 && potentiel > 0) {
+        gainHtml = `Vous pouvez sécuriser environ <b>+${securise.toLocaleString('fr-FR')} €</b> déjà générés, et gagner jusqu'à <b>+${potentiel.toLocaleString('fr-FR')} €</b> de plus si les tendances se confirment.`;
+      } else if (securise > 0) {
+        gainHtml = `Vous pouvez sécuriser environ <b>+${securise.toLocaleString('fr-FR')} €</b> de chiffre d'affaires déjà généré.`;
+      } else if (potentiel > 0) {
+        gainHtml = `Vous pouvez gagner jusqu'à <b>+${potentiel.toLocaleString('fr-FR')} €</b> si les tendances actuelles se confirment.`;
+      }
 
-      let listeHtml = '';
-      if (top3.length === 0) {
-        listeHtml = '<div class="priorite-item">✅ Rien ne nécessite votre attention immédiate ce matin.</div>';
+      const priorite = dernierAffichage[0] || null; // deja hors validees, voir renderPlansAction()
+      const reste = Math.max(dernierAffichage.length - 1, 0);
+
+      let corpsHtml;
+      if (!priorite) {
+        corpsHtml = `<div class="conseiller-calme">✅ Rien ne nécessite votre attention immédiate ce matin. Prenez le temps de consulter le détail complet si vous le souhaitez.</div>`;
       } else {
-        listeHtml = top3.map(p => {
-          const puce = p.etat.split(' ')[0]; // l'emoji seul (🔥/📈/🟡/🔴/💡)
-          return `<div class="priorite-item"><span class="priorite-puce">${puce}</span> ${p.recommandation}</div>`;
-        }).join('');
+        corpsHtml = `
+          <div class="conseiller-text" style="margin-bottom:8px;">Aujourd'hui, je recommande en priorité :</div>
+          <div class="plan-story">
+            <b>${priorite.etat} ${priorite.article || ''}</b>
+            <span class="story-label">Situation</span>${priorite.situation}
+            <span class="story-label">Analyse</span>${priorite.analyse}
+          </div>
+          <div class="plan-impact">📊 Impact — <b>${priorite.impact}</b></div>
+          ${gainHtml ? `<div class="conseiller-gain">${gainHtml}</div>` : ''}
+          <button class="plan-valider" id="btnValiderPriorite" data-id="${priorite.candidate_id}">✓ Valider cette recommandation</button>
+        `;
       }
 
       document.getElementById('conseillerSection').innerHTML = `
@@ -1211,12 +1367,31 @@
                 <div class="conseiller-sub">Bonjour ${prenom}</div>
               </div>
             </div>
-            <div class="conseiller-text" style="margin-bottom:10px;">Aujourd'hui, je recommande de concentrer votre énergie sur ${top3.length || 'aucun'} sujet${top3.length>1?'s':''} :</div>
-            <div class="priorites-liste">${listeHtml}</div>
-            ${top3.length ? `<div class="priorite-temps">⏱ Temps estimé : ${tempsTotal} minutes <span style="opacity:0.6;">(estimation, pas une durée mesurée)</span></div>` : ''}
+            ${corpsHtml}
+            ${reste > 0 ? `<div class="conseiller-more" id="lienAutresPriorites">+ ${reste} autre${reste>1?'s':''} priorité${reste>1?'s':''} identifiée${reste>1?'s':''} → Explorer</div>` : ''}
             <a href="NEXUS-Centre-Intelligence-v1.html" style="display:block; text-align:center; margin-top:12px; padding-top:12px; border-top:1px solid var(--hairline); font-family:var(--mono); font-size:10.5px; color:var(--cyan); text-decoration:none;">🧠 Voir toutes les détections →</a>
           </div>
         </div>`;
+
+      const btnValider = document.getElementById('btnValiderPriorite');
+      if (btnValider) {
+        btnValider.addEventListener('click', async () => {
+          btnValider.disabled = true;
+          const ok = await enregistrerJournalDecision(priorite);
+          if (ok) {
+            afficherToastOr(`✓ Gain sécurisé — ${Math.round(priorite.impact_eur).toLocaleString('fr-FR')} €`);
+            renderPlansAction();
+            renderConseiller();
+            renderBriefHero();
+            renderBouclage();
+          } else {
+            btnValider.disabled = false;
+            alert("Erreur d'enregistrement — réessayez.");
+          }
+        });
+      }
+      const lienAutres = document.getElementById('lienAutresPriorites');
+      if (lienAutres) lienAutres.addEventListener('click', () => ouvrirExplorer());
     }
     // Rappel commande fournisseurs — s'ajoute en tete des Plans d'action
     // uniquement quand l'echeance est a J ou J-1 (pas de bruit sinon).
@@ -1486,7 +1661,6 @@
       injecterRappelCommande();
       injecterRappelCarburant();
       renderPlansAction();
-      renderBouclage();
 
       STATION_CONFIG.manager_prenom = employee.nom;
       STATION_CONFIG.manager_role = employee.role;
@@ -1509,26 +1683,42 @@
         </div>
         <a href="NEXUS-App-v1.html" class="menu-btn">☰ Menu</a>`;
 
+      renderBriefHero();
       renderConseiller(); // appele ici, une fois STATION_CONFIG disponible (evite une ReferenceError sur const en temporal dead zone)
-      renderStory();
-      renderSucces();
-      renderRisques();
-      renderProduitsBaisse();
+      renderNouvelles();
       renderTopVentes();
 
+      // Sous-ligne de l'Indice NEXUS (dans Explorer) — CORRECTIF 23/07/2026 :
+      // affichait "Marge 50,9 % · Évolution T1→T2 +6,8 %" en dur, jamais
+      // recalculé. Utilise maintenant INDICE_FACTEURS (mêmes données que le
+      // Hero), avec un intitulé honnête quand l'évolution n'est pas
+      // disponible plutôt que de l'omettre silencieusement.
+      const santeScoreEl = document.getElementById('santeScoreValeur');
+      const santeSubEl = document.getElementById('santeNarrative');
+      const scoreExplorer = calculerIndiceNexus(INDICE_FACTEURS);
+      if (santeScoreEl) santeScoreEl.textContent = scoreExplorer != null ? scoreExplorer : '—';
+      if (santeSubEl) {
+        const margeTxt = INDICE_FACTEURS.margeReelle != null ? `Marge ${(INDICE_FACTEURS.margeReelle*100).toFixed(1)} %` : 'Marge non calculable';
+        const evolTxt = INDICE_FACTEURS.evolutionReelle != null
+          ? `Évolution ${INDICE_FACTEURS.evolutionReelle>=0?'+':''}${(INDICE_FACTEURS.evolutionReelle*100).toFixed(1)} %`
+          : 'Évolution non disponible';
+        santeSubEl.textContent = `${margeTxt} · ${evolTxt}`;
+      }
+
       // Detail de l'Indice NEXUS au clic — uniquement les facteurs reellement
-      // connus (Marge, Evolution). Le formule exacte de ponderation qui
-      // aboutit a "74" reste provisoire, non recalibree — on ne fabrique pas
-      // une decomposition point par point qu'on ne peut pas justifier.
+      // connus (Marge, Evolution), maintenant recalcules a chaque chargement
+      // (voir calculerIndiceNexus() et le correctif du 23/07/2026 : la
+      // formule exacte de ponderation reste provisoire, non recalibree — on
+      // ne fabrique pas une decomposition plus precise qu'on ne peut justifier).
       document.getElementById('indiceCard').addEventListener('click', () => {
         const detail = document.getElementById('indiceDetail');
         const ouvert = detail.style.display !== 'none';
         detail.style.display = ouvert ? 'none' : 'block';
         if (!ouvert) {
           detail.innerHTML = `
-            <div class="indice-facteur"><span>Marge réalisée</span><span class="indice-valeur" style="color:var(--green);">50,9 %</span></div>
-            <div class="indice-facteur"><span>Évolution T1 → T2</span><span class="indice-valeur" style="color:var(--green);">+6,8 %</span></div>
-            <div class="indice-note">Ces deux facteurs sont réellement mesurés. La formule exacte qui les combine en un score sur 100 reste provisoire — pas encore recalibrée avec assez de données pour être décomposée point par point de façon fiable.</div>`;
+            <div class="indice-facteur"><span>Marge réalisée</span><span class="indice-valeur" style="color:${INDICE_FACTEURS.margeReelle!=null && INDICE_FACTEURS.margeReelle>=0.25?'var(--green)':'var(--amber)'};">${INDICE_FACTEURS.margeReelle!=null ? (INDICE_FACTEURS.margeReelle*100).toFixed(1).replace('.', ',') + ' %' : 'Non calculable'}</span></div>
+            <div class="indice-facteur"><span>Évolution période comparable</span><span class="indice-valeur" style="color:${INDICE_FACTEURS.evolutionReelle!=null && INDICE_FACTEURS.evolutionReelle>=0?'var(--green)':'var(--red)'};">${INDICE_FACTEURS.evolutionReelle!=null ? (INDICE_FACTEURS.evolutionReelle>=0?'+':'') + (INDICE_FACTEURS.evolutionReelle*100).toFixed(1).replace('.', ',') + ' %' : 'Non disponible'}</span></div>
+            <div class="indice-note">Ces deux facteurs sont réellement mesurés${INDICE_FACTEURS.periodeEnCours ? ` (évolution basée sur la dernière paire de périodes comparables — la période en cours n'est pas encore assez avancée pour être comparée)` : ''}. La formule exacte qui les combine en un score sur 100 reste provisoire — pas encore recalibrée avec assez de données pour être décomposée point par point de façon fiable.</div>`;
         }
       });
     });
