@@ -555,6 +555,10 @@
     let PIRE_RISQUE = null;
     let TOP_VENTES = [];
     let PRODUITS_EN_BAISSE = []; // toute évolution négative, pas seulement le seuil -30% de R2-BAISSE
+    // true/false une fois construirePlansAction() passé, null avant le premier calcul —
+    // distingue "pas de risque" de "pas encore de période comparable pour en juger".
+    // Voir correctif du 23/07/2026 (audit général NEXUS) ci-dessous.
+    let TENDANCE_DISPONIBLE = null;
 
     // Supabase plafonne chaque requete a 1000 lignes par defaut, sans erreur —
     // au-dela, le reste est silencieusement absent. Ce helper boucle par pages
@@ -587,17 +591,54 @@
 
       const rowsBrut = data.filter(r => !produitsAppel.has(r.article));
 
-      const periodes = [...new Set(rowsBrut.map(r => r.periode_debut))].sort().reverse();
-      const periodeActuelle = periodes[0];
-      const periodePrecedente = periodes[1] || null;
-      const rowsActuels = rowsBrut.filter(r => r.periode_debut === periodeActuelle);
-      const rowsPrecedents = periodePrecedente ? rowsBrut.filter(r => r.periode_debut === periodePrecedente) : [];
+      // ------------------------------------------------------------
+      // CORRECTIF 23/07/2026 (audit général NEXUS) : comparer aveuglément
+      // les deux périodes les plus récentes fabrique des évolutions fausses
+      // dès qu'elles se chevauchent ou n'ont pas la même durée — un
+      // trimestre complet contre un mois entamé, par exemple. Exactement le
+      // bug déjà corrigé sur NEXUS-Rayon-v1.html le même jour, reproduit ici
+      // à l'identique : on cherche la paire de périodes non chevauchantes la
+      // plus récente dont les durées sont proches (±20 %), et on sépare
+      // "période affichée" (la plus récente — sert aux indicateurs qui
+      // n'ont pas besoin d'historique, comme R4-RENFORT-A ou le Top ventes)
+      // de "paire comparable" (utilisée uniquement pour calculer une
+      // évolution). Si aucune paire valable n'existe, aucune évolution
+      // n'est calculée pour personne — pas de comparaison bancale.
+      // ------------------------------------------------------------
+      function joursEntre(debut, fin) {
+        return Math.round((new Date(fin) - new Date(debut)) / (1000 * 60 * 60 * 24)) + 1;
+      }
+      const parCle = {};
+      rowsBrut.forEach(r => {
+        const cle = `${r.periode_debut}|${r.periode_fin}`;
+        if (!parCle[cle]) parCle[cle] = { debut: r.periode_debut, fin: r.periode_fin, duree: joursEntre(r.periode_debut, r.periode_fin) };
+      });
+      const periodesTriees = Object.values(parCle).sort((a, b) => b.debut.localeCompare(a.debut));
+      if (!periodesTriees.length) { console.error('Aucune période exploitable dans products.'); return []; }
+      const periodeAffichage = periodesTriees[0];
+      const rowsAffichage = rowsBrut.filter(r => r.periode_debut === periodeAffichage.debut && r.periode_fin === periodeAffichage.fin);
+
+      function paireValide(actuelle, precedente) {
+        if (precedente.fin >= actuelle.debut) return false; // chevauchement -> exclue
+        const ecart = Math.max(actuelle.duree, precedente.duree) > 0
+          ? Math.abs(actuelle.duree - precedente.duree) / Math.max(actuelle.duree, precedente.duree) : 1;
+        return ecart <= 0.2;
+      }
+      let paire = null;
+      for (let i = 0; i < periodesTriees.length - 1 && !paire; i++) {
+        if (paireValide(periodesTriees[i], periodesTriees[i + 1])) {
+          paire = { actuelle: periodesTriees[i], precedente: periodesTriees[i + 1] };
+        }
+      }
+      TENDANCE_DISPONIBLE = !!paire;
+      const rowsPaireActuelle = paire ? rowsBrut.filter(r => r.periode_debut === paire.actuelle.debut && r.periode_fin === paire.actuelle.fin) : [];
+      const rowsPairePrecedente = paire ? rowsBrut.filter(r => r.periode_debut === paire.precedente.debut && r.periode_fin === paire.precedente.fin) : [];
 
       const caTotalParRayon = {};
-      rowsActuels.forEach(r => { caTotalParRayon[r.categorie] = (caTotalParRayon[r.categorie] || 0) + (r.ca || 0); });
+      rowsAffichage.forEach(r => { caTotalParRayon[r.categorie] = (caTotalParRayon[r.categorie] || 0) + (r.ca || 0); });
 
       const precedentParArticle = {};
-      rowsPrecedents.forEach(r => {
+      rowsPairePrecedente.forEach(r => {
         const cle = r.categorie + '|' + r.article;
         precedentParArticle[cle] = (precedentParArticle[cle] || 0) + (r.ca || 0);
       });
@@ -607,16 +648,16 @@
       MEILLEUR_SUCCES = null; // reinitialise a chaque calcul, jamais garde d'une periode perimee
       PIRE_RISQUE = null;
       PRODUITS_EN_BAISSE = [];
-      TOP_VENTES = [...rowsActuels].sort((a,b) => (b.ca||0) - (a.ca||0)).slice(0,3);
+      TOP_VENTES = [...rowsAffichage].sort((a,b) => (b.ca||0) - (a.ca||0)).slice(0,3);
 
-      rowsActuels.forEach(p => {
+      // R4-RENFORT-A : contribution forte au CA de son rayon -> geste concret
+      // adapté au type de rayon. Ne dépend d'aucun historique, donc évalué
+      // sur la période affichée (la plus récente) même si elle est encore
+      // en cours.
+      rowsAffichage.forEach(p => {
         const caRayon = caTotalParRayon[p.categorie] || 0;
         const contribution = caRayon > 0 ? p.ca / caRayon : 0;
         const cle = p.categorie + '|' + p.article;
-        const caPrec = precedentParArticle[cle];
-        const evolution = (caPrec && caPrec > 0) ? (p.ca - caPrec) / caPrec : null;
-
-        // R4-RENFORT-A : contribution forte au CA de son rayon -> geste concret adapté au type de rayon
         if (contribution >= 0.15 && p.ca > 0) {
           const lang = LANGAGE_ACTION[typeActionPourCategorie(p.categorie)];
           candidats.push({
@@ -630,55 +671,70 @@
             candidate_id: `LIVE-R4-${cle}`, impact_eur: p.ca,
           });
         }
-
-        // R3-HAUSSE : progression significative vs periode precedente
-        if (evolution !== null && evolution >= 0.20) {
-          const gain = Math.max(p.ca - caPrec, 0);
-          const lang = LANGAGE_ACTION[typeActionPourCategorie(p.categorie)];
-          candidats.push({
-            etat: "📈 OPPORTUNITÉ", rule_id: "R3-HAUSSE", article: p.article,
-            situation: `Les ventes de ${p.article} progressent de ${(evolution*100).toFixed(1)} % sur la période.`,
-            contexte: "Cette progression est mesurée entre les deux périodes importées.",
-            analyse: "Cette dynamique dépasse une croissance ordinaire.",
-            consequence: "Cette croissance peut être amplifiée si l'offre suit la demande.",
-            recommandation: lang.recoHausse(p.article),
-            impact: `Vous avez gagné environ ${fmt(gain)} € sur cette référence depuis la période précédente.`,
-            candidate_id: `LIVE-R3-${cle}`, impact_eur: gain,
-          });
-        }
-
-        // R2-BAISSE : chute forte -> prudence, pas de conclusion ferme (pas de donnee de stock)
-        if (evolution !== null && evolution <= -0.30) {
-          const perte = Math.max(caPrec - p.ca, 0);
-          const lang = LANGAGE_ACTION[typeActionPourCategorie(p.categorie)];
-          candidats.push({
-            etat: "🟡 À SURVEILLER", rule_id: "R2-BAISSE", article: p.article,
-            situation: `Les ventes de ${p.article} chutent de ${(evolution*100).toFixed(1)} % sur la période.`,
-            contexte: "NEXUS ne dispose pas de la donnée de stock pour cette référence.",
-            analyse: "Je ne peux pas encore conclure à une vraie tendance sans vérification terrain.",
-            consequence: "Une rupture non détectée expliquerait aussi bien cette baisse qu'un désintérêt réel.",
-            recommandation: lang.recoBaisse(p.article),
-            impact: "Vérification demandée — aucune conclusion tant que le stock n'est pas confirmé.",
-            candidate_id: `LIVE-R2-${cle}`, impact_eur: perte,
-          });
-        }
-        // Succès à féliciter — la plus forte progression, sur une base assez significative
-        // pour ne pas célébrer un pourcentage gonflé par un tout petit chiffre de départ.
-        if (evolution !== null && evolution > 0 && caPrec >= 50) {
-          if (!MEILLEUR_SUCCES || evolution > MEILLEUR_SUCCES.evolution) {
-            MEILLEUR_SUCCES = { article: p.article, evolution, gain: Math.max(p.ca - caPrec, 0) };
-          }
-        }
-
-        // Vue d'ensemble des produits en baisse — toute évolution négative,
-        // pas seulement le seuil -30% qui déclenche R2-BAISSE. Demande de
-        // Frédéric le 23/07/2026 : une donnée utile au manager, affichée en
-        // dehors des Plans d'action pour ne pas la mélanger aux 5 priorités
-        // scorées (qui restent centrées sur ce qui mérite une action).
-        if (evolution !== null && evolution < 0) {
-          PRODUITS_EN_BAISSE.push({ article: p.article, categorie: p.categorie, evolution, perte: Math.max(caPrec - p.ca, 0) });
-        }
       });
+
+      // R3-HAUSSE / R2-BAISSE / Succès / Vue d'ensemble des baisses — tout ce
+      // qui mesure une évolution n'est calculé QUE sur la paire de périodes
+      // comparables trouvée ci-dessus, jamais sur la période affichée si
+      // elle n'en fait pas partie (période en cours, trop récente pour être
+      // comparée équitablement).
+      if (paire) {
+        rowsPaireActuelle.forEach(p => {
+          const cle = p.categorie + '|' + p.article;
+          const caPrec = precedentParArticle[cle];
+          const evolution = (caPrec && caPrec > 0) ? (p.ca - caPrec) / caPrec : null;
+          if (evolution === null) return;
+
+          // R3-HAUSSE : progression significative vs periode precedente
+          if (evolution >= 0.20) {
+            const gain = Math.max(p.ca - caPrec, 0);
+            const lang = LANGAGE_ACTION[typeActionPourCategorie(p.categorie)];
+            candidats.push({
+              etat: "📈 OPPORTUNITÉ", rule_id: "R3-HAUSSE", article: p.article,
+              situation: `Les ventes de ${p.article} progressent de ${(evolution*100).toFixed(1)} % sur la période.`,
+              contexte: "Cette progression est mesurée entre deux périodes de durée comparable.",
+              analyse: "Cette dynamique dépasse une croissance ordinaire.",
+              consequence: "Cette croissance peut être amplifiée si l'offre suit la demande.",
+              recommandation: lang.recoHausse(p.article),
+              impact: `Vous avez gagné environ ${fmt(gain)} € sur cette référence depuis la période précédente.`,
+              candidate_id: `LIVE-R3-${cle}`, impact_eur: gain,
+            });
+          }
+
+          // R2-BAISSE : chute forte -> prudence, pas de conclusion ferme (pas de donnee de stock)
+          if (evolution <= -0.30) {
+            const perte = Math.max(caPrec - p.ca, 0);
+            const lang = LANGAGE_ACTION[typeActionPourCategorie(p.categorie)];
+            candidats.push({
+              etat: "🟡 À SURVEILLER", rule_id: "R2-BAISSE", article: p.article,
+              situation: `Les ventes de ${p.article} chutent de ${(evolution*100).toFixed(1)} % sur la période.`,
+              contexte: "NEXUS ne dispose pas de la donnée de stock pour cette référence.",
+              analyse: "Je ne peux pas encore conclure à une vraie tendance sans vérification terrain.",
+              consequence: "Une rupture non détectée expliquerait aussi bien cette baisse qu'un désintérêt réel.",
+              recommandation: lang.recoBaisse(p.article),
+              impact: "Vérification demandée — aucune conclusion tant que le stock n'est pas confirmé.",
+              candidate_id: `LIVE-R2-${cle}`, impact_eur: perte,
+            });
+          }
+
+          // Succès à féliciter — la plus forte progression, sur une base assez significative
+          // pour ne pas célébrer un pourcentage gonflé par un tout petit chiffre de départ.
+          if (evolution > 0 && caPrec >= 50) {
+            if (!MEILLEUR_SUCCES || evolution > MEILLEUR_SUCCES.evolution) {
+              MEILLEUR_SUCCES = { article: p.article, evolution, gain: Math.max(p.ca - caPrec, 0) };
+            }
+          }
+
+          // Vue d'ensemble des produits en baisse — toute évolution négative,
+          // pas seulement le seuil -30% qui déclenche R2-BAISSE. Demande de
+          // Frédéric le 23/07/2026 : une donnée utile au manager, affichée en
+          // dehors des Plans d'action pour ne pas la mélanger aux 5 priorités
+          // scorées (qui restent centrées sur ce qui mérite une action).
+          if (evolution < 0) {
+            PRODUITS_EN_BAISSE.push({ article: p.article, categorie: p.categorie, evolution, perte: Math.max(caPrec - p.ca, 0) });
+          }
+        });
+      }
 
       candidats.sort((a, b) => b.impact_eur - a.impact_eur);
       const risques = candidats.filter(c => c.rule_id === 'R2-BAISSE').sort((a,b) => b.impact_eur - a.impact_eur);
@@ -881,9 +937,16 @@
       const el = document.getElementById('risqueSection');
       if (!el) return;
       if (!PIRE_RISQUE) {
+        // Distinguer "vérifié, rien à signaler" de "pas encore de période
+        // comparable pour en juger" — sinon ce message affirme une
+        // tranquillité que NEXUS n'a pas les moyens de garantir. Voir
+        // correctif du 23/07/2026 (audit général NEXUS).
+        const texte = TENDANCE_DISPONIBLE === false
+          ? "Pas encore de période précédente de durée comparable pour mesurer une baisse fiable — dès qu'un nouvel import complet sera disponible, NEXUS pourra vérifier."
+          : "Aucun risque significatif actif sur les données actuelles.";
         el.innerHTML = `<div class="section-title">Risques <span class="badge badge-real">Mesuré</span></div>
           <div class="risk-card" style="border-color:var(--hairline); background:var(--panel);">
-            <div class="risk-desc" style="color:var(--text-dim);">Aucun risque significatif actif sur les données actuelles.</div>
+            <div class="risk-desc" style="color:var(--text-dim);">${texte}</div>
           </div>`;
         return;
       }
@@ -940,7 +1003,8 @@
     }
 
     // Remplace l'ancien "Top ventes" fige — TOP_VENTES vient des memes lignes
-    // rowsActuels que le reste du moteur, jamais un texte recopie a la main.
+    // rowsAffichage (periode la plus recente) que le reste du moteur, jamais
+    // un texte recopie a la main.
     function renderTopVentes() {
       const el = document.getElementById('topVentesSection');
       if (!el) return;
