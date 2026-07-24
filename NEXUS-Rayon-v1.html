@@ -228,54 +228,73 @@ async function construireRayons() {
     .order('article', { ascending: true }));
   if (error || !data || !data.length) { console.error('Chargement products:', error); return { rayons: {}, magasin: null }; }
 
-  const periodes = [...new Set(data.map(r => r.periode_debut))].sort().reverse();
-  const periodeActuelle = periodes[0];
-  const periodePrecedente = periodes[1] || null;
+  // Toutes les périodes distinctes présentes, avec leur durée, du plus
+  // récent au plus ancien.
+  const parCle = {};
+  data.forEach(r => {
+    const cle = `${r.periode_debut}|${r.periode_fin}`;
+    if (!parCle[cle]) parCle[cle] = { debut: r.periode_debut, fin: r.periode_fin, duree: joursEntre(r.periode_debut, r.periode_fin) };
+  });
+  const periodesTriees = Object.values(parCle).sort((a, b) => b.debut.localeCompare(a.debut));
 
-  const rowsActuels = data.filter(r => r.periode_debut === periodeActuelle);
-  const rowsPrecedents = periodePrecedente ? data.filter(r => r.periode_debut === periodePrecedente) : [];
+  // Période "affichage" — toujours la plus récente disponible, pour les
+  // chiffres bruts (CA, marge, tops...), même si elle est encore en cours.
+  const periodeAffichage = periodesTriees[0];
+  const rowsAffichage = data.filter(r => r.periode_debut === periodeAffichage.debut && r.periode_fin === periodeAffichage.fin);
 
-  const finActuelle = rowsActuels[0] ? rowsActuels[0].periode_fin : null;
-  const finPrecedente = rowsPrecedents[0] ? rowsPrecedents[0].periode_fin : null;
-  const dureeActuelle = joursEntre(periodeActuelle, finActuelle);
-  const dureePrecedente = periodePrecedente ? joursEntre(periodePrecedente, finPrecedente) : 0;
+  // Comparer deux périodes de durées très différentes (un trimestre complet
+  // contre un mois entamé) produit une "tendance" fictive. Demande de
+  // Frédéric le 23/07/2026 : ne comparer que deux périodes de durée quasi
+  // identique (±20%) et jamais chevauchantes — quitte à remonter avant la
+  // période affichée si celle-ci est encore incomplète.
+  function paireValide(actuelle, precedente) {
+    if (precedente.fin >= actuelle.debut) return false; // chevauchement
+    const ecart = Math.max(actuelle.duree, precedente.duree) > 0
+      ? Math.abs(actuelle.duree - precedente.duree) / Math.max(actuelle.duree, precedente.duree) : 1;
+    return ecart <= 0.2;
+  }
+  let paire = null;
+  for (let i = 0; i < periodesTriees.length - 1 && !paire; i++) {
+    if (paireValide(periodesTriees[i], periodesTriees[i + 1])) {
+      paire = { actuelle: periodesTriees[i], precedente: periodesTriees[i + 1] };
+    }
+  }
+  const periodeEnCours = paire ? (periodeAffichage.debut !== paire.actuelle.debut || periodeAffichage.fin !== paire.actuelle.fin) : periodesTriees.length > 0;
 
-  // Fiabilité de la comparaison T1→T2 : un chevauchement de dates (les mêmes
-  // ventes comptées dans les deux périodes) rend l'évolution non fiable ;
-  // un écart de durée important (91 jours vs 52 jours par ex.) la rend
-  // seulement moyennement fiable, même sans chevauchement. Repéré le
-  // 23/07/2026 sur "Cartes prépayées" (chevauchement réel, -70,9% factice).
-  let chevauchement = false, ecartDureePct = 0, fiabilite = null;
-  if (periodePrecedente && finPrecedente) {
-    chevauchement = finPrecedente >= periodeActuelle;
-    ecartDureePct = Math.max(dureeActuelle, dureePrecedente) > 0
-      ? Math.abs(dureeActuelle - dureePrecedente) / Math.max(dureeActuelle, dureePrecedente) : 0;
-    // Un écart de durée extrême (ex : 23 jours vs 91 jours, période en cours
-    // pas encore terminée face à un trimestre complet) fausse la comparaison
-    // presque autant qu'un chevauchement — pas seulement "moyennement".
-    // Repéré le 23/07/2026 : plus de chevauchement entre périodes après
-    // correction, mais T2 (01/07→23/07, 23j) reste bien plus court que T1
-    // (01/04→30/06, 91j), sans qu'aucune donnée ne soit dupliquée.
-    fiabilite = chevauchement ? 'faible' : (ecartDureePct > 0.5 ? 'faible' : (ecartDureePct > 0.2 ? 'moyenne' : 'élevée'));
+  const caActuelleParCat = {}, caPrecedentParCat = {};
+  if (paire) {
+    data.filter(r => r.periode_debut === paire.actuelle.debut && r.periode_fin === paire.actuelle.fin)
+      .forEach(r => { caActuelleParCat[r.categorie] = (caActuelleParCat[r.categorie] || 0) + (r.ca || 0); });
+    data.filter(r => r.periode_debut === paire.precedente.debut && r.periode_fin === paire.precedente.fin)
+      .forEach(r => { caPrecedentParCat[r.categorie] = (caPrecedentParCat[r.categorie] || 0) + (r.ca || 0); });
   }
 
-  const caPrecedentParCat = {};
-  rowsPrecedents.forEach(r => { caPrecedentParCat[r.categorie] = (caPrecedentParCat[r.categorie] || 0) + (r.ca || 0); });
-
   const parCategorie = {};
-  rowsActuels.forEach(r => {
+  rowsAffichage.forEach(r => {
     if (!parCategorie[r.categorie]) parCategorie[r.categorie] = [];
     parCategorie[r.categorie].push(r);
   });
+  // La comparaison peut porter sur des catégories absentes de la période
+  // affichée (si celle-ci est encore en cours) — on les inclut aussi, avec
+  // un CA affiché à 0, plutôt que de les faire disparaître silencieusement.
+  if (paire) {
+    Object.keys(caActuelleParCat).forEach(nom => { if (!parCategorie[nom]) parCategorie[nom] = []; });
+  }
 
   const rayons = {};
   Object.entries(parCategorie).forEach(([nom, produits]) => {
     const ca_total = produits.reduce((s, p) => s + (p.ca || 0), 0);
     const marge_total = produits.reduce((s, p) => s + (p.marge || 0), 0);
     const marge_pct_moyenne = ca_total > 0 ? marge_total / ca_total : 0;
-    const caPrec = caPrecedentParCat[nom];
-    // Honnêteté : pas d'évolution affichée si la catégorie n'existait pas dans la période précédente
-    const evolution_ca = (caPrec && caPrec > 0) ? (ca_total - caPrec) / caPrec : null;
+
+    // Évolution/tendance : toujours calculée sur la paire de périodes
+    // comparables trouvée ci-dessus — pas forcément la période affichée.
+    let evolution_ca = null;
+    if (paire) {
+      const caPrec = caPrecedentParCat[nom];
+      const caAct = caActuelleParCat[nom] || 0;
+      if (caPrec && caPrec > 0) evolution_ca = (caAct - caPrec) / caPrec;
+    }
 
     const avecMarge = produits.map(p => ({ ...p, marge_pct: p.ca > 0 ? (p.marge || 0) / p.ca : 0 }));
     const top_ventes = [...produits].sort((a, b) => b.ca - a.ca).slice(0, 5).map(p => ({ article: p.article, ca: p.ca }));
@@ -299,9 +318,8 @@ async function construireRayons() {
     rayons,
     magasin: {
       ca_total: caTotalMagasin, marge_total: margeTotalMagasin,
-      periodeActuelle: { debut: periodeActuelle, fin: finActuelle, duree: dureeActuelle },
-      periodePrecedente: periodePrecedente ? { debut: periodePrecedente, fin: finPrecedente, duree: dureePrecedente } : null,
-      fiabilite, chevauchement,
+      periodeAffichage, periodeEnCours,
+      paire, // { actuelle, precedente } ou null si aucune paire comparable trouvée
     },
   };
 }
@@ -362,18 +380,18 @@ nexusRequireAuth().then(async employee => {
   // priorité ci-dessous. "Rayon de trafic" prime sur le reste : sa fonction
   // n'est pas d'être rentable mais d'attirer/retenir le client, une faible
   // marge n'y est donc pas un signal d'alerte comme ailleurs. L'évolution
-  // n'entre en jeu QUE si la comparaison T1→T2 est fiable (pas de
-  // chevauchement de périodes) — sinon on ne pénalise pas un rayon sur la
-  // base d'un chiffre qu'on sait déjà douteux.
+  // n'entre en jeu que si r.evolution_ca n'est pas null — et depuis la
+  // correction du 23/07/2026, ce chiffre n'existe QUE lorsqu'une paire de
+  // périodes comparables (durée proche, non chevauchantes) a été trouvée
+  // par construireRayons() : plus besoin de re-vérifier la fiabilité ici.
   function calculerVerdict(r) {
-    const fiable = MAGASIN.fiabilite === 'élevée' || MAGASIN.fiabilite === 'moyenne';
     if (r.trafic && r.marge_pct_moyenne < 0.10) {
       return { classe: 'verdict-trafic', label: '🔵 Rayon de trafic à faible marge' };
     }
-    if (fiable && r.evolution_ca !== null && r.evolution_ca <= -0.30) {
+    if (r.evolution_ca !== null && r.evolution_ca <= -0.30) {
       return { classe: 'verdict-degradation', label: '🔴 Rayon en dégradation' };
     }
-    if (fiable && r.evolution_ca !== null && r.evolution_ca <= -0.15) {
+    if (r.evolution_ca !== null && r.evolution_ca <= -0.15) {
       return { classe: 'verdict-surveiller', label: '🟠 Rayon à surveiller' };
     }
     if (r.marge_pct_moyenne < 0.25) {
@@ -414,16 +432,23 @@ nexusRequireAuth().then(async employee => {
       ligne2 = `C'est un vrai levier, pas seulement du volume — sécurisons ce qui marche déjà.`;
     }
     let ligne3;
-    if (MAGASIN.chevauchement) {
-      ligne3 = `Priorité : la période de comparaison n'est pas fiable actuellement (dates qui se chevauchent) — à corriger dans Debug avant toute conclusion sur l'évolution.`;
-    } else if (r.evolution_ca !== null && MAGASIN.fiabilite === 'faible') {
-      ligne3 = `Priorité : la période en cours (${MAGASIN.periodeActuelle.duree}j) est trop courte face à la précédente (${MAGASIN.periodePrecedente.duree}j) pour comparer honnêtement — attendez qu'elle soit complète avant de conclure.`;
-    } else if (r.evolution_ca !== null && r.evolution_ca <= -0.15) {
-      ligne3 = `Priorité : vérifier l'origine de la baisse de ${fmtPct(Math.abs(r.evolution_ca))} avant toute décision commerciale.`;
-    } else if (r.evolution_ca !== null && r.evolution_ca > 0) {
-      ligne3 = `Dynamique positive (+${fmtPct(r.evolution_ca)}) — à sécuriser plutôt qu'à ignorer.`;
-    } else {
+    if (r.evolution_ca === null) {
       ligne3 = `Pas encore de période précédente comparable pour ce rayon.`;
+    } else {
+      // Depuis le 23/07/2026, r.evolution_ca ne provient plus forcément des
+      // deux dernières périodes : si la plus récente est encore en cours,
+      // NEXUS remonte à la dernière paire de périodes de durée comparable
+      // pour ne jamais comparer un trimestre complet à un mois entamé.
+      const noteEnCours = MAGASIN.periodeEnCours
+        ? ` (tendance mesurée sur ${MAGASIN.paire.precedente.debut} → ${MAGASIN.paire.actuelle.fin} — la période en cours n'est pas encore assez avancée pour être comparée)`
+        : '';
+      if (r.evolution_ca <= -0.15) {
+        ligne3 = `Priorité : vérifier l'origine de la baisse de ${fmtPct(Math.abs(r.evolution_ca))} avant toute décision commerciale${noteEnCours}.`;
+      } else if (r.evolution_ca > 0) {
+        ligne3 = `Dynamique positive (+${fmtPct(r.evolution_ca)}) — à sécuriser plutôt qu'à ignorer${noteEnCours}.`;
+      } else {
+        ligne3 = `Évolution stable${noteEnCours}.`;
+      }
     }
 
     const conseillerMsg = document.getElementById('conseillerRayonMsg');
@@ -443,36 +468,39 @@ nexusRequireAuth().then(async employee => {
     // ------------------------------------------------------------
     let evolHtml;
     if (r.evolution_ca === null) {
-      evolHtml = `<div class="kpi-box"><div class="kl">Évolution comparable</div><div class="kv" style="color:var(--text-dim); font-size:12px;">Non calculable (T1 partiel)</div></div>`;
+      evolHtml = `<div class="kpi-box"><div class="kl">Tendance comparable</div><div class="kv" style="color:var(--text-dim); font-size:12px;">Non calculable</div></div>`;
     } else {
-      evolHtml = `<div class="kpi-box"><div class="kl">Évolution comparable</div><div class="kv ${r.evolution_ca>=0?'up':'down'}">${r.evolution_ca>=0?'+':''}${fmtPct(r.evolution_ca)}</div></div>`;
+      evolHtml = `<div class="kpi-box"><div class="kl">Tendance comparable</div><div class="kv ${r.evolution_ca>=0?'up':'down'}">${r.evolution_ca>=0?'+':''}${fmtPct(r.evolution_ca)}</div></div>`;
     }
 
+    // Depuis le 23/07/2026, la paire utilisée pour la tendance (MAGASIN.paire)
+    // est TOUJOURS de durée quasi identique (±20%) et jamais chevauchante —
+    // construireRayons() a déjà écarté toute autre paire. Il ne reste donc
+    // qu'à informer si la période affichée (la plus récente) est encore en
+    // cours et n'a pas pu être incluse dans cette paire.
     let fiabiliteHtml = '';
-    if (r.evolution_ca !== null && MAGASIN.periodePrecedente) {
-      const fiabClasse = MAGASIN.fiabilite === 'élevée' ? 'fiab-elevee' : (MAGASIN.fiabilite === 'moyenne' ? 'fiab-moyenne' : 'fiab-faible');
+    if (r.evolution_ca !== null && MAGASIN.paire) {
       fiabiliteHtml = `
         <div class="fiabilite-row">
-          <span>T1 : ${MAGASIN.periodePrecedente.debut} → ${MAGASIN.periodePrecedente.fin} (${MAGASIN.periodePrecedente.duree}j)</span>
+          <span>T1 : ${MAGASIN.paire.precedente.debut} → ${MAGASIN.paire.precedente.fin} (${MAGASIN.paire.precedente.duree}j)</span>
         </div>
         <div class="fiabilite-row">
-          <span>T2 : ${MAGASIN.periodeActuelle.debut} → ${MAGASIN.periodeActuelle.fin} (${MAGASIN.periodeActuelle.duree}j)</span>
-          <span class="fiabilite-badge ${fiabClasse}">Fiabilité ${MAGASIN.fiabilite}</span>
+          <span>T2 : ${MAGASIN.paire.actuelle.debut} → ${MAGASIN.paire.actuelle.fin} (${MAGASIN.paire.actuelle.duree}j)</span>
+          <span class="fiabilite-badge fiab-elevee">Périodes comparables</span>
         </div>
-        ${MAGASIN.chevauchement ? `<div class="alerte-comparaison">⚠ Comparaison non fiable : les deux périodes se chevauchent (mêmes ventes comptées deux fois). Corrigez dans Debug avant de tirer une conclusion.</div>`
-          : (MAGASIN.fiabilite === 'faible' ? `<div class="alerte-comparaison">⚠ Comparaison non fiable : T2 dure ${MAGASIN.periodeActuelle.duree} jour${MAGASIN.periodeActuelle.duree>1?'s':''} contre ${MAGASIN.periodePrecedente.duree} pour T1 — probablement une période en cours, pas encore terminée. L'évolution affichée compare des volumes de temps trop différents pour être fiable.</div>`
-          : (MAGASIN.fiabilite === 'moyenne' ? `<div class="alerte-comparaison" style="background:var(--amber-dim); border-color:rgba(245,166,35,0.35); color:var(--amber);">⚠ Durées de période différentes — l'évolution donne une tendance, pas une mesure exacte.</div>` : ''))}
+        ${MAGASIN.periodeEnCours ? `<div class="alerte-comparaison" style="background:var(--amber-dim); border-color:rgba(245,166,35,0.35); color:var(--amber);">ℹ La période affichée ci-dessus (${MAGASIN.periodeAffichage.debut} → ${MAGASIN.periodeAffichage.fin}, ${MAGASIN.periodeAffichage.duree}j) est en cours et pas encore assez avancée pour être comparée équitablement — la tendance ci-dessus porte donc sur la dernière paire de périodes complètes et de durée équivalente.</div>` : ''}
       `;
     }
 
     panelPerf.innerHTML = `
       <div class="card">
         <div class="kpi-grid">
-          <div class="kpi-box"><div class="kl">CA Total</div><div class="kv">${fmtEur(r.ca_total)}</div></div>
+          <div class="kpi-box"><div class="kl">CA Total${MAGASIN.periodeEnCours ? ' (en cours)' : ''}</div><div class="kv">${fmtEur(r.ca_total)}</div></div>
           <div class="kpi-box"><div class="kl">${libelleMargeMaj} totale</div><div class="kv">${fmtEur(r.marge_total)}</div></div>
           <div class="kpi-box"><div class="kl">${libelleMargeMaj} moyenne</div><div class="kv">${fmtPct(r.marge_pct_moyenne)}</div></div>
           ${evolHtml}
         </div>
+        <div style="margin-top:8px; font-family:var(--mono); font-size:10px; color:var(--text-dim);">Période affichée : ${MAGASIN.periodeAffichage.debut} → ${MAGASIN.periodeAffichage.fin} (${MAGASIN.periodeAffichage.duree}j)</div>
         ${fiabiliteHtml}
         <div style="margin-top:10px; font-family:var(--mono); font-size:10.5px; color:var(--text-dim);">
           ${r.nb_references} références · ${r.nb_decisions_actives} décisions prioritaires (Conseiller NEXUS)
