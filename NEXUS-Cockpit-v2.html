@@ -167,6 +167,19 @@
   .risk-desc{font-size:12.5px; color:var(--text-mid); line-height:1.5;}
   .risk-caveat{font-family:var(--mono); font-size:10.5px; color:var(--amber); margin-top:4px;}
 
+  /* BOUCLAGE DES DECISIONS — "qu'est-ce que ça a donné ?" (23/07/2026) */
+  .bouclage-card{
+    border-radius:12px; padding:14px 16px; margin-bottom:10px; border:1px solid var(--hairline); background:var(--panel-raised, rgba(255,255,255,0.02));
+  }
+  .bouclage-card:last-child{margin-bottom:0;}
+  .bouclage-card.positif{border-color:rgba(52,211,153,0.35); background:var(--green-dim);}
+  .bouclage-card.negatif{border-color:rgba(240,87,90,0.3); background:var(--red-dim);}
+  .bouclage-meta{font-family:var(--mono); font-size:9.5px; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.05em; margin-bottom:6px;}
+  .bouclage-texte{font-size:12.5px; line-height:1.55; color:var(--text-mid);}
+  .bouclage-texte b{color:var(--text);}
+  .bouclage-card.positif .bouclage-texte b{color:var(--green);}
+  .bouclage-card.negatif .bouclage-texte b{color:var(--red);}
+
   /* TOP VENTES */
   .top-item{
     display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px solid var(--hairline);
@@ -226,6 +239,7 @@
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-auth.js"></script>
+<script src="nexus-vocabulaire.js"></script>
 </head>
 <body>
 <div class="phone">
@@ -237,6 +251,12 @@
   <div class="divider"></div>
 
   <div class="section" id="succesSection"></div>
+
+  <!-- Bouclage des décisions — "qu'est-ce que ça a donné ?" pour les
+       recommandations déjà validées, une fois qu'une période ultérieure
+       comparable existe. Demande de Frédéric le 23/07/2026 : "il faut que
+       NEXUS ait une mémoire". Voir renderBouclage(). -->
+  <div class="section" id="bouclageSection"></div>
 
   <div class="section" id="conseillerSection"></div>
   <div class="divider"></div>
@@ -560,6 +580,25 @@
     // Voir correctif du 23/07/2026 (audit général NEXUS) ci-dessous.
     let TENDANCE_DISPONIBLE = null;
 
+    // Mémoire des décisions (23/07/2026 — "il faut que NEXUS ait une
+    // mémoire", Frédéric). VALIDEES_SITE remplace l'ancien localStorage
+    // nexus_recommandations_validees : propre au site, partagé entre tous
+    // les employés et appareils, alimenté par journal_decisions en base au
+    // lieu d'un réglage local à un seul navigateur. JOURNAL_DECISIONS garde
+    // les lignes complètes pour renderBouclage() ci-dessous.
+    let VALIDEES_SITE = new Set();
+    let JOURNAL_DECISIONS = [];
+    // Index reconstruit à chaque construirePlansAction() — permet à
+    // renderBouclage() de retrouver le CA d'un article dans une période
+    // ULTÉRIEURE à celle d'une décision, sans reformuler sa propre requête
+    // (mêmes données, une seule fois chargées).
+    let PERIODES_TRIEES_MEMOIRE = [];
+    let CA_PAR_PERIODE_ARTICLE = {};
+
+    function joursEntre(debut, fin) {
+      return Math.round((new Date(fin) - new Date(debut)) / (1000 * 60 * 60 * 24)) + 1;
+    }
+
     // Supabase plafonne chaque requete a 1000 lignes par defaut, sans erreur —
     // au-dela, le reste est silencieusement absent. Ce helper boucle par pages
     // de 1000 jusqu'a tout recuperer (trouve le 15/07/2026 : un import T2
@@ -575,6 +614,22 @@
         from += pageSize;
       }
       return { data: toutes, error: null };
+    }
+
+    // Charge la mémoire des décisions depuis la base (journal_decisions),
+    // au lieu du localStorage propre à un seul appareil utilisé jusqu'ici.
+    // Alimente à la fois VALIDEES_SITE (masquer ce qui a déjà été validé,
+    // partagé par toute l'équipe) et JOURNAL_DECISIONS (données complètes
+    // pour renderBouclage()). Appelée une fois au chargement du Cockpit.
+    async function chargerJournalDecisions() {
+      const { data, error } = await fetchAllRows(() => nexusClient
+        .from('journal_decisions')
+        .select('*')
+        .eq('site', SITE_ACTUEL)
+        .order('created_at', { ascending: false }));
+      if (error) { console.error('Chargement journal_decisions:', error); return; }
+      JOURNAL_DECISIONS = data || [];
+      VALIDEES_SITE = new Set(JOURNAL_DECISIONS.map(d => d.candidate_id));
     }
 
     async function construirePlansAction() {
@@ -604,10 +659,9 @@
       // de "paire comparable" (utilisée uniquement pour calculer une
       // évolution). Si aucune paire valable n'existe, aucune évolution
       // n'est calculée pour personne — pas de comparaison bancale.
+      // (joursEntre() est déclarée au niveau module, réutilisée aussi par
+      // renderBouclage() pour la même règle de comparaison de durées.)
       // ------------------------------------------------------------
-      function joursEntre(debut, fin) {
-        return Math.round((new Date(fin) - new Date(debut)) / (1000 * 60 * 60 * 24)) + 1;
-      }
       const parCle = {};
       rowsBrut.forEach(r => {
         const cle = `${r.periode_debut}|${r.periode_fin}`;
@@ -669,6 +723,8 @@
             recommandation: lang.recoAgir(p.article),
             impact: `Vous sécurisez environ ${fmt(p.ca)} € de chiffre d'affaires déjà généré par cette référence.`,
             candidate_id: `LIVE-R4-${cle}`, impact_eur: p.ca,
+            categorie: p.categorie,
+            ca_reference: p.ca, periode_reference_debut: periodeAffichage.debut, periode_reference_fin: periodeAffichage.fin,
           });
         }
       });
@@ -698,6 +754,8 @@
               recommandation: lang.recoHausse(p.article),
               impact: `Vous avez gagné environ ${fmt(gain)} € sur cette référence depuis la période précédente.`,
               candidate_id: `LIVE-R3-${cle}`, impact_eur: gain,
+              categorie: p.categorie,
+              ca_reference: p.ca, periode_reference_debut: paire.actuelle.debut, periode_reference_fin: paire.actuelle.fin,
             });
           }
 
@@ -714,6 +772,8 @@
               recommandation: lang.recoBaisse(p.article),
               impact: "Vérification demandée — aucune conclusion tant que le stock n'est pas confirmé.",
               candidate_id: `LIVE-R2-${cle}`, impact_eur: perte,
+              categorie: p.categorie,
+              ca_reference: p.ca, periode_reference_debut: paire.actuelle.debut, periode_reference_fin: paire.actuelle.fin,
             });
           }
 
@@ -740,6 +800,18 @@
       const risques = candidats.filter(c => c.rule_id === 'R2-BAISSE').sort((a,b) => b.impact_eur - a.impact_eur);
       PIRE_RISQUE = risques[0] || null;
       PRODUITS_EN_BAISSE.sort((a, b) => a.evolution - b.evolution); // le plus en baisse d'abord
+
+      // Index pour renderBouclage() — voir déclaration de PERIODES_TRIEES_MEMOIRE
+      // et CA_PAR_PERIODE_ARTICLE plus haut : retrouver le CA d'un article
+      // dans une période ultérieure à une décision déjà validée, sans
+      // relancer de requête.
+      PERIODES_TRIEES_MEMOIRE = periodesTriees;
+      CA_PAR_PERIODE_ARTICLE = {};
+      rowsBrut.forEach(r => {
+        const cle = `${r.periode_debut}|${r.periode_fin}|${r.categorie || ''}|${r.article}`;
+        CA_PAR_PERIODE_ARTICLE[cle] = (CA_PAR_PERIODE_ARTICLE[cle] || 0) + (r.ca || 0);
+      });
+
       return candidats; // toutes les candidates qualifiées — renderPlansAction() pioche les 5 à afficher
                          // et laisse apparaitre la suivante au fur et a mesure qu'on en valide
     }
@@ -750,12 +822,11 @@
       "🟡 À SURVEILLER": "etat-surveiller", "🔴 À DÉCIDER": "etat-decider",
       "💡 RECOMMANDATION": "etat-recommandation",
     };
-    function chargerValidees() { return JSON.parse(localStorage.getItem('nexus_recommandations_validees') || '[]'); }
-    function sauvegarderValidees(v) { localStorage.setItem('nexus_recommandations_validees', JSON.stringify(v)); }
-
-    // Trace datee et chiffree de chaque decision validee — lue par Journal NEXUS
-    // pour repondre a "qu'est-ce qui a ete fait aujourd'hui ?". N'affecte pas
-    // le comportement existant de nexus_recommandations_validees.
+    // Trace datee et chiffree de chaque decision validee — lue par Journal
+    // NEXUS pour repondre a "qu'est-ce qui a ete fait aujourd'hui ?", et
+    // depuis le 23/07/2026 par VALIDEES_SITE/renderBouclage() ci-dessous
+    // (mémoire partagée en base, remplace l'ancien localStorage
+    // nexus_recommandations_validees propre à un seul appareil).
     async function enregistrerJournalDecision(plan) {
       const { error } = await nexusClient.from('journal_decisions').insert({
         site: SITE_ACTUEL,
@@ -764,8 +835,23 @@
         categorie: plan.categorie || null,
         date: new Date().toISOString().slice(0,10), heure: new Date().toTimeString().slice(0,5),
         employee_id: employeeCourantId,
+        // Mémoire de la décision (23/07/2026) : le CA de l'article et la
+        // période sur laquelle la recommandation était fondée, enregistrés
+        // ici et jamais recalculés après coup — c'est ce qui permet à
+        // renderBouclage() de dire plus tard, honnêtement, si la décision a
+        // porté ses fruits.
+        ca_reference: plan.ca_reference != null ? plan.ca_reference : null,
+        periode_reference_debut: plan.periode_reference_debut || null,
+        periode_reference_fin: plan.periode_reference_fin || null,
       });
-      if (error) console.error('Écriture Journal:', error);
+      if (error) { console.error('Écriture Journal:', error); return false; }
+      VALIDEES_SITE.add(plan.candidate_id); // memoire immediate, sans attendre un rechargement
+      JOURNAL_DECISIONS.unshift({
+        site: SITE_ACTUEL, ...plan, employee_id: employeeCourantId,
+        date: new Date().toISOString().slice(0,10), heure: new Date().toTimeString().slice(0,5),
+        created_at: new Date().toISOString(),
+      });
+      return true;
     }
 
     let dernierAffichage = []; // les 5 plans reellement visibles a l'ecran, partages avec le briefing
@@ -787,8 +873,9 @@
     }
 
     function renderPlansAction() {
-      const validees = chargerValidees();
-      const disponibles = PLANS_ACTION.filter(p => !validees.includes(p.candidate_id));
+      // VALIDEES_SITE vient de journal_decisions (base de données, partagée
+      // par toute l'équipe) depuis le 23/07/2026 — plus de localStorage.
+      const disponibles = PLANS_ACTION.filter(p => !VALIDEES_SITE.has(p.candidate_id));
       const aAfficher = disponibles.slice(0, 5);
       dernierAffichage = aAfficher;
 
@@ -812,29 +899,25 @@
             ${p.article ? `<button class="plan-appel" data-article="${p.article}" style="width:100%; margin-top:8px; padding:10px; border:1px solid var(--hairline); border-radius:8px; background:none; color:var(--text-dim); font-size:11.5px; cursor:pointer;">🚫 Produit d'appel — ne plus le recommander</button>` : ''}
           </div>
         </div>`).join('') || `<div style="padding:20px; text-align:center; color:var(--text-dim); font-size:12.5px;">
-          Toutes les recommandations disponibles ont été validées (${validees.length}/${PLANS_ACTION.length}).<br><br>
-          <a href="#" id="resetValidees" style="color:var(--cyan);">Réinitialiser mes validations</a> — utile si c'était un test, pas de vraies actions passées en piste.
+          Toutes les recommandations disponibles ont été validées (${VALIDEES_SITE.size} au total dans la mémoire de ce site).<br><br>
+          Retrouvez leur résultat plus bas, dès qu'une période comparable est disponible.
         </div>`;
-
-      const resetLink = document.getElementById('resetValidees');
-      if (resetLink) resetLink.addEventListener('click', (e) => {
-        e.preventDefault();
-        sauvegarderValidees([]);
-        renderPlansAction();
-      });
 
       el.querySelectorAll('.plan-valider').forEach(btn => {
         btn.addEventListener('click', async (e) => {
           e.stopPropagation();
+          btn.disabled = true;
           const plan = PLANS_ACTION.find(p => p.candidate_id === btn.dataset.id);
-          const v = chargerValidees();
-          v.push(btn.dataset.id);
-          sauvegarderValidees(v);
-          if (plan) {
-            await enregistrerJournalDecision(plan);
+          if (!plan) return;
+          const ok = await enregistrerJournalDecision(plan);
+          if (ok) {
             afficherToastOr(`✓ Gain sécurisé — ${Math.round(plan.impact_eur).toLocaleString('fr-FR')} €`);
+            renderPlansAction(); // la suivante du classement prend la place
+            renderBouclage();
+          } else {
+            btn.disabled = false;
+            alert("Erreur d'enregistrement — réessayez.");
           }
-          renderPlansAction(); // la suivante du classement prend la place
         });
       });
 
@@ -849,6 +932,7 @@
             renderRisques();
             renderProduitsBaisse();
             renderTopVentes();
+            renderBouclage();
           }
         });
       });
@@ -929,6 +1013,68 @@
         </div>`;
     }
 
+    // ------------------------------------------------------------
+    // Bouclage des décisions — "qu'est-ce que ça a donné ?" (23/07/2026,
+    // demande de Frédéric : "il faut que NEXUS ait une mémoire").
+    //
+    // Pour chaque décision déjà validée qui porte une référence chiffrée
+    // (ca_reference + période, voir construirePlansAction()), on cherche la
+    // période la plus proche APRÈS cette référence dont la durée est
+    // comparable (±20 %, même règle que la tendance) — jamais une
+    // comparaison avec une période trop différente. Si l'article n'a pas
+    // encore une telle période, ou n'apparaît plus dans le catalogue à ce
+    // moment-là (rupture, retrait…), la décision reste simplement en
+    // attente : pas de résultat affiché, jamais de résultat inventé.
+    // ------------------------------------------------------------
+    function renderBouclage() {
+      const el = document.getElementById('bouclageSection');
+      if (!el) return;
+
+      const decisions = JOURNAL_DECISIONS.filter(d => d.ca_reference != null && d.periode_reference_fin && d.periode_reference_debut);
+      const resultats = [];
+
+      decisions.forEach(d => {
+        const dureeRef = joursEntre(d.periode_reference_debut, d.periode_reference_fin);
+        const periodeResultat = PERIODES_TRIEES_MEMOIRE
+          .filter(p => p.debut > d.periode_reference_fin)
+          .filter(p => {
+            const ecart = Math.max(p.duree, dureeRef) > 0
+              ? Math.abs(p.duree - dureeRef) / Math.max(p.duree, dureeRef) : 1;
+            return ecart <= 0.2;
+          })
+          .sort((a, b) => a.debut.localeCompare(b.debut))[0]; // la plus proche dans le temps d'abord
+        if (!periodeResultat) return; // pas encore assez de recul pour juger
+
+        const cle = `${periodeResultat.debut}|${periodeResultat.fin}|${d.categorie || ''}|${d.article}`;
+        const caApres = CA_PAR_PERIODE_ARTICLE[cle];
+        if (caApres == null || !(d.ca_reference > 0)) return; // article absent de cette période ou référence inexploitable — pas de conclusion fabriquée
+
+        resultats.push({ decision: d, periodeResultat, caApres, evolution: (caApres - d.ca_reference) / d.ca_reference });
+      });
+
+      if (!resultats.length) { el.innerHTML = ''; return; }
+
+      resultats.sort((a, b) => new Date(b.decision.created_at || b.decision.date) - new Date(a.decision.created_at || a.decision.date));
+      const aAfficher = resultats.slice(0, 3);
+      const reste = resultats.length - aAfficher.length;
+
+      el.innerHTML = `
+        <div class="section-title">Résultat de vos décisions <span class="badge badge-real">Mesuré</span></div>
+        ${aAfficher.map(r => {
+          const positif = r.evolution >= 0;
+          const pct = Math.round(r.evolution * 100);
+          const dateDecision = new Date(r.decision.date + 'T00:00:00').toLocaleDateString('fr-FR');
+          const tendanceMot = (typeof NexusVocab !== 'undefined' && NexusVocab.tendance) ? NexusVocab.tendance(r.evolution) : '';
+          return `
+          <div class="bouclage-card ${positif ? 'positif' : 'negatif'}">
+            <div class="bouclage-meta">Décision du ${dateDecision} — ${r.decision.article}</div>
+            <div class="bouclage-texte">« ${r.decision.recommandation} » — résultat : <b>${positif?'+':''}${pct} %</b> depuis (${Math.round(r.decision.ca_reference).toLocaleString('fr-FR')} € → ${Math.round(r.caApres).toLocaleString('fr-FR')} €).${tendanceMot ? ' ' + tendanceMot : ''}${positif ? '' : ' À vérifier avant de reproduire cette décision ailleurs.'}</div>
+          </div>`;
+        }).join('')}
+        ${reste > 0 ? `<div style="font-family:var(--mono); font-size:10.5px; color:var(--text-dim); margin-top:4px;">+ ${reste} autre${reste>1?'s':''} décision${reste>1?'s':''} déjà bouclée${reste>1?'s':''} — voir le Journal NEXUS pour l'historique complet.</div>` : ''}
+      `;
+    }
+
     // Remplace l'ancien bloc "Risques" fige en dur — celui-ci lit PIRE_RISQUE,
     // calcule a chaque chargement par le meme moteur que les Plans d'action.
     // Un produit exclu (via 🚫) disparait ici comme partout ailleurs, des le
@@ -967,6 +1113,7 @@
           renderRisques();
           renderProduitsBaisse();
           renderTopVentes();
+          renderBouclage();
         }
       });
     }
@@ -1328,10 +1475,18 @@
 
       employeeCourantId = employee.id;
       SITE_ACTUEL = employee.site_id || 'vito-sainte-marie';
+      // chargerJournalDecisions() doit être résolu AVANT construirePlansAction()
+      // pour que VALIDEES_SITE soit prêt dès le premier renderPlansAction()
+      // (sinon tout réapparaîtrait une fraction de seconde avant de se
+      // filtrer). PERIODES_TRIEES_MEMOIRE/CA_PAR_PERIODE_ARTICLE, eux,
+      // viennent de construirePlansAction() et ne sont utiles qu'à
+      // renderBouclage(), appelé après les deux.
+      await chargerJournalDecisions();
       PLANS_ACTION = await construirePlansAction();
       injecterRappelCommande();
       injecterRappelCarburant();
       renderPlansAction();
+      renderBouclage();
 
       STATION_CONFIG.manager_prenom = employee.nom;
       STATION_CONFIG.manager_role = employee.role;
