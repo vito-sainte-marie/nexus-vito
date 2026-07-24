@@ -112,6 +112,7 @@
   .histo-bar-track{flex:1; height:8px; background:var(--panel-raised); border-radius:4px; overflow:hidden;}
   .histo-bar{height:100%; background:var(--cyan); border-radius:4px;}
   .histo-val{font-family:var(--mono); font-size:11px; color:var(--text-mid); width:44px; text-align:right;}
+  .histo-empty{font-size:12px; color:var(--text-mid); line-height:1.5; padding:4px 0;}
 
   .gap-row{
     display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px solid var(--hairline);
@@ -266,31 +267,53 @@ nexusRequireAuth().then(async employee => {
     // partagé nexus-periodes.js sépare "période affichée" (la plus récente —
     // sert à afficher toutes les fiches produit et leur contribution au rayon,
     // même si elle est encore en cours) de "paire comparable" (utilisée
-    // uniquement pour calculer une évolution T1→T2, et seulement quand la
-    // période affichée en fait elle-même partie).
-    const { periodeAffichage, rowsAffichage, paire, rowsPairePrecedente, periodeEnCours } = NexusPeriodes.analyserPeriodes(data);
+    // uniquement pour calculer une évolution T1→T2).
+    const { periodeAffichage, rowsAffichage, paire, rowsPaireActuelle, rowsPairePrecedente, periodeEnCours } = NexusPeriodes.analyserPeriodes(data);
     if (!periodeAffichage) { console.error('Aucune période exploitable dans products.'); return []; }
-    const rowsPrecedentsComparables = (paire && !periodeEnCours) ? rowsPairePrecedente : [];
+
+    // CORRECTIF 24/07/2026 (incohérence signalée par Frédéric : "pourquoi T1
+    // apparaît dans Rayon mais pas dans Produits, avec les mêmes données ?")
+    // — cette page limitait jusqu'ici la comparaison T1→T2 aux seuls cas où
+    // la période affichée (la plus récente) faisait ELLE-MÊME partie de la
+    // paire comparable trouvée par nexus-periodes.js. Dès qu'un nouvel
+    // import encore partiel devenait la période affichée, toute comparaison
+    // disparaissait — y compris la tendance sur l'avant-dernière période,
+    // pourtant toujours valable. NEXUS-Rayon-v1.html ne fait pas cette
+    // erreur : il sépare la "période affichée" (chiffres bruts du haut de
+    // fiche : CA généré, unités vendues) de la "paire comparable" (utilisée
+    // UNIQUEMENT pour l'évolution, indépendamment de la fraîcheur de la
+    // période affichée). Même principe appliqué ici : ca_t1/qte_t1 (T1) et
+    // ca_t2_pair/qte_t2_pair (T2 DE LA COMPARAISON — distinct de ca_t2/qte_t2,
+    // qui restent la période affichée) viennent toujours de la dernière paire
+    // comparable trouvée, que la période affichée en fasse partie ou non.
+    const precedentParArticle = {};
+    rowsPairePrecedente.forEach(r => {
+      const cle = r.categorie + '|' + r.article;
+      precedentParArticle[cle] = precedentParArticle[cle] || r;
+    });
+    const actuelParArticlePaire = {};
+    rowsPaireActuelle.forEach(r => {
+      const cle = r.categorie + '|' + r.article;
+      actuelParArticlePaire[cle] = actuelParArticlePaire[cle] || r;
+    });
 
     const caTotalParRayon = {};
     rowsAffichage.forEach(r => { caTotalParRayon[r.categorie] = (caTotalParRayon[r.categorie] || 0) + (r.ca || 0); });
 
-    const precedentParArticle = {};
-    rowsPrecedentsComparables.forEach(r => {
-      const cle = r.categorie + '|' + r.article;
-      precedentParArticle[cle] = precedentParArticle[cle] || r;
-    });
-
     return rowsAffichage.map(p => {
       const cle = p.categorie + '|' + p.article;
-      const prec = precedentParArticle[cle] || null;
       const caRayon = caTotalParRayon[p.categorie] || 0;
       const pct_contrib = caRayon > 0 ? p.ca / caRayon : null;
 
+      const pairPrec = paire ? (precedentParArticle[cle] || null) : null;
+      const pairAct = paire ? (actuelParArticlePaire[cle] || null) : null;
+
       // Meme moteur de regles que le Cockpit (R4/R3/R2), applique a cette seule reference,
       // pour rester cohérent partout — une seule source de vérité pour "que recommande NEXUS ici".
+      // Évolution basée sur la paire comparable (pairPrec/pairAct), pas sur
+      // la période affichée directement — même correctif que ci-dessus.
       let statut = null;
-      const evolution = (prec && prec.ca > 0) ? (p.ca - prec.ca) / prec.ca : null;
+      const evolution = (pairPrec && pairPrec.ca > 0 && pairAct) ? (pairAct.ca - pairPrec.ca) / pairPrec.ca : null;
       const lang = LANGAGE_ACTION[typeActionPourCategorie(p.categorie)];
       if (pct_contrib !== null && pct_contrib >= 0.15 && p.ca > 0) {
         statut = { etat: '🔥 À AGIR', texte: lang.recoAgir(p.article), analyse: lang.analyseAgir };
@@ -304,8 +327,23 @@ nexusRequireAuth().then(async employee => {
         article: p.article, categorie: p.categorie, code_barres: p.code_barres || null,
         pu_ht: p.prix_vente, pma: p.prix_achat,
         marge_pct: p.ca > 0 ? (p.marge || 0) / p.ca : 0, marge_totale: p.marge || 0,
-        ca_t1: prec ? prec.ca : 0, ca_t2: p.ca, ca_s1: (prec ? prec.ca : 0) + p.ca,
-        qte_t1: prec ? (prec.quantite || 0) : 0, qte_t2: p.quantite || 0,
+        // ca_t2/qte_t2 : toujours la période affichée (la plus récente, même
+        // en cours) — utilisés pour les chiffres "instantanés" de la fiche
+        // (CA généré, unités vendues, rang, produit dormant, vitesse de vente).
+        ca_t2: p.ca, qte_t2: p.quantite || 0,
+        // ca_t1/qte_t1 (T1) et ca_t2_pair/qte_t2_pair (T2 de la comparaison) :
+        // toujours la dernière paire comparable trouvée, indépendamment de la
+        // fraîcheur de la période affichée.
+        ca_t1: pairPrec ? pairPrec.ca : 0, qte_t1: pairPrec ? (pairPrec.quantite || 0) : 0,
+        ca_t2_pair: pairAct ? pairAct.ca : 0, qte_t2_pair: pairAct ? (pairAct.quantite || 0) : 0,
+        ca_s1: (pairPrec ? pairPrec.ca : 0) + (pairAct ? pairAct.ca : 0),
+        pairDisponible: !!paire,
+        // true si la paire comparable inclut la période affichée elle-même
+        // (donc ca_t2_pair === ca_t2) ; false si la période affichée est
+        // encore trop récente et que la comparaison porte sur l'avant-dernière
+        // paire de périodes complètes.
+        pairEstPeriodeAffichee: !!(paire && !periodeEnCours),
+        pairDates: paire ? { debutT1: paire.precedente.debut, finT1: paire.precedente.fin, debutT2: paire.actuelle.debut, finT2: paire.actuelle.fin } : null,
         // Dates de la période actuelle — nécessaires pour estimer une vitesse
         // de vente quotidienne (rotation réelle), voir chargerStockGap().
         periode_debut: p.periode_debut, periode_fin: p.periode_fin,
@@ -343,7 +381,7 @@ nexusRequireAuth().then(async employee => {
   // dormant (le plus objectif : aucune vente) > stratégique (poids fort
   // dans le rayon) > à surveiller (chute nette) > performant par défaut.
   function calculerStatutSimplifie(p) {
-    const evolution = p.ca_t1 > 0 ? (p.ca_t2 - p.ca_t1) / p.ca_t1 : null;
+    const evolution = p.ca_t1 > 0 ? (p.ca_t2_pair - p.ca_t1) / p.ca_t1 : null;
     const lang = LANGAGE_ACTION[typeActionPourCategorie(p.categorie)];
     if (p.ca_t2 === 0) {
       return {
@@ -429,9 +467,13 @@ nexusRequireAuth().then(async employee => {
     const p = PRODUCTS.find(x => x.article === articleName);
     if (!p) return;
 
-    const evolQte = p.qte_t1 ? (p.qte_t2 - p.qte_t1) / p.qte_t1 : 0;
-    const evolCa = p.ca_t1 ? (p.ca_t2 - p.ca_t1) / p.ca_t1 : 0;
-    const maxQte = Math.max(p.qte_t1, p.qte_t2, 1);
+    // evolQte/evolCa comparent T1 (pairPrec) à T2 DE LA COMPARAISON
+    // (pairAct, via ca_t2_pair/qte_t2_pair) — pas la période affichée
+    // directement, pour ne jamais sauter une période intermédiaire quand la
+    // période affichée est encore trop récente pour faire partie de la paire.
+    const evolQte = p.qte_t1 ? (p.qte_t2_pair - p.qte_t1) / p.qte_t1 : 0;
+    const evolCa = p.ca_t1 ? (p.ca_t2_pair - p.ca_t1) / p.ca_t1 : 0;
+    const maxQte = Math.max(p.qte_t1, p.qte_t2_pair, 1);
 
     // Statut simplifié + rang rayon : voir calculerStatutSimplifie() et
     // calculerRangRayon() — remplace l'ancien bloc "Décisions prioritaires"
@@ -477,6 +519,37 @@ nexusRequireAuth().then(async employee => {
         <div class="cycle-step"><span class="cycle-tag tag-decision">Décision</span>${decisionP}</div>
       `;
     }
+
+    // CORRECTIF 24/07/2026 (bug signalé par Frédéric : "pourquoi T1 n'est pas
+    // enregistré ?", puis incohérence : "pourquoi Rayon a un T1 et pas
+    // Produits, avec les mêmes données ?"). Deux corrections combinées :
+    //   1) Si aucune paire comparable n'existe DU TOUT (pairDisponible =
+    //      false), pas de bloc T1/T2 — un message explique pourquoi, plutôt
+    //      que d'afficher une fausse barre à 0 et un faux "+0.0%".
+    //   2) Si une paire existe mais que la période affichée est encore trop
+    //      récente pour en faire partie (pairEstPeriodeAffichee = false),
+    //      NEXUS utilise quand même la dernière paire comparable trouvée
+    //      (comme NEXUS-Rayon-v1.html) au lieu d'abandonner toute
+    //      comparaison — avec ses propres dates affichées explicitement,
+    //      jamais confondues avec la période affichée en tête de fiche.
+    const histoHtml = p.pairDisponible ? `
+      <div class="histo-row">
+        <span class="histo-label">T1</span>
+        <div class="histo-bar-track"><div class="histo-bar" style="width:${p.qte_t1/maxQte*100}%; background:var(--text-dim);"></div></div>
+        <span class="histo-val">${p.qte_t1} u.</span>
+      </div>
+      <div class="histo-row">
+        <span class="histo-label">T2</span>
+        <div class="histo-bar-track"><div class="histo-bar" style="width:${p.qte_t2_pair/maxQte*100}%;"></div></div>
+        <span class="histo-val">${p.qte_t2_pair} u.</span>
+      </div>
+      <div style="font-family:var(--mono); font-size:10px; color:var(--text-dim); margin-top:6px;">T1 : ${p.pairDates.debutT1} → ${p.pairDates.finT1} · T2 : ${p.pairDates.debutT2} → ${p.pairDates.finT2}</div>
+      <div class="kpi-grid">
+        <div class="kpi-box"><div class="kl">CA cumulé (T1+T2)</div><div class="kv">${fmtEur(p.ca_s1)}</div></div>
+        <div class="kpi-box"><div class="kl">Évolution QTE</div><div class="kv ${p.qte_t1>0 ? (evolQte>=0?'up':'down') : ''}">${p.qte_t1>0 ? (evolQte>=0?'+':'')+fmtPct(evolQte) : 'Départ de zéro'}</div></div>
+      </div>
+      ${!p.pairEstPeriodeAffichee ? `<div class="histo-empty" style="margin-top:10px;">La période affichée en tête de fiche (${p.periode_debut} → ${p.periode_fin}) est encore trop récente pour être comparée équitablement — cette évolution porte donc sur la dernière paire de périodes complètes et de durée comparable.</div>` : ''}` : `
+      <div class="histo-empty">Aucune période précédente de durée comparable n'a encore été importée pour cette référence (période affichée : ${p.periode_debut} → ${p.periode_fin}, ${p.qte_t2} u. vendues) — NEXUS n'affiche pas d'évolution T1 → T2 plutôt que d'en fabriquer une trompeuse.</div>`;
 
     resultSection.innerHTML = `
       <div class="card hero-card">
@@ -527,20 +600,7 @@ nexusRequireAuth().then(async employee => {
 
       <div class="card">
         <div class="section-label">Historique T1 → T2</div>
-        <div class="histo-row">
-          <span class="histo-label">T1</span>
-          <div class="histo-bar-track"><div class="histo-bar" style="width:${p.qte_t1/maxQte*100}%; background:var(--text-dim);"></div></div>
-          <span class="histo-val">${p.qte_t1} u.</span>
-        </div>
-        <div class="histo-row">
-          <span class="histo-label">T2</span>
-          <div class="histo-bar-track"><div class="histo-bar" style="width:${p.qte_t2/maxQte*100}%;"></div></div>
-          <span class="histo-val">${p.qte_t2} u.</span>
-        </div>
-        <div class="kpi-grid">
-          <div class="kpi-box"><div class="kl">CA S1</div><div class="kv">${fmtEur(p.ca_s1)}</div></div>
-          <div class="kpi-box"><div class="kl">Évolution QTE</div><div class="kv ${evolQte>=0?'up':'down'}">${evolQte>=0?'+':''}${fmtPct(evolQte)}</div></div>
-        </div>
+        ${histoHtml}
       </div>
 
       <div class="card">
