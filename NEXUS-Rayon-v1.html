@@ -36,9 +36,17 @@
   }
   .conseiller-label{font-family:var(--mono); font-size:9.5px; letter-spacing:0.06em; text-transform:uppercase; color:var(--cyan); margin-bottom:4px;}
   .conseiller-text{font-size:12.5px; line-height:1.55; color:var(--text);}
-  .conseiller-more{margin-top:8px; font-family:var(--mono); font-size:10.5px; color:var(--cyan); cursor:pointer; display:inline-block;}
+  .conseiller-more{margin-top:8px; margin-right:14px; font-family:var(--mono); font-size:10.5px; color:var(--cyan); cursor:pointer; display:inline-block;}
   .conseiller-full{display:none; margin-top:10px; padding-top:10px; border-top:1px solid var(--hairline); font-size:12px; color:var(--text-mid); line-height:1.6;}
   .conseiller-full.open{display:block;}
+  .pourquoi-block{display:none; margin-top:10px; padding-top:10px; border-top:1px solid var(--hairline);}
+  .pourquoi-block.open{display:block;}
+  .pourquoi-item{margin-bottom:6px; border-radius:8px; background:var(--panel-raised); overflow:hidden;}
+  .pourquoi-q{padding:10px 12px; font-size:12px; font-weight:600; color:var(--text); cursor:pointer; display:flex; justify-content:space-between; align-items:center; gap:8px;}
+  .pourquoi-q .chev{color:var(--text-dim); font-size:12px; transition:0.15s; flex-shrink:0;}
+  .pourquoi-item.open .pourquoi-q .chev{transform:rotate(90deg);}
+  .pourquoi-a{display:none; padding:0 12px 12px; font-size:11.5px; color:var(--text-mid); line-height:1.6;}
+  .pourquoi-item.open .pourquoi-a{display:block;}
   .menu-btn{
     position:absolute; top:18px; right:18px; display:flex; align-items:center; gap:6px;
     font-family:var(--mono); font-size:10.5px; font-weight:600; letter-spacing:0.03em; text-transform:uppercase;
@@ -141,7 +149,9 @@
       <div class="conseiller-label">Conseiller NEXUS</div>
       <div class="conseiller-text" id="conseillerRayonMsg">Chargement…</div>
       <div class="conseiller-more" id="conseillerToggle" style="display:none;">Voir l'analyse complète ›</div>
+      <div class="conseiller-more" id="pourquoiToggle" style="display:none;">Pourquoi ? ›</div>
       <div class="conseiller-full" id="conseillerFull"></div>
+      <div class="pourquoi-block" id="pourquoiBlock"></div>
     </div>
   </div>
 
@@ -412,6 +422,66 @@ nexusRequireAuth().then(async employee => {
     return { classe: 'verdict-valeur', label: '🟢 Rayon créateur de valeur' };
   }
 
+  // "Pourquoi ?" — le Conseiller passe d'expliquer à débattre : plutôt qu'un
+  // chat libre (qui demanderait une vraie IA branchée, un coût par requête,
+  // et surtout le risque qu'elle invente un chiffre), on rend visible et
+  // navigable le raisonnement que NEXUS a DÉJÀ fait — chaque question/réponse
+  // ci-dessous est calculée à partir des mêmes données que le message
+  // principal, jamais un texte inventé pour l'occasion. Demande de Frédéric
+  // le 23/07/2026.
+  function construirePourquoi(r, ctx) {
+    const { rangCA, rangMarge, nbRayons, pctCaMagasin, pctMargeMagasin, libelleMarge } = ctx;
+    const qa = [];
+
+    qa.push({
+      q: `Comment est calculée cette ${libelleMarge} de ${fmtPct(r.marge_pct_moyenne)} ?`,
+      a: `${fmtEur(r.marge_total)} de ${libelleMarge} générée sur ${fmtEur(r.ca_total)} de chiffre d'affaires, sur la période ${MAGASIN.periodeAffichage.debut} → ${MAGASIN.periodeAffichage.fin} (${MAGASIN.periodeAffichage.duree}j). ${fmtPct(r.marge_pct_moyenne)} = ${fmtEur(r.marge_total)} ÷ ${fmtEur(r.ca_total)}.`,
+    });
+
+    if (r.trafic) {
+      qa.push({
+        q: `Pourquoi ne pas juger ce rayon sur sa marge, comme les autres ?`,
+        a: `Son nom de catégorie l'identifie comme un rayon de service (cartes prépayées, recharges...) — sa fonction première est d'attirer et de retenir la clientèle, pas de générer de la marge directe. Le classer "en dégradation" à cause d'une marge de ${fmtPct(r.marge_pct_moyenne)} serait trompeur : ce n'est pas son rôle.`,
+      });
+      qa.push({
+        q: `Pourquoi ne pas simplement l'arrêter si la marge est aussi faible ?`,
+        a: `Il pèse ${fmtPct(pctCaMagasin)} du chiffre d'affaires du magasin et fait venir des clients au comptoir. L'arrêter réduirait le passage en boutique, pas seulement le CA de ce rayon — un effet que NEXUS ne mesure pas encore (pas de donnée de vente croisée entre rayons).`,
+      });
+    } else if (r.marge_pct_moyenne < 0.25) {
+      qa.push({
+        q: `Ce rayon est ${rangCA}${rangCA===1?'er':'ᵉ'} en CA, pourquoi n'est-il pas traité comme votre meilleur rayon ?`,
+        a: `Le chiffre d'affaires mesure ce qui passe en caisse, pas ce qui reste à la station. Sur ${nbRayons} rayons, celui-ci est ${rangCA}${rangCA===1?'er':'ᵉ'} en CA mais ${rangMarge}${rangMarge===1?'er':'ᵉ'} en ${libelleMarge} — ${fmtPct(pctCaMagasin)} du CA du magasin ne représentent que ${fmtPct(pctMargeMagasin)} de sa ${libelleMarge} totale.`,
+      });
+      qa.push({
+        q: `Qu'est-ce qui ferait changer cette recommandation ?`,
+        a: `Une ${libelleMarge} moyenne au-dessus de 25 % (contre ${fmtPct(r.marge_pct_moyenne)} actuellement), ou une tendance positive confirmée sur une période comparable — les deux seraient nécessaires pour repasser en rayon "créateur de valeur".`,
+      });
+    } else {
+      qa.push({
+        q: `Pourquoi recommander de pousser ce rayon plutôt qu'un autre ?`,
+        a: `Sa ${libelleMarge} moyenne (${fmtPct(r.marge_pct_moyenne)}) dépasse le seuil de 25 % considéré comme correct, et il est ${rangMarge}${rangMarge===1?'er':'ᵉ'} en ${libelleMarge} générée sur ${nbRayons} rayons — c'est un des rayons qui rapportent réellement à la station, pas seulement en volume.`,
+      });
+    }
+
+    if (r.evolution_ca !== null) {
+      qa.push({
+        q: `Cette tendance de ${r.evolution_ca>=0?'+':''}${fmtPct(r.evolution_ca)} est-elle fiable ?`,
+        a: MAGASIN.periodeEnCours
+          ? `Oui pour la comparaison elle-même : elle porte sur ${MAGASIN.paire.precedente.debut} → ${MAGASIN.paire.precedente.fin} (${MAGASIN.paire.precedente.duree}j) contre ${MAGASIN.paire.actuelle.debut} → ${MAGASIN.paire.actuelle.fin} (${MAGASIN.paire.actuelle.duree}j) — deux durées quasi identiques. Elle ne couvre en revanche pas encore la période en cours (${MAGASIN.periodeAffichage.debut} → ${MAGASIN.periodeAffichage.fin}), trop récente pour être comparée équitablement.`
+          : `Oui : elle compare deux périodes de durée quasi identique (${MAGASIN.paire.precedente.duree}j et ${MAGASIN.paire.actuelle.duree}j), sans chevauchement de dates.`,
+      });
+    } else {
+      qa.push({
+        q: `Pourquoi n'y a-t-il pas de tendance affichée ?`,
+        a: r.raison_indisponible === 'baseline_nulle'
+          ? `La période précédente comparable (${MAGASIN.paire.precedente.debut} → ${MAGASIN.paire.precedente.fin}) indique 0 € pour ce rayon dans la base — probablement un problème d'import à corriger, pas une vraie absence de vente.`
+          : `Aucune paire de périodes de durée comparable n'existe encore pour ce rayon — la tendance apparaîtra dès qu'un nouvel import complet sera disponible.`,
+      });
+    }
+
+    return qa;
+  }
+
   function showRayon(key) {
     const r = RAYONS[key];
     if (!r) return;
@@ -475,6 +545,28 @@ nexusRequireAuth().then(async employee => {
     conseillerToggle.onclick = () => {
       conseillerFull.classList.toggle('open');
       conseillerToggle.textContent = conseillerFull.classList.contains('open') ? 'Réduire ‹' : "Voir l'analyse complète ›";
+    };
+
+    // ------------------------------------------------------------
+    // "Pourquoi ?" — le raisonnement détaillé, en questions dépliables.
+    // ------------------------------------------------------------
+    const pourquoiToggle = document.getElementById('pourquoiToggle');
+    const pourquoiBlock = document.getElementById('pourquoiBlock');
+    const listeQA = construirePourquoi(r, { rangCA, rangMarge, nbRayons, pctCaMagasin, pctMargeMagasin, libelleMarge });
+    pourquoiBlock.classList.remove('open');
+    pourquoiBlock.innerHTML = listeQA.map((item, i) => `
+      <div class="pourquoi-item" id="pourquoiItem-${i}">
+        <div class="pourquoi-q"><span>${item.q}</span><span class="chev">›</span></div>
+        <div class="pourquoi-a">${item.a}</div>
+      </div>`).join('');
+    pourquoiBlock.querySelectorAll('.pourquoi-item').forEach(item => {
+      item.querySelector('.pourquoi-q').addEventListener('click', () => item.classList.toggle('open'));
+    });
+    pourquoiToggle.style.display = 'inline-block';
+    pourquoiToggle.textContent = 'Pourquoi ? ›';
+    pourquoiToggle.onclick = () => {
+      pourquoiBlock.classList.toggle('open');
+      pourquoiToggle.textContent = pourquoiBlock.classList.contains('open') ? 'Réduire ‹' : 'Pourquoi ? ›';
     };
 
     // ------------------------------------------------------------
