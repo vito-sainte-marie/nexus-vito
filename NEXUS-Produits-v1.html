@@ -172,11 +172,18 @@
   }
   .conseiller-label{font-family:var(--mono); font-size:9.5px; letter-spacing:0.06em; text-transform:uppercase; color:var(--cyan); margin-bottom:4px;}
   .conseiller-text{font-size:12.5px; line-height:1.55; color:var(--text);}
+  /* Cycle Constat → Explication → Décision (vocabulaire NEXUS, demande de
+     Frédéric le 23/07/2026) — même traitement que NEXUS-Rayon-v1.html. */
+  .cycle-step{margin-bottom:5px;}
+  .cycle-step:last-child{margin-bottom:0;}
+  .cycle-tag{font-family:var(--mono); font-size:9px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; color:var(--text-dim); margin-right:6px;}
+  .cycle-tag.tag-decision{color:var(--amber);}
 
   footer{margin-top:auto; padding:16px 20px 24px; font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:center; border-top:1px solid var(--hairline);}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-auth.js"></script>
+<script src="nexus-vocabulaire.js"></script>
 </head>
 <body>
 <div class="phone">
@@ -423,29 +430,43 @@ nexusRequireAuth().then(async employee => {
     const statutSimplifie = calculerStatutSimplifie(p);
     const rangRayon = calculerRangRayon(p);
 
+    // ------------------------------------------------------------
+    // Conseiller — cycle Constat → Explication → Décision (vocabulaire
+    // NEXUS, demande de Frédéric le 23/07/2026, déjà appliqué à
+    // NEXUS-Rayon-v1.html). Les mots d'appréciation viennent de
+    // NexusVocab plutôt que d'adjectifs choisis au cas par cas ici, pour
+    // que le ton reste identique d'une fiche produit à l'autre et
+    // cohérent avec Rayon.
+    // ------------------------------------------------------------
     const conseillerMsg = document.getElementById('conseillerProduitMsg');
     if (conseillerMsg) {
-      let msg = `${employee.nom}, `;
-      msg += p.pct_contrib !== null
-        ? `${p.article} pèse ${fmtPct(p.pct_contrib)} du CA de son rayon (${fmtEur(p.ca_t2)}). `
-        : `${p.article} a généré ${fmtEur(p.ca_t2)} sur la période. `;
+      const niveauRentaP = p.marge_pct >= 0.40 ? 'tres_rentable' : p.marge_pct >= 0.25 ? 'correcte' : p.marge_pct >= 0.10 ? 'faible' : 'insuffisante';
 
-      if (p.marge_pct < 0.25) {
-        msg += `Sa marge reste faible (${fmtPct(p.marge_pct)}) — ce n'est pas une référence à pousser pour la rentabilité. `;
-      } else if (p.marge_pct >= 0.40) {
-        msg += `Sa marge est bonne (${fmtPct(p.marge_pct)}) — un vrai levier si le volume suit. `;
-      }
+      // --- Constat : le fait chiffré, sans jugement.
+      const constatP = p.pct_contrib !== null
+        ? `${p.article} pèse ${fmtPct(p.pct_contrib)} du CA de son rayon (${fmtEur(p.ca_t2)}), marge ${fmtPct(p.marge_pct)}.`
+        : `${p.article} a généré ${fmtEur(p.ca_t2)} sur la période, marge ${fmtPct(p.marge_pct)}.`;
 
-      if (p.ca_t1 > 0) {
-        msg += evolCa >= 0
-          ? `Sa dynamique est positive (+${fmtPct(evolCa)}). `
-          : `Elle recule de ${fmtPct(Math.abs(evolCa))} — à vérifier avant toute conclusion. `;
+      // --- Explication : ce que ce chiffre révèle vraiment.
+      let explicationP;
+      if (p.ca_t2 === 0) {
+        explicationP = `Un ${NexusVocab.SIGNATURE.PRODUIT_DORMANT.toLowerCase()} n'indique pas forcément un problème de demande — cela peut aussi être une rupture ou un retrait de rayon non signalé.`;
       } else {
-        msg += `Je n'ai pas encore de période précédente pour elle. `;
+        const rentaTxt = NexusVocab.rentabilite(niveauRentaP, false, p.article);
+        const tendanceTxt = p.ca_t1 > 0 ? NexusVocab.tendance(evolCa) : null;
+        explicationP = [rentaTxt, tendanceTxt].filter(Boolean).join(' ')
+          || 'Pas assez de recul pour conclure.';
+        if (p.ca_t1 <= 0) explicationP += ' Je n\'ai pas encore de période précédente pour elle.';
       }
 
-      msg += statutSimplifie.action;
-      conseillerMsg.textContent = msg;
+      // --- Décision : l'action attendue, déjà calculée par calculerStatutSimplifie().
+      const decisionP = statutSimplifie.action;
+
+      conseillerMsg.innerHTML = `
+        <div class="cycle-step"><span class="cycle-tag">Constat</span>${employee.nom}, ${constatP}</div>
+        <div class="cycle-step"><span class="cycle-tag">Explication</span>${explicationP}</div>
+        <div class="cycle-step"><span class="cycle-tag tag-decision">Décision</span>${decisionP}</div>
+      `;
     }
 
     resultSection.innerHTML = `
@@ -808,10 +829,35 @@ nexusRequireAuth().then(async employee => {
       const dateRelv = new Date(relv.releve_le).toLocaleDateString('fr-FR');
       const stockQte = relv.quantite_reelle != null ? relv.quantite_reelle : relv.quantite_theorique;
 
+      const debut = p.periode_debut ? new Date(p.periode_debut) : null;
+      const fin = p.periode_fin ? new Date(p.periode_fin) : null;
+      const nbJours = (debut && fin) ? Math.round((fin - debut) / (1000 * 60 * 60 * 24)) + 1 : 0;
+      const venteJour = nbJours > 0 ? (p.qte_t2 || 0) / nbJours : 0;
+      const joursDeStock = venteJour > 0 ? stockQte / venteJour : null;
+
+      // Niveaux du vocabulaire NEXUS (nexus-vocabulaire.js) — Rotation et
+      // Stock étaient les deux seules catégories du lexique laissées vides
+      // faute de donnée au niveau rayon (voir NEXUS-Rayon-v1.html) : au
+      // niveau produit, ce même relevé stock_releves donne enfin de quoi
+      // les remplir. Seuils choisis pour une supérette/station-service :
+      // sous 3j de stock, risque de rupture immédiat ; au-delà de 45j,
+      // capital immobilisé pour rien. joursDeStock reste l'estimation déjà
+      // documentée ci-dessus (photo à un instant T, pas une moyenne) — ces
+      // niveaux n'ajoutent aucune précision, juste un mot du lexique commun.
+      const niveauRotation = joursDeStock === null ? null
+        : joursDeStock < 7 ? 'tres_rapide' : joursDeStock < 15 ? 'rapide'
+        : joursDeStock < 30 ? 'normale' : joursDeStock < 60 ? 'lente' : 'tres_lente';
+      const niveauStock = joursDeStock === null ? null
+        : joursDeStock < 3 ? 'risque_rupture' : joursDeStock < 7 ? 'tendu'
+        : joursDeStock < 45 ? 'maitrise' : 'surstock';
+      const motRotation = NexusVocab.rotation(niveauRotation, p.article);
+      const motStock = NexusVocab.stock(niveauStock, p.article);
+
       if (elStock && elStock.isConnected) {
-        elStock.textContent = relv.quantite_reelle != null
+        const base = relv.quantite_reelle != null
           ? `Théorique ${relv.quantite_theorique} u., compté ${relv.quantite_reelle} u. — relevé du ${dateRelv}`
           : `Théorique ${relv.quantite_theorique} u. — relevé du ${dateRelv} (pas encore contrôlé physiquement)`;
+        elStock.textContent = motStock ? `${motStock} ${base}` : base;
       }
 
       // Valeur du stock immobilisé = quantité × PMA — seulement si on a un
@@ -820,23 +866,17 @@ nexusRequireAuth().then(async employee => {
       if (elHeroStockVal && elHeroStockVal.isConnected) {
         if (p.pma != null) {
           elHeroStockVal.textContent = fmtEur(stockQte * p.pma);
-          elHeroStockSub.textContent = `${stockQte} u. · ${dateRelv}`;
+          elHeroStockSub.textContent = motStock || `${stockQte} u. · ${dateRelv}`;
         } else {
           elHeroStockVal.textContent = `${stockQte} u.`;
-          elHeroStockSub.textContent = `PMA inconnu · ${dateRelv}`;
+          elHeroStockSub.textContent = motStock || `PMA inconnu · ${dateRelv}`;
         }
       }
-
-      const debut = p.periode_debut ? new Date(p.periode_debut) : null;
-      const fin = p.periode_fin ? new Date(p.periode_fin) : null;
-      const nbJours = (debut && fin) ? Math.round((fin - debut) / (1000 * 60 * 60 * 24)) + 1 : 0;
-      const venteJour = nbJours > 0 ? (p.qte_t2 || 0) / nbJours : 0;
 
       if (elRotation && elRotation.isConnected) {
         if (venteJour <= 0) {
           elRotation.textContent = `Aucune vente enregistrée sur la dernière période importée (${p.periode_debut} → ${p.periode_fin}) — rotation non calculable.`;
         } else {
-          const joursDeStock = stockQte / venteJour;
           // Le relevé est-il réellement dans la période de ventes ? Comparaison
           // de dates ISO (YYYY-MM-DD), triable directement en chaîne.
           const releveIso = relv.releve_le ? String(relv.releve_le).slice(0, 10) : null;
@@ -845,7 +885,7 @@ nexusRequireAuth().then(async employee => {
           const caveat = dansLaPeriode
             ? `Le relevé stock du ${dateRelv} tombe bien dans la période de ventes ${p.periode_debut} → ${p.periode_fin}, mais reste une photo à un instant T, pas une moyenne sur toute la période.`
             : `Pas une vraie moyenne : le relevé stock du ${dateRelv} ne recouvre pas la période de ventes ${p.periode_debut} → ${p.periode_fin}.`;
-          elRotation.textContent = `Estimation : ${joursDeStock.toFixed(1)} j de stock au rythme de vente du dernier trimestre importé (${venteJour.toFixed(2)} u./jour). ${caveat}`;
+          elRotation.textContent = `${motRotation ? motRotation + ' ' : ''}Estimation : ${joursDeStock.toFixed(1)} j de stock au rythme de vente du dernier trimestre importé (${venteJour.toFixed(2)} u./jour). ${caveat}`;
         }
       }
       if (elHeroRotVal && elHeroRotVal.isConnected) {
@@ -854,7 +894,7 @@ nexusRequireAuth().then(async employee => {
           elHeroRotSub.textContent = 'aucune vente période';
         } else {
           elHeroRotVal.textContent = `≈${venteJour.toFixed(1)}/j`;
-          elHeroRotSub.textContent = 'estimation, voir détail';
+          elHeroRotSub.textContent = motRotation || 'estimation, voir détail';
         }
       }
     } catch (e) {
