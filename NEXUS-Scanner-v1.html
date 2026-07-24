@@ -105,6 +105,15 @@ a{color:inherit; text-decoration:none;}
 .decision-meta{font-family:var(--mono); font-size:10.5px; color:var(--text-dim); margin-top:2px;}
 .decision-amount{font-size:14.5px; font-weight:700; color:var(--green); flex-shrink:0; text-align:right;}
 
+/* Top 5 CA / Top 5 marge regroupés en onglets (retour du 24/07/2026 : "moins
+   scroller") — un seul classement de 5 lignes affiché à la fois au lieu de
+   deux piles de 5 lignes en permanence. */
+.top5-tabs{display:flex; gap:8px; margin-bottom:12px;}
+.top5-tab{flex:1; padding:10px; border-radius:12px; border:1px solid var(--hairline); background:var(--panel); color:var(--text-mid); font-family:var(--sans); font-size:13px; font-weight:600; cursor:pointer;}
+.top5-tab.active{background:var(--amber-dim); color:var(--amber); border-color:rgba(245,166,35,0.3);}
+.top5-desc{font-family:var(--mono); font-size:10.5px; color:var(--text-dim); margin:-2px 0 12px;}
+.top5-hidden{display:none;}
+
 .two-col{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
 .mini-panel{background:var(--panel); border:1px solid var(--hairline); border-radius:14px; padding:16px;}
 .mini-panel.clickable{cursor:pointer; transition:border-color .15s;}
@@ -393,11 +402,11 @@ a{color:inherit; text-decoration:none;}
   // Groupé par priorité (retour de Frédéric le 24/07/2026 : "le défilement
   // est trop long") — au lieu d'empiler toutes les cartes à plat, on replie
   // d'abord par niveau de priorité. Le manager voit 1 à 3 lignes de résumé
-  // au lieu de N cartes, et choisit lui-même quel groupe ouvrir. Le groupe
-  // "Priorité élevée" reste ouvert par défaut (c'est par là qu'on commence),
-  // les deux autres restent repliés.
+  // au lieu de N cartes, et choisit lui-même quel groupe ouvrir. Tous les
+  // groupes restent repliés à l'ouverture de la page (retour du 24/07/2026 :
+  // garder "Priorité élevée" fermé aussi, puisqu'il l'est déjà en pratique).
   const GROUPES_PRIORITE = [
-    { classe: 'haute', titre: '🔴 Priorité élevée', ouvertParDefaut: true },
+    { classe: 'haute', titre: '🔴 Priorité élevée', ouvertParDefaut: false },
     { classe: 'moyenne', titre: '🟠 Priorité moyenne', ouvertParDefaut: false },
     { classe: 'basse', titre: '🟢 Faible priorité', ouvertParDefaut: false },
   ];
@@ -628,6 +637,18 @@ a{color:inherit; text-decoration:none;}
       </div>`).join('');
   }
 
+  // Bascule entre les deux classements Top 5 (retour du 24/07/2026 : regrouper
+  // CA et marge sous un même bloc à onglets plutôt que deux listes empilées,
+  // pour réduire le défilement).
+  function toggleTop5(which) {
+    document.getElementById('top5-tab-ca').classList.toggle('active', which === 'ca');
+    document.getElementById('top5-tab-marge').classList.toggle('active', which === 'marge');
+    document.getElementById('top5-desc-ca').classList.toggle('top5-hidden', which !== 'ca');
+    document.getElementById('top5-desc-marge').classList.toggle('top5-hidden', which !== 'marge');
+    document.getElementById('top5-list-ca').classList.toggle('top5-hidden', which !== 'ca');
+    document.getElementById('top5-list-marge').classList.toggle('top5-hidden', which !== 'marge');
+  }
+
   function renderRoot(donnees) {
     const root = document.getElementById('root');
     if (!donnees || donnees.rows.length === 0) {
@@ -716,15 +737,15 @@ a{color:inherit; text-decoration:none;}
       </div>
 
       <div class="section">
-        <div class="section-label">🏆 Top 5 catégories par chiffre d'affaires</div>
-        <div style="font-family:var(--mono); font-size:10.5px; color:var(--text-dim); margin:-6px 0 12px;">Classées par CA généré — le taux de marge est indiqué à titre d'information</div>
-        ${renderTop5(stats.top5CA, 'ca')}
-      </div>
-
-      <div class="section">
-        <div class="section-label">💰 Top 5 catégories par marge</div>
-        <div style="font-family:var(--mono); font-size:10.5px; color:var(--text-dim); margin:-6px 0 12px;">Classées par marge générée en euros, pas par taux — un fort volume à faible taux peut dépasser un petit volume à fort taux</div>
-        ${renderTop5(stats.top5Marge, 'marge')}
+        <div class="section-label">Top 5 catégories</div>
+        <div class="top5-tabs">
+          <button class="top5-tab active" id="top5-tab-ca" onclick="toggleTop5('ca')">🏆 Chiffre d'affaires</button>
+          <button class="top5-tab" id="top5-tab-marge" onclick="toggleTop5('marge')">💰 Marge</button>
+        </div>
+        <div class="top5-desc" id="top5-desc-ca">Classées par CA généré — le taux de marge est indiqué à titre d'information</div>
+        <div class="top5-desc top5-hidden" id="top5-desc-marge">Classées par marge générée en euros, pas par taux — un fort volume à faible taux peut dépasser un petit volume à fort taux</div>
+        <div id="top5-list-ca">${renderTop5(stats.top5CA, 'ca')}</div>
+        <div id="top5-list-marge" class="top5-hidden">${renderTop5(stats.top5Marge, 'marge')}</div>
       </div>
 
       <div class="section">
