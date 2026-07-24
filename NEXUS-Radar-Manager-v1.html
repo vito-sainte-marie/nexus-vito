@@ -69,6 +69,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-auth.js"></script>
 <script src="nexus-periodes.js"></script>
+<script src="nexus-indice.js"></script>
 </head>
 <body>
 <div class="phone">
@@ -128,19 +129,11 @@
   }
 
   // CORRECTIF 24/07/2026 (audit doublons de données) : "Résultats" reposait
-  // sur SANTE_SCORE = 74 codé en dur. Ce correctif reprend EXACTEMENT le
-  // calcul de l'Indice NEXUS du Cockpit (calculerIndiceNexus + même requête
-  // products + même moteur NexusPeriodes.analyserPeriodes) plutôt que
-  // d'inventer une deuxième formule qui risquerait de diverger. Résultat :
-  // "Résultats" affiche ici le même chiffre que l'Indice NEXUS du Cockpit,
-  // pas un second calcul indépendant.
-  function calculerIndiceNexus(facteurs) {
-    if (facteurs.margeReelle == null) return null;
-    let score = 50 + (facteurs.margeReelle - 0.25) * 100;
-    if (facteurs.evolutionReelle != null) score += facteurs.evolutionReelle * 50;
-    return Math.max(0, Math.min(100, Math.round(score)));
-  }
-
+  // sur SANTE_SCORE = 74 codé en dur. Ce domaine utilise désormais le moteur
+  // partagé nexus-indice.js (même calcul que l'Indice NEXUS du Cockpit —
+  // voir ce fichier pour la formule) plutôt qu'une copie locale, pour
+  // qu'un futur ajustement de la pondération se fasse à un seul endroit
+  // et ne puisse plus diverger entre les deux écrans.
   async function calculerFacteursIndice() {
     const { data: rowsBrut, error } = await fetchAllRows(() => nexusClient
       .from('products')
@@ -149,16 +142,7 @@
       .order('periode_debut', { ascending: false })
       .order('article', { ascending: true }));
     if (error || !rowsBrut || !rowsBrut.length) { console.error('Chargement products (Indice NEXUS):', error); return null; }
-    const { periodeAffichage, rowsAffichage, paire, rowsPaireActuelle, rowsPairePrecedente } = NexusPeriodes.analyserPeriodes(rowsBrut);
-    if (!periodeAffichage) return null;
-    const caTotalAffichage = rowsAffichage.reduce((s, r) => s + (r.ca || 0), 0);
-    const margeTotaleAffichage = rowsAffichage.reduce((s, r) => s + (r.marge || 0), 0);
-    const caPaireActuelleTotal = rowsPaireActuelle.reduce((s, r) => s + (r.ca || 0), 0);
-    const caPairePrecedenteTotal = rowsPairePrecedente.reduce((s, r) => s + (r.ca || 0), 0);
-    return {
-      margeReelle: caTotalAffichage > 0 ? margeTotaleAffichage / caTotalAffichage : null,
-      evolutionReelle: (paire && caPairePrecedenteTotal > 0) ? (caPaireActuelleTotal - caPairePrecedenteTotal) / caPairePrecedenteTotal : null,
-    };
+    return NexusIndice.calculerFacteurs(rowsBrut);
   }
 
   // Equipe (Presence, via retards) : lit desormais Supabase (pointages),
@@ -213,7 +197,7 @@
   if (erreurPointages) console.error('Chargement pointages:', erreurPointages);
   const devScore = await calculerDeveloppement(completionsHisto);
   const equipeScore = calculerEquipe(pointagesHisto);
-  const resultatsScore = facteursIndice ? calculerIndiceNexus(facteursIndice) : null;
+  const resultatsScore = facteursIndice ? NexusIndice.calculerIndiceNexus(facteursIndice) : null;
 
   const DOMAINES = [
     { nom: "Résultats", icone: "💰", sous: "CA, Marge — même Indice NEXUS que le Cockpit", valeur: resultatsScore, mesure: resultatsScore !== null },
