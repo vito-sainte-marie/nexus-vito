@@ -250,7 +250,13 @@ async function construireRayons() {
     chevauchement = finPrecedente >= periodeActuelle;
     ecartDureePct = Math.max(dureeActuelle, dureePrecedente) > 0
       ? Math.abs(dureeActuelle - dureePrecedente) / Math.max(dureeActuelle, dureePrecedente) : 0;
-    fiabilite = chevauchement ? 'faible' : (ecartDureePct > 0.2 ? 'moyenne' : 'élevée');
+    // Un écart de durée extrême (ex : 23 jours vs 91 jours, période en cours
+    // pas encore terminée face à un trimestre complet) fausse la comparaison
+    // presque autant qu'un chevauchement — pas seulement "moyennement".
+    // Repéré le 23/07/2026 : plus de chevauchement entre périodes après
+    // correction, mais T2 (01/07→23/07, 23j) reste bien plus court que T1
+    // (01/04→30/06, 91j), sans qu'aucune donnée ne soit dupliquée.
+    fiabilite = chevauchement ? 'faible' : (ecartDureePct > 0.5 ? 'faible' : (ecartDureePct > 0.2 ? 'moyenne' : 'élevée'));
   }
 
   const caPrecedentParCat = {};
@@ -410,6 +416,8 @@ nexusRequireAuth().then(async employee => {
     let ligne3;
     if (MAGASIN.chevauchement) {
       ligne3 = `Priorité : la période de comparaison n'est pas fiable actuellement (dates qui se chevauchent) — à corriger dans Debug avant toute conclusion sur l'évolution.`;
+    } else if (r.evolution_ca !== null && MAGASIN.fiabilite === 'faible') {
+      ligne3 = `Priorité : la période en cours (${MAGASIN.periodeActuelle.duree}j) est trop courte face à la précédente (${MAGASIN.periodePrecedente.duree}j) pour comparer honnêtement — attendez qu'elle soit complète avant de conclure.`;
     } else if (r.evolution_ca !== null && r.evolution_ca <= -0.15) {
       ligne3 = `Priorité : vérifier l'origine de la baisse de ${fmtPct(Math.abs(r.evolution_ca))} avant toute décision commerciale.`;
     } else if (r.evolution_ca !== null && r.evolution_ca > 0) {
@@ -452,7 +460,8 @@ nexusRequireAuth().then(async employee => {
           <span class="fiabilite-badge ${fiabClasse}">Fiabilité ${MAGASIN.fiabilite}</span>
         </div>
         ${MAGASIN.chevauchement ? `<div class="alerte-comparaison">⚠ Comparaison non fiable : les deux périodes se chevauchent (mêmes ventes comptées deux fois). Corrigez dans Debug avant de tirer une conclusion.</div>`
-          : (MAGASIN.fiabilite === 'moyenne' ? `<div class="alerte-comparaison" style="background:var(--amber-dim); border-color:rgba(245,166,35,0.35); color:var(--amber);">⚠ Durées de période différentes — l'évolution donne une tendance, pas une mesure exacte.</div>` : '')}
+          : (MAGASIN.fiabilite === 'faible' ? `<div class="alerte-comparaison">⚠ Comparaison non fiable : T2 dure ${MAGASIN.periodeActuelle.duree} jour${MAGASIN.periodeActuelle.duree>1?'s':''} contre ${MAGASIN.periodePrecedente.duree} pour T1 — probablement une période en cours, pas encore terminée. L'évolution affichée compare des volumes de temps trop différents pour être fiable.</div>`
+          : (MAGASIN.fiabilite === 'moyenne' ? `<div class="alerte-comparaison" style="background:var(--amber-dim); border-color:rgba(245,166,35,0.35); color:var(--amber);">⚠ Durées de période différentes — l'évolution donne une tendance, pas une mesure exacte.</div>` : ''))}
       `;
     }
 
