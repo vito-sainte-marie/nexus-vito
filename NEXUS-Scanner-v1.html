@@ -124,6 +124,17 @@ a{color:inherit; text-decoration:none;}
 .marge-hero-label{font-family:var(--mono); font-size:11px; letter-spacing:0.1em; text-transform:uppercase; color:var(--amber);}
 .marge-hero-amount{font-size:34px; font-weight:700; color:var(--amber); margin-top:8px;}
 .marge-hero-sub{font-size:12.5px; color:var(--text-mid); margin-top:6px;}
+.marge-groupe{margin:0 20px 10px;}
+.marge-groupe-head{display:flex; align-items:center; gap:10px; padding:14px 16px; background:var(--panel); border:1px solid var(--hairline); border-radius:14px; cursor:pointer;}
+.marge-groupe.open .marge-groupe-head{border-radius:14px 14px 0 0; border-bottom:none;}
+.marge-groupe-titre{font-size:13px; font-weight:600; flex:1;}
+.marge-groupe-meta{font-family:var(--mono); font-size:11px; color:var(--text-mid); white-space:nowrap;}
+.marge-groupe-head .chev{color:var(--text-dim); font-size:14px; transition:transform .15s; display:inline-block;}
+.marge-groupe.open .marge-groupe-head .chev{transform:rotate(90deg);}
+.marge-groupe-body{display:none; padding:10px; background:var(--panel-raised); border:1px solid var(--hairline); border-top:none; border-radius:0 0 14px 14px;}
+.marge-groupe.open .marge-groupe-body{display:block;}
+.marge-groupe-body .marge-card{margin:0 0 10px;}
+.marge-groupe-body .marge-card:last-child{margin-bottom:0;}
 .marge-card{background:var(--panel); border:1px solid var(--hairline); border-radius:14px; margin:0 20px 10px; overflow:hidden;}
 .marge-card-head{display:flex; align-items:flex-start; justify-content:space-between; gap:10px; padding:16px 16px 0; cursor:pointer;}
 .marge-card.open .marge-card-head{padding-bottom:12px;}
@@ -396,6 +407,44 @@ a{color:inherit; text-decoration:none;}
     return true;
   }
 
+  // Groupé par priorité (retour de Frédéric le 24/07/2026 : "le défilement
+  // est trop long") — au lieu d'empiler toutes les cartes à plat, on replie
+  // d'abord par niveau de priorité. Le manager voit 1 à 3 lignes de résumé
+  // au lieu de N cartes, et choisit lui-même quel groupe ouvrir. Le groupe
+  // "Priorité élevée" reste ouvert par défaut (c'est par là qu'on commence),
+  // les deux autres restent repliés.
+  const GROUPES_PRIORITE = [
+    { classe: 'haute', titre: '🔴 Priorité élevée', ouvertParDefaut: true },
+    { classe: 'moyenne', titre: '🟠 Priorité moyenne', ouvertParDefaut: false },
+    { classe: 'basse', titre: '🟢 Faible priorité', ouvertParDefaut: false },
+  ];
+
+  function renderCarteMarge(c, i) {
+    return `
+      <div class="marge-card" id="marge-${i}">
+        <div class="marge-card-head" onclick="document.getElementById('marge-${i}').classList.toggle('open')">
+          <div>
+            <span class="marge-article">${c.article}</span>
+            <div class="marge-meta">Confiance ${c.confiance} %</div>
+          </div>
+          <div class="marge-gain">${fmtEur(c.impact_eur)}</div>
+        </div>
+        <div class="lever-toggle"><span class="chev">›</span> Voir le détail</div>
+        <div class="lever-detail">
+          <div class="marge-step"><span class="marge-tag">Constat</span>${c.situation}</div>
+          <div class="marge-step"><span class="marge-tag">Explication</span>${c.analyse}</div>
+          <div class="marge-step"><span class="marge-tag">Décision recommandée</span>${c.recommandation}</div>
+          <div class="marge-roi">
+            <div class="roi-mini"><span>Effort</span><b>${c.effort.split(' (')[0]}</b></div>
+            <div class="roi-mini"><span>Gain potentiel</span><b>${fmtEur(c.impact_eur)}</b></div>
+            <div class="roi-mini"><span>Retour sur temps</span><b>${c.retourTemps}</b></div>
+          </div>
+          <div class="marge-impact">${c.impact}</div>
+          <button class="btn-valider" data-id="${c.candidate_id}">Créer une mission</button>
+        </div>
+      </div>`;
+  }
+
   function renderMarge(candidats) {
     const el = document.getElementById('margeSection');
     if (!el) return;
@@ -406,38 +455,30 @@ a{color:inherit; text-decoration:none;}
     const potentielTotal = candidats.reduce((s, c) => s + c.impact_eur, 0);
     const nbPrioritaires = candidats.filter(c => c.niveau.classe === 'haute').length;
 
+    const groupesHtml = GROUPES_PRIORITE.map(g => {
+      const items = candidats.filter(c => c.niveau.classe === g.classe);
+      if (!items.length) return '';
+      const sousTotal = items.reduce((s, c) => s + c.impact_eur, 0);
+      return `
+        <div class="marge-groupe${g.ouvertParDefaut ? ' open' : ''}" id="groupe-marge-${g.classe}">
+          <div class="marge-groupe-head" onclick="document.getElementById('groupe-marge-${g.classe}').classList.toggle('open')">
+            <span class="marge-groupe-titre">${g.titre} (${items.length})</span>
+            <span class="marge-groupe-meta">${fmtEur(sousTotal)}</span>
+            <span class="chev">›</span>
+          </div>
+          <div class="marge-groupe-body">
+            ${items.map(c => renderCarteMarge(c, candidats.indexOf(c))).join('')}
+          </div>
+        </div>`;
+    }).join('');
+
     el.innerHTML = `
       <div class="marge-hero">
         <div class="marge-hero-label">💰 Capital récupérable</div>
         <div class="marge-hero-amount">${fmtEur(potentielTotal)}</div>
         <div class="marge-hero-sub">${candidats.length} opportunité${candidats.length>1?'s':''} détectée${candidats.length>1?'s':''}${nbPrioritaires>0 ? `, ${nbPrioritaires} prioritaire${nbPrioritaires>1?'s':''}` : ''}</div>
       </div>
-      ${candidats.map((c, i) => `
-        <div class="marge-card" id="marge-${i}">
-          <div class="marge-card-head" onclick="document.getElementById('marge-${i}').classList.toggle('open')">
-            <div>
-              <span class="marge-article">${c.article}</span>
-              <div class="marge-meta">Confiance ${c.confiance} %</div>
-            </div>
-            <div>
-              <span class="marge-priorite-badge marge-priorite-${c.niveau.classe}">${c.niveau.label}</span>
-              <div class="marge-gain">${fmtEur(c.impact_eur)}</div>
-            </div>
-          </div>
-          <div class="lever-toggle"><span class="chev">›</span> Voir le détail</div>
-          <div class="lever-detail">
-            <div class="marge-step"><span class="marge-tag">Constat</span>${c.situation}</div>
-            <div class="marge-step"><span class="marge-tag">Explication</span>${c.analyse}</div>
-            <div class="marge-step"><span class="marge-tag">Décision recommandée</span>${c.recommandation}</div>
-            <div class="marge-roi">
-              <div class="roi-mini"><span>Effort</span><b>${c.effort.split(' (')[0]}</b></div>
-              <div class="roi-mini"><span>Gain potentiel</span><b>${fmtEur(c.impact_eur)}</b></div>
-              <div class="roi-mini"><span>Retour sur temps</span><b>${c.retourTemps}</b></div>
-            </div>
-            <div class="marge-impact">${c.impact}</div>
-            <button class="btn-valider" data-id="${c.candidate_id}">Créer une mission</button>
-          </div>
-        </div>`).join('')}
+      ${groupesHtml}
       <div class="marge-synthese">Si ${candidats.length>1 ? 'les ' + candidats.length + ' opportunités identifiées ci-dessus sont toutes exploitées' : "l'opportunité identifiée ci-dessus est exploitée"} et ${candidats.length>1?'produisent':'produit'} l'effet attendu, la marge du magasin pourrait augmenter d'environ ${fmtEur(potentielTotal)} sur cette période — une estimation, pas une garantie.</div>
     `;
 
@@ -721,7 +762,7 @@ a{color:inherit; text-decoration:none;}
 
       <div class="section">
         <div class="advisor-panel">
-          <div class="advisor-avatar">N</div>
+          <div class="advisor-avatar"><img src="assets/nexus-avatar.png" alt="Conseiller NEXUS"></div>
           <div class="advisor-body">
             <div class="advisor-title">Lecture des données</div>
             <p>${texteLecture(stats)}</p>
