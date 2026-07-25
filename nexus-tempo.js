@@ -1008,6 +1008,86 @@
     return decouvertes;
   }
 
+  // ------------------------------------------------------------
+  // Inventaires (25/07/2026) — troisième source Scanner Stock connectée.
+  // stock_releves ne contient pour l'instant que des imports ponctuels
+  // (quantite_theorique), jamais de comptage réel (quantite_reelle est
+  // encore vide sur 100% des lignes) : impossible d'en tirer un écart
+  // théorique/réel honnête pour l'instant. On expose donc uniquement
+  // un contexte factuel et vérifiable — date et taille du dernier
+  // import — plutôt qu'une analyse d'écart qui n'existe pas encore.
+  // Article 5 : un instantané par jour calendaire LOCAL (Martinique),
+  // le plus récent en cas de doublon.
+  // ------------------------------------------------------------
+  function agregerInventaireParDate(rowsStockReleves) {
+    const parDate = {};
+    (rowsStockReleves || []).forEach(r => {
+      const date = dateLocaleMartiniqueDepuisTimestamp(r.releve_le);
+      if (!parDate[date]) {
+        parDate[date] = { date, nbArticles: 0, categories: new Set(), avecReel: 0, dernierImportLe: r.importe_le };
+      }
+      const j = parDate[date];
+      j.nbArticles += 1;
+      if (r.categorie) j.categories.add(r.categorie);
+      if (r.quantite_reelle != null) j.avecReel += 1;
+      if (r.importe_le && r.importe_le > j.dernierImportLe) j.dernierImportLe = r.importe_le;
+    });
+    Object.values(parDate).forEach(j => { j.nbCategories = j.categories.size; delete j.categories; });
+    return parDate;
+  }
+
+  function dernierEtatInventaire(inventaireParDate) {
+    const dates = Object.keys(inventaireParDate || {}).sort();
+    if (!dates.length) return null;
+    return inventaireParDate[dates[dates.length - 1]];
+  }
+
+  // ------------------------------------------------------------
+  // Capital NEXUS (25/07/2026) — journal_decisions est déjà alimenté
+  // par les autres modules NEXUS (R2/R3/R4, exclusions manuelles) et,
+  // depuis peu, par NEXUS Tempo lui-même (R6-TEMPO-JOUR) à chaque
+  // création de mission "jour à renforcer". Deux usages honnêtes :
+  //   - un contexte global (dernierEtatCapital), toujours affichable ;
+  //   - une mesure d'impact des décisions R6-TEMPO-JOUR
+  //     (analyserImpactDecisionsTempo) comparant le CA moyen du jour
+  //     concerné avant/après chaque mission créée — "insuffisant" tant
+  //     qu'il n'y a pas assez d'occurrences des deux côtés, ou tant
+  //     qu'aucune décision R6-TEMPO-JOUR n'existe encore (le cas
+  //     aujourd'hui : 0 décision Tempo dans journal_decisions).
+  // ------------------------------------------------------------
+  function dernierEtatCapital(rowsJournal) {
+    const rows = rowsJournal || [];
+    if (!rows.length) return null;
+    const impactCumuleEur = rows.reduce((s, r) => s + (Number(r.impact_eur) || 0), 0);
+    const decisionsTempo = rows.filter(r => r.rule_id === 'R6-TEMPO-JOUR');
+    const derniereDate = rows.reduce((max, r) => (!max || r.date > max) ? r.date : max, null);
+    return { nbDecisions: rows.length, impactCumuleEur, nbDecisionsTempo: decisionsTempo.length, derniereDate };
+  }
+
+  function analyserImpactDecisionsTempo(rowsJournal, joursAgreges) {
+    const decisions = (rowsJournal || []).filter(r => r.rule_id === 'R6-TEMPO-JOUR');
+    if (!decisions.length) {
+      return { disponible: false, message: "Aucune décision NEXUS Tempo n'a encore été transformée en mission — l'impact réel pourra être mesuré dès la première mission « jour à renforcer » créée depuis la Décision NEXUS." };
+    }
+    const moyCombinee = liste => moyenne(liste.map(j => j.ventePiste + j.venteBoutique));
+    const resultats = decisions.map(d => {
+      const jourSemaine = NOM_JOURS.indexOf(d.article);
+      const joursConcernes = (joursAgreges || []).filter(j => j.jourSemaine === jourSemaine);
+      const avant = joursConcernes.filter(j => j.date < d.date);
+      const apres = joursConcernes.filter(j => j.date > d.date);
+      if (avant.length < SEUILS.MIN_OCCURRENCES_TENDANCE || apres.length < SEUILS.MIN_OCCURRENCES_TENDANCE) {
+        return {
+          disponible: false, jourNom: d.article, dateDecision: d.date, nbAvant: avant.length, nbApres: apres.length,
+          message: `Impact non encore mesurable pour le ${d.article} — il faut au moins ${SEUILS.MIN_OCCURRENCES_TENDANCE} occurrences avant et après la mission (actuellement ${avant.length} avant, ${apres.length} après).`,
+        };
+      }
+      const moyAvant = moyCombinee(avant);
+      const moyApres = moyCombinee(apres);
+      return { disponible: true, jourNom: d.article, dateDecision: d.date, nbAvant: avant.length, nbApres: apres.length, moyAvant, moyApres, evolution: evolution(moyApres, moyAvant) };
+    });
+    return { disponible: resultats.some(r => r.disponible), resultats };
+  }
+
   function detecterContexteEquipe(joursAgreges, employesParId) {
     return analyserEquipeParJour(joursAgreges, employesParId)
       .filter(a => a.nbQuarts >= SEUILS.CONFIANCE_FORTE && a.ecart >= 0.15)
@@ -1069,14 +1149,13 @@
     { id: 'jours_feries', nom: 'Calendrier jours fériés', statut: 'connectee' },
     { id: 'ventes_horaires', nom: 'Ventes par tranche horaire', statut: 'prevue' },
     { id: 'meteo', nom: 'Météo locale (Open-Meteo)', statut: 'connectee' },
-    { id: 'planning', nom: 'Planning équipe (Nexus Planning)', statut: 'prevue' },
+    { id: 'planning', nom: "Rythme d'équipe (Nexus Planning — via audits de caisse, plannings pas encore publiés)", statut: 'connectee' },
     { id: 'promotions', nom: 'Promotions en cours', statut: 'prevue' },
     { id: 'sante_stock', nom: 'Indice santé stock (Scanner Stock)', statut: 'connectee' },
     { id: 'ruptures', nom: 'Ruptures de stock (Scanner Stock)', statut: 'prevue' },
     { id: 'evenements_locaux', nom: 'Événements locaux', statut: 'prevue' },
-    { id: 'trafic', nom: 'Trafic routier', statut: 'prevue' },
-    { id: 'inventaires', nom: 'Inventaires (Scanner Stock)', statut: 'prevue' },
-    { id: 'capital_nexus', nom: 'Impact des décisions (Capital NEXUS)', statut: 'prevue' },
+    { id: 'inventaires', nom: 'Inventaires (Scanner Stock)', statut: 'connectee' },
+    { id: 'capital_nexus', nom: 'Impact des décisions (Capital NEXUS)', statut: 'connectee' },
     { id: 'vacances_scolaires', nom: 'Vacances scolaires (académie Martinique)', statut: 'connectee' },
     { id: 'ponts', nom: 'Ponts calendaires', statut: 'connectee' },
   ];
@@ -1092,6 +1171,8 @@
     analyserDebutFinMois, analyserSaisonnier, genererDecouvertes,
     croiserMeteo, analyserMeteo,
     agregerStockParJour, dernierEtatStock, croiserStock, analyserStock,
+    agregerInventaireParDate, dernierEtatInventaire,
+    dernierEtatCapital, analyserImpactDecisionsTempo,
     dateLocale, moyenne, ecartType, evolution,
   };
 })();

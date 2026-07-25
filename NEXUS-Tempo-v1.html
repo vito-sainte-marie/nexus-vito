@@ -248,7 +248,7 @@ footer{margin-top:auto; padding:20px 20px 24px; font-family:var(--mono); font-si
     }
     const siteId = employee.site_id || 'vito-sainte-marie';
 
-    const [{ data: auditsRows, error: e1 }, { data: employesRows, error: e2 }, { data: stockRows, error: e3 }] = await Promise.all([
+    const [{ data: auditsRows, error: e1 }, { data: employesRows, error: e2 }, { data: stockRows, error: e3 }, { data: journalRows, error: e4 }, { data: inventaireRows, error: e5 }] = await Promise.all([
       fetchAllRows(() => nexusClient.from('audits_caisse')
         .select('date, quart, vente_piste, vente_boutique, ecart_piste, ecart_boutique, employes_piste, employes_boutique, litrage_gazole, litrage_sp95, litrage_gnr')
         .eq('site', siteId).order('date', { ascending: true })),
@@ -259,10 +259,25 @@ footer{margin-top:auto; padding:20px 20px 24px; font-family:var(--mono); font-si
       fetchAllRows(() => nexusClient.from('stock_sante_historique')
         .select('calcule_le, indice_confiance, nb_references_stables, nb_references_a_surveiller, nb_references_a_verifier, nb_references_non_concluantes, risque_estime_eur')
         .eq('site', siteId).order('calcule_le', { ascending: true })),
+      // Capital NEXUS (25/07/2026) : mémoire de toutes les décisions
+      // NEXUS déjà validées/agies (R2/R3/R4, exclusions manuelles) et,
+      // depuis peu, des missions créées par NEXUS Tempo (R6-TEMPO-JOUR).
+      fetchAllRows(() => nexusClient.from('journal_decisions')
+        .select('rule_id, article, impact_eur, date')
+        .eq('site', siteId).order('date', { ascending: true })),
+      // Inventaires (25/07/2026) : imports Scanner Stock — seule
+      // quantite_theorique est fiable pour l'instant (quantite_reelle
+      // encore vide sur tous les relevés), donc contexte factuel
+      // uniquement (voir nexus-tempo.js, agregerInventaireParDate).
+      fetchAllRows(() => nexusClient.from('stock_releves')
+        .select('releve_le, categorie, quantite_reelle, importe_le')
+        .eq('site', siteId).order('releve_le', { ascending: true })),
     ]);
     if (e1) console.error('Chargement audits_caisse:', e1);
     if (e2) console.error('Chargement employees:', e2);
     if (e3) console.error('Chargement stock_sante_historique:', e3);
+    if (e4) console.error('Chargement journal_decisions:', e4);
+    if (e5) console.error('Chargement stock_releves:', e5);
 
     const employesParId = {};
     (employesRows || []).forEach(e => { employesParId[e.id] = e; });
@@ -312,11 +327,21 @@ footer{margin-top:auto; padding:20px 20px 24px; font-family:var(--mono); font-si
     const joursAvecStock = NexusTempo.croiserStock(joursExploitables, stockParDate);
     const analyseStock = NexusTempo.analyserStock(joursAvecStock);
 
+    // Inventaires (25/07/2026) — contexte factuel affiché dans la même
+    // section que Scanner Stock (pas de nouvelle section, cf. demande).
+    const inventaireParDate = NexusTempo.agregerInventaireParDate(inventaireRows || []);
+    const etatInventaireActuel = NexusTempo.dernierEtatInventaire(inventaireParDate);
+
+    // Capital NEXUS (25/07/2026) — contexte global + mesure d'impact
+    // des décisions NEXUS Tempo (R6-TEMPO-JOUR), gated Article 5.
+    const etatCapitalActuel = NexusTempo.dernierEtatCapital(journalRows || []);
+    const impactDecisionsTempo = NexusTempo.analyserImpactDecisionsTempo(journalRows || [], joursExploitables);
+
     const decouvertes = NexusTempo.genererDecouvertes(classement, joursAgreges, employesParId, joursAvecMeteo, joursAvecStock);
 
     document.getElementById('maturiteZone').innerHTML = renderMaturite(maturite, confianceGlobale);
 
-    renderTout({ siteId, employee, joursAgreges, joursExploitables, classement, joursReveles, meilleursSepares, classementLitrage, analyseEquipe, decision, saisonnier, debutFinMois, analyseVacances, decouvertes, analyseMeteo, analyseStock, etatStockActuel });
+    renderTout({ siteId, employee, joursAgreges, joursExploitables, classement, joursReveles, meilleursSepares, classementLitrage, analyseEquipe, decision, saisonnier, debutFinMois, analyseVacances, decouvertes, analyseMeteo, analyseStock, etatStockActuel, etatInventaireActuel, etatCapitalActuel, impactDecisionsTempo });
   });
 
   // ------------------------------------------------------------
@@ -715,7 +740,7 @@ footer{margin-top:auto; padding:20px 20px 24px; font-family:var(--mono); font-si
   // corrélation par jour, honnêtement "non mesurable" tant que Scanner
   // Stock ne recalcule pas son indice à un rythme quotidien régulier.
   // ------------------------------------------------------------
-  function renderStock(analyseStock, etatStockActuel) {
+  function renderStock(analyseStock, etatStockActuel, etatInventaireActuel) {
     let html = '';
     if (etatStockActuel) {
       html += `<div class="saison-panel">
@@ -736,6 +761,54 @@ footer{margin-top:auto; padding:20px 20px 24px; font-family:var(--mono); font-si
         <div class="section-note">Écart avec/sans alerte : ${fmtPct(ecartPiste)} en piste, ${fmtPct(ecartBoutique)} en boutique.</div>`;
     } else {
       html += `<div class="section-note" style="margin-top:8px;">${analyseStock.message}</div>`;
+    }
+    // Inventaires (25/07/2026) — imports Scanner Stock : contexte
+    // factuel uniquement (date + taille du dernier import), tant que
+    // quantite_reelle reste vide sur tous les relevés (aucun écart
+    // théorique/réel n'est encore calculable honnêtement).
+    html += `<div class="saison-panel" style="margin-top:8px;">`;
+    if (etatInventaireActuel) {
+      html += `<div class="saison-row"><span class="saison-mois">Dernier inventaire importé</span><span class="saison-val">${fmtDateCourt(etatInventaireActuel.date)}</span></div>
+        <div class="saison-row"><span class="saison-mois">Articles relevés</span><span class="saison-val">${etatInventaireActuel.nbArticles} (${etatInventaireActuel.nbCategories} catégories)</span></div>`;
+    } else {
+      html += `<div class="saison-etat">📋 Aucun import d'inventaire disponible pour l'instant.</div>`;
+    }
+    html += `</div>
+      <div class="section-note">Inventaires : contexte factuel du dernier import — pas encore d'écart théorique/réel calculable (quantité réelle non renseignée à ce jour dans Scanner Stock).</div>`;
+    return html;
+  }
+
+  // ------------------------------------------------------------
+  // Bloc Capital NEXUS — troisième source interne connectée
+  // (25/07/2026). Un contexte global (toutes décisions confondues,
+  // toujours affichable) et une mesure d'impact honnête, propre à
+  // NEXUS Tempo (R6-TEMPO-JOUR), gated Article 5 : "insuffisant" tant
+  // qu'aucune mission Tempo n'a encore été créée, ou tant qu'il n'y a
+  // pas assez d'occurrences avant/après chaque mission.
+  // ------------------------------------------------------------
+  function renderCapital(etatCapitalActuel, impactDecisionsTempo) {
+    let html = '';
+    if (etatCapitalActuel) {
+      html += `<div class="saison-panel">
+        <div class="saison-row"><span class="saison-mois">Décisions enregistrées</span><span class="saison-val">${etatCapitalActuel.nbDecisions}</span></div>
+        <div class="saison-row"><span class="saison-mois">Impact cumulé estimé</span><span class="saison-val">${fmtEur(etatCapitalActuel.impactCumuleEur)}</span></div>
+        <div class="saison-row"><span class="saison-mois">Dont issues de NEXUS Tempo</span><span class="saison-val">${etatCapitalActuel.nbDecisionsTempo}</span></div>
+      </div>
+      <div class="section-note">Dernière décision enregistrée le ${fmtDateCourt(etatCapitalActuel.derniereDate)}.</div>`;
+    } else {
+      html += `<div class="saison-panel"><div class="saison-etat">🏦 Aucune décision enregistrée dans Capital NEXUS pour l'instant.</div></div>`;
+    }
+    html += `<div class="section-note" style="margin-top:8px; font-weight:600; color:var(--text-mid);">Impact des missions NEXUS Tempo</div>`;
+    if (!impactDecisionsTempo.disponible) {
+      html += `<div class="section-note">${impactDecisionsTempo.message || (impactDecisionsTempo.resultats || []).map(r => r.message).join(' ')}</div>`;
+    } else {
+      html += impactDecisionsTempo.resultats.map(r => {
+        if (!r.disponible) return `<div class="section-note">${r.message}</div>`;
+        return `<div class="saison-panel" style="margin-top:6px;">
+          <div class="saison-row"><span class="saison-mois">${r.jourNom} — mission du ${fmtDateCourt(r.dateDecision)}</span><span class="saison-val">${fmtPct(r.evolution)}</span></div>
+          <div class="saison-row"><span class="saison-mois" style="font-weight:400; color:var(--text-dim);">Avant (${r.nbAvant}j) → Après (${r.nbApres}j)</span><span class="saison-val" style="font-weight:400; color:var(--text-dim);">${fmtEur(r.moyAvant)} → ${fmtEur(r.moyApres)}</span></div>
+        </div>`;
+      }).join('');
     }
     return html;
   }
@@ -807,7 +880,7 @@ footer{margin-top:auto; padding:20px 20px 24px; font-family:var(--mono); font-si
   // ------------------------------------------------------------
   // Assemblage final
   // ------------------------------------------------------------
-  function renderTout({ siteId, employee, joursAgreges, joursExploitables, classement, joursReveles, meilleursSepares, classementLitrage, analyseEquipe, decision, saisonnier, debutFinMois, analyseVacances, decouvertes, analyseMeteo, analyseStock, etatStockActuel }) {
+  function renderTout({ siteId, employee, joursAgreges, joursExploitables, classement, joursReveles, meilleursSepares, classementLitrage, analyseEquipe, decision, saisonnier, debutFinMois, analyseVacances, decouvertes, analyseMeteo, analyseStock, etatStockActuel, etatInventaireActuel, etatCapitalActuel, impactDecisionsTempo }) {
     const root = document.getElementById('root');
     const nbDecouvertes = decouvertes.length && decouvertes[0].disponible ? decouvertes.length : 0;
 
@@ -836,6 +909,9 @@ footer{margin-top:auto; padding:20px 20px 24px; font-family:var(--mono); font-si
     const sousTitreStock = etatStockActuel
       ? `Indice ${Math.round(etatStockActuel.indiceConfiance)}/100 · ${fmtEur(etatStockActuel.risqueEstimeEur)} de risque estimé`
       : 'Aucune donnée Scanner Stock pour l\'instant';
+    const sousTitreCapital = etatCapitalActuel
+      ? `${etatCapitalActuel.nbDecisions} décision${etatCapitalActuel.nbDecisions > 1 ? 's' : ''} · ${fmtEur(etatCapitalActuel.impactCumuleEur)} d'impact cumulé`
+      : 'Aucune décision enregistrée pour l\'instant';
 
     root.innerHTML = `
       <div class="section" style="margin-top:6px;">
@@ -864,7 +940,9 @@ footer{margin-top:auto; padding:20px 20px 24px; font-family:var(--mono); font-si
 
       ${accordion('accMeteo', 'Météo', renderMeteo(analyseMeteo), false, { sousTitre: sousTitreMeteo })}
 
-      ${accordion('accStock', 'Scanner Stock', renderStock(analyseStock, etatStockActuel), false, { sousTitre: sousTitreStock })}
+      ${accordion('accStock', 'Scanner Stock', renderStock(analyseStock, etatStockActuel, etatInventaireActuel), false, { sousTitre: sousTitreStock })}
+
+      ${accordion('accCapital', 'Capital NEXUS', `<div class="section">${renderCapital(etatCapitalActuel, impactDecisionsTempo)}</div>`, false, { sousTitre: sousTitreCapital })}
 
       ${accordion('accDecouvertes', 'Tendances découvertes', `<div class="section">${renderDecouvertes(decouvertes)}</div>`, false, { sousTitre: sousTitreDecouvertes, badge: nbDecouvertes ? String(nbDecouvertes) : null })}
 
