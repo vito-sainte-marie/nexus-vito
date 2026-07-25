@@ -25,13 +25,21 @@ a{color:inherit; text-decoration:none;}
 
 .app{width:100%; max-width:520px; min-height:100vh; display:flex; flex-direction:column; border-left:1px solid var(--hairline); border-right:1px solid var(--hairline); padding-bottom:78px; position:relative;}
 
-.topbar{display:flex; align-items:center; justify-content:space-between; padding:20px 20px 16px;}
-.icon-btn{width:38px; height:38px; border-radius:10px; background:var(--panel); border:1px solid var(--hairline); display:flex; align-items:center; justify-content:center; font-size:16px; color:var(--text-mid); flex-shrink:0;}
-.topbar-title{text-align:center; flex:1;}
-.topbar-title h1{font-size:19px; font-weight:600;}
-.topbar-title p{font-family:var(--mono); font-size:11px; color:var(--text-mid); margin-top:2px; letter-spacing:0.02em;}
-.topbar-title p .plan-tag{color:var(--gold); opacity:0.85;}
-.topbar-actions{display:flex; gap:8px;}
+/* Header repris tel quel de NEXUS-Rayon-v1.html / NEXUS-Produits-v1.html
+   (24/07/2026, demande de Frédéric) : plus d'icônes carrées (☰/📅/↗), un
+   simple lien texte "☰ Menu" et un intitulé eyebrow + titre, comme le
+   reste des pages "détail" de NEXUS. */
+.header{padding:20px 20px 14px; position:relative;}
+.menu-btn{
+  position:absolute; top:18px; right:18px; display:flex; align-items:center; gap:6px;
+  font-family:var(--mono); font-size:10.5px; font-weight:600; letter-spacing:0.03em; text-transform:uppercase;
+  color:var(--cyan); background:rgba(79,195,217,0.1); border:1px solid rgba(79,195,217,0.3);
+  border-radius:20px; padding:7px 12px; text-decoration:none; white-space:nowrap; z-index:5;
+}
+.menu-btn:active{background:rgba(79,195,217,0.2);}
+.eyebrow{font-family:var(--mono); font-size:11px; letter-spacing:0.12em; text-transform:uppercase; color:var(--cyan);}
+.title{font-size:20px; font-weight:600; margin-top:4px;}
+.divider{height:1px; background:var(--hairline); margin:0 20px;}
 
 .section{padding:0 20px;}
 .section-label{
@@ -42,7 +50,7 @@ a{color:inherit; text-decoration:none;}
 .section-label .link{color:var(--cyan); text-transform:none; letter-spacing:0; font-size:12px; margin-left:auto; flex:none;}
 
 .capital-panel{
-  background:var(--panel); border:1px solid var(--hairline); border-radius:16px; padding:22px 22px 20px; margin:0 20px;
+  background:var(--panel); border:1px solid var(--hairline); border-radius:16px; padding:22px 22px 20px; margin:16px 20px 0;
   position:relative; overflow:hidden;
 }
 .capital-eyebrow{font-family:var(--mono); font-size:11px; letter-spacing:0.14em; color:var(--gold); text-transform:uppercase; display:flex; align-items:center; gap:6px;}
@@ -59,8 +67,7 @@ a{color:inherit; text-decoration:none;}
 .capital-badge.baisse{background:var(--red-dim); color:var(--red);}
 
 .levers-grid{display:grid; grid-template-columns:repeat(2,1fr); gap:10px;}
-.lever-card{background:var(--panel); border:1px solid var(--hairline); border-radius:14px; padding:16px;}
-.lever-icon{width:38px; height:38px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:17px; margin-bottom:12px;}
+.lever-card{background:var(--panel); border:1px solid var(--hairline); border-left:3px solid var(--hairline); border-radius:14px; padding:16px;}
 .lever-title{font-size:12.5px; color:var(--text-mid); line-height:1.35; margin-bottom:10px; min-height:34px;}
 .lever-amount{font-family:var(--sans); font-size:19px; font-weight:700;}
 .lever-meta{font-family:var(--mono); font-size:10.5px; color:var(--text-dim); margin-top:3px;}
@@ -129,17 +136,12 @@ a{color:inherit; text-decoration:none;}
 <body>
 <div class="app">
 
-  <div class="topbar">
-    <a href="NEXUS-App-v1.html" class="icon-btn" style="text-decoration:none;">☰</a>
-    <div class="topbar-title">
-      <h1>Capital NEXUS™</h1>
-      <p>Ce que vos décisions ont créé, depuis le début <span class="plan-tag">· NEXUS Professional</span></p>
-    </div>
-    <div class="topbar-actions">
-      <div class="icon-btn">📅</div>
-      <div class="icon-btn">↗</div>
-    </div>
+  <div class="header">
+    <a href="NEXUS-App-v1.html" class="menu-btn">☰ Menu</a>
+    <div class="eyebrow">NEXUS · Capital <span style="color:var(--gold);">· Professional</span></div>
+    <div class="title">Capital NEXUS™</div>
   </div>
+  <div class="divider"></div>
 
   <div id="root"><div class="loading">Calcul du Capital NEXUS en cours…</div></div>
 
@@ -296,10 +298,10 @@ a{color:inherit; text-decoration:none;}
   function labelRegle(ruleId) { return LABEL_REGLE[ruleId] || ruleId; }
 
   const DEF_LEVIERS = [
-    { id: 'R4-RENFORT-A', label: 'Renforts appliqués', icon: '🔥', bg: 'var(--green-dim)', fg: 'var(--green)' },
-    { id: 'R3-HAUSSE', label: 'Opportunités saisies', icon: '📈', bg: 'var(--cyan-dim)', fg: 'var(--cyan)' },
-    { id: 'R2-BAISSE', label: 'Baisses traitées', icon: '🟡', bg: 'var(--amber-dim)', fg: 'var(--amber)' },
-    { id: 'R5-MARGE-ECART', label: 'Écarts de marge corrigés', icon: '💡', bg: 'var(--violet-dim)', fg: 'var(--violet)' },
+    { id: 'R4-RENFORT-A', label: 'Renforts appliqués', fg: 'var(--green)' },
+    { id: 'R3-HAUSSE', label: 'Opportunités saisies', fg: 'var(--cyan)' },
+    { id: 'R2-BAISSE', label: 'Baisses traitées', fg: 'var(--amber)' },
+    { id: 'R5-MARGE-ECART', label: 'Écarts de marge corrigés', fg: 'var(--violet)' },
   ];
 
   function calculerLeviers(decisions) {
@@ -415,8 +417,7 @@ a{color:inherit; text-decoration:none;}
       <div class="section">
         <div class="levers-grid">
           ${leviers.map(l => `
-            <div class="lever-card">
-              <div class="lever-icon" style="background:${l.bg}; color:${l.fg};">${l.icon}</div>
+            <div class="lever-card" style="border-left-color:${l.fg};">
               <div class="lever-title">${l.label}</div>
               <div class="lever-amount" style="color:${l.fg};">${fmtEur(l.montant)}</div>
               <div class="lever-meta">${l.nb} décision${l.nb > 1 ? 's' : ''}</div>
