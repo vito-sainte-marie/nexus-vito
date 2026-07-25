@@ -36,6 +36,17 @@ a{color:inherit;}
 .section-label::after{content:''; flex:1; height:1px; background:var(--hairline);}
 .section-note{font-family:var(--sans); font-size:11.5px; color:var(--text-mid); line-height:1.5; margin:-6px 20px 14px;}
 
+.accordion-header{display:flex; align-items:center; gap:10px; width:calc(100% - 40px); background:none; border:none; cursor:pointer; padding:8px 0; margin:18px 20px 4px; font-family:var(--mono); font-size:11px; letter-spacing:0.1em; text-transform:uppercase; color:var(--text-mid); text-align:left; -webkit-tap-highlight-color:transparent;}
+.accordion-title{flex-shrink:0;}
+.accordion-count{font-family:var(--mono); font-size:9.5px; color:var(--text-dim); text-transform:none; letter-spacing:0; background:var(--panel-raised); border-radius:20px; padding:2px 8px; flex-shrink:0;}
+.accordion-line{flex:1; height:1px; background:var(--hairline);}
+.accordion-chevron{font-size:11px; color:var(--text-dim); flex-shrink:0; transition:transform .2s ease; display:inline-block;}
+.accordion-header[aria-expanded="true"] .accordion-chevron{transform:rotate(180deg);}
+.accordion-body{overflow:hidden; max-height:0; transition:max-height .25s ease;}
+.accordion-body.open{max-height:5000px;}
+.accordion-body > *:first-child{margin-top:2px !important;}
+.accordion-body > *:last-child{margin-bottom:14px !important;}
+
 .conseiller-card{display:flex; gap:14px; background:linear-gradient(135deg, rgba(79,195,217,0.08), rgba(79,195,217,0.02)); border:1px solid rgba(79,195,217,0.25); border-radius:14px; padding:18px; margin:0 20px;}
 .conseiller-avatar{width:44px; height:44px; border-radius:50%; object-fit:cover; background:var(--panel-raised); border:1.5px solid rgba(79,195,217,0.4); flex-shrink:0; filter:drop-shadow(0 0 9px rgba(79,195,217,0.5));}
 .conseiller-body .conseiller-name{font-family:var(--mono); font-size:10.5px; letter-spacing:0.06em; text-transform:uppercase; color:var(--cyan); margin-bottom:8px;}
@@ -582,10 +593,41 @@ footer{margin-top:auto; padding:20px 20px 24px; font-family:var(--mono); font-si
   }
 
   // ------------------------------------------------------------
+  // Cadres repliables (25/07/2026, demande de Frédéric : trop
+  // d'informations affichées d'un coup, "agressif cognitivement").
+  // Seuls le Conseiller, Jours révélés et Décision NEXUS restent
+  // ouverts par défaut — tout le reste (comparateur, détail hebdo,
+  // équipe, carburants, saisonnier, découvertes, sources) est replié
+  // et accessible en un tap, sans jamais être retiré du DOM.
+  // ------------------------------------------------------------
+  function accordion(id, titre, contenuHtml, ouvertParDefaut, badge) {
+    return `
+      <button class="accordion-header" data-target="${id}" aria-expanded="${ouvertParDefaut ? 'true' : 'false'}">
+        <span class="accordion-title">${titre}</span>
+        ${badge ? `<span class="accordion-count">${badge}</span>` : ''}
+        <span class="accordion-line"></span>
+        <span class="accordion-chevron">▾</span>
+      </button>
+      <div class="accordion-body${ouvertParDefaut ? ' open' : ''}" id="${id}">${contenuHtml}</div>
+    `;
+  }
+
+  function branchAccordions() {
+    document.querySelectorAll('.accordion-header').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const body = document.getElementById(btn.dataset.target);
+        const ouvert = body.classList.toggle('open');
+        btn.setAttribute('aria-expanded', ouvert ? 'true' : 'false');
+      });
+    });
+  }
+
+  // ------------------------------------------------------------
   // Assemblage final
   // ------------------------------------------------------------
   function renderTout({ siteId, employee, joursAgreges, classement, joursReveles, meilleursSepares, classementLitrage, analyseEquipe, decision, saisonnier, debutFinMois, decouvertes }) {
     const root = document.getElementById('root');
+    const nbDecouvertes = decouvertes.length && decouvertes[0].disponible ? decouvertes.length : 0;
     root.innerHTML = `
       <div class="section" style="margin-top:6px;">
         <div class="conseiller-card">
@@ -597,36 +639,26 @@ footer{margin-top:auto; padding:20px 20px 24px; font-family:var(--mono); font-si
         </div>
       </div>
 
-      <div class="section-label">Jours révélés</div>
-      <div class="section">${renderJoursReveles(joursReveles)}</div>
-      ${renderDuoJours(meilleursSepares)}
+      ${accordion('accJours', 'Jours révélés', `<div class="section">${renderJoursReveles(joursReveles)}</div>${renderDuoJours(meilleursSepares)}`, true)}
 
-      <div class="section-label">Comparateur</div>
-      ${renderComparateur(joursAgreges)}
+      ${accordion('accDecision', 'Décision NEXUS', `<div class="section">${renderDecision(decision, siteId, employee)}</div>`, true)}
 
-      <div class="section-label">Vue hebdomadaire</div>
-      ${renderVueHebdo(classement)}
+      ${accordion('accComparateur', 'Comparateur', renderComparateur(joursAgreges), false)}
 
-      <div class="section-label">Analyse équipe</div>
-      ${renderEquipe(analyseEquipe)}
+      ${accordion('accHebdo', 'Vue hebdomadaire', renderVueHebdo(classement), false)}
 
-      <div class="section-label">Décision NEXUS</div>
-      <div class="section">${renderDecision(decision, siteId, employee)}</div>
+      ${accordion('accEquipe', 'Analyse équipe', renderEquipe(analyseEquipe), false)}
 
-      <div class="section-label">Carburants</div>
-      <div class="section">${renderCarburants(classementLitrage)}</div>
+      ${accordion('accCarburants', 'Carburants', `<div class="section">${renderCarburants(classementLitrage)}</div>`, false)}
 
-      <div class="section-label">Cycles saisonniers</div>
-      ${renderSaisonnier(saisonnier, debutFinMois)}
+      ${accordion('accSaisonnier', 'Cycles saisonniers', renderSaisonnier(saisonnier, debutFinMois), false)}
 
-      <div class="section-label">Tendances découvertes</div>
-      <div class="section">${renderDecouvertes(decouvertes)}</div>
+      ${accordion('accDecouvertes', 'Tendances découvertes', `<div class="section">${renderDecouvertes(decouvertes)}</div>`, false, nbDecouvertes ? String(nbDecouvertes) : null)}
 
-      <div class="section-label">Sources de données</div>
-      ${renderSources()}
-      <div class="section-note">NEXUS Tempo est conçu pour accueillir de nouvelles sources sans tout reconstruire : chaque source "Prévue" s'activera dès qu'elle sera branchée, sans jamais remplacer une donnée manquante par une estimation.</div>
+      ${accordion('accSources', 'Sources de données', `${renderSources()}<div class="section-note">NEXUS Tempo est conçu pour accueillir de nouvelles sources sans tout reconstruire : chaque source "Prévue" s'activera dès qu'elle sera branchée, sans jamais remplacer une donnée manquante par une estimation.</div>`, false)}
     `;
     branchBoutonMission(decision, siteId, employee);
+    branchAccordions();
   }
 </script>
 </body>
