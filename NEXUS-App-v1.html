@@ -167,6 +167,13 @@
   .alerte-banner b{color:var(--red);}
   .alerte-banner a{margin-left:auto; font-family:var(--mono); font-size:10.5px; color:var(--red); white-space:nowrap; text-decoration:underline; flex-shrink:0;}
 
+  /* NEXUS Tempo — constat ponctuel (25/07/2026) : ne s'affiche que quand une
+     tendance fiable existe (voir chargerConstatTempoHome). NEXUS Tempo
+     lui-même reste dans Analyse & Pilotage — seule sa conclusion remonte
+     ici, jamais l'écran complet. */
+  .tempo-banner{margin:12px 20px 0; padding:12px 15px; border-radius:12px; background:var(--cyan-dim,#123138); border:1px solid rgba(79,195,217,0.3); display:flex; align-items:center; gap:10px; font-size:12px; color:var(--text); line-height:1.5;}
+  .tempo-banner a{margin-left:auto; font-family:var(--mono); font-size:10.5px; color:var(--cyan); white-space:nowrap; text-decoration:underline; flex-shrink:0;}
+
   .priorite-item{display:flex; gap:10px; padding:11px 0; border-top:1px solid var(--hairline); align-items:flex-start;}
   .priorite-item:first-of-type{border-top:none;}
   .priorite-check{flex-shrink:0; width:20px; height:20px; margin-top:1px; border-radius:50%; border:1.5px solid var(--text-dim); display:flex; align-items:center; justify-content:center; font-size:11px; color:transparent; cursor:pointer; transition:all .15s;}
@@ -250,6 +257,7 @@
     </div>
 
     <div class="alerte-banner" id="alerteBanner" style="display:none;"></div>
+    <div class="tempo-banner" id="tempoBanner" style="display:none;"></div>
 
     <div class="conseiller-card">
       <div class="conseiller-head">
@@ -413,6 +421,19 @@
         </div>
         <div class="nav-arrow">›</div>
       </a>
+      <!-- NEXUS Tempo (25/07/2026, demande de Frédéric) : moteur transversal
+           (piste + boutique + équipes + jours de la semaine), volontairement
+           positionné ici plutôt que sur l'accueil — il ne remonte en page
+           d'accueil que via un constat ponctuel du Conseiller quand une
+           tendance fiable existe (voir renderConstatTempoHome ci-dessous). -->
+      <a class="nav-item" data-role="manager" href="NEXUS-Tempo-v1.html">
+        <div class="nav-icon"><img src="assets/icons/icon-nexus-tempo.png" alt="NEXUS Tempo"></div>
+        <div class="nav-body">
+          <div class="nav-title">NEXUS Tempo</div>
+          <div class="nav-desc">Les jours qui portent votre station, ceux qui la ralentissent</div>
+        </div>
+        <div class="nav-arrow">›</div>
+      </a>
       <a class="nav-item" data-role="manager" href="NEXUS-Scanner-Stock-v1.html">
         <div class="nav-icon"><img src="assets/icons/icon-scanner-stock.png" alt="Scanner Stock"></div>
         <div class="nav-body">
@@ -518,6 +539,7 @@
 <script src="nexus-periodes.js"></script>
 <script src="nexus-indice.js"></script>
 <script src="nexus-marge.js"></script>
+<script src="nexus-tempo.js"></script>
 <script>
   // ------------------------------------------------------------
   // Calendrier fournisseurs partagé — extrait le 24/07/2026 (était
@@ -815,6 +837,41 @@
     }
   }
 
+  // ------------------------------------------------------------
+  // NEXUS Tempo — constat ponctuel sur l'accueil (25/07/2026, demande de
+  // Frédéric) : "le Cockpit et le Conseiller affichent la conclusion, la
+  // page NEXUS Tempo fournit l'analyse complète." Ne remonte QUE si une
+  // tendance est réellement calculable (au moins 2 occurrences du même
+  // jour de semaine, voir SEUILS.MIN_OCCURRENCES_TENDANCE dans
+  // nexus-tempo.js) et clairement défavorable — jamais un simple écart
+  // du jour, qui pourrait n'être qu'un hasard de calendrier.
+  // ------------------------------------------------------------
+  const SEUIL_CONSTAT_TEMPO = -0.10;
+
+  async function chargerConstatTempoHome(siteId) {
+    const { data, error } = await fetchAllRowsHome(() => nexusClient.from('audits_caisse')
+      .select('date, quart, vente_piste, vente_boutique, ecart_piste, ecart_boutique, employes_piste, employes_boutique')
+      .eq('site', siteId).order('date', { ascending: true }));
+    if (error || !data) { console.error('Chargement audits_caisse (constat Tempo):', error); return null; }
+    const joursAgreges = NexusTempo.agregerParJour(data);
+    const regroupement = NexusTempo.regrouperParJourSemaine(joursAgreges);
+    const classement = NexusTempo.calculerClassement(regroupement);
+    const { jourARenforcer } = NexusTempo.identifierJoursReveles(classement);
+    if (!jourARenforcer || !jourARenforcer.confianceTendance || jourARenforcer.evolutionCombinee === null) return null;
+    if (jourARenforcer.evolutionCombinee > SEUIL_CONSTAT_TEMPO) return null;
+    return jourARenforcer;
+  }
+
+  function renderConstatTempoHome(jour) {
+    const banner = document.getElementById('tempoBanner');
+    if (!jour) { banner.style.display = 'none'; return; }
+    const pctBoutique = jour.evolutionBoutique !== null ? `${jour.evolutionBoutique >= 0 ? '+' : ''}${(jour.evolutionBoutique * 100).toFixed(0)} % boutique` : null;
+    const pctPiste = jour.evolutionPiste !== null ? `${jour.evolutionPiste >= 0 ? '+' : ''}${(jour.evolutionPiste * 100).toFixed(0)} % piste` : null;
+    const detail = [pctPiste, pctBoutique].filter(Boolean).join(' · ');
+    banner.style.display = 'flex';
+    banner.innerHTML = `📊 Le <b>${jour.nom}</b> reste votre journée la plus faible${detail ? ` : ${detail}` : ''}. <a href="NEXUS-Tempo-v1.html">Comprendre dans NEXUS Tempo →</a>`;
+  }
+
   let SITE_HOME = 'vito-sainte-marie';
   let EMPLOYEE_HOME_ID = null;
 
@@ -1015,6 +1072,7 @@
       controlesVerify,
       missionsCatalogueRes,
       margePlusResultat,
+      constatTempo,
     ] = await Promise.all([
       calculerCandidatsHome(SITE_HOME),
       chargerValideesHome(SITE_HOME),
@@ -1023,6 +1081,7 @@
       chargerControlesVerifyHome(SITE_HOME),
       nexusClient.from('mission_catalog').select('mission_id', { count: 'exact', head: true }).eq('actif', true),
       chargerMargePlusHome(SITE_HOME),
+      chargerConstatTempoHome(SITE_HOME),
     ]);
 
     const candidatsDisponibles = candidats.filter(c => !valideesSite.has(c.candidate_id));
@@ -1030,6 +1089,7 @@
 
     renderEtatCommerce(score, facteurs, candidatsDisponibles);
     renderMargePlus(margePlusResultat);
+    renderConstatTempoHome(constatTempo);
     renderConseillerHome(candidatsDisponibles.slice(0, 3), employee.nom);
     renderKpiGrid({
       missionsActives: (missionsCatalogueRes && missionsCatalogueRes.count != null) ? missionsCatalogueRes.count : null,

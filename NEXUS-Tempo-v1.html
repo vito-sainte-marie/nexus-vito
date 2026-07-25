@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NEXUS — Tempo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
+  --text:#EDF1F5; --text-mid:#8A96A5; --text-dim:#57626F;
+  --green:#34D399; --green-dim:#153629;
+  --amber:#F5A623; --amber-dim:#3A2E14;
+  --cyan:#4FC3D9; --cyan-dim:#123138;
+  --violet:#8B7FE8; --violet-dim:#241F3D;
+  --red:#F0575A; --red-dim:#3A1D1F;
+  --gold:#D4AF37; --gold-dim:#332B12;
+  --mono:'IBM Plex Mono',monospace; --sans:'IBM Plex Sans',sans-serif;
+}
+*{box-sizing:border-box; margin:0; padding:0;}
+html,body{background:var(--bg); font-family:var(--sans); color:var(--text); min-height:100vh;}
+body{display:flex; justify-content:center; background-image:radial-gradient(circle at 50% 0%, rgba(79,195,217,0.07), transparent 45%);}
+a{color:inherit;}
+.app{width:100%; max-width:520px; min-height:100vh; display:flex; flex-direction:column; border-left:1px solid var(--hairline); border-right:1px solid var(--hairline); padding-bottom:40px;}
+
+.header{padding:20px 20px 14px; position:relative;}
+.menu-btn{position:absolute; top:18px; right:18px; display:flex; align-items:center; gap:6px; font-family:var(--mono); font-size:10.5px; font-weight:600; letter-spacing:0.03em; text-transform:uppercase; color:var(--cyan); background:rgba(79,195,217,0.1); border:1px solid rgba(79,195,217,0.3); border-radius:20px; padding:7px 12px; text-decoration:none; white-space:nowrap;}
+.eyebrow{font-family:var(--mono); font-size:11px; letter-spacing:0.12em; text-transform:uppercase; color:var(--cyan);}
+.title{font-size:20px; font-weight:600; margin-top:4px;}
+.subtitle{font-family:var(--sans); font-size:12.5px; color:var(--text-mid); margin-top:4px;}
+.divider{height:1px; background:var(--hairline); margin:0 20px;}
+
+.section{padding:0 20px;}
+.section-label{font-family:var(--mono); font-size:11px; letter-spacing:0.1em; text-transform:uppercase; color:var(--text-dim); display:flex; align-items:center; gap:10px; margin:26px 20px 12px;}
+.section-label::after{content:''; flex:1; height:1px; background:var(--hairline);}
+.section-note{font-family:var(--sans); font-size:11.5px; color:var(--text-mid); line-height:1.5; margin:-6px 20px 14px;}
+
+.conseiller-card{display:flex; gap:14px; background:linear-gradient(135deg, rgba(79,195,217,0.08), rgba(79,195,217,0.02)); border:1px solid rgba(79,195,217,0.25); border-radius:14px; padding:18px; margin:0 20px;}
+.conseiller-avatar{width:44px; height:44px; border-radius:50%; object-fit:cover; background:var(--panel-raised); border:1.5px solid rgba(79,195,217,0.4); flex-shrink:0; filter:drop-shadow(0 0 9px rgba(79,195,217,0.5));}
+.conseiller-body .conseiller-name{font-family:var(--mono); font-size:10.5px; letter-spacing:0.06em; text-transform:uppercase; color:var(--cyan); margin-bottom:8px;}
+.conseiller-body p{font-size:13px; line-height:1.6; color:var(--text);}
+.conseiller-body b{color:var(--cyan);}
+
+.reveles-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:8px;}
+.revele-card{background:var(--panel); border:1px solid var(--hairline); border-radius:14px; padding:13px 11px; text-align:center;}
+.revele-tag{font-family:var(--mono); font-size:8.5px; letter-spacing:0.05em; text-transform:uppercase; margin-bottom:8px;}
+.revele-jour{font-size:14px; font-weight:700;}
+.revele-detail{font-family:var(--mono); font-size:10px; color:var(--text-mid); margin-top:6px; line-height:1.5;}
+.revele-vide{font-size:10.5px; color:var(--text-dim); font-style:italic; line-height:1.4; margin-top:8px;}
+
+.compar-panel{background:var(--panel); border:1px solid var(--hairline); border-radius:14px; padding:16px; margin:0 20px;}
+.compar-row{display:flex; align-items:center; gap:8px; margin-bottom:10px;}
+.compar-row label{width:64px; flex-shrink:0; font-size:11.5px; color:var(--text-mid);}
+.compar-row input[type=date], .compar-row select{flex:1; background:var(--panel-raised); border:1px solid var(--hairline); border-radius:6px; padding:8px 9px; color:var(--text); font-family:var(--mono); font-size:12px;}
+.btn-comparer{width:100%; margin-top:4px; background:var(--cyan); color:#04141a; border:none; border-radius:8px; padding:11px; font-family:var(--sans); font-weight:600; font-size:13px; cursor:pointer;}
+.compar-resultat{margin-top:14px; padding-top:14px; border-top:1px solid var(--hairline);}
+.compar-ligne{display:flex; justify-content:space-between; font-size:12.5px; padding:5px 0;}
+.compar-ligne .cle{color:var(--text-mid);}
+.compar-ligne .val{font-family:var(--mono); font-weight:600;}
+.compar-evol{margin-top:8px; font-size:12px; font-weight:600;}
+
+.hebdo-row{display:flex; align-items:center; gap:10px; background:var(--panel); border:1px solid var(--hairline); border-radius:12px; padding:12px 14px; margin:0 20px 8px;}
+.hebdo-jour{width:64px; flex-shrink:0; font-size:12.5px; font-weight:600;}
+.hebdo-chiffres{flex:1; font-family:var(--mono); font-size:11px; color:var(--text-mid);}
+.hebdo-chiffres b{color:var(--text); font-weight:600;}
+.hebdo-statut{font-family:var(--mono); font-size:9px; padding:4px 9px; border-radius:20px; font-weight:700; white-space:nowrap; flex-shrink:0;}
+
+.equipe-sub{font-family:var(--mono); font-size:10px; letter-spacing:0.06em; text-transform:uppercase; color:var(--text-dim); margin:14px 20px 8px;}
+.equipe-row{display:flex; align-items:center; gap:10px; background:var(--panel); border:1px solid var(--hairline); border-radius:12px; padding:12px 14px; margin:0 20px 8px;}
+.equipe-nom{flex:1; font-size:12.5px; font-weight:600;}
+.equipe-meta{font-family:var(--mono); font-size:10px; color:var(--text-mid); margin-top:2px;}
+.equipe-confiance{font-family:var(--mono); font-size:8.5px; padding:3px 8px; border-radius:20px; font-weight:700; white-space:nowrap; flex-shrink:0;}
+
+.decision-panel{background:var(--panel); border:1px solid rgba(212,175,55,0.3); border-radius:14px; padding:18px; margin:0 20px;}
+.decision-tag{font-family:var(--mono); font-size:10.5px; letter-spacing:0.06em; text-transform:uppercase; color:var(--gold); margin-bottom:10px;}
+.decision-texte{font-size:13.5px; line-height:1.6; color:var(--text); margin-bottom:14px;}
+.btn-mission{width:100%; background:var(--gold-dim); color:var(--gold); border:1px solid rgba(212,175,55,0.35); border-radius:10px; padding:12px; font-family:var(--sans); font-weight:600; font-size:13px; cursor:pointer;}
+.btn-mission:disabled{opacity:0.5; cursor:default;}
+.mission-saved{display:none; margin-top:10px; padding:9px; background:var(--green-dim); color:var(--green); border-radius:8px; text-align:center; font-size:12px;}
+
+.litrage-note{margin:0 20px; padding:13px 15px; background:var(--panel-raised); border:1px dashed var(--hairline); border-radius:12px; font-size:11.5px; color:var(--text-mid); line-height:1.55;}
+
+.duo-jours{display:flex; gap:8px; margin:10px 20px 0;}
+.duo-item{flex:1; background:var(--panel); border:1px solid var(--hairline); border-radius:12px; padding:11px 12px; font-size:11.5px; color:var(--text-mid); line-height:1.5;}
+.duo-item b{color:var(--text);}
+.duo-tag{font-family:var(--mono); font-size:8.5px; letter-spacing:0.05em; text-transform:uppercase; display:block; margin-bottom:4px;}
+
+.carburant-row{background:var(--panel); border:1px solid var(--hairline); border-radius:12px; padding:12px 14px; margin:0 20px 8px;}
+.carburant-top{display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;}
+.carburant-jour{font-size:12.5px; font-weight:600;}
+.carburant-total{font-family:var(--mono); font-size:12.5px; font-weight:700; color:var(--cyan);}
+.carburant-detail{font-family:var(--mono); font-size:10.5px; color:var(--text-mid);}
+
+.reserve{padding:60px 20px; text-align:center; color:var(--text-dim);}
+.loading{padding:60px 20px; text-align:center; color:var(--text-dim); font-size:13px;}
+footer{margin-top:auto; padding:20px 20px 24px; font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:center; border-top:1px solid var(--hairline); margin-top:30px;}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="nexus-auth.js"></script>
+<script src="nexus-tempo.js"></script>
+</head>
+<body>
+<div class="app" id="app">
+  <div class="header">
+    <a href="NEXUS-App-v1.html" class="menu-btn">☰ Menu</a>
+    <div class="eyebrow">NEXUS · Tempo</div>
+    <div class="title">NEXUS Tempo</div>
+    <div class="subtitle">Le rythme réel de votre station</div>
+  </div>
+  <div class="divider"></div>
+
+  <div id="root"><div class="loading">Analyse du rythme en cours…</div></div>
+
+  <footer>NEXUS Tempo · Vito Sainte-Marie Usine</footer>
+</div>
+
+<script>
+  // Supabase plafonne chaque requête à 1000 lignes — même garde-fou que
+  // partout ailleurs dans NEXUS (Scanner, Cockpit, Verify…).
+  async function fetchAllRows(builderFactory, pageSize = 1000) {
+    let toutes = [];
+    let from = 0;
+    while (true) {
+      const { data, error } = await builderFactory().range(from, from + pageSize - 1);
+      if (error) return { data: null, error };
+      toutes = toutes.concat(data || []);
+      if (!data || data.length < pageSize) break;
+      from += pageSize;
+    }
+    return { data: toutes, error: null };
+  }
+
+  function fmtEur(v) { return Math.round(v).toLocaleString('fr-FR') + ' €'; }
+  function fmtPct(v) { return `${v >= 0 ? '+' : ''}${(v * 100).toFixed(1).replace('.', ',')} %`; }
+  function fmtDateCourt(iso) {
+    const d = NexusTempo.dateLocale(iso);
+    return d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' });
+  }
+
+  const STATUT_STYLE = {
+    'Jour moteur':       { bg: 'var(--green-dim)', fg: 'var(--green)' },
+    'Jour solide':       { bg: 'var(--cyan-dim)', fg: 'var(--cyan)' },
+    'Jour stable':       { bg: 'var(--panel-raised)', fg: 'var(--text-mid)' },
+    'Jour irrégulier':   { bg: 'var(--violet-dim)', fg: 'var(--violet)' },
+    'Jour à renforcer':  { bg: 'var(--amber-dim)', fg: 'var(--amber)' },
+    'Jour en recul':     { bg: 'var(--red-dim)', fg: 'var(--red)' },
+    'Aucune donnée':     { bg: 'var(--panel-raised)', fg: 'var(--text-dim)' },
+  };
+  const CONFIANCE_STYLE = {
+    forte:        { bg: 'var(--green-dim)', fg: 'var(--green)', label: 'Confiance forte' },
+    moyenne:      { bg: 'var(--amber-dim)', fg: 'var(--amber)', label: 'Confiance moyenne' },
+    insuffisante: { bg: 'var(--panel-raised)', fg: 'var(--text-dim)', label: 'Données insuffisantes' },
+  };
+
+  // Ordre d'affichage "semaine française" (lundi → dimanche) — l'index
+  // interne du moteur suit la convention JS Date.getDay() (0=dimanche).
+  const ORDRE_AFFICHAGE = [1, 2, 3, 4, 5, 6, 0];
+
+  nexusRequireAuth().then(async employee => {
+    if (!employee) return;
+    if (employee.role !== 'manager' && employee.role !== 'gerant') {
+      document.getElementById('app').innerHTML = '<div class="reserve">Cet écran est réservé aux managers.</div>';
+      return;
+    }
+    const siteId = employee.site_id || 'vito-sainte-marie';
+
+    const [{ data: auditsRows, error: e1 }, { data: employesRows, error: e2 }] = await Promise.all([
+      fetchAllRows(() => nexusClient.from('audits_caisse')
+        .select('date, quart, vente_piste, vente_boutique, ecart_piste, ecart_boutique, employes_piste, employes_boutique, litrage_gazole, litrage_sp95, litrage_gnr')
+        .eq('site', siteId).order('date', { ascending: true })),
+      nexusClient.from('employees').select('id, nom, role').eq('site_id', siteId),
+    ]);
+    if (e1) console.error('Chargement audits_caisse:', e1);
+    if (e2) console.error('Chargement employees:', e2);
+
+    const employesParId = {};
+    (employesRows || []).forEach(e => { employesParId[e.id] = e; });
+
+    const joursAgreges = NexusTempo.agregerParJour(auditsRows || []);
+    const regroupement = NexusTempo.regrouperParJourSemaine(joursAgreges);
+    const classement = NexusTempo.calculerClassement(regroupement);
+    const joursReveles = NexusTempo.identifierJoursReveles(classement);
+    const meilleursSepares = NexusTempo.identifierMeilleursJoursSepares(classement);
+    const classementLitrage = NexusTempo.classementLitrage(classement);
+    const analyseEquipe = NexusTempo.analyserEquipe(joursAgreges, employesParId);
+    const decision = NexusTempo.genererDecisionPrioritaire(joursAgreges, classement);
+
+    renderTout({ siteId, employee, joursAgreges, classement, joursReveles, meilleursSepares, classementLitrage, analyseEquipe, decision });
+  });
+
+  // ------------------------------------------------------------
+  // Bloc 1 — Résumé du Conseiller NEXUS
+  // ------------------------------------------------------------
+  function texteConseiller(joursAgreges, joursReveles, meilleursSepares) {
+    if (!joursAgreges.length) {
+      return "Aucun audit de caisse enregistré pour l'instant. NEXUS Tempo s'active dès que les audits quotidiens (Nexus Verify) commencent à s'accumuler — un jour de semaine devient lisible à partir de sa première occurrence, fiable à partir de sa deuxième.";
+    }
+    const { jourMoteur, jourProgression, jourARenforcer } = joursReveles;
+    const { meilleurPiste, meilleurBoutique } = meilleursSepares || {};
+    let texte = '';
+
+    // Distinction piste / boutique (25/07/2026, demande de Frédéric) : les
+    // deux meilleurs jours peuvent diverger — ex. "meilleures ventes en
+    // piste le vendredi, en revanche la boutique a mieux fonctionné mardi
+    // dernier". On ne l'affirme que si les deux jours sont identifiables,
+    // même avec une seule occurrence chacun : c'est un constat de ce qui a
+    // été observé, pas une tendance.
+    if (meilleurPiste && meilleurBoutique && meilleurPiste.jourSemaine !== meilleurBoutique.jourSemaine) {
+      texte += `Le <b>${meilleurPiste.nom}</b> reste votre meilleur jour en piste (${fmtEur(meilleurPiste.moyennePiste)} en moyenne), tandis que le <b>${meilleurBoutique.nom}</b> a mieux fonctionné côté boutique (${fmtEur(meilleurBoutique.moyenneBoutique)} en moyenne). `;
+    } else if (jourMoteur) {
+      texte += `Sur ${joursAgreges.length} jour${joursAgreges.length > 1 ? 's' : ''} enregistré${joursAgreges.length > 1 ? 's' : ''}, le <b>${jourMoteur.nom}</b> reste votre journée la plus performante avec ${fmtEur(jourMoteur.moyenneCombinee)} de CA moyen (piste + boutique). `;
+    }
+    if (jourARenforcer && jourARenforcer.jourSemaine !== (jourMoteur && jourMoteur.jourSemaine)) {
+      texte += `Le <b>${jourARenforcer.nom}</b> reste le point faible global`;
+      if (jourARenforcer.evolutionCombinee !== null) texte += `, ${fmtPct(jourARenforcer.evolutionCombinee)} sur la dernière occurrence`;
+      texte += `. `;
+    }
+    if (jourProgression) {
+      texte += `Le <b>${jourProgression.nom}</b> progresse le plus (${fmtPct(jourProgression.evolutionCombinee)}) sur son historique récent.`;
+    } else if (joursAgreges.length > 0) {
+      texte += `Historique encore trop court pour identifier une progression fiable — chaque nouveau jour enregistré affine cette lecture.`;
+    }
+    return texte || "Pas assez de données pour une lecture fiable du rythme de la station.";
+  }
+
+  // ------------------------------------------------------------
+  // Bloc 2 — Jours révélés
+  // ------------------------------------------------------------
+  function renderJoursReveles(joursReveles) {
+    const { jourMoteur, jourProgression, jourARenforcer } = joursReveles;
+    function carte(tag, couleur, jour, extra) {
+      if (!jour) return `<div class="revele-card"><div class="revele-tag" style="color:${couleur};">${tag}</div><div class="revele-vide">Historique encore insuffisant.</div></div>`;
+      return `<div class="revele-card">
+        <div class="revele-tag" style="color:${couleur};">${tag}</div>
+        <div class="revele-jour">${jour.nom.charAt(0).toUpperCase() + jour.nom.slice(1)}</div>
+        <div class="revele-detail">${extra}</div>
+      </div>`;
+    }
+    return `<div class="reveles-grid">
+      ${carte('Jour moteur', 'var(--green)', jourMoteur, jourMoteur ? `${fmtEur(jourMoteur.moyennePiste)} piste<br>${fmtEur(jourMoteur.moyenneBoutique)} boutique` : '')}
+      ${carte('En progression', 'var(--cyan)', jourProgression, jourProgression ? `${fmtPct(jourProgression.evolutionCombinee)}<br>vs historique` : '')}
+      ${carte('À renforcer', 'var(--amber)', jourARenforcer, jourARenforcer ? `${fmtEur(jourARenforcer.moyennePiste)} piste<br>${fmtEur(jourARenforcer.moyenneBoutique)} boutique` : '')}
+    </div>`;
+  }
+
+  // Duo piste / boutique (25/07/2026) : montre les deux meilleurs jours
+  // séparément quand ils ne coïncident pas — un simple constat, valable dès
+  // la première occurrence de chacun (voir texteConseiller pour la même
+  // idée en phrase complète).
+  function renderDuoJours(meilleursSepares) {
+    const { meilleurPiste, meilleurBoutique } = meilleursSepares || {};
+    if (!meilleurPiste || !meilleurBoutique || meilleurPiste.jourSemaine === meilleurBoutique.jourSemaine) return '';
+    return `<div class="duo-jours">
+      <div class="duo-item"><span class="duo-tag" style="color:var(--cyan);">Meilleur jour · Piste</span><b>${meilleurPiste.nom.charAt(0).toUpperCase() + meilleurPiste.nom.slice(1)}</b> — ${fmtEur(meilleurPiste.moyennePiste)} en moyenne</div>
+      <div class="duo-item"><span class="duo-tag" style="color:var(--amber);">Meilleur jour · Boutique</span><b>${meilleurBoutique.nom.charAt(0).toUpperCase() + meilleurBoutique.nom.slice(1)}</b> — ${fmtEur(meilleurBoutique.moyenneBoutique)} en moyenne</div>
+    </div>`;
+  }
+
+  // ------------------------------------------------------------
+  // Bloc "Carburants" — litrage réel par jour de semaine, uniquement pour
+  // les jours où l'audit a été saisi avec le détail par carburant (voir
+  // agregerParJour dans nexus-tempo.js). Tant qu'aucun audit n'a ce détail,
+  // NEXUS l'annonce clairement plutôt que d'estimer.
+  // ------------------------------------------------------------
+  function renderCarburants(classementLitrage) {
+    if (!classementLitrage.length) {
+      return `<div class="litrage-note">⛽ ${NexusTempo.LITRAGE_INDISPONIBLE}</div>`;
+    }
+    return classementLitrage.map((j, i) => `
+      <div class="carburant-row">
+        <div class="carburant-top">
+          <div class="carburant-jour">${i + 1}. ${j.nom.charAt(0).toUpperCase() + j.nom.slice(1)}</div>
+          <div class="carburant-total">${Math.round(j.litrageMoyenTotal).toLocaleString('fr-FR')} L</div>
+        </div>
+        <div class="carburant-detail">GO ${Math.round(j.litrageMoyenGazole).toLocaleString('fr-FR')} L · SP95 ${Math.round(j.litrageMoyenSp95).toLocaleString('fr-FR')} L · GNR ${Math.round(j.litrageMoyenGnr).toLocaleString('fr-FR')} L · ${j.nbOccLitrage} occurrence${j.nbOccLitrage > 1 ? 's' : ''} avec détail</div>
+      </div>`).join('');
+  }
+
+  // ------------------------------------------------------------
+  // Bloc 3 — Comparateur (deux périodes, filtre jour de semaine)
+  // ------------------------------------------------------------
+  function calculerPeriode(joursAgreges, debut, fin, jourFiltre) {
+    const lignes = joursAgreges.filter(j => j.date >= debut && j.date <= fin && (jourFiltre === 'tous' || String(j.jourSemaine) === jourFiltre));
+    const ventePiste = lignes.reduce((s, j) => s + j.ventePiste, 0);
+    const venteBoutique = lignes.reduce((s, j) => s + j.venteBoutique, 0);
+    return { nbJours: lignes.length, ventePiste, venteBoutique, total: ventePiste + venteBoutique };
+  }
+
+  function renderComparateur(joursAgreges) {
+    const optionsJour = NexusTempo.NOM_JOURS.map((n, i) => `<option value="${i}">${n.charAt(0).toUpperCase() + n.slice(1)}</option>`).join('');
+    const aujourdhui = new Date();
+    const iso = d => d.toISOString().slice(0, 10);
+    const finA = iso(aujourdhui);
+    const debutA = iso(new Date(aujourdhui.getTime() - 6 * 86400000));
+    const finB = iso(new Date(aujourdhui.getTime() - 7 * 86400000));
+    const debutB = iso(new Date(aujourdhui.getTime() - 13 * 86400000));
+
+    setTimeout(() => {
+      document.getElementById('compDebutA').value = debutA;
+      document.getElementById('compFinA').value = finA;
+      document.getElementById('compDebutB').value = debutB;
+      document.getElementById('compFinB').value = finB;
+      document.getElementById('btnComparer').addEventListener('click', () => {
+        const dA1 = document.getElementById('compDebutA').value, dA2 = document.getElementById('compFinA').value;
+        const dB1 = document.getElementById('compDebutB').value, dB2 = document.getElementById('compFinB').value;
+        const jourFiltre = document.getElementById('compJour').value;
+        if (!dA1 || !dA2 || !dB1 || !dB2) { alert('Renseignez les deux périodes.'); return; }
+        const pA = calculerPeriode(joursAgreges, dA1, dA2, jourFiltre);
+        const pB = calculerPeriode(joursAgreges, dB1, dB2, jourFiltre);
+        const evolTotal = NexusTempo.evolution(pA.total, pB.total);
+        const resultat = document.getElementById('compResultat');
+        resultat.style.display = 'block';
+        resultat.innerHTML = `
+          <div class="compar-ligne"><span class="cle">Période A (${pA.nbJours} jour${pA.nbJours > 1 ? 's' : ''})</span><span class="val">${fmtEur(pA.total)}</span></div>
+          <div class="compar-ligne"><span class="cle">— dont piste</span><span class="val">${fmtEur(pA.ventePiste)}</span></div>
+          <div class="compar-ligne"><span class="cle">— dont boutique</span><span class="val">${fmtEur(pA.venteBoutique)}</span></div>
+          <div class="compar-ligne" style="margin-top:8px;"><span class="cle">Période B (${pB.nbJours} jour${pB.nbJours > 1 ? 's' : ''})</span><span class="val">${fmtEur(pB.total)}</span></div>
+          <div class="compar-ligne"><span class="cle">— dont piste</span><span class="val">${fmtEur(pB.ventePiste)}</span></div>
+          <div class="compar-ligne"><span class="cle">— dont boutique</span><span class="val">${fmtEur(pB.venteBoutique)}</span></div>
+          ${(pA.nbJours === 0 || pB.nbJours === 0)
+            ? `<div class="compar-evol" style="color:var(--text-dim);">Au moins une des deux périodes n'a aucune donnée — comparaison non fiable.</div>`
+            : `<div class="compar-evol" style="color:${evolTotal >= 0 ? 'var(--green)' : 'var(--red)'};">${fmtPct(evolTotal)} entre B et A</div>`}
+        `;
+      });
+    }, 0);
+
+    return `<div class="compar-panel">
+      <div class="compar-row"><label>Période A</label><input type="date" id="compDebutA"><input type="date" id="compFinA"></div>
+      <div class="compar-row"><label>Période B</label><input type="date" id="compDebutB"><input type="date" id="compFinB"></div>
+      <div class="compar-row"><label>Jour</label><select id="compJour"><option value="tous">Tous les jours</option>${optionsJour}</select></div>
+      <button class="btn-comparer" id="btnComparer">Comparer</button>
+      <div class="compar-resultat" id="compResultat" style="display:none;"></div>
+    </div>`;
+  }
+
+  // ------------------------------------------------------------
+  // Bloc 4 — Vue hebdomadaire
+  // ------------------------------------------------------------
+  function renderVueHebdo(classement) {
+    return ORDRE_AFFICHAGE.map(idx => {
+      const j = classement[idx];
+      const style = STATUT_STYLE[j.statut] || STATUT_STYLE['Aucune donnée'];
+      const chiffres = j.occurrences.length === 0
+        ? 'Aucune donnée'
+        : `<b>${fmtEur(j.moyennePiste)}</b> piste · <b>${fmtEur(j.moyenneBoutique)}</b> boutique · ${j.occurrences.length} occurrence${j.occurrences.length > 1 ? 's' : ''}${j.evolutionCombinee !== null ? ` · ${fmtPct(j.evolutionCombinee)}` : ''}`;
+      return `<div class="hebdo-row">
+        <div class="hebdo-jour">${j.nom.charAt(0).toUpperCase() + j.nom.slice(1)}</div>
+        <div class="hebdo-chiffres">${chiffres}</div>
+        <div class="hebdo-statut" style="background:${style.bg}; color:${style.fg};">${j.statut}</div>
+      </div>`;
+    }).join('');
+  }
+
+  // ------------------------------------------------------------
+  // Bloc 5 — Analyse équipe (jamais de causalité affirmée)
+  // ------------------------------------------------------------
+  function renderEquipeListe(liste, metricLabel) {
+    if (!liste.length) return `<div class="section-note" style="margin:0 0 10px;">Aucune donnée pour ce rôle.</div>`;
+    return liste.map(e => {
+      const c = CONFIANCE_STYLE[e.confiance];
+      return `<div class="equipe-row">
+        <div>
+          <div class="equipe-nom">${e.nom}</div>
+          <div class="equipe-meta">${metricLabel} ${fmtEur(e.moyenneVente)} · ${e.nbQuarts} quart${e.nbQuarts > 1 ? 's' : ''} observé${e.nbQuarts > 1 ? 's' : ''}</div>
+        </div>
+        <div class="equipe-confiance" style="background:${c.bg}; color:${c.fg}; margin-left:auto;">${c.label}</div>
+      </div>`;
+    }).join('');
+  }
+
+  function renderEquipe(analyseEquipe) {
+    const piste = analyseEquipe.filter(e => e.role === 'piste');
+    const boutique = analyseEquipe.filter(e => e.role === 'boutique');
+    return `
+      <div class="section-note" style="margin:-6px 20px 14px;">NEXUS parle de <b>contribution observée dans un contexte comparable</b>, jamais de performance individuelle certaine — le résultat d'un quart dépend aussi du jour, du trafic, des collègues présents et des ruptures éventuelles.</div>
+      <div class="equipe-sub">Piste</div>
+      ${renderEquipeListe(piste, 'Moyenne vente piste/quart')}
+      <div class="equipe-sub">Boutique</div>
+      ${renderEquipeListe(boutique, 'Moyenne vente boutique/quart')}
+    `;
+  }
+
+  // ------------------------------------------------------------
+  // Bloc 6 — Décision NEXUS + création de mission terrain
+  // ------------------------------------------------------------
+  async function creerMissionTempo(siteId, employee, jourARenforcer, decisionMessage) {
+    const slug = jourARenforcer.nom.normalize('NFD').replace(/[̀-ͯ]/g, '');
+    const missionId = `TEMPO-${slug}-${Date.now()}`;
+    const { error: e1 } = await nexusClient.from('mission_catalog').insert({
+      mission_id: missionId,
+      titre: `Contrôler le ${jourARenforcer.nom}`,
+      pourquoi: decisionMessage,
+      famille: 'Tempo',
+      role_required: ['manager', 'gerant'],
+      site: siteId, site_id: siteId,
+      priority: 'normale',
+      proof_required: false,
+      validation_type: 'manager',
+      points: 5,
+      actif: true,
+      necessite_produit: false,
+      ponctuelle: true,
+    });
+    if (e1) { console.error('Création mission_catalog (Tempo):', e1); return false; }
+    const { error: e2 } = await nexusClient.from('mission_assignments').insert({
+      mission_id: missionId,
+      assigned_to_role: 'manager',
+      assigned_by_employee_id: employee.id,
+      status: 'assignee',
+      site_id: siteId,
+      note: decisionMessage,
+    });
+    if (e2) { console.error('Création mission_assignments (Tempo):', e2); return false; }
+    // Trace la décision dans journal_decisions pour que Capital NEXUS
+    // puisse un jour en mesurer l'impact — même circuit que les autres
+    // règles NEXUS (R2/R3/R4/R5).
+    await nexusClient.from('journal_decisions').insert({
+      site: siteId, candidate_id: missionId, rule_id: 'R6-TEMPO-JOUR', etat: '🗓️ TEMPO',
+      recommandation: decisionMessage, impact_eur: 0,
+      article: jourARenforcer.nom, categorie: 'Rythme hebdomadaire',
+      date: new Date().toISOString().slice(0, 10), heure: new Date().toTimeString().slice(0, 5),
+      employee_id: employee.id,
+    });
+    return true;
+  }
+
+  function renderDecision(decision, siteId, employee) {
+    if (!decision.disponible) {
+      return `<div class="decision-panel"><div class="decision-tag">Priorité NEXUS</div><div class="decision-texte">${decision.message}</div></div>`;
+    }
+    return `<div class="decision-panel">
+      <div class="decision-tag">Priorité NEXUS</div>
+      <div class="decision-texte">${decision.message}</div>
+      <button class="btn-mission" id="btnCreerMission">Créer une mission terrain</button>
+      <div class="mission-saved" id="missionSaved">✓ Mission créée et assignée au manager</div>
+    </div>`;
+  }
+
+  function branchBoutonMission(decision, siteId, employee) {
+    if (!decision.disponible) return;
+    const btn = document.getElementById('btnCreerMission');
+    if (!btn) return;
+    btn.addEventListener('click', async () => {
+      btn.disabled = true;
+      btn.textContent = 'Création…';
+      const ok = await creerMissionTempo(siteId, employee, decision.jour, decision.message);
+      if (!ok) { btn.disabled = false; btn.textContent = 'Créer une mission terrain'; alert('Erreur — réessayez.'); return; }
+      btn.style.display = 'none';
+      document.getElementById('missionSaved').style.display = 'block';
+    });
+  }
+
+  // ------------------------------------------------------------
+  // Assemblage final
+  // ------------------------------------------------------------
+  function renderTout({ siteId, employee, joursAgreges, classement, joursReveles, meilleursSepares, classementLitrage, analyseEquipe, decision }) {
+    const root = document.getElementById('root');
+    root.innerHTML = `
+      <div class="section" style="margin-top:6px;">
+        <div class="conseiller-card">
+          <img class="conseiller-avatar" src="assets/nexus-avatar.png" alt="Conseiller NEXUS">
+          <div class="conseiller-body">
+            <div class="conseiller-name">CONSEILLER NEXUS</div>
+            <p>${texteConseiller(joursAgreges, joursReveles, meilleursSepares)}</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="section-label">Jours révélés</div>
+      <div class="section">${renderJoursReveles(joursReveles)}</div>
+      ${renderDuoJours(meilleursSepares)}
+
+      <div class="section-label">Comparateur</div>
+      ${renderComparateur(joursAgreges)}
+
+      <div class="section-label">Vue hebdomadaire</div>
+      ${renderVueHebdo(classement)}
+
+      <div class="section-label">Analyse équipe</div>
+      ${renderEquipe(analyseEquipe)}
+
+      <div class="section-label">Décision NEXUS</div>
+      <div class="section">${renderDecision(decision, siteId, employee)}</div>
+
+      <div class="section-label">Carburants</div>
+      <div class="section">${renderCarburants(classementLitrage)}</div>
+    `;
+    branchBoutonMission(decision, siteId, employee);
+  }
+</script>
+</body>
+</html>

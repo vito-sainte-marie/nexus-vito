@@ -165,9 +165,24 @@
 
     <div class="card">
       <div class="section-label">Ventes théoriques</div>
-      <label class="f">Vente piste (pupitre / master)</label>
-      <input type="number" step="0.01" id="v_vente_piste" placeholder="0.00">
-      <label class="f">Vente boutique (Decenium)</label>
+      <!-- Litrage détaillé par carburant (25/07/2026, demande de Frédéric) :
+           remplace l'ancienne saisie d'un seul montant "vente piste". NEXUS
+           calcule désormais ce montant à partir du litrage réel (pupitre /
+           master) et du prix du mois en cours (station_config.prix_carburants)
+           — ce même litrage alimente aussi NEXUS Tempo (litres par jour de
+           semaine, par carburant). Voir calculerVentePiste() plus bas. -->
+      <div class="note">La vente piste n'est plus saisie en un seul montant global : elle se calcule à partir du litrage réellement vendu par carburant (pupitre / master), multiplié par le prix du mois en cours. Ce même litrage alimente NEXUS Tempo pour révéler le rythme réel de chaque carburant, jour par jour.</div>
+      <div id="alertePrixCarburantsVente" style="display:none; font-family:var(--mono); font-size:11px; color:var(--red); background:var(--red-dim); border-radius:8px; padding:8px 10px; margin-bottom:12px; line-height:1.5;"></div>
+      <div id="noteVentePisteLegacy" style="display:none; font-family:var(--mono); font-size:11px; color:var(--amber); background:var(--amber-dim); border-radius:8px; padding:8px 10px; margin-bottom:12px; line-height:1.5;"></div>
+      <label class="f">Gasoil (GO) — litres</label>
+      <input type="text" inputmode="decimal" id="v_litrage_go" placeholder="0,00">
+      <label class="f">Sans plomb (SP95) — litres</label>
+      <input type="text" inputmode="decimal" id="v_litrage_sp" placeholder="0,00">
+      <label class="f">Gasoil non routier (GNR) — litres</label>
+      <input type="text" inputmode="decimal" id="v_litrage_gnr" placeholder="0,00">
+      <div class="total-ligne">Vente piste calculée : <span id="v_vente_piste_calculee">0,00 €</span></div>
+
+      <label class="f" style="margin-top:14px;">Vente boutique (Decenium)</label>
       <input type="number" step="0.01" id="v_vente_boutique" placeholder="0.00">
       <label class="f">Piste réglé à la caisse (carburant payé au comptoir boutique)</label>
       <input type="number" step="0.01" id="v_transfert" placeholder="0.00">
@@ -377,11 +392,19 @@
 
     // ------------------------------------------------------------
     // Prix carburants du mois — utilises pour calculer le montant de la
-    // remise en cuve a partir du litrage (SP / GO / GNR). Prix indexes par
-    // la prefecture de Martinique, saisis par le manager dans Parametres
-    // Station le 1er de chaque mois (station_config.prix_carburants).
+    // remise en cuve ET, depuis le 25/07/2026, la vente piste elle-même
+    // (voir calculerVentePiste plus bas) a partir du litrage (SP / GO /
+    // GNR). Prix indexes par la prefecture de Martinique, saisis par le
+    // manager dans Parametres Station le 1er de chaque mois
+    // (station_config.prix_carburants).
     // ------------------------------------------------------------
     let PRIX_CARBURANTS_MOIS = null;
+    // Valeur de repli pour la modification d'un audit enregistré AVANT le
+    // passage au litrage détaillé (litrage_gazole = null) : on ne fabrique
+    // jamais un litrage qui n'a pas été saisi, on conserve le montant
+    // historique tel quel tant qu'aucun litrage n'est renseigné dans le
+    // formulaire.
+    let VENTE_PISTE_LEGACY = null;
 
     async function chargerPrixCarburants() {
       const { data, error } = await nexusClient.from('station_config').select('prix_carburants').eq('site', SITE_ACTUEL).maybeSingle();
@@ -420,11 +443,56 @@
       document.getElementById(id).addEventListener('input', majAffichageCuve);
     });
 
+    // ------------------------------------------------------------
+    // Vente piste calculée depuis le litrage (25/07/2026, demande de
+    // Frédéric) : gazole (GO), sans plomb (SP95) et GNR, chacun multiplié
+    // par le prix du mois en cours. Remplace l'ancienne saisie manuelle
+    // d'un seul montant global — plus fiable (le litrage vient directement
+    // du pupitre/master) et exploitable jour par jour par NEXUS Tempo.
+    // ------------------------------------------------------------
+    function lireLitragesVente() {
+      return {
+        go_l: numFR(document.getElementById('v_litrage_go').value) || 0,
+        sp_l: numFR(document.getElementById('v_litrage_sp').value) || 0,
+        gnr_l: numFR(document.getElementById('v_litrage_gnr').value) || 0,
+      };
+    }
+
+    function calculerVentePiste() {
+      const { go_l, sp_l, gnr_l } = lireLitragesVente();
+      const totalLitrage = go_l + sp_l + gnr_l;
+      // Cas 1 : aucun litrage saisi ET on modifie un audit historique sans
+      // détail par carburant — on conserve son montant d'origine plutôt que
+      // de fabriquer un litrage ou d'écraser avec 0.
+      if (totalLitrage === 0 && VENTE_PISTE_LEGACY != null) {
+        return { vente: VENTE_PISTE_LEGACY, litrageSaisi: false, bloque: false, go_l: 0, sp_l: 0, gnr_l: 0 };
+      }
+      // Cas 2 : litrage saisi (ou nouvel audit) mais prix du mois absents —
+      // impossible de calculer un montant réel, on bloque plutôt que
+      // d'enregistrer un 0 € de vente piste qui serait faux.
+      if (!PRIX_CARBURANTS_MOIS) {
+        return { vente: 0, litrageSaisi: false, bloque: true, go_l, sp_l, gnr_l };
+      }
+      const vente = go_l * PRIX_CARBURANTS_MOIS.go + sp_l * PRIX_CARBURANTS_MOIS.sp + gnr_l * PRIX_CARBURANTS_MOIS.gnr;
+      return { vente, litrageSaisi: true, bloque: false, go_l, sp_l, gnr_l };
+    }
+
+    function majAffichageVentePiste() {
+      const r = calculerVentePiste();
+      document.getElementById('v_vente_piste_calculee').textContent = r.vente.toFixed(2).replace('.', ',') + ' €';
+    }
+    ['v_litrage_go', 'v_litrage_sp', 'v_litrage_gnr'].forEach(id => {
+      document.getElementById(id).addEventListener('input', majAffichageVentePiste);
+    });
+
     PRIX_CARBURANTS_MOIS = await chargerPrixCarburants();
     if (!PRIX_CARBURANTS_MOIS) {
       const alerte = document.getElementById('alertePrixCarburants');
       alerte.style.display = 'block';
       alerte.innerHTML = `⚠ Prix carburants du mois non renseignés — la remise en cuve restera à 0,00 € tant qu'ils ne sont pas saisis dans <a href="NEXUS-Parametres-Station-v1.html" style="color:var(--amber);">Paramètres Station</a>.`;
+      const alerteVente = document.getElementById('alertePrixCarburantsVente');
+      alerteVente.style.display = 'block';
+      alerteVente.innerHTML = `⚠ Prix carburants du mois non renseignés dans <a href="NEXUS-Parametres-Station-v1.html" style="color:var(--red);">Paramètres Station</a> — la vente piste ne peut pas être calculée depuis le litrage tant qu'ils ne sont pas saisis. L'enregistrement d'un nouvel audit sera bloqué.`;
     }
 
     // ------------------------------------------------------------
@@ -517,7 +585,13 @@
       const quart = document.getElementById('v_quart').value.trim() || '1';
       if (!date) { alert('Renseignez une date.'); return; }
 
-      const vente_piste = v('v_vente_piste'), vente_boutique = v('v_vente_boutique');
+      const ventePisteResultat = calculerVentePiste();
+      if (ventePisteResultat.bloque) {
+        alert("Renseignez les prix carburants du mois dans Paramètres Station avant d'enregistrer — la vente piste ne peut pas être calculée sans eux.");
+        return;
+      }
+      const vente_piste = ventePisteResultat.vente;
+      const vente_boutique = v('v_vente_boutique');
       const transfert = v('v_transfert'); // "Piste réglé à la caisse"
 
       const drop_piste_billets = v('v_drop_piste_billets'), drop_piste_pieces = v('v_drop_piste_pieces');
@@ -577,6 +651,15 @@
       const { error } = await nexusClient.from('audits_caisse').upsert({
         site: SITE_ACTUEL, date, quart,
         vente_piste, vente_boutique, piste_regle_a_la_caisse: transfert,
+        // Litrage détaillé par carburant — null si on a conservé le montant
+        // historique d'un audit pré-litrage (voir calculerVentePiste), pour
+        // ne jamais fabriquer un litrage qui n'a pas été réellement saisi.
+        litrage_gazole: ventePisteResultat.litrageSaisi ? ventePisteResultat.go_l : null,
+        litrage_sp95: ventePisteResultat.litrageSaisi ? ventePisteResultat.sp_l : null,
+        litrage_gnr: ventePisteResultat.litrageSaisi ? ventePisteResultat.gnr_l : null,
+        prix_gazole: ventePisteResultat.litrageSaisi ? PRIX_CARBURANTS_MOIS.go : null,
+        prix_sp95: ventePisteResultat.litrageSaisi ? PRIX_CARBURANTS_MOIS.sp : null,
+        prix_gnr: ventePisteResultat.litrageSaisi ? PRIX_CARBURANTS_MOIS.gnr : null,
         drop_piste_billets, drop_piste_pieces, drop_piste_chq, drop_piste_cb, drop_piste_vitocarte,
         clients_compte_piste, depense_ponctuelle_piste: depense_piste,
         drop_boutique_billets, drop_boutique_pieces, drop_boutique_chq, drop_boutique_cb,
@@ -594,6 +677,11 @@
         box.innerHTML = `<div class="resume-box"><div class="resume-line" style="color:var(--red);">Erreur d'enregistrement — réessayez.</div></div>`;
         return;
       }
+
+      // Repart propre pour la prochaine saisie — plus de valeur de repli
+      // héritée d'une éventuelle correction d'audit ancien.
+      VENTE_PISTE_LEGACY = null;
+      document.getElementById('noteVentePisteLegacy').style.display = 'none';
 
       box.innerHTML = `
         <div class="resume-box">
@@ -660,6 +748,7 @@
           <div class="histo-detail" id="detail-${i}">
             ${phraseComposant('Caisse piste (vs pupitre)', a.ecart_piste)}<br>
             ${phraseComposant('Caisse boutique (vs Decenium)', a.ecart_boutique)}
+            ${a.litrage_gazole != null ? `<br><br>Litrage piste : GO ${Number(a.litrage_gazole).toFixed(2)} L · SP95 ${Number(a.litrage_sp95).toFixed(2)} L · GNR ${Number(a.litrage_gnr).toFixed(2)} L` : ''}
             <br><br>Présents piste : ${nomsEmployes(a.employes_piste)}<br>
             Présents boutique : ${nomsEmployes(a.employes_boutique)}
             ${a.commentaire ? `<br><br><i>${a.commentaire}</i>` : ''}
@@ -696,9 +785,30 @@
     function prefillFormPourModification(a) {
       document.getElementById('v_date').value = a.date;
       document.getElementById('v_quart').value = a.quart;
-      document.getElementById('v_vente_piste').value = a.vente_piste;
       document.getElementById('v_vente_boutique').value = a.vente_boutique;
       document.getElementById('v_transfert').value = a.piste_regle_a_la_caisse;
+
+      // Vente piste : si l'audit a été saisi avec le détail par carburant
+      // (litrage_gazole non nul), on repart de ce litrage. Sinon, c'est un
+      // audit antérieur au 25/07/2026 — on conserve son montant global tel
+      // quel (VENTE_PISTE_LEGACY) tant qu'aucun litrage n'est saisi ici,
+      // plutôt que de l'écraser par un litrage inventé ou par 0.
+      const noteLegacy = document.getElementById('noteVentePisteLegacy');
+      if (a.litrage_gazole != null || a.litrage_sp95 != null || a.litrage_gnr != null) {
+        VENTE_PISTE_LEGACY = null;
+        noteLegacy.style.display = 'none';
+        document.getElementById('v_litrage_go').value = a.litrage_gazole != null ? String(a.litrage_gazole).replace('.', ',') : '';
+        document.getElementById('v_litrage_sp').value = a.litrage_sp95 != null ? String(a.litrage_sp95).replace('.', ',') : '';
+        document.getElementById('v_litrage_gnr').value = a.litrage_gnr != null ? String(a.litrage_gnr).replace('.', ',') : '';
+      } else {
+        VENTE_PISTE_LEGACY = Number(a.vente_piste) || 0;
+        document.getElementById('v_litrage_go').value = '';
+        document.getElementById('v_litrage_sp').value = '';
+        document.getElementById('v_litrage_gnr').value = '';
+        noteLegacy.style.display = 'block';
+        noteLegacy.innerHTML = `ℹ️ Cet audit a été enregistré avant le passage au litrage détaillé (25/07/2026) — la vente piste historique (${VENTE_PISTE_LEGACY.toFixed(2).replace('.', ',')} €) est conservée telle quelle tant qu'aucun litrage n'est saisi ci-dessus.`;
+      }
+      majAffichageVentePiste();
 
       document.getElementById('v_drop_piste_billets').value = a.drop_piste_billets;
       document.getElementById('v_drop_piste_pieces').value = a.drop_piste_pieces;
