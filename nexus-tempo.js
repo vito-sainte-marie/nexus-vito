@@ -86,6 +86,9 @@
     // ce seuil protège contre une fausse lecture tant que les jours
     // disponibles ne sont pas assez nombreux ni assez réguliers.
     MIN_OCCURRENCES_STOCK: 3,
+    // Vacances scolaires (25/07/2026) : nombre minimum de jours EN
+    // vacances ET HORS vacances nécessaires avant de comparer leur CA.
+    MIN_OCCURRENCES_VACANCES: 3,
   };
 
   // Coordonnées de la station (25/07/2026) — dérivées du Plus Code
@@ -533,16 +536,98 @@
     return { ferie: !!trouve, nom: trouve ? trouve.nom : null };
   }
 
+  // ------------------------------------------------------------
+  // Jours fériés Martinique (25/07/2026) — les jours fériés nationaux
+  // plus le 22 mai (Abolition de l'esclavage, loi n°83-550 du
+  // 30/06/1983), fixe chaque année quel que soit le jour de semaine.
+  // ------------------------------------------------------------
+  function joursFeriesMartinique(annee) {
+    const feries = joursFeries(annee).slice();
+    feries.push({ date: `${annee}-05-22`, nom: "Abolition de l'esclavage (Martinique)" });
+    return feries.sort((a, b) => a.date < b.date ? -1 : 1);
+  }
+
+  function estJourFerieMartinique(dateStr) {
+    const annee = Number(dateStr.slice(0, 4));
+    const trouve = joursFeriesMartinique(annee).find(f => f.date === dateStr);
+    return { ferie: !!trouve, nom: trouve ? trouve.nom : null };
+  }
+
+  // ------------------------------------------------------------
+  // Ponts calendaires (25/07/2026) — un jour férié tombant un mardi
+  // "fait le pont" avec le lundi précédent, un jeudi avec le vendredi
+  // suivant. Calcul purement algorithmique à partir des jours fériés
+  // Martinique — valable pour n'importe quelle année, y compris 2027.
+  // Un férié tombant un autre jour (dont le samedi/dimanche) ne crée
+  // pas de pont au sens usuel du terme.
+  // ------------------------------------------------------------
+  function identifierPonts(annee) {
+    const ponts = [];
+    joursFeriesMartinique(annee).forEach(f => {
+      const d = dateLocale(f.date);
+      const jourSemaine = d.getDay();
+      if (jourSemaine === 2) {
+        const veille = new Date(d.getTime() - 86400000);
+        ponts.push({ date: veille.toISOString().slice(0, 10), nom: `Pont — veille de ${f.nom}` });
+      } else if (jourSemaine === 4) {
+        const lendemain = new Date(d.getTime() + 86400000);
+        ponts.push({ date: lendemain.toISOString().slice(0, 10), nom: `Pont — lendemain de ${f.nom}` });
+      }
+    });
+    return ponts.sort((a, b) => a.date < b.date ? -1 : 1);
+  }
+
+  function estPont(dateStr) {
+    const annee = Number(dateStr.slice(0, 4));
+    const trouve = identifierPonts(annee).find(p => p.date === dateStr);
+    return { pont: !!trouve, nom: trouve ? trouve.nom : null };
+  }
+
+  // ------------------------------------------------------------
+  // Vacances scolaires Martinique (25/07/2026) — dates officielles
+  // publiées par l'académie de Martinique (ac-martinique.fr, arrêtés
+  // du calendrier scolaire 2025-2026 et 2026-2027). Liste figée : on
+  // n'y ajoute une période que lorsqu'elle a été officiellement
+  // publiée — jamais une date estimée. L'été 2027 n'a pas encore de
+  // date de fin publiée (arrêté 2027-2028 pas encore paru) : "fin:
+  // null" le signale explicitement plutôt que d'inventer une date de
+  // rentrée.
+  // ------------------------------------------------------------
+  const VACANCES_SCOLAIRES_MARTINIQUE = [
+    { nom: 'Vacances de Toussaint', debut: '2025-10-18', fin: '2025-11-03' },
+    { nom: 'Vacances de Noël', debut: '2025-12-20', fin: '2026-01-05' },
+    { nom: 'Vacances de Carnaval', debut: '2026-02-07', fin: '2026-02-23' },
+    { nom: 'Vacances de Pâques', debut: '2026-04-02', fin: '2026-04-20' },
+    { nom: 'Grandes vacances (été 2026)', debut: '2026-07-04', fin: '2026-08-31' },
+    { nom: 'Vacances de Toussaint', debut: '2026-10-20', fin: '2026-11-03' },
+    { nom: 'Vacances de Noël', debut: '2026-12-19', fin: '2027-01-04' },
+    { nom: 'Vacances de Carnaval', debut: '2027-02-06', fin: '2027-02-22' },
+    { nom: 'Fêtes pascales', debut: '2027-03-24', fin: '2027-04-01' },
+    { nom: 'Vacances de Pâques', debut: '2027-04-20', fin: '2027-05-03' },
+    { nom: 'Grandes vacances (été 2027)', debut: '2027-07-03', fin: null },
+  ];
+
+  function estVacancesScolaires(dateStr) {
+    const trouve = VACANCES_SCOLAIRES_MARTINIQUE.find(v => dateStr >= v.debut && (v.fin === null || dateStr <= v.fin));
+    return { vacances: !!trouve, nom: trouve ? trouve.nom : null };
+  }
+
   function tagCalendaire(dateStr) {
     const d = dateLocale(dateStr);
     const annee = d.getFullYear(), mois = d.getMonth(), jourMois = d.getDate();
     const dernierJourDuMois = new Date(annee, mois + 1, 0).getDate();
     const ferie = estJourFerie(dateStr);
+    const feriemq = estJourFerieMartinique(dateStr);
+    const pont = estPont(dateStr);
+    const vacances = estVacancesScolaires(dateStr);
     return {
       annee, mois, nomMois: NOM_MOIS[mois], jourMois, dernierJourDuMois,
       debutMois: jourMois <= 5,
       finMois: jourMois >= dernierJourDuMois - 4,
       ferie: ferie.ferie, nomFerie: ferie.nom,
+      ferieMartinique: feriemq.ferie, nomFerieMartinique: feriemq.nom,
+      pont: pont.pont, nomPont: pont.nom,
+      vacancesScolaires: vacances.vacances, nomVacances: vacances.nom,
     };
   }
 
@@ -613,6 +698,44 @@
       moisAnalyse,
       message: moisDisponibles.length > 0 ? null : "Analyse saisonnière en apprentissage. Les tendances apparaîtront automatiquement lorsque suffisamment d'historique sera disponible.",
     };
+  }
+
+  // ------------------------------------------------------------
+  // 9bis) Vacances scolaires & ponts (25/07/2026) — dates officielles
+  // (voir VACANCES_SCOLAIRES_MARTINIQUE) plutôt que devinées. Les
+  // ponts sont trop rares dans l'année pour une comparaison
+  // statistique fiable (2 à 6 par an) : on se contente de les lister
+  // comme repère, sans jamais affirmer un effet chiffré dessus. Les
+  // vacances scolaires, en revanche, couvrent assez de jours pour une
+  // vraie comparaison une fois le seuil atteint.
+  // ------------------------------------------------------------
+  function analyserVacancesScolaires(joursAgreges) {
+    const tagues = (joursAgreges || []).map(j => ({ ...j, ...tagCalendaire(j.date) }));
+    const vacances = tagues.filter(j => j.vacancesScolaires);
+    const horsVacances = tagues.filter(j => !j.vacancesScolaires);
+    if (vacances.length < SEUILS.MIN_OCCURRENCES_VACANCES || horsVacances.length < SEUILS.MIN_OCCURRENCES_VACANCES) {
+      return { disponible: false, message: `Corrélation vacances scolaires non encore mesurable — il faut au moins ${SEUILS.MIN_OCCURRENCES_VACANCES} jours en vacances et ${SEUILS.MIN_OCCURRENCES_VACANCES} jours hors vacances à comparer (actuellement ${vacances.length} en vacances, ${horsVacances.length} hors vacances).` };
+    }
+    const calc = liste => ({
+      nbJours: liste.length,
+      moyennePiste: moyenne(liste.map(j => j.ventePiste)),
+      moyenneBoutique: moyenne(liste.map(j => j.venteBoutique)),
+    });
+    const joursVacances = calc(vacances);
+    const joursHorsVacances = calc(horsVacances);
+    return {
+      disponible: true,
+      joursVacances, joursHorsVacances,
+      ecartPiste: evolution(joursVacances.moyennePiste, joursHorsVacances.moyennePiste),
+      ecartBoutique: evolution(joursVacances.moyenneBoutique, joursHorsVacances.moyenneBoutique),
+    };
+  }
+
+  function prochainsPonts(depuisDateStr, nbMax) {
+    const depuis = depuisDateStr || aujourdHuiISO();
+    const annees = [Number(depuis.slice(0, 4)), Number(depuis.slice(0, 4)) + 1];
+    const tous = annees.flatMap(a => identifierPonts(a)).filter(p => p.date >= depuis);
+    return tous.slice(0, nbMax || 6);
   }
 
   // ------------------------------------------------------------
@@ -954,8 +1077,8 @@
     { id: 'trafic', nom: 'Trafic routier', statut: 'prevue' },
     { id: 'inventaires', nom: 'Inventaires (Scanner Stock)', statut: 'prevue' },
     { id: 'capital_nexus', nom: 'Impact des décisions (Capital NEXUS)', statut: 'prevue' },
-    { id: 'vacances_scolaires', nom: 'Vacances scolaires (zone)', statut: 'prevue' },
-    { id: 'ponts', nom: 'Ponts calendaires', statut: 'prevue' },
+    { id: 'vacances_scolaires', nom: 'Vacances scolaires (académie Martinique)', statut: 'connectee' },
+    { id: 'ponts', nom: 'Ponts calendaires', statut: 'connectee' },
   ];
 
   window.NexusTempo = {
@@ -964,6 +1087,8 @@
     identifierJoursReveles, identifierMeilleursJoursSepares, classementLitrage,
     analyserEquipe, genererDecisionPrioritaire,
     calculerMaturite, calculerConfianceGlobale, joursFeries, estJourFerie, tagCalendaire,
+    joursFeriesMartinique, estJourFerieMartinique, identifierPonts, estPont,
+    VACANCES_SCOLAIRES_MARTINIQUE, estVacancesScolaires, analyserVacancesScolaires, prochainsPonts,
     analyserDebutFinMois, analyserSaisonnier, genererDecouvertes,
     croiserMeteo, analyserMeteo,
     agregerStockParJour, dernierEtatStock, croiserStock, analyserStock,

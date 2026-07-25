@@ -295,6 +295,7 @@ footer{margin-top:auto; padding:20px 20px 24px; font-family:var(--mono); font-si
     const confianceGlobale = NexusTempo.calculerConfianceGlobale(joursExploitables, classement);
     const saisonnier = NexusTempo.analyserSaisonnier(joursExploitables);
     const debutFinMois = NexusTempo.analyserDebutFinMois(joursExploitables);
+    const analyseVacances = NexusTempo.analyserVacancesScolaires(joursExploitables);
 
     // Météo (25/07/2026) — source externe, jamais bloquante : un échec
     // réseau retombe sur meteoParDate=null et NexusTempo.analyserMeteo
@@ -315,7 +316,7 @@ footer{margin-top:auto; padding:20px 20px 24px; font-family:var(--mono); font-si
 
     document.getElementById('maturiteZone').innerHTML = renderMaturite(maturite, confianceGlobale);
 
-    renderTout({ siteId, employee, joursAgreges, joursExploitables, classement, joursReveles, meilleursSepares, classementLitrage, analyseEquipe, decision, saisonnier, debutFinMois, decouvertes, analyseMeteo, analyseStock, etatStockActuel });
+    renderTout({ siteId, employee, joursAgreges, joursExploitables, classement, joursReveles, meilleursSepares, classementLitrage, analyseEquipe, decision, saisonnier, debutFinMois, analyseVacances, decouvertes, analyseMeteo, analyseStock, etatStockActuel });
   });
 
   // ------------------------------------------------------------
@@ -650,10 +651,10 @@ footer{margin-top:auto; padding:20px 20px 24px; font-family:var(--mono); font-si
   // honnête défini dans nexus-tempo.js. Le début/fin de mois est un
   // signal exploitable même avec un historique court, affiché à part.
   // ------------------------------------------------------------
-  function renderSaisonnier(saisonnier, debutFinMois) {
+  function renderSaisonnier(saisonnier, debutFinMois, analyseVacances) {
     let html = '';
     if (!saisonnier.disponible) {
-      html += `<div class="saison-panel"><div class="saison-etat">📅 ${saisonnier.message}<br><br>Ce module apprend progressivement : les mois, les semaines, les jours fériés, les débuts et fins de mois, les saisons — puis, à terme, les vacances scolaires, les ponts et les événements locaux (voir « Sources de données » plus bas).</div></div>`;
+      html += `<div class="saison-panel"><div class="saison-etat">📅 ${saisonnier.message}<br><br>Ce module apprend progressivement : les mois, les semaines, les jours fériés, les débuts et fins de mois, les saisons, les vacances scolaires et les ponts — puis, à terme, les événements locaux (voir « Sources de données » plus bas).</div></div>`;
     } else {
       const lignes = saisonnier.moisAnalyse.filter(m => m.disponible).map(m =>
         `<div class="saison-row"><span class="saison-mois">${m.nomMois.charAt(0).toUpperCase() + m.nomMois.slice(1)}</span><span class="saison-val">${fmtEur(m.moyenneCombinee)}<br><span style="font-weight:400; color:var(--text-dim); font-size:9.5px;">${m.nbPeriodesObservees} périodes observées</span></span></div>`
@@ -665,6 +666,26 @@ footer{margin-top:auto; padding:20px 20px 24px; font-family:var(--mono); font-si
       html += `<div class="section-note">${sens} sur la période observée (${fmtPct(debutFinMois.ecartFinVsDebut)} — ${debutFinMois.debut.nbJours} jour${debutFinMois.debut.nbJours > 1 ? 's' : ''} en début, ${debutFinMois.fin.nbJours} en fin de mois).</div>`;
     } else {
       html += `<div class="section-note">Comparaison début / fin de mois : données insuffisantes pour l'instant (au moins ${NexusTempo.SEUILS.MIN_OCCURRENCES_TENDANCE} jours de chaque côté sont nécessaires).</div>`;
+    }
+
+    // Vacances scolaires (académie Martinique, dates officielles) et
+    // ponts calendaires (25/07/2026, demande de Frédéric) — les ponts
+    // sont trop rares pour une moyenne fiable, on les liste simplement
+    // comme repère plutôt que d'affirmer un effet chiffré dessus.
+    if (analyseVacances.disponible) {
+      const { joursVacances, joursHorsVacances, ecartPiste, ecartBoutique } = analyseVacances;
+      html += `<div class="saison-panel" style="margin-top:8px;">
+          <div class="saison-row"><span class="saison-mois">En vacances scolaires (${joursVacances.nbJours})</span><span class="saison-val">${fmtEur(joursVacances.moyennePiste)} piste<br><span style="font-weight:400; color:var(--text-dim); font-size:9.5px;">${fmtEur(joursVacances.moyenneBoutique)} boutique</span></span></div>
+          <div class="saison-row"><span class="saison-mois">Hors vacances (${joursHorsVacances.nbJours})</span><span class="saison-val">${fmtEur(joursHorsVacances.moyennePiste)} piste<br><span style="font-weight:400; color:var(--text-dim); font-size:9.5px;">${fmtEur(joursHorsVacances.moyenneBoutique)} boutique</span></span></div>
+        </div>
+        <div class="section-note">Écart vacances / hors vacances : ${fmtPct(ecartPiste)} en piste, ${fmtPct(ecartBoutique)} en boutique.</div>`;
+    } else {
+      html += `<div class="section-note" style="margin-top:8px;">🏖️ ${analyseVacances.message}</div>`;
+    }
+
+    const ponts = NexusTempo.prochainsPonts(undefined, 6);
+    if (ponts.length) {
+      html += `<div class="section-note" style="margin-top:8px;"><b style="color:var(--text);">Prochains ponts calendaires :</b><br>${ponts.map(p => `${fmtDateCourt(p.date)} — ${p.nom.replace('Pont — ', '')}`).join('<br>')}</div>`;
     }
     return html;
   }
@@ -786,7 +807,7 @@ footer{margin-top:auto; padding:20px 20px 24px; font-family:var(--mono); font-si
   // ------------------------------------------------------------
   // Assemblage final
   // ------------------------------------------------------------
-  function renderTout({ siteId, employee, joursAgreges, joursExploitables, classement, joursReveles, meilleursSepares, classementLitrage, analyseEquipe, decision, saisonnier, debutFinMois, decouvertes, analyseMeteo, analyseStock, etatStockActuel }) {
+  function renderTout({ siteId, employee, joursAgreges, joursExploitables, classement, joursReveles, meilleursSepares, classementLitrage, analyseEquipe, decision, saisonnier, debutFinMois, analyseVacances, decouvertes, analyseMeteo, analyseStock, etatStockActuel }) {
     const root = document.getElementById('root');
     const nbDecouvertes = decouvertes.length && decouvertes[0].disponible ? decouvertes.length : 0;
 
@@ -839,7 +860,7 @@ footer{margin-top:auto; padding:20px 20px 24px; font-family:var(--mono); font-si
 
       ${accordion('accCarburants', 'Carburants', `<div class="section">${renderCarburants(classementLitrage)}</div>`, false, { sousTitre: sousTitreCarburants })}
 
-      ${accordion('accSaisonnier', 'Cycles saisonniers', renderSaisonnier(saisonnier, debutFinMois), false, { sousTitre: sousTitreSaisonnier })}
+      ${accordion('accSaisonnier', 'Cycles saisonniers', renderSaisonnier(saisonnier, debutFinMois, analyseVacances), false, { sousTitre: sousTitreSaisonnier })}
 
       ${accordion('accMeteo', 'Météo', renderMeteo(analyseMeteo), false, { sousTitre: sousTitreMeteo })}
 
