@@ -234,10 +234,10 @@
           <div class="etat-sub" id="indiceSub">Calcul en cours…</div>
         </div>
         <div class="etat-col">
-          <div class="etat-label">Capital NEXUS</div>
-          <div class="etat-value" style="color:var(--gold); font-size:22px;">Démo</div>
-          <div class="etat-sub">Pas encore de décisions suivies dans le temps</div>
-          <a href="NEXUS-Capital-v1.html" style="display:inline-block; margin-top:6px; font-family:var(--mono); font-size:10px; color:var(--cyan);">Voir la démo →</a>
+          <div class="etat-label">Nexus Marge+</div>
+          <div class="etat-value" id="margeValeur" style="font-size:22px;">—</div>
+          <div class="etat-sub" id="margeSub">Calcul en cours…</div>
+          <a href="NEXUS-Scanner-v1.html" style="display:inline-block; margin-top:6px; font-family:var(--mono); font-size:10px; color:var(--cyan);">Voir le détail →</a>
         </div>
       </div>
       <div class="indice-legende" id="indiceLegende">
@@ -345,7 +345,7 @@
       </div>
       <div class="nav-arrow">›</div>
     </a>
-    <a class="nav-item" data-role="manager" data-preview="true" href="NEXUS-Resultats-Equipe-v1.html" style="display:none;">
+    <a class="nav-item" data-role="manager" href="NEXUS-Resultats-Equipe-v1.html" style="display:none;">
       <div class="nav-icon"><img src="assets/icons/icon-resultats-equipe.png" alt="Résultats équipe"></div>
       <div class="nav-body">
         <div class="nav-title">Résultats Équipe</div>
@@ -353,7 +353,11 @@
       </div>
       <div class="nav-arrow">›</div>
     </a>
-    <a class="nav-item" data-role="manager" href="NEXUS-Evaluation-Employe-v1.html" style="display:none;">
+    <!-- Aperçu par défaut du groupe Équipe (24/07/2026, demande de Frédéric) :
+         Évaluation plutôt que Résultats Équipe — c'est ce que le manager fait
+         en premier sur le terrain (évaluer son équipe), avant de consulter
+         des résultats chiffrés. -->
+    <a class="nav-item" data-role="manager" data-preview="true" href="NEXUS-Evaluation-Employe-v1.html" style="display:none;">
       <div class="nav-icon"><img src="assets/icons/icon-evaluation.png" alt="Évaluation"></div>
       <div class="nav-body">
         <div class="nav-title">Évaluation</div>
@@ -513,6 +517,7 @@
 <script src="nexus-auth.js"></script>
 <script src="nexus-periodes.js"></script>
 <script src="nexus-indice.js"></script>
+<script src="nexus-marge.js"></script>
 <script>
   // ------------------------------------------------------------
   // Calendrier fournisseurs partagé — extrait le 24/07/2026 (était
@@ -744,6 +749,69 @@
     return Math.max(0, 2 - quartsFaits.size);
   }
 
+  // ------------------------------------------------------------
+  // Nexus Marge+ dans le cadre Niveau 1 (24/07/2026, demande de Frédéric) —
+  // remplace Capital NEXUS (qui restait une démo sans calcul réel, voir
+  // NEXUS-Capital-v1.html). Nexus Marge+ EST réel : même moteur
+  // NexusMarge.detecterEcartsMarge() que la section "Optimisation de marge"
+  // de NEXUS-Scanner-v1.html (règle R5-MARGE-ECART), mêmes exclusions
+  // (tabac réglementé codé dans nexus-marge.js + exclusions manuelles de la
+  // table marge_exceptions), même filtrage des décisions déjà validées via
+  // journal_decisions. Seul le format d'affichage change : ici un résumé en
+  // une valeur, pas la liste complète des écarts (qui reste dans Scanner).
+  // ------------------------------------------------------------
+  async function chargerMargePlusHome(siteId) {
+    const [{ data, error }, produitsAppelRes, exclusionsRes, valideesRes] = await Promise.all([
+      fetchAllRowsHome(() => nexusClient.from('products')
+        .select('categorie, article, ca, marge, periode_debut, periode_fin')
+        .eq('site', siteId)
+        .order('periode_debut', { ascending: false })
+        .order('article', { ascending: true })),
+      nexusClient.from('produits_appel').select('article').eq('site', siteId),
+      nexusClient.from('marge_exceptions').select('article').eq('site', siteId),
+      nexusClient.from('journal_decisions').select('candidate_id').eq('site', siteId).eq('rule_id', 'R5-MARGE-ECART'),
+    ]);
+    if (error || !data || !data.length) { console.error('Chargement products (marge accueil):', error); return null; }
+
+    const produitsAppel = new Set(((produitsAppelRes && produitsAppelRes.data) || []).map(r => r.article));
+    const rowsBrut = data.filter(r => !produitsAppel.has(r.article));
+    const { periodeAffichage, rowsAffichage } = NexusPeriodes.analyserPeriodes(rowsBrut);
+    if (!periodeAffichage) return null;
+
+    // Même définition d'anomalie que construireStats() dans Scanner : une
+    // ligne dont le CA ou la marge n'a pas de sens économique fausserait
+    // toute comparaison de marge entre produits.
+    const rowsPropres = rowsAffichage.filter(r => (r.ca || 0) > 0 && (r.marge || 0) >= 0 && (r.marge || 0) <= (r.ca || 0));
+
+    const exclusionsManuelles = new Set(((exclusionsRes && exclusionsRes.data) || []).map(r => r.article));
+    const valideesMarge = new Set(((valideesRes && valideesRes.data) || []).map(d => d.candidate_id));
+
+    const ecarts = NexusMarge.detecterEcartsMarge(rowsPropres, exclusionsManuelles)
+      .filter(e => !valideesMarge.has(`LIVE-R5-${e.categorie}|${e.article}`));
+
+    return { nbEcarts: ecarts.length, gainPotentiel: ecarts.reduce((s, e) => s + e.gainPotentiel, 0) };
+  }
+
+  function renderMargePlus(resultat) {
+    const valeurEl = document.getElementById('margeValeur');
+    const subEl = document.getElementById('margeSub');
+    if (!resultat) {
+      valeurEl.textContent = '—';
+      valeurEl.style.color = 'var(--text-dim)';
+      subEl.textContent = 'Pas assez de données pour ce calcul.';
+      return;
+    }
+    if (resultat.nbEcarts === 0) {
+      valeurEl.textContent = 'RAS';
+      valeurEl.style.color = 'var(--green)';
+      subEl.textContent = 'Aucun écart de marge détecté';
+    } else {
+      valeurEl.textContent = Math.round(resultat.gainPotentiel).toLocaleString('fr-FR') + ' €';
+      valeurEl.style.color = 'var(--amber)';
+      subEl.textContent = `${resultat.nbEcarts} écart${resultat.nbEcarts > 1 ? 's' : ''} de marge détecté${resultat.nbEcarts > 1 ? 's' : ''}`;
+    }
+  }
+
   let SITE_HOME = 'vito-sainte-marie';
   let EMPLOYEE_HOME_ID = null;
 
@@ -903,6 +971,7 @@
       domainesRadar,
       controlesVerify,
       missionsCatalogueRes,
+      margePlusResultat,
     ] = await Promise.all([
       calculerCandidatsHome(SITE_HOME),
       chargerValideesHome(SITE_HOME),
@@ -910,12 +979,14 @@
       chargerDomainesRadarHome(),
       chargerControlesVerifyHome(SITE_HOME),
       nexusClient.from('mission_catalog').select('mission_id', { count: 'exact', head: true }).eq('actif', true),
+      chargerMargePlusHome(SITE_HOME),
     ]);
 
     const candidatsDisponibles = candidats.filter(c => !valideesSite.has(c.candidate_id));
     const score = facteurs ? NexusIndice.calculerIndiceNexus(facteurs) : null;
 
     renderEtatCommerce(score, facteurs, candidatsDisponibles);
+    renderMargePlus(margePlusResultat);
     renderConseillerHome(candidatsDisponibles.slice(0, 3), employee.nom);
     renderKpiGrid({
       missionsActives: (missionsCatalogueRes && missionsCatalogueRes.count != null) ? missionsCatalogueRes.count : null,
