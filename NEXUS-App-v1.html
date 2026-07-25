@@ -889,6 +889,24 @@
     syntheseEl.innerHTML = `<span>${syntheseTexte}</span>`;
   }
 
+  // Verbes d'action du Conseiller (24/07/2026, demande de Frédéric) —
+  // remplace le lien fixe "Voir dans Produits →", trop passif, par un verbe
+  // qui pousse à agir. Choisi au hasard à chaque affichage, dans un pool
+  // adapté au type de décision (🔥 À AGIR / 📈 OPPORTUNITÉ / 🟡 À SURVEILLER)
+  // — l'aléatoire est volontaire : le but est que le Conseiller NEXUS donne
+  // l'impression d'être présent et de reformuler, pas de répéter un bouton
+  // figé. La destination (fiche Produits) ne change pas, seul le mot change.
+  const VERBES_ACTION_CONSEILLER = {
+    '🔥 À AGIR': ['Corriger', 'Ajuster', 'Régler', 'Traiter'],
+    '📈 OPPORTUNITÉ': ['Renforcer', 'Saisir', 'Amplifier', 'Capitaliser'],
+    '🟡 À SURVEILLER': ['Vérifier', 'Analyser', 'Examiner', 'Investiguer'],
+  };
+  const VERBES_ACTION_DEFAUT = ['Ouvrir', 'Consulter', 'Résoudre'];
+  function verbeActionAleatoire(etat) {
+    const pool = VERBES_ACTION_CONSEILLER[etat] || VERBES_ACTION_DEFAUT;
+    return pool[Math.floor(Math.random() * pool.length)];
+  }
+
   function renderConseillerHome(top3, employeeNom) {
     const corps = document.getElementById('conseillerCorps');
     if (!top3.length) {
@@ -903,7 +921,7 @@
           <span class="priorite-check" data-idx="${i}">✓</span>
           <div class="priorite-body">
             <span class="priorite-num">${i + 1}.</span> ${c.recommandation}
-            <a class="priorite-lien" href="NEXUS-Produits-v1.html">Voir dans Produits →</a>
+            <a class="priorite-lien" href="NEXUS-Produits-v1.html">${verbeActionAleatoire(c.etat)} →</a>
           </div>
         </div>`).join('')}
       <div class="conseiller-footer"><span id="prioriteProgressHome">0 / ${top3.length} traitées</span><span>Gain potentiel : <b>${Math.round(gainTotal).toLocaleString('fr-FR')} €</b></span></div>
