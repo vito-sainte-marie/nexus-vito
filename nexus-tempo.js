@@ -70,6 +70,29 @@
     MATURITE_NIVEAU2_JOURS: 30,
     MATURITE_NIVEAU3_JOURS: 90,
     MATURITE_NIVEAU4_JOURS: 365,
+    // Météo (25/07/2026) : nombre minimum de jours pluvieux ET de
+    // jours secs nécessaires avant d'oser comparer les deux — croiser
+    // deux sources est plus risqué qu'une simple tendance hebdo, donc
+    // le seuil est volontairement prudent.
+    MIN_OCCURRENCES_METEO: 3,
+    // Un jour est considéré "pluvieux" à partir de ce cumul de
+    // précipitations (mm/jour) — en dessous, la pluie est jugée trop
+    // faible pour avoir un effet mesurable sur la fréquentation.
+    SEUIL_PLUIE_MM: 1,
+  };
+
+  // Coordonnées de la station (25/07/2026) — dérivées du Plus Code
+  // "Q2P2+CX Sainte-Marie, Martinique" donné par Frédéric, recoupé avec
+  // le centre de Sainte-Marie (source : géocodage Open-Meteo). Utilisées
+  // uniquement pour interroger l'API météo Open-Meteo (gratuite, sans
+  // clé) — voir NEXUS-Tempo-v1.html pour l'appel réseau lui-même,
+  // volontairement gardé hors de ce fichier qui ne fait que des calculs
+  // purs, jamais d'appel réseau.
+  const COORDONNEES_STATION = {
+    latitude: 14.7861,
+    longitude: -60.9976,
+    timezone: 'America/Martinique',
+    lieu: 'Sainte-Marie, Martinique',
   };
 
   const NOM_MOIS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
@@ -675,6 +698,77 @@
     return resultats;
   }
 
+  // ------------------------------------------------------------
+  // Météo (25/07/2026) — première source externe réellement branchée
+  // (Open-Meteo, gratuite, sans clé). croiserMeteo/analyserMeteo sont
+  // des fonctions pures : l'appel réseau lui-même vit dans
+  // NEXUS-Tempo-v1.html (ce fichier ne fait jamais d'I/O). Un jour sans
+  // correspondance météo (API indisponible ou donnée pas encore
+  // publiée par le modèle de réanalyse) est explicitement exclu de la
+  // comparaison plutôt que traité comme "sec" par défaut.
+  // ------------------------------------------------------------
+  function croiserMeteo(joursAgreges, meteoParDate) {
+    return (joursAgreges || []).map(j => {
+      const m = meteoParDate ? meteoParDate[j.date] : null;
+      if (!m || m.precipitationMm === null || m.precipitationMm === undefined) {
+        return { ...j, meteoDisponible: false, pluvieux: null, precipitationMm: null, tempMax: null, tempMin: null };
+      }
+      return { ...j, meteoDisponible: true, pluvieux: m.precipitationMm >= SEUILS.SEUIL_PLUIE_MM, precipitationMm: m.precipitationMm, tempMax: m.tempMax, tempMin: m.tempMin };
+    });
+  }
+
+  function analyserMeteo(joursAvecMeteo) {
+    const avecMeteo = (joursAvecMeteo || []).filter(j => j.meteoDisponible);
+    if (!avecMeteo.length) {
+      return { disponible: false, message: "Météo indisponible pour l'instant — nouvelle tentative au prochain chargement de la page." };
+    }
+    const pluie = avecMeteo.filter(j => j.pluvieux);
+    const sec = avecMeteo.filter(j => !j.pluvieux);
+    if (pluie.length < SEUILS.MIN_OCCURRENCES_METEO || sec.length < SEUILS.MIN_OCCURRENCES_METEO) {
+      return { disponible: false, message: `Corrélation météo non encore mesurable — il faut au moins ${SEUILS.MIN_OCCURRENCES_METEO} jours pluvieux et ${SEUILS.MIN_OCCURRENCES_METEO} jours secs à comparer (actuellement ${pluie.length} pluvieux, ${sec.length} sec${sec.length > 1 ? 's' : ''}).` };
+    }
+    const calc = liste => ({
+      nbJours: liste.length,
+      moyennePiste: moyenne(liste.map(j => j.ventePiste)),
+      moyenneBoutique: moyenne(liste.map(j => j.venteBoutique)),
+    });
+    const joursPluie = calc(pluie);
+    const joursSecs = calc(sec);
+    return {
+      disponible: true,
+      joursPluie, joursSecs,
+      ecartPiste: evolution(joursPluie.moyennePiste, joursSecs.moyennePiste),
+      ecartBoutique: evolution(joursPluie.moyenneBoutique, joursSecs.moyenneBoutique),
+    };
+  }
+
+  function detecterCorrelationMeteo(joursAvecMeteo) {
+    if (!joursAvecMeteo || !joursAvecMeteo.length) return [];
+    const avecMeteo = joursAvecMeteo.filter(j => j.meteoDisponible);
+    const pluie = avecMeteo.filter(j => j.pluvieux);
+    const sec = avecMeteo.filter(j => !j.pluvieux);
+    if (pluie.length < SEUILS.MIN_OCCURRENCES_METEO || sec.length < SEUILS.MIN_OCCURRENCES_METEO) return [];
+
+    const decouvertes = [];
+    [['venteBoutique', 'la boutique'], ['ventePiste', 'la piste']].forEach(([champ, libelle]) => {
+      const moyPluie = moyenne(pluie.map(j => j[champ]));
+      const moySec = moyenne(sec.map(j => j[champ]));
+      const ecart = evolution(moyPluie, moySec);
+      if (ecart !== null && Math.abs(ecart) >= 0.15) {
+        const pct = `${ecart >= 0 ? '+' : ''}${(ecart * 100).toFixed(1).replace('.', ',')} %`;
+        decouvertes.push({
+          titre: `Les jours de pluie, ${libelle} vend ${ecart >= 0 ? 'plus' : 'moins'} (${pct}) que les jours secs.`,
+          impact: 'Modéré',
+          source: 'Croisement audits de caisse × météo (Open-Meteo)',
+          nbObservations: Math.min(pluie.length, sec.length),
+          variabilite: null,
+          historiqueLabel: `${pluie.length} jour${pluie.length > 1 ? 's' : ''} de pluie vs ${sec.length} jour${sec.length > 1 ? 's' : ''} sec${sec.length > 1 ? 's' : ''}`,
+        });
+      }
+    });
+    return decouvertes;
+  }
+
   function detecterContexteEquipe(joursAgreges, employesParId) {
     return analyserEquipeParJour(joursAgreges, employesParId)
       .filter(a => a.nbQuarts >= SEUILS.CONFIANCE_FORTE && a.ecart >= 0.15)
@@ -704,11 +798,12 @@
   // NEXUS ne dit jamais "cette tendance est certaine" — seulement
   // "NEXUS a détecté une tendance", assortie d'un indice de confiance
   // qui ne dépend que du nombre d'observations et de leur régularité.
-  function genererDecouvertes(classement, joursAgreges, employesParId) {
+  function genererDecouvertes(classement, joursAgreges, employesParId, joursAvecMeteo) {
     const brutes = [
       ...detecterJourExtremeStable(classement),
       ...detecterProgressionConsecutive(classement),
       ...detecterContexteEquipe(joursAgreges, employesParId),
+      ...detecterCorrelationMeteo(joursAvecMeteo),
     ];
     if (!brutes.length) {
       return [{ disponible: false, titre: 'Aucune tendance fiable détectée.', note: 'Historique encore insuffisant.' }];
@@ -733,7 +828,7 @@
     { id: 'equipe', nom: 'Présence équipe (piste / boutique)', statut: 'connectee' },
     { id: 'jours_feries', nom: 'Calendrier jours fériés', statut: 'connectee' },
     { id: 'ventes_horaires', nom: 'Ventes par tranche horaire', statut: 'prevue' },
-    { id: 'meteo', nom: 'Météo locale', statut: 'prevue' },
+    { id: 'meteo', nom: 'Météo locale (Open-Meteo)', statut: 'connectee' },
     { id: 'planning', nom: 'Planning équipe (Nexus Planning)', statut: 'prevue' },
     { id: 'promotions', nom: 'Promotions en cours', statut: 'prevue' },
     { id: 'ruptures', nom: 'Ruptures de stock (Scanner Stock)', statut: 'prevue' },
@@ -746,12 +841,13 @@
   ];
 
   window.NexusTempo = {
-    SEUILS, NOM_JOURS, NOM_JOURS_COURT, NOM_MOIS, LITRAGE_INDISPONIBLE, SOURCES_DONNEES,
+    SEUILS, NOM_JOURS, NOM_JOURS_COURT, NOM_MOIS, LITRAGE_INDISPONIBLE, SOURCES_DONNEES, COORDONNEES_STATION,
     agregerParJour, filtrerJoursClos, regrouperParJourSemaine, calculerClassement,
     identifierJoursReveles, identifierMeilleursJoursSepares, classementLitrage,
     analyserEquipe, genererDecisionPrioritaire,
     calculerMaturite, calculerConfianceGlobale, joursFeries, estJourFerie, tagCalendaire,
     analyserDebutFinMois, analyserSaisonnier, genererDecouvertes,
+    croiserMeteo, analyserMeteo,
     dateLocale, moyenne, ecartType, evolution,
   };
 })();

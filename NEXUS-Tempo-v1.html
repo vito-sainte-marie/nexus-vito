@@ -175,6 +175,37 @@ footer{margin-top:auto; padding:20px 20px 24px; font-family:var(--mono); font-si
     return { data: toutes, error: null };
   }
 
+  // Météo (25/07/2026) — Open-Meteo, API gratuite sans clé. Coordonnées
+  // de la station dans nexus-tempo.js (NexusTempo.COORDONNEES_STATION,
+  // dérivées du Plus Code donné par Frédéric). Un échec réseau ne doit
+  // jamais bloquer le reste de la page : on retombe sur null et
+  // NexusTempo.analyserMeteo affiche honnêtement "Météo indisponible".
+  async function recupererMeteo(joursExploitables) {
+    if (!joursExploitables.length) return null;
+    const dates = joursExploitables.map(j => j.date).sort();
+    const debut = dates[0], fin = dates[dates.length - 1];
+    const { latitude, longitude, timezone } = NexusTempo.COORDONNEES_STATION;
+    const url = `https://archive-api.open-meteo.com/v1/archive?latitude=${latitude}&longitude=${longitude}&start_date=${debut}&end_date=${fin}&daily=precipitation_sum,temperature_2m_max,temperature_2m_min&timezone=${encodeURIComponent(timezone)}`;
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const data = await res.json();
+      const meteoParDate = {};
+      const jours = (data.daily && data.daily.time) || [];
+      jours.forEach((date, i) => {
+        meteoParDate[date] = {
+          precipitationMm: data.daily.precipitation_sum ? data.daily.precipitation_sum[i] : null,
+          tempMax: data.daily.temperature_2m_max ? data.daily.temperature_2m_max[i] : null,
+          tempMin: data.daily.temperature_2m_min ? data.daily.temperature_2m_min[i] : null,
+        };
+      });
+      return meteoParDate;
+    } catch (err) {
+      console.error('Récupération météo (Open-Meteo):', err);
+      return null;
+    }
+  }
+
   function fmtEur(v) { return Math.round(v).toLocaleString('fr-FR') + ' €'; }
   function fmtPct(v) { return `${v >= 0 ? '+' : ''}${(v * 100).toFixed(1).replace('.', ',')} %`; }
   function fmtDateCourt(iso) {
@@ -257,11 +288,19 @@ footer{margin-top:auto; padding:20px 20px 24px; font-family:var(--mono); font-si
     const confianceGlobale = NexusTempo.calculerConfianceGlobale(joursExploitables, classement);
     const saisonnier = NexusTempo.analyserSaisonnier(joursExploitables);
     const debutFinMois = NexusTempo.analyserDebutFinMois(joursExploitables);
-    const decouvertes = NexusTempo.genererDecouvertes(classement, joursAgreges, employesParId);
+
+    // Météo (25/07/2026) — source externe, jamais bloquante : un échec
+    // réseau retombe sur meteoParDate=null et NexusTempo.analyserMeteo
+    // l'annonce clairement au lieu de deviner.
+    const meteoParDate = await recupererMeteo(joursExploitables);
+    const joursAvecMeteo = NexusTempo.croiserMeteo(joursExploitables, meteoParDate);
+    const analyseMeteo = NexusTempo.analyserMeteo(joursAvecMeteo);
+
+    const decouvertes = NexusTempo.genererDecouvertes(classement, joursAgreges, employesParId, joursAvecMeteo);
 
     document.getElementById('maturiteZone').innerHTML = renderMaturite(maturite, confianceGlobale);
 
-    renderTout({ siteId, employee, joursAgreges, joursExploitables, classement, joursReveles, meilleursSepares, classementLitrage, analyseEquipe, decision, saisonnier, debutFinMois, decouvertes });
+    renderTout({ siteId, employee, joursAgreges, joursExploitables, classement, joursReveles, meilleursSepares, classementLitrage, analyseEquipe, decision, saisonnier, debutFinMois, decouvertes, analyseMeteo });
   });
 
   // ------------------------------------------------------------
@@ -616,6 +655,24 @@ footer{margin-top:auto; padding:20px 20px 24px; font-family:var(--mono); font-si
   }
 
   // ------------------------------------------------------------
+  // Bloc Météo — première source externe connectée (25/07/2026,
+  // Open-Meteo). Compare les jours de pluie et les jours secs, sans
+  // jamais affirmer de corrélation tant que les deux groupes n'ont pas
+  // assez d'occurrences chacun (voir NexusTempo.analyserMeteo).
+  // ------------------------------------------------------------
+  function renderMeteo(analyseMeteo) {
+    if (!analyseMeteo.disponible) {
+      return `<div class="saison-panel"><div class="saison-etat">🌦️ ${analyseMeteo.message}</div></div>`;
+    }
+    const { joursPluie, joursSecs, ecartPiste, ecartBoutique } = analyseMeteo;
+    return `<div class="saison-panel">
+        <div class="saison-row"><span class="saison-mois">Jours de pluie (${joursPluie.nbJours})</span><span class="saison-val">${fmtEur(joursPluie.moyennePiste)} piste<br><span style="font-weight:400; color:var(--text-dim); font-size:9.5px;">${fmtEur(joursPluie.moyenneBoutique)} boutique</span></span></div>
+        <div class="saison-row"><span class="saison-mois">Jours secs (${joursSecs.nbJours})</span><span class="saison-val">${fmtEur(joursSecs.moyennePiste)} piste<br><span style="font-weight:400; color:var(--text-dim); font-size:9.5px;">${fmtEur(joursSecs.moyenneBoutique)} boutique</span></span></div>
+      </div>
+      <div class="section-note">Écart pluie vs sec : ${fmtPct(ecartPiste)} en piste, ${fmtPct(ecartBoutique)} en boutique — sur la période observée.</div>`;
+  }
+
+  // ------------------------------------------------------------
   // Bloc Niveau 4 — Tendances découvertes. NEXUS ne dit jamais
   // "cette tendance est certaine" — seulement "NEXUS a détecté une
   // tendance", assortie d'un indice de confiance objectif.
@@ -682,7 +739,7 @@ footer{margin-top:auto; padding:20px 20px 24px; font-family:var(--mono); font-si
   // ------------------------------------------------------------
   // Assemblage final
   // ------------------------------------------------------------
-  function renderTout({ siteId, employee, joursAgreges, joursExploitables, classement, joursReveles, meilleursSepares, classementLitrage, analyseEquipe, decision, saisonnier, debutFinMois, decouvertes }) {
+  function renderTout({ siteId, employee, joursAgreges, joursExploitables, classement, joursReveles, meilleursSepares, classementLitrage, analyseEquipe, decision, saisonnier, debutFinMois, decouvertes, analyseMeteo }) {
     const root = document.getElementById('root');
     const nbDecouvertes = decouvertes.length && decouvertes[0].disponible ? decouvertes.length : 0;
 
@@ -705,6 +762,9 @@ footer{margin-top:auto; padding:20px 20px 24px; font-family:var(--mono); font-si
       : (nbDecouvertes ? `${nbDecouvertes} tendance${nbDecouvertes > 1 ? 's' : ''} détectée${nbDecouvertes > 1 ? 's' : ''}` : 'Aucune tendance fiable détectée.');
     const nbSourcesConnectees = NexusTempo.SOURCES_DONNEES.filter(s => s.statut === 'connectee').length;
     const sousTitreSources = `${nbSourcesConnectees} source${nbSourcesConnectees > 1 ? 's' : ''} connectée${nbSourcesConnectees > 1 ? 's' : ''} sur ${NexusTempo.SOURCES_DONNEES.length}`;
+    const sousTitreMeteo = analyseMeteo.disponible
+      ? `Écart pluie/sec mesuré (${analyseMeteo.joursPluie.nbJours} vs ${analyseMeteo.joursSecs.nbJours} jours)`
+      : (analyseMeteo.message.startsWith('Météo indisponible') ? 'Météo indisponible pour le moment' : 'Corrélation non encore mesurable');
 
     root.innerHTML = `
       <div class="section" style="margin-top:6px;">
@@ -730,6 +790,8 @@ footer{margin-top:auto; padding:20px 20px 24px; font-family:var(--mono); font-si
       ${accordion('accCarburants', 'Carburants', `<div class="section">${renderCarburants(classementLitrage)}</div>`, false, { sousTitre: sousTitreCarburants })}
 
       ${accordion('accSaisonnier', 'Cycles saisonniers', renderSaisonnier(saisonnier, debutFinMois), false, { sousTitre: sousTitreSaisonnier })}
+
+      ${accordion('accMeteo', 'Météo', renderMeteo(analyseMeteo), false, { sousTitre: sousTitreMeteo })}
 
       ${accordion('accDecouvertes', 'Tendances découvertes', `<div class="section">${renderDecouvertes(decouvertes)}</div>`, false, { sousTitre: sousTitreDecouvertes, badge: nbDecouvertes ? String(nbDecouvertes) : null })}
 
