@@ -804,11 +804,14 @@
     if (resultat.nbEcarts === 0) {
       valeurEl.textContent = 'RAS';
       valeurEl.style.color = 'var(--green)';
-      subEl.textContent = 'Aucun écart de marge détecté';
+      subEl.textContent = 'Aucune recommandation active';
     } else {
-      valeurEl.textContent = Math.round(resultat.gainPotentiel).toLocaleString('fr-FR') + ' €';
+      // "récupérables" plutôt que juste "€" (24/07/2026, demande de Frédéric) :
+      // le montant est un potentiel identifié, pas un acquis — le vocabulaire
+      // doit le dire sans qu'on ait besoin de lire la légende.
+      valeurEl.textContent = Math.round(resultat.gainPotentiel).toLocaleString('fr-FR') + ' € récupérables';
       valeurEl.style.color = 'var(--amber)';
-      subEl.textContent = `${resultat.nbEcarts} écart${resultat.nbEcarts > 1 ? 's' : ''} de marge détecté${resultat.nbEcarts > 1 ? 's' : ''}`;
+      subEl.textContent = `${resultat.nbEcarts} recommandation${resultat.nbEcarts > 1 ? 's' : ''} active${resultat.nbEcarts > 1 ? 's' : ''}`;
     }
   }
 
@@ -862,18 +865,28 @@
 
     const nbDecisions = Math.min(candidatsDisponibles.length, 3);
     const gainPotentiel = candidatsDisponibles.slice(0, 3).reduce((s, c) => s + c.impact_eur, 0);
+    // Reformulation du 24/07/2026 (demande de Frédéric) : "NEXUS estime que…"
+    // plutôt qu'une affirmation brute ("Votre commerce est…") — le statut est
+    // une lecture de NEXUS sur les données disponibles, pas un jugement
+    // définitif. Pastille de couleur en émoji directement dans la phrase
+    // (🟢/🟠/🔴) pour rester lisible même si le style de la carte change.
+    // "de valeur supplémentaire" plutôt que "de valeur aujourd'hui" : le
+    // montant est un potentiel identifié par NEXUS, pas un gain acquis.
+    const EMOJI_STATUT = { 'var(--green)': '🟢', 'var(--amber)': '🟠', 'var(--red)': '🔴' };
+    const NOMBRE_EN_LETTRES = ['aucune', 'une', 'deux', 'trois'];
     let syntheseTexte;
     if (!statutTexte) {
-      syntheseTexte = "Pas encore assez de données pour évaluer votre situation aujourd'hui.";
-    } else if (nbDecisions === 0) {
-      syntheseTexte = `Situation <b>${statutTexte.toLowerCase()}</b> — aucune décision urgente identifiée aujourd'hui.`;
-    } else if (nbDecisions === 1) {
-      syntheseTexte = `Votre commerce est <b>${statutTexte.toLowerCase()}</b>. Une décision peut générer environ <b style="color:var(--gold);">${Math.round(gainPotentiel).toLocaleString('fr-FR')} €</b> de valeur aujourd'hui.`;
+      syntheseTexte = "NEXUS n'a pas encore assez de données pour évaluer votre situation aujourd'hui.";
     } else {
-      syntheseTexte = `Votre commerce est <b>${statutTexte.toLowerCase()}</b>. ${nbDecisions} décisions peuvent générer environ <b style="color:var(--gold);">${Math.round(gainPotentiel).toLocaleString('fr-FR')} €</b> de valeur aujourd'hui.`;
+      const emoji = EMOJI_STATUT[couleur] || '⚪';
+      const phraseStatut = `${emoji} NEXUS estime que votre commerce est <b>${statutTexte.toLowerCase()}</b>.`;
+      const phraseDecisions = nbDecisions === 0
+        ? `Aucune décision prioritaire identifiée aujourd'hui.`
+        : `Aujourd'hui, ${NOMBRE_EN_LETTRES[nbDecisions]} décision${nbDecisions > 1 ? 's' : ''} peu${nbDecisions > 1 ? 'vent' : 't'} créer environ <b style="color:var(--gold);">${Math.round(gainPotentiel).toLocaleString('fr-FR')} €</b> de valeur supplémentaire.`;
+      syntheseTexte = phraseStatut + ' ' + phraseDecisions;
     }
     syntheseEl.style.display = 'flex';
-    syntheseEl.innerHTML = `<span class="synthese-dot" style="background:${couleur}; color:${couleur};"></span><span>${syntheseTexte}</span>`;
+    syntheseEl.innerHTML = `<span>${syntheseTexte}</span>`;
   }
 
   function renderConseillerHome(top3, employeeNom) {
@@ -940,7 +953,7 @@
       <a class="outil-card" href="NEXUS-Cockpit-v2.html">
         <div class="outil-icon"><img src="assets/icons/icon-home.png" alt=""></div>
         <div class="outil-title">Cockpit</div>
-        <div class="outil-desc">${nbAlertes > 0 ? `<span style="color:var(--red);">${nbAlertes} alerte${nbAlertes > 1 ? 's' : ''}</span>` : 'Aucune alerte'}${nbOpportunites > 0 ? ` · <span style="color:var(--green);">${nbOpportunites} opportunité${nbOpportunites > 1 ? 's' : ''}</span>` : ''}</div>
+        <div class="outil-desc">${nbAlertes > 0 ? `<span style="color:var(--amber);">${nbAlertes} analyse${nbAlertes > 1 ? 's' : ''} en attente</span>` : 'Aucune analyse en attente'}${nbOpportunites > 0 ? ` · <span style="color:var(--green);">${nbOpportunites} opportunité${nbOpportunites > 1 ? 's' : ''} détectée${nbOpportunites > 1 ? 's' : ''}</span>` : ''}</div>
       </a>
       <a class="outil-card" href="NEXUS-Verify-v1.html">
         <div class="outil-icon"><img src="assets/icons/icon-nexus-verify.png" alt="" style="filter:grayscale(1) brightness(1.05) contrast(1.05) sepia(1) hue-rotate(152deg) saturate(4);"></div>
@@ -955,7 +968,7 @@
       <a class="outil-card" href="NEXUS-Produits-v1.html">
         <div class="outil-icon"><img src="assets/icons/icon-produits.png" alt=""></div>
         <div class="outil-title">Produits</div>
-        <div class="outil-desc">${nbRecommandations > 0 ? `<span style="color:var(--cyan);">${nbRecommandations} recommandation${nbRecommandations > 1 ? 's' : ''}</span> active${nbRecommandations > 1 ? 's' : ''}` : 'Aucune recommandation active'}</div>
+        <div class="outil-desc">${nbRecommandations > 0 ? `<span style="color:var(--cyan);">${nbRecommandations} recommandation${nbRecommandations > 1 ? 's' : ''}</span> prioritaire${nbRecommandations > 1 ? 's' : ''}` : 'Aucune recommandation prioritaire'}</div>
       </a>
     `;
   }
@@ -1000,7 +1013,17 @@
     const domainesValeurs = [score, domainesRadar.equipeScore, domainesRadar.devScore];
     const nbDomainesMesures = domainesValeurs.filter(v => v !== null).length;
     const nbDomainesFaibles = domainesValeurs.filter(v => v !== null && v < 70).length;
-    renderOutilsGrid({ nbAlertes, nbOpportunites, controlesVerify, nbDomainesFaibles, nbDomainesMesures, nbRecommandations: candidatsDisponibles.length });
+    // Recommandations "prioritaires" plutôt que le total brut (24/07/2026,
+    // demande de Frédéric) : candidatsDisponibles peut compter des centaines
+    // de lignes sur un gros catalogue (R4 seul peut déclencher souvent sur
+    // des petites catégories), ce qui n'aide pas le manager à savoir quoi
+    // regarder aujourd'hui. candidatsDisponibles est déjà trié par
+    // impact_eur décroissant (voir calculerCandidatsHome) — on affiche donc
+    // le nombre réel de recommandations dans le haut du classement, plafonné
+    // à SEUIL_RECOS_PRIORITAIRES, plutôt que la totalité.
+    const SEUIL_RECOS_PRIORITAIRES = 10;
+    const nbRecommandationsPrioritaires = Math.min(candidatsDisponibles.length, SEUIL_RECOS_PRIORITAIRES);
+    renderOutilsGrid({ nbAlertes, nbOpportunites, controlesVerify, nbDomainesFaibles, nbDomainesMesures, nbRecommandations: nbRecommandationsPrioritaires });
   }
 
   // Pointage du manager (24/07/2026) — voir migration-station-config-manager-
