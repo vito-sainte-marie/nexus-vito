@@ -230,38 +230,71 @@ footer{margin-top:auto; padding:20px 20px 24px; font-family:var(--mono); font-si
     (employesRows || []).forEach(e => { employesParId[e.id] = e; });
 
     const joursAgreges = NexusTempo.agregerParJour(auditsRows || []);
-    const regroupement = NexusTempo.regrouperParJourSemaine(joursAgreges);
+    // Jours "clos" uniquement (25/07/2026, demande de Frédéric) : le
+    // jour en cours n'est jamais compté comme exploitable, même s'il a
+    // déjà un audit saisi — sa journée n'est pas terminée. Toute la
+    // mémoire temporelle (maturité, confiance, décision, saisonnier,
+    // découvertes, classement hebdomadaire) se base sur ces jours
+    // exploitables, jamais sur le total brut des jours enregistrés.
+    const joursExploitables = NexusTempo.filtrerJoursClos(joursAgreges);
+    const regroupement = NexusTempo.regrouperParJourSemaine(joursExploitables);
     const classement = NexusTempo.calculerClassement(regroupement);
     const joursReveles = NexusTempo.identifierJoursReveles(classement);
     const meilleursSepares = NexusTempo.identifierMeilleursJoursSepares(classement);
     const classementLitrage = NexusTempo.classementLitrage(classement);
+    // L'analyse équipe reste sur les quarts complets déjà saisis (un
+    // quart enregistré est une donnée exacte et définitive, même si la
+    // journée qui le contient n'est pas terminée) — seuls les TOTAUX
+    // journaliers (piste+boutique, classement par jour) exigent une
+    // journée close pour être comparables entre eux.
     const analyseEquipe = NexusTempo.analyserEquipe(joursAgreges, employesParId);
-    const decision = NexusTempo.genererDecisionPrioritaire(joursAgreges, classement);
+    const decision = NexusTempo.genererDecisionPrioritaire(joursExploitables, classement);
 
     // Mémoire temporelle (25/07/2026) — Niveaux 3 & 4 : ces analyses
     // renvoient honnêtement "insuffisant"/"en apprentissage" tant que
     // l'historique ne le permet pas (voir nexus-tempo.js, Article 5).
-    const maturite = NexusTempo.calculerMaturite(joursAgreges);
-    const confianceGlobale = NexusTempo.calculerConfianceGlobale(joursAgreges, classement);
-    const saisonnier = NexusTempo.analyserSaisonnier(joursAgreges);
-    const debutFinMois = NexusTempo.analyserDebutFinMois(joursAgreges);
+    const maturite = NexusTempo.calculerMaturite(joursExploitables);
+    const confianceGlobale = NexusTempo.calculerConfianceGlobale(joursExploitables, classement);
+    const saisonnier = NexusTempo.analyserSaisonnier(joursExploitables);
+    const debutFinMois = NexusTempo.analyserDebutFinMois(joursExploitables);
     const decouvertes = NexusTempo.genererDecouvertes(classement, joursAgreges, employesParId);
 
     document.getElementById('maturiteZone').innerHTML = renderMaturite(maturite, confianceGlobale);
 
-    renderTout({ siteId, employee, joursAgreges, classement, joursReveles, meilleursSepares, classementLitrage, analyseEquipe, decision, saisonnier, debutFinMois, decouvertes });
+    renderTout({ siteId, employee, joursAgreges, joursExploitables, classement, joursReveles, meilleursSepares, classementLitrage, analyseEquipe, decision, saisonnier, debutFinMois, decouvertes });
   });
 
   // ------------------------------------------------------------
   // Bloc 1 — Résumé du Conseiller NEXUS
   // ------------------------------------------------------------
-  function texteConseiller(joursAgreges, joursReveles, meilleursSepares) {
+  function texteConseiller(joursAgreges, joursExploitables, joursReveles, meilleursSepares) {
     if (!joursAgreges.length) {
       return "Aucun audit de caisse enregistré pour l'instant. NEXUS Tempo s'active dès que les audits quotidiens (Nexus Verify) commencent à s'accumuler — un jour de semaine devient lisible à partir de sa première occurrence, fiable à partir de sa deuxième.";
     }
+    let texte = '';
+
+    // Distinction jours enregistrés / jours exploitables (25/07/2026,
+    // demande de Frédéric) : le jour en cours peut déjà avoir un audit
+    // saisi sans que sa journée soit terminée — il compte comme
+    // "enregistré" mais pas encore "exploitable" pour les moyennes par
+    // jour de semaine. Le dire explicitement évite toute impression de
+    // contradiction avec la jauge de maturité, qui ne compte elle aussi
+    // que les jours clos.
+    const nbEnregistres = joursAgreges.length;
+    const nbExploitables = joursExploitables.length;
+    if (nbExploitables !== nbEnregistres) {
+      const nbEnCours = nbEnregistres - nbExploitables;
+      texte += `Sur ${nbEnregistres} jour${nbEnregistres > 1 ? 's' : ''} enregistré${nbEnregistres > 1 ? 's' : ''}, ${nbExploitables} dispose${nbExploitables > 1 ? 'nt' : ''} de données suffisamment complètes pour être analysé${nbExploitables > 1 ? 's' : ''}${nbEnCours > 0 ? ` (le${nbEnCours > 1 ? 's' : ''} ${nbEnCours > 1 ? 'derniers jours' : 'dernier jour'} étant encore en cours)` : ''}. `;
+    } else {
+      texte += `Sur ${nbEnregistres} jour${nbEnregistres > 1 ? 's' : ''} enregistré${nbEnregistres > 1 ? 's' : ''}, tous exploitables, `;
+    }
+
+    if (!nbExploitables) {
+      return texte + "l'historique clos est encore trop court pour une lecture fiable du rythme de la station.";
+    }
+
     const { jourMoteur, jourProgression, jourARenforcer } = joursReveles;
     const { meilleurPiste, meilleurBoutique } = meilleursSepares || {};
-    let texte = '';
 
     // Distinction piste / boutique (25/07/2026, demande de Frédéric) : les
     // deux meilleurs jours peuvent diverger — ex. "meilleures ventes en
@@ -270,9 +303,9 @@ footer{margin-top:auto; padding:20px 20px 24px; font-family:var(--mono); font-si
     // même avec une seule occurrence chacun : c'est un constat de ce qui a
     // été observé, pas une tendance.
     if (meilleurPiste && meilleurBoutique && meilleurPiste.jourSemaine !== meilleurBoutique.jourSemaine) {
-      texte += `Le <b>${meilleurPiste.nom}</b> reste votre meilleur jour en piste (${fmtEur(meilleurPiste.moyennePiste)} en moyenne), tandis que le <b>${meilleurBoutique.nom}</b> a mieux fonctionné côté boutique (${fmtEur(meilleurBoutique.moyenneBoutique)} en moyenne). `;
+      texte += `le <b>${meilleurPiste.nom}</b> reste votre meilleur jour en piste (${fmtEur(meilleurPiste.moyennePiste)} en moyenne), tandis que le <b>${meilleurBoutique.nom}</b> a mieux fonctionné côté boutique (${fmtEur(meilleurBoutique.moyenneBoutique)} en moyenne). `;
     } else if (jourMoteur) {
-      texte += `Sur ${joursAgreges.length} jour${joursAgreges.length > 1 ? 's' : ''} enregistré${joursAgreges.length > 1 ? 's' : ''}, le <b>${jourMoteur.nom}</b> reste votre journée la plus performante avec ${fmtEur(jourMoteur.moyenneCombinee)} de CA moyen (piste + boutique). `;
+      texte += `le <b>${jourMoteur.nom}</b> reste votre journée la plus performante avec ${fmtEur(jourMoteur.moyenneCombinee)} de CA moyen (piste + boutique). `;
     }
     if (jourARenforcer && jourARenforcer.jourSemaine !== (jourMoteur && jourMoteur.jourSemaine)) {
       texte += `Le <b>${jourARenforcer.nom}</b> reste le point faible global`;
@@ -281,10 +314,10 @@ footer{margin-top:auto; padding:20px 20px 24px; font-family:var(--mono); font-si
     }
     if (jourProgression) {
       texte += `Le <b>${jourProgression.nom}</b> progresse le plus (${fmtPct(jourProgression.evolutionCombinee)}) sur son historique récent.`;
-    } else if (joursAgreges.length > 0) {
-      texte += `Historique encore trop court pour identifier une progression fiable — chaque nouveau jour enregistré affine cette lecture.`;
+    } else {
+      texte += `Historique clos encore trop court pour identifier une progression fiable — chaque nouvelle journée terminée affine cette lecture.`;
     }
-    return texte || "Pas assez de données pour une lecture fiable du rythme de la station.";
+    return texte;
   }
 
   // ------------------------------------------------------------
@@ -649,7 +682,7 @@ footer{margin-top:auto; padding:20px 20px 24px; font-family:var(--mono); font-si
   // ------------------------------------------------------------
   // Assemblage final
   // ------------------------------------------------------------
-  function renderTout({ siteId, employee, joursAgreges, classement, joursReveles, meilleursSepares, classementLitrage, analyseEquipe, decision, saisonnier, debutFinMois, decouvertes }) {
+  function renderTout({ siteId, employee, joursAgreges, joursExploitables, classement, joursReveles, meilleursSepares, classementLitrage, analyseEquipe, decision, saisonnier, debutFinMois, decouvertes }) {
     const root = document.getElementById('root');
     const nbDecouvertes = decouvertes.length && decouvertes[0].disponible ? decouvertes.length : 0;
 
@@ -667,7 +700,7 @@ footer{margin-top:auto; padding:20px 20px 24px; font-family:var(--mono); font-si
     const sousTitreSaisonnier = saisonnier.disponible
       ? `${saisonnier.moisAnalyse.filter(m => m.disponible).length} mois comparé${saisonnier.moisAnalyse.filter(m => m.disponible).length > 1 ? 's' : ''}`
       : 'Historique insuffisant';
-    const sousTitreDecouvertes = joursAgreges.length < 7
+    const sousTitreDecouvertes = joursExploitables.length < 7
       ? 'Chaque journée enregistrée augmente la précision de Tempo.'
       : (nbDecouvertes ? `${nbDecouvertes} tendance${nbDecouvertes > 1 ? 's' : ''} détectée${nbDecouvertes > 1 ? 's' : ''}` : 'Aucune tendance fiable détectée.');
     const nbSourcesConnectees = NexusTempo.SOURCES_DONNEES.filter(s => s.statut === 'connectee').length;
@@ -679,7 +712,7 @@ footer{margin-top:auto; padding:20px 20px 24px; font-family:var(--mono); font-si
           <img class="conseiller-avatar" src="assets/nexus-avatar.png" alt="Conseiller NEXUS">
           <div class="conseiller-body">
             <div class="conseiller-name">CONSEILLER NEXUS</div>
-            <p>${texteConseiller(joursAgreges, joursReveles, meilleursSepares)}</p>
+            <p>${texteConseiller(joursAgreges, joursExploitables, joursReveles, meilleursSepares)}</p>
           </div>
         </div>
       </div>

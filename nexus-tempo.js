@@ -147,6 +147,34 @@
   }
 
   // ------------------------------------------------------------
+  // 1bis) Jours "clos" vs jour en cours (25/07/2026, demande de
+  // Frédéric — éviter toute incohérence apparente entre le Conseiller
+  // et la jauge de maturité). Trois notions distinctes doivent
+  // toujours être nommées séparément dans NEXUS Tempo :
+  //   - jours enregistrés  : agregerParJour(...).length — tout audit
+  //     saisi, y compris celui d'aujourd'hui, même en cours ;
+  //   - jours exploitables : le sous-ensemble de jours enregistrés
+  //     dont la date est strictement antérieure à aujourd'hui — le
+  //     jour courant n'est jamais compté comme "clos" tant que la
+  //     journée n'est pas terminée, même si un audit a déjà été saisi ;
+  //   - jours inclus dans l'analyse : les jours exploitables
+  //     effectivement utilisés par calculerClassement (aujourd'hui,
+  //     les deux coïncident — aucun filtre supplémentaire n'existe
+  //     encore).
+  // Toute la mémoire temporelle (maturité, confiance globale,
+  // décision, saisonnier, découvertes) doit être calculée à partir
+  // des jours exploitables, jamais des jours enregistrés bruts.
+  // ------------------------------------------------------------
+  function aujourdHuiISO() {
+    return new Date().toISOString().slice(0, 10);
+  }
+
+  function filtrerJoursClos(joursAgreges) {
+    const aujourdhui = aujourdHuiISO();
+    return (joursAgreges || []).filter(j => j.date < aujourdhui);
+  }
+
+  // ------------------------------------------------------------
   // 2) Regroupe les jours agrégés par jour de semaine (0=dimanche
   //    … 6=samedi), triés du plus ancien au plus récent.
   // ------------------------------------------------------------
@@ -719,7 +747,7 @@
 
   window.NexusTempo = {
     SEUILS, NOM_JOURS, NOM_JOURS_COURT, NOM_MOIS, LITRAGE_INDISPONIBLE, SOURCES_DONNEES,
-    agregerParJour, regrouperParJourSemaine, calculerClassement,
+    agregerParJour, filtrerJoursClos, regrouperParJourSemaine, calculerClassement,
     identifierJoursReveles, identifierMeilleursJoursSepares, classementLitrage,
     analyserEquipe, genererDecisionPrioritaire,
     calculerMaturite, calculerConfianceGlobale, joursFeries, estJourFerie, tagCalendaire,
