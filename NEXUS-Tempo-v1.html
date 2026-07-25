@@ -61,9 +61,13 @@ a{color:inherit;}
 .compar-evol{margin-top:8px; font-size:12px; font-weight:600;}
 
 .hebdo-row{display:flex; align-items:center; gap:10px; background:var(--panel); border:1px solid var(--hairline); border-radius:12px; padding:12px 14px; margin:0 20px 8px;}
-.hebdo-jour{width:64px; flex-shrink:0; font-size:12.5px; font-weight:600;}
-.hebdo-chiffres{flex:1; font-family:var(--mono); font-size:11px; color:var(--text-mid);}
+.hebdo-jour{width:76px; flex-shrink:0; font-size:12.5px; font-weight:600;}
+.hebdo-occ{margin-top:3px; font-family:var(--mono); font-size:9.5px; font-weight:500; color:var(--text-dim);}
+.hebdo-chiffres{flex:1; display:flex; flex-direction:column; gap:3px; font-family:var(--mono); font-size:11px; color:var(--text-mid);}
 .hebdo-chiffres b{color:var(--text); font-weight:600;}
+.hebdo-ligne{display:flex; align-items:center; gap:6px;}
+.hebdo-label{width:54px; flex-shrink:0; color:var(--text-dim); font-size:9.5px; text-transform:uppercase; letter-spacing:.03em;}
+.hebdo-evol{font-size:9.5px; font-weight:600;}
 .hebdo-statut{font-family:var(--mono); font-size:9px; padding:4px 9px; border-radius:20px; font-weight:700; white-space:nowrap; flex-shrink:0;}
 
 .equipe-sub{font-family:var(--mono); font-size:10px; letter-spacing:0.06em; text-transform:uppercase; color:var(--text-dim); margin:14px 20px 8px;}
@@ -225,6 +229,20 @@ footer{margin-top:auto; padding:20px 20px 24px; font-family:var(--mono); font-si
   }
 
   // ------------------------------------------------------------
+  // Valeur "piste" affichée — litrage global (25/07/2026, demande de
+  // Frédéric) dès qu'un jour a du litrage saisi, tous carburants confondus
+  // (pas de détail GO/SP95/GNR ici — ce détail reste dans le bloc
+  // "Carburants" plus bas). Retombe sur le CA piste en € tant qu'aucun
+  // litrage n'existe pour ce jour (données antérieures au 25/07/2026).
+  // Ne change PAS le classement (toujours basé sur le CA combiné piste +
+  // boutique) — seul l'affichage du chiffre piste change.
+  // ------------------------------------------------------------
+  function valeurPisteAffichee(jour) {
+    if (jour.nbOccLitrage > 0) return `${Math.round(jour.litrageMoyenTotal).toLocaleString('fr-FR')} L`;
+    return fmtEur(jour.moyennePiste);
+  }
+
+  // ------------------------------------------------------------
   // Bloc 2 — Jours révélés
   // ------------------------------------------------------------
   function renderJoursReveles(joursReveles) {
@@ -238,9 +256,9 @@ footer{margin-top:auto; padding:20px 20px 24px; font-family:var(--mono); font-si
       </div>`;
     }
     return `<div class="reveles-grid">
-      ${carte('Jour moteur', 'var(--green)', jourMoteur, jourMoteur ? `${fmtEur(jourMoteur.moyennePiste)} piste<br>${fmtEur(jourMoteur.moyenneBoutique)} boutique` : '')}
+      ${carte('Jour moteur', 'var(--green)', jourMoteur, jourMoteur ? `${valeurPisteAffichee(jourMoteur)} piste<br>${fmtEur(jourMoteur.moyenneBoutique)} boutique` : '')}
       ${carte('En progression', 'var(--cyan)', jourProgression, jourProgression ? `${fmtPct(jourProgression.evolutionCombinee)}<br>vs historique` : '')}
-      ${carte('À renforcer', 'var(--amber)', jourARenforcer, jourARenforcer ? `${fmtEur(jourARenforcer.moyennePiste)} piste<br>${fmtEur(jourARenforcer.moyenneBoutique)} boutique` : '')}
+      ${carte('À renforcer', 'var(--amber)', jourARenforcer, jourARenforcer ? `${valeurPisteAffichee(jourARenforcer)} piste<br>${fmtEur(jourARenforcer.moyenneBoutique)} boutique` : '')}
     </div>`;
   }
 
@@ -252,7 +270,7 @@ footer{margin-top:auto; padding:20px 20px 24px; font-family:var(--mono); font-si
     const { meilleurPiste, meilleurBoutique } = meilleursSepares || {};
     if (!meilleurPiste || !meilleurBoutique || meilleurPiste.jourSemaine === meilleurBoutique.jourSemaine) return '';
     return `<div class="duo-jours">
-      <div class="duo-item"><span class="duo-tag" style="color:var(--cyan);">Meilleur jour · Piste</span><b>${meilleurPiste.nom.charAt(0).toUpperCase() + meilleurPiste.nom.slice(1)}</b> — ${fmtEur(meilleurPiste.moyennePiste)} en moyenne</div>
+      <div class="duo-item"><span class="duo-tag" style="color:var(--cyan);">Meilleur jour · Piste</span><b>${meilleurPiste.nom.charAt(0).toUpperCase() + meilleurPiste.nom.slice(1)}</b> — ${valeurPisteAffichee(meilleurPiste)} en moyenne</div>
       <div class="duo-item"><span class="duo-tag" style="color:var(--amber);">Meilleur jour · Boutique</span><b>${meilleurBoutique.nom.charAt(0).toUpperCase() + meilleurBoutique.nom.slice(1)}</b> — ${fmtEur(meilleurBoutique.moyenneBoutique)} en moyenne</div>
     </div>`;
   }
@@ -341,11 +359,15 @@ footer{margin-top:auto; padding:20px 20px 24px; font-family:var(--mono); font-si
     return ORDRE_AFFICHAGE.map(idx => {
       const j = classement[idx];
       const style = STATUT_STYLE[j.statut] || STATUT_STYLE['Aucune donnée'];
+      const occText = j.occurrences.length === 0
+        ? ''
+        : `${j.occurrences.length} occurrence${j.occurrences.length > 1 ? 's' : ''}`;
       const chiffres = j.occurrences.length === 0
-        ? 'Aucune donnée'
-        : `<b>${fmtEur(j.moyennePiste)}</b> piste · <b>${fmtEur(j.moyenneBoutique)}</b> boutique · ${j.occurrences.length} occurrence${j.occurrences.length > 1 ? 's' : ''}${j.evolutionCombinee !== null ? ` · ${fmtPct(j.evolutionCombinee)}` : ''}`;
+        ? `<div class="hebdo-ligne" style="color:var(--text-dim);">Aucune donnée</div>`
+        : `<div class="hebdo-ligne"><span class="hebdo-label">Piste</span><b>${fmtEur(j.moyennePiste)}</b></div>
+           <div class="hebdo-ligne"><span class="hebdo-label">Boutique</span><b>${fmtEur(j.moyenneBoutique)}</b>${j.evolutionCombinee !== null ? ` <span class="hebdo-evol" style="color:${j.evolutionCombinee >= 0 ? 'var(--green)' : 'var(--red)'};">${fmtPct(j.evolutionCombinee)}</span>` : ''}</div>`;
       return `<div class="hebdo-row">
-        <div class="hebdo-jour">${j.nom.charAt(0).toUpperCase() + j.nom.slice(1)}</div>
+        <div class="hebdo-jour">${j.nom.charAt(0).toUpperCase() + j.nom.slice(1)}<div class="hebdo-occ">${occText}</div></div>
         <div class="hebdo-chiffres">${chiffres}</div>
         <div class="hebdo-statut" style="background:${style.bg}; color:${style.fg};">${j.statut}</div>
       </div>`;
