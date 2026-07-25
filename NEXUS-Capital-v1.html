@@ -248,13 +248,12 @@ a{color:inherit; text-decoration:none;}
     const circonference = 251.2; // 2 * π * 40 (rayon du donut)
     const dashoffset = circonference * (1 - Math.min(ratio, 1));
 
-    // Au-delà de x10, un pourcentage à 4-5 chiffres déborde du cercle — un
-    // multiplicateur ("×79") dit la même chose, reste lisible quelle que
-    // soit l'ampleur du ratio, et la taille de police s'ajuste en plus à la
-    // longueur réelle du texte affiché (24/07/2026, retour de Frédéric sur
-    // le rendu à "7938%").
-    const roiAffiche = ratio >= 10 ? `×${Math.round(ratio)}` : `${pct}%`;
-    const roiTaillePolice = roiAffiche.length <= 4 ? 19 : roiAffiche.length === 5 ? 16 : 13;
+    // Toujours en % (24/07/2026, préférence de Frédéric — "plus parlant"
+    // qu'un multiplicateur) : la taille de police s'ajuste au nombre de
+    // chiffres pour que même un pourcentage à 4-5 chiffres reste dans le
+    // cercle, sans changer de format d'affichage.
+    const roiAffiche = `${pct}%`;
+    const roiTaillePolice = roiAffiche.length <= 4 ? 19 : roiAffiche.length === 5 ? 15 : roiAffiche.length === 6 ? 12 : 10;
 
     return `
       <div class="roi-premium">
