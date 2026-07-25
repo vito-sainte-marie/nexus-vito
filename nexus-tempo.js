@@ -79,6 +79,13 @@
     // précipitations (mm/jour) — en dessous, la pluie est jugée trop
     // faible pour avoir un effet mesurable sur la fréquentation.
     SEUIL_PLUIE_MM: 1,
+    // Scanner Stock (25/07/2026) : nombre minimum de jours "à
+    // surveiller" ET de jours "sans alerte" nécessaires avant de
+    // comparer leur CA. Aujourd'hui, stock_sante_historique n'est
+    // recalculé qu'occasionnellement (pas encore un cron quotidien) —
+    // ce seuil protège contre une fausse lecture tant que les jours
+    // disponibles ne sont pas assez nombreux ni assez réguliers.
+    MIN_OCCURRENCES_STOCK: 3,
   };
 
   // Coordonnées de la station (25/07/2026) — dérivées du Plus Code
@@ -769,6 +776,115 @@
     return decouvertes;
   }
 
+  // ------------------------------------------------------------
+  // Scanner Stock (25/07/2026) — deuxième source interne connectée.
+  // stock_sante_historique est recalculé de façon irrégulière
+  // (plusieurs fois le même jour, parfois aucun jour pendant une
+  // semaine), donc pas encore utilisable comme une série quotidienne
+  // fiable façon météo. Deux usages honnêtes sont possibles dès
+  // maintenant :
+  //   - un contexte "état actuel du stock" (dernierEtatStock), toujours
+  //     affichable, jamais présenté comme une tendance ;
+  //   - une tentative de corrélation CA / jours "sous surveillance"
+  //     (analyserStock), qui se déclare "insuffisant" tant que les deux
+  //     groupes comparés n'ont pas assez de jours — ce qui est
+  //     honnêtement le cas aujourd'hui.
+  // Article 5 : on ne garde qu'un instantané par jour calendaire
+  // LOCAL (Martinique, UTC-4 fixe, pas d'heure d'été) — le plus
+  // récent — plutôt que de mélanger plusieurs recalculs du même jour.
+  // ------------------------------------------------------------
+  function dateLocaleMartiniqueDepuisTimestamp(isoTimestamp) {
+    const d = new Date(isoTimestamp);
+    return new Date(d.getTime() - 4 * 3600000).toISOString().slice(0, 10);
+  }
+
+  function agregerStockParJour(rowsStockSante) {
+    const parDate = {};
+    (rowsStockSante || []).forEach(r => {
+      const date = dateLocaleMartiniqueDepuisTimestamp(r.calcule_le);
+      if (!parDate[date] || r.calcule_le > parDate[date].calculeLe) {
+        parDate[date] = {
+          date,
+          calculeLe: r.calcule_le,
+          indiceConfiance: Number(r.indice_confiance),
+          nbStables: r.nb_references_stables,
+          nbASurveiller: r.nb_references_a_surveiller,
+          nbAVerifier: r.nb_references_a_verifier,
+          nbNonConcluantes: r.nb_references_non_concluantes,
+          risqueEstimeEur: Number(r.risque_estime_eur),
+        };
+      }
+    });
+    return parDate;
+  }
+
+  function dernierEtatStock(stockParDate) {
+    const dates = Object.keys(stockParDate || {}).sort();
+    if (!dates.length) return null;
+    return stockParDate[dates[dates.length - 1]];
+  }
+
+  function croiserStock(joursAgreges, stockParDate) {
+    return (joursAgreges || []).map(j => {
+      const s = stockParDate ? stockParDate[j.date] : null;
+      if (!s) return { ...j, stockDisponible: false, stockSousSurveillance: null, risqueEstimeEur: null, indiceConfiance: null };
+      const stockSousSurveillance = (s.nbASurveiller + s.nbAVerifier) > 0;
+      return { ...j, stockDisponible: true, stockSousSurveillance, risqueEstimeEur: s.risqueEstimeEur, indiceConfiance: s.indiceConfiance };
+    });
+  }
+
+  function analyserStock(joursAvecStock) {
+    const avecStock = (joursAvecStock || []).filter(j => j.stockDisponible);
+    if (!avecStock.length) {
+      return { disponible: false, message: "Aucun calcul Scanner Stock ne correspond encore à un jour d'audit — la corrélation s'activera dès que les deux historiques se recouperont davantage." };
+    }
+    const sousSurveillance = avecStock.filter(j => j.stockSousSurveillance);
+    const sansAlerte = avecStock.filter(j => !j.stockSousSurveillance);
+    if (sousSurveillance.length < SEUILS.MIN_OCCURRENCES_STOCK || sansAlerte.length < SEUILS.MIN_OCCURRENCES_STOCK) {
+      return { disponible: false, message: `Corrélation stock non encore mesurable — il faut au moins ${SEUILS.MIN_OCCURRENCES_STOCK} jours avec alerte stock et ${SEUILS.MIN_OCCURRENCES_STOCK} jours sans alerte à comparer (actuellement ${sousSurveillance.length} avec, ${sansAlerte.length} sans). Scanner Stock ne recalcule pas encore son indice tous les jours.` };
+    }
+    const calc = liste => ({
+      nbJours: liste.length,
+      moyennePiste: moyenne(liste.map(j => j.ventePiste)),
+      moyenneBoutique: moyenne(liste.map(j => j.venteBoutique)),
+    });
+    const joursSousSurveillance = calc(sousSurveillance);
+    const joursSansAlerte = calc(sansAlerte);
+    return {
+      disponible: true,
+      joursSousSurveillance, joursSansAlerte,
+      ecartPiste: evolution(joursSousSurveillance.moyennePiste, joursSansAlerte.moyennePiste),
+      ecartBoutique: evolution(joursSousSurveillance.moyenneBoutique, joursSansAlerte.moyenneBoutique),
+    };
+  }
+
+  function detecterCorrelationStock(joursAvecStock) {
+    if (!joursAvecStock || !joursAvecStock.length) return [];
+    const avecStock = joursAvecStock.filter(j => j.stockDisponible);
+    const sousSurveillance = avecStock.filter(j => j.stockSousSurveillance);
+    const sansAlerte = avecStock.filter(j => !j.stockSousSurveillance);
+    if (sousSurveillance.length < SEUILS.MIN_OCCURRENCES_STOCK || sansAlerte.length < SEUILS.MIN_OCCURRENCES_STOCK) return [];
+
+    const decouvertes = [];
+    [['venteBoutique', 'la boutique'], ['ventePiste', 'la piste']].forEach(([champ, libelle]) => {
+      const moySurveillance = moyenne(sousSurveillance.map(j => j[champ]));
+      const moySansAlerte = moyenne(sansAlerte.map(j => j[champ]));
+      const ecart = evolution(moySurveillance, moySansAlerte);
+      if (ecart !== null && Math.abs(ecart) >= 0.15) {
+        const pct = `${ecart >= 0 ? '+' : ''}${(ecart * 100).toFixed(1).replace('.', ',')} %`;
+        decouvertes.push({
+          titre: `Les jours où Scanner Stock signale des références à surveiller, ${libelle} vend ${ecart >= 0 ? 'plus' : 'moins'} (${pct}) que les jours sans alerte.`,
+          impact: 'Modéré',
+          source: 'Croisement audits de caisse × Scanner Stock',
+          nbObservations: Math.min(sousSurveillance.length, sansAlerte.length),
+          variabilite: null,
+          historiqueLabel: `${sousSurveillance.length} jour${sousSurveillance.length > 1 ? 's' : ''} avec alerte vs ${sansAlerte.length} sans`,
+        });
+      }
+    });
+    return decouvertes;
+  }
+
   function detecterContexteEquipe(joursAgreges, employesParId) {
     return analyserEquipeParJour(joursAgreges, employesParId)
       .filter(a => a.nbQuarts >= SEUILS.CONFIANCE_FORTE && a.ecart >= 0.15)
@@ -798,12 +914,13 @@
   // NEXUS ne dit jamais "cette tendance est certaine" — seulement
   // "NEXUS a détecté une tendance", assortie d'un indice de confiance
   // qui ne dépend que du nombre d'observations et de leur régularité.
-  function genererDecouvertes(classement, joursAgreges, employesParId, joursAvecMeteo) {
+  function genererDecouvertes(classement, joursAgreges, employesParId, joursAvecMeteo, joursAvecStock) {
     const brutes = [
       ...detecterJourExtremeStable(classement),
       ...detecterProgressionConsecutive(classement),
       ...detecterContexteEquipe(joursAgreges, employesParId),
       ...detecterCorrelationMeteo(joursAvecMeteo),
+      ...detecterCorrelationStock(joursAvecStock),
     ];
     if (!brutes.length) {
       return [{ disponible: false, titre: 'Aucune tendance fiable détectée.', note: 'Historique encore insuffisant.' }];
@@ -831,6 +948,7 @@
     { id: 'meteo', nom: 'Météo locale (Open-Meteo)', statut: 'connectee' },
     { id: 'planning', nom: 'Planning équipe (Nexus Planning)', statut: 'prevue' },
     { id: 'promotions', nom: 'Promotions en cours', statut: 'prevue' },
+    { id: 'sante_stock', nom: 'Indice santé stock (Scanner Stock)', statut: 'connectee' },
     { id: 'ruptures', nom: 'Ruptures de stock (Scanner Stock)', statut: 'prevue' },
     { id: 'evenements_locaux', nom: 'Événements locaux', statut: 'prevue' },
     { id: 'trafic', nom: 'Trafic routier', statut: 'prevue' },
@@ -848,6 +966,7 @@
     calculerMaturite, calculerConfianceGlobale, joursFeries, estJourFerie, tagCalendaire,
     analyserDebutFinMois, analyserSaisonnier, genererDecouvertes,
     croiserMeteo, analyserMeteo,
+    agregerStockParJour, dernierEtatStock, croiserStock, analyserStock,
     dateLocale, moyenne, ecartType, evolution,
   };
 })();

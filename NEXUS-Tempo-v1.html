@@ -248,14 +248,21 @@ footer{margin-top:auto; padding:20px 20px 24px; font-family:var(--mono); font-si
     }
     const siteId = employee.site_id || 'vito-sainte-marie';
 
-    const [{ data: auditsRows, error: e1 }, { data: employesRows, error: e2 }] = await Promise.all([
+    const [{ data: auditsRows, error: e1 }, { data: employesRows, error: e2 }, { data: stockRows, error: e3 }] = await Promise.all([
       fetchAllRows(() => nexusClient.from('audits_caisse')
         .select('date, quart, vente_piste, vente_boutique, ecart_piste, ecart_boutique, employes_piste, employes_boutique, litrage_gazole, litrage_sp95, litrage_gnr')
         .eq('site', siteId).order('date', { ascending: true })),
       nexusClient.from('employees').select('id, nom, role').eq('site_id', siteId),
+      // Scanner Stock (25/07/2026) : recalculé de façon irrégulière (pas
+      // encore un cron quotidien) — voir nexus-tempo.js pour comment ce
+      // décalage est géré honnêtement (agregerStockParJour/analyserStock).
+      fetchAllRows(() => nexusClient.from('stock_sante_historique')
+        .select('calcule_le, indice_confiance, nb_references_stables, nb_references_a_surveiller, nb_references_a_verifier, nb_references_non_concluantes, risque_estime_eur')
+        .eq('site', siteId).order('calcule_le', { ascending: true })),
     ]);
     if (e1) console.error('Chargement audits_caisse:', e1);
     if (e2) console.error('Chargement employees:', e2);
+    if (e3) console.error('Chargement stock_sante_historique:', e3);
 
     const employesParId = {};
     (employesRows || []).forEach(e => { employesParId[e.id] = e; });
@@ -296,11 +303,19 @@ footer{margin-top:auto; padding:20px 20px 24px; font-family:var(--mono); font-si
     const joursAvecMeteo = NexusTempo.croiserMeteo(joursExploitables, meteoParDate);
     const analyseMeteo = NexusTempo.analyserMeteo(joursAvecMeteo);
 
-    const decouvertes = NexusTempo.genererDecouvertes(classement, joursAgreges, employesParId, joursAvecMeteo);
+    // Scanner Stock (25/07/2026) — deuxième source interne connectée.
+    // stockParDate ne contient qu'un instantané par jour LOCAL
+    // (Martinique, UTC-4) — voir NexusTempo.agregerStockParJour.
+    const stockParDate = NexusTempo.agregerStockParJour(stockRows || []);
+    const etatStockActuel = NexusTempo.dernierEtatStock(stockParDate);
+    const joursAvecStock = NexusTempo.croiserStock(joursExploitables, stockParDate);
+    const analyseStock = NexusTempo.analyserStock(joursAvecStock);
+
+    const decouvertes = NexusTempo.genererDecouvertes(classement, joursAgreges, employesParId, joursAvecMeteo, joursAvecStock);
 
     document.getElementById('maturiteZone').innerHTML = renderMaturite(maturite, confianceGlobale);
 
-    renderTout({ siteId, employee, joursAgreges, joursExploitables, classement, joursReveles, meilleursSepares, classementLitrage, analyseEquipe, decision, saisonnier, debutFinMois, decouvertes, analyseMeteo });
+    renderTout({ siteId, employee, joursAgreges, joursExploitables, classement, joursReveles, meilleursSepares, classementLitrage, analyseEquipe, decision, saisonnier, debutFinMois, decouvertes, analyseMeteo, analyseStock, etatStockActuel });
   });
 
   // ------------------------------------------------------------
@@ -673,6 +688,38 @@ footer{margin-top:auto; padding:20px 20px 24px; font-family:var(--mono); font-si
   }
 
   // ------------------------------------------------------------
+  // Bloc Scanner Stock — deuxième source interne connectée (25/07/2026).
+  // Deux parties : un contexte "état actuel" toujours affichable (pas
+  // une tendance, juste le dernier calcul connu), puis une tentative de
+  // corrélation par jour, honnêtement "non mesurable" tant que Scanner
+  // Stock ne recalcule pas son indice à un rythme quotidien régulier.
+  // ------------------------------------------------------------
+  function renderStock(analyseStock, etatStockActuel) {
+    let html = '';
+    if (etatStockActuel) {
+      html += `<div class="saison-panel">
+        <div class="saison-row"><span class="saison-mois">Indice de confiance stock</span><span class="saison-val">${Math.round(etatStockActuel.indiceConfiance)} / 100</span></div>
+        <div class="saison-row"><span class="saison-mois">Risque estimé</span><span class="saison-val">${fmtEur(etatStockActuel.risqueEstimeEur)}</span></div>
+        <div class="saison-row"><span class="saison-mois">Références à traiter</span><span class="saison-val">${etatStockActuel.nbASurveiller + etatStockActuel.nbAVerifier}</span></div>
+      </div>
+      <div class="section-note">État Scanner Stock au ${fmtDateCourt(etatStockActuel.date)} — dernier calcul connu, pas une moyenne.</div>`;
+    } else {
+      html += `<div class="saison-panel"><div class="saison-etat">📦 Aucune donnée Scanner Stock disponible pour l'instant.</div></div>`;
+    }
+    if (analyseStock.disponible) {
+      const { joursSousSurveillance, joursSansAlerte, ecartPiste, ecartBoutique } = analyseStock;
+      html += `<div class="saison-panel" style="margin-top:8px;">
+          <div class="saison-row"><span class="saison-mois">Jours avec alerte (${joursSousSurveillance.nbJours})</span><span class="saison-val">${fmtEur(joursSousSurveillance.moyennePiste)} piste<br><span style="font-weight:400; color:var(--text-dim); font-size:9.5px;">${fmtEur(joursSousSurveillance.moyenneBoutique)} boutique</span></span></div>
+          <div class="saison-row"><span class="saison-mois">Jours sans alerte (${joursSansAlerte.nbJours})</span><span class="saison-val">${fmtEur(joursSansAlerte.moyennePiste)} piste<br><span style="font-weight:400; color:var(--text-dim); font-size:9.5px;">${fmtEur(joursSansAlerte.moyenneBoutique)} boutique</span></span></div>
+        </div>
+        <div class="section-note">Écart avec/sans alerte : ${fmtPct(ecartPiste)} en piste, ${fmtPct(ecartBoutique)} en boutique.</div>`;
+    } else {
+      html += `<div class="section-note" style="margin-top:8px;">${analyseStock.message}</div>`;
+    }
+    return html;
+  }
+
+  // ------------------------------------------------------------
   // Bloc Niveau 4 — Tendances découvertes. NEXUS ne dit jamais
   // "cette tendance est certaine" — seulement "NEXUS a détecté une
   // tendance", assortie d'un indice de confiance objectif.
@@ -739,7 +786,7 @@ footer{margin-top:auto; padding:20px 20px 24px; font-family:var(--mono); font-si
   // ------------------------------------------------------------
   // Assemblage final
   // ------------------------------------------------------------
-  function renderTout({ siteId, employee, joursAgreges, joursExploitables, classement, joursReveles, meilleursSepares, classementLitrage, analyseEquipe, decision, saisonnier, debutFinMois, decouvertes, analyseMeteo }) {
+  function renderTout({ siteId, employee, joursAgreges, joursExploitables, classement, joursReveles, meilleursSepares, classementLitrage, analyseEquipe, decision, saisonnier, debutFinMois, decouvertes, analyseMeteo, analyseStock, etatStockActuel }) {
     const root = document.getElementById('root');
     const nbDecouvertes = decouvertes.length && decouvertes[0].disponible ? decouvertes.length : 0;
 
@@ -765,6 +812,9 @@ footer{margin-top:auto; padding:20px 20px 24px; font-family:var(--mono); font-si
     const sousTitreMeteo = analyseMeteo.disponible
       ? `Écart pluie/sec mesuré (${analyseMeteo.joursPluie.nbJours} vs ${analyseMeteo.joursSecs.nbJours} jours)`
       : (analyseMeteo.message.startsWith('Météo indisponible') ? 'Météo indisponible pour le moment' : 'Corrélation non encore mesurable');
+    const sousTitreStock = etatStockActuel
+      ? `Indice ${Math.round(etatStockActuel.indiceConfiance)}/100 · ${fmtEur(etatStockActuel.risqueEstimeEur)} de risque estimé`
+      : 'Aucune donnée Scanner Stock pour l\'instant';
 
     root.innerHTML = `
       <div class="section" style="margin-top:6px;">
@@ -792,6 +842,8 @@ footer{margin-top:auto; padding:20px 20px 24px; font-family:var(--mono); font-si
       ${accordion('accSaisonnier', 'Cycles saisonniers', renderSaisonnier(saisonnier, debutFinMois), false, { sousTitre: sousTitreSaisonnier })}
 
       ${accordion('accMeteo', 'Météo', renderMeteo(analyseMeteo), false, { sousTitre: sousTitreMeteo })}
+
+      ${accordion('accStock', 'Scanner Stock', renderStock(analyseStock, etatStockActuel), false, { sousTitre: sousTitreStock })}
 
       ${accordion('accDecouvertes', 'Tendances découvertes', `<div class="section">${renderDecouvertes(decouvertes)}</div>`, false, { sousTitre: sousTitreDecouvertes, badge: nbDecouvertes ? String(nbDecouvertes) : null })}
 
