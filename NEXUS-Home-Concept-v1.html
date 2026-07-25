@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NEXUS — Poste de pilotage (maquette)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  /* ============================================================
+     NEXUS — Concept de refonte de la page d'accueil (24/07/2026)
+     ============================================================
+     MAQUETTE — n'est PAS branchée à Supabase, ne remplace PAS
+     NEXUS-App-v1.html. Toutes les valeurs (Indice, Capital, missions,
+     décisions du Conseiller...) sont des exemples illustratifs pour
+     juger du RENDU et de la HIÉRARCHIE avant intégration.
+
+     Principe directeur : la page ne doit plus être un menu. Elle doit
+     répondre en moins de 10 secondes à "que dois-je faire maintenant
+     pour améliorer mon commerce ?" — la navigation vers les 19 écrans
+     existants reste entièrement disponible (rien n'est supprimé),
+     mais reléguée au Niveau 4, repliée par défaut.
+
+     Identité graphique : mêmes variables --bg/--panel/--gold/--cyan/
+     --mono/--sans que le reste de NEXUS (Cockpit, Scanner Stock,
+     Radar Manager) — ce concept ne réinvente pas le style, seulement
+     la hiérarchie de l'information.
+     ============================================================ */
+  :root{
+    --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
+    --text:#EDF1F5; --text-mid:#8A96A5; --text-dim:#57626F;
+    --green:#34D399; --green-dim:#153629;
+    --amber:#F5A623; --amber-dim:#3A2E14;
+    --red:#F0575A; --red-dim:#3A1D1F;
+    --cyan:#4FC3D9;
+    --gold:#D4AF37; --gold-dim:#332B12;
+    --mono:'IBM Plex Mono',monospace; --sans:'IBM Plex Sans',sans-serif;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{background:var(--bg); font-family:var(--sans); color:var(--text);}
+  body{display:flex; justify-content:center; min-height:100vh; background-image:radial-gradient(circle at 50% 0%, rgba(212,175,55,0.06), transparent 45%);}
+  .phone{width:100%; max-width:480px; min-height:100vh; display:flex; flex-direction:column; border-left:1px solid var(--hairline); border-right:1px solid var(--hairline);}
+
+  .maquette-banner{
+    background:var(--amber-dim); color:var(--amber); font-family:var(--mono); font-size:10.5px;
+    text-align:center; padding:9px 16px; letter-spacing:0.02em; border-bottom:1px solid rgba(245,166,35,0.3);
+  }
+
+  .header{padding:22px 20px 6px; display:flex; align-items:center; gap:12px;}
+  .logo-frame{width:46px; height:46px; border-radius:14px; border:1px solid var(--hairline); display:flex; align-items:center; justify-content:center; flex-shrink:0; font-family:var(--mono); font-size:10px; color:var(--gold);}
+  .header .station{font-size:15.5px; font-weight:600;}
+  .header .horodate{font-family:var(--mono); font-size:10.5px; color:var(--text-dim); margin-top:2px;}
+  .menu-btn{margin-left:auto; font-family:var(--mono); font-size:10px; color:var(--cyan); background:rgba(79,195,217,0.1); border:1px solid rgba(79,195,217,0.3); border-radius:20px; padding:6px 11px; white-space:nowrap;}
+
+  .section-tag{
+    font-family:var(--mono); font-size:9.5px; letter-spacing:0.14em; text-transform:uppercase; color:var(--text-dim);
+    padding:20px 20px 8px; display:flex; align-items:center; gap:8px;
+  }
+  .section-tag::after{content:''; flex:1; height:1px; background:var(--hairline);}
+  .section-tag .n1{color:var(--gold);}
+
+  /* ------------------------------------------------------------
+     NIVEAU 1 — Bloc "État du commerce" : Indice NEXUS + Capital NEXUS
+     dans une seule bannière, parce que ce sont les deux seuls chiffres
+     qui répondent à "comment va mon commerce dans l'absolu ?" — tout
+     le reste (missions, rappels...) répond à "que faire", pas "où
+     j'en suis". Les séparer casserait la première réponse que le
+     dirigeant cherche en ouvrant l'app.
+     ------------------------------------------------------------ */
+  .etat-card{
+    margin:0 20px; padding:24px 22px; border-radius:20px;
+    background:radial-gradient(120% 140% at 50% -10%, rgba(212,175,55,0.14), rgba(79,195,217,0.05) 55%, transparent 80%), var(--panel);
+    border:1px solid rgba(212,175,55,0.2); box-shadow:0 12px 34px rgba(0,0,0,0.32);
+  }
+  .etat-row{display:flex; gap:0;}
+  .etat-col{flex:1; text-align:center;}
+  .etat-col + .etat-col{border-left:1px solid var(--hairline);}
+  .etat-label{font-family:var(--mono); font-size:9.5px; letter-spacing:0.1em; text-transform:uppercase; color:var(--text-dim);}
+  .etat-value{font-family:var(--mono); font-size:42px; font-weight:700; line-height:1.15; margin-top:6px;}
+  .etat-sub{font-size:10.5px; color:var(--text-mid); margin-top:4px;}
+  .etat-narrative{margin-top:16px; padding-top:14px; border-top:1px solid var(--hairline); display:flex; align-items:center; gap:9px; font-size:11.5px; color:var(--text-dim); line-height:1.5;}
+  .etat-dot{width:8px; height:8px; border-radius:50%; flex-shrink:0; background:var(--amber); box-shadow:0 0 10px rgba(245,166,35,0.6);}
+
+  /* Synthèse du jour (24/07/2026, retour de Frédéric) — la toute première
+     phrase lue, avant même les chiffres de l'Indice/Capital. Donne le ton
+     en une lecture, indépendamment du niveau de détail du reste de la page. */
+  .synthese-jour{margin:14px 20px 4px; padding:14px 16px; border-radius:12px; background:var(--panel-raised); border:1px solid var(--hairline); font-size:14px; line-height:1.55; display:flex; align-items:flex-start; gap:10px;}
+  .synthese-jour b{font-weight:700;}
+  .synthese-dot{width:9px; height:9px; border-radius:50%; margin-top:6px; flex-shrink:0; box-shadow:0 0 8px currentColor;}
+
+  /* Statut interprété de l'Indice NEXUS — le chiffre seul ne raconte rien,
+     le badge fait le travail de lecture à la place du dirigeant. Légende
+     complète en un tap sur "ⓘ", jamais imposée par défaut (charge cognitive). */
+  .indice-badge{display:inline-block; margin-top:7px; padding:3px 10px; border-radius:20px; font-family:var(--mono); font-size:10px; font-weight:700; letter-spacing:0.02em;}
+  .indice-legende{display:none; margin-top:14px; padding-top:12px; border-top:1px solid var(--hairline); text-align:left;}
+  .indice-legende.open{display:block;}
+  .legende-row{display:flex; align-items:center; gap:8px; padding:4px 0; font-size:11px; color:var(--text-mid);}
+  .legende-dot{width:8px; height:8px; border-radius:50%; flex-shrink:0;}
+
+  /* Capital NEXUS — une valeur absolue ne dit pas si l'on progresse ;
+     le delta (jour ou semaine) répond directement à cette question. */
+  .capital-delta{font-family:var(--mono); font-size:11.5px; font-weight:700; margin-top:5px;}
+
+  .alerte-banner{
+    margin:12px 20px 0; padding:12px 15px; border-radius:12px; background:var(--red-dim); border:1px solid rgba(240,87,90,0.35);
+    display:flex; align-items:center; gap:10px; font-size:12px; color:var(--text);
+  }
+  .alerte-banner b{color:var(--red);}
+  .alerte-banner a{margin-left:auto; font-family:var(--mono); font-size:10.5px; color:var(--red); white-space:nowrap; text-decoration:underline; flex-shrink:0;}
+
+  /* ------------------------------------------------------------
+     Conseiller NEXUS — chef d'orchestre, pas un résumé de chiffres.
+     Numérote explicitement les 3 décisions (jamais plus — au-delà,
+     ce n'est plus une priorité) et clôt sur temps + gain, la seule
+     paire de chiffres qui motive réellement l'action immédiate.
+     ------------------------------------------------------------ */
+  .conseiller-card{margin:16px 20px 0; padding:18px; border-radius:16px; background:linear-gradient(135deg, rgba(79,195,217,0.08), rgba(79,195,217,0.02)); border:1px solid rgba(79,195,217,0.28);}
+  .conseiller-wrap{display:flex; gap:12px; align-items:flex-start;}
+  .conseiller-avatar{width:44px; height:44px; border-radius:50%; object-fit:cover; background:var(--panel-raised); border:1.5px solid rgba(79,195,217,0.4); flex-shrink:0;}
+  .conseiller-name{font-family:var(--mono); font-size:11px; font-weight:700; color:var(--cyan); letter-spacing:0.03em;}
+  .conseiller-sub{font-family:var(--mono); font-size:9px; color:var(--text-dim); margin-top:1px;}
+  .conseiller-intro{font-size:13px; color:var(--text); margin:10px 0 10px; line-height:1.55;}
+
+  /* Décisions interactives (24/07/2026, retour de Frédéric) — chaque
+     décision porte son propre lien direct vers l'outil concerné : le
+     manager n'a plus à deviner "dans quel module je traite ça ?". Le
+     rond cochable permet de la marquer traitée sans quitter l'accueil
+     (visuel seulement dans cette maquette — l'intégration réelle
+     écrirait dans journal_decisions, comme le fait déjà le Cockpit). */
+  .priorite-item{display:flex; gap:10px; padding:11px 0; border-top:1px solid var(--hairline); align-items:flex-start;}
+  .priorite-item:first-of-type{border-top:none;}
+  .priorite-check{
+    flex-shrink:0; width:20px; height:20px; margin-top:1px; border-radius:50%; border:1.5px solid var(--text-dim);
+    display:flex; align-items:center; justify-content:center; font-size:11px; color:transparent; cursor:pointer; transition:all .15s;
+  }
+  .priorite-check:hover{border-color:var(--cyan);}
+  .priorite-item.traitee .priorite-check{background:var(--green); border-color:var(--green); color:#04141a;}
+  .priorite-item.traitee .priorite-body{opacity:0.5; text-decoration:line-through; text-decoration-color:var(--text-dim);}
+  .priorite-body{font-size:12.5px; line-height:1.55;}
+  .priorite-num{font-family:var(--mono); font-weight:700; color:var(--gold);}
+  .priorite-lien{display:inline-block; margin-top:3px; font-family:var(--mono); font-size:10.5px; color:var(--cyan); text-decoration:none;}
+  .conseiller-footer{display:flex; justify-content:space-between; align-items:center; margin-top:12px; padding-top:12px; border-top:1px solid var(--hairline); font-family:var(--mono); font-size:11px; color:var(--text-mid);}
+  .conseiller-footer b{color:var(--green);}
+  #prioriteProgress{color:var(--text);}
+
+  /* ------------------------------------------------------------
+     NIVEAU 2 — "Aujourd'hui" : 4 KPI, jamais plus (charge cognitive).
+     Grille 2x2, chaque chip cliquable vers l'écran source détaillé.
+     ------------------------------------------------------------ */
+  .kpi-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px; padding:0 20px;}
+  .kpi-chip{background:var(--panel); border:1px solid var(--hairline); border-radius:12px; padding:13px 14px; text-decoration:none; color:var(--text);}
+  .kpi-chip-label{font-family:var(--mono); font-size:9px; letter-spacing:0.06em; text-transform:uppercase; color:var(--text-dim);}
+  .kpi-chip-value{font-family:var(--mono); font-size:18px; font-weight:700; margin-top:5px;}
+  .kpi-chip-sub{font-size:10.5px; color:var(--text-mid); margin-top:3px;}
+
+  /* ------------------------------------------------------------
+     NIVEAU 3 — 4 outils principaux, jamais plus. Ce sont les seuls
+     modules qu'un Directeur ouvre "à la journée" — le reste se
+     consulte, celui-ci se pilote.
+     ------------------------------------------------------------ */
+  .outils-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px; padding:0 20px;}
+  .outil-card{background:var(--panel); border:1px solid var(--hairline); border-radius:14px; padding:16px; text-decoration:none; color:var(--text); transition:border-color .12s;}
+  .outil-card:active{border-color:rgba(79,195,217,0.4);}
+  .outil-icon{width:36px; height:36px; border-radius:10px; background:var(--panel-raised); display:flex; align-items:center; justify-content:center; margin-bottom:10px; overflow:hidden;}
+  .outil-icon img{width:20px; height:20px; object-fit:contain;}
+  .outil-title{font-size:13.5px; font-weight:600;}
+  .outil-desc{font-size:10.5px; color:var(--text-mid); margin-top:4px; line-height:1.4;}
+
+  /* ------------------------------------------------------------
+     NIVEAU 4 — tout le reste. Un seul point d'entrée replié : le
+     dirigeant qui n'en a pas besoin aujourd'hui ne le voit jamais ;
+     celui qui le cherche le trouve en un tap, groupé par univers
+     plutôt qu'en une liste plate de 15 écrans.
+     ------------------------------------------------------------ */
+  .plus-toggle{
+    margin:18px 20px 0; padding:13px 16px; border-radius:12px; background:var(--panel); border:1px solid var(--hairline);
+    display:flex; justify-content:center; align-items:center; gap:8px; font-family:var(--mono); font-size:11px; color:var(--cyan); cursor:pointer;
+  }
+  .plus-toggle .chev{transition:transform .2s; display:inline-block;}
+  .plus-toggle.open .chev{transform:rotate(180deg);}
+  .plus-zone{display:none; padding:4px 20px 0;}
+  .plus-zone.open{display:block;}
+  .univers{margin-top:14px;}
+  .univers-label{font-family:var(--mono); font-size:9.5px; letter-spacing:0.1em; text-transform:uppercase; color:var(--text-dim); margin-bottom:8px;}
+  /* Sous-groupe "obligatoire vs si concerné" (24/07/2026, retour de
+     Frédéric) — dans "Ma journée", tout n'a pas la même urgence : ce
+     qui est dû chaque jour (pointage) ne doit pas se noyer visuellement
+     avec ce qui ne concerne que certains rôles (planning, planner). */
+  .univers-sublabel{font-family:var(--mono); font-size:9px; letter-spacing:0.08em; text-transform:uppercase; color:var(--text-dim); margin:10px 2px 6px;}
+  .univers-sublabel.obligatoire{color:var(--amber);}
+  .univers-list{background:var(--panel); border:1px solid var(--hairline); border-radius:12px; overflow:hidden;}
+  .univers-item{display:flex; align-items:center; gap:11px; padding:11px 13px; text-decoration:none; color:var(--text); border-bottom:1px solid var(--hairline); font-size:12.5px;}
+  .univers-item:last-child{border-bottom:none;}
+  .univers-item .ui-icon{width:26px; height:26px; border-radius:8px; background:var(--panel-raised); display:flex; align-items:center; justify-content:center; font-size:13px; flex-shrink:0; color:var(--text-dim); overflow:hidden;}
+  .univers-item .ui-icon img{width:16px; height:16px; object-fit:contain;}
+  .univers-item .ui-arrow{margin-left:auto; color:var(--text-dim); font-size:14px;}
+  /* Entrée désactivée par réglage de site (24/07/2026) — même logique que
+     NEXUS-App-v1.html : Pointage n'est grisé QUE pour un manager dont le
+     site a manager_pointage_requis=false (défaut). Rien n'est codé en
+     dur ici non plus dans l'intégration réelle : cette maquette reflète
+     simplement l'état par défaut pour montrer le rendu. */
+  .univers-item.disabled{opacity:0.42; pointer-events:none;}
+  .badge-premium{font-family:var(--mono); font-size:8px; color:var(--gold); background:rgba(212,175,55,0.14); padding:2px 6px; border-radius:10px; margin-left:6px;}
+  .badge-demo{font-family:var(--mono); font-size:8px; color:var(--amber); background:var(--amber-dim); padding:2px 6px; border-radius:10px; margin-left:6px;}
+
+  footer{margin-top:auto; padding:20px; font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:center; border-top:1px solid var(--hairline); margin-top:24px;}
+</style>
+</head>
+<body>
+<div class="phone">
+  <div class="maquette-banner">MAQUETTE — aperçu avant intégration · données d'exemple, non connectées à Supabase</div>
+
+  <div class="header">
+    <div class="logo-frame">VSM</div>
+    <div>
+      <div class="station">Vito Sainte-Marie Usine</div>
+      <div class="horodate">Bonjour Fred · vendredi 24 juillet · 06:15</div>
+    </div>
+    <a href="NEXUS-App-v1.html" class="menu-btn">☰ Ancien menu</a>
+  </div>
+
+  <!-- Synthèse du jour — la toute première phrase lue, avant les chiffres. -->
+  <div class="synthese-jour">
+    <span class="synthese-dot" style="background:var(--amber); color:var(--amber);"></span>
+    <span>Votre commerce est <b>sous contrôle</b>. Trois décisions peuvent générer environ <b style="color:var(--gold);">420 €</b> de valeur supplémentaire aujourd'hui.</span>
+  </div>
+
+  <!-- NIVEAU 1 — état global -->
+  <div class="section-tag"><span class="n1">Niveau 1</span> Ce que vous devez savoir en premier</div>
+
+  <div class="etat-card">
+    <div class="etat-row">
+      <div class="etat-col">
+        <div class="etat-label" id="indiceLegendeToggle">Indice NEXUS <span style="opacity:0.6;">ⓘ</span></div>
+        <div class="etat-value" style="color:var(--amber);">62</div>
+        <div class="indice-badge" style="color:var(--amber); background:var(--amber-dim);">À surveiller</div>
+        <div class="etat-sub">Marge 23,1 % · évolution +3,4 %</div>
+      </div>
+      <div class="etat-col">
+        <div class="etat-label">Capital NEXUS</div>
+        <div class="etat-value" style="color:var(--gold); font-size:32px;">4 280 €</div>
+        <div class="capital-delta" style="color:var(--green);">↑ +320 € depuis hier</div>
+        <div class="etat-sub">1 150 € restants à saisir</div>
+      </div>
+    </div>
+    <div class="indice-legende" id="indiceLegende">
+      <div class="legende-row"><span class="legende-dot" style="background:var(--green);"></span>90–100 · Excellence</div>
+      <div class="legende-row"><span class="legende-dot" style="background:var(--green);"></span>75–89 · Sous contrôle</div>
+      <div class="legende-row"><span class="legende-dot" style="background:var(--amber);"></span>60–74 · À surveiller</div>
+      <div class="legende-row"><span class="legende-dot" style="background:var(--red);"></span>Moins de 60 · Priorité élevée</div>
+    </div>
+    <div class="etat-narrative"><span class="etat-dot"></span>2 658 références suivies · dernière mise à jour à 05:50</div>
+  </div>
+
+  <div class="alerte-banner">⚠ <span><b>Prix carburants du mois</b> non renseignés — la remise en cuve reste à 0 € dans Verify.</span><a href="NEXUS-Parametres-Station-v1.html">Corriger →</a></div>
+
+  <div class="conseiller-card">
+    <div class="conseiller-wrap">
+      <img class="conseiller-avatar" src="assets/nexus-avatar.png" alt="Conseiller NEXUS">
+      <div style="flex:1;">
+        <div class="conseiller-name">CONSEILLER NEXUS</div>
+        <div class="conseiller-sub">Votre chef d'orchestre du jour</div>
+      </div>
+    </div>
+    <div class="conseiller-intro">Fred, bonjour. Voici les 3 décisions qui comptent aujourd'hui :</div>
+
+    <div class="priorite-item" id="priorite-item-0">
+      <span class="priorite-check" data-idx="0">✓</span>
+      <div class="priorite-body">
+        <span class="priorite-num">1.</span> Contrôler les écarts de caisse du quart 2 d'hier soir.
+        <a class="priorite-lien" href="NEXUS-Verify-v1.html">Ouvrir Verify →</a>
+      </div>
+    </div>
+    <div class="priorite-item" id="priorite-item-1">
+      <span class="priorite-check" data-idx="1">✓</span>
+      <div class="priorite-body">
+        <span class="priorite-num">2.</span> Commander le carburant SP95 — stock sous le seuil de sécurité.
+        <a class="priorite-lien" href="NEXUS-Parametres-Station-v1.html">Ouvrir Paramètres Station →</a>
+      </div>
+    </div>
+    <div class="priorite-item" id="priorite-item-2">
+      <span class="priorite-check" data-idx="2">✓</span>
+      <div class="priorite-body">
+        <span class="priorite-num">3.</span> Corriger la marge de 2 références tabac mal indexées.
+        <a class="priorite-lien" href="NEXUS-Scanner-v1.html">Ouvrir Scanner NEXUS →</a>
+      </div>
+    </div>
+
+    <div class="conseiller-footer"><span id="prioriteProgress">0 / 3 traitées</span><span>18 min · <b>420 €</b> de gain potentiel</span></div>
+  </div>
+
+  <!-- NIVEAU 2 — actions du jour -->
+  <div class="section-tag">Niveau 2 · Aujourd'hui</div>
+  <div class="kpi-grid">
+    <a class="kpi-chip" href="NEXUS-Missions-v1.html">
+      <div class="kpi-chip-label">Missions</div>
+      <div class="kpi-chip-value">6 / 9</div>
+      <div class="kpi-chip-sub">complétées aujourd'hui</div>
+    </a>
+    <a class="kpi-chip" href="NEXUS-Parametres-Rappels-v1.html">
+      <div class="kpi-chip-label">Rappels</div>
+      <div class="kpi-chip-value" style="color:var(--red);">2</div>
+      <div class="kpi-chip-sub">dont 1 urgent</div>
+    </a>
+    <a class="kpi-chip" href="NEXUS-Journal-v1.html">
+      <div class="kpi-chip-label">Décisions validées</div>
+      <div class="kpi-chip-value" style="color:var(--green);">3</div>
+      <div class="kpi-chip-sub">+610 € sécurisés</div>
+    </a>
+    <a class="kpi-chip" href="NEXUS-Resultats-Equipe-v1.html">
+      <div class="kpi-chip-label">Équipe</div>
+      <div class="kpi-chip-value">82 %</div>
+      <div class="kpi-chip-sub">progression missions</div>
+    </a>
+  </div>
+
+  <!-- NIVEAU 3 — outils principaux -->
+  <div class="section-tag">Niveau 3 · Vos outils principaux</div>
+  <div class="outils-grid">
+    <a class="outil-card" href="NEXUS-Cockpit-v2.html">
+      <div class="outil-icon"><img src="assets/icons/icon-home.png" alt=""></div>
+      <div class="outil-title">Cockpit</div>
+      <div class="outil-desc"><span style="color:var(--red);">2 alertes</span> · <span style="color:var(--green);">4 opportunités</span> détectées</div>
+    </a>
+    <a class="outil-card" href="NEXUS-Verify-v1.html">
+      <div class="outil-icon"><img src="assets/icons/icon-nexus-verify.png" alt="" style="filter:grayscale(1) brightness(1.05) contrast(1.05) sepia(1) hue-rotate(152deg) saturate(4);"></div>
+      <div class="outil-title">Verify</div>
+      <div class="outil-desc"><span style="color:var(--amber);">3 contrôles</span> à effectuer</div>
+    </a>
+    <a class="outil-card" href="NEXUS-Radar-Manager-v1.html">
+      <div class="outil-icon"><img src="assets/icons/icon-radar.png" alt=""></div>
+      <div class="outil-title">Radar</div>
+      <div class="outil-desc"><span style="color:var(--amber);">1 point faible</span> sur 8 domaines</div>
+    </a>
+    <a class="outil-card" href="NEXUS-Produits-v1.html">
+      <div class="outil-icon"><img src="assets/icons/icon-produits.png" alt=""></div>
+      <div class="outil-title">Produits</div>
+      <div class="outil-desc"><span style="color:var(--cyan);">5 recommandations</span> actives</div>
+    </a>
+  </div>
+
+  <!-- NIVEAU 4 — tout le reste, replié -->
+  <div class="plus-toggle" id="plusToggle">Tous les outils (15 autres écrans) <span class="chev">▾</span></div>
+  <div class="plus-zone" id="plusZone">
+
+    <div class="univers">
+      <div class="univers-label">Ma journée</div>
+      <div class="univers-sublabel obligatoire">Obligatoire aujourd'hui</div>
+      <div class="univers-list">
+        <a class="univers-item" href="NEXUS-Prise-De-Poste-v1.html"><span class="ui-icon"><img src="assets/icons/icon-prise-de-poste.png" alt=""></span>Prise de poste<span class="ui-arrow">›</span></a>
+        <!-- Pointage — reflète station_config.manager_pointage_requis (défaut
+             false, voir migration-station-config-manager-pointage-v1.sql).
+             Grisé ici pour la même raison que dans NEXUS-App-v1.html : le
+             manager de ce site n'est pas tenu de pointer tant que l'option
+             n'est pas activée dans Paramètres Station. Rien de codé en dur :
+             cette maquette illustre simplement l'état par défaut (false). -->
+        <span class="univers-item disabled"><span class="ui-icon"><img src="assets/icons/icon-pointage.png" alt=""></span>Pointage<span class="ui-arrow" style="font-size:9.5px; font-family:var(--mono);">Non requis</span></span>
+      </div>
+      <div class="univers-sublabel">À faire si concerné</div>
+      <div class="univers-list">
+        <a class="univers-item" href="NEXUS-Mon-Planning-v1.html"><span class="ui-icon"><img src="assets/icons/icon-planner.png" alt=""></span>Mon Planning<span class="ui-arrow">›</span></a>
+        <a class="univers-item" href="NEXUS-Planning-v1.html"><span class="ui-icon"><img src="assets/icons/icon-planner.png" alt=""></span>Nexus Planner<span class="badge-premium">Premium</span><span class="ui-arrow">›</span></a>
+      </div>
+    </div>
+
+    <div class="univers">
+      <div class="univers-label">Équipe</div>
+      <div class="univers-list">
+        <a class="univers-item" href="NEXUS-Assignations-v1.html"><span class="ui-icon"><img src="assets/icons/icon-assignations.png" alt=""></span>Assignations<span class="ui-arrow">›</span></a>
+        <a class="univers-item" href="NEXUS-Resultats-Equipe-v1.html"><span class="ui-icon"><img src="assets/icons/icon-resultats-equipe.png" alt=""></span>Résultats Équipe<span class="ui-arrow">›</span></a>
+        <a class="univers-item" href="NEXUS-Evaluation-Employe-v1.html"><span class="ui-icon"><img src="assets/icons/icon-evaluation.png" alt=""></span>Évaluation<span class="ui-arrow">›</span></a>
+        <a class="univers-item" href="NEXUS-Mon-Evolution-v1.html"><span class="ui-icon"><img src="assets/icons/icon-evolution.png" alt=""></span>Mon Évolution<span class="ui-arrow">›</span></a>
+      </div>
+    </div>
+
+    <div class="univers">
+      <div class="univers-label">Données</div>
+      <div class="univers-list">
+        <a class="univers-item" href="NEXUS-Import-v1.html"><span class="ui-icon"><img src="assets/icons/icon-import.png" alt=""></span>Import<span class="ui-arrow">›</span></a>
+        <a class="univers-item" href="NEXUS-Scanner-Stock-v1.html"><span class="ui-icon"><img src="assets/icons/icon-scanner-stock.png" alt=""></span>Scanner Stock<span class="badge-premium">Premium</span><span class="ui-arrow">›</span></a>
+        <a class="univers-item" href="NEXUS-Scanner-v1.html"><span class="ui-icon"><img src="assets/icons/icon-scanner.png" alt=""></span>Scanner NEXUS<span class="ui-arrow">›</span></a>
+        <a class="univers-item" href="NEXUS-Rayon-v1.html"><span class="ui-icon"><img src="assets/icons/icon-rayon.png" alt=""></span>Rayon<span class="ui-arrow">›</span></a>
+      </div>
+    </div>
+
+    <div class="univers">
+      <div class="univers-label">Intelligence</div>
+      <div class="univers-list">
+        <a class="univers-item" href="NEXUS-Centre-Intelligence-v1.html"><span class="ui-icon"><img src="assets/icons/icon-centre-intelligence.png" alt=""></span>Centre d'Intelligence<span class="ui-arrow">›</span></a>
+        <a class="univers-item" href="NEXUS-Journal-v1.html"><span class="ui-icon"><img src="assets/icons/icon-journal-nexus.png" alt=""></span>Journal NEXUS<span class="ui-arrow">›</span></a>
+        <a class="univers-item" href="NEXUS-Capital-v1.html"><span class="ui-icon"><img src="assets/icons/icon-capital.png" alt=""></span>Capital NEXUS<span class="badge-demo">Démo</span><span class="ui-arrow">›</span></a>
+      </div>
+    </div>
+
+    <div class="univers">
+      <div class="univers-label">Administration</div>
+      <div class="univers-list">
+        <a class="univers-item" href="NEXUS-Parametres-Station-v1.html"><span class="ui-icon">⚙️</span>Paramètres Station<span class="ui-arrow">›</span></a>
+        <a class="univers-item" href="NEXUS-Admin-Sites-v1.html"><span class="ui-icon">⚙️</span>Administration multi-site<span class="ui-arrow">›</span></a>
+        <a class="univers-item" href="NEXUS-Debug-Createur-v1.html"><span class="ui-icon">🛠</span>Debug créateur<span class="ui-arrow">›</span></a>
+      </div>
+    </div>
+
+  </div>
+
+  <footer>NEXUS · Vito Sainte-Marie Usine · Concept de page d'accueil — maquette</footer>
+</div>
+
+<script>
+  document.getElementById('plusToggle').addEventListener('click', () => {
+    const toggle = document.getElementById('plusToggle');
+    const zone = document.getElementById('plusZone');
+    const ouvert = zone.classList.toggle('open');
+    toggle.classList.toggle('open', ouvert);
+  });
+
+  // Légende de l'Indice NEXUS — repliée par défaut (charge cognitive),
+  // un tap sur "ⓘ" l'affiche pour qui veut comprendre le statut affiché.
+  document.getElementById('indiceLegendeToggle').addEventListener('click', () => {
+    document.getElementById('indiceLegende').classList.toggle('open');
+  });
+
+  // Décisions cochables directement depuis l'accueil (24/07/2026, retour
+  // de Frédéric) — visuel uniquement dans cette maquette. L'intégration
+  // réelle écrirait dans journal_decisions, comme le fait déjà le Cockpit
+  // via enregistrerJournalDecision().
+  let prioritesTraitees = 0;
+  const TOTAL_PRIORITES = 3;
+  document.querySelectorAll('.priorite-check').forEach(check => {
+    check.addEventListener('click', () => {
+      const item = document.getElementById('priorite-item-' + check.dataset.idx);
+      const estTraitee = item.classList.toggle('traitee');
+      prioritesTraitees += estTraitee ? 1 : -1;
+      document.getElementById('prioriteProgress').textContent = prioritesTraitees + ' / ' + TOTAL_PRIORITES + ' traitées';
+    });
+  });
+</script>
+</body>
+</html>

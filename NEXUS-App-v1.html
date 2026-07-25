@@ -112,6 +112,12 @@
 
   .construction-item{opacity:0.4;}
 
+  /* Entrée de menu désactivée par réglage de site (24/07/2026) — distinct
+     de .construction-item (fonctionnalité pas encore prête) : ici la
+     fonctionnalité existe, elle est juste volontairement non requise pour
+     ce poste. Voir NEXUS-Parametres-Station-v1.html (manager_pointage_requis). */
+  .nav-item.disabled{opacity:0.42; pointer-events:none;}
+
   .group-toggle{
     justify-content:center; gap:6px; cursor:pointer;
     font-family:var(--mono); font-size:10.5px; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.04em;
@@ -206,11 +212,11 @@
       </div>
       <div class="nav-arrow">›</div>
     </a>
-    <a class="nav-item" data-role="all" href="NEXUS-Pointage-v1.html">
+    <a class="nav-item" data-role="all" href="NEXUS-Pointage-v1.html" id="navPointage">
       <div class="nav-icon"><img src="assets/icons/icon-pointage.png" alt="Pointage"></div>
       <div class="nav-body">
         <div class="nav-title">Pointage</div>
-        <div class="nav-desc">Arrivée, pause, départ</div>
+        <div class="nav-desc" id="navPointageDesc">Arrivée, pause, départ</div>
       </div>
       <div class="nav-arrow">›</div>
     </a>
@@ -502,6 +508,17 @@
           .eq('actif', true);
         if (!errMissions && totalMissions != null && elMissions) elMissions.textContent = totalMissions;
       })();
+
+      // ------------------------------------------------------------
+      // Pointage du manager (24/07/2026, demande de Frédéric) — réglage
+      // par site, lu dans station_config.manager_pointage_requis, jamais
+      // codé en dur. Défaut FALSE (colonne absente ou false) : l'entrée
+      // "Pointage" reste grisée et non cliquable pour le manager. Les
+      // employés ne passent jamais par cette branche (estNiveauManager)
+      // et pointent donc dans tous les cas. Réglable dans
+      // NEXUS-Parametres-Station-v1.html.
+      // ------------------------------------------------------------
+      await appliquerPointageManagerMenu(employee.site_id || 'vito-sainte-marie');
     } else {
       // Bug trouve le 21/07/2026 lors d'une relecture generale : heroEmploye
       // demarre masque (style="display:none;" inline, meme logique FOUC que
@@ -704,6 +721,23 @@
 
     initGroupes();
   });
+
+  // Pointage du manager (24/07/2026) — voir migration-station-config-manager-
+  // pointage-v1.sql. Défaut FALSE si la colonne est absente ou nulle : ne
+  // jamais bloquer l'affichage sur une erreur reseau, se contenter de
+  // laisser Pointage grisé (comportement par defaut) en cas de doute.
+  async function appliquerPointageManagerMenu(siteId) {
+    const item = document.getElementById('navPointage');
+    if (!item) return;
+    const { data, error } = await nexusClient.from('station_config').select('manager_pointage_requis').eq('site', siteId).maybeSingle();
+    const requis = !error && !!(data && data.manager_pointage_requis);
+    if (!requis) {
+      item.classList.add('disabled');
+      item.removeAttribute('href');
+      const desc = document.getElementById('navPointageDesc');
+      if (desc) desc.textContent = 'Non requis pour votre poste — activable dans Paramètres Station';
+    }
+  }
 
   // Chaque groupe ne montre que son element le plus parlant au depart, pour voir
   // toute la page sans defiler. S'il y a un item urgent (Rappels), il prend

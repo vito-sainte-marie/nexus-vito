@@ -52,6 +52,23 @@
 
   .statut-prix{font-family:var(--mono); font-size:11px; line-height:1.5; margin-bottom:10px;}
 
+  /* Interrupteur "manager doit pointer" (24/07/2026) — un simple
+     checkbox natif se perd visuellement dans le reste du formulaire ;
+     ce toggle rend l'état ON/OFF lisible d'un coup d'œil, cohérent
+     avec le reste de l'identité NEXUS (pas de composant tiers). */
+  .toggle-row{display:flex; align-items:center; gap:12px;}
+  .toggle-row .tr-text{flex:1;}
+  .toggle-row .tr-title{font-size:13px; font-weight:600;}
+  .toggle-row .tr-desc{font-size:11.5px; color:var(--text-mid); margin-top:3px; line-height:1.5;}
+  .toggle-switch{position:relative; width:44px; height:26px; flex-shrink:0; cursor:pointer;}
+  .toggle-switch input{position:absolute; opacity:0; width:100%; height:100%; margin:0; cursor:pointer;}
+  .toggle-track{position:absolute; inset:0; background:var(--panel-raised); border:1px solid var(--hairline); border-radius:14px; transition:background .15s, border-color .15s;}
+  .toggle-thumb{position:absolute; top:2px; left:2px; width:20px; height:20px; border-radius:50%; background:var(--text-dim); transition:transform .15s, background .15s;}
+  .toggle-switch input:checked ~ .toggle-track{background:var(--green-dim); border-color:rgba(52,211,153,0.5);}
+  .toggle-switch input:checked ~ .toggle-thumb{transform:translateX(18px); background:var(--green);}
+  .toggle-etat{font-family:var(--mono); font-size:10.5px; color:var(--text-dim); margin-top:10px;}
+  .toggle-etat b{color:var(--text);}
+
   .btn{
     font-family:var(--sans); font-size:14px; font-weight:600; border:none; border-radius:8px;
     padding:13px 18px; cursor:pointer; width:100%; margin-top:10px;
@@ -127,6 +144,31 @@
     <button class="btn btn-primary" id="sauvegarder">Enregistrer les horaires</button>
     <button class="btn btn-secondary" id="reinitialiser">Réinitialiser aux valeurs Vito Sainte-Marie Usine</button>
     <div class="saved-note" id="savedNote">✓ Horaires enregistrés — pris en compte au prochain pointage</div>
+
+    <!-- ------------------------------------------------------------
+         Pointage du manager (24/07/2026, demande de Frédéric) — réglage
+         par site, jamais codé en dur dans le menu. Défaut à FALSE : le
+         manager n'est pas tenu de pointer. N'affecte que son propre
+         rôle (manager/gérant) — les employés pointent dans tous les cas,
+         quel que soit ce réglage. Voir NEXUS-App-v1.html pour la lecture
+         de station_config.manager_pointage_requis qui grise ou non
+         l'entrée "Pointage" du menu.
+         ------------------------------------------------------------ -->
+    <div class="card" id="cardPointageManager">
+      <div class="section-label">Pointage du manager</div>
+      <div class="toggle-row">
+        <div class="tr-text">
+          <div class="tr-title">Le manager doit pointer</div>
+          <div class="tr-desc">Arrivée, pause, départ — comme un employé. Si désactivé, l'entrée Pointage reste grisée dans son menu.</div>
+        </div>
+        <label class="toggle-switch">
+          <input type="checkbox" id="managerPointageRequis">
+          <span class="toggle-track"></span>
+          <span class="toggle-thumb"></span>
+        </label>
+      </div>
+      <div class="toggle-etat" id="managerPointageEtat">Chargement…</div>
+    </div>
 
     <div class="card" id="cardPrixCarburants">
       <div class="section-label">Prix carburants — mois en cours</div>
@@ -246,6 +288,48 @@
     if (error) { console.error('Réinitialisation station_config:', error); alert('Erreur — réessayez.'); return; }
     CONFIG_HORAIRES_ACTUEL = HORAIRES_DEFAUT;
     remplirFormulaire(HORAIRES_DEFAUT);
+  });
+
+  // ------------------------------------------------------------
+  // Pointage du manager (24/07/2026) — station_config.manager_pointage_requis,
+  // booléen par site, défaut FALSE (voir migration-station-config-manager-
+  // pointage-v1.sql). Rien n'est codé en dur : NEXUS-App-v1.html relit cette
+  // même colonne pour griser ou non l'entrée "Pointage" du menu manager.
+  // ------------------------------------------------------------
+  async function chargerPointageManager() {
+    const { data, error } = await nexusClient.from('station_config').select('manager_pointage_requis').eq('site', employee.site_id || 'vito-sainte-marie').maybeSingle();
+    if (error) { console.error('Chargement manager_pointage_requis:', error); return false; }
+    return !!(data && data.manager_pointage_requis);
+  }
+
+  function majEtatPointageManager(actif) {
+    const etat = document.getElementById('managerPointageEtat');
+    etat.innerHTML = actif
+      ? 'Actif — <b>Pointage</b> apparaît normalement dans votre menu, comme pour un employé.'
+      : 'Inactif (par défaut) — <b>Pointage</b> reste grisé dans votre menu. Les employés continuent de pointer dans tous les cas.';
+  }
+
+  (async function initPointageManager() {
+    const actif = await chargerPointageManager();
+    document.getElementById('managerPointageRequis').checked = actif;
+    majEtatPointageManager(actif);
+  })();
+
+  document.getElementById('managerPointageRequis').addEventListener('change', async (e) => {
+    const actif = e.target.checked;
+    e.target.disabled = true;
+    const { error } = await nexusClient.from('station_config').upsert(
+      { site: employee.site_id || 'vito-sainte-marie', manager_pointage_requis: actif, horaires: CONFIG_HORAIRES_ACTUEL, updated_at: new Date().toISOString() },
+      { onConflict: 'site' }
+    );
+    e.target.disabled = false;
+    if (error) {
+      console.error('Enregistrement manager_pointage_requis:', error);
+      alert('Erreur — réessayez.');
+      e.target.checked = !actif; // annule visuellement, l'ecriture a echoue
+      return;
+    }
+    majEtatPointageManager(actif);
   });
 
   // ------------------------------------------------------------
