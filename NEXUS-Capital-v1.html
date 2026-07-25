@@ -66,6 +66,32 @@ a{color:inherit; text-decoration:none;}
 }
 .capital-badge.baisse{background:var(--red-dim); color:var(--red);}
 
+/* ROI premium (24/07/2026) — panneau distinct juste sous Capital NEXUS,
+   habillage doré/gradient volontairement plus soigné que les autres cartes
+   pour signaler que c'est un indicateur "haut de gamme" de l'offre
+   Professional, pas une carte parmi d'autres. */
+.roi-premium{
+  position:relative; margin:12px 20px 0; padding:20px 20px 16px; border-radius:18px;
+  background:linear-gradient(160deg, rgba(212,175,55,0.12), var(--panel) 55%);
+  border:1px solid rgba(212,175,55,0.35);
+  box-shadow:0 14px 34px rgba(212,175,55,0.10);
+  overflow:hidden;
+}
+.roi-premium::before{content:''; position:absolute; top:-45%; left:-15%; width:150%; height:150%; background:radial-gradient(circle, rgba(212,175,55,0.10), transparent 60%); pointer-events:none;}
+.roi-premium-eyebrow{position:relative; font-family:var(--mono); font-size:10.5px; letter-spacing:0.12em; text-transform:uppercase; color:var(--gold);}
+.roi-premium-body{position:relative; display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:16px;}
+.roi-premium-col{flex:1; min-width:0;}
+.roi-premium-label{font-family:var(--mono); font-size:9.5px; letter-spacing:0.06em; text-transform:uppercase; color:var(--text-mid);}
+.roi-premium-value{font-family:var(--sans); font-size:19px; font-weight:700; margin-top:5px;}
+.roi-premium-unit{font-family:var(--mono); font-size:11px; font-weight:500; color:var(--text-dim); margin-left:2px;}
+.roi-premium-sub{font-family:var(--mono); font-size:9.5px; color:var(--text-dim); margin-top:4px; line-height:1.4;}
+.roi-premium-donut{position:relative; width:92px; height:92px; flex-shrink:0;}
+.roi-premium-donut-center{position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;}
+.roi-premium-pct{font-size:19px; font-weight:700;}
+.roi-premium-tag{font-family:var(--mono); font-size:8.5px; letter-spacing:0.08em; text-transform:uppercase; color:var(--text-dim); margin-top:1px;}
+.roi-premium-note{position:relative; margin-top:14px; padding-top:12px; border-top:1px solid rgba(212,175,55,0.2); font-size:11.5px; color:var(--text-mid); line-height:1.5;}
+.roi-premium-tagline{position:relative; margin-top:10px; font-family:var(--sans); font-size:13px; font-weight:600; font-style:italic; color:var(--gold); text-align:center;}
+
 .levers-grid{display:grid; grid-template-columns:repeat(2,1fr); gap:10px;}
 .lever-card{background:var(--panel); border:1px solid var(--hairline); border-left:3px solid var(--hairline); border-radius:14px; padding:16px;}
 .lever-title{font-size:12.5px; color:var(--text-mid); line-height:1.35; margin-bottom:10px; min-height:34px;}
@@ -171,17 +197,90 @@ a{color:inherit; text-decoration:none;}
   // gain vérifié après coup — NEXUS n'a aujourd'hui aucune boucle de retour
   // qui confirme que l'action a été faite et a réellement produit ce
   // résultat. Le vocabulaire de cette page doit donc toujours parler de
-  // "valeur identifiée" ou "estimée", jamais "d'argent gagné". Pour la même
-  // raison, l'ancien panneau ROI (coût abonnement vs valeur créée) a été
-  // retiré : NEXUS ne connaît pas le prix réellement facturé à ce site, et
-  // en inventer un violerait ce même principe. Il pourra être réactivé le
-  // jour où ce prix sera configuré quelque part (voir la conversation avec
-  // Frédéric du 24/07/2026 sur les offres Essential / Professional).
+  // "valeur identifiée" ou "estimée", jamais "d'argent gagné".
+  //
+  // Le panneau ROI (coût abonnement vs valeur créée) a été réactivé le
+  // 24/07/2026 : Frédéric a confirmé le prix réel de l'offre NEXUS
+  // Professional pour Vito Sainte-Marie Usine — 399 € HT/mois (rectifié le
+  // même jour, prix initialement annoncé à 499 €), décompté à partir du
+  // 1er juillet 2026. Ce prix est donc une donnée réelle fournie par le
+  // client, pas une invention (voir DEBUT_ABONNEMENT_PRO / COUT_MENSUEL_PRO
+  // ci-dessous) — ce n'est PLUS un cas où l'article 5 interdirait de
+  // l'afficher. Si ce prix venait à changer un jour, il faudra le mettre à
+  // jour ici.
   //
   // De même, l'ancien panneau "Fiabilité des estimations" (92%) a été
   // supprimé : aucune donnée ne permet de calculer un taux de fiabilité
   // réel tant qu'il n'existe pas de vérification après coup.
   // ============================================================
+
+  // Prix réel de l'abonnement NEXUS Professional pour Vito Sainte-Marie
+  // Usine, fourni par Frédéric le 24/07/2026 (399 € HT/mois) — décompté
+  // chaque 1er du mois à partir du 1er juillet 2026 (mois 6 = juillet,
+  // Date() est 0-indexé).
+  const DEBUT_ABONNEMENT_PRO = new Date(2026, 6, 1);
+  const COUT_MENSUEL_PRO = 399;
+
+  function calculerCoutAbonnementPro() {
+    const maintenant = new Date();
+    if (maintenant < DEBUT_ABONNEMENT_PRO) return { cout: 0, nbMois: 0 };
+    const nbMois = (maintenant.getFullYear() - DEBUT_ABONNEMENT_PRO.getFullYear()) * 12
+      + (maintenant.getMonth() - DEBUT_ABONNEMENT_PRO.getMonth()) + 1;
+    return { cout: nbMois * COUT_MENSUEL_PRO, nbMois };
+  }
+
+  // La valeur créée comparée au coût ne doit porter que sur la période
+  // couverte par l'abonnement (depuis le 1er juillet 2026) — comparer un
+  // coût qui démarre au 1er juillet à une valeur cumulée depuis toujours
+  // fausserait le ratio si d'anciennes décisions existaient avant cette date.
+  function calculerValeurDepuisAbonnement(decisions) {
+    const seuil = '2026-07-01';
+    return decisions.filter(d => (d.date || '') >= seuil).reduce((s, d) => s + (d.impact_eur || 0), 0);
+  }
+
+  function renderRoiPremium(decisions) {
+    const { cout, nbMois } = calculerCoutAbonnementPro();
+    const valeur = calculerValeurDepuisAbonnement(decisions);
+    const ratio = cout > 0 ? valeur / cout : 0;
+    const pct = Math.round(ratio * 100);
+    const positif = valeur >= cout;
+    const couleur = positif ? 'var(--green)' : 'var(--amber)';
+    const circonference = 251.2; // 2 * π * 40 (rayon du donut)
+    const dashoffset = circonference * (1 - Math.min(ratio, 1));
+
+    return `
+      <div class="roi-premium">
+        <div class="roi-premium-eyebrow">💎 ROI · NEXUS Professional</div>
+        <div class="roi-premium-body">
+          <div class="roi-premium-col">
+            <div class="roi-premium-label">Investissement</div>
+            <div class="roi-premium-value">${fmtEur(COUT_MENSUEL_PRO)}<span class="roi-premium-unit">/mois</span></div>
+            <div class="roi-premium-sub">${fmtEur(cout)} cumulés · ${nbMois} mois depuis le 1ᵉʳ juillet</div>
+          </div>
+          <div class="roi-premium-donut">
+            <svg viewBox="0 0 100 100" width="92" height="92">
+              <circle cx="50" cy="50" r="40" fill="none" stroke="#242E38" stroke-width="8"/>
+              <circle cx="50" cy="50" r="40" fill="none" stroke="${couleur}" stroke-width="8" stroke-linecap="round"
+                stroke-dasharray="${circonference}" stroke-dashoffset="${dashoffset.toFixed(1)}" transform="rotate(-90 50 50)"/>
+            </svg>
+            <div class="roi-premium-donut-center">
+              <div class="roi-premium-pct" style="color:${couleur};">${pct}%</div>
+              <div class="roi-premium-tag">ROI</div>
+            </div>
+          </div>
+          <div class="roi-premium-col" style="text-align:right;">
+            <div class="roi-premium-label">Valeur créée</div>
+            <div class="roi-premium-value" style="color:var(--green);">${fmtEur(valeur)}</div>
+            <div class="roi-premium-sub">depuis le 1ᵉʳ juillet</div>
+          </div>
+        </div>
+        <div class="roi-premium-note">${positif
+          ? `Pour chaque euro investi dans NEXUS depuis le 1ᵉʳ juillet, votre commerce a identifié ${ratio.toFixed(1).replace('.', ',')} € de valeur potentielle.`
+          : `La valeur identifiée depuis le 1ᵉʳ juillet est encore inférieure à l'investissement — normal en phase de démarrage, à surveiller si ça persiste.`}</div>
+        <div class="roi-premium-tagline">NEXUS coûte moins qu'une seule mauvaise décision.</div>
+      </div>
+    `;
+  }
 
   let SITE_ACTUEL = 'vito-sainte-marie';
 
@@ -410,6 +509,8 @@ a{color:inherit; text-decoration:none;}
         ${chartSVG ? `<svg class="capital-chart" viewBox="0 0 150 70" fill="none">${chartSVG}</svg>` : ''}
         ${delta ? `<div class="capital-badge${delta.positif ? '' : ' baisse'}">${delta.texte}</div>` : ''}
       </div>
+
+      ${renderRoiPremium(decisions)}
 
       <div class="section">
         <div class="section-label">Les leviers de valeur</div>
