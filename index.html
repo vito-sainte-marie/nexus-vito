@@ -13,6 +13,7 @@
   --green:#34D399; --green-dim:#153629;
   --amber:#F5A623; --amber-dim:#3A2E14;
   --cyan:#4FC3D9; --cyan-dim:#123138;
+  --gold:#D4AF37; --gold-dim:#332B12;
   --mono:'IBM Plex Mono',monospace; --sans:'IBM Plex Sans',sans-serif;
 }
 *{box-sizing:border-box; margin:0; padding:0;}
@@ -36,7 +37,7 @@ header{position:sticky; top:0; z-index:50; background:rgba(11,15,20,0.92); backd
   color:var(--cyan);
 }
 .brand-name{font-size:16px; font-weight:600;}
-nav.links{display:flex; align-items:center; gap:28px;}
+nav.links{display:flex; align-items:center; gap:26px;}
 nav.links a{font-family:var(--mono); font-size:12px; letter-spacing:0.04em; color:var(--text-mid); text-transform:uppercase;}
 nav.links a:hover{color:var(--text);}
 .btn{
@@ -46,6 +47,8 @@ nav.links a:hover{color:var(--text);}
 }
 .btn-primary{background:var(--cyan); color:#06181C;}
 .btn-primary:hover{background:#6FD3E5; transform:translateY(-1px);}
+.btn-gold{background:var(--gold); color:#241d06;}
+.btn-gold:hover{background:#E4C158; transform:translateY(-1px);}
 .btn-ghost{background:var(--panel); color:var(--text); border:1px solid var(--hairline);}
 .btn-ghost:hover{border-color:var(--cyan); transform:translateY(-1px);}
 .burger{display:none; flex-direction:column; gap:5px; cursor:pointer; background:none; border:none;}
@@ -93,6 +96,40 @@ h1 .hl{color:var(--cyan);}
 .section h2{font-size:clamp(22px,3vw,30px); font-weight:600; margin-bottom:10px;}
 .section > p.section-desc{color:var(--text-mid); font-size:14.5px; max-width:56ch; line-height:1.6; margin-bottom:32px;}
 
+/* ---------- ADN NEXUS ---------- */
+.adn-grid{display:grid; grid-template-columns:repeat(2,1fr); gap:16px;}
+.adn-card{background:var(--panel); border:1px solid var(--hairline); border-radius:14px; padding:26px;}
+.adn-num{font-family:var(--mono); font-size:11px; color:var(--cyan); letter-spacing:0.1em;}
+.adn-title{font-size:16.5px; font-weight:600; margin-top:9px;}
+.adn-text{font-size:13.5px; color:var(--text-mid); margin-top:9px; line-height:1.6;}
+
+/* ---------- offres ---------- */
+.offres-grid{display:grid; grid-template-columns:1fr 1fr; gap:20px;}
+.offre-card{
+  background:var(--panel); border:1px solid var(--hairline); border-radius:16px; padding:30px 26px;
+  position:relative; display:flex; flex-direction:column;
+}
+.offre-card.pro{
+  border-color:rgba(212,175,55,0.4);
+  background:linear-gradient(165deg, rgba(212,175,55,0.09), var(--panel) 60%);
+  box-shadow:0 16px 38px rgba(212,175,55,0.08);
+}
+.offre-ribbon{
+  position:absolute; top:-13px; right:24px; background:var(--gold); color:#241d06; font-family:var(--mono);
+  font-size:10px; font-weight:700; letter-spacing:0.05em; text-transform:uppercase; padding:5px 12px; border-radius:20px;
+}
+.offre-name{font-family:var(--mono); font-size:12px; letter-spacing:0.12em; text-transform:uppercase; color:var(--cyan);}
+.offre-card.pro .offre-name{color:var(--gold);}
+.offre-desc{font-size:13px; color:var(--text-mid); margin-top:8px; line-height:1.5;}
+.offre-price{font-size:32px; font-weight:700; margin-top:20px;}
+.offre-price .unit{font-family:var(--mono); font-size:13px; font-weight:500; color:var(--text-dim); margin-left:2px;}
+.offre-features{list-style:none; margin-top:22px; display:flex; flex-direction:column; gap:11px; flex:1;}
+.offre-features li{display:flex; align-items:center; gap:10px; font-size:13.5px; color:var(--text);}
+.offre-features li::before{content:'✓'; color:var(--cyan); font-weight:700; flex-shrink:0;}
+.offre-card.pro .offre-features li::before{color:var(--gold);}
+.offre-cta{margin-top:26px; text-align:center;}
+.offre-note{font-family:var(--mono); font-size:10.5px; color:var(--text-dim); text-align:center; margin-top:16px; line-height:1.6;}
+
 /* ---------- modules : reuses the app's own nav-item component ---------- */
 .mod-list{display:flex; flex-direction:column; gap:12px;}
 .nav-item{
@@ -109,6 +146,7 @@ h1 .hl{color:var(--cyan);}
 .nav-title{font-size:15px; font-weight:600; display:flex; align-items:center; gap:8px; flex-wrap:wrap;}
 .nav-desc{font-size:12.5px; color:var(--text-mid); margin-top:4px; line-height:1.5;}
 .badge-ready{font-family:var(--mono); font-size:9px; padding:2px 8px; border-radius:20px; font-weight:600; background:var(--green-dim); color:var(--green);}
+.badge-pro{font-family:var(--mono); font-size:9px; padding:2px 8px; border-radius:20px; font-weight:600; background:var(--gold-dim); color:var(--gold);}
 
 /* ---------- roadmap ---------- */
 .roadmap-item{opacity:0.6; display:flex; align-items:center; gap:16px; padding:18px; background:var(--panel); border:1px solid var(--hairline); border-radius:12px;}
@@ -144,6 +182,8 @@ footer a:hover{color:var(--cyan);}
   .burger{display:flex;}
   .status-strip{gap:18px;}
   .quote-panel{padding:28px 22px;}
+  .adn-grid{grid-template-columns:1fr;}
+  .offres-grid{grid-template-columns:1fr;}
 }
 </style>
 </head>
@@ -156,8 +196,9 @@ footer a:hover{color:var(--cyan);}
       <span class="mark">NEXUS</span>
     </div>
     <nav class="links">
+      <a href="#adn">ADN</a>
       <a href="#modules">Écrans</a>
-      <a href="#fonctionnement">Fonctionnement</a>
+      <a href="#offres">Offres</a>
       <a href="#contact">Contact</a>
     </nav>
     <div style="display:flex; align-items:center; gap:12px;">
@@ -173,18 +214,18 @@ footer a:hover{color:var(--cyan);}
     <div class="eyebrow">Système d'exploitation décisionnel · Station-service</div>
     <p class="hero-setup">Chaque jour, un manager de station-service prend des dizaines de décisions.</p>
     <h1>La plupart sont prises <span class="hl-amber">à l'instinct.</span></h1>
-    <p class="lead"><b style="color:var(--cyan); font-weight:600;">NEXUS</b> les transforme en décisions pilotées par les données — il suit l'activité de la station, lit les ventes de la boutique et organise l'équipe. Un seul outil, conçu pour le poste, pas un tableau de bord générique.</p>
+    <p class="lead"><b style="color:var(--cyan); font-weight:600;">NEXUS</b> les transforme en décisions pilotées par les données — un poste de pilotage unique qui suit l'activité de la station, lit les ventes de la boutique, organise l'équipe et priorise ce qui compte aujourd'hui. Un seul système, conçu pour le poste, pas un tableau de bord générique.</p>
     <div class="hero-ctas">
       <a class="btn btn-primary" href="NEXUS-Login-v1.html" target="_blank" rel="noopener">Voir l'app en direct →</a>
-      <a class="btn btn-ghost" href="mailto:fredbragance@nexusconseil.net?subject=Demande%20de%20d%C3%A9mo%20NEXUS">Demander une démo</a>
+      <a class="btn btn-ghost" href="#offres">Voir les offres ↓</a>
     </div>
   </section>
 
   <div class="status-strip">
-    <span><b>19</b> écrans opérationnels</span>
-    <span><b>228</b> références suivies</span>
-    <span><b>50</b> missions au socle</span>
-    <span><b>1</b> station pilote</span>
+    <span><b>25+</b> écrans opérationnels</span>
+    <span><b>2</b> offres — Essential &amp; Professional</span>
+    <span><b>Multi-site</b> prêt</span>
+    <span><b>1</b> station pilote en production</span>
   </div>
 
   <section class="trust">
@@ -195,6 +236,34 @@ footer a:hover{color:var(--cyan);}
         <div class="what">Station pilote — NEXUS en production sur le terrain</div>
       </div>
       <span class="pill"><span class="dot"></span>En production</span>
+    </div>
+  </section>
+
+  <section class="section" id="adn">
+    <div class="section-label">ADN NEXUS</div>
+    <h2>Ce qui ne changera jamais</h2>
+    <p class="section-desc">Quatre principes qui façonnent chaque écran, chaque calcul et chaque mot affiché — station après station.</p>
+    <div class="adn-grid">
+      <div class="adn-card">
+        <div class="adn-num">01</div>
+        <div class="adn-title">Jamais un chiffre inventé</div>
+        <div class="adn-text">Si une donnée n'existe pas encore, NEXUS le dit clairement plutôt que d'afficher un chiffre plausible. C'est écrit dans sa Constitution, et ça guide chaque décision de conception — même quand un chiffre "propre" serait plus impressionnant.</div>
+      </div>
+      <div class="adn-card">
+        <div class="adn-num">02</div>
+        <div class="adn-title">Un système, pas un empilement d'écrans</div>
+        <div class="adn-text">Le même moteur de calcul (périodes comparables, indice de santé, écarts de marge) tourne derrière chaque page. Cockpit, Radar, Rayon et Produits racontent toujours la même réalité — jamais deux chiffres qui se contredisent.</div>
+      </div>
+      <div class="adn-card">
+        <div class="adn-num">03</div>
+        <div class="adn-title">Un conseiller, pas un tableau de bord</div>
+        <div class="adn-text">Chaque écran clé porte la voix du Conseiller NEXUS : constat, explication, décision. Jamais un graphique livré seul — toujours une lecture, et souvent une action à valider directement.</div>
+      </div>
+      <div class="adn-card">
+        <div class="adn-num">04</div>
+        <div class="adn-title">Conçu sur le terrain, pour le terrain</div>
+        <div class="adn-text">NEXUS n'est pas né dans un bureau produit. Chaque écran a été testé, corrigé et affiné en conditions réelles chez ViTO Sainte-Marie avant d'être proposé à d'autres stations.</div>
+      </div>
     </div>
   </section>
 
@@ -213,15 +282,22 @@ footer a:hover{color:var(--cyan);}
       <div class="nav-item">
         <div class="nav-icon"><img src="assets/icons/icon-home.png" alt=""></div>
         <div class="nav-body">
-          <div class="nav-title">HOME <span class="badge-ready">Prêt</span></div>
-          <div class="nav-desc">L'écran qu'on ouvre 15 fois par jour — santé, missions, opportunités, risques</div>
+          <div class="nav-title">POSTE DE PILOTAGE <span class="badge-ready">Prêt</span></div>
+          <div class="nav-desc">L'écran qu'on ouvre 15 fois par jour — Indice NEXUS, Nexus Marge+, décisions du Conseiller, missions du jour</div>
         </div>
       </div>
       <div class="nav-item">
         <div class="nav-icon"><img src="assets/icons/icon-radar.png" alt=""></div>
         <div class="nav-body">
           <div class="nav-title">RADAR DU MANAGER <span class="badge-ready">Prêt</span></div>
-          <div class="nav-desc">8 domaines de responsabilité, mesurés honnêtement — pas de faux indicateurs</div>
+          <div class="nav-desc">8 domaines de responsabilité, mesurés honnêtement — pas de faux indicateurs sur ce qui n'est pas encore mesurable</div>
+        </div>
+      </div>
+      <div class="nav-item">
+        <div class="nav-icon"><img src="assets/icons/icon-nexus-verify.png" alt="" style="filter:grayscale(1) brightness(1.05) contrast(1.05) sepia(1) hue-rotate(152deg) saturate(4);"></div>
+        <div class="nav-body">
+          <div class="nav-title">NEXUS VERIFY <span class="badge-ready">Prêt</span> <span class="badge-pro">Professional</span></div>
+          <div class="nav-desc">Contrôle caisse piste/boutique, écarts classés automatiquement, remise en cuve calculée</div>
         </div>
       </div>
       <div class="nav-item">
@@ -239,6 +315,20 @@ footer a:hover{color:var(--cyan);}
         </div>
       </div>
       <div class="nav-item">
+        <div class="nav-icon"><img src="assets/icons/icon-scanner.png" alt=""></div>
+        <div class="nav-body">
+          <div class="nav-title">SCANNER NEXUS <span class="badge-ready">Prêt</span></div>
+          <div class="nav-desc">CA, marge et répartition ABC sur l'ensemble du magasin — et Nexus Marge+, qui repère les écarts de marge entre produits comparables</div>
+        </div>
+      </div>
+      <div class="nav-item">
+        <div class="nav-icon"><img src="assets/icons/icon-scanner-stock.png" alt=""></div>
+        <div class="nav-body">
+          <div class="nav-title">SCANNER STOCK <span class="badge-ready">Prêt</span> <span class="badge-pro">Professional</span></div>
+          <div class="nav-desc">Où le stock décroche de la vente réelle, quoi recompter en priorité</div>
+        </div>
+      </div>
+      <div class="nav-item">
         <div class="nav-icon"><img src="assets/icons/icon-centre-intelligence.png" alt=""></div>
         <div class="nav-body">
           <div class="nav-title">CENTRE D'INTELLIGENCE NEXUS <span class="badge-ready">Prêt</span></div>
@@ -246,17 +336,10 @@ footer a:hover{color:var(--cyan);}
         </div>
       </div>
       <div class="nav-item">
-        <div class="nav-icon"><img src="assets/icons/icon-journal-nexus.png" alt=""></div>
+        <div class="nav-icon"><img src="assets/icons/icon-planner.png" alt=""></div>
         <div class="nav-body">
-          <div class="nav-title">JOURNAL NEXUS <span class="badge-ready">Prêt</span></div>
-          <div class="nav-desc">Ce qui s'est réellement passé — décisions, missions, pointages, horodatés</div>
-        </div>
-      </div>
-      <div class="nav-item">
-        <div class="nav-icon"><img src="assets/icons/icon-scanner.png" alt=""></div>
-        <div class="nav-body">
-          <div class="nav-title">SCANNER NEXUS <span class="badge-ready">Prêt</span></div>
-          <div class="nav-desc">CA, marge et répartition ABC sur l'ensemble du magasin</div>
+          <div class="nav-title">NEXUS PLANNER <span class="badge-ready">Prêt</span> <span class="badge-pro">Professional</span></div>
+          <div class="nav-desc">Le bon collaborateur, au bon endroit, au bon moment — génération automatique du planning</div>
         </div>
       </div>
       <div class="nav-item">
@@ -288,10 +371,17 @@ footer a:hover{color:var(--cyan);}
         </div>
       </div>
       <div class="nav-item">
+        <div class="nav-icon"><img src="assets/icons/icon-journal-nexus.png" alt=""></div>
+        <div class="nav-body">
+          <div class="nav-title">JOURNAL NEXUS <span class="badge-ready">Prêt</span></div>
+          <div class="nav-desc">Ce qui s'est réellement passé — décisions, missions, pointages, horodatés</div>
+        </div>
+      </div>
+      <div class="nav-item">
         <div class="nav-icon"><img src="assets/icons/icon-capital.png" alt=""></div>
         <div class="nav-body">
-          <div class="nav-title">CAPITAL NEXUS <span class="badge-soon">Démo</span></div>
-          <div class="nav-desc">ROI et valeur créée — démonstration du concept, données réelles à venir</div>
+          <div class="nav-title">CAPITAL NEXUS™ <span class="badge-ready">Prêt</span> <span class="badge-pro">Professional</span></div>
+          <div class="nav-desc">Valeur identifiée par les décisions validées, et ROI réel de l'abonnement — plus une démonstration, des données réelles</div>
         </div>
       </div>
     </div>
@@ -320,17 +410,63 @@ footer a:hover{color:var(--cyan);}
         <div class="nav-icon"><img src="assets/icons/icon-radar.png" alt=""></div>
         <div class="nav-body">
           <div class="nav-title">3 · PRIORISATION</div>
-          <div class="nav-desc">Le Cockpit fait remonter les 2 ou 3 décisions qui comptent aujourd'hui</div>
+          <div class="nav-desc">Le poste de pilotage fait remonter les 2 ou 3 décisions qui comptent aujourd'hui</div>
         </div>
       </div>
       <div class="nav-item">
         <div class="nav-icon"><img src="assets/icons/icon-missions.png" alt=""></div>
         <div class="nav-body">
           <div class="nav-title">4 · ACTION</div>
-          <div class="nav-desc">Chaque mission validée nourrit le radar et l'évolution de l'employé</div>
+          <div class="nav-desc">Chaque mission validée nourrit le radar, le Capital NEXUS et l'évolution de l'employé</div>
         </div>
       </div>
     </div>
+  </section>
+
+  <section class="section" id="offres">
+    <div class="section-label">Offres</div>
+    <h2>Deux façons d'équiper votre station</h2>
+    <p class="section-desc">Le même socle NEXUS, deux niveaux d'équipement selon ce que vous voulez piloter dès aujourd'hui.</p>
+    <div class="offres-grid">
+
+      <div class="offre-card">
+        <div class="offre-name">Essential</div>
+        <div class="offre-desc">Pour une petite station indépendante qui veut déjà des décisions pilotées par la donnée.</div>
+        <div class="offre-price">149 – 199 €<span class="unit"> HT/mois</span></div>
+        <ul class="offre-features">
+          <li>Cockpit</li>
+          <li>Produits</li>
+          <li>Rayon</li>
+          <li>Conseiller NEXUS</li>
+          <li>Alertes</li>
+          <li>Scanner</li>
+        </ul>
+        <div class="offre-cta"><a class="btn btn-ghost" href="mailto:fredbragance@nexusconseil.net?subject=NEXUS%20Essential%20%E2%80%94%20demande%20d%27info" style="width:100%; justify-content:center;">En savoir plus</a></div>
+      </div>
+
+      <div class="offre-card pro">
+        <span class="offre-ribbon">Recommandée</span>
+        <div class="offre-name">Professional</div>
+        <div class="offre-desc">L'offre complète — celle en production chez ViTO Sainte-Marie, avec tous les moteurs décisionnels de NEXUS.</div>
+        <div class="offre-price">349 – 499 €<span class="unit"> HT/mois</span></div>
+        <ul class="offre-features">
+          <li>Tout Essential, plus :</li>
+          <li>Nexus Verify</li>
+          <li>Nexus Planner</li>
+          <li>Équipe &amp; Résultats Équipe</li>
+          <li>Missions &amp; Plans d'action</li>
+          <li>Capital NEXUS™</li>
+          <li>Scanner Stock</li>
+          <li>Journal NEXUS</li>
+          <li>Centre d'Intelligence NEXUS</li>
+          <li>Imports</li>
+          <li>Tous les moteurs décisionnels</li>
+        </ul>
+        <div class="offre-cta"><a class="btn btn-gold" href="mailto:fredbragance@nexusconseil.net?subject=NEXUS%20Professional%20%E2%80%94%20demande%20de%20d%C3%A9mo" style="width:100%; justify-content:center;">Demander une démo</a></div>
+      </div>
+
+    </div>
+    <div class="offre-note">Tarifs HT indicatifs, ajustés selon le volume d'activité de la station. Contactez-nous pour un devis précis.</div>
   </section>
 
   <section class="section">
@@ -347,8 +483,8 @@ footer a:hover{color:var(--cyan);}
       <div class="roadmap-item">
         <div class="nav-icon"><img src="assets/icons/icon-capital.png" alt=""></div>
         <div class="nav-body">
-          <div class="nav-title">CAPITAL NEXUS EN DONNÉES RÉELLES <span class="badge-soon">À venir</span></div>
-          <div class="nav-desc">La démonstration existe déjà — reste à la brancher sur la valeur réellement mesurée par le Journal</div>
+          <div class="nav-title">DÉPLOIEMENT MULTI-STATIONS <span class="badge-soon">À venir</span></div>
+          <div class="nav-desc">NEXUS tourne aujourd'hui sur une station pilote — les offres Essential et Professional ouvrent la voie à d'autres stations</div>
         </div>
       </div>
     </div>
@@ -366,7 +502,7 @@ footer a:hover{color:var(--cyan);}
     <div class="cta-band">
       <div class="section-label" style="justify-content:center;"><span style="flex:none;">Accès</span></div>
       <h2>Prêt à équiper votre station ?</h2>
-      <p>NEXUS est déjà en poste chez ViTO Sainte-Marie. Pour une démonstration ou une question, écrivez directement.</p>
+      <p>NEXUS est déjà en poste chez ViTO Sainte-Marie. Pour une démonstration ou une question sur les offres Essential et Professional, écrivez directement.</p>
       <div class="cta-buttons">
         <a class="btn btn-primary" href="NEXUS-Login-v1.html" target="_blank" rel="noopener">Voir l'app en direct →</a>
         <a class="btn btn-ghost" href="mailto:fredbragance@nexusconseil.net?subject=Demande%20de%20d%C3%A9mo%20NEXUS">Écrire un email</a>
