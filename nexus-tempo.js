@@ -54,7 +54,25 @@
     // Coefficient de variation (écart-type / moyenne) au-delà duquel un
     // jour est qualifié d'irrégulier plutôt que stable.
     VARIABILITE_IRREGULIERE: 0.35,
+
+    // --- Mémoire temporelle (25/07/2026, Niveaux 3 & 4) ---------------
+    // Un même mois calendaire doit avoir été observé au moins deux fois
+    // (généralement sur deux années différentes) avant qu'on ose parler
+    // d'un effet saisonnier plutôt que d'une coïncidence.
+    MIN_OCCURRENCES_SAISON: 2,
+    // Une "tendance cachée" (Niveau 4) exige davantage d'observations
+    // qu'une simple tendance hebdomadaire : on cherche un motif que le
+    // manager ne voit pas spontanément, le risque de faux positif est
+    // donc traité avec plus de prudence.
+    MIN_OCCURRENCES_DECOUVERTE: 4,
+    // Maturité de NEXUS Tempo — nombre de jours calendaires écoulés
+    // depuis le tout premier audit de caisse enregistré.
+    MATURITE_NIVEAU2_JOURS: 30,
+    MATURITE_NIVEAU3_JOURS: 90,
+    MATURITE_NIVEAU4_JOURS: 365,
   };
+
+  const NOM_MOIS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
 
   const LITRAGE_INDISPONIBLE = "Litrage non calculable pour l'instant — aucun audit de caisse n'a encore été saisi avec le détail par carburant (gazole / SP95 / GNR) introduit le 25/07/2026 dans Nexus Verify. Dès le premier audit saisi avec ce détail, cette section affichera le litrage réel par jour de semaine.";
 
@@ -338,11 +356,342 @@
     };
   }
 
+  // ==============================================================
+  // Mémoire temporelle (25/07/2026) — Niveaux 3 & 4
+  //
+  // NEXUS Tempo ne doit pas seulement décrire le passé : il doit
+  // apprendre le fonctionnement réel de la station et devenir de plus
+  // en plus précis à mesure que l'historique s'accumule. Trois briques
+  // ajoutées ici :
+  //   - la "maturité" de Tempo (combien de temps d'historique dispose-
+  //     t-on réellement, pour situer honnêtement ce que Tempo peut ou
+  //     ne peut pas encore affirmer) ;
+  //   - le Niveau 3 : cycles saisonniers (mois, débuts/fins de mois,
+  //     jours fériés) ;
+  //   - le Niveau 4 : découverte automatique de rythmes cachés, sans
+  //     aucune règle codée en dur sur "quel jour est bon" — uniquement
+  //     des détecteurs génériques appliqués aux données réelles.
+  //
+  // Article 5 toujours : chaque brique renvoie explicitement
+  // "insuffisant" tant que le nombre d'observations ne dépasse pas le
+  // seuil déclaré dans SEUILS — jamais de valeur reconstituée pour
+  // combler un trou.
+  // ==============================================================
+
+  // ------------------------------------------------------------
+  // 7) Maturité de Tempo — ancienneté réelle de l'historique
+  //    (25/07/2026). Sert à afficher en haut de page un indicateur
+  //    honnête : plus la station accumule d'audits, plus Tempo peut
+  //    se permettre d'affirmer des choses.
+  // ------------------------------------------------------------
+  function calculerMaturite(joursAgreges) {
+    if (!joursAgreges || !joursAgreges.length) {
+      return { niveau: 1, emoji: '🟥', label: 'Découverte', joursHistorique: 0, seuilSuivant: SEUILS.MATURITE_NIVEAU2_JOURS, joursRestants: SEUILS.MATURITE_NIVEAU2_JOURS };
+    }
+    const premiereDate = dateLocale(joursAgreges[0].date);
+    const joursHistorique = Math.max(0, Math.floor((new Date() - premiereDate) / 86400000));
+    let niveau, emoji, label, seuilSuivant;
+    if (joursHistorique >= SEUILS.MATURITE_NIVEAU4_JOURS) { niveau = 4; emoji = '💎'; label = 'Intelligence'; seuilSuivant = null; }
+    else if (joursHistorique >= SEUILS.MATURITE_NIVEAU3_JOURS) { niveau = 3; emoji = '🟩'; label = 'Confiance'; seuilSuivant = SEUILS.MATURITE_NIVEAU4_JOURS; }
+    else if (joursHistorique >= SEUILS.MATURITE_NIVEAU2_JOURS) { niveau = 2; emoji = '🟨'; label = 'Apprentissage'; seuilSuivant = SEUILS.MATURITE_NIVEAU3_JOURS; }
+    else { niveau = 1; emoji = '🟥'; label = 'Découverte'; seuilSuivant = SEUILS.MATURITE_NIVEAU2_JOURS; }
+    return { niveau, emoji, label, joursHistorique, seuilSuivant, joursRestants: seuilSuivant !== null ? seuilSuivant - joursHistorique : 0 };
+  }
+
+  // ------------------------------------------------------------
+  // 8) Calendrier français — jours fériés (fixes + mobiles via le
+  //    calcul de Pâques). Ce sont des faits de calendrier, pas des
+  //    données inventées : ils peuvent donc être calculés d'avance,
+  //    contrairement aux vacances scolaires (zone-dépendantes) ou aux
+  //    ponts/événements locaux, volontairement laissés en "Prévue"
+  //    dans SOURCES_DONNEES tant qu'ils ne sont pas branchés.
+  // ------------------------------------------------------------
+  function datePaques(annee) {
+    const a = annee % 19, b = Math.floor(annee / 100), c = annee % 100;
+    const d = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25);
+    const g = Math.floor((b - f + 1) / 3), h = (19 * a + b - d - g + 15) % 30;
+    const i = Math.floor(c / 4), k = c % 4, l = (32 + 2 * e + 2 * i - h - k) % 7;
+    const m = Math.floor((a + 11 * h + 22 * l) / 451);
+    const moisJour = h + l - 7 * m + 114;
+    const mois = Math.floor(moisJour / 31); // 3 = mars, 4 = avril
+    const jour = (moisJour % 31) + 1;
+    return new Date(annee, mois - 1, jour, 12);
+  }
+
+  function joursFeries(annee) {
+    const iso = d => d.toISOString().slice(0, 10);
+    const decaler = (date, jours) => { const d2 = new Date(date); d2.setDate(d2.getDate() + jours); return d2; };
+    const paques = datePaques(annee);
+    return [
+      { date: `${annee}-01-01`, nom: "Jour de l'an" },
+      { date: iso(decaler(paques, 1)), nom: 'Lundi de Pâques' },
+      { date: `${annee}-05-01`, nom: 'Fête du Travail' },
+      { date: `${annee}-05-08`, nom: 'Victoire 1945' },
+      { date: iso(decaler(paques, 39)), nom: 'Ascension' },
+      { date: iso(decaler(paques, 50)), nom: 'Lundi de Pentecôte' },
+      { date: `${annee}-07-14`, nom: 'Fête Nationale' },
+      { date: `${annee}-08-15`, nom: 'Assomption' },
+      { date: `${annee}-11-01`, nom: 'Toussaint' },
+      { date: `${annee}-11-11`, nom: 'Armistice' },
+      { date: `${annee}-12-25`, nom: 'Noël' },
+    ];
+  }
+
+  function estJourFerie(dateStr) {
+    const annee = Number(dateStr.slice(0, 4));
+    const trouve = joursFeries(annee).find(f => f.date === dateStr);
+    return { ferie: !!trouve, nom: trouve ? trouve.nom : null };
+  }
+
+  function tagCalendaire(dateStr) {
+    const d = dateLocale(dateStr);
+    const annee = d.getFullYear(), mois = d.getMonth(), jourMois = d.getDate();
+    const dernierJourDuMois = new Date(annee, mois + 1, 0).getDate();
+    const ferie = estJourFerie(dateStr);
+    return {
+      annee, mois, nomMois: NOM_MOIS[mois], jourMois, dernierJourDuMois,
+      debutMois: jourMois <= 5,
+      finMois: jourMois >= dernierJourDuMois - 4,
+      ferie: ferie.ferie, nomFerie: ferie.nom,
+    };
+  }
+
+  // ------------------------------------------------------------
+  // 9) Niveau 3 — Cycles saisonniers.
+  //    a) Débuts / fins / milieux de mois — seul signal saisonnier
+  //       exploitable dès aujourd'hui avec un historique court, car
+  //       il ne nécessite pas plusieurs années de recul.
+  //    b) Comparaison par mois calendaire (août vs août, etc.) — exige
+  //       qu'un même mois ait été observé au moins
+  //       SEUILS.MIN_OCCURRENCES_SAISON fois ; avec l'historique
+  //       actuel (un seul mois en cours), ce module reste donc
+  //       honnêtement "en apprentissage".
+  // ------------------------------------------------------------
+  function analyserDebutFinMois(joursAgreges) {
+    const buckets = { debut: [], milieu: [], fin: [] };
+    (joursAgreges || []).forEach(j => {
+      const tag = tagCalendaire(j.date);
+      const cle = tag.debutMois ? 'debut' : (tag.finMois ? 'fin' : 'milieu');
+      buckets[cle].push(j);
+    });
+    const calc = liste => {
+      if (liste.length < SEUILS.MIN_OCCURRENCES_TENDANCE) return { disponible: false, nbJours: liste.length };
+      return {
+        disponible: true, nbJours: liste.length,
+        moyenneCombinee: moyenne(liste.map(j => j.ventePiste + j.venteBoutique)),
+        moyennePiste: moyenne(liste.map(j => j.ventePiste)),
+        moyenneBoutique: moyenne(liste.map(j => j.venteBoutique)),
+      };
+    };
+    const debut = calc(buckets.debut), fin = calc(buckets.fin), milieu = calc(buckets.milieu);
+    let comparaisonDisponible = false, ecartFinVsDebut = null;
+    if (debut.disponible && fin.disponible) {
+      comparaisonDisponible = true;
+      ecartFinVsDebut = evolution(fin.moyenneCombinee, debut.moyenneCombinee);
+    }
+    return { debut, milieu, fin, comparaisonDisponible, ecartFinVsDebut };
+  }
+
+  function analyserSaisonnier(joursAgreges) {
+    const periodes = {};
+    (joursAgreges || []).forEach(j => {
+      const d = dateLocale(j.date);
+      const cle = `${d.getFullYear()}-${d.getMonth()}`;
+      if (!periodes[cle]) periodes[cle] = { annee: d.getFullYear(), mois: d.getMonth(), jours: [] };
+      periodes[cle].jours.push(j);
+    });
+    const periodesArr = Object.values(periodes);
+    const parMoisCalendaire = {};
+    periodesArr.forEach(p => { (parMoisCalendaire[p.mois] = parMoisCalendaire[p.mois] || []).push(p); });
+
+    const moisAnalyse = Object.keys(parMoisCalendaire).map(moisStr => {
+      const mois = Number(moisStr);
+      const periodesDuMois = parMoisCalendaire[mois];
+      const moyennesPeriode = periodesDuMois.map(p => moyenne(p.jours.map(j => j.ventePiste + j.venteBoutique)));
+      return {
+        mois, nomMois: NOM_MOIS[mois],
+        nbPeriodesObservees: periodesDuMois.length,
+        disponible: periodesDuMois.length >= SEUILS.MIN_OCCURRENCES_SAISON,
+        moyenneCombinee: moyenne(moyennesPeriode),
+      };
+    }).sort((a, b) => a.mois - b.mois);
+
+    const moisDisponibles = moisAnalyse.filter(m => m.disponible);
+    return {
+      disponible: moisDisponibles.length > 0,
+      nbPeriodesTotal: periodesArr.length,
+      moisAnalyse,
+      message: moisDisponibles.length > 0 ? null : "Analyse saisonnière en apprentissage. Les tendances apparaîtront automatiquement lorsque suffisamment d'historique sera disponible.",
+    };
+  }
+
+  // ------------------------------------------------------------
+  // 10) Niveau 4 — Rythmes cachés. Trois détecteurs génériques,
+  //     aucune règle codée en dur sur "quel jour/quelle personne est
+  //     bonne" : chaque détecteur applique le même seuil
+  //     (SEUILS.MIN_OCCURRENCES_DECOUVERTE) à des données réelles et
+  //     ne produit de résultat que si le motif est statistiquement
+  //     soutenu (régularité + volume d'observations).
+  // ------------------------------------------------------------
+  function detecterJourExtremeStable(classement) {
+    const decouvertes = [];
+    const nbRanges = classement.filter(a => a.occurrences.length > 0).length;
+    classement.filter(a => a.occurrences.length >= SEUILS.MIN_OCCURRENCES_DECOUVERTE).forEach(a => {
+      if (a.rang !== 1 && a.rang !== nbRanges) return;
+      if (a.coefficientVariation === null || a.coefficientVariation > SEUILS.VARIABILITE_IRREGULIERE) return;
+      const positionForte = a.rang === 1;
+      decouvertes.push({
+        titre: positionForte
+          ? `Les ${a.nom}s restent systématiquement la journée la plus performante.`
+          : `Les ${a.nom}s restent systématiquement la journée la plus faible.`,
+        impact: positionForte ? 'Fort' : 'Modéré',
+        source: 'Historique des audits de caisse',
+        nbObservations: a.occurrences.length,
+        variabilite: a.coefficientVariation,
+        historiqueLabel: `${a.occurrences.length} occurrences observées`,
+      });
+    });
+    return decouvertes;
+  }
+
+  function detecterProgressionConsecutive(classement) {
+    const decouvertes = [];
+    classement.forEach(a => {
+      const occ = a.occurrences;
+      if (occ.length < SEUILS.MIN_OCCURRENCES_DECOUVERTE) return;
+      let streak = 0;
+      for (let i = occ.length - 1; i > 0; i--) {
+        const actuel = occ[i].ventePiste + occ[i].venteBoutique;
+        const precedent = occ[i - 1].ventePiste + occ[i - 1].venteBoutique;
+        if (actuel > precedent) streak++; else break;
+      }
+      if (streak >= SEUILS.MIN_OCCURRENCES_DECOUVERTE - 1) {
+        decouvertes.push({
+          titre: `Les ${a.nom}s progressent depuis ${streak} occurrence${streak > 1 ? 's' : ''} consécutive${streak > 1 ? 's' : ''}.`,
+          impact: streak >= SEUILS.MIN_OCCURRENCES_DECOUVERTE ? 'Fort' : 'Modéré',
+          source: 'Historique des audits de caisse',
+          nbObservations: occ.length,
+          variabilite: a.coefficientVariation,
+          historiqueLabel: `${occ.length} occurrences observées, ${streak} en progression continue`,
+        });
+      }
+    });
+    return decouvertes;
+  }
+
+  function analyserEquipeParJour(joursAgreges, employesParId) {
+    const parEmploye = {};
+    (joursAgreges || []).forEach(jour => {
+      jour.quarts.forEach(q => {
+        q.employesPiste.forEach(empId => {
+          const cle = empId + '|piste';
+          if (!parEmploye[cle]) parEmploye[cle] = { employeeId: empId, role: 'piste', global: [], parJour: {} };
+          parEmploye[cle].global.push(q.ventePiste);
+          (parEmploye[cle].parJour[jour.jourSemaine] = parEmploye[cle].parJour[jour.jourSemaine] || []).push(q.ventePiste);
+        });
+        q.employesBoutique.forEach(empId => {
+          const cle = empId + '|boutique';
+          if (!parEmploye[cle]) parEmploye[cle] = { employeeId: empId, role: 'boutique', global: [], parJour: {} };
+          parEmploye[cle].global.push(q.venteBoutique);
+          (parEmploye[cle].parJour[jour.jourSemaine] = parEmploye[cle].parJour[jour.jourSemaine] || []).push(q.venteBoutique);
+        });
+      });
+    });
+    const resultats = [];
+    Object.values(parEmploye).forEach(e => {
+      const moyenneGlobale = moyenne(e.global);
+      Object.keys(e.parJour).forEach(jourStr => {
+        const valeurs = e.parJour[jourStr];
+        if (valeurs.length < SEUILS.CONFIANCE_MOYENNE) return;
+        const ecart = evolution(moyenne(valeurs), moyenneGlobale);
+        if (ecart === null) return;
+        resultats.push({
+          employeeId: e.employeeId, role: e.role, jourSemaine: Number(jourStr),
+          nom: (employesParId && employesParId[e.employeeId] && employesParId[e.employeeId].nom) || 'Employé inconnu',
+          nbQuarts: valeurs.length, ecart,
+        });
+      });
+    });
+    return resultats;
+  }
+
+  function detecterContexteEquipe(joursAgreges, employesParId) {
+    return analyserEquipeParJour(joursAgreges, employesParId)
+      .filter(a => a.nbQuarts >= SEUILS.CONFIANCE_FORTE && a.ecart >= 0.15)
+      .map(a => ({
+        titre: `${a.nom} obtient de meilleurs résultats ${a.role === 'piste' ? 'en piste' : 'en boutique'} le ${NOM_JOURS[a.jourSemaine]} (contribution observée dans ce contexte).`,
+        impact: 'Modéré',
+        source: 'Croisement audits de caisse × équipe',
+        nbObservations: a.nbQuarts,
+        variabilite: null,
+        historiqueLabel: `${a.nbQuarts} quarts observés ce jour`,
+      }));
+  }
+
+  function confianceDecouverte(nbObservations, variabilite) {
+    const base = Math.min(60, nbObservations * 10);
+    const bonusRegularite = (variabilite === null || variabilite === undefined) ? 15 : Math.max(0, (1 - Math.min(variabilite, 1)) * 35);
+    const pct = Math.min(97, Math.round(base + bonusRegularite));
+    let label;
+    if (pct >= 90) label = 'Très forte';
+    else if (pct >= 75) label = 'Forte';
+    else if (pct >= 60) label = 'Moyenne';
+    else if (pct >= 40) label = 'Faible';
+    else label = 'Très faible';
+    return { pct, label };
+  }
+
+  // NEXUS ne dit jamais "cette tendance est certaine" — seulement
+  // "NEXUS a détecté une tendance", assortie d'un indice de confiance
+  // qui ne dépend que du nombre d'observations et de leur régularité.
+  function genererDecouvertes(classement, joursAgreges, employesParId) {
+    const brutes = [
+      ...detecterJourExtremeStable(classement),
+      ...detecterProgressionConsecutive(classement),
+      ...detecterContexteEquipe(joursAgreges, employesParId),
+    ];
+    if (!brutes.length) {
+      return [{ disponible: false, titre: 'Aucune tendance fiable détectée.', note: 'Historique encore insuffisant.' }];
+    }
+    return brutes.map(d => {
+      const { pct, label } = confianceDecouverte(d.nbObservations, d.variabilite);
+      return { disponible: true, titre: d.titre, confiancePct: pct, confianceLabel: label, impact: d.impact, source: d.source, historiqueLabel: d.historiqueLabel };
+    }).sort((a, b) => b.confiancePct - a.confiancePct);
+  }
+
+  // ------------------------------------------------------------
+  // 11) Architecture — sources de données que NEXUS Tempo est déjà
+  //     capable de lire, et celles prévues pour affiner sa mémoire
+  //     temporelle à mesure qu'elles seront branchées. Déclarer une
+  //     source ici ne l'active pas : tant qu'aucune donnée réelle
+  //     n'arrive, elle reste "Prévue".
+  // ------------------------------------------------------------
+  const SOURCES_DONNEES = [
+    { id: 'audits_caisse', nom: 'Audits de caisse (piste + boutique)', statut: 'connectee' },
+    { id: 'litrage_carburant', nom: 'Litrage carburant (GO / SP95 / GNR)', statut: 'connectee' },
+    { id: 'prix_carburants', nom: 'Prix carburants mensuels', statut: 'connectee' },
+    { id: 'equipe', nom: 'Présence équipe (piste / boutique)', statut: 'connectee' },
+    { id: 'jours_feries', nom: 'Calendrier jours fériés', statut: 'connectee' },
+    { id: 'ventes_horaires', nom: 'Ventes par tranche horaire', statut: 'prevue' },
+    { id: 'meteo', nom: 'Météo locale', statut: 'prevue' },
+    { id: 'planning', nom: 'Planning équipe (Nexus Planning)', statut: 'prevue' },
+    { id: 'promotions', nom: 'Promotions en cours', statut: 'prevue' },
+    { id: 'ruptures', nom: 'Ruptures de stock (Scanner Stock)', statut: 'prevue' },
+    { id: 'evenements_locaux', nom: 'Événements locaux', statut: 'prevue' },
+    { id: 'trafic', nom: 'Trafic routier', statut: 'prevue' },
+    { id: 'inventaires', nom: 'Inventaires (Scanner Stock)', statut: 'prevue' },
+    { id: 'capital_nexus', nom: 'Impact des décisions (Capital NEXUS)', statut: 'prevue' },
+    { id: 'vacances_scolaires', nom: 'Vacances scolaires (zone)', statut: 'prevue' },
+    { id: 'ponts', nom: 'Ponts calendaires', statut: 'prevue' },
+  ];
+
   window.NexusTempo = {
-    SEUILS, NOM_JOURS, NOM_JOURS_COURT, LITRAGE_INDISPONIBLE,
+    SEUILS, NOM_JOURS, NOM_JOURS_COURT, NOM_MOIS, LITRAGE_INDISPONIBLE, SOURCES_DONNEES,
     agregerParJour, regrouperParJourSemaine, calculerClassement,
     identifierJoursReveles, identifierMeilleursJoursSepares, classementLitrage,
     analyserEquipe, genererDecisionPrioritaire,
+    calculerMaturite, joursFeries, estJourFerie, tagCalendaire,
+    analyserDebutFinMois, analyserSaisonnier, genererDecouvertes,
     dateLocale, moyenne, ecartType, evolution,
   };
 })();

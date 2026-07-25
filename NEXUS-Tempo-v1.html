@@ -96,6 +96,28 @@ a{color:inherit;}
 .carburant-total{font-family:var(--mono); font-size:12.5px; font-weight:700; color:var(--cyan);}
 .carburant-detail{font-family:var(--mono); font-size:10.5px; color:var(--text-mid);}
 
+.maturite-badge{display:inline-flex; align-items:center; gap:6px; margin-top:10px; padding:5px 11px; background:var(--panel-raised); border:1px solid var(--hairline); border-radius:20px; font-family:var(--mono); font-size:10.5px; font-weight:600; color:var(--text-mid);}
+.maturite-progress{font-size:9.5px; color:var(--text-dim); margin-top:5px; font-family:var(--mono);}
+
+.saison-panel{background:var(--panel); border:1px solid var(--hairline); border-radius:14px; padding:16px; margin:0 20px;}
+.saison-etat{font-size:12px; color:var(--text-mid); line-height:1.6;}
+.saison-row{display:flex; justify-content:space-between; align-items:center; gap:10px; font-size:12px; padding:7px 0; border-bottom:1px solid var(--hairline);}
+.saison-row:last-child{border-bottom:none;}
+.saison-mois{color:var(--text-mid);}
+.saison-val{font-family:var(--mono); font-weight:600; color:var(--text); text-align:right;}
+
+.decouverte-card{background:var(--panel); border:1px solid var(--hairline); border-radius:14px; padding:14px 15px; margin:0 20px 8px;}
+.decouverte-titre{font-size:12.5px; line-height:1.5; color:var(--text); margin-bottom:10px;}
+.decouverte-meta{display:flex; flex-wrap:wrap; gap:6px 14px; font-family:var(--mono); font-size:9.5px; color:var(--text-mid);}
+.decouverte-meta b{font-weight:700;}
+.decouverte-note{font-family:var(--mono); font-size:9.5px; color:var(--text-dim); margin-top:6px;}
+
+.sources-grid{display:flex; flex-direction:column; margin:0 20px; background:var(--panel); border:1px solid var(--hairline); border-radius:14px; padding:4px 15px;}
+.source-row{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:9px 0; border-bottom:1px solid var(--hairline); font-size:11.5px;}
+.source-row:last-child{border-bottom:none;}
+.source-nom{color:var(--text-mid);}
+.source-statut{font-family:var(--mono); font-size:9px; padding:3px 9px; border-radius:20px; font-weight:700; white-space:nowrap; flex-shrink:0;}
+
 .reserve{padding:60px 20px; text-align:center; color:var(--text-dim);}
 .loading{padding:60px 20px; text-align:center; color:var(--text-dim); font-size:13px;}
 footer{margin-top:auto; padding:20px 20px 24px; font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:center; border-top:1px solid var(--hairline); margin-top:30px;}
@@ -111,6 +133,7 @@ footer{margin-top:auto; padding:20px 20px 24px; font-family:var(--mono); font-si
     <div class="eyebrow">NEXUS · Tempo</div>
     <div class="title">NEXUS Tempo</div>
     <div class="subtitle">Le rythme réel de votre station</div>
+    <div id="maturiteZone"></div>
   </div>
   <div class="divider"></div>
 
@@ -156,6 +179,14 @@ footer{margin-top:auto; padding:20px 20px 24px; font-family:var(--mono); font-si
     moyenne:      { bg: 'var(--amber-dim)', fg: 'var(--amber)', label: 'Confiance moyenne' },
     insuffisante: { bg: 'var(--panel-raised)', fg: 'var(--text-dim)', label: 'Données insuffisantes' },
   };
+  const CONFIANCE_DECOUVERTE_COLOR = {
+    'Très forte': 'var(--green)', 'Forte': 'var(--cyan)', 'Moyenne': 'var(--amber)',
+    'Faible': 'var(--text-mid)', 'Très faible': 'var(--text-dim)',
+  };
+  const SOURCE_STATUT_STYLE = {
+    connectee: { bg: 'var(--green-dim)', fg: 'var(--green)', label: 'Connectée' },
+    prevue: { bg: 'var(--panel-raised)', fg: 'var(--text-dim)', label: 'Prévue' },
+  };
 
   // Ordre d'affichage "semaine française" (lundi → dimanche) — l'index
   // interne du moteur suit la convention JS Date.getDay() (0=dimanche).
@@ -190,7 +221,17 @@ footer{margin-top:auto; padding:20px 20px 24px; font-family:var(--mono); font-si
     const analyseEquipe = NexusTempo.analyserEquipe(joursAgreges, employesParId);
     const decision = NexusTempo.genererDecisionPrioritaire(joursAgreges, classement);
 
-    renderTout({ siteId, employee, joursAgreges, classement, joursReveles, meilleursSepares, classementLitrage, analyseEquipe, decision });
+    // Mémoire temporelle (25/07/2026) — Niveaux 3 & 4 : ces analyses
+    // renvoient honnêtement "insuffisant"/"en apprentissage" tant que
+    // l'historique ne le permet pas (voir nexus-tempo.js, Article 5).
+    const maturite = NexusTempo.calculerMaturite(joursAgreges);
+    const saisonnier = NexusTempo.analyserSaisonnier(joursAgreges);
+    const debutFinMois = NexusTempo.analyserDebutFinMois(joursAgreges);
+    const decouvertes = NexusTempo.genererDecouvertes(classement, joursAgreges, employesParId);
+
+    document.getElementById('maturiteZone').innerHTML = renderMaturite(maturite);
+
+    renderTout({ siteId, employee, joursAgreges, classement, joursReveles, meilleursSepares, classementLitrage, analyseEquipe, decision, saisonnier, debutFinMois, decouvertes });
   });
 
   // ------------------------------------------------------------
@@ -474,9 +515,76 @@ footer{margin-top:auto; padding:20px 20px 24px; font-family:var(--mono); font-si
   }
 
   // ------------------------------------------------------------
+  // Maturité de Tempo — indicateur affiché dans l'en-tête (25/07/2026).
+  // Un système vivant : plus l'historique s'accumule, plus Tempo peut
+  // affirmer des choses. Jamais de saut de niveau artificiel.
+  // ------------------------------------------------------------
+  function renderMaturite(m) {
+    const barre = m.seuilSuivant !== null
+      ? `${m.joursHistorique} jour${m.joursHistorique > 1 ? 's' : ''} d'historique — encore ${m.joursRestants > 0 ? m.joursRestants : 0} jour${m.joursRestants > 1 ? 's' : ''} avant le niveau suivant`
+      : `${m.joursHistorique} jours d'historique — niveau maximal atteint`;
+    return `<div class="maturite-badge">${m.emoji} Niveau ${m.niveau} · ${m.label}</div><div class="maturite-progress">${barre}</div>`;
+  }
+
+  // ------------------------------------------------------------
+  // Bloc Niveau 3 — Cycles saisonniers. Affiche les mois pour lesquels
+  // au moins deux occurrences existent ; sinon l'état d'apprentissage
+  // honnête défini dans nexus-tempo.js. Le début/fin de mois est un
+  // signal exploitable même avec un historique court, affiché à part.
+  // ------------------------------------------------------------
+  function renderSaisonnier(saisonnier, debutFinMois) {
+    let html = '';
+    if (!saisonnier.disponible) {
+      html += `<div class="saison-panel"><div class="saison-etat">📅 ${saisonnier.message}<br><br>Ce module apprend progressivement : les mois, les semaines, les jours fériés, les débuts et fins de mois, les saisons — puis, à terme, les vacances scolaires, les ponts et les événements locaux (voir « Sources de données » plus bas).</div></div>`;
+    } else {
+      const lignes = saisonnier.moisAnalyse.filter(m => m.disponible).map(m =>
+        `<div class="saison-row"><span class="saison-mois">${m.nomMois.charAt(0).toUpperCase() + m.nomMois.slice(1)}</span><span class="saison-val">${fmtEur(m.moyenneCombinee)}<br><span style="font-weight:400; color:var(--text-dim); font-size:9.5px;">${m.nbPeriodesObservees} périodes observées</span></span></div>`
+      ).join('');
+      html += `<div class="saison-panel">${lignes}</div>`;
+    }
+    if (debutFinMois.comparaisonDisponible) {
+      const sens = debutFinMois.ecartFinVsDebut >= 0 ? 'Les fins de mois génèrent en moyenne plus de CA que les débuts de mois' : 'Les débuts de mois génèrent en moyenne plus de CA que les fins de mois';
+      html += `<div class="section-note">${sens} sur la période observée (${fmtPct(debutFinMois.ecartFinVsDebut)} — ${debutFinMois.debut.nbJours} jour${debutFinMois.debut.nbJours > 1 ? 's' : ''} en début, ${debutFinMois.fin.nbJours} en fin de mois).</div>`;
+    } else {
+      html += `<div class="section-note">Comparaison début / fin de mois : données insuffisantes pour l'instant (au moins ${NexusTempo.SEUILS.MIN_OCCURRENCES_TENDANCE} jours de chaque côté sont nécessaires).</div>`;
+    }
+    return html;
+  }
+
+  // ------------------------------------------------------------
+  // Bloc Niveau 4 — Tendances découvertes. NEXUS ne dit jamais
+  // "cette tendance est certaine" — seulement "NEXUS a détecté une
+  // tendance", assortie d'un indice de confiance objectif.
+  // ------------------------------------------------------------
+  function renderDecouvertes(decouvertes) {
+    if (!decouvertes.length || !decouvertes[0].disponible) {
+      return `<div class="decouverte-card"><div class="decouverte-titre">🔍 Aucune tendance fiable détectée.</div><div class="decouverte-note">Historique encore insuffisant.</div></div>`;
+    }
+    return decouvertes.map(d => `
+      <div class="decouverte-card">
+        <div class="decouverte-titre">🔍 NEXUS a détecté une tendance : ${d.titre}</div>
+        <div class="decouverte-meta">
+          <span>Confiance <b style="color:${CONFIANCE_DECOUVERTE_COLOR[d.confianceLabel]};">${d.confianceLabel} · ${d.confiancePct} %</b></span>
+          <span>Impact estimé <b>${d.impact}</b></span>
+        </div>
+        <div class="decouverte-note">Source : ${d.source} · ${d.historiqueLabel}</div>
+      </div>`).join('');
+  }
+
+  // ------------------------------------------------------------
+  // Bloc Architecture — sources de données déjà connectées vs prévues.
+  // ------------------------------------------------------------
+  function renderSources() {
+    return `<div class="sources-grid">${NexusTempo.SOURCES_DONNEES.map(s => {
+      const st = SOURCE_STATUT_STYLE[s.statut];
+      return `<div class="source-row"><span class="source-nom">${s.nom}</span><span class="source-statut" style="background:${st.bg}; color:${st.fg};">${st.label}</span></div>`;
+    }).join('')}</div>`;
+  }
+
+  // ------------------------------------------------------------
   // Assemblage final
   // ------------------------------------------------------------
-  function renderTout({ siteId, employee, joursAgreges, classement, joursReveles, meilleursSepares, classementLitrage, analyseEquipe, decision }) {
+  function renderTout({ siteId, employee, joursAgreges, classement, joursReveles, meilleursSepares, classementLitrage, analyseEquipe, decision, saisonnier, debutFinMois, decouvertes }) {
     const root = document.getElementById('root');
     root.innerHTML = `
       <div class="section" style="margin-top:6px;">
@@ -507,6 +615,16 @@ footer{margin-top:auto; padding:20px 20px 24px; font-family:var(--mono); font-si
 
       <div class="section-label">Carburants</div>
       <div class="section">${renderCarburants(classementLitrage)}</div>
+
+      <div class="section-label">Cycles saisonniers</div>
+      ${renderSaisonnier(saisonnier, debutFinMois)}
+
+      <div class="section-label">Tendances découvertes</div>
+      <div class="section">${renderDecouvertes(decouvertes)}</div>
+
+      <div class="section-label">Sources de données</div>
+      ${renderSources()}
+      <div class="section-note">NEXUS Tempo est conçu pour accueillir de nouvelles sources sans tout reconstruire : chaque source "Prévue" s'activera dès qu'elle sera branchée, sans jamais remplacer une donnée manquante par une estimation.</div>
     `;
     branchBoutonMission(decision, siteId, employee);
   }
