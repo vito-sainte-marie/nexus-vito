@@ -215,11 +215,11 @@
        Poste de pilotage — visible uniquement pour un manager/gérant
        (révélé par JS, même mécanisme data-role="manager" que le reste
        du fichier). Toutes les valeurs viennent de Supabase : aucune
-       n'est codée en dur. Capital NEXUS reste affiché comme démo tant
-       qu'aucun calcul réel n'existe (voir NEXUS-Capital-v1.html, qui
-       porte lui-même un bandeau "DÉMONSTRATION" explicite) — inventer
-       un chiffre à sa place violerait l'article 5 de la Constitution
-       NEXUS ("ne jamais fabriquer un chiffre").
+       n'est codée en dur. Le cadre Niveau 1 affiche Nexus Marge+ (voir
+       plus bas) plutôt que Capital NEXUS — Capital NEXUS est réel depuis
+       le 24/07/2026 (branché sur journal_decisions, voir
+       NEXUS-Capital-v1.html) mais reste accessible depuis le menu, pas
+       depuis ce cadre.
        ============================================================ -->
   <div data-role="manager" style="display:none;">
     <div class="synthese-jour" id="syntheseJour" style="display:none;"></div>
@@ -460,7 +460,7 @@
       <a class="nav-item" data-role="manager" href="NEXUS-Capital-v1.html">
         <div class="nav-icon"><img src="assets/icons/icon-capital.png" alt="Capital NEXUS"></div>
         <div class="nav-body">
-          <div class="nav-title">Capital NEXUS <span class="nav-badge badge-soon">Démo</span></div>
+          <div class="nav-title">Capital NEXUS <span class="nav-badge badge-premium">Professional</span></div>
           <div class="nav-desc">La valeur créée par vos décisions</div>
         </div>
         <div class="nav-arrow">›</div>
@@ -923,6 +923,18 @@
     });
   }
 
+  // "Fierté de NEXUS" (24/07/2026, demande de Frédéric) : sous la carte
+  // "Décisions validées", on affichait le gain du jour en €. Remplacé par
+  // une phrase qualitative — le nombre de décisions reste réel et affiché
+  // en grand (kpi-chip-value), seule la sous-ligne change de registre :
+  // moins comptable, plus une reconnaissance du travail fait.
+  function fierteNexus(nb) {
+    if (nb === 0) return "aujourd'hui";
+    if (nb === 1) return '👏 NEXUS a noté votre décision';
+    if (nb === 2) return '👏 NEXUS apprécie votre rythme';
+    return '🎉 NEXUS est fier de votre journée';
+  }
+
   function renderKpiGrid({ missionsActives, nbRappels, decisionsJour, equipeScore }) {
     document.getElementById('kpiGrid').innerHTML = `
       <a class="kpi-chip" href="NEXUS-Missions-v1.html">
@@ -938,7 +950,7 @@
       <a class="kpi-chip" href="NEXUS-Journal-v1.html">
         <div class="kpi-chip-label">Décisions validées</div>
         <div class="kpi-chip-value" style="color:var(--green);">${decisionsJour.nb}</div>
-        <div class="kpi-chip-sub">${decisionsJour.nb > 0 ? '+' + Math.round(decisionsJour.gain).toLocaleString('fr-FR') + ' € aujourd’hui' : 'aujourd’hui'}</div>
+        <div class="kpi-chip-sub">${fierteNexus(decisionsJour.nb)}</div>
       </a>
       <a class="kpi-chip" href="NEXUS-Radar-Manager-v1.html">
         <div class="kpi-chip-label">Équipe</div>
@@ -953,7 +965,7 @@
       <a class="outil-card" href="NEXUS-Cockpit-v2.html">
         <div class="outil-icon"><img src="assets/icons/icon-home.png" alt=""></div>
         <div class="outil-title">Cockpit</div>
-        <div class="outil-desc">${nbAlertes > 0 ? `<span style="color:var(--amber);">${nbAlertes} analyse${nbAlertes > 1 ? 's' : ''} en attente</span>` : 'Aucune analyse en attente'}${nbOpportunites > 0 ? ` · <span style="color:var(--green);">${nbOpportunites} opportunité${nbOpportunites > 1 ? 's' : ''} détectée${nbOpportunites > 1 ? 's' : ''}</span>` : ''}</div>
+        <div class="outil-desc">${nbAlertes > 0 ? `<span style="color:var(--amber);">${nbAlertes} décision${nbAlertes > 1 ? 's' : ''} à analyser</span>` : 'Aucune décision à analyser'}${nbOpportunites > 0 ? ` · <span style="color:var(--green);">${nbOpportunites} opportunité${nbOpportunites > 1 ? 's' : ''} détectée${nbOpportunites > 1 ? 's' : ''}</span>` : ''}</div>
       </a>
       <a class="outil-card" href="NEXUS-Verify-v1.html">
         <div class="outil-icon"><img src="assets/icons/icon-nexus-verify.png" alt="" style="filter:grayscale(1) brightness(1.05) contrast(1.05) sepia(1) hue-rotate(152deg) saturate(4);"></div>
