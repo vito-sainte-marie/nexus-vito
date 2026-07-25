@@ -852,14 +852,16 @@
     const { data, error } = await fetchAllRowsHome(() => nexusClient.from('audits_caisse')
       .select('date, quart, vente_piste, vente_boutique, ecart_piste, ecart_boutique, employes_piste, employes_boutique')
       .eq('site', siteId).order('date', { ascending: true }));
-    if (error || !data) { console.error('Chargement audits_caisse (constat Tempo):', error); return null; }
+    if (error || !data) { console.error('Chargement audits_caisse (constat Tempo):', error); return { jourARenforcer: null, totalJours: 0 }; }
     const joursAgreges = NexusTempo.agregerParJour(data);
+    const totalJours = joursAgreges.length;
     const regroupement = NexusTempo.regrouperParJourSemaine(joursAgreges);
     const classement = NexusTempo.calculerClassement(regroupement);
     const { jourARenforcer } = NexusTempo.identifierJoursReveles(classement);
-    if (!jourARenforcer || !jourARenforcer.confianceTendance || jourARenforcer.evolutionCombinee === null) return null;
-    if (jourARenforcer.evolutionCombinee > SEUIL_CONSTAT_TEMPO) return null;
-    return jourARenforcer;
+    if (!jourARenforcer || !jourARenforcer.confianceTendance || jourARenforcer.evolutionCombinee === null || jourARenforcer.evolutionCombinee > SEUIL_CONSTAT_TEMPO) {
+      return { jourARenforcer: null, totalJours };
+    }
+    return { jourARenforcer, totalJours };
   }
 
   function renderConstatTempoHome(jour) {
@@ -1035,7 +1037,20 @@
     `;
   }
 
-  function renderOutilsGrid({ nbAlertes, nbOpportunites, controlesVerify, nbDomainesFaibles, nbDomainesMesures, nbRecommandations }) {
+  // Carte Tempo (25/07/2026, demande de Frédéric : "dans vos outils
+  // principaux remplace radar par tempo") — même logique honnête que le
+  // bandeau du Conseiller : si un jour à renforcer est identifiable avec
+  // confiance, on le nomme ; sinon on dit où en est la construction du
+  // rythme plutôt que d'afficher un chiffre vide de sens.
+  function descriptionTempoHome(jourARenforcer, totalJours) {
+    if (jourARenforcer) {
+      return `<span style="color:var(--amber);">${jourARenforcer.nom.charAt(0).toUpperCase() + jourARenforcer.nom.slice(1)}</span> à surveiller`;
+    }
+    if (totalJours === 0) return 'Aucun audit enregistré';
+    return `${totalJours} jour${totalJours > 1 ? 's' : ''} enregistré${totalJours > 1 ? 's' : ''} · rythme en construction`;
+  }
+
+  function renderOutilsGrid({ nbAlertes, nbOpportunites, controlesVerify, jourARenforcerTempo, totalJoursTempo, nbRecommandations }) {
     document.getElementById('outilsGrid').innerHTML = `
       <a class="outil-card" href="NEXUS-Cockpit-v2.html">
         <div class="outil-icon"><img src="assets/icons/icon-home.png" alt=""></div>
@@ -1047,10 +1062,10 @@
         <div class="outil-title">Verify</div>
         <div class="outil-desc">${controlesVerify == null ? 'Contrôle caisse et écarts' : (controlesVerify > 0 ? `<span style="color:var(--amber);">${controlesVerify} contrôle${controlesVerify > 1 ? 's' : ''}</span> à effectuer` : `<span style="color:var(--green);">Audits du jour à jour</span>`)}</div>
       </a>
-      <a class="outil-card" href="NEXUS-Radar-Manager-v1.html">
-        <div class="outil-icon"><img src="assets/icons/icon-radar.png" alt=""></div>
-        <div class="outil-title">Radar</div>
-        <div class="outil-desc">${nbDomainesFaibles > 0 ? `<span style="color:var(--amber);">${nbDomainesFaibles} point${nbDomainesFaibles > 1 ? 's' : ''} faible${nbDomainesFaibles > 1 ? 's' : ''}</span> sur ${nbDomainesMesures} mesuré${nbDomainesMesures > 1 ? 's' : ''}` : `${nbDomainesMesures} domaine${nbDomainesMesures > 1 ? 's' : ''} mesuré${nbDomainesMesures > 1 ? 's' : ''} — sain${nbDomainesMesures > 1 ? 's' : ''}`}</div>
+      <a class="outil-card" href="NEXUS-Tempo-v1.html">
+        <div class="outil-icon"><img src="assets/icons/icon-nexus-tempo.png" alt=""></div>
+        <div class="outil-title">Tempo</div>
+        <div class="outil-desc">${descriptionTempoHome(jourARenforcerTempo, totalJoursTempo)}</div>
       </a>
       <a class="outil-card" href="NEXUS-Produits-v1.html">
         <div class="outil-icon"><img src="assets/icons/icon-produits.png" alt=""></div>
@@ -1089,7 +1104,7 @@
 
     renderEtatCommerce(score, facteurs, candidatsDisponibles);
     renderMargePlus(margePlusResultat);
-    renderConstatTempoHome(constatTempo);
+    renderConstatTempoHome(constatTempo.jourARenforcer);
     renderConseillerHome(candidatsDisponibles.slice(0, 3), employee.nom);
     renderKpiGrid({
       missionsActives: (missionsCatalogueRes && missionsCatalogueRes.count != null) ? missionsCatalogueRes.count : null,
@@ -1100,9 +1115,6 @@
 
     const nbAlertes = candidatsDisponibles.filter(c => c.etat === '🔥 À AGIR' || c.etat === '🟡 À SURVEILLER').length;
     const nbOpportunites = candidatsDisponibles.filter(c => c.etat === '📈 OPPORTUNITÉ').length;
-    const domainesValeurs = [score, domainesRadar.equipeScore, domainesRadar.devScore];
-    const nbDomainesMesures = domainesValeurs.filter(v => v !== null).length;
-    const nbDomainesFaibles = domainesValeurs.filter(v => v !== null && v < 70).length;
     // Recommandations "prioritaires" plutôt que le total brut (24/07/2026,
     // demande de Frédéric) : candidatsDisponibles peut compter des centaines
     // de lignes sur un gros catalogue (R4 seul peut déclencher souvent sur
@@ -1113,7 +1125,7 @@
     // à SEUIL_RECOS_PRIORITAIRES, plutôt que la totalité.
     const SEUIL_RECOS_PRIORITAIRES = 10;
     const nbRecommandationsPrioritaires = Math.min(candidatsDisponibles.length, SEUIL_RECOS_PRIORITAIRES);
-    renderOutilsGrid({ nbAlertes, nbOpportunites, controlesVerify, nbDomainesFaibles, nbDomainesMesures, nbRecommandations: nbRecommandationsPrioritaires });
+    renderOutilsGrid({ nbAlertes, nbOpportunites, controlesVerify, jourARenforcerTempo: constatTempo.jourARenforcer, totalJoursTempo: constatTempo.totalJours, nbRecommandations: nbRecommandationsPrioritaires });
   }
 
   // Pointage du manager (24/07/2026) — voir migration-station-config-manager-
