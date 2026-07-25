@@ -340,9 +340,10 @@
   function genererDecisionPrioritaire(joursAgreges, classement) {
     const nbJoursTotal = (joursAgreges || []).length;
     if (nbJoursTotal < SEUILS.MIN_JOURS_DECISION) {
+      const joursRestants = SEUILS.MIN_JOURS_DECISION - nbJoursTotal;
       return {
         disponible: false,
-        message: `Historique encore insuffisant pour proposer une décision fiable (${nbJoursTotal} jour${nbJoursTotal > 1 ? 's' : ''} enregistré${nbJoursTotal > 1 ? 's' : ''} sur ${SEUILS.MIN_JOURS_DECISION} nécessaires). Continuez à compléter les audits de caisse quotidiens : NEXUS Tempo se construit avec le temps.`,
+        message: `Encore ${joursRestants} jour${joursRestants > 1 ? 's' : ''} d'historique ${joursRestants > 1 ? 'sont nécessaires' : 'est nécessaire'} avant que Tempo puisse détecter des tendances fiables. Continuez simplement vos audits quotidiens : chaque journée renforce la précision de NEXUS.`,
       };
     }
     const { jourARenforcer } = identifierJoursReveles(classement);
@@ -386,16 +387,47 @@
   // ------------------------------------------------------------
   function calculerMaturite(joursAgreges) {
     if (!joursAgreges || !joursAgreges.length) {
-      return { niveau: 1, emoji: '🟥', label: 'Découverte', joursHistorique: 0, seuilSuivant: SEUILS.MATURITE_NIVEAU2_JOURS, joursRestants: SEUILS.MATURITE_NIVEAU2_JOURS };
+      return { niveau: 1, emoji: '🟥', label: 'Découverte', joursHistorique: 0, seuilPrecedent: 0, seuilSuivant: SEUILS.MATURITE_NIVEAU2_JOURS, joursRestants: SEUILS.MATURITE_NIVEAU2_JOURS };
     }
     const premiereDate = dateLocale(joursAgreges[0].date);
     const joursHistorique = Math.max(0, Math.floor((new Date() - premiereDate) / 86400000));
-    let niveau, emoji, label, seuilSuivant;
-    if (joursHistorique >= SEUILS.MATURITE_NIVEAU4_JOURS) { niveau = 4; emoji = '💎'; label = 'Intelligence'; seuilSuivant = null; }
-    else if (joursHistorique >= SEUILS.MATURITE_NIVEAU3_JOURS) { niveau = 3; emoji = '🟩'; label = 'Confiance'; seuilSuivant = SEUILS.MATURITE_NIVEAU4_JOURS; }
-    else if (joursHistorique >= SEUILS.MATURITE_NIVEAU2_JOURS) { niveau = 2; emoji = '🟨'; label = 'Apprentissage'; seuilSuivant = SEUILS.MATURITE_NIVEAU3_JOURS; }
-    else { niveau = 1; emoji = '🟥'; label = 'Découverte'; seuilSuivant = SEUILS.MATURITE_NIVEAU2_JOURS; }
-    return { niveau, emoji, label, joursHistorique, seuilSuivant, joursRestants: seuilSuivant !== null ? seuilSuivant - joursHistorique : 0 };
+    let niveau, emoji, label, seuilPrecedent, seuilSuivant;
+    if (joursHistorique >= SEUILS.MATURITE_NIVEAU4_JOURS) { niveau = 4; emoji = '💎'; label = 'Intelligence'; seuilPrecedent = SEUILS.MATURITE_NIVEAU4_JOURS; seuilSuivant = null; }
+    else if (joursHistorique >= SEUILS.MATURITE_NIVEAU3_JOURS) { niveau = 3; emoji = '🟩'; label = 'Confiance'; seuilPrecedent = SEUILS.MATURITE_NIVEAU3_JOURS; seuilSuivant = SEUILS.MATURITE_NIVEAU4_JOURS; }
+    else if (joursHistorique >= SEUILS.MATURITE_NIVEAU2_JOURS) { niveau = 2; emoji = '🟨'; label = 'Apprentissage'; seuilPrecedent = SEUILS.MATURITE_NIVEAU2_JOURS; seuilSuivant = SEUILS.MATURITE_NIVEAU3_JOURS; }
+    else { niveau = 1; emoji = '🟥'; label = 'Découverte'; seuilPrecedent = 0; seuilSuivant = SEUILS.MATURITE_NIVEAU2_JOURS; }
+    return { niveau, emoji, label, joursHistorique, seuilPrecedent, seuilSuivant, joursRestants: seuilSuivant !== null ? seuilSuivant - joursHistorique : 0 };
+  }
+
+  // ------------------------------------------------------------
+  // 7bis) Confiance Tempo — indice global unique (0-100 %), pensé pour
+  // que le manager comprenne d'un coup d'œil "les informations
+  // existent, mais restent prudentes" (25/07/2026, demande de
+  // Frédéric). Il combine quatre signaux objectifs, jamais un
+  // jugement qualitatif :
+  //   - l'ancienneté réelle de l'historique (jusqu'à 50 pts, complet
+  //     au seuil du Niveau 4) ;
+  //   - le volume de jours effectivement enregistrés, indépendamment
+  //     des trous de calendrier (jusqu'à 25 pts, complet au seuil de
+  //     décision) ;
+  //   - la couverture des 7 jours de semaine par au moins une
+  //     occurrence (jusqu'à 15 pts) ;
+  //   - la part de jours de semaine où une évolution est déjà
+  //     calculable, càd au moins 2 occurrences (jusqu'à 10 pts).
+  // ------------------------------------------------------------
+  function calculerConfianceGlobale(joursAgreges, classement) {
+    const nbJours = (joursAgreges || []).length;
+    const observes = (classement || []).filter(a => a.occurrences.length > 0);
+    const nbJoursSemaineCouverts = observes.length;
+    const nbAvecTendance = observes.filter(a => a.confianceTendance).length;
+    const joursHistorique = calculerMaturite(joursAgreges).joursHistorique;
+
+    const scoreAnciennete = Math.min(50, (joursHistorique / SEUILS.MATURITE_NIVEAU4_JOURS) * 50);
+    const scoreVolume = Math.min(25, (nbJours / SEUILS.MIN_JOURS_DECISION) * 25);
+    const scoreCouverture = (nbJoursSemaineCouverts / 7) * 15;
+    const scoreTendances = (nbAvecTendance / 7) * 10;
+
+    return Math.max(0, Math.min(100, Math.round(scoreAnciennete + scoreVolume + scoreCouverture + scoreTendances)));
   }
 
   // ------------------------------------------------------------
@@ -690,7 +722,7 @@
     agregerParJour, regrouperParJourSemaine, calculerClassement,
     identifierJoursReveles, identifierMeilleursJoursSepares, classementLitrage,
     analyserEquipe, genererDecisionPrioritaire,
-    calculerMaturite, joursFeries, estJourFerie, tagCalendaire,
+    calculerMaturite, calculerConfianceGlobale, joursFeries, estJourFerie, tagCalendaire,
     analyserDebutFinMois, analyserSaisonnier, genererDecouvertes,
     dateLocale, moyenne, ecartType, evolution,
   };

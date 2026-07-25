@@ -36,8 +36,10 @@ a{color:inherit;}
 .section-label::after{content:''; flex:1; height:1px; background:var(--hairline);}
 .section-note{font-family:var(--sans); font-size:11.5px; color:var(--text-mid); line-height:1.5; margin:-6px 20px 14px;}
 
-.accordion-header{display:flex; align-items:center; gap:10px; width:calc(100% - 40px); background:none; border:none; cursor:pointer; padding:8px 0; margin:18px 20px 4px; font-family:var(--mono); font-size:11px; letter-spacing:0.1em; text-transform:uppercase; color:var(--text-mid); text-align:left; -webkit-tap-highlight-color:transparent;}
-.accordion-title{flex-shrink:0;}
+.accordion-header{display:flex; align-items:center; gap:10px; width:calc(100% - 40px); background:none; border:none; cursor:pointer; padding:8px 0; margin:18px 20px 4px; text-align:left; -webkit-tap-highlight-color:transparent;}
+.accordion-head-text{display:flex; flex-direction:column; align-items:flex-start; gap:2px; flex-shrink:0;}
+.accordion-title{font-family:var(--mono); font-size:11px; letter-spacing:0.1em; text-transform:uppercase; color:var(--text-mid);}
+.accordion-subtitle{font-family:var(--sans); font-size:10px; color:var(--text-dim); line-height:1.3;}
 .accordion-count{font-family:var(--mono); font-size:9.5px; color:var(--text-dim); text-transform:none; letter-spacing:0; background:var(--panel-raised); border-radius:20px; padding:2px 8px; flex-shrink:0;}
 .accordion-line{flex:1; height:1px; background:var(--hairline);}
 .accordion-chevron{font-size:11px; color:var(--text-dim); flex-shrink:0; transition:transform .2s ease; display:inline-block;}
@@ -108,7 +110,11 @@ a{color:inherit;}
 .carburant-detail{font-family:var(--mono); font-size:10.5px; color:var(--text-mid);}
 
 .maturite-badge{display:inline-flex; align-items:center; gap:6px; margin-top:10px; padding:5px 11px; background:var(--panel-raised); border:1px solid var(--hairline); border-radius:20px; font-family:var(--mono); font-size:10.5px; font-weight:600; color:var(--text-mid);}
-.maturite-progress{font-size:9.5px; color:var(--text-dim); margin-top:5px; font-family:var(--mono);}
+.maturite-gauge{display:flex; align-items:center; flex-wrap:wrap; gap:8px; margin-top:7px;}
+.maturite-bar{font-family:var(--mono); font-size:12px; letter-spacing:1px; color:var(--cyan);}
+.maturite-progress-txt{font-family:var(--mono); font-size:9.5px; color:var(--text-dim);}
+.maturite-confiance{margin-top:5px; font-family:var(--mono); font-size:10px; color:var(--text-mid);}
+.maturite-confiance b{color:var(--text); font-weight:700;}
 
 .saison-panel{background:var(--panel); border:1px solid var(--hairline); border-radius:14px; padding:16px; margin:0 20px;}
 .saison-etat{font-size:12px; color:var(--text-mid); line-height:1.6;}
@@ -236,11 +242,12 @@ footer{margin-top:auto; padding:20px 20px 24px; font-family:var(--mono); font-si
     // renvoient honnêtement "insuffisant"/"en apprentissage" tant que
     // l'historique ne le permet pas (voir nexus-tempo.js, Article 5).
     const maturite = NexusTempo.calculerMaturite(joursAgreges);
+    const confianceGlobale = NexusTempo.calculerConfianceGlobale(joursAgreges, classement);
     const saisonnier = NexusTempo.analyserSaisonnier(joursAgreges);
     const debutFinMois = NexusTempo.analyserDebutFinMois(joursAgreges);
     const decouvertes = NexusTempo.genererDecouvertes(classement, joursAgreges, employesParId);
 
-    document.getElementById('maturiteZone').innerHTML = renderMaturite(maturite);
+    document.getElementById('maturiteZone').innerHTML = renderMaturite(maturite, confianceGlobale);
 
     renderTout({ siteId, employee, joursAgreges, classement, joursReveles, meilleursSepares, classementLitrage, analyseEquipe, decision, saisonnier, debutFinMois, decouvertes });
   });
@@ -530,11 +537,24 @@ footer{margin-top:auto; padding:20px 20px 24px; font-family:var(--mono); font-si
   // Un système vivant : plus l'historique s'accumule, plus Tempo peut
   // affirmer des choses. Jamais de saut de niveau artificiel.
   // ------------------------------------------------------------
-  function renderMaturite(m) {
-    const barre = m.seuilSuivant !== null
-      ? `${m.joursHistorique} jour${m.joursHistorique > 1 ? 's' : ''} d'historique — encore ${m.joursRestants > 0 ? m.joursRestants : 0} jour${m.joursRestants > 1 ? 's' : ''} avant le niveau suivant`
+  function renderMaturite(m, confiancePct) {
+    const TOTAL_BARRES = 10;
+    const proportion = m.seuilSuivant !== null
+      ? Math.max(0, Math.min(1, (m.joursHistorique - m.seuilPrecedent) / (m.seuilSuivant - m.seuilPrecedent)))
+      : 1;
+    const rempli = Math.round(proportion * TOTAL_BARRES);
+    const barreVisuelle = '█'.repeat(rempli) + '░'.repeat(TOTAL_BARRES - rempli);
+    const texteProgression = m.seuilSuivant !== null
+      ? `${m.joursHistorique} / ${m.seuilSuivant} jours avant niveau ${m.niveau + 1}`
       : `${m.joursHistorique} jours d'historique — niveau maximal atteint`;
-    return `<div class="maturite-badge">${m.emoji} Niveau ${m.niveau} · ${m.label}</div><div class="maturite-progress">${barre}</div>`;
+    return `
+      <div class="maturite-badge">${m.emoji} Niveau ${m.niveau} · ${m.label}</div>
+      <div class="maturite-gauge">
+        <span class="maturite-bar">${barreVisuelle}</span>
+        <span class="maturite-progress-txt">${texteProgression}</span>
+      </div>
+      <div class="maturite-confiance">Confiance Tempo <b>${confiancePct} %</b></div>
+    `;
   }
 
   // ------------------------------------------------------------
@@ -600,10 +620,14 @@ footer{margin-top:auto; padding:20px 20px 24px; font-family:var(--mono); font-si
   // équipe, carburants, saisonnier, découvertes, sources) est replié
   // et accessible en un tap, sans jamais être retiré du DOM.
   // ------------------------------------------------------------
-  function accordion(id, titre, contenuHtml, ouvertParDefaut, badge) {
+  function accordion(id, titre, contenuHtml, ouvertParDefaut, options) {
+    const { badge, sousTitre } = options || {};
     return `
       <button class="accordion-header" data-target="${id}" aria-expanded="${ouvertParDefaut ? 'true' : 'false'}">
-        <span class="accordion-title">${titre}</span>
+        <span class="accordion-head-text">
+          <span class="accordion-title">${titre}</span>
+          ${sousTitre ? `<span class="accordion-subtitle">${sousTitre}</span>` : ''}
+        </span>
         ${badge ? `<span class="accordion-count">${badge}</span>` : ''}
         <span class="accordion-line"></span>
         <span class="accordion-chevron">▾</span>
@@ -628,6 +652,27 @@ footer{margin-top:auto; padding:20px 20px 24px; font-family:var(--mono); font-si
   function renderTout({ siteId, employee, joursAgreges, classement, joursReveles, meilleursSepares, classementLitrage, analyseEquipe, decision, saisonnier, debutFinMois, decouvertes }) {
     const root = document.getElementById('root');
     const nbDecouvertes = decouvertes.length && decouvertes[0].disponible ? decouvertes.length : 0;
+
+    // Sous-titres des cadres repliés (25/07/2026) : donner un aperçu
+    // honnête de ce que contient chaque section sans avoir à l'ouvrir —
+    // et rassurer plutôt qu'alarmer quand l'historique est encore court.
+    const nbJoursSemaineCouverts = classement.filter(a => a.occurrences.length > 0).length;
+    const sousTitreHebdo = `${nbJoursSemaineCouverts} / 7 jours de la semaine documentés`;
+    const sousTitreEquipe = analyseEquipe.length
+      ? `${analyseEquipe.length} profil${analyseEquipe.length > 1 ? 's' : ''} suivi${analyseEquipe.length > 1 ? 's' : ''}`
+      : 'Aucune donnée pour l\'instant';
+    const sousTitreCarburants = classementLitrage.length
+      ? `Litrage suivi sur ${classementLitrage.length} jour${classementLitrage.length > 1 ? 's' : ''} de la semaine`
+      : 'En attente des premiers calculs de litrage';
+    const sousTitreSaisonnier = saisonnier.disponible
+      ? `${saisonnier.moisAnalyse.filter(m => m.disponible).length} mois comparé${saisonnier.moisAnalyse.filter(m => m.disponible).length > 1 ? 's' : ''}`
+      : 'Historique insuffisant';
+    const sousTitreDecouvertes = joursAgreges.length < 7
+      ? 'Chaque journée enregistrée augmente la précision de Tempo.'
+      : (nbDecouvertes ? `${nbDecouvertes} tendance${nbDecouvertes > 1 ? 's' : ''} détectée${nbDecouvertes > 1 ? 's' : ''}` : 'Aucune tendance fiable détectée.');
+    const nbSourcesConnectees = NexusTempo.SOURCES_DONNEES.filter(s => s.statut === 'connectee').length;
+    const sousTitreSources = `${nbSourcesConnectees} source${nbSourcesConnectees > 1 ? 's' : ''} connectée${nbSourcesConnectees > 1 ? 's' : ''} sur ${NexusTempo.SOURCES_DONNEES.length}`;
+
     root.innerHTML = `
       <div class="section" style="margin-top:6px;">
         <div class="conseiller-card">
@@ -643,19 +688,19 @@ footer{margin-top:auto; padding:20px 20px 24px; font-family:var(--mono); font-si
 
       ${accordion('accDecision', 'Décision NEXUS', `<div class="section">${renderDecision(decision, siteId, employee)}</div>`, true)}
 
-      ${accordion('accComparateur', 'Comparateur', renderComparateur(joursAgreges), false)}
+      ${accordion('accComparateur', 'Comparateur', renderComparateur(joursAgreges), false, { sousTitre: 'Comparez deux périodes de votre choix' })}
 
-      ${accordion('accHebdo', 'Vue hebdomadaire', renderVueHebdo(classement), false)}
+      ${accordion('accHebdo', 'Vue hebdomadaire', renderVueHebdo(classement), false, { sousTitre: sousTitreHebdo })}
 
-      ${accordion('accEquipe', 'Analyse équipe', renderEquipe(analyseEquipe), false)}
+      ${accordion('accEquipe', 'Analyse équipe', renderEquipe(analyseEquipe), false, { sousTitre: sousTitreEquipe })}
 
-      ${accordion('accCarburants', 'Carburants', `<div class="section">${renderCarburants(classementLitrage)}</div>`, false)}
+      ${accordion('accCarburants', 'Carburants', `<div class="section">${renderCarburants(classementLitrage)}</div>`, false, { sousTitre: sousTitreCarburants })}
 
-      ${accordion('accSaisonnier', 'Cycles saisonniers', renderSaisonnier(saisonnier, debutFinMois), false)}
+      ${accordion('accSaisonnier', 'Cycles saisonniers', renderSaisonnier(saisonnier, debutFinMois), false, { sousTitre: sousTitreSaisonnier })}
 
-      ${accordion('accDecouvertes', 'Tendances découvertes', `<div class="section">${renderDecouvertes(decouvertes)}</div>`, false, nbDecouvertes ? String(nbDecouvertes) : null)}
+      ${accordion('accDecouvertes', 'Tendances découvertes', `<div class="section">${renderDecouvertes(decouvertes)}</div>`, false, { sousTitre: sousTitreDecouvertes, badge: nbDecouvertes ? String(nbDecouvertes) : null })}
 
-      ${accordion('accSources', 'Sources de données', `${renderSources()}<div class="section-note">NEXUS Tempo est conçu pour accueillir de nouvelles sources sans tout reconstruire : chaque source "Prévue" s'activera dès qu'elle sera branchée, sans jamais remplacer une donnée manquante par une estimation.</div>`, false)}
+      ${accordion('accSources', 'Sources de données', `${renderSources()}<div class="section-note">NEXUS Tempo est conçu pour accueillir de nouvelles sources sans tout reconstruire : chaque source "Prévue" s'activera dès qu'elle sera branchée, sans jamais remplacer une donnée manquante par une estimation.</div>`, false, { sousTitre: sousTitreSources })}
     `;
     branchBoutonMission(decision, siteId, employee);
     branchAccordions();
