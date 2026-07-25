@@ -12,6 +12,7 @@
     --text:#EDF1F5; --text-mid:#8A96A5; --text-dim:#57626F;
     --green:#34D399; --green-dim:#153629;
     --amber:#F5A623; --amber-dim:#3A2E14;
+    --red:#F0575A; --red-dim:#3A1D1F;
     --cyan:#4FC3D9;
     --gold:#D4AF37; --gold-dim:#332B12;
     --mono:'IBM Plex Mono',monospace; --sans:'IBM Plex Sans',sans-serif;
@@ -56,19 +57,6 @@
   .hero-title{font-size:17px; font-weight:700; letter-spacing:-0.01em;}
   .hero-desc{font-size:12px; color:var(--text-mid); margin-top:3px; line-height:1.5;}
   .hero-arrow{margin-left:auto; color:var(--cyan); font-size:20px; flex-shrink:0; font-weight:600;}
-  .hero-stats{display:flex; gap:18px; margin-top:18px; padding-top:16px; border-top:1px solid var(--hairline); position:relative;}
-  .hero-stat b{color:var(--cyan); font-family:var(--mono); font-size:14px; display:block;}
-  .hero-stat span{font-family:var(--mono); font-size:9.5px; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.04em;}
-
-  .hero-secondary{margin:0 20px 8px; padding:15px 16px; border-radius:var(--r-md); text-decoration:none; color:var(--text); display:flex; align-items:center; gap:13px;
-    background:var(--panel); border:1px solid var(--hairline);
-    transition:transform .15s ease, opacity .15s ease, background .12s ease;
-  }
-  .hero-secondary:active{background:var(--panel-raised); transform:scale(0.985); opacity:0.92;}
-  .hero-secondary .hero-icon{width:40px; height:40px; border-radius:var(--r-sm);}
-  .hero-secondary .hero-title{font-size:14.5px; font-weight:700;}
-  .hero-secondary .hero-desc{font-size:11.5px; margin-top:2px;}
-  .hero-secondary .hero-arrow{font-size:17px;}
 
   .section-label{
     font-family:var(--mono); font-size:10.5px; font-weight:600; letter-spacing:0.07em; text-transform:uppercase; color:var(--text-dim);
@@ -142,6 +130,73 @@
   .conseiller-btn{margin-top:6px; width:100%; padding:12px; border-radius:var(--r-sm); border:none; background:var(--cyan); color:#04141a; font-family:var(--sans); font-weight:600; font-size:13px; cursor:pointer; transition:opacity .12s ease;}
   .conseiller-btn:active{opacity:0.85;}
   .conseiller-saved{display:none; margin-top:10px; padding:9px; background:var(--green-dim); color:var(--green); border-radius:var(--r-sm); text-align:center; font-size:12px;}
+
+  /* ============================================================
+     Poste de pilotage manager (24/07/2026) — remplace les anciennes
+     hero cards (Cockpit/Verify/Planner). Hiérarchie validée avec
+     Frédéric : état du commerce → Conseiller (3 décisions réelles) →
+     KPI du jour → outils principaux → tout le reste replié. Voir
+     NEXUS-Refonte-Accueil-Note-Conception.md pour le détail complet
+     de la démarche.
+     ============================================================ */
+  .section-tag{font-family:var(--mono); font-size:9.5px; letter-spacing:0.14em; text-transform:uppercase; color:var(--text-dim); padding:20px 20px 8px; display:flex; align-items:center; gap:8px;}
+  .section-tag::after{content:''; flex:1; height:1px; background:var(--hairline);}
+  .section-tag .n1{color:var(--gold);}
+
+  .synthese-jour{margin:14px 20px 4px; padding:14px 16px; border-radius:12px; background:var(--panel-raised); border:1px solid var(--hairline); font-size:14px; line-height:1.55; display:flex; align-items:flex-start; gap:10px;}
+  .synthese-jour b{font-weight:700;}
+  .synthese-dot{width:9px; height:9px; border-radius:50%; margin-top:6px; flex-shrink:0; box-shadow:0 0 8px currentColor;}
+
+  .etat-card{margin:0 20px; padding:24px 22px; border-radius:20px; background:radial-gradient(120% 140% at 50% -10%, rgba(212,175,55,0.14), rgba(79,195,217,0.05) 55%, transparent 80%), var(--panel); border:1px solid rgba(212,175,55,0.2); box-shadow:0 12px 34px rgba(0,0,0,0.32);}
+  .etat-row{display:flex; gap:0;}
+  .etat-col{flex:1; text-align:center;}
+  .etat-col + .etat-col{border-left:1px solid var(--hairline);}
+  .etat-label{font-family:var(--mono); font-size:9.5px; letter-spacing:0.1em; text-transform:uppercase; color:var(--text-dim);}
+  #indiceLegendeToggle{cursor:pointer;}
+  .etat-value{font-family:var(--mono); font-size:38px; font-weight:700; line-height:1.15; margin-top:6px; color:var(--text-dim);}
+  .etat-sub{font-size:10.5px; color:var(--text-mid); margin-top:4px;}
+  .etat-narrative{margin-top:16px; padding-top:14px; border-top:1px solid var(--hairline); display:flex; align-items:center; gap:9px; font-size:11.5px; color:var(--text-dim); line-height:1.5;}
+  .etat-dot{width:8px; height:8px; border-radius:50%; flex-shrink:0; box-shadow:0 0 10px currentColor;}
+  .indice-badge{display:none; margin-top:7px; padding:3px 10px; border-radius:20px; font-family:var(--mono); font-size:10px; font-weight:700;}
+  .indice-legende{display:none; margin-top:14px; padding-top:12px; border-top:1px solid var(--hairline); text-align:left;}
+  .indice-legende.open{display:block;}
+  .legende-row{display:flex; align-items:center; gap:8px; padding:4px 0; font-size:11px; color:var(--text-mid);}
+  .legende-dot{width:8px; height:8px; border-radius:50%; flex-shrink:0;}
+
+  .alerte-banner{margin:12px 20px 0; padding:12px 15px; border-radius:12px; background:var(--red-dim); border:1px solid rgba(240,87,90,0.35); display:flex; align-items:center; gap:10px; font-size:12px; color:var(--text);}
+  .alerte-banner b{color:var(--red);}
+  .alerte-banner a{margin-left:auto; font-family:var(--mono); font-size:10.5px; color:var(--red); white-space:nowrap; text-decoration:underline; flex-shrink:0;}
+
+  .priorite-item{display:flex; gap:10px; padding:11px 0; border-top:1px solid var(--hairline); align-items:flex-start;}
+  .priorite-item:first-of-type{border-top:none;}
+  .priorite-check{flex-shrink:0; width:20px; height:20px; margin-top:1px; border-radius:50%; border:1.5px solid var(--text-dim); display:flex; align-items:center; justify-content:center; font-size:11px; color:transparent; cursor:pointer; transition:all .15s;}
+  .priorite-check:hover{border-color:var(--cyan);}
+  .priorite-item.traitee .priorite-check{background:var(--green); border-color:var(--green); color:#04141a;}
+  .priorite-item.traitee .priorite-body{opacity:0.5; text-decoration:line-through;}
+  .priorite-body{font-size:12.5px; line-height:1.55;}
+  .priorite-num{font-family:var(--mono); font-weight:700; color:var(--gold);}
+  .priorite-lien{display:inline-block; margin-top:3px; font-family:var(--mono); font-size:10.5px; color:var(--cyan); text-decoration:none;}
+  .conseiller-footer{display:flex; justify-content:space-between; align-items:center; margin-top:12px; padding-top:12px; border-top:1px solid var(--hairline); font-family:var(--mono); font-size:11px; color:var(--text-mid);}
+  .conseiller-footer b{color:var(--green);}
+
+  .kpi-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px; padding:0 20px;}
+  .kpi-chip{background:var(--panel); border:1px solid var(--hairline); border-radius:12px; padding:13px 14px; text-decoration:none; color:var(--text); display:block;}
+  .kpi-chip-label{font-family:var(--mono); font-size:9px; letter-spacing:0.06em; text-transform:uppercase; color:var(--text-dim);}
+  .kpi-chip-value{font-family:var(--mono); font-size:18px; font-weight:700; margin-top:5px;}
+  .kpi-chip-sub{font-size:10.5px; color:var(--text-mid); margin-top:3px;}
+
+  .outils-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px; padding:0 20px;}
+  .outil-card{background:var(--panel); border:1px solid var(--hairline); border-radius:14px; padding:16px; text-decoration:none; color:var(--text); display:block;}
+  .outil-icon{width:36px; height:36px; border-radius:10px; background:var(--panel-raised); display:flex; align-items:center; justify-content:center; margin-bottom:10px; overflow:hidden;}
+  .outil-icon img{width:20px; height:20px; object-fit:contain;}
+  .outil-title{font-size:13.5px; font-weight:600;}
+  .outil-desc{font-size:10.5px; color:var(--text-mid); margin-top:4px; line-height:1.4;}
+
+  .plus-toggle{margin:18px 20px 0; padding:13px 16px; border-radius:12px; background:var(--panel); border:1px solid var(--hairline); display:flex; justify-content:center; align-items:center; gap:8px; font-family:var(--mono); font-size:11px; color:var(--cyan); cursor:pointer;}
+  .plus-toggle .chev{transition:transform .2s; display:inline-block;}
+  .plus-toggle.open .chev{transform:rotate(180deg);}
+  .plus-zone{display:none;}
+  .plus-zone.open{display:block;}
 </style>
 </head>
 <body>
@@ -156,40 +211,66 @@
   <div id="banniereConsultation"></div>
   <div id="banniereCarburants"></div>
 
-  <a class="hero" data-role="manager" href="NEXUS-Cockpit-v2.html" id="heroManager" style="display:none;">
-    <div class="hero-top">
-      <div class="hero-icon"><img src="assets/icons/icon-home.png" alt=""></div>
-      <div>
-        <div class="hero-title">Cockpit</div>
-        <div class="hero-desc">Votre tableau de bord — santé, missions, opportunités, risques</div>
-      </div>
-      <div class="hero-arrow">›</div>
-    </div>
-    <div class="hero-stats">
-      <div class="hero-stat"><b id="statReferences">—</b><span>Références</span></div>
-      <div class="hero-stat"><b id="statMissions">—</b><span>Missions</span></div>
-    </div>
-  </a>
+  <!-- ============================================================
+       Poste de pilotage — visible uniquement pour un manager/gérant
+       (révélé par JS, même mécanisme data-role="manager" que le reste
+       du fichier). Toutes les valeurs viennent de Supabase : aucune
+       n'est codée en dur. Capital NEXUS reste affiché comme démo tant
+       qu'aucun calcul réel n'existe (voir NEXUS-Capital-v1.html, qui
+       porte lui-même un bandeau "DÉMONSTRATION" explicite) — inventer
+       un chiffre à sa place violerait l'article 5 de la Constitution
+       NEXUS ("ne jamais fabriquer un chiffre").
+       ============================================================ -->
+  <div data-role="manager" style="display:none;">
+    <div class="synthese-jour" id="syntheseJour" style="display:none;"></div>
 
-  <a class="hero" data-role="manager" href="NEXUS-Verify-v1.html" style="display:none;">
-    <div class="hero-top">
-      <div class="hero-icon" style="padding:8px; box-sizing:border-box; border:3px solid var(--bg); box-shadow:0 0 0 1px rgba(138,150,165,0.35);"><img src="assets/icons/icon-nexus-verify.png" alt="" style="object-fit:contain; border-radius:6px; filter:grayscale(1) brightness(1.05) contrast(1.05) sepia(1) hue-rotate(152deg) saturate(4);"></div>
-      <div>
-        <div class="hero-title">Nexus Verify</div>
-        <div class="hero-desc">Le premier contrôle du poste — audit caisse, écarts par moyen de paiement</div>
+    <div class="section-tag"><span class="n1">1</span> Ce que vous devez savoir en premier</div>
+    <div class="etat-card">
+      <div class="etat-row">
+        <div class="etat-col">
+          <div class="etat-label" id="indiceLegendeToggle">Indice NEXUS <span style="opacity:0.6;">ⓘ</span></div>
+          <div class="etat-value" id="indiceValeur">—</div>
+          <div class="indice-badge" id="indiceBadge"></div>
+          <div class="etat-sub" id="indiceSub">Calcul en cours…</div>
+        </div>
+        <div class="etat-col">
+          <div class="etat-label">Capital NEXUS</div>
+          <div class="etat-value" style="color:var(--gold); font-size:22px;">Démo</div>
+          <div class="etat-sub">Pas encore de décisions suivies dans le temps</div>
+          <a href="NEXUS-Capital-v1.html" style="display:inline-block; margin-top:6px; font-family:var(--mono); font-size:10px; color:var(--cyan);">Voir la démo →</a>
+        </div>
       </div>
-      <div class="hero-arrow">›</div>
+      <div class="indice-legende" id="indiceLegende">
+        <div class="legende-row"><span class="legende-dot" style="background:var(--green);"></span>90–100 · Excellence</div>
+        <div class="legende-row"><span class="legende-dot" style="background:var(--green);"></span>75–89 · Sous contrôle</div>
+        <div class="legende-row"><span class="legende-dot" style="background:var(--amber);"></span>60–74 · À surveiller</div>
+        <div class="legende-row"><span class="legende-dot" style="background:var(--red);"></span>Moins de 60 · Priorité élevée</div>
+      </div>
+      <div class="etat-narrative" id="etatNarrative"></div>
     </div>
-  </a>
 
-  <a class="hero-secondary" data-role="manager" href="NEXUS-Planning-v1.html" style="display:none;">
-    <div class="hero-icon"><img src="assets/icons/icon-planner.png" alt=""></div>
-    <div>
-      <div class="hero-title">Nexus Planner <span class="nav-badge badge-premium">Premium</span></div>
-      <div class="hero-desc">Le bon collaborateur, au bon endroit, au bon moment</div>
+    <div class="alerte-banner" id="alerteBanner" style="display:none;"></div>
+
+    <div class="conseiller-card">
+      <div class="conseiller-head">
+        <img class="conseiller-avatar" src="assets/nexus-avatar.png" alt="Conseiller NEXUS">
+        <div>
+          <div class="conseiller-name">CONSEILLER NEXUS</div>
+          <div class="conseiller-sub">Votre chef d'orchestre du jour</div>
+        </div>
+      </div>
+      <div id="conseillerCorps"><div class="conseiller-text">Analyse de vos données en cours…</div></div>
     </div>
-    <div class="hero-arrow">›</div>
-  </a>
+
+    <div class="section-tag"><span class="n1">2</span> Aujourd'hui</div>
+    <div class="kpi-grid" id="kpiGrid"></div>
+
+    <div class="section-tag"><span class="n1">3</span> Vos outils principaux</div>
+    <div class="outils-grid" id="outilsGrid"></div>
+
+    <div class="plus-toggle" id="plusToggle">Tous les outils <span class="chev">▾</span></div>
+    <div class="plus-zone" id="plusZone"></div>
+  </div>
 
   <a class="hero" data-role="employe" href="NEXUS-Missions-v1.html" id="heroEmploye" style="display:none;">
     <div class="hero-top">
@@ -228,6 +309,14 @@
       </div>
       <div class="nav-arrow">›</div>
     </a>
+    <a class="nav-item" data-role="manager" href="NEXUS-Planning-v1.html" style="display:none;">
+      <div class="nav-icon"><img src="assets/icons/icon-planner.png" alt="Nexus Planner"></div>
+      <div class="nav-body">
+        <div class="nav-title">Nexus Planner <span class="nav-badge badge-premium">Premium</span></div>
+        <div class="nav-desc">Le bon collaborateur, au bon endroit, au bon moment</div>
+      </div>
+      <div class="nav-arrow">›</div>
+    </a>
     <a class="nav-item" data-role="manager" data-preview="true" href="NEXUS-Missions-v1.html" style="display:none;">
       <div class="nav-icon"><img src="assets/icons/icon-missions.png" alt="Plans d'action"></div>
       <div class="nav-body">
@@ -241,42 +330,6 @@
       <div class="nav-body">
         <div class="nav-title">Rappels<span id="navRappelsBadge"></span></div>
         <div class="nav-desc">Commandes fournisseurs, carburant</div>
-      </div>
-      <div class="nav-arrow">›</div>
-    </a>
-  </nav>
-
-  <div class="section-label" data-role="manager" style="display:none;">Analyse &amp; pilotage</div>
-  <nav data-role="manager" data-group="analyse" style="display:none;">
-    <a class="nav-item" data-role="manager" href="NEXUS-Radar-Manager-v1.html">
-      <div class="nav-icon"><img src="assets/icons/icon-radar.png" alt="Radar du manager"></div>
-      <div class="nav-body">
-        <div class="nav-title">Radar du Manager</div>
-        <div class="nav-desc">8 domaines de responsabilité</div>
-      </div>
-      <div class="nav-arrow">›</div>
-    </a>
-    <a class="nav-item" data-role="manager" data-preview="true" href="NEXUS-Rayon-v1.html">
-      <div class="nav-icon"><img src="assets/icons/icon-rayon.png" alt="Rayon"></div>
-      <div class="nav-body">
-        <div class="nav-title">Rayon</div>
-        <div class="nav-desc">CA, marge, top ventes par catégorie</div>
-      </div>
-      <div class="nav-arrow">›</div>
-    </a>
-    <a class="nav-item" data-role="manager" href="NEXUS-Produits-v1.html">
-      <div class="nav-icon"><img src="assets/icons/icon-produits.png" alt="Produits"></div>
-      <div class="nav-body">
-        <div class="nav-title">Produits</div>
-        <div class="nav-desc">Fiche complète par référence</div>
-      </div>
-      <div class="nav-arrow">›</div>
-    </a>
-    <a class="nav-item" data-role="manager" href="NEXUS-Scanner-Stock-v1.html">
-      <div class="nav-icon"><img src="assets/icons/icon-scanner-stock.png" alt="Scanner Stock"></div>
-      <div class="nav-body">
-        <div class="nav-title">Scanner Stock <span class="nav-badge badge-premium">Premium</span></div>
-        <div class="nav-desc">Où vous perdez de l'argent, quoi recompter</div>
       </div>
       <div class="nav-arrow">›</div>
     </a>
@@ -318,65 +371,120 @@
     </a>
   </nav>
 
-  <div class="section-label" data-role="manager" style="display:none;">Gérer</div>
-  <nav data-role="manager" data-group="gerer" style="display:none;">
-    <a class="nav-item" data-role="manager" href="NEXUS-Import-v1.html">
-      <div class="nav-icon"><img src="assets/icons/icon-import.png" alt="Import"></div>
-      <div class="nav-body">
-        <div class="nav-title">Import</div>
-        <div class="nav-desc">Ventes, catalogue ou stock instantané</div>
-      </div>
-      <div class="nav-arrow">›</div>
-    </a>
-    <a class="nav-item" data-role="manager" href="NEXUS-Parametres-Station-v1.html">
-      <div class="nav-icon">⚙️</div>
-      <div class="nav-body">
-        <div class="nav-title">Paramètres Station</div>
-        <div class="nav-desc">Horaires de service, prix carburants</div>
-      </div>
-      <div class="nav-arrow">›</div>
-    </a>
-  </nav>
+  <!-- ============================================================
+       Niveau 4 — "Tous les outils" (24/07/2026). Les 4 groupes
+       ci-dessous restent le menu réel, inchangé (mêmes liens, mêmes
+       badges, même repli interne via initGroupes()) — seule leur
+       PLACE change pour un manager : ils sont déplacés par JS dans
+       #plusZone au chargement, derrière un seul point d'entrée replié,
+       au lieu de s'afficher en toujours-visible comme avant. Pour un
+       employé, ces groupes n'existent de toute façon pas (déjà
+       masqués par data-role="manager" plus bas) — rien ne change
+       pour lui.
+       ============================================================ -->
+  <div class="groupe-wrap" data-groupe="analyse">
+    <div class="section-label" data-role="manager" style="display:none;">Analyse &amp; pilotage</div>
+    <nav data-role="manager" data-group="analyse" style="display:none;">
+      <a class="nav-item" data-role="manager" href="NEXUS-Radar-Manager-v1.html">
+        <div class="nav-icon"><img src="assets/icons/icon-radar.png" alt="Radar du manager"></div>
+        <div class="nav-body">
+          <div class="nav-title">Radar du Manager</div>
+          <div class="nav-desc">8 domaines de responsabilité</div>
+        </div>
+        <div class="nav-arrow">›</div>
+      </a>
+      <a class="nav-item" data-role="manager" data-preview="true" href="NEXUS-Rayon-v1.html">
+        <div class="nav-icon"><img src="assets/icons/icon-rayon.png" alt="Rayon"></div>
+        <div class="nav-body">
+          <div class="nav-title">Rayon</div>
+          <div class="nav-desc">CA, marge, top ventes par catégorie</div>
+        </div>
+        <div class="nav-arrow">›</div>
+      </a>
+      <a class="nav-item" data-role="manager" href="NEXUS-Produits-v1.html">
+        <div class="nav-icon"><img src="assets/icons/icon-produits.png" alt="Produits"></div>
+        <div class="nav-body">
+          <div class="nav-title">Produits</div>
+          <div class="nav-desc">Fiche complète par référence</div>
+        </div>
+        <div class="nav-arrow">›</div>
+      </a>
+      <a class="nav-item" data-role="manager" href="NEXUS-Scanner-Stock-v1.html">
+        <div class="nav-icon"><img src="assets/icons/icon-scanner-stock.png" alt="Scanner Stock"></div>
+        <div class="nav-body">
+          <div class="nav-title">Scanner Stock <span class="nav-badge badge-premium">Premium</span></div>
+          <div class="nav-desc">Où vous perdez de l'argent, quoi recompter</div>
+        </div>
+        <div class="nav-arrow">›</div>
+      </a>
+    </nav>
+  </div>
 
-  <div class="section-label" data-role="manager" style="display:none;">Découvrir</div>
-  <nav data-role="manager" data-group="decouvrir" style="display:none;">
-    <a class="nav-item" data-role="manager" data-preview="true" href="NEXUS-Scanner-v1.html">
-      <div class="nav-icon"><img src="assets/icons/icon-scanner.png" alt="Scanner NEXUS"></div>
-      <div class="nav-body">
-        <div class="nav-title">Scanner NEXUS</div>
-        <div class="nav-desc">CA, marge et répartition ABC du magasin</div>
-      </div>
-      <div class="nav-arrow">›</div>
-    </a>
-    <a class="nav-item" data-role="manager" href="NEXUS-Capital-v1.html">
-      <div class="nav-icon"><img src="assets/icons/icon-capital.png" alt="Capital NEXUS"></div>
-      <div class="nav-body">
-        <div class="nav-title">Capital NEXUS <span class="nav-badge badge-soon">Démo</span></div>
-        <div class="nav-desc">La valeur créée par vos décisions</div>
-      </div>
-      <div class="nav-arrow">›</div>
-    </a>
-  </nav>
+  <div class="groupe-wrap" data-groupe="gerer">
+    <div class="section-label" data-role="manager" style="display:none;">Gérer</div>
+    <nav data-role="manager" data-group="gerer" style="display:none;">
+      <a class="nav-item" data-role="manager" href="NEXUS-Import-v1.html">
+        <div class="nav-icon"><img src="assets/icons/icon-import.png" alt="Import"></div>
+        <div class="nav-body">
+          <div class="nav-title">Import</div>
+          <div class="nav-desc">Ventes, catalogue ou stock instantané</div>
+        </div>
+        <div class="nav-arrow">›</div>
+      </a>
+      <a class="nav-item" data-role="manager" href="NEXUS-Parametres-Station-v1.html">
+        <div class="nav-icon">⚙️</div>
+        <div class="nav-body">
+          <div class="nav-title">Paramètres Station</div>
+          <div class="nav-desc">Horaires de service, prix carburants</div>
+        </div>
+        <div class="nav-arrow">›</div>
+      </a>
+    </nav>
+  </div>
 
-  <div class="section-label" data-role="manager" style="display:none;">Intelligence NEXUS</div>
-  <nav data-role="manager" data-group="intelligence" style="display:none;">
-    <a class="nav-item" data-role="manager" data-preview="true" href="NEXUS-Centre-Intelligence-v1.html">
-      <div class="nav-icon"><img src="assets/icons/icon-centre-intelligence.png" alt="Centre d'Intelligence NEXUS"></div>
-      <div class="nav-body">
-        <div class="nav-title">Centre d'Intelligence NEXUS</div>
-        <div class="nav-desc">Que détecte NEXUS dans mon commerce ?</div>
-      </div>
-      <div class="nav-arrow">›</div>
-    </a>
-    <a class="nav-item" data-role="manager" href="NEXUS-Journal-v1.html">
-      <div class="nav-icon"><img src="assets/icons/icon-journal-nexus.png" alt="Journal NEXUS"></div>
-      <div class="nav-body">
-        <div class="nav-title">Journal NEXUS</div>
-        <div class="nav-desc">Qu'est-ce qui a été fait aujourd'hui ?</div>
-      </div>
-      <div class="nav-arrow">›</div>
-    </a>
-  </nav>
+  <div class="groupe-wrap" data-groupe="decouvrir">
+    <div class="section-label" data-role="manager" style="display:none;">Découvrir</div>
+    <nav data-role="manager" data-group="decouvrir" style="display:none;">
+      <a class="nav-item" data-role="manager" data-preview="true" href="NEXUS-Scanner-v1.html">
+        <div class="nav-icon"><img src="assets/icons/icon-scanner.png" alt="Scanner NEXUS"></div>
+        <div class="nav-body">
+          <div class="nav-title">Scanner NEXUS</div>
+          <div class="nav-desc">CA, marge et répartition ABC du magasin</div>
+        </div>
+        <div class="nav-arrow">›</div>
+      </a>
+      <a class="nav-item" data-role="manager" href="NEXUS-Capital-v1.html">
+        <div class="nav-icon"><img src="assets/icons/icon-capital.png" alt="Capital NEXUS"></div>
+        <div class="nav-body">
+          <div class="nav-title">Capital NEXUS <span class="nav-badge badge-soon">Démo</span></div>
+          <div class="nav-desc">La valeur créée par vos décisions</div>
+        </div>
+        <div class="nav-arrow">›</div>
+      </a>
+    </nav>
+  </div>
+
+  <div class="groupe-wrap" data-groupe="intelligence">
+    <div class="section-label" data-role="manager" style="display:none;">Intelligence NEXUS</div>
+    <nav data-role="manager" data-group="intelligence" style="display:none;">
+      <a class="nav-item" data-role="manager" data-preview="true" href="NEXUS-Centre-Intelligence-v1.html">
+        <div class="nav-icon"><img src="assets/icons/icon-centre-intelligence.png" alt="Centre d'Intelligence NEXUS"></div>
+        <div class="nav-body">
+          <div class="nav-title">Centre d'Intelligence NEXUS</div>
+          <div class="nav-desc">Que détecte NEXUS dans mon commerce ?</div>
+        </div>
+        <div class="nav-arrow">›</div>
+      </a>
+      <a class="nav-item" data-role="manager" href="NEXUS-Journal-v1.html">
+        <div class="nav-icon"><img src="assets/icons/icon-journal-nexus.png" alt="Journal NEXUS"></div>
+        <div class="nav-body">
+          <div class="nav-title">Journal NEXUS</div>
+          <div class="nav-desc">Qu'est-ce qui a été fait aujourd'hui ?</div>
+        </div>
+        <div class="nav-arrow">›</div>
+      </a>
+    </nav>
+  </div>
 
   <div class="section-label" data-role="createur" style="display:none;">Créateur</div>
   <nav data-role="createur" data-group="createur" style="display:none;">
@@ -403,15 +511,462 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-auth.js"></script>
+<script src="nexus-periodes.js"></script>
+<script src="nexus-indice.js"></script>
 <script>
+  // ------------------------------------------------------------
+  // Calendrier fournisseurs partagé — extrait le 24/07/2026 (était
+  // recopié en dur dans une IIFE) pour être réutilisé à la fois par le
+  // badge "Urgent" du menu (comportement existant, inchangé) et par le
+  // KPI "Rappels" du nouveau poste de pilotage (compterRappelsUrgents()).
+  // Une seule source, deux affichages.
+  // ------------------------------------------------------------
+  const CAL_FOURNISSEURS = {
+    "_source": "PLANNING_COMMANDE.xlsx",
+    "_logique": "Passation obligatoire tous les 15 jours, le vendredi",
+    "dates": [
+      { "date_commande": "2026-01-09", "semaine": 2,  "periode_debut": "2026-01-11", "periode_fin": "2026-02-01" },
+      { "date_commande": "2026-01-23", "semaine": 4,  "periode_debut": "2026-01-25", "periode_fin": "2026-02-15" },
+      { "date_commande": "2026-02-06", "semaine": 6,  "periode_debut": "2026-02-08", "periode_fin": "2026-03-01" },
+      { "date_commande": "2026-02-20", "semaine": 8,  "periode_debut": "2026-02-22", "periode_fin": "2026-03-15" },
+      { "date_commande": "2026-03-06", "semaine": 10, "periode_debut": "2026-03-08", "periode_fin": "2026-03-29" },
+      { "date_commande": "2026-03-20", "semaine": 12, "periode_debut": "2026-03-22", "periode_fin": "2026-04-12" },
+      { "date_commande": "2026-04-03", "semaine": 14, "periode_debut": "2026-04-05", "periode_fin": "2026-04-26" },
+      { "date_commande": "2026-04-17", "semaine": 16, "periode_debut": "2026-04-19", "periode_fin": "2026-05-10" },
+      { "date_commande": "2026-05-01", "semaine": 18, "periode_debut": "2026-05-03", "periode_fin": "2026-05-24" },
+      { "date_commande": "2026-05-15", "semaine": 20, "periode_debut": "2026-05-17", "periode_fin": "2026-06-07" },
+      { "date_commande": "2026-05-29", "semaine": 22, "periode_debut": "2026-05-31", "periode_fin": "2026-06-21" },
+      { "date_commande": "2026-06-12", "semaine": 24, "periode_debut": "2026-06-14", "periode_fin": "2026-07-05" },
+      { "date_commande": "2026-06-26", "semaine": 26, "periode_debut": "2026-06-28", "periode_fin": "2026-07-19" },
+      { "date_commande": "2026-07-10", "semaine": 28, "periode_debut": "2026-07-12", "periode_fin": "2026-08-02" },
+      { "date_commande": "2026-07-24", "semaine": 30, "periode_debut": "2026-07-26", "periode_fin": "2026-08-16" },
+      { "date_commande": "2026-08-07", "semaine": 32, "periode_debut": "2026-08-09", "periode_fin": "2026-08-30" },
+      { "date_commande": "2026-08-21", "semaine": 34, "periode_debut": "2026-08-23", "periode_fin": "2026-09-13" },
+      { "date_commande": "2026-09-04", "semaine": 36, "periode_debut": "2026-09-06", "periode_fin": "2026-09-27" },
+      { "date_commande": "2026-09-18", "semaine": 38, "periode_debut": "2026-09-20", "periode_fin": "2026-10-11" },
+      { "date_commande": "2026-10-02", "semaine": 40, "periode_debut": "2026-10-04", "periode_fin": "2026-10-25" },
+      { "date_commande": "2026-10-16", "semaine": 42, "periode_debut": "2026-10-18", "periode_fin": "2026-11-08" },
+      { "date_commande": "2026-10-30", "semaine": 44, "periode_debut": "2026-11-01", "periode_fin": "2026-11-22" },
+      { "date_commande": "2026-11-13", "semaine": 46, "periode_debut": "2026-11-15", "periode_fin": "2026-12-06" },
+      { "date_commande": "2026-11-27", "semaine": 48, "periode_debut": "2026-11-29", "periode_fin": "2026-12-20" },
+      { "date_commande": "2026-12-11", "semaine": 50, "periode_debut": "2026-12-13", "periode_fin": "2027-01-03" },
+      { "date_commande": "2026-12-25", "semaine": 52, "periode_debut": "2026-12-27", "periode_fin": "2027-01-17" },
+      { "date_commande": "2027-01-08", "semaine": 54, "periode_debut": "2027-01-10", "periode_fin": "2027-01-31" },
+      { "date_commande": "2027-01-22", "semaine": 56, "periode_debut": "2027-01-24", "periode_fin": "2027-02-14" },
+      { "date_commande": "2027-02-05", "semaine": 58, "periode_debut": "2027-02-07", "periode_fin": "2027-02-28" }
+    ]
+  };
+  function compterRappelsUrgents() {
+    const today = new Date(); today.setHours(0,0,0,0);
+    const jours = d => Math.round((new Date(d) - today) / 86400000);
+    let n = 0;
+    const prochaine = CAL_FOURNISSEURS.dates.find(d => jours(d.date_commande) >= 0);
+    if (prochaine && jours(prochaine.date_commande) <= 1) n++;
+    const rappelsManuels = JSON.parse(localStorage.getItem('nexus_rappels_manuels') || '[]');
+    rappelsManuels.forEach(r => { if (jours(r.date) >= 0 && jours(r.date) <= 1) n++; });
+    return n;
+  }
+
+  // ------------------------------------------------------------
+  // Moteur de recommandations du Conseiller (24/07/2026) — mêmes règles
+  // R4-RENFORT-A / R3-HAUSSE / R2-BAISSE que construirePlansAction() dans
+  // NEXUS-Cockpit-v2.html, reproduites ici pour que l'accueil affiche de
+  // VRAIES priorités (mêmes seuils, mêmes données products). C'est une
+  // duplication assumée : le même moteur est déjà recopié dans Missions,
+  // Produits, Centre-Intelligence, Rayon, Scanner et Radar-Manager — un
+  // nexus-conseiller.js partagé reste une piste pour plus tard, pas fait
+  // aujourd'hui. Volontairement allégé : seul le texte de recommandation
+  // est repris (pas le récit complet Situation/Contexte/Analyse, que
+  // l'accueil n'affiche pas).
+  // ------------------------------------------------------------
+  const LANGAGE_ACTION_HOME = {
+    facing: {
+      recoAgir: a => `Vérifiez et renforcez le facing de ${a}.`,
+      recoHausse: a => `Renforcez le facing de ${a} avant la période suivante.`,
+      recoBaisse: a => `Vérifiez la présence en rayon de ${a} avant toute décision.`,
+    },
+    stock: {
+      recoAgir: a => `Vérifiez le stock disponible en dépôt/cage pour ${a}.`,
+      recoHausse: a => `Sécurisez davantage de stock de ${a} avant la période suivante.`,
+      recoBaisse: a => `Vérifiez le stock en dépôt/cage de ${a} avant toute décision.`,
+    },
+    support: {
+      recoAgir: a => `Vérifiez le stock de cartes et l'activation en caisse pour ${a}.`,
+      recoHausse: a => `Prévoyez davantage de support et d'activation pour ${a} avant la période suivante.`,
+      recoBaisse: a => `Vérifiez la disponibilité du support et son activation en caisse pour ${a}.`,
+    },
+    production: {
+      recoAgir: a => `Ajustez la quantité commandée ou produite de ${a} au niveau réel de la demande.`,
+      recoHausse: a => `Augmentez la quantité commandée ou produite de ${a} avant la période suivante.`,
+      recoBaisse: a => `Vérifiez si la quantité produite ou commandée de ${a} a été réduite.`,
+    },
+    comptoir: {
+      recoAgir: a => `Vérifiez la disponibilité au comptoir de ${a}.`,
+      recoHausse: a => `Garantissez la disponibilité au comptoir de ${a} avant la période suivante.`,
+      recoBaisse: a => `Vérifiez la disponibilité au comptoir de ${a} avant toute décision.`,
+    },
+    presentoir: {
+      recoAgir: a => `Vérifiez l'emplacement de ${a} sur le présentoir.`,
+      recoHausse: a => `Améliorez l'emplacement de ${a} sur le présentoir.`,
+      recoBaisse: a => `Vérifiez l'emplacement de ${a} sur le présentoir avant toute décision.`,
+    },
+  };
+  function typeActionPourCategorieHome(categorie) {
+    const c = (categorie || '').toLowerCase();
+    if (c.includes('gaz')) return 'stock';
+    if (c.includes('carte') || c.includes('prépayé') || c.includes('prepaye') || c.includes('transcash') || c.includes('pcs')) return 'support';
+    if (c.includes('pain') || c.includes('patisserie') || c.includes('pâtisserie') || c.includes('viennoiserie') || c.includes('sandwich') || c.includes('snack')) return 'production';
+    if (c.includes('tabac') || c.includes('cigarette') || c.includes('paquet de')) return 'comptoir';
+    if (c.includes('presse')) return 'presentoir';
+    return 'facing';
+  }
+
+  // Supabase plafonne chaque requete a 1000 lignes par defaut — meme
+  // helper que Cockpit/Scanner/Verify/etc.
+  async function fetchAllRowsHome(builderFactory, pageSize = 1000) {
+    let toutes = [];
+    let from = 0;
+    while (true) {
+      const { data, error } = await builderFactory().range(from, from + pageSize - 1);
+      if (error) return { data: null, error };
+      toutes = toutes.concat(data || []);
+      if (!data || data.length < pageSize) break;
+      from += pageSize;
+    }
+    return { data: toutes, error: null };
+  }
+
+  async function calculerCandidatsHome(siteId) {
+    const [{ data, error }, produitsAppelRes] = await Promise.all([
+      fetchAllRowsHome(() => nexusClient.from('products')
+        .select('categorie, article, ca, marge, periode_debut, periode_fin')
+        .eq('site', siteId)
+        .order('periode_debut', { ascending: false })
+        .order('article', { ascending: true })),
+      nexusClient.from('produits_appel').select('article').eq('site', siteId),
+    ]);
+    if (error || !data || !data.length) { console.error('Chargement products (accueil):', error); return { candidats: [], facteurs: null }; }
+    const produitsAppel = new Set(((produitsAppelRes && produitsAppelRes.data) || []).map(r => r.article));
+    const rowsBrut = data.filter(r => !produitsAppel.has(r.article));
+
+    const { periodeAffichage, rowsAffichage, paire, rowsPaireActuelle, rowsPairePrecedente } = NexusPeriodes.analyserPeriodes(rowsBrut);
+    if (!periodeAffichage) return { candidats: [], facteurs: null };
+
+    const facteurs = NexusIndice.calculerFacteurs(rowsBrut);
+
+    const caTotalParRayon = {};
+    rowsAffichage.forEach(r => { caTotalParRayon[r.categorie] = (caTotalParRayon[r.categorie] || 0) + (r.ca || 0); });
+    const precedentParArticle = {};
+    rowsPairePrecedente.forEach(r => {
+      const cle = r.categorie + '|' + r.article;
+      precedentParArticle[cle] = (precedentParArticle[cle] || 0) + (r.ca || 0);
+    });
+
+    const candidats = [];
+    rowsAffichage.forEach(p => {
+      const caRayon = caTotalParRayon[p.categorie] || 0;
+      const contribution = caRayon > 0 ? p.ca / caRayon : 0;
+      if (contribution >= 0.15 && p.ca > 0) {
+        const lang = LANGAGE_ACTION_HOME[typeActionPourCategorieHome(p.categorie)];
+        candidats.push({ etat: '🔥 À AGIR', article: p.article, categorie: p.categorie, impact_eur: p.ca,
+          recommandation: lang.recoAgir(p.article), candidate_id: `LIVE-R4-${p.categorie}|${p.article}` });
+      }
+    });
+    if (paire) {
+      rowsPaireActuelle.forEach(p => {
+        const cle = p.categorie + '|' + p.article;
+        const caPrec = precedentParArticle[cle];
+        const evolution = (caPrec && caPrec > 0) ? (p.ca - caPrec) / caPrec : null;
+        if (evolution === null) return;
+        const lang = LANGAGE_ACTION_HOME[typeActionPourCategorieHome(p.categorie)];
+        if (evolution >= 0.20) {
+          const gain = Math.max(p.ca - caPrec, 0);
+          candidats.push({ etat: '📈 OPPORTUNITÉ', article: p.article, categorie: p.categorie, impact_eur: gain,
+            recommandation: lang.recoHausse(p.article), candidate_id: `LIVE-R3-${cle}` });
+        }
+        if (evolution <= -0.30) {
+          const perte = Math.max(caPrec - p.ca, 0);
+          candidats.push({ etat: '🟡 À SURVEILLER', article: p.article, categorie: p.categorie, impact_eur: perte,
+            recommandation: lang.recoBaisse(p.article), candidate_id: `LIVE-R2-${cle}` });
+        }
+      });
+    }
+    candidats.sort((a, b) => b.impact_eur - a.impact_eur);
+    return { candidats, facteurs };
+  }
+
+  async function chargerValideesHome(siteId) {
+    const { data, error } = await nexusClient.from('journal_decisions').select('candidate_id').eq('site', siteId);
+    if (error) { console.error('Chargement journal_decisions (accueil):', error); return new Set(); }
+    return new Set((data || []).map(d => d.candidate_id));
+  }
+
+  async function chargerDecisionsAujourdhui(siteId) {
+    const aujourdhui = new Date().toISOString().slice(0, 10);
+    const { data, error } = await nexusClient.from('journal_decisions').select('impact_eur').eq('site', siteId).eq('date', aujourdhui);
+    if (error) { console.error('Chargement décisions du jour:', error); return { nb: 0, gain: 0 }; }
+    return { nb: (data || []).length, gain: (data || []).reduce((s, d) => s + (d.impact_eur || 0), 0) };
+  }
+
+  // Mêmes formules que NEXUS-Radar-Manager-v1.html (Équipe via retards de
+  // pointage, Développement via points de missions) — reproduites ici pour
+  // que le KPI "Équipe" de l'accueil et le domaine "Équipe" du Radar
+  // affichent toujours le même nombre.
+  async function chargerDomainesRadarHome() {
+    const [{ data: completions, error: e1 }, { data: pointages, error: e2 }] = await Promise.all([
+      nexusClient.from('mission_completions').select('points'),
+      nexusClient.from('pointages').select('retard_min').eq('type', 'arrivee').gt('retard_min', 0),
+    ]);
+    if (e1) console.error('Chargement mission_completions (accueil):', e1);
+    if (e2) console.error('Chargement pointages (accueil):', e2);
+    let devScore = null;
+    if (completions && completions.length) {
+      const points = completions.reduce((s, c) => s + (c.points || 0), 0);
+      devScore = Math.round(Math.max(0, points) / (completions.length * 12) * 100);
+    }
+    let equipeScore = null;
+    if (pointages) {
+      const totalRetard = pointages.reduce((s, p) => s + (p.retard_min || 0), 0);
+      equipeScore = Math.round(Math.max(0, 100 - totalRetard));
+    }
+    return { devScore, equipeScore };
+  }
+
+  // Nexus Verify n'a pas de notion de "contrôle en attente" en base — sa
+  // convention est 2 quarts/jour (quart1/quart2, cf. station_config.horaires
+  // partout ailleurs dans NEXUS). On compare donc les quarts déjà audités
+  // aujourd'hui à ces 2 quarts attendus, sans inventer de troisième chiffre.
+  async function chargerControlesVerifyHome(siteId) {
+    const aujourdhui = new Date().toISOString().slice(0, 10);
+    const { data, error } = await nexusClient.from('audits_caisse').select('quart').eq('site', siteId).eq('date', aujourdhui);
+    if (error) { console.error('Chargement audits_caisse (accueil):', error); return null; }
+    const quartsFaits = new Set((data || []).map(a => a.quart));
+    return Math.max(0, 2 - quartsFaits.size);
+  }
+
+  let SITE_HOME = 'vito-sainte-marie';
+  let EMPLOYEE_HOME_ID = null;
+
+  async function validerDecisionHome(candidat) {
+    const ruleId = candidat.candidate_id.startsWith('LIVE-R4') ? 'R4-RENFORT-A'
+      : candidat.candidate_id.startsWith('LIVE-R3') ? 'R3-HAUSSE' : 'R2-BAISSE';
+    const { error } = await nexusClient.from('journal_decisions').insert({
+      site: SITE_HOME, candidate_id: candidat.candidate_id, rule_id: ruleId, etat: candidat.etat,
+      recommandation: candidat.recommandation, impact_eur: candidat.impact_eur, article: candidat.article,
+      categorie: candidat.categorie, date: new Date().toISOString().slice(0, 10), heure: new Date().toTimeString().slice(0, 5),
+      employee_id: EMPLOYEE_HOME_ID,
+    });
+    if (error) { console.error('Enregistrement décision (accueil):', error); return false; }
+    return true;
+  }
+
+  function renderEtatCommerce(score, facteurs, candidatsDisponibles) {
+    const valeurEl = document.getElementById('indiceValeur');
+    const badgeEl = document.getElementById('indiceBadge');
+    const subEl = document.getElementById('indiceSub');
+    const narrEl = document.getElementById('etatNarrative');
+    const syntheseEl = document.getElementById('syntheseJour');
+
+    let couleur = 'var(--text-dim)', statutTexte = null;
+    if (score == null) {
+      valeurEl.textContent = '—';
+      subEl.textContent = "Pas assez de données pour calculer l'indice.";
+    } else {
+      valeurEl.textContent = score;
+      if (score >= 90) { couleur = 'var(--green)'; statutTexte = 'Excellence'; }
+      else if (score >= 75) { couleur = 'var(--green)'; statutTexte = 'Sous contrôle'; }
+      else if (score >= 60) { couleur = 'var(--amber)'; statutTexte = 'À surveiller'; }
+      else { couleur = 'var(--red)'; statutTexte = 'Priorité élevée'; }
+      valeurEl.style.color = couleur;
+      badgeEl.textContent = statutTexte;
+      badgeEl.style.color = couleur;
+      badgeEl.style.background = score >= 75 ? 'var(--green-dim)' : (score >= 60 ? 'var(--amber-dim)' : 'var(--red-dim)');
+      badgeEl.style.display = 'inline-block';
+      subEl.textContent = (facteurs && facteurs.margeReelle != null)
+        ? `Marge ${(facteurs.margeReelle * 100).toFixed(1)} %${facteurs.evolutionReelle != null ? ' · évolution ' + (facteurs.evolutionReelle >= 0 ? '+' : '') + (facteurs.evolutionReelle * 100).toFixed(1) + ' %' : ''}`
+        : 'Marge non calculable';
+    }
+
+    const nbUrgent = candidatsDisponibles.filter(c => c.etat === '🔥 À AGIR' || c.etat === '🟡 À SURVEILLER').length;
+    narrEl.innerHTML = `<span class="etat-dot" style="background:${couleur}; color:${couleur};"></span>${nbUrgent > 0
+      ? `${nbUrgent} point${nbUrgent > 1 ? 's' : ''} identifié${nbUrgent > 1 ? 's' : ''} sur vos données actuelles.`
+      : "Aucun point d'attention identifié sur vos données actuelles."}`;
+
+    const nbDecisions = Math.min(candidatsDisponibles.length, 3);
+    const gainPotentiel = candidatsDisponibles.slice(0, 3).reduce((s, c) => s + c.impact_eur, 0);
+    let syntheseTexte;
+    if (!statutTexte) {
+      syntheseTexte = "Pas encore assez de données pour évaluer votre situation aujourd'hui.";
+    } else if (nbDecisions === 0) {
+      syntheseTexte = `Situation <b>${statutTexte.toLowerCase()}</b> — aucune décision urgente identifiée aujourd'hui.`;
+    } else if (nbDecisions === 1) {
+      syntheseTexte = `Votre commerce est <b>${statutTexte.toLowerCase()}</b>. Une décision peut générer environ <b style="color:var(--gold);">${Math.round(gainPotentiel).toLocaleString('fr-FR')} €</b> de valeur aujourd'hui.`;
+    } else {
+      syntheseTexte = `Votre commerce est <b>${statutTexte.toLowerCase()}</b>. ${nbDecisions} décisions peuvent générer environ <b style="color:var(--gold);">${Math.round(gainPotentiel).toLocaleString('fr-FR')} €</b> de valeur aujourd'hui.`;
+    }
+    syntheseEl.style.display = 'flex';
+    syntheseEl.innerHTML = `<span class="synthese-dot" style="background:${couleur}; color:${couleur};"></span><span>${syntheseTexte}</span>`;
+  }
+
+  function renderConseillerHome(top3, employeeNom) {
+    const corps = document.getElementById('conseillerCorps');
+    if (!top3.length) {
+      corps.innerHTML = `<div class="conseiller-text">✅ Rien ne nécessite votre attention immédiate sur les données actuelles.</div>`;
+      return;
+    }
+    const gainTotal = top3.reduce((s, c) => s + c.impact_eur, 0);
+    corps.innerHTML = `
+      <div class="conseiller-text">${employeeNom}, bonjour. Voici les décisions qui comptent aujourd'hui :</div>
+      ${top3.map((c, i) => `
+        <div class="priorite-item" id="priorite-item-${i}">
+          <span class="priorite-check" data-idx="${i}">✓</span>
+          <div class="priorite-body">
+            <span class="priorite-num">${i + 1}.</span> ${c.recommandation}
+            <a class="priorite-lien" href="NEXUS-Produits-v1.html">Voir dans Produits →</a>
+          </div>
+        </div>`).join('')}
+      <div class="conseiller-footer"><span id="prioriteProgressHome">0 / ${top3.length} traitées</span><span>Gain potentiel : <b>${Math.round(gainTotal).toLocaleString('fr-FR')} €</b></span></div>
+    `;
+    let traitees = 0;
+    document.querySelectorAll('#conseillerCorps .priorite-check').forEach(check => {
+      check.addEventListener('click', async () => {
+        if (check.style.pointerEvents === 'none') return;
+        check.style.pointerEvents = 'none';
+        const candidat = top3[parseInt(check.dataset.idx, 10)];
+        const ok = await validerDecisionHome(candidat);
+        if (!ok) { check.style.pointerEvents = ''; alert("Erreur d'enregistrement — réessayez."); return; }
+        document.getElementById('priorite-item-' + check.dataset.idx).classList.add('traitee');
+        traitees++;
+        document.getElementById('prioriteProgressHome').textContent = traitees + ' / ' + top3.length + ' traitées';
+      });
+    });
+  }
+
+  function renderKpiGrid({ missionsActives, nbRappels, decisionsJour, equipeScore }) {
+    document.getElementById('kpiGrid').innerHTML = `
+      <a class="kpi-chip" href="NEXUS-Missions-v1.html">
+        <div class="kpi-chip-label">Missions</div>
+        <div class="kpi-chip-value">${missionsActives != null ? missionsActives : '—'}</div>
+        <div class="kpi-chip-sub">actives au catalogue</div>
+      </a>
+      <a class="kpi-chip" href="NEXUS-Parametres-Rappels-v1.html">
+        <div class="kpi-chip-label">Rappels</div>
+        <div class="kpi-chip-value" style="color:${nbRappels > 0 ? 'var(--red)' : 'var(--text)'};">${nbRappels}</div>
+        <div class="kpi-chip-sub">${nbRappels > 0 ? 'à traiter sous 24h' : 'rien d’urgent'}</div>
+      </a>
+      <a class="kpi-chip" href="NEXUS-Journal-v1.html">
+        <div class="kpi-chip-label">Décisions validées</div>
+        <div class="kpi-chip-value" style="color:var(--green);">${decisionsJour.nb}</div>
+        <div class="kpi-chip-sub">${decisionsJour.nb > 0 ? '+' + Math.round(decisionsJour.gain).toLocaleString('fr-FR') + ' € aujourd’hui' : 'aujourd’hui'}</div>
+      </a>
+      <a class="kpi-chip" href="NEXUS-Radar-Manager-v1.html">
+        <div class="kpi-chip-label">Équipe</div>
+        <div class="kpi-chip-value">${equipeScore != null ? equipeScore + ' %' : '—'}</div>
+        <div class="kpi-chip-sub">ponctualité mesurée</div>
+      </a>
+    `;
+  }
+
+  function renderOutilsGrid({ nbAlertes, nbOpportunites, controlesVerify, nbDomainesFaibles, nbDomainesMesures, nbRecommandations }) {
+    document.getElementById('outilsGrid').innerHTML = `
+      <a class="outil-card" href="NEXUS-Cockpit-v2.html">
+        <div class="outil-icon"><img src="assets/icons/icon-home.png" alt=""></div>
+        <div class="outil-title">Cockpit</div>
+        <div class="outil-desc">${nbAlertes > 0 ? `<span style="color:var(--red);">${nbAlertes} alerte${nbAlertes > 1 ? 's' : ''}</span>` : 'Aucune alerte'}${nbOpportunites > 0 ? ` · <span style="color:var(--green);">${nbOpportunites} opportunité${nbOpportunites > 1 ? 's' : ''}</span>` : ''}</div>
+      </a>
+      <a class="outil-card" href="NEXUS-Verify-v1.html">
+        <div class="outil-icon"><img src="assets/icons/icon-nexus-verify.png" alt="" style="filter:grayscale(1) brightness(1.05) contrast(1.05) sepia(1) hue-rotate(152deg) saturate(4);"></div>
+        <div class="outil-title">Verify</div>
+        <div class="outil-desc">${controlesVerify == null ? 'Contrôle caisse et écarts' : (controlesVerify > 0 ? `<span style="color:var(--amber);">${controlesVerify} contrôle${controlesVerify > 1 ? 's' : ''}</span> à effectuer` : `<span style="color:var(--green);">Audits du jour à jour</span>`)}</div>
+      </a>
+      <a class="outil-card" href="NEXUS-Radar-Manager-v1.html">
+        <div class="outil-icon"><img src="assets/icons/icon-radar.png" alt=""></div>
+        <div class="outil-title">Radar</div>
+        <div class="outil-desc">${nbDomainesFaibles > 0 ? `<span style="color:var(--amber);">${nbDomainesFaibles} point${nbDomainesFaibles > 1 ? 's' : ''} faible${nbDomainesFaibles > 1 ? 's' : ''}</span> sur ${nbDomainesMesures} mesuré${nbDomainesMesures > 1 ? 's' : ''}` : `${nbDomainesMesures} domaine${nbDomainesMesures > 1 ? 's' : ''} mesuré${nbDomainesMesures > 1 ? 's' : ''} — sain${nbDomainesMesures > 1 ? 's' : ''}`}</div>
+      </a>
+      <a class="outil-card" href="NEXUS-Produits-v1.html">
+        <div class="outil-icon"><img src="assets/icons/icon-produits.png" alt=""></div>
+        <div class="outil-title">Produits</div>
+        <div class="outil-desc">${nbRecommandations > 0 ? `<span style="color:var(--cyan);">${nbRecommandations} recommandation${nbRecommandations > 1 ? 's' : ''}</span> active${nbRecommandations > 1 ? 's' : ''}` : 'Aucune recommandation active'}</div>
+      </a>
+    `;
+  }
+
+  async function initPosteManager(employee) {
+    SITE_HOME = employee.site_id || 'vito-sainte-marie';
+    EMPLOYEE_HOME_ID = employee.id;
+
+    const [
+      { candidats, facteurs },
+      valideesSite,
+      decisionsJour,
+      domainesRadar,
+      controlesVerify,
+      missionsCatalogueRes,
+    ] = await Promise.all([
+      calculerCandidatsHome(SITE_HOME),
+      chargerValideesHome(SITE_HOME),
+      chargerDecisionsAujourdhui(SITE_HOME),
+      chargerDomainesRadarHome(),
+      chargerControlesVerifyHome(SITE_HOME),
+      nexusClient.from('mission_catalog').select('mission_id', { count: 'exact', head: true }).eq('actif', true),
+    ]);
+
+    const candidatsDisponibles = candidats.filter(c => !valideesSite.has(c.candidate_id));
+    const score = facteurs ? NexusIndice.calculerIndiceNexus(facteurs) : null;
+
+    renderEtatCommerce(score, facteurs, candidatsDisponibles);
+    renderConseillerHome(candidatsDisponibles.slice(0, 3), employee.nom);
+    renderKpiGrid({
+      missionsActives: (missionsCatalogueRes && missionsCatalogueRes.count != null) ? missionsCatalogueRes.count : null,
+      nbRappels: compterRappelsUrgents(),
+      decisionsJour,
+      equipeScore: domainesRadar.equipeScore,
+    });
+
+    const nbAlertes = candidatsDisponibles.filter(c => c.etat === '🔥 À AGIR' || c.etat === '🟡 À SURVEILLER').length;
+    const nbOpportunites = candidatsDisponibles.filter(c => c.etat === '📈 OPPORTUNITÉ').length;
+    const domainesValeurs = [score, domainesRadar.equipeScore, domainesRadar.devScore];
+    const nbDomainesMesures = domainesValeurs.filter(v => v !== null).length;
+    const nbDomainesFaibles = domainesValeurs.filter(v => v !== null && v < 70).length;
+    renderOutilsGrid({ nbAlertes, nbOpportunites, controlesVerify, nbDomainesFaibles, nbDomainesMesures, nbRecommandations: candidatsDisponibles.length });
+  }
+
+  // Pointage du manager (24/07/2026) — voir migration-station-config-manager-
+  // pointage-v1.sql. Défaut FALSE si la colonne est absente ou nulle : ne
+  // jamais bloquer l'affichage sur une erreur reseau, se contenter de
+  // laisser Pointage grisé (comportement par defaut) en cas de doute.
+  async function appliquerPointageManagerMenu(siteId) {
+    const item = document.getElementById('navPointage');
+    if (!item) return;
+    const { data, error } = await nexusClient.from('station_config').select('manager_pointage_requis').eq('site', siteId).maybeSingle();
+    const requis = !error && !!(data && data.manager_pointage_requis);
+    if (!requis) {
+      item.classList.add('disabled');
+      item.removeAttribute('href');
+      const desc = document.getElementById('navPointageDesc');
+      if (desc) desc.textContent = 'Non requis pour votre poste — activable dans Paramètres Station';
+    }
+  }
+
+  // Légende de l'Indice NEXUS et repli du Niveau 4 — indépendants du rôle,
+  // câblés une seule fois au chargement (les éléments existent dans le DOM
+  // pour tout le monde, simplement masqués pour un non-manager).
+  document.getElementById('indiceLegendeToggle').addEventListener('click', () => {
+    document.getElementById('indiceLegende').classList.toggle('open');
+  });
+  document.getElementById('plusToggle').addEventListener('click', () => {
+    const toggle = document.getElementById('plusToggle');
+    const zone = document.getElementById('plusZone');
+    const ouvert = zone.classList.toggle('open');
+    toggle.classList.toggle('open', ouvert);
+  });
+
   nexusRequireAuth().then(async employee => {
     if (!employee) return; // nexus-auth.js gère déjà la redirection vers NEXUS-Login-v1.html
 
     // "gerant" a les memes droits d'affichage que "manager" (cf. RLS et
     // logique metier ailleurs dans NEXUS, ex: caisse_sante_historique).
-    // Corrige le bug du 20/07 : un employe role='gerant' se retrouvait
-    // avec le menu employe de base car ce fichier ne testait que
-    // employee.role === 'manager' en egalite stricte.
     const estNiveauManager = employee.role === 'manager' || employee.role === 'gerant';
 
     const aujourdISO = new Date().toISOString().slice(0, 10);
@@ -462,69 +1017,26 @@
         : "Chaque mission réalisée contribue à la performance de votre équipe.";
     }
 
-    // Corrige le 21/07/2026 (Frederic a signale un flash de l'ecran manager
-    // complet avant le bon affichage employe) : tous les elements
-    // data-role="manager" partent desormais masques par defaut dans le HTML
-    // (style="display:none;" inline, meme mecanisme que data-role="createur"
-    // deja plus bas) — donc rien a cacher explicitement pour un non-manager,
-    // et on se contente de REVELER ces elements quand le role le justifie.
     if (estNiveauManager) {
       document.getElementById('heroEmploye').style.display = 'none';
       document.querySelectorAll('[data-role="manager"]').forEach(el => el.style.display = '');
 
-      // Les stats sous la carte Cockpit ("Indice santé 74", "228 Références",
-      // "50 Missions") étaient des valeurs figées dans le HTML, jamais
-      // branchées à Supabase — trouvé le 21/07/2026 lors d'une relecture
-      // générale. "Indice santé" est retiré : ce chiffre n'a AUCUNE formule
-      // réelle nulle part dans NEXUS — même le "74" est figé en dur dans
-      // NEXUS-Cockpit-v2.html lui-même (vérifié sur le fichier fourni par
-      // Frédéric), donc "connecter" ce chiffre reviendrait à inventer un
-      // calcul. Références et Missions, en revanche, sont désormais de
-      // vrais comptages Supabase.
-      (async function chargerStatsHeroCockpit() {
-        const siteId = employee.site_id || 'vito-sainte-marie';
-        const elRef = document.getElementById('statReferences');
-        const elMissions = document.getElementById('statMissions');
+      // Niveau 4 — regroupe "Analyse & pilotage", "Gérer", "Découvrir" et
+      // "Intelligence NEXUS" (déjà 100% manager-only) derrière le toggle
+      // "Tous les outils" : ces 4 groupes n'existent de toute façon pas
+      // pour un employé, donc les déplacer dans le DOM ne change rien à
+      // son expérience. "Votre journée" et "Équipe" restent à leur place
+      // (partagés entre les deux rôles, ne pas les déplacer pour ne pas
+      // les faire disparaître de l'écran employé).
+      const plusZone = document.getElementById('plusZone');
+      ['analyse', 'gerer', 'decouvrir', 'intelligence'].forEach(g => {
+        const wrap = document.querySelector(`.groupe-wrap[data-groupe="${g}"]`);
+        if (wrap) plusZone.appendChild(wrap);
+      });
 
-        // Références = nb d'articles distincts sur la période la plus
-        // récente de `products` (même logique que periodeActuelle dans
-        // NEXUS-Cockpit-v2.html : une ligne = un article pour cette
-        // période, donc un simple count suffit sur cette période).
-        const { data: dernierePeriode } = await nexusClient
-          .from('products').select('periode_debut').eq('site', siteId)
-          .order('periode_debut', { ascending: false }).limit(1).maybeSingle();
-        if (dernierePeriode && dernierePeriode.periode_debut) {
-          const { count, error } = await nexusClient
-            .from('products').select('article', { count: 'exact', head: true })
-            .eq('site', siteId).eq('periode_debut', dernierePeriode.periode_debut);
-          if (!error && count != null && elRef) elRef.textContent = count;
-        }
-
-        // Missions = nb de missions actives du catalogue, même requête que
-        // NEXUS-Missions-v1.html (pas de filtre par site dans ce fichier
-        // non plus, pour rester cohérent avec l'existant).
-        const { count: totalMissions, error: errMissions } = await nexusClient
-          .from('mission_catalog').select('mission_id', { count: 'exact', head: true })
-          .eq('actif', true);
-        if (!errMissions && totalMissions != null && elMissions) elMissions.textContent = totalMissions;
-      })();
-
-      // ------------------------------------------------------------
-      // Pointage du manager (24/07/2026, demande de Frédéric) — réglage
-      // par site, lu dans station_config.manager_pointage_requis, jamais
-      // codé en dur. Défaut FALSE (colonne absente ou false) : l'entrée
-      // "Pointage" reste grisée et non cliquable pour le manager. Les
-      // employés ne passent jamais par cette branche (estNiveauManager)
-      // et pointent donc dans tous les cas. Réglable dans
-      // NEXUS-Parametres-Station-v1.html.
-      // ------------------------------------------------------------
       await appliquerPointageManagerMenu(employee.site_id || 'vito-sainte-marie');
+      await initPosteManager(employee);
     } else {
-      // Bug trouve le 21/07/2026 lors d'une relecture generale : heroEmploye
-      // demarre masque (style="display:none;" inline, meme logique FOUC que
-      // les elements manager) mais rien ne le revelait jamais pour un vrai
-      // employe — la carte "Vos missions du jour" restait invisible en
-      // permanence sur l'accueil. Corrige ici.
       document.getElementById('heroEmploye').style.display = '';
     }
 
@@ -533,9 +1045,7 @@
     }
 
     // Marque dynamique — lit la table `sites` pour le site de l'employe
-    // connecte. Fondation multi-site (15/07/2026) : le site vient encore de
-    // employee.site_id, initialise a 'vito-sainte-marie' pour tout le monde
-    // tant que la migration complete n'est pas terminee.
+    // connecte.
     (async function chargerMarqueSite() {
       const siteId = employee.site_id || 'vito-sainte-marie';
       const { data: site, error } = await nexusClient.from('sites').select('nom_entreprise, logo_url').eq('site_id', siteId).maybeSingle();
@@ -550,32 +1060,17 @@
       }
     })();
 
-    // Rappel du Conseiller NEXUS — prix carburants du mois (SP / GO / GNR),
-    // indexes par la prefecture de Martinique, revises au 1er de chaque
-    // mois. Nexus Verify en a besoin pour calculer le montant de la remise
-    // en cuve a partir du litrage ; sans prix a jour, ce montant resterait
-    // a 0€ sans que personne ne s'en rende compte. Porte par l'avatar du
-    // Conseiller (pas un simple bandeau), et se represente toutes les
-    // heures tant que les prix du mois ne sont pas renseignes — que ce soit
-    // via ce rappel ou via Parametres Station.
+    // Rappel du Conseiller NEXUS — prix carburants du mois (SP / GO / GNR).
     if (estNiveauManager && !employee.consultation_externe) {
       const siteId = employee.site_id || 'vito-sainte-marie';
       const cleRappel = 'nexus_rappel_prix_carburants_' + siteId;
       const uneHeure = 60 * 60 * 1000;
 
-      // <input type=number> rejette la virgule decimale d'un clavier
-      // francais (valeur vide -> NaN) ; on saisit en texte et on accepte
-      // virgule et point ici.
       function numFR(valeur) {
         if (valeur == null) return NaN;
         return parseFloat(String(valeur).trim().replace(',', '.'));
       }
 
-      // station_config.horaires est NOT NULL en base. Ce rappel n'a pas le
-      // formulaire des horaires sous la main (contrairement a Parametres
-      // Station) : on doit donc les recharger (ou defaut) avant d'upserter,
-      // sinon un site sans ligne station_config existante echouerait avec
-      // "null value in column horaires violates not-null constraint".
       const HORAIRES_DEFAUT_RAPPEL = {
         quart1: { normal: "05:45", etendu: "05:45" },
         quart2: { normal: "12:40", etendu: "13:40" },
@@ -658,59 +1153,11 @@
       }
 
       verifierPrixEtMettreAJourRappel();
-      // Tant que la page reste ouverte (poste fixe/tablette a l'accueil), on
-      // relance le rappel toutes les heures sans attendre une nouvelle navigation.
       setInterval(verifierPrixEtMettreAJourRappel, uneHeure);
     }
 
     (function verifierRappelsUrgents() {
-      const CAL_FOURNISSEURS = {
-  "_source": "PLANNING_COMMANDE.xlsx",
-  "_logique": "Passation obligatoire tous les 15 jours, le vendredi",
-  "dates": [
-    { "date_commande": "2026-01-09", "semaine": 2,  "periode_debut": "2026-01-11", "periode_fin": "2026-02-01" },
-    { "date_commande": "2026-01-23", "semaine": 4,  "periode_debut": "2026-01-25", "periode_fin": "2026-02-15" },
-    { "date_commande": "2026-02-06", "semaine": 6,  "periode_debut": "2026-02-08", "periode_fin": "2026-03-01" },
-    { "date_commande": "2026-02-20", "semaine": 8,  "periode_debut": "2026-02-22", "periode_fin": "2026-03-15" },
-    { "date_commande": "2026-03-06", "semaine": 10, "periode_debut": "2026-03-08", "periode_fin": "2026-03-29" },
-    { "date_commande": "2026-03-20", "semaine": 12, "periode_debut": "2026-03-22", "periode_fin": "2026-04-12" },
-    { "date_commande": "2026-04-03", "semaine": 14, "periode_debut": "2026-04-05", "periode_fin": "2026-04-26" },
-    { "date_commande": "2026-04-17", "semaine": 16, "periode_debut": "2026-04-19", "periode_fin": "2026-05-10" },
-    { "date_commande": "2026-05-01", "semaine": 18, "periode_debut": "2026-05-03", "periode_fin": "2026-05-24" },
-    { "date_commande": "2026-05-15", "semaine": 20, "periode_debut": "2026-05-17", "periode_fin": "2026-06-07" },
-    { "date_commande": "2026-05-29", "semaine": 22, "periode_debut": "2026-05-31", "periode_fin": "2026-06-21" },
-    { "date_commande": "2026-06-12", "semaine": 24, "periode_debut": "2026-06-14", "periode_fin": "2026-07-05" },
-    { "date_commande": "2026-06-26", "semaine": 26, "periode_debut": "2026-06-28", "periode_fin": "2026-07-19" },
-    { "date_commande": "2026-07-10", "semaine": 28, "periode_debut": "2026-07-12", "periode_fin": "2026-08-02" },
-    { "date_commande": "2026-07-24", "semaine": 30, "periode_debut": "2026-07-26", "periode_fin": "2026-08-16" },
-    { "date_commande": "2026-08-07", "semaine": 32, "periode_debut": "2026-08-09", "periode_fin": "2026-08-30" },
-    { "date_commande": "2026-08-21", "semaine": 34, "periode_debut": "2026-08-23", "periode_fin": "2026-09-13" },
-    { "date_commande": "2026-09-04", "semaine": 36, "periode_debut": "2026-09-06", "periode_fin": "2026-09-27" },
-    { "date_commande": "2026-09-18", "semaine": 38, "periode_debut": "2026-09-20", "periode_fin": "2026-10-11" },
-    { "date_commande": "2026-10-02", "semaine": 40, "periode_debut": "2026-10-04", "periode_fin": "2026-10-25" },
-    { "date_commande": "2026-10-16", "semaine": 42, "periode_debut": "2026-10-18", "periode_fin": "2026-11-08" },
-    { "date_commande": "2026-10-30", "semaine": 44, "periode_debut": "2026-11-01", "periode_fin": "2026-11-22" },
-    { "date_commande": "2026-11-13", "semaine": 46, "periode_debut": "2026-11-15", "periode_fin": "2026-12-06" },
-    { "date_commande": "2026-11-27", "semaine": 48, "periode_debut": "2026-11-29", "periode_fin": "2026-12-20" },
-    { "date_commande": "2026-12-11", "semaine": 50, "periode_debut": "2026-12-13", "periode_fin": "2027-01-03" },
-    { "date_commande": "2026-12-25", "semaine": 52, "periode_debut": "2026-12-27", "periode_fin": "2027-01-17" },
-    { "date_commande": "2027-01-08", "semaine": 54, "periode_debut": "2027-01-10", "periode_fin": "2027-01-31" },
-    { "date_commande": "2027-01-22", "semaine": 56, "periode_debut": "2027-01-24", "periode_fin": "2027-02-14" },
-    { "date_commande": "2027-02-05", "semaine": 58, "periode_debut": "2027-02-07", "periode_fin": "2027-02-28" }
-  ]
-};
-      const today = new Date(); today.setHours(0,0,0,0);
-      const jours = d => Math.round((new Date(d) - today) / 86400000);
-
-      let urgent = false, motif = '';
-
-      const prochaine = CAL_FOURNISSEURS.dates.find(d => jours(d.date_commande) >= 0);
-      if (prochaine && jours(prochaine.date_commande) <= 1) { urgent = true; motif = 'Commande fournisseurs'; }
-
-      const rappelsManuels = JSON.parse(localStorage.getItem('nexus_rappels_manuels') || '[]');
-      rappelsManuels.forEach(r => { if (jours(r.date) >= 0 && jours(r.date) <= 1) { urgent = true; motif = motif || r.titre; } });
-
-      if (urgent) {
+      if (compterRappelsUrgents() > 0) {
         const navRappels = document.getElementById('navRappels');
         if (navRappels) {
           navRappels.classList.add('urgent');
@@ -721,23 +1168,6 @@
 
     initGroupes();
   });
-
-  // Pointage du manager (24/07/2026) — voir migration-station-config-manager-
-  // pointage-v1.sql. Défaut FALSE si la colonne est absente ou nulle : ne
-  // jamais bloquer l'affichage sur une erreur reseau, se contenter de
-  // laisser Pointage grisé (comportement par defaut) en cas de doute.
-  async function appliquerPointageManagerMenu(siteId) {
-    const item = document.getElementById('navPointage');
-    if (!item) return;
-    const { data, error } = await nexusClient.from('station_config').select('manager_pointage_requis').eq('site', siteId).maybeSingle();
-    const requis = !error && !!(data && data.manager_pointage_requis);
-    if (!requis) {
-      item.classList.add('disabled');
-      item.removeAttribute('href');
-      const desc = document.getElementById('navPointageDesc');
-      if (desc) desc.textContent = 'Non requis pour votre poste — activable dans Paramètres Station';
-    }
-  }
 
   // Chaque groupe ne montre que son element le plus parlant au depart, pour voir
   // toute la page sans defiler. S'il y a un item urgent (Rappels), il prend
@@ -775,11 +1205,9 @@
 
   // Style "liste groupee" façon Réglages iOS : chaque section est UNE seule
   // carte arrondie, avec un simple trait fin entre les lignes plutot qu'une
-  // carte separee par ecran (ajoute le 21/07/2026 pour harmoniser et
-  // simplifier la lecture). Comme le nombre de lignes visibles change
+  // carte separee par ecran. Comme le nombre de lignes visibles change
   // dynamiquement (repli/depli, droits manager), on retire le trait sous la
-  // derniere ligne REELLEMENT visible a chaque mise a jour, pour que le bas
-  // de chaque carte reste toujours net.
+  // derniere ligne REELLEMENT visible a chaque mise a jour.
   function majSeparateurs(navEl) {
     const conteneurs = navEl ? [navEl] : document.querySelectorAll('nav[data-group]');
     conteneurs.forEach(nav => {

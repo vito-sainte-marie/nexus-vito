@@ -226,7 +226,7 @@
     const tempsTotal = missions.reduce((s, m) => s + (m.estimated_duration_min || 0), 0);
     const quart = quartDuMoment();
 
-    document.getElementById('titre').textContent = 'Votre journée en un coup d\u2019œil';
+    document.getElementById('titre').textContent = 'Votre journée en un coup d’œil';
     document.getElementById('sousTitre').textContent = 'Vérifiez avant de confirmer votre prise de poste.';
 
     document.getElementById('content').innerHTML = `
@@ -301,13 +301,26 @@
         <div class="final-line"><span>Missions prévues</span><b>${nbMissions}</b></div>
         <div class="final-line"><span>Priorités</span><b>${prioritaires} avant votre pause</b></div>
         <div class="final-line"><span>Temps estimé</span><b>${tempsTotal} minutes</b></div>
-        <button class="btn-primary" id="btnDashboard">Ouvrir mon tableau de bord</button>
+        <button class="btn-primary" id="btnDashboard">${estNiveauManagerCourant() ? 'Ouvrir mon poste de pilotage' : 'Ouvrir mon tableau de bord'}</button>
       </div>
     `;
 
     document.getElementById('btnDashboard').addEventListener('click', () => {
-      window.location.href = 'NEXUS-Missions-v1.html';
+      // Correctif 24/07/2026 (demande de Frédéric) : un manager qui valide sa
+      // prise de poste doit atterrir sur son poste de pilotage (NEXUS-App-v1.html,
+      // la nouvelle page d'accueil décisionnelle), pas sur l'écran de missions
+      // pensé pour un employé. "gerant" a les memes droits d'affichage que
+      // "manager" partout ailleurs dans NEXUS (RLS, menu...) — meme regle ici.
+      window.location.href = estNiveauManagerCourant() ? 'NEXUS-App-v1.html' : 'NEXUS-Missions-v1.html';
     });
+  }
+
+  // Rôle RÉEL du compte (employees.role), pas le rôle choisi pour ce quart —
+  // un manager qui se met "renfort" pour la journée reste un manager, il
+  // doit toujours atterrir sur son poste de pilotage, pas sur l'écran
+  // missions pensé pour un employé.
+  function estNiveauManagerCourant() {
+    return employeeCourant && (employeeCourant.role === 'manager' || employeeCourant.role === 'gerant');
   }
 
   nexusRequireAuth().then(async employee => {
