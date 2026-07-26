@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NEXUS — Campagne</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
+  --text:#EDF1F5; --text-mid:#8A96A5; --text-dim:#57626F;
+  --green:#34D399; --green-dim:#153629;
+  --amber:#F5A623; --amber-dim:#3A2E14;
+  --cyan:#4FC3D9; --cyan-dim:#123138;
+  --violet:#8B7FE8; --violet-dim:#241F3D;
+  --red:#F0575A; --red-dim:#3A1D1F;
+  --gold:#D4AF37; --gold-dim:#332B12;
+  --mono:'IBM Plex Mono',monospace; --sans:'IBM Plex Sans',sans-serif;
+}
+*{box-sizing:border-box; margin:0; padding:0;}
+html,body{background:var(--bg); font-family:var(--sans); color:var(--text); min-height:100vh;}
+body{display:flex; justify-content:center; background-image:radial-gradient(circle at 50% 0%, rgba(79,195,217,0.07), transparent 45%);}
+a{color:inherit;}
+.app{width:100%; max-width:520px; min-height:100vh; display:flex; flex-direction:column; border-left:1px solid var(--hairline); border-right:1px solid var(--hairline); padding-bottom:40px;}
+
+.header{padding:20px 20px 14px; position:relative; display:flex; gap:12px; align-items:flex-start;}
+.menu-btn{position:absolute; top:18px; right:18px; display:flex; align-items:center; gap:6px; font-family:var(--mono); font-size:10.5px; font-weight:600; letter-spacing:0.03em; text-transform:uppercase; color:var(--cyan); background:rgba(79,195,217,0.1); border:1px solid rgba(79,195,217,0.3); border-radius:20px; padding:7px 12px; text-decoration:none; white-space:nowrap;}
+.header-icon{width:44px; height:44px; border-radius:12px; object-fit:cover; background:var(--panel-raised); border:1px solid var(--hairline); flex-shrink:0;}
+.eyebrow{font-family:var(--mono); font-size:11px; letter-spacing:0.12em; text-transform:uppercase; color:var(--cyan);}
+.title{font-size:20px; font-weight:600; margin-top:4px;}
+.subtitle{font-family:var(--sans); font-size:12.5px; color:var(--text-mid); margin-top:4px;}
+.divider{height:1px; background:var(--hairline); margin:0 20px;}
+
+.section{padding:0 20px;}
+.section-label{font-family:var(--mono); font-size:11px; letter-spacing:0.1em; text-transform:uppercase; color:var(--text-dim); display:flex; align-items:center; gap:10px; margin:26px 20px 12px;}
+.section-label::after{content:''; flex:1; height:1px; background:var(--hairline);}
+.section-note{font-family:var(--sans); font-size:11.5px; color:var(--text-mid); line-height:1.5; margin:-6px 20px 14px;}
+
+.btn-nouvelle{width:calc(100% - 40px); margin:0 20px; background:var(--cyan); color:#04141a; border:none; border-radius:10px; padding:14px; font-family:var(--sans); font-weight:700; font-size:14px; cursor:pointer;}
+
+.promo-form{background:var(--panel); border:1px solid var(--hairline); border-radius:14px; padding:18px; margin:14px 20px 0; display:none;}
+.promo-form.open{display:block;}
+.promo-field{margin-bottom:16px;}
+.promo-field:last-child{margin-bottom:0;}
+.promo-field label{display:block; font-family:var(--mono); font-size:10.5px; letter-spacing:0.06em; text-transform:uppercase; color:var(--text-dim); margin-bottom:8px;}
+.promo-field input[type=text], .promo-field input[type=date]{width:100%; background:var(--panel-raised); border:1px solid var(--hairline); border-radius:8px; padding:10px 11px; color:var(--text); font-family:var(--sans); font-size:13px;}
+.promo-dates{display:flex; gap:10px;}
+.promo-dates > div{flex:1;}
+.promo-dates label{font-size:9.5px; color:var(--text-dim); margin-bottom:6px;}
+
+.pill-group{display:flex; flex-wrap:wrap; gap:8px;}
+.pill{cursor:pointer; font-family:var(--mono); font-size:11px; padding:8px 13px; border-radius:20px; border:1px solid var(--hairline); background:var(--panel-raised); color:var(--text-mid); user-select:none; -webkit-tap-highlight-color:transparent;}
+.pill.active{background:var(--cyan-dim); border-color:rgba(79,195,217,0.4); color:var(--cyan); font-weight:600;}
+
+.chip-input-row{display:flex; gap:8px; margin-bottom:10px;}
+.chip-input-row input{flex:1;}
+.btn-ajouter-produit{flex-shrink:0; background:var(--panel-raised); color:var(--text); border:1px solid var(--hairline); border-radius:8px; padding:0 14px; font-family:var(--sans); font-size:12.5px; font-weight:600; cursor:pointer;}
+.chips-produits{display:flex; flex-wrap:wrap; gap:6px;}
+.chip-produit{font-family:var(--mono); font-size:11px; padding:6px 10px; border-radius:20px; background:var(--panel-raised); border:1px solid var(--hairline); color:var(--text-mid); display:flex; align-items:center; gap:6px;}
+.chip-remove{cursor:pointer; color:var(--text-dim); font-weight:700;}
+.chip-vide{font-family:var(--mono); font-size:10.5px; color:var(--text-dim); font-style:italic;}
+
+.btn-valider{width:100%; margin-top:6px; background:var(--green); color:#04140d; border:none; border-radius:10px; padding:13px; font-family:var(--sans); font-weight:700; font-size:13.5px; cursor:pointer;}
+.btn-valider:disabled{opacity:0.4; cursor:default;}
+.form-erreur{margin-top:10px; padding:9px 11px; background:var(--red-dim); color:var(--red); border-radius:8px; font-size:11.5px;}
+.form-succes{margin-top:10px; padding:9px 11px; background:var(--green-dim); color:var(--green); border-radius:8px; font-size:11.5px; text-align:center;}
+
+.promo-card{background:var(--panel); border:1px solid var(--hairline); border-radius:14px; padding:16px; margin:0 20px 10px;}
+.promo-card-top{display:flex; justify-content:space-between; align-items:flex-start; gap:10px; margin-bottom:8px;}
+.promo-nom{font-size:13.5px; font-weight:700;}
+.promo-dates-txt{font-family:var(--mono); font-size:10px; color:var(--text-dim); margin-top:3px;}
+.promo-badges{display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px;}
+.promo-badge{font-family:var(--mono); font-size:9px; padding:3px 9px; border-radius:20px; background:var(--panel-raised); color:var(--text-mid); white-space:nowrap;}
+.promo-produits{font-size:11px; color:var(--text-mid); margin-bottom:10px; line-height:1.5;}
+.promo-produits b{color:var(--text);}
+.promo-stat-row{display:flex; justify-content:space-between; align-items:center; gap:10px; font-size:11.5px; padding:6px 0; border-top:1px solid var(--hairline);}
+.promo-stat-row .cle{color:var(--text-mid);}
+.promo-stat-row .val{font-family:var(--mono); font-weight:600;}
+.promo-conseil{font-size:11.5px; color:var(--text-mid); line-height:1.6; margin-top:10px; padding-top:10px; border-top:1px solid var(--hairline);}
+.promo-conseil b{color:var(--text);}
+.promo-vide{padding:34px 20px; text-align:center; color:var(--text-dim); font-size:12.5px; margin:0 20px;}
+
+.phase-note{margin:16px 20px 0; padding:13px 15px; background:var(--panel-raised); border:1px dashed var(--hairline); border-radius:12px; font-size:11.5px; color:var(--text-mid); line-height:1.55;}
+
+.reserve{padding:60px 20px; text-align:center; color:var(--text-dim);}
+.loading{padding:60px 20px; text-align:center; color:var(--text-dim); font-size:13px;}
+footer{margin-top:auto; padding:20px 20px 24px; font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:center; border-top:1px solid var(--hairline); margin-top:30px;}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="nexus-auth.js"></script>
+<script src="nexus-tempo.js"></script>
+<script src="nexus-campagnes.js"></script>
+</head>
+<body>
+<div class="app" id="app">
+  <div class="header">
+    <img class="header-icon" src="assets/icons/icon-campagne-nexus.png" alt="">
+    <div>
+      <div class="eyebrow">NEXUS · Campagne</div>
+      <div class="title">Campagne NEXUS</div>
+      <div class="subtitle">Promouvoir. Mesurer. Progresser.</div>
+    </div>
+    <a href="NEXUS-App-v1.html" class="menu-btn">☰ Menu</a>
+  </div>
+  <div class="divider"></div>
+
+  <div id="root"><div class="loading">Chargement des campagnes…</div></div>
+
+  <footer>Campagne NEXUS · Vito Sainte-Marie Usine</footer>
+</div>
+
+<script>
+  // Supabase plafonne chaque requête à 1000 lignes — même garde-fou que
+  // partout ailleurs dans NEXUS.
+  async function fetchAllRows(builderFactory, pageSize = 1000) {
+    let toutes = [];
+    let from = 0;
+    while (true) {
+      const { data, error } = await builderFactory().range(from, from + pageSize - 1);
+      if (error) return { data: null, error };
+      toutes = toutes.concat(data || []);
+      if (!data || data.length < pageSize) break;
+      from += pageSize;
+    }
+    return { data: toutes, error: null };
+  }
+
+  function fmtEur(v) { return Math.round(v).toLocaleString('fr-FR') + ' €'; }
+  function fmtPct(v) { return v === null ? '—' : `${v >= 0 ? '+' : ''}${(v * 100).toFixed(1).replace('.', ',')} %`; }
+  function fmtDateCourt(iso) {
+    const d = NexusTempo.dateLocale(iso);
+    return d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  }
+
+  let SITE_ID = 'vito-sainte-marie';
+  let EMPLOYEE = null;
+  let produitsSelectionnes = [];
+
+  nexusRequireAuth().then(async employee => {
+    if (!employee) return;
+    if (employee.role !== 'manager' && employee.role !== 'gerant') {
+      document.getElementById('app').innerHTML = '<div class="reserve">Cet écran est réservé aux managers.</div>';
+      return;
+    }
+    EMPLOYEE = employee;
+    SITE_ID = employee.site_id || 'vito-sainte-marie';
+    await chargerEtAfficher();
+  });
+
+  async function chargerEtAfficher() {
+    const [{ data: auditsRows, error: e1 }, { data: campagnesRows, error: e2 }] = await Promise.all([
+      fetchAllRows(() => nexusClient.from('audits_caisse')
+        .select('date, quart, vente_piste, vente_boutique')
+        .eq('site', SITE_ID).order('date', { ascending: true })),
+      nexusClient.from('campagnes_nexus').select('id, nom, date_debut, date_fin, type, produits_concernes, nature, objectif, objectif_libre, cree_le')
+        .eq('site', SITE_ID).order('date_debut', { ascending: false }),
+    ]);
+    if (e1) console.error('Chargement audits_caisse:', e1);
+    if (e2) console.error('Chargement campagnes_nexus:', e2);
+
+    const joursAgreges = NexusTempo.agregerParJour(auditsRows || []);
+    // Même précaution que NEXUS Tempo : le jour en cours n'est jamais
+    // comparable, sa journée n'est pas terminée.
+    const joursExploitables = NexusTempo.filtrerJoursClos(joursAgreges);
+    const impacts = NexusCampagnes.analyserCampagnes(campagnesRows || [], joursExploitables);
+
+    renderTout(impacts);
+  }
+
+  // ------------------------------------------------------------
+  // Formulaire "Nouvelle promotion"
+  // ------------------------------------------------------------
+  let etatForm = { type: null, nature: null, objectif: null };
+
+  function toggleForm() {
+    const form = document.getElementById('promoForm');
+    const ouvert = form.classList.toggle('open');
+    document.getElementById('btnNouvelle').textContent = ouvert ? '✕ Annuler' : '➕ Nouvelle promotion';
+    if (!ouvert) reinitialiserForm();
+  }
+
+  function reinitialiserForm() {
+    etatForm = { type: null, nature: null, objectif: null };
+    produitsSelectionnes = [];
+    document.getElementById('promoNom').value = '';
+    document.getElementById('promoDateDebut').value = '';
+    document.getElementById('promoDateFin').value = '';
+    document.getElementById('promoObjectifLibre').value = '';
+    document.getElementById('promoObjectifLibre').style.display = 'none';
+    document.getElementById('promoProduitInput').value = '';
+    document.getElementById('formMessage').innerHTML = '';
+    document.querySelectorAll('.pill').forEach(p => p.classList.remove('active'));
+    renderChipsProduits();
+  }
+
+  function choisirPill(groupe, valeur, el) {
+    etatForm[groupe] = valeur;
+    document.querySelectorAll(`.pill[data-groupe="${groupe}"]`).forEach(p => p.classList.remove('active'));
+    el.classList.add('active');
+    if (groupe === 'objectif') {
+      document.getElementById('promoObjectifLibre').style.display = valeur === 'autre' ? 'block' : 'none';
+    }
+  }
+
+  function ajouterProduit() {
+    const input = document.getElementById('promoProduitInput');
+    const val = input.value.trim();
+    if (val && !produitsSelectionnes.includes(val)) {
+      produitsSelectionnes.push(val);
+      renderChipsProduits();
+    }
+    input.value = '';
+    input.focus();
+  }
+
+  function retirerProduit(nom) {
+    produitsSelectionnes = produitsSelectionnes.filter(p => p !== nom);
+    renderChipsProduits();
+  }
+
+  function renderChipsProduits() {
+    const zone = document.getElementById('chipsProduits');
+    if (!produitsSelectionnes.length) {
+      zone.innerHTML = '<span class="chip-vide">Aucun produit ajouté pour l\'instant (facultatif).</span>';
+      return;
+    }
+    zone.innerHTML = produitsSelectionnes.map(p =>
+      `<span class="chip-produit">${p} <span class="chip-remove" onclick="retirerProduit('${p.replace(/'/g, "\\'")}')">✕</span></span>`
+    ).join('');
+  }
+
+  async function validerCampagne() {
+    const nom = document.getElementById('promoNom').value.trim();
+    const dateDebut = document.getElementById('promoDateDebut').value;
+    const dateFin = document.getElementById('promoDateFin').value;
+    const objectifLibre = document.getElementById('promoObjectifLibre').value.trim();
+    const msg = document.getElementById('formMessage');
+
+    if (!nom || !dateDebut || !dateFin || !etatForm.type || !etatForm.nature || !etatForm.objectif) {
+      msg.innerHTML = '<div class="form-erreur">Merci de remplir le nom, les deux dates, le type, la nature et l\'objectif.</div>';
+      return;
+    }
+    if (dateFin < dateDebut) {
+      msg.innerHTML = '<div class="form-erreur">La date de fin doit être après (ou égale à) la date de début.</div>';
+      return;
+    }
+    if (etatForm.objectif === 'autre' && !objectifLibre) {
+      msg.innerHTML = '<div class="form-erreur">Précisez l\'objectif dans le champ « Autre ».</div>';
+      return;
+    }
+
+    const btn = document.getElementById('btnValider');
+    btn.disabled = true;
+    btn.textContent = 'Enregistrement…';
+
+    const { error } = await nexusClient.from('campagnes_nexus').insert({
+      site: SITE_ID, nom, date_debut: dateDebut, date_fin: dateFin,
+      type: etatForm.type, produits_concernes: produitsSelectionnes,
+      nature: etatForm.nature, objectif: etatForm.objectif,
+      objectif_libre: etatForm.objectif === 'autre' ? objectifLibre : null,
+      cree_par: EMPLOYEE.id,
+    });
+
+    btn.disabled = false;
+    btn.textContent = 'Valider';
+
+    if (error) {
+      console.error('Création campagne:', error);
+      msg.innerHTML = '<div class="form-erreur">Erreur à l\'enregistrement — réessayez.</div>';
+      return;
+    }
+    msg.innerHTML = '<div class="form-succes">Promotion enregistrée ✓</div>';
+    setTimeout(async () => {
+      toggleForm();
+      await chargerEtAfficher();
+    }, 700);
+  }
+
+  // ------------------------------------------------------------
+  // Historique Promotions
+  // ------------------------------------------------------------
+  function renderPromoCard(impact) {
+    const type = NexusCampagnes.TYPE_CAMPAGNE_LABELS[impact.type];
+    const nature = NexusCampagnes.NATURE_CAMPAGNE_LABELS[impact.nature];
+    const objectifLabel = impact.objectif === 'autre' ? (impact.objectifLibre || 'Autre') : NexusCampagnes.OBJECTIF_CAMPAGNE_LABELS[impact.objectif];
+    const produitsHtml = impact.produitsConcernes.length
+      ? `<div class="promo-produits"><b>Produits :</b> ${impact.produitsConcernes.join(', ')}</div>`
+      : '';
+
+    let statsHtml = '';
+    if (impact.disponible) {
+      statsHtml = `
+        <div class="promo-stat-row"><span class="cle">Avant (${impact.nbAvant}j)</span><span class="val">${fmtEur(impact.moyAvant)}/j</span></div>
+        <div class="promo-stat-row"><span class="cle">Pendant (${impact.nbPendant}j)</span><span class="val">${fmtEur(impact.moyPendant)}/j · ${fmtPct(impact.evolutionPendant)}</span></div>
+        ${impact.moyApres !== null ? `<div class="promo-stat-row"><span class="cle">Après (${impact.nbApres}j)</span><span class="val">${fmtEur(impact.moyApres)}/j · ${fmtPct(impact.evolutionApres)}</span></div>` : ''}
+      `;
+    }
+
+    return `<div class="promo-card">
+      <div class="promo-card-top">
+        <div>
+          <div class="promo-nom">${impact.nom}</div>
+          <div class="promo-dates-txt">${fmtDateCourt(impact.dateDebut)} → ${fmtDateCourt(impact.dateFin)}</div>
+        </div>
+      </div>
+      <div class="promo-badges">
+        <span class="promo-badge">${type}</span>
+        <span class="promo-badge">${nature}</span>
+        <span class="promo-badge">${objectifLabel}</span>
+      </div>
+      ${produitsHtml}
+      ${statsHtml}
+      <div class="promo-conseil">${NexusCampagnes.texteConseillerCampagne(impact)}</div>
+    </div>`;
+  }
+
+  function renderTout(impacts) {
+    const root = document.getElementById('root');
+    root.innerHTML = `
+      <div class="section" style="margin-top:6px;">
+        <button class="btn-nouvelle" id="btnNouvelle" onclick="toggleForm()">➕ Nouvelle promotion</button>
+      </div>
+
+      <div class="promo-form" id="promoForm">
+        <div class="promo-field">
+          <label>Nom</label>
+          <input type="text" id="promoNom" placeholder="Weekend Heineken">
+        </div>
+        <div class="promo-field promo-dates">
+          <div><label>Date début</label><input type="date" id="promoDateDebut"></div>
+          <div><label>Date fin</label><input type="date" id="promoDateFin"></div>
+        </div>
+        <div class="promo-field">
+          <label>Type</label>
+          <div class="pill-group">
+            <span class="pill" data-groupe="type" onclick="choisirPill('type','boutique',this)">Boutique</span>
+            <span class="pill" data-groupe="type" onclick="choisirPill('type','carburant',this)">Carburant</span>
+            <span class="pill" data-groupe="type" onclick="choisirPill('type','mixte',this)">Mixte</span>
+          </div>
+        </div>
+        <div class="promo-field">
+          <label>Produits concernés</label>
+          <div class="chip-input-row">
+            <input type="text" id="promoProduitInput" placeholder="Ex : Heineken 25cl" onkeydown="if(event.key==='Enter'){event.preventDefault(); ajouterProduit();}">
+            <button type="button" class="btn-ajouter-produit" onclick="ajouterProduit()">Ajouter</button>
+          </div>
+          <div class="chips-produits" id="chipsProduits"><span class="chip-vide">Aucun produit ajouté pour l'instant (facultatif).</span></div>
+        </div>
+        <div class="promo-field">
+          <label>Nature de la promotion</label>
+          <div class="pill-group">
+            <span class="pill" data-groupe="nature" onclick="choisirPill('nature','prix_reduit',this)">Prix réduit</span>
+            <span class="pill" data-groupe="nature" onclick="choisirPill('nature','deux_plus_un',this)">2+1</span>
+            <span class="pill" data-groupe="nature" onclick="choisirPill('nature','pack',this)">Pack</span>
+            <span class="pill" data-groupe="nature" onclick="choisirPill('nature','bon_achat',this)">Bon d'achat</span>
+            <span class="pill" data-groupe="nature" onclick="choisirPill('nature','cadeau',this)">Cadeau</span>
+            <span class="pill" data-groupe="nature" onclick="choisirPill('nature','remise_carburant',this)">Remise carburant</span>
+          </div>
+        </div>
+        <div class="promo-field">
+          <label>Objectif</label>
+          <div class="pill-group">
+            <span class="pill" data-groupe="objectif" onclick="choisirPill('objectif','augmenter_ca',this)">Augmenter le CA</span>
+            <span class="pill" data-groupe="objectif" onclick="choisirPill('objectif','augmenter_marge',this)">Augmenter la marge</span>
+            <span class="pill" data-groupe="objectif" onclick="choisirPill('objectif','ecouler_stock',this)">Écouler un stock</span>
+            <span class="pill" data-groupe="objectif" onclick="choisirPill('objectif','attirer_clients',this)">Attirer des clients</span>
+            <span class="pill" data-groupe="objectif" onclick="choisirPill('objectif','faire_connaitre',this)">Faire connaître un produit</span>
+            <span class="pill" data-groupe="objectif" onclick="choisirPill('objectif','fideliser',this)">Fidéliser</span>
+            <span class="pill" data-groupe="objectif" onclick="choisirPill('objectif','autre',this)">Autre</span>
+          </div>
+          <input type="text" id="promoObjectifLibre" style="display:none; margin-top:8px;" placeholder="Ex : Animation Coupe du Monde">
+        </div>
+        <button class="btn-valider" id="btnValider" onclick="validerCampagne()">Valider</button>
+        <div id="formMessage"></div>
+      </div>
+
+      <div class="section-label">Historique Promotions</div>
+      ${impacts.length
+        ? impacts.map(renderPromoCard).join('')
+        : `<div class="promo-vide">Aucune promotion déclarée pour l'instant.<br>Cliquez sur « Nouvelle promotion » pour commencer.</div>`}
+
+      <div class="phase-note">Phase 1 : Campagne NEXUS mesure l'impact sur le <b style="color:var(--text-mid);">CA global</b> (piste et/ou boutique), avant/pendant/après chaque promotion. L'attribution par produit, le Score Promotion et la bibliothèque comparative arriveront dès qu'une donnée de vente par article plus fréquente qu'un import trimestriel sera disponible — aujourd'hui, l'afficher serait un chiffre inventé.</div>
+    `;
+  }
+</script>
+</body>
+</html>
