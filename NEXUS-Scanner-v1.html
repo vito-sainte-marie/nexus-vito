@@ -21,9 +21,7 @@
 html,body{background:var(--bg); font-family:var(--sans); color:var(--text); min-height:100vh;}
 body{display:flex; justify-content:center; background-image:radial-gradient(circle at 50% 0%, rgba(79,195,217,0.07), transparent 45%);}
 a{color:inherit; text-decoration:none;}
-
 .app{width:100%; max-width:520px; min-height:100vh; display:flex; flex-direction:column; border-left:1px solid var(--hairline); border-right:1px solid var(--hairline); position:relative;}
-
 .header{padding:20px 20px 14px; position:relative;}
 .menu-btn{
   position:absolute; top:18px; right:18px; display:flex; align-items:center; gap:6px;
@@ -36,7 +34,6 @@ a{color:inherit; text-decoration:none;}
 .title{font-size:20px; font-weight:600; margin-top:4px;}
 .role-jour{font-family:var(--mono); font-size:11px; color:var(--text-dim); margin-top:4px; display:flex; align-items:center; gap:8px; flex-wrap:wrap;}
 .divider{height:1px; background:var(--hairline); margin:0 20px;}
-
 .section{padding:0 20px;}
 .section-label{
   font-family:var(--mono); font-size:11px; letter-spacing:0.1em; text-transform:uppercase; color:var(--text-dim);
@@ -44,7 +41,6 @@ a{color:inherit; text-decoration:none;}
 }
 .section-label::after{content:''; flex:1; height:1px; background:var(--hairline);}
 .section-label .link{color:var(--cyan); text-transform:none; letter-spacing:0; font-size:12px; margin-left:auto; flex:none;}
-
 .capital-panel{
   background:var(--panel); border:1px solid var(--hairline); border-radius:16px; padding:22px 22px 20px; margin:0 20px;
   position:relative; overflow:hidden;
@@ -64,7 +60,6 @@ a{color:inherit; text-decoration:none;}
   background:var(--panel-raised); color:var(--text-dim); padding:4px 10px; border-radius:20px; font-weight:600;
   border:1px solid var(--hairline);
 }
-
 .levers-grid{display:grid; grid-template-columns:repeat(2,1fr); gap:10px;}
 .lever-card{background:var(--panel); border:1px solid var(--hairline); border-radius:14px; padding:16px; cursor:pointer; transition:border-color .15s;}
 .lever-card:active{border-color:rgba(79,195,217,0.4);}
@@ -81,7 +76,6 @@ a{color:inherit; text-decoration:none;}
 .lever-title{font-size:12.5px; color:var(--text-mid); line-height:1.35; margin-bottom:10px; min-height:34px;}
 .lever-amount{font-family:var(--sans); font-size:19px; font-weight:700;}
 .lever-meta{font-family:var(--mono); font-size:10.5px; color:var(--text-dim); margin-top:3px;}
-
 .roi-panel{background:var(--panel); border:1px solid var(--hairline); border-radius:16px; padding:24px 18px; display:flex; align-items:center; justify-content:space-between;}
 .roi-col{text-align:center; flex:1;}
 .roi-label{font-family:var(--mono); font-size:10px; letter-spacing:0.08em; text-transform:uppercase; color:var(--text-mid); margin-bottom:8px;}
@@ -92,7 +86,6 @@ a{color:inherit; text-decoration:none;}
 .roi-donut .center{position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;}
 .roi-donut .center .roi-tag{font-family:var(--mono); font-size:9px; color:var(--text-mid); letter-spacing:0.08em; text-transform:uppercase;}
 .roi-donut .center .roi-pct{font-size:22px; font-weight:700; color:var(--green); margin-top:2px;}
-
 .decision-item{display:flex; align-items:center; gap:14px; padding:14px; background:var(--panel); border:1px solid var(--hairline); border-radius:12px; margin-bottom:10px;}
 .decision-rank{width:26px; height:26px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-family:var(--mono); font-size:11px; font-weight:700; flex-shrink:0;}
 .rank-1{background:var(--amber-dim); color:var(--amber);}
@@ -104,7 +97,6 @@ a{color:inherit; text-decoration:none;}
 .decision-title{font-size:13.5px; font-weight:600;}
 .decision-meta{font-family:var(--mono); font-size:10.5px; color:var(--text-dim); margin-top:2px;}
 .decision-amount{font-size:14.5px; font-weight:700; color:var(--green); flex-shrink:0; text-align:right;}
-
 /* Top 5 CA / Top 5 marge regroupés en onglets (retour du 24/07/2026 : "moins
    scroller") — un seul classement de 5 lignes affiché à la fois au lieu de
    deux piles de 5 lignes en permanence. */
@@ -113,7 +105,6 @@ a{color:inherit; text-decoration:none;}
 .top5-tab.active{background:var(--amber-dim); color:var(--amber); border-color:rgba(245,166,35,0.3);}
 .top5-desc{font-family:var(--mono); font-size:10.5px; color:var(--text-dim); margin:-2px 0 12px;}
 .top5-hidden{display:none;}
-
 .two-col{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
 .mini-panel{background:var(--panel); border:1px solid var(--hairline); border-radius:14px; padding:16px;}
 .mini-panel.clickable{cursor:pointer; transition:border-color .15s;}
@@ -128,13 +119,11 @@ a{color:inherit; text-decoration:none;}
 .bar-track{flex:1; height:8px; border-radius:4px; background:var(--hairline); overflow:hidden;}
 .bar-fill{height:100%; border-radius:4px;}
 .bar-row .bar-val{width:34px; text-align:right; color:var(--text-mid); flex-shrink:0;}
-
 .advisor-panel{display:flex; gap:14px; background:var(--panel); border:1px solid var(--hairline); border-radius:14px; padding:18px;}
 .advisor-avatar{width:44px; height:44px; border-radius:50%; background:var(--panel-raised); border:1.5px solid rgba(79,195,217,0.4); display:flex; align-items:center; justify-content:center; flex-shrink:0; overflow:hidden;}
 .advisor-avatar img{width:100%; height:100%; object-fit:cover;}
 .advisor-body .advisor-title{font-family:var(--mono); font-size:10.5px; letter-spacing:0.06em; text-transform:uppercase; color:var(--cyan); margin-bottom:8px;}
 .advisor-body p{font-size:13px; line-height:1.55; color:var(--text);}
-
 .marge-hero{background:var(--panel); border:1px solid rgba(245,166,35,0.3); border-radius:16px; padding:20px 22px; margin:0 20px 14px; text-align:center;}
 .marge-hero-label{font-family:var(--mono); font-size:11px; letter-spacing:0.1em; text-transform:uppercase; color:var(--amber);}
 .marge-hero-amount{font-size:34px; font-weight:700; color:var(--amber); margin-top:8px;}
@@ -176,25 +165,23 @@ a{color:inherit; text-decoration:none;}
 .btn-valider{width:100%; background:var(--amber-dim); color:var(--amber); border:1px solid rgba(245,166,35,0.35); border-radius:10px; padding:11px; font-family:var(--sans); font-size:13px; font-weight:600; cursor:pointer;}
 .btn-valider:disabled{opacity:0.5; cursor:default;}
 .marge-empty{font-size:12px; color:var(--text-mid); margin:0 20px; line-height:1.5;}
-
 .empty-panel{background:var(--panel); border:1px dashed var(--hairline); border-radius:14px; padding:22px 20px; text-align:center;}
 .empty-panel .ei{font-size:22px; margin-bottom:10px;}
 .empty-panel .ei img{width:36px; height:36px; border-radius:10px; object-fit:cover; vertical-align:middle;}
 .empty-panel .et{font-size:13.5px; font-weight:600;}
 .empty-panel .ed{font-size:12px; color:var(--text-mid); margin-top:6px; line-height:1.5;}
 .empty-panel .btn-link{display:inline-block; margin-top:14px; font-family:var(--mono); font-size:11.5px; color:var(--cyan); padding:8px 14px; border:1px solid rgba(79,195,217,0.35); border-radius:8px;}
-
 .disclaimer{font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:center; line-height:1.6; padding:20px 20px 8px;}
 .loading{padding:60px 20px; text-align:center; color:var(--text-dim); font-size:13px;}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-auth.js"></script>
+<script src="nexus-forfait.js"></script>
 <script src="nexus-periodes.js"></script>
 <script src="nexus-marge.js"></script>
 </head>
 <body>
 <div class="app">
-
   <div class="header">
     <a href="NEXUS-App-v1.html" class="menu-btn">☰ Menu</a>
     <div class="eyebrow">NEXUS · Scanner</div>
@@ -202,13 +189,10 @@ a{color:inherit; text-decoration:none;}
     <div class="role-jour" id="scanSubtitle">Chargement…</div>
   </div>
   <div class="divider"></div>
-
   <div id="root">
     <div class="loading">Analyse des données en cours…</div>
   </div>
-
 </div>
-
 <script>
   // Meme moteur que Cockpit et le CIN : donnees reelles de la table products,
   // exclusion des produits d'appel, periode la plus recente uniquement (cette
@@ -222,7 +206,6 @@ a{color:inherit; text-decoration:none;}
     if (error) { console.error(error); return new Set(); }
     return new Set((data || []).map(r => r.article));
   }
-
   // Supabase plafonne chaque requete a 1000 lignes par defaut, sans erreur —
   // au-dela, le reste est silencieusement absent. Ce helper boucle par pages
   // de 1000 jusqu'a tout recuperer (trouve le 15/07/2026 : un import T2
@@ -239,7 +222,6 @@ a{color:inherit; text-decoration:none;}
     }
     return { data: toutes, error: null };
   }
-
   // ------------------------------------------------------------
   // Optimisation de marge (R5-MARGE-ECART) — demande de Frédéric le
   // 24/07/2026 : repérer les produits dont la marge pourrait être
@@ -254,7 +236,6 @@ a{color:inherit; text-decoration:none;}
   let EMPLOYEE_COURANT_ID = null;
   let VALIDEES_MARGE = new Set();
   let EXCLUSIONS_MARGE = new Set();
-
   async function chargerValideesMarge() {
     const { data, error } = await nexusClient
       .from('journal_decisions')
@@ -264,7 +245,6 @@ a{color:inherit; text-decoration:none;}
     if (error) { console.error('Chargement décisions marge:', error); return; }
     VALIDEES_MARGE = new Set((data || []).map(d => d.candidate_id));
   }
-
   // Articles exclus manuellement par un manager depuis Paramétrage Station
   // (table marge_exceptions, migration-marge-exceptions-v1.sql) — vient
   // s'ajouter aux exceptions codées en dur dans nexus-marge.js, sans les
@@ -277,7 +257,6 @@ a{color:inherit; text-decoration:none;}
     if (error) { console.error('Chargement marge_exceptions:', error); return; }
     EXCLUSIONS_MARGE = new Set((data || []).map(d => d.article));
   }
-
   async function enregistrerDecisionMarge(candidat) {
     const { error } = await nexusClient.from('journal_decisions').insert({
       site: SITE_ACTUEL,
@@ -293,7 +272,6 @@ a{color:inherit; text-decoration:none;}
     VALIDEES_MARGE.add(candidat.candidate_id);
     return true;
   }
-
   // Tercile relatif (pas un seuil en euros absolu, qui n'aurait aucun sens
   // d'un magasin à l'autre) — calculé sur le classement déjà trié par
   // gainPotentiel décroissant renvoyé par NexusMarge.detecterEcartsMarge.
@@ -305,7 +283,6 @@ a{color:inherit; text-decoration:none;}
     if (rang < 2/3) return { classe: 'moyenne', label: '🟠 Priorité moyenne' };
     return { classe: 'basse', label: '🟢 Faible priorité' };
   }
-
   // "Retour sur temps" qualitatif, dérivé du gain potentiel en euros — pas
   // un vrai calcul de ROI (NEXUS ne connaît pas le temps réel passé), mais
   // une indication honnête de l'ordre de grandeur.
@@ -314,7 +291,6 @@ a{color:inherit; text-decoration:none;}
     if (impactEur >= 30) return 'Élevé';
     return 'Modéré';
   }
-
   // Construit les candidats à partir des écarts détectés par NexusMarge —
   // même schéma Constat/Explication/Décision que les règles R2/R3/R4 du
   // Cockpit, pour rester cohérent avec le reste de NEXUS. Enrichi le
@@ -350,7 +326,6 @@ a{color:inherit; text-decoration:none;}
       })
       .filter(c => !VALIDEES_MARGE.has(c.candidate_id));
   }
-
   // "Créer une mission" (retour de Frédéric le 24/07/2026) : le clic ne se
   // contente plus de marquer une recommandation comme lue, il crée une
   // vraie mission assignée dans le même système que le reste de NEXUS —
@@ -364,7 +339,6 @@ a{color:inherit; text-decoration:none;}
     if (classe === 'basse') return 'basse';
     return 'normale';
   }
-
   async function creerMissionMarge(candidat) {
     const missionId = `MARGE-${candidat.candidate_id}`;
     const { error: erreurCatalogue } = await nexusClient.from('mission_catalog').upsert({
@@ -384,7 +358,6 @@ a{color:inherit; text-decoration:none;}
       impact_attendu_eur: candidat.impact_eur,
     }, { onConflict: 'mission_id' });
     if (erreurCatalogue) { console.error('Création mission_catalog (marge):', erreurCatalogue); return false; }
-
     const dansSeptJours = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
     const { error: erreurAssignation } = await nexusClient.from('mission_assignments').insert({
       mission_id: missionId,
@@ -398,7 +371,6 @@ a{color:inherit; text-decoration:none;}
     if (erreurAssignation) { console.error('Création mission_assignments (marge):', erreurAssignation); return false; }
     return true;
   }
-
   // Groupé par priorité (retour de Frédéric le 24/07/2026 : "le défilement
   // est trop long") — au lieu d'empiler toutes les cartes à plat, on replie
   // d'abord par niveau de priorité. Le manager voit 1 à 3 lignes de résumé
@@ -410,7 +382,6 @@ a{color:inherit; text-decoration:none;}
     { classe: 'moyenne', titre: '🟠 Priorité moyenne', ouvertParDefaut: false },
     { classe: 'basse', titre: '🟢 Faible priorité', ouvertParDefaut: false },
   ];
-
   function renderCarteMarge(c, i) {
     return `
       <div class="marge-card" id="marge-${i}">
@@ -436,7 +407,6 @@ a{color:inherit; text-decoration:none;}
         </div>
       </div>`;
   }
-
   function renderMarge(candidats) {
     const el = document.getElementById('margeSection');
     if (!el) return;
@@ -446,7 +416,6 @@ a{color:inherit; text-decoration:none;}
     }
     const potentielTotal = candidats.reduce((s, c) => s + c.impact_eur, 0);
     const nbPrioritaires = candidats.filter(c => c.niveau.classe === 'haute').length;
-
     const groupesHtml = GROUPES_PRIORITE.map(g => {
       const items = candidats.filter(c => c.niveau.classe === g.classe);
       if (!items.length) return '';
@@ -463,7 +432,6 @@ a{color:inherit; text-decoration:none;}
           </div>
         </div>`;
     }).join('');
-
     el.innerHTML = `
       <div class="marge-hero">
         <div class="marge-hero-label">💰 Capital récupérable</div>
@@ -473,7 +441,6 @@ a{color:inherit; text-decoration:none;}
       ${groupesHtml}
       <div class="marge-synthese">Si ${candidats.length>1 ? 'les ' + candidats.length + ' opportunités identifiées ci-dessus sont toutes exploitées' : "l'opportunité identifiée ci-dessus est exploitée"} et ${candidats.length>1?'produisent':'produit'} l'effet attendu, la marge du magasin pourrait augmenter d'environ ${fmtEur(potentielTotal)} sur cette période — une estimation, pas une garantie.</div>
     `;
-
     // data-id plutôt qu'un onclick avec l'id interpolé directement — un nom
     // d'article contenant une apostrophe casserait sinon l'attribut HTML
     // (même précaution que .plan-valider dans Cockpit). stopPropagation
@@ -496,7 +463,6 @@ a{color:inherit; text-decoration:none;}
       });
     });
   }
-
   async function chargerDonneesScanner() {
     const [{ data, error }, produitsAppel] = await Promise.all([
       fetchAllRows(() => nexusClient
@@ -508,13 +474,11 @@ a{color:inherit; text-decoration:none;}
       chargerProduitsAppel(),
     ]);
     if (error || !data || !data.length) { console.error('Chargement products:', error); return null; }
-
     const rowsBrut = data.filter(r => !produitsAppel.has(r.article));
     const { periodeAffichage, rowsAffichage } = NexusPeriodes.analyserPeriodes(rowsBrut);
     if (!periodeAffichage) { console.error('Aucune période exploitable dans products.'); return null; }
     return { rows: rowsAffichage, periodeDebut: periodeAffichage.debut, periodeFin: periodeAffichage.fin };
   }
-
   // Regroupe par categorie, classe en A/B/C par methode Pareto standard
   // (A jusqu'a 80% du CA cumule, B jusqu'a 95%, C le reste) — meme logique
   // que la classification ABC deja utilisee sur NEXUS Pilot.
@@ -527,11 +491,9 @@ a{color:inherit; text-decoration:none;}
     // d'une vraie marge).
     const anomalies = rows.filter(r => (r.ca||0) <= 0 || (r.marge||0) < 0 || (r.marge||0) > (r.ca||0));
     const rowsPropres = rows.filter(r => !anomalies.includes(r));
-
     const caTotal = rowsPropres.reduce((s,r) => s + (r.ca || 0), 0);
     const margeTotal = rowsPropres.reduce((s,r) => s + (r.marge || 0), 0);
     const nbRefs = rows.length;
-
     const parCategorie = {};
     rowsPropres.forEach(r => {
       if (!parCategorie[r.categorie]) parCategorie[r.categorie] = { categorie: r.categorie, ca: 0, marge: 0 };
@@ -540,7 +502,6 @@ a{color:inherit; text-decoration:none;}
     });
     const catArr = Object.values(parCategorie);
     const nbCategories = catArr.length;
-
     const parCA = [...catArr].sort((a,b) => b.ca - a.ca);
     let cumul = 0;
     const classes = { A: { n:0, ca:0 }, B: { n:0, ca:0 }, C: { n:0, ca:0 } };
@@ -552,13 +513,10 @@ a{color:inherit; text-decoration:none;}
       classes[classe].n += 1;
       classes[classe].ca += c.ca;
     });
-
     const top5CA = [...catArr].sort((a,b) => b.ca - a.ca).slice(0,5);
     const top5Marge = [...catArr].sort((a,b) => b.marge - a.marge).slice(0,5);
-
     return { caTotal, margeTotal, nbRefs, nbCategories, classes, top5CA, top5Marge, anomalies, catArr, rowsPropres };
   }
-
   function texteLecture(stats) {
     if (stats.top5CA.length === 0) return "Pas assez de données pour une lecture fiable.";
     const topCA = stats.top5CA[0];
@@ -567,7 +525,6 @@ a{color:inherit; text-decoration:none;}
     const concentration = pctCA_A >= 70
       ? ` Un poids aussi concentré sur si peu de catégories est un vrai moteur, mais aussi une vraie fragilité — un incident sur l'une d'elles pèserait immédiatement sur l'ensemble du magasin.`
       : ``;
-
     if (topCA.categorie === topMarge.categorie) {
       return `${topCA.categorie} est à la fois votre première source de chiffre d'affaires et de marge — une catégorie qui mérite une attention prioritaire, dans un sens comme dans l'autre.${concentration}`;
     }
@@ -575,17 +532,13 @@ a{color:inherit; text-decoration:none;}
     const margeTopMarge = topMarge.ca > 0 ? (topMarge.marge / topMarge.ca * 100) : 0;
     return `Vos ${stats.classes.A.n} catégorie${stats.classes.A.n>1?'s':''} A pèsent ${fmtPct(pctCA_A)} du chiffre d'affaires. ${topCA.categorie} tire le volume avec une marge de ${fmtPct(margeTopCA)}, alors que ${topMarge.categorie} génère le plus de marge en valeur avec un taux de ${fmtPct(margeTopMarge)}.${concentration}`;
   }
-
   function fmtEur(v) { return Math.round(v).toLocaleString('fr-FR') + ' €'; }
-
   // Deplie/replie une carte au clic — l'ecran reste sobre par defaut, le
   // detail n'apparait que si on le demande explicitement.
   function toggleCard(el) {
     el.classList.toggle('open');
   }
-
   const LIMITE_DETAIL = 12;
-
   function renderDetailListe(categories, metric) {
     const tri = [...categories].sort((a,b) => metric === 'margePct'
       ? (b.ca>0 ? b.marge/b.ca : 0) - (a.ca>0 ? a.marge/a.ca : 0)
@@ -601,7 +554,6 @@ a{color:inherit; text-decoration:none;}
     if (reste > 0) html += `<div class="detail-empty">+ ${reste} autre${reste>1?'s':''} catégorie${reste>1?'s':''}</div>`;
     return html;
   }
-
   function renderDetailAnomalies(anomalies) {
     const visibles = anomalies.slice(0, 15);
     const reste = anomalies.length - visibles.length;
@@ -613,16 +565,13 @@ a{color:inherit; text-decoration:none;}
     if (reste > 0) html += `<div class="detail-empty">+ ${reste} autre${reste>1?'s':''} ligne${reste>1?'s':''}</div>`;
     return html;
   }
-
   function fmtPct(v) { return v.toFixed(1).replace('.', ',') + ' %'; }
   function fmtDate(iso) {
     if (!iso) return '';
     const d = new Date(iso);
     return d.toLocaleDateString('fr-FR', { day:'2-digit', month:'2-digit', year:'numeric' });
   }
-
   const RANK_CLASS = ['rank-1','rank-2','rank-3','rank-4','rank-5'];
-
   function renderTop5(items, cle) {
     return items.map((c,i) => `
       <div class="decision-item">
@@ -636,7 +585,6 @@ a{color:inherit; text-decoration:none;}
         <div class="decision-amount">${fmtEur(cle === 'ca' ? c.ca : c.marge)}</div>
       </div>`).join('');
   }
-
   // Bascule entre les deux classements Top 5 (retour du 24/07/2026 : regrouper
   // CA et marge sous un même bloc à onglets plutôt que deux listes empilées,
   // pour réduire le défilement).
@@ -648,14 +596,12 @@ a{color:inherit; text-decoration:none;}
     document.getElementById('top5-list-ca').classList.toggle('top5-hidden', which !== 'ca');
     document.getElementById('top5-list-marge').classList.toggle('top5-hidden', which !== 'marge');
   }
-
   function renderRoot(donnees) {
     const root = document.getElementById('root');
     if (!donnees || donnees.rows.length === 0) {
       root.innerHTML = `<div class="section"><div class="empty-panel"><div class="ei">📄</div><div class="et">Aucune donnée importée</div><div class="ed">Importez un export produits pour que le Scanner puisse analyser le magasin.</div><a class="btn-link" href="NEXUS-Import-v1.html">Aller à Import →</a></div></div>`;
       return;
     }
-
     const stats = construireStats(donnees.rows);
     const margePctGlobal = stats.caTotal > 0 ? (stats.margeTotal / stats.caTotal * 100) : 0;
     const circonference = 282.7;
@@ -664,9 +610,7 @@ a{color:inherit; text-decoration:none;}
     const pctA = stats.caTotal > 0 ? stats.classes.A.ca/stats.caTotal*100 : 0;
     const pctB = stats.caTotal > 0 ? stats.classes.B.ca/stats.caTotal*100 : 0;
     const pctC = stats.caTotal > 0 ? stats.classes.C.ca/stats.caTotal*100 : 0;
-
     document.getElementById('scanSubtitle').textContent = `Scan du magasin — au ${fmtDate(donnees.periodeFin)}`;
-
     root.innerHTML = `
       <div class="capital-panel">
         <div class="capital-row-top">
@@ -678,7 +622,6 @@ a{color:inherit; text-decoration:none;}
         <div class="capital-badge">Marge totale : ${fmtEur(stats.margeTotal)} (${fmtPct(margePctGlobal)})</div>
         <div class="data-tag">📄 Période : ${fmtDate(donnees.periodeDebut)} → ${fmtDate(donnees.periodeFin)}</div>
       </div>
-
       <div class="section">
         <div class="section-label">Répartition ABC (par catégorie)</div>
       </div>
@@ -718,7 +661,6 @@ a{color:inherit; text-decoration:none;}
           </div>
         </div>
       </div>
-
       <div class="section">
         <div class="roi-panel" style="justify-content:center;">
           <div class="roi-donut">
@@ -735,7 +677,6 @@ a{color:inherit; text-decoration:none;}
           </div>
         </div>
       </div>
-
       <div class="section">
         <div class="section-label">Top 5 catégories</div>
         <div class="top5-tabs">
@@ -747,13 +688,11 @@ a{color:inherit; text-decoration:none;}
         <div id="top5-list-ca">${renderTop5(stats.top5CA, 'ca')}</div>
         <div id="top5-list-marge" class="top5-hidden">${renderTop5(stats.top5Marge, 'marge')}</div>
       </div>
-
       <div class="section">
         <div class="section-label">NEXUS Marge+</div>
         <div style="font-family:var(--mono); font-size:10.5px; color:var(--text-dim); margin:-6px 0 12px;">Optimisation intelligente de la rentabilité</div>
       </div>
       <div id="margeSection"><div class="marge-empty">Analyse en cours…</div></div>
-
       <div class="section">
         <div class="mini-panel${stats.anomalies.length>0?' clickable':''}" ${stats.anomalies.length>0?'onclick="toggleCard(this)"':''}>
           <div class="mini-label amber">Anomalies détectées</div>
@@ -763,7 +702,6 @@ a{color:inherit; text-decoration:none;}
           ${stats.anomalies.length>0 ? `<div class="lever-toggle"><span class="chev">›</span> Voir le détail</div><div class="lever-detail">${renderDetailAnomalies(stats.anomalies)}</div>` : ''}
         </div>
       </div>
-
       <div class="section">
         <div class="advisor-panel">
           <div class="advisor-avatar"><img src="assets/nexus-avatar.png" alt="Conseiller NEXUS"></div>
@@ -773,7 +711,6 @@ a{color:inherit; text-decoration:none;}
           </div>
         </div>
       </div>
-
       <div class="section">
         <div class="section-label">Voir plus loin</div>
         <div class="empty-panel">
@@ -783,16 +720,12 @@ a{color:inherit; text-decoration:none;}
           <a class="btn-link" href="NEXUS-Centre-Intelligence-v1.html">Voir le Centre d'Intelligence NEXUS →</a>
         </div>
       </div>
-
       <div class="disclaimer">Cette page décrit l'état du magasin à un instant T (chiffre d'affaires, marge, catégories) — ce n'est pas encore la mesure de l'impact des décisions NEXUS. Cette mesure viendra avec le suivi des actions dans le temps.</div>
     `;
-
     window.CANDIDATS_MARGE = construireCandidatsMarge(stats.rowsPropres, donnees.periodeDebut, donnees.periodeFin);
     renderMarge(window.CANDIDATS_MARGE);
   }
-
   let SITE_ACTUEL = 'vito-sainte-marie'; // ecrase par employee.site_id une fois connecte
-
   nexusRequireAuth().then(async employee => {
     if (!employee) return; // nexus-auth.js gère déjà la redirection vers NEXUS-Login-v1.html
     if (employee.role !== 'manager' && employee.role !== 'gerant') {
@@ -800,6 +733,7 @@ a{color:inherit; text-decoration:none;}
       return;
     }
     SITE_ACTUEL = employee.site_id || 'vito-sainte-marie';
+    if (!(await NexusForfait.nexusRequireProfessional('NEXUS-Scanner-v1.html', SITE_ACTUEL))) return;
     EMPLOYEE_COURANT_ID = employee.id;
     const [donnees] = await Promise.all([chargerDonneesScanner(), chargerValideesMarge(), chargerExclusionsMarge()]);
     renderRoot(donnees);
