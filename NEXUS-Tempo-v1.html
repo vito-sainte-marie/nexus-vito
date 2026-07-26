@@ -613,15 +613,28 @@ footer{margin-top:auto; padding:20px 20px 24px; font-family:var(--mono); font-si
 
   // ------------------------------------------------------------
   // Bloc 5 — Analyse équipe (jamais de causalité affirmée)
+  //
+  // Mise à jour du 26/07/2026 (demande de Frédéric) : pour la piste, le
+  // litrage est affiché à la place du CA — le CA piste dépend du prix
+  // de vente du carburant (revu chaque mois, hors du contrôle du
+  // pompiste), alors que le litrage reflète le volume réellement servi,
+  // seule mesure réellement comparable d'un pompiste à l'autre. Repli
+  // honnête sur le CA quand aucun de ses quarts n'a encore le détail
+  // par carburant (voir nexus-tempo.js, analyserEquipe).
   // ------------------------------------------------------------
-  function renderEquipeListe(liste, metricLabel) {
+  function renderEquipeListe(liste, role) {
     if (!liste.length) return `<div class="section-note" style="margin:0 0 10px;">Aucune donnée pour ce rôle.</div>`;
     return liste.map(e => {
       const c = CONFIANCE_STYLE[e.confiance];
+      const metrique = role === 'piste'
+        ? (e.moyenneLitrage !== null
+            ? `Moyenne litrage/quart ${Math.round(e.moyenneLitrage).toLocaleString('fr-FR')} L (${e.nbQuartsLitrage} quart${e.nbQuartsLitrage > 1 ? 's' : ''} avec détail)`
+            : `Moyenne vente piste/quart ${fmtEur(e.moyenneVente)} — litrage non disponible sur ses quarts`)
+        : `Moyenne vente boutique/quart ${fmtEur(e.moyenneVente)}`;
       return `<div class="equipe-row">
         <div>
           <div class="equipe-nom">${e.nom}</div>
-          <div class="equipe-meta">${metricLabel} ${fmtEur(e.moyenneVente)} · ${e.nbQuarts} quart${e.nbQuarts > 1 ? 's' : ''} observé${e.nbQuarts > 1 ? 's' : ''}</div>
+          <div class="equipe-meta">${metrique} · ${e.nbQuarts} quart${e.nbQuarts > 1 ? 's' : ''} observé${e.nbQuarts > 1 ? 's' : ''}</div>
         </div>
         <div class="equipe-confiance" style="background:${c.bg}; color:${c.fg}; margin-left:auto;">${c.label}</div>
       </div>`;
@@ -634,9 +647,9 @@ footer{margin-top:auto; padding:20px 20px 24px; font-family:var(--mono); font-si
     return `
       <div class="section-note" style="margin:-6px 20px 14px;">NEXUS parle de <b>contribution observée dans un contexte comparable</b>, jamais de performance individuelle certaine — le résultat d'un quart dépend aussi du jour, du trafic, des collègues présents et des ruptures éventuelles.</div>
       <div class="equipe-sub">Piste</div>
-      ${renderEquipeListe(piste, 'Moyenne vente piste/quart')}
+      ${renderEquipeListe(piste, 'piste')}
       <div class="equipe-sub">Boutique</div>
-      ${renderEquipeListe(boutique, 'Moyenne vente boutique/quart')}
+      ${renderEquipeListe(boutique, 'boutique')}
     `;
   }
 

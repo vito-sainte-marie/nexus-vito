@@ -465,16 +465,29 @@
   //    présent(e). Jamais de causalité affirmée — seulement une
   //    contribution observée, avec un niveau de confiance explicite
   //    basé sur le nombre de quarts comparables.
+  //
+  //    Mise à jour du 26/07/2026 (demande de Frédéric) : pour la piste,
+  //    le litrage est une mesure plus juste que le CA — le CA piste
+  //    dépend du prix de vente du carburant (qui varie chaque mois,
+  //    hors du contrôle du pompiste), alors que le litrage reflète le
+  //    volume réellement servi. On calcule donc, en plus du CA, une
+  //    moyenne de litrage par quart pour chaque pompiste — uniquement
+  //    sur les quarts saisis avec le détail par carburant (même
+  //    prudence que classementLitrage/nbOccLitrage plus haut : jamais de
+  //    moyenne mélangeant des quarts avec et sans détail).
   // ------------------------------------------------------------
   function analyserEquipe(joursAgreges, employesParId) {
-    const parEmploye = {}; // employeeId|role -> { employeeId, role, valeurs: [], ecarts: [] }
+    const parEmploye = {}; // employeeId|role -> { employeeId, role, valeurs: [], ecarts: [], litrages: [] }
     (joursAgreges || []).forEach(jour => {
       jour.quarts.forEach(q => {
         q.employesPiste.forEach(empId => {
           const cle = empId + '|piste';
-          if (!parEmploye[cle]) parEmploye[cle] = { employeeId: empId, role: 'piste', valeurs: [], ecarts: [] };
+          if (!parEmploye[cle]) parEmploye[cle] = { employeeId: empId, role: 'piste', valeurs: [], ecarts: [], litrages: [] };
           parEmploye[cle].valeurs.push(q.ventePiste);
           parEmploye[cle].ecarts.push(q.ecartPiste);
+          if (q.litrageDisponible) {
+            parEmploye[cle].litrages.push((Number(q.litrageGazole) || 0) + (Number(q.litrageSp95) || 0) + (Number(q.litrageGnr) || 0));
+          }
         });
         q.employesBoutique.forEach(empId => {
           const cle = empId + '|boutique';
@@ -488,6 +501,7 @@
     return Object.values(parEmploye).map(e => {
       const nb = e.valeurs.length;
       const confiance = nb >= SEUILS.CONFIANCE_FORTE ? 'forte' : (nb >= SEUILS.CONFIANCE_MOYENNE ? 'moyenne' : 'insuffisante');
+      const litrages = e.litrages || [];
       return {
         employeeId: e.employeeId,
         nom: (employesParId && employesParId[e.employeeId] && employesParId[e.employeeId].nom) || 'Employé inconnu',
@@ -495,9 +509,21 @@
         nbQuarts: nb,
         moyenneVente: moyenne(e.valeurs),
         moyenneEcart: moyenne(e.ecarts),
+        moyenneLitrage: litrages.length ? moyenne(litrages) : null,
+        nbQuartsLitrage: litrages.length,
         confiance,
       };
-    }).sort((a, b) => b.moyenneVente - a.moyenneVente);
+    }).sort((a, b) => {
+      // Piste classée par litrage moyen quand il est disponible pour les
+      // deux (mesure la plus juste) ; boutique et repli piste restent
+      // classés par CA moyen.
+      if (a.role === 'piste' && b.role === 'piste') {
+        const va = a.moyenneLitrage !== null ? a.moyenneLitrage : -Infinity;
+        const vb = b.moyenneLitrage !== null ? b.moyenneLitrage : -Infinity;
+        return vb - va;
+      }
+      return b.moyenneVente - a.moyenneVente;
+    });
   }
 
   // ------------------------------------------------------------
