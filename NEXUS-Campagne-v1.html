@@ -165,7 +165,7 @@ footer{margin-top:auto; padding:20px 20px 24px; font-family:var(--mono); font-si
   });
 
   async function chargerEtAfficher() {
-    const [{ data: auditsRows, error: e1 }, { data: campagnesRows, error: e2 }, { data: produitsRows, error: e3 }, { data: importsRows, error: e4 }] = await Promise.all([
+    const [{ data: auditsRows, error: e1 }, { data: campagnesRows, error: e2 }, { data: produitsRows, error: e3 }, { data: importsRows, error: e4 }, { data: panierRows, error: e5 }] = await Promise.all([
       fetchAllRows(() => nexusClient.from('audits_caisse')
         .select('date, quart, vente_piste, vente_boutique')
         .eq('site', SITE_ID).order('date', { ascending: true })),
@@ -182,11 +182,18 @@ footer{margin-top:auto; padding:20px 20px 24px; font-family:var(--mono); font-si
       // type "Campagne NEXUS").
       nexusClient.from('campagnes_nexus_imports').select('campagne_id, phase, periode_debut, periode_fin')
         .eq('site', SITE_ID),
+      // Panier moyen boutique quotidien (export Decenium, importé via
+      // Import > Panier moyen) — série continue, indépendante des
+      // imports avant/pendant liés à une promotion précise.
+      fetchAllRows(() => nexusClient.from('panier_moyen_quotidien')
+        .select('date, nb_tickets, panier_moyen_ht, panier_moyen_ttc')
+        .eq('site', SITE_ID).order('date', { ascending: true })),
     ]);
     if (e1) console.error('Chargement audits_caisse:', e1);
     if (e2) console.error('Chargement campagnes_nexus:', e2);
     if (e3) console.error('Chargement products (catalogue):', e3);
     if (e4) console.error('Chargement campagnes_nexus_imports:', e4);
+    if (e5) console.error('Chargement panier_moyen_quotidien:', e5);
 
     const parArticle = new Map();
     (produitsRows || []).forEach(p => { if (p.article && !parArticle.has(p.article)) parArticle.set(p.article, p.categorie || ''); });
@@ -203,6 +210,7 @@ footer{margin-top:auto; padding:20px 20px 24px; font-family:var(--mono); font-si
     impacts.forEach(impact => {
       const importsLies = (importsRows || []).filter(i => i.campagne_id === impact.campagneId);
       impact.impactProduits = NexusCampagnes.analyserImpactProduits(impact, importsLies, produitsRows || []);
+      impact.impactPanierMoyen = NexusCampagnes.analyserImpactPanierMoyen(impact, panierRows || []);
     });
 
     renderTout(impacts);
@@ -404,6 +412,7 @@ footer{margin-top:auto; padding:20px 20px 24px; font-family:var(--mono); font-si
       ${produitsHtml}
       ${statsHtml}
       ${impact.produitsConcernes.length ? renderImpactProduits(impact.impactProduits) : ''}
+      ${(impact.type === 'boutique' || impact.type === 'mixte') ? renderImpactPanierMoyen(impact.impactPanierMoyen) : ''}
       <div class="promo-conseil">${NexusCampagnes.texteConseillerCampagne(impact)}</div>
     </div>`;
   }
@@ -425,6 +434,35 @@ footer{margin-top:auto; padding:20px 20px 24px; font-family:var(--mono); font-si
       </div>`;
     }).join('');
     return `<div class="promo-produits-impact"><div class="promo-produits-titre">Impact par produit</div>${lignes}</div>`;
+  }
+
+  // Panier moyen & fréquentation boutique (25/07/2026) — série continue,
+  // indépendante des imports "avant"/"pendant" liés à une promotion :
+  // dès qu'assez de jours de panier moyen ont été importés (voir
+  // Import > Panier moyen), la comparaison s'affiche automatiquement.
+  // Toujours précisé "boutique uniquement" — jamais mélangé au CA piste.
+  function renderImpactPanierMoyen(impactPanier) {
+    if (!impactPanier || !impactPanier.disponible) {
+      const message = impactPanier ? impactPanier.message : '';
+      return `<div class="promo-produits-impact"><div class="promo-produits-titre">Panier moyen &amp; fréquentation (boutique uniquement)</div><div class="section-note" style="margin:0;">${message}</div></div>`;
+    }
+    const ligneTickets = `<div class="promo-stat-row">
+      <span class="cle">Tickets/jour</span>
+      <span class="val">${Math.round(impactPanier.moyTicketsAvant)} → ${Math.round(impactPanier.moyTicketsPendant)} · ${fmtPct(impactPanier.evolutionTicketsPendant)}</span>
+    </div>`;
+    const lignePanier = impactPanier.moyPanierAvant !== null && impactPanier.moyPanierPendant !== null
+      ? `<div class="promo-stat-row">
+          <span class="cle">Panier moyen TTC</span>
+          <span class="val">${impactPanier.moyPanierAvant.toFixed(2)} € → ${impactPanier.moyPanierPendant.toFixed(2)} € · ${fmtPct(impactPanier.evolutionPanierPendant)}</span>
+        </div>`
+      : '';
+    const ligneApres = impactPanier.moyTicketsApres !== null
+      ? `<div class="promo-stat-row">
+          <span class="cle">Tickets/jour après</span>
+          <span class="val">${Math.round(impactPanier.moyTicketsApres)} · ${fmtPct(impactPanier.evolutionTicketsApres)}</span>
+        </div>`
+      : '';
+    return `<div class="promo-produits-impact"><div class="promo-produits-titre">Panier moyen &amp; fréquentation (boutique uniquement)</div>${ligneTickets}${lignePanier}${ligneApres}</div>`;
   }
 
   function renderTout(impacts) {

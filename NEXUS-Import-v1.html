@@ -143,6 +143,7 @@ tbody tr:hover{background:var(--panel);}
       <div class="btn btn-primary" id="typeVentes" style="cursor:pointer;">Ventes / Catalogue</div>
       <div class="btn btn-ghost" id="typeStock" style="cursor:pointer;">Stock instantané</div>
       <div class="btn btn-ghost" id="typeCampagne" style="cursor:pointer;">Campagne NEXUS</div>
+      <div class="btn btn-ghost" id="typePanier" style="cursor:pointer;">Panier moyen</div>
     </div>
     <div style="font-family:var(--mono); font-size:10px; color:var(--text-dim); margin-top:8px; line-height:1.5;" id="typeExplication">CA, marge, évolution — un fichier par période de vente.</div>
   </div>
@@ -169,12 +170,12 @@ tbody tr:hover{background:var(--panel);}
       </div>
     </div>
 
-    <div class="section">
+    <div class="section" id="mappingSection">
       <div class="section-label">Colonnes détectées</div>
       <div class="mapping-grid" id="mappingGrid"></div>
     </div>
 
-    <div class="section">
+    <div class="section" id="resumeSection">
       <div class="section-label">Résumé</div>
       <div class="summary-grid">
         <div class="sum-card ok"><div class="slabel">Lignes lues</div><div class="sval" id="statRows">—</div></div>
@@ -182,6 +183,14 @@ tbody tr:hover{background:var(--panel);}
         <div class="sum-card ok"><div class="slabel">CA estimé</div><div class="sval" id="statCA">—</div></div>
         <div class="sum-card alert"><div class="slabel">Anomalies</div><div class="sval" id="statAnom">—</div></div>
       </div>
+    </div>
+
+    <!-- Panier moyen (25/07/2026) — format Decenium fixe (Date Transaction,
+         Nb, PM HT, PM TTC), rien à mapper : pas de section colonnes ni de
+         résumé générique, juste un contrôle simple avant l'envoi. -->
+    <div class="section" id="panierInfoSection" style="display:none;">
+      <div class="section-label">Jours détectés</div>
+      <div id="panierResume" style="font-size:12.5px; color:var(--text-mid); line-height:1.6;">—</div>
     </div>
 
     <div class="section">
@@ -291,6 +300,15 @@ nexusRequireAuth().then(async employee => {
     importsCampagnes = resImports.data || [];
   } catch (err) { console.error('Chargement campagnes_nexus (table pas encore créée ?):', err); }
 
+  let countPanier = 0, dernierJourPanier = null;
+  try {
+    const resPanier = await nexusClient.from('panier_moyen_quotidien')
+      .select('date', { count: 'exact' }).eq('site', employee.site_id || 'vito-sainte-marie')
+      .order('date', { ascending: false }).limit(1);
+    countPanier = resPanier.count || 0;
+    dernierJourPanier = resPanier.data && resPanier.data[0] ? resPanier.data[0].date : null;
+  } catch (err) { console.error('Comptage panier_moyen_quotidien (table pas encore créée ?):', err); }
+
   const msgVentes = countVentes > 0
     ? `${employee.nom}, vous avez déjà ${countVentes.toLocaleString('fr-FR')} référence(s) importée(s). Ce nouvel envoi vient compléter l'historique — je pourrai comparer les deux périodes automatiquement.`
     : `${employee.nom}, c'est votre premier import — bienvenue. Une fois envoyé, je commence à calculer les vrais chiffres de vos rayons, plus aucune estimation.`;
@@ -304,7 +322,11 @@ nexusRequireAuth().then(async employee => {
     ? `${employee.nom}, choisissez une promotion et une phase (avant/pendant) — je calcule moi-même la période exacte, vous n'avez que le fichier à déposer.`
     : `${employee.nom}, aucune promotion déclarée pour l'instant. Créez-en une dans Campagne NEXUS avant de venir importer ses ventes ici.`;
 
-  const MESSAGES_CONSEILLER_IMPORT = { ventes: msgVentes, stock: msgStock, campagne: msgCampagne };
+  const msgPanier = countPanier > 0
+    ? `${employee.nom}, j'ai déjà ${countPanier.toLocaleString('fr-FR')} jour(s) de panier moyen en mémoire, le dernier date du ${dernierJourPanier ? new Date(dernierJourPanier + 'T12:00:00').toLocaleDateString('fr-FR') : '—'}. Réimportez régulièrement pour garder l'historique à jour — un jour déjà connu sera simplement mis à jour.`
+    : `${employee.nom}, c'est le premier import de panier moyen. Une fois envoyé, je pourrai mesurer le vrai panier moyen boutique autour de vos promotions.`;
+
+  const MESSAGES_CONSEILLER_IMPORT = { ventes: msgVentes, stock: msgStock, campagne: msgCampagne, panier: msgPanier };
   const msgEl = document.getElementById('conseillerImportMsg');
   if (msgEl) msgEl.textContent = MESSAGES_CONSEILLER_IMPORT.ventes;
 
@@ -329,20 +351,27 @@ let currentRows = [];
 let currentMapping = {};
 let currentHeaders = [];
 let cleanedSummary = [];
+let currentPanierLignes = [];
 let typeImportActuel = 'ventes';
+const panierResume = document.getElementById('panierResume');
 
 const btnTypeVentes = document.getElementById('typeVentes');
 const btnTypeStock = document.getElementById('typeStock');
 const btnTypeCampagne = document.getElementById('typeCampagne');
+const btnTypePanier = document.getElementById('typePanier');
 const periodeVentesSection = document.getElementById('periodeVentesSection');
 const periodeStockSection = document.getElementById('periodeStockSection');
 const periodeCampagneSection = document.getElementById('periodeCampagneSection');
+const mappingSection = document.getElementById('mappingSection');
+const resumeSection = document.getElementById('resumeSection');
+const panierInfoSection = document.getElementById('panierInfoSection');
 const typeExplication = document.getElementById('typeExplication');
 
 const EXPLICATIONS_TYPE = {
   ventes: "CA, marge, évolution — un fichier par période de vente.",
   stock: "Quantités théoriques par référence, à un instant précis — sert à préparer Scanner Stock.",
   campagne: "Les ventes d'un produit en promotion, avant et pendant — NEXUS calcule les dates, vous choisissez juste la promotion.",
+  panier: "Export Decenium (Compta > Panier Moyen) — nombre de tickets et panier moyen boutique, un jour par ligne.",
 };
 
 function choisirTypeImport(type) {
@@ -350,9 +379,15 @@ function choisirTypeImport(type) {
   btnTypeVentes.className = type === 'ventes' ? 'btn btn-primary' : 'btn btn-ghost';
   btnTypeStock.className = type === 'stock' ? 'btn btn-primary' : 'btn btn-ghost';
   btnTypeCampagne.className = type === 'campagne' ? 'btn btn-primary' : 'btn btn-ghost';
+  btnTypePanier.className = type === 'panier' ? 'btn btn-primary' : 'btn btn-ghost';
   periodeVentesSection.style.display = type === 'ventes' ? 'block' : 'none';
   periodeStockSection.style.display = type === 'stock' ? 'block' : 'none';
   periodeCampagneSection.style.display = type === 'campagne' ? 'block' : 'none';
+  // Le format Panier moyen est fixe (Decenium) : pas de mapping de
+  // colonnes à montrer, pas de résumé générique par catégorie.
+  mappingSection.style.display = type === 'panier' ? 'none' : 'block';
+  resumeSection.style.display = type === 'panier' ? 'none' : 'block';
+  panierInfoSection.style.display = type === 'panier' ? 'block' : 'none';
   typeExplication.textContent = EXPLICATIONS_TYPE[type];
 
   const msgEl = document.getElementById('conseillerImportMsg');
@@ -364,6 +399,7 @@ function choisirTypeImport(type) {
 btnTypeVentes.addEventListener('click', () => choisirTypeImport('ventes'));
 btnTypeStock.addEventListener('click', () => choisirTypeImport('stock'));
 btnTypeCampagne.addEventListener('click', () => choisirTypeImport('campagne'));
+btnTypePanier.addEventListener('click', () => choisirTypeImport('panier'));
 
 // ------------------------------------------------------------
 // Import Campagne NEXUS (25/07/2026) — le manager choisit une
@@ -588,6 +624,7 @@ function parserTableHTML(html) {
 }
 
 function handleFile(file){
+  if (typeImportActuel === 'panier') { handlePanierFile(file); return; }
   const reader = new FileReader();
   reader.onload = function(e){
     const data = new Uint8Array(e.target.result);
@@ -619,6 +656,99 @@ function handleFile(file){
   reader.readAsArrayBuffer(file);
 }
 
+// ------------------------------------------------------------
+// Panier moyen (25/07/2026) — format Decenium fixe, en-tête pas
+// forcément en première ligne (l'export laisse souvent des lignes
+// vides avant "Date Transaction"). On cherche la ligne d'en-tête où
+// qu'elle soit plutôt que de supposer qu'elle est en ligne 1, puis on
+// convertit chaque ligne suivante en {date, nb_tickets, panier_moyen_ht,
+// panier_moyen_ttc} — jamais de ligne acceptée si sa date ne se
+// parse pas franchement (mieux vaut l'ignorer et le dire que deviner).
+// ------------------------------------------------------------
+function parserDateTransactionDecenium(brut) {
+  const s = String(brut || '').replace(/ /g, ' ').trim();
+  const parts = s.split(' - ');
+  const datePart = (parts.length > 1 ? parts[parts.length - 1] : s).trim();
+  const m = datePart.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (!m) return null;
+  const [, d, mo, y] = m;
+  return `${y}-${mo.padStart(2, '0')}-${d.padStart(2, '0')}`;
+}
+
+function extraireLignesPanier(matrix) {
+  let headerIdx = -1, colDate = -1, colNb = -1, colHt = -1, colTtc = -1;
+  for (let i = 0; i < matrix.length; i++) {
+    const row = matrix[i] || [];
+    const idx = row.findIndex(c => norm(c).includes('date transaction'));
+    if (idx !== -1) {
+      headerIdx = i; colDate = idx;
+      colNb = row.findIndex(c => norm(c) === 'nb');
+      colHt = row.findIndex(c => norm(c).includes('pm ht'));
+      colTtc = row.findIndex(c => norm(c).includes('pm ttc'));
+      break;
+    }
+  }
+  if (headerIdx === -1 || colNb === -1 || colHt === -1 || colTtc === -1) {
+    return { erreur: "En-têtes non reconnus dans ce fichier — attendu : Date Transaction, Nb, PM HT, PM TTC (export Decenium, menu Compta > Panier Moyen)." };
+  }
+  const lignes = [];
+  const ignorees = [];
+  for (let i = headerIdx + 1; i < matrix.length; i++) {
+    const row = matrix[i] || [];
+    if (!row.length || row.every(c => String(c).trim() === '')) continue;
+    const date = parserDateTransactionDecenium(row[colDate]);
+    const nb = toNumber(row[colNb]);
+    if (!date || isNaN(nb)) { ignorees.push(row[colDate]); continue; }
+    const ht = toNumber(row[colHt]);
+    const ttc = toNumber(row[colTtc]);
+    lignes.push({ date, nb_tickets: Math.round(nb), panier_moyen_ht: isNaN(ht) ? null : ht, panier_moyen_ttc: isNaN(ttc) ? null : ttc });
+  }
+  return { lignes, ignorees };
+}
+
+function handlePanierFile(file) {
+  const reader = new FileReader();
+  reader.onload = function (e) {
+    const data = new Uint8Array(e.target.result);
+    const debutTxt = new TextDecoder('utf-8').decode(data.slice(0, 512)).toLowerCase();
+    let matrix;
+    if (debutTxt.includes('<html') || debutTxt.includes('<table')) {
+      const doc = new DOMParser().parseFromString(new TextDecoder('utf-8').decode(data), 'text/html');
+      const table = doc.querySelector('table');
+      const trs = table ? Array.from(table.querySelectorAll('tr')).filter(tr => tr.querySelectorAll('td,th').length > 0) : [];
+      matrix = trs.map(tr => Array.from(tr.querySelectorAll('td,th')).map(td => td.textContent.trim()));
+    } else {
+      const wb = XLSX.read(data, { type: 'array' });
+      const sheet = wb.Sheets[wb.SheetNames[0]];
+      matrix = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+    }
+
+    const { lignes, ignorees, erreur } = extraireLignesPanier(matrix);
+    if (erreur) { alert(erreur); return; }
+    if (!lignes.length) { alert("Aucune ligne de date valide trouvée dans ce fichier."); return; }
+
+    currentPanierLignes = lignes;
+    fname.textContent = file.name;
+    fmeta.textContent = `${(file.size / 1024).toFixed(0)} Ko · ${lignes.length} jour(s) détecté(s)${ignorees.length ? ` · ${ignorees.length} ligne(s) ignorée(s)` : ''}`;
+
+    previewHead.innerHTML = ['Date', 'Nb tickets', 'Panier moyen HT', 'Panier moyen TTC'].map(h => `<th>${h}</th>`).join('');
+    previewBody.innerHTML = lignes.slice(0, 15).map(l =>
+      `<tr><td>${fmtDateFr(l.date)}</td><td>${l.nb_tickets}</td><td>${l.panier_moyen_ht != null ? l.panier_moyen_ht.toFixed(2) + ' €' : '—'}</td><td>${l.panier_moyen_ttc != null ? l.panier_moyen_ttc.toFixed(2) + ' €' : '—'}</td></tr>`
+    ).join('');
+    moreRows.textContent = lignes.length > 15 ? `+ ${lignes.length - 15} autres lignes` : `${lignes.length} ligne(s) au total`;
+
+    const dates = lignes.map(l => l.date).sort();
+    const moyNb = Math.round(lignes.reduce((s, l) => s + l.nb_tickets, 0) / lignes.length);
+    const avecTtc = lignes.filter(l => l.panier_moyen_ttc != null);
+    const moyPanier = avecTtc.length ? avecTtc.reduce((s, l) => s + l.panier_moyen_ttc, 0) / avecTtc.length : null;
+    panierResume.innerHTML = `<b style="color:var(--text);">${lignes.length} jour(s)</b> détecté(s), du ${fmtDateFr(dates[0])} au ${fmtDateFr(dates[dates.length - 1])}.<br>Moyenne sur la période : ${moyNb} tickets/jour${moyPanier != null ? `, panier moyen ${moyPanier.toFixed(2)} € TTC` : ''} (boutique uniquement).${ignorees.length ? `<br><span style="color:var(--amber);">${ignorees.length} ligne(s) non reconnue(s), ignorée(s) plutôt que devinées.</span>` : ''}`;
+
+    dropzone.style.display = 'none';
+    fileArea.style.display = 'block';
+  };
+  reader.readAsArrayBuffer(file);
+}
+
 dropzone.addEventListener('click', ()=> fileInput.click());
 fileInput.addEventListener('change', e=>{ if (e.target.files[0]) handleFile(e.target.files[0]); });
 
@@ -634,7 +764,7 @@ dropzone.addEventListener('drop', e=>{
 });
 
 removeFile.addEventListener('click', ()=>{
-  currentRows = []; currentHeaders = []; cleanedSummary = [];
+  currentRows = []; currentHeaders = []; cleanedSummary = []; currentPanierLignes = [];
   fileInput.value = '';
   fileArea.style.display = 'none';
   dropzone.style.display = 'block';
@@ -650,6 +780,17 @@ downloadClean.addEventListener('click', ()=>{
 
 sendPilot.addEventListener('click', async ()=>{
   const msg = document.getElementById('sendMsg');
+
+  if (typeImportActuel === 'panier') {
+    if (!currentPanierLignes.length) {
+      msg.textContent = "Aucune donnée à envoyer.";
+      msg.style.color = 'var(--red)';
+      return;
+    }
+    await envoyerPanierMoyen(msg);
+    return;
+  }
+
   if (!currentRows.length) {
     msg.textContent = "Aucune donnée à envoyer.";
     msg.style.color = 'var(--red)';
@@ -898,6 +1039,45 @@ async function envoyerCampagneProduits(msg) {
     msg.textContent = `✓ ${envoyees} référence(s) importée(s) pour "${campagne.nom}" (${phaseChoisie}, ${debut} → ${fin}).`;
     msg.style.color = 'var(--green)';
   }
+  sendPilot.textContent = 'Envoyer à NEXUS Pilot →';
+  sendPilot.style.pointerEvents = 'auto';
+}
+
+// ------------------------------------------------------------
+// Panier moyen — un upsert(site, date) par jour : contrairement à
+// products (un import = une période entière remplacée), ici chaque
+// jour est sa propre unité et un réimport met juste à jour la ligne
+// existante, sans confirmation de remplacement nécessaire.
+// ------------------------------------------------------------
+async function envoyerPanierMoyen(msg) {
+  sendPilot.textContent = 'Envoi en cours…';
+  sendPilot.style.pointerEvents = 'none';
+
+  const site = employee.site_id || 'vito-sainte-marie';
+  const lignes = currentPanierLignes.map(l => ({
+    site, date: l.date, nb_tickets: l.nb_tickets,
+    panier_moyen_ht: l.panier_moyen_ht, panier_moyen_ttc: l.panier_moyen_ttc,
+    importe_par: employee.id,
+  }));
+
+  const TAILLE_LOT = 500;
+  let envoyees = 0;
+  for (let i = 0; i < lignes.length; i += TAILLE_LOT) {
+    const lot = lignes.slice(i, i + TAILLE_LOT);
+    const { error } = await nexusClient.from('panier_moyen_quotidien').upsert(lot, { onConflict: 'site,date' });
+    if (error) {
+      console.error('Import panier_moyen_quotidien:', error);
+      msg.textContent = `Erreur après ${envoyees} jour(s) envoyé(s) — réessayez.`;
+      msg.style.color = 'var(--red)';
+      sendPilot.textContent = 'Envoyer à NEXUS Pilot →';
+      sendPilot.style.pointerEvents = 'auto';
+      return;
+    }
+    envoyees += lot.length;
+  }
+
+  msg.textContent = `✓ ${envoyees} jour(s) importé(s) ou mis à jour (panier moyen boutique).`;
+  msg.style.color = 'var(--green)';
   sendPilot.textContent = 'Envoyer à NEXUS Pilot →';
   sendPilot.style.pointerEvents = 'auto';
 }

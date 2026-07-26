@@ -157,6 +157,63 @@
     return { disponible: resultats.some(r => r.disponible), resultats };
   }
 
+  // ------------------------------------------------------------
+  // Panier moyen boutique (25/07/2026) — même logique avant/pendant/après
+  // que analyserImpactCampagne, mais lue depuis la série séparée
+  // panier_moyen_quotidien (import dédié via Import > Panier moyen,
+  // export Decenium Compta > Panier Moyen). Précision importante :
+  // cette série est BOUTIQUE UNIQUEMENT (confirmé par Frédéric le
+  // 25/07/2026) — jamais mélangée avec le CA piste. Gated comme le
+  // reste : pas de résultat sans assez de jours des deux côtés.
+  // ------------------------------------------------------------
+  function analyserImpactPanierMoyen(campagne, panierMoyenRows) {
+    // Accepte aussi bien une ligne brute campagnes_nexus (date_debut/date_fin)
+    // qu'un objet déjà transformé par analyserImpactCampagne (dateDebut/dateFin).
+    const dateDebut = campagne.dateDebut || campagne.date_debut;
+    const dateFin = campagne.dateFin || campagne.date_fin;
+    const rows = (panierMoyenRows || []).filter(r => r.nb_tickets !== null && r.nb_tickets !== undefined);
+    const avant = rows.filter(r => r.date < dateDebut);
+    const pendant = rows.filter(r => r.date >= dateDebut && r.date <= dateFin);
+    const apres = rows.filter(r => r.date > dateFin);
+
+    if (!rows.length) {
+      return { disponible: false, message: "Aucune donnée de panier moyen importée — importez l'export Decenium (Compta > Panier Moyen) via Import > Panier moyen." };
+    }
+
+    if (avant.length < MIN_JOURS_COMPARABLES || pendant.length < MIN_JOURS_COMPARABLES) {
+      return {
+        disponible: false,
+        nbAvant: avant.length, nbPendant: pendant.length, nbApres: apres.length,
+        message: `Panier moyen non encore mesurable — il faut au moins ${MIN_JOURS_COMPARABLES} jours avant et ${MIN_JOURS_COMPARABLES} jours pendant la période (actuellement ${avant.length} avant, ${pendant.length} pendant).`,
+      };
+    }
+
+    const nbTickets = r => r.nb_tickets;
+    const panierTtc = r => r.panier_moyen_ttc;
+    const avecTtcAvant = avant.filter(r => r.panier_moyen_ttc !== null && r.panier_moyen_ttc !== undefined);
+    const avecTtcPendant = pendant.filter(r => r.panier_moyen_ttc !== null && r.panier_moyen_ttc !== undefined);
+    const avecTtcApres = apres.filter(r => r.panier_moyen_ttc !== null && r.panier_moyen_ttc !== undefined);
+
+    const moyTicketsAvant = moyenne(avant.map(nbTickets));
+    const moyTicketsPendant = moyenne(pendant.map(nbTickets));
+    const moyTicketsApres = apres.length >= MIN_JOURS_COMPARABLES ? moyenne(apres.map(nbTickets)) : null;
+
+    const moyPanierAvant = avecTtcAvant.length ? moyenne(avecTtcAvant.map(panierTtc)) : null;
+    const moyPanierPendant = avecTtcPendant.length ? moyenne(avecTtcPendant.map(panierTtc)) : null;
+    const moyPanierApres = avecTtcApres.length >= MIN_JOURS_COMPARABLES ? moyenne(avecTtcApres.map(panierTtc)) : null;
+
+    return {
+      disponible: true,
+      nbAvant: avant.length, nbPendant: pendant.length, nbApres: apres.length,
+      moyTicketsAvant, moyTicketsPendant, moyTicketsApres,
+      evolutionTicketsPendant: evolution(moyTicketsPendant, moyTicketsAvant),
+      evolutionTicketsApres: moyTicketsApres !== null ? evolution(moyTicketsApres, moyTicketsAvant) : null,
+      moyPanierAvant, moyPanierPendant, moyPanierApres,
+      evolutionPanierPendant: (moyPanierAvant !== null && moyPanierPendant !== null) ? evolution(moyPanierPendant, moyPanierAvant) : null,
+      evolutionPanierApres: (moyPanierAvant !== null && moyPanierApres !== null) ? evolution(moyPanierApres, moyPanierAvant) : null,
+    };
+  }
+
   // Analyse toutes les campagnes connues, la plus récente en premier.
   function analyserCampagnes(campagnesRows, joursAgreges) {
     return (campagnesRows || [])
@@ -196,7 +253,7 @@
 
   global.NexusCampagnes = {
     TYPE_CAMPAGNE_LABELS, NATURE_CAMPAGNE_LABELS, OBJECTIF_CAMPAGNE_LABELS, MIN_JOURS_COMPARABLES,
-    valeurCampagne, analyserImpactCampagne, analyserCampagnes, analyserImpactProduits, texteConseillerCampagne,
-    moyenne, evolution,
+    valeurCampagne, analyserImpactCampagne, analyserCampagnes, analyserImpactProduits, analyserImpactPanierMoyen,
+    texteConseillerCampagne, moyenne, evolution,
   };
 })(typeof window !== 'undefined' ? window : globalThis);
