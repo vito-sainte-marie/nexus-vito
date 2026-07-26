@@ -99,6 +99,7 @@ footer{margin-top:auto; padding:20px 20px 24px; font-family:var(--mono); font-si
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-auth.js"></script>
+<script src="nexus-forfait.js"></script>
 <script src="nexus-tempo.js"></script>
 <script src="nexus-campagnes.js"></script>
 </head>
@@ -161,6 +162,7 @@ footer{margin-top:auto; padding:20px 20px 24px; font-family:var(--mono); font-si
     }
     EMPLOYEE = employee;
     SITE_ID = employee.site_id || 'vito-sainte-marie';
+    if (!(await NexusForfait.nexusRequireProfessional('NEXUS-Campagne-v1.html', SITE_ID))) return;
     await chargerEtAfficher();
   });
 

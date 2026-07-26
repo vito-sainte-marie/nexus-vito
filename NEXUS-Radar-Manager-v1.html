@@ -68,6 +68,7 @@
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-auth.js"></script>
+<script src="nexus-forfait.js"></script>
 <script src="nexus-periodes.js"></script>
 <script src="nexus-indice.js"></script>
 </head>
@@ -111,6 +112,7 @@
     }
     const session = { prenom: employee.nom, role: employee.role };
     const SITE_ACTUEL = employee.site_id || 'vito-sainte-marie';
+    if (!(await NexusForfait.nexusRequireProfessional('NEXUS-Radar-Manager-v1.html', SITE_ACTUEL))) return;
 
   // Supabase plafonne chaque requete a 1000 lignes par defaut, sans erreur —
   // au-dela, le reste est silencieusement absent. Meme helper que

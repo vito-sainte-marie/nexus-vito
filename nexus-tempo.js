@@ -1150,7 +1150,7 @@
     { id: 'ventes_horaires', nom: 'Ventes par tranche horaire', statut: 'prevue' },
     { id: 'meteo', nom: 'Météo locale (Open-Meteo)', statut: 'connectee' },
     { id: 'planning', nom: "Rythme d'équipe (Nexus Planning — via audits de caisse, plannings pas encore publiés)", statut: 'connectee' },
-    { id: 'promotions', nom: 'Promotions en cours', statut: 'prevue' },
+    { id: 'promotions', nom: 'Promotions en cours (page dédiée Campagne NEXUS)', statut: 'connectee' },
     { id: 'sante_stock', nom: 'Indice santé stock (Scanner Stock)', statut: 'connectee' },
     { id: 'ruptures', nom: 'Ruptures de stock (Scanner Stock)', statut: 'prevue' },
     { id: 'evenements_locaux', nom: 'Événements locaux', statut: 'prevue' },

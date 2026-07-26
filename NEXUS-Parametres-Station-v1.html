@@ -52,6 +52,13 @@
 
   .statut-prix{font-family:var(--mono); font-size:11px; line-height:1.5; margin-bottom:10px;}
 
+  /* Forfait NEXUS (26/07/2026) — lecture seule pour le manager. Seul le
+     créateur peut changer ce choix, depuis NEXUS-Admin-Sites-v1.html
+     (voir nexus-forfait.js pour la liste des pages réservées à Professional). */
+  .forfait-actuel{display:inline-flex; align-items:center; gap:6px; font-family:var(--mono); font-size:11.5px; padding:6px 12px; border-radius:20px; font-weight:700; margin-bottom:10px;}
+  .forfait-actuel.essential{background:var(--panel-raised); color:var(--text-mid); border:1px solid var(--hairline);}
+  .forfait-actuel.professional{background:#332B12; color:#D4AF37; border:1px solid rgba(212,175,55,0.35);}
+
   /* Interrupteur "manager doit pointer" (24/07/2026) — un simple
      checkbox natif se perd visuellement dans le reste du formulaire ;
      ce toggle rend l'état ON/OFF lisible d'un coup d'œil, cohérent
@@ -102,6 +109,12 @@
   <div class="divider"></div>
 
   <div class="section">
+    <div class="card" id="cardForfait">
+      <div class="section-label">Forfait NEXUS</div>
+      <div id="forfaitActuel" class="forfait-actuel essential">Chargement…</div>
+      <div class="note" style="margin-top:0;">Ce choix n'est pas modifiable depuis cet écran — seul le créateur NEXUS peut attribuer ou changer le forfait d'un site, depuis l'administration multi-site.</div>
+    </div>
+
     <div class="card">
       <div class="section-label">Quart 1 — Début de service attendu</div>
       <div class="row"><label>Dimanche à Mercredi</label><input type="time" id="q1_normal"></div>
@@ -248,6 +261,18 @@
   // pas encore pour ce site (23502 — null value in column "horaires").
   let CONFIG_HORAIRES_ACTUEL = await chargerConfig();
   remplirFormulaire(CONFIG_HORAIRES_ACTUEL);
+
+  // Forfait NEXUS (26/07/2026) — affichage lecture seule uniquement.
+  // La colonne sites.forfait reste la seule source de vérité, modifiable
+  // uniquement par le créateur depuis NEXUS-Admin-Sites-v1.html.
+  (async function afficherForfait() {
+    const { data, error } = await nexusClient.from('sites').select('forfait').eq('site_id', employee.site_id || 'vito-sainte-marie').maybeSingle();
+    const el = document.getElementById('forfaitActuel');
+    if (error) { console.error('Chargement forfait:', error); el.textContent = 'Forfait indisponible pour le moment.'; return; }
+    const forfait = (data && data.forfait) || 'essential';
+    el.className = 'forfait-actuel ' + forfait;
+    el.textContent = forfait === 'professional' ? '💎 Professional — toutes les fonctionnalités' : '● Essential — outils du quotidien';
+  })();
 
   document.getElementById('sauvegarder').addEventListener('click', async () => {
     const btn = document.getElementById('sauvegarder');

@@ -16,6 +16,7 @@
     --amber:#F5A623; --amber-dim:#3A2E14;
     --red:#F0575A; --red-dim:#3A1D1F;
     --cyan:#4FC3D9;
+    --gold:#D4AF37; --gold-dim:#332B12;
     --mono:'IBM Plex Mono',monospace; --sans:'IBM Plex Sans',sans-serif;
   }
   *{box-sizing:border-box; margin:0; padding:0;}
@@ -78,6 +79,16 @@
 
   .locked{padding:60px 20px; text-align:center; color:var(--text-dim); font-size:13px;}
   .loading{padding:60px 20px; text-align:center; color:var(--text-dim); font-size:13px;}
+
+  .forfait-choix{display:flex; gap:10px; margin-bottom:14px;}
+  .forfait-pill{flex:1; padding:14px 12px; border-radius:10px; border:1px solid var(--hairline); background:var(--panel-raised); cursor:pointer; text-align:center;}
+  .forfait-pill.active{border-color:var(--gold); background:var(--gold-dim);}
+  .forfait-pill-titre{font-size:13.5px; font-weight:700; color:var(--text);}
+  .forfait-pill.active .forfait-pill-titre{color:var(--gold);}
+  .forfait-pill-desc{font-size:10.5px; color:var(--text-mid); margin-top:4px; line-height:1.4;}
+  .forfait-actuel{display:inline-flex; align-items:center; gap:6px; font-family:var(--mono); font-size:10.5px; padding:4px 10px; border-radius:20px; font-weight:700; margin-bottom:14px;}
+  .forfait-actuel.essential{background:var(--panel-raised); color:var(--text-mid); border:1px solid var(--hairline);}
+  .forfait-actuel.professional{background:var(--gold-dim); color:var(--gold); border:1px solid rgba(212,175,55,0.35);}
 
   footer{margin-top:auto; padding:16px 20px 24px; font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:center; border-top:1px solid var(--hairline);}
 </style>
@@ -181,6 +192,24 @@
 
       ${siteActif ? `
       <div class="card">
+        <div class="section-label">Forfait NEXUS — ${siteActif.site_id}</div>
+        <div class="forfait-actuel ${siteActif.forfait}">${siteActif.forfait === 'professional' ? '💎 Professional' : '● Essential'} — forfait actuel</div>
+        <p class="note" style="margin-top:0; margin-bottom:14px;">Essential donne accès à Cockpit, Produits, Rayon, Centre d'Intelligence NEXUS, Scanner Stock, Import, Paramètres Station, Nexus Verify et Missions. Professional ajoute toutes les autres fonctionnalités (NEXUS Tempo, Campagne NEXUS, Capital NEXUS, Nexus Planner, Scanner NEXUS, Journal NEXUS, Assignations, Résultats Équipe, Évaluation Employé, Radar du Manager). Seul le créateur peut changer ce choix, ici.</p>
+        <div class="forfait-choix">
+          <div class="forfait-pill ${siteActif.forfait === 'essential' ? 'active' : ''}" data-forfait="essential">
+            <div class="forfait-pill-titre">Essential</div>
+            <div class="forfait-pill-desc">Les outils du quotidien</div>
+          </div>
+          <div class="forfait-pill ${siteActif.forfait === 'professional' ? 'active' : ''}" data-forfait="professional">
+            <div class="forfait-pill-titre">Professional</div>
+            <div class="forfait-pill-desc">Toutes les fonctionnalités</div>
+          </div>
+        </div>
+        <button class="btn btn-primary" id="btnEnregistrerForfait">Enregistrer ce forfait</button>
+        <div class="msg" id="msgForfait"></div>
+      </div>
+
+      <div class="card">
         <div class="section-label">Marque — ${siteActif.site_id}</div>
         <div class="logo-preview">
           ${siteActif.logo_url ? `<img src="${siteActif.logo_url}" alt="">` : `<div class="none">?</div>`}
@@ -234,7 +263,7 @@
         ${s.logo_url ? `<img class="site-logo" src="${s.logo_url}" alt="">` : `<div class="site-logo">?</div>`}
         <div>
           <div class="site-name">${s.nom_entreprise}</div>
-          <div class="site-id">${s.site_id}</div>
+          <div class="site-id">${s.site_id} · ${s.forfait === 'professional' ? '💎 Professional' : '● Essential'}</div>
         </div>
       </div>`).join('');
 
@@ -243,6 +272,33 @@
     });
 
     if (siteActif) {
+      let forfaitChoisi = siteActif.forfait;
+      document.querySelectorAll('.forfait-pill').forEach(el => {
+        el.addEventListener('click', () => {
+          forfaitChoisi = el.dataset.forfait;
+          document.querySelectorAll('.forfait-pill').forEach(p => p.classList.remove('active'));
+          el.classList.add('active');
+        });
+      });
+
+      document.getElementById('btnEnregistrerForfait').addEventListener('click', async () => {
+        const btn = document.getElementById('btnEnregistrerForfait');
+        const msg = document.getElementById('msgForfait');
+        btn.disabled = true; btn.textContent = 'Enregistrement…';
+
+        const { error } = await nexusClient.from('sites')
+          .update({ forfait: forfaitChoisi })
+          .eq('site_id', siteActif.site_id);
+
+        btn.disabled = false; btn.textContent = 'Enregistrer ce forfait';
+        if (error) { console.error('Enregistrement forfait:', error); msg.textContent = 'Erreur — réessayez.'; msg.className = 'msg err'; return; }
+
+        msg.textContent = `✓ ${siteActif.site_id} est maintenant en forfait ${forfaitChoisi === 'professional' ? 'Professional' : 'Essential'}.`;
+        msg.className = 'msg ok';
+        SITES = await chargerSites();
+        renderRoot();
+      });
+
       let logoFile = null;
       document.getElementById('btnChoisirLogo').addEventListener('click', () => document.getElementById('inputLogo').click());
       document.getElementById('inputLogo').addEventListener('change', (e) => { logoFile = e.target.files[0] || null; });
@@ -333,7 +389,7 @@
         msg.className = 'msg err';
         return;
       }
-      msg.textContent = `✓ Site "${nom}" créé — branding uniquement, isolation des données non incluse (voir bandeau ci-dessus).`;
+      msg.textContent = `✓ Site "${nom}" créé — forfait Essential par défaut, branding non inclus (voir bandeau ci-dessus).`;
       msg.className = 'msg ok';
       siteActifId = id;
       SITES = await chargerSites();

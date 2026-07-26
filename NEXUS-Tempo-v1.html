@@ -141,6 +141,7 @@ footer{margin-top:auto; padding:20px 20px 24px; font-family:var(--mono); font-si
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-auth.js"></script>
+<script src="nexus-forfait.js"></script>
 <script src="nexus-tempo.js"></script>
 </head>
 <body>
@@ -247,6 +248,7 @@ footer{margin-top:auto; padding:20px 20px 24px; font-family:var(--mono); font-si
       return;
     }
     const siteId = employee.site_id || 'vito-sainte-marie';
+    if (!(await NexusForfait.nexusRequireProfessional('NEXUS-Tempo-v1.html', siteId))) return;
 
     const [{ data: auditsRows, error: e1 }, { data: employesRows, error: e2 }, { data: stockRows, error: e3 }, { data: journalRows, error: e4 }, { data: inventaireRows, error: e5 }] = await Promise.all([
       fetchAllRows(() => nexusClient.from('audits_caisse')

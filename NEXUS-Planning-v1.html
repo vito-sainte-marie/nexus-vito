@@ -94,6 +94,7 @@
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-auth.js"></script>
+<script src="nexus-forfait.js"></script>
 </head>
 <body>
 <div class="phone" id="app">
@@ -208,6 +209,7 @@
     }
 
     const siteId = employee.site_id || 'vito-sainte-marie';
+    if (!(await NexusForfait.nexusRequireProfessional('NEXUS-Planning-v1.html', siteId))) return;
     let MOIS_COURANT = premierJourMois(new Date());
     let EMPLOYES = [];
     let CONTRAINTES = {}; // employee_id -> { heures_contrat_semaine, jours_repos_habituels, peut_faire_renfort }

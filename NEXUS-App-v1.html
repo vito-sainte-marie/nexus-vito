@@ -94,6 +94,26 @@
   .badge-premium{background:rgba(212,175,55,0.14); color:var(--gold);}
   .badge-urgent{background:#3A1D1F; color:#F0575A; font-family:var(--mono); font-size:8.5px; padding:2px 7px; border-radius:20px; font-weight:700; margin-left:6px; animation:pulse-urgent 1.6s infinite;}
   .badge-danger{background:#3A1D1F; color:#F0575A; border:1px solid rgba(240,87,90,0.4); font-family:var(--mono); font-size:8.5px; padding:2px 7px; border-radius:20px; font-weight:700; margin-left:6px; letter-spacing:0.03em; text-transform:uppercase;}
+
+  /* Verrouillage forfait (26/07/2026) — un site Essential voit les outils
+     Professional grisés dans le menu plutôt que masqués : ça montre ce qui
+     existe sans y donner accès. Le clic est intercepté en JS (voir
+     verrouillerNavForfait) ; la vraie barrière reste nexus-forfait.js sur
+     chacune de ces pages, pour qu'un lien direct copié/collé ne suffise
+     pas non plus à contourner la restriction. */
+  .nav-item.locked-forfait{opacity:0.45; cursor:default;}
+  .nav-item.locked-forfait .nav-arrow{content:'🔒';}
+  .forfait-toast{
+    position:fixed; left:50%; bottom:24px; transform:translateX(-50%) translateY(0); z-index:50;
+    max-width:440px; width:calc(100% - 40px); background:#332B12; color:#D4AF37; border:1px solid rgba(212,175,55,0.4);
+    border-radius:12px; padding:13px 16px; font-size:12.5px; line-height:1.5; text-align:center;
+    box-shadow:0 10px 30px rgba(0,0,0,0.4); opacity:0; pointer-events:none; transition:opacity .2s;
+  }
+  .forfait-toast.visible{opacity:1;}
+  .forfait-banniere{
+    margin:0; padding:12px 20px; background:#332B12; color:#D4AF37; border-bottom:1px solid rgba(212,175,55,0.35);
+    font-family:var(--mono); font-size:11px; text-align:center; line-height:1.6;
+  }
   .nav-item.urgent{background:rgba(240,87,90,0.06);}
   .nav-item.urgent .nav-icon{animation:pulse-urgent 1.6s infinite;}
   @keyframes pulse-urgent{0%,100%{opacity:1;} 50%{opacity:0.5;}}
@@ -216,6 +236,7 @@
     <div class="subtitle" id="sessionInfo" style="margin-top:6px;"></div>
   </div>
   <div id="banniereConsultation"></div>
+  <div id="banniereForfait"></div>
   <div id="banniereCarburants"></div>
 
   <!-- ============================================================
@@ -317,10 +338,10 @@
       </div>
       <div class="nav-arrow">›</div>
     </a>
-    <a class="nav-item" data-role="manager" href="NEXUS-Planning-v1.html" style="display:none;">
+    <a class="nav-item" data-role="manager" data-forfait="professional" href="NEXUS-Planning-v1.html" style="display:none;">
       <div class="nav-icon"><img src="assets/icons/icon-planner.png" alt="Nexus Planner"></div>
       <div class="nav-body">
-        <div class="nav-title">Nexus Planner <span class="nav-badge badge-premium">Premium</span></div>
+        <div class="nav-title">Nexus Planner <span class="nav-badge badge-premium">Professional</span></div>
         <div class="nav-desc">Le bon collaborateur, au bon endroit, au bon moment</div>
       </div>
       <div class="nav-arrow">›</div>
@@ -345,18 +366,18 @@
 
   <div class="section-label">Équipe</div>
   <nav data-group="equipe">
-    <a class="nav-item" data-role="manager" href="NEXUS-Assignations-v1.html" style="display:none;">
+    <a class="nav-item" data-role="manager" data-forfait="professional" href="NEXUS-Assignations-v1.html" style="display:none;">
       <div class="nav-icon"><img src="assets/icons/icon-assignations.png" alt="Assignations"></div>
       <div class="nav-body">
-        <div class="nav-title">Assignations</div>
+        <div class="nav-title">Assignations <span class="nav-badge badge-premium">Professional</span></div>
         <div class="nav-desc">Assigner, suivre, valider une mission</div>
       </div>
       <div class="nav-arrow">›</div>
     </a>
-    <a class="nav-item" data-role="manager" href="NEXUS-Resultats-Equipe-v1.html" style="display:none;">
+    <a class="nav-item" data-role="manager" data-forfait="professional" href="NEXUS-Resultats-Equipe-v1.html" style="display:none;">
       <div class="nav-icon"><img src="assets/icons/icon-resultats-equipe.png" alt="Résultats équipe"></div>
       <div class="nav-body">
-        <div class="nav-title">Résultats Équipe</div>
+        <div class="nav-title">Résultats Équipe <span class="nav-badge badge-premium">Professional</span></div>
         <div class="nav-desc">Progression réelle par employé</div>
       </div>
       <div class="nav-arrow">›</div>
@@ -365,10 +386,10 @@
          Évaluation plutôt que Résultats Équipe — c'est ce que le manager fait
          en premier sur le terrain (évaluer son équipe), avant de consulter
          des résultats chiffrés. -->
-    <a class="nav-item" data-role="manager" data-preview="true" href="NEXUS-Evaluation-Employe-v1.html" style="display:none;">
+    <a class="nav-item" data-role="manager" data-preview="true" data-forfait="professional" href="NEXUS-Evaluation-Employe-v1.html" style="display:none;">
       <div class="nav-icon"><img src="assets/icons/icon-evaluation.png" alt="Évaluation"></div>
       <div class="nav-body">
-        <div class="nav-title">Évaluation</div>
+        <div class="nav-title">Évaluation <span class="nav-badge badge-premium">Professional</span></div>
         <div class="nav-desc">Contrôle tenue + grille de prime</div>
       </div>
       <div class="nav-arrow">›</div>
@@ -397,10 +418,10 @@
   <div class="groupe-wrap" data-groupe="analyse">
     <div class="section-label" data-role="manager" style="display:none;">Analyse &amp; pilotage</div>
     <nav data-role="manager" data-group="analyse" style="display:none;">
-      <a class="nav-item" data-role="manager" href="NEXUS-Radar-Manager-v1.html">
+      <a class="nav-item" data-role="manager" data-forfait="professional" href="NEXUS-Radar-Manager-v1.html">
         <div class="nav-icon"><img src="assets/icons/icon-radar.png" alt="Radar du manager"></div>
         <div class="nav-body">
-          <div class="nav-title">Radar du Manager</div>
+          <div class="nav-title">Radar du Manager <span class="nav-badge badge-premium">Professional</span></div>
           <div class="nav-desc">8 domaines de responsabilité</div>
         </div>
         <div class="nav-arrow">›</div>
@@ -426,18 +447,21 @@
            positionné ici plutôt que sur l'accueil — il ne remonte en page
            d'accueil que via un constat ponctuel du Conseiller quand une
            tendance fiable existe (voir renderConstatTempoHome ci-dessous). -->
-      <a class="nav-item" data-role="manager" href="NEXUS-Tempo-v1.html">
+      <a class="nav-item" data-role="manager" data-forfait="professional" href="NEXUS-Tempo-v1.html">
         <div class="nav-icon"><img src="assets/icons/icon-nexus-tempo.png" alt="NEXUS Tempo"></div>
         <div class="nav-body">
-          <div class="nav-title">NEXUS Tempo <span class="nav-badge badge-premium">Premium</span></div>
+          <div class="nav-title">NEXUS Tempo <span class="nav-badge badge-premium">Professional</span></div>
           <div class="nav-desc">Les jours qui portent votre station, ceux qui la ralentissent</div>
         </div>
         <div class="nav-arrow">›</div>
       </a>
+      <!-- Scanner Stock (26/07/2026) : passe en Essential — l'ancien badge
+           Premium n'a plus lieu d'être, retiré au moment d'introduire les
+           vrais forfaits Essential/Professional (voir nexus-forfait.js). -->
       <a class="nav-item" data-role="manager" href="NEXUS-Scanner-Stock-v1.html">
         <div class="nav-icon"><img src="assets/icons/icon-scanner-stock.png" alt="Scanner Stock"></div>
         <div class="nav-body">
-          <div class="nav-title">Scanner Stock <span class="nav-badge badge-premium">Premium</span></div>
+          <div class="nav-title">Scanner Stock</div>
           <div class="nav-desc">Où vous perdez de l'argent, quoi recompter</div>
         </div>
         <div class="nav-arrow">›</div>
@@ -446,10 +470,10 @@
            Phase 1 mesure l'impact CA global avant/pendant/après une
            promotion — voir nexus-campagnes.js pour la limite honnête sur
            l'attribution par produit (donnée absente à ce jour). -->
-      <a class="nav-item" data-role="manager" href="NEXUS-Campagne-v1.html">
+      <a class="nav-item" data-role="manager" data-forfait="professional" href="NEXUS-Campagne-v1.html">
         <div class="nav-icon"><img src="assets/icons/icon-campagne-nexus.png" alt="Campagne NEXUS"></div>
         <div class="nav-body">
-          <div class="nav-title">Campagne NEXUS <span class="nav-badge badge-premium">Premium</span></div>
+          <div class="nav-title">Campagne NEXUS <span class="nav-badge badge-premium">Professional</span></div>
           <div class="nav-desc">Déclarer une promotion, mesurer son impact</div>
         </div>
         <div class="nav-arrow">›</div>
@@ -482,15 +506,15 @@
   <div class="groupe-wrap" data-groupe="decouvrir">
     <div class="section-label" data-role="manager" style="display:none;">Découvrir</div>
     <nav data-role="manager" data-group="decouvrir" style="display:none;">
-      <a class="nav-item" data-role="manager" data-preview="true" href="NEXUS-Scanner-v1.html">
+      <a class="nav-item" data-role="manager" data-preview="true" data-forfait="professional" href="NEXUS-Scanner-v1.html">
         <div class="nav-icon"><img src="assets/icons/icon-scanner.png" alt="Scanner NEXUS"></div>
         <div class="nav-body">
-          <div class="nav-title">Scanner NEXUS</div>
+          <div class="nav-title">Scanner NEXUS <span class="nav-badge badge-premium">Professional</span></div>
           <div class="nav-desc">CA, marge et répartition ABC du magasin</div>
         </div>
         <div class="nav-arrow">›</div>
       </a>
-      <a class="nav-item" data-role="manager" href="NEXUS-Capital-v1.html">
+      <a class="nav-item" data-role="manager" data-forfait="professional" href="NEXUS-Capital-v1.html">
         <div class="nav-icon"><img src="assets/icons/icon-capital.png" alt="Capital NEXUS"></div>
         <div class="nav-body">
           <div class="nav-title">Capital NEXUS <span class="nav-badge badge-premium">Professional</span></div>
@@ -512,10 +536,10 @@
         </div>
         <div class="nav-arrow">›</div>
       </a>
-      <a class="nav-item" data-role="manager" href="NEXUS-Journal-v1.html">
+      <a class="nav-item" data-role="manager" data-forfait="professional" href="NEXUS-Journal-v1.html">
         <div class="nav-icon"><img src="assets/icons/icon-journal-nexus.png" alt="Journal NEXUS"></div>
         <div class="nav-body">
-          <div class="nav-title">Journal NEXUS</div>
+          <div class="nav-title">Journal NEXUS <span class="nav-badge badge-premium">Professional</span></div>
           <div class="nav-desc">Qu'est-ce qui a été fait aujourd'hui ?</div>
         </div>
         <div class="nav-arrow">›</div>
@@ -552,6 +576,7 @@
 <script src="nexus-indice.js"></script>
 <script src="nexus-marge.js"></script>
 <script src="nexus-tempo.js"></script>
+<script src="nexus-forfait.js"></script>
 <script>
   // ------------------------------------------------------------
   // Calendrier fournisseurs partagé — extrait le 24/07/2026 (était
@@ -1157,6 +1182,63 @@
     }
   }
 
+  // Verrouillage du menu selon le forfait (26/07/2026) — Essential grise
+  // les 10 entrées Professional (voir NexusForfait.PAGES_PROFESSIONAL)
+  // plutôt que de les masquer : ça montre ce qui existe, sans y donner
+  // accès. Le clic est intercepté ici, mais la vraie barrière reste
+  // nexus-forfait.js sur chacune de ces pages (un lien direct copié/collé
+  // ne suffit donc pas à contourner la restriction).
+  const LABEL_PAGE_FORFAIT = {
+    'NEXUS-Tempo-v1.html': 'NEXUS Tempo', 'NEXUS-Campagne-v1.html': 'Campagne NEXUS',
+    'NEXUS-Capital-v1.html': 'Capital NEXUS', 'NEXUS-Planning-v1.html': 'Nexus Planner',
+    'NEXUS-Scanner-v1.html': 'Scanner NEXUS', 'NEXUS-Journal-v1.html': 'Journal NEXUS',
+    'NEXUS-Assignations-v1.html': 'Assignations', 'NEXUS-Resultats-Equipe-v1.html': 'Résultats Équipe',
+    'NEXUS-Evaluation-Employe-v1.html': 'Évaluation Employé', 'NEXUS-Radar-Manager-v1.html': 'Radar du Manager',
+  };
+
+  function afficherToastForfait(nomFichier) {
+    let toast = document.getElementById('forfaitToast');
+    if (!toast) {
+      toast = document.createElement('div');
+      toast.id = 'forfaitToast';
+      toast.className = 'forfait-toast';
+      document.body.appendChild(toast);
+    }
+    const libelle = LABEL_PAGE_FORFAIT[nomFichier] || 'Cette fonctionnalité';
+    toast.textContent = `💎 ${libelle} fait partie de l'offre NEXUS Professional — contactez votre créateur NEXUS pour l'activer.`;
+    toast.classList.add('visible');
+    clearTimeout(toast._timeout);
+    toast._timeout = setTimeout(() => toast.classList.remove('visible'), 4000);
+  }
+
+  async function verrouillerNavForfait(siteId) {
+    const forfait = await NexusForfait.chargerForfait(siteId);
+    if (forfait === null || NexusForfait.estProfessional(forfait)) return; // Professional (ou erreur réseau) : rien à verrouiller
+    document.querySelectorAll('[data-forfait="professional"]').forEach(el => {
+      el.classList.add('locked-forfait');
+      el.addEventListener('click', (e) => {
+        e.preventDefault();
+        afficherToastForfait(el.getAttribute('href'));
+      });
+    });
+  }
+
+  // Bandeau explicatif si un manager a été renvoyé ici depuis une page
+  // Professional accédée directement par lien (voir nexus-forfait.js,
+  // nexusRequireProfessional) — évite qu'il pense à une simple erreur.
+  (function afficherBanniereForfaitRequis() {
+    const params = new URLSearchParams(window.location.search);
+    const page = params.get('forfait_requis');
+    if (!page) return;
+    const libelle = LABEL_PAGE_FORFAIT[page] || 'Cette fonctionnalité';
+    const conteneur = document.getElementById('banniereForfait');
+    if (conteneur) {
+      conteneur.innerHTML = `<div class="forfait-banniere">💎 ${libelle} fait partie de l'offre NEXUS Professional — non incluse dans votre forfait actuel.</div>`;
+    }
+    // Retire le paramètre de l'URL pour ne pas le réafficher à un rechargement.
+    window.history.replaceState({}, '', window.location.pathname);
+  })();
+
   // Légende de l'Indice NEXUS et repli du Niveau 4 — indépendants du rôle,
   // câblés une seule fois au chargement (les éléments existent dans le DOM
   // pour tout le monde, simplement masqués pour un non-manager).
@@ -1244,6 +1326,7 @@
 
       await appliquerPointageManagerMenu(employee.site_id || 'vito-sainte-marie');
       await initPosteManager(employee);
+      await verrouillerNavForfait(employee.site_id || 'vito-sainte-marie');
     } else {
       document.getElementById('heroEmploye').style.display = '';
     }

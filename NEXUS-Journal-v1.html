@@ -8,6 +8,7 @@
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-auth.js"></script>
+<script src="nexus-forfait.js"></script>
 <style>
   :root{
     --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
@@ -244,7 +245,7 @@
     const filtres = type ? EVENEMENTS.filter(e => e.type === type) : EVENEMENTS;
 
     if (filtres.length === 0) {
-      el.innerHTML = `<div class="empty-note">Aucun événement enregistré ${filtreActif === 'Tout' ? "pour l'instant aujourd'hui" : 'dans cette catégorie aujourd\u2019hui'}.</div>`;
+      el.innerHTML = `<div class="empty-note">Aucun événement enregistré ${filtreActif === 'Tout' ? "pour l'instant aujourd'hui" : 'dans cette catégorie aujourd’hui'}.</div>`;
       return;
     }
 
@@ -264,6 +265,7 @@
       return;
     }
     SITE_ACTUEL = employee.site_id || 'vito-sainte-marie';
+    if (!(await NexusForfait.nexusRequireProfessional('NEXUS-Journal-v1.html', SITE_ACTUEL))) return;
     const [equipe, missions, pointages, decisions] = await Promise.all([chargerEquipe(), chargerMissionsDuJour(), chargerPointagesDuJour(), chargerDecisionsDuJour()]);
     EVENEMENTS = construireEvenements(decisions, missions, pointages, equipe);
     renderRoot(decisions, missions, pointages);

@@ -8,6 +8,7 @@
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-auth.js"></script>
+<script src="nexus-forfait.js"></script>
 <style>
   :root{
     --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
@@ -242,7 +243,7 @@
 
     if (error) {
       console.error(error);
-      msg.textContent = 'Erreur lors de l\u2019assignation, réessayez.';
+      msg.textContent = 'Erreur lors de l’assignation, réessayez.';
       msg.className = 'msg err';
       return;
     }
@@ -262,7 +263,7 @@
 
     el.innerHTML = assignations.map(a => {
       const cible = a.assigned_to_employee_id ? nomEmploye(a.assigned_to_employee_id) : `Rôle : ${roleLabel(a.assigned_to_role)}`;
-      const echeance = a.due_at ? new Date(a.due_at).toLocaleString('fr-FR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' }) : 'Pas d\u2019échéance';
+      const echeance = a.due_at ? new Date(a.due_at).toLocaleString('fr-FR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' }) : 'Pas d’échéance';
       return `
         <div class="assign-card">
           <div class="assign-top">
@@ -327,6 +328,8 @@
       document.getElementById('root').innerHTML = `<div class="locked">Cet écran est réservé aux managers.</div>`;
       return;
     }
+
+    if (!(await NexusForfait.nexusRequireProfessional('NEXUS-Assignations-v1.html', employee.site_id || 'vito-sainte-marie'))) return;
 
     employeeCourant = employee;
     [catalogue, employesEquipe, assignations] = await Promise.all([
