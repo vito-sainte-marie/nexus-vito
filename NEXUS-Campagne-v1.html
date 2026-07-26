@@ -83,6 +83,8 @@ a{color:inherit;}
 .promo-produits{font-size:11px; color:var(--text-mid); margin-bottom:10px; line-height:1.5;}
 .promo-produits b{color:var(--text);}
 .promo-stat-row{display:flex; justify-content:space-between; align-items:center; gap:10px; font-size:11.5px; padding:6px 0; border-top:1px solid var(--hairline);}
+.promo-produits-impact{margin-top:10px; padding-top:10px; border-top:1px solid var(--hairline);}
+.promo-produits-titre{font-family:var(--mono); font-size:10px; letter-spacing:0.06em; text-transform:uppercase; color:var(--text-dim); margin-bottom:6px;}
 .promo-stat-row .cle{color:var(--text-mid);}
 .promo-stat-row .val{font-family:var(--mono); font-weight:600;}
 .promo-conseil{font-size:11.5px; color:var(--text-mid); line-height:1.6; margin-top:10px; padding-top:10px; border-top:1px solid var(--hairline);}
@@ -163,23 +165,28 @@ footer{margin-top:auto; padding:20px 20px 24px; font-family:var(--mono); font-si
   });
 
   async function chargerEtAfficher() {
-    const [{ data: auditsRows, error: e1 }, { data: campagnesRows, error: e2 }, { data: produitsRows, error: e3 }] = await Promise.all([
+    const [{ data: auditsRows, error: e1 }, { data: campagnesRows, error: e2 }, { data: produitsRows, error: e3 }, { data: importsRows, error: e4 }] = await Promise.all([
       fetchAllRows(() => nexusClient.from('audits_caisse')
         .select('date, quart, vente_piste, vente_boutique')
         .eq('site', SITE_ID).order('date', { ascending: true })),
       nexusClient.from('campagnes_nexus').select('id, nom, date_debut, date_fin, type, produits_concernes, nature, objectif, objectif_libre, cree_le')
         .eq('site', SITE_ID).order('date_debut', { ascending: false }),
-      // Catalogue pour l'autocomplétion "Produits concernés" — tous les
-      // articles déjà vus dans un import products, toutes périodes
-      // confondues (un article qui n'apparaît que dans un import plus
-      // ancien reste proposable).
+      // Sert à la fois de catalogue pour l'autocomplétion "Produits
+      // concernés" (toutes périodes confondues) et de source pour
+      // l'impact par produit (Phase 2, filtré par période exacte de
+      // chaque import avant/pendant lié à une promotion).
       fetchAllRows(() => nexusClient.from('products')
-        .select('article, categorie')
+        .select('article, categorie, periode_debut, periode_fin, quantite, ca, marge')
         .eq('site', SITE_ID)),
+      // Liens promotion ↔ imports avant/pendant (voir NEXUS-Import-v1.html,
+      // type "Campagne NEXUS").
+      nexusClient.from('campagnes_nexus_imports').select('campagne_id, phase, periode_debut, periode_fin')
+        .eq('site', SITE_ID),
     ]);
     if (e1) console.error('Chargement audits_caisse:', e1);
     if (e2) console.error('Chargement campagnes_nexus:', e2);
     if (e3) console.error('Chargement products (catalogue):', e3);
+    if (e4) console.error('Chargement campagnes_nexus_imports:', e4);
 
     const parArticle = new Map();
     (produitsRows || []).forEach(p => { if (p.article && !parArticle.has(p.article)) parArticle.set(p.article, p.categorie || ''); });
@@ -190,6 +197,13 @@ footer{margin-top:auto; padding:20px 20px 24px; font-family:var(--mono); font-si
     // comparable, sa journée n'est pas terminée.
     const joursExploitables = NexusTempo.filtrerJoursClos(joursAgreges);
     const impacts = NexusCampagnes.analyserCampagnes(campagnesRows || [], joursExploitables);
+
+    // Phase 2 — impact par produit, un calcul par promotion à partir de
+    // ses propres imports liés (s'ils existent).
+    impacts.forEach(impact => {
+      const importsLies = (importsRows || []).filter(i => i.campagne_id === impact.campagneId);
+      impact.impactProduits = NexusCampagnes.analyserImpactProduits(impact, importsLies, produitsRows || []);
+    });
 
     renderTout(impacts);
   }
@@ -389,8 +403,28 @@ footer{margin-top:auto; padding:20px 20px 24px; font-family:var(--mono); font-si
       </div>
       ${produitsHtml}
       ${statsHtml}
+      ${impact.produitsConcernes.length ? renderImpactProduits(impact.impactProduits) : ''}
       <div class="promo-conseil">${NexusCampagnes.texteConseillerCampagne(impact)}</div>
     </div>`;
+  }
+
+  // Phase 2 (25/07/2026) — impact par produit, débloqué une fois les
+  // deux imports "avant"/"pendant" faits via Import > Campagne NEXUS.
+  function renderImpactProduits(impactProduits) {
+    if (!impactProduits || !impactProduits.disponible) {
+      const message = impactProduits ? impactProduits.message : '';
+      return `<div class="promo-produits-impact"><div class="promo-produits-titre">Impact par produit</div><div class="section-note" style="margin:0;">${message}</div></div>`;
+    }
+    const lignes = impactProduits.resultats.map(r => {
+      if (!r.disponible) {
+        return `<div class="section-note" style="margin:4px 0;">${r.message}</div>`;
+      }
+      return `<div class="promo-stat-row">
+        <span class="cle">${r.article}</span>
+        <span class="val">${fmtPct(r.evolutionVolume)} volume · ${fmtPct(r.evolutionMarge)} marge</span>
+      </div>`;
+    }).join('');
+    return `<div class="promo-produits-impact"><div class="promo-produits-titre">Impact par produit</div>${lignes}</div>`;
   }
 
   function renderTout(impacts) {

@@ -106,6 +106,57 @@
     };
   }
 
+  // ------------------------------------------------------------
+  // Phase 2 (25/07/2026) — impact PAR PRODUIT, débloqué par les imports
+  // "avant"/"pendant" liés à la promotion via campagnes_nexus_imports
+  // (voir NEXUS-Import-v1.html, type "Campagne NEXUS"). Reste gated :
+  // s'affiche seulement si les DEUX imports existent, et seulement pour
+  // les articles réellement retrouvés dans chacun d'eux — jamais une
+  // estimation si l'un des deux manque ou si l'orthographe ne matche pas.
+  // ------------------------------------------------------------
+  function analyserImpactProduits(campagne, importsCampagne, produitsRows) {
+    // Accepte aussi bien une ligne brute campagnes_nexus (produits_concernes)
+    // qu'un objet déjà transformé par analyserImpactCampagne (produitsConcernes).
+    const produits = campagne.produitsConcernes || campagne.produits_concernes || [];
+    if (!produits.length) {
+      return { disponible: false, message: "Aucun produit précis associé à cette promotion — l'impact par produit ne peut pas être calculé." };
+    }
+    const importAvant = (importsCampagne || []).find(i => i.phase === 'avant');
+    const importPendant = (importsCampagne || []).find(i => i.phase === 'pendant');
+    if (!importAvant || !importPendant) {
+      const manquants = [!importAvant && 'avant', !importPendant && 'pendant'].filter(Boolean).join(' et ');
+      return { disponible: false, message: `Import ${manquants} manquant — importez les ventes du produit via Import > Campagne NEXUS pour mesurer l'impact par produit.` };
+    }
+
+    const trouverLigne = (article, imp) => {
+      const lignes = (produitsRows || []).filter(p => p.article === article && p.periode_debut === imp.periode_debut && p.periode_fin === imp.periode_fin);
+      if (!lignes.length) return null;
+      return {
+        quantite: lignes.reduce((s, l) => s + (Number(l.quantite) || 0), 0),
+        ca: lignes.reduce((s, l) => s + (Number(l.ca) || 0), 0),
+        marge: lignes.reduce((s, l) => s + (Number(l.marge) || 0), 0),
+      };
+    };
+
+    const resultats = produits.map(article => {
+      const avant = trouverLigne(article, importAvant);
+      const pendant = trouverLigne(article, importPendant);
+      if (!avant || !pendant) {
+        return { article, disponible: false, message: `« ${article} » introuvable dans l'import ${!avant ? 'avant' : 'pendant'} — vérifiez que l'article importé porte exactement ce nom.` };
+      }
+      return {
+        article, disponible: true,
+        quantiteAvant: avant.quantite, quantitePendant: pendant.quantite,
+        caAvant: avant.ca, caPendant: pendant.ca,
+        margeAvant: avant.marge, margePendant: pendant.marge,
+        evolutionVolume: evolution(pendant.quantite, avant.quantite),
+        evolutionMarge: evolution(pendant.marge, avant.marge),
+      };
+    });
+
+    return { disponible: resultats.some(r => r.disponible), resultats };
+  }
+
   // Analyse toutes les campagnes connues, la plus récente en premier.
   function analyserCampagnes(campagnesRows, joursAgreges) {
     return (campagnesRows || [])
@@ -145,7 +196,7 @@
 
   global.NexusCampagnes = {
     TYPE_CAMPAGNE_LABELS, NATURE_CAMPAGNE_LABELS, OBJECTIF_CAMPAGNE_LABELS, MIN_JOURS_COMPARABLES,
-    valeurCampagne, analyserImpactCampagne, analyserCampagnes, texteConseillerCampagne,
+    valeurCampagne, analyserImpactCampagne, analyserCampagnes, analyserImpactProduits, texteConseillerCampagne,
     moyenne, evolution,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

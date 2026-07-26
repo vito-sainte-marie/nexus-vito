@@ -139,9 +139,10 @@ tbody tr:hover{background:var(--panel);}
 
   <div class="section">
     <div class="section-label">Type d'import</div>
-    <div class="btn-row" style="gap:8px;">
+    <div class="btn-row" style="gap:8px; flex-wrap:wrap;">
       <div class="btn btn-primary" id="typeVentes" style="cursor:pointer;">Ventes / Catalogue</div>
       <div class="btn btn-ghost" id="typeStock" style="cursor:pointer;">Stock instantané</div>
+      <div class="btn btn-ghost" id="typeCampagne" style="cursor:pointer;">Campagne NEXUS</div>
     </div>
     <div style="font-family:var(--mono); font-size:10px; color:var(--text-dim); margin-top:8px; line-height:1.5;" id="typeExplication">CA, marge, évolution — un fichier par période de vente.</div>
   </div>
@@ -216,6 +217,31 @@ tbody tr:hover{background:var(--panel);}
       <div style="font-family:var(--mono); font-size:10px; color:var(--text-dim); margin-top:8px; line-height:1.5;">L'heure du dépôt est capturée automatiquement — c'est cette photo datée qui permettra à Scanner Stock de repérer les mouvements suspects.</div>
     </div>
 
+    <!-- Import Campagne NEXUS (25/07/2026) : au lieu de faire saisir des
+         dates à la main, le manager choisit juste une promotion déjà
+         déclarée et une phase (avant/pendant) — NEXUS calcule lui-même
+         la période exacte à partir des dates de la promotion. Voir
+         nexus-campagnes.js pour ce que cette donnée débloquera. -->
+    <div class="section" id="periodeCampagneSection" style="display:none;">
+      <div class="section-label">Promotion concernée</div>
+      <label style="font-family:var(--mono); font-size:10px; color:var(--text-mid); text-transform:uppercase; letter-spacing:0.04em;">Quelle promotion ?</label>
+      <select id="campagneSelect" style="width:100%; margin-top:6px; background:var(--panel); border:1px solid var(--hairline); border-radius:10px; padding:11px 12px; color:var(--text); font-family:var(--sans); font-size:13.5px;">
+        <option value="">— Choisir —</option>
+      </select>
+
+      <div style="margin-top:14px;" id="campagnePhaseWrap">
+        <label style="font-family:var(--mono); font-size:10px; color:var(--text-mid); text-transform:uppercase; letter-spacing:0.04em;">Ce fichier couvre…</label>
+        <div class="btn-row" style="margin-top:6px;">
+          <div class="btn btn-ghost" id="phaseAvant" style="cursor:pointer;">Avant la promo</div>
+          <div class="btn btn-ghost" id="phasePendant" style="cursor:pointer;">Pendant la promo</div>
+        </div>
+      </div>
+
+      <div id="campagnePeriodeInfo" style="display:none; margin-top:12px; padding:12px 14px; background:var(--panel); border:1px solid var(--hairline); border-radius:10px; font-size:12.5px; color:var(--text-mid); line-height:1.6;"></div>
+      <div id="campagneChevauchement" style="display:none; margin-top:8px; padding:10px 12px; background:var(--amber-dim); color:var(--amber); border-radius:8px; font-size:11.5px; line-height:1.5;"></div>
+      <div id="campagneVide" style="display:none; margin-top:10px; font-size:12px; color:var(--text-dim); line-height:1.5;">Aucune promotion déclarée pour l'instant. Créez-en une dans Campagne NEXUS avant d'importer ses ventes.</div>
+    </div>
+
     <div class="section" style="margin-top:8px;">
       <div class="btn-row">
         <div class="btn btn-ghost" id="downloadClean">Télécharger le résumé (.xlsx)</div>
@@ -248,6 +274,23 @@ nexusRequireAuth().then(async employee => {
     dernierReleve = resStock.data;
   } catch (err) { console.error('Comptage stock_releves (table pas encore créée ?):', err); }
 
+  // Campagne NEXUS (25/07/2026) — liste des promotions déclarées et de
+  // leurs imports déjà faits, pour proposer un menu plutôt que des
+  // dates à saisir à la main (voir calculerPeriodeCampagne ci-dessous).
+  let campagnesDisponibles = [];
+  let importsCampagnes = [];
+  try {
+    const resCampagnes = await nexusClient.from('campagnes_nexus')
+      .select('id, nom, date_debut, date_fin, type')
+      .eq('site', employee.site_id || 'vito-sainte-marie')
+      .order('date_debut', { ascending: false });
+    campagnesDisponibles = resCampagnes.data || [];
+    const resImports = await nexusClient.from('campagnes_nexus_imports')
+      .select('campagne_id, phase, periode_debut, periode_fin')
+      .eq('site', employee.site_id || 'vito-sainte-marie');
+    importsCampagnes = resImports.data || [];
+  } catch (err) { console.error('Chargement campagnes_nexus (table pas encore créée ?):', err); }
+
   const msgVentes = countVentes > 0
     ? `${employee.nom}, vous avez déjà ${countVentes.toLocaleString('fr-FR')} référence(s) importée(s). Ce nouvel envoi vient compléter l'historique — je pourrai comparer les deux périodes automatiquement.`
     : `${employee.nom}, c'est votre premier import — bienvenue. Une fois envoyé, je commence à calculer les vrais chiffres de vos rayons, plus aucune estimation.`;
@@ -257,7 +300,11 @@ nexusRequireAuth().then(async employee => {
     ? `${employee.nom}, j'ai déjà ${countStock.toLocaleString('fr-FR')} référence(s) de stock en mémoire, le dernier relevé date du ${dernierReleveDate}. Ce nouveau relevé va me permettre de comparer et de repérer d'éventuels mouvements suspects.`
     : `${employee.nom}, aucun relevé de stock encore importé — c'est le tout premier. Une fois envoyé, je pourrai commencer à surveiller la cohérence de votre stock dans le temps.`;
 
-  const MESSAGES_CONSEILLER_IMPORT = { ventes: msgVentes, stock: msgStock };
+  const msgCampagne = campagnesDisponibles.length > 0
+    ? `${employee.nom}, choisissez une promotion et une phase (avant/pendant) — je calcule moi-même la période exacte, vous n'avez que le fichier à déposer.`
+    : `${employee.nom}, aucune promotion déclarée pour l'instant. Créez-en une dans Campagne NEXUS avant de venir importer ses ventes ici.`;
+
+  const MESSAGES_CONSEILLER_IMPORT = { ventes: msgVentes, stock: msgStock, campagne: msgCampagne };
   const msgEl = document.getElementById('conseillerImportMsg');
   if (msgEl) msgEl.textContent = MESSAGES_CONSEILLER_IMPORT.ventes;
 
@@ -286,28 +333,142 @@ let typeImportActuel = 'ventes';
 
 const btnTypeVentes = document.getElementById('typeVentes');
 const btnTypeStock = document.getElementById('typeStock');
+const btnTypeCampagne = document.getElementById('typeCampagne');
 const periodeVentesSection = document.getElementById('periodeVentesSection');
 const periodeStockSection = document.getElementById('periodeStockSection');
+const periodeCampagneSection = document.getElementById('periodeCampagneSection');
 const typeExplication = document.getElementById('typeExplication');
+
+const EXPLICATIONS_TYPE = {
+  ventes: "CA, marge, évolution — un fichier par période de vente.",
+  stock: "Quantités théoriques par référence, à un instant précis — sert à préparer Scanner Stock.",
+  campagne: "Les ventes d'un produit en promotion, avant et pendant — NEXUS calcule les dates, vous choisissez juste la promotion.",
+};
 
 function choisirTypeImport(type) {
   typeImportActuel = type;
-  const estVentes = type === 'ventes';
-  btnTypeVentes.className = estVentes ? 'btn btn-primary' : 'btn btn-ghost';
-  btnTypeStock.className = estVentes ? 'btn btn-ghost' : 'btn btn-primary';
-  periodeVentesSection.style.display = estVentes ? 'block' : 'none';
-  periodeStockSection.style.display = estVentes ? 'none' : 'block';
-  typeExplication.textContent = estVentes
-    ? "CA, marge, évolution — un fichier par période de vente."
-    : "Quantités théoriques par référence, à un instant précis — sert à préparer Scanner Stock.";
+  btnTypeVentes.className = type === 'ventes' ? 'btn btn-primary' : 'btn btn-ghost';
+  btnTypeStock.className = type === 'stock' ? 'btn btn-primary' : 'btn btn-ghost';
+  btnTypeCampagne.className = type === 'campagne' ? 'btn btn-primary' : 'btn btn-ghost';
+  periodeVentesSection.style.display = type === 'ventes' ? 'block' : 'none';
+  periodeStockSection.style.display = type === 'stock' ? 'block' : 'none';
+  periodeCampagneSection.style.display = type === 'campagne' ? 'block' : 'none';
+  typeExplication.textContent = EXPLICATIONS_TYPE[type];
 
   const msgEl = document.getElementById('conseillerImportMsg');
   if (msgEl && typeof MESSAGES_CONSEILLER_IMPORT !== 'undefined') {
     msgEl.textContent = MESSAGES_CONSEILLER_IMPORT[type];
   }
+  if (type === 'campagne') initialiserSectionCampagne();
 }
 btnTypeVentes.addEventListener('click', () => choisirTypeImport('ventes'));
 btnTypeStock.addEventListener('click', () => choisirTypeImport('stock'));
+btnTypeCampagne.addEventListener('click', () => choisirTypeImport('campagne'));
+
+// ------------------------------------------------------------
+// Import Campagne NEXUS (25/07/2026) — le manager choisit une
+// promotion déjà déclarée et une phase (avant/pendant) ; NEXUS calcule
+// lui-même la période exacte à partir des dates de la promotion,
+// aucune saisie de date à la main. "Avant" = même durée que la promo,
+// immédiatement avant son début — la fenêtre de comparaison la plus
+// simple à expliquer à un manager qui découvre NEXUS.
+// ------------------------------------------------------------
+let campagneChoisieId = '';
+let phaseChoisie = '';
+
+function dateLocaleImport(dateStr) { return new Date(dateStr + 'T12:00:00'); }
+function ajouterJours(dateStr, n) {
+  const d = dateLocaleImport(dateStr);
+  d.setDate(d.getDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+function joursEntre(debut, fin) {
+  return Math.round((dateLocaleImport(fin) - dateLocaleImport(debut)) / 86400000) + 1;
+}
+function fmtDateFr(dateStr) {
+  return dateLocaleImport(dateStr).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+
+function statutImportsCampagne(campagneId) {
+  const avant = importsCampagnes.some(i => i.campagne_id === campagneId && i.phase === 'avant');
+  const pendant = importsCampagnes.some(i => i.campagne_id === campagneId && i.phase === 'pendant');
+  if (avant && pendant) return ' — avant ✓, pendant ✓';
+  if (avant) return ' — avant ✓, pendant manquant';
+  if (pendant) return ' — avant manquant, pendant ✓';
+  return ' — aucun import encore';
+}
+
+function initialiserSectionCampagne() {
+  const select = document.getElementById('campagneSelect');
+  const vide = document.getElementById('campagneVide');
+  if (!campagnesDisponibles.length) {
+    select.style.display = 'none';
+    document.getElementById('campagnePhaseWrap').style.display = 'none';
+    vide.style.display = 'block';
+    return;
+  }
+  select.style.display = 'block';
+  document.getElementById('campagnePhaseWrap').style.display = 'block';
+  vide.style.display = 'none';
+  select.innerHTML = '<option value="">— Choisir —</option>' + campagnesDisponibles.map(c =>
+    `<option value="${c.id}">${c.nom} (${fmtDateFr(c.date_debut)} → ${fmtDateFr(c.date_fin)})${statutImportsCampagne(c.id)}</option>`
+  ).join('');
+}
+
+function calculerPeriodeCampagne(campagne, phase) {
+  if (phase === 'pendant') return { debut: campagne.date_debut, fin: campagne.date_fin };
+  const duree = joursEntre(campagne.date_debut, campagne.date_fin);
+  const fin = ajouterJours(campagne.date_debut, -1);
+  const debut = ajouterJours(fin, -(duree - 1));
+  return { debut, fin };
+}
+
+function chevauchement(debut1, fin1, debut2, fin2) {
+  return debut1 <= fin2 && debut2 <= fin1;
+}
+
+function rafraichirPeriodeCampagne() {
+  const info = document.getElementById('campagnePeriodeInfo');
+  const warn = document.getElementById('campagneChevauchement');
+  if (!campagneChoisieId || !phaseChoisie) {
+    info.style.display = 'none';
+    warn.style.display = 'none';
+    return;
+  }
+  const campagne = campagnesDisponibles.find(c => c.id === campagneChoisieId);
+  if (!campagne) return;
+  const { debut, fin } = calculerPeriodeCampagne(campagne, phaseChoisie);
+  const label = phaseChoisie === 'pendant' ? 'les dates exactes de la promotion' : 'la même durée que la promotion, juste avant son début';
+  info.innerHTML = `Période calculée pour <b style="color:var(--text);">${campagne.nom}</b> (${phaseChoisie === 'pendant' ? 'pendant' : 'avant'}) : <b style="color:var(--cyan);">${fmtDateFr(debut)} → ${fmtDateFr(fin)}</b><br>${label}.`;
+  info.style.display = 'block';
+
+  // Avertit si cette fenêtre calculée chevauche une AUTRE promotion
+  // déclarée — le résultat serait faussé par deux effets mélangés.
+  const autresChevauchantes = campagnesDisponibles.filter(c => c.id !== campagneChoisieId && chevauchement(debut, fin, c.date_debut, c.date_fin));
+  if (autresChevauchantes.length) {
+    warn.textContent = `Attention : cette période chevauche une autre promotion déclarée (${autresChevauchantes.map(c => c.nom).join(', ')}) — la mesure sera moins fiable, les deux effets se mélangeront.`;
+    warn.style.display = 'block';
+  } else {
+    warn.style.display = 'none';
+  }
+}
+
+document.getElementById('campagneSelect').addEventListener('change', e => {
+  campagneChoisieId = e.target.value;
+  rafraichirPeriodeCampagne();
+});
+document.getElementById('phaseAvant').addEventListener('click', function () {
+  phaseChoisie = 'avant';
+  this.className = 'btn btn-primary';
+  document.getElementById('phasePendant').className = 'btn btn-ghost';
+  rafraichirPeriodeCampagne();
+});
+document.getElementById('phasePendant').addEventListener('click', function () {
+  phaseChoisie = 'pendant';
+  this.className = 'btn btn-primary';
+  document.getElementById('phaseAvant').className = 'btn btn-ghost';
+  rafraichirPeriodeCampagne();
+});
 
 // Champs attendus par NEXUS Pilot, avec synonymes possibles pour l'auto-mapping
 const FIELD_DEFS = [
@@ -325,7 +486,7 @@ const FIELD_DEFS = [
 // que mettre en minuscules sans retirer les accents (trouve le 15/07/2026).
 function norm(s){
   return (s||'').toString()
-    .normalize('NFD').replace(new RegExp('[\\u0300-\\u036f]', 'g'), '')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
     .toLowerCase().trim();
 }
 
@@ -341,7 +502,7 @@ function detectMapping(headers){
 function toNumber(v){
   if (typeof v === 'number') return v;
   if (v == null) return NaN;
-  let s = String(v).replace(new RegExp('[\\s\\u00a0\\u202f]', 'g'), '').replace(',', '.');
+  let s = String(v).replace(/\s|\u00a0|\u202f/g,'').replace(',', '.');
   const n = parseFloat(s);
   return isNaN(n) ? NaN : n;
 }
@@ -497,6 +658,8 @@ sendPilot.addEventListener('click', async ()=>{
 
   if (typeImportActuel === 'stock') {
     await envoyerStockInstantane(msg);
+  } else if (typeImportActuel === 'campagne') {
+    await envoyerCampagneProduits(msg);
   } else {
     await envoyerVentes(msg);
   }
@@ -527,40 +690,6 @@ async function envoyerVentes(msg) {
   if (!qKey || !paKey || !pvKey) {
     const manquants = [!qKey && 'Quantité', !paKey && "Prix d'achat", !pvKey && 'Prix de vente HT'].filter(Boolean).join(', ');
     msg.textContent = `Colonne(s) non détectée(s) : ${manquants}. Sans elles, le CA et la marge seraient à 0 pour toutes les lignes — vérifiez les en-têtes du fichier.`;
-    msg.style.color = 'var(--red)';
-    return;
-  }
-
-  // Empêche le chevauchement de périodes. Deux périodes qui se recouvrent
-  // partiellement (ex : période déjà en base 01/04→30/06, nouvel import
-  // 01/06→22/07) comptent les mêmes ventes de juin deux fois dans le total
-  // — ça fausse silencieusement le CA cumulé et surtout l'évolution T1→T2
-  // affichée sur la fiche produit. Repéré le 23/07/2026 sur les M&M's.
-  // On bloque l'envoi tant que les dates ne sont pas ajustées, plutôt que de
-  // deviner comment "couper" un import déjà fait en deux.
-  const { data: periodesExistantes, error: erreurPeriodes } = await nexusClient
-    .from('products')
-    .select('periode_debut, periode_fin')
-    .eq('site', employee.site_id || 'vito-sainte-marie');
-
-  if (erreurPeriodes) { console.error('Vérification chevauchement périodes:', erreurPeriodes); }
-
-  const periodesVues = new Set();
-  const periodesUniques = [];
-  (periodesExistantes || []).forEach(r => {
-    if (!r.periode_debut || !r.periode_fin) return;
-    const cle = `${r.periode_debut}|${r.periode_fin}`;
-    if (!periodesVues.has(cle)) { periodesVues.add(cle); periodesUniques.push(r); }
-  });
-
-  const estExactementLaMeme = pe => pe.periode_debut === debut && pe.periode_fin === fin;
-  const seChevauche = pe => pe.periode_debut <= fin && pe.periode_fin >= debut;
-
-  const chevauchements = periodesUniques.filter(pe => !estExactementLaMeme(pe) && seChevauche(pe));
-
-  if (chevauchements.length > 0) {
-    const liste = chevauchements.map(pe => `${pe.periode_debut} → ${pe.periode_fin}`).join(', ');
-    msg.textContent = `Cette période (${debut} → ${fin}) chevauche une période déjà importée (${liste}). Pour éviter de compter deux fois les mêmes ventes, ajustez les dates pour qu'elles ne se chevauchent pas — ou supprimez d'abord l'ancienne période dans Debug si elle doit être remplacée.`;
     msg.style.color = 'var(--red)';
     return;
   }
@@ -616,7 +745,7 @@ async function envoyerVentes(msg) {
       periode_fin: fin,
       categorie: corrigerCategorie(String(r[catKey] || 'Non classé'), articleNom),
       article: articleNom,
-      code_barres: cbKey ? String(r[cbKey] || '').replace(new RegExp('[\\s\\u00a0\\u202f]+', 'g'), '').trim() || null : null,
+      code_barres: cbKey ? String(r[cbKey] || '').replace(/[\s\u00a0\u202f]+/g, '').trim() || null : null,
       quantite: isNaN(q) ? null : q,
       prix_achat: isNaN(pa) ? null : pa,
       prix_vente: isNaN(pv) ? null : pv,
@@ -645,6 +774,130 @@ async function envoyerVentes(msg) {
 
   msg.textContent = `✓ ${envoyees} référence(s) importée(s) pour la période ${debut} → ${fin}.`;
   msg.style.color = 'var(--green)';
+  sendPilot.textContent = 'Envoyer à NEXUS Pilot →';
+  sendPilot.style.pointerEvents = 'auto';
+}
+
+// ------------------------------------------------------------
+// Envoi Campagne NEXUS — même logique que envoyerVentes (mêmes
+// colonnes obligatoires, même table products), mais la période
+// vient du calcul automatique (calculerPeriodeCampagne) et chaque
+// envoi laisse une trace dans campagnes_nexus_imports pour que
+// NEXUS Campagne sache quelle promotion a déjà ses deux imports.
+// ------------------------------------------------------------
+async function envoyerCampagneProduits(msg) {
+  if (!campagneChoisieId) {
+    msg.textContent = "Choisissez d'abord une promotion.";
+    msg.style.color = 'var(--red)';
+    return;
+  }
+  if (!phaseChoisie) {
+    msg.textContent = "Indiquez si ce fichier couvre la période avant ou pendant la promotion.";
+    msg.style.color = 'var(--red)';
+    return;
+  }
+  const campagne = campagnesDisponibles.find(c => c.id === campagneChoisieId);
+  if (!campagne) {
+    msg.textContent = "Promotion introuvable — rechargez la page.";
+    msg.style.color = 'var(--red)';
+    return;
+  }
+
+  const { categorie: catKey, article: artKey, quantite: qKey, prix_achat: paKey, prix_vente: pvKey, tva: tvaKey, code_barres: cbKey } = currentMapping;
+  if (!catKey || !artKey) {
+    msg.textContent = "Catégorie et Article doivent être détectés pour pouvoir importer.";
+    msg.style.color = 'var(--red)';
+    return;
+  }
+  if (!qKey || !paKey || !pvKey) {
+    const manquants = [!qKey && 'Quantité', !paKey && "Prix d'achat", !pvKey && 'Prix de vente HT'].filter(Boolean).join(', ');
+    msg.textContent = `Colonne(s) non détectée(s) : ${manquants}. Sans elles, le CA et la marge seraient à 0 pour toutes les lignes — vérifiez les en-têtes du fichier.`;
+    msg.style.color = 'var(--red)';
+    return;
+  }
+
+  const { debut, fin } = calculerPeriodeCampagne(campagne, phaseChoisie);
+  const site = employee.site_id || 'vito-sainte-marie';
+
+  // Un import précédent existe déjà pour cette promotion + cette
+  // phase ? On le remplace proprement (anciennes lignes products +
+  // ancien lien supprimés) plutôt que d'accumuler des doublons.
+  const importExistant = importsCampagnes.find(i => i.campagne_id === campagneChoisieId && i.phase === phaseChoisie);
+  if (importExistant) {
+    const remplacer = confirm(`Un import "${phaseChoisie}" existe déjà pour "${campagne.nom}" (${importExistant.periode_debut} → ${importExistant.periode_fin}). Le remplacer par ce nouveau fichier ?`);
+    if (!remplacer) {
+      msg.textContent = "Import annulé — rien n'a été envoyé.";
+      msg.style.color = 'var(--text-mid)';
+      return;
+    }
+    sendPilot.textContent = 'Suppression de l\'ancien import…';
+    sendPilot.style.pointerEvents = 'none';
+    const { error: erreurSupprProduits } = await nexusClient.from('products').delete()
+      .eq('site', site).eq('periode_debut', importExistant.periode_debut).eq('periode_fin', importExistant.periode_fin);
+    const { error: erreurSupprLien } = await nexusClient.from('campagnes_nexus_imports').delete()
+      .eq('campagne_id', campagneChoisieId).eq('phase', phaseChoisie);
+    if (erreurSupprProduits || erreurSupprLien) {
+      console.error('Remplacement import campagne:', erreurSupprProduits || erreurSupprLien);
+      msg.textContent = "Erreur lors du remplacement — rien n'a été modifié, réessayez.";
+      msg.style.color = 'var(--red)';
+      sendPilot.textContent = 'Envoyer à NEXUS Pilot →';
+      sendPilot.style.pointerEvents = 'auto';
+      return;
+    }
+  }
+
+  sendPilot.textContent = 'Envoi en cours…';
+  sendPilot.style.pointerEvents = 'none';
+
+  const lignes = currentRows.map(r => {
+    const q = qKey ? toNumber(r[qKey]) : NaN;
+    const pa = paKey ? toNumber(r[paKey]) : NaN;
+    const pv = pvKey ? toNumber(r[pvKey]) : NaN;
+    const ca = (!isNaN(q) && !isNaN(pv)) ? q * pv : 0;
+    const marge = (!isNaN(q) && !isNaN(pa) && !isNaN(pv)) ? q * (pv - pa) : 0;
+    const articleNom = String(r[artKey] || '');
+    return {
+      site, periode_debut: debut, periode_fin: fin,
+      categorie: corrigerCategorie(String(r[catKey] || 'Non classé'), articleNom),
+      article: articleNom,
+      code_barres: cbKey ? String(r[cbKey] || '').replace(/[\s  ]+/g, '').trim() || null : null,
+      quantite: isNaN(q) ? null : q,
+      prix_achat: isNaN(pa) ? null : pa,
+      prix_vente: isNaN(pv) ? null : pv,
+      tva: tvaKey ? toNumber(r[tvaKey]) : null,
+      ca: Math.round(ca * 100) / 100,
+      marge: Math.round(marge * 100) / 100,
+      imported_by: employee.id,
+    };
+  }).filter(l => l.article);
+
+  if (lignes.length === 0) {
+    msg.textContent = "Aucune ligne valide à envoyer — vérifiez que la colonne \"Article\" (mapping ci-dessus) contient bien des valeurs dans ce fichier.";
+    msg.style.color = 'var(--red)';
+    sendPilot.textContent = 'Envoyer à NEXUS Pilot →';
+    sendPilot.style.pointerEvents = 'auto';
+    return;
+  }
+
+  const envoyees = await envoyerParLots('products', lignes, msg);
+  if (envoyees === null) return;
+
+  const { error: erreurLien } = await nexusClient.from('campagnes_nexus_imports').insert({
+    site, campagne_id: campagneChoisieId, phase: phaseChoisie,
+    periode_debut: debut, periode_fin: fin, importe_par: employee.id,
+  });
+  if (erreurLien) {
+    console.error('Lien campagnes_nexus_imports:', erreurLien);
+    msg.textContent = `✓ ${envoyees} référence(s) importée(s), mais le lien avec la promotion n'a pas pu être enregistré — réessayez cet import.`;
+    msg.style.color = 'var(--amber)';
+  } else {
+    importsCampagnes = importsCampagnes.filter(i => !(i.campagne_id === campagneChoisieId && i.phase === phaseChoisie));
+    importsCampagnes.push({ campagne_id: campagneChoisieId, phase: phaseChoisie, periode_debut: debut, periode_fin: fin });
+    initialiserSectionCampagne();
+    document.getElementById('campagneSelect').value = campagneChoisieId;
+    msg.textContent = `✓ ${envoyees} référence(s) importée(s) pour "${campagne.nom}" (${phaseChoisie}, ${debut} → ${fin}).`;
+    msg.style.color = 'var(--green)';
+  }
   sendPilot.textContent = 'Envoyer à NEXUS Pilot →';
   sendPilot.style.pointerEvents = 'auto';
 }
@@ -684,7 +937,7 @@ async function envoyerStockInstantane(msg) {
       releve_le: releveLe,
       categorie: catKey ? corrigerCategorie(String(r[catKey] || 'Non classé'), articleNom) : null,
       article: articleNom,
-      code_barres: cbKey ? String(r[cbKey] || '').replace(new RegExp('[\\s\\u00a0\\u202f]+', 'g'), '').trim() || null : null,
+      code_barres: cbKey ? String(r[cbKey] || '').replace(/[\s\u00a0\u202f]+/g, '').trim() || null : null,
       quantite_theorique: isNaN(q) ? 0 : q,
       importe_par: employee.id,
     };
