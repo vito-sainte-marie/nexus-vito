@@ -382,10 +382,20 @@ a{color:inherit; text-decoration:none;}
     { classe: 'moyenne', titre: '🟠 Priorité moyenne', ouvertParDefaut: false },
     { classe: 'basse', titre: '🟢 Faible priorité', ouvertParDefaut: false },
   ];
+  // Mémorise quels groupes de priorité et quelles cartes individuelles sont
+  // ouverts — demande de Frédéric le 26/07/2026 : cliquer "Créer une
+  // mission" rappelle renderMarge() pour retirer la carte traitée de la
+  // liste, ce qui reconstruit tout le HTML et refermait au passage tout ce
+  // que le manager avait déplié. Ces deux Set (jamais réinitialisés entre
+  // deux appels à renderMarge, contrairement à candidats/i) permettent de
+  // rouvrir automatiquement exactement ce qui était ouvert avant le clic.
+  const groupesMargeOuverts = new Set();
+  const cartesMargeOuvertes = new Set();
   function renderCarteMarge(c, i) {
+    const ouverte = cartesMargeOuvertes.has(c.candidate_id);
     return `
-      <div class="marge-card" id="marge-${i}">
-        <div class="marge-card-head" onclick="document.getElementById('marge-${i}').classList.toggle('open')">
+      <div class="marge-card${ouverte ? ' open' : ''}" id="marge-${i}">
+        <div class="marge-card-head" data-candidate-id="${c.candidate_id.replace(/"/g,'&quot;')}">
           <div>
             <span class="marge-article">${c.article}</span>
             <div class="marge-meta">Confiance ${c.confiance} %</div>
@@ -421,8 +431,8 @@ a{color:inherit; text-decoration:none;}
       if (!items.length) return '';
       const sousTotal = items.reduce((s, c) => s + c.impact_eur, 0);
       return `
-        <div class="marge-groupe${g.ouvertParDefaut ? ' open' : ''}" id="groupe-marge-${g.classe}">
-          <div class="marge-groupe-head" onclick="document.getElementById('groupe-marge-${g.classe}').classList.toggle('open')">
+        <div class="marge-groupe${(g.ouvertParDefaut || groupesMargeOuverts.has(g.classe)) ? ' open' : ''}" id="groupe-marge-${g.classe}">
+          <div class="marge-groupe-head" data-classe="${g.classe}">
             <span class="marge-groupe-titre">${g.titre} (${items.length})</span>
             <span class="marge-groupe-meta">${fmtEur(sousTotal)}</span>
             <span class="chev">›</span>
@@ -441,6 +451,32 @@ a{color:inherit; text-decoration:none;}
       ${groupesHtml}
       <div class="marge-synthese">Si ${candidats.length>1 ? 'les ' + candidats.length + ' opportunités identifiées ci-dessus sont toutes exploitées' : "l'opportunité identifiée ci-dessus est exploitée"} et ${candidats.length>1?'produisent':'produit'} l'effet attendu, la marge du magasin pourrait augmenter d'environ ${fmtEur(potentielTotal)} sur cette période — une estimation, pas une garantie.</div>
     `;
+    // Ouverture/fermeture des groupes et des cartes en addEventListener
+    // (pas d'onclick inline) — un nom d'article contenant une apostrophe
+    // casserait sinon l'attribut HTML si le candidate_id y était interpolé
+    // directement (même précaution que .btn-valider ci-dessous). Chaque
+    // clic met aussi à jour groupesMargeOuverts/cartesMargeOuvertes pour
+    // que renderMarge() puisse tout rouvrir à l'identique après un "Créer
+    // une mission".
+    el.querySelectorAll('.marge-groupe-head').forEach(head => {
+      head.addEventListener('click', () => {
+        const groupe = head.closest('.marge-groupe');
+        if (!groupe) return;
+        groupe.classList.toggle('open');
+        const classe = head.dataset.classe;
+        if (groupe.classList.contains('open')) groupesMargeOuverts.add(classe); else groupesMargeOuverts.delete(classe);
+      });
+    });
+    el.querySelectorAll('.marge-card-head').forEach(head => {
+      head.addEventListener('click', () => {
+        const carte = head.closest('.marge-card');
+        if (!carte) return;
+        carte.classList.toggle('open');
+        const candidateId = head.dataset.candidateId;
+        if (carte.classList.contains('open')) cartesMargeOuvertes.add(candidateId); else cartesMargeOuvertes.delete(candidateId);
+      });
+    });
+
     // data-id plutôt qu'un onclick avec l'id interpolé directement — un nom
     // d'article contenant une apostrophe casserait sinon l'attribut HTML
     // (même précaution que .plan-valider dans Cockpit). stopPropagation
