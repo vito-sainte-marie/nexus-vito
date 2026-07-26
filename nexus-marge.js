@@ -46,6 +46,39 @@
         return /paquet|cigarette|cigarillo|tabac à rouler|tabac a rouler/.test(art);
       },
     },
+    // MISE À JOUR 26/07/2026 (demande de Frédéric) : « produits d'appel »
+    // supplémentaires à exclure de toute recommandation de marge — des
+    // familles qui font venir le client mais dont la marge est
+    // structurellement faible ou fixée par un tiers (fournisseur de gaz,
+    // éditeur de presse, opérateur télécom, monopole des tabacs), jamais un
+    // levier d'action pour le commerçant. Exclusion au niveau de la
+    // `categorie` (pas de l'article) — plus simple et suffisant ici, ces
+    // catégories ne mélangent pas des accessoires à marge libre comme le
+    // fait le tabac (voir la règle précédente).
+    {
+      // Bonbonnes/recharges de gaz (butane, propane, camping) — categorie
+      // commençant par "Gaz" uniquement, pour ne pas exclure au passage une
+      // categorie comme "Accesoires - Briquets - Gaz" (briquets à marge
+      // libre, qui contient aussi le mot "gaz").
+      id: 'gaz', exclue: true,
+      test: (categorie) => /^gaz\b/i.test((categorie || '').trim()),
+    },
+    {
+      // Presse, téléphonie, cartes prépayées/digitales (Transcash, PCS,
+      // codes promo dématérialisés) — même famille "produit d'appel" que le
+      // gaz : le commerçant ne fixe ni le prix ni la marge.
+      id: 'presse-telephonie-cartes', exclue: true,
+      test: (categorie) => /presse|t[ée]l[ée]phon|cartes?\s*pr[ée]pay|codes?\s*promo|transcash|\bpcs\b/i.test(categorie || ''),
+    },
+    {
+      // Tabac indexé par nombre de pièces plutôt que par le mot
+      // "tabac"/"cigare" dans le libellé de categorie (ex. "Paquet de 20") —
+      // la règle tabac-reglemente ci-dessus ne les détecte pas car elle
+      // regarde d'abord la categorie, qui ne contient ici aucun des deux
+      // mots déclencheurs.
+      id: 'tabac-par-quantite', exclue: true,
+      test: (categorie) => /^paquet de \d+$/i.test((categorie || '').trim()),
+    },
   ];
 
   // Retourne la famille de marge d'un article : { id, exclue }.
