@@ -53,8 +53,16 @@ a{color:inherit;}
 .pill{cursor:pointer; font-family:var(--mono); font-size:11px; padding:8px 13px; border-radius:20px; border:1px solid var(--hairline); background:var(--panel-raised); color:var(--text-mid); user-select:none; -webkit-tap-highlight-color:transparent;}
 .pill.active{background:var(--cyan-dim); border-color:rgba(79,195,217,0.4); color:var(--cyan); font-weight:600;}
 
-.chip-input-row{display:flex; gap:8px; margin-bottom:10px;}
+.chip-input-wrap{position:relative; margin-bottom:10px;}
+.chip-input-row{display:flex; gap:8px;}
 .chip-input-row input{flex:1;}
+.suggestions-produits{position:absolute; top:calc(100% + 4px); left:0; right:52px; z-index:5; background:var(--panel-raised); border:1px solid var(--hairline); border-radius:10px; overflow:hidden; box-shadow:0 8px 20px rgba(0,0,0,0.35); display:none;}
+.suggestions-produits.open{display:block;}
+.suggestion-item{padding:9px 12px; font-size:12px; color:var(--text); cursor:pointer; border-bottom:1px solid var(--hairline);}
+.suggestion-item:last-child{border-bottom:none;}
+.suggestion-item:hover, .suggestion-item.actif{background:var(--cyan-dim); color:var(--cyan);}
+.suggestion-item small{display:block; font-family:var(--mono); font-size:9.5px; color:var(--text-dim); margin-top:2px;}
+.suggestion-item.actif small{color:var(--cyan);}
 .btn-ajouter-produit{flex-shrink:0; background:var(--panel-raised); color:var(--text); border:1px solid var(--hairline); border-radius:8px; padding:0 14px; font-family:var(--sans); font-size:12.5px; font-weight:600; cursor:pointer;}
 .chips-produits{display:flex; flex-wrap:wrap; gap:6px;}
 .chip-produit{font-family:var(--mono); font-size:11px; padding:6px 10px; border-radius:20px; background:var(--panel-raised); border:1px solid var(--hairline); color:var(--text-mid); display:flex; align-items:center; gap:6px;}
@@ -136,6 +144,12 @@ footer{margin-top:auto; padding:20px 20px 24px; font-family:var(--mono); font-si
   let SITE_ID = 'vito-sainte-marie';
   let EMPLOYEE = null;
   let produitsSelectionnes = [];
+  // Catalogue réel (25/07/2026) — construit à partir des imports products
+  // déjà en base, pour proposer les articles au lieu de les faire taper en
+  // texte libre. Ne couvre que ce qui a déjà été importé au moins une fois
+  // (voir le message affiché si le catalogue est vide) — jamais un article
+  // inventé.
+  let CATALOGUE_ARTICLES = [];
 
   nexusRequireAuth().then(async employee => {
     if (!employee) return;
@@ -149,15 +163,27 @@ footer{margin-top:auto; padding:20px 20px 24px; font-family:var(--mono); font-si
   });
 
   async function chargerEtAfficher() {
-    const [{ data: auditsRows, error: e1 }, { data: campagnesRows, error: e2 }] = await Promise.all([
+    const [{ data: auditsRows, error: e1 }, { data: campagnesRows, error: e2 }, { data: produitsRows, error: e3 }] = await Promise.all([
       fetchAllRows(() => nexusClient.from('audits_caisse')
         .select('date, quart, vente_piste, vente_boutique')
         .eq('site', SITE_ID).order('date', { ascending: true })),
       nexusClient.from('campagnes_nexus').select('id, nom, date_debut, date_fin, type, produits_concernes, nature, objectif, objectif_libre, cree_le')
         .eq('site', SITE_ID).order('date_debut', { ascending: false }),
+      // Catalogue pour l'autocomplétion "Produits concernés" — tous les
+      // articles déjà vus dans un import products, toutes périodes
+      // confondues (un article qui n'apparaît que dans un import plus
+      // ancien reste proposable).
+      fetchAllRows(() => nexusClient.from('products')
+        .select('article, categorie')
+        .eq('site', SITE_ID)),
     ]);
     if (e1) console.error('Chargement audits_caisse:', e1);
     if (e2) console.error('Chargement campagnes_nexus:', e2);
+    if (e3) console.error('Chargement products (catalogue):', e3);
+
+    const parArticle = new Map();
+    (produitsRows || []).forEach(p => { if (p.article && !parArticle.has(p.article)) parArticle.set(p.article, p.categorie || ''); });
+    CATALOGUE_ARTICLES = Array.from(parArticle, ([article, categorie]) => ({ article, categorie })).sort((a, b) => a.article.localeCompare(b.article, 'fr'));
 
     const joursAgreges = NexusTempo.agregerParJour(auditsRows || []);
     // Même précaution que NEXUS Tempo : le jour en cours n'est jamais
@@ -191,6 +217,7 @@ footer{margin-top:auto; padding:20px 20px 24px; font-family:var(--mono); font-si
     document.getElementById('promoProduitInput').value = '';
     document.getElementById('formMessage').innerHTML = '';
     document.querySelectorAll('.pill').forEach(p => p.classList.remove('active'));
+    masquerSuggestions();
     renderChipsProduits();
   }
 
@@ -203,15 +230,66 @@ footer{margin-top:auto; padding:20px 20px 24px; font-family:var(--mono); font-si
     }
   }
 
-  function ajouterProduit() {
-    const input = document.getElementById('promoProduitInput');
-    const val = input.value.trim();
-    if (val && !produitsSelectionnes.includes(val)) {
-      produitsSelectionnes.push(val);
+  // Autocomplétion "Produits concernés" (25/07/2026) — propose les
+  // articles déjà connus de NEXUS (import products) au fil de la frappe,
+  // pour que le nom saisi corresponde exactement au catalogue et reste
+  // exploitable plus tard pour croiser une promotion avec ses vraies
+  // ventes par article. Reste un champ libre en dernier recours (bouton
+  // "Ajouter") si l'article n'a jamais encore été importé.
+  const MAX_SUGGESTIONS = 6;
+
+  function ajouterUnProduit(nom) {
+    if (nom && !produitsSelectionnes.includes(nom)) {
+      produitsSelectionnes.push(nom);
       renderChipsProduits();
     }
+    const input = document.getElementById('promoProduitInput');
     input.value = '';
     input.focus();
+    masquerSuggestions();
+  }
+
+  function ajouterProduit() {
+    const input = document.getElementById('promoProduitInput');
+    ajouterUnProduit(input.value.trim());
+  }
+
+  function rechercherProduits() {
+    const input = document.getElementById('promoProduitInput');
+    const zone = document.getElementById('suggestionsProduits');
+    const terme = input.value.trim().toLowerCase();
+    if (!terme) { masquerSuggestions(); return; }
+
+    // Priorité aux articles qui COMMENCENT par ce qui est tapé, puis à
+    // ceux qui le contiennent seulement — plus utile en tapant les
+    // premières lettres d'une marque.
+    const commencePar = CATALOGUE_ARTICLES.filter(p => p.article.toLowerCase().startsWith(terme));
+    const contient = CATALOGUE_ARTICLES.filter(p => !p.article.toLowerCase().startsWith(terme) && p.article.toLowerCase().includes(terme));
+    const resultats = [...commencePar, ...contient].slice(0, MAX_SUGGESTIONS);
+
+    if (!resultats.length) { masquerSuggestions(); return; }
+    zone.innerHTML = resultats.map((p, i) =>
+      `<div class="suggestion-item${i === 0 ? ' actif' : ''}" data-article="${p.article.replace(/"/g, '&quot;')}" onclick="ajouterUnProduit(this.dataset.article)">${p.article}${p.categorie ? `<small>${p.categorie}</small>` : ''}</div>`
+    ).join('');
+    zone.classList.add('open');
+  }
+
+  function masquerSuggestions() {
+    const zone = document.getElementById('suggestionsProduits');
+    zone.classList.remove('open');
+    zone.innerHTML = '';
+  }
+
+  function gererEntreeProduit(event) {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    const zone = document.getElementById('suggestionsProduits');
+    const actif = zone.querySelector('.suggestion-item.actif') || zone.querySelector('.suggestion-item');
+    if (zone.classList.contains('open') && actif) {
+      ajouterUnProduit(actif.dataset.article);
+    } else {
+      ajouterProduit();
+    }
   }
 
   function retirerProduit(nom) {
@@ -341,9 +419,12 @@ footer{margin-top:auto; padding:20px 20px 24px; font-family:var(--mono); font-si
         </div>
         <div class="promo-field">
           <label>Produits concernés</label>
-          <div class="chip-input-row">
-            <input type="text" id="promoProduitInput" placeholder="Ex : Heineken 25cl" onkeydown="if(event.key==='Enter'){event.preventDefault(); ajouterProduit();}">
-            <button type="button" class="btn-ajouter-produit" onclick="ajouterProduit()">Ajouter</button>
+          <div class="chip-input-wrap">
+            <div class="chip-input-row">
+              <input type="text" id="promoProduitInput" placeholder="Tapez les premières lettres…" autocomplete="off" oninput="rechercherProduits()" onkeydown="gererEntreeProduit(event)" onblur="setTimeout(masquerSuggestions, 150)">
+              <button type="button" class="btn-ajouter-produit" onclick="ajouterProduit()">Ajouter</button>
+            </div>
+            <div class="suggestions-produits" id="suggestionsProduits"></div>
           </div>
           <div class="chips-produits" id="chipsProduits"><span class="chip-vide">Aucun produit ajouté pour l'instant (facultatif).</span></div>
         </div>
