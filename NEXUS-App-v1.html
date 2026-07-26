@@ -312,6 +312,46 @@
     </div>
   </a>
 
+  <div class="section-label">Équipe</div>
+  <nav data-group="equipe">
+    <a class="nav-item" data-role="manager" data-forfait="professional" href="NEXUS-Assignations-v1.html" style="display:none;">
+      <div class="nav-icon"><img src="assets/icons/icon-assignations.png" alt="Assignations"></div>
+      <div class="nav-body">
+        <div class="nav-title">Assignations <span class="nav-badge badge-premium">Professional</span></div>
+        <div class="nav-desc">Assigner, suivre, valider une mission</div>
+      </div>
+      <div class="nav-arrow">›</div>
+    </a>
+    <a class="nav-item" data-role="manager" data-forfait="professional" href="NEXUS-Resultats-Equipe-v1.html" style="display:none;">
+      <div class="nav-icon"><img src="assets/icons/icon-resultats-equipe.png" alt="Résultats équipe"></div>
+      <div class="nav-body">
+        <div class="nav-title">Résultats Équipe <span class="nav-badge badge-premium">Professional</span></div>
+        <div class="nav-desc">Progression réelle par employé</div>
+      </div>
+      <div class="nav-arrow">›</div>
+    </a>
+    <!-- Aperçu par défaut du groupe Équipe (24/07/2026, demande de Frédéric) :
+         Évaluation plutôt que Résultats Équipe — c'est ce que le manager fait
+         en premier sur le terrain (évaluer son équipe), avant de consulter
+         des résultats chiffrés. -->
+    <a class="nav-item" data-role="manager" data-preview="true" data-forfait="professional" href="NEXUS-Evaluation-Employe-v1.html" style="display:none;">
+      <div class="nav-icon"><img src="assets/icons/icon-evaluation.png" alt="Évaluation"></div>
+      <div class="nav-body">
+        <div class="nav-title">Évaluation <span class="nav-badge badge-premium">Professional</span></div>
+        <div class="nav-desc">Contrôle tenue + grille de prime</div>
+      </div>
+      <div class="nav-arrow">›</div>
+    </a>
+    <a class="nav-item" data-role="all" href="NEXUS-Mon-Evolution-v1.html">
+      <div class="nav-icon"><img src="assets/icons/icon-evolution.png" alt="Mon évolution"></div>
+      <div class="nav-body">
+        <div class="nav-title">Mon Évolution</div>
+        <div class="nav-desc">Vos missions prouvées, votre progression réelle</div>
+      </div>
+      <div class="nav-arrow">›</div>
+    </a>
+  </nav>
+
   <div class="section-label">Votre journée</div>
   <nav data-group="journee">
     <a class="nav-item" data-role="all" href="NEXUS-Prise-De-Poste-v1.html">
@@ -359,46 +399,6 @@
       <div class="nav-body">
         <div class="nav-title">Rappels<span id="navRappelsBadge"></span></div>
         <div class="nav-desc">Commandes fournisseurs, carburant</div>
-      </div>
-      <div class="nav-arrow">›</div>
-    </a>
-  </nav>
-
-  <div class="section-label">Équipe</div>
-  <nav data-group="equipe">
-    <a class="nav-item" data-role="manager" data-forfait="professional" href="NEXUS-Assignations-v1.html" style="display:none;">
-      <div class="nav-icon"><img src="assets/icons/icon-assignations.png" alt="Assignations"></div>
-      <div class="nav-body">
-        <div class="nav-title">Assignations <span class="nav-badge badge-premium">Professional</span></div>
-        <div class="nav-desc">Assigner, suivre, valider une mission</div>
-      </div>
-      <div class="nav-arrow">›</div>
-    </a>
-    <a class="nav-item" data-role="manager" data-forfait="professional" href="NEXUS-Resultats-Equipe-v1.html" style="display:none;">
-      <div class="nav-icon"><img src="assets/icons/icon-resultats-equipe.png" alt="Résultats équipe"></div>
-      <div class="nav-body">
-        <div class="nav-title">Résultats Équipe <span class="nav-badge badge-premium">Professional</span></div>
-        <div class="nav-desc">Progression réelle par employé</div>
-      </div>
-      <div class="nav-arrow">›</div>
-    </a>
-    <!-- Aperçu par défaut du groupe Équipe (24/07/2026, demande de Frédéric) :
-         Évaluation plutôt que Résultats Équipe — c'est ce que le manager fait
-         en premier sur le terrain (évaluer son équipe), avant de consulter
-         des résultats chiffrés. -->
-    <a class="nav-item" data-role="manager" data-preview="true" data-forfait="professional" href="NEXUS-Evaluation-Employe-v1.html" style="display:none;">
-      <div class="nav-icon"><img src="assets/icons/icon-evaluation.png" alt="Évaluation"></div>
-      <div class="nav-body">
-        <div class="nav-title">Évaluation <span class="nav-badge badge-premium">Professional</span></div>
-        <div class="nav-desc">Contrôle tenue + grille de prime</div>
-      </div>
-      <div class="nav-arrow">›</div>
-    </a>
-    <a class="nav-item" data-role="all" href="NEXUS-Mon-Evolution-v1.html">
-      <div class="nav-icon"><img src="assets/icons/icon-evolution.png" alt="Mon évolution"></div>
-      <div class="nav-body">
-        <div class="nav-title">Mon Évolution</div>
-        <div class="nav-desc">Vos missions prouvées, votre progression réelle</div>
       </div>
       <div class="nav-arrow">›</div>
     </a>
@@ -646,27 +646,27 @@
   const LANGAGE_ACTION_HOME = {
     facing: {
       recoAgir: a => `Vérifiez et renforcez le facing de ${a}.`,
-      recoHausse: a => `Renforcez le facing de ${a} avant la période suivante.`,
+      recoHausse: a => `Renforcez le facing de ${a} avant le prochain réapprovisionnement.`,
       recoBaisse: a => `Vérifiez la présence en rayon de ${a} avant toute décision.`,
     },
     stock: {
       recoAgir: a => `Vérifiez le stock disponible en dépôt/cage pour ${a}.`,
-      recoHausse: a => `Sécurisez davantage de stock de ${a} avant la période suivante.`,
+      recoHausse: a => `Sécurisez davantage de stock de ${a} avant le prochain réapprovisionnement.`,
       recoBaisse: a => `Vérifiez le stock en dépôt/cage de ${a} avant toute décision.`,
     },
     support: {
       recoAgir: a => `Vérifiez le stock de cartes et l'activation en caisse pour ${a}.`,
-      recoHausse: a => `Prévoyez davantage de support et d'activation pour ${a} avant la période suivante.`,
+      recoHausse: a => `Prévoyez davantage de support et d'activation pour ${a} avant le prochain réapprovisionnement.`,
       recoBaisse: a => `Vérifiez la disponibilité du support et son activation en caisse pour ${a}.`,
     },
     production: {
       recoAgir: a => `Ajustez la quantité commandée ou produite de ${a} au niveau réel de la demande.`,
-      recoHausse: a => `Augmentez la quantité commandée ou produite de ${a} avant la période suivante.`,
+      recoHausse: a => `Augmentez la quantité commandée ou produite de ${a} avant le prochain réapprovisionnement.`,
       recoBaisse: a => `Vérifiez si la quantité produite ou commandée de ${a} a été réduite.`,
     },
     comptoir: {
       recoAgir: a => `Vérifiez la disponibilité au comptoir de ${a}.`,
-      recoHausse: a => `Garantissez la disponibilité au comptoir de ${a} avant la période suivante.`,
+      recoHausse: a => `Garantissez la disponibilité au comptoir de ${a} avant le prochain réapprovisionnement.`,
       recoBaisse: a => `Vérifiez la disponibilité au comptoir de ${a} avant toute décision.`,
     },
     presentoir: {
@@ -991,7 +991,10 @@
   // adapté au type de décision (🔥 À AGIR / 📈 OPPORTUNITÉ / 🟡 À SURVEILLER)
   // — l'aléatoire est volontaire : le but est que le Conseiller NEXUS donne
   // l'impression d'être présent et de reformuler, pas de répéter un bouton
-  // figé. La destination (fiche Produits) ne change pas, seul le mot change.
+  // figé. MISE À JOUR 26/07/2026 (demande de Frédéric) : le lien pointe
+  // désormais directement sur la fiche du produit concerné (?article=...),
+  // au lieu de la page Produits générique — seul le verbe reste tiré au
+  // hasard, la destination est maintenant précise.
   const VERBES_ACTION_CONSEILLER = {
     '🔥 À AGIR': ['Corriger', 'Ajuster', 'Régler', 'Traiter'],
     '📈 OPPORTUNITÉ': ['Renforcer', 'Saisir', 'Amplifier', 'Capitaliser'],
@@ -1017,7 +1020,7 @@
           <span class="priorite-check" data-idx="${i}">✓</span>
           <div class="priorite-body">
             <span class="priorite-num">${i + 1}.</span> ${c.recommandation}
-            <a class="priorite-lien" href="NEXUS-Produits-v1.html">${verbeActionAleatoire(c.etat)} →</a>
+            <a class="priorite-lien" href="NEXUS-Produits-v1.html?article=${encodeURIComponent(c.article)}">${verbeActionAleatoire(c.etat)} →</a>
           </div>
         </div>`).join('')}
       <div class="conseiller-footer"><span id="prioriteProgressHome">0 / ${top3.length} traitées</span><span>Gain potentiel : <b>${Math.round(gainTotal).toLocaleString('fr-FR')} €</b></span></div>

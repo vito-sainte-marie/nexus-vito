@@ -460,6 +460,17 @@ nexusRequireAuth().then(async employee => {
     });
   });
 
+  // Deep-link depuis le Conseiller NEXUS (accueil) — ?article=<nom exact>
+  // ouvre directement la fiche de ce produit au lieu de laisser le manager
+  // retaper la recherche. Retombe silencieusement sur l'état vide habituel
+  // si l'article n'existe pas (ex: lien copié après un nouvel import qui a
+  // renommé la référence) — demande Frédéric, 26/07/2026.
+  const articleDepuisLien = new URLSearchParams(window.location.search).get('article');
+  if (articleDepuisLien && PRODUCTS.some(p => p.article === articleDepuisLien)) {
+    searchInput.value = articleDepuisLien;
+    showProduct(articleDepuisLien);
+  }
+
   function fmtEur(v) { return v.toLocaleString('fr-FR', {minimumFractionDigits:2, maximumFractionDigits:2}) + ' €'; }
   function fmtPct(v) { return (v*100).toFixed(1) + '%'; }
 
