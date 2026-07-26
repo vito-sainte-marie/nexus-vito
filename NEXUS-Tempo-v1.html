@@ -143,6 +143,7 @@ footer{margin-top:auto; padding:20px 20px 24px; font-family:var(--mono); font-si
 <script src="nexus-auth.js"></script>
 <script src="nexus-forfait.js"></script>
 <script src="nexus-tempo.js"></script>
+<script src="nexus-marge.js"></script>
 </head>
 <body>
 <div class="app" id="app">
@@ -207,6 +208,13 @@ footer{margin-top:auto; padding:20px 20px 24px; font-family:var(--mono); font-si
     }
   }
 
+  // Jour le plus rentable (26/07/2026) : même définition de "produit
+  // d'appel" que NEXUS Marge+ (nexus-marge.js) — jamais une deuxième
+  // liste codée en dur qui risquerait de diverger de la première.
+  function estProduitAppel(categorie, article) {
+    return NexusMarge.familleMarge(categorie, article).exclue;
+  }
+
   function fmtEur(v) { return Math.round(v).toLocaleString('fr-FR') + ' €'; }
   function fmtPct(v) { return `${v >= 0 ? '+' : ''}${(v * 100).toFixed(1).replace('.', ',')} %`; }
   function fmtDateCourt(iso) {
@@ -250,7 +258,7 @@ footer{margin-top:auto; padding:20px 20px 24px; font-family:var(--mono); font-si
     const siteId = employee.site_id || 'vito-sainte-marie';
     if (!(await NexusForfait.nexusRequireProfessional('NEXUS-Tempo-v1.html', siteId))) return;
 
-    const [{ data: auditsRows, error: e1 }, { data: employesRows, error: e2 }, { data: stockRows, error: e3 }, { data: journalRows, error: e4 }, { data: inventaireRows, error: e5 }] = await Promise.all([
+    const [{ data: auditsRows, error: e1 }, { data: employesRows, error: e2 }, { data: stockRows, error: e3 }, { data: journalRows, error: e4 }, { data: inventaireRows, error: e5 }, { data: productsRows, error: e6 }] = await Promise.all([
       fetchAllRows(() => nexusClient.from('audits_caisse')
         .select('date, quart, vente_piste, vente_boutique, ecart_piste, ecart_boutique, employes_piste, employes_boutique, litrage_gazole, litrage_sp95, litrage_gnr')
         .eq('site', siteId).order('date', { ascending: true })),
@@ -274,12 +282,19 @@ footer{margin-top:auto; padding:20px 20px 24px; font-family:var(--mono); font-si
       fetchAllRows(() => nexusClient.from('stock_releves')
         .select('releve_le, categorie, quantite_reelle, importe_le')
         .eq('site', siteId).order('releve_le', { ascending: true })),
+      // Jour le plus rentable (26/07/2026) : réutilise les mêmes imports
+      // products que Rayon/Cockpit/Produits/Marge+ — aucune saisie
+      // supplémentaire demandée au manager (voir nexus-tempo.js).
+      fetchAllRows(() => nexusClient.from('products')
+        .select('categorie, article, ca, periode_debut, periode_fin')
+        .eq('site', siteId)),
     ]);
     if (e1) console.error('Chargement audits_caisse:', e1);
     if (e2) console.error('Chargement employees:', e2);
     if (e3) console.error('Chargement stock_sante_historique:', e3);
     if (e4) console.error('Chargement journal_decisions:', e4);
     if (e5) console.error('Chargement stock_releves:', e5);
+    if (e6) console.error('Chargement products (jour le plus rentable):', e6);
 
     const employesParId = {};
     (employesRows || []).forEach(e => { employesParId[e.id] = e; });
@@ -292,10 +307,20 @@ footer{margin-top:auto; padding:20px 20px 24px; font-family:var(--mono); font-si
     // découvertes, classement hebdomadaire) se base sur ces jours
     // exploitables, jamais sur le total brut des jours enregistrés.
     const joursExploitables = NexusTempo.filtrerJoursClos(joursAgreges);
-    const regroupement = NexusTempo.regrouperParJourSemaine(joursExploitables);
+
+    // Jour le plus rentable (26/07/2026) — voir nexus-tempo.js pour le
+    // principe complet. estProduitAppel réutilise directement les
+    // règles NEXUS Marge+ (mêmes familles "produits d'appel" déjà
+    // exclues des comparaisons de marge) plutôt que dupliquer une
+    // deuxième liste qui pourrait diverger de la première.
+    const periodesProduitsAppel = NexusTempo.calculerPeriodesProduitsAppel(productsRows || [], estProduitAppel);
+    const joursValorises = NexusTempo.attribuerValorisationBoutique(joursExploitables, periodesProduitsAppel);
+
+    const regroupement = NexusTempo.regrouperParJourSemaine(joursValorises);
     const classement = NexusTempo.calculerClassement(regroupement);
     const joursReveles = NexusTempo.identifierJoursReveles(classement);
     const meilleursSepares = NexusTempo.identifierMeilleursJoursSepares(classement);
+    const jourPlusRentable = NexusTempo.identifierJourPlusRentable(classement);
     const classementLitrage = NexusTempo.classementLitrage(classement);
     // L'analyse équipe reste sur les quarts complets déjà saisis (un
     // quart enregistré est une donnée exacte et définitive, même si la
@@ -343,13 +368,13 @@ footer{margin-top:auto; padding:20px 20px 24px; font-family:var(--mono); font-si
 
     document.getElementById('maturiteZone').innerHTML = renderMaturite(maturite, confianceGlobale);
 
-    renderTout({ siteId, employee, joursAgreges, joursExploitables, classement, joursReveles, meilleursSepares, classementLitrage, analyseEquipe, decision, saisonnier, debutFinMois, analyseVacances, decouvertes, analyseMeteo, analyseStock, etatStockActuel, etatInventaireActuel, etatCapitalActuel, impactDecisionsTempo });
+    renderTout({ siteId, employee, joursAgreges, joursExploitables, classement, joursReveles, meilleursSepares, jourPlusRentable, classementLitrage, analyseEquipe, decision, saisonnier, debutFinMois, analyseVacances, decouvertes, analyseMeteo, analyseStock, etatStockActuel, etatInventaireActuel, etatCapitalActuel, impactDecisionsTempo });
   });
 
   // ------------------------------------------------------------
   // Bloc 1 — Résumé du Conseiller NEXUS
   // ------------------------------------------------------------
-  function texteConseiller(joursAgreges, joursExploitables, joursReveles, meilleursSepares) {
+  function texteConseiller(joursAgreges, joursExploitables, joursReveles, meilleursSepares, jourPlusRentable) {
     if (!joursAgreges.length) {
       return "Aucun audit de caisse enregistré pour l'instant. NEXUS Tempo s'active dès que les audits quotidiens (Nexus Verify) commencent à s'accumuler — un jour de semaine devient lisible à partir de sa première occurrence, fiable à partir de sa deuxième.";
     }
@@ -395,9 +420,25 @@ footer{margin-top:auto; padding:20px 20px 24px; font-family:var(--mono); font-si
       texte += `. `;
     }
     if (jourProgression) {
-      texte += `Le <b>${jourProgression.nom}</b> progresse le plus (${fmtPct(jourProgression.evolutionCombinee)}) sur son historique récent.`;
+      texte += `Le <b>${jourProgression.nom}</b> progresse le plus (${fmtPct(jourProgression.evolutionCombinee)}) sur son historique récent. `;
     } else {
-      texte += `Historique clos encore trop court pour identifier une progression fiable — chaque nouvelle journée terminée affine cette lecture.`;
+      texte += `Historique clos encore trop court pour identifier une progression fiable — chaque nouvelle journée terminée affine cette lecture. `;
+    }
+
+    // Jour le plus rentable (26/07/2026, demande de Frédéric) : ne le
+    // mentionne que s'il diverge du jour moteur — sinon la phrase
+    // n'apporterait rien de nouveau. Toujours qualifié d'estimation.
+    if (jourPlusRentable && jourMoteur && jourPlusRentable.jourSemaine !== jourMoteur.jourSemaine) {
+      texte += `À noter : une fois les produits d'appel (cartes prépayées, téléphonie, gaz, presse, tabac) retirés du calcul, c'est le <b>${jourPlusRentable.nom}</b> qui ressort comme le jour le plus rentable en estimation (${fmtEur(jourPlusRentable.moyenneCombineeValorisee)}) — les efforts commerciaux gagneraient à s'y concentrer plutôt que sur le seul CA brut.`;
+    } else if (jourPlusRentable) {
+      texte += `Une fois les produits d'appel retirés du calcul (estimation), le <b>${jourPlusRentable.nom}</b> reste également le jour le plus rentable — la lecture CA brut et la lecture valorisée concordent.`;
+    }
+    // Transparence (26/07/2026) : si le jour moteur lui-même n'a encore
+    // aucune occurrence valorisable, le dire explicitement plutôt que de
+    // laisser croire qu'il a été comparé et a perdu — sa dernière date
+    // peut simplement tomber après la fin du dernier import products.
+    if (jourMoteur && jourMoteur.nbOccValorisation === 0) {
+      texte += ` Le <b>${jourMoteur.nom}</b> lui-même n'a pas encore pu être valorisé — sa dernière occurrence tombe après la fin du dernier import de produits. Cette estimation s'affichera dès le prochain import.`;
     }
     return texte;
   }
@@ -433,6 +474,28 @@ footer{margin-top:auto; padding:20px 20px 24px; font-family:var(--mono); font-si
       ${carte('Jour moteur', 'var(--green)', jourMoteur, jourMoteur ? `${valeurPisteAffichee(jourMoteur)} piste<br>${fmtEur(jourMoteur.moyenneBoutique)} boutique` : '')}
       ${carte('En progression', 'var(--cyan)', jourProgression, jourProgression ? `${fmtPct(jourProgression.evolutionCombinee)}<br>vs historique` : '')}
       ${carte('À renforcer', 'var(--amber)', jourARenforcer, jourARenforcer ? `${valeurPisteAffichee(jourARenforcer)} piste<br>${fmtEur(jourARenforcer.moyenneBoutique)} boutique` : '')}
+    </div>`;
+  }
+
+  // Jour le plus rentable (26/07/2026, demande de Frédéric) : encadré
+  // distinct de "Jour moteur" — celui-ci se base sur le CA brut (piste +
+  // boutique), qui peut être trompeur si un jour est gonflé par des
+  // ventes de cartes prépayées/téléphonie/gaz/tabac (CA élevé, valeur
+  // réelle faible pour la station). Toujours présenté comme une
+  // ESTIMATION explicite, jamais comme une marge mesurée jour par jour
+  // (voir NexusTempo.VALORISATION_INDISPONIBLE et le commentaire dans
+  // nexus-tempo.js pour le principe complet).
+  function renderJourRentable(jour) {
+    if (!jour) {
+      return `<div class="litrage-note">💶 ${NexusTempo.VALORISATION_INDISPONIBLE}</div>`;
+    }
+    const nomMaj = jour.nom.charAt(0).toUpperCase() + jour.nom.slice(1);
+    return `<div class="duo-jours" style="margin-top:8px;">
+      <div class="duo-item" style="flex:1;">
+        <span class="duo-tag" style="color:var(--gold);">Jour le plus rentable · estimation</span>
+        <b>${nomMaj}</b> — ${fmtEur(jour.moyenneCombineeValorisee)} de CA estimé hors produits d'appel<br>
+        <span style="color:var(--text-dim);">dont ${fmtEur(jour.moyenneBoutiqueValorisee)} boutique valorisée (CA brut boutique : ${fmtEur(jour.moyenneBoutique)})</span>
+      </div>
     </div>`;
   }
 
@@ -882,7 +945,7 @@ footer{margin-top:auto; padding:20px 20px 24px; font-family:var(--mono); font-si
   // ------------------------------------------------------------
   // Assemblage final
   // ------------------------------------------------------------
-  function renderTout({ siteId, employee, joursAgreges, joursExploitables, classement, joursReveles, meilleursSepares, classementLitrage, analyseEquipe, decision, saisonnier, debutFinMois, analyseVacances, decouvertes, analyseMeteo, analyseStock, etatStockActuel, etatInventaireActuel, etatCapitalActuel, impactDecisionsTempo }) {
+  function renderTout({ siteId, employee, joursAgreges, joursExploitables, classement, joursReveles, meilleursSepares, jourPlusRentable, classementLitrage, analyseEquipe, decision, saisonnier, debutFinMois, analyseVacances, decouvertes, analyseMeteo, analyseStock, etatStockActuel, etatInventaireActuel, etatCapitalActuel, impactDecisionsTempo }) {
     const root = document.getElementById('root');
     const nbDecouvertes = decouvertes.length && decouvertes[0].disponible ? decouvertes.length : 0;
 
@@ -921,12 +984,12 @@ footer{margin-top:auto; padding:20px 20px 24px; font-family:var(--mono); font-si
           <img class="conseiller-avatar" src="assets/nexus-avatar.png" alt="Conseiller NEXUS">
           <div class="conseiller-body">
             <div class="conseiller-name">CONSEILLER NEXUS</div>
-            <p>${texteConseiller(joursAgreges, joursExploitables, joursReveles, meilleursSepares)}</p>
+            <p>${texteConseiller(joursAgreges, joursExploitables, joursReveles, meilleursSepares, jourPlusRentable)}</p>
           </div>
         </div>
       </div>
 
-      ${accordion('accJours', 'Jours révélés', `<div class="section">${renderJoursReveles(joursReveles)}</div>${renderDuoJours(meilleursSepares)}`, true)}
+      ${accordion('accJours', 'Jours révélés', `<div class="section">${renderJoursReveles(joursReveles)}</div>${renderDuoJours(meilleursSepares)}<div class="section">${renderJourRentable(jourPlusRentable)}</div>`, true)}
 
       ${accordion('accDecision', 'Décision NEXUS', `<div class="section">${renderDecision(decision, siteId, employee)}</div>`, true)}
 

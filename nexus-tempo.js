@@ -109,6 +109,28 @@
 
   const LITRAGE_INDISPONIBLE = "Litrage non calculable pour l'instant — aucun audit de caisse n'a encore été saisi avec le détail par carburant (gazole / SP95 / GNR) introduit le 25/07/2026 dans Nexus Verify. Dès le premier audit saisi avec ce détail, cette section affichera le litrage réel par jour de semaine.";
 
+  // Jour le plus rentable (26/07/2026, demande de Frédéric) : "jour
+  // moteur" se base sur le CA boutique brut, ce qui peut être trompeur
+  // — une forte journée de cartes prépayées/téléphonie/gaz/tabac génère
+  // beaucoup de CA mais très peu de valeur réelle pour la station (voir
+  // nexus-marge.js, qui exclut déjà ces "produits d'appel" de toute
+  // comparaison de marge). Plutôt que d'imposer une nouvelle saisie
+  // manuelle quotidienne (rejeté par Frédéric le 26/07/2026 : "nexus
+  // doit simplifier le travail du manager pas le compliquer"), NEXUS
+  // Tempo croise deux données qui existent déjà sans effort
+  // supplémentaire :
+  //   - la part de CA "produits d'appel" de chaque période d'import
+  //     products (Rayon/Cockpit/Produits/Marge+, déjà fait tous les
+  //     15 jours environ) ;
+  //   - le CA boutique quotidien déjà saisi par Nexus Verify.
+  // Le résultat (venteBoutiqueValorisee) est une ESTIMATION explicitement
+  // nommée comme telle, jamais présentée comme une marge réelle mesurée
+  // jour par jour — même principe que "Rotation réelle" ailleurs dans
+  // NEXUS. Un jour dont la date ne tombe dans aucune période importée
+  // reste explicitement "non calculable", jamais complété par une
+  // estimation approximative (Article 5).
+  const VALORISATION_INDISPONIBLE = "Jour le plus rentable non calculable pour l'instant — NEXUS a besoin qu'au moins une période d'import de produits (Rayon, Cockpit, Produits ou Marge+) recouvre des jours déjà audités par Nexus Verify. Dès qu'un import et des audits se recoupent, cette estimation s'affichera.";
+
   function dateLocale(dateStr) {
     // Évite les décalages de fuseau horaire sur une date SQL "YYYY-MM-DD"
     // (même précaution que NEXUS-Planning-v1.html).
@@ -208,6 +230,61 @@
   }
 
   // ------------------------------------------------------------
+  // 1ter) Jour le plus rentable (26/07/2026) — voir le commentaire de
+  //    VALORISATION_INDISPONIBLE ci-dessus pour le principe complet.
+  //
+  //    calculerPeriodesProduitsAppel : regroupe les lignes `products`
+  //    (déjà chargées pour d'autres écrans — Rayon/Cockpit/Produits/
+  //    Marge+) par période d'import, et calcule pour chacune la part du
+  //    CA venant de familles "produits d'appel". `estProduitAppelFn`
+  //    est injectée depuis la page (et non importée en dur ici) pour
+  //    que ce fichier reste indépendant de nexus-marge.js, exactement
+  //    comme employesParId ou meteoParDate sont déjà injectés ailleurs
+  //    dans ce fichier plutôt que chargés directement.
+  // ------------------------------------------------------------
+  function calculerPeriodesProduitsAppel(rowsProducts, estProduitAppelFn) {
+    const parPeriode = {};
+    (rowsProducts || []).forEach(r => {
+      if (!(Number(r.ca) > 0)) return; // CA non exploitable pour un ratio
+      const cle = `${r.periode_debut}|${r.periode_fin}`;
+      if (!parPeriode[cle]) parPeriode[cle] = { periodeDebut: r.periode_debut, periodeFin: r.periode_fin, caTotal: 0, caProduitsAppel: 0 };
+      const p = parPeriode[cle];
+      const ca = Number(r.ca) || 0;
+      p.caTotal += ca;
+      if (estProduitAppelFn && estProduitAppelFn(r.categorie, r.article)) p.caProduitsAppel += ca;
+    });
+    return Object.values(parPeriode)
+      .map(p => ({ ...p, partProduitsAppel: p.caTotal > 0 ? p.caProduitsAppel / p.caTotal : 0 }))
+      .sort((a, b) => a.periodeDebut < b.periodeDebut ? -1 : 1);
+  }
+
+  // Attribue à chaque jour agrégé une estimation de CA boutique
+  // "valorisé" (hors produits d'appel), à partir de la période
+  // d'import qui recouvre sa date. Si plusieurs périodes se chevauchent
+  // (import corrigé après coup), on retient celle dont la période a
+  // débuté le plus récemment — le reflet le plus à jour de ce qui a été
+  // réellement vendu à cette date. Un jour hors de toute période
+  // importée reste honnêtement non calculable (valorisationDisponible:
+  // false), jamais comblé par une estimation approximative.
+  function attribuerValorisationBoutique(joursAgreges, periodesProduitsAppel) {
+    const periodes = periodesProduitsAppel || [];
+    return (joursAgreges || []).map(j => {
+      const periode = periodes
+        .filter(p => p.periodeDebut <= j.date && (!p.periodeFin || j.date <= p.periodeFin))
+        .sort((a, b) => a.periodeDebut < b.periodeDebut ? 1 : -1)[0];
+      if (!periode) {
+        return { ...j, valorisationDisponible: false, venteBoutiqueValorisee: null, partProduitsAppelPeriode: null };
+      }
+      return {
+        ...j,
+        valorisationDisponible: true,
+        venteBoutiqueValorisee: j.venteBoutique * (1 - periode.partProduitsAppel),
+        partProduitsAppelPeriode: periode.partProduitsAppel,
+      };
+    });
+  }
+
+  // ------------------------------------------------------------
   // 2) Regroupe les jours agrégés par jour de semaine (0=dimanche
   //    … 6=samedi), triés du plus ancien au plus récent.
   // ------------------------------------------------------------
@@ -243,7 +320,8 @@
         return { ...bucket, moyennePiste: null, moyenneBoutique: null, moyenneCombinee: null,
           derniere: null, evolutionPiste: null, evolutionBoutique: null, evolutionCombinee: null,
           coefficientVariation: null, confianceTendance: false,
-          litrageMoyenGazole: null, litrageMoyenSp95: null, litrageMoyenGnr: null, litrageMoyenTotal: null, nbOccLitrage: 0 };
+          litrageMoyenGazole: null, litrageMoyenSp95: null, litrageMoyenGnr: null, litrageMoyenTotal: null, nbOccLitrage: 0,
+          moyennePisteValorisation: null, moyenneBoutiqueValorisee: null, moyenneCombineeValorisee: null, nbOccValorisation: 0 };
       }
       const pistes = occ.map(o => o.ventePiste);
       const boutiques = occ.map(o => o.venteBoutique);
@@ -269,9 +347,20 @@
       const litrageMoyenGnr = occLitrage.length ? moyenne(occLitrage.map(o => o.litrageGnr)) : null;
       const litrageMoyenTotal = occLitrage.length ? (litrageMoyenGazole + litrageMoyenSp95 + litrageMoyenGnr) : null;
 
+      // Jour le plus rentable (26/07/2026) : moyenne calculée uniquement
+      // sur le sous-ensemble d'occurrences dont la date recoupe une
+      // période d'import products (voir attribuerValorisationBoutique)
+      // — même logique de prudence que le litrage ci-dessus, jamais de
+      // moyenne mélangeant des jours valorisés et non valorisés.
+      const occValorisation = occ.filter(o => o.valorisationDisponible);
+      const moyennePisteValorisation = occValorisation.length ? moyenne(occValorisation.map(o => o.ventePiste)) : null;
+      const moyenneBoutiqueValorisee = occValorisation.length ? moyenne(occValorisation.map(o => o.venteBoutiqueValorisee)) : null;
+      const moyenneCombineeValorisee = occValorisation.length ? (moyennePisteValorisation + moyenneBoutiqueValorisee) : null;
+
       return { ...bucket, moyennePiste, moyenneBoutique, moyenneCombinee, derniere,
         evolutionPiste, evolutionBoutique, evolutionCombinee, coefficientVariation, confianceTendance,
-        litrageMoyenGazole, litrageMoyenSp95, litrageMoyenGnr, litrageMoyenTotal, nbOccLitrage: occLitrage.length };
+        litrageMoyenGazole, litrageMoyenSp95, litrageMoyenGnr, litrageMoyenTotal, nbOccLitrage: occLitrage.length,
+        moyennePisteValorisation, moyenneBoutiqueValorisee, moyenneCombineeValorisee, nbOccValorisation: occValorisation.length };
     });
 
     // Classement combiné (piste + boutique) — sert au statut hebdomadaire,
@@ -340,6 +429,23 @@
     const meilleurPiste = observes.find(a => a.rangPiste === 1) || null;
     const meilleurBoutique = observes.find(a => a.rangBoutique === 1) || null;
     return { meilleurPiste, meilleurBoutique };
+  }
+
+  // ------------------------------------------------------------
+  // 4quater) Jour le plus rentable (26/07/2026) — classement séparé basé
+  //    sur le CA valorisé (piste inchangé + boutique hors produits
+  //    d'appel), calculé UNIQUEMENT parmi les jours de semaine disposant
+  //    d'au moins une occurrence valorisable. Volontairement distinct de
+  //    "Jour moteur" (CA brut) : les deux peuvent diverger, c'est
+  //    précisément ce que Frédéric a demandé de révéler. Retourne null
+  //    tant qu'aucun jour n'est valorisable (voir VALORISATION_INDISPONIBLE).
+  // ------------------------------------------------------------
+  function identifierJourPlusRentable(classement) {
+    const disponibles = (classement || []).filter(a => a.nbOccValorisation > 0);
+    if (!disponibles.length) return null;
+    const trie = [...disponibles].sort((a, b) => b.moyenneCombineeValorisee - a.moyenneCombineeValorisee);
+    trie.forEach((a, i) => { a.rangValorise = i + 1; });
+    return trie[0];
   }
 
   // ------------------------------------------------------------
@@ -1161,8 +1267,9 @@
   ];
 
   window.NexusTempo = {
-    SEUILS, NOM_JOURS, NOM_JOURS_COURT, NOM_MOIS, LITRAGE_INDISPONIBLE, SOURCES_DONNEES, COORDONNEES_STATION,
+    SEUILS, NOM_JOURS, NOM_JOURS_COURT, NOM_MOIS, LITRAGE_INDISPONIBLE, VALORISATION_INDISPONIBLE, SOURCES_DONNEES, COORDONNEES_STATION,
     agregerParJour, filtrerJoursClos, regrouperParJourSemaine, calculerClassement,
+    calculerPeriodesProduitsAppel, attribuerValorisationBoutique, identifierJourPlusRentable,
     identifierJoursReveles, identifierMeilleursJoursSepares, classementLitrage,
     analyserEquipe, genererDecisionPrioritaire,
     calculerMaturite, calculerConfianceGlobale, joursFeries, estJourFerie, tagCalendaire,
