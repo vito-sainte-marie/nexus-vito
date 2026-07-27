@@ -54,6 +54,8 @@ a{color:inherit;}
 .conseiller-body .conseiller-name{font-family:var(--mono); font-size:10.5px; letter-spacing:0.06em; text-transform:uppercase; color:var(--cyan); margin-bottom:8px;}
 .conseiller-body p{font-size:13px; line-height:1.6; color:var(--text);}
 .conseiller-body b{color:var(--cyan);}
+.conseiller-decision{font-size:13px; line-height:1.6; color:var(--text);}
+.conseiller-limite{display:inline-block; margin-top:8px; font-size:11.5px; line-height:1.55; color:var(--text-dim);}
 
 .reveles-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:8px;}
 .revele-card{background:var(--panel); border:1px solid var(--hairline); border-radius:14px; padding:13px 11px; text-align:center;}
@@ -378,69 +380,73 @@ footer{margin-top:auto; padding:20px 20px 24px; font-family:var(--mono); font-si
     if (!joursAgreges.length) {
       return "Aucun audit de caisse enregistré pour l'instant. NEXUS Tempo s'active dès que les audits quotidiens (Nexus Verify) commencent à s'accumuler — un jour de semaine devient lisible à partir de sa première occurrence, fiable à partir de sa deuxième.";
     }
-    let texte = '';
 
-    // Distinction jours enregistrés / jours exploitables (25/07/2026,
-    // demande de Frédéric) : le jour en cours peut déjà avoir un audit
-    // saisi sans que sa journée soit terminée — il compte comme
-    // "enregistré" mais pas encore "exploitable" pour les moyennes par
-    // jour de semaine. Le dire explicitement évite toute impression de
-    // contradiction avec la jauge de maturité, qui ne compte elle aussi
-    // que les jours clos.
     const nbEnregistres = joursAgreges.length;
     const nbExploitables = joursExploitables.length;
-    if (nbExploitables !== nbEnregistres) {
-      const nbEnCours = nbEnregistres - nbExploitables;
-      texte += `Sur ${nbEnregistres} jour${nbEnregistres > 1 ? 's' : ''} enregistré${nbEnregistres > 1 ? 's' : ''}, ${nbExploitables} dispose${nbExploitables > 1 ? 'nt' : ''} de données suffisamment complètes pour être analysé${nbExploitables > 1 ? 's' : ''}${nbEnCours > 0 ? ` (le${nbEnCours > 1 ? 's' : ''} ${nbEnCours > 1 ? 'derniers jours' : 'dernier jour'} étant encore en cours)` : ''}. `;
-    } else {
-      texte += `Sur ${nbEnregistres} jour${nbEnregistres > 1 ? 's' : ''} enregistré${nbEnregistres > 1 ? 's' : ''}, tous exploitables, `;
-    }
-
     if (!nbExploitables) {
-      return texte + "l'historique clos est encore trop court pour une lecture fiable du rythme de la station.";
+      return "L'historique clos est encore trop court pour une lecture fiable du rythme de la station.";
     }
 
     const { jourMoteur, jourProgression, jourARenforcer } = joursReveles;
     const { meilleurPiste, meilleurBoutique } = meilleursSepares || {};
+    const pisteDiverge = !!(meilleurPiste && meilleurBoutique && meilleurPiste.jourSemaine !== meilleurBoutique.jourSemaine);
+    const rentableDiverge = !!(jourPlusRentable && jourMoteur && jourPlusRentable.jourSemaine !== jourMoteur.jourSemaine);
 
-    // Distinction piste / boutique (25/07/2026, demande de Frédéric) : les
-    // deux meilleurs jours peuvent diverger — ex. "meilleures ventes en
-    // piste le vendredi, en revanche la boutique a mieux fonctionné mardi
-    // dernier". On ne l'affirme que si les deux jours sont identifiables,
-    // même avec une seule occurrence chacun : c'est un constat de ce qui a
-    // été observé, pas une tendance.
-    if (meilleurPiste && meilleurBoutique && meilleurPiste.jourSemaine !== meilleurBoutique.jourSemaine) {
-      texte += `le <b>${meilleurPiste.nom}</b> crée actuellement le plus de valeur en piste (${fmtEur(meilleurPiste.moyennePiste)} en moyenne), tandis que le <b>${meilleurBoutique.nom}</b> a mieux fonctionné côté boutique (${fmtEur(meilleurBoutique.moyenneBoutique)} en moyenne). `;
+    // Restructuration du 27/07/2026 (demande de Frédéric — "évite les
+    // répétitions ou redondance... soit plus direct") : même principe que
+    // le Conseiller App-v1 (tâche du 27/07/2026, Décision → Pourquoi →
+    // Limites) — la phrase la plus actionnable ouvre le message, jamais la
+    // donnée méthodologique. Les réserves (jours encore en cours, jour pas
+    // encore valorisé) sont repoussées dans une ligne "Limites" discrète à
+    // la toute fin, jamais en ouverture.
+
+    // 1) Décision — un seul fait, le plus utile.
+    let decision;
+    if (rentableDiverge) {
+      decision = `Concentrez vos efforts commerciaux sur le <b>${jourPlusRentable.nom}</b> : une fois les produits d'appel retirés du calcul, c'est votre jour le plus rentable en estimation (${fmtEur(jourPlusRentable.moyenneCombineeValorisee)}).`;
+    } else if (pisteDiverge) {
+      decision = `Le <b>${meilleurPiste.nom}</b> crée actuellement le plus de valeur en piste (${fmtEur(meilleurPiste.moyennePiste)} en moyenne) ; le <b>${meilleurBoutique.nom}</b> prend le relais côté boutique (${fmtEur(meilleurBoutique.moyenneBoutique)} en moyenne).`;
     } else if (jourMoteur) {
-      texte += `le <b>${jourMoteur.nom}</b> crée actuellement le plus de valeur avec ${fmtEur(jourMoteur.moyenneCombinee)} de CA moyen (piste + boutique). `;
+      decision = `Le <b>${jourMoteur.nom}</b> crée actuellement le plus de valeur, avec ${fmtEur(jourMoteur.moyenneCombinee)} de CA moyen (piste + boutique).`;
+    } else {
+      decision = "Historique clos encore trop court pour désigner un jour moteur.";
+    }
+
+    // 2) Compléments — un fait par phrase, sans réserve inutile.
+    const complements = [];
+    if (rentableDiverge && pisteDiverge) {
+      complements.push(`En CA brut combiné, le <b>${jourMoteur.nom}</b> reste devant grâce à la boutique, mais une partie provient de produits d'appel (cartes prépayées, téléphonie, gaz, presse, tabac) à faible contribution.`);
+    } else if (rentableDiverge) {
+      complements.push(`En CA brut, le <b>${jourMoteur.nom}</b> reste devant, porté en partie par des produits d'appel (cartes prépayées, téléphonie, gaz, presse, tabac) à faible contribution.`);
+    } else if (jourPlusRentable) {
+      complements.push(`Une fois les produits d'appel retirés du calcul, le <b>${jourPlusRentable.nom}</b> reste également le jour le plus rentable — CA brut et estimation valorisée concordent.`);
     }
     if (jourARenforcer && jourARenforcer.jourSemaine !== (jourMoteur && jourMoteur.jourSemaine)) {
-      texte += `Le <b>${jourARenforcer.nom}</b> reste votre principale opportunité d'amélioration`;
-      if (jourARenforcer.evolutionCombinee !== null) texte += `, ${fmtPct(jourARenforcer.evolutionCombinee)} sur la dernière occurrence`;
-      texte += `. `;
+      let phrase = `Le <b>${jourARenforcer.nom}</b> est votre principale opportunité d'amélioration`;
+      if (jourARenforcer.evolutionCombinee !== null) phrase += ` (${fmtPct(jourARenforcer.evolutionCombinee)} sur sa dernière occurrence)`;
+      complements.push(phrase + '.');
     }
     if (jourProgression) {
-      texte += `Le <b>${jourProgression.nom}</b> confirme une dynamique très encourageante (${fmtPct(jourProgression.evolutionCombinee)}) sur son historique récent. `;
-    } else {
-      texte += `Historique clos encore trop court pour identifier une progression fiable — chaque nouvelle journée terminée affine cette lecture. `;
+      complements.push(`Le <b>${jourProgression.nom}</b> progresse fortement (${fmtPct(jourProgression.evolutionCombinee)}) sur son historique récent.`);
     }
 
-    // Jour le plus rentable (26/07/2026, demande de Frédéric) : ne le
-    // mentionne que s'il diverge du jour moteur — sinon la phrase
-    // n'apporterait rien de nouveau. Toujours qualifié d'estimation.
-    if (jourPlusRentable && jourMoteur && jourPlusRentable.jourSemaine !== jourMoteur.jourSemaine) {
-      texte += `À noter : une fois les produits d'appel (cartes prépayées, téléphonie, gaz, presse, tabac) retirés du calcul, c'est le <b>${jourPlusRentable.nom}</b> qui ressort comme le jour le plus rentable en estimation (${fmtEur(jourPlusRentable.moyenneCombineeValorisee)}) — les efforts commerciaux gagneraient à s'y concentrer plutôt que sur le seul CA brut.`;
-    } else if (jourPlusRentable) {
-      texte += `Une fois les produits d'appel retirés du calcul (estimation), le <b>${jourPlusRentable.nom}</b> reste également le jour le plus rentable — la lecture CA brut et la lecture valorisée concordent.`;
+    // 3) Limites — repoussées en fin de message, jamais en ouverture.
+    const limites = [];
+    const nbEnCours = nbEnregistres - nbExploitables;
+    if (nbEnCours > 0) {
+      limites.push(`Sur ${nbEnregistres} jour${nbEnregistres > 1 ? 's' : ''} enregistré${nbEnregistres > 1 ? 's' : ''}, ${nbExploitables} exploitable${nbExploitables > 1 ? 's' : ''} (${nbEnCours > 1 ? 'les derniers jours restent' : 'le dernier jour reste'} en cours).`);
     }
-    // Transparence (26/07/2026) : si le jour moteur lui-même n'a encore
-    // aucune occurrence valorisable, le dire explicitement plutôt que de
-    // laisser croire qu'il a été comparé et a perdu — sa dernière date
-    // peut simplement tomber après la fin du dernier import products.
     if (jourMoteur && jourMoteur.nbOccValorisation === 0) {
-      texte += ` Le <b>${jourMoteur.nom}</b> lui-même n'a pas encore pu être valorisé — sa dernière occurrence tombe après la fin du dernier import de produits. Cette estimation s'affichera dès le prochain import.`;
+      limites.push(`Le <b>${jourMoteur.nom}</b> n'a pas encore pu être valorisé : sa dernière occurrence tombe après le dernier import de produits — l'estimation s'affichera au prochain import.`);
     }
-    return texte;
+    if (!jourProgression) {
+      limites.push("Historique clos encore trop court pour identifier une progression fiable — chaque nouvelle journée terminée affine cette lecture.");
+    }
+
+    let html = `<span class="conseiller-decision">${decision}</span>`;
+    if (complements.length) html += ' ' + complements.join(' ');
+    if (limites.length) html += `<br><span class="conseiller-limite">${limites.join(' ')}</span>`;
+    return html;
   }
 
   // ------------------------------------------------------------
