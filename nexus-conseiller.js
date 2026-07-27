@@ -49,6 +49,13 @@
     return 'facing';
   }
 
+  // verdictAgir/Hausse/Baisse + impactAgir/Hausse/Baisse ajoutés le
+  // 27/07/2026 (demande de Frédéric, sur maquette fournie) — le verdict
+  // est le diagnostic en une phrase qui ouvre la carte du Conseiller
+  // ("Chanflor Thé Pêche est sous-exposé."), l'impact est le bénéfice
+  // attendu de l'action (pas un risque en euros — celui-ci reste dans
+  // "Voir les preuves"), formulés selon le geste concret propre à chaque
+  // type de rayon comme le reste de LANGAGE_ACTION.
   const LANGAGE_ACTION = {
     facing: {
       analyseAgir: "Une référence à ce niveau de contribution mérite un facing à la hauteur de son poids réel.",
@@ -56,6 +63,12 @@
       consAgir: m => `Un sous-dimensionnement de facing sur cette référence représente un risque estimé à ${m} €.`,
       recoHausse: a => `Il serait utile de renforcer le facing de ${a} avant le prochain réapprovisionnement.`,
       recoBaisse: a => `Vérifiez la présence en rayon de ${a} avant toute décision.`,
+      verdictAgir: a => `${a} est sous-exposé.`,
+      verdictHausse: a => `${a} est en forte progression.`,
+      verdictBaisse: a => `${a} est en repli à vérifier.`,
+      impactAgir: "Disponibilité renforcée et potentiel de ventes accru.",
+      impactHausse: "Dynamique commerciale prolongée sans rupture.",
+      impactBaisse: "Cause de la baisse identifiée avant qu'elle ne s'aggrave.",
     },
     stock: {
       analyseAgir: "Une référence à ce niveau de contribution ne doit jamais être en rupture en dépôt — elle n'est pas exposée en rayon comme les autres.",
@@ -63,6 +76,12 @@
       consAgir: m => `Une rupture de stock sur cette référence représente un risque estimé à ${m} €.`,
       recoHausse: a => `Sécurisez davantage de stock de ${a} avant le prochain réapprovisionnement.`,
       recoBaisse: a => `Vérifiez le stock en dépôt/cage de ${a} avant toute décision.`,
+      verdictAgir: a => `${a} est à risque de rupture de stock.`,
+      verdictHausse: a => `${a} est en forte progression.`,
+      verdictBaisse: a => `${a} est en repli à vérifier.`,
+      impactAgir: "Rupture évitée et continuité des ventes en dépôt.",
+      impactHausse: "Approvisionnement sécurisé pour prolonger la dynamique.",
+      impactBaisse: "Cause de la baisse identifiée avant qu'elle ne s'aggrave.",
     },
     support: {
       analyseAgir: "Une référence à ce niveau de contribution dépend surtout de la disponibilité du support et de son activation en caisse, pas d'un emplacement en rayon.",
@@ -70,6 +89,12 @@
       consAgir: m => `Une indisponibilité de ce support représente un risque estimé à ${m} €.`,
       recoHausse: a => `Prévoyez davantage de support et d'activation pour ${a} avant le prochain réapprovisionnement.`,
       recoBaisse: a => `Vérifiez la disponibilité du support et son activation en caisse pour ${a} avant toute décision.`,
+      verdictAgir: a => `${a} dépend d'un support fragile.`,
+      verdictHausse: a => `${a} est en forte progression.`,
+      verdictBaisse: a => `${a} est en repli à vérifier.`,
+      impactAgir: "Continuité du service et vente non interrompue.",
+      impactHausse: "Support et activation prolongés pour ne pas casser la dynamique.",
+      impactBaisse: "Cause de la baisse identifiée avant qu'elle ne s'aggrave.",
     },
     production: {
       analyseAgir: "Une référence à ce niveau de contribution dépend surtout de la quantité produite ou commandée chaque jour — c'est un produit frais, pas un facing.",
@@ -77,6 +102,12 @@
       consAgir: m => `Une quantité insuffisante sur cette référence fraîche représente un risque estimé à ${m} €.`,
       recoHausse: a => `Augmentez la quantité commandée ou produite de ${a} avant le prochain réapprovisionnement.`,
       recoBaisse: a => `Vérifiez si la quantité produite ou commandée de ${a} a été réduite avant toute décision.`,
+      verdictAgir: a => `${a} est sous-approvisionné.`,
+      verdictHausse: a => `${a} est en forte progression.`,
+      verdictBaisse: a => `${a} est en repli à vérifier.`,
+      impactAgir: "Quantité ajustée à la demande réelle, moins de perte ou de rupture.",
+      impactHausse: "Production maintenue au niveau de la demande réelle.",
+      impactBaisse: "Cause de la baisse identifiée avant qu'elle ne s'aggrave.",
     },
     comptoir: {
       analyseAgir: "Une référence à ce niveau de contribution doit rester visible et disponible au comptoir en priorité.",
@@ -84,6 +115,12 @@
       consAgir: m => `Une rupture au comptoir sur cette référence représente un risque estimé à ${m} €.`,
       recoHausse: a => `Garantissez la disponibilité au comptoir de ${a} avant le prochain réapprovisionnement.`,
       recoBaisse: a => `Vérifiez la disponibilité au comptoir de ${a} avant toute décision.`,
+      verdictAgir: a => `${a} est sous-exposé au comptoir.`,
+      verdictHausse: a => `${a} est en forte progression.`,
+      verdictBaisse: a => `${a} est en repli à vérifier.`,
+      impactAgir: "Disponibilité maintenue au comptoir, vente non interrompue.",
+      impactHausse: "Dynamique commerciale prolongée sans rupture.",
+      impactBaisse: "Cause de la baisse identifiée avant qu'elle ne s'aggrave.",
     },
     presentoir: {
       analyseAgir: "Une référence à ce niveau de contribution mérite une bonne visibilité sur le présentoir.",
@@ -91,6 +128,12 @@
       consAgir: m => `Un mauvais emplacement sur cette référence représente un risque estimé à ${m} €.`,
       recoHausse: a => `Améliorez l'emplacement de ${a} sur le présentoir avant le prochain réapprovisionnement.`,
       recoBaisse: a => `Vérifiez l'emplacement de ${a} sur le présentoir avant toute décision.`,
+      verdictAgir: a => `${a} est mal mis en avant.`,
+      verdictHausse: a => `${a} est en forte progression.`,
+      verdictBaisse: a => `${a} est en repli à vérifier.`,
+      impactAgir: "Meilleure visibilité et vente facilitée.",
+      impactHausse: "Dynamique commerciale prolongée sans rupture.",
+      impactBaisse: "Cause de la baisse identifiée avant qu'elle ne s'aggrave.",
     },
   };
 
@@ -122,11 +165,13 @@
         const lang = LANGAGE_ACTION[typeActionPourCategorie(p.categorie)];
         candidats.push({
           etat: '🔥 À AGIR', rule_id: 'R4-RENFORT-A', article: p.article,
-          situation: `${p.article} représente ${(contribution * 100).toFixed(1)} % du chiffre d'affaires du rayon ${p.categorie}.`,
+          verdict: lang.verdictAgir(p.article),
+          situation: `Cette référence génère ${(contribution * 100).toFixed(1)} % des ventes du rayon ${p.categorie}.`,
           contexte: "Cette contribution est calculée sur l'ensemble des références du rayon.",
           analyse: lang.analyseAgir,
           consequence: lang.consAgir(fmt(p.ca)),
           recommandation: lang.recoAgir(p.article),
+          impactAttendu: lang.impactAgir,
           impact: `Vous sécurisez environ ${fmt(p.ca)} € de chiffre d'affaires déjà généré par cette référence.`,
           candidate_id: `LIVE-R4-${cle}`, impact_eur: p.ca,
           categorie: p.categorie,
@@ -148,11 +193,13 @@
           const lang = LANGAGE_ACTION[typeActionPourCategorie(p.categorie)];
           candidats.push({
             etat: '📈 OPPORTUNITÉ', rule_id: 'R3-HAUSSE', article: p.article,
-            situation: `Les ventes de ${p.article} progressent de ${(evolution * 100).toFixed(1)} % sur la période.`,
+            verdict: lang.verdictHausse(p.article),
+            situation: `Les ventes progressent de ${(evolution * 100).toFixed(1)} % sur la période.`,
             contexte: "Cette progression est mesurée entre deux périodes de durée comparable.",
             analyse: "Cette dynamique dépasse une croissance ordinaire.",
             consequence: "Cette croissance peut être amplifiée si l'offre suit la demande.",
             recommandation: lang.recoHausse(p.article),
+            impactAttendu: lang.impactHausse,
             impact: `Vous avez gagné environ ${fmt(gain)} € sur cette référence depuis la période précédente.`,
             candidate_id: `LIVE-R3-${cle}`, impact_eur: gain,
             categorie: p.categorie,
@@ -164,11 +211,13 @@
           const lang = LANGAGE_ACTION[typeActionPourCategorie(p.categorie)];
           candidats.push({
             etat: '🟡 À SURVEILLER', rule_id: 'R2-BAISSE', article: p.article,
-            situation: `Les ventes de ${p.article} chutent de ${(evolution * 100).toFixed(1)} % sur la période.`,
+            verdict: lang.verdictBaisse(p.article),
+            situation: `Les ventes chutent de ${(evolution * 100).toFixed(1)} % sur la période.`,
             contexte: "NEXUS ne dispose pas de la donnée de stock pour cette référence.",
             analyse: "Je ne peux pas encore conclure à une vraie tendance sans vérification terrain.",
             consequence: "Une rupture non détectée expliquerait aussi bien cette baisse qu'un désintérêt réel.",
             recommandation: lang.recoBaisse(p.article),
+            impactAttendu: lang.impactBaisse,
             impact: "Vérification demandée — aucune conclusion tant que le stock n'est pas confirmé.",
             candidate_id: `LIVE-R2-${cle}`, impact_eur: perte,
             categorie: p.categorie,
@@ -204,7 +253,8 @@
       candidate_id: c.candidate_id, ruleId: c.rule_id, rang: RANG_PRODUIT[c.etat] != null ? RANG_PRODUIT[c.etat] : 2,
       moteur: 'produits',
       etat: c.etat, impact_eur: c.impact_eur, article: c.article, categorie: c.categorie,
-      constat: c.situation, consequence: c.analyse, recommandation: c.recommandation, preuve: c.impact,
+      verdict: c.verdict, constat: c.situation, consequence: c.analyse, recommandation: c.recommandation,
+      impactAttendu: c.impactAttendu, preuve: c.impact,
       cible: `NEXUS-Produits-v1.html?article=${encodeURIComponent(c.article)}`,
       validable: true,
       ca_reference: c.ca_reference, periode_reference_debut: c.periode_reference_debut, periode_reference_fin: c.periode_reference_fin,
@@ -220,7 +270,10 @@
       candidate_id: c.candidate_id, ruleId: 'R5-MARGE-ECART', rang: 2,
       moteur: 'marge',
       etat: c.etat, impact_eur: c.impact_eur, article: c.article, categorie: c.categorie,
-      constat: c.situation, consequence: c.analyse || c.contexte, recommandation: c.recommandation, preuve: c.impact,
+      verdict: `${c.article} est sous-valorisé.`,
+      constat: c.situation, consequence: c.analyse || c.contexte, recommandation: c.recommandation,
+      impactAttendu: "Marge alignée sur le groupe, sans perdre en compétitivité.",
+      preuve: c.impact,
       cible: 'NEXUS-Scanner-v1.html',
       validable: true,
       ca_reference: c.ca_reference, periode_reference_debut: c.periode_reference_debut, periode_reference_fin: c.periode_reference_fin,
@@ -234,11 +287,14 @@
   // différentes pour la même décision. Le lien renvoie donc vers Tempo,
   // où la validation réelle a lieu.
   function normaliserTempo(jourARenforcer, message) {
+    const nom = jourARenforcer.nom.charAt(0).toUpperCase() + jourARenforcer.nom.slice(1);
     return {
       candidate_id: `TEMPO-${jourARenforcer.nom}`, ruleId: 'R6-TEMPO-JOUR', rang: 2,
       moteur: 'tempo',
       etat: '🗓️ TEMPO', impact_eur: 0, article: null, categorie: 'Rythme hebdomadaire',
+      verdict: `${nom} est le point faible de la semaine.`,
       constat: message, consequence: '', recommandation: 'Ouvrir NEXUS Tempo pour le détail complet et créer la mission de contrôle.',
+      impactAttendu: "Meilleure maîtrise du rythme hebdomadaire de la station.",
       preuve: null, cible: 'NEXUS-Tempo-v1.html', validable: false,
     };
   }
@@ -255,7 +311,9 @@
       candidate_id: `ADV-${message.id}`, ruleId: message.code || null, rang: RANG_ADVISOR[message.priority] != null ? RANG_ADVISOR[message.priority] : 3,
       moteur: 'advisor',
       etat: '📋 SIGNAL', impact_eur: 0, article: null, categorie: message.nomRegle || domaine,
+      verdict: message.nomRegle || 'Point à vérifier.',
       constat: message.message_text, consequence: '', recommandation: 'Vérifier ce point dans l’écran concerné.',
+      impactAttendu: "Situation clarifiée et suivie dans la durée.",
       preuve: `Confiance ${message.confidence_level || '—'} · détecté le ${new Date(message.generated_at).toLocaleDateString('fr-FR')}`,
       cible: CIBLE_PAR_DOMAINE_ADVISOR[domaine] || 'NEXUS-Cockpit-v2.html',
       validable: false,

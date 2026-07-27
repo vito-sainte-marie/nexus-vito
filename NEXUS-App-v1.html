@@ -216,8 +216,18 @@
      alourdir la première lecture. */
   .priorite-constat{color:var(--text);}
   .priorite-consequence{color:var(--text-mid); margin-top:3px;}
-  .priorite-decision{margin-top:6px;}
-  .priorite-decision b{color:var(--gold);}
+  .priorite-decision{margin-top:6px; color:var(--text);}
+
+  /* Refonte du 27/07/2026 (demande de Frédéric, sur maquette fournie) —
+     Verdict → Constat → Décision → Impact attendu : le verdict remplace la
+     première lecture "chiffre brut" par un diagnostic en une phrase, et
+     l'ancien texte d'analyse générique (toujours conservé, replié dans
+     "Voir les preuves") laisse place à un "Impact attendu" qui dit ce que
+     rapporte l'action plutôt que le risque si on ne la fait pas. */
+  .priorite-tag{font-family:var(--mono); font-size:9px; letter-spacing:0.08em; text-transform:uppercase; color:var(--gold); margin-bottom:5px;}
+  .priorite-verdict{font-weight:700; color:var(--text); font-size:13px;}
+  .priorite-impact-label{font-family:var(--mono); font-size:9.5px; letter-spacing:0.04em; text-transform:uppercase; color:var(--text-dim); margin-top:8px;}
+  .priorite-impact{color:var(--text-mid); margin-top:2px;}
   .conseiller-detail-toggle{margin-top:7px; font-family:var(--mono); font-size:10.5px; color:var(--text-dim); cursor:pointer; text-decoration:underline; display:inline-block;}
   .conseiller-detail-toggle:hover{color:var(--cyan);}
   .conseiller-detail-body{display:none; margin-top:7px; padding:9px 11px; background:var(--panel); border-radius:8px; font-family:var(--mono); font-size:10.5px; color:var(--text-mid); line-height:1.6;}
@@ -890,7 +900,7 @@
   async function chargerMessagesAdvisorHome(siteId) {
     const { data, error } = await nexusClient
       .from('advisor_messages')
-      .select('id, priority, confidence_level, message_text, generated_at, advisor_rules(code, domain)')
+      .select('id, priority, confidence_level, message_text, generated_at, advisor_rules(code, domain, name)')
       .eq('site_id', siteId)
       .not('status', 'in', '(resolu,expire)')
       .order('generated_at', { ascending: false });
@@ -899,7 +909,7 @@
     (data || []).forEach(m => {
       const code = (m.advisor_rules && m.advisor_rules.code) || m.id;
       if (!parRegle.has(code)) {
-        parRegle.set(code, { id: m.id, priority: m.priority, confidence_level: m.confidence_level, message_text: m.message_text, generated_at: m.generated_at, code, domaine: m.advisor_rules && m.advisor_rules.domain });
+        parRegle.set(code, { id: m.id, priority: m.priority, confidence_level: m.confidence_level, message_text: m.message_text, generated_at: m.generated_at, code, domaine: m.advisor_rules && m.advisor_rules.domain, nomRegle: m.advisor_rules && m.advisor_rules.name });
       }
     });
     return Array.from(parRegle.values());
@@ -1177,18 +1187,31 @@
   // ne s'affiche que si c.validable : les candidats Tempo et
   // advisor_messages se résolvent ailleurs (voir NexusConseiller), les
   // afficher comme "validables" ici créerait une mémoire incohérente.
+  // Refonte du 27/07/2026 (demande de Frédéric, sur maquette fournie) —
+  // Verdict → Constat → Décision → Impact attendu : le verdict ouvre la
+  // carte avec un diagnostic en une phrase (ex : "X est sous-exposé."),
+  // suivi du fait chiffré, de la décision en clair (sans préfixe gras
+  // "Décision :"), puis d'un "Impact attendu" qui dit le bénéfice de
+  // l'action plutôt qu'un risque en euros. L'ancien texte d'analyse
+  // générique (c.consequence) n'est pas supprimé — il rejoint la preuve
+  // dans le détail replié, avec la limite déjà connue de la méthode.
   function priorItemComplet(c, i) {
     return `
       <div class="priorite-item" id="priorite-item-${i}">
         ${c.validable ? `<span class="priorite-check" data-idx="${i}">✓</span>` : ''}
         <div class="priorite-body">
+          <div class="priorite-tag">Décision prioritaire</div>
+          ${c.verdict ? `<div class="priorite-verdict">${c.verdict}</div>` : ''}
           <div class="priorite-constat">${c.constat}</div>
-          ${c.consequence ? `<div class="priorite-consequence">${c.consequence}</div>` : ''}
-          <div class="priorite-decision"><b>Décision :</b> ${c.recommandation}</div>
-          ${c.preuve ? `
-          <div class="conseiller-detail-toggle" data-target="preuve-${i}">Voir les preuves et les limites de l'analyse ▾</div>
+          <div class="priorite-decision">${c.recommandation}</div>
+          ${c.impactAttendu ? `
+          <div class="priorite-impact-label">Impact attendu :</div>
+          <div class="priorite-impact">${c.impactAttendu}</div>` : ''}
+          ${(c.preuve || c.consequence) ? `
+          <div class="conseiller-detail-toggle" data-target="preuve-${i}">Voir les preuves ▾</div>
           <div class="conseiller-detail-body" id="preuve-${i}">
-            ${c.preuve}<br>
+            ${c.consequence ? `${c.consequence}<br>` : ''}
+            ${c.preuve ? `${c.preuve}<br>` : ''}
             <span style="color:var(--text-dim);">Comparaison sur une seule période d'import — pas encore une tendance confirmée sur plusieurs périodes.</span>
           </div>` : ''}
           <a class="priorite-lien" href="${c.cible}">${verbeActionAleatoire(c.etat)} →</a>
@@ -1439,7 +1462,7 @@
     const candidatMarge = margePlusResultat && margePlusResultat.candidatTop
       ? NexusConseiller.normaliserMarge(margePlusResultat.candidatTop) : null;
     const candidatTempo = constatTempo.jourARenforcer
-      ? NexusConseiller.normaliserTempo(constatTempo.jourARenforcer, `Contrôler le déroulement du ${constatTempo.jourARenforcer.nom} : c'est le jour le plus faible de la semaine sur la période observée (CA piste + boutique moyen de ${Math.round(constatTempo.jourARenforcer.moyenneCombinee).toLocaleString('fr-FR')} €${constatTempo.jourARenforcer.evolutionCombinee !== null ? `, ${constatTempo.jourARenforcer.evolutionCombinee >= 0 ? '+' : ''}${(constatTempo.jourARenforcer.evolutionCombinee * 100).toFixed(1).replace('.', ',')} % sur la dernière occurrence` : ''}).`)
+      ? NexusConseiller.normaliserTempo(constatTempo.jourARenforcer, `CA piste + boutique moyen de ${Math.round(constatTempo.jourARenforcer.moyenneCombinee).toLocaleString('fr-FR')} € sur la période observée${constatTempo.jourARenforcer.evolutionCombinee !== null ? `, ${constatTempo.jourARenforcer.evolutionCombinee >= 0 ? '+' : ''}${(constatTempo.jourARenforcer.evolutionCombinee * 100).toFixed(1).replace('.', ',')} % sur la dernière occurrence` : ''}.`)
       : null;
     const candidatsAdvisor = messagesAdvisor.map(NexusConseiller.normaliserAdvisor);
     const candidatsConseiller = NexusConseiller.fusionnerEtSelectionner(
