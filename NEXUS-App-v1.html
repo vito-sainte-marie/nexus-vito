@@ -40,17 +40,36 @@
      site à l'autre — tout le reste (logo NEXUS, halo, badge, signature)
      est la marque NEXUS elle-même, commune à tous les commerces. */
   .header{padding:34px 24px 16px; text-align:center;}
-  .header-brandrow{display:flex; align-items:center; justify-content:center; gap:14px;}
-  .header-wordmark{font-family:var(--mono); font-weight:700; font-size:14px; letter-spacing:0.24em; color:var(--cyan);}
+  /* Rangée de marque en grille à 3 colonnes symétriques (27/07/2026,
+     demande de Frédéric — "adapte toujours NEXUS en fonction du nom du
+     commerce afin que le logo soit toujours centré") : les deux colonnes
+     latérales font toujours exactement la même largeur (1fr chacune),
+     quelle que soit la longueur de #stationTitle — le logo NEXUS reste
+     donc mathématiquement centré pour n'importe quel commerce, sans
+     mesurer le texte en JS. Le mot NEXUS est volontairement plus espacé
+     (letter-spacing) pour occuper davantage sa moitié gauche. */
+  .header-brandrow{display:grid; grid-template-columns:1fr auto 1fr; align-items:center; gap:14px;}
+  .header-brand-side{display:flex; align-items:center; gap:14px; min-width:0;}
+  .header-brand-left{justify-content:flex-end;}
+  .header-brand-right{justify-content:flex-start;}
+  .header-wordmark{font-family:var(--mono); font-weight:700; font-size:15px; letter-spacing:0.36em; color:var(--cyan);}
   .header-divider{width:1px; height:24px; background:var(--hairline); flex-shrink:0;}
   .header-mark{position:relative; width:60px; height:60px; flex-shrink:0;}
   .header-mark-glow{position:absolute; inset:-9px; border-radius:50%; background:radial-gradient(circle, rgba(79,195,217,0.38), transparent 70%); filter:blur(5px);}
   .header-mark-img{position:relative; width:100%; height:100%; object-fit:contain; display:block;}
-  .header-sitewrap{display:inline-flex; align-items:center; gap:7px; max-width:150px;}
+  .header-sitewrap{display:inline-flex; align-items:center; gap:7px; min-width:0; max-width:150px;}
   .logo-frame{display:inline-flex; flex-shrink:0;}
   .logo-frame img{width:22px; height:22px; border-radius:50%; object-fit:cover; box-shadow:0 0 0 1px var(--hairline);}
   .header-sitename{font-size:14.5px; font-weight:600; letter-spacing:-0.01em; color:var(--text); text-align:left; line-height:1.25;}
-  .header-statut{display:inline-flex; align-items:center; gap:7px; margin-top:18px; padding:6px 14px; border-radius:100px; border:1px solid var(--hairline); background:var(--panel); font-family:var(--mono); font-size:10.5px; letter-spacing:0.05em; color:var(--text-mid);}
+  /* Rangée Connecté + pouls d'activité réel (27/07/2026, demande de
+     Frédéric — "le dirigeant ne ressent pas que NEXUS travaille") :
+     #headerLive affiche l'heure réelle de fin du dernier chargement de
+     données côté manager (voir initPosteManager), jamais une valeur
+     inventée — reste vide pour un employé, qui n'a pas de recalcul
+     équivalent. */
+  .header-statut-row{display:flex; align-items:center; justify-content:center; gap:10px; margin-top:18px; flex-wrap:wrap;}
+  .header-statut{display:inline-flex; align-items:center; gap:7px; padding:6px 14px; border-radius:100px; border:1px solid var(--hairline); background:var(--panel); font-family:var(--mono); font-size:10.5px; letter-spacing:0.05em; color:var(--text-mid);}
+  .header-live{font-family:var(--mono); font-size:10px; letter-spacing:0.03em; color:var(--text-dim);}
   .statut-dot{width:7px; height:7px; border-radius:50%; background:var(--green); animation:statutPulse 2s infinite;}
   @keyframes statutPulse{
     0%{box-shadow:0 0 0 0 rgba(52,211,153,0.55);}
@@ -326,19 +345,26 @@
 <div class="app">
   <div class="header">
     <div class="header-brandrow">
-      <span class="header-wordmark">NEXUS</span>
-      <span class="header-divider"></span>
+      <div class="header-brand-side header-brand-left">
+        <span class="header-wordmark">NEXUS</span>
+        <span class="header-divider"></span>
+      </div>
       <div class="header-mark">
         <div class="header-mark-glow"></div>
         <img class="header-mark-img" src="assets/nexus-logo-cyan.png" alt="NEXUS">
       </div>
-      <span class="header-divider"></span>
-      <span class="header-sitewrap">
-        <span id="logoFrameHote"></span>
-        <span class="header-sitename" id="stationTitle">Vito Sainte-Marie Usine</span>
-      </span>
+      <div class="header-brand-side header-brand-right">
+        <span class="header-divider"></span>
+        <span class="header-sitewrap">
+          <span id="logoFrameHote"></span>
+          <span class="header-sitename" id="stationTitle">Vito Sainte-Marie Usine</span>
+        </span>
+      </div>
     </div>
-    <div class="header-statut"><span class="statut-dot"></span>Connecté</div>
+    <div class="header-statut-row">
+      <div class="header-statut"><span class="statut-dot"></span>Connecté</div>
+      <div class="header-live" id="headerLive"></div>
+    </div>
     <div class="subtitle" id="taglineRole">Le Centre d'Intelligence NEXUS analyse votre commerce et hiérarchise vos priorités<span class="dots-anim"><i></i><i></i><i></i></span></div>
     <div class="subtitle" id="sessionInfo" style="margin-top:6px;"></div>
   </div>
@@ -1611,6 +1637,20 @@
     `;
   }
 
+  // Pouls d'activité de l'en-tête (27/07/2026, demande de Frédéric — "le
+  // dirigeant ne ressent pas que NEXUS travaille") : affiche l'heure réelle
+  // de fin du dernier chargement des données manager, jamais une valeur
+  // inventée ni un compteur qui continuerait de défiler après coup. Se
+  // réaffiche à chaque rechargement de la page (donc à chaque vraie
+  // reconnexion), n'existe pas pour un employé (pas de recalcul équivalent
+  // côté employé, voir l'appel dans initPosteManager ci-dessous).
+  function afficherHeureRecalcul() {
+    const el = document.getElementById('headerLive');
+    if (!el) return;
+    const maintenant = new Date();
+    el.textContent = `Décisions recalculées à ${maintenant.toTimeString().slice(0, 8)}`;
+  }
+
   async function initPosteManager(employee) {
     SITE_HOME = employee.site_id || 'vito-sainte-marie';
     EMPLOYEE_HOME_ID = employee.id;
@@ -1638,6 +1678,7 @@
       chargerMessagesAdvisorHome(SITE_HOME),
       chargerStockSanteHome(SITE_HOME),
     ]);
+    afficherHeureRecalcul();
 
     const candidatsDisponibles = candidats.filter(c => !valideesSite.has(c.candidate_id));
     const score = facteurs ? NexusIndice.calculerIndiceNexus(facteurs) : null;
