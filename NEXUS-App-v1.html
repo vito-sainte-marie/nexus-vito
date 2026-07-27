@@ -627,6 +627,7 @@
 <script src="nexus-indice.js"></script>
 <script src="nexus-marge.js"></script>
 <script src="nexus-tempo.js"></script>
+<script src="nexus-conseiller.js"></script>
 <script src="nexus-forfait.js"></script>
 <script>
   // ------------------------------------------------------------
@@ -682,60 +683,6 @@
     return n;
   }
 
-  // ------------------------------------------------------------
-  // Moteur de recommandations du Conseiller (24/07/2026) — mêmes règles
-  // R4-RENFORT-A / R3-HAUSSE / R2-BAISSE que construirePlansAction() dans
-  // NEXUS-Cockpit-v2.html, reproduites ici pour que l'accueil affiche de
-  // VRAIES priorités (mêmes seuils, mêmes données products). C'est une
-  // duplication assumée : le même moteur est déjà recopié dans Missions,
-  // Produits, Centre-Intelligence, Rayon, Scanner et Radar-Manager — un
-  // nexus-conseiller.js partagé reste une piste pour plus tard, pas fait
-  // aujourd'hui. Volontairement allégé : seul le texte de recommandation
-  // est repris (pas le récit complet Situation/Contexte/Analyse, que
-  // l'accueil n'affiche pas).
-  // ------------------------------------------------------------
-  const LANGAGE_ACTION_HOME = {
-    facing: {
-      recoAgir: a => `Vérifiez et renforcez le facing de ${a}.`,
-      recoHausse: a => `Renforcez le facing de ${a} avant le prochain réapprovisionnement.`,
-      recoBaisse: a => `Vérifiez la présence en rayon de ${a} avant toute décision.`,
-    },
-    stock: {
-      recoAgir: a => `Vérifiez le stock disponible en dépôt/cage pour ${a}.`,
-      recoHausse: a => `Sécurisez davantage de stock de ${a} avant le prochain réapprovisionnement.`,
-      recoBaisse: a => `Vérifiez le stock en dépôt/cage de ${a} avant toute décision.`,
-    },
-    support: {
-      recoAgir: a => `Vérifiez le stock de cartes et l'activation en caisse pour ${a}.`,
-      recoHausse: a => `Prévoyez davantage de support et d'activation pour ${a} avant le prochain réapprovisionnement.`,
-      recoBaisse: a => `Vérifiez la disponibilité du support et son activation en caisse pour ${a}.`,
-    },
-    production: {
-      recoAgir: a => `Ajustez la quantité commandée ou produite de ${a} au niveau réel de la demande.`,
-      recoHausse: a => `Augmentez la quantité commandée ou produite de ${a} avant le prochain réapprovisionnement.`,
-      recoBaisse: a => `Vérifiez si la quantité produite ou commandée de ${a} a été réduite.`,
-    },
-    comptoir: {
-      recoAgir: a => `Vérifiez la disponibilité au comptoir de ${a}.`,
-      recoHausse: a => `Garantissez la disponibilité au comptoir de ${a} avant le prochain réapprovisionnement.`,
-      recoBaisse: a => `Vérifiez la disponibilité au comptoir de ${a} avant toute décision.`,
-    },
-    presentoir: {
-      recoAgir: a => `Vérifiez l'emplacement de ${a} sur le présentoir.`,
-      recoHausse: a => `Améliorez l'emplacement de ${a} sur le présentoir.`,
-      recoBaisse: a => `Vérifiez l'emplacement de ${a} sur le présentoir avant toute décision.`,
-    },
-  };
-  function typeActionPourCategorieHome(categorie) {
-    const c = (categorie || '').toLowerCase();
-    if (c.includes('gaz')) return 'stock';
-    if (c.includes('carte') || c.includes('prépayé') || c.includes('prepaye') || c.includes('transcash') || c.includes('pcs')) return 'support';
-    if (c.includes('pain') || c.includes('patisserie') || c.includes('pâtisserie') || c.includes('viennoiserie') || c.includes('sandwich') || c.includes('snack')) return 'production';
-    if (c.includes('tabac') || c.includes('cigarette') || c.includes('paquet de')) return 'comptoir';
-    if (c.includes('presse')) return 'presentoir';
-    return 'facing';
-  }
-
   // Supabase plafonne chaque requete a 1000 lignes par defaut — meme
   // helper que Cockpit/Scanner/Verify/etc.
   async function fetchAllRowsHome(builderFactory, pageSize = 1000) {
@@ -751,6 +698,13 @@
     return { data: toutes, error: null };
   }
 
+  // Refonte du 26/07/2026 (demande de Frédéric) : le moteur R2/R3/R4
+  // vivait ici en copie locale (une des 3 copies identiques avec Cockpit
+  // et Centre d'Intelligence — même risque de divergence déjà corrigé
+  // pour périodes/indice/marge). Il vient maintenant de nexus-conseiller.js,
+  // seule source du calcul ; ce fichier se contente de normaliser le
+  // résultat au format d'affichage du Conseiller (constat/consequence/
+  // preuve/cible/validable), via NexusConseiller.normaliserProduit.
   async function calculerCandidatsHome(siteId) {
     const [{ data, error }, produitsAppelRes] = await Promise.all([
       fetchAllRowsHome(() => nexusClient.from('products')
@@ -764,67 +718,8 @@
     const produitsAppel = new Set(((produitsAppelRes && produitsAppelRes.data) || []).map(r => r.article));
     const rowsBrut = data.filter(r => !produitsAppel.has(r.article));
 
-    const { periodeAffichage, rowsAffichage, paire, rowsPaireActuelle, rowsPairePrecedente } = NexusPeriodes.analyserPeriodes(rowsBrut);
-    if (!periodeAffichage) return { candidats: [], facteurs: null };
-
     const facteurs = NexusIndice.calculerFacteurs(rowsBrut);
-
-    const caTotalParRayon = {};
-    rowsAffichage.forEach(r => { caTotalParRayon[r.categorie] = (caTotalParRayon[r.categorie] || 0) + (r.ca || 0); });
-    const precedentParArticle = {};
-    rowsPairePrecedente.forEach(r => {
-      const cle = r.categorie + '|' + r.article;
-      precedentParArticle[cle] = (precedentParArticle[cle] || 0) + (r.ca || 0);
-    });
-
-    // Mise à jour du 26/07/2026 (demande de Frédéric) : chaque candidat
-    // porte désormais un constat, une conséquence et une preuve isolée,
-    // séparés de la décision (recommandation) — format Constat →
-    // Conséquence → Décision → Preuve utilisé par renderConseillerHome.
-    // Rien n'est inventé : constat/preuve dérivent des mêmes valeurs
-    // (contribution, évolution) déjà calculées pour déclencher la règle,
-    // simplement conservées au lieu d'être jetées après le seuil.
-    const candidats = [];
-    rowsAffichage.forEach(p => {
-      const caRayon = caTotalParRayon[p.categorie] || 0;
-      const contribution = caRayon > 0 ? p.ca / caRayon : 0;
-      if (contribution >= 0.15 && p.ca > 0) {
-        const lang = LANGAGE_ACTION_HOME[typeActionPourCategorieHome(p.categorie)];
-        const pct = Math.round(contribution * 100);
-        candidats.push({ etat: '🔥 À AGIR', article: p.article, categorie: p.categorie, impact_eur: p.ca,
-          recommandation: lang.recoAgir(p.article), candidate_id: `LIVE-R4-${p.categorie}|${p.article}`,
-          constat: `${p.article} concentre à lui seul ${pct} % du chiffre d'affaires du rayon ${p.categorie}.`,
-          consequence: `Une rupture ou un ralentissement sur cet article pèserait immédiatement sur tout le rayon.`,
-          preuve: `${pct} % du CA du rayon · ${Math.round(p.ca).toLocaleString('fr-FR')} € concernés` });
-      }
-    });
-    if (paire) {
-      rowsPaireActuelle.forEach(p => {
-        const cle = p.categorie + '|' + p.article;
-        const caPrec = precedentParArticle[cle];
-        const evolution = (caPrec && caPrec > 0) ? (p.ca - caPrec) / caPrec : null;
-        if (evolution === null) return;
-        const lang = LANGAGE_ACTION_HOME[typeActionPourCategorieHome(p.categorie)];
-        const pctEvol = Math.round(evolution * 100);
-        if (evolution >= 0.20) {
-          const gain = Math.max(p.ca - caPrec, 0);
-          candidats.push({ etat: '📈 OPPORTUNITÉ', article: p.article, categorie: p.categorie, impact_eur: gain,
-            recommandation: lang.recoHausse(p.article), candidate_id: `LIVE-R3-${cle}`,
-            constat: `${p.article} progresse de +${pctEvol} % sur la période.`,
-            consequence: `Cette dynamique peut s'essouffler si l'approvisionnement ne suit pas la demande.`,
-            preuve: `+${pctEvol} % vs période précédente · ${Math.round(gain).toLocaleString('fr-FR')} € de gain observé` });
-        }
-        if (evolution <= -0.30) {
-          const perte = Math.max(caPrec - p.ca, 0);
-          candidats.push({ etat: '🟡 À SURVEILLER', article: p.article, categorie: p.categorie, impact_eur: perte,
-            recommandation: lang.recoBaisse(p.article), candidate_id: `LIVE-R2-${cle}`,
-            constat: `${p.article} recule de ${pctEvol} % sur la période.`,
-            consequence: `Cette baisse réduit la contribution du rayon ${p.categorie} et peut annoncer une rupture ou un désintérêt client.`,
-            preuve: `${pctEvol} % vs période précédente · ${Math.round(perte).toLocaleString('fr-FR')} € de CA perdu` });
-        }
-      });
-    }
-    candidats.sort((a, b) => b.impact_eur - a.impact_eur);
+    const candidats = NexusConseiller.calculerCandidatsProduits(rowsBrut).map(NexusConseiller.normaliserProduit);
     return { candidats, facteurs };
   }
 
@@ -966,7 +861,48 @@
     const ecarts = NexusMarge.detecterEcartsMarge(rowsPropres, exclusionsManuelles)
       .filter(e => !valideesMarge.has(`LIVE-R5-${e.categorie}|${e.article}`));
 
-    return { nbEcarts: ecarts.length, gainPotentiel: ecarts.reduce((s, e) => s + e.gainPotentiel, 0) };
+    // Meilleur écart converti en candidat pour le Conseiller (26/07/2026,
+    // demande de Frédéric — Conseiller cross-moteurs) : mêmes champs et
+    // même candidate_id que NEXUS-Scanner-v1.html, pour rester validable et
+    // cohérent des deux côtés (voir NexusConseiller.normaliserMarge).
+    const meilleur = ecarts[0];
+    const candidatTop = meilleur ? {
+      candidate_id: `LIVE-R5-${meilleur.categorie}|${meilleur.article}`, etat: '💡 RECOMMANDATION',
+      article: meilleur.article, categorie: meilleur.categorie, impact_eur: meilleur.gainPotentiel,
+      situation: `${meilleur.article} a une marge de ${meilleur.margePct.toFixed(1)} %, contre ${meilleur.medianeGroupe.toFixed(1)} % pour les ${meilleur.tailleGroupe} produits comparables du même type.`,
+      contexte: `Comparaison faite uniquement entre produits économiquement comparables.`,
+      analyse: `Cet écart peut venir d'un prix d'achat renégocié, d'une remise non répercutée, ou d'un choix délibéré — à vérifier avant d'ajuster quoi que ce soit.`,
+      recommandation: `Vérifiez si le prix d'achat ou de vente de ${meilleur.article} peut se rapprocher de la marge médiane de son groupe.`,
+      impact: `Si aligné sur la médiane du groupe, gain potentiel estimé à environ ${Math.round(meilleur.gainPotentiel).toLocaleString('fr-FR')} € sur cette période — une hypothèse, pas une garantie.`,
+      ca_reference: meilleur.ca, periode_reference_debut: periodeAffichage.debut, periode_reference_fin: periodeAffichage.fin,
+    } : null;
+
+    return { nbEcarts: ecarts.length, gainPotentiel: ecarts.reduce((s, e) => s + e.gainPotentiel, 0), candidatTop };
+  }
+
+  // Signaux Qualité/Caisse (26/07/2026, demande de Frédéric — Conseiller
+  // cross-moteurs) : lit advisor_messages, alimentée par ailleurs (Centre
+  // d'Intelligence) — cette page ne fait que lire, jamais générer, pour ne
+  // pas dupliquer la logique de détection. Un même problème peut avoir
+  // généré plusieurs messages au fil des jours (ex : écart caisse récurrent
+  // constaté à deux dates) — on ne garde que le plus récent par règle pour
+  // éviter de montrer deux fois le même sujet dans le Conseiller.
+  async function chargerMessagesAdvisorHome(siteId) {
+    const { data, error } = await nexusClient
+      .from('advisor_messages')
+      .select('id, priority, confidence_level, message_text, generated_at, advisor_rules(code, domain)')
+      .eq('site_id', siteId)
+      .not('status', 'in', '(resolu,expire)')
+      .order('generated_at', { ascending: false });
+    if (error) { console.error('Chargement advisor_messages (accueil):', error); return []; }
+    const parRegle = new Map();
+    (data || []).forEach(m => {
+      const code = (m.advisor_rules && m.advisor_rules.code) || m.id;
+      if (!parRegle.has(code)) {
+        parRegle.set(code, { id: m.id, priority: m.priority, confidence_level: m.confidence_level, message_text: m.message_text, generated_at: m.generated_at, code, domaine: m.advisor_rules && m.advisor_rules.domain });
+      }
+    });
+    return Array.from(parRegle.values());
   }
 
   // ------------------------------------------------------------
@@ -1065,14 +1001,23 @@
   let SITE_HOME = 'vito-sainte-marie';
   let EMPLOYEE_HOME_ID = null;
 
+  // Généralisé le 26/07/2026 (Conseiller cross-moteurs) : ruleId vient
+  // désormais directement du candidat normalisé (NexusConseiller), plus
+  // besoin de le redeviner depuis le préfixe de candidate_id — et ça
+  // fonctionne pour R5-MARGE-ECART (avec ca_reference/periode_reference,
+  // comme NEXUS-Scanner-v1.html) en plus de R2/R3/R4. N'est appelé que pour
+  // les candidats validable === true (voir priorItemComplet/Court) : les
+  // candidats Tempo et advisor_messages ont leur propre mécanisme de
+  // résolution, ailleurs.
   async function validerDecisionHome(candidat) {
-    const ruleId = candidat.candidate_id.startsWith('LIVE-R4') ? 'R4-RENFORT-A'
-      : candidat.candidate_id.startsWith('LIVE-R3') ? 'R3-HAUSSE' : 'R2-BAISSE';
     const { error } = await nexusClient.from('journal_decisions').insert({
-      site: SITE_HOME, candidate_id: candidat.candidate_id, rule_id: ruleId, etat: candidat.etat,
+      site: SITE_HOME, candidate_id: candidat.candidate_id, rule_id: candidat.ruleId, etat: candidat.etat,
       recommandation: candidat.recommandation, impact_eur: candidat.impact_eur, article: candidat.article,
       categorie: candidat.categorie, date: new Date().toISOString().slice(0, 10), heure: new Date().toTimeString().slice(0, 5),
       employee_id: EMPLOYEE_HOME_ID,
+      ca_reference: candidat.ca_reference != null ? candidat.ca_reference : null,
+      periode_reference_debut: candidat.periode_reference_debut || null,
+      periode_reference_fin: candidat.periode_reference_fin || null,
     });
     if (error) { console.error('Enregistrement décision (accueil):', error); return false; }
     return true;
@@ -1221,20 +1166,28 @@
   // pas. La limite (comparaison sur une seule période) est donc dite en
   // toutes lettres dans le détail replié plutôt que résumée par une
   // fausse lettre.
+  // Généralisé le 26/07/2026 (Conseiller cross-moteurs) : c.cible remplace
+  // le lien fixe vers la fiche produit — chaque moteur pointe vers son
+  // propre écran (Produits pour R2-R4, Scanner pour Marge+, Tempo pour
+  // R6, l'écran concerné pour un signal Qualité/Caisse). La case à cocher
+  // ne s'affiche que si c.validable : les candidats Tempo et
+  // advisor_messages se résolvent ailleurs (voir NexusConseiller), les
+  // afficher comme "validables" ici créerait une mémoire incohérente.
   function priorItemComplet(c, i) {
     return `
       <div class="priorite-item" id="priorite-item-${i}">
-        <span class="priorite-check" data-idx="${i}">✓</span>
+        ${c.validable ? `<span class="priorite-check" data-idx="${i}">✓</span>` : ''}
         <div class="priorite-body">
           <div class="priorite-constat">${c.constat}</div>
-          <div class="priorite-consequence">${c.consequence}</div>
+          ${c.consequence ? `<div class="priorite-consequence">${c.consequence}</div>` : ''}
           <div class="priorite-decision"><b>Décision :</b> ${c.recommandation}</div>
+          ${c.preuve ? `
           <div class="conseiller-detail-toggle" data-target="preuve-${i}">Voir les preuves et les limites de l'analyse ▾</div>
           <div class="conseiller-detail-body" id="preuve-${i}">
             ${c.preuve}<br>
             <span style="color:var(--text-dim);">Comparaison sur une seule période d'import — pas encore une tendance confirmée sur plusieurs périodes.</span>
-          </div>
-          <a class="priorite-lien" href="NEXUS-Produits-v1.html?article=${encodeURIComponent(c.article)}">${verbeActionAleatoire(c.etat)} →</a>
+          </div>` : ''}
+          <a class="priorite-lien" href="${c.cible}">${verbeActionAleatoire(c.etat)} →</a>
         </div>
       </div>`;
   }
@@ -1242,10 +1195,10 @@
   function priorItemCourt(c, i) {
     return `
       <div class="priorite-item-court" id="priorite-item-${i}">
-        <span class="priorite-check" data-idx="${i}">✓</span>
+        ${c.validable ? `<span class="priorite-check" data-idx="${i}">✓</span>` : ''}
         <div class="priorite-body">
           ${c.constat} <b style="color:var(--gold);">${c.recommandation}</b>
-          <a class="priorite-lien" href="NEXUS-Produits-v1.html?article=${encodeURIComponent(c.article)}">${verbeActionAleatoire(c.etat)} →</a>
+          <a class="priorite-lien" href="${c.cible}">${verbeActionAleatoire(c.etat)} →</a>
         </div>
       </div>`;
   }
@@ -1439,6 +1392,7 @@
       missionsRestantesRes,
       margePlusResultat,
       constatTempo,
+      messagesAdvisor,
     ] = await Promise.all([
       calculerCandidatsHome(SITE_HOME),
       chargerValideesHome(SITE_HOME),
@@ -1448,6 +1402,7 @@
       chargerMissionsRestantesHome(SITE_HOME),
       chargerMargePlusHome(SITE_HOME),
       chargerConstatTempoHome(SITE_HOME),
+      chargerMessagesAdvisorHome(SITE_HOME),
     ]);
 
     const candidatsDisponibles = candidats.filter(c => !valideesSite.has(c.candidate_id));
@@ -1465,7 +1420,29 @@
       jourARenforcer: constatTempo.jourARenforcer,
       controlesVerify,
     });
-    renderConseillerHome(candidatsDisponibles.slice(0, 3), employee.nom);
+    // Conseiller cross-moteurs (26/07/2026, demande de Frédéric) : "et si
+    // le CIN récupérait toutes les décisions prises par les différents
+    // moteurs et faisait un tri... trois déductions prioritaires sur
+    // l'ensemble des moteurs en fonction des priorités et de façon
+    // aléatoire." Avant, seul le moteur Produits/CA alimentait le
+    // Conseiller. Il agrège maintenant Produits/CA, Marge+, Tempo et les
+    // signaux Qualité/Caisse (advisor_messages), triés par rang de
+    // priorité partagé (NexusConseiller.fusionnerEtSelectionner) — jamais
+    // par impact_eur, qui n'est pas comparable entre moteurs (Tempo et les
+    // signaux Qualité/Caisse n'ont pas de montant réel). À rang égal, la
+    // sélection tourne d'un jour sur l'autre (graine = site + date) plutôt
+    // que de toujours remonter le même candidat.
+    const candidatMarge = margePlusResultat && margePlusResultat.candidatTop
+      ? NexusConseiller.normaliserMarge(margePlusResultat.candidatTop) : null;
+    const candidatTempo = constatTempo.jourARenforcer
+      ? NexusConseiller.normaliserTempo(constatTempo.jourARenforcer, `Contrôler le déroulement du ${constatTempo.jourARenforcer.nom} : c'est le jour le plus faible de la semaine sur la période observée (CA piste + boutique moyen de ${Math.round(constatTempo.jourARenforcer.moyenneCombinee).toLocaleString('fr-FR')} €${constatTempo.jourARenforcer.evolutionCombinee !== null ? `, ${constatTempo.jourARenforcer.evolutionCombinee >= 0 ? '+' : ''}${(constatTempo.jourARenforcer.evolutionCombinee * 100).toFixed(1).replace('.', ',')} % sur la dernière occurrence` : ''}).`)
+      : null;
+    const candidatsAdvisor = messagesAdvisor.map(NexusConseiller.normaliserAdvisor);
+    const candidatsConseiller = NexusConseiller.fusionnerEtSelectionner(
+      [candidatsDisponibles, candidatMarge ? [candidatMarge] : [], candidatTempo ? [candidatTempo] : [], candidatsAdvisor],
+      { site: SITE_HOME, n: 3 }
+    );
+    renderConseillerHome(candidatsConseiller, employee.nom);
     renderKpiGrid({
       missionsRestantes: missionsRestantesRes.restantes,
       nbRappels: compterRappelsUrgents(),
