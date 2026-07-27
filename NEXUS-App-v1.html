@@ -63,6 +63,25 @@
     padding:26px 24px 9px;
   }
 
+  /* Recherche NEXUS (27/07/2026, demande de Frédéric) — remplace la
+     section fixe "Votre journée" par un champ de recherche en bas de
+     page : mêmes couleurs/cartes arrondies que le reste du menu. */
+  .recherche-nexus{padding:0 20px 8px;}
+  .recherche-nexus-champ{display:flex; align-items:center; gap:9px; background:var(--panel); border:1px solid var(--hairline); border-radius:10px; padding:11px 13px;}
+  .recherche-nexus-loupe{font-size:13px; opacity:0.55;}
+  .recherche-nexus-champ input{flex:1; min-width:0; background:none; border:none; outline:none; color:var(--text); font-size:12.5px; font-family:inherit;}
+  .recherche-nexus-champ input::placeholder{color:var(--text-dim);}
+  .recherche-nexus-resultats{display:none; margin-top:8px; background:var(--panel); border:1px solid var(--hairline); border-radius:10px; overflow:hidden;}
+  .recherche-nexus-resultats.open{display:block;}
+  .recherche-item{display:flex; align-items:center; gap:10px; padding:10px 13px; border-top:1px solid var(--hairline); text-decoration:none; color:inherit;}
+  .recherche-item:first-child{border-top:none;}
+  .recherche-item.disabled{opacity:0.5;}
+  .recherche-item-body{flex:1; min-width:0;}
+  .recherche-item-titre{font-size:12.5px; color:var(--text);}
+  .recherche-item-desc{font-size:11px; color:var(--text-dim); margin-top:2px;}
+  .recherche-item-arrow{color:var(--text-dim);}
+  .recherche-vide{padding:13px; font-size:12px; color:var(--text-dim); text-align:center;}
+
   nav[data-group]{
     margin:0 20px 6px;
     display:flex; flex-direction:column;
@@ -347,32 +366,24 @@
     </div>
   </a>
 
-  <!-- Mise à jour du 27/07/2026 (demande de Frédéric) : "Mon Évolution"
-       (pas assez pertinent au quotidien) et "Prise de poste" (déjà géré
-       automatiquement juste après le login — voir la redirection vers
-       NEXUS-Prise-De-Poste-v1.html plus bas, indépendante de ce lien) sont
-       retirés. Seul "Votre journée" survit, réduit à Pointage (grisé tant
-       que non pertinent, logique inchangée) et Mon Planning — ces deux
-       écrans restent partagés avec l'employé (data-role="all"). -->
-  <div class="section-label">Votre journée</div>
-  <nav data-group="journee">
-    <a class="nav-item" data-role="all" href="NEXUS-Pointage-v1.html" id="navPointage">
-      <div class="nav-icon"><img src="assets/icons/icon-pointage.png" alt="Pointage"></div>
-      <div class="nav-body">
-        <div class="nav-title">Pointage</div>
-        <div class="nav-desc" id="navPointageDesc">Arrivée, pause, départ</div>
-      </div>
-      <div class="nav-arrow">›</div>
-    </a>
-    <a class="nav-item" data-role="all" href="NEXUS-Mon-Planning-v1.html">
-      <div class="nav-icon"><img src="assets/icons/icon-planner.png" alt="Mon Planning"></div>
-      <div class="nav-body">
-        <div class="nav-title">Mon Planning</div>
-        <div class="nav-desc">Vos jours de travail, votre rôle, vos repos</div>
-      </div>
-      <div class="nav-arrow">›</div>
-    </a>
-  </nav>
+  <!-- Recherche NEXUS (27/07/2026, demande de Frédéric) : remplace la
+       section fixe "Votre journée" (Pointage, Mon Planning) — ces écrans,
+       et tous les autres, se retrouvent maintenant en tapant quelques
+       lettres ou un mot-clé plutôt que via une liste toujours affichée.
+       Visible pour tout le monde (employé et manager), sans data-role sur
+       le bloc lui-même : c'est initRechercheNexus() qui filtre déjà les
+       résultats selon le rôle (voir plus bas dans le script). Pointage
+       garde son cas particulier — non requis pour le poste manager par
+       défaut (voir chargerPointageRequisManager) — même retrouvé par la
+       recherche : il apparaît alors désactivé, comme avant. -->
+  <div class="section-label">Rechercher</div>
+  <div class="recherche-nexus">
+    <div class="recherche-nexus-champ">
+      <span class="recherche-nexus-loupe">🔍</span>
+      <input type="text" id="rechercheNexusInput" placeholder="Rechercher une page NEXUS (pointage, marge, planning…)" autocomplete="off">
+    </div>
+    <div class="recherche-nexus-resultats" id="rechercheNexusResultats"></div>
+  </div>
 
   <!-- ============================================================
        "Explorer NEXUS" (27/07/2026, demande de Frédéric) — remplace
@@ -1585,21 +1596,17 @@
     });
   }
 
-  // Pointage du manager (24/07/2026) — voir migration-station-config-manager-
-  // pointage-v1.sql. Défaut FALSE si la colonne est absente ou nulle : ne
-  // jamais bloquer l'affichage sur une erreur reseau, se contenter de
-  // laisser Pointage grisé (comportement par defaut) en cas de doute.
-  async function appliquerPointageManagerMenu(siteId) {
-    const item = document.getElementById('navPointage');
-    if (!item) return;
+  // Pointage du manager (24/07/2026, refactoré le 27/07/2026) — voir
+  // migration-station-config-manager-pointage-v1.sql. Défaut FALSE si la
+  // colonne est absente ou nulle : ne jamais bloquer l'affichage sur une
+  // erreur reseau, se contenter de considérer Pointage non requis (comme
+  // avant). Ne manipule plus le DOM directement (l'ancien lien fixe
+  // #navPointage a disparu avec "Votre journée") — retourne un booléen
+  // consommé par initRechercheNexus() pour désactiver Pointage dans les
+  // résultats de recherche quand un manager le trouve.
+  async function chargerPointageRequisManager(siteId) {
     const { data, error } = await nexusClient.from('station_config').select('manager_pointage_requis').eq('site', siteId).maybeSingle();
-    const requis = !error && !!(data && data.manager_pointage_requis);
-    if (!requis) {
-      item.classList.add('disabled');
-      item.removeAttribute('href');
-      const desc = document.getElementById('navPointageDesc');
-      if (desc) desc.textContent = 'Non requis pour votre poste — activable dans Paramètres Station';
-    }
+    return !error && !!(data && data.manager_pointage_requis);
   }
 
   // Verrouillage du menu selon le forfait (26/07/2026) — Essential grise
@@ -1631,9 +1638,13 @@
     toast._timeout = setTimeout(() => toast.classList.remove('visible'), 4000);
   }
 
+  // Retourne désormais le statut Professional (27/07/2026) : réutilisé par
+  // initRechercheNexus() pour verrouiller les mêmes pages dans les
+  // résultats de recherche, sans refaire un second appel réseau.
   async function verrouillerNavForfait(siteId) {
     const forfait = await NexusForfait.chargerForfait(siteId);
-    if (forfait === null || NexusForfait.estProfessional(forfait)) return; // Professional (ou erreur réseau) : rien à verrouiller
+    const estPro = forfait === null || NexusForfait.estProfessional(forfait); // Professional (ou erreur réseau) : rien à verrouiller
+    if (estPro) return true;
     document.querySelectorAll('[data-forfait="professional"]').forEach(el => {
       el.classList.add('locked-forfait');
       el.addEventListener('click', (e) => {
@@ -1641,6 +1652,101 @@
         afficherToastForfait(el.getAttribute('href'));
       });
     });
+    return false;
+  }
+
+  // ------------------------------------------------------------
+  // Recherche NEXUS (27/07/2026, demande de Frédéric) : "un encart en bas
+  // de page avec une loupe... en écrivant les premières lettres ou
+  // mots-clés, NEXUS suggère les différentes pages." Remplace la section
+  // fixe "Votre journée" — index unique de toutes les pages de l'app
+  // (source de vérité pour la recherche), avec le même rôle/forfait que
+  // le menu Explorer NEXUS pour ne jamais suggérer une page interdite.
+  // "Mon Évolution" et "Prise de poste" ont été volontairement retirés de
+  // la navigation (demande de Frédéric du 27/07/2026) — pas réintroduits
+  // ici pour rester cohérent, à ajouter si besoin.
+  // ------------------------------------------------------------
+  const PAGES_INDEX = [
+    { label: 'Cockpit', desc: 'Le brief du matin, en un coup d\'œil', href: 'NEXUS-Cockpit-v2.html', role: 'manager' },
+    { label: 'Centre d\'Intelligence', desc: 'Que détecte NEXUS dans mon commerce ?', href: 'NEXUS-Centre-Intelligence-v1.html', role: 'manager' },
+    { label: 'Journal', desc: 'Qu\'est-ce qui a été fait aujourd\'hui ?', href: 'NEXUS-Journal-v1.html', role: 'manager', forfait: 'professional' },
+    { label: 'Capital NEXUS', desc: 'La valeur créée par vos décisions', href: 'NEXUS-Capital-v1.html', role: 'manager', forfait: 'professional' },
+    { label: 'Scanner NEXUS', desc: 'CA, marge et répartition ABC du magasin', href: 'NEXUS-Scanner-v1.html', role: 'manager', forfait: 'professional' },
+    { label: 'Radar du Manager', desc: '8 domaines de responsabilité', href: 'NEXUS-Radar-Manager-v1.html', role: 'manager', forfait: 'professional' },
+    { label: 'Rayon', desc: 'CA, marge, top ventes par catégorie', href: 'NEXUS-Rayon-v1.html', role: 'manager' },
+    { label: 'Produits', desc: 'Fiche complète par référence', href: 'NEXUS-Produits-v1.html', role: 'manager' },
+    { label: 'Tempo', desc: 'Les jours qui portent votre station, ceux qui la ralentissent', href: 'NEXUS-Tempo-v1.html', role: 'manager', forfait: 'professional' },
+    { label: 'Campagnes', desc: 'Déclarer une promotion, mesurer son impact', href: 'NEXUS-Campagne-v1.html', role: 'manager', forfait: 'professional' },
+    { label: 'Scanner Stock', desc: 'Où vous perdez de l\'argent, quoi recompter', href: 'NEXUS-Scanner-Stock-v1.html', role: 'manager' },
+    { label: 'Verify', desc: 'Contrôle caisse et écarts', href: 'NEXUS-Verify-v1.html', role: 'manager' },
+    { label: 'Missions', desc: '55 procédures · checklist interactive', href: 'NEXUS-Missions-v1.html', role: 'all' },
+    { label: 'Assignations', desc: 'Assigner, suivre, valider une mission', href: 'NEXUS-Assignations-v1.html', role: 'manager', forfait: 'professional' },
+    { label: 'Planning', desc: 'Le bon collaborateur, au bon endroit, au bon moment', href: 'NEXUS-Planning-v1.html', role: 'manager', forfait: 'professional' },
+    { label: 'Évaluations', desc: 'Contrôle tenue + grille de prime', href: 'NEXUS-Evaluation-Employe-v1.html', role: 'manager', forfait: 'professional' },
+    { label: 'Résultats', desc: 'Progression réelle par employé', href: 'NEXUS-Resultats-Equipe-v1.html', role: 'manager', forfait: 'professional' },
+    { label: 'Imports', desc: 'Ventes, catalogue ou stock instantané', href: 'NEXUS-Import-v1.html', role: 'manager' },
+    { label: 'Paramètres', desc: 'Horaires de service, prix carburants', href: 'NEXUS-Parametres-Station-v1.html', role: 'manager' },
+    { label: 'Rappels', desc: 'Commandes fournisseurs, carburant', href: 'NEXUS-Parametres-Rappels-v1.html', role: 'manager' },
+    { label: 'Administration multi-site', desc: 'Nom, logo et création de nouveaux sites', href: 'NEXUS-Admin-Sites-v1.html', role: 'createur' },
+    { label: 'Debug créateur', desc: 'Outils techniques multi-site — agit directement sur Supabase', href: 'NEXUS-Debug-Createur-v1.html', role: 'createur', danger: true },
+    { label: 'Pointage', desc: 'Arrivée, pause, départ', href: 'NEXUS-Pointage-v1.html', role: 'all' },
+    { label: 'Mon Planning', desc: 'Vos jours de travail, votre rôle, vos repos', href: 'NEXUS-Mon-Planning-v1.html', role: 'all' },
+  ];
+
+  function normaliserRecherche(s) {
+    return (s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  }
+
+  function initRechercheNexus(employee, estNiveauManager, forfaitProfessional, pointageRequisManager) {
+    const input = document.getElementById('rechercheNexusInput');
+    const resultats = document.getElementById('rechercheNexusResultats');
+    if (!input || !resultats) return;
+
+    const visibles = PAGES_INDEX.filter(p => {
+      if (p.role === 'all') return true;
+      if (p.role === 'manager') return estNiveauManager;
+      if (p.role === 'createur') return !!employee.est_createur;
+      return false;
+    });
+
+    function rendre(requete) {
+      const q = normaliserRecherche(requete);
+      if (!q) { resultats.innerHTML = ''; resultats.classList.remove('open'); return; }
+      const matches = visibles.filter(p => normaliserRecherche(`${p.label} ${p.desc}`).includes(q)).slice(0, 8);
+      if (!matches.length) {
+        resultats.innerHTML = `<div class="recherche-vide">Aucune page ne correspond à « ${requete} ».</div>`;
+        resultats.classList.add('open');
+        return;
+      }
+      resultats.innerHTML = matches.map(p => {
+        // Pointage garde son cas particulier même trouvé par la
+        // recherche : non requis pour le poste manager par défaut.
+        const pointageDesactive = p.href === 'NEXUS-Pointage-v1.html' && estNiveauManager && !pointageRequisManager;
+        const forfaitVerrouille = p.forfait === 'professional' && !forfaitProfessional;
+        const desc = pointageDesactive ? 'Non requis pour votre poste — activable dans Paramètres Station' : p.desc;
+        const badges = `${forfaitVerrouille ? ' <span class="nav-badge badge-premium">Professional</span>' : ''}${p.danger ? ' <span class="nav-badge badge-danger">⚠ Irréversible</span>' : ''}`;
+        if (pointageDesactive) {
+          return `<div class="recherche-item disabled"><div class="recherche-item-body"><div class="recherche-item-titre">${p.label}</div><div class="recherche-item-desc">${desc}</div></div></div>`;
+        }
+        return `<a class="recherche-item" href="${p.href}" data-forfait-verrouille="${forfaitVerrouille}" data-forfait-page="${p.href}">
+          <div class="recherche-item-body">
+            <div class="recherche-item-titre">${p.label}${badges}</div>
+            <div class="recherche-item-desc">${desc}</div>
+          </div>
+          <div class="recherche-item-arrow">›</div>
+        </a>`;
+      }).join('');
+      resultats.classList.add('open');
+
+      resultats.querySelectorAll('a.recherche-item[data-forfait-verrouille="true"]').forEach(el => {
+        el.addEventListener('click', (e) => {
+          e.preventDefault();
+          afficherToastForfait(el.getAttribute('data-forfait-page'));
+        });
+      });
+    }
+
+    input.addEventListener('input', () => rendre(input.value));
   }
 
   // Bandeau explicatif si un manager a été renvoyé ici depuis une page
@@ -1678,6 +1784,11 @@
     // "gerant" a les memes droits d'affichage que "manager" (cf. RLS et
     // logique metier ailleurs dans NEXUS, ex: caisse_sante_historique).
     const estNiveauManager = employee.role === 'manager' || employee.role === 'gerant';
+    // Valeurs par défaut sûres pour un employé (jamais recalculées dans ce
+    // cas) — initRechercheNexus() ne les utilise que pour les entrées
+    // role:'manager', de toute façon invisibles pour lui.
+    let pointageRequisManager = true;
+    let forfaitProfessional = true;
 
     const aujourdISO = new Date().toISOString().slice(0, 10);
     if (!employee.consultation_externe) {
@@ -1745,9 +1856,9 @@
         if (wrap) plusZone.appendChild(wrap);
       });
 
-      await appliquerPointageManagerMenu(employee.site_id || 'vito-sainte-marie');
+      pointageRequisManager = await chargerPointageRequisManager(employee.site_id || 'vito-sainte-marie');
       await initPosteManager(employee);
-      await verrouillerNavForfait(employee.site_id || 'vito-sainte-marie');
+      forfaitProfessional = await verrouillerNavForfait(employee.site_id || 'vito-sainte-marie');
     } else {
       document.getElementById('heroEmploye').style.display = '';
     }
@@ -1878,6 +1989,7 @@
       }
     })();
 
+    initRechercheNexus(employee, estNiveauManager, forfaitProfessional, pointageRequisManager);
     initGroupes();
   });
 
