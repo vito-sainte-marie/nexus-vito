@@ -464,6 +464,179 @@
     return badges;
   }
 
+  // ------------------------------------------------------------
+  // 8) "Ce que NEXUS a appris sur moi" (27/07/2026, demande de Frédéric) —
+  //    l'écran le plus personnel de l'application. Quatre familles
+  //    d'observations, chacune bâtie sur un signal réel et traçable :
+  //      - Qualités : compétences déjà "Sous contrôle" (aucune nouveauté
+  //        de calcul, juste une reformulation qualitative des 5 statuts).
+  //      - Habitudes : régularités factuelles (quart où le service est le
+  //        plus propre, moment de la journée où les missions sont
+  //        réalisées, oubli récurrent de la photo finale).
+  //      - Progrès : évolution réelle dans le temps (écart moyen, niveau
+  //        NEXUS nommé il y a SEUIL_JOURS_NIVEAU_PASSE jours vs aujourd'hui).
+  //      - Prochain objectif : projection assumée comme une estimation
+  //        ("si vous conservez ce rythme"), jamais présentée comme une
+  //        certitude, et jamais affichée sans un minimum de recul.
+  //    Toute observation sans signal suffisant est omise plutôt
+  //    qu'approximée — Article 5.
+  // ------------------------------------------------------------
+
+  const SEUIL_MIN_SERVICES_PAR_QUART = 3;
+  const SEUIL_DIFF_TAUX_QUART = 0.15; // 15 points de pourcentage
+  const SEUIL_MIN_MISSIONS_MOMENT = 5;
+  const SEUIL_PART_MOMENT_DOMINANT = 0.7;
+  const SEUIL_MIN_MISSIONS_PHOTO = 3;
+  const SEUIL_TAUX_OUBLI_PHOTO = 0.2;
+  const SEUIL_JOURS_NIVEAU_PASSE = 90;
+  const SEUIL_MIN_SERVICES_OBJECTIF = 5;
+
+  function analyserQualites({ statutCaisseVal, statutPonctualiteVal, statutMissionsVal, statutTenueVal, statutRelationClientVal }) {
+    const qualites = [];
+    if (statutPonctualiteVal.statut === 'Sous contrôle') qualites.push('Toujours ponctuel.');
+    if (statutCaisseVal.statut === 'Sous contrôle') qualites.push('Très peu d\'écarts de caisse.');
+    if (statutRelationClientVal.statut === 'Sous contrôle') qualites.push('Excellent relationnel client.');
+    if (statutTenueVal.statut === 'Sous contrôle') qualites.push('Tenue et procédures toujours conformes.');
+    if (statutMissionsVal.statut === 'Sous contrôle') qualites.push('Missions réalisées avec rigueur.');
+    return qualites;
+  }
+
+  // Quart (piste/boutique) où les services sont le plus souvent propres —
+  // purement descriptif, jamais une supposition sur "pourquoi" (Article 5).
+  function habitudeMeilleurQuart(services) {
+    const parQuart = {};
+    (services || []).forEach(s => {
+      if (!s.quart) return;
+      if (!parQuart[s.quart]) parQuart[s.quart] = { total: 0, propres: 0 };
+      parQuart[s.quart].total += 1;
+      if (serviceEstPropre(s)) parQuart[s.quart].propres += 1;
+    });
+    const quarts = Object.keys(parQuart).filter(q => parQuart[q].total >= SEUIL_MIN_SERVICES_PAR_QUART);
+    if (quarts.length < 2) return null;
+    quarts.forEach(q => { parQuart[q].taux = parQuart[q].propres / parQuart[q].total; });
+    quarts.sort((a, b) => parQuart[b].taux - parQuart[a].taux);
+    const diff = parQuart[quarts[0]].taux - parQuart[quarts[1]].taux;
+    if (diff < SEUIL_DIFF_TAUX_QUART) return null;
+    return { quart: quarts[0], tauxMeilleur: parQuart[quarts[0]].taux, tauxAutre: parQuart[quarts[1]].taux };
+  }
+
+  // Moment de la journée où les missions sont le plus souvent réalisées —
+  // basé sur mission_completions.heure (heure réelle d'enregistrement).
+  function habitudeMomentMissions(completionsEmploye) {
+    const buckets = { matin: 0, 'après-midi': 0, soir: 0 };
+    let total = 0;
+    (completionsEmploye || []).forEach(c => {
+      if (!c.heure) return;
+      const h = parseInt(String(c.heure).slice(0, 2), 10);
+      if (Number.isNaN(h)) return;
+      total += 1;
+      if (h < 12) buckets.matin += 1;
+      else if (h < 18) buckets['après-midi'] += 1;
+      else buckets.soir += 1;
+    });
+    if (total < SEUIL_MIN_MISSIONS_MOMENT) return null;
+    const moments = Object.keys(buckets).sort((a, b) => buckets[b] - buckets[a]);
+    const dominant = moments[0];
+    const part = buckets[dominant] / total;
+    return part >= SEUIL_PART_MOMENT_DOMINANT ? { moment: dominant, part, total } : null;
+  }
+
+  // Oubli de la photo finale — uniquement parmi les missions dont le
+  // catalogue exige réellement une preuve photo (proof_required), pour ne
+  // jamais reprocher une photo qui n'était pas demandée.
+  function habitudePhotoOubliee(completionsEmploye, catalogueParId) {
+    const concernees = (completionsEmploye || []).filter(c => catalogueParId && catalogueParId[c.mission_id] && catalogueParId[c.mission_id].proof_required);
+    if (concernees.length < SEUIL_MIN_MISSIONS_PHOTO) return null;
+    const oublis = concernees.filter(c => !c.photo_fournie).length;
+    const taux = oublis / concernees.length;
+    return taux >= SEUIL_TAUX_OUBLI_PHOTO ? { taux, total: concernees.length, oublis } : null;
+  }
+
+  // Combine les trois signaux d'habitude ci-dessus en phrases prêtes à
+  // afficher — jamais plus de 3, jamais une habitude sans signal réel.
+  function analyserHabitudes({ services, completionsEmploye, catalogueParId }) {
+    const habitudes = [];
+    const quart = habitudeMeilleurQuart(services);
+    if (quart) {
+      habitudes.push(`Vous êtes plus performant en caisse ${quart.quart === 'quart1' ? 'le matin' : "l'après-midi"}.`);
+    }
+    const moment = habitudeMomentMissions(completionsEmploye);
+    if (moment) {
+      const libelle = moment.moment === 'matin' ? 'le matin' : moment.moment === 'soir' ? 'le soir' : "l'après-midi";
+      habitudes.push(`Vous réalisez la plupart de vos missions ${libelle}.`);
+    }
+    const photo = habitudePhotoOubliee(completionsEmploye, catalogueParId);
+    if (photo) {
+      habitudes.push('Vous oubliez parfois la photo finale de vos missions — pensez à la joindre avant de valider.');
+    }
+    return habitudes.slice(0, 3);
+  }
+
+  // Progrès réels dans le temps : écart moyen (fenêtre glissante déjà
+  // fiabilisée par tendanceEcartMoyen) et changement de niveau nommé entre
+  // aujourd'hui et il y a SEUIL_JOURS_NIVEAU_PASSE jours.
+  function analyserProgres({ ecartsAttribuablesVal, niveauActuel, niveauPasse }) {
+    const progres = [];
+    const tendance = tendanceEcartMoyen(ecartsAttribuablesVal, 30);
+    if (tendance && tendance.ameliore && tendance.moyPrecedente > 0) {
+      const pct = Math.round((1 - tendance.moyRecente / tendance.moyPrecedente) * 100);
+      if (pct > 0) progres.push(`Les écarts de caisse ont diminué de ${pct} % sur les 30 derniers jours.`);
+    }
+    if (niveauPasse && niveauActuel && niveauPasse.id !== niveauActuel.id) {
+      progres.push(`Votre niveau est passé de « ${niveauPasse.nom} » à « ${niveauActuel.nom} ».`);
+    }
+    return progres;
+  }
+
+  // Recalcule le niveau NEXUS "nommé" tel qu'il aurait été il y a
+  // `joursAvant` jours, en ne gardant que les lignes antérieures à cette
+  // date — permet de dire honnêtement "vous étiez à tel niveau" sans avoir
+  // besoin d'un historique stocké séparément.
+  function calculerNiveauADate({ auditsRows, pointagesRows, assignationsRows, controlesRows, evaluationsRows, completionsRows, employeeId, joursAvant }) {
+    const jours = joursAvant || SEUIL_JOURS_NIVEAU_PASSE;
+    const dateLimite = new Date(Date.now() - jours * 86400000).toISOString().slice(0, 10);
+    const auditsF = (auditsRows || []).filter(a => a.date <= dateLimite);
+    const pointagesF = (pointagesRows || []).filter(p => p.date <= dateLimite);
+    const controlesF = (controlesRows || []).filter(c => c.date <= dateLimite);
+    const evaluationsF = (evaluationsRows || []).filter(e => e.date <= dateLimite);
+    const completionsF = (completionsRows || []).filter(m => m.date <= dateLimite);
+    const assignationsF = (assignationsRows || []).filter(a => ((a.updated_at || a.due_at || '').slice(0, 10)) <= dateLimite);
+
+    const services = construireServicesCaisse(auditsF, employeeId);
+    const statutCaisseVal = statutCaisse(services);
+    const statutPonctualiteVal = statutPonctualite(pointagesF);
+    const statutMissionsVal = statutMissions(assignationsF);
+    const statutTenueVal = statutTenue(controlesF);
+    const statutRelationClientVal = statutRelationClient(evaluationsF);
+    const experience = calculerExperience({ nbServices: services.length, nbMissionsCompletees: completionsF.length, nbPointages: pointagesF.length });
+    return calculerNiveauNomme(experience, {
+      caisse: statutCaisseVal, ponctualite: statutPonctualiteVal,
+      missions: statutMissionsVal, tenue: statutTenueVal, relation: statutRelationClientVal,
+    });
+  }
+
+  // Prochain objectif — projection assumée, jamais une promesse. Le rythme
+  // est estimé sur l'ensemble de l'historique connu (expérience / nombre
+  // de services), jamais affiché sans au moins SEUIL_MIN_SERVICES_OBJECTIF
+  // services pour rester honnête sur la fiabilité de l'estimation.
+  function projeterProchainObjectif(niveau, nbServices) {
+    if (!niveau.progression) {
+      return { texte: 'Niveau maximum atteint — vous incarnez la référence NEXUS.', atteint: true };
+    }
+    if (!nbServices || nbServices < SEUIL_MIN_SERVICES_OBJECTIF) {
+      return { texte: 'Continuez à utiliser NEXUS pour que je puisse identifier votre rythme de progression.', atteint: false };
+    }
+    const expParService = niveau.experience / nbServices;
+    if (expParService <= 0) {
+      return { texte: `Encore ${niveau.progression.manque} point(s) d'expérience avant « ${niveau.progression.nomSuivant} ».`, atteint: false };
+    }
+    const servicesRestants = Math.max(1, Math.ceil(niveau.progression.manque / expParService));
+    return {
+      texte: `Si vous conservez ce rythme, encore environ ${servicesRestants} service${servicesRestants > 1 ? 's' : ''} avant de devenir « ${niveau.progression.nomSuivant} ».`,
+      atteint: false,
+    };
+  }
+
   global.NexusProgression = {
     SEUIL_ECART_CONFORME,
     construireServicesCaisse, estConforme, serviceEstPropre,
@@ -473,5 +646,7 @@
     niveauNexus, pointsForts, identifierAxeProgression, genererEncouragement,
     calculerSeriePonctualite, calculerExperience, calculerNiveauNomme, calculerBadges,
     NIVEAUX_NEXUS,
+    analyserQualites, analyserHabitudes, analyserProgres,
+    calculerNiveauADate, projeterProchainObjectif,
   };
 })(window);

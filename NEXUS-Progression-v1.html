@@ -51,6 +51,7 @@
   .coach-text b{color:var(--gold);}
   .coach-text + .coach-text{margin-top:10px;}
   .coach-sub{font-size:12.5px; line-height:1.6; color:var(--text-mid); margin-top:8px;}
+  .apprentissage-link{display:inline-flex; align-items:center; gap:6px; margin-top:12px; font-family:var(--mono); font-size:11px; font-weight:600; letter-spacing:0.03em; color:var(--cyan); text-decoration:none;}
 
   .fort-list{list-style:none; padding:0; margin:0;}
   .fort-item{font-size:13px; line-height:1.6; padding:7px 0; display:flex; gap:8px;}
@@ -287,6 +288,7 @@
           </div>
         </div>
         <div class="coach-text">${accueil}</div>
+        <a class="apprentissage-link" href="NEXUS-Apprentissage-v1.html${vueManager ? '?employe=' + cible.id : ''}">Ce que NEXUS a appris sur ${vueManager ? cible.nom.split(' ')[0] : 'moi'} →</a>
       </div>
 
       <div class="section-label">${vueManager ? 'Ses points forts' : 'Vos points forts'}</div>
