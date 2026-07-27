@@ -1454,23 +1454,25 @@
       </div>`;
   }
 
-  // Message d'accueil (27/07/2026, demande de Frédéric) : "Bonjour Fred.
-  // J'ai analysé votre commerce. Trois décisions comptent aujourd'hui...
-  // le dirigeant comprend immédiatement pourquoi il est venu." Le nombre
-  // de décisions varie selon ce qui est réellement disponible (jamais
-  // "trois" figé si les moteurs n'en proposent qu'une ou deux).
-  const NOMBRE_LETTRES = { 1: 'Une décision compte', 2: 'Deux décisions comptent', 3: 'Trois décisions comptent' };
+  // Message d'accueil (27/07/2026, demande de Frédéric ; simplifié le
+  // même jour — "on sait maintenant que NEXUS a analysé mon commerce",
+  // c'est déjà porté par l'en-tête (badge Connecté + "Décisions
+  // recalculées à HH:MM:SS") : plus besoin de le répéter ici, sous peine
+  // de redondance. Le nombre de décisions varie selon ce qui est
+  // réellement disponible (jamais "3" figé si les moteurs n'en proposent
+  // qu'une ou deux).
   function renderConseillerHome(top3, employeeNom) {
     const corps = document.getElementById('conseillerCorps');
     if (!top3.length) {
-      corps.innerHTML = `<div class="conseiller-text">Bonjour ${employeeNom}. J'ai analysé votre commerce : rien ne nécessite votre attention immédiate aujourd'hui. ✅</div>`;
+      corps.innerHTML = `<div class="conseiller-text">Bonjour ${employeeNom}, rien ne nécessite votre attention immédiate aujourd'hui. ✅</div>`;
       return;
     }
     const gainTotal = top3.reduce((s, c) => s + c.impact_eur, 0);
     const autres = top3.slice(1);
-    const phraseNombre = NOMBRE_LETTRES[top3.length] || `${top3.length} décisions comptent`;
+    const n = top3.length;
+    const phraseNombre = `${n} décision${n > 1 ? 's' : ''} mérite${n > 1 ? 'nt' : ''} votre attention aujourd'hui.`;
     corps.innerHTML = `
-      <div class="conseiller-text">Bonjour ${employeeNom}. J'ai analysé votre commerce. ${phraseNombre} aujourd'hui.</div>
+      <div class="conseiller-text">Bonjour ${employeeNom}, ${phraseNombre}</div>
       ${priorItemComplet(top3[0], 0)}
       ${autres.length ? `
         <div class="conseiller-autres-toggle" id="conseillerAutresToggle">Voir ${autres.length === 1 ? "l'autre décision" : `les ${autres.length} autres décisions`} du Conseiller ▾</div>
