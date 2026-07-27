@@ -196,7 +196,7 @@
      visuelle cohérente entre les deux pages plutôt qu'inventer un
      nouveau style de carte. */
   .retenir-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:8px; padding:0 20px;}
-  .retenir-card{background:var(--panel); border:1px solid var(--hairline); border-radius:14px; padding:13px 11px; text-align:center;}
+  .retenir-card{background:var(--panel); border:1px solid var(--hairline); border-radius:14px; padding:13px 11px; text-align:center; display:block; text-decoration:none; color:inherit;}
   .retenir-tag{font-family:var(--mono); font-size:8.5px; letter-spacing:0.05em; text-transform:uppercase; margin-bottom:8px;}
   .retenir-titre{font-size:13px; font-weight:700; line-height:1.3;}
   .retenir-detail{font-family:var(--mono); font-size:9.5px; color:var(--text-mid); margin-top:6px; line-height:1.4;}
@@ -966,34 +966,38 @@
   // moteur), Vigilance (jour à renforcer), Exécution (contrôles Verify en
   // attente). Chaque carte affiche honnêtement son état vide plutôt que de
   // masquer la carte, pour garder la promesse "3 informations, toujours au
-  // même endroit".
+  // même endroit". Mise à jour du 27/07/2026 (demande de Frédéric) : les
+  // trois cartes sont désormais cliquables — Performance et Vigilance
+  // renvoient vers NEXUS Tempo (l'analyse complète du jour concerné),
+  // Exécution vers NEXUS Verify (où se fait le contrôle caisse), même en
+  // état vide pour rester cohérent (on peut toujours aller consulter).
   function renderARetenir({ jourMoteur, jourARenforcer, controlesVerify }) {
-    function carte(tag, couleur, titre, detail) {
-      return `<div class="retenir-card">
+    function carte(href, tag, couleur, titre, detail) {
+      return `<a class="retenir-card" href="${href}">
         <div class="retenir-tag" style="color:${couleur};">${tag}</div>
         <div class="retenir-titre">${titre}</div>
         ${detail ? `<div class="retenir-detail">${detail}</div>` : ''}
-      </div>`;
+      </a>`;
     }
     const majuscule = s => s.charAt(0).toUpperCase() + s.slice(1);
 
     const performance = jourMoteur
-      ? carte('Performance', 'var(--green)', majuscule(jourMoteur.nom), 'Jour créateur de valeur')
-      : `<div class="retenir-card"><div class="retenir-tag" style="color:var(--green);">Performance</div><div class="retenir-vide">Historique encore insuffisant.</div></div>`;
+      ? carte('NEXUS-Tempo-v1.html', 'Performance', 'var(--green)', majuscule(jourMoteur.nom), 'Jour créateur de valeur')
+      : `<a class="retenir-card" href="NEXUS-Tempo-v1.html"><div class="retenir-tag" style="color:var(--green);">Performance</div><div class="retenir-vide">Historique encore insuffisant.</div></a>`;
 
     let vigilance;
     if (jourARenforcer) {
       const pctBoutique = jourARenforcer.evolutionBoutique !== null ? `${jourARenforcer.evolutionBoutique >= 0 ? '+' : ''}${(jourARenforcer.evolutionBoutique * 100).toFixed(0)} % boutique` : null;
       const pctPiste = jourARenforcer.evolutionPiste !== null ? `${jourARenforcer.evolutionPiste >= 0 ? '+' : ''}${(jourARenforcer.evolutionPiste * 100).toFixed(0)} % piste` : null;
       const detail = [pctPiste, pctBoutique].filter(Boolean).join(' · ');
-      vigilance = carte('Vigilance', 'var(--amber)', majuscule(jourARenforcer.nom), detail || 'Journée la plus faible');
+      vigilance = carte('NEXUS-Tempo-v1.html', 'Vigilance', 'var(--amber)', majuscule(jourARenforcer.nom), detail || 'Journée la plus faible');
     } else {
-      vigilance = `<div class="retenir-card"><div class="retenir-tag" style="color:var(--amber);">Vigilance</div><div class="retenir-vide">Aucun point de vigilance identifié.</div></div>`;
+      vigilance = `<a class="retenir-card" href="NEXUS-Tempo-v1.html"><div class="retenir-tag" style="color:var(--amber);">Vigilance</div><div class="retenir-vide">Aucun point de vigilance identifié.</div></a>`;
     }
 
     const execution = (controlesVerify != null && controlesVerify > 0)
-      ? carte('Exécution', 'var(--cyan)', `${controlesVerify} contrôle${controlesVerify > 1 ? 's' : ''} caisse`, 'à effectuer')
-      : `<div class="retenir-card"><div class="retenir-tag" style="color:var(--cyan);">Exécution</div><div class="retenir-titre" style="color:var(--green);">À jour</div><div class="retenir-detail">Aucun contrôle en attente</div></div>`;
+      ? carte('NEXUS-Verify-v1.html', 'Exécution', 'var(--cyan)', `${controlesVerify} contrôle${controlesVerify > 1 ? 's' : ''} caisse`, 'à effectuer')
+      : `<a class="retenir-card" href="NEXUS-Verify-v1.html"><div class="retenir-tag" style="color:var(--cyan);">Exécution</div><div class="retenir-titre" style="color:var(--green);">À jour</div><div class="retenir-detail">Aucun contrôle en attente</div></a>`;
 
     document.getElementById('retenirGrid').innerHTML = performance + vigilance + execution;
   }
