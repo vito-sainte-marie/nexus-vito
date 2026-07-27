@@ -43,6 +43,10 @@
   .section-label::after{content:''; flex:1; height:1px; background:var(--hairline);}
 
   .coach-card{background:var(--panel); border:1px solid var(--hairline); border-radius:14px; padding:18px; margin-bottom:14px;}
+  .coach-head{display:flex; align-items:center; gap:12px; margin-bottom:12px;}
+  .coach-avatar{width:38px; height:38px; border-radius:50%; object-fit:cover; flex-shrink:0; background:var(--panel-raised);}
+  .coach-nom{font-family:var(--mono); font-size:11px; font-weight:600; letter-spacing:0.06em; text-transform:uppercase; color:var(--cyan);}
+  .coach-sous-nom{font-size:11.5px; color:var(--text-dim); margin-top:2px;}
   .coach-text{font-size:13.5px; line-height:1.65; color:var(--text);}
   .coach-text b{color:var(--gold);}
   .coach-text + .coach-text{margin-top:10px;}
@@ -52,7 +56,7 @@
   .fort-item{font-size:13px; line-height:1.6; padding:7px 0; display:flex; gap:8px;}
   .fort-item span.dot{flex-shrink:0;}
 
-  .axe-badge{display:inline-block; font-family:var(--mono); font-size:9.5px; letter-spacing:0.05em; text-transform:uppercase; color:var(--amber); background:var(--amber-dim); padding:4px 10px; border-radius:20px; margin-bottom:10px;}
+  .axe-badge{display:inline-block; font-family:var(--mono); font-size:9.5px; letter-spacing:0.05em; text-transform:uppercase; color:var(--cyan); background:var(--cyan-dim); padding:4px 10px; border-radius:20px; margin-bottom:10px;}
   .axe-cause{font-size:12px; color:var(--text-mid); line-height:1.55; margin-top:8px; font-style:italic;}
   .reco-box{background:rgba(79,195,217,0.08); border:1px solid rgba(79,195,217,0.3); border-radius:10px; padding:12px 14px; margin-top:12px; font-size:13px; line-height:1.55; color:var(--cyan);}
 
@@ -137,11 +141,23 @@
     'À corriger': 'var(--red)', 'Données insuffisantes': 'var(--text-dim)',
   };
 
+  // Vocabulaire coach (27/07/2026, demande de Frédéric — "le Coach ne parle
+  // jamais de problèmes, il parle de progression") : purement un habillage
+  // d'affichage pour cette page. La valeur réelle de resultat.statut n'est
+  // jamais modifiée — elle continue d'alimenter la couleur ci-dessus et
+  // reste identique à celle utilisée par les vues manager (État Global,
+  // etc.) qui, elles, gardent le vocabulaire d'origine.
+  const LIBELLE_STATUT_COACH = {
+    'Sous contrôle': 'Maîtrisé', 'À surveiller': 'Point d\'attention',
+    'À corriger': 'Axe de progression', 'Données insuffisantes': 'En cours d\'observation',
+  };
+
   function ligneCompetence(nom, resultat) {
     const c = COULEUR_STATUT[resultat.statut] || 'var(--text-dim)';
+    const libelle = LIBELLE_STATUT_COACH[resultat.statut] || resultat.statut;
     return `<div class="comp-row">
       <span class="comp-nom">${nom}</span>
-      <span class="comp-statut" style="color:${c};">${resultat.statut}${resultat.detail ? `<span class="comp-detail">${resultat.detail}</span>` : ''}</span>
+      <span class="comp-statut" style="color:${c};">${libelle}${resultat.detail ? `<span class="comp-detail">${resultat.detail}</span>` : ''}</span>
     </div>`;
   }
 
@@ -243,9 +259,12 @@
     // employé tout juste arrivé ne doit jamais lire un message technique
     // ou froid, seulement une promesse d'accompagnement qui grandit avec
     // le temps.
+    // Ton coach (27/07/2026, demande de Frédéric) : "Aujourd'hui, je serai à
+    // vos côtés pour vous accompagner dans vos missions et vous aider à
+    // progresser" — jamais un simple compte-rendu de chiffres.
     const accueil = services.length > 0
-      ? `Bonjour ${prenom}. J'ai analysé ${vueManager ? 'ses' : 'vos'} ${services.length} dernier${services.length > 1 ? 's' : ''} service${services.length > 1 ? 's' : ''} de caisse. Voici ce qui ${vueManager ? 'l\'aidera' : 'vous aidera'} à progresser le plus rapidement.`
-      : `Bonjour ${prenom}. ${vueManager ? 'NEXUS commence tout juste à apprendre la manière de travailler de cet employé' : 'Je commence tout juste à apprendre votre manière de travailler'} — chaque service ${vueManager ? 'l\'' : 'm\''}aide à ${vueManager ? 'mieux l\'' : 'mieux vous '}accompagner.`;
+      ? `Bonjour ${prenom}. ${vueManager ? 'Le Coach NEXUS accompagne cet employé au quotidien dans ses missions et sa progression.' : 'Aujourd\'hui, je serai à vos côtés pour vous accompagner dans vos missions et vous aider à progresser.'} J'ai analysé ${vueManager ? 'ses' : 'vos'} ${services.length} dernier${services.length > 1 ? 's' : ''} service${services.length > 1 ? 's' : ''} de caisse pour ${vueManager ? 'mieux comprendre ses' : 'mieux comprendre vos'} points forts.`
+      : `Bonjour ${prenom}. ${vueManager ? 'Le Coach NEXUS commence tout juste à apprendre la manière de travailler de cet employé' : 'Aujourd\'hui, je serai à vos côtés pour vous accompagner dans vos missions et vous aider à progresser'} — chaque service ${vueManager ? 'qu\'il enregistre m\'aide à mieux le' : 'que vous enregistrez m\'aide à mieux vous'} comprendre.`;
 
     const fortsHtml = forts.length
       ? `<ul class="fort-list">${forts.map(f => `<li class="fort-item"><span class="dot">🟢</span>${f}</li>`).join('')}</ul>`
@@ -255,11 +274,18 @@
       ? `<div class="axe-badge">${axe.domaine}</div>
          <div class="coach-text">${axe.constat}</div>
          ${axe.causeProbable ? `<div class="axe-cause">${axe.causeProbable}</div>` : ''}
-         <div class="reco-box"><b>Recommandation —</b> ${axe.recommandation}</div>`
+         <div class="reco-box"><b>Prochaine étape —</b> ${axe.recommandation}</div>`
       : `<div class="coach-sub">Aucun axe de progression prioritaire ne se dégage actuellement sur les compétences suivies — ${vueManager ? 'continuez ainsi' : 'continuez ainsi'}. ✅</div>`;
 
     document.getElementById('app').innerHTML = `
       <div class="coach-card">
+        <div class="coach-head">
+          <img class="coach-avatar" src="assets/nexus-avatar.png" alt="Coach NEXUS">
+          <div>
+            <div class="coach-nom">COACH NEXUS</div>
+            <div class="coach-sous-nom">${vueManager ? 'Coach personnel de ' + cible.nom : 'Votre coach personnel'}</div>
+          </div>
+        </div>
         <div class="coach-text">${accueil}</div>
       </div>
 
@@ -295,7 +321,7 @@
           <div class="badge-card ${b.obtenu ? 'obtenu' : ''}">
             <div class="badge-icone">🏅</div>
             <div class="badge-label">${b.label}</div>
-            ${!b.obtenu ? `<div class="badge-progress">${b.valeurActuelle}/${b.seuil}</div>` : ''}
+            ${!b.obtenu ? `<div class="badge-progress">Prochaine étape · encore ${b.seuil - b.valeurActuelle}</div>` : ''}
           </div>
         `).join('')}
       </div>

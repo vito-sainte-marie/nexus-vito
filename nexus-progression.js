@@ -312,10 +312,15 @@
     const choisi = candidats[0];
 
     if (choisi.domaine === 'Caisse') {
+      // Vocabulaire coach (27/07/2026, demande de Frédéric — "le Coach ne
+      // parle jamais de problèmes, il parle de progression") : "point
+      // d'attention" plutôt que "écart", uniquement sur ce texte destiné
+      // au coach personnel (identifierAxeProgression n'est consommé que
+      // par Ma Progression, jamais par une vue manager).
       const dominant = quartDominant(ecartsAttribuablesVal);
       const constat = ecartsAttribuablesVal.length === 1
-        ? `Un écart a été identifié sur votre dernier service en solo (${Math.abs(ecartsAttribuablesVal[0].montant).toFixed(2)} €).`
-        : `${ecartsAttribuablesVal.length} écarts ont été identifiés sur vos services en solo.`;
+        ? `Un point d'attention a été identifié sur votre dernier service en solo (${Math.abs(ecartsAttribuablesVal[0].montant).toFixed(2)} €).`
+        : `${ecartsAttribuablesVal.length} points d'attention ont été identifiés sur vos services en solo.`;
       const causeProbable = dominant
         ? `Les données indiquent qu'ils surviennent surtout lors du quart ${dominant.quart === 'quart2' ? 'du soir' : 'du matin'} (${dominant.n} sur ${ecartsAttribuablesVal.length}).`
         : null;
