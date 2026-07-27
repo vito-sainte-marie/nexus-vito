@@ -172,6 +172,14 @@
           </div>`;
         });
       }
+      // Ma Progression (27/07/2026, demande de Frédéric) : le manager peut
+      // ouvrir la page coach personnel de l'employé pour préparer un
+      // entretien — lecture seule, jamais de modification depuis ici.
+      // idEmp peut être absent si l'employé n'a plus de fiche active ;
+      // dans ce cas, pas de lien plutôt qu'un lien cassé.
+      if (idEmp) {
+        html += `<a href="NEXUS-Progression-v1.html?employe=${idEmp}" style="display:block; margin-top:12px; font-family:var(--mono); font-size:11px; color:var(--cyan); text-decoration:none;">Voir sa progression →</a>`;
+      }
       html += `</div>`;
     });
 

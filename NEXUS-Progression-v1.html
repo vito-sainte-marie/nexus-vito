@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NEXUS — Ma Progression</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="nexus-auth.js"></script>
+<script src="nexus-progression.js"></script>
+<style>
+  :root{
+    --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
+    --text:#EDF1F5; --text-mid:#8A96A5; --text-dim:#57626F;
+    --green:#34D399; --green-dim:#153629;
+    --amber:#F5A623; --amber-dim:#3A2E14;
+    --red:#F0575A; --red-dim:#3A1D1F;
+    --cyan:#4FC3D9; --cyan-dim:rgba(79,195,217,0.12);
+    --gold:#D4AF37;
+    --mono:'IBM Plex Mono',monospace; --sans:'IBM Plex Sans',sans-serif;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{background:var(--bg); font-family:var(--sans); color:var(--text);}
+  body{display:flex; justify-content:center; min-height:100vh;}
+  .phone{width:100%; max-width:460px; min-height:100vh; display:flex; flex-direction:column; border-left:1px solid var(--hairline); border-right:1px solid var(--hairline);}
+
+  .header{padding:20px 20px 14px; position:relative;}
+  .menu-btn{
+    position:absolute; top:18px; right:18px; display:flex; align-items:center; gap:6px;
+    font-family:var(--mono); font-size:10.5px; font-weight:600; letter-spacing:0.03em; text-transform:uppercase;
+    color:var(--cyan); background:rgba(79,195,217,0.1); border:1px solid rgba(79,195,217,0.3);
+    border-radius:20px; padding:7px 12px; text-decoration:none; white-space:nowrap; z-index:5;
+  }
+  .menu-btn:active{background:rgba(79,195,217,0.2);}
+  .eyebrow{font-family:var(--mono); font-size:11px; letter-spacing:0.12em; text-transform:uppercase; color:var(--cyan);}
+  .title{font-size:20px; font-weight:600; margin-top:4px;}
+  .vue-manager-note{font-family:var(--mono); font-size:10px; color:var(--amber); margin-top:6px; background:var(--amber-dim); display:inline-block; padding:4px 10px; border-radius:20px;}
+  .divider{height:1px; background:var(--hairline); margin:0 20px;}
+
+  .section{padding:16px 20px;}
+  .section-label{font-family:var(--mono); font-size:10.5px; letter-spacing:0.08em; text-transform:uppercase; color:var(--text-dim); margin-bottom:12px; display:flex; align-items:center; gap:8px;}
+  .section-label::after{content:''; flex:1; height:1px; background:var(--hairline);}
+
+  .coach-card{background:var(--panel); border:1px solid var(--hairline); border-radius:14px; padding:18px; margin-bottom:14px;}
+  .coach-text{font-size:13.5px; line-height:1.65; color:var(--text);}
+  .coach-text b{color:var(--gold);}
+  .coach-text + .coach-text{margin-top:10px;}
+  .coach-sub{font-size:12.5px; line-height:1.6; color:var(--text-mid); margin-top:8px;}
+
+  .fort-list{list-style:none; padding:0; margin:0;}
+  .fort-item{font-size:13px; line-height:1.6; padding:7px 0; display:flex; gap:8px;}
+  .fort-item span.dot{flex-shrink:0;}
+
+  .axe-badge{display:inline-block; font-family:var(--mono); font-size:9.5px; letter-spacing:0.05em; text-transform:uppercase; color:var(--amber); background:var(--amber-dim); padding:4px 10px; border-radius:20px; margin-bottom:10px;}
+  .axe-cause{font-size:12px; color:var(--text-mid); line-height:1.55; margin-top:8px; font-style:italic;}
+  .reco-box{background:rgba(79,195,217,0.08); border:1px solid rgba(79,195,217,0.3); border-radius:10px; padding:12px 14px; margin-top:12px; font-size:13px; line-height:1.55; color:var(--cyan);}
+
+  .encourage-card{background:var(--green-dim); border:1px solid rgba(52,211,153,0.35); border-radius:14px; padding:16px; margin-bottom:14px; font-size:13.5px; line-height:1.6; color:var(--green);}
+
+  .niveau-card{background:var(--panel); border:1px solid var(--hairline); border-radius:14px; padding:18px;}
+  .niveau-top{display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;}
+  .niveau-label{font-family:var(--mono); font-size:10.5px; letter-spacing:0.08em; text-transform:uppercase; color:var(--text-dim);}
+  .niveau-etoiles{font-size:18px; letter-spacing:2px; color:var(--gold);}
+  .niveau-detail{font-family:var(--mono); font-size:10px; color:var(--text-dim); margin-bottom:14px;}
+
+  .comp-row{display:flex; align-items:center; justify-content:space-between; padding:9px 0; border-top:1px solid var(--hairline);}
+  .comp-row:first-of-type{border-top:none;}
+  .comp-nom{font-size:13px; font-weight:500;}
+  .comp-statut{font-family:var(--mono); font-size:10.5px; text-align:right;}
+  .comp-detail{display:block; font-size:9.5px; color:var(--text-dim); margin-top:2px; font-weight:400;}
+
+  .empty-note{padding:40px 20px; text-align:center; color:var(--text-dim); font-size:13px; line-height:1.6;}
+  .locked{padding:60px 20px; text-align:center; color:var(--text-dim); font-size:13px;}
+
+  footer{margin-top:auto; padding:16px 20px 24px; font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:center; border-top:1px solid var(--hairline);}
+</style>
+</head>
+<body>
+<div class="phone">
+  <div class="header">
+    <a href="NEXUS-App-v1.html" class="menu-btn">☰ Menu</a>
+    <div class="eyebrow">NEXUS · Ma Progression</div>
+    <div class="title" id="pageTitle">Chargement…</div>
+    <div id="vueManagerNote"></div>
+  </div>
+  <div class="divider"></div>
+  <div class="section" id="app">
+    <div class="empty-note">Analyse en cours…</div>
+  </div>
+  <footer>NEXUS Progression v1 · Coach personnel · Vito Sainte-Marie Usine</footer>
+</div>
+
+<script>
+  // ============================================================
+  // NEXUS Progression — "Ma Progression" (27/07/2026, demande de
+  // Frédéric) : transforme le Conseiller NEXUS en coach personnel pour
+  // chaque employé. Trois questions guident toute cette page : pourquoi
+  // un écart arrive probablement, comment l'éviter demain, quels progrès
+  // ont été faits — jamais un simple chiffre nu. Toute la logique de
+  // calcul (attribution solo des écarts, compétences, niveau NEXUS,
+  // encouragements) vit dans nexus-progression.js, réutilisable ailleurs.
+  //
+  // Accès (décision de Frédéric, 27/07/2026) : l'employé voit toujours sa
+  // propre page. Un manager/gérant peut aussi consulter la page d'un
+  // employé de son site via ?employe=ID (pour préparer un entretien) —
+  // jamais un employé sur la page d'un collègue.
+  // ============================================================
+
+  async function fetchAllRows(builderFactory, pageSize = 1000) {
+    let toutes = [];
+    let from = 0;
+    while (true) {
+      const { data, error } = await builderFactory().range(from, from + pageSize - 1);
+      if (error) return { data: null, error };
+      toutes = toutes.concat(data || []);
+      if (!data || data.length < pageSize) break;
+      from += pageSize;
+    }
+    return { data: toutes, error: null };
+  }
+
+  const COULEUR_STATUT = {
+    'Sous contrôle': 'var(--green)', 'À surveiller': 'var(--amber)',
+    'À corriger': 'var(--red)', 'Données insuffisantes': 'var(--text-dim)',
+  };
+
+  function ligneCompetence(nom, resultat) {
+    const c = COULEUR_STATUT[resultat.statut] || 'var(--text-dim)';
+    return `<div class="comp-row">
+      <span class="comp-nom">${nom}</span>
+      <span class="comp-statut" style="color:${c};">${resultat.statut}${resultat.detail ? `<span class="comp-detail">${resultat.detail}</span>` : ''}</span>
+    </div>`;
+  }
+
+  nexusRequireAuth().then(async employee => {
+    if (!employee) return; // nexus-auth.js gère déjà la redirection vers NEXUS-Login-v1.html
+
+    const estNiveauManager = employee.role === 'manager' || employee.role === 'gerant';
+    const params = new URLSearchParams(window.location.search);
+    const employeParamId = params.get('employe');
+    const siteId = employee.site_id || 'vito-sainte-marie';
+
+    let cibleId = employee.id;
+    let vueManager = false;
+    if (employeParamId && employeParamId !== employee.id) {
+      if (!estNiveauManager) {
+        document.getElementById('app').innerHTML = '<div class="locked">Cette page de progression appartient à un autre employé — vous n\'y avez pas accès.</div>';
+        document.getElementById('pageTitle').textContent = 'Accès refusé';
+        return;
+      }
+      cibleId = employeParamId;
+      vueManager = true;
+    }
+
+    const { data: cible, error: erreurCible } = await nexusClient
+      .from('employees').select('id, nom, role, site_id, actif').eq('id', cibleId).maybeSingle();
+    if (erreurCible || !cible || cible.site_id !== siteId) {
+      document.getElementById('app').innerHTML = '<div class="locked">Employé introuvable pour ce site.</div>';
+      document.getElementById('pageTitle').textContent = 'Introuvable';
+      return;
+    }
+
+    document.getElementById('pageTitle').textContent = vueManager ? `Progression — ${cible.nom}` : 'Ma Progression';
+    if (vueManager) {
+      document.getElementById('vueManagerNote').innerHTML = '<span class="vue-manager-note">Vue manager — lecture seule</span>';
+    }
+
+    const [
+      { data: auditsRows, error: e1 },
+      { data: pointagesRows, error: e2 },
+      { data: assignationsRows, error: e3 },
+      { data: controlesRows, error: e4 },
+      { data: evaluationsRows, error: e5 },
+    ] = await Promise.all([
+      fetchAllRows(() => nexusClient.from('audits_caisse')
+        .select('date, quart, ecart_piste, ecart_boutique, employes_piste, employes_boutique')
+        .eq('site', siteId).order('date', { ascending: false })),
+      nexusClient.from('pointages').select('retard_min').eq('type', 'arrivee').eq('employee_id', cible.id),
+      nexusClient.from('mission_assignments').select('status, due_at, updated_at').eq('site_id', siteId).eq('assigned_to_employee_id', cible.id),
+      nexusClient.from('controles_tenue').select('conforme').eq('site', siteId).eq('employee_id', cible.id),
+      nexusClient.from('evaluations_employes').select('type, criteres').eq('site', siteId).eq('employee_id', cible.id),
+    ]);
+    if (e1) console.error('Chargement audits_caisse (progression):', e1);
+    if (e2) console.error('Chargement pointages (progression):', e2);
+    if (e3) console.error('Chargement mission_assignments (progression):', e3);
+    if (e4) console.error('Chargement controles_tenue (progression):', e4);
+    if (e5) console.error('Chargement evaluations_employes (progression):', e5);
+
+    const N = NexusProgression;
+    const services = N.construireServicesCaisse(auditsRows || [], cible.id);
+    const ecarts = N.ecartsAttribuables(services);
+    const statutCaisseVal = N.statutCaisse(services);
+    const statutPonctualiteVal = N.statutPonctualite(pointagesRows || []);
+    const statutMissionsVal = N.statutMissions(assignationsRows || []);
+    const statutTenueVal = N.statutTenue(controlesRows || []);
+    const statutRelationClientVal = N.statutRelationClient(evaluationsRows || []);
+    const niveau = N.niveauNexus({
+      caisse: statutCaisseVal, ponctualite: statutPonctualiteVal,
+      missions: statutMissionsVal, tenue: statutTenueVal, relation: statutRelationClientVal,
+    });
+    const forts = N.pointsForts({ services, statutPonctualiteVal, statutTenueVal, statutRelationClientVal });
+    const axe = N.identifierAxeProgression({ services, statutCaisseVal, statutPonctualiteVal, statutMissionsVal, statutTenueVal, ecartsAttribuablesVal: ecarts });
+    const encouragement = N.genererEncouragement({ services, ecartsAttribuablesVal: ecarts });
+
+    const prenom = vueManager ? cible.nom : cible.nom.split(' ')[0];
+    const accueil = services.length > 0
+      ? `Bonjour ${prenom}. J'ai analysé ${vueManager ? 'ses' : 'vos'} ${services.length} dernier${services.length > 1 ? 's' : ''} service${services.length > 1 ? 's' : ''} de caisse. Voici ce qui ${vueManager ? 'l\'aidera' : 'vous aidera'} à progresser le plus rapidement.`
+      : `Bonjour ${prenom}. Aucun service de caisse n'est encore associé à ${vueManager ? 'cet employé' : 'vous'} — NEXUS affinera son analyse dès les premiers services enregistrés.`;
+
+    const fortsHtml = forts.length
+      ? `<ul class="fort-list">${forts.map(f => `<li class="fort-item"><span class="dot">🟢</span>${f}</li>`).join('')}</ul>`
+      : `<div class="coach-sub">Historique encore insuffisant pour dégager des points forts marquants — ${vueManager ? 'continuez à suivre son activité' : 'continuez à enregistrer votre activité'}.</div>`;
+
+    const axeHtml = axe
+      ? `<div class="axe-badge">${axe.domaine}</div>
+         <div class="coach-text">${axe.constat}</div>
+         ${axe.causeProbable ? `<div class="axe-cause">${axe.causeProbable}</div>` : ''}
+         <div class="reco-box"><b>Recommandation —</b> ${axe.recommandation}</div>`
+      : `<div class="coach-sub">Aucun axe de progression prioritaire ne se dégage actuellement sur les compétences suivies — ${vueManager ? 'continuez ainsi' : 'continuez ainsi'}. ✅</div>`;
+
+    document.getElementById('app').innerHTML = `
+      <div class="coach-card">
+        <div class="coach-text">${accueil}</div>
+      </div>
+
+      <div class="section-label">${vueManager ? 'Ses points forts' : 'Vos points forts'}</div>
+      <div class="coach-card">${fortsHtml}</div>
+
+      <div class="section-label">${vueManager ? 'Son principal axe de progression' : 'Votre principal axe de progression'}</div>
+      <div class="coach-card">${axeHtml}</div>
+
+      <div class="section-label">Encouragement</div>
+      <div class="encourage-card">${encouragement}</div>
+
+      <div class="section-label">Niveau NEXUS</div>
+      <div class="niveau-card">
+        <div class="niveau-top">
+          <span class="niveau-label">Niveau</span>
+          <span class="niveau-etoiles">${niveau.etoiles ? '★'.repeat(niveau.etoiles) + '☆'.repeat(5 - niveau.etoiles) : '—'}</span>
+        </div>
+        <div class="niveau-detail">${niveau.detail}</div>
+        ${ligneCompetence('Caisse', statutCaisseVal)}
+        ${ligneCompetence('Ponctualité', statutPonctualiteVal)}
+        ${ligneCompetence('Missions', statutMissionsVal)}
+        ${ligneCompetence('Tenue', statutTenueVal)}
+        ${ligneCompetence('Relation client', statutRelationClientVal)}
+      </div>
+    `;
+  });
+</script>
+</body>
+</html>

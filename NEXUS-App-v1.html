@@ -442,6 +442,23 @@
     </div>
   </a>
 
+  <!-- Ma Progression (27/07/2026, demande de Frédéric) : "je créerais une
+       page 'Ma progression' ... le Conseiller NEXUS devient un coach
+       personnel à chaque employé". Même emplacement/poids visuel que le
+       hero Missions ci-dessus, juste en dessous — style="display:none"
+       par défaut, révélé par le même mécanisme data-role="employe" que le
+       reste de cette section. -->
+  <a class="hero" data-role="employe" href="NEXUS-Progression-v1.html" id="heroProgression" style="display:none; margin-top:0;">
+    <div class="hero-top">
+      <div class="hero-icon"><img src="assets/icons/icon-evolution.png" alt=""></div>
+      <div>
+        <div class="hero-title">Ma Progression</div>
+        <div class="hero-desc">Votre coach personnel NEXUS : points forts, axe de progression, encouragements</div>
+      </div>
+      <div class="hero-arrow">›</div>
+    </div>
+  </a>
+
   <!-- Recherche NEXUS (27/07/2026, demande de Frédéric) : remplace la
        section fixe "Votre journée" (Pointage, Mon Planning) — ces écrans,
        et tous les autres, se retrouvent maintenant en tapant quelques
@@ -1815,8 +1832,11 @@
   // (source de vérité pour la recherche), avec le même rôle/forfait que
   // le menu Explorer NEXUS pour ne jamais suggérer une page interdite.
   // "Mon Évolution" et "Prise de poste" ont été volontairement retirés de
-  // la navigation (demande de Frédéric du 27/07/2026) — pas réintroduits
-  // ici pour rester cohérent, à ajouter si besoin.
+  // la navigation (demande de Frédéric du 27/07/2026) — "Prise de poste"
+  // reste exclue (déjà faite après connexion). "Mon Évolution" est
+  // redevenue "Ma Progression" le même jour, sous une forme entièrement
+  // différente (coach personnel, voir nexus-progression.js) — présente
+  // ci-dessous sous son nouveau nom.
   // ------------------------------------------------------------
   const PAGES_INDEX = [
     { label: 'Cockpit', desc: 'Le brief du matin, en un coup d\'œil', href: 'NEXUS-Cockpit-v2.html', role: 'manager' },
@@ -1843,6 +1863,10 @@
     { label: 'Debug créateur', desc: 'Outils techniques multi-site — agit directement sur Supabase', href: 'NEXUS-Debug-Createur-v1.html', role: 'createur', danger: true },
     { label: 'Pointage', desc: 'Arrivée, pause, départ', href: 'NEXUS-Pointage-v1.html', role: 'all' },
     { label: 'Mon Planning', desc: 'Vos jours de travail, votre rôle, vos repos', href: 'NEXUS-Mon-Planning-v1.html', role: 'all' },
+    // Ma Progression (27/07/2026, demande de Frédéric) : role 'all' — sans
+    // ?employe dans l'URL, la page affiche toujours les données de la
+    // personne connectée (employé comme manager), jamais celles d'un tiers.
+    { label: 'Ma Progression', desc: 'Votre coach personnel NEXUS', href: 'NEXUS-Progression-v1.html', role: 'all' },
   ];
 
   function normaliserRecherche(s) {
@@ -1994,6 +2018,7 @@
 
     if (estNiveauManager) {
       document.getElementById('heroEmploye').style.display = 'none';
+      document.getElementById('heroProgression').style.display = 'none';
       document.querySelectorAll('[data-role="manager"]').forEach(el => el.style.display = '');
 
       // "Explorer NEXUS" (27/07/2026) — regroupe Piloter, Performer,
@@ -2015,6 +2040,7 @@
       forfaitProfessional = await verrouillerNavForfait(employee.site_id || 'vito-sainte-marie');
     } else {
       document.getElementById('heroEmploye').style.display = '';
+      document.getElementById('heroProgression').style.display = '';
     }
 
     if (employee.est_createur) {
