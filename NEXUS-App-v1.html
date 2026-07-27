@@ -163,41 +163,44 @@
   .section-tag::after{content:''; flex:1; height:1px; background:var(--hairline);}
   .section-tag .n1{color:var(--gold);}
 
-  .synthese-jour{margin:14px 20px 4px; padding:14px 16px; border-radius:12px; background:var(--panel-raised); border:1px solid var(--hairline); font-size:14px; line-height:1.55; display:flex; align-items:flex-start; gap:10px;}
-  .synthese-jour b{font-weight:700;}
-  .synthese-dot{width:9px; height:9px; border-radius:50%; margin-top:6px; flex-shrink:0; box-shadow:0 0 8px currentColor;}
-
+  /* Refonte du 26/07/2026 (demande de Frédéric) — "État global" : badge de
+     statut + Indice sur une seule ligne, une phrase de synthèse, puis 4
+     domaines (Commerce/Valeur/Opérations/Équipe) plutôt que deux colonnes
+     Indice/Marge+ séparées. Marge+ n'a pas disparu : son écart devient le
+     détail du domaine Valeur (voir renderEtatGlobal). L'ancien
+     .etat-narrative/.etat-dot/.indice-badge/.etat-row/.etat-col n'ont plus
+     d'usage et sont retirés ; .etat-card, .indice-legende et .legende-*
+     restent identiques (légende de l'Indice inchangée). Remplace aussi les
+     bandeaux .alerte-banner/.tempo-banner/.tempo-banner-fort par la grille
+     "À retenir aujourd'hui" (.retenir-grid) plus bas. */
   .etat-card{margin:0 20px; padding:24px 22px; border-radius:20px; background:radial-gradient(120% 140% at 50% -10%, rgba(212,175,55,0.14), rgba(79,195,217,0.05) 55%, transparent 80%), var(--panel); border:1px solid rgba(212,175,55,0.2); box-shadow:0 12px 34px rgba(0,0,0,0.32);}
-  .etat-row{display:flex; gap:0;}
-  .etat-col{flex:1; text-align:center;}
-  .etat-col + .etat-col{border-left:1px solid var(--hairline);}
-  .etat-label{font-family:var(--mono); font-size:9.5px; letter-spacing:0.1em; text-transform:uppercase; color:var(--text-dim);}
-  #indiceLegendeToggle{cursor:pointer;}
-  .etat-value{font-family:var(--mono); font-size:38px; font-weight:700; line-height:1.15; margin-top:6px; color:var(--text-dim);}
-  .etat-sub{font-size:10.5px; color:var(--text-mid); margin-top:4px;}
-  .etat-narrative{margin-top:16px; padding-top:14px; border-top:1px solid var(--hairline); display:flex; align-items:center; gap:9px; font-size:11.5px; color:var(--text-dim); line-height:1.5;}
-  .etat-dot{width:8px; height:8px; border-radius:50%; flex-shrink:0; box-shadow:0 0 10px currentColor;}
-  .indice-badge{display:none; margin-top:7px; padding:3px 10px; border-radius:20px; font-family:var(--mono); font-size:10px; font-weight:700;}
+  .etat-header{display:flex; align-items:center; gap:10px; flex-wrap:wrap;}
+  .etat-statut-badge{font-family:var(--mono); font-size:10.5px; font-weight:700; padding:4px 11px; border-radius:20px; text-transform:uppercase; letter-spacing:0.04em;}
+  .etat-indice-inline{font-family:var(--mono); font-size:12.5px; color:var(--text-mid); margin-left:auto; white-space:nowrap;}
+  .etat-indice-inline b{font-size:20px; color:var(--text); font-weight:700;}
+  #indiceLegendeToggle{cursor:pointer; color:var(--text-dim); font-size:13px; flex-shrink:0;}
+  .etat-synthese{margin-top:14px; font-size:13.5px; line-height:1.6; color:var(--text);}
   .indice-legende{display:none; margin-top:14px; padding-top:12px; border-top:1px solid var(--hairline); text-align:left;}
   .indice-legende.open{display:block;}
   .legende-row{display:flex; align-items:center; gap:8px; padding:4px 0; font-size:11px; color:var(--text-mid);}
   .legende-dot{width:8px; height:8px; border-radius:50%; flex-shrink:0;}
+  .etat-domaines{margin-top:16px; padding-top:14px; border-top:1px solid var(--hairline); display:flex; flex-direction:column; gap:10px;}
+  .domaine-row{display:flex; align-items:flex-start; justify-content:space-between; gap:10px; font-size:12.5px;}
+  .domaine-nom{color:var(--text-mid); padding-top:1px;}
+  .domaine-statut{font-family:var(--mono); font-size:11px; font-weight:700; text-align:right; white-space:nowrap;}
+  .domaine-detail{display:block; font-family:var(--mono); font-size:9.5px; color:var(--text-dim); font-weight:400; margin-top:2px;}
 
-  .alerte-banner{margin:12px 20px 0; padding:12px 15px; border-radius:12px; background:var(--red-dim); border:1px solid rgba(240,87,90,0.35); display:flex; align-items:center; gap:10px; font-size:12px; color:var(--text);}
-  .alerte-banner b{color:var(--red);}
-  .alerte-banner a{margin-left:auto; font-family:var(--mono); font-size:10.5px; color:var(--red); white-space:nowrap; text-decoration:underline; flex-shrink:0;}
-
-  /* NEXUS Tempo — constat ponctuel (25/07/2026) : ne s'affiche que quand une
-     tendance fiable existe (voir chargerConstatTempoHome). NEXUS Tempo
-     lui-même reste dans Analyse & Pilotage — seule sa conclusion remonte
-     ici, jamais l'écran complet. */
-  .tempo-banner{margin:12px 20px 0; padding:12px 15px; border-radius:12px; background:var(--cyan-dim,#123138); border:1px solid rgba(79,195,217,0.3); display:flex; align-items:center; gap:10px; font-size:12px; color:var(--text); line-height:1.5;}
-  .tempo-banner a{margin-left:auto; font-family:var(--mono); font-size:10.5px; color:var(--cyan); white-space:nowrap; text-decoration:underline; flex-shrink:0;}
-
-  /* "Meilleure performance" (26/07/2026) — symétrique du bandeau ci-dessus,
-     vert plutôt que cyan pour marquer un constat positif. */
-  .tempo-banner-fort{margin:12px 20px 0; padding:12px 15px; border-radius:12px; background:var(--green-dim); border:1px solid rgba(52,211,153,0.3); display:flex; align-items:center; gap:10px; font-size:12px; color:var(--text); line-height:1.5;}
-  .tempo-banner-fort a{margin-left:auto; font-family:var(--mono); font-size:10.5px; color:var(--green); white-space:nowrap; text-decoration:underline; flex-shrink:0;}
+  /* "À retenir aujourd'hui" (26/07/2026) — trois cartes compactes, même
+     motif visuel que .reveles-grid/.revele-card dans NEXUS Tempo (Jour
+     moteur / En progression / À renforcer), pour garder une signature
+     visuelle cohérente entre les deux pages plutôt qu'inventer un
+     nouveau style de carte. */
+  .retenir-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:8px; padding:0 20px;}
+  .retenir-card{background:var(--panel); border:1px solid var(--hairline); border-radius:14px; padding:13px 11px; text-align:center;}
+  .retenir-tag{font-family:var(--mono); font-size:8.5px; letter-spacing:0.05em; text-transform:uppercase; margin-bottom:8px;}
+  .retenir-titre{font-size:13px; font-weight:700; line-height:1.3;}
+  .retenir-detail{font-family:var(--mono); font-size:9.5px; color:var(--text-mid); margin-top:6px; line-height:1.4;}
+  .retenir-vide{font-size:10px; color:var(--text-dim); font-style:italic; line-height:1.4; margin-top:6px;}
 
   .priorite-item{display:flex; gap:10px; padding:11px 0; border-top:1px solid var(--hairline); align-items:flex-start;}
   .priorite-item:first-of-type{border-top:none;}
@@ -280,23 +283,12 @@
        depuis ce cadre.
        ============================================================ -->
   <div data-role="manager" style="display:none;">
-    <div class="synthese-jour" id="syntheseJour" style="display:none;"></div>
-
-    <div class="section-tag"><span class="n1">1</span> Ce que vous devez savoir en premier</div>
+    <div class="section-tag"><span class="n1">1</span> État global</div>
     <div class="etat-card">
-      <div class="etat-row">
-        <div class="etat-col">
-          <div class="etat-label" id="indiceLegendeToggle">Indice NEXUS <span style="opacity:0.6;">ⓘ</span></div>
-          <div class="etat-value" id="indiceValeur">—</div>
-          <div class="indice-badge" id="indiceBadge"></div>
-          <div class="etat-sub" id="indiceSub">Calcul en cours…</div>
-        </div>
-        <div class="etat-col">
-          <div class="etat-label">Nexus Marge+</div>
-          <div class="etat-value" id="margeValeur" style="font-size:22px;">—</div>
-          <div class="etat-sub" id="margeSub">Calcul en cours…</div>
-          <a href="NEXUS-Scanner-v1.html" style="display:inline-block; margin-top:6px; font-family:var(--mono); font-size:10px; color:var(--cyan);">Voir le détail →</a>
-        </div>
+      <div class="etat-header">
+        <span class="etat-statut-badge" id="etatStatutBadge"></span>
+        <span class="etat-indice-inline">INDICE <b id="indiceValeur">—</b></span>
+        <span id="indiceLegendeToggle">ⓘ</span>
       </div>
       <div class="indice-legende" id="indiceLegende">
         <div class="legende-row"><span class="legende-dot" style="background:var(--green);"></span>90–100 · Excellence</div>
@@ -304,12 +296,12 @@
         <div class="legende-row"><span class="legende-dot" style="background:var(--amber);"></span>60–74 · À surveiller</div>
         <div class="legende-row"><span class="legende-dot" style="background:var(--red);"></span>Moins de 60 · Priorité élevée</div>
       </div>
-      <div class="etat-narrative" id="etatNarrative"></div>
+      <div class="etat-synthese" id="etatSynthese">Analyse en cours…</div>
+      <div class="etat-domaines" id="etatDomaines"></div>
     </div>
 
-    <div class="alerte-banner" id="alerteBanner" style="display:none;"></div>
-    <div class="tempo-banner" id="tempoBanner" style="display:none;"></div>
-    <div class="tempo-banner-fort" id="tempoBannerFort" style="display:none;"></div>
+    <div class="section-tag"><span class="n1">2</span> À retenir aujourd'hui</div>
+    <div class="retenir-grid" id="retenirGrid"></div>
 
     <div class="conseiller-card">
       <div class="conseiller-head">
@@ -322,10 +314,10 @@
       <div id="conseillerCorps"><div class="conseiller-text">Analyse de vos données en cours…</div></div>
     </div>
 
-    <div class="section-tag"><span class="n1">2</span> Aujourd'hui</div>
+    <div class="section-tag"><span class="n1">3</span> Aujourd'hui</div>
     <div class="kpi-grid" id="kpiGrid"></div>
 
-    <div class="section-tag"><span class="n1">3</span> Vos outils principaux</div>
+    <div class="section-tag"><span class="n1">4</span> Vos outils principaux</div>
     <div class="outils-grid" id="outilsGrid"></div>
 
     <div class="plus-toggle" id="plusToggle">Tous les outils <span class="chev">▾</span></div>
@@ -504,7 +496,8 @@
            (piste + boutique + équipes + jours de la semaine), volontairement
            positionné ici plutôt que sur l'accueil — il ne remonte en page
            d'accueil que via un constat ponctuel du Conseiller quand une
-           tendance fiable existe (voir renderConstatTempoHome ci-dessous). -->
+           tendance fiable existe (voir chargerConstatTempoHome / renderEtatGlobal
+           / renderARetenir ci-dessous). -->
       <a class="nav-item" data-role="manager" data-forfait="professional" href="NEXUS-Tempo-v1.html">
         <div class="nav-icon"><img src="assets/icons/icon-nexus-tempo.png" alt="NEXUS Tempo"></div>
         <div class="nav-body">
@@ -853,12 +846,20 @@
   // que le KPI "Équipe" de l'accueil et le domaine "Équipe" du Radar
   // affichent toujours le même nombre.
   async function chargerDomainesRadarHome() {
-    const [{ data: completions, error: e1 }, { data: pointages, error: e2 }] = await Promise.all([
+    // Mise à jour du 26/07/2026 (demande de Frédéric) : le domaine
+    // "Équipe" de l'État global exige de savoir si assez de pointages ont
+    // été enregistrés, pas seulement combien ont un retard — sans ce total,
+    // "0 retard" et "aucun pointage" seraient indiscernables et donneraient
+    // un score de 100 % par défaut, une fausse excellence plutôt qu'une
+    // absence de données (voir statutEquipe plus bas).
+    const [{ data: completions, error: e1 }, { data: pointagesRetard, error: e2 }, { count: totalPointages, error: e3 }] = await Promise.all([
       nexusClient.from('mission_completions').select('points'),
       nexusClient.from('pointages').select('retard_min').eq('type', 'arrivee').gt('retard_min', 0),
+      nexusClient.from('pointages').select('id', { count: 'exact', head: true }).eq('type', 'arrivee'),
     ]);
     if (e1) console.error('Chargement mission_completions (accueil):', e1);
     if (e2) console.error('Chargement pointages (accueil):', e2);
+    if (e3) console.error('Chargement total pointages (accueil):', e3);
     let devScore = null;
     if (completions && completions.length) {
       const points = completions.reduce((s, c) => s + (c.points || 0), 0);
@@ -866,12 +867,12 @@
     }
     let equipeScore = null;
     let nbRetards = 0;
-    if (pointages) {
-      nbRetards = pointages.length;
-      const totalRetard = pointages.reduce((s, p) => s + (p.retard_min || 0), 0);
+    if (pointagesRetard) {
+      nbRetards = pointagesRetard.length;
+      const totalRetard = pointagesRetard.reduce((s, p) => s + (p.retard_min || 0), 0);
       equipeScore = Math.round(Math.max(0, 100 - totalRetard));
     }
-    return { devScore, equipeScore, nbRetards };
+    return { devScore, equipeScore, nbRetards, totalPointages: totalPointages != null ? totalPointages : null };
   }
 
   // Nexus Verify n'a pas de notion de "contrôle en attente" en base — sa
@@ -953,29 +954,6 @@
     return { nbEcarts: ecarts.length, gainPotentiel: ecarts.reduce((s, e) => s + e.gainPotentiel, 0) };
   }
 
-  function renderMargePlus(resultat) {
-    const valeurEl = document.getElementById('margeValeur');
-    const subEl = document.getElementById('margeSub');
-    if (!resultat) {
-      valeurEl.textContent = '—';
-      valeurEl.style.color = 'var(--text-dim)';
-      subEl.textContent = 'Pas assez de données pour ce calcul.';
-      return;
-    }
-    if (resultat.nbEcarts === 0) {
-      valeurEl.textContent = 'RAS';
-      valeurEl.style.color = 'var(--green)';
-      subEl.textContent = 'Aucune recommandation active';
-    } else {
-      // "récupérables" plutôt que juste "€" (24/07/2026, demande de Frédéric) :
-      // le montant est un potentiel identifié, pas un acquis — le vocabulaire
-      // doit le dire sans qu'on ait besoin de lire la légende.
-      valeurEl.textContent = Math.round(resultat.gainPotentiel).toLocaleString('fr-FR') + ' € récupérables';
-      valeurEl.style.color = 'var(--amber)';
-      subEl.textContent = `${resultat.nbEcarts} recommandation${resultat.nbEcarts > 1 ? 's' : ''} active${resultat.nbEcarts > 1 ? 's' : ''}`;
-    }
-  }
-
   // ------------------------------------------------------------
   // NEXUS Tempo — constat ponctuel sur l'accueil (25/07/2026, demande de
   // Frédéric) : "le Cockpit et le Conseiller affichent la conclusion, la
@@ -987,6 +965,15 @@
   // ------------------------------------------------------------
   const SEUIL_CONSTAT_TEMPO = -0.10;
 
+  // Opérations (26/07/2026, demande de Frédéric) : seuil provisoire, non
+  // recalibré (même esprit que la pondération de nexus-indice.js) — à
+  // ajuster une fois plusieurs semaines d'historique réel disponibles.
+  const SEUIL_ECART_OPERATIONS_EUR = 15;
+  function calculerStatutOperations(moyenneEcartAbsolu, nbJours) {
+    if (!nbJours) return 'Données insuffisantes';
+    return moyenneEcartAbsolu <= SEUIL_ECART_OPERATIONS_EUR ? 'Stable' : 'À surveiller';
+  }
+
   // Mise à jour du 26/07/2026 (demande de Frédéric) : l'accueil doit aussi
   // répondre à "où est ma meilleure performance ?", pas seulement "où est
   // ma vigilance ?" — jusqu'ici seul le jour faible remontait sur App-v1.
@@ -994,12 +981,17 @@
   // supplémentaire (même agrégat audits_caisse, déjà chargé). Exigence de
   // confianceTendance (≥2 occurrences du même jour) avant de l'afficher,
   // comme pour le jour faible — jamais désigner "votre meilleur jour"
-  // après une seule occurrence, ce serait un hasard de calendrier.
+  // après une seule occurrence, ce serait un hasard de calendrier. Le
+  // domaine "Opérations" de l'État global (moyenne des écarts de caisse)
+  // est calculé ici aussi, sur les mêmes lignes déjà chargées.
   async function chargerConstatTempoHome(siteId) {
     const { data, error } = await fetchAllRowsHome(() => nexusClient.from('audits_caisse')
       .select('date, quart, vente_piste, vente_boutique, ecart_piste, ecart_boutique, employes_piste, employes_boutique')
       .eq('site', siteId).order('date', { ascending: true }));
-    if (error || !data) { console.error('Chargement audits_caisse (constat Tempo):', error); return { jourARenforcer: null, jourMoteur: null, totalJours: 0 }; }
+    if (error || !data) {
+      console.error('Chargement audits_caisse (constat Tempo):', error);
+      return { jourARenforcer: null, jourMoteur: null, totalJours: 0, statutOperations: 'Données insuffisantes', detailOperations: null };
+    }
     const joursAgreges = NexusTempo.agregerParJour(data);
     const totalJours = joursAgreges.length;
     const regroupement = NexusTempo.regrouperParJourSemaine(joursAgreges);
@@ -1008,29 +1000,51 @@
     const jourARenforcerRetenu = (!jourARenforcer || !jourARenforcer.confianceTendance || jourARenforcer.evolutionCombinee === null || jourARenforcer.evolutionCombinee > SEUIL_CONSTAT_TEMPO)
       ? null : jourARenforcer;
     const jourMoteur = (jourMoteurBrut && jourMoteurBrut.confianceTendance) ? jourMoteurBrut : null;
-    return { jourARenforcer: jourARenforcerRetenu, jourMoteur, totalJours };
+
+    const detailOperations = totalJours > 0
+      ? joursAgreges.reduce((s, j) => s + Math.abs(j.ecartPiste) + Math.abs(j.ecartBoutique), 0) / totalJours
+      : null;
+    const statutOperationsVal = calculerStatutOperations(detailOperations, totalJours);
+
+    return { jourARenforcer: jourARenforcerRetenu, jourMoteur, totalJours, statutOperations: statutOperationsVal, detailOperations };
   }
 
-  function renderConstatTempoHome(jour) {
-    const banner = document.getElementById('tempoBanner');
-    if (!jour) { banner.style.display = 'none'; return; }
-    const pctBoutique = jour.evolutionBoutique !== null ? `${jour.evolutionBoutique >= 0 ? '+' : ''}${(jour.evolutionBoutique * 100).toFixed(0)} % boutique` : null;
-    const pctPiste = jour.evolutionPiste !== null ? `${jour.evolutionPiste >= 0 ? '+' : ''}${(jour.evolutionPiste * 100).toFixed(0)} % piste` : null;
-    const detail = [pctPiste, pctBoutique].filter(Boolean).join(' · ');
-    banner.style.display = 'flex';
-    banner.innerHTML = `📊 Le <b>${jour.nom}</b> reste votre journée la plus faible${detail ? ` : ${detail}` : ''}. <a href="NEXUS-Tempo-v1.html">Comprendre dans NEXUS Tempo →</a>`;
-  }
+  // "À retenir aujourd'hui" (26/07/2026) — remplace les anciens bandeaux
+  // .tempo-banner/.tempo-banner-fort par trois cartes compactes (même
+  // motif visuel que .reveles-grid dans NEXUS Tempo) : Performance (jour
+  // moteur), Vigilance (jour à renforcer), Exécution (contrôles Verify en
+  // attente). Chaque carte affiche honnêtement son état vide plutôt que de
+  // masquer la carte, pour garder la promesse "3 informations, toujours au
+  // même endroit".
+  function renderARetenir({ jourMoteur, jourARenforcer, controlesVerify }) {
+    function carte(tag, couleur, titre, detail) {
+      return `<div class="retenir-card">
+        <div class="retenir-tag" style="color:${couleur};">${tag}</div>
+        <div class="retenir-titre">${titre}</div>
+        ${detail ? `<div class="retenir-detail">${detail}</div>` : ''}
+      </div>`;
+    }
+    const majuscule = s => s.charAt(0).toUpperCase() + s.slice(1);
 
-  // "Où est ma meilleure performance ?" (26/07/2026) — symétrique du
-  // bandeau ci-dessus, styles vert plutôt que cyan pour marquer la
-  // différence constat positif / vigilance. N'affiche rien si jourMoteur
-  // coïncide avec le jour à renforcer (impossible en pratique) ou si aucun
-  // jour n'a encore assez d'historique.
-  function renderMeilleurJourHome(jour) {
-    const banner = document.getElementById('tempoBannerFort');
-    if (!jour) { banner.style.display = 'none'; return; }
-    banner.style.display = 'flex';
-    banner.innerHTML = `🌟 Le <b>${jour.nom}</b> crée actuellement le plus de valeur (${Math.round(jour.moyenneCombinee).toLocaleString('fr-FR')} € en moyenne). <a href="NEXUS-Tempo-v1.html">Comprendre dans NEXUS Tempo →</a>`;
+    const performance = jourMoteur
+      ? carte('Performance', 'var(--green)', majuscule(jourMoteur.nom), 'Jour créateur de valeur')
+      : `<div class="retenir-card"><div class="retenir-tag" style="color:var(--green);">Performance</div><div class="retenir-vide">Historique encore insuffisant.</div></div>`;
+
+    let vigilance;
+    if (jourARenforcer) {
+      const pctBoutique = jourARenforcer.evolutionBoutique !== null ? `${jourARenforcer.evolutionBoutique >= 0 ? '+' : ''}${(jourARenforcer.evolutionBoutique * 100).toFixed(0)} % boutique` : null;
+      const pctPiste = jourARenforcer.evolutionPiste !== null ? `${jourARenforcer.evolutionPiste >= 0 ? '+' : ''}${(jourARenforcer.evolutionPiste * 100).toFixed(0)} % piste` : null;
+      const detail = [pctPiste, pctBoutique].filter(Boolean).join(' · ');
+      vigilance = carte('Vigilance', 'var(--amber)', majuscule(jourARenforcer.nom), detail || 'Journée la plus faible');
+    } else {
+      vigilance = `<div class="retenir-card"><div class="retenir-tag" style="color:var(--amber);">Vigilance</div><div class="retenir-vide">Aucun point de vigilance identifié.</div></div>`;
+    }
+
+    const execution = (controlesVerify != null && controlesVerify > 0)
+      ? carte('Exécution', 'var(--cyan)', `${controlesVerify} contrôle${controlesVerify > 1 ? 's' : ''} caisse`, 'à effectuer')
+      : `<div class="retenir-card"><div class="retenir-tag" style="color:var(--cyan);">Exécution</div><div class="retenir-titre" style="color:var(--green);">À jour</div><div class="retenir-detail">Aucun contrôle en attente</div></div>`;
+
+    document.getElementById('retenirGrid').innerHTML = performance + vigilance + execution;
   }
 
   let SITE_HOME = 'vito-sainte-marie';
@@ -1049,62 +1063,112 @@
     return true;
   }
 
-  function renderEtatCommerce(score, facteurs, candidatsDisponibles) {
-    const valeurEl = document.getElementById('indiceValeur');
-    const badgeEl = document.getElementById('indiceBadge');
-    const subEl = document.getElementById('indiceSub');
-    const narrEl = document.getElementById('etatNarrative');
-    const syntheseEl = document.getElementById('syntheseJour');
+  // ------------------------------------------------------------
+  // "État global" (26/07/2026, refonte demandée par Frédéric) — remplace
+  // l'ancien bloc Indice/Marge+ à deux colonnes par : un badge de statut +
+  // l'Indice sur une seule ligne, une phrase de synthèse, puis 4 domaines
+  // (Commerce/Valeur/Opérations/Équipe). Chaque domaine a son propre seuil
+  // minimum de données avant d'afficher un statut réel — "Données
+  // insuffisantes" plutôt qu'un chiffre optimiste par défaut (Article 5).
+  // ------------------------------------------------------------
+  const COULEUR_STATUT_DOMAINE = {
+    'En progression': 'var(--green)', 'Sous contrôle': 'var(--green)', 'Stable': 'var(--text-mid)',
+    'À surveiller': 'var(--amber)', 'En repli': 'var(--red)', 'À corriger': 'var(--red)',
+    'Données insuffisantes': 'var(--text-dim)',
+  };
 
-    let couleur = 'var(--text-dim)', statutTexte = null;
+  // Commerce : dynamique du CA (evolutionReelle, déjà calculée par
+  // NexusIndice.calculerFacteurs à partir d'une paire de périodes
+  // comparables — null tant qu'une seule période a été importée).
+  function statutCommerce(facteurs) {
+    if (!facteurs || facteurs.evolutionReelle == null) return 'Données insuffisantes';
+    if (facteurs.evolutionReelle >= 0.05) return 'En progression';
+    if (facteurs.evolutionReelle <= -0.05) return 'En repli';
+    return 'Stable';
+  }
+
+  // Valeur : marge réelle + écarts de marge actifs identifiés par Marge+
+  // (même moteur que l'ancienne colonne Marge+ retirée de cet écran — son
+  // résultat devient le détail de ce domaine plutôt qu'une colonne à part).
+  function statutValeur(facteurs, margePlusResultat) {
+    if (!facteurs || facteurs.margeReelle == null) return 'Données insuffisantes';
+    if (margePlusResultat && margePlusResultat.nbEcarts > 0) return 'À surveiller';
+    return 'Sous contrôle';
+  }
+
+  // Équipe : ponctualité, mais seulement si assez de pointages ont été
+  // enregistrés — sinon un score à 100 % par défaut (aucun retard observé
+  // faute de données) donnerait une fausse impression d'excellence.
+  const SEUIL_MIN_POINTAGES_EQUIPE = 5;
+  function statutEquipe(equipeScore, totalPointages) {
+    if (equipeScore == null || totalPointages == null || totalPointages < SEUIL_MIN_POINTAGES_EQUIPE) return 'Données insuffisantes';
+    if (equipeScore >= 90) return 'Sous contrôle';
+    if (equipeScore >= 70) return 'À surveiller';
+    return 'À corriger';
+  }
+
+  // Phrase de synthèse (26/07/2026) : combine la tendance Commerce avec les
+  // points de vigilance réels (jour Tempo à renforcer, marge, opérations) —
+  // jamais plus qu'un constat court, jamais une liste de chiffres.
+  function syntheseEtatGlobal(statutCommerceVal, statutValeurVal, statutOperationsVal, jourARenforcer) {
+    const concerns = [];
+    if (jourARenforcer) concerns.push(`la performance du ${jourARenforcer.nom}`);
+    if (statutValeurVal === 'À surveiller') concerns.push('la marge boutique');
+    if (statutOperationsVal === 'À surveiller') concerns.push('les écarts de caisse');
+
+    const debut = statutCommerceVal === 'En progression' ? 'Votre activité progresse'
+      : statutCommerceVal === 'En repli' ? 'Votre activité recule'
+      : statutCommerceVal === 'Stable' ? 'Votre activité reste stable'
+      : null;
+
+    if (!concerns.length) {
+      if (!debut) return "NEXUS n'a pas encore assez de données pour évaluer l'état global de votre commerce.";
+      return `${debut}, sans point de vigilance identifié aujourd'hui.`;
+    }
+    const listeConcerns = concerns.length === 1 ? concerns[0] : concerns.slice(0, -1).join(', ') + ' et ' + concerns[concerns.length - 1];
+    return `${debut || 'NEXUS analyse encore votre activité'}, mais ${listeConcerns} nécessite${concerns.length > 1 ? 'nt' : ''} votre attention.`;
+  }
+
+  function renderEtatGlobal({ score, facteurs, margePlusResultat, statutOperationsVal, detailOperations, domainesRadar, jourARenforcer }) {
+    const badgeEl = document.getElementById('etatStatutBadge');
+    const valeurEl = document.getElementById('indiceValeur');
+    const syntheseEl = document.getElementById('etatSynthese');
+    const domainesEl = document.getElementById('etatDomaines');
+
+    let couleur = 'var(--text-dim)', statutTexte = 'Données insuffisantes';
     if (score == null) {
       valeurEl.textContent = '—';
-      subEl.textContent = "Pas assez de données pour calculer l'indice.";
     } else {
       valeurEl.textContent = score;
       if (score >= 90) { couleur = 'var(--green)'; statutTexte = 'Excellence'; }
       else if (score >= 75) { couleur = 'var(--green)'; statutTexte = 'Sous contrôle'; }
       else if (score >= 60) { couleur = 'var(--amber)'; statutTexte = 'À surveiller'; }
       else { couleur = 'var(--red)'; statutTexte = 'Priorité élevée'; }
-      valeurEl.style.color = couleur;
-      badgeEl.textContent = statutTexte;
-      badgeEl.style.color = couleur;
-      badgeEl.style.background = score >= 75 ? 'var(--green-dim)' : (score >= 60 ? 'var(--amber-dim)' : 'var(--red-dim)');
-      badgeEl.style.display = 'inline-block';
-      subEl.textContent = (facteurs && facteurs.margeReelle != null)
-        ? `Marge ${(facteurs.margeReelle * 100).toFixed(1)} %${facteurs.evolutionReelle != null ? ' · évolution ' + (facteurs.evolutionReelle >= 0 ? '+' : '') + (facteurs.evolutionReelle * 100).toFixed(1) + ' %' : ''}`
-        : 'Marge non calculable';
+    }
+    badgeEl.textContent = statutTexte;
+    badgeEl.style.color = couleur;
+    badgeEl.style.background = score == null ? 'var(--panel-raised)' : (score >= 75 ? 'var(--green-dim)' : (score >= 60 ? 'var(--amber-dim)' : 'var(--red-dim)'));
+
+    const statutCommerceVal = statutCommerce(facteurs);
+    const statutValeurVal = statutValeur(facteurs, margePlusResultat);
+    const statutEquipeVal = statutEquipe(domainesRadar.equipeScore, domainesRadar.totalPointages);
+
+    syntheseEl.textContent = syntheseEtatGlobal(statutCommerceVal, statutValeurVal, statutOperationsVal, jourARenforcer);
+
+    function ligneDomaine(nom, statut, detail) {
+      const c = COULEUR_STATUT_DOMAINE[statut] || 'var(--text-dim)';
+      return `<div class="domaine-row">
+        <span class="domaine-nom">${nom}</span>
+        <span class="domaine-statut" style="color:${c};">${statut}${detail ? `<span class="domaine-detail">${detail}</span>` : ''}</span>
+      </div>`;
     }
 
-    const nbUrgent = candidatsDisponibles.filter(c => c.etat === '🔥 À AGIR' || c.etat === '🟡 À SURVEILLER').length;
-    narrEl.innerHTML = `<span class="etat-dot" style="background:${couleur}; color:${couleur};"></span>${nbUrgent > 0
-      ? `${nbUrgent} point${nbUrgent > 1 ? 's' : ''} identifié${nbUrgent > 1 ? 's' : ''} sur vos données actuelles.`
-      : "Aucun point d'attention identifié sur vos données actuelles."}`;
-
-    const nbDecisions = Math.min(candidatsDisponibles.length, 3);
-    const gainPotentiel = candidatsDisponibles.slice(0, 3).reduce((s, c) => s + c.impact_eur, 0);
-    // Reformulation du 24/07/2026 (demande de Frédéric) : "NEXUS estime que…"
-    // plutôt qu'une affirmation brute ("Votre commerce est…") — le statut est
-    // une lecture de NEXUS sur les données disponibles, pas un jugement
-    // définitif. Pastille de couleur en émoji directement dans la phrase
-    // (🟢/🟠/🔴) pour rester lisible même si le style de la carte change.
-    // "de valeur supplémentaire" plutôt que "de valeur aujourd'hui" : le
-    // montant est un potentiel identifié par NEXUS, pas un gain acquis.
-    const EMOJI_STATUT = { 'var(--green)': '🟢', 'var(--amber)': '🟠', 'var(--red)': '🔴' };
-    const NOMBRE_EN_LETTRES = ['aucune', 'une', 'deux', 'trois'];
-    let syntheseTexte;
-    if (!statutTexte) {
-      syntheseTexte = "NEXUS n'a pas encore assez de données pour évaluer votre situation aujourd'hui.";
-    } else {
-      const emoji = EMOJI_STATUT[couleur] || '⚪';
-      const phraseStatut = `${emoji} NEXUS estime que votre commerce est <b>${statutTexte.toLowerCase()}</b>.`;
-      const phraseDecisions = nbDecisions === 0
-        ? `Aucune décision prioritaire identifiée aujourd'hui.`
-        : `Aujourd'hui, ${NOMBRE_EN_LETTRES[nbDecisions]} décision${nbDecisions > 1 ? 's' : ''} peu${nbDecisions > 1 ? 'vent' : 't'} créer environ <b style="color:var(--gold);">${Math.round(gainPotentiel).toLocaleString('fr-FR')} €</b> de valeur supplémentaire.`;
-      syntheseTexte = phraseStatut + ' ' + phraseDecisions;
-    }
-    syntheseEl.style.display = 'flex';
-    syntheseEl.innerHTML = `<span>${syntheseTexte}</span>`;
+    domainesEl.innerHTML = [
+      ligneDomaine('Commerce', statutCommerceVal, (facteurs && facteurs.evolutionReelle != null) ? `${facteurs.evolutionReelle >= 0 ? '+' : ''}${(facteurs.evolutionReelle * 100).toFixed(1)} % vs période précédente` : null),
+      ligneDomaine('Valeur', statutValeurVal, (margePlusResultat && margePlusResultat.nbEcarts > 0) ? `${Math.round(margePlusResultat.gainPotentiel).toLocaleString('fr-FR')} € de potentiel identifié` : ((facteurs && facteurs.margeReelle != null) ? `Marge ${(facteurs.margeReelle * 100).toFixed(1)} %` : null)),
+      ligneDomaine('Opérations', statutOperationsVal, detailOperations != null ? `${Math.round(detailOperations).toLocaleString('fr-FR')} € d'écart moyen/jour` : null),
+      ligneDomaine('Équipe', statutEquipeVal, statutEquipeVal !== 'Données insuffisantes' ? `${domainesRadar.equipeScore} % de ponctualité` : null),
+    ].join('');
   }
 
   // Verbes d'action du Conseiller (24/07/2026, demande de Frédéric) —
@@ -1357,10 +1421,18 @@
     const candidatsDisponibles = candidats.filter(c => !valideesSite.has(c.candidate_id));
     const score = facteurs ? NexusIndice.calculerIndiceNexus(facteurs) : null;
 
-    renderEtatCommerce(score, facteurs, candidatsDisponibles);
-    renderMargePlus(margePlusResultat);
-    renderConstatTempoHome(constatTempo.jourARenforcer);
-    renderMeilleurJourHome(constatTempo.jourMoteur);
+    renderEtatGlobal({
+      score, facteurs, margePlusResultat,
+      statutOperationsVal: constatTempo.statutOperations,
+      detailOperations: constatTempo.detailOperations,
+      domainesRadar,
+      jourARenforcer: constatTempo.jourARenforcer,
+    });
+    renderARetenir({
+      jourMoteur: constatTempo.jourMoteur,
+      jourARenforcer: constatTempo.jourARenforcer,
+      controlesVerify,
+    });
     renderConseillerHome(candidatsDisponibles.slice(0, 3), employee.nom);
     renderKpiGrid({
       missionsRestantes: missionsRestantesRes.restantes,
