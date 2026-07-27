@@ -332,7 +332,7 @@
     <div class="section-tag"><span class="n1">4</span> Vos outils principaux</div>
     <div class="outils-grid" id="outilsGrid"></div>
 
-    <div class="plus-toggle" id="plusToggle">Tous les outils <span class="chev">▾</span></div>
+    <div class="plus-toggle" id="plusToggle">Explorer NEXUS <span class="chev">▾</span></div>
     <div class="plus-zone" id="plusZone"></div>
   </div>
 
@@ -347,38 +347,15 @@
     </div>
   </a>
 
-  <!-- Mise à jour du 26/07/2026 (demande de Frédéric) : ces deux groupes ne
-       gardent que les écrans partagés avec l'employé (data-role="all") —
-       les items manager-only qui vivaient ici (Assignations, Résultats
-       Équipe, Évaluation, Nexus Planner, Plans d'action, Rappels) ont été
-       déplacés vers les groupes "Gestion d'équipe" et "Planification"
-       (voir Niveau 4 plus bas), repliés dans "Tous les outils". But :
-       arriver à UN SEUL point de repli après le poste de pilotage manager
-       au lieu de trois ("Tous les outils" + "Équipe" + "Votre journée"
-       chacun avec leur propre toggle) — l'écran employé, qui ne voyait de
-       toute façon que ces items partagés, ne change pas d'un pixel. -->
-  <div class="section-label">Équipe</div>
-  <nav data-group="equipe">
-    <a class="nav-item" data-role="all" href="NEXUS-Mon-Evolution-v1.html">
-      <div class="nav-icon"><img src="assets/icons/icon-evolution.png" alt="Mon évolution"></div>
-      <div class="nav-body">
-        <div class="nav-title">Mon Évolution</div>
-        <div class="nav-desc">Vos missions prouvées, votre progression réelle</div>
-      </div>
-      <div class="nav-arrow">›</div>
-    </a>
-  </nav>
-
+  <!-- Mise à jour du 27/07/2026 (demande de Frédéric) : "Mon Évolution"
+       (pas assez pertinent au quotidien) et "Prise de poste" (déjà géré
+       automatiquement juste après le login — voir la redirection vers
+       NEXUS-Prise-De-Poste-v1.html plus bas, indépendante de ce lien) sont
+       retirés. Seul "Votre journée" survit, réduit à Pointage (grisé tant
+       que non pertinent, logique inchangée) et Mon Planning — ces deux
+       écrans restent partagés avec l'employé (data-role="all"). -->
   <div class="section-label">Votre journée</div>
   <nav data-group="journee">
-    <a class="nav-item" data-role="all" href="NEXUS-Prise-De-Poste-v1.html">
-      <div class="nav-icon"><img src="assets/icons/icon-prise-de-poste.png" alt="Prise de poste"></div>
-      <div class="nav-body">
-        <div class="nav-title">Prise de poste</div>
-        <div class="nav-desc">Confirmez votre rôle du jour</div>
-      </div>
-      <div class="nav-arrow">›</div>
-    </a>
     <a class="nav-item" data-role="all" href="NEXUS-Pointage-v1.html" id="navPointage">
       <div class="nav-icon"><img src="assets/icons/icon-pointage.png" alt="Pointage"></div>
       <div class="nav-body">
@@ -398,88 +375,70 @@
   </nav>
 
   <!-- ============================================================
-       Niveau 4 — "Tous les outils" (24/07/2026, étendu le 26/07/2026).
-       Les groupes ci-dessous restent le menu réel, inchangé (mêmes
-       liens, mêmes badges, même repli interne via initGroupes()) —
-       seule leur PLACE change pour un manager : ils sont déplacés par
-       JS dans #plusZone au chargement, derrière un seul point d'entrée
-       replié, au lieu de s'afficher en toujours-visible comme avant.
-       Pour un employé, ces groupes n'existent de toute façon pas (déjà
-       masqués par data-role="manager" plus bas) — rien ne change pour
-       lui. "Gestion d'équipe" et "Planification" ont rejoint ce
-       Niveau 4 le 26/07/2026 : ce sont les items manager-only qui
-       vivaient auparavant mélangés dans les groupes "Équipe" et "Votre
-       journée" toujours visibles — les en extraire ramène le nombre de
-       points de repli après le poste de pilotage manager de trois à un
-       seul.
+       "Explorer NEXUS" (27/07/2026, demande de Frédéric) — remplace
+       l'ancien Niveau 4 "Tous les outils" (6 groupes techniques : Gestion
+       d'équipe, Planification, Analyse & pilotage, Gérer, Découvrir,
+       Intelligence NEXUS) par 5 univers nommés selon l'usage du dirigeant,
+       pas selon la structure technique de l'app : Piloter, Performer,
+       Exécuter, Équipe, Administrer. Chaque groupe garde exactement le
+       même mécanisme qu'avant (une carte par groupe, un aperçu par défaut,
+       le reste replié derrière "X autres écrans" via initGroupes()) —
+       seuls le regroupement et les intitulés changent. Décisions prises
+       avec Frédéric le 27/07/2026 : "Plans d'action" et "Missions"
+       pointaient déjà vers le même écran (NEXUS-Missions-v1.html) → une
+       seule entrée "Missions" ; "Planning" = Nexus Planner (outil manager),
+       pas Mon Planning (resté ci-dessus, partagé avec l'employé) ;
+       "Administration multi-site" reste réservée au créateur. Scanner
+       NEXUS (marge/CA/ABC), Radar du Manager et Rappels n'étaient pas
+       listés explicitement par Frédéric — placés respectivement dans
+       Piloter, Piloter et Administrer par cohérence, à corriger s'il en
+       décide autrement. Pour un employé, ces groupes n'existent de toute
+       façon pas (masqués par data-role="manager"/"createur") — rien ne
+       change pour lui.
        ============================================================ -->
-  <div class="groupe-wrap" data-groupe="equipe-manager">
-    <div class="section-label" data-role="manager" style="display:none;">Gestion d'équipe</div>
-    <nav data-role="manager" data-group="equipe-manager" style="display:none;">
-      <a class="nav-item" data-role="manager" data-forfait="professional" href="NEXUS-Assignations-v1.html">
-        <div class="nav-icon"><img src="assets/icons/icon-assignations.png" alt="Assignations"></div>
+  <div class="groupe-wrap" data-groupe="piloter">
+    <div class="section-label" data-role="manager" style="display:none;">Piloter</div>
+    <nav data-role="manager" data-group="piloter" style="display:none;">
+      <a class="nav-item" data-role="manager" href="NEXUS-Cockpit-v2.html">
+        <div class="nav-icon"><img src="assets/icons/icon-home.png" alt="Cockpit"></div>
         <div class="nav-body">
-          <div class="nav-title">Assignations <span class="nav-badge badge-premium">Professional</span></div>
-          <div class="nav-desc">Assigner, suivre, valider une mission</div>
+          <div class="nav-title">Cockpit</div>
+          <div class="nav-desc">Le brief du matin, en un coup d'œil</div>
         </div>
         <div class="nav-arrow">›</div>
       </a>
-      <a class="nav-item" data-role="manager" data-forfait="professional" href="NEXUS-Resultats-Equipe-v1.html">
-        <div class="nav-icon"><img src="assets/icons/icon-resultats-equipe.png" alt="Résultats équipe"></div>
+      <a class="nav-item" data-role="manager" data-preview="true" href="NEXUS-Centre-Intelligence-v1.html">
+        <div class="nav-icon"><img src="assets/icons/icon-centre-intelligence.png" alt="Centre d'Intelligence NEXUS"></div>
         <div class="nav-body">
-          <div class="nav-title">Résultats Équipe <span class="nav-badge badge-premium">Professional</span></div>
-          <div class="nav-desc">Progression réelle par employé</div>
+          <div class="nav-title">Centre d'Intelligence</div>
+          <div class="nav-desc">Que détecte NEXUS dans mon commerce ?</div>
         </div>
         <div class="nav-arrow">›</div>
       </a>
-      <!-- Aperçu par défaut du groupe (24/07/2026, demande de Frédéric) :
-           Évaluation plutôt que Résultats Équipe — c'est ce que le manager
-           fait en premier sur le terrain (évaluer son équipe), avant de
-           consulter des résultats chiffrés. -->
-      <a class="nav-item" data-role="manager" data-preview="true" data-forfait="professional" href="NEXUS-Evaluation-Employe-v1.html">
-        <div class="nav-icon"><img src="assets/icons/icon-evaluation.png" alt="Évaluation"></div>
+      <a class="nav-item" data-role="manager" data-forfait="professional" href="NEXUS-Journal-v1.html">
+        <div class="nav-icon"><img src="assets/icons/icon-journal-nexus.png" alt="Journal NEXUS"></div>
         <div class="nav-body">
-          <div class="nav-title">Évaluation <span class="nav-badge badge-premium">Professional</span></div>
-          <div class="nav-desc">Contrôle tenue + grille de prime</div>
+          <div class="nav-title">Journal <span class="nav-badge badge-premium">Professional</span></div>
+          <div class="nav-desc">Qu'est-ce qui a été fait aujourd'hui ?</div>
         </div>
         <div class="nav-arrow">›</div>
       </a>
-    </nav>
-  </div>
-
-  <div class="groupe-wrap" data-groupe="journee-manager">
-    <div class="section-label" data-role="manager" style="display:none;">Planification</div>
-    <nav data-role="manager" data-group="journee-manager" style="display:none;">
-      <a class="nav-item" data-role="manager" data-forfait="professional" href="NEXUS-Planning-v1.html">
-        <div class="nav-icon"><img src="assets/icons/icon-planner.png" alt="Nexus Planner"></div>
+      <a class="nav-item" data-role="manager" data-forfait="professional" href="NEXUS-Capital-v1.html">
+        <div class="nav-icon"><img src="assets/icons/icon-capital.png" alt="Capital NEXUS"></div>
         <div class="nav-body">
-          <div class="nav-title">Nexus Planner <span class="nav-badge badge-premium">Professional</span></div>
-          <div class="nav-desc">Le bon collaborateur, au bon endroit, au bon moment</div>
+          <div class="nav-title">Capital NEXUS <span class="nav-badge badge-premium">Professional</span></div>
+          <div class="nav-desc">La valeur créée par vos décisions</div>
         </div>
         <div class="nav-arrow">›</div>
       </a>
-      <a class="nav-item" data-role="manager" data-preview="true" href="NEXUS-Missions-v1.html">
-        <div class="nav-icon"><img src="assets/icons/icon-missions.png" alt="Plans d'action"></div>
+      <a class="nav-item" data-role="manager" data-forfait="professional" href="NEXUS-Scanner-v1.html">
+        <div class="nav-icon"><img src="assets/icons/icon-scanner.png" alt="Scanner NEXUS"></div>
         <div class="nav-body">
-          <div class="nav-title">Plans d'action</div>
-          <div class="nav-desc">55 procédures · checklist interactive</div>
+          <div class="nav-title">Scanner NEXUS <span class="nav-badge badge-premium">Professional</span></div>
+          <div class="nav-desc">CA, marge et répartition ABC du magasin</div>
         </div>
         <div class="nav-arrow">›</div>
       </a>
-      <a class="nav-item" data-role="manager" href="NEXUS-Parametres-Rappels-v1.html" id="navRappels">
-        <div class="nav-icon" id="navRappelsIcon"><img src="assets/icons/icon-rappels.png" alt="Rappels"></div>
-        <div class="nav-body">
-          <div class="nav-title">Rappels<span id="navRappelsBadge"></span></div>
-          <div class="nav-desc">Commandes fournisseurs, carburant</div>
-        </div>
-        <div class="nav-arrow">›</div>
-      </a>
-    </nav>
-  </div>
-
-  <div class="groupe-wrap" data-groupe="analyse">
-    <div class="section-label" data-role="manager" style="display:none;">Analyse &amp; pilotage</div>
-    <nav data-role="manager" data-group="analyse" style="display:none;">
       <a class="nav-item" data-role="manager" data-forfait="professional" href="NEXUS-Radar-Manager-v1.html">
         <div class="nav-icon"><img src="assets/icons/icon-radar.png" alt="Radar du manager"></div>
         <div class="nav-body">
@@ -488,6 +447,12 @@
         </div>
         <div class="nav-arrow">›</div>
       </a>
+    </nav>
+  </div>
+
+  <div class="groupe-wrap" data-groupe="performer">
+    <div class="section-label" data-role="manager" style="display:none;">Performer</div>
+    <nav data-role="manager" data-group="performer" style="display:none;">
       <a class="nav-item" data-role="manager" data-preview="true" href="NEXUS-Rayon-v1.html">
         <div class="nav-icon"><img src="assets/icons/icon-rayon.png" alt="Rayon"></div>
         <div class="nav-body">
@@ -504,23 +469,22 @@
         </div>
         <div class="nav-arrow">›</div>
       </a>
-      <!-- NEXUS Tempo (25/07/2026, demande de Frédéric) : moteur transversal
-           (piste + boutique + équipes + jours de la semaine), volontairement
-           positionné ici plutôt que sur l'accueil — il ne remonte en page
-           d'accueil que via un constat ponctuel du Conseiller quand une
-           tendance fiable existe (voir chargerConstatTempoHome / renderEtatGlobal
-           / renderARetenir ci-dessous). -->
       <a class="nav-item" data-role="manager" data-forfait="professional" href="NEXUS-Tempo-v1.html">
         <div class="nav-icon"><img src="assets/icons/icon-nexus-tempo.png" alt="NEXUS Tempo"></div>
         <div class="nav-body">
-          <div class="nav-title">NEXUS Tempo <span class="nav-badge badge-premium">Professional</span></div>
+          <div class="nav-title">Tempo <span class="nav-badge badge-premium">Professional</span></div>
           <div class="nav-desc">Les jours qui portent votre station, ceux qui la ralentissent</div>
         </div>
         <div class="nav-arrow">›</div>
       </a>
-      <!-- Scanner Stock (26/07/2026) : passe en Essential — l'ancien badge
-           Premium n'a plus lieu d'être, retiré au moment d'introduire les
-           vrais forfaits Essential/Professional (voir nexus-forfait.js). -->
+      <a class="nav-item" data-role="manager" data-forfait="professional" href="NEXUS-Campagne-v1.html">
+        <div class="nav-icon"><img src="assets/icons/icon-campagne-nexus.png" alt="Campagne NEXUS"></div>
+        <div class="nav-body">
+          <div class="nav-title">Campagnes <span class="nav-badge badge-premium">Professional</span></div>
+          <div class="nav-desc">Déclarer une promotion, mesurer son impact</div>
+        </div>
+        <div class="nav-arrow">›</div>
+      </a>
       <a class="nav-item" data-role="manager" href="NEXUS-Scanner-Stock-v1.html">
         <div class="nav-icon"><img src="assets/icons/icon-scanner-stock.png" alt="Scanner Stock"></div>
         <div class="nav-body">
@@ -529,28 +493,84 @@
         </div>
         <div class="nav-arrow">›</div>
       </a>
-      <!-- Campagne NEXUS (25/07/2026) : déclaration + suivi des promotions.
-           Phase 1 mesure l'impact CA global avant/pendant/après une
-           promotion — voir nexus-campagnes.js pour la limite honnête sur
-           l'attribution par produit (donnée absente à ce jour). -->
-      <a class="nav-item" data-role="manager" data-forfait="professional" href="NEXUS-Campagne-v1.html">
-        <div class="nav-icon"><img src="assets/icons/icon-campagne-nexus.png" alt="Campagne NEXUS"></div>
+    </nav>
+  </div>
+
+  <div class="groupe-wrap" data-groupe="executer">
+    <div class="section-label" data-role="manager" style="display:none;">Exécuter</div>
+    <nav data-role="manager" data-group="executer" style="display:none;">
+      <a class="nav-item" data-role="manager" href="NEXUS-Verify-v1.html">
+        <div class="nav-icon"><img src="assets/icons/icon-nexus-verify.png" alt="" style="filter:grayscale(1) brightness(1.05) contrast(1.05) sepia(1) hue-rotate(152deg) saturate(4);"></div>
         <div class="nav-body">
-          <div class="nav-title">Campagne NEXUS <span class="nav-badge badge-premium">Professional</span></div>
-          <div class="nav-desc">Déclarer une promotion, mesurer son impact</div>
+          <div class="nav-title">Verify</div>
+          <div class="nav-desc">Contrôle caisse et écarts</div>
+        </div>
+        <div class="nav-arrow">›</div>
+      </a>
+      <!-- Missions (27/07/2026, demande de Frédéric) : "Plans d'action" et
+           "Missions" pointaient déjà tous les deux vers cet écran — fusion
+           en une seule entrée pour ne pas afficher un doublon dans Explorer
+           NEXUS. -->
+      <a class="nav-item" data-role="manager" data-preview="true" href="NEXUS-Missions-v1.html">
+        <div class="nav-icon"><img src="assets/icons/icon-missions.png" alt="Missions"></div>
+        <div class="nav-body">
+          <div class="nav-title">Missions</div>
+          <div class="nav-desc">55 procédures · checklist interactive</div>
+        </div>
+        <div class="nav-arrow">›</div>
+      </a>
+      <a class="nav-item" data-role="manager" data-forfait="professional" href="NEXUS-Assignations-v1.html">
+        <div class="nav-icon"><img src="assets/icons/icon-assignations.png" alt="Assignations"></div>
+        <div class="nav-body">
+          <div class="nav-title">Assignations <span class="nav-badge badge-premium">Professional</span></div>
+          <div class="nav-desc">Assigner, suivre, valider une mission</div>
+        </div>
+        <div class="nav-arrow">›</div>
+      </a>
+      <a class="nav-item" data-role="manager" data-forfait="professional" href="NEXUS-Planning-v1.html">
+        <div class="nav-icon"><img src="assets/icons/icon-planner.png" alt="Nexus Planner"></div>
+        <div class="nav-body">
+          <div class="nav-title">Planning <span class="nav-badge badge-premium">Professional</span></div>
+          <div class="nav-desc">Le bon collaborateur, au bon endroit, au bon moment</div>
         </div>
         <div class="nav-arrow">›</div>
       </a>
     </nav>
   </div>
 
-  <div class="groupe-wrap" data-groupe="gerer">
-    <div class="section-label" data-role="manager" style="display:none;">Gérer</div>
-    <nav data-role="manager" data-group="gerer" style="display:none;">
-      <a class="nav-item" data-role="manager" href="NEXUS-Import-v1.html">
-        <div class="nav-icon"><img src="assets/icons/icon-import.png" alt="Import"></div>
+  <div class="groupe-wrap" data-groupe="equipe">
+    <div class="section-label" data-role="manager" style="display:none;">Équipe</div>
+    <nav data-role="manager" data-group="equipe" style="display:none;">
+      <!-- Aperçu par défaut du groupe (24/07/2026, demande de Frédéric) :
+           Évaluations plutôt que Résultats — c'est ce que le manager fait
+           en premier sur le terrain (évaluer son équipe), avant de
+           consulter des résultats chiffrés. -->
+      <a class="nav-item" data-role="manager" data-preview="true" data-forfait="professional" href="NEXUS-Evaluation-Employe-v1.html">
+        <div class="nav-icon"><img src="assets/icons/icon-evaluation.png" alt="Évaluations"></div>
         <div class="nav-body">
-          <div class="nav-title">Import</div>
+          <div class="nav-title">Évaluations <span class="nav-badge badge-premium">Professional</span></div>
+          <div class="nav-desc">Contrôle tenue + grille de prime</div>
+        </div>
+        <div class="nav-arrow">›</div>
+      </a>
+      <a class="nav-item" data-role="manager" data-forfait="professional" href="NEXUS-Resultats-Equipe-v1.html">
+        <div class="nav-icon"><img src="assets/icons/icon-resultats-equipe.png" alt="Résultats"></div>
+        <div class="nav-body">
+          <div class="nav-title">Résultats <span class="nav-badge badge-premium">Professional</span></div>
+          <div class="nav-desc">Progression réelle par employé</div>
+        </div>
+        <div class="nav-arrow">›</div>
+      </a>
+    </nav>
+  </div>
+
+  <div class="groupe-wrap" data-groupe="administrer">
+    <div class="section-label" data-role="manager" style="display:none;">Administrer</div>
+    <nav data-role="manager" data-group="administrer" style="display:none;">
+      <a class="nav-item" data-role="manager" data-preview="true" href="NEXUS-Import-v1.html">
+        <div class="nav-icon"><img src="assets/icons/icon-import.png" alt="Imports"></div>
+        <div class="nav-body">
+          <div class="nav-title">Imports</div>
           <div class="nav-desc">Ventes, catalogue ou stock instantané</div>
         </div>
         <div class="nav-arrow">›</div>
@@ -558,77 +578,49 @@
       <a class="nav-item" data-role="manager" href="NEXUS-Parametres-Station-v1.html">
         <div class="nav-icon">⚙️</div>
         <div class="nav-body">
-          <div class="nav-title">Paramètres Station</div>
+          <div class="nav-title">Paramètres</div>
           <div class="nav-desc">Horaires de service, prix carburants</div>
         </div>
         <div class="nav-arrow">›</div>
       </a>
-    </nav>
-  </div>
-
-  <div class="groupe-wrap" data-groupe="decouvrir">
-    <div class="section-label" data-role="manager" style="display:none;">Découvrir</div>
-    <nav data-role="manager" data-group="decouvrir" style="display:none;">
-      <a class="nav-item" data-role="manager" data-preview="true" data-forfait="professional" href="NEXUS-Scanner-v1.html">
-        <div class="nav-icon"><img src="assets/icons/icon-scanner.png" alt="Scanner NEXUS"></div>
+      <a class="nav-item" data-role="manager" href="NEXUS-Parametres-Rappels-v1.html" id="navRappels">
+        <div class="nav-icon" id="navRappelsIcon"><img src="assets/icons/icon-rappels.png" alt="Rappels"></div>
         <div class="nav-body">
-          <div class="nav-title">Scanner NEXUS <span class="nav-badge badge-premium">Professional</span></div>
-          <div class="nav-desc">CA, marge et répartition ABC du magasin</div>
-        </div>
-        <div class="nav-arrow">›</div>
-      </a>
-      <a class="nav-item" data-role="manager" data-forfait="professional" href="NEXUS-Capital-v1.html">
-        <div class="nav-icon"><img src="assets/icons/icon-capital.png" alt="Capital NEXUS"></div>
-        <div class="nav-body">
-          <div class="nav-title">Capital NEXUS <span class="nav-badge badge-premium">Professional</span></div>
-          <div class="nav-desc">La valeur créée par vos décisions</div>
+          <div class="nav-title">Rappels<span id="navRappelsBadge"></span></div>
+          <div class="nav-desc">Commandes fournisseurs, carburant</div>
         </div>
         <div class="nav-arrow">›</div>
       </a>
     </nav>
   </div>
 
-  <div class="groupe-wrap" data-groupe="intelligence">
-    <div class="section-label" data-role="manager" style="display:none;">Intelligence NEXUS</div>
-    <nav data-role="manager" data-group="intelligence" style="display:none;">
-      <a class="nav-item" data-role="manager" data-preview="true" href="NEXUS-Centre-Intelligence-v1.html">
-        <div class="nav-icon"><img src="assets/icons/icon-centre-intelligence.png" alt="Centre d'Intelligence NEXUS"></div>
+  <!-- Administration multi-site / Debug créateur (27/07/2026) : rattachées
+       visuellement à "Administrer", mais volontairement dans une balise nav
+       séparée, gated data-role="createur" indépendamment de "manager" —
+       les imbriquer dans le groupe manager ci-dessus les cacherait pour un
+       créateur dont le compte n'aurait pas aussi le rôle manager (display:
+       none sur l'ancêtre l'emporterait sur le data-role de l'enfant). Reste
+       réservé au créateur, comme demandé. -->
+  <div class="groupe-wrap" data-groupe="administrer-createur">
+    <nav data-role="createur" data-group="administrer-createur" style="display:none;">
+      <a class="nav-item" data-role="createur" href="NEXUS-Admin-Sites-v1.html">
+        <div class="nav-icon">⚙️</div>
         <div class="nav-body">
-          <div class="nav-title">Centre d'Intelligence NEXUS</div>
-          <div class="nav-desc">Que détecte NEXUS dans mon commerce ?</div>
+          <div class="nav-title">Administration multi-site</div>
+          <div class="nav-desc">Nom, logo et création de nouveaux sites</div>
         </div>
         <div class="nav-arrow">›</div>
       </a>
-      <a class="nav-item" data-role="manager" data-forfait="professional" href="NEXUS-Journal-v1.html">
-        <div class="nav-icon"><img src="assets/icons/icon-journal-nexus.png" alt="Journal NEXUS"></div>
+      <a class="nav-item" data-role="createur" href="NEXUS-Debug-Createur-v1.html">
+        <div class="nav-icon">🛠</div>
         <div class="nav-body">
-          <div class="nav-title">Journal NEXUS <span class="nav-badge badge-premium">Professional</span></div>
-          <div class="nav-desc">Qu'est-ce qui a été fait aujourd'hui ?</div>
+          <div class="nav-title">Debug créateur <span class="nav-badge badge-danger">⚠ Irréversible</span></div>
+          <div class="nav-desc">Outils techniques multi-site — agit directement sur Supabase</div>
         </div>
         <div class="nav-arrow">›</div>
       </a>
     </nav>
   </div>
-
-  <div class="section-label" data-role="createur" style="display:none;">Créateur</div>
-  <nav data-role="createur" data-group="createur" style="display:none;">
-    <a class="nav-item" data-role="createur" href="NEXUS-Admin-Sites-v1.html">
-      <div class="nav-icon">⚙️</div>
-      <div class="nav-body">
-        <div class="nav-title">Administration multi-site</div>
-        <div class="nav-desc">Nom, logo et création de nouveaux sites</div>
-      </div>
-      <div class="nav-arrow">›</div>
-    </a>
-    <a class="nav-item" data-role="createur" href="NEXUS-Debug-Createur-v1.html">
-      <div class="nav-icon">🛠</div>
-      <div class="nav-body">
-        <div class="nav-title">Debug créateur <span class="nav-badge badge-danger">⚠ Irréversible</span></div>
-        <div class="nav-desc">Outils techniques multi-site — agit directement sur Supabase</div>
-      </div>
-      <div class="nav-arrow">›</div>
-    </a>
-  </nav>
 
   <footer>NEXUS · Vito Sainte-Marie Usine</footer>
 </div>
@@ -1739,16 +1731,16 @@
       document.getElementById('heroEmploye').style.display = 'none';
       document.querySelectorAll('[data-role="manager"]').forEach(el => el.style.display = '');
 
-      // Niveau 4 — regroupe "Analyse & pilotage", "Gérer", "Découvrir",
-      // "Intelligence NEXUS", "Gestion d'équipe" et "Planification" (tous
-      // 100% manager-only) derrière le toggle "Tous les outils" : ces
-      // groupes n'existent de toute façon pas pour un employé, donc les
-      // déplacer dans le DOM ne change rien à son expérience. "Votre
-      // journée" et "Équipe" restent à leur place avec seulement leurs
-      // items partagés (data-role="all") — voir le commentaire du
-      // 26/07/2026 au-dessus de ces deux groupes dans le HTML.
+      // "Explorer NEXUS" (27/07/2026) — regroupe Piloter, Performer,
+      // Exécuter, Équipe et Administrer (tous 100% manager, sauf
+      // administrer-createur qui reste en plus gated data-role="createur")
+      // derrière le toggle unique "Explorer NEXUS" : ces groupes n'existent
+      // de toute façon pas pour un employé, donc les déplacer dans le DOM
+      // ne change rien à son expérience. "Votre journée" reste à sa place
+      // avec ses items partagés (data-role="all") — voir le commentaire du
+      // 27/07/2026 au-dessus de ce groupe dans le HTML.
       const plusZone = document.getElementById('plusZone');
-      ['analyse', 'gerer', 'decouvrir', 'intelligence', 'equipe-manager', 'journee-manager'].forEach(g => {
+      ['piloter', 'performer', 'executer', 'equipe', 'administrer', 'administrer-createur'].forEach(g => {
         const wrap = document.querySelector(`.groupe-wrap[data-groupe="${g}"]`);
         if (wrap) plusZone.appendChild(wrap);
       });
