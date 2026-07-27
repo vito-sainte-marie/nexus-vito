@@ -202,6 +202,7 @@
   function normaliserProduit(c) {
     return {
       candidate_id: c.candidate_id, ruleId: c.rule_id, rang: RANG_PRODUIT[c.etat] != null ? RANG_PRODUIT[c.etat] : 2,
+      moteur: 'produits',
       etat: c.etat, impact_eur: c.impact_eur, article: c.article, categorie: c.categorie,
       constat: c.situation, consequence: c.analyse, recommandation: c.recommandation, preuve: c.impact,
       cible: `NEXUS-Produits-v1.html?article=${encodeURIComponent(c.article)}`,
@@ -217,6 +218,7 @@
   function normaliserMarge(c) {
     return {
       candidate_id: c.candidate_id, ruleId: 'R5-MARGE-ECART', rang: 2,
+      moteur: 'marge',
       etat: c.etat, impact_eur: c.impact_eur, article: c.article, categorie: c.categorie,
       constat: c.situation, consequence: c.analyse || c.contexte, recommandation: c.recommandation, preuve: c.impact,
       cible: 'NEXUS-Scanner-v1.html',
@@ -234,6 +236,7 @@
   function normaliserTempo(jourARenforcer, message) {
     return {
       candidate_id: `TEMPO-${jourARenforcer.nom}`, ruleId: 'R6-TEMPO-JOUR', rang: 2,
+      moteur: 'tempo',
       etat: '🗓️ TEMPO', impact_eur: 0, article: null, categorie: 'Rythme hebdomadaire',
       constat: message, consequence: '', recommandation: 'Ouvrir NEXUS Tempo pour le détail complet et créer la mission de contrôle.',
       preuve: null, cible: 'NEXUS-Tempo-v1.html', validable: false,
@@ -250,6 +253,7 @@
     const domaine = message.domaine || '';
     return {
       candidate_id: `ADV-${message.id}`, ruleId: message.code || null, rang: RANG_ADVISOR[message.priority] != null ? RANG_ADVISOR[message.priority] : 3,
+      moteur: 'advisor',
       etat: '📋 SIGNAL', impact_eur: 0, article: null, categorie: message.nomRegle || domaine,
       constat: message.message_text, consequence: '', recommandation: 'Vérifier ce point dans l’écran concerné.',
       preuve: `Confiance ${message.confidence_level || '—'} · détecté le ${new Date(message.generated_at).toLocaleDateString('fr-FR')}`,
@@ -288,25 +292,52 @@
     return copie;
   }
 
-  // Fusionne des listes déjà normalisées (candidat.rang requis), regroupe
-  // par rang, mélange chaque groupe avec la graine du jour, puis prend les
-  // n premiers en respectant l'ordre des rangs — jamais un candidat de
-  // rang inférieur ne passe devant un candidat de rang supérieur, mais à
-  // rang égal, lequel apparaît change d'un jour sur l'autre.
+  // Fusionne des listes déjà normalisées (candidat.rang et candidat.moteur
+  // requis) en garantissant la diversité entre moteurs — correctif du
+  // 27/07/2026 (Frédéric : "le conseiller me donne encore 3 décisions sur
+  // les produits"). Constat vérifié sur les données réelles de Vito
+  // Sainte-Marie : la règle R4-RENFORT-A (contribution ≥15 % du CA de sa
+  // sous-catégorie) qualifie facilement plus de 100 articles le même jour
+  // dès que les catégories sont étroites (ex : une sous-catégorie à 2
+  // références où l'une pèse mécaniquement plus de 15 %) — un simple tri
+  // par rang laissait donc le moteur Produits/CA saturer systématiquement
+  // les 3 emplacements avant même de regarder Marge+/Tempo/advisor. La
+  // sélection pioche maintenant au maximum 1 candidat par moteur à chaque
+  // tour, en commençant par le moteur dont le meilleur candidat restant a
+  // le rang le plus urgent — un même moteur ne prend un 2e emplacement que
+  // s'il reste de la place après qu'aucun autre moteur n'ait plus rien à
+  // proposer (jamais un cas aujourd'hui avec 3 moteurs ou plus actifs).
   function fusionnerEtSelectionner(listes, options) {
     const opts = options || {};
     const n = opts.n || 3;
     const graine = genererGraineJour(opts.site);
-    const tous = [].concat(...listes.filter(Boolean));
-    const parRang = {};
-    tous.forEach(c => { const r = c.rang != null ? c.rang : 5; (parRang[r] = parRang[r] || []).push(c); });
-    const rangsTries = Object.keys(parRang).map(Number).sort((a, b) => a - b);
-    const resultat = [];
-    rangsTries.forEach(r => {
-      if (resultat.length >= n) return;
-      const melange = melangerAvecGraine(parRang[r], graine + r);
-      melange.forEach(c => { if (resultat.length < n) resultat.push(c); });
+
+    const parMoteur = {};
+    [].concat(...listes.filter(Boolean)).forEach(c => {
+      const m = c.moteur || 'autre';
+      (parMoteur[m] = parMoteur[m] || []).push(c);
     });
+
+    // Une file par moteur, déjà triée par rang puis mélangée à rang égal
+    // (même logique de rotation qu'avant, appliquée moteur par moteur).
+    const files = Object.keys(parMoteur).map(m => {
+      const parRang = {};
+      parMoteur[m].forEach(c => { const r = c.rang != null ? c.rang : 5; (parRang[r] = parRang[r] || []).push(c); });
+      const rangsTries = Object.keys(parRang).map(Number).sort((a, b) => a - b);
+      const file = [];
+      rangsTries.forEach(r => { melangerAvecGraine(parRang[r], graine + r).forEach(c => file.push(c)); });
+      return file;
+    });
+
+    const resultat = [];
+    while (resultat.length < n && files.some(f => f.length)) {
+      // À chaque tour, on retente le moteur le plus urgent en premier —
+      // mais un seul candidat par moteur et par tour, d'où la diversité.
+      files.sort((a, b) => (a.length ? a[0].rang : 99) - (b.length ? b[0].rang : 99));
+      for (let i = 0; i < files.length && resultat.length < n; i++) {
+        if (files[i].length) resultat.push(files[i].shift());
+      }
+    }
     return resultat;
   }
 
