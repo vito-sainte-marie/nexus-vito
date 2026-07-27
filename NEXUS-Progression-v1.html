@@ -52,6 +52,7 @@
   .coach-text + .coach-text{margin-top:10px;}
   .coach-sub{font-size:12.5px; line-height:1.6; color:var(--text-mid); margin-top:8px;}
   .apprentissage-link{display:inline-flex; align-items:center; gap:6px; margin-top:12px; font-family:var(--mono); font-size:11px; font-weight:600; letter-spacing:0.03em; color:var(--cyan); text-decoration:none;}
+  .nouveaute-dot{display:inline-block; width:7px; height:7px; border-radius:50%; background:var(--gold); box-shadow:0 0 0 3px rgba(212,175,55,0.2);}
 
   .fort-list{list-style:none; padding:0; margin:0;}
   .fort-item{font-size:13px; line-height:1.6; padding:7px 0; display:flex; gap:8px;}
@@ -202,6 +203,7 @@
       { data: controlesRows, error: e4 },
       { data: evaluationsRows, error: e5 },
       { data: completionsRows, error: e6 },
+      { data: catalogueRows, error: e7 },
     ] = await Promise.all([
       fetchAllRows(() => nexusClient.from('audits_caisse')
         .select('date, quart, ecart_piste, ecart_boutique, employes_piste, employes_boutique')
@@ -213,10 +215,11 @@
       nexusClient.from('mission_assignments').select('status, due_at, updated_at').eq('site_id', siteId).eq('assigned_to_employee_id', cible.id),
       nexusClient.from('controles_tenue').select('conforme').eq('site', siteId).eq('employee_id', cible.id),
       nexusClient.from('evaluations_employes').select('type, criteres').eq('site', siteId).eq('employee_id', cible.id),
-      // Missions du catalogue récurrent cochées et validées (27/07/2026,
-      // système de reconnaissance) — même table que Résultats Équipe,
-      // seule source réelle de "missions réalisées" cumulées.
-      nexusClient.from('mission_completions').select('id').eq('employee_id', cible.id),
+      // date/heure/mission_id/photo_fournie (27/07/2026, détection "Nouveau
+      // constat") : nécessaires pour analyserQualites/analyserHabitudes,
+      // pas seulement un total comme avant.
+      nexusClient.from('mission_completions').select('date, heure, mission_id, photo_fournie').eq('employee_id', cible.id),
+      nexusClient.from('mission_catalog').select('mission_id, proof_required').eq('site_id', siteId),
     ]);
     if (e1) console.error('Chargement audits_caisse (progression):', e1);
     if (e2) console.error('Chargement pointages (progression):', e2);
@@ -224,6 +227,7 @@
     if (e4) console.error('Chargement controles_tenue (progression):', e4);
     if (e5) console.error('Chargement evaluations_employes (progression):', e5);
     if (e6) console.error('Chargement mission_completions (progression):', e6);
+    if (e7) console.error('Chargement mission_catalog (progression):', e7);
 
     const N = NexusProgression;
     const services = N.construireServicesCaisse(auditsRows || [], cible.id);
@@ -248,6 +252,37 @@
       missions: statutMissionsVal, tenue: statutTenueVal, relation: statutRelationClientVal,
     });
     const badges = N.calculerBadges({ seriesCaisse: serieCaisse, seriePonctualite, nbMissionsCompletees });
+
+    // "Nouveau constat" (27/07/2026, demande de Frédéric) : détection d'une
+    // vraie nouveauté depuis la dernière visite, jamais une comparaison
+    // entre collègues. Uniquement en vue employé (soi-même) — jamais
+    // déclenché ni acquitté par la simple consultation d'un manager, et la
+    // page NEXUS-Apprentissage-v1.html reste seule responsable d'acquitter
+    // le flag (elle est l'écran qui "révèle" la découverte).
+    let nouveauteEnAttente = false;
+    if (!vueManager) {
+      const catalogueParId = {};
+      (catalogueRows || []).forEach(c => { catalogueParId[c.mission_id] = c; });
+      const qualites = N.analyserQualites({ statutCaisseVal, statutPonctualiteVal, statutMissionsVal, statutTenueVal, statutRelationClientVal });
+      const habitudes = N.analyserHabitudes({ services, completionsEmploye: completionsRows || [], catalogueParId });
+
+      const { data: snapshotExistant, error: eSnap } = await nexusClient
+        .from('apprentissage_snapshots').select('*').eq('employee_id', cible.id).maybeSingle();
+      if (eSnap) console.error('Chargement apprentissage_snapshots (progression):', eSnap);
+
+      const detection = N.detecterNouveaute({ qualitesActuelles: qualites, habitudesActuelles: habitudes, niveauActuel: niveau, badgesActuels: badges, snapshot: snapshotExistant });
+      nouveauteEnAttente = detection.nouveau || (snapshotExistant ? !!snapshotExistant.nouveaute_en_attente : false);
+      const detailAEnregistrer = detection.nouveau ? detection.detail : (snapshotExistant ? snapshotExistant.nouveaute_detail : null);
+
+      const { error: eUpsert } = await nexusClient.from('apprentissage_snapshots').upsert({
+        employee_id: cible.id, site_id: siteId,
+        qualites: detection.instantane.qualites, habitudes: detection.instantane.habitudes,
+        niveau_id: detection.instantane.niveau_id, badges_obtenus: detection.instantane.badges_obtenus,
+        nouveaute_en_attente: nouveauteEnAttente, nouveaute_detail: detailAEnregistrer,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'employee_id' });
+      if (eUpsert) console.error('Écriture apprentissage_snapshots (progression):', eUpsert);
+    }
 
     const forts = N.pointsForts({ services, statutPonctualiteVal, statutTenueVal, statutRelationClientVal });
     const axe = N.identifierAxeProgression({ services, statutCaisseVal, statutPonctualiteVal, statutMissionsVal, statutTenueVal, ecartsAttribuablesVal: ecarts });
@@ -288,7 +323,7 @@
           </div>
         </div>
         <div class="coach-text">${accueil}</div>
-        <a class="apprentissage-link" href="NEXUS-Apprentissage-v1.html${vueManager ? '?employe=' + cible.id : ''}">Ce que NEXUS a appris sur ${vueManager ? cible.nom.split(' ')[0] : 'moi'} →</a>
+        <a class="apprentissage-link" href="NEXUS-Apprentissage-v1.html${vueManager ? '?employe=' + cible.id : ''}">${nouveauteEnAttente ? '<span class="nouveaute-dot"></span> ' : ''}Ce que NEXUS a appris sur ${vueManager ? cible.nom.split(' ')[0] : 'moi'} →</a>
       </div>
 
       <div class="section-label">${vueManager ? 'Ses points forts' : 'Vos points forts'}</div>

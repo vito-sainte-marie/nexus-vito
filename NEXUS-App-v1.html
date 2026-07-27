@@ -213,6 +213,19 @@
   .conseiller-card-hero .conseiller-avatar{width:52px; height:52px;}
   .conseiller-card-hero .conseiller-name{font-size:12.5px;}
   .conseiller-card-hero .conseiller-text{font-size:14px; line-height:1.7;}
+
+  /* Carte Conseiller employé (27/07/2026, demande de Frédéric) — remplace
+     les deux hero cards séparées (Missions / Ma Progression) par une
+     seule carte façon Conseiller, avec ses priorités du jour et les deux
+     mêmes destinations sous forme de boutons. */
+  .conseiller-priorites{list-style:none; padding:0; margin:14px 0 4px;}
+  .conseiller-priorite-item{display:flex; align-items:flex-start; gap:10px; padding:5px 0; font-size:13.5px; line-height:1.5; color:var(--text);}
+  .conseiller-priorite-num{flex-shrink:0; width:20px; height:20px; border-radius:50%; background:rgba(79,195,217,0.15); color:var(--cyan); font-family:var(--mono); font-size:11px; font-weight:700; display:flex; align-items:center; justify-content:center; margin-top:1px;}
+  .conseiller-actions{display:flex; gap:10px; margin-top:16px;}
+  .conseiller-btn{flex:1; text-align:center; padding:12px; border-radius:10px; font-size:13px; font-weight:600; text-decoration:none; display:block;}
+  .conseiller-btn-primaire{background:var(--cyan); color:#04141a;}
+  .conseiller-btn-secondaire{background:var(--panel-raised); color:var(--text); border:1px solid var(--hairline); position:relative;}
+  .nouveaute-dot{display:inline-block; width:7px; height:7px; border-radius:50%; background:var(--gold); box-shadow:0 0 0 3px rgba(212,175,55,0.2); margin-left:6px; vertical-align:middle;}
   .prix-row{display:flex; align-items:center; gap:8px; margin-bottom:10px;}
   .prix-row label{flex:1; font-size:12px; color:var(--text-mid);}
   .prix-ancien{font-family:var(--mono); font-size:12.5px; color:var(--text-dim); background:var(--panel); border:1px solid var(--hairline); border-radius:8px; padding:8px 10px; width:74px; text-align:center; flex-shrink:0;}
@@ -431,33 +444,34 @@
     <div class="outils-grid" id="outilsGrid"></div>
   </div>
 
-  <a class="hero" data-role="employe" href="NEXUS-Missions-v1.html" id="heroEmploye" style="display:none;">
-    <div class="hero-top">
-      <div class="hero-icon"><img src="assets/icons/icon-missions.png" alt=""></div>
-      <div>
-        <div class="hero-title">Vos missions du jour</div>
-        <div class="hero-desc">Vos procédures, adaptées à votre rôle du jour</div>
+  <!-- Carte Conseiller employé (27/07/2026, demande de Frédéric) —
+       remplace les deux hero cards séparées (Missions, Ma Progression) par
+       une seule carte façon Conseiller : accueil + priorités du jour + les
+       deux mêmes destinations sous forme de boutons. Le texte des
+       priorités est un cadrage générique du rôle (jamais une donnée
+       chiffrée), donc fixe côté HTML — seul le prénom est réellement
+       dynamique (voir #conseillerEmployeTexte plus bas). -->
+  <div data-role="employe" style="display:none;" id="conseillerEmployeWrap">
+    <div class="conseiller-card conseiller-card-hero">
+      <div class="conseiller-head">
+        <img class="conseiller-avatar" src="assets/nexus-avatar.png" alt="Coach NEXUS">
+        <div>
+          <div class="conseiller-name">COACH NEXUS</div>
+          <div class="conseiller-sub">Votre allié du jour</div>
+        </div>
       </div>
-      <div class="hero-arrow">›</div>
-    </div>
-  </a>
-
-  <!-- Ma Progression (27/07/2026, demande de Frédéric) : "je créerais une
-       page 'Ma progression' ... le Conseiller NEXUS devient un coach
-       personnel à chaque employé". Même emplacement/poids visuel que le
-       hero Missions ci-dessus, juste en dessous — style="display:none"
-       par défaut, révélé par le même mécanisme data-role="employe" que le
-       reste de cette section. -->
-  <a class="hero" data-role="employe" href="NEXUS-Progression-v1.html" id="heroProgression" style="display:none; margin-top:0;">
-    <div class="hero-top">
-      <div class="hero-icon"><img src="assets/icons/icon-evolution.png" alt=""></div>
-      <div>
-        <div class="hero-title">Ma Progression</div>
-        <div class="hero-desc">Votre coach personnel NEXUS : points forts, axe de progression, encouragements</div>
+      <div class="conseiller-text" id="conseillerEmployeTexte">Bonjour. J'ai préparé votre journée.</div>
+      <ul class="conseiller-priorites">
+        <li class="conseiller-priorite-item"><span class="conseiller-priorite-num">1</span>Réaliser vos missions</li>
+        <li class="conseiller-priorite-item"><span class="conseiller-priorite-num">2</span>Travailler avec précision</li>
+        <li class="conseiller-priorite-item"><span class="conseiller-priorite-num">3</span>Consulter vos progrès en fin de service</li>
+      </ul>
+      <div class="conseiller-actions">
+        <a class="conseiller-btn conseiller-btn-primaire" href="NEXUS-Missions-v1.html">Voir mes missions</a>
+        <a class="conseiller-btn conseiller-btn-secondaire" href="NEXUS-Progression-v1.html">Ma progression<span class="nouveaute-dot" id="dotNouveauteProgression" style="display:none;"></span></a>
       </div>
-      <div class="hero-arrow">›</div>
     </div>
-  </a>
+  </div>
 
   <!-- Recherche NEXUS (27/07/2026, demande de Frédéric) : remplace la
        section fixe "Votre journée" (Pointage, Mon Planning) — ces écrans,
@@ -2011,19 +2025,21 @@
     // redevient différenciée par rôle le même jour : le manager garde
     // "Le Centre d'Intelligence NEXUS analyse votre commerce et
     // hiérarchise vos priorités" (ce que NEXUS fait pour piloter le
-    // commerce), l'employé voit désormais "Le Conseiller NEXUS prépare
-    // votre journée et vous aide à donner le meilleur de vous-même" (plus
+    // commerce), l'employé voit désormais "Le Coach NEXUS prépare votre
+    // journée et vous aide à donner le meilleur de vous-même" (plus
     // appropriée pour quelqu'un qui vient exécuter des missions, pas
-    // piloter un commerce). On écrit dans #taglineTexte (span dédié),
+    // piloter un commerce — et "Coach" plutôt que "Conseiller" partout
+    // côté employé, philosophie confirmée par Frédéric le 27/07/2026 :
+    // dirigeant → décisions, manager → priorités, employé →
+    // encouragement). On écrit dans #taglineTexte (span dédié),
     // jamais dans #taglineRole directement, sous peine d'effacer les
     // points animés (span.dots-anim) qui vit juste à côté dans le HTML.
     document.getElementById('taglineTexte').textContent = estNiveauManager
       ? "Le Centre d'Intelligence NEXUS analyse votre commerce et hiérarchise vos priorités"
-      : 'Le Conseiller NEXUS prépare votre journée et vous aide à donner le meilleur de vous-même';
+      : 'Le Coach NEXUS prépare votre journée et vous aide à donner le meilleur de vous-même';
 
     if (estNiveauManager) {
-      document.getElementById('heroEmploye').style.display = 'none';
-      document.getElementById('heroProgression').style.display = 'none';
+      document.getElementById('conseillerEmployeWrap').style.display = 'none';
       document.querySelectorAll('[data-role="manager"]').forEach(el => el.style.display = '');
 
       // "Explorer NEXUS" (27/07/2026) — regroupe Piloter, Performer,
@@ -2044,8 +2060,20 @@
       await initPosteManager(employee);
       forfaitProfessional = await verrouillerNavForfait(employee.site_id || 'vito-sainte-marie');
     } else {
-      document.getElementById('heroEmploye').style.display = '';
-      document.getElementById('heroProgression').style.display = '';
+      document.getElementById('conseillerEmployeWrap').style.display = '';
+      document.getElementById('conseillerEmployeTexte').textContent = `Bonjour ${employee.nom}. J'ai préparé votre journée.`;
+
+      // Petit point "Nouveau" (27/07/2026, demande de Frédéric — "une
+      // petite notification qui apparaît parfois") sur le bouton Ma
+      // progression : lecture légère du flag déjà calculé par Ma
+      // Progression/Ce que NEXUS a appris (jamais recalculé ici, pour ne
+      // pas alourdir le chargement d'App-v1 à chaque connexion).
+      nexusClient.from('apprentissage_snapshots').select('nouveaute_en_attente').eq('employee_id', employee.id).maybeSingle()
+        .then(({ data: snap, error: eSnap }) => {
+          if (eSnap) { console.error('Lecture apprentissage_snapshots (App-v1):', eSnap); return; }
+          const dot = document.getElementById('dotNouveauteProgression');
+          if (dot && snap && snap.nouveaute_en_attente) dot.style.display = '';
+        });
     }
 
     if (employee.est_createur) {

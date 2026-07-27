@@ -57,6 +57,9 @@
   .objectif-box{background:rgba(79,195,217,0.08); border:1px solid rgba(79,195,217,0.3); border-radius:10px; padding:14px; font-size:13.5px; line-height:1.6; color:var(--cyan);}
   .objectif-box.atteint{background:rgba(212,175,55,0.08); border-color:rgba(212,175,55,0.35); color:var(--gold);}
 
+  .nouveaute-banner{background:rgba(212,175,55,0.1); border:1px solid rgba(212,175,55,0.35); border-radius:12px; padding:14px; margin-bottom:14px; font-size:13px; line-height:1.55; color:var(--gold);}
+  .nouveaute-banner-titre{font-family:var(--mono); font-size:10.5px; font-weight:700; letter-spacing:0.05em; text-transform:uppercase; margin-bottom:4px;}
+
   .empty-note{padding:40px 20px; text-align:center; color:var(--text-dim); font-size:13px; line-height:1.6;}
   .locked{padding:60px 20px; text-align:center; color:var(--text-dim); font-size:13px;}
 
@@ -198,6 +201,35 @@
     const progres = N.analyserProgres({ ecartsAttribuablesVal: ecarts, niveauActuel: niveau, niveauPasse });
     const objectif = N.projeterProchainObjectif(niveau, services.length);
 
+    // "Nouveau constat" (27/07/2026) : cet écran est celui qui "révèle" la
+    // découverte — c'est donc lui qui acquitte le flag (jamais un manager
+    // en train de préparer un entretien, qui reste en lecture seule).
+    let nouveauteTexte = null;
+    {
+      const { data: snapshotExistant, error: eSnap } = await nexusClient
+        .from('apprentissage_snapshots').select('*').eq('employee_id', cible.id).maybeSingle();
+      if (eSnap) console.error('Chargement apprentissage_snapshots (apprentissage):', eSnap);
+
+      const detection = N.detecterNouveaute({ qualitesActuelles: qualites, habitudesActuelles: habitudes, niveauActuel: niveau, badgesActuels: N.calculerBadges({ seriesCaisse: N.meilleureSerieConforme(services), seriePonctualite: N.calculerSeriePonctualite(pointagesRows || []), nbMissionsCompletees: (completionsRows || []).length }), snapshot: snapshotExistant });
+      const enAttente = detection.nouveau || (snapshotExistant ? !!snapshotExistant.nouveaute_en_attente : false);
+      if (enAttente) {
+        nouveauteTexte = detection.nouveau ? detection.detail : (snapshotExistant ? snapshotExistant.nouveaute_detail : null);
+      }
+
+      if (!vueManager) {
+        // Vue employé : cette consultation vaut acquittement — le flag
+        // retombe à false, la base est resynchronisée sur l'état actuel.
+        const { error: eUpsert } = await nexusClient.from('apprentissage_snapshots').upsert({
+          employee_id: cible.id, site_id: siteId,
+          qualites: detection.instantane.qualites, habitudes: detection.instantane.habitudes,
+          niveau_id: detection.instantane.niveau_id, badges_obtenus: detection.instantane.badges_obtenus,
+          nouveaute_en_attente: false, nouveaute_detail: null,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'employee_id' });
+        if (eUpsert) console.error('Écriture apprentissage_snapshots (apprentissage):', eUpsert);
+      }
+    }
+
     const prenom = vueManager ? cible.nom : cible.nom.split(' ')[0];
     const nbServices = services.length;
     const accueil = nbServices > 0
@@ -209,6 +241,11 @@
       : `<div class="obs-empty">${videTexte}</div>`;
 
     document.getElementById('app').innerHTML = `
+      ${nouveauteTexte ? `
+        <div class="nouveaute-banner">
+          <div class="nouveaute-banner-titre">🧠 Nouveau constat</div>
+          ${nouveauteTexte}
+        </div>` : ''}
       <div class="coach-card">
         <div class="coach-head">
           <img class="coach-avatar" src="assets/nexus-avatar.png" alt="Coach NEXUS">

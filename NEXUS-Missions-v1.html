@@ -939,12 +939,17 @@
     const boutonHtml = suggestion ? `
       <button class="conseiller-perso-cta-btn" id="btnSuggestionMission" data-mission="${suggestion.mission.mission_id}">${suggestion.presqueFinie ? 'Valider maintenant →' : 'Voir cette mission →'}</button>` : '';
 
+    // "Coach NEXUS" côté employé, "Conseiller NEXUS" côté manager
+    // (27/07/2026, demande de Frédéric — cette carte reste affichée aux
+    // deux rôles puisqu'elle porte sur les missions de la personne
+    // connectée, quel que soit son rôle du jour).
+    const estCoach = roleDuJour !== 'manager';
     el.innerHTML = `
       <div class="conseiller-perso">
         <div class="conseiller-perso-head">
-          <img class="conseiller-perso-avatar" src="assets/nexus-avatar.png" alt="Conseiller NEXUS">
+          <img class="conseiller-perso-avatar" src="assets/nexus-avatar.png" alt="${estCoach ? 'Coach NEXUS' : 'Conseiller NEXUS'}">
           <div>
-            <div class="conseiller-perso-nom">CONSEILLER NEXUS</div>
+            <div class="conseiller-perso-nom">${estCoach ? 'COACH NEXUS' : 'CONSEILLER NEXUS'}</div>
             <div class="conseiller-perso-sous">Votre progression</div>
           </div>
         </div>

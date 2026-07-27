@@ -637,6 +637,59 @@
     };
   }
 
+  // ------------------------------------------------------------
+  // 9) "Nouveau constat" (27/07/2026, demande de Frédéric) — une petite
+  //    notification qui apparaît quand le Coach a réellement appris
+  //    quelque chose de neuf depuis la dernière fois : nouvelle qualité,
+  //    nouvelle habitude, niveau franchi, badge obtenu. Toujours la
+  //    personne comparée à elle-même dans le temps — jamais un
+  //    classement ni un pourcentile entre collègues (décision explicite
+  //    de Frédéric, 27/07/2026, non négociable).
+  //    `snapshot` : dernière ligne connue de apprentissage_snapshots
+  //    (ou null si l'employé n'a encore jamais été analysé — dans ce cas,
+  //    on enregistre juste une base de référence, sans notifier : il n'y
+  //    a rien à comparer).
+  // ------------------------------------------------------------
+  function detecterNouveaute({ qualitesActuelles, habitudesActuelles, niveauActuel, badgesActuels, snapshot }) {
+    const premierPassage = !snapshot;
+    const qualitesVues = (snapshot && snapshot.qualites) || [];
+    const habitudesVues = (snapshot && snapshot.habitudes) || [];
+    const niveauVu = (snapshot && snapshot.niveau_id) || null;
+    const badgesVus = (snapshot && snapshot.badges_obtenus) || [];
+    const badgesObtenusIds = (badgesActuels || []).filter(b => b.obtenu).map(b => b.id);
+
+    const nouveauNiveau = !premierPassage && niveauVu && niveauActuel.id !== niveauVu;
+    const nouveauBadgeId = !premierPassage ? badgesObtenusIds.find(id => !badgesVus.includes(id)) : null;
+    const nouvelleQualite = !premierPassage ? (qualitesActuelles || []).find(q => !qualitesVues.includes(q)) : null;
+    const nouvelleHabitude = !premierPassage ? (habitudesActuelles || []).find(h => !habitudesVues.includes(h)) : null;
+
+    let detail = null;
+    if (nouveauNiveau) {
+      detail = `Votre niveau vient de passer à « ${niveauActuel.nom} ».`;
+    } else if (nouveauBadgeId) {
+      const badge = (badgesActuels || []).find(b => b.id === nouveauBadgeId);
+      detail = `Vous venez d'obtenir un nouveau badge : ${badge ? badge.label : nouveauBadgeId}.`;
+    } else if (nouvelleQualite) {
+      detail = "J'ai identifié une nouvelle qualité chez vous.";
+    } else if (nouvelleHabitude) {
+      detail = "J'ai détecté une nouvelle habitude chez vous.";
+    }
+
+    return {
+      nouveau: !premierPassage && !!detail,
+      detail,
+      // Instantané à enregistrer dans apprentissage_snapshots, que la
+      // détection ait trouvé une nouveauté ou non — sert de référence pour
+      // la prochaine comparaison.
+      instantane: {
+        qualites: qualitesActuelles || [],
+        habitudes: habitudesActuelles || [],
+        niveau_id: niveauActuel.id,
+        badges_obtenus: badgesObtenusIds,
+      },
+    };
+  }
+
   global.NexusProgression = {
     SEUIL_ECART_CONFORME,
     construireServicesCaisse, estConforme, serviceEstPropre,
@@ -648,5 +701,6 @@
     NIVEAUX_NEXUS,
     analyserQualites, analyserHabitudes, analyserProgres,
     calculerNiveauADate, projeterProchainObjectif,
+    detecterNouveaute,
   };
 })(window);
