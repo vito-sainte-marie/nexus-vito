@@ -185,6 +185,15 @@
   .conseiller-sub{font-family:var(--mono); font-size:9px; color:var(--text-dim);}
   .conseiller-text{font-size:13px; line-height:1.65; color:var(--text); margin-bottom:12px;}
   .conseiller-text b{color:var(--cyan);}
+
+  /* Le Conseiller en tête de page (27/07/2026, demande de Frédéric) — "en
+     plein écran... c'est lui qui accueille" : reste dans le même flux
+     d'une seule page (pas un écran séparé, décision de Frédéric), mais
+     agrandi pour occuper la première place avec le poids visuel voulu. */
+  .conseiller-card-hero{padding:22px 20px; box-shadow:0 12px 30px rgba(0,0,0,0.3);}
+  .conseiller-card-hero .conseiller-avatar{width:52px; height:52px;}
+  .conseiller-card-hero .conseiller-name{font-size:12.5px;}
+  .conseiller-card-hero .conseiller-text{font-size:14px; line-height:1.7;}
   .prix-row{display:flex; align-items:center; gap:8px; margin-bottom:10px;}
   .prix-row label{flex:1; font-size:12px; color:var(--text-mid);}
   .prix-ancien{font-family:var(--mono); font-size:12.5px; color:var(--text-dim); background:var(--panel); border:1px solid var(--hairline); border-radius:8px; padding:8px 10px; width:74px; text-align:center; flex-shrink:0;}
@@ -347,8 +356,29 @@
        NEXUS-Capital-v1.html) mais reste accessible depuis le menu, pas
        depuis ce cadre.
        ============================================================ -->
+  <!-- Réordonnancement du 27/07/2026 (demande de Frédéric) : "aujourd'hui
+       j'ai Connexion → État global → À retenir → Conseiller → Aujourd'hui
+       → Outils → Recherche ; à la place je mettrais : Le Conseiller [en
+       premier, plus grand]... C'est lui qui accueille." Le Conseiller
+       passe donc en tête (toujours dans le même flux d'une seule page,
+       pas un écran séparé), suivi de l'État global, "À retenir", "Aujourd'hui"
+       puis "Outils" — Recherche et Explorer NEXUS suivent plus bas, hors
+       de ce bloc manager-only pour que Recherche reste visible à l'employé
+       (voir plus bas). -->
   <div data-role="manager" style="display:none;">
-    <div class="section-tag"><span class="n1">1</span> État global</div>
+    <div class="section-tag"><span class="n1">1</span> Le Conseiller</div>
+    <div class="conseiller-card conseiller-card-hero">
+      <div class="conseiller-head">
+        <img class="conseiller-avatar" src="assets/nexus-avatar.png" alt="Conseiller NEXUS">
+        <div>
+          <div class="conseiller-name">CONSEILLER NEXUS</div>
+          <div class="conseiller-sub">Votre chef d'orchestre du jour</div>
+        </div>
+      </div>
+      <div id="conseillerCorps"><div class="conseiller-text">Analyse de vos données en cours…</div></div>
+    </div>
+
+    <div class="section-tag"><span class="n1">2</span> État global</div>
     <div class="etat-card">
       <div class="etat-header">
         <span class="etat-statut-badge" id="etatStatutBadge"></span>
@@ -365,28 +395,14 @@
       <div class="etat-domaines" id="etatDomaines"></div>
     </div>
 
-    <div class="section-tag"><span class="n1">2</span> À retenir aujourd'hui</div>
+    <div class="section-tag"><span class="n1">3</span> À retenir aujourd'hui</div>
     <div class="retenir-grid" id="retenirGrid"></div>
 
-    <div class="conseiller-card">
-      <div class="conseiller-head">
-        <img class="conseiller-avatar" src="assets/nexus-avatar.png" alt="Conseiller NEXUS">
-        <div>
-          <div class="conseiller-name">CONSEILLER NEXUS</div>
-          <div class="conseiller-sub">Votre chef d'orchestre du jour</div>
-        </div>
-      </div>
-      <div id="conseillerCorps"><div class="conseiller-text">Analyse de vos données en cours…</div></div>
-    </div>
-
-    <div class="section-tag"><span class="n1">3</span> Aujourd'hui</div>
+    <div class="section-tag"><span class="n1">4</span> Aujourd'hui</div>
     <div class="kpi-grid" id="kpiGrid"></div>
 
-    <div class="section-tag"><span class="n1">4</span> Vos outils principaux</div>
+    <div class="section-tag"><span class="n1">5</span> Vos outils principaux</div>
     <div class="outils-grid" id="outilsGrid"></div>
-
-    <div class="plus-toggle" id="plusToggle">Explorer NEXUS <span class="chev">▾</span></div>
-    <div class="plus-zone" id="plusZone"></div>
   </div>
 
   <a class="hero" data-role="employe" href="NEXUS-Missions-v1.html" id="heroEmploye" style="display:none;">
@@ -409,7 +425,12 @@
        résultats selon le rôle (voir plus bas dans le script). Pointage
        garde son cas particulier — non requis pour le poste manager par
        défaut (voir chargerPointageRequisManager) — même retrouvé par la
-       recherche : il apparaît alors désactivé, comme avant. -->
+       recherche : il apparaît alors désactivé, comme avant. Remontée le
+       27/07/2026 juste avant "Explorer NEXUS" (demande de Frédéric :
+       "un dirigeant sait souvent ce qu'il cherche") — d'où son bloc
+       manager-only séparé juste en dessous, plutôt que la même grande
+       div qu'avant : Recherche doit rester accessible à l'employé alors
+       qu'Explorer NEXUS ne l'est jamais. -->
   <div class="section-label">Rechercher</div>
   <div class="recherche-nexus">
     <div class="recherche-nexus-champ">
@@ -417,6 +438,11 @@
       <input type="text" id="rechercheNexusInput" placeholder="Rechercher une page NEXUS (pointage, marge, planning…)" autocomplete="off">
     </div>
     <div class="recherche-nexus-resultats" id="rechercheNexusResultats"></div>
+  </div>
+
+  <div data-role="manager" style="display:none;">
+    <div class="plus-toggle" id="plusToggle">Explorer NEXUS <span class="chev">▾</span></div>
+    <div class="plus-zone" id="plusZone"></div>
   </div>
 
   <!-- ============================================================
@@ -1038,6 +1064,32 @@
     return { jourARenforcer: jourARenforcerRetenu, jourMoteur, jourPlusRentable, jourProgression, totalJours, statutOperations: statutOperationsVal, detailOperations };
   }
 
+  // Domaine Stock de l'État global (27/07/2026, demande de Frédéric — "vrai
+  // 5e domaine") — même source que Scanner Stock/NEXUS Tempo
+  // (stock_sante_historique), réduite au dernier instantané calculé
+  // (NexusTempo.dernierEtatStock) : Scanner Stock n'est pas encore recalculé
+  // quotidiennement, donc l'État global affiche honnêtement l'état constaté
+  // au dernier passage, jamais une tendance qui n'existe pas encore.
+  async function chargerStockSanteHome(siteId) {
+    const { data, error } = await nexusClient.from('stock_sante_historique')
+      .select('calcule_le, indice_confiance, nb_references_stables, nb_references_a_surveiller, nb_references_a_verifier, nb_references_non_concluantes, risque_estime_eur')
+      .eq('site', siteId).order('calcule_le', { ascending: true });
+    if (error || !data) {
+      console.error('Chargement stock_sante_historique (État global):', error);
+      return null;
+    }
+    return NexusTempo.dernierEtatStock(NexusTempo.agregerStockParJour(data));
+  }
+
+  // "Données insuffisantes" tant qu'aucun calcul Scanner Stock n'existe —
+  // ensuite "À surveiller" dès qu'au moins une référence est à surveiller ou
+  // à vérifier, "Stable" sinon (même logique que NexusTempo.croiserStock).
+  function statutStock(dernierEtat) {
+    if (!dernierEtat) return 'Données insuffisantes';
+    const nbAttention = (dernierEtat.nbASurveiller || 0) + (dernierEtat.nbAVerifier || 0);
+    return nbAttention > 0 ? 'À surveiller' : 'Stable';
+  }
+
   // Candidat Tempo enrichi pour le Conseiller (27/07/2026, demande de
   // Frédéric) : priorité au jour le plus rentable (CA valorisé, produits
   // d'appel exclus) plutôt qu'au seul jour à renforcer — reproduit
@@ -1099,46 +1151,49 @@
     };
   }
 
-  // "À retenir aujourd'hui" (26/07/2026) — remplace les anciens bandeaux
-  // .tempo-banner/.tempo-banner-fort par trois cartes compactes (même
-  // motif visuel que .reveles-grid dans NEXUS Tempo) : Performance (jour
-  // moteur), Vigilance (jour à renforcer), Exécution (contrôles Verify en
-  // attente). Chaque carte affiche honnêtement son état vide plutôt que de
-  // masquer la carte, pour garder la promesse "3 informations, toujours au
-  // même endroit". Mise à jour du 27/07/2026 (demande de Frédéric) : les
-  // trois cartes sont désormais cliquables — Performance et Vigilance
-  // renvoient vers NEXUS Tempo (l'analyse complète du jour concerné),
-  // Exécution vers NEXUS Verify (où se fait le contrôle caisse), même en
-  // état vide pour rester cohérent (on peut toujours aller consulter).
+  // "À retenir aujourd'hui" (26/07/2026 ; renommé le 27/07/2026, demande de
+  // Frédéric — "le cerveau comprend immédiatement") — remplace les anciens
+  // bandeaux .tempo-banner/.tempo-banner-fort par trois cartes compactes
+  // (même motif visuel que .reveles-grid dans NEXUS Tempo). Sources
+  // inchangées, seuls le nom, l'icône et la couleur changent : Opportunité
+  // 🟢 (ex-Performance, jour moteur Tempo), Attention 🟠 (ex-Vigilance, jour
+  // à renforcer Tempo), Action immédiate 🔵 (ex-Exécution, contrôles Verify
+  // en attente). Chaque carte affiche honnêtement son état vide plutôt que
+  // de masquer la carte, pour garder la promesse "3 informations, toujours
+  // au même endroit". Les trois cartes restent cliquables — Opportunité et
+  // Attention renvoient vers NEXUS Tempo (l'analyse complète du jour
+  // concerné), Action immédiate vers NEXUS Verify (où se fait le contrôle
+  // caisse), même en état vide pour rester cohérent (on peut toujours aller
+  // consulter).
   function renderARetenir({ jourMoteur, jourARenforcer, controlesVerify }) {
-    function carte(href, tag, couleur, titre, detail) {
+    function carte(href, icone, tag, couleur, titre, detail) {
       return `<a class="retenir-card" href="${href}">
-        <div class="retenir-tag" style="color:${couleur};">${tag}</div>
+        <div class="retenir-tag" style="color:${couleur};">${icone} ${tag}</div>
         <div class="retenir-titre">${titre}</div>
         ${detail ? `<div class="retenir-detail">${detail}</div>` : ''}
       </a>`;
     }
     const majuscule = s => s.charAt(0).toUpperCase() + s.slice(1);
 
-    const performance = jourMoteur
-      ? carte('NEXUS-Tempo-v1.html', 'Performance', 'var(--green)', majuscule(jourMoteur.nom), 'Jour créateur de valeur')
-      : `<a class="retenir-card" href="NEXUS-Tempo-v1.html"><div class="retenir-tag" style="color:var(--green);">Performance</div><div class="retenir-vide">Historique encore insuffisant.</div></a>`;
+    const opportunite = jourMoteur
+      ? carte('NEXUS-Tempo-v1.html', '🟢', 'OPPORTUNITÉ', 'var(--green)', majuscule(jourMoteur.nom), 'Jour créateur de valeur')
+      : `<a class="retenir-card" href="NEXUS-Tempo-v1.html"><div class="retenir-tag" style="color:var(--green);">🟢 OPPORTUNITÉ</div><div class="retenir-vide">Historique encore insuffisant.</div></a>`;
 
-    let vigilance;
+    let attention;
     if (jourARenforcer) {
       const pctBoutique = jourARenforcer.evolutionBoutique !== null ? `${jourARenforcer.evolutionBoutique >= 0 ? '+' : ''}${(jourARenforcer.evolutionBoutique * 100).toFixed(0)} % boutique` : null;
       const pctPiste = jourARenforcer.evolutionPiste !== null ? `${jourARenforcer.evolutionPiste >= 0 ? '+' : ''}${(jourARenforcer.evolutionPiste * 100).toFixed(0)} % piste` : null;
       const detail = [pctPiste, pctBoutique].filter(Boolean).join(' · ');
-      vigilance = carte('NEXUS-Tempo-v1.html', 'Vigilance', 'var(--amber)', majuscule(jourARenforcer.nom), detail || "Principale opportunité d'amélioration");
+      attention = carte('NEXUS-Tempo-v1.html', '🟠', 'ATTENTION', 'var(--amber)', majuscule(jourARenforcer.nom), detail || "Principale opportunité d'amélioration");
     } else {
-      vigilance = `<a class="retenir-card" href="NEXUS-Tempo-v1.html"><div class="retenir-tag" style="color:var(--amber);">Vigilance</div><div class="retenir-vide">Aucun point de vigilance identifié.</div></a>`;
+      attention = `<a class="retenir-card" href="NEXUS-Tempo-v1.html"><div class="retenir-tag" style="color:var(--amber);">🟠 ATTENTION</div><div class="retenir-vide">Aucun point de vigilance identifié.</div></a>`;
     }
 
-    const execution = (controlesVerify != null && controlesVerify > 0)
-      ? carte('NEXUS-Verify-v1.html', 'Exécution', 'var(--cyan)', `${controlesVerify} contrôle${controlesVerify > 1 ? 's' : ''} caisse`, 'à effectuer')
-      : `<a class="retenir-card" href="NEXUS-Verify-v1.html"><div class="retenir-tag" style="color:var(--cyan);">Exécution</div><div class="retenir-titre" style="color:var(--green);">À jour</div><div class="retenir-detail">Aucun contrôle en attente</div></a>`;
+    const actionImmediate = (controlesVerify != null && controlesVerify > 0)
+      ? carte('NEXUS-Verify-v1.html', '🔵', 'ACTION IMMÉDIATE', 'var(--cyan)', `${controlesVerify} contrôle${controlesVerify > 1 ? 's' : ''} caisse`, 'à effectuer')
+      : `<a class="retenir-card" href="NEXUS-Verify-v1.html"><div class="retenir-tag" style="color:var(--cyan);">🔵 ACTION IMMÉDIATE</div><div class="retenir-titre" style="color:var(--green);">À jour</div><div class="retenir-detail">Aucun contrôle en attente</div></a>`;
 
-    document.getElementById('retenirGrid').innerHTML = performance + vigilance + execution;
+    document.getElementById('retenirGrid').innerHTML = opportunite + attention + actionImmediate;
   }
 
   let SITE_HOME = 'vito-sainte-marie';
@@ -1167,12 +1222,13 @@
   }
 
   // ------------------------------------------------------------
-  // "État global" (26/07/2026, refonte demandée par Frédéric) — remplace
-  // l'ancien bloc Indice/Marge+ à deux colonnes par : un badge de statut +
-  // l'Indice sur une seule ligne, une phrase de synthèse, puis 4 domaines
-  // (Commerce/Valeur/Opérations/Équipe). Chaque domaine a son propre seuil
-  // minimum de données avant d'afficher un statut réel — "Données
-  // insuffisantes" plutôt qu'un chiffre optimiste par défaut (Article 5).
+  // "État global" (26/07/2026, refonte demandée par Frédéric ; renommage
+  // + 5e domaine le 27/07/2026) — un badge de statut + l'Indice sur une
+  // seule ligne, une phrase de synthèse, puis 5 domaines : Performance
+  // (ex-Commerce), Valeur, Caisse (ex-Opérations), Stock (nouveau,
+  // Scanner Stock) et Équipe. Chaque domaine a son propre seuil minimum
+  // de données avant d'afficher un statut réel — "Données insuffisantes"
+  // plutôt qu'un chiffre optimiste par défaut (Article 5).
   // ------------------------------------------------------------
   const COULEUR_STATUT_DOMAINE = {
     'En progression': 'var(--green)', 'Sous contrôle': 'var(--green)', 'Stable': 'var(--text-mid)',
@@ -1213,11 +1269,12 @@
   // Phrase de synthèse (26/07/2026) : combine la tendance Commerce avec les
   // points de vigilance réels (jour Tempo à renforcer, marge, opérations) —
   // jamais plus qu'un constat court, jamais une liste de chiffres.
-  function syntheseEtatGlobal(statutCommerceVal, statutValeurVal, statutOperationsVal, jourARenforcer) {
+  function syntheseEtatGlobal(statutCommerceVal, statutValeurVal, statutOperationsVal, jourARenforcer, statutStockVal) {
     const concerns = [];
     if (jourARenforcer) concerns.push(`la performance du ${jourARenforcer.nom}`);
     if (statutValeurVal === 'À surveiller') concerns.push('la marge boutique');
     if (statutOperationsVal === 'À surveiller') concerns.push('les écarts de caisse');
+    if (statutStockVal === 'À surveiller') concerns.push('le stock');
 
     const debut = statutCommerceVal === 'En progression' ? 'Votre activité progresse'
       : statutCommerceVal === 'En repli' ? 'Votre activité recule'
@@ -1232,7 +1289,7 @@
     return `${debut || 'NEXUS analyse encore votre activité'}, mais ${listeConcerns} nécessite${concerns.length > 1 ? 'nt' : ''} votre attention.`;
   }
 
-  function renderEtatGlobal({ score, facteurs, margePlusResultat, statutOperationsVal, detailOperations, domainesRadar, jourARenforcer }) {
+  function renderEtatGlobal({ score, facteurs, margePlusResultat, statutOperationsVal, detailOperations, domainesRadar, jourARenforcer, dernierEtatStock }) {
     const badgeEl = document.getElementById('etatStatutBadge');
     const valeurEl = document.getElementById('indiceValeur');
     const syntheseEl = document.getElementById('etatSynthese');
@@ -1255,8 +1312,9 @@
     const statutCommerceVal = statutCommerce(facteurs);
     const statutValeurVal = statutValeur(facteurs, margePlusResultat);
     const statutEquipeVal = statutEquipe(domainesRadar.equipeScore, domainesRadar.totalPointages);
+    const statutStockVal = statutStock(dernierEtatStock);
 
-    syntheseEl.textContent = syntheseEtatGlobal(statutCommerceVal, statutValeurVal, statutOperationsVal, jourARenforcer);
+    syntheseEl.textContent = syntheseEtatGlobal(statutCommerceVal, statutValeurVal, statutOperationsVal, jourARenforcer, statutStockVal);
 
     function ligneDomaine(nom, statut, detail) {
       const c = COULEUR_STATUT_DOMAINE[statut] || 'var(--text-dim)';
@@ -1266,10 +1324,17 @@
       </div>`;
     }
 
+    const detailStock = statutStockVal !== 'Données insuffisantes' && dernierEtatStock
+      ? (((dernierEtatStock.nbASurveiller || 0) + (dernierEtatStock.nbAVerifier || 0)) > 0
+          ? `${(dernierEtatStock.nbASurveiller || 0) + (dernierEtatStock.nbAVerifier || 0)} référence(s) à vérifier`
+          : `${dernierEtatStock.nbStables || 0} référence(s) stables`)
+      : null;
+
     domainesEl.innerHTML = [
-      ligneDomaine('Commerce', statutCommerceVal, (facteurs && facteurs.evolutionReelle != null) ? `${facteurs.evolutionReelle >= 0 ? '+' : ''}${(facteurs.evolutionReelle * 100).toFixed(1)} % vs période précédente` : null),
+      ligneDomaine('Performance', statutCommerceVal, (facteurs && facteurs.evolutionReelle != null) ? `${facteurs.evolutionReelle >= 0 ? '+' : ''}${(facteurs.evolutionReelle * 100).toFixed(1)} % vs période précédente` : null),
       ligneDomaine('Valeur', statutValeurVal, (margePlusResultat && margePlusResultat.nbEcarts > 0) ? `${Math.round(margePlusResultat.gainPotentiel).toLocaleString('fr-FR')} € de potentiel identifié` : ((facteurs && facteurs.margeReelle != null) ? `Marge ${(facteurs.margeReelle * 100).toFixed(1)} %` : null)),
-      ligneDomaine('Opérations', statutOperationsVal, detailOperations != null ? `${Math.round(detailOperations).toLocaleString('fr-FR')} € d'écart moyen/jour` : null),
+      ligneDomaine('Caisse', statutOperationsVal, detailOperations != null ? `${Math.round(detailOperations).toLocaleString('fr-FR')} € d'écart moyen/jour` : null),
+      ligneDomaine('Stock', statutStockVal, detailStock),
       ligneDomaine('Équipe', statutEquipeVal, statutEquipeVal !== 'Données insuffisantes' ? `${domainesRadar.equipeScore} % de ponctualité` : null),
     ].join('');
   }
@@ -1363,16 +1428,23 @@
       </div>`;
   }
 
+  // Message d'accueil (27/07/2026, demande de Frédéric) : "Bonjour Fred.
+  // J'ai analysé votre commerce. Trois décisions comptent aujourd'hui...
+  // le dirigeant comprend immédiatement pourquoi il est venu." Le nombre
+  // de décisions varie selon ce qui est réellement disponible (jamais
+  // "trois" figé si les moteurs n'en proposent qu'une ou deux).
+  const NOMBRE_LETTRES = { 1: 'Une décision compte', 2: 'Deux décisions comptent', 3: 'Trois décisions comptent' };
   function renderConseillerHome(top3, employeeNom) {
     const corps = document.getElementById('conseillerCorps');
     if (!top3.length) {
-      corps.innerHTML = `<div class="conseiller-text">✅ Rien ne nécessite votre attention immédiate sur les données actuelles.</div>`;
+      corps.innerHTML = `<div class="conseiller-text">Bonjour ${employeeNom}. J'ai analysé votre commerce : rien ne nécessite votre attention immédiate aujourd'hui. ✅</div>`;
       return;
     }
     const gainTotal = top3.reduce((s, c) => s + c.impact_eur, 0);
     const autres = top3.slice(1);
+    const phraseNombre = NOMBRE_LETTRES[top3.length] || `${top3.length} décisions comptent`;
     corps.innerHTML = `
-      <div class="conseiller-text">${employeeNom}, bonjour. Voici la décision qui compte le plus aujourd'hui :</div>
+      <div class="conseiller-text">Bonjour ${employeeNom}. J'ai analysé votre commerce. ${phraseNombre} aujourd'hui.</div>
       ${priorItemComplet(top3[0], 0)}
       ${autres.length ? `
         <div class="conseiller-autres-toggle" id="conseillerAutresToggle">Voir ${autres.length === 1 ? "l'autre décision" : `les ${autres.length} autres décisions`} du Conseiller ▾</div>
@@ -1553,6 +1625,7 @@
       margePlusResultat,
       constatTempo,
       messagesAdvisor,
+      dernierEtatStock,
     ] = await Promise.all([
       calculerCandidatsHome(SITE_HOME),
       chargerValideesHome(SITE_HOME),
@@ -1563,6 +1636,7 @@
       chargerMargePlusHome(SITE_HOME),
       chargerConstatTempoHome(SITE_HOME),
       chargerMessagesAdvisorHome(SITE_HOME),
+      chargerStockSanteHome(SITE_HOME),
     ]);
 
     const candidatsDisponibles = candidats.filter(c => !valideesSite.has(c.candidate_id));
@@ -1574,6 +1648,7 @@
       detailOperations: constatTempo.detailOperations,
       domainesRadar,
       jourARenforcer: constatTempo.jourARenforcer,
+      dernierEtatStock,
     });
     renderARetenir({
       jourMoteur: constatTempo.jourMoteur,
