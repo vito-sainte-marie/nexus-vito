@@ -210,28 +210,30 @@
   .priorite-item.traitee .priorite-body{opacity:0.5; text-decoration:line-through;}
   .priorite-body{font-size:12.5px; line-height:1.55;}
 
-  /* Format Constat / Conséquence / Décision / Preuve (26/07/2026, demande
-     de Frédéric) — priorité n°1 affichée en entier sur l'accueil, ses
-     preuves et limites restant repliées derrière un toggle pour ne pas
-     alourdir la première lecture. */
-  .priorite-constat{color:var(--text);}
-  .priorite-consequence{color:var(--text-mid); margin-top:3px;}
-  .priorite-decision{margin-top:6px; color:var(--text);}
-
-  /* Refonte du 27/07/2026 (demande de Frédéric, sur maquette fournie) —
-     Verdict → Constat → Décision → Impact attendu : le verdict remplace la
-     première lecture "chiffre brut" par un diagnostic en une phrase, et
-     l'ancien texte d'analyse générique (toujours conservé, replié dans
-     "Voir les preuves") laisse place à un "Impact attendu" qui dit ce que
-     rapporte l'action plutôt que le risque si on ne la fait pas. */
+  /* Refonte du 27/07/2026 (demande de Frédéric, principe fondamental) —
+     Décision → Pourquoi → Impact attendu → Preuves → Limites : la carte
+     s'ouvre directement sur la décision à l'impératif (jamais un
+     diagnostic), l'"Impact attendu" dit ce que rapporte l'action, et tout
+     le "pourquoi" (avec ses preuves et limites) reste replié derrière un
+     seul toggle pour ne pas alourdir la première lecture. Remplace le
+     format Verdict → Constat → Décision → Impact attendu du 27/07/2026
+     (première passe), lui-même remplacé par cette demande. */
   .priorite-tag{font-family:var(--mono); font-size:9px; letter-spacing:0.08em; text-transform:uppercase; color:var(--gold); margin-bottom:5px;}
-  .priorite-verdict{font-weight:700; color:var(--text); font-size:13px;}
+  .priorite-decision{font-weight:700; color:var(--text); font-size:13px;}
   .priorite-impact-label{font-family:var(--mono); font-size:9.5px; letter-spacing:0.04em; text-transform:uppercase; color:var(--text-dim); margin-top:8px;}
   .priorite-impact{color:var(--text-mid); margin-top:2px;}
   .conseiller-detail-toggle{margin-top:7px; font-family:var(--mono); font-size:10.5px; color:var(--text-dim); cursor:pointer; text-decoration:underline; display:inline-block;}
   .conseiller-detail-toggle:hover{color:var(--cyan);}
   .conseiller-detail-body{display:none; margin-top:7px; padding:9px 11px; background:var(--panel); border-radius:8px; font-family:var(--mono); font-size:10.5px; color:var(--text-mid); line-height:1.6;}
   .conseiller-detail-body.open{display:block;}
+  .priorite-section-label{font-family:var(--mono); font-size:9.5px; letter-spacing:0.04em; text-transform:uppercase; color:var(--text-dim); margin-top:8px;}
+  .priorite-section-label:first-child{margin-top:0;}
+  .priorite-pourquoi{color:var(--text-mid); margin-top:2px;}
+  .priorite-bullets{margin:4px 0 0; padding-left:16px; color:var(--text-mid);}
+  .priorite-bullets li{margin-bottom:2px;}
+  .priorite-opportunite{margin-top:3px; color:var(--text-mid);}
+  .priorite-limites-label{color:var(--amber);}
+  .priorite-limites{color:var(--text-mid); margin-top:2px;}
 
   /* Priorités 2 et 3 repliées (26/07/2026) : sur l'accueil, seule la
      priorité n°1 est développée — les suivantes restent une ligne
@@ -945,29 +947,119 @@
   // après une seule occurrence, ce serait un hasard de calendrier. Le
   // domaine "Opérations" de l'État global (moyenne des écarts de caisse)
   // est calculé ici aussi, sur les mêmes lignes déjà chargées.
+  // Jour le plus rentable (26/07/2026) : même définition de "produit
+  // d'appel" que NEXUS Marge+ (nexus-marge.js) — jamais une deuxième liste
+  // codée en dur qui risquerait de diverger de la première. Identique à
+  // NEXUS-Tempo-v1.html.
+  function estProduitAppelHome(categorie, article) {
+    return NexusMarge.familleMarge(categorie, article).exclue;
+  }
+
   async function chargerConstatTempoHome(siteId) {
-    const { data, error } = await fetchAllRowsHome(() => nexusClient.from('audits_caisse')
-      .select('date, quart, vente_piste, vente_boutique, ecart_piste, ecart_boutique, employes_piste, employes_boutique')
-      .eq('site', siteId).order('date', { ascending: true }));
+    const [{ data, error }, produitsRes] = await Promise.all([
+      fetchAllRowsHome(() => nexusClient.from('audits_caisse')
+        .select('date, quart, vente_piste, vente_boutique, ecart_piste, ecart_boutique, employes_piste, employes_boutique')
+        .eq('site', siteId).order('date', { ascending: true })),
+      fetchAllRowsHome(() => nexusClient.from('products')
+        .select('categorie, article, ca, periode_debut, periode_fin')
+        .eq('site', siteId)),
+    ]);
     if (error || !data) {
       console.error('Chargement audits_caisse (constat Tempo):', error);
-      return { jourARenforcer: null, jourMoteur: null, totalJours: 0, statutOperations: 'Données insuffisantes', detailOperations: null };
+      return { jourARenforcer: null, jourMoteur: null, jourPlusRentable: null, jourProgression: null, totalJours: 0, statutOperations: 'Données insuffisantes', detailOperations: null };
     }
     const joursAgreges = NexusTempo.agregerParJour(data);
     const totalJours = joursAgreges.length;
-    const regroupement = NexusTempo.regrouperParJourSemaine(joursAgreges);
+    // Jours clos uniquement (27/07/2026) — corrige une incohérence : ce
+    // constat comptait jusqu'ici le jour en cours comme exploitable, alors
+    // que NEXUS Tempo lui-même l'exclut toujours (voir filtrerJoursClos).
+    const joursExploitables = NexusTempo.filtrerJoursClos(joursAgreges);
+
+    // Valorisation boutique (produits d'appel exclus) — même pipeline que
+    // NEXUS Tempo (27/07/2026, demande de Frédéric) : le Conseiller doit
+    // pouvoir construire sa décision sur le jour le plus rentable, pas
+    // seulement sur le jour au CA brut le plus haut.
+    const periodesProduitsAppel = NexusTempo.calculerPeriodesProduitsAppel(produitsRes && produitsRes.error ? [] : (produitsRes.data || []), estProduitAppelHome);
+    const joursValorises = NexusTempo.attribuerValorisationBoutique(joursExploitables, periodesProduitsAppel);
+
+    const regroupement = NexusTempo.regrouperParJourSemaine(joursValorises);
     const classement = NexusTempo.calculerClassement(regroupement);
-    const { jourARenforcer, jourMoteur: jourMoteurBrut } = NexusTempo.identifierJoursReveles(classement);
+    const { jourARenforcer, jourMoteur: jourMoteurBrut, jourProgression: jourProgressionBrut } = NexusTempo.identifierJoursReveles(classement);
+    const jourPlusRentableBrut = NexusTempo.identifierJourPlusRentable(classement);
+
     const jourARenforcerRetenu = (!jourARenforcer || !jourARenforcer.confianceTendance || jourARenforcer.evolutionCombinee === null || jourARenforcer.evolutionCombinee > SEUIL_CONSTAT_TEMPO)
       ? null : jourARenforcer;
     const jourMoteur = (jourMoteurBrut && jourMoteurBrut.confianceTendance) ? jourMoteurBrut : null;
+    const jourPlusRentable = (jourPlusRentableBrut && jourPlusRentableBrut.nbOccValorisation > 0) ? jourPlusRentableBrut : null;
+    const jourProgression = (jourProgressionBrut && jourProgressionBrut.confianceTendance) ? jourProgressionBrut : null;
 
     const detailOperations = totalJours > 0
       ? joursAgreges.reduce((s, j) => s + Math.abs(j.ecartPiste) + Math.abs(j.ecartBoutique), 0) / totalJours
       : null;
     const statutOperationsVal = calculerStatutOperations(detailOperations, totalJours);
 
-    return { jourARenforcer: jourARenforcerRetenu, jourMoteur, totalJours, statutOperations: statutOperationsVal, detailOperations };
+    return { jourARenforcer: jourARenforcerRetenu, jourMoteur, jourPlusRentable, jourProgression, totalJours, statutOperations: statutOperationsVal, detailOperations };
+  }
+
+  // Candidat Tempo enrichi pour le Conseiller (27/07/2026, demande de
+  // Frédéric) : priorité au jour le plus rentable (CA valorisé, produits
+  // d'appel exclus) plutôt qu'au seul jour à renforcer — reproduit
+  // exactement la structure Décision → Pourquoi → Impact attendu →
+  // Preuves → Limites, avec le même exemple travaillé qu'il a fourni
+  // (jeudi plus rentable, vendredi plus fort en CA brut mais tiré par des
+  // produits d'appel). Retourne null si aucun jour n'est identifiable.
+  function construireCandidatTempoHome(constatTempo) {
+    const { jourPlusRentable, jourMoteur, jourARenforcer, jourProgression } = constatTempo;
+    const jourCible = jourPlusRentable || jourMoteur;
+    if (!jourCible) return null;
+
+    const fmt = v => `${Math.round(v).toLocaleString('fr-FR')} €`;
+    const fmtPct = v => `${v >= 0 ? '+' : ''}${(v * 100).toFixed(1).replace('.', ',')} %`;
+    const majuscule = s => s.charAt(0).toUpperCase() + s.slice(1);
+    const diverge = !!(jourPlusRentable && jourMoteur && jourPlusRentable.jourSemaine !== jourMoteur.jourSemaine);
+
+    let pourquoi = `Le ${jourCible.nom} est actuellement la journée qui crée le plus de valeur pour votre station.`;
+    let pourquoiBullets = null;
+    let pourquoiPasAutre = null;
+
+    if (jourPlusRentable) {
+      pourquoiBullets = [
+        `Meilleure performance piste : ${fmt(jourPlusRentable.moyennePisteValorisation)}`,
+        `Meilleure estimation de valeur : ${fmt(jourPlusRentable.moyenneCombineeValorisee)}`,
+        `Données issues de ${jourPlusRentable.nbOccValorisation} journée${jourPlusRentable.nbOccValorisation > 1 ? 's' : ''} exploitable${jourPlusRentable.nbOccValorisation > 1 ? 's' : ''}`,
+      ];
+    }
+    if (diverge) {
+      pourquoi += ` Le ${jourMoteur.nom} génère davantage de chiffre d'affaires brut, mais une part importante provient de produits d'appel à faible contribution.`;
+      pourquoiPasAutre = {
+        titre: `Pourquoi pas le ${jourMoteur.nom} ?`,
+        texte: `Le chiffre d'affaires boutique y est supérieur (${fmt(jourMoteur.moyenneBoutique)}), mais il est fortement influencé par des produits d'appel (cartes prépayées, téléphonie, presse, gaz, tabac). Ces ventes génèrent beaucoup de trafic mais relativement peu de valeur.`,
+      };
+    } else if (jourPlusRentable) {
+      pourquoi += ` Cette estimation reste cohérente une fois les produits d'appel retirés du calcul.`;
+    }
+
+    const opportunitesTempo = [];
+    if (jourProgression && jourProgression.jourSemaine !== jourCible.jourSemaine && jourProgression.evolutionCombinee !== null) {
+      opportunitesTempo.push({ icone: '🟢', label: majuscule(jourProgression.nom), detail: `Plus forte progression : ${fmtPct(jourProgression.evolutionCombinee)}` });
+    }
+    if (jourARenforcer && jourARenforcer.jourSemaine !== jourCible.jourSemaine && jourARenforcer.evolutionCombinee !== null) {
+      opportunitesTempo.push({ icone: '⚠️', label: majuscule(jourARenforcer.nom), detail: `Journée la plus faible : ${fmtPct(jourARenforcer.evolutionCombinee)}` });
+    }
+
+    let limites = null;
+    if (jourMoteur && jourMoteur.nbOccValorisation === 0 && jourMoteur.occurrences && jourMoteur.occurrences.length > 0) {
+      limites = `Le ${jourMoteur.nom} n'a pas encore été entièrement valorisé. Sa dernière occurrence est postérieure au dernier import Produits. Le calcul sera automatiquement actualisé lors du prochain import.`;
+    }
+
+    return {
+      jourCible,
+      decision: `Concentrez vos prochaines actions commerciales le ${jourCible.nom}.`,
+      pourquoi, pourquoiBullets, pourquoiPasAutre,
+      opportunites: opportunitesTempo.length ? opportunitesTempo : null,
+      impactAttendu: `En privilégiant le ${jourCible.nom} pour vos animations et mises en avant, vous exploitez la journée offrant aujourd'hui le meilleur potentiel économique.`,
+      limites,
+    };
   }
 
   // "À retenir aujourd'hui" (26/07/2026) — remplace les anciens bandeaux
@@ -1000,7 +1092,7 @@
       const pctBoutique = jourARenforcer.evolutionBoutique !== null ? `${jourARenforcer.evolutionBoutique >= 0 ? '+' : ''}${(jourARenforcer.evolutionBoutique * 100).toFixed(0)} % boutique` : null;
       const pctPiste = jourARenforcer.evolutionPiste !== null ? `${jourARenforcer.evolutionPiste >= 0 ? '+' : ''}${(jourARenforcer.evolutionPiste * 100).toFixed(0)} % piste` : null;
       const detail = [pctPiste, pctBoutique].filter(Boolean).join(' · ');
-      vigilance = carte('NEXUS-Tempo-v1.html', 'Vigilance', 'var(--amber)', majuscule(jourARenforcer.nom), detail || 'Journée la plus faible');
+      vigilance = carte('NEXUS-Tempo-v1.html', 'Vigilance', 'var(--amber)', majuscule(jourARenforcer.nom), detail || "Principale opportunité d'amélioration");
     } else {
       vigilance = `<a class="retenir-card" href="NEXUS-Tempo-v1.html"><div class="retenir-tag" style="color:var(--amber);">Vigilance</div><div class="retenir-vide">Aucun point de vigilance identifié.</div></a>`;
     }
@@ -1026,7 +1118,7 @@
   async function validerDecisionHome(candidat) {
     const { error } = await nexusClient.from('journal_decisions').insert({
       site: SITE_HOME, candidate_id: candidat.candidate_id, rule_id: candidat.ruleId, etat: candidat.etat,
-      recommandation: candidat.recommandation, impact_eur: candidat.impact_eur, article: candidat.article,
+      recommandation: candidat.decision, impact_eur: candidat.impact_eur, article: candidat.article,
       categorie: candidat.categorie, date: new Date().toISOString().slice(0, 10), heure: new Date().toTimeString().slice(0, 5),
       employee_id: EMPLOYEE_HOME_ID,
       ca_reference: candidat.ca_reference != null ? candidat.ca_reference : null,
@@ -1187,32 +1279,36 @@
   // ne s'affiche que si c.validable : les candidats Tempo et
   // advisor_messages se résolvent ailleurs (voir NexusConseiller), les
   // afficher comme "validables" ici créerait une mémoire incohérente.
-  // Refonte du 27/07/2026 (demande de Frédéric, sur maquette fournie) —
-  // Verdict → Constat → Décision → Impact attendu : le verdict ouvre la
-  // carte avec un diagnostic en une phrase (ex : "X est sous-exposé."),
-  // suivi du fait chiffré, de la décision en clair (sans préfixe gras
-  // "Décision :"), puis d'un "Impact attendu" qui dit le bénéfice de
-  // l'action plutôt qu'un risque en euros. L'ancien texte d'analyse
-  // générique (c.consequence) n'est pas supprimé — il rejoint la preuve
-  // dans le détail replié, avec la limite déjà connue de la méthode.
+  // Refonte du 27/07/2026 (demande de Frédéric, deuxième passe — principe
+  // fondamental) : "le Conseiller ne décrit jamais l'entreprise, il décrit
+  // uniquement ce qu'il faut faire, pourquoi, ce que cela va apporter...
+  // Décision ↓ Pourquoi ↓ Impact ↓ Preuves ↓ Limites. On commence toujours
+  // par la conclusion." La carte s'ouvre donc directement sur la décision
+  // à l'impératif (c.decision), jamais sur un diagnostic — le pourquoi
+  // (c.pourquoi, avec ses éventuels compléments pourquoiBullets /
+  // pourquoiPasAutre / opportunites) et les limites ne sont visibles que
+  // si le dirigeant déplie "Voir les preuves". Remplace l'ancien ordre
+  // Verdict → Constat → Décision → Impact attendu (27/07/2026, première
+  // passe), lui-même explicitement remplacé par cette demande.
   function priorItemComplet(c, i) {
     return `
       <div class="priorite-item" id="priorite-item-${i}">
         ${c.validable ? `<span class="priorite-check" data-idx="${i}">✓</span>` : ''}
         <div class="priorite-body">
           <div class="priorite-tag">Décision prioritaire</div>
-          ${c.verdict ? `<div class="priorite-verdict">${c.verdict}</div>` : ''}
-          <div class="priorite-constat">${c.constat}</div>
-          <div class="priorite-decision">${c.recommandation}</div>
+          <div class="priorite-decision">${c.decision}</div>
           ${c.impactAttendu ? `
           <div class="priorite-impact-label">Impact attendu :</div>
           <div class="priorite-impact">${c.impactAttendu}</div>` : ''}
-          ${(c.preuve || c.consequence) ? `
-          <div class="conseiller-detail-toggle" data-target="preuve-${i}">Voir les preuves ▾</div>
+          ${(c.pourquoi || c.preuve || c.limites) ? `
+          <div class="conseiller-detail-toggle" data-target="preuve-${i}">Voir les preuves et la méthode d'analyse ▾</div>
           <div class="conseiller-detail-body" id="preuve-${i}">
-            ${c.consequence ? `${c.consequence}<br>` : ''}
-            ${c.preuve ? `${c.preuve}<br>` : ''}
-            <span style="color:var(--text-dim);">Comparaison sur une seule période d'import — pas encore une tendance confirmée sur plusieurs périodes.</span>
+            ${c.pourquoi ? `<div class="priorite-section-label">Pourquoi ?</div><div class="priorite-pourquoi">${c.pourquoi}</div>` : ''}
+            ${c.pourquoiBullets ? `<ul class="priorite-bullets">${c.pourquoiBullets.map(b => `<li>${b}</li>`).join('')}</ul>` : ''}
+            ${c.pourquoiPasAutre ? `<div class="priorite-section-label">${c.pourquoiPasAutre.titre}</div><div class="priorite-pourquoi">${c.pourquoiPasAutre.texte}</div>` : ''}
+            ${c.preuve ? `<div class="priorite-pourquoi">${c.preuve}</div>` : ''}
+            ${c.opportunites ? `<div class="priorite-section-label">Opportunités complémentaires</div>${c.opportunites.map(o => `<div class="priorite-opportunite">${o.icone} <b>${o.label}</b> — ${o.detail}</div>`).join('')}` : ''}
+            ${c.limites ? `<div class="priorite-section-label priorite-limites-label">Limites de l'analyse</div><div class="priorite-limites">${c.limites}</div>` : ''}
           </div>` : ''}
           <a class="priorite-lien" href="${c.cible}">${verbeActionAleatoire(c.etat)} →</a>
         </div>
@@ -1224,7 +1320,7 @@
       <div class="priorite-item-court" id="priorite-item-${i}">
         ${c.validable ? `<span class="priorite-check" data-idx="${i}">✓</span>` : ''}
         <div class="priorite-body">
-          ${c.constat} <b style="color:var(--gold);">${c.recommandation}</b>
+          <b style="color:var(--gold);">${c.decision}</b>
           <a class="priorite-lien" href="${c.cible}">${verbeActionAleatoire(c.etat)} →</a>
         </div>
       </div>`;
@@ -1461,9 +1557,8 @@
     // que de toujours remonter le même candidat.
     const candidatMarge = margePlusResultat && margePlusResultat.candidatTop
       ? NexusConseiller.normaliserMarge(margePlusResultat.candidatTop) : null;
-    const candidatTempo = constatTempo.jourARenforcer
-      ? NexusConseiller.normaliserTempo(constatTempo.jourARenforcer, `CA piste + boutique moyen de ${Math.round(constatTempo.jourARenforcer.moyenneCombinee).toLocaleString('fr-FR')} € sur la période observée${constatTempo.jourARenforcer.evolutionCombinee !== null ? `, ${constatTempo.jourARenforcer.evolutionCombinee >= 0 ? '+' : ''}${(constatTempo.jourARenforcer.evolutionCombinee * 100).toFixed(1).replace('.', ',')} % sur la dernière occurrence` : ''}.`)
-      : null;
+    const candidatTempoBrut = construireCandidatTempoHome(constatTempo);
+    const candidatTempo = candidatTempoBrut ? NexusConseiller.normaliserTempo(candidatTempoBrut) : null;
     const candidatsAdvisor = messagesAdvisor.map(NexusConseiller.normaliserAdvisor);
     const candidatsConseiller = NexusConseiller.fusionnerEtSelectionner(
       [candidatsDisponibles, candidatMarge ? [candidatMarge] : [], candidatTempo ? [candidatTempo] : [], candidatsAdvisor],

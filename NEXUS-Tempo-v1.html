@@ -410,17 +410,17 @@ footer{margin-top:auto; padding:20px 20px 24px; font-family:var(--mono); font-si
     // même avec une seule occurrence chacun : c'est un constat de ce qui a
     // été observé, pas une tendance.
     if (meilleurPiste && meilleurBoutique && meilleurPiste.jourSemaine !== meilleurBoutique.jourSemaine) {
-      texte += `le <b>${meilleurPiste.nom}</b> reste votre meilleur jour en piste (${fmtEur(meilleurPiste.moyennePiste)} en moyenne), tandis que le <b>${meilleurBoutique.nom}</b> a mieux fonctionné côté boutique (${fmtEur(meilleurBoutique.moyenneBoutique)} en moyenne). `;
+      texte += `le <b>${meilleurPiste.nom}</b> crée actuellement le plus de valeur en piste (${fmtEur(meilleurPiste.moyennePiste)} en moyenne), tandis que le <b>${meilleurBoutique.nom}</b> a mieux fonctionné côté boutique (${fmtEur(meilleurBoutique.moyenneBoutique)} en moyenne). `;
     } else if (jourMoteur) {
-      texte += `le <b>${jourMoteur.nom}</b> reste votre journée la plus performante avec ${fmtEur(jourMoteur.moyenneCombinee)} de CA moyen (piste + boutique). `;
+      texte += `le <b>${jourMoteur.nom}</b> crée actuellement le plus de valeur avec ${fmtEur(jourMoteur.moyenneCombinee)} de CA moyen (piste + boutique). `;
     }
     if (jourARenforcer && jourARenforcer.jourSemaine !== (jourMoteur && jourMoteur.jourSemaine)) {
-      texte += `Le <b>${jourARenforcer.nom}</b> reste le point faible global`;
+      texte += `Le <b>${jourARenforcer.nom}</b> reste votre principale opportunité d'amélioration`;
       if (jourARenforcer.evolutionCombinee !== null) texte += `, ${fmtPct(jourARenforcer.evolutionCombinee)} sur la dernière occurrence`;
       texte += `. `;
     }
     if (jourProgression) {
-      texte += `Le <b>${jourProgression.nom}</b> progresse le plus (${fmtPct(jourProgression.evolutionCombinee)}) sur son historique récent. `;
+      texte += `Le <b>${jourProgression.nom}</b> confirme une dynamique très encourageante (${fmtPct(jourProgression.evolutionCombinee)}) sur son historique récent. `;
     } else {
       texte += `Historique clos encore trop court pour identifier une progression fiable — chaque nouvelle journée terminée affine cette lecture. `;
     }

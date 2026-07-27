@@ -56,6 +56,15 @@
   // attendu de l'action (pas un risque en euros — celui-ci reste dans
   // "Voir les preuves"), formulés selon le geste concret propre à chaque
   // type de rayon comme le reste de LANGAGE_ACTION.
+  //
+  // decisionAgir/Hausse/Baisse ajoutés le 27/07/2026 (demande de Frédéric,
+  // deuxième passe) : "le Conseiller ne décrit jamais l'entreprise, il
+  // décrit uniquement ce qu'il faut faire, pourquoi, ce que cela va
+  // apporter" — la carte doit désormais s'ouvrir sur cette phrase à
+  // l'impératif (la décision), jamais sur le diagnostic. verdictAgir et
+  // recoAgir restent utilisés (fondus dans "pourquoi" par les
+  // normaliseurs), mais decisionAgir en est la reformulation directe à
+  // l'impératif, sans "je recommande de/d'".
   const LANGAGE_ACTION = {
     facing: {
       analyseAgir: "Une référence à ce niveau de contribution mérite un facing à la hauteur de son poids réel.",
@@ -69,6 +78,9 @@
       impactAgir: "Disponibilité renforcée et potentiel de ventes accru.",
       impactHausse: "Dynamique commerciale prolongée sans rupture.",
       impactBaisse: "Cause de la baisse identifiée avant qu'elle ne s'aggrave.",
+      decisionAgir: a => `Renforcez le facing de ${a} dès le prochain réassort.`,
+      decisionHausse: a => `Renforcez le facing de ${a} avant le prochain réapprovisionnement.`,
+      decisionBaisse: a => `Vérifiez la présence en rayon de ${a}.`,
     },
     stock: {
       analyseAgir: "Une référence à ce niveau de contribution ne doit jamais être en rupture en dépôt — elle n'est pas exposée en rayon comme les autres.",
@@ -82,6 +94,9 @@
       impactAgir: "Rupture évitée et continuité des ventes en dépôt.",
       impactHausse: "Approvisionnement sécurisé pour prolonger la dynamique.",
       impactBaisse: "Cause de la baisse identifiée avant qu'elle ne s'aggrave.",
+      decisionAgir: a => `Vérifiez le stock disponible en dépôt/cage pour ${a}.`,
+      decisionHausse: a => `Sécurisez davantage de stock de ${a} avant le prochain réapprovisionnement.`,
+      decisionBaisse: a => `Vérifiez le stock en dépôt/cage de ${a}.`,
     },
     support: {
       analyseAgir: "Une référence à ce niveau de contribution dépend surtout de la disponibilité du support et de son activation en caisse, pas d'un emplacement en rayon.",
@@ -95,6 +110,9 @@
       impactAgir: "Continuité du service et vente non interrompue.",
       impactHausse: "Support et activation prolongés pour ne pas casser la dynamique.",
       impactBaisse: "Cause de la baisse identifiée avant qu'elle ne s'aggrave.",
+      decisionAgir: a => `Vérifiez le stock de cartes et la bonne activation en caisse pour ${a}.`,
+      decisionHausse: a => `Prévoyez davantage de support et d'activation pour ${a} avant le prochain réapprovisionnement.`,
+      decisionBaisse: a => `Vérifiez la disponibilité du support et son activation en caisse pour ${a}.`,
     },
     production: {
       analyseAgir: "Une référence à ce niveau de contribution dépend surtout de la quantité produite ou commandée chaque jour — c'est un produit frais, pas un facing.",
@@ -108,6 +126,9 @@
       impactAgir: "Quantité ajustée à la demande réelle, moins de perte ou de rupture.",
       impactHausse: "Production maintenue au niveau de la demande réelle.",
       impactBaisse: "Cause de la baisse identifiée avant qu'elle ne s'aggrave.",
+      decisionAgir: a => `Ajustez la quantité commandée ou produite de ${a} au niveau réel de la demande.`,
+      decisionHausse: a => `Augmentez la quantité commandée ou produite de ${a} avant le prochain réapprovisionnement.`,
+      decisionBaisse: a => `Vérifiez si la quantité produite ou commandée de ${a} a été réduite.`,
     },
     comptoir: {
       analyseAgir: "Une référence à ce niveau de contribution doit rester visible et disponible au comptoir en priorité.",
@@ -121,6 +142,9 @@
       impactAgir: "Disponibilité maintenue au comptoir, vente non interrompue.",
       impactHausse: "Dynamique commerciale prolongée sans rupture.",
       impactBaisse: "Cause de la baisse identifiée avant qu'elle ne s'aggrave.",
+      decisionAgir: a => `Vérifiez la disponibilité au comptoir de ${a}.`,
+      decisionHausse: a => `Garantissez la disponibilité au comptoir de ${a} avant le prochain réapprovisionnement.`,
+      decisionBaisse: a => `Vérifiez la disponibilité au comptoir de ${a}.`,
     },
     presentoir: {
       analyseAgir: "Une référence à ce niveau de contribution mérite une bonne visibilité sur le présentoir.",
@@ -134,6 +158,9 @@
       impactAgir: "Meilleure visibilité et vente facilitée.",
       impactHausse: "Dynamique commerciale prolongée sans rupture.",
       impactBaisse: "Cause de la baisse identifiée avant qu'elle ne s'aggrave.",
+      decisionAgir: a => `Vérifiez et améliorez l'emplacement de ${a} sur le présentoir.`,
+      decisionHausse: a => `Améliorez l'emplacement de ${a} sur le présentoir avant le prochain réapprovisionnement.`,
+      decisionBaisse: a => `Vérifiez l'emplacement de ${a} sur le présentoir.`,
     },
   };
 
@@ -244,17 +271,44 @@
   const RANG_ADVISOR = { critique: 0, haute: 1, a_surveiller: 2, normale: 3, information: 4 };
   const RANG_PRODUIT = { '🔥 À AGIR': 0, '📈 OPPORTUNITÉ': 2, '🟡 À SURVEILLER': 2 };
 
-  // Convertit un candidat Produits (calculerCandidatsProduits) au format
-  // d'affichage commun du Conseiller (constat/consequence/preuve) —
-  // validable : ces candidats utilisent le même candidate_id LIVE-Rn que
-  // journal_decisions, donc la case à cocher peut écrire directement dedans.
+  // Schéma commun de sortie des 4 normaliseurs (réécrit le 27/07/2026,
+  // demande de Frédéric — deuxième passe) : "le Conseiller ne décrit
+  // jamais l'entreprise, il décrit uniquement ce qu'il faut faire,
+  // pourquoi, ce que cela va apporter... Décision ↓ Pourquoi ↓ Impact ↓
+  // Preuves ↓ Limites. On commence toujours par la conclusion." L'ancien
+  // schéma (verdict/constat/consequence/recommandation) menait par le
+  // diagnostic ; il est remplacé par :
+  //   decision        — phrase à l'impératif, TOUJOURS affichée en premier
+  //   pourquoi        — explication (fond verdict + situation)
+  //   pourquoiBullets — optionnel, liste de preuves courtes (Tempo)
+  //   pourquoiPasAutre— optionnel, {titre, texte} contre-argument (Tempo)
+  //   opportunites    — optionnel, liste de {icone, label, detail} (Tempo)
+  //   impactAttendu   — bénéfice attendu de la décision
+  //   preuve          — chiffre/preuve complémentaire (repliée)
+  //   limites         — optionnel, réserve/incertitude sur l'analyse
+  // Réservé à R2/R3 : contrairement à R4 (évaluée sur la seule période
+  // affichée, voir calculerCandidatsProduits), R2 et R3 comparent deux
+  // périodes — la limite réelle de la méthode est de ne pas encore avoir
+  // plusieurs périodes consécutives pour confirmer une tendance.
+  const LIMITE_PERIODE_UNIQUE = "Comparaison sur une seule période d'import — pas encore une tendance confirmée sur plusieurs périodes.";
   function normaliserProduit(c) {
+    const lang = LANGAGE_ACTION[typeActionPourCategorie(c.categorie)];
+    let decision, limites = null;
+    if (c.rule_id === 'R3-HAUSSE') {
+      decision = lang.decisionHausse(c.article);
+      limites = LIMITE_PERIODE_UNIQUE;
+    } else if (c.rule_id === 'R2-BAISSE') {
+      decision = lang.decisionBaisse(c.article);
+      limites = `${c.analyse} ${c.consequence} ${LIMITE_PERIODE_UNIQUE}`;
+    } else {
+      decision = lang.decisionAgir(c.article);
+    }
     return {
       candidate_id: c.candidate_id, ruleId: c.rule_id, rang: RANG_PRODUIT[c.etat] != null ? RANG_PRODUIT[c.etat] : 2,
       moteur: 'produits',
       etat: c.etat, impact_eur: c.impact_eur, article: c.article, categorie: c.categorie,
-      verdict: c.verdict, constat: c.situation, consequence: c.analyse, recommandation: c.recommandation,
-      impactAttendu: c.impactAttendu, preuve: c.impact,
+      decision, pourquoi: `${c.verdict} ${c.situation}`,
+      impactAttendu: c.impactAttendu, preuve: c.impact, limites,
       cible: `NEXUS-Produits-v1.html?article=${encodeURIComponent(c.article)}`,
       validable: true,
       ca_reference: c.ca_reference, periode_reference_debut: c.periode_reference_debut, periode_reference_fin: c.periode_reference_fin,
@@ -264,38 +318,46 @@
   // Convertit un candidat Marge+ (même schéma que NEXUS-Scanner-v1.html,
   // règle R5-MARGE-ECART) — également validable, même candidate_id que
   // Scanner (LIVE-R5-...), donc reste cohérent si validé depuis l'accueil
-  // ou depuis Scanner.
+  // ou depuis Scanner. `recommandation` est déjà à l'impératif ("Vérifiez
+  // si le prix d'achat ou de vente de X peut se rapprocher de..."), donc
+  // sert de decision directement, sans reformulation.
   function normaliserMarge(c) {
     return {
       candidate_id: c.candidate_id, ruleId: 'R5-MARGE-ECART', rang: 2,
       moteur: 'marge',
       etat: c.etat, impact_eur: c.impact_eur, article: c.article, categorie: c.categorie,
-      verdict: `${c.article} est sous-valorisé.`,
-      constat: c.situation, consequence: c.analyse || c.contexte, recommandation: c.recommandation,
+      decision: c.recommandation, pourquoi: c.situation,
       impactAttendu: "Marge alignée sur le groupe, sans perdre en compétitivité.",
-      preuve: c.impact,
+      preuve: c.impact, limites: c.analyse || null,
       cible: 'NEXUS-Scanner-v1.html',
       validable: true,
       ca_reference: c.ca_reference, periode_reference_debut: c.periode_reference_debut, periode_reference_fin: c.periode_reference_fin,
     };
   }
 
-  // Convertit la décision Tempo (un seul jour à la fois, jamais une liste)
-  // — non validable depuis l'accueil : NEXUS Tempo valide cette décision
-  // via une mission dédiée (candidate_id = id de mission, format différent
-  // de LIVE-Rn) — dupliquer cette écriture ici créerait deux identités
-  // différentes pour la même décision. Le lien renvoie donc vers Tempo,
-  // où la validation réelle a lieu.
-  function normaliserTempo(jourARenforcer, message) {
-    const nom = jourARenforcer.nom.charAt(0).toUpperCase() + jourARenforcer.nom.slice(1);
+  // Convertit le candidat Tempo enrichi (27/07/2026, demande de Frédéric —
+  // "jeudi crée le plus de valeur, vendredi fait plus de CA brut mais
+  // avec des produits d'appel") — construit en amont dans App-v1 par
+  // construireCandidatTempoHome() à partir du jour le plus rentable
+  // (valorisé, produits d'appel exclus) plutôt que du seul jour à
+  // renforcer. Non validable depuis l'accueil : NEXUS Tempo valide sa
+  // propre décision via une mission dédiée (candidate_id = id de mission,
+  // format différent de LIVE-Rn) — dupliquer cette écriture ici créerait
+  // deux identités différentes pour la même décision. `c` attend
+  // {jourCible, decision, pourquoi, pourquoiBullets, pourquoiPasAutre,
+  // opportunites, impactAttendu, limites}.
+  function normaliserTempo(c) {
     return {
-      candidate_id: `TEMPO-${jourARenforcer.nom}`, ruleId: 'R6-TEMPO-JOUR', rang: 2,
+      candidate_id: `TEMPO-${c.jourCible.nom}`, ruleId: 'R6-TEMPO-JOUR', rang: 2,
       moteur: 'tempo',
       etat: '🗓️ TEMPO', impact_eur: 0, article: null, categorie: 'Rythme hebdomadaire',
-      verdict: `${nom} est le point faible de la semaine.`,
-      constat: message, consequence: '', recommandation: 'Ouvrir NEXUS Tempo pour le détail complet et créer la mission de contrôle.',
-      impactAttendu: "Meilleure maîtrise du rythme hebdomadaire de la station.",
-      preuve: null, cible: 'NEXUS-Tempo-v1.html', validable: false,
+      decision: c.decision, pourquoi: c.pourquoi,
+      pourquoiBullets: c.pourquoiBullets || null,
+      pourquoiPasAutre: c.pourquoiPasAutre || null,
+      opportunites: c.opportunites || null,
+      impactAttendu: c.impactAttendu,
+      preuve: null, limites: c.limites || null,
+      cible: 'NEXUS-Tempo-v1.html', validable: false,
     };
   }
 
@@ -311,10 +373,11 @@
       candidate_id: `ADV-${message.id}`, ruleId: message.code || null, rang: RANG_ADVISOR[message.priority] != null ? RANG_ADVISOR[message.priority] : 3,
       moteur: 'advisor',
       etat: '📋 SIGNAL', impact_eur: 0, article: null, categorie: message.nomRegle || domaine,
-      verdict: message.nomRegle || 'Point à vérifier.',
-      constat: message.message_text, consequence: '', recommandation: 'Vérifier ce point dans l’écran concerné.',
+      decision: 'Vérifiez ce point dans l’écran concerné.',
+      pourquoi: message.message_text,
       impactAttendu: "Situation clarifiée et suivie dans la durée.",
       preuve: `Confiance ${message.confidence_level || '—'} · détecté le ${new Date(message.generated_at).toLocaleDateString('fr-FR')}`,
+      limites: null,
       cible: CIBLE_PAR_DOMAINE_ADVISOR[domaine] || 'NEXUS-Cockpit-v2.html',
       validable: false,
     };

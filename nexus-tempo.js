@@ -546,7 +546,7 @@
     return {
       disponible: true,
       jour: jourARenforcer,
-      message: `Contrôler le déroulement du ${jourARenforcer.nom} : c'est le jour le plus faible de la semaine sur la période observée (CA piste + boutique moyen de ${Math.round(jourARenforcer.moyenneCombinee).toLocaleString('fr-FR')} €${jourARenforcer.evolutionCombinee !== null ? `, ${jourARenforcer.evolutionCombinee >= 0 ? '+' : ''}${(jourARenforcer.evolutionCombinee * 100).toFixed(1).replace('.', ',')} % sur la dernière occurrence` : ''}).`,
+      message: `Concentrer votre attention sur le ${jourARenforcer.nom} : c'est votre principale opportunité d'amélioration sur la période observée (CA piste + boutique moyen de ${Math.round(jourARenforcer.moyenneCombinee).toLocaleString('fr-FR')} €${jourARenforcer.evolutionCombinee !== null ? `, ${jourARenforcer.evolutionCombinee >= 0 ? '+' : ''}${(jourARenforcer.evolutionCombinee * 100).toFixed(1).replace('.', ',')} % sur la dernière occurrence` : ''}).`,
     };
   }
 
@@ -888,7 +888,7 @@
       decouvertes.push({
         titre: positionForte
           ? `Les ${a.nom}s restent systématiquement la journée la plus performante.`
-          : `Les ${a.nom}s restent systématiquement la journée la plus faible.`,
+          : `Les ${a.nom}s représentent systématiquement la principale marge de progression.`,
         impact: positionForte ? 'Fort' : 'Modéré',
         source: 'Historique des audits de caisse',
         nbObservations: a.occurrences.length,
