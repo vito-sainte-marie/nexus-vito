@@ -26,23 +26,46 @@
   }
   .app{width:100%; max-width:520px; min-height:100vh; display:flex; flex-direction:column; border-left:1px solid var(--hairline); border-right:1px solid var(--hairline);}
 
-  .header{padding:30px 24px 10px; text-align:center;}
-  .logo-frame{
-    width:72px; height:72px; border-radius:22px;
-    background:transparent;
-    display:flex; align-items:center; justify-content:center;
-    border:1px solid var(--hairline);
-    margin:0 auto 14px;
+  /* Refonte de l'en-tête (27/07/2026, demande de Frédéric) : remplace
+     l'ancien empilement logo/NEXUS/nom de station par une identité qui
+     donne l'impression que "NEXUS est connecté et qu'il travaille" — le
+     vrai logo NEXUS (assets/nexus-logo-cyan.png, fourni par Frédéric,
+     hébergé sur GitHub dans nexus-vito/assets) au centre avec un halo
+     lumineux en CSS, le nom du commerce à côté (jamais codé en dur :
+     #stationTitle reste alimenté par chargerMarqueSite() plus bas), un
+     badge "Connecté" à voyant vert, et la signature qui remplace l'ancien
+     sous-titre statique. Conçu pour rester identique quel que soit le
+     commerce branché sur NEXUS demain : seul #logoFrameHote (logo du
+     client, injecté seulement s'il existe) et #stationTitle changent d'un
+     site à l'autre — tout le reste (logo NEXUS, halo, badge, signature)
+     est la marque NEXUS elle-même, commune à tous les commerces. */
+  .header{padding:34px 24px 16px; text-align:center;}
+  .header-brandrow{display:flex; align-items:center; justify-content:center; gap:14px;}
+  .header-wordmark{font-family:var(--mono); font-weight:700; font-size:14px; letter-spacing:0.24em; color:var(--cyan);}
+  .header-divider{width:1px; height:24px; background:var(--hairline); flex-shrink:0;}
+  .header-mark{position:relative; width:60px; height:60px; flex-shrink:0;}
+  .header-mark-glow{position:absolute; inset:-9px; border-radius:50%; background:radial-gradient(circle, rgba(79,195,217,0.38), transparent 70%); filter:blur(5px);}
+  .header-mark-img{position:relative; width:100%; height:100%; object-fit:contain; display:block;}
+  .header-sitewrap{display:inline-flex; align-items:center; gap:7px; max-width:150px;}
+  .logo-frame{display:inline-flex; flex-shrink:0;}
+  .logo-frame img{width:22px; height:22px; border-radius:50%; object-fit:cover; box-shadow:0 0 0 1px var(--hairline);}
+  .header-sitename{font-size:14.5px; font-weight:600; letter-spacing:-0.01em; color:var(--text); text-align:left; line-height:1.25;}
+  .header-statut{display:inline-flex; align-items:center; gap:7px; margin-top:18px; padding:6px 14px; border-radius:100px; border:1px solid var(--hairline); background:var(--panel); font-family:var(--mono); font-size:10.5px; letter-spacing:0.05em; color:var(--text-mid);}
+  .statut-dot{width:7px; height:7px; border-radius:50%; background:var(--green); animation:statutPulse 2s infinite;}
+  @keyframes statutPulse{
+    0%{box-shadow:0 0 0 0 rgba(52,211,153,0.55);}
+    70%{box-shadow:0 0 0 6px rgba(52,211,153,0);}
+    100%{box-shadow:0 0 0 0 rgba(52,211,153,0);}
   }
-  .logo-frame img{
-    height:50px; width:50px; object-fit:cover; object-position:center; border-radius:13px;
+  .subtitle{font-family:var(--sans); font-size:13px; color:var(--text-mid); margin-top:14px; line-height:1.5; max-width:360px; margin-left:auto; margin-right:auto;}
+  .dots-anim{display:inline-flex; gap:2px; margin-left:2px; vertical-align:baseline;}
+  .dots-anim i{width:3px; height:3px; border-radius:50%; background:var(--text-mid); display:inline-block; font-style:normal; animation:dotsBounce 1.2s infinite ease-in-out;}
+  .dots-anim i:nth-child(2){animation-delay:0.15s;}
+  .dots-anim i:nth-child(3){animation-delay:0.3s;}
+  @keyframes dotsBounce{
+    0%, 80%, 100%{opacity:0.25; transform:translateY(0);}
+    40%{opacity:1; transform:translateY(-2px);}
   }
-  .mark{
-    display:inline-block; font-family:var(--mono); font-weight:700; font-size:12px; letter-spacing:0.16em;
-    color:var(--cyan); border:1px solid rgba(79,195,217,0.35); padding:4px 10px; border-radius:6px; margin-bottom:12px;
-  }
-  .title{font-size:23px; font-weight:600; letter-spacing:-0.01em;}
-  .subtitle{font-family:var(--sans); font-size:13px; color:var(--text-mid); margin-top:6px; line-height:1.5; max-width:340px; margin-left:auto; margin-right:auto;}
 
   .hero{margin:20px 20px 8px; padding:22px; border-radius:var(--r-lg); text-decoration:none; color:var(--text); display:block; position:relative; overflow:hidden;
     background:linear-gradient(150deg, var(--panel-raised), var(--panel)); border:1px solid rgba(79,195,217,0.28);
@@ -293,10 +316,21 @@
 <body>
 <div class="app">
   <div class="header">
-    <div id="logoFrameHote"></div>
-    <span class="mark">NEXUS</span>
-    <div class="title" id="stationTitle">Vito Sainte-Marie Usine</div>
-    <div class="subtitle" id="taglineRole">Le premier directeur d'exploitation numérique qui accompagne les managers dans leurs décisions quotidiennes.</div>
+    <div class="header-brandrow">
+      <span class="header-wordmark">NEXUS</span>
+      <span class="header-divider"></span>
+      <div class="header-mark">
+        <div class="header-mark-glow"></div>
+        <img class="header-mark-img" src="assets/nexus-logo-cyan.png" alt="NEXUS">
+      </div>
+      <span class="header-divider"></span>
+      <span class="header-sitewrap">
+        <span id="logoFrameHote"></span>
+        <span class="header-sitename" id="stationTitle">Vito Sainte-Marie Usine</span>
+      </span>
+    </div>
+    <div class="header-statut"><span class="statut-dot"></span>Connecté</div>
+    <div class="subtitle" id="taglineRole">Le Centre d'Intelligence NEXUS analyse votre commerce et hiérarchise vos priorités<span class="dots-anim"><i></i><i></i><i></i></span></div>
     <div class="subtitle" id="sessionInfo" style="margin-top:6px;"></div>
   </div>
   <div id="banniereConsultation"></div>
@@ -1831,12 +1865,14 @@
       }
     }
 
-    const tagline = document.getElementById('taglineRole');
-    if (tagline) {
-      tagline.textContent = estNiveauManager
-        ? "Chaque décision compte. NEXUS vous aide à prendre les bonnes."
-        : "Chaque mission réalisée contribue à la performance de votre équipe.";
-    }
+    // La signature de l'en-tête (27/07/2026, demande de Frédéric) —
+    // "Le Centre d'Intelligence NEXUS analyse votre commerce et
+    // hiérarchise vos priorités..." — est désormais fixe, écrite dans le
+    // HTML (#taglineRole), la même pour tout le monde : elle décrit ce
+    // que NEXUS fait en permanence, pas un message d'encouragement
+    // propre au rôle. Les anciens textes différenciés manager/employé ont
+    // été retirés ; ne plus réécrire tagline.textContent ici, sous peine
+    // d'effacer les points animés (span.dots-anim) qu'il contient.
 
     if (estNiveauManager) {
       document.getElementById('heroEmploye').style.display = 'none';
@@ -1868,7 +1904,12 @@
     }
 
     // Marque dynamique — lit la table `sites` pour le site de l'employe
-    // connecte.
+    // connecte. Le logo du client (site.logo_url) s'insère en petit badge
+    // circulaire juste avant le nom du commerce dans l'en-tête (27/07/2026,
+    // refonte demandée par Frédéric) — s'il n'existe pas encore pour un
+    // commerce, #logoFrameHote reste simplement vide et le nom s'affiche
+    // seul : aucune mise en page ne casse, prêt pour n'importe quel futur
+    // client sans logo au démarrage.
     (async function chargerMarqueSite() {
       const siteId = employee.site_id || 'vito-sainte-marie';
       const { data: site, error } = await nexusClient.from('sites').select('nom_entreprise, logo_url').eq('site_id', siteId).maybeSingle();
