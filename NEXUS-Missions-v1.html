@@ -74,6 +74,13 @@
   .check-box.checked{background:var(--green); border-color:var(--green); color:#04141a;}
   .check-text.checked{color:var(--text-dim); text-decoration:line-through;}
   .mission-photo{font-family:var(--mono); font-size:10px; color:var(--amber); margin-top:10px;}
+  /* Photo par action (27/07/2026, demande de Frédéric — prise de poste
+     pompiste) : chaque étape de la checklist exige sa propre preuve photo
+     avant de pouvoir être cochée, au lieu d'une seule photo globale en fin
+     de mission (voir mission_catalog.photo_par_action). */
+  .check-item-photo .check-text{flex:1;}
+  .check-photo-badge{flex-shrink:0; font-family:var(--mono); font-size:9.5px; color:var(--amber); white-space:nowrap;}
+  .check-photo-badge.done{color:var(--green);}
 
   .produit-cible-picker{margin-top:12px;}
   .produit-recherche-wrap{position:relative; margin-top:6px;}
@@ -150,7 +157,6 @@
   <div class="divider"></div>
 
   <div id="conseillerPersoSection"></div>
-  <div id="missionsAssigneesSection"></div>
 
   <div class="search-wrap">
     <div class="search-box"><span>🔍</span><input type="text" id="search" placeholder="Rechercher un plan d'action..."></div>
@@ -165,12 +171,27 @@
   let catalogue = [];
   let roleDuJour = null;
 
+  // CORRIGE le 26/07/2026 (Frédéric a signalé un résidu : une mission
+  // "Renfort A — Bière Heineken 50cl" figée, générée par l'ancien système
+  // de démo pré-20/07/2026, suggérée en boucle par le Conseiller
+  // personnel). Deux garde-fous ajoutés pour que ça ne puisse plus se
+  // reproduire, y compris pour un futur site :
+  //   1) .eq('site_id', SITE_ACTUEL) — un site ne charge plus jamais le
+  //      catalogue d'un autre site (avant, aucun filtre de site n'était
+  //      appliqué du tout sur cette requête).
+  //   2) .eq('ponctuelle', false) — les missions ponctuelles (créées via
+  //      le bouton "Créer une mission" de Scanner) ne font plus jamais
+  //      partie du catalogue récurrent ni des suggestions quotidiennes du
+  //      Conseiller personnel (voir choisirMissionSuggeree ci-dessous) —
+  //      elles vivent uniquement dans mission_assignments, affichées et
+  //      clôturables depuis la section "Missions assignées" plus bas.
   async function chargerCatalogue() {
     const { data, error } = await nexusClient
       .from('mission_catalog')
       .select('*')
       .eq('actif', true)
-      .eq('ponctuelle', false); // exclut les missions ponctuelles NEXUS Marge+ (assignées via mission_assignments, pas destinées à tout le rôle)
+      .eq('ponctuelle', false)
+      .eq('site_id', SITE_ACTUEL);
     if (error) { console.error('Chargement catalogue:', error); return []; }
     return data || [];
   }
@@ -253,42 +274,42 @@
       analyseAgir: "Une référence à ce niveau de contribution mérite un facing à la hauteur de son poids réel.",
       recoAgir: a => `Je recommande de vérifier et renforcer le facing de ${a}.`,
       consAgir: m => `Un sous-dimensionnement de facing sur cette référence représente un risque estimé à ${m} €.`,
-      recoHausse: a => `Il serait utile de renforcer le facing de ${a} avant la période suivante.`,
+      recoHausse: a => `Il serait utile de renforcer le facing de ${a} avant le prochain réapprovisionnement.`,
       recoBaisse: a => `Vérifiez la présence en rayon de ${a} avant toute décision.`,
     },
     stock: {
       analyseAgir: "Une référence à ce niveau de contribution ne doit jamais être en rupture en dépôt — elle n'est pas exposée en rayon comme les autres.",
       recoAgir: a => `Je recommande de vérifier le stock disponible en dépôt/cage pour ${a}.`,
       consAgir: m => `Une rupture de stock sur cette référence représente un risque estimé à ${m} €.`,
-      recoHausse: a => `Sécurisez davantage de stock de ${a} avant la période suivante.`,
+      recoHausse: a => `Sécurisez davantage de stock de ${a} avant le prochain réapprovisionnement.`,
       recoBaisse: a => `Vérifiez le stock en dépôt/cage de ${a} avant toute décision.`,
     },
     support: {
       analyseAgir: "Une référence à ce niveau de contribution dépend surtout de la disponibilité du support et de son activation en caisse, pas d'un emplacement en rayon.",
       recoAgir: a => `Je recommande de vérifier le stock de cartes et la bonne activation en caisse pour ${a}.`,
       consAgir: m => `Une indisponibilité de ce support représente un risque estimé à ${m} €.`,
-      recoHausse: a => `Prévoyez davantage de support et d'activation pour ${a} avant la période suivante.`,
+      recoHausse: a => `Prévoyez davantage de support et d'activation pour ${a} avant le prochain réapprovisionnement.`,
       recoBaisse: a => `Vérifiez la disponibilité du support et son activation en caisse pour ${a} avant toute décision.`,
     },
     production: {
       analyseAgir: "Une référence à ce niveau de contribution dépend surtout de la quantité produite ou commandée chaque jour — c'est un produit frais, pas un facing.",
       recoAgir: a => `Je recommande d'ajuster la quantité commandée ou produite de ${a} au niveau réel de la demande.`,
       consAgir: m => `Une quantité insuffisante sur cette référence fraîche représente un risque estimé à ${m} €.`,
-      recoHausse: a => `Augmentez la quantité commandée ou produite de ${a} avant la période suivante.`,
+      recoHausse: a => `Augmentez la quantité commandée ou produite de ${a} avant le prochain réapprovisionnement.`,
       recoBaisse: a => `Vérifiez si la quantité produite ou commandée de ${a} a été réduite avant toute décision.`,
     },
     comptoir: {
       analyseAgir: "Une référence à ce niveau de contribution doit rester visible et disponible au comptoir en priorité.",
       recoAgir: a => `Je recommande de vérifier la disponibilité au comptoir de ${a}.`,
       consAgir: m => `Une rupture au comptoir sur cette référence représente un risque estimé à ${m} €.`,
-      recoHausse: a => `Garantissez la disponibilité au comptoir de ${a} avant la période suivante.`,
+      recoHausse: a => `Garantissez la disponibilité au comptoir de ${a} avant le prochain réapprovisionnement.`,
       recoBaisse: a => `Vérifiez la disponibilité au comptoir de ${a} avant toute décision.`,
     },
     presentoir: {
       analyseAgir: "Une référence à ce niveau de contribution mérite une bonne visibilité sur le présentoir.",
       recoAgir: a => `Je recommande de vérifier l'emplacement de ${a} sur le présentoir.`,
       consAgir: m => `Un mauvais emplacement sur cette référence représente un risque estimé à ${m} €.`,
-      recoHausse: a => `Améliorez l'emplacement de ${a} sur le présentoir avant la période suivante.`,
+      recoHausse: a => `Améliorez l'emplacement de ${a} sur le présentoir avant le prochain réapprovisionnement.`,
       recoBaisse: a => `Vérifiez l'emplacement de ${a} sur le présentoir avant toute décision.`,
     },
   };
@@ -496,79 +517,87 @@
   }
 
   // ------------------------------------------------------------
-  // Missions ponctuelles créées depuis NEXUS Marge+ (Scanner) — table
-  // mission_assignments, jusqu'ici sans consommateur (voir
-  // migration-mission-ponctuelle-v1.sql pour le contexte complet).
-  // Affichage volontairement séparé de PLANS_ACTION/renderPlansActionMissions
-  // (R2/R3/R4, propre au rôle manager) : une mission assignée peut concerner
-  // n'importe quel rôle, et ne doit apparaître qu'à la personne assignée —
-  // pas à tout le monde comme une recommandation live.
-  // "Marquer comme faite" ne fait que changer le statut, comme les missions
-  // du catalogue récurrent (mission_completions) : NEXUS ne prétend pas
-  // mesurer automatiquement si la marge s'est réellement corrigée (Article 14
-  // de la Constitution — ne jamais donner l'impression d'un effet non vérifié).
+  // Missions assignées (mission_assignments) — ajouté le 26/07/2026, en
+  // même temps que le correctif ci-dessus (chargerCatalogue). Les missions
+  // ponctuelles créées via "Créer une mission" (NEXUS-Scanner-v1.html,
+  // 24/07/2026) ne font plus jamais partie du catalogue récurrent ni des
+  // suggestions du Conseiller personnel — elles vivent uniquement ici,
+  // scopées à la personne à qui elles sont assignées (assigned_to_employee_id),
+  // avec un moyen explicite de les clore. Sans cette section, ces missions
+  // deviendraient invisibles au lieu d'être simplement mal placées — donc
+  // ce bloc n'est pas une amélioration facultative, il est nécessaire pour
+  // ne rien perdre en corrigeant le résidu.
   // ------------------------------------------------------------
-  let MISSIONS_ASSIGNEES = [];
-
-  async function chargerMissionsAssignees(empId) {
+  async function chargerMissionsAssignees() {
     const { data, error } = await nexusClient
       .from('mission_assignments')
-      .select('id, mission_id, due_at, status, note')
-      .eq('assigned_to_employee_id', empId)
-      .in('status', ['assignee', 'en_cours'])
+      .select('id, mission_id, due_at, note, status')
+      .eq('site_id', SITE_ACTUEL)
+      .eq('assigned_to_employee_id', employeeId)
+      .eq('status', 'assignee')
       .order('due_at', { ascending: true });
     if (error) { console.error('Chargement missions assignées:', error); return []; }
-    const assignations = data || [];
-    if (!assignations.length) return [];
+    if (!data || !data.length) return [];
 
-    const ids = [...new Set(assignations.map(a => a.mission_id))];
-    const { data: fiches, error: erreurFiches } = await nexusClient
+    const missionIds = [...new Set(data.map(a => a.mission_id))];
+    const { data: missions, error: erreurCatalogue } = await nexusClient
       .from('mission_catalog')
-      .select('mission_id, titre, pourquoi, impact_attendu_eur, priority')
-      .in('mission_id', ids);
-    if (erreurFiches) { console.error('Chargement fiches missions assignées:', erreurFiches); return []; }
-    const ficheParId = {};
-    (fiches || []).forEach(f => { ficheParId[f.mission_id] = f; });
+      .select('mission_id, titre, pourquoi, priority, points')
+      .in('mission_id', missionIds);
+    if (erreurCatalogue) { console.error('Chargement catalogue (missions assignées):', erreurCatalogue); return []; }
 
-    return assignations.map(a => ({ ...a, fiche: ficheParId[a.mission_id] })).filter(a => a.fiche);
+    const catalogueParId = {};
+    (missions || []).forEach(m => { catalogueParId[m.mission_id] = m; });
+    return data
+      .map(a => ({ ...a, mission: catalogueParId[a.mission_id] || null }))
+      .filter(a => a.mission); // ignore une assignation orpheline (mission désactivée entre-temps)
   }
 
-  async function marquerMissionAssigneeFaite(assignationId) {
+  async function cloturerMissionAssignee(assigneeId, missionId, titre, points) {
     const { error } = await nexusClient
       .from('mission_assignments')
-      .update({ status: 'faite' })
-      .eq('id', assignationId);
-    if (error) console.error('Mise à jour mission assignée:', error);
+      .update({ status: 'terminee', updated_at: new Date().toISOString() })
+      .eq('id', assigneeId);
+    if (error) { console.error('Clôture mission assignée:', error); return; }
+
+    const entry = {
+      mission_id: missionId, titre,
+      date: new Date().toISOString().slice(0,10), heure: new Date().toTimeString().slice(0,5),
+      photo_fournie: false, points: points || 5,
+    };
+    completionsCache.push(entry);
+    await sauvegarderCompletionSupabase(employeeId, entry);
   }
 
   async function renderMissionsAssignees() {
-    const el = document.getElementById('missionsAssigneesSection');
+    const el = document.getElementById('missionsAssigneesZone');
     if (!el) return;
-    if (!MISSIONS_ASSIGNEES.length) { el.innerHTML = ''; return; }
+    const assignees = await chargerMissionsAssignees();
+    if (!assignees.length) { el.innerHTML = ''; return; }
 
     el.innerHTML = `
-      <div class="section-label">Missions créées depuis NEXUS Marge+</div>
-      ${MISSIONS_ASSIGNEES.map(a => `
-        <div class="mission-card">
-          <div class="mission-head" style="cursor:default;">
-            <div>
-              <div class="mission-titre">${a.fiche.titre}</div>
-              <div class="mission-meta">${a.due_at ? 'Échéance ' + new Date(a.due_at).toLocaleDateString('fr-FR') : ''}${a.fiche.impact_attendu_eur ? ' · Impact ' + Math.round(a.fiche.impact_attendu_eur) + ' €' : ''}</div>
-            </div>
-            <span class="badge badge-auto">NEXUS Marge+</span>
+      <div class="section-label">Missions assignées</div>
+      ${assignees.map(a => `
+        <div class="plan-card" id="assignee-${a.id}">
+          <div class="plan-head" onclick="document.getElementById('assignee-${a.id}').classList.toggle('open')">
+            ${priorityBadge(a.mission.priority || 'normale')}
+            <span class="plan-action-teaser">${a.mission.titre}</span>
+            <span class="plan-chevron">›</span>
           </div>
-          <div class="mission-body open">
-            <div class="mission-pourquoi">${a.fiche.pourquoi}</div>
-            <button class="btn-valider mission-assignee-faite" data-id="${a.id}">✓ Marquer comme faite</button>
+          <div class="plan-body">
+            <div class="plan-story">${a.mission.pourquoi || a.note || ''}</div>
+            ${a.due_at ? `<div class="plan-impact">📅 Échéance — <b>${new Date(a.due_at).toLocaleDateString('fr-FR')}</b></div>` : ''}
+            <button class="plan-valider" data-assignee-id="${a.id}" data-mission-id="${a.mission_id}" data-titre="${a.mission.titre.replace(/"/g,'&quot;')}" data-points="${a.mission.points || 5}">✓ Marquer comme terminée</button>
           </div>
-        </div>`).join('')}`;
-
-    el.querySelectorAll('.mission-assignee-faite').forEach(btn => {
-      btn.addEventListener('click', async () => {
+        </div>`).join('')}
+    `;
+    el.querySelectorAll('.plan-valider').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
         btn.disabled = true;
         btn.textContent = 'Enregistrement…';
-        await marquerMissionAssigneeFaite(btn.dataset.id);
-        MISSIONS_ASSIGNEES = await chargerMissionsAssignees(employeeId);
+        await cloturerMissionAssignee(btn.dataset.assigneeId, btn.dataset.missionId, btn.dataset.titre, Number(btn.dataset.points));
+        renderConseillerPerso(calculerStatsPersonnelles(completionsCache), employeActuel);
         await renderMissionsAssignees();
       });
     });
@@ -578,6 +607,10 @@
   let employeeId = null;
   let SITE_ACTUEL = 'vito-sainte-marie'; // ecrase par employee.site_id une fois connecte
   let checkState = {};
+  // Photo par action (27/07/2026) : { "missionId_index": photoUrl } — ne
+  // contient une entrée que pour les items déjà photographiés, sur les
+  // missions mission_catalog.photo_par_action = true.
+  let itemPhotoState = {};
   let completionsCache = [];
   // Produit choisi pour les missions necessite_produit = true (ex. "Photo
   // de vérification rayon") — { missionId: {categorie, article} }. Voir
@@ -603,24 +636,34 @@
     return liste;
   }
 
+  // Retourne { checkState, photoState } (27/07/2026, ajout photo_url) —
+  // deux maps distinctes plutôt qu'un seul objet mélangé, pour que le
+  // reste du code garde exactement la même forme qu'avant sur checkState.
   async function chargerProgressionSupabase(empId) {
     const { data, error } = await nexusClient
       .from('mission_progress')
-      .select('mission_id, checklist_index, checked')
+      .select('mission_id, checklist_index, checked, photo_url')
       .eq('employee_id', empId);
-    if (error) { console.error('Chargement progression:', error); return {}; }
-    const state = {};
+    if (error) { console.error('Chargement progression:', error); return { checkState: {}, photoState: {} }; }
+    const checkStateChargee = {};
+    const photoStateChargee = {};
     (data || []).forEach(row => {
-      if (row.checked) state[`${row.mission_id}_${row.checklist_index}`] = true;
+      const key = `${row.mission_id}_${row.checklist_index}`;
+      if (row.checked) checkStateChargee[key] = true;
+      if (row.photo_url) photoStateChargee[key] = row.photo_url;
     });
-    return state;
+    return { checkState: checkStateChargee, photoState: photoStateChargee };
   }
 
-  async function sauvegarderProgressionItem(empId, missionId, index, checked) {
+  // photoUrl (27/07/2026, photo par action) : optionnel, seulement fourni
+  // pour les missions mission_catalog.photo_par_action = true. `null`
+  // efface explicitement une photo existante (cas d'un item décoché pour
+  // recommencer) plutôt que de laisser une preuve périmée en base.
+  async function sauvegarderProgressionItem(empId, missionId, index, checked, photoUrl) {
     const { error } = await nexusClient
       .from('mission_progress')
       .upsert(
-        { employee_id: empId, mission_id: missionId, checklist_index: index, checked, updated_at: new Date().toISOString() },
+        { employee_id: empId, mission_id: missionId, checklist_index: index, checked, photo_url: photoUrl || null, updated_at: new Date().toISOString() },
         { onConflict: 'employee_id,mission_id,checklist_index' }
       );
     if (error) console.error('Sauvegarde progression:', error);
@@ -654,10 +697,24 @@
       </div>`;
   }
 
-  function renderChecklist(missionId, checklist) {
+  // photoParAction (27/07/2026, demande de Frédéric — prise de poste
+  // pompiste) : quand la mission l'exige (mission_catalog.photo_par_action),
+  // chaque item affiche une pastille caméra au lieu d'être coché
+  // directement — voir le listener dédié dans render() plus bas, qui
+  // ouvre l'appareil photo et ne coche l'item qu'après upload réussi.
+  function renderChecklist(missionId, checklist, photoParAction) {
     return checklist.map((item, i) => {
       const key = `${missionId}_${i}`;
       const checked = checkState[key];
+      const photoUrl = itemPhotoState[key];
+      if (photoParAction) {
+        return `<div class="check-item check-item-photo" data-key="${key}" data-photo="1">
+          <div class="check-box ${checked?'checked':''}">${checked?'✓':''}</div>
+          <div class="check-text ${checked?'checked':''}">${item}</div>
+          <span class="check-photo-badge ${photoUrl?'done':''}">${photoUrl ? '📷 fait' : '📷 photo requise'}</span>
+          <input type="file" accept="image/*" capture="environment" class="check-photo-input" data-key="${key}" style="display:none;">
+        </div>`;
+      }
       return `<div class="check-item" data-key="${key}">
         <div class="check-box ${checked?'checked':''}">${checked?'✓':''}</div>
         <div class="check-text ${checked?'checked':''}">${item}</div>
@@ -806,7 +863,10 @@
   // rôle du jour, et parmi celles à égalité, la plus rapide à réaliser.
   // Les missions de clôture sont exclues tant qu'on n'est pas en fin de
   // service (16h — la station ouvre dès 5h45, "fin de journée" arrive
-  // largement avant la fermeture réelle).
+  // largement avant la fermeture réelle). Les missions ponctuelles ne
+  // sont jamais candidates ici depuis le 26/07/2026 : elles ne sont même
+  // plus chargées dans `catalogue` (voir chargerCatalogue), donc ce filtre
+  // en profite automatiquement sans changement supplémentaire.
   function choisirMissionSuggeree() {
     const aujISO = new Date().toISOString().slice(0, 10);
     const faitesAujourdhui = new Set(completionsCache.filter(c => c.date === aujISO).map(c => c.mission_id));
@@ -939,7 +999,7 @@
         <div class="mission-body ${missionsOuvertes.has(m.mission_id)?'open':''}" id="body-${m.mission_id}">
           ${controle ? `<div class="controle-banner">🔍 Mode contrôle manager — vous vérifiez que l'équipe a bien réalisé ces points, vous ne les faites pas vous-même.</div>` : ''}
           <div class="mission-pourquoi">${m.pourquoi}</div>
-          ${renderChecklist(m.mission_id, m.checklist)}
+          ${renderChecklist(m.mission_id, m.checklist, m.photo_par_action)}
           ${m.necessite_produit ? renderPickerProduit(m.mission_id) : ''}
           ${m.proof_required ? `<div class="mission-photo">📷 Photo requise pour valider</div>
             <input type="file" accept="image/*" capture="environment" id="photo-${m.mission_id}" style="display:none;">` : ''}
@@ -965,6 +1025,19 @@
       html += `<div id="plansActionMissions"></div>`;
     }
 
+    // Missions assignées individuellement (créées via "Créer une mission"
+    // dans Scanner, ex. vérification de marge sur un produit précis) —
+    // visibles par la personne à qui elles sont assignées, quel que soit
+    // son rôle du jour. Rendu séparément (comme plansActionMissions) pour
+    // ne pas régénérer toute la liste à chaque frappe de recherche. Ajouté
+    // le 26/07/2026 suite au résidu Heineken 50 : ces missions ponctuelles
+    // ne font plus jamais partie du catalogue récurrent (chargerCatalogue)
+    // ni des suggestions du Conseiller personnel (choisirMissionSuggeree) —
+    // ce bloc est désormais leur seul et unique lieu d'affichage.
+    if (!q) {
+      html += `<div id="missionsAssigneesZone"></div>`;
+    }
+
     let lib = catalogue.filter(m => Array.isArray(m.role_required) && m.role_required.includes(roleDuJour));
     lib = lib.filter(m => familleActive==='Toutes' || m.famille===familleActive);
     if (q) lib = lib.filter(m => m.titre.toLowerCase().includes(q) || (m.pourquoi||'').toLowerCase().includes(q));
@@ -978,6 +1051,7 @@
 
     content.innerHTML = html;
     if (roleDuJour === 'manager') renderPlansActionMissions();
+    renderMissionsAssignees();
 
     content.querySelectorAll('.mission-head').forEach(el => {
       el.addEventListener('click', () => {
@@ -986,7 +1060,44 @@
         document.getElementById(`body-${id}`).classList.toggle('open');
       });
     });
-    content.querySelectorAll('.check-item').forEach(el => {
+    // Photo par action (27/07/2026) : un item marqué data-photo="1" ne se
+    // coche jamais d'un simple clic — le clic ouvre l'appareil photo, et
+    // l'item n'est coché qu'après upload réussi (voir uploaderPreuvePhoto).
+    // Un clic sur un item déjà photographié permet de recommencer (erreur
+    // de manip), en effaçant explicitement l'ancienne preuve.
+    content.querySelectorAll('.check-item[data-photo="1"]').forEach(el => {
+      const key = el.dataset.key;
+      const lastUnderscore = key.lastIndexOf('_');
+      const missionId = key.slice(0, lastUnderscore);
+      const idx = parseInt(key.slice(lastUnderscore + 1), 10);
+      const input = el.querySelector('.check-photo-input');
+
+      el.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (checkState[key]) {
+          checkState[key] = false;
+          delete itemPhotoState[key];
+          render();
+          sauvegarderProgressionItem(employeeId, missionId, idx, false, null);
+          return;
+        }
+        input.click();
+      });
+      input.addEventListener('click', e => e.stopPropagation());
+      input.addEventListener('change', async () => {
+        const file = input.files && input.files[0];
+        if (!file) return;
+        const badge = el.querySelector('.check-photo-badge');
+        if (badge) badge.textContent = 'Envoi…';
+        const url = await uploaderPreuvePhoto(`${missionId}-etape${idx}`, file);
+        if (!url) { alert("Erreur lors de l'envoi de la photo — réessayez."); render(); return; }
+        checkState[key] = true;
+        itemPhotoState[key] = url;
+        render();
+        sauvegarderProgressionItem(employeeId, missionId, idx, true, url);
+      });
+    });
+    content.querySelectorAll('.check-item:not([data-photo="1"])').forEach(el => {
       el.addEventListener('click', (e) => {
         e.stopPropagation();
         const key = el.dataset.key;
@@ -1011,7 +1122,6 @@
     // Sélecteur de produit (missions necessite_produit) — recherche câblée
     // directement sur son propre input/suggestions, SANS passer par render()
     // à chaque frappe (ça ferait perdre le focus du champ à chaque lettre).
-    // render() n'est appelé qu'au clic final (choix ou changement).
     content.querySelectorAll('.produit-recherche').forEach(input => {
       input.addEventListener('click', e => e.stopPropagation());
       input.addEventListener('input', () => {
@@ -1139,7 +1249,9 @@
     }
 
     catalogue = await chargerCatalogue();
-    checkState = await chargerProgressionSupabase(employeeId);
+    const progression = await chargerProgressionSupabase(employeeId);
+    checkState = progression.checkState;
+    itemPhotoState = progression.photoState;
     completionsCache = await chargerCompletionsSupabase(employeeId);
     // Chargé seulement si le catalogue contient une mission qui en a besoin
     // — évite une requête inutile pour les sites/rôles qui ne l'utilisent pas.
@@ -1147,12 +1259,6 @@
       PRODUITS_ARTICLES = await chargerProduitsPourPhoto();
     }
     renderConseillerPerso(calculerStatsPersonnelles(completionsCache), employee.nom);
-
-    // Missions ponctuelles NEXUS Marge+ assignées à cette personne — visible
-    // pour tout rôle, indépendamment du filtre famille/recherche en cours.
-    MISSIONS_ASSIGNEES = await chargerMissionsAssignees(employeeId);
-    await renderMissionsAssignees();
-
     if (roleDuJour === 'manager') {
       EMPLOYES_SITE = await chargerEmployesSite();
       PLANS_ACTION = await construirePlansAction();
