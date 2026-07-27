@@ -365,7 +365,7 @@
       <div class="header-statut"><span class="statut-dot"></span>Connecté</div>
       <div class="header-live" id="headerLive"></div>
     </div>
-    <div class="subtitle" id="taglineRole">Le Centre d'Intelligence NEXUS analyse votre commerce et hiérarchise vos priorités<span class="dots-anim"><i></i><i></i><i></i></span></div>
+    <div class="subtitle" id="taglineRole"><span id="taglineTexte">Le Centre d'Intelligence NEXUS analyse votre commerce et hiérarchise vos priorités</span><span class="dots-anim"><i></i><i></i><i></i></span></div>
     <div class="subtitle" id="sessionInfo" style="margin-top:6px;"></div>
   </div>
   <div id="banniereConsultation"></div>
@@ -2008,13 +2008,18 @@
     }
 
     // La signature de l'en-tête (27/07/2026, demande de Frédéric) —
+    // redevient différenciée par rôle le même jour : le manager garde
     // "Le Centre d'Intelligence NEXUS analyse votre commerce et
-    // hiérarchise vos priorités..." — est désormais fixe, écrite dans le
-    // HTML (#taglineRole), la même pour tout le monde : elle décrit ce
-    // que NEXUS fait en permanence, pas un message d'encouragement
-    // propre au rôle. Les anciens textes différenciés manager/employé ont
-    // été retirés ; ne plus réécrire tagline.textContent ici, sous peine
-    // d'effacer les points animés (span.dots-anim) qu'il contient.
+    // hiérarchise vos priorités" (ce que NEXUS fait pour piloter le
+    // commerce), l'employé voit désormais "Le Conseiller NEXUS prépare
+    // votre journée et vous aide à donner le meilleur de vous-même" (plus
+    // appropriée pour quelqu'un qui vient exécuter des missions, pas
+    // piloter un commerce). On écrit dans #taglineTexte (span dédié),
+    // jamais dans #taglineRole directement, sous peine d'effacer les
+    // points animés (span.dots-anim) qui vit juste à côté dans le HTML.
+    document.getElementById('taglineTexte').textContent = estNiveauManager
+      ? "Le Centre d'Intelligence NEXUS analyse votre commerce et hiérarchise vos priorités"
+      : 'Le Conseiller NEXUS prépare votre journée et vous aide à donner le meilleur de vous-même';
 
     if (estNiveauManager) {
       document.getElementById('heroEmploye').style.display = 'none';
