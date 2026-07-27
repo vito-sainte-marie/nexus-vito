@@ -1881,6 +1881,7 @@
     // ?employe dans l'URL, la page affiche toujours les données de la
     // personne connectée (employé comme manager), jamais celles d'un tiers.
     { label: 'Ma Progression', desc: 'Votre coach personnel NEXUS', href: 'NEXUS-Progression-v1.html', role: 'all' },
+    { label: 'Ce que NEXUS a appris sur moi', desc: 'Qualités, habitudes et progrès observés par le Coach', href: 'NEXUS-Apprentissage-v1.html', role: 'all' },
   ];
 
   function normaliserRecherche(s) {
@@ -1891,6 +1892,14 @@
     const input = document.getElementById('rechercheNexusInput');
     const resultats = document.getElementById('rechercheNexusResultats');
     if (!input || !resultats) return;
+
+    // Exemples adaptés au discours de la personne (27/07/2026, demande de
+    // Frédéric) : "marge" et "planning" (génération d'équipe) ne
+    // signifient rien pour un employé — il cherche plutôt son pointage,
+    // ses missions ou sa progression.
+    input.placeholder = estNiveauManager
+      ? 'Rechercher une page NEXUS (pointage, marge, planning…)'
+      : 'Rechercher une page NEXUS (pointage, missions, ma progression…)';
 
     const visibles = PAGES_INDEX.filter(p => {
       if (p.role === 'all') return true;
