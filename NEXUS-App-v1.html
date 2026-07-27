@@ -834,10 +834,25 @@
     return new Set((data || []).map(d => d.candidate_id));
   }
 
-  async function chargerDecisionsAujourdhui(siteId) {
-    const aujourdhui = new Date().toISOString().slice(0, 10);
-    const { data, error } = await nexusClient.from('journal_decisions').select('impact_eur').eq('site', siteId).eq('date', aujourdhui);
-    if (error) { console.error('Chargement décisions du jour:', error); return { nb: 0, gain: 0 }; }
+  // Cumul hebdomadaire plutôt que journalier (26/07/2026, demande de
+  // Frédéric) : "17 décisions validées" sans période ni impact n'avait pas
+  // de sens de lecture — un compteur du jour retombe presque toujours à 0
+  // ou 1 en début de matinée, ce qui semble être un mauvais résultat alors
+  // que la donnée est simplement insuffisante à cette heure. La semaine
+  // calendaire (lundi → aujourd'hui) donne un cumul plus stable et un gain
+  // cumulé plus représentatif du travail réellement mesuré.
+  function debutSemaineISO(d) {
+    const jour = d.getDay();
+    const diffLundi = jour === 0 ? -6 : 1 - jour;
+    const lundi = new Date(d);
+    lundi.setDate(d.getDate() + diffLundi);
+    return lundi.toISOString().slice(0, 10);
+  }
+
+  async function chargerDecisionsSemaine(siteId) {
+    const debut = debutSemaineISO(new Date());
+    const { data, error } = await nexusClient.from('journal_decisions').select('impact_eur').eq('site', siteId).gte('date', debut);
+    if (error) { console.error('Chargement décisions de la semaine:', error); return { nb: 0, gain: 0 }; }
     return { nb: (data || []).length, gain: (data || []).reduce((s, d) => s + (d.impact_eur || 0), 0) };
   }
 
@@ -1288,19 +1303,16 @@
   // "Fierté de NEXUS" (24/07/2026, demande de Frédéric) : sous la carte
   // "Décisions validées", on affichait le gain du jour en €. Remplacé par
   // une phrase qualitative — le nombre de décisions reste réel et affiché
-  // en grand (kpi-chip-value), seule la sous-ligne change de registre :
-  // moins comptable, plus une reconnaissance du travail fait.
-  // Mise à jour du 26/07/2026 (demande de Frédéric) : la sous-ligne inclut
-  // désormais le gain cumulé du jour (déjà calculé par
-  // chargerDecisionsAujourdhui, simplement pas affiché jusqu'ici) —
-  // "17 décisions validées" devient une phrase avec une période (aujourd'hui)
-  // et un impact chiffré, plutôt qu'un compteur nu.
-  function fierteNexus(nb, gain) {
-    const gainTxt = gain > 0 ? ` · ${Math.round(gain).toLocaleString('fr-FR')} € générés` : '';
-    if (nb === 0) return "aujourd'hui";
-    if (nb === 1) return '👏 NEXUS a noté votre décision' + gainTxt;
-    if (nb === 2) return '👏 NEXUS apprécie votre rythme' + gainTxt;
-    return '🎉 NEXUS est fier de votre journée' + gainTxt;
+  // en grand (kpi-chip-value), seule la sous-ligne change de registre.
+  // Mise à jour du 26/07/2026 (demande de Frédéric, suite au tableau de
+  // critique) : "17 décisions validées" devient un cumul hebdomadaire avec
+  // impact chiffré ("cette semaine · 286 € mesurés") — le ton reste factuel
+  // plutôt qu'enthousiaste (retrait des emojis de "fierté"), cohérent avec
+  // la reformulation des autres indicateurs de cette même passe.
+  function detailDecisionsSemaine(nb, gain) {
+    if (nb === 0) return 'Aucune décision validée cette semaine';
+    const gainTxt = gain > 0 ? ` · ${Math.round(gain).toLocaleString('fr-FR')} € mesurés` : '';
+    return `cette semaine${gainTxt}`;
   }
 
   // Ponctualité avec contexte (26/07/2026, demande de Frédéric) : "0 % de
@@ -1314,29 +1326,44 @@
     return `${nbRetards} retard${nbRetards > 1 ? 's' : ''} cumulé${nbRetards > 1 ? 's' : ''}`;
   }
 
-  function renderKpiGrid({ missionsRestantes, nbRappels, decisionsJour, equipeScore, nbRetards }) {
-    document.getElementById('kpiGrid').innerHTML = `
+  // Rappels (26/07/2026, demande de Frédéric) : "0 rappel" occupait une
+  // case entière pour dire qu'il n'y avait rien à signaler — un KPI qui
+  // affiche "rien d'urgent" n'aide jamais une lecture en 10 secondes. Le
+  // chip n'apparaît désormais que s'il y a réellement un rappel à traiter ;
+  // les 3 autres chips prennent alors toute la grille.
+  function renderKpiGrid({ missionsRestantes, nbRappels, decisionsSemaine, equipeScore, nbRetards }) {
+    const chips = [];
+    chips.push(`
       <a class="kpi-chip" href="NEXUS-Missions-v1.html">
         <div class="kpi-chip-label">Missions</div>
         <div class="kpi-chip-value" style="color:${missionsRestantes === 0 ? 'var(--green)' : 'var(--text)'};">${missionsRestantes != null ? missionsRestantes : '—'}</div>
         <div class="kpi-chip-sub">${missionsRestantes == null ? 'Calcul en cours' : (missionsRestantes === 0 ? 'toutes faites aujourd’hui' : 'restantes aujourd’hui')}</div>
       </a>
-      <a class="kpi-chip" href="NEXUS-Parametres-Rappels-v1.html">
-        <div class="kpi-chip-label">Rappels</div>
-        <div class="kpi-chip-value" style="color:${nbRappels > 0 ? 'var(--red)' : 'var(--text)'};">${nbRappels}</div>
-        <div class="kpi-chip-sub">${nbRappels > 0 ? 'à traiter sous 24h' : 'rien d’urgent'}</div>
-      </a>
+    `);
+    if (nbRappels > 0) {
+      chips.push(`
+        <a class="kpi-chip" href="NEXUS-Parametres-Rappels-v1.html">
+          <div class="kpi-chip-label">Rappels</div>
+          <div class="kpi-chip-value" style="color:var(--red);">${nbRappels}</div>
+          <div class="kpi-chip-sub">à traiter sous 24h</div>
+        </a>
+      `);
+    }
+    chips.push(`
       <a class="kpi-chip" href="NEXUS-Journal-v1.html">
         <div class="kpi-chip-label">Décisions validées</div>
-        <div class="kpi-chip-value" style="color:var(--green);">${decisionsJour.nb}</div>
-        <div class="kpi-chip-sub">${fierteNexus(decisionsJour.nb, decisionsJour.gain)}</div>
+        <div class="kpi-chip-value" style="color:var(--green);">${decisionsSemaine.nb}</div>
+        <div class="kpi-chip-sub">${detailDecisionsSemaine(decisionsSemaine.nb, decisionsSemaine.gain)}</div>
       </a>
+    `);
+    chips.push(`
       <a class="kpi-chip" href="NEXUS-Radar-Manager-v1.html">
         <div class="kpi-chip-label">Équipe</div>
         <div class="kpi-chip-value">${equipeScore != null ? equipeScore + ' %' : '—'}</div>
         <div class="kpi-chip-sub">${detailPonctualite(equipeScore, nbRetards)}</div>
       </a>
-    `;
+    `);
+    document.getElementById('kpiGrid').innerHTML = chips.join('');
   }
 
   // Carte Tempo (25/07/2026, demande de Frédéric : "dans vos outils
@@ -1352,29 +1379,34 @@
     return `${totalJours} jour${totalJours > 1 ? 's' : ''} enregistré${totalJours > 1 ? 's' : ''} · rythme en construction`;
   }
 
-  // Carte Cockpit (26/07/2026, demande de Frédéric) : "267 décisions à
-  // analyser et 328 opportunités détectées" donnait une sensation de
-  // retard plutôt que de maîtrise — ces volumes bruts comptent la
-  // totalité du catalogue, pas ce qui mérite l'attention du jour. Même
-  // plafond d'affichage que la carte Produits (SEUIL_RECOS_PRIORITAIRES) :
-  // au-delà, on affiche "9+" plutôt que le total exact — jamais un
-  // mensonge (9+ reste vrai quel que soit le total réel), juste une
-  // échelle qui ne donne plus l'impression d'un arriéré.
+  // Carte Cockpit (26/07/2026, demande de Frédéric, suite au tableau de
+  // critique) : "267 décisions à analyser" et "328 opportunités détectées"
+  // restaient des volumes bruts, anxiogènes et peu actionnables. Deux
+  // changements : (1) les alertes sont désormais scindées entre priorités
+  // (🔥 À AGIR — concentration de CA sur un article) et points à surveiller
+  // (🟡 À SURVEILLER — recul significatif), plutôt qu'un total unique ;
+  // (2) les opportunités ne sont plus comptées mais réduites à la
+  // meilleure d'entre elles en euros (candidatsDisponibles est déjà trié
+  // par impact_eur décroissant, voir calculerCandidatsHome) — le dirigeant
+  // voit immédiatement l'enjeu réel plutôt qu'un dénombrement.
   const SEUIL_AFFICHAGE_COCKPIT = 9;
-  function descriptionCockpitHome(nbAlertes, nbOpportunites) {
-    if (nbAlertes === 0 && nbOpportunites === 0) return 'Rien à analyser pour l’instant';
+  function descriptionCockpitHome(nbPriorites, nbASurveiller, meilleureOpportunite) {
+    const lignes = [];
     const parts = [];
-    if (nbAlertes > 0) parts.push(`<span style="color:var(--amber);">${nbAlertes > SEUIL_AFFICHAGE_COCKPIT ? SEUIL_AFFICHAGE_COCKPIT + '+' : nbAlertes} à traiter</span>`);
-    if (nbOpportunites > 0) parts.push(`<span style="color:var(--green);">${nbOpportunites > SEUIL_AFFICHAGE_COCKPIT ? SEUIL_AFFICHAGE_COCKPIT + '+' : nbOpportunites} opportunité${nbOpportunites > 1 ? 's' : ''}</span>`);
-    return parts.join(' · ');
+    if (nbPriorites > 0) parts.push(`<span style="color:var(--red);">${nbPriorites > SEUIL_AFFICHAGE_COCKPIT ? SEUIL_AFFICHAGE_COCKPIT + '+' : nbPriorites} priorité${nbPriorites > 1 ? 's' : ''}</span>`);
+    if (nbASurveiller > 0) parts.push(`<span style="color:var(--amber);">${nbASurveiller > SEUIL_AFFICHAGE_COCKPIT ? SEUIL_AFFICHAGE_COCKPIT + '+' : nbASurveiller} à surveiller</span>`);
+    if (parts.length) lignes.push(parts.join(' · '));
+    if (meilleureOpportunite > 0) lignes.push(`<span style="color:var(--green);">Meilleure opportunité : +${Math.round(meilleureOpportunite).toLocaleString('fr-FR')} €</span>`);
+    if (!lignes.length) return 'Rien à analyser pour l’instant';
+    return lignes.join('<br>');
   }
 
-  function renderOutilsGrid({ nbAlertes, nbOpportunites, controlesVerify, jourARenforcerTempo, totalJoursTempo, nbRecommandations }) {
+  function renderOutilsGrid({ nbPriorites, nbASurveiller, meilleureOpportunite, controlesVerify, jourARenforcerTempo, totalJoursTempo, nbRecommandations }) {
     document.getElementById('outilsGrid').innerHTML = `
       <a class="outil-card" href="NEXUS-Cockpit-v2.html">
         <div class="outil-icon"><img src="assets/icons/icon-home.png" alt=""></div>
         <div class="outil-title">Cockpit</div>
-        <div class="outil-desc">${descriptionCockpitHome(nbAlertes, nbOpportunites)}</div>
+        <div class="outil-desc">${descriptionCockpitHome(nbPriorites, nbASurveiller, meilleureOpportunite)}</div>
       </a>
       <a class="outil-card" href="NEXUS-Verify-v1.html">
         <div class="outil-icon"><img src="assets/icons/icon-nexus-verify.png" alt="" style="filter:grayscale(1) brightness(1.05) contrast(1.05) sepia(1) hue-rotate(152deg) saturate(4);"></div>
@@ -1389,7 +1421,7 @@
       <a class="outil-card" href="NEXUS-Produits-v1.html">
         <div class="outil-icon"><img src="assets/icons/icon-produits.png" alt=""></div>
         <div class="outil-title">Produits</div>
-        <div class="outil-desc">${nbRecommandations > 0 ? `<span style="color:var(--cyan);">${nbRecommandations} recommandation${nbRecommandations > 1 ? 's' : ''}</span> prioritaire${nbRecommandations > 1 ? 's' : ''}` : 'Aucune recommandation prioritaire'}</div>
+        <div class="outil-desc">${nbRecommandations > 0 ? `<span style="color:var(--cyan);">${nbRecommandations} priorité${nbRecommandations > 1 ? 's' : ''} produit${nbRecommandations > 1 ? 's' : ''}</span> aujourd’hui` : 'Aucune priorité produit aujourd’hui'}</div>
       </a>
     `;
   }
@@ -1401,7 +1433,7 @@
     const [
       { candidats, facteurs },
       valideesSite,
-      decisionsJour,
+      decisionsSemaine,
       domainesRadar,
       controlesVerify,
       missionsRestantesRes,
@@ -1410,7 +1442,7 @@
     ] = await Promise.all([
       calculerCandidatsHome(SITE_HOME),
       chargerValideesHome(SITE_HOME),
-      chargerDecisionsAujourdhui(SITE_HOME),
+      chargerDecisionsSemaine(SITE_HOME),
       chargerDomainesRadarHome(),
       chargerControlesVerifyHome(SITE_HOME),
       chargerMissionsRestantesHome(SITE_HOME),
@@ -1437,24 +1469,29 @@
     renderKpiGrid({
       missionsRestantes: missionsRestantesRes.restantes,
       nbRappels: compterRappelsUrgents(),
-      decisionsJour,
+      decisionsSemaine,
       equipeScore: domainesRadar.equipeScore,
       nbRetards: domainesRadar.nbRetards,
     });
 
-    const nbAlertes = candidatsDisponibles.filter(c => c.etat === '🔥 À AGIR' || c.etat === '🟡 À SURVEILLER').length;
-    const nbOpportunites = candidatsDisponibles.filter(c => c.etat === '📈 OPPORTUNITÉ').length;
-    // Recommandations "prioritaires" plutôt que le total brut (24/07/2026,
-    // demande de Frédéric) : candidatsDisponibles peut compter des centaines
-    // de lignes sur un gros catalogue (R4 seul peut déclencher souvent sur
-    // des petites catégories), ce qui n'aide pas le manager à savoir quoi
-    // regarder aujourd'hui. candidatsDisponibles est déjà trié par
-    // impact_eur décroissant (voir calculerCandidatsHome) — on affiche donc
-    // le nombre réel de recommandations dans le haut du classement, plafonné
-    // à SEUIL_RECOS_PRIORITAIRES, plutôt que la totalité.
-    const SEUIL_RECOS_PRIORITAIRES = 10;
-    const nbRecommandationsPrioritaires = Math.min(candidatsDisponibles.length, SEUIL_RECOS_PRIORITAIRES);
-    renderOutilsGrid({ nbAlertes, nbOpportunites, controlesVerify, jourARenforcerTempo: constatTempo.jourARenforcer, totalJoursTempo: constatTempo.totalJours, nbRecommandations: nbRecommandationsPrioritaires });
+    // Priorités / à surveiller / meilleure opportunité (26/07/2026, demande
+    // de Frédéric, suite au tableau de critique) : remplace les volumes
+    // bruts ("267 décisions à analyser", "328 opportunités détectées",
+    // "10 recommandations produits" — ce dernier plafonné artificiellement
+    // à SEUIL_RECOS_PRIORITAIRES) par des mesures qui changent réellement
+    // selon la situation du jour. Les priorités (🔥 À AGIR) sont aussi
+    // réutilisées pour la carte Produits : ce sont les mêmes articles qui
+    // justifient une action côté produit, donc le même chiffre est légitime
+    // aux deux endroits plutôt qu'un second calcul inventé.
+    const nbPriorites = candidatsDisponibles.filter(c => c.etat === '🔥 À AGIR').length;
+    const nbASurveiller = candidatsDisponibles.filter(c => c.etat === '🟡 À SURVEILLER').length;
+    const opportunites = candidatsDisponibles.filter(c => c.etat === '📈 OPPORTUNITÉ');
+    const meilleureOpportunite = opportunites.length ? opportunites[0].impact_eur : 0;
+    renderOutilsGrid({
+      nbPriorites, nbASurveiller, meilleureOpportunite, controlesVerify,
+      jourARenforcerTempo: constatTempo.jourARenforcer, totalJoursTempo: constatTempo.totalJours,
+      nbRecommandations: nbPriorites,
+    });
   }
 
   // Pointage du manager (24/07/2026) — voir migration-station-config-manager-
