@@ -61,8 +61,20 @@
   .niveau-card{background:var(--panel); border:1px solid var(--hairline); border-radius:14px; padding:18px;}
   .niveau-top{display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;}
   .niveau-label{font-family:var(--mono); font-size:10.5px; letter-spacing:0.08em; text-transform:uppercase; color:var(--text-dim);}
-  .niveau-etoiles{font-size:18px; letter-spacing:2px; color:var(--gold);}
+  .niveau-nom{font-size:17px; font-weight:700; color:var(--gold);}
   .niveau-detail{font-family:var(--mono); font-size:10px; color:var(--text-dim); margin-bottom:14px;}
+  .niveau-bar-track{height:6px; background:var(--panel-raised, #1A222C); border-radius:3px; overflow:hidden; margin:10px 0 14px;}
+  .niveau-bar-fill{height:100%; background:var(--gold); border-radius:3px;}
+  .niveau-bar-legende{font-family:var(--mono); font-size:9.5px; color:var(--text-dim); margin-top:-10px; margin-bottom:14px;}
+
+  .badges-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+  .badge-card{background:var(--panel); border:1px solid var(--hairline); border-radius:12px; padding:12px; text-align:center;}
+  .badge-card.obtenu{border-color:rgba(212,175,55,0.45); background:rgba(212,175,55,0.07);}
+  .badge-icone{font-size:20px; margin-bottom:6px; opacity:0.35;}
+  .badge-card.obtenu .badge-icone{opacity:1;}
+  .badge-label{font-size:11px; line-height:1.4; color:var(--text-mid);}
+  .badge-card.obtenu .badge-label{color:var(--text);}
+  .badge-progress{font-family:var(--mono); font-size:9.5px; color:var(--text-dim); margin-top:5px;}
 
   .comp-row{display:flex; align-items:center; justify-content:space-between; padding:9px 0; border-top:1px solid var(--hairline);}
   .comp-row:first-of-type{border-top:none;}
@@ -172,20 +184,29 @@
       { data: assignationsRows, error: e3 },
       { data: controlesRows, error: e4 },
       { data: evaluationsRows, error: e5 },
+      { data: completionsRows, error: e6 },
     ] = await Promise.all([
       fetchAllRows(() => nexusClient.from('audits_caisse')
         .select('date, quart, ecart_piste, ecart_boutique, employes_piste, employes_boutique')
         .eq('site', siteId).order('date', { ascending: false })),
-      nexusClient.from('pointages').select('retard_min').eq('type', 'arrivee').eq('employee_id', cible.id),
+      // date ajoutée (27/07/2026) pour calculer la série de ponctualité
+      // (NexusProgression.calculerSeriePonctualite) — un simple total ne
+      // suffit pas pour un badge "N jours sans retard d'affilée".
+      nexusClient.from('pointages').select('date, retard_min').eq('type', 'arrivee').eq('employee_id', cible.id),
       nexusClient.from('mission_assignments').select('status, due_at, updated_at').eq('site_id', siteId).eq('assigned_to_employee_id', cible.id),
       nexusClient.from('controles_tenue').select('conforme').eq('site', siteId).eq('employee_id', cible.id),
       nexusClient.from('evaluations_employes').select('type, criteres').eq('site', siteId).eq('employee_id', cible.id),
+      // Missions du catalogue récurrent cochées et validées (27/07/2026,
+      // système de reconnaissance) — même table que Résultats Équipe,
+      // seule source réelle de "missions réalisées" cumulées.
+      nexusClient.from('mission_completions').select('id').eq('employee_id', cible.id),
     ]);
     if (e1) console.error('Chargement audits_caisse (progression):', e1);
     if (e2) console.error('Chargement pointages (progression):', e2);
     if (e3) console.error('Chargement mission_assignments (progression):', e3);
     if (e4) console.error('Chargement controles_tenue (progression):', e4);
     if (e5) console.error('Chargement evaluations_employes (progression):', e5);
+    if (e6) console.error('Chargement mission_completions (progression):', e6);
 
     const N = NexusProgression;
     const services = N.construireServicesCaisse(auditsRows || [], cible.id);
@@ -195,22 +216,40 @@
     const statutMissionsVal = N.statutMissions(assignationsRows || []);
     const statutTenueVal = N.statutTenue(controlesRows || []);
     const statutRelationClientVal = N.statutRelationClient(evaluationsRows || []);
-    const niveau = N.niveauNexus({
+
+    // Système de reconnaissance (27/07/2026, demande de Frédéric — voir
+    // Proposition_evolution_NEXUS_Employe.pdf) : niveau nommé + badges,
+    // à partir de l'expérience réelle (services + missions + pointages).
+    const nbMissionsCompletees = (completionsRows || []).length;
+    const seriePonctualite = N.calculerSeriePonctualite(pointagesRows || []);
+    const serieCaisse = N.meilleureSerieConforme(services);
+    const experience = N.calculerExperience({
+      nbServices: services.length, nbMissionsCompletees, nbPointages: (pointagesRows || []).length,
+    });
+    const niveau = N.calculerNiveauNomme(experience, {
       caisse: statutCaisseVal, ponctualite: statutPonctualiteVal,
       missions: statutMissionsVal, tenue: statutTenueVal, relation: statutRelationClientVal,
     });
+    const badges = N.calculerBadges({ seriesCaisse: serieCaisse, seriePonctualite, nbMissionsCompletees });
+
     const forts = N.pointsForts({ services, statutPonctualiteVal, statutTenueVal, statutRelationClientVal });
     const axe = N.identifierAxeProgression({ services, statutCaisseVal, statutPonctualiteVal, statutMissionsVal, statutTenueVal, ecartsAttribuablesVal: ecarts });
     const encouragement = N.genererEncouragement({ services, ecartsAttribuablesVal: ecarts });
 
     const prenom = vueManager ? cible.nom : cible.nom.split(' ')[0];
+    // Message d'accueil et messages d'attente (27/07/2026, ton plus humain
+    // demandé par Frédéric — voir Proposition_evolution_NEXUS_Employe.pdf,
+    // "Nous commençons à apprendre votre manière de travailler...") : un
+    // employé tout juste arrivé ne doit jamais lire un message technique
+    // ou froid, seulement une promesse d'accompagnement qui grandit avec
+    // le temps.
     const accueil = services.length > 0
       ? `Bonjour ${prenom}. J'ai analysé ${vueManager ? 'ses' : 'vos'} ${services.length} dernier${services.length > 1 ? 's' : ''} service${services.length > 1 ? 's' : ''} de caisse. Voici ce qui ${vueManager ? 'l\'aidera' : 'vous aidera'} à progresser le plus rapidement.`
-      : `Bonjour ${prenom}. Aucun service de caisse n'est encore associé à ${vueManager ? 'cet employé' : 'vous'} — NEXUS affinera son analyse dès les premiers services enregistrés.`;
+      : `Bonjour ${prenom}. ${vueManager ? 'NEXUS commence tout juste à apprendre la manière de travailler de cet employé' : 'Je commence tout juste à apprendre votre manière de travailler'} — chaque service ${vueManager ? 'l\'' : 'm\''}aide à ${vueManager ? 'mieux l\'' : 'mieux vous '}accompagner.`;
 
     const fortsHtml = forts.length
       ? `<ul class="fort-list">${forts.map(f => `<li class="fort-item"><span class="dot">🟢</span>${f}</li>`).join('')}</ul>`
-      : `<div class="coach-sub">Historique encore insuffisant pour dégager des points forts marquants — ${vueManager ? 'continuez à suivre son activité' : 'continuez à enregistrer votre activité'}.</div>`;
+      : `<div class="coach-sub">${vueManager ? 'NEXUS n\'a pas encore assez de recul pour dégager ses points forts.' : 'Je n\'ai pas encore assez de recul pour dégager vos points forts.'} ${vueManager ? 'Chaque service qu\'il enregistre affine l\'analyse.' : 'Chaque service que vous enregistrez affine mon analyse.'}</div>`;
 
     const axeHtml = axe
       ? `<div class="axe-badge">${axe.domaine}</div>
@@ -237,14 +276,28 @@
       <div class="niveau-card">
         <div class="niveau-top">
           <span class="niveau-label">Niveau</span>
-          <span class="niveau-etoiles">${niveau.etoiles ? '★'.repeat(niveau.etoiles) + '☆'.repeat(5 - niveau.etoiles) : '—'}</span>
+          <span class="niveau-nom">${niveau.nom}</span>
         </div>
-        <div class="niveau-detail">${niveau.detail}</div>
+        ${niveau.progression ? `
+          <div class="niveau-bar-track"><div class="niveau-bar-fill" style="width:${Math.min(100, Math.round(niveau.experience / niveau.progression.seuilSuivant * 100))}%;"></div></div>
+          <div class="niveau-bar-legende">Encore ${niveau.progression.manque} pour atteindre « ${niveau.progression.nomSuivant} »</div>
+        ` : `<div class="niveau-detail">Niveau maximum atteint — merci pour votre régularité.</div>`}
         ${ligneCompetence('Caisse', statutCaisseVal)}
         ${ligneCompetence('Ponctualité', statutPonctualiteVal)}
         ${ligneCompetence('Missions', statutMissionsVal)}
         ${ligneCompetence('Tenue', statutTenueVal)}
         ${ligneCompetence('Relation client', statutRelationClientVal)}
+      </div>
+
+      <div class="section-label">${vueManager ? 'Ses réussites' : 'Vos réussites'}</div>
+      <div class="badges-grid">
+        ${badges.map(b => `
+          <div class="badge-card ${b.obtenu ? 'obtenu' : ''}">
+            <div class="badge-icone">🏅</div>
+            <div class="badge-label">${b.label}</div>
+            ${!b.obtenu ? `<div class="badge-progress">${b.valeurActuelle}/${b.seuil}</div>` : ''}
+          </div>
+        `).join('')}
       </div>
     `;
   });

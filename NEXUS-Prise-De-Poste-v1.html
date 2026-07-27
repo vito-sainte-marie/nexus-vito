@@ -109,6 +109,12 @@
 
   .loading{padding:60px 20px; text-align:center; color:var(--text-dim); font-size:13px;}
 
+  /* Avertissement sécurité pompiste (27/07/2026, demande de Frédéric) —
+     rappelé au moment précis où ce rôle est confirmé, avant même de voir
+     les missions du jour. */
+  .warning-securite{background:var(--red-dim); border:1px solid rgba(240,87,90,0.4); border-radius:10px; padding:12px 14px; font-size:12px; color:var(--red); line-height:1.55; margin-top:14px;}
+  .warning-securite b{color:var(--red);}
+
   .final-card{padding:8px 0;}
   .final-greet{font-size:19px; font-weight:700;}
   .final-line{font-size:13.5px; color:var(--text-mid); margin-top:10px; display:flex; justify-content:space-between;}
@@ -242,6 +248,7 @@
         <div class="stat-row"><span class="stat-label">Priorités (critique/haute)</span><span class="stat-value amber">${prioritaires}</span></div>
         <div class="stat-row"><span class="stat-label">Temps estimé</span><span class="stat-value cyan">${tempsTotal} min</span></div>
       </div>
+      ${roleChoisi === 'pompiste' ? `<div class="warning-securite">⚠️ <b>Rappel sécurité</b> — N'utilisez jamais NEXUS ni votre téléphone à la vue d'un client. Strictement interdit sur la piste de distribution de carburant, encore plus pendant une distribution en cours.</div>` : ''}
       <button class="btn-primary" id="btnConfirmer">Confirmer ma prise de poste</button>
       <button class="btn-text" id="btnChangerRole">← Changer de rôle</button>
     `;

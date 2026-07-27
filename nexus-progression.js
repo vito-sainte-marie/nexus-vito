@@ -370,6 +370,95 @@
     return 'NEXUS affinera ses observations au fil de vos prochains services — continuez à enregistrer votre activité.';
   }
 
+  // ------------------------------------------------------------
+  // 7) Système de reconnaissance (27/07/2026, demande de Frédéric —
+  //    "inciter les employés à utiliser NEXUS au maximum", voir
+  //    Proposition_evolution_NEXUS_Employe.pdf) : niveaux nommés +
+  //    badges de réussite. Même exigence que le reste du moteur — chaque
+  //    seuil franchi doit être un vrai fait, jamais une estimation.
+  // ------------------------------------------------------------
+
+  // Série de ponctualité (même construction que meilleureSerieConforme,
+  // appliquée aux pointages plutôt qu'aux services caisse) — nécessite
+  // `date` sur chaque pointage pour être ordonnée chronologiquement.
+  function calculerSeriePonctualite(pointagesArriveeEmploye) {
+    const chrono = [...(pointagesArriveeEmploye || [])]
+      .filter(p => p.date)
+      .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+    let record = 0, courante = 0, enCours = 0;
+    chrono.forEach(p => {
+      if ((p.retard_min || 0) === 0) {
+        courante += 1;
+        if (courante > record) record = courante;
+      } else {
+        courante = 0;
+      }
+    });
+    for (let i = chrono.length - 1; i >= 0; i--) {
+      if ((chrono[i].retard_min || 0) === 0) enCours += 1; else break;
+    }
+    return { enCours, record, total: chrono.length };
+  }
+
+  // "Expérience" NEXUS — un proxy honnête de l'usage réel de l'app :
+  // chaque composante ne peut exister que si l'employé est passé par
+  // NEXUS (audit caisse renseigné par un manager sur un service travaillé,
+  // mission cochée dans l'app, pointage effectué dans l'app). Encourager
+  // l'expérience revient donc mécaniquement à encourager l'usage de NEXUS.
+  function calculerExperience({ nbServices, nbMissionsCompletees, nbPointages }) {
+    return (nbServices || 0) + (nbMissionsCompletees || 0) + (nbPointages || 0);
+  }
+
+  // Niveaux nommés (seuils provisoires, 27/07/2026 — à recalibrer avec
+  // plusieurs mois de recul, même esprit que les autres seuils de ce
+  // fichier). Un niveau élevé n'est jamais atteint si une compétence
+  // reste "À corriger" — l'expérience ne remplace jamais la fiabilité,
+  // elle s'y ajoute : plafond appliqué dans calculerNiveauNomme.
+  const NIVEAUX_NEXUS = [
+    { id: 'decouverte', nom: 'Découverte', seuil: 0 },
+    { id: 'fiable', nom: 'Employé fiable', seuil: 15 },
+    { id: 'confirme', nom: 'Confirmé', seuil: 40 },
+    { id: 'reference', nom: 'Référence', seuil: 80 },
+    { id: 'expert', nom: 'Expert', seuil: 150 },
+    { id: 'ambassadeur', nom: 'Ambassadeur', seuil: 250 },
+  ];
+
+  function calculerNiveauNomme(experience, competences) {
+    let index = 0;
+    for (let i = 0; i < NIVEAUX_NEXUS.length; i++) {
+      if (experience >= NIVEAUX_NEXUS[i].seuil) index = i; else break;
+    }
+    const nbACorriger = Object.values(competences || {}).filter(c => c.statut === 'À corriger').length;
+    if (nbACorriger >= 2) index = Math.min(index, 1); // jamais au-delà de "Employé fiable"
+    else if (nbACorriger === 1) index = Math.min(index, 3); // jamais au-delà de "Référence"
+
+    const niveau = NIVEAUX_NEXUS[index];
+    const suivant = NIVEAUX_NEXUS[index + 1] || null;
+    return {
+      id: niveau.id, nom: niveau.nom, experience,
+      progression: suivant ? { manque: suivant.seuil - experience, seuilSuivant: suivant.seuil, nomSuivant: suivant.nom } : null,
+    };
+  }
+
+  // Badges de réussite — "obtenu" dès que le record correspondant a été
+  // atteint au moins une fois dans l'historique (pas besoin d'être dans
+  // la série en ce moment, un badge gagné reste gagné). Paliers
+  // progressifs choisis pour donner une première réussite tôt, comme
+  // demandé par Frédéric ("inciter à utiliser NEXUS au maximum").
+  function calculerBadges({ seriesCaisse, seriePonctualite, nbMissionsCompletees }) {
+    const badges = [];
+    const ajouter = (id, label, valeurActuelle, seuil) => {
+      badges.push({ id, label, obtenu: valeurActuelle >= seuil, valeurActuelle, seuil });
+    };
+    ajouter('caisse-7', 'Une semaine sans écart de caisse (7 services)', seriesCaisse.record, 7);
+    ajouter('caisse-30', 'Un mois sans écart de caisse (30 services)', seriesCaisse.record, 30);
+    ajouter('ponctualite-7', '7 jours sans retard', seriePonctualite.record, 7);
+    ajouter('ponctualite-30', '30 jours sans retard', seriePonctualite.record, 30);
+    ajouter('missions-25', '25 missions réalisées', nbMissionsCompletees || 0, 25);
+    ajouter('missions-100', '100 missions réalisées', nbMissionsCompletees || 0, 100);
+    return badges;
+  }
+
   global.NexusProgression = {
     SEUIL_ECART_CONFORME,
     construireServicesCaisse, estConforme, serviceEstPropre,
@@ -377,5 +466,7 @@
     tendanceEcartMoyen, quartDominant,
     statutCaisse, statutPonctualite, statutMissions, statutTenue, statutRelationClient,
     niveauNexus, pointsForts, identifierAxeProgression, genererEncouragement,
+    calculerSeriePonctualite, calculerExperience, calculerNiveauNomme, calculerBadges,
+    NIVEAUX_NEXUS,
   };
 })(window);
