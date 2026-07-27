@@ -194,6 +194,11 @@
   .tempo-banner{margin:12px 20px 0; padding:12px 15px; border-radius:12px; background:var(--cyan-dim,#123138); border:1px solid rgba(79,195,217,0.3); display:flex; align-items:center; gap:10px; font-size:12px; color:var(--text); line-height:1.5;}
   .tempo-banner a{margin-left:auto; font-family:var(--mono); font-size:10.5px; color:var(--cyan); white-space:nowrap; text-decoration:underline; flex-shrink:0;}
 
+  /* "Meilleure performance" (26/07/2026) — symétrique du bandeau ci-dessus,
+     vert plutôt que cyan pour marquer un constat positif. */
+  .tempo-banner-fort{margin:12px 20px 0; padding:12px 15px; border-radius:12px; background:var(--green-dim); border:1px solid rgba(52,211,153,0.3); display:flex; align-items:center; gap:10px; font-size:12px; color:var(--text); line-height:1.5;}
+  .tempo-banner-fort a{margin-left:auto; font-family:var(--mono); font-size:10.5px; color:var(--green); white-space:nowrap; text-decoration:underline; flex-shrink:0;}
+
   .priorite-item{display:flex; gap:10px; padding:11px 0; border-top:1px solid var(--hairline); align-items:flex-start;}
   .priorite-item:first-of-type{border-top:none;}
   .priorite-check{flex-shrink:0; width:20px; height:20px; margin-top:1px; border-radius:50%; border:1.5px solid var(--text-dim); display:flex; align-items:center; justify-content:center; font-size:11px; color:transparent; cursor:pointer; transition:all .15s;}
@@ -201,6 +206,31 @@
   .priorite-item.traitee .priorite-check{background:var(--green); border-color:var(--green); color:#04141a;}
   .priorite-item.traitee .priorite-body{opacity:0.5; text-decoration:line-through;}
   .priorite-body{font-size:12.5px; line-height:1.55;}
+
+  /* Format Constat / Conséquence / Décision / Preuve (26/07/2026, demande
+     de Frédéric) — priorité n°1 affichée en entier sur l'accueil, ses
+     preuves et limites restant repliées derrière un toggle pour ne pas
+     alourdir la première lecture. */
+  .priorite-constat{color:var(--text);}
+  .priorite-consequence{color:var(--text-mid); margin-top:3px;}
+  .priorite-decision{margin-top:6px;}
+  .priorite-decision b{color:var(--gold);}
+  .conseiller-detail-toggle{margin-top:7px; font-family:var(--mono); font-size:10.5px; color:var(--text-dim); cursor:pointer; text-decoration:underline; display:inline-block;}
+  .conseiller-detail-toggle:hover{color:var(--cyan);}
+  .conseiller-detail-body{display:none; margin-top:7px; padding:9px 11px; background:var(--panel); border-radius:8px; font-family:var(--mono); font-size:10.5px; color:var(--text-mid); line-height:1.6;}
+  .conseiller-detail-body.open{display:block;}
+
+  /* Priorités 2 et 3 repliées (26/07/2026) : sur l'accueil, seule la
+     priorité n°1 est développée — les suivantes restent une ligne
+     courte derrière un seul toggle, le détail complet appartenant au
+     Conseiller lui-même, pas à la page globale. */
+  .conseiller-autres-toggle{margin-top:12px; padding-top:12px; border-top:1px solid var(--hairline); font-family:var(--mono); font-size:11px; color:var(--cyan); cursor:pointer; text-align:center;}
+  .conseiller-autres-zone{display:none;}
+  .conseiller-autres-zone.open{display:block;}
+  .priorite-item-court{display:flex; gap:10px; padding:9px 0; border-top:1px solid var(--hairline); align-items:flex-start; font-size:12px;}
+  .priorite-item-court .priorite-body{font-size:12px; line-height:1.5;}
+  .priorite-item-court.traitee .priorite-check{background:var(--green); border-color:var(--green); color:#04141a;}
+  .priorite-item-court.traitee .priorite-body{opacity:0.5; text-decoration:line-through;}
   .priorite-num{font-family:var(--mono); font-weight:700; color:var(--gold);}
   .priorite-lien{display:inline-block; margin-top:3px; font-family:var(--mono); font-size:10.5px; color:var(--cyan); text-decoration:none;}
   .conseiller-footer{display:flex; justify-content:space-between; align-items:center; margin-top:12px; padding-top:12px; border-top:1px solid var(--hairline); font-family:var(--mono); font-size:11px; color:var(--text-mid);}
@@ -279,6 +309,7 @@
 
     <div class="alerte-banner" id="alerteBanner" style="display:none;"></div>
     <div class="tempo-banner" id="tempoBanner" style="display:none;"></div>
+    <div class="tempo-banner-fort" id="tempoBannerFort" style="display:none;"></div>
 
     <div class="conseiller-card">
       <div class="conseiller-head">
@@ -312,36 +343,18 @@
     </div>
   </a>
 
+  <!-- Mise à jour du 26/07/2026 (demande de Frédéric) : ces deux groupes ne
+       gardent que les écrans partagés avec l'employé (data-role="all") —
+       les items manager-only qui vivaient ici (Assignations, Résultats
+       Équipe, Évaluation, Nexus Planner, Plans d'action, Rappels) ont été
+       déplacés vers les groupes "Gestion d'équipe" et "Planification"
+       (voir Niveau 4 plus bas), repliés dans "Tous les outils". But :
+       arriver à UN SEUL point de repli après le poste de pilotage manager
+       au lieu de trois ("Tous les outils" + "Équipe" + "Votre journée"
+       chacun avec leur propre toggle) — l'écran employé, qui ne voyait de
+       toute façon que ces items partagés, ne change pas d'un pixel. -->
   <div class="section-label">Équipe</div>
   <nav data-group="equipe">
-    <a class="nav-item" data-role="manager" data-forfait="professional" href="NEXUS-Assignations-v1.html" style="display:none;">
-      <div class="nav-icon"><img src="assets/icons/icon-assignations.png" alt="Assignations"></div>
-      <div class="nav-body">
-        <div class="nav-title">Assignations <span class="nav-badge badge-premium">Professional</span></div>
-        <div class="nav-desc">Assigner, suivre, valider une mission</div>
-      </div>
-      <div class="nav-arrow">›</div>
-    </a>
-    <a class="nav-item" data-role="manager" data-forfait="professional" href="NEXUS-Resultats-Equipe-v1.html" style="display:none;">
-      <div class="nav-icon"><img src="assets/icons/icon-resultats-equipe.png" alt="Résultats équipe"></div>
-      <div class="nav-body">
-        <div class="nav-title">Résultats Équipe <span class="nav-badge badge-premium">Professional</span></div>
-        <div class="nav-desc">Progression réelle par employé</div>
-      </div>
-      <div class="nav-arrow">›</div>
-    </a>
-    <!-- Aperçu par défaut du groupe Équipe (24/07/2026, demande de Frédéric) :
-         Évaluation plutôt que Résultats Équipe — c'est ce que le manager fait
-         en premier sur le terrain (évaluer son équipe), avant de consulter
-         des résultats chiffrés. -->
-    <a class="nav-item" data-role="manager" data-preview="true" data-forfait="professional" href="NEXUS-Evaluation-Employe-v1.html" style="display:none;">
-      <div class="nav-icon"><img src="assets/icons/icon-evaluation.png" alt="Évaluation"></div>
-      <div class="nav-body">
-        <div class="nav-title">Évaluation <span class="nav-badge badge-premium">Professional</span></div>
-        <div class="nav-desc">Contrôle tenue + grille de prime</div>
-      </div>
-      <div class="nav-arrow">›</div>
-    </a>
     <a class="nav-item" data-role="all" href="NEXUS-Mon-Evolution-v1.html">
       <div class="nav-icon"><img src="assets/icons/icon-evolution.png" alt="Mon évolution"></div>
       <div class="nav-body">
@@ -378,43 +391,88 @@
       </div>
       <div class="nav-arrow">›</div>
     </a>
-    <a class="nav-item" data-role="manager" data-forfait="professional" href="NEXUS-Planning-v1.html" style="display:none;">
-      <div class="nav-icon"><img src="assets/icons/icon-planner.png" alt="Nexus Planner"></div>
-      <div class="nav-body">
-        <div class="nav-title">Nexus Planner <span class="nav-badge badge-premium">Professional</span></div>
-        <div class="nav-desc">Le bon collaborateur, au bon endroit, au bon moment</div>
-      </div>
-      <div class="nav-arrow">›</div>
-    </a>
-    <a class="nav-item" data-role="manager" data-preview="true" href="NEXUS-Missions-v1.html" style="display:none;">
-      <div class="nav-icon"><img src="assets/icons/icon-missions.png" alt="Plans d'action"></div>
-      <div class="nav-body">
-        <div class="nav-title">Plans d'action</div>
-        <div class="nav-desc">55 procédures · checklist interactive</div>
-      </div>
-      <div class="nav-arrow">›</div>
-    </a>
-    <a class="nav-item" data-role="manager" href="NEXUS-Parametres-Rappels-v1.html" id="navRappels" style="display:none;">
-      <div class="nav-icon" id="navRappelsIcon"><img src="assets/icons/icon-rappels.png" alt="Rappels"></div>
-      <div class="nav-body">
-        <div class="nav-title">Rappels<span id="navRappelsBadge"></span></div>
-        <div class="nav-desc">Commandes fournisseurs, carburant</div>
-      </div>
-      <div class="nav-arrow">›</div>
-    </a>
   </nav>
 
   <!-- ============================================================
-       Niveau 4 — "Tous les outils" (24/07/2026). Les 4 groupes
-       ci-dessous restent le menu réel, inchangé (mêmes liens, mêmes
-       badges, même repli interne via initGroupes()) — seule leur
-       PLACE change pour un manager : ils sont déplacés par JS dans
-       #plusZone au chargement, derrière un seul point d'entrée replié,
-       au lieu de s'afficher en toujours-visible comme avant. Pour un
-       employé, ces groupes n'existent de toute façon pas (déjà
-       masqués par data-role="manager" plus bas) — rien ne change
-       pour lui.
+       Niveau 4 — "Tous les outils" (24/07/2026, étendu le 26/07/2026).
+       Les groupes ci-dessous restent le menu réel, inchangé (mêmes
+       liens, mêmes badges, même repli interne via initGroupes()) —
+       seule leur PLACE change pour un manager : ils sont déplacés par
+       JS dans #plusZone au chargement, derrière un seul point d'entrée
+       replié, au lieu de s'afficher en toujours-visible comme avant.
+       Pour un employé, ces groupes n'existent de toute façon pas (déjà
+       masqués par data-role="manager" plus bas) — rien ne change pour
+       lui. "Gestion d'équipe" et "Planification" ont rejoint ce
+       Niveau 4 le 26/07/2026 : ce sont les items manager-only qui
+       vivaient auparavant mélangés dans les groupes "Équipe" et "Votre
+       journée" toujours visibles — les en extraire ramène le nombre de
+       points de repli après le poste de pilotage manager de trois à un
+       seul.
        ============================================================ -->
+  <div class="groupe-wrap" data-groupe="equipe-manager">
+    <div class="section-label" data-role="manager" style="display:none;">Gestion d'équipe</div>
+    <nav data-role="manager" data-group="equipe-manager" style="display:none;">
+      <a class="nav-item" data-role="manager" data-forfait="professional" href="NEXUS-Assignations-v1.html">
+        <div class="nav-icon"><img src="assets/icons/icon-assignations.png" alt="Assignations"></div>
+        <div class="nav-body">
+          <div class="nav-title">Assignations <span class="nav-badge badge-premium">Professional</span></div>
+          <div class="nav-desc">Assigner, suivre, valider une mission</div>
+        </div>
+        <div class="nav-arrow">›</div>
+      </a>
+      <a class="nav-item" data-role="manager" data-forfait="professional" href="NEXUS-Resultats-Equipe-v1.html">
+        <div class="nav-icon"><img src="assets/icons/icon-resultats-equipe.png" alt="Résultats équipe"></div>
+        <div class="nav-body">
+          <div class="nav-title">Résultats Équipe <span class="nav-badge badge-premium">Professional</span></div>
+          <div class="nav-desc">Progression réelle par employé</div>
+        </div>
+        <div class="nav-arrow">›</div>
+      </a>
+      <!-- Aperçu par défaut du groupe (24/07/2026, demande de Frédéric) :
+           Évaluation plutôt que Résultats Équipe — c'est ce que le manager
+           fait en premier sur le terrain (évaluer son équipe), avant de
+           consulter des résultats chiffrés. -->
+      <a class="nav-item" data-role="manager" data-preview="true" data-forfait="professional" href="NEXUS-Evaluation-Employe-v1.html">
+        <div class="nav-icon"><img src="assets/icons/icon-evaluation.png" alt="Évaluation"></div>
+        <div class="nav-body">
+          <div class="nav-title">Évaluation <span class="nav-badge badge-premium">Professional</span></div>
+          <div class="nav-desc">Contrôle tenue + grille de prime</div>
+        </div>
+        <div class="nav-arrow">›</div>
+      </a>
+    </nav>
+  </div>
+
+  <div class="groupe-wrap" data-groupe="journee-manager">
+    <div class="section-label" data-role="manager" style="display:none;">Planification</div>
+    <nav data-role="manager" data-group="journee-manager" style="display:none;">
+      <a class="nav-item" data-role="manager" data-forfait="professional" href="NEXUS-Planning-v1.html">
+        <div class="nav-icon"><img src="assets/icons/icon-planner.png" alt="Nexus Planner"></div>
+        <div class="nav-body">
+          <div class="nav-title">Nexus Planner <span class="nav-badge badge-premium">Professional</span></div>
+          <div class="nav-desc">Le bon collaborateur, au bon endroit, au bon moment</div>
+        </div>
+        <div class="nav-arrow">›</div>
+      </a>
+      <a class="nav-item" data-role="manager" data-preview="true" href="NEXUS-Missions-v1.html">
+        <div class="nav-icon"><img src="assets/icons/icon-missions.png" alt="Plans d'action"></div>
+        <div class="nav-body">
+          <div class="nav-title">Plans d'action</div>
+          <div class="nav-desc">55 procédures · checklist interactive</div>
+        </div>
+        <div class="nav-arrow">›</div>
+      </a>
+      <a class="nav-item" data-role="manager" href="NEXUS-Parametres-Rappels-v1.html" id="navRappels">
+        <div class="nav-icon" id="navRappelsIcon"><img src="assets/icons/icon-rappels.png" alt="Rappels"></div>
+        <div class="nav-body">
+          <div class="nav-title">Rappels<span id="navRappelsBadge"></span></div>
+          <div class="nav-desc">Commandes fournisseurs, carburant</div>
+        </div>
+        <div class="nav-arrow">›</div>
+      </a>
+    </nav>
+  </div>
+
   <div class="groupe-wrap" data-groupe="analyse">
     <div class="section-label" data-role="manager" style="display:none;">Analyse &amp; pilotage</div>
     <nav data-role="manager" data-group="analyse" style="display:none;">
@@ -726,14 +784,25 @@
       precedentParArticle[cle] = (precedentParArticle[cle] || 0) + (r.ca || 0);
     });
 
+    // Mise à jour du 26/07/2026 (demande de Frédéric) : chaque candidat
+    // porte désormais un constat, une conséquence et une preuve isolée,
+    // séparés de la décision (recommandation) — format Constat →
+    // Conséquence → Décision → Preuve utilisé par renderConseillerHome.
+    // Rien n'est inventé : constat/preuve dérivent des mêmes valeurs
+    // (contribution, évolution) déjà calculées pour déclencher la règle,
+    // simplement conservées au lieu d'être jetées après le seuil.
     const candidats = [];
     rowsAffichage.forEach(p => {
       const caRayon = caTotalParRayon[p.categorie] || 0;
       const contribution = caRayon > 0 ? p.ca / caRayon : 0;
       if (contribution >= 0.15 && p.ca > 0) {
         const lang = LANGAGE_ACTION_HOME[typeActionPourCategorieHome(p.categorie)];
+        const pct = Math.round(contribution * 100);
         candidats.push({ etat: '🔥 À AGIR', article: p.article, categorie: p.categorie, impact_eur: p.ca,
-          recommandation: lang.recoAgir(p.article), candidate_id: `LIVE-R4-${p.categorie}|${p.article}` });
+          recommandation: lang.recoAgir(p.article), candidate_id: `LIVE-R4-${p.categorie}|${p.article}`,
+          constat: `${p.article} concentre à lui seul ${pct} % du chiffre d'affaires du rayon ${p.categorie}.`,
+          consequence: `Une rupture ou un ralentissement sur cet article pèserait immédiatement sur tout le rayon.`,
+          preuve: `${pct} % du CA du rayon · ${Math.round(p.ca).toLocaleString('fr-FR')} € concernés` });
       }
     });
     if (paire) {
@@ -743,15 +812,22 @@
         const evolution = (caPrec && caPrec > 0) ? (p.ca - caPrec) / caPrec : null;
         if (evolution === null) return;
         const lang = LANGAGE_ACTION_HOME[typeActionPourCategorieHome(p.categorie)];
+        const pctEvol = Math.round(evolution * 100);
         if (evolution >= 0.20) {
           const gain = Math.max(p.ca - caPrec, 0);
           candidats.push({ etat: '📈 OPPORTUNITÉ', article: p.article, categorie: p.categorie, impact_eur: gain,
-            recommandation: lang.recoHausse(p.article), candidate_id: `LIVE-R3-${cle}` });
+            recommandation: lang.recoHausse(p.article), candidate_id: `LIVE-R3-${cle}`,
+            constat: `${p.article} progresse de +${pctEvol} % sur la période.`,
+            consequence: `Cette dynamique peut s'essouffler si l'approvisionnement ne suit pas la demande.`,
+            preuve: `+${pctEvol} % vs période précédente · ${Math.round(gain).toLocaleString('fr-FR')} € de gain observé` });
         }
         if (evolution <= -0.30) {
           const perte = Math.max(caPrec - p.ca, 0);
           candidats.push({ etat: '🟡 À SURVEILLER', article: p.article, categorie: p.categorie, impact_eur: perte,
-            recommandation: lang.recoBaisse(p.article), candidate_id: `LIVE-R2-${cle}` });
+            recommandation: lang.recoBaisse(p.article), candidate_id: `LIVE-R2-${cle}`,
+            constat: `${p.article} recule de ${pctEvol} % sur la période.`,
+            consequence: `Cette baisse réduit la contribution du rayon ${p.categorie} et peut annoncer une rupture ou un désintérêt client.`,
+            preuve: `${pctEvol} % vs période précédente · ${Math.round(perte).toLocaleString('fr-FR')} € de CA perdu` });
         }
       });
     }
@@ -789,11 +865,13 @@
       devScore = Math.round(Math.max(0, points) / (completions.length * 12) * 100);
     }
     let equipeScore = null;
+    let nbRetards = 0;
     if (pointages) {
+      nbRetards = pointages.length;
       const totalRetard = pointages.reduce((s, p) => s + (p.retard_min || 0), 0);
       equipeScore = Math.round(Math.max(0, 100 - totalRetard));
     }
-    return { devScore, equipeScore };
+    return { devScore, equipeScore, nbRetards };
   }
 
   // Nexus Verify n'a pas de notion de "contrôle en attente" en base — sa
@@ -806,6 +884,30 @@
     if (error) { console.error('Chargement audits_caisse (accueil):', error); return null; }
     const quartsFaits = new Set((data || []).map(a => a.quart));
     return Math.max(0, 2 - quartsFaits.size);
+  }
+
+  // Missions restantes aujourd'hui (26/07/2026, demande de Frédéric) —
+  // remplace "X missions actives au catalogue" (taille du catalogue, pas
+  // le travail du jour) par une vraie mesure du jour : missions
+  // récurrentes du catalogue moins celles déjà complétées aujourd'hui
+  // (comptage par mission_id distinct dans mission_completions). C'est une
+  // approximation volontairement simple — elle ne reproduit pas la
+  // logique fine par rôle/fenêtre horaire de NEXUS-Missions-v1.html — mais
+  // elle donne une mesure honnête du travail restant plutôt que la taille
+  // du catalogue.
+  async function chargerMissionsRestantesHome(siteId) {
+    const aujourdhui = new Date().toISOString().slice(0, 10);
+    const [catalogueRes, completionsRes] = await Promise.all([
+      nexusClient.from('mission_catalog').select('mission_id', { count: 'exact', head: true })
+        .eq('actif', true).eq('ponctuelle', false).eq('site_id', siteId),
+      nexusClient.from('mission_completions').select('mission_id').eq('site_id', siteId).eq('date', aujourdhui),
+    ]);
+    if (catalogueRes.error) { console.error('Chargement mission_catalog (accueil):', catalogueRes.error); return { restantes: null }; }
+    if (completionsRes.error) console.error('Chargement mission_completions du jour (accueil):', completionsRes.error);
+    const total = catalogueRes.count != null ? catalogueRes.count : null;
+    if (total == null) return { restantes: null };
+    const faitesAujourdhui = new Set((completionsRes.data || []).map(r => r.mission_id)).size;
+    return { restantes: Math.max(0, total - faitesAujourdhui) };
   }
 
   // ------------------------------------------------------------
@@ -885,20 +987,28 @@
   // ------------------------------------------------------------
   const SEUIL_CONSTAT_TEMPO = -0.10;
 
+  // Mise à jour du 26/07/2026 (demande de Frédéric) : l'accueil doit aussi
+  // répondre à "où est ma meilleure performance ?", pas seulement "où est
+  // ma vigilance ?" — jusqu'ici seul le jour faible remontait sur App-v1.
+  // On calcule jourMoteur en plus de jourARenforcer, sans coût réseau
+  // supplémentaire (même agrégat audits_caisse, déjà chargé). Exigence de
+  // confianceTendance (≥2 occurrences du même jour) avant de l'afficher,
+  // comme pour le jour faible — jamais désigner "votre meilleur jour"
+  // après une seule occurrence, ce serait un hasard de calendrier.
   async function chargerConstatTempoHome(siteId) {
     const { data, error } = await fetchAllRowsHome(() => nexusClient.from('audits_caisse')
       .select('date, quart, vente_piste, vente_boutique, ecart_piste, ecart_boutique, employes_piste, employes_boutique')
       .eq('site', siteId).order('date', { ascending: true }));
-    if (error || !data) { console.error('Chargement audits_caisse (constat Tempo):', error); return { jourARenforcer: null, totalJours: 0 }; }
+    if (error || !data) { console.error('Chargement audits_caisse (constat Tempo):', error); return { jourARenforcer: null, jourMoteur: null, totalJours: 0 }; }
     const joursAgreges = NexusTempo.agregerParJour(data);
     const totalJours = joursAgreges.length;
     const regroupement = NexusTempo.regrouperParJourSemaine(joursAgreges);
     const classement = NexusTempo.calculerClassement(regroupement);
-    const { jourARenforcer } = NexusTempo.identifierJoursReveles(classement);
-    if (!jourARenforcer || !jourARenforcer.confianceTendance || jourARenforcer.evolutionCombinee === null || jourARenforcer.evolutionCombinee > SEUIL_CONSTAT_TEMPO) {
-      return { jourARenforcer: null, totalJours };
-    }
-    return { jourARenforcer, totalJours };
+    const { jourARenforcer, jourMoteur: jourMoteurBrut } = NexusTempo.identifierJoursReveles(classement);
+    const jourARenforcerRetenu = (!jourARenforcer || !jourARenforcer.confianceTendance || jourARenforcer.evolutionCombinee === null || jourARenforcer.evolutionCombinee > SEUIL_CONSTAT_TEMPO)
+      ? null : jourARenforcer;
+    const jourMoteur = (jourMoteurBrut && jourMoteurBrut.confianceTendance) ? jourMoteurBrut : null;
+    return { jourARenforcer: jourARenforcerRetenu, jourMoteur, totalJours };
   }
 
   function renderConstatTempoHome(jour) {
@@ -909,6 +1019,18 @@
     const detail = [pctPiste, pctBoutique].filter(Boolean).join(' · ');
     banner.style.display = 'flex';
     banner.innerHTML = `📊 Le <b>${jour.nom}</b> reste votre journée la plus faible${detail ? ` : ${detail}` : ''}. <a href="NEXUS-Tempo-v1.html">Comprendre dans NEXUS Tempo →</a>`;
+  }
+
+  // "Où est ma meilleure performance ?" (26/07/2026) — symétrique du
+  // bandeau ci-dessus, styles vert plutôt que cyan pour marquer la
+  // différence constat positif / vigilance. N'affiche rien si jourMoteur
+  // coïncide avec le jour à renforcer (impossible en pratique) ou si aucun
+  // jour n'a encore assez d'historique.
+  function renderMeilleurJourHome(jour) {
+    const banner = document.getElementById('tempoBannerFort');
+    if (!jour) { banner.style.display = 'none'; return; }
+    banner.style.display = 'flex';
+    banner.innerHTML = `🌟 Le <b>${jour.nom}</b> crée actuellement le plus de valeur (${Math.round(jour.moyenneCombinee).toLocaleString('fr-FR')} € en moyenne). <a href="NEXUS-Tempo-v1.html">Comprendre dans NEXUS Tempo →</a>`;
   }
 
   let SITE_HOME = 'vito-sainte-marie';
@@ -1006,6 +1128,49 @@
     return pool[Math.floor(Math.random() * pool.length)];
   }
 
+  // Refonte du 26/07/2026 (demande de Frédéric) — format "directeur
+  // d'exploitation" plutôt que rapport : la priorité n°1 s'affiche en
+  // entier au format Constat → Conséquence → Décision, avec ses preuves
+  // repliées derrière un toggle ("Voir les preuves et les limites de
+  // l'analyse"). Les priorités 2 et 3 restent disponibles — rien n'est
+  // supprimé — mais repliées derrière un seul toggle, l'App donnant la
+  // synthèse et la priorité n°1, le détail complet restant l'affaire du
+  // Conseiller. Pas de lettre de confiance A/B/C/D ici (décision de
+  // Frédéric le 26/07/2026) : ces candidats R2/R3/R4 reposent sur une
+  // seule comparaison de période, sans signal de confiance gradué encore
+  // disponible — en inventer un serait afficher un chiffre qui n'existe
+  // pas. La limite (comparaison sur une seule période) est donc dite en
+  // toutes lettres dans le détail replié plutôt que résumée par une
+  // fausse lettre.
+  function priorItemComplet(c, i) {
+    return `
+      <div class="priorite-item" id="priorite-item-${i}">
+        <span class="priorite-check" data-idx="${i}">✓</span>
+        <div class="priorite-body">
+          <div class="priorite-constat">${c.constat}</div>
+          <div class="priorite-consequence">${c.consequence}</div>
+          <div class="priorite-decision"><b>Décision :</b> ${c.recommandation}</div>
+          <div class="conseiller-detail-toggle" data-target="preuve-${i}">Voir les preuves et les limites de l'analyse ▾</div>
+          <div class="conseiller-detail-body" id="preuve-${i}">
+            ${c.preuve}<br>
+            <span style="color:var(--text-dim);">Comparaison sur une seule période d'import — pas encore une tendance confirmée sur plusieurs périodes.</span>
+          </div>
+          <a class="priorite-lien" href="NEXUS-Produits-v1.html?article=${encodeURIComponent(c.article)}">${verbeActionAleatoire(c.etat)} →</a>
+        </div>
+      </div>`;
+  }
+
+  function priorItemCourt(c, i) {
+    return `
+      <div class="priorite-item-court" id="priorite-item-${i}">
+        <span class="priorite-check" data-idx="${i}">✓</span>
+        <div class="priorite-body">
+          ${c.constat} <b style="color:var(--gold);">${c.recommandation}</b>
+          <a class="priorite-lien" href="NEXUS-Produits-v1.html?article=${encodeURIComponent(c.article)}">${verbeActionAleatoire(c.etat)} →</a>
+        </div>
+      </div>`;
+  }
+
   function renderConseillerHome(top3, employeeNom) {
     const corps = document.getElementById('conseillerCorps');
     if (!top3.length) {
@@ -1013,21 +1178,37 @@
       return;
     }
     const gainTotal = top3.reduce((s, c) => s + c.impact_eur, 0);
+    const autres = top3.slice(1);
     corps.innerHTML = `
-      <div class="conseiller-text">${employeeNom}, bonjour. Voici les décisions qui comptent aujourd'hui :</div>
-      ${top3.map((c, i) => `
-        <div class="priorite-item" id="priorite-item-${i}">
-          <span class="priorite-check" data-idx="${i}">✓</span>
-          <div class="priorite-body">
-            <span class="priorite-num">${i + 1}.</span> ${c.recommandation}
-            <a class="priorite-lien" href="NEXUS-Produits-v1.html?article=${encodeURIComponent(c.article)}">${verbeActionAleatoire(c.etat)} →</a>
-          </div>
-        </div>`).join('')}
+      <div class="conseiller-text">${employeeNom}, bonjour. Voici la décision qui compte le plus aujourd'hui :</div>
+      ${priorItemComplet(top3[0], 0)}
+      ${autres.length ? `
+        <div class="conseiller-autres-toggle" id="conseillerAutresToggle">Voir ${autres.length === 1 ? "l'autre décision" : `les ${autres.length} autres décisions`} du Conseiller ▾</div>
+        <div class="conseiller-autres-zone" id="conseillerAutresZone">${autres.map((c, idx) => priorItemCourt(c, idx + 1)).join('')}</div>
+      ` : ''}
       <div class="conseiller-footer"><span id="prioriteProgressHome">0 / ${top3.length} traitées</span><span>Gain potentiel : <b>${Math.round(gainTotal).toLocaleString('fr-FR')} €</b></span></div>
     `;
+
+    const toggleAutres = document.getElementById('conseillerAutresToggle');
+    if (toggleAutres) {
+      toggleAutres.addEventListener('click', () => {
+        const zone = document.getElementById('conseillerAutresZone');
+        const ouvert = zone.classList.toggle('open');
+        toggleAutres.textContent = ouvert
+          ? 'Réduire ▾'
+          : `Voir ${autres.length === 1 ? "l'autre décision" : `les ${autres.length} autres décisions`} du Conseiller ▾`;
+      });
+    }
+    document.querySelectorAll('#conseillerCorps .conseiller-detail-toggle').forEach(toggle => {
+      toggle.addEventListener('click', () => {
+        document.getElementById(toggle.dataset.target).classList.toggle('open');
+      });
+    });
+
     let traitees = 0;
     document.querySelectorAll('#conseillerCorps .priorite-check').forEach(check => {
-      check.addEventListener('click', async () => {
+      check.addEventListener('click', async (e) => {
+        e.stopPropagation();
         if (check.style.pointerEvents === 'none') return;
         check.style.pointerEvents = 'none';
         const candidat = top3[parseInt(check.dataset.idx, 10)];
@@ -1045,19 +1226,36 @@
   // une phrase qualitative — le nombre de décisions reste réel et affiché
   // en grand (kpi-chip-value), seule la sous-ligne change de registre :
   // moins comptable, plus une reconnaissance du travail fait.
-  function fierteNexus(nb) {
+  // Mise à jour du 26/07/2026 (demande de Frédéric) : la sous-ligne inclut
+  // désormais le gain cumulé du jour (déjà calculé par
+  // chargerDecisionsAujourdhui, simplement pas affiché jusqu'ici) —
+  // "17 décisions validées" devient une phrase avec une période (aujourd'hui)
+  // et un impact chiffré, plutôt qu'un compteur nu.
+  function fierteNexus(nb, gain) {
+    const gainTxt = gain > 0 ? ` · ${Math.round(gain).toLocaleString('fr-FR')} € générés` : '';
     if (nb === 0) return "aujourd'hui";
-    if (nb === 1) return '👏 NEXUS a noté votre décision';
-    if (nb === 2) return '👏 NEXUS apprécie votre rythme';
-    return '🎉 NEXUS est fier de votre journée';
+    if (nb === 1) return '👏 NEXUS a noté votre décision' + gainTxt;
+    if (nb === 2) return '👏 NEXUS apprécie votre rythme' + gainTxt;
+    return '🎉 NEXUS est fier de votre journée' + gainTxt;
   }
 
-  function renderKpiGrid({ missionsActives, nbRappels, decisionsJour, equipeScore }) {
+  // Ponctualité avec contexte (26/07/2026, demande de Frédéric) : "0 % de
+  // ponctualité mesurée" sans détail ressemblait à une mauvaise performance
+  // alors que les données étaient probablement insuffisantes — on affiche
+  // désormais le nombre de retards réellement observés, jamais un simple
+  // pourcentage nu.
+  function detailPonctualite(equipeScore, nbRetards) {
+    if (equipeScore == null) return 'Pas encore assez de données';
+    if (!nbRetards) return 'Aucun retard enregistré';
+    return `${nbRetards} retard${nbRetards > 1 ? 's' : ''} cumulé${nbRetards > 1 ? 's' : ''}`;
+  }
+
+  function renderKpiGrid({ missionsRestantes, nbRappels, decisionsJour, equipeScore, nbRetards }) {
     document.getElementById('kpiGrid').innerHTML = `
       <a class="kpi-chip" href="NEXUS-Missions-v1.html">
         <div class="kpi-chip-label">Missions</div>
-        <div class="kpi-chip-value">${missionsActives != null ? missionsActives : '—'}</div>
-        <div class="kpi-chip-sub">actives au catalogue</div>
+        <div class="kpi-chip-value" style="color:${missionsRestantes === 0 ? 'var(--green)' : 'var(--text)'};">${missionsRestantes != null ? missionsRestantes : '—'}</div>
+        <div class="kpi-chip-sub">${missionsRestantes == null ? 'Calcul en cours' : (missionsRestantes === 0 ? 'toutes faites aujourd’hui' : 'restantes aujourd’hui')}</div>
       </a>
       <a class="kpi-chip" href="NEXUS-Parametres-Rappels-v1.html">
         <div class="kpi-chip-label">Rappels</div>
@@ -1067,12 +1265,12 @@
       <a class="kpi-chip" href="NEXUS-Journal-v1.html">
         <div class="kpi-chip-label">Décisions validées</div>
         <div class="kpi-chip-value" style="color:var(--green);">${decisionsJour.nb}</div>
-        <div class="kpi-chip-sub">${fierteNexus(decisionsJour.nb)}</div>
+        <div class="kpi-chip-sub">${fierteNexus(decisionsJour.nb, decisionsJour.gain)}</div>
       </a>
       <a class="kpi-chip" href="NEXUS-Radar-Manager-v1.html">
         <div class="kpi-chip-label">Équipe</div>
         <div class="kpi-chip-value">${equipeScore != null ? equipeScore + ' %' : '—'}</div>
-        <div class="kpi-chip-sub">ponctualité mesurée</div>
+        <div class="kpi-chip-sub">${detailPonctualite(equipeScore, nbRetards)}</div>
       </a>
     `;
   }
@@ -1090,12 +1288,29 @@
     return `${totalJours} jour${totalJours > 1 ? 's' : ''} enregistré${totalJours > 1 ? 's' : ''} · rythme en construction`;
   }
 
+  // Carte Cockpit (26/07/2026, demande de Frédéric) : "267 décisions à
+  // analyser et 328 opportunités détectées" donnait une sensation de
+  // retard plutôt que de maîtrise — ces volumes bruts comptent la
+  // totalité du catalogue, pas ce qui mérite l'attention du jour. Même
+  // plafond d'affichage que la carte Produits (SEUIL_RECOS_PRIORITAIRES) :
+  // au-delà, on affiche "9+" plutôt que le total exact — jamais un
+  // mensonge (9+ reste vrai quel que soit le total réel), juste une
+  // échelle qui ne donne plus l'impression d'un arriéré.
+  const SEUIL_AFFICHAGE_COCKPIT = 9;
+  function descriptionCockpitHome(nbAlertes, nbOpportunites) {
+    if (nbAlertes === 0 && nbOpportunites === 0) return 'Rien à analyser pour l’instant';
+    const parts = [];
+    if (nbAlertes > 0) parts.push(`<span style="color:var(--amber);">${nbAlertes > SEUIL_AFFICHAGE_COCKPIT ? SEUIL_AFFICHAGE_COCKPIT + '+' : nbAlertes} à traiter</span>`);
+    if (nbOpportunites > 0) parts.push(`<span style="color:var(--green);">${nbOpportunites > SEUIL_AFFICHAGE_COCKPIT ? SEUIL_AFFICHAGE_COCKPIT + '+' : nbOpportunites} opportunité${nbOpportunites > 1 ? 's' : ''}</span>`);
+    return parts.join(' · ');
+  }
+
   function renderOutilsGrid({ nbAlertes, nbOpportunites, controlesVerify, jourARenforcerTempo, totalJoursTempo, nbRecommandations }) {
     document.getElementById('outilsGrid').innerHTML = `
       <a class="outil-card" href="NEXUS-Cockpit-v2.html">
         <div class="outil-icon"><img src="assets/icons/icon-home.png" alt=""></div>
         <div class="outil-title">Cockpit</div>
-        <div class="outil-desc">${nbAlertes > 0 ? `<span style="color:var(--amber);">${nbAlertes} décision${nbAlertes > 1 ? 's' : ''} à analyser</span>` : 'Aucune décision à analyser'}${nbOpportunites > 0 ? ` · <span style="color:var(--green);">${nbOpportunites} opportunité${nbOpportunites > 1 ? 's' : ''} détectée${nbOpportunites > 1 ? 's' : ''}</span>` : ''}</div>
+        <div class="outil-desc">${descriptionCockpitHome(nbAlertes, nbOpportunites)}</div>
       </a>
       <a class="outil-card" href="NEXUS-Verify-v1.html">
         <div class="outil-icon"><img src="assets/icons/icon-nexus-verify.png" alt="" style="filter:grayscale(1) brightness(1.05) contrast(1.05) sepia(1) hue-rotate(152deg) saturate(4);"></div>
@@ -1125,7 +1340,7 @@
       decisionsJour,
       domainesRadar,
       controlesVerify,
-      missionsCatalogueRes,
+      missionsRestantesRes,
       margePlusResultat,
       constatTempo,
     ] = await Promise.all([
@@ -1134,7 +1349,7 @@
       chargerDecisionsAujourdhui(SITE_HOME),
       chargerDomainesRadarHome(),
       chargerControlesVerifyHome(SITE_HOME),
-      nexusClient.from('mission_catalog').select('mission_id', { count: 'exact', head: true }).eq('actif', true),
+      chargerMissionsRestantesHome(SITE_HOME),
       chargerMargePlusHome(SITE_HOME),
       chargerConstatTempoHome(SITE_HOME),
     ]);
@@ -1145,12 +1360,14 @@
     renderEtatCommerce(score, facteurs, candidatsDisponibles);
     renderMargePlus(margePlusResultat);
     renderConstatTempoHome(constatTempo.jourARenforcer);
+    renderMeilleurJourHome(constatTempo.jourMoteur);
     renderConseillerHome(candidatsDisponibles.slice(0, 3), employee.nom);
     renderKpiGrid({
-      missionsActives: (missionsCatalogueRes && missionsCatalogueRes.count != null) ? missionsCatalogueRes.count : null,
+      missionsRestantes: missionsRestantesRes.restantes,
       nbRappels: compterRappelsUrgents(),
       decisionsJour,
       equipeScore: domainesRadar.equipeScore,
+      nbRetards: domainesRadar.nbRetards,
     });
 
     const nbAlertes = candidatsDisponibles.filter(c => c.etat === '🔥 À AGIR' || c.etat === '🟡 À SURVEILLER').length;
@@ -1314,15 +1531,16 @@
       document.getElementById('heroEmploye').style.display = 'none';
       document.querySelectorAll('[data-role="manager"]').forEach(el => el.style.display = '');
 
-      // Niveau 4 — regroupe "Analyse & pilotage", "Gérer", "Découvrir" et
-      // "Intelligence NEXUS" (déjà 100% manager-only) derrière le toggle
-      // "Tous les outils" : ces 4 groupes n'existent de toute façon pas
-      // pour un employé, donc les déplacer dans le DOM ne change rien à
-      // son expérience. "Votre journée" et "Équipe" restent à leur place
-      // (partagés entre les deux rôles, ne pas les déplacer pour ne pas
-      // les faire disparaître de l'écran employé).
+      // Niveau 4 — regroupe "Analyse & pilotage", "Gérer", "Découvrir",
+      // "Intelligence NEXUS", "Gestion d'équipe" et "Planification" (tous
+      // 100% manager-only) derrière le toggle "Tous les outils" : ces
+      // groupes n'existent de toute façon pas pour un employé, donc les
+      // déplacer dans le DOM ne change rien à son expérience. "Votre
+      // journée" et "Équipe" restent à leur place avec seulement leurs
+      // items partagés (data-role="all") — voir le commentaire du
+      // 26/07/2026 au-dessus de ces deux groupes dans le HTML.
       const plusZone = document.getElementById('plusZone');
-      ['analyse', 'gerer', 'decouvrir', 'intelligence'].forEach(g => {
+      ['analyse', 'gerer', 'decouvrir', 'intelligence', 'equipe-manager', 'journee-manager'].forEach(g => {
         const wrap = document.querySelector(`.groupe-wrap[data-groupe="${g}"]`);
         if (wrap) plusZone.appendChild(wrap);
       });
