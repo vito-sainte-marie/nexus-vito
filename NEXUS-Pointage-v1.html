@@ -268,7 +268,9 @@
       </button>`;
     }).join('');
 
+    const retourEnAttente = !dejaFait.arrivee && new URLSearchParams(window.location.search).get('retour');
     document.getElementById('app').innerHTML = `
+      ${retourEnAttente ? '<div class="info-note" style="margin-bottom:14px;">🔒 Pointez votre arrivée pour accéder au reste de NEXUS.</div>' : ''}
       <div class="confirm-banner" id="confirmBanner"></div>
       <div class="section-label">⏱ Votre journée</div>
       <div class="action-grid">${boutonsHtml}</div>
@@ -317,7 +319,16 @@
     btn.disabled = true;
     const sous = btn.querySelector('.sous');
     if (sous) sous.textContent = '…';
-    await enregistrerPointage(employee, siteId, type, shiftActif, photoUrl);
+    const ok = await enregistrerPointage(employee, siteId, type, shiftActif, photoUrl);
+
+    // Retour automatique (28/07/2026) : quand cette page a été atteinte via
+    // le blocage obligatoire de nexus-auth.js (?retour=<page>), on renvoie
+    // l'employé directement vers la page qu'il voulait consulter dès que
+    // son arrivée est enregistrée — pas la peine de le faire cliquer deux fois.
+    if (ok && type === 'arrivee') {
+      const retour = new URLSearchParams(window.location.search).get('retour');
+      if (retour) { window.location.href = retour; return; }
+    }
     await afficherFormulairePointage(employee, siteId);
   }
 
@@ -372,7 +383,7 @@
         banner.textContent = "Le pointage n'a pas pu être enregistré — réessayez.";
         banner.classList.add('show');
       }
-      return;
+      return false;
     }
     if (banner) {
       banner.classList.remove('retard');
@@ -384,6 +395,7 @@
       }
       banner.classList.add('show');
     }
+    return true;
   }
 </script>
 </body>

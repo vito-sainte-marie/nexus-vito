@@ -32,7 +32,42 @@ async function nexusRequireAuth() {
       employee.consultation_externe = true;
     }
   }
+
+  // Pointage obligatoire avant le reste de l'app (28/07/2026, demande de
+  // Frédéric) : tant que l'arrivée du jour n'est pas pointée, on redirige
+  // systématiquement vers NEXUS-Pointage-v1.html, quelle que soit la page
+  // demandée — centralisé ici pour s'appliquer à toutes les pages qui
+  // incluent nexus-auth.js sans avoir à les modifier une par une. On
+  // renvoie null comme pour les cas "pas connecté", pour que la page
+  // appelante s'arrête net (elle a déjà ce garde-fou : `if (!employee) return;`).
+  if (await nexusPointageArriveeManquant(employee)) {
+    const pageActuelle = (window.location.pathname.split('/').pop() || 'NEXUS-App-v1.html') + window.location.search;
+    window.location.href = `NEXUS-Pointage-v1.html?retour=${encodeURIComponent(pageActuelle)}`;
+    return null;
+  }
+
   return employee;
+}
+
+async function nexusPointageArriveeManquant(employee) {
+  const pageActuelle = window.location.pathname.split('/').pop();
+  if (pageActuelle === 'NEXUS-Pointage-v1.html') return false; // jamais se bloquer soi-même
+  if (employee.consultation_externe) return false; // créateur en simple consultation d'un autre site
+
+  const siteId = employee.site_id || 'vito-sainte-marie';
+  const estNiveauManager = employee.role === 'manager' || employee.role === 'gerant';
+  if (estNiveauManager) {
+    const { data: config } = await nexusClient
+      .from('station_config').select('manager_pointage_requis').eq('site', siteId).maybeSingle();
+    if (!config || !config.manager_pointage_requis) return false; // pas requis pour ce poste
+  }
+
+  const d = new Date();
+  const todayISO = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const { data: arrivee, error } = await nexusClient
+    .from('pointages').select('id').eq('employee_id', employee.id).eq('date', todayISO).eq('type', 'arrivee').maybeSingle();
+  if (error) { console.error('Vérification pointage arrivée:', error); return false; } // en cas d'erreur réseau, on ne bloque pas l'accès
+  return !arrivee;
 }
 
 // Déconnexion (à appeler depuis un bouton "Se déconnecter")
