@@ -3,6 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" type="image/x-icon" href="favicon.ico">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+<link rel="manifest" href="site.webmanifest">
+<meta name="theme-color" content="#0B0F14">
 <title>NEXUS</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -226,6 +232,26 @@
   .conseiller-btn-primaire{background:var(--cyan); color:#04141a;}
   .conseiller-btn-secondaire{background:var(--panel-raised); color:var(--text); border:1px solid var(--hairline); position:relative;}
   .nouveaute-dot{display:inline-block; width:7px; height:7px; border-radius:50%; background:var(--gold); box-shadow:0 0 0 3px rgba(212,175,55,0.2); margin-left:6px; vertical-align:middle;}
+
+  /* Pointage — mini carte accueil employé (28/07/2026, demande de
+     Frédéric : "il n'y a pas de boutons pointage cliquable dans le menu
+     de l'employé pour prendre sa pause ou finir sa journée"). Depuis le
+     remplacement de l'ancienne section fixe "Votre journée" par la
+     recherche NEXUS (27/07/2026), Pointage n'était plus accessible en un
+     geste pour un employé — il fallait taper "pointage" dans la
+     recherche pour le retrouver. Ce bloc rend l'action suivante (pause,
+     fin de pause, départ) visible et cliquable dès l'arrivée sur l'écran
+     d'accueil, sans remettre en place l'ancienne liste : un seul bouton,
+     toujours la bonne action, jamais une liste de 4 boutons dont 3 sont
+     grisés. */
+  .pointage-mini{display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:14px; padding:12px 14px; border-radius:10px; background:var(--panel-raised); border:1px solid var(--hairline);}
+  .pointage-mini-texte{font-size:12.5px; color:var(--text-mid); flex:1;}
+  .pointage-mini-btn{flex-shrink:0; font-family:var(--sans); font-size:12.5px; font-weight:700; padding:9px 14px; border-radius:8px; text-decoration:none; color:#04141a; white-space:nowrap;}
+  .pointage-mini-btn.couleur-arrivee{background:var(--green);}
+  .pointage-mini-btn.couleur-pause{background:var(--amber);}
+  .pointage-mini-btn.couleur-depart{background:var(--red);}
+  .pointage-mini.termine{background:var(--green-dim); border-color:rgba(52,211,153,0.3);}
+  .pointage-mini.termine .pointage-mini-texte{color:var(--green);}
   .prix-row{display:flex; align-items:center; gap:8px; margin-bottom:10px;}
   .prix-row label{flex:1; font-size:12px; color:var(--text-mid);}
   .prix-ancien{font-family:var(--mono); font-size:12.5px; color:var(--text-dim); background:var(--panel); border:1px solid var(--hairline); border-radius:8px; padding:8px 10px; width:74px; text-align:center; flex-shrink:0;}
@@ -469,6 +495,10 @@
       <div class="conseiller-actions">
         <a class="conseiller-btn conseiller-btn-primaire" href="NEXUS-Missions-v1.html">Voir mes missions</a>
         <a class="conseiller-btn conseiller-btn-secondaire" href="NEXUS-Progression-v1.html">Ma progression<span class="nouveaute-dot" id="dotNouveauteProgression" style="display:none;"></span></a>
+      </div>
+      <div class="pointage-mini" id="pointageMini" style="display:none;">
+        <div class="pointage-mini-texte" id="pointageMiniTexte">Chargement de votre pointage…</div>
+        <a class="pointage-mini-btn" id="pointageMiniBtn" href="NEXUS-Pointage-v1.html">Pointer →</a>
       </div>
     </div>
   </div>
@@ -1792,6 +1822,54 @@
     return !error && !!(data && data.manager_pointage_requis);
   }
 
+  // Mini carte Pointage — accueil employé (28/07/2026, demande de Frédéric :
+  // "il n'y a pas de boutons pointage cliquable dans le menu de l'employé
+  // pour prendre sa pause ou finir sa journée"). L'arrivée est déjà pointée
+  // avant d'atteindre cet écran (nexus-auth.js bloque l'accès sinon), donc
+  // la seule chose à déterminer ici est la prochaine étape parmi pause,
+  // fin de pause et départ — un seul bouton, toujours la bonne couleur/le
+  // bon libellé, jamais une liste. S'il ne reste plus rien à pointer
+  // (départ déjà fait), le bouton disparaît et la carte devient un simple
+  // constat neutre, jamais une invitation à re-pointer.
+  const POINTAGE_MINI_ORDRE = ['arrivee', 'pause_debut', 'pause_fin', 'depart'];
+  const POINTAGE_MINI_LIBELLES = {
+    arrivee: 'Pointer l’arrivée →',
+    pause_debut: 'Pointer le début de pause →',
+    pause_fin: 'Pointer la fin de pause →',
+    depart: 'Pointer le départ →',
+  };
+  const POINTAGE_MINI_COULEURS = { arrivee: 'arrivee', pause_debut: 'pause', pause_fin: 'pause', depart: 'depart' };
+
+  async function afficherPointageMini(employee, siteId) {
+    const wrap = document.getElementById('pointageMini');
+    const texte = document.getElementById('pointageMiniTexte');
+    const btn = document.getElementById('pointageMiniBtn');
+    if (!wrap || !texte || !btn) return;
+
+    const d = new Date();
+    const todayISO = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const { data: pointagesJour, error } = await nexusClient
+      .from('pointages').select('type').eq('employee_id', employee.id).eq('site', siteId).eq('date', todayISO);
+    if (error) { console.error('Chargement pointage (mini carte accueil):', error); return; }
+
+    const fait = {};
+    (pointagesJour || []).forEach(p => { fait[p.type] = true; });
+    const prochain = POINTAGE_MINI_ORDRE.find(t => !fait[t]);
+
+    wrap.style.display = '';
+    if (!prochain) {
+      wrap.classList.add('termine');
+      texte.textContent = 'Journée pointée — départ enregistré.';
+      btn.style.display = 'none';
+      return;
+    }
+    wrap.classList.remove('termine');
+    btn.style.display = '';
+    btn.className = `pointage-mini-btn couleur-${POINTAGE_MINI_COULEURS[prochain]}`;
+    btn.textContent = POINTAGE_MINI_LIBELLES[prochain];
+    texte.textContent = prochain === 'arrivee' ? 'Votre arrivée n’a pas encore été pointée.' : 'Prochaine étape de votre journée :';
+  }
+
   // Verrouillage du menu selon le forfait (26/07/2026) — Essential grise
   // les 10 entrées Professional (voir NexusForfait.PAGES_PROFESSIONAL)
   // plutôt que de les masquer : ça montre ce qui existe, sans y donner
@@ -2071,6 +2149,7 @@
     } else {
       document.getElementById('conseillerEmployeWrap').style.display = '';
       document.getElementById('conseillerEmployeTexte').textContent = `Bonjour ${employee.nom}. J'ai préparé votre journée.`;
+      afficherPointageMini(employee, employee.site_id || 'vito-sainte-marie');
 
       // Petit point "Nouveau" (27/07/2026, demande de Frédéric — "une
       // petite notification qui apparaît parfois") sur le bouton Ma
