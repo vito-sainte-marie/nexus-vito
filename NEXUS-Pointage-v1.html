@@ -42,26 +42,31 @@
   .title{font-size:19px; font-weight:600; margin-top:4px;}
   .heure-live{font-family:var(--mono); font-size:28px; font-weight:600; margin-top:10px; color:var(--text);}
   .date-live{font-size:12px; color:var(--text-mid); margin-top:2px; text-transform:capitalize;}
+  .service-live{font-family:var(--mono); font-size:11.5px; font-weight:600; margin-top:6px; min-height:14px; color:var(--green);}
+  .service-live.pause{color:var(--amber);}
   .divider{height:1px; background:var(--hairline); margin:0 20px;}
 
   .section{padding:16px 20px;}
   .section-label{font-family:var(--mono); font-size:10.5px; letter-spacing:0.08em; text-transform:uppercase; color:var(--text-dim); margin-bottom:12px; display:flex; align-items:center; gap:8px;}
   .section-label::after{content:''; flex:1; height:1px; background:var(--hairline);}
 
-  .action-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
-  .action-btn{
-    background:var(--panel); border:1px solid var(--hairline); border-radius:14px; padding:18px 12px;
-    display:flex; flex-direction:column; align-items:center; gap:8px; text-align:center;
+  /* Boutons de pointage (28/07/2026, demande de Frédéric) : reprend le
+     design plein-largeur coloré par type de l'ancien prototype Pointage
+     (fichier uploadé le 19/07/2026, avant la refonte de cette page) —
+     vert=arrivée, ambre=pause, rouge=départ — avec les améliorations
+     apportées depuis (sous-texte dynamique, photo obligatoire, état
+     "pointé"). */
+  .pointage-list{display:flex; flex-direction:column; gap:10px;}
+  .pointage-btn{
+    border:none; border-radius:12px; padding:16px 18px; width:100%; text-align:left;
     font-family:var(--sans); cursor:pointer; -webkit-tap-highlight-color:transparent;
   }
-  .action-btn .icon{font-size:26px;}
-  .action-btn .label{font-size:13px; font-weight:600; color:var(--text);}
-  .action-btn .sous{font-family:var(--mono); font-size:10px; color:var(--text-dim); margin-top:-2px;}
-  .action-btn:active:not(.disabled){background:var(--panel-raised);}
-  .action-btn.disabled{opacity:0.4;}
-  .action-btn.fait{border-color:var(--green); background:var(--green-dim);}
-  .action-btn.fait .label{color:var(--green);}
-  .action-btn.suivant{border-color:var(--cyan); box-shadow:0 0 0 1px rgba(79,195,217,0.25) inset;}
+  .pointage-btn .label{display:block; font-size:14.5px; font-weight:700;}
+  .pointage-btn .sous{display:block; font-family:var(--mono); font-size:11px; font-weight:500; margin-top:3px; opacity:0.85;}
+  .pointage-btn.couleur-arrivee{background:var(--green); color:#04141a;}
+  .pointage-btn.couleur-pause{background:var(--amber); color:#04141a;}
+  .pointage-btn.couleur-depart{background:var(--red); color:#04141a;}
+  .pointage-btn:disabled{opacity:0.35; cursor:not-allowed;}
 
   .timeline{list-style:none; padding:0; margin:0;}
   .timeline-item{display:flex; align-items:flex-start; gap:10px; padding:10px 0; border-bottom:1px solid var(--hairline);}
@@ -70,7 +75,7 @@
   .timeline-dot.retard{background:var(--red);}
   .timeline-dot.vide{background:transparent; border:1.5px solid var(--text-dim);}
   .timeline-body{flex:1; min-width:0;}
-  .timeline-row-top{display:flex; align-items:baseline; justify-content:space-between; gap:8px;}
+  .timeline-row-top{font-size:13px;}
   .timeline-label{font-size:13px;}
   .timeline-label-prochaine{font-family:var(--mono); font-size:10px; letter-spacing:0.05em; text-transform:uppercase; color:var(--text-dim);}
   .timeline-heure{font-family:var(--mono); font-size:12px; color:var(--text-mid); flex-shrink:0;}
@@ -117,6 +122,7 @@
     <div class="title" id="pageTitle">Chargement…</div>
     <div class="heure-live" id="heureLive">--:--:--</div>
     <div class="date-live" id="dateLive"></div>
+    <div class="service-live" id="serviceLive"></div>
   </div>
   <div class="divider"></div>
   <div class="section" id="app">
@@ -158,11 +164,16 @@
     // qu'il n'ouvre l'appareil photo. Arrivée : l'extérieur de la
     // station (parking) suffit. Départ : la mise en alarme est
     // obligatoire, c'est la preuve que la station est sécurisée.
-    arrivee: { icon: '🟢', label: 'Arrivée', sous: 'Prise de poste', photoRequise: true, consignePhoto: 'Photo extérieure (parking) suffisante', histLabel: 'Arrivée enregistrée' },
-    pause_debut: { icon: '⏸️', label: 'Début pause', sous: '', photoRequise: false, histLabel: 'Début de pause enregistré' },
-    pause_fin: { icon: '▶️', label: 'Fin pause', sous: '', photoRequise: false, histLabel: 'Fin de pause enregistrée' },
-    depart: { icon: '🔴', label: 'Départ', sous: 'Fin de poste', photoRequise: true, consignePhoto: 'Obligatoire : photo de la mise en alarme', histLabel: 'Départ enregistré' },
+    arrivee: { icon: '🟢', label: 'Arrivée', sous: 'Prise de poste', photoRequise: true, consignePhoto: 'Photo extérieure (parking) suffisante', histLabel: 'Arrivée enregistrée', labelProchaine: 'Arrivée' },
+    pause_debut: { icon: '⏸️', label: 'Début pause', sous: '', photoRequise: false, histLabel: 'Début de pause enregistré', labelProchaine: 'Début de pause' },
+    pause_fin: { icon: '▶️', label: 'Fin pause', sous: '', photoRequise: false, histLabel: 'Fin de pause enregistrée', labelProchaine: 'Fin de pause' },
+    depart: { icon: '🔴', label: 'Départ', sous: 'Fin de poste', photoRequise: true, consignePhoto: 'Obligatoire : photo de la mise en alarme', histLabel: 'Départ enregistré', labelProchaine: 'Départ' },
   };
+
+  // Couleur par type (28/07/2026, demande de Frédéric) : reprend exactement
+  // le code couleur de l'ancien prototype Pointage (vert=arrivée,
+  // ambre=pause, rouge=départ) pour les boutons pleine-largeur.
+  const COULEUR_TYPES = { arrivee: 'arrivee', pause_debut: 'pause', pause_fin: 'pause', depart: 'depart' };
 
   // Photo de validation (28/07/2026, demande de Frédéric) : l'arrivée et
   // le départ exigent une photo qui valide l'action, même principe que
@@ -197,9 +208,40 @@
     const majHeure = () => {
       document.getElementById('heureLive').textContent = heureLocale();
       document.getElementById('dateLive').textContent = new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
+      majServiceLive();
     };
     majHeure();
     setInterval(majHeure, 1000);
+  }
+
+  // Service/pause en cours (28/07/2026, demande de Frédéric) : petite ligne
+  // sous l'horloge, sous la date — "Service en cours depuis X" tant que
+  // l'employé est arrivé et n'a ni pointé sa pause ni son départ, "Pause en
+  // cours depuis X" pendant la pause. `etatCompteur`/`referenceCompteur`
+  // sont réglés par afficherFormulairePointage() à chaque rendu, à partir
+  // de l'heure réelle du pointage concerné (jamais une estimation) — null
+  // quand rien n'est en cours, ce qui rend majServiceLive() un no-op.
+  let etatCompteur = null; // 'service' | 'pause' | null
+  let referenceCompteur = null; // Date
+
+  function formatDureeLongue(totalMin) {
+    const h = Math.floor(totalMin / 60);
+    const m = totalMin % 60;
+    const txtH = h > 1 ? `${h} heures` : '1 heure';
+    const txtM = m > 1 ? `${m} minutes` : (m === 1 ? '1 minute' : '0 minute');
+    if (h > 0 && m > 0) return `${txtH} et ${txtM}`;
+    if (h > 0) return txtH;
+    return txtM;
+  }
+
+  function majServiceLive() {
+    const el = document.getElementById('serviceLive');
+    if (!el) return;
+    if (!etatCompteur || !referenceCompteur) { el.textContent = ''; el.classList.remove('pause'); return; }
+    const totalMin = Math.max(0, Math.floor((Date.now() - referenceCompteur.getTime()) / 60000));
+    const duree = formatDureeLongue(totalMin);
+    el.classList.toggle('pause', etatCompteur === 'pause');
+    el.textContent = etatCompteur === 'pause' ? `Pause en cours depuis ${duree}` : `Service en cours depuis ${duree}`;
   }
 
   nexusRequireAuth().then(async employee => {
@@ -270,23 +312,38 @@
 
     const prochainType = ORDRE_TYPES.find(t => !dejaFait[t]);
 
+    // Ligne "service/pause en cours" sous l'horloge (28/07/2026, demande de
+    // Frédéric) : pause en priorité (si en cours), sinon service tant que
+    // l'arrivée est pointée et le départ ne l'est pas encore — toujours à
+    // partir de l'heure réelle du pointage concerné, jamais une estimation.
+    if (dejaFait.pause_debut && !dejaFait.pause_fin) {
+      etatCompteur = 'pause';
+      referenceCompteur = new Date(`${today}T${dejaFait.pause_debut.heure}`);
+    } else if (dejaFait.arrivee && !dejaFait.depart) {
+      etatCompteur = 'service';
+      referenceCompteur = new Date(`${today}T${dejaFait.arrivee.heure}`);
+    } else {
+      etatCompteur = null;
+      referenceCompteur = null;
+    }
+
+    // Boutons de pointage (28/07/2026, demande de Frédéric) : design
+    // plein-largeur coloré repris de l'ancien prototype Pointage, avec les
+    // améliorations conservées (sous-texte dynamique, consigne photo,
+    // état "pointé").
     const boutonsHtml = ORDRE_TYPES.map(type => {
       const info = LABELS_TYPES[type];
       const fait = dejaFait[type];
       const estProchain = type === prochainType;
       const bloque = !fait && !estProchain;
-      const classes = ['action-btn'];
-      if (fait) classes.push('fait');
-      else if (estProchain) classes.push('suivant');
-      else classes.push('disabled');
-      let sousTexte = fait ? `Pointé à ${(fait.heure || '').slice(0, 5)}` : info.sous;
+      const classes = ['pointage-btn', `couleur-${COULEUR_TYPES[type]}`];
+      let sousTexte = fait ? `Pointé à ${(fait.heure || '').slice(0, 5)}${fait.photo_url ? ' · Photo ✓' : ''}` : info.sous;
       if (!fait && info.photoRequise) sousTexte = `📷 ${info.consignePhoto}`;
       const inputPhoto = (!fait && info.photoRequise)
         ? `<input type="file" accept="image/*" capture="environment" class="pointage-photo-input" data-type="${type}" style="display:none;">`
         : '';
       return `<button class="${classes.join(' ')}" data-type="${type}" data-photo-requise="${!!info.photoRequise}" ${fait || bloque ? 'disabled' : ''}>
-        <span class="icon">${fait ? '✅' : info.icon}</span>
-        <span class="label">${info.label}</span>
+        <span class="label">${fait ? '✓ ' : ''}${info.label}</span>
         ${sousTexte ? `<span class="sous">${sousTexte}</span>` : ''}
         ${inputPhoto}
       </button>`;
@@ -297,7 +354,7 @@
       ${retourEnAttente ? '<div class="info-note" style="margin-bottom:14px;">🔒 Pointez votre arrivée pour accéder au reste de NEXUS.</div>' : ''}
       <div class="confirm-banner" id="confirmBanner"></div>
       <div class="section-label">⏱ Votre journée</div>
-      <div class="action-grid">${boutonsHtml}</div>
+      <div class="pointage-list">${boutonsHtml}</div>
       <div style="height:18px;"></div>
       <div class="section-label">📋 Historique du service</div>
       <ul class="timeline" id="timelineJour"></ul>
@@ -310,8 +367,9 @@
 
     renderTimeline(pointagesJour || [], prochainType, employee, siteId);
     chargerActiviteJour(employee, siteId);
+    majServiceLive();
 
-    document.querySelectorAll('.action-btn[data-type]').forEach(btn => {
+    document.querySelectorAll('.pointage-btn[data-type]').forEach(btn => {
       btn.addEventListener('click', () => {
         if (btn.disabled) return;
         const type = btn.dataset.type;
@@ -330,7 +388,7 @@
       input.addEventListener('change', async () => {
         const file = input.files && input.files[0];
         if (!file) return; // appareil photo annulé — on ne bloque rien
-        const btn = input.closest('.action-btn');
+        const btn = input.closest('.pointage-btn');
         const type = input.dataset.type;
         btn.disabled = true;
         btn.querySelector('.sous').textContent = 'Envoi de la photo…';
@@ -383,33 +441,38 @@
       const enRetard = p.type === 'arrivee' && p.retard_min > 0;
       const heureReelle = (p.heure || '').slice(0, 5);
 
-      // Ligne de contexte : "Horaire prévu : HH:MM · Retard constaté : X min"
-      // — jamais affiché sans l'horaire prévu réel (heure_debut_quart), pour
-      // respecter l'article 5 (jamais un chiffre inventé). Si ce quart n'a
-      // pas été capturé (donnée antérieure à cette fonctionnalité), on se
-      // limite à mentionner le retard sans inventer d'horaire prévu.
-      const sousParties = [];
+      // Lignes de contexte séparées (28/07/2026, affinage demandé par
+      // Frédéric) : "Horaire prévu" sur sa propre ligne, puis "Retard
+      // constaté" + "Photo ✓" ensemble sur la suivante — jamais un horaire
+      // prévu affiché sans donnée réelle (heure_debut_quart), conformément
+      // à l'article 5 (jamais un chiffre inventé). Si ce quart n'a pas été
+      // capturé (donnée antérieure à cette fonctionnalité), on se limite à
+      // mentionner le retard sans inventer d'horaire prévu.
+      const lignesSub = [];
       if (enRetard) {
         if (p.heure_debut_quart) {
           const horairePrevu = new Date(p.heure_debut_quart).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
-          sousParties.push(`Horaire prévu : ${horairePrevu} · Retard constaté : ${p.retard_min} min`);
-        } else {
-          sousParties.push(`Retard constaté : ${p.retard_min} min`);
+          lignesSub.push(`<div class="timeline-sub">Horaire prévu : ${horairePrevu}</div>`);
         }
+        const retardEtPhoto = [`Retard constaté : ${p.retard_min} min`];
+        if (p.photo_url) retardEtPhoto.push(`<a class="timeline-photo" href="${p.photo_url}" target="_blank" rel="noopener">Photo ✓</a>`);
+        lignesSub.push(`<div class="timeline-sub retard">${retardEtPhoto.join(' · ')}</div>`);
+      } else if (p.photo_url) {
+        lignesSub.push(`<div class="timeline-sub"><a class="timeline-photo" href="${p.photo_url}" target="_blank" rel="noopener">Photo ✓</a></div>`);
       }
-      if (p.photo_url) sousParties.push(`<a class="timeline-photo" href="${p.photo_url}" target="_blank" rel="noopener">Photo ✓</a>`);
-      const sousLigne = sousParties.length ? `<div class="timeline-sub ${enRetard ? 'retard' : ''}">${sousParties.join(' · ')}</div>` : '';
 
-      // Signaler une anomalie (28/07/2026, demande de Frédéric) : protège
-      // aussi le manager contre des contestations tardives — le texte et son
-      // horodatage sont conservés tels quels, jamais résumés ni modifiés.
+      // Contester ce pointage (28/07/2026, demande de Frédéric, renommé
+      // depuis "Signaler une anomalie") : protège aussi le manager contre
+      // des contestations tardives — le texte et son horodatage sont
+      // conservés tels quels dans anomalie_signalee/anomalie_signalee_le,
+      // jamais résumés ni modifiés (seul le libellé affiché a changé).
       let anomalieHtml = '';
       if (enRetard) {
         anomalieHtml = p.anomalie_signalee
-          ? `<div class="timeline-anomalie-ok">✓ Anomalie signalée</div>`
-          : `<button class="timeline-anomalie-lien" data-pointage-id="${p.id}">Signaler une anomalie →</button>
+          ? `<div class="timeline-anomalie-ok">✓ Pointage contesté</div>`
+          : `<button class="timeline-anomalie-lien" data-pointage-id="${p.id}">Contester ce pointage →</button>
              <div class="anomalie-form" id="anomalieForm-${p.id}" style="display:none;">
-               <textarea id="anomalieTexte-${p.id}" placeholder="Expliquez ce qui s'est passé (ex : embouteillage, panne, imprévu)…"></textarea>
+               <textarea id="anomalieTexte-${p.id}" placeholder="Expliquez pourquoi ce pointage ne reflète pas la réalité (ex : embouteillage, panne, imprévu)…"></textarea>
                <div class="anomalie-form-actions">
                  <button class="anomalie-btn primaire" data-envoyer-anomalie="${p.id}">Envoyer</button>
                  <button class="anomalie-btn" data-annuler-anomalie="${p.id}">Annuler</button>
@@ -420,11 +483,8 @@
       return `<li class="timeline-item">
         <span class="timeline-dot ${enRetard ? 'retard' : ''}"></span>
         <div class="timeline-body">
-          <div class="timeline-row-top">
-            <span class="timeline-label">${info.histLabel || info.label}</span>
-            <span class="timeline-heure">${heureReelle}</span>
-          </div>
-          ${sousLigne}
+          <div class="timeline-row-top"><span class="timeline-heure">${heureReelle}</span> — <span class="timeline-label">${info.histLabel || info.label}</span></div>
+          ${lignesSub.join('')}
           ${anomalieHtml}
         </div>
       </li>`;
@@ -433,8 +493,8 @@
     const ligneProchaine = prochainType ? `<li class="timeline-item">
         <span class="timeline-dot vide"></span>
         <div class="timeline-body">
-          <div class="timeline-label-prochaine">Prochaine action</div>
-          <div class="timeline-label">${LABELS_TYPES[prochainType].label}</div>
+          <div class="timeline-label-prochaine">Prochaine étape</div>
+          <div class="timeline-label">${LABELS_TYPES[prochainType].labelProchaine}</div>
         </div>
       </li>` : '';
 
@@ -475,25 +535,52 @@
   }
 
   // Activité du jour (28/07/2026, demande de Frédéric) : compte réel des
-  // missions terminées et en cours de l'employé, jamais une estimation —
-  // mission_completions (date = aujourd'hui) et mission_assignments
-  // (status = 'assignee', seul statut "en cours" qui existe réellement,
-  // voir NEXUS-Missions-v1.html) plutôt qu'un chiffre approché.
+  // missions terminées, en cours et restantes de l'employé, jamais une
+  // estimation — mission_completions (date = aujourd'hui) et
+  // mission_assignments (status = 'assignee', seul statut "en cours" qui
+  // existe réellement, voir NEXUS-Missions-v1.html) pour les deux premiers
+  // chiffres. "Restantes" (28/07/2026, affinage demandé par Frédéric)
+  // reprend exactement la même logique que le Conseiller personnel de
+  // Missions (chargerShiftAujourdhui + mission_catalog.role_required) :
+  // les missions récurrentes du rôle du jour non encore faites aujourd'hui.
+  // Si aucun quart n'est identifiable (roleDuJour introuvable), on omet ce
+  // chiffre plutôt que d'en inventer un — jamais un chiffre inventé.
+  async function chargerRoleDuJour(employeeId) {
+    const il24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const { data, error } = await nexusClient
+      .from('shifts').select('role').eq('employee_id', employeeId)
+      .gte('heure_debut', il24h).order('heure_debut', { ascending: false }).limit(1);
+    if (error) { console.error('Chargement rôle du jour (activité):', error); return null; }
+    return (data && data[0]) ? data[0].role : null;
+  }
+
   async function chargerActiviteJour(employee, siteId) {
     const zone = document.getElementById('activiteJour');
     if (!zone) return;
     const today = dateISOLocale();
-    const [{ data: terminees, error: erreurTerminees }, { data: enCours, error: erreurEnCours }] = await Promise.all([
-      nexusClient.from('mission_completions').select('id').eq('employee_id', employee.id).eq('date', today),
+    const [{ data: terminees, error: erreurTerminees }, { data: enCours, error: erreurEnCours }, roleDuJour, { data: catalogue, error: erreurCatalogue }] = await Promise.all([
+      nexusClient.from('mission_completions').select('id, mission_id').eq('employee_id', employee.id).eq('date', today),
       nexusClient.from('mission_assignments').select('id').eq('site_id', siteId).eq('assigned_to_employee_id', employee.id).eq('status', 'assignee'),
+      chargerRoleDuJour(employee.id),
+      nexusClient.from('mission_catalog').select('mission_id, role_required').eq('actif', true).eq('ponctuelle', false).eq('site_id', siteId),
     ]);
     if (erreurTerminees) console.error('Activité du jour (terminées):', erreurTerminees);
     if (erreurEnCours) console.error('Activité du jour (en cours):', erreurEnCours);
+    if (erreurCatalogue) console.error('Activité du jour (catalogue):', erreurCatalogue);
+
     const nbTerminees = (terminees || []).length;
     const nbEnCours = (enCours || []).length;
+
+    let texteRestantes = '';
+    if (roleDuJour && catalogue) {
+      const faitesAujourdhui = new Set((terminees || []).map(t => t.mission_id));
+      const nbRestantes = catalogue.filter(m => Array.isArray(m.role_required) && m.role_required.includes(roleDuJour) && !faitesAujourdhui.has(m.mission_id)).length;
+      texteRestantes = ` · ${nbRestantes} restante${nbRestantes > 1 ? 's' : ''}`;
+    }
+
     zone.innerHTML = `
-      <div class="activite-texte">${nbTerminees} mission${nbTerminees > 1 ? 's' : ''} terminée${nbTerminees > 1 ? 's' : ''} · ${nbEnCours} en cours</div>
-      <a class="activite-lien" href="NEXUS-Missions-v1.html">voir mes missions →</a>
+      <div class="activite-texte">${nbTerminees} terminée${nbTerminees > 1 ? 's' : ''} · ${nbEnCours} en cours${texteRestantes}</div>
+      <a class="activite-lien" href="NEXUS-Missions-v1.html">Voir mes missions →</a>
     `;
   }
 

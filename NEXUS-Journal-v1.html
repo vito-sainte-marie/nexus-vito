@@ -3,6 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" type="image/x-icon" href="favicon.ico">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+<link rel="manifest" href="site.webmanifest">
+<meta name="theme-color" content="#0B0F14">
 <title>NEXUS — Journal</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -143,9 +149,17 @@
   // montrait que les pointages saisis sur cet appareil (corrige le 15/07/2026,
   // migration Pointage vers Supabase).
   async function chargerPointagesDuJour() {
-    const { data, error } = await nexusClient.from('pointages').select('employee_id, type, heure, retard_min').eq('date', AUJOURD_ISO);
+    const { data, error } = await nexusClient.from('pointages').select('employee_id, type, heure, retard_min, anomalie_signalee').eq('date', AUJOURD_ISO);
     if (error) { console.error('Chargement pointages:', error); return []; }
     return data || [];
+  }
+
+  // Échappement minimal (28/07/2026) — anomalie_signalee est un texte libre
+  // saisi par l'employé (pas un titre de catalogue contrôlé comme ailleurs
+  // dans cette page) : on l'échappe avant de l'insérer dans le HTML du
+  // Journal pour ne jamais casser le rendu ni exécuter du contenu saisi.
+  function echapperHtml(texte) {
+    return String(texte).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
   }
 
   const LABEL_POINTAGE = { arrivee: 'Arrivée', pause_debut: 'Début de pause', pause_fin: 'Reprise', depart: 'Départ' };
@@ -190,10 +204,17 @@
     pointages.forEach(p => {
       const nom = equipe[p.employee_id] || 'Employé';
       const retard = p.type === 'arrivee' && p.retard_min > 0;
+      // Anomalie signalée (28/07/2026, demande de Frédéric) : le Journal
+      // n'analyse ni ne juge — il ajoute simplement la note de l'employé,
+      // telle quelle, au fait déjà enregistré. Ça protège le manager contre
+      // des contestations tardives sans que NEXUS n'ait à trancher qui a
+      // raison.
+      let meta = retard ? 'Retard enregistré' : '';
+      if (retard && p.anomalie_signalee) meta += ` · Pointage contesté : « ${echapperHtml(p.anomalie_signalee)} »`;
       evts.push({
         heure: (p.heure||'').slice(0,5), type: 'pointage', dot: retard ? 'dot-retard' : 'dot-pointage',
         texte: `${nom} — ${LABEL_POINTAGE[p.type] || p.type}`,
-        meta: retard ? 'Retard enregistré' : '',
+        meta,
         valeur: retard ? `+${p.retard_min} min` : '', valClasse: 'val-red',
       });
     });
