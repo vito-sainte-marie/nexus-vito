@@ -971,6 +971,13 @@
     // Une mission necessite_produit ne peut être validée qu'une fois un
     // produit choisi — même logique de blocage que la checklist.
     const complet = toutCoche(m) && (!m.necessite_produit || !!produitCibleState[m.mission_id]);
+    // Barème de points (28/07/2026, demande de Frédéric — "il y a t'il un
+    // barème de points ?") : visible directement sur la carte, jamais
+    // seulement découvert après coup dans Résultats Équipe. Même règle de
+    // calcul que sauvegarderCompletionSupabase plus bas (+2 preuve photo
+    // unique) — une mission à photo_par_action n'a pas ce bonus, chaque
+    // étape est déjà photographiée, ce n'est plus un geste en plus.
+    const baremeNote = m.proof_required ? ' (+2 preuve photo)' : (m.photo_par_action ? ' · photo à chaque étape' : '');
     const controle = !isAuto && estMissionControleManager(m);
     const completionAujourdhui = completionsCache.find(c => c.mission_id === m.mission_id && c.date === new Date().toISOString().slice(0,10));
     const dejaValidee = !!completionAujourdhui;
@@ -1004,7 +1011,7 @@
         <div class="mission-head" data-id="${m.mission_id}">
           <div>
             <div class="mission-titre">${m.titre}</div>
-            <div class="mission-meta">${m.famille || 'Auto'} · ${m.estimated_duration_min} min${isAuto && m.impact_attendu_eur ? ' · Impact ' + m.impact_attendu_eur + '€' : ''}</div>
+            <div class="mission-meta">${m.famille || 'Auto'} · ${m.estimated_duration_min} min · ${m.points || 5} pts${baremeNote}${isAuto && m.impact_attendu_eur ? ' · Impact ' + m.impact_attendu_eur + '€' : ''}</div>
           </div>
           ${isAuto ? '<span class="badge badge-auto">Conseiller NEXUS</span>' : (controle ? '<span class="badge badge-controle">🔍 Contrôle</span>' : priorityBadge(priorite))}
         </div>
