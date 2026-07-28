@@ -3,11 +3,18 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" type="image/x-icon" href="favicon.ico">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+<link rel="manifest" href="site.webmanifest">
+<meta name="theme-color" content="#0B0F14">
 <title>NEXUS — Scanner Stock</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-auth.js"></script>
+<script src="nexus-stock.js"></script>
 <style>
   :root{
     --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
@@ -211,20 +218,6 @@
   let SITE_ACTUEL = 'vito-sainte-marie'; // ecrase par employee.site_id une fois connecte
   let filtreActuel = 'tous';
 
-  // Produits digitaux, jamais mis en rayon (pas de comptage physique possible) :
-  // cartes prepayees (recharges telephoniques, transcash, pcs...) et l'article
-  // "Acompte" (encaissement d'un acompte client, pas un produit). Exclus des
-  // le chargement pour ne jamais apparaitre dans l'analyse ni les recommandations
-  // de comptage — demande Frederic, 20/07/2026.
-  function estProduitNonRayon(article, categorie) {
-    const a = (article || '').toLowerCase();
-    const c = (categorie || '').toLowerCase();
-    if (a.includes('acompte')) return true;
-    if (c.includes('carte') && (c.includes('prépayé') || c.includes('prepaye'))) return true;
-    if (c.includes('transcash') || c.includes('pcs')) return true;
-    return false;
-  }
-
   // Supabase plafonne chaque requete a 1000 lignes par defaut, sans erreur —
   // au-dela, le reste est silencieusement absent. Ce helper boucle par pages
   // de 1000 jusqu'a tout recuperer (trouve le 15/07/2026, meme bug que
@@ -242,6 +235,9 @@
     return { data: toutes, error: null };
   }
 
+  // Calcul par référence délégué à nexus-stock.js (28/07/2026) — source
+  // unique partagée avec le Cockpit, voir en-tête de ce fichier pour le
+  // détail de la logique (état/écart/risqueEur).
   async function chargerAnalyse() {
     const { data: relevesTous, error: err1 } = await fetchAllRows(() => nexusClient
       .from('stock_releves')
@@ -251,9 +247,6 @@
       .order('article', { ascending: true }));
     if (err1) { console.error('Chargement stock_releves:', err1); return []; }
     if (!relevesTous || relevesTous.length === 0) return [];
-
-    const releves = relevesTous.filter(r => !estProduitNonRayon(r.article, r.categorie));
-    if (releves.length === 0) return [];
 
     const { data: ventes } = await fetchAllRows(() => nexusClient
       .from('products')
@@ -268,118 +261,7 @@
       .order('controle_le', { ascending: false })
       .order('article', { ascending: true }));
 
-    const parArticle = {};
-    releves.forEach(r => {
-      if (!parArticle[r.article]) parArticle[r.article] = [];
-      parArticle[r.article].push(r);
-    });
-
-    const maintenant = new Date();
-
-    // Causes reelles d'un stock negatif, d'apres Frederic (15/07/2026) :
-    // erreur de saisie de facture, facture oubliee, mauvais comptage a
-    // l'inventaire — ou, pour certaines categories, un decalage NORMAL
-    // entre vente et facturation (presse quotidienne, recharges telephoniques
-    // digitalisees : la vente est instantanee, la facture fournisseur arrive
-    // et s'enregistre plus tard). Pas systematiquement une erreur.
-    function causeProbableStockNegatif(categorie) {
-      const c = (categorie || '').toLowerCase();
-      const decalageNormal = c.includes('presse') || c.includes('carte') || c.includes('prépayé') || c.includes('prepaye') || c.includes('transcash') || c.includes('pcs');
-      if (decalageNormal) {
-        return "Cause probable pour cette catégorie : vente enregistrée avant la facturation fournisseur (presse quotidienne, recharges téléphoniques digitalisées...) — souvent un décalage normal, pas une erreur.";
-      }
-      return "Causes possibles : erreur de saisie de facture, facture fournisseur oubliée, mauvais comptage à l'inventaire, ou décalage entre vente et facturation.";
-    }
-
-    return Object.entries(parArticle).map(([article, snaps]) => {
-      const dernier = snaps[snaps.length - 1];
-      const avantDernier = snaps.length >= 2 ? snaps[snaps.length - 2] : null;
-      const categorie = dernier.categorie;
-
-      const dernierControle = (controles || []).find(c => c.article === article);
-      const joursDepuisControle = dernierControle
-        ? Math.round((maintenant - new Date(dernierControle.controle_le)) / 86400000)
-        : null;
-
-      const prixVenteInfo = (ventes || []).find(v => v.article === article && v.prix_vente);
-      const prixVente = prixVenteInfo ? prixVenteInfo.prix_vente : null;
-
-      const quantiteVendueTotale = (ventes || [])
-        .filter(v => v.article === article)
-        .reduce((s, v) => s + (v.quantite || 0), 0);
-
-      let etat = 'inconnu', ecart = null, ecartPct = null, confiance = 30, note = "Un seul relevé disponible pour l'instant — je ne peux rien comparer.";
-      if (dernier.quantite_theorique < 0) {
-        etat = 'impossible'; confiance = 15;
-        note = `Stock théorique négatif (${dernier.quantite_theorique}) dès le premier relevé — valeur conservée telle quelle, signalée ici. ${causeProbableStockNegatif(categorie)}`;
-      }
-
-      if (avantDernier) {
-        const ventesEntreDeux = (ventes || []).filter(v =>
-          v.article === article &&
-          v.periode_debut && new Date(v.periode_debut) >= new Date(avantDernier.releve_le) &&
-          v.periode_fin && new Date(v.periode_fin) <= new Date(dernier.releve_le)
-        ).reduce((s, v) => s + (v.quantite || 0), 0);
-
-        const aDesVentes = (ventes || []).some(v => v.article === article);
-        const attendu = avantDernier.quantite_theorique - ventesEntreDeux;
-        ecart = dernier.quantite_theorique - attendu;
-        const base = Math.max(avantDernier.quantite_theorique, 1);
-        ecartPct = ecart / base;
-
-        confiance = 50;
-        if (aDesVentes) confiance += 20; else confiance -= 10;
-        confiance -= Math.min(40, Math.abs(ecartPct) * 100);
-        if (dernierControle) {
-          confiance += Math.max(-15, Math.min(15, 15 - Math.abs(dernierControle.ecart)));
-        }
-        confiance = Math.max(5, Math.min(99, Math.round(confiance)));
-
-        if (Math.abs(ecartPct) < 0.10 || Math.abs(ecart) < 2) {
-          etat = 'stable'; note = "Le mouvement de stock correspond à ce que les ventes expliquent.";
-        } else if (Math.abs(ecartPct) < 0.25) {
-          etat = 'surveiller'; note = ecart < 0
-            ? "Écart modéré non expliqué par les ventes connues — à garder à l'œil."
-            : "Plus de stock que prévu — probablement une livraison non suivie par NEXUS.";
-        } else {
-          etat = ecart < 0 ? 'verifier' : 'surveiller';
-          note = ecart < 0
-            ? "Écart important et non expliqué par les ventes — je recommande un comptage réel avant toute conclusion."
-            : "Écart important au-dessus de l'attendu — probablement une livraison, mais à vérifier.";
-        }
-
-        if (!aDesVentes) {
-          etat = 'inconnu'; confiance = Math.min(confiance, 35);
-          note = "Aucune donnée de vente sur la période pour recouper ce mouvement — je ne peux pas conclure honnêtement.";
-        }
-
-        // Un stock theorique negatif n'a pas de sens physique — signale
-        // explicitement plutot que laisse se fondre dans un etat normal.
-        // La valeur n'est jamais modifiee ni clampee, seulement rapportee.
-        if (dernier.quantite_theorique < 0) {
-          etat = 'impossible';
-          note = `Stock théorique négatif (${dernier.quantite_theorique}) — valeur conservée telle quelle, signalée ici. ${causeProbableStockNegatif(categorie)}`;
-          confiance = Math.min(confiance, 20);
-        }
-      }
-
-      return {
-        article, categorie, etat, ecart, ecartPct, confiance, note,
-        quantiteActuelle: dernier.quantite_theorique, nbReleves: snaps.length,
-        prixVente, quantiteVendueTotale, joursDepuisControle,
-        risqueEur: (etat === 'verifier' && ecart < 0 && prixVente) ? Math.abs(ecart) * prixVente : 0,
-      };
-    });
-  }
-
-  function calculerSensibilite(p) {
-    let pts = 0;
-    if (p.quantiteVendueTotale > 50) pts++;
-    if (p.prixVente && p.prixVente > 3) pts++;
-    if (p.etat === 'verifier') pts++;
-    if (p.joursDepuisControle === null || p.joursDepuisControle > 30) pts++;
-    if (Math.abs(p.ecartPct || 0) > 0.15) pts++;
-    return pts;
+    return NexusStock.calculerAnalyseStock(relevesTous, ventes, controles);
   }
 
   async function marquerControle(article, quantiteTheorique, quantiteComptee) {
@@ -414,7 +296,7 @@
     const risqueEstime = Math.round(ANALYSE.reduce((s, p) => s + p.risqueEur, 0));
     const nbChiffrable = ANALYSE.filter(p => p.risqueEur > 0).length;
 
-    const sensibles = ANALYSE.map(p => ({ ...p, etoiles: calculerSensibilite(p) })).filter(p => p.etoiles >= 3);
+    const sensibles = ANALYSE.map(p => ({ ...p, etoiles: NexusStock.calculerSensibilite(p) })).filter(p => p.etoiles >= 3);
 
     const aRecompter = [
       ...ANALYSE.filter(p => p.etat === 'verifier'),
@@ -549,7 +431,7 @@
 
   function renderListe() {
     const q = document.getElementById('searchStock').value.trim().toLowerCase();
-    let liste = ANALYSE.map(p => ({ ...p, etoiles: calculerSensibilite(p) }));
+    let liste = ANALYSE.map(p => ({ ...p, etoiles: NexusStock.calculerSensibilite(p) }));
 
     if (filtreActuel === 'verifier') liste = liste.filter(p => p.etat === 'verifier');
     else if (filtreActuel === 'surveiller') liste = liste.filter(p => p.etat === 'surveiller');

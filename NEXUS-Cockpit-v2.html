@@ -3,6 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" type="image/x-icon" href="favicon.ico">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+<link rel="manifest" href="site.webmanifest">
+<meta name="theme-color" content="#0B0F14">
 <title>Le Cockpit — NEXUS v2</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -253,29 +259,55 @@
   .plan-impact b{color:#34D399;}
   .plan-valider{width:100%; margin-top:12px; padding:11px; border:none; border-radius:8px; font-size:12.5px; font-weight:600; background:var(--green); color:#04141a; cursor:pointer;}
   .plan-validee-note{margin-top:10px; padding:9px; text-align:center; background:var(--green-dim); color:var(--green); border-radius:8px; font-size:11.5px;}
+  /* ============================================================
+     Restructuration 28/07/2026 (demande de Frédéric — "Cockpit = que
+     dois-je faire maintenant ?", distinct d'État Global et du Conseiller
+     NEXUS de l'accueil). Le score Indice NEXUS et la carte Conseiller à
+     priorité unique sont retirés d'ici (désormais exclusifs à État
+     Global / App-v1) — .brief-mini les remplace par une ligne d'état
+     minimale, uniquement centrée sur le nombre d'actions à traiter.
+     ============================================================ */
+  .brief-mini{padding:18px 20px 4px; display:flex; flex-direction:column; align-items:center; text-align:center; gap:4px;}
+  /* Rappels manuels (28/07/2026) — version simple : texte + date
+     optionnelle, cochable. Pas de calcul de point de commande réel : la
+     donnée nécessaire (stock réel, délais fournisseurs) n'existe pas
+     encore en base, voir nexus-stock.js. */
+  .rappel-item{display:flex; align-items:flex-start; gap:10px; padding:10px 0; border-bottom:1px solid var(--hairline); font-size:13px;}
+  .rappel-item:last-child{border-bottom:none;}
+  .rappel-check{width:19px; height:19px; flex-shrink:0; margin-top:2px; cursor:pointer; accent-color:var(--green);}
+  .rappel-texte{line-height:1.4;}
+  .rappel-date{font-family:var(--mono); font-size:10.5px; color:var(--text-dim); margin-top:3px;}
+  .rappel-date.retard{color:var(--red);}
+  .rappel-vide{padding:10px 0; text-align:center; color:var(--text-dim); font-size:12px;}
+  .rappel-form{display:flex; flex-direction:column; gap:8px; margin-top:14px; padding-top:14px; border-top:1px solid var(--hairline);}
+  .rappel-form input[type="text"]{background:var(--panel-raised); border:1px solid var(--hairline); border-radius:8px; padding:10px 12px; color:var(--text); font-family:var(--sans); font-size:13px;}
+  .rappel-form input[type="date"]{background:var(--panel-raised); border:1px solid var(--hairline); border-radius:8px; padding:10px 12px; color:var(--text); font-family:var(--mono); font-size:12.5px; color-scheme:dark;}
+  .rappel-form button{padding:11px; border:none; border-radius:8px; background:var(--gold); color:#241d0c; font-weight:600; font-size:12.5px; cursor:pointer;}
+  .plan-lien{display:block; text-align:center; margin-top:12px; padding:11px; border:1px solid var(--hairline); border-radius:8px; color:var(--cyan); font-family:var(--mono); font-size:11.5px; text-decoration:none;}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-auth.js"></script>
 <script src="nexus-vocabulaire.js"></script>
 <script src="nexus-periodes.js"></script>
-<script src="nexus-indice.js"></script>
+<script src="nexus-stock.js"></script>
 <script src="nexus-conseiller.js"></script>
 </head>
 <body>
 <div class="phone">
   <div class="header" id="nexus-header"></div>
   <!-- ============================================================
-       BRIEF DU MATIN — Cockpit simplifié le 23/07/2026 (demande de
-       Frédéric : la vitrine de NEXUS doit donner une sensation
-       spectaculaire, de confiance et de sérénité, en un seul geste).
-       L'ancien Cockpit empilait 9 sections indépendantes (Story, Succès,
-       Bouclage, Conseiller, Indice, 5 Plans, Risques, Baisse, Top ventes) —
-       rien n'est supprimé, tout reste dans "Explorer" plus bas, mais la
-       lecture par défaut se résume maintenant à : où on en est (Hero),
-       ce que le Conseiller recommande de faire aujourd'hui (Conseiller),
-       ce qui a changé depuis la dernière visite (Nouvelles). -->
-  <div class="brief-hero" id="briefHero"></div>
-  <div class="section" id="conseillerSection"></div>
+       RESTRUCTURATION 28/07/2026 (demande de Frédéric — clarifier les
+       rôles de Cockpit / État Global / Conseiller NEXUS : "Cockpit : Que
+       dois-je faire maintenant ?"). L'ancien Cockpit dupliquait le score
+       Indice NEXUS (déjà dans État Global, App-v1) et la carte Conseiller
+       à priorité unique (déjà dans "Le Conseiller", App-v1) — les deux
+       sont retirés d'ici. Le Cockpit distribue maintenant du travail sur
+       TOUTES les catégories (pas seulement produits/marge) : la liste de
+       priorités ci-dessous mélange désormais Produits, Caisse (écarts
+       nommés par employé) et Stock (rayons à comptage prioritaire), voir
+       nexus-conseiller.js. Rien n'est supprimé : le détail complet
+       (Situation/Analyse/Impact) reste dans chaque carte dépliable. -->
+  <div class="brief-mini" id="briefMini"></div>
   <div class="section" id="nouvellesWrap">
     <div class="section-title" id="nouvellesTitle" style="display:none;">Nouvelles <span class="badge badge-real">Depuis votre dernière visite</span></div>
     <div id="succesSection"></div>
@@ -289,24 +321,27 @@
     <div class="empty-serein" id="nouvellesVide" style="display:none;">✅ Rien de particulier à signaler depuis votre dernière visite — tout est sous contrôle.</div>
   </div>
   <div class="divider"></div>
-  <div class="explorer-toggle" id="explorerToggle">Explorer le détail complet <span class="chev">▾</span></div>
-  <div id="explorerZone" style="display:none;">
-    <div class="divider"></div>
-    <div class="sante" id="indiceCard" style="cursor:pointer;">
-      <div class="sante-label">Indice NEXUS <span style="opacity:0.5;">▾ voir le détail</span></div>
-      <div class="sante-score"><span class="sante-dot"></span><span id="santeScoreValeur">—</span></div>
-      <div class="sante-sub" id="santeNarrative">Calcul en cours…</div>
-      <div id="indiceDetail" style="display:none; margin-top:14px; text-align:left;"></div>
+  <!-- Rappels manuels (28/07/2026) — version simple : texte + date
+       optionnelle, cochable. Pas de calcul automatique de réapprovisionnement :
+       NEXUS n'a pas encore la donnée nécessaire (stock réel, délais
+       fournisseurs) pour le proposer honnêtement. -->
+  <div class="section" id="rappelsWrap">
+    <div class="section-title">Rappels <span class="badge badge-derived">Manuel</span></div>
+    <div id="rappelsListe"></div>
+    <div class="rappel-form">
+      <input type="text" id="rappelTexteInput" placeholder="Ex. : passer commande boissons énergétiques">
+      <input type="date" id="rappelDateInput">
+      <button id="rappelAjouterBtn">+ Ajouter un rappel</button>
     </div>
-    <div class="divider"></div>
-    <div class="section">
-      <div class="section-title">Toutes les priorités <span class="badge badge-real">Conseiller NEXUS · scoré</span></div>
-      <div id="plansAction"></div>
-      <a href="NEXUS-Assignations-v1.html" style="display:block; margin-top:10px; font-family:var(--mono); font-size:11.5px; color:var(--cyan); text-decoration:none;">→ Gérer les assignations</a>
-    </div>
-    <div class="divider"></div>
-    <div class="section" id="topVentesSection"></div>
   </div>
+  <div class="divider"></div>
+  <div class="section">
+    <div class="section-title">Vos priorités du jour <span class="badge badge-real">Conseiller NEXUS · toutes catégories</span></div>
+    <div id="plansAction"></div>
+    <a href="NEXUS-Assignations-v1.html" style="display:block; margin-top:10px; font-family:var(--mono); font-size:11.5px; color:var(--cyan); text-decoration:none;">→ Gérer les assignations</a>
+  </div>
+  <div class="divider"></div>
+  <div class="section" id="topVentesSection"></div>
   <div class="divider"></div>
   <div class="section" id="mentorSection"></div>
   <footer>Cockpit NEXUS v2 · Toutes catégories · S1 2026 · Vito Sainte-Marie Usine</footer>
@@ -497,19 +532,6 @@
           <div class="mentor-sign">Conseiller NEXUS</div>
         </div>`;
     }
-    // Bascule Explorer (Brief du matin, 23/07/2026) — indépendant de
-    // l'authentification, câblé dès le chargement de la page puisqu'il ne
-    // dépend d'aucune donnée serveur.
-    (function initExplorerToggle() {
-      const toggle = document.getElementById('explorerToggle');
-      const zone = document.getElementById('explorerZone');
-      if (!toggle || !zone) return;
-      toggle.addEventListener('click', () => {
-        const estOuvert = zone.style.display !== 'none';
-        zone.style.display = estOuvert ? 'none' : 'block';
-        toggle.classList.toggle('open', !estOuvert);
-      });
-    })();
     // Moteur R2/R3/R4 déplacé dans nexus-conseiller.js le 26/07/2026
     // (demande de Frédéric — Conseiller cross-moteurs) : ce même moteur
     // vivait ici en copie quasi identique à App-v1 et au Centre
@@ -576,17 +598,10 @@
     // partagé nexus-periodes.js (23/07/2026, harmonisation demandée par
     // Frédéric : "je ne veux pas que l'appli soit une succession de pages
     // mais un système") — plus de copie locale de cette logique ici.
-    // CORRECTIF 24/07/2026 (audit doublons de données) : calculerIndiceNexus
-    // et INDICE_FACTEURS venaient d'une copie locale, réapparue à
-    // l'identique dans NEXUS-Radar-Manager-v1.html pour son domaine
-    // "Résultats" — le même risque de divergence déjà corrigé pour les
-    // périodes (nexus-periodes.js) et la marge (nexus-marge.js). Ce calcul
-    // vient maintenant du moteur partagé nexus-indice.js : un seul endroit
-    // à ajuster si la pondération évolue, plus de calcul recopié.
-    let INDICE_FACTEURS = { margeReelle: null, evolutionReelle: null, periodeEnCours: null };
-    function calculerIndiceNexus(facteurs) {
-      return NexusIndice.calculerIndiceNexus(facteurs);
-    }
+    // L'Indice NEXUS (nexus-indice.js) n'est plus calculé ici depuis le
+    // 28/07/2026 — il vit exclusivement dans État Global (App-v1), pour ne
+    // plus dupliquer le même chiffre à deux endroits (voir restructuration
+    // en tête de fichier).
     // Supabase plafonne chaque requete a 1000 lignes par defaut, sans erreur —
     // au-dela, le reste est silencieusement absent. Ce helper boucle par pages
     // de 1000 jusqu'a tout recuperer (trouve le 15/07/2026 : un import T2
@@ -617,6 +632,48 @@
       if (error) { console.error('Chargement journal_decisions:', error); return; }
       JOURNAL_DECISIONS = data || [];
       VALIDEES_SITE = new Set(JOURNAL_DECISIONS.map(d => d.candidate_id));
+    }
+    // Candidats Caisse (28/07/2026, demande de Frédéric — "Fred, va voir
+    // Dylan. Un écart de caisse de 40 € coûte plus cher qu'un mauvais
+    // facing"). Source : v_caisse_ecart_a_traiter (anomalie/critique, 14
+    // derniers jours), normalisée par NexusConseiller.normaliserCaissePersonne
+    // (nomme l'employé quand le quart n'a qu'une seule personne identifiée).
+    async function chargerCandidatsCaisse() {
+      const { data, error } = await fetchAllRows(() => nexusClient
+        .from('v_caisse_ecart_a_traiter')
+        .select('*')
+        .eq('site', SITE_ACTUEL));
+      if (error) { console.error('Chargement v_caisse_ecart_a_traiter:', error); return []; }
+      return (data || []).map(NexusConseiller.normaliserCaissePersonne);
+    }
+    // Candidats Stock (28/07/2026, demande de Frédéric — "fais un
+    // inventaire tournant des boissons énergétiques... le rayon avec la
+    // plus forte démarque potentielle"). Même calcul par référence que
+    // NEXUS-Scanner-Stock-v1.html (nexus-stock.js, source unique), agrégé
+    // par rayon puis normalisé par NexusConseiller.normaliserStockRayon.
+    async function chargerCandidatsStock() {
+      const { data: releves, error: err1 } = await fetchAllRows(() => nexusClient
+        .from('stock_releves')
+        .select('article, categorie, quantite_theorique, releve_le')
+        .eq('site', SITE_ACTUEL)
+        .order('releve_le', { ascending: true })
+        .order('article', { ascending: true }));
+      if (err1) { console.error('Chargement stock_releves (Cockpit):', err1); return []; }
+      if (!releves || !releves.length) return [];
+      const { data: ventes } = await fetchAllRows(() => nexusClient
+        .from('products')
+        .select('article, quantite, prix_vente, periode_debut, periode_fin')
+        .eq('site', SITE_ACTUEL)
+        .order('article', { ascending: true }));
+      const { data: controles } = await fetchAllRows(() => nexusClient
+        .from('controles_stock')
+        .select('article, ecart, controle_le')
+        .eq('site', SITE_ACTUEL)
+        .order('controle_le', { ascending: false })
+        .order('article', { ascending: true }));
+      const analyse = NexusStock.calculerAnalyseStock(releves, ventes, controles);
+      const parRayon = NexusStock.calculerRisqueParRayon(analyse);
+      return parRayon.map(NexusConseiller.normaliserStockRayon);
     }
     async function construirePlansAction() {
       const [{ data, error }, produitsAppel] = await Promise.all([
@@ -649,9 +706,6 @@
       const { periodesTriees, periodeAffichage, rowsAffichage, paire, rowsPaireActuelle, rowsPairePrecedente } = NexusPeriodes.analyserPeriodes(rowsBrut);
       if (!periodeAffichage) { console.error('Aucune période exploitable dans products.'); return []; }
       TENDANCE_DISPONIBLE = !!paire;
-      // Facteurs réels de l'Indice NEXUS — moteur partagé nexus-indice.js
-      // (correctif 24/07/2026, voir déclaration de INDICE_FACTEURS plus haut).
-      INDICE_FACTEURS = NexusIndice.calculerFacteurs(rowsBrut) || { margeReelle: null, evolutionReelle: null, periodeEnCours: periodesTriees.length > 0 };
       MEILLEUR_SUCCES = null; // reinitialise a chaque calcul, jamais garde d'une periode perimee
       PIRE_RISQUE = null;
       PRODUITS_EN_BAISSE = [];
@@ -704,25 +758,62 @@
         const cle = `${r.periode_debut}|${r.periode_fin}|${r.categorie || ''}|${r.article}`;
         CA_PAR_PERIODE_ARTICLE[cle] = (CA_PAR_PERIODE_ARTICLE[cle] || 0) + (r.ca || 0);
       });
-      return candidats; // toutes les candidates qualifiées — renderPlansAction() pioche les 5 à afficher
-                         // et laisse apparaitre la suivante au fur et a mesure qu'on en valide
+      // ------------------------------------------------------------
+      // Distribution du travail cross-domaine (28/07/2026, demande de
+      // Frédéric — "le Cockpit doit distribuer du travail... le produit
+      // devient la justification, le travail devient la recommandation").
+      // Les candidats Produits sont normalisés au même schéma que Caisse
+      // et Stock (decision/pourquoi/impactAttendu/preuve/limites/moteur),
+      // puis fusionnés par NexusConseiller.fusionnerEtSelectionner — qui
+      // garantit qu'un seul moteur ne monopolise pas la liste (round-robin
+      // par moteur, à rang d'urgence égal). n = total des candidats : ici
+      // on veut la liste COMPLÈTE et diversifiée, pas seulement 3 comme
+      // pour "Le Conseiller" de l'accueil (App-v1) — renderPlansAction()
+      // n'en affiche que 5 à la fois et fait apparaître la suite au fur et
+      // à mesure des validations.
+      // ------------------------------------------------------------
+      const [candidatsCaisse, candidatsStock] = await Promise.all([
+        chargerCandidatsCaisse(), chargerCandidatsStock(),
+      ]);
+      const candidatsProduitsNormalises = candidats.map(NexusConseiller.normaliserProduit);
+      const total = candidatsProduitsNormalises.length + candidatsCaisse.length + candidatsStock.length;
+      return NexusConseiller.fusionnerEtSelectionner(
+        [candidatsProduitsNormalises, candidatsCaisse, candidatsStock],
+        { n: total || 1, site: SITE_ACTUEL }
+      );
     }
     let PLANS_ACTION = [];
     const ETAT_CLASS = {
       "🔥 À AGIR": "etat-agir", "📈 OPPORTUNITÉ": "etat-opportunite",
       "🟡 À SURVEILLER": "etat-surveiller", "🔴 À DÉCIDER": "etat-decider",
       "💡 RECOMMANDATION": "etat-recommandation",
+      // Ajoutés le 28/07/2026 pour les candidats Caisse/Stock (distribution
+      // de travail cross-domaine, voir NexusConseiller.normaliserCaissePersonne
+      // / normaliserStockRayon).
+      "🔴 CRITIQUE": "etat-agir", "🟡 À VÉRIFIER": "etat-surveiller",
+      "📦 À COMPTER": "etat-surveiller",
     };
+    const MOTEUR_LABEL = { produits: 'Produits', marge: 'Marge+', tempo: 'Tempo', advisor: 'Signal', caisse: 'Caisse', stock: 'Stock' };
     // Trace datee et chiffree de chaque decision validee — lue par Journal
     // NEXUS pour repondre a "qu'est-ce qui a ete fait aujourd'hui ?", et
     // depuis le 23/07/2026 par VALIDEES_SITE/renderBouclage() ci-dessous
     // (mémoire partagée en base, remplace l'ancien localStorage
     // nexus_recommandations_validees propre à un seul appareil).
+    // Réécrit le 28/07/2026 : `plan` est désormais un candidat normalisé
+    // (schéma decision/ruleId/moteur de nexus-conseiller.js, voir
+    // construirePlansAction) au lieu du schéma brut recommandation/rule_id
+    // d'origine — les noms de colonnes réels de journal_decisions restent
+    // rule_id/recommandation, d'où la correspondance explicite ci-dessous.
+    // `row` sert à la fois à l'insertion et à la copie locale
+    // (JOURNAL_DECISIONS), pour que les deux restent identiques — l'ancien
+    // `...plan` aurait recopié les noms de champs normalisés (ruleId/
+    // decision), incohérents avec ce que charge chargerJournalDecisions()
+    // depuis la base.
     async function enregistrerJournalDecision(plan) {
-      const { error } = await nexusClient.from('journal_decisions').insert({
+      const row = {
         site: SITE_ACTUEL,
-        candidate_id: plan.candidate_id, rule_id: plan.rule_id, etat: plan.etat,
-        recommandation: plan.recommandation, impact_eur: plan.impact_eur, article: plan.article,
+        candidate_id: plan.candidate_id, rule_id: plan.ruleId, etat: plan.etat,
+        recommandation: plan.decision, impact_eur: plan.impact_eur, article: plan.article,
         categorie: plan.categorie || null,
         date: new Date().toISOString().slice(0,10), heure: new Date().toTimeString().slice(0,5),
         employee_id: employeeCourantId,
@@ -734,14 +825,11 @@
         ca_reference: plan.ca_reference != null ? plan.ca_reference : null,
         periode_reference_debut: plan.periode_reference_debut || null,
         periode_reference_fin: plan.periode_reference_fin || null,
-      });
+      };
+      const { error } = await nexusClient.from('journal_decisions').insert(row);
       if (error) { console.error('Écriture Journal:', error); return false; }
       VALIDEES_SITE.add(plan.candidate_id); // memoire immediate, sans attendre un rechargement
-      JOURNAL_DECISIONS.unshift({
-        site: SITE_ACTUEL, ...plan, employee_id: employeeCourantId,
-        date: new Date().toISOString().slice(0,10), heure: new Date().toTimeString().slice(0,5),
-        created_at: new Date().toISOString(),
-      });
+      JOURNAL_DECISIONS.unshift({ ...row, created_at: new Date().toISOString() });
       return true;
     }
     let dernierAffichage = []; // les 5 plans reellement visibles a l'ecran, partages avec le briefing
@@ -760,10 +848,20 @@
       clearTimeout(toast._timeout);
       toast._timeout = setTimeout(() => toast.classList.remove('show'), 2600);
     }
+    // Réécrit le 28/07/2026 pour le schéma normalisé cross-moteurs
+    // (decision/pourquoi/impactAttendu/preuve/limites/moteur/validable/
+    // cible, voir nexus-conseiller.js) au lieu de l'ancien schéma
+    // Produits-only (recommandation/situation/contexte/analyse/
+    // consequence/impact). Les candidats non validables (Caisse, Stock —
+    // pas de décision à impact de marge mesurable dans le temps comme
+    // R2/R3/R4/R5) affichent un lien "→ Aller vérifier" vers leur écran
+    // (p.cible) au lieu du bouton de validation, et ne comptent jamais
+    // dans VALIDEES_SITE (ils disparaissent d'eux-mêmes dès que la donnée
+    // sous-jacente change — audit commenté, écart de stock résorbé).
     function renderPlansAction() {
       // VALIDEES_SITE vient de journal_decisions (base de données, partagée
       // par toute l'équipe) depuis le 23/07/2026 — plus de localStorage.
-      const disponibles = PLANS_ACTION.filter(p => !VALIDEES_SITE.has(p.candidate_id));
+      const disponibles = PLANS_ACTION.filter(p => !p.validable || !VALIDEES_SITE.has(p.candidate_id));
       const aAfficher = disponibles.slice(0, 5);
       dernierAffichage = aAfficher;
       const el = document.getElementById('plansAction');
@@ -771,23 +869,23 @@
         <div class="plan-card ${ETAT_CLASS[p.etat]||''}" id="plan-${i}">
           <div class="plan-head" onclick="document.getElementById('plan-${i}').classList.toggle('open')">
             <span class="plan-etat">${p.etat}</span>
-            <span class="plan-action-teaser">${p.recommandation}</span>
+            <span class="plan-action-teaser">${p.decision}</span>
             <span class="plan-chevron">›</span>
           </div>
           <div class="plan-body">
             <div class="plan-story">
-              <span class="story-label">Situation</span>${p.situation}
-              <span class="story-label">Contexte</span>${p.contexte}
-              <span class="story-label">Analyse</span>${p.analyse}
-              <span class="story-label">Conséquence</span>${p.consequence}
+              <span class="story-label">${MOTEUR_LABEL[p.moteur] || 'Signal'}</span>${p.pourquoi}
+              ${p.limites ? `<span class="story-label">À noter</span>${p.limites}` : ''}
             </div>
-            <div class="plan-impact">📊 Impact — <b>${p.impact}</b></div>
-            <button class="plan-valider" data-id="${p.candidate_id}">✓ Valider cette recommandation</button>
+            <div class="plan-impact">📊 Impact attendu — <b>${p.impactAttendu}</b></div>
+            ${p.preuve ? `<div class="rappel-date">${p.preuve}</div>` : ''}
+            ${p.validable
+              ? `<button class="plan-valider" data-id="${p.candidate_id}">✓ Valider cette recommandation</button>`
+              : `<a href="${p.cible}" class="plan-lien">→ Aller vérifier dans ${(MOTEUR_LABEL[p.moteur] || p.cible)}</a>`}
             ${p.article ? `<button class="plan-appel" data-article="${p.article}" style="width:100%; margin-top:8px; padding:10px; border:1px solid var(--hairline); border-radius:8px; background:none; color:var(--text-dim); font-size:11.5px; cursor:pointer;">🚫 Produit d'appel — ne plus le recommander</button>` : ''}
           </div>
         </div>`).join('') || `<div style="padding:20px; text-align:center; color:var(--text-dim); font-size:12.5px;">
-          Toutes les recommandations disponibles ont été validées (${VALIDEES_SITE.size} au total dans la mémoire de ce site).<br><br>
-          Retrouvez leur résultat plus bas, dès qu'une période comparable est disponible.
+          ✅ Rien ne nécessite votre attention immédiate — toutes les priorités identifiées ont été traitées ou validées.
         </div>`;
       el.querySelectorAll('.plan-valider').forEach(btn => {
         btn.addEventListener('click', async (e) => {
@@ -799,8 +897,7 @@
           if (ok) {
             afficherToastOr(`✓ Gain sécurisé — ${Math.round(plan.impact_eur).toLocaleString('fr-FR')} €`);
             renderPlansAction(); // la suivante du classement prend la place
-            renderConseiller();
-            renderBriefHero();
+            renderBriefMini();
             renderNouvelles();
           } else {
             btn.disabled = false;
@@ -815,8 +912,7 @@
           if (ok) {
             PLANS_ACTION = await construirePlansAction(); // rafraichi sans ce produit, partout, pour tout le monde
             renderPlansAction();
-            renderConseiller();
-            renderBriefHero();
+            renderBriefMini();
             renderNouvelles();
             renderTopVentes();
           }
@@ -829,55 +925,34 @@
       document.getElementById('plansAction').innerHTML =
         `<div style="padding:16px; background:var(--red-dim); color:var(--red); border-radius:10px; font-size:11.5px;">Erreur d'affichage : ${err.message}. Rechargez la page.</div>`;
     }
-    // Conseiller NEXUS — synthese parlee, calculee a partir des vrais
-    // etats des Plans d'action (pas un texte fixe, un vrai comptage).
-    // Estimation de temps par etat — approximation, pas une donnee mesuree
-    // (le Decision Engine ne porte pas de champ "temps" comme les missions
-    // du Cahier de Notes en portent un). Marque comme tel a l'affichage.
-    const TEMPS_ESTIME_PAR_ETAT = {
-      '🔥 À AGIR': 6, '📈 OPPORTUNITÉ': 5, '🟡 À SURVEILLER': 4,
-      '🔴 À DÉCIDER': 8, '💡 RECOMMANDATION': 5,
-    };
     // ------------------------------------------------------------
-    // Brief du matin — Hero (23/07/2026). Remplace l'ancien renderStory() :
-    // un seul geste pour "où en est ma station", plutôt qu'une succession
-    // de lignes façon diaporama. Le score vient de calculerIndiceNexus()
-    // (voir sa définition et l'historique du correctif plus haut) — jamais
-    // le "74" figé d'avant.
+    // Ligne d'état minimale (28/07/2026, remplace renderBriefHero) — le
+    // score Indice NEXUS n'est plus affiché ici (exclusif à État Global,
+    // App-v1, pour ne plus dupliquer le même chiffre à deux endroits).
+    // Cockpit ne répond plus qu'à "que dois-je faire maintenant ?" : cette
+    // ligne compte uniquement les priorités identifiées, sans jugement sur
+    // la santé globale de l'entreprise.
     // ------------------------------------------------------------
-    function renderBriefHero() {
-      const el = document.getElementById('briefHero');
+    const ETATS_URGENTS = ['🔥 À AGIR', '🔴 CRITIQUE'];
+    function renderBriefMini() {
+      const el = document.getElementById('briefMini');
       if (!el) return;
-      const score = calculerIndiceNexus(INDICE_FACTEURS);
-      const nb = { agir: 0, decider: 0 };
-      dernierAffichage.forEach(p => {
-        if (p.etat.includes('AGIR')) nb.agir++;
-        else if (p.etat.includes('DÉCIDER')) nb.decider++;
-      });
-      const nbUrgent = nb.agir + nb.decider;
+      const total = dernierAffichage.length;
+      const nbUrgent = dernierAffichage.filter(p => ETATS_URGENTS.includes(p.etat)).length;
       const dateTexte = new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' }).toUpperCase();
       let couleur, etatTexte;
-      if (score == null) {
-        couleur = 'var(--text-dim)';
-        etatTexte = "Pas encore assez de données pour calculer l'indice.";
-      } else if (score >= 70) {
+      if (total === 0) {
         couleur = 'var(--green)';
-        etatTexte = nbUrgent > 0
-          ? `Situation saine. ${nbUrgent} décision${nbUrgent>1?'s':''} mérite${nbUrgent>1?'nt':''} votre attention avant midi.`
-          : 'Situation saine — aucune décision urgente ce matin.';
-      } else if (score >= 40) {
-        couleur = 'var(--amber)';
-        etatTexte = nbUrgent > 0
-          ? `Situation sous contrôle, à surveiller. ${nbUrgent} décision${nbUrgent>1?'s':''} à traiter.`
-          : 'Situation sous contrôle, à surveiller.';
-      } else {
+        etatTexte = 'Rien ne nécessite votre attention immédiate ce matin.';
+      } else if (nbUrgent > 0) {
         couleur = 'var(--red)';
-        etatTexte = `Plusieurs indicateurs se dégradent — ${nbUrgent || 'certaines'} décision${nbUrgent>1?'s':''} à traiter en priorité.`;
+        etatTexte = `${nbUrgent} priorité${nbUrgent>1?'s':''} urgente${nbUrgent>1?'s':''} sur ${total} à traiter aujourd'hui.`;
+      } else {
+        couleur = 'var(--amber)';
+        etatTexte = `${total} priorité${total>1?'s':''} identifiée${total>1?'s':''}, aucune urgente.`;
       }
       el.innerHTML = `
         <div class="brief-date">${dateTexte}</div>
-        <div class="brief-indice-value" style="color:${couleur};">${score != null ? score : '—'}</div>
-        <div class="brief-indice-label">Indice NEXUS</div>
         <div class="brief-etat"><span class="brief-etat-dot" style="background:${couleur};"></span>${etatTexte}</div>
       `;
     }
@@ -984,8 +1059,7 @@
         if (ok) {
           PLANS_ACTION = await construirePlansAction();
           renderPlansAction();
-          renderConseiller();
-          renderBriefHero();
+          renderBriefMini();
           renderNouvelles();
           renderTopVentes();
         }
@@ -1058,97 +1132,12 @@
       if (titre) titre.style.display = vide ? 'none' : 'flex';
       if (videEl) videEl.style.display = vide ? 'block' : 'none';
     }
-    // Explorer — replie par défaut tout ce qui n'est pas indispensable au
-    // premier coup d'œil (détail de l'Indice, toutes les priorités, Top
-    // ventes). Rien n'est supprimé, juste à un clic. 23/07/2026.
-    function ouvrirExplorer() {
-      const toggle = document.getElementById('explorerToggle');
-      const zone = document.getElementById('explorerZone');
-      if (!toggle || !zone) return;
-      zone.style.display = 'block';
-      toggle.classList.add('open');
-      zone.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
-    // ------------------------------------------------------------
-    // Conseiller NEXUS — depuis le 23/07/2026, porte LA priorité du jour
-    // (plus scorée de dernierAffichage) avec son bouton de validation et le
-    // gain estimé, au lieu d'une liste de 3 priorités qui faisait doublon
-    // avec les Plans d'action juste en dessous. Le reste (toutes les
-    // priorités) est à un clic, dans Explorer — rien n'est perdu, juste
-    // hiérarchisé. Le gain estimé (sécurisé/potentiel) vient de l'ancien
-    // renderStory(), rattaché ici pour la même raison.
-    // ------------------------------------------------------------
-    function renderConseiller() {
-      const prenom = (typeof STATION_CONFIG !== 'undefined' && STATION_CONFIG.manager_prenom) ? STATION_CONFIG.manager_prenom : '';
-      const securise = Math.round(dernierAffichage
-        .filter(p => p.etat.includes('AGIR') || p.etat.includes('DÉCIDER'))
-        .reduce((s, p) => s + (p.impact_eur || 0), 0));
-      const potentiel = Math.round(dernierAffichage
-        .filter(p => p.etat.includes('OPPORTUNITÉ'))
-        .reduce((s, p) => s + (p.impact_eur || 0), 0));
-      let gainHtml = '';
-      if (securise > 0 && potentiel > 0) {
-        gainHtml = `Vous pouvez sécuriser environ <b>+${securise.toLocaleString('fr-FR')} €</b> déjà générés, et gagner jusqu'à <b>+${potentiel.toLocaleString('fr-FR')} €</b> de plus si les tendances se confirment.`;
-      } else if (securise > 0) {
-        gainHtml = `Vous pouvez sécuriser environ <b>+${securise.toLocaleString('fr-FR')} €</b> de chiffre d'affaires déjà généré.`;
-      } else if (potentiel > 0) {
-        gainHtml = `Vous pouvez gagner jusqu'à <b>+${potentiel.toLocaleString('fr-FR')} €</b> si les tendances actuelles se confirment.`;
-      }
-      const priorite = dernierAffichage[0] || null; // deja hors validees, voir renderPlansAction()
-      const reste = Math.max(dernierAffichage.length - 1, 0);
-      let corpsHtml;
-      if (!priorite) {
-        corpsHtml = `<div class="conseiller-calme">✅ Rien ne nécessite votre attention immédiate ce matin. Prenez le temps de consulter le détail complet si vous le souhaitez.</div>`;
-      } else {
-        corpsHtml = `
-          <div class="conseiller-text" style="margin-bottom:8px;">Aujourd'hui, je recommande en priorité :</div>
-          <div class="plan-story">
-            <b>${priorite.etat} ${priorite.article || ''}</b>
-            <span class="story-label">Situation</span>${priorite.situation}
-            <span class="story-label">Analyse</span>${priorite.analyse}
-          </div>
-          <div class="plan-impact">📊 Impact — <b>${priorite.impact}</b></div>
-          ${gainHtml ? `<div class="conseiller-gain">${gainHtml}</div>` : ''}
-          <button class="plan-valider" id="btnValiderPriorite" data-id="${priorite.candidate_id}">✓ Valider cette recommandation</button>
-        `;
-      }
-      document.getElementById('conseillerSection').innerHTML = `
-        <div class="conseiller-wrap">
-          <div class="conseiller-avatar-standalone">
-            <div class="conseiller-avatar">🧭</div>
-          </div>
-          <div class="conseiller-card conseiller-bubble">
-            <div class="conseiller-head">
-              <div>
-                <div class="conseiller-name">CONSEILLER NEXUS</div>
-                <div class="conseiller-sub">Bonjour ${prenom}</div>
-              </div>
-            </div>
-            ${corpsHtml}
-            ${reste > 0 ? `<div class="conseiller-more" id="lienAutresPriorites">+ ${reste} autre${reste>1?'s':''} priorité${reste>1?'s':''} identifiée${reste>1?'s':''} → Explorer</div>` : ''}
-            <a href="NEXUS-Centre-Intelligence-v1.html" style="display:block; text-align:center; margin-top:12px; padding-top:12px; border-top:1px solid var(--hairline); font-family:var(--mono); font-size:10.5px; color:var(--cyan); text-decoration:none;">🧠 Voir toutes les détections →</a>
-          </div>
-        </div>`;
-      const btnValider = document.getElementById('btnValiderPriorite');
-      if (btnValider) {
-        btnValider.addEventListener('click', async () => {
-          btnValider.disabled = true;
-          const ok = await enregistrerJournalDecision(priorite);
-          if (ok) {
-            afficherToastOr(`✓ Gain sécurisé — ${Math.round(priorite.impact_eur).toLocaleString('fr-FR')} €`);
-            renderPlansAction();
-            renderConseiller();
-            renderBriefHero();
-            renderBouclage();
-          } else {
-            btnValider.disabled = false;
-            alert("Erreur d'enregistrement — réessayez.");
-          }
-        });
-      }
-      const lienAutres = document.getElementById('lienAutresPriorites');
-      if (lienAutres) lienAutres.addEventListener('click', () => ouvrirExplorer());
-    }
+    // renderConseiller() (carte à priorité unique) et ouvrirExplorer() ont
+    // été retirés le 28/07/2026 : la carte dupliquait "Le Conseiller" de
+    // l'accueil (App-v1), et l'Explorer n'a plus rien à replier depuis que
+    // "Toutes les priorités" est promue en pleine page (voir restructuration
+    // en tête de fichier). Le bouton de validation vit désormais uniquement
+    // dans chaque carte de la liste "Vos priorités du jour" (renderPlansAction).
     // ---------------------------------------------------------------
     // NEXUS — Configuration par station (paramétrage, pas moteur)
     // C'est la SEULE partie de ce fichier qui change d'une station à
@@ -1162,6 +1151,69 @@
       station_nom: "VITO SAINTE-MARIE USINE",
       logo_url: ""
     };
+    // ------------------------------------------------------------
+    // Rappels manuels (28/07/2026, demande de Frédéric — "le cockpit
+    // pourrais me faire des rappels... version simple pour l'instant").
+    // Volontairement simple : texte + date d'échéance optionnelle,
+    // cochable. Pas de calcul automatique de réapprovisionnement/point de
+    // commande — cette donnée (stock réel, délais fournisseurs) n'existe
+    // pas encore en base pour le proposer honnêtement (voir nexus-stock.js).
+    // Table public.rappels, RLS : lecture toute l'équipe du site,
+    // écriture manager/gérant du site (même patron que journal_decisions).
+    // ------------------------------------------------------------
+    let RAPPELS = [];
+    async function chargerRappels() {
+      const { data, error } = await nexusClient.from('rappels')
+        .select('*').eq('site', SITE_ACTUEL).eq('fait', false)
+        .order('date_echeance', { ascending: true, nullsFirst: false })
+        .order('created_at', { ascending: true });
+      if (error) { console.error('Chargement rappels:', error); RAPPELS = []; return; }
+      RAPPELS = data || [];
+    }
+    async function ajouterRappel(texte, dateEcheance) {
+      const { error } = await nexusClient.from('rappels').insert({
+        site: SITE_ACTUEL, texte, date_echeance: dateEcheance || null, cree_par: employeeCourantId,
+      });
+      if (error) { console.error('Ajout rappel:', error); alert('Erreur — réessayez.'); return false; }
+      return true;
+    }
+    async function marquerRappelFait(id) {
+      const { error } = await nexusClient.from('rappels').update({ fait: true, fait_le: new Date().toISOString() }).eq('id', id);
+      if (error) { console.error('Clôture rappel:', error); alert('Erreur — réessayez.'); return false; }
+      return true;
+    }
+    function renderRappels() {
+      const el = document.getElementById('rappelsListe');
+      if (!el) return;
+      if (!RAPPELS.length) {
+        el.innerHTML = `<div class="rappel-vide">Aucun rappel en attente.</div>`;
+        return;
+      }
+      const aujourdhui = new Date().toISOString().slice(0, 10);
+      el.innerHTML = RAPPELS.map(r => {
+        const enRetard = r.date_echeance && r.date_echeance < aujourdhui;
+        // 'T00:00:00' évite le décalage d'un jour en heure locale Martinique.
+        const dateTexte = r.date_echeance
+          ? new Date(r.date_echeance + 'T00:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })
+          : null;
+        return `
+        <div class="rappel-item">
+          <input type="checkbox" class="rappel-check" data-id="${r.id}">
+          <div>
+            <div class="rappel-texte">${r.texte}</div>
+            ${dateTexte ? `<div class="rappel-date ${enRetard ? 'retard' : ''}">${enRetard ? '⚠️ En retard — ' : '📅 '}${dateTexte}</div>` : ''}
+          </div>
+        </div>`;
+      }).join('');
+      el.querySelectorAll('.rappel-check').forEach(cb => {
+        cb.addEventListener('change', async () => {
+          cb.disabled = true;
+          const ok = await marquerRappelFait(cb.dataset.id);
+          if (ok) { await chargerRappels(); renderRappels(); }
+          else cb.disabled = false;
+        });
+      });
+    }
     nexusRequireAuth().then(async employee => {
       if (!employee) return; // nexus-auth.js gère déjà la redirection vers NEXUS-Login-v1.html
       employeeCourantId = employee.id;
@@ -1182,32 +1234,29 @@
           <div class="station">${STATION_CONFIG.station_nom}</div>
         </div>
         <a href="NEXUS-App-v1.html" class="menu-btn">☰ Menu</a>`;
-      renderBriefHero();
-      renderConseiller();
+      renderBriefMini();
       renderNouvelles();
       renderTopVentes();
-      const santeScoreEl = document.getElementById('santeScoreValeur');
-      const santeSubEl = document.getElementById('santeNarrative');
-      const scoreExplorer = calculerIndiceNexus(INDICE_FACTEURS);
-      if (santeScoreEl) santeScoreEl.textContent = scoreExplorer != null ? scoreExplorer : '—';
-      if (santeSubEl) {
-        const margeTxt = INDICE_FACTEURS.margeReelle != null ? `Marge ${(INDICE_FACTEURS.margeReelle*100).toFixed(1)} %` : 'Marge non calculable';
-        const evolTxt = INDICE_FACTEURS.evolutionReelle != null
-          ? `Évolution ${INDICE_FACTEURS.evolutionReelle>=0?'+':''}${(INDICE_FACTEURS.evolutionReelle*100).toFixed(1)} %`
-          : 'Évolution non disponible';
-        santeSubEl.textContent = `${margeTxt} · ${evolTxt}`;
+      await chargerRappels();
+      renderRappels();
+      const rappelBtn = document.getElementById('rappelAjouterBtn');
+      if (rappelBtn) {
+        rappelBtn.addEventListener('click', async () => {
+          const inputTexte = document.getElementById('rappelTexteInput');
+          const inputDate = document.getElementById('rappelDateInput');
+          const texte = inputTexte.value.trim();
+          if (!texte) { inputTexte.focus(); return; }
+          rappelBtn.disabled = true;
+          const ok = await ajouterRappel(texte, inputDate.value || null);
+          rappelBtn.disabled = false;
+          if (ok) {
+            inputTexte.value = '';
+            inputDate.value = '';
+            await chargerRappels();
+            renderRappels();
+          }
+        });
       }
-      document.getElementById('indiceCard').addEventListener('click', () => {
-        const detail = document.getElementById('indiceDetail');
-        const ouvert = detail.style.display !== 'none';
-        detail.style.display = ouvert ? 'none' : 'block';
-        if (!ouvert) {
-          detail.innerHTML = `
-            <div class="indice-facteur"><span>Marge réalisée</span><span class="indice-valeur" style="color:${INDICE_FACTEURS.margeReelle!=null && INDICE_FACTEURS.margeReelle>=0.25?'var(--green)':'var(--amber)'};">${INDICE_FACTEURS.margeReelle!=null ? (INDICE_FACTEURS.margeReelle*100).toFixed(1).replace('.', ',') + ' %' : 'Non calculable'}</span></div>
-            <div class="indice-facteur"><span>Évolution période comparable</span><span class="indice-valeur" style="color:${INDICE_FACTEURS.evolutionReelle!=null && INDICE_FACTEURS.evolutionReelle>=0?'var(--green)':'var(--red)'};">${INDICE_FACTEURS.evolutionReelle!=null ? (INDICE_FACTEURS.evolutionReelle>=0?'+':'') + (INDICE_FACTEURS.evolutionReelle*100).toFixed(1).replace('.', ',') + ' %' : 'Non disponible'}</span></div>
-            <div class="indice-note">Ces deux facteurs sont réellement mesurés${INDICE_FACTEURS.periodeEnCours ? ` (évolution basée sur la dernière paire de périodes comparables — la période en cours n'est pas encore assez avancée pour être comparée)` : ''}. La formule exacte qui les combine en un score sur 100 reste provisoire — pas encore recalibrée avec assez de données pour être décomposée point par point de façon fiable.</div>`;
-        }
-      });
     });
   </script>
 </div>

@@ -383,6 +383,72 @@
     };
   }
 
+  // Convertit une ligne de v_caisse_ecart_a_traiter (écart de caisse non
+  // justifié, anomalie ou critique, sur les 14 derniers jours) — ajouté le
+  // 28/07/2026, demande de Frédéric : "le Cockpit doit distribuer du
+  // travail... Fred, avant tout, va voir Dylan. Un écart de caisse de 40 €
+  // coûte plus cher qu'un mauvais facing." NEXUS a explicitement
+  // l'autorisation de nommer l'employé concerné dans ce cas précis (un
+  // incident daté, pas une comparaison entre employés — confirmé par
+  // Frédéric le 28/07/2026), grâce à l'attribution par quart disponible
+  // dans employes_piste/employes_boutique. Si l'employé n'a pas pu être
+  // identifié avec certitude (quart à plusieurs personnes), la décision
+  // reste anonymisée plutôt que de risquer un nom faux. Non validable
+  // depuis l'accueil : ce n'est pas une décision à impact de marge
+  // mesurable dans le temps (comme R2/R3/R4/R5), c'est un signal à aller
+  // vérifier — sa résolution se fait en commentant l'audit dans
+  // NEXUS-Verify-v1.html, pas via journal_decisions.
+  const RANG_CAISSE = { critique: 0, anomalie: 1 };
+  function normaliserCaissePersonne(c) {
+    // 'T00:00:00' évite le décalage d'un jour que produirait new Date('YYYY-MM-DD')
+    // seul (interprété en UTC, puis reconverti en heure locale Martinique
+    // UTC-4) — même correctif déjà appliqué dans NEXUS-Verify-v1.html.
+    const jour = new Date(c.date + 'T00:00:00').toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
+    const cote = c.cote_dominant === 'piste' ? 'côté piste' : c.cote_dominant === 'boutique' ? 'côté boutique' : null;
+    const montant = Math.round((c.montant_dominant != null ? c.montant_dominant : c.ecart_total) * 100) / 100;
+    const decision = c.employee_nom
+      ? `Allez voir ${c.employee_nom} : un écart de ${montant} € reste non justifié sur son quart du ${jour}${cote ? ' (' + cote + ')' : ''}.`
+      : `Un écart de ${montant} € reste non justifié sur le quart du ${jour}${cote ? ' (' + cote + ')' : ''} — la personne n'a pas pu être identifiée avec certitude (plusieurs employés sur ce quart).`;
+    return {
+      candidate_id: `CAISSE-${c.audit_id}`, ruleId: 'R-CAISSE-ECART', rang: RANG_CAISSE[c.statut] != null ? RANG_CAISSE[c.statut] : 1,
+      moteur: 'caisse',
+      etat: c.statut === 'critique' ? '🔴 CRITIQUE' : '🟡 À VÉRIFIER', impact_eur: montant, article: null, categorie: 'Caisse',
+      decision,
+      pourquoi: `Écart classé « ${c.statut} » lors de l'audit de caisse du ${jour} (écart total constaté : ${Math.round(c.ecart_total * 100) / 100} €).`,
+      impactAttendu: "Écart clarifié avant qu'il ne se reproduise ou ne s'accumule.",
+      preuve: `Audit de caisse du ${jour} · quart ${c.quart}${cote ? ' · ' + cote : ''}.`,
+      limites: "Attribution par quart (employé seul sur le quart) — ne remplace pas une vérification directe avec la personne.",
+      cible: 'NEXUS-Verify-v1.html',
+      validable: false,
+    };
+  }
+
+  // Convertit une entrée de NexusStock.calculerRisqueParRayon() (agrégation
+  // par rayon des écarts de stock non expliqués) — ajouté le 28/07/2026,
+  // demande de Frédéric : "fais un inventaire tournant des boissons
+  // énergétiques... parce que c'est le rayon avec la plus forte démarque
+  // potentielle." Formulé honnêtement comme un signal à vérifier, jamais
+  // une perte confirmée : NEXUS n'a aujourd'hui aucun comptage physique
+  // (quantite_reelle) en base pour l'affirmer (article 5 de la
+  // Constitution). Non validable : un comptage réel, pas une décision à
+  // impact de marge mesurable dans le temps.
+  function normaliserStockRayon(c) {
+    return {
+      candidate_id: `STOCK-RAYON-${c.categorie}`, ruleId: 'R-STOCK-RAYON', rang: 2,
+      moteur: 'stock',
+      etat: '📦 À COMPTER', impact_eur: c.risqueEur, article: null, categorie: c.categorie,
+      decision: `Faites un comptage du rayon ${c.categorie} : ${c.nbAVerifier} référence${c.nbAVerifier > 1 ? 's' : ''} montre${c.nbAVerifier > 1 ? 'nt' : ''} un écart de stock non expliqué.`,
+      pourquoi: `Sur ${c.nbReferences} référence${c.nbReferences > 1 ? 's' : ''} suivie${c.nbReferences > 1 ? 's' : ''} dans ce rayon, ${c.nbAVerifier} à vérifier${c.nbASurveiller > 0 ? ` et ${c.nbASurveiller} à surveiller` : ''}.`,
+      impactAttendu: c.risqueEur > 0
+        ? `Confirme ou écarte un risque estimé à ${Math.round(c.risqueEur).toLocaleString('fr-FR')} € avant qu'il ne s'aggrave.`
+        : "Confirme ou écarte un écart de stock avant qu'il ne s'aggrave.",
+      preuve: `${Math.round(c.risqueEur).toLocaleString('fr-FR')} € de risque estimé (Scanner Stock) sur ${c.nbAVerifier} référence${c.nbAVerifier > 1 ? 's' : ''}.`,
+      limites: "Écart de mouvement de stock non expliqué par les ventes connues, pas une démarque confirmée — NEXUS n'a aujourd'hui aucun comptage physique en base pour l'affirmer.",
+      cible: 'NEXUS-Scanner-Stock-v1.html',
+      validable: false,
+    };
+  }
+
   // Graine du jour : stable pour un même site à la même date (la rotation
   // ne bouge donc pas à chaque rechargement de page dans la même journée),
   // mais change chaque jour — c'est ce qui donne l'effet "vivant" demandé
@@ -465,6 +531,7 @@
   global.NexusConseiller = {
     typeActionPourCategorie, LANGAGE_ACTION, calculerCandidatsProduits,
     normaliserProduit, normaliserMarge, normaliserTempo, normaliserAdvisor,
+    normaliserCaissePersonne, normaliserStockRayon,
     fusionnerEtSelectionner, genererGraineJour,
   };
 })(window);
