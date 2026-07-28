@@ -3,6 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" type="image/x-icon" href="favicon.ico">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+<link rel="manifest" href="site.webmanifest">
+<meta name="theme-color" content="#0B0F14">
 <title>NEXUS — Pointage</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -58,19 +64,37 @@
   .action-btn.suivant{border-color:var(--cyan); box-shadow:0 0 0 1px rgba(79,195,217,0.25) inset;}
 
   .timeline{list-style:none; padding:0; margin:0;}
-  .timeline-item{display:flex; align-items:center; gap:10px; padding:9px 0; border-bottom:1px solid var(--hairline);}
+  .timeline-item{display:flex; align-items:flex-start; gap:10px; padding:10px 0; border-bottom:1px solid var(--hairline);}
   .timeline-item:last-child{border-bottom:none;}
-  .timeline-dot{width:8px; height:8px; border-radius:50%; background:var(--cyan); flex-shrink:0;}
+  .timeline-dot{width:8px; height:8px; border-radius:50%; background:var(--cyan); flex-shrink:0; margin-top:5px;}
   .timeline-dot.retard{background:var(--red);}
-  .timeline-label{flex:1; font-size:13px;}
-  .timeline-heure{font-family:var(--mono); font-size:12px; color:var(--text-mid);}
-  .timeline-retard{font-family:var(--mono); font-size:10.5px; color:var(--red); margin-left:6px;}
-  .timeline-photo{font-family:var(--mono); font-size:11px; color:var(--cyan); text-decoration:none; margin-left:6px;}
+  .timeline-dot.vide{background:transparent; border:1.5px solid var(--text-dim);}
+  .timeline-body{flex:1; min-width:0;}
+  .timeline-row-top{display:flex; align-items:baseline; justify-content:space-between; gap:8px;}
+  .timeline-label{font-size:13px;}
+  .timeline-label-prochaine{font-family:var(--mono); font-size:10px; letter-spacing:0.05em; text-transform:uppercase; color:var(--text-dim);}
+  .timeline-heure{font-family:var(--mono); font-size:12px; color:var(--text-mid); flex-shrink:0;}
+  .timeline-sub{font-family:var(--mono); font-size:11px; color:var(--text-mid); margin-top:3px; line-height:1.5;}
+  .timeline-sub.retard{color:var(--amber);}
+  .timeline-photo{font-family:var(--mono); font-size:11px; color:var(--cyan); text-decoration:none;}
   .timeline-empty{font-size:12.5px; color:var(--text-dim); padding:6px 0;}
+  .timeline-anomalie-lien{background:none; border:none; padding:0; margin-top:5px; font-family:var(--mono); font-size:11px; color:var(--cyan); cursor:pointer; text-decoration:underline; -webkit-tap-highlight-color:transparent;}
+  .timeline-anomalie-ok{font-family:var(--mono); font-size:11px; color:var(--text-dim); margin-top:5px;}
+  .anomalie-form{margin-top:8px;}
+  .anomalie-form textarea{width:100%; background:var(--panel-raised); border:1px solid var(--hairline); border-radius:8px; color:var(--text); font-family:var(--sans); font-size:12.5px; padding:8px 10px; resize:vertical; min-height:56px;}
+  .anomalie-form-actions{display:flex; gap:8px; margin-top:6px;}
+  .anomalie-btn{font-family:var(--mono); font-size:10.5px; text-transform:uppercase; letter-spacing:0.04em; border-radius:8px; padding:7px 12px; border:1px solid var(--hairline); background:var(--panel); color:var(--text-mid); cursor:pointer;}
+  .anomalie-btn.primaire{border-color:var(--cyan); color:var(--cyan);}
 
   .confirm-banner{background:rgba(52,211,153,0.1); border:1px solid rgba(52,211,153,0.35); border-radius:12px; padding:14px; margin-bottom:14px; font-size:13px; line-height:1.55; color:var(--green); display:none;}
   .confirm-banner.retard{background:var(--red-dim); border-color:rgba(240,87,90,0.4); color:var(--red);}
   .confirm-banner.show{display:block;}
+  .confirm-banner-titre{font-weight:600;}
+  .confirm-banner-sous{font-family:var(--mono); font-size:11.5px; margin-top:3px; opacity:0.85;}
+
+  .activite-jour{background:var(--panel); border:1px solid var(--hairline); border-radius:12px; padding:14px;}
+  .activite-texte{font-size:13px; color:var(--text);}
+  .activite-lien{display:inline-block; margin-top:6px; font-family:var(--mono); font-size:11.5px; color:var(--cyan); text-decoration:none;}
 
   .info-note{background:var(--panel); border:1px solid var(--hairline); border-radius:12px; padding:14px; font-size:12.5px; line-height:1.6; color:var(--text-mid);}
   .locked{padding:60px 20px; text-align:center; color:var(--text-dim); font-size:13px;}
@@ -134,10 +158,10 @@
     // qu'il n'ouvre l'appareil photo. Arrivée : l'extérieur de la
     // station (parking) suffit. Départ : la mise en alarme est
     // obligatoire, c'est la preuve que la station est sécurisée.
-    arrivee: { icon: '🟢', label: 'Arrivée', sous: 'Prise de poste', photoRequise: true, consignePhoto: 'Photo extérieure (parking) suffisante' },
-    pause_debut: { icon: '⏸️', label: 'Début pause', sous: '', photoRequise: false },
-    pause_fin: { icon: '▶️', label: 'Fin pause', sous: '', photoRequise: false },
-    depart: { icon: '🔴', label: 'Départ', sous: 'Fin de poste', photoRequise: true, consignePhoto: 'Obligatoire : photo de la mise en alarme' },
+    arrivee: { icon: '🟢', label: 'Arrivée', sous: 'Prise de poste', photoRequise: true, consignePhoto: 'Photo extérieure (parking) suffisante', histLabel: 'Arrivée enregistrée' },
+    pause_debut: { icon: '⏸️', label: 'Début pause', sous: '', photoRequise: false, histLabel: 'Début de pause enregistré' },
+    pause_fin: { icon: '▶️', label: 'Fin pause', sous: '', photoRequise: false, histLabel: 'Fin de pause enregistrée' },
+    depart: { icon: '🔴', label: 'Départ', sous: 'Fin de poste', photoRequise: true, consignePhoto: 'Obligatoire : photo de la mise en alarme', histLabel: 'Départ enregistré' },
   };
 
   // Photo de validation (28/07/2026, demande de Frédéric) : l'arrivée et
@@ -236,7 +260,7 @@
   async function afficherFormulairePointage(employee, siteId) {
     const today = dateISOLocale();
     const [{ data: pointagesJour, error: erreurPointages }, { data: shiftActif }] = await Promise.all([
-      nexusClient.from('pointages').select('id, type, heure, retard_min, photo_url').eq('employee_id', employee.id).eq('date', today),
+      nexusClient.from('pointages').select('id, type, heure, retard_min, photo_url, heure_debut_quart, anomalie_signalee').eq('employee_id', employee.id).eq('date', today),
       nexusClient.from('shifts').select('id, quart, heure_debut').eq('employee_id', employee.id).eq('statut', 'en_cours').order('heure_debut', { ascending: false }).limit(1).maybeSingle(),
     ]);
     if (erreurPointages) console.error('Chargement pointages du jour:', erreurPointages);
@@ -275,11 +299,17 @@
       <div class="section-label">⏱ Votre journée</div>
       <div class="action-grid">${boutonsHtml}</div>
       <div style="height:18px;"></div>
-      <div class="section-label">📋 Historique du jour</div>
+      <div class="section-label">📋 Historique du service</div>
       <ul class="timeline" id="timelineJour"></ul>
+      <div style="height:18px;"></div>
+      <div class="section-label">✔ Activité du jour</div>
+      <div class="activite-jour" id="activiteJour">
+        <div class="activite-texte">Chargement…</div>
+      </div>
     `;
 
-    renderTimeline(pointagesJour || []);
+    renderTimeline(pointagesJour || [], prochainType, employee, siteId);
+    chargerActiviteJour(employee, siteId);
 
     document.querySelectorAll('.action-btn[data-type]').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -332,7 +362,15 @@
     await afficherFormulairePointage(employee, siteId);
   }
 
-  function renderTimeline(pointagesJour) {
+  // Historique du service (28/07/2026, demande de Frédéric) : chaque
+  // pointage déjà fait affiche désormais une ligne de contexte sous son
+  // heure — jamais un simple "+X min" en rouge sans explication, pour ne
+  // pas laisser croire à l'employé à une erreur du système. Le retard est
+  // présenté avec l'horaire prévu (heure_debut_quart, capturé au moment du
+  // pointage — jamais recalculé après coup) et l'heure réelle, jamais juste
+  // un delta brut. Une dernière ligne "Prochaine action" (pastille vide)
+  // montre ce qui reste à pointer, quand il en reste.
+  function renderTimeline(pointagesJour, prochainType, employee, siteId) {
     const liste = document.getElementById('timelineJour');
     if (!liste) return;
     if (!pointagesJour.length) {
@@ -340,17 +378,123 @@
       return;
     }
     const tries = [...pointagesJour].sort((a, b) => (a.heure || '').localeCompare(b.heure || ''));
-    liste.innerHTML = tries.map(p => {
-      const info = LABELS_TYPES[p.type] || { label: p.type };
+    const lignesFaites = tries.map(p => {
+      const info = LABELS_TYPES[p.type] || { label: p.type, histLabel: p.type };
       const enRetard = p.type === 'arrivee' && p.retard_min > 0;
+      const heureReelle = (p.heure || '').slice(0, 5);
+
+      // Ligne de contexte : "Horaire prévu : HH:MM · Retard constaté : X min"
+      // — jamais affiché sans l'horaire prévu réel (heure_debut_quart), pour
+      // respecter l'article 5 (jamais un chiffre inventé). Si ce quart n'a
+      // pas été capturé (donnée antérieure à cette fonctionnalité), on se
+      // limite à mentionner le retard sans inventer d'horaire prévu.
+      const sousParties = [];
+      if (enRetard) {
+        if (p.heure_debut_quart) {
+          const horairePrevu = new Date(p.heure_debut_quart).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+          sousParties.push(`Horaire prévu : ${horairePrevu} · Retard constaté : ${p.retard_min} min`);
+        } else {
+          sousParties.push(`Retard constaté : ${p.retard_min} min`);
+        }
+      }
+      if (p.photo_url) sousParties.push(`<a class="timeline-photo" href="${p.photo_url}" target="_blank" rel="noopener">Photo ✓</a>`);
+      const sousLigne = sousParties.length ? `<div class="timeline-sub ${enRetard ? 'retard' : ''}">${sousParties.join(' · ')}</div>` : '';
+
+      // Signaler une anomalie (28/07/2026, demande de Frédéric) : protège
+      // aussi le manager contre des contestations tardives — le texte et son
+      // horodatage sont conservés tels quels, jamais résumés ni modifiés.
+      let anomalieHtml = '';
+      if (enRetard) {
+        anomalieHtml = p.anomalie_signalee
+          ? `<div class="timeline-anomalie-ok">✓ Anomalie signalée</div>`
+          : `<button class="timeline-anomalie-lien" data-pointage-id="${p.id}">Signaler une anomalie →</button>
+             <div class="anomalie-form" id="anomalieForm-${p.id}" style="display:none;">
+               <textarea id="anomalieTexte-${p.id}" placeholder="Expliquez ce qui s'est passé (ex : embouteillage, panne, imprévu)…"></textarea>
+               <div class="anomalie-form-actions">
+                 <button class="anomalie-btn primaire" data-envoyer-anomalie="${p.id}">Envoyer</button>
+                 <button class="anomalie-btn" data-annuler-anomalie="${p.id}">Annuler</button>
+               </div>
+             </div>`;
+      }
+
       return `<li class="timeline-item">
         <span class="timeline-dot ${enRetard ? 'retard' : ''}"></span>
-        <span class="timeline-label">${info.label}</span>
-        <span class="timeline-heure">${(p.heure || '').slice(0, 5)}</span>
-        ${enRetard ? `<span class="timeline-retard">+${p.retard_min} min</span>` : ''}
-        ${p.photo_url ? `<a class="timeline-photo" href="${p.photo_url}" target="_blank" rel="noopener">📷</a>` : ''}
+        <div class="timeline-body">
+          <div class="timeline-row-top">
+            <span class="timeline-label">${info.histLabel || info.label}</span>
+            <span class="timeline-heure">${heureReelle}</span>
+          </div>
+          ${sousLigne}
+          ${anomalieHtml}
+        </div>
       </li>`;
-    }).join('');
+    });
+
+    const ligneProchaine = prochainType ? `<li class="timeline-item">
+        <span class="timeline-dot vide"></span>
+        <div class="timeline-body">
+          <div class="timeline-label-prochaine">Prochaine action</div>
+          <div class="timeline-label">${LABELS_TYPES[prochainType].label}</div>
+        </div>
+      </li>` : '';
+
+    liste.innerHTML = lignesFaites.join('') + ligneProchaine;
+
+    liste.querySelectorAll('.timeline-anomalie-lien').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const form = document.getElementById(`anomalieForm-${btn.dataset.pointageId}`);
+        if (form) form.style.display = form.style.display === 'none' ? 'block' : 'none';
+      });
+    });
+    liste.querySelectorAll('[data-annuler-anomalie]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const form = document.getElementById(`anomalieForm-${btn.dataset.annulerAnomalie}`);
+        if (form) form.style.display = 'none';
+      });
+    });
+    liste.querySelectorAll('[data-envoyer-anomalie]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const pointageId = btn.dataset.envoyerAnomalie;
+        const texteEl = document.getElementById(`anomalieTexte-${pointageId}`);
+        const texte = (texteEl && texteEl.value || '').trim();
+        if (!texte) { texteEl && texteEl.focus(); return; }
+        btn.disabled = true;
+        btn.textContent = 'Envoi…';
+        const { error } = await nexusClient.from('pointages')
+          .update({ anomalie_signalee: texte, anomalie_signalee_le: new Date().toISOString() })
+          .eq('id', pointageId);
+        if (error) {
+          console.error('Signalement anomalie:', error);
+          btn.disabled = false;
+          btn.textContent = 'Envoyer';
+          return;
+        }
+        await afficherFormulairePointage(employee, siteId);
+      });
+    });
+  }
+
+  // Activité du jour (28/07/2026, demande de Frédéric) : compte réel des
+  // missions terminées et en cours de l'employé, jamais une estimation —
+  // mission_completions (date = aujourd'hui) et mission_assignments
+  // (status = 'assignee', seul statut "en cours" qui existe réellement,
+  // voir NEXUS-Missions-v1.html) plutôt qu'un chiffre approché.
+  async function chargerActiviteJour(employee, siteId) {
+    const zone = document.getElementById('activiteJour');
+    if (!zone) return;
+    const today = dateISOLocale();
+    const [{ data: terminees, error: erreurTerminees }, { data: enCours, error: erreurEnCours }] = await Promise.all([
+      nexusClient.from('mission_completions').select('id').eq('employee_id', employee.id).eq('date', today),
+      nexusClient.from('mission_assignments').select('id').eq('site_id', siteId).eq('assigned_to_employee_id', employee.id).eq('status', 'assignee'),
+    ]);
+    if (erreurTerminees) console.error('Activité du jour (terminées):', erreurTerminees);
+    if (erreurEnCours) console.error('Activité du jour (en cours):', erreurEnCours);
+    const nbTerminees = (terminees || []).length;
+    const nbEnCours = (enCours || []).length;
+    zone.innerHTML = `
+      <div class="activite-texte">${nbTerminees} mission${nbTerminees > 1 ? 's' : ''} terminée${nbTerminees > 1 ? 's' : ''} · ${nbEnCours} en cours</div>
+      <a class="activite-lien" href="NEXUS-Missions-v1.html">voir mes missions →</a>
+    `;
   }
 
   // Officialisation de la prise de poste (28/07/2026, demande de Frédéric) :
@@ -382,6 +526,11 @@
       quart: (shiftActif && shiftActif.quart) || null,
       retard_min: retardMin,
       photo_url: photoUrl || null,
+      // heure_debut_quart (28/07/2026) : capturé ici, au moment du pointage,
+      // et jamais recalculé ensuite — c'est ce qui permet à l'historique
+      // d'afficher "Horaire prévu" sans jamais inventer ou réestimer une
+      // valeur après coup (article 5 de la constitution NEXUS).
+      heure_debut_quart: (type === 'arrivee' && shiftActif && shiftActif.heure_debut) || null,
     });
 
     const banner = document.getElementById('confirmBanner');
@@ -397,7 +546,13 @@
       banner.classList.remove('retard');
       if (type === 'arrivee' && retardMin > 0) {
         banner.classList.add('retard');
-        banner.textContent = `Arrivée enregistrée à ${heure.slice(0, 5)} — ${retardMin} min de retard sur votre quart.`;
+        const horairePrevu = shiftActif && shiftActif.heure_debut
+          ? new Date(shiftActif.heure_debut).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+          : null;
+        banner.innerHTML = `
+          <div class="confirm-banner-titre">Arrivée enregistrée à ${heure.slice(0, 5)}</div>
+          <div class="confirm-banner-sous">${horairePrevu ? `Horaire prévu : ${horairePrevu} · ` : ''}Retard constaté : ${retardMin} min</div>
+        `;
       } else {
         banner.textContent = `${LABELS_TYPES[type].label} enregistré${type === 'depart' ? '' : 'e'} à ${heure.slice(0, 5)}.`;
       }
