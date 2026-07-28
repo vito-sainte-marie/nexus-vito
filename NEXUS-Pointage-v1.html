@@ -353,13 +353,21 @@
     }).join('');
   }
 
+  // Officialisation de la prise de poste (28/07/2026, demande de Frédéric) :
+  // le suivi des retards ne devient réel que le 1er août 2026. Avant cette
+  // date, le pointage arrivée/départ existe déjà (utile pour la photo et
+  // l'habitude), mais aucun retard n'est calculé ni compté — retard_min
+  // reste à 0 quel que soit l'horaire réel, pour ne pas pénaliser une
+  // période qui n'a jamais été annoncée comme officielle aux employés.
+  const DATE_OFFICIALISATION_RETARDS = '2026-08-01';
+
   async function enregistrerPointage(employee, siteId, type, shiftActif, photoUrl) {
     const now = new Date();
     const heure = now.toTimeString().slice(0, 8);
     const today = dateISOLocale();
 
     let retardMin = 0;
-    if (type === 'arrivee' && shiftActif && shiftActif.heure_debut) {
+    if (type === 'arrivee' && shiftActif && shiftActif.heure_debut && today >= DATE_OFFICIALISATION_RETARDS) {
       const debutPrevu = new Date(shiftActif.heure_debut);
       const diffMin = Math.round((now - debutPrevu) / 60000);
       retardMin = diffMin > 0 ? diffMin : 0;
