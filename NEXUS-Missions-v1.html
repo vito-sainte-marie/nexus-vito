@@ -152,20 +152,6 @@
   .conseiller-perso-bar{height:100%; background:var(--cyan); border-radius:3px;}
   .conseiller-perso-cta-btn{width:100%; margin-top:13px; padding:11px; border:none; border-radius:8px; font-size:12.5px; font-weight:600; background:var(--cyan); color:#04141a; cursor:pointer;}
 
-  /* Classement manager (28/07/2026, demande de Frédéric) — jamais visible
-     d'un employé, seulement un outil de pilotage pour le manager (voir
-     décision de Frédéric : "manager uniquement"). */
-  .classement-card{background:var(--panel); border:1px solid var(--hairline); border-radius:14px; padding:6px 18px; margin-bottom:14px;}
-  .classement-note{font-size:11px; color:var(--text-dim); padding:10px 0; line-height:1.5;}
-  .classement-row{display:flex; align-items:center; gap:10px; padding:10px 0; border-bottom:1px solid var(--hairline);}
-  .classement-row:last-child{border-bottom:none;}
-  .classement-rang{font-family:var(--mono); font-weight:700; font-size:13px; color:var(--text-dim); width:20px; flex-shrink:0;}
-  .classement-nom{flex:1; font-size:13px; font-weight:600;}
-  .classement-pts{font-family:var(--mono); font-size:12px; color:var(--cyan); white-space:nowrap;}
-  .classement-fleche{font-size:13px; width:18px; text-align:center; flex-shrink:0;}
-  .classement-fleche.hausse{color:var(--green);}
-  .classement-fleche.baisse{color:var(--red);}
-  .classement-fleche.stable{color:var(--text-dim);}
 </style>
 </head>
 <body>
@@ -244,104 +230,12 @@
   // estMissionControleManager) : le manager coche qui etait present sur
   // site au moment du controle, puis peut les evaluer directement.
   async function chargerEmployesSite() {
-    // role ajouté (28/07/2026) pour le classement — sert uniquement à
-    // exclure les managers/gérants du classement, sans rien changer à
-    // l'usage existant de EMPLOYES_SITE (présence lors d'un contrôle).
-    const { data, error } = await nexusClient.from('employees').select('id, nom, role').eq('site_id', SITE_ACTUEL).eq('actif', true).order('nom');
+    const { data, error } = await nexusClient.from('employees').select('id, nom').eq('site_id', SITE_ACTUEL).eq('actif', true).order('nom');
     if (error) { console.error('Chargement employés (contrôle mission):', error); return []; }
     return data || [];
   }
   let EMPLOYES_SITE = [];
-  let COMPLETIONS_SITE = [];
   let presentsState = {};
-
-  // Classement (28/07/2026, demande de Frédéric — "mets moi un classement
-  // dans missions ... entre tous les employés") : décision explicite de
-  // Frédéric, jamais visible d'un employé (contrairement à Ma Progression,
-  // pensée pour n'être jamais comparative). Uniquement un outil de
-  // pilotage manager, basé sur les points réels (mission_completions,
-  // ajustement inclus), jamais un chiffre recalculé différemment d'ailleurs.
-  async function chargerCompletionsSite() {
-    const { data, error } = await nexusClient.from('mission_completions')
-      .select('employee_id, date, points, points_ajustement').eq('site_id', SITE_ACTUEL);
-    if (error) { console.error('Chargement complétions site (classement):', error); return []; }
-    return data || [];
-  }
-
-  function lundiISO(offsetSemaines) {
-    const now = new Date();
-    const jourSemaineISO = (now.getDay() + 6) % 7; // 0 = lundi, même formule que calculerStatsPersonnelles
-    const lundi = new Date(now);
-    lundi.setDate(now.getDate() - jourSemaineISO - (offsetSemaines || 0) * 7);
-    return lundi.toISOString().slice(0, 10);
-  }
-
-  function pointsPeriode(completionsSite, employeeId, depuisISO, avantISO) {
-    return completionsSite
-      .filter(c => c.employee_id === employeeId && c.date >= depuisISO && (!avantISO || c.date < avantISO))
-      .reduce((s, c) => s + (c.points || 0) + (c.points_ajustement || 0), 0);
-  }
-
-  // Retourne le classement de la semaine en cours, chaque ligne portant sa
-  // propre flèche de progression (comparaison de RANG, pas de points bruts
-  // — un employé peut gagner des points et quand même perdre une place si
-  // ses collègues ont plus progressé). Aucune flèche si l'employé n'a eu
-  // aucune activité réelle ni cette semaine ni la précédente — rien à
-  // comparer honnêtement dans ce cas (Article 5).
-  function construireClassement(completionsSite, employesSite) {
-    const employes = employesSite.filter(e => e.role !== 'manager' && e.role !== 'gerant');
-    const debutActuel = lundiISO(0);
-    const debutPrecedent = lundiISO(1);
-
-    const lignes = employes.map(e => ({
-      id: e.id, nom: e.nom,
-      ptsActuel: pointsPeriode(completionsSite, e.id, debutActuel, null),
-      ptsPrecedent: pointsPeriode(completionsSite, e.id, debutPrecedent, debutActuel),
-    }));
-
-    const rangParId = liste => {
-      const tri = [...liste].sort((a, b) => b.valeur - a.valeur);
-      const map = {};
-      tri.forEach((l, i) => { map[l.id] = i + 1; });
-      return map;
-    };
-    const rangActuel = rangParId(lignes.map(l => ({ id: l.id, valeur: l.ptsActuel })));
-    const rangPrecedent = rangParId(lignes.map(l => ({ id: l.id, valeur: l.ptsPrecedent })));
-
-    return lignes
-      .map(l => {
-        const aDeLActivite = l.ptsActuel > 0 || l.ptsPrecedent > 0;
-        let fleche = null;
-        if (aDeLActivite) {
-          if (rangPrecedent[l.id] > rangActuel[l.id]) fleche = 'hausse';
-          else if (rangPrecedent[l.id] < rangActuel[l.id]) fleche = 'baisse';
-          else fleche = 'stable';
-        }
-        return { ...l, rang: rangActuel[l.id], fleche };
-      })
-      .sort((a, b) => a.rang - b.rang);
-  }
-
-  function renderClassement(completionsSite, employesSite) {
-    const el = document.getElementById('classementMissions');
-    if (!el) return;
-    const classement = construireClassement(completionsSite, employesSite);
-    if (!classement.length) { el.innerHTML = ''; return; }
-
-    const iconeFleche = f => f === 'hausse' ? '▲' : f === 'baisse' ? '▼' : f === 'stable' ? '=' : '—';
-    el.innerHTML = `
-      <div class="section-label">🏆 Classement de la semaine</div>
-      <div class="classement-card">
-        <div class="classement-note">Points de la semaine en cours (lundi à aujourd'hui). La flèche compare le rang à la semaine précédente — jamais affichée sans activité réelle sur au moins une des deux semaines.</div>
-        ${classement.map(l => `
-          <div class="classement-row">
-            <span class="classement-rang">${l.rang}.</span>
-            <span class="classement-nom">${l.nom}</span>
-            <span class="classement-pts">${l.ptsActuel} pts</span>
-            <span class="classement-fleche ${l.fleche || ''}">${iconeFleche(l.fleche)}</span>
-          </div>`).join('')}
-      </div>`;
-  }
 
   // Nuance demandee par Frederic (20/07/2026, precisee le 20/07/2026) : pour
   // le manager, le nettoyage et la gestion des dechets sont des CONTROLES —
@@ -1158,7 +1052,6 @@
     if (!q && roleDuJour === 'manager') {
       html += `<div class="section-label">Aujourd'hui — recommandé par le Conseiller NEXUS</div>`;
       html += `<div id="plansActionMissions"></div>`;
-      html += `<div id="classementMissions"></div>`;
     }
 
     // Missions assignées individuellement (créées via "Créer une mission"
@@ -1186,10 +1079,7 @@
     }
 
     content.innerHTML = html;
-    if (roleDuJour === 'manager') {
-      renderPlansActionMissions();
-      renderClassement(COMPLETIONS_SITE, EMPLOYES_SITE);
-    }
+    if (roleDuJour === 'manager') renderPlansActionMissions();
     renderMissionsAssignees();
 
     content.querySelectorAll('.mission-head').forEach(el => {
@@ -1401,7 +1291,6 @@
     if (roleDuJour === 'manager') {
       EMPLOYES_SITE = await chargerEmployesSite();
       PLANS_ACTION = await construirePlansAction();
-      COMPLETIONS_SITE = await chargerCompletionsSite();
     }
 
     const tabsEl = document.getElementById('tabs');

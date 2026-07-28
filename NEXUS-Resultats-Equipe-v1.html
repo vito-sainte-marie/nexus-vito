@@ -51,6 +51,21 @@
   .empty-note{padding:30px 20px; text-align:center; color:var(--text-dim); font-size:12.5px; line-height:1.6;}
   .locked{padding:60px 20px; text-align:center; color:var(--text-dim); font-size:13px;}
 
+  /* Classement (28/07/2026, demande de Frédéric) — manager uniquement,
+     jamais visible d'un employé (Missions et Ma Progression restent
+     100% tournés vers soi-même, jamais une comparaison entre collègues). */
+  .classement-card{background:var(--panel); border:1px solid var(--hairline); border-radius:12px; padding:6px 18px; margin-bottom:14px;}
+  .classement-note{font-size:11px; color:var(--text-dim); padding:10px 0; line-height:1.5;}
+  .classement-row{display:flex; align-items:center; gap:10px; padding:10px 0; border-bottom:1px solid var(--hairline);}
+  .classement-row:last-child{border-bottom:none;}
+  .classement-rang{font-family:var(--mono); font-weight:700; font-size:13px; color:var(--text-dim); width:20px; flex-shrink:0;}
+  .classement-nom{flex:1; font-size:13px; font-weight:600;}
+  .classement-pts{font-family:var(--mono); font-size:12px; color:var(--cyan); white-space:nowrap;}
+  .classement-fleche{font-size:13px; width:18px; text-align:center; flex-shrink:0;}
+  .classement-fleche.hausse{color:var(--green);}
+  .classement-fleche.baisse{color:var(--red);}
+  .classement-fleche.stable{color:var(--text-dim);}
+
   /* Barème de points + ajustement manager (28/07/2026, demande de Frédéric). */
   .bareme-card{background:var(--panel); border:1px solid var(--hairline); border-radius:12px; padding:16px 18px; margin-bottom:14px; font-size:12px; line-height:1.6; color:var(--text-mid);}
   .bareme-card b{color:var(--text);}
@@ -135,6 +150,72 @@
     return !error ? null : error;
   }
 
+  // Classement (28/07/2026, demande de Frédéric — "mets moi un classement
+  // ... en fait je veux que ça apparaisse simplement dans résultats
+  // équipe") : manager uniquement (décision explicite de Frédéric), basé
+  // sur les points réels de la semaine (ajustement inclus). La flèche
+  // compare le RANG à la semaine précédente, pas les points bruts — un
+  // employé peut gagner des points et perdre une place si ses collègues
+  // ont plus progressé. Jamais de flèche sans activité réelle sur au
+  // moins une des deux semaines (Article 5).
+  function lundiISO(offsetSemaines) {
+    const now = new Date();
+    const jourSemaineISO = (now.getDay() + 6) % 7; // 0 = lundi
+    const lundi = new Date(now);
+    lundi.setDate(now.getDate() - jourSemaineISO - (offsetSemaines || 0) * 7);
+    return lundi.toISOString().slice(0, 10);
+  }
+  function pointsPeriode(completionsSite, employeeId, depuisISO, avantISO) {
+    return completionsSite
+      .filter(c => c.employee_id === employeeId && c.date >= depuisISO && (!avantISO || c.date < avantISO))
+      .reduce((s, c) => s + (c.points || 0) + (c.points_ajustement || 0), 0);
+  }
+  function construireClassement(completionsSite, employesSite) {
+    const debutActuel = lundiISO(0);
+    const debutPrecedent = lundiISO(1);
+    const lignes = employesSite.map(e => ({
+      id: e.id, nom: e.nom,
+      ptsActuel: pointsPeriode(completionsSite, e.id, debutActuel, null),
+      ptsPrecedent: pointsPeriode(completionsSite, e.id, debutPrecedent, debutActuel),
+    }));
+    const rangParId = liste => {
+      const tri = [...liste].sort((a, b) => b.valeur - a.valeur);
+      const map = {};
+      tri.forEach((l, i) => { map[l.id] = i + 1; });
+      return map;
+    };
+    const rangActuel = rangParId(lignes.map(l => ({ id: l.id, valeur: l.ptsActuel })));
+    const rangPrecedent = rangParId(lignes.map(l => ({ id: l.id, valeur: l.ptsPrecedent })));
+    return lignes
+      .map(l => {
+        const aDeLActivite = l.ptsActuel > 0 || l.ptsPrecedent > 0;
+        let fleche = null;
+        if (aDeLActivite) {
+          if (rangPrecedent[l.id] > rangActuel[l.id]) fleche = 'hausse';
+          else if (rangPrecedent[l.id] < rangActuel[l.id]) fleche = 'baisse';
+          else fleche = 'stable';
+        }
+        return { ...l, rang: rangActuel[l.id], fleche };
+      })
+      .sort((a, b) => a.rang - b.rang);
+  }
+  function classementHtml(completionsSite, employesSite) {
+    const classement = construireClassement(completionsSite, employesSite);
+    if (!classement.length) return '';
+    const iconeFleche = f => f === 'hausse' ? '▲' : f === 'baisse' ? '▼' : f === 'stable' ? '=' : '—';
+    return `<div class="section-label">🏆 Classement de la semaine</div>
+      <div class="classement-card">
+        <div class="classement-note">Points de la semaine en cours (lundi à aujourd'hui). La flèche compare le rang à la semaine précédente — jamais affichée sans activité réelle sur au moins une des deux semaines.</div>
+        ${classement.map(l => `
+          <div class="classement-row">
+            <span class="classement-rang">${l.rang}.</span>
+            <span class="classement-nom">${l.nom}</span>
+            <span class="classement-pts">${l.ptsActuel} pts</span>
+            <span class="classement-fleche ${l.fleche || ''}">${iconeFleche(l.fleche)}</span>
+          </div>`).join('')}
+      </div>`;
+  }
+
   nexusRequireAuth().then(async employee => {
     if (!employee) return; // nexus-auth.js gère déjà la redirection vers NEXUS-Login-v1.html
     if (employee.role !== 'manager' && employee.role !== 'gerant') {
@@ -188,7 +269,7 @@
         return;
       }
 
-      let html = baremeHtml;
+      let html = classementHtml(completions, equipeActive) + baremeHtml;
       tousEmployes.forEach(emp => {
         const idEmp = equipeActive.find(e => e.nom === emp)?.id;
         const missionsEmp = completions.filter(c => c.employee_id === idEmp);
