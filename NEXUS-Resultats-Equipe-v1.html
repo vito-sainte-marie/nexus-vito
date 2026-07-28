@@ -80,7 +80,11 @@
     return data || [];
   }
   async function chargerEquipeActive() {
-    const { data, error } = await nexusClient.from('employees').select('id, nom').eq('actif', true).order('nom');
+    // Résultats Équipe (28/07/2026, demande de Frédéric) : uniquement les
+    // employés, jamais les managers/gérants — cet écran juge des missions
+    // et retards d'exécution, pas le pilotage du site.
+    const { data, error } = await nexusClient.from('employees').select('id, nom')
+      .eq('actif', true).neq('role', 'manager').neq('role', 'gerant').order('nom');
     if (error) { console.error('Chargement employees:', error); return []; }
     return data || [];
   }
