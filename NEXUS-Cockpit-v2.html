@@ -257,7 +257,7 @@
   .priorite-temps{margin-top:10px; font-family:var(--mono); font-size:10.5px; color:var(--cyan); text-align:center;}
   .plan-impact{margin-top:12px; padding:10px 12px; background:var(--panel-raised); border-radius:8px; font-size:12px;}
   .plan-impact b{color:#34D399;}
-  .plan-valider{width:100%; margin-top:12px; padding:11px; border:none; border-radius:8px; font-size:12.5px; font-weight:600; background:var(--green); color:#04141a; cursor:pointer;}
+  .plan-valider, .plan-rappel-fait{width:100%; margin-top:12px; padding:11px; border:none; border-radius:8px; font-size:12.5px; font-weight:600; background:var(--green); color:#04141a; cursor:pointer;}
   .plan-validee-note{margin-top:10px; padding:9px; text-align:center; background:var(--green-dim); color:var(--green); border-radius:8px; font-size:11.5px;}
   /* ============================================================
      Restructuration 28/07/2026 (demande de Frédéric — "Cockpit = que
@@ -321,24 +321,21 @@
     <div class="empty-serein" id="nouvellesVide" style="display:none;">✅ Rien de particulier à signaler depuis votre dernière visite — tout est sous contrôle.</div>
   </div>
   <div class="divider"></div>
-  <!-- Rappels manuels (28/07/2026) — version simple : texte + date
-       optionnelle, cochable. Pas de calcul automatique de réapprovisionnement :
-       NEXUS n'a pas encore la donnée nécessaire (stock réel, délais
-       fournisseurs) pour le proposer honnêtement. -->
-  <div class="section" id="rappelsWrap">
-    <div class="section-title">Rappels <span class="badge badge-derived">Manuel</span></div>
-    <div id="rappelsListe"></div>
+  <div class="section">
+    <div class="section-title">Vos priorités du jour <span class="badge badge-real">Conseiller NEXUS · toutes catégories</span></div>
+    <div id="plansAction"></div>
+    <a href="NEXUS-Assignations-v1.html" style="display:block; margin-top:10px; font-family:var(--mono); font-size:11.5px; color:var(--cyan); text-decoration:none;">→ Gérer les assignations</a>
+    <!-- Rappels manuels (28/07/2026, retour de Frédéric — "tu aurais dû
+         juste brancher rappels dans produits au cockpit") : un rappel
+         rejoint la liste ci-dessus comme un candidat de plus (moteur
+         'rappel', voir NexusConseiller.normaliserRappel) — ce formulaire
+         ne fait qu'ajouter la donnée brute, il n'affiche plus sa propre
+         liste séparée. -->
     <div class="rappel-form">
       <input type="text" id="rappelTexteInput" placeholder="Ex. : passer commande boissons énergétiques">
       <input type="date" id="rappelDateInput">
       <button id="rappelAjouterBtn">+ Ajouter un rappel</button>
     </div>
-  </div>
-  <div class="divider"></div>
-  <div class="section">
-    <div class="section-title">Vos priorités du jour <span class="badge badge-real">Conseiller NEXUS · toutes catégories</span></div>
-    <div id="plansAction"></div>
-    <a href="NEXUS-Assignations-v1.html" style="display:block; margin-top:10px; font-family:var(--mono); font-size:11.5px; color:var(--cyan); text-decoration:none;">→ Gérer les assignations</a>
   </div>
   <div class="divider"></div>
   <div class="section" id="topVentesSection"></div>
@@ -675,6 +672,21 @@
       const parRayon = NexusStock.calculerRisqueParRayon(analyse);
       return parRayon.map(NexusConseiller.normaliserStockRayon);
     }
+    // Candidats Rappels (28/07/2026, retour de Frédéric — "tu aurais dû
+    // juste brancher rappels dans produits au cockpit") : un rappel manuel
+    // est un travail à distribuer comme les autres, il rejoint donc la même
+    // liste fusionnée au lieu d'une section séparée. Ne remonte que les
+    // rappels non faits du site — voir normaliserRappel() pour le rang
+    // (retard ou non) et la clôture (marquerRappelFait, pas de journal_decisions).
+    async function chargerCandidatsRappels() {
+      const { data, error } = await fetchAllRows(() => nexusClient
+        .from('rappels')
+        .select('*').eq('site', SITE_ACTUEL).eq('fait', false)
+        .order('date_echeance', { ascending: true, nullsFirst: false })
+        .order('created_at', { ascending: true }));
+      if (error) { console.error('Chargement rappels:', error); return []; }
+      return (data || []).map(NexusConseiller.normaliserRappel);
+    }
     async function construirePlansAction() {
       const [{ data, error }, produitsAppel] = await Promise.all([
         fetchAllRows(() => nexusClient
@@ -772,13 +784,13 @@
       // n'en affiche que 5 à la fois et fait apparaître la suite au fur et
       // à mesure des validations.
       // ------------------------------------------------------------
-      const [candidatsCaisse, candidatsStock] = await Promise.all([
-        chargerCandidatsCaisse(), chargerCandidatsStock(),
+      const [candidatsCaisse, candidatsStock, candidatsRappels] = await Promise.all([
+        chargerCandidatsCaisse(), chargerCandidatsStock(), chargerCandidatsRappels(),
       ]);
       const candidatsProduitsNormalises = candidats.map(NexusConseiller.normaliserProduit);
-      const total = candidatsProduitsNormalises.length + candidatsCaisse.length + candidatsStock.length;
+      const total = candidatsProduitsNormalises.length + candidatsCaisse.length + candidatsStock.length + candidatsRappels.length;
       return NexusConseiller.fusionnerEtSelectionner(
-        [candidatsProduitsNormalises, candidatsCaisse, candidatsStock],
+        [candidatsProduitsNormalises, candidatsCaisse, candidatsStock, candidatsRappels],
         { n: total || 1, site: SITE_ACTUEL }
       );
     }
@@ -787,13 +799,14 @@
       "🔥 À AGIR": "etat-agir", "📈 OPPORTUNITÉ": "etat-opportunite",
       "🟡 À SURVEILLER": "etat-surveiller", "🔴 À DÉCIDER": "etat-decider",
       "💡 RECOMMANDATION": "etat-recommandation",
-      // Ajoutés le 28/07/2026 pour les candidats Caisse/Stock (distribution
-      // de travail cross-domaine, voir NexusConseiller.normaliserCaissePersonne
-      // / normaliserStockRayon).
+      // Ajoutés le 28/07/2026 pour les candidats Caisse/Stock/Rappel
+      // (distribution de travail cross-domaine, voir NexusConseiller.
+      // normaliserCaissePersonne / normaliserStockRayon / normaliserRappel).
       "🔴 CRITIQUE": "etat-agir", "🟡 À VÉRIFIER": "etat-surveiller",
       "📦 À COMPTER": "etat-surveiller",
+      "⚠️ RAPPEL EN RETARD": "etat-agir", "📌 RAPPEL": "etat-recommandation",
     };
-    const MOTEUR_LABEL = { produits: 'Produits', marge: 'Marge+', tempo: 'Tempo', advisor: 'Signal', caisse: 'Caisse', stock: 'Stock' };
+    const MOTEUR_LABEL = { produits: 'Produits', marge: 'Marge+', tempo: 'Tempo', advisor: 'Signal', caisse: 'Caisse', stock: 'Stock', rappel: 'Rappel' };
     // Trace datee et chiffree de chaque decision validee — lue par Journal
     // NEXUS pour repondre a "qu'est-ce qui a ete fait aujourd'hui ?", et
     // depuis le 23/07/2026 par VALIDEES_SITE/renderBouclage() ci-dessous
@@ -877,11 +890,13 @@
               <span class="story-label">${MOTEUR_LABEL[p.moteur] || 'Signal'}</span>${p.pourquoi}
               ${p.limites ? `<span class="story-label">À noter</span>${p.limites}` : ''}
             </div>
-            <div class="plan-impact">📊 Impact attendu — <b>${p.impactAttendu}</b></div>
+            ${p.impactAttendu ? `<div class="plan-impact">📊 Impact attendu — <b>${p.impactAttendu}</b></div>` : ''}
             ${p.preuve ? `<div class="rappel-date">${p.preuve}</div>` : ''}
             ${p.validable
               ? `<button class="plan-valider" data-id="${p.candidate_id}">✓ Valider cette recommandation</button>`
-              : `<a href="${p.cible}" class="plan-lien">→ Aller vérifier dans ${(MOTEUR_LABEL[p.moteur] || p.cible)}</a>`}
+              : p.moteur === 'rappel'
+                ? `<button class="plan-rappel-fait" data-rappel-id="${p.rappelId}">✓ Marquer comme fait</button>`
+                : `<a href="${p.cible}" class="plan-lien">→ Aller vérifier dans ${(MOTEUR_LABEL[p.moteur] || p.cible)}</a>`}
             ${p.article ? `<button class="plan-appel" data-article="${p.article}" style="width:100%; margin-top:8px; padding:10px; border:1px solid var(--hairline); border-radius:8px; background:none; color:var(--text-dim); font-size:11.5px; cursor:pointer;">🚫 Produit d'appel — ne plus le recommander</button>` : ''}
           </div>
         </div>`).join('') || `<div style="padding:20px; text-align:center; color:var(--text-dim); font-size:12.5px;">
@@ -902,6 +917,21 @@
           } else {
             btn.disabled = false;
             alert("Erreur d'enregistrement — réessayez.");
+          }
+        });
+      });
+      el.querySelectorAll('.plan-rappel-fait').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          btn.disabled = true;
+          const ok = await marquerRappelFait(btn.dataset.rappelId);
+          if (ok) {
+            PLANS_ACTION = await construirePlansAction(); // rafraichi sans ce rappel
+            renderPlansAction();
+            renderBriefMini();
+          } else {
+            btn.disabled = false;
+            alert("Erreur — réessayez.");
           }
         });
       });
@@ -1153,23 +1183,19 @@
     };
     // ------------------------------------------------------------
     // Rappels manuels (28/07/2026, demande de Frédéric — "le cockpit
-    // pourrais me faire des rappels... version simple pour l'instant").
-    // Volontairement simple : texte + date d'échéance optionnelle,
-    // cochable. Pas de calcul automatique de réapprovisionnement/point de
-    // commande — cette donnée (stock réel, délais fournisseurs) n'existe
-    // pas encore en base pour le proposer honnêtement (voir nexus-stock.js).
-    // Table public.rappels, RLS : lecture toute l'équipe du site,
+    // pourrais me faire des rappels... version simple pour l'instant" —
+    // puis retour le même jour : "tu aurais dû juste brancher rappels dans
+    // produits au cockpit"). Volontairement simple : texte + date
+    // d'échéance optionnelle. Pas de calcul automatique de
+    // réapprovisionnement/point de commande — cette donnée (stock réel,
+    // délais fournisseurs) n'existe pas encore en base pour le proposer
+    // honnêtement (voir nexus-stock.js). Un rappel ajouté ici rejoint la
+    // liste "Vos priorités du jour" comme un candidat de plus (voir
+    // chargerCandidatsRappels() / NexusConseiller.normaliserRappel), il
+    // n'a pas sa propre liste séparée — seul ce formulaire d'ajout reste
+    // ici. Table public.rappels, RLS : lecture toute l'équipe du site,
     // écriture manager/gérant du site (même patron que journal_decisions).
     // ------------------------------------------------------------
-    let RAPPELS = [];
-    async function chargerRappels() {
-      const { data, error } = await nexusClient.from('rappels')
-        .select('*').eq('site', SITE_ACTUEL).eq('fait', false)
-        .order('date_echeance', { ascending: true, nullsFirst: false })
-        .order('created_at', { ascending: true });
-      if (error) { console.error('Chargement rappels:', error); RAPPELS = []; return; }
-      RAPPELS = data || [];
-    }
     async function ajouterRappel(texte, dateEcheance) {
       const { error } = await nexusClient.from('rappels').insert({
         site: SITE_ACTUEL, texte, date_echeance: dateEcheance || null, cree_par: employeeCourantId,
@@ -1181,38 +1207,6 @@
       const { error } = await nexusClient.from('rappels').update({ fait: true, fait_le: new Date().toISOString() }).eq('id', id);
       if (error) { console.error('Clôture rappel:', error); alert('Erreur — réessayez.'); return false; }
       return true;
-    }
-    function renderRappels() {
-      const el = document.getElementById('rappelsListe');
-      if (!el) return;
-      if (!RAPPELS.length) {
-        el.innerHTML = `<div class="rappel-vide">Aucun rappel en attente.</div>`;
-        return;
-      }
-      const aujourdhui = new Date().toISOString().slice(0, 10);
-      el.innerHTML = RAPPELS.map(r => {
-        const enRetard = r.date_echeance && r.date_echeance < aujourdhui;
-        // 'T00:00:00' évite le décalage d'un jour en heure locale Martinique.
-        const dateTexte = r.date_echeance
-          ? new Date(r.date_echeance + 'T00:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })
-          : null;
-        return `
-        <div class="rappel-item">
-          <input type="checkbox" class="rappel-check" data-id="${r.id}">
-          <div>
-            <div class="rappel-texte">${r.texte}</div>
-            ${dateTexte ? `<div class="rappel-date ${enRetard ? 'retard' : ''}">${enRetard ? '⚠️ En retard — ' : '📅 '}${dateTexte}</div>` : ''}
-          </div>
-        </div>`;
-      }).join('');
-      el.querySelectorAll('.rappel-check').forEach(cb => {
-        cb.addEventListener('change', async () => {
-          cb.disabled = true;
-          const ok = await marquerRappelFait(cb.dataset.id);
-          if (ok) { await chargerRappels(); renderRappels(); }
-          else cb.disabled = false;
-        });
-      });
     }
     nexusRequireAuth().then(async employee => {
       if (!employee) return; // nexus-auth.js gère déjà la redirection vers NEXUS-Login-v1.html
@@ -1237,8 +1231,6 @@
       renderBriefMini();
       renderNouvelles();
       renderTopVentes();
-      await chargerRappels();
-      renderRappels();
       const rappelBtn = document.getElementById('rappelAjouterBtn');
       if (rappelBtn) {
         rappelBtn.addEventListener('click', async () => {
@@ -1252,8 +1244,9 @@
           if (ok) {
             inputTexte.value = '';
             inputDate.value = '';
-            await chargerRappels();
-            renderRappels();
+            PLANS_ACTION = await construirePlansAction(); // le nouveau rappel rejoint la liste
+            renderPlansAction();
+            renderBriefMini();
           }
         });
       }

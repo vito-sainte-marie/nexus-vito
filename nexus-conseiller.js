@@ -449,6 +449,36 @@
     };
   }
 
+  // Convertit un rappel manuel (table `rappels`) en candidat du même
+  // schéma que les autres moteurs — ajouté le 28/07/2026 sur retour de
+  // Frédéric : "tu aurais dû juste brancher rappels dans produits au
+  // cockpit" — un rappel manuel EST un travail à distribuer comme les
+  // autres, pas une liste séparée. `decision` est le texte du rappel
+  // lui-même, tel qu'écrit par le manager, jamais reformulé. rang 1 si en
+  // retard (juste derrière le vraiment critique), rang 3 sinon (moins
+  // urgent que les signaux mesurés, mais toujours dans la rotation — sinon
+  // un rappel sans date ne remonterait jamais). Se clôture directement
+  // dans sa carte (marquerRappelFait), jamais via journal_decisions : un
+  // rappel n'a pas d'impact de marge à mesurer dans le temps.
+  function normaliserRappel(r) {
+    const aujourdhui = new Date().toISOString().slice(0, 10);
+    const enRetard = r.date_echeance && r.date_echeance < aujourdhui;
+    // 'T00:00:00' évite le décalage d'un jour en heure locale Martinique.
+    const dateTexte = r.date_echeance
+      ? new Date(r.date_echeance + 'T00:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })
+      : null;
+    return {
+      candidate_id: `RAPPEL-${r.id}`, ruleId: 'RAPPEL-MANUEL', rang: enRetard ? 1 : 3,
+      moteur: 'rappel',
+      etat: enRetard ? '⚠️ RAPPEL EN RETARD' : '📌 RAPPEL', impact_eur: 0, article: null, categorie: null,
+      decision: r.texte,
+      pourquoi: dateTexte ? `Rappel ajouté manuellement, échéance le ${dateTexte}.` : 'Rappel ajouté manuellement, sans échéance.',
+      impactAttendu: null, preuve: null, limites: null,
+      cible: null, validable: false,
+      rappelId: r.id,
+    };
+  }
+
   // Graine du jour : stable pour un même site à la même date (la rotation
   // ne bouge donc pas à chaque rechargement de page dans la même journée),
   // mais change chaque jour — c'est ce qui donne l'effet "vivant" demandé
@@ -531,7 +561,7 @@
   global.NexusConseiller = {
     typeActionPourCategorie, LANGAGE_ACTION, calculerCandidatsProduits,
     normaliserProduit, normaliserMarge, normaliserTempo, normaliserAdvisor,
-    normaliserCaissePersonne, normaliserStockRayon,
+    normaliserCaissePersonne, normaliserStockRayon, normaliserRappel,
     fusionnerEtSelectionner, genererGraineJour,
   };
 })(window);
