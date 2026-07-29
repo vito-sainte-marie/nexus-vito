@@ -116,6 +116,19 @@
     opacity:0; transform:translateY(8px); animation:succesIn .5s ease forwards;
   }
   @keyframes succesIn{ to{ opacity:1; transform:translateY(0); } }
+
+  /* Chargement des priorités (28/07/2026) — logo NEXUS qui tourne pendant
+     que les données réelles (Produits, Caisse, Stock, Rappels) arrivent,
+     à la place d'un message de succès prématuré. Voir renderPlansAction(). */
+  .plans-loading{padding:30px 20px; text-align:center;}
+  .plans-loading-logo{width:38px; height:38px; margin-bottom:12px; animation:nexusSpin 1.3s linear infinite; filter:drop-shadow(0 0 10px rgba(79,195,217,0.4));}
+  @keyframes nexusSpin{ to{ transform:rotate(360deg); } }
+  .plans-loading-text{font-size:12.5px; color:var(--text-dim);}
+  .loading-dots span{animation:loadingDot 1.4s infinite; opacity:0;}
+  .loading-dots span:nth-child(2){animation-delay:0.2s;}
+  .loading-dots span:nth-child(3){animation-delay:0.4s;}
+  @keyframes loadingDot{ 0%,80%,100%{opacity:0;} 40%{opacity:1;} }
+
   .succes-icon{font-size:26px; flex-shrink:0;}
   .succes-title{font-size:14.5px; font-weight:700; color:var(--gold);}
   .succes-detail{font-size:12.5px; color:var(--text-mid); margin-top:4px; line-height:1.5;}
@@ -949,8 +962,19 @@
         });
       });
     }
+    // État initial avant chargement des données (28/07/2026) — auparavant
+    // cet appel invoquait directement renderPlansAction() avec PLANS_ACTION
+    // encore vide à ce stade (avant que nexusRequireAuth() ne résolve),
+    // ce qui affichait par erreur "Rien ne nécessite votre attention" —
+    // un message de succès trompeur pendant que les vraies priorités
+    // (Produits, Caisse, Stock, Rappels) étaient encore en train de charger.
+    // Un simple message de chargement neutre évite ce faux "tout est traité".
     try {
-      renderPlansAction();
+      document.getElementById('plansAction').innerHTML =
+        `<div class="plans-loading">
+          <img class="plans-loading-logo" src="assets/nexus-logo-cyan.png" alt="NEXUS" onerror="this.style.display='none'">
+          <div class="plans-loading-text">NEXUS vérifie les données disponibles<span class="loading-dots"><span>.</span><span>.</span><span>.</span></span></div>
+        </div>`;
     } catch (err) {
       document.getElementById('plansAction').innerHTML =
         `<div style="padding:16px; background:var(--red-dim); color:var(--red); border-radius:10px; font-size:11.5px;">Erreur d'affichage : ${err.message}. Rechargez la page.</div>`;
