@@ -258,6 +258,81 @@
   }
 
   // ------------------------------------------------------------
+  // 1bis) Analyse multi-indicateurs des produits stratégiques (28/07/2026,
+  // demande de Frédéric) : "je pense que NEXUS devrait suivre plusieurs
+  // indicateurs simultanément [...] les ventes en volume diminuent malgré
+  // la hausse du chiffre d'affaires. À surveiller." Un classement brut par
+  // CA (l'ancien "Top ventes") peut cacher qu'une hausse de chiffre
+  // d'affaires ne vient que d'une hausse tarifaire, pendant que les
+  // quantités réellement vendues reculent — un vrai piège de lecture pour
+  // un manager pressé. Cette fonction croise, par article, l'évolution du
+  // CA, de la quantité, du prix moyen réalisé (ca/quantité, plus fiable
+  // qu'un prix catalogue pour "ce qui a réellement été payé en moyenne")
+  // et de la marge, entre les deux périodes comparables déjà identifiées
+  // par NexusPeriodes (jamais recalculées différemment ici).
+  //
+  // Article 5 de la Constitution ("jamais un chiffre inventé") : une
+  // évolution n'est calculée que si la période précédente a une base
+  // réelle (CA et quantité > 0) — sinon l'article est simplement ignoré
+  // plutôt que de fabriquer un pourcentage à partir de rien.
+  function analyserProduitsStrategiques(rowsPaireActuelle, rowsPairePrecedente) {
+    function sommerParArticle(rows) {
+      const parCle = {};
+      (rows || []).forEach(r => {
+        const cle = r.categorie + '|' + r.article;
+        if (!parCle[cle]) parCle[cle] = { article: r.article, categorie: r.categorie, ca: 0, quantite: 0, marge: 0 };
+        parCle[cle].ca += r.ca || 0;
+        parCle[cle].quantite += r.quantite || 0;
+        parCle[cle].marge += r.marge || 0;
+      });
+      return parCle;
+    }
+    const actuel = sommerParArticle(rowsPaireActuelle);
+    const precedent = sommerParArticle(rowsPairePrecedente);
+
+    const analyses = [];
+    Object.keys(actuel).forEach(cle => {
+      const a = actuel[cle];
+      const p = precedent[cle];
+      if (!p || !(p.ca > 0) || !(p.quantite > 0) || !(a.quantite > 0)) return;
+      const evolutionCA = (a.ca - p.ca) / p.ca;
+      const evolutionQuantite = (a.quantite - p.quantite) / p.quantite;
+      const prixMoyenActuel = a.ca / a.quantite;
+      const prixMoyenPrecedent = p.ca / p.quantite;
+      const evolutionPrixMoyen = prixMoyenPrecedent > 0 ? (prixMoyenActuel - prixMoyenPrecedent) / prixMoyenPrecedent : null;
+      // Une marge précédente nulle ou absente ne permet pas un pourcentage
+      // honnête (division par zéro) — on ignore alors l'évolution de marge
+      // pour cet article plutôt que d'afficher un chiffre absurde.
+      const evolutionMarge = (p.marge != null && p.marge !== 0) ? (a.marge - p.marge) / Math.abs(p.marge) : null;
+      analyses.push({
+        article: a.article, categorie: a.categorie,
+        ca: a.ca, quantite: a.quantite, marge: a.marge,
+        evolutionCA, evolutionQuantite, evolutionPrixMoyen, evolutionMarge,
+        // Le signal le plus utile : le CA progresse alors que le volume
+        // recule — la croissance ne vient que du prix, pas de la demande.
+        croissanceTarifaire: evolutionCA > 0 && evolutionQuantite < 0,
+      });
+    });
+
+    const tarifaire = analyses.filter(a => a.croissanceTarifaire)
+      .sort((x, y) => y.evolutionCA - x.evolutionCA).slice(0, 2);
+    const progressionVolume = analyses.filter(a => !a.croissanceTarifaire && a.evolutionQuantite > 0)
+      .sort((x, y) => y.evolutionQuantite - x.evolutionQuantite).slice(0, 2);
+    const regressionVolume = analyses.filter(a => !a.croissanceTarifaire && a.evolutionQuantite < 0)
+      .sort((x, y) => x.evolutionQuantite - y.evolutionQuantite).slice(0, 2);
+    // Exclut aussi les articles déjà en croissance tarifaire (ci-dessus) —
+    // sinon un même article apparaîtrait deux fois : une fois comme alerte,
+    // une fois comme "bonne nouvelle" marge, ce qui serait incohérent.
+    const margeEnProgression = analyses.filter(a => !a.croissanceTarifaire && a.evolutionMarge != null && a.evolutionMarge > 0)
+      .sort((x, y) => y.evolutionMarge - x.evolutionMarge).slice(0, 2);
+
+    return {
+      disponible: analyses.length > 0,
+      tarifaire, progressionVolume, regressionVolume, margeEnProgression,
+    };
+  }
+
+  // ------------------------------------------------------------
   // 2) Fusion cross-moteurs pour le Conseiller de l'accueil (26/07/2026).
   //
   // Chaque moteur a un format natif différent (candidate_id/impact_eur
@@ -564,6 +639,7 @@
 
   global.NexusConseiller = {
     typeActionPourCategorie, LANGAGE_ACTION, calculerCandidatsProduits,
+    analyserProduitsStrategiques,
     normaliserProduit, normaliserMarge, normaliserTempo, normaliserAdvisor,
     normaliserCaissePersonne, normaliserStockRayon, normaliserRappel,
     fusionnerEtSelectionner, genererGraineJour,

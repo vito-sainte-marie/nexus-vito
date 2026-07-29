@@ -225,6 +225,20 @@
   .top-rank{font-family:var(--mono); font-size:12px; color:var(--text-dim); width:20px;}
   .top-name{font-size:14px; flex:1;}
   .top-val{font-family:var(--mono); font-size:13px; color:var(--green);}
+
+  /* Regard du Conseiller sur les produits stratégiques (28/07/2026) —
+     remplace le Top ventes brut dès qu'une évolution est calculable, voir
+     NexusConseiller.analyserProduitsStrategiques() et renderTopVentes(). */
+  .strategique-card{background:var(--panel); border:1px solid var(--hairline); border-left:3px solid var(--hairline); border-radius:10px; padding:14px 16px; margin-bottom:10px;}
+  .strategique-card:last-child{margin-bottom:0;}
+  .strategique-card.alerte{border-left-color:var(--amber);}
+  .strategique-nom{font-size:13.5px; font-weight:600; margin-bottom:8px;}
+  .strategique-indics{display:flex; flex-wrap:wrap; gap:6px 14px; font-family:var(--mono); font-size:11.5px; margin-bottom:8px;}
+  .strategique-indics span b{font-weight:700;}
+  .strategique-phrase{font-size:12.5px; line-height:1.55; color:var(--text-mid);}
+  .strategique-phrase b{color:var(--text);}
+  .strategique-groupe-titre{font-family:var(--mono); font-size:10px; letter-spacing:0.06em; text-transform:uppercase; color:var(--text-dim); margin:14px 0 8px;}
+  .strategique-groupe-titre:first-child{margin-top:0;}
   footer{
     margin-top:auto; padding:16px 20px 24px; font-family:var(--mono); font-size:10px; color:var(--text-dim);
     text-align:center; border-top:1px solid var(--hairline);
@@ -610,6 +624,10 @@
     let MEILLEUR_SUCCES = null;
     let PIRE_RISQUE = null;
     let TOP_VENTES = [];
+    // Analyse multi-indicateurs (28/07/2026, demande de Frédéric) —
+    // remplace le classement brut par CA quand une paire de périodes
+    // comparables existe (sinon `disponible: false`, voir renderTopVentes).
+    let PRODUITS_STRATEGIQUES = { disponible: false, tarifaire: [], progressionVolume: [], regressionVolume: [], margeEnProgression: [] };
     let PRODUITS_EN_BAISSE = []; // toute évolution négative, pas seulement le seuil -30% de R2-BAISSE
     // true/false une fois construirePlansAction() passé, null avant le premier calcul —
     // distingue "pas de risque" de "pas encore de période comparable pour en juger".
@@ -729,7 +747,7 @@
       const [{ data, error }, produitsAppel] = await Promise.all([
         fetchAllRows(() => nexusClient
           .from('products')
-          .select('categorie, article, ca, marge, periode_debut, periode_fin')
+          .select('categorie, article, ca, marge, quantite, periode_debut, periode_fin')
           .eq('site', SITE_ACTUEL)
           .order('periode_debut', { ascending: false })
           .order('article', { ascending: true })),
@@ -760,6 +778,13 @@
       PIRE_RISQUE = null;
       PRODUITS_EN_BAISSE = [];
       TOP_VENTES = [...rowsAffichage].sort((a,b) => (b.ca||0) - (a.ca||0)).slice(0,3);
+      // Analyse multi-indicateurs (28/07/2026) — ne remplace le Top ventes
+      // brut ci-dessus que si une paire de périodes comparables existe :
+      // sans elle, aucune évolution n'est honnêtement calculable, donc
+      // renderTopVentes() retombe sur le classement CA simple.
+      PRODUITS_STRATEGIQUES = paire
+        ? NexusConseiller.analyserProduitsStrategiques(rowsPaireActuelle, rowsPairePrecedente)
+        : { disponible: false, tarifaire: [], progressionVolume: [], regressionVolume: [], margeEnProgression: [] };
       // R4-RENFORT-A / R3-HAUSSE / R2-BAISSE viennent désormais de
       // nexus-conseiller.js (26/07/2026, demande de Frédéric — Conseiller
       // cross-moteurs) — seule source du calcul, partagée avec App-v1.
@@ -1197,18 +1222,77 @@
     // Remplace l'ancien "Top ventes" fige — TOP_VENTES vient des memes lignes
     // rowsAffichage (periode la plus recente) que le reste du moteur, jamais
     // un texte recopie a la main.
+    // Formate une évolution en pourcentage signé (+12 % / -8 %), ou null si
+    // l'évolution elle-même est null (pas de base précédente exploitable —
+    // voir analyserProduitsStrategiques, jamais un "0 %" fabriqué à la place).
+    function formatPctSigne(v) {
+      if (v == null) return null;
+      return `${v >= 0 ? '+' : ''}${(v * 100).toFixed(0)} %`;
+    }
+
+    // Regard du Conseiller sur les produits stratégiques (28/07/2026,
+    // demande de Frédéric) — remplace le classement brut par CA dès qu'une
+    // évolution est calculable (voir NexusConseiller.analyserProduitsStrategiques) :
+    // le signal le plus utile est le cas où le CA progresse alors que les
+    // quantités reculent (croissance purement tarifaire), suivi des top
+    // progressions/régressions de volume et des marges en progression.
+    // Sans paire de périodes comparables, on retombe honnêtement sur
+    // l'ancien Top ventes (classement CA simple, pas d'évolution affichée).
     function renderTopVentes() {
       const el = document.getElementById('topVentesSection');
       if (!el) return;
-      if (!TOP_VENTES.length) { el.innerHTML = ''; return; }
-      el.innerHTML = `
-        <div class="section-title">Top ventes <span class="badge badge-real">Mesuré</span></div>
-        ${TOP_VENTES.map((p, i) => `
-          <div class="top-item">
-            <span class="top-rank">0${i+1}</span>
-            <span class="top-name">${p.article}</span>
-            <span class="top-val">${Math.round(p.ca).toLocaleString('fr-FR')} €</span>
-          </div>`).join('')}`;
+      const ps = PRODUITS_STRATEGIQUES;
+
+      if (!ps.disponible) {
+        if (!TOP_VENTES.length) { el.innerHTML = ''; return; }
+        el.innerHTML = `
+          <div class="section-title">Top ventes <span class="badge badge-real">Mesuré</span></div>
+          ${TOP_VENTES.map((p, i) => `
+            <div class="top-item">
+              <span class="top-rank">0${i+1}</span>
+              <span class="top-name">${p.article}</span>
+              <span class="top-val">${Math.round(p.ca).toLocaleString('fr-FR')} €</span>
+            </div>`).join('')}`;
+        return;
+      }
+
+      const carteTarifaire = a => `
+        <div class="strategique-card alerte">
+          <div class="strategique-nom">${a.article}</div>
+          <div class="strategique-indics">
+            <span>💶 Prix moyen : <b>${formatPctSigne(a.evolutionPrixMoyen)}</b></span>
+            <span>📦 Quantités : <b>${formatPctSigne(a.evolutionQuantite)}</b></span>
+            <span>💰 Marge : <b>${a.evolutionMarge != null ? formatPctSigne(a.evolutionMarge) : 'non mesurable'}</b></span>
+          </div>
+          <div class="strategique-phrase">⚠️ Les ventes en volume diminuent malgré la hausse du chiffre d'affaires — cette croissance vient du prix, pas de la demande. À surveiller.</div>
+        </div>`;
+      const ligne = (a, texte) => `
+        <div class="strategique-card">
+          <div class="strategique-nom">${a.article}</div>
+          <div class="strategique-phrase">${texte}</div>
+        </div>`;
+
+      let corps = '';
+      if (ps.tarifaire.length) corps += ps.tarifaire.map(carteTarifaire).join('');
+      if (ps.progressionVolume.length) {
+        corps += `<div class="strategique-groupe-titre">📈 Top progression en volume</div>`;
+        corps += ps.progressionVolume.map(a => ligne(a, `Quantités vendues ${formatPctSigne(a.evolutionQuantite)}, chiffre d'affaires ${formatPctSigne(a.evolutionCA)}.`)).join('');
+      }
+      if (ps.regressionVolume.length) {
+        corps += `<div class="strategique-groupe-titre">📉 Top régression en volume</div>`;
+        corps += ps.regressionVolume.map(a => ligne(a, `Quantités vendues ${formatPctSigne(a.evolutionQuantite)}, chiffre d'affaires ${formatPctSigne(a.evolutionCA)}.`)).join('');
+      }
+      if (ps.margeEnProgression.length) {
+        corps += `<div class="strategique-groupe-titre">💰 Marge en progression</div>`;
+        corps += ps.margeEnProgression.map(a => ligne(a, `Marge ${formatPctSigne(a.evolutionMarge)} sur la période.`)).join('');
+      }
+
+      if (!corps) {
+        el.innerHTML = `<div class="section-title">Regard du Conseiller <span class="badge badge-real">Prix · Quantité · Marge</span></div>
+          <div style="padding:16px; text-align:center; color:var(--text-dim); font-size:12.5px;">Aucun signal particulier sur vos produits stratégiques cette période.</div>`;
+        return;
+      }
+      el.innerHTML = `<div class="section-title">Regard du Conseiller <span class="badge badge-real">Prix · Quantité · Marge</span></div>${corps}`;
     }
     // ------------------------------------------------------------
     // Nouvelles — regroupe Succès, Bouclage, Risques et Produits en baisse
