@@ -396,8 +396,11 @@
   // reste anonymisée plutôt que de risquer un nom faux. Non validable
   // depuis l'accueil : ce n'est pas une décision à impact de marge
   // mesurable dans le temps (comme R2/R3/R4/R5), c'est un signal à aller
-  // vérifier — sa résolution se fait en commentant l'audit dans
-  // NEXUS-Verify-v1.html, pas via journal_decisions.
+  // vérifier — sa résolution se fait en commentant l'audit (soit dans
+  // NEXUS-Verify-v1.html, soit via la case à cocher "Justifié" du Cockpit,
+  // ajoutée le 28/07/2026, qui écrit le même commentaire) plutôt que via
+  // journal_decisions. `auditId` est exposé pour que le Cockpit sache quel
+  // audits_caisse.id mettre à jour sans reparser candidate_id.
   const RANG_CAISSE = { critique: 0, anomalie: 1 };
   function normaliserCaissePersonne(c) {
     // 'T00:00:00' évite le décalage d'un jour que produirait new Date('YYYY-MM-DD')
@@ -420,6 +423,7 @@
       limites: "Attribution par quart (employé seul sur le quart) — ne remplace pas une vérification directe avec la personne.",
       cible: 'NEXUS-Verify-v1.html',
       validable: false,
+      auditId: c.audit_id,
     };
   }
 
