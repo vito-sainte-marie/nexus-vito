@@ -915,8 +915,8 @@
 
   // Mêmes formules que NEXUS-Radar-Manager-v1.html (Équipe via retards de
   // pointage, Développement via points de missions) — reproduites ici pour
-  // que le KPI "Équipe" de l'accueil et le domaine "Équipe" du Radar
-  // affichent toujours le même nombre.
+  // que le domaine "Équipe" de l'État global et celui du Radar affichent
+  // toujours le même nombre.
   async function chargerDomainesRadarHome() {
     // Mise à jour du 26/07/2026 (demande de Frédéric) : le domaine
     // "Équipe" de l'État global exige de savoir si assez de pointages ont
@@ -924,9 +924,17 @@
     // "0 retard" et "aucun pointage" seraient indiscernables et donneraient
     // un score de 100 % par défaut, une fausse excellence plutôt qu'une
     // absence de données (voir statutEquipe plus bas).
+    //
+    // employesASurveiller (30/07/2026, demande de Frédéric — le KPI
+    // "Aujourd'hui" pointe désormais vers Résultats Équipe plutôt que le
+    // Radar du Manager) : reprend exactement le même seuil que
+    // NEXUS-Resultats-Equipe-v1.html (3 retards ou plus = 🟡 À SURVEILLER),
+    // pour que le chiffre affiché ici corresponde bien à ce que la page de
+    // destination va montrer — jamais la formule du Radar réutilisée sous
+    // un autre nom.
     const [{ data: completions, error: e1 }, { data: pointagesRetard, error: e2 }, { count: totalPointages, error: e3 }] = await Promise.all([
       nexusClient.from('mission_completions').select('points'),
-      nexusClient.from('pointages').select('retard_min').eq('type', 'arrivee').gt('retard_min', 0),
+      nexusClient.from('pointages').select('employee_id, retard_min').eq('type', 'arrivee').gt('retard_min', 0),
       nexusClient.from('pointages').select('id', { count: 'exact', head: true }).eq('type', 'arrivee'),
     ]);
     if (e1) console.error('Chargement mission_completions (accueil):', e1);
@@ -939,12 +947,19 @@
     }
     let equipeScore = null;
     let nbRetards = 0;
+    let employesASurveiller = null;
     if (pointagesRetard) {
       nbRetards = pointagesRetard.length;
       const totalRetard = pointagesRetard.reduce((s, p) => s + (p.retard_min || 0), 0);
       equipeScore = Math.round(Math.max(0, 100 - totalRetard));
+      const retardsParEmploye = {};
+      pointagesRetard.forEach(p => {
+        if (!p.employee_id) return;
+        retardsParEmploye[p.employee_id] = (retardsParEmploye[p.employee_id] || 0) + 1;
+      });
+      employesASurveiller = Object.values(retardsParEmploye).filter(n => n >= 3).length;
     }
-    return { devScore, equipeScore, nbRetards, totalPointages: totalPointages != null ? totalPointages : null };
+    return { devScore, equipeScore, nbRetards, employesASurveiller, totalPointages: totalPointages != null ? totalPointages : null };
   }
 
   // Nexus Verify n'a pas de notion de "contrôle en attente" en base — sa
@@ -1594,10 +1609,19 @@
   // alors que les données étaient probablement insuffisantes — on affiche
   // désormais le nombre de retards réellement observés, jamais un simple
   // pourcentage nu.
-  function detailPonctualite(equipeScore, nbRetards) {
-    if (equipeScore == null) return 'Pas encore assez de données';
-    if (!nbRetards) return 'Aucun retard enregistré';
-    return `${nbRetards} retard${nbRetards > 1 ? 's' : ''} cumulé${nbRetards > 1 ? 's' : ''}`;
+  // Chip "Résultats Équipe" (30/07/2026, demande de Frédéric : remplace le
+  // chip "Équipe" qui pointait vers le Radar du Manager) — Résultats
+  // Équipe et Radar du Manager n'ont pas la même fonction : le Radar donne
+  // une photo agrégée de 8 domaines (dont un score de ponctualité global),
+  // Résultats Équipe donne le détail employé par employé (missions,
+  // points, historique des retards) et signale ceux qui méritent
+  // l'attention du manager (seuil : 3 retards ou plus, même règle que
+  // dans NEXUS-Resultats-Equipe-v1.html). Le chip doit donc afficher CE
+  // chiffre-là, pas le score de ponctualité du Radar sous un autre nom.
+  function detailResultatsEquipe(employesASurveiller) {
+    if (employesASurveiller == null) return 'Pas encore assez de données';
+    if (employesASurveiller === 0) return 'Aucun employé à surveiller';
+    return `à surveiller (3+ retards)`;
   }
 
   // Rappels (26/07/2026, demande de Frédéric) : "0 rappel" occupait une
@@ -1605,7 +1629,7 @@
   // affiche "rien d'urgent" n'aide jamais une lecture en 10 secondes. Le
   // chip n'apparaît désormais que s'il y a réellement un rappel à traiter ;
   // les 3 autres chips prennent alors toute la grille.
-  function renderKpiGrid({ missionsRestantes, nbRappels, decisionsSemaine, equipeScore, nbRetards }) {
+  function renderKpiGrid({ missionsRestantes, nbRappels, decisionsSemaine, employesASurveiller }) {
     const chips = [];
     chips.push(`
       <a class="kpi-chip" href="NEXUS-Missions-v1.html">
@@ -1631,10 +1655,10 @@
       </a>
     `);
     chips.push(`
-      <a class="kpi-chip" href="NEXUS-Radar-Manager-v1.html">
-        <div class="kpi-chip-label">Équipe</div>
-        <div class="kpi-chip-value">${equipeScore != null ? equipeScore + ' %' : '—'}</div>
-        <div class="kpi-chip-sub">${detailPonctualite(equipeScore, nbRetards)}</div>
+      <a class="kpi-chip" href="NEXUS-Resultats-Equipe-v1.html">
+        <div class="kpi-chip-label">Résultats Équipe</div>
+        <div class="kpi-chip-value" style="color:${employesASurveiller ? 'var(--amber)' : 'var(--text)'};">${employesASurveiller != null ? employesASurveiller : '—'}</div>
+        <div class="kpi-chip-sub">${detailResultatsEquipe(employesASurveiller)}</div>
       </a>
     `);
     document.getElementById('kpiGrid').innerHTML = chips.join('');
@@ -1785,8 +1809,7 @@
       missionsRestantes: missionsRestantesRes.restantes,
       nbRappels: compterRappelsUrgents(),
       decisionsSemaine,
-      equipeScore: domainesRadar.equipeScore,
-      nbRetards: domainesRadar.nbRetards,
+      employesASurveiller: domainesRadar.employesASurveiller,
     });
 
     // Priorités / à surveiller / meilleure opportunité (26/07/2026, demande

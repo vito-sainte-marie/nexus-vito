@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" type="image/x-icon" href="favicon.ico">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+<link rel="manifest" href="site.webmanifest">
+<meta name="theme-color" content="#0B0F14">
+<title>NEXUS — Feuille de route</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
+  --text:#EDF1F5; --text-mid:#8A96A5; --text-dim:#57626F;
+  --green:#34D399; --green-dim:#153629;
+  --amber:#F5A623; --amber-dim:#3A2E14;
+  --red:#F0575A; --red-dim:#3A1D1F;
+  --cyan:#4FC3D9; --cyan-dim:#123138;
+  --gold:#D4AF37; --gold-dim:#332B12;
+  --mono:'IBM Plex Mono',monospace; --sans:'IBM Plex Sans',sans-serif;
+}
+*{box-sizing:border-box; margin:0; padding:0;}
+html{scroll-behavior:smooth;}
+html,body{background:var(--bg); font-family:var(--sans); color:var(--text); min-height:100vh;}
+body{background-image: radial-gradient(circle at 50% 0%, rgba(79,195,217,0.09), transparent 45%);}
+a{color:inherit; text-decoration:none;}
+img{display:block; max-width:100%;}
+
+.wrap{max-width:900px; margin:0 auto; padding:0 24px;}
+
+header{position:sticky; top:0; z-index:50; background:rgba(11,15,20,0.92); backdrop-filter:blur(6px); border-bottom:1px solid var(--hairline);}
+.nav-wrap{display:flex; align-items:center; justify-content:space-between; padding:16px 24px; max-width:1040px; margin:0 auto;}
+.brand{display:flex; align-items:center; gap:9px;}
+.brand-logo{width:26px; height:26px; object-fit:contain; flex:none;}
+.brand-name{font-size:16px; font-weight:600;}
+.nav-links{display:flex; align-items:center; gap:18px;}
+.nav-links a{font-family:var(--mono); font-size:11px; letter-spacing:0.05em; text-transform:uppercase; color:var(--text-mid);}
+.nav-links a:hover{color:var(--text);}
+.btn{
+  display:inline-flex; align-items:center; gap:8px; font-family:var(--mono); font-size:12px; letter-spacing:0.04em;
+  text-transform:uppercase; padding:10px 16px; border-radius:8px; font-weight:600; cursor:pointer;
+  transition:border-color .15s ease, background .15s ease; white-space:nowrap; border:1px solid var(--hairline);
+  background:var(--panel); color:var(--text);
+}
+.btn:hover{border-color:var(--cyan);}
+.btn-primary{background:var(--cyan); color:#06181C; border-color:transparent;}
+.btn-primary:hover{background:#6FD3E5;}
+
+/* ---------- hero ---------- */
+.hero{padding:76px 0 8px; text-align:center;}
+.eyebrow{font-family:var(--mono); font-size:11.5px; letter-spacing:0.16em; text-transform:uppercase; color:var(--cyan);}
+h1{font-size:clamp(28px,4.6vw,42px); font-weight:600; line-height:1.2; margin-top:14px;}
+.lead{font-size:15.5px; line-height:1.7; color:var(--text-mid); max-width:56ch; margin:20px auto 0;}
+.lead b{color:var(--text);}
+
+.status-strip{
+  display:flex; justify-content:center; gap:28px; padding:18px 24px; font-family:var(--mono); font-size:11.5px;
+  color:var(--text-mid); flex-wrap:wrap; margin-top:36px; border-top:1px solid var(--hairline); border-bottom:1px solid var(--hairline);
+}
+.status-strip b{color:var(--cyan); font-size:13px;}
+
+/* ---------- section shell ---------- */
+.section{padding:52px 0;}
+.section-label{
+  font-family:var(--mono); font-size:11px; letter-spacing:0.1em; text-transform:uppercase; color:var(--text-dim);
+  display:flex; align-items:center; gap:10px; margin-bottom:8px;
+}
+.section-label::after{content:''; flex:1; height:1px; background:var(--hairline);}
+.section h2{font-size:clamp(21px,3vw,27px); font-weight:600; margin-bottom:10px;}
+.section > p.section-desc{color:var(--text-mid); font-size:14px; max-width:60ch; line-height:1.65; margin-bottom:30px;}
+
+/* ---------- modules disponibles (tag cloud) ---------- */
+.tag-cloud{display:flex; flex-wrap:wrap; gap:10px;}
+.tag-cloud span{
+  background:var(--panel); border:1px solid var(--hairline); border-radius:20px; padding:8px 15px; font-size:13px; color:var(--text-mid);
+  display:flex; align-items:center; gap:7px;
+}
+.tag-cloud span::before{content:'✓'; color:var(--green); font-weight:700;}
+.tag-cloud-note{margin-top:18px; font-size:13px; color:var(--text-dim);}
+.tag-cloud-note a{color:var(--cyan);}
+
+/* ---------- roadmap items ---------- */
+.roadmap-list{display:flex; flex-direction:column; gap:14px;}
+.roadmap-item{
+  background:var(--panel); border:1px solid var(--hairline); border-radius:12px; padding:20px 22px;
+  display:flex; align-items:flex-start; gap:16px;
+}
+.roadmap-status{
+  flex-shrink:0; font-family:var(--mono); font-size:9.5px; font-weight:700; letter-spacing:0.05em; text-transform:uppercase;
+  padding:5px 10px; border-radius:20px; margin-top:2px; white-space:nowrap;
+}
+.roadmap-status.bientot{background:var(--cyan-dim); color:var(--cyan);}
+.roadmap-status.reflexion{background:var(--amber-dim); color:var(--amber);}
+.roadmap-body{flex:1; min-width:0;}
+.roadmap-title{font-size:15px; font-weight:600;}
+.roadmap-desc{font-size:13px; color:var(--text-mid); margin-top:5px; line-height:1.55;}
+
+/* ---------- vision ---------- */
+.vision-panel{
+  background:linear-gradient(165deg, rgba(212,175,55,0.10), var(--panel) 60%);
+  border:1px solid rgba(212,175,55,0.35); border-radius:16px; padding:36px 30px;
+}
+.vision-panel p{font-size:15.5px; line-height:1.75; color:var(--text-mid); margin-bottom:14px;}
+.vision-panel p:last-child{margin-bottom:0;}
+.vision-panel b{color:var(--text);}
+
+/* ---------- methode ---------- */
+.methode-grid{display:grid; grid-template-columns:1fr 1fr; gap:20px;}
+.methode-card{background:var(--panel); border:1px solid var(--hairline); border-radius:14px; padding:24px;}
+.methode-num{font-family:var(--mono); font-size:11px; color:var(--cyan); letter-spacing:0.1em;}
+.methode-title{font-size:15px; font-weight:600; margin-top:8px;}
+.methode-text{font-size:13px; color:var(--text-mid); margin-top:8px; line-height:1.6;}
+
+/* ---------- cta ---------- */
+.cta-band{
+  background:var(--panel); border:1px solid var(--hairline); border-radius:16px; padding:44px 30px; text-align:center;
+  margin:8px 0 24px;
+}
+.cta-band h2{font-size:clamp(20px,3vw,26px); margin-bottom:12px;}
+.cta-band p{color:var(--text-mid); font-size:14px; max-width:48ch; margin:0 auto 22px;}
+
+footer{margin-top:20px; padding:24px; font-family:var(--mono); font-size:10.5px; color:var(--text-dim); text-align:center; border-top:1px solid var(--hairline);}
+footer a{color:var(--text-dim);}
+footer a:hover{color:var(--cyan);}
+
+@media (max-width: 640px){
+  .nav-links{display:none;}
+  .methode-grid{grid-template-columns:1fr;}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="nav-wrap">
+    <div class="brand">
+      <img class="brand-logo" src="assets/nexus-logo-cyan.png" alt="">
+      <span class="brand-name">NEXUS</span>
+    </div>
+    <div class="nav-links">
+      <a href="index.html">Accueil</a>
+      <a href="NEXUS-Propos-v1.html">À propos</a>
+    </div>
+    <a class="btn btn-primary" href="index.html#contact">Nous écrire</a>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <section class="hero">
+    <div class="eyebrow">Feuille de route</div>
+    <h1>Ce qui existe, ce qui vient ensuite</h1>
+    <p class="lead">Une feuille de route honnête plutôt qu'une liste de promesses : ce que NEXUS sait déjà faire aujourd'hui, ce sur quoi nous travaillons, et la direction de long terme — <b>sans dates fixes inventées</b>, parce qu'un engagement qu'on ne peut pas tenir n'a pas sa place ici.</p>
+  </section>
+
+  <div class="status-strip">
+    <span><b>25+</b> écrans opérationnels</span>
+    <span><b>1</b> station pilote en production</span>
+    <span><b>Version</b> 0.9 Beta</span>
+  </div>
+
+  <section class="section" id="disponible">
+    <div class="section-label">Disponible aujourd'hui</div>
+    <h2>Ce que NEXUS sait déjà faire</h2>
+    <p class="section-desc">Chaque module ci-dessous tourne déjà en production chez ViTO Sainte-Marie — rien ici n'est une maquette ou une promesse.</p>
+    <div class="tag-cloud">
+      <span>Poste de pilotage</span>
+      <span>Conseiller NEXUS</span>
+      <span>Indice NEXUS</span>
+      <span>Capital NEXUS</span>
+      <span>Produits</span>
+      <span>Rayon</span>
+      <span>Radar du Manager</span>
+      <span>Scanner NEXUS</span>
+      <span>Scanner Stock</span>
+      <span>Nexus Verify</span>
+      <span>NEXUS Tempo</span>
+      <span>Nexus Planner</span>
+      <span>Missions &amp; Plans d'action</span>
+      <span>Résultats Équipe</span>
+      <span>Prise de poste</span>
+      <span>Pointage</span>
+      <span>Mon Évolution</span>
+      <span>Centre d'Intelligence NEXUS</span>
+      <span>Journal NEXUS</span>
+      <span>Imports</span>
+      <span>Administration multi-site</span>
+    </div>
+    <div class="tag-cloud-note">Le détail de chaque écran est présenté sur la <a href="index.html#modules">page d'accueil</a>.</div>
+  </section>
+
+  <section class="section" id="prochaines-priorites">
+    <div class="section-label">En travaux</div>
+    <h2>Nos prochaines priorités</h2>
+    <p class="section-desc">Pas de dates figées — NEXUS naît des besoins réels du terrain, et l'ordre peut changer si une station révèle un besoin plus urgent. Voici néanmoins la direction actuelle.</p>
+    <div class="roadmap-list">
+
+      <div class="roadmap-item">
+        <span class="roadmap-status bientot">Bientôt</span>
+        <div class="roadmap-body">
+          <div class="roadmap-title">Applications mobiles iOS &amp; Android</div>
+          <div class="roadmap-desc">NEXUS fonctionne aujourd'hui comme application web. Des versions natives sont prévues pour un accès plus rapide au quotidien, sur le terrain.</div>
+        </div>
+      </div>
+
+      <div class="roadmap-item">
+        <span class="roadmap-status bientot">Bientôt</span>
+        <div class="roadmap-body">
+          <div class="roadmap-title">Documentation &amp; Centre d'aide</div>
+          <div class="roadmap-desc">Un espace pour comprendre chaque module en profondeur, pensé pour les nouveaux managers comme pour les équipes déjà formées.</div>
+        </div>
+      </div>
+
+      <div class="roadmap-item">
+        <span class="roadmap-status bientot">Bientôt</span>
+        <div class="roadmap-body">
+          <div class="roadmap-title">Questions fréquentes</div>
+          <div class="roadmap-desc">Les réponses aux questions qui reviennent le plus souvent lors des démonstrations et des premières semaines d'utilisation.</div>
+        </div>
+      </div>
+
+      <div class="roadmap-item">
+        <span class="roadmap-status bientot">Bientôt</span>
+        <div class="roadmap-body">
+          <div class="roadmap-title">Journal des évolutions</div>
+          <div class="roadmap-desc">Un historique public de ce qui change dans NEXUS, version après version — la mémoire de cette feuille de route au fil du temps.</div>
+        </div>
+      </div>
+
+      <div class="roadmap-item">
+        <span class="roadmap-status reflexion">En réflexion</span>
+        <div class="roadmap-body">
+          <div class="roadmap-title">Hébergement en Union Européenne</div>
+          <div class="roadmap-desc">Les données d'exploitation sont aujourd'hui hébergées hors de l'Union Européenne. Une bascule vers un hébergement européen est à l'étude, en parallèle de la formalisation des garanties de transfert (voir la <a href="NEXUS-Confidentialite-v1.html" style="color:var(--cyan);">Politique de Confidentialité</a>).</div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <section class="section" id="vision">
+    <div class="section-label">Vision</div>
+    <h2>Où nous allons</h2>
+    <div class="vision-panel">
+      <p>Aujourd'hui, NEXUS accompagne son commerce pilote. Notre ambition de long terme est plus grande : <b>construire le premier système d'exploitation capable d'aider chaque responsable de commerce à prendre de meilleures décisions, chaque jour</b> — pas seulement les stations-service, à terme, mais tout commerce confronté aux mêmes réalités : des données partout, et jamais assez de temps pour en tirer une décision.</p>
+      <p>Cette vision n'est pas un calendrier. C'est une direction : chaque module que nous construisons doit rapprocher NEXUS de ce rôle de <b>directeur d'exploitation numérique</b>, jamais d'un simple tableau de bord de plus.</p>
+    </div>
+  </section>
+
+  <section class="section" id="methode">
+    <div class="section-label">Méthode</div>
+    <h2>Comment nous décidons quoi construire</h2>
+    <p class="section-desc">NEXUS n'est pas conçu dans un bureau produit déconnecté du terrain. Deux principes gouvernent cette feuille de route.</p>
+    <div class="methode-grid">
+      <div class="methode-card">
+        <div class="methode-num">01</div>
+        <div class="methode-title">Le terrain décide, pas le calendrier</div>
+        <div class="methode-text">Chaque module naît d'un besoin observé en conditions réelles chez ViTO Sainte-Marie avant d'être proposé à d'autres stations. Une priorité peut changer de rang si le terrain révèle une urgence plus grande.</div>
+      </div>
+      <div class="methode-card">
+        <div class="methode-num">02</div>
+        <div class="methode-title">Jamais un engagement inventé</div>
+        <div class="methode-text">Si une date ou une fonctionnalité n'est pas certaine, cette page le dit clairement plutôt que d'afficher un calendrier rassurant mais fictif — le même principe qui gouverne les chiffres affichés dans NEXUS.</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" style="padding-top:8px;">
+    <div class="cta-band">
+      <h2>Une idée pour NEXUS ?</h2>
+      <p>Cette feuille de route se construit avec les retours du terrain. Si un besoin vous semble prioritaire, dites-le-nous directement.</p>
+      <a class="btn btn-primary" href="mailto:contact@nexusconseil.net?subject=Suggestion%20pour%20la%20feuille%20de%20route%20NEXUS">Nous écrire →</a>
+    </div>
+  </section>
+
+</div>
+
+<footer>
+  <div>NEXUS Conseil — Feuille de route</div>
+  <div style="margin-top:10px;"><a href="index.html">Retour à l'accueil</a></div>
+</footer>
+
+</body>
+</html>
