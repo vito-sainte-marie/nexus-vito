@@ -3,6 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" type="image/x-icon" href="favicon.ico">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+<link rel="manifest" href="site.webmanifest">
+<meta name="theme-color" content="#0B0F14">
 <title>NEXUS — Présentation</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -259,11 +265,57 @@ blockquote{font-size:clamp(18px,2.4vw,24px); font-weight:500; line-height:1.4; c
   background:linear-gradient(120deg, var(--cyan), var(--gold)); -webkit-background-clip:text; background-clip:text; color:transparent;
 }
 
-footer{margin-top:20px; padding:24px; font-family:var(--mono); font-size:10.5px; color:var(--text-dim); text-align:center; border-top:1px solid var(--hairline);}
-footer a{color:var(--text-dim);}
-footer a:hover{color:var(--cyan);}
-.footer-trust{display:flex; flex-direction:column; align-items:center; gap:10px; text-transform:uppercase; letter-spacing:0.08em;}
-.footer-logo{height:52px; width:auto; object-fit:contain; opacity:0.95;}
+/* ---------- footer ---------- */
+.site-footer{margin-top:40px; border-top:1px solid var(--hairline); background:var(--panel); padding:56px 0 28px;}
+.footer-trust{display:flex; flex-direction:column; align-items:center; gap:10px; text-transform:uppercase; letter-spacing:0.08em; font-family:var(--mono); font-size:10.5px; color:var(--text-dim);}
+.footer-logo{height:48px; width:auto; object-fit:contain; opacity:0.95;}
+
+.footer-divider{height:1px; background:var(--hairline); margin:32px 0;}
+
+.footer-grid{display:grid; grid-template-columns:1.6fr repeat(5,1fr); gap:28px;}
+.footer-brand-block{padding-right:8px;}
+.footer-brand-block .brand{display:flex; align-items:center; gap:9px; margin-bottom:14px;}
+.footer-brand-block .brand-logo{width:26px; height:26px; object-fit:contain;}
+.footer-brand-block .brand-name{font-size:16px; font-weight:600; color:var(--text);}
+.footer-tagline{font-size:13px; color:var(--text-mid); line-height:1.6; margin-bottom:14px;}
+.footer-mission{list-style:none; display:flex; flex-direction:column; gap:6px;}
+.footer-mission li{font-size:12px; color:var(--text-dim); line-height:1.5; padding-left:14px; position:relative;}
+.footer-mission li::before{content:'·'; position:absolute; left:0; color:var(--cyan);}
+
+.footer-col{display:flex; flex-direction:column; gap:11px;}
+.footer-col-title{font-family:var(--mono); font-size:11px; letter-spacing:0.08em; text-transform:uppercase; color:var(--text-dim); margin-bottom:5px;}
+.footer-col a{font-size:13px; color:var(--text-mid); line-height:1.4;}
+.footer-col a:hover{color:var(--cyan);}
+.footer-soon{font-size:13px; color:var(--text-dim); line-height:1.4; display:flex; align-items:center; gap:6px; flex-wrap:wrap;}
+.footer-soon i{font-style:normal; font-family:var(--mono); font-size:8.5px; letter-spacing:0.04em; text-transform:uppercase; background:var(--panel-raised); border:1px solid var(--hairline); color:var(--text-dim); padding:2px 6px; border-radius:10px;}
+.footer-static{font-size:13px; color:var(--text-mid); line-height:1.4; display:flex; align-items:center; gap:7px;}
+
+.footer-social{margin-top:44px; padding-top:26px; border-top:1px solid var(--hairline); display:flex; align-items:center; gap:22px; flex-wrap:wrap;}
+.footer-social-title{font-family:var(--mono); font-size:11px; letter-spacing:0.08em; text-transform:uppercase; color:var(--text-dim);}
+.footer-social-links{display:flex; gap:18px; flex-wrap:wrap; align-items:center;}
+.footer-social-links a{font-size:13px; color:var(--text-mid);}
+.footer-social-links a:hover{color:var(--cyan);}
+.footer-social-links .footer-soon{font-size:13px;}
+
+.footer-signature{text-align:center; font-size:14.5px; font-weight:500; color:var(--text); max-width:44ch; margin:0 auto 36px; line-height:1.6;}
+
+.footer-bottom-row{display:flex; justify-content:space-between; align-items:flex-end; gap:24px; flex-wrap:wrap;}
+.footer-bottom-left{font-family:var(--mono); font-size:11px; color:var(--text-dim); line-height:1.9;}
+.footer-ambition{font-size:13px; color:var(--text-mid); font-weight:500; margin-bottom:10px; font-family:var(--sans);}
+.footer-badges{display:flex; flex-direction:column; gap:6px; align-items:flex-end;}
+.badge-trust{font-family:var(--mono); font-size:10.5px; color:var(--green); display:flex; align-items:center; gap:6px; white-space:nowrap;}
+.footer-creator-link{display:block; text-align:center; margin-top:22px; font-family:var(--mono); font-size:9.5px; color:var(--text-dim); opacity:0.55;}
+
+@media (max-width:860px){
+  .footer-grid{grid-template-columns:1fr 1fr;}
+  .footer-brand-block{grid-column:1/3;}
+  .footer-bottom-row{flex-direction:column; align-items:flex-start;}
+  .footer-badges{align-items:flex-start;}
+}
+@media (max-width:520px){
+  .footer-grid{grid-template-columns:1fr;}
+  .footer-brand-block{grid-column:auto;}
+}
 
 @media (max-width: 720px){
   nav.links{display:none;}
@@ -776,13 +828,107 @@ footer a:hover{color:var(--cyan);}
 
 </div>
 
-<footer>
-  <div class="footer-trust">
-    <span>Ils nous ont fait confiance</span>
-    <img src="assets/vito-logo.png" alt="ViTO Sainte-Marie" class="footer-logo">
-  </div>
-  <div style="text-align:center; margin-top:18px;">
-    <a href="NEXUS-Login-v1.html" style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; color:var(--text-dim); opacity:0.55; text-decoration:none;">Accès créateur</a>
+<footer class="site-footer">
+  <div class="wrap">
+
+    <div class="footer-trust">
+      <span>Ils nous ont fait confiance</span>
+      <img src="assets/vito-logo.png" alt="ViTO Sainte-Marie" class="footer-logo">
+    </div>
+
+    <div class="footer-divider"></div>
+
+    <div class="footer-grid">
+
+      <div class="footer-brand-block">
+        <div class="brand">
+          <img class="brand-logo" src="assets/nexus-logo-cyan.png" alt="">
+          <span class="brand-name">NEXUS OS</span>
+        </div>
+        <p class="footer-tagline">Le système d'exploitation des commerces.</p>
+        <ul class="footer-mission">
+          <li>Transformer les données en décisions.</li>
+          <li>Accompagner les équipes.</li>
+          <li>Faire progresser les commerces.</li>
+        </ul>
+      </div>
+
+      <div class="footer-col">
+        <div class="footer-col-title">Produit</div>
+        <a href="#modules">Fonctionnalités</a>
+        <a href="mailto:fredbragance@nexusconseil.net?subject=Demande%20de%20d%C3%A9mo%20NEXUS">Démonstration</a>
+        <a href="#offres">Tarifs</a>
+        <span class="footer-soon">Feuille de route <i>Bientôt</i></span>
+        <span class="footer-soon">Journal des évolutions <i>Bientôt</i></span>
+        <a href="NEXUS-Propos-v1.html">À propos</a>
+      </div>
+
+      <div class="footer-col">
+        <div class="footer-col-title">Ressources</div>
+        <span class="footer-soon">Documentation <i>Bientôt</i></span>
+        <span class="footer-soon">Centre d'aide <i>Bientôt</i></span>
+        <span class="footer-soon">Questions fréquentes <i>Bientôt</i></span>
+        <a href="NEXUS-CGU-v1.html">Conditions d'utilisation</a>
+        <span class="footer-soon">Politique de confidentialité <i>Bientôt</i></span>
+        <span class="footer-soon">Mentions légales <i>Bientôt</i></span>
+      </div>
+
+      <div class="footer-col">
+        <div class="footer-col-title">Entreprise</div>
+        <a href="NEXUS-Propos-v1.html">NEXUS Conseil</a>
+        <a href="mailto:contact@nexusconseil.net">Nous contacter</a>
+        <span class="footer-soon">Presse <i>Bientôt</i></span>
+        <span class="footer-soon">Partenaires <i>Bientôt</i></span>
+        <span class="footer-soon">Carrières <i>Bientôt</i></span>
+      </div>
+
+      <div class="footer-col">
+        <div class="footer-col-title">Plateformes</div>
+        <a href="NEXUS-Login-v1.html" target="_blank" rel="noopener">🌐 Application Web</a>
+        <span class="footer-soon">🍎 Application iOS <i>Bientôt disponible</i></span>
+        <span class="footer-soon">🤖 Application Android <i>Bientôt disponible</i></span>
+      </div>
+
+      <div class="footer-col">
+        <div class="footer-col-title">Sécurité</div>
+        <span class="footer-static">🔒 Connexion sécurisée</span>
+        <span class="footer-static">🛡️ Données protégées</span>
+        <span class="footer-static">☁️ Sauvegardes automatiques</span>
+        <span class="footer-static">⚡ Mises à jour continues</span>
+      </div>
+
+    </div>
+
+    <div class="footer-social">
+      <div class="footer-social-title">Suivez NEXUS</div>
+      <div class="footer-social-links">
+        <span class="footer-soon">LinkedIn <i>Bientôt</i></span>
+        <a href="https://www.instagram.com/nexus.os.mq?igsh=dG50Y2pjcTRrN2Ns&utm_source=qr" target="_blank" rel="noopener">Instagram</a>
+        <span class="footer-soon">YouTube <i>Bientôt</i></span>
+      </div>
+    </div>
+
+    <div class="footer-divider"></div>
+
+    <div class="footer-signature">Nous construisons le futur du pilotage des commerces, une décision à la fois.</div>
+
+    <div class="footer-bottom-row">
+      <div class="footer-bottom-left">
+        <div class="footer-ambition">Parce que chaque grande entreprise commence par une meilleure décision.</div>
+        <div>© 2026 NEXUS Conseil. Tous droits réservés.</div>
+        <div>Entreprise française 🇫🇷 — Conçu en France. Développé pour les commerces du monde entier.</div>
+        <div>Version 0.9 Beta</div>
+      </div>
+      <div class="footer-badges">
+        <span class="badge-trust">✓ Entreprise française</span>
+        <span class="badge-trust">✓ Hébergement sécurisé</span>
+        <span class="badge-trust">✓ Mises à jour continues</span>
+        <span class="badge-trust">✓ Disponible 24 h/24</span>
+      </div>
+    </div>
+
+    <a href="NEXUS-Login-v1.html" class="footer-creator-link">Accès créateur</a>
+
   </div>
 </footer>
 
