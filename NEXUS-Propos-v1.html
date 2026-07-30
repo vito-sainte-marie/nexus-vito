@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" type="image/x-icon" href="favicon.ico">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+<link rel="manifest" href="site.webmanifest">
+<meta name="theme-color" content="#0B0F14">
+<title>NEXUS — Pourquoi NEXUS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
+  --text:#EDF1F5; --text-mid:#8A96A5; --text-dim:#57626F;
+  --green:#34D399; --green-dim:#153629;
+  --amber:#F5A623; --amber-dim:#3A2E14;
+  --red:#F0575A; --red-dim:#3A1D1F;
+  --cyan:#4FC3D9; --cyan-dim:#123138;
+  --gold:#D4AF37; --gold-dim:#332B12;
+  --mono:'IBM Plex Mono',monospace; --sans:'IBM Plex Sans',sans-serif;
+}
+*{box-sizing:border-box; margin:0; padding:0;}
+html{scroll-behavior:smooth;}
+html,body{background:var(--bg); font-family:var(--sans); color:var(--text); min-height:100vh;}
+body{background-image: radial-gradient(circle at 50% 0%, rgba(79,195,217,0.09), transparent 45%);}
+a{color:inherit; text-decoration:none;}
+img{display:block; max-width:100%;}
+
+.wrap{max-width:760px; margin:0 auto; padding:0 24px;}
+
+header{position:sticky; top:0; z-index:50; background:rgba(11,15,20,0.92); backdrop-filter:blur(6px); border-bottom:1px solid var(--hairline);}
+.nav-wrap{display:flex; align-items:center; justify-content:space-between; padding:16px 24px; max-width:1040px; margin:0 auto;}
+.brand{display:flex; align-items:center; gap:9px;}
+.brand-logo{width:26px; height:26px; object-fit:contain; flex:none;}
+.brand-name{font-size:16px; font-weight:600;}
+.nav-links{display:flex; align-items:center; gap:18px;}
+.nav-links a{font-family:var(--mono); font-size:11px; letter-spacing:0.05em; text-transform:uppercase; color:var(--text-mid);}
+.nav-links a:hover{color:var(--text);}
+.btn{
+  display:inline-flex; align-items:center; gap:8px; font-family:var(--mono); font-size:12px; letter-spacing:0.04em;
+  text-transform:uppercase; padding:10px 16px; border-radius:8px; font-weight:600; cursor:pointer;
+  transition:border-color .15s ease, background .15s ease; white-space:nowrap; border:1px solid var(--hairline);
+  background:var(--panel); color:var(--text);
+}
+.btn:hover{border-color:var(--cyan);}
+.btn-primary{background:var(--cyan); color:#06181C; border-color:transparent;}
+.btn-primary:hover{background:#6FD3E5;}
+
+/* ---------- hero ---------- */
+.hero{padding:76px 0 20px; text-align:center;}
+.eyebrow{font-family:var(--mono); font-size:11.5px; letter-spacing:0.16em; text-transform:uppercase; color:var(--cyan);}
+h1{font-size:clamp(28px,4.6vw,42px); font-weight:600; line-height:1.2; margin-top:14px;}
+
+/* ---------- rythme staccato (une idee par ligne, comme le texte d'origine) ---------- */
+.lines{margin-top:34px;}
+.lines p{font-size:16px; line-height:1.75; color:var(--text-mid);}
+.lines p.strong{color:var(--text); font-weight:500;}
+.lines p.q{color:var(--text); font-weight:600; font-size:18px; margin-top:10px;}
+
+.divider{height:1px; background:var(--hairline); margin:52px 0;}
+
+/* ---------- sections narratives ---------- */
+section.block{padding:0 0 8px;}
+.block-label{font-family:var(--mono); font-size:11px; letter-spacing:0.12em; text-transform:uppercase; color:var(--cyan); margin-bottom:14px;}
+.block h2{font-size:clamp(21px,3vw,27px); font-weight:600; margin-bottom:16px;}
+.block p{font-size:15.5px; line-height:1.75; color:var(--text-mid); margin-bottom:14px;}
+.block p:last-child{margin-bottom:0;}
+.block p b{color:var(--text); font-weight:600;}
+.block ul{list-style:none; margin:16px 0; display:flex; flex-direction:column; gap:9px;}
+.block li{font-size:15px; line-height:1.6; color:var(--text-mid); padding-left:20px; position:relative;}
+.block li::before{content:'—'; position:absolute; left:0; color:var(--text-dim);}
+
+/* ---------- photo ---------- */
+.photo-panel{margin:36px 0; border-radius:16px; overflow:hidden; border:1px solid var(--hairline); background:var(--panel);}
+.photo-panel img{width:100%; height:auto; display:block;}
+.photo-caption{padding:14px 18px; font-family:var(--mono); font-size:11px; color:var(--text-dim); border-top:1px solid var(--hairline);}
+
+/* ---------- quote ---------- */
+.quote-panel{
+  background:var(--panel); border:1px solid var(--hairline); border-radius:14px; padding:36px 32px;
+  position:relative; margin:8px 0;
+}
+.quote-mark{font-family:var(--mono); font-size:40px; color:var(--cyan); line-height:0.5; margin-bottom:14px; display:block;}
+blockquote{font-size:clamp(16px,2vw,19px); font-weight:500; line-height:1.55; color:var(--text);}
+.quote-attrib{margin-top:16px; font-family:var(--mono); font-size:11.5px; color:var(--text-mid);}
+.quote-attrib b{color:var(--cyan);}
+
+/* ---------- ambition callout ---------- */
+.ambition-panel{
+  background:linear-gradient(165deg, rgba(212,175,55,0.10), var(--panel) 60%);
+  border:1px solid rgba(212,175,55,0.35); border-radius:16px; padding:32px 28px; margin:8px 0;
+}
+.ambition-label{font-family:var(--mono); font-size:11px; letter-spacing:0.1em; text-transform:uppercase; color:var(--gold); margin-bottom:10px;}
+.ambition-panel p{font-size:15.5px; line-height:1.7; color:var(--text-mid); margin-bottom:12px;}
+.ambition-panel p:last-child{margin-bottom:0;}
+.ambition-panel b{color:var(--text);}
+
+/* ---------- philosophie ---------- */
+.philo-panel{text-align:center; padding:44px 8px;}
+.philo-panel p{font-size:clamp(19px,2.6vw,25px); font-weight:600; line-height:1.5; max-width:32ch; margin:0 auto;
+  background:linear-gradient(120deg, var(--cyan), var(--gold)); -webkit-background-clip:text; background-clip:text; color:transparent;}
+.philo-sub{font-size:14px; color:var(--text-mid); margin-top:20px; max-width:52ch; margin-left:auto; margin-right:auto; line-height:1.6;}
+
+/* ---------- cta ---------- */
+.cta-band{
+  background:var(--panel); border:1px solid var(--hairline); border-radius:16px; padding:44px 30px; text-align:center;
+  margin:12px 0 32px;
+}
+.cta-band h2{font-size:clamp(20px,3vw,26px); margin-bottom:12px;}
+.cta-band p{color:var(--text-mid); font-size:14px; max-width:46ch; margin:0 auto 22px;}
+
+footer{margin-top:20px; padding:24px; font-family:var(--mono); font-size:10.5px; color:var(--text-dim); text-align:center; border-top:1px solid var(--hairline);}
+footer a{color:var(--text-dim);}
+footer a:hover{color:var(--cyan);}
+
+@media (max-width: 640px){
+  .nav-links{display:none;}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="nav-wrap">
+    <div class="brand">
+      <img class="brand-logo" src="assets/nexus-logo-cyan.png" alt="">
+      <span class="brand-name">NEXUS</span>
+    </div>
+    <div class="nav-links">
+      <a href="index.html">Accueil</a>
+      <a href="NEXUS-CGU-v1.html">CGU</a>
+    </div>
+    <a class="btn btn-primary" href="index.html#contact">Nous écrire</a>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <section class="hero">
+    <div class="eyebrow">Pourquoi NEXUS</div>
+    <h1>À propos de NEXUS</h1>
+    <div class="lines">
+      <p class="strong">Nous pensons que les commerces ne manquent pas de données.</p>
+      <p class="strong">Ils manquent de décisions.</p>
+      <p style="margin-top:22px;">Chaque jour, des milliers de responsables ouvrent leur logiciel de gestion.</p>
+      <p>Ils voient des chiffres.</p>
+      <p>Des ventes.</p>
+      <p>Des marges.</p>
+      <p>Des stocks.</p>
+      <p>Des tableaux de bord.</p>
+      <p style="margin-top:22px;">Pourtant, la même question revient chaque matin :</p>
+      <p class="q">Par quoi dois-je commencer aujourd'hui ?</p>
+      <p style="margin-top:22px;">Cette question est à l'origine de NEXUS.</p>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <section class="block">
+    <div class="block-label">Origine</div>
+    <h2>L'histoire</h2>
+    <p>NEXUS n'est pas né dans un laboratoire.</p>
+    <p>Il n'est pas né d'une levée de fonds.</p>
+    <p><b>Il est né sur le terrain.</b></p>
+    <p>Pendant des années, nous avons dirigé une station-service confrontée aux mêmes réalités que tous les commerçants :</p>
+    <ul>
+      <li>des centaines de références,</li>
+      <li>des équipes à accompagner,</li>
+      <li>des inventaires,</li>
+      <li>des écarts de caisse,</li>
+      <li>des ruptures,</li>
+      <li>des démarques,</li>
+      <li>des clients à satisfaire,</li>
+      <li>des journées qui semblent toujours trop courtes.</li>
+    </ul>
+    <p>Nous avions des données.</p>
+    <p>Beaucoup de données.</p>
+    <p>Mais aucune ne nous disait réellement :</p>
+    <p class="q" style="font-size:17px;">Quelle est la meilleure décision à prendre maintenant ?</p>
+  </section>
+
+  <div class="photo-panel">
+    <img src="assets/propos-nexus.png" alt="NEXUS — là où l'idée est née" loading="lazy">
+    <div class="photo-caption">Là où l'idée de NEXUS est née.</div>
+  </div>
+
+  <div class="divider"></div>
+
+  <section class="block">
+    <div class="block-label">Constat</div>
+    <h2>Ce que nous avons découvert</h2>
+    <p>Les logiciels savent enregistrer.</p>
+    <p>Ils savent compter.</p>
+    <p>Ils savent produire des rapports.</p>
+    <p><b>Mais ils ne savent pas réfléchir avec le responsable.</b></p>
+    <p>Ils répondent :</p>
+    <p class="q" style="font-size:16px; color:var(--text-mid); font-weight:500;">« Voilà ce qui s'est passé. »</p>
+    <p style="margin-top:18px;">Nous voulions un système capable de répondre :</p>
+    <p class="q">« Voilà ce qu'il faut faire maintenant. »</p>
+    <p style="margin-top:18px;">C'est à ce moment que l'idée de NEXUS est née.</p>
+  </section>
+
+  <div class="divider"></div>
+
+  <section class="block">
+    <div class="block-label">Conviction</div>
+    <h2>Notre conviction</h2>
+    <p>Nous croyons que le futur des commerces ne sera pas piloté par davantage de tableaux de bord.</p>
+    <p>Il sera piloté par des systèmes capables de :</p>
+    <ul>
+      <li>comprendre la situation,</li>
+      <li>hiérarchiser les priorités,</li>
+      <li>distribuer le travail,</li>
+      <li>apprendre des résultats,</li>
+      <li>accompagner les équipes.</li>
+    </ul>
+    <p>Autrement dit : <b>passer de la donnée à la décision.</b></p>
+  </section>
+
+  <div class="divider"></div>
+
+  <section class="block">
+    <div class="block-label">Étymologie</div>
+    <h2>Pourquoi le nom NEXUS ?</h2>
+    <p>Le mot <i>Nexus</i> signifie le lien, la connexion, le point où tout converge.</p>
+    <p>Dans un commerce, tout est lié.</p>
+    <ul>
+      <li>Une rupture de stock influence les ventes.</li>
+      <li>Une erreur de caisse révèle parfois un besoin d'accompagnement.</li>
+      <li>Une hausse du chiffre d'affaires peut masquer une baisse des volumes.</li>
+      <li>Une mauvaise implantation peut réduire une marge.</li>
+    </ul>
+    <p><b>NEXUS relie ces informations.</b></p>
+    <p>Il ne les affiche pas.</p>
+    <p><b>Il les comprend.</b></p>
+  </section>
+
+  <div class="divider"></div>
+
+  <section class="block">
+    <div class="block-label">Positionnement</div>
+    <h2>Plus qu'un logiciel</h2>
+    <p>Nous ne développons pas un tableau de bord.</p>
+    <p>Nous ne développons pas un ERP.</p>
+    <p>Nous ne développons pas une intelligence artificielle qui remplace les dirigeants.</p>
+    <p><b>Nous construisons un système d'exploitation décisionnel.</b></p>
+    <p>Un système capable d'observer. De comprendre. De prioriser. Puis d'aider les responsables à agir.</p>
+  </section>
+
+  <div class="divider"></div>
+
+  <section class="block">
+    <div class="ambition-panel">
+      <div class="ambition-label">Notre ambition</div>
+      <p>Aujourd'hui, NEXUS accompagne son commerce pilote.</p>
+      <p>Demain, notre ambition est beaucoup plus grande.</p>
+      <p><b>Créer le premier système d'exploitation capable d'aider chaque responsable de commerce à prendre de meilleures décisions, chaque jour.</b></p>
+      <p>Parce qu'une bonne décision ne change pas seulement une journée. Elle peut transformer une entreprise.</p>
+    </div>
+  </section>
+
+  <section class="philo-panel">
+    <div class="eyebrow" style="margin-bottom:18px;">Notre philosophie</div>
+    <p>Les meilleures décisions ne sont pas toujours les plus complexes. Elles sont celles qui arrivent au bon moment.</p>
+    <div class="philo-sub">C'est cette philosophie qui guide chaque ligne de code, chaque écran et chaque évolution de NEXUS.</div>
+  </section>
+
+  <div class="divider"></div>
+
+  <section class="block">
+    <div class="block-label">Le mot du fondateur</div>
+    <div class="quote-panel">
+      <span class="quote-mark">"</span>
+      <blockquote>Pendant longtemps, j'ai pensé que mon métier consistait à contrôler mon commerce. Puis j'ai compris que mon véritable rôle était d'aider mon équipe à prendre les bonnes décisions. NEXUS est né de cette prise de conscience. Si un système pouvait observer, comprendre et me signaler uniquement ce qui mérite réellement mon attention, alors je pourrais consacrer mon temps à ce qui compte le plus : les femmes, les hommes et les décisions qui font progresser l'entreprise.</blockquote>
+      <div class="quote-attrib">— <b>Frédéric Bragance</b>, fondateur de NEXUS</div>
+    </div>
+  </section>
+
+  <section class="block" style="margin-top:8px;">
+    <div class="cta-band">
+      <h2>Voir NEXUS en poste</h2>
+      <p>NEXUS accompagne déjà ViTO Sainte-Marie au quotidien. Pour une démonstration ou une question, écrivez-nous directement.</p>
+      <a class="btn btn-primary" href="index.html#contact">Nous écrire →</a>
+    </div>
+  </section>
+
+</div>
+
+<footer>
+  <div>NEXUS Conseil — À propos de NEXUS</div>
+  <div style="margin-top:10px;"><a href="index.html">Retour à l'accueil</a></div>
+</footer>
+
+</body>
+</html>
