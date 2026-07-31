@@ -1,0 +1,14 @@
+alter function public.assigner_controles_tenue_depuis_message(uuid, uuid) set search_path = public;
+alter function public.assigner_justifications_caisse_depuis_message(uuid, uuid) set search_path = public;
+alter function public.calculer_caisse_sante(text, date) set search_path = public;
+alter function public.calculer_horaires_quart(text, text, date) set search_path = public;
+alter function public.current_employee_role() set search_path = public;
+alter function public.current_employee_site_id() set search_path = public;
+alter function public.generer_message_caisse_ecart_non_justifie(text) set search_path = public;
+alter function public.generer_message_caisse_ecart_recurrent(text) set search_path = public;
+alter function public.generer_message_controle_tenue_absent(text) set search_path = public;
+alter function public.generer_planning_mensuel(text, date, uuid) set search_path = public;
+alter function public.heures_ouverture_publique(text, date) set search_path = public;
+alter function public.je_suis_createur() set search_path = public;
+alter function public.stats_fondateur() set search_path = public;
+alter function public.verifier_depassements_heures(text, date) set search_path = public;
