@@ -189,28 +189,33 @@
       <div class="total-ligne">Vente piste calculée : <span id="v_vente_piste_calculee">0,00 €</span></div>
 
       <label class="f" style="margin-top:14px;">Vente boutique (Decenium)</label>
-      <input type="number" step="0.01" id="v_vente_boutique" placeholder="0.00">
+      <input type="text" inputmode="decimal" id="v_vente_boutique" placeholder="0,00">
       <label class="f">Piste réglé à la caisse (carburant payé au comptoir boutique)</label>
-      <input type="number" step="0.01" id="v_transfert" placeholder="0.00">
-      <label class="f">Règlement compte client boutique (facture d'un mois antérieur)</label>
-      <input type="number" step="0.01" id="v_reglement_compte_anterieur" placeholder="0.00">
-      <div class="note" style="margin:-4px 0 0;">Argent reçu ce quart pour solder une facture d'un mois précédent (ex: facture de juillet payée en août) — à ne pas confondre avec un compte client ouvert aujourd'hui, déjà inclus dans la vente boutique Decenium. Sans ce champ, cet argent gonfle artificiellement l'écart boutique en positif.</div>
+      <input type="text" inputmode="decimal" id="v_transfert" placeholder="0,00">
+      <label class="f" style="margin-top:14px;">Clients qui remboursent un impayé — un règlement par ligne</label>
+      <div class="note" style="margin:-2px 0 10px;">Argent reçu ce quart pour solder une facture d'un mois précédent (ex: facture de juillet payée en août) — à ne pas confondre avec un compte client ouvert aujourd'hui (déjà inclus dans la vente boutique Decenium, ou dans « Clients en compte » côté piste). Précisez sur quelle caisse l'argent a été physiquement encaissé : sans ça, cet argent gonflerait artificiellement l'écart de la mauvaise caisse.</div>
+      <div id="reglementCompteListe"></div>
+      <button type="button" class="btn-add" id="btnAddReglementCompte">+ Ajouter un règlement</button>
+      <div class="total-ligne">Piste : <span id="totalReglementPiste">0,00 €</span> · Boutique : <span id="totalReglementBoutique">0,00 €</span></div>
     </div>
 
     <div class="card">
       <div class="section-label">Caisse Piste — Drops</div>
       <div class="note">À partir des justificatifs physiques (bons de drop, bons clients signés, factures fournisseurs) — pas des chiffres affichés dans Decenium, qui peuvent différer de ce que l'employé a réellement saisi.</div>
       <label class="f">Billets</label>
-      <input type="number" step="0.01" id="v_drop_piste_billets" placeholder="0.00">
+      <input type="text" inputmode="decimal" id="v_drop_piste_billets" placeholder="0,00">
       <label class="f">Pièces</label>
-      <input type="number" step="0.01" id="v_drop_piste_pieces" placeholder="0.00">
+      <input type="text" inputmode="decimal" id="v_drop_piste_pieces" placeholder="0,00">
       <label class="f">Chèques</label>
-      <input type="number" step="0.01" id="v_drop_piste_chq" placeholder="0.00">
+      <input type="text" inputmode="decimal" id="v_drop_piste_chq" placeholder="0,00">
       <label class="f">Carte bancaire</label>
-      <input type="number" step="0.01" id="v_drop_piste_cb" placeholder="0.00">
-      <label class="f">Vitocarte</label>
-      <input type="number" step="0.01" id="v_drop_piste_vitocarte" placeholder="0.00">
-      <label class="f">Clients en compte — un bon par ligne</label>
+      <input type="text" inputmode="decimal" id="v_drop_piste_cb" placeholder="0,00">
+      <label class="f" style="margin-top:14px;">Carte de fidélité — un règlement par ligne</label>
+      <div class="note" style="margin:-2px 0 10px;">VitoCarte, Carte Total ou autre — précisez le type pour chaque règlement.</div>
+      <div id="carteFideliteListe"></div>
+      <button type="button" class="btn-add" id="btnAddCarteFidelite">+ Ajouter un règlement carte de fidélité</button>
+      <div class="total-ligne">Total cartes de fidélité : <span id="totalCarteFidelite">0,00 €</span></div>
+      <label class="f" style="margin-top:14px;">Clients en compte — un bon par ligne</label>
       <div id="bonsPisteListe"></div>
       <button type="button" class="btn-add" data-caisse="piste">+ Ajouter un bon client</button>
       <div class="total-ligne">Total clients en compte piste : <span id="totalBonsPiste">0,00 €</span></div>
@@ -220,13 +225,13 @@
       <div class="section-label">Caisse Boutique — Drops</div>
       <div class="note">Justificatifs physiques (bons de drop, factures fournisseurs) — pas des chiffres affichés dans Decenium. Le compte client n'est pas à saisir ici : Decenium l'inclut déjà dans la vente boutique.</div>
       <label class="f">Billets</label>
-      <input type="number" step="0.01" id="v_drop_boutique_billets" placeholder="0.00">
+      <input type="text" inputmode="decimal" id="v_drop_boutique_billets" placeholder="0,00">
       <label class="f">Pièces</label>
-      <input type="number" step="0.01" id="v_drop_boutique_pieces" placeholder="0.00">
+      <input type="text" inputmode="decimal" id="v_drop_boutique_pieces" placeholder="0,00">
       <label class="f">Chèques</label>
-      <input type="number" step="0.01" id="v_drop_boutique_chq" placeholder="0.00">
+      <input type="text" inputmode="decimal" id="v_drop_boutique_chq" placeholder="0,00">
       <label class="f">Carte bancaire</label>
-      <input type="number" step="0.01" id="v_drop_boutique_cb" placeholder="0.00">
+      <input type="text" inputmode="decimal" id="v_drop_boutique_cb" placeholder="0,00">
     </div>
 
     <div class="card">
@@ -434,6 +439,13 @@
       return parseFloat(String(valeur).trim().replace(',', '.'));
     }
 
+    // Pré-remplissage d'un champ montant en saisie texte (virgule FR) — même
+    // logique que les champs de litrage : jamais fabriquer une valeur, juste
+    // afficher '' si null/undefined.
+    function setValFR(id, val) {
+      document.getElementById(id).value = (val === null || val === undefined || val === '') ? '' : String(val).replace('.', ',');
+    }
+
     function lireLitragesCuve() {
       return {
         sp_l: numFR(document.getElementById('v_cuve_sp_litres').value) || 0,
@@ -538,14 +550,20 @@
       const ligne = document.createElement('div');
       ligne.className = 'ligne-item';
       ligne.innerHTML = `
-        <input type="number" step="0.01" class="montant-bon" placeholder="Montant du bon">
+        <input type="text" inputmode="decimal" class="montant-bon" placeholder="Montant du bon">
         <button type="button" class="btn-remove">✕</button>`;
       conteneur.appendChild(ligne);
-      ligne.querySelector('.montant-bon').addEventListener('input', () => majTotauxListes());
+      const inputMontant = ligne.querySelector('.montant-bon');
+      inputMontant.addEventListener('input', () => majTotauxListes());
       ligne.querySelector('.btn-remove').addEventListener('click', () => { ligne.remove(); majTotauxListes(); });
+      return inputMontant;
     }
     document.querySelectorAll('.btn-add[data-caisse]').forEach(btn => {
-      btn.addEventListener('click', () => ajouterLigneBon());
+      btn.addEventListener('click', () => {
+        const input = ajouterLigneBon();
+        majTotauxListes();
+        input.focus(); // ouvre le clavier numérique directement, pas besoin d'un second clic
+      });
     });
 
     function ajouterLigneDepense() {
@@ -553,18 +571,24 @@
       const ligne = document.createElement('div');
       ligne.className = 'ligne-item';
       ligne.innerHTML = `
-        <input type="number" step="0.01" class="montant-depense" placeholder="Montant">
+        <input type="text" inputmode="decimal" class="montant-depense" placeholder="Montant">
         <select class="cible-depense">
           <option value="piste">Piste</option>
           <option value="boutique">Boutique</option>
         </select>
         <button type="button" class="btn-remove">✕</button>`;
       conteneur.appendChild(ligne);
-      ligne.querySelector('.montant-depense').addEventListener('input', () => majTotauxListes());
+      const inputMontant = ligne.querySelector('.montant-depense');
+      inputMontant.addEventListener('input', () => majTotauxListes());
       ligne.querySelector('.cible-depense').addEventListener('change', () => majTotauxListes());
       ligne.querySelector('.btn-remove').addEventListener('click', () => { ligne.remove(); majTotauxListes(); });
+      return inputMontant;
     }
-    document.getElementById('btnAddDepense').addEventListener('click', ajouterLigneDepense);
+    document.getElementById('btnAddDepense').addEventListener('click', () => {
+      const input = ajouterLigneDepense();
+      majTotauxListes();
+      input.focus();
+    });
 
     // Paiement vacataire / heures supplementaires en especes (29/07/2026,
     // remplace "Caisse incidents" — retour de Frederic : ce champ n'entrait
@@ -576,30 +600,93 @@
       const ligne = document.createElement('div');
       ligne.className = 'ligne-item';
       ligne.innerHTML = `
-        <input type="number" step="0.01" class="montant-vacataire" placeholder="0,00 € en espèces">
+        <input type="text" inputmode="decimal" class="montant-vacataire" placeholder="0,00 € en espèces">
         <select class="cible-vacataire">
           <option value="piste">Piste</option>
           <option value="boutique">Boutique</option>
         </select>
         <button type="button" class="btn-remove">✕</button>`;
       conteneur.appendChild(ligne);
-      ligne.querySelector('.montant-vacataire').addEventListener('input', () => majTotauxListes());
+      const inputMontant = ligne.querySelector('.montant-vacataire');
+      inputMontant.addEventListener('input', () => majTotauxListes());
       ligne.querySelector('.cible-vacataire').addEventListener('change', () => majTotauxListes());
       ligne.querySelector('.btn-remove').addEventListener('click', () => { ligne.remove(); majTotauxListes(); });
+      return inputMontant;
     }
-    document.getElementById('btnAddVacataire').addEventListener('click', ajouterLigneVacataire);
+    document.getElementById('btnAddVacataire').addEventListener('click', () => {
+      const input = ajouterLigneVacataire();
+      majTotauxListes();
+      input.focus();
+    });
+
+    // Carte de fidélité (31/07/2026, demande de Frédéric) : remplace le champ
+    // unique "Vitocarte" — plusieurs types existent (VitoCarte, Carte Total,
+    // autres), une ligne par règlement. Le type n'est pas conservé en base
+    // (même limite que bons/dépenses : seul le total compte pour l'écart),
+    // mais permet de ne pas tout mélanger mentalement à la saisie.
+    function ajouterLigneCarteFidelite() {
+      const conteneur = document.getElementById('carteFideliteListe');
+      const ligne = document.createElement('div');
+      ligne.className = 'ligne-item';
+      ligne.innerHTML = `
+        <input type="text" inputmode="decimal" class="montant-carte" placeholder="0,00">
+        <select class="type-carte">
+          <option value="vitocarte">VitoCarte</option>
+          <option value="carte_total">Carte Total</option>
+          <option value="autre">Autre</option>
+        </select>
+        <button type="button" class="btn-remove">✕</button>`;
+      conteneur.appendChild(ligne);
+      const inputMontant = ligne.querySelector('.montant-carte');
+      inputMontant.addEventListener('input', () => majTotauxListes());
+      ligne.querySelector('.btn-remove').addEventListener('click', () => { ligne.remove(); majTotauxListes(); });
+      return inputMontant;
+    }
+    document.getElementById('btnAddCarteFidelite').addEventListener('click', () => {
+      const input = ajouterLigneCarteFidelite();
+      majTotauxListes();
+      input.focus();
+    });
+
+    // Règlement compte client — impayé remboursé (31/07/2026, demande de
+    // Frédéric) : remplace le champ unique boutique-seul par une liste avec
+    // choix piste/boutique par ligne, pour couvrir aussi les remboursements
+    // encaissés côté piste.
+    function ajouterLigneReglementCompte() {
+      const conteneur = document.getElementById('reglementCompteListe');
+      const ligne = document.createElement('div');
+      ligne.className = 'ligne-item';
+      ligne.innerHTML = `
+        <input type="text" inputmode="decimal" class="montant-reglement" placeholder="0,00">
+        <select class="cible-reglement">
+          <option value="piste">Piste</option>
+          <option value="boutique">Boutique</option>
+        </select>
+        <button type="button" class="btn-remove">✕</button>`;
+      conteneur.appendChild(ligne);
+      const inputMontant = ligne.querySelector('.montant-reglement');
+      inputMontant.addEventListener('input', () => majTotauxListes());
+      ligne.querySelector('.cible-reglement').addEventListener('change', () => majTotauxListes());
+      ligne.querySelector('.btn-remove').addEventListener('click', () => { ligne.remove(); majTotauxListes(); });
+      return inputMontant;
+    }
+    document.getElementById('btnAddReglementCompte').addEventListener('click', () => {
+      const input = ajouterLigneReglementCompte();
+      majTotauxListes();
+      input.focus();
+    });
 
     function sommeBons() {
       const conteneur = document.getElementById('bonsPisteListe');
       let total = 0;
-      conteneur.querySelectorAll('.montant-bon').forEach(el => { total += parseFloat(el.value) || 0; });
+      conteneur.querySelectorAll('.montant-bon').forEach(el => { total += numFR(el.value) || 0; });
       return total;
     }
     function sommeDepenses(cible) {
       let total = 0;
       document.querySelectorAll('#depensesListe .ligne-item').forEach(ligne => {
         if (ligne.querySelector('.cible-depense').value === cible) {
-          total += parseFloat(ligne.querySelector('.montant-depense').value) || 0;
+          total += numFR(ligne.querySelector('.montant-depense').value) || 0;
         }
       });
       return total;
@@ -608,7 +695,22 @@
       let total = 0;
       document.querySelectorAll('#vacataireListe .ligne-item').forEach(ligne => {
         if (ligne.querySelector('.cible-vacataire').value === cible) {
-          total += parseFloat(ligne.querySelector('.montant-vacataire').value) || 0;
+          total += numFR(ligne.querySelector('.montant-vacataire').value) || 0;
+        }
+      });
+      return total;
+    }
+    function sommeCarteFidelite() {
+      const conteneur = document.getElementById('carteFideliteListe');
+      let total = 0;
+      conteneur.querySelectorAll('.montant-carte').forEach(el => { total += numFR(el.value) || 0; });
+      return total;
+    }
+    function sommeReglementCompte(cible) {
+      let total = 0;
+      document.querySelectorAll('#reglementCompteListe .ligne-item').forEach(ligne => {
+        if (ligne.querySelector('.cible-reglement').value === cible) {
+          total += numFR(ligne.querySelector('.montant-reglement').value) || 0;
         }
       });
       return total;
@@ -619,13 +721,18 @@
       document.getElementById('totalDepensesBoutique').textContent = sommeDepenses('boutique').toFixed(2).replace('.', ',') + ' €';
       document.getElementById('totalVacatairePiste').textContent = sommeVacataire('piste').toFixed(2).replace('.', ',') + ' €';
       document.getElementById('totalVacataireBoutique').textContent = sommeVacataire('boutique').toFixed(2).replace('.', ',') + ' €';
+      document.getElementById('totalCarteFidelite').textContent = sommeCarteFidelite().toFixed(2).replace('.', ',') + ' €';
+      document.getElementById('totalReglementPiste').textContent = sommeReglementCompte('piste').toFixed(2).replace('.', ',') + ' €';
+      document.getElementById('totalReglementBoutique').textContent = sommeReglementCompte('boutique').toFixed(2).replace('.', ',') + ' €';
     }
     // Une ligne vide par defaut, pour ne pas partir d'un ecran nu
     ajouterLigneBon();
     ajouterLigneDepense();
     ajouterLigneVacataire();
+    ajouterLigneCarteFidelite();
+    ajouterLigneReglementCompte();
 
-    function v(id) { return parseFloat(document.getElementById(id).value) || 0; }
+    function v(id) { return numFR(document.getElementById(id).value) || 0; }
 
     document.getElementById('btnCalculer').addEventListener('click', async () => {
       const date = document.getElementById('v_date').value;
@@ -640,10 +747,11 @@
       const vente_piste = ventePisteResultat.vente;
       const vente_boutique = v('v_vente_boutique');
       const transfert = v('v_transfert'); // "Piste réglé à la caisse"
-      const reglement_compte_anterieur_boutique = v('v_reglement_compte_anterieur');
+      const reglement_compte_anterieur_piste = sommeReglementCompte('piste');
+      const reglement_compte_anterieur_boutique = sommeReglementCompte('boutique');
 
       const drop_piste_billets = v('v_drop_piste_billets'), drop_piste_pieces = v('v_drop_piste_pieces');
-      const drop_piste_chq = v('v_drop_piste_chq'), drop_piste_cb = v('v_drop_piste_cb'), drop_piste_vitocarte = v('v_drop_piste_vitocarte');
+      const drop_piste_chq = v('v_drop_piste_chq'), drop_piste_cb = v('v_drop_piste_cb'), drop_piste_vitocarte = sommeCarteFidelite();
       const clients_compte_piste = sommeBons(), depense_piste = sommeDepenses('piste');
 
       const drop_boutique_billets = v('v_drop_boutique_billets'), drop_boutique_pieces = v('v_drop_boutique_pieces');
@@ -675,7 +783,11 @@
       // gonflé du montant de carburant jamais vendu.
       const expliquePiste = drop_piste_billets + drop_piste_pieces + drop_piste_chq + drop_piste_cb + drop_piste_vitocarte
         + clients_compte_piste + depense_piste + vacataire_piste;
-      const attenduPiste = vente_piste - transfert - remise_cuve;
+      // reglement_compte_anterieur_piste : argent physiquement dans le tiroir
+      // piste pour solder une facture d'un mois anterieur, jamais compte dans
+      // vente_piste (deja comptabilisee le mois precedent) — meme logique
+      // que reglement_compte_anterieur_boutique, symetrique en piste.
+      const attenduPiste = vente_piste - transfert - remise_cuve + reglement_compte_anterieur_piste;
       const ecart_piste = expliquePiste - attenduPiste;
 
       // Boutique : compare a Decenium. Le meme transfert s'ajoute ici,
@@ -715,7 +827,7 @@
       const { error } = await nexusClient.from('audits_caisse').upsert({
         site: SITE_ACTUEL, date, quart,
         vente_piste, vente_boutique, piste_regle_a_la_caisse: transfert,
-        reglement_compte_anterieur_boutique,
+        reglement_compte_anterieur_piste, reglement_compte_anterieur_boutique,
         // Litrage détaillé par carburant — null si on a conservé le montant
         // historique d'un audit pré-litrage (voir calculerVentePiste), pour
         // ne jamais fabriquer un litrage qui n'a pas été réellement saisi.
@@ -851,9 +963,8 @@
     function prefillFormPourModification(a) {
       document.getElementById('v_date').value = a.date;
       document.getElementById('v_quart').value = a.quart;
-      document.getElementById('v_vente_boutique').value = a.vente_boutique;
-      document.getElementById('v_transfert').value = a.piste_regle_a_la_caisse;
-      document.getElementById('v_reglement_compte_anterieur').value = a.reglement_compte_anterieur_boutique || '';
+      setValFR('v_vente_boutique', a.vente_boutique);
+      setValFR('v_transfert', a.piste_regle_a_la_caisse);
 
       // Vente piste : si l'audit a été saisi avec le détail par carburant
       // (litrage_gazole non nul), on repart de ce litrage. Sinon, c'est un
@@ -877,16 +988,15 @@
       }
       majAffichageVentePiste();
 
-      document.getElementById('v_drop_piste_billets').value = a.drop_piste_billets;
-      document.getElementById('v_drop_piste_pieces').value = a.drop_piste_pieces;
-      document.getElementById('v_drop_piste_chq').value = a.drop_piste_chq;
-      document.getElementById('v_drop_piste_cb').value = a.drop_piste_cb;
-      document.getElementById('v_drop_piste_vitocarte').value = a.drop_piste_vitocarte;
+      setValFR('v_drop_piste_billets', a.drop_piste_billets);
+      setValFR('v_drop_piste_pieces', a.drop_piste_pieces);
+      setValFR('v_drop_piste_chq', a.drop_piste_chq);
+      setValFR('v_drop_piste_cb', a.drop_piste_cb);
 
-      document.getElementById('v_drop_boutique_billets').value = a.drop_boutique_billets;
-      document.getElementById('v_drop_boutique_pieces').value = a.drop_boutique_pieces;
-      document.getElementById('v_drop_boutique_chq').value = a.drop_boutique_chq;
-      document.getElementById('v_drop_boutique_cb').value = a.drop_boutique_cb;
+      setValFR('v_drop_boutique_billets', a.drop_boutique_billets);
+      setValFR('v_drop_boutique_pieces', a.drop_boutique_pieces);
+      setValFR('v_drop_boutique_chq', a.drop_boutique_chq);
+      setValFR('v_drop_boutique_cb', a.drop_boutique_cb);
 
       document.getElementById('v_commentaire').value = a.commentaire || '';
 
@@ -895,7 +1005,7 @@
       document.getElementById('bonsPisteListe').innerHTML = '';
       ajouterLigneBon();
       const ligneBon = document.querySelector('#bonsPisteListe .montant-bon');
-      if (ligneBon) ligneBon.value = a.clients_compte_piste || '';
+      if (ligneBon) ligneBon.value = a.clients_compte_piste ? String(a.clients_compte_piste).replace('.', ',') : '';
 
       // Dépenses ponctuelles — même limite, seuls les totaux piste/boutique
       // sont stockés.
@@ -934,6 +1044,33 @@
         derniere.querySelector('.cible-vacataire').value = 'boutique';
       }
       if (!a.paiement_vacataire_piste && !a.paiement_vacataire_boutique) ajouterLigneVacataire();
+
+      // Carte de fidélité — même limite que bons/dépenses : seul le total
+      // (drop_piste_vitocarte) est stocké, le type de carte n'est pas
+      // conservé. Une ligne unique pré-remplie avec ce total.
+      document.getElementById('carteFideliteListe').innerHTML = '';
+      ajouterLigneCarteFidelite();
+      const ligneCarte = document.querySelector('#carteFideliteListe .montant-carte');
+      if (ligneCarte) ligneCarte.value = a.drop_piste_vitocarte ? String(a.drop_piste_vitocarte).replace('.', ',') : '';
+
+      // Règlement compte client (impayé remboursé) — même limite que
+      // dépenses/vacataire : seuls les totaux piste/boutique sont stockés.
+      document.getElementById('reglementCompteListe').innerHTML = '';
+      if (a.reglement_compte_anterieur_piste) {
+        ajouterLigneReglementCompte();
+        const lignes = document.querySelectorAll('#reglementCompteListe .ligne-item');
+        const derniere = lignes[lignes.length - 1];
+        derniere.querySelector('.montant-reglement').value = String(a.reglement_compte_anterieur_piste).replace('.', ',');
+        derniere.querySelector('.cible-reglement').value = 'piste';
+      }
+      if (a.reglement_compte_anterieur_boutique) {
+        ajouterLigneReglementCompte();
+        const lignes = document.querySelectorAll('#reglementCompteListe .ligne-item');
+        const derniere = lignes[lignes.length - 1];
+        derniere.querySelector('.montant-reglement').value = String(a.reglement_compte_anterieur_boutique).replace('.', ',');
+        derniere.querySelector('.cible-reglement').value = 'boutique';
+      }
+      if (!a.reglement_compte_anterieur_piste && !a.reglement_compte_anterieur_boutique) ajouterLigneReglementCompte();
 
       majTotauxListes();
 
