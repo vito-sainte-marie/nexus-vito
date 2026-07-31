@@ -9,7 +9,18 @@
 <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
 <link rel="manifest" href="site.webmanifest">
 <meta name="theme-color" content="#0B0F14">
-<title>NEXUS — Présentation</title>
+<title>NEXUS — Le système d'exploitation des commerces</title>
+<meta name="description" content="NEXUS transforme les données d'exploitation d'un commerce en décisions concrètes — un poste de pilotage unique, en production chez ViTO Sainte-Marie.">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="NEXUS">
+<meta property="og:title" content="NEXUS — Le système d'exploitation des commerces">
+<meta property="og:description" content="Un poste de pilotage unique qui transforme les données d'exploitation en décisions concrètes. En production chez ViTO Sainte-Marie.">
+<meta property="og:image" content="https://www.nexusconseil.net/assets/station-vito.jpg">
+<meta property="og:url" content="https://www.nexusconseil.net">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="NEXUS — Le système d'exploitation des commerces">
+<meta name="twitter:description" content="Un poste de pilotage unique qui transforme les données d'exploitation en décisions concrètes.">
+<meta name="twitter:image" content="https://www.nexusconseil.net/assets/station-vito.jpg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -31,6 +42,7 @@ body{
 }
 a{color:inherit; text-decoration:none;}
 img{display:block; max-width:100%;}
+a:focus-visible, button:focus-visible{outline:2px solid var(--cyan); outline-offset:3px; border-radius:4px;}
 
 .wrap{max-width:1040px; margin:0 auto; padding:0 24px;}
 
@@ -43,7 +55,6 @@ header{position:sticky; top:0; z-index:50; background:rgba(11,15,20,0.92); backd
   display:inline-block; font-family:var(--mono); font-weight:700; font-size:14px; letter-spacing:0.14em;
   color:var(--cyan);
 }
-.brand-name{font-size:16px; font-weight:600;}
 nav.links{display:flex; align-items:center; gap:24px;}
 nav.links a{font-family:var(--mono); font-size:12px; letter-spacing:0.04em; color:var(--text-mid); text-transform:uppercase;}
 nav.links a:hover{color:var(--text);}
@@ -58,8 +69,19 @@ nav.links a:hover{color:var(--text);}
 .btn-gold:hover{background:#E4C158; transform:translateY(-1px);}
 .btn-ghost{background:var(--panel); color:var(--text); border:1px solid var(--hairline);}
 .btn-ghost:hover{border-color:var(--cyan); transform:translateY(-1px);}
-.burger{display:none; flex-direction:column; gap:5px; cursor:pointer; background:none; border:none;}
-.burger span{width:20px; height:2px; background:var(--text); display:block;}
+.burger{display:none; flex-direction:column; gap:5px; cursor:pointer; background:none; border:none; padding:6px;}
+.burger span{width:20px; height:2px; background:var(--text); display:block; transition:transform .15s ease, opacity .15s ease;}
+.burger.open span:nth-child(1){transform:translateY(7px) rotate(45deg);}
+.burger.open span:nth-child(2){opacity:0;}
+.burger.open span:nth-child(3){transform:translateY(-7px) rotate(-45deg);}
+
+.mobile-menu{display:none; flex-direction:column; gap:2px; padding:8px 24px 20px; border-top:1px solid var(--hairline); background:var(--bg);}
+.mobile-menu.open{display:flex;}
+.mobile-menu a{font-family:var(--mono); font-size:13px; letter-spacing:0.04em; text-transform:uppercase; color:var(--text-mid); padding:12px 0; border-bottom:1px solid var(--hairline);}
+.mobile-menu a:last-of-type{border-bottom:none;}
+.mobile-menu a:hover{color:var(--text);}
+.mobile-menu .btn{margin-top:12px; justify-content:center;}
+@media (min-width:721px){.mobile-menu{display:none !important;}}
 
 /* ---------- hero ---------- */
 .hero{padding:88px 0 56px; text-align:center;}
@@ -67,7 +89,6 @@ nav.links a:hover{color:var(--text);}
 .hero-setup{font-size:17px; color:var(--text-mid); margin-top:22px; max-width:36ch; margin-left:auto; margin-right:auto;}
 h1{font-size:clamp(30px,4.6vw,46px); font-weight:600; line-height:1.15; margin-top:14px; max-width:19ch; margin-left:auto; margin-right:auto;}
 h1 .hl-amber{color:var(--amber);}
-h1 .hl{color:var(--cyan);}
 .lead{font-size:16px; line-height:1.6; color:var(--text-mid); max-width:48ch; margin:22px auto 0;}
 .lead b{color:var(--cyan); font-weight:600;}
 .hero-ctas{display:flex; gap:12px; justify-content:center; margin-top:32px; flex-wrap:wrap;}
@@ -122,9 +143,6 @@ h1 .hl{color:var(--cyan);}
 .ci{flex-shrink:0; width:20px; height:20px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; margin-top:1px;}
 .ci.ko{background:var(--red-dim); color:var(--red);}
 .ci.ok{background:var(--green-dim); color:var(--green);}
-.tag-list{list-style:none; display:flex; flex-wrap:wrap; gap:10px;}
-.tag-list li{background:var(--panel-raised); border:1px solid var(--hairline); border-radius:20px; padding:8px 16px; font-size:13px; color:var(--text-mid);}
-.tag-list.gold li{background:var(--gold-dim); border-color:rgba(212,175,55,0.35); color:var(--gold); font-weight:600;}
 
 /* ---------- journée avec NEXUS (timeline) ---------- */
 .timeline{display:flex; flex-direction:column;}
@@ -354,9 +372,17 @@ blockquote{font-size:clamp(18px,2.4vw,24px); font-weight:500; line-height:1.4; c
     </nav>
     <div style="display:flex; align-items:center; gap:12px;">
       <a class="btn btn-primary" href="NEXUS-Login-v1.html" target="_blank" rel="noopener">Se connecter</a>
-      <button class="burger" aria-label="Menu"><span></span><span></span><span></span></button>
+      <button class="burger" id="burgerBtn" aria-label="Ouvrir le menu" aria-expanded="false" aria-controls="mobileMenu"><span></span><span></span><span></span></button>
     </div>
   </div>
+  <nav class="mobile-menu" id="mobileMenu">
+    <a href="#adn">ADN</a>
+    <a href="#capital">Capital</a>
+    <a href="#offres">Offres</a>
+    <a href="#modules">Écrans</a>
+    <a href="#contact">Contact</a>
+    <a class="btn btn-primary" href="NEXUS-Login-v1.html" target="_blank" rel="noopener">Se connecter</a>
+  </nav>
 </header>
 
 <div class="wrap">
@@ -425,7 +451,8 @@ blockquote{font-size:clamp(18px,2.4vw,24px); font-weight:500; line-height:1.4; c
       <div class="compare-col">
         <div class="compare-title">Aujourd'hui, sans NEXUS</div>
         <ul class="compare-list">
-          <li><span class="ci ko">✕</span> Le manager regarde des rapports</li>
+          <li><span class="ci ko">✕</span> Le manager consulte des rapports, une fois le mal fait</li>
+          <li><span class="ci ko">✕</span> Chiffre d'affaires, marge et stocks affichés sans hiérarchie</li>
           <li><span class="ci ko">✕</span> Il parcourt des centaines de produits à la main</li>
           <li><span class="ci ko">✕</span> Les problèmes se découvrent trop tard</li>
         </ul>
@@ -433,10 +460,10 @@ blockquote{font-size:clamp(18px,2.4vw,24px); font-weight:500; line-height:1.4; c
       <div class="compare-col good">
         <div class="compare-title">Avec NEXUS</div>
         <ul class="compare-list">
-          <li><span class="ci ok">✓</span> Trois décisions prioritaires, chaque jour</li>
-          <li><span class="ci ok">✓</span> Une valeur estimée pour chacune</li>
+          <li><span class="ci ok">✓</span> Trois décisions prioritaires, chaque jour, classées par impact</li>
+          <li><span class="ci ok">✓</span> Une valeur estimée pour chacune, jamais un graphique livré seul</li>
           <li><span class="ci ok">✓</span> Des actions validées, pas des rapports à interpréter</li>
-          <li><span class="ci ok">✓</span> Un Capital NEXUS qui grandit avec chaque décision</li>
+          <li><span class="ci ok">✓</span> Un Capital NEXUS qui grandit avec chaque décision prise</li>
         </ul>
       </div>
     </div>
@@ -475,33 +502,6 @@ blockquote{font-size:clamp(18px,2.4vw,24px); font-weight:500; line-height:1.4; c
     </div>
   </section>
 
-  <section class="section">
-    <div class="section-label">Différence</div>
-    <h2>NEXUS ne montre pas la même chose</h2>
-    <div class="compare-grid">
-      <div class="compare-col">
-        <div class="compare-title">Ce que montrent la plupart des logiciels</div>
-        <ul class="tag-list">
-          <li>Chiffre d'affaires</li>
-          <li>Stocks</li>
-          <li>Marge</li>
-          <li>Inventaire</li>
-        </ul>
-      </div>
-      <div class="compare-col good">
-        <div class="compare-title">Ce que montre NEXUS</div>
-        <ul class="tag-list gold">
-          <li>Décisions</li>
-          <li>Valeur créée</li>
-          <li>Capital NEXUS</li>
-          <li>Rythme</li>
-          <li>Priorités</li>
-          <li>Opportunités</li>
-        </ul>
-      </div>
-    </div>
-  </section>
-
   <section class="section" id="capital">
     <div class="section-label">Capital NEXUS™</div>
     <h2>Ce que vos décisions valent, en euros</h2>
@@ -509,16 +509,16 @@ blockquote{font-size:clamp(18px,2.4vw,24px); font-weight:500; line-height:1.4; c
     <div class="capital-showcase">
       <div class="cs-col">
         <div class="cs-label">Capital NEXUS™</div>
-        <div class="cs-value">+31 672 €</div>
+        <div class="cs-value">+39 904 €</div>
         <div class="cs-sub">Valeur identifiée par les décisions validées</div>
       </div>
       <div class="cs-col">
         <div class="cs-label">ROI de l'abonnement</div>
-        <div class="cs-value gold">7 938 %</div>
+        <div class="cs-value gold">10 001 %</div>
         <div class="cs-sub">Pour un abonnement NEXUS Professional</div>
       </div>
     </div>
-    <div class="cs-caption">Exemple réel — ViTO Sainte-Marie, situation au 24 juillet 2026. Ce chiffre évolue chaque jour avec les décisions prises ; ce n'est pas une simulation marketing figée.</div>
+    <div class="cs-caption">Exemple réel — ViTO Sainte-Marie, situation au 30 juillet 2026. Ce chiffre évolue chaque jour avec les décisions prises ; ce n'est pas une simulation marketing figée.</div>
   </section>
 
   <section class="section" id="offres">
@@ -860,7 +860,6 @@ blockquote{font-size:clamp(18px,2.4vw,24px); font-weight:500; line-height:1.4; c
         <a href="#offres">Tarifs</a>
         <a href="NEXUS-Feuille-de-Route-v1.html">Feuille de route</a>
         <span class="footer-soon">Journal des évolutions <i>Bientôt</i></span>
-        <a href="NEXUS-Propos-v1.html">À propos</a>
       </div>
 
       <div class="footer-col">
@@ -875,7 +874,7 @@ blockquote{font-size:clamp(18px,2.4vw,24px); font-weight:500; line-height:1.4; c
 
       <div class="footer-col">
         <div class="footer-col-title">Entreprise</div>
-        <a href="NEXUS-Propos-v1.html">NEXUS Conseil</a>
+        <a href="NEXUS-Propos-v1.html">À propos</a>
         <a href="mailto:contact@nexusconseil.net">Nous contacter</a>
         <span class="footer-soon">Presse <i>Bientôt</i></span>
         <span class="footer-soon">Partenaires <i>Bientôt</i></span>
@@ -931,6 +930,27 @@ blockquote{font-size:clamp(18px,2.4vw,24px); font-weight:500; line-height:1.4; c
 
   </div>
 </footer>
+
+<script>
+  // Menu mobile (30/07/2026) — le bouton burger n'avait aucun comportement
+  // avant cette passe qualité : sous 720px, nav.links disparaît sans aucun
+  // moyen de rouvrir les liens de navigation. Panneau simple, fermé par
+  // défaut, qui reprend les mêmes ancres que le menu desktop.
+  const burgerBtn = document.getElementById('burgerBtn');
+  const mobileMenu = document.getElementById('mobileMenu');
+  if (burgerBtn && mobileMenu) {
+    burgerBtn.addEventListener('click', () => {
+      const ouvert = mobileMenu.classList.toggle('open');
+      burgerBtn.classList.toggle('open', ouvert);
+      burgerBtn.setAttribute('aria-expanded', String(ouvert));
+    });
+    mobileMenu.querySelectorAll('a').forEach(a => a.addEventListener('click', () => {
+      mobileMenu.classList.remove('open');
+      burgerBtn.classList.remove('open');
+      burgerBtn.setAttribute('aria-expanded', 'false');
+    }));
+  }
+</script>
 
 </body>
 </html>
