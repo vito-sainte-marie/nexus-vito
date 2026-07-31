@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" type="image/x-icon" href="favicon.ico">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+<link rel="manifest" href="site.webmanifest">
+<meta name="theme-color" content="#0B0F14">
+<title>NEXUS — API</title>
+<meta name="description" content="L'API NEXUS lit vos ventes de caisse en lecture seule et reçoit vos déclarations terrain (contrôles stock, campagnes) pour augmenter la précision du moteur de décision NEXUS.">
+<link rel="canonical" href="https://www.nexusconseil.net/NEXUS-API-v1.html">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
+  --text:#EDF1F5; --text-mid:#8A96A5; --text-dim:#57626F;
+  --green:#34D399; --green-dim:#153629;
+  --amber:#F5A623; --amber-dim:#3A2E14;
+  --red:#F0575A; --red-dim:#3A1D1F;
+  --cyan:#4FC3D9; --cyan-dim:#123138;
+  --gold:#D4AF37; --gold-dim:#332B12;
+  --mono:'IBM Plex Mono',monospace; --sans:'IBM Plex Sans',sans-serif;
+}
+*{box-sizing:border-box; margin:0; padding:0;}
+html{scroll-behavior:smooth;}
+html,body{background:var(--bg); font-family:var(--sans); color:var(--text); min-height:100vh;}
+a{color:inherit; text-decoration:none;}
+img{display:block; max-width:100%;}
+:focus-visible{outline:2px solid var(--cyan); outline-offset:2px;}
+
+.wrap{max-width:1040px; margin:0 auto; padding:0 24px;}
+
+header{position:sticky; top:0; z-index:50; background:rgba(11,15,20,0.92); backdrop-filter:blur(6px); border-bottom:1px solid var(--hairline);}
+.nav-wrap{display:flex; align-items:center; justify-content:space-between; padding:16px 24px; max-width:1040px; margin:0 auto;}
+.brand{display:flex; align-items:center; gap:9px;}
+.brand-logo{width:26px; height:26px; object-fit:contain; flex:none;}
+.brand-name{font-size:16px; font-weight:600;}
+.btn{
+  display:inline-flex; align-items:center; gap:8px; font-family:var(--mono); font-size:12px; letter-spacing:0.04em;
+  text-transform:uppercase; padding:10px 16px; border-radius:8px; font-weight:600; cursor:pointer;
+  transition:border-color .15s ease, background .15s ease, transform .15s ease; white-space:nowrap; border:1px solid var(--hairline);
+  background:var(--panel); color:var(--text);
+}
+.btn:hover{border-color:var(--cyan);}
+.btn-primary{background:var(--cyan); color:#06181C; border-color:var(--cyan);}
+.btn-primary:hover{background:#6FD3E5; transform:translateY(-1px);}
+.btn-ghost{background:var(--panel); color:var(--text); border:1px solid var(--hairline);}
+.btn-ghost:hover{border-color:var(--cyan); transform:translateY(-1px);}
+
+/* ---------- hero ---------- */
+.api-hero{padding:56px 0 36px; border-bottom:1px solid var(--hairline);}
+.eyebrow{font-family:var(--mono); font-size:11px; letter-spacing:0.14em; text-transform:uppercase; color:var(--cyan);}
+h1{font-size:clamp(28px,4.2vw,40px); font-weight:600; margin-top:14px; max-width:18ch; line-height:1.15;}
+.legal-intro{font-size:15px; color:var(--text-mid); line-height:1.65; max-width:62ch; margin-top:16px;}
+.status-badge{
+  display:inline-flex; align-items:center; gap:8px; margin-top:22px; font-family:var(--mono); font-size:11px;
+  letter-spacing:0.04em; text-transform:uppercase; padding:8px 14px; border-radius:20px; font-weight:700;
+  background:var(--amber-dim); color:var(--amber); border:1px solid rgba(245,166,35,0.3);
+}
+.status-badge .dot{width:6px; height:6px; border-radius:50%; background:var(--amber);}
+.readonly-badge{
+  display:inline-flex; align-items:center; gap:8px; margin-top:22px; margin-left:10px; font-family:var(--mono); font-size:11px;
+  letter-spacing:0.04em; text-transform:uppercase; padding:8px 14px; border-radius:20px; font-weight:700;
+  background:var(--green-dim); color:var(--green); border:1px solid rgba(52,211,153,0.3);
+}
+.readonly-badge .dot{width:6px; height:6px; border-radius:50%; background:var(--green);}
+.hero-ctas{display:flex; gap:12px; margin-top:26px; flex-wrap:wrap;}
+.domain-subhead{font-family:var(--mono); font-size:12px; letter-spacing:0.06em; text-transform:uppercase; color:var(--text-mid); margin:28px 0 14px;}
+.domain-subhead:first-child{margin-top:0;}
+.domain-card.readonly{border-color:rgba(52,211,153,0.3); background:linear-gradient(165deg, rgba(52,211,153,0.06), var(--panel) 60%);}
+.domain-card.readonly .domain-name{color:var(--green);}
+.domain-list-inline{margin-top:12px; display:flex; flex-direction:column; gap:6px;}
+.domain-list-inline li{font-size:13.5px; line-height:1.6; color:var(--text-mid); padding-left:16px; position:relative; list-style:none;}
+.domain-list-inline li::before{content:'—'; position:absolute; left:0; color:var(--text-dim);}
+
+/* ---------- section shell ---------- */
+.section{padding:52px 0; border-bottom:1px solid var(--hairline);}
+.section:last-of-type{border-bottom:none;}
+.section-label{
+  font-family:var(--mono); font-size:11px; letter-spacing:0.1em; text-transform:uppercase; color:var(--text-dim);
+  margin-bottom:10px;
+}
+.section h2{font-size:clamp(20px,2.6vw,26px); font-weight:600; margin-bottom:12px;}
+.section-desc{font-size:14.5px; color:var(--text-mid); line-height:1.65; max-width:66ch;}
+
+/* ---------- pourquoi ---------- */
+.why-grid{display:grid; grid-template-columns:1fr 1fr; gap:20px; margin-top:26px;}
+.why-col{padding:24px; border-radius:14px; border:1px solid var(--hairline); background:var(--panel);}
+.why-col-title{font-family:var(--mono); font-size:11px; letter-spacing:0.08em; text-transform:uppercase; margin-bottom:10px;}
+.why-col.gap .why-col-title{color:var(--amber);}
+.why-col.today .why-col-title{color:var(--text-dim);}
+.why-col p{font-size:13.5px; line-height:1.6; color:var(--text-mid);}
+
+/* ---------- domain cards ---------- */
+.domain-grid{display:grid; grid-template-columns:1fr 1fr; gap:18px; margin-top:26px;}
+.domain-card{padding:24px; border-radius:14px; border:1px solid var(--hairline); background:var(--panel);}
+.domain-card .domain-name{font-size:15px; font-weight:600; margin-bottom:8px;}
+.domain-card .domain-desc{font-size:13.5px; line-height:1.6; color:var(--text-mid);}
+.domain-unlock{
+  margin-top:14px; padding-top:12px; border-top:1px solid var(--hairline); font-family:var(--mono); font-size:11px;
+  color:var(--green); display:flex; gap:8px; align-items:flex-start; line-height:1.5;
+}
+.domain-unlock b{color:var(--green); flex:none;}
+
+/* ---------- sécurité ---------- */
+.security-list{margin-top:22px; display:flex; flex-direction:column; gap:12px;}
+.security-item{display:flex; gap:12px; align-items:flex-start; padding:14px 16px; border-radius:10px; background:var(--panel); border:1px solid var(--hairline);}
+.security-icon{font-size:16px; flex:none; margin-top:1px;}
+.security-item p{font-size:13.5px; line-height:1.6; color:var(--text-mid);}
+.security-item b{color:var(--text);}
+
+/* ---------- comment ça marche ---------- */
+.flow-list{display:flex; flex-direction:column; gap:0; margin-top:26px;}
+.flow-item{display:flex; gap:18px; padding:18px 0; border-bottom:1px solid var(--hairline);}
+.flow-item:last-child{border-bottom:none;}
+.flow-num{
+  font-family:var(--mono); font-size:13px; font-weight:700; color:var(--cyan); flex:none; width:30px; height:30px;
+  border-radius:50%; border:1px solid var(--hairline); display:flex; align-items:center; justify-content:center;
+}
+.flow-text b{display:block; font-size:14.5px; font-weight:600; margin-bottom:4px;}
+.flow-text p{font-size:13.5px; color:var(--text-mid); line-height:1.6;}
+
+/* ---------- code panel ---------- */
+.code-panel{
+  margin-top:22px; border-radius:14px; border:1px solid var(--hairline); background:#0E1319; overflow:hidden;
+}
+.code-panel-head{
+  display:flex; align-items:center; justify-content:space-between; padding:10px 16px; border-bottom:1px solid var(--hairline);
+  font-family:var(--mono); font-size:11px; color:var(--text-dim); background:var(--panel);
+}
+.code-panel pre{padding:20px; overflow-x:auto; font-family:var(--mono); font-size:12.5px; line-height:1.7; color:#B8E8F0;}
+.code-panel .k{color:#7FD9E8;}
+.code-panel .s{color:#9CE6B0;}
+.code-note{margin-top:12px; font-family:var(--mono); font-size:11px; color:var(--text-dim); line-height:1.6;}
+
+/* ---------- CTA ---------- */
+.manifesto-panel{
+  margin:0; background:linear-gradient(165deg, rgba(79,195,217,0.08), var(--panel) 60%);
+  border:1px solid var(--hairline); border-radius:16px; padding:36px 30px;
+}
+.manifesto-panel .eyebrow{margin-bottom:14px;}
+.manifesto-panel .lead-line{font-size:16px; font-weight:500; line-height:1.6; margin-bottom:14px;}
+.manifesto-panel .lead-line:last-child{margin-bottom:0;}
+.cta-buttons{display:flex; gap:12px; margin-top:20px; flex-wrap:wrap;}
+
+footer{margin-top:0; padding:24px; font-family:var(--mono); font-size:10.5px; color:var(--text-dim); text-align:center; border-top:1px solid var(--hairline);}
+footer a{color:var(--text-dim);}
+footer a:hover{color:var(--cyan);}
+
+@media (max-width: 720px){
+  .why-grid, .domain-grid{grid-template-columns:1fr;}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="nav-wrap">
+    <a class="brand" href="index.html">
+      <img class="brand-logo" src="assets/nexus-logo-cyan.png" alt="">
+      <span class="brand-name">NEXUS</span>
+    </a>
+    <a class="btn" href="index.html">← Retour à l'accueil</a>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <section class="api-hero">
+    <div class="eyebrow">Développeurs &amp; intégrations</div>
+    <h1>Branchez vos données. NEXUS s'occupe du reste.</h1>
+    <p class="legal-intro">L'API NEXUS a deux volets : un connecteur qui <b>lit</b> les ventes directement depuis votre logiciel de caisse pour calculer CA, marge, volumes et performance par employé, quart, heure et catégorie — et des points d'entrée pour déclarer des données terrain (contrôles stock, campagnes, exceptions de marge). Elle ne remplace pas les imports existants tant qu'elle n'est pas validée en production.</p>
+    <div class="status-badge"><span class="dot"></span>En construction — spécification technique prête</div>
+    <div class="readonly-badge"><span class="dot"></span>Connecteur caisse : lecture seule</div>
+    <div class="hero-ctas">
+      <a class="btn btn-primary" href="mailto:contact@nexusconseil.net?subject=Int%C3%A9gration%20API%20NEXUS">Parler d'une intégration</a>
+      <a class="btn btn-ghost" href="NEXUS-Feuille-de-Route-v1.html">Voir la feuille de route</a>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="section-label">Pourquoi</div>
+    <h2>Un moteur aussi bon que les données qu'il reçoit</h2>
+    <p class="section-desc">NEXUS analyse aujourd'hui les ventes, le stock et la caisse. Mais certaines questions restent sans réponse mesurée — pas par manque d'intelligence, par manque de données.</p>
+    <div class="why-grid">
+      <div class="why-col today">
+        <div class="why-col-title">Aujourd'hui</div>
+        <p>Le panier moyen, la performance par employé ou par heure, le détail des contrôles de stock, l'impact réel d'une promotion produit par produit et les raisons d'une marge atypique n'existent nulle part dans NEXUS — ces informations restent dans la caisse, dans d'autres outils, ou dans la tête du manager.</p>
+      </div>
+      <div class="why-col gap">
+        <div class="why-col-title">Avec l'API</div>
+        <p>NEXUS lit directement les ventes de la caisse (sans jamais y écrire), et reçoit en plus les déclarations terrain que seul un humain peut fournir. Les recommandations du Conseiller NEXUS s'appuient alors sur des faits mesurés, ligne de vente par ligne de vente, plutôt que sur des approximations.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="section-label">Domaines couverts</div>
+    <h2>Deux mécaniques, pas une API généraliste</h2>
+    <p class="section-desc">Un connecteur qui lit les ventes de la caisse, et trois points d'entrée pour des déclarations que seul le terrain peut fournir.</p>
+
+    <div class="domain-subhead">Connecteur caisse — lecture seule</div>
+    <div class="domain-card readonly">
+      <div class="domain-name">Ventes en ligne de caisse</div>
+      <div class="domain-desc">NEXUS interroge directement votre logiciel de caisse (via une clé API à portée lecture seule) pour récupérer chaque ligne de vente : produit, quantité, prix, remise, employé, quart, horodatage.</div>
+      <ul class="domain-list-inline">
+        <li>Chiffre d'affaires et quantités, par produit, catégorie ou période</li>
+        <li>Marge réelle, calculée ligne par ligne</li>
+        <li>Variation de prix et évolution des volumes dans le temps</li>
+        <li>Performance par employé, par quart, par heure et par catégorie</li>
+        <li>Panier moyen et nombre de tickets, recalculés à la demande</li>
+      </ul>
+      <div class="domain-unlock"><b>Débloque —</b> le panier moyen réel, la disponibilité produit mesurée, et la vérification des stratégies « produit d'appel ».</div>
+    </div>
+
+    <div class="domain-subhead">Déclarations terrain — écriture vers NEXUS</div>
+    <div class="domain-grid">
+
+      <div class="domain-card">
+        <div class="domain-name">Contrôles de stock</div>
+        <div class="domain-desc">Résultat d'un comptage terrain : quantité théorique vs. quantité réellement comptée pour un article donné.</div>
+        <div class="domain-unlock"><b>Débloque —</b> une distinction fiable entre rupture réelle et rupture supposée.</div>
+      </div>
+
+      <div class="domain-card">
+        <div class="domain-name">Campagnes commerciales</div>
+        <div class="domain-desc">Déclaration d'une promotion (période, produits concernés, nature) et des imports avant/pendant qui permettent de mesurer son effet.</div>
+        <div class="domain-unlock"><b>Débloque —</b> la mesure d'impact d'une promotion produit par produit, pas seulement sur le CA global.</div>
+      </div>
+
+      <div class="domain-card">
+        <div class="domain-name">Exceptions de marge</div>
+        <div class="domain-desc">Déclaration qu'un article a une marge volontairement atypique, avec la raison (ex : levier de prix, contrainte fournisseur).</div>
+        <div class="domain-unlock"><b>Débloque —</b> moins de fausses alertes de marge sur des choix commerciaux assumés.</div>
+      </div>
+
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="section-label">Sécurité</div>
+    <h2>Lecture seule vers la caisse, écriture stricte vers NEXUS</h2>
+    <div class="security-list">
+      <div class="security-item">
+        <span class="security-icon">🔒</span>
+        <p><b>Jamais d'écriture vers votre caisse.</b> Le connecteur ne fait que lire les ventes — aucune opération de NEXUS ne peut modifier, créer ou supprimer une donnée côté logiciel de caisse.</p>
+      </div>
+      <div class="security-item">
+        <span class="security-icon">🔑</span>
+        <p><b>Une clé API par établissement.</b> Chaque intégration n'agit que pour le site auquel sa clé est rattachée — jamais pour un autre.</p>
+      </div>
+      <div class="security-item">
+        <span class="security-icon">📦</span>
+        <p><b>La donnée d'origine n'est jamais perdue.</b> Chaque ligne reçue de la caisse est conservée telle quelle, séparément des calculs NEXUS — une évolution du moteur ne peut jamais altérer la source.</p>
+      </div>
+      <div class="security-item">
+        <span class="security-icon">🎯</span>
+        <p><b>Portée précise par clé.</b> Une clé dédiée aux déclarations de contrôle stock ne peut pas écrire dans les campagnes commerciales, ni ailleurs.</p>
+      </div>
+      <div class="security-item">
+        <span class="security-icon">🚫</span>
+        <p><b>Tout ou rien.</b> Une donnée incomplète ou incohérente est rejetée en entier — jamais enregistrée à moitié, jamais remplacée par une valeur par défaut qui fausserait un calcul.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="section-label">Comment ça marche</div>
+    <h2>De la caisse au Conseiller NEXUS</h2>
+    <div class="flow-list">
+      <div class="flow-item">
+        <div class="flow-num">1</div>
+        <div class="flow-text"><b>NEXUS interroge la caisse — lecture seule</b><p>Avec la clé API fournie par votre logiciel de caisse, jamais l'inverse : aucune écriture ne part de NEXUS vers la caisse.</p></div>
+      </div>
+      <div class="flow-item">
+        <div class="flow-num">2</div>
+        <div class="flow-text"><b>La donnée brute est conservée telle quelle</b><p>Chaque ligne reçue est archivée sans transformation, avant tout calcul — la source ne disparaît jamais derrière le résultat.</p></div>
+      </div>
+      <div class="flow-item">
+        <div class="flow-num">3</div>
+        <div class="flow-text"><b>NEXUS normalise</b><p>Les identifiants et champs propres à votre logiciel de caisse sont harmonisés vers le format interne de NEXUS.</p></div>
+      </div>
+      <div class="flow-item">
+        <div class="flow-num">4</div>
+        <div class="flow-text"><b>Le Conseiller NEXUS recalcule</b><p>CA, marge, volumes et performance par employé, quart, heure et catégorie s'appuient sur la donnée normalisée.</p></div>
+      </div>
+    </div>
+    <div class="code-note" style="margin-top:20px;">Les déclarations terrain (contrôles stock, campagnes, exceptions de marge) suivent le sens inverse : c'est vous qui envoyez la donnée à NEXUS, via une clé API propre à votre établissement.</div>
+  </section>
+
+  <section class="section">
+    <div class="section-label">Exemple</div>
+    <h2>À quoi ressemble une ligne de vente lue</h2>
+    <p class="section-desc">Illustration de ce que NEXUS reçoit en lecture depuis la caisse — le connecteur n'est pas encore actif, cet exemple montre la structure cible. Le format réel dépendra de l'API que votre logiciel de caisse expose.</p>
+    <div class="code-panel">
+      <div class="code-panel-head"><span>Lu depuis la caisse — lecture seule</span><span>Exemple illustratif</span></div>
+      <pre>{
+  <span class="k">"sale_line_id"</span>: <span class="s">"sl_987654"</span>,
+  <span class="k">"ticket_id"</span>: <span class="s">"tk_123456"</span>,
+  <span class="k">"register_id"</span>: <span class="s">"caisse-01"</span>,
+  <span class="k">"employee_id"</span>: <span class="s">"emp_045"</span>,
+  <span class="k">"shift_id"</span>: <span class="s">"shift_20260729_01"</span>,
+  <span class="k">"sold_at"</span>: <span class="s">"2026-07-29T14:32:18-04:00"</span>,
+  <span class="k">"label"</span>: <span class="s">"Amigo Orange 50cl -8P"</span>,
+  <span class="k">"category"</span>: <span class="s">"Boissons"</span>,
+  <span class="k">"quantity"</span>: 2,
+  <span class="k">"unit_price_ttc"</span>: 2.50,
+  <span class="k">"unit_purchase_price"</span>: 1.15,
+  <span class="k">"total_ttc"</span>: 5.00,
+  <span class="k">"status"</span>: <span class="s">"completed"</span>
+}</pre>
+    </div>
+    <div class="code-note">Authentification prévue via en-tête « Authorization: Bearer &lt;clé fournie par votre logiciel de caisse, à portée lecture seule&gt; ». Tant que le connecteur n'est pas en service, l'export manuel actuel reste valide.</div>
+  </section>
+
+  <section class="section">
+    <div class="manifesto-panel">
+      <div class="eyebrow">Vous voulez connecter votre outil ?</div>
+      <p class="lead-line">L'implémentation se fait établissement par établissement, en commençant par le connecteur caisse en lecture seule — le flux qui débloque le plus de valeur.</p>
+      <p class="lead-line">Parlez-nous de votre logiciel de caisse et de ce que vous aimeriez voir remonter automatiquement dans NEXUS.</p>
+      <div class="cta-buttons">
+        <a class="btn btn-primary" href="mailto:contact@nexusconseil.net?subject=Int%C3%A9gration%20API%20NEXUS">Contacter NEXUS Conseil</a>
+        <a class="btn btn-ghost" href="NEXUS-FAQ-v1.html">Consulter la FAQ</a>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<footer>
+  <div>NEXUS Conseil — API NEXUS · Document en construction</div>
+  <div style="margin-top:10px;"><a href="index.html">Retour à l'accueil</a></div>
+</footer>
+
+</body>
+</html>
