@@ -2,7 +2,7 @@
 
 **Destinataire : les équipes techniques d'un éditeur de logiciel de caisse (ex. Decenium) souhaitant connecter leur système à NEXUS**
 **Statut : document de travail, à valider conjointement avant toute mise en œuvre**
-**Version :** 1.0 — 31/07/2026
+**Version :** 1.1 — 31/07/2026
 
 ---
 
@@ -41,7 +41,11 @@ GET /api/v1/sales?updated_since=2026-07-29T14:00:00Z&limit=500
 | `updated_at` | Horodatage de dernière modification. Change à chaque fois que l'enregistrement est modifié (remboursement, annulation, correction). |
 | `status` | État courant de la ligne (ex. `completed`, `refunded`, `voided`). |
 
-À cela s'ajoutent les champs métier nécessaires au calcul (exemple complet en section 5) : identifiant de ticket, produit/code-barres, quantité, prix unitaire TTC, prix d'achat unitaire, taux de TVA, remise, montant total, identifiant employé, identifiant de quart, horodatage de vente.
+À cela s'ajoutent les champs métier nécessaires au calcul (exemple complet en section 5) : identifiant de ticket, produit/code-barres, quantité, prix de vente unitaire HT et TTC, prix d'achat unitaire HT, méthode de valorisation du coût, devise, taux de TVA, remise, montant total, identifiant employé, identifiant de quart, horodatage de vente.
+
+**Important — identifiant produit** : le rapprochement d'une ligne de vente avec un produit se fait via `product_id` (votre identifiant interne) et, en relais, `barcode`. **Le libellé produit (`label`) ne doit jamais servir de clé** — c'est un champ d'affichage, qui peut varier d'un export à l'autre (abréviation, casse, orthographe) sans que ce soit un changement de produit.
+
+**Important — marge** : NEXUS calcule lui-même la marge à partir de vos prix de vente et d'achat — ne nous envoyez jamais une marge déjà calculée. Précisez-nous simplement quelle méthode de valorisation du coût vous utilisez (coût moyen pondéré ou dernier prix d'achat, champ `cost_method`), pour que le calcul de marge soit interprété correctement de notre côté.
 
 ### 2.3 Pourquoi `updated_at`, pas seulement `created_at`
 
@@ -134,13 +138,18 @@ Si vous supportez l'allowlisting d'IP sortantes, NEXUS peut vous fournir une pla
   "label": "Amigo Orange 50cl -8P",
   "category": "Boissons",
   "quantity": 2,
-  "unit_price_ttc": 2.50,
-  "unit_purchase_price": 1.15,
+  "unit_sale_price_ht": 2.30,
+  "unit_sale_price_ttc": 2.50,
+  "unit_purchase_price_ht": 1.15,
+  "cost_method": "cmp",
+  "currency": "EUR",
   "vat_rate": 8.5,
   "discount_ttc": 0,
   "total_ttc": 5.00
 }
 ```
+
+`cost_method` indique comment vous calculez `unit_purchase_price_ht` : `"cmp"` pour un coût moyen pondéré, `"dernier_achat"` si vous utilisez simplement le dernier prix d'achat connu. Cette précision nous évite d'interpréter une marge de façon erronée.
 
 Cet exemple est une cible de départ, pas un format figé — si votre système utilise des noms de champs différents, un mapping peut être convenu ensemble plutôt que de vous imposer une restructuration de votre API existante.
 
@@ -165,6 +174,8 @@ Cet exemple est une cible de départ, pas un format figé — si votre système 
 - [ ] Une procédure de révocation immédiate existe et a été testée
 - [ ] Le format `updated_since` + `limit` (ou votre curseur opaque) a été validé sur un échantillon réel
 - [ ] Les champs `id`, `created_at`, `updated_at`, `status` sont bien présents et fiables sur chaque enregistrement
+- [ ] Le rapprochement produit repose bien sur `product_id`/`barcode`, jamais sur `label`
+- [ ] La méthode de valorisation du coût (`cost_method`) a été précisée et confirmée
 - [ ] Une limite de débit raisonnable a été convenue entre les deux équipes
 - [ ] Un test de bout en bout a été réalisé sur un mois de données réelles avant bascule
 
@@ -181,4 +192,5 @@ Pour toute question technique sur cette intégration :
 
 | Version | Date | Changement |
 |---|---|---|
-| v1.0 | 31/07/2026 | Création initiale — document destiné aux éditeurs de logiciels de caisse, distinct de la spécification technique interne NEXUS (`NEXUS-API-Specification-v1.md`) |
+| v1.0 | 31/07/2026 | Création initiale — document destiné aux éditeurs de logiciels de caisse, distinct de la spécification technique interne NEXUS (`NEXUS-API-Specification-v4.md`) |
+| v1.1 | 31/07/2026 | Corrections issues de l'audit de conception API : identifiant produit exclusivement `product_id`/`barcode` (jamais `label`), champs de marge en HT avec `cost_method` et `currency`, checklist complétée |

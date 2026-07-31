@@ -77,6 +77,18 @@ h1{font-size:clamp(28px,4.2vw,40px); font-weight:600; margin-top:14px; max-width
 .domain-list-inline li{font-size:13.5px; line-height:1.6; color:var(--text-mid); padding-left:16px; position:relative; list-style:none;}
 .domain-list-inline li::before{content:'—'; position:absolute; left:0; color:var(--text-dim);}
 
+/* ---------- documentation développeur ---------- */
+.doc-grid{display:grid; grid-template-columns:1fr 1fr 1fr; gap:14px; margin-top:26px;}
+.doc-card{padding:18px; border-radius:12px; border:1px solid var(--hairline); background:var(--panel);}
+.doc-card-title{font-size:13.5px; font-weight:600; margin-bottom:6px;}
+.doc-card-desc{font-size:12.5px; line-height:1.55; color:var(--text-mid);}
+.doc-card-status{
+  display:inline-block; margin-top:10px; font-family:var(--mono); font-size:9.5px; letter-spacing:0.05em; text-transform:uppercase;
+  padding:3px 8px; border-radius:10px; background:var(--amber-dim); color:var(--amber);
+}
+.doc-card-status.ready{background:var(--green-dim); color:var(--green);}
+@media (max-width: 720px){ .doc-grid{grid-template-columns:1fr;} }
+
 /* ---------- section shell ---------- */
 .section{padding:52px 0; border-bottom:1px solid var(--hairline);}
 .section:last-of-type{border-bottom:none;}
@@ -161,7 +173,7 @@ footer a:hover{color:var(--cyan);}
 <header>
   <div class="nav-wrap">
     <a class="brand" href="index.html">
-      <img class="brand-logo" src="assets/nexus-logo-cyan.png" alt="">
+      <img class="brand-logo" src="assets/nexus-logo-cyan.png" alt="NEXUS">
       <span class="brand-name">NEXUS</span>
     </a>
     <a class="btn" href="index.html">← Retour à l'accueil</a>
@@ -172,7 +184,7 @@ footer a:hover{color:var(--cyan);}
 
   <section class="api-hero">
     <div class="eyebrow">Développeurs &amp; intégrations</div>
-    <h1>Branchez vos données. NEXUS s'occupe du reste.</h1>
+    <h1>Connectez vos données. NEXUS les transforme en décisions.</h1>
     <p class="legal-intro">L'API NEXUS a deux volets : un connecteur qui <b>lit</b> les ventes directement depuis votre logiciel de caisse pour calculer CA, marge, volumes et performance par employé, quart, heure et catégorie — et des points d'entrée pour déclarer des données terrain (contrôles stock, campagnes, exceptions de marge). Elle ne remplace pas les imports existants tant qu'elle n'est pas validée en production.</p>
     <div class="status-badge"><span class="dot"></span>En construction — spécification technique prête</div>
     <div class="readonly-badge"><span class="dot"></span>Connecteur caisse : lecture seule</div>
@@ -299,22 +311,72 @@ footer a:hover{color:var(--cyan);}
     <div class="code-panel">
       <div class="code-panel-head"><span>Lu depuis la caisse — lecture seule</span><span>Exemple illustratif</span></div>
       <pre>{
-  <span class="k">"sale_line_id"</span>: <span class="s">"sl_987654"</span>,
+  <span class="k">"id"</span>: <span class="s">"sl_987654"</span>,
+  <span class="k">"created_at"</span>: <span class="s">"2026-07-29T14:32:20-04:00"</span>,
+  <span class="k">"updated_at"</span>: <span class="s">"2026-07-29T14:32:20-04:00"</span>,
+  <span class="k">"status"</span>: <span class="s">"completed"</span>,
   <span class="k">"ticket_id"</span>: <span class="s">"tk_123456"</span>,
-  <span class="k">"register_id"</span>: <span class="s">"caisse-01"</span>,
   <span class="k">"employee_id"</span>: <span class="s">"emp_045"</span>,
   <span class="k">"shift_id"</span>: <span class="s">"shift_20260729_01"</span>,
   <span class="k">"sold_at"</span>: <span class="s">"2026-07-29T14:32:18-04:00"</span>,
-  <span class="k">"label"</span>: <span class="s">"Amigo Orange 50cl -8P"</span>,
+  <span class="k">"product_id"</span>: <span class="s">"prod_00871"</span>,
+  <span class="k">"barcode"</span>: <span class="s">"3290000000000"</span>,
   <span class="k">"category"</span>: <span class="s">"Boissons"</span>,
   <span class="k">"quantity"</span>: 2,
-  <span class="k">"unit_price_ttc"</span>: 2.50,
-  <span class="k">"unit_purchase_price"</span>: 1.15,
-  <span class="k">"total_ttc"</span>: 5.00,
-  <span class="k">"status"</span>: <span class="s">"completed"</span>
+  <span class="k">"unit_sale_price_ht"</span>: 2.30,
+  <span class="k">"unit_sale_price_ttc"</span>: 2.50,
+  <span class="k">"unit_purchase_price_ht"</span>: 1.15,
+  <span class="k">"cost_method"</span>: <span class="s">"cmp"</span>,
+  <span class="k">"currency"</span>: <span class="s">"EUR"</span>,
+  <span class="k">"total_ttc"</span>: 5.00
 }</pre>
     </div>
     <div class="code-note">Authentification prévue via en-tête « Authorization: Bearer &lt;clé fournie par votre logiciel de caisse, à portée lecture seule&gt; ». Tant que le connecteur n'est pas en service, l'export manuel actuel reste valide.</div>
+    <div class="code-note">Le rapprochement produit s'appuie sur <code>product_id</code>/<code>barcode</code>, jamais sur le libellé. NEXUS calcule lui-même la marge à partir des prix HT et de <code>cost_method</code> — aucune marge déjà calculée ne doit être transmise.</div>
+  </section>
+
+  <section class="section">
+    <div class="section-label">Documentation développeur</div>
+    <h2>Ce que la documentation technique couvrira</h2>
+    <p class="section-desc">Structure prévue de la documentation destinée aux équipes techniques des logiciels de caisse, à publier au moment de l'ouverture du connecteur. Le détail complet existe déjà sous forme de spécification interne et de guide d'intégration ; cette section en résume la structure publique.</p>
+    <div class="doc-grid">
+      <div class="doc-card">
+        <div class="doc-card-title">Authentification</div>
+        <div class="doc-card-desc">Clé Bearer strictement lecture seule, compte de service dédié, rotation et révocation sans interruption de service.</div>
+        <span class="doc-card-status ready">Spécifiée</span>
+      </div>
+      <div class="doc-card">
+        <div class="doc-card-title">Endpoints</div>
+        <div class="doc-card-desc"><code>GET /api/v1/sales</code> en lecture, endpoints d'écriture pour les déclarations terrain (contrôles stock, campagnes, exceptions de marge).</div>
+        <span class="doc-card-status ready">Spécifiée</span>
+      </div>
+      <div class="doc-card">
+        <div class="doc-card-title">Erreurs</div>
+        <div class="doc-card-desc">Format d'erreur structuré (<code>code</code>, <code>message</code>, <code>field</code>, <code>request_id</code>, <code>timestamp</code>) commun à tous les endpoints.</div>
+        <span class="doc-card-status ready">Spécifiée</span>
+      </div>
+      <div class="doc-card">
+        <div class="doc-card-title">Limites de débit</div>
+        <div class="doc-card-desc"><code>429</code> avec en-tête <code>Retry-After</code> ; fréquence d'appel convenue conjointement avec l'éditeur de caisse.</div>
+        <span class="doc-card-status ready">Spécifiée</span>
+      </div>
+      <div class="doc-card">
+        <div class="doc-card-title">Webhooks</div>
+        <div class="doc-card-desc">Alternative au sondage périodique pour les intégrations à plus fort volume — à l'étude, non requise pour la première mise en service.</div>
+        <span class="doc-card-status">À l'étude</span>
+      </div>
+      <div class="doc-card">
+        <div class="doc-card-title">Changelog</div>
+        <div class="doc-card-desc">Journal public des évolutions de contrat (champs ajoutés, dépréciés) publié dès l'ouverture du connecteur.</div>
+        <span class="doc-card-status">À venir</span>
+      </div>
+      <div class="doc-card">
+        <div class="doc-card-title">Sandbox</div>
+        <div class="doc-card-desc">Environnement de test avec données fictives, pour valider une intégration avant tout accès à des données réelles.</div>
+        <span class="doc-card-status">Prévu avant généralisation</span>
+      </div>
+    </div>
+    <div class="code-note" style="margin-top:20px;">Le contrat des endpoints d'écriture (déclarations terrain) est aussi disponible au format OpenAPI : <a href="NEXUS-API-openapi-v1.yaml" style="color:var(--cyan);">NEXUS-API-openapi-v1.yaml</a>.</div>
   </section>
 
   <section class="section">
