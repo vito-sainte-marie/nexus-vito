@@ -282,7 +282,7 @@ api_keys
   site            text, NOT NULL, REFERENCES sites(site_id)
   cle_hash        text, NOT NULL          -- jamais la clé en clair
   label           text
-  scopes          text[]                  -- ex: {'controles_stock', 'campagnes'}
+  scopes          text[]                  -- ex: {'controls:write', 'campaigns:write', 'sales:read'}
   actif           boolean, default true
   cree_le         timestamptz, default now()
   expire_le       timestamptz             -- expiration obligatoire, pas de clé valide indéfiniment
@@ -302,7 +302,7 @@ api_keys
 - **Révocation immédiate** : `revoque_le` rend une clé inutilisable instantanément, sans attendre l'expiration de session ou un redéploiement.
 - **Chiffrement des sauvegardes** : les sauvegardes de la base contenant `api_keys` (même sous forme de hash) suivent le même niveau de chiffrement que le reste des données sensibles de NEXUS.
 
-### 4.2 `POST /v1/controles-stock`
+### 4.2 `POST /api/v1/controls`
 
 Remplit `controles_stock`. Un enregistrement par article contrôlé.
 
@@ -324,7 +324,7 @@ Remplit `controles_stock`. Un enregistrement par article contrôlé.
 
 `ecart` est calculé côté serveur, jamais fourni par l'appelant.
 
-### 4.3 `POST /v1/campagnes`
+### 4.3 `POST /api/v1/campaigns`
 
 ```json
 {
@@ -349,7 +349,7 @@ Remplit `controles_stock`. Un enregistrement par article contrôlé.
 | `objectif` | texte | Oui |
 | `objectif_libre` | texte | Non |
 
-### 4.4 `POST /v1/campagnes/{campagne_id}/imports`
+### 4.4 `POST /api/v1/campaigns/{campagne_id}/imports`
 
 ```json
 {
@@ -364,7 +364,7 @@ Remplit `controles_stock`. Un enregistrement par article contrôlé.
 | `phase` | texte | Oui | `avant` ou `pendant` |
 | `periode_debut`, `periode_fin` | date | Oui | `periode_fin` ≥ `periode_debut` |
 
-### 4.5 `POST /v1/marge-exceptions`
+### 4.5 `POST /api/v1/marge-exceptions`
 
 ```json
 {
@@ -469,3 +469,4 @@ Ce prototype, même minimal, démontre la chaîne technique de bout en bout — 
 | v2 | 31/07/2026 | Refonte majeure : connecteur caisse Decenium en **lecture seule** (pull), architecture à 3 couches (brute/normalisée/intelligence), calculs CA/marge/volume/performance employé-quart-heure-catégorie depuis les lignes de vente, retrait de `panier_moyen_quotidien` du scope (remplacé par calcul à la demande sur `normalized_sales`), coexistence explicite avec l'export manuel tant que le connecteur n'est pas en service, séparation claire entre connecteur caisse (lecture) et déclarations terrain (écriture) |
 | v3 | 31/07/2026 | Synchronisation différentielle : contrat `id`/`created_at`/`updated_at`/`status` sur chaque enregistrement, requête `updated_since` + `limit`, curseur composite `(updated_at, id)` plutôt qu'un numéro de page, table `sync_state`, `raw_sale_lines` en append-only avec contrainte d'unicité `(site, source, decenium_id, decenium_updated_at)` pour l'idempotence, avance du curseur uniquement après écriture réussie |
 | v4 | 31/07/2026 | Corrections issues de l'audit de conception API : résolution produit exclusivement par `product_id`/`barcode` (jamais `label`) ; marge verrouillée en HT avec `unit_sale_price_ht`, `unit_purchase_price_ht`, `margin_amount_ht`, `margin_rate`, `currency`, `cost_method` ; retrait du champ mutable `normalise` de `raw_sale_lines` au profit d'une table `normalization_state` séparée (immutabilité stricte de la couche brute) ; ajout de `is_current`/`version_number` et vue `current_normalized_sales` pour ne jamais compter deux versions d'une même vente ; arrêt de pagination sur `has_more`/`next_cursor` plutôt que sur la taille du lot ; `site` référencé par contrainte `REFERENCES sites(site_id)` (texte, pas UUID — adapté au schéma réel où `sites.site_id` est du texte) sur toutes les tables de l'API ; sécurité complétée (expiration/rotation des clés, limitation de débit, `api_keys_audit_log`, détection de rejeu, alertes, RLS par site, chiffrement des sauvegardes) ; erreurs standardisées `{error: {code, message, field, request_id, timestamp}}` ; ajout d'un prototype de preuve à périmètre réduit (section 8) |
+| v5 | 31/07/2026 | **Infrastructure réellement déployée** en base de production, conformément au `MASTER_PROMPT_Infrastructure_API_NEXUS.pdf` : tables créées (`api_keys`, `api_logs`, `integration_sources`, `integration_status`, `raw_sales`, `raw_products`, `raw_stock_movements`, `raw_cash_sessions`, `normalization_state`, `integration_errors`, `synchronization_history`, `normalized_sales`, `normalized_products`, `normalized_stock`, `normalized_cash_sessions`, `advisor_inputs`, `advisor_logs`) avec RLS deny-all (accès exclusif via `service_role`) ; Edge Function `api-v1` déployée (authentification par clé Bearer, scopes, rate limiting, journalisation) exposant `/api/v1/{health,status,integrations,products,sales,employees,stock,cash}` en lecture et `/api/v1/{controls,campaigns,campaigns/{id}/imports,marge-exceptions}` en écriture ; **endpoints renommés en anglais** (`/controls`, `/campaigns`) pour correspondre à la nomenclature du master prompt — les sections 4.2 à 4.5 ci-dessus reflètent désormais les chemins réellement déployés, plus les anciens noms français (`/controles-stock`, `/campagnes`) ; Edge Function `admin-api` déployée pour l'écran d'administration (`NEXUS-Admin-API-v1.html`) ; simulateur de caisse (`nexus_simulate_cash_sale`) planifié via `pg_cron` toutes les 15 minutes, testé de bout en bout (RAW → normalisation → historique) avant l'arrivée du connecteur Decenium réel. |

@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" type="image/x-icon" href="favicon.ico">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+<link rel="manifest" href="site.webmanifest">
+<meta name="theme-color" content="#0B0F14">
+<title>NEXUS — Administration API</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="nexus-auth.js"></script>
+<style>
+  :root{
+    --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
+    --text:#EDF1F5; --text-mid:#8A96A5; --text-dim:#57626F;
+    --green:#34D399; --green-dim:#153629;
+    --amber:#F5A623; --amber-dim:#3A2E14;
+    --red:#F0575A; --red-dim:#3A1D1F;
+    --cyan:#4FC3D9; --cyan-dim:#123138;
+    --gold:#D4AF37; --gold-dim:#332B12;
+    --mono:'IBM Plex Mono',monospace; --sans:'IBM Plex Sans',sans-serif;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{background:var(--bg); font-family:var(--sans); color:var(--text);}
+  body{display:flex; justify-content:center; min-height:100vh;}
+  .phone{width:100%; max-width:480px; min-height:100vh; display:flex; flex-direction:column; border-left:1px solid var(--hairline); border-right:1px solid var(--hairline);}
+
+  .header{padding:20px 20px 14px; position:relative;}
+  .menu-btn{
+    position:absolute; top:18px; right:18px; display:flex; align-items:center; gap:6px;
+    font-family:var(--mono); font-size:10.5px; font-weight:600; letter-spacing:0.03em; text-transform:uppercase;
+    color:var(--cyan); background:rgba(79,195,217,0.1); border:1px solid rgba(79,195,217,0.3);
+    border-radius:20px; padding:7px 12px; text-decoration:none; white-space:nowrap; z-index:5;
+  }
+  .eyebrow{font-family:var(--mono); font-size:11px; letter-spacing:0.12em; text-transform:uppercase; color:var(--cyan);}
+  .title{font-size:20px; font-weight:600; margin-top:4px;}
+  .subtitle{font-family:var(--mono); font-size:10.5px; color:var(--text-dim); margin-top:4px;}
+  .divider{height:1px; background:var(--hairline); margin:0 20px;}
+
+  .section{padding:16px 20px;}
+  .section-label{font-family:var(--mono); font-size:10.5px; letter-spacing:0.08em; text-transform:uppercase; color:var(--text-dim); margin-bottom:12px; display:flex; align-items:center; gap:8px;}
+  .section-label::after{content:''; flex:1; height:1px; background:var(--hairline);}
+  .card{background:var(--panel); border:1px solid var(--hairline); border-radius:12px; padding:16px; margin-bottom:12px;}
+  .note{font-size:12px; color:var(--text-dim); line-height:1.55;}
+
+  .integ-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+  .integ-card{padding:12px; border-radius:10px; border:1px solid var(--hairline); background:var(--panel-raised);}
+  .integ-nom{font-size:12.5px; font-weight:600;}
+  .integ-badge{display:inline-block; margin-top:6px; font-family:var(--mono); font-size:9px; text-transform:uppercase; letter-spacing:0.04em; padding:3px 7px; border-radius:8px;}
+  .integ-badge.connecte{background:var(--green-dim); color:var(--green);}
+  .integ-badge.en_attente{background:var(--amber-dim); color:var(--amber);}
+  .integ-badge.non_connecte{background:var(--panel); color:var(--text-dim); border:1px solid var(--hairline);}
+  .integ-badge.erreur{background:var(--red-dim); color:var(--red);}
+  .integ-msg{font-size:10.5px; color:var(--text-dim); margin-top:6px; line-height:1.4;}
+
+  table{width:100%; border-collapse:collapse; font-size:12px;}
+  th{text-align:left; font-family:var(--mono); font-size:9.5px; text-transform:uppercase; letter-spacing:0.05em; color:var(--text-dim); padding:7px 8px; border-bottom:1px solid var(--hairline);}
+  td{padding:8px; border-bottom:1px solid var(--hairline); font-size:11.5px;}
+  .pill{display:inline-block; font-family:var(--mono); font-size:9.5px; padding:2px 7px; border-radius:8px;}
+  .pill.ok{background:var(--green-dim); color:var(--green);}
+  .pill.warn{background:var(--amber-dim); color:var(--amber);}
+  .pill.err{background:var(--red-dim); color:var(--red);}
+  .pill.off{background:var(--panel-raised); color:var(--text-dim); border:1px solid var(--hairline);}
+
+  .field{margin-bottom:12px;}
+  .field label{font-family:var(--mono); font-size:10px; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.04em; display:block; margin-bottom:6px;}
+  .field input[type=text], .field select{
+    width:100%; background:var(--panel-raised); border:1px solid var(--hairline); border-radius:8px;
+    padding:10px 12px; color:var(--text); font-family:var(--sans); font-size:13px;
+  }
+  .scopes-grid{display:grid; grid-template-columns:1fr 1fr; gap:6px;}
+  .scope-chip{display:flex; align-items:center; gap:6px; font-size:11.5px; padding:6px 8px; border:1px solid var(--hairline); border-radius:7px; background:var(--panel-raised);}
+
+  .btn{width:100%; padding:11px; border:none; border-radius:8px; font-size:13px; font-weight:600; cursor:pointer; margin-top:4px;}
+  .btn-primary{background:var(--cyan); color:#04141a;}
+  .btn-danger{background:var(--red-dim); color:var(--red); border:1px solid rgba(240,87,90,0.35);}
+  .btn-ghost{background:transparent; color:var(--text-mid); border:1px solid var(--hairline);}
+  .btn:disabled{opacity:0.4; cursor:not-allowed;}
+
+  .msg{font-size:12px; margin-top:10px; padding:9px; border-radius:8px; text-align:center; display:none;}
+  .msg.ok{background:var(--green-dim); color:var(--green); display:block;}
+  .msg.err{background:var(--red-dim); color:var(--red); display:block;}
+
+  .key-reveal{background:var(--gold-dim); border:1px solid rgba(212,175,55,0.35); border-radius:10px; padding:14px; margin-top:12px;}
+  .key-reveal-label{font-family:var(--mono); font-size:9.5px; text-transform:uppercase; color:var(--gold); letter-spacing:0.05em; margin-bottom:6px;}
+  .key-reveal-value{font-family:var(--mono); font-size:12px; color:var(--text); word-break:break-all; background:var(--bg); padding:8px; border-radius:6px;}
+  .key-reveal-warn{font-size:10.5px; color:var(--gold); margin-top:8px; line-height:1.5;}
+
+  .locked, .loading{padding:60px 20px; text-align:center; color:var(--text-dim); font-size:13px;}
+  footer{margin-top:auto; padding:16px 20px 24px; font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:center; border-top:1px solid var(--hairline);}
+</style>
+</head>
+<body>
+<div class="phone">
+  <div class="header">
+    <a href="NEXUS-App-v1.html" class="menu-btn">☰ Menu</a>
+    <div class="eyebrow">NEXUS · API</div>
+    <div class="title">Administration API</div>
+    <div class="subtitle">Clés, intégrations, journal — réservé managers/gérants</div>
+  </div>
+  <div class="divider"></div>
+
+  <div class="section" id="root">
+    <div class="loading">Chargement…</div>
+  </div>
+
+  <footer>NEXUS Administration API v1 · Infrastructure déployée avant l'arrivée de Decenium</footer>
+</div>
+
+<script>
+  const FN_URL = "https://uzhjpqpctpvxytxpxoqz.supabase.co/functions/v1/admin-api";
+  let SESSION_TOKEN = null;
+
+  const SCOPES_DISPONIBLES = [
+    'sales:read','products:read','employees:read','stock:read','cash:read',
+    'integrations:read','controls:write','campaigns:write','marge_exceptions:write'
+  ];
+
+  async function appelAdmin(path, options = {}) {
+    const res = await fetch(FN_URL + path, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${SESSION_TOKEN}`,
+        ...(options.headers || {}),
+      },
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body?.error?.message || `Erreur ${res.status}`);
+    return body;
+  }
+
+  function statutLabel(s) {
+    return { connecte: 'Connecté', en_attente: 'En attente', non_connecte: 'Non connecté', erreur: 'Erreur', desactive: 'Désactivé' }[s] || s;
+  }
+
+  function renderIntegrations(data) {
+    if (!data || data.length === 0) return '<p class="note">Aucune intégration enregistrée.</p>';
+    const cards = data.map(i => `
+      <div class="integ-card">
+        <div class="integ-nom">${i.integration_sources?.nom || i.source_code}</div>
+        <span class="integ-badge ${i.statut}">${statutLabel(i.statut)}</span>
+        ${i.message ? `<div class="integ-msg">${i.message}</div>` : ''}
+      </div>`).join('');
+    return `<div class="integ-grid">${cards}</div>`;
+  }
+
+  function renderKeys(data) {
+    if (!data || data.length === 0) return '<p class="note">Aucune clé générée pour l\\'instant.</p>';
+    const rows = data.map(k => {
+      const revoquee = !!k.revoque_le;
+      const expiree = k.expire_le && new Date(k.expire_le) < new Date();
+      const pill = revoquee ? '<span class="pill err">Révoquée</span>'
+        : expiree ? '<span class="pill warn">Expirée</span>'
+        : k.actif ? '<span class="pill ok">Active</span>' : '<span class="pill off">Inactive</span>';
+      return `
+        <tr>
+          <td><b>${k.source}</b><br><span style="color:var(--text-dim); font-family:var(--mono); font-size:10px;">${k.cle_prefix}…</span></td>
+          <td>${pill}</td>
+          <td>${k.dernier_appel_le ? new Date(k.dernier_appel_le).toLocaleDateString('fr-FR') : '—'}</td>
+          <td>${(!revoquee && k.actif) ? `<button class="btn btn-danger" style="margin:0; padding:6px 10px; font-size:11px;" onclick="revoquerCle('${k.id}')">Révoquer</button>` : '—'}</td>
+        </tr>`;
+    }).join('');
+    return `<table><thead><tr><th>Clé</th><th>Statut</th><th>Dernier appel</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
+  }
+
+  function renderLogs(data) {
+    if (!data || data.length === 0) return '<p class="note">Aucun appel enregistré pour l\\'instant.</p>';
+    const rows = data.map(l => {
+      const pillClass = l.status_code < 300 ? 'ok' : l.status_code < 500 ? 'warn' : 'err';
+      return `<tr>
+        <td><span style="font-family:var(--mono); font-size:10.5px;">${l.method} ${l.endpoint}</span></td>
+        <td><span class="pill ${pillClass}">${l.status_code}</span></td>
+        <td>${l.duree_ms ?? '—'} ms</td>
+        <td>${new Date(l.cree_le).toLocaleString('fr-FR')}</td>
+      </tr>`;
+    }).join('');
+    return `<table><thead><tr><th>Appel</th><th>Statut</th><th>Durée</th><th>Quand</th></tr></thead><tbody>${rows}</tbody></table>`;
+  }
+
+  function renderSyncHistory(data) {
+    if (!data || data.length === 0) return '<p class="note">Aucune synchronisation enregistrée pour l\\'instant.</p>';
+    const rows = data.map(s => {
+      const pillClass = s.statut === 'succes' ? 'ok' : s.statut === 'en_cours' ? 'warn' : 'err';
+      return `<tr>
+        <td>${s.source}<br><span style="color:var(--text-dim); font-size:10px;">${s.domaine}</span></td>
+        <td><span class="pill ${pillClass}">${s.statut}</span></td>
+        <td>${s.nb_recus} reçu(s)${s.nb_erreurs ? `, ${s.nb_erreurs} erreur(s)` : ''}</td>
+        <td>${new Date(s.demarre_le).toLocaleString('fr-FR')}</td>
+      </tr>`;
+    }).join('');
+    return `<table><thead><tr><th>Source</th><th>Statut</th><th>Résultat</th><th>Quand</th></tr></thead><tbody>${rows}</tbody></table>`;
+  }
+
+  async function revoquerCle(id) {
+    if (!confirm('Révoquer cette clé immédiatement ? Cette action est irréversible.')) return;
+    try {
+      await appelAdmin(`/keys/${id}/revoke`, { method: 'POST' });
+      await rafraichirCles();
+    } catch (e) {
+      alert('Erreur lors de la révocation : ' + e.message);
+    }
+  }
+
+  async function rafraichirCles() {
+    const { data } = await appelAdmin('/keys');
+    document.getElementById('zone-cles').innerHTML = renderKeys(data);
+  }
+
+  async function genererCle(event) {
+    event.preventDefault();
+    const source = document.getElementById('nouvelle-cle-source').value;
+    const label = document.getElementById('nouvelle-cle-label').value;
+    const scopes = Array.from(document.querySelectorAll('.scope-checkbox:checked')).map(el => el.value);
+    const msgEl = document.getElementById('msg-generation');
+    const revealEl = document.getElementById('cle-reveal');
+    msgEl.className = 'msg'; revealEl.innerHTML = '';
+    if (scopes.length === 0) {
+      msgEl.className = 'msg err'; msgEl.textContent = 'Sélectionnez au moins un scope.'; return;
+    }
+    try {
+      const result = await appelAdmin('/keys', { method: 'POST', body: JSON.stringify({ source, label, scopes }) });
+      revealEl.innerHTML = `
+        <div class="key-reveal">
+          <div class="key-reveal-label">Clé générée — copiez-la maintenant</div>
+          <div class="key-reveal-value">${result.cle}</div>
+          <div class="key-reveal-warn">⚠ Cette clé ne sera plus jamais affichée. Transmettez-la à l'éditeur via un canal sécurisé, jamais par email en clair.</div>
+        </div>`;
+      msgEl.className = 'msg ok'; msgEl.textContent = 'Clé générée avec succès.';
+      document.getElementById('form-nouvelle-cle').reset();
+      await rafraichirCles();
+    } catch (e) {
+      msgEl.className = 'msg err'; msgEl.textContent = 'Erreur : ' + e.message;
+    }
+  }
+
+  async function init() {
+    const employee = await nexusRequireAuth();
+    if (!employee) return;
+    const estAdmin = employee.est_createur || ['manager', 'gerant'].includes(employee.role);
+    const root = document.getElementById('root');
+    if (!estAdmin) {
+      root.innerHTML = '<div class="locked">Cet écran est réservé aux managers, gérants et au compte créateur.</div>';
+      return;
+    }
+    const { data: { session } } = await nexusClient.auth.getSession();
+    SESSION_TOKEN = session.access_token;
+
+    try {
+      const [integRes, keysRes, logsRes, syncRes] = await Promise.all([
+        appelAdmin('/integrations'),
+        appelAdmin('/keys'),
+        appelAdmin('/logs?limit=20'),
+        appelAdmin('/sync-history?limit=20'),
+      ]);
+
+      const scopesHtml = SCOPES_DISPONIBLES.map(s => `
+        <label class="scope-chip"><input type="checkbox" class="scope-checkbox" value="${s}"> ${s}</label>
+      `).join('');
+
+      root.innerHTML = `
+        <div class="section-label">Intégrations</div>
+        <div class="card">${renderIntegrations(integRes.data)}</div>
+
+        <div class="section-label">Clés API</div>
+        <div class="card">
+          <div id="zone-cles">${renderKeys(keysRes.data)}</div>
+        </div>
+        <div class="card">
+          <form id="form-nouvelle-cle" onsubmit="genererCle(event)">
+            <div class="field">
+              <label>Source</label>
+              <select id="nouvelle-cle-source">
+                <option value="decenium">Decenium</option>
+                <option value="pennylane">Pennylane</option>
+                <option value="worldline">Worldline</option>
+                <option value="nepting">Nepting</option>
+                <option value="excel">Excel</option>
+                <option value="csv">CSV</option>
+                <option value="autre">Autre</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Libellé (optionnel)</label>
+              <input type="text" id="nouvelle-cle-label" placeholder="ex. Clé Decenium — production">
+            </div>
+            <div class="field">
+              <label>Scopes</label>
+              <div class="scopes-grid">${scopesHtml}</div>
+            </div>
+            <button type="submit" class="btn btn-primary">Générer une nouvelle clé</button>
+            <div id="msg-generation" class="msg"></div>
+            <div id="cle-reveal"></div>
+          </form>
+        </div>
+
+        <div class="section-label">Journal d'appels récents</div>
+        <div class="card">${renderLogs(logsRes.data)}</div>
+
+        <div class="section-label">Historique de synchronisation</div>
+        <div class="card">${renderSyncHistory(syncRes.data)}</div>
+      `;
+    } catch (e) {
+      root.innerHTML = `<div class="locked">Erreur de chargement : ${e.message}</div>`;
+    }
+  }
+
+  init();
+</script>
+</body>
+</html>

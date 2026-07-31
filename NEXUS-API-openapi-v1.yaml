@@ -1,21 +1,25 @@
 openapi: 3.0.3
 info:
   title: NEXUS API
-  version: "4.0.0"
+  version: "5.0.0"
   description: |
-    **Statut : document de conception — aucune infrastructure n'est encore déployée en production.**
+    **Statut : infrastructure déployée en production (Sprints 1-3 du `MASTER_PROMPT_Infrastructure_API_NEXUS.pdf`).**
+    Seul le connecteur Decenium réel (Sprint 4) reste à développer, une fois la clé API obtenue.
 
-    Cette spécification décrit deux mécaniques distinctes, à ne jamais confondre :
+    Deux mécaniques distinctes cohabitent, à ne jamais confondre :
 
-    1. **Connecteur caisse (lecture seule)** — `GET /v1/sales`. NEXUS interroge le logiciel de caisse (Decenium)
-       pour lire les ventes. Aucune opération d'écriture n'est jamais effectuée vers la caisse. Ce flux n'est
-       **pas encore en service** : il est documenté ici à titre de cible, en attendant l'obtention d'une clé API
-       Decenium. L'export manuel actuel reste valide tant que ce connecteur n'est pas actif.
-    2. **Déclarations terrain (écriture)** — `controles-stock`, `campagnes`, `campagnes/{id}/imports`,
-       `marge-exceptions`. Un outil ou une personne envoie une déclaration à NEXUS. Ces endpoints sont ceux dont
-       la mise en œuvre est priorisée en premier.
+    1. **Lecture** — `/health`, `/status`, `/integrations`, `/products`, `/sales`, `/employees`, `/stock`, `/cash`.
+       Ces endpoints exposent les données déjà normalisées par NEXUS (ce que NEXUS sait), à l'intention d'outils
+       de reporting ou de partenaires autorisés. Ils ne donnent aucun accès en écriture à la caisse.
+    2. **Déclarations terrain (écriture)** — `/controls`, `/campaigns`, `/campaigns/{id}/imports`,
+       `/marge-exceptions`. Un outil ou une personne envoie une déclaration à NEXUS.
 
-    Référence complète : `NEXUS-API-Specification-v4.md` (document interne) et
+    Le connecteur caisse lui-même (NEXUS interrogeant Decenium en lecture seule pour alimenter `raw_sales` puis
+    `normalized_sales`) tourne aujourd'hui sur un **simulateur interne** planifié toutes les 15 minutes
+    (`nexus_simulate_cash_sale`, voir §8 de `NEXUS-API-Specification-v4.md`), en attendant la clé API Decenium.
+    L'export manuel actuel reste valide tant que ce connecteur n'est pas branché sur une source réelle.
+
+    Référence complète : `NEXUS-API-Specification-v4.md` (document interne, historique v1→v5) et
     `NEXUS-Guide-Integration-Editeurs-Caisse-v1.md` (guide destiné aux éditeurs de logiciels de caisse).
   contact:
     name: NEXUS Conseil
@@ -24,56 +28,133 @@ info:
     name: Usage interne et partenaires — tous droits réservés
 
 servers:
-  - url: https://api.nexusconseil.net/v1
-    description: Cible de production (non déployée à ce stade — URL indicative)
+  - url: https://uzhjpqpctpvxytxpxoqz.supabase.co/functions/v1/api-v1
+    description: Production — Edge Function déployée
 
 tags:
-  - name: Connecteur caisse
-    description: Lecture seule. NEXUS interroge la caisse — aucune écriture n'est jamais effectuée vers elle.
+  - name: Lecture
+    description: Données normalisées exposées par NEXUS en lecture seule.
   - name: Déclarations terrain
     description: Écriture. Un outil ou une personne envoie une déclaration à NEXUS.
+  - name: Méta
+    description: Disponibilité, statut, catalogue des intégrations.
 
 paths:
+  /health:
+    get:
+      tags: [Méta]
+      summary: Sonde de disponibilité
+      description: Public, sans authentification.
+      responses:
+        "200":
+          description: Service disponible.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: "ok" }
+                  version: { type: string, example: "v1" }
+                  time: { type: string, format: date-time }
+
+  /status:
+    get:
+      tags: [Méta]
+      summary: État des intégrations pour le site de la clé
+      security: [{ nexusApiKey: [] }]
+      responses:
+        "200":
+          description: Statuts d'intégration.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  site: { type: string }
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/IntegrationStatus" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "429": { $ref: "#/components/responses/TooManyRequests" }
+
+  /integrations:
+    get:
+      tags: [Méta]
+      summary: Catalogue des intégrations et leur statut
+      security: [{ nexusApiKey: [] }]
+      responses:
+        "200":
+          description: Sources d'intégration disponibles et leur statut pour ce site.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  site: { type: string }
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/IntegrationStatus" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /products:
+    get:
+      tags: [Lecture]
+      summary: Lire le catalogue produit du site
+      security: [{ nexusApiKey: [] }]
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: Page de produits.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: "#/components/schemas/Product" } }
+                  has_more: { type: boolean }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
   /sales:
     get:
-      tags: [Connecteur caisse]
-      summary: Lire les lignes de vente (synchronisation différentielle)
+      tags: [Lecture]
+      summary: Lire les ventes normalisées (synchronisation différentielle)
       description: |
-        **Non en service** — endpoint cible, en attente de la clé API Decenium. Documenté ici pour fixer le
-        contrat attendu. Lecture seule : NEXUS ne peut ni créer, ni modifier, ni supprimer une donnée côté caisse.
-
-        La synchronisation est différentielle : NEXUS ne redemande jamais l'intégralité des ventes, seulement ce
-        qui a changé depuis sa dernière synchronisation réussie (`updated_since`). La pagination se fait par
-        curseur (`next_cursor`), jamais par numéro de page, et s'arrête sur `has_more: false` — jamais sur la
-        taille du lot.
-      security:
-        - deceniumReadOnlyKey: []
+        Sert les données déjà normalisées par NEXUS (`current_normalized_sales`) — pas un flux brut de caisse.
+        Pagination différentielle par `updated_since` ; condition d'arrêt sur `has_more`, jamais sur la taille du lot.
+      security: [{ nexusApiKey: [] }]
       parameters:
+        - $ref: "#/components/parameters/Limit"
         - name: updated_since
           in: query
           required: false
-          description: Ne renvoyer que les enregistrements modifiés après cet horodatage.
-          schema:
-            type: string
-            format: date-time
-          example: "2026-07-29T14:00:00Z"
-        - name: limit
-          in: query
-          required: false
-          description: Nombre maximal d'enregistrements par page.
-          schema:
-            type: integer
-            default: 500
-            maximum: 1000
-        - name: cursor
-          in: query
-          required: false
-          description: Curseur opaque renvoyé par l'appel précédent (`next_cursor`). Prioritaire sur `updated_since` si fourni.
-          schema:
-            type: string
+          description: Ne renvoyer que les ventes normalisées après cet horodatage.
+          schema: { type: string, format: date-time }
       responses:
         "200":
-          description: Page de lignes de vente.
+          description: Page de ventes normalisées.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: "#/components/schemas/NormalizedSale" } }
+                  has_more: { type: boolean }
+                  next_cursor: { type: string, nullable: true }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "429": { $ref: "#/components/responses/TooManyRequests" }
+
+  /employees:
+    get:
+      tags: [Lecture]
+      summary: Lire les employés actifs du site
+      security: [{ nexusApiKey: [] }]
+      responses:
+        "200":
+          description: Liste des employés actifs.
           content:
             application/json:
               schema:
@@ -82,33 +163,66 @@ paths:
                   data:
                     type: array
                     items:
-                      $ref: "#/components/schemas/SaleLine"
-                  has_more:
-                    type: boolean
-                    description: Condition d'arrêt de la pagination — ne jamais s'arrêter sur la taille du lot seule.
-                  next_cursor:
-                    type: string
-                    nullable: true
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "429":
-          $ref: "#/components/responses/TooManyRequests"
-        "500":
-          $ref: "#/components/responses/ServerError"
+                      type: object
+                      properties:
+                        id: { type: string, format: uuid }
+                        nom: { type: string }
+                        role: { type: string }
+                        actif: { type: boolean }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
 
-  /controles-stock:
+  /stock:
+    get:
+      tags: [Lecture]
+      summary: Lire les mouvements de stock normalisés courants
+      security: [{ nexusApiKey: [] }]
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: Mouvements de stock normalisés.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { type: object } }
+                  has_more: { type: boolean }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /cash:
+    get:
+      tags: [Lecture]
+      summary: Lire les sessions de caisse normalisées
+      security: [{ nexusApiKey: [] }]
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: Sessions de caisse normalisées.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { type: object } }
+                  has_more: { type: boolean }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /controls:
     post:
       tags: [Déclarations terrain]
       summary: Déclarer un contrôle stock
       description: Un enregistrement par article contrôlé. L'écart est calculé côté serveur, jamais fourni par l'appelant.
-      security:
-        - nexusApiKey: []
+      security: [{ nexusApiKey: [] }]
       requestBody:
         required: true
         content:
           application/json:
-            schema:
-              $ref: "#/components/schemas/ControleStockInput"
+            schema: { $ref: "#/components/schemas/ControleStockInput" }
             example:
               article: "HEINEKEN 25CL"
               quantite_theorique: 48
@@ -119,31 +233,22 @@ paths:
           description: Contrôle stock enregistré.
           content:
             application/json:
-              schema:
-                $ref: "#/components/schemas/ControleStock"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "403":
-          $ref: "#/components/responses/Forbidden"
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "500":
-          $ref: "#/components/responses/ServerError"
+              schema: { $ref: "#/components/schemas/ControleStock" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "500": { $ref: "#/components/responses/ServerError" }
 
-  /campagnes:
+  /campaigns:
     post:
       tags: [Déclarations terrain]
       summary: Déclarer une campagne
-      security:
-        - nexusApiKey: []
+      security: [{ nexusApiKey: [] }]
       requestBody:
         required: true
         content:
           application/json:
-            schema:
-              $ref: "#/components/schemas/CampagneInput"
+            schema: { $ref: "#/components/schemas/CampagneInput" }
             example:
               nom: "Promo été bières 2026"
               date_debut: "2026-08-01"
@@ -158,38 +263,27 @@ paths:
           description: Campagne enregistrée.
           content:
             application/json:
-              schema:
-                $ref: "#/components/schemas/Campagne"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "403":
-          $ref: "#/components/responses/Forbidden"
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "500":
-          $ref: "#/components/responses/ServerError"
+              schema: { $ref: "#/components/schemas/Campagne" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "500": { $ref: "#/components/responses/ServerError" }
 
-  /campagnes/{campagne_id}/imports:
+  /campaigns/{campagne_id}/imports:
     post:
       tags: [Déclarations terrain]
       summary: Déclarer un import de mesure avant/pendant campagne
-      security:
-        - nexusApiKey: []
+      security: [{ nexusApiKey: [] }]
       parameters:
         - name: campagne_id
           in: path
           required: true
-          schema:
-            type: string
-            format: uuid
+          schema: { type: string, format: uuid }
       requestBody:
         required: true
         content:
           application/json:
-            schema:
-              $ref: "#/components/schemas/CampagneImportInput"
+            schema: { $ref: "#/components/schemas/CampagneImportInput" }
             example:
               phase: "avant"
               periode_debut: "2026-07-01"
@@ -199,31 +293,23 @@ paths:
           description: Import enregistré.
           content:
             application/json:
-              schema:
-                $ref: "#/components/schemas/CampagneImport"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "403":
-          $ref: "#/components/responses/Forbidden"
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "500":
-          $ref: "#/components/responses/ServerError"
+              schema: { $ref: "#/components/schemas/CampagneImport" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "500": { $ref: "#/components/responses/ServerError" }
 
   /marge-exceptions:
     post:
       tags: [Déclarations terrain]
       summary: Déclarer une exception de marge assumée
-      security:
-        - nexusApiKey: []
+      security: [{ nexusApiKey: [] }]
       requestBody:
         required: true
         content:
           application/json:
-            schema:
-              $ref: "#/components/schemas/MargeExceptionInput"
+            schema: { $ref: "#/components/schemas/MargeExceptionInput" }
             example:
               article: "PACK LORRAINE 6X33CL"
               categorie: "Bières"
@@ -233,103 +319,96 @@ paths:
           description: Exception de marge enregistrée.
           content:
             application/json:
-              schema:
-                $ref: "#/components/schemas/MargeException"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "403":
-          $ref: "#/components/responses/Forbidden"
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "500":
-          $ref: "#/components/responses/ServerError"
+              schema: { $ref: "#/components/schemas/MargeException" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "500": { $ref: "#/components/responses/ServerError" }
 
 components:
+  parameters:
+    Limit:
+      name: limit
+      in: query
+      required: false
+      description: Nombre maximal d'enregistrements par page (défaut 100, max 500).
+      schema: { type: integer, default: 100, maximum: 500 }
+
   securitySchemes:
     nexusApiKey:
       type: http
       scheme: bearer
-      description: Clé API NEXUS par site (`api_keys`). Chaque requête n'écrit que sur le site associé à la clé. Expiration obligatoire, révocable immédiatement.
-    deceniumReadOnlyKey:
-      type: http
-      scheme: bearer
-      description: Clé API fournie par Decenium, à portée lecture seule côté Decenium. NEXUS ne dispose d'aucun moyen d'écrire vers la caisse.
+      description: Clé API NEXUS (`api_keys`) par site et par scope. Générée et révocable depuis l'écran d'administration (`NEXUS-Admin-API-v1.html`).
 
   schemas:
-    SaleLine:
+    IntegrationStatus:
       type: object
-      description: |
-        Ligne de vente telle que lue depuis la caisse. `margin_amount_ht` et `margin_rate` ne sont jamais
-        fournis par la caisse — ils sont calculés côté NEXUS lors de la normalisation.
-      required: [id, created_at, updated_at, status]
       properties:
-        id: { type: string, example: "sl_987654" }
-        created_at: { type: string, format: date-time }
-        updated_at: { type: string, format: date-time }
-        status: { type: string, enum: [completed, refunded, voided] }
+        source_code: { type: string, example: "decenium" }
+        statut: { type: string, enum: [non_connecte, en_attente, connecte, erreur, desactive] }
+        derniere_sync_le: { type: string, format: date-time, nullable: true }
+        message: { type: string, nullable: true }
+
+    Product:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        article: { type: string }
+        code_barres: { type: string, nullable: true }
+        categorie: { type: string }
+        prix_vente: { type: number }
+        prix_achat: { type: number }
+        tva: { type: number }
+
+    NormalizedSale:
+      type: object
+      description: Vente déjà normalisée par NEXUS (`current_normalized_sales`) — restreinte à `is_current = true`.
+      properties:
+        id: { type: string, format: uuid }
         ticket_id: { type: string }
-        register_id: { type: string }
-        employee_id: { type: string }
-        shift_id: { type: string }
         sold_at: { type: string, format: date-time }
-        product_id:
-          type: string
-          description: Clé de rapprochement produit — jamais `label`.
-        barcode: { type: string }
-        category: { type: string }
+        product_id: { type: string, format: uuid, nullable: true }
+        category: { type: string, nullable: true }
         quantity: { type: number }
         unit_sale_price_ht: { type: number }
-        unit_sale_price_ttc: { type: number }
-        unit_purchase_price_ht: { type: number }
-        cost_method:
-          type: string
-          enum: [cmp, dernier_achat]
-          description: Méthode de valorisation du coût — nécessaire pour interpréter correctement la marge.
-        currency: { type: string, example: "EUR" }
-        vat_rate: { type: number }
-        discount_ttc: { type: number }
+        unit_sale_price_ttc: { type: number, nullable: true }
+        margin_amount_ht: { type: number, nullable: true }
+        margin_rate: { type: number, nullable: true }
         total_ttc: { type: number }
+        status: { type: string }
+        normalise_le: { type: string, format: date-time }
 
     ControleStockInput:
       type: object
       required: [article, quantite_theorique, quantite_comptee]
       properties:
-        article:
-          type: string
-          description: Doit exister dans `products` pour ce site.
+        article: { type: string, description: "Doit exister dans `products` pour ce site." }
         quantite_theorique: { type: number, minimum: 0 }
         quantite_comptee: { type: number, minimum: 0 }
-        controle_le:
-          type: string
-          format: date-time
-          description: Défaut — instant de réception. Ne peut pas être dans le futur.
+        controle_le: { type: string, format: date-time, description: "Défaut — instant de réception." }
     ControleStock:
       allOf:
         - $ref: "#/components/schemas/ControleStockInput"
         - type: object
           properties:
             id: { type: string, format: uuid }
-            ecart:
-              type: number
-              description: Calculé côté serveur — jamais fourni par l'appelant.
+            ecart: { type: number, description: "Calculé côté serveur — jamais fourni par l'appelant." }
 
     CampagneInput:
       type: object
-      required: [nom, date_debut, date_fin, type, produits_concernes, nature, objectif]
+      required: [nom, date_debut, date_fin, produits_concernes]
       properties:
         nom: { type: string }
         date_debut: { type: string, format: date }
         date_fin: { type: string, format: date, description: "Doit être ≥ date_debut." }
-        type: { type: string }
+        type: { type: string, nullable: true }
         produits_concernes:
           type: array
           items: { type: string }
           minItems: 1
           description: Chaque article doit exister dans `products`.
-        nature: { type: string }
-        objectif: { type: string }
+        nature: { type: string, nullable: true }
+        objectif: { type: string, nullable: true }
         objectif_libre: { type: string, nullable: true }
     Campagne:
       allOf:
@@ -357,13 +436,9 @@ components:
       type: object
       required: [article]
       properties:
-        article:
-          type: string
-          description: Doit exister dans `products` pour ce site.
-        categorie: { type: string }
-        raison:
-          type: string
-          description: Non obligatoire, mais fortement recommandé.
+        article: { type: string, description: "Doit exister dans `products` pour ce site." }
+        categorie: { type: string, nullable: true }
+        raison: { type: string, nullable: true, description: "Non obligatoire, mais fortement recommandé." }
     MargeException:
       allOf:
         - $ref: "#/components/schemas/MargeExceptionInput"
@@ -380,54 +455,38 @@ components:
           properties:
             code:
               type: string
-              enum: [INVALID_FIELD, MISSING_FIELD, UNKNOWN_REFERENCE, UNAUTHORIZED, FORBIDDEN_SCOPE, CONFLICT, INTERNAL_ERROR]
+              enum: [UNAUTHORIZED, FORBIDDEN_SCOPE, MISSING_FIELD, INVALID_FIELD, UNKNOWN_REFERENCE, NOT_FOUND, RATE_LIMITED, INTERNAL_ERROR]
               description: Code stable, indépendant de la langue — à tester dans le code appelant plutôt que `message`.
             message: { type: string }
             field: { type: string, nullable: true }
-            request_id:
-              type: string
-              description: Permet de retrouver l'appel exact dans le journal d'audit en cas de support.
+            request_id: { type: string }
             timestamp: { type: string, format: date-time }
       example:
         error:
           code: "INVALID_FIELD"
           message: "quantite_comptee doit être un nombre positif ou nul."
           field: "quantite_comptee"
-          request_id: "req_01K123XYZ"
+          request_id: "req_01k123xyz"
           timestamp: "2026-07-31T11:42:00Z"
 
   responses:
     BadRequest:
       description: Payload malformé, champ obligatoire manquant, ou contrainte violée.
-      content:
-        application/json:
-          schema: { $ref: "#/components/schemas/Error" }
+      content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
     Unauthorized:
-      description: Clé API absente ou invalide.
-      content:
-        application/json:
-          schema: { $ref: "#/components/schemas/Error" }
+      description: Clé API absente, invalide, expirée ou révoquée.
+      content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
     Forbidden:
       description: Clé valide mais sans le scope requis.
-      content:
-        application/json:
-          schema: { $ref: "#/components/schemas/Error" }
+      content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
     NotFound:
-      description: Référence à une ressource inexistante (ex. article non trouvé pour ce site).
-      content:
-        application/json:
-          schema: { $ref: "#/components/schemas/Error" }
+      description: Référence à une ressource inexistante.
+      content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
     TooManyRequests:
-      description: Limite de débit dépassée. Un en-tête `Retry-After` indique le délai avant nouvelle tentative.
+      description: Limite de débit dépassée (100 requêtes/minute par clé). En-tête `Retry-After` fourni.
       headers:
-        Retry-After:
-          schema: { type: integer }
-          description: Délai en secondes avant la prochaine tentative autorisée.
-      content:
-        application/json:
-          schema: { $ref: "#/components/schemas/Error" }
+        Retry-After: { schema: { type: integer }, description: "Délai en secondes avant nouvelle tentative." }
+      content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
     ServerError:
       description: Erreur serveur — journalisée, jamais silencieuse.
-      content:
-        application/json:
-          schema: { $ref: "#/components/schemas/Error" }
+      content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }

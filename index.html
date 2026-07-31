@@ -1,7 +1,6 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-  <meta name="google-site-verification" content="ZmiMEOndJiyTR1mMjScUus9KNXd4_CXl_xISXJXZjIk" />
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="icon" type="image/x-icon" href="favicon.ico">
@@ -12,6 +11,7 @@
 <meta name="theme-color" content="#0B0F14">
 <title>NEXUS — Le système d'exploitation des commerces</title>
 <meta name="description" content="NEXUS transforme les données d'exploitation d'un commerce en décisions concrètes — un poste de pilotage unique, en production chez ViTO Sainte-Marie.">
+<link rel="canonical" href="https://www.nexusconseil.net/">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="NEXUS">
 <meta property="og:title" content="NEXUS — Le système d'exploitation des commerces">
@@ -308,6 +308,19 @@ blockquote{font-size:clamp(18px,2.4vw,24px); font-weight:500; line-height:1.4; c
 .badge-trust{font-family:var(--mono); font-size:10.5px; color:var(--green); display:flex; align-items:center; gap:6px; white-space:nowrap;}
 .footer-creator-link{display:block; text-align:center; margin-top:22px; font-family:var(--mono); font-size:9.5px; color:var(--text-dim); opacity:0.55;}
 
+/* ---------- système API NEXUS ---------- */
+.api-flow{display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:24px 0;}
+.api-flow-step{font-family:var(--mono); font-size:11px; letter-spacing:0.02em; color:var(--text-mid); background:var(--panel); border:1px solid var(--hairline); border-radius:20px; padding:7px 13px; white-space:nowrap;}
+.api-flow-arrow{color:var(--text-dim); font-size:13px;}
+.api-integ-grid{display:grid; grid-template-columns:repeat(3, 1fr); gap:10px; margin-bottom:20px;}
+.api-integ-card{padding:12px; border-radius:10px; border:1px solid var(--hairline); background:var(--panel);}
+.api-integ-nom{font-size:12.5px; font-weight:600;}
+.api-integ-badge{display:inline-block; margin-top:6px; font-family:var(--mono); font-size:9px; text-transform:uppercase; letter-spacing:0.04em; padding:3px 8px; border-radius:8px;}
+.api-integ-badge.connecte{background:var(--green-dim); color:var(--green);}
+.api-integ-badge.en_attente{background:var(--amber-dim); color:var(--amber);}
+.api-integ-badge.non_connecte{background:var(--panel-raised); color:var(--text-dim); border:1px solid var(--hairline);}
+@media (max-width: 720px){ .api-integ-grid{grid-template-columns:1fr 1fr;} }
+
 @media (max-width:860px){
   .footer-grid{grid-template-columns:1fr 1fr;}
   .footer-brand-block{grid-column:1/3;}
@@ -338,6 +351,24 @@ blockquote{font-size:clamp(18px,2.4vw,24px); font-weight:500; line-height:1.4; c
   .engine-node{font-size:9.5px; padding:6px 10px;}
 }
 </style>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  "name": "NEXUS Conseil",
+  "url": "https://www.nexusconseil.net",
+  "logo": "https://www.nexusconseil.net/assets/nexus-logo-cyan.png",
+  "description": "NEXUS est le système d'exploitation des commerces : un poste de pilotage unique qui transforme les données d'exploitation en décisions concrètes.",
+  "sameAs": [
+    "https://www.instagram.com/nexus.os.mq"
+  ],
+  "contactPoint": {
+    "@type": "ContactPoint",
+    "email": "contact@nexusconseil.net",
+    "contactType": "customer service"
+  }
+}
+</script>
 </head>
 <body>
 
@@ -351,6 +382,7 @@ blockquote{font-size:clamp(18px,2.4vw,24px); font-weight:500; line-height:1.4; c
       <a href="#adn">ADN</a>
       <a href="#offres">Offres</a>
       <a href="#fonctionnement">Fonctionnement</a>
+      <a href="#api">API</a>
       <a href="#contact">Contact</a>
     </nav>
     <div style="display:flex; align-items:center; gap:12px;">
@@ -362,6 +394,7 @@ blockquote{font-size:clamp(18px,2.4vw,24px); font-weight:500; line-height:1.4; c
     <a href="#adn">ADN</a>
     <a href="#offres">Offres</a>
     <a href="#fonctionnement">Fonctionnement</a>
+    <a href="#api">API</a>
     <a href="#contact">Contact</a>
     <a class="btn btn-primary" href="NEXUS-Login-v1.html" target="_blank" rel="noopener">Se connecter</a>
   </nav>
@@ -620,6 +653,33 @@ blockquote{font-size:clamp(18px,2.4vw,24px); font-weight:500; line-height:1.4; c
     </div>
   </section>
 
+  <section class="section" id="api">
+    <div class="section-label">API</div>
+    <h2>L'infrastructure API NEXUS</h2>
+    <p class="section-desc">Déployée avant même l'arrivée du connecteur Decenium, pour que NEXUS soit prêt à recevoir les données de caisse dès que la clé API sera disponible.</p>
+    <div class="api-flow">
+      <span class="api-flow-step">Logiciel externe</span><span class="api-flow-arrow">→</span>
+      <span class="api-flow-step">Connecteur</span><span class="api-flow-arrow">→</span>
+      <span class="api-flow-step">Authentification</span><span class="api-flow-arrow">→</span>
+      <span class="api-flow-step">Validation</span><span class="api-flow-arrow">→</span>
+      <span class="api-flow-step">Données brutes</span><span class="api-flow-arrow">→</span>
+      <span class="api-flow-step">Normalisation</span><span class="api-flow-arrow">→</span>
+      <span class="api-flow-step">Moteur décisionnel</span><span class="api-flow-arrow">→</span>
+      <span class="api-flow-step">Conseiller NEXUS</span><span class="api-flow-arrow">→</span>
+      <span class="api-flow-step">Cockpit</span>
+    </div>
+    <div class="api-integ-grid">
+      <div class="api-integ-card"><div class="api-integ-nom">Decenium</div><span class="api-integ-badge en_attente">En attente</span></div>
+      <div class="api-integ-card"><div class="api-integ-nom">Simulateur interne</div><span class="api-integ-badge connecte">Connecté</span></div>
+      <div class="api-integ-card"><div class="api-integ-nom">Export manuel</div><span class="api-integ-badge connecte">Connecté</span></div>
+      <div class="api-integ-card"><div class="api-integ-nom">Pennylane</div><span class="api-integ-badge non_connecte">Non connecté</span></div>
+      <div class="api-integ-card"><div class="api-integ-nom">Worldline</div><span class="api-integ-badge non_connecte">Non connecté</span></div>
+      <div class="api-integ-card"><div class="api-integ-nom">Nepting</div><span class="api-integ-badge non_connecte">Non connecté</span></div>
+    </div>
+    <p class="section-desc">En attendant la clé Decenium, un simulateur de caisse fait tourner toute la chaîne — de la donnée brute jusqu'à la décision — pour valider le système avant le branchement réel.</p>
+    <a href="NEXUS-API-v1.html" class="btn btn-ghost" style="display:inline-block; width:auto;">Voir la documentation API complète</a>
+  </section>
+
   <section class="section" id="contact">
     <div class="cta-band">
       <div class="section-label" style="justify-content:center;"><span style="flex:none;">Accès</span></div>
@@ -668,6 +728,7 @@ blockquote{font-size:clamp(18px,2.4vw,24px); font-weight:500; line-height:1.4; c
         <a href="#fonctionnement">Fonctionnalités</a>
         <a href="mailto:fredbragance@nexusconseil.net?subject=Demande%20de%20d%C3%A9mo%20NEXUS">Démonstration</a>
         <a href="#offres">Tarifs</a>
+        <a href="NEXUS-API-v1.html">API</a>
         <a href="NEXUS-Feuille-de-Route-v1.html">Feuille de route</a>
         <span class="footer-soon">Journal des évolutions <i>Bientôt</i></span>
       </div>
