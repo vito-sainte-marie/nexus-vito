@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" type="image/x-icon" href="favicon.ico">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+<link rel="manifest" href="site.webmanifest">
+<meta name="theme-color" content="#0B0F14">
+<title>NEXUS — Questions fréquentes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
+  --text:#EDF1F5; --text-mid:#8A96A5; --text-dim:#57626F;
+  --green:#34D399; --green-dim:#153629;
+  --amber:#F5A623; --amber-dim:#3A2E14;
+  --red:#F0575A; --red-dim:#3A1D1F;
+  --cyan:#4FC3D9; --cyan-dim:#123138;
+  --gold:#D4AF37; --gold-dim:#332B12;
+  --mono:'IBM Plex Mono',monospace; --sans:'IBM Plex Sans',sans-serif;
+}
+*{box-sizing:border-box; margin:0; padding:0;}
+html{scroll-behavior:smooth;}
+html,body{background:var(--bg); font-family:var(--sans); color:var(--text); min-height:100vh;}
+a{color:inherit; text-decoration:none;}
+img{display:block; max-width:100%;}
+:focus-visible{outline:2px solid var(--cyan); outline-offset:2px;}
+
+.wrap{max-width:1040px; margin:0 auto; padding:0 24px;}
+
+header{position:sticky; top:0; z-index:50; background:rgba(11,15,20,0.92); backdrop-filter:blur(6px); border-bottom:1px solid var(--hairline);}
+.nav-wrap{display:flex; align-items:center; justify-content:space-between; padding:16px 24px; max-width:1040px; margin:0 auto;}
+.brand{display:flex; align-items:center; gap:9px;}
+.brand-logo{width:26px; height:26px; object-fit:contain; flex:none;}
+.brand-name{font-size:16px; font-weight:600;}
+.btn{
+  display:inline-flex; align-items:center; gap:8px; font-family:var(--mono); font-size:12px; letter-spacing:0.04em;
+  text-transform:uppercase; padding:10px 16px; border-radius:8px; font-weight:600; cursor:pointer;
+  transition:border-color .15s ease, background .15s ease, transform .15s ease; white-space:nowrap; border:1px solid var(--hairline);
+  background:var(--panel); color:var(--text);
+}
+.btn:hover{border-color:var(--cyan);}
+.btn-primary{background:var(--cyan); color:#06181C; border-color:var(--cyan);}
+.btn-primary:hover{background:#6FD3E5; transform:translateY(-1px);}
+.btn-ghost{background:var(--panel); color:var(--text); border:1px solid var(--hairline);}
+.btn-ghost:hover{border-color:var(--cyan); transform:translateY(-1px);}
+
+/* ---------- hero ---------- */
+.faq-hero{padding:48px 0 28px; border-bottom:1px solid var(--hairline);}
+.eyebrow{font-family:var(--mono); font-size:11px; letter-spacing:0.14em; text-transform:uppercase; color:var(--cyan);}
+h1{font-size:clamp(26px,4vw,36px); font-weight:600; margin-top:12px;}
+.legal-intro{font-size:14.5px; color:var(--text-mid); line-height:1.6; max-width:70ch; margin-top:14px;}
+.faq-trust{font-size:13px; color:var(--text-dim); margin-top:16px; font-style:italic;}
+
+.faq-search-wrap{margin-top:26px;}
+.faq-search{
+  position:relative; max-width:520px;
+}
+.faq-search input{
+  width:100%; padding:14px 18px 14px 44px; border-radius:12px; border:1px solid var(--hairline);
+  background:var(--panel); color:var(--text); font-family:var(--sans); font-size:14.5px;
+}
+.faq-search input::placeholder{color:var(--text-dim);}
+.faq-search input:focus{border-color:var(--cyan); outline:none;}
+.faq-search-icon{position:absolute; left:16px; top:50%; transform:translateY(-50%); color:var(--text-dim); font-size:14px; pointer-events:none;}
+
+/* ---------- categories ---------- */
+.faq-categories{padding:36px 0 10px;}
+.faq-cat{margin-bottom:40px;}
+.faq-cat:last-child{margin-bottom:0;}
+.faq-cat-title{
+  font-family:var(--mono); font-size:12px; letter-spacing:0.1em; text-transform:uppercase; color:var(--cyan);
+  padding-bottom:12px; border-bottom:1px solid var(--hairline); margin-bottom:6px;
+}
+.faq-list{display:flex; flex-direction:column;}
+.faq-item{border-bottom:1px solid var(--hairline);}
+.faq-item:last-child{border-bottom:none;}
+.faq-q{
+  width:100%; display:flex; align-items:center; justify-content:space-between; gap:16px;
+  background:none; border:none; text-align:left; padding:18px 4px; cursor:pointer; color:var(--text);
+  font-family:var(--sans); font-size:15px; font-weight:600;
+}
+.faq-q:hover{color:var(--cyan);}
+.faq-toggle{
+  font-family:var(--mono); font-size:16px; color:var(--cyan); flex:none; width:22px; height:22px;
+  display:flex; align-items:center; justify-content:center; border:1px solid var(--hairline); border-radius:6px;
+  transition:transform .18s ease, background .15s ease;
+}
+.faq-item.open .faq-toggle{transform:rotate(45deg); background:var(--cyan-dim); border-color:var(--cyan);}
+.faq-a{max-height:0; overflow:hidden; transition:max-height .25s ease;}
+.faq-a-inner{padding:0 4px 20px;}
+.faq-a p{font-size:14px; line-height:1.65; color:var(--text-mid);}
+.faq-a p + p{margin-top:10px;}
+.faq-a p b{color:var(--text); font-weight:600;}
+.faq-a ul{margin-top:10px; padding-left:0; list-style:none; display:flex; flex-direction:column; gap:6px;}
+.faq-a li{font-size:14px; line-height:1.6; color:var(--text-mid); padding-left:18px; position:relative;}
+.faq-a li::before{content:'—'; position:absolute; left:0; color:var(--text-dim);}
+.faq-item.hidden{display:none;}
+.faq-cat.hidden{display:none;}
+
+.faq-empty{display:none; text-align:center; padding:40px 0; color:var(--text-dim); font-size:14px;}
+.faq-empty.show{display:block;}
+
+/* ---------- CTA ---------- */
+.manifesto-panel{
+  margin:40px 0; background:linear-gradient(165deg, rgba(79,195,217,0.08), var(--panel) 60%);
+  border:1px solid var(--hairline); border-radius:16px; padding:36px 30px;
+}
+.manifesto-panel .eyebrow{margin-bottom:14px;}
+.manifesto-panel .lead-line{font-size:16px; font-weight:500; line-height:1.6; margin-bottom:14px;}
+.manifesto-panel .lead-line:last-child{margin-bottom:0;}
+.faq-cta-buttons{display:flex; gap:12px; margin-top:20px; flex-wrap:wrap;}
+
+footer{margin-top:20px; padding:24px; font-family:var(--mono); font-size:10.5px; color:var(--text-dim); text-align:center; border-top:1px solid var(--hairline);}
+footer a{color:var(--text-dim);}
+footer a:hover{color:var(--cyan);}
+
+@media (max-width: 520px){
+  .faq-q{font-size:14px;}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="nav-wrap">
+    <a class="brand" href="index.html">
+      <img class="brand-logo" src="assets/nexus-logo-cyan.png" alt="">
+      <span class="brand-name">NEXUS</span>
+    </a>
+    <a class="btn" href="index.html">← Retour à l'accueil</a>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <section class="faq-hero">
+    <div class="eyebrow">Centre d'aide</div>
+    <h1>Questions fréquentes</h1>
+    <p class="legal-intro">Découvrez NEXUS en quelques réponses. Retrouvez ici les réponses aux principales questions concernant le fonctionnement, le déploiement, la sécurité et l'utilisation de NEXUS.</p>
+    <div class="faq-trust">NEXUS est conçu pour être compris aussi facilement qu'il doit être utilisé.</div>
+    <div class="faq-search-wrap">
+      <div class="faq-search">
+        <span class="faq-search-icon">🔍</span>
+        <input type="text" id="faqSearch" placeholder="Comment pouvons-nous vous aider ?" autocomplete="off">
+      </div>
+    </div>
+  </section>
+
+  <section class="faq-categories" id="faqCategories">
+
+    <div class="faq-cat" data-cat="comprendre">
+      <div class="faq-cat-title">Comprendre NEXUS</div>
+      <div class="faq-list">
+
+        <div class="faq-item">
+          <button class="faq-q"><span>Qu'est-ce que NEXUS ?</span><span class="faq-toggle">+</span></button>
+          <div class="faq-a"><div class="faq-a-inner">
+            <p>NEXUS est un système d'exploitation destiné aux commerces.</p>
+            <p>Il centralise les informations importantes de l'activité, détecte les situations qui nécessitent une attention particulière et transforme les données en actions concrètes pour les dirigeants, les managers et leurs équipes.</p>
+          </div></div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-q"><span>NEXUS est-il un logiciel de caisse ?</span><span class="faq-toggle">+</span></button>
+          <div class="faq-a"><div class="faq-a-inner">
+            <p><b>Non.</b></p>
+            <p>NEXUS ne remplace pas le logiciel de caisse. Il exploite les données issues des outils déjà utilisés par le commerce afin d'aider les responsables à mieux piloter leur activité.</p>
+          </div></div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-q"><span>NEXUS est-il un tableau de bord ?</span><span class="faq-toggle">+</span></button>
+          <div class="faq-a"><div class="faq-a-inner">
+            <p>NEXUS va plus loin qu'un tableau de bord.</p>
+            <p>Un tableau de bord présente des chiffres. NEXUS analyse ces informations, les hiérarchise et indique les actions prioritaires à mettre en œuvre.</p>
+          </div></div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-q"><span>NEXUS utilise-t-il l'intelligence artificielle ?</span><span class="faq-toggle">+</span></button>
+          <div class="faq-a"><div class="faq-a-inner">
+            <p><b>Non.</b></p>
+            <p>NEXUS fonctionne grâce à un moteur décisionnel fondé sur des règles métier, des calculs, des seuils, des contrôles de cohérence et la Méthode NEXUS.</p>
+            <p>Les recommandations sont explicables, structurées et reposent sur les données réellement disponibles.</p>
+          </div></div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-q"><span>NEXUS prend-il des décisions à la place du dirigeant ?</span><span class="faq-toggle">+</span></button>
+          <div class="faq-a"><div class="faq-a-inner">
+            <p><b>Non.</b></p>
+            <p>NEXUS accompagne le dirigeant et lui fournit des recommandations. La décision finale reste toujours humaine.</p>
+          </div></div>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="faq-cat" data-cat="fonctionnement">
+      <div class="faq-cat-title">Fonctionnement</div>
+      <div class="faq-list">
+
+        <div class="faq-item">
+          <button class="faq-q"><span>Comment NEXUS obtient-il les données du commerce ?</span><span class="faq-toggle">+</span></button>
+          <div class="faq-a"><div class="faq-a-inner">
+            <p>Les données peuvent être intégrées de plusieurs manières :</p>
+            <ul>
+              <li>connexion avec le logiciel de caisse ;</li>
+              <li>API sécurisée ;</li>
+              <li>import de fichiers Excel ou CSV ;</li>
+              <li>ajout de documents PDF ;</li>
+              <li>saisie manuelle ;</li>
+              <li>photographies justificatives.</li>
+            </ul>
+            <p>Les modes d'intégration dépendent des outils déjà utilisés par le commerce.</p>
+          </div></div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-q"><span>NEXUS peut-il fonctionner sans connexion directe à la caisse ?</span><span class="faq-toggle">+</span></button>
+          <div class="faq-a"><div class="faq-a-inner">
+            <p><b>Oui.</b></p>
+            <p>Une première utilisation peut être réalisée avec des imports de fichiers ou des saisies manuelles. Une connexion automatisée permet ensuite d'améliorer la fréquence et la précision des analyses.</p>
+          </div></div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-q"><span>À quelle fréquence les données sont-elles actualisées ?</span><span class="faq-toggle">+</span></button>
+          <div class="faq-a"><div class="faq-a-inner">
+            <p>La fréquence dépend du mode d'intégration choisi.</p>
+            <p>Elle peut aller d'un import quotidien à une synchronisation automatique plusieurs fois par jour.</p>
+          </div></div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-q"><span>NEXUS modifie-t-il les données du logiciel de caisse ?</span><span class="faq-toggle">+</span></button>
+          <div class="faq-a"><div class="faq-a-inner">
+            <p><b>Non.</b></p>
+            <p>Dans son fonctionnement standard, NEXUS accède aux données en lecture seule. Il ne modifie ni les ventes, ni les produits, ni les écritures du logiciel de caisse.</p>
+          </div></div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-q"><span>Quelles situations NEXUS peut-il détecter ?</span><span class="faq-toggle">+</span></button>
+          <div class="faq-a"><div class="faq-a-inner">
+            <p>Selon les modules activés, NEXUS peut notamment signaler :</p>
+            <ul>
+              <li>un écart de caisse ;</li>
+              <li>une rupture probable ;</li>
+              <li>une baisse inhabituelle des ventes ;</li>
+              <li>une diminution des volumes ;</li>
+              <li>une évolution de marge ;</li>
+              <li>un stock incohérent ;</li>
+              <li>un produit à faible rotation ;</li>
+              <li>un inventaire à réaliser ;</li>
+              <li>une mission non exécutée ;</li>
+              <li>une anomalie opérationnelle.</li>
+            </ul>
+          </div></div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-q"><span>NEXUS peut-il contrôler les caisses ?</span><span class="faq-toggle">+</span></button>
+          <div class="faq-a"><div class="faq-a-inner">
+            <p>Le module NEXUS Verify est conçu pour faciliter le contrôle des caisses.</p>
+            <p>Il peut rapprocher les informations provenant de différents justificatifs, comme les transactions bancaires, les rapports de coffre, les espèces, les bons clients et les inventaires.</p>
+          </div></div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-q"><span>NEXUS peut-il gérer les stocks ?</span><span class="faq-toggle">+</span></button>
+          <div class="faq-a"><div class="faq-a-inner">
+            <p>NEXUS ne remplace pas un logiciel de stock, mais il peut analyser les niveaux de stock, les ventes, les mouvements et les inventaires afin de détecter les incohérences et de recommander des contrôles.</p>
+          </div></div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-q"><span>NEXUS peut-il fonctionner pour plusieurs établissements ?</span><span class="faq-toggle">+</span></button>
+          <div class="faq-a"><div class="faq-a-inner">
+            <p><b>Oui.</b></p>
+            <p>NEXUS est conçu pour évoluer vers une gestion multi-sites, avec une vision par établissement et une vue consolidée pour les dirigeants.</p>
+          </div></div>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="faq-cat" data-cat="utilisation">
+      <div class="faq-cat-title">Utilisation quotidienne</div>
+      <div class="faq-list">
+
+        <div class="faq-item">
+          <button class="faq-q"><span>À qui s'adresse NEXUS ?</span><span class="faq-toggle">+</span></button>
+          <div class="faq-a"><div class="faq-a-inner">
+            <p>NEXUS s'adresse notamment :</p>
+            <ul>
+              <li>aux dirigeants ;</li>
+              <li>aux gérants ;</li>
+              <li>aux responsables d'exploitation ;</li>
+              <li>aux managers ;</li>
+              <li>aux responsables de magasin ;</li>
+              <li>aux collaborateurs autorisés.</li>
+            </ul>
+            <p>Chaque utilisateur dispose d'un accès adapté à son rôle.</p>
+          </div></div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-q"><span>Que voit le dirigeant lorsqu'il se connecte ?</span><span class="faq-toggle">+</span></button>
+          <div class="faq-a"><div class="faq-a-inner">
+            <p>Le dirigeant retrouve notamment :</p>
+            <ul>
+              <li>les priorités du jour ;</li>
+              <li>les anomalies à contrôler ;</li>
+              <li>les résultats importants ;</li>
+              <li>les actions à déléguer ;</li>
+              <li>les missions en cours ;</li>
+              <li>les gains ou pertes identifiés ;</li>
+              <li>les recommandations du moteur décisionnel.</li>
+            </ul>
+          </div></div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-q"><span>Que voit un employé ?</span><span class="faq-toggle">+</span></button>
+          <div class="faq-a"><div class="faq-a-inner">
+            <p>L'employé accède principalement à :</p>
+            <ul>
+              <li>ses missions ;</li>
+              <li>ses horaires ;</li>
+              <li>ses actions à réaliser ;</li>
+              <li>ses validations ;</li>
+              <li>sa progression ;</li>
+              <li>les consignes utiles à sa journée.</li>
+            </ul>
+            <p>Il ne voit que les informations correspondant à son rôle et à ses autorisations.</p>
+          </div></div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-q"><span>NEXUS peut-il attribuer des missions aux employés ?</span><span class="faq-toggle">+</span></button>
+          <div class="faq-a"><div class="faq-a-inner">
+            <p><b>Oui.</b></p>
+            <p>Le manager peut attribuer des missions, préciser leur priorité, ajouter une échéance et demander une preuve de réalisation, comme une photographie ou une validation.</p>
+          </div></div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-q"><span>Peut-on utiliser NEXUS sur un téléphone ?</span><span class="faq-toggle">+</span></button>
+          <div class="faq-a"><div class="faq-a-inner">
+            <p><b>Oui.</b></p>
+            <p>NEXUS est conçu pour être utilisé depuis un smartphone, une tablette ou un ordinateur. Les applications iOS et Android sont prévues dans la feuille de route du produit.</p>
+          </div></div>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="faq-cat" data-cat="securite">
+      <div class="faq-cat-title">Sécurité des données</div>
+      <div class="faq-list">
+
+        <div class="faq-item">
+          <button class="faq-q"><span>À qui appartiennent les données ?</span><span class="faq-toggle">+</span></button>
+          <div class="faq-a"><div class="faq-a-inner">
+            <p>Les données restent la propriété du client.</p>
+            <p>NEXUS Conseil ne revendique aucun droit de propriété sur les ventes, les stocks, les collaborateurs, les documents ou les indicateurs du commerce.</p>
+          </div></div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-q"><span>Les données sont-elles revendues ?</span><span class="faq-toggle">+</span></button>
+          <div class="faq-a"><div class="faq-a-inner">
+            <p><b>Non.</b></p>
+            <p>NEXUS Conseil ne vend pas les données de ses clients ou de leurs collaborateurs.</p>
+          </div></div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-q"><span>Les données sont-elles utilisées pour entraîner une intelligence artificielle ?</span><span class="faq-toggle">+</span></button>
+          <div class="faq-a"><div class="faq-a-inner">
+            <p><b>Non.</b></p>
+            <p>NEXUS n'utilise pas les données des clients pour entraîner une intelligence artificielle.</p>
+          </div></div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-q"><span>Les accès sont-ils sécurisés ?</span><span class="faq-toggle">+</span></button>
+          <div class="faq-a"><div class="faq-a-inner">
+            <p><b>Oui.</b></p>
+            <p>Chaque utilisateur dispose d'un compte individuel et de droits adaptés à son rôle. Les échanges avec la plateforme sont sécurisés et les opérations sensibles peuvent être journalisées.</p>
+          </div></div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-q"><span>Un employé peut-il voir les données financières complètes ?</span><span class="faq-toggle">+</span></button>
+          <div class="faq-a"><div class="faq-a-inner">
+            <p>Pas nécessairement.</p>
+            <p>Les droits d'accès sont définis selon le rôle de l'utilisateur. Un collaborateur ne voit que les informations nécessaires à ses missions.</p>
+          </div></div>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="faq-cat" data-cat="tarifs">
+      <div class="faq-cat-title">Tarifs et déploiement</div>
+      <div class="faq-list">
+
+        <div class="faq-item">
+          <button class="faq-q"><span>Combien de temps faut-il pour mettre NEXUS en service ?</span><span class="faq-toggle">+</span></button>
+          <div class="faq-a"><div class="faq-a-inner">
+            <p>La durée dépend :</p>
+            <ul>
+              <li>du nombre d'établissements ;</li>
+              <li>des modules choisis ;</li>
+              <li>des outils à connecter ;</li>
+              <li>de la qualité des données disponibles ;</li>
+              <li>du niveau de personnalisation attendu.</li>
+            </ul>
+            <p>Un déploiement pilote peut être mis en place progressivement avant une généralisation.</p>
+          </div></div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-q"><span>Faut-il changer tous les outils du commerce ?</span><span class="faq-toggle">+</span></button>
+          <div class="faq-a"><div class="faq-a-inner">
+            <p><b>Non.</b></p>
+            <p>NEXUS est conçu pour compléter les outils existants, pas pour obliger l'entreprise à remplacer immédiatement son logiciel de caisse, son logiciel comptable ou ses méthodes de travail.</p>
+          </div></div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-q"><span>Les équipes doivent-elles être formées ?</span><span class="faq-toggle">+</span></button>
+          <div class="faq-a"><div class="faq-a-inner">
+            <p><b>Oui, mais la formation reste volontairement simple.</b></p>
+            <p>L'objectif est que chaque utilisateur comprenne rapidement :</p>
+            <ul>
+              <li>ce qu'il doit consulter ;</li>
+              <li>ce qu'il doit réaliser ;</li>
+              <li>comment valider ses missions ;</li>
+              <li>comment interpréter les recommandations.</li>
+            </ul>
+          </div></div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-q"><span>Peut-on personnaliser NEXUS selon le commerce ?</span><span class="faq-toggle">+</span></button>
+          <div class="faq-a"><div class="faq-a-inner">
+            <p><b>Oui.</b></p>
+            <p>Les règles, les priorités, les seuils, les rôles et les missions peuvent être adaptés à l'organisation du client.</p>
+          </div></div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-q"><span>Comment est calculé le tarif de NEXUS ?</span><span class="faq-toggle">+</span></button>
+          <div class="faq-a"><div class="faq-a-inner">
+            <p>Le tarif peut dépendre :</p>
+            <ul>
+              <li>du nombre d'établissements ;</li>
+              <li>du nombre d'utilisateurs ;</li>
+              <li>des modules activés ;</li>
+              <li>du niveau d'accompagnement ;</li>
+              <li>des connexions avec les logiciels tiers.</li>
+            </ul>
+          </div></div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-q"><span>Existe-t-il une période d'essai ou une démonstration ?</span><span class="faq-toggle">+</span></button>
+          <div class="faq-a"><div class="faq-a-inner">
+            <p>Une démonstration peut être organisée afin de présenter NEXUS dans un contexte proche de l'activité du prospect.</p>
+            <p>Les conditions d'un éventuel pilote sont définies selon le projet.</p>
+          </div></div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-q"><span>Peut-on ajouter des modules plus tard ?</span><span class="faq-toggle">+</span></button>
+          <div class="faq-a"><div class="faq-a-inner">
+            <p><b>Oui.</b></p>
+            <p>NEXUS est conçu de manière modulaire. Une entreprise peut commencer avec un périmètre limité, puis ajouter de nouvelles fonctionnalités progressivement.</p>
+          </div></div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-q"><span>Qui accompagne l'entreprise pendant le déploiement ?</span><span class="faq-toggle">+</span></button>
+          <div class="faq-a"><div class="faq-a-inner">
+            <p>NEXUS Conseil accompagne le client dans :</p>
+            <ul>
+              <li>la préparation du projet ;</li>
+              <li>la configuration ;</li>
+              <li>l'intégration des données ;</li>
+              <li>la formation ;</li>
+              <li>l'expérimentation ;</li>
+              <li>l'amélioration des règles métier.</li>
+            </ul>
+          </div></div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-q"><span>Que se passe-t-il si NEXUS détecte une erreur ?</span><span class="faq-toggle">+</span></button>
+          <div class="faq-a"><div class="faq-a-inner">
+            <p>NEXUS signale la situation et précise les éléments à vérifier.</p>
+            <p>La recommandation doit ensuite être examinée par un responsable avant toute décision importante.</p>
+          </div></div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-q"><span>Comment contacter l'équipe NEXUS ?</span><span class="faq-toggle">+</span></button>
+          <div class="faq-a"><div class="faq-a-inner">
+            <p>Pour toute question, demande de démonstration ou besoin d'assistance :</p>
+            <p><a href="mailto:contact@nexusconseil.net" style="color:var(--cyan);">contact@nexusconseil.net</a></p>
+          </div></div>
+        </div>
+
+      </div>
+    </div>
+
+  </section>
+
+  <div class="faq-empty" id="faqEmpty">Aucune question ne correspond à votre recherche.</div>
+
+  <div class="manifesto-panel">
+    <div class="eyebrow">Une question reste sans réponse ?</div>
+    <p class="lead-line">Parlez-nous de votre commerce, de vos contraintes et de vos outils actuels.</p>
+    <div class="faq-cta-buttons">
+      <a class="btn btn-primary" href="mailto:contact@nexusconseil.net">Contacter NEXUS Conseil</a>
+      <a class="btn btn-ghost" href="mailto:fredbragance@nexusconseil.net?subject=Demande%20de%20d%C3%A9mo%20NEXUS">Demander une démonstration</a>
+    </div>
+  </div>
+
+</div>
+
+<footer>
+  <div>NEXUS Conseil — Questions fréquentes</div>
+  <div style="margin-top:10px;"><a href="index.html">Retour à l'accueil</a></div>
+</footer>
+
+<script>
+  // Accordéon — une question ouverte n'en ferme pas les autres,
+  // chaque item est indépendant.
+  document.querySelectorAll('.faq-q').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const item = btn.closest('.faq-item');
+      const ouvert = item.classList.toggle('open');
+      const answer = item.querySelector('.faq-a');
+      answer.style.maxHeight = ouvert ? answer.scrollHeight + 'px' : null;
+      btn.querySelector('.faq-toggle').textContent = ouvert ? '×' : '+';
+    });
+  });
+
+  // Recherche en direct — filtre sur la question et la réponse,
+  // ouvre automatiquement les résultats correspondants.
+  const searchInput = document.getElementById('faqSearch');
+  const categories = Array.from(document.querySelectorAll('.faq-cat'));
+  const emptyMsg = document.getElementById('faqEmpty');
+
+  searchInput.addEventListener('input', () => {
+    const q = searchInput.value.trim().toLowerCase();
+    let totalVisible = 0;
+
+    categories.forEach(cat => {
+      let catVisible = 0;
+      cat.querySelectorAll('.faq-item').forEach(item => {
+        const texte = item.textContent.toLowerCase();
+        const match = q === '' || texte.includes(q);
+        item.classList.toggle('hidden', !match);
+        const answer = item.querySelector('.faq-a');
+        const toggle = item.querySelector('.faq-toggle');
+        if (match && q !== '') {
+          item.classList.add('open');
+          answer.style.maxHeight = answer.scrollHeight + 'px';
+          toggle.textContent = '×';
+        } else if (q === '') {
+          item.classList.remove('open');
+          answer.style.maxHeight = null;
+          toggle.textContent = '+';
+        }
+        if (match) { catVisible++; totalVisible++; }
+      });
+      cat.classList.toggle('hidden', catVisible === 0);
+    });
+
+    emptyMsg.classList.toggle('show', totalVisible === 0);
+  });
+</script>
+
+</body>
+</html>

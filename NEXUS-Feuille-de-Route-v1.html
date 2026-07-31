@@ -75,11 +75,12 @@ h1{font-size:clamp(28px,4.6vw,42px); font-weight:600; line-height:1.2; margin-to
 
 /* ---------- modules disponibles (tag cloud) ---------- */
 .tag-cloud{display:flex; flex-wrap:wrap; gap:10px;}
-.tag-cloud span{
+.tag-cloud span, .tag-cloud a{
   background:var(--panel); border:1px solid var(--hairline); border-radius:20px; padding:8px 15px; font-size:13px; color:var(--text-mid);
   display:flex; align-items:center; gap:7px;
 }
-.tag-cloud span::before{content:'✓'; color:var(--green); font-weight:700;}
+.tag-cloud span::before, .tag-cloud a::before{content:'✓'; color:var(--green); font-weight:700;}
+.tag-cloud a:hover{border-color:var(--cyan); color:var(--text);}
 .tag-cloud-note{margin-top:18px; font-size:13px; color:var(--text-dim);}
 .tag-cloud-note a{color:var(--cyan);}
 
@@ -189,8 +190,9 @@ footer a:hover{color:var(--cyan);}
       <span>Journal NEXUS</span>
       <span>Imports</span>
       <span>Administration multi-site</span>
+      <a href="NEXUS-FAQ-v1.html">Questions fréquentes</a>
     </div>
-    <div class="tag-cloud-note">Le détail de chaque écran est présenté sur la <a href="index.html#modules">page d'accueil</a>.</div>
+    <div class="tag-cloud-note">Le fonctionnement de NEXUS est présenté sur la <a href="index.html#fonctionnement">page d'accueil</a>, et le détail des questions courantes dans la <a href="NEXUS-FAQ-v1.html">FAQ</a>.</div>
   </section>
 
   <section class="section" id="prochaines-priorites">
@@ -212,14 +214,6 @@ footer a:hover{color:var(--cyan);}
         <div class="roadmap-body">
           <div class="roadmap-title">Documentation &amp; Centre d'aide</div>
           <div class="roadmap-desc">Un espace pour comprendre chaque module en profondeur, pensé pour les nouveaux managers comme pour les équipes déjà formées.</div>
-        </div>
-      </div>
-
-      <div class="roadmap-item">
-        <span class="roadmap-status bientot">Bientôt</span>
-        <div class="roadmap-body">
-          <div class="roadmap-title">Questions fréquentes</div>
-          <div class="roadmap-desc">Les réponses aux questions qui reviennent le plus souvent lors des démonstrations et des premières semaines d'utilisation.</div>
         </div>
       </div>
 
