@@ -125,6 +125,22 @@
   .ecart-bloc-label{font-family:var(--mono); font-size:11px; color:var(--text-mid); text-transform:uppercase; letter-spacing:0.05em;}
   .ecart-montant{font-family:var(--mono); font-size:20px; font-weight:700; margin-bottom:4px;}
 
+  /* Conseiller NEXUS — remarques après le résultat de caisse (01/08/2026,
+     demande de Frédéric) : même habillage que le Conseiller de l'accueil
+     (NEXUS-App-v1.html, .conseiller-card) pour rester cohérent visuellement
+     dans toute l'app. Niveau 1 seulement — remarques auto-suffisantes
+     (calculées depuis Verify + son propre historique), pas encore de
+     croisement avec Tempo/Scanner Stock (chantier à part, pas maintenant). */
+  .conseiller-card{display:none; margin-top:14px; background:linear-gradient(135deg, rgba(79,195,217,0.08), rgba(79,195,217,0.02)); border:1px solid rgba(79,195,217,0.25); border-radius:12px; padding:16px;}
+  .conseiller-card.show{display:block;}
+  .conseiller-head{display:flex; align-items:center; gap:10px; margin-bottom:10px;}
+  .conseiller-avatar{width:38px; height:38px; border-radius:50%; object-fit:cover; flex-shrink:0; background:var(--panel-raised); filter:drop-shadow(0 0 8px rgba(79,195,217,0.45));}
+  .conseiller-name{font-family:var(--mono); font-size:11px; font-weight:700; color:var(--cyan); letter-spacing:0.03em;}
+  .conseiller-sub{font-family:var(--mono); font-size:9px; color:var(--text-dim);}
+  .conseiller-remarque{font-size:12.5px; line-height:1.6; color:var(--text); margin-bottom:8px;}
+  .conseiller-remarque:last-child{margin-bottom:0;}
+  .conseiller-remarque b{color:var(--cyan);}
+
   .histo-item{padding:14px 0; border-bottom:1px solid var(--hairline); cursor:pointer;}
   .histo-item:last-child{border-bottom:none;}
   .histo-top{display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;}
@@ -322,6 +338,25 @@
 
     <button class="btn btn-primary" id="btnCalculer">Calculer et enregistrer</button>
     <div id="resultatAudit"></div>
+    <!-- Conseiller NEXUS — remarques post-audit (01/08/2026, demande de
+         Frédéric) : rempli par genererRemarquesConseiller() juste après
+         l'enregistrement, jamais avant (rien à commenter tant que rien
+         n'est calculé). -->
+    <div class="conseiller-card" id="conseillerVerifyCard">
+      <div class="conseiller-head">
+        <!-- nexus-avatar.png vit à la racine du projet (pas dans assets/,
+             malgré la référence "assets/nexus-avatar.png" utilisée dans
+             App-v1 — vérifié le 01/08/2026 : seul assets/nexus-logo-cyan.png,
+             nexus-avant-apres.png et nexus-est-nee.png existent dans assets/,
+             l'avatar est à la racine, au même niveau que ce fichier). -->
+        <img class="conseiller-avatar" src="nexus-avatar.png" alt="Conseiller NEXUS">
+        <div>
+          <div class="conseiller-name">CONSEILLER NEXUS</div>
+          <div class="conseiller-sub">Ce que je remarque sur ce quart</div>
+        </div>
+      </div>
+      <div id="conseillerVerifyCorps"></div>
+    </div>
   </div>
 
   <div class="section" id="vueHistorique" style="display:none;">
@@ -1339,6 +1374,76 @@
 
     function v(id) { return numFR(document.getElementById(id).value) || 0; }
 
+    // ------------------------------------------------------------
+    // Conseiller NEXUS — remarques post-audit (01/08/2026, demande de
+    // Frédéric : "Verify pourrait analyser une incohérence [...] interroger
+    // Tempo, scanner stock [...] à travers le conseiller NEXUS"). Niveau 1
+    // seulement (décidé avec Frédéric) : remarques auto-suffisantes,
+    // calculées uniquement à partir de CE quart et de l'historique propre
+    // de Verify (audits_caisse) — pas encore de croisement avec Tempo ou
+    // Scanner Stock, qui resterait à construire séparément.
+    //
+    // Article 5 de la Constitution NEXUS ("jamais un chiffre inventé") :
+    // chaque remarque n'est affichée que si elle repose sur une vraie
+    // donnée avec une base suffisante — une comparaison à "la moyenne" sur
+    // 1 ou 2 audits passés ne veut rien dire, donc on l'omet plutôt que de
+    // l'afficher quand même (SEUIL_HISTORIQUE_MIN ci-dessous).
+    // ------------------------------------------------------------
+    const SEUIL_HISTORIQUE_MIN = 5;
+
+    async function genererRemarquesConseillerVerify(auditActuel) {
+      const carte = document.getElementById('conseillerVerifyCard');
+      const corps = document.getElementById('conseillerVerifyCorps');
+      if (!carte || !corps) return;
+
+      const remarques = [];
+
+      // Remarque 1 — répartition CB/espèces du jour (toujours calculable,
+      // aucun historique nécessaire).
+      const totalDrops = auditActuel.drop_piste_cb + auditActuel.drop_piste_billets + auditActuel.drop_piste_pieces + auditActuel.drop_piste_chq
+        + auditActuel.drop_boutique_cb + auditActuel.drop_boutique_billets + auditActuel.drop_boutique_pieces + auditActuel.drop_boutique_chq;
+      if (totalDrops > 0) {
+        const partCB = Math.round(((auditActuel.drop_piste_cb + auditActuel.drop_boutique_cb) / totalDrops) * 100);
+        remarques.push(`Les paiements <b>CB représentent ${partCB} %</b> des règlements enregistrés sur ce quart (piste + boutique confondues).`);
+      }
+
+      // Remarque 2 — écart de ce quart comparé aux quarts récents du même
+      // numéro de quart (1 vs 1, 2 vs 2 — comparer un quart du matin à un
+      // quart du soir n'aurait pas de sens). Nécessite un historique réel.
+      try {
+        const { data: historique, error } = await nexusClient
+          .from('audits_caisse')
+          .select('date, ecart_total')
+          .eq('site', SITE_ACTUEL)
+          .eq('quart', auditActuel.quart)
+          .neq('date', auditActuel.date)
+          .order('date', { ascending: false })
+          .limit(30);
+        if (error) throw error;
+
+        if (historique && historique.length >= SEUIL_HISTORIQUE_MIN) {
+          const moyenneEcart = historique.reduce((s, a) => s + Math.abs(a.ecart_total || 0), 0) / historique.length;
+          const ecartAujourdhui = Math.abs(auditActuel.ecart_total);
+          // Ne commente que si l'écart d'aujourd'hui est notablement
+          // différent de l'habitude (au moins 2x, et au moins 5 € d'écart
+          // absolu pour ignorer le bruit sur de très petits montants).
+          if (moyenneEcart > 0 && ecartAujourdhui >= 5 && ecartAujourdhui >= moyenneEcart * 2) {
+            remarques.push(`L'écart total de ce quart (<b>${ecartAujourdhui.toFixed(2)} €</b>) est nettement plus élevé que la moyenne du quart ${auditActuel.quart} sur les ${historique.length} derniers relevés (<b>${moyenneEcart.toFixed(2)} €</b> en moyenne).`);
+          } else if (moyenneEcart >= 5 && ecartAujourdhui <= moyenneEcart * 0.3) {
+            remarques.push(`Écart total de ce quart : <b>${ecartAujourdhui.toFixed(2)} €</b>, nettement en dessous de la moyenne habituelle du quart ${auditActuel.quart} (<b>${moyenneEcart.toFixed(2)} €</b> sur les ${historique.length} derniers relevés). Bon rapprochement.`);
+          }
+        }
+      } catch (e) {
+        // Echec silencieux — une remarque en moins ne doit jamais bloquer
+        // l'affichage du résultat de caisse, qui est prioritaire.
+        console.error('Conseiller NEXUS Verify — comparaison historique:', e);
+      }
+
+      if (!remarques.length) { carte.classList.remove('show'); corps.innerHTML = ''; return; }
+      corps.innerHTML = remarques.map(r => `<div class="conseiller-remarque">${r}</div>`).join('');
+      carte.classList.add('show');
+    }
+
     document.getElementById('btnCalculer').addEventListener('click', async () => {
       const date = document.getElementById('v_date').value;
       const quart = document.getElementById('v_quart').value.trim() || '1';
@@ -1523,6 +1628,13 @@
 
           ${statut !== 'conforme' ? `<div class="resume-line" style="color:var(--amber); margin-top:12px;"><b>Action recommandée</b> — vérifiez le justificatif du composant en écart avant de considérer ce quart comme clôturé. ✓ Enregistré dans l'historique.</div>` : `<div class="resume-line" style="color:var(--green); margin-top:12px;">Les deux caisses sont rapprochées sans écart significatif. ✓ Enregistré.</div>`}
         </div>`;
+
+      await genererRemarquesConseillerVerify({
+        date, quart,
+        drop_piste_cb, drop_piste_billets, drop_piste_pieces, drop_piste_chq,
+        drop_boutique_cb, drop_boutique_billets, drop_boutique_pieces, drop_boutique_chq,
+        ecart_piste, ecart_boutique, ecart_total,
+      });
     });
 
     // ------------------------------------------------------------
