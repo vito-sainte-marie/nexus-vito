@@ -60,6 +60,27 @@
   .btn-add:active{background:rgba(79,195,217,0.08);}
   .total-ligne{font-family:var(--mono); font-size:11.5px; color:var(--text-mid); text-align:right;}
 
+  /* NEXUS Data Connector (01/08/2026, recommandations de conception) —
+     renommage + retour visuel du bloc d'import de NEXUS Verify. Le bouton
+     "Synchroniser mes données" est un <label> associé à l'input file
+     (masqué visuellement, pas en display:none) plutôt qu'un input.click()
+     déclenché en JS — même technique que le correctif Pointage du
+     01/08/2026 : plus fiable sur mobile, notamment Android. */
+  .dc-sync-input{position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0;}
+  .dc-sync-btn{display:flex; align-items:center; justify-content:center; gap:8px; width:100%; padding:12px; border-radius:8px; border:1px solid rgba(79,195,217,0.4); background:rgba(79,195,217,0.08); color:var(--cyan); font-family:var(--sans); font-size:13px; font-weight:600; cursor:pointer; margin-bottom:10px; -webkit-tap-highlight-color:transparent;}
+  .dc-sync-btn:active{background:rgba(79,195,217,0.16);}
+
+  .dc-checklist{display:none; margin-bottom:10px;}
+  .dc-checklist.show{display:block;}
+  .dc-check-item{
+    display:flex; align-items:center; gap:8px; font-family:var(--sans); font-size:12.5px; color:var(--text);
+    padding:5px 0; opacity:0; transform:translateY(4px);
+    animation:dcCheckIn 0.35s ease forwards;
+  }
+  .dc-check-item .dc-check-mark{color:var(--green); font-weight:700; flex-shrink:0;}
+  .dc-check-pct{font-family:var(--mono); font-size:12px; color:var(--cyan); font-weight:600; padding:8px 0 2px; border-top:1px solid var(--hairline); margin-top:4px;}
+  @keyframes dcCheckIn{ to{ opacity:1; transform:translateY(0); } }
+
   .emp-dropdown{position:relative; margin-bottom:10px;}
   .emp-dropdown-toggle{width:100%; text-align:left; background:var(--panel-raised); border:1px solid var(--hairline); border-radius:8px; padding:11px 12px; color:var(--text); font-family:var(--sans); font-size:13px; cursor:pointer; display:flex; justify-content:space-between; align-items:center; gap:8px;}
   .emp-dropdown-toggle span:first-child{overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
@@ -156,23 +177,33 @@
     </div>
 
     <div class="card">
-      <div class="section-label">Import classeur recettes</div>
-      <div class="note">Choisis la date et le quart ci-dessus, puis dépose ton classeur Excel — les drops piste/boutique, la carte de fidélité, les employés et le commentaire seront pré-remplis à partir de la ligne correspondante. La vente piste (litrage), la vente boutique Decenium, les bons, dépenses, vacataires et règlements de comptes restent à saisir à la main : ils n'existent pas dans ce classeur.</div>
-      <input type="file" id="v_import_fichier" accept=".xlsx,.xls">
+      <!-- NEXUS Data Connector (01/08/2026, recommandations de conception
+           reçues de Frédéric) : renommage du bloc "Import classeur
+           recettes" — même import fichier/Google Sheets qu'avant, la
+           connexion Google Sheets et la lecture Excel/ODS existent déjà ;
+           on ne promet ici QUE ce que NEXUS sait réellement faire
+           aujourd'hui (pas de PDF/CSV/API/OCR, qui restent des pistes
+           futures non construites — jamais annoncer une capacité qui
+           n'existe pas). -->
+      <div class="section-label">NEXUS Data Connector</div>
+      <div class="note">NEXUS détecte automatiquement les informations disponibles dans votre classeur Excel ou Google Sheets et pré-remplit votre audit. La vente piste (litrage), la vente boutique Decenium, les bons, dépenses, vacataires et règlements de comptes restent à saisir à la main : ils n'existent pas dans ce classeur.</div>
+      <label class="dc-sync-btn" for="v_import_fichier">🔄 Synchroniser mes données</label>
+      <input type="file" id="v_import_fichier" accept=".xlsx,.xls" class="dc-sync-input">
       <div id="v_import_feuille_bloc" style="display:none; margin-top:10px;">
         <label class="f">Feuille (mois)</label>
         <select id="v_import_feuille"></select>
         <button type="button" class="btn-add" id="v_import_go">Importer cette ligne</button>
       </div>
+      <div id="v_import_checklist" class="dc-checklist"></div>
       <div id="v_import_statut" style="display:none; font-family:var(--mono); font-size:11px; color:var(--text-mid); background:var(--panel-raised); border-radius:8px; padding:8px 10px; line-height:1.6;"></div>
       <!-- Import direct Google Sheets (01/08/2026) — n'apparaît que si la
            synchronisation a été activée pour ce site dans Paramètres Station
            (station_config.google_sheet_id). L'import fichier ci-dessus reste
            toujours disponible, activé ou non. -->
       <div id="v_import_sheets_bloc" style="display:none; margin-top:14px; padding-top:14px; border-top:1px solid var(--hairline);">
-        <label class="f">Ou importer directement depuis Google Sheets</label>
+        <label class="f">Ou synchroniser directement depuis Google Sheets</label>
         <select id="v_import_sheets_feuille"></select>
-        <button type="button" class="btn-add" id="v_import_sheets_go">Importer depuis Google Sheets</button>
+        <button type="button" class="btn-add" id="v_import_sheets_go">Synchroniser mes données</button>
       </div>
     </div>
 
@@ -592,6 +623,12 @@
     }
 
     async function importerDepuisLignes(lignes, dateStr, quartStr, statutEl, formatSource) {
+      // Repart d'un état propre à chaque tentative (01/08/2026) — sinon la
+      // checklist d'une synchronisation précédente resterait affichée si
+      // celle-ci échoue (en-têtes non reconnus, ligne introuvable...).
+      const checklistReset = document.getElementById('v_import_checklist');
+      if (checklistReset) { checklistReset.classList.remove('show'); checklistReset.innerHTML = ''; }
+
       // Repère la ligne d'en-têtes (celle qui contient "QUART" et "POMPISTE").
       let headerIdx = -1, cols = null;
       for (let i = 0; i < Math.min(lignes.length, 15); i++) {
@@ -599,6 +636,7 @@
         if (c.quart !== undefined && c.pompiste !== undefined) { headerIdx = i; cols = c; break; }
       }
       if (headerIdx === -1) {
+        statutEl.style.display = 'block';
         statutEl.textContent = "En-têtes non reconnus dans cette feuille — structure trop différente pour un import automatique.";
         return;
       }
@@ -661,6 +699,7 @@
       }
 
       if (!ligneTrouvee) {
+        statutEl.style.display = 'block';
         statutEl.textContent = `Aucune ligne trouvée pour le ${dateStr} quart ${quartStr} — vérifie la feuille choisie.`;
         return;
       }
@@ -738,28 +777,65 @@
       const alerteDate = !dateLiteraleSurLaLigne
         ? ` ⚠ La date de cette ligne n'était pas écrite explicitement (reportée depuis une ligne précédente) — vérifie bien que les montants pré-remplis correspondent au ${dateStr}, pas au jour suivant.`
         : '';
-      // Diagnostic (01/08/2026, round 2) — le décalage de date étant
-      // maintenant prouvé absent côté résolution (date résolue = date
-      // demandée), le seul moyen de vérifier si les MONTANTS lus sont les
-      // bons est de les afficher bruts ici, pour comparaison directe avec
-      // la ligne du Google Sheet par Frédéric lui-même (je n'ai pas accès
-      // au classeur en direct) — sans passer par la console, inaccessible
-      // sur mobile.
-      const brut = `[lu] CB piste=${g('pisteCb') ?? '—'} · Billets piste=${g('pisteBillets') ?? '—'} · Pièces piste=${g('pistePieces') ?? '—'} · CB boutique=${g('boutiqueCb') ?? '—'} · Pompiste="${g('pompiste') ?? '—'}" · Caissier="${g('caissier') ?? '—'}"`;
-      // Diagnostic (01/08/2026, round 3) — le décalage persiste alors que la
-      // capture de la vraie feuille Google Sheets montre des valeurs
-      // différentes de celles lues ici pour la même date : on ne peut donc
-      // plus l'expliquer par une erreur de saisie côté classeur. On dump ici
-      // l'index de ligne réellement matché (dans le tableau `lignes` reçu de
-      // l'API) et les 3 lignes brutes autour, pour repérer un éventuel
-      // décalage d'indexation (ex: valeurs finales tronquées par l'API
-      // Google Sheets qui omet les cellules vides en fin de ligne, ce qui
-      // peut désaligner une extraction par position si une ligne est plus
-      // courte qu'une autre).
-      const fmt = (v) => (v instanceof Date) ? v.toLocaleDateString('fr-FR') : (v === '' || v == null ? '·' : v);
-      const dumpLigne = (idx) => (idx >= 0 && idx < lignes.length && lignes[idx]) ? `L${idx}[${lignes[idx].length}]:(${lignes[idx].map(fmt).join(',')})` : `L${idx}:∅`;
-      const dump = `dbg headerIdx=${headerIdx} cols=${JSON.stringify(cols)} idxTrouvee=${ligneTrouveeIdx} — ${dumpLigne(ligneTrouveeIdx - 1)} | ${dumpLigne(ligneTrouveeIdx)} | ${dumpLigne(ligneTrouveeIdx + 1)}`;
-      statutEl.textContent = `Import fait pour le ${dateStr} quart ${quartStr} — date résolue par l'import : ${dateResolueTexte}.${alerteDate} ${messagesEmp.join(' · ') || 'Aucun employé à faire correspondre.'} — vérifie les champs avant d'enregistrer : la vente piste (litrage) et la vente boutique (Decenium) ne sont pas dans ce classeur. ${brut} — ${dump}`;
+      // Diagnostic technique (01/08/2026) — utile pour retrouver un décalage
+      // de date/colonnes causé par une erreur dans le classeur source (déjà
+      // vécu une fois sur "JUIN 2026") : gardé en console uniquement, plus
+      // dans l'écran, pour ne pas polluer le nouveau retour visuel type
+      // "NEXUS Data Connector" ci-dessous (recommandations de conception du
+      // 01/08/2026). Toujours consultable via la console si un souci de
+      // ligne/colonne revient sur un autre mois.
+      const fmtDbg = (v) => (v instanceof Date) ? v.toLocaleDateString('fr-FR') : (v === '' || v == null ? '·' : v);
+      const dumpLigneDbg = (idx) => (idx >= 0 && idx < lignes.length && lignes[idx]) ? `L${idx}[${lignes[idx].length}]:(${lignes[idx].map(fmtDbg).join(',')})` : `L${idx}:∅`;
+      console.log(`NEXUS import diagnostic — date résolue=${dateResolueTexte} headerIdx=${headerIdx} cols=`, cols, `idxTrouvee=${ligneTrouveeIdx}`,
+        dumpLigneDbg(ligneTrouveeIdx - 1), '|', dumpLigneDbg(ligneTrouveeIdx), '|', dumpLigneDbg(ligneTrouveeIdx + 1));
+
+      // NEXUS Data Connector — checklist visuelle (01/08/2026, recommandations
+      // de conception) : chaque ligne reflète une donnée réellement détectée
+      // (jamais un état inventé/scripté) — construite à partir de ce qui a
+      // vraiment été trouvé et pré-rempli ci-dessus.
+      const items = [];
+      items.push('Rapport recettes détecté');
+      if (messagesEmp.some(m => m.includes('✓'))) items.push('Employés reconnus');
+      if (cols.pisteVitocarte !== undefined && num(g('pisteVitocarte'))) items.push('Carte fidélité détectée');
+      const dropsPresents = ['pisteCb', 'pisteBillets', 'pistePieces', 'boutiqueCb', 'boutiquePieces', 'boutiqueBillets']
+        .some(k => cols[k] !== undefined && num(g(k)));
+      if (dropsPresents) items.push('Drops piste/boutique importés');
+      if (commentaire) items.push('Commentaire récupéré');
+
+      // Pourcentage (01/08/2026) : calculé UNIQUEMENT sur les champs que ce
+      // classeur peut réellement fournir (colonnes détectées dans son
+      // en-tête) — jamais sur l'ensemble du formulaire d'audit, qui contient
+      // des champs sciemment absents de ce classeur (litrage, Decenium,
+      // bons, dépenses...). Un 100% ici veut dire "tout ce que ce classeur
+      // pouvait donner a été récupéré", pas "l'audit est complet".
+      const champsDonnees = Object.keys(cols).filter(k => k !== 'date' && k !== 'quart');
+      const champsRemplis = champsDonnees.filter(k => {
+        const v = ligneTrouvee[cols[k]];
+        if (v == null || v === '') return false;
+        if (typeof v === 'number') return v !== 0;
+        return true;
+      });
+      const pourcentage = champsDonnees.length ? Math.round((champsRemplis.length / champsDonnees.length) * 100) : 0;
+
+      const checklistEl = document.getElementById('v_import_checklist');
+      if (checklistEl) {
+        checklistEl.innerHTML = items.map((txt, i) =>
+          `<div class="dc-check-item" style="animation-delay:${i * 90}ms"><span class="dc-check-mark">✓</span>${txt}</div>`
+        ).join('') + `<div class="dc-check-pct">Audit pré-rempli à ${pourcentage}% (sur les données de ce classeur)</div>`;
+        checklistEl.classList.add('show');
+      }
+
+      // Le texte technique restant (avertissement de date reportée, échecs
+      // de reconnaissance d'employé) reste affiché séparément — jamais
+      // masqué, ce sont des points qui méritent une vérification manuelle.
+      const messageResiduel = [alerteDate.trim(), messagesEmp.filter(m => !m.includes('✓')).join(' · ')].filter(Boolean).join(' ');
+      if (messageResiduel) {
+        statutEl.style.display = 'block';
+        statutEl.textContent = messageResiduel;
+      } else {
+        statutEl.style.display = 'none';
+        statutEl.textContent = '';
+      }
     }
 
     document.getElementById('v_import_go').addEventListener('click', async () => {
