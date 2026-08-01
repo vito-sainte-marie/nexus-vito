@@ -134,6 +134,52 @@ h1{font-size:clamp(28px,4.2vw,40px); font-weight:600; margin-top:14px; max-width
 }
 .domain-unlock b{color:var(--green); flex:none;}
 
+/* ---------- architecture (diagramme) ---------- */
+.arch-diagram{margin-top:26px; border-radius:16px; border:1px solid var(--hairline); background:var(--panel); padding:14px;}
+.arch-diagram svg{width:100%; height:auto; display:block;}
+.arch-zone{fill:none; stroke:var(--hairline); stroke-dasharray:4 5; stroke-width:1.5;}
+.arch-zone.nexus{stroke:rgba(79,195,217,0.35);}
+.arch-zone.you{stroke:rgba(212,175,55,0.35);}
+.arch-zone-label{font-family:var(--mono); font-size:11px; letter-spacing:0.08em; text-transform:uppercase; fill:var(--text-dim);}
+.arch-zone-label.nexus{fill:var(--cyan);}
+.arch-zone-label.you{fill:var(--gold);}
+.arch-box{fill:var(--panel-raised); stroke:var(--hairline); stroke-width:1;}
+.arch-box.engine{fill:#101820;}
+.arch-box.advisor{stroke:var(--cyan); stroke-width:1.4;}
+.arch-box.you{fill:var(--gold-dim); stroke:var(--gold);}
+.arch-icon{font-size:20px;}
+.arch-icon.small{font-size:16px;}
+.arch-box-title{font-family:var(--sans); font-size:13px; font-weight:600; fill:var(--text);}
+.arch-box-title.small{font-size:12px;}
+.arch-box-sub{font-family:var(--mono); font-size:10px; fill:var(--text-mid);}
+.arch-subhead{font-family:var(--mono); font-size:10.5px; letter-spacing:0.06em; text-transform:uppercase; fill:var(--text-dim);}
+.arch-gateway{fill:var(--panel-raised); stroke:var(--cyan); stroke-width:1.6;}
+.arch-gateway-title{font-family:var(--sans); font-size:14px; font-weight:700; fill:var(--text);}
+.arch-gateway-sub{font-family:var(--mono); font-size:9.5px; fill:var(--text-mid);}
+.arch-arrow{stroke-width:1.8;}
+.arch-arrow.cyan{stroke:var(--cyan);}
+.arch-arrow.green{stroke:var(--green);}
+.arch-arrow.gold{stroke:var(--gold);}
+.arch-arrow.neutral{stroke:var(--text-dim);}
+.arrow-head{fill:var(--text-dim);}
+.arrow-head.cyan{fill:var(--cyan);}
+.arrow-head.green{fill:var(--green);}
+.arrow-head.gold{fill:var(--gold);}
+.arch-arrow-label{font-family:var(--mono); font-size:10px; letter-spacing:0.02em;}
+.arch-arrow-label.cyan{fill:var(--cyan);}
+.arch-arrow-label.green{fill:var(--green);}
+.arch-arrow-label.gold{fill:var(--gold);}
+.arch-legend{display:flex; gap:22px; margin-top:16px; flex-wrap:wrap;}
+.legend-item{display:flex; align-items:center; gap:8px; font-family:var(--mono); font-size:11px; color:var(--text-mid);}
+.legend-dot{width:10px; height:10px; border-radius:50%; display:inline-block;}
+.legend-dot.cyan{background:var(--cyan);}
+.legend-dot.green{background:var(--green);}
+.legend-dot.gold{background:var(--gold);}
+@media (max-width: 720px){
+  .arch-diagram{overflow-x:auto;}
+  .arch-diagram svg{min-width:900px;}
+}
+
 /* ---------- sécurité ---------- */
 .security-list{margin-top:22px; display:flex; flex-direction:column; gap:12px;}
 .security-item{display:flex; gap:12px; align-items:flex-start; padding:14px 16px; border-radius:10px; background:var(--panel); border:1px solid var(--hairline);}
@@ -348,6 +394,119 @@ footer a:hover{color:var(--cyan);}
         <div class="domain-unlock"><b>Débloque —</b> moins de fausses alertes de marge sur des choix commerciaux assumés.</div>
       </div>
 
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="section-label">Architecture</div>
+    <h2>Comment NEXUS se connecte à votre écosystème</h2>
+    <p class="section-desc">Une seule porte d'entrée entre votre système d'information et NEXUS : la clé API. Lecture seule dans un sens, écriture stricte dans l'autre — jamais les deux sur le même flux.</p>
+    <div class="arch-diagram">
+      <svg viewBox="0 0 1200 560" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Schéma d'architecture : votre logiciel de caisse et votre équipe terrain se connectent à NEXUS via une clé API par établissement. NEXUS conserve la donnée brute, la normalise, puis le Conseiller NEXUS calcule et transmet une recommandation au dirigeant.">
+        <defs>
+          <marker id="arrow-cyan" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" class="arrow-head cyan"/>
+          </marker>
+          <marker id="arrow-green" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" class="arrow-head green"/>
+          </marker>
+          <marker id="arrow-gold" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" class="arrow-head gold"/>
+          </marker>
+          <filter id="gateway-glow" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur stdDeviation="9" result="blur"/>
+            <feMerge>
+              <feMergeNode in="blur"/>
+              <feMergeNode in="SourceGraphic"/>
+            </feMerge>
+          </filter>
+        </defs>
+
+        <!-- zones -->
+        <rect x="20" y="40" width="300" height="470" rx="18" class="arch-zone yours"/>
+        <text x="34" y="26" class="arch-zone-label">Votre système d'information</text>
+
+        <rect x="360" y="40" width="560" height="470" rx="18" class="arch-zone nexus"/>
+        <text x="374" y="26" class="arch-zone-label nexus">NEXUS — plateforme hébergée</text>
+
+        <rect x="960" y="40" width="210" height="470" rx="18" class="arch-zone you"/>
+        <text x="974" y="26" class="arch-zone-label you">Vous, le dirigeant</text>
+
+        <!-- col1 : logiciel de caisse -->
+        <rect x="40" y="60" width="260" height="80" rx="12" class="arch-box"/>
+        <text x="62" y="100" class="arch-icon">🧾</text>
+        <text x="92" y="100" class="arch-box-title">Logiciel de caisse</text>
+        <text x="92" y="120" class="arch-box-sub">Ventes en ligne de caisse</text>
+
+        <!-- col1 : terrain -->
+        <text x="40" y="172" class="arch-subhead">Équipe terrain — déclare à NEXUS</text>
+
+        <rect x="40" y="182" width="260" height="64" rx="12" class="arch-box"/>
+        <text x="60" y="219" class="arch-icon small">📦</text>
+        <text x="90" y="219" class="arch-box-title small">Contrôles de stock</text>
+
+        <rect x="40" y="258" width="260" height="64" rx="12" class="arch-box"/>
+        <text x="60" y="295" class="arch-icon small">📣</text>
+        <text x="90" y="295" class="arch-box-title small">Campagnes commerciales</text>
+
+        <rect x="40" y="334" width="260" height="64" rx="12" class="arch-box"/>
+        <text x="60" y="371" class="arch-icon small">⚖️</text>
+        <text x="90" y="371" class="arch-box-title small">Exceptions de marge</text>
+
+        <!-- col2 : gateway -->
+        <rect x="390" y="70" width="150" height="430" rx="18" class="arch-gateway" filter="url(#gateway-glow)"/>
+        <text x="465" y="112" text-anchor="middle" class="arch-icon">🔌</text>
+        <text x="465" y="150" text-anchor="middle" class="arch-gateway-title">NEXUS</text>
+        <text x="465" y="170" text-anchor="middle" class="arch-gateway-title">API</text>
+        <text x="465" y="284" text-anchor="middle" class="arch-gateway-sub">Clé API</text>
+        <text x="465" y="300" text-anchor="middle" class="arch-gateway-sub">par établissement</text>
+        <text x="465" y="452" text-anchor="middle" class="arch-icon small">🔒</text>
+        <text x="465" y="472" text-anchor="middle" class="arch-gateway-sub">Bearer — portée définie</text>
+
+        <!-- col3 : moteur NEXUS -->
+        <rect x="640" y="70" width="260" height="80" rx="12" class="arch-box engine"/>
+        <text x="662" y="104" class="arch-icon">🗄️</text>
+        <text x="700" y="104" class="arch-box-title">Couche brute</text>
+        <text x="700" y="126" class="arch-box-sub">Donnée conservée telle quelle</text>
+
+        <rect x="640" y="190" width="260" height="80" rx="12" class="arch-box engine"/>
+        <text x="662" y="224" class="arch-icon">🧩</text>
+        <text x="700" y="224" class="arch-box-title">Couche normalisée</text>
+        <text x="700" y="246" class="arch-box-sub">Format harmonisé NEXUS</text>
+
+        <rect x="640" y="310" width="260" height="100" rx="14" class="arch-box engine advisor"/>
+        <text x="662" y="344" class="arch-icon">🧠</text>
+        <text x="700" y="344" class="arch-box-title">Conseiller NEXUS</text>
+        <text x="700" y="366" class="arch-box-sub">Calcule, compare, recommande</text>
+
+        <!-- col4 : dirigeant -->
+        <rect x="980" y="310" width="180" height="100" rx="14" class="arch-box you"/>
+        <text x="1000" y="344" class="arch-icon">💡</text>
+        <text x="1035" y="344" class="arch-box-title">Vous</text>
+        <text x="1035" y="366" class="arch-box-sub">Recommandation</text>
+
+        <!-- flèches -->
+        <line x1="300" y1="100" x2="386" y2="100" class="arch-arrow cyan" marker-end="url(#arrow-cyan)"/>
+        <text x="305" y="90" class="arch-arrow-label cyan">GET — lecture seule</text>
+
+        <line x1="300" y1="214" x2="386" y2="270" class="arch-arrow green" marker-end="url(#arrow-green)"/>
+        <line x1="300" y1="290" x2="386" y2="285" class="arch-arrow green" marker-end="url(#arrow-green)"/>
+        <line x1="300" y1="366" x2="386" y2="300" class="arch-arrow green" marker-end="url(#arrow-green)"/>
+        <text x="305" y="335" class="arch-arrow-label green">POST — écriture stricte</text>
+
+        <line x1="540" y1="290" x2="636" y2="110" class="arch-arrow cyan" marker-end="url(#arrow-cyan)"/>
+
+        <line x1="770" y1="150" x2="770" y2="188" class="arch-arrow neutral" marker-end="url(#arrow-cyan)"/>
+        <line x1="770" y1="270" x2="770" y2="308" class="arch-arrow neutral" marker-end="url(#arrow-cyan)"/>
+
+        <line x1="900" y1="360" x2="976" y2="360" class="arch-arrow gold" marker-end="url(#arrow-gold)"/>
+        <text x="905" y="345" class="arch-arrow-label gold">Recommandation</text>
+      </svg>
+    </div>
+    <div class="arch-legend">
+      <span class="legend-item"><span class="legend-dot cyan"></span>Lecture seule — caisse → NEXUS</span>
+      <span class="legend-item"><span class="legend-dot green"></span>Écriture stricte — terrain → NEXUS</span>
+      <span class="legend-item"><span class="legend-dot gold"></span>Sortie — NEXUS → dirigeant</span>
     </div>
   </section>
 
