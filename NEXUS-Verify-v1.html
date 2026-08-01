@@ -736,7 +736,15 @@
       const alerteDate = !dateLiteraleSurLaLigne
         ? ` ⚠ La date de cette ligne n'était pas écrite explicitement (reportée depuis une ligne précédente) — vérifie bien que les montants pré-remplis correspondent au ${dateStr}, pas au jour suivant.`
         : '';
-      statutEl.textContent = `Import fait pour le ${dateStr} quart ${quartStr} — date résolue par l'import : ${dateResolueTexte}.${alerteDate} ${messagesEmp.join(' · ') || 'Aucun employé à faire correspondre.'} — vérifie les champs avant d'enregistrer : la vente piste (litrage) et la vente boutique (Decenium) ne sont pas dans ce classeur.`;
+      // Diagnostic (01/08/2026, round 2) — le décalage de date étant
+      // maintenant prouvé absent côté résolution (date résolue = date
+      // demandée), le seul moyen de vérifier si les MONTANTS lus sont les
+      // bons est de les afficher bruts ici, pour comparaison directe avec
+      // la ligne du Google Sheet par Frédéric lui-même (je n'ai pas accès
+      // au classeur en direct) — sans passer par la console, inaccessible
+      // sur mobile.
+      const brut = `[lu] CB piste=${g('pisteCb') ?? '—'} · Billets piste=${g('pisteBillets') ?? '—'} · Pièces piste=${g('pistePieces') ?? '—'} · CB boutique=${g('boutiqueCb') ?? '—'} · Pompiste="${g('pompiste') ?? '—'}" · Caissier="${g('caissier') ?? '—'}"`;
+      statutEl.textContent = `Import fait pour le ${dateStr} quart ${quartStr} — date résolue par l'import : ${dateResolueTexte}.${alerteDate} ${messagesEmp.join(' · ') || 'Aucun employé à faire correspondre.'} — vérifie les champs avant d'enregistrer : la vente piste (litrage) et la vente boutique (Decenium) ne sont pas dans ce classeur. ${brut}`;
     }
 
     document.getElementById('v_import_go').addEventListener('click', async () => {
