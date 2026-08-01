@@ -557,7 +557,13 @@
         site_id: SITE_ACTUEL,
         actif: true,
       }).select().single();
-      if (error) { console.error('Création vacataire:', error); return { emp: null, nouveau: false }; }
+      if (error) {
+        console.error('Création vacataire:', error);
+        // Message affiché directement à l'écran (pas seulement "voir
+        // console") — sur mobile, Frédéric n'a pas d'accès pratique à la
+        // console du navigateur pour me relayer la vraie erreur Supabase.
+        return { emp: null, nouveau: false, erreur: error.message || error.code || String(error) };
+      }
       EMPLOYES_SITE.push(data);
       return { emp: data, nouveau: true };
     }
@@ -657,6 +663,14 @@
         return;
       }
 
+      // Diagnostic (01/08/2026) — décalage de date rapporté par Frédéric,
+      // non reproduit en analysant un export du classeur : on affiche donc
+      // ici la date réellement résolue par l'algorithme (celle qui a servi
+      // à la correspondance), pour comparer directement avec la date
+      // demandée sans avoir besoin d'une capture d'écran ou d'un fichier.
+      const dateResolueTexte = dernierDateVue ? dernierDateVue.toLocaleDateString('fr-FR') : '?';
+      console.log('NEXUS import diagnostic — cols:', cols, 'ligne trouvée (index colonnes):', ligneTrouvee);
+
       const g = (key) => { const idx = cols[key]; return (idx !== undefined) ? ligneTrouvee[idx] : null; };
       const num = (v) => { const n = Number(v); return isNaN(n) ? 0 : n; };
       // Ne touche un champ que si sa colonne existe réellement dans cette
@@ -699,15 +713,15 @@
       const messagesEmp = [];
       const pompisteNom = g('pompiste');
       if (pompisteNom) {
-        const { emp, nouveau } = await trouverOuCreerEmploye(pompisteNom);
+        const { emp, nouveau, erreur } = await trouverOuCreerEmploye(pompisteNom);
         if (emp) { employesSelectionnes.piste.add(emp.id); messagesEmp.push(`Piste : ${emp.nom}${nouveau ? ' (nouveau vacataire)' : ''} ✓`); }
-        else messagesEmp.push(`Piste : "${pompisteNom}" — échec de création (voir console)`);
+        else messagesEmp.push(`Piste : "${pompisteNom}" — échec de création (${erreur || 'erreur inconnue'})`);
       }
       const caissierNom = g('caissier');
       if (caissierNom) {
-        const { emp, nouveau } = await trouverOuCreerEmploye(caissierNom);
+        const { emp, nouveau, erreur } = await trouverOuCreerEmploye(caissierNom);
         if (emp) { employesSelectionnes.boutique.add(emp.id); messagesEmp.push(`Boutique : ${emp.nom}${nouveau ? ' (nouveau vacataire)' : ''} ✓`); }
-        else messagesEmp.push(`Boutique : "${caissierNom}" — échec de création (voir console)`);
+        else messagesEmp.push(`Boutique : "${caissierNom}" — échec de création (${erreur || 'erreur inconnue'})`);
       }
       renderMenuEmployes('piste'); majLabelEmployes('piste');
       renderMenuEmployes('boutique'); majLabelEmployes('boutique');
@@ -722,7 +736,7 @@
       const alerteDate = !dateLiteraleSurLaLigne
         ? ` ⚠ La date de cette ligne n'était pas écrite explicitement (reportée depuis une ligne précédente) — vérifie bien que les montants pré-remplis correspondent au ${dateStr}, pas au jour suivant.`
         : '';
-      statutEl.textContent = `Import fait pour le ${dateStr} quart ${quartStr}.${alerteDate} ${messagesEmp.join(' · ') || 'Aucun employé à faire correspondre.'} — vérifie les champs avant d'enregistrer : la vente piste (litrage) et la vente boutique (Decenium) ne sont pas dans ce classeur.`;
+      statutEl.textContent = `Import fait pour le ${dateStr} quart ${quartStr} — date résolue par l'import : ${dateResolueTexte}.${alerteDate} ${messagesEmp.join(' · ') || 'Aucun employé à faire correspondre.'} — vérifie les champs avant d'enregistrer : la vente piste (litrage) et la vente boutique (Decenium) ne sont pas dans ce classeur.`;
     }
 
     document.getElementById('v_import_go').addEventListener('click', async () => {
