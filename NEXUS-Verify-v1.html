@@ -180,6 +180,7 @@
       <div class="note">La vente piste n'est plus saisie en un seul montant global : elle se calcule à partir du litrage réellement vendu par carburant (pupitre / master), multiplié par le prix du mois en cours. Ce même litrage alimente NEXUS Tempo pour révéler le rythme réel de chaque carburant, jour par jour.</div>
       <div id="alertePrixCarburantsVente" style="display:none; font-family:var(--mono); font-size:11px; color:var(--red); background:var(--red-dim); border-radius:8px; padding:8px 10px; margin-bottom:12px; line-height:1.5;"></div>
       <div id="noteVentePisteLegacy" style="display:none; font-family:var(--mono); font-size:11px; color:var(--amber); background:var(--amber-dim); border-radius:8px; padding:8px 10px; margin-bottom:12px; line-height:1.5;"></div>
+      <div id="notePrixCarburantFige" style="display:none; font-family:var(--mono); font-size:11px; color:var(--cyan); background:rgba(79,195,217,0.1); border-radius:8px; padding:8px 10px; margin-bottom:12px; line-height:1.5;"></div>
       <label class="f">Gasoil (GO) — litres</label>
       <input type="text" inputmode="decimal" id="v_litrage_go" placeholder="0,00">
       <label class="f">Sans plomb (SP95) — litres</label>
@@ -422,12 +423,31 @@
     // historique tel quel tant qu'aucun litrage n'est renseigné dans le
     // formulaire.
     let VENTE_PISTE_LEGACY = null;
+    // Prix figé pour la correction d'un audit ancien (ex: on est le 25 août
+    // et on corrige le 30 juillet) : sans ça, calculerVentePiste() utiliserait
+    // le prix du mois COURANT (août) sur un litrage de juillet, recalculant un
+    // montant faux et écrasant en base le prix historique réellement pratiqué
+    // ce jour-là (prix_gazole/prix_sp95/prix_gnr). Rempli par
+    // prefillFormPourModification() à partir du prix archivé sur l'audit,
+    // remis à null pour toute nouvelle saisie.
+    let PRIX_CARBURANT_FIGE_AUDIT = null;
+
+    // Mois courant calculé en heure LOCALE (pas toISOString, qui est en UTC :
+    // passé 20h heure de Martinique (UTC-4), l'UTC est déjà le lendemain, ce
+    // qui ferait croire à tort qu'on est déjà dans le mois suivant en fin de
+    // soirée le dernier jour du mois — et bloquerait la vente piste alors que
+    // le prix du mois est pourtant bien enregistré). Même méthode que
+    // moisCourantISO() dans NEXUS-Parametres-Station-v1.html.
+    function moisCourantLocal() {
+      const d = new Date();
+      return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+    }
 
     async function chargerPrixCarburants() {
       const { data, error } = await nexusClient.from('station_config').select('prix_carburants').eq('site', SITE_ACTUEL).maybeSingle();
       if (error) { console.error('Chargement prix_carburants:', error); return null; }
       const prix = data && data.prix_carburants;
-      const moisCourant = new Date().toISOString().slice(0, 7);
+      const moisCourant = moisCourantLocal();
       return (prix && prix.mois === moisCourant) ? prix : null;
     }
 
@@ -489,16 +509,22 @@
       // détail par carburant — on conserve son montant d'origine plutôt que
       // de fabriquer un litrage ou d'écraser avec 0.
       if (totalLitrage === 0 && VENTE_PISTE_LEGACY != null) {
-        return { vente: VENTE_PISTE_LEGACY, litrageSaisi: false, bloque: false, go_l: 0, sp_l: 0, gnr_l: 0 };
+        return { vente: VENTE_PISTE_LEGACY, litrageSaisi: false, bloque: false, go_l: 0, sp_l: 0, gnr_l: 0, prixUtilise: null };
       }
-      // Cas 2 : litrage saisi (ou nouvel audit) mais prix du mois absents —
+      // Prix à utiliser : celui figé de l'audit en cours de correction s'il
+      // existe (voir PRIX_CARBURANT_FIGE_AUDIT), sinon le prix du mois
+      // courant. Sans cette priorité, corriger un audit d'un mois passé
+      // recalculerait sa vente piste avec le tarif d'AUJOURD'HUI plutôt que
+      // celui réellement en vigueur ce jour-là.
+      const prix = PRIX_CARBURANT_FIGE_AUDIT || PRIX_CARBURANTS_MOIS;
+      // Cas 2 : litrage saisi (ou nouvel audit) mais aucun prix disponible —
       // impossible de calculer un montant réel, on bloque plutôt que
       // d'enregistrer un 0 € de vente piste qui serait faux.
-      if (!PRIX_CARBURANTS_MOIS) {
-        return { vente: 0, litrageSaisi: false, bloque: true, go_l, sp_l, gnr_l };
+      if (!prix) {
+        return { vente: 0, litrageSaisi: false, bloque: true, go_l, sp_l, gnr_l, prixUtilise: null };
       }
-      const vente = go_l * PRIX_CARBURANTS_MOIS.go + sp_l * PRIX_CARBURANTS_MOIS.sp + gnr_l * PRIX_CARBURANTS_MOIS.gnr;
-      return { vente, litrageSaisi: true, bloque: false, go_l, sp_l, gnr_l };
+      const vente = go_l * prix.go + sp_l * prix.sp + gnr_l * prix.gnr;
+      return { vente, litrageSaisi: true, bloque: false, go_l, sp_l, gnr_l, prixUtilise: prix };
     }
 
     function majAffichageVentePiste() {
@@ -528,6 +554,14 @@
       tabNouveau.classList.add('active'); tabHistorique.classList.remove('active');
       document.getElementById('vueNouveau').style.display = 'block';
       document.getElementById('vueHistorique').style.display = 'none';
+      // Si on revient d'une correction d'audit ancien sans avoir enregistré,
+      // on ne garde ni sa valeur de repli ni son prix figé pour la prochaine
+      // saisie — sinon un nouvel audit pourrait hériter à tort du prix d'un
+      // mois passé.
+      VENTE_PISTE_LEGACY = null;
+      PRIX_CARBURANT_FIGE_AUDIT = null;
+      document.getElementById('noteVentePisteLegacy').style.display = 'none';
+      document.getElementById('notePrixCarburantFige').style.display = 'none';
     });
     tabHistorique.addEventListener('click', async () => {
       tabHistorique.classList.add('active'); tabNouveau.classList.remove('active');
@@ -834,9 +868,9 @@
         litrage_gazole: ventePisteResultat.litrageSaisi ? ventePisteResultat.go_l : null,
         litrage_sp95: ventePisteResultat.litrageSaisi ? ventePisteResultat.sp_l : null,
         litrage_gnr: ventePisteResultat.litrageSaisi ? ventePisteResultat.gnr_l : null,
-        prix_gazole: ventePisteResultat.litrageSaisi ? PRIX_CARBURANTS_MOIS.go : null,
-        prix_sp95: ventePisteResultat.litrageSaisi ? PRIX_CARBURANTS_MOIS.sp : null,
-        prix_gnr: ventePisteResultat.litrageSaisi ? PRIX_CARBURANTS_MOIS.gnr : null,
+        prix_gazole: ventePisteResultat.litrageSaisi ? ventePisteResultat.prixUtilise.go : null,
+        prix_sp95: ventePisteResultat.litrageSaisi ? ventePisteResultat.prixUtilise.sp : null,
+        prix_gnr: ventePisteResultat.litrageSaisi ? ventePisteResultat.prixUtilise.gnr : null,
         drop_piste_billets, drop_piste_pieces, drop_piste_chq, drop_piste_cb, drop_piste_vitocarte,
         clients_compte_piste, depense_ponctuelle_piste: depense_piste,
         drop_boutique_billets, drop_boutique_pieces, drop_boutique_chq, drop_boutique_cb,
@@ -856,10 +890,12 @@
         return;
       }
 
-      // Repart propre pour la prochaine saisie — plus de valeur de repli
-      // héritée d'une éventuelle correction d'audit ancien.
+      // Repart propre pour la prochaine saisie — plus de valeur de repli ni
+      // de prix figé hérités d'une éventuelle correction d'audit ancien.
       VENTE_PISTE_LEGACY = null;
+      PRIX_CARBURANT_FIGE_AUDIT = null;
       document.getElementById('noteVentePisteLegacy').style.display = 'none';
+      document.getElementById('notePrixCarburantFige').style.display = 'none';
 
       box.innerHTML = `
         <div class="resume-box">
@@ -972,14 +1008,31 @@
       // quel (VENTE_PISTE_LEGACY) tant qu'aucun litrage n'est saisi ici,
       // plutôt que de l'écraser par un litrage inventé ou par 0.
       const noteLegacy = document.getElementById('noteVentePisteLegacy');
+      const noteFige = document.getElementById('notePrixCarburantFige');
       if (a.litrage_gazole != null || a.litrage_sp95 != null || a.litrage_gnr != null) {
         VENTE_PISTE_LEGACY = null;
         noteLegacy.style.display = 'none';
         document.getElementById('v_litrage_go').value = a.litrage_gazole != null ? String(a.litrage_gazole).replace('.', ',') : '';
         document.getElementById('v_litrage_sp').value = a.litrage_sp95 != null ? String(a.litrage_sp95).replace('.', ',') : '';
         document.getElementById('v_litrage_gnr').value = a.litrage_gnr != null ? String(a.litrage_gnr).replace('.', ',') : '';
+
+        // Prix figé : on corrige peut-être cet audit bien après son mois
+        // d'origine (ex: le 25 août pour un audit du 30 juillet) — le prix du
+        // mois courant n'a alors plus rien à voir avec celui pratiqué ce
+        // jour-là. On réutilise le prix archivé sur l'audit plutôt que le
+        // prix du mois en cours (voir calculerVentePiste).
+        if (a.prix_gazole != null && a.prix_sp95 != null && a.prix_gnr != null) {
+          PRIX_CARBURANT_FIGE_AUDIT = { go: Number(a.prix_gazole), sp: Number(a.prix_sp95), gnr: Number(a.prix_gnr) };
+          noteFige.style.display = 'block';
+          noteFige.innerHTML = `🔒 Prix figé au tarif en vigueur le ${a.date.split('-').reverse().join('/')} — SP95 ${PRIX_CARBURANT_FIGE_AUDIT.sp.toFixed(3)} · GO ${PRIX_CARBURANT_FIGE_AUDIT.go.toFixed(3)} · GNR ${PRIX_CARBURANT_FIGE_AUDIT.gnr.toFixed(3)} — le tarif du mois en cours dans Paramètres Station n'est pas utilisé pour cette correction.`;
+        } else {
+          PRIX_CARBURANT_FIGE_AUDIT = null;
+          noteFige.style.display = 'none';
+        }
       } else {
         VENTE_PISTE_LEGACY = Number(a.vente_piste) || 0;
+        PRIX_CARBURANT_FIGE_AUDIT = null;
+        noteFige.style.display = 'none';
         document.getElementById('v_litrage_go').value = '';
         document.getElementById('v_litrage_sp').value = '';
         document.getElementById('v_litrage_gnr').value = '';
