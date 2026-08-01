@@ -339,14 +339,27 @@
       const classes = ['pointage-btn', `couleur-${COULEUR_TYPES[type]}`];
       let sousTexte = fait ? `Pointé à ${(fait.heure || '').slice(0, 5)}${fait.photo_url ? ' · Photo ✓' : ''}` : info.sous;
       if (!fait && info.photoRequise) sousTexte = `📷 ${info.consignePhoto}`;
+      // Le champ photo est un FRÈRE du bouton, pas un enfant (01/08/2026,
+      // correction d'un bug signalé par Frédéric : Angelique — Android
+      // Chrome — n'obtenait aucune ouverture d'appareil photo en appuyant
+      // sur Arrivée/Départ). Un <input type="file"> imbriqué DANS un
+      // <button> est un contenu interactif dans un contenu interactif,
+      // invalide en HTML5 — certains navigateurs mobiles (Chrome/WebView
+      // Android en particulier) refusent alors d'ouvrir le sélecteur photo
+      // via input.click() appelé depuis le gestionnaire de clic du bouton
+      // parent. Les deux éléments sont maintenant indépendants dans le DOM,
+      // reliés seulement par data-type, ce qui fonctionne de façon fiable
+      // sur tous les navigateurs.
       const inputPhoto = (!fait && info.photoRequise)
         ? `<input type="file" accept="image/*" capture="environment" class="pointage-photo-input" data-type="${type}" style="display:none;">`
         : '';
-      return `<button class="${classes.join(' ')}" data-type="${type}" data-photo-requise="${!!info.photoRequise}" ${fait || bloque ? 'disabled' : ''}>
-        <span class="label">${fait ? '✓ ' : ''}${info.label}</span>
-        ${sousTexte ? `<span class="sous">${sousTexte}</span>` : ''}
+      return `<div class="pointage-item">
+        <button class="${classes.join(' ')}" data-type="${type}" data-photo-requise="${!!info.photoRequise}" ${fait || bloque ? 'disabled' : ''}>
+          <span class="label">${fait ? '✓ ' : ''}${info.label}</span>
+          ${sousTexte ? `<span class="sous">${sousTexte}</span>` : ''}
+        </button>
         ${inputPhoto}
-      </button>`;
+      </div>`;
     }).join('');
 
     const retourEnAttente = !dejaFait.arrivee && new URLSearchParams(window.location.search).get('retour');
@@ -376,7 +389,9 @@
         if (btn.dataset.photoRequise === 'true') {
           // La photo valide l'action : on ouvre l'appareil photo, rien
           // n'est enregistré tant que l'employé n'a pas pris de photo.
-          const input = btn.querySelector('.pointage-photo-input');
+          // Input désormais frère du bouton (pas enfant), donc recherché
+          // dans le conteneur parent .pointage-item.
+          const input = btn.parentElement && btn.parentElement.querySelector('.pointage-photo-input');
           if (input) input.click();
           return;
         }
@@ -387,8 +402,22 @@
     document.querySelectorAll('.pointage-photo-input').forEach(input => {
       input.addEventListener('change', async () => {
         const file = input.files && input.files[0];
-        if (!file) return; // appareil photo annulé — on ne bloque rien
-        const btn = input.closest('.pointage-btn');
+        // Frère (pas parent) : on remonte au conteneur .pointage-item pour
+        // retrouver le bouton associé.
+        const btn = input.parentElement && input.parentElement.querySelector('.pointage-btn');
+        if (!file) {
+          // 01/08/2026 — signalé par Frédéric : un employé (Angelique)
+          // restait bloqué sur cet écran sans comprendre pourquoi, car un
+          // retour vide de l'appareil photo (photo annulée, ou refusée par
+          // le téléphone/navigateur faute d'autorisation caméra) ne
+          // provoquait auparavant AUCUN message — le bouton restait
+          // silencieux, sans indice sur ce qui bloquait. On rend maintenant
+          // cet échec visible pour qu'elle sache qu'il faut réessayer et
+          // autoriser l'accès à l'appareil photo si le téléphone le demande.
+          const sousVide = btn && btn.querySelector('.sous');
+          if (sousVide) sousVide.textContent = "Aucune photo reçue — réessaie et autorise l'accès à l'appareil photo si ton téléphone te le demande.";
+          return;
+        }
         const type = input.dataset.type;
         btn.disabled = true;
         btn.querySelector('.sous').textContent = 'Envoi de la photo…';
