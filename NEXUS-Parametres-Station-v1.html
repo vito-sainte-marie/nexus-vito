@@ -3,6 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" type="image/x-icon" href="favicon.ico">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+<link rel="manifest" href="site.webmanifest">
+<meta name="theme-color" content="#0B0F14">
 <title>NEXUS — Paramètres Station</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -92,6 +98,12 @@
   .btn-mini{font-family:var(--mono); font-size:10.5px; font-weight:600; border:1px solid var(--hairline); border-radius:6px; padding:6px 10px; background:none; color:var(--text-mid); cursor:pointer; white-space:nowrap; flex-shrink:0;}
   .btn-mini.exclure{color:var(--cyan); border-color:rgba(79,195,217,0.35);}
   .liste-vide{font-size:11.5px; color:var(--text-dim); font-style:italic; padding:6px 0;}
+
+  /* Synchronisation Google Sheets (01/08/2026) */
+  .gs-resultat{margin-top:10px; padding:10px; border-radius:8px; font-family:var(--mono); font-size:11px; line-height:1.6; display:none;}
+  .gs-resultat.ok{display:block; background:var(--green-dim); color:var(--green);}
+  .gs-resultat.err{display:block; background:var(--amber-dim); color:var(--amber);}
+  .gs-resultat.loading{display:block; background:var(--panel-raised); color:var(--text-mid);}
 
   footer{margin-top:auto; padding:16px 20px 24px; font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:center; border-top:1px solid var(--hairline);}
 </style>
@@ -192,6 +204,38 @@
       <div class="row"><label>Gasoil non routier (GNR) — €/L</label><input type="text" inputmode="decimal" id="prix_gnr" placeholder="0,000"></div>
       <button class="btn btn-primary" id="sauvegarderPrix">Enregistrer les prix du mois</button>
       <div class="saved-note" id="savedNotePrix">✓ Prix enregistrés pour ce mois</div>
+    </div>
+
+    <!-- ------------------------------------------------------------
+         Synchronisation Google Sheets (01/08/2026, demande de Frédéric) —
+         alternative à l'import manuel de fichier dans Verify, pour éviter
+         la ressaisie. Lecture seule (jamais d'écriture vers Google) via
+         supabase/functions/google-sheets-sync — la clé du compte de
+         service n'existe que côté secret Supabase, jamais ici. Désactivé
+         par défaut (station_config.google_sheet_id = null) : Verify garde
+         alors uniquement l'import fichier, qui reste de toute façon
+         toujours disponible même une fois la synchro activée.
+         ------------------------------------------------------------ -->
+    <div class="card" id="cardGoogleSheets">
+      <div class="section-label">Synchronisation Google Sheets</div>
+      <div class="note" style="margin-top:0;">Relie Nexus Verify à votre classeur Google Sheets de recettes pour préremplir automatiquement les dépôts de caisse — l'import de fichier reste disponible dans tous les cas, activé ou non.</div>
+      <div class="toggle-row" style="margin-bottom:14px;">
+        <div class="tr-text">
+          <div class="tr-title">Activer la synchronisation</div>
+          <div class="tr-desc">Verify propose alors, en plus de l'import fichier, de lire directement ce classeur.</div>
+        </div>
+        <label class="toggle-switch">
+          <input type="checkbox" id="gsActif">
+          <span class="toggle-track"></span>
+          <span class="toggle-thumb"></span>
+        </label>
+      </div>
+      <label style="font-size:12.5px; color:var(--text-mid); display:block; margin-bottom:6px;">Lien ou identifiant du Google Sheet</label>
+      <input type="text" id="gsLien" class="champ-recherche" placeholder="Collez ici le lien du Google Sheet…" autocomplete="off">
+      <div class="note" style="margin:8px 0 0;">Le classeur doit être partagé (en lecteur) avec : <b style="color:var(--text);">nexus-sheets-reader@nexus-connector-504214.iam.gserviceaccount.com</b></div>
+      <button class="btn btn-primary" id="gsEnregistrer">Enregistrer</button>
+      <button class="btn btn-secondary" id="gsTester">Tester la connexion</button>
+      <div class="gs-resultat" id="gsResultat"></div>
     </div>
 
     <div class="card" id="cardExceptionsMarge">
@@ -514,6 +558,122 @@
   });
 
   chargerListeExceptions();
+
+  // ------------------------------------------------------------
+  // Synchronisation Google Sheets (01/08/2026) — station_config.google_sheet_id,
+  // text nullable, NULL = désactivé pour ce site. L'import fichier existant
+  // dans Verify reste toujours disponible quel que soit ce réglage (demande
+  // explicite de Frédéric) : ceci n'est qu'une option en plus. La lecture
+  // réelle se fait côté serveur, dans supabase/functions/google-sheets-sync
+  // (le compte de service Google et sa clé privée n'existent jamais ici).
+  // ------------------------------------------------------------
+  function extraireIdSheet(saisie) {
+    const val = (saisie || '').trim();
+    if (!val) return '';
+    const m = val.match(/\/d\/([a-zA-Z0-9_-]+)/);
+    if (m) return m[1];
+    return val.replace(/\s/g, ''); // déjà un identifiant brut, pas une URL
+  }
+
+  async function chargerGoogleSheet() {
+    const { data, error } = await nexusClient.from('station_config').select('google_sheet_id').eq('site', employee.site_id || 'vito-sainte-marie').maybeSingle();
+    if (error) { console.error('Chargement google_sheet_id:', error); return null; }
+    return (data && data.google_sheet_id) || null;
+  }
+
+  (async function initGoogleSheets() {
+    const id = await chargerGoogleSheet();
+    document.getElementById('gsActif').checked = !!id;
+    document.getElementById('gsLien').value = id || '';
+  })();
+
+  document.getElementById('gsEnregistrer').addEventListener('click', async () => {
+    const btn = document.getElementById('gsEnregistrer');
+    const resEl = document.getElementById('gsResultat');
+    const actif = document.getElementById('gsActif').checked;
+    const idSaisi = extraireIdSheet(document.getElementById('gsLien').value);
+    if (actif && !idSaisi) {
+      resEl.className = 'gs-resultat err';
+      resEl.textContent = "Renseignez le lien ou l'identifiant du Google Sheet avant d'activer la synchronisation.";
+      return;
+    }
+    btn.disabled = true;
+    const google_sheet_id = actif ? idSaisi : null;
+    const { error } = await nexusClient.from('station_config').upsert(
+      { site: employee.site_id || 'vito-sainte-marie', google_sheet_id, horaires: CONFIG_HORAIRES_ACTUEL, updated_at: new Date().toISOString() },
+      { onConflict: 'site' }
+    );
+    btn.disabled = false;
+    if (error) {
+      console.error('Enregistrement google_sheet_id:', error);
+      resEl.className = 'gs-resultat err';
+      resEl.textContent = "Erreur d'enregistrement — réessayez.";
+      return;
+    }
+    resEl.className = 'gs-resultat ok';
+    resEl.textContent = actif ? '✓ Enregistré — synchronisation activée.' : '✓ Enregistré — synchronisation désactivée.';
+  });
+
+  document.getElementById('gsTester').addEventListener('click', async () => {
+    const btn = document.getElementById('gsTester');
+    const resEl = document.getElementById('gsResultat');
+    const idSaisi = extraireIdSheet(document.getElementById('gsLien').value);
+    if (!idSaisi) {
+      resEl.className = 'gs-resultat err';
+      resEl.textContent = "Renseignez d'abord le lien ou l'identifiant du Google Sheet.";
+      return;
+    }
+    btn.disabled = true;
+    resEl.className = 'gs-resultat loading';
+    resEl.textContent = 'Enregistrement puis test de la connexion…';
+
+    // L'Edge Function ne fait jamais confiance à un identifiant fourni par
+    // le client — elle relit toujours station_config.google_sheet_id côté
+    // serveur. On enregistre donc d'abord l'identifiant saisi (même si la
+    // synchronisation n'est pas encore activée) pour que le test porte
+    // bien sur CE classeur.
+    const { error: saveErr } = await nexusClient.from('station_config').upsert(
+      { site: employee.site_id || 'vito-sainte-marie', google_sheet_id: idSaisi, horaires: CONFIG_HORAIRES_ACTUEL, updated_at: new Date().toISOString() },
+      { onConflict: 'site' }
+    );
+    if (saveErr) {
+      console.error('Enregistrement google_sheet_id (test):', saveErr);
+      btn.disabled = false;
+      resEl.className = 'gs-resultat err';
+      resEl.textContent = "Erreur d'enregistrement — réessayez.";
+      return;
+    }
+
+    const { data: sessionData } = await nexusClient.auth.getSession();
+    const token = sessionData && sessionData.session && sessionData.session.access_token;
+    if (!token) {
+      btn.disabled = false;
+      resEl.className = 'gs-resultat err';
+      resEl.textContent = 'Session expirée — reconnectez-vous.';
+      return;
+    }
+
+    try {
+      const resp = await fetch(`${NEXUS_SUPABASE_URL}/functions/v1/google-sheets-sync?sheet=__list__`, {
+        headers: { Authorization: `Bearer ${token}`, apikey: NEXUS_SUPABASE_ANON_KEY },
+      });
+      const data = await resp.json();
+      btn.disabled = false;
+      if (!resp.ok) {
+        resEl.className = 'gs-resultat err';
+        resEl.textContent = '✗ ' + ((data && data.error && data.error.message) || 'Erreur de connexion.');
+        return;
+      }
+      resEl.className = 'gs-resultat ok';
+      const feuilles = (data.sheets || []).join(', ') || 'aucune';
+      resEl.textContent = `✓ Connexion réussie — classeur « ${data.classeur || '?'} », feuilles : ${feuilles}.`;
+    } catch (e) {
+      console.error('Test connexion Google Sheets:', e);
+      btn.disabled = false;
+      resEl.className = 'gs-resultat err';
+      resEl.textContent = '✗ Erreur réseau — réessayez.';
+    }
+  });
 
 });
 </script>
