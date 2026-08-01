@@ -69,6 +69,22 @@ h1{font-size:clamp(28px,4.2vw,40px); font-weight:600; margin-top:14px; max-width
 }
 .readonly-badge .dot{width:6px; height:6px; border-radius:50%; background:var(--green);}
 .hero-ctas{display:flex; gap:12px; margin-top:26px; flex-wrap:wrap;}
+
+/* ---------- philosophie ---------- */
+.philosophy-band{background:var(--panel-raised); border-bottom:1px solid var(--hairline); padding:34px 0;}
+.philosophy-line{font-size:clamp(19px,2.6vw,26px); font-weight:600; line-height:1.4; max-width:34ch; color:var(--text-mid);}
+.philosophy-line.highlight{color:var(--text); margin-top:6px;}
+
+/* ---------- raisons éditeur (checklist) ---------- */
+.reasons-list{margin-top:24px; display:flex; flex-direction:column; gap:10px;}
+.reason-item{display:flex; gap:12px; align-items:flex-start; padding:14px 16px; border-radius:10px; background:var(--panel); border:1px solid var(--hairline);}
+.reason-check{font-family:var(--mono); font-size:14px; font-weight:700; color:var(--green); flex:none; margin-top:1px;}
+.reason-item div b{display:block; font-size:14px; font-weight:600; margin-bottom:3px;}
+.reason-item div p{font-size:13px; color:var(--text-mid); line-height:1.55;}
+
+/* ---------- histoire (storytelling) ---------- */
+.story-intro{font-size:15px; color:var(--text-mid); line-height:1.7; max-width:66ch; margin-top:16px;}
+.story-punch{font-size:14.5px; color:var(--text); line-height:1.65; max-width:66ch; margin-top:14px; padding:14px 16px; border-left:2px solid var(--cyan); background:var(--panel);}
 .domain-subhead{font-family:var(--mono); font-size:12px; letter-spacing:0.06em; text-transform:uppercase; color:var(--text-mid); margin:28px 0 14px;}
 .domain-subhead:first-child{margin-top:0;}
 .domain-card.readonly{border-color:rgba(52,211,153,0.3); background:linear-gradient(165deg, rgba(52,211,153,0.06), var(--panel) 60%);}
@@ -180,6 +196,14 @@ footer a:hover{color:var(--cyan);}
   </div>
 </header>
 
+<section class="philosophy-band">
+  <div class="wrap">
+    <div class="eyebrow">Philosophie NEXUS</div>
+    <p class="philosophy-line">Chaque logiciel maîtrise son domaine.</p>
+    <p class="philosophy-line highlight">NEXUS les relie pour aider les dirigeants à prendre de meilleures décisions.</p>
+  </div>
+</section>
+
 <div class="wrap">
 
   <section class="api-hero">
@@ -195,7 +219,81 @@ footer a:hover{color:var(--cyan);}
   </section>
 
   <section class="section">
-    <div class="section-label">Pourquoi</div>
+    <div class="section-label">Le parcours d'une vente</div>
+    <h2>Une vente, racontée jusqu'à la décision</h2>
+    <p class="story-intro">NEXUS n'ajoute pas un tableau de bord de plus à consulter. Il transforme une donnée qui existe déjà — une ligne de vente dans votre caisse — en une recommandation concrète pour le dirigeant. Voici, étape par étape, ce qui se passe entre le moment où un client paie et le moment où une décision est prise.</p>
+    <div class="flow-list">
+      <div class="flow-item">
+        <div class="flow-num">1</div>
+        <div class="flow-text"><b>Une vente est réalisée</b><p>Un client achète un produit, à un instant précis, encaissé par un employé donné.</p></div>
+      </div>
+      <div class="flow-item">
+        <div class="flow-num">2</div>
+        <div class="flow-text"><b>Le logiciel de caisse l'enregistre</b><p>La transaction est stockée dans votre système, avec vos propres identifiants et votre propre format.</p></div>
+      </div>
+      <div class="flow-item">
+        <div class="flow-num">3</div>
+        <div class="flow-text"><b>NEXUS comprend</b><p>La ligne de vente est lue en lecture seule, puis normalisée : produit, quantité, prix, marge réelle, employé, quart.</p></div>
+      </div>
+      <div class="flow-item">
+        <div class="flow-num">4</div>
+        <div class="flow-text"><b>NEXUS la remet en contexte</b><p>Cette vente est comparée à l'historique du produit, du quart, de l'employé — pas regardée isolément.</p></div>
+      </div>
+      <div class="flow-item">
+        <div class="flow-num">5</div>
+        <div class="flow-text"><b>Le dirigeant reçoit une recommandation</b><p>Pas un chiffre de plus à interpréter : une action concrète, avec le fait qui la justifie.</p></div>
+      </div>
+    </div>
+    <p class="story-punch">Chaque logiciel maîtrise son domaine — la caisse encaisse, le stock compte, le planning organise. NEXUS ne remplace aucun d'entre eux : il les relie pour que le dirigeant n'ait plus à faire la synthèse lui-même.</p>
+    <div class="code-panel">
+      <div class="code-panel-head"><span>Ce que reçoit le dirigeant</span><span>Exemple illustratif</span></div>
+      <pre>{
+  <span class="k">"type"</span>: <span class="s">"recommandation"</span>,
+  <span class="k">"site"</span>: <span class="s">"vito-sainte-marie"</span>,
+  <span class="k">"generee_le"</span>: <span class="s">"2026-07-29T18:00:00-04:00"</span>,
+  <span class="k">"origine"</span>: {
+    <span class="k">"vente_id"</span>: <span class="s">"sl_987654"</span>,
+    <span class="k">"produit"</span>: <span class="s">"Boissons — prod_00871"</span>,
+    <span class="k">"quart"</span>: <span class="s">"shift_20260729_01"</span>
+  },
+  <span class="k">"constat"</span>: <span class="s">"Le volume de ce produit chute de 18% les soirs de semaine depuis 3 semaines, sans changement de prix."</span>,
+  <span class="k">"recommandation"</span>: <span class="s">"Vérifier une rupture de stock en fin de service ou repositionner le produit avant 18h."</span>,
+  <span class="k">"confiance"</span>: <span class="s">"élevée"</span>
+}</pre>
+    </div>
+    <div class="code-note">Cet objet est la sortie du moteur, pas un endpoint que vous consommez directement — il illustre ce que devient une simple ligne de vente une fois passée par NEXUS.</div>
+  </section>
+
+  <section class="section">
+    <div class="section-label">Pour les éditeurs</div>
+    <h2>Pourquoi un éditeur devrait connecter son logiciel à NEXUS ?</h2>
+    <p class="section-desc">Parce que NEXUS —</p>
+    <div class="reasons-list">
+      <div class="reason-item">
+        <span class="reason-check">✓</span>
+        <div><b>Augmente la valeur de vos données</b><p>Chaque vente que vous enregistrez déjà devient une recommandation concrète pour votre client, sans qu'il ait besoin d'un outil de plus.</p></div>
+      </div>
+      <div class="reason-item">
+        <span class="reason-check">✓</span>
+        <div><b>Ne remplace pas votre logiciel</b><p>NEXUS lit vos données en lecture seule. Il ne s'installe jamais à la place de votre caisse, ni de votre gestion de stock.</p></div>
+      </div>
+      <div class="reason-item">
+        <span class="reason-check">✓</span>
+        <div><b>Respecte votre architecture</b><p>Une clé API à portée strictement définie, aucune écriture vers votre système — votre produit reste le vôtre.</p></div>
+      </div>
+      <div class="reason-item">
+        <span class="reason-check">✓</span>
+        <div><b>Limite les développements</b><p>Un connecteur simple à exposer côté lecture, pas une refonte de votre produit ni un partenariat lourd à maintenir.</p></div>
+      </div>
+      <div class="reason-item">
+        <span class="reason-check">✓</span>
+        <div><b>Crée davantage de valeur pour vos clients</b><p>Ils gagnent un conseiller décisionnel sans changer d'outil de caisse — et vous restez leur logiciel de référence.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="section-label">Le constat</div>
     <h2>Un moteur aussi bon que les données qu'il reçoit</h2>
     <p class="section-desc">NEXUS analyse aujourd'hui les ventes, le stock et la caisse. Mais certaines questions restent sans réponse mesurée — pas par manque d'intelligence, par manque de données.</p>
     <div class="why-grid">
