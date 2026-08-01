@@ -25,10 +25,22 @@ const GOOGLE_SERVICE_ACCOUNT_KEY = Deno.env.get("GOOGLE_SERVICE_ACCOUNT_KEY");
 
 const sb = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
 
+// CORS — indispensable ici : NEXUS-Parametres-Station-v1.html et
+// NEXUS-Verify-v1.html appellent cette fonction via fetch() direct (pas
+// nexusClient.functions.invoke) avec un en-tête Authorization personnalisé,
+// ce qui déclenche systématiquement une requête de pré-vérification OPTIONS
+// côté navigateur. Sans ces en-têtes sur CHAQUE réponse (y compris OPTIONS),
+// le navigateur bloque l'appel avant même qu'il n'atteigne cette fonction —
+// même convention que clever-endpoint (voir supabase/functions/clever-endpoint).
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { "Content-Type": "application/json" },
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 }
 
@@ -110,6 +122,12 @@ async function obtenirTokenGoogle(): Promise<string> {
 }
 
 Deno.serve(async (req: Request) => {
+  // Requête de pré-vérification CORS — le navigateur l'envoie avant tout
+  // GET avec en-tête Authorization personnalisé. Doit être répondue avant
+  // toute autre logique, sans authentification.
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
   try {
     if (req.method !== "GET") {
       return errorResponse("METHOD_NOT_ALLOWED", "Seul GET est supporté.", 405);
