@@ -629,14 +629,25 @@
       const dateCible = new Date(dateStr + 'T00:00:00');
       let dernierDateVue = null;
       let ligneTrouvee = null;
+      // dateLiteraleSurLaLigne : true si la date de CETTE ligne précise vient
+      // d'une vraie cellule Date (fiable), false si elle est seulement
+      // reportée (« forward-fill ») depuis une ligne précédente — signal
+      // affiché dans le message final pour repérer un éventuel décalage
+      // (ex: 01/06 demandé mais données du 02/06 importées, rapporté par
+      // Frédéric le 01/08/2026 sur un onglet fraîchement créé où la
+      // structure des cellules fusionnées diffère peut-être des mois
+      // archivés déjà validés).
+      let dateLiteraleSurLaLigne = false;
       for (let i = headerIdx + 1; i < lignes.length; i++) {
         const ligne = lignes[i];
         if (!ligne) continue;
         const dVal = cols.date !== undefined ? ligne[cols.date] : null;
-        if (dVal instanceof Date) dernierDateVue = dVal;
+        const estDateLiterale = dVal instanceof Date;
+        if (estDateLiterale) dernierDateVue = dVal;
         const qVal = cols.quart !== undefined ? ligne[cols.quart] : null;
         if (dernierDateVue && memeJourLocal(dernierDateVue, dateCible) && qVal != null && String(qVal).trim() === quartStr) {
           ligneTrouvee = ligne;
+          dateLiteraleSurLaLigne = estDateLiterale;
           break;
         }
       }
@@ -702,7 +713,16 @@
       renderMenuEmployes('boutique'); majLabelEmployes('boutique');
 
       majTotauxListes();
-      statutEl.textContent = `Import fait pour le ${dateStr} quart ${quartStr}. ${messagesEmp.join(' · ') || 'Aucun employé à faire correspondre.'} — vérifie les champs avant d'enregistrer : la vente piste (litrage) et la vente boutique (Decenium) ne sont pas dans ce classeur.`;
+      // Alerte visible si la date de cette ligne précise n'était pas écrite
+      // en toutes lettres (juste reportée depuis une ligne précédente) —
+      // c'est le cas où un décalage d'un jour peut se produire si une
+      // ligne intermédiaire (quart manquant, jour sans données...) a
+      // « fait glisser » le report vers le jour suivant. Toujours vérifier
+      // les montants pré-remplis avant d'enregistrer dans ce cas.
+      const alerteDate = !dateLiteraleSurLaLigne
+        ? ` ⚠ La date de cette ligne n'était pas écrite explicitement (reportée depuis une ligne précédente) — vérifie bien que les montants pré-remplis correspondent au ${dateStr}, pas au jour suivant.`
+        : '';
+      statutEl.textContent = `Import fait pour le ${dateStr} quart ${quartStr}.${alerteDate} ${messagesEmp.join(' · ') || 'Aucun employé à faire correspondre.'} — vérifie les champs avant d'enregistrer : la vente piste (litrage) et la vente boutique (Decenium) ne sont pas dans ce classeur.`;
     }
 
     document.getElementById('v_import_go').addEventListener('click', async () => {
@@ -730,6 +750,7 @@
     // Frédéric : ne jamais retirer cette capacité).
     // ------------------------------------------------------------
     let GOOGLE_SHEET_ID_SITE = null;
+    let FEUILLES_GOOGLE_SHEETS = []; // noms des onglets utiles, remplis une fois au chargement
 
     async function appelerGoogleSheetsSync(sheetParam) {
       const { data: sessionData } = await nexusClient.auth.getSession();
@@ -743,6 +764,24 @@
       return data;
     }
 
+    // Choisit, parmi les onglets disponibles, celui dont le nom contient le
+    // mois/année de la date fournie — même règle que pour la présélection du
+    // fichier Excel juste au-dessus. Factorisé ici pour être réutilisé à la
+    // fois au chargement de la page ET à chaque changement de la date (voir
+    // listener sur v_date plus bas — demande de Frédéric, 01/08/2026 : ne pas
+    // avoir à re-choisir la feuille à la main après avoir changé la date).
+    function choisirFeuillePourDate(feuilles, dateStr) {
+      if (!dateStr || !feuilles.length) return null;
+      const [an, mo] = dateStr.split('-');
+      const moisNoms = ['janvier','fevrier','mars','avril','mai','juin','juillet','aout','septembre','octobre','novembre','decembre'];
+      const moisTxt = moisNoms[parseInt(mo, 10) - 1];
+      const anCourt = an.slice(2);
+      return feuilles.find(n => {
+        const t = normaliserTexte(n);
+        return t.includes(moisTxt.slice(0, 4)) && (t.includes(an) || t.includes(anCourt));
+      }) || null;
+    }
+
     async function initImportGoogleSheets() {
       const { data, error } = await nexusClient.from('station_config').select('google_sheet_id').eq('site', SITE_ACTUEL).maybeSingle();
       if (error) { console.error('Chargement google_sheet_id (Verify):', error); return; }
@@ -750,24 +789,12 @@
       if (!GOOGLE_SHEET_ID_SITE) return; // synchro non activée pour ce site — rien à afficher
       try {
         const { sheets } = await appelerGoogleSheetsSync('__list__');
-        const feuillesUtiles = (sheets || []).filter(n => !SHEETS_IGNOREES.some(mot => normaliserTexte(n).includes(mot)));
-        if (!feuillesUtiles.length) return;
+        FEUILLES_GOOGLE_SHEETS = (sheets || []).filter(n => !SHEETS_IGNOREES.some(mot => normaliserTexte(n).includes(mot)));
+        if (!FEUILLES_GOOGLE_SHEETS.length) return;
         const sel = document.getElementById('v_import_sheets_feuille');
-        sel.innerHTML = feuillesUtiles.map(n => `<option value="${n}">${n}</option>`).join('');
-        // Présélection : même règle que pour le fichier (feuille dont le nom
-        // contient le mois/année de la date choisie).
-        const dateChoisie = document.getElementById('v_date').value;
-        if (dateChoisie) {
-          const [an, mo] = dateChoisie.split('-');
-          const moisNoms = ['janvier','fevrier','mars','avril','mai','juin','juillet','aout','septembre','octobre','novembre','decembre'];
-          const moisTxt = moisNoms[parseInt(mo, 10) - 1];
-          const anCourt = an.slice(2);
-          const match = feuillesUtiles.find(n => {
-            const t = normaliserTexte(n);
-            return t.includes(moisTxt.slice(0, 4)) && (t.includes(an) || t.includes(anCourt));
-          });
-          if (match) sel.value = match;
-        }
+        sel.innerHTML = FEUILLES_GOOGLE_SHEETS.map(n => `<option value="${n}">${n}</option>`).join('');
+        const match = choisirFeuillePourDate(FEUILLES_GOOGLE_SHEETS, document.getElementById('v_date').value);
+        if (match) sel.value = match;
         document.getElementById('v_import_sheets_bloc').style.display = 'block';
       } catch (e) {
         // Echec silencieux ici (ex: Sheet pas encore partagé, secret Google
@@ -778,6 +805,16 @@
         console.error('Liste des feuilles Google Sheets (Verify):', e);
       }
     }
+
+    // Re-sélectionne automatiquement l'onglet Google Sheets correspondant
+    // dès que la date change, sans que Frédéric ait à y retoucher à la main
+    // (demande explicite : "en saisissant la date voulue, nexus aille
+    // chercher directement le mois à importer depuis google sheets").
+    document.getElementById('v_date').addEventListener('change', () => {
+      if (!FEUILLES_GOOGLE_SHEETS.length) return;
+      const match = choisirFeuillePourDate(FEUILLES_GOOGLE_SHEETS, document.getElementById('v_date').value);
+      if (match) document.getElementById('v_import_sheets_feuille').value = match;
+    });
 
     document.getElementById('v_import_sheets_go').addEventListener('click', async () => {
       const statut = document.getElementById('v_import_statut');
