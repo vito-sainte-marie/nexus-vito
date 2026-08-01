@@ -547,9 +547,26 @@
       return cols;
     }
 
-    function memeJourLocal(d1, d2) {
+    // RENOMMÉE memeJourUTC (01/08/2026) — VRAI bug racine du décalage d'un
+    // jour signalé par Frédéric sur TOUTES les dates de l'import (pas
+    // seulement une cellule) : les objets Date fabriqués à partir d'un
+    // classeur (serialGoogleVersDate ici, et SheetJS avec cellDates:true
+    // côté fichier) sont ancrés en UTC — new Date(Date.UTC(...)) représente
+    // minuit UTC du jour cible, quel que soit le fuseau de l'appareil. Or
+    // cette fonction comparait ces dates via getFullYear()/getMonth()/
+    // getDate(), qui lisent le calendrier en heure LOCALE. Sur un appareil
+    // à Vito Sainte-Marie (Martinique, UTC-4), minuit UTC du 2 juin
+    // correspond au 1er juin 20h locales : la ligne du 2 juin s'affichait
+    // donc comme "1er juin" et était importée à la place de la vraie ligne
+    // du 1er juin — exactement le décalage d'un jour vers l'avant rapporté.
+    // Une correction dans le classeur (date en texte vs vraie date, testée
+    // avant cette découverte) ne pouvait rien changer : le bug n'a jamais
+    // été dans le classeur. Comparaison désormais en UTC des deux côtés
+    // (voir aussi la construction de dateCible plus bas, avec un 'Z'
+    // explicite) pour ne plus jamais dépendre du fuseau de l'appareil.
+    function memeJourUTC(d1, d2) {
       if (!d1 || !d2) return false;
-      return d1.getFullYear() === d2.getFullYear() && d1.getMonth() === d2.getMonth() && d1.getDate() === d2.getDate();
+      return d1.getUTCFullYear() === d2.getUTCFullYear() && d1.getUTCMonth() === d2.getUTCMonth() && d1.getUTCDate() === d2.getUTCDate();
     }
 
     function trouverEmployeParNom(nom) {
@@ -670,7 +687,11 @@
         }
       }
 
-      const dateCible = new Date(dateStr + 'T00:00:00');
+      // 'Z' explicite (01/08/2026, cf. commentaire de memeJourUTC) : ancre
+      // dateCible en UTC directement sur l'année/mois/jour saisis, pour que
+      // la comparaison avec dVal (lui aussi ancré en UTC) soit fiable quel
+      // que soit le fuseau horaire de l'appareil qui exécute cet import.
+      const dateCible = new Date(dateStr + 'T00:00:00Z');
       let dernierDateVue = null;
       let ligneTrouvee = null;
       // dateLiteraleSurLaLigne : true si la date de CETTE ligne précise vient
@@ -690,7 +711,7 @@
         const estDateLiterale = dVal instanceof Date;
         if (estDateLiterale) dernierDateVue = dVal;
         const qVal = cols.quart !== undefined ? ligne[cols.quart] : null;
-        if (dernierDateVue && memeJourLocal(dernierDateVue, dateCible) && qVal != null && String(qVal).trim() === quartStr) {
+        if (dernierDateVue && memeJourUTC(dernierDateVue, dateCible) && qVal != null && String(qVal).trim() === quartStr) {
           ligneTrouvee = ligne;
           ligneTrouveeIdx = i;
           dateLiteraleSurLaLigne = estDateLiterale;
@@ -704,12 +725,15 @@
         return;
       }
 
-      // Diagnostic (01/08/2026) — décalage de date rapporté par Frédéric,
-      // non reproduit en analysant un export du classeur : on affiche donc
-      // ici la date réellement résolue par l'algorithme (celle qui a servi
-      // à la correspondance), pour comparer directement avec la date
-      // demandée sans avoir besoin d'une capture d'écran ou d'un fichier.
-      const dateResolueTexte = dernierDateVue ? dernierDateVue.toLocaleDateString('fr-FR') : '?';
+      // Diagnostic (01/08/2026) — date réellement résolue par l'algorithme,
+      // affichée en UTC (pad2 manuel, pas toLocaleDateString) : dernierDateVue
+      // est ancrée en UTC (voir memeJourUTC), donc la formater avec le
+      // fuseau LOCAL de l'appareil aurait pu, elle aussi, mentir d'un jour
+      // sur un appareil à l'ouest de Greenwich (Martinique, UTC-4) — c'est
+      // exactement ce qui rendait ce diagnostic trompeur jusqu'ici.
+      const pad2 = (n) => String(n).padStart(2, '0');
+      const formatUTC = (d) => d ? `${pad2(d.getUTCDate())}/${pad2(d.getUTCMonth() + 1)}/${d.getUTCFullYear()}` : '?';
+      const dateResolueTexte = formatUTC(dernierDateVue);
       console.log('NEXUS import diagnostic — cols:', cols, 'ligne trouvée (index colonnes):', ligneTrouvee);
 
       const g = (key) => { const idx = cols[key]; return (idx !== undefined) ? ligneTrouvee[idx] : null; };
@@ -784,7 +808,7 @@
       // "NEXUS Data Connector" ci-dessous (recommandations de conception du
       // 01/08/2026). Toujours consultable via la console si un souci de
       // ligne/colonne revient sur un autre mois.
-      const fmtDbg = (v) => (v instanceof Date) ? v.toLocaleDateString('fr-FR') : (v === '' || v == null ? '·' : v);
+      const fmtDbg = (v) => (v instanceof Date) ? formatUTC(v) : (v === '' || v == null ? '·' : v);
       const dumpLigneDbg = (idx) => (idx >= 0 && idx < lignes.length && lignes[idx]) ? `L${idx}[${lignes[idx].length}]:(${lignes[idx].map(fmtDbg).join(',')})` : `L${idx}:∅`;
       console.log(`NEXUS import diagnostic — date résolue=${dateResolueTexte} headerIdx=${headerIdx} cols=`, cols, `idxTrouvee=${ligneTrouveeIdx}`,
         dumpLigneDbg(ligneTrouveeIdx - 1), '|', dumpLigneDbg(ligneTrouveeIdx), '|', dumpLigneDbg(ligneTrouveeIdx + 1));
