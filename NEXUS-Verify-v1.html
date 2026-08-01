@@ -644,6 +644,7 @@
       // structure des cellules fusionnées diffère peut-être des mois
       // archivés déjà validés).
       let dateLiteraleSurLaLigne = false;
+      let ligneTrouveeIdx = -1;
       for (let i = headerIdx + 1; i < lignes.length; i++) {
         const ligne = lignes[i];
         if (!ligne) continue;
@@ -653,6 +654,7 @@
         const qVal = cols.quart !== undefined ? ligne[cols.quart] : null;
         if (dernierDateVue && memeJourLocal(dernierDateVue, dateCible) && qVal != null && String(qVal).trim() === quartStr) {
           ligneTrouvee = ligne;
+          ligneTrouveeIdx = i;
           dateLiteraleSurLaLigne = estDateLiterale;
           break;
         }
@@ -744,7 +746,20 @@
       // au classeur en direct) — sans passer par la console, inaccessible
       // sur mobile.
       const brut = `[lu] CB piste=${g('pisteCb') ?? '—'} · Billets piste=${g('pisteBillets') ?? '—'} · Pièces piste=${g('pistePieces') ?? '—'} · CB boutique=${g('boutiqueCb') ?? '—'} · Pompiste="${g('pompiste') ?? '—'}" · Caissier="${g('caissier') ?? '—'}"`;
-      statutEl.textContent = `Import fait pour le ${dateStr} quart ${quartStr} — date résolue par l'import : ${dateResolueTexte}.${alerteDate} ${messagesEmp.join(' · ') || 'Aucun employé à faire correspondre.'} — vérifie les champs avant d'enregistrer : la vente piste (litrage) et la vente boutique (Decenium) ne sont pas dans ce classeur. ${brut}`;
+      // Diagnostic (01/08/2026, round 3) — le décalage persiste alors que la
+      // capture de la vraie feuille Google Sheets montre des valeurs
+      // différentes de celles lues ici pour la même date : on ne peut donc
+      // plus l'expliquer par une erreur de saisie côté classeur. On dump ici
+      // l'index de ligne réellement matché (dans le tableau `lignes` reçu de
+      // l'API) et les 3 lignes brutes autour, pour repérer un éventuel
+      // décalage d'indexation (ex: valeurs finales tronquées par l'API
+      // Google Sheets qui omet les cellules vides en fin de ligne, ce qui
+      // peut désaligner une extraction par position si une ligne est plus
+      // courte qu'une autre).
+      const fmt = (v) => (v instanceof Date) ? v.toLocaleDateString('fr-FR') : (v === '' || v == null ? '·' : v);
+      const dumpLigne = (idx) => (idx >= 0 && idx < lignes.length && lignes[idx]) ? `L${idx}[${lignes[idx].length}]:(${lignes[idx].map(fmt).join(',')})` : `L${idx}:∅`;
+      const dump = `dbg headerIdx=${headerIdx} cols=${JSON.stringify(cols)} idxTrouvee=${ligneTrouveeIdx} — ${dumpLigne(ligneTrouveeIdx - 1)} | ${dumpLigne(ligneTrouveeIdx)} | ${dumpLigne(ligneTrouveeIdx + 1)}`;
+      statutEl.textContent = `Import fait pour le ${dateStr} quart ${quartStr} — date résolue par l'import : ${dateResolueTexte}.${alerteDate} ${messagesEmp.join(' · ') || 'Aucun employé à faire correspondre.'} — vérifie les champs avant d'enregistrer : la vente piste (litrage) et la vente boutique (Decenium) ne sont pas dans ce classeur. ${brut} — ${dump}`;
     }
 
     document.getElementById('v_import_go').addEventListener('click', async () => {
