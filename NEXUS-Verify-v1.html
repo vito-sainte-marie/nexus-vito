@@ -1419,6 +1419,25 @@
 
       const ecart_total = ecart_piste + ecart_boutique;
 
+      // Champs "toujours renseignés" (01/08/2026, demande de Frédéric) : à
+      // la différence des pièces ou de la carte de fidélité — légitimement
+      // vides sur certains quarts — la vente piste, la vente boutique et
+      // les drops CB/espèces existent sur CHAQUE quart réel. Un de ces
+      // champs à 0 n'est presque jamais une vraie absence de vente : c'est
+      // le signe d'un oubli de saisie qui peut fausser l'écart calculé.
+      // Avertit seulement (n'empêche pas d'enregistrer) — un manager peut
+      // avoir une vraie raison exceptionnelle (caisse non ouverte ce
+      // quart...) que NEXUS ne peut pas deviner à sa place.
+      const champsObligatoires = [
+        { valeur: vente_piste, label: 'Vente piste (litrage)' },
+        { valeur: vente_boutique, label: 'Vente boutique (Decenium)' },
+        { valeur: drop_piste_cb, label: 'Drop CB piste' },
+        { valeur: drop_piste_billets, label: 'Drop espèces piste' },
+        { valeur: drop_boutique_cb, label: 'Drop CB boutique' },
+        { valeur: drop_boutique_billets, label: 'Drop espèces boutique' },
+      ];
+      const champsManquants = champsObligatoires.filter(c => !c.valeur).map(c => c.label);
+
       // classifierEcart attend un montant absolu — un ecart negatif (manque)
       // ne doit pas passer pour conforme.
       const statutPiste = classifierEcart(Math.abs(ecart_piste));
@@ -1468,9 +1487,18 @@
       document.getElementById('noteVentePisteLegacy').style.display = 'none';
       document.getElementById('notePrixCarburantFige').style.display = 'none';
 
+      // Avertissement champs obligatoires vides (01/08/2026) — affiché en
+      // tête de résultat, jamais masqué même si les écarts sont conformes :
+      // un champ à 0 peut être la VRAIE cause d'un écart qui semble propre
+      // par ailleurs (deux oublis qui se compensent, par exemple).
+      const alerteChampsHtml = champsManquants.length
+        ? `<div class="resume-line" style="color:var(--amber); margin-bottom:12px;"><b>⚠ À vérifier</b> — normalement toujours renseigné(s), actuellement à 0 : ${champsManquants.join(', ')}. Enregistré quand même, mais vérifie qu'il ne s'agit pas d'un oubli de saisie.</div>`
+        : '';
+
       box.innerHTML = `
         <div class="resume-box">
           <div class="resume-line">Quart ${quart} du ${new Date(date + 'T00:00:00').toLocaleDateString('fr-FR')}.</div>
+          ${alerteChampsHtml}
 
           <div class="ecart-bloc">
             <div class="ecart-bloc-top">
