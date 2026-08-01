@@ -67,6 +67,9 @@
   .pointage-btn.couleur-pause{background:var(--amber); color:#04141a;}
   .pointage-btn.couleur-depart{background:var(--red); color:#04141a;}
   .pointage-btn:disabled{opacity:0.35; cursor:not-allowed;}
+  /* Équivalent de :disabled pour un <label> (les actions avec photo) — voir
+     setElementOccupe() : un <label> n'a pas de vrai état disabled. */
+  .pointage-btn.pointage-occupe{opacity:0.6; pointer-events:none;}
 
   .timeline{list-style:none; padding:0; margin:0;}
   .timeline-item{display:flex; align-items:flex-start; gap:10px; padding:10px 0; border-bottom:1px solid var(--hairline);}
@@ -339,27 +342,35 @@
       const classes = ['pointage-btn', `couleur-${COULEUR_TYPES[type]}`];
       let sousTexte = fait ? `Pointé à ${(fait.heure || '').slice(0, 5)}${fait.photo_url ? ' · Photo ✓' : ''}` : info.sous;
       if (!fait && info.photoRequise) sousTexte = `📷 ${info.consignePhoto}`;
-      // Le champ photo est un FRÈRE du bouton, pas un enfant (01/08/2026,
-      // correction d'un bug signalé par Frédéric : Angelique — Android
-      // Chrome — n'obtenait aucune ouverture d'appareil photo en appuyant
-      // sur Arrivée/Départ). Un <input type="file"> imbriqué DANS un
-      // <button> est un contenu interactif dans un contenu interactif,
-      // invalide en HTML5 — certains navigateurs mobiles (Chrome/WebView
-      // Android en particulier) refusent alors d'ouvrir le sélecteur photo
-      // via input.click() appelé depuis le gestionnaire de clic du bouton
-      // parent. Les deux éléments sont maintenant indépendants dans le DOM,
-      // reliés seulement par data-type, ce qui fonctionne de façon fiable
-      // sur tous les navigateurs.
-      const inputPhoto = (!fait && info.photoRequise)
-        ? `<input type="file" accept="image/*" capture="environment" class="pointage-photo-input" data-type="${type}" style="display:none;">`
-        : '';
-      return `<div class="pointage-item">
-        <button class="${classes.join(' ')}" data-type="${type}" data-photo-requise="${!!info.photoRequise}" ${fait || bloque ? 'disabled' : ''}>
-          <span class="label">${fait ? '✓ ' : ''}${info.label}</span>
-          ${sousTexte ? `<span class="sous">${sousTexte}</span>` : ''}
-        </button>
-        ${inputPhoto}
-      </div>`;
+      const contenuInterieur = `
+        <span class="label">${fait ? '✓ ' : ''}${info.label}</span>
+        ${sousTexte ? `<span class="sous">${sousTexte}</span>` : ''}
+      `;
+
+      // Action active nécessitant une photo (01/08/2026, 2e correction) :
+      // remplacé <button> + input.click() en JS par un <label for="…">
+      // associé nativement à l'input file. Un premier correctif (séparer
+      // l'input du bouton en frères plutôt qu'en parent/enfant) n'a pas
+      // suffi — signalé par Frédéric : AUCUN Android ne parvenait à ouvrir
+      // l'appareil photo, pas seulement Angelique. Un <label> délègue
+      // l'activation de son input associé au niveau du NAVIGATEUR lui-même
+      // (comportement HTML natif standard), sans dépendre d'un input.click()
+      // déclenché en JS — c'est la solution robuste connue pour ce cas
+      // précis sur mobile. L'input reste cliquable mais visuellement masqué
+      // via un habillage "visually-hidden" (et non display:none, pour
+      // écarter tout doute sur l'activation par clic délégué).
+      if (!fait && !bloque && info.photoRequise) {
+        const inputId = `photoInput-${type}`;
+        return `<div class="pointage-item">
+          <label class="${classes.join(' ')}" for="${inputId}" data-type="${type}">
+            ${contenuInterieur}
+          </label>
+          <input type="file" id="${inputId}" accept="image/*" capture="environment" class="pointage-photo-input" data-type="${type}"
+            style="position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0;">
+        </div>`;
+      }
+
+      return `<button class="${classes.join(' ')}" data-type="${type}" ${fait || bloque ? 'disabled' : ''}>${contenuInterieur}</button>`;
     }).join('');
 
     const retourEnAttente = !dejaFait.arrivee && new URLSearchParams(window.location.search).get('retour');
@@ -382,28 +393,20 @@
     chargerActiviteJour(employee, siteId);
     majServiceLive();
 
-    document.querySelectorAll('.pointage-btn[data-type]').forEach(btn => {
+    // Seuls les <button> (actions sans photo, ou déjà pointées/bloquées)
+    // ont besoin d'un clic JS — les actions avec photo sont désormais des
+    // <label> qui ouvrent leur input associé nativement (voir plus haut).
+    document.querySelectorAll('button.pointage-btn[data-type]').forEach(btn => {
       btn.addEventListener('click', () => {
         if (btn.disabled) return;
-        const type = btn.dataset.type;
-        if (btn.dataset.photoRequise === 'true') {
-          // La photo valide l'action : on ouvre l'appareil photo, rien
-          // n'est enregistré tant que l'employé n'a pas pris de photo.
-          // Input désormais frère du bouton (pas enfant), donc recherché
-          // dans le conteneur parent .pointage-item.
-          const input = btn.parentElement && btn.parentElement.querySelector('.pointage-photo-input');
-          if (input) input.click();
-          return;
-        }
-        finaliserPointage(btn, employee, siteId, type, shiftActif, null);
+        finaliserPointage(btn, employee, siteId, btn.dataset.type, shiftActif, null);
       });
     });
 
     document.querySelectorAll('.pointage-photo-input').forEach(input => {
       input.addEventListener('change', async () => {
         const file = input.files && input.files[0];
-        // Frère (pas parent) : on remonte au conteneur .pointage-item pour
-        // retrouver le bouton associé.
+        // L'input et le <label> associé sont frères dans .pointage-item.
         const btn = input.parentElement && input.parentElement.querySelector('.pointage-btn');
         if (!file) {
           // 01/08/2026 — signalé par Frédéric : un employé (Angelique)
@@ -419,11 +422,11 @@
           return;
         }
         const type = input.dataset.type;
-        btn.disabled = true;
+        setElementOccupe(btn, true);
         btn.querySelector('.sous').textContent = 'Envoi de la photo…';
         const photoUrl = await uploaderPhotoPointage(employee.id, type, file);
         if (!photoUrl) {
-          btn.disabled = false;
+          setElementOccupe(btn, false);
           btn.querySelector('.sous').textContent = "Échec de l'envoi — réessayez";
           return;
         }
@@ -432,8 +435,18 @@
     });
   }
 
+  // setElementOccupe (01/08/2026) : équivalent de btn.disabled qui fonctionne
+  // aussi sur un <label> (les actions avec photo ne sont plus des <button>,
+  // voir plus haut) — un <label> n'a pas de propriété .disabled qui bloque
+  // réellement les clics, donc on ajoute une classe qui coupe pointer-events.
+  function setElementOccupe(el, occupe) {
+    if (!el) return;
+    if ('disabled' in el) el.disabled = occupe;
+    el.classList.toggle('pointage-occupe', occupe);
+  }
+
   async function finaliserPointage(btn, employee, siteId, type, shiftActif, photoUrl) {
-    btn.disabled = true;
+    setElementOccupe(btn, true);
     const sous = btn.querySelector('.sous');
     if (sous) sous.textContent = '…';
     const ok = await enregistrerPointage(employee, siteId, type, shiftActif, photoUrl);
