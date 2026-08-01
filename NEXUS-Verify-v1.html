@@ -849,19 +849,16 @@
         checklistEl.classList.add('show');
       }
 
-      // Diagnostic temporaire remis à l'écran (01/08/2026, 2e round malgré
-      // la correction de la feuille par Frédéric) — le décalage persiste
-      // même après un "copier/coller valeurs" sur la date, donc le retour
-      // console seul ne suffit plus (pas d'accès pratique à la console
-      // depuis le mobile). À retirer une fois le décalage définitivement
-      // résolu — cf. la ligne "brut/dbg" du 01/08/2026 (round 3), remise
-      // provisoirement ici plutôt qu'en console uniquement.
-      const dbgVisible = `🔧 diag temp — date résolue=${dateResolueTexte} idx=${ligneTrouveeIdx} — ${dumpLigneDbg(ligneTrouveeIdx - 1)} | ${dumpLigneDbg(ligneTrouveeIdx)} | ${dumpLigneDbg(ligneTrouveeIdx + 1)}`;
+      // Le diagnostic temporaire (dump brut visible à l'écran) a rempli son
+      // rôle — le bug de fuseau horaire (UTC vs heure locale) qu'il a permis
+      // d'identifier est corrigé et confirmé résolu par Frédéric le
+      // 01/08/2026. Retiré de l'écran, reste disponible via console.log
+      // ci-dessus si un souci de ligne/colonne revient sur un autre mois.
 
       // Le texte technique restant (avertissement de date reportée, échecs
       // de reconnaissance d'employé) reste affiché séparément — jamais
       // masqué, ce sont des points qui méritent une vérification manuelle.
-      const messageResiduel = [alerteDate.trim(), messagesEmp.filter(m => !m.includes('✓')).join(' · '), dbgVisible].filter(Boolean).join(' — ');
+      const messageResiduel = [alerteDate.trim(), messagesEmp.filter(m => !m.includes('✓')).join(' · ')].filter(Boolean).join(' ');
       if (messageResiduel) {
         statutEl.style.display = 'block';
         statutEl.textContent = messageResiduel;
