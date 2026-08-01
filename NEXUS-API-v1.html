@@ -464,26 +464,31 @@ footer a:hover{color:var(--cyan);}
         <text x="465" y="472" text-anchor="middle" class="arch-gateway-sub">Bearer — portée définie</text>
 
         <!-- col3 : moteur NEXUS -->
-        <rect x="640" y="70" width="260" height="80" rx="12" class="arch-box engine"/>
+        <rect x="640" y="70" width="260" height="76" rx="12" class="arch-box engine"/>
         <text x="662" y="104" class="arch-icon">🗄️</text>
-        <text x="700" y="104" class="arch-box-title">Couche brute</text>
+        <text x="700" y="104" class="arch-box-title small">Données source</text>
         <text x="700" y="126" class="arch-box-sub">Donnée conservée telle quelle</text>
 
-        <rect x="640" y="190" width="260" height="80" rx="12" class="arch-box engine"/>
-        <text x="662" y="224" class="arch-icon">🧩</text>
-        <text x="700" y="224" class="arch-box-title">Couche normalisée</text>
-        <text x="700" y="246" class="arch-box-sub">Format harmonisé NEXUS</text>
+        <rect x="640" y="186" width="260" height="76" rx="12" class="arch-box engine"/>
+        <text x="662" y="220" class="arch-icon">🧩</text>
+        <text x="700" y="220" class="arch-box-title small">Modèle de données NEXUS</text>
+        <text x="700" y="242" class="arch-box-sub">Format harmonisé NEXUS</text>
 
-        <rect x="640" y="310" width="260" height="100" rx="14" class="arch-box engine advisor"/>
-        <text x="662" y="344" class="arch-icon">🧠</text>
-        <text x="700" y="344" class="arch-box-title">Conseiller NEXUS</text>
-        <text x="700" y="366" class="arch-box-sub">Calcule, compare, recommande</text>
+        <rect x="640" y="302" width="260" height="76" rx="12" class="arch-box engine"/>
+        <text x="662" y="336" class="arch-icon">⚙️</text>
+        <text x="700" y="336" class="arch-box-title small">Moteurs d'analyse</text>
+        <text x="700" y="358" class="arch-box-sub">Calculs, tendances, corrélations</text>
+
+        <rect x="640" y="418" width="260" height="82" rx="14" class="arch-box engine advisor"/>
+        <text x="662" y="452" class="arch-icon">🧠</text>
+        <text x="700" y="452" class="arch-box-title small">Conseiller NEXUS</text>
+        <text x="700" y="474" class="arch-box-sub">Traduit l'analyse en recommandation</text>
 
         <!-- col4 : dirigeant -->
-        <rect x="980" y="310" width="180" height="100" rx="14" class="arch-box you"/>
-        <text x="1000" y="344" class="arch-icon">💡</text>
-        <text x="1035" y="344" class="arch-box-title">Vous</text>
-        <text x="1035" y="366" class="arch-box-sub">Recommandation</text>
+        <rect x="980" y="418" width="180" height="82" rx="14" class="arch-box you"/>
+        <text x="1000" y="452" class="arch-icon">💡</text>
+        <text x="1035" y="452" class="arch-box-title">Vous</text>
+        <text x="1035" y="474" class="arch-box-sub">Décision</text>
 
         <!-- flèches -->
         <line x1="300" y1="100" x2="386" y2="100" class="arch-arrow cyan" marker-end="url(#arrow-cyan)"/>
@@ -494,19 +499,20 @@ footer a:hover{color:var(--cyan);}
         <line x1="300" y1="366" x2="386" y2="300" class="arch-arrow green" marker-end="url(#arrow-green)"/>
         <text x="305" y="335" class="arch-arrow-label green">POST — écriture stricte</text>
 
-        <line x1="540" y1="290" x2="636" y2="110" class="arch-arrow cyan" marker-end="url(#arrow-cyan)"/>
+        <line x1="540" y1="290" x2="636" y2="108" class="arch-arrow cyan" marker-end="url(#arrow-cyan)"/>
 
-        <line x1="770" y1="150" x2="770" y2="188" class="arch-arrow neutral" marker-end="url(#arrow-cyan)"/>
-        <line x1="770" y1="270" x2="770" y2="308" class="arch-arrow neutral" marker-end="url(#arrow-cyan)"/>
+        <line x1="770" y1="146" x2="770" y2="184" class="arch-arrow neutral" marker-end="url(#arrow-cyan)"/>
+        <line x1="770" y1="262" x2="770" y2="300" class="arch-arrow neutral" marker-end="url(#arrow-cyan)"/>
+        <line x1="770" y1="378" x2="770" y2="416" class="arch-arrow neutral" marker-end="url(#arrow-cyan)"/>
 
-        <line x1="900" y1="360" x2="976" y2="360" class="arch-arrow gold" marker-end="url(#arrow-gold)"/>
-        <text x="905" y="345" class="arch-arrow-label gold">Recommandation</text>
+        <line x1="900" y1="459" x2="976" y2="459" class="arch-arrow gold" marker-end="url(#arrow-gold)"/>
+        <text x="905" y="444" class="arch-arrow-label gold">Décision</text>
       </svg>
     </div>
     <div class="arch-legend">
       <span class="legend-item"><span class="legend-dot cyan"></span>Lecture seule — caisse → NEXUS</span>
       <span class="legend-item"><span class="legend-dot green"></span>Écriture stricte — terrain → NEXUS</span>
-      <span class="legend-item"><span class="legend-dot gold"></span>Sortie — NEXUS → dirigeant</span>
+      <span class="legend-item"><span class="legend-dot gold"></span>Décision — NEXUS → dirigeant</span>
     </div>
   </section>
 
