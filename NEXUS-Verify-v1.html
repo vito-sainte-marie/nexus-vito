@@ -123,6 +123,7 @@
   .locked{padding:60px 20px; text-align:center; color:var(--text-dim); font-family:var(--sans);}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="nexus-auth.js"></script>
 </head>
 <body>
@@ -152,6 +153,18 @@
         <div><label class="f">Date</label><input type="date" id="v_date"></div>
         <div><label class="f">Quart</label><input type="text" id="v_quart" value="1"></div>
       </div>
+    </div>
+
+    <div class="card">
+      <div class="section-label">Import classeur recettes</div>
+      <div class="note">Choisis la date et le quart ci-dessus, puis dépose ton classeur Excel — les drops piste/boutique, la carte de fidélité, les employés et le commentaire seront pré-remplis à partir de la ligne correspondante. La vente piste (litrage), la vente boutique Decenium, les bons, dépenses, vacataires et règlements de comptes restent à saisir à la main : ils n'existent pas dans ce classeur.</div>
+      <input type="file" id="v_import_fichier" accept=".xlsx,.xls">
+      <div id="v_import_feuille_bloc" style="display:none; margin-top:10px;">
+        <label class="f">Feuille (mois)</label>
+        <select id="v_import_feuille"></select>
+        <button type="button" class="btn-add" id="v_import_go">Importer cette ligne</button>
+      </div>
+      <div id="v_import_statut" style="display:none; font-family:var(--mono); font-size:11px; color:var(--text-mid); background:var(--panel-raised); border-radius:8px; padding:8px 10px; line-height:1.6;"></div>
     </div>
 
     <div class="card">
@@ -407,6 +420,254 @@
     EMPLOYES_SITE = await chargerEmployesSite();
     renderMenuEmployes('piste');
     renderMenuEmployes('boutique');
+
+    // ------------------------------------------------------------
+    // Import classeur recettes (.xlsx) — évite de ressaisir les drops et les
+    // noms d'employés déjà présents dans le tableau Excel quotidien (demande
+    // de Frédéric, 01/08/2026). Lecture 100% côté navigateur (SheetJS), rien
+    // n'est envoyé à un serveur. Détection des colonnes par en-tête plutôt
+    // que par lettre de colonne fixe : la mise en page du classeur a déjà
+    // changé une fois entre 2024 et 2025 (colonnes ajoutées/renommées) — une
+    // détection par lettre aurait recassé au prochain changement.
+    // Champs volontairement absents du classeur (jamais importés, restent
+    // manuels) : vente piste (litrage), vente boutique Decenium, bons
+    // clients, dépenses ponctuelles, vacataires, règlements de comptes,
+    // remise en cuve.
+    // SMCR (colonne rarement utilisée) est additionné au chèque boutique,
+    // pas à la CB boutique — instruction explicite de Frédéric.
+    // ------------------------------------------------------------
+    const SHEETS_IGNOREES = ['ressource', 'monetique', 'depot brinks', 'chq dej', 'pointage', 'ecart caisse', 'ecart global', 'feuil model', 'feuil1'];
+    let CLASSEUR_IMPORT = null;
+
+    function normaliserTexte(s) {
+      return String(s == null ? '' : s).normalize('NFD').replace(new RegExp('[̀-ͯ]', 'g'), '').toLowerCase().trim();
+    }
+
+    document.getElementById('v_import_fichier').addEventListener('change', async (e) => {
+      const fichier = e.target.files[0];
+      const statut = document.getElementById('v_import_statut');
+      const blocFeuille = document.getElementById('v_import_feuille_bloc');
+      if (!fichier) return;
+      statut.style.display = 'block';
+      statut.textContent = 'Lecture du fichier…';
+      try {
+        const buffer = await fichier.arrayBuffer();
+        CLASSEUR_IMPORT = XLSX.read(buffer, { type: 'array', cellDates: true });
+        const feuillesUtiles = CLASSEUR_IMPORT.SheetNames.filter(n => !SHEETS_IGNOREES.some(mot => normaliserTexte(n).includes(mot)));
+        if (feuillesUtiles.length === 0) {
+          statut.textContent = "Aucune feuille de mois reconnue dans ce fichier.";
+          blocFeuille.style.display = 'none';
+          return;
+        }
+        const sel = document.getElementById('v_import_feuille');
+        sel.innerHTML = feuillesUtiles.map(n => `<option value="${n}">${n}</option>`).join('');
+        // Présélection : feuille dont le nom contient le mois/année de la date choisie, sinon on laisse la première.
+        const dateChoisie = document.getElementById('v_date').value;
+        if (dateChoisie) {
+          const [an, mo] = dateChoisie.split('-');
+          const moisNoms = ['janvier','fevrier','mars','avril','mai','juin','juillet','aout','septembre','octobre','novembre','decembre'];
+          const moisTxt = moisNoms[parseInt(mo, 10) - 1];
+          const anCourt = an.slice(2);
+          const match = feuillesUtiles.find(n => {
+            const t = normaliserTexte(n);
+            return t.includes(moisTxt.slice(0, 4)) && (t.includes(an) || t.includes(anCourt));
+          });
+          if (match) sel.value = match;
+        }
+        blocFeuille.style.display = 'block';
+        statut.textContent = `Fichier lu — ${feuillesUtiles.length} feuille(s) de mois trouvée(s). Vérifie la feuille sélectionnée puis clique "Importer cette ligne".`;
+      } catch (err) {
+        console.error('Lecture classeur import:', err);
+        statut.textContent = "Impossible de lire ce fichier — vérifie que c'est bien un .xlsx.";
+        blocFeuille.style.display = 'none';
+      }
+    });
+
+    function trouverColonnes(headerRow) {
+      const cols = {};
+      headerRow.forEach((val, idx) => {
+        const h = normaliserTexte(val);
+        if (!h) return;
+        if (h.includes('date') && cols.date === undefined) cols.date = idx;
+        else if (h === 'quart') cols.quart = idx;
+        else if (h.includes('pompiste')) cols.pompiste = idx;
+        else if (h.includes('piste') && h.includes('cb')) cols.pisteCb = idx;
+        else if (h.includes('piste') && h.includes('billet')) cols.pisteBillets = idx;
+        else if (h.includes('piste') && h.includes('piec')) cols.pistePieces = idx;
+        else if (h.includes('piste') && (h.includes('cheque') || h.includes('cheq'))) cols.pisteCheque = idx;
+        else if (h.includes('vitocarte')) cols.pisteVitocarte = idx;
+        else if (h.includes('caissier')) cols.caissier = idx;
+        else if (h.includes('boutique') && h.includes('cb')) cols.boutiqueCb = idx;
+        else if (h === 'smcr') cols.smcr = idx;
+        else if (h.includes('chq') || (h.includes('cheque') && h.includes('dej'))) cols.chqDej = idx;
+        else if (h.includes('boutique') && h.includes('piec')) cols.boutiquePieces = idx;
+        else if (h.includes('boutique') && h.includes('billet')) cols.boutiqueBillets = idx;
+        else if (h.includes('comment')) cols.commentaires = idx;
+      });
+      return cols;
+    }
+
+    function memeJourLocal(d1, d2) {
+      if (!d1 || !d2) return false;
+      return d1.getFullYear() === d2.getFullYear() && d1.getMonth() === d2.getMonth() && d1.getDate() === d2.getDate();
+    }
+
+    function trouverEmployeParNom(nom) {
+      if (!nom) return null;
+      const n = normaliserTexte(nom);
+      return EMPLOYES_SITE.find(e => normaliserTexte(e.nom) === n) || null;
+    }
+
+    function capitaliserNom(nom) {
+      return String(nom).trim().split(/[\s-]+/).map(mot => mot.charAt(0).toUpperCase() + mot.slice(1).toLowerCase()).join(' ');
+    }
+
+    function genererUsername(nom) {
+      const base = normaliserTexte(nom).replace(/[^a-z0-9]+/g, '') || 'vacataire';
+      const suffixe = Math.random().toString(36).slice(2, 8);
+      return `${base}-${suffixe}`;
+    }
+
+    // Employés trouvés dans le classeur mais inconnus de NEXUS (ex: Alex,
+    // Eric, Camille... jamais enregistrés dans la liste officielle) : ce sont
+    // des vacataires ponctuels. Sur demande de Frédéric (01/08/2026), on les
+    // crée automatiquement avec le rôle 'vacataire' — déjà un rôle reconnu
+    // par NEXUS (utilisé par le planning et par le paiement vacataire de
+    // Verify) — plutôt que de se contenter de signaler "non trouvé" à chaque
+    // import. Ajouté à EMPLOYES_SITE en mémoire pour être retrouvé sans
+    // recréation si le même nom réapparaît plus tard dans la même session.
+    async function trouverOuCreerEmploye(nomBrut) {
+      const existant = trouverEmployeParNom(nomBrut);
+      if (existant) return { emp: existant, nouveau: false };
+      const nomPropre = capitaliserNom(nomBrut);
+      const { data, error } = await nexusClient.from('employees').insert({
+        id: crypto.randomUUID(),
+        username: genererUsername(nomBrut),
+        nom: nomPropre,
+        role: 'vacataire',
+        site_id: SITE_ACTUEL,
+        actif: true,
+      }).select().single();
+      if (error) { console.error('Création vacataire:', error); return { emp: null, nouveau: false }; }
+      EMPLOYES_SITE.push(data);
+      return { emp: data, nouveau: true };
+    }
+
+    document.getElementById('v_import_go').addEventListener('click', async () => {
+      const statut = document.getElementById('v_import_statut');
+      const dateStr = document.getElementById('v_date').value;
+      const quartStr = document.getElementById('v_quart').value.trim();
+      if (!dateStr) { alert("Renseigne une date avant d'importer."); return; }
+      if (!CLASSEUR_IMPORT) { alert('Choisis un fichier à importer.'); return; }
+      const nomFeuille = document.getElementById('v_import_feuille').value;
+      const ws = CLASSEUR_IMPORT.Sheets[nomFeuille];
+      if (!ws) { statut.textContent = 'Feuille introuvable.'; return; }
+      const lignes = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: null });
+
+      // Repère la ligne d'en-têtes (celle qui contient "QUART" et "POMPISTE").
+      let headerIdx = -1, cols = null;
+      for (let i = 0; i < Math.min(lignes.length, 15); i++) {
+        const c = trouverColonnes(lignes[i]);
+        if (c.quart !== undefined && c.pompiste !== undefined) { headerIdx = i; cols = c; break; }
+      }
+      if (headerIdx === -1) {
+        statut.textContent = "En-têtes non reconnus dans cette feuille — structure trop différente pour un import automatique.";
+        return;
+      }
+
+      // La colonne "Date" du header ne contient parfois que le nom du jour
+      // en texte ('lundi') ; la vraie valeur Date est dans la colonne juste
+      // après (cellule fusionnée, sans intitulé propre). On corrige en
+      // cherchant, dans les lignes de données, la colonne la plus proche qui
+      // contient réellement un objet Date.
+      if (cols.date !== undefined) {
+        let dateReelle;
+        for (let i = headerIdx + 1; i < Math.min(lignes.length, headerIdx + 30) && dateReelle === undefined; i++) {
+          for (let dc = cols.date; dc <= cols.date + 1; dc++) {
+            if (lignes[i] && lignes[i][dc] instanceof Date) { dateReelle = dc; break; }
+          }
+        }
+        if (dateReelle !== undefined) cols.date = dateReelle;
+      }
+
+      const dateCible = new Date(dateStr + 'T00:00:00');
+      let dernierDateVue = null;
+      let ligneTrouvee = null;
+      for (let i = headerIdx + 1; i < lignes.length; i++) {
+        const ligne = lignes[i];
+        if (!ligne) continue;
+        const dVal = cols.date !== undefined ? ligne[cols.date] : null;
+        if (dVal instanceof Date) dernierDateVue = dVal;
+        const qVal = cols.quart !== undefined ? ligne[cols.quart] : null;
+        if (dernierDateVue && memeJourLocal(dernierDateVue, dateCible) && qVal != null && String(qVal).trim() === quartStr) {
+          ligneTrouvee = ligne;
+          break;
+        }
+      }
+
+      if (!ligneTrouvee) {
+        statut.textContent = `Aucune ligne trouvée pour le ${dateStr} quart ${quartStr} dans "${nomFeuille}" — vérifie la feuille choisie.`;
+        return;
+      }
+
+      const g = (key) => { const idx = cols[key]; return (idx !== undefined) ? ligneTrouvee[idx] : null; };
+      const num = (v) => { const n = Number(v); return isNaN(n) ? 0 : n; };
+      // Ne touche un champ que si sa colonne existe réellement dans cette
+      // feuille — sinon on écraserait un champ avec un faux 0 plutôt que de
+      // laisser la saisie manuelle habituelle.
+      const preRemplir = (id, key) => { if (cols[key] !== undefined) setValFR(id, num(g(key))); };
+
+      preRemplir('v_drop_piste_cb', 'pisteCb');
+      preRemplir('v_drop_piste_billets', 'pisteBillets');
+      preRemplir('v_drop_piste_pieces', 'pistePieces');
+
+      // Carte de fidélité — une ligne Vitocarte si la colonne existe.
+      if (cols.pisteVitocarte !== undefined) {
+        const vitocarte = num(g('pisteVitocarte'));
+        document.getElementById('carteFideliteListe').innerHTML = '';
+        ajouterLigneCarteFidelite();
+        const ligneCarte = document.querySelector('#carteFideliteListe .ligne-item');
+        ligneCarte.querySelector('.montant-carte').value = vitocarte ? String(vitocarte).replace('.', ',') : '';
+        ligneCarte.querySelector('.type-carte').value = 'vitocarte';
+      }
+
+      preRemplir('v_drop_boutique_cb', 'boutiqueCb');
+      // SMCR fusionné dans le chèque boutique (pas la CB) — instruction
+      // explicite de Frédéric, SMCR étant un moyen de règlement par chèque.
+      if (cols.chqDej !== undefined || cols.smcr !== undefined) {
+        setValFR('v_drop_boutique_chq', num(g('chqDej')) + num(g('smcr')));
+      }
+      preRemplir('v_drop_boutique_pieces', 'boutiquePieces');
+      preRemplir('v_drop_boutique_billets', 'boutiqueBillets');
+
+      // Commentaire (souvent au niveau du jour, pas du quart) — on ne
+      // l'écrase que s'il y a effectivement un texte dans le classeur.
+      const commentaire = g('commentaires');
+      if (commentaire) document.getElementById('v_commentaire').value = commentaire;
+
+      // Employés — correspondance par nom (insensible à la casse et aux
+      // accents : les classeurs mélangent "RUDDY"/"Ruddy"/"Dylan"/"DYLAN").
+      // Un nom absent de la liste NEXUS (Alex, Eric, Camille...) est créé à
+      // la volée comme vacataire plutôt que simplement signalé.
+      const messagesEmp = [];
+      const pompisteNom = g('pompiste');
+      if (pompisteNom) {
+        const { emp, nouveau } = await trouverOuCreerEmploye(pompisteNom);
+        if (emp) { employesSelectionnes.piste.add(emp.id); messagesEmp.push(`Piste : ${emp.nom}${nouveau ? ' (nouveau vacataire)' : ''} ✓`); }
+        else messagesEmp.push(`Piste : "${pompisteNom}" — échec de création (voir console)`);
+      }
+      const caissierNom = g('caissier');
+      if (caissierNom) {
+        const { emp, nouveau } = await trouverOuCreerEmploye(caissierNom);
+        if (emp) { employesSelectionnes.boutique.add(emp.id); messagesEmp.push(`Boutique : ${emp.nom}${nouveau ? ' (nouveau vacataire)' : ''} ✓`); }
+        else messagesEmp.push(`Boutique : "${caissierNom}" — échec de création (voir console)`);
+      }
+      renderMenuEmployes('piste'); majLabelEmployes('piste');
+      renderMenuEmployes('boutique'); majLabelEmployes('boutique');
+
+      majTotauxListes();
+      statut.textContent = `Import fait pour le ${dateStr} quart ${quartStr}. ${messagesEmp.join(' · ') || 'Aucun employé à faire correspondre.'} — vérifie les champs avant d'enregistrer : la vente piste (litrage) et la vente boutique (Decenium) ne sont pas dans ce classeur.`;
+    });
 
     // ------------------------------------------------------------
     // Prix carburants du mois — utilises pour calculer le montant de la
