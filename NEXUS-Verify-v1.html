@@ -165,6 +165,15 @@
         <button type="button" class="btn-add" id="v_import_go">Importer cette ligne</button>
       </div>
       <div id="v_import_statut" style="display:none; font-family:var(--mono); font-size:11px; color:var(--text-mid); background:var(--panel-raised); border-radius:8px; padding:8px 10px; line-height:1.6;"></div>
+      <!-- Import direct Google Sheets (01/08/2026) — n'apparaît que si la
+           synchronisation a été activée pour ce site dans Paramètres Station
+           (station_config.google_sheet_id). L'import fichier ci-dessus reste
+           toujours disponible, activé ou non. -->
+      <div id="v_import_sheets_bloc" style="display:none; margin-top:14px; padding-top:14px; border-top:1px solid var(--hairline);">
+        <label class="f">Ou importer directement depuis Google Sheets</label>
+        <select id="v_import_sheets_feuille"></select>
+        <button type="button" class="btn-add" id="v_import_sheets_go">Importer depuis Google Sheets</button>
+      </div>
     </div>
 
     <div class="card">
@@ -553,17 +562,30 @@
       return { emp: data, nouveau: true };
     }
 
-    document.getElementById('v_import_go').addEventListener('click', async () => {
-      const statut = document.getElementById('v_import_statut');
-      const dateStr = document.getElementById('v_date').value;
-      const quartStr = document.getElementById('v_quart').value.trim();
-      if (!dateStr) { alert("Renseigne une date avant d'importer."); return; }
-      if (!CLASSEUR_IMPORT) { alert('Choisis un fichier à importer.'); return; }
-      const nomFeuille = document.getElementById('v_import_feuille').value;
-      const ws = CLASSEUR_IMPORT.Sheets[nomFeuille];
-      if (!ws) { statut.textContent = 'Feuille introuvable.'; return; }
-      const lignes = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: null });
+    // ------------------------------------------------------------
+    // Logique d'extraction partagée entre les deux sources d'import
+    // (fichier Excel déposé à la main, et Google Sheets synchronisé) —
+    // même règles métier des deux côtés (SMCR fusionné au chèque, création
+    // auto des vacataires, colonnes jamais écrasées si absentes de la
+    // feuille…), refactorée le 01/08/2026 pour brancher Google Sheets sans
+    // dupliquer ce code. `lignes` est toujours un tableau 2D (une ligne =
+    // un tableau de cellules), qu'il vienne de XLSX.utils.sheet_to_json
+    // (fichier) ou de values renvoyé par l'Edge Function google-sheets-sync.
+    // `formatSource` vaut 'fichier' (dates déjà en vrais objets Date, grâce
+    // à cellDates:true côté SheetJS) ou 'sheets' (dates en numéro de série
+    // Google brut, converties ici même en objets Date).
+    // ------------------------------------------------------------
+    function pourraitEtreSerialDate(v) {
+      // Plage large mais raisonnable (~1954 à ~2119) pour ne pas confondre
+      // un vrai numéro de série de date avec un montant en euros.
+      return typeof v === 'number' && v > 20000 && v < 80000;
+    }
+    function serialGoogleVersDate(v) {
+      // Système de dates Google Sheets/Excel : jour 0 = 30/12/1899.
+      return new Date(Date.UTC(1899, 11, 30) + Math.round(v) * 86400000);
+    }
 
+    async function importerDepuisLignes(lignes, dateStr, quartStr, statutEl, formatSource) {
       // Repère la ligne d'en-têtes (celle qui contient "QUART" et "POMPISTE").
       let headerIdx = -1, cols = null;
       for (let i = 0; i < Math.min(lignes.length, 15); i++) {
@@ -571,7 +593,7 @@
         if (c.quart !== undefined && c.pompiste !== undefined) { headerIdx = i; cols = c; break; }
       }
       if (headerIdx === -1) {
-        statut.textContent = "En-têtes non reconnus dans cette feuille — structure trop différente pour un import automatique.";
+        statutEl.textContent = "En-têtes non reconnus dans cette feuille — structure trop différente pour un import automatique.";
         return;
       }
 
@@ -579,15 +601,29 @@
       // en texte ('lundi') ; la vraie valeur Date est dans la colonne juste
       // après (cellule fusionnée, sans intitulé propre). On corrige en
       // cherchant, dans les lignes de données, la colonne la plus proche qui
-      // contient réellement un objet Date.
+      // contient réellement une date (objet Date pour un fichier, numéro de
+      // série Google pour Sheets).
       if (cols.date !== undefined) {
         let dateReelle;
         for (let i = headerIdx + 1; i < Math.min(lignes.length, headerIdx + 30) && dateReelle === undefined; i++) {
           for (let dc = cols.date; dc <= cols.date + 1; dc++) {
-            if (lignes[i] && lignes[i][dc] instanceof Date) { dateReelle = dc; break; }
+            const v = lignes[i] && lignes[i][dc];
+            const estDate = formatSource === 'sheets' ? pourraitEtreSerialDate(v) : (v instanceof Date);
+            if (estDate) { dateReelle = dc; break; }
           }
         }
-        if (dateReelle !== undefined) cols.date = dateReelle;
+        if (dateReelle !== undefined) {
+          cols.date = dateReelle;
+          if (formatSource === 'sheets') {
+            // On convertit une fois pour toutes cette colonne en vrais objets
+            // Date, pour que la suite du traitement soit identique à celle
+            // de l'import fichier (qui teste `instanceof Date`).
+            for (let i = headerIdx + 1; i < lignes.length; i++) {
+              const v = lignes[i] && lignes[i][dateReelle];
+              if (typeof v === 'number') lignes[i][dateReelle] = serialGoogleVersDate(v);
+            }
+          }
+        }
       }
 
       const dateCible = new Date(dateStr + 'T00:00:00');
@@ -606,7 +642,7 @@
       }
 
       if (!ligneTrouvee) {
-        statut.textContent = `Aucune ligne trouvée pour le ${dateStr} quart ${quartStr} dans "${nomFeuille}" — vérifie la feuille choisie.`;
+        statutEl.textContent = `Aucune ligne trouvée pour le ${dateStr} quart ${quartStr} — vérifie la feuille choisie.`;
         return;
       }
 
@@ -666,8 +702,102 @@
       renderMenuEmployes('boutique'); majLabelEmployes('boutique');
 
       majTotauxListes();
-      statut.textContent = `Import fait pour le ${dateStr} quart ${quartStr}. ${messagesEmp.join(' · ') || 'Aucun employé à faire correspondre.'} — vérifie les champs avant d'enregistrer : la vente piste (litrage) et la vente boutique (Decenium) ne sont pas dans ce classeur.`;
+      statutEl.textContent = `Import fait pour le ${dateStr} quart ${quartStr}. ${messagesEmp.join(' · ') || 'Aucun employé à faire correspondre.'} — vérifie les champs avant d'enregistrer : la vente piste (litrage) et la vente boutique (Decenium) ne sont pas dans ce classeur.`;
+    }
+
+    document.getElementById('v_import_go').addEventListener('click', async () => {
+      const statut = document.getElementById('v_import_statut');
+      const dateStr = document.getElementById('v_date').value;
+      const quartStr = document.getElementById('v_quart').value.trim();
+      if (!dateStr) { alert("Renseigne une date avant d'importer."); return; }
+      if (!CLASSEUR_IMPORT) { alert('Choisis un fichier à importer.'); return; }
+      const nomFeuille = document.getElementById('v_import_feuille').value;
+      const ws = CLASSEUR_IMPORT.Sheets[nomFeuille];
+      if (!ws) { statut.textContent = 'Feuille introuvable.'; return; }
+      const lignes = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: null });
+      await importerDepuisLignes(lignes, dateStr, quartStr, statut, 'fichier');
     });
+
+    // ------------------------------------------------------------
+    // Import direct depuis Google Sheets (01/08/2026) — n'apparaît que si la
+    // synchronisation a été activée pour ce site dans Paramètres Station
+    // (station_config.google_sheet_id renseigné). Lecture seule via l'Edge
+    // Function google-sheets-sync : le compte de service Google et sa clé
+    // privée n'existent jamais côté client, et l'identifiant du Sheet lu
+    // est toujours celui enregistré en base pour ce site, jamais fourni
+    // librement par le navigateur. L'import fichier ci-dessus reste
+    // disponible dans tous les cas, activé ou non (demande explicite de
+    // Frédéric : ne jamais retirer cette capacité).
+    // ------------------------------------------------------------
+    let GOOGLE_SHEET_ID_SITE = null;
+
+    async function appelerGoogleSheetsSync(sheetParam) {
+      const { data: sessionData } = await nexusClient.auth.getSession();
+      const token = sessionData && sessionData.session && sessionData.session.access_token;
+      if (!token) throw new Error('Session expirée — reconnectez-vous.');
+      const resp = await fetch(`${NEXUS_SUPABASE_URL}/functions/v1/google-sheets-sync?sheet=${encodeURIComponent(sheetParam)}`, {
+        headers: { Authorization: `Bearer ${token}`, apikey: NEXUS_SUPABASE_ANON_KEY },
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error((data && data.error && data.error.message) || 'Erreur Google Sheets.');
+      return data;
+    }
+
+    async function initImportGoogleSheets() {
+      const { data, error } = await nexusClient.from('station_config').select('google_sheet_id').eq('site', SITE_ACTUEL).maybeSingle();
+      if (error) { console.error('Chargement google_sheet_id (Verify):', error); return; }
+      GOOGLE_SHEET_ID_SITE = (data && data.google_sheet_id) || null;
+      if (!GOOGLE_SHEET_ID_SITE) return; // synchro non activée pour ce site — rien à afficher
+      try {
+        const { sheets } = await appelerGoogleSheetsSync('__list__');
+        const feuillesUtiles = (sheets || []).filter(n => !SHEETS_IGNOREES.some(mot => normaliserTexte(n).includes(mot)));
+        if (!feuillesUtiles.length) return;
+        const sel = document.getElementById('v_import_sheets_feuille');
+        sel.innerHTML = feuillesUtiles.map(n => `<option value="${n}">${n}</option>`).join('');
+        // Présélection : même règle que pour le fichier (feuille dont le nom
+        // contient le mois/année de la date choisie).
+        const dateChoisie = document.getElementById('v_date').value;
+        if (dateChoisie) {
+          const [an, mo] = dateChoisie.split('-');
+          const moisNoms = ['janvier','fevrier','mars','avril','mai','juin','juillet','aout','septembre','octobre','novembre','decembre'];
+          const moisTxt = moisNoms[parseInt(mo, 10) - 1];
+          const anCourt = an.slice(2);
+          const match = feuillesUtiles.find(n => {
+            const t = normaliserTexte(n);
+            return t.includes(moisTxt.slice(0, 4)) && (t.includes(an) || t.includes(anCourt));
+          });
+          if (match) sel.value = match;
+        }
+        document.getElementById('v_import_sheets_bloc').style.display = 'block';
+      } catch (e) {
+        // Echec silencieux ici (ex: Sheet pas encore partagé, secret Google
+        // absent...) : l'import fichier reste disponible dans tous les cas,
+        // on ne bloque pas l'écran pour un souci de connexion Google. Le
+        // diagnostic complet se fait via "Tester la connexion" dans
+        // Paramètres Station.
+        console.error('Liste des feuilles Google Sheets (Verify):', e);
+      }
+    }
+
+    document.getElementById('v_import_sheets_go').addEventListener('click', async () => {
+      const statut = document.getElementById('v_import_statut');
+      const dateStr = document.getElementById('v_date').value;
+      const quartStr = document.getElementById('v_quart').value.trim();
+      if (!dateStr) { alert("Renseigne une date avant d'importer."); return; }
+      const nomFeuille = document.getElementById('v_import_sheets_feuille').value;
+      if (!nomFeuille) { alert('Choisis une feuille.'); return; }
+      statut.style.display = 'block';
+      statut.textContent = 'Lecture du Google Sheet…';
+      try {
+        const { values } = await appelerGoogleSheetsSync(nomFeuille);
+        await importerDepuisLignes(values || [], dateStr, quartStr, statut, 'sheets');
+      } catch (e) {
+        console.error('Import Google Sheets (Verify):', e);
+        statut.textContent = '✗ ' + (e.message || 'Erreur de connexion à Google Sheets.');
+      }
+    });
+
+    await initImportGoogleSheets();
 
     // ------------------------------------------------------------
     // Prix carburants du mois — utilises pour calculer le montant de la
