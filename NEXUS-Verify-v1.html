@@ -400,11 +400,20 @@
       <input type="text" inputmode="decimal" id="v_vente_boutique" placeholder="0,00">
       <label class="f">Piste réglé à la caisse (carburant payé au comptoir boutique)</label>
       <input type="text" inputmode="decimal" id="v_transfert" placeholder="0,00">
-      <label class="f" style="margin-top:14px;">Clients qui remboursent un impayé — un règlement par ligne</label>
-      <div class="note" style="margin:-2px 0 10px;">Argent reçu ce quart pour solder une facture d'un mois précédent (ex: facture de juillet payée en août) — à ne pas confondre avec un compte client ouvert aujourd'hui (déjà inclus dans la vente boutique Decenium, ou dans « Clients en compte » côté piste). Précisez sur quelle caisse l'argent a été physiquement encaissé : sans ça, cet argent gonflerait artificiellement l'écart de la mauvaise caisse.</div>
-      <div id="reglementCompteListe"></div>
-      <button type="button" class="btn-add" id="btnAddReglementCompte">+ Ajouter un règlement</button>
-      <div class="total-ligne">Piste : <span id="totalReglementPiste">0,00 €</span> · Boutique : <span id="totalReglementBoutique">0,00 €</span></div>
+    </div>
+
+    <div class="card card-collapsible" id="cardReglementCompte">
+      <div class="card-toggle" data-toggle="cardReglementCompte">
+        <div class="card-toggle-label">Clients qui remboursent un impayé</div>
+        <span class="card-toggle-total" id="v_apercu_reglement">0,00 €</span>
+        <span class="card-toggle-chevron">▾</span>
+      </div>
+      <div class="card-body">
+        <div class="note">Rare — un règlement par ligne. Argent reçu ce quart pour solder une facture d'un mois précédent (ex: facture de juillet payée en août) — à ne pas confondre avec un compte client ouvert aujourd'hui (déjà inclus dans la vente boutique Decenium, ou dans « Clients en compte » côté piste). Précisez sur quelle caisse l'argent a été physiquement encaissé : sans ça, cet argent gonflerait artificiellement l'écart de la mauvaise caisse.</div>
+        <div id="reglementCompteListe"></div>
+        <button type="button" class="btn-add" id="btnAddReglementCompte">+ Ajouter un règlement</button>
+        <div class="total-ligne">Piste : <span id="totalReglementPiste">0,00 €</span> · Boutique : <span id="totalReglementBoutique">0,00 €</span></div>
+      </div>
     </div>
 
     <div class="card">
@@ -1612,8 +1621,11 @@
       if (apercuAutres) apercuAutres.textContent = (vacatairePiste + vacataireBoutique).toFixed(2).replace('.', ',') + ' €';
 
       document.getElementById('totalCarteFidelite').textContent = sommeCarteFidelite().toFixed(2).replace('.', ',') + ' €';
-      document.getElementById('totalReglementPiste').textContent = sommeReglementCompte('piste').toFixed(2).replace('.', ',') + ' €';
-      document.getElementById('totalReglementBoutique').textContent = sommeReglementCompte('boutique').toFixed(2).replace('.', ',') + ' €';
+      const reglementPiste = sommeReglementCompte('piste'), reglementBoutique = sommeReglementCompte('boutique');
+      document.getElementById('totalReglementPiste').textContent = reglementPiste.toFixed(2).replace('.', ',') + ' €';
+      document.getElementById('totalReglementBoutique').textContent = reglementBoutique.toFixed(2).replace('.', ',') + ' €';
+      const apercuReglement = document.getElementById('v_apercu_reglement');
+      if (apercuReglement) apercuReglement.textContent = (reglementPiste + reglementBoutique).toFixed(2).replace('.', ',') + ' €';
     }
 
     // Cartes repliables (02/08/2026) — un seul clic sur l'en-tête ouvre/ferme
@@ -2104,6 +2116,9 @@
         derniere.querySelector('.cible-reglement').value = 'boutique';
       }
       if (!a.reglement_compte_anterieur_piste && !a.reglement_compte_anterieur_boutique) ajouterLigneReglementCompte();
+      if (a.reglement_compte_anterieur_piste || a.reglement_compte_anterieur_boutique) {
+        const c = document.getElementById('cardReglementCompte'); if (c) c.classList.add('open');
+      }
 
       majTotauxListes();
 
