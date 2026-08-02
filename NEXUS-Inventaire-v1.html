@@ -328,10 +328,18 @@
   }
 
   async function chargerProduitsZone(zone) {
+    // Corrigé (02/08/2026, signalé par Frédéric — "mets les cigarettes
+    // dans le sens que je t'ai envoyé, c'est le sens de comptage en
+    // boutique") : le tri ne portait que sur `sensible`, jamais sur
+    // `ordre_affichage` — à l'intérieur d'une catégorie, l'ordre des
+    // produits était donc livré au hasard par Postgres plutôt que de
+    // suivre le sens physique du parcours en boutique déjà enregistré en
+    // base (colonne ordre_affichage, renseignée lors du seed initial).
     const { data, error } = await nexusClient
       .from('inventaire_zone_produit').select('*, inventaire_categories(nom, ordre_affichage), inventaire_zones!inner(code)')
       .eq('inventaire_zones.code', zone).eq('actif', true)
-      .order('sensible', { ascending: false });
+      .order('sensible', { ascending: false })
+      .order('ordre_affichage', { ascending: true });
     if (error) { console.error('Chargement produits:', error); return []; }
     return data || [];
   }
@@ -565,6 +573,16 @@
   // "Tout conforme" encourageait une validation trop rapide) avec une
   // confirmation explicite avant d'appliquer le stock transmis partout.
   // ------------------------------------------------------------
+  // Avance le focus au produit suivant de la même catégorie — utilisé
+  // après "Identique" ou la touche Entrée (voir renderCategorieListe).
+  function focusProchainProduit(produitId, groupe) {
+    const idx = groupe.items.findIndex(p => p.id === produitId);
+    if (idx === -1 || idx === groupe.items.length - 1) return; // dernier produit : rien à enchaîner
+    const suivant = groupe.items[idx + 1];
+    const inputSuivant = document.querySelector(`.produit-input[data-produit="${suivant.id}"]`);
+    if (inputSuivant) { inputSuivant.focus(); inputSuivant.select(); }
+  }
+
   function renderCategorieListe(groupe) {
     document.getElementById('titre').textContent = groupe.nom;
     document.getElementById('sousTitre').textContent = 'Le stock transmis est celui laissé par le quart précédent — comptez le vôtre, corrigez si besoin.';
@@ -579,14 +597,24 @@
     `;
 
     document.querySelectorAll('.produit-input').forEach(el => {
-      el.addEventListener('input', () => majLigneCategorie(el.dataset.produit, groupe));
+      el.addEventListener('input', () => majLigneCategorie(el.dataset.produit));
+      // Entrée = passer au produit suivant (02/08/2026, demande de Frédéric
+      // — "insère tout de suite le curseur dans votre comptage pour aller
+      // plus vite"). Volontairement pas sur chaque frappe (input) : tant
+      // qu'on tape un nombre à plusieurs chiffres, un saut prématuré serait
+      // pire qu'utile — seule une action explicite (Entrée, ou Identique
+      // ci-dessous) déclenche l'avancée.
+      el.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); focusProchainProduit(el.dataset.produit, groupe); }
+      });
     });
     document.querySelectorAll('.btn-identique').forEach(el => {
       el.addEventListener('click', () => {
         const input = document.querySelector(`.produit-input[data-produit="${el.dataset.produit}"]`);
         const transmis = dernierStock[el.dataset.produit];
         input.value = transmis ? transmis.quantite : 0;
-        majLigneCategorie(el.dataset.produit, groupe);
+        majLigneCategorie(el.dataset.produit);
+        focusProchainProduit(el.dataset.produit, groupe);
       });
     });
     document.getElementById('btnCategorieConforme').addEventListener('click', () => {
@@ -600,19 +628,33 @@
     document.getElementById('btnRetourCategories').addEventListener('click', renderCategoriesOuverture);
   }
 
-  function majLigneCategorie(produitId, groupe) {
+  // Corrigé (02/08/2026, signalé par Frédéric — "je dois ressaisir pour
+  // mettre deux chiffres" sur Gaz) : cette fonction reconstruisait AVANT
+  // tout le HTML de la catégorie à chaque frappe dès qu'un écart
+  // apparaissait (pour révéler le champ justification) — ça faisait
+  // perdre le focus et la position du curseur au beau milieu de la saisie
+  // d'un nombre à plusieurs chiffres, obligeant à retaper. Le champ
+  // justification existe maintenant en permanence dans le DOM (comme
+  // justifCarrousel côté carrousel) : on se contente de l'afficher ou le
+  // masquer, sans jamais reconstruire la ligne.
+  function majLigneCategorie(produitId) {
     const input = document.querySelector(`.produit-input[data-produit="${produitId}"]`);
     const val = input.value === '' ? null : parseFloat(input.value);
     const transmis = dernierStock[produitId] ? dernierStock[produitId].quantite : 0;
     const ecartDiv = document.getElementById(`ecart-${produitId}`);
-    if (val === null || isNaN(val)) { ecartDiv.textContent = ''; comptagesSaisie[produitId] = undefined; return; }
+    const justifInput = document.querySelector(`.justif-input[data-produit="${produitId}"]`);
+    if (val === null || isNaN(val)) {
+      ecartDiv.className = 'ecart-tag'; ecartDiv.textContent = '';
+      if (justifInput) justifInput.style.display = 'none';
+      comptagesSaisie[produitId] = undefined;
+      return;
+    }
     const ecart = val - transmis;
     const ecartNonNul = Math.abs(ecart) > 0.001;
     ecartDiv.className = 'ecart-tag ' + (ecart === 0 ? 'ecart-ok' : (Math.abs(ecart) <= 2 ? 'ecart-warn' : 'ecart-bad'));
     ecartDiv.textContent = ecart === 0 ? 'Conforme' : `Écart d'ouverture : ${ecart > 0 ? '+' : ''}${fmtNum(ecart)}`;
-    const justifInput = document.querySelector(`.justif-input[data-produit="${produitId}"]`);
+    if (justifInput) justifInput.style.display = ecartNonNul ? '' : 'none';
     comptagesSaisie[produitId] = { compte: val, ecartNonNul, justification: justifInput ? justifInput.value : (comptagesSaisie[produitId] ? comptagesSaisie[produitId].justification : '') };
-    if (ecartNonNul && !justifInput) renderCategorieListe(groupe); // ré-affiche pour montrer le champ justification
   }
 
   // ------------------------------------------------------------
@@ -672,10 +714,20 @@
     if (btnCorriger) btnCorriger.addEventListener('click', () => {
       carrouselModeCorrection = true;
       renderCarrousel(groupe);
-      setTimeout(() => { const i = document.getElementById('carrouselInput'); if (i) { i.focus(); i.select(); } }, 0);
     });
     const carrouselInput = document.getElementById('carrouselInput');
-    if (carrouselInput) carrouselInput.addEventListener('input', () => majCarrousel(valeurTransmise));
+    if (carrouselInput) {
+      carrouselInput.addEventListener('input', () => majCarrousel(valeurTransmise));
+      // Curseur posé tout de suite (02/08/2026, demande de Frédéric —
+      // "insère tout de suite le curseur dans votre comptage pour aller
+      // plus vite") : dès que la saisie manuelle est affichée (aveugle,
+      // premier comptage, ou après "Corriger"), le focus y est déjà —
+      // plus besoin de taper la case au préalable. Entrée valide direct.
+      carrouselInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); const btn = document.getElementById('btnValiderProduit'); if (btn) btn.click(); }
+      });
+      setTimeout(() => { carrouselInput.focus(); carrouselInput.select(); }, 0);
+    }
     const btnValiderProduit = document.getElementById('btnValiderProduit');
     if (btnValiderProduit) btnValiderProduit.addEventListener('click', () => {
       const input = document.getElementById('carrouselInput');
@@ -749,7 +801,7 @@
           <button class="btn-identique" data-produit="${p.id}" ${masque ? 'disabled' : ''}>Identique</button>
         </div>
         <div class="${ecartClasse}" id="ecart-${p.id}">${ecartTexte}</div>
-        ${saisie && saisie.ecartNonNul ? `<input type="text" class="justif-input" data-produit="${p.id}" placeholder="Justification de l'écart (facultatif)" value="${saisie.justification || ''}">` : ''}
+        <input type="text" class="justif-input" data-produit="${p.id}" placeholder="Justification de l'écart (facultatif)" value="${saisie && saisie.justification ? saisie.justification : ''}" style="${saisie && saisie.ecartNonNul ? '' : 'display:none;'}">
       </div>
     `;
   }
