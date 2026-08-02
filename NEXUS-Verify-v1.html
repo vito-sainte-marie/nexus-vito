@@ -124,6 +124,22 @@
   .dc-result-stats b{color:var(--text); font-weight:700;}
   .dc-result-meta{font-family:var(--mono); font-size:10.5px; color:var(--text-dim);}
 
+  /* Tuiles compactes Import ponctuel / Connexion récurrente (02/08/2026,
+     demande de Frédéric) — remplacent les anciennes cartes .dc-option
+     (paragraphe + 3 tags chacune) par un format aussi compact que le row2
+     de "Quart concerné" : icône + libellé + une seule action. */
+  .dc-row2{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:2px;}
+  .dc-tile{background:var(--panel-raised); border:1px solid var(--hairline); border-radius:10px; padding:10px;}
+  .dc-tile-head{display:flex; align-items:center; gap:6px; margin-bottom:8px;}
+  .dc-tile-icon{width:16px; height:16px; flex-shrink:0; display:block;}
+  .dc-tile-label{font-family:var(--mono); font-size:9.5px; font-weight:600; letter-spacing:0.05em; text-transform:uppercase; color:var(--text-dim); line-height:1.3;}
+  .dc-tile-excel .dc-tile-label{color:var(--cyan);}
+  .dc-tile-sheets .dc-tile-label{color:var(--green);}
+  .dc-tile > .dc-badge{display:inline-block; margin:0 0 8px;}
+  .dc-sync-btn-compact{padding:8px; font-size:12px; margin-bottom:0;}
+  .dc-select-compact{margin-bottom:8px; font-size:12px; padding:8px 10px;}
+  .dc-tile-caption{font-family:var(--mono); font-size:9.5px; color:var(--text-dim); margin-top:6px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+
   .dc-checklist{display:none; margin-bottom:10px;}
   .dc-checklist.show{display:block;}
   .dc-check-item{
@@ -297,64 +313,46 @@
            futures non construites — jamais annoncer une capacité qui
            n'existe pas). -->
       <div class="section-label">NEXUS Data Connector</div>
-      <div class="note">Choisissez comment pré-remplir cet audit. NEXUS identifie les données compatibles présentes dans votre fichier Excel ou votre feuille Google Sheets et pré-remplit les champs correspondants. La vente piste (litrage), la vente boutique Decenium, les bons, dépenses, vacataires et règlements de comptes n'existent pas dans ce classeur : ils restent à compléter manuellement.</div>
+      <div class="note">Import ponctuel depuis un fichier, ou connexion récurrente à une feuille en ligne — les données absentes restent à compléter manuellement.</div>
 
-      <!-- Option 1 — fichier Excel local. Toujours visible : demande
-           explicite de Frédéric de ne jamais retirer cette capacité, même
+      <!-- Compact (02/08/2026, demande de Frédéric : "il devrait prendre la
+           même place que Quart concerné") — même principe que le row2 de
+           Quart concerné juste au-dessus : deux tuiles côte à côte, plus de
+           paragraphe ni de tags, l'action est le libellé. Le fichier Excel
+           reste toujours disponible (demande explicite antérieure), même
            quand Google Sheets est connecté. -->
-      <div class="dc-option dc-option-excel">
-        <div class="dc-option-head">
-          <div class="dc-option-icon"><img src="icon-nexus-import-excel.png" alt=""></div>
-          <div>
-            <div class="dc-option-eyebrow">Import ponctuel</div>
-            <div class="dc-option-title">Importer un fichier Excel</div>
-          </div>
+      <div class="dc-row2">
+        <div class="dc-tile dc-tile-excel">
+          <div class="dc-tile-head"><img src="icon-nexus-import-excel.png" alt="" class="dc-tile-icon"><span class="dc-tile-label">Import ponctuel</span></div>
+          <label class="dc-sync-btn dc-sync-btn-compact" for="v_import_fichier">Importer</label>
+          <input type="file" id="v_import_fichier" accept=".xlsx,.xls" class="dc-sync-input">
         </div>
-        <div class="dc-option-desc">Importez un classeur .xls ou .xlsx pour pré-remplir automatiquement votre audit.</div>
-        <div class="dc-tags"><span class="dc-tag">Import manuel</span><span class="dc-tag">Fichier local</span><span class="dc-tag">Besoin immédiat</span></div>
-        <label class="dc-sync-btn" for="v_import_fichier"><img src="icon-nexus-import-excel.png" alt="" class="dc-sync-icon">Importer mon fichier Excel</label>
-        <input type="file" id="v_import_fichier" accept=".xlsx,.xls" class="dc-sync-input">
-        <div id="v_import_feuille_bloc" style="display:none; margin-top:10px;">
-          <label class="f">Feuille (mois)</label>
-          <select id="v_import_feuille"></select>
-          <button type="button" class="btn-add" id="v_import_go">Importer cette ligne</button>
+
+        <!-- Google Sheets — toujours visible (état "non connecté" avec lien
+             vers Paramètres Station si pas encore configuré pour ce site ;
+             pas de bouton "Connecter mon compte Google" : c'est un compte
+             de service, configuré une fois par le gérant, jamais un OAuth
+             par utilisateur — voir setEtatSheets() plus bas). -->
+        <div class="dc-tile dc-tile-sheets" id="v_import_sheets_bloc">
+          <div class="dc-tile-head"><img src="icon-nexus-import-sheets.png" alt="" class="dc-tile-icon"><span class="dc-tile-label" id="v_sheets_titre">Connexion récurrente</span></div>
+          <span class="dc-badge dc-badge-off" id="v_sheets_badge">Non connecté</span>
+
+          <div id="v_sheets_disconnected">
+            <a class="dc-sync-btn dc-sync-btn-green dc-sync-btn-compact" href="NEXUS-Parametres-Station-v1.html" style="text-decoration:none;">Configurer</a>
+          </div>
+
+          <div id="v_sheets_connected" style="display:none;">
+            <select id="v_import_sheets_feuille" class="dc-select-compact" aria-label="Onglet à synchroniser"></select>
+            <button type="button" class="dc-sync-btn dc-sync-btn-green dc-sync-btn-compact" id="v_import_sheets_go">Synchroniser</button>
+            <div class="dc-tile-caption"><b id="v_sheets_classeur">—</b> · synchro <span id="v_sheets_dernier">jamais</span></div>
+          </div>
         </div>
       </div>
 
-      <!-- Option 2 — Google Sheets. Toujours visible désormais (02/08/2026) :
-           état "Non connecté" avec lien vers Paramètres Station si le site
-           n'a pas encore de google_sheet_id, plutôt que masquée entièrement
-           — l'archi reste un compte de service configuré une fois par le
-           gérant (jamais un OAuth par utilisateur, jamais de clé côté
-           client), donc pas de bouton "Connecter mon compte Google" ici.
-           L'import fichier ci-dessus reste disponible dans tous les cas. -->
-      <div class="dc-or"><span>ou</span></div>
-      <div class="dc-option dc-option-sheets" id="v_import_sheets_bloc">
-        <div class="dc-option-head">
-          <div class="dc-option-icon"><img src="icon-nexus-import-sheets.png" alt=""></div>
-          <div>
-            <div class="dc-option-eyebrow">Connexion récurrente</div>
-            <div class="dc-option-title" id="v_sheets_titre">Connecter Google Sheets</div>
-          </div>
-          <span class="dc-badge dc-badge-off" id="v_sheets_badge">Non connecté</span>
-        </div>
-        <div class="dc-option-desc">Synchronisez une feuille en ligne pour éviter les exports manuels.</div>
-        <div class="dc-tags"><span class="dc-tag">Connexion cloud</span><span class="dc-tag">Réutilisable</span><span class="dc-tag">Suivi récurrent</span></div>
-
-        <div id="v_sheets_disconnected">
-          <div class="dc-hint">NEXUS n'est pas encore relié à un classeur Google Sheets pour ce site.</div>
-          <a class="dc-sync-btn dc-sync-btn-green" href="NEXUS-Parametres-Station-v1.html" style="text-decoration:none;">Configurer dans Paramètres Station</a>
-        </div>
-
-        <div id="v_sheets_connected" style="display:none;">
-          <div class="dc-meta">
-            <div>Classeur : <b id="v_sheets_classeur">—</b></div>
-            <div>Dernière synchronisation : <b id="v_sheets_dernier">jamais</b></div>
-          </div>
-          <label class="f">Onglet à synchroniser</label>
-          <select id="v_import_sheets_feuille"></select>
-          <button type="button" class="dc-sync-btn dc-sync-btn-green" id="v_import_sheets_go"><img src="icon-nexus-import-sheets.png" alt="" class="dc-sync-icon">Synchroniser maintenant</button>
-        </div>
+      <div id="v_import_feuille_bloc" style="display:none; margin-top:10px;">
+        <label class="f">Feuille (mois)</label>
+        <select id="v_import_feuille"></select>
+        <button type="button" class="btn-add" id="v_import_go">Importer cette ligne</button>
       </div>
 
       <div class="dc-result">
