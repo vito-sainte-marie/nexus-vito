@@ -149,6 +149,12 @@
   .synthese-cloture{margin-top:12px; padding:9px 10px; border-radius:8px; font-size:11.5px; font-family:var(--mono); text-align:center;}
   .synthese-cloture.impossible{background:var(--amber-dim); color:var(--amber);}
   .synthese-cloture.possible{background:var(--green-dim); color:var(--green);}
+  /* Bannière neutre (02/08/2026, demande de Frédéric) : tôt dans le quart,
+     des comptages manquants sont normaux — pas une alerte. Même logique
+     d'urgence (normal/proche/retard) que la carte État du quart, pour
+     éviter que les deux bandeaux se contredisent. */
+  .synthese-cloture.attente{background:var(--panel-raised); color:var(--text-mid);}
+  .synthese-cloture.retard{background:var(--red-dim); color:var(--red); font-weight:600;}
   /* Barre de progression visuelle (02/08/2026, demande de Frédéric) : "0%
      du comptage terminé" en un coup d'œil, même principe que la barre côté
      employé (NEXUS-Inventaire-v1.html). */
@@ -290,7 +296,7 @@
   // replier/déplier ou d'ouvrir un groupe de décisions sans recharger
   // toutes les données.
   let sectionParametresOuverte = false;
-  let histoGroupesOuverts = new Set();
+  let detailDecisionsOuvert = false; // "Décisions du quart" — détail déplié (02/08/2026)
   let categoriesOuvertes = new Set(); // "À terminer" — catégories dépliées (02/08/2026)
   let dernierCtx = null;
 
@@ -448,13 +454,18 @@
     return data ? data.horaires : null;
   }
 
-  // Décisions du quart sélectionné (02/08/2026, demande de Frédéric) —
-  // distinct de chargerHistoriqueDecisions() qui couvre l'historique récent
-  // tous quarts confondus : ici, uniquement les décisions prises sur CE
-  // quart précis, pour le résumé "Décisions du quart".
+  // Décisions du quart sélectionné (02/08/2026, demande de Frédéric —
+  // remplace l'ancien double affichage "Décisions du quart" / "Décisions
+  // prises" qui montrait deux chiffres différents (70 vs 30) parce qu'ils
+  // portaient sur des périmètres différents : ici, une seule source de
+  // vérité, uniquement les décisions prises sur CE quart précis. L'audit
+  // multi-quarts/multi-sessions existe déjà sur NEXUS-Journal-v1.html —
+  // inutile de le dupliquer ici avec un scope différent qui prête à
+  // confusion.
   async function chargerDecisionsQuart(quartId) {
     const { data, error } = await nexusClient.from('inventaire_alertes')
-      .select('resolution').eq('quart_id', quartId).eq('statut', 'resolue');
+      .select('*, inventaire_zone_produit(designation)').eq('quart_id', quartId).eq('statut', 'resolue')
+      .order('resolue_le', { ascending: false });
     if (error) { console.error('Chargement décisions du quart:', error); return []; }
     return data || [];
   }
@@ -485,15 +496,6 @@
       .select('id').eq('site', site).eq('mode', 'jaugeage_actif').eq('actif', true).maybeSingle();
     if (error) { console.error('Chargement mode jaugeage:', error); return false; }
     return !!data;
-  }
-
-  async function chargerHistoriqueDecisions(site) {
-    const { data, error } = await nexusClient.from('inventaire_alertes')
-      .select('*, inventaire_zone_produit(designation), inventaire_quarts(date, quart)')
-      .eq('site', site).eq('statut', 'resolue')
-      .order('resolue_le', { ascending: false }).limit(30);
-    if (error) { console.error('Chargement historique des décisions:', error); return []; }
-    return data || [];
   }
 
   async function chargerHistoriqueEcartsRecents(site) {
@@ -605,28 +607,6 @@
       ecartsAControler: alertesOuvertes.length,
       clotureImpossible: total > 0 && comptes < total,
     };
-  }
-
-  // Décisions prises (02/08/2026, demande de Frédéric) : les validations
-  // sans action ("Écart validé — aucune action nécessaire") sont regroupées
-  // par date/quart pour éviter une longue liste répétitive — les décisions
-  // qui comptent vraiment (recomptage, erreur de saisie, démarque à
-  // surveiller, explication reçue) restent affichées individuellement.
-  function grouperHistorique(historique) {
-    const groupesValideeMap = {};
-    const individuels = [];
-    historique.forEach(h => {
-      if (h.resolution === 'validee') {
-        const dateQ = h.inventaire_quarts ? h.inventaire_quarts.date : 'date-inconnue';
-        const quartQ = h.inventaire_quarts ? h.inventaire_quarts.quart : '';
-        const cle = `${dateQ}|${quartQ}`;
-        if (!groupesValideeMap[cle]) groupesValideeMap[cle] = { cle, date: dateQ, quart: quartQ, items: [] };
-        groupesValideeMap[cle].items.push(h);
-      } else {
-        individuels.push(h);
-      }
-    });
-    return { groupesValidee: Object.values(groupesValideeMap), individuels };
   }
 
   // Rapprochement par nom pour les produits sans code-barres des deux côtés
@@ -1023,41 +1003,20 @@
     `;
   }
 
-  function renderHistoriqueItem(h) {
+  // Détail d'une décision individuelle du quart sélectionné (02/08/2026,
+  // demande de Frédéric) — plus de badge date/quart : tout appartient déjà
+  // au même quart affiché, ça n'a plus besoin d'être répété ligne par ligne.
+  function renderDetailDecisionItem(h) {
     const produit = h.inventaire_zone_produit ? h.inventaire_zone_produit.designation : 'Produit';
-    const quartInfo = h.inventaire_quarts ? `${h.inventaire_quarts.date.split('-').reverse().join('/')} · ${h.inventaire_quarts.quart}` : '';
     const decision = DECISIONS.find(d => d.value === h.resolution);
+    const heure = h.resolue_le ? new Date(h.resolue_le).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '';
     return `
       <div class="histo-item">
         <div class="histo-top">
           <b>${produit}</b>
-          <span class="histo-quart">${quartInfo}</span>
+          <span class="histo-quart">${heure}</span>
         </div>
         <div class="histo-decision">${decision ? decision.label : (h.resolution || '—')}${h.commentaire_manager ? ' — ' + h.commentaire_manager : ''}</div>
-        <div class="histo-date">${h.resolue_le ? new Date(h.resolue_le).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : ''}</div>
-      </div>
-    `;
-  }
-
-  // Groupe de validations sans action, replié par défaut (02/08/2026,
-  // demande de Frédéric — évite une longue liste répétitive de "Valider —
-  // Écart validé — aucune action nécessaire").
-  function renderDecisionGroupeValidee(g) {
-    const dateFr = g.date !== 'date-inconnue'
-      ? new Date(g.date + 'T00:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })
-      : 'Date inconnue';
-    const quartLabel = g.quart === 'soir' ? 'Quart du soir' : (g.quart === 'matin' ? 'Quart du matin' : g.quart);
-    const noms = g.items.map(h => h.inventaire_zone_produit ? h.inventaire_zone_produit.designation : 'Produit');
-    const ouvert = histoGroupesOuverts.has(g.cle);
-    return `
-      <div class="decision-groupe">
-        <div class="decision-groupe-top">
-          <b>${dateFr} — ${quartLabel}</b>
-          <span class="decision-groupe-date">${g.items.length} écart${g.items.length > 1 ? 's' : ''}</span>
-        </div>
-        <div class="decision-groupe-desc">${g.items.length} écart${g.items.length > 1 ? 's' : ''} validé${g.items.length > 1 ? 's' : ''} sans action</div>
-        <button class="btn-inline-lien btn-voir-produits-groupe" data-groupe="${g.cle}">${ouvert ? 'Masquer' : `Voir les ${g.items.length} produits`}</button>
-        ${ouvert ? `<div class="decision-groupe-liste">${noms.join(' · ')}</div>` : ''}
       </div>
     `;
   }
@@ -1077,8 +1036,29 @@
   // Progression du quart (02/08/2026, demande de Frédéric — remplace
   // "Synthèse du quart") : pourcentage + barre visuelle en tête, pour que le
   // manager comprenne l'avancement sans lire toutes les lignes.
-  function renderSyntheseQuart(s) {
+  // Bannière de clôture cohérente avec l'état temporel (02/08/2026, demande
+  // de Frédéric) : avant, "Clôture impossible..." en amber dès qu'il restait
+  // des comptages manquants, même à 18h06 pour une clôture normale à 19h40 —
+  // contredisait la carte État du quart, déjà nuancée. Les deux suivent
+  // maintenant la même logique d'urgence (normal/proche/retard).
+  function renderSyntheseQuart(s, etat) {
     const phaseLabel = s.phase === 'clotures' ? 'comptés (clôture)' : 'comptés';
+    const urgence = etat ? etat.urgence : 'normal';
+    let clotureClasse, clotureTexte;
+    if (s.manquants === 0) {
+      clotureClasse = 'possible'; clotureTexte = 'Clôture possible';
+    } else if (s.phase !== 'clotures' || urgence === 'normal') {
+      clotureClasse = 'attente';
+      clotureTexte = s.phase === 'clotures'
+        ? "Le comptage de clôture n'a pas encore commencé."
+        : "Clôture impossible tant que l'inventaire d'ouverture n'est pas terminé.";
+    } else if (urgence === 'proche') {
+      clotureClasse = 'impossible';
+      clotureTexte = 'Clôture impossible tant que les comptages manquants ne sont pas terminés';
+    } else {
+      clotureClasse = 'retard';
+      clotureTexte = `Clôture en retard — ${s.manquants} produit${s.manquants > 1 ? 's' : ''} non compté${s.manquants > 1 ? 's' : ''}.`;
+    }
     return `
       <div class="synthese-card">
         <div class="synthese-titre">Progression</div>
@@ -1091,7 +1071,7 @@
         <div class="synthese-ligne"><span>Catégories terminées</span><span class="synthese-valeur ${s.categoriesTerminees < s.categoriesTotal ? 'amber' : 'green'}">${s.categoriesTerminees} / ${s.categoriesTotal}</span></div>
         <div class="synthese-ligne"><span>Écarts à contrôler</span><span class="synthese-valeur ${s.ecartsAControler ? 'amber' : 'green'}">${s.ecartsAControler}</span></div>
         <div class="synthese-ligne"><span>Comptages manquants</span><span class="synthese-valeur ${s.manquants ? 'amber' : 'green'}">${s.manquants}</span></div>
-        <div class="synthese-cloture ${s.clotureImpossible ? 'impossible' : 'possible'}">${s.clotureImpossible ? 'Clôture impossible tant que les comptages manquants ne sont pas terminés' : 'Clôture possible'}</div>
+        <div class="synthese-cloture ${clotureClasse}">${clotureTexte}</div>
       </div>
     `;
   }
@@ -1118,13 +1098,19 @@
     `;
   }
 
-  // Décisions du quart (02/08/2026, demande de Frédéric) : résumé compact
-  // scopé au quart sélectionné (contrairement à "Décisions prises" plus bas,
-  // qui couvre l'historique récent tous quarts confondus) — distingue les
-  // validations sans action des décisions qui comptent vraiment.
+  // Décisions du quart (02/08/2026, demande de Frédéric — remplace le
+  // doublon "Décisions du quart" / "Décisions prises" qui affichait deux
+  // chiffres différents, 70 vs 30, parce qu'ils portaient sur des
+  // périmètres différents) : une seule source de vérité, scopée au quart
+  // sélectionné, avec un détail dépliable plutôt qu'un second bloc séparé.
+  // L'audit multi-quarts existe déjà sur NEXUS-Journal-v1.html.
   function renderResumeDecisionsQuart(decisionsQuart) {
     const compte = { validee: 0, recomptage: 0, erreur_saisie: 0, demarque: 0, explication: 0 };
     decisionsQuart.forEach(d => { if (compte[d.resolution] !== undefined) compte[d.resolution]++; });
+    const total = decisionsQuart.length;
+    const individuels = decisionsQuart.filter(d => d.resolution !== 'validee');
+    const valideeNoms = decisionsQuart.filter(d => d.resolution === 'validee')
+      .map(d => d.inventaire_zone_produit ? d.inventaire_zone_produit.designation : 'Produit');
     return `
       <div class="synthese-card">
         <div class="synthese-titre">Décisions du quart</div>
@@ -1132,15 +1118,21 @@
         <div class="synthese-ligne"><span>Recomptages demandés</span><span class="synthese-valeur ${compte.recomptage ? 'amber' : ''}">${compte.recomptage}</span></div>
         <div class="synthese-ligne"><span>Corrections acceptées</span><span class="synthese-valeur">${compte.erreur_saisie}</span></div>
         <div class="synthese-ligne"><span>Alertes maintenues</span><span class="synthese-valeur ${compte.demarque ? 'amber' : ''}">${compte.demarque}</span></div>
+        ${total > 0 ? `<button class="btn-inline-lien" id="btnDetailDecisions">${detailDecisionsOuvert ? 'Masquer le détail' : `Voir le détail des ${total} décision${total > 1 ? 's' : ''}`}</button>` : ''}
+        ${detailDecisionsOuvert ? `
+          <div style="margin-top:10px;">
+            ${individuels.map(h => renderDetailDecisionItem(h)).join('')}
+            ${valideeNoms.length ? `<div class="decision-groupe-liste">${compte.validee} validé${compte.validee > 1 ? 's' : ''} sans action : ${valideeNoms.join(' · ')}</div>` : ''}
+          </div>
+        ` : ''}
       </div>
     `;
   }
 
   function renderTout(ctx) {
     dernierCtx = ctx;
-    const { alertesOuvertes, sensiblesNonComptesDetail, employesSite, modesAveugleActifs, historique, jaugeageActif, synthese, etat, produitsSensiblesTotal, decisionsQuart } = ctx;
+    const { alertesOuvertes, sensiblesNonComptesDetail, employesSite, modesAveugleActifs, jaugeageActif, synthese, etat, produitsSensiblesTotal, decisionsQuart } = ctx;
     const modesMap = Object.fromEntries(modesAveugleActifs.map(m => [m.employee_id, m]));
-    const { groupesValidee, individuels } = grouperHistorique(historique);
 
     document.getElementById('content').innerHTML = `
       <div class="quart-select-row">
@@ -1150,7 +1142,7 @@
       </div>
       ${quartRow ? renderEtatQuartCard(etat) : '<div class="quart-statut">Aucun inventaire n\'a encore été démarré pour ce quart.</div>'}
 
-      ${quartRow ? renderSyntheseQuart(synthese) : ''}
+      ${quartRow ? renderSyntheseQuart(synthese, etat) : ''}
 
       <div class="conseiller-card" id="conseillerCard">
         <div class="conseiller-head">
@@ -1200,13 +1192,7 @@
         ${alertesOuvertes.length === 0 ? '<div class="empty">Aucun écart ouvert.</div>' : alertesOuvertes.map(a => renderAlerteCard(a)).join('')}
       ` : ''}
 
-      ${quartRow && decisionsQuart ? renderResumeDecisionsQuart(decisionsQuart) : ''}
-
-      <div class="section-titre">Décisions prises</div>
-      ${(groupesValidee.length === 0 && individuels.length === 0) ? '<div class="empty">Aucune décision enregistrée pour le moment.</div>' : `
-        ${individuels.map(h => renderHistoriqueItem(h)).join('')}
-        ${groupesValidee.map(g => renderDecisionGroupeValidee(g)).join('')}
-      `}
+      ${quartRow && decisionsQuart ? renderResumeDecisionsQuart(decisionsQuart) : (quartRow ? '<div class="section-titre">Décisions du quart</div><div class="empty">Aucune décision enregistrée pour ce quart.</div>' : '')}
 
       <div class="section-titre section-repliable" id="toggleSectionParametres">
         <span>Paramètres du contrôle</span>
@@ -1285,11 +1271,11 @@
       sectionParametresOuverte = !sectionParametresOuverte;
       renderTout(dernierCtx); // pas de rechargement réseau, juste replier/déplier
     });
-    document.querySelectorAll('.btn-voir-produits-groupe').forEach(btn => btn.addEventListener('click', () => {
-      const cle = btn.dataset.groupe;
-      if (histoGroupesOuverts.has(cle)) histoGroupesOuverts.delete(cle); else histoGroupesOuverts.add(cle);
+    const btnDetailDecisions = document.getElementById('btnDetailDecisions');
+    if (btnDetailDecisions) btnDetailDecisions.addEventListener('click', () => {
+      detailDecisionsOuvert = !detailDecisionsOuvert;
       renderTout(dernierCtx); // pas de rechargement réseau, juste replier/déplier
-    }));
+    });
     document.querySelectorAll('.categorie-manquante').forEach(el => el.addEventListener('click', () => {
       const cat = el.dataset.cat;
       if (categoriesOuvertes.has(cat)) categoriesOuvertes.delete(cat); else categoriesOuvertes.add(cat);
@@ -1302,12 +1288,11 @@
 
     quartRow = await chargerQuart(siteId, dateSelectionnee, quartSelectionne);
 
-    const [produitsSensibles, produitsActifsSite, employesSite, modesAveugleActifs, historique, jaugeageActif, horaires] = await Promise.all([
+    const [produitsSensibles, produitsActifsSite, employesSite, modesAveugleActifs, jaugeageActif, horaires] = await Promise.all([
       chargerProduitsSensibles(siteId),
       chargerTousProduitsActifsSite(siteId),
       chargerEmployesSite(siteId),
       chargerModesAveugleActifs(siteId),
-      chargerHistoriqueDecisions(siteId),
       chargerModeJaugeageActif(siteId),
       chargerHorairesStation(siteId),
     ]);
@@ -1336,7 +1321,7 @@
     const etat = quartRow ? libelleEtatQuart(quartRow, synthese, horaires) : null;
 
     renderTout({
-      alertesOuvertes, sensiblesNonComptesDetail, employesSite, modesAveugleActifs, historique, jaugeageActif, synthese,
+      alertesOuvertes, sensiblesNonComptesDetail, employesSite, modesAveugleActifs, jaugeageActif, synthese,
       etat, produitsSensiblesTotal: produitsSensibles.length, decisionsQuart,
     });
     await genererRemarquesConseiller(alertesOuvertes, sensiblesNonComptesDetail, modesAveugleActifs, synthese);
