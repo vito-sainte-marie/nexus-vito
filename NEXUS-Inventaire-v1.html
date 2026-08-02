@@ -76,6 +76,15 @@
   .zone-pill{flex:1; text-align:center; padding:14px; border-radius:12px; border:1.5px solid var(--hairline); background:var(--panel); font-size:13.5px; font-weight:600; cursor:pointer;}
   .zone-pill.active{border-color:var(--cyan); background:rgba(79,195,217,0.1); color:var(--cyan);}
 
+  /* Quart matin/soir bien visible (02/08/2026, demande de Frédéric —
+     "mets de façon visible matin et soir et en surbrillance le quart
+     actif"). Non cliquable : le quart est détecté automatiquement (voir
+     quartDuMoment()), ceci ne fait que l'afficher clairement. */
+  .quart-visuel{display:flex; gap:10px; margin-bottom:16px;}
+  .quart-visuel-item{flex:1; text-align:center; padding:11px; border-radius:12px; border:1.5px solid var(--hairline); background:var(--panel); font-size:13px; font-weight:600; color:var(--text-dim); cursor:pointer;}
+  .quart-visuel-item:active{background:var(--panel-raised);}
+  .quart-visuel-item.actif{border-color:var(--cyan); background:rgba(79,195,217,0.14); color:var(--cyan); box-shadow:0 0 0 1px rgba(79,195,217,0.25);}
+
   .cat-block{margin-bottom:16px;}
   .cat-head{display:flex; align-items:center; justify-content:space-between; padding:0 2px 8px;}
   .cat-nom{font-family:var(--mono); font-size:10.5px; letter-spacing:0.06em; text-transform:uppercase; color:var(--text-dim);}
@@ -396,12 +405,13 @@
   // ------------------------------------------------------------
   async function renderAccueil() {
     document.getElementById('titre').textContent = `Bonjour ${employeeCourant.nom}`;
-    document.getElementById('sousTitre').textContent = `Quart ${quartActuel === 'matin' ? 'du matin' : 'du soir'}`;
+    document.getElementById('sousTitre').textContent = '';
 
     const ouvertureFaite = quartEmployeRow && quartEmployeRow.a_valide_ouverture;
     const clotureFaite = quartEmployeRow && quartEmployeRow.a_valide_cloture;
 
     document.getElementById('content').innerHTML = `
+      ${renderQuartVisuel()}
       ${zonesAutorisees.length > 1 ? `<div class="etat-banner">Zone suivie actuellement : <b>${zoneActive === 'piste' ? 'Piste' : 'Boutique'}</b>. <span id="lienChangerZone" style="color:var(--cyan); cursor:pointer;">Changer</span></div>` : ''}
       <div class="choix-grid">
         <div class="choix-card ${clotureFaite ? 'disabled' : ''}" id="carteOuverture">
@@ -424,6 +434,7 @@
       </div>
     `;
 
+    wireQuartVisuel();
     const lienZone = document.getElementById('lienChangerZone');
     if (lienZone) lienZone.addEventListener('click', renderChoixZone);
 
@@ -488,6 +499,57 @@
     return `Environ ${minutes} minute${minutes > 1 ? 's' : ''} restante${minutes > 1 ? 's' : ''}`;
   }
 
+  // Affichage visible du quart (02/08/2026, demande de Frédéric — "le
+  // quart actif est par défaut en fonction de l'horodateur mais permet à
+  // l'employé ou au manager de cliquer pour choisir son quart") : le quart
+  // détecté automatiquement (quartDuMoment()) reste la valeur par défaut,
+  // mais cliquer sur Matin/Soir permet de la corriger manuellement — utile
+  // par exemple pour un vacataire qui termine un quart matin après l'heure
+  // de bascule. Utilisé sur l'accueil, l'écran catégories et la clôture.
+  function renderQuartVisuel() {
+    return `
+      <div class="quart-visuel">
+        <div class="quart-visuel-item ${quartActuel === 'matin' ? 'actif' : ''}" data-quart="matin">☀️ Matin</div>
+        <div class="quart-visuel-item ${quartActuel === 'soir' ? 'actif' : ''}" data-quart="soir">🌙 Soir</div>
+      </div>
+    `;
+  }
+  function wireQuartVisuel() {
+    document.querySelectorAll('.quart-visuel-item').forEach(el => {
+      el.addEventListener('click', () => changerQuart(el.dataset.quart));
+    });
+  }
+
+  // Changement manuel de quart : abandonne toute saisie non enregistrée en
+  // cours (avec confirmation), recharge/crée le quart+quart-employé
+  // correspondant, et revient à l'accueil (ou au choix de zone si cette
+  // zone n'a pas encore été choisie pour ce quart-ci).
+  async function changerQuart(nouveauQuart) {
+    if (nouveauQuart === quartActuel) return;
+    const enCours = Object.values(comptagesSaisie).some(s => s && s.compte !== undefined) || mouvementsSaisie.length > 0;
+    if (enCours && !confirm('Changer de quart maintenant abandonnera la saisie en cours (non enregistrée). Continuer ?')) return;
+
+    quartActuel = nouveauQuart;
+    comptagesSaisie = {};
+    mouvementsSaisie = [];
+    document.getElementById('content').innerHTML = '<div class="loading">Changement de quart…</div>';
+
+    quartRow = await obtenirOuCreerQuart();
+    if (!quartRow) { document.getElementById('content').innerHTML = '<div class="loading">Impossible de charger ce quart. Réessayez.</div>'; return; }
+    quartEmployeRow = await obtenirOuCreerQuartEmploye();
+
+    if (quartEmployeRow && quartEmployeRow.zone_id) {
+      const codeConnu = Object.keys(zonesMap).find(code => zonesMap[code] === quartEmployeRow.zone_id);
+      if (codeConnu) zoneActive = codeConnu;
+    }
+
+    if (zonesAutorisees.length > 1 && !quartEmployeRow.zone_id) {
+      renderChoixZone();
+    } else {
+      renderAccueil();
+    }
+  }
+
   function renderBarreProgression() {
     const total = produitsZone.length;
     const comptes = produitsZone.filter(produitEstCompte).length;
@@ -539,6 +601,7 @@
     }).join('');
 
     document.getElementById('content').innerHTML = `
+      ${renderQuartVisuel()}
       ${renderBarreProgression()}
       <div class="cats-titre">${nbCatTerminees}/${groupes.length} catégories terminées</div>
       <div class="card">${html}</div>
@@ -548,6 +611,7 @@
       <button class="btn-text" id="btnAnnulerOuverture">← Retour</button>
     `;
 
+    wireQuartVisuel();
     document.querySelectorAll('.categorie-row').forEach(el => {
       el.addEventListener('click', () => ouvrirCategorie(groupes.find(g => g.nom === el.dataset.cat)));
     });
@@ -674,7 +738,17 @@
     const masque = estMasquePourProduit(p);
     const valeurTransmise = transmis ? transmis.quantite : 0;
     const pasDHistorique = transmis === undefined;
-    const afficherChoixRapide = !masque && !pasDHistorique && !carrouselModeCorrection;
+    // Retour au produit précédent (02/08/2026, demande de Frédéric —
+    // "permet de revenir à l'article précédent si l'employé fait une
+    // erreur de saisie") : si ce produit a déjà une valeur enregistrée
+    // (parce qu'on y revient après l'avoir déjà validé) ET que cette
+    // valeur diffère du transmis, on affiche directement la saisie déjà
+    // faite plutôt que les boutons Conforme/Corriger — pour la corriger
+    // sur place sans devoir re-choisir "Corriger" à l'aveugle.
+    const dejaSaisi = comptagesSaisie[p.id];
+    const dejaCorrige = !!(dejaSaisi && dejaSaisi.compte !== undefined && Math.abs(dejaSaisi.compte - valeurTransmise) > 0.001);
+    const afficherChoixRapide = !masque && !pasDHistorique && !carrouselModeCorrection && !dejaCorrige;
+    const valeurDepart = (dejaSaisi && dejaSaisi.compte !== undefined) ? dejaSaisi.compte : (masque || pasDHistorique ? '' : valeurTransmise);
 
     document.getElementById('content').innerHTML = `
       ${renderBarreProgression()}
@@ -694,14 +768,15 @@
           </div>
         ` : `
           <input type="number" inputmode="decimal" step="0.01" class="produit-input carrousel-input" id="carrouselInput"
-                 placeholder="Votre comptage" value="${masque || pasDHistorique ? '' : valeurTransmise}" onfocus="this.select()">
+                 placeholder="Votre comptage" value="${valeurDepart}" onfocus="this.select()">
           <div class="ecart-tag" id="ecartCarrousel"></div>
-          <input type="text" class="justif-input" id="justifCarrousel" placeholder="Justification de l'écart (facultatif)" style="display:none;">
+          <input type="text" class="justif-input" id="justifCarrousel" placeholder="Justification de l'écart (facultatif)" value="${dejaSaisi && dejaSaisi.justification ? dejaSaisi.justification : ''}" style="${dejaSaisi && dejaSaisi.ecartNonNul ? '' : 'display:none;'}">
           <button class="btn-primary" id="btnValiderProduit">Valider ce produit</button>
           ${!masque && !pasDHistorique ? `<button class="btn-text" id="btnAnnulerCorrection">← Revenir à « Identique »</button>` : ''}
         `}
       </div>
       <div class="carrousel-footer">Produit ${carrouselIndex + 1} sur ${items.length}</div>
+      ${carrouselIndex > 0 ? `<button class="btn-text" id="btnProduitPrecedent">← Revenir au produit précédent</button>` : ''}
       <button class="btn-text" id="btnRetourCategoriesCarrousel">← Retour aux catégories</button>
     `;
 
@@ -727,12 +802,25 @@
         if (e.key === 'Enter') { e.preventDefault(); const btn = document.getElementById('btnValiderProduit'); if (btn) btn.click(); }
       });
       setTimeout(() => { carrouselInput.focus(); carrouselInput.select(); }, 0);
+      // Affiche tout de suite l'écart si une valeur était déjà enregistrée
+      // (retour sur un produit déjà répondu) — sinon la pastille resterait
+      // vide tant qu'on n'a pas retapé quelque chose.
+      if (carrouselInput.value !== '') majCarrousel(valeurTransmise);
     }
     const btnValiderProduit = document.getElementById('btnValiderProduit');
     if (btnValiderProduit) btnValiderProduit.addEventListener('click', () => {
       const input = document.getElementById('carrouselInput');
-      const val = input.value === '' ? null : parseFloat(input.value);
-      if (val === null || isNaN(val)) { alert('Saisissez un chiffre avant de valider.'); return; }
+      let val = input.value === '' ? null : parseFloat(input.value);
+      // Corrigé (02/08/2026, demande de Frédéric — "si je valide sans
+      // mettre de chiffre, considère que c'est zéro mais envoie un message
+      // d'alerte pour m'avertir que c'est correct") : on ne bloque plus la
+      // validation d'une case vide, on demande confirmation avant de
+      // l'enregistrer à 0 — annuler la confirmation laisse la case ouverte
+      // pour corriger une saisie oubliée par erreur.
+      if (val === null || isNaN(val)) {
+        if (!confirm(`Aucun chiffre saisi pour ${p.designation} — on enregistre 0. Confirmer ?`)) return;
+        val = 0;
+      }
       const ecart = val - valeurTransmise;
       const ecartNonNul = Math.abs(ecart) > 0.001;
       const justifInput = document.getElementById('justifCarrousel');
@@ -741,9 +829,15 @@
     });
     const btnAnnulerCorrection = document.getElementById('btnAnnulerCorrection');
     if (btnAnnulerCorrection) btnAnnulerCorrection.addEventListener('click', () => {
+      // Remet aussi la valeur enregistrée à l'identique du transmis (pas
+      // seulement l'affichage) — sinon, en revenant sur un produit déjà
+      // corrigé, ce bouton n'aurait visuellement aucun effet.
+      comptagesSaisie[p.id] = { compte: valeurTransmise, ecartNonNul: false, justification: '' };
       carrouselModeCorrection = false;
       renderCarrousel(groupe);
     });
+    const btnProduitPrecedent = document.getElementById('btnProduitPrecedent');
+    if (btnProduitPrecedent) btnProduitPrecedent.addEventListener('click', () => reculerCarrousel(groupe));
     document.getElementById('btnRetourCategoriesCarrousel').addEventListener('click', renderCategoriesOuverture);
   }
 
@@ -769,6 +863,17 @@
     } else {
       renderCategoriesOuverture();
     }
+  }
+
+  // Retour au produit précédent (02/08/2026, demande de Frédéric — "permet
+  // de revenir à l'article précédent si l'employé fait une erreur de
+  // saisie"). Le produit précédent réaffiche alors sa valeur déjà
+  // enregistrée, prête à corriger (voir dejaSaisi dans renderCarrousel()).
+  function reculerCarrousel(groupe) {
+    if (carrouselIndex <= 0) return;
+    carrouselIndex--;
+    carrouselModeCorrection = false;
+    renderCarrousel(groupe);
   }
 
   function renderLigneOuverture(p) {
@@ -902,6 +1007,7 @@
     const optionsProduits = produitsZone.map(p => `<option value="${p.id}">${p.designation}</option>`).join('');
 
     document.getElementById('content').innerHTML = `
+      ${renderQuartVisuel()}
       <div class="mouv-card">
         <div class="mouv-titre">Mouvements pendant le quart</div>
         <select class="mouv-select" id="mouvProduit" style="width:100%; margin-bottom:8px;">${optionsProduits}</select>
@@ -927,6 +1033,7 @@
       <button class="btn-text" id="btnAnnulerCloture">← Retour</button>
     `;
 
+    wireQuartVisuel();
     document.getElementById('btnAjouterMouvement').addEventListener('click', ajouterMouvement);
     renderListeMouvements();
 
