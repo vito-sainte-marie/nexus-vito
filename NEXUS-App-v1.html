@@ -250,6 +250,7 @@
   .pointage-mini-btn.couleur-arrivee{background:var(--green);}
   .pointage-mini-btn.couleur-pause{background:var(--amber);}
   .pointage-mini-btn.couleur-depart{background:var(--red);}
+  .pointage-mini-btn.couleur-inventaire{background:var(--cyan);}
   .pointage-mini.termine{background:var(--green-dim); border-color:rgba(52,211,153,0.3);}
   .pointage-mini.termine .pointage-mini-texte{color:var(--green);}
   .prix-row{display:flex; align-items:center; gap:8px; margin-bottom:10px;}
@@ -537,6 +538,17 @@
         <div class="pointage-mini-texte" id="pointageMiniTexte">Chargement de votre pointage…</div>
         <a class="pointage-mini-btn" id="pointageMiniBtn" href="NEXUS-Pointage-v1.html">Pointer →</a>
       </div>
+      <!-- Inventaire — mini carte accueil employé (02/08/2026, demande de
+           Frédéric : "mets la page visible pour les employés comme
+           missions et évaluations"). L'entrée du menu "Explorer NEXUS"
+           reste manager-only (c'est le catalogue du manager, jamais vu
+           par l'employé — voir commentaire du 27/07/2026 plus bas) : le
+           vrai accès employé passe par ce même mécanisme que Pointage et
+           Missions, un lien direct et toujours visible sur l'accueil. -->
+      <div class="pointage-mini" id="inventaireMini">
+        <div class="pointage-mini-texte">Comptage d'ouverture et de clôture de quart.</div>
+        <a class="pointage-mini-btn couleur-inventaire" href="NEXUS-Inventaire-v1.html">Faire l'inventaire →</a>
+      </div>
     </div>
   </div>
 
@@ -714,10 +726,9 @@
         <div class="nav-arrow">›</div>
       </a>
       <!-- Inventaire (02/08/2026, demande de Frédéric) : registre numérique
-           des comptages de quart — pas encore d'icône dédiée, emoji en
-           attendant. -->
+           des comptages de quart — icône dédiée fournie le 02/08/2026. -->
       <a class="nav-item" data-role="manager" href="NEXUS-Inventaire-v1.html">
-        <div class="nav-icon" style="display:flex; align-items:center; justify-content:center; font-size:20px;">📋</div>
+        <div class="nav-icon"><img src="assets/icons/icon-inventaire.png" alt="Inventaire"></div>
         <div class="nav-body">
           <div class="nav-title">Inventaire</div>
           <div class="nav-desc">Comptages d'ouverture et de clôture de quart</div>
@@ -2028,6 +2039,9 @@
     { label: 'Scanner Stock', desc: 'Où vous perdez de l\'argent, quoi recompter', href: 'NEXUS-Scanner-Stock-v1.html', role: 'manager' },
     { label: 'Verify', desc: 'Contrôle caisse et écarts', href: 'NEXUS-Verify-v1.html', role: 'manager' },
     { label: 'Missions', desc: '55 procédures · checklist interactive', href: 'NEXUS-Missions-v1.html', role: 'all' },
+    // Inventaire (02/08/2026, demande de Frédéric) : role 'all' — visible
+    // par recherche pour l'employé, en plus de la mini carte accueil.
+    { label: 'Inventaire', desc: "Comptages d'ouverture et de clôture de quart", href: 'NEXUS-Inventaire-v1.html', role: 'all' },
     { label: 'Assignations', desc: 'Assigner, suivre, valider une mission', href: 'NEXUS-Assignations-v1.html', role: 'manager', forfait: 'professional' },
     { label: 'Planning', desc: 'Le bon collaborateur, au bon endroit, au bon moment', href: 'NEXUS-Planning-v1.html', role: 'manager', forfait: 'professional' },
     { label: 'Évaluations', desc: 'Contrôle tenue + grille de prime', href: 'NEXUS-Evaluation-Employe-v1.html', role: 'manager', forfait: 'professional' },
