@@ -75,9 +75,34 @@
      Même traitement (détourage transparent, même taille) pour les deux,
      afin qu'elles se lisent comme une paire cohérente. */
   .dc-sync-icon{width:18px; height:18px; flex-shrink:0; display:block;}
-  /* #v_import_sheets_go réutilise .btn-add (partagée par plusieurs écrans) :
-     on ajoute juste ici le flex nécessaire à l'icône sans toucher à .btn-add. */
-  #v_import_sheets_go{display:flex; align-items:center; justify-content:center; gap:8px;}
+  /* Bouton Google Sheets — même gabarit que .dc-sync-btn (CTA plein, pas de
+     bordure en pointillés comme .btn-add) mais teinté vert pour matcher
+     l'icône et se distinguer clairement du bouton Excel cyan. */
+  .dc-sync-btn-green{background:rgba(52,211,153,0.1); border:1px solid rgba(52,211,153,0.4); color:var(--green);}
+  .dc-sync-btn-green:active{background:rgba(52,211,153,0.18);}
+
+  /* Cartes "Option 1 / Option 2" (02/08/2026, recommandations de Frédéric) —
+     objectif : que l'utilisateur sache en un coup d'œil quel bouton
+     correspond à quel usage. Chaque option a sa propre puce colorée
+     (icône + accent cyan pour Excel, vert pour Google Sheets), un titre,
+     une phrase d'explication et 3 tags de contexte — sans dupliquer le
+     texte du bouton, qui reste l'action elle-même. */
+  .dc-option{border:1px solid var(--hairline); border-radius:10px; padding:14px; background:var(--panel-raised);}
+  .dc-option-head{display:flex; align-items:center; gap:10px; margin-bottom:9px;}
+  .dc-option-icon{width:34px; height:34px; border-radius:9px; display:flex; align-items:center; justify-content:center; flex-shrink:0;}
+  .dc-option-icon img{width:19px; height:19px; display:block;}
+  .dc-option-eyebrow{font-family:var(--mono); font-size:9.5px; font-weight:600; letter-spacing:0.09em; text-transform:uppercase;}
+  .dc-option-title{font-family:var(--sans); font-size:14px; font-weight:700; color:var(--text); margin-top:1px;}
+  .dc-option-desc{font-family:var(--sans); font-size:11.5px; color:var(--text-mid); line-height:1.5; margin-bottom:10px;}
+  .dc-tags{display:flex; flex-wrap:wrap; gap:6px; margin-bottom:12px;}
+  .dc-tag{font-family:var(--mono); font-size:9.5px; letter-spacing:0.01em; color:var(--text-mid); background:var(--panel); border:1px solid var(--hairline); border-radius:20px; padding:4px 9px; white-space:nowrap;}
+  .dc-option-excel .dc-option-icon{background:rgba(79,195,217,0.14); border:1px solid rgba(79,195,217,0.35);}
+  .dc-option-excel .dc-option-eyebrow{color:var(--cyan);}
+  .dc-option-sheets .dc-option-icon{background:rgba(52,211,153,0.14); border:1px solid rgba(52,211,153,0.35);}
+  .dc-option-sheets .dc-option-eyebrow{color:var(--green);}
+  .dc-or{display:flex; align-items:center; gap:10px; margin:14px 0 12px; font-family:var(--mono); font-size:10px; font-weight:600; letter-spacing:0.09em; text-transform:uppercase; color:var(--text-dim);}
+  .dc-or::before,.dc-or::after{content:''; flex:1; height:1px; background:var(--hairline);}
+  .dc-result{margin-top:12px;}
 
   .dc-checklist{display:none; margin-bottom:10px;}
   .dc-checklist.show{display:block;}
@@ -212,23 +237,54 @@
            n'existe pas). -->
       <div class="section-label">NEXUS Data Connector</div>
       <div class="note">NEXUS détecte automatiquement les informations disponibles dans votre classeur Excel ou Google Sheets et pré-remplit votre audit. La vente piste (litrage), la vente boutique Decenium, les bons, dépenses, vacataires et règlements de comptes restent à saisir à la main : ils n'existent pas dans ce classeur.</div>
-      <label class="dc-sync-btn" for="v_import_fichier"><img src="icon-nexus-import-excel.png" alt="" class="dc-sync-icon">Synchroniser mes données</label>
-      <input type="file" id="v_import_fichier" accept=".xlsx,.xls" class="dc-sync-input">
-      <div id="v_import_feuille_bloc" style="display:none; margin-top:10px;">
-        <label class="f">Feuille (mois)</label>
-        <select id="v_import_feuille"></select>
-        <button type="button" class="btn-add" id="v_import_go">Importer cette ligne</button>
+
+      <!-- Option 1 — fichier Excel local. Toujours visible : demande
+           explicite de Frédéric de ne jamais retirer cette capacité, même
+           quand Google Sheets est connecté. -->
+      <div class="dc-option dc-option-excel">
+        <div class="dc-option-head">
+          <div class="dc-option-icon"><img src="icon-nexus-import-excel.png" alt=""></div>
+          <div>
+            <div class="dc-option-eyebrow">Option 1</div>
+            <div class="dc-option-title">Importer un fichier Excel</div>
+          </div>
+        </div>
+        <div class="dc-option-desc">Importez un classeur .xls ou .xlsx pour pré-remplir automatiquement votre audit.</div>
+        <div class="dc-tags"><span class="dc-tag">Import manuel</span><span class="dc-tag">Fichier local</span><span class="dc-tag">Besoin immédiat</span></div>
+        <label class="dc-sync-btn" for="v_import_fichier"><img src="icon-nexus-import-excel.png" alt="" class="dc-sync-icon">Importer mon fichier Excel</label>
+        <input type="file" id="v_import_fichier" accept=".xlsx,.xls" class="dc-sync-input">
+        <div id="v_import_feuille_bloc" style="display:none; margin-top:10px;">
+          <label class="f">Feuille (mois)</label>
+          <select id="v_import_feuille"></select>
+          <button type="button" class="btn-add" id="v_import_go">Importer cette ligne</button>
+        </div>
       </div>
-      <div id="v_import_checklist" class="dc-checklist"></div>
-      <div id="v_import_statut" style="display:none; font-family:var(--mono); font-size:11px; color:var(--text-mid); background:var(--panel-raised); border-radius:8px; padding:8px 10px; line-height:1.6;"></div>
-      <!-- Import direct Google Sheets (01/08/2026) — n'apparaît que si la
-           synchronisation a été activée pour ce site dans Paramètres Station
+
+      <!-- Option 2 — Google Sheets. N'apparaît que si la synchronisation a
+           été activée pour ce site dans Paramètres Station
            (station_config.google_sheet_id). L'import fichier ci-dessus reste
-           toujours disponible, activé ou non. -->
-      <div id="v_import_sheets_bloc" style="display:none; margin-top:14px; padding-top:14px; border-top:1px solid var(--hairline);">
-        <label class="f">Ou synchroniser directement depuis Google Sheets</label>
-        <select id="v_import_sheets_feuille"></select>
-        <button type="button" class="btn-add" id="v_import_sheets_go"><img src="icon-nexus-import-sheets.png" alt="" class="dc-sync-icon">Synchroniser mes données</button>
+           toujours disponible, activé ou non (01/08/2026). -->
+      <div id="v_import_sheets_bloc" style="display:none;">
+        <div class="dc-or"><span>ou</span></div>
+        <div class="dc-option dc-option-sheets">
+          <div class="dc-option-head">
+            <div class="dc-option-icon"><img src="icon-nexus-import-sheets.png" alt=""></div>
+            <div>
+              <div class="dc-option-eyebrow">Option 2</div>
+              <div class="dc-option-title">Connecter Google Sheets</div>
+            </div>
+          </div>
+          <div class="dc-option-desc">Synchronisez directement une feuille Google Sheets pour éviter les exports manuels.</div>
+          <div class="dc-tags"><span class="dc-tag">Connexion cloud</span><span class="dc-tag">Réutilisable</span><span class="dc-tag">Suivi récurrent</span></div>
+          <label class="f">Feuille à synchroniser</label>
+          <select id="v_import_sheets_feuille"></select>
+          <button type="button" class="dc-sync-btn dc-sync-btn-green" id="v_import_sheets_go"><img src="icon-nexus-import-sheets.png" alt="" class="dc-sync-icon">Synchroniser depuis Google Sheets</button>
+        </div>
+      </div>
+
+      <div class="dc-result">
+        <div id="v_import_checklist" class="dc-checklist"></div>
+        <div id="v_import_statut" style="display:none; font-family:var(--mono); font-size:11px; color:var(--text-mid); background:var(--panel-raised); border-radius:8px; padding:8px 10px; line-height:1.6;"></div>
       </div>
     </div>
 
