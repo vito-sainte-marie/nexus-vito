@@ -85,14 +85,21 @@
   .ventes-desc{font-size:12px; color:var(--text-mid); line-height:1.5; margin-bottom:12px;}
   .ventes-file-row{display:flex; align-items:center; gap:10px;}
   .ventes-file-label{
-    flex:1; font-family:var(--sans); font-size:12.5px; color:var(--text-mid);
+    flex:1; display:flex; align-items:center; gap:10px; font-family:var(--sans); font-size:12.5px; color:var(--text-mid);
     background:var(--panel-raised); border:1px dashed var(--hairline); border-radius:8px;
-    padding:10px 12px; cursor:pointer; text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+    padding:9px 12px; cursor:pointer; overflow:hidden; transition:border-color .15s, background .15s;
   }
+  .ventes-file-label:active{background:rgba(79,195,217,0.06);}
   .ventes-file-label.choisi{color:var(--text); border-style:solid; border-color:rgba(79,195,217,0.35);}
+  /* Icône Excel premium (02/08/2026, demande de Frédéric) : SVG vectoriel
+     inline plutôt qu'un fichier image — reste net à toute résolution, se
+     colore selon la charte Excel officielle (vert dégradé) et n'ajoute
+     aucune requête réseau supplémentaire. */
+  .ventes-file-icon{width:24px; height:24px; flex-shrink:0;}
+  .ventes-file-text{flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-align:left;}
   .btn-comparer{
-    font-family:var(--sans); font-size:12.5px; font-weight:700; padding:10px 16px; border-radius:8px;
-    border:none; background:var(--cyan); color:#04141a; cursor:pointer; white-space:nowrap; flex-shrink:0;
+    font-family:var(--sans); font-size:11.5px; font-weight:700; padding:10px 12px; border-radius:8px;
+    border:none; background:var(--cyan); color:#04141a; cursor:pointer; flex-shrink:0; max-width:120px; line-height:1.3;
   }
   .btn-comparer:disabled{opacity:0.35; cursor:not-allowed;}
   .ventes-resume{margin-top:12px; padding:12px; background:var(--panel-raised); border-radius:8px; font-size:12px; color:var(--text-mid); line-height:1.6;}
@@ -114,6 +121,20 @@
   .stat-mini-value.amber{color:var(--amber);}
   .stat-mini-label{font-size:9.5px; color:var(--text-mid); margin-top:3px; line-height:1.3;}
 
+  /* État du quart (02/08/2026, demande de Frédéric) : message contextualisé
+     selon l'heure réelle par rapport à l'heure normale de clôture — distingue
+     "pas encore commencé" (normal, tôt dans le quart) de "en retard" (une
+     vraie alerte), plutôt qu'un chiffre brut qui pourrait alarmer inutilement
+     un manager en tout début de quart. Jamais d'heure limite inventée : la
+     référence vient de station_config.horaires (fin_normal), réellement
+     configurée dans Paramètres Station. */
+  .etat-quart-card{border-radius:12px; padding:12px 16px; margin-bottom:14px; font-size:12.5px; line-height:1.5; border:1px solid var(--hairline); background:var(--panel);}
+  .etat-quart-titre{font-family:var(--mono); font-size:10.5px; text-transform:uppercase; letter-spacing:0.05em; color:var(--text-mid); margin-bottom:4px;}
+  .etat-quart-card.proche{border-color:rgba(245,166,35,0.35); background:var(--amber-dim);}
+  .etat-quart-card.proche .etat-quart-texte{color:var(--amber);}
+  .etat-quart-card.retard{border-color:rgba(240,87,90,0.4); background:var(--red-dim);}
+  .etat-quart-card.retard .etat-quart-texte{color:var(--red); font-weight:600;}
+
   /* Synthèse du quart (02/08/2026, demande de Frédéric — remplace l'ancien
      stats-row à 3 cases) : vue d'ensemble chiffrée, jamais un chiffre
      inventé — tout vient de inventaire_comptages / inventaire_alertes /
@@ -128,12 +149,37 @@
   .synthese-cloture{margin-top:12px; padding:9px 10px; border-radius:8px; font-size:11.5px; font-family:var(--mono); text-align:center;}
   .synthese-cloture.impossible{background:var(--amber-dim); color:var(--amber);}
   .synthese-cloture.possible{background:var(--green-dim); color:var(--green);}
+  /* Barre de progression visuelle (02/08/2026, demande de Frédéric) : "0%
+     du comptage terminé" en un coup d'œil, même principe que la barre côté
+     employé (NEXUS-Inventaire-v1.html). */
+  .synthese-pct-row{display:flex; justify-content:space-between; align-items:baseline; margin-bottom:6px;}
+  .synthese-pct{font-family:var(--mono); font-size:18px; font-weight:700; color:var(--text);}
+  .synthese-pct-label{font-size:11px; color:var(--text-mid);}
+  .synthese-barre{height:6px; border-radius:4px; background:var(--panel-raised); overflow:hidden; margin-bottom:14px;}
+  .synthese-remplie{height:100%; background:var(--cyan); transition:width .2s;}
 
-  /* À terminer — catégories avec comptages manquants (regroupé, plus lisible
-     qu'une longue liste produit par produit). */
-  .categorie-manquante{display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px solid var(--hairline); font-size:13px;}
+  /* À terminer — catégories avec comptages manquants, regroupées (plus
+     lisible qu'une longue liste produit par produit) et cliquables
+     (02/08/2026, demande de Frédéric) : chaque ligne s'ouvre pour montrer la
+     zone concernée, le statut et les produits manquants, sans jamais
+     inventer un "responsable" — seule la zone réelle (Boutique/Piste) des
+     produits de la catégorie est affichée. */
+  .categorie-manquante{padding:10px 0; border-bottom:1px solid var(--hairline); font-size:13px; cursor:pointer;}
   .categorie-manquante:last-child{border-bottom:none;}
+  .categorie-manquante-top{display:flex; justify-content:space-between; align-items:center; gap:10px;}
   .categorie-manquante-valeur{font-family:var(--mono); font-weight:700; color:var(--amber);}
+  .categorie-manquante-chevron{display:inline-block; color:var(--text-dim); font-size:11px; margin-left:8px; transition:transform .15s;}
+  .categorie-manquante-chevron.open{transform:rotate(90deg);}
+  .categorie-manquante-detail{margin-top:8px; font-size:11.5px; color:var(--text-mid); line-height:1.7;}
+  .categorie-manquante-detail b{color:var(--text);}
+  .categorie-manquante-liste{margin-top:4px; color:var(--text-dim);}
+
+  /* Conseiller NEXUS — bouton d'action visible (02/08/2026, demande de
+     Frédéric : "le bouton doit être clairement présenté comme une action"),
+     pas un simple lien inline, même si l'action derrière (envoi de rappel,
+     assignation) n'existe pas encore. */
+  .btn-conseiller-action{margin-top:8px; display:inline-flex; align-items:center; gap:6px; font-family:var(--sans); font-size:11.5px; font-weight:700; padding:8px 14px; border-radius:20px; border:1px solid rgba(79,195,217,0.4); background:rgba(79,195,217,0.12); color:var(--cyan); cursor:pointer;}
+  .btn-conseiller-action:active{background:rgba(79,195,217,0.22);}
 
   /* Décisions prises — validations groupées par date/quart pour éviter une
      liste répétitive de "Valider — Écart validé — aucune action", tout en
@@ -245,6 +291,7 @@
   // toutes les données.
   let sectionParametresOuverte = false;
   let histoGroupesOuverts = new Set();
+  let categoriesOuvertes = new Set(); // "À terminer" — catégories dépliées (02/08/2026)
   let dernierCtx = null;
 
   // Catégories de décision manager sur une alerte (02/08/2026, demande de
@@ -306,6 +353,40 @@
     return base;
   }
 
+  // Mapping quart NEXUS Inventaire ('matin'/'soir') -> clé horaires Station
+  // ('quart1'/'quart2') — même correspondance que Paramètres Station
+  // (quart1 finit en début d'après-midi, quart2 en soirée).
+  const QUART_VERS_CLE_HORAIRE = { matin: 'quart1', soir: 'quart2' };
+
+  // Contextualise l'état du quart selon l'heure réelle par rapport à
+  // l'heure normale de clôture (02/08/2026, demande de Frédéric) : ne
+  // s'applique que pendant la phase de clôture (l'ouverture, elle, ne peut
+  // pas être "en avance" puisqu'un quart n'existe qu'une fois commencé).
+  // Seuil "à proximité de la fin" fixé à 60 minutes — heuristique
+  // raisonnable, pas une donnée réelle, donc jamais présentée comme telle.
+  function libelleEtatQuart(quart, synthese, horaires) {
+    const base = libelleStatutQuart(quart);
+    if (synthese.phase !== 'clotures' || synthese.manquants === 0) return { texte: base, urgence: 'normal' };
+
+    const cleHoraire = QUART_VERS_CLE_HORAIRE[quartSelectionne];
+    const finNormale = horaires && cleHoraire && horaires[cleHoraire] ? horaires[cleHoraire].fin_normal : null;
+    if (!finNormale) return { texte: base, urgence: 'normal' };
+
+    const maintenant = new Date();
+    const minutesMaintenant = maintenant.getHours() * 60 + maintenant.getMinutes();
+    const [h, m] = finNormale.split(':').map(Number);
+    const minutesFin = h * 60 + (m || 0);
+    const minutesAvantFin = minutesFin - minutesMaintenant;
+    const n = synthese.manquants;
+
+    if (minutesAvantFin > 60) {
+      return { texte: `${base} — le comptage de clôture n'a pas encore commencé.`, urgence: 'normal' };
+    } else if (minutesAvantFin >= 0) {
+      return { texte: `${base} — ${n} produit${n > 1 ? 's' : ''} restent à compter avant la clôture.`, urgence: 'proche' };
+    }
+    return { texte: `${base} — Clôture en retard : ${n} produit${n > 1 ? 's' : ''} non compté${n > 1 ? 's' : ''}.`, urgence: 'retard' };
+  }
+
   // ------------------------------------------------------------
   // CHARGEMENT DES DONNÉES
   // ------------------------------------------------------------
@@ -352,9 +433,29 @@
   // s'il est activé.
   async function chargerTousProduitsActifsSite(site) {
     const { data, error } = await nexusClient.from('inventaire_zone_produit')
-      .select('id, categorie_id, inventaire_categories(nom)')
+      .select('id, designation, categorie_id, inventaire_categories(nom), inventaire_zones(code)')
       .eq('site', site).eq('actif', true);
     if (error) { console.error('Chargement produits actifs (synthèse):', error); return []; }
+    return data || [];
+  }
+
+  // État du quart contextualisé (02/08/2026, demande de Frédéric) : l'heure
+  // normale de clôture vient réellement de Paramètres Station
+  // (station_config.horaires.quartX.fin_normal), jamais une heure inventée.
+  async function chargerHorairesStation(site) {
+    const { data, error } = await nexusClient.from('station_config').select('horaires').eq('site', site).maybeSingle();
+    if (error) { console.error('Chargement horaires station (état du quart):', error); return null; }
+    return data ? data.horaires : null;
+  }
+
+  // Décisions du quart sélectionné (02/08/2026, demande de Frédéric) —
+  // distinct de chargerHistoriqueDecisions() qui couvre l'historique récent
+  // tous quarts confondus : ici, uniquement les décisions prises sur CE
+  // quart précis, pour le résumé "Décisions du quart".
+  async function chargerDecisionsQuart(quartId) {
+    const { data, error } = await nexusClient.from('inventaire_alertes')
+      .select('resolution').eq('quart_id', quartId).eq('statut', 'resolue');
+    if (error) { console.error('Chargement décisions du quart:', error); return []; }
     return data || [];
   }
 
@@ -478,19 +579,30 @@
     const parCategorie = {};
     requis.forEach(p => {
       const nom = p.inventaire_categories ? p.inventaire_categories.nom : 'Autres';
-      if (!parCategorie[nom]) parCategorie[nom] = { nom, total: 0, comptes: 0 };
-      parCategorie[nom].total++;
-      if (comptages[phase].has(p.id)) parCategorie[nom].comptes++;
+      if (!parCategorie[nom]) parCategorie[nom] = { nom, total: 0, comptes: 0, zones: new Set(), produitsManquants: [] };
+      const cat = parCategorie[nom];
+      cat.total++;
+      const zoneCode = p.inventaire_zones ? p.inventaire_zones.code : null;
+      if (zoneCode) cat.zones.add(zoneCode);
+      if (comptages[phase].has(p.id)) cat.comptes++;
+      else cat.produitsManquants.push(p.designation || 'Produit');
     });
-    const categories = Object.values(parCategorie).sort((a, b) => (b.total - b.comptes) - (a.total - a.comptes));
+    const categories = Object.values(parCategorie)
+      .map(c => ({
+        ...c,
+        zoneLabel: c.zones.size === 0 ? '—' : c.zones.size > 1 ? 'Boutique + Piste' : (c.zones.has('piste') ? 'Piste' : 'Boutique'),
+        statutLabel: c.comptes === 0 ? 'Non commencé' : (c.comptes < c.total ? 'En cours' : 'Terminé'),
+      }))
+      .sort((a, b) => (b.total - b.comptes) - (a.total - a.comptes));
     const total = requis.length;
     const comptes = requis.filter(p => comptages[phase].has(p.id)).length;
     return {
       phase, total, comptes, manquants: total - comptes,
+      pourcentage: total > 0 ? Math.round((comptes / total) * 100) : 100,
       categoriesTotal: categories.length,
       categoriesTerminees: categories.filter(c => c.comptes === c.total).length,
       categoriesIncompletes: categories.filter(c => c.comptes < c.total),
-      ecartsConfirmes: alertesOuvertes.length,
+      ecartsAControler: alertesOuvertes.length,
       clotureImpossible: total > 0 && comptes < total,
     };
   }
@@ -672,15 +784,20 @@
           prix_achat_ht: l.prix_achat_ht, prix_vente_ht: l.prix_vente_ht, importe_par: managerCourant.id,
         }))
       );
-      if (eInsert) { console.error('Insertion ventes import:', eInsert); resumeEl.innerHTML = '<div style="color:var(--red);">Erreur d\'enregistrement — réessayez.</div>'; btn.disabled = false; btn.textContent = 'Comparer'; return; }
+      if (eInsert) { console.error('Insertion ventes import:', eInsert); resumeEl.innerHTML = '<div style="color:var(--red);">Erreur d\'enregistrement — réessayez.</div>'; btn.disabled = false; btn.textContent = 'Importer les ventes Decenium'; return; }
 
       // Agrège la quantité vendue par produit rapproché (une même référence
-      // peut apparaître sur plusieurs lignes).
+      // peut apparaître sur plusieurs lignes) et garde un prix de vente HT
+      // réel par produit (issu du fichier) pour estimer la valeur des écarts
+      // — jamais un prix inventé, celui du fichier Decenium lui-même.
       const venteParProduit = {};
+      const prixVenteParProduit = {};
       let nbNonIdentifiees = 0;
       lignesRapprochees.forEach(l => {
-        if (l.produit_id) venteParProduit[l.produit_id] = (venteParProduit[l.produit_id] || 0) + l.quantite_vendue;
-        else nbNonIdentifiees++;
+        if (l.produit_id) {
+          venteParProduit[l.produit_id] = (venteParProduit[l.produit_id] || 0) + l.quantite_vendue;
+          if (l.prix_vente_ht != null) prixVenteParProduit[l.produit_id] = l.prix_vente_ht;
+        } else nbNonIdentifiees++;
       });
       const produitIds = Object.keys(venteParProduit);
       const ecoulements = await calculerEcoulementPhysiqueQuart(quartRow.id, produitIds);
@@ -691,7 +808,7 @@
       await nexusClient.from('inventaire_alertes').delete()
         .eq('quart_id', quartRow.id).eq('type_alerte', 'demarque_ventes').eq('statut', 'ouverte');
 
-      let nbEcarts = 0, nbSansComptage = 0;
+      let nbEcarts = 0, nbSansComptage = 0, valeurEstimee = 0;
       const nouvellesAlertes = [];
       for (const produitId of produitIds) {
         const ecoulement = ecoulements[produitId];
@@ -700,6 +817,8 @@
         const ecart = ecoulement - venteDecenium;
         if (Math.abs(ecart) > SEUIL_DEMARQUE) {
           nbEcarts++;
+          const prixUnitaire = prixVenteParProduit[produitId];
+          if (prixUnitaire != null) valeurEstimee += Math.abs(ecart) * prixUnitaire;
           nouvellesAlertes.push({
             site: siteId, quart_id: quartRow.id, produit_id: produitId, type_alerte: 'demarque_ventes',
             gravite: Math.abs(ecart) > 3 ? 'critique' : 'attention',
@@ -712,17 +831,24 @@
         if (eAlertes) console.error('Insertion alertes démarque:', eAlertes);
       }
 
+      // Rapprochement "terminé" seulement si toutes les lignes du fichier
+      // ont été identifiées ET que tous les produits identifiés avaient un
+      // comptage d'ouverture et de clôture pour calculer l'écoulement.
+      const rapprochementComplet = nbNonIdentifiees === 0 && nbSansComptage === 0;
       resumeEl.innerHTML = `
-        <div><b>${produitIds.length}</b> produit(s) rapproché(s) et comparé(s).</div>
-        ${nbNonIdentifiees ? `<div class="amber">${nbNonIdentifiees} ligne(s) du fichier non identifiée(s)</div>` : ''}
-        ${nbSansComptage ? `<div class="amber">${nbSansComptage} produit(s) sans comptage d'ouverture et/ou de clôture — écoulement non calculable</div>` : ''}
-        <div class="${nbEcarts ? 'amber' : ''}"><b>${nbEcarts}</b> écart(s) de plus de ${SEUIL_DEMARQUE} détecté(s)${nbEcarts ? ' — voir À contrôler ci-dessous' : ''}.</div>
+        <div class="synthese-ligne"><span>Références reconnues</span><span class="synthese-valeur green">${produitIds.length}</span></div>
+        <div class="synthese-ligne"><span>Références non reconnues</span><span class="synthese-valeur ${nbNonIdentifiees ? 'amber' : 'green'}">${nbNonIdentifiees}</span></div>
+        <div class="synthese-ligne"><span>Écarts détectés</span><span class="synthese-valeur ${nbEcarts ? 'amber' : 'green'}">${nbEcarts}</span></div>
+        <div class="synthese-ligne"><span>Valeur estimée</span><span class="synthese-valeur ${valeurEstimee ? 'amber' : 'green'}">${fmtNum(valeurEstimee)} €</span></div>
+        ${nbSansComptage ? `<div class="synthese-ligne"><span>Sans comptage (écoulement non calculable)</span><span class="synthese-valeur amber">${nbSansComptage}</span></div>` : ''}
+        <div class="synthese-cloture ${rapprochementComplet ? 'possible' : 'impossible'}">${rapprochementComplet ? 'Rapprochement terminé' : 'Rapprochement incomplet'}</div>
+        ${nbEcarts ? '<div style="margin-top:8px; font-size:11.5px; color:var(--text-mid);">Voir la section À contrôler ci-dessous.</div>' : ''}
       `;
       await chargerEtAfficherTout();
     } catch (err) {
       console.error('Comparaison ventes Decenium:', err);
       resumeEl.innerHTML = `<div style="color:var(--red);">Erreur pendant la lecture du fichier : ${err.message}</div>`;
-      btn.disabled = false; btn.textContent = 'Comparer';
+      btn.disabled = false; btn.textContent = 'Importer les ventes Decenium';
     }
   }
 
@@ -786,7 +912,7 @@
         remarques.push(`Le quart du <b>${quartLabel}</b> n'est pas clôturable : <b>${synthese.manquants} produit(s)</b> restent à compter${detailCategories ? `, dont ${detailCategories}` : ''}.`);
         if (synthese.categoriesIncompletes.length) {
           const prioritaires = synthese.categoriesIncompletes.slice(0, 2).map(c => c.nom).join(' et ');
-          remarques.push(`Priorité recommandée : terminer <b>${prioritaires}</b> en premier. <button class="btn-inline-lien" id="btnVoirCategoriesIncompletes">Voir les catégories incomplètes</button>`);
+          remarques.push(`Priorité recommandée : terminer <b>${prioritaires}</b> en premier.<br><button class="btn-conseiller-action" id="btnVoirCategoriesIncompletes">Voir les catégories incomplètes</button>`);
         }
       }
       if (alertesOuvertes.length) {
@@ -936,29 +1062,83 @@
     `;
   }
 
-  // Synthèse du quart (02/08/2026, demande de Frédéric) : vue d'ensemble
-  // chiffrée en tête de page — "Que dois-je contrôler maintenant ?".
+  // État du quart (02/08/2026, demande de Frédéric) : bandeau contextualisé
+  // séparé de la Progression chiffrée — répond à "où en est ce quart, là,
+  // maintenant" avant de détailler les chiffres.
+  function renderEtatQuartCard(etat) {
+    return `
+      <div class="etat-quart-card ${etat.urgence !== 'normal' ? etat.urgence : ''}">
+        <div class="etat-quart-titre">État du quart</div>
+        <div class="etat-quart-texte">${etat.texte}</div>
+      </div>
+    `;
+  }
+
+  // Progression du quart (02/08/2026, demande de Frédéric — remplace
+  // "Synthèse du quart") : pourcentage + barre visuelle en tête, pour que le
+  // manager comprenne l'avancement sans lire toutes les lignes.
   function renderSyntheseQuart(s) {
     const phaseLabel = s.phase === 'clotures' ? 'comptés (clôture)' : 'comptés';
     return `
       <div class="synthese-card">
-        <div class="synthese-titre">Synthèse du quart</div>
+        <div class="synthese-titre">Progression</div>
+        <div class="synthese-pct-row">
+          <span class="synthese-pct">${s.pourcentage}%</span>
+          <span class="synthese-pct-label">du comptage ${s.phase === 'clotures' ? 'de clôture' : "d'ouverture"} terminé</span>
+        </div>
+        <div class="synthese-barre"><div class="synthese-remplie" style="width:${s.pourcentage}%"></div></div>
         <div class="synthese-ligne"><span>Produits ${phaseLabel}</span><span class="synthese-valeur ${s.manquants ? 'amber' : 'green'}">${s.comptes} / ${s.total}</span></div>
         <div class="synthese-ligne"><span>Catégories terminées</span><span class="synthese-valeur ${s.categoriesTerminees < s.categoriesTotal ? 'amber' : 'green'}">${s.categoriesTerminees} / ${s.categoriesTotal}</span></div>
-        <div class="synthese-ligne"><span>Écarts confirmés</span><span class="synthese-valeur ${s.ecartsConfirmes ? 'amber' : 'green'}">${s.ecartsConfirmes}</span></div>
+        <div class="synthese-ligne"><span>Écarts à contrôler</span><span class="synthese-valeur ${s.ecartsAControler ? 'amber' : 'green'}">${s.ecartsAControler}</span></div>
         <div class="synthese-ligne"><span>Comptages manquants</span><span class="synthese-valeur ${s.manquants ? 'amber' : 'green'}">${s.manquants}</span></div>
         <div class="synthese-cloture ${s.clotureImpossible ? 'impossible' : 'possible'}">${s.clotureImpossible ? 'Clôture impossible tant que les comptages manquants ne sont pas terminés' : 'Clôture possible'}</div>
       </div>
     `;
   }
 
+  // Catégories manquantes cliquables (02/08/2026, demande de Frédéric) :
+  // déplie la zone concernée (dérivée des vraies données produit, jamais un
+  // "responsable" inventé), le statut et la liste des produits manquants.
   function renderCategorieManquante(c) {
-    return `<div class="categorie-manquante"><span>${c.nom}</span><span class="categorie-manquante-valeur">${c.total - c.comptes}</span></div>`;
+    const ouvert = categoriesOuvertes.has(c.nom);
+    return `
+      <div class="categorie-manquante" data-cat="${c.nom}">
+        <div class="categorie-manquante-top">
+          <span>${c.nom}<span class="categorie-manquante-chevron ${ouvert ? 'open' : ''}">›</span></span>
+          <span class="categorie-manquante-valeur">${c.total - c.comptes}</span>
+        </div>
+        ${ouvert ? `
+          <div class="categorie-manquante-detail">
+            <div>Zone : <b>${c.zoneLabel}</b></div>
+            <div>Statut : <b>${c.statutLabel}</b></div>
+            <div class="categorie-manquante-liste">${c.produitsManquants.slice(0, 8).join(' · ')}${c.produitsManquants.length > 8 ? '…' : ''}</div>
+          </div>
+        ` : ''}
+      </div>
+    `;
+  }
+
+  // Décisions du quart (02/08/2026, demande de Frédéric) : résumé compact
+  // scopé au quart sélectionné (contrairement à "Décisions prises" plus bas,
+  // qui couvre l'historique récent tous quarts confondus) — distingue les
+  // validations sans action des décisions qui comptent vraiment.
+  function renderResumeDecisionsQuart(decisionsQuart) {
+    const compte = { validee: 0, recomptage: 0, erreur_saisie: 0, demarque: 0, explication: 0 };
+    decisionsQuart.forEach(d => { if (compte[d.resolution] !== undefined) compte[d.resolution]++; });
+    return `
+      <div class="synthese-card">
+        <div class="synthese-titre">Décisions du quart</div>
+        <div class="synthese-ligne"><span>Écarts validés sans action</span><span class="synthese-valeur">${compte.validee}</span></div>
+        <div class="synthese-ligne"><span>Recomptages demandés</span><span class="synthese-valeur ${compte.recomptage ? 'amber' : ''}">${compte.recomptage}</span></div>
+        <div class="synthese-ligne"><span>Corrections acceptées</span><span class="synthese-valeur">${compte.erreur_saisie}</span></div>
+        <div class="synthese-ligne"><span>Alertes maintenues</span><span class="synthese-valeur ${compte.demarque ? 'amber' : ''}">${compte.demarque}</span></div>
+      </div>
+    `;
   }
 
   function renderTout(ctx) {
     dernierCtx = ctx;
-    const { alertesOuvertes, sensiblesNonComptesDetail, employesSite, modesAveugleActifs, historique, jaugeageActif, synthese } = ctx;
+    const { alertesOuvertes, sensiblesNonComptesDetail, employesSite, modesAveugleActifs, historique, jaugeageActif, synthese, etat, produitsSensiblesTotal, decisionsQuart } = ctx;
     const modesMap = Object.fromEntries(modesAveugleActifs.map(m => [m.employee_id, m]));
     const { groupesValidee, individuels } = grouperHistorique(historique);
 
@@ -968,7 +1148,7 @@
         <div class="quart-pill ${quartSelectionne === 'matin' ? 'active' : ''}" data-quart="matin">Matin</div>
         <div class="quart-pill ${quartSelectionne === 'soir' ? 'active' : ''}" data-quart="soir">Soir</div>
       </div>
-      ${quartRow ? `<div class="quart-statut">${libelleStatutQuart(quartRow)}</div>` : '<div class="quart-statut">Aucun inventaire n\'a encore été démarré pour ce quart.</div>'}
+      ${quartRow ? renderEtatQuartCard(etat) : '<div class="quart-statut">Aucun inventaire n\'a encore été démarré pour ce quart.</div>'}
 
       ${quartRow ? renderSyntheseQuart(synthese) : ''}
 
@@ -984,13 +1164,26 @@
       </div>
 
       ${quartRow ? `
-        <div class="section-titre">Comparer avec les ventes</div>
+        <div class="section-titre">Comparaison Decenium</div>
         <div class="ventes-card">
-          <div class="ventes-desc">Envoyez le fichier des ventes Decenium de <b>ce quart</b> (export à la connexion du caissier suivant) — NEXUS compare l'écoulement physique constaté (ouverture − clôture + mouvements) à ce que Decenium a vendu, et signale les écarts.</div>
+          <div class="ventes-desc">Importez l'export Excel des ventes de <b>ce quart</b> (à la connexion du caissier suivant) — NEXUS rapproche les quantités vendues avec les stocks de début, les réassorts et les stocks de fin, et signale les écarts.</div>
           <div class="ventes-file-row">
-            <label class="ventes-file-label" id="ventesFileLabel" for="ventesFileInput">Choisir le fichier .xlsx…</label>
+            <label class="ventes-file-label" id="ventesFileLabel" for="ventesFileInput">
+              <svg class="ventes-file-icon" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                <defs>
+                  <linearGradient id="ventesExcelGrad" x1="6" y1="2" x2="26" y2="32" gradientUnits="userSpaceOnUse">
+                    <stop offset="0" stop-color="#21A366"/>
+                    <stop offset="1" stop-color="#0F7A3E"/>
+                  </linearGradient>
+                </defs>
+                <path d="M8 2h12l6 6v20a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z" fill="url(#ventesExcelGrad)"/>
+                <path d="M20 2v6h6z" fill="#8CE0B4" opacity="0.65"/>
+                <path d="M11.6 13.5h2.7l1.9 3.1 1.9-3.1h2.7l-3.2 5 3.3 5.2h-2.8l-2-3.3-2 3.3h-2.7l3.3-5.2z" fill="#fff"/>
+              </svg>
+              <span class="ventes-file-text" id="ventesFileText">Choisir le fichier Excel…</span>
+            </label>
             <input type="file" id="ventesFileInput" accept=".xlsx,.xls" style="display:none;">
-            <button class="btn-comparer" id="btnComparerVentes" disabled>Comparer</button>
+            <button class="btn-comparer" id="btnComparerVentes" disabled>Importer les ventes Decenium</button>
           </div>
           <div id="ventesResume"></div>
         </div>
@@ -1007,6 +1200,8 @@
         ${alertesOuvertes.length === 0 ? '<div class="empty">Aucun écart ouvert.</div>' : alertesOuvertes.map(a => renderAlerteCard(a)).join('')}
       ` : ''}
 
+      ${quartRow && decisionsQuart ? renderResumeDecisionsQuart(decisionsQuart) : ''}
+
       <div class="section-titre">Décisions prises</div>
       ${(groupesValidee.length === 0 && individuels.length === 0) ? '<div class="empty">Aucune décision enregistrée pour le moment.</div>' : `
         ${individuels.map(h => renderHistoriqueItem(h)).join('')}
@@ -1014,11 +1209,15 @@
       `}
 
       <div class="section-titre section-repliable" id="toggleSectionParametres">
-        <span>Paramètres de contrôle</span>
+        <span>Paramètres du contrôle</span>
         <span class="repli-compte">${modesAveugleActifs.length ? `Aveugle : ${modesAveugleActifs.length} actif${modesAveugleActifs.length > 1 ? 's' : ''}` : 'Aveugle : désactivé'} · Jaugeage : ${jaugeageActif ? 'actif' : 'facultatif'}</span>
         <span class="repli-chevron ${sectionParametresOuverte ? 'open' : ''}">›</span>
       </div>
       ${sectionParametresOuverte ? `
+        <div class="card" style="margin-bottom:10px;">
+          <div class="synthese-ligne"><span>Seuil d'alerte</span><span class="synthese-valeur">${SEUIL_DEMARQUE} unité${SEUIL_DEMARQUE > 1 ? 's' : ''}</span></div>
+          <div class="synthese-ligne"><span>Produits sensibles suivis</span><span class="synthese-valeur">${produitsSensiblesTotal}</span></div>
+        </div>
         <div class="section-titre" style="margin-top:0;">Mode de comptage à l'aveugle</div>
         <div class="card">
           ${employesSite.length === 0 ? '<div class="empty">Aucun employé actif trouvé pour ce site.</div>' : employesSite.map(e => renderEmployeToggle(e, !!modesMap[e.id])).join('')}
@@ -1042,12 +1241,13 @@
       ventesFileInput.addEventListener('change', () => {
         const fichier = ventesFileInput.files[0];
         const label = document.getElementById('ventesFileLabel');
+        const texte = document.getElementById('ventesFileText');
         if (fichier) {
-          label.textContent = fichier.name;
+          texte.textContent = fichier.name;
           label.classList.add('choisi');
           btnComparerVentes.disabled = false;
         } else {
-          label.textContent = 'Choisir le fichier .xlsx…';
+          texte.textContent = 'Choisir le fichier Excel…';
           label.classList.remove('choisi');
           btnComparerVentes.disabled = true;
         }
@@ -1056,7 +1256,7 @@
         const fichier = ventesFileInput.files[0];
         if (!fichier || !quartRow) return;
         btnComparerVentes.disabled = true;
-        btnComparerVentes.textContent = 'Comparaison en cours…';
+        btnComparerVentes.textContent = 'Import en cours…';
         await comparerVentesQuart(fichier);
       });
     }
@@ -1090,6 +1290,11 @@
       if (histoGroupesOuverts.has(cle)) histoGroupesOuverts.delete(cle); else histoGroupesOuverts.add(cle);
       renderTout(dernierCtx); // pas de rechargement réseau, juste replier/déplier
     }));
+    document.querySelectorAll('.categorie-manquante').forEach(el => el.addEventListener('click', () => {
+      const cat = el.dataset.cat;
+      if (categoriesOuvertes.has(cat)) categoriesOuvertes.delete(cat); else categoriesOuvertes.add(cat);
+      renderTout(dernierCtx); // pas de rechargement réseau, juste replier/déplier
+    }));
   }
 
   async function chargerEtAfficherTout() {
@@ -1097,20 +1302,23 @@
 
     quartRow = await chargerQuart(siteId, dateSelectionnee, quartSelectionne);
 
-    const [produitsSensibles, produitsActifsSite, employesSite, modesAveugleActifs, historique, jaugeageActif] = await Promise.all([
+    const [produitsSensibles, produitsActifsSite, employesSite, modesAveugleActifs, historique, jaugeageActif, horaires] = await Promise.all([
       chargerProduitsSensibles(siteId),
       chargerTousProduitsActifsSite(siteId),
       chargerEmployesSite(siteId),
       chargerModesAveugleActifs(siteId),
       chargerHistoriqueDecisions(siteId),
       chargerModeJaugeageActif(siteId),
+      chargerHorairesStation(siteId),
     ]);
 
     let alertesOuvertes = [];
     let comptages = { ouverts: new Set(), clotures: new Set() };
+    let decisionsQuart = [];
     if (quartRow) {
       alertesOuvertes = await chargerAlertesOuvertesQuart(siteId, quartRow.id);
       comptages = await chargerComptagesQuart(quartRow.id);
+      decisionsQuart = await chargerDecisionsQuart(quartRow.id);
     }
 
     // Ne signale les produits sensibles manquants que si un inventaire a
@@ -1125,8 +1333,12 @@
       : [];
 
     const synthese = construireSynthese(produitsActifsSite, comptages, jaugeageActif, quartRow, alertesOuvertes);
+    const etat = quartRow ? libelleEtatQuart(quartRow, synthese, horaires) : null;
 
-    renderTout({ alertesOuvertes, sensiblesNonComptesDetail, employesSite, modesAveugleActifs, historique, jaugeageActif, synthese });
+    renderTout({
+      alertesOuvertes, sensiblesNonComptesDetail, employesSite, modesAveugleActifs, historique, jaugeageActif, synthese,
+      etat, produitsSensiblesTotal: produitsSensibles.length, decisionsQuart,
+    });
     await genererRemarquesConseiller(alertesOuvertes, sensiblesNonComptesDetail, modesAveugleActifs, synthese);
   }
 
