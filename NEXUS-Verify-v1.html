@@ -104,6 +104,26 @@
   .dc-or::before,.dc-or::after{content:''; flex:1; height:1px; background:var(--hairline);}
   .dc-result{margin-top:12px;}
 
+  /* État de connexion Google Sheets (02/08/2026, recommandations de
+     Frédéric) — badge dans l'en-tête de l'option + deux sous-panneaux
+     (non connecté / connecté) qui se substituent l'un à l'autre selon ce
+     que initImportGoogleSheets() découvre pour ce site. */
+  .dc-badge{font-family:var(--mono); font-size:9px; font-weight:700; letter-spacing:0.05em; text-transform:uppercase; padding:3px 8px; border-radius:20px; flex-shrink:0; margin-left:auto; white-space:nowrap;}
+  .dc-badge-off{color:var(--text-dim); background:var(--panel); border:1px solid var(--hairline);}
+  .dc-badge-on{color:var(--green); background:rgba(52,211,153,0.12); border:1px solid rgba(52,211,153,0.35);}
+  .dc-badge-err{color:var(--red); background:rgba(240,87,90,0.12); border:1px solid rgba(240,87,90,0.35);}
+  .dc-hint{font-family:var(--sans); font-size:11px; color:var(--text-dim); line-height:1.5; margin-bottom:10px;}
+  .dc-meta{font-family:var(--sans); font-size:11.5px; color:var(--text-mid); line-height:1.7; margin-bottom:10px;}
+  .dc-meta b{color:var(--text); font-weight:600;}
+  /* Carte résultat après import/synchro — remplace l'ancien "pré-rempli à
+     X%" par des chiffres concrets (lignes lues, champs pré-remplis, champs
+     à compléter) : plus fidèle à ce que NEXUS a réellement fait, jamais un
+     pourcentage qui laisse croire que l'audit entier est terminé. */
+  .dc-result-head{font-family:var(--sans); font-size:12.5px; font-weight:700; color:var(--green); padding-top:8px; border-top:1px solid var(--hairline); margin-top:4px;}
+  .dc-result-stats{display:flex; flex-wrap:wrap; gap:4px 14px; font-family:var(--sans); font-size:11.5px; color:var(--text-mid); margin:6px 0;}
+  .dc-result-stats b{color:var(--text); font-weight:700;}
+  .dc-result-meta{font-family:var(--mono); font-size:10.5px; color:var(--text-dim);}
+
   .dc-checklist{display:none; margin-bottom:10px;}
   .dc-checklist.show{display:block;}
   .dc-check-item{
@@ -236,7 +256,7 @@
            futures non construites — jamais annoncer une capacité qui
            n'existe pas). -->
       <div class="section-label">NEXUS Data Connector</div>
-      <div class="note">NEXUS détecte automatiquement les informations disponibles dans votre classeur Excel ou Google Sheets et pré-remplit votre audit. La vente piste (litrage), la vente boutique Decenium, les bons, dépenses, vacataires et règlements de comptes restent à saisir à la main : ils n'existent pas dans ce classeur.</div>
+      <div class="note">Choisissez comment pré-remplir cet audit. NEXUS identifie les données compatibles présentes dans votre fichier Excel ou votre feuille Google Sheets et pré-remplit les champs correspondants. La vente piste (litrage), la vente boutique Decenium, les bons, dépenses, vacataires et règlements de comptes n'existent pas dans ce classeur : ils restent à compléter manuellement.</div>
 
       <!-- Option 1 — fichier Excel local. Toujours visible : demande
            explicite de Frédéric de ne jamais retirer cette capacité, même
@@ -245,7 +265,7 @@
         <div class="dc-option-head">
           <div class="dc-option-icon"><img src="icon-nexus-import-excel.png" alt=""></div>
           <div>
-            <div class="dc-option-eyebrow">Option 1</div>
+            <div class="dc-option-eyebrow">Import ponctuel</div>
             <div class="dc-option-title">Importer un fichier Excel</div>
           </div>
         </div>
@@ -260,25 +280,39 @@
         </div>
       </div>
 
-      <!-- Option 2 — Google Sheets. N'apparaît que si la synchronisation a
-           été activée pour ce site dans Paramètres Station
-           (station_config.google_sheet_id). L'import fichier ci-dessus reste
-           toujours disponible, activé ou non (01/08/2026). -->
-      <div id="v_import_sheets_bloc" style="display:none;">
-        <div class="dc-or"><span>ou</span></div>
-        <div class="dc-option dc-option-sheets">
-          <div class="dc-option-head">
-            <div class="dc-option-icon"><img src="icon-nexus-import-sheets.png" alt=""></div>
-            <div>
-              <div class="dc-option-eyebrow">Option 2</div>
-              <div class="dc-option-title">Connecter Google Sheets</div>
-            </div>
+      <!-- Option 2 — Google Sheets. Toujours visible désormais (02/08/2026) :
+           état "Non connecté" avec lien vers Paramètres Station si le site
+           n'a pas encore de google_sheet_id, plutôt que masquée entièrement
+           — l'archi reste un compte de service configuré une fois par le
+           gérant (jamais un OAuth par utilisateur, jamais de clé côté
+           client), donc pas de bouton "Connecter mon compte Google" ici.
+           L'import fichier ci-dessus reste disponible dans tous les cas. -->
+      <div class="dc-or"><span>ou</span></div>
+      <div class="dc-option dc-option-sheets" id="v_import_sheets_bloc">
+        <div class="dc-option-head">
+          <div class="dc-option-icon"><img src="icon-nexus-import-sheets.png" alt=""></div>
+          <div>
+            <div class="dc-option-eyebrow">Connexion récurrente</div>
+            <div class="dc-option-title">Connecter Google Sheets</div>
           </div>
-          <div class="dc-option-desc">Synchronisez directement une feuille Google Sheets pour éviter les exports manuels.</div>
-          <div class="dc-tags"><span class="dc-tag">Connexion cloud</span><span class="dc-tag">Réutilisable</span><span class="dc-tag">Suivi récurrent</span></div>
-          <label class="f">Feuille à synchroniser</label>
+          <span class="dc-badge dc-badge-off" id="v_sheets_badge">Non connecté</span>
+        </div>
+        <div class="dc-option-desc">Synchronisez une feuille en ligne pour éviter les exports manuels.</div>
+        <div class="dc-tags"><span class="dc-tag">Connexion cloud</span><span class="dc-tag">Réutilisable</span><span class="dc-tag">Suivi récurrent</span></div>
+
+        <div id="v_sheets_disconnected">
+          <div class="dc-hint">NEXUS n'est pas encore relié à un classeur Google Sheets pour ce site.</div>
+          <a class="dc-sync-btn dc-sync-btn-green" href="NEXUS-Parametres-Station-v1.html" style="text-decoration:none;">Configurer dans Paramètres Station</a>
+        </div>
+
+        <div id="v_sheets_connected" style="display:none;">
+          <div class="dc-meta">
+            <div>Classeur : <b id="v_sheets_classeur">—</b></div>
+            <div>Dernière synchronisation : <b id="v_sheets_dernier">jamais</b></div>
+          </div>
+          <label class="f">Onglet à synchroniser</label>
           <select id="v_import_sheets_feuille"></select>
-          <button type="button" class="dc-sync-btn dc-sync-btn-green" id="v_import_sheets_go"><img src="icon-nexus-import-sheets.png" alt="" class="dc-sync-icon">Synchroniser depuis Google Sheets</button>
+          <button type="button" class="dc-sync-btn dc-sync-btn-green" id="v_import_sheets_go"><img src="icon-nexus-import-sheets.png" alt="" class="dc-sync-icon">Synchroniser maintenant</button>
         </div>
       </div>
 
@@ -926,12 +960,11 @@
       if (dropsPresents) items.push('Drops piste/boutique importés');
       if (commentaire) items.push('Commentaire récupéré');
 
-      // Pourcentage (01/08/2026) : calculé UNIQUEMENT sur les champs que ce
-      // classeur peut réellement fournir (colonnes détectées dans son
-      // en-tête) — jamais sur l'ensemble du formulaire d'audit, qui contient
-      // des champs sciemment absents de ce classeur (litrage, Decenium,
-      // bons, dépenses...). Un 100% ici veut dire "tout ce que ce classeur
-      // pouvait donner a été récupéré", pas "l'audit est complet".
+      // Champs réellement exploitables sur cette ligne — calculé UNIQUEMENT
+      // sur les colonnes que ce classeur peut réellement fournir (détectées
+      // dans son en-tête), jamais sur l'ensemble du formulaire d'audit, qui
+      // contient des champs sciemment absents de ce classeur (litrage,
+      // Decenium, bons, dépenses...).
       const champsDonnees = Object.keys(cols).filter(k => k !== 'date' && k !== 'quart');
       const champsRemplis = champsDonnees.filter(k => {
         const v = ligneTrouvee[cols[k]];
@@ -939,14 +972,40 @@
         if (typeof v === 'number') return v !== 0;
         return true;
       });
-      const pourcentage = champsDonnees.length ? Math.round((champsRemplis.length / champsDonnees.length) * 100) : 0;
+      const champsAbsents = champsDonnees.length - champsRemplis.length;
+
+      // Carte résultat (02/08/2026, recommandations de Frédéric) — des
+      // chiffres concrets (lignes lues, champs pré-remplis/absents, source,
+      // heure) plutôt qu'un pourcentage : plus fidèle à ce que NEXUS a
+      // réellement fait, et ça inspire confiance sans laisser croire que
+      // l'audit entier est terminé.
+      const maintenant = new Date();
+      const heureTexte = `${String(maintenant.getHours()).padStart(2, '0')}:${String(maintenant.getMinutes()).padStart(2, '0')}`;
+      const sourceTexte = formatSource === 'sheets' ? 'Google Sheets' : 'Fichier Excel';
+      const titreResultat = formatSource === 'sheets' ? 'Synchronisation terminée' : 'Import terminé';
 
       const checklistEl = document.getElementById('v_import_checklist');
       if (checklistEl) {
         checklistEl.innerHTML = items.map((txt, i) =>
           `<div class="dc-check-item" style="animation-delay:${i * 90}ms"><span class="dc-check-mark">✓</span>${txt}</div>`
-        ).join('') + `<div class="dc-check-pct">Audit pré-rempli à ${pourcentage}% (sur les données de ce classeur)</div>`;
+        ).join('') + `
+          <div class="dc-result-head">✓ ${titreResultat}</div>
+          <div class="dc-result-stats">
+            <span><b>${lignes.length}</b> lignes lues</span>
+            <span><b>${champsRemplis.length}</b> champs pré-remplis</span>
+            <span><b>${champsAbsents}</b> à compléter</span>
+          </div>
+          <div class="dc-result-meta">Source : ${sourceTexte} · ${heureTexte}</div>
+        `;
         checklistEl.classList.add('show');
+      }
+
+      // Horodatage "dernière synchronisation" (Google Sheets uniquement) —
+      // par appareil, voir formaterDerniereSyncTexte plus haut.
+      if (formatSource === 'sheets') {
+        try { localStorage.setItem(cleDerniereSyncSheets(), new Date().toISOString()); } catch (e) {}
+        const dernierEl = document.getElementById('v_sheets_dernier');
+        if (dernierEl) dernierEl.textContent = "à l'instant";
       }
 
       // Le diagnostic temporaire (dump brut visible à l'écran) a rempli son
@@ -1025,27 +1084,79 @@
       }) || null;
     }
 
+    // Horodatage de dernière synchronisation Google Sheets — stocké en
+    // localStorage (par appareil, pas en base) car purement informatif :
+    // rassure sur "quand la dernière synchro a eu lieu" sans prétendre à un
+    // historique partagé entre managers/appareils (ça, ce serait un vrai
+    // journal côté serveur, pas construit aujourd'hui — 02/08/2026).
+    function cleDerniereSyncSheets() { return `nexus_verify_dernier_sync_sheets_${SITE_ACTUEL}`; }
+    function formaterDerniereSyncTexte(iso) {
+      if (!iso) return 'jamais';
+      const d = new Date(iso);
+      if (isNaN(d.getTime())) return 'jamais';
+      const maintenant = new Date();
+      const memeJour = d.getFullYear() === maintenant.getFullYear() && d.getMonth() === maintenant.getMonth() && d.getDate() === maintenant.getDate();
+      const hh = String(d.getHours()).padStart(2, '0');
+      const mm = String(d.getMinutes()).padStart(2, '0');
+      if (memeJour) return `aujourd'hui à ${hh}:${mm}`;
+      const dd = String(d.getDate()).padStart(2, '0');
+      const mo = String(d.getMonth() + 1).padStart(2, '0');
+      return `${dd}/${mo} à ${hh}:${mm}`;
+    }
+
+    // Bascule visuelle entre les deux sous-états de l'option Google Sheets —
+    // "non connecté" (avec lien vers Paramètres Station) et "connecté"
+    // (badge vert + classeur + sélecteur d'onglet), demandée par Frédéric le
+    // 02/08/2026 pour remplacer le masquage complet de l'option quand la
+    // synchro n'est pas encore configurée.
+    function setEtatSheets(etat, message) {
+      const badge = document.getElementById('v_sheets_badge');
+      const dis = document.getElementById('v_sheets_disconnected');
+      const con = document.getElementById('v_sheets_connected');
+      if (!badge || !dis || !con) return;
+      badge.classList.remove('dc-badge-off', 'dc-badge-on', 'dc-badge-err');
+      if (etat === 'connecte') {
+        badge.textContent = 'Connecté'; badge.classList.add('dc-badge-on');
+        dis.style.display = 'none'; con.style.display = 'block';
+      } else if (etat === 'erreur') {
+        badge.textContent = 'Erreur de connexion'; badge.classList.add('dc-badge-err');
+        dis.style.display = 'block'; con.style.display = 'none';
+        dis.innerHTML = `<div class="dc-hint" style="color:var(--red);">${message}</div>`;
+      } else {
+        badge.textContent = 'Non connecté'; badge.classList.add('dc-badge-off');
+        dis.style.display = 'block'; con.style.display = 'none';
+      }
+    }
+
     async function initImportGoogleSheets() {
+      const dernierEl = document.getElementById('v_sheets_dernier');
+      if (dernierEl) {
+        try { dernierEl.textContent = formaterDerniereSyncTexte(localStorage.getItem(cleDerniereSyncSheets())); } catch (e) {}
+      }
       const { data, error } = await nexusClient.from('station_config').select('google_sheet_id').eq('site', SITE_ACTUEL).maybeSingle();
       if (error) { console.error('Chargement google_sheet_id (Verify):', error); return; }
       GOOGLE_SHEET_ID_SITE = (data && data.google_sheet_id) || null;
-      if (!GOOGLE_SHEET_ID_SITE) return; // synchro non activée pour ce site — rien à afficher
+      if (!GOOGLE_SHEET_ID_SITE) return; // reste à l'état "non connecté" affiché par défaut
       try {
-        const { sheets } = await appelerGoogleSheetsSync('__list__');
+        const { classeur, sheets } = await appelerGoogleSheetsSync('__list__');
         FEUILLES_GOOGLE_SHEETS = (sheets || []).filter(n => !SHEETS_IGNOREES.some(mot => normaliserTexte(n).includes(mot)));
-        if (!FEUILLES_GOOGLE_SHEETS.length) return;
+        if (!FEUILLES_GOOGLE_SHEETS.length) return; // classeur connecté mais rien d'exploitable — reste "non connecté" à l'écran
         const sel = document.getElementById('v_import_sheets_feuille');
         sel.innerHTML = FEUILLES_GOOGLE_SHEETS.map(n => `<option value="${n}">${n}</option>`).join('');
         const match = choisirFeuillePourDate(FEUILLES_GOOGLE_SHEETS, document.getElementById('v_date').value);
         if (match) sel.value = match;
-        document.getElementById('v_import_sheets_bloc').style.display = 'block';
+        const classeurEl = document.getElementById('v_sheets_classeur');
+        if (classeurEl) classeurEl.textContent = classeur || '—';
+        setEtatSheets('connecte');
       } catch (e) {
-        // Echec silencieux ici (ex: Sheet pas encore partagé, secret Google
-        // absent...) : l'import fichier reste disponible dans tous les cas,
-        // on ne bloque pas l'écran pour un souci de connexion Google. Le
-        // diagnostic complet se fait via "Tester la connexion" dans
-        // Paramètres Station.
+        // Le classeur EST configuré (sinon on ne serait pas entré dans ce
+        // try) — "Non connecté" serait donc trompeur ici. Un souci de
+        // lecture (classeur pas partagé avec le compte de service, secret
+        // Google absent...) mérite un message dédié plutôt qu'un échec
+        // silencieux : Frédéric n'a pas toujours accès à la console sur
+        // mobile pour comprendre pourquoi rien ne s'affiche.
         console.error('Liste des feuilles Google Sheets (Verify):', e);
+        setEtatSheets('erreur', `Classeur configuré mais impossible à lire — vérifiez qu'il est bien partagé avec le compte de service NEXUS dans <a href="NEXUS-Parametres-Station-v1.html" style="color:var(--red);">Paramètres Station</a>.`);
       }
     }
 
