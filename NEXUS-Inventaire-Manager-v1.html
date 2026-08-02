@@ -67,6 +67,14 @@
   .quart-statut{font-family:var(--mono); font-size:10.5px; color:var(--text-dim); margin-bottom:16px;}
 
   /* Statistiques mini */
+  /* Section repliable (02/08/2026, demande de Frédéric — replier le mode
+     aveugle par défaut, pour ne pas surcharger l'écran d'une longue liste
+     d'employés dès l'arrivée sur la page). */
+  .section-titre.section-repliable{display:flex; align-items:center; gap:8px; cursor:pointer; user-select:none;}
+  .repli-compte{font-family:var(--mono); font-size:10px; color:var(--cyan); margin-left:auto;}
+  .repli-chevron{display:inline-block; color:var(--text-dim); transition:transform .15s; font-size:11px;}
+  .repli-chevron.open{transform:rotate(90deg);}
+
   .stats-row{display:flex; gap:10px; margin-bottom:18px;}
   .stat-mini{flex:1; background:var(--panel); border:1px solid var(--hairline); border-radius:10px; padding:10px 8px; text-align:center;}
   .stat-mini-value{font-family:var(--mono); font-size:20px; font-weight:700;}
@@ -164,6 +172,11 @@
   let dateSelectionnee = '';
   let quartSelectionne = 'matin';
   let quartRow = null;
+  // Repli du mode aveugle (02/08/2026, demande de Frédéric) : replié par
+  // défaut pour ne pas surcharger l'écran d'une longue liste d'employés —
+  // dernierCtx permet de replier/déplier sans recharger toutes les données.
+  let sectionAveugleOuverte = false;
+  let dernierCtx = null;
 
   // Catégories de décision manager sur une alerte (02/08/2026, demande de
   // Frédéric — vision initiale NEXUS Inventaire) : chaque décision ferme
@@ -278,6 +291,18 @@
     return data || [];
   }
 
+  // Jaugeage carburant (02/08/2026, demande de Frédéric) : grisé et non
+  // requis par défaut côté employé sur les deux quarts — un simple
+  // interrupteur ici l'active/désactive pour le site entier, même
+  // mécanisme que le mode aveugle (inventaire_modes_controle) mais sans
+  // ciblage par employé.
+  async function chargerModeJaugeageActif(site) {
+    const { data, error } = await nexusClient.from('inventaire_modes_controle')
+      .select('id').eq('site', site).eq('mode', 'jaugeage_actif').eq('actif', true).maybeSingle();
+    if (error) { console.error('Chargement mode jaugeage:', error); return false; }
+    return !!data;
+  }
+
   async function chargerHistoriqueDecisions(site) {
     const { data, error } = await nexusClient.from('inventaire_alertes')
       .select('*, inventaire_zone_produit(designation), inventaire_quarts(date, quart)')
@@ -327,6 +352,22 @@
         .eq('site', siteId).eq('employee_id', employeeId).eq('mode', 'aveugle').eq('actif', true)
         .is('categorie_id', null).is('produit_id', null);
       if (error) { console.error('Désactivation mode aveugle:', error); alert('Erreur — réessayez.'); }
+    }
+    await chargerEtAfficherTout();
+  }
+
+  async function toggleJaugeage(activer) {
+    if (activer) {
+      const { error } = await nexusClient.from('inventaire_modes_controle').insert({
+        site: siteId, mode: 'jaugeage_actif', actif: true,
+        motif: "Jaugeage carburant activé depuis l'écran manager Inventaire", cree_par: managerCourant.id,
+      });
+      if (error) { console.error('Activation jaugeage:', error); alert('Erreur — réessayez.'); }
+    } else {
+      const { error } = await nexusClient.from('inventaire_modes_controle').update({ actif: false })
+        .eq('site', siteId).eq('mode', 'jaugeage_actif').eq('actif', true)
+        .is('categorie_id', null).is('produit_id', null).is('employee_id', null);
+      if (error) { console.error('Désactivation jaugeage:', error); alert('Erreur — réessayez.'); }
     }
     await chargerEtAfficherTout();
   }
@@ -433,6 +474,20 @@
     `;
   }
 
+  function renderToggleJaugeage(actif) {
+    return `
+      <div class="employe-toggle-row">
+        <div>
+          <div style="font-size:13px;">Jaugeage carburant</div>
+          <div class="employe-role" style="text-transform:none;">Grisé et non requis par défaut, sur les deux quarts</div>
+        </div>
+        <div class="toggle-switch ${actif ? 'on' : ''}" data-mode="jaugeage" data-actif="${actif ? '1' : '0'}">
+          <div class="toggle-knob"></div>
+        </div>
+      </div>
+    `;
+  }
+
   function renderHistoriqueItem(h) {
     const produit = h.inventaire_zone_produit ? h.inventaire_zone_produit.designation : 'Produit';
     const quartInfo = h.inventaire_quarts ? `${h.inventaire_quarts.date.split('-').reverse().join('/')} · ${h.inventaire_quarts.quart}` : '';
@@ -450,7 +505,8 @@
   }
 
   function renderTout(ctx) {
-    const { alertesOuvertes, sensiblesNonComptesDetail, employesSite, modesAveugleActifs, historique } = ctx;
+    dernierCtx = ctx;
+    const { alertesOuvertes, sensiblesNonComptesDetail, employesSite, modesAveugleActifs, historique, jaugeageActif } = ctx;
     const modesMap = Object.fromEntries(modesAveugleActifs.map(m => [m.employee_id, m]));
 
     document.getElementById('content').innerHTML = `
@@ -488,10 +544,19 @@
         ${sensiblesNonComptesDetail.length === 0 ? '<div class="empty">Tous les produits sensibles ont été comptés.</div>' : sensiblesNonComptesDetail.map(x => renderSensibleItem(x)).join('')}
       ` : ''}
 
-      <div class="section-titre">Mode de comptage à l'aveugle</div>
-      <div class="card">
-        ${employesSite.length === 0 ? '<div class="empty">Aucun employé actif trouvé pour ce site.</div>' : employesSite.map(e => renderEmployeToggle(e, !!modesMap[e.id])).join('')}
+      <div class="section-titre section-repliable" id="toggleSectionAveugle">
+        <span>Mode de comptage à l'aveugle</span>
+        ${modesAveugleActifs.length ? `<span class="repli-compte">${modesAveugleActifs.length} actif${modesAveugleActifs.length > 1 ? 's' : ''}</span>` : ''}
+        <span class="repli-chevron ${sectionAveugleOuverte ? 'open' : ''}">›</span>
       </div>
+      ${sectionAveugleOuverte ? `
+        <div class="card">
+          ${employesSite.length === 0 ? '<div class="empty">Aucun employé actif trouvé pour ce site.</div>' : employesSite.map(e => renderEmployeToggle(e, !!modesMap[e.id])).join('')}
+        </div>
+      ` : ''}
+
+      <div class="section-titre">Jaugeage carburant</div>
+      <div class="card">${renderToggleJaugeage(jaugeageActif)}</div>
 
       <div class="section-titre">Historique des décisions</div>
       ${historique.length === 0 ? '<div class="empty">Aucune décision enregistrée pour le moment.</div>' : historique.map(h => renderHistoriqueItem(h)).join('')}
@@ -515,8 +580,14 @@
     document.querySelectorAll('.toggle-switch').forEach(el => el.addEventListener('click', async () => {
       const actif = el.dataset.actif === '1';
       el.style.pointerEvents = 'none';
-      await toggleModeAveugle(el.dataset.employe, !actif);
+      if (el.dataset.mode === 'jaugeage') await toggleJaugeage(!actif);
+      else await toggleModeAveugle(el.dataset.employe, !actif);
     }));
+    const toggleSection = document.getElementById('toggleSectionAveugle');
+    if (toggleSection) toggleSection.addEventListener('click', () => {
+      sectionAveugleOuverte = !sectionAveugleOuverte;
+      renderTout(dernierCtx); // pas de rechargement réseau, juste replier/déplier
+    });
   }
 
   async function chargerEtAfficherTout() {
@@ -524,11 +595,12 @@
 
     quartRow = await chargerQuart(siteId, dateSelectionnee, quartSelectionne);
 
-    const [produitsSensibles, employesSite, modesAveugleActifs, historique] = await Promise.all([
+    const [produitsSensibles, employesSite, modesAveugleActifs, historique, jaugeageActif] = await Promise.all([
       chargerProduitsSensibles(siteId),
       chargerEmployesSite(siteId),
       chargerModesAveugleActifs(siteId),
       chargerHistoriqueDecisions(siteId),
+      chargerModeJaugeageActif(siteId),
     ]);
 
     let alertesOuvertes = [];
@@ -549,7 +621,7 @@
         })).filter(x => x.manqueOuverture || x.manqueCloture)
       : [];
 
-    renderTout({ alertesOuvertes, sensiblesNonComptesDetail, employesSite, modesAveugleActifs, historique });
+    renderTout({ alertesOuvertes, sensiblesNonComptesDetail, employesSite, modesAveugleActifs, historique, jaugeageActif });
     await genererRemarquesConseiller(alertesOuvertes, sensiblesNonComptesDetail, modesAveugleActifs);
   }
 
