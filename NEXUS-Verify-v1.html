@@ -21,6 +21,7 @@
     --red:#F0575A; --red-dim:#3A1D1F;
     --violet:#A78BFA; --violet-dim:#241B3D;
     --cyan:#4FC3D9;
+    --gold:#D4AF37;
     --mono:'IBM Plex Mono',monospace; --sans:'IBM Plex Sans',sans-serif;
   }
   *{box-sizing:border-box; margin:0; padding:0;}
@@ -48,6 +49,11 @@
 
   .section{padding:16px 20px;}
   .card{background:var(--panel); border:1px solid var(--hairline); border-radius:12px; padding:18px; margin-bottom:14px;}
+  /* Différenciation visuelle piste/boutique (02/08/2026, demande de
+     Frédéric) — doré pour la caisse piste, cyan pour la caisse boutique,
+     pour repérer les deux cartes de drops en un coup d'œil. */
+  .card-piste{border-color:rgba(212,175,55,0.5); box-shadow:inset 3px 0 0 var(--gold);}
+  .card-boutique{border-color:rgba(79,195,217,0.5); box-shadow:inset 3px 0 0 var(--cyan);}
   .section-label{font-family:var(--mono); font-size:10.5px; letter-spacing:0.08em; text-transform:uppercase; color:var(--text-dim); margin-bottom:12px; display:flex; align-items:center; gap:8px;}
   .section-label::after{content:''; flex:1; height:1px; background:var(--hairline);}
   .note{font-family:var(--sans); font-size:11px; color:var(--text-dim); line-height:1.5; margin:-4px 0 12px;}
@@ -253,7 +259,7 @@
      ============================================================ */
   body.nexus-desktop .phone{max-width:1180px; margin:0 auto; padding:0 28px;}
   body.nexus-desktop .header{padding-top:28px;}
-  body.nexus-desktop .verify-grid{column-count:2; column-gap:20px; margin-top:0;}
+  body.nexus-desktop .verify-grid{column-count:2; column-gap:20px; margin-top:0; column-fill:balance;}
   body.nexus-desktop .verify-grid .card{break-inside:avoid; -webkit-column-break-inside:avoid; page-break-inside:avoid;}
   /* Les cartes les plus courtes (Quart concerné, Employés présents une fois
      repliée visuellement dense) peuvent se retrouver seules en haut d'une
@@ -402,23 +408,9 @@
       <input type="text" inputmode="decimal" id="v_transfert" placeholder="0,00">
     </div>
 
-    <div class="card card-collapsible" id="cardReglementCompte">
-      <div class="card-toggle" data-toggle="cardReglementCompte">
-        <div class="card-toggle-label">Clients qui remboursent un impayé</div>
-        <span class="card-toggle-total" id="v_apercu_reglement">0,00 €</span>
-        <span class="card-toggle-chevron">▾</span>
-      </div>
-      <div class="card-body">
-        <div class="note">Rare — un règlement par ligne. Argent reçu ce quart pour solder une facture d'un mois précédent (ex: facture de juillet payée en août) — à ne pas confondre avec un compte client ouvert aujourd'hui (déjà inclus dans la vente boutique Decenium, ou dans « Clients en compte » côté piste). Précisez sur quelle caisse l'argent a été physiquement encaissé : sans ça, cet argent gonflerait artificiellement l'écart de la mauvaise caisse.</div>
-        <div id="reglementCompteListe"></div>
-        <button type="button" class="btn-add" id="btnAddReglementCompte">+ Ajouter un règlement</button>
-        <div class="total-ligne">Piste : <span id="totalReglementPiste">0,00 €</span> · Boutique : <span id="totalReglementBoutique">0,00 €</span></div>
-      </div>
-    </div>
-
-    <div class="card">
+    <div class="card card-piste">
       <div class="section-label">Caisse Piste — Drops</div>
-      <div class="note">À partir des justificatifs physiques (bons de drop, bons clients signés, factures fournisseurs) — pas des chiffres affichés dans Decenium, qui peuvent différer de ce que l'employé a réellement saisi.</div>
+      <div class="note">À partir des justificatifs physiques (bons de drop, bons clients signés, factures fournisseurs) — pas des chiffres affichés dans le logiciel de caisse, qui peuvent différer de ce que l'employé a réellement saisi.</div>
       <label class="f">Billets</label>
       <input type="text" inputmode="decimal" id="v_drop_piste_billets" placeholder="0,00">
       <label class="f">Pièces</label>
@@ -438,9 +430,9 @@
       <div class="total-ligne">Total clients en compte piste : <span id="totalBonsPiste">0,00 €</span></div>
     </div>
 
-    <div class="card">
+    <div class="card card-boutique">
       <div class="section-label">Caisse Boutique — Drops</div>
-      <div class="note">Justificatifs physiques (bons de drop, factures fournisseurs) — pas des chiffres affichés dans Decenium. Le compte client n'est pas à saisir ici : Decenium l'inclut déjà dans la vente boutique.</div>
+      <div class="note">Justificatifs physiques contrôlés par le manager (bons, etc.).</div>
       <label class="f">Billets</label>
       <input type="text" inputmode="decimal" id="v_drop_boutique_billets" placeholder="0,00">
       <label class="f">Pièces</label>
@@ -449,6 +441,26 @@
       <input type="text" inputmode="decimal" id="v_drop_boutique_chq" placeholder="0,00">
       <label class="f">Carte bancaire</label>
       <input type="text" inputmode="decimal" id="v_drop_boutique_cb" placeholder="0,00">
+    </div>
+
+    <!-- Cartes repliables (02/08/2026, demande de Frédéric : "mets toutes
+         les parties repliables ensemble") — regroupées ici, à la suite les
+         unes des autres. Toutes de hauteur similaire une fois fermées, ce
+         qui aide aussi la mise en colonnes de la vue bureau (column-count)
+         à équilibrer les deux colonnes de façon plus régulière qu'avant,
+         quand elles étaient dispersées entre de grandes cartes. -->
+    <div class="card card-collapsible" id="cardReglementCompte">
+      <div class="card-toggle" data-toggle="cardReglementCompte">
+        <div class="card-toggle-label">Clients qui remboursent un impayé</div>
+        <span class="card-toggle-total" id="v_apercu_reglement">0,00 €</span>
+        <span class="card-toggle-chevron">▾</span>
+      </div>
+      <div class="card-body">
+        <div class="note">Rare — un règlement par ligne. Argent reçu ce quart pour solder une facture d'un mois précédent (ex: facture de juillet payée en août) — à ne pas confondre avec un compte client ouvert aujourd'hui (déjà inclus dans la vente boutique Decenium, ou dans « Clients en compte » côté piste). Précisez sur quelle caisse l'argent a été physiquement encaissé : sans ça, cet argent gonflerait artificiellement l'écart de la mauvaise caisse.</div>
+        <div id="reglementCompteListe"></div>
+        <button type="button" class="btn-add" id="btnAddReglementCompte">+ Ajouter un règlement</button>
+        <div class="total-ligne">Piste : <span id="totalReglementPiste">0,00 €</span> · Boutique : <span id="totalReglementBoutique">0,00 €</span></div>
+      </div>
     </div>
 
     <div class="card card-collapsible" id="cardDepenses">
