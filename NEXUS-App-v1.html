@@ -393,10 +393,13 @@
   body.nexus-desktop .app-top-row{display:grid; grid-template-columns:1.3fr 1fr; gap:20px; align-items:start; padding:0 20px;}
   /* .conseiller-card et .etat-card utilisent margin (pas padding) pour leur
      inset horizontal habituel — à annuler ici, sinon il s'ajoute au padding
-     du wrapper .app-top-row et désaligne les deux colonnes. */
+     du wrapper .app-top-row et désaligne les deux colonnes. .conseiller-card
+     a aussi 16px de margin-top (pas .etat-card) : à annuler aussi, sinon le
+     haut des deux cadres ne s'aligne pas malgré des .section-tag identiques
+     au-dessus (signalé par Frédéric le 02/08/2026). */
   body.nexus-desktop .app-top-row .section-tag{padding-left:0; padding-right:0;}
   body.nexus-desktop .app-top-row .conseiller-card,
-  body.nexus-desktop .app-top-row .etat-card{margin-left:0; margin-right:0;}
+  body.nexus-desktop .app-top-row .etat-card{margin-left:0; margin-right:0; margin-top:0;}
   body.nexus-desktop .kpi-grid{grid-template-columns:repeat(4,1fr);}
   body.nexus-desktop .outils-grid{grid-template-columns:repeat(4,1fr);}
 </style>
