@@ -62,6 +62,7 @@ const NEXUS_SIDEBAR_GROUPES = [
     nom: 'Exécuter',
     items: [
       { label: 'Verify', href: 'NEXUS-Verify-v1.html', icon: 'assets/icons/icon-nexus-verify.png' },
+      { label: 'Inventaire', href: 'NEXUS-Inventaire-v1.html', icon: null, emoji: '📋' },
       { label: 'Missions', href: 'NEXUS-Missions-v1.html', icon: 'assets/icons/icon-missions.png' },
       { label: 'Assignations', href: 'NEXUS-Assignations-v1.html', icon: 'assets/icons/icon-assignations.png' },
       { label: 'Planning', href: 'NEXUS-Planning-v1.html', icon: 'assets/icons/icon-planner.png' },

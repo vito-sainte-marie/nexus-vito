@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" type="image/x-icon" href="favicon.ico">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+<link rel="manifest" href="site.webmanifest">
+<meta name="theme-color" content="#0B0F14">
+<title>NEXUS — Inventaire</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="nexus-auth.js"></script>
+<script src="nexus-desktop.js"></script>
+<style>
+  :root{
+    --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
+    --text:#EDF1F5; --text-mid:#8A96A5; --text-dim:#57626F;
+    --green:#34D399; --green-dim:#153629;
+    --amber:#F5A623; --amber-dim:#3A2E14;
+    --red:#F0575A; --red-dim:#3A1D1F;
+    --cyan:#4FC3D9; --gold:#D4AF37;
+    --mono:'IBM Plex Mono',monospace; --sans:'IBM Plex Sans',sans-serif;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{background:var(--bg); font-family:var(--sans); color:var(--text);}
+  body{display:flex; justify-content:center; min-height:100vh;}
+  .phone{width:100%; max-width:460px; min-height:100vh; display:flex; flex-direction:column; border-left:1px solid var(--hairline); border-right:1px solid var(--hairline);}
+
+  .header{padding:24px 20px 14px; position:relative;}
+  .menu-btn{
+    position:absolute; top:18px; right:18px; display:flex; align-items:center; gap:6px;
+    font-family:var(--mono); font-size:10.5px; font-weight:600; letter-spacing:0.03em; text-transform:uppercase;
+    color:var(--cyan); background:rgba(79,195,217,0.1); border:1px solid rgba(79,195,217,0.3);
+    border-radius:20px; padding:7px 12px; text-decoration:none; white-space:nowrap; z-index:5;
+  }
+  .menu-btn:active{background:rgba(79,195,217,0.2);}
+  .eyebrow{font-family:var(--mono); font-size:11px; letter-spacing:0.12em; text-transform:uppercase; color:var(--cyan);}
+  .title{font-size:22px; font-weight:600; margin-top:4px;}
+  .sub{font-size:13px; color:var(--text-mid); margin-top:6px; line-height:1.5;}
+  .divider{height:1px; background:var(--hairline); margin:0 20px;}
+  .section{padding:16px 20px;}
+  .loading{padding:60px 20px; text-align:center; color:var(--text-dim); font-size:13px;}
+
+  /* Accueil : 2 gros boutons Prise de poste / Clôture */
+  .choix-grid{display:flex; flex-direction:column; gap:12px;}
+  .choix-card{
+    position:relative; background:linear-gradient(145deg, var(--panel), var(--panel-raised));
+    border:1.5px solid var(--hairline); border-radius:16px; padding:18px 20px;
+    display:flex; align-items:center; gap:16px; cursor:pointer;
+    box-shadow:0 4px 14px rgba(0,0,0,0.25); transition:transform .15s;
+  }
+  .choix-card:active{transform:scale(0.98);}
+  .choix-card.disabled{opacity:0.4; pointer-events:none;}
+  .choix-icone{width:52px; height:52px; border-radius:14px; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:24px;}
+  .choix-icone.ouverture{background:radial-gradient(circle at 32% 28%, rgba(79,195,217,0.30), var(--panel-raised) 72%); box-shadow:inset 0 0 0 1px rgba(79,195,217,0.25);}
+  .choix-icone.cloture{background:radial-gradient(circle at 32% 28%, rgba(212,175,55,0.30), var(--panel-raised) 72%); box-shadow:inset 0 0 0 1px rgba(212,175,55,0.3);}
+  .choix-titre{font-size:15.5px; font-weight:700;}
+  .choix-sub{font-size:11.5px; color:var(--text-mid); margin-top:3px; line-height:1.4;}
+  .choix-statut{font-family:var(--mono); font-size:9.5px; letter-spacing:0.05em; text-transform:uppercase; margin-top:5px;}
+  .choix-statut.fait{color:var(--green);}
+  .choix-statut.attente{color:var(--amber);}
+
+  .etat-banner{background:var(--panel); border:1px solid var(--hairline); border-radius:12px; padding:14px 16px; margin-bottom:14px; font-size:12.5px; color:var(--text-mid); line-height:1.5;}
+  .etat-banner b{color:var(--text);}
+
+  .zone-choix{display:flex; gap:10px; margin-bottom:16px;}
+  .zone-pill{flex:1; text-align:center; padding:14px; border-radius:12px; border:1.5px solid var(--hairline); background:var(--panel); font-size:13.5px; font-weight:600; cursor:pointer;}
+  .zone-pill.active{border-color:var(--cyan); background:rgba(79,195,217,0.1); color:var(--cyan);}
+
+  .cat-block{margin-bottom:16px;}
+  .cat-head{display:flex; align-items:center; justify-content:space-between; padding:0 2px 8px;}
+  .cat-nom{font-family:var(--mono); font-size:10.5px; letter-spacing:0.06em; text-transform:uppercase; color:var(--text-dim);}
+  .cat-conforme{font-family:var(--mono); font-size:9.5px; color:var(--cyan); background:rgba(79,195,217,0.1); border:1px solid rgba(79,195,217,0.3); border-radius:14px; padding:4px 9px; cursor:pointer;}
+  .cat-conforme:active{background:rgba(79,195,217,0.2);}
+
+  .card{background:var(--panel); border:1px solid var(--hairline); border-radius:12px; margin-bottom:10px; overflow:hidden;}
+  .produit-row{padding:12px 14px;}
+  .produit-row + .produit-row{border-top:1px solid var(--hairline);}
+  .produit-nom-ligne{display:flex; align-items:center; gap:6px; margin-bottom:8px;}
+  .produit-nom{font-size:13.5px; font-weight:600; flex:1;}
+  .badge-sensible{font-family:var(--mono); font-size:8.5px; letter-spacing:0.04em; text-transform:uppercase; color:var(--red); background:var(--red-dim); border-radius:6px; padding:2px 6px;}
+  .produit-transmis{font-family:var(--mono); font-size:10.5px; color:var(--text-dim);}
+  .produit-controls{display:flex; align-items:center; gap:8px;}
+  .produit-input{
+    flex:1; background:var(--panel-raised); border:1px solid var(--hairline); border-radius:9px;
+    padding:10px 12px; color:var(--text); font-family:var(--mono); font-size:15px; text-align:right;
+  }
+  .produit-input:focus{outline:none; border-color:var(--cyan);}
+  .btn-identique{font-family:var(--mono); font-size:9.5px; color:var(--text-mid); background:var(--panel-raised); border:1px solid var(--hairline); border-radius:8px; padding:9px 10px; cursor:pointer; white-space:nowrap;}
+  .btn-identique:active{background:var(--hairline);}
+  .ecart-tag{font-family:var(--mono); font-size:10.5px; margin-top:6px; text-align:right;}
+  .ecart-ok{color:var(--green);}
+  .ecart-warn{color:var(--amber);}
+  .ecart-bad{color:var(--red);}
+  .justif-input{
+    width:100%; margin-top:8px; background:var(--panel-raised); border:1px solid var(--hairline); border-radius:8px;
+    padding:8px 10px; color:var(--text); font-size:12px; font-family:var(--sans);
+  }
+  .justif-input::placeholder{color:var(--text-dim);}
+  .produit-masque{font-family:var(--mono); font-size:10.5px; color:var(--text-dim); font-style:italic;}
+
+  .mouv-card{background:var(--panel); border:1px solid var(--hairline); border-radius:12px; padding:14px; margin-bottom:14px;}
+  .mouv-titre{font-size:13px; font-weight:700; margin-bottom:10px;}
+  .mouv-row{display:flex; gap:8px; margin-bottom:8px;}
+  .mouv-select, .mouv-qte{background:var(--panel-raised); border:1px solid var(--hairline); border-radius:8px; padding:9px 10px; color:var(--text); font-size:12.5px; font-family:var(--sans);}
+  .mouv-select{flex:1.4;}
+  .mouv-qte{flex:1; font-family:var(--mono); text-align:right;}
+  .mouv-justif{width:100%; background:var(--panel-raised); border:1px solid var(--hairline); border-radius:8px; padding:9px 10px; color:var(--text); font-size:12px; margin-bottom:8px;}
+  .mouv-liste{margin-top:4px;}
+  .mouv-item{display:flex; justify-content:space-between; align-items:center; padding:8px 10px; background:var(--panel-raised); border-radius:8px; margin-bottom:6px; font-size:12px;}
+  .mouv-item .rm{color:var(--red); cursor:pointer; font-family:var(--mono); font-size:11px;}
+
+  .btn-primary{width:100%; padding:14px; border:none; border-radius:10px; font-size:14px; font-weight:600; background:var(--cyan); color:#04141a; cursor:pointer; margin-top:6px;}
+  .btn-primary:disabled{opacity:0.35; cursor:not-allowed;}
+  .btn-ghost{width:100%; padding:12px; border:1px solid var(--hairline); border-radius:10px; background:transparent; color:var(--text-mid); font-size:13px; cursor:pointer; margin-top:8px;}
+  .btn-text{width:100%; padding:12px; border:none; background:none; color:var(--text-dim); font-size:12.5px; cursor:pointer; margin-top:4px;}
+
+  .resume-card{background:var(--panel); border:1px solid var(--hairline); border-radius:14px; padding:20px; margin-top:4px;}
+  .stat-row{display:flex; justify-content:space-between; align-items:center; padding:9px 0;}
+  .stat-row + .stat-row{border-top:1px solid var(--hairline);}
+  .stat-label{font-size:13px; color:var(--text-mid);}
+  .stat-value{font-family:var(--mono); font-size:15px; font-weight:700;}
+  .stat-value.amber{color:var(--amber);}
+  .stat-value.cyan{color:var(--cyan);}
+  .stat-value.red{color:var(--red);}
+  .checkmark{width:56px; height:56px; border-radius:50%; background:var(--green-dim); color:var(--green); font-size:26px; display:flex; align-items:center; justify-content:center; margin:0 auto 18px;}
+  .final-greet{font-size:19px; font-weight:700; text-align:center;}
+
+  .ecoulement-note{font-size:11px; color:var(--text-dim); line-height:1.5; margin-top:10px; padding-top:10px; border-top:1px solid var(--hairline);}
+
+  footer{margin-top:auto; padding:16px 20px 24px; font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:center; border-top:1px solid var(--hairline);}
+</style>
+</head>
+<body>
+<div class="phone">
+  <div class="header">
+    <a href="NEXUS-App-v1.html" class="menu-btn">☰ Menu</a>
+    <div class="eyebrow">NEXUS · Inventaire</div>
+    <div class="title" id="titre">Chargement…</div>
+    <div class="sub" id="sousTitre"></div>
+  </div>
+  <div class="divider"></div>
+
+  <!-- desktop-grid (02/08/2026) : mise en colonnes en vue bureau (voir
+       nexus-desktop.js) — purement additif, aucun effet en mobile. -->
+  <div class="section desktop-grid" id="content">
+    <div class="loading">Chargement…</div>
+  </div>
+
+  <footer>NEXUS Inventaire v1 · Registre numérique des comptages de quart · Vito Sainte-Marie Usine</footer>
+</div>
+
+<script>
+  // ------------------------------------------------------------
+  // NEXUS Inventaire v1 (02/08/2026) — construit avec Frédéric à partir
+  // d'une feuille papier réelle (11 catégories : jaugeage carburant, gaz,
+  // glaçons, journaux, pains/sandwichs, viennoiserie, cigarettes, boissons
+  // chaudes/bières, huiles, lave-glace/liquide refroidissement, CBD).
+  //
+  // Principe central (voir schéma inventaire_* en base) : les employés
+  // comptent et transmettent, NEXUS sécurise et structure les données
+  // (comptages en événements immuables, jamais d'écrasement silencieux),
+  // le manager rapproche avec Decenium plus tard (V2/V3 — hors scope ici).
+  //
+  // Vocabulaire imposé par Frédéric : jamais "ventes" ni "stock théorique"
+  // dans cette page — uniquement "stock transmis", "stock compté",
+  // "écoulement physique constaté". NEXUS Inventaire ne prétend pas
+  // connaître les ventes réelles de caisse.
+  // ------------------------------------------------------------
+
+  let employeeCourant = null;
+  let roleDuJour = null;
+  let zonesAutorisees = [];      // ['piste'] | ['boutique'] | ['piste','boutique']
+  let zoneActive = null;         // zone choisie pour la session en cours
+  let quartActuel = null;        // 'matin' | 'soir'
+  let quartRow = null;           // ligne inventaire_quarts
+  let quartEmployeRow = null;    // ligne inventaire_quart_employes de CET employé
+  let produitsZone = [];         // catalogue inventaire_zone_produit filtré
+  let dernierStock = {};         // produit_id -> { quantite, comptage_id } | null
+  let modesAveugle = [];         // règles inventaire_modes_controle actives (mode='aveugle')
+  let comptagesSaisie = {};      // produit_id -> { compte, justification }
+  let mouvementsSaisie = [];     // { produit_id, type_mouvement, quantite, justification }
+  let zonesMap = {};             // code ('piste'/'boutique') -> id (inventaire_zones)
+
+  function quartDuMoment() {
+    const h = new Date().getHours();
+    return h < 13 ? 'matin' : 'soir';
+  }
+  function dateISO() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  }
+  function fmtNum(n) {
+    if (n === null || n === undefined) return '—';
+    return Number(n).toLocaleString('fr-FR', { maximumFractionDigits: 2 });
+  }
+
+  // Le rôle du quart en cours (shifts.role) prime sur employees.role : un
+  // "renfort" ou "vacataire" peut être affecté piste ou boutique selon le
+  // jour, employees.role ne suffit pas à trancher.
+  async function chargerRoleDuJour() {
+    const debutJourISO = `${dateISO()}T00:00:00`;
+    const { data, error } = await nexusClient
+      .from('shifts').select('role').eq('employee_id', employeeCourant.id)
+      .gte('heure_debut', debutJourISO).order('heure_debut', { ascending: false }).limit(1).maybeSingle();
+    if (error) { console.error('Rôle du jour:', error); return employeeCourant.role; }
+    return (data && data.role) || employeeCourant.role;
+  }
+
+  function zonesPourRole(role) {
+    if (role === 'pompiste') return ['piste'];
+    if (role === 'caissier' || role === 'caissiere') return ['boutique'];
+    return ['piste', 'boutique']; // manager, gerant, renfort, vacataire : zone à choisir
+  }
+
+  async function obtenirOuCreerQuart() {
+    const site = employeeCourant.site_id || 'vito-sainte-marie';
+    const { data: existant, error: e1 } = await nexusClient
+      .from('inventaire_quarts').select('*').eq('site', site).eq('date', dateISO()).eq('quart', quartActuel).maybeSingle();
+    if (e1) { console.error('Lecture quart:', e1); }
+    if (existant) return existant;
+
+    const { data: cree, error: e2 } = await nexusClient
+      .from('inventaire_quarts').insert({ site, date: dateISO(), quart: quartActuel, statut: 'ouverture_en_cours', ouvert_le: new Date().toISOString() })
+      .select().single();
+    if (e2) { console.error('Création quart:', e2); return null; }
+    return cree;
+  }
+
+  async function obtenirOuCreerQuartEmploye() {
+    const { data: existant, error: e1 } = await nexusClient
+      .from('inventaire_quart_employes').select('*').eq('quart_id', quartRow.id).eq('employee_id', employeeCourant.id).maybeSingle();
+    if (e1) { console.error('Lecture quart-employé:', e1); }
+    if (existant) return existant;
+
+    const { data: cree, error: e2 } = await nexusClient
+      .from('inventaire_quart_employes').insert({
+        quart_id: quartRow.id, employee_id: employeeCourant.id, role: roleDuJour,
+        heure_arrivee: new Date().toISOString(),
+      }).select().single();
+    if (e2) { console.error('Création quart-employé:', e2); return null; }
+    return cree;
+  }
+
+  async function chargerProduitsZone(zone) {
+    const { data, error } = await nexusClient
+      .from('inventaire_zone_produit').select('*, inventaire_categories(nom, ordre_affichage), inventaire_zones!inner(code)')
+      .eq('inventaire_zones.code', zone).eq('actif', true)
+      .order('sensible', { ascending: false });
+    if (error) { console.error('Chargement produits:', error); return []; }
+    return data || [];
+  }
+
+  // Dernier stock connu = le dernier comptage de clôture validé pour ce
+  // produit, tous quarts confondus (l'historique reste une chaîne continue
+  // d'un quart au suivant, pas remise à zéro à chaque ouverture).
+  async function chargerDerniersStocks(produitIds) {
+    if (!produitIds.length) return {};
+    const { data, error } = await nexusClient
+      .from('inventaire_comptages').select('id, produit_id, quantite, compte_le')
+      .in('produit_id', produitIds).eq('type_comptage', 'cloture').eq('statut', 'valide')
+      .order('compte_le', { ascending: false });
+    if (error) { console.error('Derniers stocks:', error); return {}; }
+    const map = {};
+    for (const row of (data || [])) {
+      if (!(row.produit_id in map)) map[row.produit_id] = { quantite: row.quantite, comptage_id: row.id };
+    }
+    return map;
+  }
+
+  async function chargerModesAveugle() {
+    const site = employeeCourant.site_id || 'vito-sainte-marie';
+    const { data, error } = await nexusClient
+      .from('inventaire_modes_controle').select('*').eq('site', site).eq('mode', 'aveugle').eq('actif', true);
+    if (error) { console.error('Modes de contrôle:', error); return []; }
+    return data || [];
+  }
+
+  function estMasquePourProduit(produit) {
+    const today = dateISO();
+    return modesAveugle.some(m => {
+      if (m.employee_id && m.employee_id !== employeeCourant.id) return false;
+      if (m.categorie_id && m.categorie_id !== produit.categorie_id) return false;
+      if (m.produit_id && m.produit_id !== produit.id) return false;
+      if (m.date_debut && m.date_debut > today) return false;
+      if (m.date_fin && m.date_fin < today) return false;
+      return true;
+    });
+  }
+
+  function grouperParCategorie(produits) {
+    const groupes = {};
+    for (const p of produits) {
+      const nom = p.inventaire_categories ? p.inventaire_categories.nom : 'Autres';
+      if (!groupes[nom]) groupes[nom] = { nom, ordre: p.inventaire_categories ? p.inventaire_categories.ordre_affichage : 99, items: [] };
+      groupes[nom].items.push(p);
+    }
+    return Object.values(groupes).sort((a, b) => a.ordre - b.ordre);
+  }
+
+  // ------------------------------------------------------------
+  // ÉCRAN D'ACCUEIL
+  // ------------------------------------------------------------
+  async function renderAccueil() {
+    document.getElementById('titre').textContent = `Bonjour ${employeeCourant.nom}`;
+    document.getElementById('sousTitre').textContent = `Quart ${quartActuel === 'matin' ? 'du matin' : 'du soir'} · ${dateISO().split('-').reverse().join('/')}`;
+
+    const ouvertureFaite = quartEmployeRow && quartEmployeRow.a_valide_ouverture;
+    const clotureFaite = quartEmployeRow && quartEmployeRow.a_valide_cloture;
+
+    document.getElementById('content').innerHTML = `
+      ${zonesAutorisees.length > 1 ? `<div class="etat-banner">Zone suivie actuellement : <b>${zoneActive === 'piste' ? 'Piste' : 'Boutique'}</b>. <span id="lienChangerZone" style="color:var(--cyan); cursor:pointer;">Changer</span></div>` : ''}
+      <div class="choix-grid">
+        <div class="choix-card ${clotureFaite ? 'disabled' : ''}" id="carteOuverture">
+          <div class="choix-icone ouverture">🟢</div>
+          <div style="flex:1;">
+            <div class="choix-titre">Commencer mon inventaire</div>
+            <div class="choix-sub">Comptage d'ouverture — stock transmis, comptage réel, écart éventuel.</div>
+            ${ouvertureFaite ? '<div class="choix-statut fait">✓ Fait pour ce quart</div>' : '<div class="choix-statut attente">À faire</div>'}
+          </div>
+        </div>
+        <div class="choix-card ${!ouvertureFaite || clotureFaite ? 'disabled' : ''}" id="carteCloture">
+          <div class="choix-icone cloture">🔴</div>
+          <div style="flex:1;">
+            <div class="choix-titre">Clôturer mon inventaire</div>
+            <div class="choix-sub">Mouvements du quart + stock final avant de passer la main.</div>
+            ${clotureFaite ? '<div class="choix-statut fait">✓ Fait pour ce quart</div>' : ''}
+            ${!ouvertureFaite && !clotureFaite ? '<div class="choix-statut attente">Commencez d\'abord votre inventaire</div>' : ''}
+          </div>
+        </div>
+      </div>
+    `;
+
+    const lienZone = document.getElementById('lienChangerZone');
+    if (lienZone) lienZone.addEventListener('click', renderChoixZone);
+
+    if (!clotureFaite) document.getElementById('carteOuverture').addEventListener('click', demarrerOuverture);
+    if (ouvertureFaite && !clotureFaite) document.getElementById('carteCloture').addEventListener('click', demarrerCloture);
+  }
+
+  function renderChoixZone() {
+    document.getElementById('titre').textContent = 'Quelle zone comptez-vous ?';
+    document.getElementById('sousTitre').textContent = 'Piste (carburant, gaz, glaçons, huiles, lave-glace) ou Boutique (le reste).';
+    document.getElementById('content').innerHTML = `
+      <div class="zone-choix">
+        <div class="zone-pill ${zoneActive==='piste'?'active':''}" data-zone="piste">🚗 Piste</div>
+        <div class="zone-pill ${zoneActive==='boutique'?'active':''}" data-zone="boutique">🏪 Boutique</div>
+      </div>
+      <button class="btn-primary" id="btnValiderZone">Continuer</button>
+    `;
+    document.querySelectorAll('.zone-pill').forEach(el => el.addEventListener('click', () => {
+      zoneActive = el.dataset.zone;
+      renderChoixZone();
+    }));
+    document.getElementById('btnValiderZone').addEventListener('click', async () => {
+      const zoneId = zonesMap[zoneActive];
+      if (zoneId && quartEmployeRow) {
+        const { error } = await nexusClient.from('inventaire_quart_employes').update({ zone_id: zoneId }).eq('id', quartEmployeRow.id);
+        if (error) console.error('Enregistrement zone:', error);
+        quartEmployeRow.zone_id = zoneId;
+      }
+      renderAccueil();
+    });
+  }
+
+  // ------------------------------------------------------------
+  // OUVERTURE (prise de poste)
+  // ------------------------------------------------------------
+  async function demarrerOuverture() {
+    document.getElementById('content').innerHTML = '<div class="loading">Chargement des produits…</div>';
+    produitsZone = await chargerProduitsZone(zoneActive);
+    const ids = produitsZone.map(p => p.id);
+    dernierStock = await chargerDerniersStocks(ids);
+    modesAveugle = await chargerModesAveugle();
+    comptagesSaisie = {};
+    renderOuverture();
+  }
+
+  function renderOuverture() {
+    document.getElementById('titre').textContent = 'Comptage d\'ouverture';
+    document.getElementById('sousTitre').textContent = 'Le stock transmis est celui laissé par le quart précédent — comptez le vôtre, corrigez si besoin.';
+
+    const groupes = grouperParCategorie(produitsZone);
+    const html = groupes.map(g => `
+      <div class="cat-block">
+        <div class="cat-head">
+          <div class="cat-nom">${g.nom} (${g.items.length})</div>
+          <div class="cat-conforme" data-cat="${g.nom}">Tout conforme</div>
+        </div>
+        <div class="card">
+          ${g.items.map(p => renderLigneOuverture(p)).join('')}
+        </div>
+      </div>
+    `).join('');
+
+    document.getElementById('content').innerHTML = html + `
+      <button class="btn-primary" id="btnValiderOuverture">Valider mon inventaire d'ouverture</button>
+      <button class="btn-text" id="btnAnnulerOuverture">← Retour</button>
+    `;
+
+    document.querySelectorAll('.produit-input').forEach(el => {
+      el.addEventListener('input', () => majLigne(el.dataset.produit));
+    });
+    document.querySelectorAll('.btn-identique').forEach(el => {
+      el.addEventListener('click', () => {
+        const input = document.querySelector(`.produit-input[data-produit="${el.dataset.produit}"]`);
+        const transmis = dernierStock[el.dataset.produit];
+        input.value = transmis ? transmis.quantite : 0;
+        majLigne(el.dataset.produit);
+      });
+    });
+    document.querySelectorAll('.cat-conforme').forEach(el => {
+      el.addEventListener('click', () => {
+        produitsZone.filter(p => (p.inventaire_categories ? p.inventaire_categories.nom : 'Autres') === el.dataset.cat)
+          .forEach(p => {
+            const input = document.querySelector(`.produit-input[data-produit="${p.id}"]`);
+            const transmis = dernierStock[p.id];
+            input.value = transmis ? transmis.quantite : 0;
+            majLigne(p.id);
+          });
+      });
+    });
+    document.getElementById('btnValiderOuverture').addEventListener('click', validerOuverture);
+    document.getElementById('btnAnnulerOuverture').addEventListener('click', renderAccueil);
+  }
+
+  function renderLigneOuverture(p) {
+    const transmis = dernierStock[p.id];
+    const masque = estMasquePourProduit(p);
+    const saisie = comptagesSaisie[p.id];
+    const transmisTexte = transmis === undefined ? 'Premier comptage — pas d\'historique' : (masque ? 'masqué (mode à l\'aveugle)' : `Transmis : ${fmtNum(transmis ? transmis.quantite : 0)} ${p.unite}`);
+    return `
+      <div class="produit-row" id="ligne-${p.id}">
+        <div class="produit-nom-ligne">
+          <span class="produit-nom">${p.designation}</span>
+          ${p.sensible ? '<span class="badge-sensible">Sensible</span>' : ''}
+        </div>
+        <div class="produit-transmis">${transmisTexte}</div>
+        <div class="produit-controls" style="margin-top:8px;">
+          <input type="number" inputmode="decimal" step="0.01" class="produit-input" data-produit="${p.id}"
+                 placeholder="Votre comptage" onfocus="this.select()">
+          <button class="btn-identique" data-produit="${p.id}" ${masque ? 'disabled' : ''}>Identique</button>
+        </div>
+        <div class="ecart-tag" id="ecart-${p.id}"></div>
+        ${saisie && saisie.ecartNonNul ? `<input type="text" class="justif-input" data-produit="${p.id}" placeholder="Justification de l'écart (facultatif)" value="${saisie.justification || ''}">` : ''}
+      </div>
+    `;
+  }
+
+  function majLigne(produitId) {
+    const input = document.querySelector(`.produit-input[data-produit="${produitId}"]`);
+    const val = input.value === '' ? null : parseFloat(input.value);
+    const transmis = dernierStock[produitId] ? dernierStock[produitId].quantite : 0;
+    const ecartDiv = document.getElementById(`ecart-${produitId}`);
+    if (val === null || isNaN(val)) { ecartDiv.textContent = ''; comptagesSaisie[produitId] = undefined; return; }
+    const ecart = val - transmis;
+    const ecartNonNul = Math.abs(ecart) > 0.001;
+    ecartDiv.className = 'ecart-tag ' + (ecart === 0 ? 'ecart-ok' : (Math.abs(ecart) <= 2 ? 'ecart-warn' : 'ecart-bad'));
+    ecartDiv.textContent = ecart === 0 ? 'Conforme' : `Écart d'ouverture : ${ecart > 0 ? '+' : ''}${fmtNum(ecart)}`;
+    const justifInput = document.querySelector(`.justif-input[data-produit="${produitId}"]`);
+    comptagesSaisie[produitId] = { compte: val, ecartNonNul, justification: justifInput ? justifInput.value : (comptagesSaisie[produitId] ? comptagesSaisie[produitId].justification : '') };
+    if (ecartNonNul && !justifInput) renderOuverture(); // ré-affiche la ligne pour montrer le champ justification
+  }
+
+  async function validerOuverture() {
+    // capture les justifications avant de désactiver le bouton
+    document.querySelectorAll('.justif-input').forEach(el => {
+      if (comptagesSaisie[el.dataset.produit]) comptagesSaisie[el.dataset.produit].justification = el.value;
+    });
+
+    const btn = document.getElementById('btnValiderOuverture');
+    btn.disabled = true; btn.textContent = 'Enregistrement…';
+
+    let nbComptes = 0, nbEcarts = 0;
+    for (const p of produitsZone) {
+      const saisie = comptagesSaisie[p.id];
+      if (!saisie || saisie.compte === undefined) continue;
+      nbComptes++;
+      const transmis = dernierStock[p.id];
+      const valeurTransmise = transmis ? transmis.quantite : 0;
+
+      // Matérialise le stock transmis comme événement séparé, avec sa
+      // source explicite (jamais une valeur saisie librement).
+      const { data: evtTransmis, error: e1 } = await nexusClient.from('inventaire_comptages').insert({
+        site: employeeCourant.site_id || 'vito-sainte-marie', quart_id: quartRow.id, produit_id: p.id,
+        type_comptage: 'transmis', quantite: valeurTransmise,
+        comptage_source_id: transmis ? transmis.comptage_id : null, quantite_transmise: valeurTransmise,
+        source: 'auto',
+      }).select().single();
+      if (e1) console.error('Comptage transmis:', e1);
+
+      const { error: e2 } = await nexusClient.from('inventaire_comptages').insert({
+        site: employeeCourant.site_id || 'vito-sainte-marie', quart_id: quartRow.id, produit_id: p.id,
+        type_comptage: 'ouverture', quantite: saisie.compte, employee_id: employeeCourant.id,
+        comptage_source_id: evtTransmis ? evtTransmis.id : null, quantite_transmise: valeurTransmise,
+        source: 'manuel', commentaire: saisie.justification || null,
+      });
+      if (e2) console.error('Comptage ouverture:', e2);
+
+      if (saisie.ecartNonNul) {
+        nbEcarts++;
+        await nexusClient.from('inventaire_alertes').insert({
+          site: employeeCourant.site_id || 'vito-sainte-marie', quart_id: quartRow.id, produit_id: p.id,
+          type_alerte: 'ecart_ouverture', gravite: Math.abs(saisie.compte - valeurTransmise) > 2 ? 'critique' : 'attention',
+          valeur_attendue: valeurTransmise, valeur_constatee: saisie.compte,
+          resolution: saisie.justification ? `Justifié par l'employé : ${saisie.justification}` : null,
+        });
+      }
+    }
+
+    await nexusClient.from('inventaire_quart_employes').update({ a_valide_ouverture: true, heure_arrivee: quartEmployeRow.heure_arrivee || new Date().toISOString() }).eq('id', quartEmployeRow.id);
+    await nexusClient.from('inventaire_quarts').update({ statut: 'ouvert' }).eq('id', quartRow.id).eq('statut', 'ouverture_en_cours');
+    quartEmployeRow.a_valide_ouverture = true;
+
+    renderFinalOuverture(nbComptes, nbEcarts);
+  }
+
+  function renderFinalOuverture(nbComptes, nbEcarts) {
+    document.getElementById('titre').textContent = 'Inventaire d\'ouverture validé';
+    document.getElementById('sousTitre').textContent = '';
+    document.getElementById('content').innerHTML = `
+      <div class="resume-card">
+        <div class="checkmark">✓</div>
+        <div class="final-greet">Merci ${employeeCourant.nom}</div>
+        <div class="stat-row"><span class="stat-label">Produits comptés</span><span class="stat-value">${nbComptes}</span></div>
+        <div class="stat-row"><span class="stat-label">Écarts de passage de quart</span><span class="stat-value ${nbEcarts ? 'amber' : ''}">${nbEcarts}</span></div>
+      </div>
+      <button class="btn-primary" id="btnRetourAccueil">Retour</button>
+    `;
+    document.getElementById('btnRetourAccueil').addEventListener('click', renderAccueil);
+  }
+
+  // ------------------------------------------------------------
+  // CLÔTURE (fin de poste)
+  // ------------------------------------------------------------
+  const TYPES_MOUVEMENT = [
+    { value: 'reassort', label: 'Réassort réserve' },
+    { value: 'livraison', label: 'Livraison' },
+    { value: 'casse', label: 'Casse' },
+    { value: 'retrait', label: 'Retrait' },
+    { value: 'retour', label: 'Retour' },
+    { value: 'transfert', label: 'Transfert' },
+    { value: 'autre', label: 'Autre' },
+  ];
+
+  async function demarrerCloture() {
+    document.getElementById('content').innerHTML = '<div class="loading">Chargement…</div>';
+    if (!produitsZone.length) produitsZone = await chargerProduitsZone(zoneActive);
+    mouvementsSaisie = [];
+    comptagesSaisie = {};
+    renderCloture();
+  }
+
+  function renderCloture() {
+    document.getElementById('titre').textContent = 'Clôture de mon inventaire';
+    document.getElementById('sousTitre').textContent = 'Déclarez les mouvements connus, puis le stock physique final.';
+
+    const optionsProduits = produitsZone.map(p => `<option value="${p.id}">${p.designation}</option>`).join('');
+
+    document.getElementById('content').innerHTML = `
+      <div class="mouv-card">
+        <div class="mouv-titre">Mouvements pendant le quart</div>
+        <select class="mouv-select" id="mouvProduit" style="width:100%; margin-bottom:8px;">${optionsProduits}</select>
+        <div class="mouv-row">
+          <select class="mouv-select" id="mouvType">${TYPES_MOUVEMENT.map(t => `<option value="${t.value}">${t.label}</option>`).join('')}</select>
+          <input type="number" inputmode="decimal" class="mouv-qte" id="mouvQte" placeholder="Qté" onfocus="this.select()">
+        </div>
+        <input type="text" class="mouv-justif" id="mouvJustif" placeholder="Justification (ex : livraison Pitou Gaz du 02/08)">
+        <button class="btn-ghost" id="btnAjouterMouvement" style="margin-top:0;">+ Ajouter ce mouvement</button>
+        <div class="mouv-liste" id="listeMouvements"></div>
+      </div>
+
+      ${grouperParCategorie(produitsZone).map(g => `
+        <div class="cat-block">
+          <div class="cat-head"><div class="cat-nom">${g.nom} (${g.items.length})</div></div>
+          <div class="card">
+            ${g.items.map(p => renderLigneCloture(p)).join('')}
+          </div>
+        </div>
+      `).join('')}
+
+      <button class="btn-primary" id="btnValiderCloture">Clôturer mon inventaire</button>
+      <button class="btn-text" id="btnAnnulerCloture">← Retour</button>
+    `;
+
+    document.getElementById('btnAjouterMouvement').addEventListener('click', ajouterMouvement);
+    renderListeMouvements();
+
+    document.querySelectorAll('.produit-input').forEach(el => {
+      el.addEventListener('input', () => { comptagesSaisie[el.dataset.produit] = { compte: el.value === '' ? undefined : parseFloat(el.value) }; });
+    });
+    document.getElementById('btnValiderCloture').addEventListener('click', validerCloture);
+    document.getElementById('btnAnnulerCloture').addEventListener('click', renderAccueil);
+  }
+
+  function renderLigneCloture(p) {
+    return `
+      <div class="produit-row">
+        <div class="produit-nom-ligne">
+          <span class="produit-nom">${p.designation}</span>
+          ${p.sensible ? '<span class="badge-sensible">Sensible</span>' : ''}
+        </div>
+        <div class="produit-controls">
+          <input type="number" inputmode="decimal" step="0.01" class="produit-input" data-produit="${p.id}"
+                 placeholder="Stock final" onfocus="this.select()">
+        </div>
+      </div>
+    `;
+  }
+
+  function ajouterMouvement() {
+    const produitId = document.getElementById('mouvProduit').value;
+    const type = document.getElementById('mouvType').value;
+    const qte = parseFloat(document.getElementById('mouvQte').value);
+    const justif = document.getElementById('mouvJustif').value;
+    if (!produitId || isNaN(qte)) { alert('Choisissez un produit et une quantité.'); return; }
+    const produit = produitsZone.find(p => p.id === produitId);
+    mouvementsSaisie.push({ produit_id: produitId, designation: produit ? produit.designation : '', type_mouvement: type, quantite: qte, justification: justif });
+    document.getElementById('mouvQte').value = '';
+    document.getElementById('mouvJustif').value = '';
+    renderListeMouvements();
+  }
+
+  function renderListeMouvements() {
+    const el = document.getElementById('listeMouvements');
+    if (!el) return;
+    el.innerHTML = mouvementsSaisie.map((m, i) => `
+      <div class="mouv-item">
+        <span>${TYPES_MOUVEMENT.find(t=>t.value===m.type_mouvement).label} · ${m.designation} · ${m.quantite > 0 ? '+' : ''}${fmtNum(m.quantite)}</span>
+        <span class="rm" data-idx="${i}">✕</span>
+      </div>
+    `).join('');
+    el.querySelectorAll('.rm').forEach(rm => rm.addEventListener('click', () => {
+      mouvementsSaisie.splice(parseInt(rm.dataset.idx), 1);
+      renderListeMouvements();
+    }));
+  }
+
+  async function validerCloture() {
+    const manquants = produitsZone.filter(p => !comptagesSaisie[p.id] || comptagesSaisie[p.id].compte === undefined);
+    if (manquants.length) {
+      if (!confirm(`${manquants.length} produit(s) sans stock final saisi. Clôturer quand même ?`)) return;
+    }
+
+    const btn = document.getElementById('btnValiderCloture');
+    btn.disabled = true; btn.textContent = 'Enregistrement…';
+
+    // Mouvements déclarés
+    for (const m of mouvementsSaisie) {
+      const { error } = await nexusClient.from('inventaire_mouvements').insert({
+        site: employeeCourant.site_id || 'vito-sainte-marie', quart_id: quartRow.id, produit_id: m.produit_id,
+        type_mouvement: m.type_mouvement, quantite: m.quantite, employee_id: employeeCourant.id, justification: m.justification || null,
+      });
+      if (error) console.error('Mouvement:', error);
+    }
+
+    let nbClotures = 0;
+    for (const p of produitsZone) {
+      const saisie = comptagesSaisie[p.id];
+      if (!saisie || saisie.compte === undefined) continue;
+      nbClotures++;
+      const { error } = await nexusClient.from('inventaire_comptages').insert({
+        site: employeeCourant.site_id || 'vito-sainte-marie', quart_id: quartRow.id, produit_id: p.id,
+        type_comptage: 'cloture', quantite: saisie.compte, employee_id: employeeCourant.id, source: 'manuel', statut: 'valide',
+      });
+      if (error) console.error('Comptage clôture:', error);
+    }
+
+    await nexusClient.from('inventaire_quart_employes').update({ a_valide_cloture: true, heure_depart: new Date().toISOString() }).eq('id', quartEmployeRow.id);
+    await nexusClient.from('inventaire_quarts').update({ statut: 'cloture', cloture_le: new Date().toISOString() }).eq('id', quartRow.id);
+    quartEmployeRow.a_valide_cloture = true;
+
+    renderFinalCloture(nbClotures);
+  }
+
+  function renderFinalCloture(nbClotures) {
+    document.getElementById('titre').textContent = 'Inventaire de clôture validé';
+    document.getElementById('sousTitre').textContent = '';
+    document.getElementById('content').innerHTML = `
+      <div class="resume-card">
+        <div class="checkmark">✓</div>
+        <div class="final-greet">Merci ${employeeCourant.nom}</div>
+        <div class="stat-row"><span class="stat-label">Produits clôturés</span><span class="stat-value">${nbClotures}</span></div>
+        <div class="stat-row"><span class="stat-label">Mouvements déclarés</span><span class="stat-value">${mouvementsSaisie.length}</span></div>
+        <div class="ecoulement-note">Votre stock final devient le stock transmis du prochain quart. Le manager pourra rapprocher ces chiffres avec les ventes de caisse dès que l'export sera importé — ce n'est pas encore fait automatiquement.</div>
+      </div>
+      <button class="btn-primary" id="btnRetourAccueil">Retour</button>
+    `;
+    document.getElementById('btnRetourAccueil').addEventListener('click', renderAccueil);
+  }
+
+  // ------------------------------------------------------------
+  // INITIALISATION
+  // ------------------------------------------------------------
+  nexusRequireAuth().then(async employee => {
+    if (!employee) return; // nexus-auth.js gère déjà la redirection vers NEXUS-Login-v1.html
+    employeeCourant = employee;
+    quartActuel = quartDuMoment();
+    roleDuJour = await chargerRoleDuJour();
+    zonesAutorisees = zonesPourRole(roleDuJour);
+    zoneActive = zonesAutorisees[0];
+
+    const { data: zonas } = await nexusClient.from('inventaire_zones').select('id, code');
+    if (zonas) zonesMap = Object.fromEntries(zonas.map(z => [z.code, z.id]));
+
+    quartRow = await obtenirOuCreerQuart();
+    if (!quartRow) { document.getElementById('content').innerHTML = '<div class="loading">Impossible de charger l\'inventaire du quart. Réessayez.</div>'; return; }
+    quartEmployeRow = await obtenirOuCreerQuartEmploye();
+
+    if (quartEmployeRow && quartEmployeRow.zone_id) {
+      const codeConnu = Object.keys(zonesMap).find(code => zonesMap[code] === quartEmployeRow.zone_id);
+      if (codeConnu) zoneActive = codeConnu;
+    }
+
+    if (zonesAutorisees.length > 1 && !quartEmployeRow.zone_id) {
+      renderChoixZone();
+    } else {
+      renderAccueil();
+    }
+  });
+</script>
+</body>
+</html>
