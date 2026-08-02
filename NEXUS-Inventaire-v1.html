@@ -165,6 +165,19 @@
 
   .btn-primary{width:100%; padding:14px; border:none; border-radius:10px; font-size:14px; font-weight:600; background:var(--cyan); color:#04141a; cursor:pointer; margin-top:6px;}
   .btn-primary:disabled{opacity:0.35; cursor:not-allowed;}
+
+  /* Points animés pendant l'enregistrement (02/08/2026, demande de
+     Frédéric) : remplace le texte statique "Enregistrement…" sur les
+     boutons de validation — currentColor pour s'adapter à la couleur de
+     texte du bouton, quel qu'il soit. */
+  .btn-loading-dots{display:inline-flex; gap:3px; margin-left:6px; vertical-align:middle;}
+  .btn-loading-dots i{width:4px; height:4px; border-radius:50%; background:currentColor; display:inline-block; font-style:normal; animation:btnDotsBounce 1.2s infinite ease-in-out;}
+  .btn-loading-dots i:nth-child(2){animation-delay:0.15s;}
+  .btn-loading-dots i:nth-child(3){animation-delay:0.3s;}
+  @keyframes btnDotsBounce{
+    0%, 80%, 100%{opacity:0.25; transform:translateY(0);}
+    40%{opacity:1; transform:translateY(-2px);}
+  }
   .btn-ghost{width:100%; padding:12px; border:1px solid var(--hairline); border-radius:10px; background:transparent; color:var(--text-mid); font-size:13px; cursor:pointer; margin-top:8px;}
   .btn-text{width:100%; padding:12px; border:none; background:none; color:var(--text-dim); font-size:12.5px; cursor:pointer; margin-top:4px;}
 
@@ -966,7 +979,7 @@
     });
 
     const btn = document.getElementById('btnTerminerOuverture');
-    if (btn) { btn.disabled = true; btn.textContent = 'Enregistrement…'; }
+    if (btn) { btn.disabled = true; btn.innerHTML = 'Nous traitons vos informations<span class="btn-loading-dots"><i></i><i></i><i></i></span>'; }
 
     let nbComptes = 0, nbEcarts = 0;
     for (const p of produitsZone) {
@@ -1149,7 +1162,7 @@
     }
 
     const btn = document.getElementById('btnValiderCloture');
-    btn.disabled = true; btn.textContent = 'Enregistrement…';
+    btn.disabled = true; btn.innerHTML = 'Nous traitons vos informations<span class="btn-loading-dots"><i></i><i></i><i></i></span>';
 
     // Mouvements déclarés
     for (const m of mouvementsSaisie) {
