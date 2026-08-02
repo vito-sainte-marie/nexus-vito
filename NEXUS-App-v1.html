@@ -654,17 +654,6 @@
         </div>
         <div class="nav-arrow">›</div>
       </a>
-      <!-- Anomalies Inventaire (02/08/2026, demande de Frédéric — tâche #82) :
-           alertes d'écarts, produits sensibles non comptés, décisions et
-           activation du mode de comptage à l'aveugle par employé. -->
-      <a class="nav-item" data-role="manager" href="NEXUS-Inventaire-Manager-v1.html">
-        <div class="nav-icon" style="display:flex; align-items:center; justify-content:center; font-size:20px;">🧭</div>
-        <div class="nav-body">
-          <div class="nav-title">Anomalies Inventaire</div>
-          <div class="nav-desc">Écarts, décisions et mode à l'aveugle</div>
-        </div>
-        <div class="nav-arrow">›</div>
-      </a>
     </nav>
   </div>
 
@@ -732,6 +721,19 @@
         <div class="nav-body">
           <div class="nav-title">Inventaire</div>
           <div class="nav-desc">Comptages d'ouverture et de clôture de quart</div>
+        </div>
+        <div class="nav-arrow">›</div>
+      </a>
+      <!-- Alerte inventaire quotidien (02/08/2026, demande de Frédéric) :
+           déplacé de Piloter vers Exécuter (juste à côté du comptage
+           lui-même) et renommé — alertes d'écarts, produits sensibles non
+           comptés, décisions et activation du mode de comptage à l'aveugle
+           par employé. -->
+      <a class="nav-item" data-role="manager" href="NEXUS-Inventaire-Manager-v1.html">
+        <div class="nav-icon" style="display:flex; align-items:center; justify-content:center; font-size:20px;">🧭</div>
+        <div class="nav-body">
+          <div class="nav-title">Alerte inventaire quotidien</div>
+          <div class="nav-desc">Les produits qui nécessitent votre attention</div>
         </div>
         <div class="nav-arrow">›</div>
       </a>
@@ -1067,6 +1069,17 @@
     if (total == null) return { restantes: null };
     const faitesAujourdhui = new Set((completionsRes.data || []).map(r => r.mission_id)).size;
     return { restantes: Math.max(0, total - faitesAujourdhui) };
+  }
+
+  // Alerte inventaire quotidien (02/08/2026, demande de Frédéric) : nombre
+  // réel d'alertes inventaire_alertes encore ouvertes (écarts non résolus),
+  // tous quarts confondus — même donnée que la carte "Alertes ouvertes" de
+  // NEXUS-Inventaire-Manager-v1.html, jamais un chiffre inventé.
+  async function chargerAlertesInventaireHome(siteId) {
+    const { count, error } = await nexusClient.from('inventaire_alertes')
+      .select('id', { count: 'exact', head: true }).eq('site', siteId).eq('statut', 'ouverte');
+    if (error) { console.error('Chargement alertes inventaire (accueil):', error); return null; }
+    return count;
   }
 
   // ------------------------------------------------------------
@@ -1700,7 +1713,7 @@
   // affiche "rien d'urgent" n'aide jamais une lecture en 10 secondes. Le
   // chip n'apparaît désormais que s'il y a réellement un rappel à traiter ;
   // les 3 autres chips prennent alors toute la grille.
-  function renderKpiGrid({ missionsRestantes, nbRappels, decisionsSemaine, employesASurveiller }) {
+  function renderKpiGrid({ missionsRestantes, nbRappels, decisionsSemaine, employesASurveiller, alertesInventaire }) {
     const chips = [];
     chips.push(`
       <a class="kpi-chip" href="NEXUS-Missions-v1.html">
@@ -1715,6 +1728,18 @@
           <div class="kpi-chip-label">Rappels</div>
           <div class="kpi-chip-value" style="color:var(--red);">${nbRappels}</div>
           <div class="kpi-chip-sub">à traiter sous 24h</div>
+        </a>
+      `);
+    }
+    // Alerte inventaire quotidien (02/08/2026, demande de Frédéric) : même
+    // logique que Rappels — n'occupe une case que s'il y a réellement un
+    // écart à traiter.
+    if (alertesInventaire > 0) {
+      chips.push(`
+        <a class="kpi-chip" href="NEXUS-Inventaire-Manager-v1.html">
+          <div class="kpi-chip-label">Alerte inventaire quotidien</div>
+          <div class="kpi-chip-value" style="color:var(--amber);">${alertesInventaire}</div>
+          <div class="kpi-chip-sub">produit(s) nécessitant votre attention</div>
         </a>
       `);
     }
@@ -1824,6 +1849,7 @@
       constatTempo,
       messagesAdvisor,
       dernierEtatStock,
+      alertesInventaire,
     ] = await Promise.all([
       calculerCandidatsHome(SITE_HOME),
       chargerValideesHome(SITE_HOME),
@@ -1835,6 +1861,7 @@
       chargerConstatTempoHome(SITE_HOME),
       chargerMessagesAdvisorHome(SITE_HOME),
       chargerStockSanteHome(SITE_HOME),
+      chargerAlertesInventaireHome(SITE_HOME),
     ]);
     afficherHeureRecalcul();
 
@@ -1881,6 +1908,7 @@
       nbRappels: compterRappelsUrgents(),
       decisionsSemaine,
       employesASurveiller: domainesRadar.employesASurveiller,
+      alertesInventaire,
     });
 
     // Priorités / à surveiller / meilleure opportunité (26/07/2026, demande
@@ -2031,7 +2059,7 @@
     { label: 'Capital NEXUS', desc: 'La valeur créée par vos décisions', href: 'NEXUS-Capital-v1.html', role: 'manager', forfait: 'professional' },
     { label: 'Scanner NEXUS', desc: 'CA, marge et répartition ABC du magasin', href: 'NEXUS-Scanner-v1.html', role: 'manager', forfait: 'professional' },
     { label: 'Radar du Manager', desc: '8 domaines de responsabilité', href: 'NEXUS-Radar-Manager-v1.html', role: 'manager', forfait: 'professional' },
-    { label: 'Anomalies Inventaire', desc: "Écarts, décisions et mode à l'aveugle", href: 'NEXUS-Inventaire-Manager-v1.html', role: 'manager' },
+    { label: 'Alerte inventaire quotidien', desc: 'Les produits qui nécessitent votre attention', href: 'NEXUS-Inventaire-Manager-v1.html', role: 'manager' },
     { label: 'Rayon', desc: 'CA, marge, top ventes par catégorie', href: 'NEXUS-Rayon-v1.html', role: 'manager' },
     { label: 'Produits', desc: 'Fiche complète par référence', href: 'NEXUS-Produits-v1.html', role: 'manager' },
     { label: 'Tempo', desc: 'Les jours qui portent votre station, ceux qui la ralentissent', href: 'NEXUS-Tempo-v1.html', role: 'manager', forfait: 'professional' },

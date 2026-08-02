@@ -47,7 +47,6 @@ const NEXUS_SIDEBAR_GROUPES = [
       { label: 'Capital NEXUS', href: 'NEXUS-Capital-v1.html', icon: 'assets/icons/icon-capital.png' },
       { label: 'Scanner NEXUS', href: 'NEXUS-Scanner-v1.html', icon: 'assets/icons/icon-scanner.png' },
       { label: 'Radar du Manager', href: 'NEXUS-Radar-Manager-v1.html', icon: 'assets/icons/icon-radar.png' },
-      { label: 'Anomalies Inventaire', href: 'NEXUS-Inventaire-Manager-v1.html', icon: null, emoji: '🧭' },
     ],
   },
   {
@@ -63,7 +62,8 @@ const NEXUS_SIDEBAR_GROUPES = [
     nom: 'Exécuter',
     items: [
       { label: 'Verify', href: 'NEXUS-Verify-v1.html', icon: 'assets/icons/icon-nexus-verify.png' },
-      { label: 'Inventaire', href: 'NEXUS-Inventaire-v1.html', icon: null, emoji: '📋' },
+      { label: 'Inventaire', href: 'NEXUS-Inventaire-v1.html', icon: 'assets/icons/icon-inventaire.png' },
+      { label: 'Alerte inventaire quotidien', href: 'NEXUS-Inventaire-Manager-v1.html', icon: null, emoji: '🧭' },
       { label: 'Missions', href: 'NEXUS-Missions-v1.html', icon: 'assets/icons/icon-missions.png' },
       { label: 'Assignations', href: 'NEXUS-Assignations-v1.html', icon: 'assets/icons/icon-assignations.png' },
       { label: 'Planning', href: 'NEXUS-Planning-v1.html', icon: 'assets/icons/icon-planner.png' },
