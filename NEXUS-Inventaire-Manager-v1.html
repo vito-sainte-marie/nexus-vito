@@ -51,6 +51,15 @@
   .card{background:var(--panel); border:1px solid var(--hairline); border-radius:12px; padding:4px 14px;}
 
   .section-titre{font-family:var(--mono); font-size:11px; text-transform:uppercase; letter-spacing:0.05em; color:var(--text-mid); margin:22px 0 10px;}
+  .section-titre-action-row{display:flex; align-items:center; justify-content:space-between; gap:10px; margin:22px 0 10px;}
+  .section-titre-action-row .section-titre{margin:0;}
+  /* Tout valider (02/08/2026, demande de Frédéric) : valide en une fois
+     toutes les alertes ouvertes du quart affiché, avec le même circuit que
+     "Valider" alerte par alerte (décision + trace d'audit) — jamais une
+     suppression silencieuse groupée. */
+  .btn-tout-valider{font-family:var(--sans); font-size:11px; font-weight:600; padding:6px 12px; border-radius:20px; border:1px solid rgba(52,211,153,0.4); background:rgba(52,211,153,0.08); color:var(--green); cursor:pointer; white-space:nowrap; flex-shrink:0;}
+  .btn-tout-valider:active{background:rgba(52,211,153,0.18);}
+  .btn-tout-valider:disabled{opacity:0.4; pointer-events:none;}
   .section-titre:first-of-type{margin-top:0;}
 
   /* Sélecteur date / quart */
@@ -323,20 +332,43 @@
   // ------------------------------------------------------------
   // ACTIONS MANAGER
   // ------------------------------------------------------------
-  async function resoudreAlerte(alerteId, decision, commentaireLibre) {
+  // Cœur commun à la résolution d'une alerte, sans rechargement — permet de
+  // réutiliser exactement le même circuit (décision + trace d'audit) que ce
+  // soit pour une alerte seule (resoudreAlerte) ou en masse
+  // (validerToutesAlertes), jamais une suppression silencieuse groupée.
+  async function resoudreAlerteSansRecharger(alerteId, decision, commentaireLibre) {
     const commentaire = [decision.texte, commentaireLibre].filter(Boolean).join(' — ');
     const { error } = await nexusClient.from('inventaire_alertes').update({
       statut: 'resolue', resolution: decision.value, commentaire_manager: commentaire,
       assignee_a: managerCourant.id, resolue_le: new Date().toISOString(),
     }).eq('id', alerteId);
-    if (error) { console.error('Résolution alerte:', error); alert('Erreur — réessayez.'); await chargerEtAfficherTout(); return; }
+    if (error) { console.error('Résolution alerte:', error); return false; }
 
     await nexusClient.from('inventaire_audit_log').insert({
       site: siteId, quart_id: quartRow ? quartRow.id : null, entite_type: 'inventaire_alertes', entite_id: alerteId,
       action: 'resolution_alerte', ancienne_valeur: { statut: 'ouverte' }, nouvelle_valeur: { statut: 'resolue', resolution: decision.value },
       acteur_id: managerCourant.id, motif: commentaireLibre || null,
     });
+    return true;
+  }
 
+  async function resoudreAlerte(alerteId, decision, commentaireLibre) {
+    const ok = await resoudreAlerteSansRecharger(alerteId, decision, commentaireLibre);
+    if (!ok) alert('Erreur — réessayez.');
+    await chargerEtAfficherTout();
+  }
+
+  // Tout valider (02/08/2026, demande de Frédéric) : résout chaque alerte
+  // ouverte du quart avec la décision "Valider" — même trace d'audit que si
+  // le manager avait cliqué "Valider" alerte par alerte.
+  async function validerToutesAlertes(alertes) {
+    const decision = DECISIONS.find(d => d.value === 'validee');
+    let erreurs = 0;
+    for (const a of alertes) {
+      const ok = await resoudreAlerteSansRecharger(a.id, decision, '');
+      if (!ok) erreurs++;
+    }
+    if (erreurs > 0) alert(`${erreurs} alerte(s) n'ont pas pu être validée(s) — réessayez si besoin.`);
     await chargerEtAfficherTout();
   }
 
@@ -537,7 +569,10 @@
       </div>
 
       ${quartRow ? `
-        <div class="section-titre">Alertes ouvertes</div>
+        <div class="section-titre-action-row">
+          <div class="section-titre">Alertes ouvertes</div>
+          ${alertesOuvertes.length > 0 ? '<button class="btn-tout-valider" id="btnToutValider">Tout valider</button>' : ''}
+        </div>
         ${alertesOuvertes.length === 0 ? '<div class="empty">Aucune alerte ouverte sur ce quart.</div>' : alertesOuvertes.map(a => renderAlerteCard(a)).join('')}
 
         <div class="section-titre">Produits sensibles non comptés</div>
@@ -577,6 +612,13 @@
       document.querySelectorAll(`.alerte-card[data-id="${btn.dataset.id}"] .btn-decision`).forEach(b => b.disabled = true);
       await resoudreAlerte(btn.dataset.id, decision, commentaireLibre);
     }));
+    const btnToutValider = document.getElementById('btnToutValider');
+    if (btnToutValider) btnToutValider.addEventListener('click', async () => {
+      if (!confirm(`Valider les ${alertesOuvertes.length} alerte(s) ouverte(s) de ce quart ? Cette action ne peut pas être annulée.`)) return;
+      btnToutValider.disabled = true;
+      btnToutValider.textContent = 'Validation en cours…';
+      await validerToutesAlertes(alertesOuvertes);
+    });
     document.querySelectorAll('.toggle-switch').forEach(el => el.addEventListener('click', async () => {
       const actif = el.dataset.actif === '1';
       el.style.pointerEvents = 'none';
