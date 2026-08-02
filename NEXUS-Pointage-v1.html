@@ -14,6 +14,7 @@
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-auth.js"></script>
+<script src="nexus-desktop.js"></script>
 <style>
   :root{
     --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
@@ -129,7 +130,9 @@
     <div class="service-live" id="serviceLive"></div>
   </div>
   <div class="divider"></div>
-  <div class="section" id="app">
+  <!-- desktop-grid (02/08/2026) : mise en colonnes en vue bureau (voir
+       nexus-desktop.js) — purement additif, aucun effet en mobile. -->
+  <div class="section desktop-grid" id="app">
     <div class="info-note">Chargement de votre journée…</div>
   </div>
   <footer>NEXUS Pointage v1 · Vito Sainte-Marie Usine</footer>

@@ -14,6 +14,7 @@
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-auth.js"></script>
+<script src="nexus-desktop.js"></script>
 <script src="nexus-forfait.js"></script>
 <style>
   :root{
@@ -109,7 +110,9 @@
   <div class="divider"></div>
   <div class="registre-tag">🗒 Registre officiel — le Journal n'analyse rien et ne juge rien. Il enregistre chaque fait avec son heure, comme une boîte noire.</div>
 
-  <div class="section" id="root">
+  <!-- desktop-grid (02/08/2026) : mise en colonnes en vue bureau (voir
+       nexus-desktop.js) — purement additif, aucun effet en mobile. -->
+  <div class="section desktop-grid" id="root">
     <div class="loading">Chargement…</div>
   </div>
 

@@ -14,6 +14,7 @@
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-auth.js"></script>
+<script src="nexus-desktop.js"></script>
 <style>
   :root{
     --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
@@ -105,7 +106,9 @@
   </div>
   <div class="divider"></div>
 
-  <div class="section" id="root">
+  <!-- desktop-grid (02/08/2026) : mise en colonnes en vue bureau (voir
+       nexus-desktop.js) — purement additif, aucun effet en mobile. -->
+  <div class="section desktop-grid" id="root">
     <div class="loading">Chargement…</div>
   </div>
 
@@ -151,7 +154,7 @@
   }
 
   function renderKeys(data) {
-    if (!data || data.length === 0) return '<p class="note">Aucune clé générée pour l\\'instant.</p>';
+    if (!data || data.length === 0) return '<p class="note">Aucune clé générée pour l\'instant.</p>';
     const rows = data.map(k => {
       const revoquee = !!k.revoque_le;
       const expiree = k.expire_le && new Date(k.expire_le) < new Date();
@@ -170,7 +173,7 @@
   }
 
   function renderLogs(data) {
-    if (!data || data.length === 0) return '<p class="note">Aucun appel enregistré pour l\\'instant.</p>';
+    if (!data || data.length === 0) return '<p class="note">Aucun appel enregistré pour l\'instant.</p>';
     const rows = data.map(l => {
       const pillClass = l.status_code < 300 ? 'ok' : l.status_code < 500 ? 'warn' : 'err';
       return `<tr>
@@ -184,7 +187,7 @@
   }
 
   function renderSyncHistory(data) {
-    if (!data || data.length === 0) return '<p class="note">Aucune synchronisation enregistrée pour l\\'instant.</p>';
+    if (!data || data.length === 0) return '<p class="note">Aucune synchronisation enregistrée pour l\'instant.</p>';
     const rows = data.map(s => {
       const pillClass = s.statut === 'succes' ? 'ok' : s.statut === 'en_cours' ? 'warn' : 'err';
       return `<tr>

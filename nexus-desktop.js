@@ -166,6 +166,22 @@ const NEXUS_DESKTOP_CSS = `
     }
     .nexus-vue-bureau-flottant:hover{background:#1A222C;}
   }
+
+  /* Mise en colonnes générique (02/08/2026) — un seul wrapper réutilisable
+     sur tous les écrans NEXUS plutôt que du CSS dupliqué dans chaque
+     <style> : chaque écran enveloppe sa pile de blocs dans
+     <div class="desktop-grid">...</div> (purement additif, aucun effet en
+     mobile) pour obtenir une vraie mise en colonnes en vue bureau, comme
+     NEXUS Verify. Un écran peut ensuite affiner (ex: .app-top-row de
+     NEXUS-App-v1 pour la paire Conseiller/État global) sans toucher à ce
+     comportement par défaut.
+     Règle générique sur "> *" (02/08/2026) et non seulement "> .card" : les
+     écrans NEXUS n'utilisent pas tous la même convention pour leurs blocs
+     (.card sur certains écrans, .section sur d'autres) — cette règle
+     s'applique donc à n'importe quel enfant direct du conteneur, quelle que
+     soit sa classe, pour couvrir tous les écrans avec un seul wrapper. */
+  body.nexus-desktop .desktop-grid{column-count:2; column-gap:20px; column-fill:balance;}
+  body.nexus-desktop .desktop-grid > *{break-inside:avoid; -webkit-column-break-inside:avoid; page-break-inside:avoid;}
 `;
 
 function nexusInitVueBureau() {

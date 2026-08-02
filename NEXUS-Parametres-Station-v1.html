@@ -109,6 +109,7 @@
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-auth.js"></script>
+<script src="nexus-desktop.js"></script>
 </head>
 <body>
 <div class="phone">
@@ -120,7 +121,9 @@
   </div>
   <div class="divider"></div>
 
-  <div class="section">
+  <!-- desktop-grid (02/08/2026) : mise en colonnes en vue bureau (voir
+       nexus-desktop.js) — purement additif, aucun effet en mobile. -->
+  <div class="section desktop-grid">
     <div class="card" id="cardForfait">
       <div class="section-label">Forfait NEXUS</div>
       <div id="forfaitActuel" class="forfait-actuel essential">Chargement…</div>
