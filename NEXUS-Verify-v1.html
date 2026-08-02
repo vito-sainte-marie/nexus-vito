@@ -148,6 +148,19 @@
   .emp-checkbox.checked{background:var(--cyan); border-color:var(--cyan); color:#04141a;}
   .emp-empty{padding:10px 6px; color:var(--text-dim); font-size:12px;}
 
+  /* Cartes repliables (02/08/2026, demande de Frédéric) — les sections
+     "épisode rare" (dépenses ponctuelles, remise en cuve, autres éléments)
+     démarrent fermées pour réduire la hauteur du formulaire sur mobile.
+     Le total déjà saisi reste visible dans l'en-tête même fermé — rien
+     n'est jamais masqué, seulement replié tant qu'il n'y a rien à vérifier. */
+  .card-toggle{display:flex; align-items:center; gap:10px; cursor:pointer; -webkit-tap-highlight-color:transparent;}
+  .card-toggle-label{font-family:var(--mono); font-size:10.5px; letter-spacing:0.08em; text-transform:uppercase; color:var(--text-dim); flex:1;}
+  .card-toggle-total{font-family:var(--mono); font-size:11px; color:var(--text-mid); white-space:nowrap;}
+  .card-toggle-chevron{color:var(--text-dim); font-size:12px; flex-shrink:0; transition:transform 0.15s;}
+  .card-collapsible.open .card-toggle-chevron{transform:rotate(180deg);}
+  .card-body{display:none; margin-top:12px;}
+  .card-collapsible.open .card-body{display:block;}
+
   .row2{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
   label.f{font-size:11.5px; color:var(--text-mid); display:block; margin-bottom:5px;}
   select, input[type=text], input[type=number], input[type=date], textarea{
@@ -293,7 +306,7 @@
           <div class="dc-option-icon"><img src="icon-nexus-import-sheets.png" alt=""></div>
           <div>
             <div class="dc-option-eyebrow">Connexion récurrente</div>
-            <div class="dc-option-title">Connecter Google Sheets</div>
+            <div class="dc-option-title" id="v_sheets_titre">Connecter Google Sheets</div>
           </div>
           <span class="dc-badge dc-badge-off" id="v_sheets_badge">Non connecté</span>
         </div>
@@ -403,36 +416,54 @@
       <input type="text" inputmode="decimal" id="v_drop_boutique_cb" placeholder="0,00">
     </div>
 
-    <div class="card">
-      <div class="section-label">Dépenses ponctuelles / Règlements fournisseurs</div>
-      <div class="note">Rare — une ligne par dépense, avec la caisse concernée (facture fournisseur comme justificatif).</div>
-      <div id="depensesListe"></div>
-      <button type="button" class="btn-add" id="btnAddDepense">+ Ajouter une dépense</button>
-      <div class="total-ligne">Piste : <span id="totalDepensesPiste">0,00 €</span> · Boutique : <span id="totalDepensesBoutique">0,00 €</span></div>
+    <div class="card card-collapsible" id="cardDepenses">
+      <div class="card-toggle" data-toggle="cardDepenses">
+        <div class="card-toggle-label">Dépenses ponctuelles / Règlements fournisseurs</div>
+        <span class="card-toggle-total" id="v_apercu_depenses">0,00 €</span>
+        <span class="card-toggle-chevron">▾</span>
+      </div>
+      <div class="card-body">
+        <div class="note">Rare — une ligne par dépense, avec la caisse concernée (facture fournisseur comme justificatif).</div>
+        <div id="depensesListe"></div>
+        <button type="button" class="btn-add" id="btnAddDepense">+ Ajouter une dépense</button>
+        <div class="total-ligne">Piste : <span id="totalDepensesPiste">0,00 €</span> · Boutique : <span id="totalDepensesBoutique">0,00 €</span></div>
+      </div>
     </div>
 
-    <div class="card">
-      <div class="section-label">Remise en cuve</div>
-      <div class="note">Litrage remis en cuve par carburant — le montant est calculé automatiquement avec le prix du mois en cours (indexé par la préfecture de Martinique, à saisir dans Paramètres Station le 1ᵉʳ de chaque mois). Ce montant est déduit du théorique piste : ce carburant a été débité par la pompe mais jamais payé par un client.</div>
-      <div id="alertePrixCarburants" style="display:none; font-family:var(--mono); font-size:11px; color:var(--amber); background:var(--amber-dim); border-radius:8px; padding:8px 10px; margin-bottom:12px; line-height:1.5;"></div>
-      <label class="f">Sans plomb (SP) — litres</label>
-      <input type="text" inputmode="decimal" id="v_cuve_sp_litres" placeholder="0,00">
-      <label class="f">Gasoil (GO) — litres</label>
-      <input type="text" inputmode="decimal" id="v_cuve_go_litres" placeholder="0,00">
-      <label class="f">Gasoil non routier (GNR) — litres</label>
-      <input type="text" inputmode="decimal" id="v_cuve_gnr_litres" placeholder="0,00">
-      <div class="total-ligne">Montant remise en cuve : <span id="v_remise_cuve_montant">0,00 €</span></div>
+    <div class="card card-collapsible" id="cardCuve">
+      <div class="card-toggle" data-toggle="cardCuve">
+        <div class="card-toggle-label">Remise en cuve</div>
+        <span class="card-toggle-total" id="v_apercu_cuve">0,00 €</span>
+        <span class="card-toggle-chevron">▾</span>
+      </div>
+      <div class="card-body">
+        <div class="note">Litrage remis en cuve par carburant — le montant est calculé automatiquement avec le prix du mois en cours (indexé par la préfecture de Martinique, à saisir dans Paramètres Station le 1ᵉʳ de chaque mois). Ce montant est déduit du théorique piste : ce carburant a été débité par la pompe mais jamais payé par un client.</div>
+        <div id="alertePrixCarburants" style="display:none; font-family:var(--mono); font-size:11px; color:var(--amber); background:var(--amber-dim); border-radius:8px; padding:8px 10px; margin-bottom:12px; line-height:1.5;"></div>
+        <label class="f">Sans plomb (SP) — litres</label>
+        <input type="text" inputmode="decimal" id="v_cuve_sp_litres" placeholder="0,00">
+        <label class="f">Gasoil (GO) — litres</label>
+        <input type="text" inputmode="decimal" id="v_cuve_go_litres" placeholder="0,00">
+        <label class="f">Gasoil non routier (GNR) — litres</label>
+        <input type="text" inputmode="decimal" id="v_cuve_gnr_litres" placeholder="0,00">
+        <div class="total-ligne">Montant remise en cuve : <span id="v_remise_cuve_montant">0,00 €</span></div>
+      </div>
     </div>
 
-    <div class="card">
-      <div class="section-label">Autres éléments</div>
-      <label class="f">Paiement vacataire / heures supplémentaires (espèces)</label>
-      <div class="note">Rare — une ligne par paiement en espèces sorti d'une caisse, avec la caisse concernée. S'ajoute à l'expliqué de cette caisse.</div>
-      <div id="vacataireListe"></div>
-      <button type="button" class="btn-add" id="btnAddVacataire">+ Ajouter un paiement</button>
-      <div class="total-ligne">Piste : <span id="totalVacatairePiste">0,00 €</span> · Boutique : <span id="totalVacataireBoutique">0,00 €</span></div>
-      <label class="f" style="margin-top:14px;">Commentaire (optionnel)</label>
-      <textarea id="v_commentaire" style="min-height:60px;"></textarea>
+    <div class="card card-collapsible" id="cardAutres">
+      <div class="card-toggle" data-toggle="cardAutres">
+        <div class="card-toggle-label">Autres éléments</div>
+        <span class="card-toggle-total" id="v_apercu_autres">0,00 €</span>
+        <span class="card-toggle-chevron">▾</span>
+      </div>
+      <div class="card-body">
+        <label class="f">Paiement vacataire / heures supplémentaires (espèces)</label>
+        <div class="note">Rare — une ligne par paiement en espèces sorti d'une caisse, avec la caisse concernée. S'ajoute à l'expliqué de cette caisse.</div>
+        <div id="vacataireListe"></div>
+        <button type="button" class="btn-add" id="btnAddVacataire">+ Ajouter un paiement</button>
+        <div class="total-ligne">Piste : <span id="totalVacatairePiste">0,00 €</span> · Boutique : <span id="totalVacataireBoutique">0,00 €</span></div>
+        <label class="f" style="margin-top:14px;">Commentaire (optionnel)</label>
+        <textarea id="v_commentaire" style="min-height:60px;"></textarea>
+      </div>
     </div>
 
     <button class="btn btn-primary" id="btnCalculer">Calculer et enregistrer</button>
@@ -1113,18 +1144,22 @@
       const badge = document.getElementById('v_sheets_badge');
       const dis = document.getElementById('v_sheets_disconnected');
       const con = document.getElementById('v_sheets_connected');
+      const titre = document.getElementById('v_sheets_titre');
       if (!badge || !dis || !con) return;
       badge.classList.remove('dc-badge-off', 'dc-badge-on', 'dc-badge-err');
       if (etat === 'connecte') {
         badge.textContent = 'Connecté'; badge.classList.add('dc-badge-on');
         dis.style.display = 'none'; con.style.display = 'block';
+        if (titre) titre.textContent = 'Google Sheets connecté';
       } else if (etat === 'erreur') {
         badge.textContent = 'Erreur de connexion'; badge.classList.add('dc-badge-err');
         dis.style.display = 'block'; con.style.display = 'none';
         dis.innerHTML = `<div class="dc-hint" style="color:var(--red);">${message}</div>`;
+        if (titre) titre.textContent = 'Connecter Google Sheets';
       } else {
         badge.textContent = 'Non connecté'; badge.classList.add('dc-badge-off');
         dis.style.display = 'block'; con.style.display = 'none';
+        if (titre) titre.textContent = 'Connecter Google Sheets';
       }
     }
 
@@ -1263,7 +1298,10 @@
     }
 
     function majAffichageCuve() {
-      document.getElementById('v_remise_cuve_montant').textContent = calculerMontantCuve().toFixed(2).replace('.', ',') + ' €';
+      const montant = calculerMontantCuve().toFixed(2).replace('.', ',') + ' €';
+      document.getElementById('v_remise_cuve_montant').textContent = montant;
+      const apercu = document.getElementById('v_apercu_cuve');
+      if (apercu) apercu.textContent = montant;
     }
     ['v_cuve_sp_litres', 'v_cuve_go_litres', 'v_cuve_gnr_litres'].forEach(id => {
       document.getElementById(id).addEventListener('input', majAffichageCuve);
@@ -1533,14 +1571,31 @@
     }
     function majTotauxListes() {
       document.getElementById('totalBonsPiste').textContent = sommeBons().toFixed(2).replace('.', ',') + ' €';
-      document.getElementById('totalDepensesPiste').textContent = sommeDepenses('piste').toFixed(2).replace('.', ',') + ' €';
-      document.getElementById('totalDepensesBoutique').textContent = sommeDepenses('boutique').toFixed(2).replace('.', ',') + ' €';
-      document.getElementById('totalVacatairePiste').textContent = sommeVacataire('piste').toFixed(2).replace('.', ',') + ' €';
-      document.getElementById('totalVacataireBoutique').textContent = sommeVacataire('boutique').toFixed(2).replace('.', ',') + ' €';
+      const depensesPiste = sommeDepenses('piste'), depensesBoutique = sommeDepenses('boutique');
+      document.getElementById('totalDepensesPiste').textContent = depensesPiste.toFixed(2).replace('.', ',') + ' €';
+      document.getElementById('totalDepensesBoutique').textContent = depensesBoutique.toFixed(2).replace('.', ',') + ' €';
+      const apercuDepenses = document.getElementById('v_apercu_depenses');
+      if (apercuDepenses) apercuDepenses.textContent = (depensesPiste + depensesBoutique).toFixed(2).replace('.', ',') + ' €';
+
+      const vacatairePiste = sommeVacataire('piste'), vacataireBoutique = sommeVacataire('boutique');
+      document.getElementById('totalVacatairePiste').textContent = vacatairePiste.toFixed(2).replace('.', ',') + ' €';
+      document.getElementById('totalVacataireBoutique').textContent = vacataireBoutique.toFixed(2).replace('.', ',') + ' €';
+      const apercuAutres = document.getElementById('v_apercu_autres');
+      if (apercuAutres) apercuAutres.textContent = (vacatairePiste + vacataireBoutique).toFixed(2).replace('.', ',') + ' €';
+
       document.getElementById('totalCarteFidelite').textContent = sommeCarteFidelite().toFixed(2).replace('.', ',') + ' €';
       document.getElementById('totalReglementPiste').textContent = sommeReglementCompte('piste').toFixed(2).replace('.', ',') + ' €';
       document.getElementById('totalReglementBoutique').textContent = sommeReglementCompte('boutique').toFixed(2).replace('.', ',') + ' €';
     }
+
+    // Cartes repliables (02/08/2026) — un seul clic sur l'en-tête ouvre/ferme
+    // la carte ; générique, pas besoin d'un handler par carte.
+    document.querySelectorAll('.card-toggle[data-toggle]').forEach(toggle => {
+      toggle.addEventListener('click', () => {
+        const carte = document.getElementById(toggle.dataset.toggle);
+        if (carte) carte.classList.toggle('open');
+      });
+    });
     // Une ligne vide par defaut, pour ne pas partir d'un ecran nu
     ajouterLigneBon();
     ajouterLigneDepense();
@@ -1985,6 +2040,16 @@
       }
       if (!a.paiement_vacataire_piste && !a.paiement_vacataire_boutique) ajouterLigneVacataire();
 
+      // Cartes repliables (02/08/2026) — un audit chargé pour correction qui
+      // contient déjà une dépense/un paiement vacataire doit s'ouvrir tout
+      // seul : jamais cacher une donnée réelle derrière un clic en plus.
+      if (a.depense_ponctuelle_piste || a.depense_ponctuelle_boutique) {
+        const c = document.getElementById('cardDepenses'); if (c) c.classList.add('open');
+      }
+      if (a.paiement_vacataire_piste || a.paiement_vacataire_boutique) {
+        const c = document.getElementById('cardAutres'); if (c) c.classList.add('open');
+      }
+
       // Carte de fidélité — même limite que bons/dépenses : seul le total
       // (drop_piste_vitocarte) est stocké, le type de carte n'est pas
       // conservé. Une ligne unique pré-remplie avec ce total.
@@ -2020,6 +2085,9 @@
       document.getElementById('v_cuve_go_litres').value = detail.go_litres != null ? String(detail.go_litres).replace('.', ',') : '';
       document.getElementById('v_cuve_gnr_litres').value = detail.gnr_litres != null ? String(detail.gnr_litres).replace('.', ',') : '';
       majAffichageCuve();
+      if (detail.sp_litres || detail.go_litres || detail.gnr_litres) {
+        const c = document.getElementById('cardCuve'); if (c) c.classList.add('open');
+      }
 
       // Employés présents
       employesSelectionnes.piste = new Set(a.employes_piste || []);
