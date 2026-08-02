@@ -378,6 +378,27 @@
   .plus-toggle.open .chev{transform:rotate(180deg);}
   .plus-zone{display:none;}
   .plus-zone.open{display:block;}
+
+  /* ============================================================
+     VUE BUREAU (02/08/2026, demande de Frédéric) — coquille (barre
+     latérale, bascule) fournie par nexus-desktop.js, commune à tout NEXUS.
+     Ce bloc-ci réorganise le CONTENU de l'accueil : Conseiller + État
+     global côte à côte (le Conseiller garde la plus grande part — "c'est
+     lui qui accueille", demande du 27/07/2026), et les grilles d'outils/KPI
+     profitent de la largeur en s'étalant sur plus de colonnes. Rien de tout
+     cela ne s'applique tant que la vue bureau n'est pas choisie : le mobile
+     reste identique à avant.
+     ============================================================ */
+  body.nexus-desktop .app{max-width:1180px; margin:0 auto; padding:0 28px;}
+  body.nexus-desktop .app-top-row{display:grid; grid-template-columns:1.3fr 1fr; gap:20px; align-items:start; padding:0 20px;}
+  /* .conseiller-card et .etat-card utilisent margin (pas padding) pour leur
+     inset horizontal habituel — à annuler ici, sinon il s'ajoute au padding
+     du wrapper .app-top-row et désaligne les deux colonnes. */
+  body.nexus-desktop .app-top-row .section-tag{padding-left:0; padding-right:0;}
+  body.nexus-desktop .app-top-row .conseiller-card,
+  body.nexus-desktop .app-top-row .etat-card{margin-left:0; margin-right:0;}
+  body.nexus-desktop .kpi-grid{grid-template-columns:repeat(4,1fr);}
+  body.nexus-desktop .outils-grid{grid-template-columns:repeat(4,1fr);}
 </style>
 </head>
 <body>
@@ -431,6 +452,14 @@
        de ce bloc manager-only pour que Recherche reste visible à l'employé
        (voir plus bas). -->
   <div data-role="manager" style="display:none;">
+    <!-- app-top-row (02/08/2026, vue bureau) : wrapper purement additif —
+         aucun effet en mobile (une <div> sans style propre), les deux blocs
+         restent empilés comme avant. En vue bureau, ils passent côte à côte
+         (voir body.nexus-desktop .app-top-row plus haut dans le <style>) :
+         c'est le Conseiller qui accueille (demande de Frédéric du
+         27/07/2026), donc il garde la plus grande part. -->
+    <div class="app-top-row">
+    <div class="app-top-col">
     <div class="section-tag"><span class="n1">1</span> Le Conseiller</div>
     <div class="conseiller-card conseiller-card-hero">
       <div class="conseiller-head">
@@ -442,7 +471,9 @@
       </div>
       <div id="conseillerCorps"><div class="conseiller-text">Analyse de vos données en cours…</div></div>
     </div>
+    </div>
 
+    <div class="app-top-col">
     <div class="section-tag"><span class="n1">2</span> État global</div>
     <div class="etat-card">
       <div class="etat-header">
@@ -459,6 +490,9 @@
       <div class="etat-synthese" id="etatSynthese">Analyse en cours…</div>
       <div class="etat-domaines" id="etatDomaines"></div>
     </div>
+    </div>
+    </div>
+    <!-- /app-top-row -->
 
     <div class="section-tag"><span class="n1">3</span> À retenir aujourd'hui</div>
     <div class="retenir-grid" id="retenirGrid"></div>
@@ -785,6 +819,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-auth.js"></script>
+<script src="nexus-desktop.js"></script>
 <script src="nexus-periodes.js"></script>
 <script src="nexus-indice.js"></script>
 <script src="nexus-marge.js"></script>
