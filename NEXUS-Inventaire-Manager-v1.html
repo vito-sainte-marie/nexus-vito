@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" type="image/x-icon" href="favicon.ico">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+<link rel="manifest" href="site.webmanifest">
+<meta name="theme-color" content="#0B0F14">
+<title>NEXUS — Inventaire · Manager</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="nexus-auth.js"></script>
+<script src="nexus-desktop.js"></script>
+<style>
+  :root{
+    --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
+    --text:#EDF1F5; --text-mid:#8A96A5; --text-dim:#57626F;
+    --green:#34D399; --green-dim:#153629;
+    --amber:#F5A623; --amber-dim:#3A2E14;
+    --red:#F0575A; --red-dim:#3A1D1F;
+    --cyan:#4FC3D9; --gold:#D4AF37;
+    --mono:'IBM Plex Mono',monospace; --sans:'IBM Plex Sans',sans-serif;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{background:var(--bg); font-family:var(--sans); color:var(--text);}
+  body{display:flex; justify-content:center; min-height:100vh;}
+  .phone{width:100%; max-width:460px; min-height:100vh; display:flex; flex-direction:column; border-left:1px solid var(--hairline); border-right:1px solid var(--hairline);}
+
+  .header{padding:24px 20px 14px; position:relative;}
+  .menu-btn{
+    position:absolute; top:18px; right:18px; display:flex; align-items:center; gap:6px;
+    font-family:var(--mono); font-size:10.5px; font-weight:600; letter-spacing:0.03em; text-transform:uppercase;
+    color:var(--cyan); background:rgba(79,195,217,0.1); border:1px solid rgba(79,195,217,0.3);
+    border-radius:20px; padding:7px 12px; text-decoration:none; white-space:nowrap; z-index:5;
+  }
+  .menu-btn:active{background:rgba(79,195,217,0.2);}
+  .eyebrow{font-family:var(--mono); font-size:11px; letter-spacing:0.12em; text-transform:uppercase; color:var(--cyan);}
+  .title{font-size:22px; font-weight:600; margin-top:4px;}
+  .heure-live{font-family:var(--mono); font-size:26px; font-weight:600; margin-top:10px; color:var(--text);}
+  .date-live{font-size:12px; color:var(--text-mid); margin-top:2px; text-transform:capitalize;}
+  .sub{font-size:13px; color:var(--text-mid); margin-top:6px; line-height:1.5;}
+  .divider{height:1px; background:var(--hairline); margin:0 20px;}
+  .section{padding:16px 20px;}
+  .loading{padding:60px 20px; text-align:center; color:var(--text-dim); font-size:13px;}
+  .empty{text-align:center; padding:20px; color:var(--text-dim); font-size:12.5px; background:var(--panel); border:1px solid var(--hairline); border-radius:10px; margin-bottom:10px;}
+  .locked{padding:60px 20px; text-align:center; color:var(--text-dim); font-family:var(--sans);}
+  .card{background:var(--panel); border:1px solid var(--hairline); border-radius:12px; padding:4px 14px;}
+
+  .section-titre{font-family:var(--mono); font-size:11px; text-transform:uppercase; letter-spacing:0.05em; color:var(--text-mid); margin:22px 0 10px;}
+  .section-titre:first-of-type{margin-top:0;}
+
+  /* Sélecteur date / quart */
+  .quart-select-row{display:flex; gap:8px; margin-bottom:6px; align-items:center;}
+  .date-input{
+    font-family:var(--mono); font-size:12.5px; background:var(--panel); border:1px solid var(--hairline);
+    color:var(--text); border-radius:8px; padding:8px 10px; flex:1;
+  }
+  .quart-pill{
+    font-family:var(--mono); font-size:11.5px; font-weight:600; padding:8px 14px; border-radius:20px;
+    border:1px solid var(--hairline); background:var(--panel); color:var(--text-mid); cursor:pointer; white-space:nowrap;
+  }
+  .quart-pill.active{background:rgba(79,195,217,0.15); border-color:rgba(79,195,217,0.4); color:var(--cyan);}
+  .quart-statut{font-family:var(--mono); font-size:10.5px; color:var(--text-dim); margin-bottom:16px;}
+
+  /* Statistiques mini */
+  .stats-row{display:flex; gap:10px; margin-bottom:18px;}
+  .stat-mini{flex:1; background:var(--panel); border:1px solid var(--hairline); border-radius:10px; padding:10px 8px; text-align:center;}
+  .stat-mini-value{font-family:var(--mono); font-size:20px; font-weight:700;}
+  .stat-mini-value.amber{color:var(--amber);}
+  .stat-mini-label{font-size:9.5px; color:var(--text-mid); margin-top:3px; line-height:1.3;}
+
+  /* Conseiller NEXUS — même habillage que NEXUS-Verify-v1.html (01/08/2026)
+     pour rester cohérent visuellement dans toute l'app. Remarques calculées
+     uniquement à partir de données réelles (alertes, comptages, historique) —
+     jamais un chiffre inventé (Article 5 de la Constitution NEXUS). */
+  .conseiller-card{margin-bottom:18px; background:linear-gradient(135deg, rgba(79,195,217,0.08), rgba(79,195,217,0.02)); border:1px solid rgba(79,195,217,0.25); border-radius:12px; padding:16px;}
+  .conseiller-head{display:flex; align-items:center; gap:10px; margin-bottom:10px;}
+  .conseiller-avatar{width:38px; height:38px; border-radius:50%; object-fit:cover; flex-shrink:0; background:var(--panel-raised); filter:drop-shadow(0 0 8px rgba(79,195,217,0.45));}
+  .conseiller-name{font-family:var(--mono); font-size:11px; font-weight:700; color:var(--cyan); letter-spacing:0.03em;}
+  .conseiller-sub{font-family:var(--mono); font-size:9px; color:var(--text-dim);}
+  .conseiller-remarque{font-size:12.5px; line-height:1.6; color:var(--text); margin-bottom:8px;}
+  .conseiller-remarque:last-child{margin-bottom:0;}
+  .conseiller-remarque b{color:var(--cyan);}
+
+  /* Alertes */
+  .alerte-card{background:var(--panel); border:1px solid var(--hairline); border-radius:12px; padding:14px; margin-bottom:10px;}
+  .alerte-top{display:flex; justify-content:space-between; align-items:flex-start; gap:10px; margin-bottom:6px;}
+  .alerte-produit{font-size:14px; font-weight:600;}
+  .alerte-meta{font-family:var(--mono); font-size:10.5px; color:var(--text-dim); margin-top:2px;}
+  .badge-gravite{font-family:var(--mono); font-size:9.5px; font-weight:700; padding:3px 8px; border-radius:10px; text-transform:uppercase; white-space:nowrap;}
+  .badge-gravite.critique{background:var(--red-dim); color:var(--red);}
+  .badge-gravite.attention{background:var(--amber-dim); color:var(--amber);}
+  .alerte-valeurs{display:flex; gap:14px; flex-wrap:wrap; font-family:var(--mono); font-size:12px; color:var(--text-mid); margin:8px 0;}
+  .alerte-valeurs b{color:var(--text);}
+  .alerte-note{font-size:11.5px; color:var(--text-mid); font-style:italic; margin:6px 0; line-height:1.5;}
+  .alerte-commentaire-input{
+    width:100%; background:var(--panel-raised); border:1px solid var(--hairline); border-radius:8px;
+    padding:8px 10px; color:var(--text); font-size:12px; margin:8px 0; font-family:var(--sans);
+  }
+  .decision-row{display:flex; flex-wrap:wrap; gap:6px;}
+  .btn-decision{
+    font-family:var(--sans); font-size:11px; font-weight:600; padding:7px 10px; border-radius:8px;
+    border:1px solid var(--hairline); background:var(--panel-raised); color:var(--text); cursor:pointer;
+  }
+  .btn-decision:active{transform:scale(0.97);}
+  .btn-decision:disabled{opacity:0.4; pointer-events:none;}
+  .btn-decision.valider{border-color:rgba(52,211,153,0.4); color:var(--green);}
+  .btn-decision.recomptage{border-color:rgba(79,195,217,0.4); color:var(--cyan);}
+  .btn-decision.demarque{border-color:rgba(240,87,90,0.4); color:var(--red);}
+
+  /* Produits sensibles non comptés */
+  .sensible-item{display:flex; justify-content:space-between; align-items:center; gap:10px; padding:10px 0; border-bottom:1px solid var(--hairline); font-size:12.5px;}
+  .sensible-item:last-child{border-bottom:none;}
+  .sensible-tags{display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end;}
+  .tag-manquant{font-family:var(--mono); font-size:9.5px; color:var(--amber); background:var(--amber-dim); padding:3px 7px; border-radius:6px; white-space:nowrap;}
+
+  /* Mode aveugle par employé */
+  .employe-toggle-row{display:flex; justify-content:space-between; align-items:center; padding:12px 0; border-bottom:1px solid var(--hairline);}
+  .employe-toggle-row:last-child{border-bottom:none;}
+  .employe-role{font-family:var(--mono); font-size:10px; color:var(--text-dim); text-transform:capitalize; margin-top:2px;}
+  .toggle-switch{width:42px; height:24px; border-radius:12px; background:var(--panel-raised); border:1px solid var(--hairline); position:relative; cursor:pointer; flex-shrink:0; transition:background .15s;}
+  .toggle-switch.on{background:rgba(79,195,217,0.3); border-color:var(--cyan);}
+  .toggle-knob{width:18px; height:18px; border-radius:50%; background:var(--text-mid); position:absolute; top:2px; left:2px; transition:left .15s, background .15s;}
+  .toggle-switch.on .toggle-knob{left:21px; background:var(--cyan);}
+
+  /* Historique des décisions */
+  .histo-item{padding:12px 0; border-bottom:1px solid var(--hairline); font-size:12.5px;}
+  .histo-item:last-child{border-bottom:none;}
+  .histo-top{display:flex; justify-content:space-between; gap:10px;}
+  .histo-quart{font-family:var(--mono); font-size:10px; color:var(--text-dim); white-space:nowrap;}
+  .histo-decision{color:var(--text-mid); margin-top:4px; line-height:1.5;}
+  .histo-date{font-family:var(--mono); font-size:9.5px; color:var(--text-dim); margin-top:4px;}
+
+  footer{margin-top:auto; padding:16px 20px 24px; font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:center; border-top:1px solid var(--hairline);}
+</style>
+</head>
+<body>
+<div class="phone">
+  <div class="header">
+    <a href="NEXUS-App-v1.html" class="menu-btn">☰ Menu</a>
+    <div class="eyebrow">NEXUS · Inventaire — Manager</div>
+    <div class="title" id="titre">Chargement…</div>
+    <div class="heure-live" id="heureLive">--:--:--</div>
+    <div class="date-live" id="dateLive"></div>
+    <div class="sub">Anomalies, décisions et mode de comptage à l'aveugle</div>
+  </div>
+  <div class="divider"></div>
+
+  <!-- desktop-grid (02/08/2026) : mise en colonnes en vue bureau (voir
+       nexus-desktop.js) — purement additif, aucun effet en mobile. -->
+  <div class="section desktop-grid" id="content">
+    <div class="loading">Chargement…</div>
+  </div>
+  <footer>NEXUS Inventaire · Manager v1 · Vito Sainte-Marie</footer>
+</div>
+
+<script>
+  let managerCourant = null;
+  let siteId = 'vito-sainte-marie';
+  let dateSelectionnee = '';
+  let quartSelectionne = 'matin';
+  let quartRow = null;
+
+  // Catégories de décision manager sur une alerte (02/08/2026, demande de
+  // Frédéric — vision initiale NEXUS Inventaire) : chaque décision ferme
+  // l'alerte avec une trace explicite (qui, quand, pourquoi), jamais une
+  // simple suppression silencieuse.
+  const DECISIONS = [
+    { value: 'validee', label: 'Valider', cls: 'valider', texte: 'Écart validé — aucune action nécessaire.' },
+    { value: 'recomptage', label: 'Recomptage', cls: 'recomptage', texte: 'Recomptage demandé au prochain quart.' },
+    { value: 'explication', label: 'Explication reçue', cls: 'explication', texte: "Explication reçue de l'employé." },
+    { value: 'erreur_saisie', label: 'Erreur de saisie', cls: 'erreur', texte: 'Erreur de saisie confirmée — écart non réel.' },
+    { value: 'demarque', label: 'Démarque à surveiller', cls: 'demarque', texte: 'Démarque à surveiller — signalé pour suivi.' },
+  ];
+
+  function heureLocale() {
+    return new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  }
+  function demarrerHorloge() {
+    const majHeure = () => {
+      document.getElementById('heureLive').textContent = heureLocale();
+      document.getElementById('dateLive').textContent = new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
+    };
+    majHeure();
+    setInterval(majHeure, 1000);
+  }
+  function dateISO() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  }
+  function fmtNum(n) {
+    if (n === null || n === undefined) return '—';
+    return Number(n).toLocaleString('fr-FR', { maximumFractionDigits: 2 });
+  }
+
+  // Même règle que NEXUS-Inventaire-v1.html (02/08/2026) : le quart par
+  // défaut se base sur les horaires réels configurés dans Paramètres
+  // Station, pas sur un seuil fixe codé en dur.
+  const HORAIRE_DEFAUT_DEBUT_QUART2 = '12:40';
+  async function quartDuMoment(site) {
+    let debutQuart2 = HORAIRE_DEFAUT_DEBUT_QUART2;
+    const { data, error } = await nexusClient
+      .from('station_config').select('horaires').eq('site', site || 'vito-sainte-marie').maybeSingle();
+    if (error) console.error('Chargement horaires station (quart par défaut):', error);
+    else if (data && data.horaires && data.horaires.quart2 && data.horaires.quart2.normal) {
+      debutQuart2 = data.horaires.quart2.normal;
+    }
+    const maintenant = new Date();
+    const minutesMaintenant = maintenant.getHours() * 60 + maintenant.getMinutes();
+    const [hQ2, mQ2] = debutQuart2.split(':').map(Number);
+    const minutesQ2 = hQ2 * 60 + (mQ2 || 0);
+    return minutesMaintenant < minutesQ2 ? 'matin' : 'soir';
+  }
+
+  function libelleStatutQuart(q) {
+    const map = { brouillon: 'Brouillon', ouverture_en_cours: 'Ouverture en cours', ouvert: 'Ouvert', cloture: 'Clôturé' };
+    let base = map[q.statut] || q.statut;
+    if (q.statut === 'cloture' && q.cloture_le) base += ` · ${new Date(q.cloture_le).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`;
+    else if (q.ouvert_le) base += ` · depuis ${new Date(q.ouvert_le).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`;
+    return base;
+  }
+
+  // ------------------------------------------------------------
+  // CHARGEMENT DES DONNÉES
+  // ------------------------------------------------------------
+  async function chargerQuart(site, date, quart) {
+    const { data, error } = await nexusClient.from('inventaire_quarts').select('*').eq('site', site).eq('date', date).eq('quart', quart).maybeSingle();
+    if (error) { console.error('Chargement quart:', error); return null; }
+    return data;
+  }
+
+  async function chargerAlertesOuvertesQuart(site, quartId) {
+    const { data, error } = await nexusClient.from('inventaire_alertes')
+      .select('*, inventaire_zone_produit(designation)')
+      .eq('site', site).eq('quart_id', quartId).eq('statut', 'ouverte')
+      .order('cree_le', { ascending: false });
+    if (error) { console.error('Chargement alertes ouvertes:', error); return []; }
+    return data || [];
+  }
+
+  async function chargerComptagesQuart(quartId) {
+    const { data, error } = await nexusClient.from('inventaire_comptages')
+      .select('produit_id, type_comptage').eq('quart_id', quartId).in('type_comptage', ['ouverture', 'cloture']);
+    if (error) { console.error('Chargement comptages du quart:', error); return { ouverts: new Set(), clotures: new Set() }; }
+    const ouverts = new Set(), clotures = new Set();
+    for (const row of (data || [])) {
+      if (row.type_comptage === 'ouverture') ouverts.add(row.produit_id);
+      if (row.type_comptage === 'cloture') clotures.add(row.produit_id);
+    }
+    return { ouverts, clotures };
+  }
+
+  async function chargerProduitsSensibles(site) {
+    const { data, error } = await nexusClient.from('inventaire_zone_produit')
+      .select('id, designation, zone_id, inventaire_zones(code)')
+      .eq('site', site).eq('sensible', true).eq('actif', true).order('designation');
+    if (error) { console.error('Chargement produits sensibles:', error); return []; }
+    return data || [];
+  }
+
+  async function chargerEmployesSite(site) {
+    const { data, error } = await nexusClient.from('employees').select('id, nom, role').eq('site_id', site).eq('actif', true).order('nom');
+    if (error) { console.error('Chargement employés:', error); return []; }
+    // Le mode aveugle cible les employés qui comptent le stock sur le
+    // terrain — pas les managers/gérants, qui ne sont pas concernés.
+    return (data || []).filter(e => e.role !== 'manager' && e.role !== 'gerant');
+  }
+
+  async function chargerModesAveugleActifs(site) {
+    const { data, error } = await nexusClient.from('inventaire_modes_controle')
+      .select('*').eq('site', site).eq('mode', 'aveugle').eq('actif', true)
+      .is('categorie_id', null).is('produit_id', null);
+    if (error) { console.error('Chargement modes aveugle:', error); return []; }
+    return data || [];
+  }
+
+  async function chargerHistoriqueDecisions(site) {
+    const { data, error } = await nexusClient.from('inventaire_alertes')
+      .select('*, inventaire_zone_produit(designation), inventaire_quarts(date, quart)')
+      .eq('site', site).eq('statut', 'resolue')
+      .order('resolue_le', { ascending: false }).limit(15);
+    if (error) { console.error('Chargement historique des décisions:', error); return []; }
+    return data || [];
+  }
+
+  async function chargerHistoriqueEcartsRecents(site) {
+    const depuis = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString();
+    const { data, error } = await nexusClient.from('inventaire_alertes')
+      .select('produit_id').eq('site', site).eq('type_alerte', 'ecart_ouverture').gte('cree_le', depuis);
+    if (error) { console.error('Chargement historique écarts récents:', error); return []; }
+    return data || [];
+  }
+
+  // ------------------------------------------------------------
+  // ACTIONS MANAGER
+  // ------------------------------------------------------------
+  async function resoudreAlerte(alerteId, decision, commentaireLibre) {
+    const commentaire = [decision.texte, commentaireLibre].filter(Boolean).join(' — ');
+    const { error } = await nexusClient.from('inventaire_alertes').update({
+      statut: 'resolue', resolution: decision.value, commentaire_manager: commentaire,
+      assignee_a: managerCourant.id, resolue_le: new Date().toISOString(),
+    }).eq('id', alerteId);
+    if (error) { console.error('Résolution alerte:', error); alert('Erreur — réessayez.'); await chargerEtAfficherTout(); return; }
+
+    await nexusClient.from('inventaire_audit_log').insert({
+      site: siteId, quart_id: quartRow ? quartRow.id : null, entite_type: 'inventaire_alertes', entite_id: alerteId,
+      action: 'resolution_alerte', ancienne_valeur: { statut: 'ouverte' }, nouvelle_valeur: { statut: 'resolue', resolution: decision.value },
+      acteur_id: managerCourant.id, motif: commentaireLibre || null,
+    });
+
+    await chargerEtAfficherTout();
+  }
+
+  async function toggleModeAveugle(employeeId, activer) {
+    if (activer) {
+      const { error } = await nexusClient.from('inventaire_modes_controle').insert({
+        site: siteId, employee_id: employeeId, mode: 'aveugle', actif: true,
+        motif: "Activé depuis l'écran manager Inventaire", cree_par: managerCourant.id,
+      });
+      if (error) { console.error('Activation mode aveugle:', error); alert('Erreur — réessayez.'); }
+    } else {
+      const { error } = await nexusClient.from('inventaire_modes_controle').update({ actif: false })
+        .eq('site', siteId).eq('employee_id', employeeId).eq('mode', 'aveugle').eq('actif', true)
+        .is('categorie_id', null).is('produit_id', null);
+      if (error) { console.error('Désactivation mode aveugle:', error); alert('Erreur — réessayez.'); }
+    }
+    await chargerEtAfficherTout();
+  }
+
+  // ------------------------------------------------------------
+  // CONSEILLER NEXUS — remarques calculées uniquement à partir de données
+  // réelles (alertes ouvertes, produits sensibles non comptés, récurrence
+  // sur 14 jours, mode aveugle actif). Jamais un chiffre inventé, même
+  // principe que sur NEXUS-Verify-v1.html.
+  // ------------------------------------------------------------
+  async function genererRemarquesConseiller(alertesOuvertes, sensiblesNonComptesDetail, modesAveugleActifs) {
+    const corps = document.getElementById('conseillerCorps');
+    if (!corps) return;
+    const remarques = [];
+
+    if (alertesOuvertes.length === 0 && sensiblesNonComptesDetail.length === 0) {
+      remarques.push(`Rien à signaler sur ce quart — tous les produits sensibles ont été comptés et aucun écart n'est resté ouvert.`);
+    } else {
+      if (alertesOuvertes.length) {
+        const nbCritiques = alertesOuvertes.filter(a => a.gravite === 'critique').length;
+        remarques.push(`<b>${alertesOuvertes.length} alerte(s) ouverte(s)</b> sur ce quart${nbCritiques ? `, dont <b>${nbCritiques} critique(s)</b>` : ''}.`);
+      }
+      if (sensiblesNonComptesDetail.length) {
+        const noms = sensiblesNonComptesDetail.slice(0, 4).map(x => x.produit.designation);
+        remarques.push(`<b>${sensiblesNonComptesDetail.length} produit(s) sensible(s)</b> sans comptage complet sur ce quart : ${noms.join(', ')}${sensiblesNonComptesDetail.length > 4 ? '…' : ''}.`);
+      }
+    }
+
+    try {
+      const historique = await chargerHistoriqueEcartsRecents(siteId);
+      const compte = {};
+      for (const h of historique) compte[h.produit_id] = (compte[h.produit_id] || 0) + 1;
+      const recurrents = alertesOuvertes.filter(a => (compte[a.produit_id] || 0) >= 2);
+      if (recurrents.length) {
+        const noms = [...new Set(recurrents.map(a => a.inventaire_zone_produit ? a.inventaire_zone_produit.designation : 'ce produit'))];
+        remarques.push(`Écart <b>récurrent sur les 14 derniers jours</b> pour : ${noms.join(', ')} — à surveiller de près.`);
+      }
+    } catch (e) {
+      console.error('Conseiller NEXUS Inventaire — récurrence:', e);
+    }
+
+    if (modesAveugleActifs.length) {
+      remarques.push(`Mode de comptage à l'aveugle actif pour <b>${modesAveugleActifs.length} employé(s)</b>.`);
+    }
+
+    corps.innerHTML = remarques.map(r => `<div class="conseiller-remarque">${r}</div>`).join('');
+  }
+
+  // ------------------------------------------------------------
+  // RENDU
+  // ------------------------------------------------------------
+  function renderAlerteCard(a) {
+    const produit = a.inventaire_zone_produit ? a.inventaire_zone_produit.designation : 'Produit';
+    const ecart = (a.valeur_constatee != null && a.valeur_attendue != null) ? (a.valeur_constatee - a.valeur_attendue) : null;
+    const libelleType = a.type_alerte === 'ecart_ouverture' ? "Écart d'ouverture" : a.type_alerte;
+    return `
+      <div class="alerte-card" data-id="${a.id}">
+        <div class="alerte-top">
+          <div>
+            <div class="alerte-produit">${produit}</div>
+            <div class="alerte-meta">${libelleType} · ${new Date(a.cree_le).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</div>
+          </div>
+          <span class="badge-gravite ${a.gravite}">${a.gravite}</span>
+        </div>
+        <div class="alerte-valeurs">
+          <span>Transmis : <b>${fmtNum(a.valeur_attendue)}</b></span>
+          <span>Compté : <b>${fmtNum(a.valeur_constatee)}</b></span>
+          ${ecart !== null ? `<span>Écart : <b>${ecart > 0 ? '+' : ''}${fmtNum(ecart)}</b></span>` : ''}
+        </div>
+        ${a.resolution ? `<div class="alerte-note">Note à l'ouverture : « ${a.resolution} »</div>` : ''}
+        <input type="text" class="alerte-commentaire-input" id="commentaire-${a.id}" placeholder="Commentaire (facultatif)">
+        <div class="decision-row">
+          ${DECISIONS.map(d => `<button class="btn-decision ${d.cls}" data-id="${a.id}" data-decision="${d.value}">${d.label}</button>`).join('')}
+        </div>
+      </div>
+    `;
+  }
+
+  function renderSensibleItem(x) {
+    const p = x.produit;
+    const zoneNom = p.inventaire_zones ? (p.inventaire_zones.code === 'piste' ? 'Piste' : 'Boutique') : '';
+    return `
+      <div class="sensible-item">
+        <span>${p.designation} <span style="color:var(--text-dim); font-size:10.5px;">(${zoneNom})</span></span>
+        <span class="sensible-tags">
+          ${x.manqueOuverture ? '<span class="tag-manquant">Ouverture manquante</span>' : ''}
+          ${x.manqueCloture ? '<span class="tag-manquant">Clôture manquante</span>' : ''}
+        </span>
+      </div>
+    `;
+  }
+
+  function renderEmployeToggle(e, actif) {
+    return `
+      <div class="employe-toggle-row">
+        <div>
+          <div style="font-size:13px;">${e.nom}</div>
+          <div class="employe-role">${e.role}</div>
+        </div>
+        <div class="toggle-switch ${actif ? 'on' : ''}" data-employe="${e.id}" data-actif="${actif ? '1' : '0'}">
+          <div class="toggle-knob"></div>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderHistoriqueItem(h) {
+    const produit = h.inventaire_zone_produit ? h.inventaire_zone_produit.designation : 'Produit';
+    const quartInfo = h.inventaire_quarts ? `${h.inventaire_quarts.date.split('-').reverse().join('/')} · ${h.inventaire_quarts.quart}` : '';
+    const decision = DECISIONS.find(d => d.value === h.resolution);
+    return `
+      <div class="histo-item">
+        <div class="histo-top">
+          <b>${produit}</b>
+          <span class="histo-quart">${quartInfo}</span>
+        </div>
+        <div class="histo-decision">${decision ? decision.label : (h.resolution || '—')}${h.commentaire_manager ? ' — ' + h.commentaire_manager : ''}</div>
+        <div class="histo-date">${h.resolue_le ? new Date(h.resolue_le).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : ''}</div>
+      </div>
+    `;
+  }
+
+  function renderTout(ctx) {
+    const { alertesOuvertes, sensiblesNonComptesDetail, employesSite, modesAveugleActifs, historique } = ctx;
+    const modesMap = Object.fromEntries(modesAveugleActifs.map(m => [m.employee_id, m]));
+
+    document.getElementById('content').innerHTML = `
+      <div class="quart-select-row">
+        <input type="date" id="selDate" class="date-input" value="${dateSelectionnee}">
+        <div class="quart-pill ${quartSelectionne === 'matin' ? 'active' : ''}" data-quart="matin">Matin</div>
+        <div class="quart-pill ${quartSelectionne === 'soir' ? 'active' : ''}" data-quart="soir">Soir</div>
+      </div>
+      ${quartRow ? `<div class="quart-statut">${libelleStatutQuart(quartRow)}</div>` : '<div class="quart-statut">Aucun inventaire n\'a encore été démarré pour ce quart.</div>'}
+
+      ${quartRow ? `
+        <div class="stats-row">
+          <div class="stat-mini"><div class="stat-mini-value ${alertesOuvertes.length ? 'amber' : ''}">${alertesOuvertes.length}</div><div class="stat-mini-label">Alertes ouvertes</div></div>
+          <div class="stat-mini"><div class="stat-mini-value ${sensiblesNonComptesDetail.length ? 'amber' : ''}">${sensiblesNonComptesDetail.length}</div><div class="stat-mini-label">Sensibles non comptés</div></div>
+          <div class="stat-mini"><div class="stat-mini-value">${modesAveugleActifs.length}</div><div class="stat-mini-label">Mode aveugle actif</div></div>
+        </div>
+      ` : ''}
+
+      <div class="conseiller-card" id="conseillerCard">
+        <div class="conseiller-head">
+          <img class="conseiller-avatar" src="nexus-avatar.png" alt="Conseiller NEXUS">
+          <div>
+            <div class="conseiller-name">CONSEILLER NEXUS</div>
+            <div class="conseiller-sub">Ce que je remarque sur ce quart</div>
+          </div>
+        </div>
+        <div id="conseillerCorps"></div>
+      </div>
+
+      ${quartRow ? `
+        <div class="section-titre">Alertes ouvertes</div>
+        ${alertesOuvertes.length === 0 ? '<div class="empty">Aucune alerte ouverte sur ce quart.</div>' : alertesOuvertes.map(a => renderAlerteCard(a)).join('')}
+
+        <div class="section-titre">Produits sensibles non comptés</div>
+        ${sensiblesNonComptesDetail.length === 0 ? '<div class="empty">Tous les produits sensibles ont été comptés.</div>' : sensiblesNonComptesDetail.map(x => renderSensibleItem(x)).join('')}
+      ` : ''}
+
+      <div class="section-titre">Mode de comptage à l'aveugle</div>
+      <div class="card">
+        ${employesSite.length === 0 ? '<div class="empty">Aucun employé actif trouvé pour ce site.</div>' : employesSite.map(e => renderEmployeToggle(e, !!modesMap[e.id])).join('')}
+      </div>
+
+      <div class="section-titre">Historique des décisions</div>
+      ${historique.length === 0 ? '<div class="empty">Aucune décision enregistrée pour le moment.</div>' : historique.map(h => renderHistoriqueItem(h)).join('')}
+    `;
+
+    document.getElementById('selDate').addEventListener('change', async (e) => {
+      dateSelectionnee = e.target.value;
+      await chargerEtAfficherTout();
+    });
+    document.querySelectorAll('.quart-pill').forEach(el => el.addEventListener('click', async () => {
+      quartSelectionne = el.dataset.quart;
+      await chargerEtAfficherTout();
+    }));
+    document.querySelectorAll('.btn-decision').forEach(btn => btn.addEventListener('click', async () => {
+      const decision = DECISIONS.find(d => d.value === btn.dataset.decision);
+      const commentaireEl = document.getElementById(`commentaire-${btn.dataset.id}`);
+      const commentaireLibre = commentaireEl ? commentaireEl.value.trim() : '';
+      document.querySelectorAll(`.alerte-card[data-id="${btn.dataset.id}"] .btn-decision`).forEach(b => b.disabled = true);
+      await resoudreAlerte(btn.dataset.id, decision, commentaireLibre);
+    }));
+    document.querySelectorAll('.toggle-switch').forEach(el => el.addEventListener('click', async () => {
+      const actif = el.dataset.actif === '1';
+      el.style.pointerEvents = 'none';
+      await toggleModeAveugle(el.dataset.employe, !actif);
+    }));
+  }
+
+  async function chargerEtAfficherTout() {
+    document.getElementById('content').innerHTML = '<div class="loading">Chargement…</div>';
+
+    quartRow = await chargerQuart(siteId, dateSelectionnee, quartSelectionne);
+
+    const [produitsSensibles, employesSite, modesAveugleActifs, historique] = await Promise.all([
+      chargerProduitsSensibles(siteId),
+      chargerEmployesSite(siteId),
+      chargerModesAveugleActifs(siteId),
+      chargerHistoriqueDecisions(siteId),
+    ]);
+
+    let alertesOuvertes = [];
+    let comptages = { ouverts: new Set(), clotures: new Set() };
+    if (quartRow) {
+      alertesOuvertes = await chargerAlertesOuvertesQuart(siteId, quartRow.id);
+      comptages = await chargerComptagesQuart(quartRow.id);
+    }
+
+    // Ne signale les produits sensibles manquants que si un inventaire a
+    // réellement démarré pour ce quart — sinon "tout manque" ne voudrait
+    // rien dire (rien n'a encore pu être compté).
+    const sensiblesNonComptesDetail = quartRow
+      ? produitsSensibles.map(p => ({
+          produit: p,
+          manqueOuverture: !comptages.ouverts.has(p.id),
+          manqueCloture: !comptages.clotures.has(p.id),
+        })).filter(x => x.manqueOuverture || x.manqueCloture)
+      : [];
+
+    renderTout({ alertesOuvertes, sensiblesNonComptesDetail, employesSite, modesAveugleActifs, historique });
+    await genererRemarquesConseiller(alertesOuvertes, sensiblesNonComptesDetail, modesAveugleActifs);
+  }
+
+  // ------------------------------------------------------------
+  // INITIALISATION
+  // ------------------------------------------------------------
+  nexusRequireAuth().then(async employee => {
+    if (!employee) return; // nexus-auth.js gère déjà la redirection vers NEXUS-Login-v1.html
+    if (employee.role !== 'manager' && employee.role !== 'gerant') {
+      document.body.innerHTML = '<div class="locked">Cet écran est réservé aux managers.</div>';
+      return;
+    }
+    managerCourant = employee;
+    siteId = employee.site_id || 'vito-sainte-marie';
+    demarrerHorloge();
+    document.getElementById('titre').textContent = 'Anomalies & décisions';
+
+    dateSelectionnee = dateISO();
+    quartSelectionne = await quartDuMoment(siteId);
+
+    await chargerEtAfficherTout();
+  });
+</script>
+</body>
+</html>

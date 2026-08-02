@@ -40,6 +40,11 @@
   .menu-btn:active{background:rgba(79,195,217,0.2);}
   .eyebrow{font-family:var(--mono); font-size:11px; letter-spacing:0.12em; text-transform:uppercase; color:var(--cyan);}
   .title{font-size:22px; font-weight:600; margin-top:4px;}
+  /* heure-live / date-live (02/08/2026, demande de Frédéric — "mettre la
+     date et l'heure") : même convention visuelle que NEXUS-Pointage-v1.html,
+     horloge vivante mise à jour chaque seconde. */
+  .heure-live{font-family:var(--mono); font-size:26px; font-weight:600; margin-top:10px; color:var(--text);}
+  .date-live{font-size:12px; color:var(--text-mid); margin-top:2px; text-transform:capitalize;}
   .sub{font-size:13px; color:var(--text-mid); margin-top:6px; line-height:1.5;}
   .divider{height:1px; background:var(--hairline); margin:0 20px;}
   .section{padding:16px 20px;}
@@ -141,6 +146,8 @@
     <a href="NEXUS-App-v1.html" class="menu-btn">☰ Menu</a>
     <div class="eyebrow">NEXUS · Inventaire</div>
     <div class="title" id="titre">Chargement…</div>
+    <div class="heure-live" id="heureLive">--:--:--</div>
+    <div class="date-live" id="dateLive"></div>
     <div class="sub" id="sousTitre"></div>
   </div>
   <div class="divider"></div>
@@ -186,9 +193,43 @@
   let mouvementsSaisie = [];     // { produit_id, type_mouvement, quantite, justification }
   let zonesMap = {};             // code ('piste'/'boutique') -> id (inventaire_zones)
 
-  function quartDuMoment() {
-    const h = new Date().getHours();
-    return h < 13 ? 'matin' : 'soir';
+  // Horloge en direct (02/08/2026, demande de Frédéric — "tu devrais mettre
+  // la date et l'heure") : même convention que NEXUS-Pointage-v1.html
+  // (heureLive/dateLive mis à jour chaque seconde).
+  function heureLocale() {
+    return new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  }
+  function demarrerHorloge() {
+    const majHeure = () => {
+      document.getElementById('heureLive').textContent = heureLocale();
+      document.getElementById('dateLive').textContent = new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
+    };
+    majHeure();
+    setInterval(majHeure, 1000);
+  }
+
+  // Quart par défaut dérivé des vrais horaires de la station (02/08/2026,
+  // demande de Frédéric — "te referencer aux parametres station pour mettre
+  // par défaut le quart") : remplace l'ancien seuil fixe "13h" par l'heure
+  // de démarrage normale du quart 2, configurée dans NEXUS Paramètres
+  // Station (station_config.horaires.quart2.normal, ex: "12:40" — même
+  // valeur par défaut que NEXUS-Parametres-Station-v1.html si rien n'a
+  // encore été enregistré pour ce site). Avant cette heure : quart du matin,
+  // à partir de cette heure : quart du soir.
+  const HORAIRE_DEFAUT_DEBUT_QUART2 = '12:40';
+  async function quartDuMoment(siteId) {
+    let debutQuart2 = HORAIRE_DEFAUT_DEBUT_QUART2;
+    const { data, error } = await nexusClient
+      .from('station_config').select('horaires').eq('site', siteId || 'vito-sainte-marie').maybeSingle();
+    if (error) console.error('Chargement horaires station (quart par défaut):', error);
+    else if (data && data.horaires && data.horaires.quart2 && data.horaires.quart2.normal) {
+      debutQuart2 = data.horaires.quart2.normal;
+    }
+    const maintenant = new Date();
+    const minutesMaintenant = maintenant.getHours() * 60 + maintenant.getMinutes();
+    const [hQ2, mQ2] = debutQuart2.split(':').map(Number);
+    const minutesQ2 = hQ2 * 60 + (mQ2 || 0);
+    return minutesMaintenant < minutesQ2 ? 'matin' : 'soir';
   }
   function dateISO() {
     const d = new Date();
@@ -307,7 +348,7 @@
   // ------------------------------------------------------------
   async function renderAccueil() {
     document.getElementById('titre').textContent = `Bonjour ${employeeCourant.nom}`;
-    document.getElementById('sousTitre').textContent = `Quart ${quartActuel === 'matin' ? 'du matin' : 'du soir'} · ${dateISO().split('-').reverse().join('/')}`;
+    document.getElementById('sousTitre').textContent = `Quart ${quartActuel === 'matin' ? 'du matin' : 'du soir'}`;
 
     const ouvertureFaite = quartEmployeRow && quartEmployeRow.a_valide_ouverture;
     const clotureFaite = quartEmployeRow && quartEmployeRow.a_valide_cloture;
@@ -699,7 +740,8 @@
   nexusRequireAuth().then(async employee => {
     if (!employee) return; // nexus-auth.js gère déjà la redirection vers NEXUS-Login-v1.html
     employeeCourant = employee;
-    quartActuel = quartDuMoment();
+    demarrerHorloge();
+    quartActuel = await quartDuMoment(employee.site_id);
     roleDuJour = await chargerRoleDuJour();
     zonesAutorisees = zonesPourRole(roleDuJour);
     zoneActive = zonesAutorisees[0];
