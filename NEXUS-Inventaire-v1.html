@@ -724,6 +724,18 @@
     const masque = estMasquePourProduit(p);
     const saisie = comptagesSaisie[p.id];
     const transmisTexte = transmis === undefined ? 'Premier comptage — pas d\'historique' : (masque ? 'masqué (mode à l\'aveugle)' : `Transmis : ${fmtNum(transmis ? transmis.quantite : 0)} ${p.unite}`);
+    // Corrigé (02/08/2026, signalé par Frédéric — "le chiffre disparaît, je
+    // dois le retaper") : quand un écart apparaît, majLigneCategorie()
+    // ré-affiche cette ligne pour révéler le champ justification, mais
+    // l'input ne restaurait jamais la valeur déjà saisie (ni l'écart déjà
+    // calculé) — d'où la fausse impression que la saisie s'était effacée.
+    let ecartClasse = 'ecart-tag', ecartTexte = '';
+    if (saisie && saisie.compte !== undefined) {
+      const valeurTransmise = transmis ? transmis.quantite : 0;
+      const ecart = saisie.compte - valeurTransmise;
+      ecartClasse = 'ecart-tag ' + (ecart === 0 ? 'ecart-ok' : (Math.abs(ecart) <= 2 ? 'ecart-warn' : 'ecart-bad'));
+      ecartTexte = ecart === 0 ? 'Conforme' : `Écart d'ouverture : ${ecart > 0 ? '+' : ''}${fmtNum(ecart)}`;
+    }
     return `
       <div class="produit-row" id="ligne-${p.id}">
         <div class="produit-nom-ligne">
@@ -733,10 +745,10 @@
         <div class="produit-transmis">${transmisTexte}</div>
         <div class="produit-controls" style="margin-top:8px;">
           <input type="number" inputmode="decimal" step="0.01" class="produit-input" data-produit="${p.id}"
-                 placeholder="Votre comptage" onfocus="this.select()">
+                 placeholder="Votre comptage" value="${saisie && saisie.compte !== undefined ? saisie.compte : ''}" onfocus="this.select()">
           <button class="btn-identique" data-produit="${p.id}" ${masque ? 'disabled' : ''}>Identique</button>
         </div>
-        <div class="ecart-tag" id="ecart-${p.id}"></div>
+        <div class="${ecartClasse}" id="ecart-${p.id}">${ecartTexte}</div>
         ${saisie && saisie.ecartNonNul ? `<input type="text" class="justif-input" data-produit="${p.id}" placeholder="Justification de l'écart (facultatif)" value="${saisie.justification || ''}">` : ''}
       </div>
     `;
