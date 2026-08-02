@@ -108,6 +108,36 @@
   .justif-input::placeholder{color:var(--text-dim);}
   .produit-masque{font-family:var(--mono); font-size:10.5px; color:var(--text-dim); font-style:italic;}
 
+  /* Écrans catégories / carrousel (02/08/2026, demande de Frédéric —
+     "une succession de petites actions simples" plutôt qu'une longue
+     liste vue d'un coup). Voir renderCategoriesOuverture() / renderCarrousel(). */
+  .progression-bloc{margin-bottom:16px;}
+  .progression-haut{display:flex; justify-content:space-between; align-items:baseline; font-size:12px; color:var(--text-mid); margin-bottom:6px;}
+  .progression-temps{font-family:var(--mono); font-size:10.5px; color:var(--cyan);}
+  .progression-barre{height:6px; border-radius:4px; background:var(--panel-raised); overflow:hidden;}
+  .progression-remplie{height:100%; background:var(--cyan); border-radius:4px; transition:width .25s;}
+
+  .cats-titre{font-family:var(--mono); font-size:11px; color:var(--text-mid); margin-bottom:10px;}
+  .categorie-row{display:flex; justify-content:space-between; align-items:center; padding:14px; cursor:pointer;}
+  .categorie-row + .categorie-row{border-top:1px solid var(--hairline);}
+  .categorie-row:active{background:var(--panel-raised);}
+  .categorie-nom{font-size:14px; font-weight:600;}
+  .categorie-count{font-size:11.5px; color:var(--text-mid); margin-top:2px;}
+  .categorie-etat{font-family:var(--mono); font-size:10px; font-weight:700; padding:4px 9px; border-radius:12px; white-space:nowrap; text-transform:uppercase;}
+  .categorie-etat.a-faire{background:var(--panel-raised); color:var(--text-dim);}
+  .categorie-etat.en-cours{background:rgba(79,195,217,0.12); color:var(--cyan);}
+  .categorie-etat.termine{background:var(--green-dim); color:var(--green);}
+  .categorie-etat.prioritaire{background:var(--red-dim); color:var(--red);}
+
+  .carrousel-card{background:var(--panel); border:1px solid var(--hairline); border-radius:14px; padding:22px 18px; text-align:center; margin-bottom:14px;}
+  .carrousel-nom{font-size:17px; font-weight:700; margin-bottom:14px;}
+  .carrousel-transmis{font-size:11.5px; color:var(--text-mid);}
+  .carrousel-valeur{font-family:var(--mono); font-size:34px; font-weight:700; color:var(--text-dim); margin:6px 0 18px;}
+  .carrousel-unite{font-size:14px; font-weight:400; color:var(--text-dim);}
+  .carrousel-actions{display:flex; flex-direction:column; gap:8px; margin-top:6px;}
+  .carrousel-input{text-align:center; font-size:22px; margin-top:14px; width:100%;}
+  .carrousel-footer{text-align:center; font-family:var(--mono); font-size:11px; color:var(--text-dim); margin-bottom:8px;}
+
   .mouv-card{background:var(--panel); border:1px solid var(--hairline); border-radius:12px; padding:14px; margin-bottom:14px;}
   .mouv-titre{font-size:13px; font-weight:700; margin-bottom:10px;}
   .mouv-row{display:flex; gap:8px; margin-bottom:8px;}
@@ -192,6 +222,16 @@
   let comptagesSaisie = {};      // produit_id -> { compte, justification }
   let mouvementsSaisie = [];     // { produit_id, type_mouvement, quantite, justification }
   let zonesMap = {};             // code ('piste'/'boutique') -> id (inventaire_zones)
+
+  // Écrans catégories / carrousel de l'ouverture (02/08/2026, demande de
+  // Frédéric — "une succession de petites actions simples" plutôt qu'une
+  // longue liste vue d'un coup). Au-delà de CARROUSEL_SEUIL produits, une
+  // catégorie s'affiche en mode "produit suivant" plutôt qu'en liste.
+  const CARROUSEL_SEUIL = 6;
+  const SECONDES_PAR_PRODUIT = 4.5; // base du temps restant estimé, indicatif seulement
+  let categorieActive = null;       // nom de la catégorie affichée en détail
+  let carrouselIndex = 0;           // index courant dans la catégorie en mode carrousel
+  let carrouselModeCorrection = false; // true dès que l'employé a tapé "Corriger" sur le produit courant
 
   // Horloge en direct (02/08/2026, demande de Frédéric — "tu devrais mettre
   // la date et l'heure") : même convention que NEXUS-Pointage-v1.html
@@ -418,55 +458,265 @@
     dernierStock = await chargerDerniersStocks(ids);
     modesAveugle = await chargerModesAveugle();
     comptagesSaisie = {};
-    renderOuverture();
+    renderCategoriesOuverture();
   }
 
-  function renderOuverture() {
-    document.getElementById('titre').textContent = 'Comptage d\'ouverture';
-    document.getElementById('sousTitre').textContent = 'Le stock transmis est celui laissé par le quart précédent — comptez le vôtre, corrigez si besoin.';
+  // ------------------------------------------------------------
+  // Progression (02/08/2026, demande de Frédéric) — helpers partagés par
+  // l'écran catégories et l'écran carrousel.
+  // ------------------------------------------------------------
+  function produitEstCompte(p) {
+    const s = comptagesSaisie[p.id];
+    return !!s && s.compte !== undefined;
+  }
+  function categorieEstTerminee(items) { return items.every(produitEstCompte); }
+  function categorieEstCommencee(items) { return items.some(produitEstCompte); }
+  function categorieEstPrioritaire(items) { return items.some(p => p.sensible); }
+
+  function estimationTempsTexte(nbRestants) {
+    if (nbRestants <= 0) return null;
+    const minutes = Math.round((nbRestants * SECONDES_PAR_PRODUIT) / 60);
+    if (minutes < 1) return "Moins d'une minute restante";
+    return `Environ ${minutes} minute${minutes > 1 ? 's' : ''} restante${minutes > 1 ? 's' : ''}`;
+  }
+
+  function renderBarreProgression() {
+    const total = produitsZone.length;
+    const comptes = produitsZone.filter(produitEstCompte).length;
+    const pct = total ? Math.round((comptes / total) * 100) : 0;
+    const tempsTexte = estimationTempsTexte(total - comptes);
+    return `
+      <div class="progression-bloc">
+        <div class="progression-haut">
+          <span>${comptes} produit${comptes > 1 ? 's' : ''} sur ${total} contrôlé${comptes > 1 ? 's' : ''}</span>
+          <span class="progression-temps">${tempsTexte || 'Inventaire terminé ✓'}</span>
+        </div>
+        <div class="progression-barre"><div class="progression-remplie" style="width:${pct}%"></div></div>
+      </div>
+    `;
+  }
+
+  // ------------------------------------------------------------
+  // ÉCRAN CATÉGORIES — remplace l'ancienne liste plate de tous les
+  // produits d'un coup : l'employé touche une catégorie, la termine, puis
+  // revient automatiquement ici (renderCategoriesOuverture()).
+  // ------------------------------------------------------------
+  function renderCategoriesOuverture() {
+    categorieActive = null;
+    document.getElementById('titre').textContent = "Inventaire d'ouverture";
+    document.getElementById('sousTitre').textContent = 'Vérifiez les quantités transmises. Corrigez uniquement les différences.';
 
     const groupes = grouperParCategorie(produitsZone);
-    const html = groupes.map(g => `
-      <div class="cat-block">
-        <div class="cat-head">
-          <div class="cat-nom">${g.nom} (${g.items.length})</div>
-          <div class="cat-conforme" data-cat="${g.nom}">Tout conforme</div>
-        </div>
-        <div class="card">
-          ${g.items.map(p => renderLigneOuverture(p)).join('')}
-        </div>
-      </div>
-    `).join('');
+    const nbCatTerminees = groupes.filter(g => categorieEstTerminee(g.items)).length;
+    const toutTermine = nbCatTerminees === groupes.length;
+    const nbRestantes = groupes.length - nbCatTerminees;
 
-    document.getElementById('content').innerHTML = html + `
-      <button class="btn-primary" id="btnValiderOuverture">Valider mon inventaire d'ouverture</button>
+    const html = groupes.map(g => {
+      const termine = categorieEstTerminee(g.items);
+      const commence = categorieEstCommencee(g.items);
+      const prioritaire = categorieEstPrioritaire(g.items) && !termine;
+      let etatTexte = 'À faire', etatClasse = 'a-faire';
+      if (termine) { etatTexte = '✓ Terminé'; etatClasse = 'termine'; }
+      else if (commence) { etatTexte = 'En cours'; etatClasse = 'en-cours'; }
+      else if (prioritaire) { etatTexte = 'Prioritaire'; etatClasse = 'prioritaire'; }
+      return `
+        <div class="categorie-row" data-cat="${g.nom}">
+          <div>
+            <div class="categorie-nom">${g.nom}</div>
+            <div class="categorie-count">${g.items.length} produit${g.items.length > 1 ? 's' : ''}</div>
+          </div>
+          <div class="categorie-etat ${etatClasse}">${etatTexte}</div>
+        </div>
+      `;
+    }).join('');
+
+    document.getElementById('content').innerHTML = `
+      ${renderBarreProgression()}
+      <div class="cats-titre">${nbCatTerminees}/${groupes.length} catégories terminées</div>
+      <div class="card">${html}</div>
+      <button class="btn-primary" id="btnTerminerOuverture" ${!toutTermine ? 'disabled' : ''}>
+        ${toutTermine ? "Valider mon inventaire d'ouverture" : `Terminez toutes les catégories (${nbRestantes} restante${nbRestantes > 1 ? 's' : ''})`}
+      </button>
       <button class="btn-text" id="btnAnnulerOuverture">← Retour</button>
     `;
 
+    document.querySelectorAll('.categorie-row').forEach(el => {
+      el.addEventListener('click', () => ouvrirCategorie(groupes.find(g => g.nom === el.dataset.cat)));
+    });
+    document.getElementById('btnTerminerOuverture').addEventListener('click', validerOuverture);
+    document.getElementById('btnAnnulerOuverture').addEventListener('click', renderAccueil);
+  }
+
+  function ouvrirCategorie(groupe) {
+    categorieActive = groupe.nom;
+    carrouselModeCorrection = false;
+    if (groupe.items.length > CARROUSEL_SEUIL) {
+      carrouselIndex = groupe.items.findIndex(p => !produitEstCompte(p));
+      if (carrouselIndex === -1) carrouselIndex = 0; // déjà terminée : on repasse en revue depuis le début
+      renderCarrousel(groupe);
+    } else {
+      renderCategorieListe(groupe);
+    }
+  }
+
+  // ------------------------------------------------------------
+  // MODE LISTE — catégories courtes (≤ ${CARROUSEL_SEUIL} produits, ex :
+  // Gaz). Renommé "Valider cette catégorie conforme" (demande de Frédéric :
+  // "Tout conforme" encourageait une validation trop rapide) avec une
+  // confirmation explicite avant d'appliquer le stock transmis partout.
+  // ------------------------------------------------------------
+  function renderCategorieListe(groupe) {
+    document.getElementById('titre').textContent = groupe.nom;
+    document.getElementById('sousTitre').textContent = 'Le stock transmis est celui laissé par le quart précédent — comptez le vôtre, corrigez si besoin.';
+
+    document.getElementById('content').innerHTML = `
+      ${renderBarreProgression()}
+      <div class="card">
+        ${groupe.items.map(p => renderLigneOuverture(p)).join('')}
+      </div>
+      <button class="btn-primary" id="btnCategorieConforme">Valider cette catégorie conforme</button>
+      <button class="btn-text" id="btnRetourCategories">← Retour aux catégories</button>
+    `;
+
     document.querySelectorAll('.produit-input').forEach(el => {
-      el.addEventListener('input', () => majLigne(el.dataset.produit));
+      el.addEventListener('input', () => majLigneCategorie(el.dataset.produit, groupe));
     });
     document.querySelectorAll('.btn-identique').forEach(el => {
       el.addEventListener('click', () => {
         const input = document.querySelector(`.produit-input[data-produit="${el.dataset.produit}"]`);
         const transmis = dernierStock[el.dataset.produit];
         input.value = transmis ? transmis.quantite : 0;
-        majLigne(el.dataset.produit);
+        majLigneCategorie(el.dataset.produit, groupe);
       });
     });
-    document.querySelectorAll('.cat-conforme').forEach(el => {
-      el.addEventListener('click', () => {
-        produitsZone.filter(p => (p.inventaire_categories ? p.inventaire_categories.nom : 'Autres') === el.dataset.cat)
-          .forEach(p => {
-            const input = document.querySelector(`.produit-input[data-produit="${p.id}"]`);
-            const transmis = dernierStock[p.id];
-            input.value = transmis ? transmis.quantite : 0;
-            majLigne(p.id);
-          });
+    document.getElementById('btnCategorieConforme').addEventListener('click', () => {
+      if (!confirm(`Vous confirmez avoir compté les ${groupe.items.length} produit${groupe.items.length > 1 ? 's' : ''} de cette catégorie ?`)) return;
+      groupe.items.forEach(p => {
+        const transmis = dernierStock[p.id];
+        comptagesSaisie[p.id] = { compte: transmis ? transmis.quantite : 0, ecartNonNul: false, justification: '' };
       });
+      renderCategoriesOuverture();
     });
-    document.getElementById('btnValiderOuverture').addEventListener('click', validerOuverture);
-    document.getElementById('btnAnnulerOuverture').addEventListener('click', renderAccueil);
+    document.getElementById('btnRetourCategories').addEventListener('click', renderCategoriesOuverture);
+  }
+
+  function majLigneCategorie(produitId, groupe) {
+    const input = document.querySelector(`.produit-input[data-produit="${produitId}"]`);
+    const val = input.value === '' ? null : parseFloat(input.value);
+    const transmis = dernierStock[produitId] ? dernierStock[produitId].quantite : 0;
+    const ecartDiv = document.getElementById(`ecart-${produitId}`);
+    if (val === null || isNaN(val)) { ecartDiv.textContent = ''; comptagesSaisie[produitId] = undefined; return; }
+    const ecart = val - transmis;
+    const ecartNonNul = Math.abs(ecart) > 0.001;
+    ecartDiv.className = 'ecart-tag ' + (ecart === 0 ? 'ecart-ok' : (Math.abs(ecart) <= 2 ? 'ecart-warn' : 'ecart-bad'));
+    ecartDiv.textContent = ecart === 0 ? 'Conforme' : `Écart d'ouverture : ${ecart > 0 ? '+' : ''}${fmtNum(ecart)}`;
+    const justifInput = document.querySelector(`.justif-input[data-produit="${produitId}"]`);
+    comptagesSaisie[produitId] = { compte: val, ecartNonNul, justification: justifInput ? justifInput.value : (comptagesSaisie[produitId] ? comptagesSaisie[produitId].justification : '') };
+    if (ecartNonNul && !justifInput) renderCategorieListe(groupe); // ré-affiche pour montrer le champ justification
+  }
+
+  // ------------------------------------------------------------
+  // MODE CARROUSEL — catégories longues (> ${CARROUSEL_SEUIL} produits,
+  // ex : Cigarettes). Un seul produit à la fois : la valeur transmise est
+  // affichée en grisé, "✓ Identique" valide en un geste, "Corriger" ouvre
+  // la saisie pré-remplie avec cette même valeur — l'employé ne saisit
+  // donc que les différences.
+  // ------------------------------------------------------------
+  function renderCarrousel(groupe) {
+    const items = groupe.items;
+    const p = items[carrouselIndex];
+    document.getElementById('titre').textContent = groupe.nom;
+    document.getElementById('sousTitre').textContent = '';
+
+    const transmis = dernierStock[p.id];
+    const masque = estMasquePourProduit(p);
+    const valeurTransmise = transmis ? transmis.quantite : 0;
+    const pasDHistorique = transmis === undefined;
+    const afficherChoixRapide = !masque && !pasDHistorique && !carrouselModeCorrection;
+
+    document.getElementById('content').innerHTML = `
+      ${renderBarreProgression()}
+      <div class="carrousel-card">
+        <div class="carrousel-nom">${p.designation}${p.sensible ? '<span class="badge-sensible" style="margin-left:8px;">Sensible</span>' : ''}</div>
+        ${masque
+          ? `<div class="carrousel-transmis">Comptage à l'aveugle — saisissez votre chiffre</div>`
+          : (pasDHistorique
+              ? `<div class="carrousel-transmis">Premier comptage — pas d'historique</div>`
+              : `<div class="carrousel-transmis">Stock transmis par le quart précédent</div>
+                 <div class="carrousel-valeur">${fmtNum(valeurTransmise)} <span class="carrousel-unite">${p.unite}</span></div>`)
+        }
+        ${afficherChoixRapide ? `
+          <div class="carrousel-actions">
+            <button class="btn-primary" id="btnConforme">✓ Identique — valider</button>
+            <button class="btn-ghost" id="btnCorriger">Corriger</button>
+          </div>
+        ` : `
+          <input type="number" inputmode="decimal" step="0.01" class="produit-input carrousel-input" id="carrouselInput"
+                 placeholder="Votre comptage" value="${masque || pasDHistorique ? '' : valeurTransmise}" onfocus="this.select()">
+          <div class="ecart-tag" id="ecartCarrousel"></div>
+          <input type="text" class="justif-input" id="justifCarrousel" placeholder="Justification de l'écart (facultatif)" style="display:none;">
+          <button class="btn-primary" id="btnValiderProduit">Valider ce produit</button>
+          ${!masque && !pasDHistorique ? `<button class="btn-text" id="btnAnnulerCorrection">← Revenir à « Identique »</button>` : ''}
+        `}
+      </div>
+      <div class="carrousel-footer">Produit ${carrouselIndex + 1} sur ${items.length}</div>
+      <button class="btn-text" id="btnRetourCategoriesCarrousel">← Retour aux catégories</button>
+    `;
+
+    const btnConforme = document.getElementById('btnConforme');
+    if (btnConforme) btnConforme.addEventListener('click', () => {
+      comptagesSaisie[p.id] = { compte: valeurTransmise, ecartNonNul: false, justification: '' };
+      avancerCarrousel(groupe);
+    });
+    const btnCorriger = document.getElementById('btnCorriger');
+    if (btnCorriger) btnCorriger.addEventListener('click', () => {
+      carrouselModeCorrection = true;
+      renderCarrousel(groupe);
+      setTimeout(() => { const i = document.getElementById('carrouselInput'); if (i) { i.focus(); i.select(); } }, 0);
+    });
+    const carrouselInput = document.getElementById('carrouselInput');
+    if (carrouselInput) carrouselInput.addEventListener('input', () => majCarrousel(valeurTransmise));
+    const btnValiderProduit = document.getElementById('btnValiderProduit');
+    if (btnValiderProduit) btnValiderProduit.addEventListener('click', () => {
+      const input = document.getElementById('carrouselInput');
+      const val = input.value === '' ? null : parseFloat(input.value);
+      if (val === null || isNaN(val)) { alert('Saisissez un chiffre avant de valider.'); return; }
+      const ecart = val - valeurTransmise;
+      const ecartNonNul = Math.abs(ecart) > 0.001;
+      const justifInput = document.getElementById('justifCarrousel');
+      comptagesSaisie[p.id] = { compte: val, ecartNonNul, justification: justifInput ? justifInput.value : '' };
+      avancerCarrousel(groupe);
+    });
+    const btnAnnulerCorrection = document.getElementById('btnAnnulerCorrection');
+    if (btnAnnulerCorrection) btnAnnulerCorrection.addEventListener('click', () => {
+      carrouselModeCorrection = false;
+      renderCarrousel(groupe);
+    });
+    document.getElementById('btnRetourCategoriesCarrousel').addEventListener('click', renderCategoriesOuverture);
+  }
+
+  function majCarrousel(valeurTransmise) {
+    const input = document.getElementById('carrouselInput');
+    const ecartDiv = document.getElementById('ecartCarrousel');
+    const justifInput = document.getElementById('justifCarrousel');
+    if (!input || !ecartDiv) return;
+    const val = input.value === '' ? null : parseFloat(input.value);
+    if (val === null || isNaN(val)) { ecartDiv.textContent = ''; if (justifInput) justifInput.style.display = 'none'; return; }
+    const ecart = val - valeurTransmise;
+    const ecartNonNul = Math.abs(ecart) > 0.001;
+    ecartDiv.className = 'ecart-tag ' + (ecart === 0 ? 'ecart-ok' : (Math.abs(ecart) <= 2 ? 'ecart-warn' : 'ecart-bad'));
+    ecartDiv.textContent = ecart === 0 ? 'Conforme' : `Écart d'ouverture : ${ecart > 0 ? '+' : ''}${fmtNum(ecart)}`;
+    if (justifInput) justifInput.style.display = ecartNonNul ? '' : 'none';
+  }
+
+  function avancerCarrousel(groupe) {
+    carrouselModeCorrection = false;
+    if (carrouselIndex < groupe.items.length - 1) {
+      carrouselIndex++;
+      renderCarrousel(groupe);
+    } else {
+      renderCategoriesOuverture();
+    }
   }
 
   function renderLigneOuverture(p) {
@@ -492,29 +742,14 @@
     `;
   }
 
-  function majLigne(produitId) {
-    const input = document.querySelector(`.produit-input[data-produit="${produitId}"]`);
-    const val = input.value === '' ? null : parseFloat(input.value);
-    const transmis = dernierStock[produitId] ? dernierStock[produitId].quantite : 0;
-    const ecartDiv = document.getElementById(`ecart-${produitId}`);
-    if (val === null || isNaN(val)) { ecartDiv.textContent = ''; comptagesSaisie[produitId] = undefined; return; }
-    const ecart = val - transmis;
-    const ecartNonNul = Math.abs(ecart) > 0.001;
-    ecartDiv.className = 'ecart-tag ' + (ecart === 0 ? 'ecart-ok' : (Math.abs(ecart) <= 2 ? 'ecart-warn' : 'ecart-bad'));
-    ecartDiv.textContent = ecart === 0 ? 'Conforme' : `Écart d'ouverture : ${ecart > 0 ? '+' : ''}${fmtNum(ecart)}`;
-    const justifInput = document.querySelector(`.justif-input[data-produit="${produitId}"]`);
-    comptagesSaisie[produitId] = { compte: val, ecartNonNul, justification: justifInput ? justifInput.value : (comptagesSaisie[produitId] ? comptagesSaisie[produitId].justification : '') };
-    if (ecartNonNul && !justifInput) renderOuverture(); // ré-affiche la ligne pour montrer le champ justification
-  }
-
   async function validerOuverture() {
     // capture les justifications avant de désactiver le bouton
     document.querySelectorAll('.justif-input').forEach(el => {
       if (comptagesSaisie[el.dataset.produit]) comptagesSaisie[el.dataset.produit].justification = el.value;
     });
 
-    const btn = document.getElementById('btnValiderOuverture');
-    btn.disabled = true; btn.textContent = 'Enregistrement…';
+    const btn = document.getElementById('btnTerminerOuverture');
+    if (btn) { btn.disabled = true; btn.textContent = 'Enregistrement…'; }
 
     let nbComptes = 0, nbEcarts = 0;
     for (const p of produitsZone) {
