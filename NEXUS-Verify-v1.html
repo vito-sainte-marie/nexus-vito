@@ -225,10 +225,31 @@
 
   footer{margin-top:auto; padding:16px 20px 24px; font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:center; border-top:1px solid var(--hairline);}
   .locked{padding:60px 20px; text-align:center; color:var(--text-dim); font-family:var(--sans);}
+
+  /* ============================================================
+     VUE BUREAU — pilote (02/08/2026, demande de Frédéric)
+     La coquille (barre latérale, bascule mobile/bureau, bouton flottant)
+     vient de nexus-desktop.js, commune à terme à tout NEXUS. Ce bloc-ci
+     réorganise spécifiquement le CONTENU de Verify en plusieurs colonnes
+     quand body.nexus-desktop est actif — c'est la partie "sur mesure" par
+     écran évoquée dans nexus-desktop.js. Rien ici ne s'applique tant que
+     la vue bureau n'est pas choisie : le mobile reste identique à avant.
+     ============================================================ */
+  body.nexus-desktop .phone{max-width:1180px; margin:0 auto; padding:0 28px;}
+  body.nexus-desktop .header{padding-top:28px;}
+  body.nexus-desktop .verify-grid{column-count:2; column-gap:20px; margin-top:0;}
+  body.nexus-desktop .verify-grid .card{break-inside:avoid; -webkit-column-break-inside:avoid; page-break-inside:avoid;}
+  /* Les cartes les plus courtes (Quart concerné, Employés présents une fois
+     repliée visuellement dense) peuvent se retrouver seules en haut d'une
+     colonne déséquilibrée — accepté pour ce pilote : mieux vaut deux
+     colonnes qui respirent qu'une grille rigide qui casse le contenu des
+     grandes cartes (NEXUS Data Connector, Ventes théoriques). */
+  body.nexus-desktop #vueHistorique .card{max-width:720px; margin-left:auto; margin-right:auto;}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="nexus-auth.js"></script>
+<script src="nexus-desktop.js"></script>
 </head>
 <body>
 <div class="phone" id="app">
@@ -251,6 +272,13 @@
   </div>
 
   <div class="section" id="vueNouveau">
+    <!-- verify-grid (02/08/2026, pilote vue bureau) : wrapper purement
+         additif — aucun effet en mobile (une <div> sans style propre), sert
+         uniquement de conteneur pour la mise en colonnes CSS quand
+         body.nexus-desktop est actif (voir bloc "Vue bureau" plus haut dans
+         ce <style>). Le bouton "Calculer et enregistrer" et tout ce qui
+         suit restent volontairement HORS de ce wrapper, en pleine largeur. -->
+    <div class="verify-grid">
     <div class="card">
       <div class="section-label">Quart concerné</div>
       <div class="row2">
@@ -465,6 +493,8 @@
         <textarea id="v_commentaire" style="min-height:60px;"></textarea>
       </div>
     </div>
+    </div>
+    <!-- /verify-grid -->
 
     <button class="btn btn-primary" id="btnCalculer">Calculer et enregistrer</button>
     <div id="resultatAudit"></div>
