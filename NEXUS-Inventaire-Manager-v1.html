@@ -114,6 +114,38 @@
   .stat-mini-value.amber{color:var(--amber);}
   .stat-mini-label{font-size:9.5px; color:var(--text-mid); margin-top:3px; line-height:1.3;}
 
+  /* Synthèse du quart (02/08/2026, demande de Frédéric — remplace l'ancien
+     stats-row à 3 cases) : vue d'ensemble chiffrée, jamais un chiffre
+     inventé — tout vient de inventaire_comptages / inventaire_alertes /
+     inventaire_zone_produit réellement chargés pour ce quart. */
+  .synthese-card{background:var(--panel); border:1px solid var(--hairline); border-radius:12px; padding:14px 16px; margin-bottom:18px;}
+  .synthese-titre{font-family:var(--mono); font-size:11px; text-transform:uppercase; letter-spacing:0.05em; color:var(--text-mid); margin-bottom:10px;}
+  .synthese-ligne{display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px solid var(--hairline); font-size:12.5px;}
+  .synthese-ligne:last-child{border-bottom:none;}
+  .synthese-valeur{font-family:var(--mono); font-weight:700; color:var(--text);}
+  .synthese-valeur.amber{color:var(--amber);}
+  .synthese-valeur.green{color:var(--green);}
+  .synthese-cloture{margin-top:12px; padding:9px 10px; border-radius:8px; font-size:11.5px; font-family:var(--mono); text-align:center;}
+  .synthese-cloture.impossible{background:var(--amber-dim); color:var(--amber);}
+  .synthese-cloture.possible{background:var(--green-dim); color:var(--green);}
+
+  /* À terminer — catégories avec comptages manquants (regroupé, plus lisible
+     qu'une longue liste produit par produit). */
+  .categorie-manquante{display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px solid var(--hairline); font-size:13px;}
+  .categorie-manquante:last-child{border-bottom:none;}
+  .categorie-manquante-valeur{font-family:var(--mono); font-weight:700; color:var(--amber);}
+
+  /* Décisions prises — validations groupées par date/quart pour éviter une
+     liste répétitive de "Valider — Écart validé — aucune action", tout en
+     laissant les décisions importantes (recomptage, correction, démarque à
+     surveiller) individuellement visibles via renderHistoriqueItem. */
+  .decision-groupe{background:var(--panel); border:1px solid var(--hairline); border-radius:12px; padding:12px 14px; margin-bottom:10px;}
+  .decision-groupe-top{display:flex; justify-content:space-between; gap:10px; font-size:12.5px;}
+  .decision-groupe-date{font-family:var(--mono); font-size:10px; color:var(--text-dim); white-space:nowrap;}
+  .decision-groupe-desc{margin-top:4px; color:var(--text-mid);}
+  .decision-groupe-liste{margin-top:8px; font-size:11.5px; color:var(--text-mid); line-height:1.6;}
+  .btn-inline-lien{margin-top:8px; font-family:var(--sans); font-size:11px; font-weight:600; color:var(--cyan); background:none; border:none; cursor:pointer; padding:0; display:inline-block;}
+
   /* Conseiller NEXUS — même habillage que NEXUS-Verify-v1.html (01/08/2026)
      pour rester cohérent visuellement dans toute l'app. Remarques calculées
      uniquement à partir de données réelles (alertes, comptages, historique) —
@@ -187,7 +219,7 @@
     <div class="title" id="titre">Chargement…</div>
     <div class="heure-live" id="heureLive">--:--:--</div>
     <div class="date-live" id="dateLive"></div>
-    <div class="sub">Anomalies, décisions et mode de comptage à l'aveugle</div>
+    <div class="sub">Écarts, comptages manquants et décisions du jour</div>
   </div>
   <div class="divider"></div>
 
@@ -205,10 +237,14 @@
   let dateSelectionnee = '';
   let quartSelectionne = 'matin';
   let quartRow = null;
-  // Repli du mode aveugle (02/08/2026, demande de Frédéric) : replié par
-  // défaut pour ne pas surcharger l'écran d'une longue liste d'employés —
-  // dernierCtx permet de replier/déplier sans recharger toutes les données.
-  let sectionAveugleOuverte = false;
+  // Repli de "Paramètres de contrôle" — mode aveugle + jaugeage carburant
+  // (02/08/2026, demande de Frédéric : "la page principale doit rester
+  // centrée sur : Que dois-je contrôler maintenant ?") : replié par défaut,
+  // sorti du flux principal des alertes — dernierCtx permet de
+  // replier/déplier ou d'ouvrir un groupe de décisions sans recharger
+  // toutes les données.
+  let sectionParametresOuverte = false;
+  let histoGroupesOuverts = new Set();
   let dernierCtx = null;
 
   // Catégories de décision manager sur une alerte (02/08/2026, demande de
@@ -308,6 +344,20 @@
     return data || [];
   }
 
+  // Synthèse du quart (02/08/2026, demande de Frédéric) : tous les produits
+  // actifs du site (pas seulement les sensibles) pour calculer la vraie
+  // progression de comptage et le regroupement par catégorie de
+  // "À terminer" — même logique que produitsRequis() côté employé
+  // (NEXUS-Inventaire-v1.html), le jaugeage carburant n'étant requis que
+  // s'il est activé.
+  async function chargerTousProduitsActifsSite(site) {
+    const { data, error } = await nexusClient.from('inventaire_zone_produit')
+      .select('id, categorie_id, inventaire_categories(nom)')
+      .eq('site', site).eq('actif', true);
+    if (error) { console.error('Chargement produits actifs (synthèse):', error); return []; }
+    return data || [];
+  }
+
   async function chargerEmployesSite(site) {
     const { data, error } = await nexusClient.from('employees').select('id, nom, role').eq('site_id', site).eq('actif', true).order('nom');
     if (error) { console.error('Chargement employés:', error); return []; }
@@ -340,7 +390,7 @@
     const { data, error } = await nexusClient.from('inventaire_alertes')
       .select('*, inventaire_zone_produit(designation), inventaire_quarts(date, quart)')
       .eq('site', site).eq('statut', 'resolue')
-      .order('resolue_le', { ascending: false }).limit(15);
+      .order('resolue_le', { ascending: false }).limit(30);
     if (error) { console.error('Chargement historique des décisions:', error); return []; }
     return data || [];
   }
@@ -408,6 +458,64 @@
   // deux produits différents).
   // ------------------------------------------------------------
   const SEUIL_DEMARQUE = 1; // tolérance : petites erreurs de comptage normales en dessous de ce seuil
+
+  // ------------------------------------------------------------
+  // SYNTHÈSE DU QUART (02/08/2026, demande de Frédéric) : distingue les
+  // comptages manquants (pas encore une anomalie) des écarts confirmés
+  // (alertes ouvertes) — jamais un chiffre inventé, tout dérive de
+  // inventaire_comptages / inventaire_alertes / inventaire_zone_produit
+  // réellement chargés. Même exclusion du jaugeage carburant que côté
+  // employé (produitsRequis() dans NEXUS-Inventaire-v1.html).
+  // ------------------------------------------------------------
+  const JAUGEAGE_NOM = 'Jaugeage Carburant';
+
+  function construireSynthese(produitsActifs, comptages, jaugeageActif, quart, alertesOuvertes) {
+    const requis = jaugeageActif ? produitsActifs : produitsActifs.filter(p => !p.inventaire_categories || p.inventaire_categories.nom !== JAUGEAGE_NOM);
+    // Une fois l'ouverture terminée, c'est la clôture qui est la phase de
+    // comptage active pour ce quart — sinon "produits comptés" resterait
+    // bloqué à 100% dès l'ouverture close alors que la clôture reste à faire.
+    const phase = (quart && (quart.statut === 'ouvert' || quart.statut === 'cloture')) ? 'clotures' : 'ouverts';
+    const parCategorie = {};
+    requis.forEach(p => {
+      const nom = p.inventaire_categories ? p.inventaire_categories.nom : 'Autres';
+      if (!parCategorie[nom]) parCategorie[nom] = { nom, total: 0, comptes: 0 };
+      parCategorie[nom].total++;
+      if (comptages[phase].has(p.id)) parCategorie[nom].comptes++;
+    });
+    const categories = Object.values(parCategorie).sort((a, b) => (b.total - b.comptes) - (a.total - a.comptes));
+    const total = requis.length;
+    const comptes = requis.filter(p => comptages[phase].has(p.id)).length;
+    return {
+      phase, total, comptes, manquants: total - comptes,
+      categoriesTotal: categories.length,
+      categoriesTerminees: categories.filter(c => c.comptes === c.total).length,
+      categoriesIncompletes: categories.filter(c => c.comptes < c.total),
+      ecartsConfirmes: alertesOuvertes.length,
+      clotureImpossible: total > 0 && comptes < total,
+    };
+  }
+
+  // Décisions prises (02/08/2026, demande de Frédéric) : les validations
+  // sans action ("Écart validé — aucune action nécessaire") sont regroupées
+  // par date/quart pour éviter une longue liste répétitive — les décisions
+  // qui comptent vraiment (recomptage, erreur de saisie, démarque à
+  // surveiller, explication reçue) restent affichées individuellement.
+  function grouperHistorique(historique) {
+    const groupesValideeMap = {};
+    const individuels = [];
+    historique.forEach(h => {
+      if (h.resolution === 'validee') {
+        const dateQ = h.inventaire_quarts ? h.inventaire_quarts.date : 'date-inconnue';
+        const quartQ = h.inventaire_quarts ? h.inventaire_quarts.quart : '';
+        const cle = `${dateQ}|${quartQ}`;
+        if (!groupesValideeMap[cle]) groupesValideeMap[cle] = { cle, date: dateQ, quart: quartQ, items: [] };
+        groupesValideeMap[cle].items.push(h);
+      } else {
+        individuels.push(h);
+      }
+    });
+    return { groupesValidee: Object.values(groupesValideeMap), individuels };
+  }
 
   // Rapprochement par nom pour les produits sans code-barres des deux côtés
   // (pain, viennoiserie, gaz en bouteille, glaçons) — vérifié manuellement
@@ -608,7 +716,7 @@
         <div><b>${produitIds.length}</b> produit(s) rapproché(s) et comparé(s).</div>
         ${nbNonIdentifiees ? `<div class="amber">${nbNonIdentifiees} ligne(s) du fichier non identifiée(s)</div>` : ''}
         ${nbSansComptage ? `<div class="amber">${nbSansComptage} produit(s) sans comptage d'ouverture et/ou de clôture — écoulement non calculable</div>` : ''}
-        <div class="${nbEcarts ? 'amber' : ''}"><b>${nbEcarts}</b> écart(s) de plus de ${SEUIL_DEMARQUE} détecté(s)${nbEcarts ? ' — voir Alertes ouvertes ci-dessous' : ''}.</div>
+        <div class="${nbEcarts ? 'amber' : ''}"><b>${nbEcarts}</b> écart(s) de plus de ${SEUIL_DEMARQUE} détecté(s)${nbEcarts ? ' — voir À contrôler ci-dessous' : ''}.</div>
       `;
       await chargerEtAfficherTout();
     } catch (err) {
@@ -656,28 +764,41 @@
   // sur 14 jours, mode aveugle actif). Jamais un chiffre inventé, même
   // principe que sur NEXUS-Verify-v1.html.
   // ------------------------------------------------------------
-  async function genererRemarquesConseiller(alertesOuvertes, sensiblesNonComptesDetail, modesAveugleActifs) {
+  async function genererRemarquesConseiller(alertesOuvertes, sensiblesNonComptesDetail, modesAveugleActifs, synthese) {
     const corps = document.getElementById('conseillerCorps');
     if (!corps) return;
     const remarques = [];
 
-    if (alertesOuvertes.length === 0 && sensiblesNonComptesDetail.length === 0) {
-      remarques.push(`Rien à signaler sur ce quart — tous les produits sensibles ont été comptés et aucun écart n'est resté ouvert.`);
+    // Prescriptif plutôt que descriptif (02/08/2026, demande de Frédéric) :
+    // le Conseiller nomme les catégories concrètes et recommande une
+    // priorité, plutôt que de se contenter de constater un chiffre. Jamais
+    // d'horaire limite inventé — NEXUS n'a pas de donnée d'heure de clôture
+    // cible, seulement l'état réel des comptages.
+    if (!quartRow) {
+      remarques.push(`Aucun inventaire n'a encore été démarré pour ce quart.`);
+    } else if (alertesOuvertes.length === 0 && synthese.manquants === 0) {
+      remarques.push(`Rien à signaler sur ce quart — tous les comptages requis ont été effectués et aucun écart n'est resté ouvert.`);
     } else {
+      if (synthese.clotureImpossible) {
+        const quartLabel = quartSelectionne === 'soir' ? 'soir' : 'matin';
+        const detailCategories = synthese.categoriesIncompletes.slice(0, 3)
+          .map(c => `${c.total - c.comptes} ${c.nom.toLowerCase()}`).join(', ');
+        remarques.push(`Le quart du <b>${quartLabel}</b> n'est pas clôturable : <b>${synthese.manquants} produit(s)</b> restent à compter${detailCategories ? `, dont ${detailCategories}` : ''}.`);
+        if (synthese.categoriesIncompletes.length) {
+          const prioritaires = synthese.categoriesIncompletes.slice(0, 2).map(c => c.nom).join(' et ');
+          remarques.push(`Priorité recommandée : terminer <b>${prioritaires}</b> en premier. <button class="btn-inline-lien" id="btnVoirCategoriesIncompletes">Voir les catégories incomplètes</button>`);
+        }
+      }
       if (alertesOuvertes.length) {
         const nbCritiques = alertesOuvertes.filter(a => a.gravite === 'critique').length;
-        remarques.push(`<b>${alertesOuvertes.length} alerte(s) ouverte(s)</b> sur ce quart${nbCritiques ? `, dont <b>${nbCritiques} critique(s)</b>` : ''}.`);
-      }
-      if (sensiblesNonComptesDetail.length) {
-        const noms = sensiblesNonComptesDetail.slice(0, 4).map(x => x.produit.designation);
-        remarques.push(`<b>${sensiblesNonComptesDetail.length} produit(s) sensible(s)</b> sans comptage complet sur ce quart : ${noms.join(', ')}${sensiblesNonComptesDetail.length > 4 ? '…' : ''}.`);
+        remarques.push(`<b>${alertesOuvertes.length} écart(s) à contrôler</b> sur ce quart${nbCritiques ? `, dont <b>${nbCritiques} critique(s)</b>` : ''}.`);
       }
     }
 
     try {
-      const historique = await chargerHistoriqueEcartsRecents(siteId);
+      const historiqueRecent = await chargerHistoriqueEcartsRecents(siteId);
       const compte = {};
-      for (const h of historique) compte[h.produit_id] = (compte[h.produit_id] || 0) + 1;
+      for (const h of historiqueRecent) compte[h.produit_id] = (compte[h.produit_id] || 0) + 1;
       const recurrents = alertesOuvertes.filter(a => (compte[a.produit_id] || 0) >= 2);
       if (recurrents.length) {
         const noms = [...new Set(recurrents.map(a => a.inventaire_zone_produit ? a.inventaire_zone_produit.designation : 'ce produit'))];
@@ -692,6 +813,11 @@
     }
 
     corps.innerHTML = remarques.map(r => `<div class="conseiller-remarque">${r}</div>`).join('');
+    const btnVoirCategories = document.getElementById('btnVoirCategoriesIncompletes');
+    if (btnVoirCategories) btnVoirCategories.addEventListener('click', () => {
+      const el = document.getElementById('sectionATerminer');
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
   }
 
   // ------------------------------------------------------------
@@ -787,10 +913,54 @@
     `;
   }
 
+  // Groupe de validations sans action, replié par défaut (02/08/2026,
+  // demande de Frédéric — évite une longue liste répétitive de "Valider —
+  // Écart validé — aucune action nécessaire").
+  function renderDecisionGroupeValidee(g) {
+    const dateFr = g.date !== 'date-inconnue'
+      ? new Date(g.date + 'T00:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })
+      : 'Date inconnue';
+    const quartLabel = g.quart === 'soir' ? 'Quart du soir' : (g.quart === 'matin' ? 'Quart du matin' : g.quart);
+    const noms = g.items.map(h => h.inventaire_zone_produit ? h.inventaire_zone_produit.designation : 'Produit');
+    const ouvert = histoGroupesOuverts.has(g.cle);
+    return `
+      <div class="decision-groupe">
+        <div class="decision-groupe-top">
+          <b>${dateFr} — ${quartLabel}</b>
+          <span class="decision-groupe-date">${g.items.length} écart${g.items.length > 1 ? 's' : ''}</span>
+        </div>
+        <div class="decision-groupe-desc">${g.items.length} écart${g.items.length > 1 ? 's' : ''} validé${g.items.length > 1 ? 's' : ''} sans action</div>
+        <button class="btn-inline-lien btn-voir-produits-groupe" data-groupe="${g.cle}">${ouvert ? 'Masquer' : `Voir les ${g.items.length} produits`}</button>
+        ${ouvert ? `<div class="decision-groupe-liste">${noms.join(' · ')}</div>` : ''}
+      </div>
+    `;
+  }
+
+  // Synthèse du quart (02/08/2026, demande de Frédéric) : vue d'ensemble
+  // chiffrée en tête de page — "Que dois-je contrôler maintenant ?".
+  function renderSyntheseQuart(s) {
+    const phaseLabel = s.phase === 'clotures' ? 'comptés (clôture)' : 'comptés';
+    return `
+      <div class="synthese-card">
+        <div class="synthese-titre">Synthèse du quart</div>
+        <div class="synthese-ligne"><span>Produits ${phaseLabel}</span><span class="synthese-valeur ${s.manquants ? 'amber' : 'green'}">${s.comptes} / ${s.total}</span></div>
+        <div class="synthese-ligne"><span>Catégories terminées</span><span class="synthese-valeur ${s.categoriesTerminees < s.categoriesTotal ? 'amber' : 'green'}">${s.categoriesTerminees} / ${s.categoriesTotal}</span></div>
+        <div class="synthese-ligne"><span>Écarts confirmés</span><span class="synthese-valeur ${s.ecartsConfirmes ? 'amber' : 'green'}">${s.ecartsConfirmes}</span></div>
+        <div class="synthese-ligne"><span>Comptages manquants</span><span class="synthese-valeur ${s.manquants ? 'amber' : 'green'}">${s.manquants}</span></div>
+        <div class="synthese-cloture ${s.clotureImpossible ? 'impossible' : 'possible'}">${s.clotureImpossible ? 'Clôture impossible tant que les comptages manquants ne sont pas terminés' : 'Clôture possible'}</div>
+      </div>
+    `;
+  }
+
+  function renderCategorieManquante(c) {
+    return `<div class="categorie-manquante"><span>${c.nom}</span><span class="categorie-manquante-valeur">${c.total - c.comptes}</span></div>`;
+  }
+
   function renderTout(ctx) {
     dernierCtx = ctx;
-    const { alertesOuvertes, sensiblesNonComptesDetail, employesSite, modesAveugleActifs, historique, jaugeageActif } = ctx;
+    const { alertesOuvertes, sensiblesNonComptesDetail, employesSite, modesAveugleActifs, historique, jaugeageActif, synthese } = ctx;
     const modesMap = Object.fromEntries(modesAveugleActifs.map(m => [m.employee_id, m]));
+    const { groupesValidee, individuels } = grouperHistorique(historique);
 
     document.getElementById('content').innerHTML = `
       <div class="quart-select-row">
@@ -800,13 +970,7 @@
       </div>
       ${quartRow ? `<div class="quart-statut">${libelleStatutQuart(quartRow)}</div>` : '<div class="quart-statut">Aucun inventaire n\'a encore été démarré pour ce quart.</div>'}
 
-      ${quartRow ? `
-        <div class="stats-row">
-          <div class="stat-mini"><div class="stat-mini-value ${alertesOuvertes.length ? 'amber' : ''}">${alertesOuvertes.length}</div><div class="stat-mini-label">Alertes ouvertes</div></div>
-          <div class="stat-mini"><div class="stat-mini-value ${sensiblesNonComptesDetail.length ? 'amber' : ''}">${sensiblesNonComptesDetail.length}</div><div class="stat-mini-label">Sensibles non comptés</div></div>
-          <div class="stat-mini"><div class="stat-mini-value">${modesAveugleActifs.length}</div><div class="stat-mini-label">Mode aveugle actif</div></div>
-        </div>
-      ` : ''}
+      ${quartRow ? renderSyntheseQuart(synthese) : ''}
 
       <div class="conseiller-card" id="conseillerCard">
         <div class="conseiller-head">
@@ -831,32 +995,37 @@
           <div id="ventesResume"></div>
         </div>
 
+        <div class="section-titre" id="sectionATerminer">À terminer</div>
+        ${synthese.categoriesIncompletes.length === 0
+          ? '<div class="empty">Tous les comptages requis ont été effectués.</div>'
+          : `<div class="card">${synthese.categoriesIncompletes.map(c => renderCategorieManquante(c)).join('')}</div>`}
+
         <div class="section-titre-action-row">
-          <div class="section-titre">Alertes ouvertes</div>
+          <div class="section-titre">À contrôler</div>
           ${alertesOuvertes.length > 0 ? '<button class="btn-tout-valider" id="btnToutValider">Tout valider</button>' : ''}
         </div>
-        ${alertesOuvertes.length === 0 ? '<div class="empty">Aucune alerte ouverte sur ce quart.</div>' : alertesOuvertes.map(a => renderAlerteCard(a)).join('')}
-
-        <div class="section-titre">Produits sensibles non comptés</div>
-        ${sensiblesNonComptesDetail.length === 0 ? '<div class="empty">Tous les produits sensibles ont été comptés.</div>' : sensiblesNonComptesDetail.map(x => renderSensibleItem(x)).join('')}
+        ${alertesOuvertes.length === 0 ? '<div class="empty">Aucun écart ouvert.</div>' : alertesOuvertes.map(a => renderAlerteCard(a)).join('')}
       ` : ''}
 
-      <div class="section-titre section-repliable" id="toggleSectionAveugle">
-        <span>Mode de comptage à l'aveugle</span>
-        ${modesAveugleActifs.length ? `<span class="repli-compte">${modesAveugleActifs.length} actif${modesAveugleActifs.length > 1 ? 's' : ''}</span>` : ''}
-        <span class="repli-chevron ${sectionAveugleOuverte ? 'open' : ''}">›</span>
+      <div class="section-titre">Décisions prises</div>
+      ${(groupesValidee.length === 0 && individuels.length === 0) ? '<div class="empty">Aucune décision enregistrée pour le moment.</div>' : `
+        ${individuels.map(h => renderHistoriqueItem(h)).join('')}
+        ${groupesValidee.map(g => renderDecisionGroupeValidee(g)).join('')}
+      `}
+
+      <div class="section-titre section-repliable" id="toggleSectionParametres">
+        <span>Paramètres de contrôle</span>
+        <span class="repli-compte">${modesAveugleActifs.length ? `Aveugle : ${modesAveugleActifs.length} actif${modesAveugleActifs.length > 1 ? 's' : ''}` : 'Aveugle : désactivé'} · Jaugeage : ${jaugeageActif ? 'actif' : 'facultatif'}</span>
+        <span class="repli-chevron ${sectionParametresOuverte ? 'open' : ''}">›</span>
       </div>
-      ${sectionAveugleOuverte ? `
+      ${sectionParametresOuverte ? `
+        <div class="section-titre" style="margin-top:0;">Mode de comptage à l'aveugle</div>
         <div class="card">
           ${employesSite.length === 0 ? '<div class="empty">Aucun employé actif trouvé pour ce site.</div>' : employesSite.map(e => renderEmployeToggle(e, !!modesMap[e.id])).join('')}
         </div>
+        <div class="section-titre">Jaugeage carburant</div>
+        <div class="card">${renderToggleJaugeage(jaugeageActif)}</div>
       ` : ''}
-
-      <div class="section-titre">Jaugeage carburant</div>
-      <div class="card">${renderToggleJaugeage(jaugeageActif)}</div>
-
-      <div class="section-titre">Historique des décisions</div>
-      ${historique.length === 0 ? '<div class="empty">Aucune décision enregistrée pour le moment.</div>' : historique.map(h => renderHistoriqueItem(h)).join('')}
     `;
 
     document.getElementById('selDate').addEventListener('change', async (e) => {
@@ -911,11 +1080,16 @@
       if (el.dataset.mode === 'jaugeage') await toggleJaugeage(!actif);
       else await toggleModeAveugle(el.dataset.employe, !actif);
     }));
-    const toggleSection = document.getElementById('toggleSectionAveugle');
+    const toggleSection = document.getElementById('toggleSectionParametres');
     if (toggleSection) toggleSection.addEventListener('click', () => {
-      sectionAveugleOuverte = !sectionAveugleOuverte;
+      sectionParametresOuverte = !sectionParametresOuverte;
       renderTout(dernierCtx); // pas de rechargement réseau, juste replier/déplier
     });
+    document.querySelectorAll('.btn-voir-produits-groupe').forEach(btn => btn.addEventListener('click', () => {
+      const cle = btn.dataset.groupe;
+      if (histoGroupesOuverts.has(cle)) histoGroupesOuverts.delete(cle); else histoGroupesOuverts.add(cle);
+      renderTout(dernierCtx); // pas de rechargement réseau, juste replier/déplier
+    }));
   }
 
   async function chargerEtAfficherTout() {
@@ -923,8 +1097,9 @@
 
     quartRow = await chargerQuart(siteId, dateSelectionnee, quartSelectionne);
 
-    const [produitsSensibles, employesSite, modesAveugleActifs, historique, jaugeageActif] = await Promise.all([
+    const [produitsSensibles, produitsActifsSite, employesSite, modesAveugleActifs, historique, jaugeageActif] = await Promise.all([
       chargerProduitsSensibles(siteId),
+      chargerTousProduitsActifsSite(siteId),
       chargerEmployesSite(siteId),
       chargerModesAveugleActifs(siteId),
       chargerHistoriqueDecisions(siteId),
@@ -949,8 +1124,10 @@
         })).filter(x => x.manqueOuverture || x.manqueCloture)
       : [];
 
-    renderTout({ alertesOuvertes, sensiblesNonComptesDetail, employesSite, modesAveugleActifs, historique, jaugeageActif });
-    await genererRemarquesConseiller(alertesOuvertes, sensiblesNonComptesDetail, modesAveugleActifs);
+    const synthese = construireSynthese(produitsActifsSite, comptages, jaugeageActif, quartRow, alertesOuvertes);
+
+    renderTout({ alertesOuvertes, sensiblesNonComptesDetail, employesSite, modesAveugleActifs, historique, jaugeageActif, synthese });
+    await genererRemarquesConseiller(alertesOuvertes, sensiblesNonComptesDetail, modesAveugleActifs, synthese);
   }
 
   // ------------------------------------------------------------
@@ -965,7 +1142,7 @@
     managerCourant = employee;
     siteId = employee.site_id || 'vito-sainte-marie';
     demarrerHorloge();
-    document.getElementById('titre').textContent = 'Alerte inventaire quotidien';
+    document.getElementById('titre').textContent = 'Contrôle inventaire';
 
     dateSelectionnee = dateISO();
     quartSelectionne = await quartDuMoment(siteId);

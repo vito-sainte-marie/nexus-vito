@@ -724,16 +724,16 @@
         </div>
         <div class="nav-arrow">›</div>
       </a>
-      <!-- Alerte inventaire quotidien (02/08/2026, demande de Frédéric) :
-           déplacé de Piloter vers Exécuter (juste à côté du comptage
-           lui-même) et renommé — alertes d'écarts, produits sensibles non
-           comptés, décisions et activation du mode de comptage à l'aveugle
-           par employé. -->
+      <!-- Contrôle inventaire (02/08/2026, demande de Frédéric) : déplacé
+           de Piloter vers Exécuter (juste à côté du comptage lui-même) et
+           renommé — le nom "Alerte inventaire quotidien" était trop étroit
+           pour une page qui contient aussi le suivi du quart, les produits
+           non comptés, les décisions, les réglages et l'historique. -->
       <a class="nav-item" data-role="manager" href="NEXUS-Inventaire-Manager-v1.html">
         <div class="nav-icon" style="display:flex; align-items:center; justify-content:center; font-size:20px;">🧭</div>
         <div class="nav-body">
-          <div class="nav-title">Alerte inventaire quotidien</div>
-          <div class="nav-desc">Les produits qui nécessitent votre attention</div>
+          <div class="nav-title">Contrôle inventaire</div>
+          <div class="nav-desc">Écarts, comptages manquants et décisions du jour</div>
         </div>
         <div class="nav-arrow">›</div>
       </a>
@@ -1071,8 +1071,8 @@
     return { restantes: Math.max(0, total - faitesAujourdhui) };
   }
 
-  // Alerte inventaire quotidien (02/08/2026, demande de Frédéric) : nombre
-  // réel d'alertes inventaire_alertes encore ouvertes (écarts non résolus),
+  // Contrôle inventaire (02/08/2026, demande de Frédéric) : nombre réel
+  // d'alertes inventaire_alertes encore ouvertes (écarts non résolus),
   // tous quarts confondus — même donnée que la carte "Alertes ouvertes" de
   // NEXUS-Inventaire-Manager-v1.html, jamais un chiffre inventé.
   async function chargerAlertesInventaireHome(siteId) {
@@ -1731,13 +1731,13 @@
         </a>
       `);
     }
-    // Alerte inventaire quotidien (02/08/2026, demande de Frédéric) : même
-    // logique que Rappels — n'occupe une case que s'il y a réellement un
-    // écart à traiter.
+    // Contrôle inventaire (02/08/2026, demande de Frédéric) : même logique
+    // que Rappels — n'occupe une case que s'il y a réellement un écart à
+    // traiter.
     if (alertesInventaire > 0) {
       chips.push(`
         <a class="kpi-chip" href="NEXUS-Inventaire-Manager-v1.html">
-          <div class="kpi-chip-label">Alerte inventaire quotidien</div>
+          <div class="kpi-chip-label">Contrôle inventaire</div>
           <div class="kpi-chip-value" style="color:var(--amber);">${alertesInventaire}</div>
           <div class="kpi-chip-sub">produit(s) nécessitant votre attention</div>
         </a>
@@ -2059,7 +2059,7 @@
     { label: 'Capital NEXUS', desc: 'La valeur créée par vos décisions', href: 'NEXUS-Capital-v1.html', role: 'manager', forfait: 'professional' },
     { label: 'Scanner NEXUS', desc: 'CA, marge et répartition ABC du magasin', href: 'NEXUS-Scanner-v1.html', role: 'manager', forfait: 'professional' },
     { label: 'Radar du Manager', desc: '8 domaines de responsabilité', href: 'NEXUS-Radar-Manager-v1.html', role: 'manager', forfait: 'professional' },
-    { label: 'Alerte inventaire quotidien', desc: 'Les produits qui nécessitent votre attention', href: 'NEXUS-Inventaire-Manager-v1.html', role: 'manager' },
+    { label: 'Contrôle inventaire', desc: 'Écarts, comptages manquants et décisions du jour', href: 'NEXUS-Inventaire-Manager-v1.html', role: 'manager' },
     { label: 'Rayon', desc: 'CA, marge, top ventes par catégorie', href: 'NEXUS-Rayon-v1.html', role: 'manager' },
     { label: 'Produits', desc: 'Fiche complète par référence', href: 'NEXUS-Produits-v1.html', role: 'manager' },
     { label: 'Tempo', desc: 'Les jours qui portent votre station, ceux qui la ralentissent', href: 'NEXUS-Tempo-v1.html', role: 'manager', forfait: 'professional' },

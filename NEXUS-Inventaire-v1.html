@@ -40,11 +40,12 @@
   .menu-btn:active{background:rgba(79,195,217,0.2);}
   .eyebrow{font-family:var(--mono); font-size:11px; letter-spacing:0.12em; text-transform:uppercase; color:var(--cyan);}
   .title{font-size:22px; font-weight:600; margin-top:4px;}
-  /* heure-live / date-live (02/08/2026, demande de Frédéric — "mettre la
-     date et l'heure") : même convention visuelle que NEXUS-Pointage-v1.html,
-     horloge vivante mise à jour chaque seconde. */
-  .heure-live{font-family:var(--mono); font-size:26px; font-weight:600; margin-top:10px; color:var(--text);}
-  .date-live{font-size:12px; color:var(--text-mid); margin-top:2px; text-transform:capitalize;}
+  /* Horodateur discret (02/08/2026, demande de Frédéric — "l'heure prend
+     beaucoup de place, elle concurrence le nom de la catégorie et la
+     progression") : une seule ligne secondaire "Dimanche 2 août · 17:17",
+     remplace l'ancien gros chiffre HH:MM:SS. L'espace gagné sert à la
+     catégorie et à la progression, pas à l'horloge. */
+  .horodateur-discret{font-family:var(--mono); font-size:12px; color:var(--text-dim); margin-top:8px;}
   .sub{font-size:13px; color:var(--text-mid); margin-top:6px; line-height:1.5;}
   .divider{height:1px; background:var(--hairline); margin:0 20px;}
   .section{padding:16px 20px;}
@@ -127,6 +128,15 @@
   .progression-haut{display:flex; justify-content:space-between; align-items:baseline; font-size:12px; color:var(--text-mid); margin-bottom:6px;}
   .progression-temps{font-family:var(--mono); font-size:10.5px; color:var(--cyan);}
   .progression-barre{height:6px; border-radius:4px; background:var(--panel-raised); overflow:hidden;}
+  .progression-globale{font-size:10.5px; color:var(--text-dim); margin-top:6px;}
+  .toast-validation{position:fixed; left:50%; bottom:28px; transform:translate(-50%, 12px); opacity:0;
+    background:var(--green-dim); color:var(--green); border:1px solid var(--green); border-radius:12px;
+    padding:12px 20px; font-size:13.5px; font-weight:600; display:flex; align-items:center; gap:10px;
+    box-shadow:0 8px 24px rgba(0,0,0,.35); z-index:200; transition:opacity .18s ease, transform .18s ease;
+    pointer-events:none; max-width:88vw; text-align:center;}
+  .toast-validation.toast-visible{opacity:1; transform:translate(-50%, 0);}
+  .toast-check{display:inline-flex; align-items:center; justify-content:center; width:20px; height:20px;
+    border-radius:50%; background:var(--green); color:var(--bg, #0b0f0d); font-size:13px; flex:none;}
   .progression-remplie{height:100%; background:var(--cyan); border-radius:4px; transition:width .25s;}
 
   .cats-titre{font-family:var(--mono); font-size:11px; color:var(--text-mid); margin-bottom:10px;}
@@ -203,8 +213,7 @@
     <a href="NEXUS-App-v1.html" class="menu-btn">☰ Menu</a>
     <div class="eyebrow">NEXUS · Inventaire</div>
     <div class="title" id="titre">Chargement…</div>
-    <div class="heure-live" id="heureLive">--:--:--</div>
-    <div class="date-live" id="dateLive"></div>
+    <div class="horodateur-discret" id="horodateurDiscret">--</div>
     <div class="sub" id="sousTitre"></div>
   </div>
   <div class="divider"></div>
@@ -269,19 +278,21 @@
   let carrouselIndex = 0;           // index courant dans la catégorie en mode carrousel
   let carrouselModeCorrection = false; // true dès que l'employé a tapé "Corriger" sur le produit courant
 
-  // Horloge en direct (02/08/2026, demande de Frédéric — "tu devrais mettre
-  // la date et l'heure") : même convention que NEXUS-Pointage-v1.html
-  // (heureLive/dateLive mis à jour chaque seconde).
+  // Horodateur discret (02/08/2026, demande de Frédéric) : plus de secondes
+  // affichées, donc plus besoin d'une mise à jour chaque seconde — toutes
+  // les 15s suffit pour rester à la minute près.
   function heureLocale() {
-    return new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    return new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
   }
   function demarrerHorloge() {
     const majHeure = () => {
-      document.getElementById('heureLive').textContent = heureLocale();
-      document.getElementById('dateLive').textContent = new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
+      const el = document.getElementById('horodateurDiscret');
+      if (!el) return;
+      const jour = new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
+      el.textContent = `${jour.charAt(0).toUpperCase()}${jour.slice(1)} · ${heureLocale()}`;
     };
     majHeure();
-    setInterval(majHeure, 1000);
+    setInterval(majHeure, 15000);
   }
 
   // Quart par défaut dérivé des vrais horaires de la station (02/08/2026,
@@ -543,6 +554,30 @@
     return `Environ ${minutes} minute${minutes > 1 ? 's' : ''} restante${minutes > 1 ? 's' : ''}`;
   }
 
+  // Feedback immédiat après validation d'un produit (02/08/2026, demande de
+  // Frédéric — "Pain Choco validé — 10 produits restants") : un simple toast
+  // discret, pas de gamification excessive. Le compteur de "restants" est
+  // local à la catégorie en cours, cohérent avec le compteur de progression.
+  let toastValidationTimer = null;
+  function afficherFeedbackValidation(nomProduit, restants) {
+    let toast = document.getElementById('toastValidation');
+    if (toast) toast.remove();
+    if (toastValidationTimer) clearTimeout(toastValidationTimer);
+    toast = document.createElement('div');
+    toast.id = 'toastValidation';
+    toast.className = 'toast-validation';
+    const suite = restants > 0
+      ? `${restants} produit${restants > 1 ? 's' : ''} restant${restants > 1 ? 's' : ''}`
+      : 'catégorie terminée';
+    toast.innerHTML = `<span class="toast-check">✓</span><span>${nomProduit} validé — ${suite}</span>`;
+    document.body.appendChild(toast);
+    requestAnimationFrame(() => toast.classList.add('toast-visible'));
+    toastValidationTimer = setTimeout(() => {
+      toast.classList.remove('toast-visible');
+      setTimeout(() => toast.remove(), 200);
+    }, 900);
+  }
+
   // Affichage visible du quart (02/08/2026, demande de Frédéric — "le
   // quart actif est par défaut en fonction de l'horodateur mais permet à
   // l'employé ou au manager de cliquer pour choisir son quart") : le quart
@@ -594,16 +629,42 @@
     }
   }
 
-  function renderBarreProgression() {
-    const cible = produitsRequis(produitsZone);
-    const total = cible.length;
-    const comptes = cible.filter(produitEstCompte).length;
-    const pct = total ? Math.round((comptes / total) * 100) : 0;
-    const tempsTexte = estimationTempsTexte(total - comptes);
+  // Compteur local à la catégorie (02/08/2026, demande de Frédéric —
+  // "0 produit sur 87 n'aide pas, l'utilisateur doit surtout voir qu'il n'a
+  // que 11 produits à terminer dans cette étape") : à l'intérieur d'une
+  // catégorie (liste ou carrousel), la progression AFFICHÉE EN AVANT porte
+  // sur cette seule catégorie ; le total général reste visible mais en
+  // petit, en dessous. Sans argument `groupe` (écran des catégories), le
+  // comportement global d'origine est inchangé.
+  function renderBarreProgression(groupe) {
+    const cibleGlobale = produitsRequis(produitsZone);
+    const totalGlobal = cibleGlobale.length;
+    const comptesGlobal = cibleGlobale.filter(produitEstCompte).length;
+
+    if (groupe) {
+      const cibleLocale = produitsRequis(groupe.items);
+      const totalLocal = cibleLocale.length;
+      const comptesLocal = cibleLocale.filter(produitEstCompte).length;
+      const pctLocal = totalLocal ? Math.round((comptesLocal / totalLocal) * 100) : 100;
+      const tempsTexteLocal = estimationTempsTexte(totalLocal - comptesLocal);
+      return `
+        <div class="progression-bloc">
+          <div class="progression-haut">
+            <span><b>${groupe.nom}</b> — ${comptesLocal} sur ${totalLocal}</span>
+            <span class="progression-temps">${tempsTexteLocal || 'Catégorie terminée ✓'}</span>
+          </div>
+          <div class="progression-barre"><div class="progression-remplie" style="width:${pctLocal}%"></div></div>
+          <div class="progression-globale">Inventaire global : ${comptesGlobal} sur ${totalGlobal}</div>
+        </div>
+      `;
+    }
+
+    const pct = totalGlobal ? Math.round((comptesGlobal / totalGlobal) * 100) : 0;
+    const tempsTexte = estimationTempsTexte(totalGlobal - comptesGlobal);
     return `
       <div class="progression-bloc">
         <div class="progression-haut">
-          <span>${comptes} produit${comptes > 1 ? 's' : ''} sur ${total} contrôlé${comptes > 1 ? 's' : ''}</span>
+          <span>${comptesGlobal} produit${comptesGlobal > 1 ? 's' : ''} sur ${totalGlobal} contrôlé${comptesGlobal > 1 ? 's' : ''}</span>
           <span class="progression-temps">${tempsTexte || 'Inventaire terminé ✓'}</span>
         </div>
         <div class="progression-barre"><div class="progression-remplie" style="width:${pct}%"></div></div>
@@ -702,7 +763,17 @@
   // après "Identique" ou la touche Entrée (voir renderCategorieListe).
   function focusProchainProduit(produitId, groupe) {
     const idx = groupe.items.findIndex(p => p.id === produitId);
-    if (idx === -1 || idx === groupe.items.length - 1) return; // dernier produit : rien à enchaîner
+    if (idx === -1) return;
+    // Feedback immédiat (02/08/2026, demande de Frédéric — "Pain Choco
+    // validé — 10 produits restants") : uniquement si le produit est
+    // effectivement compté à cet instant — une touche Entrée sur une case
+    // vide ne doit pas afficher de fausse confirmation.
+    if (produitEstCompte(groupe.items[idx])) {
+      const cible = produitsRequis(groupe.items);
+      const restants = cible.filter(pr => !produitEstCompte(pr)).length;
+      afficherFeedbackValidation(groupe.items[idx].designation, restants);
+    }
+    if (idx === groupe.items.length - 1) return; // dernier produit : rien à enchaîner
     const suivant = groupe.items[idx + 1];
     const inputSuivant = document.querySelector(`.produit-input[data-produit="${suivant.id}"]`);
     if (inputSuivant) { inputSuivant.focus(); inputSuivant.select(); }
@@ -713,7 +784,7 @@
     document.getElementById('sousTitre').textContent = 'Le stock transmis est celui laissé par le quart précédent — comptez le vôtre, corrigez si besoin.';
 
     document.getElementById('content').innerHTML = `
-      ${renderBarreProgression()}
+      ${renderBarreProgression(groupe)}
       <div class="card">
         ${groupe.items.map(p => renderLigneOuverture(p)).join('')}
       </div>
@@ -812,7 +883,7 @@
     const valeurDepart = (dejaSaisi && dejaSaisi.compte !== undefined) ? dejaSaisi.compte : (masque || pasDHistorique ? '' : valeurTransmise);
 
     document.getElementById('content').innerHTML = `
-      ${renderBarreProgression()}
+      ${renderBarreProgression(groupe)}
       <div class="carrousel-card">
         <div class="carrousel-nom">${p.designation}${p.sensible ? '<span class="badge-sensible" style="margin-left:8px;">Sensible</span>' : ''}</div>
         ${masque
@@ -844,7 +915,7 @@
     const btnConforme = document.getElementById('btnConforme');
     if (btnConforme) btnConforme.addEventListener('click', () => {
       comptagesSaisie[p.id] = { compte: valeurTransmise, ecartNonNul: false, justification: '' };
-      avancerCarrousel(groupe);
+      avancerCarrousel(groupe, p.designation);
     });
     const btnCorriger = document.getElementById('btnCorriger');
     if (btnCorriger) btnCorriger.addEventListener('click', () => {
@@ -886,7 +957,7 @@
       const ecartNonNul = Math.abs(ecart) > 0.001;
       const justifInput = document.getElementById('justifCarrousel');
       comptagesSaisie[p.id] = { compte: val, ecartNonNul, justification: justifInput ? justifInput.value : '' };
-      avancerCarrousel(groupe);
+      avancerCarrousel(groupe, p.designation);
     });
     const btnAnnulerCorrection = document.getElementById('btnAnnulerCorrection');
     if (btnAnnulerCorrection) btnAnnulerCorrection.addEventListener('click', () => {
@@ -916,14 +987,25 @@
     if (justifInput) justifInput.style.display = ecartNonNul ? '' : 'none';
   }
 
-  function avancerCarrousel(groupe) {
+  function avancerCarrousel(groupe, nomValide) {
     carrouselModeCorrection = false;
-    if (carrouselIndex < groupe.items.length - 1) {
-      carrouselIndex++;
-      renderCarrousel(groupe);
-    } else {
-      renderCategoriesOuverture();
+    if (nomValide) {
+      const cible = produitsRequis(groupe.items);
+      const restants = cible.filter(pr => !produitEstCompte(pr)).length;
+      afficherFeedbackValidation(nomValide, restants);
     }
+    // Petit délai (02/08/2026, demande de Frédéric — "Puis passage
+    // automatique au suivant") pour laisser le toast de confirmation
+    // visible un instant avant l'écran suivant — sans nomValide (retour
+    // "Corriger" par ex.), l'avancée reste instantanée.
+    setTimeout(() => {
+      if (carrouselIndex < groupe.items.length - 1) {
+        carrouselIndex++;
+        renderCarrousel(groupe);
+      } else {
+        renderCategoriesOuverture();
+      }
+    }, nomValide ? 500 : 0);
   }
 
   // Retour au produit précédent (02/08/2026, demande de Frédéric — "permet
