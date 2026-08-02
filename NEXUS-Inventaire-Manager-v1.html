@@ -13,6 +13,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="nexus-auth.js"></script>
 <script src="nexus-desktop.js"></script>
 <style>
@@ -74,6 +75,29 @@
   }
   .quart-pill.active{background:rgba(79,195,217,0.15); border-color:rgba(79,195,217,0.4); color:var(--cyan);}
   .quart-statut{font-family:var(--mono); font-size:10.5px; color:var(--text-dim); margin-bottom:16px;}
+
+  /* Comparaison ventes Decenium (02/08/2026, demande de Frédéric) : compare
+     l'écoulement physique constaté (ouverture − clôture + mouvements) à ce
+     que Decenium dit avoir vendu, pour le quart actuellement sélectionné
+     ci-dessus — jamais un chiffre inventé, toujours la ligne brute du
+     fichier conservée même si le produit n'a pas pu être identifié. */
+  .ventes-card{background:var(--panel); border:1px solid var(--hairline); border-radius:12px; padding:16px; margin-bottom:18px;}
+  .ventes-desc{font-size:12px; color:var(--text-mid); line-height:1.5; margin-bottom:12px;}
+  .ventes-file-row{display:flex; align-items:center; gap:10px;}
+  .ventes-file-label{
+    flex:1; font-family:var(--sans); font-size:12.5px; color:var(--text-mid);
+    background:var(--panel-raised); border:1px dashed var(--hairline); border-radius:8px;
+    padding:10px 12px; cursor:pointer; text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .ventes-file-label.choisi{color:var(--text); border-style:solid; border-color:rgba(79,195,217,0.35);}
+  .btn-comparer{
+    font-family:var(--sans); font-size:12.5px; font-weight:700; padding:10px 16px; border-radius:8px;
+    border:none; background:var(--cyan); color:#04141a; cursor:pointer; white-space:nowrap; flex-shrink:0;
+  }
+  .btn-comparer:disabled{opacity:0.35; cursor:not-allowed;}
+  .ventes-resume{margin-top:12px; padding:12px; background:var(--panel-raised); border-radius:8px; font-size:12px; color:var(--text-mid); line-height:1.6;}
+  .ventes-resume b{color:var(--text);}
+  .ventes-resume .amber{color:var(--amber); font-weight:700;}
 
   /* Statistiques mini */
   /* Section repliable (02/08/2026, demande de Frédéric — replier le mode
@@ -372,6 +396,228 @@
     await chargerEtAfficherTout();
   }
 
+  // ------------------------------------------------------------
+  // COMPARAISON VENTES DECENIUM (02/08/2026, demande de Frédéric) : compare
+  // l'écoulement physique constaté sur le quart (ouverture − clôture +
+  // mouvements, déjà tracés dans inventaire_comptages/inventaire_mouvements)
+  // à ce que le fichier de ventes Decenium du quart dit avoir vendu. Un
+  // écart significatif = démarque potentielle. Principes non négociables :
+  // la ligne brute du fichier est TOUJOURS conservée (même non identifiée),
+  // et le rapprochement sans code-barres passe par une liste d'alias
+  // vérifiée à la main (jamais un rapprochement flou qui pourrait confondre
+  // deux produits différents).
+  // ------------------------------------------------------------
+  const SEUIL_DEMARQUE = 1; // tolérance : petites erreurs de comptage normales en dessous de ce seuil
+
+  // Rapprochement par nom pour les produits sans code-barres des deux côtés
+  // (pain, viennoiserie, gaz en bouteille, glaçons) — vérifié manuellement
+  // le 02/08/2026 sur un vrai export Decenium (0208quart1.xlsx). À compléter
+  // si de nouveaux produits sans code-barres apparaissent dans un futur
+  // export non reconnu.
+  const ALIAS_VENTES_SANS_CODE_BARRES = {
+    'baguette': 'Baguette',
+    'croissant': 'Croissant',
+    'pomme cannelle': 'Pomme Cannelle',
+    'carre aux pommes 110g': 'Carré Pomme',
+    'pain chocolat': 'Pain Choco',
+    'maxi pain choco': 'Maxi Pain Choco',
+    'feuillete jamb/from 110g': 'Feuilleté',
+    'feuillete': 'Feuilleté',
+    'gaz bleu 3 kg': 'Gaz 3KG',
+    'glacons crystal 5 kg': 'Glaçons Crystal 5kg',
+  };
+
+  function normaliserCodeBarresVentes(v) {
+    if (v === null || v === undefined) return null;
+    const s = String(v).replace(/[\s ]/g, '').replace(/^0+/, '');
+    return s || null;
+  }
+
+  // Enlève accents, ponctuation, casse, et les suffixes de conditionnement
+  // Decenium (ex: "-24P", "110g -30P") pour retrouver l'alias — jamais
+  // utilisé pour un rapprochement automatique entre deux désignations
+  // quelconques, uniquement pour chercher une clé dans ALIAS_VENTES_SANS_CODE_BARRES.
+  function normaliserTexteVentes(v) {
+    // Ne retire QUE le suffixe de conditionnement Decenium ("-24P", "-30P"…) —
+    // jamais le poids/volume (ex: "3 KG"), qui distingue de vraies variantes
+    // différentes (bouteilles de gaz de tailles différentes, par exemple).
+    return String(v || '')
+      .normalize('NFD').replace(/[̀-ͯ]/g, '')
+      .toLowerCase()
+      .replace(/-\s*\d+p\b/g, '')
+      .replace(/[^a-z0-9/]+/g, ' ')
+      .trim().replace(/\s+/g, ' ');
+  }
+
+  async function chargerCatalogueProduitsPourVentes(site) {
+    const { data, error } = await nexusClient.from('inventaire_zone_produit')
+      .select('id, designation, code_barres').eq('site', site).eq('actif', true);
+    if (error) { console.error('Chargement catalogue produits (ventes):', error); return []; }
+    return data || [];
+  }
+
+  function parserFichierVentesDecenium(fichier) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const wb = XLSX.read(e.target.result, { type: 'array' });
+          const feuille = wb.Sheets[wb.SheetNames[0]];
+          const lignes = XLSX.utils.sheet_to_json(feuille, { defval: null });
+          resolve(lignes);
+        } catch (err) { reject(err); }
+      };
+      reader.onerror = () => reject(new Error('Lecture du fichier impossible.'));
+      reader.readAsArrayBuffer(fichier);
+    });
+  }
+
+  // Rapproche chaque ligne du fichier avec un produit du catalogue —
+  // code-barres d'abord (le plus fiable), alias manuel ensuite pour les
+  // produits sans code-barres des deux côtés. Ne devine jamais : une ligne
+  // non reconnue reste produit_id = null, jamais rattachée au hasard.
+  function rapprocherLignesVentes(lignesFichier, produits) {
+    const parCodeBarres = new Map();
+    const parDesignationExacte = new Map();
+    produits.forEach(p => {
+      const cb = normaliserCodeBarresVentes(p.code_barres);
+      if (cb) parCodeBarres.set(cb, p);
+      parDesignationExacte.set(p.designation.trim().toLowerCase(), p);
+    });
+
+    return lignesFichier.map(ligne => {
+      const designationBrute = ligne['lib article'] || ligne['Lib Article'] || ligne['LIB ARTICLE'] || '';
+      const categorieBrute = ligne['Categ'] || ligne['categ'] || null;
+      const codeBarresBrut = ligne['Code Barres'] || ligne['code barres'] || ligne['CODE BARRES'] || null;
+      const quantite = Number(ligne['QTE'] ?? ligne['Qte'] ?? ligne['qte'] ?? 0);
+
+      let produit = null;
+      const cb = normaliserCodeBarresVentes(codeBarresBrut);
+      if (cb && parCodeBarres.has(cb)) {
+        produit = parCodeBarres.get(cb);
+      } else {
+        const cle = normaliserTexteVentes(designationBrute);
+        const nomCible = ALIAS_VENTES_SANS_CODE_BARRES[cle];
+        if (nomCible) produit = parDesignationExacte.get(nomCible.trim().toLowerCase()) || null;
+      }
+
+      return {
+        designation_brute: String(designationBrute || '').trim(),
+        code_barres_brut: codeBarresBrut ? String(codeBarresBrut).replace(/[\s ]/g, '') : null,
+        categorie_brute: categorieBrute,
+        quantite_vendue: isNaN(quantite) ? 0 : quantite,
+        prix_achat_ht: Number(ligne['PA HT']) || null,
+        prix_vente_ht: Number(ligne['PV HT']) || null,
+        produit_id: produit ? produit.id : null,
+        designation_matchee: produit ? produit.designation : null,
+      };
+    });
+  }
+
+  // Écoulement physique constaté sur le quart pour un produit : stock
+  // d'ouverture moins stock de clôture, plus la somme signée des mouvements
+  // déjà tracés (une livraison est saisie en positif, une casse en négatif —
+  // voir NEXUS-Inventaire-v1.html). Si l'ouverture ou la clôture n'a pas été
+  // comptée, l'écoulement ne peut pas être calculé pour ce produit (retourne
+  // null plutôt qu'un chiffre approximatif).
+  async function calculerEcoulementPhysiqueQuart(quartId, produitIds) {
+    const [{ data: comptages, error: e1 }, { data: mouvements, error: e2 }] = await Promise.all([
+      nexusClient.from('inventaire_comptages').select('produit_id, type_comptage, quantite')
+        .eq('quart_id', quartId).in('produit_id', produitIds).in('type_comptage', ['ouverture', 'cloture']),
+      nexusClient.from('inventaire_mouvements').select('produit_id, quantite').eq('quart_id', quartId).in('produit_id', produitIds),
+    ]);
+    if (e1) console.error('Chargement comptages (comparaison ventes):', e1);
+    if (e2) console.error('Chargement mouvements (comparaison ventes):', e2);
+
+    const ouverture = {}, cloture = {}, sommeMouvements = {};
+    (comptages || []).forEach(c => {
+      if (c.type_comptage === 'ouverture') ouverture[c.produit_id] = c.quantite;
+      if (c.type_comptage === 'cloture') cloture[c.produit_id] = c.quantite;
+    });
+    (mouvements || []).forEach(m => { sommeMouvements[m.produit_id] = (sommeMouvements[m.produit_id] || 0) + Number(m.quantite); });
+
+    const resultat = {};
+    for (const id of produitIds) {
+      if (ouverture[id] === undefined || cloture[id] === undefined) { resultat[id] = null; continue; }
+      resultat[id] = ouverture[id] - cloture[id] + (sommeMouvements[id] || 0);
+    }
+    return resultat;
+  }
+
+  async function comparerVentesQuart(fichier) {
+    const resumeEl = document.getElementById('ventesResume');
+    const btn = document.getElementById('btnComparerVentes');
+    try {
+      const lignesBrutes = await parserFichierVentesDecenium(fichier);
+      const produits = await chargerCatalogueProduitsPourVentes(siteId);
+      const lignesRapprochees = rapprocherLignesVentes(lignesBrutes, produits);
+
+      // Ré-import idempotent : on remplace les lignes de ce quart plutôt que
+      // de les accumuler à chaque nouvel essai.
+      await nexusClient.from('inventaire_ventes_import').delete().eq('quart_id', quartRow.id);
+
+      const { error: eInsert } = await nexusClient.from('inventaire_ventes_import').insert(
+        lignesRapprochees.map(l => ({
+          site: siteId, quart_id: quartRow.id, produit_id: l.produit_id,
+          designation_brute: l.designation_brute, code_barres_brut: l.code_barres_brut,
+          categorie_brute: l.categorie_brute, quantite_vendue: l.quantite_vendue,
+          prix_achat_ht: l.prix_achat_ht, prix_vente_ht: l.prix_vente_ht, importe_par: managerCourant.id,
+        }))
+      );
+      if (eInsert) { console.error('Insertion ventes import:', eInsert); resumeEl.innerHTML = '<div style="color:var(--red);">Erreur d\'enregistrement — réessayez.</div>'; btn.disabled = false; btn.textContent = 'Comparer'; return; }
+
+      // Agrège la quantité vendue par produit rapproché (une même référence
+      // peut apparaître sur plusieurs lignes).
+      const venteParProduit = {};
+      let nbNonIdentifiees = 0;
+      lignesRapprochees.forEach(l => {
+        if (l.produit_id) venteParProduit[l.produit_id] = (venteParProduit[l.produit_id] || 0) + l.quantite_vendue;
+        else nbNonIdentifiees++;
+      });
+      const produitIds = Object.keys(venteParProduit);
+      const ecoulements = await calculerEcoulementPhysiqueQuart(quartRow.id, produitIds);
+
+      // Retire les anciennes alertes démarque encore ouvertes pour ce quart
+      // avant d'insérer les nouvelles — jamais les alertes déjà résolues
+      // (trace d'une décision manager, on n'efface pas ça).
+      await nexusClient.from('inventaire_alertes').delete()
+        .eq('quart_id', quartRow.id).eq('type_alerte', 'demarque_ventes').eq('statut', 'ouverte');
+
+      let nbEcarts = 0, nbSansComptage = 0;
+      const nouvellesAlertes = [];
+      for (const produitId of produitIds) {
+        const ecoulement = ecoulements[produitId];
+        if (ecoulement === null) { nbSansComptage++; continue; }
+        const venteDecenium = venteParProduit[produitId];
+        const ecart = ecoulement - venteDecenium;
+        if (Math.abs(ecart) > SEUIL_DEMARQUE) {
+          nbEcarts++;
+          nouvellesAlertes.push({
+            site: siteId, quart_id: quartRow.id, produit_id: produitId, type_alerte: 'demarque_ventes',
+            gravite: Math.abs(ecart) > 3 ? 'critique' : 'attention',
+            valeur_attendue: venteDecenium, valeur_constatee: ecoulement,
+          });
+        }
+      }
+      if (nouvellesAlertes.length) {
+        const { error: eAlertes } = await nexusClient.from('inventaire_alertes').insert(nouvellesAlertes);
+        if (eAlertes) console.error('Insertion alertes démarque:', eAlertes);
+      }
+
+      resumeEl.innerHTML = `
+        <div><b>${produitIds.length}</b> produit(s) rapproché(s) et comparé(s).</div>
+        ${nbNonIdentifiees ? `<div class="amber">${nbNonIdentifiees} ligne(s) du fichier non identifiée(s)</div>` : ''}
+        ${nbSansComptage ? `<div class="amber">${nbSansComptage} produit(s) sans comptage d'ouverture et/ou de clôture — écoulement non calculable</div>` : ''}
+        <div class="${nbEcarts ? 'amber' : ''}"><b>${nbEcarts}</b> écart(s) de plus de ${SEUIL_DEMARQUE} détecté(s)${nbEcarts ? ' — voir Alertes ouvertes ci-dessous' : ''}.</div>
+      `;
+      await chargerEtAfficherTout();
+    } catch (err) {
+      console.error('Comparaison ventes Decenium:', err);
+      resumeEl.innerHTML = `<div style="color:var(--red);">Erreur pendant la lecture du fichier : ${err.message}</div>`;
+      btn.disabled = false; btn.textContent = 'Comparer';
+    }
+  }
+
   async function toggleModeAveugle(employeeId, activer) {
     if (activer) {
       const { error } = await nexusClient.from('inventaire_modes_controle').insert({
@@ -451,10 +697,15 @@
   // ------------------------------------------------------------
   // RENDU
   // ------------------------------------------------------------
+  const LIBELLES_TYPE_ALERTE = {
+    ecart_ouverture: "Écart d'ouverture",
+    demarque_ventes: 'Démarque potentielle (vs Decenium)',
+  };
   function renderAlerteCard(a) {
     const produit = a.inventaire_zone_produit ? a.inventaire_zone_produit.designation : 'Produit';
     const ecart = (a.valeur_constatee != null && a.valeur_attendue != null) ? (a.valeur_constatee - a.valeur_attendue) : null;
-    const libelleType = a.type_alerte === 'ecart_ouverture' ? "Écart d'ouverture" : a.type_alerte;
+    const libelleType = LIBELLES_TYPE_ALERTE[a.type_alerte] || a.type_alerte;
+    const estDemarque = a.type_alerte === 'demarque_ventes';
     return `
       <div class="alerte-card" data-id="${a.id}">
         <div class="alerte-top">
@@ -465,8 +716,8 @@
           <span class="badge-gravite ${a.gravite}">${a.gravite}</span>
         </div>
         <div class="alerte-valeurs">
-          <span>Transmis : <b>${fmtNum(a.valeur_attendue)}</b></span>
-          <span>Compté : <b>${fmtNum(a.valeur_constatee)}</b></span>
+          <span>${estDemarque ? 'Vendu (Decenium)' : 'Transmis'} : <b>${fmtNum(a.valeur_attendue)}</b></span>
+          <span>${estDemarque ? 'Écoulement physique' : 'Compté'} : <b>${fmtNum(a.valeur_constatee)}</b></span>
           ${ecart !== null ? `<span>Écart : <b>${ecart > 0 ? '+' : ''}${fmtNum(ecart)}</b></span>` : ''}
         </div>
         ${a.resolution ? `<div class="alerte-note">Note à l'ouverture : « ${a.resolution} »</div>` : ''}
@@ -569,6 +820,17 @@
       </div>
 
       ${quartRow ? `
+        <div class="section-titre">Comparer avec les ventes</div>
+        <div class="ventes-card">
+          <div class="ventes-desc">Envoyez le fichier des ventes Decenium de <b>ce quart</b> (export à la connexion du caissier suivant) — NEXUS compare l'écoulement physique constaté (ouverture − clôture + mouvements) à ce que Decenium a vendu, et signale les écarts.</div>
+          <div class="ventes-file-row">
+            <label class="ventes-file-label" id="ventesFileLabel" for="ventesFileInput">Choisir le fichier .xlsx…</label>
+            <input type="file" id="ventesFileInput" accept=".xlsx,.xls" style="display:none;">
+            <button class="btn-comparer" id="btnComparerVentes" disabled>Comparer</button>
+          </div>
+          <div id="ventesResume"></div>
+        </div>
+
         <div class="section-titre-action-row">
           <div class="section-titre">Alertes ouvertes</div>
           ${alertesOuvertes.length > 0 ? '<button class="btn-tout-valider" id="btnToutValider">Tout valider</button>' : ''}
@@ -605,6 +867,30 @@
       quartSelectionne = el.dataset.quart;
       await chargerEtAfficherTout();
     }));
+    const ventesFileInput = document.getElementById('ventesFileInput');
+    const btnComparerVentes = document.getElementById('btnComparerVentes');
+    if (ventesFileInput && btnComparerVentes) {
+      ventesFileInput.addEventListener('change', () => {
+        const fichier = ventesFileInput.files[0];
+        const label = document.getElementById('ventesFileLabel');
+        if (fichier) {
+          label.textContent = fichier.name;
+          label.classList.add('choisi');
+          btnComparerVentes.disabled = false;
+        } else {
+          label.textContent = 'Choisir le fichier .xlsx…';
+          label.classList.remove('choisi');
+          btnComparerVentes.disabled = true;
+        }
+      });
+      btnComparerVentes.addEventListener('click', async () => {
+        const fichier = ventesFileInput.files[0];
+        if (!fichier || !quartRow) return;
+        btnComparerVentes.disabled = true;
+        btnComparerVentes.textContent = 'Comparaison en cours…';
+        await comparerVentesQuart(fichier);
+      });
+    }
     document.querySelectorAll('.btn-decision').forEach(btn => btn.addEventListener('click', async () => {
       const decision = DECISIONS.find(d => d.value === btn.dataset.decision);
       const commentaireEl = document.getElementById(`commentaire-${btn.dataset.id}`);
