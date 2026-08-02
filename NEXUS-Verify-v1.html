@@ -69,10 +69,15 @@
   .dc-sync-input{position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0;}
   .dc-sync-btn{display:flex; align-items:center; justify-content:center; gap:8px; width:100%; padding:12px; border-radius:8px; border:1px solid rgba(79,195,217,0.4); background:rgba(79,195,217,0.08); color:var(--cyan); font-family:var(--sans); font-size:13px; font-weight:600; cursor:pointer; margin-bottom:10px; -webkit-tap-highlight-color:transparent;}
   .dc-sync-btn:active{background:rgba(79,195,217,0.16);}
-  /* Icône NEXUS Data Connector (01/08/2026) — recadrée depuis le badge
-     fourni par Frédéric, remplace l'émoji 🔄 générique par la version
-     néon maison, aux couleurs de la marque. */
+  /* Icônes NEXUS Data Connector (01/08/2026) — recadrées depuis les badges
+     fournis par Frédéric (fichier XLS / Google Sheets), remplacent l'émoji
+     🔄 générique par les versions néon maison, aux couleurs de la marque.
+     Même traitement (détourage transparent, même taille) pour les deux,
+     afin qu'elles se lisent comme une paire cohérente. */
   .dc-sync-icon{width:18px; height:18px; flex-shrink:0; display:block;}
+  /* #v_import_sheets_go réutilise .btn-add (partagée par plusieurs écrans) :
+     on ajoute juste ici le flex nécessaire à l'icône sans toucher à .btn-add. */
+  #v_import_sheets_go{display:flex; align-items:center; justify-content:center; gap:8px;}
 
   .dc-checklist{display:none; margin-bottom:10px;}
   .dc-checklist.show{display:block;}
@@ -207,7 +212,7 @@
            n'existe pas). -->
       <div class="section-label">NEXUS Data Connector</div>
       <div class="note">NEXUS détecte automatiquement les informations disponibles dans votre classeur Excel ou Google Sheets et pré-remplit votre audit. La vente piste (litrage), la vente boutique Decenium, les bons, dépenses, vacataires et règlements de comptes restent à saisir à la main : ils n'existent pas dans ce classeur.</div>
-      <label class="dc-sync-btn" for="v_import_fichier"><img src="icon-nexus-sync.png" alt="" class="dc-sync-icon">Synchroniser mes données</label>
+      <label class="dc-sync-btn" for="v_import_fichier"><img src="icon-nexus-import-excel.png" alt="" class="dc-sync-icon">Synchroniser mes données</label>
       <input type="file" id="v_import_fichier" accept=".xlsx,.xls" class="dc-sync-input">
       <div id="v_import_feuille_bloc" style="display:none; margin-top:10px;">
         <label class="f">Feuille (mois)</label>
@@ -223,7 +228,7 @@
       <div id="v_import_sheets_bloc" style="display:none; margin-top:14px; padding-top:14px; border-top:1px solid var(--hairline);">
         <label class="f">Ou synchroniser directement depuis Google Sheets</label>
         <select id="v_import_sheets_feuille"></select>
-        <button type="button" class="btn-add" id="v_import_sheets_go">Synchroniser mes données</button>
+        <button type="button" class="btn-add" id="v_import_sheets_go"><img src="icon-nexus-import-sheets.png" alt="" class="dc-sync-icon">Synchroniser mes données</button>
       </div>
     </div>
 
