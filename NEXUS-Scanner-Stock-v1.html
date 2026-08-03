@@ -142,6 +142,28 @@
   .search-box input{flex:1; background:none; border:none; outline:none; color:var(--text); font-family:var(--sans); font-size:13.5px;}
   .search-box input::placeholder{color:var(--text-dim);}
 
+  /* Regroupement par catégorie, dépliable (02/08/2026, demande de
+     Frédéric — même logique que NEXUS Inventaire) : chaque catégorie se
+     déplie indépendamment ; les catégories ayant le plus besoin
+     d'attention (stock négatif, à vérifier) remontent en premier — voir
+     renderListe(). Même mécanique de bascule que .marge-groupe dans
+     NEXUS-Scanner-v1.html (classe .open togglée directement, sans
+     recalculer tout le rendu). */
+  .categorie-groupe{margin-bottom:10px;}
+  .categorie-groupe-head{
+    display:flex; align-items:center; gap:10px; padding:14px 16px; cursor:pointer;
+    background:var(--panel); border:1px solid var(--hairline); border-radius:12px;
+  }
+  .categorie-groupe.open .categorie-groupe-head{border-radius:12px 12px 0 0; border-bottom:none;}
+  .categorie-groupe-titre{font-size:13.5px; font-weight:600; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .categorie-groupe-meta{font-family:var(--mono); font-size:10.5px; white-space:nowrap; flex-shrink:0;}
+  .categorie-groupe-head .chev{color:var(--text-dim); font-size:14px; transition:transform .15s; display:inline-block; flex-shrink:0;}
+  .categorie-groupe.open .categorie-groupe-head .chev{transform:rotate(90deg);}
+  .categorie-groupe-body{display:none; padding:10px; background:var(--panel-raised); border:1px solid var(--hairline); border-top:none; border-radius:0 0 12px 12px;}
+  .categorie-groupe.open .categorie-groupe-body{display:block;}
+  .categorie-groupe-body .produit-card{margin:0 0 10px;}
+  .categorie-groupe-body .produit-card:last-child{margin-bottom:0;}
+
   .produit-card{background:var(--panel); border:1px solid var(--hairline); border-radius:12px; margin-bottom:10px; overflow:hidden;}
   .produit-head{padding:14px 16px; cursor:pointer; display:flex; align-items:center; gap:12px;}
   .produit-etat-dot{width:10px; height:10px; border-radius:50%; flex-shrink:0;}
@@ -218,6 +240,13 @@
   let employeeCourant = null;
   let SITE_ACTUEL = 'vito-sainte-marie'; // ecrase par employee.site_id une fois connecte
   let filtreActuel = 'tous';
+  // Catégories dépliées (02/08/2026, demande de Frédéric — "suis la
+  // logique comme l'inventaire de classer les produits par catégorie et
+  // dépliables") : repliées par défaut comme partout ailleurs dans NEXUS
+  // (mode aveugle, groupes de marge…) — jamais réinitialisé entre deux
+  // rendus pour que l'état déplié survive à un recomptage ou un changement
+  // de filtre.
+  const categoriesStockOuvertes = new Set();
 
   // Supabase plafonne chaque requete a 1000 lignes par defaut, sans erreur —
   // au-dela, le reste est silencieusement absent. Ce helper boucle par pages
@@ -457,7 +486,13 @@
       return;
     }
 
-    el.innerHTML = liste.map((p, i) => {
+    // Regroupement par catégorie, dépliable (02/08/2026, demande de
+    // Frédéric — même logique que NEXUS Inventaire) : data-idx continue de
+    // désigner la position réelle dans `liste` (déjà filtrée/triée
+    // ci-dessus), seul l'AFFICHAGE change — le groupement ne retrie jamais
+    // les produits eux-mêmes, il les répartit simplement par catégorie en
+    // conservant leur ordre relatif (état puis risque).
+    function renderProduitCard(p, i) {
       const e = ETATS[p.etat];
       return `
       <div class="produit-card">
@@ -465,7 +500,7 @@
           <div class="produit-etat-dot ${e.dot}"></div>
           <div class="produit-info">
             <div class="produit-nom">${p.article}</div>
-            <div class="produit-meta">${p.categorie || 'Non classé'} · stock actuel ${p.quantiteActuelle}</div>
+            <div class="produit-meta">Stock actuel ${p.quantiteActuelle}</div>
           </div>
           <div class="produit-confiance" style="color:${p.confiance>=70?'var(--green)':p.confiance>=45?'var(--amber)':'var(--red)'};">${p.confiance}%</div>
           <div class="produit-chevron">›</div>
@@ -484,8 +519,54 @@
           </div>
         </div>
       </div>`;
+    }
+
+    const groupesMap = new Map();
+    liste.forEach((p, i) => {
+      const cat = p.categorie || 'Non classé';
+      if (!groupesMap.has(cat)) groupesMap.set(cat, []);
+      groupesMap.get(cat).push({ p, idx: i });
+    });
+    // Score d'urgence (02/08/2026) : les catégories avec du stock négatif
+    // ou des références "à vérifier" remontent en premier — mêmes poids
+    // relatifs que l'ordre de tri des produits eux-mêmes ci-dessus.
+    const groupes = Array.from(groupesMap.entries()).map(([nom, items]) => {
+      const score = items.reduce((s, { p }) => {
+        if (p.etat === 'impossible') return s + 1000;
+        if (p.etat === 'verifier') return s + 100;
+        if (p.etat === 'surveiller') return s + 10;
+        if (p.etat === 'inconnu') return s + 1;
+        return s;
+      }, 0);
+      return { nom, items, score };
+    }).sort((a, b) => b.score - a.score || a.nom.localeCompare(b.nom, 'fr'));
+
+    el.innerHTML = groupes.map(g => {
+      const ouvert = categoriesStockOuvertes.has(g.nom);
+      const nbATraiter = g.items.filter(({ p }) => p.etat === 'verifier' || p.etat === 'impossible').length;
+      return `
+        <div class="categorie-groupe${ouvert ? ' open' : ''}" data-cat="${g.nom.replace(/"/g, '&quot;')}">
+          <div class="categorie-groupe-head">
+            <span class="categorie-groupe-titre">${g.nom} <span style="color:var(--text-dim); font-weight:400;">(${g.items.length})</span></span>
+            <span class="categorie-groupe-meta" style="color:${nbATraiter > 0 ? 'var(--red)' : 'var(--text-dim)'};">${nbATraiter > 0 ? `${nbATraiter} à traiter` : 'à jour'}</span>
+            <span class="chev">›</span>
+          </div>
+          <div class="categorie-groupe-body">
+            ${g.items.map(({ p, idx }) => renderProduitCard(p, idx)).join('')}
+          </div>
+        </div>
+      `;
     }).join('');
 
+    el.querySelectorAll('.categorie-groupe-head').forEach(head => {
+      head.addEventListener('click', () => {
+        const groupe = head.closest('.categorie-groupe');
+        if (!groupe) return;
+        groupe.classList.toggle('open');
+        const cat = groupe.dataset.cat;
+        if (groupe.classList.contains('open')) categoriesStockOuvertes.add(cat); else categoriesStockOuvertes.delete(cat);
+      });
+    });
     el.querySelectorAll('.produit-head').forEach(h => {
       h.addEventListener('click', () => document.getElementById(`body-${h.dataset.idx}`).classList.toggle('open'));
     });
