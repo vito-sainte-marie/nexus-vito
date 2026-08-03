@@ -251,6 +251,16 @@
   .histo-detail.open{display:block;}
   .empty{text-align:center; padding:24px; color:var(--text-dim); font-size:12.5px;}
 
+  /* Validation "Mes Caisses" côté manager (03/08/2026) */
+  .validation-ligne{margin-top:10px; padding-top:10px; border-top:1px solid var(--hairline);}
+  .validation-badge-ok{color:var(--green); font-weight:600;}
+  .btn-valider-audit{width:auto; padding:9px 14px; margin-top:10px; margin-left:8px; background:var(--panel-raised); color:var(--green); border:1px solid rgba(52,211,153,0.35); border-radius:8px; font-family:var(--sans); font-size:12px; font-weight:600; cursor:pointer;}
+  .validation-form{display:none; margin-top:12px; background:var(--panel-raised); border:1px solid var(--hairline); border-radius:10px; padding:12px;}
+  .validation-form.open{display:block;}
+  .validation-form label{display:block; font-family:var(--mono); font-size:10px; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.04em; margin:8px 0 4px;}
+  .validation-form input, .validation-form textarea{width:100%; background:var(--panel); border:1px solid var(--hairline); border-radius:6px; color:var(--text); font-family:var(--sans); font-size:13px; padding:8px 10px;}
+  .validation-form textarea{resize:vertical; min-height:50px;}
+
   footer{margin-top:auto; padding:16px 20px 24px; font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:center; border-top:1px solid var(--hairline);}
   .locked{padding:60px 20px; text-align:center; color:var(--text-dim); font-family:var(--sans);}
 
@@ -1971,6 +1981,7 @@
             ${a.commentaire ? `<br><br><i>${a.commentaire}</i>` : ''}
             <br>
             <button type="button" class="btn-modifier-audit" data-idx="${i}" style="width:auto; padding:9px 14px; margin-top:10px; background:var(--panel-raised); color:var(--amber); border:1px solid rgba(245,166,35,0.35); border-radius:8px; font-family:var(--sans); font-size:12px; font-weight:600; cursor:pointer;">✏️ Modifier cet audit</button>
+            ${renderBlocValidation(a, i)}
           </div>
         </div>`;
       }).join('');
@@ -1995,6 +2006,95 @@
           e.stopPropagation();
           const idx = parseInt(btn.dataset.idx, 10);
           prefillFormPourModification(data[idx]);
+        });
+      });
+
+      brancherValidationAudits(data);
+    }
+
+    // ------------------------------------------------------------
+    // Validation "Mes Caisses" (03/08/2026, demande de Frédéric) — un
+    // contrôle enregistré dans Verify reste PROVISOIRE côté employé
+    // (NEXUS-Progression-v1.html) tant qu'un manager ne l'a pas validé ici.
+    // La validation fige deux montants distincts (ecart_piste_valide /
+    // ecart_boutique_valide) qui ne remplacent jamais ecart_piste/
+    // ecart_boutique (conservés tels quels comme trace du contrôle
+    // d'origine) — c'est cette séparation qui permet à l'employé de ne
+    // jamais confondre provisoire et définitif.
+    function renderBlocValidation(a, i) {
+      if (a.valide_le) {
+        const validePar = !a.valide_par
+          ? 'validation rétroactive (migration)'
+          : (a.valide_par === EMPLOYEE_ID ? 'vous' : (EMPLOYES_SITE.find(e => e.id === a.valide_par) || {}).nom || 'un manager');
+        return `
+          <div class="validation-ligne">
+            <span class="validation-badge-ok">✅ Validé</span> le ${new Date(a.valide_le).toLocaleDateString('fr-FR')} — ${validePar}.
+            ${a.commentaire_validation ? `<br><i>${a.commentaire_validation}</i>` : ''}
+            <br><button type="button" class="btn-valider-audit" data-idx="${i}">Corriger la validation</button>
+          </div>
+          ${renderFormValidation(a, i)}
+        `;
+      }
+      return `
+        <div class="validation-ligne">
+          <span style="color:var(--amber); font-weight:600;">⏳ En attente de validation</span> — invisible comme définitif dans « Mes Caisses » tant que non validé.
+          <br><button type="button" class="btn-valider-audit" data-idx="${i}">✅ Valider cette caisse</button>
+        </div>
+        ${renderFormValidation(a, i)}
+      `;
+    }
+
+    function renderFormValidation(a, i) {
+      const ecartPisteDefaut = a.ecart_piste_valide != null ? a.ecart_piste_valide : a.ecart_piste;
+      const ecartBoutiqueDefaut = a.ecart_boutique_valide != null ? a.ecart_boutique_valide : a.ecart_boutique;
+      return `
+        <div class="validation-form" id="validationForm-${i}">
+          <label>Écart piste définitif (€)</label>
+          <input type="text" inputmode="decimal" id="valPiste-${i}" value="${String(ecartPisteDefaut).replace('.', ',')}">
+          <label>Écart boutique définitif (€)</label>
+          <input type="text" inputmode="decimal" id="valBoutique-${i}" value="${String(ecartBoutiqueDefaut).replace('.', ',')}">
+          <label>Commentaire de validation (optionnel)</label>
+          <textarea id="valCommentaire-${i}" placeholder="Ex : écart expliqué par un rendu de monnaie erroné, corrigé avec l'employé.">${a.commentaire_validation && a.valide_par ? a.commentaire_validation : ''}</textarea>
+          <button type="button" class="btn btn-primary" style="margin-top:10px;" data-idx="${i}" id="btnConfirmerValidation-${i}">Confirmer la validation</button>
+        </div>
+      `;
+    }
+
+    function brancherValidationAudits(data) {
+      document.querySelectorAll('.btn-valider-audit').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const idx = btn.dataset.idx;
+          document.getElementById(`validationForm-${idx}`).classList.toggle('open');
+        });
+      });
+      document.querySelectorAll('[id^="btnConfirmerValidation-"]').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          const idx = parseInt(btn.dataset.idx, 10);
+          const a = data[idx];
+          const ecartPisteValide = numFR(document.getElementById(`valPiste-${idx}`).value);
+          const ecartBoutiqueValide = numFR(document.getElementById(`valBoutique-${idx}`).value);
+          if (Number.isNaN(ecartPisteValide) || Number.isNaN(ecartBoutiqueValide)) {
+            alert('Montants invalides — vérifiez les deux champs d\'écart.');
+            return;
+          }
+          const commentaireValidation = document.getElementById(`valCommentaire-${idx}`).value.trim() || null;
+          btn.disabled = true; btn.textContent = 'Validation…';
+          const { error } = await nexusClient.from('audits_caisse').update({
+            valide_le: new Date().toISOString(),
+            valide_par: EMPLOYEE_ID,
+            ecart_piste_valide: ecartPisteValide,
+            ecart_boutique_valide: ecartBoutiqueValide,
+            commentaire_validation: commentaireValidation,
+          }).eq('id', a.id);
+          if (error) {
+            console.error('Validation audit caisse:', error);
+            alert('Erreur lors de la validation — réessayez.');
+            btn.disabled = false; btn.textContent = 'Confirmer la validation';
+            return;
+          }
+          await afficherHistorique();
         });
       });
     }

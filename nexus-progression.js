@@ -53,7 +53,10 @@
   // ------------------------------------------------------------
 
   // rowsAudits : lignes audits_caisse déjà filtrées par site (date, quart,
-  // ecart_piste, ecart_boutique, employes_piste, employes_boutique).
+  // ecart_piste, ecart_boutique, employes_piste, employes_boutique, et
+  // depuis "Mes Caisses" le 03/08/2026 : id, valide_le, ecart_piste_valide,
+  // ecart_boutique_valide, commentaire_validation — champs additifs, ne
+  // changent rien au comportement pour les appelants qui ne les lisent pas).
   function construireServicesCaisse(rowsAudits, employeeId) {
     const services = [];
     (rowsAudits || []).forEach(a => {
@@ -63,6 +66,7 @@
       const surBoutique = listeBoutique.includes(employeeId);
       if (!surPiste && !surBoutique) return;
       services.push({
+        id: a.id != null ? a.id : null,
         date: a.date,
         quart: a.quart,
         surPiste, surBoutique,
@@ -70,6 +74,13 @@
         soloBoutique: surBoutique && listeBoutique.length === 1,
         ecartPiste: surPiste ? Number(a.ecart_piste) : null,
         ecartBoutique: surBoutique ? Number(a.ecart_boutique) : null,
+        // Mes Caisses (03/08/2026) : valideLe null => contrôle provisoire.
+        // Les montants *_valide ne sont significatifs qu'une fois validés —
+        // jamais lus tant que valideLe est null (voir statutCaisseJour).
+        valideLe: a.valide_le || null,
+        ecartPisteValide: (surPiste && a.ecart_piste_valide != null) ? Number(a.ecart_piste_valide) : null,
+        ecartBoutiqueValide: (surBoutique && a.ecart_boutique_valide != null) ? Number(a.ecart_boutique_valide) : null,
+        commentaireValidation: a.commentaire_validation || null,
       });
     });
     // Plus récent d'abord — plus pratique pour les séries et le compteur
@@ -690,6 +701,228 @@
     };
   }
 
+  // ------------------------------------------------------------
+  // 10) "Mes Caisses" (03/08/2026, demande de Frédéric) — donner à chaque
+  //    employé la visibilité sur ses écarts de caisse jour par jour ET
+  //    cumulés au mois, en distinguant strictement trois statuts :
+  //      - 'provisoire'       : contrôle enregistré par un manager dans
+  //        Verify mais pas encore validé (audits_caisse.valide_le est null).
+  //      - 'validee_conforme' : validé, écart(s) attribuable(s) dans le
+  //        seuil de conformité.
+  //      - 'validee_ecart'    : validé, au moins un écart attribuable hors
+  //        seuil.
+  //    Règle non négociable (rappelée par Frédéric) : un écart provisoire
+  //    et un écart validé ne doivent JAMAIS être additionnés dans le même
+  //    total. Toutes les fonctions ci-dessous respectent cette séparation
+  //    en gardant deux cumuls distincts (ecartProvisoireCumule /
+  //    ecartValideCumule) plutôt qu'un seul total mélangé.
+  //
+  //    Même règle d'attribution que la section 1 : un écart (provisoire ou
+  //    validé) n'est imputé à l'employé que s'il était seul sur le poste ce
+  //    quart-là. Un poste partagé, même validé, ne peut jamais devenir
+  //    "validée avec écart" pour un individu précis.
+  // ------------------------------------------------------------
+
+  // Statut d'un service caisse (objet retourné par construireServicesCaisse)
+  // pour la vue employé "Mes Caisses". Distinct de statutCaisse() (section 2)
+  // qui reste la synthèse "compétence" utilisée par Niveau NEXUS — jamais
+  // fusionnées, ce sont deux questions différentes ("suis-je fiable en
+  // général ?" vs "où en est CE contrôle précis ?").
+  function statutCaisseJour(service) {
+    if (!service) return null;
+    if (!service.valideLe) return 'provisoire';
+    const ecartPisteSolo = service.soloPiste ? service.ecartPisteValide : null;
+    const ecartBoutiqueSolo = service.soloBoutique ? service.ecartBoutiqueValide : null;
+    const enEcart = (ecartPisteSolo != null && !estConforme(ecartPisteSolo))
+      || (ecartBoutiqueSolo != null && !estConforme(ecartBoutiqueSolo));
+    return enEcart ? 'validee_ecart' : 'validee_conforme';
+  }
+
+  const LIBELLE_STATUT_CAISSE_JOUR = {
+    provisoire: 'En cours de contrôle',
+    validee_conforme: 'Validée conforme',
+    validee_ecart: 'Validée avec écart',
+  };
+
+  // Mention de protection — à afficher sous le total mensuel, dans une
+  // infobulle près du statut, et avant l'ouverture du détail des écarts
+  // (demande explicite de Frédéric, 03/08/2026).
+  const MENTION_PROTECTION_LONGUE = 'Les montants affichés avant validation sont provisoires : ils correspondent au contrôle enregistré au moment de la clôture de caisse, avant toute vérification manager. Seuls les écarts validés par un manager sont définitifs et peuvent entrer dans vos statistiques. Un écart provisoire peut être corrigé, expliqué ou annulé lors de la validation — il ne doit jamais être interprété comme une faute avant cette étape.';
+  const MENTION_PROTECTION_COURTE = 'Résultats provisoires jusqu\'à validation complète de la caisse. Seuls les écarts validés sont définitifs.';
+
+  // Agrège les services d'un employé sur un mois donné (moisRef au format
+  // 'YYYY-MM'). Les deux cumuls (provisoire / validé) restent toujours
+  // séparés — voir note de section ci-dessus.
+  function agregerMoisCaisse(services, moisRef) {
+    const duMois = (services || []).filter(s => s.date && s.date.slice(0, 7) === moisRef);
+    let caissesConformes = 0, caissesEnCours = 0, caissesEcartValide = 0;
+    let ecartProvisoireCumule = 0, ecartValideCumule = 0;
+    duMois.forEach(s => {
+      const statut = statutCaisseJour(s);
+      if (statut === 'provisoire') {
+        caissesEnCours += 1;
+        // Cumul provisoire : uniquement les écarts attribuables (poste
+        // solo, hors seuil), calculés sur les colonnes brutes — jamais les
+        // colonnes _valide, qui n'existent pas encore tant que non validé.
+        if (s.soloPiste && !estConforme(s.ecartPiste)) ecartProvisoireCumule += s.ecartPiste;
+        if (s.soloBoutique && !estConforme(s.ecartBoutique)) ecartProvisoireCumule += s.ecartBoutique;
+      } else if (statut === 'validee_conforme') {
+        caissesConformes += 1;
+      } else if (statut === 'validee_ecart') {
+        caissesEcartValide += 1;
+        if (s.soloPiste && s.ecartPisteValide != null && !estConforme(s.ecartPisteValide)) ecartValideCumule += s.ecartPisteValide;
+        if (s.soloBoutique && s.ecartBoutiqueValide != null && !estConforme(s.ecartBoutiqueValide)) ecartValideCumule += s.ecartBoutiqueValide;
+      }
+    });
+    return {
+      moisRef,
+      caissesControlees: duMois.length,
+      caissesConformes, caissesEnCours, caissesEcartValide,
+      ecartProvisoireCumule, ecartValideCumule,
+    };
+  }
+
+  function moisPrecedent(moisRef) {
+    const [an, mois] = moisRef.split('-').map(Number);
+    const d = new Date(an, mois - 2, 1); // mois-2 (index 0) = mois précédent
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  }
+
+  // Tendance vs mois précédent — comparée uniquement sur les écarts
+  // VALIDÉS (les seuls définitifs). Retourne null si le mois précédent n'a
+  // aucune caisse contrôlée : jamais de "amélioration" calculée contre zéro.
+  function tendanceMoisCaisse(agregatActuel, agregatPrecedent) {
+    if (!agregatPrecedent || agregatPrecedent.caissesControlees === 0) return null;
+    const actuel = Math.abs(agregatActuel.ecartValideCumule);
+    const precedent = Math.abs(agregatPrecedent.ecartValideCumule);
+    if (precedent === 0 && actuel === 0) return { evolution: 'stable', actuel, precedent };
+    if (precedent === 0) return { evolution: 'degrade', actuel, precedent };
+    const variation = (actuel - precedent) / precedent;
+    const evolution = variation < -0.01 ? 'ameliore' : (variation > 0.01 ? 'degrade' : 'stable');
+    return { evolution, variation, actuel, precedent };
+  }
+
+  // Jours consécutifs (calendaires, parmi les jours où l'employé a un
+  // contrôle enregistré) sans écart VALIDÉ — un jour "provisoire" ou
+  // "validé conforme" compte comme "sans écart validé" ; un jour avec au
+  // moins un contrôle "validée avec écart" interrompt la série. Limite
+  // assumée : ne compte que les jours où NEXUS a un contrôle enregistré,
+  // jamais les jours non travaillés (aucune donnée à ce sujet).
+  function joursConsecutifsSansEcartValide(services) {
+    const parJour = {};
+    (services || []).forEach(s => {
+      if (!s.date) return;
+      if (!(s.date in parJour)) parJour[s.date] = false;
+      if (statutCaisseJour(s) === 'validee_ecart') parJour[s.date] = true;
+    });
+    const jours = Object.keys(parJour).sort();
+    let enCours = 0;
+    for (let i = jours.length - 1; i >= 0; i--) {
+      if (parJour[jours[i]]) break;
+      enCours += 1;
+    }
+    return enCours;
+  }
+
+  // Série de contrôles VALIDÉS CONFORMES consécutifs — ignore les contrôles
+  // encore provisoires (ni comptés, ni interrupteurs de série : on ne sait
+  // pas encore ce qu'ils deviendront), s'appuie uniquement sur les
+  // contrôles déjà tranchés par un manager, dans l'ordre chronologique.
+  function serieValideeConforme(services) {
+    const resolus = (services || [])
+      .filter(s => statutCaisseJour(s) !== 'provisoire')
+      .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+    let record = 0, courante = 0, enCours = 0;
+    resolus.forEach(s => {
+      if (statutCaisseJour(s) === 'validee_conforme') { courante += 1; if (courante > record) record = courante; }
+      else { courante = 0; }
+    });
+    for (let i = resolus.length - 1; i >= 0; i--) {
+      if (statutCaisseJour(resolus[i]) === 'validee_conforme') enCours += 1; else break;
+    }
+    return { enCours, record, total: resolus.length };
+  }
+
+  // Système de "point de fiabilité" (03/08/2026, demande explicite de
+  // Frédéric — VOLONTAIREMENT pas automatique dès qu'une caisse est
+  // conforme, pour ne jamais récompenser la simple déclaration plutôt que
+  // la sincérité). Un point n'est accordé que si :
+  //   1. la caisse est définitivement validée conforme (jamais provisoire) ;
+  //   2. l'inventaire obligatoire du même site/date/quart est bien clôturé
+  //      (vérifiable via inventaire_quarts.statut === 'cloture').
+  // Limite assumée et documentée plutôt que cachée : le modèle de données
+  // actuel ne permet pas de vérifier "aucune correction tardive nécessaire"
+  // (audits_caisse n'a pas de colonne updated_at distincte de created_at,
+  // ni de liste explicite de justificatifs fournis). Cette condition n'est
+  // donc PAS appliquée ici — on ne fabrique jamais une vérification qu'on ne
+  // fait pas réellement (Article 5). À ajouter dès que ces données existent.
+  function pointFiabiliteEligible(service, inventaireCloture) {
+    if (statutCaisseJour(service) !== 'validee_conforme') {
+      return { eligible: false, raison: 'Caisse non validée conforme.' };
+    }
+    if (inventaireCloture !== true) {
+      return { eligible: false, raison: 'Inventaire du quart non confirmé clôturé.' };
+    }
+    return { eligible: true, raison: null };
+  }
+
+  // Bonus "+3 points de régularité" pour 5 contrôles validés conformes
+  // consécutifs — s'appuie sur serieValideeConforme, jamais un second calcul
+  // de série divergent.
+  function bonusRegulariteCaisse(serieValideeConformeVal) {
+    const paliers = Math.floor((serieValideeConformeVal ? serieValideeConformeVal.enCours : 0) / 5);
+    return { paliersAtteints: paliers, points: paliers * 3 };
+  }
+
+  // Ce qui peut expliquer un écart (03/08/2026) — toujours présentées comme
+  // des hypothèses à vérifier, jamais des constats ni des accusations. Le
+  // Coach ne choisit jamais UNE cause : il propose la liste, à l'employé et
+  // au manager de recouper avec le contexte réel du quart.
+  const CAUSES_POSSIBLES_CAISSE = [
+    'Rendu de monnaie imprécis lors d\'un pic d\'affluence.',
+    'Un règlement en espèces oublié au moment de l\'enregistrer.',
+    'Une erreur de saisie du montant à la caisse.',
+    'Une vente non scannée ou non enregistrée.',
+    'Une erreur de comptage lors du dépôt (billets ou pièces).',
+    'Un chèque ou une carte carburant non comptabilisé.',
+    'Une dépense ponctuelle non déclarée au moment du contrôle.',
+    'Un litrage carburant renseigné de façon approximative.',
+    'Une remise cuve non reportée correctement.',
+    'Un poste partagé entre plusieurs personnes, rendant l\'origine incertaine.',
+    'Un incident technique (terminal de paiement, pompe, logiciel de caisse).',
+  ];
+
+  // Messages Coach pour "Mes Caisses" — cinq scénarios distincts, toujours
+  // dans le langage NEXUS établi (jamais accusatoire, distingue fait /
+  // hypothèse / recommandation, jamais de comparaison entre collègues).
+  // contexte : { statut, montantEcart, serieValideeConformeVal, ameliorationDetectee }
+  function messageCoachCaisseJour({ statut, montantEcart, serieValideeConformeVal, ameliorationDetectee }) {
+    const enCours = serieValideeConformeVal ? serieValideeConformeVal.enCours : 0;
+    if (statut === 'provisoire') {
+      if (montantEcart != null && !estConforme(montantEcart)) {
+        return `Un petit écart de ${Math.abs(montantEcart).toFixed(2)} € a été relevé sur ce contrôle. Il reste provisoire tant qu'un manager ne l'a pas validé — rien à faire de votre côté pour l'instant.`;
+      }
+      return 'Ce contrôle de caisse est en cours de validation par un manager. Il apparaîtra dans votre historique définitif une fois validé.';
+    }
+    if (statut === 'validee_conforme') {
+      if (enCours >= 5) {
+        return `Caisse validée conforme — cela fait ${enCours} contrôles validés conformes d'affilée. Belle régularité.`;
+      }
+      if (enCours >= 2) {
+        return `Plusieurs caisses validées conformes de suite (${enCours}). Continuez ainsi.`;
+      }
+      return 'Caisse validée conforme par votre manager.';
+    }
+    // validee_ecart
+    const base = montantEcart != null
+      ? `Un écart de ${Math.abs(montantEcart).toFixed(2)} € a été validé par votre manager sur ce contrôle.`
+      : 'Un écart a été validé par votre manager sur ce contrôle.';
+    if (ameliorationDetectee) {
+      return `${base} Les données indiquent aussi une amélioration par rapport à vos précédents écarts — continuez sur cette voie.`;
+    }
+    return `${base} Les données n'indiquent pas encore la cause précise — les causes possibles ci-dessous restent des hypothèses à vérifier, jamais des certitudes.`;
+  }
+
   global.NexusProgression = {
     SEUIL_ECART_CONFORME,
     construireServicesCaisse, estConforme, serviceEstPropre,
@@ -702,5 +935,12 @@
     analyserQualites, analyserHabitudes, analyserProgres,
     calculerNiveauADate, projeterProchainObjectif,
     detecterNouveaute,
+    // Mes Caisses (03/08/2026)
+    statutCaisseJour, LIBELLE_STATUT_CAISSE_JOUR,
+    MENTION_PROTECTION_LONGUE, MENTION_PROTECTION_COURTE,
+    agregerMoisCaisse, moisPrecedent, tendanceMoisCaisse,
+    joursConsecutifsSansEcartValide, serieValideeConforme,
+    pointFiabiliteEligible, bonusRegulariteCaisse,
+    CAUSES_POSSIBLES_CAISSE, messageCoachCaisseJour,
   };
 })(window);

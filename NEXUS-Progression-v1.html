@@ -98,6 +98,30 @@
   .empty-note{padding:40px 20px; text-align:center; color:var(--text-dim); font-size:13px; line-height:1.6;}
   .locked{padding:60px 20px; text-align:center; color:var(--text-dim); font-size:13px;}
 
+  /* Mes Caisses (03/08/2026) */
+  .caisses-sub{font-size:12.5px; line-height:1.6; color:var(--text-mid); margin-bottom:14px;}
+  .caisses-stats-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:4px;}
+  .stat-item{background:var(--panel-raised); border-radius:10px; padding:10px 12px;}
+  .stat-value{font-size:16px; font-weight:700;}
+  .stat-label{font-family:var(--mono); font-size:9px; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.03em; margin-top:3px; line-height:1.4;}
+  .protection-note{font-size:11px; line-height:1.55; color:var(--text-dim); margin-top:14px; padding-top:12px; border-top:1px solid var(--hairline);}
+  .info-dot{cursor:help; color:var(--cyan); border-bottom:1px dotted var(--cyan);}
+  .fiabilite-line{font-family:var(--mono); font-size:10.5px; color:var(--gold); margin-top:12px;}
+  .statut-badge-caisse{font-family:var(--mono); font-size:9px; font-weight:600; letter-spacing:0.03em; text-transform:uppercase; padding:4px 9px; border-radius:20px; white-space:nowrap; flex-shrink:0;}
+  .statut-badge-caisse.provisoire{color:var(--amber); background:var(--amber-dim);}
+  .statut-badge-caisse.validee_conforme{color:var(--green); background:var(--green-dim);}
+  .statut-badge-caisse.validee_ecart{color:var(--red); background:var(--red-dim);}
+  .caisse-jour-item{border-top:1px solid var(--hairline); padding:12px 0; cursor:pointer;}
+  .caisse-jour-item:first-child{border-top:none;}
+  .caisse-jour-top{display:flex; justify-content:space-between; align-items:center; gap:10px;}
+  .caisse-jour-date{font-size:13px; font-weight:500;}
+  .caisse-jour-quart{font-family:var(--mono); font-size:10px; color:var(--text-dim); margin-left:6px;}
+  .caisse-jour-montant{font-family:var(--mono); font-size:11.5px; margin-top:5px; color:var(--text-mid);}
+  .caisse-jour-detail{display:none; margin-top:10px; font-size:12.5px; line-height:1.6; color:var(--text-mid);}
+  .caisse-jour-detail.open{display:block;}
+  .causes-list{margin:8px 0 0; padding-left:18px; color:var(--text-dim); font-size:11.5px; line-height:1.7;}
+  .caisses-empty{padding:20px 0; text-align:center; color:var(--text-dim); font-size:12.5px;}
+
   footer{margin-top:auto; padding:16px 20px 24px; font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:center; border-top:1px solid var(--hairline);}
 </style>
 </head>
@@ -213,9 +237,13 @@
       { data: evaluationsRows, error: e5 },
       { data: completionsRows, error: e6 },
       { data: catalogueRows, error: e7 },
+      { data: inventaireRows, error: e8 },
     ] = await Promise.all([
+      // id/valide_le/ecart_*_valide/commentaire_validation ajoutés le
+      // 03/08/2026 pour "Mes Caisses" — distinguer un écart provisoire d'un
+      // écart validé par un manager (voir nexus-progression.js, section 10).
       fetchAllRows(() => nexusClient.from('audits_caisse')
-        .select('date, quart, ecart_piste, ecart_boutique, employes_piste, employes_boutique')
+        .select('id, date, quart, ecart_piste, ecart_boutique, employes_piste, employes_boutique, valide_le, ecart_piste_valide, ecart_boutique_valide, commentaire_validation')
         .eq('site', siteId).order('date', { ascending: false })),
       // date ajoutée (27/07/2026) pour calculer la série de ponctualité
       // (NexusProgression.calculerSeriePonctualite) — un simple total ne
@@ -229,6 +257,10 @@
       // pas seulement un total comme avant.
       nexusClient.from('mission_completions').select('date, heure, mission_id, photo_fournie').eq('employee_id', cible.id),
       nexusClient.from('mission_catalog').select('mission_id, proof_required').eq('site_id', siteId),
+      // Mes Caisses (03/08/2026) : sert uniquement à vérifier la condition
+      // "inventaire obligatoire terminé" du point de fiabilité — jamais
+      // utilisé pour rien d'autre ici.
+      nexusClient.from('inventaire_quarts').select('date, quart, statut').eq('site', siteId),
     ]);
     if (e1) console.error('Chargement audits_caisse (progression):', e1);
     if (e2) console.error('Chargement pointages (progression):', e2);
@@ -237,6 +269,7 @@
     if (e5) console.error('Chargement evaluations_employes (progression):', e5);
     if (e6) console.error('Chargement mission_completions (progression):', e6);
     if (e7) console.error('Chargement mission_catalog (progression):', e7);
+    if (e8) console.error('Chargement inventaire_quarts (progression):', e8);
 
     const N = NexusProgression;
     const services = N.construireServicesCaisse(auditsRows || [], cible.id);
@@ -297,6 +330,70 @@
     const axe = N.identifierAxeProgression({ services, statutCaisseVal, statutPonctualiteVal, statutMissionsVal, statutTenueVal, ecartsAttribuablesVal: ecarts });
     const encouragement = N.genererEncouragement({ services, ecartsAttribuablesVal: ecarts });
 
+    // ------------------------------------------------------------
+    // Mes Caisses (03/08/2026, demande de Frédéric) — voir nexus-progression.js
+    // section 10 pour toute la logique. Ici : uniquement l'assemblage des
+    // données pour l'affichage, jamais un second calcul divergent.
+    // ------------------------------------------------------------
+    const moisRef = new Date().toISOString().slice(0, 7);
+    const agregatMois = N.agregerMoisCaisse(services, moisRef);
+    const agregatMoisPrecedent = N.agregerMoisCaisse(services, N.moisPrecedent(moisRef));
+    const tendanceMois = N.tendanceMoisCaisse(agregatMois, agregatMoisPrecedent);
+    const joursSansEcartValide = N.joursConsecutifsSansEcartValide(services);
+    const serieConformeVal = N.serieValideeConforme(services);
+    const bonusRegulariteVal = N.bonusRegulariteCaisse(serieConformeVal);
+
+    // Écarts VALIDÉS attribuables — même logique que ecartsAttribuables
+    // (section 1) mais construite sur les montants définitifs, jamais les
+    // montants provisoires, pour ne jamais mélanger les deux dans la
+    // détection d'amélioration du Coach.
+    const ecartsValidesAttribuables = [];
+    services.forEach(s => {
+      if (N.statutCaisseJour(s) !== 'validee_ecart') return;
+      if (s.soloPiste && s.ecartPisteValide != null && !N.estConforme(s.ecartPisteValide)) {
+        ecartsValidesAttribuables.push({ date: s.date, quart: s.quart, poste: 'piste', montant: s.ecartPisteValide });
+      }
+      if (s.soloBoutique && s.ecartBoutiqueValide != null && !N.estConforme(s.ecartBoutiqueValide)) {
+        ecartsValidesAttribuables.push({ date: s.date, quart: s.quart, poste: 'boutique', montant: s.ecartBoutiqueValide });
+      }
+    });
+    const tendanceValidee = N.tendanceEcartMoyen(ecartsValidesAttribuables);
+    const ameliorationDetectee = !!(tendanceValidee && tendanceValidee.ameliore);
+
+    // Montant attribuable affiché pour un service donné — respecte
+    // strictement la séparation provisoire/validé (jamais les deux
+    // colonnes mélangées) et l'attribution solo (jamais un poste partagé).
+    function montantAttribuableService(s) {
+      const statut = N.statutCaisseJour(s);
+      let total = 0, trouve = false;
+      if (statut === 'provisoire') {
+        if (s.soloPiste && !N.estConforme(s.ecartPiste)) { total += s.ecartPiste; trouve = true; }
+        if (s.soloBoutique && !N.estConforme(s.ecartBoutique)) { total += s.ecartBoutique; trouve = true; }
+      } else if (statut === 'validee_ecart') {
+        if (s.soloPiste && s.ecartPisteValide != null && !N.estConforme(s.ecartPisteValide)) { total += s.ecartPisteValide; trouve = true; }
+        if (s.soloBoutique && s.ecartBoutiqueValide != null && !N.estConforme(s.ecartBoutiqueValide)) { total += s.ecartBoutiqueValide; trouve = true; }
+      }
+      return trouve ? total : null;
+    }
+
+    // Points de fiabilité (03/08/2026) — cumulés sur tout l'historique
+    // connu, jamais stockés (toujours recalculés à partir des données
+    // source, même principe que les badges et niveaux de ce moteur).
+    const inventaireCloturePar = {};
+    (inventaireRows || []).forEach(iv => {
+      inventaireCloturePar[`${iv.date}|${iv.quart}`] = iv.statut === 'cloture';
+    });
+    let pointsFiabiliteTotal = 0;
+    services.forEach(s => {
+      const cloture = inventaireCloturePar[`${s.date}|${s.quart}`] === true;
+      if (N.pointFiabiliteEligible(s, cloture).eligible) pointsFiabiliteTotal += 1;
+    });
+    pointsFiabiliteTotal += bonusRegulariteVal.points;
+
+    const servicesDuMois = services.filter(s => s.date && s.date.slice(0, 7) === moisRef);
+    const MOIS_LABELS = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+    const labelMois = `${MOIS_LABELS[parseInt(moisRef.slice(5,7),10)-1]} ${moisRef.slice(0,4)}`;
+
     const prenom = vueManager ? cible.nom : cible.nom.split(' ')[0];
     // Message d'accueil et messages d'attente (27/07/2026, ton plus humain
     // demandé par Frédéric — voir Proposition_evolution_NEXUS_Employe.pdf,
@@ -310,6 +407,67 @@
     const accueil = services.length > 0
       ? `Bonjour ${prenom}. ${vueManager ? 'Le Coach NEXUS accompagne cet employé au quotidien dans ses missions et sa progression.' : 'Aujourd\'hui, je serai à vos côtés pour vous accompagner dans vos missions et vous aider à progresser.'} J'ai analysé ${vueManager ? 'ses' : 'vos'} ${services.length} dernier${services.length > 1 ? 's' : ''} service${services.length > 1 ? 's' : ''} de caisse pour ${vueManager ? 'mieux comprendre ses' : 'mieux comprendre vos'} points forts.`
       : `Bonjour ${prenom}. ${vueManager ? 'Le Coach NEXUS commence tout juste à apprendre la manière de travailler de cet employé' : 'Aujourd\'hui, je serai à vos côtés pour vous accompagner dans vos missions et vous aider à progresser'} — chaque service ${vueManager ? 'qu\'il enregistre m\'aide à mieux le' : 'que vous enregistrez m\'aide à mieux vous'} comprendre.`;
+
+    // ------------------------------------------------------------
+    // Rendu "Mes Caisses"
+    // ------------------------------------------------------------
+    const TENDANCE_LABEL = { ameliore: '📈 En amélioration', degrade: '📉 En hausse', stable: '➡️ Stable' };
+    const tendanceTexte = tendanceMois ? TENDANCE_LABEL[tendanceMois.evolution] : 'Données insuffisantes';
+
+    const statItem = (valeur, label) => `<div class="stat-item"><div class="stat-value">${valeur}</div><div class="stat-label">${label}</div></div>`;
+
+    const statsGridHtml = [
+      statItem(agregatMois.caissesConformes, 'Caisses conformes'),
+      statItem(agregatMois.caissesEcartValide, 'Caisses avec écart validé'),
+      statItem(`${agregatMois.ecartProvisoireCumule >= 0 ? '+' : ''}${agregatMois.ecartProvisoireCumule.toFixed(2)} €`, 'Cumul provisoire du mois'),
+      statItem(`${agregatMois.ecartValideCumule >= 0 ? '+' : ''}${agregatMois.ecartValideCumule.toFixed(2)} €`, 'Cumul validé du mois'),
+      statItem(tendanceTexte, 'Vs mois précédent'),
+      statItem(joursSansEcartValide, 'Jours sans écart validé'),
+    ].join('');
+
+    const caisseJourItemHtml = (s, i) => {
+      const statut = N.statutCaisseJour(s);
+      const montant = montantAttribuableService(s);
+      const dateLabel = new Date(s.date + 'T00:00:00').toLocaleDateString('fr-FR');
+      // Le quart est une valeur libre saisie dans Verify (ex: "1", "2") — pas
+      // un enum matin/soir garanti (voir v_quart dans NEXUS-Verify-v1.html).
+      // On l'affiche donc tel quel, jamais une étiquette matin/soir devinée.
+      const quartLabel = `Quart ${s.quart}`;
+      const messageCoach = N.messageCoachCaisseJour({ statut, montantEcart: montant, serieValideeConformeVal: serieConformeVal, ameliorationDetectee });
+      const causesHtml = statut === 'validee_ecart'
+        ? `<div class="causes-list-wrap"><b>Ce qui peut expliquer cet écart (hypothèses à vérifier, jamais des certitudes) :</b>
+            <ul class="causes-list">${N.CAUSES_POSSIBLES_CAISSE.map(c => `<li>${c}</li>`).join('')}</ul>
+           </div>`
+        : '';
+      return `
+      <div class="caisse-jour-item" data-idx="${i}">
+        <div class="caisse-jour-top">
+          <div><span class="caisse-jour-date">${dateLabel}</span><span class="caisse-jour-quart">· ${quartLabel}</span></div>
+          <span class="statut-badge-caisse ${statut}" title="${statut === 'provisoire' ? N.MENTION_PROTECTION_COURTE : ''}">${N.LIBELLE_STATUT_CAISSE_JOUR[statut]}</span>
+        </div>
+        ${montant != null ? `<div class="caisse-jour-montant">${montant >= 0 ? '+' : ''}${montant.toFixed(2)} €</div>` : ''}
+        <div class="caisse-jour-detail" id="caisseDetail-${i}">
+          ${statut === 'provisoire' ? `<div class="protection-note" style="margin-top:0; padding-top:0; border-top:none;">${N.MENTION_PROTECTION_COURTE}</div>` : ''}
+          <div style="margin-top:8px;">${messageCoach}</div>
+          ${causesHtml}
+        </div>
+      </div>`;
+    };
+
+    const caissesListeHtml = servicesDuMois.length
+      ? servicesDuMois.map((s, i) => caisseJourItemHtml(s, i)).join('')
+      : `<div class="caisses-empty">Aucune caisse contrôlée ce mois-ci pour l\'instant.</div>`;
+
+    const mesCaissesHtml = `
+      <div class="section-label">Mes caisses</div>
+      <div class="coach-card">
+        <div class="caisses-sub">Suivez vos résultats de caisse et votre régularité au fil du temps — ${labelMois}.</div>
+        <div class="caisses-stats-grid">${statsGridHtml}</div>
+        ${bonusRegulariteVal.paliersAtteints > 0 || pointsFiabiliteTotal > 0 ? `<div class="fiabilite-line">🏅 ${pointsFiabiliteTotal} point${pointsFiabiliteTotal > 1 ? 's' : ''} de fiabilité cumulé${pointsFiabiliteTotal > 1 ? 's' : ''}${bonusRegulariteVal.paliersAtteints > 0 ? ` · dont +${bonusRegulariteVal.points} de régularité (${serieConformeVal.enCours} validées conformes d'affilée)` : ''}</div>` : ''}
+        <div class="protection-note">${N.MENTION_PROTECTION_COURTE} <span class="info-dot" title="${N.MENTION_PROTECTION_LONGUE}">ⓘ en savoir plus</span></div>
+      </div>
+      <div class="coach-card" id="caissesListeCard">${caissesListeHtml}</div>
+    `;
 
     const fortsHtml = forts.length
       ? `<ul class="fort-list">${forts.map(f => `<li class="fort-item"><span class="dot">🟢</span>${f}</li>`).join('')}</ul>`
@@ -361,6 +519,8 @@
         ${ligneCompetence('Relation client', statutRelationClientVal)}
       </div>
 
+      ${mesCaissesHtml}
+
       <div class="section-label">${vueManager ? 'Ses réussites' : 'Vos réussites'}</div>
       <div class="badges-grid">
         ${badges.map(b => `
@@ -372,6 +532,15 @@
         `).join('')}
       </div>
     `;
+
+    // Ouvrir/fermer le détail d'un jour "Mes Caisses" — même mécanisme que
+    // l'historique de NEXUS-Verify-v1.html (clic sur la ligne).
+    document.querySelectorAll('.caisse-jour-item').forEach(item => {
+      item.addEventListener('click', () => {
+        const detail = document.getElementById(`caisseDetail-${item.dataset.idx}`);
+        if (detail) detail.classList.toggle('open');
+      });
+    });
   });
 </script>
 </body>
