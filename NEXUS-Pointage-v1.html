@@ -696,7 +696,7 @@
       nexusClient.from('mission_completions').select('id, mission_id').eq('employee_id', employee.id).eq('date', today),
       nexusClient.from('mission_assignments').select('id').eq('site_id', siteId).eq('assigned_to_employee_id', employee.id).eq('status', 'assignee'),
       chargerRoleDuJour(employee.id),
-      nexusClient.from('mission_catalog').select('mission_id, role_required').eq('actif', true).eq('ponctuelle', false).eq('site_id', siteId),
+      nexusClient.from('mission_catalog').select('mission_id, role_required, time_window').eq('actif', true).eq('ponctuelle', false).eq('site_id', siteId),
     ]);
     if (erreurTerminees) console.error('Activité du jour (terminées):', erreurTerminees);
     if (erreurEnCours) console.error('Activité du jour (en cours):', erreurEnCours);
@@ -707,8 +707,21 @@
 
     let texteRestantes = '';
     if (roleDuJour && catalogue) {
+      const maintenant = new Date();
       const faitesAujourdhui = new Set((terminees || []).map(t => t.mission_id));
-      const nbRestantes = catalogue.filter(m => Array.isArray(m.role_required) && m.role_required.includes(roleDuJour) && !faitesAujourdhui.has(m.mission_id)).length;
+      // Fenêtre horaire (03/08/2026) : même règle que NEXUS-Missions-v1.html
+      // (missionDansSaFenetreHoraire) — "Ouverture station" ne doit plus
+      // compter comme restante après 6h, ce compteur reprenant exactement
+      // la même logique que le Conseiller personnel de Missions.
+      const nbRestantes = catalogue.filter(m => {
+        if (!Array.isArray(m.role_required) || !m.role_required.includes(roleDuJour) || faitesAujourdhui.has(m.mission_id)) return false;
+        if (!m.time_window) return true;
+        const match = /^avant-(\d{2}):(\d{2})$/.exec(m.time_window);
+        if (!match) return true;
+        const limite = new Date(maintenant);
+        limite.setHours(Number(match[1]), Number(match[2]), 0, 0);
+        return maintenant < limite;
+      }).length;
       texteRestantes = ` · ${nbRestantes} restante${nbRestantes > 1 ? 's' : ''}`;
     }
 

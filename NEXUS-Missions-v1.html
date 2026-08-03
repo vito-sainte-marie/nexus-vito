@@ -202,6 +202,22 @@
   //      Conseiller personnel (voir choisirMissionSuggeree ci-dessous) —
   //      elles vivent uniquement dans mission_assignments, affichées et
   //      clôturables depuis la section "Missions assignées" plus bas.
+  // Fenêtre horaire (03/08/2026, demande de Frédéric : "Ouverture station"
+  // ne doit plus être proposée après 6h du matin) — exploite la colonne
+  // mission_catalog.time_window, posée mais jamais utilisée jusqu'ici.
+  // Convention : 'avant-HH:MM' = mission visible strictement avant cette
+  // heure locale ; toute autre valeur (dont null) laisse la mission
+  // visible sans restriction — jamais masquer une mission sur une donnée
+  // mal formée plutôt qu'un vrai motif d'exclusion.
+  function missionDansSaFenetreHoraire(m, maintenant) {
+    if (!m.time_window) return true;
+    const match = /^avant-(\d{2}):(\d{2})$/.exec(m.time_window);
+    if (!match) return true;
+    const limite = new Date(maintenant);
+    limite.setHours(Number(match[1]), Number(match[2]), 0, 0);
+    return maintenant < limite;
+  }
+
   async function chargerCatalogue() {
     const { data, error } = await nexusClient
       .from('mission_catalog')
@@ -210,7 +226,8 @@
       .eq('ponctuelle', false)
       .eq('site_id', SITE_ACTUEL);
     if (error) { console.error('Chargement catalogue:', error); return []; }
-    return data || [];
+    const maintenant = new Date();
+    return (data || []).filter(m => missionDansSaFenetreHoraire(m, maintenant));
   }
 
   // Corrige le 21/07/2026 (Frederic a signale devoir reconfirmer sa
