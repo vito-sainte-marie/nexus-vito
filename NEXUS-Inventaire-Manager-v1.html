@@ -76,6 +76,16 @@
   .quart-pill.active{background:rgba(79,195,217,0.15); border-color:rgba(79,195,217,0.4); color:var(--cyan);}
   .quart-statut{font-family:var(--mono); font-size:10.5px; color:var(--text-dim); margin-bottom:16px;}
 
+  /* Sélecteur de période (02/08/2026, supervision configurable) */
+  .periode-select-row{display:flex; gap:6px; margin-bottom:10px; flex-wrap:wrap;}
+  .periode-pill{
+    font-family:var(--mono); font-size:10.5px; font-weight:600; padding:6px 11px; border-radius:16px;
+    border:1px solid var(--hairline); background:var(--panel); color:var(--text-mid); cursor:pointer; white-space:nowrap;
+  }
+  .periode-pill.active{background:rgba(212,175,55,0.12); border-color:rgba(212,175,55,0.4); color:var(--gold);}
+  .periode-perso-row{display:flex; align-items:center; gap:8px; margin-bottom:10px;}
+  .periode-perso-sep{color:var(--text-dim); font-family:var(--mono); font-size:11px;}
+
   /* Comparaison ventes Decenium (02/08/2026, demande de Frédéric) : compare
      l'écoulement physique constaté (ouverture − clôture + mouvements) à ce
      que Decenium dit avoir vendu, pour le quart actuellement sélectionné
@@ -243,6 +253,22 @@
   .sensible-tags{display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end;}
   .tag-manquant{font-family:var(--mono); font-size:9.5px; color:var(--amber); background:var(--amber-dim); padding:3px 7px; border-radius:6px; white-space:nowrap;}
 
+  /* Paramètres de contrôle inventaire — fréquence de supervision, seuils
+     (02/08/2026, évolution "Supervision configurable des inventaires") */
+  .param-ligne{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:9px 0; border-bottom:1px solid var(--hairline); font-size:12.5px;}
+  .param-ligne:last-child{border-bottom:none;}
+  .param-ligne label{color:var(--text-mid); flex-shrink:0;}
+  .param-input{font-family:var(--mono); font-size:12.5px; background:var(--panel-raised); border:1px solid var(--hairline); border-radius:7px; color:var(--text); padding:6px 8px; text-align:right; max-width:150px;}
+  .param-input:focus{outline:none; border-color:var(--cyan);}
+  select.param-input{text-align:left; max-width:170px;}
+  .param-checklist{display:flex; flex-wrap:wrap; gap:8px; padding:10px 0;}
+  .param-check-item{display:flex; align-items:center; gap:6px; font-size:12px; color:var(--text-mid); background:var(--panel-raised); border:1px solid var(--hairline); border-radius:20px; padding:5px 10px 5px 8px; cursor:pointer;}
+  .param-check-item input{accent-color:var(--cyan);}
+  .param-check-item.actif{color:var(--text); border-color:rgba(79,195,217,0.4);}
+  .param-note{font-size:11px; color:var(--text-dim); padding:2px 0 10px;}
+  .param-enregistre{font-family:var(--mono); font-size:10px; color:var(--green); opacity:0; transition:opacity .2s; margin-left:8px;}
+  .param-enregistre.visible{opacity:1;}
+
   /* Mode aveugle par employé */
   .employe-toggle-row{display:flex; justify-content:space-between; align-items:center; padding:12px 0; border-bottom:1px solid var(--hairline);}
   .employe-toggle-row:last-child{border-bottom:none;}
@@ -301,6 +327,42 @@
   let rouvertureFormOuvert = false; // "Rouvrir la clôture" — formulaire de motif déplié (02/08/2026)
   let dernierCtx = null;
 
+  // Paramètres de supervision configurable (02/08/2026, évolution demandée
+  // par Frédéric — "NEXUS Inventaire — Supervision configurable") : la
+  // fréquence de contrôle du manager (quotidien/hebdo/mensuel/exception)
+  // est désormais réglable par site, indépendamment de la fréquence de
+  // comptage terrain qui ne change jamais. Valeurs par défaut alignées sur
+  // le comportement actuel (contrôle quotidien) tant que le manager n'a
+  // rien configuré.
+  const DEFAULTS_PARAMETRES_INVENTAIRE = {
+    reviewFrequency: 'daily', weeklyReviewDay: 1, monthlyReviewDay: 1, reviewTime: '20:00',
+    quantityAlertThreshold: 1, valueAlertThreshold: null, immediateAlertCategoryIds: [],
+    closureDelayMinutes: 30, immediateAlertsEnabled: true,
+  };
+  let parametresInventaire = { ...DEFAULTS_PARAMETRES_INVENTAIRE };
+  let categoriesSite = [];
+
+  // Sélecteur de période (02/08/2026, évolution "Supervision configurable
+  // des inventaires") : 'jour' reproduit exactement le comportement
+  // existant (vue par quart, zéro régression sur le contrôle quotidien
+  // déjà utilisé chaque soir) ; les trois autres valeurs affichent une
+  // synthèse agrégée calculée par generate_inventory_review, sans jamais
+  // toucher aux comptages terrain.
+  let periodeSelectionnee = 'jour'; // 'jour' | 'semaine' | 'mois' | 'personnalisee'
+  let periodePersoDebut = '';
+  let periodePersoFin = '';
+  const LABELS_PERIODE = { jour: 'Aujourd\'hui', semaine: 'Cette semaine', mois: 'Ce mois', personnalisee: 'Période personnalisée' };
+  // Vue par exception (section 4) : activée par défaut si le manager a
+  // choisi ce rythme de supervision, mais reste un filtre manuel ensuite —
+  // on ne réinitialise donc qu'une seule fois, au premier chargement.
+  let filtreExceptionActif = false;
+  let filtreExceptionInitialise = false;
+  const LABELS_FREQUENCE = {
+    daily: 'Tous les jours', weekly: 'Une fois par semaine', monthly: 'Une fois par mois',
+    exception_only: 'Uniquement par exception',
+  };
+  const JOURS_SEMAINE = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
+
   // Catégories de décision manager sur une alerte (02/08/2026, demande de
   // Frédéric — vision initiale NEXUS Inventaire) : chaque décision ferme
   // l'alerte avec une trace explicite (qui, quand, pourquoi), jamais une
@@ -331,6 +393,40 @@
   function fmtNum(n) {
     if (n === null || n === undefined) return '—';
     return Number(n).toLocaleString('fr-FR', { maximumFractionDigits: 2 });
+  }
+  function fmtEuros(n) {
+    if (n === null || n === undefined) return '—';
+    return Number(n).toLocaleString('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 });
+  }
+  function dateISOdepuisDate(d) {
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  }
+  // Bornes de période (02/08/2026, supervision configurable) — semaine
+  // ISO (lundi→dimanche), mois calendaire complet. Purement des calculs
+  // d'affichage : ne modifient jamais les dates des quarts ou comptages.
+  function debutSemaine(dateStr) {
+    const d = new Date(dateStr + 'T00:00:00');
+    const jour = (d.getDay() + 6) % 7; // 0 = lundi
+    d.setDate(d.getDate() - jour);
+    return dateISOdepuisDate(d);
+  }
+  function finSemaine(dateStr) {
+    const d = new Date(debutSemaine(dateStr) + 'T00:00:00');
+    d.setDate(d.getDate() + 6);
+    return dateISOdepuisDate(d);
+  }
+  function debutMois(dateStr) { return dateStr.slice(0, 7) + '-01'; }
+  function finMois(dateStr) {
+    const d = new Date(dateStr.slice(0, 7) + '-01T00:00:00');
+    d.setMonth(d.getMonth() + 1);
+    d.setDate(0);
+    return dateISOdepuisDate(d);
+  }
+  function bornesPeriode() {
+    if (periodeSelectionnee === 'semaine') return { debut: debutSemaine(dateSelectionnee), fin: finSemaine(dateSelectionnee) };
+    if (periodeSelectionnee === 'mois') return { debut: debutMois(dateSelectionnee), fin: finMois(dateSelectionnee) };
+    if (periodeSelectionnee === 'personnalisee') return { debut: periodePersoDebut || dateSelectionnee, fin: periodePersoFin || dateSelectionnee };
+    return { debut: dateSelectionnee, fin: dateSelectionnee };
   }
 
   // Même règle que NEXUS-Inventaire-v1.html (02/08/2026) : le quart par
@@ -455,6 +551,32 @@
     return data ? data.horaires : null;
   }
 
+  // Paramètres de contrôle inventaire (02/08/2026, évolution "Supervision
+  // configurable des inventaires") : fréquence de synthèse choisie par le
+  // manager, seuils d'alerte, catégories sensibles et délai de clôture.
+  // Toujours fusionnés avec les valeurs par défaut pour rester tolérants à
+  // un enregistrement partiel.
+  async function chargerParametresInventaire(site) {
+    const { data, error } = await nexusClient.from('station_config').select('parametres_inventaire').eq('site', site).maybeSingle();
+    if (error) { console.error('Chargement paramètres inventaire:', error); return { ...DEFAULTS_PARAMETRES_INVENTAIRE }; }
+    return { ...DEFAULTS_PARAMETRES_INVENTAIRE, ...(data && data.parametres_inventaire ? data.parametres_inventaire : {}) };
+  }
+
+  async function sauvegarderParametresInventaire(site, patch) {
+    parametresInventaire = { ...parametresInventaire, ...patch };
+    const { error } = await nexusClient.from('station_config').update({ parametres_inventaire: parametresInventaire }).eq('site', site);
+    if (error) { console.error('Sauvegarde paramètres inventaire:', error); return false; }
+    SEUIL_DEMARQUE = parametresInventaire.quantityAlertThreshold || DEFAULTS_PARAMETRES_INVENTAIRE.quantityAlertThreshold;
+    return true;
+  }
+
+  async function chargerCategoriesSite(site) {
+    const { data, error } = await nexusClient.from('inventaire_categories').select('id, nom')
+      .eq('site', site).eq('actif', true).order('ordre_affichage');
+    if (error) { console.error('Chargement catégories site:', error); return []; }
+    return data || [];
+  }
+
   // Décisions du quart sélectionné (02/08/2026, demande de Frédéric —
   // remplace l'ancien double affichage "Décisions du quart" / "Décisions
   // prises" qui montrait deux chiffres différents (70 vs 30) parce qu'ils
@@ -469,6 +591,38 @@
       .order('resolue_le', { ascending: false });
     if (error) { console.error('Chargement décisions du quart:', error); return []; }
     return data || [];
+  }
+
+  // Équivalents "période" des deux chargements ci-dessus (02/08/2026,
+  // supervision configurable) — mêmes tables, filtrées par date de
+  // création plutôt que par quart_id, pour les vues semaine/mois/
+  // personnalisée. Ne modifient jamais rien, purement des lectures.
+  async function chargerAlertesOuvertesPeriode(site, debut, fin) {
+    const { data, error } = await nexusClient.from('inventaire_alertes')
+      .select('*, inventaire_zone_produit(designation, categorie_id)')
+      .eq('site', site).in('statut', ['ouverte', 'en_cours'])
+      .gte('cree_le', `${debut}T00:00:00`).lte('cree_le', `${fin}T23:59:59`)
+      .order('cree_le', { ascending: false });
+    if (error) { console.error('Chargement alertes ouvertes (période):', error); return []; }
+    return data || [];
+  }
+
+  async function chargerDecisionsPeriode(site, debut, fin) {
+    const { data, error } = await nexusClient.from('inventaire_alertes')
+      .select('*, inventaire_zone_produit(designation, categorie_id)')
+      .eq('site', site).in('statut', ['resolue', 'archivee', 'ignoree'])
+      .gte('cree_le', `${debut}T00:00:00`).lte('cree_le', `${fin}T23:59:59`)
+      .order('resolue_le', { ascending: false });
+    if (error) { console.error('Chargement décisions (période):', error); return []; }
+    return data || [];
+  }
+
+  async function chargerReviewPeriode(site, debut, fin, typeRevue) {
+    const { data, error } = await nexusClient.rpc('generate_inventory_review', {
+      p_site: site, p_period_start: debut, p_period_end: fin, p_review_type: typeRevue,
+    });
+    if (error) { console.error('Génération synthèse période:', error); return null; }
+    return data;
   }
 
   async function chargerEmployesSite(site) {
@@ -586,7 +740,11 @@
   // vérifiée à la main (jamais un rapprochement flou qui pourrait confondre
   // deux produits différents).
   // ------------------------------------------------------------
-  const SEUIL_DEMARQUE = 1; // tolérance : petites erreurs de comptage normales en dessous de ce seuil
+  // Tolérance : petites erreurs de comptage normales en dessous de ce
+  // seuil. Devient configurable (Paramètres de contrôle inventaire,
+  // 02/08/2026) — la valeur par défaut (1) reste inchangée tant que le
+  // manager ne l'a pas modifiée.
+  let SEUIL_DEMARQUE = DEFAULTS_PARAMETRES_INVENTAIRE.quantityAlertThreshold;
 
   // ------------------------------------------------------------
   // SYNTHÈSE DU QUART (02/08/2026, demande de Frédéric) : distingue les
@@ -836,6 +994,11 @@
             site: siteId, quart_id: quartRow.id, produit_id: produitId, type_alerte: 'demarque_ventes',
             gravite: Math.abs(ecart) > 3 ? 'critique' : 'attention',
             valeur_attendue: venteDecenium, valeur_constatee: ecoulement,
+            // Valeur estimée persistée par alerte (02/08/2026, supervision
+            // configurable) — alimente estimatedValue dans les synthèses
+            // hebdo/mensuelles sans avoir à recalculer depuis les fichiers
+            // Decenium archivés.
+            valeur_estimee: prixUnitaire != null ? Math.abs(ecart) * prixUnitaire : null,
           });
         }
       }
@@ -978,6 +1141,13 @@
     // pas liée à un produit précis, voir "Rouvrir la clôture" sur État du
     // quart pour corriger.
     cloture_incomplete: 'Clôture validée avec comptages manquants',
+    // Alertes immédiates indépendantes de la fréquence de supervision
+    // (02/08/2026, section 7 du cahier des charges) — créées par des
+    // triggers en base au moment même de l'événement, jamais différées.
+    reassort_non_justifie: 'Réassort déclaré sans justification',
+    modification_apres_validation: 'Recomptage après une clôture déjà validée',
+    cloture_en_retard: 'Inventaire non clôturé après le délai prévu',
+    anomalie_repetee: 'Anomalie répétée sur le même produit',
   };
   function renderAlerteCard(a) {
     const estDemarque = a.type_alerte === 'demarque_ventes';
@@ -1052,6 +1222,77 @@
     `;
   }
 
+  // Paramètres de contrôle inventaire (02/08/2026, évolution "Supervision
+  // configurable des inventaires") : fréquence à laquelle CE manager
+  // souhaite consulter une synthèse (quotidien/hebdo/mensuel/exception),
+  // distincte de la fréquence de comptage terrain qui ne bouge jamais.
+  // Chaque contrôle enregistre son changement séparément ('change', pas
+  // 'input') pour ne pas écrire à chaque frappe.
+  function renderParametresSupervision() {
+    const p = parametresInventaire;
+    const optionsFrequence = Object.entries(LABELS_FREQUENCE)
+      .map(([val, label]) => `<option value="${val}" ${p.reviewFrequency === val ? 'selected' : ''}>${label}</option>`).join('');
+    const optionsJourSemaine = JOURS_SEMAINE
+      .map((j, i) => `<option value="${i}" ${p.weeklyReviewDay === i ? 'selected' : ''}>${j}</option>`).join('');
+    const optionsJourMois = Array.from({ length: 28 }, (_, i) => i + 1)
+      .map(j => `<option value="${j}" ${p.monthlyReviewDay === j ? 'selected' : ''}>${j}</option>`).join('');
+    return `
+      <div class="card" style="margin-bottom:10px;">
+        <div class="param-ligne">
+          <label for="paramFrequence">Fréquence de supervision</label>
+          <select class="param-input" id="paramFrequence">${optionsFrequence}</select>
+        </div>
+        ${p.reviewFrequency === 'weekly' ? `
+        <div class="param-ligne">
+          <label for="paramJourSemaine">Jour de synthèse hebdomadaire</label>
+          <select class="param-input" id="paramJourSemaine">${optionsJourSemaine}</select>
+        </div>` : ''}
+        ${p.reviewFrequency === 'monthly' ? `
+        <div class="param-ligne">
+          <label for="paramJourMois">Jour de synthèse mensuelle</label>
+          <select class="param-input" id="paramJourMois">${optionsJourMois}</select>
+        </div>` : ''}
+        ${p.reviewFrequency !== 'exception_only' ? `
+        <div class="param-ligne">
+          <label for="paramHeure">Heure souhaitée de synthèse</label>
+          <input type="time" class="param-input" id="paramHeure" value="${p.reviewTime || '20:00'}">
+        </div>` : ''}
+        <div class="param-ligne">
+          <label for="paramSeuilQte">Seuil d'écart en quantité</label>
+          <input type="number" min="0" step="0.5" class="param-input" id="paramSeuilQte" value="${p.quantityAlertThreshold}">
+        </div>
+        <div class="param-ligne">
+          <label for="paramSeuilValeur">Seuil d'écart en valeur (€)</label>
+          <input type="number" min="0" step="1" class="param-input" id="paramSeuilValeur" placeholder="Non défini" value="${p.valueAlertThreshold != null ? p.valueAlertThreshold : ''}">
+        </div>
+        <div class="param-ligne">
+          <label for="paramDelaiCloture">Délai maximal de clôture</label>
+          <select class="param-input" id="paramDelaiCloture">
+            ${[15, 30, 45, 60, 90, 120].map(m => `<option value="${m}" ${p.closureDelayMinutes === m ? 'selected' : ''}>${m} min</option>`).join('')}
+          </select>
+        </div>
+        <div class="param-ligne">
+          <label>Alertes immédiates</label>
+          <div class="toggle-switch ${p.immediateAlertsEnabled ? 'on' : ''}" data-mode="alertes-immediates" data-actif="${p.immediateAlertsEnabled ? '1' : '0'}">
+            <div class="toggle-knob"></div>
+          </div>
+        </div>
+        <span class="param-enregistre" id="paramEnregistre">✓ Enregistré</span>
+      </div>
+      <div class="param-note">Ces seuils déclenchent une alerte quel que soit le rythme de supervision choisi ci-dessus (voir "Catégories nécessitant une alerte immédiate" ci-dessous).</div>
+      <div class="section-titre" style="margin-top:0;">Catégories nécessitant une alerte immédiate</div>
+      <div class="card">
+        ${categoriesSite.length === 0 ? '<div class="empty">Aucune catégorie active.</div>' : `
+        <div class="param-checklist">
+          ${categoriesSite.map(c => {
+            const actif = (p.immediateAlertCategoryIds || []).includes(c.id);
+            return `<label class="param-check-item ${actif ? 'actif' : ''}"><input type="checkbox" class="param-cat-check" data-cat="${c.id}" ${actif ? 'checked' : ''}>${c.nom}</label>`;
+          }).join('')}
+        </div>`}
+      </div>
+    `;
+  }
+
   // Détail d'une décision individuelle du quart sélectionné (02/08/2026,
   // demande de Frédéric) — plus de badge date/quart : tout appartient déjà
   // au même quart affiché, ça n'a plus besoin d'être répété ligne par ligne.
@@ -1092,6 +1333,79 @@
             </div>
           </div>
         ` : `<button class="btn-inline-lien" id="btnRouvrirCloture" style="margin-top:8px;">Rouvrir la clôture pour corriger les comptages</button>`) : ''}
+      </div>
+    `;
+  }
+
+  // Sélecteur de période (02/08/2026, supervision configurable) : permet à
+  // un manager qui contrôle chaque semaine ou chaque mois — pas seulement
+  // au quotidien — de choisir son propre rythme d'analyse, sans jamais
+  // toucher à la fréquence de comptage terrain (toujours par quart).
+  function renderSelecteurPeriode() {
+    const options = ['jour', 'semaine', 'mois', 'personnalisee'];
+    return `
+      <div class="periode-select-row">
+        ${options.map(o => `<div class="periode-pill ${periodeSelectionnee === o ? 'active' : ''}" data-periode="${o}">${LABELS_PERIODE[o]}</div>`).join('')}
+      </div>
+      ${periodeSelectionnee === 'personnalisee' ? `
+      <div class="periode-perso-row">
+        <input type="date" id="periodeDebutInput" class="date-input" value="${periodePersoDebut || dateSelectionnee}">
+        <span class="periode-perso-sep">→</span>
+        <input type="date" id="periodeFinInput" class="date-input" value="${periodePersoFin || dateSelectionnee}">
+      </div>` : ''}
+    `;
+  }
+
+  // "État de la période" (bloc 1/4 en vue semaine/mois/personnalisée) —
+  // recalculé à chaque fois par generate_inventory_review, jamais une
+  // valeur figée : si un manager rouvre une clôture ou change une décision
+  // après coup, la synthèse suivante reflète l'état réel des données.
+  function renderEtatPeriodeCard(review, bornes) {
+    const debutFmt = new Date(bornes.debut + 'T00:00:00').toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' });
+    const finFmt = new Date(bornes.fin + 'T00:00:00').toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' });
+    return `
+      <div class="synthese-card">
+        <div class="synthese-titre">État de la période</div>
+        <div class="param-note" style="padding-top:0;">${debutFmt} → ${finFmt}</div>
+        <div class="synthese-ligne"><span>Comptages enregistrés</span><span class="synthese-valeur">${review.totalCounts}</span></div>
+        <div class="synthese-ligne"><span>Catégories terminées</span><span class="synthese-valeur ${review.completedCategories ? 'green' : ''}">${review.completedCategories}</span></div>
+        <div class="synthese-ligne"><span>Comptages manquants</span><span class="synthese-valeur ${review.missingCounts ? 'amber' : 'green'}">${review.missingCounts}</span></div>
+        <div class="synthese-ligne"><span>Écarts détectés</span><span class="synthese-valeur ${review.totalDiscrepancies ? 'amber' : 'green'}">${review.totalDiscrepancies}</span></div>
+        <div class="synthese-ligne"><span>Écarts encore ouverts</span><span class="synthese-valeur ${review.openDiscrepancies ? 'amber' : 'green'}">${review.openDiscrepancies}</span></div>
+        <div class="synthese-ligne"><span>Décisions prises</span><span class="synthese-valeur">${review.resolvedDiscrepancies}</span></div>
+        <div class="synthese-ligne"><span>Démarque potentielle estimée</span><span class="synthese-valeur ${review.estimatedValue ? 'amber' : ''}">${fmtEuros(review.estimatedValue)}</span></div>
+      </div>
+    `;
+  }
+
+  // "À terminer" en vue période : catégories qui ont encore des écarts
+  // ouverts ou n'ont pas atteint leur nombre de comptages attendu sur la
+  // période — pas une liste produit par produit (déjà disponible au jour).
+  function renderCategoriesPeriode(categorySummary) {
+    const concernees = (categorySummary || []).filter(c => c.discrepancies > 0 || c.openAlerts > 0);
+    if (concernees.length === 0) return '<div class="empty">Aucune catégorie instable sur cette période.</div>';
+    return `<div class="card">${concernees.map(c => `
+      <div class="synthese-ligne">
+        <span>${c.categoryName}</span>
+        <span class="synthese-valeur ${c.openAlerts ? 'amber' : ''}">${c.discrepancies} écart${c.discrepancies > 1 ? 's' : ''}${c.openAlerts ? ` · ${c.openAlerts} ouvert${c.openAlerts > 1 ? 's' : ''}` : ''}</span>
+      </div>
+    `).join('')}</div>`;
+  }
+
+  // Produits récurrents (repeatedProducts) — utile dès la vue hebdomadaire
+  // pour repérer un produit qui décale à chaque contrôle, pas seulement une
+  // fois isolée.
+  function renderProduitsRecurrents(repeatedProducts) {
+    if (!repeatedProducts || repeatedProducts.length === 0) return '';
+    return `
+      <div class="section-titre">Produits récurrents sur la période</div>
+      <div class="card">
+        ${repeatedProducts.map(p => `
+          <div class="synthese-ligne">
+            <span>${p.productName}</span>
+            <span class="synthese-valeur amber">${p.occurrenceCount}× · ${p.estimatedValue ? fmtEuros(p.estimatedValue) : fmtNum(p.totalDifference) + ' u.'}</span>
+          </div>
+        `).join('')}
       </div>
     `;
   }
@@ -1167,7 +1481,7 @@
   // périmètres différents) : une seule source de vérité, scopée au quart
   // sélectionné, avec un détail dépliable plutôt qu'un second bloc séparé.
   // L'audit multi-quarts existe déjà sur NEXUS-Journal-v1.html.
-  function renderResumeDecisionsQuart(decisionsQuart) {
+  function renderResumeDecisionsQuart(decisionsQuart, titre) {
     const compte = { validee: 0, recomptage: 0, erreur_saisie: 0, demarque: 0, explication: 0 };
     decisionsQuart.forEach(d => { if (compte[d.resolution] !== undefined) compte[d.resolution]++; });
     const total = decisionsQuart.length;
@@ -1176,7 +1490,7 @@
       .map(d => d.inventaire_zone_produit ? d.inventaire_zone_produit.designation : 'Produit');
     return `
       <div class="synthese-card">
-        <div class="synthese-titre">Décisions du quart</div>
+        <div class="synthese-titre">${titre || 'Décisions du quart'}</div>
         <div class="synthese-ligne"><span>Écarts validés sans action</span><span class="synthese-valeur">${compte.validee}</span></div>
         <div class="synthese-ligne"><span>Recomptages demandés</span><span class="synthese-valeur ${compte.recomptage ? 'amber' : ''}">${compte.recomptage}</span></div>
         <div class="synthese-ligne"><span>Corrections acceptées</span><span class="synthese-valeur">${compte.erreur_saisie}</span></div>
@@ -1194,10 +1508,30 @@
 
   function renderTout(ctx) {
     dernierCtx = ctx;
-    const { alertesOuvertes, sensiblesNonComptesDetail, employesSite, modesAveugleActifs, jaugeageActif, synthese, etat, produitsSensiblesTotal, decisionsQuart } = ctx;
+    const { alertesOuvertes, sensiblesNonComptesDetail, employesSite, modesAveugleActifs, jaugeageActif, synthese, etat, produitsSensiblesTotal, decisionsQuart, review, bornes, alertesPeriode, decisionsPeriode } = ctx;
     const modesMap = Object.fromEntries(modesAveugleActifs.map(m => [m.employee_id, m]));
 
+    // Vue par exception (02/08/2026, section 4 du cahier des charges) :
+    // ne montre, dans le bloc "À contrôler" d'une période, que les écarts
+    // qui dépassent réellement les seuils configurés ou qui touchent une
+    // catégorie classée "alerte immédiate" — activée par défaut si le
+    // manager a choisi ce rythme de supervision, mais reste un filtre
+    // manuel qu'il peut basculer à tout moment.
+    function depasseSeuilException(a) {
+      const ecartAbs = (a.valeur_constatee != null && a.valeur_attendue != null) ? Math.abs(a.valeur_constatee - a.valeur_attendue) : null;
+      const depasseQte = ecartAbs != null && ecartAbs > (parametresInventaire.quantityAlertThreshold ?? 1);
+      const depasseValeur = parametresInventaire.valueAlertThreshold != null && a.valeur_estimee != null && a.valeur_estimee > parametresInventaire.valueAlertThreshold;
+      const categorieSensible = a.inventaire_zone_produit && a.inventaire_zone_produit.categorie_id
+        && (parametresInventaire.immediateAlertCategoryIds || []).includes(a.inventaire_zone_produit.categorie_id);
+      return depasseQte || depasseValeur || categorieSensible || a.gravite === 'critique';
+    }
+    const alertesPeriodeAffichees = periodeSelectionnee !== 'jour' && filtreExceptionActif
+      ? (alertesPeriode || []).filter(depasseSeuilException)
+      : (alertesPeriode || []);
+
     document.getElementById('content').innerHTML = `
+      ${renderSelecteurPeriode()}
+      ${periodeSelectionnee === 'jour' ? `
       <div class="quart-select-row">
         <input type="date" id="selDate" class="date-input" value="${dateSelectionnee}">
         <div class="quart-pill ${quartSelectionne === 'matin' ? 'active' : ''}" data-quart="matin">Matin</div>
@@ -1256,15 +1590,30 @@
       ` : ''}
 
       ${quartRow && decisionsQuart ? renderResumeDecisionsQuart(decisionsQuart) : (quartRow ? '<div class="section-titre">Décisions du quart</div><div class="empty">Aucune décision enregistrée pour ce quart.</div>' : '')}
+      ` : `
+      ${review ? renderEtatPeriodeCard(review, bornes) : '<div class="loading">Calcul de la synthèse…</div>'}
+
+      <div class="section-titre">À terminer</div>
+      ${review ? renderCategoriesPeriode(review.categorySummary) : ''}
+
+      <div class="section-titre-action-row">
+        <div class="section-titre">À contrôler</div>
+        <button class="btn-inline-lien" id="btnToggleException">${filtreExceptionActif ? 'Afficher tous les écarts' : 'Uniquement les exceptions'}</button>
+      </div>
+      ${alertesPeriodeAffichees.length === 0 ? '<div class="empty">Aucun écart ouvert sur cette période.</div>' : alertesPeriodeAffichees.map(a => renderAlerteCard(a)).join('')}
+
+      ${renderResumeDecisionsQuart(decisionsPeriode || [], 'Décisions de la période')}
+      ${review ? renderProduitsRecurrents(review.repeatedProducts) : ''}
+      `}
 
       <div class="section-titre section-repliable" id="toggleSectionParametres">
-        <span>Paramètres du contrôle</span>
-        <span class="repli-compte">${modesAveugleActifs.length ? `Aveugle : ${modesAveugleActifs.length} actif${modesAveugleActifs.length > 1 ? 's' : ''}` : 'Aveugle : désactivé'} · Jaugeage : ${jaugeageActif ? 'actif' : 'facultatif'}</span>
+        <span>Paramètres de contrôle inventaire</span>
+        <span class="repli-compte">${LABELS_FREQUENCE[parametresInventaire.reviewFrequency] || 'Tous les jours'}</span>
         <span class="repli-chevron ${sectionParametresOuverte ? 'open' : ''}">›</span>
       </div>
       ${sectionParametresOuverte ? `
+        ${renderParametresSupervision()}
         <div class="card" style="margin-bottom:10px;">
-          <div class="synthese-ligne"><span>Seuil d'alerte</span><span class="synthese-valeur">${SEUIL_DEMARQUE} unité${SEUIL_DEMARQUE > 1 ? 's' : ''}</span></div>
           <div class="synthese-ligne"><span>Produits sensibles suivis</span><span class="synthese-valeur">${produitsSensiblesTotal}</span></div>
         </div>
         <div class="section-titre" style="margin-top:0;">Mode de comptage à l'aveugle</div>
@@ -1276,7 +1625,8 @@
       ` : ''}
     `;
 
-    document.getElementById('selDate').addEventListener('change', async (e) => {
+    const selDateEl = document.getElementById('selDate');
+    if (selDateEl) selDateEl.addEventListener('change', async (e) => {
       dateSelectionnee = e.target.value;
       await chargerEtAfficherTout();
     });
@@ -1284,6 +1634,25 @@
       quartSelectionne = el.dataset.quart;
       await chargerEtAfficherTout();
     }));
+    document.querySelectorAll('.periode-pill').forEach(el => el.addEventListener('click', async () => {
+      periodeSelectionnee = el.dataset.periode;
+      await chargerEtAfficherTout();
+    }));
+    const periodeDebutInput = document.getElementById('periodeDebutInput');
+    const periodeFinInput = document.getElementById('periodeFinInput');
+    if (periodeDebutInput) periodeDebutInput.addEventListener('change', async (e) => {
+      periodePersoDebut = e.target.value;
+      await chargerEtAfficherTout();
+    });
+    if (periodeFinInput) periodeFinInput.addEventListener('change', async (e) => {
+      periodePersoFin = e.target.value;
+      await chargerEtAfficherTout();
+    });
+    const btnToggleException = document.getElementById('btnToggleException');
+    if (btnToggleException) btnToggleException.addEventListener('click', () => {
+      filtreExceptionActif = !filtreExceptionActif;
+      chargerEtAfficherTout();
+    });
     const ventesFileInput = document.getElementById('ventesFileInput');
     const btnComparerVentes = document.getElementById('btnComparerVentes');
     if (ventesFileInput && btnComparerVentes) {
@@ -1327,7 +1696,48 @@
       const actif = el.dataset.actif === '1';
       el.style.pointerEvents = 'none';
       if (el.dataset.mode === 'jaugeage') await toggleJaugeage(!actif);
-      else await toggleModeAveugle(el.dataset.employe, !actif);
+      else if (el.dataset.mode === 'alertes-immediates') {
+        await sauvegarderParametresInventaire(siteId, { immediateAlertsEnabled: !actif });
+        await chargerEtAfficherTout();
+      } else await toggleModeAveugle(el.dataset.employe, !actif);
+    }));
+    // Paramètres de contrôle inventaire — chaque champ s'enregistre au
+    // 'change' (pas à chaque frappe) pour éviter les écritures inutiles
+    // en base (02/08/2026).
+    async function enregistrerParametre(cle, valeur) {
+      const badge = document.getElementById('paramEnregistre');
+      const ok = await sauvegarderParametresInventaire(siteId, { [cle]: valeur });
+      if (!ok) { alert('Erreur d\'enregistrement — réessayez.'); return; }
+      if (badge) { badge.classList.add('visible'); setTimeout(() => badge.classList.remove('visible'), 1600); }
+      // Recharge complète : certains champs (fréquence) changent les
+      // champs affichés (jour hebdo/mensuel/heure), et le seuil de
+      // quantité influence directement la synthèse démarque déjà à l'écran.
+      await chargerEtAfficherTout();
+    }
+    const selFrequence = document.getElementById('paramFrequence');
+    if (selFrequence) selFrequence.addEventListener('change', () => enregistrerParametre('reviewFrequency', selFrequence.value));
+    const selJourSemaine = document.getElementById('paramJourSemaine');
+    if (selJourSemaine) selJourSemaine.addEventListener('change', () => enregistrerParametre('weeklyReviewDay', parseInt(selJourSemaine.value)));
+    const selJourMois = document.getElementById('paramJourMois');
+    if (selJourMois) selJourMois.addEventListener('change', () => enregistrerParametre('monthlyReviewDay', parseInt(selJourMois.value)));
+    const inputHeure = document.getElementById('paramHeure');
+    if (inputHeure) inputHeure.addEventListener('change', () => enregistrerParametre('reviewTime', inputHeure.value));
+    const inputSeuilQte = document.getElementById('paramSeuilQte');
+    if (inputSeuilQte) inputSeuilQte.addEventListener('change', () => {
+      const v = parseFloat(inputSeuilQte.value);
+      enregistrerParametre('quantityAlertThreshold', isNaN(v) ? DEFAULTS_PARAMETRES_INVENTAIRE.quantityAlertThreshold : v);
+    });
+    const inputSeuilValeur = document.getElementById('paramSeuilValeur');
+    if (inputSeuilValeur) inputSeuilValeur.addEventListener('change', () => {
+      const v = parseFloat(inputSeuilValeur.value);
+      enregistrerParametre('valueAlertThreshold', inputSeuilValeur.value === '' || isNaN(v) ? null : v);
+    });
+    const selDelaiCloture = document.getElementById('paramDelaiCloture');
+    if (selDelaiCloture) selDelaiCloture.addEventListener('change', () => enregistrerParametre('closureDelayMinutes', parseInt(selDelaiCloture.value)));
+    document.querySelectorAll('.param-cat-check').forEach(el => el.addEventListener('change', () => {
+      const actuels = new Set(parametresInventaire.immediateAlertCategoryIds || []);
+      if (el.checked) actuels.add(el.dataset.cat); else actuels.delete(el.dataset.cat);
+      enregistrerParametre('immediateAlertCategoryIds', Array.from(actuels));
     }));
     const toggleSection = document.getElementById('toggleSectionParametres');
     if (toggleSection) toggleSection.addEventListener('click', () => {
@@ -1373,14 +1783,23 @@
 
     quartRow = await chargerQuart(siteId, dateSelectionnee, quartSelectionne);
 
-    const [produitsSensibles, produitsActifsSite, employesSite, modesAveugleActifs, jaugeageActif, horaires] = await Promise.all([
+    const [produitsSensibles, produitsActifsSite, employesSite, modesAveugleActifs, jaugeageActif, horaires, parametresChargés, categories] = await Promise.all([
       chargerProduitsSensibles(siteId),
       chargerTousProduitsActifsSite(siteId),
       chargerEmployesSite(siteId),
       chargerModesAveugleActifs(siteId),
       chargerModeJaugeageActif(siteId),
       chargerHorairesStation(siteId),
+      chargerParametresInventaire(siteId),
+      chargerCategoriesSite(siteId),
     ]);
+    parametresInventaire = parametresChargés;
+    categoriesSite = categories;
+    SEUIL_DEMARQUE = parametresInventaire.quantityAlertThreshold || DEFAULTS_PARAMETRES_INVENTAIRE.quantityAlertThreshold;
+    if (!filtreExceptionInitialise) {
+      filtreExceptionActif = parametresInventaire.reviewFrequency === 'exception_only';
+      filtreExceptionInitialise = true;
+    }
 
     let alertesOuvertes = [];
     let comptages = { ouverts: new Set(), clotures: new Set() };
@@ -1405,11 +1824,26 @@
     const synthese = construireSynthese(produitsActifsSite, comptages, jaugeageActif, quartRow, alertesOuvertes);
     const etat = quartRow ? libelleEtatQuart(quartRow, synthese, horaires) : null;
 
+    // Vues semaine/mois/personnalisée (02/08/2026, supervision configurable) :
+    // synthèse recalculée à partir des données sources par
+    // generate_inventory_review, jamais stockée comme seule vérité côté
+    // client. Le contrôle quotidien (par quart) ci-dessus reste inchangé.
+    let review = null, bornes = null, alertesPeriode = [], decisionsPeriode = [];
+    if (periodeSelectionnee !== 'jour') {
+      bornes = bornesPeriode();
+      const typeRevue = periodeSelectionnee === 'semaine' ? 'weekly' : periodeSelectionnee === 'mois' ? 'monthly' : 'daily';
+      [review, alertesPeriode, decisionsPeriode] = await Promise.all([
+        chargerReviewPeriode(siteId, bornes.debut, bornes.fin, filtreExceptionActif ? 'exception_only' : typeRevue),
+        chargerAlertesOuvertesPeriode(siteId, bornes.debut, bornes.fin),
+        chargerDecisionsPeriode(siteId, bornes.debut, bornes.fin),
+      ]);
+    }
+
     renderTout({
       alertesOuvertes, sensiblesNonComptesDetail, employesSite, modesAveugleActifs, jaugeageActif, synthese,
-      etat, produitsSensiblesTotal: produitsSensibles.length, decisionsQuart,
+      etat, produitsSensiblesTotal: produitsSensibles.length, decisionsQuart, review, bornes, alertesPeriode, decisionsPeriode,
     });
-    await genererRemarquesConseiller(alertesOuvertes, sensiblesNonComptesDetail, modesAveugleActifs, synthese);
+    if (periodeSelectionnee === 'jour') await genererRemarquesConseiller(alertesOuvertes, sensiblesNonComptesDetail, modesAveugleActifs, synthese);
   }
 
   // ------------------------------------------------------------
