@@ -159,6 +159,37 @@
   .conseiller-perso-bar{height:100%; background:var(--cyan); border-radius:3px;}
   .conseiller-perso-cta-btn{width:100%; margin-top:13px; padding:11px; border:none; border-radius:8px; font-size:12.5px; font-weight:600; background:var(--cyan); color:#04141a; cursor:pointer;}
 
+  /* Restructuration en 2 niveaux (03/08/2026, demande de Frédéric) : bloc
+     "Votre journée", catégories avec points disponibles, niveaux de points
+     10/7/5/2. */
+  .journee-card{margin:0 20px 14px; background:var(--panel); border:1px solid var(--hairline); border-radius:14px; padding:16px 18px;}
+  .journee-label{font-family:var(--mono); font-size:10.5px; letter-spacing:0.06em; text-transform:uppercase; color:var(--text-dim);}
+  .journee-points{font-size:22px; font-weight:700; margin-top:4px;}
+  .journee-detail{font-family:var(--mono); font-size:11.5px; color:var(--text-mid); margin-top:6px; line-height:1.6;}
+
+  .categories-grid{margin:0 20px 14px; display:grid; grid-template-columns:1fr 1fr; gap:8px;}
+  .categorie-card{
+    background:var(--panel); border:1px solid var(--hairline); border-radius:12px; padding:12px 14px;
+    cursor:pointer; -webkit-tap-highlight-color:transparent;
+  }
+  .categorie-card.active{border-color:var(--cyan); background:rgba(79,195,217,0.08);}
+  .categorie-nom{font-size:12.5px; font-weight:600;}
+  .categorie-points{font-family:var(--mono); font-size:10.5px; color:var(--cyan); margin-top:4px;}
+  .categorie-card.active .categorie-points{color:var(--cyan);}
+  .categorie-vide{opacity:0.5;}
+
+  .niveaux-wrap{margin:0 20px 14px; display:flex; flex-direction:column; gap:8px;}
+  .niveau-chip{
+    background:var(--panel); border:1px solid var(--hairline); border-radius:12px; padding:12px 14px;
+    cursor:pointer; -webkit-tap-highlight-color:transparent; display:flex; justify-content:space-between; align-items:center; gap:10px;
+  }
+  .niveau-chip.active{border-color:var(--cyan); background:rgba(79,195,217,0.08);}
+  .niveau-chip-titre{font-size:12.5px; font-weight:700;}
+  .niveau-chip-desc{font-family:var(--mono); font-size:10px; color:var(--text-dim); margin-top:2px;}
+  .niveau-chip-stat{font-family:var(--mono); font-size:10.5px; color:var(--text-mid); text-align:right; white-space:nowrap;}
+  .niveau-chip-stat b{color:var(--cyan);}
+  .niveau-chip-tous{justify-content:center; color:var(--text-mid); font-family:var(--mono); font-size:11px;}
+
 </style>
 </head>
 <body>
@@ -171,12 +202,22 @@
   </div>
   <div class="divider"></div>
 
+  <!-- Restructuration en 2 niveaux + résumé du jour (03/08/2026, demande de
+       Frédéric) : "Votre journée" (points obtenus / disponibles / missions
+       restantes), puis Catégories (famille + points disponibles par
+       catégorie), puis Missions par niveau de points (10/7/5/2), puis le
+       Coach — dans cet ordre précis, voir renderJourneeSection/
+       renderCategoriesSection/renderNiveauxSection plus bas. Le Coach passe
+       après (au lieu d'être en tête comme avant), conformément à l'ordre
+       demandé. -->
+  <div id="journeeSection"></div>
+  <div id="categoriesSection"></div>
+  <div id="niveauxSection"></div>
   <div id="conseillerPersoSection"></div>
 
   <div class="search-wrap">
     <div class="search-box"><span>🔍</span><input type="text" id="search" placeholder="Rechercher un plan d'action..."></div>
   </div>
-  <div class="tabs" id="tabs"></div>
 
   <!-- desktop-grid (02/08/2026) : mise en colonnes en vue bureau (voir
        nexus-desktop.js) — purement additif, aucun effet en mobile. -->
@@ -279,6 +320,137 @@
   const FAMILLES = ["Toutes","Commerce","Qualité","Sécurité","Exploitation","Management"];
   let familleActive = "Toutes";
   const missionsOuvertes = new Set();
+
+  // Restructuration en 2 niveaux (03/08/2026, demande de Frédéric) : les
+  // missions récurrentes sont regroupées par palier de points (barème
+  // 10/7/5/2 fixé le même jour dans mission_catalog — voir migration
+  // regrader_missions_bareme_10_7_5_2). niveauActif filtre la liste en plus
+  // de familleActive (les deux se combinent, indépendamment) — null = tous
+  // les niveaux.
+  const NIVEAUX = [
+    { pts: 10, emoji: '🏆', nom: 'Missions essentielles', desc: 'Critiques : sécurité, caisse, ouverture et fermeture.' },
+    { pts: 7, emoji: '⭐', nom: 'Missions prioritaires', desc: 'Impact direct sur l’activité.' },
+    { pts: 5, emoji: '💪', nom: 'Missions régulières', desc: 'Utiles au bon fonctionnement.' },
+    { pts: 2, emoji: '⚡', nom: 'Actions rapides', desc: 'Simples, mais nécessaires.' },
+  ];
+  let niveauActif = null;
+
+  // Missions du rôle du jour, dans le catalogue déjà filtré (site, actif,
+  // ponctuelle, fenêtre horaire — voir chargerCatalogue). Factorisé ici
+  // (03/08/2026) car utilisé à la fois par render(), choisirMissionSuggeree
+  // et calculerPotentielJour — un seul et même filtre de rôle partout.
+  function missionsDuRoleAujourdhui() {
+    return catalogue.filter(m => Array.isArray(m.role_required) && m.role_required.includes(roleDuJour));
+  }
+
+  // Potentiel de points du jour (03/08/2026, demande de Frédéric) : points
+  // déjà obtenus aujourd'hui (mission_completions du jour, en tenant compte
+  // d'un éventuel retrait manager via points_ajustement — voir
+  // NEXUS-Resultats-Equipe-v1.html, mécanisme déjà existant), points encore
+  // accessibles (missions du rôle pas encore faites), répartis par famille
+  // et par niveau de points. Jamais un chiffre inventé : uniquement basé
+  // sur le catalogue réellement chargé et les complétions réelles.
+  function calculerPotentielJour() {
+    const aujISO = new Date().toISOString().slice(0, 10);
+    const faitesAujourdhui = new Set(completionsCache.filter(c => c.date === aujISO).map(c => c.mission_id));
+    const missions = missionsDuRoleAujourdhui();
+
+    const parFamille = {};
+    const parNiveau = {};
+    let pointsDisponibles = 0;
+    let missionsRestantes = 0;
+
+    missions.forEach(m => {
+      const fait = faitesAujourdhui.has(m.mission_id);
+      if (!parFamille[m.famille]) parFamille[m.famille] = { nbTotal: 0, nbFaites: 0, pointsDisponibles: 0 };
+      const pf = parFamille[m.famille];
+      pf.nbTotal += 1;
+      if (fait) pf.nbFaites += 1; else pf.pointsDisponibles += m.points;
+
+      if (!parNiveau[m.points]) parNiveau[m.points] = { nbTotal: 0, nbFaites: 0, pointsDisponibles: 0 };
+      const pn = parNiveau[m.points];
+      pn.nbTotal += 1;
+      if (fait) pn.nbFaites += 1; else pn.pointsDisponibles += m.points;
+
+      if (!fait) { pointsDisponibles += m.points; missionsRestantes += 1; }
+    });
+
+    const pointsObtenusAujourdhui = completionsCache
+      .filter(c => c.date === aujISO)
+      .reduce((s, c) => s + (c.points || 0) + (c.points_ajustement || 0), 0);
+
+    return { parFamille, parNiveau, pointsDisponibles, missionsRestantes, pointsObtenusAujourdhui };
+  }
+
+  function renderJourneeSection(potentiel) {
+    const el = document.getElementById('journeeSection');
+    if (!el) return;
+    if (!missionsDuRoleAujourdhui().length) { el.innerHTML = ''; return; }
+    const total = potentiel.pointsObtenusAujourdhui + potentiel.pointsDisponibles;
+    el.innerHTML = `
+      <div class="journee-card">
+        <div class="journee-label">Votre journée</div>
+        <div class="journee-points">${total} point${total > 1 ? 's' : ''} au total</div>
+        <div class="journee-detail">
+          ${potentiel.pointsObtenusAujourdhui} obtenu${potentiel.pointsObtenusAujourdhui > 1 ? 's' : ''} · ${potentiel.pointsDisponibles} encore disponible${potentiel.pointsDisponibles > 1 ? 's' : ''}<br>
+          ${potentiel.missionsRestantes} mission${potentiel.missionsRestantes > 1 ? 's' : ''} obligatoire${potentiel.missionsRestantes > 1 ? 's' : ''} restante${potentiel.missionsRestantes > 1 ? 's' : ''}
+        </div>
+      </div>`;
+  }
+
+  function renderCategoriesSection(potentiel) {
+    const el = document.getElementById('categoriesSection');
+    if (!el) return;
+    const famillesPresentes = FAMILLES.filter(f => f !== 'Toutes' && potentiel.parFamille[f]);
+    if (!famillesPresentes.length) { el.innerHTML = ''; return; }
+    const cartes = famillesPresentes.map(f => {
+      const pf = potentiel.parFamille[f];
+      const active = familleActive === f;
+      return `<div class="categorie-card ${active ? 'active' : ''} ${pf.pointsDisponibles === 0 ? 'categorie-vide' : ''}" data-famille="${f}">
+        <div class="categorie-nom">${f}</div>
+        <div class="categorie-points">${pf.pointsDisponibles > 0 ? pf.pointsDisponibles + ' points disponibles' : 'Tout est fait ✓'}</div>
+      </div>`;
+    }).join('');
+    const toutes = `<div class="categorie-card ${familleActive === 'Toutes' ? 'active' : ''}" data-famille="Toutes">
+        <div class="categorie-nom">Toutes les catégories</div>
+        <div class="categorie-points">${potentiel.pointsDisponibles} points disponibles</div>
+      </div>`;
+    el.innerHTML = `<div class="section-label">Catégories</div><div class="categories-grid">${toutes}${cartes}</div>`;
+    el.querySelectorAll('.categorie-card').forEach(carte => {
+      carte.addEventListener('click', () => {
+        familleActive = familleActive === carte.dataset.famille ? 'Toutes' : carte.dataset.famille;
+        render();
+      });
+    });
+  }
+
+  function renderNiveauxSection(potentiel) {
+    const el = document.getElementById('niveauxSection');
+    if (!el) return;
+    const niveauxPresents = NIVEAUX.filter(n => potentiel.parNiveau[n.pts]);
+    if (!niveauxPresents.length) { el.innerHTML = ''; return; }
+    const chips = niveauxPresents.map(n => {
+      const pn = potentiel.parNiveau[n.pts];
+      const active = niveauActif === n.pts;
+      return `<div class="niveau-chip ${active ? 'active' : ''}" data-niveau="${n.pts}">
+        <div>
+          <div class="niveau-chip-titre">${n.emoji} ${n.pts} pts — ${n.nom}</div>
+          <div class="niveau-chip-desc">${n.desc}</div>
+        </div>
+        <div class="niveau-chip-stat"><b>${pn.nbFaites}</b>/${pn.nbTotal} faites<br>${pn.pointsDisponibles} pts dispo</div>
+      </div>`;
+    }).join('');
+    const tous = `<div class="niveau-chip niveau-chip-tous ${niveauActif === null ? 'active' : ''}" data-niveau="">Tous les niveaux</div>`;
+    el.innerHTML = `<div class="section-label">Missions par niveau de points</div><div class="niveaux-wrap">${chips}${tous}</div>`;
+    el.querySelectorAll('.niveau-chip[data-niveau]').forEach(chip => {
+      chip.addEventListener('click', () => {
+        const v = chip.dataset.niveau;
+        const pts = v === '' ? null : Number(v);
+        niveauActif = niveauActif === pts ? null : pts;
+        render();
+      });
+    });
+  }
 
   // ------------------------------------------------------------
   // Recommandations du Conseiller NEXUS — CORRIGE le 20/07/2026 (Frederic a
@@ -853,15 +1025,23 @@
   // ("ne cassons pas cette série", "pour continuer sur cette lancée"),
   // pour donner l'impression d'un conseil qui connaît la situation,
   // pas de deux blocs décorrélés. Demande de Frédéric le 21/07/2026.
-  function messageConseillerPerso(stats, suggestion, prenom) {
+  function messageConseillerPerso(stats, suggestion, prenom, pointsObtenusAujourdhui) {
     if (!suggestion) {
-      return stats.palierFrancheAujourdhui
-        ? `${stats.palierFrancheAujourdhui}ᵉ mission validée aujourd'hui, ${prenom}, et tout est à jour pour l'instant — beau travail.`
+      if (stats.palierFrancheAujourdhui) {
+        return `${stats.palierFrancheAujourdhui}ᵉ mission validée aujourd'hui, ${prenom}, et tout est à jour pour l'instant — beau travail.`;
+      }
+      return pointsObtenusAujourdhui > 0
+        ? `${pointsObtenusAujourdhui} points obtenus aujourd'hui, ${prenom}, et tout est à jour pour l'instant — beau travail.`
         : `Tout est à jour pour aujourd'hui, ${prenom}. Rien de plus à faire pour l'instant.`;
     }
 
     const duree = suggestion.mission.estimated_duration_min ? ` (~${suggestion.mission.estimated_duration_min} min)` : '';
-    const titre = `« ${suggestion.mission.titre} »`;
+    // Mention du poids en points (03/08/2026, demande de Frédéric) : purement
+    // informatif — l'ordre de suggestion reste priorité > durée (voir
+    // choisirMissionSuggeree), jamais trié par points, pour ne pas pousser
+    // à ne choisir que les missions à forte valeur.
+    const pts = suggestion.mission.points ? ` — ${suggestion.mission.points} points` : '';
+    const titre = `« ${suggestion.mission.titre} »${pts}`;
 
     if (suggestion.presqueFinie) {
       return `La checklist de ${titre} est déjà entièrement cochée, ${prenom} — il ne manque que la validation.`;
@@ -874,6 +1054,9 @@
     }
     if (stats.streak >= 2) {
       return `${stats.streak} jours d'affilée, ${prenom}. On enchaîne avec ${titre}${duree} ?`;
+    }
+    if (pointsObtenusAujourdhui > 0) {
+      return `${pointsObtenusAujourdhui} points obtenus aujourd'hui, ${prenom}. Prochaine étape : ${titre}${duree}.`;
     }
     if (stats.missionsSemaine > 0) {
       return `${stats.missionsSemaine} mission${stats.missionsSemaine > 1 ? 's' : ''} validée${stats.missionsSemaine > 1 ? 's' : ''} cette semaine, ${prenom}. Prochaine étape : ${titre}${duree}.`;
@@ -943,6 +1126,12 @@
     if (!el) return;
 
     const suggestion = choisirMissionSuggeree();
+    // Points du jour (03/08/2026, demande de Frédéric) : le Coach mentionne
+    // désormais les points déjà obtenus aujourd'hui et le poids en points
+    // de la mission suggérée — jamais pour prioriser par points (le tri de
+    // choisirMissionSuggeree reste priorité > durée, inchangé), seulement
+    // pour informer.
+    const pointsObtenusAujourdhui = calculerPotentielJour().pointsObtenusAujourdhui;
 
     // La barre de palier n'apparaît que quand elle est vraiment
     // parlante (à moins de 30% du prochain cap) — sinon c'est la même
@@ -980,7 +1169,7 @@
             <div class="conseiller-perso-sous">Votre progression</div>
           </div>
         </div>
-        <div class="conseiller-perso-texte">${messageConseillerPerso(stats, suggestion, prenom)}</div>
+        <div class="conseiller-perso-texte">${messageConseillerPerso(stats, suggestion, prenom, pointsObtenusAujourdhui)}</div>
         ${palierHtml}
         ${boutonHtml}
       </div>`;
@@ -1087,7 +1276,13 @@
   }
 
   function render() {
-    document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.textContent === familleActive));
+    // Bloc "Votre journée" + Catégories + Niveaux (03/08/2026) : recalculés
+    // à chaque rendu, car complétions/checklist changent en direct.
+    const potentiel = calculerPotentielJour();
+    renderJourneeSection(potentiel);
+    renderCategoriesSection(potentiel);
+    renderNiveauxSection(potentiel);
+
     const q = document.getElementById('search').value.trim().toLowerCase();
     const content = document.getElementById('content');
 
@@ -1122,8 +1317,11 @@
       html += `<div id="missionsAssigneesZone"></div>`;
     }
 
-    let lib = catalogue.filter(m => Array.isArray(m.role_required) && m.role_required.includes(roleDuJour));
+    let lib = missionsDuRoleAujourdhui();
     lib = lib.filter(m => familleActive==='Toutes' || m.famille===familleActive);
+    // Filtre par niveau de points (03/08/2026) — se combine indépendamment
+    // du filtre catégorie, voir renderNiveauxSection.
+    if (niveauActif !== null) lib = lib.filter(m => m.points === niveauActif);
     if (q) lib = lib.filter(m => m.titre.toLowerCase().includes(q) || (m.pourquoi||'').toLowerCase().includes(q));
 
     html += `<div class="section-label">${q ? 'Résultats' : 'Vos missions — rôle ' + roleDuJour} (${lib.length})</div>`;
@@ -1364,14 +1562,9 @@
       PLANS_ACTION = await construirePlansAction();
     }
 
-    const tabsEl = document.getElementById('tabs');
-    FAMILLES.forEach(f => {
-      const t = document.createElement('div');
-      t.className = 'tab' + (f===familleActive ? ' active' : '');
-      t.textContent = f;
-      t.onclick = () => { familleActive = f; render(); };
-      tabsEl.appendChild(t);
-    });
+    // Catégories (03/08/2026) : remplace l'ancienne barre d'onglets plats
+    // par renderCategoriesSection (appelé depuis render(), qui recrée ses
+    // propres cartes + listeners à chaque rendu, points disponibles inclus).
 
     document.getElementById('search').addEventListener('input', render);
 
