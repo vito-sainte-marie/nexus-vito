@@ -409,7 +409,7 @@
            master) et du prix du mois en cours (station_config.prix_carburants)
            — ce même litrage alimente aussi NEXUS Tempo (litres par jour de
            semaine, par carburant). Voir calculerVentePiste() plus bas. -->
-      <div class="note">Saisissez le litrage réellement vendu par carburant (pupitre / master) — il alimente NEXUS Tempo pour révéler le rythme réel de chaque carburant, jour par jour. Si vous renseignez aussi le montant des ventes affiché sur le ticket pupitre ci-dessous, NEXUS l'utilise directement pour la vente piste (plus fiable qu'un calcul litrage × prix mensuel arrondi, qui peut différer de quelques centimes) — sinon il reste calculé à partir du litrage.</div>
+      <div class="note">Saisissez le litrage réellement vendu par carburant (pupitre / master) — il alimente NEXUS Tempo pour révéler le rythme réel de chaque carburant, jour par jour. Le montant des ventes piste affiché sur le ticket pupitre ci-dessous est obligatoire : c'est lui qui fait foi pour la vente piste (plus fiable qu'un calcul litrage × prix mensuel arrondi, qui peut différer de quelques centimes) — l'enregistrement est bloqué tant qu'il n'est pas saisi.</div>
       <div id="alertePrixCarburantsVente" style="display:none; font-family:var(--mono); font-size:11px; color:var(--red); background:var(--red-dim); border-radius:8px; padding:8px 10px; margin-bottom:12px; line-height:1.5;"></div>
       <div id="noteVentePisteLegacy" style="display:none; font-family:var(--mono); font-size:11px; color:var(--amber); background:var(--amber-dim); border-radius:8px; padding:8px 10px; margin-bottom:12px; line-height:1.5;"></div>
       <div id="notePrixCarburantFige" style="display:none; font-family:var(--mono); font-size:11px; color:var(--cyan); background:rgba(79,195,217,0.1); border-radius:8px; padding:8px 10px; margin-bottom:12px; line-height:1.5;"></div>
@@ -421,10 +421,13 @@
       <input type="text" inputmode="decimal" id="v_litrage_gnr" placeholder="0,00">
 
       <!-- Montant des ventes pupitre/master (03/08/2026, demande de Frédéric,
-           simplifié en un seul champ global le même jour) : facultatif, mais
-           prioritaire sur le calcul litrage×prix dès qu'il est rempli — voir
-           calculerVentePiste(). -->
-      <label class="f" style="margin-top:14px;">Montant des ventes piste (ticket pupitre — optionnel)</label>
+           simplifié en un seul champ global le même jour, puis rendu
+           obligatoire le même jour : "sans ça on ne peut enregistrer") :
+           source de vérité unique de la vente piste — voir
+           calculerVentePiste(), qui bloque l'enregistrement tant qu'il est
+           vide (sauf correction d'un audit historique antérieur au
+           litrage détaillé, cas VENTE_PISTE_LEGACY). -->
+      <label class="f" style="margin-top:14px;">Montant des ventes piste (ticket pupitre — obligatoire)</label>
       <input type="text" inputmode="decimal" id="v_montant_piste" placeholder="0,00">
 
       <div class="total-ligne">Vente piste calculée : <span id="v_vente_piste_calculee">0,00 €</span></div>
@@ -1431,23 +1434,24 @@
       // Cas 1 : aucun litrage ni montant saisi ET on modifie un audit
       // historique sans détail par carburant — on conserve son montant
       // d'origine plutôt que de fabriquer un litrage ou d'écraser avec 0.
+      // Seul cas où l'absence de montant pupitre ne bloque pas : ces audits
+      // sont antérieurs à l'existence même du champ.
       if (!litrageSaisi && VENTE_PISTE_LEGACY != null) {
         return { vente: VENTE_PISTE_LEGACY, litrageSaisi: false, montantSaisi: false, bloque: false, go_l: 0, sp_l: 0, gnr_l: 0, prixUtilise: null };
       }
       // Prix à utiliser : celui figé de l'audit en cours de correction s'il
       // existe (voir PRIX_CARBURANT_FIGE_AUDIT), sinon le prix du mois
-      // courant. Sans cette priorité, corriger un audit d'un mois passé
-      // recalculerait sa vente piste avec le tarif d'AUJOURD'HUI plutôt que
-      // celui réellement en vigueur ce jour-là.
+      // courant — sert uniquement à afficher une estimation indicative
+      // ci-dessous, PAS à calculer la vente piste enregistrée.
       const prix = PRIX_CARBURANT_FIGE_AUDIT || PRIX_CARBURANTS_MOIS;
-      // Cas 2 : litrage saisi (ou nouvel audit) mais aucun prix disponible —
-      // impossible de calculer un montant réel, on bloque plutôt que
-      // d'enregistrer un 0 € de vente piste qui serait faux.
-      if (!prix) {
-        return { vente: 0, litrageSaisi: false, montantSaisi: false, bloque: true, go_l, sp_l, gnr_l, prixUtilise: null };
-      }
-      const vente = go_l * prix.go + sp_l * prix.sp + gnr_l * prix.gnr;
-      return { vente, litrageSaisi: true, montantSaisi: false, bloque: false, go_l, sp_l, gnr_l, prixUtilise: prix };
+      const estimation = prix ? (go_l * prix.go + sp_l * prix.sp + gnr_l * prix.gnr) : 0;
+      // Cas 2 (03/08/2026, demande de Frédéric : "tu dois mettre obligatoire
+      // car sans ça on ne peut enregistrer") : le montant du ticket pupitre
+      // est désormais obligatoire pour tout nouvel audit ou toute correction
+      // d'un audit ayant déjà du litrage détaillé — on bloque
+      // l'enregistrement plutôt que de se rabattre sur un calcul litrage ×
+      // prix mensuel, moins fiable et plus la source de vérité voulue.
+      return { vente: estimation, litrageSaisi, montantSaisi: false, bloque: true, go_l, sp_l, gnr_l, prixUtilise: prix };
     }
 
     function majAffichageVentePiste() {
@@ -1457,7 +1461,7 @@
       if (source) {
         source.textContent = r.montantSaisi
           ? '(source : montant du ticket pupitre)'
-          : (r.litrageSaisi ? '(calculée depuis le litrage × prix du mois)' : '');
+          : (r.bloque ? '(estimation litrage × prix — saisissez le montant du ticket pupitre pour enregistrer)' : '');
       }
     }
     ['v_litrage_go', 'v_litrage_sp', 'v_litrage_gnr', 'v_montant_piste'].forEach(id => {
@@ -1471,7 +1475,7 @@
       alerte.innerHTML = `⚠ Prix carburants du mois non renseignés — la remise en cuve restera à 0,00 € tant qu'ils ne sont pas saisis dans <a href="NEXUS-Parametres-Station-v1.html" style="color:var(--amber);">Paramètres Station</a>.`;
       const alerteVente = document.getElementById('alertePrixCarburantsVente');
       alerteVente.style.display = 'block';
-      alerteVente.innerHTML = `⚠ Prix carburants du mois non renseignés dans <a href="NEXUS-Parametres-Station-v1.html" style="color:var(--red);">Paramètres Station</a> — la vente piste ne peut pas être calculée depuis le litrage tant qu'ils ne sont pas saisis. L'enregistrement d'un nouvel audit sera bloqué.`;
+      alerteVente.innerHTML = `⚠ Prix carburants du mois non renseignés dans <a href="NEXUS-Parametres-Station-v1.html" style="color:var(--red);">Paramètres Station</a> — l'estimation litrage × prix affichée ci-dessous restera à 0,00 €. Cela n'empêche pas d'enregistrer : seul le montant des ventes piste (ticket pupitre) est obligatoire.`;
     }
 
     // ------------------------------------------------------------
@@ -1794,7 +1798,7 @@
 
       const ventePisteResultat = calculerVentePiste();
       if (ventePisteResultat.bloque) {
-        alert("Renseignez les prix carburants du mois dans Paramètres Station avant d'enregistrer — la vente piste ne peut pas être calculée sans eux.");
+        alert("Renseignez le montant des ventes piste (ticket pupitre) avant d'enregistrer — c'est désormais obligatoire, la caisse ne peut pas être enregistrée sans lui.");
         return;
       }
       const vente_piste = ventePisteResultat.vente;
