@@ -420,15 +420,12 @@
       <label class="f">Gasoil non routier (GNR) — litres</label>
       <input type="text" inputmode="decimal" id="v_litrage_gnr" placeholder="0,00">
 
-      <!-- Montant des ventes pupitre/master (03/08/2026, demande de Frédéric)
-           : facultatif, mais prioritaire sur le calcul litrage×prix dès qu'un
-           des trois champs est rempli — voir calculerVentePiste(). -->
-      <label class="f" style="margin-top:14px;">Montant des ventes GO (ticket pupitre — optionnel)</label>
-      <input type="text" inputmode="decimal" id="v_montant_go" placeholder="0,00">
-      <label class="f">Montant des ventes SP95 (ticket pupitre — optionnel)</label>
-      <input type="text" inputmode="decimal" id="v_montant_sp" placeholder="0,00">
-      <label class="f">Montant des ventes GNR (ticket pupitre — optionnel)</label>
-      <input type="text" inputmode="decimal" id="v_montant_gnr" placeholder="0,00">
+      <!-- Montant des ventes pupitre/master (03/08/2026, demande de Frédéric,
+           simplifié en un seul champ global le même jour) : facultatif, mais
+           prioritaire sur le calcul litrage×prix dès qu'il est rempli — voir
+           calculerVentePiste(). -->
+      <label class="f" style="margin-top:14px;">Montant des ventes piste (ticket pupitre — optionnel)</label>
+      <input type="text" inputmode="decimal" id="v_montant_piste" placeholder="0,00">
 
       <div class="total-ligne">Vente piste calculée : <span id="v_vente_piste_calculee">0,00 €</span></div>
       <div id="v_vente_piste_source" style="font-family:var(--mono); font-size:10.5px; color:var(--text-dim); text-align:right; margin-top:4px;"></div>
@@ -1410,30 +1407,25 @@
     // ce montant devient la source de vérité pour la vente piste ; le
     // litrage reste saisi et enregistré tel quel (utile à NEXUS Tempo),
     // indépendamment de la méthode retenue pour le montant.
-    function lireMontantsVente() {
-      return {
-        go_m: numFR(document.getElementById('v_montant_go').value),
-        sp_m: numFR(document.getElementById('v_montant_sp').value),
-        gnr_m: numFR(document.getElementById('v_montant_gnr').value),
-      };
+    function lireMontantVente() {
+      return numFR(document.getElementById('v_montant_piste').value);
     }
 
     function calculerVentePiste() {
       const { go_l, sp_l, gnr_l } = lireLitragesVente();
       const totalLitrage = go_l + sp_l + gnr_l;
       const litrageSaisi = totalLitrage > 0;
-      const { go_m, sp_m, gnr_m } = lireMontantsVente();
-      const montantSaisi = !isNaN(go_m) || !isNaN(sp_m) || !isNaN(gnr_m);
+      const montant_piste = lireMontantVente();
+      const montantSaisi = !isNaN(montant_piste);
 
       // Cas 0 : montant du pupitre renseigné — priorité absolue, quel que
       // soit le litrage saisi par ailleurs. Jamais mélangé avec le calcul
       // par prix (voir enregistrement : prix_gazole/sp95/gnr restent null
-      // dans ce cas, seuls montant_gazole/sp95/gnr sont conservés).
+      // dans ce cas, seul montant_ventes_piste est conservé).
       if (montantSaisi) {
-        const vente = (isNaN(go_m) ? 0 : go_m) + (isNaN(sp_m) ? 0 : sp_m) + (isNaN(gnr_m) ? 0 : gnr_m);
         return {
-          vente, litrageSaisi, montantSaisi: true, bloque: false, go_l, sp_l, gnr_l, prixUtilise: null,
-          go_m: isNaN(go_m) ? null : go_m, sp_m: isNaN(sp_m) ? null : sp_m, gnr_m: isNaN(gnr_m) ? null : gnr_m,
+          vente: montant_piste, litrageSaisi, montantSaisi: true, bloque: false, go_l, sp_l, gnr_l, prixUtilise: null,
+          montant_piste,
         };
       }
       // Cas 1 : aucun litrage ni montant saisi ET on modifie un audit
@@ -1468,7 +1460,7 @@
           : (r.litrageSaisi ? '(calculée depuis le litrage × prix du mois)' : '');
       }
     }
-    ['v_litrage_go', 'v_litrage_sp', 'v_litrage_gnr', 'v_montant_go', 'v_montant_sp', 'v_montant_gnr'].forEach(id => {
+    ['v_litrage_go', 'v_litrage_sp', 'v_litrage_gnr', 'v_montant_piste'].forEach(id => {
       document.getElementById(id).addEventListener('input', majAffichageVentePiste);
     });
 
@@ -1923,11 +1915,10 @@
         prix_gazole: (!ventePisteResultat.montantSaisi && ventePisteResultat.litrageSaisi) ? ventePisteResultat.prixUtilise.go : null,
         prix_sp95: (!ventePisteResultat.montantSaisi && ventePisteResultat.litrageSaisi) ? ventePisteResultat.prixUtilise.sp : null,
         prix_gnr: (!ventePisteResultat.montantSaisi && ventePisteResultat.litrageSaisi) ? ventePisteResultat.prixUtilise.gnr : null,
-        // Montant des ventes tel qu'affiché sur le ticket pupitre/master
-        // (03/08/2026) — source de vérité de vente_piste quand renseigné.
-        montant_gazole: ventePisteResultat.montantSaisi ? ventePisteResultat.go_m : null,
-        montant_sp95: ventePisteResultat.montantSaisi ? ventePisteResultat.sp_m : null,
-        montant_gnr: ventePisteResultat.montantSaisi ? ventePisteResultat.gnr_m : null,
+        // Montant global des ventes piste tel qu'affiché sur le ticket
+        // pupitre/master (03/08/2026) — source de vérité de vente_piste
+        // quand renseigné.
+        montant_ventes_piste: ventePisteResultat.montantSaisi ? ventePisteResultat.montant_piste : null,
         drop_piste_billets, drop_piste_pieces, drop_piste_chq, drop_piste_cb, drop_piste_vitocarte,
         clients_compte_piste, depense_ponctuelle_piste: depense_piste,
         drop_boutique_billets, drop_boutique_pieces, drop_boutique_chq, drop_boutique_cb,
@@ -2036,7 +2027,7 @@
             ${phraseComposant('Caisse piste (vs pupitre)', a.ecart_piste)}<br>
             ${phraseComposant('Caisse boutique (vs Decenium)', a.ecart_boutique)}
             ${a.litrage_gazole != null ? `<br><br>Litrage piste : GO ${Number(a.litrage_gazole).toFixed(2)} L · SP95 ${Number(a.litrage_sp95).toFixed(2)} L · GNR ${Number(a.litrage_gnr).toFixed(2)} L` : ''}
-            ${(a.montant_gazole != null || a.montant_sp95 != null || a.montant_gnr != null) ? `<br>Vente piste calculée depuis le ticket pupitre : GO ${Number(a.montant_gazole || 0).toFixed(2)} € · SP95 ${Number(a.montant_sp95 || 0).toFixed(2)} € · GNR ${Number(a.montant_gnr || 0).toFixed(2)} €` : ''}
+            ${a.montant_ventes_piste != null ? `<br>Vente piste calculée depuis le ticket pupitre : ${Number(a.montant_ventes_piste).toFixed(2)} €` : ''}
             <br><br>Présents piste : ${nomsEmployes(a.employes_piste)}<br>
             Présents boutique : ${nomsEmployes(a.employes_boutique)}
             ${a.commentaire ? `<br><br><i>${a.commentaire}</i>` : ''}
@@ -2206,9 +2197,7 @@
       // Montant des ventes pupitre (03/08/2026) — restauré indépendamment
       // du litrage/legacy ci-dessus : c'est une source à part, qui prime
       // sur le calcul par litrage dès qu'elle est présente.
-      setValFR('v_montant_go', a.montant_gazole);
-      setValFR('v_montant_sp', a.montant_sp95);
-      setValFR('v_montant_gnr', a.montant_gnr);
+      setValFR('v_montant_piste', a.montant_ventes_piste);
       majAffichageVentePiste();
 
       setValFR('v_drop_piste_billets', a.drop_piste_billets);
