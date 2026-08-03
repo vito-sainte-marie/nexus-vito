@@ -260,6 +260,43 @@
   let mouvementsSaisie = [];     // { produit_id, type_mouvement, quantite, justification }
   let zonesMap = {};             // code ('piste'/'boutique') -> id (inventaire_zones)
 
+  // ------------------------------------------------------------
+  // BROUILLON LOCAL (02/08/2026, demande de Frédéric — "si un employé fait
+  // exprès [sans faire exprès] retourne en arrière, garder en mémoire les
+  // valeurs déjà notées au lieu de recommencer à zéro") : comptagesSaisie et
+  // mouvementsSaisie ne vivaient qu'en mémoire JS — un retour arrière
+  // accidentel, un rafraîchissement de page ou une fermeture d'onglet
+  // effaçait tout, sans qu'aucune donnée n'ait encore été envoyée au
+  // serveur. Ce brouillon est stocké en local (jamais transmis à NEXUS tant
+  // que Valider n'est pas cliqué) et sert uniquement de filet de sécurité
+  // contre une perte de saisie — il n'a aucune valeur officielle et est
+  // effacé dès que la validation réelle (validerOuverture/validerCloture)
+  // aboutit.
+  // ------------------------------------------------------------
+  function cleDraft(phase) {
+    if (!employeeCourant || !quartRow) return null;
+    return `nexus_inventaire_draft_${employeeCourant.id}_${quartRow.id}_${phase}`;
+  }
+  function sauvegarderDraft(phase) {
+    const cle = cleDraft(phase);
+    if (!cle) return;
+    try { localStorage.setItem(cle, JSON.stringify({ comptagesSaisie, mouvementsSaisie })); }
+    catch (e) { console.error('Sauvegarde brouillon inventaire:', e); }
+  }
+  function chargerDraft(phase) {
+    const cle = cleDraft(phase);
+    if (!cle) return null;
+    try {
+      const brut = localStorage.getItem(cle);
+      return brut ? JSON.parse(brut) : null;
+    } catch (e) { console.error('Lecture brouillon inventaire:', e); return null; }
+  }
+  function effacerDraft(phase) {
+    const cle = cleDraft(phase);
+    if (!cle) return;
+    try { localStorage.removeItem(cle); } catch (e) {}
+  }
+
   // Écrans catégories / carrousel de l'ouverture (02/08/2026, demande de
   // Frédéric — "une succession de petites actions simples" plutôt qu'une
   // longue liste vue d'un coup). Au-delà de CARROUSEL_SEUIL produits, une
@@ -531,7 +568,11 @@
     dernierStock = await chargerDerniersStocks(ids);
     modesAveugle = await chargerModesAveugle();
     modeJaugeageActif = await chargerModeJaugeageActif();
-    comptagesSaisie = {};
+    // Restaure un brouillon local s'il en existe un pour ce quart (02/08/2026,
+    // demande de Frédéric) — reprend la saisie déjà notée plutôt que de
+    // repartir de zéro après un retour arrière accidentel ou un rechargement.
+    const draft = chargerDraft('ouverture');
+    comptagesSaisie = (draft && draft.comptagesSaisie) ? draft.comptagesSaisie : {};
     renderCategoriesOuverture();
   }
 
@@ -819,6 +860,7 @@
         const transmis = dernierStock[p.id];
         comptagesSaisie[p.id] = { compte: transmis ? transmis.quantite : 0, ecartNonNul: false, justification: '' };
       });
+      sauvegarderDraft('ouverture');
       renderCategoriesOuverture();
     });
     document.getElementById('btnRetourCategories').addEventListener('click', renderCategoriesOuverture);
@@ -843,6 +885,7 @@
       ecartDiv.className = 'ecart-tag'; ecartDiv.textContent = '';
       if (justifInput) justifInput.style.display = 'none';
       comptagesSaisie[produitId] = undefined;
+      sauvegarderDraft('ouverture');
       return;
     }
     const ecart = val - transmis;
@@ -851,6 +894,7 @@
     ecartDiv.textContent = ecart === 0 ? 'Conforme' : `Écart d'ouverture : ${ecart > 0 ? '+' : ''}${fmtNum(ecart)}`;
     if (justifInput) justifInput.style.display = ecartNonNul ? '' : 'none';
     comptagesSaisie[produitId] = { compte: val, ecartNonNul, justification: justifInput ? justifInput.value : (comptagesSaisie[produitId] ? comptagesSaisie[produitId].justification : '') };
+    sauvegarderDraft('ouverture');
   }
 
   // ------------------------------------------------------------
@@ -915,6 +959,7 @@
     const btnConforme = document.getElementById('btnConforme');
     if (btnConforme) btnConforme.addEventListener('click', () => {
       comptagesSaisie[p.id] = { compte: valeurTransmise, ecartNonNul: false, justification: '' };
+      sauvegarderDraft('ouverture');
       avancerCarrousel(groupe, p.designation);
     });
     const btnCorriger = document.getElementById('btnCorriger');
@@ -957,6 +1002,7 @@
       const ecartNonNul = Math.abs(ecart) > 0.001;
       const justifInput = document.getElementById('justifCarrousel');
       comptagesSaisie[p.id] = { compte: val, ecartNonNul, justification: justifInput ? justifInput.value : '' };
+      sauvegarderDraft('ouverture');
       avancerCarrousel(groupe, p.designation);
     });
     const btnAnnulerCorrection = document.getElementById('btnAnnulerCorrection');
@@ -965,6 +1011,7 @@
       // seulement l'affichage) — sinon, en revenant sur un produit déjà
       // corrigé, ce bouton n'aurait visuellement aucun effet.
       comptagesSaisie[p.id] = { compte: valeurTransmise, ecartNonNul: false, justification: '' };
+      sauvegarderDraft('ouverture');
       carrouselModeCorrection = false;
       renderCarrousel(groupe);
     });
@@ -1055,6 +1102,11 @@
   }
 
   async function validerOuverture() {
+    // Confirmation systématique avant validation (02/08/2026, demande de
+    // Frédéric) — quel que soit le compte connecté, l'action est
+    // irréversible une fois enregistrée en base.
+    if (!confirm('Êtes-vous sûr de valider cet inventaire d\'ouverture ? Cette action est irréversible.')) return;
+
     // capture les justifications avant de désactiver le bouton
     document.querySelectorAll('.justif-input').forEach(el => {
       if (comptagesSaisie[el.dataset.produit]) comptagesSaisie[el.dataset.produit].justification = el.value;
@@ -1103,6 +1155,7 @@
     await nexusClient.from('inventaire_quart_employes').update({ a_valide_ouverture: true, heure_arrivee: quartEmployeRow.heure_arrivee || new Date().toISOString() }).eq('id', quartEmployeRow.id);
     await nexusClient.from('inventaire_quarts').update({ statut: 'ouvert' }).eq('id', quartRow.id).eq('statut', 'ouverture_en_cours');
     quartEmployeRow.a_valide_ouverture = true;
+    effacerDraft('ouverture');
 
     renderFinalOuverture(nbComptes, nbEcarts);
   }
@@ -1139,8 +1192,12 @@
     document.getElementById('content').innerHTML = '<div class="loading">Chargement…</div>';
     if (!produitsZone.length) produitsZone = await chargerProduitsZone(zoneActive);
     modeJaugeageActif = await chargerModeJaugeageActif();
-    mouvementsSaisie = [];
-    comptagesSaisie = {};
+    // Restaure un brouillon local s'il en existe un pour ce quart (02/08/2026,
+    // demande de Frédéric) — reprend mouvements + comptages déjà saisis plutôt
+    // que de repartir de zéro après un retour arrière accidentel.
+    const draft = chargerDraft('cloture');
+    mouvementsSaisie = (draft && draft.mouvementsSaisie) ? draft.mouvementsSaisie : [];
+    comptagesSaisie = (draft && draft.comptagesSaisie) ? draft.comptagesSaisie : {};
     renderCloture();
   }
 
@@ -1188,7 +1245,10 @@
     renderListeMouvements();
 
     document.querySelectorAll('.produit-input').forEach(el => {
-      el.addEventListener('input', () => { comptagesSaisie[el.dataset.produit] = { compte: el.value === '' ? undefined : parseFloat(el.value) }; });
+      el.addEventListener('input', () => {
+        comptagesSaisie[el.dataset.produit] = { compte: el.value === '' ? undefined : parseFloat(el.value) };
+        sauvegarderDraft('cloture');
+      });
     });
     document.getElementById('btnValiderCloture').addEventListener('click', validerCloture);
     document.getElementById('btnAnnulerCloture').addEventListener('click', renderAccueil);
@@ -1219,6 +1279,7 @@
     mouvementsSaisie.push({ produit_id: produitId, designation: produit ? produit.designation : '', type_mouvement: type, quantite: qte, justification: justif });
     document.getElementById('mouvQte').value = '';
     document.getElementById('mouvJustif').value = '';
+    sauvegarderDraft('cloture');
     renderListeMouvements();
   }
 
@@ -1233,14 +1294,40 @@
     `).join('');
     el.querySelectorAll('.rm').forEach(rm => rm.addEventListener('click', () => {
       mouvementsSaisie.splice(parseInt(rm.dataset.idx), 1);
+      sauvegarderDraft('cloture');
       renderListeMouvements();
     }));
   }
 
   async function validerCloture() {
-    const manquants = produitsRequis(produitsZone).filter(p => !comptagesSaisie[p.id] || comptagesSaisie[p.id].compte === undefined);
+    const requis = produitsRequis(produitsZone);
+    const manquants = requis.filter(p => !comptagesSaisie[p.id] || comptagesSaisie[p.id].compte === undefined);
+    // Avertissement renforcé (02/08/2026, demande de Frédéric — suite à un
+    // quart clôturé alors que 87 produits sur 117 n'avaient pas été
+    // comptés) : le message indique maintenant la proportion réelle, pas
+    // seulement un nombre brut. Au-delà de la moitié manquante, la clôture
+    // reste possible (l'employé doit garder son autonomie en fin de
+    // service) mais devient "incomplète" : une alerte critique est
+    // enregistrée pour le manager, visible dans À contrôler sur l'écran
+    // Contrôle inventaire, avec un rappel explicite qu'elle verrouille
+    // l'inventaire jusqu'à ce qu'un manager le rouvre.
+    // Confirmation systématique avant validation (02/08/2026, demande de
+    // Frédéric) — une seule boîte de dialogue, fusionnée avec l'avertissement
+    // sur les comptages manquants s'il y en a, pour éviter d'empiler deux
+    // popups successives.
+    let clotureIncomplete = false;
     if (manquants.length) {
-      if (!confirm(`${manquants.length} produit(s) sans stock final saisi. Clôturer quand même ?`)) return;
+      const total = requis.length;
+      const pct = total ? Math.round((manquants.length / total) * 100) : 0;
+      const base = `${manquants.length} produit${manquants.length > 1 ? 's' : ''} sur ${total} sans stock final saisi (${pct}%).`;
+      if (total > 0 && manquants.length / total > 0.5) {
+        clotureIncomplete = true;
+        if (!confirm(`${base}\n\nLa majorité des produits n'ont pas été comptés. Clôturer maintenant verrouillera l'inventaire jusqu'à ce qu'un manager le rouvre, et le manager en sera averti.\n\nÊtes-vous sûr de valider cette clôture ? Cette action est irréversible.`)) return;
+      } else {
+        if (!confirm(`${base}\n\nÊtes-vous sûr de valider cette clôture ? Cette action est irréversible.`)) return;
+      }
+    } else {
+      if (!confirm('Êtes-vous sûr de valider cette clôture d\'inventaire ? Cette action est irréversible.')) return;
     }
 
     const btn = document.getElementById('btnValiderCloture');
@@ -1270,6 +1357,19 @@
     await nexusClient.from('inventaire_quart_employes').update({ a_valide_cloture: true, heure_depart: new Date().toISOString() }).eq('id', quartEmployeRow.id);
     await nexusClient.from('inventaire_quarts').update({ statut: 'cloture', cloture_le: new Date().toISOString() }).eq('id', quartRow.id);
     quartEmployeRow.a_valide_cloture = true;
+    effacerDraft('cloture');
+
+    // Alerte critique si la clôture a été validée très incomplète
+    // (02/08/2026, demande de Frédéric) : jamais silencieux — le manager la
+    // voit dans À contrôler sur Contrôle inventaire, avec le nombre réel de
+    // produits manquants, et peut rouvrir la clôture depuis État du quart.
+    if (clotureIncomplete) {
+      await nexusClient.from('inventaire_alertes').insert({
+        site: employeeCourant.site_id || 'vito-sainte-marie', quart_id: quartRow.id, type_alerte: 'cloture_incomplete',
+        gravite: 'critique', valeur_attendue: requis.length, valeur_constatee: nbClotures,
+        resolution: `Clôture validée par ${employeeCourant.nom} avec ${manquants.length} produit(s) sur ${requis.length} non comptés.`,
+      });
+    }
 
     renderFinalCloture(nbClotures);
   }

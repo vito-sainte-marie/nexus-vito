@@ -298,6 +298,7 @@
   let sectionParametresOuverte = false;
   let detailDecisionsOuvert = false; // "Décisions du quart" — détail déplié (02/08/2026)
   let categoriesOuvertes = new Set(); // "À terminer" — catégories dépliées (02/08/2026)
+  let rouvertureFormOuvert = false; // "Rouvrir la clôture" — formulaire de motif déplié (02/08/2026)
   let dernierCtx = null;
 
   // Catégories de décision manager sur une alerte (02/08/2026, demande de
@@ -549,6 +550,31 @@
     await chargerEtAfficherTout();
   }
 
+  // Rouvrir la clôture d'un quart (02/08/2026, demande de Frédéric — suite à
+  // un quart clôturé alors que la grande majorité des produits n'avaient pas
+  // été comptés, verrouillant l'écran employé sans recours) : remet le quart
+  // en statut 'ouvert' pour permettre de reprendre la clôture, réinitialise
+  // la validation de clôture de TOUS les employés rattachés à ce quart (pour
+  // que l'écran employé affiche à nouveau "Clôturer mon inventaire" comme
+  // non fait, quel que soit le compte connecté), et trace l'action dans
+  // inventaire_audit_log — jamais un déverrouillage silencieux.
+  async function rouvrirClotureQuart(quartId, motif) {
+    const { error: e1 } = await nexusClient.from('inventaire_quarts')
+      .update({ statut: 'ouvert', cloture_le: null }).eq('id', quartId);
+    if (e1) { console.error('Réouverture quart:', e1); alert('Erreur — réessayez.'); return false; }
+
+    const { error: e2 } = await nexusClient.from('inventaire_quart_employes')
+      .update({ a_valide_cloture: false, heure_depart: null }).eq('quart_id', quartId);
+    if (e2) console.error('Reset validation clôture employés:', e2);
+
+    await nexusClient.from('inventaire_audit_log').insert({
+      site: siteId, quart_id: quartId, entite_type: 'inventaire_quarts', entite_id: quartId,
+      action: 'reouverture_cloture', ancienne_valeur: { statut: 'cloture' }, nouvelle_valeur: { statut: 'ouvert' },
+      acteur_id: managerCourant.id, motif: motif || null,
+    });
+    return true;
+  }
+
   // ------------------------------------------------------------
   // COMPARAISON VENTES DECENIUM (02/08/2026, demande de Frédéric) : compare
   // l'écoulement physique constaté sur le quart (ouverture − clôture +
@@ -722,8 +748,15 @@
   // null plutôt qu'un chiffre approximatif).
   async function calculerEcoulementPhysiqueQuart(quartId, produitIds) {
     const [{ data: comptages, error: e1 }, { data: mouvements, error: e2 }] = await Promise.all([
-      nexusClient.from('inventaire_comptages').select('produit_id, type_comptage, quantite')
-        .eq('quart_id', quartId).in('produit_id', produitIds).in('type_comptage', ['ouverture', 'cloture']),
+      // Trié par compte_le décroissant (02/08/2026, demande de Frédéric —
+      // un quart rouvert par un manager peut recevoir un second comptage de
+      // clôture pour le même produit après correction) : sans ce tri, deux
+      // lignes pour le même produit/type sur ce quart donnaient un résultat
+      // non déterministe — on ne garde maintenant que la plus RÉCENTE, même
+      // principe que chargerDerniersStocks() côté employé.
+      nexusClient.from('inventaire_comptages').select('produit_id, type_comptage, quantite, compte_le')
+        .eq('quart_id', quartId).in('produit_id', produitIds).in('type_comptage', ['ouverture', 'cloture'])
+        .order('compte_le', { ascending: false }),
       nexusClient.from('inventaire_mouvements').select('produit_id, quantite').eq('quart_id', quartId).in('produit_id', produitIds),
     ]);
     if (e1) console.error('Chargement comptages (comparaison ventes):', e1);
@@ -731,8 +764,8 @@
 
     const ouverture = {}, cloture = {}, sommeMouvements = {};
     (comptages || []).forEach(c => {
-      if (c.type_comptage === 'ouverture') ouverture[c.produit_id] = c.quantite;
-      if (c.type_comptage === 'cloture') cloture[c.produit_id] = c.quantite;
+      if (c.type_comptage === 'ouverture' && !(c.produit_id in ouverture)) ouverture[c.produit_id] = c.quantite;
+      if (c.type_comptage === 'cloture' && !(c.produit_id in cloture)) cloture[c.produit_id] = c.quantite;
     });
     (mouvements || []).forEach(m => { sommeMouvements[m.produit_id] = (sommeMouvements[m.produit_id] || 0) + Number(m.quantite); });
 
@@ -815,7 +848,7 @@
       // ont été identifiées ET que tous les produits identifiés avaient un
       // comptage d'ouverture et de clôture pour calculer l'écoulement.
       const rapprochementComplet = nbNonIdentifiees === 0 && nbSansComptage === 0;
-      resumeEl.innerHTML = `
+      const resumeHtml = `
         <div class="synthese-ligne"><span>Références reconnues</span><span class="synthese-valeur green">${produitIds.length}</span></div>
         <div class="synthese-ligne"><span>Références non reconnues</span><span class="synthese-valeur ${nbNonIdentifiees ? 'amber' : 'green'}">${nbNonIdentifiees}</span></div>
         <div class="synthese-ligne"><span>Écarts détectés</span><span class="synthese-valeur ${nbEcarts ? 'amber' : 'green'}">${nbEcarts}</span></div>
@@ -824,7 +857,15 @@
         <div class="synthese-cloture ${rapprochementComplet ? 'possible' : 'impossible'}">${rapprochementComplet ? 'Rapprochement terminé' : 'Rapprochement incomplet'}</div>
         ${nbEcarts ? '<div style="margin-top:8px; font-size:11.5px; color:var(--text-mid);">Voir la section À contrôler ci-dessous.</div>' : ''}
       `;
+      // Bug corrigé (02/08/2026, signalé par Frédéric — "ça charge puis ça
+      // revient comme s'il n'y avait pas de fichier") : chargerEtAfficherTout()
+      // reconstruit tout #content, y compris un #ventesResume vide flambant
+      // neuf — écrire le résumé AVANT ce rechargement le faisait effacer
+      // instantanément. On recharge d'abord, puis on écrit le résumé dans
+      // l'élément fraîchement rendu, pour qu'il reste visible.
       await chargerEtAfficherTout();
+      const resumeElApres = document.getElementById('ventesResume');
+      if (resumeElApres) resumeElApres.innerHTML = resumeHtml;
     } catch (err) {
       console.error('Comparaison ventes Decenium:', err);
       resumeEl.innerHTML = `<div style="color:var(--red);">Erreur pendant la lecture du fichier : ${err.message}</div>`;
@@ -932,12 +973,20 @@
   const LIBELLES_TYPE_ALERTE = {
     ecart_ouverture: "Écart d'ouverture",
     demarque_ventes: 'Démarque potentielle (vs Decenium)',
+    // Clôture validée par un employé alors que la majorité des produits
+    // n'avaient pas de stock final saisi (02/08/2026, demande de Frédéric) —
+    // pas liée à un produit précis, voir "Rouvrir la clôture" sur État du
+    // quart pour corriger.
+    cloture_incomplete: 'Clôture validée avec comptages manquants',
   };
   function renderAlerteCard(a) {
-    const produit = a.inventaire_zone_produit ? a.inventaire_zone_produit.designation : 'Produit';
+    const estDemarque = a.type_alerte === 'demarque_ventes';
+    const estClotureIncomplete = a.type_alerte === 'cloture_incomplete';
+    const produit = estClotureIncomplete ? 'Ensemble du quart' : (a.inventaire_zone_produit ? a.inventaire_zone_produit.designation : 'Produit');
     const ecart = (a.valeur_constatee != null && a.valeur_attendue != null) ? (a.valeur_constatee - a.valeur_attendue) : null;
     const libelleType = LIBELLES_TYPE_ALERTE[a.type_alerte] || a.type_alerte;
-    const estDemarque = a.type_alerte === 'demarque_ventes';
+    const labelAttendu = estDemarque ? 'Vendu (Decenium)' : (estClotureIncomplete ? 'Produits requis' : 'Transmis');
+    const labelConstate = estDemarque ? 'Écoulement physique' : (estClotureIncomplete ? 'Produits comptés' : 'Compté');
     return `
       <div class="alerte-card" data-id="${a.id}">
         <div class="alerte-top">
@@ -948,11 +997,11 @@
           <span class="badge-gravite ${a.gravite}">${a.gravite}</span>
         </div>
         <div class="alerte-valeurs">
-          <span>${estDemarque ? 'Vendu (Decenium)' : 'Transmis'} : <b>${fmtNum(a.valeur_attendue)}</b></span>
-          <span>${estDemarque ? 'Écoulement physique' : 'Compté'} : <b>${fmtNum(a.valeur_constatee)}</b></span>
+          <span>${labelAttendu} : <b>${fmtNum(a.valeur_attendue)}</b></span>
+          <span>${labelConstate} : <b>${fmtNum(a.valeur_constatee)}</b></span>
           ${ecart !== null ? `<span>Écart : <b>${ecart > 0 ? '+' : ''}${fmtNum(ecart)}</b></span>` : ''}
         </div>
-        ${a.resolution ? `<div class="alerte-note">Note à l'ouverture : « ${a.resolution} »</div>` : ''}
+        ${a.resolution ? `<div class="alerte-note">Note : « ${a.resolution} »</div>` : ''}
         <input type="text" class="alerte-commentaire-input" id="commentaire-${a.id}" placeholder="Commentaire (facultatif)">
         <div class="decision-row">
           ${DECISIONS.map(d => `<button class="btn-decision ${d.cls}" data-id="${a.id}" data-decision="${d.value}">${d.label}</button>`).join('')}
@@ -1025,10 +1074,24 @@
   // séparé de la Progression chiffrée — répond à "où en est ce quart, là,
   // maintenant" avant de détailler les chiffres.
   function renderEtatQuartCard(etat) {
+    // Rouvrir la clôture (02/08/2026, demande de Frédéric) : uniquement
+    // proposé quand le quart est effectivement clôturé — le manager doit
+    // toujours pouvoir débloquer un inventaire déjà validé, même par erreur
+    // ou par une clôture prématurée.
+    const peutRouvrir = quartRow && quartRow.statut === 'cloture';
     return `
       <div class="etat-quart-card ${etat.urgence !== 'normal' ? etat.urgence : ''}">
         <div class="etat-quart-titre">État du quart</div>
         <div class="etat-quart-texte">${etat.texte}</div>
+        ${peutRouvrir ? (rouvertureFormOuvert ? `
+          <div style="margin-top:10px;">
+            <input type="text" id="motifRouverture" class="alerte-commentaire-input" placeholder="Motif de la réouverture (ex : comptages incomplets à corriger)">
+            <div class="decision-row">
+              <button class="btn-decision valider" id="btnConfirmerRouverture">Confirmer la réouverture</button>
+              <button class="btn-decision" id="btnAnnulerRouverture">Annuler</button>
+            </div>
+          </div>
+        ` : `<button class="btn-inline-lien" id="btnRouvrirCloture" style="margin-top:8px;">Rouvrir la clôture pour corriger les comptages</button>`) : ''}
       </div>
     `;
   }
@@ -1281,6 +1344,28 @@
       if (categoriesOuvertes.has(cat)) categoriesOuvertes.delete(cat); else categoriesOuvertes.add(cat);
       renderTout(dernierCtx); // pas de rechargement réseau, juste replier/déplier
     }));
+    const btnRouvrirCloture = document.getElementById('btnRouvrirCloture');
+    if (btnRouvrirCloture) btnRouvrirCloture.addEventListener('click', () => {
+      rouvertureFormOuvert = true;
+      renderTout(dernierCtx); // pas de rechargement réseau, juste déplier le formulaire
+    });
+    const btnAnnulerRouverture = document.getElementById('btnAnnulerRouverture');
+    if (btnAnnulerRouverture) btnAnnulerRouverture.addEventListener('click', () => {
+      rouvertureFormOuvert = false;
+      renderTout(dernierCtx);
+    });
+    const btnConfirmerRouverture = document.getElementById('btnConfirmerRouverture');
+    if (btnConfirmerRouverture) btnConfirmerRouverture.addEventListener('click', async () => {
+      const motifEl = document.getElementById('motifRouverture');
+      const motif = motifEl ? motifEl.value.trim() : '';
+      if (!confirm("Rouvrir ce quart va permettre de reprendre et corriger les comptages de clôture — le quart redevient « Ouvert ». Cette action est tracée. Confirmer ?")) return;
+      btnConfirmerRouverture.disabled = true;
+      btnConfirmerRouverture.textContent = 'Réouverture en cours…';
+      const ok = await rouvrirClotureQuart(quartRow.id, motif);
+      rouvertureFormOuvert = false;
+      if (!ok) return;
+      await chargerEtAfficherTout();
+    });
   }
 
   async function chargerEtAfficherTout() {
