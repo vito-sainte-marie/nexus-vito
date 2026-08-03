@@ -1171,22 +1171,31 @@
   // seul le message du Coach change (voir messageConseillerPerso).
   const SEUIL_HEURES_DEBUT_DE_SERVICE = 1;
 
-  // Variété jour après jour (03/08/2026, demande de Frédéric : "le
-  // conseiller doit donner l'impression d'être vivant") — sans ceci, en cas
-  // d'égalité stricte de points ET de durée (fréquent depuis le barème
-  // 5 pts uniforme sur les actions issues de SOP-23/SOP-09), le départage
-  // tombait sur l'ordre de retour de la base, donc systématiquement la
-  // même mission chaque matin. On ajoute un dernier départage : parmi les
-  // ex-æquo, on privilégie celle jamais faite, puis la plus ancienne
-  // complétion — le Coach suggère alors une mission différente d'un jour
-  // sur l'autre, dictée par ce que l'employé a réellement fait, pas par
-  // le hasard ni par un ordre figé.
-  function derniereFoisFaite(missionId) {
-    let derniere = '';
-    for (const c of completionsCache) {
-      if (c.mission_id === missionId && c.date > derniere) derniere = c.date;
-    }
-    return derniere; // '' = jamais faite, trie avant toute vraie date
+  // Variété à chaque ouverture (03/08/2026, demande de Frédéric : "à chaque
+  // rafraîchissement ou ouverture de page, le conseiller propose une
+  // nouvelle mission, toujours en fonction de l'horodateur adapté matin ou
+  // soir") — le cadrage horaire (clôture réservée à la fin de service,
+  // "soir" réservé après la tombée de la nuit, victoire facile en début de
+  // service) reste strictement identique ; ce qui change, c'est qu'on ne
+  // fige plus le choix sur UNE mission au sein des candidats réellement
+  // équivalents (même groupe de priorité, ou même groupe de points en
+  // début de service / pour un novice). On tire au sort dans ce groupe, en
+  // évitant si possible de répéter la mission montrée au chargement
+  // précédent (mémorisée en localStorage), pour donner l'impression d'un
+  // conseiller vivant plutôt qu'un script figé — jamais au prix de
+  // suggérer une mission incohérente pour le moment de la journée.
+  function clePersistanceDerniereSuggestion() {
+    return `nexus_derniere_suggestion_${employeeId}`;
+  }
+
+  function choisirParmiEquivalents(groupe) {
+    if (groupe.length === 1) return groupe[0];
+    const cle = clePersistanceDerniereSuggestion();
+    let derniereId = null;
+    try { derniereId = localStorage.getItem(cle); } catch (e) { /* stockage indisponible, tant pis */ }
+    const sansRepetition = derniereId ? groupe.filter(m => m.mission_id !== derniereId) : groupe;
+    const pool = sansRepetition.length > 0 ? sansRepetition : groupe;
+    return pool[Math.floor(Math.random() * pool.length)];
   }
 
   function choisirMissionSuggeree() {
@@ -1216,23 +1225,21 @@
 
     const estNouveau = completionsCache.length < 5;
     const rang = { critique: 0, haute: 1, normale: 2, basse: 3 };
-    const triees = [...candidates].sort((a, b) => {
-      if (estNouveau || debutDeService) {
-        if ((a.points || 0) !== (b.points || 0)) return (a.points || 0) - (b.points || 0);
-        if ((a.estimated_duration_min || 0) !== (b.estimated_duration_min || 0)) return (a.estimated_duration_min || 0) - (b.estimated_duration_min || 0);
-        const da = derniereFoisFaite(a.mission_id), db = derniereFoisFaite(b.mission_id);
-        return da < db ? -1 : da > db ? 1 : 0;
-      }
-      const ra = rang[a.priority] ?? 2, rb = rang[b.priority] ?? 2;
-      if (ra !== rb) return ra - rb;
-      return (a.estimated_duration_min || 0) - (b.estimated_duration_min || 0);
-    });
+    // Clé de tri identique à avant (points croissants en début de service/
+    // novice, sinon priorité), mais on ne prend plus systématiquement le
+    // premier : on regroupe tous les candidats à égalité sur cette clé, et
+    // choisirParmiEquivalents() tire au sort dedans (voir plus haut).
+    const cleDe = m => (estNouveau || debutDeService) ? (m.points || 0) : (rang[m.priority] ?? 2);
+    const meilleureCle = Math.min(...candidates.map(cleDe));
+    const groupe = candidates.filter(m => cleDe(m) === meilleureCle);
+    const missionChoisie = choisirParmiEquivalents(groupe);
+    try { localStorage.setItem(clePersistanceDerniereSuggestion(), missionChoisie.mission_id); } catch (e) { /* stockage indisponible, tant pis */ }
     // debutDeService seulement si la mission choisie n'est pas déjà couverte
     // par un autre message dédié (clôture) — mutuellement exclusifs en
     // pratique (le seuil de clôture exige >= 3h depuis l'arrivée, celui-ci
     // <= 1h), mais on le vérifie explicitement plutôt que de le supposer.
-    const estDebutDeService = debutDeService && !estMissionDeCloture(triees[0]);
-    return { mission: triees[0], presqueFinie: false, debutDeService: estDebutDeService };
+    const estDebutDeService = debutDeService && !estMissionDeCloture(missionChoisie);
+    return { mission: missionChoisie, presqueFinie: false, debutDeService: estDebutDeService };
   }
 
   // Ouvre la mission suggérée, quels que soient l'onglet famille ou la
