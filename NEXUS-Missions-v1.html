@@ -60,6 +60,12 @@
   .section{padding:6px 20px 20px;}
   .section-label{font-family:var(--mono); font-size:10.5px; letter-spacing:0.08em; text-transform:uppercase; color:var(--text-dim); margin:14px 0 10px; display:flex; align-items:center; gap:8px;}
   .section-label::after{content:''; flex:1; height:1px; background:var(--hairline);}
+  /* Liste "Vos missions" dépliable (03/08/2026, demande de Frédéric) — même
+     mécanique de chevron rotatif que .categorie-groupe-head ailleurs dans
+     NEXUS (Scanner Stock). */
+  .section-label-pliable{cursor:pointer; -webkit-tap-highlight-color:transparent;}
+  .section-label-pliable .chev{color:var(--text-dim); font-size:12px; transition:transform .15s; display:inline-block; flex-shrink:0;}
+  .section-label-pliable.open .chev{transform:rotate(90deg);}
 
   .mission-card{background:var(--panel); border:1px solid var(--hairline); border-radius:12px; margin-bottom:10px; overflow:hidden;}
   .mission-head{padding:14px 16px; cursor:pointer; display:flex; justify-content:space-between; align-items:center; gap:10px;}
@@ -320,6 +326,12 @@
   const FAMILLES = ["Toutes","Commerce","Qualité","Sécurité","Exploitation","Management"];
   let familleActive = "Toutes";
   const missionsOuvertes = new Set();
+  // Liste "Vos missions — rôle ..." dépliable (03/08/2026, demande de
+  // Frédéric) — ouverte par défaut (c'est le contenu principal de la
+  // page, contrairement aux sous-groupes repliés par défaut ailleurs dans
+  // NEXUS), mais peut être repliée pour dégager l'écran une fois les
+  // missions du jour identifiées.
+  let missionsListeOuverte = true;
 
   // Restructuration en 2 niveaux (03/08/2026, demande de Frédéric) : les
   // missions récurrentes sont regroupées par palier de points (barème
@@ -1324,16 +1336,29 @@
     if (niveauActif !== null) lib = lib.filter(m => m.points === niveauActif);
     if (q) lib = lib.filter(m => m.titre.toLowerCase().includes(q) || (m.pourquoi||'').toLowerCase().includes(q));
 
-    html += `<div class="section-label">${q ? 'Résultats' : 'Vos missions — rôle ' + roleDuJour} (${lib.length})</div>`;
-    if (lib.length === 0) {
-      html += `<div class="empty-note">Aucune mission ne correspond à votre rôle du jour.</div>`;
-    } else {
-      lib.forEach(m => html += renderMissionCard(m, m.mission_id.startsWith('MISSION-')));
+    html += `<div class="section-label section-label-pliable ${missionsListeOuverte ? 'open' : ''}" id="toggleMissionsListe">${q ? 'Résultats' : 'Vos missions — rôle ' + roleDuJour} (${lib.length}) <span class="chev">›</span></div>`;
+    if (missionsListeOuverte) {
+      if (lib.length === 0) {
+        html += `<div class="empty-note">Aucune mission ne correspond à votre rôle du jour.</div>`;
+      } else {
+        lib.forEach(m => html += renderMissionCard(m, m.mission_id.startsWith('MISSION-')));
+      }
     }
 
     content.innerHTML = html;
     if (roleDuJour === 'manager') renderPlansActionMissions();
     renderMissionsAssignees();
+
+    // Liste dépliable (03/08/2026) — replie/déplie toute la section "Vos
+    // missions", pas juste une carte individuelle (voir missionsOuvertes
+    // pour le pliage carte par carte, inchangé).
+    const toggleMissionsListe = document.getElementById('toggleMissionsListe');
+    if (toggleMissionsListe) {
+      toggleMissionsListe.addEventListener('click', () => {
+        missionsListeOuverte = !missionsListeOuverte;
+        render();
+      });
+    }
 
     content.querySelectorAll('.mission-head').forEach(el => {
       el.addEventListener('click', () => {
