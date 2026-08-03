@@ -42,6 +42,7 @@ const NEXUS_SIDEBAR_GROUPES = [
   {
     nom: 'Piloter',
     items: [
+      { label: 'Brief NEXUS', href: 'NEXUS-Brief-v1.html', icon: null, emoji: '👔' },
       { label: 'Cockpit', href: 'NEXUS-Cockpit-v2.html', icon: 'assets/icons/icon-home.png' },
       { label: 'Journal', href: 'NEXUS-Journal-v1.html', icon: 'assets/icons/icon-journal-nexus.png' },
       { label: 'Capital NEXUS', href: 'NEXUS-Capital-v1.html', icon: 'assets/icons/icon-capital.png' },

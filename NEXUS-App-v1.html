@@ -606,6 +606,14 @@
   <div class="groupe-wrap" data-groupe="piloter">
     <div class="section-label" data-role="manager" style="display:none;">Piloter</div>
     <nav data-role="manager" data-group="piloter" style="display:none;">
+      <a class="nav-item" data-role="manager" href="NEXUS-Brief-v1.html">
+        <div class="nav-icon"><img src="assets/icons/icon-brief-nexus.png" alt="Brief NEXUS"></div>
+        <div class="nav-body">
+          <div class="nav-title">Brief NEXUS</div>
+          <div class="nav-desc">La synthèse du dirigeant : 5 axes, 3 décisions, un chiffre</div>
+        </div>
+        <div class="nav-arrow">›</div>
+      </a>
       <a class="nav-item" data-role="manager" href="NEXUS-Cockpit-v2.html">
         <div class="nav-icon"><img src="assets/icons/icon-home.png" alt="Cockpit"></div>
         <div class="nav-body">
@@ -2053,6 +2061,12 @@
   // ci-dessous sous son nouveau nom.
   // ------------------------------------------------------------
   const PAGES_INDEX = [
+    // Brief NEXUS (02/08/2026, demande de Frédéric) : synthèse à
+    // l'attention du dirigeant, agrège les 7 moteurs NEXUS (Produits,
+    // Marge+, Tempo, Verify, Scanner Stock, Inventaire, Rappels) en une
+    // Boussole NEXUS à 5 axes + 3 décisions priorisées — en tête de liste,
+    // avant le Cockpit (brief opérationnel du manager).
+    { label: 'Brief NEXUS', desc: 'La synthèse du dirigeant : 5 axes, 3 décisions, un chiffre', href: 'NEXUS-Brief-v1.html', role: 'manager' },
     { label: 'Cockpit', desc: 'Le brief du matin, en un coup d\'œil', href: 'NEXUS-Cockpit-v2.html', role: 'manager' },
     { label: 'Centre d\'Intelligence', desc: 'Que détecte NEXUS dans mon commerce ?', href: 'NEXUS-Centre-Intelligence-v1.html', role: 'manager' },
     { label: 'Journal', desc: 'Qu\'est-ce qui a été fait aujourd\'hui ?', href: 'NEXUS-Journal-v1.html', role: 'manager', forfait: 'professional' },

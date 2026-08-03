@@ -1,0 +1,959 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" type="image/x-icon" href="favicon.ico">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+<link rel="manifest" href="site.webmanifest">
+<meta name="theme-color" content="#0B0F14">
+<title>Brief NEXUS — Vue dirigeant</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0B0F14;
+    --panel:#141B22;
+    --panel-raised:#1A222C;
+    --hairline:#242E38;
+    --text:#EDF1F5;
+    --text-mid:#8A96A5;
+    --text-dim:#57626F;
+    --green:#34D399;
+    --green-dim:#153629;
+    --amber:#F5A623;
+    --amber-dim:#3A2E14;
+    --red:#F0575A;
+    --red-dim:#3A1D1F;
+    --cyan:#4FC3D9;
+    --gold:#D4AF37; --gold-dim:#332B12;
+    --mono:'IBM Plex Mono',monospace;
+    --sans:'IBM Plex Sans',sans-serif;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{background:var(--bg); font-family:var(--sans); color:var(--text);}
+  body{
+    display:flex; justify-content:center;
+    min-height:100vh;
+    background-image: radial-gradient(circle at 50% 0%, rgba(212,175,55,0.07), transparent 45%);
+  }
+  .phone{
+    width:100%; max-width:430px; min-height:100vh;
+    display:flex; flex-direction:column;
+    border-left:1px solid var(--hairline); border-right:1px solid var(--hairline);
+  }
+  /* HEADER */
+  .header{padding:20px 20px 14px; display:flex; align-items:center; gap:12px;}
+  .menu-btn{
+    margin-left:auto; flex-shrink:0; display:flex; align-items:center; gap:6px;
+    font-family:var(--mono); font-size:10.5px; font-weight:600; letter-spacing:0.03em; text-transform:uppercase;
+    color:var(--cyan); background:rgba(79,195,217,0.1); border:1px solid rgba(79,195,217,0.3);
+    border-radius:20px; padding:7px 12px; text-decoration:none; white-space:nowrap;
+  }
+  .menu-btn:active{background:rgba(79,195,217,0.2);}
+  .header .logo-frame{
+    width:64px; height:64px; border-radius:20px; flex-shrink:0;
+    background:transparent;
+    display:flex; align-items:center; justify-content:center;
+    border:1px solid var(--hairline);
+  }
+  .header .logo{height:44px; width:44px; object-fit:cover; object-position:center; border-radius:12px;}
+  .header .id{display:flex; flex-direction:column;}
+  .greet{font-size:20px; font-weight:600;}
+  .role-badge{
+    font-family:var(--mono); font-size:9.5px; padding:2px 8px; border-radius:10px; letter-spacing:0.04em;
+    text-transform:uppercase; border:1px solid var(--hairline); color:var(--text-dim); margin-left:8px; vertical-align:middle;
+  }
+  .station{font-family:var(--mono); font-size:11.5px; color:var(--text-dim); margin-top:3px; letter-spacing:0.02em;}
+  .divider{height:1px; background:var(--hairline); margin:0 20px;}
+  .locked{padding:60px 24px; text-align:center; font-size:14px; color:var(--text-mid); font-family:var(--sans);}
+
+  /* HERO — état global du jour, ton dirigeant */
+  .brief-hero{
+    margin:14px 20px 6px; padding:30px 22px 26px; border-radius:22px; text-align:center;
+    background:radial-gradient(120% 140% at 50% -10%, rgba(212,175,55,0.16), rgba(79,195,217,0.05) 55%, transparent 80%), var(--panel);
+    border:1px solid rgba(212,175,55,0.22);
+    box-shadow:0 12px 36px rgba(0,0,0,0.35), 0 0 0 1px rgba(255,255,255,0.02) inset;
+  }
+  .brief-date{font-family:var(--mono); font-size:10.5px; letter-spacing:0.16em; text-transform:uppercase; color:var(--text-dim); margin-bottom:16px;}
+  .brief-indice-value{font-family:var(--mono); font-size:74px; font-weight:700; line-height:1; text-shadow:0 0 30px currentColor;}
+  .brief-indice-label{font-family:var(--mono); font-size:10.5px; letter-spacing:0.12em; text-transform:uppercase; color:var(--text-dim); margin-top:8px;}
+  .brief-etat{margin-top:18px; display:inline-flex; align-items:center; gap:9px; font-size:13px; color:var(--text-mid); line-height:1.5; padding:10px 18px; border-radius:22px; background:var(--panel-raised); max-width:100%;}
+  .brief-etat-dot{width:9px; height:9px; border-radius:50%; flex-shrink:0; box-shadow:0 0 10px currentColor;}
+  .brief-synthese{margin-top:16px; font-size:14.5px; line-height:1.6; color:var(--text); max-width:320px; margin-left:auto; margin-right:auto;}
+
+  .plans-loading{padding:36px 20px; text-align:center;}
+  .plans-loading-logo{width:38px; height:38px; margin-bottom:12px; animation:nexusSpin 1.3s linear infinite; filter:drop-shadow(0 0 10px rgba(79,195,217,0.4));}
+  @keyframes nexusSpin{ to{ transform:rotate(360deg); } }
+  .plans-loading-text{font-size:12.5px; color:var(--text-dim);}
+  .loading-dots span{animation:loadingDot 1.4s infinite; opacity:0;}
+  .loading-dots span:nth-child(2){animation-delay:0.2s;}
+  .loading-dots span:nth-child(3){animation-delay:0.4s;}
+  @keyframes loadingDot{ 0%,80%,100%{opacity:0;} 40%{opacity:1;} }
+
+  /* SECTION generic */
+  .section{padding:20px 20px;}
+  .section-title{
+    font-family:var(--mono); font-size:11px; letter-spacing:0.12em; text-transform:uppercase;
+    color:var(--text-dim); margin-bottom:14px; display:flex; justify-content:space-between; align-items:center;
+  }
+  .section-title .badge{font-family:var(--mono); font-size:9.5px; padding:2px 7px; border-radius:10px; letter-spacing:0.02em;}
+  .badge-real{color:var(--green); background:var(--green-dim);}
+  .badge-derived{color:var(--cyan); background:rgba(79,195,217,0.12);}
+  .section-note{font-size:11px; color:var(--text-dim); line-height:1.5; margin-top:10px;}
+
+  /* BOUSSOLE NEXUS — radar 5 axes */
+  .boussole-card{
+    background:var(--panel); border:1px solid var(--hairline); border-radius:16px; padding:18px;
+    position:relative; overflow:hidden;
+  }
+  .boussole-card::before{content:''; position:absolute; top:-40%; left:-20%; width:140%; height:140%; background:radial-gradient(circle, rgba(212,175,55,0.08), transparent 60%); pointer-events:none;}
+  .boussole-svg-wrap{display:flex; justify-content:center; margin-bottom:6px;}
+  .boussole-svg-wrap svg{width:100%; max-width:280px; height:auto;}
+  .axe-row{
+    display:flex; align-items:center; gap:12px; padding:11px 4px; border-bottom:1px solid var(--hairline);
+    text-decoration:none; color:inherit; cursor:pointer;
+  }
+  .axe-row:last-child{border-bottom:none;}
+  .axe-row:active{background:var(--panel-raised);}
+  .axe-dot{width:11px; height:11px; border-radius:50%; flex-shrink:0; box-shadow:0 0 8px currentColor;}
+  .axe-nom{flex:1; font-size:13.5px; font-weight:600;}
+  .axe-statut{font-family:var(--mono); font-size:10.5px; text-align:right;}
+  .axe-chev{color:var(--text-dim); font-size:14px; flex-shrink:0;}
+
+  /* FORCES */
+  .force-card{
+    background:linear-gradient(145deg, var(--gold-dim), rgba(212,175,55,0.04)); border:1px solid rgba(212,175,55,0.35);
+    border-radius:14px; padding:16px 18px; display:flex; flex-direction:column; gap:4px; margin-bottom:10px;
+  }
+  .force-card:last-child{margin-bottom:0;}
+  .force-icon{font-size:20px;}
+  .force-titre{font-size:13.5px; font-weight:700; color:var(--gold); margin-top:2px;}
+  .force-detail{font-size:12.5px; color:var(--text-mid); line-height:1.5;}
+  .empty-serein{margin:0; padding:18px; text-align:center; font-size:12.5px; color:var(--text-dim); background:var(--panel-raised); border-radius:12px; line-height:1.5;}
+
+  /* DECISIONS */
+  .decision-card{background:var(--panel); border:1px solid var(--hairline); border-radius:12px; margin-bottom:10px; overflow:hidden; border-left:3px solid var(--hairline);}
+  .decision-card:last-child{margin-bottom:0;}
+  .decision-card.priorite{border-left-color:var(--gold); box-shadow:0 0 0 1px rgba(212,175,55,0.15) inset;}
+  .decision-card.etat-agir{border-left-color:#F0575A;}
+  .decision-card.etat-opportunite{border-left-color:#34D399;}
+  .decision-card.etat-surveiller{border-left-color:#F5A623;}
+  .decision-card.etat-recommandation{border-left-color:#4FC3D9;}
+  .decision-head{padding:14px 16px; cursor:pointer; display:flex; align-items:center; gap:12px;}
+  .decision-rank{font-family:var(--mono); font-size:9.5px; font-weight:700; color:var(--gold); background:rgba(212,175,55,0.12); border-radius:20px; padding:3px 8px; white-space:nowrap;}
+  .decision-rank.secondaire{color:var(--text-dim); background:var(--panel-raised);}
+  .decision-teaser{flex:1; font-size:13.5px; font-weight:600; line-height:1.4;}
+  .decision-chevron{color:var(--text-dim); font-size:14px; transition:0.15s;}
+  .decision-card.open .decision-chevron{transform:rotate(90deg);}
+  .decision-body{display:none; padding:0 16px 16px;}
+  .decision-card.open .decision-body{display:block;}
+  .decision-field{margin-top:12px;}
+  .decision-field-label{font-family:var(--mono); font-size:9.5px; text-transform:uppercase; letter-spacing:0.06em; color:var(--text-dim); margin-bottom:3px;}
+  .decision-field-text{font-size:12.5px; line-height:1.65; color:var(--text-mid);}
+  .decision-field-text b{color:var(--text); font-weight:600;}
+  .decision-chips{display:flex; gap:8px; margin-top:12px; flex-wrap:wrap;}
+  .decision-chip{font-family:var(--mono); font-size:10px; padding:4px 10px; border-radius:14px; background:var(--panel-raised); color:var(--text-mid); border:1px solid var(--hairline);}
+  .decision-chip.confiance-eleve{color:var(--green); border-color:rgba(52,211,153,0.3);}
+  .decision-chip.confiance-moyen{color:var(--amber); border-color:rgba(245,166,35,0.3);}
+  .decision-valider, .decision-fait{width:100%; margin-top:14px; padding:11px; border:none; border-radius:8px; font-size:12.5px; font-weight:600; background:var(--green); color:#04141a; cursor:pointer;}
+  .decision-lien{display:block; text-align:center; margin-top:14px; padding:11px; border:1px solid var(--hairline); border-radius:8px; color:var(--cyan); font-family:var(--mono); font-size:11.5px; text-decoration:none;}
+  .caisse-justifie-row{display:flex; align-items:center; gap:8px; margin-top:10px; font-size:11.5px; color:var(--text-dim); cursor:pointer;}
+
+  /* WATCHLIST */
+  .watch-item{display:flex; align-items:flex-start; gap:10px; padding:11px 0; border-bottom:1px solid var(--hairline); text-decoration:none; color:inherit;}
+  .watch-item:last-child{border-bottom:none;}
+  .watch-dot{width:8px; height:8px; border-radius:50%; background:var(--amber); flex-shrink:0; margin-top:5px; box-shadow:0 0 8px rgba(245,166,35,0.6);}
+  .watch-text{flex:1; font-size:12.5px; line-height:1.55; color:var(--text-mid);}
+  .watch-text b{color:var(--text); font-weight:600;}
+  .watch-chev{color:var(--text-dim); font-size:13px; margin-top:3px;}
+
+  /* IMPACT */
+  .impact-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+  .impact-card{border-radius:12px; padding:16px; display:flex; flex-direction:column; gap:4px;}
+  .impact-card.gain{background:var(--green-dim); border:1px solid rgba(52,211,153,0.25);}
+  .impact-card.risque{background:var(--red-dim); border:1px solid rgba(240,87,90,0.3);}
+  .impact-value{font-family:var(--mono); font-size:22px; font-weight:700;}
+  .impact-card.gain .impact-value{color:var(--green);}
+  .impact-card.risque .impact-value{color:var(--red);}
+  .impact-label{font-size:11px; color:var(--text-mid); line-height:1.4;}
+  .impact-meta-row{display:flex; justify-content:space-between; padding:10px 0; border-bottom:1px solid var(--hairline); font-size:12.5px;}
+  .impact-meta-row:last-child{border-bottom:none;}
+  .impact-meta-label{color:var(--text-dim);}
+  .impact-meta-val{font-family:var(--mono); font-weight:600;}
+
+  footer{padding:24px 20px 32px; text-align:center; font-family:var(--mono); font-size:10px; color:var(--text-dim); letter-spacing:0.03em;}
+</style>
+</head>
+<body>
+<div class="phone">
+  <div class="header" id="nexus-header"></div>
+  <div class="divider"></div>
+  <div id="briefRoot">
+    <div class="plans-loading">
+      <img class="plans-loading-logo" src="nexus-avatar.png" alt="">
+      <div class="plans-loading-text">NEXUS agrège vos moteurs<span class="loading-dots"><span>.</span><span>.</span><span>.</span></span></div>
+    </div>
+  </div>
+  <footer>NEXUS Brief · synthèse dirigeant · agrège Produits, Marge+, Tempo, Verify, Stock, Inventaire, Missions, Équipe</footer>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="nexus-auth.js"></script>
+<script src="nexus-desktop.js"></script>
+<script src="nexus-periodes.js"></script>
+<script src="nexus-indice.js"></script>
+<script src="nexus-marge.js"></script>
+<script src="nexus-tempo.js"></script>
+<script src="nexus-stock.js"></script>
+<script src="nexus-conseiller.js"></script>
+<script>
+  // ============================================================
+  // NEXUS Brief — synthèse à l'attention du dirigeant (02/08/2026, demande
+  // de Frédéric) : "cette page fera appel à toute ta puissance... tu devras
+  // puiser dans tous les moteurs de NEXUS, toutes ses ressources sans
+  // exception." Cette page n'introduit AUCUN nouveau calcul métier — elle
+  // appelle les moteurs partagés déjà en production (NexusPeriodes,
+  // NexusIndice, NexusMarge, NexusTempo, NexusStock, NexusConseiller) et les
+  // mêmes requêtes déjà validées dans NEXUS-App-v1.html / NEXUS-Cockpit-v2.html,
+  // pour ne jamais diverger de ce que ces écrans affichent déjà. Sa valeur
+  // ajoutée est la SYNTHÈSE : un tri de priorité partagé entre les 7 moteurs
+  // (NexusConseiller.fusionnerEtSelectionner), une Boussole NEXUS à 5 axes,
+  // et une structure de décision en 8 champs — jamais un chiffre inventé
+  // (Article 5 de la Constitution NEXUS) : toute case affiche honnêtement
+  // "Donnée insuffisante" plutôt qu'une fausse valeur par défaut.
+  //
+  // Feuille de route (cadrage fourni par Frédéric, 02/08/2026) : ce fichier
+  // livre la Phase 1 (brief statique agrégé, indicateurs fiables) et une
+  // bonne partie des Phases 2-3 (moteur de priorité déjà partagé via
+  // nexus-conseiller.js, structure Conseiller à 8 champs). Les Phases 4-5
+  // (preuves entièrement traçables avec historique de consultation, mémoire
+  // d'impact des décisions dans le temps) restent un chantier à part —
+  // notées en fin de fichier plutôt que bâclées sous pression de temps.
+  // ============================================================
+
+  const ETAT_CLASS = {
+    "🔥 À AGIR": "etat-agir", "📈 OPPORTUNITÉ": "etat-opportunite",
+    "🟡 À SURVEILLER": "etat-surveiller", "💡 RECOMMANDATION": "etat-recommandation",
+    "🔴 CRITIQUE": "etat-agir", "🟡 À VÉRIFIER": "etat-surveiller",
+    "📦 À COMPTER": "etat-surveiller", "⚠️ RAPPEL EN RETARD": "etat-agir",
+    "📌 RAPPEL": "etat-recommandation", "🗓️ TEMPO": "etat-recommandation",
+    "📋 SIGNAL": "etat-recommandation",
+  };
+  const MOTEUR_LABEL = { produits: 'Produits', marge: 'Marge+', tempo: 'Tempo', advisor: 'Signal', caisse: 'Caisse', stock: 'Stock', rappel: 'Rappel' };
+  const MOTEUR_SOURCE = {
+    produits: 'des ventes réelles importées (Produits)', marge: 'la comparaison de marge entre produits comparables (Marge+)',
+    tempo: 'l’historique de caisse par jour de semaine (Tempo)', advisor: 'la détection Qualité/Caisse automatique',
+    caisse: 'un audit de caisse réel (Verify)', stock: 'les relevés de stock (Scanner Stock)', rappel: 'un rappel ajouté manuellement',
+  };
+  const COULEUR_STATUT_DOMAINE = {
+    'En progression': 'var(--green)', 'Sous contrôle': 'var(--green)', 'Stable': 'var(--text-mid)',
+    'À surveiller': 'var(--amber)', 'En repli': 'var(--red)', 'À corriger': 'var(--red)',
+    'Données insuffisantes': 'var(--text-dim)',
+  };
+  const SEUIL_ECART_OPERATIONS_EUR = 15;
+  const SEUIL_MIN_POINTAGES_EQUIPE = 5;
+
+  let SITE_ACTUEL = 'vito-sainte-marie';
+  let employeeCourantId = null;
+  let VALIDEES_SITE = new Set();
+  let JOURNAL_DECISIONS = [];
+  let STATION_CONFIG = { manager_prenom: '', manager_role: '', station_nom: 'Ma station', logo_url: '' };
+  let BRIEF = null;
+
+  // ------------------------------------------------------------
+  // Chargeurs de données — repris à l'identique (mêmes requêtes, mêmes
+  // filtres) de NEXUS-App-v1.html et NEXUS-Cockpit-v2.html, pour que Brief
+  // NEXUS ne dise jamais autre chose que ce que ces écrans montrent déjà.
+  // ------------------------------------------------------------
+  async function fetchAllRows(builderFactory, pageSize = 1000) {
+    let toutes = [];
+    let from = 0;
+    while (true) {
+      const { data, error } = await builderFactory().range(from, from + pageSize - 1);
+      if (error) return { data: null, error };
+      toutes = toutes.concat(data || []);
+      if (!data || data.length < pageSize) break;
+      from += pageSize;
+    }
+    return { data: toutes, error: null };
+  }
+
+  async function chargerJournalDecisions() {
+    const { data, error } = await fetchAllRows(() => nexusClient
+      .from('journal_decisions').select('*').eq('site', SITE_ACTUEL).order('created_at', { ascending: false }));
+    if (error) { console.error('Chargement journal_decisions (Brief):', error); return; }
+    JOURNAL_DECISIONS = data || [];
+    VALIDEES_SITE = new Set(JOURNAL_DECISIONS.map(d => d.candidate_id));
+  }
+
+  async function chargerProduitsAppel() {
+    const { data, error } = await nexusClient.from('produits_appel').select('article').eq('site', SITE_ACTUEL);
+    if (error) { console.error('Chargement produits d’appel (Brief):', error); return new Set(); }
+    return new Set((data || []).map(r => r.article));
+  }
+
+  function estProduitAppel(categorie, article) {
+    return NexusMarge.familleMarge(categorie, article).exclue;
+  }
+
+  async function chargerProducts() {
+    const [{ data, error }, produitsAppel] = await Promise.all([
+      fetchAllRows(() => nexusClient.from('products')
+        .select('categorie, article, ca, marge, quantite, periode_debut, periode_fin')
+        .eq('site', SITE_ACTUEL).order('periode_debut', { ascending: false }).order('article', { ascending: true })),
+      chargerProduitsAppel(),
+    ]);
+    if (error || !data) { console.error('Chargement products (Brief):', error); return []; }
+    return data.filter(r => !produitsAppel.has(r.article));
+  }
+
+  // Nexus Marge+ — même moteur que NEXUS-Scanner-v1.html (R5-MARGE-ECART),
+  // repris à l'identique de chargerMargePlusHome() dans NEXUS-App-v1.html.
+  async function chargerMargePlus(rowsBrut) {
+    const { periodeAffichage, rowsAffichage } = NexusPeriodes.analyserPeriodes(rowsBrut);
+    if (!periodeAffichage) return null;
+    const [exclusionsRes, valideesRes] = await Promise.all([
+      nexusClient.from('marge_exceptions').select('article').eq('site', SITE_ACTUEL),
+      nexusClient.from('journal_decisions').select('candidate_id').eq('site', SITE_ACTUEL).eq('rule_id', 'R5-MARGE-ECART'),
+    ]);
+    const rowsPropres = rowsAffichage.filter(r => (r.ca || 0) > 0 && (r.marge || 0) >= 0 && (r.marge || 0) <= (r.ca || 0));
+    const exclusionsManuelles = new Set(((exclusionsRes && exclusionsRes.data) || []).map(r => r.article));
+    const valideesMarge = new Set(((valideesRes && valideesRes.data) || []).map(d => d.candidate_id));
+    const ecarts = NexusMarge.detecterEcartsMarge(rowsPropres, exclusionsManuelles)
+      .filter(e => !valideesMarge.has(`LIVE-R5-${e.categorie}|${e.article}`));
+    const meilleur = ecarts[0];
+    const candidatTop = meilleur ? {
+      candidate_id: `LIVE-R5-${meilleur.categorie}|${meilleur.article}`, etat: '💡 RECOMMANDATION',
+      article: meilleur.article, categorie: meilleur.categorie, impact_eur: meilleur.gainPotentiel,
+      situation: `${meilleur.article} a une marge de ${meilleur.margePct.toFixed(1)} %, contre ${meilleur.medianeGroupe.toFixed(1)} % pour les ${meilleur.tailleGroupe} produits comparables du même type.`,
+      analyse: `Cet écart peut venir d'un prix d'achat renégocié, d'une remise non répercutée, ou d'un choix délibéré — à vérifier avant d'ajuster quoi que ce soit.`,
+      recommandation: `Vérifiez si le prix d'achat ou de vente de ${meilleur.article} peut se rapprocher de la marge médiane de son groupe.`,
+      impact: `Si aligné sur la médiane du groupe, gain potentiel estimé à environ ${Math.round(meilleur.gainPotentiel).toLocaleString('fr-FR')} € sur cette période — une hypothèse, pas une garantie.`,
+      ca_reference: meilleur.ca, periode_reference_debut: periodeAffichage.debut, periode_reference_fin: periodeAffichage.fin,
+    } : null;
+    return { nbEcarts: ecarts.length, gainPotentiel: ecarts.reduce((s, e) => s + e.gainPotentiel, 0), candidatTop };
+  }
+
+  async function chargerMessagesAdvisor() {
+    const { data, error } = await nexusClient
+      .from('advisor_messages')
+      .select('id, priority, confidence_level, message_text, generated_at, advisor_rules(code, domain, name)')
+      .eq('site_id', SITE_ACTUEL).not('status', 'in', '(resolu,expire)').order('generated_at', { ascending: false });
+    if (error) { console.error('Chargement advisor_messages (Brief):', error); return []; }
+    const parRegle = new Map();
+    (data || []).forEach(m => {
+      const code = (m.advisor_rules && m.advisor_rules.code) || m.id;
+      if (!parRegle.has(code)) {
+        parRegle.set(code, { id: m.id, priority: m.priority, confidence_level: m.confidence_level, message_text: m.message_text, generated_at: m.generated_at, code, domaine: m.advisor_rules && m.advisor_rules.domain, nomRegle: m.advisor_rules && m.advisor_rules.name });
+      }
+    });
+    return Array.from(parRegle.values());
+  }
+
+  function calculerStatutOperations(moyenneEcartAbsolu, nbJours) {
+    if (!nbJours) return 'Données insuffisantes';
+    return moyenneEcartAbsolu <= SEUIL_ECART_OPERATIONS_EUR ? 'Stable' : 'À surveiller';
+  }
+
+  // Constat NEXUS Tempo — repris à l'identique de chargerConstatTempoHome().
+  async function chargerConstatTempo() {
+    const [{ data, error }, produitsRes] = await Promise.all([
+      fetchAllRows(() => nexusClient.from('audits_caisse')
+        .select('date, quart, vente_piste, vente_boutique, ecart_piste, ecart_boutique, employes_piste, employes_boutique')
+        .eq('site', SITE_ACTUEL).order('date', { ascending: true })),
+      fetchAllRows(() => nexusClient.from('products').select('categorie, article, ca, periode_debut, periode_fin').eq('site', SITE_ACTUEL)),
+    ]);
+    if (error || !data) {
+      console.error('Chargement audits_caisse (constat Tempo, Brief):', error);
+      return { jourARenforcer: null, jourMoteur: null, jourPlusRentable: null, jourProgression: null, totalJours: 0, statutOperations: 'Données insuffisantes', detailOperations: null };
+    }
+    const joursAgreges = NexusTempo.agregerParJour(data);
+    const totalJours = joursAgreges.length;
+    const joursExploitables = NexusTempo.filtrerJoursClos(joursAgreges);
+    const periodesProduitsAppel = NexusTempo.calculerPeriodesProduitsAppel(produitsRes && produitsRes.error ? [] : (produitsRes.data || []), estProduitAppel);
+    const joursValorises = NexusTempo.attribuerValorisationBoutique(joursExploitables, periodesProduitsAppel);
+    const regroupement = NexusTempo.regrouperParJourSemaine(joursValorises);
+    const classement = NexusTempo.calculerClassement(regroupement);
+    const { jourARenforcer, jourMoteur: jourMoteurBrut, jourProgression: jourProgressionBrut } = NexusTempo.identifierJoursReveles(classement);
+    const jourPlusRentableBrut = NexusTempo.identifierJourPlusRentable(classement);
+    const SEUIL_CONSTAT_TEMPO = -0.10;
+    const jourARenforcerRetenu = (!jourARenforcer || !jourARenforcer.confianceTendance || jourARenforcer.evolutionCombinee === null || jourARenforcer.evolutionCombinee > SEUIL_CONSTAT_TEMPO) ? null : jourARenforcer;
+    const jourMoteur = (jourMoteurBrut && jourMoteurBrut.confianceTendance) ? jourMoteurBrut : null;
+    const jourPlusRentable = (jourPlusRentableBrut && jourPlusRentableBrut.nbOccValorisation > 0) ? jourPlusRentableBrut : null;
+    const jourProgression = (jourProgressionBrut && jourProgressionBrut.confianceTendance) ? jourProgressionBrut : null;
+    const detailOperations = totalJours > 0 ? joursAgreges.reduce((s, j) => s + Math.abs(j.ecartPiste) + Math.abs(j.ecartBoutique), 0) / totalJours : null;
+    const statutOperationsVal = calculerStatutOperations(detailOperations, totalJours);
+    return { jourARenforcer: jourARenforcerRetenu, jourMoteur, jourPlusRentable, jourProgression, totalJours, statutOperations: statutOperationsVal, detailOperations };
+  }
+
+  // Candidat Tempo enrichi pour le Conseiller — repris à l'identique de
+  // construireCandidatTempoHome() dans NEXUS-App-v1.html.
+  function construireCandidatTempo(constatTempo) {
+    const { jourPlusRentable, jourMoteur, jourARenforcer, jourProgression } = constatTempo;
+    const jourCible = jourPlusRentable || jourMoteur;
+    if (!jourCible) return null;
+    const fmt = v => `${Math.round(v).toLocaleString('fr-FR')} €`;
+    const fmtPct = v => `${v >= 0 ? '+' : ''}${(v * 100).toFixed(1).replace('.', ',')} %`;
+    const majuscule = s => s.charAt(0).toUpperCase() + s.slice(1);
+    const diverge = !!(jourPlusRentable && jourMoteur && jourPlusRentable.jourSemaine !== jourMoteur.jourSemaine);
+    let pourquoi = `Le ${jourCible.nom} est actuellement la journée qui crée le plus de valeur pour votre station.`;
+    let pourquoiBullets = null, pourquoiPasAutre = null;
+    if (jourPlusRentable) {
+      pourquoiBullets = [
+        `Meilleure performance piste : ${fmt(jourPlusRentable.moyennePisteValorisation)}`,
+        `Meilleure estimation de valeur : ${fmt(jourPlusRentable.moyenneCombineeValorisee)}`,
+        `Données issues de ${jourPlusRentable.nbOccValorisation} journée${jourPlusRentable.nbOccValorisation > 1 ? 's' : ''} exploitable${jourPlusRentable.nbOccValorisation > 1 ? 's' : ''}`,
+      ];
+    }
+    if (diverge) {
+      pourquoi += ` Le ${jourMoteur.nom} génère davantage de chiffre d'affaires brut, mais une part importante provient de produits d'appel à faible contribution.`;
+      pourquoiPasAutre = { titre: `Pourquoi pas le ${jourMoteur.nom} ?`, texte: `Le chiffre d'affaires boutique y est supérieur (${fmt(jourMoteur.moyenneBoutique)}), mais il est fortement influencé par des produits d'appel. Ces ventes génèrent beaucoup de trafic mais relativement peu de valeur.` };
+    } else if (jourPlusRentable) {
+      pourquoi += ` Cette estimation reste cohérente une fois les produits d'appel retirés du calcul.`;
+    }
+    let limites = null;
+    if (jourMoteur && jourMoteur.nbOccValorisation === 0 && jourMoteur.occurrences && jourMoteur.occurrences.length > 0) {
+      limites = `Le ${jourMoteur.nom} n'a pas encore été entièrement valorisé — le calcul sera actualisé au prochain import.`;
+    }
+    return {
+      jourCible, decision: `Concentrez vos prochaines actions commerciales le ${jourCible.nom}.`,
+      pourquoi, pourquoiBullets, pourquoiPasAutre,
+      impactAttendu: `En privilégiant le ${jourCible.nom} pour vos animations et mises en avant, vous exploitez la journée offrant aujourd'hui le meilleur potentiel économique.`,
+      limites,
+    };
+  }
+
+  async function chargerCandidatsCaisse() {
+    const { data, error } = await fetchAllRows(() => nexusClient.from('v_caisse_ecart_a_traiter').select('*').eq('site', SITE_ACTUEL));
+    if (error) { console.error('Chargement v_caisse_ecart_a_traiter (Brief):', error); return { raw: [], normalises: [] }; }
+    return { raw: data || [], normalises: (data || []).map(NexusConseiller.normaliserCaissePersonne) };
+  }
+
+  async function chargerCandidatsStock() {
+    const { data: releves, error: err1 } = await fetchAllRows(() => nexusClient
+      .from('stock_releves').select('article, categorie, quantite_theorique, releve_le').eq('site', SITE_ACTUEL)
+      .order('releve_le', { ascending: true }).order('article', { ascending: true }));
+    if (err1 || !releves || !releves.length) { if (err1) console.error('Chargement stock_releves (Brief):', err1); return []; }
+    const { data: ventes } = await fetchAllRows(() => nexusClient.from('products')
+      .select('article, quantite, prix_vente, periode_debut, periode_fin').eq('site', SITE_ACTUEL).order('article', { ascending: true }));
+    const { data: controles } = await fetchAllRows(() => nexusClient.from('controles_stock')
+      .select('article, ecart, controle_le').eq('site', SITE_ACTUEL).order('controle_le', { ascending: false }).order('article', { ascending: true }));
+    const analyse = NexusStock.calculerAnalyseStock(releves, ventes, controles);
+    const parRayon = NexusStock.calculerRisqueParRayon(analyse);
+    return parRayon.map(NexusConseiller.normaliserStockRayon);
+  }
+
+  async function chargerCandidatsRappels() {
+    const { data, error } = await fetchAllRows(() => nexusClient.from('rappels').select('*').eq('site', SITE_ACTUEL).eq('fait', false)
+      .order('date_echeance', { ascending: true, nullsFirst: false }).order('created_at', { ascending: true }));
+    if (error) { console.error('Chargement rappels (Brief):', error); return []; }
+    return (data || []).map(NexusConseiller.normaliserRappel);
+  }
+
+  // Domaine Équipe — repris de chargerDomainesRadarHome() dans App-v1
+  // (ponctualité uniquement, comme partout ailleurs dans NEXUS).
+  async function chargerDomaineEquipe() {
+    const [{ data: pointagesRetard, error: e2 }, { count: totalPointages, error: e3 }] = await Promise.all([
+      nexusClient.from('pointages').select('employee_id, retard_min').eq('type', 'arrivee').gt('retard_min', 0),
+      nexusClient.from('pointages').select('id', { count: 'exact', head: true }).eq('type', 'arrivee'),
+    ]);
+    if (e2) console.error('Chargement pointages (Brief):', e2);
+    if (e3) console.error('Chargement total pointages (Brief):', e3);
+    let equipeScore = null, employesASurveiller = null;
+    if (pointagesRetard) {
+      const totalRetard = pointagesRetard.reduce((s, p) => s + (p.retard_min || 0), 0);
+      equipeScore = Math.round(Math.max(0, 100 - totalRetard));
+      const retardsParEmploye = {};
+      pointagesRetard.forEach(p => { if (p.employee_id) retardsParEmploye[p.employee_id] = (retardsParEmploye[p.employee_id] || 0) + 1; });
+      employesASurveiller = Object.values(retardsParEmploye).filter(n => n >= 3).length;
+    }
+    return { equipeScore, employesASurveiller, totalPointages: totalPointages != null ? totalPointages : null };
+  }
+
+  async function chargerAlertesInventaireOuvertes() {
+    const { count, error } = await nexusClient.from('inventaire_alertes').select('id', { count: 'exact', head: true }).eq('site', SITE_ACTUEL).eq('statut', 'ouverte');
+    if (error) { console.error('Chargement alertes inventaire (Brief):', error); return null; }
+    return count;
+  }
+
+  async function chargerControlesVerifyRestants() {
+    const aujourdhui = new Date().toISOString().slice(0, 10);
+    const { data, error } = await nexusClient.from('audits_caisse').select('quart').eq('site', SITE_ACTUEL).eq('date', aujourdhui);
+    if (error) { console.error('Chargement audits_caisse (contrôles restants, Brief):', error); return null; }
+    const quartsFaits = new Set((data || []).map(a => a.quart));
+    return Math.max(0, 2 - quartsFaits.size);
+  }
+
+  async function chargerMissionsRestantes() {
+    const aujourdhui = new Date().toISOString().slice(0, 10);
+    const [catalogueRes, completionsRes] = await Promise.all([
+      nexusClient.from('mission_catalog').select('mission_id', { count: 'exact', head: true }).eq('actif', true).eq('ponctuelle', false).eq('site_id', SITE_ACTUEL),
+      nexusClient.from('mission_completions').select('mission_id').eq('site_id', SITE_ACTUEL).eq('date', aujourdhui),
+    ]);
+    if (catalogueRes.error) { console.error('Chargement mission_catalog (Brief):', catalogueRes.error); return null; }
+    const total = catalogueRes.count != null ? catalogueRes.count : null;
+    if (total == null) return null;
+    const faitesAujourdhui = new Set((completionsRes.data || []).map(r => r.mission_id)).size;
+    return Math.max(0, total - faitesAujourdhui);
+  }
+
+  // ------------------------------------------------------------
+  // Statuts par axe — repris à l'identique des fonctions statutCommerce/
+  // statutValeur/statutEquipe de NEXUS-App-v1.html (mêmes seuils, jamais
+  // recalculés différemment ici), plus deux fonctions propres à Brief NEXUS
+  // pour les axes Opérations et Risques (5e axe, nouveau sur cet écran).
+  // ------------------------------------------------------------
+  function statutCommerce(facteurs) {
+    if (!facteurs || facteurs.evolutionReelle == null) return 'Données insuffisantes';
+    if (facteurs.evolutionReelle >= 0.05) return 'En progression';
+    if (facteurs.evolutionReelle <= -0.05) return 'En repli';
+    return 'Stable';
+  }
+  function statutValeur(facteurs, margePlusResultat) {
+    if (!facteurs || facteurs.margeReelle == null) return 'Données insuffisantes';
+    if (margePlusResultat && margePlusResultat.nbEcarts > 0) return 'À surveiller';
+    return 'Sous contrôle';
+  }
+  function statutEquipe(equipeScore, totalPointages) {
+    if (equipeScore == null || totalPointages == null || totalPointages < SEUIL_MIN_POINTAGES_EQUIPE) return 'Données insuffisantes';
+    if (equipeScore >= 90) return 'Sous contrôle';
+    if (equipeScore >= 70) return 'À surveiller';
+    return 'À corriger';
+  }
+  function statutRisques(score) {
+    if (score == null) return 'Données insuffisantes';
+    if (score >= 70) return 'Sous contrôle';
+    if (score >= 40) return 'À surveiller';
+    return 'À corriger';
+  }
+
+  // Scores numériques 0-100 pour la Boussole — pondération PROVISOIRE, non
+  // recalibrée (même esprit que la pondération de nexus-indice.js, elle
+  // aussi documentée comme provisoire). Chaque entrée est une donnée réelle
+  // déjà calculée ailleurs dans NEXUS ; seule la façon de les combiner en
+  // une position sur 100 est un premier jet à ajuster avec l'usage réel.
+  function scoreDepuisEvolution(evol) {
+    if (evol == null) return null;
+    return Math.max(0, Math.min(100, Math.round(50 + evol * 250)));
+  }
+  function scoreDepuisMarge(margeReelle) {
+    if (margeReelle == null) return null;
+    return Math.max(0, Math.min(100, Math.round(50 + (margeReelle - 0.25) * 100)));
+  }
+  function scoreOperations(detailOperations, totalJours) {
+    if (!totalJours || detailOperations == null) return null;
+    return Math.max(0, Math.min(100, Math.round(100 - (detailOperations / SEUIL_ECART_OPERATIONS_EUR) * 50)));
+  }
+  function scoreRisques({ nbCritiquesCaisse, alertesInventaireOuvertes, risqueStockTotal, pertesR2Total }) {
+    if (nbCritiquesCaisse == null && alertesInventaireOuvertes == null && risqueStockTotal == null && pertesR2Total == null) return null;
+    let penalite = 0;
+    penalite += Math.min(40, (nbCritiquesCaisse || 0) * 15);
+    penalite += Math.min(20, (alertesInventaireOuvertes || 0) * 4);
+    penalite += (risqueStockTotal || 0) > 0 ? 20 : 0;
+    penalite += (pertesR2Total || 0) > 0 ? 20 : 0;
+    return Math.max(0, Math.min(100, Math.round(100 - penalite)));
+  }
+
+  function couleurAxe(valeur) {
+    if (valeur === null) return { hex: '#57626F', nom: 'Donnée insuffisante' };
+    if (valeur >= 70) return { hex: '#34D399', nom: 'Sous contrôle' };
+    if (valeur >= 40) return { hex: '#F5A623', nom: 'À surveiller' };
+    return { hex: '#F0575A', nom: 'Priorité' };
+  }
+
+  // Radar SVG 5 axes — coordonnées polaires adaptées de genererRadarSVG()
+  // dans NEXUS-Radar-Manager-v1.html (même principe : grille + polygone +
+  // points colorés par statut), réduit à 5 axes pour la Boussole NEXUS.
+  function genererBoussoleSVG(axes) {
+    const cx = 140, cy = 140, rMax = 95, n = axes.length;
+    const angle = i => (Math.PI * 2 * i / n) - Math.PI / 2;
+    const point = (i, r) => [cx + r * Math.cos(angle(i)), cy + r * Math.sin(angle(i))];
+    let defs = `<defs><radialGradient id="glowBrief" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#D4AF37" stop-opacity="0.30"/><stop offset="100%" stop-color="#D4AF37" stop-opacity="0.04"/>
+    </radialGradient></defs>`;
+    let grid = '';
+    [0.33, 0.66, 1].forEach(f => {
+      const pts = axes.map((_, i) => point(i, rMax * f).join(',')).join(' ');
+      grid += `<polygon points="${pts}" fill="none" stroke="#242E38" stroke-width="1"/>`;
+    });
+    axes.forEach((_, i) => { const [x, y] = point(i, rMax); grid += `<line x1="${cx}" y1="${cy}" x2="${x}" y2="${y}" stroke="#242E38" stroke-width="1"/>`; });
+    const mesures = axes.map((a, i) => a.valeur != null ? point(i, rMax * Math.max(a.valeur, 8) / 100) : null);
+    let dataShape = '';
+    const ptsValides = mesures.filter(p => p !== null);
+    if (ptsValides.length >= 3) dataShape = `<polygon points="${ptsValides.map(p => p.join(',')).join(' ')}" fill="url(#glowBrief)" stroke="#D4AF37" stroke-width="2.5" stroke-linejoin="round"/>`;
+    let dots = '';
+    axes.forEach((a, i) => {
+      const c = couleurAxe(a.valeur);
+      if (a.valeur != null) { const [x, y] = point(i, rMax * Math.max(a.valeur, 8) / 100); dots += `<circle cx="${x}" cy="${y}" r="5.5" fill="${c.hex}" stroke="#0B0F14" stroke-width="2"/>`; }
+      else { const [x, y] = point(i, rMax * 0.35); dots += `<circle cx="${x}" cy="${y}" r="4" fill="none" stroke="#57626F" stroke-width="1.5" stroke-dasharray="2,2"/>`; }
+    });
+    let labels = '';
+    axes.forEach((a, i) => {
+      const [x, y] = point(i, rMax + 24);
+      const c = couleurAxe(a.valeur);
+      labels += `<circle cx="${x}" cy="${y}" r="14" fill="${a.valeur != null ? c.hex + '22' : '#1A222C'}" stroke="${a.valeur != null ? c.hex : '#242E38'}" stroke-width="1.5"/>`;
+      labels += `<text x="${x}" y="${y + 1}" text-anchor="middle" dominant-baseline="middle" font-size="13">${a.icone}</text>`;
+    });
+    return `<svg viewBox="0 0 280 280">${defs}${grid}${dataShape}${dots}${labels}</svg>`;
+  }
+
+  // ------------------------------------------------------------
+  // Assemblage complet du Brief — une seule fonction qui appelle tous les
+  // moteurs, puis construit l'objet ExecutiveBrief rendu par renderBrief().
+  // ------------------------------------------------------------
+  async function construireBrief() {
+    const rowsBrut = await chargerProducts();
+    const { periodeAffichage, paire, rowsPaireActuelle, rowsPairePrecedente } = NexusPeriodes.analyserPeriodes(rowsBrut);
+    const facteurs = NexusIndice.calculerFacteurs(rowsBrut);
+    const scoreGlobal = facteurs ? NexusIndice.calculerIndiceNexus(facteurs) : null;
+    const candidatsProduitsBrut = NexusConseiller.calculerCandidatsProduits(rowsBrut);
+    const produitsStrategiques = paire ? NexusConseiller.analyserProduitsStrategiques(rowsPaireActuelle, rowsPairePrecedente) : null;
+
+    const [margePlusResultat, constatTempo, messagesAdvisor, candidatsCaisseObj, candidatsStock, candidatsRappels, domaineEquipe, alertesInvOuvertes, controlesVerifyRestants, missionsRestantes] = await Promise.all([
+      chargerMargePlus(rowsBrut), chargerConstatTempo(), chargerMessagesAdvisor(),
+      chargerCandidatsCaisse(), chargerCandidatsStock(), chargerCandidatsRappels(), chargerDomaineEquipe(),
+      chargerAlertesInventaireOuvertes(), chargerControlesVerifyRestants(), chargerMissionsRestantes(),
+    ]);
+
+    // Succès à féliciter — même détection que MEILLEUR_SUCCES du Cockpit
+    // (plus forte progression, base ≥ 50 € pour ne pas célébrer un
+    // pourcentage gonflé par un tout petit chiffre de départ).
+    let meilleurSucces = null;
+    if (paire) {
+      const precedentParArticle = {};
+      rowsPairePrecedente.forEach(r => { const cle = r.categorie + '|' + r.article; precedentParArticle[cle] = (precedentParArticle[cle] || 0) + (r.ca || 0); });
+      rowsPaireActuelle.forEach(p => {
+        const cle = p.categorie + '|' + p.article;
+        const caPrec = precedentParArticle[cle];
+        const evolution = (caPrec && caPrec > 0) ? (p.ca - caPrec) / caPrec : null;
+        if (evolution === null || evolution <= 0 || caPrec < 50) return;
+        if (!meilleurSucces || evolution > meilleurSucces.evolution) meilleurSucces = { article: p.article, evolution, gain: Math.max(p.ca - caPrec, 0) };
+      });
+    }
+
+    const statutCommerceVal = statutCommerce(facteurs);
+    const statutValeurVal = statutValeur(facteurs, margePlusResultat);
+    const statutOperationsVal = constatTempo.statutOperations;
+    const statutEquipeVal = statutEquipe(domaineEquipe.equipeScore, domaineEquipe.totalPointages);
+    const risquesR2 = candidatsProduitsBrut.filter(c => c.rule_id === 'R2-BAISSE');
+    const pertesR2Total = risquesR2.reduce((s, c) => s + (c.impact_eur || 0), 0);
+    const risqueStockTotal = candidatsStock.reduce((s, c) => s + (c.impact_eur || 0), 0);
+    const nbCritiquesCaisse = candidatsCaisseObj.raw.filter(c => c.statut === 'critique').length;
+    const scoreRisquesVal = scoreRisques({ nbCritiquesCaisse, alertesInventaireOuvertes: alertesInvOuvertes, risqueStockTotal, pertesR2Total });
+    const statutRisquesVal = statutRisques(scoreRisquesVal);
+
+    const AXES = [
+      { nom: 'Commerce', icone: '🛒', valeur: scoreDepuisEvolution(facteurs ? facteurs.evolutionReelle : null), statut: statutCommerceVal, cible: 'NEXUS-Produits-v1.html', detail: facteurs && facteurs.evolutionReelle != null ? `Évolution du CA : ${facteurs.evolutionReelle >= 0 ? '+' : ''}${(facteurs.evolutionReelle * 100).toFixed(1)} % vs période précédente comparable.` : "Pas encore de paire de périodes comparables." },
+      { nom: 'Marge', icone: '💰', valeur: scoreDepuisMarge(facteurs ? facteurs.margeReelle : null), statut: statutValeurVal, cible: 'NEXUS-Scanner-v1.html', detail: facteurs && facteurs.margeReelle != null ? `Marge réelle : ${(facteurs.margeReelle * 100).toFixed(1)} %${margePlusResultat && margePlusResultat.nbEcarts ? ` · ${margePlusResultat.nbEcarts} écart${margePlusResultat.nbEcarts > 1 ? 's' : ''} de marge actif${margePlusResultat.nbEcarts > 1 ? 's' : ''}` : ''}.` : "Marge non calculable sur les données actuelles." },
+      { nom: 'Opérations', icone: '⚙️', valeur: scoreOperations(constatTempo.detailOperations, constatTempo.totalJours), statut: statutOperationsVal, cible: 'NEXUS-Verify-v1.html', detail: constatTempo.totalJours ? `Écart de caisse moyen : ${Math.round(constatTempo.detailOperations)} €/jour${controlesVerifyRestants ? ` · ${controlesVerifyRestants} contrôle${controlesVerifyRestants > 1 ? 's' : ''} caisse en attente aujourd'hui` : ''}.` : "Pas encore assez d'audits de caisse enregistrés." },
+      { nom: 'Équipe', icone: '👥', valeur: domaineEquipe.equipeScore, statut: statutEquipeVal, cible: 'NEXUS-Resultats-Equipe-v1.html', detail: domaineEquipe.totalPointages != null && domaineEquipe.totalPointages >= SEUIL_MIN_POINTAGES_EQUIPE ? `Ponctualité mesurée sur ${domaineEquipe.totalPointages} pointages${domaineEquipe.employesASurveiller ? ` · ${domaineEquipe.employesASurveiller} employé${domaineEquipe.employesASurveiller > 1 ? 's' : ''} à surveiller` : ''}.` : "Pas encore assez de pointages enregistrés." },
+      { nom: 'Risques', icone: '⚠️', valeur: scoreRisquesVal, statut: statutRisquesVal, cible: 'NEXUS-Scanner-Stock-v1.html', detail: `${nbCritiquesCaisse} écart${nbCritiquesCaisse > 1 ? 's' : ''} de caisse critique${nbCritiquesCaisse > 1 ? 's' : ''} · ${alertesInvOuvertes || 0} alerte${(alertesInvOuvertes || 0) > 1 ? 's' : ''} inventaire ouverte${(alertesInvOuvertes || 0) > 1 ? 's' : ''} · ${Math.round(risqueStockTotal).toLocaleString('fr-FR')} € de risque stock estimé.` },
+    ];
+
+    // Synthèse exécutive — ton dirigeant : une conclusion, pas un tableau de
+    // chiffres. Reprend le principe de syntheseEtatGlobal() de App-v1, en
+    // s'appuyant sur les 5 axes de la Boussole plutôt que sur 4.
+    function syntheseExecutive() {
+      const concerns = AXES.filter(a => a.statut === 'À surveiller' || a.statut === 'En repli' || a.statut === 'À corriger').map(a => a.nom.toLowerCase());
+      const debut = statutCommerceVal === 'En progression' ? "Votre activité progresse"
+        : statutCommerceVal === 'En repli' ? "Votre activité recule"
+        : statutCommerceVal === 'Stable' ? "Votre activité reste stable" : null;
+      if (!concerns.length) return debut ? `${debut}, sans point de vigilance identifié aujourd'hui sur les 5 axes suivis par NEXUS.` : "NEXUS n'a pas encore assez de données pour évaluer l'état global de votre commerce.";
+      const liste = concerns.length === 1 ? concerns[0] : concerns.slice(0, -1).join(', ') + ' et ' + concerns[concerns.length - 1];
+      return `${debut || "NEXUS analyse encore votre activité"}, mais ${liste} nécessite${concerns.length > 1 ? 'nt' : ''} votre attention.`;
+    }
+
+    // Forces — max 2, seulement des signaux positifs réels (jamais complétées
+    // artificiellement pour "faire un compte rond").
+    const forces = [];
+    if (meilleurSucces) forces.push({ icone: '📈', titre: `${meilleurSucces.article} en forte progression`, detail: `+${(meilleurSucces.evolution * 100).toFixed(0)} % sur la période, soit environ ${Math.round(meilleurSucces.gain).toLocaleString('fr-FR')} € de gain.`, cible: 'NEXUS-Produits-v1.html' });
+    if (produitsStrategiques && produitsStrategiques.margeEnProgression.length) {
+      const m = produitsStrategiques.margeEnProgression[0];
+      forces.push({ icone: '💰', titre: `Marge en progression sur ${m.article}`, detail: `Marge en hausse de ${(m.evolutionMarge * 100).toFixed(0)} % sur la période.`, cible: 'NEXUS-Scanner-v1.html' });
+    }
+    if (forces.length < 2 && constatTempo.jourPlusRentable) forces.push({ icone: '🗓️', titre: `${constatTempo.jourPlusRentable.nom} — votre journée la plus rentable`, detail: "Confirmé sur plusieurs semaines d'historique, produits d'appel exclus.", cible: 'NEXUS-Tempo-v1.html' });
+    if (forces.length < 2 && statutEquipeVal === 'Sous contrôle') forces.push({ icone: '👥', titre: "Ponctualité de l'équipe sous contrôle", detail: `Score de ponctualité : ${domaineEquipe.equipeScore}/100 sur ${domaineEquipe.totalPointages} pointages.`, cible: 'NEXUS-Resultats-Equipe-v1.html' });
+
+    // Moteur de priorité cross-moteurs — les 7 moteurs disponibles dans
+    // NEXUS aujourd'hui, fusionnés par NexusConseiller.fusionnerEtSelectionner
+    // (rang partagé, jamais un simple tri par euros). n=6 : les 3 premiers
+    // deviennent les décisions, les 3 suivants la liste de vigilance — un
+    // seul et même classement pour les deux, pas deux logiques distinctes.
+    const candidatsProduitsNormalises = candidatsProduitsBrut.filter(c => !VALIDEES_SITE.has(c.candidate_id)).map(NexusConseiller.normaliserProduit);
+    const candidatMargeListe = margePlusResultat && margePlusResultat.candidatTop && !VALIDEES_SITE.has(margePlusResultat.candidatTop.candidate_id) ? [NexusConseiller.normaliserMarge(margePlusResultat.candidatTop)] : [];
+    const candidatTempoBrut = construireCandidatTempo(constatTempo);
+    const candidatTempoListe = candidatTempoBrut ? [NexusConseiller.normaliserTempo(candidatTempoBrut)] : [];
+    const candidatsAdvisorListe = messagesAdvisor.map(NexusConseiller.normaliserAdvisor);
+    const nbMoteursActifs = [candidatsProduitsNormalises, candidatMargeListe, candidatTempoListe, candidatsAdvisorListe, candidatsCaisseObj.normalises, candidatsStock, candidatsRappels].filter(l => l.length > 0).length;
+
+    const fusion = NexusConseiller.fusionnerEtSelectionner(
+      [candidatsProduitsNormalises, candidatMargeListe, candidatTempoListe, candidatsAdvisorListe, candidatsCaisseObj.normalises, candidatsStock, candidatsRappels],
+      { site: SITE_ACTUEL, n: 6 }
+    );
+    const decisions = fusion.slice(0, 3);
+    const watchlist = fusion.slice(3, 6);
+
+    function quandAgir(rang) {
+      if (rang <= 0) return "Aujourd'hui";
+      if (rang === 1) return "Dans les 48 heures";
+      if (rang === 2) return "Cette semaine";
+      return "Dès que possible";
+    }
+    function niveauConfiance(p) { return (p.validable && !p.limites) ? 'Élevé' : 'Moyen'; }
+    function enrichirDecision(p) {
+      return {
+        ...p,
+        ceQueJObserve: p.pourquoi,
+        pourquoiCelaCompte: p.impactAttendu,
+        ceQuiSembleLExpliquer: `Détecté par le moteur ${MOTEUR_LABEL[p.moteur] || p.moteur} à partir de ${MOTEUR_SOURCE[p.moteur] || 'données réelles'}.`,
+        ceQuiManquePourConfirmer: p.limites || "Aucune réserve identifiée — signal directement mesuré.",
+        ceQueJeRecommande: p.decision,
+        quandAgir: quandAgir(p.rang),
+        niveauDeConfiance: niveauConfiance(p),
+      };
+    }
+
+    const gain = decisions.filter(p => ['🔥 À AGIR', '📈 OPPORTUNITÉ', '💡 RECOMMANDATION'].includes(p.etat)).reduce((s, p) => s + (p.impact_eur || 0), 0);
+    const risque = decisions.filter(p => !['🔥 À AGIR', '📈 OPPORTUNITÉ', '💡 RECOMMANDATION'].includes(p.etat)).reduce((s, p) => s + (p.impact_eur || 0), 0);
+
+    return {
+      periodeAffichage, scoreGlobal, axes: AXES, synthese: syntheseExecutive(), forces: forces.slice(0, 2),
+      decisions: decisions.map(enrichirDecision), watchlist,
+      impact: { gain, risque, delai: 'Cette semaine', confianceGlobale: `${nbMoteursActifs}/7 moteurs NEXUS ont contribué à cette synthèse aujourd'hui.` },
+      missionsRestantes,
+    };
+  }
+
+  // ------------------------------------------------------------
+  // Rendu — une fonction par section, toutes appelées depuis renderBrief().
+  // ------------------------------------------------------------
+  function renderHeroEtSynthese(brief) {
+    let couleur = 'var(--text-dim)', statutTexte = 'Données insuffisantes';
+    if (brief.scoreGlobal != null) {
+      if (brief.scoreGlobal >= 90) { couleur = 'var(--green)'; statutTexte = 'Excellence'; }
+      else if (brief.scoreGlobal >= 75) { couleur = 'var(--green)'; statutTexte = 'Sous contrôle'; }
+      else if (brief.scoreGlobal >= 60) { couleur = 'var(--amber)'; statutTexte = 'À surveiller'; }
+      else { couleur = 'var(--red)'; statutTexte = 'Priorité élevée'; }
+    }
+    const dateLabel = brief.periodeAffichage ? `Période analysée : ${new Date(brief.periodeAffichage.debut + 'T00:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })} – ${new Date(brief.periodeAffichage.fin + 'T00:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}` : new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
+    return `
+      <div class="brief-hero">
+        <div class="brief-date">${dateLabel}</div>
+        <div class="brief-indice-value" style="color:${couleur};">${brief.scoreGlobal != null ? brief.scoreGlobal : '—'}</div>
+        <div class="brief-indice-label">Indice NEXUS</div>
+        <div class="brief-etat"><span class="brief-etat-dot" style="color:${couleur};"></span>${statutTexte}</div>
+        <div class="brief-synthese">${brief.synthese}</div>
+      </div>`;
+  }
+
+  function renderBoussole(brief) {
+    const svg = genererBoussoleSVG(brief.axes);
+    const rows = brief.axes.map(a => {
+      const c = couleurAxe(a.valeur);
+      return `<a class="axe-row" href="${a.cible}">
+        <span class="axe-dot" style="background:${c.hex}; color:${c.hex};"></span>
+        <span class="axe-nom">${a.icone} ${a.nom}</span>
+        <span class="axe-statut" style="color:${COULEUR_STATUT_DOMAINE[a.statut] || 'var(--text-dim)'};">${a.statut}</span>
+        <span class="axe-chev">›</span>
+      </a>`;
+    }).join('');
+    return `
+      <div class="section">
+        <div class="section-title">Boussole NEXUS <span class="badge badge-real">5 axes réels</span></div>
+        <div class="boussole-card">
+          <div class="boussole-svg-wrap">${svg}</div>
+          ${rows}
+        </div>
+        <div class="section-note">Chaque axe s'appuie sur des données déjà mesurées ailleurs dans NEXUS — un axe grisé n'est pas mauvais, il manque simplement de données pour l'instant. Touchez un axe pour ouvrir l'écran source.</div>
+      </div>`;
+  }
+
+  function renderForces(brief) {
+    if (!brief.forces.length) return '';
+    return `
+      <div class="section">
+        <div class="section-title">Ce qui va bien <span class="badge badge-real">réel</span></div>
+        ${brief.forces.map(f => `<a class="force-card" href="${f.cible}" style="text-decoration:none;">
+          <div class="force-icon">${f.icone}</div>
+          <div class="force-titre">${f.titre}</div>
+          <div class="force-detail">${f.detail}</div>
+        </a>`).join('')}
+      </div>`;
+  }
+
+  function decisionCardHTML(p, i, estPriorite) {
+    return `
+      <div class="decision-card ${ETAT_CLASS[p.etat] || ''} ${estPriorite ? 'priorite' : ''}" id="decision-${i}">
+        <div class="decision-head" onclick="document.getElementById('decision-${i}').classList.toggle('open')">
+          <span class="decision-rank ${estPriorite ? '' : 'secondaire'}">${estPriorite ? '① PRIORITÉ' : `#${i + 1}`}</span>
+          <span class="decision-teaser">${p.ceQueJeRecommande}</span>
+          <span class="decision-chevron">›</span>
+        </div>
+        <div class="decision-body">
+          <div class="decision-field"><div class="decision-field-label">Ce que j'observe</div><div class="decision-field-text">${p.ceQueJObserve}</div></div>
+          ${p.pourquoiCelaCompte ? `<div class="decision-field"><div class="decision-field-label">Pourquoi cela compte</div><div class="decision-field-text"><b>${p.pourquoiCelaCompte}</b></div></div>` : ''}
+          <div class="decision-field"><div class="decision-field-label">Ce qui semble l'expliquer</div><div class="decision-field-text">${p.ceQuiSembleLExpliquer}</div></div>
+          <div class="decision-field"><div class="decision-field-label">Ce qui manque pour confirmer</div><div class="decision-field-text">${p.ceQuiManquePourConfirmer}</div></div>
+          ${p.preuve ? `<div class="decision-field"><div class="decision-field-label">Preuves</div><div class="decision-field-text">${p.preuve}</div></div>` : ''}
+          <div class="decision-chips">
+            <span class="decision-chip">📅 ${p.quandAgir}</span>
+            <span class="decision-chip ${p.niveauDeConfiance === 'Élevé' ? 'confiance-eleve' : 'confiance-moyen'}">Confiance : ${p.niveauDeConfiance}</span>
+            <span class="decision-chip">${MOTEUR_LABEL[p.moteur] || 'Signal'}</span>
+          </div>
+          ${p.validable
+            ? `<button class="decision-valider" data-id="${p.candidate_id}">✓ Accepter cette décision</button>`
+            : p.moteur === 'rappel'
+              ? `<button class="decision-fait" data-rappel-id="${p.rappelId}">✓ Marquer comme fait</button>`
+              : p.cible ? `<a href="${p.cible}" class="decision-lien">→ Voir les preuves dans ${MOTEUR_LABEL[p.moteur] || p.cible}</a>` : ''}
+          ${p.moteur === 'caisse' && p.auditId ? `<label class="caisse-justifie-row"><input type="checkbox" class="caisse-justifie-checkbox" data-audit-id="${p.auditId}"><span>Justifié — ne plus me signaler cet écart</span></label>` : ''}
+        </div>
+      </div>`;
+  }
+
+  function renderDecisions(brief) {
+    if (!brief.decisions.length) {
+      return `<div class="section"><div class="section-title">Décisions recommandées <span class="badge badge-real">réel</span></div>
+        <div class="empty-serein">✅ Rien ne nécessite une décision du dirigeant aujourd'hui — toutes les priorités identifiées ont été traitées ou validées.</div></div>`;
+    }
+    return `
+      <div class="section">
+        <div class="section-title">Décisions recommandées <span class="badge badge-real">réel</span></div>
+        ${brief.decisions.map((p, i) => decisionCardHTML(p, i, i === 0)).join('')}
+        <div class="section-note">Classement partagé entre 7 moteurs NEXUS (Produits, Marge+, Tempo, Signaux Qualité/Caisse, Verify, Scanner Stock, Rappels) — jamais un simple tri par montant, qui favoriserait toujours le même moteur.</div>
+      </div>`;
+  }
+
+  function renderWatchlist(brief) {
+    if (!brief.watchlist.length) return '';
+    return `
+      <div class="section">
+        <div class="section-title">À surveiller <span class="badge badge-derived">dérivé</span></div>
+        ${brief.watchlist.map(p => `<a class="watch-item" href="${p.cible || '#'}">
+          <span class="watch-dot"></span>
+          <span class="watch-text"><b>${p.decision}</b><br>${p.pourquoi}</span>
+          <span class="watch-chev">›</span>
+        </a>`).join('')}
+        <div class="section-note">Ces signaux suivent juste derrière les 3 décisions ci-dessus dans le même classement — pas encore prioritaires, mais à ne pas perdre de vue.</div>
+      </div>`;
+  }
+
+  function renderImpact(brief) {
+    return `
+      <div class="section">
+        <div class="section-title">Impact des décisions du jour <span class="badge badge-real">réel</span></div>
+        <div class="impact-grid">
+          <div class="impact-card gain"><div class="impact-value">${Math.round(brief.impact.gain).toLocaleString('fr-FR')} €</div><div class="impact-label">Gain potentiel identifié</div></div>
+          <div class="impact-card risque"><div class="impact-value">${Math.round(brief.impact.risque).toLocaleString('fr-FR')} €</div><div class="impact-label">Risque à traiter</div></div>
+        </div>
+        <div class="impact-meta-row"><span class="impact-meta-label">Délai recommandé</span><span class="impact-meta-val">${brief.impact.delai}</span></div>
+        <div class="impact-meta-row"><span class="impact-meta-label">Fiabilité de la synthèse</span><span class="impact-meta-val">${brief.impact.confianceGlobale}</span></div>
+      </div>`;
+  }
+
+  function renderBrief() {
+    const root = document.getElementById('briefRoot');
+    root.innerHTML = `<div class="desktop-grid">
+      ${renderHeroEtSynthese(BRIEF)}
+      ${renderBoussole(BRIEF)}
+      ${renderForces(BRIEF)}
+      ${renderDecisions(BRIEF)}
+      ${renderWatchlist(BRIEF)}
+      ${renderImpact(BRIEF)}
+    </div>`;
+
+    root.querySelectorAll('.decision-valider').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation(); btn.disabled = true;
+        const plan = BRIEF.decisions.find(p => p.candidate_id === btn.dataset.id);
+        if (!plan) return;
+        const ok = await enregistrerJournalDecision(plan);
+        if (!ok) { btn.disabled = false; alert("Erreur d'enregistrement — réessayez."); return; }
+        await rafraichir();
+      });
+    });
+    root.querySelectorAll('.decision-fait').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation(); btn.disabled = true;
+        const ok = await marquerRappelFait(btn.dataset.rappelId);
+        if (!ok) { btn.disabled = false; alert("Erreur — réessayez."); return; }
+        await rafraichir();
+      });
+    });
+    root.querySelectorAll('.caisse-justifie-checkbox').forEach(cb => {
+      cb.addEventListener('click', e => e.stopPropagation());
+      cb.addEventListener('change', async () => {
+        if (!cb.checked) return;
+        cb.disabled = true;
+        const ok = await marquerCaisseJustifiee(cb.dataset.auditId);
+        if (!ok) { cb.disabled = false; cb.checked = false; alert("Erreur — réessayez."); return; }
+        await rafraichir();
+      });
+    });
+  }
+
+  async function rafraichir() {
+    BRIEF = await construireBrief();
+    renderBrief();
+  }
+
+  // Écrit la décision validée dans journal_decisions — même table, mêmes
+  // colonnes que NEXUS-Cockpit-v2.html (enregistrerJournalDecision), pour
+  // qu'une décision acceptée depuis Brief NEXUS soit indiscernable d'une
+  // décision acceptée depuis le Cockpit, y compris dans Journal NEXUS.
+  async function enregistrerJournalDecision(plan) {
+    const row = {
+      site: SITE_ACTUEL, candidate_id: plan.candidate_id, rule_id: plan.ruleId, etat: plan.etat,
+      recommandation: plan.decision, impact_eur: plan.impact_eur, article: plan.article, categorie: plan.categorie || null,
+      date: new Date().toISOString().slice(0, 10), heure: new Date().toTimeString().slice(0, 5),
+      employee_id: employeeCourantId,
+      ca_reference: plan.ca_reference != null ? plan.ca_reference : null,
+      periode_reference_debut: plan.periode_reference_debut || null, periode_reference_fin: plan.periode_reference_fin || null,
+    };
+    const { error } = await nexusClient.from('journal_decisions').insert(row);
+    if (error) { console.error('Écriture Journal (Brief):', error); return false; }
+    VALIDEES_SITE.add(plan.candidate_id);
+    JOURNAL_DECISIONS.unshift({ ...row, created_at: new Date().toISOString() });
+    return true;
+  }
+  async function marquerRappelFait(rappelId) {
+    const { error } = await nexusClient.from('rappels').update({ fait: true, fait_le: new Date().toISOString() }).eq('id', rappelId);
+    if (error) { console.error('Marquer rappel fait (Brief):', error); return false; }
+    return true;
+  }
+  async function marquerCaisseJustifiee(auditId) {
+    const trace = `Justifié depuis Brief NEXUS par ${STATION_CONFIG.manager_prenom || 'un dirigeant'} le ${new Date().toLocaleDateString('fr-FR')}.`;
+    const { error } = await nexusClient.from('audits_caisse').update({ commentaire: trace }).eq('id', auditId);
+    if (error) { console.error('Justification écart caisse (Brief):', error); return false; }
+    return true;
+  }
+
+  nexusRequireAuth().then(async employee => {
+    if (!employee) return;
+    if (employee.role !== 'manager' && employee.role !== 'gerant') {
+      document.body.innerHTML = '<div class="locked">Brief NEXUS est réservé aux managers et gérants.</div>';
+      return;
+    }
+    employeeCourantId = employee.id;
+    SITE_ACTUEL = employee.site_id || 'vito-sainte-marie';
+    STATION_CONFIG.manager_prenom = employee.nom;
+    STATION_CONFIG.manager_role = employee.role;
+    const { data: siteActuel } = await nexusClient.from('sites').select('nom_entreprise, logo_url').eq('site_id', SITE_ACTUEL).maybeSingle();
+    if (siteActuel && siteActuel.nom_entreprise) STATION_CONFIG.station_nom = siteActuel.nom_entreprise;
+    if (siteActuel && siteActuel.logo_url) STATION_CONFIG.logo_url = siteActuel.logo_url;
+    const header = document.getElementById('nexus-header');
+    header.innerHTML = `
+      <div class="logo-frame"><img class="logo" src="${STATION_CONFIG.logo_url}" alt="${STATION_CONFIG.station_nom}" onerror="this.style.display='none'"></div>
+      <div class="id">
+        <div class="greet">Brief NEXUS <span class="role-badge">${STATION_CONFIG.manager_role}</span></div>
+        <div class="station">${STATION_CONFIG.station_nom}</div>
+      </div>
+      <a href="NEXUS-App-v1.html" class="menu-btn">☰ Menu</a>`;
+    await chargerJournalDecisions();
+    await rafraichir();
+  });
+</script>
+</body>
+</html>
