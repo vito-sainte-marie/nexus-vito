@@ -83,6 +83,15 @@
   .brief-etat{margin-top:18px; display:inline-flex; align-items:center; gap:9px; font-size:13px; color:var(--text-mid); line-height:1.5; padding:10px 18px; border-radius:22px; background:var(--panel-raised); max-width:100%;}
   .brief-etat-dot{width:9px; height:9px; border-radius:50%; flex-shrink:0; box-shadow:0 0 10px currentColor;}
   .brief-synthese{margin-top:16px; font-size:14.5px; line-height:1.6; color:var(--text); max-width:320px; margin-left:auto; margin-right:auto;}
+  .indice-explain-toggle{margin-top:14px; font-family:var(--mono); font-size:11px; color:var(--cyan); cursor:pointer; display:inline-flex; align-items:center; gap:5px;}
+  .indice-explain-toggle .chev{display:inline-block; transition:0.2s;}
+  .indice-explain-wrap.open .indice-explain-toggle .chev{transform:rotate(90deg);}
+  .indice-explain{display:none; margin-top:12px; text-align:left; background:var(--panel-raised); border-radius:12px; padding:14px 16px;}
+  .indice-explain-wrap.open .indice-explain{display:block;}
+  .indice-delta-row{display:flex; justify-content:space-between; align-items:center; padding:7px 0; border-bottom:1px solid var(--hairline); font-size:12.5px;}
+  .indice-delta-row:last-child{border-bottom:none;}
+  .indice-delta-absent{color:var(--text-dim); font-family:var(--mono); font-size:10.5px;}
+  .legend-line{padding:0 20px 14px; font-size:10.5px; color:var(--text-dim); line-height:1.6; text-align:center;}
 
   .plans-loading{padding:36px 20px; text-align:center;}
   .plans-loading-logo{width:38px; height:38px; margin-bottom:12px; animation:nexusSpin 1.3s linear infinite; filter:drop-shadow(0 0 10px rgba(79,195,217,0.4));}
@@ -102,6 +111,8 @@
   .section-title .badge{font-family:var(--mono); font-size:9.5px; padding:2px 7px; border-radius:10px; letter-spacing:0.02em;}
   .badge-real{color:var(--green); background:var(--green-dim);}
   .badge-derived{color:var(--cyan); background:rgba(79,195,217,0.12);}
+  .badge-estime{color:var(--gold); background:rgba(212,175,55,0.14);}
+  .badge-absent{color:var(--text-dim); background:var(--panel-raised);}
   .section-note{font-size:11px; color:var(--text-dim); line-height:1.5; margin-top:10px;}
 
   /* BOUSSOLE NEXUS — radar 5 axes */
@@ -112,16 +123,20 @@
   .boussole-card::before{content:''; position:absolute; top:-40%; left:-20%; width:140%; height:140%; background:radial-gradient(circle, rgba(212,175,55,0.08), transparent 60%); pointer-events:none;}
   .boussole-svg-wrap{display:flex; justify-content:center; margin-bottom:6px;}
   .boussole-svg-wrap svg{width:100%; max-width:280px; height:auto;}
+  .axe-block{border-bottom:1px solid var(--hairline);}
+  .axe-block:last-child{border-bottom:none;}
   .axe-row{
-    display:flex; align-items:center; gap:12px; padding:11px 4px; border-bottom:1px solid var(--hairline);
-    text-decoration:none; color:inherit; cursor:pointer;
+    display:flex; align-items:center; gap:12px; padding:11px 4px;
+    color:inherit; cursor:pointer;
   }
-  .axe-row:last-child{border-bottom:none;}
   .axe-row:active{background:var(--panel-raised);}
   .axe-dot{width:11px; height:11px; border-radius:50%; flex-shrink:0; box-shadow:0 0 8px currentColor;}
   .axe-nom{flex:1; font-size:13.5px; font-weight:600;}
   .axe-statut{font-family:var(--mono); font-size:10.5px; text-align:right;}
-  .axe-chev{color:var(--text-dim); font-size:14px; flex-shrink:0;}
+  .axe-chev{color:var(--text-dim); font-size:14px; flex-shrink:0; transition:0.2s;}
+  .axe-block.open .axe-chev{transform:rotate(90deg);}
+  .axe-detail{display:none; padding:0 4px 16px;}
+  .axe-block.open .axe-detail{display:block;}
 
   /* FORCES */
   .force-card{
@@ -137,7 +152,17 @@
   /* DECISIONS */
   .decision-card{background:var(--panel); border:1px solid var(--hairline); border-radius:12px; margin-bottom:10px; overflow:hidden; border-left:3px solid var(--hairline);}
   .decision-card:last-child{margin-bottom:0;}
-  .decision-card.priorite{border-left-color:var(--gold); box-shadow:0 0 0 1px rgba(212,175,55,0.15) inset;}
+  .decision-card.priorite{
+    border-left-width:4px; border-left-color:var(--gold); box-shadow:0 0 0 1px rgba(212,175,55,0.15) inset, 0 8px 24px rgba(212,175,55,0.08);
+    background:linear-gradient(145deg, rgba(212,175,55,0.07), var(--panel));
+  }
+  .decision-card.priorite .decision-head{padding:18px 18px 16px;}
+  .decision-card.priorite .decision-teaser{font-size:15.5px; line-height:1.45;}
+  .decision-card.priorite .decision-valider{background:var(--gold); color:#241d0c; font-size:13px; padding:13px;}
+  .decision-card.secondaire{border-left-width:2px; opacity:0.94;}
+  .decision-card.secondaire .decision-head{padding:11px 14px;}
+  .decision-card.secondaire .decision-teaser{font-size:12.5px; font-weight:500;}
+  .decision-card.secondaire .decision-rank{font-size:9px; padding:2px 7px;}
   .decision-card.etat-agir{border-left-color:#F0575A;}
   .decision-card.etat-opportunite{border-left-color:#34D399;}
   .decision-card.etat-surveiller{border-left-color:#F5A623;}
@@ -608,7 +633,9 @@
     const rowsBrut = await chargerProducts();
     const { periodeAffichage, paire, rowsPaireActuelle, rowsPairePrecedente } = NexusPeriodes.analyserPeriodes(rowsBrut);
     const facteurs = NexusIndice.calculerFacteurs(rowsBrut);
-    const scoreGlobal = facteurs ? NexusIndice.calculerIndiceNexus(facteurs) : null;
+    const periodeLabel = periodeAffichage
+      ? `Période analysée : ${new Date(periodeAffichage.debut + 'T00:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })} – ${new Date(periodeAffichage.fin + 'T00:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}`
+      : new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
     const candidatsProduitsBrut = NexusConseiller.calculerCandidatsProduits(rowsBrut);
     const produitsStrategiques = paire ? NexusConseiller.analyserProduitsStrategiques(rowsPaireActuelle, rowsPairePrecedente) : null;
 
@@ -645,25 +672,64 @@
     const scoreRisquesVal = scoreRisques({ nbCritiquesCaisse, alertesInventaireOuvertes: alertesInvOuvertes, risqueStockTotal, pertesR2Total });
     const statutRisquesVal = statutRisques(scoreRisquesVal);
 
+    // type : 'reel' si l'axe vient d'un seul facteur mesuré directement
+    // (Commerce/Marge/Opérations/Équipe), 'derive' si l'axe interprète
+    // plusieurs signaux combinés par une pondération encore provisoire
+    // (Risques — voir scoreRisques) — distinction demandée par Frédéric
+    // (02/08/2026 soir) pour ne jamais faire passer une interprétation
+    // pour une mesure directe. moteurs : liste des moteurs du Conseiller
+    // dont une décision peut légitimement être rattachée à cet axe dans
+    // la Boussole (Décision liée, voir renderBoussole).
     const AXES = [
-      { nom: 'Commerce', icone: '🛒', valeur: scoreDepuisEvolution(facteurs ? facteurs.evolutionReelle : null), statut: statutCommerceVal, cible: 'NEXUS-Produits-v1.html', detail: facteurs && facteurs.evolutionReelle != null ? `Évolution du CA : ${facteurs.evolutionReelle >= 0 ? '+' : ''}${(facteurs.evolutionReelle * 100).toFixed(1)} % vs période précédente comparable.` : "Pas encore de paire de périodes comparables." },
-      { nom: 'Marge', icone: '💰', valeur: scoreDepuisMarge(facteurs ? facteurs.margeReelle : null), statut: statutValeurVal, cible: 'NEXUS-Scanner-v1.html', detail: facteurs && facteurs.margeReelle != null ? `Marge réelle : ${(facteurs.margeReelle * 100).toFixed(1)} %${margePlusResultat && margePlusResultat.nbEcarts ? ` · ${margePlusResultat.nbEcarts} écart${margePlusResultat.nbEcarts > 1 ? 's' : ''} de marge actif${margePlusResultat.nbEcarts > 1 ? 's' : ''}` : ''}.` : "Marge non calculable sur les données actuelles." },
-      { nom: 'Opérations', icone: '⚙️', valeur: scoreOperations(constatTempo.detailOperations, constatTempo.totalJours), statut: statutOperationsVal, cible: 'NEXUS-Verify-v1.html', detail: constatTempo.totalJours ? `Écart de caisse moyen : ${Math.round(constatTempo.detailOperations)} €/jour${controlesVerifyRestants ? ` · ${controlesVerifyRestants} contrôle${controlesVerifyRestants > 1 ? 's' : ''} caisse en attente aujourd'hui` : ''}.` : "Pas encore assez d'audits de caisse enregistrés." },
-      { nom: 'Équipe', icone: '👥', valeur: domaineEquipe.equipeScore, statut: statutEquipeVal, cible: 'NEXUS-Resultats-Equipe-v1.html', detail: domaineEquipe.totalPointages != null && domaineEquipe.totalPointages >= SEUIL_MIN_POINTAGES_EQUIPE ? `Ponctualité mesurée sur ${domaineEquipe.totalPointages} pointages${domaineEquipe.employesASurveiller ? ` · ${domaineEquipe.employesASurveiller} employé${domaineEquipe.employesASurveiller > 1 ? 's' : ''} à surveiller` : ''}.` : "Pas encore assez de pointages enregistrés." },
-      { nom: 'Risques', icone: '⚠️', valeur: scoreRisquesVal, statut: statutRisquesVal, cible: 'NEXUS-Scanner-Stock-v1.html', detail: `${nbCritiquesCaisse} écart${nbCritiquesCaisse > 1 ? 's' : ''} de caisse critique${nbCritiquesCaisse > 1 ? 's' : ''} · ${alertesInvOuvertes || 0} alerte${(alertesInvOuvertes || 0) > 1 ? 's' : ''} inventaire ouverte${(alertesInvOuvertes || 0) > 1 ? 's' : ''} · ${Math.round(risqueStockTotal).toLocaleString('fr-FR')} € de risque stock estimé.` },
+      { nom: 'Commerce', icone: '🛒', type: 'reel', moteurs: ['produits'], valeur: scoreDepuisEvolution(facteurs ? facteurs.evolutionReelle : null), statut: statutCommerceVal, cible: 'NEXUS-Produits-v1.html', detail: facteurs && facteurs.evolutionReelle != null ? `Évolution du CA : ${facteurs.evolutionReelle >= 0 ? '+' : ''}${(facteurs.evolutionReelle * 100).toFixed(1)} % vs période précédente comparable.` : "Pas encore de paire de périodes comparables." },
+      { nom: 'Marge', icone: '💰', type: 'reel', moteurs: ['marge'], valeur: scoreDepuisMarge(facteurs ? facteurs.margeReelle : null), statut: statutValeurVal, cible: 'NEXUS-Scanner-v1.html', detail: facteurs && facteurs.margeReelle != null ? `Marge réelle : ${(facteurs.margeReelle * 100).toFixed(1)} %${margePlusResultat && margePlusResultat.nbEcarts ? ` · ${margePlusResultat.nbEcarts} écart${margePlusResultat.nbEcarts > 1 ? 's' : ''} de marge actif${margePlusResultat.nbEcarts > 1 ? 's' : ''}` : ''}.` : "Marge non calculable sur les données actuelles." },
+      { nom: 'Opérations', icone: '⚙️', type: 'reel', moteurs: ['caisse'], valeur: scoreOperations(constatTempo.detailOperations, constatTempo.totalJours), statut: statutOperationsVal, cible: 'NEXUS-Verify-v1.html', detail: constatTempo.totalJours ? `Écart de caisse moyen : ${Math.round(constatTempo.detailOperations)} €/jour${controlesVerifyRestants ? ` · ${controlesVerifyRestants} contrôle${controlesVerifyRestants > 1 ? 's' : ''} caisse en attente aujourd'hui` : ''}.` : "Pas encore assez d'audits de caisse enregistrés." },
+      { nom: 'Équipe', icone: '👥', type: 'reel', moteurs: [], valeur: domaineEquipe.equipeScore, statut: statutEquipeVal, cible: 'NEXUS-Resultats-Equipe-v1.html', detail: domaineEquipe.totalPointages != null && domaineEquipe.totalPointages >= SEUIL_MIN_POINTAGES_EQUIPE ? `Ponctualité mesurée sur ${domaineEquipe.totalPointages} pointages${domaineEquipe.employesASurveiller ? ` · ${domaineEquipe.employesASurveiller} employé${domaineEquipe.employesASurveiller > 1 ? 's' : ''} à surveiller` : ''}.` : "Pas encore assez de pointages enregistrés." },
+      { nom: 'Risques', icone: '⚠️', type: 'derive', moteurs: ['caisse', 'stock'], valeur: scoreRisquesVal, statut: statutRisquesVal, cible: 'NEXUS-Scanner-Stock-v1.html', detail: `${nbCritiquesCaisse} écart${nbCritiquesCaisse > 1 ? 's' : ''} de caisse critique${nbCritiquesCaisse > 1 ? 's' : ''} · ${alertesInvOuvertes || 0} alerte${(alertesInvOuvertes || 0) > 1 ? 's' : ''} inventaire ouverte${(alertesInvOuvertes || 0) > 1 ? 's' : ''} · ${Math.round(risqueStockTotal).toLocaleString('fr-FR')} € de risque stock estimé.` },
     ];
 
-    // Synthèse exécutive — ton dirigeant : une conclusion, pas un tableau de
-    // chiffres. Reprend le principe de syntheseEtatGlobal() de App-v1, en
-    // s'appuyant sur les 5 axes de la Boussole plutôt que sur 4.
+    // Indice NEXUS explicable (demande de Frédéric, 02/08/2026 soir) :
+    // sur cet écran, l'Indice N'EST PAS le même calcul que celui du
+    // Cockpit/Radar du Manager (nexus-indice.js, marge+évolution CA
+    // uniquement) — il est la moyenne des axes de la Boussole réellement
+    // mesurés aujourd'hui, chacun recentré à 50 (neutre), pour pouvoir se
+    // décomposer honnêtement axe par axe ("Comprendre l'indice 62"). Un
+    // axe non mesuré est exclu de la moyenne, jamais compté comme 50 par
+    // défaut (Article 5 : jamais un chiffre inventé).
+    const axesMesures = AXES.filter(a => a.valeur != null);
+    const scoreGlobal = axesMesures.length ? Math.round(axesMesures.reduce((s, a) => s + a.valeur, 0) / axesMesures.length) : null;
+    const indiceExplication = {
+      periodeLabel, nbMesures: axesMesures.length,
+      deltas: AXES.map(a => ({ nom: a.nom, icone: a.icone, mesure: a.valeur != null, delta: a.valeur != null ? a.valeur - 50 : null })),
+    };
+
+    // Synthèse exécutive — structure imposée par Frédéric (02/08/2026 soir) :
+    // où vous en êtes → ce qui explique la situation → priorité de la
+    // semaine, recalculée à partir des signaux réels (jamais un commentaire
+    // générique). Le 3e temps ("les 3 décisions") et le 4e/5e ("impact
+    // attendu", "niveau de confiance") vivent dans les sections Décisions et
+    // Impact juste en dessous plutôt que dans ce paragraphe, pour ne pas
+    // produire un mur de texte — la synthèse annonce, les sections suivantes
+    // développent.
     function syntheseExecutive() {
       const concerns = AXES.filter(a => a.statut === 'À surveiller' || a.statut === 'En repli' || a.statut === 'À corriger').map(a => a.nom.toLowerCase());
-      const debut = statutCommerceVal === 'En progression' ? "Votre activité progresse"
-        : statutCommerceVal === 'En repli' ? "Votre activité recule"
-        : statutCommerceVal === 'Stable' ? "Votre activité reste stable" : null;
-      if (!concerns.length) return debut ? `${debut}, sans point de vigilance identifié aujourd'hui sur les 5 axes suivis par NEXUS.` : "NEXUS n'a pas encore assez de données pour évaluer l'état global de votre commerce.";
-      const liste = concerns.length === 1 ? concerns[0] : concerns.slice(0, -1).join(', ') + ' et ' + concerns[concerns.length - 1];
-      return `${debut || "NEXUS analyse encore votre activité"}, mais ${liste} nécessite${concerns.length > 1 ? 'nt' : ''} votre attention.`;
+      const debut = statutCommerceVal === 'En progression' ? "Votre activité commerciale progresse"
+        : statutCommerceVal === 'En repli' ? "Votre activité commerciale recule"
+        : statutCommerceVal === 'Stable' ? "Votre activité commerciale reste stable" : null;
+      let phrase1;
+      if (!concerns.length) {
+        phrase1 = debut ? `${debut}, sans point de vigilance identifié aujourd'hui sur les 5 axes suivis par NEXUS.` : "NEXUS n'a pas encore assez de données pour évaluer l'état global de votre commerce.";
+      } else {
+        const liste = concerns.length === 1 ? concerns[0] : concerns.slice(0, -1).join(', ') + ' et ' + concerns[concerns.length - 1];
+        phrase1 = `${debut || "NEXUS analyse encore votre activité"}, mais ${liste} ${concerns.length > 1 ? 'se dégradent' : 'se dégrade'}.`;
+      }
+      // `decisions` est déclaré plus bas dans cette même fonction mais déjà
+      // affecté au moment où syntheseExecutive() est APPELÉE (dans l'objet
+      // retourné en toute fin de construireBrief) — fermeture JS classique,
+      // pas un accès à une variable non initialisée.
+      const priorite = decisions[0];
+      const phrase2 = priorite ? ` Priorité cette semaine : ${priorite.decision.charAt(0).toLowerCase()}${priorite.decision.slice(1)}` : '';
+      return phrase1 + phrase2;
     }
 
     // Forces — max 2, seulement des signaux positifs réels (jamais complétées
@@ -686,7 +752,19 @@
     const candidatMargeListe = margePlusResultat && margePlusResultat.candidatTop && !VALIDEES_SITE.has(margePlusResultat.candidatTop.candidate_id) ? [NexusConseiller.normaliserMarge(margePlusResultat.candidatTop)] : [];
     const candidatTempoBrut = construireCandidatTempo(constatTempo);
     const candidatTempoListe = candidatTempoBrut ? [NexusConseiller.normaliserTempo(candidatTempoBrut)] : [];
-    const candidatsAdvisorListe = messagesAdvisor.map(NexusConseiller.normaliserAdvisor);
+    // Règle non négociable pour ce Brief (demande de Frédéric, 02/08/2026
+    // soir) : "si NEXUS ne peut pas expliquer précisément pourquoi une
+    // information mérite l'attention du dirigeant, elle ne doit pas
+    // apparaître." normaliserAdvisor() produit une décision volontairement
+    // générique ("Vérifiez ce point dans l'écran concerné") car
+    // advisor_messages est un texte libre sans geste concret associé —
+    // Brief NEXUS écarte donc tout signal dont le texte réel (message_text)
+    // est absent ou trop court pour être précis, plutôt que d'afficher une
+    // ligne vague. Les signaux retenus sont ensuite reformulés à partir de
+    // leur texte réel dans enrichirDecision() (jamais le gabarit générique).
+    const candidatsAdvisorListe = messagesAdvisor
+      .filter(m => m.message_text && m.message_text.trim().length >= 12)
+      .map(NexusConseiller.normaliserAdvisor);
     const nbMoteursActifs = [candidatsProduitsNormalises, candidatMargeListe, candidatTempoListe, candidatsAdvisorListe, candidatsCaisseObj.normalises, candidatsStock, candidatsRappels].filter(l => l.length > 0).length;
 
     const fusion = NexusConseiller.fusionnerEtSelectionner(
@@ -703,14 +781,40 @@
       return "Dès que possible";
     }
     function niveauConfiance(p) { return (p.validable && !p.limites) ? 'Élevé' : 'Moyen'; }
+    // Décision précise (demande de Frédéric, 02/08/2026 soir) : "chaque
+    // décision doit obligatoirement contenir le sujet précis, l'action, la
+    // raison, le module source." Les moteurs Caisse/Stock/Rappel écrivent
+    // déjà l'action ET la raison dans un seul champ décision (ex : "Allez
+    // voir Dylan : un écart de 40 € reste non justifié...") — utilisés tels
+    // quels. Le moteur Advisor est réécrit ici à partir du texte réel du
+    // signal (jamais le gabarit générique). Produits et Tempo séparent
+    // action et raison dans deux champs (decision/pourquoi) — cette
+    // fonction les recompose en une seule phrase "action — raison" pour le
+    // titre de la carte, sur le modèle exact donné par Frédéric ("Contrôlez
+    // le prix d'achat du Coca-Cola 2 L dans Produits : sa marge est
+    // inférieure de 11,6 points...").
+    function texteActionPrecis(p) {
+      if (p.moteur === 'advisor') return `Vérifiez : ${p.pourquoi}`;
+      return p.decision;
+    }
+    function teaserPrecis(p, action) {
+      if (p.moteur === 'produits' || p.moteur === 'tempo') {
+        const phrases = (p.pourquoi || '').split('. ').map(s => s.trim()).filter(Boolean);
+        const raison = phrases[phrases.length - 1] ? phrases[phrases.length - 1].replace(/\.$/, '') : null;
+        return raison ? `${action.replace(/\.$/, '')} — ${raison.charAt(0).toLowerCase()}${raison.slice(1)}.` : action;
+      }
+      return action; // caisse/stock/rappel/advisor : la raison est déjà dans l'action
+    }
     function enrichirDecision(p) {
+      const action = texteActionPrecis(p);
       return {
         ...p,
         ceQueJObserve: p.pourquoi,
         pourquoiCelaCompte: p.impactAttendu,
         ceQuiSembleLExpliquer: `Détecté par le moteur ${MOTEUR_LABEL[p.moteur] || p.moteur} à partir de ${MOTEUR_SOURCE[p.moteur] || 'données réelles'}.`,
         ceQuiManquePourConfirmer: p.limites || "Aucune réserve identifiée — signal directement mesuré.",
-        ceQueJeRecommande: p.decision,
+        ceQueJeRecommande: action,
+        teaser: teaserPrecis(p, action),
         quandAgir: quandAgir(p.rang),
         niveauDeConfiance: niveauConfiance(p),
       };
@@ -719,9 +823,15 @@
     const gain = decisions.filter(p => ['🔥 À AGIR', '📈 OPPORTUNITÉ', '💡 RECOMMANDATION'].includes(p.etat)).reduce((s, p) => s + (p.impact_eur || 0), 0);
     const risque = decisions.filter(p => !['🔥 À AGIR', '📈 OPPORTUNITÉ', '💡 RECOMMANDATION'].includes(p.etat)).reduce((s, p) => s + (p.impact_eur || 0), 0);
 
+    const decisionsEnrichies = decisions.map(enrichirDecision);
+    // La liste de vigilance passe par le même filtre de précision que les
+    // décisions (texteActionPrecis) — même règle non négociable, qu'un
+    // signal advisor apparaisse en position 1 ou en position 5.
+    const watchlistPrecise = watchlist.map(p => ({ ...p, action: texteActionPrecis(p) }));
     return {
-      periodeAffichage, scoreGlobal, axes: AXES, synthese: syntheseExecutive(), forces: forces.slice(0, 2),
-      decisions: decisions.map(enrichirDecision), watchlist,
+      periodeAffichage, periodeLabel, scoreGlobal, indiceExplication, axes: AXES,
+      synthese: syntheseExecutive(), forces: forces.slice(0, 2),
+      decisions: decisionsEnrichies, watchlist: watchlistPrecise,
       impact: { gain, risque, delai: 'Cette semaine', confianceGlobale: `${nbMoteursActifs}/7 moteurs NEXUS ont contribué à cette synthèse aujourd'hui.` },
       missionsRestantes,
     };
@@ -738,36 +848,73 @@
       else if (brief.scoreGlobal >= 60) { couleur = 'var(--amber)'; statutTexte = 'À surveiller'; }
       else { couleur = 'var(--red)'; statutTexte = 'Priorité élevée'; }
     }
-    const dateLabel = brief.periodeAffichage ? `Période analysée : ${new Date(brief.periodeAffichage.debut + 'T00:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })} – ${new Date(brief.periodeAffichage.fin + 'T00:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}` : new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
+    const ex = brief.indiceExplication;
+    const deltasHTML = ex.deltas.map(d => {
+      if (!d.mesure) return `<div class="indice-delta-row"><span>${d.icone} ${d.nom}</span><span class="indice-delta-absent">Non mesuré</span></div>`;
+      const signe = d.delta >= 0 ? '+' : '';
+      const c = d.delta > 0 ? 'var(--green)' : d.delta < 0 ? 'var(--red)' : 'var(--text-dim)';
+      return `<div class="indice-delta-row"><span>${d.icone} ${d.nom}</span><span style="color:${c}; font-family:var(--mono); font-weight:700;">${signe}${d.delta}</span></div>`;
+    }).join('');
     return `
       <div class="brief-hero">
-        <div class="brief-date">${dateLabel}</div>
+        <div class="brief-date">${brief.periodeLabel}</div>
         <div class="brief-indice-value" style="color:${couleur};">${brief.scoreGlobal != null ? brief.scoreGlobal : '—'}</div>
         <div class="brief-indice-label">Indice NEXUS</div>
         <div class="brief-etat"><span class="brief-etat-dot" style="color:${couleur};"></span>${statutTexte}</div>
         <div class="brief-synthese">${brief.synthese}</div>
-      </div>`;
+        <div class="indice-explain-wrap" id="indiceExplainWrap">
+          <div class="indice-explain-toggle" onclick="document.getElementById('indiceExplainWrap').classList.toggle('open')">Comprendre l'indice ${brief.scoreGlobal != null ? brief.scoreGlobal : '—'} <span class="chev">›</span></div>
+          <div class="indice-explain">
+            <div class="section-note" style="margin-top:0;">Moyenne des axes de la Boussole mesurés aujourd'hui (${ex.nbMesures}/5), chacun recentré à 50 = neutre. ${ex.periodeLabel}.</div>
+            ${deltasHTML}
+          </div>
+        </div>
+      </div>
+      <div class="legend-line"><b style="color:var(--green);">RÉEL</b> = calculé directement à partir de données mesurées &nbsp;·&nbsp; <b style="color:var(--cyan);">DÉRIVÉ</b> = interprétation croisant plusieurs signaux &nbsp;·&nbsp; <b style="color:var(--gold);">ESTIMÉ</b> = projection financière, pas une garantie</div>`;
   }
 
+  const NOM_ECRAN = {
+    'NEXUS-Produits-v1.html': 'Produits', 'NEXUS-Scanner-v1.html': 'Scanner NEXUS', 'NEXUS-Verify-v1.html': 'Verify',
+    'NEXUS-Resultats-Equipe-v1.html': 'Résultats Équipe', 'NEXUS-Scanner-Stock-v1.html': 'Scanner Stock',
+  };
+  // Chaque axe, au clic, ouvre trois informations demandées par Frédéric
+  // (02/08/2026 soir) : État (statut + valeur), Cause principale (le detail
+  // déjà calculé pour cet axe — jamais un texte différent inventé pour
+  // l'occasion) et Décision liée (la première décision affichée aujourd'hui
+  // dont le moteur source correspond à cet axe, ou une phrase honnête s'il
+  // n'y en a aucune — jamais une décision qui n'existe pas).
   function renderBoussole(brief) {
     const svg = genererBoussoleSVG(brief.axes);
-    const rows = brief.axes.map(a => {
+    const nbReels = brief.axes.filter(a => a.type === 'reel').length;
+    const nbDerives = brief.axes.filter(a => a.type === 'derive').length;
+    const rows = brief.axes.map((a, i) => {
       const c = couleurAxe(a.valeur);
-      return `<a class="axe-row" href="${a.cible}">
-        <span class="axe-dot" style="background:${c.hex}; color:${c.hex};"></span>
-        <span class="axe-nom">${a.icone} ${a.nom}</span>
-        <span class="axe-statut" style="color:${COULEUR_STATUT_DOMAINE[a.statut] || 'var(--text-dim)'};">${a.statut}</span>
-        <span class="axe-chev">›</span>
-      </a>`;
+      const decisionLiee = (a.moteurs || []).length ? brief.decisions.find(d => a.moteurs.includes(d.moteur)) : null;
+      const typeInfo = a.type === 'reel' ? { label: 'RÉEL', cls: 'badge-real' } : { label: 'DÉRIVÉ', cls: 'badge-derived' };
+      return `
+        <div class="axe-block" id="axe-${i}">
+          <div class="axe-row" onclick="document.getElementById('axe-${i}').classList.toggle('open')">
+            <span class="axe-dot" style="background:${c.hex}; color:${c.hex};"></span>
+            <span class="axe-nom">${a.icone} ${a.nom}</span>
+            <span class="axe-statut" style="color:${COULEUR_STATUT_DOMAINE[a.statut] || 'var(--text-dim)'};">${a.statut}</span>
+            <span class="axe-chev">›</span>
+          </div>
+          <div class="axe-detail">
+            <div class="decision-field"><div class="decision-field-label">État <span class="badge ${typeInfo.cls}" style="margin-left:6px;">${typeInfo.label}</span></div><div class="decision-field-text">${a.statut}${a.valeur != null ? ` — ${a.valeur}/100` : ''}</div></div>
+            <div class="decision-field"><div class="decision-field-label">Cause principale</div><div class="decision-field-text">${a.detail}</div></div>
+            <div class="decision-field"><div class="decision-field-label">Décision liée</div><div class="decision-field-text">${decisionLiee ? decisionLiee.decision : "Aucune décision prioritaire liée à cet axe aujourd'hui."}</div></div>
+            <a href="${a.cible}" class="decision-lien">→ Ouvrir ${NOM_ECRAN[a.cible] || a.cible}</a>
+          </div>
+        </div>`;
     }).join('');
     return `
       <div class="section">
-        <div class="section-title">Boussole NEXUS <span class="badge badge-real">5 axes réels</span></div>
+        <div class="section-title">Boussole NEXUS <span class="badge badge-real">${nbReels} réels</span><span class="badge badge-derived" style="margin-left:5px;">${nbDerives} dérivé</span></div>
         <div class="boussole-card">
           <div class="boussole-svg-wrap">${svg}</div>
           ${rows}
         </div>
-        <div class="section-note">Chaque axe s'appuie sur des données déjà mesurées ailleurs dans NEXUS — un axe grisé n'est pas mauvais, il manque simplement de données pour l'instant. Touchez un axe pour ouvrir l'écran source.</div>
+        <div class="section-note">Un axe grisé n'est pas mauvais, il manque simplement de données pour l'instant. Touchez un axe pour voir son état, sa cause principale et la décision qui s'y rattache.</div>
       </div>`;
   }
 
@@ -785,11 +932,15 @@
   }
 
   function decisionCardHTML(p, i, estPriorite) {
+    // Décision prioritaire ouverte par défaut, plus grande (demande de
+    // Frédéric, 02/08/2026 soir : "le dirigeant doit savoir immédiatement
+    // quelle décision prendre en premier") — les 2 secondaires restent
+    // repliées et visuellement plus compactes (classe .secondaire).
     return `
-      <div class="decision-card ${ETAT_CLASS[p.etat] || ''} ${estPriorite ? 'priorite' : ''}" id="decision-${i}">
+      <div class="decision-card ${ETAT_CLASS[p.etat] || ''} ${estPriorite ? 'priorite open' : 'secondaire'}" id="decision-${i}">
         <div class="decision-head" onclick="document.getElementById('decision-${i}').classList.toggle('open')">
           <span class="decision-rank ${estPriorite ? '' : 'secondaire'}">${estPriorite ? '① PRIORITÉ' : `#${i + 1}`}</span>
-          <span class="decision-teaser">${p.ceQueJeRecommande}</span>
+          <span class="decision-teaser">${p.teaser}</span>
           <span class="decision-chevron">›</span>
         </div>
         <div class="decision-body">
@@ -822,7 +973,7 @@
       <div class="section">
         <div class="section-title">Décisions recommandées <span class="badge badge-real">réel</span></div>
         ${brief.decisions.map((p, i) => decisionCardHTML(p, i, i === 0)).join('')}
-        <div class="section-note">Classement partagé entre 7 moteurs NEXUS (Produits, Marge+, Tempo, Signaux Qualité/Caisse, Verify, Scanner Stock, Rappels) — jamais un simple tri par montant, qui favoriserait toujours le même moteur.</div>
+        <div class="section-note">Classement partagé entre 7 moteurs NEXUS (Produits, Marge+, Tempo, Signaux Qualité/Caisse, Verify, Scanner Stock, Rappels) — jamais un simple tri par montant, qui favoriserait toujours le même moteur. Délai et confiance (<span class="badge badge-derived" style="padding:1px 6px;">dérivé</span>) sont déduits du rang de priorité, pas mesurés directement.</div>
       </div>`;
   }
 
@@ -833,23 +984,46 @@
         <div class="section-title">À surveiller <span class="badge badge-derived">dérivé</span></div>
         ${brief.watchlist.map(p => `<a class="watch-item" href="${p.cible || '#'}">
           <span class="watch-dot"></span>
-          <span class="watch-text"><b>${p.decision}</b><br>${p.pourquoi}</span>
+          <span class="watch-text"><b>${p.action}</b><br>${p.pourquoi}</span>
           <span class="watch-chev">›</span>
         </a>`).join('')}
         <div class="section-note">Ces signaux suivent juste derrière les 3 décisions ci-dessus dans le même classement — pas encore prioritaires, mais à ne pas perdre de vue.</div>
       </div>`;
   }
 
+  // Impact relié explicitement aux décisions affichées (demande de
+  // Frédéric, 02/08/2026 soir) : les deux chiffres ne sont plus des blocs
+  // détachés — leur libellé nomme les décisions dont ils sont la somme, et
+  // un clic déplie la répartition ligne par ligne pour vérifier qu'aucun
+  // montant n'est décoratif.
+  const ETATS_GAIN = ['🔥 À AGIR', '📈 OPPORTUNITÉ', '💡 RECOMMANDATION'];
   function renderImpact(brief) {
+    const sujet = p => (p.article || MOTEUR_LABEL[p.moteur] || p.decision || '').toString().slice(0, 42);
+    const gainItems = brief.decisions.filter(p => ETATS_GAIN.includes(p.etat) && p.impact_eur > 0);
+    const risqueItems = brief.decisions.filter(p => !ETATS_GAIN.includes(p.etat) && p.impact_eur > 0);
+    const ligne = (p, signe) => `<div class="impact-meta-row"><span class="impact-meta-label">${sujet(p)}</span><span class="impact-meta-val">${signe}${Math.round(p.impact_eur).toLocaleString('fr-FR')} €</span></div>`;
+    const breakdown = (items, signe, videTexte) => items.length ? items.map(p => ligne(p, signe)).join('') : `<div class="section-note" style="margin-top:0;">${videTexte}</div>`;
     return `
       <div class="section">
-        <div class="section-title">Impact des décisions du jour <span class="badge badge-real">réel</span></div>
+        <div class="section-title">Impact des décisions affichées <span class="badge badge-estime">estimé</span></div>
         <div class="impact-grid">
-          <div class="impact-card gain"><div class="impact-value">${Math.round(brief.impact.gain).toLocaleString('fr-FR')} €</div><div class="impact-label">Gain potentiel identifié</div></div>
-          <div class="impact-card risque"><div class="impact-value">${Math.round(brief.impact.risque).toLocaleString('fr-FR')} €</div><div class="impact-label">Risque à traiter</div></div>
+          <div class="impact-card gain" id="impactGainCard" style="cursor:pointer;">
+            <div class="impact-value">${Math.round(brief.impact.gain).toLocaleString('fr-FR')} €</div>
+            <div class="impact-label">Gain potentiel associé aux décisions affichées</div>
+          </div>
+          <div class="impact-card risque" id="impactRisqueCard" style="cursor:pointer;">
+            <div class="impact-value">${Math.round(brief.impact.risque).toLocaleString('fr-FR')} €</div>
+            <div class="impact-label">Risque financier non traité</div>
+          </div>
         </div>
-        <div class="impact-meta-row"><span class="impact-meta-label">Délai recommandé</span><span class="impact-meta-val">${brief.impact.delai}</span></div>
+        <div id="impactBreakdown" style="display:none; margin-top:12px;">
+          <div class="decision-field-label" style="margin-bottom:6px;">Répartition par décision</div>
+          ${breakdown(gainItems, '+', "Aucune décision affichée ne porte de gain chiffré aujourd'hui.")}
+          ${breakdown(risqueItems, '−', "Aucune décision affichée ne porte de risque chiffré aujourd'hui.")}
+        </div>
+        <div class="impact-meta-row" style="margin-top:12px;"><span class="impact-meta-label">Délai recommandé</span><span class="impact-meta-val">${brief.impact.delai}</span></div>
         <div class="impact-meta-row"><span class="impact-meta-label">Fiabilité de la synthèse</span><span class="impact-meta-val">${brief.impact.confianceGlobale}</span></div>
+        <div class="section-note">Ces montants sont des estimations issues des 3 décisions affichées ci-dessus, jamais une garantie — touchez un bloc pour voir la répartition.</div>
       </div>`;
   }
 
@@ -890,6 +1064,13 @@
         const ok = await marquerCaisseJustifiee(cb.dataset.auditId);
         if (!ok) { cb.disabled = false; cb.checked = false; alert("Erreur — réessayez."); return; }
         await rafraichir();
+      });
+    });
+    const impactBreakdown = document.getElementById('impactBreakdown');
+    ['impactGainCard', 'impactRisqueCard'].forEach(id => {
+      const card = document.getElementById(id);
+      if (card && impactBreakdown) card.addEventListener('click', () => {
+        impactBreakdown.style.display = impactBreakdown.style.display === 'none' ? 'block' : 'none';
       });
     });
   }
