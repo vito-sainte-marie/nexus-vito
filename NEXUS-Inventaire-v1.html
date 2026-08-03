@@ -462,10 +462,15 @@
   }
 
   // Exclut le jaugeage carburant du calcul de progression/complétion quand
-  // il n'a pas été activé par le manager — jamais bloquant pour valider un
-  // inventaire, jamais compté dans "X/Y catégories terminées".
-  function produitsRequis(liste) {
-    if (modeJaugeageActif) return liste;
+  // il n'a pas été activé par le manager, OU qu'on n'est pas à l'ouverture
+  // du quart matin (03/08/2026 — jaugeage de début uniquement) — jamais
+  // bloquant pour valider un inventaire, jamais compté dans "X/Y catégories
+  // terminées" en dehors de ce seul créneau. `options.excludeJaugeage`
+  // force l'exclusion même le matin — utilisé par validerCloture(), où le
+  // jaugeage n'est de toute façon jamais saisissable (voir renderCloture).
+  function produitsRequis(liste, options) {
+    const forcerExclusion = options && options.excludeJaugeage;
+    if (!forcerExclusion && modeJaugeageActif && quartActuel === 'matin') return liste;
     return liste.filter(p => !p.inventaire_categories || p.inventaire_categories.nom !== JAUGEAGE_NOM);
   }
 
@@ -580,6 +585,27 @@
   // Progression (02/08/2026, demande de Frédéric) — helpers partagés par
   // l'écran catégories et l'écran carrousel.
   // ------------------------------------------------------------
+  // Message d'écart d'ouverture (03/08/2026, demande de Frédéric — "ce
+  // n'est pas totalement juste car il y a les ventes à prendre en compte
+  // après inventaire") : le stock transmis (dernier comptage connu) et le
+  // stock compté à l'ouverture peuvent légitimement différer sans qu'il y
+  // ait une vraie anomalie — des ventes ont pu avoir lieu depuis le dernier
+  // comptage, ou une livraison est arrivée entre-temps. On nomme donc
+  // l'hypothèse la plus probable plutôt qu'un simple "écart" alarmant : un
+  // manque devient "Ventes potentielles", un surplus devient "Réassort
+  // potentiel" — toujours présenté comme une hypothèse, jamais un fait
+  // (même discipline de langage que le reste de NEXUS). Les seuils de
+  // couleur (conforme / à surveiller / à vérifier) restent inchangés, seul
+  // le libellé change — un écart important reste visuellement signalé.
+  function classeEcartOuverture(ecart) {
+    return 'ecart-tag ' + (ecart === 0 ? 'ecart-ok' : (Math.abs(ecart) <= 2 ? 'ecart-warn' : 'ecart-bad'));
+  }
+  function texteEcartOuverture(ecart) {
+    if (ecart === 0) return 'Conforme';
+    if (ecart < 0) return `Ventes potentielles ${fmtNum(ecart)}`;
+    return `Réassort potentiel +${fmtNum(ecart)}`;
+  }
+
   function produitEstCompte(p) {
     const s = comptagesSaisie[p.id];
     return !!s && s.compte !== undefined;
@@ -724,22 +750,34 @@
     document.getElementById('sousTitre').textContent = 'Vérifiez les quantités transmises. Corrigez uniquement les différences.';
 
     const groupes = grouperParCategorie(produitsZone);
-    const groupesRequis = groupes.filter(g => modeJaugeageActif || g.nom !== JAUGEAGE_NOM);
+    // Le jaugeage ne compte comme "requis" que s'il est à la fois activé
+    // par le manager ET qu'on est à l'ouverture du quart matin (voir
+    // "desactive" ci-dessous, même condition) — sinon une catégorie grisée
+    // resterait comptée dans "toutes les catégories terminées" sans jamais
+    // pouvoir être remplie.
+    const groupesRequis = groupes.filter(g => (modeJaugeageActif && quartActuel === 'matin') || g.nom !== JAUGEAGE_NOM);
     const nbCatTerminees = groupesRequis.filter(g => categorieEstTerminee(g.items)).length;
     const toutTermine = nbCatTerminees === groupesRequis.length;
     const nbRestantes = groupesRequis.length - nbCatTerminees;
 
     const html = groupes.map(g => {
-      // Jaugeage carburant (02/08/2026) : grisé et non cliquable tant que
-      // le manager ne l'a pas activé — jamais compté dans la progression
-      // ni requis pour valider l'inventaire.
-      const desactive = g.nom === JAUGEAGE_NOM && !modeJaugeageActif;
+      // Jaugeage carburant (02/08/2026, restreint le 03/08/2026, demande de
+      // Frédéric — "les pompistes puissent mettre le jaugeage de début
+      // uniquement le matin quart 1") : grisé et non cliquable tant que le
+      // manager ne l'a pas activé OU si on n'est pas à l'ouverture du quart
+      // matin — le jaugeage de début n'a de sens qu'une fois par jour, à la
+      // prise de poste du matin. Jamais compté dans la progression ni requis
+      // pour valider l'inventaire.
+      const desactive = g.nom === JAUGEAGE_NOM && (!modeJaugeageActif || quartActuel !== 'matin');
       if (desactive) {
+        const raison = (g.nom === JAUGEAGE_NOM && modeJaugeageActif && quartActuel !== 'matin')
+          ? 'non requis ce quart · jaugeage de début uniquement le matin'
+          : 'non requis pour ce quart';
         return `
           <div class="categorie-row desactive" data-cat="${g.nom}">
             <div>
               <div class="categorie-nom">${g.nom}</div>
-              <div class="categorie-count">${g.items.length} produit${g.items.length > 1 ? 's' : ''} · non requis pour ce quart</div>
+              <div class="categorie-count">${g.items.length} produit${g.items.length > 1 ? 's' : ''} · ${raison}</div>
             </div>
             <div class="categorie-etat desactivee">Désactivé</div>
           </div>
@@ -890,8 +928,8 @@
     }
     const ecart = val - transmis;
     const ecartNonNul = Math.abs(ecart) > 0.001;
-    ecartDiv.className = 'ecart-tag ' + (ecart === 0 ? 'ecart-ok' : (Math.abs(ecart) <= 2 ? 'ecart-warn' : 'ecart-bad'));
-    ecartDiv.textContent = ecart === 0 ? 'Conforme' : `Écart d'ouverture : ${ecart > 0 ? '+' : ''}${fmtNum(ecart)}`;
+    ecartDiv.className = classeEcartOuverture(ecart);
+    ecartDiv.textContent = texteEcartOuverture(ecart);
     if (justifInput) justifInput.style.display = ecartNonNul ? '' : 'none';
     comptagesSaisie[produitId] = { compte: val, ecartNonNul, justification: justifInput ? justifInput.value : (comptagesSaisie[produitId] ? comptagesSaisie[produitId].justification : '') };
     sauvegarderDraft('ouverture');
@@ -1029,8 +1067,8 @@
     if (val === null || isNaN(val)) { ecartDiv.textContent = ''; if (justifInput) justifInput.style.display = 'none'; return; }
     const ecart = val - valeurTransmise;
     const ecartNonNul = Math.abs(ecart) > 0.001;
-    ecartDiv.className = 'ecart-tag ' + (ecart === 0 ? 'ecart-ok' : (Math.abs(ecart) <= 2 ? 'ecart-warn' : 'ecart-bad'));
-    ecartDiv.textContent = ecart === 0 ? 'Conforme' : `Écart d'ouverture : ${ecart > 0 ? '+' : ''}${fmtNum(ecart)}`;
+    ecartDiv.className = classeEcartOuverture(ecart);
+    ecartDiv.textContent = texteEcartOuverture(ecart);
     if (justifInput) justifInput.style.display = ecartNonNul ? '' : 'none';
   }
 
@@ -1080,8 +1118,8 @@
     if (saisie && saisie.compte !== undefined) {
       const valeurTransmise = transmis ? transmis.quantite : 0;
       const ecart = saisie.compte - valeurTransmise;
-      ecartClasse = 'ecart-tag ' + (ecart === 0 ? 'ecart-ok' : (Math.abs(ecart) <= 2 ? 'ecart-warn' : 'ecart-bad'));
-      ecartTexte = ecart === 0 ? 'Conforme' : `Écart d'ouverture : ${ecart > 0 ? '+' : ''}${fmtNum(ecart)}`;
+      ecartClasse = classeEcartOuverture(ecart);
+      ecartTexte = texteEcartOuverture(ecart);
     }
     return `
       <div class="produit-row" id="ligne-${p.id}">
@@ -1222,12 +1260,15 @@
       </div>
 
       ${grouperParCategorie(produitsZone).map(g => {
-        const desactive = g.nom === JAUGEAGE_NOM && !modeJaugeageActif;
+        // Jaugeage de début (03/08/2026, demande de Frédéric) : uniquement à
+        // l'ouverture du quart matin (voir renderCategoriesOuverture) —
+        // jamais à la clôture, quel que soit le quart ou le toggle manager.
+        const desactive = g.nom === JAUGEAGE_NOM;
         return `
         <div class="cat-block ${desactive ? 'desactive' : ''}">
           <div class="cat-head">
             <div class="cat-nom">${g.nom} (${g.items.length})</div>
-            ${desactive ? '<span class="cat-desactive-tag">Non requis — activation manager</span>' : ''}
+            ${desactive ? '<span class="cat-desactive-tag">Jaugeage de début uniquement — le matin, à l\'ouverture</span>' : ''}
           </div>
           <div class="card">
             ${g.items.map(p => renderLigneCloture(p, desactive)).join('')}
@@ -1300,7 +1341,7 @@
   }
 
   async function validerCloture() {
-    const requis = produitsRequis(produitsZone);
+    const requis = produitsRequis(produitsZone, { excludeJaugeage: true });
     const manquants = requis.filter(p => !comptagesSaisie[p.id] || comptagesSaisie[p.id].compte === undefined);
     // Avertissement renforcé (02/08/2026, demande de Frédéric — suite à un
     // quart clôturé alors que 87 produits sur 117 n'avaient pas été

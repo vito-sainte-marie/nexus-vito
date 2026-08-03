@@ -363,15 +363,25 @@
     // Montant attribuable affiché pour un service donné — respecte
     // strictement la séparation provisoire/validé (jamais les deux
     // colonnes mélangées) et l'attribution solo (jamais un poste partagé).
+    //
+    // Correction du 03/08/2026 (signalée par Frédéric — "pourquoi Angélique
+    // ne voit pas son écart réel, elle voit 0 alors que son écart d'hier
+    // est de -0,20 €") : cette fonction ne renvoyait un montant QUE si
+    // l'écart dépassait le seuil de conformité — un service "Validée
+    // conforme" affichait donc TOUJOURS un blanc (aucun montant), même
+    // quand un vrai petit écart existait (-0,20 €, -0,02 €...). Le seuil
+    // sert à qualifier le service (statutCaisseJour), jamais à cacher le
+    // montant réel : le montant réellement attribuable s'affiche
+    // maintenant toujours, quel que soit son statut.
     function montantAttribuableService(s) {
       const statut = N.statutCaisseJour(s);
       let total = 0, trouve = false;
       if (statut === 'provisoire') {
-        if (s.soloPiste && !N.estConforme(s.ecartPiste)) { total += s.ecartPiste; trouve = true; }
-        if (s.soloBoutique && !N.estConforme(s.ecartBoutique)) { total += s.ecartBoutique; trouve = true; }
-      } else if (statut === 'validee_ecart') {
-        if (s.soloPiste && s.ecartPisteValide != null && !N.estConforme(s.ecartPisteValide)) { total += s.ecartPisteValide; trouve = true; }
-        if (s.soloBoutique && s.ecartBoutiqueValide != null && !N.estConforme(s.ecartBoutiqueValide)) { total += s.ecartBoutiqueValide; trouve = true; }
+        if (s.soloPiste) { total += s.ecartPiste; trouve = true; }
+        if (s.soloBoutique) { total += s.ecartBoutique; trouve = true; }
+      } else if (statut === 'validee_conforme' || statut === 'validee_ecart') {
+        if (s.soloPiste && s.ecartPisteValide != null) { total += s.ecartPisteValide; trouve = true; }
+        if (s.soloBoutique && s.ecartBoutiqueValide != null) { total += s.ecartBoutiqueValide; trouve = true; }
       }
       return trouve ? total : null;
     }

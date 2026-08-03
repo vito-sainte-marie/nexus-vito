@@ -753,6 +753,20 @@
   // Agrège les services d'un employé sur un mois donné (moisRef au format
   // 'YYYY-MM'). Les deux cumuls (provisoire / validé) restent toujours
   // séparés — voir note de section ci-dessus.
+  //
+  // Correction du 03/08/2026 (signalée par Frédéric — "pourquoi Angélique
+  // ne voit pas son écart réel, elle voit 0 alors que son écart d'hier est
+  // de -0,20 €") : les cumuls ne sommaient QUE les écarts dépassant le
+  // seuil de conformité (2 €, SEUIL_ECART_CONFORME), donc un petit écart
+  // réel (-0,20 €, -0,02 €...) disparaissait purement et simplement du
+  // total au lieu d'y apparaître — NEXUS affichait alors "+0,00 €" alors
+  // qu'un montant réel, non nul, existait. Le seuil de conformité sert à
+  // qualifier un service ("conforme" vs "écart", pour les compteurs
+  // caissesConformes/caissesEcartValide et le badge affiché), jamais à
+  // effacer un montant réel d'un total — les deux questions sont
+  // distinctes ("ce service mérite-t-il attention ?" vs "combien d'argent
+  // exactement ?"). Les cumuls somment donc désormais TOUS les montants
+  // attribuables (postes solo), petits ou grands, conformes ou non.
   function agregerMoisCaisse(services, moisRef) {
     const duMois = (services || []).filter(s => s.date && s.date.slice(0, 7) === moisRef);
     let caissesConformes = 0, caissesEnCours = 0, caissesEcartValide = 0;
@@ -761,17 +775,19 @@
       const statut = statutCaisseJour(s);
       if (statut === 'provisoire') {
         caissesEnCours += 1;
-        // Cumul provisoire : uniquement les écarts attribuables (poste
-        // solo, hors seuil), calculés sur les colonnes brutes — jamais les
-        // colonnes _valide, qui n'existent pas encore tant que non validé.
-        if (s.soloPiste && !estConforme(s.ecartPiste)) ecartProvisoireCumule += s.ecartPiste;
-        if (s.soloBoutique && !estConforme(s.ecartBoutique)) ecartProvisoireCumule += s.ecartBoutique;
+        // Cumul provisoire : tous les montants attribuables (poste solo),
+        // calculés sur les colonnes brutes — jamais les colonnes _valide,
+        // qui n'existent pas encore tant que non validé.
+        if (s.soloPiste) ecartProvisoireCumule += s.ecartPiste;
+        if (s.soloBoutique) ecartProvisoireCumule += s.ecartBoutique;
       } else if (statut === 'validee_conforme') {
         caissesConformes += 1;
+        if (s.soloPiste && s.ecartPisteValide != null) ecartValideCumule += s.ecartPisteValide;
+        if (s.soloBoutique && s.ecartBoutiqueValide != null) ecartValideCumule += s.ecartBoutiqueValide;
       } else if (statut === 'validee_ecart') {
         caissesEcartValide += 1;
-        if (s.soloPiste && s.ecartPisteValide != null && !estConforme(s.ecartPisteValide)) ecartValideCumule += s.ecartPisteValide;
-        if (s.soloBoutique && s.ecartBoutiqueValide != null && !estConforme(s.ecartBoutiqueValide)) ecartValideCumule += s.ecartBoutiqueValide;
+        if (s.soloPiste && s.ecartPisteValide != null) ecartValideCumule += s.ecartPisteValide;
+        if (s.soloBoutique && s.ecartBoutiqueValide != null) ecartValideCumule += s.ecartBoutiqueValide;
       }
     });
     return {
