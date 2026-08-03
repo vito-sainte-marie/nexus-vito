@@ -322,6 +322,7 @@
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-auth.js"></script>
+<script src="nexus-desktop.js"></script>
 <script src="nexus-vocabulaire.js"></script>
 <script src="nexus-periodes.js"></script>
 <script src="nexus-stock.js"></script>
@@ -342,6 +343,12 @@
        nommés par employé) et Stock (rayons à comptage prioritaire), voir
        nexus-conseiller.js. Rien n'est supprimé : le détail complet
        (Situation/Analyse/Impact) reste dans chaque carte dépliable. -->
+  <!-- desktop-grid (02/08/2026) : mise en colonnes en vue bureau (voir
+       nexus-desktop.js) — purement additif, aucun effet en mobile. Les
+       conteneurs ci-dessous sont déjà des blocs DOM distincts et statiques
+       (remplis ensuite par le JS via .innerHTML) : aucun changement du
+       rendu JS n'est nécessaire, juste ce wrapper autour d'eux. -->
+  <div class="desktop-grid">
   <div class="brief-mini" id="briefMini"></div>
   <div class="section" id="nouvellesWrap">
     <div class="section-title" id="nouvellesTitle" style="display:none;">Nouvelles <span class="badge badge-real">Depuis votre dernière visite</span></div>
@@ -376,6 +383,7 @@
   <div class="section" id="topVentesSection"></div>
   <div class="divider"></div>
   <div class="section" id="mentorSection"></div>
+  </div>
   <footer>Cockpit NEXUS v2 · Toutes catégories · S1 2026 · Vito Sainte-Marie Usine</footer>
 <script>
     const PHRASES_MENTOR = [
