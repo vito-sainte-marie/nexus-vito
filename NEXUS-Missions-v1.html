@@ -1171,6 +1171,24 @@
   // seul le message du Coach change (voir messageConseillerPerso).
   const SEUIL_HEURES_DEBUT_DE_SERVICE = 1;
 
+  // Variété jour après jour (03/08/2026, demande de Frédéric : "le
+  // conseiller doit donner l'impression d'être vivant") — sans ceci, en cas
+  // d'égalité stricte de points ET de durée (fréquent depuis le barème
+  // 5 pts uniforme sur les actions issues de SOP-23/SOP-09), le départage
+  // tombait sur l'ordre de retour de la base, donc systématiquement la
+  // même mission chaque matin. On ajoute un dernier départage : parmi les
+  // ex-æquo, on privilégie celle jamais faite, puis la plus ancienne
+  // complétion — le Coach suggère alors une mission différente d'un jour
+  // sur l'autre, dictée par ce que l'employé a réellement fait, pas par
+  // le hasard ni par un ordre figé.
+  function derniereFoisFaite(missionId) {
+    let derniere = '';
+    for (const c of completionsCache) {
+      if (c.mission_id === missionId && c.date > derniere) derniere = c.date;
+    }
+    return derniere; // '' = jamais faite, trie avant toute vraie date
+  }
+
   function choisirMissionSuggeree() {
     const aujISO = new Date().toISOString().slice(0, 10);
     const faitesAujourdhui = new Set(completionsCache.filter(c => c.date === aujISO).map(c => c.mission_id));
@@ -1201,7 +1219,9 @@
     const triees = [...candidates].sort((a, b) => {
       if (estNouveau || debutDeService) {
         if ((a.points || 0) !== (b.points || 0)) return (a.points || 0) - (b.points || 0);
-        return (a.estimated_duration_min || 0) - (b.estimated_duration_min || 0);
+        if ((a.estimated_duration_min || 0) !== (b.estimated_duration_min || 0)) return (a.estimated_duration_min || 0) - (b.estimated_duration_min || 0);
+        const da = derniereFoisFaite(a.mission_id), db = derniereFoisFaite(b.mission_id);
+        return da < db ? -1 : da > db ? 1 : 0;
       }
       const ra = rang[a.priority] ?? 2, rb = rang[b.priority] ?? 2;
       if (ra !== rb) return ra - rb;
