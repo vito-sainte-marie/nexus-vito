@@ -3,6 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" type="image/x-icon" href="favicon.ico">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+<link rel="manifest" href="site.webmanifest">
+<meta name="theme-color" content="#0B0F14">
 <title>NEXUS — Tempo</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -143,6 +149,7 @@ footer{margin-top:auto; padding:20px 20px 24px; font-family:var(--mono); font-si
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-auth.js"></script>
+<script src="nexus-desktop.js"></script>
 <script src="nexus-forfait.js"></script>
 <script src="nexus-tempo.js"></script>
 <script src="nexus-marge.js"></script>
@@ -935,19 +942,28 @@ footer{margin-top:auto; padding:20px 20px 24px; font-family:var(--mono); font-si
   // équipe, carburants, saisonnier, découvertes, sources) est replié
   // et accessible en un tap, sans jamais être retiré du DOM.
   // ------------------------------------------------------------
+  // Wrapper "accordion-item" (02/08/2026, vue bureau) : le bouton et son
+  // contenu doivent rester ENSEMBLE dans une même case de la mise en
+  // colonnes desktop-grid (voir nexus-desktop.js, "> *{break-inside:avoid}"
+  // s'applique au DIRECT enfant du conteneur) — sans ce wrapper commun, le
+  // bouton d'un accordéon pourrait finir en bas d'une colonne et son
+  // contenu tout en haut de la colonne suivante. Purement additif : ce
+  // wrapper n'a aucun style en vue mobile (comportement identique à avant).
   function accordion(id, titre, contenuHtml, ouvertParDefaut, options) {
     const { badge, sousTitre } = options || {};
     return `
-      <button class="accordion-header" data-target="${id}" aria-expanded="${ouvertParDefaut ? 'true' : 'false'}">
-        <span class="accordion-head-text">
-          <span class="accordion-title">${titre}</span>
-          ${sousTitre ? `<span class="accordion-subtitle">${sousTitre}</span>` : ''}
-        </span>
-        ${badge ? `<span class="accordion-count">${badge}</span>` : ''}
-        <span class="accordion-line"></span>
-        <span class="accordion-chevron">▾</span>
-      </button>
-      <div class="accordion-body${ouvertParDefaut ? ' open' : ''}" id="${id}">${contenuHtml}</div>
+      <div class="accordion-item">
+        <button class="accordion-header" data-target="${id}" aria-expanded="${ouvertParDefaut ? 'true' : 'false'}">
+          <span class="accordion-head-text">
+            <span class="accordion-title">${titre}</span>
+            ${sousTitre ? `<span class="accordion-subtitle">${sousTitre}</span>` : ''}
+          </span>
+          ${badge ? `<span class="accordion-count">${badge}</span>` : ''}
+          <span class="accordion-line"></span>
+          <span class="accordion-chevron">▾</span>
+        </button>
+        <div class="accordion-body${ouvertParDefaut ? ' open' : ''}" id="${id}">${contenuHtml}</div>
+      </div>
     `;
   }
 
@@ -998,7 +1014,8 @@ footer{margin-top:auto; padding:20px 20px 24px; font-family:var(--mono); font-si
       : 'Aucune décision enregistrée pour l\'instant';
 
     root.innerHTML = `
-      <div class="section" style="margin-top:6px;">
+      <div class="desktop-grid">
+      <div class="section accordion-item" style="margin-top:6px;">
         <div class="conseiller-card">
           <img class="conseiller-avatar" src="assets/nexus-avatar.png" alt="Conseiller NEXUS">
           <div class="conseiller-body">
@@ -1031,6 +1048,7 @@ footer{margin-top:auto; padding:20px 20px 24px; font-family:var(--mono); font-si
       ${accordion('accDecouvertes', 'Tendances découvertes', `<div class="section">${renderDecouvertes(decouvertes)}</div>`, false, { sousTitre: sousTitreDecouvertes, badge: nbDecouvertes ? String(nbDecouvertes) : null })}
 
       ${accordion('accSources', 'Sources de données', `${renderSources()}<div class="section-note">NEXUS Tempo est conçu pour accueillir de nouvelles sources sans tout reconstruire : chaque source "Prévue" s'activera dès qu'elle sera branchée, sans jamais remplacer une donnée manquante par une estimation.</div>`, false, { sousTitre: sousTitreSources })}
+      </div>
     `;
     branchBoutonMission(decision, siteId, employee);
     branchAccordions();
