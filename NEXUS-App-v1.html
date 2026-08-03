@@ -2106,7 +2106,7 @@
     return (s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   }
 
-  function initRechercheNexus(employee, estNiveauManager, forfaitProfessional, pointageRequisManager) {
+  function initRechercheNexus(employee, estNiveauManager, forfaitProfessional, pointageRequisManager, roleDuJour) {
     const input = document.getElementById('rechercheNexusInput');
     const resultats = document.getElementById('rechercheNexusResultats');
     if (!input || !resultats) return;
@@ -2120,6 +2120,11 @@
       : 'Rechercher une page NEXUS (pointage, missions, ma progression…)';
 
     const visibles = PAGES_INDEX.filter(p => {
+      // Inventaire masqué pour un renfort (03/08/2026, demande de Frédéric) :
+      // même logique que la mini-carte d'accueil — un renfort n'a pas de
+      // comptage d'ouverture/clôture à faire, il ne doit donc pas non plus
+      // le retrouver via la recherche.
+      if (p.href === 'NEXUS-Inventaire-v1.html' && roleDuJour === 'renfort') return false;
       if (p.role === 'all') return true;
       if (p.role === 'manager') return estNiveauManager;
       if (p.role === 'createur') return !!employee.est_createur;
@@ -2207,20 +2212,28 @@
     let pointageRequisManager = true;
     let forfaitProfessional = true;
 
+    // roleDuJour (03/08/2026, demande de Frédéric) : rôle choisi à la prise
+    // de poste pour AUJOURD'HUI (shifts.role) — sert à masquer la section
+    // Inventaire pour un employé connecté en "Renfort" (voir plus bas et
+    // initRechercheNexus). Distinct de employee.role (le rôle fixe de la
+    // personne) : c'est bien le rôle du quart en cours qui doit primer ici.
+    let roleDuJour = null;
     const aujourdISO = new Date().toISOString().slice(0, 10);
     if (!employee.consultation_externe) {
       const { data: shiftsAujourdhui, error: erreurShift } = await nexusClient
         .from('shifts')
-        .select('id')
+        .select('id, role')
         .eq('employee_id', employee.id)
         .gte('heure_debut', aujourdISO + 'T00:00:00')
         .lte('heure_debut', aujourdISO + 'T23:59:59')
+        .order('heure_debut', { ascending: false })
         .limit(1);
 
       if (!erreurShift && (!shiftsAujourdhui || shiftsAujourdhui.length === 0)) {
         window.location.href = 'NEXUS-Prise-De-Poste-v1.html';
         return;
       }
+      if (!erreurShift && shiftsAujourdhui && shiftsAujourdhui[0]) roleDuJour = shiftsAujourdhui[0].role;
     }
 
     document.getElementById('sessionInfo').innerHTML =
@@ -2290,6 +2303,16 @@
       document.getElementById('conseillerEmployeWrap').style.display = '';
       document.getElementById('conseillerEmployeTexte').textContent = `Bonjour ${employee.nom}. J'ai préparé votre journée.`;
       afficherPointageMini(employee, employee.site_id || 'vito-sainte-marie');
+
+      // Inventaire masqué pour un renfort (03/08/2026, demande de Frédéric) :
+      // le comptage d'ouverture/clôture de quart suppose un poste titulaire
+      // (pompiste/caissière) sur la journée — un renfort n'a pas à s'en
+      // charger. On masque la mini-carte d'accueil ; voir aussi
+      // initRechercheNexus() plus bas pour l'entrée "Explorer NEXUS".
+      if (roleDuJour === 'renfort') {
+        const inventaireMini = document.getElementById('inventaireMini');
+        if (inventaireMini) inventaireMini.style.display = 'none';
+      }
 
       // Petit point "Nouveau" (27/07/2026, demande de Frédéric — "une
       // petite notification qui apparaît parfois") sur le bouton Ma
@@ -2435,7 +2458,7 @@
       }
     })();
 
-    initRechercheNexus(employee, estNiveauManager, forfaitProfessional, pointageRequisManager);
+    initRechercheNexus(employee, estNiveauManager, forfaitProfessional, pointageRequisManager, roleDuJour);
     initGroupes();
   });
 
