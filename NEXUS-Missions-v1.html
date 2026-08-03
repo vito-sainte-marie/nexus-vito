@@ -1084,6 +1084,13 @@
     if (estMissionDeCloture(suggestion.mission)) {
       return `Afin de finir la journée en beauté, ${prenom} : vous pouvez gagner ${suggestion.mission.points} points facilement avec « ${suggestion.mission.titre} ». Cliquez ici et validez votre mission.`;
     }
+    // Début de service (03/08/2026, demande de Frédéric) : même choisirMissionSuggeree()
+    // a déjà vérifié qu'on est bien dans l'heure suivant l'arrivée — message
+    // dédié pour démarrer le quart sur une victoire facile, plutôt qu'un
+    // simple "prochaine étape" qui ne dit rien de la situation.
+    if (suggestion.debutDeService) {
+      return `Pour bien démarrer votre quart, ${prenom} : vous pouvez gagner ${suggestion.mission.points} points facilement avec « ${suggestion.mission.titre} ». Cliquez ici et validez votre mission.`;
+    }
     if (stats.palierFrancheAujourdhui) {
       return `${stats.palierFrancheAujourdhui}ᵉ mission validée aujourd'hui, ${prenom}. Pour continuer sur cette lancée : ${titre}${duree}.`;
     }
@@ -1109,6 +1116,21 @@
     const titre = (m.titre || '').toLowerCase();
     return titre.includes('clôture') || titre.includes('cloture') || titre.includes('fermeture');
   }
+
+  // Même logique que estMissionDeCloture, pour l'autre bout de la journée
+  // (03/08/2026, demande de Frédéric) : "Contrôle éclairage extérieur (soir)"
+  // n'a aucun sens suggéré par le Coach avant la tombée de la nuit — on ne
+  // peut pas juger si un éclairage extérieur fonctionne en plein jour.
+  // Détection par mots-clés dans le titre, comme pour la clôture. La
+  // tombée de la nuit n'a pas d'heure fixe toute l'année (17h en hiver,
+  // 22h en été) ; à défaut d'un calcul de coucher de soleil, 19h est un
+  // seuil prudent qui évite l'essentiel des cas de jour, quitte à
+  // suggérer un peu tard certains jours d'été plutôt que trop tôt.
+  function estMissionDuSoir(m) {
+    const titre = (m.titre || '').toLowerCase();
+    return titre.includes('soir') || titre.includes('nuit');
+  }
+  const HEURE_TOMBEE_DE_NUIT = 19;
 
   // Suggestion d'une mission précise, en guise d'appel à l'action — pas
   // juste un constat de progression. Priorité 1 : une mission dont la
@@ -1140,6 +1162,15 @@
   // changement supplémentaire.
   const SEUIL_HEURES_DEPUIS_ARRIVEE_POUR_CLOTURE = 3;
 
+  // Début de service (03/08/2026, demande de Frédéric, cas du pompiste) :
+  // dans l'heure qui suit l'arrivée, on privilégie une victoire facile et
+  // rapide (le moins de points, comme pour un novice) plutôt que la mission
+  // objectivement la plus prioritaire — démarrer le quart sur une tâche
+  // simple plutôt qu'une tâche lourde ou mal choisie. Purement additif au
+  // cas "novice" existant : les deux mènent au même tri par points croissants,
+  // seul le message du Coach change (voir messageConseillerPerso).
+  const SEUIL_HEURES_DEBUT_DE_SERVICE = 1;
+
   function choisirMissionSuggeree() {
     const aujISO = new Date().toISOString().slice(0, 10);
     const faitesAujourdhui = new Set(completionsCache.filter(c => c.date === aujISO).map(c => c.mission_id));
@@ -1149,10 +1180,13 @@
       : null;
     const enFinDeService = new Date().getHours() >= 16
       && (heuresDepuisArrivee === null || heuresDepuisArrivee >= SEUIL_HEURES_DEPUIS_ARRIVEE_POUR_CLOTURE);
+    const nuitTombee = new Date().getHours() >= HEURE_TOMBEE_DE_NUIT;
+    const debutDeService = heuresDepuisArrivee !== null && heuresDepuisArrivee <= SEUIL_HEURES_DEBUT_DE_SERVICE;
 
     const candidates = catalogue.filter(m =>
       Array.isArray(m.role_required) && m.role_required.includes(roleDuJour) && !faitesAujourdhui.has(m.mission_id)
       && (enFinDeService || !estMissionDeCloture(m))
+      && (nuitTombee || !estMissionDuSoir(m))
     );
     if (candidates.length === 0) return null;
 
@@ -1165,7 +1199,7 @@
     const estNouveau = completionsCache.length < 5;
     const rang = { critique: 0, haute: 1, normale: 2, basse: 3 };
     const triees = [...candidates].sort((a, b) => {
-      if (estNouveau) {
+      if (estNouveau || debutDeService) {
         if ((a.points || 0) !== (b.points || 0)) return (a.points || 0) - (b.points || 0);
         return (a.estimated_duration_min || 0) - (b.estimated_duration_min || 0);
       }
@@ -1173,7 +1207,12 @@
       if (ra !== rb) return ra - rb;
       return (a.estimated_duration_min || 0) - (b.estimated_duration_min || 0);
     });
-    return { mission: triees[0], presqueFinie: false };
+    // debutDeService seulement si la mission choisie n'est pas déjà couverte
+    // par un autre message dédié (clôture) — mutuellement exclusifs en
+    // pratique (le seuil de clôture exige >= 3h depuis l'arrivée, celui-ci
+    // <= 1h), mais on le vérifie explicitement plutôt que de le supposer.
+    const estDebutDeService = debutDeService && !estMissionDeCloture(triees[0]);
+    return { mission: triees[0], presqueFinie: false, debutDeService: estDebutDeService };
   }
 
   // Ouvre la mission suggérée, quels que soient l'onglet famille ou la
