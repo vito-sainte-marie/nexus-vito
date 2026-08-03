@@ -904,6 +904,131 @@
   // voir NEXUS-Inventaire-v1.html). Si l'ouverture ou la clôture n'a pas été
   // comptée, l'écoulement ne peut pas être calculé pour ce produit (retourne
   // null plutôt qu'un chiffre approximatif).
+  // ------------------------------------------------------------
+  // ÉCOULEMENT JOURNALIER — Pains/Sandwichs & Viennoiserie (03/08/2026,
+  // demande de Frédéric) : "chaque matin nous avons un stock de départ et un
+  // stock final en fin de journée" — ces catégories sont livrées fraîches
+  // chaque matin, leur vrai "stock de départ" est le comptage d'OUVERTURE du
+  // quart matin (juste après livraison), leur "stock final" le comptage de
+  // CLÔTURE du quart soir. Le rapprochement par quart seul (matin
+  // ouverture→clôture, soir ouverture→clôture, chacun de son côté) ignore la
+  // mi-journée pour ces produits précis. Ce bloc ajoute donc UNIQUEMENT une
+  // vue journalière complémentaire pour ces 2 catégories — décision confirmée
+  // avec Frédéric (03/08/2026) : les employés continuent de compter à chaque
+  // ouverture/clôture comme avant (rien ne change côté NEXUS-Inventaire-v1),
+  // seul ce rapport manager ajoute une lecture journée complète en plus.
+  // Volontairement informatif seulement (aucune alerte inventaire_alertes
+  // créée ici), pour ne pas dupliquer/diverger du mécanisme d'alerte par
+  // quart déjà en place (comparerVentesQuart ci-dessous, inchangé).
+  // ------------------------------------------------------------
+  const CATEGORIES_PERISSABLES_JOUR = ['Pains / Sandwichs', 'Viennoiserie'];
+
+  async function chargerCategoriesProduitsParId(produitIds) {
+    if (!produitIds || !produitIds.length) return {};
+    const { data, error } = await nexusClient.from('inventaire_zone_produit')
+      .select('id, inventaire_categories(nom)').in('id', produitIds);
+    if (error) { console.error('Chargement catégories produits (écoulement journée):', error); return {}; }
+    const map = {};
+    (data || []).forEach(p => { map[p.id] = p.inventaire_categories ? p.inventaire_categories.nom : null; });
+    return map;
+  }
+
+  // Même logique que calculerEcoulementPhysiqueQuart, mais l'ouverture est
+  // lue sur le quart MATIN et la clôture sur le quart SOIR de la même
+  // journée — les mouvements des deux quarts sont sommés (une livraison ou
+  // une casse déclarée à n'importe quel moment de la journée compte).
+  async function calculerEcoulementPhysiqueJournee(quartMatinId, quartSoirId, produitIds) {
+    const [{ data: ouvertureRows, error: e1 }, { data: clotureRows, error: e2 }, { data: mouvementsRows, error: e3 }] = await Promise.all([
+      nexusClient.from('inventaire_comptages').select('produit_id, quantite, compte_le')
+        .eq('quart_id', quartMatinId).in('produit_id', produitIds).eq('type_comptage', 'ouverture')
+        .order('compte_le', { ascending: false }),
+      nexusClient.from('inventaire_comptages').select('produit_id, quantite, compte_le')
+        .eq('quart_id', quartSoirId).in('produit_id', produitIds).eq('type_comptage', 'cloture')
+        .order('compte_le', { ascending: false }),
+      nexusClient.from('inventaire_mouvements').select('produit_id, quantite').in('quart_id', [quartMatinId, quartSoirId]).in('produit_id', produitIds),
+    ]);
+    if (e1) console.error('Écoulement journée — ouverture matin:', e1);
+    if (e2) console.error('Écoulement journée — clôture soir:', e2);
+    if (e3) console.error('Écoulement journée — mouvements:', e3);
+
+    const ouverture = {}, cloture = {}, sommeMouvements = {};
+    (ouvertureRows || []).forEach(c => { if (!(c.produit_id in ouverture)) ouverture[c.produit_id] = c.quantite; });
+    (clotureRows || []).forEach(c => { if (!(c.produit_id in cloture)) cloture[c.produit_id] = c.quantite; });
+    (mouvementsRows || []).forEach(m => { sommeMouvements[m.produit_id] = (sommeMouvements[m.produit_id] || 0) + Number(m.quantite); });
+
+    const resultat = {};
+    for (const id of produitIds) {
+      if (ouverture[id] === undefined || cloture[id] === undefined) { resultat[id] = null; continue; }
+      resultat[id] = ouverture[id] - cloture[id] + (sommeMouvements[id] || 0);
+    }
+    return resultat;
+  }
+
+  // Construit et affiche le bloc journalier — appelé uniquement après le
+  // rapprochement du quart SOIR (c'est seulement à ce moment que la journée
+  // est complète). N'affiche rien si : quart du matin introuvable, ventes
+  // Decenium du matin pas encore importées, ou aucun produit Pains/Sandwichs
+  // /Viennoiserie dans ce fichier — jamais un chiffre approximé à la place.
+  async function afficherEcoulementJournalier(produitIdsQuartSoir, venteParProduitSoir) {
+    const el = document.getElementById('ventesJourneeResume');
+    if (!el) return;
+    if (!quartRow || quartRow.quart !== 'soir') { el.innerHTML = ''; return; }
+
+    const categoriesParProduit = await chargerCategoriesProduitsParId(produitIdsQuartSoir);
+    const produitsPerissables = produitIdsQuartSoir.filter(id => CATEGORIES_PERISSABLES_JOUR.includes(categoriesParProduit[id]));
+    if (!produitsPerissables.length) { el.innerHTML = ''; return; }
+
+    const quartMatin = await chargerQuart(quartRow.site, quartRow.date, 'matin');
+    if (!quartMatin) {
+      el.innerHTML = `<div class="synthese-cloture attente" style="margin-top:14px;">Quart du matin introuvable pour le ${quartRow.date} — comparaison journalière Pains/Sandwichs · Viennoiserie indisponible.</div>`;
+      return;
+    }
+
+    const { data: ventesMatinRows, error } = await nexusClient.from('inventaire_ventes_import')
+      .select('produit_id, quantite_vendue').eq('quart_id', quartMatin.id).in('produit_id', produitsPerissables);
+    if (error) console.error('Chargement ventes import matin (écoulement journée):', error);
+    if (!ventesMatinRows || !ventesMatinRows.length) {
+      el.innerHTML = `<div class="synthese-cloture attente" style="margin-top:14px;">Ventes Decenium du quart du matin pas encore importées — comparaison journalière Pains/Sandwichs · Viennoiserie indisponible tant que ce fichier n'est pas rapproché.</div>`;
+      return;
+    }
+    const venteMatinParProduit = {};
+    ventesMatinRows.forEach(l => {
+      if (!l.produit_id) return;
+      venteMatinParProduit[l.produit_id] = (venteMatinParProduit[l.produit_id] || 0) + Number(l.quantite_vendue || 0);
+    });
+
+    const ecoulementsJour = await calculerEcoulementPhysiqueJournee(quartMatin.id, quartRow.id, produitsPerissables);
+    const produits = await chargerCatalogueProduitsPourVentes(quartRow.site);
+    const designationParId = {};
+    produits.forEach(p => { designationParId[p.id] = p.designation; });
+
+    const lignes = produitsPerissables.map(id => {
+      const ecoulement = ecoulementsJour[id];
+      const designation = designationParId[id] || 'Produit';
+      if (ecoulement === null) return { designation, statut: 'non_calculable' };
+      const venteJour = (venteMatinParProduit[id] || 0) + (venteParProduitSoir[id] || 0);
+      const ecart = ecoulement - venteJour;
+      return { designation, ecoulement, venteJour, statut: Math.abs(ecart) > SEUIL_DEMARQUE ? 'ecart' : 'conforme' };
+    });
+    const nbEcarts = lignes.filter(l => l.statut === 'ecart').length;
+    const nbNonCalculables = lignes.filter(l => l.statut === 'non_calculable').length;
+
+    el.innerHTML = `
+      <div class="synthese-titre" style="margin-top:16px;">Écoulement journalier — Pains/Sandwichs · Viennoiserie (stock de départ matin → stock final soir)</div>
+      ${lignes.map(l => `
+        <div class="synthese-ligne">
+          <span>${l.designation}</span>
+          <span class="synthese-valeur ${l.statut === 'ecart' ? 'amber' : (l.statut === 'non_calculable' ? '' : 'green')}">
+            ${l.statut === 'non_calculable' ? 'Comptage manquant' : `${l.ecoulement} constaté vs ${l.venteJour} vendu`}
+          </span>
+        </div>
+      `).join('')}
+      <div class="synthese-cloture ${nbEcarts ? 'impossible' : 'possible'}" style="margin-top:10px;">
+        ${nbEcarts ? `${nbEcarts} écart(s) sur la journée complète` : 'Aucun écart journalier significatif'}${nbNonCalculables ? ` · ${nbNonCalculables} comptage(s) manquant(s)` : ''}
+      </div>
+    `;
+  }
+
   async function calculerEcoulementPhysiqueQuart(quartId, produitIds) {
     const [{ data: comptages, error: e1 }, { data: mouvements, error: e2 }] = await Promise.all([
       // Trié par compte_le décroissant (02/08/2026, demande de Frédéric —
@@ -1029,6 +1154,10 @@
       await chargerEtAfficherTout();
       const resumeElApres = document.getElementById('ventesResume');
       if (resumeElApres) resumeElApres.innerHTML = resumeHtml;
+      // Écoulement journalier Pains/Sandwichs · Viennoiserie (03/08/2026) —
+      // ne s'affiche que si ce quart est le soir ET que le matin a déjà été
+      // rapproché ; voir afficherEcoulementJournalier() pour le détail.
+      await afficherEcoulementJournalier(produitIds, venteParProduit);
     } catch (err) {
       console.error('Comparaison ventes Decenium:', err);
       resumeEl.innerHTML = `<div style="color:var(--red);">Erreur pendant la lecture du fichier : ${err.message}</div>`;
@@ -1575,6 +1704,7 @@
             <button class="btn-comparer" id="btnComparerVentes" disabled>Importer les ventes Decenium</button>
           </div>
           <div id="ventesResume"></div>
+          <div id="ventesJourneeResume"></div>
         </div>
 
         <div class="section-titre" id="sectionATerminer">À terminer</div>
