@@ -3,6 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" type="image/x-icon" href="favicon.ico">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+<link rel="manifest" href="site.webmanifest">
+<meta name="theme-color" content="#0B0F14">
 <title>NEXUS — Scanner NEXUS</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -176,6 +182,7 @@ a{color:inherit; text-decoration:none;}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-auth.js"></script>
+<script src="nexus-desktop.js"></script>
 <script src="nexus-forfait.js"></script>
 <script src="nexus-periodes.js"></script>
 <script src="nexus-marge.js"></script>
@@ -648,6 +655,9 @@ a{color:inherit; text-decoration:none;}
     const pctC = stats.caTotal > 0 ? stats.classes.C.ca/stats.caTotal*100 : 0;
     document.getElementById('scanSubtitle').textContent = `Scan du magasin — au ${fmtDate(donnees.periodeFin)}`;
     root.innerHTML = `
+      <!-- desktop-grid (02/08/2026) : mise en colonnes en vue bureau (voir
+           nexus-desktop.js) — purement additif, aucun effet en mobile. -->
+      <div class="desktop-grid">
       <div class="capital-panel">
         <div class="capital-row-top">
           <div class="capital-eyebrow">● Chiffre d'affaires analysé</div>
@@ -660,8 +670,6 @@ a{color:inherit; text-decoration:none;}
       </div>
       <div class="section">
         <div class="section-label">Répartition ABC (par catégorie)</div>
-      </div>
-      <div class="section">
         <div class="levers-grid">
           <div class="lever-card" onclick="toggleCard(this)">
             <div class="lever-icon" style="background:var(--green-dim); color:var(--green);">A</div>
@@ -727,8 +735,8 @@ a{color:inherit; text-decoration:none;}
       <div class="section">
         <div class="section-label">NEXUS Marge+</div>
         <div style="font-family:var(--mono); font-size:10.5px; color:var(--text-dim); margin:-6px 0 12px;">Optimisation intelligente de la rentabilité</div>
+        <div id="margeSection"><div class="marge-empty">Analyse en cours…</div></div>
       </div>
-      <div id="margeSection"><div class="marge-empty">Analyse en cours…</div></div>
       <div class="section">
         <div class="mini-panel${stats.anomalies.length>0?' clickable':''}" ${stats.anomalies.length>0?'onclick="toggleCard(this)"':''}>
           <div class="mini-label amber">Anomalies détectées</div>
@@ -757,6 +765,7 @@ a{color:inherit; text-decoration:none;}
         </div>
       </div>
       <div class="disclaimer">Cette page décrit l'état du magasin à un instant T (chiffre d'affaires, marge, catégories) — ce n'est pas encore la mesure de l'impact des décisions NEXUS. Cette mesure viendra avec le suivi des actions dans le temps.</div>
+      </div>
     `;
     window.CANDIDATS_MARGE = construireCandidatsMarge(stats.rowsPropres, donnees.periodeDebut, donnees.periodeFin);
     renderMarge(window.CANDIDATS_MARGE);
