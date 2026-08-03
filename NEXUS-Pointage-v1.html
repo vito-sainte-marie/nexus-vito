@@ -163,6 +163,31 @@
   // pas envoyée avec succès. Début/fin de pause restent sans photo.
   // ============================================================
 
+  // Règle "le clic est le moment d'arrivée" (03/08/2026, demande de
+  // Frédéric) : pour arrivée/départ, la photo passe par l'appareil photo du
+  // téléphone puis un envoi réseau avant d'être enregistrée — ce délai ne
+  // doit jamais faire porter une heure tardive à l'employé. C'est donc
+  // l'instant du CLIC sur le bouton (avant l'ouverture de l'appareil photo)
+  // qui est retenu comme heure réelle du pointage, tant que la validation
+  // (photo prise + envoyée avec succès) aboutit dans la minute qui suit —
+  // au-delà, on retombe sur l'heure réelle de validation (voir
+  // enregistrerPointage). Règle volontairement silencieuse : aucune
+  // minuterie ni avertissement affiché à l'employé, seulement une logique
+  // de fond qui le protège d'un délai réseau qu'il ne maîtrise pas, sans
+  // permettre non plus de geler une heure d'arrivée en attendant.
+  const TOLERANCE_CLIC_VALIDATION_MS = 60000;
+  const clicPointage = {}; // type -> Date, posé au clic, lu par enregistrerPointage
+
+  // Détection d'une tentative interrompue (03/08/2026, demande de Frédéric,
+  // suite au cas de Samantha : elle pensait avoir pris la photo mais son
+  // pointage n'était jamais arrivé en base — probablement la page quittée
+  // ou la connexion coupée pendant l'envoi — et se retrouvait bloquée sans
+  // comprendre pourquoi). On pose un repère juste avant l'envoi et on le
+  // retire dès que l'issue (succès ou échec) est connue ; s'il est encore
+  // présent au chargement suivant de la page pour ce même employé, c'est
+  // qu'une tentative précédente n'a jamais abouti.
+  const CLE_TENTATIVE_EN_COURS = 'nexus_pointage_tentative_en_cours';
+
   const ORDRE_TYPES = ['arrivee', 'pause_debut', 'pause_fin', 'depart'];
   const LABELS_TYPES = {
     // consignePhoto (28/07/2026, demande de Frédéric) : précise ce qui
@@ -171,10 +196,10 @@
     // qu'il n'ouvre l'appareil photo. Arrivée : l'extérieur de la
     // station (parking) suffit. Départ : la mise en alarme est
     // obligatoire, c'est la preuve que la station est sécurisée.
-    arrivee: { icon: '🟢', label: 'Arrivée', sous: 'Prise de poste', photoRequise: true, consignePhoto: 'Photo extérieure (parking) suffisante', histLabel: 'Arrivée enregistrée', labelProchaine: 'Arrivée' },
+    arrivee: { icon: '🟢', label: 'Arrivée', sous: 'Prise de poste', photoRequise: true, consignePhoto: 'Photo extérieure (parking) suffisante — une fois la photo prise, patientez quelques secondes, ne quittez pas la page', histLabel: 'Arrivée enregistrée', labelProchaine: 'Arrivée' },
     pause_debut: { icon: '⏸️', label: 'Début pause', sous: '', photoRequise: false, histLabel: 'Début de pause enregistré', labelProchaine: 'Début de pause' },
     pause_fin: { icon: '▶️', label: 'Fin pause', sous: '', photoRequise: false, histLabel: 'Fin de pause enregistrée', labelProchaine: 'Fin de pause' },
-    depart: { icon: '🔴', label: 'Départ', sous: 'Fin de poste', photoRequise: true, consignePhoto: 'Obligatoire : photo de la mise en alarme', histLabel: 'Départ enregistré', labelProchaine: 'Départ' },
+    depart: { icon: '🔴', label: 'Départ', sous: 'Fin de poste', photoRequise: true, consignePhoto: 'Obligatoire : photo de la mise en alarme — une fois la photo prise, patientez quelques secondes, ne quittez pas la page', histLabel: 'Départ enregistré', labelProchaine: 'Départ' },
   };
 
   // Couleur par type (28/07/2026, demande de Frédéric) : reprend exactement
@@ -206,8 +231,8 @@
   function heureLocale() {
     return new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
   }
-  function dateISOLocale() {
-    const d = new Date();
+  function dateISOLocale(d) {
+    d = d || new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   }
 
@@ -319,6 +344,27 @@
 
     const prochainType = ORDRE_TYPES.find(t => !dejaFait[t]);
 
+    // Tentative précédente interrompue (03/08/2026, cas de Samantha) : si le
+    // repère posé juste avant un envoi précédent est encore présent — donc
+    // jamais nettoyé par un succès ou un échec explicite — et que le type
+    // concerné n'est toujours pas pointé aujourd'hui, la photo a été prise
+    // mais l'enregistrement n'a jamais abouti (page quittée, connexion
+    // coupée). On le dit clairement plutôt que de laisser l'employé
+    // deviner pourquoi NEXUS le renvoie encore vers cet écran.
+    let noteTentativeInterrompue = '';
+    try {
+      const brut = localStorage.getItem(CLE_TENTATIVE_EN_COURS);
+      if (brut) {
+        const tentative = JSON.parse(brut);
+        if (tentative && tentative.employeeId === employee.id && !dejaFait[tentative.type]) {
+          const infoType = LABELS_TYPES[tentative.type];
+          noteTentativeInterrompue = `<div class="info-note" style="margin-bottom:14px; border-color:var(--amber); color:var(--amber);">⚠ Votre dernière tentative (${infoType ? infoType.label.toLowerCase() : tentative.type}) n'a pas abouti — la photo a été prise mais l'envoi n'a pas pu être confirmé. Reprenez-la ci-dessous, ça ne prend qu'un instant.</div>`;
+        } else {
+          localStorage.removeItem(CLE_TENTATIVE_EN_COURS);
+        }
+      }
+    } catch (e) { console.error('Lecture tentative de pointage interrompue:', e); }
+
     // Ligne "service/pause en cours" sous l'horloge (28/07/2026, demande de
     // Frédéric) : pause en priorité (si en cours), sinon service tant que
     // l'arrivée est pointée et le départ ne l'est pas encore — toujours à
@@ -380,6 +426,7 @@
     const retourEnAttente = !dejaFait.arrivee && new URLSearchParams(window.location.search).get('retour');
     document.getElementById('app').innerHTML = `
       ${retourEnAttente ? '<div class="info-note" style="margin-bottom:14px;">🔒 Pointez votre arrivée pour accéder au reste de NEXUS.</div>' : ''}
+      ${noteTentativeInterrompue}
       <div class="confirm-banner" id="confirmBanner"></div>
       <div class="section-label">⏱ Votre journée</div>
       <div class="pointage-list">${boutonsHtml}</div>
@@ -400,10 +447,24 @@
     // Seuls les <button> (actions sans photo, ou déjà pointées/bloquées)
     // ont besoin d'un clic JS — les actions avec photo sont désormais des
     // <label> qui ouvrent leur input associé nativement (voir plus haut).
+    // heureClic capturé au clic lui-même (03/08/2026) : c'est cet instant,
+    // pas celui — potentiellement bien plus tardif pour une action photo —
+    // où l'enregistrement aboutit réellement, qui doit faire foi (voir
+    // enregistrerPointage).
     document.querySelectorAll('button.pointage-btn[data-type]').forEach(btn => {
       btn.addEventListener('click', () => {
         if (btn.disabled) return;
-        finaliserPointage(btn, employee, siteId, btn.dataset.type, shiftActif, null);
+        finaliserPointage(btn, employee, siteId, btn.dataset.type, shiftActif, null, new Date());
+      });
+    });
+
+    // Capture de l'instant du clic sur les actions avec photo (03/08/2026) :
+    // ce listener ne fait qu'enregistrer l'heure, sans jamais empêcher le
+    // comportement natif du <label> (ouverture de l'appareil photo via
+    // l'input associé) — voir TOLERANCE_CLIC_VALIDATION_MS plus haut.
+    document.querySelectorAll('label.pointage-btn[data-type]').forEach(label => {
+      label.addEventListener('click', () => {
+        clicPointage[label.dataset.type] = new Date();
       });
     });
 
@@ -426,15 +487,42 @@
           return;
         }
         const type = input.dataset.type;
+        const heureClic = clicPointage[type] || new Date();
         setElementOccupe(btn, true);
-        btn.querySelector('.sous').textContent = 'Envoi de la photo…';
+
+        // Avertissement d'attente bien visible (03/08/2026, demande de
+        // Frédéric, suite au cas de Samantha) : le petit sous-texte du
+        // bouton ne suffisait pas à se faire remarquer — on affiche donc
+        // aussi une bannière pleine largeur, au même endroit que la
+        // confirmation finale, pour que l'employé sache qu'il doit
+        // patienter et ne pas quitter la page pendant l'envoi.
+        btn.querySelector('.sous').textContent = 'Photo reçue — envoi en cours…';
+        const banner = document.getElementById('confirmBanner');
+        if (banner) {
+          banner.classList.remove('retard');
+          banner.innerHTML = `<div class="confirm-banner-titre">⏳ Photo reçue, patientez…</div><div class="confirm-banner-sous">L'enregistrement est en cours — ne quittez pas cette page.</div>`;
+          banner.classList.add('show');
+        }
+
+        // Repère "tentative en cours" (03/08/2026) : posé juste avant
+        // l'envoi, retiré dès que le résultat (succès ou échec) est connu.
+        // S'il subsiste au prochain chargement de la page, l'envoi a été
+        // interrompu en cours de route (page quittée, réseau coupé) — voir
+        // la vérification en haut de afficherFormulairePointage().
+        try {
+          localStorage.setItem(CLE_TENTATIVE_EN_COURS, JSON.stringify({ employeeId: employee.id, type, depuis: Date.now() }));
+        } catch (e) { console.error('Pose du repère de tentative de pointage:', e); }
+
         const photoUrl = await uploaderPhotoPointage(employee.id, type, file);
         if (!photoUrl) {
+          try { localStorage.removeItem(CLE_TENTATIVE_EN_COURS); } catch (e) {}
           setElementOccupe(btn, false);
           btn.querySelector('.sous').textContent = "Échec de l'envoi — réessayez";
+          if (banner) banner.classList.remove('show');
           return;
         }
-        await finaliserPointage(btn, employee, siteId, type, shiftActif, photoUrl);
+        try { localStorage.removeItem(CLE_TENTATIVE_EN_COURS); } catch (e) {}
+        await finaliserPointage(btn, employee, siteId, type, shiftActif, photoUrl, heureClic);
       });
     });
   }
@@ -449,11 +537,11 @@
     el.classList.toggle('pointage-occupe', occupe);
   }
 
-  async function finaliserPointage(btn, employee, siteId, type, shiftActif, photoUrl) {
+  async function finaliserPointage(btn, employee, siteId, type, shiftActif, photoUrl, heureClic) {
     setElementOccupe(btn, true);
     const sous = btn.querySelector('.sous');
     if (sous) sous.textContent = '…';
-    const ok = await enregistrerPointage(employee, siteId, type, shiftActif, photoUrl);
+    const ok = await enregistrerPointage(employee, siteId, type, shiftActif, photoUrl, heureClic);
 
     // Retour automatique (28/07/2026) : quand cette page a été atteinte via
     // le blocage obligatoire de nexus-auth.js (?retour=<page>), on renvoie
@@ -638,15 +726,28 @@
   // période qui n'a jamais été annoncée comme officielle aux employés.
   const DATE_OFFICIALISATION_RETARDS = '2026-08-01';
 
-  async function enregistrerPointage(employee, siteId, type, shiftActif, photoUrl) {
+  async function enregistrerPointage(employee, siteId, type, shiftActif, photoUrl, heureClic) {
     const now = new Date();
-    const heure = now.toTimeString().slice(0, 8);
-    const today = dateISOLocale();
+
+    // Règle "le clic est le moment d'arrivée" (03/08/2026, demande de
+    // Frédéric — voir TOLERANCE_CLIC_VALIDATION_MS en haut du fichier) :
+    // pour une action avec photo, `now` (l'instant où l'envoi vient
+    // d'aboutir) peut être sensiblement plus tardif que le clic initial à
+    // cause du temps de l'appareil photo puis de l'envoi réseau. Tant que
+    // la validation aboutit dans la minute suivant le clic, c'est le clic
+    // qui fait foi ; au-delà, on retombe sur l'heure réelle de validation
+    // (jamais un chiffre inventé — juste une heure plus tardive et bien
+    // réelle si le délai a franchi la tolérance).
+    const heureRetenue = (heureClic && (now.getTime() - heureClic.getTime()) <= TOLERANCE_CLIC_VALIDATION_MS)
+      ? heureClic
+      : now;
+    const heure = heureRetenue.toTimeString().slice(0, 8);
+    const today = dateISOLocale(heureRetenue);
 
     let retardMin = 0;
     if (type === 'arrivee' && shiftActif && shiftActif.heure_debut && today >= DATE_OFFICIALISATION_RETARDS) {
       const debutPrevu = new Date(shiftActif.heure_debut);
-      const diffMin = Math.round((now - debutPrevu) / 60000);
+      const diffMin = Math.round((heureRetenue - debutPrevu) / 60000);
       retardMin = diffMin > 0 ? diffMin : 0;
     }
 
