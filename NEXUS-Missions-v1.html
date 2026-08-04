@@ -162,7 +162,11 @@
   .plan-impact b{color:#34D399;}
   .plan-valider{width:100%; margin-top:12px; padding:11px; border:none; border-radius:8px; font-size:12.5px; font-weight:600; background:var(--green); color:#04141a; cursor:pointer;}
 
-  .conseiller-perso{background:linear-gradient(135deg, rgba(79,195,217,0.08), rgba(79,195,217,0.02)); border:1px solid rgba(79,195,217,0.25); border-radius:14px; padding:16px 18px; margin:0 20px 14px;}
+  .conseiller-perso{background:linear-gradient(135deg, rgba(79,195,217,0.08), rgba(79,195,217,0.02)); border:1px solid rgba(79,195,217,0.25); border-radius:14px; padding:16px 18px; margin:0 20px 14px; opacity:1; transition:opacity 0.5s ease;}
+  /* Accueil renfort (03/08/2026) : le message de bienvenue s'efface en
+     douceur avant que la recommandation Coach habituelle ne prenne sa
+     place, voir renderConseillerPersoAvecAccueil. */
+  .conseiller-perso-sortant{opacity:0;}
   .conseiller-perso-head{display:flex; align-items:center; gap:11px; margin-bottom:10px;}
   .conseiller-perso-avatar{width:42px; height:42px; border-radius:50%; object-fit:cover; flex-shrink:0; filter:drop-shadow(0 0 9px rgba(79,195,217,0.5));}
   .conseiller-perso-nom{font-family:var(--mono); font-size:11px; font-weight:700; color:var(--cyan); letter-spacing:0.03em;}
@@ -1550,6 +1554,60 @@
     if (btnCta) btnCta.addEventListener('click', () => voirMissionSuggeree(btnCta.dataset.mission));
   }
 
+  // Accueil renfort à la prise de poste (03/08/2026, demande de Frédéric) :
+  // le renfort n'a pas de rôle fixe d'un service à l'autre — contrairement
+  // au pompiste ou à la caissière, il "intervient là où l'activité en a le
+  // plus besoin". Le Coach le dit explicitement une fois, à la connexion,
+  // avant de basculer sur sa recommandation habituelle : bonjour + rappel du
+  // rôle du jour, affiché quelques secondes, puis remplacé par la première
+  // mission suggérée — jamais réaffiché plusieurs fois pour le même
+  // service (voir cleAccueilRenfort).
+  function cleAccueilRenfort(employeeIdCle) {
+    return `nexus_accueil_renfort_${employeeIdCle}_${new Date().toISOString().slice(0, 10)}`;
+  }
+
+  function afficherAccueilRenfort(prenom) {
+    const el = document.getElementById('conseillerPersoSection');
+    if (!el) return;
+    el.innerHTML = `
+      <div class="conseiller-perso">
+        <div class="conseiller-perso-head">
+          <img class="conseiller-perso-avatar" src="assets/nexus-avatar.png" alt="Coach NEXUS">
+          <div>
+            <div class="conseiller-perso-nom">COACH NEXUS</div>
+            <div class="conseiller-perso-sous">Prise de poste</div>
+          </div>
+        </div>
+        <div class="conseiller-perso-texte">Bonjour ${prenom}, tu es en renfort aujourd'hui. Ton renfort intervient là où l'activité en a le plus besoin : tu dois observer, prioriser et agir pour maintenir la fluidité du service, la disponibilité des produits et la sécurité de la station. Je vais t'accompagner.</div>
+      </div>`;
+  }
+
+  // Affiche l'accueil renfort une seule fois par service (marqué en
+  // localStorage), puis bascule sur la recommandation Coach normale au bout
+  // de quelques secondes, avec un fondu (voir .conseiller-perso-sortant).
+  // Si l'accueil a déjà été vu aujourd'hui, ou pour tout autre rôle, la
+  // recommandation Coach s'affiche directement, sans détour.
+  function renderConseillerPersoAvecAccueil(stats, prenom) {
+    if (roleDuJour !== 'renfort') {
+      renderConseillerPerso(stats, prenom);
+      return;
+    }
+    const cle = cleAccueilRenfort(employeeId);
+    let dejaAccueilli = false;
+    try { dejaAccueilli = localStorage.getItem(cle) === '1'; } catch (e) { /* stockage indisponible, tant pis */ }
+    if (dejaAccueilli) {
+      renderConseillerPerso(stats, prenom);
+      return;
+    }
+    afficherAccueilRenfort(prenom);
+    try { localStorage.setItem(cle, '1'); } catch (e) { /* stockage indisponible, tant pis */ }
+    setTimeout(() => {
+      const bloc = document.querySelector('#conseillerPersoSection .conseiller-perso');
+      if (bloc) bloc.classList.add('conseiller-perso-sortant');
+      setTimeout(() => renderConseillerPerso(stats, prenom), 500);
+    }, 4000);
+  }
+
   function toutCoche(mission) {
     return mission.checklist.every((_, i) => checkState[`${mission.mission_id}_${i}`]);
   }
@@ -2015,7 +2073,12 @@
     if (catalogue.some(m => m.necessite_produit)) {
       PRODUITS_ARTICLES = await chargerProduitsPourPhoto();
     }
-    renderConseillerPerso(calculerStatsPersonnelles(completionsCache), employee.nom);
+    // Accueil renfort à la connexion/prise de poste (03/08/2026) : seul ce
+    // premier rendu — celui déclenché par le chargement de la page — passe
+    // par renderConseillerPersoAvecAccueil ; les rendus suivants (temps réel,
+    // validation d'une mission...) rappellent renderConseillerPerso
+    // directement, l'accueil ne devant apparaître qu'une fois par service.
+    renderConseillerPersoAvecAccueil(calculerStatsPersonnelles(completionsCache), employee.nom);
     if (roleDuJour === 'manager') {
       EMPLOYES_SITE = await chargerEmployesSite();
       PLANS_ACTION = await construirePlansAction();
