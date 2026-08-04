@@ -472,6 +472,37 @@
     return null;
   }
 
+  // Hiérarchie de priorité du renfort (03/08/2026, demande détaillée de
+  // Frédéric — "le renfort doit suivre cette hiérarchie") :
+  //   1. Danger ou problème de sécurité
+  //   2. Client en attente ou affluence
+  //   3. Salissure présentant un risque
+  //   4. Réception de marchandise
+  //   5. Rupture ou réassort prioritaire
+  //   6. Sanitaires et espace café
+  //   7. Inventaire tournant
+  //   8. Entretien planifié
+  //   9. Facing et amélioration visuelle
+  // Dérivée du titre/famille/points réels de chaque mission plutôt que
+  // d'une table de correspondance mission par mission — sur 71 missions
+  // renfort, une table à la main serait impossible à tenir à jour de façon
+  // fiable ; ces règles restent lisibles et modifiables si un cas particulier
+  // doit être corrigé. Utilisée uniquement pour le classement du Coach (voir
+  // choisirMissionSuggeree) — jamais pour changer la classification
+  // obligatoire/disponible/conditionnelle ni les 4 blocs de la liste.
+  function rangHierarchieRenfort(m) {
+    const t = (m.titre || '').toLowerCase();
+    if (t.includes('sécurité') || t.includes('risque') || t.includes('danger') || t.includes('panneau') || t.includes('sensible')) return 1;
+    if (t.includes('affluence') || t.includes('soutien immédiat')) return 2;
+    if (t.includes('salissure')) return 3;
+    if (t.includes('réception') || t.includes('livraison')) return 4;
+    if (t.includes('rupture') || (t.includes('réassort') && (m.points || 0) >= 7) || t.includes('rayon en tension')) return 5;
+    if (t.includes('sanitaire') || t.includes('wc') || t.includes('café')) return 6;
+    if (t.includes('inventaire')) return 7;
+    if (t.includes('facing') || t.includes('présentoir') || t.includes('affichage')) return 9;
+    return 8; // entretien planifié — niveau par défaut du reste (nettoyage, consommables, rangement...)
+  }
+
   // Restructuration en 2 niveaux (03/08/2026, demande de Frédéric) : les
   // missions récurrentes sont regroupées par palier de points (barème
   // 10/7/5/2 fixé le même jour dans mission_catalog — voir migration
@@ -1431,7 +1462,15 @@
         const bilan = famillesSoutenues > 0
           ? `Vous avez soutenu ${famillesSoutenues} zone${famillesSoutenues > 1 ? 's' : ''} et validé ${pointsValidesAuj} point${pointsValidesAuj > 1 ? 's' : ''} aujourd'hui.`
           : `Votre service touche à sa fin.`;
-        return `${prenom}, ${bilan} Il reste « ${t} » avant votre départ.${phraseDureePoints}`;
+        // Potentiel restant réel (03/08/2026, exemple de Frédéric : "Potentiel
+        // restant : 15 points") — recalculé ici plutôt que listé mission par
+        // mission : lister exactement les N missions restantes aurait demandé
+        // un second mécanisme de sélection en plus de celui déjà utilisé pour
+        // « ${t} », avec un risque de double-compte ou d'incohérence entre les
+        // deux. Le total, lui, est un vrai nombre, pas une estimation.
+        const potentielRestant = calculerPotentielJour().pointsDisponibles;
+        const potentielTxt = potentielRestant > 0 ? ` Potentiel restant : ${potentielRestant} point${potentielRestant > 1 ? 's' : ''}.` : '';
+        return `${prenom}, ${bilan} Il reste « ${t} » avant votre départ.${phraseDureePoints}${potentielTxt}`;
       }
       return `${prenom}, votre prochaine priorité est « ${t} ».${phraseDureePoints} Réalisez-la avant votre départ.`;
     }
@@ -1600,12 +1639,24 @@
     // signifie déjà qu'on est dans sa fenêtre active (chargerCatalogue
     // filtre le reste) — donc simplement `!!m.time_window` suffit à
     // détecter une obligation horaire active.
+    //
+    // Renfort (03/08/2026, hiérarchie détaillée de Frédéric — "il ne
+    // délaisse pas une file d'attente pour nettoyer une vitre, mais il
+    // n'abandonne pas non plus une flaque dangereuse pour remplir un
+    // rayon") : remplace le couple générique [sécurité, urgence] par
+    // rangHierarchieRenfort(), qui encode les 9 niveaux exacts qu'il a
+    // donnés. L'horaire reste prioritaire sur tout (une obligation liée à
+    // l'heure passe avant même le danger), et durée/points restent les
+    // départages finaux — voir rangHierarchieRenfort ci-dessous.
     const cleDe = m => {
       const horaire = (m.time_window || (enFinDeService && estMissionDeCloture(m)) || (nuitTombee && estMissionDuSoir(m))) ? 0 : 1;
-      const securite = m.famille === 'Sécurité' ? 0 : 1;
-      const urgence = rang[m.priority] ?? 2;
       const duree = m.estimated_duration_min || 0;
       const points = -(m.points || 0);
+      if (roleDuJour === 'renfort') {
+        return [horaire, rangHierarchieRenfort(m), duree, points];
+      }
+      const securite = m.famille === 'Sécurité' ? 0 : 1;
+      const urgence = rang[m.priority] ?? 2;
       return [horaire, securite, urgence, duree, points];
     };
     const comparerCles = (a, b) => {
