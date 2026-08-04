@@ -193,7 +193,11 @@
   .journee-obligatoires{font-family:var(--mono); font-size:10.5px; color:var(--cyan); margin-top:2px;}
   /* Score du jour v2 (03/08/2026) : prochaine priorité actionnable
      directement dans le bloc, même choix que le Conseiller personnel. */
-  .journee-priorite{margin-top:14px; padding-top:14px; border-top:1px solid var(--hairline);}
+  <!-- .journee-priorite est devenu un bloc autonome (03/08/2026, retour de
+       Frédéric — "prochaine priorité" placée juste après "Score du jour",
+       avant les missions obligatoires) : reprend le même habillage carte
+       que .journee-card au lieu de dépendre de son padding parent. -->
+  .journee-priorite{margin:0 20px 14px; background:var(--panel); border:1px solid var(--hairline); border-radius:14px; padding:16px 18px;}
   .journee-priorite-label{font-family:var(--mono); font-size:10px; letter-spacing:0.06em; text-transform:uppercase; color:var(--text-dim);}
   .journee-priorite-titre{font-size:14px; font-weight:600; margin-top:4px;}
   .journee-priorite-detail{font-family:var(--mono); font-size:11px; color:var(--text-mid); margin-top:3px;}
@@ -235,26 +239,33 @@
   </div>
   <div class="divider"></div>
 
-  <!-- Restructuration en 2 niveaux + résumé du jour (03/08/2026, demande de
-       Frédéric) : "Votre journée" (points obtenus / disponibles / missions
-       restantes), puis Catégories (famille + points disponibles par
-       catégorie), puis Missions par niveau de points (10/7/5/2), puis le
-       Coach — dans cet ordre précis, voir renderJourneeSection/
-       renderCategoriesSection/renderNiveauxSection plus bas. Le Coach passe
-       après (au lieu d'être en tête comme avant), conformément à l'ordre
-       demandé. -->
+  <!-- Ordre d'affichage terrain (03/08/2026, retour détaillé de Frédéric —
+       "la priorité opérationnelle doit apparaître avant les filtres") :
+       1. Score du jour  2. Prochaine priorité  3. Missions obligatoires
+       avant le départ (+ bannière sécurité, recommandations manager,
+       missions assignées)  4. Coach NEXUS  5. Missions disponibles
+       6. Catégories et filtres (dont la recherche)  7. Missions
+       conditionnelles, en dernier. Chaque fonction de rendu cible son
+       propre <div> par id — voir renderJourneeSection/renderPrioriteSection/
+       render()/renderCategoriesSection/renderNiveauxSection/
+       renderConseillerPerso plus bas ; l'ordre visuel est entièrement
+       déterminé par la position de ces <div> ici, indépendamment de
+       l'ordre des appels JS. -->
   <div id="journeeSection"></div>
+  <div id="prioriteSection"></div>
+  <div class="section desktop-grid" id="obligatoiresSection"></div>
+  <div id="conseillerPersoSection"></div>
+  <div class="section desktop-grid" id="disponiblesSection"></div>
+
   <div id="categoriesSection"></div>
   <div id="niveauxSection"></div>
-  <div id="conseillerPersoSection"></div>
-
   <div class="search-wrap">
     <div class="search-box"><span>🔍</span><input type="text" id="search" placeholder="Rechercher un plan d'action..."></div>
   </div>
 
   <!-- desktop-grid (02/08/2026) : mise en colonnes en vue bureau (voir
        nexus-desktop.js) — purement additif, aucun effet en mobile. -->
-  <div class="section desktop-grid" id="content"></div>
+  <div class="section desktop-grid" id="conditionnellesSection"></div>
   <footer>NEXUS Plans d'action v1 · 55 procédures · Cahier de Notes de Services intégré</footer>
 </div>
 
@@ -546,26 +557,6 @@
     const top = familleTopPotentiel(potentiel.parFamille);
     const dispoLigne = `${potentiel.pointsDisponibles} point${potentiel.pointsDisponibles > 1 ? 's' : ''} disponible${potentiel.pointsDisponibles > 1 ? 's' : ''}${top ? `, dont ${top.points} en ${top.famille}` : ''}`;
 
-    // Prochaine priorité (même choix que le Conseiller personnel plus bas —
-    // jamais un second calcul divergent) : exclut déjà les missions
-    // conditionnelles depuis choisirMissionSuggeree().
-    const suggestion = choisirMissionSuggeree();
-    let prioriteHtml = '';
-    if (suggestion && suggestion.mission) {
-      const m = suggestion.mission;
-      const detailsPriorite = [
-        m.estimated_duration_min ? `Environ ${m.estimated_duration_min} min` : null,
-        m.points ? `${m.points} point${m.points > 1 ? 's' : ''}` : null,
-      ].filter(Boolean).join(' · ');
-      prioriteHtml = `
-        <div class="journee-priorite">
-          <div class="journee-priorite-label">Prochaine priorité</div>
-          <div class="journee-priorite-titre">${m.titre}</div>
-          ${detailsPriorite ? `<div class="journee-priorite-detail">${detailsPriorite}</div>` : ''}
-          <button class="journee-priorite-btn" id="btnCommencerPriorite">Commencer cette mission</button>
-        </div>`;
-    }
-
     el.innerHTML = `
       <div class="journee-card">
         <div class="journee-label">Score du jour</div>
@@ -574,12 +565,40 @@
         ${attenteHtml}
         ${evolutionHtml}
         <div class="journee-detail">${dispoLigne}</div>
-        ${prioriteHtml}
         <a class="journee-lien" href="NEXUS-Progression-v1.html">Consulter votre score dans Ma Progression →</a>
+      </div>`;
+  }
+
+  // Prochaine priorité (03/08/2026, retour détaillé de Frédéric — "la
+  // priorité opérationnelle doit apparaître avant les filtres") : extraite
+  // du bloc "Score du jour" en son propre bloc autonome, positionné juste
+  // après lui. Même choix que le Conseiller personnel plus bas — jamais un
+  // second calcul divergent — et exclut déjà les missions conditionnelles
+  // depuis choisirMissionSuggeree().
+  function renderPrioriteSection(potentiel) {
+    const el = document.getElementById('prioriteSection');
+    if (!el) return;
+    if (!missionsDuRoleAujourdhui().length) { el.innerHTML = ''; return; }
+
+    const suggestion = choisirMissionSuggeree();
+    if (!suggestion || !suggestion.mission) { el.innerHTML = ''; return; }
+
+    const m = suggestion.mission;
+    const detailsPriorite = [
+      m.estimated_duration_min ? `Environ ${m.estimated_duration_min} min` : null,
+      m.points ? `${m.points} point${m.points > 1 ? 's' : ''}` : null,
+    ].filter(Boolean).join(' · ');
+
+    el.innerHTML = `
+      <div class="journee-priorite">
+        <div class="journee-priorite-label">Prochaine priorité</div>
+        <div class="journee-priorite-titre">${m.titre}</div>
+        ${detailsPriorite ? `<div class="journee-priorite-detail">${detailsPriorite}</div>` : ''}
+        <button class="journee-priorite-btn" id="btnCommencerPriorite">Commencer cette mission</button>
       </div>`;
 
     const btnPriorite = document.getElementById('btnCommencerPriorite');
-    if (btnPriorite && suggestion && suggestion.mission) {
+    if (btnPriorite) {
       btnPriorite.addEventListener('click', () => voirMissionSuggeree(suggestion.mission.mission_id));
     }
   }
@@ -1240,23 +1259,32 @@
   function messageConseillerPerso(stats, suggestion, prenom, pointsObtenusAujourdhui) {
     if (!suggestion) {
       if (stats.palierFrancheAujourdhui) {
-        return `${stats.palierFrancheAujourdhui}ᵉ mission validée aujourd'hui, ${prenom}, et tout est à jour pour l'instant — beau travail.`;
+        return `${prenom}, ${stats.palierFrancheAujourdhui}ᵉ mission validée aujourd'hui et tout est à jour pour l'instant — beau travail.`;
       }
       return pointsObtenusAujourdhui > 0
-        ? `${pointsObtenusAujourdhui} points obtenus aujourd'hui, ${prenom}, et tout est à jour pour l'instant — beau travail.`
-        : `Tout est à jour pour aujourd'hui, ${prenom}. Rien de plus à faire pour l'instant.`;
+        ? `${prenom}, ${pointsObtenusAujourdhui} points obtenus aujourd'hui et tout est à jour pour l'instant — beau travail.`
+        : `${prenom}, tout est à jour pour aujourd'hui. Rien de plus à faire pour l'instant.`;
     }
 
-    const duree = suggestion.mission.estimated_duration_min ? ` (~${suggestion.mission.estimated_duration_min} min)` : '';
+    // Phrasé plus direct et naturel (03/08/2026, retour détaillé de
+    // Frédéric) : le prénom ouvre la phrase ("Frédéric, votre prochaine
+    // priorité est…"), et la durée/les points forment une phrase séparée
+    // ("Elle prend environ X min et rapporte Y points."), au lieu d'être
+    // accolés au titre entre parenthèses/tirets.
+    const t = suggestion.mission.titre;
+    const dureeTxt = suggestion.mission.estimated_duration_min ? `environ ${suggestion.mission.estimated_duration_min} min` : null;
     // Mention du poids en points (03/08/2026, demande de Frédéric) : purement
     // informatif — l'ordre de suggestion reste priorité > durée (voir
     // choisirMissionSuggeree), jamais trié par points, pour ne pas pousser
     // à ne choisir que les missions à forte valeur.
-    const pts = suggestion.mission.points ? ` — ${suggestion.mission.points} points` : '';
-    const titre = `« ${suggestion.mission.titre} »${pts}`;
+    const ptsTxt = suggestion.mission.points ? `${suggestion.mission.points} point${suggestion.mission.points > 1 ? 's' : ''}` : null;
+    let phraseDureePoints = '';
+    if (dureeTxt && ptsTxt) phraseDureePoints = ` Elle prend ${dureeTxt} et rapporte ${ptsTxt}.`;
+    else if (dureeTxt) phraseDureePoints = ` Elle prend ${dureeTxt}.`;
+    else if (ptsTxt) phraseDureePoints = ` Elle rapporte ${ptsTxt}.`;
 
     if (suggestion.presqueFinie) {
-      return `La checklist de ${titre} est déjà entièrement cochée, ${prenom} — il ne manque que la validation.`;
+      return `${prenom}, la checklist de « ${t} » est déjà entièrement cochée — il ne manque que la validation.`;
     }
     // Mission de clôture suggérée (03/08/2026, demande de Frédéric) : à ce
     // stade, choisirMissionSuggeree() a déjà vérifié qu'on est réellement
@@ -1265,7 +1293,7 @@
     // le "facilement" (03/08/2026) : le Coach cherche la mission la plus
     // utile pour clore le service, pas la plus simple.
     if (estMissionDeCloture(suggestion.mission)) {
-      return `Afin de finir la journée en beauté, ${prenom} : ${titre}${duree} vous attend pour terminer le service. Cliquez ici et validez votre mission.`;
+      return `${prenom}, votre prochaine priorité est « ${t} ».${phraseDureePoints} Réalisez-la avant votre départ.`;
     }
     // Début de service (03/08/2026, demande de Frédéric) : même choisirMissionSuggeree()
     // a déjà vérifié qu'on est bien dans l'heure suivant l'arrivée — message
@@ -1274,24 +1302,24 @@
     // selon le nouveau classement (heure > sécurité > urgence > durée >
     // points), pas nécessairement la plus simple.
     if (suggestion.debutDeService) {
-      return `Pour bien démarrer votre quart, ${prenom} : commencez par ${titre}${duree}. Cliquez ici et validez votre mission.`;
+      return `${prenom}, commencez votre service par « ${t} ».${phraseDureePoints}`;
     }
     if (stats.palierFrancheAujourdhui) {
-      return `${stats.palierFrancheAujourdhui}ᵉ mission validée aujourd'hui, ${prenom}. Pour continuer sur cette lancée : ${titre}${duree}.`;
+      return `${prenom}, ${stats.palierFrancheAujourdhui}ᵉ mission validée aujourd'hui. Prochaine priorité : « ${t} ».${phraseDureePoints}`;
     }
     if (stats.streak >= 5) {
-      return `${stats.streak} jours de suite avec au moins une mission validée, ${prenom} — ne cassons pas cette série. ${titre}${duree} vous attend.`;
+      return `${prenom}, ${stats.streak} jours de suite avec au moins une mission validée — ne cassons pas cette série. Prochaine priorité : « ${t} ».${phraseDureePoints}`;
     }
     if (stats.streak >= 2) {
-      return `${stats.streak} jours d'affilée, ${prenom}. On enchaîne avec ${titre}${duree} ?`;
+      return `${prenom}, ${stats.streak} jours d'affilée. On enchaîne avec « ${t} » ?${phraseDureePoints}`;
     }
     if (pointsObtenusAujourdhui > 0) {
-      return `${pointsObtenusAujourdhui} points obtenus aujourd'hui, ${prenom}. Prochaine étape : ${titre}${duree}.`;
+      return `${prenom}, ${pointsObtenusAujourdhui} points obtenus aujourd'hui. Prochaine priorité : « ${t} ».${phraseDureePoints}`;
     }
     if (stats.missionsSemaine > 0) {
-      return `${stats.missionsSemaine} mission${stats.missionsSemaine > 1 ? 's' : ''} validée${stats.missionsSemaine > 1 ? 's' : ''} cette semaine, ${prenom}. Prochaine étape : ${titre}${duree}.`;
+      return `${prenom}, ${stats.missionsSemaine} mission${stats.missionsSemaine > 1 ? 's' : ''} validée${stats.missionsSemaine > 1 ? 's' : ''} cette semaine. Prochaine priorité : « ${t} ».${phraseDureePoints}`;
     }
-    return `Aucune mission validée pour l'instant cette semaine, ${prenom} — commençons simple avec ${titre}${duree}.`;
+    return `${prenom}, aucune mission validée pour l'instant cette semaine — commençons par « ${t} ».${phraseDureePoints}`;
   }
 
   // Une mission de clôture/fermeture n'a aucun sens suggérée en début de
@@ -1621,25 +1649,40 @@
   }
 
   function render() {
-    // Bloc "Votre journée" + Catégories + Niveaux (03/08/2026) : recalculés
-    // à chaque rendu, car complétions/checklist changent en direct.
+    // Bloc "Votre journée" + Prochaine priorité + Catégories + Niveaux
+    // (03/08/2026) : recalculés à chaque rendu, car complétions/checklist
+    // changent en direct.
     const potentiel = calculerPotentielJour();
     renderJourneeSection(potentiel);
+    renderPrioriteSection(potentiel);
     renderCategoriesSection(potentiel);
     renderNiveauxSection(potentiel);
 
     const q = document.getElementById('search').value.trim().toLowerCase();
-    const content = document.getElementById('content');
+    // Réorganisation en 3 conteneurs distincts (03/08/2026, retour détaillé
+    // de Frédéric — "la priorité opérationnelle doit apparaître avant les
+    // filtres") : Obligatoires / Disponibles / Conditionnelles ne sont plus
+    // un seul bloc #content contigu, mais trois <div> placées à des
+    // endroits différents du DOM (voir le squelette HTML plus haut), avec
+    // le Coach entre Obligatoires et Disponibles, et Catégories/filtres
+    // entre Disponibles et Conditionnelles. Le contenu de chaque groupe
+    // reste calculé exactement comme avant à partir de `lib`.
+    const elObligatoires = document.getElementById('obligatoiresSection');
+    const elDisponibles = document.getElementById('disponiblesSection');
+    const elConditionnelles = document.getElementById('conditionnellesSection');
 
-    let html = '';
+    let htmlObligatoires = '';
+    let htmlDisponibles = '';
+    let htmlConditionnelles = '';
 
     // Avertissement sécurité pompiste (27/07/2026, demande de Frédéric ;
     // compacté le 03/08/2026 — le message reste justifié mais occupait trop
     // de place et repoussait les missions vers le bas) : une ligne toujours
     // visible, le détail complet repliable derrière "Voir les règles de
-    // sécurité". Toujours en tête, même pendant une recherche.
+    // sécurité". Toujours en tête du bloc Obligatoires, même pendant une
+    // recherche.
     if (roleDuJour === 'pompiste') {
-      html += `<div class="warning-securite">
+      htmlObligatoires += `<div class="warning-securite">
         <div class="warning-securite-ligne">⚠️ Téléphone interdit sur la piste et pendant toute distribution. <button class="warning-securite-toggle" id="toggleWarningSecurite">${warningSecuriteOuvert ? 'Masquer' : 'Voir les règles de sécurité'}</button></div>
         <div class="warning-securite-detail ${warningSecuriteOuvert ? 'open' : ''}">N'utilisez jamais NEXUS ni votre téléphone à la vue d'un client. C'est strictement interdit sur la piste de distribution de carburant, et encore plus pendant une distribution en cours.</div>
       </div>`;
@@ -1648,8 +1691,8 @@
     // Les recommandations du Conseiller NEXUS s'adressent au manager, pas aux employés —
     // c'est lui qui décide ensuite de déléguer une mission.
     if (!q && roleDuJour === 'manager') {
-      html += `<div class="section-label">Aujourd'hui — recommandé par le Conseiller NEXUS</div>`;
-      html += `<div id="plansActionMissions"></div>`;
+      htmlObligatoires += `<div class="section-label">Aujourd'hui — recommandé par le Conseiller NEXUS</div>`;
+      htmlObligatoires += `<div id="plansActionMissions"></div>`;
     }
 
     // Missions assignées individuellement (créées via "Créer une mission"
@@ -1662,7 +1705,7 @@
     // ni des suggestions du Conseiller personnel (choisirMissionSuggeree) —
     // ce bloc est désormais leur seul et unique lieu d'affichage.
     if (!q) {
-      html += `<div id="missionsAssigneesZone"></div>`;
+      htmlObligatoires += `<div id="missionsAssigneesZone"></div>`;
     }
 
     let lib = missionsDuRoleAujourdhui();
@@ -1672,10 +1715,14 @@
     if (niveauActif !== null) lib = lib.filter(m => m.points === niveauActif);
     if (q) lib = lib.filter(m => m.titre.toLowerCase().includes(q) || (m.pourquoi||'').toLowerCase().includes(q));
 
-    html += `<div class="section-label section-label-pliable ${missionsListeOuverte ? 'open' : ''}" id="toggleMissionsListe">${q ? 'Résultats' : 'Vos missions — rôle ' + roleDuJour} (${lib.length}) <span class="chev">›</span></div>`;
+    // Le libellé dépliable "Vos missions" reste unique et gouverne les trois
+    // groupes à la fois (03/08/2026) — même s'ils sont physiquement
+    // séparés dans le DOM, missionsListeOuverte reste un seul état partagé,
+    // affiché en tête du bloc Obligatoires.
+    htmlObligatoires += `<div class="section-label section-label-pliable ${missionsListeOuverte ? 'open' : ''}" id="toggleMissionsListe">${q ? 'Résultats' : 'Vos missions — rôle ' + roleDuJour} (${lib.length}) <span class="chev">›</span></div>`;
     if (missionsListeOuverte) {
       if (lib.length === 0) {
-        html += `<div class="empty-note">Aucune mission ne correspond à votre rôle du jour.</div>`;
+        htmlObligatoires += `<div class="empty-note">Aucune mission ne correspond à votre rôle du jour.</div>`;
       } else {
         // Trois blocs (03/08/2026, retour détaillé de Frédéric) : obligatoire
         // d'abord, disponible ensuite, conditionnelle en dernier — jamais
@@ -1688,21 +1735,23 @@
         const conditionnelles = lib.filter(m => m.disponibilite === 'conditionnelle');
 
         if (obligatoires.length > 0) {
-          html += `<div class="sous-section-label">Obligatoires avant le départ (${obligatoires.length})</div>`;
-          obligatoires.forEach(m => html += renderMissionCard(m, m.mission_id.startsWith('MISSION-')));
+          htmlObligatoires += `<div class="sous-section-label">Obligatoires avant le départ (${obligatoires.length})</div>`;
+          obligatoires.forEach(m => htmlObligatoires += renderMissionCard(m, m.mission_id.startsWith('MISSION-')));
         }
         if (disponiblesListe.length > 0) {
-          html += `<div class="sous-section-label">Disponibles pendant le service (${disponiblesListe.length})</div>`;
-          disponiblesListe.forEach(m => html += renderMissionCard(m, m.mission_id.startsWith('MISSION-')));
+          htmlDisponibles += `<div class="sous-section-label">Disponibles pendant le service (${disponiblesListe.length})</div>`;
+          disponiblesListe.forEach(m => htmlDisponibles += renderMissionCard(m, m.mission_id.startsWith('MISSION-')));
         }
         if (conditionnelles.length > 0) {
-          html += `<div class="sous-section-label">Missions conditionnelles (${conditionnelles.length})</div>`;
-          conditionnelles.forEach(m => html += renderMissionCard(m, m.mission_id.startsWith('MISSION-')));
+          htmlConditionnelles += `<div class="sous-section-label">Missions conditionnelles (${conditionnelles.length})</div>`;
+          conditionnelles.forEach(m => htmlConditionnelles += renderMissionCard(m, m.mission_id.startsWith('MISSION-')));
         }
       }
     }
 
-    content.innerHTML = html;
+    if (elObligatoires) elObligatoires.innerHTML = htmlObligatoires;
+    if (elDisponibles) elDisponibles.innerHTML = htmlDisponibles;
+    if (elConditionnelles) elConditionnelles.innerHTML = htmlConditionnelles;
     if (roleDuJour === 'manager') renderPlansActionMissions();
     renderMissionsAssignees();
 
@@ -1726,7 +1775,16 @@
       });
     }
 
-    content.querySelectorAll('.mission-head').forEach(el => {
+    // Le bloc "Vos missions" est désormais réparti sur trois conteneurs
+    // distincts (obligatoiresSection/disponiblesSection/conditionnellesSection)
+    // au lieu d'un seul #content contigu — le câblage des interactions
+    // (plier une carte, cocher un item, valider une mission, etc.) se fait
+    // donc au niveau du document entier plutôt que d'un conteneur unique.
+    // Sans risque de collision : ces classes (.mission-head, .check-item,
+    // .presence-item, .produit-recherche, .produit-changer, .btn-valider)
+    // ne sont produites que par renderMissionCard/renderChecklist/
+    // renderPickerProduit, jamais ailleurs sur la page.
+    document.querySelectorAll('.mission-head').forEach(el => {
       el.addEventListener('click', () => {
         const id = el.dataset.id;
         if (missionsOuvertes.has(id)) missionsOuvertes.delete(id); else missionsOuvertes.add(id);
@@ -1738,7 +1796,7 @@
     // l'item n'est coché qu'après upload réussi (voir uploaderPreuvePhoto).
     // Un clic sur un item déjà photographié permet de recommencer (erreur
     // de manip), en effaçant explicitement l'ancienne preuve.
-    content.querySelectorAll('.check-item[data-photo="1"]').forEach(el => {
+    document.querySelectorAll('.check-item[data-photo="1"]').forEach(el => {
       const key = el.dataset.key;
       const lastUnderscore = key.lastIndexOf('_');
       const missionId = key.slice(0, lastUnderscore);
@@ -1770,7 +1828,7 @@
         sauvegarderProgressionItem(employeeId, missionId, idx, true, url);
       });
     });
-    content.querySelectorAll('.check-item:not([data-photo="1"])').forEach(el => {
+    document.querySelectorAll('.check-item:not([data-photo="1"])').forEach(el => {
       el.addEventListener('click', (e) => {
         e.stopPropagation();
         const key = el.dataset.key;
@@ -1783,7 +1841,7 @@
         sauvegarderProgressionItem(employeeId, missionId, idx, checkState[key]);
       });
     });
-    content.querySelectorAll('.presence-item').forEach(el => {
+    document.querySelectorAll('.presence-item').forEach(el => {
       el.addEventListener('click', (e) => {
         e.stopPropagation();
         const key = el.dataset.key;
@@ -1795,7 +1853,7 @@
     // Sélecteur de produit (missions necessite_produit) — recherche câblée
     // directement sur son propre input/suggestions, SANS passer par render()
     // à chaque frappe (ça ferait perdre le focus du champ à chaque lettre).
-    content.querySelectorAll('.produit-recherche').forEach(input => {
+    document.querySelectorAll('.produit-recherche').forEach(input => {
       input.addEventListener('click', e => e.stopPropagation());
       input.addEventListener('input', () => {
         const missionId = input.id.replace('produit-search-', '');
@@ -1819,7 +1877,7 @@
         });
       });
     });
-    content.querySelectorAll('.produit-changer').forEach(el => {
+    document.querySelectorAll('.produit-changer').forEach(el => {
       el.addEventListener('click', (e) => {
         e.stopPropagation();
         delete produitCibleState[el.dataset.mission];
@@ -1828,7 +1886,7 @@
       });
     });
 
-    content.querySelectorAll('.btn-valider').forEach(btn => {
+    document.querySelectorAll('.btn-valider').forEach(btn => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
         const missionId = btn.dataset.mission;
