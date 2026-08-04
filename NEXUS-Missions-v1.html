@@ -430,27 +430,25 @@
   const FAMILLES = ["Toutes","Commerce","Qualité","Sécurité","Exploitation","Management"];
   let familleActive = "Toutes";
   const missionsOuvertes = new Set();
-  // Liste "Vos missions — rôle ..." dépliable (03/08/2026, demande de
-  // Frédéric) — ouverte par défaut (c'est le contenu principal de la
-  // page, contrairement aux sous-groupes repliés par défaut ailleurs dans
-  // NEXUS), mais peut être repliée pour dégager l'écran une fois les
-  // missions du jour identifiées.
-  let missionsListeOuverte = true;
   // Bannière sécurité compacte (03/08/2026, demande de Frédéric) : repliée
   // par défaut sur la page Missions, jamais perdue — juste réduite à une
   // ligne pour ne plus repousser les missions vers le bas.
   let warningSecuriteOuvert = false;
 
-  // Organisation de la journée en 4 blocs pour le renfort (03/08/2026,
-  // demande détaillée de Frédéric) : le renfort "n'a pas de rôle fixe",
-  // contrairement au pompiste/caissière — sa liste de missions serait donc
-  // la plus longue de tous les rôles (35) si elle restait présentée comme
-  // les autres. Pour éviter l'effet "insurmontable", seul "À faire
-  // maintenant" (missions assignées par le manager — signal réel, jamais
-  // vide de sens) est ouvert par défaut ; les trois autres blocs sont
-  // repliés tant que le renfort ne les ouvre pas lui-même. Voir
-  // renderListeMissionsRenfort plus bas pour le détail du classement.
-  let blocsRenfortOuverts = { priorites: false, creux: false, conditionnelles: false };
+  // Repli des sous-blocs de la liste "Vos missions", généralisé à tous les
+  // rôles (03/08/2026, demande de Frédéric — "repli les missions partout
+  // également") : remplace l'ancien toggle unique "Vos missions — rôle X"
+  // qui ouvrait/fermait tout d'un bloc. Chaque sous-bloc (Obligatoires/
+  // Disponibles/Conditionnelles pour la plupart des rôles, Priorités du
+  // service/Disponibles entre deux urgences/Conditionnelles en plus pour le
+  // renfort — voir plus bas) se replie indépendamment, et seul le bloc le
+  // plus directement actionnable reste ouvert par défaut (obligatoires pour
+  // les rôles classiques, "à faire maintenant" pour le renfort — géré à
+  // part via missionsAssigneesZone, pas dans cet objet). Le reste démarre
+  // replié pour ne jamais donner l'impression d'une liste insurmontable à
+  // l'ouverture de la page. Pendant une recherche active, un bloc s'ouvre
+  // automatiquement pour ne jamais masquer un résultat (voir blocListe()).
+  let blocsListeOuverts = { obligatoires: true, disponibles: false, conditionnelles: false, priorites: false, creux: false };
 
   // Signalement d'affluence (03/08/2026, demande de Frédéric — "pendant une
   // affluence, la boutique est prioritaire") : un état AUTO-DÉCLARÉ par le
@@ -2024,19 +2022,22 @@
 
     const estRenfort = roleDuJour === 'renfort';
 
-    // Le libellé dépliable "Vos missions" reste unique et gouverne les trois
-    // groupes à la fois (03/08/2026) — même s'ils sont physiquement
-    // séparés dans le DOM, missionsListeOuverte reste un seul état partagé,
-    // affiché en tête du bloc Obligatoires. Pour le renfort, ce libellé
-    // disparaît au profit des 4 sous-blocs ci-dessous, chacun repliable
-    // indépendamment (voir blocsRenfortOuverts) — un seul interrupteur
-    // global n'aurait pas de sens pour une liste organisée par urgence
-    // plutôt que par obligation.
-    if (!estRenfort) {
-      htmlObligatoires += `<div class="section-label section-label-pliable ${missionsListeOuverte ? 'open' : ''}" id="toggleMissionsListe">${q ? 'Résultats' : 'Vos missions — rôle ' + roleDuJour} (${lib.length}) <span class="chev">›</span></div>`;
-    }
+    // Sous-blocs individuellement repliables, généralisés à tous les rôles
+    // (03/08/2026, demande de Frédéric — "repli les missions partout
+    // également") : remplace l'ancien toggle unique "Vos missions — rôle X"
+    // par des libellés indépendants, chacun avec son propre état dans
+    // blocsListeOuverts. Une recherche active force l'ouverture (jamais de
+    // résultat masqué par un bloc replié).
+    const blocListe = (cle, titre, missions, cible) => {
+      if (missions.length === 0) return;
+      const ouvert = q ? true : blocsListeOuverts[cle];
+      cible.html += `<div class="section-label section-label-pliable ${ouvert ? 'open' : ''}" data-bloc-liste="${cle}">${titre} (${missions.length}) <span class="chev">›</span></div>`;
+      if (ouvert) missions.forEach(m => cible.html += renderMissionCard(m, m.mission_id.startsWith('MISSION-')));
+    };
 
-    if (estRenfort) {
+    if (lib.length === 0) {
+      htmlObligatoires += `<div class="empty-note">Aucune mission ne correspond à votre rôle du jour.</div>`;
+    } else if (estRenfort) {
       // Organisation en 4 blocs pour le renfort (03/08/2026, demande
       // détaillée de Frédéric — "le renfort ne doit pas recevoir une liste
       // fixe de 30 tâches") :
@@ -2053,62 +2054,43 @@
       //   4. Conditionnelles — n'existent que si l'événement survient
       //      (affluence, incident, sécurité...) : disponibilite =
       //      'conditionnelle', même logique que les autres rôles.
-      // Repliés par défaut (sauf "à faire maintenant", jamais vide de sens)
-      // pour ne pas donner l'impression que le service est insurmontable —
-      // le renfort ouvre lui-même ce dont il a besoin.
-      if (lib.length === 0) {
-        htmlObligatoires += `<div class="empty-note">Aucune mission ne correspond à votre rôle du jour.</div>`;
-      } else {
-        const prioritesService = lib.filter(m => m.disponibilite === 'disponible' && m.points >= 7);
-        const disponiblesCreux = lib.filter(m => m.disponibilite === 'disponible' && m.points < 7);
-        const conditionnelles = lib.filter(m => m.disponibilite === 'conditionnelle');
+      const prioritesService = lib.filter(m => m.disponibilite === 'disponible' && m.points >= 7);
+      const disponiblesCreux = lib.filter(m => m.disponibilite === 'disponible' && m.points < 7);
+      const conditionnelles = lib.filter(m => m.disponibilite === 'conditionnelle');
 
-        const blocRenfort = (cle, titre, missions, cible) => {
-          if (missions.length === 0) return;
-          const ouvert = blocsRenfortOuverts[cle];
-          cible.html += `<div class="section-label section-label-pliable ${ouvert ? 'open' : ''}" data-bloc-renfort="${cle}">${titre} (${missions.length}) <span class="chev">›</span></div>`;
-          if (ouvert) missions.forEach(m => cible.html += renderMissionCard(m, m.mission_id.startsWith('MISSION-')));
-        };
+      const cibleOblig = { html: htmlObligatoires };
+      blocListe('priorites', 'Priorités du service', prioritesService, cibleOblig);
+      htmlObligatoires = cibleOblig.html;
 
-        const cibleOblig = { html: htmlObligatoires };
-        blocRenfort('priorites', 'Priorités du service', prioritesService, cibleOblig);
-        htmlObligatoires = cibleOblig.html;
+      const cibleDispo = { html: htmlDisponibles };
+      blocListe('creux', 'Disponibles entre deux urgences', disponiblesCreux, cibleDispo);
+      htmlDisponibles = cibleDispo.html;
 
-        const cibleDispo = { html: htmlDisponibles };
-        blocRenfort('creux', 'Disponibles entre deux urgences', disponiblesCreux, cibleDispo);
-        htmlDisponibles = cibleDispo.html;
+      const cibleCond = { html: htmlConditionnelles };
+      blocListe('conditionnelles', 'Conditionnelles', conditionnelles, cibleCond);
+      htmlConditionnelles = cibleCond.html;
+    } else {
+      // Trois blocs (03/08/2026, retour détaillé de Frédéric) : obligatoire
+      // d'abord, disponible ensuite, conditionnelle en dernier — jamais
+      // mélangées, pour que l'employé sache d'un coup d'œil ce qui est
+      // vraiment attendu de lui aujourd'hui. Repliés par défaut (03/08/2026)
+      // sauf Obligatoires, seul bloc réellement actionnable au quotidien —
+      // même principe que "à faire maintenant" pour le renfort ci-dessus.
+      const obligatoires = lib.filter(m => m.disponibilite === 'obligatoire');
+      const disponiblesListe = lib.filter(m => m.disponibilite !== 'obligatoire' && m.disponibilite !== 'conditionnelle');
+      const conditionnelles = lib.filter(m => m.disponibilite === 'conditionnelle');
 
-        const cibleCond = { html: htmlConditionnelles };
-        blocRenfort('conditionnelles', 'Conditionnelles', conditionnelles, cibleCond);
-        htmlConditionnelles = cibleCond.html;
-      }
-    } else if (missionsListeOuverte) {
-      if (lib.length === 0) {
-        htmlObligatoires += `<div class="empty-note">Aucune mission ne correspond à votre rôle du jour.</div>`;
-      } else {
-        // Trois blocs (03/08/2026, retour détaillé de Frédéric) : obligatoire
-        // d'abord, disponible ensuite, conditionnelle en dernier — jamais
-        // mélangées, pour que l'employé sache d'un coup d'œil ce qui est
-        // vraiment attendu de lui aujourd'hui. Les filtres catégorie/niveau
-        // restent disponibles en complément (déjà appliqués à `lib`
-        // ci-dessus, donc aux trois blocs à la fois).
-        const obligatoires = lib.filter(m => m.disponibilite === 'obligatoire');
-        const disponiblesListe = lib.filter(m => m.disponibilite !== 'obligatoire' && m.disponibilite !== 'conditionnelle');
-        const conditionnelles = lib.filter(m => m.disponibilite === 'conditionnelle');
+      const cibleOblig = { html: htmlObligatoires };
+      blocListe('obligatoires', 'Obligatoires avant le départ', obligatoires, cibleOblig);
+      htmlObligatoires = cibleOblig.html;
 
-        if (obligatoires.length > 0) {
-          htmlObligatoires += `<div class="sous-section-label">Obligatoires avant le départ (${obligatoires.length})</div>`;
-          obligatoires.forEach(m => htmlObligatoires += renderMissionCard(m, m.mission_id.startsWith('MISSION-')));
-        }
-        if (disponiblesListe.length > 0) {
-          htmlDisponibles += `<div class="sous-section-label">Disponibles pendant le service (${disponiblesListe.length})</div>`;
-          disponiblesListe.forEach(m => htmlDisponibles += renderMissionCard(m, m.mission_id.startsWith('MISSION-')));
-        }
-        if (conditionnelles.length > 0) {
-          htmlConditionnelles += `<div class="sous-section-label">Missions conditionnelles (${conditionnelles.length})</div>`;
-          conditionnelles.forEach(m => htmlConditionnelles += renderMissionCard(m, m.mission_id.startsWith('MISSION-')));
-        }
-      }
+      const cibleDispo = { html: htmlDisponibles };
+      blocListe('disponibles', 'Disponibles pendant le service', disponiblesListe, cibleDispo);
+      htmlDisponibles = cibleDispo.html;
+
+      const cibleCond = { html: htmlConditionnelles };
+      blocListe('conditionnelles', 'Missions conditionnelles', conditionnelles, cibleCond);
+      htmlConditionnelles = cibleCond.html;
     }
 
     if (elObligatoires) elObligatoires.innerHTML = htmlObligatoires;
@@ -2117,23 +2099,13 @@
     if (roleDuJour === 'manager') renderPlansActionMissions();
     renderMissionsAssignees();
 
-    // Liste dépliable (03/08/2026) — replie/déplie toute la section "Vos
-    // missions", pas juste une carte individuelle (voir missionsOuvertes
-    // pour le pliage carte par carte, inchangé).
-    const toggleMissionsListe = document.getElementById('toggleMissionsListe');
-    if (toggleMissionsListe) {
-      toggleMissionsListe.addEventListener('click', () => {
-        missionsListeOuverte = !missionsListeOuverte;
-        render();
-      });
-    }
-
-    // Bascule indépendante de chacun des 4 blocs renfort (03/08/2026) —
-    // voir blocsRenfortOuverts.
-    document.querySelectorAll('[data-bloc-renfort]').forEach(el => {
+    // Bascule indépendante de chaque sous-bloc, pour tous les rôles
+    // (03/08/2026, demande de Frédéric — "repli les missions partout
+    // également") — voir blocsListeOuverts.
+    document.querySelectorAll('[data-bloc-liste]').forEach(el => {
       el.addEventListener('click', () => {
-        const cle = el.dataset.blocRenfort;
-        blocsRenfortOuverts[cle] = !blocsRenfortOuverts[cle];
+        const cle = el.dataset.blocListe;
+        blocsListeOuverts[cle] = !blocsListeOuverts[cle];
         render();
       });
     });
