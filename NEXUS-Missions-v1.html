@@ -71,6 +71,11 @@
   .mission-head{padding:14px 16px; cursor:pointer; display:flex; justify-content:space-between; align-items:center; gap:10px;}
   .mission-titre{font-size:13.5px; font-weight:600; flex:1;}
   .mission-meta{font-family:var(--mono); font-size:10px; color:var(--text-dim); margin-top:3px;}
+  /* Missions conditionnelles (03/08/2026, retour détaillé de Frédéric) :
+     jamais comptées dans les obligations ou le potentiel du jour — un badge
+     rappelle qu'elles ne s'appliquent que si une situation réelle survient. */
+  .mission-conditionnelle-badge{font-family:var(--mono); font-size:9px; letter-spacing:0.02em; color:var(--amber); margin-top:4px;}
+  .sous-section-label{font-family:var(--mono); font-size:9.5px; letter-spacing:0.06em; text-transform:uppercase; color:var(--text-dim); margin:16px 0 8px; padding-left:2px;}
   .badge{font-family:var(--mono); font-size:9.5px; padding:3px 8px; border-radius:20px; font-weight:600; white-space:nowrap;}
   .badge-critique{background:var(--red-dim); color:var(--red);}
   .badge-haute{background:var(--amber-dim); color:var(--amber);}
@@ -117,8 +122,12 @@
      distribution de carburant. Toujours visible en haut de ses missions,
      jamais masqué par la recherche : c'est une consigne de sécurité, pas
      un contenu accessoire. */
-  .warning-securite{background:var(--red-dim); border:1px solid rgba(240,87,90,0.4); border-radius:10px; padding:12px 14px; font-size:12px; color:var(--red); line-height:1.55; margin:0 0 14px;}
+  .warning-securite{background:var(--red-dim); border:1px solid rgba(240,87,90,0.4); border-radius:10px; padding:10px 14px; font-size:12px; color:var(--red); line-height:1.55; margin:0 0 14px;}
   .warning-securite b{color:var(--red);}
+  .warning-securite-ligne{display:flex; align-items:center; flex-wrap:wrap; gap:8px; justify-content:space-between;}
+  .warning-securite-toggle{background:none; border:1px solid rgba(240,87,90,0.4); color:var(--red); font-family:var(--mono); font-size:9.5px; letter-spacing:0.02em; padding:4px 9px; border-radius:20px; cursor:pointer; white-space:nowrap; flex-shrink:0;}
+  .warning-securite-detail{display:none; margin-top:8px; padding-top:8px; border-top:1px solid rgba(240,87,90,0.25);}
+  .warning-securite-detail.open{display:block;}
   .presence-label{font-family:var(--mono); font-size:10.5px; letter-spacing:0.05em; text-transform:uppercase; color:var(--text-dim); margin:16px 0 6px;}
   .presence-item{display:flex; align-items:center; gap:10px; padding:6px 0; font-size:12.5px; cursor:pointer;}
   .presence-box{width:16px; height:16px; border:1.5px solid var(--text-dim); border-radius:4px; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:11px;}
@@ -180,7 +189,16 @@
   .journee-evolution.hausse{color:var(--green);}
   .journee-evolution.baisse{color:var(--red);}
   .journee-evolution.stable{color:var(--text-dim);}
-  .journee-attente{color:var(--amber);}
+  .journee-attente{font-family:var(--mono); font-size:11px; color:var(--amber); margin-top:4px;}
+  .journee-obligatoires{font-family:var(--mono); font-size:10.5px; color:var(--cyan); margin-top:2px;}
+  /* Score du jour v2 (03/08/2026) : prochaine priorité actionnable
+     directement dans le bloc, même choix que le Conseiller personnel. */
+  .journee-priorite{margin-top:14px; padding-top:14px; border-top:1px solid var(--hairline);}
+  .journee-priorite-label{font-family:var(--mono); font-size:10px; letter-spacing:0.06em; text-transform:uppercase; color:var(--text-dim);}
+  .journee-priorite-titre{font-size:14px; font-weight:600; margin-top:4px;}
+  .journee-priorite-detail{font-family:var(--mono); font-size:11px; color:var(--text-mid); margin-top:3px;}
+  .journee-priorite-btn{width:100%; margin-top:10px; padding:11px; border:none; border-radius:9px; background:var(--cyan); color:#04141a; font-size:13px; font-weight:600; cursor:pointer;}
+  .journee-priorite-btn:active{opacity:0.85;}
 
   .categories-grid{margin:0 20px 14px; display:grid; grid-template-columns:1fr 1fr; gap:8px;}
   .categorie-card{
@@ -381,6 +399,10 @@
   // NEXUS), mais peut être repliée pour dégager l'écran une fois les
   // missions du jour identifiées.
   let missionsListeOuverte = true;
+  // Bannière sécurité compacte (03/08/2026, demande de Frédéric) : repliée
+  // par défaut sur la page Missions, jamais perdue — juste réduite à une
+  // ligne pour ne plus repousser les missions vers le bas.
+  let warningSecuriteOuvert = false;
 
   // Restructuration en 2 niveaux (03/08/2026, demande de Frédéric) : les
   // missions récurrentes sont regroupées par palier de points (barème
@@ -411,6 +433,17 @@
   // accessibles (missions du rôle pas encore faites), répartis par famille
   // et par niveau de points. Jamais un chiffre inventé : uniquement basé
   // sur le catalogue réellement chargé et les complétions réelles.
+  // Obligatoire / disponible / conditionnelle (03/08/2026, retour détaillé de
+  // Frédéric sur l'interface employé) : "22 missions obligatoires restantes"
+  // comptait TOUTES les missions du rôle non faites, y compris des missions
+  // purement situationnelles (livraison carburant, anomalie technique,
+  // impayé...) qui n'ont aucune raison de peser sur le sentiment de charge
+  // du jour. mission_catalog.disponibilite distingue maintenant :
+  //   - obligatoire   : à faire à chaque service concerné
+  //   - disponible    : recommandé mais flexible selon le rythme du service
+  //   - conditionnelle: seulement si une situation réelle survient — jamais
+  //                     comptée dans le potentiel de points ni le taux de
+  //                     réalisation, affichée à part (voir render()).
   function calculerPotentielJour() {
     const aujISO = new Date().toISOString().slice(0, 10);
     const faitesAujourdhui = new Set(completionsCache.filter(c => c.date === aujISO).map(c => c.mission_id));
@@ -419,10 +452,23 @@
     const parFamille = {};
     const parNiveau = {};
     let pointsDisponibles = 0;
-    let missionsRestantes = 0;
+    let missionsObligatoiresTotal = 0;
+    let missionsObligatoiresFaites = 0;
 
     missions.forEach(m => {
       const fait = faitesAujourdhui.has(m.mission_id);
+      const conditionnelle = m.disponibilite === 'conditionnelle';
+
+      if (m.disponibilite === 'obligatoire') {
+        missionsObligatoiresTotal += 1;
+        if (fait) missionsObligatoiresFaites += 1;
+      }
+
+      // Les missions conditionnelles restent en dehors des totaux — ce ne
+      // sont pas des tâches prévues pour aujourd'hui, seulement des tâches
+      // disponibles SI une situation réelle survient.
+      if (conditionnelle) return;
+
       if (!parFamille[m.famille]) parFamille[m.famille] = { nbTotal: 0, nbFaites: 0, pointsDisponibles: 0 };
       const pf = parFamille[m.famille];
       pf.nbTotal += 1;
@@ -433,15 +479,15 @@
       pn.nbTotal += 1;
       if (fait) pn.nbFaites += 1; else pn.pointsDisponibles += m.points;
 
-      if (!fait) { pointsDisponibles += m.points; missionsRestantes += 1; }
+      if (!fait) pointsDisponibles += m.points;
     });
 
     const completionsAujourdhui = completionsCache.filter(c => c.date === aujISO);
-    // Score du jour = points gagnés (validés + en attente confondus) : donne
-    // un retour immédiat et motivant sur l'effort réel fourni, comme demandé
-    // par Frédéric ("le conseiller doit donner l'impression d'être vivant").
-    // Le détail validé/en attente est affiché séparément — jamais caché,
-    // pour rester honnête sur ce qui compte déjà officiellement.
+    // Score du jour : la ligne principale est désormais les points VALIDÉS
+    // (03/08/2026, demande de Frédéric — "le score doit distinguer gagné,
+    // validé et en attente") — un chiffre honnête, jamais gonflé par des
+    // missions pas encore confirmées. Les points en attente restent
+    // affichés séparément, jamais cachés.
     const pointsObtenusAujourdhui = completionsAujourdhui
       .reduce((s, c) => s + (c.points || 0) + (c.points_ajustement || 0), 0);
     const pointsValidesAujourdhui = completionsAujourdhui
@@ -449,45 +495,93 @@
       .reduce((s, c) => s + (c.points || 0) + (c.points_ajustement || 0), 0);
     const pointsEnAttenteAujourdhui = pointsObtenusAujourdhui - pointsValidesAujourdhui;
 
-    return { parFamille, parNiveau, pointsDisponibles, missionsRestantes, pointsObtenusAujourdhui, pointsValidesAujourdhui, pointsEnAttenteAujourdhui };
+    return { parFamille, parNiveau, pointsDisponibles, missionsObligatoiresTotal, missionsObligatoiresFaites, pointsObtenusAujourdhui, pointsValidesAujourdhui, pointsEnAttenteAujourdhui };
   }
 
-  // Score du jour (03/08/2026, demande de Frédéric — "un système simple et
-  // compréhensible") : le nombre en avant est le score du jour (points
-  // gagnés, validés + en attente confondus — retour immédiat sur l'effort
-  // réel). Le détail validé/en attente n'est jamais caché en dessous, et
-  // l'évolution compare au dernier service comparable (même rôle, même
-  // quart) plutôt qu'à un potentiel abstrait.
+  // Catégorie où se concentre le plus de points disponibles — utilisé pour
+  // contextualiser "X points disponibles" (03/08/2026, demande de Frédéric :
+  // "114 points disponibles, dont 31 en sécurité").
+  function familleTopPotentiel(parFamille) {
+    let top = null, max = 0;
+    Object.entries(parFamille).forEach(([f, v]) => { if (v.pointsDisponibles > max) { max = v.pointsDisponibles; top = f; } });
+    return top ? { famille: top, points: max } : null;
+  }
+
+  // Score du jour v2 (03/08/2026, retour détaillé de Frédéric sur
+  // l'interface employé) :
+  //  - la ligne principale est désormais les points VALIDÉS, jamais un
+  //    total "gagné" qui mélangeait validé et en attente sans le dire ;
+  //  - progression sur les missions OBLIGATOIRES seulement (petit nombre
+  //    réaliste), plus jamais un total qui inclut les missions
+  //    conditionnelles ;
+  //  - "premier service mesuré" quand aucun historique comparable
+  //    n'existe encore, plutôt qu'une comparaison à 0 dénuée de sens ;
+  //  - la prochaine priorité du Coach est actionnable directement ici
+  //    (bouton "Commencer cette mission"), pas seulement dans le message
+  //    du Conseiller personnel plus bas.
   function renderJourneeSection(potentiel) {
     const el = document.getElementById('journeeSection');
     if (!el) return;
     if (!missionsDuRoleAujourdhui().length) { el.innerHTML = ''; return; }
 
-    let evolutionHtml = '';
+    let evolutionHtml;
     if (dernierServiceComparable) {
-      const delta = potentiel.pointsObtenusAujourdhui - dernierServiceComparable.points;
+      const delta = potentiel.pointsValidesAujourdhui - dernierServiceComparable.points;
       const classe = delta > 0 ? 'hausse' : delta < 0 ? 'baisse' : 'stable';
       const icone = delta > 0 ? '▲' : delta < 0 ? '▼' : '=';
       const signe = delta > 0 ? '+' : '';
       evolutionHtml = `<div class="journee-evolution ${classe}">${icone} ${signe}${delta} pt${Math.abs(delta) > 1 ? 's' : ''} vs votre dernier service comparable (${dernierServiceComparable.points} pts)</div>`;
+    } else {
+      evolutionHtml = `<div class="journee-evolution stable">Premier service mesuré — votre référence commence aujourd'hui.</div>`;
     }
 
-    const detailValidation = potentiel.pointsEnAttenteAujourdhui > 0
-      ? `${potentiel.pointsValidesAujourdhui} validé${potentiel.pointsValidesAujourdhui > 1 ? 's' : ''} · <span class="journee-attente">${potentiel.pointsEnAttenteAujourdhui} en attente de validation</span>`
-      : `${potentiel.pointsValidesAujourdhui} validé${potentiel.pointsValidesAujourdhui > 1 ? 's' : ''}`;
+    const attenteHtml = potentiel.pointsEnAttenteAujourdhui > 0
+      ? `<div class="journee-attente">${potentiel.pointsEnAttenteAujourdhui} point${potentiel.pointsEnAttenteAujourdhui > 1 ? 's' : ''} en attente de validation</div>`
+      : '';
+
+    const obligatoiresHtml = potentiel.missionsObligatoiresTotal > 0
+      ? `<div class="journee-obligatoires">${potentiel.missionsObligatoiresFaites} / ${potentiel.missionsObligatoiresTotal} mission${potentiel.missionsObligatoiresTotal > 1 ? 's' : ''} obligatoire${potentiel.missionsObligatoiresTotal > 1 ? 's' : ''} terminée${potentiel.missionsObligatoiresTotal > 1 ? 's' : ''}</div>`
+      : `<div class="journee-obligatoires">Aucune mission obligatoire pour l'instant</div>`;
+
+    const top = familleTopPotentiel(potentiel.parFamille);
+    const dispoLigne = `${potentiel.pointsDisponibles} point${potentiel.pointsDisponibles > 1 ? 's' : ''} disponible${potentiel.pointsDisponibles > 1 ? 's' : ''}${top ? `, dont ${top.points} en ${top.famille}` : ''}`;
+
+    // Prochaine priorité (même choix que le Conseiller personnel plus bas —
+    // jamais un second calcul divergent) : exclut déjà les missions
+    // conditionnelles depuis choisirMissionSuggeree().
+    const suggestion = choisirMissionSuggeree();
+    let prioriteHtml = '';
+    if (suggestion && suggestion.mission) {
+      const m = suggestion.mission;
+      const detailsPriorite = [
+        m.estimated_duration_min ? `Environ ${m.estimated_duration_min} min` : null,
+        m.points ? `${m.points} point${m.points > 1 ? 's' : ''}` : null,
+      ].filter(Boolean).join(' · ');
+      prioriteHtml = `
+        <div class="journee-priorite">
+          <div class="journee-priorite-label">Prochaine priorité</div>
+          <div class="journee-priorite-titre">${m.titre}</div>
+          ${detailsPriorite ? `<div class="journee-priorite-detail">${detailsPriorite}</div>` : ''}
+          <button class="journee-priorite-btn" id="btnCommencerPriorite">Commencer cette mission</button>
+        </div>`;
+    }
 
     el.innerHTML = `
       <div class="journee-card">
         <div class="journee-label">Score du jour</div>
-        <div class="journee-points">${potentiel.pointsObtenusAujourdhui} point${potentiel.pointsObtenusAujourdhui > 1 ? 's' : ''} gagné${potentiel.pointsObtenusAujourdhui > 1 ? 's' : ''}</div>
+        ${obligatoiresHtml}
+        <div class="journee-points">${potentiel.pointsValidesAujourdhui} point${potentiel.pointsValidesAujourdhui > 1 ? 's' : ''} validé${potentiel.pointsValidesAujourdhui > 1 ? 's' : ''}</div>
+        ${attenteHtml}
         ${evolutionHtml}
-        <div class="journee-detail">
-          ${detailValidation}<br>
-          ${potentiel.pointsDisponibles} point${potentiel.pointsDisponibles > 1 ? 's' : ''} encore accessible${potentiel.pointsDisponibles > 1 ? 's' : ''}<br>
-          ${potentiel.missionsRestantes} mission${potentiel.missionsRestantes > 1 ? 's' : ''} obligatoire${potentiel.missionsRestantes > 1 ? 's' : ''} restante${potentiel.missionsRestantes > 1 ? 's' : ''}
-        </div>
+        <div class="journee-detail">${dispoLigne}</div>
+        ${prioriteHtml}
         <a class="journee-lien" href="NEXUS-Progression-v1.html">Consulter votre score dans Ma Progression →</a>
       </div>`;
+
+    const btnPriorite = document.getElementById('btnCommencerPriorite');
+    if (btnPriorite && suggestion && suggestion.mission) {
+      btnPriorite.addEventListener('click', () => voirMissionSuggeree(suggestion.mission.mission_id));
+    }
   }
 
   function renderCategoriesSection(potentiel) {
@@ -1167,16 +1261,20 @@
     // Mission de clôture suggérée (03/08/2026, demande de Frédéric) : à ce
     // stade, choisirMissionSuggeree() a déjà vérifié qu'on est réellement
     // en fin de service (heure murale ET temps écoulé depuis l'arrivée) —
-    // message dédié, plus valorisant qu'un simple "prochaine étape".
+    // message dédié, plus valorisant qu'un simple "prochaine étape". Retiré
+    // le "facilement" (03/08/2026) : le Coach cherche la mission la plus
+    // utile pour clore le service, pas la plus simple.
     if (estMissionDeCloture(suggestion.mission)) {
-      return `Afin de finir la journée en beauté, ${prenom} : vous pouvez gagner ${suggestion.mission.points} points facilement avec « ${suggestion.mission.titre} ». Cliquez ici et validez votre mission.`;
+      return `Afin de finir la journée en beauté, ${prenom} : ${titre}${duree} vous attend pour terminer le service. Cliquez ici et validez votre mission.`;
     }
     // Début de service (03/08/2026, demande de Frédéric) : même choisirMissionSuggeree()
     // a déjà vérifié qu'on est bien dans l'heure suivant l'arrivée — message
-    // dédié pour démarrer le quart sur une victoire facile, plutôt qu'un
-    // simple "prochaine étape" qui ne dit rien de la situation.
+    // dédié pour démarrer le quart. Retiré le "facilement" (03/08/2026,
+    // retour détaillé de Frédéric) : la mission choisie est la plus utile
+    // selon le nouveau classement (heure > sécurité > urgence > durée >
+    // points), pas nécessairement la plus simple.
     if (suggestion.debutDeService) {
-      return `Pour bien démarrer votre quart, ${prenom} : vous pouvez gagner ${suggestion.mission.points} points facilement avec « ${suggestion.mission.titre} ». Cliquez ici et validez votre mission.`;
+      return `Pour bien démarrer votre quart, ${prenom} : commencez par ${titre}${duree}. Cliquez ici et validez votre mission.`;
     }
     if (stats.palierFrancheAujourdhui) {
       return `${stats.palierFrancheAujourdhui}ᵉ mission validée aujourd'hui, ${prenom}. Pour continuer sur cette lancée : ${titre}${duree}.`;
@@ -1223,8 +1321,24 @@
   // juste un constat de progression. Priorité 1 : une mission dont la
   // checklist est déjà entièrement cochée mais pas encore validée (le
   // geste le plus rapide, on encourage à finir ce qui est presque fait).
-  // Sinon : la mission non faite aujourd'hui la plus prioritaire pour le
-  // rôle du jour, et parmi celles à égalité, la plus rapide à réaliser.
+  //
+  // Classement v2 (03/08/2026, retour détaillé de Frédéric — "le Coach ne
+  // doit pas chercher la mission la plus facile, mais la prochaine mission
+  // la plus utile") : remplace l'ancien tri "points croissants" pour les
+  // novices/début de service, qui pouvait mettre en avant une mission
+  // longue à faible enjeu (ex. 15 min pour 2 points) plutôt qu'une mission
+  // courte et importante (ex. 5 min pour 7 points). Ordre désormais unique,
+  // quel que soit le profil de l'employé :
+  //   1. obligation liée à l'heure (mission avec fenêtre horaire active,
+  //      ou clôture en fin de service réelle, ou "soir" après la tombée
+  //      de la nuit)
+  //   2. sécurité (famille Sécurité)
+  //   3. urgence (priorité critique > haute > normale > basse)
+  //   4. durée (la plus courte d'abord)
+  //   5. points (les plus élevés d'abord)
+  // Les missions conditionnelles (voir mission_catalog.disponibilite) ne
+  // sont jamais candidates : ce sont des tâches situationnelles, pas des
+  // suggestions proactives.
   //
   // Fin de service réelle (03/08/2026, correction demandée par Frédéric) :
   // l'ancien seuil (horloge murale >= 16h, seul) a suggéré "Fermeture
@@ -1235,13 +1349,6 @@
   // l'heure d'arrivée est inconnue (erreur réseau, consultation externe),
   // on retombe sur l'ancien comportement (horloge murale seule) plutôt que
   // de bloquer toute suggestion de clôture indéfiniment.
-  //
-  // Employé novice à NEXUS (03/08/2026, demande de Frédéric) : moins de 5
-  // missions validées au total, tous jours confondus — on privilégie une
-  // victoire facile et rapide (le moins de points, donc la plus simple)
-  // plutôt que la mission objectivement la plus prioritaire, pour ne pas
-  // décourager dès la prise en main de l'outil. Passé ce cap, l'ordre
-  // habituel (priorité > durée) reprend.
   //
   // Les missions ponctuelles ne sont jamais candidates ici depuis le
   // 26/07/2026 : elles ne sont même plus chargées dans `catalogue` (voir
@@ -1299,6 +1406,7 @@
 
     const candidates = catalogue.filter(m =>
       Array.isArray(m.role_required) && m.role_required.includes(roleDuJour) && !faitesAujourdhui.has(m.mission_id)
+      && m.disponibilite !== 'conditionnelle'
       && (enFinDeService || !estMissionDeCloture(m))
       && (nuitTombee || !estMissionDuSoir(m))
     );
@@ -1310,15 +1418,31 @@
       return { mission: presqueFinies[0], presqueFinie: true };
     }
 
-    const estNouveau = completionsCache.length < 5;
     const rang = { critique: 0, haute: 1, normale: 2, basse: 3 };
-    // Clé de tri identique à avant (points croissants en début de service/
-    // novice, sinon priorité), mais on ne prend plus systématiquement le
-    // premier : on regroupe tous les candidats à égalité sur cette clé, et
-    // choisirParmiEquivalents() tire au sort dedans (voir plus haut).
-    const cleDe = m => (estNouveau || debutDeService) ? (m.points || 0) : (rang[m.priority] ?? 2);
-    const meilleureCle = Math.min(...candidates.map(cleDe));
-    const groupe = candidates.filter(m => cleDe(m) === meilleureCle);
+    // Clé de tri v2 : heure > sécurité > urgence > durée > points (les plus
+    // élevés d'abord). Un temps_window encore présent dans `catalogue`
+    // signifie déjà qu'on est dans sa fenêtre active (chargerCatalogue
+    // filtre le reste) — donc simplement `!!m.time_window` suffit à
+    // détecter une obligation horaire active.
+    const cleDe = m => {
+      const horaire = (m.time_window || (enFinDeService && estMissionDeCloture(m)) || (nuitTombee && estMissionDuSoir(m))) ? 0 : 1;
+      const securite = m.famille === 'Sécurité' ? 0 : 1;
+      const urgence = rang[m.priority] ?? 2;
+      const duree = m.estimated_duration_min || 0;
+      const points = -(m.points || 0);
+      return [horaire, securite, urgence, duree, points];
+    };
+    const comparerCles = (a, b) => {
+      for (let i = 0; i < a.length; i++) { if (a[i] !== b[i]) return a[i] - b[i]; }
+      return 0;
+    };
+    const triees = [...candidates].sort((a, b) => comparerCles(cleDe(a), cleDe(b)));
+    const meilleureCle = cleDe(triees[0]);
+    // On ne prend pas systématiquement le premier : on regroupe tous les
+    // candidats strictement à égalité sur toute la clé, et
+    // choisirParmiEquivalents() tire au sort dedans (variété à chaque
+    // ouverture, voir plus haut).
+    const groupe = candidates.filter(m => comparerCles(cleDe(m), meilleureCle) === 0);
     const missionChoisie = choisirParmiEquivalents(groupe);
     try { localStorage.setItem(clePersistanceDerniereSuggestion(), missionChoisie.mission_id); } catch (e) { /* stockage indisponible, tant pis */ }
     // debutDeService seulement si la mission choisie n'est pas déjà couverte
@@ -1477,6 +1601,7 @@
           <div>
             <div class="mission-titre">${m.titre}</div>
             <div class="mission-meta">${m.famille || 'Auto'} · ${m.estimated_duration_min} min · ${m.points || 5} pts${baremeNote}${isAuto && m.impact_attendu_eur ? ' · Impact ' + m.impact_attendu_eur + '€' : ''}</div>
+            ${m.disponibilite === 'conditionnelle' ? `<div class="mission-conditionnelle-badge">À réaliser uniquement si nécessaire</div>` : ''}
           </div>
           ${isAuto ? '<span class="badge badge-auto">Conseiller NEXUS</span>' : (controle ? '<span class="badge badge-controle">🔍 Contrôle</span>' : priorityBadge(priorite))}
         </div>
@@ -1508,13 +1633,16 @@
 
     let html = '';
 
-    // Avertissement sécurité pompiste (27/07/2026, demande de Frédéric) —
-    // toujours en tête, même pendant une recherche : NEXUS et le
-    // téléphone n'ont pas leur place à la vue d'un client, encore moins
-    // sur la piste de distribution de carburant ou pendant une
-    // distribution en cours.
+    // Avertissement sécurité pompiste (27/07/2026, demande de Frédéric ;
+    // compacté le 03/08/2026 — le message reste justifié mais occupait trop
+    // de place et repoussait les missions vers le bas) : une ligne toujours
+    // visible, le détail complet repliable derrière "Voir les règles de
+    // sécurité". Toujours en tête, même pendant une recherche.
     if (roleDuJour === 'pompiste') {
-      html += `<div class="warning-securite">⚠️ <b>Sécurité piste</b> — N'utilisez jamais NEXUS ni votre téléphone à la vue d'un client. C'est strictement interdit sur la piste de distribution de carburant, et encore plus pendant une distribution en cours.</div>`;
+      html += `<div class="warning-securite">
+        <div class="warning-securite-ligne">⚠️ Téléphone interdit sur la piste et pendant toute distribution. <button class="warning-securite-toggle" id="toggleWarningSecurite">${warningSecuriteOuvert ? 'Masquer' : 'Voir les règles de sécurité'}</button></div>
+        <div class="warning-securite-detail ${warningSecuriteOuvert ? 'open' : ''}">N'utilisez jamais NEXUS ni votre téléphone à la vue d'un client. C'est strictement interdit sur la piste de distribution de carburant, et encore plus pendant une distribution en cours.</div>
+      </div>`;
     }
 
     // Les recommandations du Conseiller NEXUS s'adressent au manager, pas aux employés —
@@ -1549,7 +1677,28 @@
       if (lib.length === 0) {
         html += `<div class="empty-note">Aucune mission ne correspond à votre rôle du jour.</div>`;
       } else {
-        lib.forEach(m => html += renderMissionCard(m, m.mission_id.startsWith('MISSION-')));
+        // Trois blocs (03/08/2026, retour détaillé de Frédéric) : obligatoire
+        // d'abord, disponible ensuite, conditionnelle en dernier — jamais
+        // mélangées, pour que l'employé sache d'un coup d'œil ce qui est
+        // vraiment attendu de lui aujourd'hui. Les filtres catégorie/niveau
+        // restent disponibles en complément (déjà appliqués à `lib`
+        // ci-dessus, donc aux trois blocs à la fois).
+        const obligatoires = lib.filter(m => m.disponibilite === 'obligatoire');
+        const disponiblesListe = lib.filter(m => m.disponibilite !== 'obligatoire' && m.disponibilite !== 'conditionnelle');
+        const conditionnelles = lib.filter(m => m.disponibilite === 'conditionnelle');
+
+        if (obligatoires.length > 0) {
+          html += `<div class="sous-section-label">Obligatoires avant le départ (${obligatoires.length})</div>`;
+          obligatoires.forEach(m => html += renderMissionCard(m, m.mission_id.startsWith('MISSION-')));
+        }
+        if (disponiblesListe.length > 0) {
+          html += `<div class="sous-section-label">Disponibles pendant le service (${disponiblesListe.length})</div>`;
+          disponiblesListe.forEach(m => html += renderMissionCard(m, m.mission_id.startsWith('MISSION-')));
+        }
+        if (conditionnelles.length > 0) {
+          html += `<div class="sous-section-label">Missions conditionnelles (${conditionnelles.length})</div>`;
+          conditionnelles.forEach(m => html += renderMissionCard(m, m.mission_id.startsWith('MISSION-')));
+        }
       }
     }
 
@@ -1564,6 +1713,15 @@
     if (toggleMissionsListe) {
       toggleMissionsListe.addEventListener('click', () => {
         missionsListeOuverte = !missionsListeOuverte;
+        render();
+      });
+    }
+
+    const toggleWarningSecurite = document.getElementById('toggleWarningSecurite');
+    if (toggleWarningSecurite) {
+      toggleWarningSecurite.addEventListener('click', (e) => {
+        e.stopPropagation();
+        warningSecuriteOuvert = !warningSecuriteOuvert;
         render();
       });
     }
