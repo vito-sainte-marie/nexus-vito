@@ -1090,6 +1090,20 @@
     return count;
   }
 
+  // Notification "missions à valider" (03/08/2026, demande de Frédéric —
+  // "une notification dans NEXUS" plutôt qu'un canal externe payant). Même
+  // logique que les autres chips conditionnels : n'apparaît que s'il y a
+  // réellement une mission à preuve photo en attente de validation manager
+  // (voir statut_validation, NEXUS-Resultats-Equipe-v1.html). Le manager la
+  // voit dès qu'il ouvre son poste de pilotage, sans avoir à aller chercher
+  // l'information dans Résultats Équipe.
+  async function chargerMissionsAValiderHome(siteId) {
+    const { count, error } = await nexusClient.from('mission_completions')
+      .select('id', { count: 'exact', head: true }).eq('site_id', siteId).eq('statut_validation', 'en_attente');
+    if (error) { console.error('Chargement missions à valider (accueil):', error); return null; }
+    return count;
+  }
+
   // ------------------------------------------------------------
   // Nexus Marge+ dans le cadre Niveau 1 (24/07/2026, demande de Frédéric) —
   // remplace Capital NEXUS (qui restait une démo sans calcul réel, voir
@@ -1721,7 +1735,7 @@
   // affiche "rien d'urgent" n'aide jamais une lecture en 10 secondes. Le
   // chip n'apparaît désormais que s'il y a réellement un rappel à traiter ;
   // les 3 autres chips prennent alors toute la grille.
-  function renderKpiGrid({ missionsRestantes, nbRappels, decisionsSemaine, employesASurveiller, alertesInventaire }) {
+  function renderKpiGrid({ missionsRestantes, nbRappels, decisionsSemaine, employesASurveiller, alertesInventaire, missionsAValider }) {
     const chips = [];
     chips.push(`
       <a class="kpi-chip" href="NEXUS-Missions-v1.html">
@@ -1748,6 +1762,18 @@
           <div class="kpi-chip-label">Contrôle inventaire</div>
           <div class="kpi-chip-value" style="color:var(--amber);">${alertesInventaire}</div>
           <div class="kpi-chip-sub">produit(s) nécessitant votre attention</div>
+        </a>
+      `);
+    }
+    // Missions à valider (03/08/2026, demande de Frédéric) : n'occupe une
+    // case que s'il y a réellement une mission à preuve photo en attente —
+    // même règle que Rappels et Contrôle inventaire.
+    if (missionsAValider > 0) {
+      chips.push(`
+        <a class="kpi-chip" href="NEXUS-Resultats-Equipe-v1.html">
+          <div class="kpi-chip-label">Missions à valider</div>
+          <div class="kpi-chip-value" style="color:var(--amber);">${missionsAValider}</div>
+          <div class="kpi-chip-sub">preuve photo en attente</div>
         </a>
       `);
     }
@@ -1858,6 +1884,7 @@
       messagesAdvisor,
       dernierEtatStock,
       alertesInventaire,
+      missionsAValider,
     ] = await Promise.all([
       calculerCandidatsHome(SITE_HOME),
       chargerValideesHome(SITE_HOME),
@@ -1870,6 +1897,7 @@
       chargerMessagesAdvisorHome(SITE_HOME),
       chargerStockSanteHome(SITE_HOME),
       chargerAlertesInventaireHome(SITE_HOME),
+      chargerMissionsAValiderHome(SITE_HOME),
     ]);
     afficherHeureRecalcul();
 
@@ -1917,6 +1945,7 @@
       decisionsSemaine,
       employesASurveiller: domainesRadar.employesASurveiller,
       alertesInventaire,
+      missionsAValider,
     });
 
     // Priorités / à surveiller / meilleure opportunité (26/07/2026, demande
