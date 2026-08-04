@@ -177,6 +177,10 @@
   .conseiller-perso-bar-track{height:6px; background:var(--panel-raised); border-radius:3px; overflow:hidden;}
   .conseiller-perso-bar{height:100%; background:var(--cyan); border-radius:3px;}
   .conseiller-perso-cta-btn{width:100%; margin-top:13px; padding:11px; border:none; border-radius:8px; font-size:12.5px; font-weight:600; background:var(--cyan); color:#04141a; cursor:pointer;}
+  /* Signalement d'affluence renfort (03/08/2026) — bouton secondaire,
+     jamais aussi appuyé que le CTA principal cyan, sauf une fois actif. */
+  .conseiller-perso-affluence-btn{width:100%; margin-top:8px; padding:10px; border:1px solid rgba(240,180,60,0.4); border-radius:8px; font-size:12px; font-weight:600; background:none; color:var(--amber); cursor:pointer;}
+  .conseiller-perso-affluence-btn.actif{background:rgba(240,180,60,0.14); border-color:var(--amber);}
 
   /* Restructuration en 2 niveaux (03/08/2026, demande de Frédéric) : bloc
      "Votre journée", catégories avec points disponibles, niveaux de points
@@ -280,6 +284,15 @@
   // (03/08/2026, demande de Frédéric) — voir chargerDernierServiceComparable.
   let quartDuJour = null;
   let dernierServiceComparable = null;
+
+  // Intitulé "Renfort opérationnel" (03/08/2026, demande de Frédéric) :
+  // renommage d'affichage uniquement, partout où le rôle du jour est montré
+  // en texte à l'employé — la valeur interne reste 'renfort' (shifts.role,
+  // mission_catalog.role_required), voir aussi ROLES dans
+  // NEXUS-Prise-De-Poste-v1.html qui porte le même libellé côté sélection.
+  function libelleRole(role) {
+    return role === 'renfort' ? 'Renfort opérationnel' : role;
+  }
 
   // CORRIGE le 26/07/2026 (Frédéric a signalé un résidu : une mission
   // "Renfort A — Bière Heineken 50cl" figée, générée par l'ancien système
@@ -418,6 +431,46 @@
   // par défaut sur la page Missions, jamais perdue — juste réduite à une
   // ligne pour ne plus repousser les missions vers le bas.
   let warningSecuriteOuvert = false;
+
+  // Organisation de la journée en 4 blocs pour le renfort (03/08/2026,
+  // demande détaillée de Frédéric) : le renfort "n'a pas de rôle fixe",
+  // contrairement au pompiste/caissière — sa liste de missions serait donc
+  // la plus longue de tous les rôles (35) si elle restait présentée comme
+  // les autres. Pour éviter l'effet "insurmontable", seul "À faire
+  // maintenant" (missions assignées par le manager — signal réel, jamais
+  // vide de sens) est ouvert par défaut ; les trois autres blocs sont
+  // repliés tant que le renfort ne les ouvre pas lui-même. Voir
+  // renderListeMissionsRenfort plus bas pour le détail du classement.
+  let blocsRenfortOuverts = { priorites: false, creux: false, conditionnelles: false };
+
+  // Signalement d'affluence (03/08/2026, demande de Frédéric — "pendant une
+  // affluence, la boutique est prioritaire") : un état AUTO-DÉCLARÉ par le
+  // renfort ou son manager, jamais une détection automatique — NEXUS n'a
+  // aucun flux caisse/file d'attente en temps réel, exactement comme pour
+  // les livraisons (voir "Déclarer cette livraison" dans Inventaire, même
+  // principe). N'est pas persisté (localStorage) : un état "affluence en
+  // cours" doit rester court par nature ; mieux vaut qu'un rafraîchissement
+  // de page le remette à zéro plutôt qu'il ne reste bloqué toute la journée
+  // en cas d'oubli. Un filet de sécurité supplémentaire (minuteurFinAffluence)
+  // le désactive automatiquement au bout de 45 minutes pour la même raison.
+  let affluenceEnCours = false;
+  let afficherApresAffluenceUneFois = false;
+  let minuteurFinAffluence = null;
+  const DUREE_MAX_AFFLUENCE_MIN = 45;
+
+  // Trouve la mission de soutien immédiat la plus pertinente (caisse
+  // d'abord, piste ensuite) non encore validée aujourd'hui — utilisée
+  // uniquement pendant une affluence signalée.
+  function missionSoutienActiviteRenfort() {
+    const aujISO = new Date().toISOString().slice(0, 10);
+    const faitesAujourdhui = new Set(completionsCache.filter(c => c.date === aujISO).map(c => c.mission_id));
+    const titresSoutien = ['Soutien immédiat à la caisse', 'Soutien immédiat à la piste'];
+    for (const titre of titresSoutien) {
+      const m = catalogue.find(x => x.titre === titre && Array.isArray(x.role_required) && x.role_required.includes('renfort') && !faitesAujourdhui.has(x.mission_id));
+      if (m) return m;
+    }
+    return null;
+  }
 
   // Restructuration en 2 niveaux (03/08/2026, demande de Frédéric) : les
   // missions récurrentes sont regroupées par palier de points (barème
@@ -992,6 +1045,46 @@
     const el = document.getElementById('missionsAssigneesZone');
     if (!el) return;
     const assignees = await chargerMissionsAssignees();
+    // Pour le renfort, cette zone EST le bloc "À faire maintenant"
+    // (03/08/2026, demande de Frédéric) : une mission assignée par le
+    // manager est le seul signal vraiment temps réel dont NEXUS dispose
+    // aujourd'hui (pas de flux caisse/livraison/incident live) — jamais de
+    // fausse détection d'affluence ou de rupture. Un état vide reste
+    // affiché explicitement pour le renfort (plutôt que masqué) : "rien
+    // d'urgent" est une information utile, pas une absence d'information.
+    if (roleDuJour === 'renfort') {
+      if (!assignees.length) {
+        el.innerHTML = `<div class="section-label">À faire maintenant</div><div class="empty-note">Rien d'urgent signalé par le manager pour l'instant.</div>`;
+        return;
+      }
+      el.innerHTML = `
+        <div class="section-label">À faire maintenant (${assignees.length})</div>
+        ${assignees.map(a => `
+          <div class="plan-card" id="assignee-${a.id}">
+            <div class="plan-head" onclick="document.getElementById('assignee-${a.id}').classList.toggle('open')">
+              ${priorityBadge(a.mission.priority || 'normale')}
+              <span class="plan-action-teaser">${a.mission.titre}</span>
+              <span class="plan-chevron">›</span>
+            </div>
+            <div class="plan-body">
+              <div class="plan-story">${a.mission.pourquoi || a.note || ''}</div>
+              ${a.due_at ? `<div class="plan-impact">📅 Échéance — <b>${new Date(a.due_at).toLocaleDateString('fr-FR')}</b></div>` : ''}
+              <button class="plan-valider" data-assignee-id="${a.id}" data-mission-id="${a.mission_id}" data-titre="${a.mission.titre.replace(/"/g,'&quot;')}" data-points="${a.mission.points || 5}">✓ Marquer comme terminée</button>
+            </div>
+          </div>`).join('')}
+      `;
+      el.querySelectorAll('.plan-valider').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          btn.disabled = true;
+          btn.textContent = 'Enregistrement…';
+          await cloturerMissionAssignee(btn.dataset.assigneeId, btn.dataset.missionId, btn.dataset.titre, Number(btn.dataset.points));
+          renderConseillerPerso(calculerStatsPersonnelles(completionsCache), employeActuel);
+          await renderMissionsAssignees();
+        });
+      });
+      return;
+    }
     if (!assignees.length) { el.innerHTML = ''; return; }
 
     el.innerHTML = `
@@ -1260,8 +1353,24 @@
   // ("ne cassons pas cette série", "pour continuer sur cette lancée"),
   // pour donner l'impression d'un conseil qui connaît la situation,
   // pas de deux blocs décorrélés. Demande de Frédéric le 21/07/2026.
-  function messageConseillerPerso(stats, suggestion, prenom, pointsObtenusAujourdhui) {
+  function messageConseillerPerso(stats, suggestion, prenom, pointsObtenusAujourdhui, etatAffluence) {
+    etatAffluence = etatAffluence || {};
+
+    // Affluence signalée par le renfort lui-même (03/08/2026, demande de
+    // Frédéric) : priorité absolue sur tout le reste du message, y compris
+    // sur le cas "rien à faire" — la file passe avant tout. Voir
+    // affluenceEnCours/missionSoutienActiviteRenfort.
+    if (etatAffluence.affluenceEnCours) {
+      return suggestion
+        ? `${prenom}, la boutique est prioritaire : soutenez la file avant de reprendre « ${suggestion.mission.titre} ».`
+        : `${prenom}, la boutique est prioritaire : soutenez la file clients.`;
+    }
+
     if (!suggestion) {
+      // Fin d'affluence signalée, plus aucune mission à reprendre (03/08/2026).
+      if (etatAffluence.apresAffluence) {
+        return `${prenom}, la situation est revenue à la normale. Tout est à jour pour l'instant — beau travail.`;
+      }
       if (stats.palierFrancheAujourdhui) {
         return `${prenom}, ${stats.palierFrancheAujourdhui}ᵉ mission validée aujourd'hui et tout est à jour pour l'instant — beau travail.`;
       }
@@ -1287,6 +1396,15 @@
     else if (dureeTxt) phraseDureePoints = ` Elle prend ${dureeTxt}.`;
     else if (ptsTxt) phraseDureePoints = ` Elle rapporte ${ptsTxt}.`;
 
+    // Fin d'affluence signalée, une mission à reprendre (03/08/2026,
+    // exemple donné par Frédéric : "La situation est revenue à la normale.
+    // Reprenez le réassort des boissons froides : 7 points, environ 12
+    // minutes.") — utilise la vraie suggestion du moment, jamais un
+    // exemple figé.
+    if (etatAffluence.apresAffluence) {
+      return `${prenom}, la situation est revenue à la normale. Reprenez « ${t} ».${phraseDureePoints}`;
+    }
+
     if (suggestion.presqueFinie) {
       return `${prenom}, la checklist de « ${t} » est déjà entièrement cochée — il ne manque que la validation.`;
     }
@@ -1297,7 +1415,33 @@
     // le "facilement" (03/08/2026) : le Coach cherche la mission la plus
     // utile pour clore le service, pas la plus simple.
     if (estMissionDeCloture(suggestion.mission)) {
+      // Renfort (03/08/2026, "coordinateur mobile") : bilan réel du service
+      // (zones soutenues = familles distinctes validées aujourd'hui, points
+      // validés) avant la dernière priorité — jamais de chiffre inventé,
+      // uniquement des complétions réellement enregistrées aujourd'hui.
+      if (roleDuJour === 'renfort') {
+        const aujISO = new Date().toISOString().slice(0, 10);
+        const completionsAujourdhui = completionsCache.filter(c => c.date === aujISO);
+        const famillesSoutenues = new Set(completionsAujourdhui
+          .map(c => { const m = catalogue.find(x => x.mission_id === c.mission_id); return m ? m.famille : null; })
+          .filter(Boolean)).size;
+        const pointsValidesAuj = completionsAujourdhui
+          .filter(c => (c.statut_validation || 'valide') === 'valide')
+          .reduce((s, c) => s + (c.points || 0), 0);
+        const bilan = famillesSoutenues > 0
+          ? `Vous avez soutenu ${famillesSoutenues} zone${famillesSoutenues > 1 ? 's' : ''} et validé ${pointsValidesAuj} point${pointsValidesAuj > 1 ? 's' : ''} aujourd'hui.`
+          : `Votre service touche à sa fin.`;
+        return `${prenom}, ${bilan} Il reste « ${t} » avant votre départ.${phraseDureePoints}`;
+      }
       return `${prenom}, votre prochaine priorité est « ${t} ».${phraseDureePoints} Réalisez-la avant votre départ.`;
+    }
+    // Début de service renfort (03/08/2026, "coordinateur mobile") : mandat
+    // général plutôt qu'un horaire précis — NEXUS n'a pas de planning de
+    // livraison ni de file d'attente en temps réel, donc jamais d'heure
+    // inventée (contrairement à l'exemple "livraison prévue à 15h30" fourni
+    // par Frédéric, qui reste une illustration, pas une donnée réelle).
+    if (suggestion.debutDeService && roleDuJour === 'renfort') {
+      return `${prenom}, votre priorité aujourd'hui est de maintenir la fluidité entre la boutique et la piste. Commencez par « ${t} ».${phraseDureePoints}`;
     }
     // Début de service (03/08/2026, demande de Frédéric) : même choisirMissionSuggeree()
     // a déjà vérifié qu'on est bien dans l'heure suivant l'arrivée — message
@@ -1501,7 +1645,15 @@
     const el = document.getElementById('conseillerPersoSection');
     if (!el) return;
 
-    const suggestion = choisirMissionSuggeree();
+    const estRenfort = roleDuJour === 'renfort';
+    let suggestion = choisirMissionSuggeree();
+    // Affluence signalée (renfort uniquement, 03/08/2026) : la suggestion
+    // normale du Coach s'efface au profit du soutien immédiat le temps que
+    // l'affluence dure — voir missionSoutienActiviteRenfort.
+    if (estRenfort && affluenceEnCours) {
+      const missionSoutien = missionSoutienActiviteRenfort();
+      if (missionSoutien) suggestion = { mission: missionSoutien, presqueFinie: false };
+    }
     // Points du jour (03/08/2026, demande de Frédéric) : le Coach mentionne
     // désormais les points déjà obtenus aujourd'hui et le poids en points
     // de la mission suggérée — jamais pour prioriser par points (le tri de
@@ -1531,6 +1683,12 @@
     const boutonHtml = suggestion ? `
       <button class="conseiller-perso-cta-btn" id="btnSuggestionMission" data-mission="${suggestion.mission.mission_id}">${suggestion.presqueFinie ? 'Valider maintenant →' : 'Voir cette mission →'}</button>` : '';
 
+    // Signalement d'affluence (renfort uniquement, 03/08/2026) : bouton
+    // auto-déclaré, même principe que "Déclarer cette livraison" dans
+    // Inventaire — jamais de détection automatique de file d'attente.
+    const boutonAffluenceHtml = estRenfort ? `
+      <button class="conseiller-perso-affluence-btn ${affluenceEnCours ? 'actif' : ''}" id="btnToggleAffluence">${affluenceEnCours ? '✓ Fin de l’affluence' : '⚡ Signaler une affluence'}</button>` : '';
+
     // "Coach NEXUS" côté employé, "Conseiller NEXUS" côté manager
     // (27/07/2026, demande de Frédéric — cette carte reste affichée aux
     // deux rôles puisqu'elle porte sur les missions de la personne
@@ -1545,10 +1703,41 @@
             <div class="conseiller-perso-sous">Votre progression</div>
           </div>
         </div>
-        <div class="conseiller-perso-texte">${messageConseillerPerso(stats, suggestion, prenom, pointsObtenusAujourdhui)}</div>
+        <div class="conseiller-perso-texte">${messageConseillerPerso(stats, suggestion, prenom, pointsObtenusAujourdhui, { affluenceEnCours: estRenfort && affluenceEnCours, apresAffluence: estRenfort && afficherApresAffluenceUneFois })}</div>
         ${palierHtml}
         ${boutonHtml}
+        ${boutonAffluenceHtml}
       </div>`;
+
+    // Le message "après affluence" ne s'affiche qu'une seule fois — une
+    // fois rendu, on referme le drapeau pour retomber sur le fil normal du
+    // Coach au prochain rendu (validation d'une mission, etc.).
+    if (estRenfort) afficherApresAffluenceUneFois = false;
+
+    const btnToggleAffluence = document.getElementById('btnToggleAffluence');
+    if (btnToggleAffluence) {
+      btnToggleAffluence.addEventListener('click', () => {
+        if (affluenceEnCours) {
+          affluenceEnCours = false;
+          afficherApresAffluenceUneFois = true;
+          if (minuteurFinAffluence) { clearTimeout(minuteurFinAffluence); minuteurFinAffluence = null; }
+        } else {
+          affluenceEnCours = true;
+          afficherApresAffluenceUneFois = false;
+          // Filet de sécurité (03/08/2026) : désactive automatiquement le
+          // mode affluence au bout de 45 min en cas d'oubli, pour ne
+          // jamais laisser le Coach bloqué sur "soutenez la file" toute la
+          // journée.
+          minuteurFinAffluence = setTimeout(() => {
+            affluenceEnCours = false;
+            afficherApresAffluenceUneFois = true;
+            minuteurFinAffluence = null;
+            renderConseillerPerso(calculerStatsPersonnelles(completionsCache), employeActuel);
+          }, DUREE_MAX_AFFLUENCE_MIN * 60000);
+        }
+        renderConseillerPerso(calculerStatsPersonnelles(completionsCache), employeActuel);
+      });
+    }
 
     const btnCta = document.getElementById('btnSuggestionMission');
     if (btnCta) btnCta.addEventListener('click', () => voirMissionSuggeree(btnCta.dataset.mission));
@@ -1773,12 +1962,67 @@
     if (niveauActif !== null) lib = lib.filter(m => m.points === niveauActif);
     if (q) lib = lib.filter(m => m.titre.toLowerCase().includes(q) || (m.pourquoi||'').toLowerCase().includes(q));
 
+    const estRenfort = roleDuJour === 'renfort';
+
     // Le libellé dépliable "Vos missions" reste unique et gouverne les trois
     // groupes à la fois (03/08/2026) — même s'ils sont physiquement
     // séparés dans le DOM, missionsListeOuverte reste un seul état partagé,
-    // affiché en tête du bloc Obligatoires.
-    htmlObligatoires += `<div class="section-label section-label-pliable ${missionsListeOuverte ? 'open' : ''}" id="toggleMissionsListe">${q ? 'Résultats' : 'Vos missions — rôle ' + roleDuJour} (${lib.length}) <span class="chev">›</span></div>`;
-    if (missionsListeOuverte) {
+    // affiché en tête du bloc Obligatoires. Pour le renfort, ce libellé
+    // disparaît au profit des 4 sous-blocs ci-dessous, chacun repliable
+    // indépendamment (voir blocsRenfortOuverts) — un seul interrupteur
+    // global n'aurait pas de sens pour une liste organisée par urgence
+    // plutôt que par obligation.
+    if (!estRenfort) {
+      htmlObligatoires += `<div class="section-label section-label-pliable ${missionsListeOuverte ? 'open' : ''}" id="toggleMissionsListe">${q ? 'Résultats' : 'Vos missions — rôle ' + roleDuJour} (${lib.length}) <span class="chev">›</span></div>`;
+    }
+
+    if (estRenfort) {
+      // Organisation en 4 blocs pour le renfort (03/08/2026, demande
+      // détaillée de Frédéric — "le renfort ne doit pas recevoir une liste
+      // fixe de 30 tâches") :
+      //   1. À faire maintenant — rendu séparément, voir missionsAssigneesZone
+      //      ci-dessus (seul signal réellement temps réel disponible : une
+      //      mission assignée par le manager).
+      //   2. Priorités du service — missions préparées à l'avance, valeur
+      //      7-10 pts, disponibles dès maintenant (pas liées à un
+      //      événement réel) : inventaire tournant, réassort, contrôle des
+      //      zones clients, produits sensibles...
+      //   3. Disponibles entre deux urgences — missions régulières à faible
+      //      enjeu (2-5 pts), à faire quand le calme le permet : facing,
+      //      prix, dates, consommables, propreté ciblée.
+      //   4. Conditionnelles — n'existent que si l'événement survient
+      //      (affluence, incident, sécurité...) : disponibilite =
+      //      'conditionnelle', même logique que les autres rôles.
+      // Repliés par défaut (sauf "à faire maintenant", jamais vide de sens)
+      // pour ne pas donner l'impression que le service est insurmontable —
+      // le renfort ouvre lui-même ce dont il a besoin.
+      if (lib.length === 0) {
+        htmlObligatoires += `<div class="empty-note">Aucune mission ne correspond à votre rôle du jour.</div>`;
+      } else {
+        const prioritesService = lib.filter(m => m.disponibilite === 'disponible' && m.points >= 7);
+        const disponiblesCreux = lib.filter(m => m.disponibilite === 'disponible' && m.points < 7);
+        const conditionnelles = lib.filter(m => m.disponibilite === 'conditionnelle');
+
+        const blocRenfort = (cle, titre, missions, cible) => {
+          if (missions.length === 0) return;
+          const ouvert = blocsRenfortOuverts[cle];
+          cible.html += `<div class="section-label section-label-pliable ${ouvert ? 'open' : ''}" data-bloc-renfort="${cle}">${titre} (${missions.length}) <span class="chev">›</span></div>`;
+          if (ouvert) missions.forEach(m => cible.html += renderMissionCard(m, m.mission_id.startsWith('MISSION-')));
+        };
+
+        const cibleOblig = { html: htmlObligatoires };
+        blocRenfort('priorites', 'Priorités du service', prioritesService, cibleOblig);
+        htmlObligatoires = cibleOblig.html;
+
+        const cibleDispo = { html: htmlDisponibles };
+        blocRenfort('creux', 'Disponibles entre deux urgences', disponiblesCreux, cibleDispo);
+        htmlDisponibles = cibleDispo.html;
+
+        const cibleCond = { html: htmlConditionnelles };
+        blocRenfort('conditionnelles', 'Conditionnelles', conditionnelles, cibleCond);
+        htmlConditionnelles = cibleCond.html;
+      }
+    } else if (missionsListeOuverte) {
       if (lib.length === 0) {
         htmlObligatoires += `<div class="empty-note">Aucune mission ne correspond à votre rôle du jour.</div>`;
       } else {
@@ -1823,6 +2067,16 @@
         render();
       });
     }
+
+    // Bascule indépendante de chacun des 4 blocs renfort (03/08/2026) —
+    // voir blocsRenfortOuverts.
+    document.querySelectorAll('[data-bloc-renfort]').forEach(el => {
+      el.addEventListener('click', () => {
+        const cle = el.dataset.blocRenfort;
+        blocsRenfortOuverts[cle] = !blocsRenfortOuverts[cle];
+        render();
+      });
+    });
 
     const toggleWarningSecurite = document.getElementById('toggleWarningSecurite');
     if (toggleWarningSecurite) {
@@ -2056,7 +2310,7 @@
     // une correction manuelle. Demande de Frédéric le 21/07/2026.
     if (!employee.consultation_externe) {
       document.getElementById('roleJourLigne').innerHTML =
-        `Rôle du jour : ${roleDuJour} · <a href="NEXUS-Prise-De-Poste-v1.html">Changer de rôle / refaire la prise de poste</a>`;
+        `Rôle du jour : ${libelleRole(roleDuJour)} · <a href="NEXUS-Prise-De-Poste-v1.html">Changer de rôle / refaire la prise de poste</a>`;
     }
 
     catalogue = await chargerCatalogue();

@@ -107,6 +107,7 @@
   }
   .summary-role-name{font-size:16px; font-weight:700;}
   .summary-role-quart{font-family:var(--mono); font-size:11px; color:var(--text-dim); margin-top:2px;}
+  .summary-role-tagline{font-size:11.5px; color:var(--text-mid); font-style:italic; margin-top:3px;}
 
   .stat-row{display:flex; justify-content:space-between; align-items:center; padding:10px 0;}
   .stat-label{font-size:13px; color:var(--text-mid);}
@@ -156,10 +157,16 @@
 </div>
 
 <script>
+  // Intitulé "Renfort opérationnel" (03/08/2026, demande de Frédéric) :
+  // renommage d'affichage uniquement — la valeur stockée en base reste
+  // 'renfort' (shifts.role, mission_catalog.role_required), pour ne pas
+  // avoir à réécrire l'historique ni toucher au catalogue. sousTitre n'est
+  // utilisé que si présent (voir renderResume) — seul le renfort en a un
+  // pour l'instant.
   const ROLES = [
     { value: 'pompiste',  label: 'Pompiste',  icon: 'icon-role-pompiste.png' },
     { value: 'caissiere', label: 'Caissière',  icon: 'icon-role-caissiere.png' },
-    { value: 'renfort',   label: 'Renfort',    icon: 'icon-role-renfort.png' },
+    { value: 'renfort',   label: 'Renfort opérationnel', icon: 'icon-role-renfort.png', sousTitre: 'Le bon soutien, au bon endroit, au bon moment.' },
     { value: 'manager',   label: 'Manager',    icon: 'icon-role-manager.png' },
   ];
 
@@ -251,6 +258,7 @@
           <div>
             <div class="summary-role-name">${info.label}</div>
             <div class="summary-role-quart">Quart ${quart === 'matin' ? 'du matin' : 'du soir'}</div>
+            ${info.sousTitre ? `<div class="summary-role-tagline">${info.sousTitre}</div>` : ''}
           </div>
         </div>
         <div class="stat-row"><span class="stat-label">Missions prévues</span><span class="stat-value">${nbMissions}</span></div>
