@@ -59,6 +59,15 @@
 
   .section{padding:6px 20px 20px;}
   .section-label{font-family:var(--mono); font-size:10.5px; letter-spacing:0.08em; text-transform:uppercase; color:var(--text-dim); margin:14px 0 10px; display:flex; align-items:center; gap:8px;}
+  /* Correctif alignement (03/08/2026, signalé par Frédéric sur capture
+     d'écran) : #categoriesSection et #niveauxSection n'ont pas la classe
+     .section (qui donne un padding horizontal de 20px aux autres blocs de
+     la page) — leur .section-label se retrouvait donc collé au bord de
+     l'écran, alors que .categories-grid/.niveaux-wrap juste en dessous ont
+     bien leur propre marge de 20px. Ce correctif aligne le libellé sur la
+     grille, sans toucher .section-label ailleurs (où le padding du parent
+     .section suffit déjà). */
+  #categoriesSection .section-label, #niveauxSection .section-label{margin-left:20px; margin-right:20px;}
   .section-label::after{content:''; flex:1; height:1px; background:var(--hairline);}
   /* Liste "Vos missions" dépliable (03/08/2026, demande de Frédéric) — même
      mécanique de chevron rotatif que .categorie-groupe-head ailleurs dans
