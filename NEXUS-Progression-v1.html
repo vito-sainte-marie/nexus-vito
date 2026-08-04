@@ -122,6 +122,19 @@
   .causes-list{margin:8px 0 0; padding-left:18px; color:var(--text-dim); font-size:11.5px; line-height:1.7;}
   .caisses-empty{padding:20px 0; text-align:center; color:var(--text-dim); font-size:12.5px;}
 
+  /* Score missions (03/08/2026, demande de Frédéric) — même grille de
+     statistiques que Mes Caisses, vocabulaire dédié aux missions. */
+  .attente-line{font-family:var(--mono); font-size:10.5px; color:var(--amber); margin-top:12px;}
+  .histo-mission-row{display:flex; justify-content:space-between; align-items:center; gap:10px; border-top:1px solid var(--hairline); padding:9px 0;}
+  .histo-mission-row:first-child{border-top:none;}
+  .histo-mission-titre{font-size:12.5px;}
+  .histo-mission-date{font-family:var(--mono); font-size:9.5px; color:var(--text-dim); margin-top:2px;}
+  .histo-mission-droite{text-align:right; flex-shrink:0;}
+  .histo-mission-pts{font-family:var(--mono); font-size:12px; font-weight:600; color:var(--green);}
+  .statut-badge-mission{display:block; font-family:var(--mono); font-size:8.5px; text-transform:uppercase; letter-spacing:0.03em; margin-top:2px;}
+  .statut-badge-mission.en_attente{color:var(--amber);}
+  .statut-badge-mission.valide{color:var(--text-dim);}
+
   footer{margin-top:auto; padding:16px 20px 24px; font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:center; border-top:1px solid var(--hairline);}
 </style>
 </head>
@@ -254,8 +267,10 @@
       nexusClient.from('evaluations_employes').select('type, criteres').eq('site', siteId).eq('employee_id', cible.id),
       // date/heure/mission_id/photo_fournie (27/07/2026, détection "Nouveau
       // constat") : nécessaires pour analyserQualites/analyserHabitudes,
-      // pas seulement un total comme avant.
-      nexusClient.from('mission_completions').select('date, heure, mission_id, photo_fournie').eq('employee_id', cible.id),
+      // pas seulement un total comme avant. titre/points/points_ajustement/
+      // statut_validation ajoutés le 03/08/2026 pour le nouveau "Score
+      // missions" (cumul semaine/mois + historique détaillé — voir plus bas).
+      nexusClient.from('mission_completions').select('date, heure, titre, mission_id, photo_fournie, points, points_ajustement, statut_validation').eq('employee_id', cible.id),
       nexusClient.from('mission_catalog').select('mission_id, proof_required').eq('site_id', siteId),
       // Mes Caisses (03/08/2026) : sert uniquement à vérifier la condition
       // "inventaire obligatoire terminé" du point de fiabilité — jamais
@@ -400,6 +415,38 @@
     });
     pointsFiabiliteTotal += bonusRegulariteVal.points;
 
+    // ------------------------------------------------------------
+    // Score missions (03/08/2026, demande de Frédéric — "un système simple
+    // et compréhensible" avec cumul semaine/mois et historique détaillé).
+    // Règle centrale : seuls les points VALIDÉS entrent dans les cumuls —
+    // une mission à preuve photo pas encore confirmée par un manager reste
+    // à part, dans "en attente", jamais mélangée au score officiel. Le
+    // bonus de régularité affiché ici est le même que celui de Mes Caisses
+    // (décision de Frédéric : pas de second mécanisme de bonus spécifique
+    // aux missions) — jamais recalculé différemment.
+    // ------------------------------------------------------------
+    function pointsEffectifsCompletion(c) { return (c.points || 0) + (c.points_ajustement || 0); }
+    function completionValidee(c) { return (c.statut_validation || 'valide') === 'valide'; }
+    const completionsMissions = completionsRows || [];
+    const lundiCourantISO = (() => {
+      const n = new Date(); const j = (n.getDay() + 6) % 7;
+      const l = new Date(n); l.setDate(n.getDate() - j);
+      return l.toISOString().slice(0, 10);
+    })();
+    const moisRefMissions = new Date().toISOString().slice(0, 7);
+    const cumulSemaineMissions = completionsMissions
+      .filter(c => completionValidee(c) && c.date >= lundiCourantISO)
+      .reduce((s, c) => s + pointsEffectifsCompletion(c), 0);
+    const cumulMoisMissions = completionsMissions
+      .filter(c => completionValidee(c) && c.date && c.date.slice(0, 7) === moisRefMissions)
+      .reduce((s, c) => s + pointsEffectifsCompletion(c), 0);
+    const pointsEnAttenteMissions = completionsMissions
+      .filter(c => !completionValidee(c))
+      .reduce((s, c) => s + pointsEffectifsCompletion(c), 0);
+    const historiqueMissions = [...completionsMissions]
+      .sort((a, b) => (b.date + (b.heure || '')).localeCompare(a.date + (a.heure || '')))
+      .slice(0, 20);
+
     const servicesDuMois = services.filter(s => s.date && s.date.slice(0, 7) === moisRef);
     const MOIS_LABELS = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
     const labelMois = `${MOIS_LABELS[parseInt(moisRef.slice(5,7),10)-1]} ${moisRef.slice(0,4)}`;
@@ -479,6 +526,45 @@
       <div class="coach-card" id="caissesListeCard">${caissesListeHtml}</div>
     `;
 
+    // ------------------------------------------------------------
+    // Rendu "Score missions"
+    // ------------------------------------------------------------
+    const histoMissionItemHtml = c => {
+      const dateLabel = new Date(c.date + 'T00:00:00').toLocaleDateString('fr-FR');
+      const valide = completionValidee(c);
+      const pts = pointsEffectifsCompletion(c);
+      return `<div class="histo-mission-row">
+        <div>
+          <div class="histo-mission-titre">${c.titre || c.mission_id}</div>
+          <div class="histo-mission-date">${dateLabel}${c.heure ? ' · ' + c.heure.slice(0, 5) : ''}</div>
+        </div>
+        <div class="histo-mission-droite">
+          <span class="histo-mission-pts">+${pts} pt${pts > 1 ? 's' : ''}</span>
+          <span class="statut-badge-mission ${valide ? 'valide' : 'en_attente'}">${valide ? 'Validé' : '⏳ En attente'}</span>
+        </div>
+      </div>`;
+    };
+    const historiqueMissionsHtml = historiqueMissions.length
+      ? historiqueMissions.map(histoMissionItemHtml).join('')
+      : `<div class="caisses-empty">Aucune mission enregistrée pour l'instant.</div>`;
+
+    const scoreMissionsHtml = `
+      <div class="section-label">Score missions</div>
+      <div class="coach-card">
+        <div class="caisses-sub">Progression mensuelle — cumul des points de missions ${vueManager ? 'de ' + cible.nom.split(' ')[0] : 'gagnés'}, validés uniquement.</div>
+        <div class="caisses-stats-grid">
+          ${statItem(cumulSemaineMissions, 'Cumul de la semaine')}
+          ${statItem(cumulMoisMissions, `Cumul de ${labelMois}`)}
+        </div>
+        ${pointsEnAttenteMissions > 0 ? `<div class="attente-line">⏳ ${pointsEnAttenteMissions} point${pointsEnAttenteMissions > 1 ? 's' : ''} en attente de validation manager (missions à preuve photo)</div>` : ''}
+        ${bonusRegulariteVal.paliersAtteints > 0 || pointsFiabiliteTotal > 0 ? `<div class="fiabilite-line">🏅 Bonus de régularité : ${pointsFiabiliteTotal} point${pointsFiabiliteTotal > 1 ? 's' : ''} de fiabilité cumulé${pointsFiabiliteTotal > 1 ? 's' : ''}${bonusRegulariteVal.paliersAtteints > 0 ? ` · dont +${bonusRegulariteVal.points} de régularité (${serieConformeVal.enCours} validées conformes d'affilée)` : ''}</div>` : ''}
+      </div>
+      <div class="coach-card">
+        <div class="caisses-sub" style="margin-bottom:6px;">Historique détaillé par mission et bonus.</div>
+        ${historiqueMissionsHtml}
+      </div>
+    `;
+
     const fortsHtml = forts.length
       ? `<ul class="fort-list">${forts.map(f => `<li class="fort-item"><span class="dot">🟢</span>${f}</li>`).join('')}</ul>`
       : `<div class="coach-sub">${vueManager ? 'NEXUS n\'a pas encore assez de recul pour dégager ses points forts.' : 'Je n\'ai pas encore assez de recul pour dégager vos points forts.'} ${vueManager ? 'Chaque service qu\'il enregistre affine l\'analyse.' : 'Chaque service que vous enregistrez affine mon analyse.'}</div>`;
@@ -528,6 +614,8 @@
         ${ligneCompetence('Tenue', statutTenueVal)}
         ${ligneCompetence('Relation client', statutRelationClientVal)}
       </div>
+
+      ${scoreMissionsHtml}
 
       ${mesCaissesHtml}
 

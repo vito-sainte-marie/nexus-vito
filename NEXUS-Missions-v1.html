@@ -173,6 +173,14 @@
   .journee-points{font-size:22px; font-weight:700; margin-top:4px;}
   .journee-detail{font-family:var(--mono); font-size:11.5px; color:var(--text-mid); margin-top:6px; line-height:1.6;}
   .journee-lien{display:inline-block; margin-top:10px; font-family:var(--mono); font-size:11.5px; color:var(--cyan); text-decoration:none;}
+  /* Nouveau système de score (03/08/2026, demande de Frédéric) : évolution
+     vs le dernier service comparable, même code couleur que le classement
+     de Résultats Équipe (hausse/baisse/stable). */
+  .journee-evolution{font-family:var(--mono); font-size:11px; margin-top:6px; display:flex; align-items:center; gap:5px;}
+  .journee-evolution.hausse{color:var(--green);}
+  .journee-evolution.baisse{color:var(--red);}
+  .journee-evolution.stable{color:var(--text-dim);}
+  .journee-attente{color:var(--amber);}
 
   .categories-grid{margin:0 20px 14px; display:grid; grid-template-columns:1fr 1fr; gap:8px;}
   .categorie-card{
@@ -235,6 +243,10 @@
 <script>
   let catalogue = [];
   let roleDuJour = null;
+  // "quart" (matin/soir) du service en cours + service comparable précédent
+  // (03/08/2026, demande de Frédéric) — voir chargerDernierServiceComparable.
+  let quartDuJour = null;
+  let dernierServiceComparable = null;
 
   // CORRIGE le 26/07/2026 (Frédéric a signalé un résidu : une mission
   // "Renfort A — Bière Heineken 50cl" figée, générée par l'ancien système
@@ -291,13 +303,49 @@
     const il24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     const { data, error } = await nexusClient
       .from('shifts')
-      .select('role')
+      // "quart" (03/08/2026, demande de Frédéric) : récupéré en plus de
+      // "role" pour permettre la comparaison au dernier service comparable
+      // (même rôle ET même quart) — voir chargerDernierServiceComparable.
+      .select('role, quart')
       .eq('employee_id', employeeId)
       .gte('heure_debut', il24h)
       .order('heure_debut', { ascending: false })
       .limit(1);
     if (error) { console.error('Chargement shift du jour:', error); return null; }
-    return (data && data[0]) ? data[0].role : null;
+    return (data && data[0]) ? data[0] : null;
+  }
+
+  // Évolution vs le dernier service comparable (03/08/2026, demande de
+  // Frédéric) : "comparable" = même rôle ET même quart (matin/soir) — les
+  // standards d'un quart du matin en pompiste n'ont pas de sens comparés à
+  // un quart du soir en caissière. On cherche le service précédent le plus
+  // récent dans les mêmes conditions (avant aujourd'hui), et son total de
+  // points gagnés ce jour-là (validés + en attente, comme le score du jour
+  // actuel — on compare deux choses de même nature).
+  async function chargerDernierServiceComparable(employeeId, role, quart) {
+    if (!role || !quart) return null;
+    const { data, error } = await nexusClient
+      .from('shifts')
+      .select('heure_debut')
+      .eq('employee_id', employeeId)
+      .eq('role', role)
+      .eq('quart', quart)
+      .order('heure_debut', { ascending: false })
+      .limit(10);
+    if (error) { console.error('Chargement dernier service comparable:', error); return null; }
+    const aujISO = new Date().toISOString().slice(0, 10);
+    const precedent = (data || []).find(s => new Date(s.heure_debut).toISOString().slice(0, 10) !== aujISO);
+    if (!precedent) return null;
+    const dateISO = new Date(precedent.heure_debut).toISOString().slice(0, 10);
+
+    const { data: completions, error: erreurCompletions } = await nexusClient
+      .from('mission_completions')
+      .select('points, points_ajustement')
+      .eq('employee_id', employeeId)
+      .eq('date', dateISO);
+    if (erreurCompletions) { console.error('Chargement complétions service comparable:', erreurCompletions); return null; }
+    const points = (completions || []).reduce((s, c) => s + (c.points || 0) + (c.points_ajustement || 0), 0);
+    return { date: dateISO, points };
   }
 
   // Employes actifs du site — utilise pour le "controle manager" (cf.
@@ -388,24 +436,54 @@
       if (!fait) { pointsDisponibles += m.points; missionsRestantes += 1; }
     });
 
-    const pointsObtenusAujourdhui = completionsCache
-      .filter(c => c.date === aujISO)
+    const completionsAujourdhui = completionsCache.filter(c => c.date === aujISO);
+    // Score du jour = points gagnés (validés + en attente confondus) : donne
+    // un retour immédiat et motivant sur l'effort réel fourni, comme demandé
+    // par Frédéric ("le conseiller doit donner l'impression d'être vivant").
+    // Le détail validé/en attente est affiché séparément — jamais caché,
+    // pour rester honnête sur ce qui compte déjà officiellement.
+    const pointsObtenusAujourdhui = completionsAujourdhui
       .reduce((s, c) => s + (c.points || 0) + (c.points_ajustement || 0), 0);
+    const pointsValidesAujourdhui = completionsAujourdhui
+      .filter(c => (c.statut_validation || 'valide') === 'valide')
+      .reduce((s, c) => s + (c.points || 0) + (c.points_ajustement || 0), 0);
+    const pointsEnAttenteAujourdhui = pointsObtenusAujourdhui - pointsValidesAujourdhui;
 
-    return { parFamille, parNiveau, pointsDisponibles, missionsRestantes, pointsObtenusAujourdhui };
+    return { parFamille, parNiveau, pointsDisponibles, missionsRestantes, pointsObtenusAujourdhui, pointsValidesAujourdhui, pointsEnAttenteAujourdhui };
   }
 
+  // Score du jour (03/08/2026, demande de Frédéric — "un système simple et
+  // compréhensible") : le nombre en avant est le score du jour (points
+  // gagnés, validés + en attente confondus — retour immédiat sur l'effort
+  // réel). Le détail validé/en attente n'est jamais caché en dessous, et
+  // l'évolution compare au dernier service comparable (même rôle, même
+  // quart) plutôt qu'à un potentiel abstrait.
   function renderJourneeSection(potentiel) {
     const el = document.getElementById('journeeSection');
     if (!el) return;
     if (!missionsDuRoleAujourdhui().length) { el.innerHTML = ''; return; }
-    const total = potentiel.pointsObtenusAujourdhui + potentiel.pointsDisponibles;
+
+    let evolutionHtml = '';
+    if (dernierServiceComparable) {
+      const delta = potentiel.pointsObtenusAujourdhui - dernierServiceComparable.points;
+      const classe = delta > 0 ? 'hausse' : delta < 0 ? 'baisse' : 'stable';
+      const icone = delta > 0 ? '▲' : delta < 0 ? '▼' : '=';
+      const signe = delta > 0 ? '+' : '';
+      evolutionHtml = `<div class="journee-evolution ${classe}">${icone} ${signe}${delta} pt${Math.abs(delta) > 1 ? 's' : ''} vs votre dernier service comparable (${dernierServiceComparable.points} pts)</div>`;
+    }
+
+    const detailValidation = potentiel.pointsEnAttenteAujourdhui > 0
+      ? `${potentiel.pointsValidesAujourdhui} validé${potentiel.pointsValidesAujourdhui > 1 ? 's' : ''} · <span class="journee-attente">${potentiel.pointsEnAttenteAujourdhui} en attente de validation</span>`
+      : `${potentiel.pointsValidesAujourdhui} validé${potentiel.pointsValidesAujourdhui > 1 ? 's' : ''}`;
+
     el.innerHTML = `
       <div class="journee-card">
-        <div class="journee-label">Votre journée</div>
-        <div class="journee-points">${total} point${total > 1 ? 's' : ''} au total</div>
+        <div class="journee-label">Score du jour</div>
+        <div class="journee-points">${potentiel.pointsObtenusAujourdhui} point${potentiel.pointsObtenusAujourdhui > 1 ? 's' : ''} gagné${potentiel.pointsObtenusAujourdhui > 1 ? 's' : ''}</div>
+        ${evolutionHtml}
         <div class="journee-detail">
-          ${potentiel.pointsObtenusAujourdhui} obtenu${potentiel.pointsObtenusAujourdhui > 1 ? 's' : ''} · ${potentiel.pointsDisponibles} encore disponible${potentiel.pointsDisponibles > 1 ? 's' : ''}<br>
+          ${detailValidation}<br>
+          ${potentiel.pointsDisponibles} point${potentiel.pointsDisponibles > 1 ? 's' : ''} encore accessible${potentiel.pointsDisponibles > 1 ? 's' : ''}<br>
           ${potentiel.missionsRestantes} mission${potentiel.missionsRestantes > 1 ? 's' : ''} obligatoire${potentiel.missionsRestantes > 1 ? 's' : ''} restante${potentiel.missionsRestantes > 1 ? 's' : ''}
         </div>
         <a class="journee-lien" href="NEXUS-Progression-v1.html">Consulter votre score dans Ma Progression →</a>
@@ -784,6 +862,10 @@
       mission_id: missionId, titre,
       date: new Date().toISOString().slice(0,10), heure: new Date().toTimeString().slice(0,5),
       photo_fournie: false, points: points || 5,
+      // Pas de preuve photo sur ce circuit (mission assignée par un manager,
+      // donc déjà cadrée par lui) — validée immédiatement, comme toute
+      // mission sans preuve requise.
+      statut_validation: 'valide',
     };
     completionsCache.push(entry);
     await sauvegarderCompletionSupabase(employeeId, entry);
@@ -977,6 +1059,11 @@
         photo_url: entry.photo_url || null, points: entry.points,
         employes_presents: entry.employes_presents || null,
         article_cible: entry.article_cible || null, categorie_cible: entry.categorie_cible || null,
+        // Points en attente de validation (03/08/2026, demande de Frédéric) :
+        // seules les missions à preuve photo passent par une validation
+        // manager avant que leurs points comptent comme "validés" — voir
+        // NEXUS-Resultats-Equipe-v1.html pour l'action de validation.
+        statut_validation: entry.statut_validation || 'valide',
       });
     if (error) console.error('Sauvegarde complétion:', error);
   }
@@ -1644,6 +1731,10 @@
             employes_presents: employesPresents,
             article_cible: produitCible ? produitCible.article : null,
             categorie_cible: produitCible ? produitCible.categorie : null,
+            // Points en attente de validation (03/08/2026, demande de
+            // Frédéric) : uniquement les missions à preuve photo — les
+            // autres restent créditées immédiatement.
+            statut_validation: mission.proof_required ? 'en_attente' : 'valide',
           };
           completionsCache.push(entry); // re-rendu optimiste
           delete produitCibleState[missionId]; // repart propre pour la prochaine fois
@@ -1671,11 +1762,13 @@
     SITE_ACTUEL = employee.site_id || 'vito-sainte-marie';
 
     if (!employee.consultation_externe) {
-      roleDuJour = await chargerShiftAujourdhui(employeeId);
-      if (!roleDuJour) {
+      const shiftDuJour = await chargerShiftAujourdhui(employeeId);
+      if (!shiftDuJour) {
         window.location.href = 'NEXUS-Prise-De-Poste-v1.html';
         return;
       }
+      roleDuJour = shiftDuJour.role;
+      quartDuJour = shiftDuJour.quart || null;
     } else {
       roleDuJour = 'manager'; // vue d'ensemble par defaut pour une consultation externe
     }
@@ -1699,6 +1792,7 @@
     completionsCache = await chargerCompletionsSupabase(employeeId);
     if (!employee.consultation_externe) {
       heureArriveeAujourdhui = await chargerHeureArriveeAujourdhui(employeeId);
+      dernierServiceComparable = await chargerDernierServiceComparable(employeeId, roleDuJour, quartDuJour);
     }
     // Chargé seulement si le catalogue contient une mission qui en a besoin
     // — évite une requête inutile pour les sites/rôles qui ne l'utilisent pas.

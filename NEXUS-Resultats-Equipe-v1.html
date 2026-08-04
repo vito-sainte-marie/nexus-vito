@@ -82,6 +82,8 @@
   .ajust-raison{font-size:9.5px; color:var(--red); margin-top:2px; font-style:italic;}
   .ajust-toggle{background:none; border:none; color:var(--text-dim); font-family:var(--mono); font-size:9.5px; cursor:pointer; padding:2px 6px; margin-left:6px;}
   .ajust-toggle:active{color:var(--red);}
+  .valider-btn{background:var(--green-dim); border:1px solid rgba(52,211,153,0.4); color:var(--green); font-family:var(--mono); font-size:9.5px; cursor:pointer; padding:3px 8px; border-radius:6px; margin-left:6px;}
+  .valider-btn:active{opacity:0.7;}
   .ajust-reset{display:block; font-family:var(--mono); font-size:9px; color:var(--text-dim); text-decoration:underline; margin-top:2px; cursor:pointer;}
   .ajust-form{margin-top:8px; padding:10px; background:var(--panel-raised); border-radius:8px; display:none;}
   .ajust-form.open{display:block;}
@@ -159,6 +161,17 @@
     return !error ? null : error;
   }
 
+  // Validation des missions à preuve photo (03/08/2026, demande de Frédéric) :
+  // action manuelle et distincte de l'ajustement de points — un manager peut
+  // valider une mission puis, séparément, en retirer des points s'il juge
+  // la qualité insuffisante (les deux actions restent indépendantes).
+  async function validerCompletion(completionId, managerId) {
+    const { error } = await nexusClient.from('mission_completions').update({
+      statut_validation: 'valide', valide_par: managerId, valide_le: new Date().toISOString(),
+    }).eq('id', completionId);
+    return !error ? null : error;
+  }
+
   // Classement (28/07/2026, demande de Frédéric — "mets moi un classement
   // ... en fait je veux que ça apparaisse simplement dans résultats
   // équipe") : manager uniquement (décision explicite de Frédéric), basé
@@ -174,9 +187,16 @@
     lundi.setDate(now.getDate() - jourSemaineISO - (offsetSemaines || 0) * 7);
     return lundi.toISOString().slice(0, 10);
   }
+  // Points en attente de validation (03/08/2026, demande de Frédéric) : le
+  // classement ne compte que les points VALIDÉS (missions sans preuve
+  // photo, créditées immédiatement ; missions à preuve photo, une fois
+  // confirmées par un manager — voir validerCompletion). Une mission en
+  // attente ne doit pas faire gagner ou perdre une place dans le classement
+  // avant d'avoir été réellement vérifiée.
+  function estValidee(c) { return (c.statut_validation || 'valide') === 'valide'; }
   function pointsPeriode(completionsSite, employeeId, depuisISO, avantISO) {
     return completionsSite
-      .filter(c => c.employee_id === employeeId && c.date >= depuisISO && (!avantISO || c.date < avantISO))
+      .filter(c => c.employee_id === employeeId && c.date >= depuisISO && (!avantISO || c.date < avantISO) && estValidee(c))
       .reduce((s, c) => s + (c.points || 0) + (c.points_ajustement || 0), 0);
   }
   function construireClassement(completionsSite, employesSite) {
@@ -214,7 +234,7 @@
     const iconeFleche = f => f === 'hausse' ? '▲' : f === 'baisse' ? '▼' : f === 'stable' ? '=' : '—';
     return `<div class="section-label">🏆 Classement de la semaine</div>
       <div class="classement-card">
-        <div class="classement-note">Points de la semaine en cours (lundi à aujourd'hui). La flèche compare le rang à la semaine précédente — jamais affichée sans activité réelle sur au moins une des deux semaines.</div>
+        <div class="classement-note">Points validés de la semaine en cours (lundi à aujourd'hui) — les missions à preuve photo pas encore validées n'y comptent pas. La flèche compare le rang à la semaine précédente — jamais affichée sans activité réelle sur au moins une des deux semaines.</div>
         ${classement.map(l => `
           <div class="classement-row">
             <span class="classement-rang">${l.rang}.</span>
@@ -257,7 +277,8 @@
     // jamais un chiffre différent affiché ici.
     const baremeHtml = `<div class="bareme-card">
       <b>Barème de points</b> — chaque mission a des points de base définis dans son catalogue (visibles dans Missions). Une mission qui demande une seule photo de preuve à la validation ajoute <b>+2</b> points bonus. Une mission à photo systématique à chaque étape (ex. ouverture, fermeture, prise de poste pompiste) n'a pas ce bonus — la photo y est déjà la norme, pas un geste en plus.<br><br>
-      Un manager peut retirer des points sur une mission déjà validée s'il juge qu'elle n'a pas été bien effectuée, avec une raison facultative (bouton ➖ sur chaque ligne).
+      Un manager peut retirer des points sur une mission déjà validée s'il juge qu'elle n'a pas été bien effectuée, avec une raison facultative (bouton ➖ sur chaque ligne).<br><br>
+      <b>Points en attente</b> — les missions à preuve photo passent par une validation manager (bouton ✓ Valider) avant que leurs points comptent dans le classement et le total de l'employé. Les autres missions restent créditées immédiatement.
     </div>`;
 
     function pointsEffectifs(m) {
@@ -282,7 +303,8 @@
       tousEmployes.forEach(emp => {
         const idEmp = equipeActive.find(e => e.nom === emp)?.id;
         const missionsEmp = completions.filter(c => c.employee_id === idEmp);
-        const pointsTotal = missionsEmp.reduce((s, m) => s + pointsEffectifs(m), 0);
+        const pointsTotal = missionsEmp.filter(estValidee).reduce((s, m) => s + pointsEffectifs(m), 0);
+        const pointsEnAttente = missionsEmp.filter(m => !estValidee(m)).reduce((s, m) => s + pointsEffectifs(m), 0);
         const avecPhoto = missionsEmp.filter(m => m.photo_fournie).length;
         const retardsEmp = retards[emp] || [];
         const totalRetardMin = retardsEmp.reduce((s, r) => s + r.retard_min, 0);
@@ -297,10 +319,10 @@
               <span class="emp-name" style="font-size:15px;">${emp}</span>
               <div style="font-family:var(--mono); font-size:9.5px; color:${etatCouleur}; margin-top:3px;">${etat}</div>
             </div>
-            <span class="emp-pct" style="color:var(--cyan);">${pointsTotal} pts</span>
+            <span class="emp-pct" style="color:var(--cyan);">${pointsTotal} pts${pointsEnAttente > 0 ? ` <span style="color:var(--amber); font-size:11px;">+${pointsEnAttente} en attente</span>` : ''}</span>
           </div>
           <div class="emp-detail" style="margin-bottom:10px;">
-            ${missionsEmp.length} mission(s) validée(s) · ${avecPhoto} avec preuve photo · ${retardsEmp.length} retard(s) (${totalRetardMin} min cumulées)
+            ${missionsEmp.length} mission(s) · ${avecPhoto} avec preuve photo · ${retardsEmp.length} retard(s) (${totalRetardMin} min cumulées)
           </div>`;
 
         if (missionsEmp.length > 0) {
@@ -311,14 +333,17 @@
               : '';
             const ajustee = !!m.points_ajustement;
             const total = pointsEffectifs(m);
+            const enAttente = !estValidee(m);
             html += `<div class="mission-ligne">
               <div class="mission-ligne-gauche">
                 <span style="font-size:11.5px;">${m.titre} ${photo}</span>
+                ${enAttente ? `<div style="font-family:var(--mono); font-size:9.5px; color:var(--amber); margin-top:2px;">⏳ En attente de validation</div>` : ''}
                 ${ajustee ? `<div class="ajust-raison">➖ ${Math.abs(m.points_ajustement)} pt(s)${m.ajustement_raison ? ' — ' + m.ajustement_raison : ''}</div>
                   <span class="ajust-reset" data-id="${m.id}">Annuler l'ajustement</span>` : ''}
               </div>
               <div style="text-align:right;">
                 <span class="mission-ligne-pts ${ajustee ? 'ajustee' : ''}">${ajustee ? `<del>${m.points}</del> ` : ''}${total} pts</span>
+                ${enAttente ? `<button class="valider-btn" data-id="${m.id}" title="Valider cette mission">✓ Valider</button>` : ''}
                 <button class="ajust-toggle" data-target="ajust-${m.id}" title="Retirer des points">➖</button>
                 <div class="ajust-form" id="ajust-${m.id}">
                   <div style="display:flex; align-items:center;">
@@ -367,6 +392,18 @@
     }
 
     function cablerAjustements() {
+      content.querySelectorAll('.valider-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const id = btn.dataset.id;
+          btn.disabled = true;
+          btn.textContent = '…';
+          const erreur = await validerCompletion(id, employee.id);
+          if (erreur) { console.error('Validation mission:', erreur); alert('Un problème est survenu, réessayez.'); btn.disabled = false; btn.textContent = '✓ Valider'; return; }
+          const m = completions.find(c => c.id === id);
+          if (m) { m.statut_validation = 'valide'; m.valide_par = employee.id; m.valide_le = new Date().toISOString(); }
+          renderTout();
+        });
+      });
       content.querySelectorAll('.ajust-toggle').forEach(btn => {
         btn.addEventListener('click', () => {
           const form = document.getElementById(btn.dataset.target);
