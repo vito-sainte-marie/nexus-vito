@@ -286,6 +286,50 @@
   .histo-decision{color:var(--text-mid); margin-top:4px; line-height:1.5;}
   .histo-date{font-family:var(--mono); font-size:9.5px; color:var(--text-dim); margin-top:4px;}
 
+  /* Correction rétroactive / Simulation terrain / Profils produit
+     (03/08/2026, refonte inventaire — audit §10-11, §25-30) : ces trois
+     sections réutilisent le langage visuel déjà défini côté employé
+     (NEXUS-Inventaire-v1.html) pour rester cohérentes dans toute l'app —
+     ces classes n'existaient pas encore dans ce fichier manager. */
+  .mouv-row{display:flex; gap:8px; margin-bottom:8px;}
+  .mouv-select, .mouv-qte{background:var(--panel-raised); border:1px solid var(--hairline); border-radius:8px; padding:9px 10px; color:var(--text); font-size:12.5px; font-family:var(--sans);}
+  .mouv-select{flex:1.4;}
+  .mouv-qte{flex:1; font-family:var(--mono); text-align:right;}
+  .mouv-justif{width:100%; background:var(--panel-raised); border:1px solid var(--hairline); border-radius:8px; padding:9px 10px; color:var(--text); font-size:12px; margin-bottom:8px; font-family:var(--sans);}
+
+  .btn-primary{width:100%; padding:14px; border:none; border-radius:10px; font-size:14px; font-weight:600; background:var(--cyan); color:#04141a; cursor:pointer; margin-top:6px;}
+  .btn-primary:disabled{opacity:0.35; cursor:not-allowed;}
+  .btn-ghost{width:100%; padding:12px; border:1px solid var(--hairline); border-radius:10px; background:transparent; color:var(--text-mid); font-size:13px; cursor:pointer; margin-top:8px;}
+  .btn-text{width:100%; padding:12px; border:none; background:none; color:var(--text-dim); font-size:12.5px; cursor:pointer; margin-top:4px;}
+
+  .stat-row{display:flex; justify-content:space-between; align-items:center; padding:9px 0;}
+  .stat-row + .stat-row{border-top:1px solid var(--hairline);}
+  .stat-label{font-size:13px; color:var(--text-mid);}
+  .stat-value{font-family:var(--mono); font-size:15px; font-weight:700; color:var(--text);}
+  .stat-value.amber{color:var(--amber);}
+  .stat-value.cyan{color:var(--cyan);}
+  .stat-value.red{color:var(--red);}
+
+  .cat-block{margin-bottom:16px;}
+  .cat-head{display:flex; align-items:center; justify-content:space-between; padding:0 2px 8px;}
+  .cat-nom{font-family:var(--mono); font-size:10.5px; letter-spacing:0.06em; text-transform:uppercase; color:var(--text-dim);}
+
+  .produit-row{padding:12px 14px;}
+  .produit-row + .produit-row{border-top:1px solid var(--hairline);}
+  .produit-nom-ligne{display:flex; align-items:center; gap:6px; margin-bottom:8px;}
+  .produit-nom{font-size:13.5px; font-weight:600; flex:1;}
+  .produit-input{flex:1; background:var(--panel-raised); border:1px solid var(--hairline); border-radius:9px; padding:10px 12px; color:var(--text); font-family:var(--mono); font-size:15px; text-align:right;}
+  .produit-input:focus{outline:none; border-color:var(--cyan);}
+
+  .categorie-row{display:flex; justify-content:space-between; align-items:center; padding:14px; cursor:pointer;}
+  .categorie-row + .categorie-row{border-top:1px solid var(--hairline);}
+  .categorie-row:active{background:var(--panel-raised);}
+  .categorie-nom{font-size:14px; font-weight:600;}
+  .categorie-count{font-size:11.5px; color:var(--text-mid); margin-top:2px;}
+  .categorie-etat{font-family:var(--mono); font-size:10px; font-weight:700; padding:4px 9px; border-radius:12px; white-space:nowrap; text-transform:uppercase;}
+  .categorie-etat.a-faire{background:var(--panel-raised); color:var(--text-dim);}
+  .categorie-etat.en-cours{background:rgba(79,195,217,0.12); color:var(--cyan);}
+
   footer{margin-top:auto; padding:16px 20px 24px; font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:center; border-top:1px solid var(--hairline);}
 </style>
 </head>
@@ -353,6 +397,23 @@
   let simulationChrono = null; // Date.now() au chargement — vrai chronométrage, jamais une estimation
   let produitsPourSimulation = [];
   let statsSimulation = null;
+
+  // Profils produit (04/08/2026, audit §10-11) : un produit sans ligne dans
+  // inventaire_regles_produit garde le comportement historique (stock
+  // continu, chaîne d'un quart à l'autre) — cette table est purement
+  // additive, jamais de migration forcée des 242 produits existants.
+  let sectionProfilsOuverte = false;
+  let produitsPourProfils = [];
+  let reglesProduitMap = {};
+  let profilProduitOuvert = null; // id du produit dont le panneau est déplié
+  let profilEnEdition = null; // brouillon en cours pour profilProduitOuvert
+  const PROFILS_PRODUIT = [
+    { value: 'continu', label: 'Stock continu', desc: 'Le stock final du quart précédent devient le stock transmis (comportement par défaut).' },
+    { value: 'cycle_journalier', label: 'Cycle journalier réinitialisé', desc: 'Chaque matin, NEXUS ferme le cycle précédent et en ouvre un nouveau. Les ventes des quarts peuvent être cumulées.' },
+    { value: 'lot_glissant', label: 'Durée de vie glissante (SDD)', desc: 'Chaque réception crée un lot daté ; le retour fournisseur devient obligatoire à échéance.' },
+    { value: 'presse', label: 'Presse et éditions', desc: 'Suivi par édition ou date de parution — deux éditions ne sont jamais mélangées.' },
+    { value: 'consommable', label: 'Consommable interne', desc: 'Suivi par quantité et seuil minimal d\'alerte, pas par quart.' },
+  ];
 
   // Paramètres de supervision configurable (02/08/2026, évolution demandée
   // par Frédéric — "NEXUS Inventaire — Supervision configurable") : la
@@ -1849,6 +1910,138 @@
     `;
   }
 
+  // ------------------------------------------------------------
+  // PROFILS PRODUIT (04/08/2026, audit §10-11) — assignation manager, par
+  // produit, du profil d'inventaire. Écrit dans inventaire_regles_produit
+  // (créée par migration additive, aucun produit n'y est présent tant que
+  // le manager ne l'a pas configuré explicitement).
+  // ------------------------------------------------------------
+  async function chargerReglesProduit(site) {
+    const { data, error } = await nexusClient.from('inventaire_regles_produit').select('*').eq('site', site);
+    if (error) { console.error('Chargement règles produit:', error); return {}; }
+    const map = {};
+    (data || []).forEach(r => { map[r.produit_id] = r; });
+    return map;
+  }
+
+  function ouvrirEditionProfil(produitId) {
+    if (profilProduitOuvert === produitId) { profilProduitOuvert = null; profilEnEdition = null; renderTout(dernierCtx); return; }
+    profilProduitOuvert = produitId;
+    const existant = reglesProduitMap[produitId];
+    profilEnEdition = existant ? { ...existant } : {
+      produit_id: produitId, profil: 'continu', cycle_frequence: null, report_veille_autorise: true,
+      duree_max_vente_jours: null, action_echeance: 'alerte_manager', mode_agregation_ventes: 'aucun',
+      validation_manager_requise: false, comptage_masque: false, seuil_minimal: null,
+    };
+    renderTout(dernierCtx);
+  }
+
+  async function enregistrerProfilProduit() {
+    const p = profilEnEdition;
+    const btn = document.getElementById('btnEnregistrerProfil');
+    if (btn) { btn.disabled = true; btn.textContent = 'Enregistrement…'; }
+    const payload = {
+      site: siteId, produit_id: p.produit_id, profil: p.profil,
+      cycle_frequence: p.profil === 'cycle_journalier' ? 'quotidien' : null,
+      report_veille_autorise: p.report_veille_autorise !== false,
+      duree_max_vente_jours: (p.profil === 'lot_glissant' || p.profil === 'presse') ? (p.duree_max_vente_jours || null) : null,
+      action_echeance: (p.profil === 'lot_glissant' || p.profil === 'presse') ? (p.action_echeance || 'alerte_manager') : null,
+      mode_agregation_ventes: p.profil === 'cycle_journalier' ? (p.mode_agregation_ventes || 'aucun') : 'aucun',
+      validation_manager_requise: !!p.validation_manager_requise,
+      comptage_masque: !!p.comptage_masque,
+      seuil_minimal: p.profil === 'consommable' ? (p.seuil_minimal || null) : null,
+    };
+    const { data, error } = await nexusClient.from('inventaire_regles_produit')
+      .upsert(payload, { onConflict: 'site,produit_id' }).select().single();
+    if (error) { console.error('Enregistrement profil produit:', error); alert('Erreur — réessayez.'); if (btn) { btn.disabled = false; btn.textContent = 'Enregistrer ce profil'; } return; }
+
+    await nexusClient.from('inventaire_audit_log').insert({
+      site: siteId, entite_type: 'inventaire_regles_produit', entite_id: data.id,
+      action: 'configuration_profil_produit', nouvelle_valeur: { profil: p.profil }, acteur_id: managerCourant.id,
+    });
+
+    reglesProduitMap[p.produit_id] = data;
+    profilProduitOuvert = null; profilEnEdition = null;
+    renderTout(dernierCtx);
+  }
+
+  function renderFormulaireProfil() {
+    const e = profilEnEdition;
+    const infoProfil = PROFILS_PRODUIT.find(x => x.value === e.profil);
+    return `
+      <div class="card" style="margin:0 0 10px; padding:12px 14px;">
+        <select class="mouv-select" id="profilSelect" style="width:100%; margin-bottom:8px;">
+          ${PROFILS_PRODUIT.map(x => `<option value="${x.value}" ${x.value === e.profil ? 'selected' : ''}>${x.label}</option>`).join('')}
+        </select>
+        <div style="font-size:11px; color:var(--text-mid); margin-bottom:10px;">${infoProfil.desc}</div>
+        ${e.profil === 'cycle_journalier' ? `
+          <select class="mouv-select" id="profilAgregation" style="width:100%; margin-bottom:8px;">
+            <option value="aucun" ${e.mode_agregation_ventes === 'aucun' ? 'selected' : ''}>Pas de cumul entre quarts</option>
+            <option value="cumul_quarts_1_2" ${e.mode_agregation_ventes === 'cumul_quarts_1_2' ? 'selected' : ''}>Cumuler quarts 1 et 2</option>
+            <option value="cumul_journee" ${e.mode_agregation_ventes === 'cumul_journee' ? 'selected' : ''}>Cumuler sur toute la journée</option>
+          </select>
+        ` : ''}
+        ${(e.profil === 'lot_glissant' || e.profil === 'presse') ? `
+          <input type="number" class="mouv-qte" id="profilDureeMax" placeholder="Durée max de vente (jours)"
+                 value="${e.duree_max_vente_jours || (e.profil === 'lot_glissant' ? 3 : '')}" style="width:100%; margin-bottom:8px;">
+          <select class="mouv-select" id="profilActionEcheance" style="width:100%; margin-bottom:8px;">
+            <option value="retour_fournisseur_obligatoire" ${e.action_echeance === 'retour_fournisseur_obligatoire' ? 'selected' : ''}>Retour fournisseur obligatoire</option>
+            <option value="destruction" ${e.action_echeance === 'destruction' ? 'selected' : ''}>Destruction</option>
+            <option value="alerte_manager" ${e.action_echeance === 'alerte_manager' ? 'selected' : ''}>Alerte manager seulement</option>
+          </select>
+        ` : ''}
+        ${e.profil === 'consommable' ? `
+          <input type="number" class="mouv-qte" id="profilSeuilMinimal" placeholder="Seuil minimal d'alerte" value="${e.seuil_minimal || ''}" style="width:100%; margin-bottom:8px;">
+        ` : ''}
+        <label style="display:flex; align-items:center; gap:6px; font-size:12px; color:var(--text-mid); margin-bottom:6px; cursor:pointer;">
+          <input type="checkbox" id="profilValidationManager" ${e.validation_manager_requise ? 'checked' : ''}> Validation manager requise avant de compter ce produit
+        </label>
+        <label style="display:flex; align-items:center; gap:6px; font-size:12px; color:var(--text-mid); margin-bottom:10px; cursor:pointer;">
+          <input type="checkbox" id="profilComptageMasque" ${e.comptage_masque ? 'checked' : ''}> Comptage à l'aveugle (valeur transmise cachée)
+        </label>
+        <button class="btn-primary" id="btnEnregistrerProfil" style="margin-top:0;">Enregistrer ce profil</button>
+        <button class="btn-text" id="btnAnnulerProfil">Annuler</button>
+      </div>
+    `;
+  }
+
+  function renderLigneProfilProduit(p) {
+    const regle = reglesProduitMap[p.id];
+    const profilActuel = regle ? regle.profil : 'continu';
+    const libelleProfil = PROFILS_PRODUIT.find(x => x.value === profilActuel).label;
+    const ouvert = profilProduitOuvert === p.id;
+    return `
+      <div class="categorie-row" data-profil-produit="${p.id}">
+        <div>
+          <div class="categorie-nom" style="font-size:13px;">${p.designation}</div>
+          <div class="categorie-count">${libelleProfil}</div>
+        </div>
+        <div class="categorie-etat ${profilActuel === 'continu' ? 'a-faire' : 'en-cours'}">${ouvert ? '▾' : '▸'}</div>
+      </div>
+      ${ouvert && profilEnEdition ? renderFormulaireProfil() : ''}
+    `;
+  }
+
+  function renderSectionProfilsProduit() {
+    if (!produitsPourProfils.length) return '<div class="loading">Chargement des produits…</div>';
+    const groupes = produitsPourProfils.reduce((acc, p) => {
+      const cat = p.inventaire_categories ? p.inventaire_categories.nom : 'Autres';
+      (acc[cat] = acc[cat] || []).push(p);
+      return acc;
+    }, {});
+    return `
+      <div id="sectionProfilsProduit">
+        <div class="ventes-desc" style="margin:0 2px 12px;">Par défaut, un produit suit le stock continu (comportement historique, aucun changement nécessaire). Configurez uniquement les produits à cycle particulier : viennoiserie/pain (journalier), pâtes/biscuits SDD (lot glissant), presse (par édition), consommables (seuil).</div>
+        ${Object.entries(groupes).map(([cat, items]) => `
+          <div class="cat-block">
+            <div class="cat-head"><div class="cat-nom">${cat} (${items.length})</div></div>
+            <div class="card">${items.map(p => renderLigneProfilProduit(p)).join('')}</div>
+          </div>
+        `).join('')}
+      </div>
+    `;
+  }
+
   // Paramètres de contrôle inventaire (02/08/2026, évolution "Supervision
   // configurable des inventaires") : fréquence à laquelle CE manager
   // souhaite consulter une synthèse (quotidien/hebdo/mensuel/exception),
@@ -2271,6 +2464,12 @@
       </div>
       ${sectionSimulationOuverte ? renderSectionSimulation() : ''}
 
+      <div class="section-titre section-repliable" id="toggleSectionProfils">
+        <span>Profils produit</span>
+        <span class="repli-chevron ${sectionProfilsOuverte ? 'open' : ''}">›</span>
+      </div>
+      ${sectionProfilsOuverte ? renderSectionProfilsProduit() : ''}
+
       <div class="section-titre section-repliable" id="toggleSectionParametres">
         <span>Paramètres de contrôle inventaire</span>
         <span class="repli-compte">${LABELS_FREQUENCE[parametresInventaire.reviewFrequency] || 'Tous les jours'}</span>
@@ -2487,6 +2686,45 @@
       corpsEl.innerHTML = renderCorpsSimulation();
       const btnEnregistrer = document.getElementById('btnEnregistrerSimulation');
       if (btnEnregistrer) btnEnregistrer.addEventListener('click', enregistrerSimulation);
+    });
+
+    const toggleProfils = document.getElementById('toggleSectionProfils');
+    if (toggleProfils) toggleProfils.addEventListener('click', async () => {
+      sectionProfilsOuverte = !sectionProfilsOuverte;
+      renderTout(dernierCtx);
+      if (sectionProfilsOuverte && !produitsPourProfils.length) {
+        const [produits, regles] = await Promise.all([chargerTousProduitsActifsSite(siteId), chargerReglesProduit(siteId)]);
+        produitsPourProfils = produits;
+        reglesProduitMap = regles;
+        renderTout(dernierCtx);
+      }
+    });
+    document.querySelectorAll('[data-profil-produit]').forEach(el => el.addEventListener('click', () => {
+      ouvrirEditionProfil(el.dataset.profilProduit);
+    }));
+    const profilSelectEl = document.getElementById('profilSelect');
+    if (profilSelectEl) profilSelectEl.addEventListener('change', (e) => {
+      profilEnEdition.profil = e.target.value;
+      renderTout(dernierCtx);
+    });
+    const profilAgregationEl = document.getElementById('profilAgregation');
+    if (profilAgregationEl) profilAgregationEl.addEventListener('change', (e) => { profilEnEdition.mode_agregation_ventes = e.target.value; });
+    const profilDureeMaxEl = document.getElementById('profilDureeMax');
+    if (profilDureeMaxEl) profilDureeMaxEl.addEventListener('change', (e) => { profilEnEdition.duree_max_vente_jours = e.target.value ? parseInt(e.target.value) : null; });
+    const profilActionEcheanceEl = document.getElementById('profilActionEcheance');
+    if (profilActionEcheanceEl) profilActionEcheanceEl.addEventListener('change', (e) => { profilEnEdition.action_echeance = e.target.value; });
+    const profilSeuilMinimalEl = document.getElementById('profilSeuilMinimal');
+    if (profilSeuilMinimalEl) profilSeuilMinimalEl.addEventListener('change', (e) => { profilEnEdition.seuil_minimal = e.target.value ? parseFloat(e.target.value) : null; });
+    const profilValidationManagerEl = document.getElementById('profilValidationManager');
+    if (profilValidationManagerEl) profilValidationManagerEl.addEventListener('change', (e) => { profilEnEdition.validation_manager_requise = e.target.checked; });
+    const profilComptageMasqueEl = document.getElementById('profilComptageMasque');
+    if (profilComptageMasqueEl) profilComptageMasqueEl.addEventListener('change', (e) => { profilEnEdition.comptage_masque = e.target.checked; });
+    const btnEnregistrerProfil = document.getElementById('btnEnregistrerProfil');
+    if (btnEnregistrerProfil) btnEnregistrerProfil.addEventListener('click', enregistrerProfilProduit);
+    const btnAnnulerProfil = document.getElementById('btnAnnulerProfil');
+    if (btnAnnulerProfil) btnAnnulerProfil.addEventListener('click', () => {
+      profilProduitOuvert = null; profilEnEdition = null;
+      renderTout(dernierCtx);
     });
     const btnDetailDecisions = document.getElementById('btnDetailDecisions');
     if (btnDetailDecisions) btnDetailDecisions.addEventListener('click', () => {
