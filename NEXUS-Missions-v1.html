@@ -1759,6 +1759,14 @@
     const champRecherche = document.getElementById('search');
     if (champRecherche) champRecherche.value = '';
     missionsOuvertes.add(missionId);
+    // Même correctif que pour les filtres catégorie/niveau (05/08/2026,
+    // vidéo de Frédéric — "Commencer cette mission" ne faisait rien) : la
+    // mission suggérée par le Coach est souvent dans une section repliée
+    // par défaut (ex. "Priorités du service" pour le renfort). Sans
+    // ouvrir cette section, son body n'existe même pas dans le DOM —
+    // scrollIntoView ne trouve donc rien et le bouton semble ne rien
+    // faire du tout.
+    ouvrirSectionsMissionsPourFiltre();
     render();
     const corps = document.getElementById(`body-${missionId}`);
     if (corps) corps.closest('.mission-card').scrollIntoView({ behavior: 'smooth', block: 'center' });
