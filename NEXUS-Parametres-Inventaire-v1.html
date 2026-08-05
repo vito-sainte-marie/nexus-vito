@@ -267,6 +267,16 @@
     if (error) { console.error('Chargement zones:', error); return []; }
     return data || [];
   }
+  // La zone détermine automatiquement qui compte le produit côté employé
+  // (NEXUS-Inventaire-v1.html, zonesPourRole) : Piste → pompistes, Boutique
+  // → caissier/caissière. Un manager/gérant/renfort voit les deux. Pas de
+  // champ séparé "assigné à" : le rattachement se fait ici, via la Zone.
+  function libelleZoneAvecRole(zone) {
+    if (!zone) return '—';
+    if (zone.code === 'piste') return `${zone.nom} (pompistes)`;
+    if (zone.code === 'boutique') return `${zone.nom} (caissier/caissière)`;
+    return zone.nom;
+  }
   async function chargerCategoriesSite(site) {
     const { data, error } = await nexusClient.from('inventaire_categories').select('*').eq('site', site).eq('actif', true).order('ordre_affichage');
     if (error) { console.error('Chargement catégories:', error); return []; }
@@ -401,8 +411,8 @@
             ${categoriesSite.map(c => `<option value="${c.id}" ${c.id === ajoutForm.categorieId ? 'selected' : ''}>${c.nom}</option>`).join('')}
           </select>
           <select class="mouv-select" id="ajoutZone" style="margin-bottom:8px;">
-            <option value="">Zone…</option>
-            ${zonesSite.map(z => `<option value="${z.id}" ${z.id === ajoutForm.zoneId ? 'selected' : ''}>${z.nom}</option>`).join('')}
+            <option value="">Zone (qui va le compter ?)…</option>
+            ${zonesSite.map(z => `<option value="${z.id}" ${z.id === ajoutForm.zoneId ? 'selected' : ''}>${libelleZoneAvecRole(z)}</option>`).join('')}
           </select>
           <label style="display:flex; align-items:center; gap:6px; font-size:12px; color:var(--text-mid); margin-bottom:10px; cursor:pointer;">
             <input type="checkbox" id="ajoutSensible" ${ajoutForm.sensible ? 'checked' : ''}> Produit sensible
@@ -420,7 +430,7 @@
   function renderLigneProduitInventaire(p) {
     const ouvert = ligneProduitOuverte === p.id;
     const catNom = p.inventaire_categories ? p.inventaire_categories.nom : '—';
-    const zoneNom = p.inventaire_zones ? p.inventaire_zones.nom : '—';
+    const zoneNom = libelleZoneAvecRole(p.inventaire_zones);
     return `
       <div class="produit-liste-row ${p.actif ? '' : 'inactif'}" data-produit-ligne="${p.id}">
         <div>
@@ -440,7 +450,7 @@
             ${categoriesSite.map(c => `<option value="${c.id}" ${c.id === p.categorie_id ? 'selected' : ''}>${c.nom}</option>`).join('')}
           </select>
           <select class="mouv-select" data-select-zone="${p.id}" style="margin-bottom:8px;">
-            ${zonesSite.map(z => `<option value="${z.id}" ${z.id === p.zone_id ? 'selected' : ''}>${z.nom}</option>`).join('')}
+            ${zonesSite.map(z => `<option value="${z.id}" ${z.id === p.zone_id ? 'selected' : ''}>${libelleZoneAvecRole(z)}</option>`).join('')}
           </select>
           <button class="btn-ghost" data-dupliquer-toggle="${p.id}" style="margin-top:0;">Dupliquer ces réglages vers un autre produit…</button>
           ${dupliquerVersOuvertPour === p.id ? `
@@ -533,7 +543,7 @@
       <div class="card" style="margin-bottom:16px;">
         ${zonesSite.map((z, i) => `
           <div class="parcours-item">
-            <div><div class="parcours-nom">${z.nom}</div><div class="parcours-sub">${z.code}</div></div>
+            <div><div class="parcours-nom">${z.nom}</div><div class="parcours-sub">${z.code === 'piste' ? 'compté par les pompistes' : z.code === 'boutique' ? 'compté par le caissier/la caissière' : z.code}</div></div>
             <div class="parcours-fleches">
               <button class="btn-fleche" data-zone-monter="${z.id}" ${i === 0 ? 'disabled' : ''}>↑</button>
               <button class="btn-fleche" data-zone-descendre="${z.id}" ${i === zonesSite.length - 1 ? 'disabled' : ''}>↓</button>
