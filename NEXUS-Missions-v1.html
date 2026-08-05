@@ -1161,6 +1161,16 @@
   // contient une entrée que pour les items déjà photographiés, sur les
   // missions mission_catalog.photo_par_action = true.
   let itemPhotoState = {};
+  // Anti-rebond ouverture appareil photo (05/08/2026, retour employé —
+  // "l'appareil s'est figé") : { clé: timestamp du dernier vrai
+  // déclenchement }. Un tapotement répété pendant que l'appareil photo est
+  // déjà en train de s'ouvrir relançait un second (voire un troisième)
+  // appareil photo en parallèle, ce qui pouvait bloquer le téléphone. Clé =
+  // "missionId_index" pour une photo par étape, ou missionId seul pour la
+  // photo de preuve globale d'une mission — jamais de collision entre les
+  // deux formats.
+  let dernierTapAppareilPhoto = {};
+  const DELAI_ANTI_REBOND_PHOTO_MS = 1500;
   let completionsCache = [];
   // Heure d'arrivée réelle du jour (03/08/2026, correction demandée par
   // Frédéric) : l'ancien seuil "fin de service" (horloge murale >= 16h,
@@ -1270,7 +1280,13 @@
   // directement — voir le listener dédié dans render() plus bas, qui
   // ouvre l'appareil photo et ne coche l'item qu'après upload réussi.
   function renderChecklist(missionId, checklist, photoParAction) {
-    return checklist.map((item, i) => {
+    // Filet de sécurité (05/08/2026, retour employé — "je n'arrive pas à
+    // voir les détails des missions") : certaines missions générées par le
+    // Conseiller NEXUS n'ont pas de checklist (checklist = [] en base), et
+    // une checklist absente/mal formée ne doit plus jamais faire planter
+    // tout l'affichage — elle est simplement traitée comme vide.
+    const items = Array.isArray(checklist) ? checklist : [];
+    return items.map((item, i) => {
       const key = `${missionId}_${i}`;
       const checked = checkState[key];
       const photoUrl = itemPhotoState[key];
@@ -1316,16 +1332,50 @@
     if (error) console.error('Sauvegarde complétion:', error);
   }
 
+  // Redimensionnement côté client avant envoi (05/08/2026, retour employé —
+  // "l'appareil s'est figé" en prenant une photo de preuve) : une photo
+  // brute d'un téléphone récent pèse souvent 5 à 15 Mo. Envoyée telle
+  // quelle depuis une connexion mobile/wifi de station-service, l'upload
+  // peut prendre plus d'une minute sans aucun retour visuel — ce qui donne
+  // l'impression que l'application (voire le téléphone) est figée. On
+  // redescend à une taille raisonnable pour une preuve (max 1600px de
+  // côté, JPEG 82%), ce qui réduit très fortement le temps d'envoi. En cas
+  // d'échec du redimensionnement (format non supporté, navigateur ancien,
+  // etc.), on retombe simplement sur le fichier d'origine plutôt que de
+  // bloquer la preuve.
+  async function redimensionnerPhoto(file) {
+    try {
+      if (!file.type || !file.type.startsWith('image/') || typeof createImageBitmap !== 'function') return file;
+      const bitmap = await createImageBitmap(file);
+      const MAX_COTE = 1600;
+      const ratio = Math.min(1, MAX_COTE / Math.max(bitmap.width, bitmap.height));
+      if (ratio === 1) { if (bitmap.close) bitmap.close(); return file; } // déjà assez petite
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(bitmap.width * ratio);
+      canvas.height = Math.round(bitmap.height * ratio);
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+      if (bitmap.close) bitmap.close();
+      const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.82));
+      if (!blob) return file;
+      return new File([blob], file.name || 'photo.jpg', { type: 'image/jpeg' });
+    } catch (err) {
+      console.error('Redimensionnement photo (on garde le fichier original) :', err);
+      return file;
+    }
+  }
+
   // Upload reel du fichier vers Supabase Storage (bucket prive) + lien signe
   // longue duree, enregistre directement en base — remplace l'ancien
   // comportement qui ne verifiait qu'un booleen sans jamais conserver le
   // fichier (corrige le 15/07/2026, a la demande explicite de Frederic).
   async function uploaderPreuvePhoto(missionId, file) {
-    const ext = (file.name && file.name.includes('.')) ? file.name.split('.').pop().toLowerCase() : 'jpg';
+    const fichier = await redimensionnerPhoto(file);
+    const ext = (fichier.name && fichier.name.includes('.')) ? fichier.name.split('.').pop().toLowerCase() : 'jpg';
     const chemin = `${employeeId}/${missionId}-${Date.now()}.${ext}`;
     const { error: erreurUpload } = await nexusClient.storage
       .from('preuves-missions')
-      .upload(chemin, file, { contentType: file.type || 'image/jpeg' });
+      .upload(chemin, fichier, { contentType: fichier.type || 'image/jpeg' });
     if (erreurUpload) { console.error('Upload preuve photo:', erreurUpload); return null; }
 
     const DIX_ANS = 315360000;
@@ -1856,7 +1906,8 @@
   }
 
   function toutCoche(mission) {
-    return mission.checklist.every((_, i) => checkState[`${mission.mission_id}_${i}`]);
+    const items = Array.isArray(mission.checklist) ? mission.checklist : [];
+    return items.every((_, i) => checkState[`${mission.mission_id}_${i}`]);
   }
 
   // nbCoches (02/08/2026, demande de Frédéric — "permets de valider ce qu'ils
@@ -1866,11 +1917,15 @@
   // fixe ensemble), donc ce compteur reflète exactement le nombre d'étapes
   // prouvées par photo — c'est la base du calcul de points proportionnel.
   function nbCoches(mission) {
-    return mission.checklist.reduce((n, _, i) => n + (checkState[`${mission.mission_id}_${i}`] ? 1 : 0), 0);
+    const items = Array.isArray(mission.checklist) ? mission.checklist : [];
+    return items.reduce((n, _, i) => n + (checkState[`${mission.mission_id}_${i}`] ? 1 : 0), 0);
   }
 
   function renderMissionCard(m, isAuto) {
     const priorite = m.priority || 'normale';
+    // Filet de sécurité (05/08/2026) : longueur de checklist toujours
+    // sûre, même si m.checklist est absente/mal formée en base.
+    const checklistLen = Array.isArray(m.checklist) ? m.checklist.length : 0;
     // Une mission necessite_produit ne peut être validée qu'une fois un
     // produit choisi — même logique de blocage que la checklist.
     // Missions à photo_par_action (02/08/2026, demande de Frédéric) : chaque
@@ -1897,10 +1952,10 @@
     if (m.photo_par_action) {
       if (nbFait === 0) {
         libelleBouton = controle ? 'Photographiez au moins une étape' : 'Photographiez au moins une étape';
-      } else if (nbFait === m.checklist.length) {
+      } else if (nbFait === checklistLen) {
         libelleBouton = controle ? 'Valider le contrôle' : 'Valider la mission';
       } else {
-        libelleBouton = controle ? `Valider le contrôle (${nbFait}/${m.checklist.length})` : `Valider ce qui est fait (${nbFait}/${m.checklist.length})`;
+        libelleBouton = controle ? `Valider le contrôle (${nbFait}/${checklistLen})` : `Valider ce qui est fait (${nbFait}/${checklistLen})`;
       }
     } else {
       libelleBouton = complet
@@ -2032,7 +2087,18 @@
       if (missions.length === 0) return;
       const ouvert = q ? true : blocsListeOuverts[cle];
       cible.html += `<div class="section-label section-label-pliable ${ouvert ? 'open' : ''}" data-bloc-liste="${cle}">${titre} (${missions.length}) <span class="chev">›</span></div>`;
-      if (ouvert) missions.forEach(m => cible.html += renderMissionCard(m, m.mission_id.startsWith('MISSION-')));
+      // Filet de sécurité (05/08/2026, retour employé — "je n'arrive pas à
+      // voir les détails des missions") : une mission au format inattendu
+      // ne doit plus jamais casser le rendu de TOUTE la liste — elle est
+      // loguée et sautée, les autres missions continuent de s'afficher
+      // normalement.
+      if (ouvert) missions.forEach(m => {
+        try {
+          cible.html += renderMissionCard(m, m.mission_id.startsWith('MISSION-'));
+        } catch (err) {
+          console.error('Rendu mission ignoré (format inattendu) :', m.mission_id, err);
+        }
+      });
     };
 
     if (lib.length === 0) {
@@ -2156,6 +2222,13 @@
           sauvegarderProgressionItem(employeeId, missionId, idx, false, null);
           return;
         }
+        // Anti-rebond (05/08/2026) : ignore tout nouveau tapotement tant
+        // que l'appareil photo vient de s'ouvrir il y a moins de 1.5s.
+        const maintenant = Date.now();
+        if (maintenant - (dernierTapAppareilPhoto[key] || 0) < DELAI_ANTI_REBOND_PHOTO_MS) return;
+        dernierTapAppareilPhoto[key] = maintenant;
+        const badge = el.querySelector('.check-photo-badge');
+        if (badge) badge.textContent = "Ouverture de l'appareil…";
         input.click();
       });
       input.addEventListener('click', e => e.stopPropagation());
@@ -2273,14 +2346,17 @@
           let points;
           let estPartielle = false;
           if (mission.photo_par_action) {
-            const total = mission.checklist.length;
+            // Filet de sécurité (05/08/2026) : total toujours sûr, et on
+            // évite une division par zéro si jamais la checklist est vide.
+            const total = Array.isArray(mission.checklist) ? mission.checklist.length : 0;
             const fait = nbCoches(mission);
             estPartielle = fait < total;
-            points = Math.max(1, Math.round((mission.points || 5) * (fait / total)));
+            points = total > 0 ? Math.max(1, Math.round((mission.points || 5) * (fait / total))) : (mission.points || 5);
           } else {
             points = mission.proof_required ? (mission.points || 5) + 2 : (mission.points || 5);
           }
-          const titreFinal = estPartielle ? `${mission.titre} (${nbCoches(mission)}/${mission.checklist.length})` : mission.titre;
+          const checklistLenFinal = Array.isArray(mission.checklist) ? mission.checklist.length : 0;
+          const titreFinal = estPartielle ? `${mission.titre} (${nbCoches(mission)}/${checklistLenFinal})` : mission.titre;
           const employesPresents = controle
             ? EMPLOYES_SITE.filter(e => presentsState[`${missionId}_${e.id}`]).map(e => e.id)
             : null;
@@ -2304,6 +2380,13 @@
         };
 
         if (mission.proof_required) {
+          // Anti-rebond (05/08/2026) : même protection que pour les photos
+          // par étape — un second tapotement sur "Valider" pendant
+          // l'ouverture de l'appareil photo ne doit plus en relancer un
+          // second en parallèle.
+          const maintenant = Date.now();
+          if (maintenant - (dernierTapAppareilPhoto[missionId] || 0) < DELAI_ANTI_REBOND_PHOTO_MS) return;
+          dernierTapAppareilPhoto[missionId] = maintenant;
           const input = document.getElementById(`photo-${missionId}`);
           input.onchange = () => finaliser(input.files && input.files[0]);
           input.click();
