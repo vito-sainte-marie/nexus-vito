@@ -423,12 +423,21 @@
     // suivre le sens physique du parcours en boutique déjà enregistré en
     // base (colonne ordre_affichage, renseignée lors du seed initial).
     const { data, error } = await nexusClient
-      .from('inventaire_zone_produit').select('*, inventaire_categories(nom, ordre_affichage), inventaire_zones!inner(code)')
+      .from('inventaire_zone_produit').select('*, inventaire_categories(nom, ordre_affichage, jours_rotation), inventaire_zones!inner(code)')
       .eq('inventaire_zones.code', zone).eq('actif', true)
       .order('sensible', { ascending: false })
       .order('ordre_affichage', { ascending: true });
     if (error) { console.error('Chargement produits:', error); return []; }
-    return data || [];
+    // Inventaires tournants (04/08/2026, Paramètres Inventaire → Parcours
+    // d'inventaire, demande de Frédéric) : une catégorie dont jours_rotation
+    // ne contient pas le jour ISO actuel n'est simplement pas demandée
+    // aujourd'hui. jours_rotation NULL = tous les jours = comportement
+    // historique inchangé pour toutes les catégories non configurées.
+    const jourIso = new Date().getDay() === 0 ? 7 : new Date().getDay();
+    return (data || []).filter(p => {
+      const jours = p.inventaire_categories ? p.inventaire_categories.jours_rotation : null;
+      return !jours || jours.includes(jourIso);
+    });
   }
 
   // Dernier stock connu = le dernier comptage de clôture validé pour ce

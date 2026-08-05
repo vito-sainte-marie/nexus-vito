@@ -331,6 +331,15 @@
   .categorie-etat.en-cours{background:rgba(79,195,217,0.12); color:var(--cyan);}
 
   footer{margin-top:auto; padding:16px 20px 24px; font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:center; border-top:1px solid var(--hairline);}
+
+  /* Bandeau quotidien Paramètres Inventaire (04/08/2026) */
+  .tip-banniere{margin:14px 20px 0; padding:12px 14px; border-radius:10px; background:var(--amber-dim); border:1px solid rgba(245,166,35,0.4); animation:tipApparition .25s ease;}
+  .tip-banniere-texte{font-size:12px; line-height:1.55; color:#F3D9A8;}
+  .tip-banniere-texte b{color:var(--amber);}
+  .tip-banniere-actions{display:flex; justify-content:space-between; align-items:center; margin-top:8px;}
+  .tip-banniere-lien{font-family:var(--sans); font-size:11.5px; font-weight:700; color:var(--amber); text-decoration:none;}
+  .tip-banniere-fermer{color:var(--text-dim); font-size:13px; cursor:pointer; padding:2px 6px;}
+  @keyframes tipApparition{from{opacity:0; transform:translateY(-4px);} to{opacity:1; transform:translateY(0);}}
 </style>
 </head>
 <body>
@@ -344,6 +353,20 @@
     <div class="sub">Écarts, comptages manquants et décisions du jour</div>
   </div>
   <div class="divider"></div>
+
+  <!-- Bandeau quotidien Paramètres Inventaire (04/08/2026, demande de
+       Frédéric) : rappelle une fois par jour ce qu'on peut configurer,
+       disparaît tout seul après 1 minute (ou au clic), revient le
+       lendemain — jamais affiché en permanence pour ne pas polluer l'écran
+       "que dois-je traiter maintenant ?". localStorage garde juste la
+       date du dernier affichage, rien de plus. -->
+  <div class="tip-banniere" id="tipParametresInventaire" style="display:none;">
+    <div class="tip-banniere-texte">💡 Le saviez-vous ? Dans <b>⚙️ Paramètres Inventaire</b>, vous pouvez ajouter des produits suivis, réorganiser le parcours de comptage, configurer des profils par lot ou presse, régler les seuils d'alerte et lancer une simulation Papier/NEXUS.</div>
+    <div class="tip-banniere-actions">
+      <a href="NEXUS-Parametres-Inventaire-v1.html" class="tip-banniere-lien">Découvrir →</a>
+      <span class="tip-banniere-fermer" id="btnFermerTip">✕</span>
+    </div>
+  </div>
 
   <!-- desktop-grid (02/08/2026) : mise en colonnes en vue bureau (voir
        nexus-desktop.js) — purement additif, aucun effet en mobile. -->
@@ -2493,44 +2516,17 @@
       </div>
       ${sectionCorrectionOuverte ? renderSectionCorrectionRetroactive() : ''}
 
-      <div class="section-titre section-repliable" id="toggleSectionSimulation">
-        <span>Mode Simulation terrain</span>
-        <span class="repli-chevron ${sectionSimulationOuverte ? 'open' : ''}">›</span>
-      </div>
-      ${sectionSimulationOuverte ? renderSectionSimulation() : ''}
-
-      <div class="section-titre section-repliable" id="toggleSectionParametres">
-        <span>Paramètres de contrôle inventaire</span>
-        <span class="repli-compte">${LABELS_FREQUENCE[parametresInventaire.reviewFrequency] || 'Tous les jours'}</span>
-        <span class="repli-chevron ${sectionParametresOuverte ? 'open' : ''}">›</span>
-      </div>
-      ${sectionParametresOuverte ? `
-        ${renderParametresSupervision()}
-        <div class="card" style="margin-bottom:10px;">
-          <div class="synthese-ligne"><span>Produits sensibles suivis</span><span class="synthese-valeur">${produitsSensiblesTotal}</span></div>
-        </div>
-        <div class="section-titre" style="margin-top:0;">Mode de comptage à l'aveugle</div>
-        <div class="card">
-          ${employesSite.length === 0 ? '<div class="empty">Aucun employé actif trouvé pour ce site.</div>' : employesSite.map(e => renderEmployeToggle(e, !!modesMap[e.id])).join('')}
-        </div>
-        <div class="section-titre">Jaugeage carburant</div>
-        <div class="card">${renderToggleJaugeage(jaugeageActif)}</div>
-
-        <!-- Gestion des profils (04/08/2026, déplacé depuis une section
-             indépendante de l'écran principal, demande de Frédéric : "le
-             manager ne doit voir que ce dont il a besoin au moment où il
-             en a besoin" — la configuration des profils produit est un
-             réglage, pas une décision du quotidien, elle vit donc ici,
-             sous Paramètres, plutôt qu'au même niveau que les alertes. -->
-        <div class="section-titre section-repliable" id="toggleSectionProfils" style="margin-top:22px;">
-          <span>Gestion des profils</span>
-          <span class="repli-chevron ${sectionProfilsOuverte ? 'open' : ''}">›</span>
-        </div>
-        ${sectionProfilsOuverte ? `
-          ${renderSectionProfilsProduit()}
-          <div class="note" style="margin-top:4px;">Un produit configuré en « Durée de vie glissante » ou « Presse » ? Suivez ses lots, retours et échéances dans <a href="NEXUS-Tracabilite-v1.html" style="color:var(--cyan);">NEXUS Traçabilité</a>.</div>
-        ` : ''}
-      ` : ''}
+      <!-- Simulation, Profils produit et Paramètres de contrôle inventaire
+           (04/08/2026, demande de Frédéric — refonte "Paramètres
+           Inventaire à onglets") : sortis de cet écran, qui doit rester
+           centré sur "que dois-je traiter maintenant ?". Ils vivent
+           désormais dans NEXUS-Parametres-Inventaire-v1.html (onglets
+           Produits / Parcours / Règles / Alertes / Traçabilité /
+           Simulation), un seul lien suffit ici. -->
+      <a href="NEXUS-Parametres-Inventaire-v1.html" class="section-titre section-repliable" style="text-decoration:none;">
+        <span>⚙️ Paramètres Inventaire</span>
+        <span class="repli-chevron" style="transform:rotate(0deg);">›</span>
+      </a>
     `;
 
     const selDateEl = document.getElementById('selDate');
@@ -2903,7 +2899,26 @@
     quartSelectionne = await quartDuMoment(siteId);
 
     await chargerEtAfficherTout();
+    afficherTipParametresInventaireSiUtile();
   });
+
+  // Bandeau quotidien Paramètres Inventaire (04/08/2026, demande de
+  // Frédéric) : une seule clé localStorage horodatée à la date du jour —
+  // pas de table ni de compte à rebours côté serveur, juste "déjà montré
+  // aujourd'hui ?". Revient tout seul le lendemain puisque la date change.
+  function afficherTipParametresInventaireSiUtile() {
+    const CLE = 'nexus_tip_parametres_inventaire_derniere_date';
+    const aujourdhui = dateISO();
+    if (localStorage.getItem(CLE) === aujourdhui) return;
+    const banniere = document.getElementById('tipParametresInventaire');
+    if (!banniere) return;
+    banniere.style.display = 'block';
+    localStorage.setItem(CLE, aujourdhui);
+    const masquer = () => { banniere.style.display = 'none'; };
+    const minuteur = setTimeout(masquer, 60000);
+    const btnFermer = document.getElementById('btnFermerTip');
+    if (btnFermer) btnFermer.addEventListener('click', () => { clearTimeout(minuteur); masquer(); });
+  }
 </script>
 </body>
 </html>
