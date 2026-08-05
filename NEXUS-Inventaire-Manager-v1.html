@@ -342,6 +342,18 @@
   // lieu de laisser le manager reconstruire toute l'histoire à la main.
   let resoudreNexusOuvertes = new Set(); // ids d'alertes dont le panneau est déplié
 
+  // Mode Simulation terrain (04/08/2026, audit §23-24, 29-30) : le manager
+  // saisit après coup une feuille papier réelle pour comparer temps et
+  // résultats à NEXUS, sans jamais toucher aux stocks officiels ni générer
+  // d'évaluation employé (is_simulation=true sur inventaire_quarts).
+  let sectionSimulationOuverte = false;
+  let simulationForm = { date: '', quart: 'matin', employeId: '', phase: 'ouverture' };
+  let simulationQuart = null;
+  let simulationSaisie = {};
+  let simulationChrono = null; // Date.now() au chargement — vrai chronométrage, jamais une estimation
+  let produitsPourSimulation = [];
+  let statsSimulation = null;
+
   // Paramètres de supervision configurable (02/08/2026, évolution demandée
   // par Frédéric — "NEXUS Inventaire — Supervision configurable") : la
   // fréquence de contrôle du manager (quotidien/hebdo/mensuel/exception)
@@ -1656,6 +1668,187 @@
     correctionChargee = null;
   }
 
+  // ------------------------------------------------------------
+  // MODE SIMULATION TERRAIN (04/08/2026, audit §23-24, 29-32) — jamais
+  // officiel : "le papier reste la référence opérationnelle" tant que la
+  // simulation n'a pas été validée. Chaque session simulation vit dans
+  // inventaire_quarts avec is_simulation=true (jamais confondue avec un
+  // vrai quart, chargée via une requête filtrée sur ce champ).
+  // ------------------------------------------------------------
+  async function chargerOuCreerQuartSimulation() {
+    const { data: existant, error: e1 } = await nexusClient.from('inventaire_quarts')
+      .select('*').eq('site', siteId).eq('date', simulationForm.date).eq('quart', simulationForm.quart).eq('is_simulation', true).maybeSingle();
+    if (e1) { console.error('Lecture quart simulation:', e1); return null; }
+    if (existant) return existant;
+    const { data: cree, error: e2 } = await nexusClient.from('inventaire_quarts').insert({
+      site: siteId, date: simulationForm.date, quart: simulationForm.quart, statut: 'ouverture_en_cours',
+      is_simulation: true, represented_employee_id: simulationForm.employeId || null, entered_by_user_id: managerCourant.id,
+      ouvert_le: new Date().toISOString(),
+    }).select().single();
+    if (e2) { console.error('Création quart simulation:', e2); return null; }
+    return cree;
+  }
+
+  async function chargerComptagesSimulation(quartId, phase) {
+    const { data, error } = await nexusClient.from('inventaire_comptages')
+      .select('produit_id, quantite').eq('quart_id', quartId).eq('type_comptage', phase).eq('source', 'simulation');
+    if (error) { console.error('Chargement comptages simulation:', error); return {}; }
+    const map = {};
+    (data || []).forEach(r => { map[r.produit_id] = r.quantite; });
+    return map;
+  }
+
+  // Agrégat pour le tableau de validation (audit §30) — uniquement des
+  // moyennes sur des valeurs réellement saisies par le manager (papier_*) ou
+  // réellement chronométrées (nexus_temps_minutes) : une session sans ces
+  // champs renseignés n'entre simplement pas dans la moyenne, jamais
+  // remplacée par une estimation.
+  async function chargerStatsSimulation() {
+    const { data, error } = await nexusClient.from('inventaire_quarts')
+      .select('id, papier_produits_comptes, papier_temps_minutes, papier_corrections, nexus_temps_minutes')
+      .eq('site', siteId).eq('is_simulation', true);
+    if (error) { console.error('Stats simulation:', error); return { nb: 0 }; }
+    const rows = data || [];
+    const moyenne = (arr) => arr.length ? Math.round((arr.reduce((s, v) => s + v, 0) / arr.length) * 10) / 10 : null;
+    return {
+      nb: rows.length,
+      tempsMoyenPapier: moyenne(rows.map(r => r.papier_temps_minutes).filter(v => v != null)),
+      tempsMoyenNexus: moyenne(rows.map(r => r.nexus_temps_minutes).filter(v => v != null)),
+      correctionsMoyennes: moyenne(rows.map(r => r.papier_corrections).filter(v => v != null)),
+      nbAvecComparatif: rows.filter(r => r.papier_temps_minutes != null).length,
+    };
+  }
+
+  function renderCorpsSimulation() {
+    if (!produitsPourSimulation.length) return '<div class="loading">Chargement des produits…</div>';
+    const groupes = produitsPourSimulation.reduce((acc, p) => {
+      const cat = p.inventaire_categories ? p.inventaire_categories.nom : 'Autres';
+      (acc[cat] = acc[cat] || []).push(p);
+      return acc;
+    }, {});
+    const listeHtml = Object.entries(groupes).map(([cat, items]) => `
+      <div class="cat-block">
+        <div class="cat-head"><div class="cat-nom">${cat} (${items.length})</div></div>
+        <div class="card">
+          ${items.map(p => `
+            <div class="produit-row">
+              <div class="produit-nom-ligne"><span class="produit-nom">${p.designation}</span></div>
+              <input type="number" inputmode="decimal" step="0.01" class="produit-input simulation-input" data-produit="${p.id}"
+                     placeholder="Compté (papier)" value="${simulationSaisie[p.id] !== undefined ? simulationSaisie[p.id] : ''}" style="width:100%;">
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    `).join('');
+
+    return `
+      ${listeHtml}
+      <div class="section-titre" style="margin-top:0;">Comparatif Papier / NEXUS pour cette session</div>
+      <div class="mouv-row">
+        <input type="number" class="mouv-qte" id="simulationPapierProduits" placeholder="Produits (papier)" style="flex:1;">
+        <input type="number" class="mouv-qte" id="simulationPapierTemps" placeholder="Temps papier (min)" style="flex:1;">
+        <input type="number" class="mouv-qte" id="simulationPapierCorrections" placeholder="Corrections (papier)" style="flex:1;">
+      </div>
+      <textarea id="simulationNotes" class="mouv-justif" placeholder="Commentaires de simulation (facultatif)" style="width:100%; min-height:60px; resize:vertical;"></textarea>
+      <button class="btn-primary" id="btnEnregistrerSimulation" style="margin-top:8px;">Enregistrer cette phase (simulation)</button>
+    `;
+  }
+
+  async function enregistrerSimulation() {
+    const btn = document.getElementById('btnEnregistrerSimulation');
+    if (btn) { btn.disabled = true; btn.textContent = 'Enregistrement…'; }
+    document.querySelectorAll('.simulation-input').forEach(el => {
+      const v = el.value === '' ? undefined : parseFloat(el.value);
+      if (v !== undefined && !isNaN(v)) simulationSaisie[el.dataset.produit] = v;
+    });
+    let nbComptes = 0;
+    for (const [produitId, quantite] of Object.entries(simulationSaisie)) {
+      const { error } = await nexusClient.from('inventaire_comptages').insert({
+        site: siteId, quart_id: simulationQuart.id, produit_id: produitId, type_comptage: simulationForm.phase,
+        quantite, employee_id: simulationForm.employeId || null, source: 'simulation', statut: 'valide',
+      });
+      if (error) console.error('Comptage simulation:', error); else nbComptes++;
+    }
+
+    // Temps NEXUS réellement chronométré depuis l'ouverture de la session
+    // (audit §29) — jamais une estimation, un vrai Date.now() de départ.
+    const tempsNexusMinutes = simulationChrono ? Math.round(((Date.now() - simulationChrono) / 60000) * 10) / 10 : null;
+    const papierProduitsEl = document.getElementById('simulationPapierProduits');
+    const papierTempsEl = document.getElementById('simulationPapierTemps');
+    const papierCorrectionsEl = document.getElementById('simulationPapierCorrections');
+    const notesEl = document.getElementById('simulationNotes');
+    const papierProduits = papierProduitsEl && papierProduitsEl.value !== '' ? parseInt(papierProduitsEl.value) : null;
+    const papierTemps = papierTempsEl && papierTempsEl.value !== '' ? parseFloat(papierTempsEl.value) : null;
+    const papierCorrections = papierCorrectionsEl && papierCorrectionsEl.value !== '' ? parseInt(papierCorrectionsEl.value) : null;
+    const notes = notesEl ? notesEl.value.trim() : '';
+
+    await nexusClient.from('inventaire_quarts').update({
+      papier_produits_comptes: papierProduits, papier_temps_minutes: papierTemps, papier_corrections: papierCorrections,
+      nexus_temps_minutes: tempsNexusMinutes, simulation_notes: notes || null,
+    }).eq('id', simulationQuart.id);
+
+    await nexusClient.from('inventaire_audit_log').insert({
+      site: siteId, quart_id: simulationQuart.id, entite_type: 'inventaire_quarts', entite_id: simulationQuart.id,
+      action: 'enregistrement_simulation', nouvelle_valeur: { phase: simulationForm.phase, nb_comptes: nbComptes },
+      acteur_id: managerCourant.id,
+    });
+
+    document.getElementById('simulationCorps').innerHTML = `<div class="alerte-note">✓ ${nbComptes} produit${nbComptes > 1 ? 's' : ''} enregistré${nbComptes > 1 ? 's' : ''} en simulation (${simulationForm.phase}). Temps NEXUS mesuré : ${tempsNexusMinutes !== null ? tempsNexusMinutes + ' min' : '—'}.</div>`;
+    simulationQuart = null; simulationSaisie = {}; simulationChrono = null;
+    statsSimulation = await chargerStatsSimulation();
+    const statsZone = document.getElementById('simulationStatsZone');
+    if (statsZone) statsZone.innerHTML = renderStatsSimulation();
+  }
+
+  // Tableau de validation de la simulation (audit §30) — agrégat honnête :
+  // n'affiche une moyenne que si au moins une session a réellement renseigné
+  // ce champ, sinon affiche "—" plutôt qu'un zéro trompeur.
+  function renderStatsSimulation() {
+    if (!statsSimulation || statsSimulation.nb === 0) {
+      return `<div class="empty">Aucune session de simulation enregistrée pour l'instant.</div>`;
+    }
+    const s = statsSimulation;
+    const gain = (s.tempsMoyenPapier != null && s.tempsMoyenNexus != null) ? Math.round((s.tempsMoyenPapier - s.tempsMoyenNexus) * 10) / 10 : null;
+    return `
+      <div class="card" style="padding:4px 14px;">
+        <div class="stat-row"><span class="stat-label">Sessions de simulation</span><span class="stat-value">${s.nb}</span></div>
+        <div class="stat-row"><span class="stat-label">Temps moyen papier</span><span class="stat-value">${s.tempsMoyenPapier != null ? s.tempsMoyenPapier + ' min' : '—'}</span></div>
+        <div class="stat-row"><span class="stat-label">Temps moyen NEXUS</span><span class="stat-value cyan">${s.tempsMoyenNexus != null ? s.tempsMoyenNexus + ' min' : '—'}</span></div>
+        <div class="stat-row"><span class="stat-label">Corrections papier (moy.)</span><span class="stat-value">${s.correctionsMoyennes != null ? s.correctionsMoyennes : '—'}</span></div>
+        ${gain !== null ? `<div class="stat-row"><span class="stat-label">Gain de temps NEXUS</span><span class="stat-value ${gain >= 0 ? 'cyan' : 'amber'}">${gain >= 0 ? '+' : ''}${gain} min</span></div>` : ''}
+        <div class="stat-row"><span class="stat-label">Comparatifs renseignés</span><span class="stat-value">${s.nbAvecComparatif}/${s.nb}</span></div>
+      </div>
+    `;
+  }
+
+  function renderSectionSimulation() {
+    const employes = (dernierCtx && dernierCtx.employesSite) ? dernierCtx.employesSite : [];
+    const optionsEmployes = employes.map(e => `<option value="${e.id}" ${e.id === simulationForm.employeId ? 'selected' : ''}>${e.nom}</option>`).join('');
+    return `
+      <div id="sectionSimulationTerrain" class="card" style="margin-bottom:10px; padding:14px;">
+        <div class="ventes-desc" style="margin-bottom:4px; color:var(--amber); font-weight:600;">Mode Simulation — cet inventaire sert à tester NEXUS. La feuille papier reste la référence officielle.</div>
+        <div class="ventes-desc" style="margin-bottom:12px;">Saisissez après coup ce qu'un employé a compté sur la feuille papier. Rien ici ne modifie les stocks officiels ni ne génère d'évaluation employé.</div>
+        <div class="quart-select-row">
+          <input type="date" id="simulationDate" class="date-input" value="${simulationForm.date || dateISO()}">
+          <div class="quart-pill ${simulationForm.quart === 'matin' ? 'active' : ''}" data-simulation-quart="matin">Matin</div>
+          <div class="quart-pill ${simulationForm.quart === 'soir' ? 'active' : ''}" data-simulation-quart="soir">Soir</div>
+        </div>
+        <select class="mouv-select" id="simulationEmploye" style="width:100%; margin-bottom:8px;">
+          <option value="">Employé représenté…</option>
+          ${optionsEmployes}
+        </select>
+        <select class="mouv-select" id="simulationPhase" style="width:100%; margin-bottom:8px;">
+          <option value="ouverture" ${simulationForm.phase === 'ouverture' ? 'selected' : ''}>Comptage d'ouverture</option>
+          <option value="cloture" ${simulationForm.phase === 'cloture' ? 'selected' : ''}>Comptage de clôture</option>
+        </select>
+        <button class="btn-ghost" id="btnChargerSimulation" style="margin-top:0;">Charger / créer cette session de simulation</button>
+        <div id="simulationCorps" style="margin-top:10px;">${simulationQuart ? renderCorpsSimulation() : ''}</div>
+        <div class="section-titre" style="margin-top:18px;">Tableau de validation de la simulation</div>
+        <div id="simulationStatsZone">${statsSimulation ? renderStatsSimulation() : '<div class="loading">Chargement…</div>'}</div>
+      </div>
+    `;
+  }
+
   // Paramètres de contrôle inventaire (02/08/2026, évolution "Supervision
   // configurable des inventaires") : fréquence à laquelle CE manager
   // souhaite consulter une synthèse (quotidien/hebdo/mensuel/exception),
@@ -1852,6 +2045,29 @@
   // des comptages manquants, même à 18h06 pour une clôture normale à 19h40 —
   // contredisait la carte État du quart, déjà nuancée. Les deux suivent
   // maintenant la même logique d'urgence (normal/proche/retard).
+  // Brief Inventaire (04/08/2026, audit §21) : "le manager ne relit plus
+  // toute la feuille, il ouvre uniquement les cartes d'anomalies" — un
+  // condensé des 5 informations listées dans l'audit, calculé uniquement à
+  // partir de synthese/alertesOuvertes/decisionsQuart déjà chargés (jamais
+  // un second calcul divergent de renderSyntheseQuart en dessous).
+  function renderBriefInventaire(synthese, alertesOuvertes, decisionsQuart, importDeceniumFait) {
+    const anomaliesDetectees = alertesOuvertes.length + decisionsQuart.length;
+    return `
+      <div class="section-titre">Brief Inventaire</div>
+      <div class="synthese-card">
+        <div class="synthese-ligne"><span>Catégories terminées</span><span class="synthese-valeur ${synthese.categoriesTerminees < synthese.categoriesTotal ? 'amber' : 'green'}">${synthese.categoriesTerminees} / ${synthese.categoriesTotal}</span></div>
+        <div class="synthese-ligne"><span>Produits contrôlés</span><span class="synthese-valeur">${decisionsQuart.length}</span></div>
+        <div class="synthese-ligne"><span>Anomalies détectées</span><span class="synthese-valeur ${anomaliesDetectees ? 'amber' : 'green'}">${anomaliesDetectees}</span></div>
+        <div class="synthese-ligne"><span>Anomalies expliquées</span><span class="synthese-valeur ${decisionsQuart.length ? 'green' : ''}">${decisionsQuart.length}</span></div>
+        <div class="synthese-ligne"><span>Décisions nécessaires</span><span class="synthese-valeur ${alertesOuvertes.length ? 'amber' : 'green'}">${alertesOuvertes.length}</span></div>
+        <div class="synthese-ligne"><span>Import Decenium</span><span class="synthese-valeur ${importDeceniumFait ? 'green' : 'amber'}">${importDeceniumFait ? 'Fait' : 'Manquant'}</span></div>
+      </div>
+      ${alertesOuvertes.length > 0
+        ? `<div style="font-size:11px; color:var(--text-dim); margin:6px 2px 14px;">Ouvrez uniquement les cartes d'anomalies dans « À contrôler » — le reste est déjà à jour.</div>`
+        : `<div style="font-size:11px; color:var(--text-dim); margin:6px 2px 14px;">Aucune anomalie à traiter pour l'instant.</div>`}
+    `;
+  }
+
   function renderSyntheseQuart(s, etat) {
     const phaseLabel = s.phase === 'clotures' ? 'comptés (clôture)' : 'comptés';
     const urgence = etat ? etat.urgence : 'normal';
@@ -1973,6 +2189,8 @@
       </div>
       ${quartRow ? renderEtatQuartCard(etat) : '<div class="quart-statut">Aucun inventaire n\'a encore été démarré pour ce quart.</div>'}
 
+      ${quartRow ? renderBriefInventaire(synthese, alertesOuvertes, decisionsQuart, ctx.importDeceniumFait) : ''}
+
       ${quartRow ? renderSyntheseQuart(synthese, etat) : ''}
 
       <div class="conseiller-card" id="conseillerCard">
@@ -2046,6 +2264,12 @@
         <span class="repli-chevron ${sectionCorrectionOuverte ? 'open' : ''}">›</span>
       </div>
       ${sectionCorrectionOuverte ? renderSectionCorrectionRetroactive() : ''}
+
+      <div class="section-titre section-repliable" id="toggleSectionSimulation">
+        <span>Mode Simulation terrain</span>
+        <span class="repli-chevron ${sectionSimulationOuverte ? 'open' : ''}">›</span>
+      </div>
+      ${sectionSimulationOuverte ? renderSectionSimulation() : ''}
 
       <div class="section-titre section-repliable" id="toggleSectionParametres">
         <span>Paramètres de contrôle inventaire</span>
@@ -2231,6 +2455,39 @@
       chargerEtAfficherCorrection();
     });
     wirerFormulaireCorrection();
+
+    const toggleSimulation = document.getElementById('toggleSectionSimulation');
+    if (toggleSimulation) toggleSimulation.addEventListener('click', async () => {
+      sectionSimulationOuverte = !sectionSimulationOuverte;
+      if (sectionSimulationOuverte && !simulationForm.date) simulationForm.date = dateISO();
+      renderTout(dernierCtx);
+      if (sectionSimulationOuverte) {
+        statsSimulation = await chargerStatsSimulation();
+        const zone = document.getElementById('simulationStatsZone');
+        if (zone) zone.innerHTML = renderStatsSimulation();
+      }
+    });
+    const simulationDateEl = document.getElementById('simulationDate');
+    if (simulationDateEl) simulationDateEl.addEventListener('change', (e) => { simulationForm.date = e.target.value; });
+    document.querySelectorAll('[data-simulation-quart]').forEach(el => el.addEventListener('click', () => {
+      simulationForm.quart = el.dataset.simulationQuart;
+      renderTout(dernierCtx);
+    }));
+    const btnChargerSimulation = document.getElementById('btnChargerSimulation');
+    if (btnChargerSimulation) btnChargerSimulation.addEventListener('click', async () => {
+      simulationForm.employeId = document.getElementById('simulationEmploye').value;
+      simulationForm.phase = document.getElementById('simulationPhase').value;
+      const corpsEl = document.getElementById('simulationCorps');
+      corpsEl.innerHTML = '<div class="loading">Chargement…</div>';
+      simulationQuart = await chargerOuCreerQuartSimulation();
+      if (!simulationQuart) { corpsEl.innerHTML = '<div class="empty">Erreur — réessayez.</div>'; return; }
+      if (!produitsPourSimulation.length) produitsPourSimulation = await chargerTousProduitsActifsSite(siteId);
+      simulationSaisie = await chargerComptagesSimulation(simulationQuart.id, simulationForm.phase);
+      simulationChrono = Date.now();
+      corpsEl.innerHTML = renderCorpsSimulation();
+      const btnEnregistrer = document.getElementById('btnEnregistrerSimulation');
+      if (btnEnregistrer) btnEnregistrer.addEventListener('click', enregistrerSimulation);
+    });
     const btnDetailDecisions = document.getElementById('btnDetailDecisions');
     if (btnDetailDecisions) btnDetailDecisions.addEventListener('click', () => {
       detailDecisionsOuvert = !detailDecisionsOuvert;
@@ -2326,9 +2583,22 @@
       ]);
     }
 
+    // Import Decenium manquant (04/08/2026, audit §21 — Brief Inventaire du
+    // manager) : un vrai comptage de lignes importées pour CE quart, jamais
+    // une supposition — voir inventaire_ventes_import, déjà alimentée par
+    // comparerVentesQuart().
+    let importDeceniumFait = false;
+    if (quartRow) {
+      const { count, error: eImport } = await nexusClient.from('inventaire_ventes_import')
+        .select('id', { count: 'exact', head: true }).eq('quart_id', quartRow.id);
+      if (eImport) console.error('Statut import Decenium:', eImport);
+      importDeceniumFait = (count || 0) > 0;
+    }
+
     renderTout({
       alertesOuvertes, sensiblesNonComptesDetail, employesSite, modesAveugleActifs, jaugeageActif, synthese,
       etat, produitsSensiblesTotal: produitsSensibles.length, decisionsQuart, review, bornes, alertesPeriode, decisionsPeriode,
+      importDeceniumFait,
     });
     if (periodeSelectionnee === 'jour') await genererRemarquesConseiller(alertesOuvertes, sensiblesNonComptesDetail, modesAveugleActifs, synthese);
   }
