@@ -779,12 +779,6 @@
           <div class="card">${items.map(p => renderLigneProfilProduit(p)).join('')}</div>
         </div>
       `).join('')}
-      ${Object.entries(groupes).map(([cat, items]) => `
-        <div class="cat-block">
-          <div class="cat-head"><div class="cat-nom">${cat} (${items.length})</div></div>
-          <div class="card">${items.map(p => renderLigneProfilProduit(p)).join('')}</div>
-        </div>
-      `).join('')}
     `;
   }
 
