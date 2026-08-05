@@ -253,7 +253,6 @@
   let produitCatalogueChoisi = null; // { article, code_barres, categorie }
   let ajoutForm = { categorieId: '', zoneId: '', sensible: false, dupliquerDepuisId: '' };
   let dupliquerVersOuvertPour = null; // id du produit source dont "Dupliquer vers…" est déplié
-  let dupliquerVersCibleId = '';
 
   async function chargerProduitsInventaire(site) {
     const { data, error } = await nexusClient.from('inventaire_zone_produit')
@@ -349,23 +348,30 @@
     }, { onConflict: 'site,produit_id' });
   }
 
-  async function dupliquerVersProduitExistant(sourceId) {
-    if (!dupliquerVersCibleId) { alert('Choisissez le produit qui doit recevoir ces réglages.'); return; }
+  // Dupliquer vers les produits de la même catégorie (05/08/2026, demande
+  // de Frédéric — "pose la question, voulez dupliquer ces réglages vers les
+  // produits de la même catégorie" plutôt que de choisir un produit cible un
+  // par un) : ne copie que la règle d'inventaire (jamais la zone — déjà
+  // partagée par construction — ni le statut "sensible", propre à chaque
+  // produit).
+  function autresProduitsMemeCategorie(p) {
+    return produitsInventaire.filter(x => x.actif && x.id !== p.id && x.categorie_id === p.categorie_id);
+  }
+  async function dupliquerVersCategorie(sourceId) {
     const source = produitsInventaire.find(p => p.id === sourceId);
-    const cible = produitsInventaire.find(p => p.id === dupliquerVersCibleId);
-    if (!source || !cible) return;
-    if (!confirm(`Copier catégorie, zone, sensibilité et règle d'inventaire de « ${source.designation} » vers « ${cible.designation} » ? Le nom de « ${cible.designation} » n'est pas modifié.`)) return;
-    const { error } = await nexusClient.from('inventaire_zone_produit').update({
-      categorie_id: source.categorie_id, zone_id: source.zone_id, sensible: source.sensible,
-    }).eq('id', cible.id);
-    if (error) { console.error('Duplication réglages produit:', error); alert('Erreur — réessayez.'); return; }
-    await copierReglesProduit(sourceId, cible.id);
+    if (!source) return;
+    const pairs = autresProduitsMemeCategorie(source);
+    if (!pairs.length) return;
+    for (const cible of pairs) {
+      await copierReglesProduit(sourceId, cible.id);
+    }
+    const catNom = source.inventaire_categories ? source.inventaire_categories.nom : 'cette catégorie';
     await nexusClient.from('inventaire_audit_log').insert({
-      site: siteId, entite_type: 'inventaire_zone_produit', entite_id: cible.id, action: 'duplication_reglages_produit',
-      nouvelle_valeur: { copie_depuis: source.designation }, acteur_id: managerCourant.id,
+      site: siteId, entite_type: 'inventaire_regles_produit', entite_id: source.id, action: 'duplication_reglages_categorie',
+      nouvelle_valeur: { copie_depuis: source.designation, categorie: catNom, nb_produits: pairs.length }, acteur_id: managerCourant.id,
     });
-    dupliquerVersOuvertPour = null; dupliquerVersCibleId = '';
-    produitsInventaire = await chargerProduitsInventaire(siteId);
+    dupliquerVersOuvertPour = null;
+    reglesProduitMap = await chargerReglesProduit(siteId);
     render();
   }
 
@@ -427,6 +433,18 @@
     `;
   }
 
+  function renderConfirmationDupliquerCategorie(p) {
+    const catNom = p.inventaire_categories ? p.inventaire_categories.nom : 'cette catégorie';
+    const pairs = autresProduitsMemeCategorie(p);
+    if (!pairs.length) return `<div class="note" style="margin:8px 0 0;">Aucun autre produit actif dans « ${catNom} ».</div>`;
+    return `
+      <div class="note" style="margin:8px 0;">Voulez-vous dupliquer ces réglages vers les ${pairs.length} autre${pairs.length > 1 ? 's' : ''} produit${pairs.length > 1 ? 's' : ''} de « ${catNom} » : ${pairs.map(x => x.designation).join(', ')} ?</div>
+      <div class="mouv-row">
+        <button class="btn-primary" data-confirmer-duplication-categorie="${p.id}" style="flex:1;">Oui, dupliquer</button>
+        <button class="btn-text" data-annuler-duplication-categorie="${p.id}">Annuler</button>
+      </div>
+    `;
+  }
   function renderLigneProduitInventaire(p) {
     const ouvert = ligneProduitOuverte === p.id;
     const catNom = p.inventaire_categories ? p.inventaire_categories.nom : '—';
@@ -452,14 +470,8 @@
           <select class="mouv-select" data-select-zone="${p.id}" style="margin-bottom:8px;">
             ${zonesSite.map(z => `<option value="${z.id}" ${z.id === p.zone_id ? 'selected' : ''}>${libelleZoneAvecRole(z)}</option>`).join('')}
           </select>
-          <button class="btn-ghost" data-dupliquer-toggle="${p.id}" style="margin-top:0;">Dupliquer ces réglages vers un autre produit…</button>
-          ${dupliquerVersOuvertPour === p.id ? `
-            <select class="mouv-select" id="dupliquerCible" style="margin:8px 0;">
-              <option value="">Vers quel produit ?</option>
-              ${produitsInventaire.filter(x => x.id !== p.id && x.actif).map(x => `<option value="${x.id}" ${x.id === dupliquerVersCibleId ? 'selected' : ''}>${x.designation}</option>`).join('')}
-            </select>
-            <button class="btn-primary" data-confirmer-duplication="${p.id}" style="margin-top:0;">Copier vers ce produit</button>
-          ` : ''}
+          <button class="btn-ghost" data-dupliquer-toggle="${p.id}" style="margin-top:0;">Dupliquer ces réglages vers les produits de la même catégorie…</button>
+          ${dupliquerVersOuvertPour === p.id ? renderConfirmationDupliquerCategorie(p) : ''}
         </div>
       ` : ''}
     `;
@@ -1130,9 +1142,8 @@
       dupliquerVersOuvertPour = dupliquerVersOuvertPour === el.dataset.dupliquerToggle ? null : el.dataset.dupliquerToggle;
       render();
     }));
-    const selDupliquerCible = document.getElementById('dupliquerCible');
-    if (selDupliquerCible) selDupliquerCible.addEventListener('change', () => { dupliquerVersCibleId = selDupliquerCible.value; });
-    document.querySelectorAll('[data-confirmer-duplication]').forEach(el => el.addEventListener('click', () => dupliquerVersProduitExistant(el.dataset.confirmerDuplication)));
+    document.querySelectorAll('[data-confirmer-duplication-categorie]').forEach(el => el.addEventListener('click', () => dupliquerVersCategorie(el.dataset.confirmerDuplicationCategorie)));
+    document.querySelectorAll('[data-annuler-duplication-categorie]').forEach(el => el.addEventListener('click', () => { dupliquerVersOuvertPour = null; render(); }));
 
     // --- Parcours ---
     document.querySelectorAll('[data-sens-comptage]').forEach(el => el.addEventListener('click', () => changerSensComptage(el.dataset.sensComptage)));
