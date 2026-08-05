@@ -227,9 +227,13 @@
     return lot.produit ? lot.produit.designation : 'Produit supprimé';
   }
 
+  // Langage commerce (05/08/2026, demande de Frédéric) : Traçabilité ne
+  // se base plus sur le nom technique du profil ("lot_glissant"/"presse")
+  // mais sur le réglage réel qui compte — une durée maximale de vente
+  // renseignée, quel que soit le préréglage utilisé pour la définir.
   async function chargerProduitsLotTracked() {
     const { data: regles, error } = await nexusClient.from('inventaire_regles_produit')
-      .select('*').eq('site', siteId).in('profil', ['lot_glissant', 'presse']);
+      .select('*').eq('site', siteId).not('duree_max_vente_jours', 'is', null);
     if (error) { console.error('Chargement règles produit (Traçabilité):', error); return []; }
     if (!regles.length) return [];
     const ids = regles.map(r => r.produit_id);
@@ -265,9 +269,9 @@
   // ------------------------------------------------------------
   function renderFormNouveauLot() {
     if (!produitsLotTracked.length) {
-      return `<div class="empty">Aucun produit n'est configuré en gestion par lot (Durée de vie glissante ou Presse). Configurez-en dans <b>Paramètres → Inventaire → Gestion des profils</b> pour pouvoir créer un lot ici.</div>`;
+      return `<div class="empty">Aucun produit n'a de durée de vente limitée configurée. Réglez-en une dans <b>Paramètres → Inventaire → Règles des produits</b> pour pouvoir créer un lot ici.</div>`;
     }
-    const options = produitsLotTracked.map(r => `<option value="${r.produit_id}" ${r.produit_id === formLot.produitId ? 'selected' : ''}>${r.produit.designation}${r.profil === 'presse' ? ' (presse)' : ''}</option>`).join('');
+    const options = produitsLotTracked.map(r => `<option value="${r.produit_id}" ${r.produit_id === formLot.produitId ? 'selected' : ''}>${r.produit.designation}</option>`).join('');
     const regleChoisie = produitsLotTracked.find(r => r.produit_id === formLot.produitId);
     return `
       <div class="card" style="margin-bottom:12px; padding:14px;">
@@ -275,14 +279,14 @@
           <option value="">Choisir un produit…</option>
           ${options}
         </select>
-        ${regleChoisie && regleChoisie.profil === 'presse' ? `
-          <input type="text" class="mouv-select" id="lotEdition" placeholder="Édition (ex : France Antilles 04/08)" value="${formLot.libelleEdition}" style="margin-bottom:8px;">
+        ${regleChoisie ? `
+          <input type="text" class="mouv-select" id="lotEdition" placeholder="Édition (optionnel — ex : France Antilles 04/08)" value="${formLot.libelleEdition}" style="margin-bottom:8px;">
         ` : ''}
         <div class="mouv-row">
           <input type="number" inputmode="decimal" step="0.01" class="mouv-qte" id="lotQuantite" placeholder="Quantité reçue" value="${formLot.quantite}">
           <input type="date" class="date-input" id="lotDate" value="${formLot.dateReception || dateISO()}">
         </div>
-        ${regleChoisie && !regleChoisie.duree_max_vente_jours ? `<div class="empty" style="margin-bottom:8px;">La durée max de vente n'est pas encore configurée pour ce produit — allez d'abord dans Paramètres → Inventaire → Gestion des profils.</div>` : ''}
+        ${regleChoisie && !regleChoisie.duree_max_vente_jours ? `<div class="empty" style="margin-bottom:8px;">La durée max de vente n'est pas encore configurée pour ce produit — allez d'abord dans Paramètres → Inventaire → Règles des produits.</div>` : ''}
         <button class="btn-primary" id="btnEnregistrerLot" style="margin-top:0;">Enregistrer ce lot</button>
       </div>
     `;
@@ -292,7 +296,7 @@
     const btn = document.getElementById('btnEnregistrerLot');
     const regle = produitsLotTracked.find(r => r.produit_id === formLot.produitId);
     if (!regle) { alert('Choisissez un produit.'); return; }
-    if (!regle.duree_max_vente_jours) { alert('Configurez d\'abord la durée max de vente pour ce produit (Paramètres → Inventaire → Gestion des profils).'); return; }
+    if (!regle.duree_max_vente_jours) { alert('Configurez d\'abord la durée max de vente pour ce produit (Paramètres → Inventaire → Règles des produits).'); return; }
     const qte = parseFloat(formLot.quantite);
     if (isNaN(qte) || qte <= 0) { alert('Saisissez une quantité reçue positive.'); return; }
     const dateReception = formLot.dateReception || dateISO();
@@ -301,7 +305,7 @@
     const dateFin = `${fin.getFullYear()}-${String(fin.getMonth()+1).padStart(2,'0')}-${String(fin.getDate()).padStart(2,'0')}`;
     if (btn) { btn.disabled = true; btn.textContent = 'Enregistrement…'; }
     const { data, error } = await nexusClient.from('inventaire_lots').insert({
-      site: siteId, produit_id: regle.produit_id, libelle_edition: regle.profil === 'presse' ? (formLot.libelleEdition || null) : null,
+      site: siteId, produit_id: regle.produit_id, libelle_edition: formLot.libelleEdition || null,
       quantite_recue: qte, recu_le: new Date().toISOString(), date_debut_vente: dateReception, date_fin_vente: dateFin,
       quantite_restante: qte, statut: 'en_vente', created_by: managerCourant.id,
     }).select().single();

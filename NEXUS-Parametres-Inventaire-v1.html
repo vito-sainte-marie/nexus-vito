@@ -107,6 +107,12 @@
   .categorie-etat{font-family:var(--mono); font-size:10px; font-weight:700; padding:4px 9px; border-radius:12px; white-space:nowrap; text-transform:uppercase;}
   .categorie-etat.a-faire{background:var(--panel-raised); color:var(--text-dim);}
   .categorie-etat.en-cours{background:rgba(79,195,217,0.12); color:var(--cyan);}
+
+  /* Règles des produits en langage commerce (05/08/2026) */
+  .preset-btn{font-family:var(--sans); font-size:11px; font-weight:600; padding:7px 10px; border-radius:20px; border:1px solid rgba(79,195,217,0.35); background:rgba(79,195,217,0.08); color:var(--cyan); cursor:pointer; margin-bottom:8px;}
+  .preset-btn:active{background:rgba(79,195,217,0.2);}
+  .regle-check-row{display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--text-mid); margin-bottom:10px; cursor:pointer;}
+  .regle-champ-row{display:flex; align-items:center; justify-content:space-between; gap:10px; font-size:12.5px; color:var(--text-mid); margin-bottom:10px;}
   .categorie-etat.inactif{background:var(--red-dim); color:var(--red);}
 
   .param-ligne{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:9px 0; border-bottom:1px solid var(--hairline); font-size:12.5px;}
@@ -570,40 +576,84 @@
     (data || []).forEach(r => { map[r.produit_id] = r; });
     return map;
   }
+  // Langage commerce plutôt que logistique (05/08/2026, demande de
+  // Frédéric — "un outil qui parle le langage du commerce, pas celui d'un
+  // ERP") : le manager ne choisit plus un "profil" technique (Stock
+  // continu / Cycle journalier / Lot glissant / Presse / Consommable)
+  // dans une liste — il coche des réglages indépendants et compréhensibles
+  // (stock remis à zéro le matin, durée de vente, retour fournisseur,
+  // comptage matin/soir, réapprovisionnable, seuil d'alerte). `profil`
+  // reste calculé automatiquement à partir de ces réglages : NEXUS
+  // Traçabilité et le reste du code n'ont pas besoin de changer.
+  function calculerProfilDepuisReglage(e) {
+    if (e.remise_a_zero_matin) return 'cycle_journalier';
+    if (e.duree_max_vente_jours) return 'lot_glissant';
+    if (e.seuil_minimal) return 'consommable';
+    return 'continu';
+  }
+  // Préréglages (05/08/2026, exemples réels donnés par Frédéric) : pré-
+  // remplissent les réglages ci-dessous, le manager peut toujours ajuster
+  // avant d'enregistrer — jamais appliqués sans confirmation explicite.
+  const PREREGLAGES_REGLE = {
+    viennoiserie: { remise_a_zero_matin: true, duree_max_vente_jours: 1, retour_fournisseur_autorise: false, quarts_comptage: ['matin'], reapprovisionnable: true },
+    presse: { remise_a_zero_matin: true, duree_max_vente_jours: 1, retour_fournisseur_autorise: true, quarts_comptage: null, reapprovisionnable: false },
+    sdd: { remise_a_zero_matin: false, duree_max_vente_jours: 3, retour_fournisseur_autorise: true, quarts_comptage: null, reapprovisionnable: true },
+  };
   function ouvrirEditionProfil(produitId) {
     if (profilProduitOuvert === produitId) { profilProduitOuvert = null; profilEnEdition = null; render(); return; }
     profilProduitOuvert = produitId;
     const existant = reglesProduitMap[produitId];
-    profilEnEdition = existant ? { ...existant } : {
-      produit_id: produitId, profil: 'continu', cycle_frequence: null, report_veille_autorise: true,
-      duree_max_vente_jours: null, action_echeance: 'alerte_manager', mode_agregation_ventes: 'aucun',
-      validation_manager_requise: false, comptage_masque: false, seuil_minimal: null,
-      controle_aleatoire: false, photo_obligatoire: false,
+    profilEnEdition = existant ? {
+      produit_id: produitId,
+      remise_a_zero_matin: existant.profil === 'cycle_journalier',
+      duree_max_vente_jours: existant.duree_max_vente_jours || null,
+      retour_fournisseur_autorise: existant.action_echeance === 'retour_fournisseur_obligatoire',
+      quarts_comptage: existant.quarts_comptage || null,
+      reapprovisionnable: existant.reapprovisionnable !== false,
+      seuil_minimal: existant.seuil_minimal || null,
+      validation_manager_requise: !!existant.validation_manager_requise,
+      comptage_masque: !!existant.comptage_masque,
+      controle_aleatoire: !!existant.controle_aleatoire,
+      photo_obligatoire: !!existant.photo_obligatoire,
+    } : {
+      produit_id: produitId, remise_a_zero_matin: false, duree_max_vente_jours: null, retour_fournisseur_autorise: false,
+      quarts_comptage: null, reapprovisionnable: true, seuil_minimal: null,
+      validation_manager_requise: false, comptage_masque: false, controle_aleatoire: false, photo_obligatoire: false,
     };
+    render();
+  }
+  function appliquerPreregleProfil(nomPreregle) {
+    const preset = PREREGLAGES_REGLE[nomPreregle];
+    if (!preset || !profilEnEdition) return;
+    profilEnEdition = { ...profilEnEdition, ...preset };
     render();
   }
   async function enregistrerProfilProduit() {
     const p = profilEnEdition;
     const btn = document.getElementById('btnEnregistrerProfil');
     if (btn) { btn.disabled = true; btn.textContent = 'Enregistrement…'; }
+    const profilDerive = calculerProfilDepuisReglage(p);
+    const dureeActive = !!p.duree_max_vente_jours;
     const payload = {
-      site: siteId, produit_id: p.produit_id, profil: p.profil,
-      cycle_frequence: p.profil === 'cycle_journalier' ? 'quotidien' : null,
-      report_veille_autorise: p.report_veille_autorise !== false,
-      duree_max_vente_jours: (p.profil === 'lot_glissant' || p.profil === 'presse') ? (p.duree_max_vente_jours || null) : null,
-      action_echeance: (p.profil === 'lot_glissant' || p.profil === 'presse') ? (p.action_echeance || 'alerte_manager') : null,
-      mode_agregation_ventes: p.profil === 'cycle_journalier' ? (p.mode_agregation_ventes || 'aucun') : 'aucun',
+      site: siteId, produit_id: p.produit_id, profil: profilDerive,
+      cycle_frequence: p.remise_a_zero_matin ? 'quotidien' : null,
+      report_veille_autorise: !p.remise_a_zero_matin,
+      duree_max_vente_jours: dureeActive ? p.duree_max_vente_jours : null,
+      action_echeance: dureeActive ? (p.retour_fournisseur_autorise ? 'retour_fournisseur_obligatoire' : 'alerte_manager') : null,
+      mode_agregation_ventes: 'aucun',
+      quarts_comptage: p.quarts_comptage || null,
+      reapprovisionnable: p.reapprovisionnable !== false,
       validation_manager_requise: !!p.validation_manager_requise,
       comptage_masque: !!p.comptage_masque,
-      seuil_minimal: p.profil === 'consommable' ? (p.seuil_minimal || null) : null,
+      seuil_minimal: p.seuil_minimal || null,
       controle_aleatoire: !!p.controle_aleatoire,
       photo_obligatoire: !!p.photo_obligatoire,
     };
     const { data, error } = await nexusClient.from('inventaire_regles_produit').upsert(payload, { onConflict: 'site,produit_id' }).select().single();
-    if (error) { console.error('Enregistrement profil produit:', error); alert('Erreur — réessayez.'); if (btn) { btn.disabled = false; btn.textContent = 'Enregistrer ce profil'; } return; }
+    if (error) { console.error('Enregistrement règle produit:', error); alert('Erreur — réessayez.'); if (btn) { btn.disabled = false; btn.textContent = 'Enregistrer ces réglages'; } return; }
     await nexusClient.from('inventaire_audit_log').insert({
       site: siteId, entite_type: 'inventaire_regles_produit', entite_id: data.id,
-      action: 'configuration_profil_produit', nouvelle_valeur: { profil: p.profil }, acteur_id: managerCourant.id,
+      action: 'configuration_regle_produit', nouvelle_valeur: payload, acteur_id: managerCourant.id,
     });
     reglesProduitMap[p.produit_id] = data;
     profilProduitOuvert = null; profilEnEdition = null;
@@ -611,62 +661,99 @@
   }
   function renderFormulaireProfil() {
     const e = profilEnEdition;
-    const infoProfil = PROFILS_PRODUIT.find(x => x.value === e.profil);
+    const dureeActive = e.duree_max_vente_jours != null && e.duree_max_vente_jours !== '';
+    const comptageValeur = !e.quarts_comptage ? 'deux' : (e.quarts_comptage.includes('matin') ? 'matin' : 'soir');
     return `
       <div class="card" style="margin:0 0 10px; padding:12px 14px;">
-        <select class="mouv-select" id="profilSelect" style="width:100%; margin-bottom:8px;">
-          ${PROFILS_PRODUIT.map(x => `<option value="${x.value}" ${x.value === e.profil ? 'selected' : ''}>${x.label}</option>`).join('')}
-        </select>
-        <div style="font-size:11px; color:var(--text-mid); margin-bottom:10px;">${infoProfil.desc}</div>
-        ${e.profil === 'cycle_journalier' ? `
-          <select class="mouv-select" id="profilAgregation" style="width:100%; margin-bottom:8px;">
-            <option value="aucun" ${e.mode_agregation_ventes === 'aucun' ? 'selected' : ''}>Pas de cumul entre quarts</option>
-            <option value="cumul_quarts_1_2" ${e.mode_agregation_ventes === 'cumul_quarts_1_2' ? 'selected' : ''}>Cumuler quarts 1 et 2</option>
-            <option value="cumul_journee" ${e.mode_agregation_ventes === 'cumul_journee' ? 'selected' : ''}>Cumuler sur toute la journée</option>
+        <div style="font-size:11px; color:var(--text-mid); margin-bottom:8px;">Préréglages rapides — pré-remplissent les réglages ci-dessous, à ajuster si besoin :</div>
+        <div class="mouv-row" style="flex-wrap:wrap;">
+          <button type="button" class="preset-btn" data-preset="viennoiserie">🥐 Viennoiserie / Boulangerie</button>
+          <button type="button" class="preset-btn" data-preset="presse">📰 Presse / Journaux</button>
+          <button type="button" class="preset-btn" data-preset="sdd">📦 Pâtes &amp; biscuits (3 jours)</button>
+        </div>
+
+        <label class="regle-check-row">
+          <input type="checkbox" id="regleRemiseAZero" ${e.remise_a_zero_matin ? 'checked' : ''}>
+          <span>🔄 Stock remis à zéro chaque matin</span>
+        </label>
+
+        <div class="regle-champ-row">
+          <span>📅 Durée maximale de vente (jours)</span>
+          <input type="number" min="1" class="mouv-qte" id="regleDureeMax" placeholder="Illimitée" value="${e.duree_max_vente_jours || ''}" style="width:74px; flex:none;">
+        </div>
+
+        ${dureeActive ? `
+          <label class="regle-check-row">
+            <input type="checkbox" id="regleRetourFournisseur" ${e.retour_fournisseur_autorise ? 'checked' : ''}>
+            <span>↩️ Retour fournisseur autorisé à l'échéance</span>
+          </label>
+        ` : ''}
+
+        <div class="regle-champ-row" style="flex-direction:column; align-items:stretch;">
+          <span style="margin-bottom:6px;">🕒 Comptage</span>
+          <select class="mouv-select" id="regleComptage">
+            <option value="deux" ${comptageValeur === 'deux' ? 'selected' : ''}>Matin et soir</option>
+            <option value="matin" ${comptageValeur === 'matin' ? 'selected' : ''}>Matin seulement</option>
+            <option value="soir" ${comptageValeur === 'soir' ? 'selected' : ''}>Soir seulement</option>
           </select>
-        ` : ''}
-        ${(e.profil === 'lot_glissant' || e.profil === 'presse') ? `
-          <input type="number" class="mouv-qte" id="profilDureeMax" placeholder="Durée max de vente (jours)"
-                 value="${e.duree_max_vente_jours || (e.profil === 'lot_glissant' ? 3 : '')}" style="width:100%; margin-bottom:8px;">
-          <select class="mouv-select" id="profilActionEcheance" style="width:100%; margin-bottom:8px;">
-            <option value="retour_fournisseur_obligatoire" ${e.action_echeance === 'retour_fournisseur_obligatoire' ? 'selected' : ''}>Retour fournisseur obligatoire</option>
-            <option value="destruction" ${e.action_echeance === 'destruction' ? 'selected' : ''}>Destruction</option>
-            <option value="alerte_manager" ${e.action_echeance === 'alerte_manager' ? 'selected' : ''}>Alerte manager seulement</option>
-          </select>
-        ` : ''}
-        ${e.profil === 'consommable' ? `
-          <input type="number" class="mouv-qte" id="profilSeuilMinimal" placeholder="Seuil minimal d'alerte" value="${e.seuil_minimal || ''}" style="width:100%; margin-bottom:8px;">
-        ` : ''}
-        <label style="display:flex; align-items:center; gap:6px; font-size:12px; color:var(--text-mid); margin-bottom:6px; cursor:pointer;">
-          <input type="checkbox" id="profilValidationManager" ${e.validation_manager_requise ? 'checked' : ''}> Validation manager requise avant de compter ce produit
+        </div>
+
+        <label class="regle-check-row">
+          <input type="checkbox" id="regleReapprovisionnable" ${e.reapprovisionnable !== false ? 'checked' : ''}>
+          <span>📦 Produit réapprovisionnable en cours de quart</span>
         </label>
-        <label style="display:flex; align-items:center; gap:6px; font-size:12px; color:var(--text-mid); margin-bottom:6px; cursor:pointer;">
-          <input type="checkbox" id="profilComptageMasque" ${e.comptage_masque ? 'checked' : ''}> Comptage à l'aveugle (valeur transmise cachée)
+
+        <div class="regle-champ-row">
+          <span>⚠️ Seuil d'alerte (quantité)</span>
+          <input type="number" min="0" class="mouv-qte" id="regleSeuilAlerte" placeholder="Aucun" value="${e.seuil_minimal || ''}" style="width:74px; flex:none;">
+        </div>
+
+        <label class="regle-check-row">
+          <input type="checkbox" id="profilValidationManager" ${e.validation_manager_requise ? 'checked' : ''}>
+          <span>Validation manager requise avant de compter ce produit</span>
         </label>
-        <label style="display:flex; align-items:center; gap:6px; font-size:12px; color:var(--text-mid); margin-bottom:6px; cursor:pointer;">
-          <input type="checkbox" id="profilControleAleatoire" ${e.controle_aleatoire ? 'checked' : ''}> Contrôle aléatoire (peut être tiré au sort par le Conseiller NEXUS)
+        <label class="regle-check-row">
+          <input type="checkbox" id="profilComptageMasque" ${e.comptage_masque ? 'checked' : ''}>
+          <span>Comptage à l'aveugle (valeur transmise cachée)</span>
         </label>
-        <label style="display:flex; align-items:center; gap:6px; font-size:12px; color:var(--text-mid); margin-bottom:10px; cursor:pointer;">
-          <input type="checkbox" id="profilPhotoObligatoire" ${e.photo_obligatoire ? 'checked' : ''}> Photo obligatoire au comptage
+        <label class="regle-check-row">
+          <input type="checkbox" id="profilControleAleatoire" ${e.controle_aleatoire ? 'checked' : ''}>
+          <span>Contrôle aléatoire (peut être tiré au sort par le Conseiller NEXUS)</span>
         </label>
-        <div class="note" style="margin:0 0 8px;">Le tirage au sort du contrôle aléatoire et la capture photo ne sont pas encore actifs côté employé — ce réglage prépare le terrain sans encore rien changer à l'écran de comptage.</div>
-        <button class="btn-primary" id="btnEnregistrerProfil" style="margin-top:0;">Enregistrer ce profil</button>
+        <label class="regle-check-row">
+          <input type="checkbox" id="profilPhotoObligatoire" ${e.photo_obligatoire ? 'checked' : ''}>
+          <span>Photo obligatoire au comptage</span>
+        </label>
+        <div class="note" style="margin:0 0 8px;">« Réapprovisionnable », contrôle aléatoire et photo obligatoire sont enregistrés mais n'ajoutent pas encore de restriction réelle sur l'écran de comptage employé.</div>
+
+        <button class="btn-primary" id="btnEnregistrerProfil" style="margin-top:0;">Enregistrer ces réglages</button>
         <button class="btn-text" id="btnAnnulerProfil">Annuler</button>
       </div>
     `;
   }
+  // Résumé en langage clair sous chaque produit — jamais le nom technique
+  // du profil dérivé (05/08/2026, demande de Frédéric).
+  function libelleReglesProduit(regle) {
+    if (!regle) return 'Stock continu (par défaut)';
+    const parties = [];
+    if (regle.profil === 'cycle_journalier') parties.push('Remis à zéro le matin');
+    if (regle.duree_max_vente_jours) parties.push(`Vente ${regle.duree_max_vente_jours} j`);
+    if (regle.quarts_comptage && regle.quarts_comptage.length === 1) parties.push(regle.quarts_comptage[0] === 'matin' ? 'Compté le matin' : 'Compté le soir');
+    if (regle.seuil_minimal) parties.push(`Seuil ${regle.seuil_minimal}`);
+    return parties.length ? parties.join(' · ') : 'Stock continu (par défaut)';
+  }
   function renderLigneProfilProduit(p) {
     const regle = reglesProduitMap[p.id];
-    const profilActuel = regle ? regle.profil : 'continu';
-    const libelleProfil = PROFILS_PRODUIT.find(x => x.value === profilActuel).label;
+    const libelle = libelleReglesProduit(regle);
     const ouvert = profilProduitOuvert === p.id;
+    const personnalise = !!regle && libelle !== 'Stock continu (par défaut)';
     return `
       <div class="categorie-row" data-profil-produit="${p.id}">
         <div>
           <div class="categorie-nom" style="font-size:13px;">${p.designation}</div>
-          <div class="categorie-count">${libelleProfil}</div>
+          <div class="categorie-count">${libelle}</div>
         </div>
-        <div class="categorie-etat ${profilActuel === 'continu' ? 'a-faire' : 'en-cours'}">${ouvert ? '▾' : '▸'}</div>
+        <div class="categorie-etat ${personnalise ? 'en-cours' : 'a-faire'}">${ouvert ? '▾' : '▸'}</div>
       </div>
       ${ouvert && profilEnEdition ? renderFormulaireProfil() : ''}
     `;
@@ -680,7 +767,13 @@
       return acc;
     }, {});
     return `
-      <div class="ventes-desc" style="margin:0 2px 12px;">Par défaut, un produit suit le stock continu (comportement historique, aucun changement nécessaire). Configurez uniquement les produits à cycle particulier : viennoiserie/pain (journalier), pâtes/biscuits SDD (lot glissant), presse (par édition), consommables (seuil).</div>
+      <div class="ventes-desc" style="margin:0 2px 12px;">Par défaut, un produit garde son stock d'un quart à l'autre — aucun réglage nécessaire. Configurez uniquement les produits avec un fonctionnement particulier : viennoiserie/pain (stock remis à zéro chaque matin), pâtes et biscuits SDD (durée de vente limitée), presse (vendue le jour même), ou tout produit ayant besoin d'un seuil d'alerte.</div>
+      ${Object.entries(groupes).map(([cat, items]) => `
+        <div class="cat-block">
+          <div class="cat-head"><div class="cat-nom">${cat} (${items.length})</div></div>
+          <div class="card">${items.map(p => renderLigneProfilProduit(p)).join('')}</div>
+        </div>
+      `).join('')}
       ${Object.entries(groupes).map(([cat, items]) => `
         <div class="cat-block">
           <div class="cat-head"><div class="cat-nom">${cat} (${items.length})</div></div>
@@ -1033,16 +1126,21 @@
 
     // --- Règles ---
     document.querySelectorAll('[data-profil-produit]').forEach(el => el.addEventListener('click', () => ouvrirEditionProfil(el.dataset.profilProduit)));
-    const profilSelectEl = document.getElementById('profilSelect');
-    if (profilSelectEl) profilSelectEl.addEventListener('change', (e) => { profilEnEdition.profil = e.target.value; render(); });
-    const profilAgregationEl = document.getElementById('profilAgregation');
-    if (profilAgregationEl) profilAgregationEl.addEventListener('change', (e) => { profilEnEdition.mode_agregation_ventes = e.target.value; });
-    const profilDureeMaxEl = document.getElementById('profilDureeMax');
-    if (profilDureeMaxEl) profilDureeMaxEl.addEventListener('change', (e) => { profilEnEdition.duree_max_vente_jours = e.target.value ? parseInt(e.target.value) : null; });
-    const profilActionEcheanceEl = document.getElementById('profilActionEcheance');
-    if (profilActionEcheanceEl) profilActionEcheanceEl.addEventListener('change', (e) => { profilEnEdition.action_echeance = e.target.value; });
-    const profilSeuilMinimalEl = document.getElementById('profilSeuilMinimal');
-    if (profilSeuilMinimalEl) profilSeuilMinimalEl.addEventListener('change', (e) => { profilEnEdition.seuil_minimal = e.target.value ? parseFloat(e.target.value) : null; });
+    document.querySelectorAll('[data-preset]').forEach(el => el.addEventListener('click', () => appliquerPreregleProfil(el.dataset.preset)));
+    const regleRemiseAZeroEl = document.getElementById('regleRemiseAZero');
+    if (regleRemiseAZeroEl) regleRemiseAZeroEl.addEventListener('change', (e) => { profilEnEdition.remise_a_zero_matin = e.target.checked; });
+    const regleDureeMaxEl = document.getElementById('regleDureeMax');
+    if (regleDureeMaxEl) regleDureeMaxEl.addEventListener('change', (e) => { profilEnEdition.duree_max_vente_jours = e.target.value ? parseInt(e.target.value) : null; render(); });
+    const regleRetourFournisseurEl = document.getElementById('regleRetourFournisseur');
+    if (regleRetourFournisseurEl) regleRetourFournisseurEl.addEventListener('change', (e) => { profilEnEdition.retour_fournisseur_autorise = e.target.checked; });
+    const regleComptageEl = document.getElementById('regleComptage');
+    if (regleComptageEl) regleComptageEl.addEventListener('change', (e) => {
+      profilEnEdition.quarts_comptage = e.target.value === 'deux' ? null : [e.target.value];
+    });
+    const regleReapprovisionnableEl = document.getElementById('regleReapprovisionnable');
+    if (regleReapprovisionnableEl) regleReapprovisionnableEl.addEventListener('change', (e) => { profilEnEdition.reapprovisionnable = e.target.checked; });
+    const regleSeuilAlerteEl = document.getElementById('regleSeuilAlerte');
+    if (regleSeuilAlerteEl) regleSeuilAlerteEl.addEventListener('change', (e) => { profilEnEdition.seuil_minimal = e.target.value ? parseFloat(e.target.value) : null; });
     const profilValidationManagerEl = document.getElementById('profilValidationManager');
     if (profilValidationManagerEl) profilValidationManagerEl.addEventListener('change', (e) => { profilEnEdition.validation_manager_requise = e.target.checked; });
     const profilComptageMasqueEl = document.getElementById('profilComptageMasque');

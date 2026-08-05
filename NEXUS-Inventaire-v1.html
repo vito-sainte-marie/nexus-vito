@@ -434,10 +434,30 @@
     // aujourd'hui. jours_rotation NULL = tous les jours = comportement
     // historique inchangé pour toutes les catégories non configurées.
     const jourIso = new Date().getDay() === 0 ? 7 : new Date().getDay();
-    return (data || []).filter(p => {
+    let liste = (data || []).filter(p => {
       const jours = p.inventaire_categories ? p.inventaire_categories.jours_rotation : null;
       return !jours || jours.includes(jourIso);
     });
+
+    // Comptage matin/soir par produit (05/08/2026, Paramètres Inventaire →
+    // Règles des produits, demande de Frédéric — ex. viennoiserie comptée
+    // le matin seulement). quarts_comptage NULL = matin et soir = comportement
+    // historique inchangé pour tout produit non configuré.
+    if (liste.length && quartActuel) {
+      const site = employeeCourant.site_id || 'vito-sainte-marie';
+      const { data: regles, error: e2 } = await nexusClient.from('inventaire_regles_produit')
+        .select('produit_id, quarts_comptage').eq('site', site).in('produit_id', liste.map(p => p.id));
+      if (e2) { console.error('Chargement quarts de comptage par produit:', e2); }
+      else {
+        const quartsParProduit = {};
+        regles.forEach(r => { quartsParProduit[r.produit_id] = r.quarts_comptage; });
+        liste = liste.filter(p => {
+          const quarts = quartsParProduit[p.id];
+          return !quarts || quarts.includes(quartActuel);
+        });
+      }
+    }
+    return liste;
   }
 
   // Dernier stock connu = le dernier comptage de clôture validé pour ce
