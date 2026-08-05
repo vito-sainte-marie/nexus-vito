@@ -698,6 +698,19 @@
     }
   }
 
+  // Ouvre automatiquement les listes de missions repliées quand l'employé
+  // utilise un filtre catégorie ou niveau (05/08/2026, retour de Frédéric —
+  // "je clique sur toutes les catégories, rien ne s'affiche") : ces filtres
+  // n'avaient jusqu'ici aucun effet visible tant que la section concernée
+  // restait repliée par défaut (le cas normal pour "Disponibles",
+  // "Conditionnelles", et tout le renfort sauf "À faire maintenant"), ce
+  // qui donnait l'impression que le filtre ne fonctionnait pas du tout.
+  function ouvrirSectionsMissionsPourFiltre() {
+    ['obligatoires', 'disponibles', 'conditionnelles', 'priorites', 'creux'].forEach(cle => {
+      blocsListeOuverts[cle] = true;
+    });
+  }
+
   function renderCategoriesSection(potentiel) {
     const el = document.getElementById('categoriesSection');
     if (!el) return;
@@ -719,6 +732,7 @@
     el.querySelectorAll('.categorie-card').forEach(carte => {
       carte.addEventListener('click', () => {
         familleActive = familleActive === carte.dataset.famille ? 'Toutes' : carte.dataset.famille;
+        ouvrirSectionsMissionsPourFiltre();
         render();
       });
     });
@@ -747,6 +761,7 @@
         const v = chip.dataset.niveau;
         const pts = v === '' ? null : Number(v);
         niveauActif = niveauActif === pts ? null : pts;
+        ouvrirSectionsMissionsPourFiltre();
         render();
       });
     });
