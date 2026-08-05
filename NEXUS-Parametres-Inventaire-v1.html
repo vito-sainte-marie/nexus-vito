@@ -1074,7 +1074,10 @@
     const btnToggleAjout = document.getElementById('btnToggleAjoutProduit');
     if (btnToggleAjout) btnToggleAjout.addEventListener('click', () => { formAjoutOuvert = !formAjoutOuvert; render(); });
     const inputRechercheCatalogue = document.getElementById('rechercheCatalogue');
-    if (inputRechercheCatalogue) inputRechercheCatalogue.addEventListener('input', () => { rechercheCatalogueTexte = inputRechercheCatalogue.value; rechercherCatalogue(); });
+    if (inputRechercheCatalogue) {
+      inputRechercheCatalogue.addEventListener('input', () => { rechercheCatalogueTexte = inputRechercheCatalogue.value; rechercherCatalogue(); });
+      inputRechercheCatalogue.focus(); inputRechercheCatalogue.setSelectionRange(inputRechercheCatalogue.value.length, inputRechercheCatalogue.value.length);
+    }
     document.querySelectorAll('[data-choisir-catalogue]').forEach(el => el.addEventListener('click', () => {
       produitCatalogueChoisi = { article: el.dataset.choisirCatalogue, code_barres: el.dataset.codeBarres || null };
       render();
@@ -1096,7 +1099,7 @@
     const inputRechercheProduits = document.getElementById('rechercheProduits');
     if (inputRechercheProduits) {
       inputRechercheProduits.addEventListener('input', () => { rechercheProduitsTexte = inputRechercheProduits.value; render(); });
-      inputRechercheProduits.focus(); inputRechercheProduits.setSelectionRange(inputRechercheProduits.value.length, inputRechercheProduits.value.length);
+      if (!formAjoutOuvert) { inputRechercheProduits.focus(); inputRechercheProduits.setSelectionRange(inputRechercheProduits.value.length, inputRechercheProduits.value.length); }
     }
     document.querySelectorAll('[data-produit-ligne]').forEach(el => el.addEventListener('click', (e) => {
       if (e.target.closest('.toggle-switch') || e.target.closest('.etoile-sensible')) return;
