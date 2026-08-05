@@ -212,12 +212,44 @@
   // photo_par_action sur les missions (voir NEXUS-Missions-v1.html) —
   // réutilise le même bucket privé preuves-missions plutôt que d'en
   // créer un nouveau, c'est le même concept de preuve photographiée.
+  // Redimensionnement côté client avant envoi (05/08/2026, même correctif
+  // que sur NEXUS-Missions-v1.html) : une photo brute de téléphone récent
+  // pèse souvent 5 à 15 Mo. Envoyée telle quelle depuis le wifi/mobile de
+  // la station, l'upload peut prendre plus d'une minute — la bannière
+  // "patientez" (voir plus haut) limite déjà la confusion, mais on réduit
+  // aussi directement le temps d'attente réel en redescendant à une taille
+  // raisonnable pour une preuve (max 1600px de côté, JPEG 82%). En cas
+  // d'échec du redimensionnement, on retombe sur le fichier d'origine
+  // plutôt que de bloquer le pointage.
+  async function redimensionnerPhotoPointage(file) {
+    try {
+      if (!file.type || !file.type.startsWith('image/') || typeof createImageBitmap !== 'function') return file;
+      const bitmap = await createImageBitmap(file);
+      const MAX_COTE = 1600;
+      const ratio = Math.min(1, MAX_COTE / Math.max(bitmap.width, bitmap.height));
+      if (ratio === 1) { if (bitmap.close) bitmap.close(); return file; }
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(bitmap.width * ratio);
+      canvas.height = Math.round(bitmap.height * ratio);
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+      if (bitmap.close) bitmap.close();
+      const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.82));
+      if (!blob) return file;
+      return new File([blob], file.name || 'photo.jpg', { type: 'image/jpeg' });
+    } catch (err) {
+      console.error('Redimensionnement photo pointage (on garde le fichier original) :', err);
+      return file;
+    }
+  }
+
   async function uploaderPhotoPointage(employeeId, type, file) {
-    const ext = (file.name && file.name.includes('.')) ? file.name.split('.').pop().toLowerCase() : 'jpg';
+    const fichier = await redimensionnerPhotoPointage(file);
+    const ext = (fichier.name && fichier.name.includes('.')) ? fichier.name.split('.').pop().toLowerCase() : 'jpg';
     const chemin = `${employeeId}/pointage-${type}-${Date.now()}.${ext}`;
     const { error: erreurUpload } = await nexusClient.storage
       .from('preuves-missions')
-      .upload(chemin, file, { contentType: file.type || 'image/jpeg' });
+      .upload(chemin, fichier, { contentType: fichier.type || 'image/jpeg' });
     if (erreurUpload) { console.error('Upload photo pointage:', erreurUpload); return null; }
 
     const DIX_ANS = 315360000;
