@@ -110,10 +110,13 @@
   .produit-input:focus{outline:none; border-color:var(--cyan);}
   .btn-identique{font-family:var(--mono); font-size:9.5px; color:var(--text-mid); background:var(--panel-raised); border:1px solid var(--hairline); border-radius:8px; padding:9px 10px; cursor:pointer; white-space:nowrap;}
   .btn-identique:active{background:var(--hairline);}
-  .ecart-tag{font-family:var(--mono); font-size:10.5px; margin-top:6px; text-align:right;}
+  .ecart-tag{font-family:var(--mono); font-size:10.5px; margin-top:6px; text-align:right; display:flex; align-items:center; justify-content:flex-end; gap:8px; flex-wrap:wrap;}
   .ecart-ok{color:var(--green);}
   .ecart-warn{color:var(--amber);}
   .ecart-bad{color:var(--red);}
+  .btn-declarer-livraison{font-family:var(--sans); font-size:10.5px; font-weight:600; color:var(--cyan); background:rgba(79,195,217,0.1); border:1px solid rgba(79,195,217,0.35); border-radius:14px; padding:4px 10px; cursor:pointer; white-space:nowrap;}
+  .btn-declarer-livraison:active{background:rgba(79,195,217,0.22);}
+  .livraison-declaree{font-family:var(--sans); font-size:10.5px; color:var(--green); white-space:nowrap;}
   .justif-input{
     width:100%; margin-top:8px; background:var(--panel-raised); border:1px solid var(--hairline); border-radius:8px;
     padding:8px 10px; color:var(--text); font-size:12px; font-family:var(--sans);
@@ -600,10 +603,77 @@
   function classeEcartOuverture(ecart) {
     return 'ecart-tag ' + (ecart === 0 ? 'ecart-ok' : (Math.abs(ecart) <= 2 ? 'ecart-warn' : 'ecart-bad'));
   }
+  // Qualification simple de l'écart (04/08/2026, audit fonctionnel §5) : dès
+  // qu'un écart est saisi, NEXUS demande "pourquoi" avec une liste courte
+  // plutôt qu'un champ libre — le texte reste possible en complément
+  // facultatif, jamais à la place. Stocké dans comptagesSaisie[id].motifEcart,
+  // reporté sur inventaire_alertes.resolution à la validation.
+  const MOTIFS_ECART = [
+    { value: '', label: 'Choisir un motif…' },
+    { value: 'erreur_quart_precedent', label: 'Erreur probable du quart précédent' },
+    { value: 'produit_deplace', label: 'Produit déplacé ou retrouvé ailleurs' },
+    { value: 'entree_non_enregistree', label: 'Entrée non enregistrée' },
+    { value: 'reassort_non_enregistre', label: 'Réassort non enregistré' },
+    { value: 'casse', label: 'Casse' },
+    { value: 'produit_abime', label: 'Produit abîmé' },
+    { value: 'perime', label: 'Produit périmé' },
+    { value: 'retour_fournisseur', label: 'Retour fournisseur' },
+    { value: 'retrait_interne', label: 'Retrait interne' },
+    { value: 'transfert_zones', label: 'Transfert entre zones' },
+    { value: 'ne_sais_pas', label: 'Je ne sais pas' },
+    { value: 'autre', label: 'Autre raison' },
+  ];
+  function libelleMotifEcart(value) {
+    const m = MOTIFS_ECART.find(x => x.value === value);
+    return m ? m.label : null;
+  }
+  function renderSelectMotif(produitId, valeurActuelle, visible) {
+    return `<select class="justif-input motif-ecart-select" data-produit-motif="${produitId}" style="${visible ? '' : 'display:none;'} -webkit-appearance:none; appearance:none;">
+      ${MOTIFS_ECART.map(m => `<option value="${m.value}" ${m.value === valeurActuelle ? 'selected' : ''}>${m.label}</option>`).join('')}
+    </select>`;
+  }
   function texteEcartOuverture(ecart) {
     if (ecart === 0) return 'Conforme';
     if (ecart < 0) return `Ventes potentielles ${fmtNum(ecart)}`;
     return `Réassort potentiel +${fmtNum(ecart)}`;
+  }
+
+  // Déclaration rapide d'une livraison (03/08/2026, demande de Frédéric —
+  // "comment il peut l'intégrer facilement et rapidement ?") : un surplus
+  // détecté à l'ouverture ("Réassort potentiel +20") peut être confirmé en
+  // UN geste, sans aucune saisie supplémentaire — NEXUS connaît déjà le
+  // produit et la quantité. Ça pousse un vrai mouvement structuré
+  // (type='livraison') dans mouvementsSaisie, exactement comme le formulaire
+  // "Mouvements pendant le quart" de la clôture, pour que le manager en
+  // profite dans ses rapprochements (écoulement Decenium, écoulement
+  // journalier) — jamais juste une note texte qui reste invisible pour ces
+  // calculs. Ré-déclarable si l'employé corrige son comptage ensuite (on
+  // retire l'ancienne déclaration marquée `origineOuvertureRapide` avant
+  // d'ajouter la nouvelle, jamais de doublon).
+  function livraisonRapideDeclaree(produitId, quantite) {
+    return mouvementsSaisie.some(m => m.produit_id === produitId && m.origineOuvertureRapide && Math.abs(m.quantite - quantite) < 0.001);
+  }
+  function declarerLivraisonRapide(produitId, quantite) {
+    const produit = produitsZone.find(p => p.id === produitId);
+    mouvementsSaisie = mouvementsSaisie.filter(m => !(m.produit_id === produitId && m.origineOuvertureRapide));
+    mouvementsSaisie.push({
+      produit_id: produitId, designation: produit ? produit.designation : '', type_mouvement: 'livraison',
+      quantite: quantite, justification: 'Réassort déclaré directement depuis le comptage d\'ouverture.',
+      origineOuvertureRapide: true,
+    });
+    sauvegarderDraft('ouverture');
+  }
+  // Bloc HTML de la pastille d'écart, réutilisé partout où elle s'affiche
+  // (liste, carrousel) — inclut le bouton de déclaration rapide quand
+  // pertinent (ecart > 0 uniquement : une vente potentielle ne se
+  // "déclare" pas, elle est déjà tracée côté caisse/Decenium).
+  function rendreContenuEcart(produitId, ecart) {
+    if (ecart === 0) return 'Conforme';
+    if (ecart < 0) return texteEcartOuverture(ecart);
+    if (livraisonRapideDeclaree(produitId, ecart)) {
+      return `${texteEcartOuverture(ecart)} <span class="livraison-declaree">✓ Livraison déclarée</span>`;
+    }
+    return `${texteEcartOuverture(ecart)} <button type="button" class="btn-declarer-livraison" data-produit="${produitId}" data-qte="${ecart}">Déclarer cette livraison</button>`;
   }
 
   function produitEstCompte(p) {
@@ -892,6 +962,13 @@
         focusProchainProduit(el.dataset.produit, groupe);
       });
     });
+    document.querySelectorAll('[data-produit-motif]').forEach(el => {
+      el.addEventListener('change', () => {
+        const id = el.dataset.produitMotif;
+        if (comptagesSaisie[id]) comptagesSaisie[id].motifEcart = el.value;
+        sauvegarderDraft('ouverture');
+      });
+    });
     document.getElementById('btnCategorieConforme').addEventListener('click', () => {
       if (!confirm(`Vous confirmez avoir compté les ${groupe.items.length} produit${groupe.items.length > 1 ? 's' : ''} de cette catégorie ?`)) return;
       groupe.items.forEach(p => {
@@ -919,9 +996,11 @@
     const transmis = dernierStock[produitId] ? dernierStock[produitId].quantite : 0;
     const ecartDiv = document.getElementById(`ecart-${produitId}`);
     const justifInput = document.querySelector(`.justif-input[data-produit="${produitId}"]`);
+    const motifSelect = document.querySelector(`[data-produit-motif="${produitId}"]`);
     if (val === null || isNaN(val)) {
       ecartDiv.className = 'ecart-tag'; ecartDiv.textContent = '';
       if (justifInput) justifInput.style.display = 'none';
+      if (motifSelect) motifSelect.style.display = 'none';
       comptagesSaisie[produitId] = undefined;
       sauvegarderDraft('ouverture');
       return;
@@ -929,9 +1008,14 @@
     const ecart = val - transmis;
     const ecartNonNul = Math.abs(ecart) > 0.001;
     ecartDiv.className = classeEcartOuverture(ecart);
-    ecartDiv.textContent = texteEcartOuverture(ecart);
+    ecartDiv.innerHTML = rendreContenuEcart(produitId, ecart);
     if (justifInput) justifInput.style.display = ecartNonNul ? '' : 'none';
-    comptagesSaisie[produitId] = { compte: val, ecartNonNul, justification: justifInput ? justifInput.value : (comptagesSaisie[produitId] ? comptagesSaisie[produitId].justification : '') };
+    if (motifSelect) motifSelect.style.display = ecartNonNul ? '' : 'none';
+    comptagesSaisie[produitId] = {
+      compte: val, ecartNonNul,
+      justification: justifInput ? justifInput.value : (comptagesSaisie[produitId] ? comptagesSaisie[produitId].justification : ''),
+      motifEcart: motifSelect ? motifSelect.value : (comptagesSaisie[produitId] ? comptagesSaisie[produitId].motifEcart : ''),
+    };
     sauvegarderDraft('ouverture');
   }
 
@@ -984,7 +1068,8 @@
           <input type="number" inputmode="decimal" step="0.01" class="produit-input carrousel-input" id="carrouselInput"
                  placeholder="Votre comptage" value="${valeurDepart}" onfocus="this.select()">
           <div class="ecart-tag" id="ecartCarrousel"></div>
-          <input type="text" class="justif-input" id="justifCarrousel" placeholder="Justification de l'écart (facultatif)" value="${dejaSaisi && dejaSaisi.justification ? dejaSaisi.justification : ''}" style="${dejaSaisi && dejaSaisi.ecartNonNul ? '' : 'display:none;'}">
+          ${renderSelectMotif('Carrousel', dejaSaisi && dejaSaisi.motifEcart ? dejaSaisi.motifEcart : '', dejaSaisi && dejaSaisi.ecartNonNul).replace('data-produit-motif="Carrousel"', 'id="motifCarrousel"')}
+          <input type="text" class="justif-input" id="justifCarrousel" placeholder="Commentaire (facultatif)" value="${dejaSaisi && dejaSaisi.justification ? dejaSaisi.justification : ''}" style="${dejaSaisi && dejaSaisi.ecartNonNul ? '' : 'display:none;'}">
           <button class="btn-primary" id="btnValiderProduit">Valider ce produit</button>
           ${!masque && !pasDHistorique ? `<button class="btn-text" id="btnAnnulerCorrection">← Revenir à « Identique »</button>` : ''}
         `}
@@ -1007,7 +1092,7 @@
     });
     const carrouselInput = document.getElementById('carrouselInput');
     if (carrouselInput) {
-      carrouselInput.addEventListener('input', () => majCarrousel(valeurTransmise));
+      carrouselInput.addEventListener('input', () => majCarrousel(valeurTransmise, p.id));
       // Curseur posé tout de suite (02/08/2026, demande de Frédéric —
       // "insère tout de suite le curseur dans votre comptage pour aller
       // plus vite") : dès que la saisie manuelle est affichée (aveugle,
@@ -1020,7 +1105,7 @@
       // Affiche tout de suite l'écart si une valeur était déjà enregistrée
       // (retour sur un produit déjà répondu) — sinon la pastille resterait
       // vide tant qu'on n'a pas retapé quelque chose.
-      if (carrouselInput.value !== '') majCarrousel(valeurTransmise);
+      if (carrouselInput.value !== '') majCarrousel(valeurTransmise, p.id);
     }
     const btnValiderProduit = document.getElementById('btnValiderProduit');
     if (btnValiderProduit) btnValiderProduit.addEventListener('click', () => {
@@ -1039,7 +1124,8 @@
       const ecart = val - valeurTransmise;
       const ecartNonNul = Math.abs(ecart) > 0.001;
       const justifInput = document.getElementById('justifCarrousel');
-      comptagesSaisie[p.id] = { compte: val, ecartNonNul, justification: justifInput ? justifInput.value : '' };
+      const motifSelect = document.getElementById('motifCarrousel');
+      comptagesSaisie[p.id] = { compte: val, ecartNonNul, justification: justifInput ? justifInput.value : '', motifEcart: motifSelect ? motifSelect.value : '' };
       sauvegarderDraft('ouverture');
       avancerCarrousel(groupe, p.designation);
     });
@@ -1058,18 +1144,20 @@
     document.getElementById('btnRetourCategoriesCarrousel').addEventListener('click', renderCategoriesOuverture);
   }
 
-  function majCarrousel(valeurTransmise) {
+  function majCarrousel(valeurTransmise, produitId) {
     const input = document.getElementById('carrouselInput');
     const ecartDiv = document.getElementById('ecartCarrousel');
     const justifInput = document.getElementById('justifCarrousel');
+    const motifSelect = document.getElementById('motifCarrousel');
     if (!input || !ecartDiv) return;
     const val = input.value === '' ? null : parseFloat(input.value);
-    if (val === null || isNaN(val)) { ecartDiv.textContent = ''; if (justifInput) justifInput.style.display = 'none'; return; }
+    if (val === null || isNaN(val)) { ecartDiv.textContent = ''; if (justifInput) justifInput.style.display = 'none'; if (motifSelect) motifSelect.style.display = 'none'; return; }
     const ecart = val - valeurTransmise;
     const ecartNonNul = Math.abs(ecart) > 0.001;
     ecartDiv.className = classeEcartOuverture(ecart);
-    ecartDiv.textContent = texteEcartOuverture(ecart);
+    ecartDiv.innerHTML = rendreContenuEcart(produitId, ecart);
     if (justifInput) justifInput.style.display = ecartNonNul ? '' : 'none';
+    if (motifSelect) motifSelect.style.display = ecartNonNul ? '' : 'none';
   }
 
   function avancerCarrousel(groupe, nomValide) {
@@ -1119,7 +1207,7 @@
       const valeurTransmise = transmis ? transmis.quantite : 0;
       const ecart = saisie.compte - valeurTransmise;
       ecartClasse = classeEcartOuverture(ecart);
-      ecartTexte = texteEcartOuverture(ecart);
+      ecartTexte = rendreContenuEcart(p.id, ecart);
     }
     return `
       <div class="produit-row" id="ligne-${p.id}">
@@ -1134,7 +1222,8 @@
           <button class="btn-identique" data-produit="${p.id}" ${masque ? 'disabled' : ''}>Identique</button>
         </div>
         <div class="${ecartClasse}" id="ecart-${p.id}">${ecartTexte}</div>
-        <input type="text" class="justif-input" data-produit="${p.id}" placeholder="Justification de l'écart (facultatif)" value="${saisie && saisie.justification ? saisie.justification : ''}" style="${saisie && saisie.ecartNonNul ? '' : 'display:none;'}">
+        ${renderSelectMotif(p.id, saisie && saisie.motifEcart ? saisie.motifEcart : '', saisie && saisie.ecartNonNul)}
+        <input type="text" class="justif-input" data-produit="${p.id}" placeholder="Commentaire (facultatif)" value="${saisie && saisie.justification ? saisie.justification : ''}" style="${saisie && saisie.ecartNonNul ? '' : 'display:none;'}">
       </div>
     `;
   }
@@ -1152,6 +1241,21 @@
 
     const btn = document.getElementById('btnTerminerOuverture');
     if (btn) { btn.disabled = true; btn.innerHTML = 'Nous traitons vos informations<span class="btn-loading-dots"><i></i><i></i><i></i></span>'; }
+
+    // Livraisons déclarées en un geste (03/08/2026) — mêmes colonnes que le
+    // formulaire "Mouvements pendant le quart" de la clôture, pour que le
+    // manager les retrouve exactement pareil dans ses rapprochements
+    // (écoulement Decenium, écoulement journalier Pains/Sandwichs ·
+    // Viennoiserie).
+    for (const m of mouvementsSaisie) {
+      const { error } = await nexusClient.from('inventaire_mouvements').insert({
+        site: employeeCourant.site_id || 'vito-sainte-marie', quart_id: quartRow.id, produit_id: m.produit_id,
+        type_mouvement: m.type_mouvement, quantite: m.quantite, employee_id: employeeCourant.id, justification: m.justification || null,
+        reason_code: m.type_mouvement, zone_source_id: m.zone_source_id || null, zone_destination_id: m.zone_destination_id || null,
+      });
+      if (error) console.error('Mouvement (ouverture):', error);
+    }
+    const nbLivraisonsDeclarees = mouvementsSaisie.length;
 
     let nbComptes = 0, nbEcarts = 0;
     for (const p of produitsZone) {
@@ -1181,11 +1285,32 @@
 
       if (saisie.ecartNonNul) {
         nbEcarts++;
+        const ecartVal = saisie.compte - valeurTransmise;
+        // Une livraison déclarée en un geste sur ce produit prévaut comme
+        // explication — plus fiable qu'un texte libre puisqu'elle est
+        // reliée à un vrai mouvement structuré (voir mouvementsSaisie
+        // ci-dessus). Sinon, on retombe sur la justification texte si elle
+        // existe, sinon rien (jamais une explication inventée).
+        const livraisonDeclaree = mouvementsSaisie.find(m => m.produit_id === p.id && m.origineOuvertureRapide && Math.abs(m.quantite - ecartVal) < 0.001);
+        // Qualification simple choisie par l'employé (04/08/2026, audit §5) —
+        // prime sur le commentaire libre quand elle est renseignée, jamais
+        // les deux mélangés dans la même phrase.
+        const motifLibelle = libelleMotifEcart(saisie.motifEcart);
+        let resolution = null;
+        if (livraisonDeclaree) {
+          resolution = `Réassort de ${fmtNum(livraisonDeclaree.quantite)} déclaré comme livraison par l'employé à l'ouverture.`;
+        } else if (motifLibelle && saisie.motifEcart !== 'autre' && saisie.motifEcart !== 'ne_sais_pas') {
+          resolution = `Motif déclaré par l'employé : ${motifLibelle}.${saisie.justification ? ' ' + saisie.justification : ''}`;
+        } else if (saisie.justification) {
+          resolution = `Justifié par l'employé : ${saisie.justification}`;
+        } else if (motifLibelle) {
+          resolution = `Motif déclaré par l'employé : ${motifLibelle}.`;
+        }
         await nexusClient.from('inventaire_alertes').insert({
           site: employeeCourant.site_id || 'vito-sainte-marie', quart_id: quartRow.id, produit_id: p.id,
-          type_alerte: 'ecart_ouverture', gravite: Math.abs(saisie.compte - valeurTransmise) > 2 ? 'critique' : 'attention',
+          type_alerte: 'ecart_ouverture', gravite: Math.abs(ecartVal) > 2 ? 'critique' : 'attention',
           valeur_attendue: valeurTransmise, valeur_constatee: saisie.compte,
-          resolution: saisie.justification ? `Justifié par l'employé : ${saisie.justification}` : null,
+          resolution, categorie_anomalie: 'saisie',
         });
       }
     }
@@ -1193,12 +1318,13 @@
     await nexusClient.from('inventaire_quart_employes').update({ a_valide_ouverture: true, heure_arrivee: quartEmployeRow.heure_arrivee || new Date().toISOString() }).eq('id', quartEmployeRow.id);
     await nexusClient.from('inventaire_quarts').update({ statut: 'ouvert' }).eq('id', quartRow.id).eq('statut', 'ouverture_en_cours');
     quartEmployeRow.a_valide_ouverture = true;
+    mouvementsSaisie = [];
     effacerDraft('ouverture');
 
-    renderFinalOuverture(nbComptes, nbEcarts);
+    renderFinalOuverture(nbComptes, nbEcarts, nbLivraisonsDeclarees);
   }
 
-  function renderFinalOuverture(nbComptes, nbEcarts) {
+  function renderFinalOuverture(nbComptes, nbEcarts, nbLivraisonsDeclarees) {
     document.getElementById('titre').textContent = 'Inventaire d\'ouverture validé';
     document.getElementById('sousTitre').textContent = '';
     document.getElementById('content').innerHTML = `
@@ -1207,6 +1333,7 @@
         <div class="final-greet">Merci ${employeeCourant.nom}</div>
         <div class="stat-row"><span class="stat-label">Produits comptés</span><span class="stat-value">${nbComptes}</span></div>
         <div class="stat-row"><span class="stat-label">Écarts de passage de quart</span><span class="stat-value ${nbEcarts ? 'amber' : ''}">${nbEcarts}</span></div>
+        ${nbLivraisonsDeclarees ? `<div class="stat-row"><span class="stat-label">Livraisons déclarées</span><span class="stat-value">${nbLivraisonsDeclarees}</span></div>` : ''}
       </div>
       <button class="btn-primary" id="btnRetourAccueil">Retour</button>
     `;
@@ -1216,14 +1343,27 @@
   // ------------------------------------------------------------
   // CLÔTURE (fin de poste)
   // ------------------------------------------------------------
+  // Taxonomie complète entrants/sortants (04/08/2026, audit fonctionnel de
+  // Frédéric §6 — "l'employé ne doit jamais modifier directement un stock
+  // initial ou final pour intégrer une opération") : remplace l'ancienne
+  // liste simplifiée à 7 valeurs. `sens` détermine automatiquement le signe
+  // de la quantité enregistrée (l'employé saisit toujours une quantité
+  // positive, jamais un signe à deviner) — voir ajouterMouvement().
   const TYPES_MOUVEMENT = [
-    { value: 'reassort', label: 'Réassort réserve' },
-    { value: 'livraison', label: 'Livraison' },
-    { value: 'casse', label: 'Casse' },
-    { value: 'retrait', label: 'Retrait' },
-    { value: 'retour', label: 'Retour' },
-    { value: 'transfert', label: 'Transfert' },
-    { value: 'autre', label: 'Autre' },
+    { value: 'livraison', label: 'Livraison fournisseur', sens: 'entrant' },
+    { value: 'reassort', label: 'Réassort depuis la réserve', sens: 'entrant' },
+    { value: 'transfert_recu', label: 'Transfert reçu (autre zone)', sens: 'entrant' },
+    { value: 'retour_recu', label: 'Retour d\'un produit sorti', sens: 'entrant' },
+    { value: 'casse', label: 'Casse', sens: 'sortant' },
+    { value: 'produit_abime', label: 'Produit abîmé', sens: 'sortant' },
+    { value: 'perime', label: 'Produit périmé', sens: 'sortant' },
+    { value: 'retour_fournisseur', label: 'Retour fournisseur', sens: 'sortant' },
+    { value: 'transfert_sortant', label: 'Transfert vers une autre zone', sens: 'sortant' },
+    { value: 'retrait_interne', label: 'Retrait interne', sens: 'sortant' },
+    { value: 'consommation_interne', label: 'Consommation interne', sens: 'sortant' },
+    { value: 'perte_identifiee', label: 'Perte identifiée', sens: 'sortant' },
+    { value: 'destruction', label: 'Destruction', sens: 'sortant' },
+    { value: 'autre', label: 'Autre', sens: 'sortant' },
   ];
 
   async function demarrerCloture() {
@@ -1310,14 +1450,26 @@
     `;
   }
 
+  // L'employé saisit toujours une quantité positive (une magnitude, jamais
+  // un signe à deviner) — le sens entrant/sortant du type choisi détermine
+  // automatiquement si elle s'ajoute ou se retranche (audit §6). Pour un
+  // transfert, la zone source/destination est déduite automatiquement de la
+  // zone suivie par l'employé (l'autre zone de la station, piste ↔ boutique)
+  // — pas de sélecteur de zone supplémentaire à faire saisir.
   function ajouterMouvement() {
     const produitId = document.getElementById('mouvProduit').value;
     const type = document.getElementById('mouvType').value;
-    const qte = parseFloat(document.getElementById('mouvQte').value);
+    const qteSaisie = parseFloat(document.getElementById('mouvQte').value);
     const justif = document.getElementById('mouvJustif').value;
-    if (!produitId || isNaN(qte)) { alert('Choisissez un produit et une quantité.'); return; }
+    if (!produitId || isNaN(qteSaisie) || qteSaisie < 0) { alert('Choisissez un produit et une quantité positive.'); return; }
     const produit = produitsZone.find(p => p.id === produitId);
-    mouvementsSaisie.push({ produit_id: produitId, designation: produit ? produit.designation : '', type_mouvement: type, quantite: qte, justification: justif });
+    const infoType = TYPES_MOUVEMENT.find(t => t.value === type);
+    const qte = infoType.sens === 'sortant' ? -Math.abs(qteSaisie) : Math.abs(qteSaisie);
+    const autreZone = zoneActive === 'piste' ? 'boutique' : 'piste';
+    const mouvement = { produit_id: produitId, designation: produit ? produit.designation : '', type_mouvement: type, quantite: qte, justification: justif };
+    if (type === 'transfert_recu') mouvement.zone_source_id = zonesMap[autreZone] || null;
+    if (type === 'transfert_sortant') mouvement.zone_destination_id = zonesMap[autreZone] || null;
+    mouvementsSaisie.push(mouvement);
     document.getElementById('mouvQte').value = '';
     document.getElementById('mouvJustif').value = '';
     sauvegarderDraft('cloture');
@@ -1379,6 +1531,7 @@
       const { error } = await nexusClient.from('inventaire_mouvements').insert({
         site: employeeCourant.site_id || 'vito-sainte-marie', quart_id: quartRow.id, produit_id: m.produit_id,
         type_mouvement: m.type_mouvement, quantite: m.quantite, employee_id: employeeCourant.id, justification: m.justification || null,
+        reason_code: m.type_mouvement, zone_source_id: m.zone_source_id || null, zone_destination_id: m.zone_destination_id || null,
       });
       if (error) console.error('Mouvement:', error);
     }
@@ -1430,6 +1583,23 @@
     `;
     document.getElementById('btnRetourAccueil').addEventListener('click', renderAccueil);
   }
+
+  // Écoute déléguée globale (03/08/2026) pour le bouton "Déclarer cette
+  // livraison" — posée une seule fois ici plutôt que ré-attachée à chaque
+  // frappe : la pastille d'écart (ecartDiv/ecartCarrousel) est recréée en
+  // continu pendant la saisie, un addEventListener direct dessus serait
+  // perdu à chaque re-rendu. document.addEventListener survit à tous les
+  // changements d'écran (contrairement à un listener posé sur #content).
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('.btn-declarer-livraison');
+    if (!btn) return;
+    const produitId = btn.dataset.produit;
+    const qte = parseFloat(btn.dataset.qte);
+    if (!produitId || isNaN(qte)) return;
+    declarerLivraisonRapide(produitId, qte);
+    const conteneur = btn.closest('.ecart-tag');
+    if (conteneur) conteneur.innerHTML = rendreContenuEcart(produitId, qte);
+  });
 
   // ------------------------------------------------------------
   // INITIALISATION
