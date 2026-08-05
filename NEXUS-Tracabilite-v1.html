@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" type="image/x-icon" href="favicon.ico">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+<link rel="manifest" href="site.webmanifest">
+<meta name="theme-color" content="#0B0F14">
+<title>NEXUS — Traçabilité</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="nexus-auth.js"></script>
+<script src="nexus-desktop.js"></script>
+<style>
+  :root{
+    --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
+    --text:#EDF1F5; --text-mid:#8A96A5; --text-dim:#57626F;
+    --green:#34D399; --green-dim:#153629;
+    --amber:#F5A623; --amber-dim:#3A2E14;
+    --red:#F0575A; --red-dim:#3A1D1F;
+    --cyan:#4FC3D9; --gold:#D4AF37;
+    --mono:'IBM Plex Mono',monospace; --sans:'IBM Plex Sans',sans-serif;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{background:var(--bg); font-family:var(--sans); color:var(--text);}
+  body{display:flex; justify-content:center; min-height:100vh;}
+  .phone{width:100%; max-width:460px; min-height:100vh; display:flex; flex-direction:column; border-left:1px solid var(--hairline); border-right:1px solid var(--hairline);}
+
+  .header{padding:24px 20px 14px; position:relative;}
+  .menu-btn{
+    position:absolute; top:18px; right:18px; display:flex; align-items:center; gap:6px;
+    font-family:var(--mono); font-size:10.5px; font-weight:600; letter-spacing:0.03em; text-transform:uppercase;
+    color:var(--cyan); background:rgba(79,195,217,0.1); border:1px solid rgba(79,195,217,0.3);
+    border-radius:20px; padding:7px 12px; text-decoration:none; white-space:nowrap; z-index:5;
+  }
+  .menu-btn:active{background:rgba(79,195,217,0.2);}
+  .eyebrow{font-family:var(--mono); font-size:11px; letter-spacing:0.12em; text-transform:uppercase; color:var(--cyan);}
+  .title{font-size:22px; font-weight:600; margin-top:4px;}
+  .sub{font-size:13px; color:var(--text-mid); margin-top:6px; line-height:1.5;}
+  .divider{height:1px; background:var(--hairline); margin:0 20px;}
+  .section{padding:16px 20px;}
+  .loading{padding:60px 20px; text-align:center; color:var(--text-dim); font-size:13px;}
+  .empty{text-align:center; padding:20px; color:var(--text-dim); font-size:12.5px; background:var(--panel); border:1px solid var(--hairline); border-radius:10px; margin-bottom:10px;}
+  .locked{padding:60px 20px; text-align:center; color:var(--text-dim); font-family:var(--sans);}
+  .card{background:var(--panel); border:1px solid var(--hairline); border-radius:12px; padding:4px 14px;}
+  .note{font-size:12px; color:var(--text-mid); line-height:1.5; margin-bottom:14px;}
+
+  /* Navigation par onglets (04/08/2026, demande de Frédéric — concept
+     "NEXUS Traçabilité") : 6 onglets sur un écran de largeur téléphone,
+     donc ligne scrollable horizontalement plutôt que flex:1 (qui les
+     aurait tassés/tronqués), contrairement au .tabs à 2 éléments de
+     NEXUS-Verify-v1.html. */
+  .onglet-row{display:flex; gap:6px; overflow-x:auto; padding:14px 20px 4px; scrollbar-width:none;}
+  .onglet-row::-webkit-scrollbar{display:none;}
+  .onglet{flex:0 0 auto; padding:9px 13px; border-radius:20px; font-family:var(--mono); font-size:10.5px; font-weight:600; letter-spacing:0.02em; color:var(--text-dim); background:var(--panel-raised); border:1px solid var(--hairline); cursor:pointer; white-space:nowrap;}
+  .onglet.active{color:var(--cyan); border-color:rgba(79,195,217,0.4); background:rgba(79,195,217,0.1);}
+  .onglet-badge{display:inline-block; margin-left:5px; font-size:9px; background:var(--red); color:#fff; border-radius:8px; padding:1px 5px; vertical-align:1px;}
+
+  .section-titre{font-family:var(--mono); font-size:11px; text-transform:uppercase; letter-spacing:0.05em; color:var(--text-mid); margin:20px 0 10px;}
+  .section-titre:first-child{margin-top:0;}
+
+  /* Lots actifs */
+  .lot-card{background:var(--panel); border:1px solid var(--hairline); border-radius:12px; padding:14px; margin-bottom:10px;}
+  .lot-top{display:flex; justify-content:space-between; align-items:flex-start; gap:10px; margin-bottom:4px;}
+  .lot-produit{font-size:14px; font-weight:600;}
+  .lot-edition{font-family:var(--mono); font-size:10.5px; color:var(--text-dim); margin-top:2px;}
+  .lot-badge{font-family:var(--mono); font-size:9.5px; font-weight:700; padding:3px 8px; border-radius:10px; text-transform:uppercase; white-space:nowrap; flex-shrink:0;}
+  .lot-badge.conforme{background:var(--green-dim); color:var(--green);}
+  .lot-badge.aujourdhui{background:var(--amber-dim); color:var(--amber);}
+  .lot-badge.retard{background:var(--red-dim); color:var(--red);}
+  .lot-meta{font-family:var(--mono); font-size:11px; color:var(--text-mid); margin:8px 0 6px;}
+  .lot-meta b{color:var(--text);}
+  .lot-jours-row{display:flex; justify-content:space-between; align-items:baseline; margin-bottom:5px; font-size:10.5px; color:var(--text-mid); font-family:var(--mono);}
+  .lot-barre{height:5px; border-radius:3px; background:var(--panel-raised); overflow:hidden;}
+  .lot-remplie{height:100%; background:var(--cyan);}
+  .lot-remplie.aujourdhui{background:var(--amber);}
+  .lot-remplie.retard{background:var(--red);}
+
+  .btn-tout-valider{font-family:var(--sans); font-size:11px; font-weight:600; padding:6px 12px; border-radius:20px; border:1px solid rgba(79,195,217,0.4); background:rgba(79,195,217,0.08); color:var(--cyan); cursor:pointer; white-space:nowrap; flex-shrink:0;}
+  .btn-tout-valider:active{background:rgba(79,195,217,0.18);}
+  .section-titre-action-row{display:flex; align-items:center; justify-content:space-between; gap:10px; margin:20px 0 10px;}
+  .section-titre-action-row .section-titre{margin:0;}
+
+  /* Formulaire nouveau lot */
+  .mouv-row{display:flex; gap:8px; margin-bottom:8px;}
+  .mouv-select, .mouv-qte{background:var(--panel-raised); border:1px solid var(--hairline); border-radius:8px; padding:9px 10px; color:var(--text); font-size:12.5px; font-family:var(--sans);}
+  .mouv-select{flex:1.4; width:100%;}
+  .mouv-qte{flex:1; font-family:var(--mono); text-align:right;}
+  .date-input{font-family:var(--mono); font-size:12.5px; background:var(--panel-raised); border:1px solid var(--hairline); color:var(--text); border-radius:8px; padding:9px 10px; width:100%;}
+  .btn-primary{width:100%; padding:14px; border:none; border-radius:10px; font-size:14px; font-weight:600; background:var(--cyan); color:#04141a; cursor:pointer; margin-top:6px;}
+  .btn-primary:disabled{opacity:0.35; cursor:not-allowed;}
+  .btn-ghost{width:100%; padding:12px; border:1px solid var(--hairline); border-radius:10px; background:transparent; color:var(--text-mid); font-size:13px; cursor:pointer; margin-top:8px;}
+
+  /* Retours / échéances / alertes — lignes de type checklist */
+  .action-item{padding:12px 0; border-bottom:1px solid var(--hairline);}
+  .action-item:last-child{border-bottom:none;}
+  .action-top{display:flex; justify-content:space-between; align-items:flex-start; gap:10px;}
+  .action-nom{font-size:13.5px; font-weight:600;}
+  .action-detail{font-family:var(--mono); font-size:10.5px; color:var(--text-mid); margin-top:3px;}
+  .action-tag{font-family:var(--mono); font-size:9.5px; font-weight:700; padding:3px 8px; border-radius:10px; text-transform:uppercase; white-space:nowrap; flex-shrink:0;}
+  .action-tag.retard{background:var(--red-dim); color:var(--red);}
+  .action-tag.aujourdhui{background:var(--amber-dim); color:var(--amber);}
+  .action-tag.proche{background:rgba(79,195,217,0.12); color:var(--cyan);}
+  .btn-inline-action{margin-top:8px; font-family:var(--sans); font-size:11.5px; font-weight:700; padding:7px 12px; border-radius:8px; border:1px solid rgba(52,211,153,0.4); background:rgba(52,211,153,0.08); color:var(--green); cursor:pointer;}
+  .btn-inline-action:active{background:rgba(52,211,153,0.18);}
+  .action-confirm-row{display:flex; gap:8px; margin-top:8px;}
+  .action-confirm-row .mouv-qte{flex:1;}
+  .action-confirm-row .btn-inline-action{margin-top:0; flex-shrink:0;}
+
+  /* Historique */
+  .histo-lot-item{padding:12px 0; border-bottom:1px solid var(--hairline); font-size:12.5px;}
+  .histo-lot-item:last-child{border-bottom:none;}
+  .histo-lot-top{display:flex; justify-content:space-between; gap:10px;}
+  .histo-lot-nom{font-weight:600;}
+  .histo-lot-date{font-family:var(--mono); font-size:10px; color:var(--text-dim); white-space:nowrap;}
+  .histo-lot-detail{margin-top:4px; color:var(--text-mid); font-family:var(--mono); font-size:11px;}
+  .histo-lot-detail.retard{color:var(--red);}
+
+  /* Statistiques */
+  .stat-row{display:flex; justify-content:space-between; align-items:center; padding:9px 0;}
+  .stat-row + .stat-row{border-top:1px solid var(--hairline);}
+  .stat-label{font-size:13px; color:var(--text-mid);}
+  .stat-value{font-family:var(--mono); font-size:15px; font-weight:700; color:var(--text);}
+  .stat-value.amber{color:var(--amber);}
+  .stat-value.green{color:var(--green);}
+  .stat-value.red{color:var(--red);}
+
+  footer{margin-top:auto; padding:16px 20px 24px; font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:center; border-top:1px solid var(--hairline);}
+</style>
+</head>
+<body>
+<div class="phone">
+  <div class="header">
+    <a href="NEXUS-Inventaire-Manager-v1.html" class="menu-btn">☰ Menu</a>
+    <div class="eyebrow">NEXUS · Traçabilité</div>
+    <div class="title" id="titre">Chargement…</div>
+    <div class="sub">Lots, retours fournisseurs, échéances et alertes — pour les produits suivis par lot (SDD, presse).</div>
+  </div>
+  <div class="divider"></div>
+  <div class="onglet-row" id="ongletRow"></div>
+
+  <div class="section desktop-grid" id="content">
+    <div class="loading">Chargement…</div>
+  </div>
+  <footer>NEXUS Traçabilité v1 · Vito Sainte-Marie</footer>
+</div>
+
+<script>
+  // ------------------------------------------------------------
+  // NEXUS Traçabilité (04/08/2026, demande de Frédéric — suite de la
+  // refonte Inventaire) : le manager ne gère pas des "lots" isolément,
+  // il maîtrise la traçabilité de son exploitation. Cette page regroupe
+  // tout le cycle de vie d'un lot (réception → suivi → retour/clôture),
+  // alimentée par inventaire_lots (créée lors de la refonte Inventaire,
+  // §10-11 de l'audit) et inventaire_regles_produit (durée max de vente,
+  // action à l'échéance). Ce n'est volontairement PAS une entrée de menu
+  // mise en avant en permanence : elle n'existe que pour les produits
+  // explicitement configurés en "Durée de vie glissante" ou "Presse"
+  // dans Paramètres → Inventaire → Gestion des profils. Un manager qui
+  // ne vend ni SDD ni presse ne devrait jamais avoir besoin d'y venir.
+  let managerCourant = null;
+  let siteId = 'vito-sainte-marie';
+  let ongletActif = 'lots';
+  let produitsLotTracked = []; // règles produit (profil lot_glissant/presse) + infos produit
+  let tousLesLots = [];
+  let formLotOuvert = false;
+  let formLot = { produitId: '', quantite: '', libelleEdition: '', dateReception: '' };
+  let actionEnConfirmation = null; // id du lot dont la ligne "confirmer le retour" est dépliée
+  let quantiteConfirmation = '';
+
+  const ONGLETS = [
+    { value: 'lots', label: '📦 Lots' },
+    { value: 'retours', label: '🔄 Retours' },
+    { value: 'echeances', label: '📅 Échéances' },
+    { value: 'alertes', label: '🚨 Alertes' },
+    { value: 'historique', label: '📜 Historique' },
+    { value: 'stats', label: '📈 Stats' },
+  ];
+
+  function dateISO() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  }
+  function fmtNum(n) {
+    if (n === null || n === undefined || isNaN(n)) return '—';
+    return Number(n).toLocaleString('fr-FR', { maximumFractionDigits: 2 });
+  }
+  function fmtDateCourte(iso) {
+    if (!iso) return '—';
+    const d = new Date(iso.length === 10 ? iso + 'T00:00:00' : iso);
+    return d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' });
+  }
+  function joursEntre(a, b) {
+    // a, b : Date à minuit — différence entière en jours, jamais arrondie
+    // de façon à masquer un écart réel (Math.round uniquement pour
+    // absorber les décalages d'heure d'été/hiver, pas pour inventer un jour).
+    return Math.round((b - a) / 86400000);
+  }
+  // Position d'un lot dans son cycle de vie — calcul honnête à partir des
+  // deux seules dates réelles connues (date_debut_vente, date_fin_vente).
+  // Si date_fin_vente est absente (durée max non configurée dans le
+  // profil produit), on ne devine jamais une échéance : le lot est traité
+  // comme "conforme" sans compte à rebours.
+  function joursInfo(lot) {
+    const debut = new Date(lot.date_debut_vente + 'T00:00:00');
+    const aujourdhui = new Date(dateISO() + 'T00:00:00');
+    const jourActuel = joursEntre(debut, aujourdhui) + 1;
+    if (!lot.date_fin_vente) return { jourActuel, dureeTotale: null, joursRestants: null };
+    const fin = new Date(lot.date_fin_vente + 'T00:00:00');
+    const dureeTotale = joursEntre(debut, fin) + 1;
+    const joursRestants = joursEntre(aujourdhui, fin);
+    return { jourActuel, dureeTotale, joursRestants };
+  }
+  function urgenceLot(lot) {
+    if (lot.statut === 'retourne' || lot.statut === 'clos') return 'termine';
+    const { joursRestants } = joursInfo(lot);
+    if (joursRestants === null) return 'conforme';
+    if (joursRestants < 0) return 'retard';
+    if (joursRestants === 0) return 'aujourdhui';
+    return 'conforme';
+  }
+  function nomProduit(lot) {
+    return lot.produit ? lot.produit.designation : 'Produit supprimé';
+  }
+
+  async function chargerProduitsLotTracked() {
+    const { data: regles, error } = await nexusClient.from('inventaire_regles_produit')
+      .select('*').eq('site', siteId).in('profil', ['lot_glissant', 'presse']);
+    if (error) { console.error('Chargement règles produit (Traçabilité):', error); return []; }
+    if (!regles.length) return [];
+    const ids = regles.map(r => r.produit_id);
+    const { data: produits, error: e2 } = await nexusClient.from('inventaire_zone_produit')
+      .select('id, designation, categorie_id, inventaire_categories(nom)').in('id', ids);
+    if (e2) { console.error('Chargement produits (Traçabilité):', e2); return []; }
+    const produitsMap = {};
+    (produits || []).forEach(p => { produitsMap[p.id] = p; });
+    return regles.map(r => ({ ...r, produit: produitsMap[r.produit_id] || null })).filter(r => r.produit);
+  }
+
+  async function chargerTousLesLots() {
+    const { data, error } = await nexusClient.from('inventaire_lots')
+      .select('*').eq('site', siteId).order('created_at', { ascending: false }).limit(300);
+    if (error) { console.error('Chargement lots (Traçabilité):', error); return []; }
+    if (!data.length) return [];
+    const ids = [...new Set(data.map(l => l.produit_id))];
+    const { data: produits, error: e2 } = await nexusClient.from('inventaire_zone_produit')
+      .select('id, designation, categorie_id, inventaire_categories(nom)').in('id', ids);
+    if (e2) { console.error('Chargement produits des lots (Traçabilité):', e2); }
+    const produitsMap = {};
+    (produits || []).forEach(p => { produitsMap[p.id] = p; });
+    return data.map(l => ({ ...l, produit: produitsMap[l.produit_id] || null }));
+  }
+
+  async function rechargerLots() {
+    tousLesLots = await chargerTousLesLots();
+  }
+
+  // ------------------------------------------------------------
+  // Onglet Lots — lots actifs (statut en_vente), + création d'un lot à
+  // réception.
+  // ------------------------------------------------------------
+  function renderFormNouveauLot() {
+    if (!produitsLotTracked.length) {
+      return `<div class="empty">Aucun produit n'est configuré en gestion par lot (Durée de vie glissante ou Presse). Configurez-en dans <b>Paramètres → Inventaire → Gestion des profils</b> pour pouvoir créer un lot ici.</div>`;
+    }
+    const options = produitsLotTracked.map(r => `<option value="${r.produit_id}" ${r.produit_id === formLot.produitId ? 'selected' : ''}>${r.produit.designation}${r.profil === 'presse' ? ' (presse)' : ''}</option>`).join('');
+    const regleChoisie = produitsLotTracked.find(r => r.produit_id === formLot.produitId);
+    return `
+      <div class="card" style="margin-bottom:12px; padding:14px;">
+        <select class="mouv-select" id="lotProduit" style="margin-bottom:8px;">
+          <option value="">Choisir un produit…</option>
+          ${options}
+        </select>
+        ${regleChoisie && regleChoisie.profil === 'presse' ? `
+          <input type="text" class="mouv-select" id="lotEdition" placeholder="Édition (ex : France Antilles 04/08)" value="${formLot.libelleEdition}" style="margin-bottom:8px;">
+        ` : ''}
+        <div class="mouv-row">
+          <input type="number" inputmode="decimal" step="0.01" class="mouv-qte" id="lotQuantite" placeholder="Quantité reçue" value="${formLot.quantite}">
+          <input type="date" class="date-input" id="lotDate" value="${formLot.dateReception || dateISO()}">
+        </div>
+        ${regleChoisie && !regleChoisie.duree_max_vente_jours ? `<div class="empty" style="margin-bottom:8px;">La durée max de vente n'est pas encore configurée pour ce produit — allez d'abord dans Paramètres → Inventaire → Gestion des profils.</div>` : ''}
+        <button class="btn-primary" id="btnEnregistrerLot" style="margin-top:0;">Enregistrer ce lot</button>
+      </div>
+    `;
+  }
+
+  async function enregistrerNouveauLot() {
+    const btn = document.getElementById('btnEnregistrerLot');
+    const regle = produitsLotTracked.find(r => r.produit_id === formLot.produitId);
+    if (!regle) { alert('Choisissez un produit.'); return; }
+    if (!regle.duree_max_vente_jours) { alert('Configurez d\'abord la durée max de vente pour ce produit (Paramètres → Inventaire → Gestion des profils).'); return; }
+    const qte = parseFloat(formLot.quantite);
+    if (isNaN(qte) || qte <= 0) { alert('Saisissez une quantité reçue positive.'); return; }
+    const dateReception = formLot.dateReception || dateISO();
+    const debut = new Date(dateReception + 'T00:00:00');
+    const fin = new Date(debut); fin.setDate(fin.getDate() + regle.duree_max_vente_jours - 1);
+    const dateFin = `${fin.getFullYear()}-${String(fin.getMonth()+1).padStart(2,'0')}-${String(fin.getDate()).padStart(2,'0')}`;
+    if (btn) { btn.disabled = true; btn.textContent = 'Enregistrement…'; }
+    const { data, error } = await nexusClient.from('inventaire_lots').insert({
+      site: siteId, produit_id: regle.produit_id, libelle_edition: regle.profil === 'presse' ? (formLot.libelleEdition || null) : null,
+      quantite_recue: qte, recu_le: new Date().toISOString(), date_debut_vente: dateReception, date_fin_vente: dateFin,
+      quantite_restante: qte, statut: 'en_vente', created_by: managerCourant.id,
+    }).select().single();
+    if (error) { console.error('Création lot:', error); alert('Erreur — réessayez.'); if (btn) { btn.disabled = false; btn.textContent = 'Enregistrer ce lot'; } return; }
+    await nexusClient.from('inventaire_audit_log').insert({
+      site: siteId, entite_type: 'inventaire_lots', entite_id: data.id, action: 'creation_lot',
+      nouvelle_valeur: { produit_id: regle.produit_id, quantite: qte, date_fin_vente: dateFin }, acteur_id: managerCourant.id,
+    });
+    formLotOuvert = false;
+    formLot = { produitId: '', quantite: '', libelleEdition: '', dateReception: '' };
+    await rechargerLots();
+    render();
+  }
+
+  function renderLotCard(lot) {
+    const urgence = urgenceLot(lot);
+    const { jourActuel, dureeTotale, joursRestants } = joursInfo(lot);
+    const pct = dureeTotale ? Math.min(100, Math.max(0, (jourActuel / dureeTotale) * 100)) : 0;
+    const badgeTexte = urgence === 'retard' ? `⚠️ En retard (${Math.abs(joursRestants)}j)` : urgence === 'aujourdhui' ? '🟠 Retour aujourd\'hui' : '🟢 Conforme';
+    return `
+      <div class="lot-card">
+        <div class="lot-top">
+          <div>
+            <div class="lot-produit">${nomProduit(lot)}</div>
+            ${lot.libelle_edition ? `<div class="lot-edition">${lot.libelle_edition}</div>` : ''}
+          </div>
+          <div class="lot-badge ${urgence}">${badgeTexte}</div>
+        </div>
+        <div class="lot-meta">Reçu le <b>${fmtDateCourte(lot.recu_le)}</b> · Stock restant : <b>${fmtNum(lot.quantite_restante)}</b> / ${fmtNum(lot.quantite_recue)}</div>
+        ${dureeTotale ? `
+          <div class="lot-jours-row"><span>Jour ${jourActuel} / ${dureeTotale}</span><span>${joursRestants >= 0 ? `${joursRestants} j restant${joursRestants > 1 ? 's' : ''}` : `${Math.abs(joursRestants)} j de retard`}</span></div>
+          <div class="lot-barre"><div class="lot-remplie ${urgence}" style="width:${pct}%;"></div></div>
+        ` : `<div class="lot-jours-row"><span>Durée max non configurée pour ce produit</span></div>`}
+      </div>
+    `;
+  }
+
+  function renderOngletLots() {
+    const actifs = tousLesLots.filter(l => l.statut === 'en_vente').sort((a, b) => {
+      const ja = joursInfo(a).joursRestants, jb = joursInfo(b).joursRestants;
+      if (ja === null) return 1; if (jb === null) return -1;
+      return ja - jb;
+    });
+    return `
+      <div class="section-titre-action-row">
+        <div class="section-titre">Lots actifs (${actifs.length})</div>
+        <button class="btn-tout-valider" id="btnToggleNouveauLot">${formLotOuvert ? 'Annuler' : '+ Nouveau lot'}</button>
+      </div>
+      ${formLotOuvert ? renderFormNouveauLot() : ''}
+      ${actifs.length === 0 ? '<div class="empty">Aucun lot actif pour l\'instant.</div>' : actifs.map(renderLotCard).join('')}
+    `;
+  }
+
+  // ------------------------------------------------------------
+  // Onglet Retours — lots dont l'échéance est atteinte ou dépassée et
+  // dont le profil exige une action physique (retour fournisseur ou
+  // destruction) plutôt qu'une simple alerte manager.
+  // ------------------------------------------------------------
+  function regleDuLot(lot) {
+    return produitsLotTracked.find(r => r.produit_id === lot.produit_id) || null;
+  }
+  function actionRequise(lot) {
+    const regle = regleDuLot(lot);
+    if (!regle || !regle.action_echeance) return null;
+    if (regle.action_echeance === 'retour_fournisseur_obligatoire') return { verbe: 'Retourner', label: 'Retour fournisseur' };
+    if (regle.action_echeance === 'destruction') return { verbe: 'Détruire', label: 'Destruction' };
+    return null; // 'alerte_manager' : signalé seulement dans Alertes/Échéances, pas dans la checklist d'action
+  }
+
+  function renderLigneAction(lot, contexte) {
+    const urgence = urgenceLot(lot);
+    const action = actionRequise(lot);
+    const enEdition = actionEnConfirmation === lot.id;
+    const tagCls = urgence === 'retard' ? 'retard' : urgence === 'aujourdhui' ? 'aujourdhui' : 'proche';
+    const tagTexte = urgence === 'retard' ? 'En retard' : urgence === 'aujourdhui' ? 'Aujourd\'hui' : `J-${joursInfo(lot).joursRestants}`;
+    return `
+      <div class="action-item">
+        <div class="action-top">
+          <div>
+            <div class="action-nom">${nomProduit(lot)}${lot.libelle_edition ? ` · ${lot.libelle_edition}` : ''}</div>
+            <div class="action-detail">Stock restant : ${fmtNum(lot.quantite_restante)}${action ? ` · ${action.label}` : ''}</div>
+          </div>
+          <div class="action-tag ${tagCls}">${tagTexte}</div>
+        </div>
+        ${contexte === 'retours' ? (
+          enEdition ? `
+            <div class="action-confirm-row">
+              <input type="number" inputmode="decimal" step="0.01" class="mouv-qte" id="qteConfirmation" value="${quantiteConfirmation}" placeholder="Qté ${action ? action.verbe.toLowerCase() : 'traitée'}">
+              <button class="btn-inline-action" data-confirmer-retour="${lot.id}">Confirmer</button>
+            </div>
+          ` : `<button class="btn-inline-action" data-ouvrir-retour="${lot.id}">${action ? action.verbe : 'Clôturer'} ce lot</button>`
+        ) : ''}
+      </div>
+    `;
+  }
+
+  function renderOngletRetours() {
+    const aTraiter = tousLesLots.filter(l => l.statut === 'en_vente' && ['retard', 'aujourdhui'].includes(urgenceLot(l)) && actionRequise(l))
+      .sort((a, b) => joursInfo(a).joursRestants - joursInfo(b).joursRestants);
+    return `
+      <div class="section-titre">Aujourd'hui (${aTraiter.length})</div>
+      <div class="note">Lots dont l'échéance est atteinte ou dépassée et qui exigent un retour fournisseur ou une destruction.</div>
+      ${aTraiter.length === 0 ? '<div class="empty">Rien à traiter aujourd\'hui — tous les lots en cours sont dans les temps.</div>' : `<div class="card">${aTraiter.map(l => renderLigneAction(l, 'retours')).join('')}</div>`}
+    `;
+  }
+
+  // ------------------------------------------------------------
+  // Onglet Échéances — vue prévisionnelle (J-2 à J-1), avant que l'action
+  // ne devienne obligatoire dans l'onglet Retours.
+  // ------------------------------------------------------------
+  function renderOngletEcheances() {
+    const proches = tousLesLots.filter(l => l.statut === 'en_vente' && urgenceLot(l) === 'conforme' && joursInfo(l).joursRestants !== null && joursInfo(l).joursRestants <= 2)
+      .sort((a, b) => joursInfo(a).joursRestants - joursInfo(b).joursRestants);
+    return `
+      <div class="section-titre">À venir (${proches.length})</div>
+      <div class="note">Lots arrivant à échéance dans les 2 prochains jours — rien à faire encore, juste de la visibilité.</div>
+      ${proches.length === 0 ? '<div class="empty">Aucune échéance dans les 2 prochains jours.</div>' : `<div class="card">${proches.map(l => renderLigneAction(l, 'echeances')).join('')}</div>`}
+    `;
+  }
+
+  // ------------------------------------------------------------
+  // Onglet Alertes — uniquement des anomalies réellement constatées :
+  // un retour en retard (échéance dépassée sans action). Jamais de
+  // "lots sans mouvement" ici tant que les mouvements ne sont pas encore
+  // reliés à un lot précis (limite assumée, pas un chiffre inventé).
+  // ------------------------------------------------------------
+  function renderOngletAlertes() {
+    const enRetard = tousLesLots.filter(l => l.statut === 'en_vente' && urgenceLot(l) === 'retard')
+      .sort((a, b) => joursInfo(a).joursRestants - joursInfo(b).joursRestants);
+    return `
+      <div class="section-titre">Retours en retard (${enRetard.length})</div>
+      ${enRetard.length === 0 ? '<div class="empty">✅ Aucun retour en retard.</div>' : `<div class="card">${enRetard.map(l => renderLigneAction(l, 'retours')).join('')}</div>`}
+      <div class="note" style="margin-top:16px;">Le suivi des lots sans mouvement n'est pas encore disponible — les mouvements de stock (NEXUS Inventaire) ne sont pas encore reliés à un lot précis.</div>
+    `;
+  }
+
+  // ------------------------------------------------------------
+  // Onglet Historique — lots clôturés (retournés).
+  // ------------------------------------------------------------
+  function renderOngletHistorique() {
+    const clos = tousLesLots.filter(l => l.statut === 'retourne' || l.statut === 'clos')
+      .sort((a, b) => new Date(b.retour_valide_le || b.created_at) - new Date(a.retour_valide_le || a.created_at))
+      .slice(0, 50);
+    return `
+      <div class="section-titre">Lots clôturés (${clos.length})</div>
+      ${clos.length === 0 ? '<div class="empty">Aucun lot clôturé pour l\'instant.</div>' : clos.map(lot => {
+        const enRetardAuMoment = lot.date_fin_vente && lot.retour_valide_le && new Date(lot.retour_valide_le) > new Date(lot.date_fin_vente + 'T23:59:59');
+        return `
+          <div class="histo-lot-item">
+            <div class="histo-lot-top">
+              <div class="histo-lot-nom">${nomProduit(lot)}${lot.libelle_edition ? ` · ${lot.libelle_edition}` : ''}</div>
+              <div class="histo-lot-date">${fmtDateCourte(lot.recu_le)} → ${fmtDateCourte(lot.retour_valide_le)}</div>
+            </div>
+            <div class="histo-lot-detail ${enRetardAuMoment ? 'retard' : ''}">Reçu ${fmtNum(lot.quantite_recue)} · Retourné ${fmtNum(lot.quantite_retour)}${enRetardAuMoment ? ' · retourné en retard' : ''}</div>
+          </div>
+        `;
+      }).join('')}
+    `;
+  }
+
+  // ------------------------------------------------------------
+  // Onglet Statistiques — agrégats réels uniquement, sur les lots
+  // effectivement clôturés. N'affiche "—" plutôt qu'un zéro trompeur
+  // quand la donnée manque, même principe que chargerStatsSimulation()
+  // dans NEXUS-Inventaire-Manager-v1.html.
+  // ------------------------------------------------------------
+  function renderOngletStats() {
+    const clos = tousLesLots.filter(l => l.statut === 'retourne' && l.retour_valide_le);
+    if (!clos.length) {
+      return `<div class="empty">Historique encore insuffisant pour calculer des statistiques — aucun lot clôturé pour l'instant.</div>`;
+    }
+    const durees = clos.map(l => joursEntre(new Date(l.recu_le), new Date(l.retour_valide_le)));
+    const dureeMoyenne = Math.round((durees.reduce((s, d) => s + d, 0) / durees.length) * 10) / 10;
+    const avecEcheance = clos.filter(l => l.date_fin_vente);
+    const aTemps = avecEcheance.filter(l => new Date(l.retour_valide_le) <= new Date(l.date_fin_vente + 'T23:59:59'));
+    const pctATemps = avecEcheance.length ? Math.round((aTemps.length / avecEcheance.length) * 100) : null;
+    const retards = {};
+    avecEcheance.filter(l => new Date(l.retour_valide_le) > new Date(l.date_fin_vente + 'T23:59:59')).forEach(l => {
+      const nom = nomProduit(l); retards[nom] = (retards[nom] || 0) + 1;
+    });
+    const topRetards = Object.entries(retards).sort((a, b) => b[1] - a[1]).slice(0, 3);
+    return `
+      <div class="card" style="padding:4px 14px; margin-bottom:14px;">
+        <div class="stat-row"><span class="stat-label">Lots clôturés</span><span class="stat-value">${clos.length}</span></div>
+        <div class="stat-row"><span class="stat-label">Durée moyenne réception → retour</span><span class="stat-value">${dureeMoyenne} j</span></div>
+        <div class="stat-row"><span class="stat-label">Retournés dans les temps</span><span class="stat-value ${pctATemps !== null && pctATemps < 80 ? 'amber' : 'green'}">${pctATemps !== null ? pctATemps + ' %' : '—'}</span></div>
+      </div>
+      ${topRetards.length ? `
+        <div class="section-titre">Produits les plus souvent en retard</div>
+        <div class="card">
+          ${topRetards.map(([nom, n]) => `<div class="stat-row"><span class="stat-label">${nom}</span><span class="stat-value amber">${n}</span></div>`).join('')}
+        </div>
+      ` : ''}
+    `;
+  }
+
+  // ------------------------------------------------------------
+  // Rendu général + wiring
+  // ------------------------------------------------------------
+  function compteurOnglet(value) {
+    if (value === 'retours') return tousLesLots.filter(l => l.statut === 'en_vente' && ['retard', 'aujourdhui'].includes(urgenceLot(l)) && actionRequise(l)).length;
+    if (value === 'alertes') return tousLesLots.filter(l => l.statut === 'en_vente' && urgenceLot(l) === 'retard').length;
+    return 0;
+  }
+
+  function renderOnglets() {
+    document.getElementById('ongletRow').innerHTML = ONGLETS.map(o => {
+      const n = compteurOnglet(o.value);
+      return `<div class="onglet ${ongletActif === o.value ? 'active' : ''}" data-onglet="${o.value}">${o.label}${n > 0 ? `<span class="onglet-badge">${n}</span>` : ''}</div>`;
+    }).join('');
+    document.querySelectorAll('[data-onglet]').forEach(el => el.addEventListener('click', () => {
+      ongletActif = el.dataset.onglet;
+      formLotOuvert = false; actionEnConfirmation = null;
+      render();
+    }));
+  }
+
+  function render() {
+    renderOnglets();
+    const content = document.getElementById('content');
+    if (ongletActif === 'lots') content.innerHTML = renderOngletLots();
+    else if (ongletActif === 'retours') content.innerHTML = renderOngletRetours();
+    else if (ongletActif === 'echeances') content.innerHTML = renderOngletEcheances();
+    else if (ongletActif === 'alertes') content.innerHTML = renderOngletAlertes();
+    else if (ongletActif === 'historique') content.innerHTML = renderOngletHistorique();
+    else if (ongletActif === 'stats') content.innerHTML = renderOngletStats();
+    wire();
+  }
+
+  function wire() {
+    const btnToggleLot = document.getElementById('btnToggleNouveauLot');
+    if (btnToggleLot) btnToggleLot.addEventListener('click', () => {
+      formLotOuvert = !formLotOuvert;
+      if (formLotOuvert && !formLot.dateReception) formLot.dateReception = dateISO();
+      render();
+    });
+    const selProduit = document.getElementById('lotProduit');
+    if (selProduit) selProduit.addEventListener('change', () => { formLot.produitId = selProduit.value; render(); });
+    const inputEdition = document.getElementById('lotEdition');
+    if (inputEdition) inputEdition.addEventListener('input', () => { formLot.libelleEdition = inputEdition.value; });
+    const inputQte = document.getElementById('lotQuantite');
+    if (inputQte) inputQte.addEventListener('input', () => { formLot.quantite = inputQte.value; });
+    const inputDate = document.getElementById('lotDate');
+    if (inputDate) inputDate.addEventListener('change', () => { formLot.dateReception = inputDate.value; });
+    const btnEnregistrerLot = document.getElementById('btnEnregistrerLot');
+    if (btnEnregistrerLot) btnEnregistrerLot.addEventListener('click', enregistrerNouveauLot);
+
+    document.querySelectorAll('[data-ouvrir-retour]').forEach(el => el.addEventListener('click', () => {
+      actionEnConfirmation = el.dataset.ouvrirRetour;
+      const lot = tousLesLots.find(l => l.id === actionEnConfirmation);
+      quantiteConfirmation = lot ? String(lot.quantite_restante) : '';
+      render();
+    }));
+    document.querySelectorAll('[data-confirmer-retour]').forEach(el => el.addEventListener('click', () => confirmerRetour(el.dataset.confirmerRetour)));
+    const inputQteConfirm = document.getElementById('qteConfirmation');
+    if (inputQteConfirm) inputQteConfirm.addEventListener('input', () => { quantiteConfirmation = inputQteConfirm.value; });
+  }
+
+  async function confirmerRetour(lotId) {
+    const qte = parseFloat(String(quantiteConfirmation).replace(',', '.'));
+    if (isNaN(qte) || qte < 0) { alert('Saisissez une quantité valide.'); return; }
+    const btn = document.querySelector(`[data-confirmer-retour="${lotId}"]`);
+    if (btn) { btn.disabled = true; btn.textContent = 'Enregistrement…'; }
+    const { error } = await nexusClient.from('inventaire_lots').update({
+      statut: 'retourne', quantite_retour: qte, retour_valide_le: new Date().toISOString(),
+    }).eq('id', lotId);
+    if (error) { console.error('Validation retour lot:', error); alert('Erreur — réessayez.'); if (btn) { btn.disabled = false; btn.textContent = 'Confirmer'; } return; }
+    await nexusClient.from('inventaire_audit_log').insert({
+      site: siteId, entite_type: 'inventaire_lots', entite_id: lotId, action: 'validation_retour_lot',
+      nouvelle_valeur: { quantite_retour: qte }, acteur_id: managerCourant.id,
+    });
+    actionEnConfirmation = null; quantiteConfirmation = '';
+    await rechargerLots();
+    render();
+  }
+
+  // ------------------------------------------------------------
+  // INITIALISATION
+  // ------------------------------------------------------------
+  nexusRequireAuth().then(async employee => {
+    if (!employee) return;
+    if (employee.role !== 'manager' && employee.role !== 'gerant') {
+      document.body.innerHTML = '<div class="locked">Cet écran est réservé aux managers.</div>';
+      return;
+    }
+    managerCourant = employee;
+    siteId = employee.site_id || 'vito-sainte-marie';
+    document.getElementById('titre').textContent = 'Traçabilité';
+
+    produitsLotTracked = await chargerProduitsLotTracked();
+    tousLesLots = await chargerTousLesLots();
+    render();
+  });
+</script>
+</body>
+</html>
