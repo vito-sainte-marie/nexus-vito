@@ -42,7 +42,7 @@ const NEXUS_SIDEBAR_GROUPES = [
   {
     nom: 'Piloter',
     items: [
-      { label: 'Brief NEXUS', href: 'NEXUS-Brief-v1.html', icon: null, emoji: '👔' },
+      { label: 'Brief NEXUS', href: 'NEXUS-Brief-v1.html', icon: 'assets/icons/icon-brief-nexus.png' },
       { label: 'Cockpit', href: 'NEXUS-Cockpit-v2.html', icon: 'assets/icons/icon-home.png' },
       { label: 'Journal', href: 'NEXUS-Journal-v1.html', icon: 'assets/icons/icon-journal-nexus.png' },
       { label: 'Capital NEXUS', href: 'NEXUS-Capital-v1.html', icon: 'assets/icons/icon-capital.png' },
@@ -103,10 +103,10 @@ function nexusConstruireSidebarHTML() {
   `).join('');
 
   return `
-    <div class="nexus-sidebar-brand">
+    <a class="nexus-sidebar-brand" href="NEXUS-App-v1.html" title="Retour à l'accueil NEXUS">
       <img src="nexus-avatar.png" alt="NEXUS">
       <span>NEXUS</span>
-    </div>
+    </a>
     <div class="nexus-sidebar-scroll">
       <a class="nexus-sidebar-link${pageActuelle === 'NEXUS-App-v1.html' ? ' active' : ''}" href="NEXUS-App-v1.html" style="margin-bottom:8px;">
         <img src="assets/icons/icon-home.png" alt="">
@@ -135,7 +135,7 @@ const NEXUS_DESKTOP_CSS = `
     display:flex; flex-direction:column; min-height:100vh; position:sticky; top:0; align-self:flex-start;
     font-family:'IBM Plex Sans',sans-serif;
   }
-  .nexus-sidebar-brand{display:flex; align-items:center; gap:10px; padding:20px 18px 16px;}
+  .nexus-sidebar-brand{display:flex; align-items:center; gap:10px; padding:20px 18px 16px; text-decoration:none; cursor:pointer;}
   .nexus-sidebar-brand img{width:30px; height:30px; border-radius:8px; object-fit:cover;}
   .nexus-sidebar-brand span{font-family:'IBM Plex Mono',monospace; font-size:13px; font-weight:700; color:#EDF1F5; letter-spacing:0.03em;}
   .nexus-sidebar-scroll{flex:1; overflow-y:auto; padding:0 10px 16px;}
