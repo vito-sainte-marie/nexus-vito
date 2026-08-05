@@ -327,7 +327,20 @@
 
         if (missionsEmp.length > 0) {
           html += `<div style="margin-top:10px;">`;
-          missionsEmp.slice(0, 5).forEach(m => {
+          // Corrigé (04/08/2026, signalé par Frédéric — "je n'arrive pas à
+          // valider les points de Dylan en attente") : la liste ne montrait
+          // que les 5 missions les plus récentes, alors que le badge "+X en
+          // attente" du haut compte TOUTES les missions non validées. Une
+          // mission en attente plus ancienne que les 5 dernières n'avait
+          // donc tout simplement aucun bouton "✓ Valider" affiché nulle
+          // part — les points restaient bloqués sans que le manager puisse
+          // agir. Toutes les missions en attente sont désormais toujours
+          // affichées ; les emplacements restants (jusqu'à 5 au total) sont
+          // complétés par les missions déjà validées les plus récentes.
+          const missionsEnAttente = missionsEmp.filter(m => !estValidee(m));
+          const missionsValidees = missionsEmp.filter(estValidee);
+          const missionsAffichees = [...missionsEnAttente, ...missionsValidees.slice(0, Math.max(0, 5 - missionsEnAttente.length))];
+          missionsAffichees.forEach(m => {
             const photo = m.photo_fournie
               ? (m.photo_url ? `<a href="${m.photo_url}" target="_blank" rel="noopener" style="text-decoration:none;">📷</a>` : '📷 <span style="opacity:0.5; font-size:9.5px;">(non conservée)</span>')
               : '';
