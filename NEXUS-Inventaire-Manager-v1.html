@@ -327,6 +327,21 @@
   let rouvertureFormOuvert = false; // "Rouvrir la clôture" — formulaire de motif déplié (02/08/2026)
   let dernierCtx = null;
 
+  // Correction rétroactive (04/08/2026, audit fonctionnel §25-28) : le
+  // manager choisit un produit/date/quart, voit la valeur initiale (jamais
+  // écrasée — un nouveau comptage est ajouté à côté, chaîné via
+  // comptage_source_id) et confirme avec un motif. sectionCorrectionOuverte
+  // suit le même principe de repli que "Paramètres de contrôle inventaire".
+  let sectionCorrectionOuverte = false;
+  let correctionForm = { date: '', quart: 'matin', produitId: '', typeComptage: 'ouverture', correctionType: 'erreur_saisie' };
+  let correctionChargee = null; // { quart, comptage, impact } une fois "Charger" cliqué
+  let produitsPourCorrection = []; // chargé une seule fois, à la première ouverture de la section
+
+  // "Résoudre avec NEXUS" (04/08/2026, audit §22) : sur une alerte d'écart
+  // d'ouverture, propose directement les hypothèses les plus probables au
+  // lieu de laisser le manager reconstruire toute l'histoire à la main.
+  let resoudreNexusOuvertes = new Set(); // ids d'alertes dont le panneau est déplié
+
   // Paramètres de supervision configurable (02/08/2026, évolution demandée
   // par Frédéric — "NEXUS Inventaire — Supervision configurable") : la
   // fréquence de contrôle du manager (quotidien/hebdo/mensuel/exception)
@@ -373,6 +388,22 @@
     { value: 'explication', label: 'Explication reçue', cls: 'explication', texte: "Explication reçue de l'employé." },
     { value: 'erreur_saisie', label: 'Erreur de saisie', cls: 'erreur', texte: 'Erreur de saisie confirmée — écart non réel.' },
     { value: 'demarque', label: 'Démarque à surveiller', cls: 'demarque', texte: 'Démarque à surveiller — signalé pour suivi.' },
+  ];
+
+  // Options "Résoudre avec NEXUS" (04/08/2026, audit §22) — les cinq
+  // premières écrivent directement un mouvement structuré (même journal que
+  // côté employé) puis résolvent l'alerte avec la décision "Explication
+  // reçue" ; les deux dernières n'écrivent pas de mouvement (recomptage =
+  // décision existante, correction = renvoie vers la section Correction
+  // rétroactive pré-remplie).
+  const RESOLUTIONS_NEXUS = [
+    { value: 'livraison', label: 'Livraison', sens: 'entrant' },
+    { value: 'reassort', label: 'Réassort', sens: 'entrant' },
+    { value: 'casse', label: 'Casse', sens: 'sortant' },
+    { value: 'produit_abime', label: 'Produit abîmé', sens: 'sortant' },
+    { value: 'retour_fournisseur', label: 'Retour fournisseur', sens: 'sortant' },
+    { value: 'recomptage', label: 'Recomptage', special: 'recomptage' },
+    { value: 'correction_stock_transmis', label: 'Corriger le stock transmis', special: 'correction' },
   ];
 
   function heureLocale() {
@@ -688,6 +719,43 @@
     const ok = await resoudreAlerteSansRecharger(alerteId, decision, commentaireLibre);
     if (!ok) alert('Erreur — réessayez.');
     await chargerEtAfficherTout();
+  }
+
+  // "Résoudre avec NEXUS" (04/08/2026, audit §22) : le manager choisit
+  // l'hypothèse la plus probable sans reconstruire l'historique à la main.
+  // Les 5 premières options écrivent un vrai mouvement structuré (même
+  // table que côté employé, donc visible dans les futurs rapprochements),
+  // puis résolvent l'alerte avec une note explicite — jamais une résolution
+  // silencieuse déconnectée d'une donnée réelle.
+  async function resoudreAvecNexus(alerte, optionValue) {
+    const option = RESOLUTIONS_NEXUS.find(o => o.value === optionValue);
+    if (!option) return;
+
+    if (option.special === 'recomptage') {
+      await resoudreAlerte(alerte.id, DECISIONS.find(d => d.value === 'recomptage'), 'Résolu via Résoudre avec NEXUS.');
+      return;
+    }
+    if (option.special === 'correction') {
+      sectionCorrectionOuverte = true;
+      correctionForm = {
+        date: dateSelectionnee || dateISO(), quart: quartSelectionne, produitId: alerte.produit_id,
+        typeComptage: 'ouverture', correctionType: 'erreur_saisie',
+      };
+      renderTout(dernierCtx);
+      setTimeout(() => { document.getElementById('sectionCorrectionRetroactive')?.scrollIntoView({ behavior: 'smooth' }); }, 50);
+      return;
+    }
+
+    const ecartAbs = (alerte.valeur_constatee != null && alerte.valeur_attendue != null) ? Math.abs(alerte.valeur_constatee - alerte.valeur_attendue) : 0;
+    const quantite = option.sens === 'sortant' ? -ecartAbs : ecartAbs;
+    const { error } = await nexusClient.from('inventaire_mouvements').insert({
+      site: siteId, quart_id: alerte.quart_id, produit_id: alerte.produit_id, type_mouvement: option.value,
+      quantite, employee_id: managerCourant.id, justification: 'Ajouté par le manager via Résoudre avec NEXUS.',
+      reason_code: option.value, statut_validation: 'valide',
+    });
+    if (error) { console.error('Résoudre avec NEXUS (mouvement):', error); alert('Erreur — réessayez.'); return; }
+    const decision = DECISIONS.find(d => d.value === 'explication');
+    await resoudreAlerte(alerte.id, decision, `Résolu via Résoudre avec NEXUS : ${option.label} (${quantite > 0 ? '+' : ''}${fmtNum(quantite)}) ajouté au journal des mouvements.`);
   }
 
   // Tout valider (02/08/2026, demande de Frédéric) : résout chaque alerte
@@ -1301,6 +1369,16 @@
           ${ecart !== null ? `<span>Écart : <b>${ecart > 0 ? '+' : ''}${fmtNum(ecart)}</b></span>` : ''}
         </div>
         ${a.resolution ? `<div class="alerte-note">Note : « ${a.resolution} »</div>` : ''}
+        ${!estDemarque && !estClotureIncomplete ? `
+        <button type="button" class="btn-inline-lien btn-resoudre-toggle" data-id="${a.id}" style="margin:8px 0 4px;">
+          🤖 Résoudre avec NEXUS ${resoudreNexusOuvertes.has(a.id) ? '▾' : '▸'}
+        </button>
+        ${resoudreNexusOuvertes.has(a.id) ? `
+          <div class="decision-row">
+            ${RESOLUTIONS_NEXUS.map(o => `<button class="btn-decision" data-id="${a.id}" data-resoudre-nexus="${o.value}">${o.label}</button>`).join('')}
+          </div>
+        ` : ''}
+        ` : ''}
         <input type="text" class="alerte-commentaire-input" id="commentaire-${a.id}" placeholder="Commentaire (facultatif)">
         <div class="decision-row">
           ${DECISIONS.map(d => `<button class="btn-decision ${d.cls}" data-id="${a.id}" data-decision="${d.value}">${d.label}</button>`).join('')}
@@ -1349,6 +1427,233 @@
         </div>
       </div>
     `;
+  }
+
+  // ------------------------------------------------------------
+  // CORRECTION RÉTROACTIVE (04/08/2026, audit fonctionnel §25-28) — un
+  // manager peut corriger un produit sur une date/quart précis, même après
+  // clôture. Règle non négociable : la valeur initiale ne disparaît jamais
+  // — on ajoute un nouveau comptage chaîné (comptage_source_id) plutôt que
+  // d'écraser l'existant, et tout passe par inventaire_corrections +
+  // inventaire_audit_log.
+  // ------------------------------------------------------------
+  const TYPES_MOUVEMENT_MANAGER = [
+    { value: 'livraison', label: 'Livraison fournisseur', sens: 'entrant' },
+    { value: 'reassort', label: 'Réassort depuis la réserve', sens: 'entrant' },
+    { value: 'transfert_recu', label: 'Transfert reçu', sens: 'entrant' },
+    { value: 'retour_recu', label: "Retour d'un produit sorti", sens: 'entrant' },
+    { value: 'casse', label: 'Casse', sens: 'sortant' },
+    { value: 'produit_abime', label: 'Produit abîmé', sens: 'sortant' },
+    { value: 'perime', label: 'Produit périmé', sens: 'sortant' },
+    { value: 'retour_fournisseur', label: 'Retour fournisseur', sens: 'sortant' },
+    { value: 'retrait_interne', label: 'Retrait interne', sens: 'sortant' },
+    { value: 'autre', label: 'Autre', sens: 'sortant' },
+  ];
+
+  async function chargerProduitsPourCorrection() {
+    if (produitsPourCorrection.length) return produitsPourCorrection;
+    produitsPourCorrection = await chargerTousProduitsActifsSite(siteId);
+    return produitsPourCorrection;
+  }
+
+  async function chargerComptageActuel(produitId, quartId, typeComptage) {
+    const { data, error } = await nexusClient.from('inventaire_comptages')
+      .select('*').eq('produit_id', produitId).eq('quart_id', quartId).eq('type_comptage', typeComptage)
+      .order('compte_le', { ascending: false }).limit(1).maybeSingle();
+    if (error) { console.error('Chargement comptage (correction):', error); return null; }
+    return data;
+  }
+
+  // Impact de premier ordre uniquement (04/08/2026) — jamais un chiffre
+  // inventé sur une chaîne complète qu'on ne garantit pas avoir parcourue :
+  // on compte les comptages qui référencent DIRECTEMENT celui-ci comme
+  // comptage_source_id, on ne prétend pas recalculer toute la suite.
+  async function chargerImpactCorrection(comptageId) {
+    const { count, error } = await nexusClient.from('inventaire_comptages')
+      .select('id', { count: 'exact', head: true }).eq('comptage_source_id', comptageId);
+    if (error) { console.error('Chargement impact correction:', error); return 0; }
+    return count || 0;
+  }
+
+  async function chargerEtAfficherCorrection() {
+    const resultatEl = document.getElementById('correctionResultat');
+    if (!resultatEl) return;
+    resultatEl.innerHTML = '<div class="loading">Chargement…</div>';
+    const quart = await chargerQuart(siteId, correctionForm.date, correctionForm.quart);
+    if (!quart) { resultatEl.innerHTML = '<div class="empty">Aucun inventaire trouvé pour cette date et ce quart.</div>'; correctionChargee = null; return; }
+
+    if (correctionForm.correctionType === 'mouvement_oublie') {
+      correctionChargee = { quart, comptage: null, impact: 0 };
+      resultatEl.innerHTML = renderFormulaireCorrectionCorps();
+      wirerFormulaireCorrection();
+      return;
+    }
+    if (!correctionForm.produitId) { resultatEl.innerHTML = '<div class="empty">Choisissez un produit.</div>'; correctionChargee = null; return; }
+    const comptage = await chargerComptageActuel(correctionForm.produitId, quart.id, correctionForm.typeComptage);
+    if (!comptage) { resultatEl.innerHTML = '<div class="empty">Aucun comptage enregistré pour ce produit à cette date, ce quart et cette phase.</div>'; correctionChargee = null; return; }
+    const impact = await chargerImpactCorrection(comptage.id);
+    correctionChargee = { quart, comptage, impact };
+    resultatEl.innerHTML = renderFormulaireCorrectionCorps();
+    wirerFormulaireCorrection();
+  }
+
+  function renderChampsCommunsCorrection() {
+    return `
+      <input type="text" id="correctionCommentaire" class="mouv-justif" placeholder="Motif (ex : erreur de saisie constatée lors du contrôle papier)">
+      ${correctionForm.correctionType !== 'mouvement_oublie' ? `
+      <div style="font-size:11.5px; color:var(--text-mid); margin:2px 0 10px;">
+        <label style="display:flex; align-items:center; gap:6px; margin-bottom:4px; cursor:pointer;"><input type="radio" name="correctionPropagation" value="session_seule" checked> Corriger uniquement cette session</label>
+        <label style="display:flex; align-items:center; gap:6px; cursor:pointer;"><input type="radio" name="correctionPropagation" value="cascade"> Corriger et signaler les sessions suivantes pour recomptage</label>
+      </div>` : ''}
+      <button class="btn-primary" id="btnConfirmerCorrection" style="margin-top:0;">Confirmer la correction</button>
+    `;
+  }
+
+  function renderFormulaireCorrectionCorps() {
+    if (!correctionChargee) return '';
+    if (correctionForm.correctionType === 'mouvement_oublie') {
+      return `
+        <div class="mouv-row">
+          <select class="mouv-select" id="correctionTypeMouvement">${TYPES_MOUVEMENT_MANAGER.map(t => `<option value="${t.value}">${t.label}</option>`).join('')}</select>
+          <input type="number" inputmode="decimal" class="mouv-qte" id="correctionQuantiteMouvement" placeholder="Qté">
+        </div>
+        ${renderChampsCommunsCorrection()}
+      `;
+    }
+    const c = correctionChargee.comptage;
+    return `
+      <div class="alerte-valeurs" style="margin-bottom:10px;"><span>Valeur initiale : <b>${fmtNum(c.quantite)}</b></span></div>
+      <input type="number" inputmode="decimal" step="0.01" class="produit-input" id="correctionNouvelleValeur" placeholder="Nouvelle valeur" style="width:100%; margin-bottom:8px; text-align:left;">
+      ${correctionChargee.impact > 0
+        ? `<div class="mission-photo" style="color:var(--amber); margin-bottom:8px;">⚠️ ${correctionChargee.impact} comptage${correctionChargee.impact > 1 ? 's' : ''} ultérieur${correctionChargee.impact > 1 ? 's' : ''} référence${correctionChargee.impact > 1 ? 'nt' : ''} directement cette valeur.</div>`
+        : `<div class="mission-photo" style="color:var(--text-dim); margin-bottom:8px;">Aucun comptage ultérieur ne dépend directement de cette valeur.</div>`}
+      ${renderChampsCommunsCorrection()}
+    `;
+  }
+
+  function renderSectionCorrectionRetroactive() {
+    const optionsProduits = produitsPourCorrection.length
+      ? Object.entries(produitsPourCorrection.reduce((acc, p) => {
+          const cat = p.inventaire_categories ? p.inventaire_categories.nom : 'Autres';
+          (acc[cat] = acc[cat] || []).push(p);
+          return acc;
+        }, {})).map(([cat, items]) => `<optgroup label="${cat}">${items.map(p => `<option value="${p.id}" ${p.id === correctionForm.produitId ? 'selected' : ''}>${p.designation}</option>`).join('')}</optgroup>`).join('')
+      : `<option value="">Chargement des produits…</option>`;
+
+    return `
+      <div id="sectionCorrectionRetroactive" class="card" style="margin-bottom:10px; padding:14px;">
+        <div class="ventes-desc" style="margin-bottom:12px;">Corrigez un produit sur une date et un quart précis, même après clôture. La valeur initiale n'est jamais supprimée — une nouvelle valeur est ajoutée à côté, avec le motif.</div>
+        <div class="quart-select-row">
+          <input type="date" id="correctionDate" class="date-input" value="${correctionForm.date || dateISO()}">
+          <div class="quart-pill ${correctionForm.quart === 'matin' ? 'active' : ''}" data-correction-quart="matin">Matin</div>
+          <div class="quart-pill ${correctionForm.quart === 'soir' ? 'active' : ''}" data-correction-quart="soir">Soir</div>
+        </div>
+        <select class="mouv-select" id="correctionType" style="width:100%; margin-bottom:8px;">
+          <option value="erreur_saisie" ${correctionForm.correctionType === 'erreur_saisie' ? 'selected' : ''}>Corriger une erreur de saisie</option>
+          <option value="stock_retenu" ${correctionForm.correctionType === 'stock_retenu' ? 'selected' : ''}>Modifier le stock retenu</option>
+          <option value="mouvement_oublie" ${correctionForm.correctionType === 'mouvement_oublie' ? 'selected' : ''}>Ajouter un mouvement oublié</option>
+        </select>
+        ${correctionForm.correctionType !== 'mouvement_oublie' ? `
+        <select class="mouv-select" id="correctionTypeComptage" style="width:100%; margin-bottom:8px;">
+          <option value="ouverture" ${correctionForm.typeComptage === 'ouverture' ? 'selected' : ''}>Comptage d'ouverture</option>
+          <option value="cloture" ${correctionForm.typeComptage === 'cloture' ? 'selected' : ''}>Comptage de clôture</option>
+        </select>` : ''}
+        <select class="mouv-select" id="correctionProduit" style="width:100%; margin-bottom:8px;">${optionsProduits}</select>
+        <button class="btn-ghost" id="btnChargerCorrection" style="margin-top:0;">Charger</button>
+        <div id="correctionResultat" style="margin-top:10px;">${correctionChargee ? renderFormulaireCorrectionCorps() : ''}</div>
+      </div>
+    `;
+  }
+
+  function wirerFormulaireCorrection() {
+    const btnConfirmer = document.getElementById('btnConfirmerCorrection');
+    if (btnConfirmer) btnConfirmer.addEventListener('click', appliquerCorrectionRetroactive);
+  }
+
+  async function appliquerCorrectionRetroactive() {
+    const commentaireEl = document.getElementById('correctionCommentaire');
+    const commentaire = commentaireEl ? commentaireEl.value.trim() : '';
+    const propagationEl = document.querySelector('input[name="correctionPropagation"]:checked');
+    const propagation = propagationEl ? propagationEl.value : 'session_seule';
+    const btnConfirmer = document.getElementById('btnConfirmerCorrection');
+
+    if (correctionForm.correctionType === 'mouvement_oublie') {
+      const typeMouvEl = document.getElementById('correctionTypeMouvement');
+      const qteEl = document.getElementById('correctionQuantiteMouvement');
+      const qteSaisie = parseFloat(qteEl.value);
+      if (!correctionForm.produitId) { alert('Choisissez un produit.'); return; }
+      if (isNaN(qteSaisie) || qteSaisie < 0) { alert('Saisissez une quantité positive.'); return; }
+      const infoType = TYPES_MOUVEMENT_MANAGER.find(t => t.value === typeMouvEl.value);
+      const qte = infoType.sens === 'sortant' ? -Math.abs(qteSaisie) : Math.abs(qteSaisie);
+      if (btnConfirmer) { btnConfirmer.disabled = true; btnConfirmer.textContent = 'Enregistrement…'; }
+      const { error } = await nexusClient.from('inventaire_mouvements').insert({
+        site: siteId, quart_id: correctionChargee.quart.id, produit_id: correctionForm.produitId,
+        type_mouvement: typeMouvEl.value, quantite: qte, employee_id: managerCourant.id,
+        justification: commentaire || null, reason_code: typeMouvEl.value, statut_validation: 'valide',
+      });
+      if (error) { console.error('Mouvement oublié:', error); alert('Erreur — réessayez.'); if (btnConfirmer) { btnConfirmer.disabled = false; btnConfirmer.textContent = 'Confirmer la correction'; } return; }
+      await nexusClient.from('inventaire_corrections').insert({
+        site: siteId, quart_id: correctionChargee.quart.id, produit_id: correctionForm.produitId,
+        correction_type: 'mouvement_oublie', commentaire, operational_date: correctionForm.date, quart: correctionForm.quart,
+        created_by: managerCourant.id, propagation_mode: 'session_seule', affected_sessions_count: 0, status: 'appliquee',
+      });
+      await nexusClient.from('inventaire_audit_log').insert({
+        site: siteId, quart_id: correctionChargee.quart.id, entite_type: 'inventaire_mouvements', entite_id: null,
+        action: 'ajout_mouvement_oublie', nouvelle_valeur: { type_mouvement: typeMouvEl.value, quantite: qte },
+        acteur_id: managerCourant.id, motif: commentaire || null,
+      });
+      document.getElementById('correctionResultat').innerHTML = `<div class="alerte-note">✓ Mouvement ajouté rétroactivement (${infoType.label}, ${qte > 0 ? '+' : ''}${fmtNum(qte)}).</div>`;
+      correctionChargee = null;
+      return;
+    }
+
+    const nouvelleValeurEl = document.getElementById('correctionNouvelleValeur');
+    const nouvelleValeur = parseFloat(nouvelleValeurEl.value);
+    if (isNaN(nouvelleValeur)) { alert('Saisissez la nouvelle valeur.'); return; }
+    const ancien = correctionChargee.comptage;
+    if (btnConfirmer) { btnConfirmer.disabled = true; btnConfirmer.textContent = 'Enregistrement…'; }
+
+    const { error: e1 } = await nexusClient.from('inventaire_comptages').insert({
+      site: siteId, quart_id: ancien.quart_id, produit_id: ancien.produit_id, type_comptage: ancien.type_comptage,
+      quantite: nouvelleValeur, comptage_source_id: ancien.id, quantite_transmise: ancien.quantite_transmise,
+      employee_id: managerCourant.id, source: 'correction_manager', commentaire: commentaire || null, statut: 'valide',
+    });
+    if (e1) { console.error('Comptage corrigé:', e1); alert('Erreur — réessayez.'); if (btnConfirmer) { btnConfirmer.disabled = false; btnConfirmer.textContent = 'Confirmer la correction'; } return; }
+
+    await nexusClient.from('inventaire_corrections').insert({
+      site: siteId, quart_id: ancien.quart_id, produit_id: ancien.produit_id,
+      correction_type: correctionForm.correctionType, old_value: ancien.quantite, new_value: nouvelleValeur,
+      commentaire, operational_date: correctionForm.date, quart: correctionForm.quart,
+      created_by: managerCourant.id, propagation_mode: propagation, affected_sessions_count: correctionChargee.impact,
+      status: 'validee',
+    });
+
+    await nexusClient.from('inventaire_audit_log').insert({
+      site: siteId, quart_id: ancien.quart_id, entite_type: 'inventaire_comptages', entite_id: ancien.id,
+      action: 'correction_retroactive', ancienne_valeur: { quantite: ancien.quantite }, nouvelle_valeur: { quantite: nouvelleValeur },
+      acteur_id: managerCourant.id, motif: commentaire || null,
+    });
+
+    // Cascade (04/08/2026, audit §26) : signale pour recomptage les
+    // comptages directement dépendants plutôt que de prétendre les
+    // recalculer automatiquement — honnête sur ce que NEXUS sait vraiment.
+    if (propagation === 'cascade' && correctionChargee.impact > 0) {
+      const { data: dependants } = await nexusClient.from('inventaire_comptages')
+        .select('id, quart_id').eq('comptage_source_id', ancien.id);
+      for (const dep of (dependants || [])) {
+        await nexusClient.from('inventaire_alertes').insert({
+          site: siteId, quart_id: dep.quart_id, produit_id: ancien.produit_id, type_alerte: 'ecart_ouverture',
+          gravite: 'attention', valeur_attendue: nouvelleValeur, valeur_constatee: null,
+          resolution: 'Recomptage nécessaire suite à une correction rétroactive du stock transmis.',
+          categorie_anomalie: 'continuite',
+        });
+      }
+    }
+
+    document.getElementById('correctionResultat').innerHTML = `
+      <div class="alerte-note">✓ Correction appliquée. Valeur initiale conservée : <b>${fmtNum(ancien.quantite)}</b> → nouvelle valeur : <b>${fmtNum(nouvelleValeur)}</b>.</div>
+    `;
+    correctionChargee = null;
   }
 
   // Paramètres de contrôle inventaire (02/08/2026, évolution "Supervision
@@ -1736,6 +2041,12 @@
       ${review ? renderProduitsRecurrents(review.repeatedProducts) : ''}
       `}
 
+      <div class="section-titre section-repliable" id="toggleSectionCorrection">
+        <span>Correction rétroactive</span>
+        <span class="repli-chevron ${sectionCorrectionOuverte ? 'open' : ''}">›</span>
+      </div>
+      ${sectionCorrectionOuverte ? renderSectionCorrectionRetroactive() : ''}
+
       <div class="section-titre section-repliable" id="toggleSectionParametres">
         <span>Paramètres de contrôle inventaire</span>
         <span class="repli-compte">${LABELS_FREQUENCE[parametresInventaire.reviewFrequency] || 'Tous les jours'}</span>
@@ -1808,12 +2119,26 @@
         await comparerVentesQuart(fichier);
       });
     }
-    document.querySelectorAll('.btn-decision').forEach(btn => btn.addEventListener('click', async () => {
+    document.querySelectorAll('.btn-decision[data-decision]').forEach(btn => btn.addEventListener('click', async () => {
       const decision = DECISIONS.find(d => d.value === btn.dataset.decision);
       const commentaireEl = document.getElementById(`commentaire-${btn.dataset.id}`);
       const commentaireLibre = commentaireEl ? commentaireEl.value.trim() : '';
       document.querySelectorAll(`.alerte-card[data-id="${btn.dataset.id}"] .btn-decision`).forEach(b => b.disabled = true);
       await resoudreAlerte(btn.dataset.id, decision, commentaireLibre);
+    }));
+    // "Résoudre avec NEXUS" — lookup combiné jour/période, les deux vues ne
+    // sont jamais affichées en même temps donc jamais de collision d'id.
+    const alertesParId = new Map([...(alertesOuvertes || []), ...(alertesPeriodeAffichees || [])].map(a => [a.id, a]));
+    document.querySelectorAll('.btn-resoudre-toggle').forEach(btn => btn.addEventListener('click', () => {
+      if (resoudreNexusOuvertes.has(btn.dataset.id)) resoudreNexusOuvertes.delete(btn.dataset.id);
+      else resoudreNexusOuvertes.add(btn.dataset.id);
+      renderTout(dernierCtx); // pas de rechargement réseau, juste replier/déplier
+    }));
+    document.querySelectorAll('[data-resoudre-nexus]').forEach(btn => btn.addEventListener('click', async () => {
+      const alerte = alertesParId.get(btn.dataset.id);
+      if (!alerte) return;
+      document.querySelectorAll(`.alerte-card[data-id="${btn.dataset.id}"] .btn-decision`).forEach(b => b.disabled = true);
+      await resoudreAvecNexus(alerte, btn.dataset.resoudreNexus);
     }));
     const btnToutValider = document.getElementById('btnToutValider');
     if (btnToutValider) btnToutValider.addEventListener('click', async () => {
@@ -1874,6 +2199,38 @@
       sectionParametresOuverte = !sectionParametresOuverte;
       renderTout(dernierCtx); // pas de rechargement réseau, juste replier/déplier
     });
+    const toggleCorrection = document.getElementById('toggleSectionCorrection');
+    if (toggleCorrection) toggleCorrection.addEventListener('click', async () => {
+      sectionCorrectionOuverte = !sectionCorrectionOuverte;
+      if (sectionCorrectionOuverte && !correctionForm.date) correctionForm.date = dateISO();
+      renderTout(dernierCtx);
+      if (sectionCorrectionOuverte) {
+        await chargerProduitsPourCorrection();
+        renderTout(dernierCtx);
+      }
+    });
+    const correctionDateEl = document.getElementById('correctionDate');
+    if (correctionDateEl) correctionDateEl.addEventListener('change', (e) => { correctionForm.date = e.target.value; });
+    document.querySelectorAll('[data-correction-quart]').forEach(el => el.addEventListener('click', () => {
+      correctionForm.quart = el.dataset.correctionQuart;
+      renderTout(dernierCtx);
+    }));
+    const correctionTypeEl = document.getElementById('correctionType');
+    if (correctionTypeEl) correctionTypeEl.addEventListener('change', (e) => {
+      correctionForm.correctionType = e.target.value;
+      correctionChargee = null;
+      renderTout(dernierCtx);
+    });
+    const correctionProduitEl = document.getElementById('correctionProduit');
+    if (correctionProduitEl) correctionProduitEl.addEventListener('change', (e) => { correctionForm.produitId = e.target.value; });
+    const correctionTypeComptageEl = document.getElementById('correctionTypeComptage');
+    if (correctionTypeComptageEl) correctionTypeComptageEl.addEventListener('change', (e) => { correctionForm.typeComptage = e.target.value; });
+    const btnChargerCorrection = document.getElementById('btnChargerCorrection');
+    if (btnChargerCorrection) btnChargerCorrection.addEventListener('click', () => {
+      if (correctionProduitEl) correctionForm.produitId = correctionProduitEl.value;
+      chargerEtAfficherCorrection();
+    });
+    wirerFormulaireCorrection();
     const btnDetailDecisions = document.getElementById('btnDetailDecisions');
     if (btnDetailDecisions) btnDetailDecisions.addEventListener('click', () => {
       detailDecisionsOuvert = !detailDecisionsOuvert;
