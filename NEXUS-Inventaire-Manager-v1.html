@@ -15,6 +15,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="nexus-auth.js"></script>
+<script src="nexus-forfait.js"></script>
 <script src="nexus-desktop.js"></script>
 <style>
   :root{
@@ -393,13 +394,6 @@
   let dateSelectionnee = '';
   let quartSelectionne = 'matin';
   let quartRow = null;
-  // Repli de "Paramètres de contrôle" — mode aveugle + jaugeage carburant
-  // (02/08/2026, demande de Frédéric : "la page principale doit rester
-  // centrée sur : Que dois-je contrôler maintenant ?") : replié par défaut,
-  // sorti du flux principal des alertes — dernierCtx permet de
-  // replier/déplier ou d'ouvrir un groupe de décisions sans recharger
-  // toutes les données.
-  let sectionParametresOuverte = false;
   let detailDecisionsOuvert = false; // "Décisions du quart" — détail déplié (02/08/2026)
   let categoriesOuvertes = new Set(); // "À terminer" — catégories dépliées (02/08/2026)
   let rouvertureFormOuvert = false; // "Rouvrir la clôture" — formulaire de motif déplié (02/08/2026)
@@ -419,35 +413,6 @@
   // d'ouverture, propose directement les hypothèses les plus probables au
   // lieu de laisser le manager reconstruire toute l'histoire à la main.
   let resoudreNexusOuvertes = new Set(); // ids d'alertes dont le panneau est déplié
-
-  // Mode Simulation terrain (04/08/2026, audit §23-24, 29-30) : le manager
-  // saisit après coup une feuille papier réelle pour comparer temps et
-  // résultats à NEXUS, sans jamais toucher aux stocks officiels ni générer
-  // d'évaluation employé (is_simulation=true sur inventaire_quarts).
-  let sectionSimulationOuverte = false;
-  let simulationForm = { date: '', quart: 'matin', employeId: '', phase: 'ouverture' };
-  let simulationQuart = null;
-  let simulationSaisie = {};
-  let simulationChrono = null; // Date.now() au chargement — vrai chronométrage, jamais une estimation
-  let produitsPourSimulation = [];
-  let statsSimulation = null;
-
-  // Profils produit (04/08/2026, audit §10-11) : un produit sans ligne dans
-  // inventaire_regles_produit garde le comportement historique (stock
-  // continu, chaîne d'un quart à l'autre) — cette table est purement
-  // additive, jamais de migration forcée des 242 produits existants.
-  let sectionProfilsOuverte = false;
-  let produitsPourProfils = [];
-  let reglesProduitMap = {};
-  let profilProduitOuvert = null; // id du produit dont le panneau est déplié
-  let profilEnEdition = null; // brouillon en cours pour profilProduitOuvert
-  const PROFILS_PRODUIT = [
-    { value: 'continu', label: 'Stock continu', desc: 'Le stock final du quart précédent devient le stock transmis (comportement par défaut).' },
-    { value: 'cycle_journalier', label: 'Cycle journalier réinitialisé', desc: 'Chaque matin, NEXUS ferme le cycle précédent et en ouvre un nouveau. Les ventes des quarts peuvent être cumulées.' },
-    { value: 'lot_glissant', label: 'Durée de vie glissante (SDD)', desc: 'Chaque réception crée un lot daté ; le retour fournisseur devient obligatoire à échéance.' },
-    { value: 'presse', label: 'Presse et éditions', desc: 'Suivi par édition ou date de parution — deux éditions ne sont jamais mélangées.' },
-    { value: 'consommable', label: 'Consommable interne', desc: 'Suivi par quantité et seuil minimal d\'alerte, pas par quart.' },
-  ];
 
   // Paramètres de supervision configurable (02/08/2026, évolution demandée
   // par Frédéric — "NEXUS Inventaire — Supervision configurable") : la
@@ -1798,390 +1763,6 @@
     correctionChargee = null;
   }
 
-  // ------------------------------------------------------------
-  // MODE SIMULATION TERRAIN (04/08/2026, audit §23-24, 29-32) — jamais
-  // officiel : "le papier reste la référence opérationnelle" tant que la
-  // simulation n'a pas été validée. Chaque session simulation vit dans
-  // inventaire_quarts avec is_simulation=true (jamais confondue avec un
-  // vrai quart, chargée via une requête filtrée sur ce champ).
-  // ------------------------------------------------------------
-  async function chargerOuCreerQuartSimulation() {
-    const { data: existant, error: e1 } = await nexusClient.from('inventaire_quarts')
-      .select('*').eq('site', siteId).eq('date', simulationForm.date).eq('quart', simulationForm.quart).eq('is_simulation', true).maybeSingle();
-    if (e1) { console.error('Lecture quart simulation:', e1); return null; }
-    if (existant) return existant;
-    const { data: cree, error: e2 } = await nexusClient.from('inventaire_quarts').insert({
-      site: siteId, date: simulationForm.date, quart: simulationForm.quart, statut: 'ouverture_en_cours',
-      is_simulation: true, represented_employee_id: simulationForm.employeId || null, entered_by_user_id: managerCourant.id,
-      ouvert_le: new Date().toISOString(),
-    }).select().single();
-    if (e2) { console.error('Création quart simulation:', e2); return null; }
-    return cree;
-  }
-
-  async function chargerComptagesSimulation(quartId, phase) {
-    const { data, error } = await nexusClient.from('inventaire_comptages')
-      .select('produit_id, quantite').eq('quart_id', quartId).eq('type_comptage', phase).eq('source', 'simulation');
-    if (error) { console.error('Chargement comptages simulation:', error); return {}; }
-    const map = {};
-    (data || []).forEach(r => { map[r.produit_id] = r.quantite; });
-    return map;
-  }
-
-  // Agrégat pour le tableau de validation (audit §30) — uniquement des
-  // moyennes sur des valeurs réellement saisies par le manager (papier_*) ou
-  // réellement chronométrées (nexus_temps_minutes) : une session sans ces
-  // champs renseignés n'entre simplement pas dans la moyenne, jamais
-  // remplacée par une estimation.
-  async function chargerStatsSimulation() {
-    const { data, error } = await nexusClient.from('inventaire_quarts')
-      .select('id, papier_produits_comptes, papier_temps_minutes, papier_corrections, nexus_temps_minutes')
-      .eq('site', siteId).eq('is_simulation', true);
-    if (error) { console.error('Stats simulation:', error); return { nb: 0 }; }
-    const rows = data || [];
-    const moyenne = (arr) => arr.length ? Math.round((arr.reduce((s, v) => s + v, 0) / arr.length) * 10) / 10 : null;
-    return {
-      nb: rows.length,
-      tempsMoyenPapier: moyenne(rows.map(r => r.papier_temps_minutes).filter(v => v != null)),
-      tempsMoyenNexus: moyenne(rows.map(r => r.nexus_temps_minutes).filter(v => v != null)),
-      correctionsMoyennes: moyenne(rows.map(r => r.papier_corrections).filter(v => v != null)),
-      nbAvecComparatif: rows.filter(r => r.papier_temps_minutes != null).length,
-    };
-  }
-
-  function renderCorpsSimulation() {
-    if (!produitsPourSimulation.length) return '<div class="loading">Chargement des produits…</div>';
-    const groupes = produitsPourSimulation.reduce((acc, p) => {
-      const cat = p.inventaire_categories ? p.inventaire_categories.nom : 'Autres';
-      (acc[cat] = acc[cat] || []).push(p);
-      return acc;
-    }, {});
-    const listeHtml = Object.entries(groupes).map(([cat, items]) => `
-      <div class="cat-block">
-        <div class="cat-head"><div class="cat-nom">${cat} (${items.length})</div></div>
-        <div class="card">
-          ${items.map(p => `
-            <div class="produit-row">
-              <div class="produit-nom-ligne"><span class="produit-nom">${p.designation}</span></div>
-              <input type="number" inputmode="decimal" step="0.01" class="produit-input simulation-input" data-produit="${p.id}"
-                     placeholder="Compté (papier)" value="${simulationSaisie[p.id] !== undefined ? simulationSaisie[p.id] : ''}" style="width:100%;">
-            </div>
-          `).join('')}
-        </div>
-      </div>
-    `).join('');
-
-    return `
-      ${listeHtml}
-      <div class="section-titre" style="margin-top:0;">Comparatif Papier / NEXUS pour cette session</div>
-      <div class="mouv-row">
-        <input type="number" class="mouv-qte" id="simulationPapierProduits" placeholder="Produits (papier)" style="flex:1;">
-        <input type="number" class="mouv-qte" id="simulationPapierTemps" placeholder="Temps papier (min)" style="flex:1;">
-        <input type="number" class="mouv-qte" id="simulationPapierCorrections" placeholder="Corrections (papier)" style="flex:1;">
-      </div>
-      <textarea id="simulationNotes" class="mouv-justif" placeholder="Commentaires de simulation (facultatif)" style="width:100%; min-height:60px; resize:vertical;"></textarea>
-      <button class="btn-primary" id="btnEnregistrerSimulation" style="margin-top:8px;">Enregistrer cette phase (simulation)</button>
-    `;
-  }
-
-  async function enregistrerSimulation() {
-    const btn = document.getElementById('btnEnregistrerSimulation');
-    if (btn) { btn.disabled = true; btn.textContent = 'Enregistrement…'; }
-    document.querySelectorAll('.simulation-input').forEach(el => {
-      const v = el.value === '' ? undefined : parseFloat(el.value);
-      if (v !== undefined && !isNaN(v)) simulationSaisie[el.dataset.produit] = v;
-    });
-    let nbComptes = 0;
-    for (const [produitId, quantite] of Object.entries(simulationSaisie)) {
-      const { error } = await nexusClient.from('inventaire_comptages').insert({
-        site: siteId, quart_id: simulationQuart.id, produit_id: produitId, type_comptage: simulationForm.phase,
-        quantite, employee_id: simulationForm.employeId || null, source: 'simulation', statut: 'valide',
-      });
-      if (error) console.error('Comptage simulation:', error); else nbComptes++;
-    }
-
-    // Temps NEXUS réellement chronométré depuis l'ouverture de la session
-    // (audit §29) — jamais une estimation, un vrai Date.now() de départ.
-    const tempsNexusMinutes = simulationChrono ? Math.round(((Date.now() - simulationChrono) / 60000) * 10) / 10 : null;
-    const papierProduitsEl = document.getElementById('simulationPapierProduits');
-    const papierTempsEl = document.getElementById('simulationPapierTemps');
-    const papierCorrectionsEl = document.getElementById('simulationPapierCorrections');
-    const notesEl = document.getElementById('simulationNotes');
-    const papierProduits = papierProduitsEl && papierProduitsEl.value !== '' ? parseInt(papierProduitsEl.value) : null;
-    const papierTemps = papierTempsEl && papierTempsEl.value !== '' ? parseFloat(papierTempsEl.value) : null;
-    const papierCorrections = papierCorrectionsEl && papierCorrectionsEl.value !== '' ? parseInt(papierCorrectionsEl.value) : null;
-    const notes = notesEl ? notesEl.value.trim() : '';
-
-    await nexusClient.from('inventaire_quarts').update({
-      papier_produits_comptes: papierProduits, papier_temps_minutes: papierTemps, papier_corrections: papierCorrections,
-      nexus_temps_minutes: tempsNexusMinutes, simulation_notes: notes || null,
-    }).eq('id', simulationQuart.id);
-
-    await nexusClient.from('inventaire_audit_log').insert({
-      site: siteId, quart_id: simulationQuart.id, entite_type: 'inventaire_quarts', entite_id: simulationQuart.id,
-      action: 'enregistrement_simulation', nouvelle_valeur: { phase: simulationForm.phase, nb_comptes: nbComptes },
-      acteur_id: managerCourant.id,
-    });
-
-    document.getElementById('simulationCorps').innerHTML = `<div class="alerte-note">✓ ${nbComptes} produit${nbComptes > 1 ? 's' : ''} enregistré${nbComptes > 1 ? 's' : ''} en simulation (${simulationForm.phase}). Temps NEXUS mesuré : ${tempsNexusMinutes !== null ? tempsNexusMinutes + ' min' : '—'}.</div>`;
-    simulationQuart = null; simulationSaisie = {}; simulationChrono = null;
-    statsSimulation = await chargerStatsSimulation();
-    const statsZone = document.getElementById('simulationStatsZone');
-    if (statsZone) statsZone.innerHTML = renderStatsSimulation();
-  }
-
-  // Tableau de validation de la simulation (audit §30) — agrégat honnête :
-  // n'affiche une moyenne que si au moins une session a réellement renseigné
-  // ce champ, sinon affiche "—" plutôt qu'un zéro trompeur.
-  function renderStatsSimulation() {
-    if (!statsSimulation || statsSimulation.nb === 0) {
-      return `<div class="empty">Aucune session de simulation enregistrée pour l'instant.</div>`;
-    }
-    const s = statsSimulation;
-    const gain = (s.tempsMoyenPapier != null && s.tempsMoyenNexus != null) ? Math.round((s.tempsMoyenPapier - s.tempsMoyenNexus) * 10) / 10 : null;
-    return `
-      <div class="card" style="padding:4px 14px;">
-        <div class="stat-row"><span class="stat-label">Sessions de simulation</span><span class="stat-value">${s.nb}</span></div>
-        <div class="stat-row"><span class="stat-label">Temps moyen papier</span><span class="stat-value">${s.tempsMoyenPapier != null ? s.tempsMoyenPapier + ' min' : '—'}</span></div>
-        <div class="stat-row"><span class="stat-label">Temps moyen NEXUS</span><span class="stat-value cyan">${s.tempsMoyenNexus != null ? s.tempsMoyenNexus + ' min' : '—'}</span></div>
-        <div class="stat-row"><span class="stat-label">Corrections papier (moy.)</span><span class="stat-value">${s.correctionsMoyennes != null ? s.correctionsMoyennes : '—'}</span></div>
-        ${gain !== null ? `<div class="stat-row"><span class="stat-label">Gain de temps NEXUS</span><span class="stat-value ${gain >= 0 ? 'cyan' : 'amber'}">${gain >= 0 ? '+' : ''}${gain} min</span></div>` : ''}
-        <div class="stat-row"><span class="stat-label">Comparatifs renseignés</span><span class="stat-value">${s.nbAvecComparatif}/${s.nb}</span></div>
-      </div>
-    `;
-  }
-
-  function renderSectionSimulation() {
-    const employes = (dernierCtx && dernierCtx.employesSite) ? dernierCtx.employesSite : [];
-    const optionsEmployes = employes.map(e => `<option value="${e.id}" ${e.id === simulationForm.employeId ? 'selected' : ''}>${e.nom}</option>`).join('');
-    return `
-      <div id="sectionSimulationTerrain" class="card" style="margin-bottom:10px; padding:14px;">
-        <div class="ventes-desc" style="margin-bottom:4px; color:var(--amber); font-weight:600;">Mode Simulation — cet inventaire sert à tester NEXUS. La feuille papier reste la référence officielle.</div>
-        <div class="ventes-desc" style="margin-bottom:12px;">Saisissez après coup ce qu'un employé a compté sur la feuille papier. Rien ici ne modifie les stocks officiels ni ne génère d'évaluation employé.</div>
-        <div class="quart-select-row">
-          <input type="date" id="simulationDate" class="date-input" value="${simulationForm.date || dateISO()}">
-          <div class="quart-pill ${simulationForm.quart === 'matin' ? 'active' : ''}" data-simulation-quart="matin">Matin</div>
-          <div class="quart-pill ${simulationForm.quart === 'soir' ? 'active' : ''}" data-simulation-quart="soir">Soir</div>
-        </div>
-        <select class="mouv-select" id="simulationEmploye" style="width:100%; margin-bottom:8px;">
-          <option value="">Employé représenté…</option>
-          ${optionsEmployes}
-        </select>
-        <select class="mouv-select" id="simulationPhase" style="width:100%; margin-bottom:8px;">
-          <option value="ouverture" ${simulationForm.phase === 'ouverture' ? 'selected' : ''}>Comptage d'ouverture</option>
-          <option value="cloture" ${simulationForm.phase === 'cloture' ? 'selected' : ''}>Comptage de clôture</option>
-        </select>
-        <button class="btn-ghost" id="btnChargerSimulation" style="margin-top:0;">Charger / créer cette session de simulation</button>
-        <div id="simulationCorps" style="margin-top:10px;">${simulationQuart ? renderCorpsSimulation() : ''}</div>
-        <div class="section-titre" style="margin-top:18px;">Tableau de validation de la simulation</div>
-        <div id="simulationStatsZone">${statsSimulation ? renderStatsSimulation() : '<div class="loading">Chargement…</div>'}</div>
-      </div>
-    `;
-  }
-
-  // ------------------------------------------------------------
-  // PROFILS PRODUIT (04/08/2026, audit §10-11) — assignation manager, par
-  // produit, du profil d'inventaire. Écrit dans inventaire_regles_produit
-  // (créée par migration additive, aucun produit n'y est présent tant que
-  // le manager ne l'a pas configuré explicitement).
-  // ------------------------------------------------------------
-  async function chargerReglesProduit(site) {
-    const { data, error } = await nexusClient.from('inventaire_regles_produit').select('*').eq('site', site);
-    if (error) { console.error('Chargement règles produit:', error); return {}; }
-    const map = {};
-    (data || []).forEach(r => { map[r.produit_id] = r; });
-    return map;
-  }
-
-  function ouvrirEditionProfil(produitId) {
-    if (profilProduitOuvert === produitId) { profilProduitOuvert = null; profilEnEdition = null; renderTout(dernierCtx); return; }
-    profilProduitOuvert = produitId;
-    const existant = reglesProduitMap[produitId];
-    profilEnEdition = existant ? { ...existant } : {
-      produit_id: produitId, profil: 'continu', cycle_frequence: null, report_veille_autorise: true,
-      duree_max_vente_jours: null, action_echeance: 'alerte_manager', mode_agregation_ventes: 'aucun',
-      validation_manager_requise: false, comptage_masque: false, seuil_minimal: null,
-    };
-    renderTout(dernierCtx);
-  }
-
-  async function enregistrerProfilProduit() {
-    const p = profilEnEdition;
-    const btn = document.getElementById('btnEnregistrerProfil');
-    if (btn) { btn.disabled = true; btn.textContent = 'Enregistrement…'; }
-    const payload = {
-      site: siteId, produit_id: p.produit_id, profil: p.profil,
-      cycle_frequence: p.profil === 'cycle_journalier' ? 'quotidien' : null,
-      report_veille_autorise: p.report_veille_autorise !== false,
-      duree_max_vente_jours: (p.profil === 'lot_glissant' || p.profil === 'presse') ? (p.duree_max_vente_jours || null) : null,
-      action_echeance: (p.profil === 'lot_glissant' || p.profil === 'presse') ? (p.action_echeance || 'alerte_manager') : null,
-      mode_agregation_ventes: p.profil === 'cycle_journalier' ? (p.mode_agregation_ventes || 'aucun') : 'aucun',
-      validation_manager_requise: !!p.validation_manager_requise,
-      comptage_masque: !!p.comptage_masque,
-      seuil_minimal: p.profil === 'consommable' ? (p.seuil_minimal || null) : null,
-    };
-    const { data, error } = await nexusClient.from('inventaire_regles_produit')
-      .upsert(payload, { onConflict: 'site,produit_id' }).select().single();
-    if (error) { console.error('Enregistrement profil produit:', error); alert('Erreur — réessayez.'); if (btn) { btn.disabled = false; btn.textContent = 'Enregistrer ce profil'; } return; }
-
-    await nexusClient.from('inventaire_audit_log').insert({
-      site: siteId, entite_type: 'inventaire_regles_produit', entite_id: data.id,
-      action: 'configuration_profil_produit', nouvelle_valeur: { profil: p.profil }, acteur_id: managerCourant.id,
-    });
-
-    reglesProduitMap[p.produit_id] = data;
-    profilProduitOuvert = null; profilEnEdition = null;
-    renderTout(dernierCtx);
-  }
-
-  function renderFormulaireProfil() {
-    const e = profilEnEdition;
-    const infoProfil = PROFILS_PRODUIT.find(x => x.value === e.profil);
-    return `
-      <div class="card" style="margin:0 0 10px; padding:12px 14px;">
-        <select class="mouv-select" id="profilSelect" style="width:100%; margin-bottom:8px;">
-          ${PROFILS_PRODUIT.map(x => `<option value="${x.value}" ${x.value === e.profil ? 'selected' : ''}>${x.label}</option>`).join('')}
-        </select>
-        <div style="font-size:11px; color:var(--text-mid); margin-bottom:10px;">${infoProfil.desc}</div>
-        ${e.profil === 'cycle_journalier' ? `
-          <select class="mouv-select" id="profilAgregation" style="width:100%; margin-bottom:8px;">
-            <option value="aucun" ${e.mode_agregation_ventes === 'aucun' ? 'selected' : ''}>Pas de cumul entre quarts</option>
-            <option value="cumul_quarts_1_2" ${e.mode_agregation_ventes === 'cumul_quarts_1_2' ? 'selected' : ''}>Cumuler quarts 1 et 2</option>
-            <option value="cumul_journee" ${e.mode_agregation_ventes === 'cumul_journee' ? 'selected' : ''}>Cumuler sur toute la journée</option>
-          </select>
-        ` : ''}
-        ${(e.profil === 'lot_glissant' || e.profil === 'presse') ? `
-          <input type="number" class="mouv-qte" id="profilDureeMax" placeholder="Durée max de vente (jours)"
-                 value="${e.duree_max_vente_jours || (e.profil === 'lot_glissant' ? 3 : '')}" style="width:100%; margin-bottom:8px;">
-          <select class="mouv-select" id="profilActionEcheance" style="width:100%; margin-bottom:8px;">
-            <option value="retour_fournisseur_obligatoire" ${e.action_echeance === 'retour_fournisseur_obligatoire' ? 'selected' : ''}>Retour fournisseur obligatoire</option>
-            <option value="destruction" ${e.action_echeance === 'destruction' ? 'selected' : ''}>Destruction</option>
-            <option value="alerte_manager" ${e.action_echeance === 'alerte_manager' ? 'selected' : ''}>Alerte manager seulement</option>
-          </select>
-        ` : ''}
-        ${e.profil === 'consommable' ? `
-          <input type="number" class="mouv-qte" id="profilSeuilMinimal" placeholder="Seuil minimal d'alerte" value="${e.seuil_minimal || ''}" style="width:100%; margin-bottom:8px;">
-        ` : ''}
-        <label style="display:flex; align-items:center; gap:6px; font-size:12px; color:var(--text-mid); margin-bottom:6px; cursor:pointer;">
-          <input type="checkbox" id="profilValidationManager" ${e.validation_manager_requise ? 'checked' : ''}> Validation manager requise avant de compter ce produit
-        </label>
-        <label style="display:flex; align-items:center; gap:6px; font-size:12px; color:var(--text-mid); margin-bottom:10px; cursor:pointer;">
-          <input type="checkbox" id="profilComptageMasque" ${e.comptage_masque ? 'checked' : ''}> Comptage à l'aveugle (valeur transmise cachée)
-        </label>
-        <button class="btn-primary" id="btnEnregistrerProfil" style="margin-top:0;">Enregistrer ce profil</button>
-        <button class="btn-text" id="btnAnnulerProfil">Annuler</button>
-      </div>
-    `;
-  }
-
-  function renderLigneProfilProduit(p) {
-    const regle = reglesProduitMap[p.id];
-    const profilActuel = regle ? regle.profil : 'continu';
-    const libelleProfil = PROFILS_PRODUIT.find(x => x.value === profilActuel).label;
-    const ouvert = profilProduitOuvert === p.id;
-    return `
-      <div class="categorie-row" data-profil-produit="${p.id}">
-        <div>
-          <div class="categorie-nom" style="font-size:13px;">${p.designation}</div>
-          <div class="categorie-count">${libelleProfil}</div>
-        </div>
-        <div class="categorie-etat ${profilActuel === 'continu' ? 'a-faire' : 'en-cours'}">${ouvert ? '▾' : '▸'}</div>
-      </div>
-      ${ouvert && profilEnEdition ? renderFormulaireProfil() : ''}
-    `;
-  }
-
-  function renderSectionProfilsProduit() {
-    if (!produitsPourProfils.length) return '<div class="loading">Chargement des produits…</div>';
-    const groupes = produitsPourProfils.reduce((acc, p) => {
-      const cat = p.inventaire_categories ? p.inventaire_categories.nom : 'Autres';
-      (acc[cat] = acc[cat] || []).push(p);
-      return acc;
-    }, {});
-    return `
-      <div id="sectionProfilsProduit">
-        <div class="ventes-desc" style="margin:0 2px 12px;">Par défaut, un produit suit le stock continu (comportement historique, aucun changement nécessaire). Configurez uniquement les produits à cycle particulier : viennoiserie/pain (journalier), pâtes/biscuits SDD (lot glissant), presse (par édition), consommables (seuil).</div>
-        ${Object.entries(groupes).map(([cat, items]) => `
-          <div class="cat-block">
-            <div class="cat-head"><div class="cat-nom">${cat} (${items.length})</div></div>
-            <div class="card">${items.map(p => renderLigneProfilProduit(p)).join('')}</div>
-          </div>
-        `).join('')}
-      </div>
-    `;
-  }
-
-  // Paramètres de contrôle inventaire (02/08/2026, évolution "Supervision
-  // configurable des inventaires") : fréquence à laquelle CE manager
-  // souhaite consulter une synthèse (quotidien/hebdo/mensuel/exception),
-  // distincte de la fréquence de comptage terrain qui ne bouge jamais.
-  // Chaque contrôle enregistre son changement séparément ('change', pas
-  // 'input') pour ne pas écrire à chaque frappe.
-  function renderParametresSupervision() {
-    const p = parametresInventaire;
-    const optionsFrequence = Object.entries(LABELS_FREQUENCE)
-      .map(([val, label]) => `<option value="${val}" ${p.reviewFrequency === val ? 'selected' : ''}>${label}</option>`).join('');
-    const optionsJourSemaine = JOURS_SEMAINE
-      .map((j, i) => `<option value="${i}" ${p.weeklyReviewDay === i ? 'selected' : ''}>${j}</option>`).join('');
-    const optionsJourMois = Array.from({ length: 28 }, (_, i) => i + 1)
-      .map(j => `<option value="${j}" ${p.monthlyReviewDay === j ? 'selected' : ''}>${j}</option>`).join('');
-    return `
-      <div class="card" style="margin-bottom:10px;">
-        <div class="param-ligne">
-          <label for="paramFrequence">Fréquence de supervision</label>
-          <select class="param-input" id="paramFrequence">${optionsFrequence}</select>
-        </div>
-        ${p.reviewFrequency === 'weekly' ? `
-        <div class="param-ligne">
-          <label for="paramJourSemaine">Jour de synthèse hebdomadaire</label>
-          <select class="param-input" id="paramJourSemaine">${optionsJourSemaine}</select>
-        </div>` : ''}
-        ${p.reviewFrequency === 'monthly' ? `
-        <div class="param-ligne">
-          <label for="paramJourMois">Jour de synthèse mensuelle</label>
-          <select class="param-input" id="paramJourMois">${optionsJourMois}</select>
-        </div>` : ''}
-        ${p.reviewFrequency !== 'exception_only' ? `
-        <div class="param-ligne">
-          <label for="paramHeure">Heure souhaitée de synthèse</label>
-          <input type="time" class="param-input" id="paramHeure" value="${p.reviewTime || '20:00'}">
-        </div>` : ''}
-        <div class="param-ligne">
-          <label for="paramSeuilQte">Seuil d'écart en quantité</label>
-          <input type="number" min="0" step="0.5" class="param-input" id="paramSeuilQte" value="${p.quantityAlertThreshold}">
-        </div>
-        <div class="param-ligne">
-          <label for="paramSeuilValeur">Seuil d'écart en valeur (€)</label>
-          <input type="number" min="0" step="1" class="param-input" id="paramSeuilValeur" placeholder="Non défini" value="${p.valueAlertThreshold != null ? p.valueAlertThreshold : ''}">
-        </div>
-        <div class="param-ligne">
-          <label for="paramDelaiCloture">Délai maximal de clôture</label>
-          <select class="param-input" id="paramDelaiCloture">
-            ${[15, 30, 45, 60, 90, 120].map(m => `<option value="${m}" ${p.closureDelayMinutes === m ? 'selected' : ''}>${m} min</option>`).join('')}
-          </select>
-        </div>
-        <div class="param-ligne">
-          <label>Alertes immédiates</label>
-          <div class="toggle-switch ${p.immediateAlertsEnabled ? 'on' : ''}" data-mode="alertes-immediates" data-actif="${p.immediateAlertsEnabled ? '1' : '0'}">
-            <div class="toggle-knob"></div>
-          </div>
-        </div>
-        <span class="param-enregistre" id="paramEnregistre">✓ Enregistré</span>
-      </div>
-      <div class="param-note">Ces seuils déclenchent une alerte quel que soit le rythme de supervision choisi ci-dessus (voir "Catégories nécessitant une alerte immédiate" ci-dessous).</div>
-      <div class="section-titre" style="margin-top:0;">Catégories nécessitant une alerte immédiate</div>
-      <div class="card">
-        ${categoriesSite.length === 0 ? '<div class="empty">Aucune catégorie active.</div>' : `
-        <div class="param-checklist">
-          ${categoriesSite.map(c => {
-            const actif = (p.immediateAlertCategoryIds || []).includes(c.id);
-            return `<label class="param-check-item ${actif ? 'actif' : ''}"><input type="checkbox" class="param-cat-check" data-cat="${c.id}" ${actif ? 'checked' : ''}>${c.nom}</label>`;
-          }).join('')}
-        </div>`}
-      </div>
-    `;
-  }
-
   // Détail d'une décision individuelle du quart sélectionné (02/08/2026,
   // demande de Frédéric) — plus de badge date/quart : tout appartient déjà
   // au même quart affiché, ça n'a plus besoin d'être répété ligne par ligne.
@@ -2522,7 +2103,7 @@
       `}
 
       <div class="section-titre section-repliable" id="toggleSectionCorrection">
-        <span>Correction rétroactive</span>
+        <span>Souhaitez-vous modifier un inventaire précédent ?</span>
         <span class="repli-chevron ${sectionCorrectionOuverte ? 'open' : ''}">›</span>
       </div>
       ${sectionCorrectionOuverte ? renderSectionCorrectionRetroactive() : ''}
@@ -2625,54 +2206,8 @@
       const actif = el.dataset.actif === '1';
       el.style.pointerEvents = 'none';
       if (el.dataset.mode === 'jaugeage') await toggleJaugeage(!actif);
-      else if (el.dataset.mode === 'alertes-immediates') {
-        await sauvegarderParametresInventaire(siteId, { immediateAlertsEnabled: !actif });
-        await chargerEtAfficherTout();
-      } else await toggleModeAveugle(el.dataset.employe, !actif);
+      else await toggleModeAveugle(el.dataset.employe, !actif);
     }));
-    // Paramètres de contrôle inventaire — chaque champ s'enregistre au
-    // 'change' (pas à chaque frappe) pour éviter les écritures inutiles
-    // en base (02/08/2026).
-    async function enregistrerParametre(cle, valeur) {
-      const badge = document.getElementById('paramEnregistre');
-      const ok = await sauvegarderParametresInventaire(siteId, { [cle]: valeur });
-      if (!ok) { alert('Erreur d\'enregistrement — réessayez.'); return; }
-      if (badge) { badge.classList.add('visible'); setTimeout(() => badge.classList.remove('visible'), 1600); }
-      // Recharge complète : certains champs (fréquence) changent les
-      // champs affichés (jour hebdo/mensuel/heure), et le seuil de
-      // quantité influence directement la synthèse démarque déjà à l'écran.
-      await chargerEtAfficherTout();
-    }
-    const selFrequence = document.getElementById('paramFrequence');
-    if (selFrequence) selFrequence.addEventListener('change', () => enregistrerParametre('reviewFrequency', selFrequence.value));
-    const selJourSemaine = document.getElementById('paramJourSemaine');
-    if (selJourSemaine) selJourSemaine.addEventListener('change', () => enregistrerParametre('weeklyReviewDay', parseInt(selJourSemaine.value)));
-    const selJourMois = document.getElementById('paramJourMois');
-    if (selJourMois) selJourMois.addEventListener('change', () => enregistrerParametre('monthlyReviewDay', parseInt(selJourMois.value)));
-    const inputHeure = document.getElementById('paramHeure');
-    if (inputHeure) inputHeure.addEventListener('change', () => enregistrerParametre('reviewTime', inputHeure.value));
-    const inputSeuilQte = document.getElementById('paramSeuilQte');
-    if (inputSeuilQte) inputSeuilQte.addEventListener('change', () => {
-      const v = parseFloat(inputSeuilQte.value);
-      enregistrerParametre('quantityAlertThreshold', isNaN(v) ? DEFAULTS_PARAMETRES_INVENTAIRE.quantityAlertThreshold : v);
-    });
-    const inputSeuilValeur = document.getElementById('paramSeuilValeur');
-    if (inputSeuilValeur) inputSeuilValeur.addEventListener('change', () => {
-      const v = parseFloat(inputSeuilValeur.value);
-      enregistrerParametre('valueAlertThreshold', inputSeuilValeur.value === '' || isNaN(v) ? null : v);
-    });
-    const selDelaiCloture = document.getElementById('paramDelaiCloture');
-    if (selDelaiCloture) selDelaiCloture.addEventListener('change', () => enregistrerParametre('closureDelayMinutes', parseInt(selDelaiCloture.value)));
-    document.querySelectorAll('.param-cat-check').forEach(el => el.addEventListener('change', () => {
-      const actuels = new Set(parametresInventaire.immediateAlertCategoryIds || []);
-      if (el.checked) actuels.add(el.dataset.cat); else actuels.delete(el.dataset.cat);
-      enregistrerParametre('immediateAlertCategoryIds', Array.from(actuels));
-    }));
-    const toggleSection = document.getElementById('toggleSectionParametres');
-    if (toggleSection) toggleSection.addEventListener('click', () => {
-      sectionParametresOuverte = !sectionParametresOuverte;
-      renderTout(dernierCtx); // pas de rechargement réseau, juste replier/déplier
-    });
     const toggleCorrection = document.getElementById('toggleSectionCorrection');
     if (toggleCorrection) toggleCorrection.addEventListener('click', async () => {
       sectionCorrectionOuverte = !sectionCorrectionOuverte;
@@ -2706,77 +2241,6 @@
     });
     wirerFormulaireCorrection();
 
-    const toggleSimulation = document.getElementById('toggleSectionSimulation');
-    if (toggleSimulation) toggleSimulation.addEventListener('click', async () => {
-      sectionSimulationOuverte = !sectionSimulationOuverte;
-      if (sectionSimulationOuverte && !simulationForm.date) simulationForm.date = dateISO();
-      renderTout(dernierCtx);
-      if (sectionSimulationOuverte) {
-        statsSimulation = await chargerStatsSimulation();
-        const zone = document.getElementById('simulationStatsZone');
-        if (zone) zone.innerHTML = renderStatsSimulation();
-      }
-    });
-    const simulationDateEl = document.getElementById('simulationDate');
-    if (simulationDateEl) simulationDateEl.addEventListener('change', (e) => { simulationForm.date = e.target.value; });
-    document.querySelectorAll('[data-simulation-quart]').forEach(el => el.addEventListener('click', () => {
-      simulationForm.quart = el.dataset.simulationQuart;
-      renderTout(dernierCtx);
-    }));
-    const btnChargerSimulation = document.getElementById('btnChargerSimulation');
-    if (btnChargerSimulation) btnChargerSimulation.addEventListener('click', async () => {
-      simulationForm.employeId = document.getElementById('simulationEmploye').value;
-      simulationForm.phase = document.getElementById('simulationPhase').value;
-      const corpsEl = document.getElementById('simulationCorps');
-      corpsEl.innerHTML = '<div class="loading">Chargement…</div>';
-      simulationQuart = await chargerOuCreerQuartSimulation();
-      if (!simulationQuart) { corpsEl.innerHTML = '<div class="empty">Erreur — réessayez.</div>'; return; }
-      if (!produitsPourSimulation.length) produitsPourSimulation = await chargerTousProduitsActifsSite(siteId);
-      simulationSaisie = await chargerComptagesSimulation(simulationQuart.id, simulationForm.phase);
-      simulationChrono = Date.now();
-      corpsEl.innerHTML = renderCorpsSimulation();
-      const btnEnregistrer = document.getElementById('btnEnregistrerSimulation');
-      if (btnEnregistrer) btnEnregistrer.addEventListener('click', enregistrerSimulation);
-    });
-
-    const toggleProfils = document.getElementById('toggleSectionProfils');
-    if (toggleProfils) toggleProfils.addEventListener('click', async () => {
-      sectionProfilsOuverte = !sectionProfilsOuverte;
-      renderTout(dernierCtx);
-      if (sectionProfilsOuverte && !produitsPourProfils.length) {
-        const [produits, regles] = await Promise.all([chargerTousProduitsActifsSite(siteId), chargerReglesProduit(siteId)]);
-        produitsPourProfils = produits;
-        reglesProduitMap = regles;
-        renderTout(dernierCtx);
-      }
-    });
-    document.querySelectorAll('[data-profil-produit]').forEach(el => el.addEventListener('click', () => {
-      ouvrirEditionProfil(el.dataset.profilProduit);
-    }));
-    const profilSelectEl = document.getElementById('profilSelect');
-    if (profilSelectEl) profilSelectEl.addEventListener('change', (e) => {
-      profilEnEdition.profil = e.target.value;
-      renderTout(dernierCtx);
-    });
-    const profilAgregationEl = document.getElementById('profilAgregation');
-    if (profilAgregationEl) profilAgregationEl.addEventListener('change', (e) => { profilEnEdition.mode_agregation_ventes = e.target.value; });
-    const profilDureeMaxEl = document.getElementById('profilDureeMax');
-    if (profilDureeMaxEl) profilDureeMaxEl.addEventListener('change', (e) => { profilEnEdition.duree_max_vente_jours = e.target.value ? parseInt(e.target.value) : null; });
-    const profilActionEcheanceEl = document.getElementById('profilActionEcheance');
-    if (profilActionEcheanceEl) profilActionEcheanceEl.addEventListener('change', (e) => { profilEnEdition.action_echeance = e.target.value; });
-    const profilSeuilMinimalEl = document.getElementById('profilSeuilMinimal');
-    if (profilSeuilMinimalEl) profilSeuilMinimalEl.addEventListener('change', (e) => { profilEnEdition.seuil_minimal = e.target.value ? parseFloat(e.target.value) : null; });
-    const profilValidationManagerEl = document.getElementById('profilValidationManager');
-    if (profilValidationManagerEl) profilValidationManagerEl.addEventListener('change', (e) => { profilEnEdition.validation_manager_requise = e.target.checked; });
-    const profilComptageMasqueEl = document.getElementById('profilComptageMasque');
-    if (profilComptageMasqueEl) profilComptageMasqueEl.addEventListener('change', (e) => { profilEnEdition.comptage_masque = e.target.checked; });
-    const btnEnregistrerProfil = document.getElementById('btnEnregistrerProfil');
-    if (btnEnregistrerProfil) btnEnregistrerProfil.addEventListener('click', enregistrerProfilProduit);
-    const btnAnnulerProfil = document.getElementById('btnAnnulerProfil');
-    if (btnAnnulerProfil) btnAnnulerProfil.addEventListener('click', () => {
-      profilProduitOuvert = null; profilEnEdition = null;
-      renderTout(dernierCtx);
-    });
     const btnDetailDecisions = document.getElementById('btnDetailDecisions');
     if (btnDetailDecisions) btnDetailDecisions.addEventListener('click', () => {
       detailDecisionsOuvert = !detailDecisionsOuvert;
@@ -2903,6 +2367,7 @@
     }
     managerCourant = employee;
     siteId = employee.site_id || 'vito-sainte-marie';
+    if (!(await NexusForfait.nexusRequireProfessional('NEXUS-Inventaire-Manager-v1.html', siteId))) return;
     demarrerHorloge();
     document.getElementById('titre').textContent = 'Contrôle inventaire';
 

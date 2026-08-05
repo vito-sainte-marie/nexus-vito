@@ -6,8 +6,12 @@
 // et une option réservée au créateur pour attribuer le forfait à un site
 // (NEXUS-Admin-Sites-v1.html). Essential donne accès à Cockpit, Produits,
 // Rayon, Centre d'Intelligence NEXUS (Alertes), Scanner Stock, Import,
-// Paramètres Station, Nexus Verify et Missions/Plans d'action — les outils
-// du quotidien. Professional ajoute TOUTES les autres fonctionnalités.
+// Paramètres Station, Nexus Verify, Missions/Plans d'action et l'écran de
+// comptage employé (NEXUS-Inventaire-v1.html) — les outils du quotidien.
+// Professional ajoute TOUTES les autres fonctionnalités, dont Contrôle
+// inventaire, NEXUS Traçabilité et Paramètres Inventaire (05/08/2026).
+// Brief NEXUS est à part : jamais lié au forfait, alloué site par site
+// (sites.brief_nexus_inclus) — voir nexusRequireBriefNexus plus bas.
 //
 // Le champ source de vérité est sites.forfait (migration
 // ajouter_forfait_sites, 26/07/2026) — jamais un état local ou un
@@ -28,7 +32,7 @@
 // ============================================================
 
 (function (global) {
-  // Les 10 pages qui exigent le forfait Professional — tout le reste de
+  // Les pages qui exigent le forfait Professional — tout le reste de
   // NEXUS (Cockpit, Produits, Rayon, Centre d'Intelligence NEXUS, Scanner
   // Stock, Import, Paramètres Station, Nexus Verify, Missions, écrans
   // employés) reste accessible en Essential.
@@ -43,6 +47,16 @@
     'NEXUS-Resultats-Equipe-v1.html',
     'NEXUS-Evaluation-Employe-v1.html',
     'NEXUS-Radar-Manager-v1.html',
+    // Refonte Inventaire (05/08/2026, demande de Frédéric) : Contrôle
+    // inventaire, NEXUS Traçabilité et Paramètres Inventaire rejoignent
+    // Professional. L'écran de comptage employé (NEXUS-Inventaire-v1.html)
+    // reste un outil du quotidien, donc Essential. Brief NEXUS n'est
+    // volontairement PAS dans cette liste : son accès se décide par site
+    // via sites.brief_nexus_inclus (NEXUS-Admin-Sites-v1.html), pas via le
+    // forfait — voir nexusRequireBriefNexus ci-dessous.
+    'NEXUS-Inventaire-Manager-v1.html',
+    'NEXUS-Tracabilite-v1.html',
+    'NEXUS-Parametres-Inventaire-v1.html',
   ];
 
   const FORFAIT_LABELS = { essential: 'Essential', professional: 'Professional' };
@@ -83,8 +97,36 @@
     return true;
   }
 
+  // Brief NEXUS (05/08/2026, demande de Frédéric) : contrairement à toutes
+  // les autres pages ci-dessus, son accès n'est PAS déterminé par le
+  // forfait Essential/Professional — le créateur peut l'allouer site par
+  // site depuis NEXUS-Admin-Sites-v1.html, quel que soit le forfait choisi
+  // (ex : un site Essential peut avoir Brief NEXUS, un site Professional
+  // peut en être privé). Source de vérité : sites.brief_nexus_inclus
+  // (migration ajouter_brief_nexus_inclus_sites, 05/08/2026).
+  async function chargerBriefNexusInclus(siteId) {
+    const { data, error } = await nexusClient.from('sites').select('brief_nexus_inclus').eq('site_id', siteId).maybeSingle();
+    if (error) {
+      console.error('Chargement brief_nexus_inclus site:', error);
+      return null; // ne bloque jamais sur une erreur réseau — même logique que chargerForfait
+    }
+    return data ? data.brief_nexus_inclus !== false : true;
+  }
+
+  // À appeler juste après nexusRequireAuth() dans NEXUS-Brief-v1.html.
+  async function nexusRequireBriefNexus(siteId) {
+    const inclus = await chargerBriefNexusInclus(siteId);
+    if (inclus === null) return true; // erreur réseau : ne bloque pas un manager légitime
+    if (!inclus) {
+      window.location.href = 'NEXUS-App-v1.html?brief_nexus_non_inclus=1';
+      return false;
+    }
+    return true;
+  }
+
   global.NexusForfait = {
     PAGES_PROFESSIONAL, FORFAIT_LABELS,
     estProfessional, pageEstProfessional, chargerForfait, nexusRequireProfessional,
+    chargerBriefNexusInclus, nexusRequireBriefNexus,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

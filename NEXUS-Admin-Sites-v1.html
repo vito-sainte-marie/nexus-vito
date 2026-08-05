@@ -219,6 +219,17 @@
       </div>
 
       <div class="card">
+        <div class="section-label">Brief NEXUS — ${siteActif.site_id}</div>
+        <p class="note" style="margin-top:0; margin-bottom:14px;">Brief NEXUS ne dépend pas du forfait Essential/Professional — vous l'allouez librement site par site, ici. Un site Essential peut l'avoir, un site Professional peut en être privé.</p>
+        <label style="display:flex; align-items:flex-start; gap:10px; cursor:pointer; margin-bottom:14px;">
+          <input type="checkbox" id="champBriefNexusInclus" ${siteActif.brief_nexus_inclus !== false ? 'checked' : ''} style="margin-top:3px; width:16px; height:16px; flex-shrink:0;">
+          <span style="font-size:12.5px; color:var(--text-mid); line-height:1.5;">Brief NEXUS inclus pour ${siteActif.site_id}. Décoché, le lien reste visible mais grisé pour le manager, avec un message clair (pas une erreur).</span>
+        </label>
+        <button class="btn btn-primary" id="btnEnregistrerBriefNexus" style="margin-top:0;">Enregistrer ce choix</button>
+        <div class="msg" id="msgBriefNexus"></div>
+      </div>
+
+      <div class="card">
         <div class="section-label">Marque — ${siteActif.site_id}</div>
         <div class="logo-preview">
           ${siteActif.logo_url ? `<img src="${siteActif.logo_url}" alt="">` : `<div class="none">?</div>`}
@@ -303,6 +314,25 @@
         if (error) { console.error('Enregistrement forfait:', error); msg.textContent = 'Erreur — réessayez.'; msg.className = 'msg err'; return; }
 
         msg.textContent = `✓ ${siteActif.site_id} est maintenant en forfait ${forfaitChoisi === 'professional' ? 'Professional' : 'Essential'}.`;
+        msg.className = 'msg ok';
+        SITES = await chargerSites();
+        renderRoot();
+      });
+
+      document.getElementById('btnEnregistrerBriefNexus').addEventListener('click', async () => {
+        const btn = document.getElementById('btnEnregistrerBriefNexus');
+        const msg = document.getElementById('msgBriefNexus');
+        const inclus = document.getElementById('champBriefNexusInclus').checked;
+        btn.disabled = true; btn.textContent = 'Enregistrement…';
+
+        const { error } = await nexusClient.from('sites')
+          .update({ brief_nexus_inclus: inclus })
+          .eq('site_id', siteActif.site_id);
+
+        btn.disabled = false; btn.textContent = 'Enregistrer ce choix';
+        if (error) { console.error('Enregistrement brief_nexus_inclus:', error); msg.textContent = 'Erreur — réessayez.'; msg.className = 'msg err'; return; }
+
+        msg.textContent = `✓ Brief NEXUS est maintenant ${inclus ? 'inclus' : 'non inclus'} pour ${siteActif.site_id}.`;
         msg.className = 'msg ok';
         SITES = await chargerSites();
         renderRoot();

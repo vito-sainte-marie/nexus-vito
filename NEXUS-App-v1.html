@@ -490,6 +490,7 @@
         <div class="legende-row"><span class="legende-dot" style="background:var(--green);"></span>75–89 · Sous contrôle</div>
         <div class="legende-row"><span class="legende-dot" style="background:var(--amber);"></span>60–74 · À surveiller</div>
         <div class="legende-row"><span class="legende-dot" style="background:var(--red);"></span>Moins de 60 · Priorité élevée</div>
+        <div class="legende-row" style="border-top:1px solid var(--hairline); margin-top:6px; padding-top:8px; font-style:italic; color:var(--text-dim);">Calculé ici à partir de la marge et de l'évolution du CA uniquement. L'indice affiché dans Brief NEXUS est différent par construction : il moyenne les 5 axes de la Boussole (Commerce, Marge, Opérations, Équipe, Risques) — pas un bug, deux angles de lecture volontairement distincts.</div>
       </div>
       <div class="etat-synthese" id="etatSynthese">Analyse en cours…</div>
       <div class="etat-domaines" id="etatDomaines"></div>
@@ -606,7 +607,7 @@
   <div class="groupe-wrap" data-groupe="piloter">
     <div class="section-label" data-role="manager" style="display:none;">Piloter</div>
     <nav data-role="manager" data-group="piloter" style="display:none;">
-      <a class="nav-item" data-role="manager" href="NEXUS-Brief-v1.html">
+      <a class="nav-item" data-role="manager" data-brief-nexus="1" href="NEXUS-Brief-v1.html">
         <div class="nav-icon"><img src="assets/icons/icon-brief-nexus.png" alt="Brief NEXUS"></div>
         <div class="nav-body">
           <div class="nav-title">Brief NEXUS</div>
@@ -737,10 +738,10 @@
            renommé — le nom "Alerte inventaire quotidien" était trop étroit
            pour une page qui contient aussi le suivi du quart, les produits
            non comptés, les décisions, les réglages et l'historique. -->
-      <a class="nav-item" data-role="manager" href="NEXUS-Inventaire-Manager-v1.html">
+      <a class="nav-item" data-role="manager" data-forfait="professional" href="NEXUS-Inventaire-Manager-v1.html">
         <div class="nav-icon" style="display:flex; align-items:center; justify-content:center; font-size:20px;">🧭</div>
         <div class="nav-body">
-          <div class="nav-title">Contrôle inventaire</div>
+          <div class="nav-title">Contrôle inventaire <span class="nav-badge badge-premium">Professional</span></div>
           <div class="nav-desc">Écarts, comptages manquants et décisions du jour</div>
         </div>
         <div class="nav-arrow">›</div>
@@ -1083,7 +1084,13 @@
   // d'alertes inventaire_alertes encore ouvertes (écarts non résolus),
   // tous quarts confondus — même donnée que la carte "Alertes ouvertes" de
   // NEXUS-Inventaire-Manager-v1.html, jamais un chiffre inventé.
+  // Contrôle inventaire est passé en Professional le 05/08/2026 : un site
+  // Essential ne doit pas voir apparaître une case d'accueil qui pointe
+  // vers un écran qui le renverra aussitôt — on ne charge donc même pas
+  // le chiffre pour ces sites.
   async function chargerAlertesInventaireHome(siteId) {
+    const forfait = await NexusForfait.chargerForfait(siteId);
+    if (forfait !== null && !NexusForfait.estProfessional(forfait)) return null;
     const { count, error } = await nexusClient.from('inventaire_alertes')
       .select('id', { count: 'exact', head: true }).eq('site', siteId).eq('statut', 'ouverte');
     if (error) { console.error('Chargement alertes inventaire (accueil):', error); return null; }
@@ -2035,12 +2042,19 @@
   // accès. Le clic est intercepté ici, mais la vraie barrière reste
   // nexus-forfait.js sur chacune de ces pages (un lien direct copié/collé
   // ne suffit donc pas à contourner la restriction).
+  // Brief NEXUS n'est verrouillé que dans la recherche (le nav-item est
+  // déjà géré par verrouillerNavBriefNexus, appelé indépendamment).
+  function briefNexusEstVerrouille(page, briefNexusInclus) {
+    return page === 'NEXUS-Brief-v1.html' && briefNexusInclus === false;
+  }
   const LABEL_PAGE_FORFAIT = {
     'NEXUS-Tempo-v1.html': 'NEXUS Tempo', 'NEXUS-Campagne-v1.html': 'Campagne NEXUS',
     'NEXUS-Capital-v1.html': 'Capital NEXUS', 'NEXUS-Planning-v1.html': 'Nexus Planner',
     'NEXUS-Scanner-v1.html': 'Scanner NEXUS', 'NEXUS-Journal-v1.html': 'Journal NEXUS',
     'NEXUS-Assignations-v1.html': 'Assignations', 'NEXUS-Resultats-Equipe-v1.html': 'Résultats Équipe',
     'NEXUS-Evaluation-Employe-v1.html': 'Évaluation Employé', 'NEXUS-Radar-Manager-v1.html': 'Radar du Manager',
+    'NEXUS-Inventaire-Manager-v1.html': 'Contrôle inventaire', 'NEXUS-Tracabilite-v1.html': 'NEXUS Traçabilité',
+    'NEXUS-Parametres-Inventaire-v1.html': 'Paramètres Inventaire',
   };
 
   function afficherToastForfait(nomFichier) {
@@ -2075,6 +2089,35 @@
     return false;
   }
 
+  // Brief NEXUS (05/08/2026) : verrouillage indépendant du forfait — géré
+  // par sites.brief_nexus_inclus, alloué site par site par le créateur
+  // (NEXUS-Admin-Sites-v1.html), jamais par Essential/Professional. Même
+  // traitement visuel (grisé + toast) que verrouillerNavForfait, sur un
+  // attribut séparé (data-brief-nexus) pour ne jamais mélanger les deux
+  // mécanismes.
+  async function verrouillerNavBriefNexus(siteId) {
+    const inclus = await NexusForfait.chargerBriefNexusInclus(siteId);
+    if (inclus === null || inclus) return true; // erreur réseau ou inclus : rien à verrouiller
+    document.querySelectorAll('[data-brief-nexus]').forEach(el => {
+      el.classList.add('locked-forfait');
+      el.addEventListener('click', (e) => {
+        e.preventDefault();
+        let toast = document.getElementById('forfaitToast');
+        if (!toast) {
+          toast = document.createElement('div');
+          toast.id = 'forfaitToast';
+          toast.className = 'forfait-toast';
+          document.body.appendChild(toast);
+        }
+        toast.textContent = "💎 Brief NEXUS n'est pas inclus pour votre site — contactez votre créateur NEXUS pour l'activer.";
+        toast.classList.add('visible');
+        clearTimeout(toast._timeout);
+        toast._timeout = setTimeout(() => toast.classList.remove('visible'), 4000);
+      });
+    });
+    return false;
+  }
+
   // ------------------------------------------------------------
   // Recherche NEXUS (27/07/2026, demande de Frédéric) : "un encart en bas
   // de page avec une loupe... en écrivant les premières lettres ou
@@ -2102,18 +2145,18 @@
     { label: 'Capital NEXUS', desc: 'La valeur créée par vos décisions', href: 'NEXUS-Capital-v1.html', role: 'manager', forfait: 'professional' },
     { label: 'Scanner NEXUS', desc: 'CA, marge et répartition ABC du magasin', href: 'NEXUS-Scanner-v1.html', role: 'manager', forfait: 'professional' },
     { label: 'Radar du Manager', desc: '8 domaines de responsabilité', href: 'NEXUS-Radar-Manager-v1.html', role: 'manager', forfait: 'professional' },
-    { label: 'Contrôle inventaire', desc: 'Écarts, comptages manquants et décisions du jour', href: 'NEXUS-Inventaire-Manager-v1.html', role: 'manager' },
+    { label: 'Contrôle inventaire', desc: 'Écarts, comptages manquants et décisions du jour', href: 'NEXUS-Inventaire-Manager-v1.html', role: 'manager', forfait: 'professional' },
     // Traçabilité (04/08/2026, demande de Frédéric) : volontairement absente
     // du tiroir de menu principal — page consultée seulement pour les
     // produits suivis par lot (SDD, presse), signalée via le Conseiller
     // NEXUS et un lien direct depuis Paramètres → Inventaire → Gestion des
     // profils. Présente ici uniquement pour rester trouvable par recherche.
-    { label: 'Traçabilité', desc: 'Lots, retours fournisseurs et échéances (SDD, presse)', href: 'NEXUS-Tracabilite-v1.html', role: 'manager' },
+    { label: 'Traçabilité', desc: 'Lots, retours fournisseurs et échéances (SDD, presse)', href: 'NEXUS-Tracabilite-v1.html', role: 'manager', forfait: 'professional' },
     // Paramètres Inventaire (05/08/2026) : accessible depuis Contrôle
     // inventaire via le lien "⚙️ Paramètres Inventaire", mais pas encore
     // dans le tiroir de menu principal — présente ici pour rester
     // trouvable par recherche.
-    { label: 'Paramètres Inventaire', desc: 'Produits comptés, parcours, règles, alertes et traçabilité', href: 'NEXUS-Parametres-Inventaire-v1.html', role: 'manager' },
+    { label: 'Paramètres Inventaire', desc: 'Produits comptés, parcours, règles, alertes et traçabilité', href: 'NEXUS-Parametres-Inventaire-v1.html', role: 'manager', forfait: 'professional' },
     { label: 'Rayon', desc: 'CA, marge, top ventes par catégorie', href: 'NEXUS-Rayon-v1.html', role: 'manager' },
     { label: 'Produits', desc: 'Fiche complète par référence', href: 'NEXUS-Produits-v1.html', role: 'manager' },
     { label: 'Tempo', desc: 'Les jours qui portent votre station, ceux qui la ralentissent', href: 'NEXUS-Tempo-v1.html', role: 'manager', forfait: 'professional' },
@@ -2146,7 +2189,7 @@
     return (s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   }
 
-  function initRechercheNexus(employee, estNiveauManager, forfaitProfessional, pointageRequisManager, roleDuJour) {
+  function initRechercheNexus(employee, estNiveauManager, forfaitProfessional, briefNexusInclus, pointageRequisManager, roleDuJour) {
     const input = document.getElementById('rechercheNexusInput');
     const resultats = document.getElementById('rechercheNexusResultats');
     if (!input || !resultats) return;
@@ -2185,12 +2228,13 @@
         // recherche : non requis pour le poste manager par défaut.
         const pointageDesactive = p.href === 'NEXUS-Pointage-v1.html' && estNiveauManager && !pointageRequisManager;
         const forfaitVerrouille = p.forfait === 'professional' && !forfaitProfessional;
+        const briefVerrouille = briefNexusEstVerrouille(p.href, briefNexusInclus);
         const desc = pointageDesactive ? 'Non requis pour votre poste — activable dans Paramètres Station' : p.desc;
-        const badges = `${forfaitVerrouille ? ' <span class="nav-badge badge-premium">Professional</span>' : ''}${p.danger ? ' <span class="nav-badge badge-danger">⚠ Irréversible</span>' : ''}`;
+        const badges = `${forfaitVerrouille ? ' <span class="nav-badge badge-premium">Professional</span>' : ''}${briefVerrouille ? ' <span class="nav-badge badge-soon">Non inclus</span>' : ''}${p.danger ? ' <span class="nav-badge badge-danger">⚠ Irréversible</span>' : ''}`;
         if (pointageDesactive) {
           return `<div class="recherche-item disabled"><div class="recherche-item-body"><div class="recherche-item-titre">${p.label}</div><div class="recherche-item-desc">${desc}</div></div></div>`;
         }
-        return `<a class="recherche-item" href="${p.href}" data-forfait-verrouille="${forfaitVerrouille}" data-forfait-page="${p.href}">
+        return `<a class="recherche-item" href="${p.href}" data-forfait-verrouille="${forfaitVerrouille}" data-brief-verrouille="${briefVerrouille}" data-forfait-page="${p.href}">
           <div class="recherche-item-body">
             <div class="recherche-item-titre">${p.label}${badges}</div>
             <div class="recherche-item-desc">${desc}</div>
@@ -2204,6 +2248,22 @@
         el.addEventListener('click', (e) => {
           e.preventDefault();
           afficherToastForfait(el.getAttribute('data-forfait-page'));
+        });
+      });
+      resultats.querySelectorAll('a.recherche-item[data-brief-verrouille="true"]').forEach(el => {
+        el.addEventListener('click', (e) => {
+          e.preventDefault();
+          let toast = document.getElementById('forfaitToast');
+          if (!toast) {
+            toast = document.createElement('div');
+            toast.id = 'forfaitToast';
+            toast.className = 'forfait-toast';
+            document.body.appendChild(toast);
+          }
+          toast.textContent = "💎 Brief NEXUS n'est pas inclus pour votre site — contactez votre créateur NEXUS pour l'activer.";
+          toast.classList.add('visible');
+          clearTimeout(toast._timeout);
+          toast._timeout = setTimeout(() => toast.classList.remove('visible'), 4000);
         });
       });
     }
@@ -2224,6 +2284,20 @@
       conteneur.innerHTML = `<div class="forfait-banniere">💎 ${libelle} fait partie de l'offre NEXUS Professional — non incluse dans votre forfait actuel.</div>`;
     }
     // Retire le paramètre de l'URL pour ne pas le réafficher à un rechargement.
+    window.history.replaceState({}, '', window.location.pathname);
+  })();
+
+  // Bandeau explicatif si un manager a été renvoyé ici depuis Brief NEXUS
+  // alors que ce n'est pas inclus pour son site (voir nexus-forfait.js,
+  // nexusRequireBriefNexus) — même logique que le bandeau forfait_requis
+  // ci-dessus, mais ce n'est jamais une question de forfait ici.
+  (function afficherBanniereBriefNexusNonInclus() {
+    const params = new URLSearchParams(window.location.search);
+    if (!params.get('brief_nexus_non_inclus')) return;
+    const conteneur = document.getElementById('banniereForfait');
+    if (conteneur) {
+      conteneur.innerHTML = `<div class="forfait-banniere">💎 Brief NEXUS n'est pas inclus pour votre site — contactez votre créateur NEXUS pour l'activer.</div>`;
+    }
     window.history.replaceState({}, '', window.location.pathname);
   })();
 
@@ -2251,6 +2325,7 @@
     // role:'manager', de toute façon invisibles pour lui.
     let pointageRequisManager = true;
     let forfaitProfessional = true;
+    let briefNexusInclus = true;
 
     // roleDuJour (03/08/2026, demande de Frédéric) : rôle choisi à la prise
     // de poste pour AUJOURD'HUI (shifts.role) — sert à masquer la section
@@ -2339,6 +2414,7 @@
       pointageRequisManager = await chargerPointageRequisManager(employee.site_id || 'vito-sainte-marie');
       await initPosteManager(employee);
       forfaitProfessional = await verrouillerNavForfait(employee.site_id || 'vito-sainte-marie');
+      briefNexusInclus = await verrouillerNavBriefNexus(employee.site_id || 'vito-sainte-marie');
     } else {
       document.getElementById('conseillerEmployeWrap').style.display = '';
       document.getElementById('conseillerEmployeTexte').textContent = `Bonjour ${employee.nom}. J'ai préparé votre journée.`;
@@ -2498,7 +2574,7 @@
       }
     })();
 
-    initRechercheNexus(employee, estNiveauManager, forfaitProfessional, pointageRequisManager, roleDuJour);
+    initRechercheNexus(employee, estNiveauManager, forfaitProfessional, briefNexusInclus, pointageRequisManager, roleDuJour);
     initGroupes();
   });
 

@@ -227,6 +227,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-auth.js"></script>
+<script src="nexus-forfait.js"></script>
 <script src="nexus-desktop.js"></script>
 <script src="nexus-periodes.js"></script>
 <script src="nexus-indice.js"></script>
@@ -867,6 +868,7 @@
           <div class="indice-explain">
             <div class="section-note" style="margin-top:0;">Moyenne des axes de la Boussole mesurés aujourd'hui (${ex.nbMesures}/5), chacun recentré à 50 = neutre. ${ex.periodeLabel}.</div>
             ${deltasHTML}
+            <div class="section-note" style="font-style:italic;">Cet indice diffère volontairement de celui affiché sur votre écran d'accueil (calculé, lui, uniquement à partir de la marge et de l'évolution du CA) — pas un bug, deux angles de lecture distincts : ici la vision d'ensemble du dirigeant, là un signal opérationnel plus étroit.</div>
           </div>
         </div>
       </div>
@@ -1119,6 +1121,7 @@
     }
     employeeCourantId = employee.id;
     SITE_ACTUEL = employee.site_id || 'vito-sainte-marie';
+    if (!(await NexusForfait.nexusRequireBriefNexus(SITE_ACTUEL))) return;
     STATION_CONFIG.manager_prenom = employee.nom;
     STATION_CONFIG.manager_role = employee.role;
     const { data: siteActuel } = await nexusClient.from('sites').select('nom_entreprise, logo_url').eq('site_id', SITE_ACTUEL).maybeSingle();
