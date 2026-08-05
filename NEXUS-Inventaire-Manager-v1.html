@@ -336,6 +336,8 @@
   .tip-banniere{margin:14px 20px 0; padding:12px 14px; border-radius:10px; background:var(--amber-dim); border:1px solid rgba(245,166,35,0.4); animation:tipApparition .25s ease;}
   .tip-banniere-texte{font-size:12px; line-height:1.55; color:#F3D9A8;}
   .tip-banniere-texte b{color:var(--amber);}
+  .tip-banniere-liste{margin:6px 0 0; padding-left:18px;}
+  .tip-banniere-liste li{margin-bottom:3px;}
   .tip-banniere-actions{display:flex; justify-content:space-between; align-items:center; margin-top:8px;}
   .tip-banniere-lien{font-family:var(--sans); font-size:11.5px; font-weight:700; color:var(--amber); text-decoration:none;}
   .tip-banniere-fermer{color:var(--text-dim); font-size:13px; cursor:pointer; padding:2px 6px;}
@@ -361,7 +363,16 @@
        "que dois-je traiter maintenant ?". localStorage garde juste la
        date du dernier affichage, rien de plus. -->
   <div class="tip-banniere" id="tipParametresInventaire" style="display:none;">
-    <div class="tip-banniere-texte">💡 Le saviez-vous ? Dans <b>⚙️ Paramètres Inventaire</b>, vous pouvez ajouter des produits suivis, réorganiser le parcours de comptage, configurer des profils par lot ou presse, régler les seuils d'alerte et lancer une simulation Papier/NEXUS.</div>
+    <div class="tip-banniere-texte">
+      💡 <b>Le saviez-vous ?</b><br>
+      Dans <b>⚙️ Paramètres Inventaire</b>, vous pouvez personnaliser entièrement votre inventaire :
+      <ul class="tip-banniere-liste">
+        <li>Ajouter ou retirer des produits à compter.</li>
+        <li>Organiser l'ordre et le parcours de comptage.</li>
+        <li>Définir les règles propres à certains produits (viennoiseries, presse, retours fournisseur, produits du jour…).</li>
+        <li>Régler les alertes et les seuils d'anomalie.</li>
+      </ul>
+    </div>
     <div class="tip-banniere-actions">
       <a href="NEXUS-Parametres-Inventaire-v1.html" class="tip-banniere-lien">Découvrir →</a>
       <span class="tip-banniere-fermer" id="btnFermerTip">✕</span>
