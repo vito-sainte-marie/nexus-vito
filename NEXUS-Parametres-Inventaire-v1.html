@@ -57,6 +57,8 @@
 
   .section-titre{font-family:var(--mono); font-size:11px; text-transform:uppercase; letter-spacing:0.05em; color:var(--text-mid); margin:20px 0 10px;}
   .section-titre:first-child{margin-top:0;}
+  .question-titre{font-family:var(--sans); font-size:18px; font-weight:700; line-height:1.3; color:var(--text); margin:4px 0 14px;}
+  .question-titre:first-child{margin-top:0;}
   .section-titre-action-row{display:flex; align-items:center; justify-content:space-between; gap:10px; margin:20px 0 10px;}
   .section-titre-action-row .section-titre{margin:0;}
   .btn-tout-valider{font-family:var(--sans); font-size:11px; font-weight:600; padding:6px 12px; border-radius:20px; border:1px solid rgba(79,195,217,0.4); background:rgba(79,195,217,0.08); color:var(--cyan); cursor:pointer; white-space:nowrap; flex-shrink:0;}
@@ -458,8 +460,9 @@
     const liste = filtre ? produitsInventaire.filter(p => p.designation.toLowerCase().includes(filtre)) : produitsInventaire;
     const actifs = liste.filter(p => p.actif).length;
     return `
-      <div class="section-titre-action-row">
-        <div class="section-titre">Produits suivis (${actifs} actif${actifs > 1 ? 's' : ''} / ${produitsInventaire.length})</div>
+      <div class="question-titre">Quels produits souhaitez-vous compter ?</div>
+      <div class="section-titre-action-row" style="margin-top:2px;">
+        <div class="section-titre">${actifs} actif${actifs > 1 ? 's' : ''} sur ${produitsInventaire.length} au total</div>
         <button class="btn-tout-valider" id="btnToggleAjoutProduit">${formAjoutOuvert ? 'Annuler' : '➕ Ajouter'}</button>
       </div>
       ${formAjoutOuvert ? renderFormAjoutProduit() : ''}
@@ -518,7 +521,8 @@
 
   function renderOngletParcours() {
     return `
-      <div class="section-titre">Sens de comptage</div>
+      <div class="question-titre">Dans quel ordre souhaitez-vous les compter ?</div>
+      <div class="section-titre" style="margin-top:14px;">Sens de comptage</div>
       <div class="note">Ordre des zones lors du parcours de comptage terrain.</div>
       <div class="quart-select-row" style="margin-bottom:16px;">
         <div class="quart-pill ${parametresInventaire.sensComptage !== 'boutique_piste' ? 'active' : ''}" data-sens-comptage="piste_boutique">Piste → Boutique</div>
@@ -767,7 +771,8 @@
       return acc;
     }, {});
     return `
-      <div class="ventes-desc" style="margin:0 2px 12px;">Par défaut, un produit garde son stock d'un quart à l'autre — aucun réglage nécessaire. Configurez uniquement les produits avec un fonctionnement particulier : viennoiserie/pain (stock remis à zéro chaque matin), pâtes et biscuits SDD (durée de vente limitée), presse (vendue le jour même), ou tout produit ayant besoin d'un seuil d'alerte.</div>
+      <div class="question-titre">Certains produits ont-ils un fonctionnement particulier ?</div>
+      <div class="ventes-desc" style="margin:6px 2px 12px;">Par défaut, un produit garde son stock d'un quart à l'autre — aucun réglage nécessaire. Configurez uniquement les produits avec un fonctionnement particulier : viennoiserie/pain (stock remis à zéro chaque matin), pâtes et biscuits SDD (durée de vente limitée), presse (vendue le jour même), ou tout produit ayant besoin d'un seuil d'alerte.</div>
       ${Object.entries(groupes).map(([cat, items]) => `
         <div class="cat-block">
           <div class="cat-head"><div class="cat-nom">${cat} (${items.length})</div></div>
@@ -844,7 +849,8 @@
     const p = parametresInventaire;
     const optionsFrequence = Object.entries(LABELS_FREQUENCE).map(([val, label]) => `<option value="${val}" ${p.reviewFrequency === val ? 'selected' : ''}>${label}</option>`).join('');
     return `
-      <div class="section-titre">Seuils d'alerte</div>
+      <div class="question-titre">À partir de quand voulez-vous être alerté ?</div>
+      <div class="section-titre" style="margin-top:14px;">Seuils d'alerte</div>
       <div class="card" style="margin-bottom:10px;">
         <div class="param-ligne"><label for="paramFrequence">Fréquence de supervision</label><select class="param-input" id="paramFrequence">${optionsFrequence}</select></div>
         <div class="param-ligne"><label for="paramSeuilQte">Seuil d'écart en quantité</label><input type="number" min="0" step="0.5" class="param-input" id="paramSeuilQte" value="${p.quantityAlertThreshold}"></div>
@@ -884,6 +890,7 @@
   // ==============================================================
   function renderOngletTracabilite() {
     return `
+      <div class="question-titre">Certains produits ont-ils une durée de vie à suivre ?</div>
       <div class="raccourci-card">
         <div class="raccourci-titre">🔄 NEXUS Traçabilité</div>
         <div class="raccourci-desc">Lots, retours fournisseurs, produits arrivant à échéance et historique — pour les produits configurés en « Durée de vie glissante » ou « Presse » dans l'onglet Règles des produits.</div>
@@ -1001,7 +1008,8 @@
   function renderOngletSimulation() {
     const optionsEmployes = employesSite.map(e => `<option value="${e.id}" ${e.id === simulationForm.employeId ? 'selected' : ''}>${e.nom}</option>`).join('');
     return `
-      <div class="card" style="margin-bottom:10px; padding:14px;">
+      <div class="question-titre">Comment se compare NEXUS à la feuille papier ?</div>
+      <div class="card" style="margin-bottom:10px; padding:14px; margin-top:14px;">
         <div class="ventes-desc" style="margin-bottom:4px; color:var(--amber); font-weight:600;">Mode Simulation — cet inventaire sert à tester NEXUS. La feuille papier reste la référence officielle.</div>
         <div class="ventes-desc" style="margin-bottom:12px;">Saisissez après coup ce qu'un employé a compté sur la feuille papier. Rien ici ne modifie les stocks officiels ni ne génère d'évaluation employé.</div>
         <div class="quart-select-row">
