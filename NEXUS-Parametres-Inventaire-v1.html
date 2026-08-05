@@ -572,6 +572,7 @@
   let reglesProduitMap = {};
   let profilProduitOuvert = null;
   let profilEnEdition = null;
+  let rechercheReglesTexte = '';
 
   async function chargerReglesProduit(site) {
     const { data, error } = await nexusClient.from('inventaire_regles_produit').select('*').eq('site', site);
@@ -764,7 +765,8 @@
   }
   function renderOngletRegles() {
     if (!produitsInventaire.length) return '<div class="loading">Chargement des produits…</div>';
-    const actifs = produitsInventaire.filter(p => p.actif);
+    const filtre = rechercheReglesTexte.trim().toLowerCase();
+    const actifs = produitsInventaire.filter(p => p.actif && (!filtre || p.designation.toLowerCase().includes(filtre)));
     const groupes = actifs.reduce((acc, p) => {
       const cat = p.inventaire_categories ? p.inventaire_categories.nom : 'Autres';
       (acc[cat] = acc[cat] || []).push(p);
@@ -773,7 +775,8 @@
     return `
       <div class="question-titre">Comment chaque produit doit-il être géré ?</div>
       <div class="ventes-desc" style="margin:6px 2px 12px;">Par défaut, un produit garde son stock d'un quart à l'autre — aucun réglage nécessaire. Configurez uniquement les produits avec un fonctionnement particulier : viennoiserie/pain (stock remis à zéro chaque matin), pâtes et biscuits SDD (durée de vente limitée), presse (vendue le jour même), ou tout produit ayant besoin d'un seuil d'alerte.</div>
-      ${Object.entries(groupes).map(([cat, items]) => `
+      <input type="text" class="champ-recherche" id="rechercheRegles" placeholder="🔍 Rechercher un produit suivi…" value="${rechercheReglesTexte}" style="margin-bottom:12px;">
+      ${actifs.length === 0 ? '<div class="empty">Aucun produit ne correspond.</div>' : Object.entries(groupes).map(([cat, items]) => `
         <div class="cat-block">
           <div class="cat-head"><div class="cat-nom">${cat} (${items.length})</div></div>
           <div class="card">${items.map(p => renderLigneProfilProduit(p)).join('')}</div>
@@ -1130,6 +1133,15 @@
     document.querySelectorAll('[data-jour-rotation]').forEach(el => el.addEventListener('click', () => toggleJourRotation(el.dataset.jourRotation, parseInt(el.dataset.jourIso))));
 
     // --- Règles ---
+    const inputRechercheRegles = document.getElementById('rechercheRegles');
+    if (inputRechercheRegles) {
+      inputRechercheRegles.addEventListener('input', () => {
+        rechercheReglesTexte = inputRechercheRegles.value;
+        render();
+        const el = document.getElementById('rechercheRegles');
+        if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
+      });
+    }
     document.querySelectorAll('[data-profil-produit]').forEach(el => el.addEventListener('click', () => ouvrirEditionProfil(el.dataset.profilProduit)));
     document.querySelectorAll('[data-preset]').forEach(el => el.addEventListener('click', () => appliquerPreregleProfil(el.dataset.preset)));
     const regleRemiseAZeroEl = document.getElementById('regleRemiseAZero');
