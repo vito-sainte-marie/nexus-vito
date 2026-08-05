@@ -351,9 +351,8 @@
   // Dupliquer vers les produits de la même catégorie (05/08/2026, demande
   // de Frédéric — "pose la question, voulez dupliquer ces réglages vers les
   // produits de la même catégorie" plutôt que de choisir un produit cible un
-  // par un) : ne copie que la règle d'inventaire (jamais la zone — déjà
-  // partagée par construction — ni le statut "sensible", propre à chaque
-  // produit).
+  // par un) : copie la règle d'inventaire et le statut "produit sensible"
+  // (jamais la zone, déjà partagée par construction).
   function autresProduitsMemeCategorie(p) {
     return produitsInventaire.filter(x => x.actif && x.id !== p.id && x.categorie_id === p.categorie_id);
   }
@@ -364,14 +363,16 @@
     if (!pairs.length) return;
     for (const cible of pairs) {
       await copierReglesProduit(sourceId, cible.id);
+      await nexusClient.from('inventaire_zone_produit').update({ sensible: source.sensible }).eq('id', cible.id);
     }
     const catNom = source.inventaire_categories ? source.inventaire_categories.nom : 'cette catégorie';
     await nexusClient.from('inventaire_audit_log').insert({
       site: siteId, entite_type: 'inventaire_regles_produit', entite_id: source.id, action: 'duplication_reglages_categorie',
-      nouvelle_valeur: { copie_depuis: source.designation, categorie: catNom, nb_produits: pairs.length }, acteur_id: managerCourant.id,
+      nouvelle_valeur: { copie_depuis: source.designation, categorie: catNom, nb_produits: pairs.length, sensible: source.sensible }, acteur_id: managerCourant.id,
     });
     dupliquerVersOuvertPour = null;
     reglesProduitMap = await chargerReglesProduit(siteId);
+    produitsInventaire = await chargerProduitsInventaire(siteId);
     render();
   }
 
