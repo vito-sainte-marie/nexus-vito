@@ -1130,7 +1130,16 @@
       carrouselInput.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') { e.preventDefault(); const btn = document.getElementById('btnValiderProduit'); if (btn) btn.click(); }
       });
-      setTimeout(() => { carrouselInput.focus(); carrouselInput.select(); }, 0);
+      // Focus synchrone, sans setTimeout (05/08/2026, retour de Frédéric —
+      // "Corriger" ne faisait qu'apparaître le chiffre en surligné, sans
+      // ouvrir le clavier numérique) : sur mobile (surtout iOS Safari), le
+      // clavier ne s'ouvre automatiquement que si .focus() est appelé de
+      // façon synchrone, dans le même geste utilisateur que le tapotement
+      // sur le bouton — un setTimeout, même à 0ms, casse cette chaîne et le
+      // navigateur se contente de sélectionner le texte sans afficher le
+      // clavier.
+      carrouselInput.focus();
+      carrouselInput.select();
       // Affiche tout de suite l'écart si une valeur était déjà enregistrée
       // (retour sur un produit déjà répondu) — sinon la pastille resterait
       // vide tant qu'on n'a pas retapé quelque chose.
