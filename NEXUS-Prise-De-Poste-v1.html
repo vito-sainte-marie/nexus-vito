@@ -153,7 +153,7 @@
     <div class="loading">Chargement…</div>
   </div>
 
-  <footer>NEXUS Prise de poste v1 · Vito Sainte-Marie Usine</footer>
+  <footer>NEXUS Prise de poste v1 · Vito Sainte-Marie Usine · <a href="#" id="logout" style="color:var(--cyan); text-decoration:none;">Se déconnecter</a></footer>
 </div>
 
 <script>
@@ -359,6 +359,13 @@
     employeeCourant = employee;
     catalogue = await chargerCatalogue();
     renderChoixRole();
+  });
+
+  // Lien de déconnexion en pied de page (05/08/2026, demande de Frédéric) —
+  // même mécanisme que sur NEXUS-App-v1.html.
+  document.getElementById('logout').addEventListener('click', (e) => {
+    e.preventDefault();
+    nexusLogout();
   });
 </script>
 </body>
