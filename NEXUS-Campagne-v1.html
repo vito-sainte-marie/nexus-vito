@@ -3,6 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" type="image/x-icon" href="favicon.ico">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+<link rel="manifest" href="site.webmanifest">
+<meta name="theme-color" content="#0B0F14">
 <title>NEXUS — Campagne</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -44,7 +50,7 @@ a{color:inherit;}
 .promo-field{margin-bottom:16px;}
 .promo-field:last-child{margin-bottom:0;}
 .promo-field label{display:block; font-family:var(--mono); font-size:10.5px; letter-spacing:0.06em; text-transform:uppercase; color:var(--text-dim); margin-bottom:8px;}
-.promo-field input[type=text], .promo-field input[type=date]{width:100%; background:var(--panel-raised); border:1px solid var(--hairline); border-radius:8px; padding:10px 11px; color:var(--text); font-family:var(--sans); font-size:13px;}
+.promo-field input[type=text], .promo-field input[type=date]{width:100%; background:var(--panel-raised); border:1px solid var(--hairline); border-radius:8px; padding:10px 11px; color:var(--text); font-family:var(--sans); font-size:16px;}
 .promo-dates{display:flex; gap:10px;}
 .promo-dates > div{flex:1;}
 .promo-dates label{font-size:9.5px; color:var(--text-dim); margin-bottom:6px;}
@@ -99,6 +105,7 @@ footer{margin-top:auto; padding:20px 20px 24px; font-family:var(--mono); font-si
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-auth.js"></script>
+<script src="nexus-desktop.js"></script>
 <script src="nexus-forfait.js"></script>
 <script src="nexus-tempo.js"></script>
 <script src="nexus-campagnes.js"></script>
