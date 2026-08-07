@@ -79,6 +79,18 @@
   select{width:100%; background:var(--panel-raised); border:1px solid var(--hairline); border-radius:9px; padding:11px 12px; color:var(--text); font-family:var(--sans); font-size:16px;}
 
   .footer-lien{display:block; text-align:center; font-family:var(--mono); font-size:11px; color:var(--text-dim); margin-top:20px;}
+
+  /* Widget "État du moteur documentaire" (07/08/2026, demande de Frédéric) */
+  .etat-moteur{border-radius:14px; padding:16px; border:1px solid var(--hairline);}
+  .etat-moteur.en-ligne{background:var(--green-dim); border-color:rgba(52,211,153,0.35);}
+  .etat-moteur.hors-ligne{background:var(--red-dim); border-color:rgba(240,87,90,0.35);}
+  .etat-moteur.inconnu{background:var(--panel); }
+  .em-titre{font-size:14px; font-weight:700; display:flex; align-items:center; gap:8px;}
+  .em-titre .pastille{font-size:11px;}
+  .em-lignes{margin-top:12px; display:flex; flex-direction:column; gap:7px;}
+  .em-ligne{font-size:12.5px; color:var(--text); display:flex; align-items:center; gap:8px;}
+  .em-ligne .em-icone{width:18px; text-align:center; flex:none;}
+  .em-note{margin-top:10px; font-size:11.5px; color:var(--text-mid); line-height:1.6;}
 </style>
 </head>
 <body>
@@ -133,6 +145,8 @@
   let siteId = null;
   let clientsListe = [];
   let documentsRecents = []; // fusion invoices + supporting_documents, triés par date
+  let etatMoteur = null; // ligne moteur_documentaire_etat du site (widget "État du moteur documentaire", 07/08/2026)
+  const SEUIL_HORS_LIGNE_S = 120; // 2 minutes sans battement de cœur → considéré hors ligne (voir note de conception §7)
 
   (async function init() {
     employeeCourant = await nexusRequireAuth();
@@ -148,7 +162,15 @@
 
     await chargerClients();
     await chargerDocumentsRecents();
+    await chargerEtatMoteur();
     render();
+
+    // Rafraîchissement automatique (07/08/2026, demande de Frédéric) :
+    // Frédéric ne doit jamais avoir à ouvrir le Terminal pour savoir si le
+    // worker de l'iMac tourne — NEXUS revérifie l'état toutes les 20s, et
+    // rafraîchit le texte "il y a Xs" toutes les 5s sans tout redessiner.
+    setInterval(async () => { await chargerEtatMoteur(); render(); }, 20000);
+    setInterval(mettreAJourSignalVie, 5000);
   })();
 
   async function chargerClients() {
@@ -370,6 +392,71 @@
     return { texte: ocr.status, classe: 'b-gris' };
   }
 
+  // Widget "État du moteur documentaire" (07/08/2026, demande de Frédéric) :
+  // lit le battement de cœur publié par le worker de l'iMac (table
+  // moteur_documentaire_etat, RLS lecture seule pour les employés — seul le
+  // worker écrit, via sa clé service_role). Aucune information inventée :
+  // si la ligne n'existe pas encore, on l'affiche clairement comme telle.
+  async function chargerEtatMoteur() {
+    const { data, error } = await nexusClient.from('moteur_documentaire_etat').select('*').eq('site', siteId).maybeSingle();
+    if (error) { console.error('État moteur documentaire:', error); etatMoteur = null; return; }
+    etatMoteur = data || null;
+  }
+
+  function moteurEnLigne() {
+    if (!etatMoteur || !etatMoteur.dernier_battement) return false;
+    const ecouleS = (Date.now() - new Date(etatMoteur.dernier_battement).getTime()) / 1000;
+    return ecouleS < SEUIL_HORS_LIGNE_S;
+  }
+
+  function formatRelatif(dateIso) {
+    if (!dateIso) return '—';
+    const ecouleS = Math.max(0, Math.floor((Date.now() - new Date(dateIso).getTime()) / 1000));
+    if (ecouleS < 60) return `il y a ${ecouleS}s`;
+    const min = Math.floor(ecouleS / 60);
+    if (min < 60) return `il y a ${min} min`;
+    return `il y a ${Math.floor(min / 60)} h`;
+  }
+
+  function formatHeure(dateIso) {
+    return dateIso ? new Date(dateIso).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : null;
+  }
+
+  // Ne touche que le texte du signal de vie, sans redessiner toute la page —
+  // évite d'interrompre l'utilisateur en plein glisser-déposer d'un fichier.
+  function mettreAJourSignalVie() {
+    if (!etatMoteur) return;
+    const el = document.getElementById('signalVie');
+    if (el) el.textContent = formatRelatif(etatMoteur.dernier_battement);
+  }
+
+  function rendreWidgetMoteur() {
+    if (!etatMoteur) {
+      return `<div class="etat-moteur inconnu">
+        <div class="em-titre"><span class="pastille">⚪</span> Moteur documentaire : état inconnu</div>
+        <div class="em-note">Aucun signal reçu pour l'instant — le worker n'a peut-être jamais été démarré sur l'iMac pour ce site.</div>
+      </div>`;
+    }
+    if (moteurEnLigne()) {
+      const heureTraitement = formatHeure(etatMoteur.dernier_traitement);
+      return `<div class="etat-moteur en-ligne">
+        <div class="em-titre"><span class="pastille">🟢</span> Moteur documentaire : en ligne</div>
+        <div class="em-lignes">
+          <div class="em-ligne"><span class="em-icone">🕒</span> Dernier traitement : ${heureTraitement || 'aucun document traité pour l\'instant'}</div>
+          <div class="em-ligne"><span class="em-icone">📄</span> Documents en attente : ${etatMoteur.documents_en_attente ?? 0}</div>
+          <div class="em-ligne"><span class="em-icone">❤️</span> Dernier signal de vie : <span id="signalVie">${formatRelatif(etatMoteur.dernier_battement)}</span></div>
+        </div>
+      </div>`;
+    }
+    return `<div class="etat-moteur hors-ligne">
+      <div class="em-titre"><span class="pastille">🔴</span> Moteur documentaire : hors ligne</div>
+      <div class="em-lignes">
+        <div class="em-ligne"><span class="em-icone">❤️</span> Dernier signal de vie : <span id="signalVie">${formatRelatif(etatMoteur.dernier_battement)}</span></div>
+      </div>
+      <div class="em-note">L'iMac qui héberge le moteur semble éteint ou déconnecté du réseau. Pas d'inquiétude : le traitement des documents en attente reprendra automatiquement dès qu'il sera rallumé — rien n'est perdu.</div>
+    </div>`;
+  }
+
   function optionsClients(clientIdActuel) {
     const options = ['<option value="">— À confirmer —</option>']
       .concat(clientsListe.map(c => `<option value="${c.id}" ${c.id === clientIdActuel ? 'selected' : ''}>${c.raison_sociale}</option>`));
@@ -410,6 +497,9 @@
 
     app.innerHTML = `
       <div class="section">
+        ${rendreWidgetMoteur()}
+      </div>
+      <div class="section">
         <label class="depot-zone" id="depotZone" for="fichierInput">
           <div class="depot-icon">📥</div>
           <div class="depot-titre">Déposer des documents</div>
@@ -431,15 +521,41 @@
 
     const zone = document.getElementById('depotZone');
     if (zone) {
-      zone.addEventListener('dragover', (e) => { e.preventDefault(); zone.classList.add('survole'); });
-      zone.addEventListener('dragleave', () => zone.classList.remove('survole'));
+      // Compteur d'entrées/sorties (07/08/2026) : dragenter/dragleave se
+      // déclenchent aussi en passant d'un enfant de la zone à un autre
+      // (icône, texte…), ce qui faisait clignoter le surlignage — un
+      // compteur plutôt qu'un simple booléen évite ce faux "dragleave"
+      // tant qu'on reste quelque part dans la zone.
+      let compteurEntrees = 0;
+      zone.addEventListener('dragenter', (e) => {
+        e.preventDefault();
+        compteurEntrees++;
+        zone.classList.add('survole');
+      });
+      zone.addEventListener('dragover', (e) => { e.preventDefault(); });
+      zone.addEventListener('dragleave', (e) => {
+        e.preventDefault();
+        compteurEntrees = Math.max(0, compteurEntrees - 1);
+        if (compteurEntrees === 0) zone.classList.remove('survole');
+      });
       zone.addEventListener('drop', (e) => {
         e.preventDefault();
+        e.stopPropagation();
+        compteurEntrees = 0;
         zone.classList.remove('survole');
         if (e.dataTransfer.files.length) gererFichiers(e.dataTransfer.files);
       });
     }
   }
+
+  // Filet de sécurité (07/08/2026) : si le fichier est lâché à côté de la
+  // zone de dépôt plutôt que précisément dessus, le comportement par
+  // défaut du navigateur est d'OUVRIR le fichier dans l'onglet (quittant
+  // NEXUS) — ce qui donne l'impression que le glisser-déposer ne
+  // fonctionne pas du tout. On neutralise ce comportement sur toute la
+  // page, tout en laissant la zone elle-même gérer le vrai dépôt.
+  window.addEventListener('dragover', (e) => e.preventDefault());
+  window.addEventListener('drop', (e) => e.preventDefault());
 </script>
 </body>
 </html>
