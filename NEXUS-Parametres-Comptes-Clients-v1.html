@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<link rel="icon" type="image/x-icon" href="favicon.ico">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+<link rel="manifest" href="site.webmanifest">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="NEXUS">
+<meta name="theme-color" content="#0B0F14">
+<title>NEXUS — Paramètres Comptes Clients</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
+    --text:#EDF1F5; --text-mid:#8A96A5; --text-dim:#57626F;
+    --green:#34D399; --green-dim:#153629;
+    --amber:#F5A623; --amber-dim:#3A2E14;
+    --red:#F0575A; --red-dim:#3A1D1F;
+    --cyan:#4FC3D9; --cyan-dim:rgba(79,195,217,0.1);
+    --mono:'IBM Plex Mono',monospace; --sans:'IBM Plex Sans',sans-serif;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{background:var(--bg); font-family:var(--sans); color:var(--text);}
+  body{display:flex; justify-content:center; min-height:100vh;}
+  .phone{width:100%; max-width:460px; min-height:100vh; display:flex; flex-direction:column; border-left:1px solid var(--hairline); border-right:1px solid var(--hairline); padding-top:env(safe-area-inset-top); padding-bottom:env(safe-area-inset-bottom);}
+  .header{padding:20px 20px 14px; position:relative;}
+  .back-btn{position:absolute; top:18px; left:18px; display:flex; align-items:center; gap:6px; font-family:var(--mono); font-size:10.5px; font-weight:600; letter-spacing:0.03em; text-transform:uppercase; color:var(--text-mid); background:var(--panel-raised); border:1px solid var(--hairline); border-radius:20px; padding:7px 12px; text-decoration:none; white-space:nowrap; z-index:5; cursor:pointer;}
+  .eyebrow{font-family:var(--mono); font-size:11px; letter-spacing:0.12em; text-transform:uppercase; color:var(--cyan); margin-top:30px;}
+  .title{font-size:20px; font-weight:600; margin-top:4px;}
+  .content{flex:1; padding:0 20px 40px;}
+  .onglets{display:flex; gap:6px; overflow-x:auto; padding:14px 20px 0; -webkit-overflow-scrolling:touch;}
+  .onglets::-webkit-scrollbar{display:none;}
+  .onglet{flex:none; font-family:var(--mono); font-size:10.5px; font-weight:600; padding:9px 13px; border-radius:10px 10px 0 0; background:var(--panel); border:1px solid var(--hairline); border-bottom:none; color:var(--text-mid); white-space:nowrap; cursor:pointer;}
+  .onglet.actif{background:var(--panel-raised); color:var(--cyan);}
+  .bloc{background:var(--panel); border:1px solid var(--hairline); border-radius:12px; padding:16px; margin-top:16px;}
+  .bloc-titre{font-family:var(--mono); font-size:10.5px; font-weight:700; letter-spacing:0.05em; text-transform:uppercase; color:var(--cyan); margin-bottom:4px;}
+  .bloc-desc{font-size:11.5px; color:var(--text-dim); line-height:1.5; margin-bottom:12px;}
+  label.lbl{display:block; font-family:var(--mono); font-size:10px; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.03em; margin:14px 0 6px;}
+  label.lbl:first-of-type{margin-top:0;}
+  input, select, textarea{width:100%; background:var(--panel-raised); border:1px solid var(--hairline); border-radius:9px; padding:11px 12px; color:var(--text); font-family:var(--sans); font-size:16px;}
+  textarea{min-height:90px; resize:vertical;}
+  .param-note{font-size:11px; color:var(--text-dim); margin-top:5px; line-height:1.5;}
+  .radio-grid{display:flex; flex-direction:column; gap:8px;}
+  .radio-opt{display:flex; align-items:center; gap:10px; padding:11px 12px; background:var(--panel-raised); border:1px solid var(--hairline); border-radius:9px; cursor:pointer;}
+  .radio-opt.actif{border-color:var(--cyan); background:rgba(79,195,217,0.08);}
+  .radio-opt input{width:auto; accent-color:var(--cyan);}
+  .radio-opt span{font-size:13.5px;}
+  .check-row{display:flex; align-items:flex-start; gap:10px; padding:10px 0; border-bottom:1px solid var(--hairline);}
+  .check-row:last-child{border-bottom:none;}
+  .check-row input[type=checkbox]{width:20px; height:20px; flex:none; margin-top:1px; accent-color:var(--cyan);}
+  .check-row .cr-texte{font-size:13px; line-height:1.4;}
+  .tolerance-row{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 0; border-bottom:1px solid var(--hairline);}
+  .tolerance-row:last-child{border-bottom:none;}
+  .tolerance-row .tr-label{font-size:13px;}
+  .tolerance-row .tr-defaut{font-size:10.5px; color:var(--text-dim); margin-top:2px;}
+  .tolerance-row input{width:90px; text-align:right;}
+  .btn-primary{width:100%; background:var(--cyan); color:#062026; font-weight:700; font-size:14px; text-align:center; padding:14px; border-radius:12px; border:none; cursor:pointer; margin-top:16px;}
+  .btn-ghost{width:100%; background:var(--panel-raised); color:var(--text-mid); font-weight:600; font-size:13px; text-align:center; padding:13px; border-radius:12px; border:1px solid var(--hairline); cursor:pointer; margin-top:10px;}
+  .var-chip{display:inline-block; font-family:var(--mono); font-size:10.5px; color:var(--cyan); background:rgba(79,195,217,0.1); border:1px solid rgba(79,195,217,0.3); border-radius:8px; padding:4px 8px; margin:3px 4px 0 0; cursor:pointer;}
+  .apercu-titre{font-family:var(--mono); font-size:9.5px; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.04em; margin:14px 0 6px;}
+  .apercu-box{background:var(--panel-raised); border:1px solid var(--hairline); border-radius:10px; padding:14px; font-size:12.5px; line-height:1.6; white-space:pre-wrap;}
+  .apercu-objet{font-weight:700; margin-bottom:8px;}
+  .toast-save{position:fixed; left:50%; bottom:calc(24px + env(safe-area-inset-bottom)); transform:translate(-50%, 12px); opacity:0; pointer-events:none; background:var(--green-dim); color:var(--green); border:1px solid var(--green); border-radius:12px; padding:12px 20px; font-size:13.5px; font-weight:600; z-index:200; transition:opacity .18s ease, transform .18s ease;}
+  .toast-save.visible{opacity:1; transform:translate(-50%, 0);}
+  .import-zone{border:1.5px dashed var(--hairline); border-radius:12px; padding:24px 16px; text-align:center; color:var(--text-dim); font-size:12.5px; margin-top:10px;}
+  footer{padding:20px; text-align:center; font-family:var(--mono); font-size:10px; color:var(--text-dim);}
+  a.footer-link{color:var(--cyan); text-decoration:none;}
+</style>
+</head>
+<body>
+<div class="phone">
+  <div id="app"></div>
+  <div class="toast-save" id="toastSave">✓ Enregistré</div>
+  <footer>NEXUS Paramètres Comptes Clients v1 · <a href="#" id="logout" class="footer-link">Se déconnecter</a></footer>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="nexus-auth.js"></script>
+<script src="nexus-forfait.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+  // ============================================================
+  // NEXUS PARAMÈTRES — COMPTES CLIENTS (07/08/2026)
+  // Identité/signature, communication, modèle d'e-mail (avec aperçu
+  // temps réel), tolérances de rapprochement (posées maintenant,
+  // utilisées par NEXUS RECONCILE en Phase 2), et import initial du
+  // fichier de paramétrage client. Toutes les valeurs sont lisibles et
+  // modifiables par le manager sans développeur (§17 du cahier des
+  // charges de Frédéric).
+  // ============================================================
+
+  let employeeCourant = null;
+  let parametres = null;
+  let ongletActif = 'identite';
+  const ONGLETS = [
+    { id: 'identite', label: 'Identité & signature' },
+    { id: 'communication', label: 'Communication' },
+    { id: 'modele', label: 'Modèle e-mail' },
+    { id: 'tolerances', label: 'Rapprochement' },
+    { id: 'import', label: 'Import initial' },
+    { id: 'journal', label: 'Journal' },
+  ];
+  let journalCharge = null;
+
+  const CIVILITES = [
+    { value: 'neutre', label: 'Neutre', exemple: 'Bonjour,' },
+    { value: 'monsieur', label: 'Monsieur', exemple: 'Bonjour Monsieur,' },
+    { value: 'madame', label: 'Madame', exemple: 'Bonjour Madame,' },
+    { value: 'prenom', label: 'Prénom uniquement', exemple: 'Bonjour {{interlocuteur}},' },
+  ];
+
+  const VARIABLES = ['{{interlocuteur}}', '{{compte_client}}', '{{mois}}', '{{année}}', '{{établissement}}', '{{signataire}}'];
+
+  (async function init() {
+    employeeCourant = await nexusRequireAuth();
+    if (!employeeCourant) return;
+    const estNiveauManager = employeeCourant.role === 'manager' || employeeCourant.role === 'gerant';
+    if (!estNiveauManager && !employeeCourant.est_createur) { window.location.href = 'NEXUS-App-v1.html'; return; }
+    const siteId = employeeCourant.site_id || 'vito-sainte-marie';
+    const ok = await NexusForfait.nexusRequireProfessional('NEXUS-Parametres-Comptes-Clients-v1.html', siteId);
+    if (!ok) return;
+
+    document.getElementById('logout').addEventListener('click', (e) => { e.preventDefault(); nexusLogout(); });
+    await chargerParametres();
+    render();
+  })();
+
+  async function chargerParametres() {
+    const site = employeeCourant.site_id || 'vito-sainte-marie';
+    let { data, error } = await nexusClient.from('client_comptes_parametres').select('*').eq('site', site).maybeSingle();
+    if (error) { console.error('Chargement paramètres:', error); }
+    if (!data) {
+      // Première visite sur ce site : on crée la ligne de réglages avec
+      // les valeurs par défaut plutôt que de laisser l'écran vide.
+      const defaut = { site, formule_appel_defaut: 'neutre', tolerance_montant: 0.01, tolerance_volume: 0.02, tolerance_date_jours: 0, seuil_confiance_pct: 97, pieces_jointes_obligatoires: true, validation_manager_obligatoire: true };
+      const { data: cree } = await nexusClient.from('client_comptes_parametres').insert(defaut).select().single();
+      data = cree || defaut;
+    }
+    let { data: modele } = await nexusClient.from('email_templates').select('*').eq('site', site).eq('est_defaut', true).maybeSingle();
+    if (!modele) {
+      const modeleDefaut = {
+        site, nom: 'Modèle par défaut', est_defaut: true,
+        objet: 'Votre facture du mois de {{mois}} est prête ! {{établissement}}',
+        corps: `{{interlocuteur}}\n\nVeuillez trouver ci-joint la facture récapitulative de votre compte {{compte_client}} pour le mois de {{mois}} {{année}}.\n\nN'hésitez pas à me contacter pour toute question ou précision.\n\nBien cordialement.\n\n{{signataire}}`,
+        corps_supplement_bons: ', accompagnée des bons justificatifs correspondants',
+      };
+      const { data: cree2 } = await nexusClient.from('email_templates').insert(modeleDefaut).select().single();
+      modele = cree2 || modeleDefaut;
+    }
+    parametres = { site, reglages: data, modele };
+  }
+
+  function render() {
+    document.getElementById('app').innerHTML = `
+      <div class="header">
+        <div class="back-btn" id="btnRetour">← Retour</div>
+        <div class="eyebrow">PARAMÈTRES</div>
+        <div class="title">Comptes Clients</div>
+      </div>
+      <div class="onglets">
+        ${ONGLETS.map(o => `<div class="onglet ${ongletActif === o.id ? 'actif' : ''}" data-onglet="${o.id}">${o.label}</div>`).join('')}
+      </div>
+      <div class="content" id="ongletContenu"></div>
+    `;
+    document.getElementById('btnRetour').addEventListener('click', () => { window.location.href = 'NEXUS-Comptes-Clients-v1.html'; });
+    document.querySelectorAll('.onglet').forEach(el => {
+      el.addEventListener('click', () => { ongletActif = el.dataset.onglet; render(); });
+    });
+    renderOnglet();
+  }
+
+  function renderOnglet() {
+    const zone = document.getElementById('ongletContenu');
+    if (ongletActif === 'identite') zone.innerHTML = tplIdentite();
+    else if (ongletActif === 'communication') zone.innerHTML = tplCommunication();
+    else if (ongletActif === 'modele') zone.innerHTML = tplModele();
+    else if (ongletActif === 'tolerances') zone.innerHTML = tplTolerances();
+    else if (ongletActif === 'import') zone.innerHTML = tplImport();
+    else if (ongletActif === 'journal') { zone.innerHTML = '<div class="bloc"><div class="param-note">Chargement…</div></div>'; chargerEtAfficherJournal(); }
+    wirerOnglet();
+  }
+
+  async function chargerEtAfficherJournal() {
+    const site = employeeCourant.site_id || 'vito-sainte-marie';
+    const { data, error } = await nexusClient.from('client_comptes_audit_logs')
+      .select('*, clients(raison_sociale)').eq('site', site).order('date_action', { ascending: false }).limit(50);
+    const zone = document.getElementById('ongletContenu');
+    if (error) { zone.innerHTML = '<div class="bloc"><div class="param-note">Erreur de chargement du journal.</div></div>'; return; }
+    if (!data || !data.length) {
+      zone.innerHTML = '<div class="bloc"><div class="bloc-titre">Journal</div><div class="param-note">Aucune action enregistrée pour l\'instant — chaque création, modification ou import de client apparaîtra ici.</div></div>';
+      return;
+    }
+    const LIBELLES = { creation: 'Création client', modification_identite: 'Modification identité', desactivation: 'Désactivation', reactivation: 'Réactivation', import_initial: 'Import initial' };
+    zone.innerHTML = `
+      <div class="bloc">
+        <div class="bloc-titre">Journal (50 dernières actions)</div>
+        ${data.map(l => `
+          <div style="padding:10px 0; border-bottom:1px solid var(--hairline);">
+            <div style="font-size:13px; font-weight:600;">${esc(LIBELLES[l.action] || l.action)}${l.clients ? ' — ' + esc(l.clients.raison_sociale) : ''}</div>
+            <div class="param-note">${new Date(l.date_action).toLocaleString('fr-FR')}</div>
+          </div>
+        `).join('')}
+      </div>
+    `;
+  }
+
+  function esc(s) { return (s || '').replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m])); }
+
+  function tplIdentite() {
+    const r = parametres.reglages;
+    return `
+      <div class="bloc">
+        <div class="bloc-titre">Identité et signature</div>
+        <div class="bloc-desc">Ces informations apparaissent dans chaque e-mail envoyé aux clients en compte — nom de l'établissement, expéditeur, signature.</div>
+        <label class="lbl">Nom de l'établissement</label>
+        <input type="text" id="pNomEtablissement" value="${esc(r.nom_etablissement)}" placeholder="Ex : Vito Sainte Marie Usine">
+        <label class="lbl">Expéditeur (nom)</label>
+        <input type="text" id="pExpediteurNom" value="${esc(r.expediteur_nom)}" placeholder="Ex : Frédéric Bragance">
+        <label class="lbl">Fonction</label>
+        <input type="text" id="pExpediteurFonction" value="${esc(r.expediteur_fonction || 'Manager')}">
+        <label class="lbl">Téléphone</label>
+        <input type="text" id="pTelephone" value="${esc(r.telephone)}" placeholder="Ex : 0596 69 47 53">
+        <label class="lbl">Adresse</label>
+        <textarea id="pAdresse" placeholder="Ex : Route de l'Union, 97230 Sainte Marie">${esc(r.adresse)}</textarea>
+        <label class="lbl">Signature (texte libre)</label>
+        <textarea id="pSignature" placeholder="Reprend par défaut nom, fonction, établissement, téléphone">${esc(r.signature_texte)}</textarea>
+        <div class="param-note">Utilisée automatiquement en fin de message via la variable {{signataire}}.</div>
+      </div>
+      <button class="btn-primary" id="btnSauverIdentite">Enregistrer</button>
+    `;
+  }
+
+  function tplCommunication() {
+    const r = parametres.reglages;
+    return `
+      <div class="bloc">
+        <div class="bloc-titre">Formule d'appel par défaut</div>
+        <div class="bloc-desc">Utilisée pour tout nouveau client tant que rien n'est précisé dans sa fiche. NEXUS ne devine jamais une civilité à partir d'un prénom, d'un nom ou d'une adresse e-mail — Neutre reste le choix recommandé.</div>
+        <div class="radio-grid" id="civiliteDefautGrid">
+          ${CIVILITES.map(c => `
+            <label class="radio-opt ${r.formule_appel_defaut === c.value ? 'actif' : ''}" data-civ="${c.value}">
+              <input type="radio" name="civDefaut" value="${c.value}" ${r.formule_appel_defaut === c.value ? 'checked' : ''}>
+              <span>${c.label} — <span style="color:var(--text-mid);">${c.exemple}</span></span>
+            </label>
+          `).join('')}
+        </div>
+      </div>
+      <button class="btn-primary" id="btnSauverCommunication">Enregistrer</button>
+    `;
+  }
+
+  function tplModele() {
+    const m = parametres.modele;
+    return `
+      <div class="bloc">
+        <div class="bloc-titre">Modèle d'e-mail</div>
+        <div class="bloc-desc">Variables disponibles — touchez pour copier :</div>
+        <div>${VARIABLES.map(v => `<span class="var-chip" data-var="${v}">${v}</span>`).join('')}</div>
+        <label class="lbl">Objet</label>
+        <input type="text" id="pObjet" value="${esc(m.objet)}">
+        <label class="lbl">Corps du message</label>
+        <textarea id="pCorps" style="min-height:160px;">${esc(m.corps)}</textarea>
+        <label class="lbl">Complément si bons joints</label>
+        <textarea id="pCorpsBons" placeholder="Ajouté à la phrase de la facture quand les bons sont joints">${esc(m.corps_supplement_bons)}</textarea>
+        <div class="apercu-titre">Aperçu en temps réel (exemple)</div>
+        <div class="apercu-box" id="apercuModele"></div>
+      </div>
+      <button class="btn-primary" id="btnSauverModele">Enregistrer</button>
+    `;
+  }
+
+  function genererApercu(objetBrut, corpsBrut, corpsBonsBrut, avecBons) {
+    const r = parametres.reglages;
+    const vars = {
+      '{{interlocuteur}}': 'Bonjour Séverine,',
+      '{{compte_client}}': 'SMPSJ',
+      '{{mois}}': 'juillet',
+      '{{année}}': '2026',
+      '{{établissement}}': r.nom_etablissement || 'votre établissement',
+      '{{signataire}}': [r.expediteur_nom, r.expediteur_fonction, r.nom_etablissement, r.adresse, r.telephone ? 'Tél : ' + r.telephone : ''].filter(Boolean).join('\n') || 'Votre signature',
+    };
+    const remplacer = (texte) => Object.keys(vars).reduce((acc, k) => acc.split(k).join(vars[k]), texte || '');
+    let corps = remplacer(corpsBrut);
+    if (avecBons && corpsBonsBrut) {
+      // Injecté après la phrase de la facture — approximation simple pour
+      // l'aperçu : ajouté juste avant le premier saut de ligne double.
+      corps = corps.replace(/\.(\s*\n)/, remplacer(corpsBonsBrut) + '.$1');
+    }
+    return { objet: remplacer(objetBrut), corps };
+  }
+
+  function tplTolerances() {
+    const r = parametres.reglages;
+    return `
+      <div class="bloc">
+        <div class="bloc-titre">Tolérances de rapprochement</div>
+        <div class="bloc-desc">Utilisées par NEXUS RECONCILE pour comparer bons et lignes de facture (Phase 2 — moteur de rapprochement, pas encore actif). Vous pouvez déjà régler vos seuils.</div>
+        <div class="tolerance-row"><div><div class="tr-label">Montant</div><div class="tr-defaut">Défaut : ± 0,01 €</div></div><input type="number" step="0.01" id="tMontant" value="${r.tolerance_montant}"></div>
+        <div class="tolerance-row"><div><div class="tr-label">Volume</div><div class="tr-defaut">Défaut : ± 0,02 L</div></div><input type="number" step="0.01" id="tVolume" value="${r.tolerance_volume}"></div>
+        <div class="tolerance-row"><div><div class="tr-label">Date</div><div class="tr-defaut">Défaut : 0 jour</div></div><input type="number" step="1" id="tDate" value="${r.tolerance_date_jours}"></div>
+        <div class="tolerance-row"><div><div class="tr-label">Seuil de confiance OCR</div><div class="tr-defaut">Sous ce seuil : "À vérifier", jamais "Conforme"</div></div><input type="number" step="0.1" id="tSeuil" value="${r.seuil_confiance_pct}"></div>
+      </div>
+      <div class="bloc">
+        <div class="bloc-titre">Politique de validation</div>
+        <div class="check-row"><input type="checkbox" id="tPiecesObligatoires" ${r.pieces_jointes_obligatoires ? 'checked' : ''}><div class="cr-texte">Pièces jointes obligatoires avant tout envoi</div></div>
+        <div class="check-row"><input type="checkbox" id="tValidationManager" ${r.validation_manager_obligatoire ? 'checked' : ''}><div class="cr-texte">Validation du manager obligatoire avant envoi</div></div>
+      </div>
+      <button class="btn-primary" id="btnSauverTolerances">Enregistrer</button>
+    `;
+  }
+
+  function tplImport() {
+    return `
+      <div class="bloc">
+        <div class="bloc-titre">Import initial des comptes clients</div>
+        <div class="bloc-desc">Importez votre fichier NEXUS_Comptes_Clients_Parametrage_v1.xlsx. Colonnes reconnues : Code client, Raison sociale, Nom commercial, SIRET, Prénom contact, Nom contact, Fonction, Téléphone, Email principal, Email secondaire, Email CC, Civilité, Mode facture, Mode bons, Préférences particulières.</div>
+        <div class="param-note">Une cellule contenant "à confirmer" n'est jamais convertie en Oui/Non — le champ reste à paramétrer manuellement, et le client est marqué pour que vous le retrouviez facilement.</div>
+        <div class="import-zone" id="zoneImport">
+          <div style="font-size:22px; margin-bottom:8px;">📄</div>
+          <div>Touchez pour choisir le fichier .xlsx</div>
+        </div>
+        <input type="file" id="fichierImport" accept=".xlsx,.xls" style="display:none;">
+        <div id="resultatImport" style="margin-top:12px;"></div>
+      </div>
+    `;
+  }
+
+  function wirerOnglet() {
+    if (ongletActif === 'identite') {
+      document.getElementById('btnSauverIdentite').addEventListener('click', () => sauverReglages({
+        nom_etablissement: val('pNomEtablissement'), expediteur_nom: val('pExpediteurNom'),
+        expediteur_fonction: val('pExpediteurFonction'), telephone: val('pTelephone'),
+        adresse: val('pAdresse'), signature_texte: val('pSignature'),
+      }));
+    } else if (ongletActif === 'communication') {
+      document.querySelectorAll('#civiliteDefautGrid .radio-opt').forEach(el => {
+        el.addEventListener('click', () => {
+          document.querySelectorAll('#civiliteDefautGrid .radio-opt').forEach(x => x.classList.remove('actif'));
+          el.classList.add('actif'); el.querySelector('input').checked = true;
+        });
+      });
+      document.getElementById('btnSauverCommunication').addEventListener('click', () => sauverReglages({
+        formule_appel_defaut: (document.querySelector('input[name="civDefaut"]:checked') || {}).value || 'neutre',
+      }));
+    } else if (ongletActif === 'modele') {
+      document.querySelectorAll('.var-chip').forEach(el => {
+        el.addEventListener('click', () => {
+          navigator.clipboard && navigator.clipboard.writeText(el.dataset.var).catch(() => {});
+          const corps = document.getElementById('pCorps');
+          const debut = corps.selectionStart || corps.value.length;
+          corps.value = corps.value.slice(0, debut) + el.dataset.var + corps.value.slice(debut);
+          majApercu();
+        });
+      });
+      ['pObjet', 'pCorps', 'pCorpsBons'].forEach(id => document.getElementById(id).addEventListener('input', majApercu));
+      majApercu();
+      document.getElementById('btnSauverModele').addEventListener('click', sauverModele);
+    } else if (ongletActif === 'tolerances') {
+      document.getElementById('btnSauverTolerances').addEventListener('click', () => sauverReglages({
+        tolerance_montant: parseFloat(val('tMontant')) || 0, tolerance_volume: parseFloat(val('tVolume')) || 0,
+        tolerance_date_jours: parseInt(val('tDate'), 10) || 0, seuil_confiance_pct: parseFloat(val('tSeuil')) || 97,
+        pieces_jointes_obligatoires: document.getElementById('tPiecesObligatoires').checked,
+        validation_manager_obligatoire: document.getElementById('tValidationManager').checked,
+      }));
+    } else if (ongletActif === 'import') {
+      document.getElementById('zoneImport').addEventListener('click', () => document.getElementById('fichierImport').click());
+      document.getElementById('fichierImport').addEventListener('change', (e) => { if (e.target.files[0]) importerFichier(e.target.files[0]); });
+    }
+  }
+
+  function val(id) { return document.getElementById(id).value.trim(); }
+
+  function majApercu() {
+    const { objet, corps } = genererApercu(val('pObjet'), document.getElementById('pCorps').value, document.getElementById('pCorpsBons').value, true);
+    document.getElementById('apercuModele').innerHTML = `<div class="apercu-objet">${esc(objet)}</div>${esc(corps)}`;
+  }
+
+  async function sauverReglages(champs) {
+    const { error } = await nexusClient.from('client_comptes_parametres').update({ ...champs, updated_at: new Date().toISOString() }).eq('site', parametres.site);
+    if (error) { alert('Erreur enregistrement : ' + error.message); return; }
+    Object.assign(parametres.reglages, champs);
+    afficherToast();
+  }
+
+  async function sauverModele() {
+    const champs = { objet: val('pObjet'), corps: document.getElementById('pCorps').value, corps_supplement_bons: document.getElementById('pCorpsBons').value };
+    const { error } = await nexusClient.from('email_templates').update(champs).eq('id', parametres.modele.id);
+    if (error) { alert('Erreur enregistrement : ' + error.message); return; }
+    Object.assign(parametres.modele, champs);
+    afficherToast();
+  }
+
+  function afficherToast() {
+    const t = document.getElementById('toastSave');
+    t.classList.add('visible');
+    setTimeout(() => t.classList.remove('visible'), 1800);
+  }
+
+  // ------------------------------------------------------------
+  // Import initial (§33) — mapping par en-tête normalisé, jamais de
+  // conversion automatique de "à confirmer" en Oui/Non.
+  // ------------------------------------------------------------
+  const ENTETES_ATTENDUES = {
+    'code client': 'code_client', 'raison sociale': 'raison_sociale', 'nom commercial': 'nom_commercial', 'siret': 'siret',
+    'prenom contact': 'prenom', 'nom contact': 'nom', 'fonction': 'fonction', 'telephone': 'telephone',
+    'email principal': 'email_principal', 'email secondaire': 'email_secondaire', 'email cc': 'email_cc',
+    'civilite': 'civilite', 'mode facture': 'mode_facture', 'mode bons': 'mode_bons', 'preferences particulieres': 'preferences_particulieres',
+  };
+  function normaliserEntete(s) { return (s || '').toString().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim(); }
+  function estAConfirmer(v) { return normaliserEntete(v) === 'a confirmer'; }
+
+  async function importerFichier(fichier) {
+    const zone = document.getElementById('resultatImport');
+    zone.innerHTML = '<div class="param-note">Lecture du fichier…</div>';
+    try {
+      const buffer = await fichier.arrayBuffer();
+      const classeur = XLSX.read(buffer, { type: 'array' });
+      const feuille = classeur.Sheets[classeur.SheetNames[0]];
+      const lignes = XLSX.utils.sheet_to_json(feuille, { defval: '' });
+      if (!lignes.length) { zone.innerHTML = '<div class="param-note">Fichier vide ou illisible.</div>'; return; }
+
+      const entetesFichier = Object.keys(lignes[0]);
+      const mapping = {};
+      entetesFichier.forEach(h => { const norm = normaliserEntete(h); if (ENTETES_ATTENDUES[norm]) mapping[h] = ENTETES_ATTENDUES[norm]; });
+
+      let creesOk = 0, aCompleter = 0, ignores = 0;
+      const site = employeeCourant.site_id || 'vito-sainte-marie';
+      for (const ligne of lignes) {
+        const champs = {};
+        let contientAConfirmer = false;
+        for (const [colonne, cible] of Object.entries(mapping)) {
+          const brut = ligne[colonne];
+          if (estAConfirmer(brut)) { contientAConfirmer = true; continue; }
+          if (brut !== '' && brut !== undefined && brut !== null) champs[cible] = String(brut).trim();
+        }
+        if (!champs.raison_sociale) { ignores++; continue; }
+
+        const { data: clientCree, error: e1 } = await nexusClient.from('clients').insert({
+          site, raison_sociale: champs.raison_sociale, code_client: champs.code_client || null,
+          nom_commercial: champs.nom_commercial || null, siret: champs.siret || null, created_by: employeeCourant.id,
+        }).select().single();
+        if (e1) { console.error('Import client:', e1); ignores++; continue; }
+
+        await nexusClient.from('client_contacts').insert({
+          client_id: clientCree.id, prenom: champs.prenom || null, nom: champs.nom || null, fonction: champs.fonction || null,
+          telephone: champs.telephone || null, email_principal: champs.email_principal || null,
+          email_secondaire: champs.email_secondaire || null, email_cc: champs.email_cc || null,
+          civilite: champs.civilite && ['neutre', 'monsieur', 'madame', 'prenom'].includes(normaliserEntete(champs.civilite)) ? normaliserEntete(champs.civilite) : 'neutre',
+          est_contact_principal: true,
+        });
+
+        // Mode facture/bons : uniquement si la valeur est explicite et non
+        // "à confirmer" — sinon les préférences restent NULL (non
+        // paramétrées), jamais devinées.
+        const modeFacture = champs.mode_facture ? normaliserEntete(champs.mode_facture) : null;
+        const modeBons = champs.mode_bons ? normaliserEntete(champs.mode_bons) : null;
+        let prefsTexte = champs.preferences_particulieres || null;
+        if (contientAConfirmer) {
+          aCompleter++;
+          prefsTexte = (prefsTexte ? prefsTexte + ' — ' : '') + '⚠ Champs "à confirmer" détectés lors de l\'import, à compléter manuellement.';
+        }
+        await nexusClient.from('client_preferences').insert({
+          client_id: clientCree.id,
+          facture_envoi_email: modeFacture ? modeFacture.includes('email') : null,
+          facture_remise_main_propre: modeFacture ? modeFacture.includes('propre') : null,
+          bons_joindre_email: modeBons ? modeBons.includes('joind') : null,
+          bons_ne_pas_envoyer: modeBons ? modeBons.includes('pas') : null,
+          bons_remise_main_propre: modeBons ? modeBons.includes('propre') : null,
+          preferences_particulieres: prefsTexte,
+        });
+
+        await nexusClient.from('client_comptes_audit_logs').insert({
+          site, client_id: clientCree.id, entite_type: 'client', entite_id: clientCree.id,
+          action: 'import_initial', nouvelle_valeur: JSON.stringify(champs), acteur_id: employeeCourant.id,
+        });
+        creesOk++;
+      }
+
+      zone.innerHTML = `
+        <div class="param-note">
+          ✓ ${creesOk} client${creesOk > 1 ? 's' : ''} importé${creesOk > 1 ? 's' : ''}.
+          ${aCompleter ? `<br>⚠ ${aCompleter} avec des champs "à confirmer" — à compléter dans leur fiche.` : ''}
+          ${ignores ? `<br>${ignores} ligne${ignores > 1 ? 's' : ''} ignorée${ignores > 1 ? 's' : ''} (raison sociale manquante ou erreur).` : ''}
+        </div>
+      `;
+    } catch (err) {
+      console.error('Erreur import:', err);
+      zone.innerHTML = '<div class="param-note" style="color:var(--red);">Erreur de lecture du fichier : ' + esc(err.message || String(err)) + '</div>';
+    }
+  }
+</script>
+</body>
+</html>
