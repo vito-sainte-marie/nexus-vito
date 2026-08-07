@@ -283,11 +283,21 @@ nexusRequireAuth().then(async employee => {
     return;
   }
 
-  let countVentes = 0, countStock = 0, dernierReleve = null;
+  let countVentes = 0, countStock = 0, dernierReleve = null, dernierePeriodeFinVentes = null;
   try {
     const resVentes = await nexusClient.from('products').select('id', { count: 'exact', head: true });
     countVentes = resVentes.count || 0;
   } catch (err) { console.error('Comptage products:', err); }
+  // Repère anti-doublon Ventes/Catalogue (demande de Frédéric, 08/2026) :
+  // affiche jusqu'où va la dernière période déjà importée, discrètement
+  // dans le message du conseiller, dès le clic sur "Ventes / Catalogue" —
+  // avant même de choisir un fichier. Même logique que le repère déjà en
+  // place pour Stock instantané et Panier moyen ci-dessous.
+  try {
+    const resDernierePeriode = await nexusClient.from('products').select('periode_fin')
+      .eq('site', employee.site_id || 'vito-sainte-marie').order('periode_fin', { ascending: false }).limit(1);
+    dernierePeriodeFinVentes = resDernierePeriode.data && resDernierePeriode.data[0] ? resDernierePeriode.data[0].periode_fin : null;
+  } catch (err) { console.error('Dernière période ventes:', err); }
   try {
     const resStock = await nexusClient.from('stock_releves').select('releve_le', { count: 'exact' }).order('releve_le', { ascending: false }).limit(1);
     countStock = resStock.count || 0;
@@ -320,8 +330,9 @@ nexusRequireAuth().then(async employee => {
     dernierJourPanier = resPanier.data && resPanier.data[0] ? resPanier.data[0].date : null;
   } catch (err) { console.error('Comptage panier_moyen_quotidien (table pas encore créée ?):', err); }
 
+  const dernierePeriodeFinVentesDate = dernierePeriodeFinVentes ? new Date(dernierePeriodeFinVentes + 'T12:00:00').toLocaleDateString('fr-FR') : null;
   const msgVentes = countVentes > 0
-    ? `${employee.nom}, vous avez déjà ${countVentes.toLocaleString('fr-FR')} référence(s) importée(s). Ce nouvel envoi vient compléter l'historique — je pourrai comparer les deux périodes automatiquement.`
+    ? `${employee.nom}, vous avez déjà ${countVentes.toLocaleString('fr-FR')} référence(s) importée(s)${dernierePeriodeFinVentesDate ? `, la dernière période couverte va jusqu'au ${dernierePeriodeFinVentesDate}` : ''}. Pour éviter les doublons, faites démarrer ce nouveau fichier après cette date — je pourrai comparer les deux périodes automatiquement.`
     : `${employee.nom}, c'est votre premier import — bienvenue. Une fois envoyé, je commence à calculer les vrais chiffres de vos rayons, plus aucune estimation.`;
 
   const dernierReleveDate = dernierReleve && dernierReleve[0] ? new Date(dernierReleve[0].releve_le).toLocaleDateString('fr-FR') : null;
