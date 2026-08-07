@@ -837,6 +837,18 @@
         </div>
         <div class="nav-arrow">›</div>
       </a>
+      <!-- Paramètres Inventaire (07/08/2026, demande de Frédéric) : jusqu'ici
+           trouvable uniquement par recherche ou depuis Contrôle inventaire —
+           rejoint maintenant le tiroir "Explorer NEXUS" comme les autres
+           pages de paramètres. -->
+      <a class="nav-item" data-role="manager" data-forfait="professional" href="NEXUS-Parametres-Inventaire-v1.html">
+        <div class="nav-icon">⚙️</div>
+        <div class="nav-body">
+          <div class="nav-title">Paramètres Inventaire</div>
+          <div class="nav-desc">Produits comptés, parcours, règles, alertes et traçabilité</div>
+        </div>
+        <div class="nav-arrow">›</div>
+      </a>
       <a class="nav-item" data-role="manager" href="NEXUS-Parametres-Rappels-v1.html" id="navRappels">
         <div class="nav-icon" id="navRappelsIcon"><img src="assets/icons/icon-rappels.png" alt="Rappels"></div>
         <div class="nav-body">
@@ -2168,9 +2180,8 @@
     // NEXUS et un lien direct depuis Paramètres → Inventaire → Gestion des
     // profils. Présente ici uniquement pour rester trouvable par recherche.
     { label: 'Traçabilité', desc: 'Lots, retours fournisseurs et échéances (SDD, presse)', href: 'NEXUS-Tracabilite-v1.html', role: 'manager', forfait: 'professional' },
-    // Paramètres Inventaire (05/08/2026) : accessible depuis Contrôle
-    // inventaire via le lien "⚙️ Paramètres Inventaire", mais pas encore
-    // dans le tiroir de menu principal — présente ici pour rester
+    // Paramètres Inventaire (05/08/2026, rejoint le tiroir "Explorer NEXUS"
+    // — groupe Administrer — le 07/08/2026) : reste aussi ici pour rester
     // trouvable par recherche.
     { label: 'Paramètres Inventaire', desc: 'Produits comptés, parcours, règles, alertes et traçabilité', href: 'NEXUS-Parametres-Inventaire-v1.html', role: 'manager', forfait: 'professional' },
     // Comptes Clients (07/08/2026, cahier des charges de Frédéric) : centre
