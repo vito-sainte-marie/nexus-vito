@@ -374,8 +374,17 @@
   // Dupliquer vers les produits de la même catégorie (05/08/2026, demande
   // de Frédéric — "pose la question, voulez dupliquer ces réglages vers les
   // produits de la même catégorie" plutôt que de choisir un produit cible un
-  // par un) : copie la règle d'inventaire et le statut "produit sensible"
-  // (jamais la zone, déjà partagée par construction).
+  // par un) : copie la règle d'inventaire et le statut "produit sensible".
+  //
+  // Correctif (07/08/2026, signalé par Frédéric — "ça ne duplique pas à
+  // l'ensemble des produits" en essayant de mettre toute la catégorie Huiles
+  // sous contrôle caissière) : la zone (piste/boutique, donc pompiste vs
+  // caissière) n'était volontairement PAS dupliquée, en supposant qu'une
+  // catégorie n'a jamais qu'une seule zone. C'était faux — l'exemple Gaz
+  // (bouteilles piste + cartouches boutique dans la même catégorie à
+  // l'époque) l'a prouvé. La zone est donc désormais recopiée comme le
+  // reste : le manager qui déclenche cette action le fait sciemment,
+  // produit par produit, en toute connaissance de cause.
   function autresProduitsMemeCategorie(p) {
     return produitsInventaire.filter(x => x.actif && x.id !== p.id && x.categorie_id === p.categorie_id);
   }
@@ -388,12 +397,12 @@
     render();
     for (const cible of pairs) {
       await copierReglesProduit(sourceId, cible.id);
-      await nexusClient.from('inventaire_zone_produit').update({ sensible: source.sensible, comptage_deux_lieux: source.comptage_deux_lieux }).eq('id', cible.id);
+      await nexusClient.from('inventaire_zone_produit').update({ sensible: source.sensible, comptage_deux_lieux: source.comptage_deux_lieux, zone_id: source.zone_id }).eq('id', cible.id);
     }
     const catNom = source.inventaire_categories ? source.inventaire_categories.nom : 'cette catégorie';
     await nexusClient.from('inventaire_audit_log').insert({
       site: siteId, entite_type: 'inventaire_regles_produit', entite_id: source.id, action: 'duplication_reglages_categorie',
-      nouvelle_valeur: { copie_depuis: source.designation, categorie: catNom, nb_produits: pairs.length, sensible: source.sensible, comptage_deux_lieux: source.comptage_deux_lieux }, acteur_id: managerCourant.id,
+      nouvelle_valeur: { copie_depuis: source.designation, categorie: catNom, nb_produits: pairs.length, sensible: source.sensible, comptage_deux_lieux: source.comptage_deux_lieux, zone_id: source.zone_id }, acteur_id: managerCourant.id,
     });
     dupliquerVersOuvertPour = null;
     duplicationCategorieEnCours = null;
@@ -469,7 +478,7 @@
     const pairs = autresProduitsMemeCategorie(p);
     if (!pairs.length) return `<div class="note" style="margin:8px 0 0;">Aucun autre produit actif dans « ${catNom} ».</div>`;
     return `
-      <div class="note" style="margin:8px 0;">Voulez-vous dupliquer ces réglages vers les ${pairs.length} autre${pairs.length > 1 ? 's' : ''} produit${pairs.length > 1 ? 's' : ''} de « ${catNom} » : ${pairs.map(x => x.designation).join(', ')} ?</div>
+      <div class="note" style="margin:8px 0;">Voulez-vous dupliquer ces réglages — <b>zone incluse</b> (${libelleZoneAvecRole(p.inventaire_zones)}) — vers les ${pairs.length} autre${pairs.length > 1 ? 's' : ''} produit${pairs.length > 1 ? 's' : ''} de « ${catNom} » : ${pairs.map(x => x.designation).join(', ')} ?</div>
       <div class="mouv-row">
         <button class="btn-primary" data-confirmer-duplication-categorie="${p.id}" style="flex:1;">Oui, dupliquer</button>
         <button class="btn-text" data-annuler-duplication-categorie="${p.id}">Annuler</button>
