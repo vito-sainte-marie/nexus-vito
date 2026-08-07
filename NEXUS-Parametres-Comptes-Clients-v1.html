@@ -116,7 +116,11 @@
     { value: 'prenom', label: 'Prénom uniquement', exemple: 'Bonjour {{interlocuteur}},' },
   ];
 
-  const VARIABLES = ['{{interlocuteur}}', '{{compte_client}}', '{{mois}}', '{{année}}', '{{établissement}}', '{{signataire}}'];
+  // {{signature}} insère le bloc de signature déjà composé (voir onglet
+  // Identité) — {{signataire}}, {{fonction}}, {{adresse}}, {{téléphone}}
+  // ne sont utiles qu'À L'INTÉRIEUR de ce bloc, pas dans le corps du
+  // message lui-même.
+  const VARIABLES = ['{{interlocuteur}}', '{{compte_client}}', '{{mois}}', '{{année}}', '{{établissement}}', '{{signature}}'];
 
   (async function init() {
     employeeCourant = await nexusRequireAuth();
@@ -143,19 +147,20 @@
       const { data: cree } = await nexusClient.from('client_comptes_parametres').insert(defaut).select().single();
       data = cree || defaut;
     }
-    let { data: modele } = await nexusClient.from('email_templates').select('*').eq('site', site).eq('est_defaut', true).maybeSingle();
-    if (!modele) {
+    let { data: modeles } = await nexusClient.from('email_templates').select('*').eq('site', site).order('est_defaut', { ascending: false });
+    if (!modeles || !modeles.length) {
       const modeleDefaut = {
-        site, nom: 'Modèle par défaut', est_defaut: true,
+        site, code: 'STD_FACTURE', nom: 'Facture par e-mail', est_defaut: true,
         objet: 'Votre facture du mois de {{mois}} est prête ! {{établissement}}',
-        corps: `{{interlocuteur}}\n\nVeuillez trouver ci-joint la facture récapitulative de votre compte {{compte_client}} pour le mois de {{mois}} {{année}}.\n\nN'hésitez pas à me contacter pour toute question ou précision.\n\nBien cordialement.\n\n{{signataire}}`,
-        corps_supplement_bons: ', accompagnée des bons justificatifs correspondants',
+        corps: `{{interlocuteur}}\n\nVeuillez trouver ci-joint la facture récapitulative de votre compte {{compte_client}} pour le mois de {{mois}} {{année}}.\n\nN'hésitez pas à me contacter pour toute question ou précision.\n\nBien cordialement.\n\n{{signature}}`,
       };
       const { data: cree2 } = await nexusClient.from('email_templates').insert(modeleDefaut).select().single();
-      modele = cree2 || modeleDefaut;
+      modeles = [cree2 || modeleDefaut];
     }
-    parametres = { site, reglages: data, modele };
+    parametres = { site, reglages: data, modeles, modeleActifId: modeles[0].id };
   }
+
+  function modeleActif() { return parametres.modeles.find(m => m.id === parametres.modeleActifId) || parametres.modeles[0]; }
 
   function render() {
     document.getElementById('app').innerHTML = `
@@ -221,17 +226,20 @@
         <div class="bloc-desc">Ces informations apparaissent dans chaque e-mail envoyé aux clients en compte — nom de l'établissement, expéditeur, signature.</div>
         <label class="lbl">Nom de l'établissement</label>
         <input type="text" id="pNomEtablissement" value="${esc(r.nom_etablissement)}" placeholder="Ex : Vito Sainte Marie Usine">
-        <label class="lbl">Expéditeur (nom)</label>
+        <label class="lbl">Nom de l'expéditeur affiché (boîte e-mail)</label>
+        <input type="text" id="pNomExpediteurEmail" value="${esc(r.nom_expediteur_email)}" placeholder="Ex : Station Vito Sainte Marie">
+        <div class="param-note">Le nom visible comme expéditeur dans la boîte de réception du client — peut différer du signataire ci-dessous.</div>
+        <label class="lbl">Nom du signataire</label>
         <input type="text" id="pExpediteurNom" value="${esc(r.expediteur_nom)}" placeholder="Ex : Frédéric Bragance">
-        <label class="lbl">Fonction</label>
+        <label class="lbl">Fonction du signataire</label>
         <input type="text" id="pExpediteurFonction" value="${esc(r.expediteur_fonction || 'Manager')}">
         <label class="lbl">Téléphone</label>
         <input type="text" id="pTelephone" value="${esc(r.telephone)}" placeholder="Ex : 0596 69 47 53">
         <label class="lbl">Adresse</label>
         <textarea id="pAdresse" placeholder="Ex : Route de l'Union, 97230 Sainte Marie">${esc(r.adresse)}</textarea>
-        <label class="lbl">Signature (texte libre)</label>
-        <textarea id="pSignature" placeholder="Reprend par défaut nom, fonction, établissement, téléphone">${esc(r.signature_texte)}</textarea>
-        <div class="param-note">Utilisée automatiquement en fin de message via la variable {{signataire}}.</div>
+        <label class="lbl">Signature (modèle)</label>
+        <textarea id="pSignature" placeholder="{{signataire}}, {{fonction}}, {{établissement}}, {{adresse}}, {{téléphone}} disponibles">${esc(r.signature_texte)}</textarea>
+        <div class="param-note">Composée automatiquement à partir des champs ci-dessus, puis insérée dans chaque message via la variable {{signature}}.</div>
       </div>
       <button class="btn-primary" id="btnSauverIdentite">Enregistrer</button>
     `;
@@ -257,26 +265,49 @@
   }
 
   function tplModele() {
-    const m = parametres.modele;
+    const m = modeleActif();
     return `
       <div class="bloc">
         <div class="bloc-titre">Modèle d'e-mail</div>
-        <div class="bloc-desc">Variables disponibles — touchez pour copier :</div>
+        <div class="bloc-desc">Plusieurs modèles nommés peuvent coexister (facture seule, facture + bons, alerte interne). Chaque client choisit le sien dans sa fiche, ou NEXUS choisit automatiquement selon que les bons sont joints ou non.</div>
+        <label class="lbl">Modèle en cours d'édition</label>
+        <select id="pSelectModele">
+          ${parametres.modeles.map(t => `<option value="${t.id}" ${t.id === parametres.modeleActifId ? 'selected' : ''}>${esc(t.nom)}${t.code ? ' (' + t.code + ')' : ''}</option>`).join('')}
+        </select>
+        <button class="btn-ghost" id="btnNouveauModele" style="margin-top:8px;">+ Nouveau modèle</button>
+        <label class="lbl">Variables disponibles — touchez pour copier dans le corps</label>
         <div>${VARIABLES.map(v => `<span class="var-chip" data-var="${v}">${v}</span>`).join('')}</div>
+        <label class="lbl">Nom du modèle</label>
+        <input type="text" id="pNomModele" value="${esc(m.nom)}">
         <label class="lbl">Objet</label>
         <input type="text" id="pObjet" value="${esc(m.objet)}">
         <label class="lbl">Corps du message</label>
-        <textarea id="pCorps" style="min-height:160px;">${esc(m.corps)}</textarea>
-        <label class="lbl">Complément si bons joints</label>
-        <textarea id="pCorpsBons" placeholder="Ajouté à la phrase de la facture quand les bons sont joints">${esc(m.corps_supplement_bons)}</textarea>
+        <textarea id="pCorps" style="min-height:180px;">${esc(m.corps)}</textarea>
         <div class="apercu-titre">Aperçu en temps réel (exemple)</div>
         <div class="apercu-box" id="apercuModele"></div>
       </div>
-      <button class="btn-primary" id="btnSauverModele">Enregistrer</button>
+      <button class="btn-primary" id="btnSauverModele">Enregistrer ce modèle</button>
     `;
   }
 
-  function genererApercu(objetBrut, corpsBrut, corpsBonsBrut, avecBons) {
+  // Composition en deux passes : le bloc de signature (Identité) a ses
+  // propres variables ({{signataire}}, {{fonction}}, {{établissement}},
+  // {{adresse}}, {{téléphone}}) qu'on résout d'abord, avant d'insérer le
+  // résultat dans le corps du message via {{signature}}.
+  function composerSignature() {
+    const r = parametres.reglages;
+    const vars = {
+      '{{signataire}}': r.expediteur_nom || '',
+      '{{fonction}}': r.expediteur_fonction || '',
+      '{{établissement}}': r.nom_etablissement || '',
+      '{{adresse}}': r.adresse || '',
+      '{{téléphone}}': r.telephone || '',
+    };
+    const gabarit = r.signature_texte || '{{signataire}}\n{{fonction}}\n{{établissement}}\n{{adresse}}\nTél : {{téléphone}}';
+    return Object.keys(vars).reduce((acc, k) => acc.split(k).join(vars[k]), gabarit);
+  }
+
+  function genererApercu(objetBrut, corpsBrut) {
     const r = parametres.reglages;
     const vars = {
       '{{interlocuteur}}': 'Bonjour Séverine,',
@@ -284,16 +315,10 @@
       '{{mois}}': 'juillet',
       '{{année}}': '2026',
       '{{établissement}}': r.nom_etablissement || 'votre établissement',
-      '{{signataire}}': [r.expediteur_nom, r.expediteur_fonction, r.nom_etablissement, r.adresse, r.telephone ? 'Tél : ' + r.telephone : ''].filter(Boolean).join('\n') || 'Votre signature',
+      '{{signature}}': composerSignature(),
     };
     const remplacer = (texte) => Object.keys(vars).reduce((acc, k) => acc.split(k).join(vars[k]), texte || '');
-    let corps = remplacer(corpsBrut);
-    if (avecBons && corpsBonsBrut) {
-      // Injecté après la phrase de la facture — approximation simple pour
-      // l'aperçu : ajouté juste avant le premier saut de ligne double.
-      corps = corps.replace(/\.(\s*\n)/, remplacer(corpsBonsBrut) + '.$1');
-    }
-    return { objet: remplacer(objetBrut), corps };
+    return { objet: remplacer(objetBrut), corps: remplacer(corpsBrut) };
   }
 
   function tplTolerances() {
@@ -320,7 +345,7 @@
     return `
       <div class="bloc">
         <div class="bloc-titre">Import initial des comptes clients</div>
-        <div class="bloc-desc">Importez votre fichier NEXUS_Comptes_Clients_Parametrage_v1.xlsx. Colonnes reconnues : Code client, Raison sociale, Nom commercial, SIRET, Prénom contact, Nom contact, Fonction, Téléphone, Email principal, Email secondaire, Email CC, Civilité, Mode facture, Mode bons, Préférences particulières.</div>
+        <div class="bloc-desc">Importez votre fichier NEXUS_Comptes_Clients_Parametrage_v1.xlsx (feuille "Clients en compte") : ID client, Compte client, Interlocuteur, Fonction, E-mail principal, E-mail CC, Téléphone, Canal facture, Joindre bons PDF, Remise bons main propre, Contrôle bons obligatoire, Validation manager avant envoi, Modèle de message, Statut paramétrage, Source / remarque.</div>
         <div class="param-note">Une cellule contenant "à confirmer" n'est jamais convertie en Oui/Non — le champ reste à paramétrer manuellement, et le client est marqué pour que vous le retrouviez facilement.</div>
         <div class="import-zone" id="zoneImport">
           <div style="font-size:22px; margin-bottom:8px;">📄</div>
@@ -335,7 +360,7 @@
   function wirerOnglet() {
     if (ongletActif === 'identite') {
       document.getElementById('btnSauverIdentite').addEventListener('click', () => sauverReglages({
-        nom_etablissement: val('pNomEtablissement'), expediteur_nom: val('pExpediteurNom'),
+        nom_etablissement: val('pNomEtablissement'), nom_expediteur_email: val('pNomExpediteurEmail'), expediteur_nom: val('pExpediteurNom'),
         expediteur_fonction: val('pExpediteurFonction'), telephone: val('pTelephone'),
         adresse: val('pAdresse'), signature_texte: val('pSignature'),
       }));
@@ -359,8 +384,10 @@
           majApercu();
         });
       });
-      ['pObjet', 'pCorps', 'pCorpsBons'].forEach(id => document.getElementById(id).addEventListener('input', majApercu));
+      ['pObjet', 'pCorps'].forEach(id => document.getElementById(id).addEventListener('input', majApercu));
       majApercu();
+      document.getElementById('pSelectModele').addEventListener('change', (e) => { parametres.modeleActifId = e.target.value; renderOnglet(); });
+      document.getElementById('btnNouveauModele').addEventListener('click', creerNouveauModele);
       document.getElementById('btnSauverModele').addEventListener('click', sauverModele);
     } else if (ongletActif === 'tolerances') {
       document.getElementById('btnSauverTolerances').addEventListener('click', () => sauverReglages({
@@ -378,7 +405,7 @@
   function val(id) { return document.getElementById(id).value.trim(); }
 
   function majApercu() {
-    const { objet, corps } = genererApercu(val('pObjet'), document.getElementById('pCorps').value, document.getElementById('pCorpsBons').value, true);
+    const { objet, corps } = genererApercu(val('pObjet'), document.getElementById('pCorps').value);
     document.getElementById('apercuModele').innerHTML = `<div class="apercu-objet">${esc(objet)}</div>${esc(corps)}`;
   }
 
@@ -390,11 +417,23 @@
   }
 
   async function sauverModele() {
-    const champs = { objet: val('pObjet'), corps: document.getElementById('pCorps').value, corps_supplement_bons: document.getElementById('pCorpsBons').value };
-    const { error } = await nexusClient.from('email_templates').update(champs).eq('id', parametres.modele.id);
+    const champs = { nom: val('pNomModele') || 'Modèle sans nom', objet: val('pObjet'), corps: document.getElementById('pCorps').value };
+    const { error } = await nexusClient.from('email_templates').update(champs).eq('id', modeleActif().id);
     if (error) { alert('Erreur enregistrement : ' + error.message); return; }
-    Object.assign(parametres.modele, champs);
+    Object.assign(modeleActif(), champs);
     afficherToast();
+  }
+
+  async function creerNouveauModele() {
+    const nom = prompt('Nom du nouveau modèle (ex : Relance impayé) :');
+    if (!nom) return;
+    const { data, error } = await nexusClient.from('email_templates').insert({
+      site: parametres.site, nom, objet: 'Objet à personnaliser', corps: '{{interlocuteur}}\n\n', est_defaut: false,
+    }).select().single();
+    if (error) { alert('Erreur création : ' + error.message); return; }
+    parametres.modeles.push(data);
+    parametres.modeleActifId = data.id;
+    renderOnglet();
   }
 
   function afficherToast() {
@@ -404,17 +443,17 @@
   }
 
   // ------------------------------------------------------------
-  // Import initial (§33) — mapping par en-tête normalisé, jamais de
-  // conversion automatique de "à confirmer" en Oui/Non.
+  // Import initial (§33) — calé sur la structure réelle de
+  // NEXUS_Comptes_Clients_Parametrage_v1.xlsx (07/08/2026) : feuille
+  // "Clients en compte" avec 17 colonnes précises. Jamais de conversion
+  // automatique de "à confirmer" / "à paramétrer" en Oui/Non — ces
+  // champs restent NULL (non paramétrés) et le client est marqué pour
+  // qu'on le retrouve facilement.
   // ------------------------------------------------------------
-  const ENTETES_ATTENDUES = {
-    'code client': 'code_client', 'raison sociale': 'raison_sociale', 'nom commercial': 'nom_commercial', 'siret': 'siret',
-    'prenom contact': 'prenom', 'nom contact': 'nom', 'fonction': 'fonction', 'telephone': 'telephone',
-    'email principal': 'email_principal', 'email secondaire': 'email_secondaire', 'email cc': 'email_cc',
-    'civilite': 'civilite', 'mode facture': 'mode_facture', 'mode bons': 'mode_bons', 'preferences particulieres': 'preferences_particulieres',
-  };
-  function normaliserEntete(s) { return (s || '').toString().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim(); }
-  function estAConfirmer(v) { return normaliserEntete(v) === 'a confirmer'; }
+  function normaliser(s) { return (s || '').toString().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim(); }
+  function estIndecis(v) { const n = normaliser(v); return n.startsWith('à confirmer') || n.startsWith('a confirmer') || n.startsWith('à paramétrer') || n.startsWith('a parametrer'); }
+  function estOui(v) { return normaliser(v).startsWith('oui'); }
+  function estNon(v) { return normaliser(v).startsWith('non'); }
 
   async function importerFichier(fichier) {
     const zone = document.getElementById('resultatImport');
@@ -422,63 +461,69 @@
     try {
       const buffer = await fichier.arrayBuffer();
       const classeur = XLSX.read(buffer, { type: 'array' });
-      const feuille = classeur.Sheets[classeur.SheetNames[0]];
-      const lignes = XLSX.utils.sheet_to_json(feuille, { defval: '' });
+      const nomFeuille = classeur.SheetNames.find(n => normaliser(n).includes('client')) || classeur.SheetNames[0];
+      const lignes = XLSX.utils.sheet_to_json(classeur.Sheets[nomFeuille], { defval: '' });
       if (!lignes.length) { zone.innerHTML = '<div class="param-note">Fichier vide ou illisible.</div>'; return; }
 
-      const entetesFichier = Object.keys(lignes[0]);
-      const mapping = {};
-      entetesFichier.forEach(h => { const norm = normaliserEntete(h); if (ENTETES_ATTENDUES[norm]) mapping[h] = ENTETES_ATTENDUES[norm]; });
-
-      let creesOk = 0, aCompleter = 0, ignores = 0;
+      let creesOk = 0, aConfirmer = 0, ignores = 0;
       const site = employeeCourant.site_id || 'vito-sainte-marie';
       for (const ligne of lignes) {
-        const champs = {};
-        let contientAConfirmer = false;
-        for (const [colonne, cible] of Object.entries(mapping)) {
-          const brut = ligne[colonne];
-          if (estAConfirmer(brut)) { contientAConfirmer = true; continue; }
-          if (brut !== '' && brut !== undefined && brut !== null) champs[cible] = String(brut).trim();
-        }
-        if (!champs.raison_sociale) { ignores++; continue; }
+        const idClient = ligne['ID client'];
+        const compteClient = ligne['Compte client'];
+        if (!compteClient) { ignores++; continue; }
 
         const { data: clientCree, error: e1 } = await nexusClient.from('clients').insert({
-          site, raison_sociale: champs.raison_sociale, code_client: champs.code_client || null,
-          nom_commercial: champs.nom_commercial || null, siret: champs.siret || null, created_by: employeeCourant.id,
+          site, code_client: idClient || null, raison_sociale: String(compteClient).trim(), created_by: employeeCourant.id,
         }).select().single();
         if (e1) { console.error('Import client:', e1); ignores++; continue; }
 
+        const interlocuteur = (ligne['Interlocuteur'] || '').toString().trim();
+        const [prenom, ...reste] = interlocuteur ? interlocuteur.split(' ') : [null];
         await nexusClient.from('client_contacts').insert({
-          client_id: clientCree.id, prenom: champs.prenom || null, nom: champs.nom || null, fonction: champs.fonction || null,
-          telephone: champs.telephone || null, email_principal: champs.email_principal || null,
-          email_secondaire: champs.email_secondaire || null, email_cc: champs.email_cc || null,
-          civilite: champs.civilite && ['neutre', 'monsieur', 'madame', 'prenom'].includes(normaliserEntete(champs.civilite)) ? normaliserEntete(champs.civilite) : 'neutre',
-          est_contact_principal: true,
+          client_id: clientCree.id, prenom: prenom || null, nom: reste.length ? reste.join(' ') : null,
+          fonction: ligne['Fonction'] || null, telephone: ligne['Téléphone'] || null,
+          email_principal: ligne['E-mail principal'] || null, email_cc: ligne['E-mail CC'] || null,
+          civilite: 'neutre', est_contact_principal: true,
         });
 
-        // Mode facture/bons : uniquement si la valeur est explicite et non
-        // "à confirmer" — sinon les préférences restent NULL (non
-        // paramétrées), jamais devinées.
-        const modeFacture = champs.mode_facture ? normaliserEntete(champs.mode_facture) : null;
-        const modeBons = champs.mode_bons ? normaliserEntete(champs.mode_bons) : null;
-        let prefsTexte = champs.preferences_particulieres || null;
-        if (contientAConfirmer) {
-          aCompleter++;
-          prefsTexte = (prefsTexte ? prefsTexte + ' — ' : '') + '⚠ Champs "à confirmer" détectés lors de l\'import, à compléter manuellement.';
+        const canal = normaliser(ligne['Canal facture']);
+        const notes = [];
+        let indecis = false;
+        let factureEmail = null, factureMp = null;
+        if (canal === 'e-mail') { factureEmail = true; factureMp = false; }
+        else if (canal === 'interne') { factureEmail = false; factureMp = false; notes.push('Compte interne — pas de facturation client classique.'); }
+        else { indecis = true; }
+
+        const joindreBons = ligne['Joindre bons PDF'], remiseMp = ligne['Remise bons main propre'];
+        let bonsJoindre = null, bonsAucun = null, bonsMp = null;
+        if (estIndecis(joindreBons) || estIndecis(remiseMp)) { indecis = true; }
+        else if (estOui(joindreBons)) { bonsJoindre = true; bonsMp = false; bonsAucun = false; }
+        else if (estNon(joindreBons)) {
+          if (estOui(remiseMp)) { bonsJoindre = false; bonsMp = true; bonsAucun = false; }
+          else { bonsJoindre = false; bonsMp = false; bonsAucun = true; }
         }
+
+        const controleAuto = ligne['Contrôle bons obligatoire'] !== '' ? estOui(ligne['Contrôle bons obligatoire']) : true;
+        const validationMgr = ligne["Validation manager avant envoi"] !== '' ? estOui(ligne["Validation manager avant envoi"]) : true;
+
+        let modeleCode = null;
+        const modeleTxt = normaliser(ligne['Modèle de message']);
+        if (modeleTxt === 'standard neutre') modeleCode = bonsJoindre ? 'STD_FACTURE_BONS' : 'STD_FACTURE';
+
+        if (ligne['Statut paramétrage']) notes.unshift('Statut paramétrage (import) : ' + ligne['Statut paramétrage']);
+        if (ligne['Source / remarque']) notes.push(String(ligne['Source / remarque']).trim());
+        if (indecis) { aConfirmer++; notes.push('⚠ À confirmer avant tout envoi (canal de facturation et/ou bons justificatifs).'); }
+
         await nexusClient.from('client_preferences').insert({
-          client_id: clientCree.id,
-          facture_envoi_email: modeFacture ? modeFacture.includes('email') : null,
-          facture_remise_main_propre: modeFacture ? modeFacture.includes('propre') : null,
-          bons_joindre_email: modeBons ? modeBons.includes('joind') : null,
-          bons_ne_pas_envoyer: modeBons ? modeBons.includes('pas') : null,
-          bons_remise_main_propre: modeBons ? modeBons.includes('propre') : null,
-          preferences_particulieres: prefsTexte,
+          client_id: clientCree.id, facture_envoi_email: factureEmail, facture_remise_main_propre: factureMp,
+          bons_joindre_email: bonsJoindre, bons_ne_pas_envoyer: bonsAucun, bons_remise_main_propre: bonsMp,
+          controle_auto_bons: controleAuto, bloquer_envoi_si_anomalie: true, validation_manager_obligatoire: validationMgr,
+          preferences_particulieres: notes.length ? notes.join(' — ') : null, modele_message_code: modeleCode,
         });
 
         await nexusClient.from('client_comptes_audit_logs').insert({
           site, client_id: clientCree.id, entite_type: 'client', entite_id: clientCree.id,
-          action: 'import_initial', nouvelle_valeur: JSON.stringify(champs), acteur_id: employeeCourant.id,
+          action: 'import_initial', nouvelle_valeur: JSON.stringify(ligne), acteur_id: employeeCourant.id,
         });
         creesOk++;
       }
@@ -486,8 +531,8 @@
       zone.innerHTML = `
         <div class="param-note">
           ✓ ${creesOk} client${creesOk > 1 ? 's' : ''} importé${creesOk > 1 ? 's' : ''}.
-          ${aCompleter ? `<br>⚠ ${aCompleter} avec des champs "à confirmer" — à compléter dans leur fiche.` : ''}
-          ${ignores ? `<br>${ignores} ligne${ignores > 1 ? 's' : ''} ignorée${ignores > 1 ? 's' : ''} (raison sociale manquante ou erreur).` : ''}
+          ${aConfirmer ? `<br>⚠ ${aConfirmer} avec un canal ou des bons "à confirmer" — à compléter dans leur fiche.` : ''}
+          ${ignores ? `<br>${ignores} ligne${ignores > 1 ? 's' : ''} ignorée${ignores > 1 ? 's' : ''} (compte client manquant ou erreur).` : ''}
         </div>
       `;
     } catch (err) {

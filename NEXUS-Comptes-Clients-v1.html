@@ -186,6 +186,7 @@
   let clientActifId = null;
   let filtreActif = 'tous';
   let rechercheTexte = '';
+  let templatesDisponibles = [];
 
   const CIVILITES = [
     { value: 'neutre', label: 'Neutre', exemple: 'Bonjour,' },
@@ -210,8 +211,16 @@
     document.getElementById('logout').addEventListener('click', (e) => { e.preventDefault(); nexusLogout(); });
 
     await chargerClients();
+    await chargerTemplates();
     render();
   })();
+
+  async function chargerTemplates() {
+    const site = employeeCourant.site_id || 'vito-sainte-marie';
+    const { data, error } = await nexusClient.from('email_templates').select('code, nom').eq('site', site).not('code', 'is', null).order('nom');
+    if (error) { console.error('Chargement modèles:', error); templatesDisponibles = []; return; }
+    templatesDisponibles = data || [];
+  }
 
   async function chargerClients() {
     const site = employeeCourant.site_id || 'vito-sainte-marie';
@@ -253,6 +262,13 @@
     const p = c.preferences;
     if (p && p.facture_envoi_email && (!c.contact || !c.contact.email_principal)) {
       return { couleur: 'orange', icone: '!', libelle: 'E-mail manquant' };
+    }
+    // Import (07/08/2026) : un client dont le mode de facturation ou les
+    // bons restent "à confirmer" dans le fichier source est signalé ici —
+    // NEXUS ne devine jamais ce que le fichier lui-même laisse en
+    // attente, mais ne le cache pas non plus au manager.
+    if (p && p.preferences_particulieres && /à confirmer/i.test(p.preferences_particulieres)) {
+      return { couleur: 'orange', icone: '!', libelle: 'Configuration à confirmer' };
     }
     if (!c.contact) {
       return { couleur: 'orange', icone: '!', libelle: 'Aucun interlocuteur renseigné' };
@@ -433,6 +449,7 @@
             <div class="champ-ligne"><div class="champ-label">Facture</div><div class="champ-valeur">${p.facture_remise_main_propre ? 'Remise en main propre' : (p.facture_envoi_email ? 'Envoi par e-mail' : 'Non paramétré')}</div></div>
             <div class="champ-ligne"><div class="champ-label">Bons justificatifs</div><div class="champ-valeur">${p.bons_joindre_email ? 'Joints aux e-mails' : (p.bons_remise_main_propre ? 'Remis en main propre' : (p.bons_ne_pas_envoyer ? 'Non envoyés' : 'Non paramétré'))}</div></div>
             <div class="champ-ligne"><div class="champ-label">Contrôle</div><div class="champ-valeur">${[p.controle_auto_bons ? 'Contrôle automatique des bons' : null, p.bloquer_envoi_si_anomalie ? 'Blocage si anomalie' : null, p.validation_manager_obligatoire ? 'Validation manager obligatoire' : null].filter(Boolean).join(' · ') || 'Non paramétré'}</div></div>
+            <div class="champ-ligne"><div class="champ-label">Modèle de message</div><div class="champ-valeur">${p.modele_message_code ? escHtml(p.modele_message_code) : 'Choix automatique'}</div></div>
             ${p.preferences_particulieres ? `<div class="champ-ligne"><div class="champ-label">Préférences particulières</div><div class="champ-valeur">${escHtml(p.preferences_particulieres)}</div></div>` : ''}
           </div>
 
@@ -554,6 +571,15 @@
           </div>
 
           <div class="bloc">
+            <div class="bloc-titre">Modèle de message</div>
+            <select id="fModeleMessage">
+              <option value="">Choix automatique (selon bons joints ou non)</option>
+              ${templatesDisponibles.map(t => `<option value="${t.code}" ${p.modele_message_code === t.code ? 'selected' : ''}>${escHtml(t.nom)}</option>`).join('')}
+            </select>
+            <div style="font-size:11px; color:var(--text-dim); margin-top:6px; line-height:1.5;">Les modèles se gèrent dans Paramètres → Comptes Clients → Modèle e-mail.</div>
+          </div>
+
+          <div class="bloc">
             <div class="bloc-titre">Contrôle</div>
             <div class="check-row">
               <input type="checkbox" id="fControleAuto" ${p.controle_auto_bons !== false ? 'checked' : ''}>
@@ -664,6 +690,7 @@
       bloquer_envoi_si_anomalie: document.getElementById('fBloquerAnomalie').checked,
       validation_manager_obligatoire: document.getElementById('fValidationManager').checked,
       preferences_particulieres: document.getElementById('fPreferencesLibres').value.trim() || null,
+      modele_message_code: document.getElementById('fModeleMessage').value || null,
       updated_at: new Date().toISOString(),
     };
     const prefsExistantes = clientExistant ? clientExistant.preferences : null;
