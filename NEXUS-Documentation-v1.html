@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<link rel="icon" type="image/x-icon" href="favicon.ico">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+<link rel="manifest" href="site.webmanifest">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="NEXUS">
+<meta name="theme-color" content="#0B0F14">
+<title>NEXUS — Documentation</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
+    --text:#EDF1F5; --text-mid:#8A96A5; --text-dim:#57626F;
+    --green:#34D399; --green-dim:#153629;
+    --amber:#F5A623; --amber-dim:#3A2E14;
+    --red:#F0575A; --red-dim:#3A1D1F;
+    --cyan:#4FC3D9; --cyan-dim:rgba(79,195,217,0.1);
+    --violet:#A883FF; --violet-dim:#241C3A;
+    --mono:'IBM Plex Mono',monospace; --sans:'IBM Plex Sans',sans-serif;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{background:var(--bg); font-family:var(--sans); color:var(--text);}
+  body{display:flex; justify-content:center; min-height:100vh;}
+  .phone{width:100%; max-width:460px; min-height:100vh; display:flex; flex-direction:column; border-left:1px solid var(--hairline); border-right:1px solid var(--hairline); padding-top:env(safe-area-inset-top); padding-bottom:env(safe-area-inset-bottom);}
+
+  .header{padding:20px 20px 14px; position:relative;}
+  .back-btn{
+    position:absolute; top:18px; left:18px; display:flex; align-items:center; gap:6px;
+    font-family:var(--mono); font-size:10.5px; font-weight:600; letter-spacing:0.03em; text-transform:uppercase;
+    color:var(--text-mid); background:var(--panel-raised); border:1px solid var(--hairline);
+    border-radius:20px; padding:7px 12px; text-decoration:none; white-space:nowrap; z-index:5; cursor:pointer;
+  }
+  .eyebrow{font-family:var(--mono); font-size:11px; letter-spacing:0.12em; text-transform:uppercase; color:var(--cyan); text-align:center;}
+  .title{font-size:20px; font-weight:600; margin-top:4px; text-align:center;}
+  .soustitre{font-size:12.5px; color:var(--text-mid); margin-top:4px; line-height:1.5; text-align:center;}
+  .divider{height:1px; background:var(--hairline); margin:0 20px;}
+  .content{flex:1; padding-bottom:40px;}
+  .section{padding:16px 20px 0;}
+  .section-label{font-family:var(--mono); font-size:10.5px; font-weight:700; letter-spacing:0.05em; text-transform:uppercase; color:var(--cyan); margin-bottom:10px; display:flex; align-items:center; gap:8px;}
+
+  /* Recherche intelligente — même esprit que "Recherche NEXUS" de
+     NEXUS-App-v1.html : un champ, filtrage par mots-clés au fil de la
+     frappe, jamais de résultat vide sans message. */
+  .recherche-box{display:flex; align-items:center; gap:10px; background:var(--panel); border:1px solid var(--hairline); border-radius:10px; padding:12px 14px; margin-bottom:6px;}
+  .recherche-box input{flex:1; background:none; border:none; outline:none; color:var(--text); font-family:var(--sans); font-size:14px;}
+  .recherche-box input::placeholder{color:var(--text-dim);}
+  .recherche-compteur{font-family:var(--mono); font-size:10.5px; color:var(--text-dim); margin-bottom:14px;}
+  .recherche-vide{display:none; text-align:center; padding:30px 20px; color:var(--text-dim); font-size:12.5px; line-height:1.6;}
+
+  .groupe{margin-bottom:6px;}
+  .groupe-titre{font-family:var(--mono); font-size:12px; font-weight:700; letter-spacing:0.04em; text-transform:uppercase; color:var(--text); padding:16px 0 8px; display:flex; align-items:center; gap:8px;}
+  .groupe-desc{font-size:11.5px; color:var(--text-mid); margin:-4px 0 10px; line-height:1.5;}
+
+  details.moteur{background:var(--panel); border:1px solid var(--hairline); border-radius:12px; margin-bottom:8px; overflow:hidden;}
+  details.moteur[open]{border-color:rgba(79,195,217,0.35);}
+  details.moteur summary{
+    list-style:none; cursor:pointer; padding:14px 16px; display:flex; align-items:center; gap:10px;
+    -webkit-tap-highlight-color:transparent;
+  }
+  details.moteur summary::-webkit-details-marker{display:none;}
+  .moteur-icone{font-size:17px; flex-shrink:0;}
+  .moteur-titre-ligne{flex:1; min-width:0;}
+  .moteur-nom{font-size:13.5px; font-weight:600;}
+  .moteur-resume-court{font-size:11px; color:var(--text-dim); margin-top:2px; line-height:1.4;}
+  .moteur-chevron{color:var(--text-dim); font-size:13px; transition:transform 0.15s; flex-shrink:0;}
+  details.moteur[open] .moteur-chevron{transform:rotate(90deg); color:var(--cyan);}
+  .moteur-corps{padding:0 16px 16px;}
+  .moteur-badges{display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px;}
+  .badge{font-family:var(--mono); font-size:9px; font-weight:700; letter-spacing:0.03em; text-transform:uppercase; padding:4px 8px; border-radius:8px; white-space:nowrap;}
+  .badge-role{background:var(--panel-raised); color:var(--text-mid);}
+  .badge-essential{background:var(--green-dim); color:var(--green);}
+  .badge-professional{background:var(--amber-dim); color:var(--amber);}
+  .moteur-resume{font-size:12.5px; color:var(--text); line-height:1.6; margin-bottom:12px;}
+  .moteur-souslabel{font-family:var(--mono); font-size:9.5px; font-weight:700; letter-spacing:0.05em; text-transform:uppercase; color:var(--text-dim); margin:12px 0 6px;}
+  .moteur-liste{list-style:none;}
+  .moteur-liste li{font-size:12px; color:var(--text-mid); line-height:1.55; padding:5px 0 5px 18px; position:relative;}
+  .moteur-liste li::before{content:'—'; position:absolute; left:0; color:var(--cyan);}
+  .moteur-attention{background:var(--amber-dim); border:1px solid rgba(245,166,35,0.3); border-radius:8px; padding:10px 12px; margin-top:10px; font-size:11.5px; color:var(--amber); line-height:1.55;}
+  .moteur-lien{display:inline-block; margin-top:12px; font-family:var(--mono); font-size:11px; color:var(--cyan); text-decoration:none; padding:8px 12px; background:var(--cyan-dim); border-radius:8px;}
+
+  .footer-lien{display:block; text-align:center; font-family:var(--mono); font-size:11px; color:var(--text-dim); margin-top:20px;}
+  .intro-card{background:var(--panel); border:1px solid var(--hairline); border-radius:12px; padding:16px; margin-bottom:16px; font-size:12px; color:var(--text-mid); line-height:1.6;}
+  .intro-card b{color:var(--text);}
+</style>
+</head>
+<body>
+<div class="phone">
+  <div class="header">
+    <a class="back-btn" href="NEXUS-App-v1.html">← Retour</a>
+    <div class="eyebrow">NEXUS · Documentation</div>
+    <div class="title">Mode d'emploi</div>
+    <div class="soustitre">Comprendre et utiliser chaque moteur NEXUS</div>
+  </div>
+  <div class="divider"></div>
+  <div class="content" id="app">
+    <div class="section"><div class="moteur-resume-court" style="text-align:center; padding:40px 0; color:var(--text-dim);">Chargement…</div></div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="nexus-auth.js"></script>
+<script src="nexus-desktop.js"></script>
+<script>
+  // ============================================================
+  // NEXUS DOCUMENTATION — v1 (07/08/2026, demande de Frédéric)
+  //
+  // "Une documentation pour comprendre et utiliser comme un mode d'emploi
+  // tous les moteurs créés." Page consultable uniquement par les comptes
+  // authentifiés — Essential ET Professional y ont accès (ce n'est PAS
+  // une page verrouillée par nexusRequireProfessional : les deux forfaits
+  // ont des moteurs à documenter). Seule barrière : nexusRequireAuth(),
+  // qui bloque déjà tout visiteur public non connecté et le renvoie vers
+  // NEXUS-Login-v1.html — exactement le niveau de restriction demandé
+  // ("non en lecture publique").
+  //
+  // Contenu rédigé à partir des commentaires réels laissés en tête de
+  // chaque page NEXUS (le code de ce projet documente systématiquement le
+  // "pourquoi" de chaque écran) — jamais une fonctionnalité inventée qui
+  // n'existe pas dans le code source réel. Si un moteur évolue, ce fichier
+  // devra être mis à jour à la main : aucune génération automatique.
+  // ============================================================
+
+  const MOTEURS = [
+    // ---- PILOTER ----
+    {
+      groupe: 'piloter', icone: '🧭', nom: 'Brief NEXUS', href: 'NEXUS-Brief-v1.html',
+      role: 'Manager', forfait: null,
+      resume: "La synthèse du dirigeant : agrège les 7 moteurs NEXUS (Produits, Marge+, Tempo, Verify, Scanner Stock, Inventaire, Rappels) en une Boussole NEXUS à 5 axes et 3 décisions priorisées. N'introduit aucun nouveau calcul — il appelle les moteurs déjà en production pour ne jamais afficher un chiffre différent de ce que montrent Cockpit ou les écrans détaillés.",
+      actions: [
+        "Consulter la Boussole NEXUS (5 axes de santé du commerce) en un coup d'œil",
+        "Voir les 3 décisions les plus prioritaires du moment, tous moteurs confondus",
+        "Ouvrir le détail de chaque axe pour comprendre d'où vient le score",
+      ],
+      attention: "Toute case affiche honnêtement « Donnée insuffisante » plutôt qu'une valeur inventée — c'est volontaire, pas un bug.",
+    },
+    {
+      groupe: 'piloter', icone: '🏠', nom: 'Cockpit', href: 'NEXUS-Cockpit-v2.html',
+      role: 'Tous', forfait: null,
+      resume: "Répond à une seule question : « que dois-je faire maintenant ? ». Distribue le travail du jour sur toutes les catégories du magasin (Produits, Caisse, Stock) et rappelle les nouveautés depuis votre dernière visite.",
+      actions: [
+        "Voir le nombre d'actions restantes à traiter dès l'ouverture",
+        "Consulter les « Nouvelles » : bouclage des décisions déjà validées, risques détectés entre-temps",
+        "Parcourir le Plan d'exploitation du jour (cartes Situation/Analyse/Décision), Produits + Caisse + Stock mélangés",
+        "Cocher un écart de caisse « Justifié » directement, sans repasser par Verify",
+        "Ajouter un rappel manuel (texte libre + date) qui rejoint les priorités du jour",
+        "Ouvrir « Gérer les assignations » pour distribuer une tâche à l'équipe",
+      ],
+    },
+    {
+      groupe: 'piloter', icone: '💡', nom: "Centre d'Intelligence NEXUS", href: 'NEXUS-Centre-Intelligence-v1.html',
+      role: 'Manager', forfait: null,
+      resume: "« Pourquoi cela arrive-t-il, et quelle est la meilleure décision ? » — rassemble les détections d'anomalies commerciales, les messages structurés du Conseiller (Qualité, Caisse) et la santé caisse du mois (écarts cumulés, comparatif au mois précédent).",
+      actions: [
+        "Comprendre le raisonnement complet derrière une alerte vue ailleurs (Scanner, Cockpit, Journal)",
+        "Suivre l'évolution des écarts de caisse sur le mois, comparée au mois précédent",
+        "Lire les messages Qualité et Caisse générés par les règles NEXUS",
+      ],
+    },
+    {
+      groupe: 'piloter', icone: '📓', nom: 'Journal', href: 'NEXUS-Journal-v1.html',
+      role: 'Manager', forfait: 'professional',
+      resume: "« Le Journal n'analyse rien et ne juge rien. Il enregistre chaque fait avec son heure, comme une boîte noire. » Chronologie unique triée par heure décroissante : décisions validées, missions terminées et pointages du jour, sans regroupement ni résumé.",
+      actions: [
+        "Consulter « Aujourd'hui en chiffres » : valeur décidée en €, missions faites, employés pointés",
+        "Filtrer par onglet : Tout / Décisions / Missions / Pointages",
+        "Voir chaque décision validée avec son montant d'impact estimé et la règle appliquée",
+        "Lire la note d'un employé contestant un retard, associée directement au pointage concerné",
+      ],
+      attention: "Le Journal ne prend jamais parti sur un pointage contesté : il ajoute la note de l'employé au fait déjà enregistré, sans trancher à sa place.",
+    },
+    {
+      groupe: 'piloter', icone: '💰', nom: 'Capital NEXUS', href: 'NEXUS-Capital-v1.html',
+      role: 'Manager', forfait: 'professional',
+      resume: "Calcule la valeur potentielle totale identifiée par toutes les décisions validées dans NEXUS (Cockpit, Marge+, Conseiller). Vocabulaire volontairement prudent : « valeur identifiée / estimée », jamais « argent gagné » — impact_eur est une estimation prise au moment de la validation, pas un gain vérifié après coup.",
+      actions: [
+        "Consulter le montant cumulé du Capital NEXUS et son évolution récente",
+        "Voir le panneau ROI Professional : coût de l'abonnement, valeur créée depuis le 1er juillet 2026, ratio en %",
+        "Voir la répartition de la valeur par levier (Renforts, Opportunités saisies, Baisses traitées, Écarts de marge corrigés)",
+        "Consulter le Top 3 des décisions les plus rentables et le Registre de la Valeur (détail jour par jour)",
+      ],
+      attention: "Ce n'est pas un chiffre d'affaires vérifié après coup — le disclaimer de la page le rappelle explicitement.",
+    },
+    {
+      groupe: 'piloter', icone: '🔎', nom: 'Scanner NEXUS', href: 'NEXUS-Scanner-v1.html',
+      role: 'Manager', forfait: 'professional',
+      resume: "Photographie l'état du magasin à un instant T : répartition ABC des catégories (méthode Pareto), marge globale, et « NEXUS Marge+ » qui détecte des écarts de marge entre produits économiquement comparables (jamais entre catégories entières).",
+      actions: [
+        "Consulter la répartition ABC des catégories avec détail dépliable",
+        "Basculer entre Top 5 par CA et Top 5 par marge",
+        "Parcourir les opportunités « NEXUS Marge+ » par priorité, chacune dépliable en Constat/Explication/Décision",
+        "Créer une mission directement depuis une opportunité (échéance 7 jours)",
+        "Consulter les anomalies détectées (lignes CA/marge incohérentes)",
+      ],
+      attention: "Le score de confiance affiché n'est pas une probabilité de succès, et l'effort indiqué est une estimation par défaut, non mesurée.",
+    },
+    {
+      groupe: 'piloter', icone: '🧑‍🤝‍🧑', nom: 'Radar du Manager', href: 'NEXUS-Radar-Manager-v1.html',
+      role: 'Manager', forfait: 'professional',
+      resume: "Vue en radar (8 axes) répondant à « où investir votre énergie aujourd'hui ». Seuls certains domaines sont réellement mesurés à partir de vraies données — les autres sont marqués « hors de portée » de NEXUS pour l'instant, jamais comme une mauvaise performance.",
+      actions: [
+        "Voir un verdict global : domaines pilotés avec une vraie donnée / sains / à agir / hors de portée",
+        "Consulter le diagramme radar (vert = sain, ambre = à surveiller, gris pointillé = non mesurable)",
+        "Ouvrir le détail de chaque domaine mesuré avec sa jauge de progression",
+      ],
+      attention: "Résultats et Développement sont mesurés ; Stocks, Achats, Exploitation et Conformité ne le sont pas encore — ce n'est pas noté à zéro, juste pas mesurable aujourd'hui.",
+    },
+
+    // ---- PERFORMER ----
+    {
+      groupe: 'performer', icone: '📦', nom: 'Produits', href: 'NEXUS-Produits-v1.html',
+      role: 'Manager', forfait: null,
+      resume: "Le référentiel produit : une fiche d'identité par référence, avec le même moteur de règles que le Cockpit appliqué à un seul produit. Combine ventes, photo produit, photo terrain, emplacement en rayon et indicateurs de fiabilité.",
+      actions: [
+        "Rechercher un produit par nom, ou y arriver via un lien direct depuis le Conseiller NEXUS",
+        "Consulter le statut simplifié (Performant / À surveiller / Dormant / Stratégique) et l'action recommandée",
+        "Lire l'analyse Constat → Explication → Décision propre au produit",
+        "Vérifier ou prendre une photo terrain du produit en rayon",
+        "Renseigner l'emplacement physique du produit dans le magasin",
+        "Consulter l'historique T1 → T2 quand une comparaison fiable existe",
+      ],
+      attention: "L'emplacement en rayon n'est jamais déduit automatiquement — uniquement saisi et confirmé par un manager.",
+    },
+    {
+      groupe: 'performer', icone: '🗂️', nom: 'Rayon', href: 'NEXUS-Rayon-v1.html',
+      role: 'Manager', forfait: null,
+      resume: "Analyse chaque rayon (catégorie) avec un verdict immédiat (créateur de valeur / stratégique à faible marge / à surveiller / en dégradation / rayon de trafic), un cycle Constat → Explication → Décision, et une section « Pourquoi ? » qui rend visible et navigable tout le raisonnement de NEXUS.",
+      actions: [
+        "Choisir un rayon (recherche ou liste triée par CA) et consulter son verdict",
+        "Parcourir 3 onglets : Performance (KPI, poids dans le magasin), Références (tops CA/marge, réalité vs instinct), Terrain (ce que NEXUS ne sait pas encore, lancer un contrôle photo)",
+        "Déplier « Pourquoi ? » pour voir question par question comment chaque conclusion a été calculée",
+      ],
+      attention: "Les rayons dits « de trafic » (cartes prépayées, presse, jeux…) ne sont jamais jugés sur leur marge — leur rôle est d'attirer le client, pas de générer du profit direct.",
+    },
+    {
+      groupe: 'performer', icone: '📆', nom: 'Tempo', href: 'NEXUS-Tempo-v1.html',
+      role: 'Manager', forfait: 'professional',
+      resume: "Le rythme réel de la station, jour par jour de la semaine, à partir des audits de caisse quotidiens. Gouverné par la règle « jamais de chiffre inventé » : aucune tendance sans un minimum d'historique.",
+      actions: [
+        "Voir le statut de chaque jour de la semaine (moteur / solide / stable / irrégulier / à renforcer / en recul)",
+        "Consulter la décision prioritaire du moment et créer une mission terrain associée",
+        "Comparer deux périodes de dates au choix",
+        "Consulter la contribution observée par employé (jamais présentée comme un jugement individuel certain)",
+        "Explorer les sections complémentaires : Carburants, Cycles saisonniers, Météo, Scanner Stock, Capital NEXUS",
+      ],
+      attention: "Aucune tendance n'apparaît sans au moins 14 jours d'historique global, et aucun classement d'employé sans un minimum de quarts comparables.",
+    },
+    {
+      groupe: 'performer', icone: '📣', nom: 'Campagnes', href: 'NEXUS-Campagne-v1.html',
+      role: 'Manager', forfait: 'professional',
+      resume: "Suit le cycle de vie complet d'une promotion : déclaration rapide, puis mesure automatique de son impact réel sur le CA (avant/pendant), à partir des vrais audits de caisse.",
+      actions: [
+        "Déclarer une nouvelle promotion (dates, type boutique/carburant/mixte, produits concernés)",
+        "Consulter la liste des promotions et leur impact CA mesuré",
+        "Depuis Import, rattacher un fichier de ventes « avant » ou « pendant » à une promotion existante",
+      ],
+      attention: "La mesure d'impact reste volontairement au niveau du CA global, jamais par produit — afficher un impact par référence serait une estimation déguisée en fait mesuré.",
+    },
+    {
+      groupe: 'performer', icone: '📉', nom: 'Scanner Stock', href: 'NEXUS-Scanner-Stock-v1.html',
+      role: 'Manager', forfait: null,
+      resume: "« Où perdez-vous de l'argent ? » — compare relevés de stock, ventes connues et contrôles déjà effectués pour donner un indice de confiance global et repérer les écarts à risque, référence par référence.",
+      actions: [
+        "Consulter l'indice de confiance global et le risque estimé en euros",
+        "Filtrer par état (à vérifier, à surveiller, stables, non concluants, stock négatif)",
+        "Consulter la liste « Inventaire conseillé aujourd'hui »",
+        "Marquer un contrôle (quantité réellement comptée) directement depuis une fiche produit",
+      ],
+      attention: "Nécessite au moins deux relevés de stock importés avant de pouvoir démarrer l'analyse.",
+    },
+
+    // ---- EXÉCUTER ----
+    {
+      groupe: 'executer', icone: '🧾', nom: 'Verify', href: 'NEXUS-Verify-v1.html',
+      role: 'Manager', forfait: null,
+      resume: "Contrôle de caisse quotidien : dépose ou saisit le rapport de recettes, les dépôts piste/boutique (CB, billets, pièces), et NEXUS détecte les écarts par rapport à ce qui est attendu. Chaque ligne de contrôle affichée reflète une donnée réellement détectée, jamais un état inventé.",
+      actions: [
+        "Importer ou saisir le rapport de recettes du jour",
+        "Renseigner les dépôts caisse par zone (piste / boutique)",
+        "Consulter la checklist de vérification (employés reconnus, carte fidélité détectée, drops importés…)",
+        "Justifier un écart avec un commentaire",
+      ],
+    },
+    {
+      groupe: 'executer', icone: '📋', nom: 'Inventaire — comptage', href: 'NEXUS-Inventaire-v1.html',
+      role: 'Tous', forfait: null,
+      resume: "L'écran de comptage terrain, ouvert à tous les employés : ouverture et clôture de quart, catégorie par catégorie, sur la base d'une feuille papier réelle à 11 familles (jaugeage carburant, gaz, glaçons, journaux, pains/sandwichs, viennoiserie, cigarettes, boissons chaudes/bières, huiles, lave-glace, CBD). Vocabulaire imposé : « stock transmis », « stock compté », jamais « ventes » ni « stock théorique ».",
+      actions: [
+        "Choisir sa zone (Piste ou Boutique) et compter catégorie par catégorie",
+        "Pour les produits comptés en deux lieux (boissons, huiles, lave-glace) : saisir le dépôt en cours de trajet — NEXUS demande automatiquement la boutique juste avant validation finale",
+        "Déclarer une livraison reçue directement depuis une ligne produit",
+        "Consulter et corriger sa saisie avant validation d'ouverture ou de clôture",
+      ],
+      attention: "Les employés comptent et transmettent ; NEXUS sécurise les données en événements immuables, jamais d'écrasement silencieux d'un comptage existant.",
+    },
+    {
+      groupe: 'executer', icone: '🧭', nom: 'Contrôle inventaire', href: 'NEXUS-Inventaire-Manager-v1.html',
+      role: 'Manager', forfait: 'professional',
+      resume: "La supervision manager de l'inventaire terrain : écarts, comptages manquants et décisions du jour (ou d'une période plus large), avec une trace explicite sur chaque tranchage.",
+      actions: [
+        "Sélectionner une date/quart ou une période (jour/semaine/mois/personnalisée)",
+        "Voir « À terminer » (catégories non comptées) et « À contrôler » (écarts en attente)",
+        "Décider sur chaque alerte : Valider, Recomptage, Explication reçue, Erreur de saisie, Démarque à surveiller",
+        "Utiliser « Résoudre avec NEXUS » pour recevoir des hypothèses probables sur un écart",
+        "Faire une correction rétroactive d'un comptage avec motif obligatoire",
+        "Rouvrir la clôture d'un quart déjà terminé, avec motif",
+      ],
+      attention: "Une correction rétroactive n'écrase jamais l'ancien comptage : un nouveau comptage est ajouté à côté, relié à l'original.",
+    },
+    {
+      groupe: 'executer', icone: '🏷️', nom: 'Traçabilité', href: 'NEXUS-Tracabilite-v1.html',
+      role: 'Manager', forfait: 'professional',
+      resume: "Le cycle de vie complet d'un lot (réception → suivi → retour/clôture), pour les produits configurés en « Durée de vie glissante » ou « Presse » dans Paramètres Inventaire. Un manager qui ne vend ni SDD ni presse n'a normalement jamais besoin d'y venir.",
+      actions: [
+        "Consulter les lots en cours et leurs échéances",
+        "Suivre un retour fournisseur ou une clôture de lot",
+      ],
+    },
+    {
+      groupe: 'executer', icone: '✅', nom: 'Missions', href: 'NEXUS-Missions-v1.html',
+      role: 'Tous', forfait: null,
+      resume: "Pour un employé : « Vos missions du jour », la checklist des procédures à accomplir pendant le service (55 procédures au catalogue). Pour un manager : « Vos plans d'action », les recommandations issues du même moteur que le Cockpit.",
+      actions: [
+        "Consulter le Score du jour (points validés, en attente, missions obligatoires terminées)",
+        "Démarrer la prochaine priorité suggérée par le Coach NEXUS",
+        "Cocher les étapes d'une mission, avec preuve photo obligatoire pour certaines",
+        "Filtrer par catégorie (Commerce, Qualité, Sécurité, Exploitation, Management) ou par niveau de points",
+        "Pour un manager : valider ou refuser une mission « faite », consulter les recommandations live",
+        "Pour un renfort : signaler une affluence pour faire remonter les missions de soutien immédiat",
+      ],
+      attention: "Le score du jour distingue toujours points validés et points en attente — jamais un total gonflé par des missions pas encore confirmées.",
+    },
+    {
+      groupe: 'executer', icone: '🎯', nom: 'Assignations', href: 'NEXUS-Assignations-v1.html',
+      role: 'Manager', forfait: 'professional',
+      resume: "Assigner manuellement une mission du catalogue à un rôle ou à une personne précise, avec échéance et note, puis suivre le cycle de vie de chaque assignation.",
+      actions: [
+        "Créer une assignation : mission, cible (rôle ou personne), échéance, note",
+        "Consulter la liste des assignations en cours et leur statut (Assignée, En cours, Faite, Validée, Refusée)",
+        "Valider ou refuser une mission marquée « faite »",
+        "Réaffecter une assignation existante à quelqu'un d'autre",
+      ],
+    },
+    {
+      groupe: 'executer', icone: '🗓️', nom: 'Nexus Planner', href: 'NEXUS-Planning-v1.html',
+      role: 'Manager', forfait: 'professional',
+      resume: "« Le bon collaborateur, au bon endroit, au bon moment » — génère un brouillon de planning mensuel à partir des contraintes de chaque employé et des règles d'effectif minimum, en respectant des règles fixes (jamais plus de 6 jours d'affilée, rotation équitable, jamais deux femmes sur le quart 2).",
+      actions: [
+        "Générer un brouillon de planning pour le mois choisi (jamais la semaine en cours ni le passé)",
+        "Publier le planning pour le rendre visible à toute l'équipe",
+        "Définir l'effectif minimum par quart, avec exceptions ponctuelles par jour",
+        "Gérer les contraintes de chaque employé (repos habituels, aptitude renfort, exclusion caisse, heures de contrat…)",
+        "Ajouter des congés/indisponibilités par employé",
+        "Consulter l'historique des générations et les trous restants signalés",
+      ],
+      attention: "Un vacataire n'est jamais intégré à la rotation régulière — NEXUS ne le sollicite qu'en dernier recours pour combler un trou en piste.",
+    },
+
+    // ---- ÉQUIPE ----
+    {
+      groupe: 'equipe', icone: '📝', nom: 'Évaluations', href: 'NEXUS-Evaluation-Employe-v1.html',
+      role: 'Manager', forfait: 'professional',
+      resume: "Deux onglets — Nouvelle évaluation et Historique & bilan. La grille bascule automatiquement entre une grille prime standard et une grille spécifique aux Renforts selon l'employé sélectionné.",
+      actions: [
+        "Faire un contrôle de tenue du jour (5 items à cocher)",
+        "Remplir la grille d'évaluation prime (6 critères) — calcule un pourcentage de prime",
+        "Pour un Renfort : grille de performance à 6 critères avec auto-critique et commentaire du responsable",
+        "Consulter l'historique complet d'un employé et son bilan annuel",
+      ],
+      attention: "Barème de prime : 9-10 → 100% · 7-8,5 → 70% · 6-6,5 → 40% · en dessous de 6 → 0%.",
+    },
+    {
+      groupe: 'equipe', icone: '🏆', nom: 'Résultats Équipe', href: 'NEXUS-Resultats-Equipe-v1.html',
+      role: 'Manager', forfait: 'professional',
+      resume: "Tableau de bord terrain de l'équipe — classement hebdomadaire de points, barème expliqué, et une carte par employé (missions, retards, points en attente). Porte uniquement sur les employés, jamais sur les managers/gérants.",
+      actions: [
+        "Consulter le classement hebdomadaire des points validés, avec évolution de rang",
+        "Voir par employé : état, points, missions réalisées, retards cumulés",
+        "Valider une mission à preuve photo en attente pour qu'elle compte dans le classement",
+        "Retirer des points sur une mission déjà validée, avec raison facultative",
+        "Ouvrir la page Ma Progression d'un employé pour préparer un entretien",
+      ],
+      attention: "Une mission en attente de validation ne compte jamais dans le classement tant qu'elle n'a pas été validée.",
+    },
+
+    // ---- COMPTES CLIENTS ----
+    {
+      groupe: 'comptes-clients', icone: '👥', nom: 'Comptes Clients', href: 'NEXUS-Comptes-Clients-v1.html',
+      role: 'Manager', forfait: 'professional',
+      resume: "Centre de pilotage des clients en compte : base clients, interlocuteurs, préférences documentaires, journal d'audit. La facturation mensuelle automatisée (rapprochement NEXUS Reconcile, envoi d'e-mails) est une phase 2 pas encore développée — les KPI qui en dépendraient restent honnêtement à 0 en attendant.",
+      actions: [
+        "Consulter et gérer la fiche de chaque client en compte (identité, interlocuteurs)",
+        "Définir les préférences documentaires par client",
+        "Consulter le journal d'audit des actions effectuées sur les comptes clients",
+        "Accéder à la Boîte de réception pour déposer des documents",
+      ],
+    },
+    {
+      groupe: 'comptes-clients', icone: '📥', nom: 'Boîte de réception', href: 'NEXUS-Boite-Reception-v1.html',
+      role: 'Manager', forfait: 'professional',
+      resume: "Dépose une facture ou un bon — NEXUS trie automatiquement. Un PDF avec une vraie couche de texte (lue 100% dans le navigateur, aucun envoi réseau) devient une facture sans OCR ; le reste (photo, PDF scanné) part dans la file du moteur OCR de l'iMac.",
+      actions: [
+        "Glisser-déposer un ou plusieurs fichiers (ou cliquer pour parcourir)",
+        "Suivre le widget « État du moteur documentaire » (en ligne/hors ligne, documents en attente, dernier traitement)",
+        "Confirmer ou corriger le client détecté automatiquement (par SIRET ou e-mail)",
+        "Consulter le statut de traitement OCR de chaque bon déposé",
+        "Supprimer un document déposé par erreur",
+      ],
+      attention: "NEXUS n'extrait jamais le détail des lignes d'une facture (montants, quantités) dans cette version — seul le texte brut est stocké, pour ne jamais inventer un chiffre.",
+    },
+    {
+      groupe: 'comptes-clients', icone: '⚙️', nom: 'Paramètres Comptes Clients', href: 'NEXUS-Parametres-Comptes-Clients-v1.html',
+      role: 'Manager', forfait: 'professional',
+      resume: "Identité/signature, communication, modèle d'e-mail (avec aperçu temps réel), tolérances de rapprochement (posées maintenant, utilisées plus tard par NEXUS Reconcile), et import initial du fichier de paramétrage client.",
+      actions: [
+        "Configurer l'identité et la signature utilisées dans les communications clients",
+        "Personnaliser le modèle d'e-mail avec aperçu en direct",
+        "Régler les tolérances de rapprochement pour la phase 2",
+        "Importer un fichier de paramétrage client existant",
+      ],
+    },
+
+    // ---- ADMINISTRER ----
+    {
+      groupe: 'administrer', icone: '📤', nom: 'Imports', href: 'NEXUS-Import-v1.html',
+      role: 'Manager', forfait: null,
+      resume: "Point d'entrée unique pour déposer des fichiers Excel/CSV et alimenter NEXUS avec de vraies données : Ventes/Catalogue, Stock instantané, Campagne NEXUS, Panier moyen. Le fichier est traité entièrement dans le navigateur avant tout envoi.",
+      actions: [
+        "Choisir le type d'import et déposer/parcourir un fichier .xlsx/.xls/.csv",
+        "Vérifier le mapping automatique des colonnes détectées",
+        "Consulter le résumé (lignes lues, catégories, CA estimé, anomalies) et un aperçu",
+        "Télécharger le résumé ou envoyer les données à NEXUS Pilot",
+      ],
+      attention: "Le Conseiller NEXUS rappelle la dernière période déjà importée pour éviter tout doublon.",
+    },
+    {
+      groupe: 'administrer', icone: '⚙️', nom: 'Paramètres', href: 'NEXUS-Parametres-Station-v1.html',
+      role: 'Manager', forfait: null,
+      resume: "Configuration centrale du site — alimente les calculs de retards (Pointage), Nexus Planner et Verify. Horaires de service, réglage du pointage manager, prix carburants, synchronisation Google Sheets, exceptions de marge pour le Scanner.",
+      actions: [
+        "Régler les horaires des Quart 1/Quart 2/renfort et le temps d'habillage",
+        "Activer/désactiver l'obligation de pointage pour le manager",
+        "Saisir les prix mensuels des carburants (SP, GO, GNR)",
+        "Activer et tester la synchronisation Google Sheets (lecture seule)",
+        "Exclure définitivement un article des recommandations de marge du Scanner",
+        "Consulter le forfait NEXUS actuel du site (lecture seule)",
+      ],
+      attention: "Le forfait du site (Essential/Professional) n'est pas modifiable ici — seul le créateur NEXUS peut le changer.",
+    },
+    {
+      groupe: 'administrer', icone: '⚙️', nom: 'Paramètres Inventaire', href: 'NEXUS-Parametres-Inventaire-v1.html',
+      role: 'Manager', forfait: 'professional',
+      resume: "Produits comptés, parcours d'inventaire, règles par produit, alertes et traçabilité. Permet de créer/modifier les produits inventoriés, leur catégorie, leur zone (piste/boutique = pompiste/caissier) et leurs règles de comptage.",
+      actions: [
+        "Ajouter un produit au catalogue d'inventaire, avec catégorie et zone",
+        "Dupliquer les réglages d'un produit vers tous les autres produits de sa catégorie (zone incluse)",
+        "Configurer le comptage en deux lieux (dépôt puis boutique) pour un produit",
+        "Régler l'ordre d'affichage des catégories (suit le sens de circulation réel de l'employé)",
+        "Configurer les profils de traçabilité (Durée de vie glissante, Presse) pour un produit",
+      ],
+      attention: "Dupliquer les réglages vers une catégorie recopie aussi la zone — vérifiez que tous les produits de la catégorie doivent vraiment être suivis par la même personne (pompiste ou caissier) avant de confirmer.",
+    },
+    {
+      groupe: 'administrer', icone: '🔔', nom: 'Rappels', href: 'NEXUS-Parametres-Rappels-v1.html',
+      role: 'Manager', forfait: null,
+      resume: "Calendrier fournisseurs boutique (passation bimensuelle), suivi coché fournisseur par fournisseur, calcul de jaugeage carburant quotidien avec recommandation de commande, et rappels manuels personnalisés — tout remonte dans les Plans d'action quand c'est dû.",
+      actions: [
+        "Consulter la prochaine échéance de commande fournisseurs et le calendrier complet",
+        "Cocher chaque fournisseur traité pour l'échéance en cours",
+        "Saisir le jaugeage carburant du jour (SP, Gasoil 2 cuves, GNR) et obtenir une recommandation de commande",
+        "Ajouter un rappel manuel ponctuel ou récurrent (quotidien/hebdo/mensuel/annuel)",
+      ],
+      attention: "Le stock de sécurité carburant vise 3 jours de consommation minimum, jamais un camion complet par défaut — le carburant immobilise de la trésorerie sans avantage commercial (prix indexé par la préfecture).",
+    },
+
+    // ---- ESPACE EMPLOYÉ ----
+    {
+      groupe: 'employe', icone: '⏱️', nom: 'Pointage', href: 'NEXUS-Pointage-v1.html',
+      role: 'Tous', forfait: null,
+      resume: "Horodatage arrivée / pause / départ. Chaque type de pointage ne peut être fait qu'une fois par jour et par employé, dans l'ordre. Si la photo échoue pour une raison technique, le pointage est accepté quand même — jamais pénaliser un employé de bonne foi pour un problème technique.",
+      actions: [
+        "Pointer son arrivée, le début et la fin de pause, et son départ",
+        "Prendre la photo demandée à l'arrivée (retenté automatiquement une fois en cas d'échec)",
+        "Consulter sa timeline de pointages du jour",
+        "Contester un retard avec une note libre, visible ensuite par le manager dans le Journal",
+      ],
+    },
+    {
+      groupe: 'employe', icone: '🗓️', nom: 'Mon Planning', href: 'NEXUS-Mon-Planning-v1.html',
+      role: 'Tous', forfait: null,
+      resume: "Consultation en lecture seule du planning généré par Nexus Planner : vos jours de travail et de repos, plus le planning complet de l'équipe avec votre ligne mise en évidence.",
+      actions: [
+        "Naviguer mois par mois",
+        "Voir un résumé jour par jour de son propre planning (quart, horaires, statut)",
+        "Consulter le planning de toute l'équipe pour le mois",
+      ],
+    },
+    {
+      groupe: 'employe', icone: '🌱', nom: 'Ma Progression', href: 'NEXUS-Progression-v1.html',
+      role: 'Tous', forfait: null,
+      resume: "Le coach personnel NEXUS pour chaque employé. Trois questions guident la page : pourquoi un écart arrive probablement, comment l'éviter demain, quels progrès ont été faits — jamais un simple chiffre nu.",
+      actions: [
+        "Consulter son niveau NEXUS et ses compétences suivies",
+        "Comprendre l'origine probable d'un écart récent et comment l'éviter",
+        "Voir ses progrès et encouragements du Coach",
+      ],
+      attention: "Un manager peut consulter la page d'un employé de son site (préparation d'entretien) — jamais l'inverse.",
+    },
+    {
+      groupe: 'employe', icone: '🧠', nom: 'Ce que NEXUS a appris sur moi', href: 'NEXUS-Apprentissage-v1.html',
+      role: 'Tous', forfait: null,
+      resume: "L'écran le plus personnel de NEXUS. Le Coach synthétise ce qu'il a observé de réel sur l'employé — qualités, habitudes, progrès, prochain objectif — jamais un chiffre inventé.",
+      actions: [
+        "Consulter les qualités et habitudes observées par le Coach NEXUS",
+        "Voir le prochain objectif suggéré",
+      ],
+    },
+  ];
+
+  const GROUPES_LABELS = {
+    piloter: { titre: '🧭 Piloter', desc: 'Comprendre où en est le commerce et décider.' },
+    performer: { titre: '📈 Performer', desc: 'Faire progresser produits, rayons et campagnes.' },
+    executer: { titre: '✅ Exécuter', desc: "Le travail terrain : caisse, inventaire, missions, planning." },
+    equipe: { titre: '👥 Équipe', desc: 'Évaluer et suivre la progression des employés.' },
+    'comptes-clients': { titre: '💼 Comptes Clients', desc: 'Facturation, documents et relation client.' },
+    administrer: { titre: '⚙️ Administrer', desc: 'Configurer NEXUS et les échéances récurrentes.' },
+    employe: { titre: '🙋 Espace employé', desc: 'Les écrans que chaque employé utilise au quotidien.' },
+  };
+  const ORDRE_GROUPES = ['piloter', 'performer', 'executer', 'equipe', 'comptes-clients', 'administrer', 'employe'];
+
+  function normaliser(s) {
+    return (s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  }
+
+  function texteRecherche(m) {
+    return normaliser([m.nom, m.resume, m.role, ...(m.actions || []), m.attention || ''].join(' '));
+  }
+
+  function badgeForfait(forfait) {
+    if (forfait === 'professional') return '<span class="badge badge-professional">Professional</span>';
+    return '<span class="badge badge-essential">Essential</span>';
+  }
+
+  function rendreMoteur(m) {
+    return `
+      <details class="moteur" data-recherche="${texteRecherche(m)}">
+        <summary>
+          <span class="moteur-icone">${m.icone}</span>
+          <div class="moteur-titre-ligne">
+            <div class="moteur-nom">${m.nom}</div>
+            <div class="moteur-resume-court">${m.resume.slice(0, 78)}${m.resume.length > 78 ? '…' : ''}</div>
+          </div>
+          <span class="moteur-chevron">›</span>
+        </summary>
+        <div class="moteur-corps">
+          <div class="moteur-badges">
+            <span class="badge badge-role">${m.role}</span>
+            ${badgeForfait(m.forfait)}
+          </div>
+          <div class="moteur-resume">${m.resume}</div>
+          ${m.actions && m.actions.length ? `
+            <div class="moteur-souslabel">Ce que vous pouvez faire</div>
+            <ul class="moteur-liste">${m.actions.map(a => `<li>${a}</li>`).join('')}</ul>
+          ` : ''}
+          ${m.attention ? `<div class="moteur-attention">⚠ ${m.attention}</div>` : ''}
+          <a class="moteur-lien" href="${m.href}">Ouvrir cet écran →</a>
+        </div>
+      </details>
+    `;
+  }
+
+  function render() {
+    const app = document.getElementById('app');
+    const groupesHtml = ORDRE_GROUPES.map(g => {
+      const items = MOTEURS.filter(m => m.groupe === g);
+      if (!items.length) return '';
+      const label = GROUPES_LABELS[g];
+      return `
+        <div class="groupe" data-groupe-bloc="${g}">
+          <div class="groupe-titre">${label.titre}</div>
+          <div class="groupe-desc">${label.desc}</div>
+          ${items.map(rendreMoteur).join('')}
+        </div>
+      `;
+    }).join('');
+
+    app.innerHTML = `
+      <div class="section">
+        <div class="intro-card">
+          <b>${MOTEURS.length} moteurs NEXUS</b> documentés ci-dessous, classés comme dans le menu Explorer NEXUS. Utilisez la recherche pour trouver directement ce que vous cherchez par mot-clé (ex : "carburant", "caisse", "planning", "photo").
+        </div>
+        <div class="recherche-box">
+          <span>🔍</span>
+          <input type="text" id="rechercheDoc" placeholder="Rechercher un moteur, une action, un mot-clé…">
+        </div>
+        <div class="recherche-compteur" id="rechercheCompteur"></div>
+      </div>
+      <div class="section" id="listeGroupes">
+        ${groupesHtml}
+        <div class="recherche-vide" id="rechercheVide">Aucun moteur ne correspond à cette recherche. Essayez un autre mot-clé, ou parcourez les catégories ci-dessus.</div>
+      </div>
+      <a class="footer-lien" href="NEXUS-App-v1.html">Retour à l'accueil NEXUS →</a>
+    `;
+
+    const input = document.getElementById('rechercheDoc');
+    const compteur = document.getElementById('rechercheCompteur');
+    const vide = document.getElementById('rechercheVide');
+    const tousLesDetails = Array.from(document.querySelectorAll('details.moteur'));
+    const tousLesBlocsGroupe = Array.from(document.querySelectorAll('[data-groupe-bloc]'));
+
+    input.addEventListener('input', () => {
+      const q = normaliser(input.value.trim());
+      if (!q) {
+        tousLesDetails.forEach(d => { d.style.display = ''; d.open = false; });
+        tousLesBlocsGroupe.forEach(b => b.style.display = '');
+        compteur.textContent = '';
+        vide.style.display = 'none';
+        return;
+      }
+      let nbTrouves = 0;
+      tousLesBlocsGroupe.forEach(bloc => {
+        const items = Array.from(bloc.querySelectorAll('details.moteur'));
+        let nbVisiblesDansGroupe = 0;
+        items.forEach(d => {
+          const match = d.dataset.recherche.includes(q);
+          d.style.display = match ? '' : 'none';
+          d.open = match;
+          if (match) { nbVisiblesDansGroupe++; nbTrouves++; }
+        });
+        bloc.style.display = nbVisiblesDansGroupe ? '' : 'none';
+      });
+      compteur.textContent = nbTrouves ? `${nbTrouves} résultat${nbTrouves > 1 ? 's' : ''}` : '';
+      vide.style.display = nbTrouves ? 'none' : 'block';
+    });
+  }
+
+  (async function init() {
+    const employee = await nexusRequireAuth();
+    if (!employee) return; // nexus-auth.js gère déjà la redirection vers NEXUS-Login-v1.html
+    render();
+  })();
+</script>
+</body>
+</html>

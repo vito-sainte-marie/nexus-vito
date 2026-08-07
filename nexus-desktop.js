@@ -89,6 +89,14 @@ const NEXUS_SIDEBAR_GROUPES = [
     ],
   },
   {
+    // Ajouté 07/08/2026, demande de Frédéric : mode d'emploi de tous les
+    // moteurs NEXUS, avec sa propre recherche par mots-clés.
+    nom: 'Aide',
+    items: [
+      { label: 'Documentation NEXUS', href: 'NEXUS-Documentation-v1.html', icon: null, emoji: '📚' },
+    ],
+  },
+  {
     nom: 'Administrer',
     items: [
       { label: 'Imports', href: 'NEXUS-Import-v1.html', icon: 'assets/icons/icon-import.png' },
