@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<link rel="icon" type="image/x-icon" href="favicon.ico">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+<link rel="manifest" href="site.webmanifest">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="NEXUS">
+<meta name="theme-color" content="#0B0F14">
+<title>NEXUS — Boîte de réception</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
+    --text:#EDF1F5; --text-mid:#8A96A5; --text-dim:#57626F;
+    --green:#34D399; --green-dim:#153629;
+    --amber:#F5A623; --amber-dim:#3A2E14;
+    --red:#F0575A; --red-dim:#3A1D1F;
+    --cyan:#4FC3D9; --cyan-dim:rgba(79,195,217,0.1);
+    --mono:'IBM Plex Mono',monospace; --sans:'IBM Plex Sans',sans-serif;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{background:var(--bg); font-family:var(--sans); color:var(--text);}
+  body{display:flex; justify-content:center; min-height:100vh;}
+  .phone{width:100%; max-width:460px; min-height:100vh; display:flex; flex-direction:column; border-left:1px solid var(--hairline); border-right:1px solid var(--hairline); padding-top:env(safe-area-inset-top); padding-bottom:env(safe-area-inset-bottom);}
+
+  .header{padding:20px 20px 14px; position:relative;}
+  .back-btn{
+    position:absolute; top:18px; left:18px; display:flex; align-items:center; gap:6px;
+    font-family:var(--mono); font-size:10.5px; font-weight:600; letter-spacing:0.03em; text-transform:uppercase;
+    color:var(--text-mid); background:var(--panel-raised); border:1px solid var(--hairline);
+    border-radius:20px; padding:7px 12px; text-decoration:none; white-space:nowrap; z-index:5; cursor:pointer;
+  }
+  .eyebrow{font-family:var(--mono); font-size:11px; letter-spacing:0.12em; text-transform:uppercase; color:var(--cyan); text-align:center;}
+  .title{font-size:20px; font-weight:600; margin-top:4px; text-align:center;}
+  .soustitre{font-size:12.5px; color:var(--text-mid); margin-top:4px; line-height:1.5; text-align:center;}
+  .divider{height:1px; background:var(--hairline); margin:0 20px;}
+  .content{flex:1; padding-bottom:40px;}
+  .section{padding:16px 20px 0;}
+  .section-label{font-family:var(--mono); font-size:10.5px; font-weight:700; letter-spacing:0.05em; text-transform:uppercase; color:var(--cyan); margin-bottom:10px;}
+
+  .depot-zone{
+    border:2px dashed var(--hairline); border-radius:16px; padding:28px 18px; text-align:center; cursor:pointer;
+    transition:border-color .15s, background .15s;
+  }
+  .depot-zone.survole{border-color:var(--cyan); background:var(--cyan-dim);}
+  .depot-icon{font-size:30px; margin-bottom:10px;}
+  .depot-titre{font-size:14.5px; font-weight:600;}
+  .depot-desc{font-size:12px; color:var(--text-mid); margin-top:6px; line-height:1.5;}
+  .depot-zone input[type=file]{display:none;}
+
+  .info-note{background:var(--panel); border:1px solid var(--hairline); border-radius:10px; padding:12px 14px; font-size:12px; color:var(--text-mid); line-height:1.6; margin-top:14px;}
+
+  .carte-doc{background:var(--panel); border:1px solid var(--hairline); border-radius:12px; padding:14px; margin-top:10px;}
+  .cd-head{display:flex; justify-content:space-between; align-items:flex-start; gap:10px;}
+  .cd-nom{font-size:13.5px; font-weight:600; word-break:break-word;}
+  .cd-badge{font-family:var(--mono); font-size:9px; font-weight:700; padding:4px 8px; border-radius:10px; white-space:nowrap; text-transform:uppercase;}
+  .cd-badge.b-cyan{background:var(--cyan-dim); color:var(--cyan);}
+  .cd-badge.b-amber{background:var(--amber-dim); color:var(--amber);}
+  .cd-badge.b-green{background:var(--green-dim); color:var(--green);}
+  .cd-badge.b-red{background:var(--red-dim); color:var(--red);}
+  .cd-badge.b-gris{background:var(--panel-raised); color:var(--text-mid);}
+  .cd-sous{font-size:11.5px; color:var(--text-mid); margin-top:8px; line-height:1.5;}
+  .cd-client{margin-top:10px;}
+  .cd-client select{font-size:13px; padding:9px 10px;}
+  .cd-supprimer{margin-top:10px; font-family:var(--mono); font-size:10px; color:var(--red); text-transform:uppercase; letter-spacing:0.03em; cursor:pointer; background:none; border:none; padding:0;}
+
+  .empty-state{text-align:center; padding:40px 24px; color:var(--text-dim);}
+  .empty-state .es-icon{font-size:30px; margin-bottom:12px;}
+  .empty-state .es-desc{font-size:12.5px; line-height:1.6;}
+
+  select{width:100%; background:var(--panel-raised); border:1px solid var(--hairline); border-radius:9px; padding:11px 12px; color:var(--text); font-family:var(--sans); font-size:16px;}
+
+  .footer-lien{display:block; text-align:center; font-family:var(--mono); font-size:11px; color:var(--text-dim); margin-top:20px;}
+</style>
+</head>
+<body>
+<div class="phone">
+  <div class="header">
+    <a class="back-btn" href="NEXUS-Comptes-Clients-v1.html">← Retour</a>
+    <div class="eyebrow">Comptes Clients</div>
+    <div class="title">Boîte de réception</div>
+    <div class="soustitre">Dépose une facture ou un bon — NEXUS trie automatiquement.</div>
+  </div>
+  <div class="divider"></div>
+  <div class="content" id="app">
+    <div class="section"><div class="empty-state"><div class="es-icon">⏳</div><div class="es-desc">Chargement…</div></div></div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="nexus-auth.js"></script>
+<script src="nexus-forfait.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
+<script>
+  // ============================================================
+  // NEXUS BOÎTE DE RÉCEPTION — v1 (07/08/2026)
+  // Phase 2 du cahier des charges Comptes Clients : dépôt de documents +
+  // tri automatique. Voir NEXUS-Moteur-Documentaire-OCR-Note-Conception.md
+  // pour l'architecture du moteur OCR (séparé, worker externe sur l'iMac).
+  //
+  // Règle de tri (volontairement simple et vérifiable, jamais un chiffre
+  // inventé) : un PDF dont on extrait une vraie couche de texte (via
+  // pdf.js, 100% dans le navigateur — aucun envoi réseau pour cette
+  // extraction) est traité comme une FACTURE, sans passer par l'OCR. Tout
+  // le reste — image (photo de bon) ou PDF sans texte exploitable (scan) —
+  // est un BON, mis en file pour le worker OCR de l'iMac.
+  //
+  // Ce que NEXUS ne fait PAS encore ici, volontairement : parser le détail
+  // des lignes d'une facture (montants, carburants, immatriculations). Le
+  // texte brut est extrait et stocké ; le rapprochement ligne à ligne
+  // (NEXUS Reconcile) est un chantier séparé, pas encore commencé —
+  // montant_total reste donc vide plutôt que d'inventer une estimation.
+  // ============================================================
+
+  if (window.pdfjsLib) {
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+  }
+
+  const BUCKET = 'documents-a-traiter';
+  const SEUIL_CARACTERES_TEXTE_NATIF = 60; // en dessous, on considère qu'il n'y a pas de vraie couche de texte
+  const REGEX_SIRET = /\b\d{14}\b/;
+  const REGEX_EMAIL = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/;
+
+  let employeeCourant = null;
+  let siteId = null;
+  let clientsListe = [];
+  let documentsRecents = []; // fusion invoices + supporting_documents, triés par date
+
+  (async function init() {
+    employeeCourant = await nexusRequireAuth();
+    if (!employeeCourant) return;
+    const estNiveauManager = employeeCourant.role === 'manager' || employeeCourant.role === 'gerant';
+    if (!estNiveauManager && !employeeCourant.est_createur) {
+      window.location.href = 'NEXUS-App-v1.html';
+      return;
+    }
+    siteId = employeeCourant.site_id || 'vito-sainte-marie';
+    const ok = await NexusForfait.nexusRequireProfessional('NEXUS-Boite-Reception-v1.html', siteId);
+    if (!ok) return;
+
+    await chargerClients();
+    await chargerDocumentsRecents();
+    render();
+  })();
+
+  async function chargerClients() {
+    const { data, error } = await nexusClient.from('clients').select('id, raison_sociale, nom_commercial, siret').eq('site', siteId).eq('actif', true).order('raison_sociale');
+    if (error) { console.error('Chargement clients (boîte de réception):', error); clientsListe = []; return; }
+    clientsListe = data || [];
+  }
+
+  // Période de facturation courante (07/08/2026) : chaque document déposé
+  // est rattaché au mois calendaire en cours — get-or-create, jamais de
+  // doublon (une ligne par site/mois/année).
+  async function periodeCouranteId() {
+    const maintenant = new Date();
+    const mois = maintenant.getMonth() + 1;
+    const annee = maintenant.getFullYear();
+    const { data: existante } = await nexusClient.from('billing_periods').select('id').eq('site', siteId).eq('mois', mois).eq('annee', annee).maybeSingle();
+    if (existante) return existante.id;
+    const { data: creee, error } = await nexusClient.from('billing_periods').insert({ site: siteId, mois, annee, statut: 'ouverte' }).select('id').single();
+    if (error) { console.error('Création période de facturation:', error); return null; }
+    return creee.id;
+  }
+
+  async function chargerDocumentsRecents() {
+    // Pas de filtre client_id ici (07/08/2026) : la RLS scope déjà par site
+    // via clients.site OU billing_periods.site (voir migration
+    // rls_invoices_supporting_documents_sans_client_assigne) — ça inclut
+    // les documents pas encore rattachés à un client, qui sont justement
+    // ceux que ce dépôt sert à retrouver.
+    const [{ data: factures, error: e1 }, { data: bons, error: e2 }] = await Promise.all([
+      nexusClient.from('invoices').select('id, reference, fichier_path, siret_detecte, email_detecte, methode_identification, statut, client_id, created_at')
+        .order('created_at', { ascending: false }).limit(20),
+      nexusClient.from('supporting_documents').select('id, fichier_path, type_document, statut_extraction, client_id, documents_ocr_file_id, created_at')
+        .order('created_at', { ascending: false }).limit(20),
+    ]);
+    if (e1) console.error('Chargement factures récentes:', e1);
+    if (e2) console.error('Chargement bons récents:', e2);
+
+    const idsOcr = (bons || []).map(b => b.documents_ocr_file_id).filter(Boolean);
+    let etatsOcr = [];
+    if (idsOcr.length) {
+      const { data } = await nexusClient.from('documents_ocr_file').select('id, status, erreur_message').in('id', idsOcr);
+      etatsOcr = data || [];
+    }
+
+    const facturesFmt = (factures || []).map(f => ({
+      type: 'facture', id: f.id, fichier_path: f.fichier_path, client_id: f.client_id,
+      created_at: f.created_at, statut: f.statut, siret_detecte: f.siret_detecte, email_detecte: f.email_detecte,
+      methode_identification: f.methode_identification,
+    }));
+    const bonsFmt = (bons || []).map(b => ({
+      type: 'bon', id: b.id, fichier_path: b.fichier_path, client_id: b.client_id, created_at: b.created_at,
+      ocr: etatsOcr.find(o => o.id === b.documents_ocr_file_id) || null,
+    }));
+    documentsRecents = [...facturesFmt, ...bonsFmt].sort((a, b) => (b.created_at || '').localeCompare(a.created_at || '')).slice(0, 20);
+  }
+
+  function nomFichier(chemin) {
+    return (chemin || '').split('/').pop();
+  }
+
+  async function sha256Hex(arrayBuffer) {
+    const hashBuffer = await crypto.subtle.digest('SHA-256', arrayBuffer);
+    return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
+  }
+
+  function nomFichierSur(nom) {
+    return nom.replace(/[^a-zA-Z0-9._-]/g, '_');
+  }
+
+  // Extraction native (07/08/2026) : lecture du texte d'un PDF entièrement
+  // dans le navigateur via pdf.js — aucun fichier envoyé à un serveur pour
+  // cette étape. Retourne '' si pdf.js échoue à lire le fichier (PDF
+  // corrompu, protégé…) plutôt que de faire planter le dépôt.
+  async function extraireTextePdf(arrayBuffer) {
+    try {
+      const doc = await pdfjsLib.getDocument({ data: arrayBuffer.slice(0) }).promise;
+      let texte = '';
+      const nbPages = Math.min(doc.numPages, 10); // limite raisonnable — une facture dépasse rarement 10 pages
+      for (let i = 1; i <= nbPages; i++) {
+        const page = await doc.getPage(i);
+        const contenu = await page.getTextContent();
+        texte += contenu.items.map(it => it.str).join(' ') + '\n';
+      }
+      return texte.trim();
+    } catch (err) {
+      console.error('Extraction texte PDF (fichier probablement scanné ou protégé):', err);
+      return '';
+    }
+  }
+
+  // Détection du client (07/08/2026, "tri automatique") : SIRET exact en
+  // priorité (le plus fiable), sinon e-mail détecté comparé aux
+  // interlocuteurs connus. Aucune correspondance approximative sur le nom —
+  // trop de faux positifs entre deux enseignes au nom proche. Si rien ne
+  // correspond, le document reste "à confirmer" — jamais une supposition
+  // silencieuse sur un document financier.
+  async function detecterClient(siret, email) {
+    if (siret) {
+      const trouve = clientsListe.find(c => c.siret && c.siret.replace(/\s/g, '') === siret);
+      if (trouve) return { clientId: trouve.id, methode: 'siret', confiance: 1 };
+    }
+    if (email && clientsListe.length) {
+      const { data } = await nexusClient.from('client_contacts').select('client_id, email_principal, email_secondaire').in('client_id', clientsListe.map(c => c.id));
+      const match = (data || []).find(c => [c.email_principal, c.email_secondaire].filter(Boolean).map(e => e.toLowerCase()).includes(email.toLowerCase()));
+      if (match) return { clientId: match.client_id, methode: 'email', confiance: 0.8 };
+    }
+    return { clientId: null, methode: 'manuel', confiance: null };
+  }
+
+  async function deposerFichier(file) {
+    const arrayBuffer = await file.arrayBuffer();
+    const hash = await sha256Hex(arrayBuffer);
+    const estPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
+
+    let texteNatif = '';
+    if (estPdf) texteNatif = await extraireTextePdf(arrayBuffer);
+    const aTexteNatif = texteNatif.replace(/\s+/g, '').length >= SEUIL_CARACTERES_TEXTE_NATIF;
+
+    const horodatage = Date.now();
+    const nomSur = nomFichierSur(file.name);
+
+    if (aTexteNatif) {
+      // ---- Chemin FACTURE : texte natif, pas d'OCR nécessaire ----
+      const chemin = `${siteId}/factures/${horodatage}-${nomSur}`;
+      const { error: erreurUpload } = await nexusClient.storage.from(BUCKET).upload(chemin, file, { contentType: file.type || 'application/pdf' });
+      if (erreurUpload) { console.error('Upload facture:', erreurUpload); return { ok: false, nom: file.name, raison: "Échec de l'envoi" }; }
+
+      const siretMatch = texteNatif.match(REGEX_SIRET);
+      const emailMatch = texteNatif.match(REGEX_EMAIL);
+      const siret = siretMatch ? siretMatch[0] : null;
+      const email = emailMatch ? emailMatch[0] : null;
+      const { clientId, methode, confiance } = await detecterClient(siret, email);
+      const periodeId = await periodeCouranteId();
+
+      const { data: creee, error: erreurInsert } = await nexusClient.from('invoices').insert({
+        billing_period_id: periodeId, client_id: clientId, fichier_path: chemin, fichier_hash: hash,
+        siret_detecte: siret, email_detecte: email, methode_identification: methode,
+        confiance_identification: confiance, statut: clientId ? 'a_traiter' : 'client_a_confirmer',
+      }).select('id').single();
+      if (erreurInsert) { console.error('Insertion facture:', erreurInsert); return { ok: false, nom: file.name, raison: "Échec de l'enregistrement" }; }
+
+      return { ok: true, nom: file.name, type: 'facture', clientTrouve: !!clientId };
+    }
+
+    // ---- Chemin BON : image ou PDF scanné, direction la file OCR ----
+    const chemin = `${siteId}/bons/${horodatage}-${nomSur}`;
+    const { error: erreurUpload } = await nexusClient.storage.from(BUCKET).upload(chemin, file, { contentType: file.type || 'application/octet-stream' });
+    if (erreurUpload) { console.error('Upload bon:', erreurUpload); return { ok: false, nom: file.name, raison: "Échec de l'envoi" }; }
+
+    const periodeId = await periodeCouranteId();
+    const { data: fileOcr, error: erreurFile } = await nexusClient.from('documents_ocr_file').insert({
+      site: siteId, fichier_path: chemin, type_document: 'bon_livraison', depose_par: employeeCourant.id,
+    }).select('id').single();
+    if (erreurFile) { console.error('Mise en file OCR:', erreurFile); return { ok: false, nom: file.name, raison: 'Échec de la mise en file OCR' }; }
+
+    const { error: erreurDoc } = await nexusClient.from('supporting_documents').insert({
+      client_id: null, billing_period_id: periodeId, type_document: 'bon_livraison',
+      fichier_path: chemin, fichier_hash: hash, statut_extraction: 'en_attente', documents_ocr_file_id: fileOcr.id,
+    });
+    if (erreurDoc) { console.error('Insertion bon:', erreurDoc); return { ok: false, nom: file.name, raison: "Échec de l'enregistrement" }; }
+
+    return { ok: true, nom: file.name, type: 'bon', clientTrouve: false };
+  }
+
+  async function gererFichiers(fileList) {
+    const zone = document.getElementById('depotZone');
+    const resultatsEl = document.getElementById('resultatsDepot');
+    if (zone) zone.style.pointerEvents = 'none';
+    if (resultatsEl) resultatsEl.innerHTML = `<div class="info-note">⏳ Traitement de ${fileList.length} document(s) en cours — analyse du texte, envoi…</div>`;
+
+    const resultats = [];
+    for (const file of Array.from(fileList)) {
+      resultats.push(await deposerFichier(file));
+    }
+
+    if (zone) zone.style.pointerEvents = '';
+    const lignes = resultats.map(r => {
+      if (!r.ok) return `<div class="info-note" style="border-color:var(--red); color:var(--red);">✗ ${r.nom} — ${r.raison}</div>`;
+      const typeTxt = r.type === 'facture' ? 'Facture (texte natif détecté)' : 'Bon — envoyé au moteur OCR de l\'iMac';
+      const clientTxt = r.clientTrouve ? 'Client identifié automatiquement.' : 'Client à confirmer ci-dessous.';
+      return `<div class="info-note" style="border-color:var(--green); color:var(--green);">✓ ${r.nom} — ${typeTxt}. ${clientTxt}</div>`;
+    });
+    if (resultatsEl) resultatsEl.innerHTML = lignes.join('');
+
+    await chargerDocumentsRecents();
+    render();
+  }
+
+  async function changerClientDocument(type, id, nouveauClientId) {
+    const table = type === 'facture' ? 'invoices' : 'supporting_documents';
+    const payload = { client_id: nouveauClientId || null };
+    if (type === 'facture') payload.statut = nouveauClientId ? 'a_traiter' : 'client_a_confirmer';
+    const { error } = await nexusClient.from(table).update(payload).eq('id', id);
+    if (error) { console.error('Changement de client:', error); return; }
+    await nexusClient.from('client_comptes_audit_logs').insert({
+      site: siteId, client_id: nouveauClientId || null, entite_type: type, entite_id: id,
+      action: 'client_reassigne', acteur_id: employeeCourant.id,
+    });
+    await chargerDocumentsRecents();
+    render();
+  }
+
+  async function supprimerDocument(type, id, cheminFichier) {
+    if (!confirm('Supprimer ce document déposé ? Cette action est irréversible.')) return;
+    const table = type === 'facture' ? 'invoices' : 'supporting_documents';
+    const { error } = await nexusClient.from(table).delete().eq('id', id);
+    if (error) { console.error('Suppression document:', error); return; }
+    await nexusClient.storage.from(BUCKET).remove([cheminFichier]);
+    await chargerDocumentsRecents();
+    render();
+  }
+
+  function libelleStatutOcr(ocr) {
+    if (!ocr) return { texte: 'En file d\'attente OCR', classe: 'b-amber' };
+    if (ocr.status === 'en_attente') return { texte: 'En file d\'attente OCR', classe: 'b-amber' };
+    if (ocr.status === 'en_cours') return { texte: 'Traitement OCR en cours…', classe: 'b-cyan' };
+    if (ocr.status === 'traite') return { texte: 'Texte extrait ✓', classe: 'b-green' };
+    if (ocr.status === 'erreur') return { texte: 'Erreur OCR', classe: 'b-red' };
+    return { texte: ocr.status, classe: 'b-gris' };
+  }
+
+  function optionsClients(clientIdActuel) {
+    const options = ['<option value="">— À confirmer —</option>']
+      .concat(clientsListe.map(c => `<option value="${c.id}" ${c.id === clientIdActuel ? 'selected' : ''}>${c.raison_sociale}</option>`));
+    return options.join('');
+  }
+
+  function render() {
+    const app = document.getElementById('app');
+
+    const listeDocs = documentsRecents.length
+      ? documentsRecents.map(d => {
+          const nom = nomFichier(d.fichier_path);
+          if (d.type === 'facture') {
+            const badge = d.client_id
+              ? `<span class="cd-badge b-green">Facture</span>`
+              : `<span class="cd-badge b-amber">Client à confirmer</span>`;
+            const sousTexte = [
+              d.methode_identification === 'siret' ? 'Client détecté par SIRET' : null,
+              d.methode_identification === 'email' ? 'Client détecté par e-mail' : null,
+              !d.client_id ? 'Aucune correspondance automatique trouvée' : null,
+            ].filter(Boolean).join(' · ') || 'Texte extrait localement, sans OCR.';
+            return `<div class="carte-doc">
+              <div class="cd-head"><div class="cd-nom">${nom}</div>${badge}</div>
+              <div class="cd-sous">${sousTexte}</div>
+              <div class="cd-client"><select onchange="changerClientDocument('facture','${d.id}', this.value)">${optionsClients(d.client_id)}</select></div>
+              <button class="cd-supprimer" onclick="supprimerDocument('facture','${d.id}','${d.fichier_path}')">Supprimer</button>
+            </div>`;
+          }
+          const statutOcr = libelleStatutOcr(d.ocr);
+          return `<div class="carte-doc">
+            <div class="cd-head"><div class="cd-nom">${nom}</div><span class="cd-badge ${statutOcr.classe}">${statutOcr.texte}</span></div>
+            <div class="cd-sous">Bon de livraison — ${d.ocr && d.ocr.status === 'erreur' ? (d.ocr.erreur_message || 'erreur inconnue') : 'traité par le moteur documentaire de l\'iMac.'}</div>
+            <div class="cd-client"><select onchange="changerClientDocument('bon','${d.id}', this.value)">${optionsClients(d.client_id)}</select></div>
+            <button class="cd-supprimer" onclick="supprimerDocument('bon','${d.id}','${d.fichier_path}')">Supprimer</button>
+          </div>`;
+        }).join('')
+      : `<div class="empty-state"><div class="es-icon">📭</div><div class="es-desc">Aucun document déposé pour l'instant.</div></div>`;
+
+    app.innerHTML = `
+      <div class="section">
+        <label class="depot-zone" id="depotZone" for="fichierInput">
+          <div class="depot-icon">📥</div>
+          <div class="depot-titre">Déposer des documents</div>
+          <div class="depot-desc">Factures PDF, bons de livraison (photo ou PDF scanné) — plusieurs fichiers à la fois.</div>
+          <input type="file" id="fichierInput" multiple accept=".pdf,image/*">
+        </label>
+        <div id="resultatsDepot"></div>
+        <div class="info-note">Une facture PDF avec du texte natif est lue directement dans le navigateur. Une photo ou un PDF scanné part dans la file du moteur OCR (iMac) — le résultat apparaît ci-dessous une fois traité.</div>
+      </div>
+      <div class="section">
+        <div class="section-label">📋 Documents récents</div>
+        ${listeDocs}
+      </div>
+      <a class="footer-lien" href="NEXUS-Comptes-Clients-v1.html">Retour aux Comptes Clients →</a>
+    `;
+
+    const input = document.getElementById('fichierInput');
+    if (input) input.addEventListener('change', () => { if (input.files.length) gererFichiers(input.files); input.value = ''; });
+
+    const zone = document.getElementById('depotZone');
+    if (zone) {
+      zone.addEventListener('dragover', (e) => { e.preventDefault(); zone.classList.add('survole'); });
+      zone.addEventListener('dragleave', () => zone.classList.remove('survole'));
+      zone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        zone.classList.remove('survole');
+        if (e.dataTransfer.files.length) gererFichiers(e.dataTransfer.files);
+      });
+    }
+  }
+</script>
+</body>
+</html>
