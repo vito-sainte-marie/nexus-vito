@@ -78,6 +78,17 @@ const NEXUS_SIDEBAR_GROUPES = [
     ],
   },
   {
+    // Groupe ajouté le 07/08/2026, demande de Frédéric : les 3 écrans du
+    // module Comptes Clients (accueil, boîte de réception, paramètres)
+    // rejoignent la vue bureau et le menu latéral, comme NEXUS Verify.
+    nom: 'Comptes Clients',
+    items: [
+      { label: 'Comptes Clients', href: 'NEXUS-Comptes-Clients-v1.html', icon: null, emoji: '👥' },
+      { label: 'Boîte de réception', href: 'NEXUS-Boite-Reception-v1.html', icon: null, emoji: '📥' },
+      { label: 'Paramètres Comptes Clients', href: 'NEXUS-Parametres-Comptes-Clients-v1.html', icon: null, emoji: '⚙️' },
+    ],
+  },
+  {
     nom: 'Administrer',
     items: [
       { label: 'Imports', href: 'NEXUS-Import-v1.html', icon: 'assets/icons/icon-import.png' },

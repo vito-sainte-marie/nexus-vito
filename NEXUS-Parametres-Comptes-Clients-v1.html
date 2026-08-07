@@ -84,6 +84,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-auth.js"></script>
 <script src="nexus-forfait.js"></script>
+<script src="nexus-desktop.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
   // ============================================================
@@ -157,7 +158,16 @@
       const { data: cree2 } = await nexusClient.from('email_templates').insert(modeleDefaut).select().single();
       modeles = [cree2 || modeleDefaut];
     }
-    parametres = { site, reglages: data, modeles, modeleActifId: modeles[0].id };
+    // Dernier import (demande de Frédéric, 08/2026) : on relit la date du
+    // plus récent import déjà effectué sur ce site plutôt que d'ajouter un
+    // champ dédié — le journal d'audit est déjà la source de vérité. Sert
+    // uniquement de repère visuel pour éviter les doublons (on n'inclut
+    // dans le fichier que les comptes créés/modifiés après cette date) :
+    // NEXUS ne filtre jamais les lignes lui-même, il informe seulement.
+    const { data: dernierLog } = await nexusClient.from('client_comptes_audit_logs')
+      .select('date_action').eq('site', site).in('action', ['import_initial', 'import_fichier_parametrage'])
+      .order('date_action', { ascending: false }).limit(1).maybeSingle();
+    parametres = { site, reglages: data, modeles, modeleActifId: modeles[0].id, dernierImport: dernierLog ? dernierLog.date_action : null };
   }
 
   function modeleActif() { return parametres.modeles.find(m => m.id === parametres.modeleActifId) || parametres.modeles[0]; }
@@ -347,6 +357,11 @@
         <div class="bloc-titre">Import initial des comptes clients</div>
         <div class="bloc-desc">Importez votre fichier NEXUS_Comptes_Clients_Parametrage_v1.xlsx (feuille "Clients en compte") : ID client, Compte client, Interlocuteur, Fonction, E-mail principal, E-mail CC, Téléphone, Canal facture, Joindre bons PDF, Remise bons main propre, Contrôle bons obligatoire, Validation manager avant envoi, Modèle de message, Statut paramétrage, Source / remarque.</div>
         <div class="param-note">Une cellule contenant "à confirmer" n'est jamais convertie en Oui/Non — le champ reste à paramétrer manuellement, et le client est marqué pour que vous le retrouviez facilement.</div>
+        <div style="font-size:11px; color:var(--text-dim); margin:2px 0 12px;">
+          ${parametres.dernierImport
+            ? `Dernier import : <b style="color:var(--text-mid);">${new Date(parametres.dernierImport).toLocaleDateString('fr-FR')}</b> — pour éviter les doublons, n'incluez que les comptes créés ou modifiés après cette date.`
+            : `Aucun import précédent enregistré sur ce site.`}
+        </div>
         <div class="import-zone" id="zoneImport">
           <div style="font-size:22px; margin-bottom:8px;">📄</div>
           <div>Touchez pour choisir le fichier .xlsx</div>
