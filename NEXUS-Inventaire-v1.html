@@ -110,6 +110,14 @@
   .produit-input:focus{outline:none; border-color:var(--cyan);}
   .btn-identique{font-family:var(--mono); font-size:9.5px; color:var(--text-mid); background:var(--panel-raised); border:1px solid var(--hairline); border-radius:8px; padding:9px 10px; cursor:pointer; white-space:nowrap;}
   .btn-identique:active{background:var(--hairline);}
+  /* Comptage en deux lieux (05/08/2026, demande de Frédéric — boissons,
+     huiles, lave-glace/liquide de refroidissement comptés au dépôt PUIS en
+     boutique) : l'employé reste physiquement à un endroit jusqu'à avoir
+     fini — une seule case à la fois (jamais les deux en même temps), la
+     boutique étant rattrapée automatiquement en fin d'inventaire (voir
+     renderFinalisationDoubleLieu). Ce badge signale juste qu'une deuxième
+     saisie suivra plus tard. */
+  .badge-double-lieu{display:inline-block; font-family:var(--mono); font-size:9px; letter-spacing:0.02em; color:var(--cyan); background:rgba(79,195,217,0.1); border:1px solid rgba(79,195,217,0.3); border-radius:8px; padding:3px 7px; margin-left:6px; white-space:nowrap;}
   .ecart-tag{font-family:var(--mono); font-size:10.5px; margin-top:6px; text-align:right; display:flex; align-items:center; justify-content:flex-end; gap:8px; flex-wrap:wrap;}
   .ecart-ok{color:var(--green);}
   .ecart-warn{color:var(--amber);}
@@ -707,7 +715,15 @@
 
   function produitEstCompte(p) {
     const s = comptagesSaisie[p.id];
-    return !!s && s.compte !== undefined;
+    if (!s) return false;
+    // Comptage en deux lieux (05/08/2026, retour de Frédéric — l'employé
+    // reste au dépôt jusqu'à avoir fini, puis se déplace en boutique ; il
+    // ne peut pas remplir les deux cases au même instant) : la phase 1
+    // (dépôt) suffit à considérer le produit "compté" pour la progression
+    // de l'inventaire — la phase 2 (boutique) est rattrapée automatiquement
+    // à la toute fin, voir renderFinalisationDoubleLieu.
+    if (p.comptage_deux_lieux) return s.compteDepot !== undefined && s.compteDepot !== null;
+    return s.compte !== undefined;
   }
   function categorieEstTerminee(items) { return items.every(produitEstCompte); }
   function categorieEstCommencee(items) { return items.some(produitEstCompte); }
@@ -915,7 +931,14 @@
     document.querySelectorAll('.categorie-row:not(.desactive)').forEach(el => {
       el.addEventListener('click', () => ouvrirCategorie(groupes.find(g => g.nom === el.dataset.cat)));
     });
-    document.getElementById('btnTerminerOuverture').addEventListener('click', validerOuverture);
+    document.getElementById('btnTerminerOuverture').addEventListener('click', () => {
+      // Comptage en deux lieux (05/08/2026) : avant de valider, on
+      // vérifie s'il reste des produits dont seul le dépôt a été saisi —
+      // l'employé est censé être passé en boutique entre-temps, on lui
+      // demande donc de finir ceux-là avant de clôturer l'ouverture.
+      if (produitsDoubleLieuEnAttenteBoutique().length) { renderFinalisationDoubleLieu('ouverture'); return; }
+      validerOuverture();
+    });
     document.getElementById('btnAnnulerOuverture').addEventListener('click', renderAccueil);
   }
 
@@ -999,8 +1022,17 @@
       });
     });
     document.getElementById('btnCategorieConforme').addEventListener('click', () => {
-      if (!confirm(`Vous confirmez avoir compté les ${groupe.items.length} produit${groupe.items.length > 1 ? 's' : ''} de cette catégorie ?`)) return;
-      groupe.items.forEach(p => {
+      // Comptage en deux lieux (05/08/2026) : ces produits doivent toujours
+      // être physiquement comptés au dépôt ET en boutique — jamais présumés
+      // "identiques" en un clic comme les autres, même via ce raccourci.
+      const simples = groupe.items.filter(p => !p.comptage_deux_lieux);
+      const doubles = groupe.items.filter(p => p.comptage_deux_lieux);
+      if (!simples.length) { alert('Les produits de cette catégorie sont comptés en deux lieux (dépôt + boutique) — saisissez-les individuellement ci-dessus.'); return; }
+      const message = doubles.length
+        ? `Vous confirmez avoir compté les ${simples.length} produit${simples.length > 1 ? 's' : ''} restants de cette catégorie ? (${doubles.length} produit${doubles.length > 1 ? 's' : ''} compté${doubles.length > 1 ? 's' : ''} en deux lieux à saisir individuellement ci-dessus)`
+        : `Vous confirmez avoir compté les ${simples.length} produit${simples.length > 1 ? 's' : ''} de cette catégorie ?`;
+      if (!confirm(message)) return;
+      simples.forEach(p => {
         const transmis = dernierStock[p.id];
         comptagesSaisie[p.id] = { compte: transmis ? transmis.quantite : 0, ecartNonNul: false, justification: '' };
       });
@@ -1022,6 +1054,18 @@
   function majLigneCategorie(produitId) {
     const input = document.querySelector(`.produit-input[data-produit="${produitId}"]`);
     const val = input.value === '' ? null : parseFloat(input.value);
+    const p = produitsZone.find(x => x.id === produitId);
+
+    // Comptage en deux lieux (05/08/2026) : phase "Dépôt" uniquement ici —
+    // pas d'écart tant que le total (dépôt + boutique) n'est pas connu, la
+    // boutique étant rattrapée à la fin de l'inventaire. Cette ligne n'a ni
+    // pastille d'écart ni champ justification (voir renderLigneOuverture).
+    if (p && p.comptage_deux_lieux) {
+      comptagesSaisie[produitId] = (val === null || isNaN(val)) ? undefined : { compteDepot: val };
+      sauvegarderDraft('ouverture');
+      return;
+    }
+
     const transmis = dernierStock[produitId] ? dernierStock[produitId].quantite : 0;
     const ecartDiv = document.getElementById(`ecart-${produitId}`);
     const justifInput = document.querySelector(`.justif-input[data-produit="${produitId}"]`);
@@ -1074,7 +1118,11 @@
     // sur place sans devoir re-choisir "Corriger" à l'aveugle.
     const dejaSaisi = comptagesSaisie[p.id];
     const dejaCorrige = !!(dejaSaisi && dejaSaisi.compte !== undefined && Math.abs(dejaSaisi.compte - valeurTransmise) > 0.001);
-    const afficherChoixRapide = !masque && !pasDHistorique && !carrouselModeCorrection && !dejaCorrige;
+    // Comptage en deux lieux (05/08/2026) : jamais de raccourci "✓
+    // Identique" — le transmis est un total unique, on ne sait pas quelle
+    // part revenait au dépôt et quelle part à la boutique. L'employé passe
+    // toujours par la saisie manuelle des deux cases.
+    const afficherChoixRapide = !masque && !pasDHistorique && !carrouselModeCorrection && !dejaCorrige && !p.comptage_deux_lieux;
     const valeurDepart = (dejaSaisi && dejaSaisi.compte !== undefined) ? dejaSaisi.compte : (masque || pasDHistorique ? '' : valeurTransmise);
 
     document.getElementById('content').innerHTML = `
@@ -1093,6 +1141,11 @@
             <button class="btn-primary" id="btnConforme">✓ Identique — valider</button>
             <button class="btn-ghost" id="btnCorriger">Corriger</button>
           </div>
+        ` : p.comptage_deux_lieux ? `
+          <div class="badge-double-lieu">📍 Dépôt — boutique demandée en fin d'inventaire</div>
+          <input type="number" inputmode="decimal" step="0.01" class="produit-input carrousel-input" id="carrouselInput"
+                 placeholder="Comptage dépôt" value="${dejaSaisi && dejaSaisi.compteDepot !== undefined && dejaSaisi.compteDepot !== null ? dejaSaisi.compteDepot : ''}" onfocus="this.select()">
+          <button class="btn-primary" id="btnValiderProduit">Valider ce produit</button>
         ` : `
           <input type="number" inputmode="decimal" step="0.01" class="produit-input carrousel-input" id="carrouselInput"
                  placeholder="Votre comptage" value="${valeurDepart}" onfocus="this.select()">
@@ -1147,6 +1200,23 @@
     }
     const btnValiderProduit = document.getElementById('btnValiderProduit');
     if (btnValiderProduit) btnValiderProduit.addEventListener('click', () => {
+      // Comptage en deux lieux (05/08/2026, retour de Frédéric — l'employé
+      // reste au dépôt jusqu'à avoir fini) : on n'enregistre ici que la
+      // phase "Dépôt" ; la boutique est rattrapée à la toute fin de
+      // l'inventaire (voir renderFinalisationDoubleLieu). Pas de calcul
+      // d'écart tant que le total réel n'est pas connu.
+      if (p.comptage_deux_lieux) {
+        const input = document.getElementById('carrouselInput');
+        let vDepot = input.value === '' ? null : parseFloat(input.value);
+        if (vDepot === null || isNaN(vDepot)) {
+          if (!confirm(`Aucun chiffre saisi pour le dépôt sur ${p.designation} — on enregistre 0. Confirmer ?`)) return;
+          vDepot = 0;
+        }
+        comptagesSaisie[p.id] = { compteDepot: vDepot };
+        sauvegarderDraft('ouverture');
+        avancerCarrousel(groupe, p.designation);
+        return;
+      }
       const input = document.getElementById('carrouselInput');
       let val = input.value === '' ? null : parseFloat(input.value);
       // Corrigé (02/08/2026, demande de Frédéric — "si je valide sans
@@ -1198,6 +1268,10 @@
     if (motifSelect) motifSelect.style.display = ecartNonNul ? '' : 'none';
   }
 
+  // Équivalent de majCarrousel pour un produit compté en deux lieux
+  // (05/08/2026) : le total (et donc l'écart) ne s'affiche que lorsque
+  // Dépôt ET Boutique sont tous les deux remplis — jamais un total à
+  // moitié inventé avec un champ vide traité comme zéro.
   function avancerCarrousel(groupe, nomValide) {
     carrouselModeCorrection = false;
     if (nomValide) {
@@ -1247,21 +1321,32 @@
       ecartClasse = classeEcartOuverture(ecart);
       ecartTexte = rendreContenuEcart(p.id, ecart);
     }
+    // Comptage en deux lieux (05/08/2026, retour de Frédéric — l'employé
+    // reste au dépôt jusqu'à avoir fini, il ne peut pas remplir Dépôt et
+    // Boutique au même instant) : une seule case ici, toujours "Dépôt" —
+    // la boutique est rattrapée automatiquement à la toute fin de
+    // l'inventaire (voir renderFinalisationDoubleLieu). Pas d'écart ni de
+    // bouton "Identique" tant que le total réel n'est pas connu.
+    const valeurAffichee = p.comptage_deux_lieux
+      ? (saisie && saisie.compteDepot !== undefined && saisie.compteDepot !== null ? saisie.compteDepot : '')
+      : (saisie && saisie.compte !== undefined ? saisie.compte : '');
     return `
       <div class="produit-row" id="ligne-${p.id}">
         <div class="produit-nom-ligne">
           <span class="produit-nom">${p.designation}</span>
           ${p.sensible ? '<span class="badge-sensible">Sensible</span>' : ''}
+          ${p.comptage_deux_lieux ? '<span class="badge-double-lieu">📍 Dépôt — boutique en fin d\'inventaire</span>' : ''}
         </div>
         <div class="produit-transmis">${transmisTexte}</div>
         <div class="produit-controls" style="margin-top:8px;">
           <input type="number" inputmode="decimal" step="0.01" class="produit-input" data-produit="${p.id}"
-                 placeholder="Votre comptage" value="${saisie && saisie.compte !== undefined ? saisie.compte : ''}" onfocus="this.select()">
-          <button class="btn-identique" data-produit="${p.id}" ${masque ? 'disabled' : ''}>Identique</button>
+                 placeholder="${p.comptage_deux_lieux ? 'Comptage dépôt' : 'Votre comptage'}" value="${valeurAffichee}" onfocus="this.select()">
+          ${p.comptage_deux_lieux ? '' : `<button class="btn-identique" data-produit="${p.id}" ${masque ? 'disabled' : ''}>Identique</button>`}
         </div>
+        ${p.comptage_deux_lieux ? '' : `
         <div class="${ecartClasse}" id="ecart-${p.id}">${ecartTexte}</div>
         ${renderSelectMotif(p.id, saisie && saisie.motifEcart ? saisie.motifEcart : '', saisie && saisie.ecartNonNul)}
-        <input type="text" class="justif-input" data-produit="${p.id}" placeholder="Commentaire (facultatif)" value="${saisie && saisie.justification ? saisie.justification : ''}" style="${saisie && saisie.ecartNonNul ? '' : 'display:none;'}">
+        <input type="text" class="justif-input" data-produit="${p.id}" placeholder="Commentaire (facultatif)" value="${saisie && saisie.justification ? saisie.justification : ''}" style="${saisie && saisie.ecartNonNul ? '' : 'display:none;'}">`}
       </div>
     `;
   }
@@ -1318,6 +1403,11 @@
         type_comptage: 'ouverture', quantite: saisie.compte, employee_id: employeeCourant.id,
         comptage_source_id: evtTransmis ? evtTransmis.id : null, quantite_transmise: valeurTransmise,
         source: 'manuel', commentaire: saisie.justification || null,
+        // Comptage en deux lieux (05/08/2026) : conservé séparément pour
+        // pouvoir expliquer un écart plus tard (dépôt ou boutique ?) —
+        // quantite reste le total, aucun changement de la logique d'écart.
+        quantite_depot: saisie.compteDepot !== undefined ? saisie.compteDepot : null,
+        quantite_boutique: saisie.compteBoutique !== undefined ? saisie.compteBoutique : null,
       });
       if (e2) console.error('Comptage ouverture:', e2);
 
@@ -1465,27 +1555,104 @@
 
     document.querySelectorAll('.produit-input').forEach(el => {
       el.addEventListener('input', () => {
-        comptagesSaisie[el.dataset.produit] = { compte: el.value === '' ? undefined : parseFloat(el.value) };
+        const p = produitsZone.find(x => x.id === el.dataset.produit);
+        const v = el.value === '' ? null : parseFloat(el.value);
+        // Comptage en deux lieux (05/08/2026, retour de Frédéric — l'employé
+        // reste au dépôt jusqu'à avoir fini) : phase "Dépôt" uniquement ici,
+        // la boutique est rattrapée à la fin (voir renderFinalisationDoubleLieu).
+        if (p && p.comptage_deux_lieux) {
+          comptagesSaisie[el.dataset.produit] = (v === null || isNaN(v)) ? undefined : { compteDepot: v };
+        } else {
+          comptagesSaisie[el.dataset.produit] = { compte: v === null ? undefined : v };
+        }
         sauvegarderDraft('cloture');
       });
     });
-    document.getElementById('btnValiderCloture').addEventListener('click', validerCloture);
+    document.getElementById('btnValiderCloture').addEventListener('click', () => {
+      // Comptage en deux lieux (05/08/2026) : même principe qu'à
+      // l'ouverture — on rattrape la boutique avant de clôturer.
+      if (produitsDoubleLieuEnAttenteBoutique().length) { renderFinalisationDoubleLieu('cloture'); return; }
+      validerCloture();
+    });
     document.getElementById('btnAnnulerCloture').addEventListener('click', renderAccueil);
   }
 
   function renderLigneCloture(p, desactive) {
+    const saisie = comptagesSaisie[p.id];
+    const valeurAffichee = p.comptage_deux_lieux && saisie && saisie.compteDepot !== undefined && saisie.compteDepot !== null ? saisie.compteDepot : '';
     return `
       <div class="produit-row">
         <div class="produit-nom-ligne">
           <span class="produit-nom">${p.designation}</span>
           ${p.sensible ? '<span class="badge-sensible">Sensible</span>' : ''}
+          ${p.comptage_deux_lieux ? '<span class="badge-double-lieu">📍 Dépôt — boutique en fin d\'inventaire</span>' : ''}
         </div>
         <div class="produit-controls">
           <input type="number" inputmode="decimal" step="0.01" class="produit-input" data-produit="${p.id}"
-                 placeholder="Stock final" onfocus="this.select()" ${desactive ? 'disabled' : ''}>
+                 placeholder="${p.comptage_deux_lieux ? 'Comptage dépôt' : 'Stock final'}" value="${valeurAffichee}" onfocus="this.select()" ${desactive ? 'disabled' : ''}>
         </div>
       </div>
     `;
+  }
+
+  // Comptage en deux lieux (05/08/2026, retour de Frédéric — "l'employé,
+  // une fois qu'il est dans un lieu, y reste jusqu'à ce qu'il ait fini,
+  // puis change de lieu") : liste des produits dont le dépôt a été saisi
+  // pendant le parcours normal, mais dont la boutique reste à faire —
+  // rattrapée en un seul écran dédié juste avant la validation finale,
+  // qu'il s'agisse de l'ouverture ou de la clôture.
+  function produitsDoubleLieuEnAttenteBoutique() {
+    return produitsZone.filter(p => {
+      const s = comptagesSaisie[p.id];
+      return p.comptage_deux_lieux && s && s.compteDepot !== undefined && s.compteDepot !== null && s.compte === undefined;
+    });
+  }
+
+  function renderFinalisationDoubleLieu(typeFlux) {
+    const enAttente = produitsDoubleLieuEnAttenteBoutique();
+    document.getElementById('titre').textContent = 'Comptage boutique';
+    document.getElementById('sousTitre').textContent = "Vous êtes maintenant en boutique — complétez le comptage des produits déjà comptés au dépôt.";
+    document.getElementById('content').innerHTML = `
+      <div class="card">
+        ${enAttente.map(p => `
+          <div class="produit-row" id="ligne-${p.id}">
+            <div class="produit-nom-ligne"><span class="produit-nom">${p.designation}</span></div>
+            <div class="produit-transmis">Dépôt déjà saisi : ${fmtNum(comptagesSaisie[p.id].compteDepot)} ${p.unite}</div>
+            <div class="produit-controls" style="margin-top:8px;">
+              <input type="number" inputmode="decimal" step="0.01" class="produit-input-finalisation" data-produit="${p.id}"
+                     placeholder="Comptage boutique" value="" onfocus="this.select()">
+            </div>
+          </div>
+        `).join('')}
+      </div>
+      <button class="btn-primary" id="btnValiderFinalisationDoubleLieu">${typeFlux === 'cloture' ? "Terminer et clôturer mon inventaire" : "Terminer et valider mon inventaire d'ouverture"}</button>
+    `;
+    const premier = document.querySelector('.produit-input-finalisation');
+    if (premier) { premier.focus(); premier.select(); }
+    document.getElementById('btnValiderFinalisationDoubleLieu').addEventListener('click', () => {
+      const champs = Array.from(document.querySelectorAll('.produit-input-finalisation'));
+      for (const el of champs) {
+        const produitId = el.dataset.produit;
+        const p = produitsZone.find(x => x.id === produitId);
+        let vBoutique = el.value === '' ? null : parseFloat(el.value);
+        if (vBoutique === null || isNaN(vBoutique)) {
+          if (!confirm(`Aucun chiffre saisi pour la boutique sur ${p.designation} — on enregistre 0. Confirmer ?`)) return; // reste sur l'écran, rien n'est perdu
+          vBoutique = 0;
+        }
+        const s = comptagesSaisie[produitId];
+        s.compteBoutique = vBoutique;
+        s.compte = s.compteDepot + vBoutique;
+        if (typeFlux !== 'cloture') {
+          // L'écart n'a de sens que côté ouverture (comparaison avec le
+          // stock transmis par le quart précédent) — la clôture n'a jamais
+          // calculé d'écart, on ne commence pas à en inventer un ici.
+          const transmis = dernierStock[produitId] ? dernierStock[produitId].quantite : 0;
+          s.ecartNonNul = Math.abs(s.compte - transmis) > 0.001;
+        }
+      }
+      sauvegarderDraft(typeFlux);
+      if (typeFlux === 'cloture') validerCloture(); else validerOuverture();
+    });
   }
 
   // L'employé saisit toujours une quantité positive (une magnitude, jamais
@@ -1582,6 +1749,8 @@
       const { error } = await nexusClient.from('inventaire_comptages').insert({
         site: employeeCourant.site_id || 'vito-sainte-marie', quart_id: quartRow.id, produit_id: p.id,
         type_comptage: 'cloture', quantite: saisie.compte, employee_id: employeeCourant.id, source: 'manuel', statut: 'valide',
+        quantite_depot: saisie.compteDepot !== undefined ? saisie.compteDepot : null,
+        quantite_boutique: saisie.compteBoutique !== undefined ? saisie.compteBoutique : null,
       });
       if (error) console.error('Comptage clôture:', error);
     }

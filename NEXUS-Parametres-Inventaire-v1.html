@@ -263,7 +263,7 @@
   let rechercheCatalogueTexte = '';
   let resultatsCatalogue = [];
   let produitCatalogueChoisi = null; // { article, code_barres, categorie }
-  let ajoutForm = { categorieId: '', zoneId: '', sensible: false, dupliquerDepuisId: '' };
+  let ajoutForm = { categorieId: '', zoneId: '', sensible: false, doubleLieu: false, dupliquerDepuisId: '' };
   let dupliquerVersOuvertPour = null; // id du produit source dont "Dupliquer vers…" est déplié
   let duplicationCategorieEnCours = null; // id du produit source en cours de duplication (affiche le message de patience)
 
@@ -330,6 +330,7 @@
     const { data, error } = await nexusClient.from('inventaire_zone_produit').insert({
       site: siteId, designation: produitCatalogueChoisi.article, code_barres: produitCatalogueChoisi.code_barres || null,
       categorie_id: ajoutForm.categorieId, zone_id: ajoutForm.zoneId, sensible: !!ajoutForm.sensible,
+      comptage_deux_lieux: !!ajoutForm.doubleLieu,
       actif: true, source: 'catalogue',
     }).select().single();
     if (error) { console.error('Ajout produit inventaire:', error); alert('Erreur — réessayez.'); if (btn) { btn.disabled = false; btn.textContent = 'Ajouter ce produit'; } return; }
@@ -350,7 +351,7 @@
 
     formAjoutOuvert = false;
     rechercheCatalogueTexte = ''; resultatsCatalogue = []; produitCatalogueChoisi = null;
-    ajoutForm = { categorieId: '', zoneId: '', sensible: false, dupliquerDepuisId: '' };
+    ajoutForm = { categorieId: '', zoneId: '', sensible: false, doubleLieu: false, dupliquerDepuisId: '' };
     produitsInventaire = await chargerProduitsInventaire(siteId);
     render();
   }
@@ -383,12 +384,12 @@
     render();
     for (const cible of pairs) {
       await copierReglesProduit(sourceId, cible.id);
-      await nexusClient.from('inventaire_zone_produit').update({ sensible: source.sensible }).eq('id', cible.id);
+      await nexusClient.from('inventaire_zone_produit').update({ sensible: source.sensible, comptage_deux_lieux: source.comptage_deux_lieux }).eq('id', cible.id);
     }
     const catNom = source.inventaire_categories ? source.inventaire_categories.nom : 'cette catégorie';
     await nexusClient.from('inventaire_audit_log').insert({
       site: siteId, entite_type: 'inventaire_regles_produit', entite_id: source.id, action: 'duplication_reglages_categorie',
-      nouvelle_valeur: { copie_depuis: source.designation, categorie: catNom, nb_produits: pairs.length, sensible: source.sensible }, acteur_id: managerCourant.id,
+      nouvelle_valeur: { copie_depuis: source.designation, categorie: catNom, nb_produits: pairs.length, sensible: source.sensible, comptage_deux_lieux: source.comptage_deux_lieux }, acteur_id: managerCourant.id,
     });
     dupliquerVersOuvertPour = null;
     duplicationCategorieEnCours = null;
@@ -442,8 +443,11 @@
             <option value="">Zone (qui va le compter ?)…</option>
             ${zonesSite.map(z => `<option value="${z.id}" ${z.id === ajoutForm.zoneId ? 'selected' : ''}>${libelleZoneAvecRole(z)}</option>`).join('')}
           </select>
-          <label style="display:flex; align-items:center; gap:6px; font-size:12px; color:var(--text-mid); margin-bottom:10px; cursor:pointer;">
+          <label style="display:flex; align-items:center; gap:6px; font-size:12px; color:var(--text-mid); margin-bottom:8px; cursor:pointer;">
             <input type="checkbox" id="ajoutSensible" ${ajoutForm.sensible ? 'checked' : ''}> Produit sensible
+          </label>
+          <label style="display:flex; align-items:center; gap:6px; font-size:12px; color:var(--text-mid); margin-bottom:10px; cursor:pointer;">
+            <input type="checkbox" id="ajoutDoubleLieu" ${ajoutForm.doubleLieu ? 'checked' : ''}> Compté en deux lieux (dépôt + boutique)
           </label>
           <select class="mouv-select" id="ajoutDupliquer" style="margin-bottom:10px;">
             <option value="">Copier les réglages de… (optionnel)</option>
@@ -653,6 +657,13 @@
     if (profilProduitOuvert === produitId) { profilProduitOuvert = null; profilEnEdition = null; render(); return; }
     profilProduitOuvert = produitId;
     const existant = reglesProduitMap[produitId];
+    // Compté en deux lieux (05/08/2026, demande de Frédéric) : ce n'est pas
+    // une règle de cadence (inventaire_regles_produit) mais une propriété du
+    // produit lui-même (inventaire_zone_produit.comptage_deux_lieux), au même
+    // titre que "sensible" — on la lit donc depuis produitsInventaire, pas
+    // depuis reglesProduitMap.
+    const produit = produitsInventaire.find(p => p.id === produitId);
+    const doubleLieuActuel = !!(produit && produit.comptage_deux_lieux);
     profilEnEdition = existant ? {
       produit_id: produitId,
       remise_a_zero_matin: existant.profil === 'cycle_journalier',
@@ -665,10 +676,12 @@
       comptage_masque: !!existant.comptage_masque,
       controle_aleatoire: !!existant.controle_aleatoire,
       photo_obligatoire: !!existant.photo_obligatoire,
+      comptage_deux_lieux: doubleLieuActuel,
     } : {
       produit_id: produitId, remise_a_zero_matin: false, duree_max_vente_jours: null, retour_fournisseur_autorise: false,
       quarts_comptage: null, reapprovisionnable: true, seuil_minimal: null,
       validation_manager_requise: false, comptage_masque: false, controle_aleatoire: false, photo_obligatoire: false,
+      comptage_deux_lieux: doubleLieuActuel,
     };
     render();
   }
@@ -706,6 +719,18 @@
       action: 'configuration_regle_produit', nouvelle_valeur: payload, acteur_id: managerCourant.id,
     });
     reglesProduitMap[p.produit_id] = data;
+
+    // Compté en deux lieux (05/08/2026) : propriété du produit
+    // (inventaire_zone_produit), pas de la règle — écriture séparée, même
+    // schéma que "sensible".
+    const { error: erreurDoubleLieu } = await nexusClient.from('inventaire_zone_produit')
+      .update({ comptage_deux_lieux: !!p.comptage_deux_lieux }).eq('id', p.produit_id);
+    if (erreurDoubleLieu) console.error('Enregistrement comptage_deux_lieux:', erreurDoubleLieu);
+    else {
+      const idx = produitsInventaire.findIndex(pr => pr.id === p.produit_id);
+      if (idx !== -1) produitsInventaire[idx] = { ...produitsInventaire[idx], comptage_deux_lieux: !!p.comptage_deux_lieux };
+    }
+
     profilProduitOuvert = null; profilEnEdition = null;
     render();
   }
@@ -774,6 +799,10 @@
           <input type="checkbox" id="profilPhotoObligatoire" ${e.photo_obligatoire ? 'checked' : ''}>
           <span>Photo obligatoire au comptage</span>
         </label>
+        <label class="regle-check-row">
+          <input type="checkbox" id="profilDoubleLieu" ${e.comptage_deux_lieux ? 'checked' : ''}>
+          <span>📍 Compté en deux lieux (dépôt + boutique) — l'employé saisit les deux, NEXUS additionne</span>
+        </label>
         <div class="note" style="margin:0 0 8px;">« Réapprovisionnable », contrôle aléatoire et photo obligatoire sont enregistrés mais n'ajoutent pas encore de restriction réelle sur l'écran de comptage employé.</div>
 
         <button class="btn-primary" id="btnEnregistrerProfil" style="margin-top:0;">Enregistrer ces réglages</button>
@@ -794,9 +823,12 @@
   }
   function renderLigneProfilProduit(p) {
     const regle = reglesProduitMap[p.id];
-    const libelle = libelleReglesProduit(regle);
+    let libelle = libelleReglesProduit(regle);
+    if (p.comptage_deux_lieux) {
+      libelle = libelle === 'Stock continu (par défaut)' ? 'Compté en 2 lieux (dépôt + boutique)' : libelle + ' · Compté en 2 lieux (dépôt + boutique)';
+    }
     const ouvert = profilProduitOuvert === p.id;
-    const personnalise = !!regle && libelle !== 'Stock continu (par défaut)';
+    const personnalise = (!!regle && libelleReglesProduit(regle) !== 'Stock continu (par défaut)') || !!p.comptage_deux_lieux;
     return `
       <div class="categorie-row" data-profil-produit="${p.id}">
         <div>
@@ -1133,11 +1165,13 @@
     if (selAjoutZone) selAjoutZone.addEventListener('change', () => { ajoutForm.zoneId = selAjoutZone.value; });
     const chkAjoutSensible = document.getElementById('ajoutSensible');
     if (chkAjoutSensible) chkAjoutSensible.addEventListener('change', () => { ajoutForm.sensible = chkAjoutSensible.checked; });
+    const chkAjoutDoubleLieu = document.getElementById('ajoutDoubleLieu');
+    if (chkAjoutDoubleLieu) chkAjoutDoubleLieu.addEventListener('change', () => { ajoutForm.doubleLieu = chkAjoutDoubleLieu.checked; });
     const selAjoutDupliquer = document.getElementById('ajoutDupliquer');
     if (selAjoutDupliquer) selAjoutDupliquer.addEventListener('change', () => {
       ajoutForm.dupliquerDepuisId = selAjoutDupliquer.value;
       const source = produitsInventaire.find(p => p.id === ajoutForm.dupliquerDepuisId);
-      if (source) { ajoutForm.categorieId = source.categorie_id; ajoutForm.zoneId = source.zone_id; ajoutForm.sensible = source.sensible; render(); }
+      if (source) { ajoutForm.categorieId = source.categorie_id; ajoutForm.zoneId = source.zone_id; ajoutForm.sensible = source.sensible; ajoutForm.doubleLieu = !!source.comptage_deux_lieux; render(); }
     });
     const btnAjouterProduit = document.getElementById('btnAjouterProduit');
     if (btnAjouterProduit) btnAjouterProduit.addEventListener('click', ajouterProduitInventaire);
@@ -1217,6 +1251,8 @@
     if (profilControleAleatoireEl) profilControleAleatoireEl.addEventListener('change', (e) => { profilEnEdition.controle_aleatoire = e.target.checked; });
     const profilPhotoObligatoireEl = document.getElementById('profilPhotoObligatoire');
     if (profilPhotoObligatoireEl) profilPhotoObligatoireEl.addEventListener('change', (e) => { profilEnEdition.photo_obligatoire = e.target.checked; });
+    const profilDoubleLieuEl = document.getElementById('profilDoubleLieu');
+    if (profilDoubleLieuEl) profilDoubleLieuEl.addEventListener('change', (e) => { profilEnEdition.comptage_deux_lieux = e.target.checked; });
     const btnEnregistrerProfil = document.getElementById('btnEnregistrerProfil');
     if (btnEnregistrerProfil) btnEnregistrerProfil.addEventListener('click', enregistrerProfilProduit);
     const btnAnnulerProfil = document.getElementById('btnAnnulerProfil');
