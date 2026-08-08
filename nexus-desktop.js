@@ -89,11 +89,13 @@ const NEXUS_SIDEBAR_GROUPES = [
     ],
   },
   {
-    // Ajouté 07/08/2026, demande de Frédéric : mode d'emploi de tous les
-    // moteurs NEXUS, avec sa propre recherche par mots-clés.
+    // Ajouté 07/08/2026, demande de Frédéric — renommé le même jour
+    // ("Comprendre NEXUS" plutôt que "Documentation" / "Mode d'emploi") :
+    // point d'entrée par intention vers les moteurs NEXUS, avec sa
+    // propre recherche par mots-clés.
     nom: 'Aide',
     items: [
-      { label: 'Documentation NEXUS', href: 'NEXUS-Documentation-v1.html', icon: null, emoji: '📚' },
+      { label: 'Comprendre NEXUS', href: 'NEXUS-Documentation-v1.html', icon: null, emoji: '❓' },
     ],
   },
   {

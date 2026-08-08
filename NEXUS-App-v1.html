@@ -860,19 +860,21 @@
     </nav>
   </div>
 
-  <!-- Documentation NEXUS (07/08/2026, demande de Frédéric) : "une
-       documentation pour comprendre et utiliser comme un mode d'emploi
-       tous les moteurs créés" — groupe dédié dans Explorer NEXUS, réservé
-       manager (même pattern que les autres groupes, aucune donnée
-       sensible dedans mais reste cohérent avec le reste du tiroir). -->
+  <!-- Comprendre NEXUS (07/08/2026, demande de Frédéric — renommé le
+       même jour suite au retour "Mode d'emploi trop classique, cela
+       donne l'impression d'une documentation logicielle") : point
+       d'entrée par intention ("Que voulez-vous faire ?") plutôt que par
+       nom de moteur — groupe dédié dans Explorer NEXUS, réservé manager
+       (même pattern que les autres groupes, aucune donnée sensible
+       dedans mais reste cohérent avec le reste du tiroir). -->
   <div class="groupe-wrap" data-groupe="aide">
     <div class="section-label" data-role="manager" style="display:none;">Aide</div>
     <nav data-role="manager" data-group="aide" style="display:none;">
       <a class="nav-item" data-role="manager" href="NEXUS-Documentation-v1.html">
-        <div class="nav-icon">📚</div>
+        <div class="nav-icon">❓</div>
         <div class="nav-body">
-          <div class="nav-title">Documentation NEXUS</div>
-          <div class="nav-desc">Mode d'emploi de tous les moteurs, avec recherche</div>
+          <div class="nav-title">Comprendre NEXUS</div>
+          <div class="nav-desc">Quel moteur utiliser selon ce que vous voulez faire</div>
         </div>
         <div class="nav-arrow">›</div>
       </a>
@@ -2235,12 +2237,13 @@
     // personne connectée (employé comme manager), jamais celles d'un tiers.
     { label: 'Ma Progression', desc: 'Votre coach personnel NEXUS', href: 'NEXUS-Progression-v1.html', role: 'all' },
     { label: 'Ce que NEXUS a appris sur moi', desc: 'Qualités, habitudes et progrès observés par le Coach', href: 'NEXUS-Apprentissage-v1.html', role: 'all' },
-    // Documentation NEXUS (07/08/2026, demande de Frédéric) : mode d'emploi
-    // de tous les moteurs, avec sa propre recherche par mots-clés. role
-    // 'all' car une partie du contenu (Pointage, Missions, Mon Planning,
-    // Ma Progression) concerne directement les employés, pas seulement
-    // les managers — contrairement au reste du tiroir Explorer NEXUS.
-    { label: 'Documentation NEXUS', desc: 'Mode d\'emploi de tous les moteurs NEXUS', href: 'NEXUS-Documentation-v1.html', role: 'all' },
+    // Comprendre NEXUS (07/08/2026, demande de Frédéric — renommé le même
+    // jour) : point d'entrée par intention ("Que voulez-vous faire ?"),
+    // avec sa propre recherche par mots-clés. role 'all' car une partie
+    // du contenu (Pointage, Missions, Mon Planning, Ma Progression)
+    // concerne directement les employés, pas seulement les managers —
+    // contrairement au reste du tiroir Explorer NEXUS.
+    { label: 'Comprendre NEXUS', desc: 'Quel moteur utiliser selon ce que vous voulez faire', href: 'NEXUS-Documentation-v1.html', role: 'all' },
   ];
 
   function normaliserRecherche(s) {
