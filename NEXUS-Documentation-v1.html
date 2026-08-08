@@ -75,6 +75,29 @@
   .intention-reset{display:none; margin-top:10px; font-family:var(--mono); font-size:11px; color:var(--cyan); cursor:pointer; text-align:center; padding:8px; border-radius:8px; background:var(--cyan-dim);}
   .intention-reset.visible{display:block;}
 
+  /* Réponse guidée (08/08/2026, demande de Frédéric) : cliquer sur un
+     objectif ne doit pas se contenter de filtrer une liste — NEXUS
+     répond d'abord par une phrase qui enchaîne les moteurs dans le bon
+     ordre, comme le ferait un collègue expérimenté. Les boutons/fiches
+     filtrés en dessous restent la deuxième étape, pas la seule. */
+  .reponse-guidee{display:none; margin-top:12px; background:rgba(79,195,217,0.08); border:1px solid rgba(79,195,217,0.3); border-radius:10px; padding:12px 13px; font-size:12px; line-height:1.65; color:var(--text);}
+  .reponse-guidee.visible{display:block;}
+  .reponse-guidee b{color:var(--cyan);}
+
+  /* "Je ne sais pas par où commencer" (08/08/2026) : contrairement aux 6
+     objectifs, ce raccourci ne filtre rien — il envoie directement vers
+     Brief NEXUS, dont c'est précisément le rôle. Style volontairement
+     distinct (pleine largeur, pas un chip parmi d'autres) pour marquer
+     que c'est une action immédiate, pas un filtre à explorer. */
+  .intention-demarrage{
+    display:flex; align-items:center; gap:10px; margin-top:10px;
+    background:var(--panel-raised); border:1px dashed var(--hairline); border-radius:10px;
+    padding:12px 13px; cursor:pointer; -webkit-tap-highlight-color:transparent;
+  }
+  .intention-demarrage .id-emoji{font-size:18px;}
+  .intention-demarrage .id-texte{flex:1; font-size:12px; font-weight:600;}
+  .intention-demarrage .id-fleche{color:var(--cyan); font-family:var(--mono); font-size:12px;}
+
   .groupe{margin-bottom:6px;}
   .groupe-titre{font-family:var(--mono); font-size:12px; font-weight:700; letter-spacing:0.04em; text-transform:uppercase; color:var(--text); padding:16px 0 8px; display:flex; align-items:center; gap:8px;}
   .groupe-desc{font-size:11.5px; color:var(--text-mid); margin:-4px 0 10px; line-height:1.5;}
@@ -167,6 +190,25 @@
     { id: 'maitriser-stocks', emoji: '📦', label: 'Maîtriser mes stocks' },
     { id: 'piloter-equipe', emoji: '👥', label: 'Piloter mon équipe' },
   ];
+
+  // Réponse guidée par objectif (08/08/2026, demande de Frédéric) : "je ne
+  // voudrais pas simplement voir une liste de moteurs [...] Puis seulement
+  // les boutons correspondants." — un enchaînement rédigé, pas une liste
+  // brute. Les noms de moteurs cités correspondent toujours à un m.nom
+  // réel plus bas (Marge+ est la fonctionnalité qui vit dans Scanner NEXUS,
+  // jamais un moteur séparé).
+  const REPONSES_GUIDEES = {
+    'comprendre-activite': "Commencez par <b>Brief NEXUS</b> pour un état des lieux complet en 5 minutes. Le <b>Cockpit</b> vous indique ensuite les priorités du jour, et le <b>Centre d'Intelligence NEXUS</b> vous aide à comprendre pourquoi un résultat évolue.",
+    'augmenter-ventes': "<b>Scanner NEXUS</b> repère les catégories et produits à fort potentiel. <b>Rayon</b> et <b>Produits</b> vous permettent de descendre au détail. <b>Tempo</b> et <b>Campagnes</b> vous aident à choisir le bon moment pour agir.",
+    'ameliorer-marge': "Commencez par <b>Marge+</b> (dans Scanner NEXUS) pour identifier les catégories et produits concernés. Utilisez ensuite <b>Produits</b> pour descendre à la référence. Si une action est identifiée, suivez son impact dans <b>Capital NEXUS</b>.",
+    'controler-caisses': "Utilisez <b>Verify</b> : il centralise le contrôle des caisses, rapproche les justificatifs et fait ressortir les écarts à examiner. Le <b>Journal</b> retrouve le déroulé exact d'une journée, et le <b>Cockpit</b> remonte les écarts prioritaires du jour.",
+    'maitriser-stocks': "<b>Inventaire</b> est l'écran de comptage terrain, et <b>Contrôle inventaire</b> la vue manager sur les écarts. <b>Scanner Stock</b> vous aide à prioriser vos prochains comptages, et <b>Rappels</b> évite d'oublier une échéance comme le jaugeage carburant.",
+    'piloter-equipe': "<b>Résultats Équipe</b> et <b>Radar du Manager</b> donnent une vue d'ensemble. <b>Nexus Planner</b> organise le planning du mois, <b>Missions</b> et <b>Assignations</b> cadrent le travail au quotidien, et <b>Évaluations</b> permet de noter la tenue et la performance.",
+  };
+
+  // "Je ne sais pas par où commencer" (08/08/2026) : pas un filtre, une
+  // redirection directe — c'est exactement le rôle de Brief NEXUS.
+  const DEMARRAGE = { emoji: '🤷', label: 'Je ne sais pas par où commencer', href: 'NEXUS-Brief-v1.html' };
 
   const MOTEURS = [
     // ---- PILOTER ----
@@ -502,7 +544,7 @@
     app.innerHTML = `
       <div class="section">
         <div class="intro-card">
-          <b>${MOTEURS.length} moteurs NEXUS</b> — pas besoin de les connaître par leur nom : dites ce que vous voulez faire, ou cherchez directement par mot-clé.
+          <b>${MOTEURS.length} moteurs NEXUS</b> travaillent pour votre activité. Choisissez votre objectif ou recherchez ce que vous souhaitez faire : NEXUS vous guide vers les bons outils.
         </div>
         <div class="recherche-box">
           <span>🔍</span>
@@ -514,6 +556,12 @@
           <div class="intentions-titre">Que voulez-vous faire ?</div>
           <div class="intentions-sous">Choisissez votre objectif — NEXUS vous montre uniquement les moteurs concernés.</div>
           <div class="intentions-grille">${intentionsHtml}</div>
+          <div class="reponse-guidee" id="reponseGuidee"></div>
+          <div class="intention-demarrage" id="intentionDemarrage">
+            <span class="id-emoji">${DEMARRAGE.emoji}</span>
+            <span class="id-texte">${DEMARRAGE.label}</span>
+            <span class="id-fleche">→</span>
+          </div>
           <div class="intention-reset" id="intentionReset">← Revenir à tous les moteurs</div>
         </div>
       </div>
@@ -529,6 +577,8 @@
     const vide = document.getElementById('rechercheVide');
     const chips = Array.from(document.querySelectorAll('.intention-chip'));
     const resetChip = document.getElementById('intentionReset');
+    const reponseGuidee = document.getElementById('reponseGuidee');
+    const demarrageBtn = document.getElementById('intentionDemarrage');
     const tousLesDetails = Array.from(document.querySelectorAll('details.moteur'));
     const tousLesBlocsGroupe = Array.from(document.querySelectorAll('[data-groupe-bloc]'));
     let intentionActive = null;
@@ -538,6 +588,8 @@
       tousLesBlocsGroupe.forEach(b => b.style.display = '');
       compteur.textContent = '';
       vide.style.display = 'none';
+      reponseGuidee.classList.remove('visible');
+      reponseGuidee.innerHTML = '';
     }
 
     // Un seul filtre actif à la fois — texte libre OU intention, jamais les
@@ -566,6 +618,8 @@
         intentionActive = null;
         chips.forEach(c => c.classList.remove('active'));
         resetChip.classList.remove('visible');
+        reponseGuidee.classList.remove('visible');
+        reponseGuidee.innerHTML = '';
       }
       if (!q) { reinitialiserAffichage(); return; }
       appliquerFiltre(d => d.dataset.recherche.includes(q));
@@ -586,8 +640,18 @@
         input.value = '';
         chips.forEach(c => c.classList.toggle('active', c === chip));
         resetChip.classList.add('visible');
+        // La réponse guidée d'abord (08/08/2026) : une phrase qui
+        // enchaîne les moteurs dans le bon ordre, puis seulement les
+        // fiches correspondantes en dessous — un guide de décision,
+        // pas un simple annuaire filtrable.
+        reponseGuidee.innerHTML = REPONSES_GUIDEES[id] || '';
+        reponseGuidee.classList.toggle('visible', Boolean(REPONSES_GUIDEES[id]));
         appliquerFiltre(d => d.dataset.intentions.split(',').includes(id));
       });
+    });
+
+    demarrageBtn.addEventListener('click', () => {
+      window.location.href = DEMARRAGE.href;
     });
 
     resetChip.addEventListener('click', () => {
