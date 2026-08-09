@@ -255,6 +255,7 @@
   .pointage-mini-btn.couleur-pause{background:var(--amber);}
   .pointage-mini-btn.couleur-depart{background:var(--red);}
   .pointage-mini-btn.couleur-inventaire{background:var(--cyan);}
+  .pointage-mini-btn.couleur-fdj{background:var(--gold);}
   .pointage-mini.termine{background:var(--green-dim); border-color:rgba(52,211,153,0.3);}
   .pointage-mini.termine .pointage-mini-texte{color:var(--green);}
   .prix-row{display:flex; align-items:center; gap:8px; margin-bottom:10px;}
@@ -553,6 +554,17 @@
       <div class="pointage-mini" id="inventaireMini">
         <div class="pointage-mini-texte">Comptage d'ouverture et de clôture de quart.</div>
         <a class="pointage-mini-btn couleur-inventaire" href="NEXUS-Inventaire-v1.html">Faire l'inventaire →</a>
+      </div>
+      <!-- FDJ — mini carte accueil employé (09/08/2026, demande de Frédéric :
+           "mets un bouton FDJ pour l'employé sur sa page d'accueil comme
+           missions, progressions et inventaire"). Masquée par défaut
+           (display:none inline) : contrairement à Inventaire, FDJ est
+           Professional — le JS ne la révèle que si le forfait du site le
+           permet (voir afficherFdjMiniSiForfaitOk), jamais visible par
+           défaut pour un site Essential. -->
+      <div class="pointage-mini" id="fdjMini" style="display:none;">
+        <div class="pointage-mini-texte">Grattage, tirages et caisse FDJ de votre quart.</div>
+        <a class="pointage-mini-btn couleur-fdj" href="NEXUS-FDJ-v1.html">Compter le FDJ →</a>
       </div>
     </div>
   </div>
@@ -2520,6 +2532,19 @@
         const inventaireMini = document.getElementById('inventaireMini');
         if (inventaireMini) inventaireMini.style.display = 'none';
       }
+
+      // FDJ mini-carte (09/08/2026, demande de Frédéric) : contrairement à
+      // Inventaire, FDJ est Professional — masquée par défaut dans le HTML,
+      // révélée seulement si le forfait du site l'autorise. On ne réutilise
+      // pas `forfaitProfessional` (calculé uniquement côté manager plus
+      // haut, jamais pour un employé) : lecture directe via nexus-forfait.js.
+      NexusForfait.chargerForfait(employee.site_id || 'vito-sainte-marie').then(forfait => {
+        if (forfait === null) return; // erreur réseau : ne bloque pas, reste masquée par prudence
+        if (NexusForfait.estProfessional(forfait)) {
+          const fdjMini = document.getElementById('fdjMini');
+          if (fdjMini) fdjMini.style.display = '';
+        }
+      });
 
       // Petit point "Nouveau" (27/07/2026, demande de Frédéric — "une
       // petite notification qui apparaît parfois") sur le bouton Ma
