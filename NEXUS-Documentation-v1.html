@@ -84,19 +84,44 @@
   .reponse-guidee.visible{display:block;}
   .reponse-guidee b{color:var(--cyan);}
 
-  /* "Je ne sais pas par où commencer" (08/08/2026) : contrairement aux 6
+  /* "Je ne sais pas par où commencer" (08/08/2026, ajusté le même jour :
+     "je la ferais ressortir légèrement davantage, car elle peut devenir
+     l'entrée idéale pour un nouvel utilisateur") : contrairement aux 6
      objectifs, ce raccourci ne filtre rien — il envoie directement vers
      Brief NEXUS, dont c'est précisément le rôle. Style volontairement
-     distinct (pleine largeur, pas un chip parmi d'autres) pour marquer
-     que c'est une action immédiate, pas un filtre à explorer. */
+     plus affirmé que les chips (accent cyan plutôt que bordure en
+     pointillés) pour qu'il rassure plutôt qu'il n'hésite. */
   .intention-demarrage{
-    display:flex; align-items:center; gap:10px; margin-top:10px;
-    background:var(--panel-raised); border:1px dashed var(--hairline); border-radius:10px;
-    padding:12px 13px; cursor:pointer; -webkit-tap-highlight-color:transparent;
+    display:flex; align-items:center; gap:12px; margin-top:10px;
+    background:rgba(79,195,217,0.08); border:1px solid rgba(79,195,217,0.35); border-radius:10px;
+    padding:13px 14px; cursor:pointer; -webkit-tap-highlight-color:transparent;
   }
-  .intention-demarrage .id-emoji{font-size:18px;}
-  .intention-demarrage .id-texte{flex:1; font-size:12px; font-weight:600;}
-  .intention-demarrage .id-fleche{color:var(--cyan); font-family:var(--mono); font-size:12px;}
+  .intention-demarrage .id-emoji{font-size:20px; flex-shrink:0;}
+  .intention-demarrage .id-corps{flex:1; min-width:0;}
+  .intention-demarrage .id-titre{font-size:12.5px; font-weight:700; color:var(--text);}
+  .intention-demarrage .id-texte{font-size:11px; color:var(--text-mid); margin-top:2px; line-height:1.45;}
+  .intention-demarrage .id-fleche{color:var(--cyan); font-family:var(--mono); font-size:14px; flex-shrink:0;}
+
+  /* Parcours recommandé (08/08/2026, demande de Frédéric) : "le clic sur
+     un objectif doit produire un parcours, pas seulement filtrer une
+     liste." Remplace entièrement l'affichage par catégorie tant qu'un
+     objectif est actif — étapes numérotées, cliquables, qui ouvrent
+     directement le moteur concerné. */
+  .parcours-titre{font-size:13px; font-weight:700; margin-bottom:10px;}
+  .parcours-etape{
+    display:flex; align-items:center; gap:12px; background:var(--panel); border:1px solid var(--hairline);
+    border-radius:11px; padding:12px 14px; margin-bottom:8px; text-decoration:none; cursor:pointer;
+    -webkit-tap-highlight-color:transparent;
+  }
+  .parcours-numero{
+    flex-shrink:0; width:22px; height:22px; border-radius:50%; background:var(--cyan-dim); color:var(--cyan);
+    font-family:var(--mono); font-size:11px; font-weight:700; display:flex; align-items:center; justify-content:center;
+  }
+  .parcours-icone{font-size:15px; flex-shrink:0;}
+  .parcours-corps{flex:1; min-width:0;}
+  .parcours-nom{font-size:12.5px; font-weight:600; color:var(--text);}
+  .parcours-etape-texte{font-size:11px; color:var(--text-mid); margin-top:1px; line-height:1.4;}
+  .parcours-fleche{color:var(--text-dim); font-size:13px; flex-shrink:0;}
 
   .groupe{margin-bottom:6px;}
   .groupe-titre{font-family:var(--mono); font-size:12px; font-weight:700; letter-spacing:0.04em; text-transform:uppercase; color:var(--text); padding:16px 0 8px; display:flex; align-items:center; gap:8px;}
@@ -206,9 +231,77 @@
     'piloter-equipe': "<b>Résultats Équipe</b> et <b>Radar du Manager</b> donnent une vue d'ensemble. <b>Nexus Planner</b> organise le planning du mois, <b>Missions</b> et <b>Assignations</b> cadrent le travail au quotidien, et <b>Évaluations</b> permet de noter la tenue et la performance.",
   };
 
-  // "Je ne sais pas par où commencer" (08/08/2026) : pas un filtre, une
-  // redirection directe — c'est exactement le rôle de Brief NEXUS.
-  const DEMARRAGE = { emoji: '🤷', label: 'Je ne sais pas par où commencer', href: 'NEXUS-Brief-v1.html' };
+  // "Je ne sais pas par où commencer" (08/08/2026, ajusté le même jour) :
+  // pas un filtre, une redirection directe — c'est exactement le rôle de
+  // Brief NEXUS. 🧭 plutôt que 🤷 : NEXUS doit rassurer et prendre le
+  // relais, pas paraître hésitant.
+  const DEMARRAGE = {
+    emoji: '🧭',
+    titre: 'Vous ne savez pas où commencer ?',
+    texte: 'Brief NEXUS analyse votre activité et vous montre les priorités du moment.',
+    href: 'NEXUS-Brief-v1.html',
+  };
+
+  // Parcours recommandé par objectif (08/08/2026, demande de Frédéric) :
+  // "quand l'utilisateur sélectionne un objectif [...] afficher
+  // uniquement [un parcours numéroté]". Remplace l'affichage groupé par
+  // catégorie tant qu'un objectif est actif. `id` doit toujours pointer
+  // vers un m.id réel de MOTEURS ; `nomAffiche` permet d'afficher un nom
+  // de fonctionnalité (ex. Marge+) tout en ouvrant le bon moteur.
+  const PARCOURS = {
+    'comprendre-activite': {
+      titre: 'Pour comprendre votre activité, NEXUS vous recommande :',
+      etapes: [
+        { id: 'brief', texte: "voir l'état des lieux en 5 minutes" },
+        { id: 'cockpit', texte: 'traiter les priorités du jour' },
+        { id: 'cin', texte: "comprendre pourquoi un résultat évolue" },
+        { id: 'journal', texte: "retrouver le déroulé exact d'une journée" },
+      ],
+    },
+    'augmenter-ventes': {
+      titre: 'Pour augmenter vos ventes, NEXUS vous recommande :',
+      etapes: [
+        { id: 'tempo', texte: 'identifier les jours et créneaux à renforcer' },
+        { id: 'produits', texte: 'identifier les références qui sous-performent' },
+        { id: 'campagnes', texte: 'mettre en place une action commerciale' },
+        { id: 'capital', texte: "mesurer l'impact obtenu" },
+      ],
+    },
+    'ameliorer-marge': {
+      titre: 'Pour améliorer votre marge, NEXUS vous recommande :',
+      etapes: [
+        { id: 'scanner', nomAffiche: 'Marge+ (Scanner NEXUS)', texte: 'identifier les catégories et produits concernés' },
+        { id: 'produits', texte: 'descendre jusqu\'à la référence' },
+        { id: 'capital', texte: "suivre l'impact de la décision" },
+      ],
+    },
+    'controler-caisses': {
+      titre: 'Pour contrôler vos caisses, NEXUS vous recommande :',
+      etapes: [
+        { id: 'verify', texte: 'contrôler la caisse du jour et rapprocher les justificatifs' },
+        { id: 'journal', texte: "retrouver le déroulé exact d'une journée" },
+        { id: 'cockpit', texte: 'traiter les écarts prioritaires du jour' },
+      ],
+    },
+    'maitriser-stocks': {
+      titre: 'Pour maîtriser vos stocks, NEXUS vous recommande :',
+      etapes: [
+        { id: 'inventaire', texte: "compter à l'ouverture et à la clôture du poste" },
+        { id: 'controle-inventaire', texte: 'trancher les écarts remontés du terrain' },
+        { id: 'scanner-stock', texte: 'prioriser les prochains comptages' },
+        { id: 'rappels', texte: 'ne pas oublier le jaugeage carburant' },
+      ],
+    },
+    'piloter-equipe': {
+      titre: 'Pour piloter votre équipe, NEXUS vous recommande :',
+      etapes: [
+        { id: 'planner', texte: 'construire le planning du mois' },
+        { id: 'missions', texte: "cadrer le travail quotidien de l'équipe" },
+        { id: 'resultats', texte: 'suivre qui progresse et qui décroche' },
+        { id: 'evaluations', texte: 'noter la tenue et calculer la prime' },
+      ],
+    },
+  };
 
   const MOTEURS = [
     // ---- PILOTER ----
@@ -243,7 +336,7 @@
     },
     {
       id: 'capital', groupe: 'piloter', icone: '💰', nom: 'Capital NEXUS', href: 'NEXUS-Capital-v1.html',
-      role: 'Manager', forfait: 'professional', intentions: ['ameliorer-marge'],
+      role: 'Manager', forfait: 'professional', intentions: ['ameliorer-marge', 'augmenter-ventes'],
       aQuoiCaSert: "Mesurez la valeur économique identifiée ou générée par les décisions suivies dans NEXUS.",
       quandUtiliser: "Pour évaluer le retour sur investissement de votre abonnement Professional, ou présenter la valeur créée par NEXUS depuis sa mise en place.",
       donneesSources: "Montant estimé au moment de la validation de chaque décision — jamais un chiffre d'affaires vérifié après coup, le vocabulaire reste toujours « valeur identifiée / estimée ».",
@@ -544,7 +637,7 @@
     app.innerHTML = `
       <div class="section">
         <div class="intro-card">
-          <b>${MOTEURS.length} moteurs NEXUS</b> travaillent pour votre activité. Choisissez votre objectif ou recherchez ce que vous souhaitez faire : NEXUS vous guide vers les bons outils.
+          <b>${MOTEURS.length} moteurs NEXUS</b> travaillent pour votre activité.<br>Choisissez votre objectif ou recherchez ce que vous voulez faire : NEXUS vous guide vers le bon outil.
         </div>
         <div class="recherche-box">
           <span>🔍</span>
@@ -559,12 +652,16 @@
           <div class="reponse-guidee" id="reponseGuidee"></div>
           <div class="intention-demarrage" id="intentionDemarrage">
             <span class="id-emoji">${DEMARRAGE.emoji}</span>
-            <span class="id-texte">${DEMARRAGE.label}</span>
+            <div class="id-corps">
+              <div class="id-titre">${DEMARRAGE.titre}</div>
+              <div class="id-texte">${DEMARRAGE.texte}</div>
+            </div>
             <span class="id-fleche">→</span>
           </div>
           <div class="intention-reset" id="intentionReset">← Revenir à tous les moteurs</div>
         </div>
       </div>
+      <div class="section" id="parcoursZone" style="display:none;"></div>
       <div class="section" id="listeGroupes">
         ${groupesHtml}
         <div class="recherche-vide" id="rechercheVide">Aucun moteur ne correspond. Essayez un autre mot-clé, ou choisissez un objectif ci-dessus.</div>
@@ -579,17 +676,49 @@
     const resetChip = document.getElementById('intentionReset');
     const reponseGuidee = document.getElementById('reponseGuidee');
     const demarrageBtn = document.getElementById('intentionDemarrage');
+    const parcoursZone = document.getElementById('parcoursZone');
+    const listeGroupesEl = document.getElementById('listeGroupes');
     const tousLesDetails = Array.from(document.querySelectorAll('details.moteur'));
     const tousLesBlocsGroupe = Array.from(document.querySelectorAll('[data-groupe-bloc]'));
     let intentionActive = null;
 
     function reinitialiserAffichage() {
+      parcoursZone.style.display = 'none';
+      parcoursZone.innerHTML = '';
+      listeGroupesEl.style.display = '';
       tousLesDetails.forEach(d => { d.style.display = ''; d.open = false; });
       tousLesBlocsGroupe.forEach(b => b.style.display = '');
       compteur.textContent = '';
       vide.style.display = 'none';
       reponseGuidee.classList.remove('visible');
       reponseGuidee.innerHTML = '';
+    }
+
+    // Parcours recommandé (08/08/2026) : remplace entièrement l'affichage
+    // groupé par catégorie tant qu'un objectif est actif — "le clic sur
+    // un objectif doit produire un parcours, pas seulement filtrer une
+    // liste." Chaque étape ouvre directement le moteur concerné.
+    function afficherParcours(id) {
+      const data = PARCOURS[id];
+      listeGroupesEl.style.display = 'none';
+      if (!data) { parcoursZone.style.display = 'none'; parcoursZone.innerHTML = ''; return; }
+      const etapesHtml = data.etapes.map((etape, i) => {
+        const m = MOTEURS.find(mm => mm.id === etape.id);
+        if (!m) return '';
+        return `
+          <a class="parcours-etape" href="${m.href}">
+            <span class="parcours-numero">${i + 1}</span>
+            <span class="parcours-icone">${m.icone}</span>
+            <div class="parcours-corps">
+              <div class="parcours-nom">${etape.nomAffiche || m.nom}</div>
+              <div class="parcours-etape-texte">${etape.texte}</div>
+            </div>
+            <span class="parcours-fleche">→</span>
+          </a>
+        `;
+      }).join('');
+      parcoursZone.innerHTML = `<div class="parcours-titre">${data.titre}</div>${etapesHtml}`;
+      parcoursZone.style.display = '';
     }
 
     // Un seul filtre actif à la fois — texte libre OU intention, jamais les
@@ -618,10 +747,9 @@
         intentionActive = null;
         chips.forEach(c => c.classList.remove('active'));
         resetChip.classList.remove('visible');
-        reponseGuidee.classList.remove('visible');
-        reponseGuidee.innerHTML = '';
       }
-      if (!q) { reinitialiserAffichage(); return; }
+      reinitialiserAffichage(); // repart toujours d'un état propre : groupes visibles, parcours masqué
+      if (!q) return;
       appliquerFiltre(d => d.dataset.recherche.includes(q));
     });
 
@@ -641,12 +769,12 @@
         chips.forEach(c => c.classList.toggle('active', c === chip));
         resetChip.classList.add('visible');
         // La réponse guidée d'abord (08/08/2026) : une phrase qui
-        // enchaîne les moteurs dans le bon ordre, puis seulement les
-        // fiches correspondantes en dessous — un guide de décision,
-        // pas un simple annuaire filtrable.
+        // enchaîne les moteurs dans le bon ordre. Puis le parcours
+        // numéroté remplace entièrement la liste groupée par catégorie
+        // — "un guide de décision, pas un simple annuaire filtrable."
         reponseGuidee.innerHTML = REPONSES_GUIDEES[id] || '';
         reponseGuidee.classList.toggle('visible', Boolean(REPONSES_GUIDEES[id]));
-        appliquerFiltre(d => d.dataset.intentions.split(',').includes(id));
+        afficherParcours(id);
       });
     });
 
