@@ -91,6 +91,8 @@
   .jeu-nom{font-size:13.5px; font-weight:600;}
   .jeu-ventes{font-family:var(--mono); font-size:11px; color:var(--text-dim);}
   .jeu-ventes.calc{color:var(--cyan);}
+  .jeu-ventes.anomalie{color:var(--red); font-weight:700;}
+  .jeu-row.anomalie{background:rgba(240,87,90,0.08); box-shadow:inset 3px 0 0 var(--red);}
   .jeu-inputs{display:flex; gap:6px;}
   .jeu-input-wrap{flex:1;}
   .jeu-input-label{font-family:var(--mono); font-size:8.5px; color:var(--text-dim); text-transform:uppercase; margin-bottom:3px; text-align:center;}
@@ -343,6 +345,14 @@
   }
   // Jeux "à moitié comptés" (stock initial connu, stock final jamais tapé)
   // — candidats à la confirmation "plus de stock" avant de continuer.
+  // Ventes négatives = anomalie (09/08/2026, demande de Frédéric) : un jeu
+  // ne peut jamais "vendre" un nombre négatif de tickets — si stock_final
+  // dépasse stock_initial + appro, quelque chose est mal saisi (appro
+  // oublié, stock initial faux, erreur de comptage). NEXUS ne corrige
+  // jamais tout seul, il montre l'anomalie clairement.
+  function jeuxAvecVentesNegatives() {
+    return jeux.filter(j => { const v = calculerVentes(j.id); return v.qte !== null && v.qte < 0; });
+  }
   function jeuxSansStockFinal() {
     return jeux.filter(j => {
       const s = countsSaisie[j.id];
@@ -357,7 +367,13 @@
     document.getElementById('titre').textContent = `Bonjour ${employeeCourant.nom}`;
     document.getElementById('sousTitre').textContent = '';
     const dejaValide = shiftRow && shiftRow.statut === 'valide';
+    // Raccourci manager (09/08/2026, demande de Frédéric) : cet écran reste
+    // ouvert à tout le monde (voir commentaire plus haut), un manager peut
+    // donc y atterrir directement — ce lien évite de le laisser chercher
+    // "Contrôle FDJ" (historique, correction, changement de date) tout seul.
+    const estManager = employeeCourant.role === 'manager' || employeeCourant.role === 'gerant';
     document.getElementById('content').innerHTML = `
+      ${estManager ? '<a href="NEXUS-FDJ-Manager-v1.html" class="etat-banner" style="display:block; color:var(--cyan); text-decoration:none; margin-bottom:14px;">Vous êtes manager ? Aller à Contrôle FDJ →</a>' : ''}
       ${renderQuartVisuel()}
       <div class="choix-grid">
         <div class="choix-card ${dejaValide ? 'disabled' : ''}" id="carteComptage">
@@ -447,9 +463,11 @@
     document.getElementById('sousTitre').textContent = 'Stock initial (prérempli), appro reçu, stock final compté. Les ventes se calculent toutes seules.';
     const comptes = jeux.filter(jeuEstCompte).length;
     const groupes = grouperParPalier(jeux);
+    const anomalies = jeuxAvecVentesNegatives();
     document.getElementById('content').innerHTML = `
       ${renderStepper('Grattage')}
       <div class="etat-banner">${comptes} / ${jeux.length} jeux comptés</div>
+      <div class="etat-banner" id="banniereAnomalies" style="${anomalies.length ? '' : 'display:none;'} border-color:var(--red); color:var(--red);">⚠️ ${anomalies.length} jeu${anomalies.length > 1 ? 'x' : ''} avec des ventes négatives — vérifiez le stock saisi.</div>
       ${groupes.map(g => `
         <div class="palier-block">
           <div class="palier-head">${fmtNum(g.prix)} €</div>
@@ -486,11 +504,12 @@
   function renderJeuRow(jeu) {
     const s = countsSaisie[jeu.id] || { stock_initial: null, appro: 0, stock_final: null };
     const v = calculerVentes(jeu.id);
+    const anomalie = v.qte !== null && v.qte < 0;
     return `
-      <div class="jeu-row" data-jeu="${jeu.id}">
+      <div class="jeu-row ${anomalie ? 'anomalie' : ''}" data-jeu="${jeu.id}">
         <div class="jeu-nom-ligne">
           <div class="jeu-nom">${jeu.nom}</div>
-          <div class="jeu-ventes ${v.valeur !== null ? 'calc' : ''}">${v.qte !== null ? `Ventes : ${fmtNum(v.qte)} · ${fmtEuro(v.valeur)}` : 'Ventes : —'}</div>
+          <div class="jeu-ventes ${anomalie ? 'anomalie' : (v.valeur !== null ? 'calc' : '')}">${anomalie ? `⚠️ Anomalie : ${fmtNum(v.qte)}` : (v.qte !== null ? `Ventes : ${fmtNum(v.qte)} · ${fmtEuro(v.valeur)}` : 'Ventes : —')}</div>
         </div>
         <div class="jeu-inputs">
           <div class="jeu-input-wrap">
@@ -520,10 +539,18 @@
         const row = input.closest('.jeu-row');
         const venteEl = row.querySelector('.jeu-ventes');
         const v = calculerVentes(gameId);
-        venteEl.className = `jeu-ventes ${v.valeur !== null ? 'calc' : ''}`;
-        venteEl.textContent = v.qte !== null ? `Ventes : ${fmtNum(v.qte)} · ${fmtEuro(v.valeur)}` : 'Ventes : —';
-        const banniere = document.querySelector('.etat-banner');
+        const anomalie = v.qte !== null && v.qte < 0;
+        row.classList.toggle('anomalie', anomalie);
+        venteEl.className = `jeu-ventes ${anomalie ? 'anomalie' : (v.valeur !== null ? 'calc' : '')}`;
+        venteEl.textContent = anomalie ? `⚠️ Anomalie : ${fmtNum(v.qte)}` : (v.qte !== null ? `Ventes : ${fmtNum(v.qte)} · ${fmtEuro(v.valeur)}` : 'Ventes : —');
+        const banniere = document.getElementById('content').querySelector('.etat-banner');
         if (banniere) banniere.textContent = `${jeux.filter(jeuEstCompte).length} / ${jeux.length} jeux comptés`;
+        const anomalies = jeuxAvecVentesNegatives();
+        const banniereAnomalies = document.getElementById('banniereAnomalies');
+        if (banniereAnomalies) {
+          banniereAnomalies.style.display = anomalies.length ? '' : 'none';
+          banniereAnomalies.textContent = `⚠️ ${anomalies.length} jeu${anomalies.length > 1 ? 'x' : ''} avec des ventes négatives — vérifiez le stock saisi.`;
+        }
       });
     });
   }
