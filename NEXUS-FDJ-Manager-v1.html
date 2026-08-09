@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<link rel="icon" type="image/x-icon" href="favicon.ico">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+<link rel="manifest" href="site.webmanifest">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="NEXUS">
+<meta name="theme-color" content="#0B0F14">
+<title>NEXUS — FDJ · Contrôle</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="nexus-auth.js"></script>
+<script src="nexus-forfait.js"></script>
+<script src="nexus-desktop.js"></script>
+<script src="nexus-fdj-moteur.js"></script>
+<style>
+  :root{
+    --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
+    --text:#EDF1F5; --text-mid:#8A96A5; --text-dim:#57626F;
+    --green:#34D399; --green-dim:#153629;
+    --amber:#F5A623; --amber-dim:#3A2E14;
+    --red:#F0575A; --red-dim:#3A1D1F;
+    --cyan:#4FC3D9; --gold:#D4AF37;
+    --mono:'IBM Plex Mono',monospace; --sans:'IBM Plex Sans',sans-serif;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{background:var(--bg); font-family:var(--sans); color:var(--text);}
+  body{display:flex; justify-content:center; min-height:100vh;}
+  .phone{width:100%; max-width:460px; min-height:100vh; display:flex; flex-direction:column; border-left:1px solid var(--hairline); border-right:1px solid var(--hairline); padding-top:env(safe-area-inset-top); padding-bottom:env(safe-area-inset-bottom);}
+
+  .header{padding:24px 20px 14px; position:relative;}
+  .menu-btn{
+    position:absolute; top:18px; right:18px; display:flex; align-items:center; gap:6px;
+    font-family:var(--mono); font-size:10.5px; font-weight:600; letter-spacing:0.03em; text-transform:uppercase;
+    color:var(--cyan); background:rgba(79,195,217,0.1); border:1px solid rgba(79,195,217,0.3);
+    border-radius:20px; padding:7px 12px; text-decoration:none; white-space:nowrap; z-index:5;
+  }
+  .menu-btn:active{background:rgba(79,195,217,0.2);}
+  .eyebrow{font-family:var(--mono); font-size:11px; letter-spacing:0.12em; text-transform:uppercase; color:var(--cyan);}
+  .title{font-size:22px; font-weight:600; margin-top:4px;}
+  .horodateur-discret{font-family:var(--mono); font-size:12px; color:var(--text-dim); margin-top:8px;}
+  .sub{font-size:13px; color:var(--text-mid); margin-top:6px; line-height:1.5;}
+  .divider{height:1px; background:var(--hairline); margin:0 20px;}
+  .section{padding:16px 20px;}
+  .loading{padding:60px 20px; text-align:center; color:var(--text-dim); font-size:13px;}
+  .locked{padding:80px 24px; text-align:center; color:var(--text-mid); font-size:14px;}
+
+  .section-titre{font-family:var(--mono); font-size:11px; letter-spacing:0.08em; text-transform:uppercase; color:var(--text-dim); margin:18px 2px 10px;}
+  .section-titre:first-child{margin-top:0;}
+
+  .quart-jour-grid{display:flex; gap:10px; margin-bottom:6px;}
+  .quart-jour-card{flex:1; background:var(--panel); border:1.5px solid var(--hairline); border-radius:14px; padding:14px; cursor:pointer;}
+  .quart-jour-card:active{background:var(--panel-raised);}
+  .quart-jour-label{font-family:var(--mono); font-size:10px; color:var(--text-dim); text-transform:uppercase; margin-bottom:6px;}
+  .quart-jour-statut{font-size:12.5px; font-weight:600;}
+  .quart-jour-ecart{font-family:var(--mono); font-size:15px; font-weight:700; margin-top:4px;}
+
+  .card{background:var(--panel); border:1px solid var(--hairline); border-radius:12px; margin-bottom:10px; overflow:hidden;}
+  .histo-item{padding:14px; cursor:pointer;}
+  .histo-item + .histo-item{border-top:1px solid var(--hairline);}
+  .histo-top{display:flex; justify-content:space-between; align-items:center;}
+  .histo-date{font-size:13.5px; font-weight:600;}
+  .histo-sub{font-size:11.5px; color:var(--text-mid); margin-top:2px;}
+  .histo-ecart{font-family:var(--mono); font-size:14px; font-weight:700;}
+  .histo-detail{max-height:0; overflow:hidden; transition:max-height .2s ease;}
+  .histo-detail.open{max-height:900px; margin-top:12px; padding-top:12px; border-top:1px solid var(--hairline);}
+  .statut-badge{font-family:var(--mono); font-size:9px; font-weight:700; padding:3px 8px; border-radius:10px; text-transform:uppercase; white-space:nowrap;}
+  .statut-badge.provisoire{background:var(--panel-raised); color:var(--text-dim);}
+  .statut-badge.a_controler,.statut-badge.en_attente{background:var(--amber-dim); color:var(--amber);}
+  .statut-badge.expliquee,.statut-badge.regularise,.statut-badge.valide_avec_ecart{background:rgba(79,195,217,0.12); color:var(--cyan);}
+  .statut-badge.conforme{background:var(--green-dim); color:var(--green);}
+  .statut-badge.brouillon{background:var(--panel-raised); color:var(--text-dim);}
+  .statut-badge.valide{background:var(--green-dim); color:var(--green);}
+
+  .btn-modifier{width:auto; padding:9px 14px; margin-top:10px; background:var(--panel-raised); color:var(--amber); border:1px solid rgba(245,166,35,0.35); border-radius:8px; font-family:var(--sans); font-size:12px; font-weight:600; cursor:pointer;}
+  .btn-modifier:active{background:var(--hairline);}
+
+  .empty{padding:24px; text-align:center; color:var(--text-dim); font-size:12.5px;}
+
+  .champ-row{display:flex; gap:8px; margin-bottom:12px;}
+  .champ-row > *{flex:1;}
+  .champ-label{font-family:var(--mono); font-size:10.5px; color:var(--text-mid); margin-bottom:6px; letter-spacing:0.03em; display:block;}
+  .champ-input, .champ-select{
+    width:100%; background:var(--panel-raised); border:1px solid var(--hairline); border-radius:10px;
+    padding:11px 12px; color:var(--text); font-family:var(--sans); font-size:14px;
+  }
+  .champ-input:focus, .champ-select:focus{outline:none; border-color:var(--cyan);}
+  .champ-input.mono{font-family:var(--mono); text-align:right;}
+  .champ-note{font-size:11px; color:var(--text-dim); line-height:1.5; margin:-6px 0 12px;}
+  .champ-readonly{padding:11px 12px; background:var(--panel); border:1px solid var(--hairline); border-radius:10px; font-family:var(--mono); font-size:14px; color:var(--text-mid);}
+
+  .palier-block{margin-bottom:14px;}
+  .palier-head{font-family:var(--mono); font-size:10px; letter-spacing:0.06em; text-transform:uppercase; color:var(--text-dim); padding:0 2px 6px;}
+  .jeu-row{padding:10px 12px;}
+  .jeu-row + .jeu-row{border-top:1px solid var(--hairline);}
+  .jeu-nom-ligne{display:flex; align-items:center; justify-content:space-between; margin-bottom:7px;}
+  .jeu-nom{font-size:12.5px; font-weight:600;}
+  .jeu-ventes{font-family:var(--mono); font-size:10.5px; color:var(--text-dim);}
+  .jeu-ventes.calc{color:var(--cyan);}
+  .jeu-inputs{display:flex; gap:6px;}
+  .jeu-input-wrap{flex:1;}
+  .jeu-input-label{font-family:var(--mono); font-size:8px; color:var(--text-dim); text-transform:uppercase; margin-bottom:3px; text-align:center;}
+  .jeu-input{width:100%; background:var(--panel-raised); border:1px solid var(--hairline); border-radius:8px; padding:8px 4px; color:var(--text); font-family:var(--mono); font-size:13px; text-align:center;}
+  .jeu-input:focus{outline:none; border-color:var(--cyan);}
+
+  .resume-card{background:var(--panel); border:1px solid var(--hairline); border-radius:14px; padding:16px; margin:6px 0 14px;}
+  .stat-row{display:flex; justify-content:space-between; align-items:center; padding:8px 0;}
+  .stat-row + .stat-row{border-top:1px solid var(--hairline);}
+  .stat-label{font-size:12.5px; color:var(--text-mid);}
+  .stat-value{font-family:var(--mono); font-size:14px; font-weight:700;}
+  .stat-value.amber{color:var(--amber);} .stat-value.cyan{color:var(--cyan);} .stat-value.red{color:var(--red);} .stat-value.green{color:var(--green);}
+  .stat-row.total{margin-top:4px; padding-top:12px; border-top:1.5px solid var(--hairline);}
+  .stat-row.total .stat-label{font-weight:700; color:var(--text);}
+  .stat-row.total .stat-value{font-size:17px;}
+
+  .btn-primary{width:100%; padding:14px; border:none; border-radius:10px; font-size:14px; font-weight:600; background:var(--cyan); color:#04141a; cursor:pointer; margin-top:6px;}
+  .btn-primary:disabled{opacity:0.35; cursor:not-allowed;}
+  .btn-ghost{width:100%; padding:12px; border:1px solid var(--hairline); border-radius:10px; background:transparent; color:var(--text-mid); font-size:13px; cursor:pointer; margin-top:8px;}
+  .btn-nouveau{width:100%; padding:12px; border:1.5px dashed rgba(79,195,217,0.4); border-radius:12px; background:rgba(79,195,217,0.06); color:var(--cyan); font-size:13px; font-weight:600; cursor:pointer; margin:4px 0 4px;}
+  .btn-loading-dots{display:inline-flex; gap:3px; margin-left:6px; vertical-align:middle;}
+  .btn-loading-dots i{width:4px; height:4px; border-radius:50%; background:currentColor; display:inline-block; font-style:normal; animation:btnDotsBounce 1.2s infinite ease-in-out;}
+  .btn-loading-dots i:nth-child(2){animation-delay:0.15s;} .btn-loading-dots i:nth-child(3){animation-delay:0.3s;}
+  @keyframes btnDotsBounce{0%,80%,100%{opacity:0.25; transform:translateY(0);} 40%{opacity:1; transform:translateY(-2px);}}
+
+  .champ-sep{height:1px; background:var(--hairline); margin:18px 0;}
+
+  footer{margin-top:auto; padding:16px 20px 24px; font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:center; border-top:1px solid var(--hairline);}
+</style>
+</head>
+<body>
+<div class="phone">
+  <div class="header">
+    <a href="NEXUS-App-v1.html" class="menu-btn">☰ Menu</a>
+    <div class="eyebrow">NEXUS · FDJ</div>
+    <div class="title" id="titre">Chargement…</div>
+    <div class="horodateur-discret" id="horodateurDiscret">--</div>
+    <div class="sub" id="sousTitre"></div>
+  </div>
+  <div class="divider"></div>
+
+  <div class="section desktop-grid" id="content">
+    <div class="loading">Chargement…</div>
+  </div>
+
+  <footer>NEXUS FDJ Manager v1 · Contrôle et corrections · Vito Sainte-Marie Usine</footer>
+</div>
+
+<script>
+  // ------------------------------------------------------------
+  // NEXUS FDJ Manager v1 (09/08/2026) — vue manager du contrôle FDJ,
+  // construite avec Frédéric juste après l'écran employé.
+  //
+  // Demande explicite de Frédéric : "donne tout pouvoir au manager pour
+  // modifier n'importe quelle caisse comme dans Verify." Reprend donc le
+  // principe de NEXUS-Verify-v1.html (fonction prefillFormPourModification
+  // + upsert direct sur la même ligne, pas de workflow d'approbation
+  // séparé façon inventaire_corrections) plutôt que la discipline plus
+  // lourde utilisée ailleurs — un manager peut ici changer n'importe quelle
+  // valeur d'un quart déjà validé et l'écraser directement.
+  //
+  // Seule limite assumée : la date et le quart d'un enregistrement déjà
+  // créé restent fixes (les valeurs et l'employé assigné, eux, sont
+  // librement modifiables) — les changer reviendrait à déplacer la ligne
+  // vers une autre clé unique (site, date, quart) et pourrait laisser une
+  // ligne fantôme derrière soi. Créer un nouveau quart (bouton "+ Nouveau
+  // quart FDJ") reste la voie normale si un quart n'a jamais été compté.
+  //
+  // Calculs délégués à nexus-fdj-moteur.js — jamais dupliqués ici (Article 11).
+  // ------------------------------------------------------------
+
+  let managerCourant = null;
+  let siteId = 'vito-sainte-marie';
+  let jeux = [];
+  let employesSite = [];
+  let vue = 'liste'; // 'liste' | 'edition'
+
+  // État du formulaire d'édition en cours (nouveau OU existant).
+  let edition = null;
+  /* forme : {
+       shiftId: uuid|null, date, quart, employeeId, statutShift,
+       counts: { [game_id]: {stock_initial, appro, stock_final} },
+       lotsPayes, caisseTirages, regularisations, caisseReelle, motifEcart, statutCaisse,
+       avant: <snapshot JSON pour l'audit_log>,
+     } */
+
+  function heureLocale() { return new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }); }
+  function demarrerHorloge() {
+    const maj = () => {
+      const el = document.getElementById('horodateurDiscret');
+      if (!el) return;
+      const jour = new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
+      el.textContent = `${jour.charAt(0).toUpperCase()}${jour.slice(1)} · ${heureLocale()}`;
+    };
+    maj(); setInterval(maj, 15000);
+  }
+  function dateISO(d) {
+    d = d || new Date();
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  }
+  function fmtEuro(n) { return (n === null || n === undefined || n === '' || isNaN(n)) ? '—' : `${Number(n).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`; }
+  function fmtNum(n) { return (n === null || n === undefined) ? '—' : Number(n).toLocaleString('fr-FR', { maximumFractionDigits: 2 }); }
+
+  const STATUTS_CAISSE = [
+    { value: 'provisoire', label: 'Provisoire' },
+    { value: 'a_controler', label: 'À contrôler' },
+    { value: 'en_attente', label: 'En attente' },
+    { value: 'expliquee', label: 'Expliquée' },
+    { value: 'regularise', label: 'Régularisé' },
+    { value: 'valide_avec_ecart', label: 'Validé avec écart' },
+    { value: 'conforme', label: 'Conforme' },
+  ];
+  const MOTIFS_ECART_FDJ = [
+    { value: '', label: 'Choisir un motif…' },
+    { value: 'erreur_saisie', label: 'Erreur de saisie' },
+    { value: 'erreur_comptage', label: 'Erreur de comptage' },
+    { value: 'carnet_non_declare', label: 'Carnet non déclaré' },
+    { value: 'mouvement_oublie', label: 'Réapprovisionnement non enregistré' },
+    { value: 'erreur_rapport', label: 'Erreur sur le rapport FDJ' },
+    { value: 'autre', label: 'Autre raison' },
+    { value: 'non_explique', label: 'Je ne sais pas' },
+  ];
+  function labelStatutCaisse(v) { const s = STATUTS_CAISSE.find(x => x.value === v); return s ? s.label : v; }
+
+  async function chargerJeux() {
+    const { data, error } = await nexusClient.from('fdj_games').select('*').eq('site', siteId).eq('actif', true).order('ordre_affichage', { ascending: true });
+    if (error) { console.error('Chargement jeux FDJ:', error); return []; }
+    return data || [];
+  }
+  async function chargerEmployesSite() {
+    const { data, error } = await nexusClient.from('employees').select('id, nom').eq('site_id', siteId).eq('actif', true).order('nom', { ascending: true });
+    if (error) { console.error('Chargement employés site:', error); return []; }
+    return data || [];
+  }
+  function nomEmploye(id) {
+    const e = employesSite.find(x => x.id === id);
+    return e ? e.nom : '—';
+  }
+
+  // ------------------------------------------------------------
+  // CHARGEMENT LISTES
+  // ------------------------------------------------------------
+  async function chargerShiftsAvecCaisse(filtreDate) {
+    let requete = nexusClient.from('fdj_shifts').select('*, fdj_cash_controls(*)').eq('site', siteId).order('date', { ascending: false }).order('quart', { ascending: false });
+    if (filtreDate) requete = requete.eq('date', filtreDate); else requete = requete.limit(30);
+    const { data, error } = await requete;
+    if (error) { console.error('Chargement quarts FDJ:', error); return []; }
+    return (data || []).map(s => ({ ...s, cash: (s.fdj_cash_controls && s.fdj_cash_controls[0]) || null }));
+  }
+
+  // ------------------------------------------------------------
+  // ACCUEIL MANAGER — Aujourd'hui + Historique
+  // ------------------------------------------------------------
+  async function renderAccueil() {
+    document.getElementById('titre').textContent = 'Contrôle FDJ';
+    document.getElementById('sousTitre').textContent = '';
+    document.getElementById('content').innerHTML = '<div class="loading">Chargement…</div>';
+
+    const aujourdhui = dateISO();
+    const [duJour, historique] = await Promise.all([chargerShiftsAvecCaisse(aujourdhui), chargerShiftsAvecCaisse(null)]);
+    const quart1 = duJour.find(s => s.quart === '1');
+    const quart2 = duJour.find(s => s.quart === '2');
+
+    document.getElementById('content').innerHTML = `
+      <div class="section-titre">Aujourd'hui</div>
+      <div class="quart-jour-grid">
+        ${renderCarteQuartJour('1', quart1)}
+        ${renderCarteQuartJour('2', quart2)}
+      </div>
+      <button class="btn-nouveau" id="btnNouveauQuart">+ Nouveau quart FDJ</button>
+
+      <div class="section-titre">Historique</div>
+      <div class="card" id="listeHistorique">
+        ${historique.length ? historique.map((s, i) => renderHistoItem(s, i)).join('') : '<div class="empty">Aucun quart FDJ enregistré pour l’instant.</div>'}
+      </div>
+    `;
+
+    document.getElementById('btnNouveauQuart').addEventListener('click', () => ouvrirEditionNouveau());
+    if (quart1) document.getElementById(`carteQuart1`).addEventListener('click', () => ouvrirEditionExistant(quart1));
+    if (quart2) document.getElementById(`carteQuart2`).addEventListener('click', () => ouvrirEditionExistant(quart2));
+
+    document.querySelectorAll('.histo-item').forEach((item, i) => {
+      item.addEventListener('click', () => document.getElementById(`detail-${i}`).classList.toggle('open'));
+    });
+    document.querySelectorAll('.btn-modifier').forEach(btn => {
+      btn.addEventListener('click', (e) => { e.stopPropagation(); ouvrirEditionExistant(historique[parseInt(btn.dataset.idx, 10)]); });
+    });
+  }
+
+  function renderCarteQuartJour(quart, shift) {
+    if (!shift) return `<div class="quart-jour-card" id="carteQuart${quart}"><div class="quart-jour-label">Quart ${quart}</div><div class="quart-jour-statut" style="color:var(--text-dim);">Non compté</div></div>`;
+    const ecart = shift.cash ? shift.cash.ecart : null;
+    const classe = ecart === null ? '' : (ecart === 0 ? 'green' : (Math.abs(ecart) <= 1 ? 'amber' : 'red'));
+    return `
+      <div class="quart-jour-card" id="carteQuart${quart}">
+        <div class="quart-jour-label">Quart ${quart}</div>
+        <div class="quart-jour-statut">${nomEmploye(shift.employee_id)}</div>
+        <div class="quart-jour-ecart ${classe ? `stat-value ${classe}` : ''}">${ecart !== null ? `${ecart > 0 ? '+' : ''}${fmtEuro(ecart)}` : shift.statut === 'valide' ? 'Validé' : 'Brouillon'}</div>
+      </div>
+    `;
+  }
+
+  function renderHistoItem(s, i) {
+    const ecart = s.cash ? s.cash.ecart : null;
+    const classe = ecart === null ? '' : (ecart === 0 ? 'green' : (Math.abs(ecart) <= 1 ? 'amber' : 'red'));
+    return `
+      <div class="histo-item" data-idx="${i}">
+        <div class="histo-top">
+          <div>
+            <div class="histo-date">${new Date(s.date + 'T00:00:00').toLocaleDateString('fr-FR')} <span style="color:var(--text-mid); font-weight:400;">· Quart ${s.quart}</span></div>
+            <div class="histo-sub">${nomEmploye(s.employee_id)}</div>
+          </div>
+          <div style="text-align:right;">
+            <div class="histo-ecart ${classe}">${ecart !== null ? `${ecart > 0 ? '+' : ''}${fmtEuro(ecart)}` : '—'}</div>
+            <div style="margin-top:4px;"><span class="statut-badge ${s.cash ? s.cash.statut : s.statut}">${s.cash ? labelStatutCaisse(s.cash.statut) : (s.statut === 'valide' ? 'Validé' : 'Brouillon')}</span></div>
+          </div>
+        </div>
+        <div class="histo-detail" id="detail-${i}">
+          ${s.cash ? `
+            <div class="stat-row"><div class="stat-label">Caisse grattage</div><div class="stat-value">${fmtEuro(s.cash.caisse_grattage)}</div></div>
+            <div class="stat-row"><div class="stat-label">Caisse tirages</div><div class="stat-value">${fmtEuro(s.cash.caisse_tirages)}</div></div>
+            <div class="stat-row"><div class="stat-label">Régularisations</div><div class="stat-value">${fmtEuro(s.cash.regularisations)}</div></div>
+            <div class="stat-row"><div class="stat-label">Caisse attendue</div><div class="stat-value cyan">${fmtEuro(s.cash.caisse_attendue)}</div></div>
+            <div class="stat-row"><div class="stat-label">Caisse réelle</div><div class="stat-value">${fmtEuro(s.cash.caisse_reelle)}</div></div>
+            ${s.cash.motif_ecart ? `<div class="stat-row"><div class="stat-label">Motif</div><div class="stat-value" style="font-size:11.5px; font-weight:400;">${s.cash.motif_ecart}</div></div>` : ''}
+          ` : '<div class="empty">Pas encore de rapprochement caisse pour ce quart.</div>'}
+          <button type="button" class="btn-modifier" data-idx="${i}">✏️ Modifier ce quart</button>
+        </div>
+      </div>
+    `;
+  }
+
+  // ------------------------------------------------------------
+  // OUVERTURE DE L'ÉDITION (nouveau ou existant)
+  // ------------------------------------------------------------
+  function ouvrirEditionNouveau() {
+    edition = {
+      shiftId: null, date: dateISO(), quart: '1', employeeId: employesSite[0] ? employesSite[0].id : null,
+      statutShift: 'brouillon', counts: {}, lotsPayes: null, caisseTirages: null, regularisations: 0,
+      caisseReelle: null, motifEcart: '', statutCaisse: 'provisoire', avant: null, estNouveau: true,
+    };
+    jeux.forEach(j => { edition.counts[j.id] = { stock_initial: null, appro: 0, stock_final: null }; });
+    vue = 'edition';
+    renderEdition();
+  }
+
+  async function ouvrirEditionExistant(shift) {
+    document.getElementById('content').innerHTML = '<div class="loading">Chargement du quart…</div>';
+    const [{ data: counts }, { data: reports }] = await Promise.all([
+      nexusClient.from('fdj_shift_counts').select('*').eq('shift_id', shift.id),
+      nexusClient.from('fdj_reports').select('*').eq('shift_id', shift.id),
+    ]);
+    const countsMap = {};
+    jeux.forEach(j => { countsMap[j.id] = { stock_initial: null, appro: 0, stock_final: null }; });
+    (counts || []).forEach(c => { countsMap[c.game_id] = { stock_initial: c.stock_initial, appro: c.appro, stock_final: c.stock_final }; });
+    const repJournalier = (reports || []).find(r => r.type_rapport === 'journalier');
+    const repTempsReel = (reports || []).find(r => r.type_rapport === 'temps_reel');
+    const cash = shift.cash;
+
+    edition = {
+      shiftId: shift.id, date: shift.date, quart: shift.quart, employeeId: shift.employee_id,
+      statutShift: shift.statut, counts: countsMap,
+      lotsPayes: repJournalier ? repJournalier.lots_payes_grattage : null,
+      caisseTirages: repTempsReel ? repTempsReel.caisse_tirages : null,
+      regularisations: cash ? cash.regularisations : 0,
+      caisseReelle: cash ? cash.caisse_reelle : null,
+      motifEcart: cash ? (cash.motif_ecart || '') : '',
+      statutCaisse: cash ? cash.statut : 'provisoire',
+      estNouveau: false,
+    };
+    // Instantané "avant" pour la trace d'audit — jamais un écrasement
+    // silencieux, même en pouvoir total (Constitution NEXUS, traçabilité).
+    edition.avant = JSON.parse(JSON.stringify({ counts: countsMap, lotsPayes: edition.lotsPayes, caisseTirages: edition.caisseTirages, regularisations: edition.regularisations, caisseReelle: edition.caisseReelle, statutCaisse: edition.statutCaisse, employeeId: edition.employeeId }));
+    vue = 'edition';
+    renderEdition();
+  }
+
+  // ------------------------------------------------------------
+  // CALCULS — via nexus-fdj-moteur.js, sur edition.counts.
+  // ------------------------------------------------------------
+  function calculerVentesEdition(gameId) {
+    const jeu = jeux.find(j => j.id === gameId);
+    if (!jeu) return { qte: null, valeur: null };
+    return NexusFdjMoteur.calculerVentesJeu(edition.counts[gameId], jeu.prix);
+  }
+  function ventesGrattageTotalEdition() { return NexusFdjMoteur.ventesGrattageTotal(jeux, edition.counts); }
+  function caisseGrattageEdition() { return NexusFdjMoteur.caisseGrattage(ventesGrattageTotalEdition(), edition.lotsPayes); }
+  function caisseAttendueEdition() { return NexusFdjMoteur.caisseAttendue(caisseGrattageEdition(), edition.caisseTirages, edition.regularisations); }
+  function ecartCaisseEdition() { return NexusFdjMoteur.ecartCaisse(edition.caisseReelle, caisseAttendueEdition()); }
+
+  function grouperParPalier(liste) {
+    const groupes = {};
+    for (const j of liste) { if (!groupes[j.prix]) groupes[j.prix] = { prix: j.prix, items: [] }; groupes[j.prix].items.push(j); }
+    return Object.values(groupes).sort((a,b) => a.prix - b.prix);
+  }
+
+  // ------------------------------------------------------------
+  // FORMULAIRE D'ÉDITION — tout sur un seul écran (pouvoir total du
+  // manager, pas d'assistant pas-à-pas comme côté employé).
+  // ------------------------------------------------------------
+  function renderEdition() {
+    document.getElementById('titre').textContent = edition.estNouveau ? 'Nouveau quart FDJ' : 'Modifier ce quart FDJ';
+    document.getElementById('sousTitre').textContent = 'Tout est modifiable — grattage, tirages, caisse, employé assigné, statut.';
+    const attendue = caisseAttendueEdition();
+    const ecart = ecartCaisseEdition();
+    const classe = ecart === null ? '' : (ecart === 0 ? 'green' : (Math.abs(ecart) <= 1 ? 'amber' : 'red'));
+    const groupes = grouperParPalier(jeux);
+
+    document.getElementById('content').innerHTML = `
+      <div class="champ-row">
+        <div>
+          <label class="champ-label">Date</label>
+          ${edition.estNouveau ? `<input type="date" class="champ-input" id="champDate" value="${edition.date}">` : `<div class="champ-readonly">${new Date(edition.date + 'T00:00:00').toLocaleDateString('fr-FR')}</div>`}
+        </div>
+        <div>
+          <label class="champ-label">Quart</label>
+          ${edition.estNouveau ? `
+            <select class="champ-select" id="champQuart">
+              <option value="1" ${edition.quart==='1'?'selected':''}>Quart 1</option>
+              <option value="2" ${edition.quart==='2'?'selected':''}>Quart 2</option>
+            </select>` : `<div class="champ-readonly">Quart ${edition.quart}</div>`}
+        </div>
+      </div>
+      <label class="champ-label">Employé assigné</label>
+      <select class="champ-select" id="champEmploye" style="margin-bottom:12px;">
+        ${employesSite.map(e => `<option value="${e.id}" ${e.id===edition.employeeId?'selected':''}>${e.nom}</option>`).join('')}
+      </select>
+      <label class="champ-label">Statut du quart</label>
+      <select class="champ-select" id="champStatutShift" style="margin-bottom:16px;">
+        <option value="brouillon" ${edition.statutShift==='brouillon'?'selected':''}>Brouillon</option>
+        <option value="valide" ${edition.statutShift==='valide'?'selected':''}>Validé</option>
+      </select>
+
+      <div class="champ-sep"></div>
+      <div class="section-titre">Grattage</div>
+      ${groupes.map(g => `
+        <div class="palier-block">
+          <div class="palier-head">${fmtNum(g.prix)} €</div>
+          <div class="card">${g.items.map(j => renderJeuRowEdition(j)).join('')}</div>
+        </div>
+      `).join('')}
+
+      <div class="champ-sep"></div>
+      <div class="section-titre">Tirages</div>
+      <label class="champ-label">Total des lots payés — grattage</label>
+      <input type="number" inputmode="decimal" class="champ-input mono" id="champLotsPayes" value="${edition.lotsPayes ?? ''}" placeholder="0,00" style="margin-bottom:12px;">
+      <label class="champ-label">Caisse tirages</label>
+      <input type="number" inputmode="decimal" class="champ-input mono" id="champCaisseTirages" value="${edition.caisseTirages ?? ''}" placeholder="0,00">
+
+      <div class="champ-sep"></div>
+      <div class="section-titre">Caisse</div>
+      <label class="champ-label">Régularisations</label>
+      <input type="number" inputmode="decimal" class="champ-input mono" id="champRegul" value="${edition.regularisations ?? 0}" placeholder="0,00" style="margin-bottom:12px;">
+      <label class="champ-label">Caisse réelle comptée</label>
+      <input type="number" inputmode="decimal" class="champ-input mono" id="champCaisseReelle" value="${edition.caisseReelle ?? ''}" placeholder="0,00">
+
+      <div class="resume-card">
+        <div class="stat-row"><div class="stat-label">Ventes grattage</div><div class="stat-value">${fmtEuro(ventesGrattageTotalEdition())}</div></div>
+        <div class="stat-row"><div class="stat-label">Caisse grattage</div><div class="stat-value">${fmtEuro(caisseGrattageEdition())}</div></div>
+        <div class="stat-row total"><div class="stat-label">Caisse attendue</div><div class="stat-value cyan">${fmtEuro(attendue)}</div></div>
+        <div class="stat-row total" id="ligneEcart"><div class="stat-label">Écart</div><div class="stat-value ${classe}">${ecart !== null ? `${ecart > 0 ? '+' : ''}${fmtEuro(ecart)}` : '—'}</div></div>
+      </div>
+
+      <label class="champ-label">Statut du contrôle</label>
+      <select class="champ-select" id="champStatutCaisse" style="margin-bottom:12px;">
+        ${STATUTS_CAISSE.map(s => `<option value="${s.value}" ${s.value===edition.statutCaisse?'selected':''}>${s.label}</option>`).join('')}
+      </select>
+      <label class="champ-label">Motif de l'écart (optionnel)</label>
+      <select class="champ-select" id="champMotifEcart" style="margin-bottom:16px;">
+        ${MOTIFS_ECART_FDJ.map(m => `<option value="${m.value}" ${m.value===edition.motifEcart?'selected':''}>${m.label}</option>`).join('')}
+      </select>
+
+      <button class="btn-primary" id="btnEnregistrer">Enregistrer</button>
+      <button class="btn-ghost" id="btnAnnuler">Annuler</button>
+    `;
+
+    wireEditionInputs();
+  }
+
+  function renderJeuRowEdition(jeu) {
+    const s = edition.counts[jeu.id] || { stock_initial: null, appro: 0, stock_final: null };
+    const v = calculerVentesEdition(jeu.id);
+    return `
+      <div class="jeu-row" data-jeu="${jeu.id}">
+        <div class="jeu-nom-ligne">
+          <div class="jeu-nom">${jeu.nom}</div>
+          <div class="jeu-ventes ${v.valeur !== null ? 'calc' : ''}">${v.qte !== null ? `${fmtNum(v.qte)} · ${fmtEuro(v.valeur)}` : '—'}</div>
+        </div>
+        <div class="jeu-inputs">
+          <div class="jeu-input-wrap"><div class="jeu-input-label">Initial</div><input type="number" inputmode="decimal" class="jeu-input" data-jeu="${jeu.id}" data-champ="stock_initial" value="${s.stock_initial ?? ''}"></div>
+          <div class="jeu-input-wrap"><div class="jeu-input-label">Appro</div><input type="number" inputmode="decimal" class="jeu-input" data-jeu="${jeu.id}" data-champ="appro" value="${s.appro ?? 0}"></div>
+          <div class="jeu-input-wrap"><div class="jeu-input-label">Final</div><input type="number" inputmode="decimal" class="jeu-input" data-jeu="${jeu.id}" data-champ="stock_final" value="${s.stock_final ?? ''}"></div>
+        </div>
+      </div>
+    `;
+  }
+
+  function majResume() {
+    const attendue = caisseAttendueEdition();
+    const ecart = ecartCaisseEdition();
+    const classe = ecart === null ? '' : (ecart === 0 ? 'green' : (Math.abs(ecart) <= 1 ? 'amber' : 'red'));
+    const resume = document.querySelector('.resume-card');
+    if (!resume) return;
+    resume.innerHTML = `
+      <div class="stat-row"><div class="stat-label">Ventes grattage</div><div class="stat-value">${fmtEuro(ventesGrattageTotalEdition())}</div></div>
+      <div class="stat-row"><div class="stat-label">Caisse grattage</div><div class="stat-value">${fmtEuro(caisseGrattageEdition())}</div></div>
+      <div class="stat-row total"><div class="stat-label">Caisse attendue</div><div class="stat-value cyan">${fmtEuro(attendue)}</div></div>
+      <div class="stat-row total" id="ligneEcart"><div class="stat-label">Écart</div><div class="stat-value ${classe}">${ecart !== null ? `${ecart > 0 ? '+' : ''}${fmtEuro(ecart)}` : '—'}</div></div>
+    `;
+  }
+
+  function wireEditionInputs() {
+    if (edition.estNouveau) {
+      document.getElementById('champDate').addEventListener('change', e => edition.date = e.target.value);
+      document.getElementById('champQuart').addEventListener('change', e => edition.quart = e.target.value);
+    }
+    document.getElementById('champEmploye').addEventListener('change', e => edition.employeeId = e.target.value);
+    document.getElementById('champStatutShift').addEventListener('change', e => edition.statutShift = e.target.value);
+    document.getElementById('champStatutCaisse').addEventListener('change', e => edition.statutCaisse = e.target.value);
+    document.getElementById('champMotifEcart').addEventListener('change', e => edition.motifEcart = e.target.value);
+
+    document.querySelectorAll('.jeu-input').forEach(input => {
+      input.addEventListener('input', () => {
+        const gameId = input.dataset.jeu, champ = input.dataset.champ;
+        const val = input.value === '' ? null : Number(input.value);
+        if (!edition.counts[gameId]) edition.counts[gameId] = { stock_initial: null, appro: 0, stock_final: null };
+        edition.counts[gameId][champ] = val;
+        const row = input.closest('.jeu-row');
+        const v = calculerVentesEdition(gameId);
+        const venteEl = row.querySelector('.jeu-ventes');
+        venteEl.className = `jeu-ventes ${v.valeur !== null ? 'calc' : ''}`;
+        venteEl.textContent = v.qte !== null ? `${fmtNum(v.qte)} · ${fmtEuro(v.valeur)}` : '—';
+        majResume();
+      });
+    });
+    document.getElementById('champLotsPayes').addEventListener('input', e => { edition.lotsPayes = e.target.value === '' ? null : Number(e.target.value); majResume(); });
+    document.getElementById('champCaisseTirages').addEventListener('input', e => { edition.caisseTirages = e.target.value === '' ? null : Number(e.target.value); majResume(); });
+    document.getElementById('champRegul').addEventListener('input', e => { edition.regularisations = e.target.value === '' ? 0 : Number(e.target.value); majResume(); });
+    document.getElementById('champCaisseReelle').addEventListener('input', e => { edition.caisseReelle = e.target.value === '' ? null : Number(e.target.value); majResume(); });
+
+    document.getElementById('btnEnregistrer').addEventListener('click', enregistrerEdition);
+    document.getElementById('btnAnnuler').addEventListener('click', () => { vue = 'liste'; edition = null; renderAccueil(); });
+  }
+
+  // ------------------------------------------------------------
+  // ENREGISTREMENT — pouvoir total : écrase directement, sans étape
+  // d'approbation. Une trace reste dans fdj_audit_log (avant/après), sans
+  // jamais bloquer l'enregistrement (traçabilité, pas contrôle d'accès).
+  // ------------------------------------------------------------
+  async function enregistrerEdition() {
+    const btn = document.getElementById('btnEnregistrer');
+    btn.disabled = true;
+    btn.innerHTML = 'Enregistrement<span class="btn-loading-dots"><i></i><i></i><i></i></span>';
+
+    // 1) Résoudre le quart (existant ou nouveau).
+    let shift;
+    if (edition.shiftId) {
+      const { data, error } = await nexusClient.from('fdj_shifts')
+        .update({ employee_id: edition.employeeId, statut: edition.statutShift, valide_le: edition.statutShift === 'valide' ? new Date().toISOString() : null })
+        .eq('id', edition.shiftId).select().single();
+      if (error) { console.error('Mise à jour quart FDJ:', error); btn.disabled = false; btn.textContent = 'Enregistrer'; alert('Erreur de mise à jour du quart. Réessayez.'); return; }
+      shift = data;
+    } else {
+      const { data: existant } = await nexusClient.from('fdj_shifts').select('*').eq('site', siteId).eq('date', edition.date).eq('quart', edition.quart).maybeSingle();
+      if (existant) {
+        const { data, error } = await nexusClient.from('fdj_shifts')
+          .update({ employee_id: edition.employeeId, statut: edition.statutShift })
+          .eq('id', existant.id).select().single();
+        if (error) { console.error('Mise à jour quart FDJ existant:', error); btn.disabled = false; btn.textContent = 'Enregistrer'; return; }
+        shift = data;
+      } else {
+        const { data, error } = await nexusClient.from('fdj_shifts')
+          .insert({ site: siteId, date: edition.date, quart: edition.quart, employee_id: edition.employeeId, statut: edition.statutShift, ouvert_le: new Date().toISOString() })
+          .select().single();
+        if (error) { console.error('Création quart FDJ:', error); btn.disabled = false; btn.textContent = 'Enregistrer'; alert('Erreur de création du quart. Réessayez.'); return; }
+        shift = data;
+      }
+    }
+
+    // 2) Comptages — upsert des jeux réellement touchés par le manager.
+    const lignes = jeux.filter(j => {
+      const s = edition.counts[j.id];
+      return s && (s.stock_initial !== null || s.appro || s.stock_final !== null);
+    }).map(j => {
+      const s = edition.counts[j.id];
+      const v = calculerVentesEdition(j.id);
+      return { site: siteId, shift_id: shift.id, game_id: j.id, stock_initial: s.stock_initial, appro: s.appro || 0, stock_final: s.stock_final, ventes_qte: v.qte, ventes_valeur: v.valeur, updated_at: new Date().toISOString() };
+    });
+    if (lignes.length) {
+      const { error } = await nexusClient.from('fdj_shift_counts').upsert(lignes, { onConflict: 'shift_id,game_id' });
+      if (error) { console.error('Enregistrement comptages FDJ (manager):', error); btn.disabled = false; btn.textContent = 'Enregistrer'; alert('Erreur sur le grattage. Réessayez.'); return; }
+    }
+
+    // 3) Rapports.
+    const { error: eRep } = await nexusClient.from('fdj_reports').upsert([
+      { site: siteId, shift_id: shift.id, type_rapport: 'journalier', lots_payes_grattage: edition.lotsPayes, saisi_par: managerCourant.id },
+      { site: siteId, shift_id: shift.id, type_rapport: 'temps_reel', caisse_tirages: edition.caisseTirages, saisi_par: managerCourant.id },
+    ], { onConflict: 'shift_id,type_rapport' });
+    if (eRep) { console.error('Enregistrement rapports FDJ (manager):', eRep); btn.disabled = false; btn.textContent = 'Enregistrer'; alert('Erreur sur les tirages. Réessayez.'); return; }
+
+    // 4) Rapprochement caisse — le manager choisit lui-même le statut
+    // (pouvoir total), valide_par/valide_le posés dès qu'il enregistre ici.
+    const ecart = ecartCaisseEdition();
+    const { error: eCash } = await nexusClient.from('fdj_cash_controls').upsert({
+      site: siteId, shift_id: shift.id,
+      ventes_grattage_valeur: ventesGrattageTotalEdition(), lots_payes_grattage: edition.lotsPayes,
+      caisse_grattage: caisseGrattageEdition(), caisse_tirages: edition.caisseTirages,
+      regularisations: edition.regularisations || 0, caisse_attendue: caisseAttendueEdition(), caisse_reelle: edition.caisseReelle,
+      ecart, motif_ecart: edition.motifEcart || null, statut: edition.statutCaisse,
+      valide_par: managerCourant.id, valide_le: new Date().toISOString(), updated_at: new Date().toISOString(),
+    }, { onConflict: 'shift_id' });
+    if (eCash) { console.error('Enregistrement caisse FDJ (manager):', eCash); btn.disabled = false; btn.textContent = 'Enregistrer'; alert('Erreur sur la caisse. Réessayez.'); return; }
+
+    // 5) Trace d'audit — avant/après, jamais un écrasement silencieux même
+    // en pouvoir total.
+    await nexusClient.from('fdj_audit_log').insert({
+      site: siteId, shift_id: shift.id, entite_type: 'fdj_shift', entite_id: shift.id,
+      action: edition.estNouveau ? 'creation_manager' : 'correction_manager', acteur_id: managerCourant.id,
+      ancienne_valeur: edition.avant, nouvelle_valeur: { counts: edition.counts, lotsPayes: edition.lotsPayes, caisseTirages: edition.caisseTirages, regularisations: edition.regularisations, caisseReelle: edition.caisseReelle, statutCaisse: edition.statutCaisse, employeeId: edition.employeeId, ecart },
+    });
+
+    vue = 'liste'; edition = null;
+    renderAccueil();
+  }
+
+  // ------------------------------------------------------------
+  // INITIALISATION
+  // ------------------------------------------------------------
+  nexusRequireAuth().then(async employee => {
+    if (!employee) return;
+    if (employee.role !== 'manager' && employee.role !== 'gerant') {
+      document.body.innerHTML = '<div class="locked">Cet écran est réservé aux managers.</div>';
+      return;
+    }
+    managerCourant = employee;
+    siteId = employee.site_id || 'vito-sainte-marie';
+    if (!(await NexusForfait.nexusRequireProfessional('NEXUS-FDJ-Manager-v1.html', siteId))) return;
+    demarrerHorloge();
+    [jeux, employesSite] = await Promise.all([chargerJeux(), chargerEmployesSite()]);
+    renderAccueil();
+  });
+</script>
+</body>
+</html>

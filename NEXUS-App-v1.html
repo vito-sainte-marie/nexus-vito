@@ -761,6 +761,30 @@
         </div>
         <div class="nav-arrow">›</div>
       </a>
+      <!-- NEXUS FDJ (09/08/2026, demande de Frédéric, construit à partir de
+           NEXUS_FDJ_Audit_Complet_Developpeur.pdf et du fichier réel
+           "CAISSE JOURNIALIERE FDJ 2026.xlsx") : grattage + tirages +
+           caisse FDJ, comptage de quart avec écart toujours calculé. -->
+      <a class="nav-item" data-role="manager" data-forfait="professional" href="NEXUS-FDJ-v1.html">
+        <div class="nav-icon" style="display:flex; align-items:center; justify-content:center; font-size:20px;">🎟️</div>
+        <div class="nav-body">
+          <div class="nav-title">FDJ <span class="nav-badge badge-premium">Professional</span></div>
+          <div class="nav-desc">Grattage, tirages et caisse FDJ — écart toujours calculé</div>
+        </div>
+        <div class="nav-arrow">›</div>
+      </a>
+      <!-- Contrôle FDJ (09/08/2026, demande de Frédéric — "donne tout
+           pouvoir au manager pour modifier n'importe quelle caisse comme
+           dans Verify") : Aujourd'hui, historique, et correction directe
+           de n'importe quel quart FDJ. -->
+      <a class="nav-item" data-role="manager" data-forfait="professional" href="NEXUS-FDJ-Manager-v1.html">
+        <div class="nav-icon" style="display:flex; align-items:center; justify-content:center; font-size:20px;">🎯</div>
+        <div class="nav-body">
+          <div class="nav-title">Contrôle FDJ <span class="nav-badge badge-premium">Professional</span></div>
+          <div class="nav-desc">Historique, écarts et correction de n'importe quel quart</div>
+        </div>
+        <div class="nav-arrow">›</div>
+      </a>
       <!-- Missions (27/07/2026, demande de Frédéric) : "Plans d'action" et
            "Missions" pointaient déjà tous les deux vers cet écran — fusion
            en une seule entrée pour ne pas afficher un doublon dans Explorer
@@ -2195,6 +2219,12 @@
     { label: 'Scanner NEXUS', desc: 'CA, marge et répartition ABC du magasin', href: 'NEXUS-Scanner-v1.html', role: 'manager', forfait: 'professional' },
     { label: 'Radar du Manager', desc: '8 domaines de responsabilité', href: 'NEXUS-Radar-Manager-v1.html', role: 'manager', forfait: 'professional' },
     { label: 'Contrôle inventaire', desc: 'Écarts, comptages manquants et décisions du jour', href: 'NEXUS-Inventaire-Manager-v1.html', role: 'manager', forfait: 'professional' },
+    // NEXUS FDJ (09/08/2026, demande de Frédéric) : role 'all' — même
+    // convention que Inventaire (l'écran de comptage employé doit rester
+    // trouvable par recherche pour l'employé qui compte lui-même son quart
+    // FDJ, pas seulement pour le manager qui le consulte).
+    { label: 'FDJ', desc: 'Grattage, tirages et caisse FDJ — écart toujours calculé', href: 'NEXUS-FDJ-v1.html', role: 'all', forfait: 'professional' },
+    { label: 'Contrôle FDJ', desc: "Historique, écarts et correction de n'importe quel quart", href: 'NEXUS-FDJ-Manager-v1.html', role: 'manager', forfait: 'professional' },
     // Traçabilité (04/08/2026, demande de Frédéric) : volontairement absente
     // du tiroir de menu principal — page consultée seulement pour les
     // produits suivis par lot (SDD, presse), signalée via le Conseiller

@@ -65,6 +65,10 @@ const NEXUS_SIDEBAR_GROUPES = [
       { label: 'Verify', href: 'NEXUS-Verify-v1.html', icon: 'assets/icons/icon-nexus-verify.png' },
       { label: 'Inventaire', href: 'NEXUS-Inventaire-v1.html', icon: 'assets/icons/icon-inventaire.png' },
       { label: 'Contrôle inventaire', href: 'NEXUS-Inventaire-Manager-v1.html', icon: null, emoji: '🧭' },
+      // NEXUS FDJ (09/08/2026, demande de Frédéric) : rejoint Exécuter,
+      // juste à côté d'Inventaire — même logique de comptage de quart.
+      { label: 'FDJ', href: 'NEXUS-FDJ-v1.html', icon: null, emoji: '🎟️' },
+      { label: 'Contrôle FDJ', href: 'NEXUS-FDJ-Manager-v1.html', icon: null, emoji: '🎯' },
       { label: 'Missions', href: 'NEXUS-Missions-v1.html', icon: 'assets/icons/icon-missions.png' },
       { label: 'Assignations', href: 'NEXUS-Assignations-v1.html', icon: 'assets/icons/icon-assignations.png' },
       { label: 'Planning', href: 'NEXUS-Planning-v1.html', icon: 'assets/icons/icon-planner.png' },
