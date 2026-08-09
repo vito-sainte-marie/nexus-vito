@@ -58,5 +58,51 @@
     return Math.round((Number(caisseReelle) - attendue) * 100) / 100;
   }
 
-  global.NexusFdjMoteur = { calculerVentesJeu, ventesGrattageTotal, caisseGrattage, caisseAttendue, ecartCaisse };
+  // ------------------------------------------------------------
+  // SOLDES DE CARNETS — 09/08/2026, précision terrain de Frédéric : un
+  // transfert Bureau → Caisse n'est PAS une activation. Un carnet confié à
+  // la caisse reste "non activé" (aucun impact sur l'appro, aucun
+  // engagement financier) jusqu'à ce que la caissière l'active
+  // explicitement. NEXUS doit donc distinguer :
+  //   - OÙ est le carnet (Bureau / Caisse) — emplacement.
+  //   - DANS QUEL ÉTAT il est (non activé / activé) — engagement.
+  // Calculé ici à partir des fdj_stock_movements bruts (jamais stocké en
+  // dur), pour ne jamais dupliquer cette règle entre l'écran manager
+  // ("Réapprovisionner la caisse", type_mouvement='transfert') et l'écran
+  // employé ("Activer un carnet", type_mouvement='activation').
+  //
+  // `mouvements` : lignes brutes fdj_stock_movements (type_mouvement,
+  // quantite, game_id, location_source_id, location_destination_id).
+  // `locationCaisseId` : id de l'emplacement de type 'caisse' du site.
+  // Retourne { [game_id]: { confies, actives, nonActives } } — confies =
+  // total de carnets transférés vers la caisse (moins les retours vers le
+  // bureau), actives = total de carnets activés, nonActives = confies −
+  // actives (jamais négatif dans l'affichage, mais peut apparaître
+  // négatif ici si une activation n'a pas été précédée d'un transfert
+  // enregistré — NEXUS le signale plutôt que de le masquer).
+  function soldesCarnetsParJeu(mouvements, locationCaisseId) {
+    const soldes = {};
+    const assurer = (id) => {
+      if (!soldes[id]) soldes[id] = { confies: 0, actives: 0, nonActives: 0 };
+      return soldes[id];
+    };
+    (mouvements || []).forEach(m => {
+      const qte = Number(m.quantite) || 0;
+      if (m.type_mouvement === 'transfert' && m.location_destination_id === locationCaisseId) {
+        assurer(m.game_id).confies += qte;
+      } else if (m.type_mouvement === 'activation') {
+        assurer(m.game_id).actives += qte;
+      } else if (m.type_mouvement === 'retour' && m.location_source_id === locationCaisseId) {
+        assurer(m.game_id).confies -= qte;
+      }
+    });
+    Object.values(soldes).forEach(s => { s.nonActives = s.confies - s.actives; });
+    return soldes;
+  }
+  function soldeCarnetsJeu(mouvements, locationCaisseId, gameId) {
+    const soldes = soldesCarnetsParJeu(mouvements, locationCaisseId);
+    return soldes[gameId] || { confies: 0, actives: 0, nonActives: 0 };
+  }
+
+  global.NexusFdjMoteur = { calculerVentesJeu, ventesGrattageTotal, caisseGrattage, caisseAttendue, ecartCaisse, soldesCarnetsParJeu, soldeCarnetsJeu };
 })(typeof window !== 'undefined' ? window : globalThis);

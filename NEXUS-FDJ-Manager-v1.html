@@ -186,7 +186,9 @@
   let siteId = 'vito-sainte-marie';
   let jeux = [];
   let employesSite = [];
-  let vue = 'liste'; // 'liste' | 'edition'
+  let emplacements = [];
+  let reappro = null; // état de saisie de l'écran "Réapprovisionner la caisse"
+  let vue = 'liste'; // 'liste' | 'edition' | 'reappro'
 
   // État du formulaire d'édition en cours (nouveau OU existant).
   let edition = null;
@@ -234,6 +236,81 @@
     { value: 'non_explique', label: 'Je ne sais pas' },
   ];
   function labelStatutCaisse(v) { const s = STATUTS_CAISSE.find(x => x.value === v); return s ? s.label : v; }
+  function labelMotifEcart(v) { const m = MOTIFS_ECART_FDJ.find(x => x.value === v); return m ? m.label : v; }
+
+  // ------------------------------------------------------------
+  // HISTORIQUE DES CORRECTIONS — 09/08/2026, demande de Frédéric :
+  // "pouvoir corriger ne doit pas signifier pouvoir effacer la vérité
+  // précédente". fdj_audit_log enregistre déjà un instantané complet
+  // avant/après à chaque enregistrement manager (voir enregistrerEdition) ;
+  // ce qui manquait, c'est un endroit où le relire. Ces fonctions comparent
+  // les deux instantanés champ par champ et n'affichent que ce qui a
+  // réellement changé — le manager garde 100% de son pouvoir (écriture
+  // directe, sans workflow d'approbation), NEXUS garde 100% de sa mémoire.
+  // ------------------------------------------------------------
+  const LABELS_AUDIT_FDJ = {
+    date: 'Date', quart: 'Quart', employeeId: 'Employé assigné',
+    lotsPayes: 'Lots payés', caisseTirages: 'Caisse tirages', regularisations: 'Régularisations',
+    caisseReelle: 'Caisse réelle', statutCaisse: 'Statut de la caisse', motifEcart: 'Motif', ecart: 'Écart',
+  };
+  function formatValeurAuditFdj(champ, valeur) {
+    if (valeur === null || valeur === undefined || valeur === '') return '—';
+    if (champ === 'employeeId') { const e = employesSite.find(x => x.id === valeur); return e ? e.nom : valeur; }
+    if (champ === 'date') { try { return new Date(valeur + 'T00:00:00').toLocaleDateString('fr-FR'); } catch (e) { return valeur; } }
+    if (champ === 'quart') return `Quart ${valeur}`;
+    if (champ === 'statutCaisse') return labelStatutCaisse(valeur);
+    if (champ === 'motifEcart') return labelMotifEcart(valeur);
+    if (['lotsPayes', 'caisseTirages', 'regularisations', 'caisseReelle', 'ecart'].includes(champ)) return fmtEuro(valeur);
+    return String(valeur);
+  }
+  function diffAuditFdj(avant, apres) {
+    const champs = ['date', 'quart', 'employeeId', 'lotsPayes', 'caisseTirages', 'regularisations', 'caisseReelle', 'statutCaisse', 'motifEcart', 'ecart'];
+    const diffs = [];
+    champs.forEach(c => {
+      const a = avant ? avant[c] : undefined;
+      const b = apres ? apres[c] : undefined;
+      if (JSON.stringify(a ?? null) !== JSON.stringify(b ?? null)) diffs.push({ champ: c, avant: a, apres: b });
+    });
+    if (avant && apres && avant.counts && apres.counts) {
+      let n = 0;
+      const ids = new Set([...Object.keys(avant.counts || {}), ...Object.keys(apres.counts || {})]);
+      ids.forEach(id => { if (JSON.stringify(avant.counts[id] ?? null) !== JSON.stringify(apres.counts[id] ?? null)) n++; });
+      if (n > 0) diffs.push({ champ: 'counts', resume: `${n} jeu${n > 1 ? 'x' : ''} de grattage modifié${n > 1 ? 's' : ''}` });
+    }
+    return diffs;
+  }
+  function renderHistoriqueAuditFdj() {
+    if (!edition.historiqueAudit || !edition.historiqueAudit.length) return '';
+    return `
+      <div class="champ-sep"></div>
+      <div class="section-titre">Historique des corrections</div>
+      <div class="card" style="margin-bottom:16px;">
+        ${edition.historiqueAudit.map(a => renderEntreeAuditFdj(a)).join('')}
+      </div>
+    `;
+  }
+  function renderEntreeAuditFdj(a) {
+    const acteur = employesSite.find(e => e.id === a.acteur_id);
+    const diffs = diffAuditFdj(a.ancienne_valeur, a.nouvelle_valeur);
+    const dateFmt = new Date(a.date_action).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    const libelleAction = a.action === 'creation_manager' ? 'Création' : (a.action === 'correction_manager' ? 'Correction' : a.action);
+    return `
+      <div class="jeu-row">
+        <div class="jeu-nom-ligne"><div class="jeu-nom">${libelleAction} — ${dateFmt}</div></div>
+        <div class="jeu-ventes" style="margin-bottom:8px;">Par ${acteur ? acteur.nom : 'Manager'}</div>
+        ${diffs.length
+          ? diffs.map(d => `
+            <div class="stat-row" style="border:none; padding:3px 0;">
+              <div class="stat-label">${d.resume ? 'Grattage' : (LABELS_AUDIT_FDJ[d.champ] || d.champ)}</div>
+              <div class="stat-value" style="font-size:12.5px; text-align:right;">${d.resume ? d.resume : `${formatValeurAuditFdj(d.champ, d.avant)} → ${formatValeurAuditFdj(d.champ, d.apres)}`}</div>
+            </div>
+          `).join('')
+          : '<div class="stat-row" style="border:none; padding:3px 0; color:var(--text-dim); font-size:12px;">Aucun changement de valeur détecté.</div>'
+        }
+        ${a.motif ? `<div class="champ-note" style="margin:8px 0 0;">Motif : ${labelMotifEcart(a.motif)}</div>` : ''}
+      </div>
+    `;
+  }
 
   async function chargerJeux() {
     const { data, error } = await nexusClient.from('fdj_games').select('*').eq('site', siteId).eq('actif', true).order('ordre_affichage', { ascending: true });
@@ -248,6 +325,24 @@
   function nomEmploye(id) {
     const e = employesSite.find(x => x.id === id);
     return e ? e.nom : '—';
+  }
+  async function chargerEmplacements() {
+    const { data, error } = await nexusClient.from('fdj_locations').select('*').eq('site', siteId).eq('actif', true);
+    if (error) { console.error('Chargement emplacements FDJ:', error); return []; }
+    return data || [];
+  }
+  function emplacementParType(type) {
+    return emplacements.find(e => e.type === type) || null;
+  }
+  // Solde confiés/activés/non-activés (09/08/2026, précision de Frédéric :
+  // un transfert Bureau → Caisse n'est jamais une activation) — calculé via
+  // NexusFdjMoteur.soldesCarnetsParJeu, jamais dupliqué avec l'écran
+  // employé. Relit tout l'historique fdj_stock_movements du site : volume
+  // faible en V1, à revoir (agrégation serveur) si ça grossit beaucoup.
+  async function chargerMouvementsStock() {
+    const { data, error } = await nexusClient.from('fdj_stock_movements').select('type_mouvement, quantite, game_id, location_source_id, location_destination_id').eq('site', siteId);
+    if (error) { console.error('Chargement mouvements stock FDJ:', error); return []; }
+    return data || [];
   }
 
   // ------------------------------------------------------------
@@ -384,6 +479,10 @@
       </div>
       <button class="btn-nouveau" id="btnNouveauQuart">+ Nouveau quart FDJ</button>
 
+      <div class="section-titre">Stock FDJ</div>
+      <button class="btn-nouveau" id="btnReappro" style="color:var(--gold); border-color:rgba(212,175,55,0.4); background:rgba(212,175,55,0.06);">🔁 Réapprovisionner la caisse</button>
+      <div class="champ-note">Bureau → Caisse : les carnets confiés restent non activés, aucun impact sur l'appro tant que la caissière ne les active pas.</div>
+
       <div class="section-titre">Historique</div>
       <div class="card" id="listeHistorique">
         ${historique.length ? historique.map((s, i) => renderHistoItem(s, i)).join('') : '<div class="empty">Aucun quart FDJ enregistré pour l’instant.</div>'}
@@ -391,6 +490,7 @@
     `;
 
     document.getElementById('btnNouveauQuart').addEventListener('click', () => ouvrirEditionNouveau());
+    document.getElementById('btnReappro').addEventListener('click', () => ouvrirReappro());
     if (quart1) document.getElementById(`carteQuart1`).addEventListener('click', () => ouvrirEditionExistant(quart1));
     if (quart2) document.getElementById(`carteQuart2`).addEventListener('click', () => ouvrirEditionExistant(quart2));
 
@@ -464,6 +564,91 @@
   }
 
   // ------------------------------------------------------------
+  // RÉAPPROVISIONNER LA CAISSE — Bureau → Caisse, "non activé". 09/08/2026,
+  // précision de Frédéric : ce transfert n'est PAS une activation. Le
+  // carnet reste sous contrôle, non engagé financièrement, tant que la
+  // caissière ne l'a pas activé explicitement (voir "Activer un carnet"
+  // côté NEXUS-FDJ-v1.html). Donc ici : aucun impact sur l'appro, aucun
+  // shift_id — juste un déplacement physique Bureau → Caisse tracé dans
+  // fdj_stock_movements(type_mouvement='transfert').
+  // ------------------------------------------------------------
+  async function ouvrirReappro() {
+    document.getElementById('content').innerHTML = '<div class="loading">Chargement…</div>';
+    if (!jeux.length) jeux = await chargerJeux();
+    if (!emplacements.length) emplacements = await chargerEmplacements();
+    const mouvements = await chargerMouvementsStock();
+    const caisse = emplacementParType('caisse');
+    reappro = {
+      soldes: NexusFdjMoteur.soldesCarnetsParJeu(mouvements, caisse ? caisse.id : null),
+      quantites: {},
+    };
+    vue = 'reappro';
+    renderReappro();
+  }
+
+  function renderReappro() {
+    document.getElementById('titre').textContent = 'Réapprovisionner la caisse';
+    document.getElementById('sousTitre').textContent = 'Bureau → Caisse. Les carnets confiés restent non activés — aucun impact sur l\'appro tant qu\'ils ne sont pas activés en caisse.';
+    const groupes = grouperParPalier(jeux);
+    document.getElementById('content').innerHTML = `
+      <button type="button" class="btn-retour-fleche" id="btnRetourReappro">← Retour</button>
+      ${groupes.map(g => `
+        <div class="palier-block">
+          <div class="palier-head">${fmtNum(g.prix)} €</div>
+          <div class="card">${g.items.map(j => renderJeuReappro(j)).join('')}</div>
+        </div>
+      `).join('')}
+      <button class="btn-primary" id="btnConfirmerReappro">Confirmer le réapprovisionnement</button>
+      <button class="btn-ghost" id="btnAnnulerReappro">Annuler</button>
+    `;
+    document.getElementById('btnRetourReappro').addEventListener('click', () => { vue = 'liste'; reappro = null; renderAccueil(); });
+    document.getElementById('btnAnnulerReappro').addEventListener('click', () => { vue = 'liste'; reappro = null; renderAccueil(); });
+    document.querySelectorAll('.champ-qte-reappro').forEach(input => {
+      input.addEventListener('input', () => { reappro.quantites[input.dataset.jeu] = input.value === '' ? 0 : Math.max(0, parseInt(input.value, 10) || 0); });
+    });
+    document.getElementById('btnConfirmerReappro').addEventListener('click', enregistrerReappro);
+  }
+
+  function renderJeuReappro(jeu) {
+    const solde = (reappro.soldes[jeu.id]) || { confies: 0, actives: 0, nonActives: 0 };
+    return `
+      <div class="jeu-row">
+        <div class="jeu-nom-ligne">
+          <div class="jeu-nom">${jeu.nom}</div>
+          <div class="jeu-ventes ${solde.nonActives <= 0 ? 'anomalie' : 'calc'}">${solde.nonActives} non activé${Math.abs(solde.nonActives) > 1 ? 's' : ''} en caisse</div>
+        </div>
+        <div class="jeu-inputs">
+          <div class="jeu-input-wrap" style="flex:1;">
+            <div class="jeu-input-label">Carnets à transférer</div>
+            <input type="number" inputmode="numeric" min="0" step="1" class="jeu-input champ-qte-reappro" data-jeu="${jeu.id}" value="">
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  async function enregistrerReappro() {
+    const btn = document.getElementById('btnConfirmerReappro');
+    const bureau = emplacementParType('bureau');
+    const caisse = emplacementParType('caisse');
+    const lignes = Object.entries(reappro.quantites)
+      .filter(([, qte]) => qte > 0)
+      .map(([gameId, qte]) => ({
+        site: siteId, game_id: gameId, type_mouvement: 'transfert', quantite: qte,
+        location_source_id: bureau ? bureau.id : null, location_destination_id: caisse ? caisse.id : null,
+        methode_identification: 'quantite', booklet_id: null, employee_id: managerCourant.id,
+        justification: `Réapprovisionnement caisse — carnets non activés (manager).`,
+      }));
+    if (!lignes.length) { alert('Indiquez au moins un jeu avec une quantité à transférer.'); return; }
+    btn.disabled = true;
+    btn.innerHTML = 'Enregistrement<span class="btn-loading-dots"><i></i><i></i><i></i></span>';
+    const { error } = await nexusClient.from('fdj_stock_movements').insert(lignes);
+    if (error) { console.error('Réapprovisionnement caisse FDJ:', error); btn.disabled = false; btn.textContent = 'Confirmer le réapprovisionnement'; alert("Erreur d'enregistrement. Réessayez."); return; }
+    vue = 'liste'; reappro = null;
+    renderAccueil();
+  }
+
+  // ------------------------------------------------------------
   // OUVERTURE DE L'ÉDITION (nouveau ou existant)
   // ------------------------------------------------------------
   async function ouvrirEditionNouveau() {
@@ -471,7 +656,7 @@
     edition = {
       shiftId: null, date: dateISO(), quart: '1', employeeId: employesSite[0] ? employesSite[0].id : null,
       statutShift: 'brouillon', counts: {}, stockInitialAuto: {}, lotsPayes: null, caisseTirages: null, regularisations: 0,
-      caisseReelle: null, motifEcart: '', statutCaisse: 'provisoire', avant: null, estNouveau: true,
+      caisseReelle: null, motifEcart: '', statutCaisse: 'provisoire', avant: null, estNouveau: true, historiqueAudit: [],
     };
     jeux.forEach(j => { edition.counts[j.id] = { stock_initial: null, appro: 0, stock_final: null }; });
     // Préremplissage (09/08/2026, demande de Frédéric) : un quart tout
@@ -483,11 +668,19 @@
     renderEdition();
   }
 
+  async function chargerHistoriqueAudit(shiftId) {
+    if (!shiftId) return [];
+    const { data, error } = await nexusClient.from('fdj_audit_log').select('*').eq('shift_id', shiftId).order('date_action', { ascending: false });
+    if (error) { console.error('Chargement historique audit FDJ:', error); return []; }
+    return data || [];
+  }
+
   async function ouvrirEditionExistant(shift) {
     document.getElementById('content').innerHTML = '<div class="loading">Chargement du quart…</div>';
-    const [{ data: counts }, { data: reports }] = await Promise.all([
+    const [{ data: counts }, { data: reports }, historiqueAudit] = await Promise.all([
       nexusClient.from('fdj_shift_counts').select('*').eq('shift_id', shift.id),
       nexusClient.from('fdj_reports').select('*').eq('shift_id', shift.id),
+      chargerHistoriqueAudit(shift.id),
     ]);
     const countsMap = {};
     jeux.forEach(j => { countsMap[j.id] = { stock_initial: null, appro: 0, stock_final: null }; });
@@ -506,10 +699,15 @@
       motifEcart: cash ? (cash.motif_ecart || '') : '',
       statutCaisse: cash ? cash.statut : 'provisoire',
       estNouveau: false,
+      historiqueAudit,
     };
     // Instantané "avant" pour la trace d'audit — jamais un écrasement
     // silencieux, même en pouvoir total (Constitution NEXUS, traçabilité).
-    edition.avant = JSON.parse(JSON.stringify({ date: edition.date, quart: edition.quart, counts: countsMap, lotsPayes: edition.lotsPayes, caisseTirages: edition.caisseTirages, regularisations: edition.regularisations, caisseReelle: edition.caisseReelle, statutCaisse: edition.statutCaisse, employeeId: edition.employeeId }));
+    // 09/08/2026, demande de Frédéric : "pouvoir corriger ne doit pas
+    // signifier pouvoir effacer la vérité précédente" — motifEcart est
+    // désormais inclus dans l'instantané (il manquait), sinon un
+    // changement de motif seul ne laissait aucune trace.
+    edition.avant = JSON.parse(JSON.stringify({ date: edition.date, quart: edition.quart, counts: countsMap, lotsPayes: edition.lotsPayes, caisseTirages: edition.caisseTirages, regularisations: edition.regularisations, caisseReelle: edition.caisseReelle, statutCaisse: edition.statutCaisse, motifEcart: edition.motifEcart, employeeId: edition.employeeId }));
     // Préremplissage des seules cases encore vides (09/08/2026, demande de
     // Frédéric) : "j'ai l'historique du quart 1, si je modifie le quart 2,
     // mets automatiquement le stock de fin du quart 1 au stock de départ
@@ -621,6 +819,8 @@
       <select class="champ-select" id="champMotifEcart" style="margin-bottom:16px;">
         ${MOTIFS_ECART_FDJ.map(m => `<option value="${m.value}" ${m.value===edition.motifEcart?'selected':''}>${m.label}</option>`).join('')}
       </select>
+
+      ${renderHistoriqueAuditFdj()}
 
       <button class="btn-primary" id="btnEnregistrer">Enregistrer</button>
       <button class="btn-ghost" id="btnAnnuler">Annuler</button>
@@ -796,11 +996,15 @@
     if (eCash) { console.error('Enregistrement caisse FDJ (manager):', eCash); btn.disabled = false; btn.textContent = 'Enregistrer'; alert('Erreur sur la caisse. Réessayez.'); return; }
 
     // 5) Trace d'audit — avant/après, jamais un écrasement silencieux même
-    // en pouvoir total.
+    // en pouvoir total. 09/08/2026, demande de Frédéric : "pouvoir corriger
+    // ne doit pas signifier pouvoir effacer la vérité précédente" — motif
+    // désormais inclus (colonne dédiée + instantanés), sinon un changement
+    // de motif seul ne laissait aucune trace.
     await nexusClient.from('fdj_audit_log').insert({
       site: siteId, shift_id: shift.id, entite_type: 'fdj_shift', entite_id: shift.id,
       action: edition.estNouveau ? 'creation_manager' : 'correction_manager', acteur_id: managerCourant.id,
-      ancienne_valeur: edition.avant, nouvelle_valeur: { date: edition.date, quart: edition.quart, counts: edition.counts, lotsPayes: edition.lotsPayes, caisseTirages: edition.caisseTirages, regularisations: edition.regularisations, caisseReelle: edition.caisseReelle, statutCaisse: edition.statutCaisse, employeeId: edition.employeeId, ecart },
+      motif: edition.motifEcart || null,
+      ancienne_valeur: edition.avant, nouvelle_valeur: { date: edition.date, quart: edition.quart, counts: edition.counts, lotsPayes: edition.lotsPayes, caisseTirages: edition.caisseTirages, regularisations: edition.regularisations, caisseReelle: edition.caisseReelle, statutCaisse: edition.statutCaisse, motifEcart: edition.motifEcart, employeeId: edition.employeeId, ecart },
     });
 
     vue = 'liste'; edition = null;

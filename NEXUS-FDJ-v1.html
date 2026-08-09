@@ -194,6 +194,7 @@
   let quartActuel = null;      // '1' | '2'
   let shiftRow = null;         // ligne fdj_shifts
   let jeux = [];                // catalogue fdj_games actif, trié ordre_affichage
+  let emplacements = [];        // catalogue fdj_locations du site (Bureau, Caisse…)
   let dernierStockFinal = {};   // game_id -> stock_final du quart précédent validé
   let dernierShiftPrecedentId = null; // id du quart précédent (pour l'alerte si le stock initial hérité est modifié)
   let countsSaisie = {};        // game_id -> { stock_initial, appro, stock_final }
@@ -202,6 +203,7 @@
   let regularisations = 0;
   let caisseReelle = null;
   let carnetsDeclaresCeQuart = 0; // compteur d'affichage seulement (session en cours), pas persisté
+  let soldesCarnets = {};       // game_id -> { confies, actives, nonActives } — voir NexusFdjMoteur.soldesCarnetsParJeu
   // 'accueil' | 'ouverture' | 'carnet' | 'grattage' | 'tirages' | 'caisse' | 'resume'
   //
   // 09/08/2026 (demande de Frédéric) — le quart FDJ employé se scinde
@@ -302,6 +304,51 @@
     const { data, error } = await nexusClient.from('fdj_games').select('*').eq('site', siteId).eq('actif', true).order('ordre_affichage', { ascending: true });
     if (error) { console.error('Chargement jeux FDJ:', error); return []; }
     return data || [];
+  }
+
+  async function chargerEmplacements() {
+    const { data, error } = await nexusClient.from('fdj_locations').select('*').eq('site', siteId).eq('actif', true);
+    if (error) { console.error('Chargement emplacements FDJ:', error); return []; }
+    return data || [];
+  }
+  function emplacementParType(type) {
+    return emplacements.find(e => e.type === type) || null;
+  }
+
+  // Solde confiés/activés/non-activés (09/08/2026, précision de Frédéric :
+  // un transfert Bureau → Caisse n'est jamais une activation) — calculé via
+  // NexusFdjMoteur.soldesCarnetsParJeu, jamais dupliqué avec l'écran
+  // manager ("Réapprovisionner la caisse").
+  async function chargerMouvementsStock() {
+    const { data, error } = await nexusClient.from('fdj_stock_movements').select('type_mouvement, quantite, game_id, location_source_id, location_destination_id').eq('site', siteId);
+    if (error) { console.error('Chargement mouvements stock FDJ:', error); return []; }
+    return data || [];
+  }
+
+  // Ajoute automatiquement les tickets d'un carnet à l'appro du quart en
+  // cours — 09/08/2026, demande de Frédéric, à partir du fichier réel
+  // "Inventaire Grattage – Gamme Intégrale_0.xlsx" (colonne "Nb de tickets
+  // par livret") : l'employé n'a plus besoin de connaître ou retaper ce
+  // chiffre à la clôture, ce qui évite les erreurs de saisie. Lit d'abord
+  // la ligne existante (peut ne pas exister si l'ouverture n'a pas encore
+  // été validée pour ce jeu) pour ne jamais écraser stock_initial/final.
+  async function incrementerApproAutomatique(gameId, quantiteTickets) {
+    const { data: existant, error: eLecture } = await nexusClient.from('fdj_shift_counts').select('*').eq('shift_id', shiftRow.id).eq('game_id', gameId).maybeSingle();
+    if (eLecture) { console.error('Lecture comptage FDJ (appro auto):', eLecture); return null; }
+    const approActuel = (existant && existant.appro !== null && existant.appro !== undefined) ? Number(existant.appro) : 0;
+    const nouvelAppro = approActuel + quantiteTickets;
+    const { error } = await nexusClient.from('fdj_shift_counts').upsert({
+      site: siteId, shift_id: shiftRow.id, game_id: gameId,
+      stock_initial: existant ? existant.stock_initial : null,
+      appro: nouvelAppro,
+      stock_final: existant ? existant.stock_final : null,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'shift_id,game_id' });
+    if (error) { console.error('Incrément appro automatique FDJ:', error); return null; }
+    // Répercute en mémoire tout de suite si la clôture est déjà chargée.
+    if (countsSaisie[gameId]) countsSaisie[gameId].appro = nouvelAppro;
+    else countsSaisie[gameId] = { stock_initial: existant ? existant.stock_initial : null, appro: nouvelAppro, stock_final: null };
+    return nouvelAppro;
   }
 
   // Stock initial = stock final du dernier quart FDJ validé (chaîne
@@ -431,10 +478,10 @@
           </div>
         </div>
         <div class="choix-card" id="carteCarnet">
-          <div class="choix-icone">📦</div>
+          <div class="choix-icone">🔓</div>
           <div style="flex:1;">
-            <div class="choix-titre">Déclarer un carnet ouvert</div>
-            <div class="choix-sub">À chaque nouveau carnet entamé pendant le quart.</div>
+            <div class="choix-titre">Activer un carnet</div>
+            <div class="choix-sub">Quand vous entamez un nouveau carnet confié par le manager.</div>
           </div>
         </div>
         <div class="choix-card ${(!ouvertureFaite || clotureFaite) ? 'disabled' : ''}" id="carteCloture">
@@ -604,60 +651,110 @@
   }
 
   // ------------------------------------------------------------
-  // CARNET OUVERT — déclaration libre, utilisable à tout moment du quart,
-  // indépendante de l'ouverture/clôture (09/08/2026, demande de Frédéric).
+  // ACTIVER UN CARNET — utilisable à tout moment du quart, indépendant de
+  // l'ouverture/clôture. 09/08/2026, précision de Frédéric : un transfert
+  // Bureau → Caisse (fait par le manager, voir NEXUS-FDJ-Manager-v1.html
+  // "Réapprovisionner la caisse") n'est PAS une activation — le carnet
+  // reste non engagé financièrement tant qu'il n'est pas activé ici, en
+  // caisse. C'est SEULEMENT cette action qui ajoute les tickets à l'appro
+  // et qui doit s'écrire type_mouvement='activation'.
   // ------------------------------------------------------------
   async function demarrerCarnet() {
     document.getElementById('content').innerHTML = '<div class="loading">Chargement des jeux…</div>';
     if (!jeux.length) jeux = await chargerJeux();
+    if (!emplacements.length) emplacements = await chargerEmplacements();
+    const mouvements = await chargerMouvementsStock();
+    const caisse = emplacementParType('caisse');
+    soldesCarnets = NexusFdjMoteur.soldesCarnetsParJeu(mouvements, caisse ? caisse.id : null);
     phase = 'carnet';
     renderCarnet();
   }
 
   function renderCarnet() {
-    document.getElementById('titre').textContent = 'Carnet ouvert';
-    document.getElementById('sousTitre').textContent = 'Touchez un jeu à chaque nouveau carnet entamé pendant le quart.';
+    document.getElementById('titre').textContent = 'Activer un carnet';
+    document.getElementById('sousTitre').textContent = 'Touchez un jeu quand vous entamez un carnet confié par le manager — les carnets non activés ne comptent pas encore comme engagés.';
     const groupes = grouperParPalier(jeux);
     document.getElementById('content').innerHTML = `
-      <div class="etat-banner" id="compteurCarnets">${carnetsDeclaresCeQuart} carnet${carnetsDeclaresCeQuart > 1 ? 's' : ''} déclaré${carnetsDeclaresCeQuart > 1 ? 's' : ''} depuis l'ouverture de cette page.</div>
+      <div class="etat-banner" id="compteurCarnets">${carnetsDeclaresCeQuart} carnet${carnetsDeclaresCeQuart > 1 ? 's' : ''} activé${carnetsDeclaresCeQuart > 1 ? 's' : ''} depuis l'ouverture de cette page.</div>
       ${groupes.map(g => `
         <div class="palier-block">
           <div class="palier-head">${fmtNum(g.prix)} €</div>
-          <div class="card">${g.items.map(j => `
-            <div class="jeu-row" style="display:flex; align-items:center; justify-content:space-between; cursor:pointer;" data-carnet-jeu="${j.id}">
-              <div class="jeu-nom">${j.nom}</div>
-              <div class="jeu-ventes calc" data-carnet-label="${j.id}">+ Carnet</div>
-            </div>
-          `).join('')}</div>
+          <div class="card">${g.items.map(j => renderJeuActivation(j)).join('')}</div>
         </div>
       `).join('')}
       <button class="btn-ghost" id="btnRetourAccueilCarnet">Retour à l'accueil</button>
     `;
-    document.querySelectorAll('[data-carnet-jeu]').forEach(row => row.addEventListener('click', () => declarerCarnet(row.dataset.carnetJeu)));
+    document.querySelectorAll('[data-carnet-jeu]').forEach(row => row.addEventListener('click', () => activerCarnet(row.dataset.carnetJeu)));
     document.getElementById('btnRetourAccueilCarnet').addEventListener('click', () => { phase = 'accueil'; renderAccueil(); });
   }
 
-  async function declarerCarnet(gameId) {
-    const label = document.querySelector(`[data-carnet-label="${gameId}"]`);
+  function renderJeuActivation(jeu) {
+    const solde = soldesCarnets[jeu.id] || { confies: 0, actives: 0, nonActives: 0 };
+    const sansStock = solde.nonActives <= 0;
+    return `
+      <div class="jeu-row" style="display:flex; align-items:center; justify-content:space-between; cursor:pointer;" data-carnet-jeu="${jeu.id}">
+        <div>
+          <div class="jeu-nom">${jeu.nom}</div>
+          <div class="jeu-ventes ${sansStock ? 'anomalie' : ''}" style="margin-top:2px;" data-carnet-solde="${jeu.id}">${solde.nonActives} non activé${Math.abs(solde.nonActives) > 1 ? 's' : ''} en caisse${jeu.tickets_par_carnet ? ` · ${fmtNum(jeu.tickets_par_carnet)} tickets/carnet` : ''}</div>
+        </div>
+        <div class="jeu-ventes calc" data-carnet-label="${jeu.id}" style="white-space:nowrap; margin-left:10px;">Activer</div>
+      </div>
+    `;
+  }
+
+  // V1 sans scanner ni numéro de carnet saisi → methode_identification =
+  // 'quantite', booklet_id reste null (aucun carnet précis identifié).
+  // L'activation se fait "sur place" en caisse : source et destination
+  // sont toutes les deux Caisse — ce n'est pas un déplacement physique,
+  // seul l'état du carnet change (non activé → activé).
+  async function activerCarnet(gameId) {
     const jeu = jeux.find(j => j.id === gameId);
+    const solde = soldesCarnets[gameId] || { confies: 0, actives: 0, nonActives: 0 };
+    if (solde.nonActives <= 0) {
+      const message = `Aucun carnet non activé de ${jeu ? jeu.nom : 'ce jeu'} n'est actuellement confié à la caisse selon NEXUS (demandez un réapprovisionnement au manager si besoin). Activer quand même ?`;
+      if (!confirm(message)) return;
+    }
+    const label = document.querySelector(`[data-carnet-label="${gameId}"]`);
+    const ticketsParCarnet = (jeu && jeu.tickets_par_carnet !== null && jeu.tickets_par_carnet !== undefined) ? Number(jeu.tickets_par_carnet) : null;
     if (label) label.textContent = '…';
+    const caisse = emplacementParType('caisse');
     const { error } = await nexusClient.from('fdj_stock_movements').insert({
-      site: siteId, game_id: gameId, type_mouvement: 'activation', quantite: 1, employee_id: employeeCourant.id,
-      justification: `Carnet ouvert déclaré en cours de quart (${shiftRow.date} · Quart ${shiftRow.quart}).`,
+      site: siteId, game_id: gameId, shift_id: shiftRow.id, type_mouvement: 'activation', quantite: 1,
+      location_source_id: caisse ? caisse.id : null, location_destination_id: caisse ? caisse.id : null,
+      methode_identification: 'quantite', booklet_id: null, employee_id: employeeCourant.id,
+      justification: `Carnet activé en cours de quart (${shiftRow.date} · Quart ${shiftRow.quart}).${ticketsParCarnet ? ` +${ticketsParCarnet} tickets ajoutés automatiquement à l'appro (Nb de tickets par livret).` : ' Quantité par carnet inconnue pour ce jeu — appro à saisir à la main à la clôture.'}`,
     });
     if (error) {
-      console.error('Déclaration carnet ouvert FDJ:', error);
-      if (label) label.textContent = '+ Carnet';
+      console.error('Activation carnet FDJ:', error);
+      if (label) label.textContent = 'Activer';
       alert("Erreur d'enregistrement. Réessayez.");
       return;
     }
+
+    // Ajoute automatiquement les tickets du carnet à l'appro du quart —
+    // évite à l'employé de devoir connaître/retaper ce chiffre à la
+    // clôture (09/08/2026, demande de Frédéric, à partir du fichier réel
+    // "Inventaire Grattage – Gamme Intégrale_0.xlsx"). C'est bien
+    // uniquement ICI, à l'activation, que l'appro bouge — jamais au
+    // transfert Bureau → Caisse.
+    if (ticketsParCarnet) await incrementerApproAutomatique(gameId, ticketsParCarnet);
+
+    solde.actives += 1;
+    solde.nonActives = solde.confies - solde.actives;
+    soldesCarnets[gameId] = solde;
+    const soldeEl = document.querySelector(`[data-carnet-solde="${gameId}"]`);
+    if (soldeEl) {
+      soldeEl.textContent = `${solde.nonActives} non activé${Math.abs(solde.nonActives) > 1 ? 's' : ''} en caisse${jeu && jeu.tickets_par_carnet ? ` · ${fmtNum(jeu.tickets_par_carnet)} tickets/carnet` : ''}`;
+      soldeEl.classList.toggle('anomalie', solde.nonActives <= 0);
+    }
+
     carnetsDeclaresCeQuart++;
     const compteur = document.getElementById('compteurCarnets');
-    if (compteur) compteur.textContent = `${carnetsDeclaresCeQuart} carnet${carnetsDeclaresCeQuart > 1 ? 's' : ''} déclaré${carnetsDeclaresCeQuart > 1 ? 's' : ''} depuis l'ouverture de cette page.`;
+    if (compteur) compteur.textContent = `${carnetsDeclaresCeQuart} carnet${carnetsDeclaresCeQuart > 1 ? 's' : ''} activé${carnetsDeclaresCeQuart > 1 ? 's' : ''} depuis l'ouverture de cette page.`;
     if (label) {
-      label.textContent = '✓ Noté';
+      label.textContent = ticketsParCarnet ? `✓ +${ticketsParCarnet} tickets` : '✓ Activé (manuel)';
       label.style.color = 'var(--green)';
-      setTimeout(() => { if (label) { label.textContent = '+ Carnet'; label.style.color = ''; } }, 900);
+      setTimeout(() => { if (label) { label.textContent = 'Activer'; label.style.color = ''; } }, 1400);
     }
   }
 
@@ -674,11 +771,15 @@
     phase = 'grattage';
     const draft = chargerDraft('cloture');
     if (draft) {
-      // Le stock de départ reste celui validé à l'ouverture — seuls appro
-      // et stock final se reprennent depuis le brouillon de clôture.
+      // Le stock de départ reste celui validé à l'ouverture. L'appro n'est
+      // PAS repris du brouillon local : depuis qu'un carnet ouvert peut
+      // l'incrémenter automatiquement en base pendant que l'employé est
+      // sorti de cet écran (09/08/2026), seule la valeur fraîche de la
+      // base fait foi pour l'appro — sinon un brouillon local périmé
+      // écraserait silencieusement les tickets ajoutés entre-temps. Seul
+      // le stock final (jamais touché ailleurs) se reprend du brouillon.
       Object.keys(draft.countsSaisie || {}).forEach(gid => {
         if (!countsSaisie[gid]) countsSaisie[gid] = { stock_initial: null, appro: 0, stock_final: null };
-        countsSaisie[gid].appro = draft.countsSaisie[gid].appro;
         countsSaisie[gid].stock_final = draft.countsSaisie[gid].stock_final;
       });
       reportJournalier = draft.reportJournalier || reportJournalier;
