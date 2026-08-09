@@ -102,6 +102,10 @@
   }
   .jeu-input:focus{outline:none; border-color:var(--cyan);}
   .jeu-input.prefilled{color:var(--text-mid);}
+  .jeu-input-readonly{
+    width:100%; background:var(--panel); border:1px solid var(--hairline); border-radius:9px;
+    padding:9px 6px; color:var(--text-mid); font-family:var(--mono); font-size:14px; text-align:center;
+  }
 
   .champ-label{font-family:var(--mono); font-size:10.5px; color:var(--text-mid); margin-bottom:6px; letter-spacing:0.03em;}
   .champ-input{
@@ -197,19 +201,24 @@
   let reportTempsReel = { caisse_tirages: null };
   let regularisations = 0;
   let caisseReelle = null;
-  let motifEcart = '';
-  let phase = 'accueil';        // 'accueil' | 'grattage' | 'tirages' | 'caisse' | 'resume'
-
-  const MOTIFS_ECART_FDJ = [
-    { value: '', label: 'Choisir un motif…' },
-    { value: 'erreur_saisie', label: 'Erreur de saisie' },
-    { value: 'erreur_comptage', label: 'Erreur de comptage' },
-    { value: 'carnet_non_declare', label: 'Carnet non déclaré' },
-    { value: 'mouvement_oublie', label: 'Réapprovisionnement non enregistré' },
-    { value: 'erreur_rapport', label: 'Erreur sur le rapport FDJ' },
-    { value: 'autre', label: 'Autre raison' },
-    { value: 'non_explique', label: 'Je ne sais pas' },
-  ];
+  let carnetsDeclaresCeQuart = 0; // compteur d'affichage seulement (session en cours), pas persisté
+  // 'accueil' | 'ouverture' | 'carnet' | 'grattage' | 'tirages' | 'caisse' | 'resume'
+  //
+  // 09/08/2026 (demande de Frédéric) — le quart FDJ employé se scinde
+  // maintenant en deux moments distincts, comme NEXUS Inventaire :
+  //   OUVERTURE (à l'arrivée) : l'employé valide ou corrige le stock de
+  //   départ hérité du quart précédent. C'est CE moment-là qui déclenche
+  //   l'alerte manager en cas de correction — plus la clôture.
+  //   CLÔTURE (en fin de quart) : stock final, tirages, caisse réelle.
+  //   Le stock initial n'est alors plus modifiable (déjà validé à
+  //   l'ouverture) — seuls appro et stock final restent saisissables.
+  // Entre les deux, "Déclarer un carnet ouvert" peut être utilisé à tout
+  // moment du quart, sans dépendre d'aucune des deux phases.
+  // Par ailleurs l'écart de caisse n'est plus jamais montré à l'employé :
+  // il ne le voit qu'une fois que le manager a validé la caisse (statut
+  // fdj_cash_controls différent de "provisoire") — en attendant, l'employé
+  // voit seulement "en attente de validation".
+  let phase = 'accueil';
 
   function heureLocale() { return new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }); }
   function demarrerHorloge() {
@@ -255,17 +264,33 @@
     if (!employeeCourant || !shiftRow) return null;
     return `nexus_fdj_draft_${employeeCourant.id}_${shiftRow.id}`;
   }
+  // Le brouillon est étiqueté avec le "groupe" de phase en cours (ouverture
+  // ou clôture) pour ne jamais mélanger une saisie d'ouverture (stock de
+  // départ seul) avec une saisie de clôture (appro/stock final/caisse) —
+  // chargerDraft(groupe) ignore silencieusement un brouillon d'un autre
+  // groupe plutôt que de l'appliquer à tort.
+  function groupeDraftActuel() {
+    if (phase === 'ouverture') return 'ouverture';
+    if (phase === 'grattage' || phase === 'tirages' || phase === 'caisse' || phase === 'resume') return 'cloture';
+    return null;
+  }
   function sauvegarderDraft() {
     const cle = cleDraft();
-    if (!cle) return;
-    try { localStorage.setItem(cle, JSON.stringify({ countsSaisie, reportJournalier, reportTempsReel, regularisations, caisseReelle, motifEcart })); }
+    const groupe = groupeDraftActuel();
+    if (!cle || !groupe) return;
+    try { localStorage.setItem(cle, JSON.stringify({ groupe, countsSaisie, reportJournalier, reportTempsReel, regularisations, caisseReelle })); }
     catch (e) { console.error('Sauvegarde brouillon FDJ:', e); }
   }
-  function chargerDraft() {
+  function chargerDraft(groupeAttendu) {
     const cle = cleDraft();
     if (!cle) return null;
-    try { const brut = localStorage.getItem(cle); return brut ? JSON.parse(brut) : null; }
-    catch (e) { console.error('Lecture brouillon FDJ:', e); return null; }
+    try {
+      const brut = localStorage.getItem(cle);
+      if (!brut) return null;
+      const draft = JSON.parse(brut);
+      if (groupeAttendu && draft.groupe !== groupeAttendu) return null;
+      return draft;
+    } catch (e) { console.error('Lecture brouillon FDJ:', e); return null; }
   }
   function effacerDraft() {
     const cle = cleDraft();
@@ -361,34 +386,73 @@
   }
 
   // ------------------------------------------------------------
-  // ACCUEIL
+  // ACCUEIL — 3 actions distinctes, comme NEXUS Inventaire :
+  // Ouverture (arrivée) / Carnet ouvert (à tout moment) / Clôture (fin de
+  // quart). 09/08/2026, demande de Frédéric.
   // ------------------------------------------------------------
-  function renderAccueil() {
+  async function chargerCashControlDuQuart(shiftId) {
+    const { data, error } = await nexusClient.from('fdj_cash_controls').select('*').eq('shift_id', shiftId).maybeSingle();
+    if (error) { console.error('Chargement caisse FDJ (accueil):', error); return null; }
+    return data;
+  }
+
+  async function renderAccueil() {
     document.getElementById('titre').textContent = `Bonjour ${employeeCourant.nom}`;
     document.getElementById('sousTitre').textContent = '';
-    const dejaValide = shiftRow && shiftRow.statut === 'valide';
+    const ouvertureFaite = !!(shiftRow && shiftRow.ouverture_validee);
+    const clotureFaite = !!(shiftRow && shiftRow.statut === 'valide');
     // Raccourci manager (09/08/2026, demande de Frédéric) : cet écran reste
     // ouvert à tout le monde (voir commentaire plus haut), un manager peut
     // donc y atterrir directement — ce lien évite de le laisser chercher
     // "Contrôle FDJ" (historique, correction, changement de date) tout seul.
     const estManager = employeeCourant.role === 'manager' || employeeCourant.role === 'gerant';
+
+    let blocCaisse = '';
+    if (clotureFaite) {
+      const cash = await chargerCashControlDuQuart(shiftRow.id);
+      if (cash && cash.statut !== 'provisoire') {
+        const classe = cash.ecart === 0 ? 'green' : (Math.abs(cash.ecart) <= 1 ? 'amber' : 'red');
+        blocCaisse = `<div class="etat-banner">Caisse validée par le manager — écart <b class="stat-value ${classe}" style="font-size:inherit;">${cash.ecart > 0 ? '+' : ''}${fmtEuro(cash.ecart)}</b>.</div>`;
+      } else {
+        blocCaisse = `<div class="etat-banner">⏳ Caisse transmise, en attente de validation par le manager. L'écart ne s'affiche qu'une fois la caisse validée.</div>`;
+      }
+    }
+
     document.getElementById('content').innerHTML = `
       ${estManager ? '<a href="NEXUS-FDJ-Manager-v1.html" class="etat-banner" style="display:block; color:var(--cyan); text-decoration:none; margin-bottom:14px;">Vous êtes manager ? Aller à Contrôle FDJ →</a>' : ''}
       ${renderQuartVisuel()}
       <div class="choix-grid">
-        <div class="choix-card ${dejaValide ? 'disabled' : ''}" id="carteComptage">
-          <div class="choix-icone">🎟️</div>
+        <div class="choix-card ${ouvertureFaite ? 'disabled' : ''}" id="carteOuverture">
+          <div class="choix-icone">🟢</div>
           <div style="flex:1;">
-            <div class="choix-titre">Compter mon quart FDJ</div>
-            <div class="choix-sub">Grattage, tirages, caisse réelle — l'écart se calcule tout seul.</div>
-            ${dejaValide ? '<div class="choix-statut fait">✓ Quart validé</div>' : '<div class="choix-statut attente">À faire</div>'}
+            <div class="choix-titre">Valider mon stock de départ</div>
+            <div class="choix-sub">Confirmez ou corrigez le stock hérité du quart précédent.</div>
+            ${ouvertureFaite ? '<div class="choix-statut fait">✓ Validé</div>' : '<div class="choix-statut attente">À faire à l\'arrivée</div>'}
+          </div>
+        </div>
+        <div class="choix-card" id="carteCarnet">
+          <div class="choix-icone">📦</div>
+          <div style="flex:1;">
+            <div class="choix-titre">Déclarer un carnet ouvert</div>
+            <div class="choix-sub">À chaque nouveau carnet entamé pendant le quart.</div>
+          </div>
+        </div>
+        <div class="choix-card ${(!ouvertureFaite || clotureFaite) ? 'disabled' : ''}" id="carteCloture">
+          <div class="choix-icone">🔴</div>
+          <div style="flex:1;">
+            <div class="choix-titre">Clôturer mon quart FDJ</div>
+            <div class="choix-sub">Stock final, tirages, caisse réelle.</div>
+            ${clotureFaite ? '<div class="choix-statut fait">✓ Transmis</div>' : (!ouvertureFaite ? '<div class="choix-statut attente">Validez d\'abord le stock de départ</div>' : '<div class="choix-statut attente">À faire en fin de quart</div>')}
           </div>
         </div>
       </div>
-      ${dejaValide ? '<div class="etat-banner">Ce quart a déjà été validé. Une correction ne peut se faire que depuis Contrôle FDJ (manager).</div>' : ''}
+      ${blocCaisse}
+      ${clotureFaite ? '<div class="etat-banner">Ce quart a déjà été transmis. Une correction ne peut se faire que depuis Contrôle FDJ (manager).</div>' : ''}
     `;
     wireQuartVisuel();
-    if (!dejaValide) document.getElementById('carteComptage').addEventListener('click', demarrerComptage);
+    if (!ouvertureFaite) document.getElementById('carteOuverture').addEventListener('click', demarrerOuverture);
+    document.getElementById('carteCarnet').addEventListener('click', demarrerCarnet);
+    if (ouvertureFaite && !clotureFaite) document.getElementById('carteCloture').addEventListener('click', demarrerCloture);
   }
 
   function renderQuartVisuel() {
@@ -408,30 +472,221 @@
     if (enCours && !confirm('Changer de quart maintenant abandonnera la saisie en cours (non enregistrée). Continuer ?')) return;
     quartActuel = nouveauQuart;
     countsSaisie = {}; reportJournalier = { lots_payes_grattage: null }; reportTempsReel = { caisse_tirages: null };
-    regularisations = 0; caisseReelle = null; motifEcart = ''; phase = 'accueil';
+    regularisations = 0; caisseReelle = null; carnetsDeclaresCeQuart = 0; phase = 'accueil';
     document.getElementById('content').innerHTML = '<div class="loading">Changement de quart…</div>';
     shiftRow = await obtenirOuCreerShift();
     if (!shiftRow) { document.getElementById('content').innerHTML = '<div class="loading">Impossible de charger ce quart. Réessayez.</div>'; return; }
     renderAccueil();
   }
 
-  async function demarrerComptage() {
+  // ------------------------------------------------------------
+  // OUVERTURE — à l'arrivée, l'employé valide ou corrige le stock de
+  // départ hérité du quart précédent. Une fois validé, ce stock devient
+  // en lecture seule pour la clôture (09/08/2026, demande de Frédéric).
+  // ------------------------------------------------------------
+  async function demarrerOuverture() {
     document.getElementById('content').innerHTML = '<div class="loading">Chargement des jeux…</div>';
     if (!jeux.length) jeux = await chargerJeux();
     dernierStockFinal = await chargerDernierStockFinal();
     const { data: existants } = await nexusClient.from('fdj_shift_counts').select('*').eq('shift_id', shiftRow.id);
     (existants || []).forEach(c => { countsSaisie[c.game_id] = { stock_initial: c.stock_initial, appro: c.appro, stock_final: c.stock_final }; });
-    const draft = chargerDraft();
+    phase = 'ouverture';
+    const draft = chargerDraft('ouverture');
+    if (draft) countsSaisie = { ...countsSaisie, ...draft.countsSaisie };
+    jeux.forEach(j => { if (!countsSaisie[j.id]) countsSaisie[j.id] = { stock_initial: dernierStockFinal[j.id] ?? null, appro: 0, stock_final: null }; });
+    renderOuverture();
+  }
+
+  function renderOuverture() {
+    document.getElementById('titre').textContent = 'Stock de départ';
+    document.getElementById('sousTitre').textContent = 'Vérifiez le stock hérité du quart précédent — corrigez si un chiffre est faux.';
+    const groupes = grouperParPalier(jeux);
+    document.getElementById('content').innerHTML = `
+      ${groupes.map(g => `
+        <div class="palier-block">
+          <div class="palier-head">${fmtNum(g.prix)} €</div>
+          <div class="card">${g.items.map(j => renderJeuOuvertureRow(j)).join('')}</div>
+        </div>
+      `).join('')}
+      <button class="btn-primary" id="btnValiderOuverture">Valider mon stock de départ</button>
+      <button class="btn-ghost" id="btnRetourAccueilOuverture">Retour</button>
+    `;
+    wireOuvertureInputs();
+    document.getElementById('btnValiderOuverture').addEventListener('click', validerOuverture);
+    document.getElementById('btnRetourAccueilOuverture').addEventListener('click', () => { phase = 'accueil'; renderAccueil(); });
+  }
+
+  function renderJeuOuvertureRow(jeu) {
+    const s = countsSaisie[jeu.id] || { stock_initial: null };
+    const herite = dernierStockFinal[jeu.id];
+    const preremplie = herite !== undefined && s.stock_initial !== null && Number(s.stock_initial) === Number(herite);
+    return `
+      <div class="jeu-row" data-jeu="${jeu.id}">
+        <div class="jeu-nom-ligne"><div class="jeu-nom">${jeu.nom}</div></div>
+        <div class="jeu-inputs">
+          <div class="jeu-input-wrap" style="flex:1;">
+            <div class="jeu-input-label">Stock de départ</div>
+            <input type="number" inputmode="decimal" class="jeu-input champ-stock-initial-ouverture ${preremplie ? 'prefilled' : ''}" data-jeu="${jeu.id}" value="${s.stock_initial ?? ''}">
+          </div>
+        </div>
+      </div>
+    `;
+  }
+  function wireOuvertureInputs() {
+    document.querySelectorAll('.champ-stock-initial-ouverture').forEach(input => {
+      input.addEventListener('input', () => {
+        const gameId = input.dataset.jeu;
+        const val = input.value === '' ? null : Number(input.value);
+        if (!countsSaisie[gameId]) countsSaisie[gameId] = { stock_initial: null, appro: 0, stock_final: null };
+        countsSaisie[gameId].stock_initial = val;
+        sauvegarderDraft();
+      });
+    });
+  }
+
+  async function validerOuverture() {
+    const btn = document.getElementById('btnValiderOuverture');
+    btn.disabled = true;
+    btn.innerHTML = 'Enregistrement<span class="btn-loading-dots"><i></i><i></i><i></i></span>';
+
+    // Signale, dès l'ouverture, tout écart avec le stock hérité — c'est
+    // ici (et non plus à la clôture) que la correction remet en cause le
+    // quart précédent (09/08/2026, demande de Frédéric).
+    const jeuxModifies = jeuxAvecStockInitialModifie();
+
+    const lignes = jeux
+      .filter(j => countsSaisie[j.id] && countsSaisie[j.id].stock_initial !== null && countsSaisie[j.id].stock_initial !== undefined)
+      .map(j => ({
+        site: siteId, shift_id: shiftRow.id, game_id: j.id,
+        stock_initial: countsSaisie[j.id].stock_initial, appro: countsSaisie[j.id].appro || 0,
+        stock_final: countsSaisie[j.id].stock_final ?? null, updated_at: new Date().toISOString(),
+      }));
+    if (lignes.length) {
+      const { error } = await nexusClient.from('fdj_shift_counts').upsert(lignes, { onConflict: 'shift_id,game_id' });
+      if (error) { console.error('Enregistrement stock de départ FDJ:', error); btn.disabled = false; btn.textContent = 'Valider mon stock de départ'; alert("Erreur d'enregistrement. Réessayez."); return; }
+    }
+
+    const { error: eShift } = await nexusClient.from('fdj_shifts').update({ ouverture_validee: true, ouverture_validee_le: new Date().toISOString() }).eq('id', shiftRow.id);
+    if (eShift) console.error('Validation ouverture FDJ:', eShift);
+    shiftRow.ouverture_validee = true;
+
+    if (jeuxModifies.length) {
+      const alertes = jeuxModifies.map(j => ({
+        site: siteId, type: 'stock_initial_modifie', shift_id: shiftRow.id, shift_precedent_id: dernierShiftPrecedentId,
+        game_id: j.id, valeur_quart_precedent: dernierStockFinal[j.id], valeur_saisie: countsSaisie[j.id].stock_initial,
+        employee_id: employeeCourant.id,
+      }));
+      const { error: eAlerte } = await nexusClient.from('fdj_alertes').insert(alertes);
+      if (eAlerte) console.error('Enregistrement alertes stock initial FDJ:', eAlerte); // non bloquant
+    }
+
+    await nexusClient.from('fdj_audit_log').insert({
+      site: siteId, shift_id: shiftRow.id, entite_type: 'fdj_shift', entite_id: shiftRow.id,
+      action: 'ouverture_validee', acteur_id: employeeCourant.id,
+      nouvelle_valeur: { jeux_modifies: jeuxModifies.map(j => j.id) },
+    });
+
+    effacerDraft();
+    renderConfirmationOuverture(jeuxModifies);
+  }
+
+  function renderConfirmationOuverture(jeuxModifies) {
+    document.getElementById('titre').textContent = 'Stock de départ validé';
+    document.getElementById('sousTitre').textContent = '';
+    document.getElementById('content').innerHTML = `
+      <div class="checkmark">✓</div>
+      <div class="final-greet">Merci ${employeeCourant.nom} !</div>
+      <div class="final-sub">Votre stock de départ est enregistré. Bon quart !</div>
+      ${jeuxModifies.length ? `<div class="etat-banner" style="margin-top:14px; text-align:left;">⚠️ Stock corrigé pour ${jeuxModifies.length === 1 ? jeuxModifies[0].nom : `${jeuxModifies.length} jeux`} par rapport au quart précédent — le manager en a été averti.</div>` : ''}
+      <button class="btn-primary" id="btnRetourAccueilOuv2">Retour à l'accueil</button>
+    `;
+    document.getElementById('btnRetourAccueilOuv2').addEventListener('click', () => { phase = 'accueil'; renderAccueil(); });
+  }
+
+  // ------------------------------------------------------------
+  // CARNET OUVERT — déclaration libre, utilisable à tout moment du quart,
+  // indépendante de l'ouverture/clôture (09/08/2026, demande de Frédéric).
+  // ------------------------------------------------------------
+  async function demarrerCarnet() {
+    document.getElementById('content').innerHTML = '<div class="loading">Chargement des jeux…</div>';
+    if (!jeux.length) jeux = await chargerJeux();
+    phase = 'carnet';
+    renderCarnet();
+  }
+
+  function renderCarnet() {
+    document.getElementById('titre').textContent = 'Carnet ouvert';
+    document.getElementById('sousTitre').textContent = 'Touchez un jeu à chaque nouveau carnet entamé pendant le quart.';
+    const groupes = grouperParPalier(jeux);
+    document.getElementById('content').innerHTML = `
+      <div class="etat-banner" id="compteurCarnets">${carnetsDeclaresCeQuart} carnet${carnetsDeclaresCeQuart > 1 ? 's' : ''} déclaré${carnetsDeclaresCeQuart > 1 ? 's' : ''} depuis l'ouverture de cette page.</div>
+      ${groupes.map(g => `
+        <div class="palier-block">
+          <div class="palier-head">${fmtNum(g.prix)} €</div>
+          <div class="card">${g.items.map(j => `
+            <div class="jeu-row" style="display:flex; align-items:center; justify-content:space-between; cursor:pointer;" data-carnet-jeu="${j.id}">
+              <div class="jeu-nom">${j.nom}</div>
+              <div class="jeu-ventes calc" data-carnet-label="${j.id}">+ Carnet</div>
+            </div>
+          `).join('')}</div>
+        </div>
+      `).join('')}
+      <button class="btn-ghost" id="btnRetourAccueilCarnet">Retour à l'accueil</button>
+    `;
+    document.querySelectorAll('[data-carnet-jeu]').forEach(row => row.addEventListener('click', () => declarerCarnet(row.dataset.carnetJeu)));
+    document.getElementById('btnRetourAccueilCarnet').addEventListener('click', () => { phase = 'accueil'; renderAccueil(); });
+  }
+
+  async function declarerCarnet(gameId) {
+    const label = document.querySelector(`[data-carnet-label="${gameId}"]`);
+    const jeu = jeux.find(j => j.id === gameId);
+    if (label) label.textContent = '…';
+    const { error } = await nexusClient.from('fdj_stock_movements').insert({
+      site: siteId, game_id: gameId, type_mouvement: 'activation', quantite: 1, employee_id: employeeCourant.id,
+      justification: `Carnet ouvert déclaré en cours de quart (${shiftRow.date} · Quart ${shiftRow.quart}).`,
+    });
+    if (error) {
+      console.error('Déclaration carnet ouvert FDJ:', error);
+      if (label) label.textContent = '+ Carnet';
+      alert("Erreur d'enregistrement. Réessayez.");
+      return;
+    }
+    carnetsDeclaresCeQuart++;
+    const compteur = document.getElementById('compteurCarnets');
+    if (compteur) compteur.textContent = `${carnetsDeclaresCeQuart} carnet${carnetsDeclaresCeQuart > 1 ? 's' : ''} déclaré${carnetsDeclaresCeQuart > 1 ? 's' : ''} depuis l'ouverture de cette page.`;
+    if (label) {
+      label.textContent = '✓ Noté';
+      label.style.color = 'var(--green)';
+      setTimeout(() => { if (label) { label.textContent = '+ Carnet'; label.style.color = ''; } }, 900);
+    }
+  }
+
+  // ------------------------------------------------------------
+  // CLÔTURE — en fin de quart. Le stock de départ est déjà validé à
+  // l'ouverture (lecture seule ici) ; seuls appro et stock final restent
+  // saisissables (09/08/2026, demande de Frédéric).
+  // ------------------------------------------------------------
+  async function demarrerCloture() {
+    document.getElementById('content').innerHTML = '<div class="loading">Chargement des jeux…</div>';
+    if (!jeux.length) jeux = await chargerJeux();
+    const { data: existants } = await nexusClient.from('fdj_shift_counts').select('*').eq('shift_id', shiftRow.id);
+    (existants || []).forEach(c => { countsSaisie[c.game_id] = { stock_initial: c.stock_initial, appro: c.appro, stock_final: c.stock_final }; });
+    phase = 'grattage';
+    const draft = chargerDraft('cloture');
     if (draft) {
-      countsSaisie = { ...countsSaisie, ...draft.countsSaisie };
+      // Le stock de départ reste celui validé à l'ouverture — seuls appro
+      // et stock final se reprennent depuis le brouillon de clôture.
+      Object.keys(draft.countsSaisie || {}).forEach(gid => {
+        if (!countsSaisie[gid]) countsSaisie[gid] = { stock_initial: null, appro: 0, stock_final: null };
+        countsSaisie[gid].appro = draft.countsSaisie[gid].appro;
+        countsSaisie[gid].stock_final = draft.countsSaisie[gid].stock_final;
+      });
       reportJournalier = draft.reportJournalier || reportJournalier;
       reportTempsReel = draft.reportTempsReel || reportTempsReel;
       regularisations = draft.regularisations || 0;
       caisseReelle = draft.caisseReelle !== undefined ? draft.caisseReelle : null;
-      motifEcart = draft.motifEcart || '';
     }
-    jeux.forEach(j => { if (!countsSaisie[j.id]) countsSaisie[j.id] = { stock_initial: dernierStockFinal[j.id] ?? null, appro: 0, stock_final: null }; });
-    phase = 'grattage';
+    jeux.forEach(j => { if (!countsSaisie[j.id]) countsSaisie[j.id] = { stock_initial: null, appro: 0, stock_final: null }; });
     renderGrattage();
   }
 
@@ -460,7 +715,7 @@
 
   function renderGrattage() {
     document.getElementById('titre').textContent = 'Grattage';
-    document.getElementById('sousTitre').textContent = 'Stock initial (prérempli), appro reçu, stock final compté. Les ventes se calculent toutes seules.';
+    document.getElementById('sousTitre').textContent = 'Stock de départ déjà validé à l\'ouverture. Saisissez l\'appro reçu et le stock final compté — les ventes se calculent toutes seules.';
     const comptes = jeux.filter(jeuEstCompte).length;
     const groupes = grouperParPalier(jeux);
     const anomalies = jeuxAvecVentesNegatives();
@@ -498,7 +753,7 @@
       }
       phase = 'tirages'; renderTirages();
     });
-    document.getElementById('btnRetourAccueil1').addEventListener('click', renderAccueil);
+    document.getElementById('btnRetourAccueil1').addEventListener('click', () => { phase = 'accueil'; renderAccueil(); });
   }
 
   function renderJeuRow(jeu) {
@@ -513,8 +768,8 @@
         </div>
         <div class="jeu-inputs">
           <div class="jeu-input-wrap">
-            <div class="jeu-input-label">Initial</div>
-            <input type="number" inputmode="decimal" class="jeu-input champ-stock-initial ${s.stock_initial !== null && dernierStockFinal[jeu.id] === s.stock_initial ? 'prefilled' : ''}" data-jeu="${jeu.id}" data-champ="stock_initial" value="${s.stock_initial ?? ''}">
+            <div class="jeu-input-label">Départ</div>
+            <div class="jeu-input-readonly" title="Déjà validé à l'ouverture du quart">${fmtNum(s.stock_initial)}</div>
           </div>
           <div class="jeu-input-wrap">
             <div class="jeu-input-label">Appro</div>
@@ -588,91 +843,54 @@
   }
 
   // ------------------------------------------------------------
-  // PHASE 3 — CAISSE (attendue calculée, réelle comptée, écart calculé —
-  // jamais l'inverse. Motif demandé dès qu'un écart existe, audit §19-20).
+  // PHASE 3 — CAISSE (attendue calculée en interne, réelle comptée par
+  // l'employé). 09/08/2026, demande de Frédéric : l'employé ne voit plus
+  // ni la caisse attendue ni l'écart à cette étape — seul le manager les
+  // verra en validant. NEXUS calcule et enregistre toujours l'écart réel
+  // en base, seul l'affichage change.
   // ------------------------------------------------------------
   function renderCaisse() {
     document.getElementById('titre').textContent = 'Caisse FDJ';
-    document.getElementById('sousTitre').textContent = 'La caisse attendue se calcule seule. Comptez la caisse réelle et notez-la ici.';
-    const attendue = caisseAttendue();
-    const ecart = ecartCaisse();
+    document.getElementById('sousTitre').textContent = 'Comptez la caisse réelle et notez-la ici. Le manager validera ensuite.';
     document.getElementById('content').innerHTML = `
       ${renderStepper('Caisse')}
       <div class="champ-label">Régularisations (si besoin, +/-)</div>
       <input type="number" inputmode="decimal" class="champ-input" id="champRegul" value="${regularisations ?? 0}" placeholder="0,00">
 
-      <div class="resume-card" style="margin-bottom:14px;">
-        <div class="stat-row"><div class="stat-label">Caisse grattage</div><div class="stat-value">${fmtEuro(caisseGrattage())}</div></div>
-        <div class="stat-row"><div class="stat-label">Caisse tirages</div><div class="stat-value">${fmtEuro(reportTempsReel.caisse_tirages)}</div></div>
-        <div class="stat-row"><div class="stat-label">Régularisations</div><div class="stat-value">${fmtEuro(regularisations)}</div></div>
-        <div class="stat-row total"><div class="stat-label">Caisse attendue</div><div class="stat-value cyan">${fmtEuro(attendue)}</div></div>
-      </div>
-
       <div class="champ-label">Caisse réelle comptée</div>
       <input type="number" inputmode="decimal" class="champ-input" id="champCaisseReelle" value="${caisseReelle ?? ''}" placeholder="0,00">
 
-      <div id="blocEcart">${renderBlocEcart(ecart)}</div>
-
-      <button class="btn-primary" id="btnSuiteCaisse" ${caisseReelle === null || attendue === null ? 'disabled' : ''}>Continuer — Résumé</button>
+      <button class="btn-primary" id="btnSuiteCaisse" ${caisseReelle === null ? 'disabled' : ''}>Continuer — Résumé</button>
       <button class="btn-ghost" id="btnRetourTirages">Retour</button>
     `;
-    document.getElementById('champRegul').addEventListener('input', e => {
-      regularisations = e.target.value === '' ? 0 : Number(e.target.value);
-      sauvegarderDraft();
-      renderCaisse();
-    });
+    document.getElementById('champRegul').addEventListener('input', e => { regularisations = e.target.value === '' ? 0 : Number(e.target.value); sauvegarderDraft(); });
     document.getElementById('champCaisseReelle').addEventListener('input', e => {
       caisseReelle = e.target.value === '' ? null : Number(e.target.value);
       sauvegarderDraft();
-      const nouvelEcart = ecartCaisse();
-      document.getElementById('blocEcart').innerHTML = renderBlocEcart(nouvelEcart);
-      wireMotifEcart();
-      document.getElementById('btnSuiteCaisse').disabled = (caisseReelle === null || caisseAttendue() === null);
+      document.getElementById('btnSuiteCaisse').disabled = (caisseReelle === null);
     });
-    wireMotifEcart();
     document.getElementById('btnSuiteCaisse').addEventListener('click', () => { phase = 'resume'; renderResume(); });
     document.getElementById('btnRetourTirages').addEventListener('click', () => { phase = 'tirages'; renderTirages(); });
   }
-  function renderBlocEcart(ecart) {
-    if (ecart === null) return '';
-    const classe = ecart === 0 ? 'green' : (Math.abs(ecart) <= 1 ? 'amber' : 'red');
-    return `
-      <div class="etat-banner">
-        <div class="stat-row" style="border:none; padding:0;">
-          <div class="stat-label">Écart (réel − attendu)</div>
-          <div class="stat-value ${classe}">${ecart > 0 ? '+' : ''}${fmtEuro(ecart)}</div>
-        </div>
-        ${ecart !== 0 ? `<div style="margin-top:10px;"><select class="justif-input" id="selectMotifEcart" style="margin-bottom:0;">${MOTIFS_ECART_FDJ.map(m => `<option value="${m.value}" ${m.value===motifEcart?'selected':''}>${m.label}</option>`).join('')}</select></div>` : ''}
-      </div>
-    `;
-  }
-  function wireMotifEcart() {
-    const sel = document.getElementById('selectMotifEcart');
-    if (sel) sel.addEventListener('change', e => { motifEcart = e.target.value; sauvegarderDraft(); });
-  }
 
   // ------------------------------------------------------------
-  // PHASE 4 — RÉSUMÉ + VALIDATION
+  // PHASE 4 — RÉSUMÉ + VALIDATION. Récapitule la saisie brute de
+  // l'employé (jamais la caisse attendue ni l'écart — voir plus haut).
   // ------------------------------------------------------------
   function renderResume() {
-    document.getElementById('titre').textContent = 'Résumé du quart';
+    document.getElementById('titre').textContent = 'Résumé de votre saisie';
     document.getElementById('sousTitre').textContent = '';
-    const attendue = caisseAttendue();
-    const ecart = ecartCaisse();
-    const classe = ecart === 0 ? 'green' : (Math.abs(ecart) <= 1 ? 'amber' : 'red');
     document.getElementById('content').innerHTML = `
       ${renderStepper('Résumé')}
       <div class="resume-card">
-        <div class="stat-row"><div class="stat-label">Ventes grattage</div><div class="stat-value">${fmtEuro(ventesGrattageTotal())}</div></div>
+        <div class="stat-row"><div class="stat-label">Ventes grattage (calculées)</div><div class="stat-value">${fmtEuro(ventesGrattageTotal())}</div></div>
         <div class="stat-row"><div class="stat-label">Lots payés</div><div class="stat-value">${fmtEuro(reportJournalier.lots_payes_grattage)}</div></div>
-        <div class="stat-row"><div class="stat-label">Caisse grattage</div><div class="stat-value">${fmtEuro(caisseGrattage())}</div></div>
         <div class="stat-row"><div class="stat-label">Caisse tirages</div><div class="stat-value">${fmtEuro(reportTempsReel.caisse_tirages)}</div></div>
         <div class="stat-row"><div class="stat-label">Régularisations</div><div class="stat-value">${fmtEuro(regularisations)}</div></div>
-        <div class="stat-row total"><div class="stat-label">Caisse attendue</div><div class="stat-value cyan">${fmtEuro(attendue)}</div></div>
-        <div class="stat-row"><div class="stat-label">Caisse réelle</div><div class="stat-value">${fmtEuro(caisseReelle)}</div></div>
-        <div class="stat-row total"><div class="stat-label">Écart</div><div class="stat-value ${classe}">${ecart > 0 ? '+' : ''}${fmtEuro(ecart)}</div></div>
+        <div class="stat-row total"><div class="stat-label">Caisse réelle comptée</div><div class="stat-value">${fmtEuro(caisseReelle)}</div></div>
       </div>
-      <button class="btn-primary" id="btnValider">Valider mon quart FDJ</button>
+      <div class="champ-note">L'écart entre la caisse attendue et la caisse réelle sera calculé et vérifié par le manager — vous ne le voyez pas à cette étape.</div>
+      <button class="btn-primary" id="btnValider">Transmettre mon quart FDJ</button>
       <button class="btn-ghost" id="btnRetourCaisse">Retour</button>
     `;
     document.getElementById('btnValider').addEventListener('click', validerQuart);
@@ -705,17 +923,22 @@
     // 3) Rapprochement caisse — upsert unique par shift_id. statut reste
     // "provisoire" tant qu'un manager ne l'a pas validé (jamais utilisé par
     // Ma Progression avant ça — règle audit §22).
+    // L'écart est toujours calculé et enregistré ici — seul son affichage
+    // à l'employé disparaît (09/08/2026, demande de Frédéric) : il ne le
+    // verra qu'une fois le manager passé par "Contrôle FDJ".
     const ecart = ecartCaisse();
     const { error: eCash } = await nexusClient.from('fdj_cash_controls').upsert({
       site: siteId, shift_id: shiftRow.id,
       ventes_grattage_valeur: ventesGrattageTotal(), lots_payes_grattage: reportJournalier.lots_payes_grattage,
       caisse_grattage: caisseGrattage(), caisse_tirages: reportTempsReel.caisse_tirages,
       regularisations: regularisations || 0, caisse_attendue: caisseAttendue(), caisse_reelle: caisseReelle,
-      ecart, motif_ecart: motifEcart || null, statut: 'provisoire', updated_at: new Date().toISOString(),
+      ecart, motif_ecart: null, statut: 'provisoire', updated_at: new Date().toISOString(),
     }, { onConflict: 'shift_id' });
     if (eCash) { console.error('Enregistrement caisse FDJ:', eCash); btn.disabled = false; btn.textContent = 'Valider mon quart FDJ'; alert("Erreur d'enregistrement de la caisse. Réessayez."); return; }
 
-    // 4) Quart passé en "valide" + trace d'audit immuable.
+    // 4) Quart passé en "valide" + trace d'audit immuable. (La détection
+    // "stock initial modifié" est désormais faite à l'ouverture, pas ici —
+    // voir validerOuverture().)
     const { error: eShift } = await nexusClient.from('fdj_shifts').update({ statut: 'valide', valide_le: new Date().toISOString() }).eq('id', shiftRow.id);
     if (eShift) console.error('Validation quart FDJ:', eShift);
     shiftRow.statut = 'valide';
@@ -726,34 +949,17 @@
       nouvelle_valeur: { caisse_attendue: caisseAttendue(), caisse_reelle: caisseReelle, ecart },
     });
 
-    // 5) Alerte stock initial modifié (09/08/2026, demande de Frédéric) :
-    // si le chiffre hérité du quart précédent a été corrigé, ça remet en
-    // cause le stock final de ce quart-là — jamais silencieux, le manager
-    // est prévenu (point rouge sur "Contrôle FDJ" en vue bureau) plutôt que
-    // de découvrir l'écart plus tard sans savoir pourquoi.
-    const jeuxModifies = jeuxAvecStockInitialModifie();
-    if (jeuxModifies.length) {
-      const alertes = jeuxModifies.map(j => ({
-        site: siteId, type: 'stock_initial_modifie', shift_id: shiftRow.id, shift_precedent_id: dernierShiftPrecedentId,
-        game_id: j.id, valeur_quart_precedent: dernierStockFinal[j.id], valeur_saisie: countsSaisie[j.id].stock_initial,
-        employee_id: employeeCourant.id,
-      }));
-      const { error: eAlerte } = await nexusClient.from('fdj_alertes').insert(alertes);
-      if (eAlerte) console.error('Enregistrement alertes stock initial FDJ:', eAlerte); // non bloquant : le quart reste validé même si l'alerte échoue
-    }
-
     effacerDraft();
-    renderConfirmation(ecart, jeuxModifies);
+    renderConfirmationCloture();
   }
 
-  function renderConfirmation(ecart, jeuxModifies) {
-    document.getElementById('titre').textContent = 'Quart FDJ enregistré';
+  function renderConfirmationCloture() {
+    document.getElementById('titre').textContent = 'Quart FDJ transmis';
     document.getElementById('sousTitre').textContent = '';
     document.getElementById('content').innerHTML = `
       <div class="checkmark">✓</div>
       <div class="final-greet">Merci ${employeeCourant.nom} !</div>
-      <div class="final-sub">${ecart === 0 ? 'Caisse conforme.' : `Écart de ${ecart > 0 ? '+' : ''}${fmtEuro(ecart)} transmis au manager.`}</div>
-      ${jeuxModifies && jeuxModifies.length ? `<div class="etat-banner" style="margin-top:14px; text-align:left;">⚠️ Stock initial corrigé pour ${jeuxModifies.length === 1 ? jeuxModifies[0].nom : `${jeuxModifies.length} jeux`} par rapport au quart précédent — le manager en a été averti, il vérifiera le quart précédent.</div>` : ''}
+      <div class="final-sub">⏳ En attente de validation par le manager.</div>
       <button class="btn-primary" id="btnRetourAccueilFinal">Retour à l'accueil</button>
     `;
     document.getElementById('btnRetourAccueilFinal').addEventListener('click', () => { phase = 'accueil'; renderAccueil(); });
