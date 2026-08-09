@@ -1,0 +1,1266 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<link rel="icon" type="image/x-icon" href="favicon.ico">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+<link rel="manifest" href="site.webmanifest">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="NEXUS">
+<meta name="theme-color" content="#0B0F14">
+<title>NEXUS — Produits</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
+    --text:#EDF1F5; --text-mid:#8A96A5; --text-dim:#57626F;
+    --green:#34D399; --green-dim:#153629;
+    --amber:#F5A623; --amber-dim:#3A2E14;
+    --red:#F0575A; --red-dim:#3A1D1F;
+    --cyan:#4FC3D9; --purple:#B794F6; --purple-dim:#2E2140;
+    --mono:'IBM Plex Mono',monospace; --sans:'IBM Plex Sans',sans-serif;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{background:var(--bg); font-family:var(--sans); color:var(--text);}
+  body{display:flex; justify-content:center; min-height:100vh;}
+  .phone{width:100%; max-width:460px; min-height:100vh; display:flex; flex-direction:column; border-left:1px solid var(--hairline); border-right:1px solid var(--hairline); padding-top:env(safe-area-inset-top); padding-bottom:env(safe-area-inset-bottom);}
+
+  .header{padding:20px 20px 14px; position:relative;}
+  .menu-btn{
+    position:absolute; top:18px; right:18px; display:flex; align-items:center; gap:6px;
+    font-family:var(--mono); font-size:10.5px; font-weight:600; letter-spacing:0.03em; text-transform:uppercase;
+    color:var(--cyan); background:rgba(79,195,217,0.1); border:1px solid rgba(79,195,217,0.3);
+    border-radius:20px; padding:7px 12px; text-decoration:none; white-space:nowrap; z-index:5;
+  }
+  .menu-btn:active{background:rgba(79,195,217,0.2);}
+
+  .eyebrow{font-family:var(--mono); font-size:11px; letter-spacing:0.12em; text-transform:uppercase; color:var(--cyan);}
+  .title{font-size:20px; font-weight:600; margin-top:4px;}
+  .divider{height:1px; background:var(--hairline); margin:0 20px;}
+
+  .search-wrap{padding:16px 20px;}
+  .search-box{
+    display:flex; align-items:center; gap:10px; background:var(--panel); border:1px solid var(--hairline);
+    border-radius:10px; padding:12px 14px;
+  }
+  .search-box input{
+    flex:1; background:none; border:none; outline:none; color:var(--text); font-family:var(--sans); font-size:16px;
+  }
+  .search-box input::placeholder{color:var(--text-dim);}
+  .suggestions{margin-top:8px; display:flex; flex-direction:column; gap:4px;}
+  .suggestion-item{
+    padding:11px 14px; background:var(--panel); border:1px solid var(--hairline); border-radius:8px;
+    cursor:pointer; font-size:13px; display:flex; justify-content:space-between; align-items:center;
+  }
+  .suggestion-item:hover{border-color:var(--cyan);}
+  .suggestion-item .cat{font-family:var(--mono); font-size:10px; color:var(--text-dim);}
+
+  .section{padding:0 20px 20px;}
+  .card{background:var(--panel); border:1px solid var(--hairline); border-radius:12px; padding:18px; margin-top:14px;}
+  .product-name{font-size:17px; font-weight:600; line-height:1.3;}
+  .product-cat{font-family:var(--mono); font-size:11px; color:var(--text-dim); margin-top:4px;}
+
+  .mission-badge{
+    display:inline-flex; align-items:center; gap:6px; margin-top:12px; padding:6px 12px; border-radius:20px;
+    font-family:var(--mono); font-size:11px; font-weight:600;
+  }
+  .mission-volume{background:var(--green-dim); color:var(--green);}
+  .mission-marge{background:var(--amber-dim); color:var(--amber);}
+  .mission-gamme{background:rgba(79,195,217,0.12); color:var(--cyan);}
+  .mission-diversite{background:var(--purple-dim); color:var(--purple);}
+  .mission-panier{background:var(--red-dim); color:var(--red);}
+  .mission-fixe{background:var(--panel-raised); color:var(--text-dim);}
+  .mission-reason{font-size:12px; color:var(--text-mid); margin-top:8px; line-height:1.5;}
+
+  /* Carte d'identité produit — ajoutée le 22/07/2026 suite à l'analyse
+     stratégique de Frédéric (NEXUS_Page_Produit_Analyse_V2.pdf) : donner
+     le statut/l'action en 5 secondes, style épuré (cartes arrondies,
+     pastilles de couleur, gros chiffres) plutôt que le format
+     "product-name + kpi-grid" plus dense. */
+  .hero-card{background:linear-gradient(180deg, var(--panel) 0%, var(--panel-raised) 100%); border:1px solid var(--hairline); border-radius:20px; padding:22px 20px;}
+  .hero-nom{font-size:19px; font-weight:700; line-height:1.3;}
+  .hero-cat{font-family:var(--mono); font-size:10.5px; color:var(--text-dim); margin-top:4px; text-transform:uppercase; letter-spacing:0.05em;}
+
+  .statut-pill{display:inline-flex; align-items:center; gap:7px; margin-top:14px; padding:8px 14px; border-radius:24px; font-weight:700; font-size:13px;}
+  .statut-pill .dot{width:7px; height:7px; border-radius:50%; flex-shrink:0;}
+  .statut-pill.st-performant{background:var(--green-dim); color:var(--green);}
+  .statut-pill.st-performant .dot{background:var(--green);}
+  .statut-pill.st-surveiller{background:var(--amber-dim); color:var(--amber);}
+  .statut-pill.st-surveiller .dot{background:var(--amber);}
+  .statut-pill.st-dormant{background:var(--panel-raised); color:var(--text-mid); border:1px solid var(--hairline);}
+  .statut-pill.st-dormant .dot{background:var(--text-dim);}
+  .statut-pill.st-strategique{background:var(--purple-dim); color:var(--purple);}
+  .statut-pill.st-strategique .dot{background:var(--purple);}
+
+  .hero-action{margin-top:14px; padding:13px 15px; border-radius:12px; border-left:3px solid var(--cyan); background:rgba(79,195,217,0.06); font-size:12.5px; line-height:1.5;}
+  .hero-action.st-performant{border-left-color:var(--green); background:rgba(52,211,153,0.06);}
+  .hero-action.st-surveiller{border-left-color:var(--amber); background:rgba(245,166,35,0.06);}
+  .hero-action.st-dormant{border-left-color:var(--text-dim); background:rgba(87,98,111,0.08);}
+  .hero-action.st-strategique{border-left-color:var(--purple); background:rgba(183,148,246,0.06);}
+  .hero-action .ha-label{font-family:var(--mono); font-size:9px; text-transform:uppercase; letter-spacing:0.06em; color:var(--text-dim); margin-bottom:5px;}
+
+  .hero-tiles{display:grid; grid-template-columns:1fr 1fr; gap:9px; margin-top:16px;}
+  .hero-tile{background:var(--panel-raised); border-radius:14px; padding:13px 14px;}
+  .hero-tile .ht-label{font-family:var(--mono); font-size:9px; text-transform:uppercase; letter-spacing:0.05em; color:var(--text-dim);}
+  .hero-tile .ht-val{font-size:18px; font-weight:700; margin-top:5px;}
+  .hero-tile .ht-sub{font-family:var(--mono); font-size:9px; color:var(--text-dim); margin-top:3px;}
+
+  .kpi-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:14px;}
+  .kpi-box{background:var(--panel-raised); border-radius:8px; padding:12px;}
+  .kpi-box .kl{font-family:var(--mono); font-size:10px; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.04em;}
+  .kpi-box .kv{font-family:var(--mono); font-size:17px; font-weight:700; margin-top:4px;}
+  .kv.up{color:var(--green);} .kv.down{color:var(--red);}
+
+  .histo-row{display:flex; align-items:center; gap:10px; margin-top:6px;}
+  .histo-label{font-family:var(--mono); font-size:10px; color:var(--text-dim); width:26px;}
+  .histo-bar-track{flex:1; height:8px; background:var(--panel-raised); border-radius:4px; overflow:hidden;}
+  .histo-bar{height:100%; background:var(--cyan); border-radius:4px;}
+  .histo-val{font-family:var(--mono); font-size:11px; color:var(--text-mid); width:44px; text-align:right;}
+  .histo-empty{font-size:12px; color:var(--text-mid); line-height:1.5; padding:4px 0;}
+
+  .gap-row{
+    display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px solid var(--hairline);
+    font-size:12.5px;
+  }
+  .gap-row:last-child{border-bottom:none;}
+  .gap-label{color:var(--text-mid);}
+  .gap-status{font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:right; max-width:180px;}
+
+  .photo-box{width:100%; aspect-ratio:4/3; background:var(--panel-raised); border-radius:8px; display:flex; align-items:center; justify-content:center; overflow:hidden;}
+  .photo-box img{width:100%; height:100%; object-fit:contain; background:#fff;}
+  .photo-empty{font-size:12px; color:var(--text-dim); text-align:center; padding:20px;}
+  .photo-meta{font-family:var(--mono); font-size:10px; color:var(--text-dim); margin-top:8px;}
+  .photo-btn{margin-top:10px; width:100%; padding:11px; border-radius:8px; border:1px solid rgba(79,195,217,0.35); background:rgba(79,195,217,0.08); color:var(--cyan); font-family:var(--sans); font-weight:600; font-size:12.5px; cursor:pointer;}
+  .photo-btn:active{background:rgba(79,195,217,0.18);}
+  .photo-candidats{display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:12px;}
+  .photo-candidat{background:var(--panel-raised); border:1px solid var(--hairline); border-radius:8px; padding:8px; cursor:pointer; text-align:center;}
+  .photo-candidat:active{border-color:var(--cyan);}
+  .photo-candidat img{width:100%; aspect-ratio:1/1; object-fit:contain; background:#fff; border-radius:4px;}
+  .photo-candidat .pc-nom{font-size:10.5px; margin-top:6px; line-height:1.3; color:var(--text-mid);}
+  .photo-candidat .pc-marque{font-family:var(--mono); font-size:9px; color:var(--text-dim); margin-top:2px;}
+  .photo-candidat.pc-match{border-color:var(--cyan);}
+  .pc-badge{display:inline-block; margin-top:5px; padding:2px 6px; border-radius:4px; background:rgba(79,195,217,0.12); color:var(--cyan); font-family:var(--mono); font-size:8.5px; font-weight:600;}
+  .photo-annuler{margin-top:10px; text-align:center; font-family:var(--mono); font-size:10.5px; color:var(--text-dim); cursor:pointer; text-decoration:underline;}
+  .photo-loading{font-size:12px; color:var(--text-dim); text-align:center; padding:16px 0;}
+
+  .emplacement-modifier{font-family:var(--mono); font-size:10.5px; color:var(--cyan); cursor:pointer; text-decoration:underline;}
+  .emplacement-zones{display:flex; flex-wrap:wrap; gap:6px; margin-top:10px;}
+  .emplacement-zone{padding:8px 12px; border-radius:20px; border:1px solid var(--hairline); background:var(--panel-raised); color:var(--text); font-family:var(--sans); font-size:11.5px; cursor:pointer;}
+  .emplacement-zone:active{border-color:var(--cyan); color:var(--cyan);}
+  .emplacement-autre{display:flex; gap:8px; margin-top:10px;}
+  .emplacement-autre input{flex:1; background:var(--panel-raised); border:1px solid var(--hairline); border-radius:8px; padding:9px 10px; color:var(--text); font-family:var(--sans); font-size:16px;}
+  .emplacement-autre button{padding:9px 14px; border-radius:8px; border:1px solid rgba(79,195,217,0.35); background:rgba(79,195,217,0.08); color:var(--cyan); font-family:var(--sans); font-weight:600; font-size:12px; cursor:pointer;}
+
+  .decision-card{
+    background:var(--panel-raised); border-left:3px solid var(--cyan); border-radius:6px; padding:12px 14px; margin-top:10px;
+  }
+  .decision-card.expliquee{border-left-color:var(--text-dim); opacity:0.7;}
+  .decision-card.actionnee{border-left-color:var(--green);}
+  .decision-text{font-size:12.5px; line-height:1.5;}
+  .decision-meta{font-family:var(--mono); font-size:10px; color:var(--text-dim); margin-top:6px;}
+  .no-decision{font-size:12.5px; color:var(--text-dim); font-style:italic; padding:8px 0;}
+
+  .section-label{font-family:var(--mono); font-size:10.5px; letter-spacing:0.08em; text-transform:uppercase; color:var(--text-dim); margin-bottom:2px; display:flex; align-items:center; gap:8px;}
+  .section-label::after{content:''; flex:1; height:1px; background:var(--hairline);}
+
+  .empty-state{padding:40px 20px; text-align:center; color:var(--text-dim); font-size:13px; line-height:1.6;}
+
+  .conseiller-mini{display:flex; align-items:flex-start; gap:12px; padding:4px 20px 16px;}
+  .conseiller-avatar{width:52px; height:52px; object-fit:contain; flex-shrink:0; filter:drop-shadow(0 0 8px rgba(79,195,217,0.45));}
+  .conseiller-bubble{
+    position:relative; flex:1; background:var(--panel); border:1px solid rgba(79,195,217,0.25); border-radius:14px;
+    padding:13px 16px; box-shadow:0 4px 14px rgba(0,0,0,0.2);
+  }
+  .conseiller-bubble::before{
+    content:''; position:absolute; left:-6px; top:16px; width:12px; height:12px; background:var(--panel);
+    border-left:1px solid rgba(79,195,217,0.25); border-bottom:1px solid rgba(79,195,217,0.25); transform:rotate(45deg);
+  }
+  .conseiller-label{font-family:var(--mono); font-size:9.5px; letter-spacing:0.06em; text-transform:uppercase; color:var(--cyan); margin-bottom:4px;}
+  .conseiller-text{font-size:12.5px; line-height:1.55; color:var(--text);}
+  /* Cycle Constat → Explication → Décision (vocabulaire NEXUS, demande de
+     Frédéric le 23/07/2026) — même traitement que NEXUS-Rayon-v1.html. */
+  .cycle-step{margin-bottom:5px;}
+  .cycle-step:last-child{margin-bottom:0;}
+  .cycle-tag{font-family:var(--mono); font-size:9px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; color:var(--text-dim); margin-right:6px;}
+  .cycle-tag.tag-decision{color:var(--amber);}
+
+  footer{margin-top:auto; padding:16px 20px 24px; font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:center; border-top:1px solid var(--hairline);}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="nexus-auth.js"></script>
+<script src="nexus-desktop.js"></script>
+<script src="nexus-vocabulaire.js"></script>
+<script src="nexus-periodes.js"></script>
+<script src="nexus-conseiller.js"></script>
+</head>
+<body>
+<div class="phone">
+  <div class="header">
+    <a href="NEXUS-App-v1.html" class="menu-btn">☰ Menu</a>
+    <div class="eyebrow">NEXUS · Produits</div>
+    <div class="title">Référentiel produit</div>
+  </div>
+  <div class="divider"></div>
+
+  <div class="search-wrap">
+    <div class="search-box">
+      <span>🔍</span>
+      <input type="text" id="searchInput" placeholder="Rechercher un produit (ex: Heineken)">
+    </div>
+    <div class="suggestions" id="suggestions"></div>
+  </div>
+
+  <div class="conseiller-mini">
+    <img class="conseiller-avatar" src="assets/nexus-avatar.png" alt="Conseiller NEXUS">
+    <div class="conseiller-bubble">
+      <div class="conseiller-label">Conseiller NEXUS</div>
+      <div class="conseiller-text" id="conseillerProduitMsg">Recherchez une référence et je vous dis ce que les chiffres racontent vraiment dessus — pas ce qu'on croit en général.</div>
+    </div>
+  </div>
+
+  <!-- desktop-grid (02/08/2026) : mise en colonnes en vue bureau (voir
+       nexus-desktop.js) — purement additif, aucun effet en mobile. -->
+  <div class="section desktop-grid" id="resultSection">
+    <div class="empty-state">Recherchez un produit ci-dessus pour afficher sa fiche complète — toutes les références importées sont disponibles.</div>
+  </div>
+
+  <footer>NEXUS Produits v1 · Données réelles S1 2026 · Vito Sainte-Marie Usine</footer>
+</div>
+
+<script>
+let SITE_ACTUEL = 'vito-sainte-marie'; // ecrase par employee.site_id une fois connecte
+
+nexusRequireAuth().then(async employee => {
+  if (!employee) return; // nexus-auth.js gère déjà la redirection vers NEXUS-Login-v1.html
+  if (employee.role !== 'manager' && employee.role !== 'gerant') {
+    document.body.innerHTML = '<div style="padding:60px 20px; text-align:center; color:var(--text-dim); font-family:sans-serif;">Cet écran est réservé aux managers.</div>';
+    return;
+  }
+  SITE_ACTUEL = employee.site_id || 'vito-sainte-marie';
+
+  let PRODUCTS = [];
+  let PRODUCT_PHOTOS = {};
+
+  // Supabase plafonne chaque requete a 1000 lignes par defaut, sans erreur —
+  // au-dela, le reste est silencieusement absent. Ce helper boucle par pages
+  // de 1000 jusqu'a tout recuperer (trouve le 15/07/2026, meme bug que
+  // Cockpit/CIN/Scanner des que products a depasse 1000 lignes).
+  async function fetchAllRows(builderFactory, pageSize = 1000) {
+    let toutes = [];
+    let from = 0;
+    while (true) {
+      const { data, error } = await builderFactory().range(from, from + pageSize - 1);
+      if (error) return { data: null, error };
+      toutes = toutes.concat(data || []);
+      if (!data || data.length < pageSize) break;
+      from += pageSize;
+    }
+    return { data: toutes, error: null };
+  }
+
+  async function construireProduitsLive() {
+    const { data, error } = await fetchAllRows(() => nexusClient
+      .from('products')
+      .select('categorie, article, ca, marge, prix_achat, prix_vente, quantite, periode_debut, periode_fin, code_barres')
+      .eq('site', SITE_ACTUEL)
+      .order('periode_debut', { ascending: false })
+      .order('article', { ascending: true }));
+    if (error || !data || !data.length) { console.error('Chargement products (fiche produit):', error); return []; }
+
+    // CORRECTIF 23/07/2026 (harmonisation demandée par Frédéric : "un système,
+    // pas une succession de pages") — cette page comparait aveuglément les deux
+    // périodes les plus récentes (bug identique à celui trouvé et corrigé sur
+    // Rayon puis Cockpit le même jour : évolution fausse dès que les deux
+    // périodes se chevauchent ou n'ont pas une durée comparable). Le moteur
+    // partagé nexus-periodes.js sépare "période affichée" (la plus récente —
+    // sert à afficher toutes les fiches produit et leur contribution au rayon,
+    // même si elle est encore en cours) de "paire comparable" (utilisée
+    // uniquement pour calculer une évolution T1→T2).
+    const { periodeAffichage, rowsAffichage, paire, rowsPaireActuelle, rowsPairePrecedente, periodeEnCours } = NexusPeriodes.analyserPeriodes(data);
+    if (!periodeAffichage) { console.error('Aucune période exploitable dans products.'); return []; }
+
+    // CORRECTIF 24/07/2026 (incohérence signalée par Frédéric : "pourquoi T1
+    // apparaît dans Rayon mais pas dans Produits, avec les mêmes données ?")
+    // — cette page limitait jusqu'ici la comparaison T1→T2 aux seuls cas où
+    // la période affichée (la plus récente) faisait ELLE-MÊME partie de la
+    // paire comparable trouvée par nexus-periodes.js. Dès qu'un nouvel
+    // import encore partiel devenait la période affichée, toute comparaison
+    // disparaissait — y compris la tendance sur l'avant-dernière période,
+    // pourtant toujours valable. NEXUS-Rayon-v1.html ne fait pas cette
+    // erreur : il sépare la "période affichée" (chiffres bruts du haut de
+    // fiche : CA généré, unités vendues) de la "paire comparable" (utilisée
+    // UNIQUEMENT pour l'évolution, indépendamment de la fraîcheur de la
+    // période affichée). Même principe appliqué ici : ca_t1/qte_t1 (T1) et
+    // ca_t2_pair/qte_t2_pair (T2 DE LA COMPARAISON — distinct de ca_t2/qte_t2,
+    // qui restent la période affichée) viennent toujours de la dernière paire
+    // comparable trouvée, que la période affichée en fasse partie ou non.
+    const precedentParArticle = {};
+    rowsPairePrecedente.forEach(r => {
+      const cle = r.categorie + '|' + r.article;
+      precedentParArticle[cle] = precedentParArticle[cle] || r;
+    });
+    const actuelParArticlePaire = {};
+    rowsPaireActuelle.forEach(r => {
+      const cle = r.categorie + '|' + r.article;
+      actuelParArticlePaire[cle] = actuelParArticlePaire[cle] || r;
+    });
+
+    const caTotalParRayon = {};
+    rowsAffichage.forEach(r => { caTotalParRayon[r.categorie] = (caTotalParRayon[r.categorie] || 0) + (r.ca || 0); });
+
+    return rowsAffichage.map(p => {
+      const cle = p.categorie + '|' + p.article;
+      const caRayon = caTotalParRayon[p.categorie] || 0;
+      const pct_contrib = caRayon > 0 ? p.ca / caRayon : null;
+
+      const pairPrec = paire ? (precedentParArticle[cle] || null) : null;
+      const pairAct = paire ? (actuelParArticlePaire[cle] || null) : null;
+
+      // Meme moteur de regles que le Cockpit (R4/R3/R2), applique a cette seule reference,
+      // pour rester cohérent partout — une seule source de vérité pour "que recommande NEXUS ici".
+      // Évolution basée sur la paire comparable (pairPrec/pairAct), pas sur
+      // la période affichée directement — même correctif que ci-dessus.
+      let statut = null;
+      const evolution = (pairPrec && pairPrec.ca > 0 && pairAct) ? (pairAct.ca - pairPrec.ca) / pairPrec.ca : null;
+      const lang = NexusConseiller.LANGAGE_ACTION[NexusConseiller.typeActionPourCategorie(p.categorie)];
+      if (pct_contrib !== null && pct_contrib >= 0.15 && p.ca > 0) {
+        statut = { etat: '🔥 À AGIR', texte: lang.recoAgir(p.article), analyse: lang.analyseAgir };
+      } else if (evolution !== null && evolution >= 0.20) {
+        statut = { etat: '📈 OPPORTUNITÉ', texte: lang.recoHausse(p.article), analyse: "Cette dynamique dépasse une croissance ordinaire." };
+      } else if (evolution !== null && evolution <= -0.30) {
+        statut = { etat: '🟡 À SURVEILLER', texte: lang.recoBaisse(p.article), analyse: "Je ne peux pas encore conclure à une vraie tendance sans vérification terrain." };
+      }
+
+      return {
+        article: p.article, categorie: p.categorie, code_barres: p.code_barres || null,
+        pu_ht: p.prix_vente, pma: p.prix_achat,
+        marge_pct: p.ca > 0 ? (p.marge || 0) / p.ca : 0, marge_totale: p.marge || 0,
+        // ca_t2/qte_t2 : toujours la période affichée (la plus récente, même
+        // en cours) — utilisés pour les chiffres "instantanés" de la fiche
+        // (CA généré, unités vendues, rang, produit dormant, vitesse de vente).
+        ca_t2: p.ca, qte_t2: p.quantite || 0,
+        // ca_t1/qte_t1 (T1) et ca_t2_pair/qte_t2_pair (T2 de la comparaison) :
+        // toujours la dernière paire comparable trouvée, indépendamment de la
+        // fraîcheur de la période affichée.
+        ca_t1: pairPrec ? pairPrec.ca : 0, qte_t1: pairPrec ? (pairPrec.quantite || 0) : 0,
+        ca_t2_pair: pairAct ? pairAct.ca : 0, qte_t2_pair: pairAct ? (pairAct.quantite || 0) : 0,
+        ca_s1: (pairPrec ? pairPrec.ca : 0) + (pairAct ? pairAct.ca : 0),
+        pairDisponible: !!paire,
+        // true si la paire comparable inclut la période affichée elle-même
+        // (donc ca_t2_pair === ca_t2) ; false si la période affichée est
+        // encore trop récente et que la comparaison porte sur l'avant-dernière
+        // paire de périodes complètes.
+        pairEstPeriodeAffichee: !!(paire && !periodeEnCours),
+        pairDates: paire ? { debutT1: paire.precedente.debut, finT1: paire.precedente.fin, debutT2: paire.actuelle.debut, finT2: paire.actuelle.fin } : null,
+        // Dates de la période actuelle — nécessaires pour estimer une vitesse
+        // de vente quotidienne (rotation réelle), voir chargerStockGap().
+        periode_debut: p.periode_debut, periode_fin: p.periode_fin,
+        pct_contrib, statut,
+      };
+    });
+  }
+
+  // CORRECTIF 08/08/2026 (retour de Frédéric, Article 11 de la Constitution
+  // NEXUS — "une seule vérité") : cette page avait sa propre copie de
+  // typeActionPourCategorie/LANGAGE_ACTION, avec le même symptôme que celle
+  // trouvée et corrigée le même jour dans le Centre d'Intelligence — le
+  // texte avait dérivé de celui du Cockpit ("Vérifiez et renforcez..." au
+  // lieu de "Je recommande de vérifier et renforcer..."). Utilise
+  // désormais NexusConseiller.typeActionPourCategorie / .LANGAGE_ACTION,
+  // la même source que le Cockpit, le CIN et l'accueil.
+
+  // Statut simplifié en 4 états exhaustifs (Produit performant / À
+  // surveiller / Produit dormant / Produit stratégique), demandé le
+  // 22/07/2026 (NEXUS_Page_Produit_Analyse_V2.pdf). Reprend EXACTEMENT
+  // les mêmes signaux déjà calculés plus haut (ca_t2, pct_contrib,
+  // evolution) — aucune nouvelle donnée, juste une lecture plus directe
+  // que l'ancien `statut` (qui pouvait être null). Priorité de lecture :
+  // dormant (le plus objectif : aucune vente) > stratégique (poids fort
+  // dans le rayon) > à surveiller (chute nette) > performant par défaut.
+  function calculerStatutSimplifie(p) {
+    const evolution = p.ca_t1 > 0 ? (p.ca_t2_pair - p.ca_t1) / p.ca_t1 : null;
+    const lang = NexusConseiller.LANGAGE_ACTION[NexusConseiller.typeActionPourCategorie(p.categorie)];
+    if (p.ca_t2 === 0) {
+      return {
+        cle: 'dormant', label: 'Produit dormant',
+        action: `Aucune vente enregistrée sur la dernière période pour ${p.article} — vérifiez sa présence en rayon ou envisagez un déréférencement.`,
+      };
+    }
+    if (p.pct_contrib !== null && p.pct_contrib >= 0.15) {
+      return { cle: 'strategique', label: 'Produit stratégique', action: lang.recoAgir(p.article) };
+    }
+    if (evolution !== null && evolution <= -0.30) {
+      return { cle: 'surveiller', label: 'À surveiller', action: lang.recoBaisse(p.article) };
+    }
+    return {
+      cle: 'performant', label: 'Produit performant',
+      action: (evolution !== null && evolution >= 0.20)
+        ? lang.recoHausse(p.article)
+        : `Rien n'indique de risque particulier pour ${p.article} actuellement — maintenez le réassort habituel.`,
+    };
+  }
+
+  // Rang du produit dans son rayon, par CA de la période actuelle — calcul
+  // immédiat à partir de PRODUCTS déjà chargé, aucune requête supplémentaire.
+  function calculerRangRayon(p) {
+    const memeRayon = PRODUCTS.filter(x => x.categorie === p.categorie).slice().sort((a, b) => b.ca_t2 - a.ca_t2);
+    const rang = memeRayon.findIndex(x => x.article === p.article) + 1;
+    return { rang, total: memeRayon.length };
+  }
+
+  // Photos produits (source Open Food Facts, accord de Frédéric le
+  // 22/07/2026) — table séparée de `products` (voir migration
+  // migration-product-photos-v1.sql pour le pourquoi), lue une fois ici
+  // et indexée par le même couple categorie|article que PRODUCTS.
+  async function chargerPhotosProduits() {
+    const { data, error } = await nexusClient
+      .from('product_photos')
+      .select('categorie, article, photo_url, source, verifie_le')
+      .eq('site', SITE_ACTUEL);
+    if (error) { console.error('Chargement product_photos:', error); return {}; }
+    const map = {};
+    (data || []).forEach(row => { map[row.categorie + '|' + row.article] = row; });
+    return map;
+  }
+
+  PRODUCTS = await construireProduitsLive();
+  PRODUCT_PHOTOS = await chargerPhotosProduits();
+
+  const searchInput = document.getElementById('searchInput');
+  const suggestionsBox = document.getElementById('suggestions');
+  const resultSection = document.getElementById('resultSection');
+
+  const MISSION_CLASS = {
+    "Générer du volume": "mission-volume",
+    "Générer de la marge": "mission-marge",
+    "Compléter la gamme": "mission-gamme",
+    "Offrir de la diversité": "mission-diversite",
+    "Produit d'appel panier": "mission-panier",
+    "Prix imposé — non applicable": "mission-fixe",
+  };
+
+  searchInput.addEventListener('input', () => {
+    const q = searchInput.value.trim().toLowerCase();
+    if (q.length < 2) { suggestionsBox.innerHTML = ''; return; }
+    const matches = PRODUCTS.filter(p => p.article.toLowerCase().includes(q)).slice(0, 8);
+    suggestionsBox.innerHTML = matches.map(p => `
+      <div class="suggestion-item" data-article="${p.article.replace(/"/g,'&quot;')}">
+        <span>${p.article}</span>
+        <span class="cat">${p.classe || p.categorie}</span>
+      </div>`).join('');
+    suggestionsBox.querySelectorAll('.suggestion-item').forEach(el => {
+      el.addEventListener('click', () => {
+        showProduct(el.dataset.article);
+        suggestionsBox.innerHTML = '';
+        searchInput.value = el.dataset.article;
+      });
+    });
+  });
+
+  // Deep-link depuis le Conseiller NEXUS (accueil) — ?article=<nom exact>
+  // ouvre directement la fiche de ce produit au lieu de laisser le manager
+  // retaper la recherche. Retombe silencieusement sur l'état vide habituel
+  // si l'article n'existe pas (ex: lien copié après un nouvel import qui a
+  // renommé la référence) — demande Frédéric, 26/07/2026.
+  const articleDepuisLien = new URLSearchParams(window.location.search).get('article');
+  if (articleDepuisLien && PRODUCTS.some(p => p.article === articleDepuisLien)) {
+    searchInput.value = articleDepuisLien;
+    showProduct(articleDepuisLien);
+  }
+
+  function fmtEur(v) { return v.toLocaleString('fr-FR', {minimumFractionDigits:2, maximumFractionDigits:2}) + ' €'; }
+  function fmtPct(v) { return (v*100).toFixed(1) + '%'; }
+
+  function showProduct(articleName) {
+    const p = PRODUCTS.find(x => x.article === articleName);
+    if (!p) return;
+
+    // evolQte/evolCa comparent T1 (pairPrec) à T2 DE LA COMPARAISON
+    // (pairAct, via ca_t2_pair/qte_t2_pair) — pas la période affichée
+    // directement, pour ne jamais sauter une période intermédiaire quand la
+    // période affichée est encore trop récente pour faire partie de la paire.
+    const evolQte = p.qte_t1 ? (p.qte_t2_pair - p.qte_t1) / p.qte_t1 : 0;
+    const evolCa = p.ca_t1 ? (p.ca_t2_pair - p.ca_t1) / p.ca_t1 : 0;
+    const maxQte = Math.max(p.qte_t1, p.qte_t2_pair, 1);
+
+    // Statut simplifié + rang rayon : voir calculerStatutSimplifie() et
+    // calculerRangRayon() — remplace l'ancien bloc "Décisions prioritaires"
+    // (fusionné dans l'action recommandée de la carte d'identité ci-dessous).
+    const statutSimplifie = calculerStatutSimplifie(p);
+    const rangRayon = calculerRangRayon(p);
+
+    // ------------------------------------------------------------
+    // Conseiller — cycle Constat → Explication → Décision (vocabulaire
+    // NEXUS, demande de Frédéric le 23/07/2026, déjà appliqué à
+    // NEXUS-Rayon-v1.html). Les mots d'appréciation viennent de
+    // NexusVocab plutôt que d'adjectifs choisis au cas par cas ici, pour
+    // que le ton reste identique d'une fiche produit à l'autre et
+    // cohérent avec Rayon.
+    // ------------------------------------------------------------
+    const conseillerMsg = document.getElementById('conseillerProduitMsg');
+    if (conseillerMsg) {
+      const niveauRentaP = p.marge_pct >= 0.40 ? 'tres_rentable' : p.marge_pct >= 0.25 ? 'correcte' : p.marge_pct >= 0.10 ? 'faible' : 'insuffisante';
+
+      // --- Constat : le fait chiffré, sans jugement.
+      const constatP = p.pct_contrib !== null
+        ? `${p.article} pèse ${fmtPct(p.pct_contrib)} du CA de son rayon (${fmtEur(p.ca_t2)}), marge ${fmtPct(p.marge_pct)}.`
+        : `${p.article} a généré ${fmtEur(p.ca_t2)} sur la période, marge ${fmtPct(p.marge_pct)}.`;
+
+      // --- Explication : ce que ce chiffre révèle vraiment.
+      let explicationP;
+      if (p.ca_t2 === 0) {
+        explicationP = `Un ${NexusVocab.SIGNATURE.PRODUIT_DORMANT.toLowerCase()} n'indique pas forcément un problème de demande — cela peut aussi être une rupture ou un retrait de rayon non signalé.`;
+      } else {
+        const rentaTxt = NexusVocab.rentabilite(niveauRentaP, false, p.article);
+        const tendanceTxt = p.ca_t1 > 0 ? NexusVocab.tendance(evolCa) : null;
+        explicationP = [rentaTxt, tendanceTxt].filter(Boolean).join(' ')
+          || 'Pas assez de recul pour conclure.';
+        if (p.ca_t1 <= 0) explicationP += ' Je n\'ai pas encore de période précédente pour elle.';
+      }
+
+      // --- Décision : l'action attendue, déjà calculée par calculerStatutSimplifie().
+      const decisionP = statutSimplifie.action;
+
+      conseillerMsg.innerHTML = `
+        <div class="cycle-step"><span class="cycle-tag">Constat</span>${employee.nom}, ${constatP}</div>
+        <div class="cycle-step"><span class="cycle-tag">Explication</span>${explicationP}</div>
+        <div class="cycle-step"><span class="cycle-tag tag-decision">Décision</span>${decisionP}</div>
+      `;
+    }
+
+    // CORRECTIF 24/07/2026 (bug signalé par Frédéric : "pourquoi T1 n'est pas
+    // enregistré ?", puis incohérence : "pourquoi Rayon a un T1 et pas
+    // Produits, avec les mêmes données ?"). Deux corrections combinées :
+    //   1) Si aucune paire comparable n'existe DU TOUT (pairDisponible =
+    //      false), pas de bloc T1/T2 — un message explique pourquoi, plutôt
+    //      que d'afficher une fausse barre à 0 et un faux "+0.0%".
+    //   2) Si une paire existe mais que la période affichée est encore trop
+    //      récente pour en faire partie (pairEstPeriodeAffichee = false),
+    //      NEXUS utilise quand même la dernière paire comparable trouvée
+    //      (comme NEXUS-Rayon-v1.html) au lieu d'abandonner toute
+    //      comparaison — avec ses propres dates affichées explicitement,
+    //      jamais confondues avec la période affichée en tête de fiche.
+    const histoHtml = p.pairDisponible ? `
+      <div class="histo-row">
+        <span class="histo-label">T1</span>
+        <div class="histo-bar-track"><div class="histo-bar" style="width:${p.qte_t1/maxQte*100}%; background:var(--text-dim);"></div></div>
+        <span class="histo-val">${p.qte_t1} u.</span>
+      </div>
+      <div class="histo-row">
+        <span class="histo-label">T2</span>
+        <div class="histo-bar-track"><div class="histo-bar" style="width:${p.qte_t2_pair/maxQte*100}%;"></div></div>
+        <span class="histo-val">${p.qte_t2_pair} u.</span>
+      </div>
+      <div style="font-family:var(--mono); font-size:10px; color:var(--text-dim); margin-top:6px;">T1 : ${p.pairDates.debutT1} → ${p.pairDates.finT1} · T2 : ${p.pairDates.debutT2} → ${p.pairDates.finT2}</div>
+      <div class="kpi-grid">
+        <div class="kpi-box"><div class="kl">CA cumulé (T1+T2)</div><div class="kv">${fmtEur(p.ca_s1)}</div></div>
+        <div class="kpi-box"><div class="kl">Évolution QTE</div><div class="kv ${p.qte_t1>0 ? (evolQte>=0?'up':'down') : ''}">${p.qte_t1>0 ? (evolQte>=0?'+':'')+fmtPct(evolQte) : 'Départ de zéro'}</div></div>
+      </div>
+      ${!p.pairEstPeriodeAffichee ? `<div class="histo-empty" style="margin-top:10px;">La période affichée en tête de fiche (${p.periode_debut} → ${p.periode_fin}) est encore trop récente pour être comparée équitablement — cette évolution porte donc sur la dernière paire de périodes complètes et de durée comparable.</div>` : ''}` : `
+      <div class="histo-empty">Aucune période précédente de durée comparable n'a encore été importée pour cette référence (période affichée : ${p.periode_debut} → ${p.periode_fin}, ${p.qte_t2} u. vendues) — NEXUS n'affiche pas d'évolution T1 → T2 plutôt que d'en fabriquer une trompeuse.</div>`;
+
+    resultSection.innerHTML = `
+      <div class="card hero-card">
+        <div class="hero-nom">${p.article}</div>
+        <div class="hero-cat">${p.categorie}</div>
+        <div class="statut-pill st-${statutSimplifie.cle}"><span class="dot"></span>${statutSimplifie.label}</div>
+        <div class="hero-action st-${statutSimplifie.cle}">
+          <div class="ha-label">Action recommandée</div>
+          ${statutSimplifie.action}
+        </div>
+        <div class="hero-tiles">
+          <div class="hero-tile"><div class="ht-label">Rentabilité</div><div class="ht-val">${fmtPct(p.marge_pct)}</div></div>
+          <div class="hero-tile"><div class="ht-label">Rang dans le rayon</div><div class="ht-val">#${rangRayon.rang} / ${rangRayon.total}</div></div>
+          <div class="hero-tile"><div class="ht-label">CA généré (période)</div><div class="ht-val">${fmtEur(p.ca_t2)}</div></div>
+          <div class="hero-tile"><div class="ht-label">Unités vendues</div><div class="ht-val">${p.qte_t2} u.</div></div>
+          <div class="hero-tile">
+            <div class="ht-label">Rotation</div>
+            <div class="ht-val" id="heroRotationVal">…</div>
+            <div class="ht-sub" id="heroRotationSub">vérification…</div>
+          </div>
+          <div class="hero-tile">
+            <div class="ht-label">Stock (valeur)</div>
+            <div class="ht-val" id="heroStockVal">…</div>
+            <div class="ht-sub" id="heroStockSub">vérification…</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="section-label">Détails tarifaires</div>
+        <div class="kpi-grid">
+          <div class="kpi-box"><div class="kl">Prix HT</div><div class="kv">${p.pu_ht !== null ? fmtEur(p.pu_ht) : '—'}</div></div>
+          <div class="kpi-box"><div class="kl">PMA</div><div class="kv">${p.pma !== null ? fmtEur(p.pma) : '—'}</div></div>
+          <div class="kpi-box"><div class="kl">Marge</div><div class="kv">${fmtPct(p.marge_pct)}</div></div>
+          <div class="kpi-box"><div class="kl">% CA rayon</div><div class="kv">${p.pct_contrib != null ? fmtPct(p.pct_contrib) : '—'}</div></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="section-label">Photo produit</div>
+        <div id="photoCardZone"></div>
+      </div>
+
+      <div class="card">
+        <div class="section-label">Photo rayon (terrain)</div>
+        <div id="photoTerrainZone">Vérification…</div>
+      </div>
+
+      <div class="card">
+        <div class="section-label">Historique T1 → T2</div>
+        ${histoHtml}
+      </div>
+
+      <div class="card">
+        <div class="section-label">Fiabilité de ces données</div>
+        <div class="gap-row"><span class="gap-label">Stock</span><span class="gap-status" id="gapStockStatus">Vérification du dernier relevé…</span></div>
+        <div class="gap-row"><span class="gap-label">Rotation réelle</span><span class="gap-status" id="gapRotationStatus">Vérification…</span></div>
+        <div class="gap-row"><span class="gap-label">Emplacement</span><span class="gap-status" id="gapEmplacementStatus">Vérification…</span></div>
+        <div class="gap-row"><span class="gap-label">Facing actuel</span><span class="gap-status">Non disponible — pas de saisie des facings actuellement</span></div>
+        <div id="emplacementPickerZone"></div>
+      </div>
+    `;
+
+    renderPhotoCard(p);
+    chargerStockGap(p);
+    chargerEmplacementProduit(p);
+    chargerPhotoTerrain(p);
+  }
+
+  // Photo rayon (terrain) — prise par un employé via la mission "Photo de
+  // vérification rayon" (NEXUS-Missions-v1.html), pas une photo générique
+  // fabricant comme celle d'Open Food Facts ci-dessus. Voir
+  // migration-mission-photo-produit-v1.sql : la fiche produit lit
+  // directement mission_completions, filtrée par article_cible — pas de
+  // table intermédiaire, une seule source de vérité. Aucune photo tant
+  // qu'aucun employé n'en a pris une : jamais de placeholder inventé.
+  //
+  // MISE À JOUR 22/07/2026 : le manager peut aussi prendre la photo
+  // directement depuis cette fiche, sans repasser par Missions — mêmes
+  // pipeline et bucket Storage (preuves-missions) que côté employé, et la
+  // ligne créée est une complétion normale de "photo-verification-rayon"
+  // (même mission_id, article_cible = ce produit) : pas de table séparée,
+  // pas de statut spécial "photo manager" — le manager fait exactement la
+  // même action de vérification qu'un employé aurait pu faire.
+  async function chargerPhotoTerrain(p) {
+    const zone = document.getElementById('photoTerrainZone');
+    if (!zone) return;
+    let statusHtml;
+    try {
+      const { data, error } = await nexusClient
+        .from('mission_completions')
+        .select('photo_url, created_at, employees(nom)')
+        .eq('site_id', SITE_ACTUEL)
+        .eq('mission_id', 'photo-verification-rayon')
+        .eq('article_cible', p.article)
+        .order('created_at', { ascending: false })
+        .limit(1);
+      if (error) throw error;
+      if (!zone.isConnected) return;
+      if (!data || !data.length || !data[0].photo_url) {
+        statusHtml = `<div class="photo-empty">Aucune photo de rayon prise pour l'instant pour « ${p.article} ».</div>`;
+      } else {
+        const r = data[0];
+        const date = new Date(r.created_at).toLocaleDateString('fr-FR');
+        const nomEmp = r.employees && r.employees.nom ? r.employees.nom : 'un employé';
+        statusHtml = `
+          <div class="photo-box"><img src="${r.photo_url}" alt="Photo rayon"></div>
+          <div class="photo-meta">Prise par ${nomEmp} le ${date}</div>
+        `;
+      }
+    } catch (e) {
+      console.error('Chargement photo terrain:', e);
+      statusHtml = `<div class="photo-empty">Impossible de charger la photo terrain pour l'instant.</div>`;
+    }
+    if (!zone.isConnected) return;
+    zone.innerHTML = `
+      ${statusHtml}
+      <button class="photo-btn" id="btnPrendrePhotoTerrain">📷 Prendre une photo</button>
+      <input type="file" accept="image/*" capture="environment" id="inputPhotoTerrain" style="display:none;">
+      <div id="photoTerrainMsg" style="font-family:var(--mono); font-size:10.5px; margin-top:8px; text-align:center;"></div>
+    `;
+    const btn = document.getElementById('btnPrendrePhotoTerrain');
+    const input = document.getElementById('inputPhotoTerrain');
+    if (btn && input) {
+      btn.addEventListener('click', () => input.click());
+      input.addEventListener('change', () => {
+        if (input.files && input.files[0]) envoyerPhotoTerrainManager(p, input.files[0]);
+      });
+    }
+  }
+
+  async function envoyerPhotoTerrainManager(p, file) {
+    const msg = document.getElementById('photoTerrainMsg');
+    const btn = document.getElementById('btnPrendrePhotoTerrain');
+    if (btn) { btn.disabled = true; btn.textContent = 'Envoi de la photo…'; }
+    if (msg) msg.textContent = '';
+
+    try {
+      const ext = (file.name && file.name.includes('.')) ? file.name.split('.').pop().toLowerCase() : 'jpg';
+      const chemin = `${employee.id}/photo-verification-rayon-${Date.now()}.${ext}`;
+      const { error: erreurUpload } = await nexusClient.storage
+        .from('preuves-missions')
+        .upload(chemin, file, { contentType: file.type || 'image/jpeg' });
+      if (erreurUpload) throw erreurUpload;
+
+      const DIX_ANS = 315360000;
+      const { data: signee, error: erreurSignee } = await nexusClient.storage
+        .from('preuves-missions')
+        .createSignedUrl(chemin, DIX_ANS);
+      if (erreurSignee) throw erreurSignee;
+
+      // Complétion normale de la mission "photo-verification-rayon" (voir
+      // migration-mission-photo-produit-v1.sql) — points = 5 (base
+      // catalogue) + 2 (bonus preuve photo), même barème que côté Missions.
+      const { error: erreurInsert } = await nexusClient
+        .from('mission_completions')
+        .insert({
+          employee_id: employee.id, mission_id: 'photo-verification-rayon',
+          titre: 'Photo de vérification rayon',
+          date: new Date().toISOString().slice(0, 10), heure: new Date().toTimeString().slice(0, 5),
+          photo_fournie: true, photo_url: signee.signedUrl, points: 7,
+          article_cible: p.article, categorie_cible: p.categorie, site_id: SITE_ACTUEL,
+        });
+      if (erreurInsert) throw erreurInsert;
+
+      chargerPhotoTerrain(p);
+    } catch (e) {
+      console.error('Envoi photo terrain (manager):', e);
+      if (msg) { msg.style.color = 'var(--red)'; msg.textContent = "Erreur lors de l'envoi — réessayez."; }
+      if (btn) { btn.disabled = false; btn.textContent = '📷 Prendre une photo'; }
+    }
+  }
+
+  // ------------------------------------------------------------
+  // Emplacement (rayon physique) — table product_locations, voir
+  // migration-product-locations-v1.sql. Contrairement au stock ou aux
+  // photos, aucune source de données existante ne permet de déduire
+  // l'emplacement automatiquement : uniquement une saisie manuelle par
+  // un manager, jamais d'auto-association.
+  //
+  // Cette liste de rayons est un premier brouillon déduit le 22/07/2026
+  // des photos réelles des rayons de Vito Sainte-Marie fournies par
+  // Frédéric, complétée le même jour avec les vraies catégories du
+  // catalogue (products) pour le pré-remplissage automatique — pas figée :
+  // le champ "Autre" permet de saisir un nom de rayon libre, donc la
+  // vraie liste se construira avec l'usage plutôt que d'être imposée
+  // d'avance.
+  const ZONES_BOUTIQUE = [
+    'Entretien Auto & Moteurs',
+    'Entretien Jardin & Extérieur',
+    'Boissons fraîches (frigos)',
+    'Boissons sèches & Jus',
+    'Bières & Spiritueux',
+    'Biscuiterie & Confiserie',
+    'Chips & Apéritif',
+    'Épicerie & Alimentation',
+    'Hygiène & Beauté',
+    'Entretien Ménager & Jetable',
+    'Tabac & Comptoir',
+    'Cartes prépayées & Services',
+    'Maison & Déco / Bazar',
+  ];
+
+  // MISE À JOUR 22/07/2026 : Frédéric a demandé un pré-remplissage pour
+  // tout le catalogue (voir seed-product-locations-auto-v1.sql), déduit
+  // de la catégorie de vente de chaque article — pas d'un relevé terrain.
+  // Une suggestion automatique n'est PAS une donnée vérifiée : on ne
+  // l'affiche donc jamais comme un fait acquis (pas de "(modifier)"
+  // discret comme pour une confirmation humaine), mais clairement comme
+  // une proposition à valider. Le premier clic d'un manager sur un rayon
+  // — même pour confirmer la même suggestion — bascule la ligne en
+  // source='manuel' (voir enregistrerEmplacement()).
+  async function chargerEmplacementProduit(p) {
+    const el = document.getElementById('gapEmplacementStatus');
+    const picker = document.getElementById('emplacementPickerZone');
+    if (!el || !picker) return;
+    picker.innerHTML = '';
+    try {
+      const { data, error } = await nexusClient
+        .from('product_locations')
+        .select('emplacement, assigne_le, source')
+        .eq('site', SITE_ACTUEL)
+        .eq('categorie', p.categorie)
+        .eq('article', p.article)
+        .maybeSingle();
+      if (error) throw error;
+      if (!el.isConnected) return;
+      if (data && data.emplacement && data.source === 'manuel') {
+        const date = new Date(data.assigne_le).toLocaleDateString('fr-FR');
+        el.innerHTML = `${data.emplacement} · ${date} <span class="emplacement-modifier" id="btnModifierEmplacement">(modifier)</span>`;
+      } else if (data && data.emplacement) {
+        // source = 'auto_categorie' : suggestion non confirmée par un humain.
+        el.innerHTML = `🟡 Suggéré : ${data.emplacement} <span class="emplacement-modifier" id="btnModifierEmplacement">(confirmer/corriger)</span>`;
+      } else {
+        el.innerHTML = `Non renseigné <span class="emplacement-modifier" id="btnModifierEmplacement">(choisir)</span>`;
+      }
+      const btn = document.getElementById('btnModifierEmplacement');
+      if (btn) btn.addEventListener('click', () => afficherPickerEmplacement(p));
+    } catch (e) {
+      console.error('Chargement product_locations:', e);
+      if (el.isConnected) el.textContent = "Impossible de vérifier l'emplacement pour l'instant (erreur réseau).";
+    }
+  }
+
+  function afficherPickerEmplacement(p) {
+    const picker = document.getElementById('emplacementPickerZone');
+    if (!picker) return;
+    picker.innerHTML = `
+      <div class="emplacement-zones">
+        ${ZONES_BOUTIQUE.map((z, i) => `<div class="emplacement-zone" data-i="${i}">${z}</div>`).join('')}
+      </div>
+      <div class="emplacement-autre">
+        <input type="text" id="emplacementAutreInput" placeholder="Autre rayon (nom libre)…">
+        <button id="emplacementAutreBtn">Enregistrer</button>
+      </div>
+    `;
+    picker.querySelectorAll('.emplacement-zone').forEach(elz => {
+      elz.addEventListener('click', () => enregistrerEmplacement(p, ZONES_BOUTIQUE[Number(elz.dataset.i)]));
+    });
+    const btnAutre = document.getElementById('emplacementAutreBtn');
+    const inputAutre = document.getElementById('emplacementAutreInput');
+    if (btnAutre && inputAutre) {
+      btnAutre.addEventListener('click', () => {
+        const val = inputAutre.value.trim();
+        if (val) enregistrerEmplacement(p, val);
+      });
+    }
+  }
+
+  async function enregistrerEmplacement(p, zone) {
+    const el = document.getElementById('gapEmplacementStatus');
+    const picker = document.getElementById('emplacementPickerZone');
+    if (el) el.textContent = 'Enregistrement…';
+    if (picker) picker.innerHTML = '';
+
+    const { error } = await nexusClient
+      .from('product_locations')
+      .upsert({
+        site: SITE_ACTUEL, categorie: p.categorie, article: p.article,
+        emplacement: zone, source: 'manuel', assigne_par: employee.id, assigne_le: new Date().toISOString(),
+      }, { onConflict: 'site,categorie,article' });
+
+    if (error) {
+      console.error('Enregistrement product_locations:', error);
+      if (el) el.textContent = "Erreur d'enregistrement — réessayez.";
+      return;
+    }
+    chargerEmplacementProduit(p);
+  }
+
+  // Branche les lignes "Stock" et "Rotation réelle" de la carte "Ce que
+  // NEXUS ne sait pas encore" sur stock_releves (table alimentée par l'écran
+  // Import -> "Stock instantané"), au lieu du texte fige qui restait affiche
+  // meme une fois des relevés importes (repere le 22/07/2026 : Frederic
+  // avait deja importe plusieurs inventaires, la carte ne le refletait pas
+  // car elle n'interrogeait jamais stock_releves).
+  //
+  // Rapprochement par nom d'article exact -- stock_releves n'a pas de FK vers
+  // products, et une comparaison des deux exports le 22/07/2026 a montre que
+  // seuls ~40% des articles de stock retrouvent un nom identique cote ventes
+  // (le reste : vrais ecarts de catalogue, ~190 lignes "Nouvel article", et
+  // aucun code-barres cote stock pour servir de repli). Donc: on affiche la
+  // vraie donnee pour les ~40% qui matchent, et on dit explicitement "aucun
+  // relevé trouvé" pour les autres plutot que d'inventer un chiffre.
+  //
+  // Rotation reelle : ce n'est PAS un vrai taux moyen (quantite vendue /
+  // stock moyen sur une periode commune), qui demanderait au moins deux
+  // relevés stock encadrant une periode de ventes deja importee. Aujourd'hui
+  // les relevés stock (mi-juillet) ne recouvrent aucune periode de ventes
+  // importee (la derniere s'arrete le 30/06). On calcule donc une
+  // ESTIMATION : stock actuel / vitesse de vente quotidienne du dernier
+  // trimestre importe, exprimee en "jours de stock" — et on le dit
+  // explicitement dans le texte affiche, pour ne jamais laisser croire a un
+  // vrai calcul de rotation.
+  // MISE À JOUR 22/07/2026 : alimente aussi les tuiles compactes "Rotation"
+  // et "Stock (valeur)" de la carte d'identité en tête de page (même
+  // requête, pas d'appel supplémentaire) — la carte d'identité montre le
+  // chiffre en un coup d'œil, cette section garde l'explication complète
+  // et les réserves, pour qui veut comprendre d'où il vient.
+  async function chargerStockGap(p) {
+    const elStock = document.getElementById('gapStockStatus');
+    const elRotation = document.getElementById('gapRotationStatus');
+    const elHeroRotVal = document.getElementById('heroRotationVal');
+    const elHeroRotSub = document.getElementById('heroRotationSub');
+    const elHeroStockVal = document.getElementById('heroStockVal');
+    const elHeroStockSub = document.getElementById('heroStockSub');
+    if (!elStock && !elRotation && !elHeroRotVal && !elHeroStockVal) return;
+    try {
+      const { data, error } = await nexusClient
+        .from('stock_releves')
+        .select('quantite_theorique, quantite_reelle, releve_le')
+        .eq('site', SITE_ACTUEL)
+        .eq('article', p.article)
+        .order('releve_le', { ascending: false })
+        .limit(1);
+      if (error) throw error;
+      if (!data || !data.length) {
+        const msg = `Aucun relevé trouvé pour « ${p.article} » (vérifier que le nom correspond exactement à celui utilisé lors de l'import stock).`;
+        if (elStock && elStock.isConnected) elStock.textContent = msg;
+        if (elRotation && elRotation.isConnected) elRotation.textContent = "Non calculable sans relevé de stock pour cet article.";
+        if (elHeroRotVal && elHeroRotVal.isConnected) { elHeroRotVal.textContent = '—'; elHeroRotSub.textContent = 'pas de relevé stock'; }
+        if (elHeroStockVal && elHeroStockVal.isConnected) { elHeroStockVal.textContent = '—'; elHeroStockSub.textContent = 'pas de relevé stock'; }
+        return;
+      }
+      const relv = data[0];
+      const dateRelv = new Date(relv.releve_le).toLocaleDateString('fr-FR');
+      const stockQte = relv.quantite_reelle != null ? relv.quantite_reelle : relv.quantite_theorique;
+
+      const debut = p.periode_debut ? new Date(p.periode_debut) : null;
+      const fin = p.periode_fin ? new Date(p.periode_fin) : null;
+      const nbJours = (debut && fin) ? Math.round((fin - debut) / (1000 * 60 * 60 * 24)) + 1 : 0;
+      const venteJour = nbJours > 0 ? (p.qte_t2 || 0) / nbJours : 0;
+      const joursDeStock = venteJour > 0 ? stockQte / venteJour : null;
+
+      // Niveaux du vocabulaire NEXUS (nexus-vocabulaire.js) — Rotation et
+      // Stock étaient les deux seules catégories du lexique laissées vides
+      // faute de donnée au niveau rayon (voir NEXUS-Rayon-v1.html) : au
+      // niveau produit, ce même relevé stock_releves donne enfin de quoi
+      // les remplir. Seuils choisis pour une supérette/station-service :
+      // sous 3j de stock, risque de rupture immédiat ; au-delà de 45j,
+      // capital immobilisé pour rien. joursDeStock reste l'estimation déjà
+      // documentée ci-dessus (photo à un instant T, pas une moyenne) — ces
+      // niveaux n'ajoutent aucune précision, juste un mot du lexique commun.
+      const niveauRotation = joursDeStock === null ? null
+        : joursDeStock < 7 ? 'tres_rapide' : joursDeStock < 15 ? 'rapide'
+        : joursDeStock < 30 ? 'normale' : joursDeStock < 60 ? 'lente' : 'tres_lente';
+      const niveauStock = joursDeStock === null ? null
+        : joursDeStock < 3 ? 'risque_rupture' : joursDeStock < 7 ? 'tendu'
+        : joursDeStock < 45 ? 'maitrise' : 'surstock';
+      const motRotation = NexusVocab.rotation(niveauRotation, p.article);
+      const motStock = NexusVocab.stock(niveauStock, p.article);
+
+      if (elStock && elStock.isConnected) {
+        const base = relv.quantite_reelle != null
+          ? `Théorique ${relv.quantite_theorique} u., compté ${relv.quantite_reelle} u. — relevé du ${dateRelv}`
+          : `Théorique ${relv.quantite_theorique} u. — relevé du ${dateRelv} (pas encore contrôlé physiquement)`;
+        elStock.textContent = motStock ? `${motStock} ${base}` : base;
+      }
+
+      // Valeur du stock immobilisé = quantité × PMA — seulement si on a un
+      // prix d'achat connu pour ce produit, sinon on affiche "non
+      // calculable" plutôt qu'une fausse valeur à 0€ ou €/u. manquant.
+      if (elHeroStockVal && elHeroStockVal.isConnected) {
+        if (p.pma != null) {
+          elHeroStockVal.textContent = fmtEur(stockQte * p.pma);
+          elHeroStockSub.textContent = motStock || `${stockQte} u. · ${dateRelv}`;
+        } else {
+          elHeroStockVal.textContent = `${stockQte} u.`;
+          elHeroStockSub.textContent = motStock || `PMA inconnu · ${dateRelv}`;
+        }
+      }
+
+      if (elRotation && elRotation.isConnected) {
+        if (venteJour <= 0) {
+          elRotation.textContent = `Aucune vente enregistrée sur la dernière période importée (${p.periode_debut} → ${p.periode_fin}) — rotation non calculable.`;
+        } else {
+          // Le relevé est-il réellement dans la période de ventes ? Comparaison
+          // de dates ISO (YYYY-MM-DD), triable directement en chaîne.
+          const releveIso = relv.releve_le ? String(relv.releve_le).slice(0, 10) : null;
+          const dansLaPeriode = releveIso && p.periode_debut && p.periode_fin
+            && releveIso >= p.periode_debut && releveIso <= p.periode_fin;
+          const caveat = dansLaPeriode
+            ? `Le relevé stock du ${dateRelv} tombe bien dans la période de ventes ${p.periode_debut} → ${p.periode_fin}, mais reste une photo à un instant T, pas une moyenne sur toute la période.`
+            : `Pas une vraie moyenne : le relevé stock du ${dateRelv} ne recouvre pas la période de ventes ${p.periode_debut} → ${p.periode_fin}.`;
+          elRotation.textContent = `${motRotation ? motRotation + ' ' : ''}Estimation : ${joursDeStock.toFixed(1)} j de stock au rythme de vente du dernier trimestre importé (${venteJour.toFixed(2)} u./jour). ${caveat}`;
+        }
+      }
+      if (elHeroRotVal && elHeroRotVal.isConnected) {
+        if (venteJour <= 0) {
+          elHeroRotVal.textContent = '—';
+          elHeroRotSub.textContent = 'aucune vente période';
+        } else {
+          elHeroRotVal.textContent = `≈${venteJour.toFixed(1)}/j`;
+          elHeroRotSub.textContent = motRotation || 'estimation, voir détail';
+        }
+      }
+    } catch (e) {
+      console.error('Chargement stock_releves:', e);
+      const msgErr = "Impossible de vérifier le stock pour l'instant (erreur réseau).";
+      if (elStock && elStock.isConnected) elStock.textContent = msgErr;
+      if (elRotation && elRotation.isConnected) elRotation.textContent = msgErr;
+      if (elHeroRotVal && elHeroRotVal.isConnected) { elHeroRotVal.textContent = '—'; elHeroRotSub.textContent = 'erreur réseau'; }
+      if (elHeroStockVal && elHeroStockVal.isConnected) { elHeroStockVal.textContent = '—'; elHeroStockSub.textContent = 'erreur réseau'; }
+    }
+  }
+
+  // ------------------------------------------------------------
+  // Photo produit — recherche Open Food Facts + confirmation manuelle
+  // avant tout enregistrement. Ajouté le 22/07/2026 : products n'a pas
+  // de code-barres, donc le rapprochement se fait par nom d'article,
+  // moins fiable qu'un code-barres exact — d'où l'étape de confirmation
+  // obligatoire (jamais d'association silencieuse). Voir aussi
+  // migration-product-photos-v1.sql.
+  // ------------------------------------------------------------
+  function photoCleClef(p) { return p.categorie + '|' + p.article; }
+
+  function renderPhotoCard(p) {
+    const zone = document.getElementById('photoCardZone');
+    if (!zone) return;
+    const photo = PRODUCT_PHOTOS[photoCleClef(p)];
+
+    if (photo) {
+      const dateConfirmee = photo.verifie_le ? new Date(photo.verifie_le).toLocaleDateString('fr-FR') : null;
+      zone.innerHTML = `
+        <div class="photo-box"><img src="${photo.photo_url}" alt="${p.article}"></div>
+        <div class="photo-meta">${dateConfirmee ? `Confirmée le ${dateConfirmee} · Open Food Facts` : 'Open Food Facts'}</div>
+        <button class="photo-btn" id="btnRechercherPhoto">Chercher une autre photo</button>
+      `;
+    } else {
+      zone.innerHTML = `
+        <div class="photo-box"><div class="photo-empty">Aucune photo confirmée pour cette référence.</div></div>
+        <button class="photo-btn" id="btnRechercherPhoto">🔍 Chercher sur Open Food Facts</button>
+      `;
+    }
+    const btn = document.getElementById('btnRechercherPhoto');
+    if (btn) btn.addEventListener('click', () => chercherPhotoProduit(p));
+  }
+
+  // Trouvé le 22/07/2026 : `products.code_barres` existe bien en base
+  // (Frédéric l'a montré dans le Table Editor Supabase) mais aucune
+  // requête de cet écran ne le sélectionnait — corrigé plus haut dans
+  // construireProduitsLive(). Un code-barres permet un rapprochement
+  // EXACT sur Open Food Facts (contrairement au nom, forcément approximatif),
+  // donc on l'essaie en premier quand il est disponible, et on ne retombe
+  // sur la recherche par nom que s'il est absent ou introuvable.
+  async function chercherPhotoProduit(p) {
+    // Trouvé le 22/07/2026 (retour de Frédéric) : le repli silencieux vers
+    // la recherche par nom ne disait jamais POURQUOI — impossible de savoir
+    // si c'est parce que l'article n'a pas de code-barres, ou parce que le
+    // code existe mais n'a rien donné. On affiche maintenant explicitement
+    // le motif avant de basculer.
+    if (!p.code_barres) {
+      await chercherPhotoParNom(p, `Pas de code-barres enregistré pour « ${p.article} » — recherche par nom.`);
+      return;
+    }
+
+    const zone = document.getElementById('photoCardZone');
+    if (zone) zone.innerHTML = `<div class="photo-loading">Recherche par code-barres (${p.code_barres})…</div>`;
+    try {
+      const { data, error: erreurFn } = await nexusClient.functions.invoke('clever-endpoint', {
+        body: { code: p.code_barres },
+      });
+      if (erreurFn) throw erreurFn;
+      if (data && data.error) throw new Error(data.error);
+      if (data && (data.status === 1 || data.status === '1') && data.product) {
+        const pr = data.product;
+        const imagesFront = pr.selected_images && pr.selected_images.front && pr.selected_images.front.display;
+        const vignetteImagesFront = imagesFront ? (imagesFront.fr || Object.values(imagesFront)[0]) : null;
+        const vignette = pr.image_front_small_url || pr.image_small_url || pr.image_front_url || pr.image_url || vignetteImagesFront || null;
+        if (vignette) {
+          afficherCandidatUnique(p, {
+            code: data.code || p.code_barres,
+            nom: pr.product_name || pr.product_name_fr || p.article,
+            marque: Array.isArray(pr.brands_tags) ? pr.brands_tags.join(', ') : (pr.brands || ''),
+            quantite: pr.quantity || '',
+            vignette,
+            pleine: pr.image_front_url || pr.image_url || vignette,
+          });
+          return;
+        }
+        await chercherPhotoParNom(p, `Code-barres ${p.code_barres} trouvé sur Open Food Facts mais sans photo — recherche par nom.`, p.code_barres);
+        return;
+      }
+      // Trouvé le 22/07/2026 (retour de Frédéric) : quand le code-barres exact
+      // ne matche rien (souvent parce qu'un chiffre a sauté à la saisie/scan —
+      // voir l'analyse de l'export caisse, ex. Sprite "292090000061" au lieu de
+      // "3292090000061"), on transmet quand même ce code cassé à la recherche
+      // par nom comme "indice" : la fonction serveur peut alors repérer, parmi
+      // les résultats textuels, celui dont le VRAI code-barres OFF contient ces
+      // mêmes chiffres — bien plus fiable qu'un rapprochement par nom seul.
+      await chercherPhotoParNom(p, `Code-barres ${p.code_barres} introuvable sur Open Food Facts — recherche par nom.`, p.code_barres);
+    } catch (e) {
+      console.error('Recherche par code-barres:', e);
+      await chercherPhotoParNom(p, `Recherche par code-barres impossible (${e.message || 'erreur réseau'}) — recherche par nom.`, p.code_barres);
+    }
+  }
+
+  function afficherCandidatUnique(p, candidat) {
+    const zone = document.getElementById('photoCardZone');
+    if (!zone) return;
+    zone.innerHTML = `
+      <div class="section-label" style="margin-bottom:8px;">Trouvé par code-barres (${candidat.code})</div>
+      <div class="photo-candidats" style="grid-template-columns:1fr;">
+        <div class="photo-candidat" id="candidatUnique">
+          <img src="${candidat.vignette}" alt="${candidat.nom}">
+          <div class="pc-nom">${candidat.nom}</div>
+          ${candidat.marque ? `<div class="pc-marque">${candidat.marque}${candidat.quantite ? ' · ' + candidat.quantite : ''}</div>` : ''}
+        </div>
+      </div>
+      <div class="photo-annuler" id="annulerRecherchePhoto">Ce n'est pas la bonne référence — chercher par nom à la place</div>
+    `;
+    document.getElementById('candidatUnique').addEventListener('click', () => confirmerPhotoProduit(p, candidat));
+    document.getElementById('annulerRecherchePhoto').addEventListener('click', () => chercherPhotoParNom(p, undefined, p.code_barres));
+  }
+
+  // indiceCodeBarres : code-barres qu'on a en base pour cet article, même
+  // s'il n'a rien donné en recherche exacte (souvent cassé — chiffre en
+  // trop/manquant). Transmis à la fonction serveur pour qu'elle repère,
+  // parmi les résultats de la recherche par nom, ceux dont le vrai code OFF
+  // partage ces chiffres — voir edge-function-recherche-photo-produit.ts.
+  async function chercherPhotoParNom(p, noteAvantRecherche, indiceCodeBarres) {
+    const zone = document.getElementById('photoCardZone');
+    if (!zone) return;
+    // Trace le motif du repli (pas de code-barres / code introuvable / code
+    // sans photo / erreur technique) pour que Frédéric sache toujours d'où
+    // viennent les résultats affichés, plutôt qu'un repli silencieux.
+    const noteHtml = noteAvantRecherche
+      ? `<div class="photo-empty" style="padding:0 0 10px; border-bottom:1px solid var(--hairline); margin-bottom:10px;">${noteAvantRecherche}</div>`
+      : '';
+    zone.innerHTML = `${noteHtml}<div class="photo-loading">Recherche par nom sur Open Food Facts…</div>`;
+
+    let candidats = [];
+    // Nettoie les mentions de conditionnement/lot ("- 8P", "50CL", "x6")
+    // absentes des noms de produits grand public sur Open Food Facts —
+    // sinon la recherche par nom d'article echoue souvent pour rien.
+    function nettoyerRequeteRecherche(article) {
+      let q = article
+        .replace(/-\s*\d+\s*p\b/gi, '')
+        .replace(/\b\d+\s*(cl|ml|l|g|kg)\b/gi, '')
+        .replace(/\bx\s*\d+\b/gi, '')
+        .replace(/\s{2,}/g, ' ')
+        .trim();
+      return q || article;
+    }
+    const requete = nettoyerRequeteRecherche(p.article);
+
+    try {
+      // Un appel fetch() direct vers Open Food Facts depuis le navigateur
+      // echoue systematiquement ("Load failed") — confirme le 22/07/2026 :
+      // Frederic a ouvert l'URL directement dans Safari, elle repond tres
+      // bien, donc c'est bien un blocage CORS specifique aux appels
+      // cross-origin depuis app.nexusconseil.net, pas un probleme du cote
+      // d'Open Food Facts. On passe donc par une Edge Function Supabase
+      // (recherche-photo-produit) qui fait l'appel cote serveur, ou aucune
+      // restriction CORS ne s'applique — voir
+      // edge-function-recherche-photo-produit.ts pour le code et les
+      // instructions de deploiement.
+      // Nom exact de la fonction cote Supabase : "clever-endpoint" (nom
+      // pre-rempli par le tableau de bord Supabase a la creation, garde
+      // tel quel le 22/07/2026 plutot que de faire tout recommencer).
+      const { data, error: erreurFn } = await nexusClient.functions.invoke('clever-endpoint', {
+        // indice : transmis seulement si on a un code-barres (même cassé) pour
+        // cet article — la fonction serveur s'en sert pour repérer, parmi les
+        // résultats du nom, ceux dont le vrai code OFF partage ces chiffres.
+        // nom : le nom d'article brut (avant nettoyage), transmis à chaque
+        // recherche — la fonction serveur en extrait le format (ex. "50cl")
+        // et les mots significatifs (ex. "Sprite") pour croiser avec la
+        // quantité et la marque de chaque résultat Open Food Facts. Un signal
+        // de plus que le seul code-barres, utile quand celui-ci est cassé ET
+        // absent d'Open Food Facts (donc aucun rapprochement par chiffres
+        // possible).
+        body: { q: requete, nom: p.article, ...(indiceCodeBarres ? { indice: indiceCodeBarres } : {}) },
+      });
+      if (erreurFn) throw erreurFn;
+      if (data && data.error) throw new Error(data.error);
+      const bruts = (data && (data.hits || data.products)) || [];
+      candidats = bruts
+        .map(pr => {
+          const imagesFront = pr.selected_images && pr.selected_images.front && pr.selected_images.front.display;
+          const vignetteImagesFront = imagesFront ? (imagesFront.fr || Object.values(imagesFront)[0]) : null;
+          const vignette = pr.image_front_small_url || pr.image_small_url || pr.image_front_url || pr.image_url || vignetteImagesFront || null;
+          return {
+            code: pr.code || null,
+            nom: pr.product_name || pr.product_name_fr || requete,
+            marque: Array.isArray(pr.brands_tags) ? pr.brands_tags.join(', ') : (pr.brands || ''),
+            quantite: pr.quantity || '',
+            vignette,
+            pleine: pr.image_front_url || pr.image_url || vignette,
+            // Posés par la fonction serveur — trois signaux indépendants de
+            // fiabilité décroissante, voir edge-function-recherche-photo-produit.ts :
+            // code-barres proche (chiffres communs avec le code cassé en base),
+            // format proche (volume/poids du nom vs quantité OFF), mot-clé
+            // (mot significatif du nom retrouvé dans le nom/marque OFF).
+            correspondCodeBarres: !!pr.code_barres_proche,
+            correspondFormat: !!pr.format_correspond,
+            correspondMotCle: !!pr.mot_correspond,
+          };
+        })
+        .filter(c => c.vignette);
+      // La fonction serveur a déjà trié par score (code-barres > format >
+      // mot-clé) ; l'ordre reçu est donc conservé tel quel.
+    } catch (e) {
+      // Message volontairement precis (pas juste "erreur") : si ca echoue
+      // encore, Frederic peut nous dire exactement quoi, sans avoir besoin
+      // d'ouvrir la console du navigateur.
+      console.error('Recherche Open Food Facts:', e);
+      zone.innerHTML = `${noteHtml}<div class="photo-empty">Connexion à Open Food Facts impossible pour l'instant (${(e && e.message) || 'erreur réseau'}).</div>
+        <div class="photo-annuler" id="annulerRecherchePhoto">← Retour</div>`;
+      document.getElementById('annulerRecherchePhoto').addEventListener('click', () => renderPhotoCard(p));
+      return;
+    }
+
+    if (candidats.length === 0) {
+      zone.innerHTML = `${noteHtml}<div class="photo-empty">Aucune photo trouvée pour « ${requete} » sur Open Food Facts${requete !== p.article ? ` (recherché depuis « ${p.article} »)` : ''}.</div>
+        <div class="photo-annuler" id="annulerRecherchePhoto">← Retour</div>`;
+      document.getElementById('annulerRecherchePhoto').addEventListener('click', () => renderPhotoCard(p));
+      return;
+    }
+
+    zone.innerHTML = `
+      ${noteHtml}
+      <div class="section-label" style="margin-bottom:8px;">Choisissez la bonne référence</div>
+      <div class="photo-candidats">
+        ${candidats.map((c, i) => {
+          // Regroupe les signaux concordants en une seule étiquette, du plus
+          // au moins fiable, plutôt que d'empiler des badges séparés.
+          const signaux = [];
+          if (c.correspondCodeBarres) signaux.push('code-barres');
+          if (c.correspondFormat) signaux.push('format');
+          if (c.correspondMotCle) signaux.push('nom');
+          const aUneCorrespondance = signaux.length > 0;
+          return `
+          <div class="photo-candidat${aUneCorrespondance ? ' pc-match' : ''}" data-i="${i}">
+            <img src="${c.vignette}" alt="${c.nom}">
+            <div class="pc-nom">${c.nom}</div>
+            ${c.marque ? `<div class="pc-marque">${c.marque}${c.quantite ? ' · ' + c.quantite : ''}</div>` : ''}
+            ${aUneCorrespondance ? `<div class="pc-badge">Correspond : ${signaux.join(', ')}</div>` : ''}
+          </div>`;
+        }).join('')}
+      </div>
+      <div class="photo-annuler" id="annulerRecherchePhoto">Aucune ne correspond — annuler</div>
+    `;
+    zone.querySelectorAll('.photo-candidat').forEach(el => {
+      el.addEventListener('click', () => confirmerPhotoProduit(p, candidats[Number(el.dataset.i)]));
+    });
+    document.getElementById('annulerRecherchePhoto').addEventListener('click', () => renderPhotoCard(p));
+  }
+
+  async function confirmerPhotoProduit(p, candidat) {
+    const zone = document.getElementById('photoCardZone');
+    if (zone) zone.innerHTML = `<div class="photo-loading">Enregistrement…</div>`;
+
+    const ligne = {
+      site: SITE_ACTUEL, categorie: p.categorie, article: p.article,
+      photo_url: candidat.pleine, source: 'openfoodfacts', code_barre: candidat.code,
+      nom_off: candidat.nom, verifie_par: employee.id, verifie_le: new Date().toISOString(),
+    };
+    const { error } = await nexusClient
+      .from('product_photos')
+      .upsert(ligne, { onConflict: 'site,categorie,article' });
+
+    if (error) {
+      console.error('Enregistrement product_photos:', error);
+      if (zone) {
+        zone.innerHTML = `<div class="photo-empty">Erreur d'enregistrement — réessayez.</div>
+          <div class="photo-annuler" id="annulerRecherchePhoto">← Retour</div>`;
+        const a = document.getElementById('annulerRecherchePhoto');
+        if (a) a.addEventListener('click', () => renderPhotoCard(p));
+      }
+      return;
+    }
+
+    PRODUCT_PHOTOS[photoCleClef(p)] = ligne;
+    renderPhotoCard(p);
+  }
+
+});
+</script>
+</body>
+</html>
