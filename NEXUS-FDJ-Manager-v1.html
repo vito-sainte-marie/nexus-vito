@@ -105,9 +105,6 @@
   .jeu-nom{font-size:12.5px; font-weight:600;}
   .jeu-ventes{font-family:var(--mono); font-size:10.5px; color:var(--text-dim);}
   .jeu-ventes.calc{color:var(--cyan);}
-  .jeu-ventes.anomalie{color:var(--red); font-weight:700;}
-  .jeu-row.anomalie{background:rgba(240,87,90,0.08); box-shadow:inset 3px 0 0 var(--red);}
-  .jeu-input.auto{color:var(--text-mid);}
   .jeu-inputs{display:flex; gap:6px;}
   .jeu-input-wrap{flex:1;}
   .jeu-input-label{font-family:var(--mono); font-size:8px; color:var(--text-dim); text-transform:uppercase; margin-bottom:3px; text-align:center;}
@@ -127,8 +124,6 @@
   .btn-primary{width:100%; padding:14px; border:none; border-radius:10px; font-size:14px; font-weight:600; background:var(--cyan); color:#04141a; cursor:pointer; margin-top:6px;}
   .btn-primary:disabled{opacity:0.35; cursor:not-allowed;}
   .btn-ghost{width:100%; padding:12px; border:1px solid var(--hairline); border-radius:10px; background:transparent; color:var(--text-mid); font-size:13px; cursor:pointer; margin-top:8px;}
-  .btn-retour-fleche{display:flex; align-items:center; gap:6px; background:none; border:none; color:var(--cyan); font-family:var(--sans); font-size:13px; font-weight:600; padding:0 0 16px; cursor:pointer;}
-  .btn-retour-fleche:active{opacity:0.7;}
   .btn-nouveau{width:100%; padding:12px; border:1.5px dashed rgba(79,195,217,0.4); border-radius:12px; background:rgba(79,195,217,0.06); color:var(--cyan); font-size:13px; font-weight:600; cursor:pointer; margin:4px 0 4px;}
   .btn-loading-dots{display:inline-flex; gap:3px; margin-left:6px; vertical-align:middle;}
   .btn-loading-dots i{width:4px; height:4px; border-radius:50%; background:currentColor; display:inline-block; font-style:normal; animation:btnDotsBounce 1.2s infinite ease-in-out;}
@@ -253,66 +248,17 @@
   // ------------------------------------------------------------
   // CHARGEMENT LISTES
   // ------------------------------------------------------------
-  // fdj_cash_controls.shift_id porte une contrainte unique (une seule
-  // caisse par quart) : PostgREST renvoie donc la ressource imbriquée comme
-  // un OBJET, pas un tableau — `s.fdj_cash_controls[0]` valait toujours
-  // undefined (bug trouvé le 09/08/2026, Frédéric : caisse réelle et statut
-  // toujours vides à l'édition, écart toujours "—" en historique alors que
-  // la donnée existait bien en base). Cette fonction gère les deux formes
-  // pour rester robuste si PostgREST change de comportement.
-  function extraireCash(s) {
-    const c = s.fdj_cash_controls;
-    if (!c) return null;
-    return Array.isArray(c) ? (c[0] || null) : c;
-  }
   async function chargerShiftsAvecCaisse(filtreDate) {
     let requete = nexusClient.from('fdj_shifts').select('*, fdj_cash_controls(*)').eq('site', siteId).order('date', { ascending: false }).order('quart', { ascending: false });
     if (filtreDate) requete = requete.eq('date', filtreDate); else requete = requete.limit(30);
     const { data, error } = await requete;
     if (error) { console.error('Chargement quarts FDJ:', error); return []; }
-    return (data || []).map(s => ({ ...s, cash: extraireCash(s) }));
+    return (data || []).map(s => ({ ...s, cash: (s.fdj_cash_controls && s.fdj_cash_controls[0]) || null }));
   }
   async function chargerShiftAvecCaisseParId(id) {
     const { data, error } = await nexusClient.from('fdj_shifts').select('*, fdj_cash_controls(*)').eq('id', id).maybeSingle();
     if (error) { console.error('Chargement quart FDJ par id:', error); return null; }
-    return data ? { ...data, cash: extraireCash(data) } : null;
-  }
-
-  // Stock initial hérité (09/08/2026, demande de Frédéric) : même chaînage
-  // que l'écran employé (stock_final du quart juste avant celui édité),
-  // mais sans exiger que ce quart précédent soit "validé" — le manager
-  // travaille parfois sur un quart encore en brouillon — et une case vide
-  // y vaut directement 0, sans confirmation (le manager a déjà toute la
-  // vue d'ensemble, contrairement à l'employé côté NEXUS-FDJ-v1.html).
-  async function chargerStockInitialHerite(date, quart) {
-    const { data: prevShift, error: e1 } = await nexusClient.from('fdj_shifts')
-      .select('id').eq('site', siteId)
-      .or(`date.lt.${date},and(date.eq.${date},quart.lt.${quart})`)
-      .order('date', { ascending: false }).order('quart', { ascending: false }).limit(1).maybeSingle();
-    if (e1) { console.error('Quart FDJ précédent (manager):', e1); return {}; }
-    if (!prevShift) return {};
-    const { data: counts, error: e2 } = await nexusClient.from('fdj_shift_counts').select('game_id, stock_final').eq('shift_id', prevShift.id);
-    if (e2) { console.error('Comptage précédent FDJ (manager):', e2); return {}; }
-    const parGame = {};
-    (counts || []).forEach(c => { parGame[c.game_id] = c.stock_final; });
-    const map = {};
-    jeux.forEach(j => { map[j.id] = parGame[j.id] ?? 0; }); // case vide -> 0 automatique
-    return map;
-  }
-
-  // Ne réapplique le préremplissage que sur les cases encore vides ou déjà
-  // auto-remplies (edition.stockInitialAuto) — ne jamais écraser une valeur
-  // que le manager a tapée lui-même, même si la date/quart change ensuite.
-  async function reprefillStockInitial() {
-    const herite = await chargerStockInitialHerite(edition.date, edition.quart);
-    jeux.forEach(j => {
-      if (!edition.counts[j.id]) edition.counts[j.id] = { stock_initial: null, appro: 0, stock_final: null };
-      const vide = edition.counts[j.id].stock_initial === null || edition.counts[j.id].stock_initial === undefined;
-      if (vide || edition.stockInitialAuto[j.id]) {
-        edition.counts[j.id].stock_initial = herite[j.id] ?? 0;
-        edition.stockInitialAuto[j.id] = true;
-      }
-    });
+    return data ? { ...data, cash: (data.fdj_cash_controls && data.fdj_cash_controls[0]) || null } : null;
   }
 
   // ------------------------------------------------------------
@@ -466,19 +412,13 @@
   // ------------------------------------------------------------
   // OUVERTURE DE L'ÉDITION (nouveau ou existant)
   // ------------------------------------------------------------
-  async function ouvrirEditionNouveau() {
-    document.getElementById('content').innerHTML = '<div class="loading">Chargement…</div>';
+  function ouvrirEditionNouveau() {
     edition = {
       shiftId: null, date: dateISO(), quart: '1', employeeId: employesSite[0] ? employesSite[0].id : null,
-      statutShift: 'brouillon', counts: {}, stockInitialAuto: {}, lotsPayes: null, caisseTirages: null, regularisations: 0,
+      statutShift: 'brouillon', counts: {}, lotsPayes: null, caisseTirages: null, regularisations: 0,
       caisseReelle: null, motifEcart: '', statutCaisse: 'provisoire', avant: null, estNouveau: true,
     };
     jeux.forEach(j => { edition.counts[j.id] = { stock_initial: null, appro: 0, stock_final: null }; });
-    // Préremplissage (09/08/2026, demande de Frédéric) : un quart tout
-    // neuf hérite directement du stock final du quart précédent, case vide
-    // comprise (voir chargerStockInitialHerite — traité comme 0 ici, sans
-    // confirmation contrairement à l'écran employé).
-    await reprefillStockInitial();
     vue = 'edition';
     renderEdition();
   }
@@ -498,7 +438,7 @@
 
     edition = {
       shiftId: shift.id, date: shift.date, quart: shift.quart, employeeId: shift.employee_id,
-      statutShift: shift.statut, counts: countsMap, stockInitialAuto: {},
+      statutShift: shift.statut, counts: countsMap,
       lotsPayes: repJournalier ? repJournalier.lots_payes_grattage : null,
       caisseTirages: repTempsReel ? repTempsReel.caisse_tirages : null,
       regularisations: cash ? cash.regularisations : 0,
@@ -510,12 +450,6 @@
     // Instantané "avant" pour la trace d'audit — jamais un écrasement
     // silencieux, même en pouvoir total (Constitution NEXUS, traçabilité).
     edition.avant = JSON.parse(JSON.stringify({ date: edition.date, quart: edition.quart, counts: countsMap, lotsPayes: edition.lotsPayes, caisseTirages: edition.caisseTirages, regularisations: edition.regularisations, caisseReelle: edition.caisseReelle, statutCaisse: edition.statutCaisse, employeeId: edition.employeeId }));
-    // Préremplissage des seules cases encore vides (09/08/2026, demande de
-    // Frédéric) : "j'ai l'historique du quart 1, si je modifie le quart 2,
-    // mets automatiquement le stock de fin du quart 1 au stock de départ
-    // du quart 2" — un stock initial déjà saisi par un employé n'est jamais
-    // touché, seules les cases jamais remplies héritent automatiquement.
-    await reprefillStockInitial();
     vue = 'edition';
     renderEdition();
   }
@@ -532,11 +466,6 @@
   function caisseGrattageEdition() { return NexusFdjMoteur.caisseGrattage(ventesGrattageTotalEdition(), edition.lotsPayes); }
   function caisseAttendueEdition() { return NexusFdjMoteur.caisseAttendue(caisseGrattageEdition(), edition.caisseTirages, edition.regularisations); }
   function ecartCaisseEdition() { return NexusFdjMoteur.ecartCaisse(edition.caisseReelle, caisseAttendueEdition()); }
-  // Ventes négatives = anomalie (09/08/2026, demande de Frédéric) — même
-  // règle que côté employé : jamais corrigée toute seule, juste signalée.
-  function jeuxAvecVentesNegativesEdition() {
-    return jeux.filter(j => { const v = calculerVentesEdition(j.id); return v.qte !== null && v.qte < 0; });
-  }
 
   function grouperParPalier(liste) {
     const groupes = {};
@@ -557,7 +486,6 @@
     const groupes = grouperParPalier(jeux);
 
     document.getElementById('content').innerHTML = `
-      <button type="button" class="btn-retour-fleche" id="btnRetourFleche">← Retour</button>
       <div class="champ-row">
         <div>
           <label class="champ-label">Date</label>
@@ -584,7 +512,6 @@
 
       <div class="champ-sep"></div>
       <div class="section-titre">Grattage</div>
-      <div class="statut-badge provisoire" id="banniereAnomaliesEdition" style="display:${jeuxAvecVentesNegativesEdition().length ? 'block' : 'none'}; background:var(--red-dim); color:var(--red); padding:9px 12px; border-radius:8px; margin-bottom:10px; font-family:var(--sans); font-weight:600; text-transform:none;">⚠️ ${jeuxAvecVentesNegativesEdition().length} jeu${jeuxAvecVentesNegativesEdition().length > 1 ? 'x' : ''} avec des ventes négatives — vérifiez le stock saisi.</div>
       ${groupes.map(g => `
         <div class="palier-block">
           <div class="palier-head">${fmtNum(g.prix)} €</div>
@@ -632,16 +559,14 @@
   function renderJeuRowEdition(jeu) {
     const s = edition.counts[jeu.id] || { stock_initial: null, appro: 0, stock_final: null };
     const v = calculerVentesEdition(jeu.id);
-    const anomalie = v.qte !== null && v.qte < 0;
-    const auto = !!edition.stockInitialAuto[jeu.id];
     return `
-      <div class="jeu-row ${anomalie ? 'anomalie' : ''}" data-jeu="${jeu.id}">
+      <div class="jeu-row" data-jeu="${jeu.id}">
         <div class="jeu-nom-ligne">
           <div class="jeu-nom">${jeu.nom}</div>
-          <div class="jeu-ventes ${anomalie ? 'anomalie' : (v.valeur !== null ? 'calc' : '')}">${anomalie ? `⚠️ Anomalie : ${fmtNum(v.qte)}` : (v.qte !== null ? `${fmtNum(v.qte)} · ${fmtEuro(v.valeur)}` : '—')}</div>
+          <div class="jeu-ventes ${v.valeur !== null ? 'calc' : ''}">${v.qte !== null ? `${fmtNum(v.qte)} · ${fmtEuro(v.valeur)}` : '—'}</div>
         </div>
         <div class="jeu-inputs">
-          <div class="jeu-input-wrap"><div class="jeu-input-label">Initial</div><input type="number" inputmode="decimal" class="jeu-input ${auto ? 'auto' : ''}" data-jeu="${jeu.id}" data-champ="stock_initial" value="${s.stock_initial ?? ''}" title="${auto ? 'Hérité automatiquement du quart précédent' : ''}"></div>
+          <div class="jeu-input-wrap"><div class="jeu-input-label">Initial</div><input type="number" inputmode="decimal" class="jeu-input" data-jeu="${jeu.id}" data-champ="stock_initial" value="${s.stock_initial ?? ''}"></div>
           <div class="jeu-input-wrap"><div class="jeu-input-label">Appro</div><input type="number" inputmode="decimal" class="jeu-input" data-jeu="${jeu.id}" data-champ="appro" value="${s.appro ?? 0}"></div>
           <div class="jeu-input-wrap"><div class="jeu-input-label">Final</div><input type="number" inputmode="decimal" class="jeu-input" data-jeu="${jeu.id}" data-champ="stock_final" value="${s.stock_final ?? ''}"></div>
         </div>
@@ -664,16 +589,8 @@
   }
 
   function wireEditionInputs() {
-    // Retour rapide (09/08/2026, demande de Frédéric) : le formulaire est
-    // long, "Annuler" tout en bas obligeait à tout redescendre. Même
-    // action que le bouton "Annuler".
-    document.getElementById('btnRetourFleche').addEventListener('click', () => { vue = 'liste'; edition = null; renderAccueil(); });
-    // Date/quart modifiables (09/08/2026, demande de Frédéric) : chaque
-    // changement recalcule le préremplissage du stock initial pour la
-    // nouvelle date/quart choisie (voir reprefillStockInitial), sans jamais
-    // toucher une case déjà saisie à la main.
-    document.getElementById('champDate').addEventListener('change', async e => { edition.date = e.target.value; await reprefillStockInitial(); renderEdition(); });
-    document.getElementById('champQuart').addEventListener('change', async e => { edition.quart = e.target.value; await reprefillStockInitial(); renderEdition(); });
+    document.getElementById('champDate').addEventListener('change', e => edition.date = e.target.value);
+    document.getElementById('champQuart').addEventListener('change', e => edition.quart = e.target.value);
     document.getElementById('champEmploye').addEventListener('change', e => edition.employeeId = e.target.value);
     document.getElementById('champStatutShift').addEventListener('change', e => edition.statutShift = e.target.value);
     document.getElementById('champStatutCaisse').addEventListener('change', e => edition.statutCaisse = e.target.value);
@@ -685,23 +602,11 @@
         const val = input.value === '' ? null : Number(input.value);
         if (!edition.counts[gameId]) edition.counts[gameId] = { stock_initial: null, appro: 0, stock_final: null };
         edition.counts[gameId][champ] = val;
-        // Dès que le manager touche lui-même le stock initial, ce n'est
-        // plus une valeur héritée automatiquement — un futur changement de
-        // date/quart ne doit plus jamais l'écraser.
-        if (champ === 'stock_initial') { edition.stockInitialAuto[gameId] = false; input.classList.remove('auto'); }
         const row = input.closest('.jeu-row');
         const v = calculerVentesEdition(gameId);
-        const anomalie = v.qte !== null && v.qte < 0;
-        row.classList.toggle('anomalie', anomalie);
         const venteEl = row.querySelector('.jeu-ventes');
-        venteEl.className = `jeu-ventes ${anomalie ? 'anomalie' : (v.valeur !== null ? 'calc' : '')}`;
-        venteEl.textContent = anomalie ? `⚠️ Anomalie : ${fmtNum(v.qte)}` : (v.qte !== null ? `${fmtNum(v.qte)} · ${fmtEuro(v.valeur)}` : '—');
-        const anomalies = jeuxAvecVentesNegativesEdition();
-        const banniereAnomalies = document.getElementById('banniereAnomaliesEdition');
-        if (banniereAnomalies) {
-          banniereAnomalies.style.display = anomalies.length ? '' : 'none';
-          banniereAnomalies.textContent = `⚠️ ${anomalies.length} jeu${anomalies.length > 1 ? 'x' : ''} avec des ventes négatives — vérifiez le stock saisi.`;
-        }
+        venteEl.className = `jeu-ventes ${v.valeur !== null ? 'calc' : ''}`;
+        venteEl.textContent = v.qte !== null ? `${fmtNum(v.qte)} · ${fmtEuro(v.valeur)}` : '—';
         majResume();
       });
     });
