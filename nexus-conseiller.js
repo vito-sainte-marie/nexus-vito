@@ -202,6 +202,11 @@
           impact: `Vous sécurisez environ ${fmt(p.ca)} € de chiffre d'affaires déjà généré par cette référence.`,
           candidate_id: `LIVE-R4-${cle}`, impact_eur: p.ca,
           categorie: p.categorie,
+          // contribution/evolution exposés sur le candidat depuis le
+          // 08/08/2026 (retour de Frédéric, Article 11) : le CIN en a
+          // besoin pour sa mise en forme (projection, texte de
+          // confirmation) et ne doit plus les recalculer lui-même.
+          contribution, evolution: null,
           ca_reference: p.ca, periode_reference_debut: periodeAffichage.debut, periode_reference_fin: periodeAffichage.fin,
         });
       }
@@ -230,6 +235,7 @@
             impact: `Vous avez gagné environ ${fmt(gain)} € sur cette référence depuis la période précédente.`,
             candidate_id: `LIVE-R3-${cle}`, impact_eur: gain,
             categorie: p.categorie,
+            contribution: null, evolution,
             ca_reference: p.ca, periode_reference_debut: paire.actuelle.debut, periode_reference_fin: paire.actuelle.fin,
           });
         }
@@ -248,6 +254,7 @@
             impact: "Vérification demandée — aucune conclusion tant que le stock n'est pas confirmé.",
             candidate_id: `LIVE-R2-${cle}`, impact_eur: perte,
             categorie: p.categorie,
+            contribution: null, evolution,
             ca_reference: p.ca, periode_reference_debut: paire.actuelle.debut, periode_reference_fin: paire.actuelle.fin,
           });
         }
@@ -275,6 +282,22 @@
   // évolution n'est calculée que si la période précédente a une base
   // réelle (CA et quantité > 0) — sinon l'article est simplement ignoré
   // plutôt que de fabriquer un pourcentage à partir de rien.
+  // Mots-clés évoquant un évènement ou une saison commerciale (28/07/2026,
+  // retour de Frédéric) — sert à distinguer une vraie régression d'une fin
+  // de campagne normale (ex : un gobelet "Carnaval" qui ne se vend presque
+  // plus une fois le Carnaval terminé). Premier jet documenté plutôt qu'une
+  // vérité établie, même esprit que MOTCLE_RAYON_TRAFIC (NEXUS-Rayon-v1.html)
+  // ou les EXCEPTIONS de nexus-marge.js : une hypothèse de lecture à corriger
+  // par quelqu'un qui connaît le métier, jamais présentée comme une
+  // certitude — le texte affiché au manager reste conditionnel ("si la
+  // période est terminée"), jamais catégorique sur une donnée que NEXUS ne
+  // peut pas vérifier (Article 5).
+  const MOTSCLES_SAISONNIERS = /carnaval|mardi[- ]gras|no[eë]l|p[aâ]ques|halloween|toussaint|saint[- ]valentin|f[eê]te des m[eè]res|f[eê]te des p[eè]res|rentr[eé]e|chandeleur|beaujolais/i;
+  function detecterMotCleSaisonnier(article) {
+    const m = (article || '').match(MOTSCLES_SAISONNIERS);
+    return m ? m[0] : null;
+  }
+
   function analyserProduitsStrategiques(rowsPaireActuelle, rowsPairePrecedente) {
     function sommerParArticle(rows) {
       const parCle = {};
@@ -307,10 +330,15 @@
       analyses.push({
         article: a.article, categorie: a.categorie,
         ca: a.ca, quantite: a.quantite, marge: a.marge,
+        // Volumes en clair (28/07/2026, retour de Frédéric : "+2300 % sur
+        // une base de 1 unité n'informe pas") — le manager doit pouvoir lire
+        // le nombre d'unités réel à côté du pourcentage, pas seulement lui.
+        quantitePrecedente: p.quantite, caPrecedente: p.ca,
         evolutionCA, evolutionQuantite, evolutionPrixMoyen, evolutionMarge,
         // Le signal le plus utile : le CA progresse alors que le volume
         // recule — la croissance ne vient que du prix, pas de la demande.
         croissanceTarifaire: evolutionCA > 0 && evolutionQuantite < 0,
+        motCleSaisonnier: detecterMotCleSaisonnier(a.article),
       });
     });
 
@@ -318,7 +346,14 @@
       .sort((x, y) => y.evolutionCA - x.evolutionCA).slice(0, 2);
     const progressionVolume = analyses.filter(a => !a.croissanceTarifaire && a.evolutionQuantite > 0)
       .sort((x, y) => y.evolutionQuantite - x.evolutionQuantite).slice(0, 2);
-    const regressionVolume = analyses.filter(a => !a.croissanceTarifaire && a.evolutionQuantite < 0)
+    // Une forte baisse dont le nom évoque un évènement/une saison est
+    // routée à part (regressionSaisonniere) plutôt que mêlée aux vraies
+    // alertes — sinon un produit de Carnaval en fin de campagne se lirait
+    // comme un problème à corriger (retour de Frédéric, 28/07/2026).
+    const regressionCandidats = analyses.filter(a => !a.croissanceTarifaire && a.evolutionQuantite < 0);
+    const regressionSaisonniere = regressionCandidats.filter(a => a.motCleSaisonnier)
+      .sort((x, y) => x.evolutionQuantite - y.evolutionQuantite).slice(0, 2);
+    const regressionVolume = regressionCandidats.filter(a => !a.motCleSaisonnier)
       .sort((x, y) => x.evolutionQuantite - y.evolutionQuantite).slice(0, 2);
     // Exclut aussi les articles déjà en croissance tarifaire (ci-dessus) —
     // sinon un même article apparaîtrait deux fois : une fois comme alerte,
@@ -326,9 +361,17 @@
     const margeEnProgression = analyses.filter(a => !a.croissanceTarifaire && a.evolutionMarge != null && a.evolutionMarge > 0)
       .sort((x, y) => y.evolutionMarge - x.evolutionMarge).slice(0, 2);
 
+    // Compte de sélectivité (28/07/2026, retour de Frédéric : "le Conseiller
+    // ne devrait jamais commenter tous les produits, seulement ceux qui
+    // méritent l'attention") — permet d'afficher "NEXUS a analysé N
+    // produits, M nécessitent votre attention" plutôt qu'une longue liste.
+    const totalRetenus = tarifaire.length + progressionVolume.length + regressionVolume.length
+      + regressionSaisonniere.length + margeEnProgression.length;
+
     return {
       disponible: analyses.length > 0,
-      tarifaire, progressionVolume, regressionVolume, margeEnProgression,
+      totalAnalyses: analyses.length, totalRetenus,
+      tarifaire, progressionVolume, regressionVolume, regressionSaisonniere, margeEnProgression,
     };
   }
 

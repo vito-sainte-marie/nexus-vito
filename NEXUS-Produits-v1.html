@@ -197,6 +197,7 @@
 <script src="nexus-desktop.js"></script>
 <script src="nexus-vocabulaire.js"></script>
 <script src="nexus-periodes.js"></script>
+<script src="nexus-conseiller.js"></script>
 </head>
 <body>
 <div class="phone">
@@ -327,7 +328,7 @@ nexusRequireAuth().then(async employee => {
       // la période affichée directement — même correctif que ci-dessus.
       let statut = null;
       const evolution = (pairPrec && pairPrec.ca > 0 && pairAct) ? (pairAct.ca - pairPrec.ca) / pairPrec.ca : null;
-      const lang = LANGAGE_ACTION[typeActionPourCategorie(p.categorie)];
+      const lang = NexusConseiller.LANGAGE_ACTION[NexusConseiller.typeActionPourCategorie(p.categorie)];
       if (pct_contrib !== null && pct_contrib >= 0.15 && p.ca > 0) {
         statut = { etat: '🔥 À AGIR', texte: lang.recoAgir(p.article), analyse: lang.analyseAgir };
       } else if (evolution !== null && evolution >= 0.20) {
@@ -365,25 +366,14 @@ nexusRequireAuth().then(async employee => {
     });
   }
 
-  // Meme classification et vocabulaire que le Cockpit (voir NEXUS-Cockpit-v2.html) —
-  // le facing n'a pas de sens partout (gaz en cage, cartes dematerialisees, produits frais...).
-  function typeActionPourCategorie(categorie) {
-    const c = (categorie || '').toLowerCase();
-    if (c.includes('gaz')) return 'stock';
-    if (c.includes('carte') || c.includes('prépayé') || c.includes('prepaye') || c.includes('transcash') || c.includes('pcs')) return 'support';
-    if (c.includes('pain') || c.includes('patisserie') || c.includes('pâtisserie') || c.includes('viennoiserie') || c.includes('sandwich') || c.includes('snack')) return 'production';
-    if (c.includes('tabac') || c.includes('cigarette') || c.includes('paquet de')) return 'comptoir';
-    if (c.includes('presse')) return 'presentoir';
-    return 'facing';
-  }
-  const LANGAGE_ACTION = {
-    facing: { analyseAgir: "Une référence à ce niveau de contribution mérite un facing à la hauteur de son poids réel.", recoAgir: a => `Vérifiez et renforcez le facing de ${a}.`, recoHausse: a => `Renforcez le facing de ${a} avant la période suivante.`, recoBaisse: a => `Vérifiez la présence en rayon de ${a}.` },
-    stock: { analyseAgir: "Une référence à ce niveau de contribution ne doit jamais être en rupture en dépôt.", recoAgir: a => `Vérifiez le stock disponible en dépôt/cage pour ${a}.`, recoHausse: a => `Sécurisez davantage de stock de ${a}.`, recoBaisse: a => `Vérifiez le stock en dépôt/cage de ${a}.` },
-    support: { analyseAgir: "Une référence à ce niveau de contribution dépend surtout du support et de son activation en caisse.", recoAgir: a => `Vérifiez le stock de cartes et l'activation en caisse pour ${a}.`, recoHausse: a => `Prévoyez davantage de support pour ${a}.`, recoBaisse: a => `Vérifiez la disponibilité et l'activation du support ${a}.` },
-    production: { analyseAgir: "Une référence à ce niveau de contribution dépend de la quantité produite ou commandée chaque jour — c'est un produit frais.", recoAgir: a => `Ajustez la quantité commandée ou produite de ${a}.`, recoHausse: a => `Augmentez la quantité commandée ou produite de ${a}.`, recoBaisse: a => `Vérifiez si la quantité produite de ${a} a été réduite.` },
-    comptoir: { analyseAgir: "Une référence à ce niveau de contribution doit rester visible au comptoir en priorité.", recoAgir: a => `Vérifiez la disponibilité au comptoir de ${a}.`, recoHausse: a => `Garantissez la disponibilité au comptoir de ${a}.`, recoBaisse: a => `Vérifiez la disponibilité au comptoir de ${a}.` },
-    presentoir: { analyseAgir: "Une référence à ce niveau de contribution mérite une bonne visibilité sur le présentoir.", recoAgir: a => `Vérifiez l'emplacement de ${a} sur le présentoir.`, recoHausse: a => `Améliorez l'emplacement de ${a} sur le présentoir.`, recoBaisse: a => `Vérifiez l'emplacement de ${a} sur le présentoir.` },
-  };
+  // CORRECTIF 08/08/2026 (retour de Frédéric, Article 11 de la Constitution
+  // NEXUS — "une seule vérité") : cette page avait sa propre copie de
+  // typeActionPourCategorie/LANGAGE_ACTION, avec le même symptôme que celle
+  // trouvée et corrigée le même jour dans le Centre d'Intelligence — le
+  // texte avait dérivé de celui du Cockpit ("Vérifiez et renforcez..." au
+  // lieu de "Je recommande de vérifier et renforcer..."). Utilise
+  // désormais NexusConseiller.typeActionPourCategorie / .LANGAGE_ACTION,
+  // la même source que le Cockpit, le CIN et l'accueil.
 
   // Statut simplifié en 4 états exhaustifs (Produit performant / À
   // surveiller / Produit dormant / Produit stratégique), demandé le
@@ -395,7 +385,7 @@ nexusRequireAuth().then(async employee => {
   // dans le rayon) > à surveiller (chute nette) > performant par défaut.
   function calculerStatutSimplifie(p) {
     const evolution = p.ca_t1 > 0 ? (p.ca_t2_pair - p.ca_t1) / p.ca_t1 : null;
-    const lang = LANGAGE_ACTION[typeActionPourCategorie(p.categorie)];
+    const lang = NexusConseiller.LANGAGE_ACTION[NexusConseiller.typeActionPourCategorie(p.categorie)];
     if (p.ca_t2 === 0) {
       return {
         cle: 'dormant', label: 'Produit dormant',

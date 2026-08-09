@@ -9,6 +9,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-auth.js"></script>
 <script src="nexus-periodes.js"></script>
+<script src="nexus-conseiller.js"></script>
 <style>
   :root{
     --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
@@ -149,74 +150,25 @@
 </div>
 
 <script>
-  // --- Meme moteur de detection que le Cockpit (construirePlansAction) ---
-  // Duplique volontairement (architecture "chaque ecran autonome, sans build step") mais
-  // logique identique afin que le CIN ne raconte jamais une autre histoire que le
-  // Cockpit sur les memes donnees. Le Cockpit dit CE QUI se passe ("indice a 74") ;
-  // le CIN explique POURQUOI (cause, projection, decision recommandee).
-
-  function typeActionPourCategorie(categorie) {
-    const c = (categorie || '').toLowerCase();
-    if (c.includes('gaz')) return 'stock';
-    if (c.includes('carte') || c.includes('prépayé') || c.includes('prepaye') || c.includes('transcash') || c.includes('pcs')) return 'support';
-    if (c.includes('pain') || c.includes('patisserie') || c.includes('pâtisserie') || c.includes('viennoiserie') || c.includes('sandwich') || c.includes('snack')) return 'production';
-    if (c.includes('tabac') || c.includes('cigarette') || c.includes('paquet de')) return 'comptoir';
-    if (c.includes('presse')) return 'presentoir';
-    return 'facing';
-  }
-
-  const LANGAGE_ACTION = {
-    facing: {
-      analyseAgir: "Le facing doit refléter ce poids réel dans les ventes.",
-      recoAgir: a => `Vérifier et renforcer le facing de ${a}.`,
-      consAgir: m => `Un sous-dimensionnement de facing sur cette référence représente un risque estimé à ${m} €.`,
-      recoHausse: a => `Renforcer le facing de ${a} avant la période suivante.`,
-      recoBaisse: a => `Vérifier la présence en rayon de ${a} avant toute décision.`,
-    },
-    stock: {
-      analyseAgir: "Elle ne doit jamais être en rupture en dépôt — elle n'est pas exposée en rayon comme les autres.",
-      recoAgir: a => `Vérifier le stock disponible en dépôt/cage pour ${a}.`,
-      consAgir: m => `Une rupture de stock sur cette référence représente un risque estimé à ${m} €.`,
-      recoHausse: a => `Sécuriser davantage de stock de ${a} avant la période suivante.`,
-      recoBaisse: a => `Vérifier le stock en dépôt/cage de ${a} avant toute décision.`,
-    },
-    support: {
-      analyseAgir: "Tout dépend du support et de son activation en caisse, pas d'un emplacement en rayon.",
-      recoAgir: a => `Vérifier le stock de cartes et la bonne activation en caisse pour ${a}.`,
-      consAgir: m => `Une indisponibilité de ce support représente un risque estimé à ${m} €.`,
-      recoHausse: a => `Prévoir davantage de support et d'activation pour ${a} avant la période suivante.`,
-      recoBaisse: a => `Vérifier la disponibilité du support et son activation en caisse pour ${a} avant toute décision.`,
-    },
-    production: {
-      analyseAgir: "C'est la quantité produite ou commandée chaque jour qui compte ici — un produit frais, pas un facing.",
-      recoAgir: a => `Ajuster la quantité commandée ou produite de ${a} au niveau réel de la demande.`,
-      consAgir: m => `Une quantité insuffisante sur cette référence fraîche représente un risque estimé à ${m} €.`,
-      recoHausse: a => `Augmenter la quantité commandée ou produite de ${a} avant la période suivante.`,
-      recoBaisse: a => `Vérifier si la quantité produite ou commandée de ${a} a été réduite avant toute décision.`,
-    },
-    comptoir: {
-      analyseAgir: "Elle doit rester visible et disponible au comptoir en priorité.",
-      recoAgir: a => `Vérifier la disponibilité au comptoir de ${a}.`,
-      consAgir: m => `Une rupture au comptoir sur cette référence représente un risque estimé à ${m} €.`,
-      recoHausse: a => `Garantir la disponibilité au comptoir de ${a} avant la période suivante.`,
-      recoBaisse: a => `Vérifier la disponibilité au comptoir de ${a} avant toute décision.`,
-    },
-    presentoir: {
-      analyseAgir: "Elle mérite une bonne visibilité sur le présentoir.",
-      recoAgir: a => `Vérifier l'emplacement de ${a} sur le présentoir.`,
-      consAgir: m => `Un mauvais emplacement sur cette référence représente un risque estimé à ${m} €.`,
-      recoHausse: a => `Améliorer l'emplacement de ${a} sur le présentoir avant la période suivante.`,
-      recoBaisse: a => `Vérifier l'emplacement de ${a} sur le présentoir avant toute décision.`,
-    },
-  };
-
-  // Systeme de confiance (rapport strategique, section 12) — visible a l'ecran,
-  // relie directement a la regle qui a produit la detection.
-  const CONFIANCE_PAR_RULE = {
-    'R4-RENFORT-A': { niveau: 'A', label: 'Confirmé', desc: "Donnée de vente directe et actuelle sur cette référence." },
-    'R3-HAUSSE':    { niveau: 'B', label: 'Très probable', desc: "Mesuré sur deux périodes réelles importées — tendance à confirmer dans la durée." },
-    'R2-BAISSE':    { niveau: 'C', label: 'Hypothèse à vérifier', desc: "La donnée de stock est absente : NEXUS ne conclut pas, il demande une vérification terrain." },
-  };
+  // --- Moteur R2/R3/R4 : NexusConseiller.calculerCandidatsProduits() ---
+  // CORRECTIF 08/08/2026 (retour de Frédéric, Article 11 de la Constitution
+  // NEXUS — "une seule vérité") : le CIN embarquait ici sa PROPRE copie du
+  // moteur de détection (typeActionPourCategorie, LANGAGE_ACTION, seuils
+  // R2/R3/R4), avec un commentaire qui assumait la duplication ("chaque
+  // écran autonome"). Vérification faite : ce n'était pas qu'un risque
+  // théorique, c'était déjà un vrai écart de comportement avec le Cockpit —
+  // sur une période fraîchement importée mais encore incomplète
+  // (periodeEnCours), la copie locale du CIN désactivait entièrement
+  // R3-HAUSSE/R2-BAISSE, alors que NexusConseiller.calculerCandidatsProduits()
+  // (déjà utilisé par le Cockpit) continue de comparer la dernière paire de
+  // périodes complète. Un manager pouvait donc voir une alerte dans le
+  // Cockpit et « aucune anomalie » dans le CIN sur les mêmes données —
+  // exactement le scénario que l'article 11 interdit. Les formulations
+  // (LANGAGE_ACTION) avaient également dérivé du texte du Cockpit au fil
+  // des retouches locales. Le CIN utilise désormais le même moteur que le
+  // Cockpit et l'accueil ; seules la reconnaissance des décisions déjà
+  // confirmées (ci-dessous, propre au CIN) et la mise en forme
+  // (constat/contexte/pourquoi/impact) restent spécifiques à cet écran.
 
   async function chargerProduitsAppel() {
     const { data, error } = await nexusClient.from('produits_appel').select('article').eq('site', SITE_ACTUEL);
@@ -281,40 +233,21 @@
 
     const rowsBrut = data.filter(r => !produitsAppel.has(r.article));
 
-    // CORRECTIF 23/07/2026 (harmonisation demandée par Frédéric : "un système,
-    // pas une succession de pages") — même bug et même correctif que sur
-    // Rayon/Cockpit/Produits le même jour : comparer aveuglément les deux
-    // périodes les plus récentes fabrique une évolution fausse dès qu'elles se
-    // chevauchent ou n'ont pas une durée comparable. Le moteur partagé
-    // nexus-periodes.js sépare "période affichée" (sert au calcul R4, qui ne
-    // dépend d'aucun historique) de "paire comparable" (utilisée uniquement
-    // pour R3-HAUSSE/R2-BAISSE, et seulement si la période affichée en fait
-    // elle-même partie).
-    const { periodeAffichage, rowsAffichage: rowsActuels, paire, rowsPairePrecedente, periodeEnCours } = NexusPeriodes.analyserPeriodes(rowsBrut);
-    if (!periodeAffichage) { console.error('Aucune période exploitable dans products.'); return []; }
-    const rowsPrecedentsComparables = (paire && !periodeEnCours) ? rowsPairePrecedente : [];
-
-    const caTotalParRayon = {};
-    rowsActuels.forEach(r => { caTotalParRayon[r.categorie] = (caTotalParRayon[r.categorie] || 0) + (r.ca || 0); });
-
-    const precedentParArticle = {};
-    rowsPrecedentsComparables.forEach(r => {
-      const cle = r.categorie + '|' + r.article;
-      precedentParArticle[cle] = (precedentParArticle[cle] || 0) + (r.ca || 0);
-    });
-
-    const candidats = [];
-    const fmt = v => Math.round(v).toLocaleString('fr-FR');
+    // Source unique du moteur R2/R3/R4 — voir le commentaire en tête de ce
+    // <script> pour l'historique du correctif du 08/08/2026.
+    const candidats = window.NexusConseiller.calculerCandidatsProduits(rowsBrut);
 
     // Cas R4 (facing) : c'est une regle structurelle, pas un changement — si
     // elle a deja ete validee recemment et que la situation se maintient
     // (contribution stable ou en hausse), la reformuler en confirmation
     // plutot que la represente comme une alerte neuve. Evite l'impression
-    // de radoter sur un produit dont le facing est deja correct.
-    // Fenetre plus large que les 30 jours de masquage (recommandations_validees) :
-    // la carte redevient visible le jour 31, il faut donc regarder plus loin
-    // que 30 jours en arriere pour retrouver la validation d'origine a ce
-    // moment-la, sinon la reconnaissance ne se declencherait jamais.
+    // de radoter sur un produit dont le facing est deja correct. Reste
+    // propre au CIN : cette mémoire de confirmation n'existe pas dans le
+    // Cockpit, qui n'a pas besoin de "raconter" ses détections de la même
+    // façon. Fenetre de 60 jours (plus large que les 30 jours de masquage
+    // de recommandations_validees) : la carte redevient visible le jour 31,
+    // il faut donc pouvoir regarder plus loin en arriere pour retrouver la
+    // validation d'origine a ce moment-la.
     const il60jISO = new Date(Date.now() - 60*24*60*60*1000).toISOString().slice(0,10);
     const derniereValidationParCandidate = {};
     journalDecisions
@@ -325,77 +258,22 @@
         }
       });
 
-    rowsActuels.forEach(p => {
-      const caRayon = caTotalParRayon[p.categorie] || 0;
-      const contribution = caRayon > 0 ? p.ca / caRayon : 0;
-      const cle = p.categorie + '|' + p.article;
-      const caPrec = precedentParArticle[cle];
-      const evolution = (caPrec && caPrec > 0) ? (p.ca - caPrec) / caPrec : null;
-
-      if (contribution >= 0.15 && p.ca > 0) {
-        const lang = LANGAGE_ACTION[typeActionPourCategorie(p.categorie)];
-        const candidateId = `LIVE-R4-${cle}`;
-        const validationRecente = derniereValidationParCandidate[candidateId];
-        const situationMaintenue = validationRecente && p.ca >= (validationRecente.impact_eur || 0) * 0.9;
-
-        if (situationMaintenue) {
-          candidats.push({
-            etat: "🔥 À AGIR", rule_id: "R4-RENFORT-A", article: p.article, categorie: p.categorie,
-            contribution, evolution: null,
-            situation: `${p.article} reste à ${(contribution*100).toFixed(1)} % du chiffre d'affaires du rayon ${p.categorie} — confirmé depuis votre décision du ${validationRecente.date}.`,
-            contexte: "Calculée sur l'ensemble du rayon.",
-            analyse: "Toujours d'actualité, pas un nouveau problème : la situation se maintient depuis votre dernière décision sur ce produit.",
-            consequence: `Rien à changer pour l'instant — ${fmt(p.ca)} € de chiffre d'affaires reste bien sécurisé.`,
-            recommandation: `Restez attentif si la tendance s'inverse sur ${p.article} — aucune action requise aujourd'hui.`,
-            impact: `Vous confirmez que ${fmt(p.ca)} € de chiffre d'affaires généré par cette référence reste bien couvert.`,
-            candidate_id: candidateId, impact_eur: p.ca,
-          });
-        } else {
-          candidats.push({
-            etat: "🔥 À AGIR", rule_id: "R4-RENFORT-A", article: p.article, categorie: p.categorie,
-            contribution, evolution: null,
-            situation: `${p.article} représente ${(contribution*100).toFixed(1)} % du chiffre d'affaires du rayon ${p.categorie}.`,
-            contexte: "Calculée sur l'ensemble du rayon.",
-            analyse: lang.analyseAgir, consequence: lang.consAgir(fmt(p.ca)),
-            recommandation: lang.recoAgir(p.article),
-            impact: `Vous sécurisez environ ${fmt(p.ca)} € de chiffre d'affaires déjà généré par cette référence.`,
-            candidate_id: candidateId, impact_eur: p.ca,
-          });
-        }
-      }
-      if (evolution !== null && evolution >= 0.20) {
-        const gain = Math.max(p.ca - caPrec, 0);
-        const lang = LANGAGE_ACTION[typeActionPourCategorie(p.categorie)];
-        candidats.push({
-          etat: "📈 OPPORTUNITÉ", rule_id: "R3-HAUSSE", article: p.article, categorie: p.categorie,
-          contribution: null, evolution,
-          situation: `Les ventes de ${p.article} progressent de ${(evolution*100).toFixed(1)} % sur la période.`,
-          contexte: "Mesurée entre les deux périodes importées.",
-          analyse: "Cette dynamique dépasse une croissance ordinaire.",
-          consequence: "Cette croissance peut être amplifiée si l'offre suit la demande.",
-          recommandation: lang.recoHausse(p.article),
-          impact: `Vous avez gagné environ ${fmt(gain)} € sur cette référence depuis la période précédente.`,
-          candidate_id: `LIVE-R3-${cle}`, impact_eur: gain,
-        });
-      }
-      if (evolution !== null && evolution <= -0.30) {
-        const perte = Math.max(caPrec - p.ca, 0);
-        const lang = LANGAGE_ACTION[typeActionPourCategorie(p.categorie)];
-        candidats.push({
-          etat: "🟡 À SURVEILLER", rule_id: "R2-BAISSE", article: p.article, categorie: p.categorie,
-          contribution: null, evolution,
-          situation: `Les ventes de ${p.article} chutent de ${(evolution*100).toFixed(1)} % sur la période.`,
-          contexte: "NEXUS ne dispose pas de la donnée de stock pour cette référence.",
-          analyse: "Je ne peux pas encore conclure à une vraie tendance sans vérification terrain.",
-          consequence: "Une rupture non détectée expliquerait aussi bien cette baisse qu'un désintérêt réel.",
-          recommandation: lang.recoBaisse(p.article),
-          impact: "Vérification demandée — aucune conclusion tant que le stock n'est pas confirmé.",
-          candidate_id: `LIVE-R2-${cle}`, impact_eur: perte,
-        });
-      }
+    const fmt = v => Math.round(v).toLocaleString('fr-FR');
+    candidats.forEach(c => {
+      if (c.rule_id !== 'R4-RENFORT-A') return;
+      const validationRecente = derniereValidationParCandidate[c.candidate_id];
+      const situationMaintenue = validationRecente && c.impact_eur >= (validationRecente.impact_eur || 0) * 0.9;
+      if (!situationMaintenue) return;
+      c.situation = `${c.article} reste à ${(c.contribution*100).toFixed(1)} % du chiffre d'affaires du rayon ${c.categorie} — confirmé depuis votre décision du ${validationRecente.date}.`;
+      c.analyse = "Toujours d'actualité, pas un nouveau problème : la situation se maintient depuis votre dernière décision sur ce produit.";
+      c.consequence = `Rien à changer pour l'instant — ${fmt(c.impact_eur)} € de chiffre d'affaires reste bien sécurisé.`;
+      c.recommandation = `Restez attentif si la tendance s'inverse sur ${c.article} — aucune action requise aujourd'hui.`;
+      c.impact = `Vous confirmez que ${fmt(c.impact_eur)} € de chiffre d'affaires généré par cette référence reste bien couvert.`;
     });
 
-    candidats.sort((a, b) => b.impact_eur - a.impact_eur);
+    // calculerCandidatsProduits() trie déjà par impact_eur décroissant — les
+    // overrides ci-dessus ne touchent jamais impact_eur, l'ordre reste donc
+    // valide sans retri.
     return candidats;
   }
 
@@ -415,6 +293,14 @@
   }
 
   const ETAT_CLASS = { "🔥 À AGIR": "etat-agir", "📈 OPPORTUNITÉ": "etat-opportunite", "🟡 À SURVEILLER": "etat-surveiller" };
+
+  // Systeme de confiance (rapport strategique, section 12) — visible a l'ecran,
+  // relie directement a la regle qui a produit la detection.
+  const CONFIANCE_PAR_RULE = {
+    'R4-RENFORT-A': { niveau: 'A', label: 'Confirmé', desc: "Donnée de vente directe et actuelle sur cette référence." },
+    'R3-HAUSSE':    { niveau: 'B', label: 'Très probable', desc: "Mesuré sur deux périodes réelles importées — tendance à confirmer dans la durée." },
+    'R2-BAISSE':    { niveau: 'C', label: 'Hypothèse à vérifier', desc: "La donnée de stock est absente : NEXUS ne conclut pas, il demande une vérification terrain." },
+  };
 
   async function chargerValidees() {
     const il30j = new Date(Date.now() - 30*24*60*60*1000).toISOString();
