@@ -166,12 +166,13 @@
   // lourde utilisée ailleurs — un manager peut ici changer n'importe quelle
   // valeur d'un quart déjà validé et l'écraser directement.
   //
-  // Seule limite assumée : la date et le quart d'un enregistrement déjà
-  // créé restent fixes (les valeurs et l'employé assigné, eux, sont
-  // librement modifiables) — les changer reviendrait à déplacer la ligne
-  // vers une autre clé unique (site, date, quart) et pourrait laisser une
-  // ligne fantôme derrière soi. Créer un nouveau quart (bouton "+ Nouveau
-  // quart FDJ") reste la voie normale si un quart n'a jamais été compté.
+  // Date et quart sont eux aussi modifiables sur un quart déjà créé
+  // (09/08/2026, demande de Frédéric) : la mise à jour se fait sur la même
+  // ligne (UPDATE ... WHERE id=), jamais un upsert sur (site,date,quart) —
+  // pas de risque de ligne fantôme. Seul filet de sécurité : si la
+  // nouvelle date/quart choisie est déjà prise par un autre quart FDJ, la
+  // contrainte unique de la base refuse l'enregistrement et NEXUS l'explique
+  // clairement plutôt que d'écraser l'autre quart en silence.
   //
   // Calculs délégués à nexus-fdj-moteur.js — jamais dupliqués ici (Article 11).
   // ------------------------------------------------------------
@@ -377,7 +378,7 @@
     };
     // Instantané "avant" pour la trace d'audit — jamais un écrasement
     // silencieux, même en pouvoir total (Constitution NEXUS, traçabilité).
-    edition.avant = JSON.parse(JSON.stringify({ counts: countsMap, lotsPayes: edition.lotsPayes, caisseTirages: edition.caisseTirages, regularisations: edition.regularisations, caisseReelle: edition.caisseReelle, statutCaisse: edition.statutCaisse, employeeId: edition.employeeId }));
+    edition.avant = JSON.parse(JSON.stringify({ date: edition.date, quart: edition.quart, counts: countsMap, lotsPayes: edition.lotsPayes, caisseTirages: edition.caisseTirages, regularisations: edition.regularisations, caisseReelle: edition.caisseReelle, statutCaisse: edition.statutCaisse, employeeId: edition.employeeId }));
     vue = 'edition';
     renderEdition();
   }
@@ -417,17 +418,17 @@
       <div class="champ-row">
         <div>
           <label class="champ-label">Date</label>
-          ${edition.estNouveau ? `<input type="date" class="champ-input" id="champDate" value="${edition.date}">` : `<div class="champ-readonly">${new Date(edition.date + 'T00:00:00').toLocaleDateString('fr-FR')}</div>`}
+          <input type="date" class="champ-input" id="champDate" value="${edition.date}">
         </div>
         <div>
           <label class="champ-label">Quart</label>
-          ${edition.estNouveau ? `
-            <select class="champ-select" id="champQuart">
-              <option value="1" ${edition.quart==='1'?'selected':''}>Quart 1</option>
-              <option value="2" ${edition.quart==='2'?'selected':''}>Quart 2</option>
-            </select>` : `<div class="champ-readonly">Quart ${edition.quart}</div>`}
+          <select class="champ-select" id="champQuart">
+            <option value="1" ${edition.quart==='1'?'selected':''}>Quart 1</option>
+            <option value="2" ${edition.quart==='2'?'selected':''}>Quart 2</option>
+          </select>
         </div>
       </div>
+      ${!edition.estNouveau ? '<div class="champ-note">Changer la date ou le quart déplace ce même enregistrement — impossible si un autre quart FDJ existe déjà à cette date/quart.</div>' : ''}
       <label class="champ-label">Employé assigné</label>
       <select class="champ-select" id="champEmploye" style="margin-bottom:12px;">
         ${employesSite.map(e => `<option value="${e.id}" ${e.id===edition.employeeId?'selected':''}>${e.nom}</option>`).join('')}
@@ -517,10 +518,8 @@
   }
 
   function wireEditionInputs() {
-    if (edition.estNouveau) {
-      document.getElementById('champDate').addEventListener('change', e => edition.date = e.target.value);
-      document.getElementById('champQuart').addEventListener('change', e => edition.quart = e.target.value);
-    }
+    document.getElementById('champDate').addEventListener('change', e => edition.date = e.target.value);
+    document.getElementById('champQuart').addEventListener('change', e => edition.quart = e.target.value);
     document.getElementById('champEmploye').addEventListener('change', e => edition.employeeId = e.target.value);
     document.getElementById('champStatutShift').addEventListener('change', e => edition.statutShift = e.target.value);
     document.getElementById('champStatutCaisse').addEventListener('change', e => edition.statutCaisse = e.target.value);
@@ -559,13 +558,25 @@
     btn.disabled = true;
     btn.innerHTML = 'Enregistrement<span class="btn-loading-dots"><i></i><i></i><i></i></span>';
 
-    // 1) Résoudre le quart (existant ou nouveau).
+    // 1) Résoudre le quart (existant ou nouveau). Date et quart sont inclus
+    // dans le même UPDATE ... WHERE id= (09/08/2026, demande de Frédéric) :
+    // ça déplace la ligne existante, ça n'en crée jamais une seconde. Si la
+    // date/quart choisie est déjà prise par un autre quart FDJ, la
+    // contrainte unique (site,date,quart) de la base refuse l'écriture
+    // (code Postgres 23505) — NEXUS l'explique plutôt que de laisser passer
+    // un écrasement silencieux de l'autre quart.
     let shift;
     if (edition.shiftId) {
       const { data, error } = await nexusClient.from('fdj_shifts')
-        .update({ employee_id: edition.employeeId, statut: edition.statutShift, valide_le: edition.statutShift === 'valide' ? new Date().toISOString() : null })
+        .update({ date: edition.date, quart: edition.quart, employee_id: edition.employeeId, statut: edition.statutShift, valide_le: edition.statutShift === 'valide' ? new Date().toISOString() : null })
         .eq('id', edition.shiftId).select().single();
-      if (error) { console.error('Mise à jour quart FDJ:', error); btn.disabled = false; btn.textContent = 'Enregistrer'; alert('Erreur de mise à jour du quart. Réessayez.'); return; }
+      if (error) {
+        console.error('Mise à jour quart FDJ:', error);
+        btn.disabled = false; btn.textContent = 'Enregistrer';
+        if (error.code === '23505') alert(`Un quart FDJ existe déjà pour le ${new Date(edition.date + 'T00:00:00').toLocaleDateString('fr-FR')} — Quart ${edition.quart}. Modifiez ce quart-là directement plutôt que de déplacer celui-ci, ou choisissez une autre date/quart.`);
+        else alert('Erreur de mise à jour du quart. Réessayez.');
+        return;
+      }
       shift = data;
     } else {
       const { data: existant } = await nexusClient.from('fdj_shifts').select('*').eq('site', siteId).eq('date', edition.date).eq('quart', edition.quart).maybeSingle();
@@ -623,7 +634,7 @@
     await nexusClient.from('fdj_audit_log').insert({
       site: siteId, shift_id: shift.id, entite_type: 'fdj_shift', entite_id: shift.id,
       action: edition.estNouveau ? 'creation_manager' : 'correction_manager', acteur_id: managerCourant.id,
-      ancienne_valeur: edition.avant, nouvelle_valeur: { counts: edition.counts, lotsPayes: edition.lotsPayes, caisseTirages: edition.caisseTirages, regularisations: edition.regularisations, caisseReelle: edition.caisseReelle, statutCaisse: edition.statutCaisse, employeeId: edition.employeeId, ecart },
+      ancienne_valeur: edition.avant, nouvelle_valeur: { date: edition.date, quart: edition.quart, counts: edition.counts, lotsPayes: edition.lotsPayes, caisseTirages: edition.caisseTirages, regularisations: edition.regularisations, caisseReelle: edition.caisseReelle, statutCaisse: edition.statutCaisse, employeeId: edition.employeeId, ecart },
     });
 
     vue = 'liste'; edition = null;
