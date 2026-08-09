@@ -20,7 +20,6 @@
 <script src="nexus-auth.js"></script>
 <script src="nexus-forfait.js"></script>
 <script src="nexus-desktop.js"></script>
-<script src="nexus-fdj-moteur.js"></script>
 <style>
   :root{
     --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
@@ -189,7 +188,6 @@
   let shiftRow = null;         // ligne fdj_shifts
   let jeux = [];                // catalogue fdj_games actif, trié ordre_affichage
   let dernierStockFinal = {};   // game_id -> stock_final du quart précédent validé
-  let dernierShiftPrecedentId = null; // id du quart précédent (pour l'alerte si le stock initial hérité est modifié)
   let countsSaisie = {};        // game_id -> { stock_initial, appro, stock_final }
   let reportJournalier = { lots_payes_grattage: null };
   let reportTempsReel = { caisse_tirages: null };
@@ -279,36 +277,18 @@
 
   // Stock initial = stock final du dernier quart FDJ validé (chaîne
   // continue, comme Inventaire) — jamais remis à zéro à chaque quart.
-  // Garde aussi l'id de ce quart précédent (dernierShiftPrecedentId) : s'il
-  // est modifié plus bas par l'employé, c'est ce quart-là qui est remis en
-  // cause et qui doit être signalé au manager (09/08/2026, demande de
-  // Frédéric).
   async function chargerDernierStockFinal() {
     const { data: prevShift, error: e1 } = await nexusClient.from('fdj_shifts')
       .select('id, date, quart').eq('site', siteId).eq('statut', 'valide')
       .or(`date.lt.${shiftRow.date},and(date.eq.${shiftRow.date},quart.lt.${shiftRow.quart})`)
       .order('date', { ascending: false }).order('quart', { ascending: false }).limit(1).maybeSingle();
-    if (e1) { console.error('Dernier quart FDJ validé:', e1); dernierShiftPrecedentId = null; return {}; }
-    if (!prevShift) { dernierShiftPrecedentId = null; return {}; }
-    dernierShiftPrecedentId = prevShift.id;
+    if (e1) { console.error('Dernier quart FDJ validé:', e1); return {}; }
+    if (!prevShift) return {};
     const { data: counts, error: e2 } = await nexusClient.from('fdj_shift_counts').select('game_id, stock_final').eq('shift_id', prevShift.id);
     if (e2) { console.error('Comptage précédent FDJ:', e2); return {}; }
     const map = {};
     (counts || []).forEach(c => { if (c.stock_final !== null) map[c.game_id] = c.stock_final; });
     return map;
-  }
-
-  // Jeux dont le stock initial saisi s'écarte de la valeur héritée du
-  // quart précédent — chaque écart remet en cause, avec effet rétroactif,
-  // le stock final enregistré à ce quart-là.
-  function jeuxAvecStockInitialModifie() {
-    if (!dernierShiftPrecedentId) return [];
-    return jeux.filter(j => {
-      const herite = dernierStockFinal[j.id];
-      const s = countsSaisie[j.id];
-      if (herite === undefined || herite === null || !s || s.stock_initial === null || s.stock_initial === undefined) return false;
-      return Number(s.stock_initial) !== Number(herite);
-    });
   }
 
   async function obtenirOuCreerShift() {
@@ -323,31 +303,44 @@
   }
 
   // ------------------------------------------------------------
-  // CALCULS — délégués à nexus-fdj-moteur.js (Article 11, "une seule
-  // vérité") : jamais saisis, toujours recalculés (règle non négociable,
-  // audit §19 et §57), et jamais dupliqués entre cet écran et
-  // NEXUS-FDJ-Manager-v1.html.
+  // CALCULS — jamais saisis, toujours recalculés (règle non négociable,
+  // audit §19 et §57).
   // ------------------------------------------------------------
   function calculerVentes(gameId) {
+    const s = countsSaisie[gameId];
     const jeu = jeux.find(j => j.id === gameId);
-    if (!jeu) return { qte: null, valeur: null };
-    return NexusFdjMoteur.calculerVentesJeu(countsSaisie[gameId], jeu.prix);
+    if (!s || s.stock_initial === null || s.stock_initial === undefined || s.stock_final === null || s.stock_final === undefined || !jeu) return { qte: null, valeur: null };
+    const appro = s.appro || 0;
+    const qte = Number(s.stock_initial) + Number(appro) - Number(s.stock_final);
+    return { qte, valeur: qte * Number(jeu.prix) };
   }
-  function ventesGrattageTotal() { return NexusFdjMoteur.ventesGrattageTotal(jeux, countsSaisie); }
-  function caisseGrattage() { return NexusFdjMoteur.caisseGrattage(ventesGrattageTotal(), reportJournalier.lots_payes_grattage); }
-  function caisseAttendue() { return NexusFdjMoteur.caisseAttendue(caisseGrattage(), reportTempsReel.caisse_tirages, regularisations); }
-  function ecartCaisse() { return NexusFdjMoteur.ecartCaisse(caisseReelle, caisseAttendue()); }
+  function ventesGrattageTotal() {
+    let total = 0;
+    for (const jeu of jeux) {
+      const v = calculerVentes(jeu.id);
+      if (v.valeur !== null) total += v.valeur;
+    }
+    return total;
+  }
+  function caisseGrattage() {
+    const lots = reportJournalier.lots_payes_grattage;
+    if (lots === null || lots === undefined || lots === '') return null;
+    return ventesGrattageTotal() - Number(lots);
+  }
+  function caisseAttendue() {
+    const grattage = caisseGrattage();
+    const tirages = reportTempsReel.caisse_tirages;
+    if (grattage === null || tirages === null || tirages === undefined || tirages === '') return null;
+    return grattage + Number(tirages) + Number(regularisations || 0);
+  }
+  function ecartCaisse() {
+    const attendue = caisseAttendue();
+    if (attendue === null || caisseReelle === null || caisseReelle === undefined || caisseReelle === '') return null;
+    return Math.round((Number(caisseReelle) - attendue) * 100) / 100;
+  }
   function jeuEstCompte(jeu) {
     const s = countsSaisie[jeu.id];
     return !!s && s.stock_initial !== null && s.stock_initial !== undefined && s.stock_final !== null && s.stock_final !== undefined;
-  }
-  // Jeux "à moitié comptés" (stock initial connu, stock final jamais tapé)
-  // — candidats à la confirmation "plus de stock" avant de continuer.
-  function jeuxSansStockFinal() {
-    return jeux.filter(j => {
-      const s = countsSaisie[j.id];
-      return s && s.stock_initial !== null && s.stock_initial !== undefined && (s.stock_final === null || s.stock_final === undefined);
-    });
   }
 
   // ------------------------------------------------------------
@@ -462,24 +455,7 @@
       <button class="btn-ghost" id="btnRetourAccueil1">Retour</button>
     `;
     wireJeuInputs();
-    document.getElementById('btnSuiteGrattage').addEventListener('click', () => {
-      // Case vide ≠ zéro deviné (09/08/2026, demande de Frédéric) : un stock
-      // final laissé vide peut aussi bien vouloir dire "je n'ai pas encore
-      // compté ce jeu" que "il n'en reste plus, j'ai oublié de taper 0" —
-      // les deux se ressemblent sur la feuille papier réelle. NEXUS ne
-      // tranche jamais seul : il demande, une seule fois, pour tous les
-      // jeux concernés d'un coup plutôt qu'une popup par jeu.
-      const manquants = jeuxSansStockFinal();
-      if (manquants.length) {
-        const message = manquants.length === 1
-          ? `${manquants[0].nom} : aucun stock final renseigné. Confirmez-vous qu'il n'y a plus aucun carnet en stock (0) ?`
-          : `${manquants.length} jeux sans stock final renseigné :\n${manquants.map(j => `• ${j.nom}`).join('\n')}\n\nConfirmez-vous qu'il n'y a plus de stock (0) pour ces jeux ?`;
-        if (!confirm(message)) return; // reste sur l'écran, l'employé va vérifier ces jeux
-        manquants.forEach(j => { countsSaisie[j.id].stock_final = 0; });
-        sauvegarderDraft();
-      }
-      phase = 'tirages'; renderTirages();
-    });
+    document.getElementById('btnSuiteGrattage').addEventListener('click', () => { phase = 'tirages'; renderTirages(); });
     document.getElementById('btnRetourAccueil1').addEventListener('click', renderAccueil);
   }
 
@@ -699,34 +675,17 @@
       nouvelle_valeur: { caisse_attendue: caisseAttendue(), caisse_reelle: caisseReelle, ecart },
     });
 
-    // 5) Alerte stock initial modifié (09/08/2026, demande de Frédéric) :
-    // si le chiffre hérité du quart précédent a été corrigé, ça remet en
-    // cause le stock final de ce quart-là — jamais silencieux, le manager
-    // est prévenu (point rouge sur "Contrôle FDJ" en vue bureau) plutôt que
-    // de découvrir l'écart plus tard sans savoir pourquoi.
-    const jeuxModifies = jeuxAvecStockInitialModifie();
-    if (jeuxModifies.length) {
-      const alertes = jeuxModifies.map(j => ({
-        site: siteId, type: 'stock_initial_modifie', shift_id: shiftRow.id, shift_precedent_id: dernierShiftPrecedentId,
-        game_id: j.id, valeur_quart_precedent: dernierStockFinal[j.id], valeur_saisie: countsSaisie[j.id].stock_initial,
-        employee_id: employeeCourant.id,
-      }));
-      const { error: eAlerte } = await nexusClient.from('fdj_alertes').insert(alertes);
-      if (eAlerte) console.error('Enregistrement alertes stock initial FDJ:', eAlerte); // non bloquant : le quart reste validé même si l'alerte échoue
-    }
-
     effacerDraft();
-    renderConfirmation(ecart, jeuxModifies);
+    renderConfirmation(ecart);
   }
 
-  function renderConfirmation(ecart, jeuxModifies) {
+  function renderConfirmation(ecart) {
     document.getElementById('titre').textContent = 'Quart FDJ enregistré';
     document.getElementById('sousTitre').textContent = '';
     document.getElementById('content').innerHTML = `
       <div class="checkmark">✓</div>
       <div class="final-greet">Merci ${employeeCourant.nom} !</div>
       <div class="final-sub">${ecart === 0 ? 'Caisse conforme.' : `Écart de ${ecart > 0 ? '+' : ''}${fmtEuro(ecart)} transmis au manager.`}</div>
-      ${jeuxModifies && jeuxModifies.length ? `<div class="etat-banner" style="margin-top:14px; text-align:left;">⚠️ Stock initial corrigé pour ${jeuxModifies.length === 1 ? jeuxModifies[0].nom : `${jeuxModifies.length} jeux`} par rapport au quart précédent — le manager en a été averti, il vérifiera le quart précédent.</div>` : ''}
       <button class="btn-primary" id="btnRetourAccueilFinal">Retour à l'accueil</button>
     `;
     document.getElementById('btnRetourAccueilFinal').addEventListener('click', () => { phase = 'accueil'; renderAccueil(); });
