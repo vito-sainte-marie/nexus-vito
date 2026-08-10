@@ -1,0 +1,851 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" type="image/x-icon" href="favicon.ico">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+<link rel="manifest" href="site.webmanifest">
+<meta name="theme-color" content="#0B0F14">
+<title>NEXUS — Le système d'exploitation des commerces</title>
+<meta name="description" content="NEXUS transforme les données d'exploitation d'un commerce en décisions concrètes — un poste de pilotage unique, en production chez ViTO Sainte-Marie.">
+<link rel="canonical" href="https://www.nexusconseil.net/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="NEXUS">
+<meta property="og:title" content="NEXUS — Le système d'exploitation des commerces">
+<meta property="og:description" content="Un poste de pilotage unique qui transforme les données d'exploitation en décisions concrètes. En production chez ViTO Sainte-Marie.">
+<meta property="og:image" content="https://www.nexusconseil.net/assets/station-vito.jpg">
+<meta property="og:url" content="https://www.nexusconseil.net">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="NEXUS — Le système d'exploitation des commerces">
+<meta name="twitter:description" content="Un poste de pilotage unique qui transforme les données d'exploitation en décisions concrètes.">
+<meta name="twitter:image" content="https://www.nexusconseil.net/assets/station-vito.jpg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
+  --text:#EDF1F5; --text-mid:#8A96A5; --text-dim:#57626F;
+  --green:#34D399; --green-dim:#153629;
+  --amber:#F5A623; --amber-dim:#3A2E14;
+  --red:#F0575A; --red-dim:#3A1D1F;
+  --cyan:#4FC3D9; --cyan-dim:#123138;
+  --gold:#D4AF37; --gold-dim:#332B12;
+  --mono:'IBM Plex Mono',monospace; --sans:'IBM Plex Sans',sans-serif;
+}
+*{box-sizing:border-box; margin:0; padding:0;}
+html{scroll-behavior:smooth;}
+html,body{background:var(--bg); font-family:var(--sans); color:var(--text); min-height:100vh;}
+body{
+  background-image: radial-gradient(circle at 50% 0%, rgba(79,195,217,0.09), transparent 45%);
+}
+a{color:inherit; text-decoration:none;}
+img{display:block; max-width:100%;}
+a:focus-visible, button:focus-visible{outline:2px solid var(--cyan); outline-offset:3px; border-radius:4px;}
+
+.wrap{max-width:1040px; margin:0 auto; padding:0 24px;}
+
+/* ---------- header ---------- */
+header{position:sticky; top:0; z-index:50; background:rgba(11,15,20,0.92); backdrop-filter:blur(6px); border-bottom:1px solid var(--hairline);}
+.nav-wrap{display:flex; align-items:center; justify-content:space-between; padding:16px 24px; max-width:1040px; margin:0 auto;}
+.brand{display:flex; align-items:center; gap:9px;}
+.brand-logo{width:26px; height:26px; object-fit:contain; flex:none;}
+.mark{
+  display:inline-block; font-family:var(--mono); font-weight:700; font-size:14px; letter-spacing:0.14em;
+  color:var(--cyan);
+}
+nav.links{display:flex; align-items:center; gap:24px;}
+nav.links a{font-family:var(--mono); font-size:12px; letter-spacing:0.04em; color:var(--text-mid); text-transform:uppercase;}
+nav.links a:hover{color:var(--text);}
+.btn{
+  display:inline-flex; align-items:center; gap:8px; font-family:var(--mono); font-size:12px; letter-spacing:0.04em;
+  text-transform:uppercase; padding:11px 18px; border-radius:8px; font-weight:600; cursor:pointer;
+  transition:border-color .15s ease, transform .15s ease, background .15s ease; white-space:nowrap; border:1px solid transparent;
+}
+.btn-primary{background:var(--cyan); color:#06181C;}
+.btn-primary:hover{background:#6FD3E5; transform:translateY(-1px);}
+.btn-gold{background:var(--gold); color:#241d06;}
+.btn-gold:hover{background:#E4C158; transform:translateY(-1px);}
+.btn-ghost{background:var(--panel); color:var(--text); border:1px solid var(--hairline);}
+.btn-ghost:hover{border-color:var(--cyan); transform:translateY(-1px);}
+.burger{display:none; flex-direction:column; gap:5px; cursor:pointer; background:none; border:none; padding:6px;}
+.burger span{width:20px; height:2px; background:var(--text); display:block; transition:transform .15s ease, opacity .15s ease;}
+.burger.open span:nth-child(1){transform:translateY(7px) rotate(45deg);}
+.burger.open span:nth-child(2){opacity:0;}
+.burger.open span:nth-child(3){transform:translateY(-7px) rotate(-45deg);}
+
+.mobile-menu{display:none; flex-direction:column; gap:2px; padding:8px 24px 20px; border-top:1px solid var(--hairline); background:var(--bg);}
+.mobile-menu.open{display:flex;}
+.mobile-menu a{font-family:var(--mono); font-size:13px; letter-spacing:0.04em; text-transform:uppercase; color:var(--text-mid); padding:12px 0; border-bottom:1px solid var(--hairline);}
+.mobile-menu a:last-of-type{border-bottom:none;}
+.mobile-menu a:hover{color:var(--text);}
+.mobile-menu .btn{margin-top:12px; justify-content:center;}
+@media (min-width:721px){.mobile-menu{display:none !important;}}
+
+/* ---------- hero ---------- */
+.hero{padding:88px 0 56px; text-align:center;}
+.eyebrow{font-family:var(--mono); font-size:12px; letter-spacing:0.14em; text-transform:uppercase; color:var(--cyan);}
+.hero-setup{font-size:17px; color:var(--text-mid); margin-top:22px; max-width:36ch; margin-left:auto; margin-right:auto;}
+h1{font-size:clamp(30px,4.6vw,46px); font-weight:600; line-height:1.15; margin-top:14px; max-width:19ch; margin-left:auto; margin-right:auto;}
+h1 .hl-amber{color:var(--amber);}
+.lead{font-size:16px; line-height:1.6; color:var(--text-mid); max-width:48ch; margin:22px auto 0;}
+.lead b{color:var(--cyan); font-weight:600;}
+.hero-ctas{display:flex; gap:12px; justify-content:center; margin-top:32px; flex-wrap:wrap;}
+
+.status-strip{
+  display:flex; justify-content:center; gap:28px; padding:18px 24px; font-family:var(--mono); font-size:11.5px;
+  color:var(--text-mid); flex-wrap:wrap; margin-top:44px; border-top:1px solid var(--hairline); border-bottom:1px solid var(--hairline);
+}
+.status-strip b{color:var(--green); font-size:13px;}
+
+/* ---------- trust ---------- */
+.trust{padding:40px 0;}
+.trust-panel{
+  display:flex; align-items:center; gap:18px; background:var(--panel); border:1px solid var(--hairline);
+  border-radius:14px; padding:18px 22px; flex-wrap:wrap;
+}
+.trust-thumb{width:56px; height:56px; border-radius:10px; object-fit:cover; border:1px solid var(--hairline); flex-shrink:0;}
+.trust-text{flex:1; min-width:200px;}
+.trust-text .who{font-size:14.5px; font-weight:600;}
+.trust-text .what{font-size:12.5px; color:var(--text-mid); margin-top:3px;}
+.pill{
+  font-family:var(--mono); font-size:10px; padding:4px 10px; border-radius:20px; font-weight:600;
+  background:var(--green-dim); color:var(--green); display:inline-flex; align-items:center; gap:6px; white-space:nowrap;
+}
+.pill .dot{width:6px; height:6px; border-radius:50%; background:var(--green);}
+
+/* ---------- section shell ---------- */
+.section{padding:60px 0;}
+.section-label{
+  font-family:var(--mono); font-size:11px; letter-spacing:0.1em; text-transform:uppercase; color:var(--text-dim);
+  display:flex; align-items:center; gap:10px; margin-bottom:8px;
+}
+.section-label::after{content:''; flex:1; height:1px; background:var(--hairline);}
+.section h2{font-size:clamp(22px,3vw,30px); font-weight:600; margin-bottom:10px;}
+.section > p.section-desc{color:var(--text-mid); font-size:14.5px; max-width:56ch; line-height:1.6; margin-bottom:32px;}
+
+/* ---------- ADN NEXUS ---------- */
+.adn-grid{display:grid; grid-template-columns:repeat(2,1fr); gap:22px;}
+.adn-card{background:var(--panel); border:1px solid var(--hairline); border-radius:14px; padding:28px;}
+.adn-num{font-family:var(--mono); font-size:11px; color:var(--cyan); letter-spacing:0.1em;}
+.adn-title{font-size:16.5px; font-weight:600; margin-top:9px;}
+.adn-text{font-size:13.5px; color:var(--text-mid); margin-top:9px; line-height:1.6;}
+
+/* ---------- comparaisons (avant/après, différenciation) ---------- */
+.compare-illustration{margin-bottom:26px; border-radius:16px; overflow:hidden; border:1px solid var(--hairline); box-shadow:0 16px 40px rgba(0,0,0,0.25);}
+.compare-illustration img{display:block; width:100%; height:auto;}
+.compare-grid{display:grid; grid-template-columns:1fr 1fr; gap:20px;}
+.compare-col{border-radius:16px; padding:28px 26px; border:1px solid var(--hairline); background:var(--panel);}
+.compare-col.good{background:linear-gradient(165deg, rgba(52,211,153,0.08), var(--panel) 60%); border-color:rgba(52,211,153,0.3);}
+.compare-title{font-family:var(--mono); font-size:11.5px; letter-spacing:0.08em; text-transform:uppercase; color:var(--text-mid); margin-bottom:18px;}
+.compare-col.good .compare-title{color:var(--green);}
+.compare-list{list-style:none; display:flex; flex-direction:column; gap:14px;}
+.compare-list li{display:flex; align-items:flex-start; gap:10px; font-size:14px; line-height:1.5; color:var(--text);}
+.ci{flex-shrink:0; width:20px; height:20px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; margin-top:1px;}
+.ci.ko{background:var(--red-dim); color:var(--red);}
+.ci.ok{background:var(--green-dim); color:var(--green);}
+
+/* ---------- journée avec NEXUS (timeline) ---------- */
+.timeline{display:flex; flex-direction:column;}
+.tl-item{display:grid; grid-template-columns:56px 22px 1fr; column-gap:6px;}
+.tl-time{font-family:var(--mono); font-size:11.5px; color:var(--cyan); padding-top:1px;}
+.tl-line-wrap{display:flex; flex-direction:column; align-items:center;}
+.tl-dot{width:12px; height:12px; border-radius:50%; background:var(--cyan); flex-shrink:0; box-shadow:0 0 0 4px var(--bg);}
+.tl-line{width:2px; flex:1; background:var(--hairline); margin-top:2px; min-height:22px;}
+.tl-item:last-child .tl-line{display:none;}
+.tl-text{font-size:14px; color:var(--text); padding-bottom:26px; padding-top:0;}
+
+/* ---------- offres ---------- */
+.offres-grid{display:grid; grid-template-columns:1fr 1fr; gap:20px;}
+.offre-card{
+  background:var(--panel); border:1px solid var(--hairline); border-radius:16px; padding:30px 26px;
+  position:relative; display:flex; flex-direction:column;
+}
+.offre-card.pro{
+  border-color:rgba(212,175,55,0.4);
+  background:linear-gradient(165deg, rgba(212,175,55,0.09), var(--panel) 60%);
+  box-shadow:0 16px 38px rgba(212,175,55,0.08);
+}
+.offre-ribbon{
+  position:absolute; top:-13px; right:24px; background:var(--gold); color:#241d06; font-family:var(--mono);
+  font-size:10px; font-weight:700; letter-spacing:0.05em; text-transform:uppercase; padding:5px 12px; border-radius:20px;
+}
+.offre-name{font-family:var(--mono); font-size:12px; letter-spacing:0.12em; text-transform:uppercase; color:var(--cyan);}
+.offre-card.pro .offre-name{color:var(--gold);}
+.offre-tagline{font-size:15px; font-weight:600; margin-top:12px; line-height:1.4;}
+.offre-desc{font-size:13px; color:var(--text-mid); margin-top:6px; line-height:1.5;}
+.offre-price{font-size:32px; font-weight:700; margin-top:20px;}
+.offre-price .unit{font-family:var(--mono); font-size:13px; font-weight:500; color:var(--text-dim); margin-left:2px;}
+.offre-features{list-style:none; margin-top:22px; display:flex; flex-direction:column; gap:11px; flex:1;}
+.offre-features li{display:flex; align-items:center; gap:10px; font-size:13.5px; color:var(--text);}
+.offre-features li::before{content:'✓'; color:var(--cyan); font-weight:700; flex-shrink:0;}
+.offre-card.pro .offre-features li::before{color:var(--gold);}
+.offre-cta{margin-top:26px; text-align:center;}
+.offre-note{font-family:var(--mono); font-size:10.5px; color:var(--text-dim); text-align:center; margin-top:16px; line-height:1.6;}
+
+/* ---------- frise progression ---------- */
+.frise{display:flex; position:relative; gap:0;}
+.frise::before{content:''; position:absolute; top:6px; left:6px; right:6px; height:2px; background:var(--hairline);}
+.frise-step{flex:1; position:relative; padding-top:26px; text-align:center;}
+.frise-dot{position:absolute; top:0; left:50%; transform:translateX(-50%); width:12px; height:12px; border-radius:50%; background:var(--hairline); border:2px solid var(--bg);}
+.frise-dot.active{background:var(--gold);}
+.frise-label{font-family:var(--mono); font-size:11px; letter-spacing:0.05em; text-transform:uppercase; color:var(--cyan); margin-bottom:8px;}
+.frise-text{font-size:12.5px; color:var(--text-mid); line-height:1.5; max-width:22ch; margin:0 auto;}
+
+/* ---------- modules : reuses the app's own nav-item component ---------- */
+.mod-list{display:flex; flex-direction:column; gap:12px;}
+.nav-item{
+  display:flex; align-items:center; gap:16px; padding:18px; background:var(--panel);
+  border:1px solid var(--hairline); border-radius:12px; transition:border-color .15s;
+}
+.nav-item:hover{border-color:var(--cyan);}
+.nav-icon{
+  width:44px; height:44px; border-radius:10px; display:flex; align-items:center; justify-content:center;
+  font-size:20px; flex-shrink:0; background:var(--panel-raised); overflow:hidden;
+}
+.nav-icon img{width:100%; height:100%; object-fit:cover;}
+.nav-body{flex:1; min-width:0;}
+.nav-title{font-size:15px; font-weight:600; display:flex; align-items:center; gap:8px; flex-wrap:wrap;}
+.nav-desc{font-size:12.5px; color:var(--text-mid); margin-top:4px; line-height:1.5;}
+.badge-ready{font-family:var(--mono); font-size:9px; padding:2px 8px; border-radius:20px; font-weight:600; background:var(--green-dim); color:var(--green);}
+.badge-pro{font-family:var(--mono); font-size:9px; padding:2px 8px; border-radius:20px; font-weight:600; background:var(--gold-dim); color:var(--gold);}
+
+/* Aperçus miniatures à droite des écrans — motifs abstraits (pas des
+   captures réelles, je n'ai pas accès à l'app en direct depuis ici) qui
+   reprennent le langage visuel de NEXUS : barres, points, lignes, anneau.
+   Un vrai screenshot pourra remplacer chaque motif plus tard. */
+.nav-preview{
+  width:58px; height:58px; border-radius:10px; background:var(--panel-raised); border:1px solid var(--hairline);
+  flex-shrink:0; display:flex; align-items:center; justify-content:center; padding:9px;
+}
+.pv-bars{align-items:flex-end; gap:4px;}
+.pv-bars .pv-bar{width:6px; border-radius:2px; background:var(--cyan);}
+.pv-dots{display:grid; grid-template-columns:repeat(3,1fr); gap:5px;}
+.pv-dots .pv-dot{width:7px; height:7px; border-radius:50%; background:var(--cyan); opacity:0.8;}
+.pv-lines{flex-direction:column; gap:6px; align-items:flex-start; padding:0 10px;}
+.pv-lines .pv-line{height:4px; border-radius:2px; background:var(--cyan);}
+
+/* ---------- moteurs NEXUS (roue circulaire) ---------- */
+.engine-wheel{position:relative; width:100%; max-width:360px; aspect-ratio:1/1; margin:8px auto 0;}
+.engine-hub{
+  position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
+  width:96px; height:96px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+  background:radial-gradient(circle, rgba(79,195,217,0.20), var(--panel-raised) 70%);
+  border:1px solid rgba(79,195,217,0.4); font-family:var(--mono); font-weight:700; font-size:13px; letter-spacing:0.08em; color:var(--cyan);
+}
+.engine-node{
+  position:absolute; transform:translate(-50%,-50%);
+  background:var(--panel); border:1px solid var(--hairline); border-radius:20px; padding:8px 14px;
+  font-family:var(--mono); font-size:11px; font-weight:600; color:var(--text); white-space:nowrap;
+}
+
+/* ---------- quote ---------- */
+.quote-panel{
+  background:var(--panel); border:1px solid var(--hairline); border-radius:14px; padding:40px 36px;
+  position:relative;
+}
+.quote-mark{font-family:var(--mono); font-size:44px; color:var(--cyan); line-height:0.5; margin-bottom:14px; display:block;}
+blockquote{font-size:clamp(18px,2.4vw,24px); font-weight:500; line-height:1.4; color:var(--text); max-width:34ch;}
+.quote-attrib{margin-top:18px; font-family:var(--mono); font-size:12px; color:var(--text-mid);}
+.quote-attrib b{color:var(--cyan);}
+
+/* ---------- final cta ---------- */
+.cta-band{
+  background:var(--panel); border:1px solid var(--hairline); border-radius:16px; padding:56px 32px; text-align:center;
+  margin:8px 0 24px;
+}
+.cta-band h2{font-size:clamp(24px,3.4vw,34px);}
+.cta-band p{color:var(--text-mid); font-size:14.5px; max-width:48ch; margin:14px auto 0;}
+.cta-buttons{display:flex; gap:12px; justify-content:center; margin-top:28px; flex-wrap:wrap;}
+
+/* ---------- manifeste final ---------- */
+.manifesto{padding:70px 0 40px; text-align:center;}
+.manifesto p{
+  font-size:clamp(20px,2.6vw,28px); font-weight:600; line-height:1.5; max-width:34ch; margin:0 auto;
+  background:linear-gradient(120deg, var(--cyan), var(--gold)); -webkit-background-clip:text; background-clip:text; color:transparent;
+}
+
+/* ---------- footer ---------- */
+.site-footer{margin-top:40px; border-top:1px solid var(--hairline); background:var(--panel); padding:56px 0 28px;}
+.footer-trust{display:flex; flex-direction:column; align-items:center; gap:10px; text-transform:uppercase; letter-spacing:0.08em; font-family:var(--mono); font-size:10.5px; color:var(--text-dim);}
+.footer-logo{height:48px; width:auto; object-fit:contain; opacity:0.95;}
+
+.footer-divider{height:1px; background:var(--hairline); margin:32px 0;}
+
+.footer-grid{display:grid; grid-template-columns:1.6fr repeat(5,1fr); gap:28px;}
+.footer-brand-block{padding-right:8px;}
+.footer-brand-block .brand{display:flex; align-items:center; gap:9px; margin-bottom:14px;}
+.footer-brand-block .brand-logo{width:26px; height:26px; object-fit:contain;}
+.footer-brand-block .brand-name{font-size:16px; font-weight:600; color:var(--text);}
+.footer-tagline{font-size:13px; color:var(--text-mid); line-height:1.6; margin-bottom:14px;}
+.footer-mission{list-style:none; display:flex; flex-direction:column; gap:6px;}
+.footer-mission li{font-size:12px; color:var(--text-dim); line-height:1.5; padding-left:14px; position:relative;}
+.footer-mission li::before{content:'·'; position:absolute; left:0; color:var(--cyan);}
+
+.footer-col{display:flex; flex-direction:column; gap:11px;}
+.footer-col-title{font-family:var(--mono); font-size:11px; letter-spacing:0.08em; text-transform:uppercase; color:var(--text-dim); margin-bottom:5px;}
+.footer-col a{font-size:13px; color:var(--text-mid); line-height:1.4;}
+.footer-col a:hover{color:var(--cyan);}
+.footer-soon{font-size:13px; color:var(--text-dim); line-height:1.4; display:flex; align-items:center; gap:6px; flex-wrap:wrap;}
+.footer-soon i{font-style:normal; font-family:var(--mono); font-size:8.5px; letter-spacing:0.04em; text-transform:uppercase; background:var(--panel-raised); border:1px solid var(--hairline); color:var(--text-dim); padding:2px 6px; border-radius:10px;}
+.footer-static{font-size:13px; color:var(--text-mid); line-height:1.4; display:flex; align-items:center; gap:7px;}
+
+.footer-social{margin-top:44px; padding-top:26px; border-top:1px solid var(--hairline); display:flex; align-items:center; gap:22px; flex-wrap:wrap;}
+.footer-social-title{font-family:var(--mono); font-size:11px; letter-spacing:0.08em; text-transform:uppercase; color:var(--text-dim);}
+.footer-social-links{display:flex; gap:18px; flex-wrap:wrap; align-items:center;}
+.footer-social-links a{font-size:13px; color:var(--text-mid);}
+.footer-social-links a:hover{color:var(--cyan);}
+.footer-social-links .footer-soon{font-size:13px;}
+
+.footer-signature{text-align:center; font-size:14.5px; font-weight:500; color:var(--text); max-width:44ch; margin:0 auto 36px; line-height:1.6;}
+
+.footer-bottom-row{display:flex; justify-content:space-between; align-items:flex-end; gap:24px; flex-wrap:wrap;}
+.footer-bottom-left{font-family:var(--mono); font-size:11px; color:var(--text-dim); line-height:1.9;}
+.footer-ambition{font-size:13px; color:var(--text-mid); font-weight:500; margin-bottom:10px; font-family:var(--sans);}
+.footer-badges{display:flex; flex-direction:column; gap:6px; align-items:flex-end;}
+.badge-trust{font-family:var(--mono); font-size:10.5px; color:var(--green); display:flex; align-items:center; gap:6px; white-space:nowrap;}
+.footer-creator-link{display:block; text-align:center; margin-top:22px; font-family:var(--mono); font-size:9.5px; color:var(--text-dim); opacity:0.55;}
+
+/* ---------- système API NEXUS ---------- */
+.api-flow{display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:24px 0;}
+.api-flow-step{font-family:var(--mono); font-size:11px; letter-spacing:0.02em; color:var(--text-mid); background:var(--panel); border:1px solid var(--hairline); border-radius:20px; padding:7px 13px; white-space:nowrap;}
+.api-flow-arrow{color:var(--text-dim); font-size:13px;}
+.api-integ-grid{display:grid; grid-template-columns:repeat(3, 1fr); gap:10px; margin-bottom:20px;}
+.api-integ-card{padding:12px; border-radius:10px; border:1px solid var(--hairline); background:var(--panel);}
+.api-integ-nom{font-size:12.5px; font-weight:600;}
+.api-integ-badge{display:inline-block; margin-top:6px; font-family:var(--mono); font-size:9px; text-transform:uppercase; letter-spacing:0.04em; padding:3px 8px; border-radius:8px;}
+.api-integ-badge.connecte{background:var(--green-dim); color:var(--green);}
+.api-integ-badge.en_attente{background:var(--amber-dim); color:var(--amber);}
+.api-integ-badge.non_connecte{background:var(--panel-raised); color:var(--text-dim); border:1px solid var(--hairline);}
+@media (max-width: 720px){ .api-integ-grid{grid-template-columns:1fr 1fr;} }
+
+@media (max-width:860px){
+  .footer-grid{grid-template-columns:1fr 1fr;}
+  .footer-brand-block{grid-column:1/3;}
+  .footer-bottom-row{flex-direction:column; align-items:flex-start;}
+  .footer-badges{align-items:flex-start;}
+}
+@media (max-width:520px){
+  .footer-grid{grid-template-columns:1fr;}
+  .footer-brand-block{grid-column:auto;}
+}
+
+@media (max-width: 720px){
+  nav.links{display:none;}
+  .burger{display:flex;}
+  .status-strip{gap:18px;}
+  .quote-panel{padding:28px 22px;}
+  .adn-grid{grid-template-columns:1fr;}
+  .compare-grid{grid-template-columns:1fr;}
+  .offres-grid{grid-template-columns:1fr;}
+  .frise{flex-direction:column; gap:22px;}
+  .frise::before{display:none;}
+  .frise-step{padding-top:0; text-align:left; padding-left:26px;}
+  .frise-dot{left:0; top:2px; transform:none;}
+  .frise-text{margin:0;}
+  .nav-preview{display:none;}
+  .engine-wheel{max-width:280px;}
+  .engine-hub{width:74px; height:74px; font-size:11px;}
+  .engine-node{font-size:9.5px; padding:6px 10px;}
+}
+</style>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  "name": "NEXUS Conseil",
+  "url": "https://www.nexusconseil.net",
+  "logo": "https://www.nexusconseil.net/assets/nexus-logo-cyan.png",
+  "description": "NEXUS est le système d'exploitation des commerces : un poste de pilotage unique qui transforme les données d'exploitation en décisions concrètes.",
+  "sameAs": [
+    "https://www.instagram.com/nexus.os.mq"
+  ],
+  "contactPoint": {
+    "@type": "ContactPoint",
+    "email": "contact@nexusconseil.net",
+    "contactType": "customer service"
+  }
+}
+</script>
+</head>
+<body>
+
+<header>
+  <div class="nav-wrap">
+    <div class="brand">
+      <img class="brand-logo" src="assets/nexus-logo-cyan.png" alt="">
+      <span class="mark">NEXUS</span>
+    </div>
+    <nav class="links">
+      <a href="#adn">ADN</a>
+      <a href="#offres">Offres</a>
+      <a href="#fonctionnement">Fonctionnement</a>
+      <a href="#api">API</a>
+      <a href="#contact">Contact</a>
+    </nav>
+    <div style="display:flex; align-items:center; gap:12px;">
+      <a class="btn btn-primary" href="NEXUS-Login-v1.html">Se connecter</a>
+      <button class="burger" id="burgerBtn" aria-label="Ouvrir le menu" aria-expanded="false" aria-controls="mobileMenu"><span></span><span></span><span></span></button>
+    </div>
+  </div>
+  <nav class="mobile-menu" id="mobileMenu">
+    <a href="#adn">ADN</a>
+    <a href="#offres">Offres</a>
+    <a href="#fonctionnement">Fonctionnement</a>
+    <a href="#api">API</a>
+    <a href="#contact">Contact</a>
+    <a class="btn btn-primary" href="NEXUS-Login-v1.html">Se connecter</a>
+  </nav>
+</header>
+
+<div class="wrap">
+
+  <section class="hero">
+    <!-- Accroche renouvelée le 10/08/2026 (demande de Frédéric, cf.
+         NEXUS-Onboarding-Decouverte-v1.md § "Accroche commerciale révisée") :
+         l'ancienne accroche ("Combien vous coûtent celles que vous ne voyez
+         pas ?") parlait encore en langage de manque de données. Un prospect
+         qui découvre NEXUS n'a pas ce problème — il en a déjà trop, sans
+         savoir laquelle regarder. La nouvelle accroche répond directement à
+         ça, avant même de nommer un seul module. Structure inchangée
+         (eyebrow → hero-setup → h1 → lead → CTA), seul le texte change. -->
+    <div class="eyebrow">Système d'exploitation décisionnel · Commerces</div>
+    <p class="hero-setup">Vous n'avez pas besoin de plus de données.</p>
+    <h1>Vous avez besoin de <span class="hl-amber">savoir quoi en faire.</span></h1>
+    <p class="lead"><b>NEXUS</b> observe votre activité, relie vos informations et vous montre ce qui mérite réellement votre attention — un poste de pilotage unique qui suit vos ventes, votre marge et votre équipe. Un seul système, conçu pour le terrain, pas un tableau de bord générique.</p>
+    <div class="hero-ctas">
+      <a class="btn btn-primary" href="NEXUS-Login-v1.html">Voir l'app en direct →</a>
+      <a class="btn btn-ghost" href="#offres">Voir les offres ↓</a>
+    </div>
+  </section>
+
+  <div class="status-strip">
+    <span><b>25+</b> écrans opérationnels</span>
+    <span><b>2</b> offres — Essential &amp; Professional</span>
+    <span><b>Conseiller NEXUS</b> intégré</span>
+    <span><b>1</b> station pilote en production</span>
+  </div>
+
+  <section class="trust">
+    <div class="trust-panel">
+      <img class="trust-thumb" src="assets/station-vito.jpg" alt="Station ViTO Sainte-Marie">
+      <div class="trust-text">
+        <div class="who">ViTO Sainte-Marie</div>
+        <div class="what">Station pilote — NEXUS en production sur le terrain</div>
+      </div>
+      <span class="pill"><span class="dot"></span>En production</span>
+    </div>
+  </section>
+
+  <section class="section" id="adn">
+    <div class="section-label">ADN NEXUS</div>
+    <h2>Ce qui ne changera jamais</h2>
+    <p class="section-desc">Quatre principes qui façonnent chaque écran, chaque calcul et chaque mot affiché — commerce après commerce.</p>
+    <div class="adn-grid">
+      <div class="adn-card">
+        <div class="adn-num">01</div>
+        <div class="adn-title">Jamais un chiffre inventé</div>
+        <div class="adn-text">Si une donnée n'existe pas encore, NEXUS le dit clairement plutôt que d'afficher un chiffre plausible. C'est écrit dans sa Constitution, et ça guide chaque décision de conception — même quand un chiffre "propre" serait plus impressionnant.</div>
+      </div>
+      <div class="adn-card">
+        <div class="adn-num">02</div>
+        <div class="adn-title">Un système, pas un empilement d'écrans</div>
+        <div class="adn-text">Le même moteur de calcul (périodes comparables, indice de santé, écarts de marge) tourne derrière chaque page. Cockpit, Radar, Rayon et Produits racontent toujours la même réalité — jamais deux chiffres qui se contredisent.</div>
+      </div>
+      <div class="adn-card">
+        <div class="adn-num">03</div>
+        <div class="adn-title">Un conseiller, pas un tableau de bord</div>
+        <div class="adn-text">Chaque écran clé porte la voix du Conseiller NEXUS : constat, explication, décision. Jamais un graphique livré seul — toujours une lecture, et souvent une action à valider directement.</div>
+      </div>
+      <div class="adn-card">
+        <div class="adn-num">04</div>
+        <div class="adn-title">Conçu sur le terrain, pour le terrain</div>
+        <div class="adn-text">NEXUS n'est pas né dans un bureau produit. Chaque écran a été testé, corrigé et affiné en conditions réelles chez ViTO Sainte-Marie avant d'être proposé à d'autres commerces.</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="section-label">Avant / Après</div>
+    <h2>Le changement, en un coup d'œil</h2>
+    <div class="compare-illustration">
+      <img src="assets/nexus-avant-apres.png" alt="Avant NEXUS : le manager subit le bruit des données. Après NEXUS : il comprend, priorise et agit." loading="lazy">
+    </div>
+    <div class="compare-grid">
+      <div class="compare-col">
+        <div class="compare-title">Aujourd'hui, sans NEXUS</div>
+        <ul class="compare-list">
+          <li><span class="ci ko">✕</span> Le manager consulte des rapports, une fois le mal fait</li>
+          <li><span class="ci ko">✕</span> Chiffre d'affaires, marge et stocks affichés sans hiérarchie</li>
+          <li><span class="ci ko">✕</span> Il parcourt des centaines de produits à la main</li>
+          <li><span class="ci ko">✕</span> Les problèmes se découvrent trop tard</li>
+        </ul>
+      </div>
+      <div class="compare-col good">
+        <div class="compare-title">Avec NEXUS</div>
+        <ul class="compare-list">
+          <li><span class="ci ok">✓</span> Trois décisions prioritaires, chaque jour, classées par impact</li>
+          <li><span class="ci ok">✓</span> Une valeur estimée pour chacune, jamais un graphique livré seul</li>
+          <li><span class="ci ok">✓</span> Des actions validées, pas des rapports à interpréter</li>
+          <li><span class="ci ok">✓</span> Une valeur créée, mesurée et historisée dans le temps</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="section-label">En pratique</div>
+    <h2>Une journée avec NEXUS</h2>
+    <p class="section-desc">Pas un logiciel qu'on ouvre de temps en temps — un rythme, intégré à la journée.</p>
+    <div class="timeline">
+      <div class="tl-item">
+        <div class="tl-time">6h00</div>
+        <div class="tl-line-wrap"><div class="tl-dot"></div><div class="tl-line"></div></div>
+        <div class="tl-text">Prise de poste — le rôle du jour se confirme</div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-time">6h10</div>
+        <div class="tl-line-wrap"><div class="tl-dot"></div><div class="tl-line"></div></div>
+        <div class="tl-text">Poste de pilotage — les décisions du jour sont déjà classées</div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-time">9h00</div>
+        <div class="tl-line-wrap"><div class="tl-dot"></div><div class="tl-line"></div></div>
+        <div class="tl-text">Une mission se déclenche automatiquement</div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-time">11h30</div>
+        <div class="tl-line-wrap"><div class="tl-dot"></div><div class="tl-line"></div></div>
+        <div class="tl-text">Nexus Verify contrôle la caisse du premier quart</div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-time">17h00</div>
+        <div class="tl-line-wrap"><div class="tl-dot"></div></div>
+        <div class="tl-text">Le Conseiller NEXUS enregistre la valeur créée dans la journée</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="offres">
+    <div class="section-label">Offres</div>
+    <h2>Deux façons d'équiper votre commerce</h2>
+    <p class="section-desc">Le même socle NEXUS, deux niveaux d'équipement selon ce que vous voulez piloter dès aujourd'hui.</p>
+    <div class="offres-grid">
+
+      <div class="offre-card">
+        <div class="offre-name">NEXUS Essential</div>
+        <div class="offre-tagline">Pour un commerce qui veut arrêter de piloter à l'instinct.</div>
+        <div class="offre-price">149 €<span class="unit"> HT/mois</span></div>
+        <ul class="offre-features">
+          <li>Cockpit</li>
+          <li>Produits</li>
+          <li>Rayon</li>
+          <li>Conseiller NEXUS</li>
+          <li>Centre d'Intelligence NEXUS (Alertes)</li>
+          <li>Scanner Stock</li>
+          <li>Imports</li>
+          <li>Paramètres Station</li>
+          <li>Nexus Verify</li>
+          <li>Missions &amp; Plans d'action</li>
+          <li>Comptage inventaire (écran employé)</li>
+        </ul>
+        <div class="offre-cta"><a class="btn btn-ghost" href="mailto:fredbragance@nexusconseil.net?subject=NEXUS%20Essential%20%E2%80%94%20demande%20d%27info" style="width:100%; justify-content:center;">En savoir plus</a></div>
+      </div>
+
+      <div class="offre-card pro">
+        <span class="offre-ribbon">Recommandée</span>
+        <div class="offre-name">NEXUS Professional</div>
+        <div class="offre-tagline">Pour un commerce qui veut créer de la valeur chaque jour.</div>
+        <div class="offre-price">399 €<span class="unit"> HT/mois</span></div>
+        <ul class="offre-features">
+          <li>Tout Essential, plus :</li>
+          <li>NEXUS Tempo</li>
+          <li>Campagne NEXUS</li>
+          <li>Capital NEXUS</li>
+          <li>Nexus Planner</li>
+          <li>Scanner NEXUS</li>
+          <li>Journal NEXUS</li>
+          <li>Assignations</li>
+          <li>Résultats Équipe</li>
+          <li>Évaluation Employé</li>
+          <li>Radar du Manager</li>
+          <li>Contrôle inventaire</li>
+          <li>NEXUS Traçabilité</li>
+          <li>Paramètres Inventaire</li>
+        </ul>
+        <div class="offre-cta"><a class="btn btn-gold" href="mailto:fredbragance@nexusconseil.net?subject=NEXUS%20Professional%20%E2%80%94%20demande%20de%20d%C3%A9mo" style="width:100%; justify-content:center;">Demander une démo</a></div>
+      </div>
+
+    </div>
+    <div class="offre-note">Tarifs HT indicatifs, ajustés selon le volume d'activité du commerce. Contactez-nous pour un devis précis.<br>Brief NEXUS (synthèse du dirigeant) n'est pas lié à ces deux offres — il s'active indépendamment, site par site, avec votre accompagnement.</div>
+  </section>
+
+  <section class="section">
+    <div class="section-label">Progression</div>
+    <h2>Pourquoi les commerces changent</h2>
+    <div class="frise">
+      <div class="frise-step">
+        <div class="frise-dot"></div>
+        <div class="frise-label">Avant</div>
+        <div class="frise-text">Décisions à l'instinct, problèmes découverts trop tard</div>
+      </div>
+      <div class="frise-step">
+        <div class="frise-dot"></div>
+        <div class="frise-label">Après 30 jours</div>
+        <div class="frise-text">Les priorités du jour sont visibles en un coup d'œil</div>
+      </div>
+      <div class="frise-step">
+        <div class="frise-dot"></div>
+        <div class="frise-label">Après 6 mois</div>
+        <div class="frise-text">L'équipe est pilotée sur des faits, pas sur des impressions</div>
+      </div>
+      <div class="frise-step">
+        <div class="frise-dot active"></div>
+        <div class="frise-label">Après 1 an</div>
+        <div class="frise-text">Un historique de décisions et une valeur créée mesurable</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="quote-panel">
+      <span class="quote-mark">"</span>
+      <blockquote>NEXUS ne remplace pas les décisions de la station. Il montre où regarder en premier.</blockquote>
+      <div class="quote-attrib">Retour terrain — <b>ViTO Sainte-Marie</b></div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="section-label">Système</div>
+    <h2>Les moteurs NEXUS</h2>
+    <p class="section-desc">Pas une liste d'écrans indépendants — un système où chaque moteur nourrit les autres.</p>
+    <div class="engine-wheel">
+      <div class="engine-hub">NEXUS</div>
+      <div class="engine-node" style="left:50%; top:8%;">Cockpit</div>
+      <div class="engine-node" style="left:82.8%; top:23.8%;">Verify</div>
+      <div class="engine-node" style="left:91%; top:59.4%;">Radar</div>
+      <div class="engine-node" style="left:68.2%; top:87.8%;">Tempo</div>
+      <div class="engine-node" style="left:31.8%; top:87.8%;">Scanner</div>
+      <div class="engine-node" style="left:9%; top:59.4%;">Journal</div>
+      <div class="engine-node" style="left:17.2%; top:23.8%;">Conseiller</div>
+    </div>
+  </section>
+
+  <section class="section" id="fonctionnement">
+    <div class="section-label">Fonctionnement</div>
+    <h2>De la donnée à la décision</h2>
+    <p class="section-desc">Le même chemin à chaque fois : les ventes entrent, NEXUS les met en forme, le commerce voit où agir.</p>
+    <div class="mod-list">
+      <div class="nav-item">
+        <div class="nav-icon"><img src="assets/icons/icon-import.png" alt=""></div>
+        <div class="nav-body">
+          <div class="nav-title">1 · IMPORT</div>
+          <div class="nav-desc">Les ventes de la boutique sont importées, sans ressaisie manuelle</div>
+        </div>
+      </div>
+      <div class="nav-item">
+        <div class="nav-icon"><img src="assets/icons/icon-scanner.png" alt=""></div>
+        <div class="nav-body">
+          <div class="nav-title">2 · INTELLIGENCE</div>
+          <div class="nav-desc">Les ventes deviennent des décisions — chaque référence est classée selon son poids réel</div>
+        </div>
+      </div>
+      <div class="nav-item">
+        <div class="nav-icon"><img src="assets/icons/icon-radar.png" alt=""></div>
+        <div class="nav-body">
+          <div class="nav-title">3 · PRIORISATION</div>
+          <div class="nav-desc">Le poste de pilotage fait remonter les 2 ou 3 décisions qui comptent aujourd'hui</div>
+        </div>
+      </div>
+      <div class="nav-item">
+        <div class="nav-icon"><img src="assets/icons/icon-missions.png" alt=""></div>
+        <div class="nav-body">
+          <div class="nav-title">4 · ACTION</div>
+          <div class="nav-desc">Chaque mission validée nourrit le radar, la valeur créée et l'évolution de l'employé</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="api">
+    <div class="section-label">API</div>
+    <h2>L'infrastructure API NEXUS</h2>
+    <p class="section-desc">Déployée avant même l'arrivée du connecteur Decenium, pour que NEXUS soit prêt à recevoir les données de caisse dès que la clé API sera disponible.</p>
+    <div class="api-flow">
+      <span class="api-flow-step">Logiciel externe</span><span class="api-flow-arrow">→</span>
+      <span class="api-flow-step">Connecteur</span><span class="api-flow-arrow">→</span>
+      <span class="api-flow-step">Authentification</span><span class="api-flow-arrow">→</span>
+      <span class="api-flow-step">Validation</span><span class="api-flow-arrow">→</span>
+      <span class="api-flow-step">Données brutes</span><span class="api-flow-arrow">→</span>
+      <span class="api-flow-step">Normalisation</span><span class="api-flow-arrow">→</span>
+      <span class="api-flow-step">Moteur décisionnel</span><span class="api-flow-arrow">→</span>
+      <span class="api-flow-step">Conseiller NEXUS</span><span class="api-flow-arrow">→</span>
+      <span class="api-flow-step">Cockpit</span>
+    </div>
+    <div class="api-integ-grid">
+      <div class="api-integ-card"><div class="api-integ-nom">Decenium</div><span class="api-integ-badge en_attente">En attente</span></div>
+      <div class="api-integ-card"><div class="api-integ-nom">Simulateur interne</div><span class="api-integ-badge connecte">Connecté</span></div>
+      <div class="api-integ-card"><div class="api-integ-nom">Export manuel</div><span class="api-integ-badge connecte">Connecté</span></div>
+      <div class="api-integ-card"><div class="api-integ-nom">Pennylane</div><span class="api-integ-badge non_connecte">Non connecté</span></div>
+      <div class="api-integ-card"><div class="api-integ-nom">Worldline</div><span class="api-integ-badge non_connecte">Non connecté</span></div>
+      <div class="api-integ-card"><div class="api-integ-nom">Nepting</div><span class="api-integ-badge non_connecte">Non connecté</span></div>
+    </div>
+    <p class="section-desc">En attendant la clé Decenium, un simulateur de caisse fait tourner toute la chaîne — de la donnée brute jusqu'à la décision — pour valider le système avant le branchement réel.</p>
+    <a href="NEXUS-API-v1.html" class="btn btn-ghost" style="display:inline-block; width:auto;">Voir la documentation API complète</a>
+  </section>
+
+  <section class="section" id="contact">
+    <div class="cta-band">
+      <div class="section-label" style="justify-content:center;"><span style="flex:none;">Accès</span></div>
+      <h2>Prêt à équiper votre commerce ?</h2>
+      <p>NEXUS est déjà en poste chez ViTO Sainte-Marie. Pour une démonstration ou une question sur les offres Essential et Professional, écrivez directement.</p>
+      <div class="cta-buttons">
+        <a class="btn btn-primary" href="NEXUS-Login-v1.html">Voir l'app en direct →</a>
+        <a class="btn btn-ghost" href="mailto:fredbragance@nexusconseil.net?subject=Demande%20de%20d%C3%A9mo%20NEXUS">Écrire un email</a>
+      </div>
+      <!-- Comprendre NEXUS (07/08/2026, demande de Frédéric — renommé le
+           même jour) : section dédiée sur la page de présentation,
+           réservée aux clients Essential et Professional (la page
+           elle-même exige une connexion — voir nexusRequireAuth() dans
+           NEXUS-Documentation-v1.html), jamais en lecture publique. -->
+      <p style="margin-top:18px; font-size:13.5px; color:var(--text-mid, #8A96A5);">
+        ❓ Déjà client ? <a href="NEXUS-Documentation-v1.html" style="color:var(--cyan, #4FC3D9);">Découvrez quel moteur NEXUS utiliser selon ce que vous voulez faire →</a>
+      </p>
+    </div>
+  </section>
+
+  <section class="manifesto">
+    <p>Le véritable coût d'un commerce n'est pas ce qu'il dépense. C'est ce qu'il ne voit jamais. NEXUS est conçu pour révéler cette valeur cachée.</p>
+  </section>
+
+</div>
+
+<footer class="site-footer">
+  <div class="wrap">
+
+    <div class="footer-trust">
+      <span>Ils nous ont fait confiance</span>
+      <img src="assets/vito-logo.png" alt="ViTO Sainte-Marie" class="footer-logo">
+    </div>
+
+    <div class="footer-divider"></div>
+
+    <div class="footer-grid">
+
+      <div class="footer-brand-block">
+        <div class="brand">
+          <img class="brand-logo" src="assets/nexus-logo-cyan.png" alt="">
+          <span class="brand-name">NEXUS OS</span>
+        </div>
+        <p class="footer-tagline">Le système d'exploitation des commerces.</p>
+        <ul class="footer-mission">
+          <li>Transformer les données en décisions.</li>
+          <li>Accompagner les équipes.</li>
+          <li>Faire progresser les commerces.</li>
+        </ul>
+      </div>
+
+      <div class="footer-col">
+        <div class="footer-col-title">Produit</div>
+        <a href="#fonctionnement">Fonctionnalités</a>
+        <a href="mailto:fredbragance@nexusconseil.net?subject=Demande%20de%20d%C3%A9mo%20NEXUS">Démonstration</a>
+        <a href="#offres">Tarifs</a>
+        <a href="NEXUS-API-v1.html">API</a>
+        <a href="NEXUS-Feuille-de-Route-v1.html">Feuille de route</a>
+        <span class="footer-soon">Journal des évolutions <i>Bientôt</i></span>
+      </div>
+
+      <div class="footer-col">
+        <div class="footer-col-title">Ressources</div>
+        <a href="NEXUS-Documentation-v1.html">Comprendre NEXUS</a>
+        <span class="footer-soon">Centre d'aide <i>Bientôt</i></span>
+        <a href="NEXUS-FAQ-v1.html">Questions fréquentes</a>
+        <a href="NEXUS-CGU-v1.html">Conditions d'utilisation</a>
+        <a href="NEXUS-Confidentialite-v1.html">Politique de confidentialité</a>
+        <a href="NEXUS-Mentions-Legales-v1.html">Mentions légales</a>
+      </div>
+
+      <div class="footer-col">
+        <div class="footer-col-title">Entreprise</div>
+        <a href="NEXUS-Propos-v1.html">À propos</a>
+        <a href="mailto:contact@nexusconseil.net">Nous contacter</a>
+        <span class="footer-soon">Presse <i>Bientôt</i></span>
+        <span class="footer-soon">Partenaires <i>Bientôt</i></span>
+        <span class="footer-soon">Carrières <i>Bientôt</i></span>
+      </div>
+
+      <div class="footer-col">
+        <div class="footer-col-title">Plateformes</div>
+        <a href="NEXUS-Login-v1.html">🌐 Application Web</a>
+        <span class="footer-soon">🍎 Application iOS <i>Bientôt disponible</i></span>
+        <span class="footer-soon">🤖 Application Android <i>Bientôt disponible</i></span>
+      </div>
+
+      <div class="footer-col">
+        <div class="footer-col-title">Sécurité</div>
+        <span class="footer-static">🔒 Connexion sécurisée</span>
+        <span class="footer-static">🛡️ Données protégées</span>
+        <span class="footer-static">☁️ Sauvegardes automatiques</span>
+        <span class="footer-static">⚡ Mises à jour continues</span>
+      </div>
+
+    </div>
+
+    <div class="footer-social">
+      <div class="footer-social-title">Suivez NEXUS</div>
+      <div class="footer-social-links">
+        <span class="footer-soon">LinkedIn <i>Bientôt</i></span>
+        <a href="https://www.instagram.com/nexus.os.mq?igsh=dG50Y2pjcTRrN2Ns&utm_source=qr" target="_blank" rel="noopener">Instagram</a>
+        <span class="footer-soon">YouTube <i>Bientôt</i></span>
+      </div>
+    </div>
+
+    <div class="footer-divider"></div>
+
+    <div class="footer-signature">Nous construisons le futur du pilotage des commerces, une décision à la fois.</div>
+
+    <div class="footer-bottom-row">
+      <div class="footer-bottom-left">
+        <div class="footer-ambition">Parce que chaque grande entreprise commence par une meilleure décision.</div>
+        <div>© 2026 NEXUS Conseil. Tous droits réservés.</div>
+        <div>Entreprise française 🇫🇷 — Conçu en France. Développé pour les commerces du monde entier.</div>
+        <div>Version 0.9 Beta</div>
+      </div>
+      <div class="footer-badges">
+        <span class="badge-trust">✓ Entreprise française</span>
+        <span class="badge-trust">✓ Hébergement sécurisé</span>
+        <span class="badge-trust">✓ Mises à jour continues</span>
+        <span class="badge-trust">✓ Disponible 24 h/24</span>
+      </div>
+    </div>
+
+    <a href="NEXUS-Login-v1.html" class="footer-creator-link">Accès créateur</a>
+
+  </div>
+</footer>
+
+<script>
+  // Menu mobile (30/07/2026) — le bouton burger n'avait aucun comportement
+  // avant cette passe qualité : sous 720px, nav.links disparaît sans aucun
+  // moyen de rouvrir les liens de navigation. Panneau simple, fermé par
+  // défaut, qui reprend les mêmes ancres que le menu desktop.
+  const burgerBtn = document.getElementById('burgerBtn');
+  const mobileMenu = document.getElementById('mobileMenu');
+  if (burgerBtn && mobileMenu) {
+    burgerBtn.addEventListener('click', () => {
+      const ouvert = mobileMenu.classList.toggle('open');
+      burgerBtn.classList.toggle('open', ouvert);
+      burgerBtn.setAttribute('aria-expanded', String(ouvert));
+    });
+    mobileMenu.querySelectorAll('a').forEach(a => a.addEventListener('click', () => {
+      mobileMenu.classList.remove('open');
+      burgerBtn.classList.remove('open');
+      burgerBtn.setAttribute('aria-expanded', 'false');
+    }));
+  }
+</script>
+
+</body>
+</html>
