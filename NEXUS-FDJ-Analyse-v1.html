@@ -1,0 +1,995 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<link rel="icon" type="image/x-icon" href="favicon.ico">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+<link rel="manifest" href="site.webmanifest">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="NEXUS">
+<meta name="theme-color" content="#0B0F14">
+<title>NEXUS — FDJ · Analyse</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="nexus-auth.js"></script>
+<script src="nexus-forfait.js"></script>
+<script src="nexus-desktop.js"></script>
+<script src="nexus-fdj-moteur.js"></script>
+<style>
+  :root{
+    --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
+    --text:#EDF1F5; --text-mid:#8A96A5; --text-dim:#57626F;
+    --green:#34D399; --green-dim:#153629;
+    --amber:#F5A623; --amber-dim:#3A2E14;
+    --red:#F0575A; --red-dim:#3A1D1F;
+    --cyan:#4FC3D9; --gold:#D4AF37;
+    --mono:'IBM Plex Mono',monospace; --sans:'IBM Plex Sans',sans-serif;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{background:var(--bg); font-family:var(--sans); color:var(--text);}
+  body{display:flex; justify-content:center; min-height:100vh;}
+  .phone{width:100%; max-width:520px; min-height:100vh; display:flex; flex-direction:column; border-left:1px solid var(--hairline); border-right:1px solid var(--hairline); padding-top:env(safe-area-inset-top); padding-bottom:env(safe-area-inset-bottom);}
+
+  .header{padding:24px 20px 14px; position:relative;}
+  .menu-btn{
+    position:absolute; top:18px; right:18px; display:flex; align-items:center; gap:6px;
+    font-family:var(--mono); font-size:10.5px; font-weight:600; letter-spacing:0.03em; text-transform:uppercase;
+    color:var(--cyan); background:rgba(79,195,217,0.1); border:1px solid rgba(79,195,217,0.3);
+    border-radius:20px; padding:7px 12px; text-decoration:none; white-space:nowrap; z-index:5;
+  }
+  .eyebrow{font-family:var(--mono); font-size:11px; letter-spacing:0.12em; text-transform:uppercase; color:var(--cyan);}
+  .title{font-size:22px; font-weight:600; margin-top:4px;}
+  .sub{font-size:13px; color:var(--text-mid); margin-top:6px; line-height:1.5;}
+  .divider{height:1px; background:var(--hairline); margin:0 20px;}
+  .section{padding:16px 20px;}
+  .loading{padding:60px 20px; text-align:center; color:var(--text-dim); font-size:13px;}
+  .locked{padding:80px 24px; text-align:center; color:var(--text-mid); font-size:14px;}
+
+  .section-titre{font-family:var(--mono); font-size:11px; letter-spacing:0.08em; text-transform:uppercase; color:var(--text-dim); margin:18px 2px 10px;}
+  .section-titre:first-child{margin-top:0;}
+
+  .card{background:var(--panel); border:1px solid var(--hairline); border-radius:12px; margin-bottom:10px; overflow:hidden;}
+  .jeu-row{padding:10px 12px;}
+  .jeu-row + .jeu-row{border-top:1px solid var(--hairline);}
+  .jeu-nom-ligne{display:flex; align-items:center; justify-content:space-between; margin-bottom:5px; gap:8px;}
+  .jeu-nom{font-size:12.5px; font-weight:600;}
+  .jeu-ventes{font-family:var(--mono); font-size:10.5px; color:var(--text-dim); white-space:nowrap;}
+  .jeu-ventes.calc{color:var(--cyan);}
+  .jeu-ventes.anomalie{color:var(--red); font-weight:700;}
+  .jeu-ventes.ok{color:var(--green);}
+  .histo-sub{font-size:11.5px; color:var(--text-mid); margin-top:2px;}
+  .palier-block{margin-bottom:14px;}
+  .palier-head{font-family:var(--mono); font-size:10px; letter-spacing:0.06em; text-transform:uppercase; color:var(--text-dim); padding:0 2px 6px;}
+
+  .champ-label{font-family:var(--mono); font-size:10.5px; color:var(--text-mid); margin-bottom:6px; letter-spacing:0.03em; display:block;}
+  .champ-input, .champ-select{
+    width:100%; background:var(--panel-raised); border:1px solid var(--hairline); border-radius:10px;
+    padding:10px 12px; color:var(--text); font-family:var(--sans); font-size:13.5px;
+  }
+  .champ-input:focus, .champ-select:focus{outline:none; border-color:var(--cyan);}
+  .champ-note{font-size:11px; color:var(--text-dim); line-height:1.5; margin:6px 0 12px;}
+
+  .resume-card{background:var(--panel); border:1px solid var(--hairline); border-radius:14px; padding:16px; margin:6px 0 14px;}
+  .stat-row{display:flex; justify-content:space-between; align-items:center; padding:8px 0; gap:10px;}
+  .stat-row + .stat-row{border-top:1px solid var(--hairline);}
+  .stat-label{font-size:12.5px; color:var(--text-mid);}
+  .stat-value{font-family:var(--mono); font-size:14px; font-weight:700; text-align:right;}
+  .stat-value.amber{color:var(--amber);} .stat-value.cyan{color:var(--cyan);} .stat-value.red{color:var(--red);} .stat-value.green{color:var(--green);}
+  .stat-row.total{margin-top:4px; padding-top:12px; border-top:1.5px solid var(--hairline);}
+  .stat-row.total .stat-label{font-weight:700; color:var(--text);}
+  .stat-row.total .stat-value{font-size:17px;}
+  .stat-sub{font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:right; margin-top:-4px;}
+
+  .btn-primary{width:100%; padding:14px; border:none; border-radius:10px; font-size:14px; font-weight:600; background:var(--cyan); color:#04141a; cursor:pointer; margin-top:6px;}
+  .btn-ghost{width:100%; padding:12px; border:1px solid var(--hairline); border-radius:10px; background:transparent; color:var(--text-mid); font-size:13px; cursor:pointer; margin-top:8px;}
+  .btn-loading-dots{display:inline-flex; gap:3px; margin-left:6px; vertical-align:middle;}
+  .btn-loading-dots i{width:4px; height:4px; border-radius:50%; background:currentColor; display:inline-block; font-style:normal; animation:btnDotsBounce 1.2s infinite ease-in-out;}
+  .btn-loading-dots i:nth-child(2){animation-delay:0.15s;} .btn-loading-dots i:nth-child(3){animation-delay:0.3s;}
+  @keyframes btnDotsBounce{0%,80%,100%{opacity:0.25; transform:translateY(0);} 40%{opacity:1; transform:translateY(-2px);}}
+
+  .champ-sep{height:1px; background:var(--hairline); margin:18px 0;}
+
+  /* --- Analyse : sélecteur de période universel --- */
+  .periode-bar{background:var(--panel); border:1px solid var(--hairline); border-radius:12px; padding:12px; margin-bottom:14px;}
+  .periode-select-row{display:flex; gap:8px;}
+  .periode-select-row select{flex:1;}
+  .periode-perso-row{display:flex; gap:8px; margin-top:8px;}
+  .periode-iso-row{display:flex; gap:8px; margin-top:8px;}
+  .periode-label-actuelle{font-family:var(--mono); font-size:11px; color:var(--cyan); margin-top:10px; text-align:center;}
+  .periode-label-comparaison{font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:center; margin-top:2px;}
+
+  /* --- Analyse : onglets --- */
+  .tabs-nav{display:flex; gap:6px; overflow-x:auto; padding-bottom:6px; margin-bottom:14px; -webkit-overflow-scrolling:touch;}
+  .tabs-nav::-webkit-scrollbar{display:none;}
+  .tab-pill{flex:0 0 auto; padding:9px 14px; border-radius:20px; border:1px solid var(--hairline); background:var(--panel); color:var(--text-mid); font-size:12px; font-weight:600; cursor:pointer; white-space:nowrap;}
+  .tab-pill.actif{background:rgba(79,195,217,0.14); border-color:var(--cyan); color:var(--cyan);}
+  .tab-pill.desactive{opacity:0.35; cursor:default;}
+
+  /* --- Analyse : graphiques --- */
+  .chart-wrap{background:var(--panel); border:1px solid var(--hairline); border-radius:12px; padding:14px; margin-bottom:14px;}
+  .chart-titre{font-size:12.5px; font-weight:700; margin-bottom:2px;}
+  .chart-question{font-size:11px; color:var(--text-dim); margin-bottom:10px;}
+  .chart-canvas-wrap{position:relative; height:220px;}
+
+  /* --- Analyse : décisions / vue d'ensemble --- */
+  .decision-card{background:rgba(79,195,217,0.06); border:1px solid rgba(79,195,217,0.25); border-radius:10px; padding:12px 14px; margin-bottom:8px; font-size:12.5px; line-height:1.5;}
+  .decision-card.risque{background:rgba(240,87,90,0.06); border-color:rgba(240,87,90,0.3);}
+  .confiance-badge{font-family:var(--mono); font-size:9px; text-transform:uppercase; letter-spacing:0.04em; padding:2px 7px; border-radius:8px; margin-left:6px; white-space:nowrap;}
+  .confiance-badge.eleve{background:var(--green-dim); color:var(--green);}
+  .confiance-badge.moyen{background:var(--amber-dim); color:var(--amber);}
+  .confiance-badge.faible{background:var(--panel-raised); color:var(--text-dim);}
+
+  .filtre-row{display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap;}
+  .filtre-row select{flex:1; min-width:110px;}
+
+  footer{margin-top:auto; padding:16px 20px 24px; font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:center; border-top:1px solid var(--hairline);}
+</style>
+</head>
+<body>
+<div class="phone">
+  <div class="header">
+    <a href="NEXUS-App-v1.html" class="menu-btn">☰ Menu</a>
+    <div class="eyebrow">NEXUS · FDJ · Analyse</div>
+    <div class="title" id="titre">Chargement…</div>
+    <div class="sub" id="sousTitre"></div>
+  </div>
+  <div class="divider"></div>
+
+  <div class="section desktop-grid" id="content">
+    <div class="loading">Chargement…</div>
+  </div>
+
+  <footer>NEXUS FDJ · Analyse v1 · Moteur de clairvoyance manager · Vito Sainte-Marie Usine</footer>
+</div>
+
+<script>
+  // ------------------------------------------------------------
+  // NEXUS FDJ - Analyse (09/08/2026) — Phase C de l'audit "Moteur de
+  // clairvoyance manager". Rôle : transformer les faits déjà fiabilisés
+  // (quarts, comptages, mouvements, activations, caisse, écarts, réception,
+  // stock) en statistiques définies, lisibles en 5 secondes / 30 secondes /
+  // analyse. Cette page NE CRÉE JAMAIS de vérité métier : elle lit les
+  // vues Phase B (view_fdj_*, agrégats DÉJÀ validés, jamais recalculés) et
+  // appelle nexus-fdj-moteur.js pour tout ce qui touche à l'état du stock
+  // (jamais dupliqué en SQL — voir NEXUS-Data-Dictionary-v2.md §7).
+  //
+  // Principe non négociable (§1 de l'audit) : "La page d'analyse ne crée
+  // pas de vérité métier. Elle lit les faits validés et les transforme en
+  // décisions compréhensibles."
+  //
+  // Portée de cette Phase C (§46) : vue d'ensemble, graphiques, filtres,
+  // historique analytique. Le Conseiller NEXUS FDJ (objet recommandation
+  // commun, Brief) et les exports PDF sont les Phases D et E — pas ici.
+  // ------------------------------------------------------------
+
+  let managerCourant = null;
+  let siteId = 'vito-sainte-marie';
+  let jeux = [];
+  let employesSite = [];
+  let emplacements = [];
+  let derniereReference = null;
+  let ongletActuel = 'ensemble'; // ensemble | ventes | jeux | jours | equipe | stock | controle | historique
+  // Sélecteur de période universel (§8) — toutes les sections lisent la
+  // même période sélectionnée (critère d'acceptation §45 : "changer la
+  // période met à jour toutes les sections avec la même période").
+  let periodeActuelle = { type: 'semaine', debut: null, fin: null, annee: null, semaine: null };
+  let periodeResolue = null; // { debut, fin, compDebut, compFin, label, labelComp } — Date objects
+  let chartsActifs = {}; // id -> instance Chart.js, détruites avant chaque re-rendu
+
+  function fmtEuro(n) { return (n === null || n === undefined || isNaN(n)) ? '—' : `${Number(n).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`; }
+  function fmtNum(n) { return (n === null || n === undefined || isNaN(n)) ? '—' : Number(n).toLocaleString('fr-FR', { maximumFractionDigits: 1 }); }
+  function fmtPct(n) { return (n === null || n === undefined || isNaN(n)) ? '—' : `${(n * 100).toLocaleString('fr-FR', { maximumFractionDigits: 1 })} %`; }
+  function fmtEvolution(n) { return (n === null || n === undefined || isNaN(n)) ? 'comparaison indisponible' : `${n >= 0 ? '+' : ''}${(n * 100).toLocaleString('fr-FR', { maximumFractionDigits: 1 })} %`; }
+  function classeEvolution(n) { return (n === null || n === undefined) ? '' : (n > 0 ? 'green' : (n < 0 ? 'red' : '')); }
+
+  // ------------------------------------------------------------
+  // SÉLECTEUR DE PÉRIODE UNIVERSEL — §8. Chaque type de période calcule
+  // aussi sa période de comparaison ("vs période précédente de même
+  // durée"), jamais devinée : si elle n'a pas de données, l'affichage
+  // dira explicitement "comparaison indisponible" (§8, §45).
+  // ------------------------------------------------------------
+  function lundiDeLaSemaine(d) { const jour = (d.getDay() + 6) % 7; const r = new Date(d); r.setDate(d.getDate() - jour); r.setHours(0, 0, 0, 0); return r; }
+  function ajouterJours(d, n) { const r = new Date(d); r.setDate(r.getDate() + n); return r; }
+  function premierJourMois(d) { return new Date(d.getFullYear(), d.getMonth(), 1); }
+  function dernierJourMois(d) { return new Date(d.getFullYear(), d.getMonth() + 1, 0); }
+  function dateISO(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
+  function dateDebutSemaineISO(annee, semaine) {
+    const janvier4 = new Date(annee, 0, 4);
+    const lundiSemaine1 = lundiDeLaSemaine(janvier4);
+    return ajouterJours(lundiSemaine1, (semaine - 1) * 7);
+  }
+  function numeroSemaineISO(d) {
+    const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+    const jour = (date.getUTCDay() + 6) % 7;
+    date.setUTCDate(date.getUTCDate() - jour + 3);
+    const premierJeudi = new Date(Date.UTC(date.getUTCFullYear(), 0, 4));
+    return 1 + Math.round(((date - premierJeudi) / 86400000 - 3 + (premierJeudi.getUTCDay() + 6) % 7) / 7);
+  }
+
+  function resoudrePeriode() {
+    const t = periodeActuelle.type;
+    const aujourdhui = new Date(); aujourdhui.setHours(0, 0, 0, 0);
+    let debut, fin, compDebut, compFin, label, labelComp;
+    if (t === 'aujourdhui') { debut = aujourdhui; fin = aujourdhui; compDebut = ajouterJours(aujourdhui, -1); compFin = compDebut; label = "Aujourd'hui"; labelComp = 'Hier'; }
+    else if (t === 'hier') { debut = ajouterJours(aujourdhui, -1); fin = debut; compDebut = ajouterJours(aujourdhui, -2); compFin = compDebut; label = 'Hier'; labelComp = 'Avant-hier'; }
+    else if (t === 'semaine') { debut = lundiDeLaSemaine(aujourdhui); fin = ajouterJours(debut, 6); compDebut = ajouterJours(debut, -7); compFin = ajouterJours(debut, -1); label = 'Cette semaine'; labelComp = 'Semaine précédente'; }
+    else if (t === 'semaine_precedente') { const lundiCourant = lundiDeLaSemaine(aujourdhui); debut = ajouterJours(lundiCourant, -7); fin = ajouterJours(debut, 6); compDebut = ajouterJours(debut, -7); compFin = ajouterJours(compDebut, 6); label = 'Semaine précédente'; labelComp = 'Deux semaines avant'; }
+    else if (t === 'semaine_iso') {
+      const annee = periodeActuelle.annee || aujourdhui.getFullYear();
+      const semaine = periodeActuelle.semaine || numeroSemaineISO(aujourdhui);
+      debut = dateDebutSemaineISO(annee, semaine); fin = ajouterJours(debut, 6);
+      compDebut = ajouterJours(debut, -7); compFin = ajouterJours(debut, -1);
+      label = `Semaine ${semaine} (${annee})`; labelComp = 'Semaine précédente';
+    }
+    else if (t === 'mois') { debut = premierJourMois(aujourdhui); fin = dernierJourMois(aujourdhui); const moisPrec = new Date(aujourdhui.getFullYear(), aujourdhui.getMonth() - 1, 1); compDebut = premierJourMois(moisPrec); compFin = dernierJourMois(moisPrec); label = 'Ce mois'; labelComp = 'Mois précédent'; }
+    else if (t === 'mois_precedent') { const moisPrec = new Date(aujourdhui.getFullYear(), aujourdhui.getMonth() - 1, 1); debut = premierJourMois(moisPrec); fin = dernierJourMois(moisPrec); const moisAvant = new Date(moisPrec.getFullYear(), moisPrec.getMonth() - 1, 1); compDebut = premierJourMois(moisAvant); compFin = dernierJourMois(moisAvant); label = 'Mois précédent'; labelComp = 'Deux mois avant'; }
+    else if (t === 'annee') { debut = new Date(aujourdhui.getFullYear(), 0, 1); fin = new Date(aujourdhui.getFullYear(), 11, 31); compDebut = new Date(aujourdhui.getFullYear() - 1, 0, 1); compFin = new Date(aujourdhui.getFullYear() - 1, 11, 31); label = 'Cette année'; labelComp = 'Année précédente'; }
+    else if (t === 'annee_precedente') { debut = new Date(aujourdhui.getFullYear() - 1, 0, 1); fin = new Date(aujourdhui.getFullYear() - 1, 11, 31); compDebut = new Date(aujourdhui.getFullYear() - 2, 0, 1); compFin = new Date(aujourdhui.getFullYear() - 2, 11, 31); label = 'Année précédente'; labelComp = 'Deux ans avant'; }
+    else { // personnalise
+      debut = periodeActuelle.debut ? new Date(periodeActuelle.debut + 'T00:00:00') : aujourdhui;
+      fin = periodeActuelle.fin ? new Date(periodeActuelle.fin + 'T00:00:00') : aujourdhui;
+      const dureeJours = Math.max(1, Math.round((fin - debut) / 86400000) + 1);
+      compFin = ajouterJours(debut, -1); compDebut = ajouterJours(compFin, -(dureeJours - 1));
+      label = `${debut.toLocaleDateString('fr-FR')} → ${fin.toLocaleDateString('fr-FR')}`; labelComp = 'Période précédente de même durée';
+    }
+    return { debut, fin, compDebut, compFin, label, labelComp };
+  }
+
+  // ------------------------------------------------------------
+  // CHARGEMENT DES DONNÉES — exclusivement via les vues Phase B
+  // (view_fdj_*) et nexus-fdj-moteur.js. Aucune formule métier
+  // recalculée ici (Article 11, "une seule vérité").
+  // ------------------------------------------------------------
+  async function chargerVue(nomVue, dateDebut, dateFin) {
+    const { data, error } = await nexusClient.from(nomVue).select('*').eq('site', siteId).gte('date', dateISO(dateDebut)).lte('date', dateISO(dateFin));
+    if (error) { console.error(`Chargement ${nomVue}:`, error); return []; }
+    return data || [];
+  }
+  function sommerChamps(lignes, champs) {
+    const r = {}; champs.forEach(c => r[c] = 0);
+    (lignes || []).forEach(l => champs.forEach(c => { if (l[c] !== null && l[c] !== undefined) r[c] += Number(l[c]); }));
+    return r;
+  }
+  function evolution(actuel, precedent) {
+    if (precedent === null || precedent === undefined || precedent === 0) return null;
+    if (actuel === null || actuel === undefined) return null;
+    return (actuel - precedent) / precedent;
+  }
+
+  const CHAMPS_SUMMARY = ['nb_quarts', 'nb_quarts_valides', 'nb_quarts_controles', 'nb_quarts_conformes', 'ca_grattage', 'tickets_vendus', 'caisse_tirages', 'ecart_total', 'nb_ecarts_non_nuls'];
+
+  async function chargerDonneesPeriode() {
+    periodeResolue = resoudrePeriode();
+    const bMin = periodeResolue.compDebut < periodeResolue.debut ? periodeResolue.compDebut : periodeResolue.debut;
+    const bMax = periodeResolue.fin > periodeResolue.compFin ? periodeResolue.fin : periodeResolue.compFin;
+    const [daily, gameDaily, employeeDaily, discrepancyDaily] = await Promise.all([
+      chargerVue('view_fdj_daily_summary', bMin, bMax),
+      chargerVue('view_fdj_game_daily', bMin, bMax),
+      chargerVue('view_fdj_employee_daily', bMin, bMax),
+      chargerVue('view_fdj_discrepancy_daily', bMin, bMax),
+    ]);
+    const dansPeriode = (d) => d >= dateISO(periodeResolue.debut) && d <= dateISO(periodeResolue.fin);
+    const dansComparaison = (d) => d >= dateISO(periodeResolue.compDebut) && d <= dateISO(periodeResolue.compFin);
+    return {
+      daily: { actuel: daily.filter(l => dansPeriode(l.date)), comp: daily.filter(l => dansComparaison(l.date)) },
+      gameDaily: { actuel: gameDaily.filter(l => dansPeriode(l.date)), comp: gameDaily.filter(l => dansComparaison(l.date)) },
+      employeeDaily: { actuel: employeeDaily.filter(l => dansPeriode(l.date)), comp: employeeDaily.filter(l => dansComparaison(l.date)) },
+      discrepancyDaily: { actuel: discrepancyDaily.filter(l => dansPeriode(l.date)), comp: discrepancyDaily.filter(l => dansComparaison(l.date)) },
+    };
+  }
+
+  // Tendance longue (§12, §20) — indépendante de la période sélectionnée :
+  // les motifs "jour à booster" et "la qualité du contrôle s'améliore-t-elle"
+  // ont besoin de plusieurs occurrences (l'audit cite "4 dernières
+  // occurrences", "8 semaines"), pas d'une seule petite période choisie à
+  // l'écran. Fenêtre fixe de 56 jours (8 semaines), clairement étiquetée.
+  async function chargerTendanceLongue() {
+    const aujourdhui = new Date(); aujourdhui.setHours(0, 0, 0, 0);
+    const debut = ajouterJours(aujourdhui, -55);
+    const daily = await chargerVue('view_fdj_daily_summary', debut, aujourdhui);
+    return daily;
+  }
+
+  async function chargerEmplacements() {
+    const { data, error } = await nexusClient.from('fdj_locations').select('*').eq('site', siteId).eq('actif', true);
+    if (error) { console.error('Chargement emplacements FDJ:', error); return []; }
+    return data || [];
+  }
+  function emplacementParType(type) { return emplacements.find(e => e.type === type) || null; }
+  async function chargerMouvementsStock() {
+    const { data, error } = await nexusClient.from('fdj_stock_movements').select('*').eq('site', siteId);
+    if (error) { console.error('Chargement mouvements stock FDJ:', error); return []; }
+    return data || [];
+  }
+  async function chargerDerniereReference() {
+    const { data: ref, error: e1 } = await nexusClient.from('fdj_stock_references').select('*').eq('site', siteId).eq('statut', 'valide').order('date', { ascending: false }).order('created_at', { ascending: false }).limit(1).maybeSingle();
+    if (e1) { console.error('Chargement référence stock FDJ:', e1); return null; }
+    if (!ref) return null;
+    const { data: lignes, error: e2 } = await nexusClient.from('fdj_stock_reference_lignes').select('game_id, bureau_reel, caisse_reel').eq('reference_id', ref.id);
+    if (e2) { console.error('Chargement lignes référence stock FDJ:', e2); return null; }
+    const map = {};
+    (lignes || []).forEach(l => { map[l.game_id] = { bureau: l.bureau_reel, caisse: l.caisse_reel }; });
+    return { id: ref.id, date: ref.date, creeLe: ref.created_at, lignes: map };
+  }
+  async function chargerJeux() {
+    const { data, error } = await nexusClient.from('fdj_games').select('*').eq('site', siteId).eq('actif', true).order('ordre_affichage', { ascending: true });
+    if (error) { console.error('Chargement jeux FDJ:', error); return []; }
+    return data || [];
+  }
+  async function chargerEmployesSite() {
+    const { data, error } = await nexusClient.from('employees').select('id, nom').eq('site_id', siteId).eq('actif', true).order('nom', { ascending: true });
+    if (error) { console.error('Chargement employés site:', error); return []; }
+    return data || [];
+  }
+  function nomJeu(id) { const j = jeux.find(x => x.id === id); return j ? j.nom : '—'; }
+  function nomEmploye(id) { const e = employesSite.find(x => x.id === id); return e ? e.nom : '—'; }
+  async function calculerEtatStock() {
+    const [mouvements, reference] = await Promise.all([chargerMouvementsStock(), chargerDerniereReference()]);
+    derniereReference = reference;
+    const caisse = emplacementParType('caisse'), bureau = emplacementParType('bureau'), bloque = emplacementParType('bloque');
+    return {
+      soldes: NexusFdjMoteur.soldesCarnetsAvecReference(mouvements, { caisse: caisse ? caisse.id : null, bureau: bureau ? bureau.id : null, bloque: bloque ? bloque.id : null }, reference),
+      mouvements,
+    };
+  }
+
+  function grouperParPalier(liste) {
+    const groupes = {};
+    for (const j of liste) { if (!groupes[j.prix]) groupes[j.prix] = { prix: j.prix, items: [] }; groupes[j.prix].items.push(j); }
+    return Object.values(groupes).sort((a, b) => a.prix - b.prix);
+  }
+  function detruireCharts() { Object.values(chartsActifs).forEach(c => { try { c.destroy(); } catch (e) {} }); chartsActifs = {}; }
+  function optionsGraphiqueBase() {
+    return {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { callbacks: {} } },
+      scales: {
+        x: { ticks: { color: '#8A96A5', font: { family: 'IBM Plex Mono', size: 10 } }, grid: { color: '#242E38' } },
+        y: { ticks: { color: '#8A96A5', font: { family: 'IBM Plex Mono', size: 10 } }, grid: { color: '#242E38' }, beginAtZero: true },
+      },
+    };
+  }
+
+  // ------------------------------------------------------------
+  // COQUILLE — sélecteur de période + onglets, communs à toutes les
+  // sections. Rendu une fois ; chaque section se recharge indépendamment
+  // dans #contenuOnglet quand la période ou l'onglet change.
+  // ------------------------------------------------------------
+  const ONGLETS = [
+    { id: 'ensemble', label: "Vue d'ensemble" },
+    { id: 'ventes', label: 'Ventes' },
+    { id: 'jeux', label: 'Jeux' },
+    { id: 'jours', label: 'Jours & quarts' },
+    { id: 'equipe', label: 'Équipe' },
+    { id: 'stock', label: 'Stock' },
+    { id: 'controle', label: 'Contrôle & écarts' },
+    { id: 'historique', label: 'Historique' },
+    { id: 'conseiller', label: 'Conseiller', desactive: true },
+    { id: 'rapports', label: 'Rapports / Export', desactive: true },
+  ];
+
+  async function renderPage() {
+    document.getElementById('titre').textContent = 'FDJ · Analyse';
+    document.getElementById('sousTitre').textContent = "Ce qui mérite l'attention aujourd'hui — jamais un mur de graphiques.";
+    document.getElementById('content').innerHTML = `
+      <div class="periode-bar">
+        <div class="periode-select-row">
+          <select class="champ-select" id="champPeriodeType">
+            <option value="aujourdhui">Aujourd'hui</option>
+            <option value="hier">Hier</option>
+            <option value="semaine">Cette semaine</option>
+            <option value="semaine_precedente">Semaine précédente</option>
+            <option value="semaine_iso">Numéro de semaine ISO</option>
+            <option value="mois">Ce mois</option>
+            <option value="mois_precedent">Mois précédent</option>
+            <option value="annee">Cette année</option>
+            <option value="annee_precedente">Année précédente</option>
+            <option value="personnalise">Dates personnalisées</option>
+          </select>
+        </div>
+        <div class="periode-iso-row" id="ligneIso" style="display:none;">
+          <input type="number" class="champ-input" id="champAnneeIso" placeholder="Année" style="text-align:center;">
+          <input type="number" class="champ-input" id="champSemaineIso" placeholder="N° semaine" min="1" max="53" style="text-align:center;">
+        </div>
+        <div class="periode-perso-row" id="lignePerso" style="display:none;">
+          <input type="date" class="champ-input" id="champDateDebut">
+          <input type="date" class="champ-input" id="champDateFin">
+        </div>
+        <div class="periode-label-actuelle" id="labelPeriodeActuelle"></div>
+        <div class="periode-label-comparaison" id="labelPeriodeComparaison"></div>
+      </div>
+      <div class="tabs-nav" id="tabsNav">
+        ${ONGLETS.map(o => `<div class="tab-pill ${o.id === ongletActuel ? 'actif' : ''} ${o.desactive ? 'desactive' : ''}" data-onglet="${o.id}" title="${o.desactive ? 'Phase suivante — pas encore construit' : ''}">${o.label}</div>`).join('')}
+      </div>
+      <div id="contenuOnglet"><div class="loading">Chargement…</div></div>
+    `;
+    document.getElementById('champPeriodeType').value = periodeActuelle.type;
+    document.getElementById('ligneIso').style.display = periodeActuelle.type === 'semaine_iso' ? 'flex' : 'none';
+    document.getElementById('lignePerso').style.display = periodeActuelle.type === 'personnalise' ? 'flex' : 'none';
+    document.getElementById('champPeriodeType').addEventListener('change', async (e) => {
+      periodeActuelle.type = e.target.value;
+      document.getElementById('ligneIso').style.display = periodeActuelle.type === 'semaine_iso' ? 'flex' : 'none';
+      document.getElementById('lignePerso').style.display = periodeActuelle.type === 'personnalise' ? 'flex' : 'none';
+      if (periodeActuelle.type === 'semaine_iso' && !periodeActuelle.annee) {
+        const now = new Date();
+        periodeActuelle.annee = now.getFullYear(); periodeActuelle.semaine = numeroSemaineISO(now);
+        document.getElementById('champAnneeIso').value = periodeActuelle.annee;
+        document.getElementById('champSemaineIso').value = periodeActuelle.semaine;
+      }
+      await rafraichirOnglet();
+    });
+    document.getElementById('champAnneeIso').addEventListener('change', async e => { periodeActuelle.annee = parseInt(e.target.value, 10) || null; await rafraichirOnglet(); });
+    document.getElementById('champSemaineIso').addEventListener('change', async e => { periodeActuelle.semaine = parseInt(e.target.value, 10) || null; await rafraichirOnglet(); });
+    document.getElementById('champDateDebut').addEventListener('change', async e => { periodeActuelle.debut = e.target.value; await rafraichirOnglet(); });
+    document.getElementById('champDateFin').addEventListener('change', async e => { periodeActuelle.fin = e.target.value; await rafraichirOnglet(); });
+    document.querySelectorAll('.tab-pill').forEach(el => {
+      el.addEventListener('click', async () => {
+        const o = ONGLETS.find(x => x.id === el.dataset.onglet);
+        if (!o || o.desactive) return;
+        ongletActuel = o.id;
+        document.querySelectorAll('.tab-pill').forEach(x => x.classList.toggle('actif', x.dataset.onglet === ongletActuel));
+        await rafraichirOnglet();
+      });
+    });
+    await rafraichirOnglet();
+  }
+
+  async function rafraichirOnglet() {
+    periodeResolue = resoudrePeriode();
+    document.getElementById('labelPeriodeActuelle').textContent = `${periodeResolue.label} — ${periodeResolue.debut.toLocaleDateString('fr-FR')} → ${periodeResolue.fin.toLocaleDateString('fr-FR')}`;
+    document.getElementById('labelPeriodeComparaison').textContent = `vs ${periodeResolue.labelComp} (${periodeResolue.compDebut.toLocaleDateString('fr-FR')} → ${periodeResolue.compFin.toLocaleDateString('fr-FR')})`;
+    detruireCharts();
+    const zone = document.getElementById('contenuOnglet');
+    zone.innerHTML = '<div class="loading">Chargement…</div>';
+    try {
+      if (ongletActuel === 'ensemble') await renderEnsemble(zone);
+      else if (ongletActuel === 'ventes') await renderVentes(zone);
+      else if (ongletActuel === 'jeux') await renderJeuxOnglet(zone);
+      else if (ongletActuel === 'jours') await renderJoursQuarts(zone);
+      else if (ongletActuel === 'equipe') await renderEquipe(zone);
+      else if (ongletActuel === 'stock') await renderStock(zone);
+      else if (ongletActuel === 'controle') await renderControle(zone);
+      else if (ongletActuel === 'historique') await renderHistorique(zone);
+    } catch (e) {
+      console.error('Erreur de rendu onglet FDJ Analyse:', e);
+      zone.innerHTML = '<div class="loading">Erreur de chargement. Réessayez.</div>';
+    }
+  }
+
+  // ------------------------------------------------------------
+  // VUE D'ENSEMBLE — §7. Peu d'indicateurs, très bien choisis. 1 à 3
+  // décisions suggérées MAXIMUM, dérivées de règles transparentes (pas un
+  // commentaire génératif libre — le Conseiller NEXUS FDJ complet avec
+  // objet recommandation commun est la Phase D, pas ici).
+  // ------------------------------------------------------------
+  async function renderEnsemble(zone) {
+    const d = await chargerDonneesPeriode();
+    const actuel = sommerChamps(d.daily.actuel, CHAMPS_SUMMARY);
+    const comp = sommerChamps(d.daily.comp, CHAMPS_SUMMARY);
+    const compDisponible = comp.nb_quarts_controles > 0;
+    const evolCa = compDisponible ? evolution(actuel.ca_grattage, comp.ca_grattage) : null;
+    const tauxConformite = actuel.nb_quarts_controles > 0 ? actuel.nb_quarts_conformes / actuel.nb_quarts_controles : null;
+
+    // Part grattage / tirages — uniquement si les deux flux existent dans
+    // les données validées de la période (§7 : "si les deux flux sont
+    // présents").
+    const partGrattageDispo = actuel.ca_grattage > 0 || actuel.caisse_tirages > 0;
+    const totalFlux = (actuel.ca_grattage || 0) + (actuel.caisse_tirages || 0);
+
+    // Jeu / palier moteur de la période — CA le plus élevé.
+    const gameCa = {};
+    d.gameDaily.actuel.forEach(l => { if (l.ca) gameCa[l.game_id] = (gameCa[l.game_id] || 0) + Number(l.ca); });
+    let jeuMoteur = null, caJeuMoteur = 0;
+    Object.entries(gameCa).forEach(([gid, ca]) => { if (ca > caJeuMoteur) { caJeuMoteur = ca; jeuMoteur = gid; } });
+    const palierCa = {};
+    d.gameDaily.actuel.forEach(l => { if (l.ca) { const j = jeux.find(x => x.id === l.game_id); if (j) palierCa[j.prix] = (palierCa[j.prix] || 0) + Number(l.ca); } });
+    let palierMoteur = null, caPalierMoteur = 0;
+    Object.entries(palierCa).forEach(([p, ca]) => { if (ca > caPalierMoteur) { caPalierMoteur = ca; palierMoteur = p; } });
+
+    // Jour le plus vendeur / le plus faible DANS la période sélectionnée.
+    const joursTries = [...d.daily.actuel].filter(l => l.ca_grattage !== null).sort((a, b) => Number(b.ca_grattage) - Number(a.ca_grattage));
+    const meilleurJour = joursTries[0], pireJour = joursTries[joursTries.length - 1];
+
+    // Stock à risque — état actuel (indépendant de la période, voir §39 :
+    // le stock est "aujourd'hui", pas une donnée de période).
+    const { soldes } = await calculerEtatStock();
+    const jeuxRupture = jeux.filter(j => { const s = soldes[j.id]; return s && s.nonActives <= 0 && s.bureau <= 0; });
+    const jeuxVigilance = jeux.filter(j => { const s = soldes[j.id]; return s && s.nonActives <= 0 && s.bureau > 0; });
+
+    // Décisions suggérées — règles déterministes, 1 à 3 maximum.
+    const decisions = [];
+    if (jeuxRupture.length) decisions.push({ risque: true, texte: `Sécuriser le stock : ${jeuxRupture.map(j => j.nom).join(', ')} — plus aucun carnet disponible (bureau et caisse).` });
+    else if (jeuxVigilance.length) decisions.push({ risque: true, texte: `Réapprovisionner la caisse pour ${jeuxVigilance.length === 1 ? jeuxVigilance[0].nom : `${jeuxVigilance.length} jeux`} — plus rien en caisse mais du stock reste au bureau.` });
+    if (actuel.nb_ecarts_non_nuls > 0) decisions.push({ risque: actuel.nb_ecarts_non_nuls > 1, texte: `${actuel.nb_ecarts_non_nuls} écart${actuel.nb_ecarts_non_nuls > 1 ? 's' : ''} de caisse validé${actuel.nb_ecarts_non_nuls > 1 ? 's' : ''} sur la période — voir l'onglet Contrôle & écarts pour la ou les causes.` });
+    if (evolCa !== null && evolCa <= -0.15) decisions.push({ risque: true, texte: `Activité en recul de ${fmtEvolution(evolCa)} vs ${periodeResolue.labelComp.toLowerCase()} — vérifier stock, activations et rapports avant de conclure.` });
+    else if (evolCa !== null && evolCa >= 0.15) decisions.push({ risque: false, texte: `Activité en progression de ${fmtEvolution(evolCa)} vs ${periodeResolue.labelComp.toLowerCase()}${jeuMoteur ? `, portée notamment par ${nomJeu(jeuMoteur)}` : ''}.` });
+    const decisionsAffichees = decisions.slice(0, 3);
+
+    zone.innerHTML = `
+      <div class="resume-card">
+        <div class="stat-row total"><div class="stat-label">CA FDJ (${periodeResolue.label.toLowerCase()})</div><div class="stat-value cyan">${fmtEuro(actuel.ca_grattage + (actuel.caisse_tirages || 0))}</div></div>
+        <div class="stat-row"><div class="stat-label">Évolution</div><div class="stat-value ${classeEvolution(evolCa)}">${fmtEvolution(evolCa)}</div></div>
+        ${partGrattageDispo ? `
+        <div class="stat-row"><div class="stat-label">Part grattage / tirages</div><div class="stat-value">${fmtPct(totalFlux ? actuel.ca_grattage / totalFlux : null)} / ${fmtPct(totalFlux ? actuel.caisse_tirages / totalFlux : null)}</div></div>` : ''}
+        <div class="stat-row"><div class="stat-label">Taux de quarts conformes</div><div class="stat-value ${tauxConformite === null ? '' : (tauxConformite >= 0.9 ? 'green' : (tauxConformite >= 0.7 ? 'amber' : 'red'))}">${fmtPct(tauxConformite)}</div></div>
+        <div class="stat-sub">${actuel.nb_quarts_controles} quart${actuel.nb_quarts_controles > 1 ? 's' : ''} contrôlé${actuel.nb_quarts_controles > 1 ? 's' : ''} sur ${actuel.nb_quarts} au total</div>
+        <div class="stat-row"><div class="stat-label">Jeu moteur</div><div class="stat-value">${jeuMoteur ? nomJeu(jeuMoteur) : '—'}</div></div>
+        <div class="stat-row"><div class="stat-label">Palier moteur</div><div class="stat-value">${palierMoteur ? `${palierMoteur} €` : '—'}</div></div>
+        <div class="stat-row"><div class="stat-label">Meilleur jour</div><div class="stat-value">${meilleurJour ? `${new Date(meilleurJour.date + 'T00:00:00').toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' })}` : '—'}</div></div>
+        <div class="stat-row"><div class="stat-label">Jour le plus faible</div><div class="stat-value">${pireJour && pireJour !== meilleurJour ? `${new Date(pireJour.date + 'T00:00:00').toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' })}` : '—'}</div></div>
+      </div>
+      <div class="section-titre">Décisions suggérées</div>
+      ${decisionsAffichees.length ? decisionsAffichees.map(dec => `<div class="decision-card ${dec.risque ? 'risque' : ''}">${dec.texte}</div>`).join('') : '<div class="champ-note">Rien qui mérite une action immédiate sur cette période.</div>'}
+    `;
+  }
+
+  async function chargerShiftFacts(dateDebut, dateFin) {
+    const { data, error } = await nexusClient.from('view_fdj_shift_facts').select('*').eq('site', siteId).gte('date', dateISO(dateDebut)).lte('date', dateISO(dateFin));
+    if (error) { console.error('Chargement view_fdj_shift_facts:', error); return []; }
+    return data || [];
+  }
+
+  // ------------------------------------------------------------
+  // VENTES — §9. Indicateurs de base + comparaisons vs période précédente
+  // de même durée, vs même jour de semaine, vs moyenne glissante 4
+  // semaines (uniquement quand ces comparaisons ont un sens pour la
+  // période choisie — jamais une comparaison inventée).
+  // ------------------------------------------------------------
+  async function renderVentes(zone) {
+    const d = await chargerDonneesPeriode();
+    const actuel = sommerChamps(d.daily.actuel, CHAMPS_SUMMARY);
+    const comp = sommerChamps(d.daily.comp, CHAMPS_SUMMARY);
+    const compDisponible = comp.nb_quarts_controles > 0;
+    const evolCa = compDisponible ? evolution(actuel.ca_grattage, comp.ca_grattage) : null;
+    const evolTickets = compDisponible ? evolution(actuel.tickets_vendus, comp.tickets_vendus) : null;
+
+    const tendance = await chargerTendanceLongue();
+    const nbJoursPeriode = Math.round((periodeResolue.fin - periodeResolue.debut) / 86400000) + 1;
+
+    // vs moyenne glissante 4 semaines — seulement informatif pour une
+    // période d'environ une semaine, sinon indisponible (pas de sens de
+    // comparer un mois entier à une moyenne hebdomadaire).
+    let vsMoyenne4Semaines = null;
+    if (nbJoursPeriode >= 6 && nbJoursPeriode <= 8) {
+      const finFenetre = ajouterJours(periodeResolue.debut, -1);
+      const debutFenetre = ajouterJours(finFenetre, -27);
+      const lignesFenetre = tendance.filter(l => l.date >= dateISO(debutFenetre) && l.date <= dateISO(finFenetre));
+      if (lignesFenetre.length >= 14) {
+        const sommeFenetre = sommerChamps(lignesFenetre, ['ca_grattage']);
+        const moyenneHebdo = sommeFenetre.ca_grattage / 4;
+        vsMoyenne4Semaines = evolution(actuel.ca_grattage, moyenneHebdo);
+      }
+    }
+
+    // vs même jour de semaine — seulement pour une période d'un seul jour.
+    let vsMemeJourSemaine = null, nbOccurrencesMemeJour = 0;
+    if (nbJoursPeriode === 1) {
+      const dow = periodeResolue.debut.getDay();
+      const occurrences = tendance.filter(l => l.date < dateISO(periodeResolue.debut) && new Date(l.date + 'T00:00:00').getDay() === dow && l.ca_grattage !== null);
+      nbOccurrencesMemeJour = occurrences.length;
+      if (occurrences.length >= 3) {
+        const moyenne = sommerChamps(occurrences, ['ca_grattage']).ca_grattage / occurrences.length;
+        vsMemeJourSemaine = evolution(actuel.ca_grattage, moyenne);
+      }
+    }
+
+    zone.innerHTML = `
+      <div class="resume-card">
+        <div class="stat-row total"><div class="stat-label">CA grattage</div><div class="stat-value cyan">${fmtEuro(actuel.ca_grattage)}</div></div>
+        <div class="stat-row"><div class="stat-label">Tickets vendus</div><div class="stat-value">${fmtNum(actuel.tickets_vendus)}</div></div>
+        <div class="stat-row"><div class="stat-label">Caisse tirages</div><div class="stat-value">${fmtEuro(actuel.caisse_tirages)}</div></div>
+      </div>
+      <div class="section-titre">Comparaisons</div>
+      <div class="resume-card">
+        <div class="stat-row"><div class="stat-label">vs ${periodeResolue.labelComp.toLowerCase()}</div><div class="stat-value ${classeEvolution(evolCa)}">${fmtEvolution(evolCa)}</div></div>
+        <div class="stat-row"><div class="stat-label">Tickets vs ${periodeResolue.labelComp.toLowerCase()}</div><div class="stat-value ${classeEvolution(evolTickets)}">${fmtEvolution(evolTickets)}</div></div>
+        <div class="stat-row"><div class="stat-label">vs moyenne glissante 4 semaines</div><div class="stat-value ${classeEvolution(vsMoyenne4Semaines)}">${vsMoyenne4Semaines !== null ? fmtEvolution(vsMoyenne4Semaines) : 'non applicable à cette période'}</div></div>
+        <div class="stat-row"><div class="stat-label">vs même jour de semaine</div><div class="stat-value ${classeEvolution(vsMemeJourSemaine)}">${nbJoursPeriode !== 1 ? 'non applicable à cette période' : (vsMemeJourSemaine !== null ? fmtEvolution(vsMemeJourSemaine) : `historique insuffisant (${nbOccurrencesMemeJour} occurrence${nbOccurrencesMemeJour > 1 ? 's' : ''})`)}</div></div>
+      </div>
+      <div class="chart-wrap">
+        <div class="chart-titre">Courbe CA grattage</div>
+        <div class="chart-question">L'activité progresse-t-elle ou recule-t-elle ?</div>
+        <div class="chart-canvas-wrap"><canvas id="chartCa"></canvas></div>
+      </div>
+    `;
+    const labels = d.daily.actuel.slice().sort((a, b) => a.date.localeCompare(b.date)).map(l => new Date(l.date + 'T00:00:00').toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }));
+    const valeurs = d.daily.actuel.slice().sort((a, b) => a.date.localeCompare(b.date)).map(l => l.ca_grattage !== null ? Number(l.ca_grattage) : 0);
+    chartsActifs.ca = new Chart(document.getElementById('chartCa'), {
+      type: 'line',
+      data: { labels, datasets: [{ data: valeurs, borderColor: '#4FC3D9', backgroundColor: 'rgba(79,195,217,0.12)', fill: true, tension: 0.25, pointRadius: 3 }] },
+      options: { ...optionsGraphiqueBase(), plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => `${fmtEuro(ctx.parsed.y)}` } } } },
+    });
+  }
+
+  // ------------------------------------------------------------
+  // JEUX — §10. Chaque jeu analysé individuellement sans transformer la
+  // page en catalogue complet — table triable par CA + Top 10 en graphique.
+  // ------------------------------------------------------------
+  async function renderJeuxOnglet(zone) {
+    const d = await chargerDonneesPeriode();
+    const { soldes } = await calculerEtatStock();
+    const parJeuActuel = {}, parJeuComp = {};
+    d.gameDaily.actuel.forEach(l => {
+      if (!parJeuActuel[l.game_id]) parJeuActuel[l.game_id] = { ca: 0, tickets: 0, activations: 0 };
+      if (l.ca) parJeuActuel[l.game_id].ca += Number(l.ca);
+      if (l.tickets_vendus) parJeuActuel[l.game_id].tickets += Number(l.tickets_vendus);
+      parJeuActuel[l.game_id].activations += Number(l.nb_activations || 0);
+    });
+    d.gameDaily.comp.forEach(l => { if (l.ca) { if (!parJeuComp[l.game_id]) parJeuComp[l.game_id] = 0; parJeuComp[l.game_id] += Number(l.ca); } });
+    const caTotalPeriode = Object.values(parJeuActuel).reduce((s, v) => s + v.ca, 0);
+
+    const lignes = jeux.map(j => {
+      const a = parJeuActuel[j.id] || { ca: 0, tickets: 0, activations: 0 };
+      const solde = soldes[j.id] || { bureau: 0, nonActives: 0, actives: 0 };
+      return {
+        jeu: j, ca: a.ca, tickets: a.tickets, activations: a.activations,
+        partCa: caTotalPeriode > 0 ? a.ca / caTotalPeriode : null,
+        evolution: parJeuComp[j.id] ? evolution(a.ca, parJeuComp[j.id]) : null,
+        bureau: solde.bureau, caisseNonActivee: solde.nonActives,
+      };
+    }).sort((x, y) => y.ca - x.ca);
+
+    const top10 = lignes.filter(l => l.ca > 0).slice(0, 10);
+
+    zone.innerHTML = `
+      <div class="chart-wrap">
+        <div class="chart-titre">Top 10 jeux</div>
+        <div class="chart-question">Quels jeux tirent l'activité ?</div>
+        <div class="chart-canvas-wrap"><canvas id="chartTop10"></canvas></div>
+      </div>
+      <div class="section-titre">Tous les jeux (triés par CA)</div>
+      <div class="card">
+        ${lignes.map(l => `
+          <div class="jeu-row">
+            <div class="jeu-nom-ligne">
+              <div class="jeu-nom">${l.jeu.nom}</div>
+              <div class="jeu-ventes calc">${fmtEuro(l.ca)}</div>
+            </div>
+            <div class="histo-sub">${fmtNum(l.tickets)} tickets · part CA ${fmtPct(l.partCa)} · évolution ${fmtEvolution(l.evolution)}</div>
+            <div class="histo-sub">${l.activations} activation${l.activations > 1 ? 's' : ''} · Bureau ${fmtNum(l.bureau)} · Caisse non activée ${fmtNum(l.caisseNonActivee)}</div>
+          </div>
+        `).join('')}
+      </div>
+    `;
+    chartsActifs.top10 = new Chart(document.getElementById('chartTop10'), {
+      type: 'bar',
+      data: { labels: top10.map(l => l.jeu.nom), datasets: [{ data: top10.map(l => l.ca), backgroundColor: '#4FC3D9' }] },
+      options: { ...optionsGraphiqueBase(), indexAxis: 'y', plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => fmtEuro(ctx.parsed.x) } } } },
+    });
+  }
+
+  // ------------------------------------------------------------
+  // JOURS & QUARTS — §12, §13. CA moyen par jour de semaine (tendance
+  // longue, 8 semaines fixes — indépendante du sélecteur de période) +
+  // comparaison matin/soir sur la période sélectionnée.
+  // ------------------------------------------------------------
+  const NOMS_JOURS = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
+  async function renderJoursQuarts(zone) {
+    const tendance = await chargerTendanceLongue();
+    const parJour = {}; // dow -> { sommeCa, occurrences: [ca...] }
+    tendance.forEach(l => {
+      if (l.ca_grattage === null) return;
+      const dow = new Date(l.date + 'T00:00:00').getDay();
+      if (!parJour[dow]) parJour[dow] = [];
+      parJour[dow].push({ date: l.date, ca: Number(l.ca_grattage) });
+    });
+    const ordreAffichage = [1, 2, 3, 4, 5, 6, 0]; // lundi -> dimanche
+    const statsJours = ordreAffichage.map(dow => {
+      const occ = (parJour[dow] || []).slice().sort((a, b) => a.date.localeCompare(b.date));
+      const moyenne = occ.length ? occ.reduce((s, o) => s + o.ca, 0) / occ.length : null;
+      let tendanceTexte = null;
+      if (occ.length >= 8) {
+        const derniers4 = occ.slice(-4);
+        const precedents = occ.slice(0, occ.length - 4);
+        const moyDerniers4 = derniers4.reduce((s, o) => s + o.ca, 0) / derniers4.length;
+        const moyPrecedents = precedents.length ? precedents.reduce((s, o) => s + o.ca, 0) / precedents.length : null;
+        const evol = moyPrecedents ? evolution(moyDerniers4, moyPrecedents) : null;
+        if (evol !== null && evol <= -0.15) tendanceTexte = `en recul sur les 4 dernières occurrences (${fmtEvolution(evol)} vs moyenne antérieure)`;
+        else if (evol !== null && evol >= 0.15) tendanceTexte = `en progression sur les 4 dernières occurrences (${fmtEvolution(evol)} vs moyenne antérieure)`;
+      }
+      return { dow, nom: NOMS_JOURS[dow], moyenne, nbOccurrences: occ.length, tendanceTexte };
+    });
+    const meilleur = statsJours.filter(s => s.moyenne !== null).sort((a, b) => b.moyenne - a.moyenne)[0];
+    const pire = statsJours.filter(s => s.moyenne !== null).sort((a, b) => a.moyenne - b.moyenne)[0];
+
+    // Matin / soir sur la période sélectionnée.
+    const facts = await chargerShiftFacts(periodeResolue.debut, periodeResolue.fin);
+    const factsValides = facts.filter(f => f.statut_caisse && f.statut_caisse !== 'provisoire');
+    const parQuart = { '1': { ca: 0, ecart: 0, n: 0 }, '2': { ca: 0, ecart: 0, n: 0 } };
+    factsValides.forEach(f => {
+      if (!parQuart[f.quart]) return;
+      parQuart[f.quart].ca += Number(f.ventes_grattage_valeur || 0);
+      parQuart[f.quart].ecart += Number(f.ecart || 0);
+      parQuart[f.quart].n++;
+    });
+
+    zone.innerHTML = `
+      <div class="chart-wrap">
+        <div class="chart-titre">CA moyen par jour de semaine</div>
+        <div class="chart-question">Quels jours performent le mieux ? (tendance sur les 8 dernières semaines, indépendante de la période choisie ci-dessus)</div>
+        <div class="chart-canvas-wrap"><canvas id="chartJours"></canvas></div>
+      </div>
+      <div class="resume-card">
+        <div class="stat-row"><div class="stat-label">Meilleur jour</div><div class="stat-value green">${meilleur ? meilleur.nom : '—'}</div></div>
+        <div class="stat-row"><div class="stat-label">Jour le plus faible</div><div class="stat-value">${pire ? pire.nom : '—'}</div></div>
+      </div>
+      <div class="section-titre">Détail par jour</div>
+      <div class="card">
+        ${statsJours.map(s => `
+          <div class="jeu-row">
+            <div class="jeu-nom-ligne"><div class="jeu-nom">${s.nom}</div><div class="jeu-ventes calc">${fmtEuro(s.moyenne)}</div></div>
+            <div class="histo-sub">${s.nbOccurrences} occurrence${s.nbOccurrences > 1 ? 's' : ''} sur 8 semaines${s.tendanceTexte ? ` · ${s.tendanceTexte}` : ''}</div>
+          </div>
+        `).join('')}
+      </div>
+      <div class="section-titre">Matin (Quart 1) vs Soir (Quart 2) — période sélectionnée</div>
+      <div class="resume-card">
+        <div class="stat-row"><div class="stat-label">☀️ Quart 1 — CA grattage</div><div class="stat-value">${fmtEuro(parQuart['1'].ca)}</div></div>
+        <div class="stat-sub">${parQuart['1'].n} quart${parQuart['1'].n > 1 ? 's' : ''} contrôlé${parQuart['1'].n > 1 ? 's' : ''} · écart total ${fmtEuro(parQuart['1'].ecart)}</div>
+        <div class="stat-row"><div class="stat-label">🌙 Quart 2 — CA grattage</div><div class="stat-value">${fmtEuro(parQuart['2'].ca)}</div></div>
+        <div class="stat-sub">${parQuart['2'].n} quart${parQuart['2'].n > 1 ? 's' : ''} contrôlé${parQuart['2'].n > 1 ? 's' : ''} · écart total ${fmtEuro(parQuart['2'].ecart)}</div>
+      </div>
+      <div class="champ-note">Le quart n'est jamais utilisé pour juger automatiquement une personne — l'employé, l'horaire, le trafic et le jour peuvent varier.</div>
+    `;
+    chartsActifs.jours = new Chart(document.getElementById('chartJours'), {
+      type: 'bar',
+      data: { labels: statsJours.map(s => s.nom.slice(0, 3)), datasets: [{ data: statsJours.map(s => s.moyenne || 0), backgroundColor: statsJours.map(s => s === meilleur ? '#34D399' : (s === pire ? '#F0575A' : '#4FC3D9')) }] },
+      options: { ...optionsGraphiqueBase(), plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => fmtEuro(ctx.parsed.y) } } } },
+    });
+  }
+
+  // ------------------------------------------------------------
+  // ÉQUIPE — §14. Toujours avec le nombre de quarts, jamais un classement
+  // brut entre personnes n'ayant pas travaillé le même volume.
+  // ------------------------------------------------------------
+  async function renderEquipe(zone) {
+    const d = await chargerDonneesPeriode();
+    const SEUIL_MIN_QUARTS = 3;
+    const parEmployeActuel = {}, parEmployeComp = {};
+    d.employeeDaily.actuel.forEach(l => {
+      if (!parEmployeActuel[l.employee_id]) parEmployeActuel[l.employee_id] = { ca: 0, quarts: 0, quartsControles: 0, quartsConformes: 0, ecart: 0 };
+      const e = parEmployeActuel[l.employee_id];
+      e.ca += Number(l.ca_grattage || 0); e.quarts += Number(l.nb_quarts || 0);
+      e.quartsControles += Number(l.nb_quarts_controles || 0); e.quartsConformes += Number(l.nb_quarts_conformes || 0);
+      e.ecart += Number(l.ecart_total || 0);
+    });
+    d.employeeDaily.comp.forEach(l => {
+      if (!parEmployeComp[l.employee_id]) parEmployeComp[l.employee_id] = { ca: 0, quartsControles: 0 };
+      parEmployeComp[l.employee_id].ca += Number(l.ca_grattage || 0);
+      parEmployeComp[l.employee_id].quartsControles += Number(l.nb_quarts_controles || 0);
+    });
+
+    const lignes = Object.entries(parEmployeActuel).map(([id, e]) => {
+      const comp = parEmployeComp[id];
+      const caMoyenActuel = e.quartsControles >= SEUIL_MIN_QUARTS ? e.ca / e.quartsControles : null;
+      const caMoyenComp = comp && comp.quartsControles >= SEUIL_MIN_QUARTS ? comp.ca / comp.quartsControles : null;
+      return {
+        id, nom: nomEmploye(id), ca: e.ca, quarts: e.quarts, quartsControles: e.quartsControles,
+        caMoyen: caMoyenActuel,
+        tauxConformite: e.quartsControles > 0 ? e.quartsConformes / e.quartsControles : null,
+        progression: (caMoyenActuel !== null && caMoyenComp !== null) ? evolution(caMoyenActuel, caMoyenComp) : null,
+      };
+    }).sort((a, b) => b.ca - a.ca);
+
+    const caTotalEquipe = lignes.reduce((s, l) => s + l.ca, 0);
+
+    zone.innerHTML = `
+      <div class="champ-note">Le CA total dépend du nombre de quarts travaillés — toujours affiché à côté. La moyenne par quart n'apparaît qu'à partir de ${SEUIL_MIN_QUARTS} quarts contrôlés ; sinon "trop peu de quarts".</div>
+      <div class="card">
+        ${lignes.length ? lignes.map(l => `
+          <div class="jeu-row">
+            <div class="jeu-nom-ligne"><div class="jeu-nom">${l.nom}</div><div class="jeu-ventes calc">${fmtEuro(l.ca)}</div></div>
+            <div class="histo-sub">${l.quarts} quart${l.quarts > 1 ? 's' : ''} · part des ventes équipe ${fmtPct(caTotalEquipe ? l.ca / caTotalEquipe : null)}</div>
+            <div class="histo-sub">CA moyen/quart : ${l.caMoyen !== null ? fmtEuro(l.caMoyen) : 'trop peu de quarts'} · conformité ${fmtPct(l.tauxConformite)} · progression perso ${fmtEvolution(l.progression)}</div>
+          </div>
+        `).join('') : '<div class="champ-note" style="margin:16px;">Aucun quart contrôlé sur cette période.</div>'}
+      </div>
+      <div class="champ-note">"Progression perso" compare chaque employé à lui-même (période précédente de même durée) — jamais un classement entre personnes dont les volumes de présence diffèrent.</div>
+    `;
+  }
+
+  // ------------------------------------------------------------
+  // STOCK — §16, §17. État actuel (bureau/caisse/activé), toujours via
+  // nexus-fdj-moteur.js — jamais un calcul dupliqué ici. Indépendant de la
+  // période sélectionnée en haut de page (le stock est un état "maintenant",
+  // pas une donnée de période — voir §39, "Aujourd'hui" vs "Analyse").
+  // ------------------------------------------------------------
+  function derniereReceptionParJeu(mouvements) {
+    const map = {};
+    (mouvements || []).forEach(m => {
+      if (m.type_mouvement !== 'reception') return;
+      if (!map[m.game_id] || new Date(m.created_at) > new Date(map[m.game_id])) map[m.game_id] = m.created_at;
+    });
+    return map;
+  }
+  function ancienneteJours(dateISOStr) {
+    if (!dateISOStr) return null;
+    return Math.max(0, Math.floor((Date.now() - new Date(dateISOStr).getTime()) / 86400000));
+  }
+  function etatLigneStock(solde) {
+    if (solde.nonActives <= 0 && solde.bureau <= 0) return { classe: 'anomalie', texte: '🔴 Rupture' };
+    if (solde.nonActives <= 0) return { classe: 'anomalie', texte: '🟠 Vigilance' };
+    return { classe: 'ok', texte: '🟢 OK' };
+  }
+  async function renderStock(zone) {
+    const { soldes, mouvements } = await calculerEtatStock();
+    const dernieresReceptions = derniereReceptionParJeu(mouvements);
+    const groupes = grouperParPalier(jeux);
+    const enRupture = jeux.filter(j => etatLigneStock(soldes[j.id] || {}).texte.includes('Rupture'));
+    const enVigilance = jeux.filter(j => etatLigneStock(soldes[j.id] || {}).texte.includes('Vigilance'));
+    const topStock = jeux.map(j => ({ jeu: j, total: (soldes[j.id] || {}).bureau + (soldes[j.id] || {}).confies || 0 }))
+      .sort((a, b) => b.total - a.total).slice(0, 12);
+
+    zone.innerHTML = `
+      <div class="champ-note">État actuel — indépendant de la période sélectionnée en haut de page. ${derniereReference ? `Point zéro : ${new Date(derniereReference.date + 'T00:00:00').toLocaleDateString('fr-FR')}.` : "Aucun contrôle physique enregistré — stock théorique depuis zéro."}</div>
+      <div class="resume-card">
+        <div class="stat-row"><div class="stat-label">Jeux en rupture</div><div class="stat-value ${enRupture.length ? 'red' : 'green'}">${enRupture.length}</div></div>
+        <div class="stat-row"><div class="stat-label">Jeux en vigilance</div><div class="stat-value ${enVigilance.length ? 'amber' : 'green'}">${enVigilance.length}</div></div>
+      </div>
+      <div class="chart-wrap">
+        <div class="chart-titre">Stock par jeu (bureau + caisse non activée)</div>
+        <div class="chart-question">Quels jeux nécessitent une action stock ?</div>
+        <div class="chart-canvas-wrap"><canvas id="chartStock"></canvas></div>
+      </div>
+      ${groupes.map(g => `
+        <div class="palier-block">
+          <div class="palier-head">${fmtNum(g.prix)} €</div>
+          <div class="card">${g.items.map(j => {
+            const s = soldes[j.id] || { bureau: 0, confies: 0, actives: 0, nonActives: 0 };
+            const etat = etatLigneStock(s);
+            const derniere = dernieresReceptions[j.id];
+            const anciennete = ancienneteJours(derniere);
+            return `
+              <div class="jeu-row">
+                <div class="jeu-nom-ligne"><div class="jeu-nom">${j.nom}</div><div class="jeu-ventes ${etat.classe}">${etat.texte}</div></div>
+                <div class="histo-sub">Bureau ${fmtNum(s.bureau)} · Caisse non activée ${fmtNum(s.nonActives)} · Activés ${fmtNum(s.actives)}</div>
+                <div class="histo-sub">${derniere ? `Dernière réception il y a ${anciennete} jour${anciennete > 1 ? 's' : ''}` : 'Aucune réception enregistrée'}</div>
+              </div>
+            `;
+          }).join('')}</div>
+        </div>
+      `).join('')}
+    `;
+    chartsActifs.stock = new Chart(document.getElementById('chartStock'), {
+      type: 'bar',
+      data: { labels: topStock.map(t => t.jeu.nom), datasets: [{ data: topStock.map(t => t.total), backgroundColor: '#D4AF37' }] },
+      options: { ...optionsGraphiqueBase(), indexAxis: 'y', plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => `${fmtNum(ctx.parsed.x)} carnet(s)` } } } },
+    });
+  }
+
+  // ------------------------------------------------------------
+  // CONTRÔLE & ÉCARTS — §15, §22. Taux de conformité, écarts par motif
+  // (retrouver une cause récurrente sans recompter la caisse) et tendance
+  // (la qualité du contrôle s'améliore-t-elle ?).
+  // ------------------------------------------------------------
+  async function renderControle(zone) {
+    const d = await chargerDonneesPeriode();
+    const actuel = sommerChamps(d.daily.actuel, CHAMPS_SUMMARY);
+    const tauxConformite = actuel.nb_quarts_controles > 0 ? actuel.nb_quarts_conformes / actuel.nb_quarts_controles : null;
+
+    const parMotif = {};
+    d.discrepancyDaily.actuel.forEach(l => {
+      const motif = l.motif_ecart || 'non_precise';
+      if (!parMotif[motif]) parMotif[motif] = { n: 0, total: 0 };
+      parMotif[motif].n += Number(l.nb_occurrences || 0);
+      parMotif[motif].total += Number(l.ecart_total || 0);
+    });
+    const motifsTries = Object.entries(parMotif).sort((a, b) => b[1].n - a[1].n);
+
+    const tendance = await chargerTendanceLongue();
+    const labelsTendance = tendance.slice().sort((a, b) => a.date.localeCompare(b.date)).map(l => new Date(l.date + 'T00:00:00').toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }));
+    const valeursTendance = tendance.slice().sort((a, b) => a.date.localeCompare(b.date)).map(l => l.ecart_total !== null ? Number(l.ecart_total) : 0);
+
+    zone.innerHTML = `
+      <div class="resume-card">
+        <div class="stat-row total"><div class="stat-label">Taux de conformité (${periodeResolue.label.toLowerCase()})</div><div class="stat-value ${tauxConformite === null ? '' : (tauxConformite >= 0.9 ? 'green' : (tauxConformite >= 0.7 ? 'amber' : 'red'))}">${fmtPct(tauxConformite)}</div></div>
+        <div class="stat-sub">${actuel.nb_quarts_conformes} conforme${actuel.nb_quarts_conformes > 1 ? 's' : ''} sur ${actuel.nb_quarts_controles} contrôlé${actuel.nb_quarts_controles > 1 ? 's' : ''}</div>
+        <div class="stat-row"><div class="stat-label">Écart total</div><div class="stat-value ${actuel.ecart_total === 0 ? 'green' : 'amber'}">${fmtEuro(actuel.ecart_total)}</div></div>
+        <div class="stat-row"><div class="stat-label">Quarts avec écart non nul</div><div class="stat-value">${actuel.nb_ecarts_non_nuls}</div></div>
+      </div>
+      <div class="section-titre">Causes récurrentes (période sélectionnée)</div>
+      <div class="card">
+        ${motifsTries.length ? motifsTries.map(([motif, s]) => `
+          <div class="jeu-row">
+            <div class="jeu-nom-ligne"><div class="jeu-nom">${motif === 'non_precise' ? 'Motif non précisé' : motif}</div><div class="jeu-ventes ${s.total === 0 ? '' : 'anomalie'}">${fmtEuro(s.total)}</div></div>
+            <div class="histo-sub">${s.n} occurrence${s.n > 1 ? 's' : ''}</div>
+          </div>
+        `).join('') : '<div class="champ-note" style="margin:16px;">Aucun écart validé avec motif sur cette période.</div>'}
+      </div>
+      <div class="chart-wrap">
+        <div class="chart-titre">Tendance des écarts (8 dernières semaines)</div>
+        <div class="chart-question">La qualité du contrôle s'améliore-t-elle ?</div>
+        <div class="chart-canvas-wrap"><canvas id="chartEcarts"></canvas></div>
+      </div>
+    `;
+    chartsActifs.ecarts = new Chart(document.getElementById('chartEcarts'), {
+      type: 'line',
+      data: { labels: labelsTendance, datasets: [{ data: valeursTendance, borderColor: '#F5A623', backgroundColor: 'rgba(245,166,35,0.12)', fill: true, tension: 0.2, pointRadius: 2 }] },
+      options: { ...optionsGraphiqueBase(), plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => fmtEuro(ctx.parsed.y) } } } },
+    });
+  }
+
+  // ------------------------------------------------------------
+  // HISTORIQUE — §19. Mémoire exploitable, filtrable, dans la période
+  // sélectionnée en haut de page (critère d'acceptation §45).
+  // ------------------------------------------------------------
+  let historiqueFiltre = { jeu: '', employe: '', quart: '', type: '' };
+  async function renderHistorique(zone) {
+    const [facts, mouvementsBrut] = await Promise.all([
+      chargerShiftFacts(periodeResolue.debut, periodeResolue.fin),
+      nexusClient.from('fdj_stock_movements').select('*').eq('site', siteId).gte('created_at', periodeResolue.debut.toISOString()).lt('created_at', ajouterJours(periodeResolue.fin, 1).toISOString()).order('created_at', { ascending: false }).then(r => r.data || []),
+    ]);
+    zone.innerHTML = `
+      <div class="section-titre">Filtres</div>
+      <div class="filtre-row">
+        <select class="champ-select" id="filtreJeu"><option value="">Tous les jeux</option>${jeux.map(j => `<option value="${j.id}">${j.nom}</option>`).join('')}</select>
+        <select class="champ-select" id="filtreEmploye"><option value="">Tous les employés</option>${employesSite.map(e => `<option value="${e.id}">${e.nom}</option>`).join('')}</select>
+      </div>
+      <div class="filtre-row">
+        <select class="champ-select" id="filtreQuart"><option value="">Quart 1 et 2</option><option value="1">Quart 1</option><option value="2">Quart 2</option></select>
+        <select class="champ-select" id="filtreType"><option value="">Tous types de mouvement</option><option value="reception">Réception</option><option value="transfert">Transfert</option><option value="activation">Activation</option><option value="retour">Retour</option><option value="blocage">Blocage</option><option value="correction">Correction</option></select>
+      </div>
+      <div class="section-titre">Quarts (${periodeResolue.label.toLowerCase()})</div>
+      <div class="card" id="listeQuartsHisto"></div>
+      <div class="section-titre">Mouvements de stock (${periodeResolue.label.toLowerCase()})</div>
+      <div class="card" id="listeMouvementsHisto"></div>
+    `;
+    const majListes = () => {
+      const fQuart = document.getElementById('filtreQuart').value;
+      const fEmploye = document.getElementById('filtreEmploye').value;
+      const fJeu = document.getElementById('filtreJeu').value;
+      const fType = document.getElementById('filtreType').value;
+
+      const quartsFiltres = facts.filter(f => (!fQuart || f.quart === fQuart) && (!fEmploye || f.employee_id === fEmploye));
+      document.getElementById('listeQuartsHisto').innerHTML = quartsFiltres.length ? quartsFiltres
+        .sort((a, b) => b.date.localeCompare(a.date))
+        .map(f => `
+          <div class="jeu-row">
+            <div class="jeu-nom-ligne">
+              <div class="jeu-nom">${new Date(f.date + 'T00:00:00').toLocaleDateString('fr-FR')} · Quart ${f.quart}</div>
+              <div class="jeu-ventes ${f.ecart === 0 ? 'ok' : (f.ecart ? 'anomalie' : '')}">${f.ecart !== null ? fmtEuro(f.ecart) : '—'}</div>
+            </div>
+            <div class="histo-sub">${nomEmploye(f.employee_id)} · ${f.statut_caisse ? f.statut_caisse : 'sans caisse'} · CA ${fmtEuro(f.ventes_grattage_valeur)}</div>
+          </div>
+        `).join('') : '<div class="champ-note" style="margin:16px;">Aucun quart pour ces filtres.</div>';
+
+      const mouvementsFiltres = mouvementsBrut.filter(m => (!fJeu || m.game_id === fJeu) && (!fType || m.type_mouvement === fType));
+      document.getElementById('listeMouvementsHisto').innerHTML = mouvementsFiltres.length ? mouvementsFiltres.slice(0, 100).map(m => `
+        <div class="jeu-row">
+          <div class="jeu-nom-ligne">
+            <div class="jeu-nom">${nomJeu(m.game_id)}</div>
+            <div class="jeu-ventes calc">${m.type_mouvement} · ${fmtNum(m.quantite)}</div>
+          </div>
+          <div class="histo-sub">${new Date(m.created_at).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}${m.employee_id ? ` · ${nomEmploye(m.employee_id)}` : ''}</div>
+        </div>
+      `).join('') : '<div class="champ-note" style="margin:16px;">Aucun mouvement pour ces filtres.</div>';
+    };
+    ['filtreJeu', 'filtreEmploye', 'filtreQuart', 'filtreType'].forEach(id => document.getElementById(id).addEventListener('change', majListes));
+    majListes();
+  }
+
+  // ------------------------------------------------------------
+  // INITIALISATION
+  // ------------------------------------------------------------
+  nexusRequireAuth().then(async employee => {
+    if (!employee) return;
+    if (employee.role !== 'manager' && employee.role !== 'gerant') {
+      document.body.innerHTML = '<div class="locked">Cet écran est réservé aux managers.</div>';
+      return;
+    }
+    managerCourant = employee;
+    siteId = employee.site_id || 'vito-sainte-marie';
+    if (!(await NexusForfait.nexusRequireProfessional('NEXUS-FDJ-Analyse-v1.html', siteId))) return;
+    [jeux, employesSite, emplacements] = await Promise.all([chargerJeux(), chargerEmployesSite(), chargerEmplacements()]);
+    await renderPage();
+  });
+</script>
+</body>
+</html>
