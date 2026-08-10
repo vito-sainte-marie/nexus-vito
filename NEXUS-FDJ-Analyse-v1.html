@@ -295,7 +295,7 @@
     return (actuel - precedent) / precedent;
   }
 
-  const CHAMPS_SUMMARY = ['nb_quarts', 'nb_quarts_valides', 'nb_quarts_controles', 'nb_quarts_conformes', 'ca_grattage', 'tickets_vendus', 'caisse_tirages', 'ecart_total', 'nb_ecarts_non_nuls'];
+  const CHAMPS_SUMMARY = ['nb_quarts', 'nb_quarts_valides', 'nb_quarts_controles', 'nb_quarts_conformes', 'ca_grattage', 'tickets_vendus', 'caisse_tirages', 'ecart_total', 'nb_ecarts_non_nuls', 'caisse_reelle_totale'];
 
   async function chargerDonneesPeriode() {
     periodeResolue = resoudrePeriode();
@@ -654,6 +654,8 @@
         <div class="stat-row total"><div class="stat-label">CA grattage</div><div class="stat-value cyan">${fmtEuro(actuel.ca_grattage)}</div></div>
         <div class="stat-row"><div class="stat-label">Tickets vendus</div><div class="stat-value">${fmtNum(actuel.tickets_vendus)}</div></div>
         <div class="stat-row"><div class="stat-label">Caisse tirages</div><div class="stat-value">${fmtEuro(actuel.caisse_tirages)}</div></div>
+        <div class="stat-row total"><div class="stat-label">Caisse réelle totale</div><div class="stat-value">${fmtEuro(actuel.caisse_reelle_totale)}</div></div>
+        <div class="stat-sub">Montant physiquement compté (grattage + loto) — à comparer au dépôt réel pour déduire les commissions FDJ.</div>
       </div>
       <div class="section-titre">Comparaisons</div>
       <div class="resume-card">
@@ -1371,7 +1373,7 @@
       periodeSousLabel: `${periodeResolue.debut.toLocaleDateString('fr-FR')} → ${periodeResolue.fin.toLocaleDateString('fr-FR')}`,
       labelComp: periodeResolue.labelComp, genereLe: new Date(),
       donneesProvisoires: nbNonControles > 0, nbNonControles, totalQuarts: actuel.nb_quarts,
-      ca: actuel.ca_grattage, caisseTirages: actuel.caisse_tirages, evolCa, tauxConformite,
+      ca: actuel.ca_grattage, caisseTirages: actuel.caisse_tirages, caisseReelleTotale: actuel.caisse_reelle_totale, evolCa, tauxConformite,
       quartsControles: actuel.nb_quarts_controles, quartsConformes: actuel.nb_quarts_conformes,
       ecartTotal: actuel.ecart_total, nbEcartsNonNuls: actuel.nb_ecarts_non_nuls,
       jeuMoteur, palierMoteur, typePeriode, labelUnite, meilleureUnite, pireUnite, labelsCa, valeursCa,
@@ -1513,7 +1515,7 @@
       ligne2: `${donnees.periodeSousLabel} · ${donnees.site}${donnees.donneesProvisoires ? ' · données provisoires' : ''}`,
     });
 
-    // --- KPI (4 chiffres clés) ---
+    // --- KPI (5 chiffres clés) ---
     const zKpi = c.allouerZone(ZONES_1P.kpi);
     const ecartSigne = donnees.ecartTotal > 0 ? '+' : '';
     c.ligneKpi(zKpi, [
@@ -1532,6 +1534,15 @@
         valeur: donnees.quartsControles > 0 ? `${donnees.quartsConformes}/${donnees.quartsControles} · ${fmtPct(donnees.tauxConformite)}` : '—',
       },
       { label: 'Écart caisse', valeur: `${ecartSigne}${fmtEuro(donnees.ecartTotal)}`, couleurValeur: donnees.ecartTotal < 0 ? COULEUR.rouge : COULEUR.texte },
+      {
+        // Demande explicite de Frédéric (10/08/2026) : c'est ce montant
+        // physiquement compté (pas le CA théorique) qu'il compare au dépôt
+        // réel pour déduire les commissions FDJ — doit toujours apparaître,
+        // jamais seulement dans "Ce qu'il faut savoir" où il pourrait être
+        // coupé par le plafond de points.
+        label: 'Caisse réelle',
+        valeur: fmtEuro(donnees.caisseReelleTotale),
+      },
     ]);
 
     // --- Ce qu'il faut savoir (5 points maximum) ---
