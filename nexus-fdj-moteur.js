@@ -178,8 +178,134 @@
     return soldes;
   }
 
+  // ------------------------------------------------------------
+  // CONSEILLER FDJ — Phase D (09/08/2026, audit "Moteur de clairvoyance
+  // manager", §46 items 13-16 : règles déterministes + objet
+  // recommandation commun). Reprend EXACTEMENT les règles jusqu'ici
+  // écrites en dur dans renderEnsemble() de NEXUS-FDJ-Analyse-v1.html
+  // (rupture/vigilance de stock, écarts de caisse validés, recul/
+  // progression de CA sur la période vs la période de comparaison) —
+  // extraites ici pour que ce ne soit plus une logique dupliquée mais une
+  // seule vérité, consommée à la fois par l'onglet Conseiller de
+  // NEXUS-FDJ-Analyse-v1.html (rapport complet, période choisie par le
+  // manager) ET par NEXUS-Brief-v1.html (remontée fusionnée aux autres
+  // moteurs via NexusConseiller.normaliserFdj, fenêtre fixe 7 jours).
+  //
+  // Volontairement limité à des faits déjà mesurés (audit §23) : jamais
+  // une prédiction, jamais un jugement sur une personne, jamais "vous
+  // devez commander N carnets" (NEXUS ne connaît pas les contraintes de
+  // commande FDJ), jamais "stock optimal" (aucun objectif défini). Pure
+  // fonction : aucun appel Supabase ici, tout est fourni par l'appelant
+  // (même discipline que calculerCandidatsProduits dans
+  // nexus-conseiller.js).
+  //
+  // `donnees` = {
+  //   soldes: sortie de soldesCarnetsAvecReference (par game_id),
+  //   jeux: [{id, nom}],
+  //   actuel: sommes sur la période sélectionnée ({ca_grattage,
+  //     nb_ecarts_non_nuls, ...}) — mêmes champs que CHAMPS_SUMMARY dans
+  //     NEXUS-FDJ-Analyse-v1.html,
+  //   evolCa: évolution du CA grattage vs période de comparaison (null si
+  //     non disponible),
+  //   jeuMoteur: {id, nom} | null — jeu au CA le plus élevé de la période,
+  //   labelPeriode / labelComp: libellés déjà résolus par l'appelant (ex.
+  //     "cette semaine" / "la semaine précédente"),
+  //   periodeCle: identifiant stable de la période (ex. date de début),
+  //     utilisé pour construire un candidate_id stable.
+  // }
+  // Retourne une liste de candidats bruts { id, type, niveau
+  //   ('critique'|'attention'|'positif'), titre, constat, preuve,
+  //   decision, impactAttendu, limites, cible, confiance, impactEur }.
+  function calculerCandidatsFdj(donnees) {
+    const d = donnees || {};
+    const soldes = d.soldes || {};
+    const jeux = d.jeux || [];
+    const actuel = d.actuel || {};
+    const labelPeriode = d.labelPeriode || 'la période sélectionnée';
+    const labelComp = d.labelComp || 'la période précédente';
+    const cle = d.periodeCle || 'periode';
+    const candidats = [];
+
+    const jeuxRupture = jeux.filter(j => { const s = soldes[j.id]; return s && s.nonActives <= 0 && s.bureau <= 0; });
+    const jeuxVigilance = jeux.filter(j => { const s = soldes[j.id]; return s && s.nonActives <= 0 && s.bureau > 0; });
+
+    if (jeuxRupture.length) {
+      const noms = jeuxRupture.map(j => j.nom).join(', ');
+      candidats.push({
+        id: `FDJ-RUPTURE-${jeuxRupture.map(j => j.id).sort().join('|')}`,
+        type: 'FDJ-STOCK-RUPTURE', niveau: 'critique',
+        titre: jeuxRupture.length === 1 ? jeuxRupture[0].nom : `${jeuxRupture.length} jeux`,
+        constat: `${noms} : plus aucun carnet disponible, ni en caisse ni au bureau.`,
+        preuve: `Stock calculé à partir du dernier inventaire de référence FDJ et des mouvements enregistrés depuis.`,
+        decision: `Sécurisez le stock de ${noms} dès que possible.`,
+        impactAttendu: "Vente non interrompue sur ce ou ces jeux.",
+        limites: null, confiance: 'Élevée',
+        cible: 'NEXUS-FDJ-Manager-v1.html', impactEur: 0,
+      });
+    } else if (jeuxVigilance.length) {
+      const noms = jeuxVigilance.map(j => j.nom).join(', ');
+      candidats.push({
+        id: `FDJ-VIGILANCE-${jeuxVigilance.map(j => j.id).sort().join('|')}`,
+        type: 'FDJ-STOCK-VIGILANCE', niveau: 'attention',
+        titre: jeuxVigilance.length === 1 ? jeuxVigilance[0].nom : `${jeuxVigilance.length} jeux`,
+        constat: `${noms} : plus rien en caisse, mais du stock reste au bureau.`,
+        preuve: `Stock calculé à partir du dernier inventaire de référence FDJ et des mouvements enregistrés depuis.`,
+        decision: `Réapprovisionnez la caisse pour ${noms}.`,
+        impactAttendu: "Rupture évitée avant qu'elle ne se produise.",
+        limites: null, confiance: 'Élevée',
+        cible: 'NEXUS-FDJ-Manager-v1.html', impactEur: 0,
+      });
+    }
+
+    if (actuel.nb_ecarts_non_nuls > 0) {
+      candidats.push({
+        id: `FDJ-ECART-${cle}`,
+        type: 'FDJ-ECART-CAISSE', niveau: actuel.nb_ecarts_non_nuls > 1 ? 'critique' : 'attention',
+        titre: 'Écarts de caisse FDJ',
+        constat: `${actuel.nb_ecarts_non_nuls} écart${actuel.nb_ecarts_non_nuls > 1 ? 's' : ''} de caisse validé${actuel.nb_ecarts_non_nuls > 1 ? 's' : ''} sur ${labelPeriode}.`,
+        preuve: `Comptages de quart validés par le manager, comparés à la caisse attendue.`,
+        decision: `Vérifiez la ou les causes de ${actuel.nb_ecarts_non_nuls > 1 ? 'ces écarts' : 'cet écart'}.`,
+        impactAttendu: "Écart clarifié avant qu'il ne se reproduise.",
+        limites: "Un écart validé n'est pas automatiquement une erreur — voir le détail par quart avant toute conclusion.",
+        confiance: 'Élevée',
+        cible: 'NEXUS-FDJ-Analyse-v1.html', impactEur: 0,
+      });
+    }
+
+    if (d.evolCa != null && d.evolCa <= -0.15) {
+      candidats.push({
+        id: `FDJ-RECUL-${cle}`,
+        type: 'FDJ-JOUR-RECUL', niveau: 'attention',
+        titre: 'Activité FDJ en recul',
+        constat: `CA grattage en recul de ${Math.round(Math.abs(d.evolCa) * 100)} % sur ${labelPeriode}, vs ${labelComp}.`,
+        preuve: `Comparaison des vues d'agrégation FDJ (période actuelle vs période comparable précédente).`,
+        decision: `Vérifiez stock, activations et rapports de quart avant de conclure sur la cause.`,
+        impactAttendu: "Cause du recul identifiée avant qu'elle ne s'installe.",
+        limites: "Une seule comparaison de période — pas encore une tendance confirmée sur plusieurs périodes.",
+        confiance: 'Moyenne',
+        cible: 'NEXUS-FDJ-Analyse-v1.html', impactEur: 0,
+      });
+    } else if (d.evolCa != null && d.evolCa >= 0.15) {
+      candidats.push({
+        id: `FDJ-CROISSANCE-${cle}`,
+        type: 'FDJ-CROISSANCE', niveau: 'positif',
+        titre: 'Activité FDJ en progression',
+        constat: `CA grattage en progression de ${Math.round(d.evolCa * 100)} % sur ${labelPeriode}${d.jeuMoteur ? `, portée notamment par ${d.jeuMoteur.nom}` : ''}.`,
+        preuve: `Comparaison des vues d'agrégation FDJ (période actuelle vs période comparable précédente).`,
+        decision: `Maintenez le stock disponible sur ${d.jeuMoteur ? d.jeuMoteur.nom : 'les jeux moteurs'} pour ne pas casser la dynamique.`,
+        impactAttendu: "Dynamique commerciale prolongée sans rupture.",
+        limites: "Une seule comparaison de période — pas encore une tendance confirmée sur plusieurs périodes.",
+        confiance: 'Moyenne',
+        cible: 'NEXUS-FDJ-Analyse-v1.html', impactEur: 0,
+      });
+    }
+
+    return candidats;
+  }
+
   global.NexusFdjMoteur = {
     calculerVentesJeu, ventesGrattageTotal, caisseGrattage, caisseAttendue, ecartCaisse,
     soldesCarnetsParJeu, soldeCarnetsJeu, soldesCarnetsAvecReference,
+    calculerCandidatsFdj,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

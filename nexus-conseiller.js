@@ -601,6 +601,36 @@
     };
   }
 
+  // Convertit un candidat NexusFdjMoteur.calculerCandidatsFdj() (Phase D
+  // FDJ, 09/08/2026, audit "Moteur de clairvoyance manager" §46 items
+  // 13-16) — même schéma commun que les autres moteurs. `c.niveau`
+  // (critique/attention/positif) réutilise le vocabulaire etat déjà connu
+  // de ETAT_CLASS (NEXUS-Brief-v1.html) plutôt que d'en inventer un
+  // nouveau : critique → même code visuel que Caisse/Produits en alerte,
+  // positif → même code que Produits en opportunité. `confiance` (Élevée/
+  // Moyenne/Faible, audit §24) est fournie par le moteur FDJ lui-même,
+  // liée à la nature de la règle (un comptage direct est "Élevée", une
+  // comparaison sur une seule période est "Moyenne") — jamais une
+  // impression de l'IA. Non validable comme caisse/stock/rappel : ce n'est
+  // pas une décision à impact de marge mesurable dans le temps comme
+  // R2/R3/R4/R5, c'est un signal opérationnel dont la résolution se
+  // constate directement dans l'écran FDJ concerné (le stock remonte,
+  // l'écart disparaît, le CA repart) — pas via journal_decisions.
+  const RANG_FDJ = { critique: 0, attention: 1, positif: 2 };
+  const ETAT_FDJ = { critique: '🔴 CRITIQUE', attention: '🟡 À VÉRIFIER', positif: '📈 OPPORTUNITÉ' };
+  function normaliserFdj(c) {
+    return {
+      candidate_id: c.id, ruleId: c.type, rang: RANG_FDJ[c.niveau] != null ? RANG_FDJ[c.niveau] : 2,
+      moteur: 'fdj',
+      etat: ETAT_FDJ[c.niveau] || '📋 SIGNAL', impact_eur: c.impactEur || 0, article: c.titre, categorie: 'FDJ',
+      decision: c.decision, pourquoi: c.constat,
+      impactAttendu: c.impactAttendu, preuve: c.preuve, limites: c.limites || null,
+      cible: c.cible || 'NEXUS-FDJ-Analyse-v1.html',
+      validable: false,
+      confiance: c.confiance || null,
+    };
+  }
+
   // Graine du jour : stable pour un même site à la même date (la rotation
   // ne bouge donc pas à chaque rechargement de page dans la même journée),
   // mais change chaque jour — c'est ce qui donne l'effet "vivant" demandé
@@ -685,6 +715,7 @@
     analyserProduitsStrategiques,
     normaliserProduit, normaliserMarge, normaliserTempo, normaliserAdvisor,
     normaliserCaissePersonne, normaliserStockRayon, normaliserRappel,
+    normaliserFdj,
     fusionnerEtSelectionner, genererGraineJour,
   };
 })(window);

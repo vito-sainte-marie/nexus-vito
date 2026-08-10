@@ -238,6 +238,7 @@
 <script src="nexus-marge.js"></script>
 <script src="nexus-tempo.js"></script>
 <script src="nexus-stock.js"></script>
+<script src="nexus-fdj-moteur.js"></script>
 <script src="nexus-conseiller.js"></script>
 <script>
   // ============================================================
@@ -272,11 +273,12 @@
     "📌 RAPPEL": "etat-recommandation", "🗓️ TEMPO": "etat-recommandation",
     "📋 SIGNAL": "etat-recommandation",
   };
-  const MOTEUR_LABEL = { produits: 'Produits', marge: 'Marge+', tempo: 'Tempo', advisor: 'Signal', caisse: 'Caisse', stock: 'Stock', rappel: 'Rappel' };
+  const MOTEUR_LABEL = { produits: 'Produits', marge: 'Marge+', tempo: 'Tempo', advisor: 'Signal', caisse: 'Caisse', stock: 'Stock', rappel: 'Rappel', fdj: 'FDJ' };
   const MOTEUR_SOURCE = {
     produits: 'des ventes réelles importées (Produits)', marge: 'la comparaison de marge entre produits comparables (Marge+)',
     tempo: 'l’historique de caisse par jour de semaine (Tempo)', advisor: 'la détection Qualité/Caisse automatique',
     caisse: 'un audit de caisse réel (Verify)', stock: 'les relevés de stock (Scanner Stock)', rappel: 'un rappel ajouté manuellement',
+    fdj: 'le stock et les comptages de quart FDJ réels (Analyse FDJ)',
   };
   const COULEUR_STATUT_DOMAINE = {
     'En progression': 'var(--green)', 'Sous contrôle': 'var(--green)', 'Stable': 'var(--text-mid)',
@@ -483,6 +485,70 @@
     return (data || []).map(NexusConseiller.normaliserRappel);
   }
 
+  // Candidats FDJ — Phase D (09/08/2026). Repris ici via NexusFdjMoteur.
+  // calculerCandidatsFdj() (moteur partagé, pas une copie) plutôt que
+  // NexusPeriodes/import produits (la FDJ n'a pas de "période d'import" —
+  // c'est du quotidien, comme Caisse/Stock/Rappel ci-dessus). Fenêtre fixe
+  // volontairement simple pour Brief (7 derniers jours vs 7 jours
+  // précédents) : le rapport complet avec sélecteur de période appartient
+  // à l'onglet Conseiller de NEXUS-FDJ-Analyse-v1.html, pas à Brief.
+  async function chargerDerniereReferenceFdj() {
+    const { data, error } = await nexusClient.from('fdj_stock_references').select('*').eq('site', SITE_ACTUEL).eq('statut', 'valide')
+      .order('date', { ascending: false }).order('created_at', { ascending: false }).limit(1).maybeSingle();
+    if (error) { console.error('Chargement référence stock FDJ (Brief):', error); return null; }
+    if (!data) return null;
+    const { data: lignes, error: e2 } = await nexusClient.from('fdj_stock_reference_lignes').select('game_id, bureau_reel, caisse_reel').eq('reference_id', data.id);
+    if (e2) { console.error('Chargement lignes référence stock FDJ (Brief):', e2); return null; }
+    const map = {};
+    (lignes || []).forEach(l => { map[l.game_id] = { bureau: l.bureau_reel, caisse: l.caisse_reel }; });
+    return { creeLe: data.created_at, lignes: map };
+  }
+
+  async function chargerCandidatsFdj() {
+    const finActuelle = new Date(); finActuelle.setHours(23, 59, 59, 999);
+    const debutActuelle = new Date(finActuelle); debutActuelle.setDate(debutActuelle.getDate() - 6); debutActuelle.setHours(0, 0, 0, 0);
+    const finComp = new Date(debutActuelle); finComp.setDate(finComp.getDate() - 1); finComp.setHours(23, 59, 59, 999);
+    const debutComp = new Date(finComp); debutComp.setDate(debutComp.getDate() - 6); debutComp.setHours(0, 0, 0, 0);
+    const iso = d => d.toISOString().slice(0, 10);
+
+    const [{ data: jeuxData, error: e1 }, { data: dailyRows, error: e2 }, { data: gameDailyRows, error: e3 },
+      { data: emplacements, error: e4 }, { data: mouvements, error: e5 }, reference] = await Promise.all([
+      nexusClient.from('fdj_games').select('id, nom').eq('site', SITE_ACTUEL).eq('actif', true),
+      nexusClient.from('view_fdj_daily_summary').select('*').eq('site', SITE_ACTUEL).gte('date', iso(debutComp)).lte('date', iso(finActuelle)),
+      nexusClient.from('view_fdj_game_daily').select('game_id, ca, date').eq('site', SITE_ACTUEL).gte('date', iso(debutActuelle)).lte('date', iso(finActuelle)),
+      nexusClient.from('fdj_locations').select('id, type').eq('site', SITE_ACTUEL).eq('actif', true),
+      nexusClient.from('fdj_stock_movements').select('type_mouvement, quantite, game_id, location_source_id, location_destination_id, created_at').eq('site', SITE_ACTUEL),
+      chargerDerniereReferenceFdj(),
+    ]);
+    if (e1 || e2 || e3 || e4 || e5) { [e1, e2, e3, e4, e5].forEach(e => { if (e) console.error('Chargement données FDJ (Brief):', e); }); return []; }
+    if (!jeuxData || !jeuxData.length) return [];
+
+    const champs = ['ca_grattage', 'nb_ecarts_non_nuls', 'nb_quarts_controles'];
+    const sommer = lignes => champs.reduce((acc, c) => { acc[c] = (lignes || []).reduce((s, l) => s + (l[c] != null ? Number(l[c]) : 0), 0); return acc; }, {});
+    const actuelRows = (dailyRows || []).filter(r => r.date >= iso(debutActuelle));
+    const compRows = (dailyRows || []).filter(r => r.date < iso(debutActuelle));
+    const actuel = sommer(actuelRows);
+    const comp = sommer(compRows);
+    const evolCa = comp.nb_quarts_controles > 0 && comp.ca_grattage > 0 ? (actuel.ca_grattage - comp.ca_grattage) / comp.ca_grattage : null;
+
+    const gameCa = {};
+    (gameDailyRows || []).forEach(l => { if (l.ca) gameCa[l.game_id] = (gameCa[l.game_id] || 0) + Number(l.ca); });
+    let jeuMoteur = null, caMax = 0;
+    Object.entries(gameCa).forEach(([gid, ca]) => { if (ca > caMax) { caMax = ca; jeuMoteur = { id: gid, nom: (jeuxData.find(j => j.id === gid) || {}).nom || gid }; } });
+
+    const locations = {};
+    (emplacements || []).forEach(e => { locations[e.type] = e.id; });
+    const soldes = NexusFdjMoteur.soldesCarnetsAvecReference(mouvements || [], locations, reference);
+
+    const candidatsBrut = NexusFdjMoteur.calculerCandidatsFdj({
+      soldes, jeux: jeuxData.map(j => ({ id: j.id, nom: j.nom })),
+      actuel, evolCa, jeuMoteur,
+      labelPeriode: '7 derniers jours', labelComp: '7 jours précédents',
+      periodeCle: iso(debutActuelle),
+    });
+    return candidatsBrut.map(NexusConseiller.normaliserFdj);
+  }
+
   // Domaine Équipe — repris de chargerDomainesRadarHome() dans App-v1
   // (ponctualité uniquement, comme partout ailleurs dans NEXUS).
   async function chargerDomaineEquipe() {
@@ -644,9 +710,9 @@
     const candidatsProduitsBrut = NexusConseiller.calculerCandidatsProduits(rowsBrut);
     const produitsStrategiques = paire ? NexusConseiller.analyserProduitsStrategiques(rowsPaireActuelle, rowsPairePrecedente) : null;
 
-    const [margePlusResultat, constatTempo, messagesAdvisor, candidatsCaisseObj, candidatsStock, candidatsRappels, domaineEquipe, alertesInvOuvertes, controlesVerifyRestants, missionsRestantes] = await Promise.all([
+    const [margePlusResultat, constatTempo, messagesAdvisor, candidatsCaisseObj, candidatsStock, candidatsRappels, candidatsFdj, domaineEquipe, alertesInvOuvertes, controlesVerifyRestants, missionsRestantes] = await Promise.all([
       chargerMargePlus(rowsBrut), chargerConstatTempo(), chargerMessagesAdvisor(),
-      chargerCandidatsCaisse(), chargerCandidatsStock(), chargerCandidatsRappels(), chargerDomaineEquipe(),
+      chargerCandidatsCaisse(), chargerCandidatsStock(), chargerCandidatsRappels(), chargerCandidatsFdj(), chargerDomaineEquipe(),
       chargerAlertesInventaireOuvertes(), chargerControlesVerifyRestants(), chargerMissionsRestantes(),
     ]);
 
@@ -770,10 +836,10 @@
     const candidatsAdvisorListe = messagesAdvisor
       .filter(m => m.message_text && m.message_text.trim().length >= 12)
       .map(NexusConseiller.normaliserAdvisor);
-    const nbMoteursActifs = [candidatsProduitsNormalises, candidatMargeListe, candidatTempoListe, candidatsAdvisorListe, candidatsCaisseObj.normalises, candidatsStock, candidatsRappels].filter(l => l.length > 0).length;
+    const nbMoteursActifs = [candidatsProduitsNormalises, candidatMargeListe, candidatTempoListe, candidatsAdvisorListe, candidatsCaisseObj.normalises, candidatsStock, candidatsRappels, candidatsFdj].filter(l => l.length > 0).length;
 
     const fusion = NexusConseiller.fusionnerEtSelectionner(
-      [candidatsProduitsNormalises, candidatMargeListe, candidatTempoListe, candidatsAdvisorListe, candidatsCaisseObj.normalises, candidatsStock, candidatsRappels],
+      [candidatsProduitsNormalises, candidatMargeListe, candidatTempoListe, candidatsAdvisorListe, candidatsCaisseObj.normalises, candidatsStock, candidatsRappels, candidatsFdj],
       { site: SITE_ACTUEL, n: 6 }
     );
     const decisions = fusion.slice(0, 3);

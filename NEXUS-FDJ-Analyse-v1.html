@@ -22,6 +22,7 @@
 <script src="nexus-forfait.js"></script>
 <script src="nexus-desktop.js"></script>
 <script src="nexus-fdj-moteur.js"></script>
+<script src="nexus-conseiller.js"></script>
 <style>
   :root{
     --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
@@ -371,7 +372,7 @@
     { id: 'stock', label: 'Stock' },
     { id: 'controle', label: 'Contrôle & écarts' },
     { id: 'historique', label: 'Historique' },
-    { id: 'conseiller', label: 'Conseiller', desactive: true },
+    { id: 'conseiller', label: 'Conseiller' },
     { id: 'rapports', label: 'Rapports / Export', desactive: true },
   ];
 
@@ -457,6 +458,7 @@
       else if (ongletActuel === 'stock') await renderStock(zone);
       else if (ongletActuel === 'controle') await renderControle(zone);
       else if (ongletActuel === 'historique') await renderHistorique(zone);
+      else if (ongletActuel === 'conseiller') await renderConseiller(zone);
     } catch (e) {
       console.error('Erreur de rendu onglet FDJ Analyse:', e);
       zone.innerHTML = '<div class="loading">Erreur de chargement. Réessayez.</div>';
@@ -469,6 +471,29 @@
   // commentaire génératif libre — le Conseiller NEXUS FDJ complet avec
   // objet recommandation commun est la Phase D, pas ici).
   // ------------------------------------------------------------
+  // Candidats FDJ de la période sélectionnée — moteur partagé
+  // (NexusFdjMoteur.calculerCandidatsFdj, Phase D), consommé à la fois par
+  // le résumé de la Vue d'ensemble (3 max) et par le rapport complet de
+  // l'onglet Conseiller — jamais deux implémentations de la même règle.
+  async function candidatsFdjPeriode() {
+    const d = await chargerDonneesPeriode();
+    const actuel = sommerChamps(d.daily.actuel, CHAMPS_SUMMARY);
+    const comp = sommerChamps(d.daily.comp, CHAMPS_SUMMARY);
+    const compDisponible = comp.nb_quarts_controles > 0;
+    const evolCa = compDisponible ? evolution(actuel.ca_grattage, comp.ca_grattage) : null;
+    const gameCa = {};
+    d.gameDaily.actuel.forEach(l => { if (l.ca) gameCa[l.game_id] = (gameCa[l.game_id] || 0) + Number(l.ca); });
+    let jeuMoteurId = null, caJeuMoteur = 0;
+    Object.entries(gameCa).forEach(([gid, ca]) => { if (ca > caJeuMoteur) { caJeuMoteur = ca; jeuMoteurId = gid; } });
+    const jeuMoteurObj = jeuMoteurId ? { id: jeuMoteurId, nom: nomJeu(jeuMoteurId) } : null;
+    const { soldes } = await calculerEtatStock();
+    return NexusFdjMoteur.calculerCandidatsFdj({
+      soldes, jeux, actuel, evolCa, jeuMoteur: jeuMoteurObj,
+      labelPeriode: periodeResolue.label.toLowerCase(), labelComp: periodeResolue.labelComp.toLowerCase(),
+      periodeCle: dateISO(periodeResolue.debut),
+    });
+  }
+
   async function renderEnsemble(zone) {
     const d = await chargerDonneesPeriode();
     const actuel = sommerChamps(d.daily.actuel, CHAMPS_SUMMARY);
@@ -497,20 +522,11 @@
     const joursTries = [...d.daily.actuel].filter(l => l.ca_grattage !== null).sort((a, b) => Number(b.ca_grattage) - Number(a.ca_grattage));
     const meilleurJour = joursTries[0], pireJour = joursTries[joursTries.length - 1];
 
-    // Stock à risque — état actuel (indépendant de la période, voir §39 :
-    // le stock est "aujourd'hui", pas une donnée de période).
-    const { soldes } = await calculerEtatStock();
-    const jeuxRupture = jeux.filter(j => { const s = soldes[j.id]; return s && s.nonActives <= 0 && s.bureau <= 0; });
-    const jeuxVigilance = jeux.filter(j => { const s = soldes[j.id]; return s && s.nonActives <= 0 && s.bureau > 0; });
-
-    // Décisions suggérées — règles déterministes, 1 à 3 maximum.
-    const decisions = [];
-    if (jeuxRupture.length) decisions.push({ risque: true, texte: `Sécuriser le stock : ${jeuxRupture.map(j => j.nom).join(', ')} — plus aucun carnet disponible (bureau et caisse).` });
-    else if (jeuxVigilance.length) decisions.push({ risque: true, texte: `Réapprovisionner la caisse pour ${jeuxVigilance.length === 1 ? jeuxVigilance[0].nom : `${jeuxVigilance.length} jeux`} — plus rien en caisse mais du stock reste au bureau.` });
-    if (actuel.nb_ecarts_non_nuls > 0) decisions.push({ risque: actuel.nb_ecarts_non_nuls > 1, texte: `${actuel.nb_ecarts_non_nuls} écart${actuel.nb_ecarts_non_nuls > 1 ? 's' : ''} de caisse validé${actuel.nb_ecarts_non_nuls > 1 ? 's' : ''} sur la période — voir l'onglet Contrôle & écarts pour la ou les causes.` });
-    if (evolCa !== null && evolCa <= -0.15) decisions.push({ risque: true, texte: `Activité en recul de ${fmtEvolution(evolCa)} vs ${periodeResolue.labelComp.toLowerCase()} — vérifier stock, activations et rapports avant de conclure.` });
-    else if (evolCa !== null && evolCa >= 0.15) decisions.push({ risque: false, texte: `Activité en progression de ${fmtEvolution(evolCa)} vs ${periodeResolue.labelComp.toLowerCase()}${jeuMoteur ? `, portée notamment par ${nomJeu(jeuMoteur)}` : ''}.` });
-    const decisionsAffichees = decisions.slice(0, 3);
+    // Décisions suggérées — moteur partagé (candidatsFdjPeriode), 1 à 3
+    // maximum. Le rapport complet, avec preuve/impact attendu/limites/
+    // niveau de confiance par candidat, vit dans l'onglet Conseiller.
+    const candidatsEnsemble = await candidatsFdjPeriode();
+    const decisionsAffichees = candidatsEnsemble.slice(0, 3).map(c => ({ risque: c.niveau !== 'positif', texte: `${c.constat} ${c.decision}` }));
 
     zone.innerHTML = `
       <div class="resume-card">
@@ -973,6 +989,56 @@
     };
     ['filtreJeu', 'filtreEmploye', 'filtreQuart', 'filtreType'].forEach(id => document.getElementById(id).addEventListener('change', majListes));
     majListes();
+  }
+
+  // ------------------------------------------------------------
+  // CONSEILLER — Phase D (09/08/2026, audit "Moteur de clairvoyance
+  // manager" §46 items 13-16 : règles déterministes, objet recommandation
+  // commun, rapport Conseiller, remontée Brief). Rapport complet sur la
+  // période choisie par le manager (contrairement à NEXUS-Brief-v1.html
+  // qui utilise une fenêtre fixe de 7 jours pour sa remontée fusionnée
+  // multi-moteurs) — structure imposée par l'audit §21 : constat → preuve
+  // → décision suggérée → niveau de confiance → action. Mêmes candidats
+  // que le résumé de la Vue d'ensemble (candidatsFdjPeriode), affichés ici
+  // en entier plutôt que limités à 3, passés par
+  // NexusConseiller.normaliserFdj() pour rester sur le même schéma et le
+  // même rang que partout ailleurs dans NEXUS — jamais un rapport à part.
+  //
+  // Volontairement en lecture seule (§36 de l'audit prévoit Accepter/
+  // Rejeter avec motif) : ces signaux ne sont pas validables comme
+  // Produits/Marge+ (non-validable dans normaliserFdj, pas d'impact de
+  // marge mesurable dans le temps) et leur résolution se constate déjà
+  // directement dans l'écran concerné (le stock remonte, l'écart
+  // disparaît) — ajouter un statut Accepté/Rejeté nécessiterait une
+  // nouvelle table dédiée, pas encore demandée. Le lien "Ouvrir" renvoie
+  // vers cet écran plutôt que de dupliquer son contenu ici.
+  function badgeConfiance(niveau) {
+    if (niveau === 'Élevée') return 'eleve';
+    if (niveau === 'Moyenne') return 'moyen';
+    if (niveau === 'Faible') return 'faible';
+    return '';
+  }
+  async function renderConseiller(zone) {
+    const candidatsBrut = await candidatsFdjPeriode();
+    const candidats = candidatsBrut.map(NexusConseiller.normaliserFdj).sort((a, b) => a.rang - b.rang);
+    zone.innerHTML = `
+      <div class="section-titre">Conseiller FDJ — ${periodeResolue.label.toLowerCase()}</div>
+      <div class="champ-note">Signaux déterministes calculés à partir des données FDJ réelles de la période — jamais une prédiction, jamais un jugement sur une personne. Chaque carte part du fait constaté, s'appuie sur une preuve, propose une action et indique un niveau de confiance lié à la nature de la mesure.</div>
+      ${candidats.length ? candidats.map(c => `
+        <div class="decision-card ${c.rang <= 1 ? 'risque' : ''}">
+          <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px; margin-bottom:8px;">
+            <div style="font-weight:700; font-size:13px;">${c.article}</div>
+            ${c.confiance ? `<span class="confiance-badge ${badgeConfiance(c.confiance)}">${c.confiance}</span>` : ''}
+          </div>
+          <div style="margin-bottom:6px;">${c.pourquoi}</div>
+          <div style="color:var(--text-dim); font-size:11px; margin-bottom:8px;">${c.preuve}</div>
+          <div style="font-weight:600; margin-bottom:4px;">→ ${c.decision}</div>
+          <div style="color:var(--text-mid); font-size:11px;">${c.impactAttendu}</div>
+          ${c.limites ? `<div style="color:var(--text-dim); font-size:10.5px; margin-top:8px; font-style:italic;">${c.limites}</div>` : ''}
+          ${c.cible ? `<a href="${c.cible}" style="display:block; margin-top:10px; font-size:11px; color:var(--cyan); text-decoration:none;">→ Ouvrir</a>` : ''}
+        </div>
+      `).join('') : '<div class="champ-note">Rien qui mérite l’attention du manager sur cette période — aucun signal déterministe déclenché.</div>'}
+    `;
   }
 
   // ------------------------------------------------------------
