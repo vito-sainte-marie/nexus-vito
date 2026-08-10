@@ -435,6 +435,28 @@
       return (gras ? this.policeGrasse : this.police).widthOfTextAtSize(t, taille);
     }
 
+    /**
+     * Tronque UNE ligne de texte pour qu'elle tienne dans `largeurMax` points,
+     * avec ellipse — indispensable pour toute primitive à colonnes fixes
+     * (`listePoints`, `tableauCompact`, `barresHorizontales`…) : contrairement
+     * à `decouperEnLignes()` (qui répartit sur plusieurs lignes), ici il n'y a
+     * qu'une seule ligne disponible, donc un texte trop long DOIT être coupé —
+     * sinon pdf-lib le dessine quand même, hors des bornes de la colonne, et
+     * il vient se superposer visuellement au contenu de la zone voisine.
+     * Bug réel constaté (test iPhone du 10/08/2026, rapport Brief) : la
+     * colonne "FORCES DU MOMENT" débordait sur "À SURVEILLER".
+     */
+    _tronquerLargeur(texte, taille, largeurMax, gras = false) {
+      const police = gras ? this.policeGrasse : this.police;
+      const t = this._assainir(texte);
+      if (largeurMax <= 0 || police.widthOfTextAtSize(t, taille) <= largeurMax) return t;
+      let coupe = t;
+      while (coupe.length > 1 && police.widthOfTextAtSize(`${coupe}…`, taille) > largeurMax) {
+        coupe = coupe.slice(0, -1);
+      }
+      return `${coupe.trimEnd()}…`;
+    }
+
     _texteCentre(texte, xCentre, y, opts = {}) {
       const largeur = this._largeurTexte(texte, opts.taille || 9, !!opts.gras);
       this._texte(texte, xCentre - largeur / 2, y, opts);
@@ -489,10 +511,10 @@
     // === Bloc en-tête compact : nom d'app + 1-2 lignes de contexte ===
     entete(zone, { app, ligne1, ligne2 }) {
       let y = zone.yHaut - 15;
-      this._texte(app, zone.x, y, { taille: 13.5, gras: true, couleur: COULEUR.cyan });
+      this._texte(this._tronquerLargeur(app, 13.5, zone.largeur, true), zone.x, y, { taille: 13.5, gras: true, couleur: COULEUR.cyan });
       y -= 16;
-      if (ligne1) { this._texte(ligne1, zone.x, y, { taille: 10, gras: true, couleur: COULEUR.texte }); y -= 13; }
-      if (ligne2) { this._texte(ligne2, zone.x, y, { taille: 8.5, couleur: COULEUR.texteDim }); }
+      if (ligne1) { this._texte(this._tronquerLargeur(ligne1, 10, zone.largeur, true), zone.x, y, { taille: 10, gras: true, couleur: COULEUR.texte }); y -= 13; }
+      if (ligne2) { this._texte(this._tronquerLargeur(ligne2, 8.5, zone.largeur), zone.x, y, { taille: 8.5, couleur: COULEUR.texteDim }); }
       this.page.drawLine({ start: { x: zone.x, y: zone.yBas + 4 }, end: { x: zone.x + zone.largeur, y: zone.yBas + 4 }, thickness: 1, color: COULEUR.cyan });
     }
 
@@ -504,9 +526,9 @@
       kpis.forEach((k, i) => {
         const xCentre = zone.x + i * largeurCase + largeurCase / 2;
         if (i > 0) this.page.drawLine({ start: { x: zone.x + i * largeurCase, y: zone.yHaut }, end: { x: zone.x + i * largeurCase, y: zone.yBas + 4 }, thickness: 0.6, color: COULEUR.ligne });
-        this._texteCentre(k.label, xCentre, zone.yHaut - 14, { taille: 7.8, couleur: COULEUR.texteDim, gras: true });
-        this._texteCentre(k.valeur, xCentre, zone.yHaut - 33, { taille: 15, gras: true, couleur: k.couleurValeur || COULEUR.texte });
-        if (k.detail) this._texteCentre(k.detail, xCentre, zone.yHaut - 47, { taille: 7.5, couleur: COULEUR.texteDim });
+        this._texteCentre(this._tronquerLargeur(k.label, 7.8, largeurCase - 8, true), xCentre, zone.yHaut - 14, { taille: 7.8, couleur: COULEUR.texteDim, gras: true });
+        this._texteCentre(this._tronquerLargeur(k.valeur, 15, largeurCase - 6, true), xCentre, zone.yHaut - 33, { taille: 15, gras: true, couleur: k.couleurValeur || COULEUR.texte });
+        if (k.detail) this._texteCentre(this._tronquerLargeur(k.detail, 7.5, largeurCase - 8), xCentre, zone.yHaut - 47, { taille: 7.5, couleur: COULEUR.texteDim });
       });
       this.page.drawLine({ start: { x: zone.x, y: zone.yBas + 4 }, end: { x: zone.x + zone.largeur, y: zone.yBas + 4 }, thickness: 0.6, color: COULEUR.ligne });
     }
@@ -521,8 +543,9 @@
       const interligne = Math.min(13.5, (zone.hauteur - 22) / Math.max(1, visibles.length + (points.length > max ? 1 : 0)));
       visibles.forEach(p => {
         const texte = typeof p === 'string' ? p : `${p.label} : ${p.valeur}`;
+        const texteAffiche = this._tronquerLargeur(texte, 9.3, zone.largeur - 9);
         this.page.drawRectangle({ x: zone.x, y: y - 6.5, width: 3, height: 3, color: COULEUR.cyan });
-        this._texte(texte, zone.x + 9, y - 8, { taille: 9.3, couleur: COULEUR.texte });
+        this._texte(texteAffiche, zone.x + 9, y - 8, { taille: 9.3, couleur: COULEUR.texte });
         y -= interligne;
       });
       if (points.length > max && texteRenvoi) {
@@ -552,7 +575,7 @@
       let x = zone.x;
       colonnes.forEach(col => {
         const largeurCol = col.largeur * zone.largeur;
-        const texte = this._assainir(col.label);
+        const texte = this._tronquerLargeur(col.label, 7.5, largeurCol - 6, true);
         const decal = col.align === 'droite' ? largeurCol - this._largeurTexte(texte, 7.5, true) - 4 : 0;
         this._texte(texte, x + decal, y - 8, { taille: 7.5, gras: true, couleur: COULEUR.texteDim });
         x += largeurCol;
@@ -563,7 +586,7 @@
         let xx = zone.x;
         colonnes.forEach(col => {
           const largeurCol = col.largeur * zone.largeur;
-          const val = this._assainir(ligne[col.cle] == null ? '—' : ligne[col.cle]);
+          const val = this._tronquerLargeur(ligne[col.cle] == null ? '—' : ligne[col.cle], 8.6, largeurCol - 6, false);
           const decal = col.align === 'droite' ? largeurCol - this._largeurTexte(val, 8.6, false) - 4 : 0;
           this._texte(val, xx + decal, y - 8, { taille: 8.6, couleur: COULEUR.texte });
           xx += largeurCol;
@@ -586,12 +609,12 @@
       const largeurLabel = 34, largeurValeur = 46;
       const largeurBarreMax = zone.largeur - largeurLabel - largeurValeur - 8;
       visibles.forEach(it => {
-        this._texte(it.label, zone.x, y - 8, { taille: 8.2, couleur: COULEUR.texteDim });
+        this._texte(this._tronquerLargeur(it.label, 8.2, largeurLabel - 3), zone.x, y - 8, { taille: 8.2, couleur: COULEUR.texteDim });
         const xBarre = zone.x + largeurLabel;
         this.page.drawRectangle({ x: xBarre, y: y - 9, width: largeurBarreMax, height: 7, color: COULEUR.fondAlterne });
         const part = Math.max(0, Math.min(1, it.part || 0));
         if (part > 0) this.page.drawRectangle({ x: xBarre, y: y - 9, width: largeurBarreMax * part, height: 7, color: COULEUR.cyan });
-        this._texteDroite(it.valeur, zone.x + zone.largeur, y - 8, { taille: 8.2, gras: true, couleur: COULEUR.texte });
+        this._texteDroite(this._tronquerLargeur(it.valeur, 8.2, largeurValeur - 3, true), zone.x + zone.largeur, y - 8, { taille: 8.2, gras: true, couleur: COULEUR.texte });
         y -= interligne;
       });
       if (items.length > max && texteRenvoi) {
@@ -610,11 +633,13 @@
       }
       if (reference) {
         this._puce(zone.x, y - 8, COULEUR.cyan, 6);
-        this._texte(`Référence : ${reference.nom} — ${reference.valeurParUnite} (${reference.quantite})`, zone.x + 10, y - 8, { taille: 8.6, gras: true, couleur: COULEUR.texte });
+        const texteRef = this._tronquerLargeur(`Référence : ${reference.nom} — ${reference.valeurParUnite} (${reference.quantite})`, 8.6, zone.largeur - 10, true);
+        this._texte(texteRef, zone.x + 10, y - 8, { taille: 8.6, gras: true, couleur: COULEUR.texte });
         y -= 14;
       }
       autres.slice(0, 4).forEach(a => {
-        this._texte(`${a.nom} — ${a.detail}`, zone.x + 10, y - 8, { taille: 8.2, couleur: COULEUR.texteDim });
+        const texteAutre = this._tronquerLargeur(`${a.nom} — ${a.detail}`, 8.2, zone.largeur - 10);
+        this._texte(texteAutre, zone.x + 10, y - 8, { taille: 8.2, couleur: COULEUR.texteDim });
         y -= 12;
       });
       if (autres.length && texteInsuffisant) {
@@ -628,7 +653,8 @@
       if (titre) { this._texte(titre, zone.x, y, { taille: 8.7, gras: true, couleur: COULEUR.texte }); y -= 14; }
       if (ruptures.length) {
         this._puce(zone.x, y - 8, COULEUR.rouge, 6);
-        this._texte(`${ruptures.length} rupture${ruptures.length > 1 ? 's' : ''} : ${ruptures.map(r => r.nom).slice(0, 2).join(', ')}${ruptures.length > 2 ? '…' : ''}`, zone.x + 10, y - 8, { taille: 8.4, gras: true, couleur: COULEUR.rouge });
+        const texteRupture = this._tronquerLargeur(`${ruptures.length} rupture${ruptures.length > 1 ? 's' : ''} : ${ruptures.map(r => r.nom).slice(0, 2).join(', ')}${ruptures.length > 2 ? '…' : ''}`, 8.4, zone.largeur - 10, true);
+        this._texte(texteRupture, zone.x + 10, y - 8, { taille: 8.4, gras: true, couleur: COULEUR.rouge });
         y -= 13;
       } else {
         this._texte('Aucune rupture.', zone.x, y - 8, { taille: 8.4, couleur: COULEUR.vert });
@@ -636,11 +662,12 @@
       }
       if (nbSurveillance > 0) {
         this._puce(zone.x, y - 8, COULEUR.ambre, 6);
-        this._texte(`${nbSurveillance} jeu${nbSurveillance > 1 ? 'x' : ''} à surveiller, dont ${prioritaires.length} prioritaire${prioritaires.length > 1 ? 's' : ''}`, zone.x + 10, y - 8, { taille: 8.4, couleur: COULEUR.ambre });
+        const texteSurveillance = this._tronquerLargeur(`${nbSurveillance} jeu${nbSurveillance > 1 ? 'x' : ''} à surveiller, dont ${prioritaires.length} prioritaire${prioritaires.length > 1 ? 's' : ''}`, 8.4, zone.largeur - 10);
+        this._texte(texteSurveillance, zone.x + 10, y - 8, { taille: 8.4, couleur: COULEUR.ambre });
         y -= 13;
       }
       prioritaires.slice(0, 4).forEach(p => {
-        this._texte(`• ${p.nom}`, zone.x + 10, y - 8, { taille: 8, couleur: COULEUR.texteDim });
+        this._texte(this._tronquerLargeur(`• ${p.nom}`, 8, zone.largeur - 10), zone.x + 10, y - 8, { taille: 8, couleur: COULEUR.texteDim });
         y -= 11;
       });
       if (texteRenvoi) this._texte(texteRenvoi, zone.x, zone.yBas + 2, { taille: 7.3, couleur: COULEUR.texteDim });
@@ -673,9 +700,11 @@
       visibles.forEach(it => {
         const couleur = couleurUrgence[it.urgence] || COULEUR.cyan;
         this._puce(zone.x, y - 7, couleur, 6);
-        this._texte(it.titre, zone.x + 10, y - 8, { taille: 8.8, gras: true, couleur: COULEUR.texte });
+        const titreAffiche = this._tronquerLargeur(it.titre, 8.8, zone.largeur - 10, true);
+        this._texte(titreAffiche, zone.x + 10, y - 8, { taille: 8.8, gras: true, couleur: COULEUR.texte });
         if (it.detail) {
-          const ligneDetail = decouperEnLignes(this._assainir(it.detail), this.police, 8, zone.largeur - 10)[0];
+          const lignesDetail = decouperEnLignes(this._assainir(it.detail), this.police, 8, zone.largeur - 10);
+          const ligneDetail = lignesDetail.length > 1 ? `${lignesDetail[0]}…` : lignesDetail[0];
           this._texte(ligneDetail, zone.x + 10, y - 19, { taille: 8, couleur: COULEUR.texteDim });
         }
         y -= interligne;

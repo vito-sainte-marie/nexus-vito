@@ -1227,7 +1227,13 @@
     c.listePoints(colsForcesWatch.droite, {
       titre: 'À SURVEILLER',
       max: 3,
-      points: brief.watchlist.length ? brief.watchlist.map(w => ({ label: w.article, valeur: w.action })) : [{ label: 'Rien à surveiller', valeur: 'en dehors des décisions ci-dessous' }],
+      // w.article est souvent null (les candidats Tempo/Advisor/Caisse/Rappel
+      // n'ont pas d'article associé) — on reprend exactement les champs déjà
+      // utilisés par l'affichage à l'écran (renderWatchlist : action en gras,
+      // pourquoi en détail), toujours renseignés quel que soit le moteur
+      // d'origine du candidat. Bug réel constaté au test iPhone du 10/08/2026 :
+      // "null :" affiché dans le PDF pour les candidats sans article.
+      points: brief.watchlist.length ? brief.watchlist.map(w => ({ label: w.action, valeur: w.pourquoi })) : [{ label: 'Rien à surveiller', valeur: 'en dehors des décisions ci-dessous' }],
     });
 
     // Zone "équipe" réallouée aux décisions (Brief n'a pas de bloc
