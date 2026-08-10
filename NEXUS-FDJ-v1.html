@@ -149,6 +149,15 @@
 
   .locked{padding:80px 24px; text-align:center; color:var(--text-mid); font-size:14px;}
 
+  .motif-grid{display:flex; flex-direction:column; gap:8px; margin-bottom:16px;}
+  .motif-item{
+    background:var(--panel); border:1.5px solid var(--hairline); border-radius:12px; padding:14px 16px;
+    cursor:pointer; font-size:13.5px; font-weight:600; display:flex; align-items:center; gap:10px;
+  }
+  .motif-item .pastille{width:16px; height:16px; border-radius:50%; border:1.5px solid var(--hairline); flex-shrink:0;}
+  .motif-item.selectionne{border-color:var(--amber); background:rgba(245,166,35,0.08);}
+  .motif-item.selectionne .pastille{background:var(--amber); border-color:var(--amber);}
+
   footer{margin-top:auto; padding:16px 20px 24px; font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:center; border-top:1px solid var(--hairline);}
 </style>
 </head>
@@ -204,7 +213,9 @@
   let caisseReelle = null;
   let carnetsDeclaresCeQuart = 0; // compteur d'affichage seulement (session en cours), pas persisté
   let soldesCarnets = {};       // game_id -> { confies, actives, nonActives } — voir NexusFdjMoteur.soldesCarnetsParJeu
-  // 'accueil' | 'ouverture' | 'carnet' | 'grattage' | 'tirages' | 'caisse' | 'resume'
+  let exceptionCarnetEnCours = null; // game_id en attente d'un motif (voir demarrerExceptionCarnet)
+  let motifExceptionChoisi = null;
+  // 'accueil' | 'ouverture' | 'carnet' | 'carnet-exception' | 'grattage' | 'tirages' | 'caisse' | 'resume'
   //
   // 09/08/2026 (demande de Frédéric) — le quart FDJ employé se scinde
   // maintenant en deux moments distincts, comme NEXUS Inventaire :
@@ -702,18 +713,83 @@
     `;
   }
 
+  // ------------------------------------------------------------
+  // EXCEPTION TRACÉE — 09/08/2026, demande de Frédéric : "Je
+  // transformerais ce cas en exception tracée [...] la caissière peut
+  // travailler, mais NEXUS crée automatiquement une alerte." Remplace le
+  // confirm() générique : quand aucun carnet non activé n'est confié en
+  // caisse selon NEXUS, l'employé doit choisir un motif avant de continuer
+  // — l'activation se fait quand même, mais une alerte manager est créée
+  // automatiquement (fdj_alertes, type='activation_sans_carnet_confie').
+  // ------------------------------------------------------------
+  const MOTIFS_EXCEPTION_CARNET = [
+    { value: 'reappro_non_enregistre', label: 'Réapprovisionnement non enregistré' },
+    { value: 'carnet_avant_nexus', label: 'Carnet déjà présent avant NEXUS' },
+    { value: 'erreur_stock', label: 'Erreur de stock' },
+    { value: 'autre', label: 'Autre' },
+  ];
+
+  function demarrerExceptionCarnet(gameId) {
+    exceptionCarnetEnCours = gameId;
+    motifExceptionChoisi = null;
+    phase = 'carnet-exception';
+    renderExceptionCarnet();
+  }
+
+  function renderExceptionCarnet() {
+    const jeu = jeux.find(j => j.id === exceptionCarnetEnCours);
+    const solde = soldesCarnets[exceptionCarnetEnCours] || { confies: 0, actives: 0, nonActives: 0 };
+    document.getElementById('titre').textContent = 'Aucun carnet confié trouvé';
+    document.getElementById('sousTitre').textContent = '';
+    document.getElementById('content').innerHTML = `
+      <div class="etat-banner" style="border-color:var(--amber); color:var(--amber);">⚠️ NEXUS ne trouve aucun carnet ${jeu ? jeu.nom : ''} non activé confié à la caisse (solde actuel : ${solde.nonActives}). Avant de continuer, indiquez pourquoi.</div>
+      <div class="motif-grid" id="grilleMotifs">
+        ${MOTIFS_EXCEPTION_CARNET.map(m => `
+          <div class="motif-item" data-motif="${m.value}">
+            <div class="pastille"></div>
+            <div>${m.label}</div>
+          </div>
+        `).join('')}
+      </div>
+      <button class="btn-primary" id="btnContinuerException" disabled>Continuer et signaler au manager</button>
+      <button class="btn-ghost" id="btnAnnulerException">Annuler</button>
+    `;
+    document.querySelectorAll('#grilleMotifs .motif-item').forEach(el => {
+      el.addEventListener('click', () => {
+        motifExceptionChoisi = el.dataset.motif;
+        document.querySelectorAll('#grilleMotifs .motif-item').forEach(x => x.classList.toggle('selectionne', x.dataset.motif === motifExceptionChoisi));
+        document.getElementById('btnContinuerException').disabled = false;
+      });
+    });
+    document.getElementById('btnContinuerException').addEventListener('click', () => {
+      const gameId = exceptionCarnetEnCours;
+      const motif = motifExceptionChoisi;
+      phase = 'carnet';
+      renderCarnet();
+      executerActivationCarnet(gameId, motif);
+    });
+    document.getElementById('btnAnnulerException').addEventListener('click', () => {
+      exceptionCarnetEnCours = null; motifExceptionChoisi = null;
+      phase = 'carnet'; renderCarnet();
+    });
+  }
+
   // V1 sans scanner ni numéro de carnet saisi → methode_identification =
   // 'quantite', booklet_id reste null (aucun carnet précis identifié).
   // L'activation se fait "sur place" en caisse : source et destination
   // sont toutes les deux Caisse — ce n'est pas un déplacement physique,
   // seul l'état du carnet change (non activé → activé).
+  // Si aucun carnet non activé n'est confié (solde.nonActives <= 0), passe
+  // par l'exception tracée (renderExceptionCarnet) avant de continuer ici.
   async function activerCarnet(gameId) {
+    const solde = soldesCarnets[gameId] || { confies: 0, actives: 0, nonActives: 0 };
+    if (solde.nonActives <= 0) { demarrerExceptionCarnet(gameId); return; }
+    await executerActivationCarnet(gameId, null);
+  }
+
+  async function executerActivationCarnet(gameId, motifException) {
     const jeu = jeux.find(j => j.id === gameId);
     const solde = soldesCarnets[gameId] || { confies: 0, actives: 0, nonActives: 0 };
-    if (solde.nonActives <= 0) {
-      const message = `Aucun carnet non activé de ${jeu ? jeu.nom : 'ce jeu'} n'est actuellement confié à la caisse selon NEXUS (demandez un réapprovisionnement au manager si besoin). Activer quand même ?`;
-      if (!confirm(message)) return;
-    }
     const label = document.querySelector(`[data-carnet-label="${gameId}"]`);
     const ticketsParCarnet = (jeu && jeu.tickets_par_carnet !== null && jeu.tickets_par_carnet !== undefined) ? Number(jeu.tickets_par_carnet) : null;
     if (label) label.textContent = '…';
@@ -722,13 +798,25 @@
       site: siteId, game_id: gameId, shift_id: shiftRow.id, type_mouvement: 'activation', quantite: 1,
       location_source_id: caisse ? caisse.id : null, location_destination_id: caisse ? caisse.id : null,
       methode_identification: 'quantite', booklet_id: null, employee_id: employeeCourant.id,
-      justification: `Carnet activé en cours de quart (${shiftRow.date} · Quart ${shiftRow.quart}).${ticketsParCarnet ? ` +${ticketsParCarnet} tickets ajoutés automatiquement à l'appro (Nb de tickets par livret).` : ' Quantité par carnet inconnue pour ce jeu — appro à saisir à la main à la clôture.'}`,
+      justification: `Carnet activé en cours de quart (${shiftRow.date} · Quart ${shiftRow.quart}).${ticketsParCarnet ? ` +${ticketsParCarnet} tickets ajoutés automatiquement à l'appro (Nb de tickets par livret).` : ' Quantité par carnet inconnue pour ce jeu — appro à saisir à la main à la clôture.'}${motifException ? ` Exception tracée : ${MOTIFS_EXCEPTION_CARNET.find(m => m.value === motifException)?.label || motifException}.` : ''}`,
     });
     if (error) {
       console.error('Activation carnet FDJ:', error);
       if (label) label.textContent = 'Activer';
       alert("Erreur d'enregistrement. Réessayez.");
       return;
+    }
+
+    // Exception tracée (09/08/2026, demande de Frédéric) — l'activation
+    // s'est faite sans carnet confié enregistré : signale automatiquement
+    // au manager plutôt que de laisser un confirm() local et silencieux.
+    if (motifException) {
+      const { error: eAlerte } = await nexusClient.from('fdj_alertes').insert({
+        site: siteId, type: 'activation_sans_carnet_confie', shift_id: shiftRow.id, shift_precedent_id: null,
+        game_id: gameId, valeur_quart_precedent: null, valeur_saisie: solde.nonActives,
+        employee_id: employeeCourant.id, motif: motifException,
+      });
+      if (eAlerte) console.error('Enregistrement alerte activation sans carnet FDJ:', eAlerte); // non bloquant
     }
 
     // Ajoute automatiquement les tickets du carnet à l'appro du quart —

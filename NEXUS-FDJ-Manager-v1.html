@@ -114,6 +114,17 @@
   .jeu-input{width:100%; background:var(--panel-raised); border:1px solid var(--hairline); border-radius:8px; padding:8px 4px; color:var(--text); font-family:var(--mono); font-size:13px; text-align:center;}
   .jeu-input:focus{outline:none; border-color:var(--cyan);}
 
+  .stepper-qte{display:flex; align-items:center; justify-content:center; gap:12px; margin:6px 0 8px;}
+  .btn-stepper{width:34px; height:34px; border-radius:9px; border:1px solid var(--hairline); background:var(--panel-raised); color:var(--cyan); font-size:18px; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center; line-height:1;}
+  .btn-stepper:active{background:var(--hairline);}
+  .stepper-valeur{font-family:var(--mono); font-size:17px; font-weight:700; min-width:26px; text-align:center;}
+  .raccourcis-qte{display:flex; gap:6px; margin-bottom:8px;}
+  .btn-raccourci{flex:1; padding:7px; border-radius:8px; border:1px solid var(--hairline); background:transparent; color:var(--text-mid); font-size:11px; font-weight:600; cursor:pointer;}
+  .btn-raccourci:active{background:var(--panel-raised);}
+  .valeur-carnets{font-family:var(--mono); font-size:10.5px; color:var(--text-dim); line-height:1.6; text-align:center;}
+  .valeur-carnets b{color:var(--gold);}
+  .valeur-carnets .activee{color:var(--text-dim);}
+
   .resume-card{background:var(--panel); border:1px solid var(--hairline); border-radius:14px; padding:16px; margin:6px 0 14px;}
   .stat-row{display:flex; justify-content:space-between; align-items:center; padding:8px 0;}
   .stat-row + .stat-row{border-top:1px solid var(--hairline);}
@@ -235,8 +246,20 @@
     { value: 'autre', label: 'Autre raison' },
     { value: 'non_explique', label: 'Je ne sais pas' },
   ];
+  // Motifs de l'exception tracée côté employé (NEXUS-FDJ-v1.html,
+  // activerCarnet/renderExceptionCarnet) — dupliqués ici uniquement pour
+  // l'affichage du libellé dans le panneau d'alertes manager, jamais pour
+  // recalculer quoi que ce soit (Article 11 : les CALCULS restent dans
+  // nexus-fdj-moteur.js, un simple dictionnaire de libellés n'en fait pas partie).
+  const MOTIFS_EXCEPTION_CARNET = [
+    { value: 'reappro_non_enregistre', label: 'Réapprovisionnement non enregistré' },
+    { value: 'carnet_avant_nexus', label: 'Carnet déjà présent avant NEXUS' },
+    { value: 'erreur_stock', label: 'Erreur de stock' },
+    { value: 'autre', label: 'Autre' },
+  ];
   function labelStatutCaisse(v) { const s = STATUTS_CAISSE.find(x => x.value === v); return s ? s.label : v; }
   function labelMotifEcart(v) { const m = MOTIFS_ECART_FDJ.find(x => x.value === v); return m ? m.label : v; }
+  function labelMotifException(v) { const m = MOTIFS_EXCEPTION_CARNET.find(x => x.value === v); return m ? m.label : (v || '—'); }
 
   // ------------------------------------------------------------
   // HISTORIQUE DES CORRECTIONS — 09/08/2026, demande de Frédéric :
@@ -345,6 +368,32 @@
     return data || [];
   }
 
+  // Soldes négatifs EN DIRECT (09/08/2026, demande de Frédéric : "le solde
+  // peut devenir négatif [...] il ne faut surtout pas faire Math.max(0,
+  // stock) et cacher le problème [...] cela doit alimenter le manager").
+  // Contrairement au panneau "Alertes" (instantané tracé à l'activation,
+  // acquittable), cette liste est TOUJOURS recalculée depuis les mouvements
+  // bruts — elle reflète l'état actuel, pas un évènement passé, et
+  // n'est jamais masquée tant que le solde reste négatif.
+  async function calculerSoldesNegatifs() {
+    if (!emplacements.length) emplacements = await chargerEmplacements();
+    const mouvements = await chargerMouvementsStock();
+    const caisse = emplacementParType('caisse');
+    const soldes = NexusFdjMoteur.soldesCarnetsParJeu(mouvements, caisse ? caisse.id : null);
+    return jeux
+      .filter(j => (soldes[j.id] || {}).nonActives < 0)
+      .map(j => ({ jeu: j, solde: soldes[j.id] }));
+  }
+  function renderSoldeNegatif({ jeu, solde }) {
+    const n = Math.abs(solde.nonActives);
+    return `
+      <div class="jeu-row">
+        <div class="jeu-nom-ligne"><div class="jeu-nom">${jeu.nom}</div></div>
+        <div class="histo-sub">${n} activation${n > 1 ? 's' : ''} non reliée${n > 1 ? 's' : ''} à un carnet confié enregistré (solde actuel : <b style="color:var(--red);">${solde.nonActives}</b>).</div>
+      </div>
+    `;
+  }
+
   // ------------------------------------------------------------
   // CHARGEMENT LISTES
   // ------------------------------------------------------------
@@ -411,10 +460,14 @@
   }
 
   // ------------------------------------------------------------
-  // ALERTES STOCK — un employé a corrigé un stock initial hérité du quart
-  // précédent (09/08/2026, demande de Frédéric) : ça remet en cause le
-  // stock final de ce quart précédent, jamais silencieux. Ce panneau
-  // disparaît des yeux du manager dès qu'il marque une alerte comme vue —
+  // ALERTES — un panneau, deux origines. "stock_initial_modifie" : un
+  // employé a corrigé un stock initial hérité du quart précédent, ce qui
+  // remet en cause le stock final de ce quart précédent (09/08/2026).
+  // "activation_sans_carnet_confie" : un employé a activé un carnet sans
+  // qu'aucun solde non-activé ne soit enregistré en caisse — exception
+  // tracée avec motif choisi, jamais un simple confirm() local (09/08/2026,
+  // demande de Frédéric : "NEXUS crée automatiquement une alerte"). Chaque
+  // alerte disparaît des yeux du manager dès qu'il la marque comme vue —
   // ce qui éteint aussi le point rouge sur "Contrôle FDJ" en vue bureau.
   // ------------------------------------------------------------
   async function chargerAlertesNonVues() {
@@ -435,6 +488,10 @@
     return s ? `${new Date(s.date + 'T00:00:00').toLocaleDateString('fr-FR')} · Quart ${s.quart}` : '—';
   }
 
+  function renderAlerte(a) {
+    return a.type === 'activation_sans_carnet_confie' ? renderAlerteActivationSansCarnet(a) : renderAlerteStock(a);
+  }
+
   function renderAlerteStock(a) {
     return `
       <div class="jeu-row" data-alerte="${a.id}" style="padding:12px 14px;">
@@ -453,6 +510,27 @@
     `;
   }
 
+  // Exception tracée (09/08/2026, demande de Frédéric) : la caissière a pu
+  // continuer à activer un carnet sans solde non-activé enregistré, mais
+  // seulement en choisissant un motif — NEXUS l'affiche ici plutôt que de
+  // laisser passer un confirm() local invisible au manager.
+  function renderAlerteActivationSansCarnet(a) {
+    return `
+      <div class="jeu-row" data-alerte="${a.id}" style="padding:12px 14px;">
+        <div class="jeu-nom-ligne">
+          <div class="jeu-nom">🔴 ${nomJeu(a.game_id)}</div>
+        </div>
+        <div class="histo-sub" style="margin-bottom:8px;">
+          ${libelleQuart(a.quartActuel)}${a.employee_id ? ` · ${nomEmploye(a.employee_id)}` : ''} a activé un carnet sans solde non activé enregistré en caisse (solde à ce moment : <b style="color:var(--amber);">${fmtNum(a.valeur_saisie)}</b>).<br>
+          Motif indiqué : <b style="color:var(--text);">${labelMotifException(a.motif)}</b>
+        </div>
+        <div style="display:flex; gap:8px;">
+          <button type="button" class="btn-modifier" data-vue="${a.id}" style="margin-top:0; flex:1; color:var(--text-mid); border-color:var(--hairline);">Marquer comme vue</button>
+        </div>
+      </div>
+    `;
+  }
+
   // ------------------------------------------------------------
   // ACCUEIL MANAGER — Aujourd'hui + Historique
   // ------------------------------------------------------------
@@ -462,14 +540,21 @@
     document.getElementById('content').innerHTML = '<div class="loading">Chargement…</div>';
 
     const aujourdhui = dateISO();
-    const [duJour, historique, alertes] = await Promise.all([chargerShiftsAvecCaisse(aujourdhui), chargerShiftsAvecCaisse(null), chargerAlertesNonVues()]);
+    const [duJour, historique, alertes, soldesNegatifs] = await Promise.all([
+      chargerShiftsAvecCaisse(aujourdhui), chargerShiftsAvecCaisse(null), chargerAlertesNonVues(), calculerSoldesNegatifs(),
+    ]);
     const quart1 = duJour.find(s => s.quart === '1');
     const quart2 = duJour.find(s => s.quart === '2');
 
     document.getElementById('content').innerHTML = `
+      ${soldesNegatifs.length ? `
+        <div class="section-titre">🔴 Mouvements FDJ à vérifier (${soldesNegatifs.length})</div>
+        <div class="card" style="margin-bottom:16px;">${soldesNegatifs.map(renderSoldeNegatif).join('')}</div>
+      ` : ''}
+
       ${alertes.length ? `
         <div class="section-titre">⚠️ Alertes stock (${alertes.length})</div>
-        <div class="card" id="listeAlertes">${alertes.map(renderAlerteStock).join('')}</div>
+        <div class="card" id="listeAlertes">${alertes.map(renderAlerte).join('')}</div>
       ` : ''}
 
       <div class="section-titre">Aujourd'hui</div>
@@ -571,6 +656,13 @@
   // côté NEXUS-FDJ-v1.html). Donc ici : aucun impact sur l'appro, aucun
   // shift_id — juste un déplacement physique Bureau → Caisse tracé dans
   // fdj_stock_movements(type_mouvement='transfert').
+  //
+  // UX stepper (09/08/2026, demande de Frédéric) : remplace l'ancien champ
+  // numérique libre par des boutons − / + et des raccourcis +1/+2 carnets,
+  // avec affichage immédiat de la valeur — vocabulaire volontairement
+  // distinct de "Valeur activée" pour ne jamais confondre exposition
+  // physique (carnets confiés) et engagement financier FDJ (carnets activés,
+  // toujours 0 € à ce stade puisqu'un transfert n'active jamais rien).
   // ------------------------------------------------------------
   async function ouvrirReappro() {
     document.getElementById('content').innerHTML = '<div class="loading">Chargement…</div>';
@@ -603,28 +695,59 @@
     `;
     document.getElementById('btnRetourReappro').addEventListener('click', () => { vue = 'liste'; reappro = null; renderAccueil(); });
     document.getElementById('btnAnnulerReappro').addEventListener('click', () => { vue = 'liste'; reappro = null; renderAccueil(); });
-    document.querySelectorAll('.champ-qte-reappro').forEach(input => {
-      input.addEventListener('input', () => { reappro.quantites[input.dataset.jeu] = input.value === '' ? 0 : Math.max(0, parseInt(input.value, 10) || 0); });
-    });
+    document.querySelectorAll('[data-moins]').forEach(btn => btn.addEventListener('click', () => ajusterQuantiteReappro(btn.dataset.moins, -1)));
+    document.querySelectorAll('[data-plus]').forEach(btn => btn.addEventListener('click', () => ajusterQuantiteReappro(btn.dataset.plus, 1)));
+    document.querySelectorAll('[data-raccourci]').forEach(btn => btn.addEventListener('click', () => ajusterQuantiteReappro(btn.dataset.raccourci, parseInt(btn.dataset.inc, 10))));
     document.getElementById('btnConfirmerReappro').addEventListener('click', enregistrerReappro);
   }
 
   function renderJeuReappro(jeu) {
     const solde = (reappro.soldes[jeu.id]) || { confies: 0, actives: 0, nonActives: 0 };
+    const qte = reappro.quantites[jeu.id] || 0;
+    const ticketsParCarnet = (jeu.tickets_par_carnet !== null && jeu.tickets_par_carnet !== undefined) ? Number(jeu.tickets_par_carnet) : null;
+    const valeurParCarnet = ticketsParCarnet ? ticketsParCarnet * Number(jeu.prix) : null;
     return `
       <div class="jeu-row">
         <div class="jeu-nom-ligne">
           <div class="jeu-nom">${jeu.nom}</div>
           <div class="jeu-ventes ${solde.nonActives <= 0 ? 'anomalie' : 'calc'}">${solde.nonActives} non activé${Math.abs(solde.nonActives) > 1 ? 's' : ''} en caisse</div>
         </div>
-        <div class="jeu-inputs">
-          <div class="jeu-input-wrap" style="flex:1;">
-            <div class="jeu-input-label">Carnets à transférer</div>
-            <input type="number" inputmode="numeric" min="0" step="1" class="jeu-input champ-qte-reappro" data-jeu="${jeu.id}" value="">
-          </div>
+        <div class="jeu-input-label" style="text-align:center;">Carnets à transférer</div>
+        <div class="stepper-qte">
+          <button type="button" class="btn-stepper" data-moins="${jeu.id}">−</button>
+          <div class="stepper-valeur" id="qte-${jeu.id}">${qte}</div>
+          <button type="button" class="btn-stepper" data-plus="${jeu.id}">+</button>
         </div>
+        <div class="raccourcis-qte">
+          <button type="button" class="btn-raccourci" data-raccourci="${jeu.id}" data-inc="1">+1 carnet</button>
+          <button type="button" class="btn-raccourci" data-raccourci="${jeu.id}" data-inc="2">+2 carnets</button>
+        </div>
+        <div class="valeur-carnets" id="valeur-${jeu.id}">${renderValeurReappro(qte, ticketsParCarnet, valeurParCarnet)}</div>
       </div>
     `;
+  }
+
+  // Vocabulaire imposé par Frédéric : "Valeur des carnets confiés" (X €,
+  // exposition physique) ≠ "Valeur activée" (toujours 0 € ici — un
+  // transfert Bureau → Caisse n'active jamais rien, voir plus haut).
+  function renderValeurReappro(qte, ticketsParCarnet, valeurParCarnet) {
+    if (!qte) return `Valeur des carnets confiés : <b>0 €</b> · <span class="activee">Valeur activée : 0 €</span>`;
+    const tickets = ticketsParCarnet ? qte * ticketsParCarnet : null;
+    const valeur = valeurParCarnet ? qte * valeurParCarnet : null;
+    return `Valeur des carnets confiés : <b>${valeur !== null ? fmtEuro(valeur) : '—'}</b>${tickets !== null ? ` (${tickets} tickets potentiels)` : ''} · <span class="activee">Valeur activée : 0 €</span>`;
+  }
+
+  function ajusterQuantiteReappro(gameId, delta) {
+    const actuel = reappro.quantites[gameId] || 0;
+    const nouveau = Math.max(0, actuel + delta);
+    reappro.quantites[gameId] = nouveau;
+    const jeu = jeux.find(j => j.id === gameId);
+    const ticketsParCarnet = (jeu && jeu.tickets_par_carnet !== null && jeu.tickets_par_carnet !== undefined) ? Number(jeu.tickets_par_carnet) : null;
+    const valeurParCarnet = (jeu && ticketsParCarnet) ? ticketsParCarnet * Number(jeu.prix) : null;
+    const qteEl = document.getElementById(`qte-${gameId}`);
+    if (qteEl) qteEl.textContent = nouveau;
+    const valeurEl = document.getElementById(`valeur-${gameId}`);
+    if (valeurEl) valeurEl.innerHTML = renderValeurReappro(nouveau, ticketsParCarnet, valeurParCarnet);
   }
 
   async function enregistrerReappro() {
@@ -1024,7 +1147,7 @@
     siteId = employee.site_id || 'vito-sainte-marie';
     if (!(await NexusForfait.nexusRequireProfessional('NEXUS-FDJ-Manager-v1.html', siteId))) return;
     demarrerHorloge();
-    [jeux, employesSite] = await Promise.all([chargerJeux(), chargerEmployesSite()]);
+    [jeux, employesSite, emplacements] = await Promise.all([chargerJeux(), chargerEmployesSite(), chargerEmplacements()]);
     renderAccueil();
   });
 </script>
