@@ -145,10 +145,13 @@
 
   // CORRECTIF 24/07/2026 (audit doublons de données) : "Résultats" reposait
   // sur SANTE_SCORE = 74 codé en dur. Ce domaine utilise désormais le moteur
-  // partagé nexus-indice.js (même calcul que l'Indice NEXUS du Cockpit —
+  // partagé nexus-indice.js (même calcul que l'Indice Marge de l'accueil —
   // voir ce fichier pour la formule) plutôt qu'une copie locale, pour
   // qu'un futur ajustement de la pondération se fasse à un seul endroit
   // et ne puisse plus diverger entre les deux écrans.
+  // Renommé "Indice NEXUS" → "Indice Marge" le 10/08/2026 (décision : garder
+  // les deux formules distinctes — Indice Marge ici et sur l'accueil,
+  // Indice Boussole sur Brief NEXUS — mais les nommer clairement).
   async function calculerFacteursIndice() {
     const { data: rowsBrut, error } = await fetchAllRows(() => nexusClient
       .from('products')
@@ -156,7 +159,7 @@
       .eq('site', SITE_ACTUEL)
       .order('periode_debut', { ascending: false })
       .order('article', { ascending: true }));
-    if (error || !rowsBrut || !rowsBrut.length) { console.error('Chargement products (Indice NEXUS):', error); return null; }
+    if (error || !rowsBrut || !rowsBrut.length) { console.error('Chargement products (Indice Marge):', error); return null; }
     return NexusIndice.calculerFacteurs(rowsBrut);
   }
 
@@ -215,7 +218,7 @@
   const resultatsScore = facteursIndice ? NexusIndice.calculerIndiceNexus(facteursIndice) : null;
 
   const DOMAINES = [
-    { nom: "Résultats", icone: "💰", sous: "CA, Marge — même Indice NEXUS que le Cockpit", valeur: resultatsScore, mesure: resultatsScore !== null },
+    { nom: "Résultats", icone: "💰", sous: "CA, Marge — même Indice Marge que l'accueil NEXUS", valeur: resultatsScore, mesure: resultatsScore !== null },
     { nom: "Équipe", icone: "👥", sous: "Présence uniquement (Motivation, Formation, Cohésion non mesurées)", valeur: equipeScore, mesure: equipeScore !== null },
     { nom: "Exploitation", icone: "🏪", sous: "Propreté, Sécurité, Disponibilité", valeur: null, mesure: false },
     { nom: "Conformité", icone: "⚖️", sous: "Procédures, Audits, Tenues, Sécurité", valeur: null, mesure: false },

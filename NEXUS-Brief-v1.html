@@ -823,13 +823,14 @@
       { nom: 'Risques', icone: '⚠️', type: 'derive', moteurs: ['caisse', 'stock'], valeur: scoreRisquesVal, statut: statutRisquesVal, cible: 'NEXUS-Scanner-Stock-v1.html', detail: `${nbCritiquesCaisse} écart${nbCritiquesCaisse > 1 ? 's' : ''} de caisse critique${nbCritiquesCaisse > 1 ? 's' : ''} · ${alertesInvOuvertes || 0} alerte${(alertesInvOuvertes || 0) > 1 ? 's' : ''} inventaire ouverte${(alertesInvOuvertes || 0) > 1 ? 's' : ''} · ${Math.round(risqueStockTotal).toLocaleString('fr-FR')} € de risque stock estimé.` },
     ];
 
-    // Indice NEXUS explicable (demande de Frédéric, 02/08/2026 soir) :
-    // sur cet écran, l'Indice N'EST PAS le même calcul que celui du
-    // Cockpit/Radar du Manager (nexus-indice.js, marge+évolution CA
+    // Indice Boussole explicable (demande de Frédéric, 02/08/2026 soir ;
+    // renommé "Indice NEXUS" → "Indice Boussole" le 10/08/2026) : sur cet
+    // écran, l'indice N'EST PAS le même calcul que l'Indice Marge de
+    // l'accueil/Radar du Manager (nexus-indice.js, marge+évolution CA
     // uniquement) — il est la moyenne des axes de la Boussole réellement
     // mesurés aujourd'hui, chacun recentré à 50 (neutre), pour pouvoir se
-    // décomposer honnêtement axe par axe ("Comprendre l'indice 62"). Un
-    // axe non mesuré est exclu de la moyenne, jamais compté comme 50 par
+    // décomposer honnêtement axe par axe ("Comprendre l'Indice Boussole 62").
+    // Un axe non mesuré est exclu de la moyenne, jamais compté comme 50 par
     // défaut (Article 5 : jamais un chiffre inventé).
     const axesMesures = AXES.filter(a => a.valeur != null);
     const scoreGlobal = axesMesures.length ? Math.round(axesMesures.reduce((s, a) => s + a.valeur, 0) / axesMesures.length) : null;
@@ -994,15 +995,21 @@
       <div class="brief-hero">
         <div class="brief-date">${brief.periodeLabel}</div>
         <div class="brief-indice-value" style="color:${couleur};">${brief.scoreGlobal != null ? brief.scoreGlobal : '—'}</div>
-        <div class="brief-indice-label">Indice NEXUS</div>
+        <!-- Renommé "Indice NEXUS" → "Indice Boussole" le 10/08/2026
+             (décision de Frédéric, suite au doc NEXUS-Brief-V2-Architecture-v1.md :
+             garder les deux formules d'indice distinctes plutôt que les
+             unifier, mais les nommer clairement au lieu de les laisser
+             porter le même nom générique — voir aussi NEXUS-App-v1.html,
+             "Indice Marge"). -->
+        <div class="brief-indice-label">Indice Boussole</div>
         <div class="brief-etat"><span class="brief-etat-dot" style="color:${couleur};"></span>${statutTexte}</div>
         <div class="brief-synthese">${brief.synthese}</div>
         <div class="indice-explain-wrap" id="indiceExplainWrap">
-          <div class="indice-explain-toggle" onclick="document.getElementById('indiceExplainWrap').classList.toggle('open')">Comprendre l'indice ${brief.scoreGlobal != null ? brief.scoreGlobal : '—'} <span class="chev">›</span></div>
+          <div class="indice-explain-toggle" onclick="document.getElementById('indiceExplainWrap').classList.toggle('open')">Comprendre l'Indice Boussole ${brief.scoreGlobal != null ? brief.scoreGlobal : '—'} <span class="chev">›</span></div>
           <div class="indice-explain">
             <div class="section-note" style="margin-top:0;">Moyenne des axes de la Boussole mesurés aujourd'hui (${ex.nbMesures}/5), chacun recentré à 50 = neutre. ${ex.periodeLabel}.</div>
             ${deltasHTML}
-            <div class="section-note" style="font-style:italic;">Cet indice diffère volontairement de celui affiché sur votre écran d'accueil (calculé, lui, uniquement à partir de la marge et de l'évolution du CA) — pas un bug, deux angles de lecture distincts : ici la vision d'ensemble du dirigeant, là un signal opérationnel plus étroit.</div>
+            <div class="section-note" style="font-style:italic;">Cet Indice Boussole diffère volontairement de l'Indice Marge affiché sur votre écran d'accueil (calculé, lui, uniquement à partir de la marge et de l'évolution du CA) — pas un bug, deux indices distincts avec leur propre nom : ici la vision d'ensemble du dirigeant, là un signal opérationnel plus étroit.</div>
           </div>
         </div>
       </div>
@@ -1215,7 +1222,7 @@
     const zKpi = c.allouerZone(ZONES_1P.kpi);
     const confianceCourte = (brief.impact.confianceGlobale || '').split(' ')[0] || '—';
     c.ligneKpi(zKpi, [
-      { label: 'Indice NEXUS', valeur: brief.scoreGlobal != null ? `${brief.scoreGlobal}/100` : '—' },
+      { label: 'Indice Boussole', valeur: brief.scoreGlobal != null ? `${brief.scoreGlobal}/100` : '—' },
       { label: 'Gain potentiel', valeur: `${Math.round(brief.impact.gain).toLocaleString('fr-FR')} €`, couleurValeur: COULEUR.vert },
       { label: 'Risque identifié', valeur: `${Math.round(brief.impact.risque).toLocaleString('fr-FR')} €`, couleurValeur: brief.impact.risque > 0 ? COULEUR.rouge : COULEUR.texte },
       { label: 'Fiabilité', valeur: confianceCourte, detail: 'moteurs actifs' },
