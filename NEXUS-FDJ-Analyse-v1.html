@@ -1277,20 +1277,30 @@
   // premier rendu via requestAnimationFrame, pas forcément terminé au
   // moment où le constructeur retourne — un appel immédiat à
   // toBase64Image() capturerait parfois un canvas encore vide.
+  //
+  // Bug corrigé le 10/08/2026 (retour de Frédéric, erreur "Cannot access
+  // 'chart' before initialization") : avec `duration: 0`, Chart.js peut
+  // appeler onComplete de façon SYNCHRONE, pendant l'exécution même de
+  // `new Chart(...)` — donc avant que l'affectation `const chart = ...`
+  // soit terminée (zone morte temporelle de `const`). Passer par
+  // l'objet reçu par le callback (`animation.chart`, documenté par
+  // Chart.js pour cet usage précis) plutôt que par la variable fermée
+  // `chart` évite complètement le problème.
   function genererImageGraphiqueCa(labels, valeurs) {
     return new Promise(resolve => {
       const canvas = document.createElement('canvas');
       canvas.width = 900; canvas.height = 380;
-      const chart = new Chart(canvas, {
+      new Chart(canvas, {
         type: 'line',
         data: { labels, datasets: [{ data: valeurs, borderColor: '#0a6b78', backgroundColor: 'rgba(10,107,120,0.15)', fill: true, tension: 0.25, pointRadius: 3, borderWidth: 2 }] },
         options: {
           responsive: false,
           animation: {
             duration: 0,
-            onComplete: () => {
-              const dataUrl = chart.toBase64Image('image/png', 1);
-              chart.destroy();
+            onComplete: (animation) => {
+              const chartInstance = animation.chart;
+              const dataUrl = chartInstance.toBase64Image('image/png', 1);
+              chartInstance.destroy();
               resolve(dataUrl);
             },
           },
