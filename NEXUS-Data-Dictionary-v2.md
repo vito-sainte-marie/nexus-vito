@@ -513,6 +513,72 @@ pdf-lib.js.org. Toujours **aucun test d'intégration avec la vraie bibliothèque
 d'accès npm ici, uniquement des mocks) — la confirmation définitive reste le prochain test réel de
 Frédéric sur son iPhone après ce correctif.
 
+### Nouvelle primitive `paragraphe()` (10/08/2026)
+
+Ajoutée à `ConstructeurRapportUnePage` pour les modules dont le contenu naturel est du texte libre
+plutôt qu'une liste structurée (ex. la synthèse exécutive de Brief, ou un repli textuel quand un
+module n'a pas de série chronologique à graphiquer). Signature :
+`paragraphe(zone, { titre, texte, taille=9, interligne=12.5, couleur })`. Découpe le texte via
+`decouperEnLignes()` (même algorithme que `ConstructeurRapport`), calcule combien de lignes tiennent
+dans la hauteur de la zone (`Math.floor((y - zone.yBas) / interligne)`), et tronque proprement avec
+une ellipse sur la dernière ligne visible si le texte dépasse — jamais de débordement hors zone,
+cohérent avec le principe "zones fixes" de `ConstructeurRapportUnePage`.
+
+### Rapports PDF Verify, Inventaire, Brief — implantés le 10/08/2026
+
+À la demande explicite de Frédéric (« cree les futurs modules, rapport a telecharger en pdf pour
+Verify, Inventaire, Brief, rapports mensuels/annuels et implante les dans nexus »), les trois
+modules qui n'avaient encore aucun export PDF ont été câblés sur `ConstructeurRapportUnePage`, avec
+le même schéma d'intégration que FDJ Pilotage (bouton "Générer mon rapport" → `construireRapportPdf…()`
+→ "Partager le PDF" / "Ouvrir le PDF" / "Régénérer"). Aucune de ces intégrations n'ajoute de logique
+de calcul dans le moteur PDF générique (Article 11) — chaque module compose SON rapport à partir de
+DONNÉES qu'il possédait déjà ou, pour Verify, qu'il a dû assembler pour la première fois.
+
+- **`NEXUS-Brief-v1.html`** — le rapport réutilise directement l'objet `BRIEF` déjà construit pour
+  l'affichage à l'écran (`construireBrief()`), sans aucun recalcul : indice NEXUS, gain/risque
+  potentiel, synthèse exécutive (`paragraphe`), boussole 5 axes (Commerce/Marge/Opérations/
+  Équipe/Risques, en repli de la zone "graphique" faute de série chronologique disponible pour ce
+  module), forces du moment et points à surveiller, décisions prioritaires (max 3).
+- **`NEXUS-Verify-v1.html`** — Verify n'avait aucune notion d'agrégation par période avant ce jour
+  (seulement des audits ponctuels par quart) : nouvel onglet "Rapport" avec sélecteur de période
+  (7 jours / 30 jours / mois en cours / mois précédent / année en cours), et nouvelle fonction
+  `assemblerDonneesRapportVerify(debut, fin)` qui interroge `audits_caisse` sur la période et calcule
+  taux de conformité, écart cumulé (somme des `ecartMax = max(|ecart_piste|, |ecart_boutique|)` par
+  audit — pas `ecart_total`, qui est une somme signée pouvant masquer deux anomalies réelles qui
+  s'annulent), répartition par gravité, jour le plus à risque, composante la plus touchée
+  (Piste/Boutique), et liste des audits anormaux sans commentaire justificatif ("à justifier").
+  Réutilise `classifierEcart()`/`GRAVITE_ORDRE` déjà en production — ne réinvente jamais la formule
+  d'écart (Article 11).
+- **`NEXUS-Inventaire-Manager-v1.html`** — le rapport réutilise `dernierCtx` (le contexte déjà chargé
+  par `chargerReviewPeriode()` pour l'affichage de la vue période — RPC `generate_inventory_review`),
+  sans nouvelle requête : comptages/écarts/démarque estimée, catégorie la plus instable, produits
+  récurrents, écarts ouverts triés par gravité, et décompte des décisions de la période par type de
+  résolution (validée/recomptage/erreur de saisie/démarque/explication). Disponible uniquement en
+  vue période (semaine/mois/personnalisée), pas en vue jour.
+
+Les trois rapports ont été vérifiés par mock (composition complète contre le vrai
+`nexus-pdf-moteur.js`, avec des données réalistes) : une seule page produite, aucune exception, tri
+et logique métier corrects. Comme pour FDJ, la confirmation définitive reste le prochain test réel
+de Frédéric — aucun de ces trois rapports n'a encore été généré sur un vrai appareil.
+
+### FDJ Pilotage — contenu adapté à la granularité de la période (10/08/2026)
+
+Jusqu'ici, le rapport FDJ gardait le même gabarit (jour le plus performant / jour à booster,
+graphique quotidien) quelle que soit la période choisie — y compris pour un mois ou une année
+entière, où un empilement de points quotidiens devient illisible. Conformément à la demande de
+Frédéric (« Hebdomadaire : jours... Mensuel : semaines, tendances... Annuel : mois, saisonnalité... »),
+`assemblerDonneesRapportFdj()` classe désormais la période via `classifierTypePeriode(type, debut, fin)`
+(`'hebdomadaire' | 'mensuel' | 'annuel'`, basé sur `periodeActuelle.type` — `mois`/`mois_precedent` →
+mensuel, `annee`/`annee_precedente` → annuel, `personnalise` classé par nombre de jours couverts :
+>64j → annuel, >10j → mensuel, sinon hebdomadaire), puis agrège les données quotidiennes en
+conséquence : `regrouperParSemaine()` (via le numéro de semaine ISO déjà utilisé ailleurs dans le
+fichier) pour un rapport mensuel, `regrouperParMois()` pour un rapport annuel. Le KPI "jour le plus
+performant / jour à booster" devient "semaine..." ou "mois..." selon le cas (`LABELS_UNITE_FORTE`/
+`LABELS_UNITE_BOOSTER`, indexés par `labelUnite`), et la légende du graphique CA s'ajuste de même
+("évolution quotidienne" / "par semaine" / "par mois"). Vérifié par test dédié : classification
+correcte sur les 6 cas (mois, année précédente, semaine, personnalisé 90j/20j/5j), regroupement
+correct d'une année complète en 12 mois et d'un mois en 5-6 semaines ISO.
+
 ---
 
 ## Historique des versions
@@ -533,6 +599,7 @@ Frédéric sur son iPhone après ce correctif.
 | v2.10 | 10/08/2026 | Deuxième bug bloquant trouvé au test réel suivant (message d'erreur "Cannot access 'chart' before initialization", visible grâce au détail technique ajouté en v2.9) : `genererImageGraphiqueCa()` lisait la variable fermée `chart` dans `animation.onComplete`, or Chart.js peut appeler ce callback de façon SYNCHRONE avec `duration: 0` — donc avant la fin de l'affectation `const chart = new Chart(...)` (zone morte temporelle). Corrigé en utilisant l'objet `chart` fourni en argument par Chart.js à `onComplete` (`{ chart, currentStep, initial, numSteps }`, documenté pour cet usage précis) plutôt que la variable fermée. Reproduit puis vérifié corrigé par un test simulant un `onComplete` synchrone. |
 | v2.11 | 10/08/2026 | Troisième bug bloquant trouvé au test réel suivant : MÊME symptôme que le correctif v2.9 (`WinAnsi cannot encode "→" (0x2192)`), preuve que le filtre basé sur `PDFFont.getCharacterSet()` ne fonctionnait pas réellement — seulement en mock. Remplacé par une table WinAnsiEncoding codée en dur (`JEU_WINANSI` dans `nexus-pdf-moteur.js`, standard figé PDF spec Appendix D.2), qui ne dépend plus d'aucune introspection runtime de pdf-lib. Voir "Correctif critique #2" ci-dessus. Leçon retenue : sans accès à la vraie bibliothèque pdf-lib dans le bac à sable, les mocks ne peuvent pas valider des hypothèses sur le comportement exact d'une dépendance tierce — seul le test réel de Frédéric fait foi pour ce type de bug. |
 | v2.12 | 10/08/2026 | Refonte "1 page A4" du rapport FDJ, à la demande explicite de Frédéric : le rapport ne doit plus jamais dépasser une page, quelle que soit la période. Nouvelle classe générique `NexusPdfMoteur.ConstructeurRapportUnePage` (section 8) dans `nexus-pdf-moteur.js` — zones de hauteur fixe (`ZONES_1P`), colonnes, primitives plafonnées (`ligneKpi`, `listePoints`, `tableauCompact`, `barresHorizontales`, `listeEquipe`, `stockCondense`, `conseil`, `decisions`) — explicitement générique et réutilisable par tout futur module NEXUS voulant un rapport 1 page (Verify, Inventaire, Brief, rapports mensuels/annuels), pas seulement FDJ. Le filtre WinAnsi (`assainirWinAnsi`) a été factorisé en une fonction unique partagée par `ConstructeurRapport` et `ConstructeurRapportUnePage` — une seule correction possible pour toutes les classes. `NEXUS-FDJ-Analyse-v1.html` : `construireRapportPdf()` entièrement recomposé (voir section 7, Étape 6) avec sélection/hiérarchisation des données (Top 5 jeux, 4 employés max avec logique "1 référence + vérité avant certitude" pour le reste, 3 décisions max, conseil ≤ 250 caractères, stock condensé avec renvoi vers FDJ Pilotage pour le détail complet) plutôt qu'une reproduction exhaustive des données. Canvas du graphique CA repensé (1200×260) pour un rendu correct une fois réduit à ~45mm de hauteur. Vérifié par mocks (aucune exception, une seule page créée, logique de référence équipe et de jeux prioritaires testée sur données réalistes) — la confirmation définitive reste, comme toujours pour ce module, le prochain test réel de Frédéric. |
+| v2.13 | 10/08/2026 | Rapports PDF implantés pour Verify, Inventaire et Brief (demande explicite de Frédéric), tous sur `ConstructeurRapportUnePage` : Brief réutilise l'objet `BRIEF` déjà construit sans recalcul ; Inventaire réutilise `dernierCtx` (contexte déjà chargé par `chargerReviewPeriode`) sans nouvelle requête ; Verify, qui n'avait aucune agrégation par période avant ce jour, gagne un nouvel onglet "Rapport" et `assemblerDonneesRapportVerify()` (écart cumulé sur `ecartMax = max(\|ecart_piste\|, \|ecart_boutique\|)`, réutilise `classifierEcart()` existant). Nouvelle primitive `paragraphe()` sur `ConstructeurRapportUnePage` pour le texte libre borné. FDJ Pilotage : le contenu du rapport (pas seulement les dates) s'adapte désormais à la granularité de la période — jours pour l'hebdomadaire, semaines pour le mensuel, mois pour l'annuel (`classifierTypePeriode`, `regrouperParSemaine`, `regrouperParMois`). Vue bureau de FDJ Pilotage vérifiée déjà active, aucun changement nécessaire. Les trois nouveaux rapports et l'adaptation FDJ sont vérifiés par mocks uniquement (aucun accès pdf-lib réel dans le bac à sable) — confirmation définitive au prochain test réel de Frédéric. |
 
 Prochaine révision suggérée : après vérification des sections héritées (§5) et des deux chantiers
 au statut inconnu (§4 — Anomalie stock, Capacité de réassort). Côté FDJ : figer les formules de

@@ -18,9 +18,11 @@
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
 <script src="nexus-auth.js"></script>
 <script src="nexus-forfait.js"></script>
 <script src="nexus-desktop.js"></script>
+<script src="nexus-pdf-moteur.js"></script>
 <style>
   :root{
     --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
@@ -347,6 +349,20 @@
   .tip-banniere-lien{font-family:var(--sans); font-size:11.5px; font-weight:700; color:var(--amber); text-decoration:none;}
   .tip-banniere-fermer{color:var(--text-dim); font-size:13px; cursor:pointer; padding:2px 6px;}
   @keyframes tipApparition{from{opacity:0; transform:translateY(-4px);} to{opacity:1; transform:translateY(0);}}
+
+  /* Rapport PDF (10/08/2026) — mêmes classes que NEXUS-FDJ-Analyse-v1.html,
+     NEXUS-Brief-v1.html et Nexus Verify (moteur PDF partagé, une seule
+     identité visuelle sur tous les rapports NEXUS, Article 11). */
+  .btn-rapport-pdf{display:block; width:100%; margin:14px 0 8px; padding:13px; border-radius:10px; border:none; background:var(--cyan); color:#0B0F14; font-family:var(--sans); font-size:13.5px; font-weight:700; cursor:pointer;}
+  .btn-rapport-pdf:disabled{opacity:0.55; cursor:default;}
+  .btn-rapport-pdf.secondaire{background:var(--panel-raised); color:var(--text); border:1px solid var(--hairline);}
+  .rapport-actions{display:flex; gap:8px;}
+  .rapport-actions .btn-rapport-pdf{margin:14px 0 0;}
+  .btn-lien{display:block; width:100%; margin:10px 0 8px; padding:6px; border:none; background:none; color:var(--text-dim); font-family:var(--sans); font-size:11.5px; text-decoration:underline; cursor:pointer;}
+  .statut-rapport{font-size:11.5px; color:var(--text-mid); text-align:center; margin-top:8px; min-height:14px; line-height:1.5;}
+  .statut-rapport.statut-pret{color:var(--green);}
+  .statut-rapport.statut-erreur{color:var(--red);}
+  .statut-detail{font-family:var(--mono); font-size:10px; color:var(--text-dim);}
 </style>
 </head>
 <body>
@@ -730,6 +746,203 @@
     });
     if (error) { console.error('Génération synthèse période:', error); return null; }
     return data;
+  }
+
+  // ------------------------------------------------------------
+  // RAPPORT PDF (10/08/2026) — réutilise le moteur PDF partagé
+  // (nexus-pdf-moteur.js, ConstructeurRapportUnePage) déjà construit pour
+  // NEXUS FDJ Pilotage, NEXUS Brief et Nexus Verify. Même flux en 2 temps
+  // (Générer, puis Partager/Ouvrir) et même sanitisation WinAnsi
+  // automatique. Réutilise EXACTEMENT dernierCtx (review, bornes,
+  // alertesPeriode, decisionsPeriode déjà chargés par
+  // chargerEtAfficherTout() pour l'affichage écran) — jamais un second
+  // appel RPC ni une deuxième formule (Article 11, une seule vérité).
+  // Uniquement disponible en vue semaine/mois/personnalisée (le rapport
+  // n'a pas de sens sur un seul quart, qui a déjà son propre Brief
+  // Inventaire à l'écran).
+  // ------------------------------------------------------------
+  let dernierRapportPdfInventaire = null;
+
+  function renderRapportInventaire() {
+    return `
+      <div class="section-titre">Rapport PDF</div>
+      <div class="card">
+        <div id="zoneActionsRapportInventaire">
+          <button class="btn-rapport-pdf" id="btnGenererRapportInventaire" type="button">Générer mon rapport</button>
+        </div>
+      </div>
+    `;
+  }
+
+  async function construireRapportPdfInventaire() {
+    const { review, bornes, alertesPeriode, decisionsPeriode } = dernierCtx;
+    const { COULEUR, ZONES_1P } = NexusPdfMoteur;
+    const debutFmt = new Date(bornes.debut + 'T00:00:00').toLocaleDateString('fr-FR');
+    const finFmt = new Date(bornes.fin + 'T00:00:00').toLocaleDateString('fr-FR');
+    const labelPeriode = LABELS_PERIODE[periodeSelectionnee] || 'Période';
+
+    const c = await NexusPdfMoteur.creerRapportUnePage({
+      titre: `NEXUS Inventaire — Rapport ${labelPeriode}`,
+      sujet: 'Rapport Inventaire NEXUS',
+    });
+
+    const zEntete = c.allouerZone(ZONES_1P.entete);
+    c.entete(zEntete, {
+      app: 'NEXUS · INVENTAIRE',
+      ligne1: `Rapport ${labelPeriode}`,
+      ligne2: `${debutFmt} → ${finFmt} · ${siteId}`,
+    });
+
+    const zKpi = c.allouerZone(ZONES_1P.kpi);
+    c.ligneKpi(zKpi, [
+      { label: 'Comptages', valeur: fmtNum(review.totalCounts) },
+      { label: 'Écarts détectés', valeur: fmtNum(review.totalDiscrepancies), couleurValeur: review.totalDiscrepancies ? COULEUR.ambre : COULEUR.texte },
+      { label: 'Écarts ouverts', valeur: fmtNum(review.openDiscrepancies), couleurValeur: review.openDiscrepancies ? COULEUR.rouge : COULEUR.texte },
+      { label: 'Démarque estimée', valeur: fmtEuros(review.estimatedValue), couleurValeur: review.estimatedValue ? COULEUR.rouge : COULEUR.texte },
+    ]);
+
+    const categoriesInstables = (review.categorySummary || []).filter(cat => cat.discrepancies > 0 || cat.openAlerts > 0).sort((a, b) => b.discrepancies - a.discrepancies);
+    const catPlusInstable = categoriesInstables[0];
+    const produitPlusRecurrent = (review.repeatedProducts || [])[0];
+
+    const zSynthese = c.allouerZone(ZONES_1P.synthese);
+    c.listePoints(zSynthese, {
+      titre: 'CE QU\'IL FAUT SAVOIR',
+      max: 5,
+      points: [
+        { label: 'Catégories terminées', valeur: fmtNum(review.completedCategories) },
+        { label: 'Comptages manquants', valeur: fmtNum(review.missingCounts) },
+        { label: 'Décisions prises', valeur: fmtNum(review.resolvedDiscrepancies) },
+        { label: 'Catégorie la plus instable', valeur: catPlusInstable ? `${catPlusInstable.categoryName} — ${catPlusInstable.discrepancies} écart${catPlusInstable.discrepancies > 1 ? 's' : ''}` : 'Aucune' },
+        { label: 'Produit le plus récurrent', valeur: produitPlusRecurrent ? `${produitPlusRecurrent.productName} — ${produitPlusRecurrent.occurrenceCount}×` : 'Aucun' },
+      ],
+    });
+
+    // Zone "graphique" réutilisée pour les catégories les plus instables
+    // (mini-barres) — Inventaire n'a pas de série quotidienne exploitable
+    // ici (la RPC renvoie un agrégat de période, pas jour par jour),
+    // contrairement à FDJ/Verify qui ont une vraie courbe temporelle.
+    const zCategories = c.allouerZone(ZONES_1P.graphique);
+    const maxDiscrepancies = Math.max(...categoriesInstables.map(cat => cat.discrepancies), 1);
+    if (categoriesInstables.length) {
+      c.barresHorizontales(zCategories, {
+        titre: 'CATÉGORIES LES PLUS INSTABLES',
+        max: 5,
+        items: categoriesInstables.map(cat => ({ label: cat.categoryName, valeur: `${cat.discrepancies} écart${cat.discrepancies > 1 ? 's' : ''}`, part: cat.discrepancies / maxDiscrepancies })),
+      });
+    } else {
+      c.paragraphe(zCategories, { titre: 'CATÉGORIES LES PLUS INSTABLES', texte: 'Aucune catégorie instable sur cette période.' });
+    }
+
+    const zVentes = c.allouerZone(ZONES_1P.ventes);
+    const colsVentes = c.diviserColonnes(zVentes);
+    c.tableauCompact(colsVentes.gauche, {
+      titre: 'PRODUITS RÉCURRENTS',
+      max: 5,
+      texteRenvoi: 'voir Inventaire',
+      colonnes: [{ label: 'Produit', cle: 'nom', largeur: 0.6 }, { label: 'Occ.', cle: 'occ', largeur: 0.4, align: 'droite' }],
+      lignes: (review.repeatedProducts || []).map(p => ({ nom: p.productName, occ: `${p.occurrenceCount}×` })),
+    });
+    const alertesTriees = [...(alertesPeriode || [])].sort((a, b) => {
+      const ordre = { critique: 0, attention: 1 };
+      return (ordre[a.gravite] ?? 9) - (ordre[b.gravite] ?? 9);
+    });
+    c.tableauCompact(colsVentes.droite, {
+      titre: 'ÉCARTS OUVERTS',
+      max: 5,
+      texteRenvoi: 'voir Inventaire',
+      colonnes: [{ label: 'Produit', cle: 'nom', largeur: 0.65 }, { label: 'Gravité', cle: 'gravite', largeur: 0.35, align: 'droite' }],
+      lignes: alertesTriees.map(a => ({ nom: a.inventaire_zone_produit ? a.inventaire_zone_produit.designation : 'Produit', gravite: a.gravite })),
+    });
+
+    const zDecisionsResume = c.allouerZone(ZONES_1P.equipe);
+    const compteResolution = { validee: 0, recomptage: 0, erreur_saisie: 0, demarque: 0 };
+    (decisionsPeriode || []).forEach(d => { if (compteResolution[d.resolution] !== undefined) compteResolution[d.resolution]++; });
+    c.listePoints(zDecisionsResume, {
+      titre: 'DÉCISIONS DE LA PÉRIODE',
+      max: 5,
+      points: [
+        { label: 'Écarts validés sans action', valeur: fmtNum(compteResolution.validee) },
+        { label: 'Recomptages demandés', valeur: fmtNum(compteResolution.recomptage) },
+        { label: 'Corrections acceptées', valeur: fmtNum(compteResolution.erreur_saisie) },
+        { label: 'Alertes maintenues', valeur: fmtNum(compteResolution.demarque) },
+        { label: 'Total décisions', valeur: fmtNum((decisionsPeriode || []).length) },
+      ],
+    });
+
+    const zBas = c.allouerZone(ZONES_1P.decisions);
+    const [zConseil, zDecisions] = c.diviserLignes(zBas, [16 * NexusPdfMoteur.MM, 34 * NexusPdfMoteur.MM]);
+    const texteConseil = review.openDiscrepancies > 0
+      ? `${review.openDiscrepancies} écart${review.openDiscrepancies > 1 ? 's restent' : ' reste'} ouvert${review.openDiscrepancies > 1 ? 's' : ''} sur la période, pour une démarque potentielle estimée à ${fmtEuros(review.estimatedValue)}${catPlusInstable ? `, principalement sur ${catPlusInstable.categoryName}` : ''}.`
+      : 'Aucun écart ouvert sur cette période — situation maîtrisée.';
+    c.conseil(zConseil, { texte: texteConseil, max: 250 });
+    c.decisions(zDecisions, {
+      titre: 'DÉCISIONS RECOMMANDÉES',
+      max: 3,
+      texteAucune: 'Rien qui mérite l’attention du manager sur cette période.',
+      items: alertesTriees.slice(0, 3).map(a => ({
+        urgence: a.gravite === 'critique' ? 'critique' : 'important',
+        titre: `Traiter ${a.inventaire_zone_produit ? a.inventaire_zone_produit.designation : 'ce produit'}`,
+        detail: `Écart ${a.gravite} — ouvert depuis le ${new Date(a.cree_le).toLocaleDateString('fr-FR')}.`,
+      })),
+    });
+
+    const zPied = c.allouerZone(ZONES_1P.piedDePage);
+    c.piedDePage(
+      zPied,
+      'NEXUS Inventaire · Rapport généré automatiquement — vérité avant certitude, jamais une prédiction.',
+      `Généré le ${new Date().toLocaleDateString('fr-FR')} à ${new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`,
+    );
+
+    const bytes = await NexusPdfMoteur.finaliser(c);
+    const nomFichier = `NEXUS-Inventaire-Rapport-${bornes.debut}-${bornes.fin}.pdf`;
+    return { bytes, nomFichier, titre: `NEXUS Inventaire — Rapport ${labelPeriode}`, texte: `Rapport Inventaire NEXUS — ${siteId}` };
+  }
+
+  async function lancerGenerationRapportInventaire() {
+    const zoneActions = document.getElementById('zoneActionsRapportInventaire');
+    zoneActions.innerHTML = `
+      <button class="btn-rapport-pdf" disabled type="button">Génération en cours…</button>
+      <div class="statut-rapport">Cela peut prendre quelques secondes.</div>
+    `;
+    try {
+      dernierRapportPdfInventaire = await construireRapportPdfInventaire();
+      afficherActionsRapportPretInventaire();
+    } catch (e) {
+      console.error('NEXUS Inventaire — génération du rapport PDF :', e);
+      zoneActions.innerHTML = `
+        <button class="btn-rapport-pdf" id="btnGenererRapportInventaire" type="button">Générer mon rapport</button>
+        <div class="statut-rapport statut-erreur">Erreur lors de la génération du rapport — réessayez.<br><span class="statut-detail">${(e && e.message) ? e.message : 'Erreur inconnue — voir la console du navigateur.'}</span></div>
+      `;
+      document.getElementById('btnGenererRapportInventaire').addEventListener('click', lancerGenerationRapportInventaire);
+    }
+  }
+
+  function afficherActionsRapportPretInventaire() {
+    const zoneActions = document.getElementById('zoneActionsRapportInventaire');
+    const partageOk = NexusPdfMoteur.webShareDisponible();
+    zoneActions.innerHTML = `
+      <div class="statut-rapport statut-pret">Rapport prêt.</div>
+      <div class="rapport-actions">
+        ${partageOk ? `<button class="btn-rapport-pdf" id="btnPartagerRapportInventaire" type="button">Partager le PDF</button>` : ''}
+        <button class="btn-rapport-pdf${partageOk ? ' secondaire' : ''}" id="btnOuvrirRapportInventaire" type="button">${partageOk ? 'Ouvrir le PDF' : 'Ouvrir / enregistrer le PDF'}</button>
+      </div>
+      <button class="btn-lien" id="btnRegenererRapportInventaire" type="button">Régénérer</button>
+    `;
+    if (partageOk) {
+      document.getElementById('btnPartagerRapportInventaire').addEventListener('click', async () => {
+        const r = await NexusPdfMoteur.partagerPdf(dernierRapportPdfInventaire.bytes, dernierRapportPdfInventaire.nomFichier, { titre: dernierRapportPdfInventaire.titre, texte: dernierRapportPdfInventaire.texte });
+        const s = zoneActions.querySelector('.statut-rapport');
+        if (r === 'echec' || r === 'indisponible') { if (s) s.textContent = 'Partage impossible sur cet appareil — utilisez « Ouvrir le PDF ».'; }
+        else if (r === 'partage') { if (s) s.textContent = 'Rapport partagé.'; }
+      });
+    }
+    document.getElementById('btnOuvrirRapportInventaire').addEventListener('click', async () => {
+      await NexusPdfMoteur.telechargerPdf(dernierRapportPdfInventaire.bytes, dernierRapportPdfInventaire.nomFichier);
+      const s = zoneActions.querySelector('.statut-rapport');
+      if (s) s.textContent = 'Rapport ouvert.';
+    });
+    document.getElementById('btnRegenererRapportInventaire').addEventListener('click', lancerGenerationRapportInventaire);
   }
 
   async function chargerEmployesSite(site) {
@@ -2114,6 +2327,7 @@
 
       ${renderResumeDecisionsQuart(decisionsPeriode || [], 'Décisions de la période')}
       ${review ? renderProduitsRecurrents(review.repeatedProducts) : ''}
+      ${review ? renderRapportInventaire() : ''}
       `}
 
       <div class="section-titre section-repliable" id="toggleSectionCorrection">
@@ -2163,6 +2377,9 @@
       filtreExceptionActif = !filtreExceptionActif;
       chargerEtAfficherTout();
     });
+    dernierRapportPdfInventaire = null; // une période rechargée invalide le rapport déjà généré
+    const btnGenererRapportInventaire = document.getElementById('btnGenererRapportInventaire');
+    if (btnGenererRapportInventaire) btnGenererRapportInventaire.addEventListener('click', lancerGenerationRapportInventaire);
     const ventesFileInput = document.getElementById('ventesFileInput');
     const btnComparerVentes = document.getElementById('btnComparerVentes');
     if (ventesFileInput && btnComparerVentes) {

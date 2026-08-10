@@ -1189,6 +1189,57 @@
   // palier) reprennent le calcul déjà fait ailleurs sur la page
   // (onglets Jeux/Équipe/Vue d'ensemble), pas une nouvelle formule.
   // ------------------------------------------------------------
+  // Granularité du rapport 1 page (10/08/2026, demande de Frédéric) :
+  // « Pour les rapports mensuels et annuels, je conserverais également 1
+  // page A4. Mais NEXUS change les informations affichées. Hebdomadaire :
+  // jours, quarts, jeux, écarts. Mensuel : semaines, tendances,
+  // progression, employés, mix jeux. Annuel : mois, saisonnalité,
+  // progression annuelle, catégories, principaux constats. » Concrètement :
+  // un graphique et un "jour le plus fort / à booster" à la journée n'ont
+  // aucun sens sur un an (365 points illisibles sur un petit graphique) —
+  // ce classificateur détermine à quelle granularité regrouper la courbe
+  // CA et le point de synthèse "meilleure/pire unité", tout le reste du
+  // rapport (KPI, Top jeux, palier, équipe, stock, décisions) restant
+  // valide à n'importe quelle échelle de temps.
+  function classifierTypePeriode(type, debut, fin) {
+    if (type === 'annee' || type === 'annee_precedente') return 'annuel';
+    if (type === 'mois' || type === 'mois_precedent') return 'mensuel';
+    if (type === 'personnalise' && debut && fin) {
+      const jours = Math.round((fin - debut) / 86400000) + 1;
+      if (jours > 64) return 'annuel';
+      if (jours > 10) return 'mensuel';
+    }
+    return 'hebdomadaire';
+  }
+
+  // Regroupe des lignes quotidiennes (avec .date et .ca_grattage) par
+  // semaine ISO — même numérotation que numeroSemaineISO() utilisée
+  // ailleurs sur la page (Article 11, une seule définition de "semaine").
+  function regrouperParSemaine(lignes) {
+    const parSemaine = {};
+    lignes.forEach(l => {
+      if (l.ca_grattage === null) return;
+      const d = new Date(l.date + 'T00:00:00');
+      const sem = numeroSemaineISO(d);
+      const cle = `${d.getFullYear()}-S${String(sem).padStart(2, '0')}`;
+      if (!parSemaine[cle]) parSemaine[cle] = { cle, label: `Semaine ${sem}`, ca: 0, premiereDate: l.date };
+      parSemaine[cle].ca += Number(l.ca_grattage);
+    });
+    return Object.values(parSemaine).sort((a, b) => a.premiereDate.localeCompare(b.premiereDate));
+  }
+
+  // Regroupe des lignes quotidiennes par mois calendaire.
+  function regrouperParMois(lignes) {
+    const parMois = {};
+    lignes.forEach(l => {
+      if (l.ca_grattage === null) return;
+      const cle = l.date.slice(0, 7);
+      if (!parMois[cle]) parMois[cle] = { cle, label: new Date(cle + '-01T00:00:00').toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }), ca: 0 };
+      parMois[cle].ca += Number(l.ca_grattage);
+    });
+    return Object.values(parMois).sort((a, b) => a.cle.localeCompare(b.cle));
+  }
+
   async function assemblerDonneesRapportFdj() {
     const d = await chargerDonneesPeriode();
     const actuel = sommerChamps(d.daily.actuel, CHAMPS_SUMMARY);
@@ -1221,15 +1272,41 @@
     let palierMoteur = null, caPalierMoteur = 0;
     repartitionPalier.forEach(p => { if (p.ca > caPalierMoteur) { caPalierMoteur = p.ca; palierMoteur = p.prix; } });
 
-    // Jour le plus performant / jour à booster — même tri que la Vue d'ensemble.
-    const joursTries = [...d.daily.actuel].filter(l => l.ca_grattage !== null).sort((a, b) => Number(b.ca_grattage) - Number(a.ca_grattage));
-    const meilleurJour = joursTries[0] || null;
-    const pireJour = joursTries.length > 1 ? joursTries[joursTries.length - 1] : null;
+    // Granularité du rapport — voir classifierTypePeriode() : détermine si
+    // "meilleure/pire unité" et la courbe CA se lisent au jour (rapport
+    // hebdomadaire ou plus court), à la semaine (mensuel) ou au mois
+    // (annuel). Jamais la même courbe journalière compressée pour toutes
+    // les échelles (10/08/2026, retour de Frédéric).
+    const typePeriode = classifierTypePeriode(periodeActuelle.type, periodeResolue.debut, periodeResolue.fin);
+    const labelUnite = typePeriode === 'annuel' ? 'mois' : (typePeriode === 'mensuel' ? 'semaine' : 'jour');
 
-    // Courbe CA chronologique (pour le graphique du rapport).
-    const lignesTriees = d.daily.actuel.slice().sort((a, b) => a.date.localeCompare(b.date));
-    const labelsCa = lignesTriees.map(l => new Date(l.date + 'T00:00:00').toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }));
-    const valeursCa = lignesTriees.map(l => l.ca_grattage !== null ? Number(l.ca_grattage) : 0);
+    let meilleureUnite = null, pireUnite = null, labelsCa = [], valeursCa = [];
+    if (typePeriode === 'annuel') {
+      const mois = regrouperParMois(d.daily.actuel);
+      if (mois.length) {
+        const tries = [...mois].sort((a, b) => b.ca - a.ca);
+        meilleureUnite = { label: tries[0].label, ca: tries[0].ca };
+        pireUnite = tries.length > 1 ? { label: tries[tries.length - 1].label, ca: tries[tries.length - 1].ca } : null;
+      }
+      labelsCa = mois.map(m => new Date(m.cle + '-01T00:00:00').toLocaleDateString('fr-FR', { month: 'short' }));
+      valeursCa = mois.map(m => m.ca);
+    } else if (typePeriode === 'mensuel') {
+      const semaines = regrouperParSemaine(d.daily.actuel);
+      if (semaines.length) {
+        const tries = [...semaines].sort((a, b) => b.ca - a.ca);
+        meilleureUnite = { label: tries[0].label, ca: tries[0].ca };
+        pireUnite = tries.length > 1 ? { label: tries[tries.length - 1].label, ca: tries[tries.length - 1].ca } : null;
+      }
+      labelsCa = semaines.map(s => s.label.replace('Semaine ', 'S'));
+      valeursCa = semaines.map(s => s.ca);
+    } else {
+      const joursTries = [...d.daily.actuel].filter(l => l.ca_grattage !== null).sort((a, b) => Number(b.ca_grattage) - Number(a.ca_grattage));
+      if (joursTries[0]) meilleureUnite = { label: new Date(joursTries[0].date + 'T00:00:00').toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' }), ca: Number(joursTries[0].ca_grattage) };
+      if (joursTries.length > 1) { const p = joursTries[joursTries.length - 1]; pireUnite = { label: new Date(p.date + 'T00:00:00').toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' }), ca: Number(p.ca_grattage) }; }
+      const lignesTriees = d.daily.actuel.slice().sort((a, b) => a.date.localeCompare(b.date));
+      labelsCa = lignesTriees.map(l => new Date(l.date + 'T00:00:00').toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }));
+      valeursCa = lignesTriees.map(l => l.ca_grattage !== null ? Number(l.ca_grattage) : 0);
+    }
 
     // Top vendeurs — même agrégation que l'onglet Équipe (même seuil minimum de quarts pour le CA moyen).
     const SEUIL_MIN_QUARTS = 3;
@@ -1264,7 +1341,7 @@
       ca: actuel.ca_grattage, caisseTirages: actuel.caisse_tirages, evolCa, tauxConformite,
       quartsControles: actuel.nb_quarts_controles, quartsConformes: actuel.nb_quarts_conformes,
       ecartTotal: actuel.ecart_total, nbEcartsNonNuls: actuel.nb_ecarts_non_nuls,
-      jeuMoteur, palierMoteur, meilleurJour, pireJour, labelsCa, valeursCa,
+      jeuMoteur, palierMoteur, typePeriode, labelUnite, meilleureUnite, pireUnite, labelsCa, valeursCa,
       topJeux, repartitionPalier, topVendeurs,
       enRupture, enVigilance, activationsPeriode,
       decisions, syntheseCoach,
@@ -1421,21 +1498,29 @@
     ]);
 
     // --- Ce qu'il faut savoir (5 points maximum) ---
+    // Le libellé et la granularité de "meilleure/pire unité" s'adaptent au
+    // type de période (hebdomadaire → jour, mensuel → semaine, annuel →
+    // mois) — voir classifierTypePeriode() dans assemblerDonneesRapportFdj.
+    const LABELS_UNITE_FORTE = { jour: 'Jour le plus fort', semaine: 'Semaine la plus forte', mois: 'Mois le plus fort' };
+    const LABELS_UNITE_BOOSTER = { jour: 'Jour à booster', semaine: 'Semaine à booster', mois: 'Mois à booster' };
     const zSynthese = c.allouerZone(ZONES_1P.synthese);
     c.listePoints(zSynthese, {
       points: [
         { label: 'Jeu moteur', valeur: donnees.jeuMoteur ? `${donnees.jeuMoteur.nom} — ${fmtEuro(donnees.topJeux[0].ca)}` : '—' },
         { label: 'Palier moteur', valeur: donnees.palierMoteur ? `${donnees.palierMoteur} € — ${fmtEuro(Math.max(...donnees.repartitionPalier.map(p => p.ca), 0))}` : '—' },
-        { label: 'Jour le plus fort', valeur: donnees.meilleurJour ? new Date(donnees.meilleurJour.date + 'T00:00:00').toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' }) : '—' },
-        { label: 'Jour à booster', valeur: donnees.pireJour ? new Date(donnees.pireJour.date + 'T00:00:00').toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' }) : '—' },
+        { label: LABELS_UNITE_FORTE[donnees.labelUnite], valeur: donnees.meilleureUnite ? `${donnees.meilleureUnite.label} — ${fmtEuro(donnees.meilleureUnite.ca)}` : '—' },
+        { label: LABELS_UNITE_BOOSTER[donnees.labelUnite], valeur: donnees.pireUnite ? `${donnees.pireUnite.label} — ${fmtEuro(donnees.pireUnite.ca)}` : '—' },
         { label: 'Point de vigilance', valeur: donnees.enRupture.length ? `${donnees.enRupture[0].nom} en rupture` : (donnees.enVigilance.length ? `${donnees.enVigilance.length} jeu${donnees.enVigilance.length > 1 ? 'x' : ''} à surveiller` : 'Rien à signaler') },
       ],
       max: 5,
     });
 
-    // --- Graphique CA (réduit) ---
+    // --- Graphique CA (réduit) — agrégé au jour/semaine/mois selon le type de période ---
     const zGraph = c.allouerZone(ZONES_1P.graphique);
-    await c.graphique(zGraph, imageCaPng, { legende: 'CA grattage — évolution quotidienne' });
+    const legendeGraphique = donnees.typePeriode === 'annuel' ? 'CA grattage — évolution par mois'
+      : donnees.typePeriode === 'mensuel' ? 'CA grattage — évolution par semaine'
+      : 'CA grattage — évolution quotidienne';
+    await c.graphique(zGraph, imageCaPng, { legende: legendeGraphique });
 
     // --- Ventes / Mix produits : Top jeux (gauche) + répartition par palier (droite) ---
     const zVentes = c.allouerZone(ZONES_1P.ventes);

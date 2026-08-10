@@ -214,6 +214,22 @@
   .impact-meta-val{font-family:var(--mono); font-weight:600;}
 
   footer{padding:24px 20px 32px; text-align:center; font-family:var(--mono); font-size:10px; color:var(--text-dim); letter-spacing:0.03em;}
+
+  /* Rapport PDF (10/08/2026) — mêmes classes que NEXUS-FDJ-Analyse-v1.html
+     (moteur PDF partagé, même identité visuelle sur tous les rapports
+     NEXUS, Article 11). */
+  .rapport-titre{font-size:16px; font-weight:700;}
+  .rapport-sous{font-size:11.5px; color:var(--text-mid); margin-top:4px;}
+  .btn-rapport-pdf{display:block; width:100%; margin:14px 0 8px; padding:13px; border-radius:10px; border:none; background:var(--cyan); color:#0B0F14; font-family:var(--sans); font-size:13.5px; font-weight:700; cursor:pointer;}
+  .btn-rapport-pdf:disabled{opacity:0.55; cursor:default;}
+  .btn-rapport-pdf.secondaire{background:var(--panel-raised); color:var(--text); border:1px solid var(--hairline);}
+  .rapport-actions{display:flex; gap:8px;}
+  .rapport-actions .btn-rapport-pdf{margin:14px 0 0;}
+  .btn-lien{display:block; width:100%; margin:10px 0 8px; padding:6px; border:none; background:none; color:var(--text-dim); font-family:var(--sans); font-size:11.5px; text-decoration:underline; cursor:pointer;}
+  .statut-rapport{font-size:11.5px; color:var(--text-mid); text-align:center; margin-top:8px; min-height:14px; line-height:1.5;}
+  .statut-rapport.statut-pret{color:var(--green);}
+  .statut-rapport.statut-erreur{color:var(--red);}
+  .statut-detail{font-family:var(--mono); font-size:10px; color:var(--text-dim);}
 </style>
 </head>
 <body>
@@ -241,6 +257,8 @@
 <script src="nexus-fdj-moteur.js"></script>
 <script src="nexus-coach-fdj-moteur.js"></script>
 <script src="nexus-conseiller.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+<script src="nexus-pdf-moteur.js"></script>
 <script>
   // ============================================================
   // NEXUS Brief — synthèse à l'attention du dirigeant (02/08/2026, demande
@@ -1127,8 +1145,172 @@
       </div>`;
   }
 
+  // ------------------------------------------------------------
+  // RAPPORT PDF (10/08/2026) — réutilise le moteur PDF partagé
+  // (nexus-pdf-moteur.js, ConstructeurRapportUnePage) déjà construit pour
+  // NEXUS FDJ Pilotage. Même flux en 2 temps (Générer, puis
+  // Partager/Ouvrir) et même sanitisation WinAnsi automatique. Aucune
+  // nouvelle agrégation nécessaire ici : BRIEF (variable module-level,
+  // reconstruite par rafraichir()) est DÉJÀ le résultat assemblé et
+  // classé par les 7-9 moteurs NEXUS pour l'affichage écran — le rapport
+  // PDF met simplement en page ces mêmes données (Article 11, une seule
+  // vérité), jamais un recalcul parallèle.
+  // ------------------------------------------------------------
+  let dernierRapportPdf = null;
+
+  function renderRapportBrief() {
+    return `
+      <div class="section">
+        <div class="rapport-titre">Rapport PDF</div>
+        <div class="rapport-sous">Une page A4 — la synthèse du jour à imprimer ou partager.</div>
+        <div id="zoneActionsRapport">
+          <button class="btn-rapport-pdf" id="btnGenererRapport" type="button">Générer mon rapport</button>
+        </div>
+      </div>`;
+  }
+
+  // Compose le texte "Ce qui compte aujourd'hui" (5 points max) à partir
+  // des 5 axes de la Boussole réellement mesurés — jamais un axe non
+  // mesuré affiché comme "0" (même règle que l'écran : Article 5).
+  function pointsBoussoleRapport(brief) {
+    return brief.axes.map(a => ({
+      label: a.nom,
+      valeur: a.valeur != null ? `${a.statut} (${a.valeur}/100)` : 'Pas encore assez de données',
+    }));
+  }
+
+  async function construireRapportPdf() {
+    const brief = BRIEF;
+    const { COULEUR, ZONES_1P, MM: MM1P } = NexusPdfMoteur;
+    const c = await NexusPdfMoteur.creerRapportUnePage({
+      titre: `NEXUS Brief — ${brief.periodeLabel}`,
+      sujet: 'Brief NEXUS — synthèse dirigeant',
+    });
+
+    const zEntete = c.allouerZone(ZONES_1P.entete);
+    c.entete(zEntete, {
+      app: 'NEXUS · BRIEF',
+      ligne1: `Synthèse du ${brief.periodeLabel}`,
+      ligne2: `${STATION_CONFIG.station_nom} · ${brief.decisions.length} décision${brief.decisions.length > 1 ? 's' : ''} prioritaire${brief.decisions.length > 1 ? 's' : ''}`,
+    });
+
+    const zKpi = c.allouerZone(ZONES_1P.kpi);
+    const confianceCourte = (brief.impact.confianceGlobale || '').split(' ')[0] || '—';
+    c.ligneKpi(zKpi, [
+      { label: 'Indice NEXUS', valeur: brief.scoreGlobal != null ? `${brief.scoreGlobal}/100` : '—' },
+      { label: 'Gain potentiel', valeur: `${Math.round(brief.impact.gain).toLocaleString('fr-FR')} €`, couleurValeur: COULEUR.vert },
+      { label: 'Risque identifié', valeur: `${Math.round(brief.impact.risque).toLocaleString('fr-FR')} €`, couleurValeur: brief.impact.risque > 0 ? COULEUR.rouge : COULEUR.texte },
+      { label: 'Fiabilité', valeur: confianceCourte, detail: 'moteurs actifs' },
+    ]);
+
+    const zSynthese = c.allouerZone(ZONES_1P.synthese);
+    c.paragraphe(zSynthese, { titre: 'SYNTHÈSE', texte: brief.synthese, taille: 9.3, interligne: 13 });
+
+    // Zone "graphique" réutilisée pour la Boussole (5 axes, mini-barres) —
+    // pas de courbe temporelle disponible côté Brief, mais le principe
+    // "mini-graphique borné à la zone" du moteur partagé s'applique
+    // exactement pareil.
+    const zBoussole = c.allouerZone(ZONES_1P.graphique);
+    c.barresHorizontales(zBoussole, {
+      titre: 'BOUSSOLE NEXUS (5 AXES)',
+      max: 5,
+      items: brief.axes.map(a => ({ label: a.nom, valeur: a.valeur != null ? `${a.valeur}/100` : '—', part: a.valeur != null ? a.valeur / 100 : 0 })),
+    });
+
+    const zForcesWatch = c.allouerZone(ZONES_1P.ventes);
+    const colsForcesWatch = c.diviserColonnes(zForcesWatch);
+    c.listePoints(colsForcesWatch.gauche, {
+      titre: 'FORCES DU MOMENT',
+      max: 2,
+      points: brief.forces.length ? brief.forces.map(f => ({ label: f.titre, valeur: f.detail })) : [{ label: 'Aucune force identifiée', valeur: 'sur cette période' }],
+    });
+    c.listePoints(colsForcesWatch.droite, {
+      titre: 'À SURVEILLER',
+      max: 3,
+      points: brief.watchlist.length ? brief.watchlist.map(w => ({ label: w.article, valeur: w.action })) : [{ label: 'Rien à surveiller', valeur: 'en dehors des décisions ci-dessous' }],
+    });
+
+    // Zone "équipe" réallouée aux décisions (Brief n'a pas de bloc
+    // équipe/stock distinct — l'axe Équipe vit déjà dans la Boussole
+    // ci-dessus) : les décisions gagnent le budget des deux zones réunies
+    // pour un détail plus lisible sur les 3 décisions prioritaires.
+    const zDecisions = c.allouerZone(ZONES_1P.equipe + ZONES_1P.decisions);
+    c.decisions(zDecisions, {
+      titre: 'DÉCISIONS PRIORITAIRES',
+      max: 3,
+      texteAucune: '✅ Rien ne nécessite une décision du dirigeant aujourd’hui.',
+      items: brief.decisions.map((p, i) => ({
+        urgence: i === 0 ? 'critique' : (i === 1 ? 'important' : 'observation'),
+        titre: p.decision,
+        detail: p.pourquoi,
+      })),
+    });
+
+    const zPied = c.allouerZone(ZONES_1P.piedDePage);
+    c.piedDePage(
+      zPied,
+      'NEXUS Brief · synthèse générée automatiquement — vérité avant certitude, jamais une prédiction.',
+      `Généré le ${new Date().toLocaleDateString('fr-FR')} à ${new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`,
+    );
+
+    const bytes = await NexusPdfMoteur.finaliser(c);
+    const nomFichier = `NEXUS-Brief-${new Date().toISOString().slice(0, 10)}.pdf`;
+    return {
+      bytes, nomFichier,
+      titre: `NEXUS Brief — ${brief.periodeLabel}`,
+      texte: `Brief NEXUS — ${STATION_CONFIG.station_nom}`,
+    };
+  }
+
+  async function lancerGenerationRapport() {
+    const zoneActions = document.getElementById('zoneActionsRapport');
+    zoneActions.innerHTML = `
+      <button class="btn-rapport-pdf" disabled type="button">Génération en cours…</button>
+      <div class="statut-rapport">Cela peut prendre quelques secondes.</div>
+    `;
+    try {
+      dernierRapportPdf = await construireRapportPdf();
+      afficherActionsRapportPret();
+    } catch (e) {
+      console.error('NEXUS Brief — génération du rapport PDF :', e);
+      zoneActions.innerHTML = `
+        <button class="btn-rapport-pdf" id="btnGenererRapport" type="button">Générer mon rapport</button>
+        <div class="statut-rapport statut-erreur">Erreur lors de la génération du rapport — réessayez.<br><span class="statut-detail">${(e && e.message) ? e.message : 'Erreur inconnue — voir la console du navigateur.'}</span></div>
+      `;
+      document.getElementById('btnGenererRapport').addEventListener('click', lancerGenerationRapport);
+    }
+  }
+
+  function afficherActionsRapportPret() {
+    const zoneActions = document.getElementById('zoneActionsRapport');
+    const partageOk = NexusPdfMoteur.webShareDisponible();
+    zoneActions.innerHTML = `
+      <div class="statut-rapport statut-pret">Rapport prêt.</div>
+      <div class="rapport-actions">
+        ${partageOk ? `<button class="btn-rapport-pdf" id="btnPartagerRapport" type="button">Partager le PDF</button>` : ''}
+        <button class="btn-rapport-pdf${partageOk ? ' secondaire' : ''}" id="btnOuvrirRapport" type="button">${partageOk ? 'Ouvrir le PDF' : 'Ouvrir / enregistrer le PDF'}</button>
+      </div>
+      <button class="btn-lien" id="btnRegenererRapport" type="button">Régénérer</button>
+    `;
+    if (partageOk) {
+      document.getElementById('btnPartagerRapport').addEventListener('click', async () => {
+        const r = await NexusPdfMoteur.partagerPdf(dernierRapportPdf.bytes, dernierRapportPdf.nomFichier, { titre: dernierRapportPdf.titre, texte: dernierRapportPdf.texte });
+        const s = zoneActions.querySelector('.statut-rapport');
+        if (r === 'echec' || r === 'indisponible') { if (s) s.textContent = 'Partage impossible sur cet appareil — utilisez « Ouvrir le PDF ».'; }
+        else if (r === 'partage') { if (s) s.textContent = 'Rapport partagé.'; }
+      });
+    }
+    document.getElementById('btnOuvrirRapport').addEventListener('click', async () => {
+      await NexusPdfMoteur.telechargerPdf(dernierRapportPdf.bytes, dernierRapportPdf.nomFichier);
+      const s = zoneActions.querySelector('.statut-rapport');
+      if (s) s.textContent = 'Rapport ouvert.';
+    });
+    document.getElementById('btnRegenererRapport').addEventListener('click', lancerGenerationRapport);
+  }
+
   function renderBrief() {
     const root = document.getElementById('briefRoot');
+    dernierRapportPdf = null; // un Brief déjà rafraîchi invalide le rapport déjà généré
     root.innerHTML = `<div class="desktop-grid">
       ${renderHeroEtSynthese(BRIEF)}
       ${renderBoussole(BRIEF)}
@@ -1136,7 +1318,9 @@
       ${renderDecisions(BRIEF)}
       ${renderWatchlist(BRIEF)}
       ${renderImpact(BRIEF)}
+      ${renderRapportBrief()}
     </div>`;
+    document.getElementById('btnGenererRapport').addEventListener('click', lancerGenerationRapport);
 
     root.querySelectorAll('.decision-valider').forEach(btn => {
       btn.addEventListener('click', async (e) => {

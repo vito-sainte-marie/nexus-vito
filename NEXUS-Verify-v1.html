@@ -290,11 +290,28 @@
      colonnes qui respirent qu'une grille rigide qui casse le contenu des
      grandes cartes (NEXUS Data Connector, Ventes théoriques). */
   body.nexus-desktop #vueHistorique .card{max-width:720px; margin-left:auto; margin-right:auto;}
+
+  /* Rapport PDF (10/08/2026) — mêmes classes que NEXUS-FDJ-Analyse-v1.html
+     et NEXUS-Brief-v1.html (moteur PDF partagé, une seule identité
+     visuelle sur tous les rapports NEXUS, Article 11). */
+  .btn-rapport-pdf{display:block; width:100%; margin:14px 0 8px; padding:13px; border-radius:10px; border:none; background:var(--cyan); color:#0B0F14; font-family:var(--sans); font-size:13.5px; font-weight:700; cursor:pointer;}
+  .btn-rapport-pdf:disabled{opacity:0.55; cursor:default;}
+  .btn-rapport-pdf.secondaire{background:var(--panel-raised); color:var(--text); border:1px solid var(--hairline);}
+  .rapport-actions{display:flex; gap:8px;}
+  .rapport-actions .btn-rapport-pdf{margin:14px 0 0;}
+  .btn-lien{display:block; width:100%; margin:10px 0 8px; padding:6px; border:none; background:none; color:var(--text-dim); font-family:var(--sans); font-size:11.5px; text-decoration:underline; cursor:pointer;}
+  .statut-rapport{font-size:11.5px; color:var(--text-mid); text-align:center; margin-top:8px; min-height:14px; line-height:1.5;}
+  .statut-rapport.statut-pret{color:var(--green);}
+  .statut-rapport.statut-erreur{color:var(--red);}
+  .statut-detail{font-family:var(--mono); font-size:10px; color:var(--text-dim);}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
 <script src="nexus-auth.js"></script>
 <script src="nexus-desktop.js"></script>
+<script src="nexus-pdf-moteur.js"></script>
 </head>
 <body>
 <div class="phone" id="app">
@@ -314,6 +331,7 @@
   <div class="tabs">
     <div class="tab active" id="tabNouveau">Nouvel audit</div>
     <div class="tab" id="tabHistorique">Historique</div>
+    <div class="tab" id="tabRapport">Rapport</div>
   </div>
 
   <div class="section" id="vueNouveau">
@@ -580,6 +598,28 @@
     </div>
   </div>
 
+  <div class="section" id="vueRapport" style="display:none;">
+    <div class="card">
+      <div class="section-label">Rapport PDF</div>
+      <div class="row2">
+        <div>
+          <label class="f">Période</label>
+          <select id="v_rapport_periode">
+            <option value="7j">7 derniers jours</option>
+            <option value="30j" selected>30 derniers jours</option>
+            <option value="mois">Ce mois</option>
+            <option value="mois_precedent">Mois précédent</option>
+            <option value="annee">Cette année</option>
+          </select>
+        </div>
+      </div>
+      <div class="note">Une page A4 — écarts de caisse, répartition par gravité, audits à justifier et décisions recommandées sur la période choisie.</div>
+      <div id="zoneActionsRapportVerify">
+        <button class="btn-rapport-pdf" id="btnGenererRapportVerify" type="button">Générer mon rapport</button>
+      </div>
+    </div>
+  </div>
+
   <footer>Nexus Verify v1 · Rapprochement Espèces / Chèques / CB · Réservé manager &amp; gérant</footer>
 </div>
 
@@ -628,6 +668,263 @@
     if (abs <= 2) return `${nom} : conforme.`;
     const sens = ecart > 0 ? 'excédent' : 'manque';
     return `${nom} : écart de ${abs.toFixed(2)} € (${sens}) — à vérifier avant clôture.`;
+  }
+
+  // ------------------------------------------------------------
+  // RAPPORT PDF (10/08/2026) — réutilise le moteur PDF partagé
+  // (nexus-pdf-moteur.js, ConstructeurRapportUnePage) déjà construit pour
+  // NEXUS FDJ Pilotage et NEXUS Brief. Même flux en 2 temps (Générer,
+  // puis Partager/Ouvrir) et même sanitisation WinAnsi automatique.
+  // Verify n'avait avant ce jour aucune agrégation par période (l'écran
+  // fonctionne quart par quart) — assemblerDonneesRapportVerify() est
+  // donc la première fonction de ce fichier à agréger audits_caisse sur
+  // une plage de dates, pour le seul usage du rapport.
+  // ------------------------------------------------------------
+  let dernierRapportPdfVerify = null;
+
+  function ajouterJoursVerify(d, n) { const r = new Date(d); r.setDate(r.getDate() + n); return r; }
+  function dateISOVerify(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
+
+  function resoudrePeriodeRapportVerify() {
+    const type = document.getElementById('v_rapport_periode').value;
+    const auj = new Date(); auj.setHours(0, 0, 0, 0);
+    let debut, fin, label;
+    if (type === '7j') { fin = new Date(auj); debut = ajouterJoursVerify(auj, -6); label = '7 derniers jours'; }
+    else if (type === 'mois') { debut = new Date(auj.getFullYear(), auj.getMonth(), 1); fin = new Date(auj.getFullYear(), auj.getMonth() + 1, 0); label = 'Ce mois'; }
+    else if (type === 'mois_precedent') { const mp = new Date(auj.getFullYear(), auj.getMonth() - 1, 1); debut = mp; fin = new Date(mp.getFullYear(), mp.getMonth() + 1, 0); label = 'Mois précédent'; }
+    else if (type === 'annee') { debut = new Date(auj.getFullYear(), 0, 1); fin = new Date(auj.getFullYear(), 11, 31); label = 'Cette année'; }
+    else { fin = new Date(auj); debut = ajouterJoursVerify(auj, -29); label = '30 derniers jours'; }
+    return { debut, fin, label };
+  }
+
+  // Agrège audits_caisse sur [debut, fin] — jamais une deuxième formule
+  // de gravité : reprend classifierEcart()/GRAVITE_ORDRE déjà utilisés
+  // pour Nouvel audit et Historique (Article 11). L'ampleur d'un audit
+  // est le MAX des deux composantes (piste, boutique), pas leur somme
+  // signée (ecart_total) : +15 piste et -15 boutique donneraient
+  // ecart_total = 0 alors que les deux sont de vraies anomalies.
+  async function assemblerDonneesRapportVerify(debut, fin) {
+    const { data, error } = await fetchAllRows(() => nexusClient.from('audits_caisse')
+      .select('date, quart, ecart_piste, ecart_boutique, statut, commentaire, employes_piste, employes_boutique')
+      .eq('site', SITE_ACTUEL).gte('date', dateISOVerify(debut)).lte('date', dateISOVerify(fin))
+      .order('date', { ascending: true }));
+    if (error) throw error;
+    const audits = (data || []).map(a => ({ ...a, ecartMax: Math.max(Math.abs(Number(a.ecart_piste || 0)), Math.abs(Number(a.ecart_boutique || 0))) }));
+    const total = audits.length;
+    const parStatut = { conforme: 0, surveiller: 0, anomalie: 0, critique: 0 };
+    audits.forEach(a => { if (parStatut[a.statut] != null) parStatut[a.statut]++; });
+    const tauxConforme = total > 0 ? parStatut.conforme / total : null;
+    const ecartCumule = audits.reduce((s, a) => s + a.ecartMax, 0);
+    const triesParEcart = [...audits].sort((a, b) => b.ecartMax - a.ecartMax);
+    const pireEcart = triesParEcart[0] || null;
+    const topEcarts = triesParEcart.slice(0, 5);
+    const aJustifier = audits.filter(a => (a.statut === 'anomalie' || a.statut === 'critique') && !a.commentaire)
+      .sort((a, b) => b.ecartMax - a.ecartMax);
+    let nbPisteDominant = 0, nbBoutiqueDominant = 0;
+    audits.forEach(a => {
+      if (Math.abs(a.ecart_piste) > Math.abs(a.ecart_boutique)) nbPisteDominant++;
+      else if (Math.abs(a.ecart_boutique) > Math.abs(a.ecart_piste)) nbBoutiqueDominant++;
+    });
+    const composantePlusTouchee = nbPisteDominant === nbBoutiqueDominant ? 'Équilibré entre piste et boutique' : (nbPisteDominant > nbBoutiqueDominant ? 'Piste' : 'Boutique');
+    const parJour = {};
+    audits.forEach(a => { parJour[a.date] = (parJour[a.date] || 0) + a.ecartMax; });
+    const joursTries = Object.keys(parJour).sort();
+    const labelsEcart = joursTries.map(d => new Date(d + 'T00:00:00').toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }));
+    const valeursEcart = joursTries.map(d => parJour[d]);
+    let jourPlusARisque = null;
+    joursTries.forEach(d => { if (!jourPlusARisque || parJour[d] > parJour[jourPlusARisque]) jourPlusARisque = d; });
+    return {
+      debut, fin, total, parStatut, tauxConforme, ecartCumule, pireEcart, topEcarts, aJustifier,
+      composantePlusTouchee, labelsEcart, valeursEcart, jourPlusARisque, jourPlusARisqueMontant: jourPlusARisque ? parJour[jourPlusARisque] : 0,
+      genereLe: new Date(),
+    };
+  }
+
+  // Même correctif que NEXUS FDJ Pilotage (10/08/2026, TDZ Chart.js) :
+  // animation.onComplete peut être appelé de façon SYNCHRONE avec
+  // duration:0, avant la fin de l'affectation `const chart = ...` — on
+  // utilise donc l'objet fourni par le callback (`animation.chart`),
+  // jamais la variable fermée.
+  function genererImageGraphiqueEcartVerify(labels, valeurs) {
+    return new Promise(resolve => {
+      const canvas = document.createElement('canvas');
+      canvas.width = 1200; canvas.height = 260;
+      new Chart(canvas, {
+        type: 'line',
+        data: { labels, datasets: [{ data: valeurs, borderColor: '#F0575A', backgroundColor: 'rgba(240,87,90,0.12)', fill: true, tension: 0.25, pointRadius: 3, borderWidth: 2 }] },
+        options: {
+          responsive: false,
+          animation: {
+            duration: 0,
+            onComplete: (animation) => {
+              const chartInstance = animation.chart;
+              const dataUrl = chartInstance.toBase64Image('image/png', 1);
+              chartInstance.destroy();
+              resolve(dataUrl);
+            },
+          },
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { ticks: { color: '#333', font: { size: 13 } }, grid: { color: '#e2e2e2' } },
+            y: { ticks: { color: '#333', font: { size: 13 } }, grid: { color: '#e2e2e2' }, beginAtZero: true },
+          },
+        },
+      });
+    });
+  }
+
+  function fmtEuroVerify(n) { return (n === null || n === undefined || isNaN(n)) ? '—' : `${Number(n).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`; }
+  function fmtPctVerify(n) { return (n === null || n === undefined || isNaN(n)) ? '—' : `${(n * 100).toLocaleString('fr-FR', { maximumFractionDigits: 1 })} %`; }
+
+  async function construireRapportPdfVerify() {
+    const { debut, fin, label } = resoudrePeriodeRapportVerify();
+    const donnees = await assemblerDonneesRapportVerify(debut, fin);
+    const imageEcartPng = donnees.labelsEcart.length ? await genererImageGraphiqueEcartVerify(donnees.labelsEcart, donnees.valeursEcart) : null;
+    const { COULEUR, ZONES_1P } = NexusPdfMoteur;
+
+    const c = await NexusPdfMoteur.creerRapportUnePage({
+      titre: `NEXUS Verify — Rapport ${label}`,
+      sujet: 'Rapport Nexus Verify — écarts de caisse',
+    });
+
+    const zEntete = c.allouerZone(ZONES_1P.entete);
+    c.entete(zEntete, {
+      app: 'NEXUS · VERIFY',
+      ligne1: `Rapport ${label}`,
+      ligne2: `${debut.toLocaleDateString('fr-FR')} → ${fin.toLocaleDateString('fr-FR')} · ${SITE_ACTUEL}`,
+    });
+
+    const zKpi = c.allouerZone(ZONES_1P.kpi);
+    c.ligneKpi(zKpi, [
+      { label: 'Audits', valeur: String(donnees.total) },
+      { label: 'Écart cumulé', valeur: fmtEuroVerify(donnees.ecartCumule), couleurValeur: donnees.ecartCumule > 0 ? COULEUR.rouge : COULEUR.texte },
+      { label: 'Taux conforme', valeur: fmtPctVerify(donnees.tauxConforme) },
+      { label: 'Pire écart', valeur: donnees.pireEcart ? fmtEuroVerify(donnees.pireEcart.ecartMax) : '—', couleurValeur: COULEUR.rouge },
+    ]);
+
+    const zSynthese = c.allouerZone(ZONES_1P.synthese);
+    c.listePoints(zSynthese, {
+      titre: 'CE QU\'IL FAUT SAVOIR',
+      max: 5,
+      points: [
+        { label: 'Jour le plus à risque', valeur: donnees.jourPlusARisque ? `${new Date(donnees.jourPlusARisque + 'T00:00:00').toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })} — ${fmtEuroVerify(donnees.jourPlusARisqueMontant)}` : '—' },
+        { label: 'Audits à justifier', valeur: donnees.aJustifier.length ? `${donnees.aJustifier.length} sans commentaire` : 'Aucun' },
+        { label: 'Composante la plus touchée', valeur: donnees.composantePlusTouchee },
+        { label: 'Audits critiques', valeur: String(donnees.parStatut.critique) },
+        { label: 'Audits conformes', valeur: `${donnees.parStatut.conforme} / ${donnees.total}` },
+      ],
+    });
+
+    const zGraph = c.allouerZone(ZONES_1P.graphique);
+    if (imageEcartPng) {
+      await c.graphique(zGraph, imageEcartPng, { legende: 'Écart de caisse cumulé — évolution quotidienne' });
+    } else {
+      c.paragraphe(zGraph, { titre: 'ÉVOLUTION DES ÉCARTS', texte: 'Aucun audit enregistré sur cette période.' });
+    }
+
+    const zRepartition = c.allouerZone(ZONES_1P.ventes);
+    const colsRepartition = c.diviserColonnes(zRepartition);
+    const maxStatut = Math.max(donnees.parStatut.conforme, donnees.parStatut.surveiller, donnees.parStatut.anomalie, donnees.parStatut.critique, 1);
+    c.barresHorizontales(colsRepartition.gauche, {
+      titre: 'RÉPARTITION PAR GRAVITÉ',
+      max: 4,
+      items: [
+        { label: 'Conforme', valeur: String(donnees.parStatut.conforme), part: donnees.parStatut.conforme / maxStatut },
+        { label: 'À surveiller', valeur: String(donnees.parStatut.surveiller), part: donnees.parStatut.surveiller / maxStatut },
+        { label: 'Anomalie', valeur: String(donnees.parStatut.anomalie), part: donnees.parStatut.anomalie / maxStatut },
+        { label: 'Critique', valeur: String(donnees.parStatut.critique), part: donnees.parStatut.critique / maxStatut },
+      ],
+    });
+    c.tableauCompact(colsRepartition.droite, {
+      titre: 'TOP ÉCARTS',
+      max: 5,
+      texteRenvoi: 'voir Historique',
+      colonnes: [{ label: 'Date', cle: 'date', largeur: 0.55 }, { label: 'Écart', cle: 'ecart', largeur: 0.45, align: 'droite' }],
+      lignes: donnees.topEcarts.map(a => ({ date: `${new Date(a.date + 'T00:00:00').toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })} · Q${a.quart}`, ecart: fmtEuroVerify(a.ecartMax) })),
+    });
+
+    const zAJustifier = c.allouerZone(ZONES_1P.equipe);
+    c.tableauCompact(zAJustifier, {
+      titre: 'AUDITS À JUSTIFIER (SANS COMMENTAIRE)',
+      max: 5,
+      texteRenvoi: 'voir Historique pour justifier',
+      colonnes: [{ label: 'Date', cle: 'date', largeur: 0.3 }, { label: 'Gravité', cle: 'statut', largeur: 0.35 }, { label: 'Écart', cle: 'ecart', largeur: 0.35, align: 'droite' }],
+      lignes: donnees.aJustifier.map(a => ({ date: `${new Date(a.date + 'T00:00:00').toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })} · Q${a.quart}`, statut: STATUT_LABEL[a.statut], ecart: fmtEuroVerify(a.ecartMax) })),
+    });
+
+    const zBas = c.allouerZone(ZONES_1P.decisions);
+    const [zConseil, zDecisions] = c.diviserLignes(zBas, [16 * NexusPdfMoteur.MM, 34 * NexusPdfMoteur.MM]);
+    const texteConseil = donnees.total === 0
+      ? 'Aucun audit enregistré sur cette période — rien à analyser.'
+      : `Sur la période, ${fmtPctVerify(donnees.tauxConforme)} des audits sont conformes. ${donnees.aJustifier.length ? `${donnees.aJustifier.length} audit${donnees.aJustifier.length > 1 ? 's restent' : ' reste'} à justifier` : 'Aucun audit ne reste à justifier'}, principalement côté ${donnees.composantePlusTouchee.toLowerCase()}.`;
+    c.conseil(zConseil, { texte: texteConseil, max: 250 });
+    c.decisions(zDecisions, {
+      titre: 'DÉCISIONS RECOMMANDÉES',
+      max: 3,
+      texteAucune: 'Rien qui mérite l’attention du manager sur cette période.',
+      items: donnees.aJustifier.slice(0, 3).map(a => ({
+        urgence: a.statut === 'critique' ? 'critique' : 'important',
+        titre: `Justifier l'écart du ${new Date(a.date + 'T00:00:00').toLocaleDateString('fr-FR')} (quart ${a.quart})`,
+        detail: `Écart ${fmtEuroVerify(a.ecartMax)} — ${STATUT_LABEL[a.statut]}, sans commentaire.`,
+      })),
+    });
+
+    const zPied = c.allouerZone(ZONES_1P.piedDePage);
+    c.piedDePage(
+      zPied,
+      'Nexus Verify · Rapport généré automatiquement — vérité avant certitude, jamais une prédiction.',
+      `Généré le ${donnees.genereLe.toLocaleDateString('fr-FR')} à ${donnees.genereLe.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`,
+    );
+
+    const bytes = await NexusPdfMoteur.finaliser(c);
+    const nomFichier = `NEXUS-Verify-Rapport-${dateISOVerify(debut)}-${dateISOVerify(fin)}.pdf`;
+    return { bytes, nomFichier, titre: `NEXUS Verify — Rapport ${label}`, texte: `Rapport Nexus Verify — ${SITE_ACTUEL}` };
+  }
+
+  async function lancerGenerationRapportVerify() {
+    const zoneActions = document.getElementById('zoneActionsRapportVerify');
+    zoneActions.innerHTML = `
+      <button class="btn-rapport-pdf" disabled type="button">Génération en cours…</button>
+      <div class="statut-rapport">Cela peut prendre quelques secondes.</div>
+    `;
+    try {
+      dernierRapportPdfVerify = await construireRapportPdfVerify();
+      afficherActionsRapportPretVerify();
+    } catch (e) {
+      console.error('NEXUS Verify — génération du rapport PDF :', e);
+      zoneActions.innerHTML = `
+        <button class="btn-rapport-pdf" id="btnGenererRapportVerify" type="button">Générer mon rapport</button>
+        <div class="statut-rapport statut-erreur">Erreur lors de la génération du rapport — réessayez.<br><span class="statut-detail">${(e && e.message) ? e.message : 'Erreur inconnue — voir la console du navigateur.'}</span></div>
+      `;
+      document.getElementById('btnGenererRapportVerify').addEventListener('click', lancerGenerationRapportVerify);
+    }
+  }
+
+  function afficherActionsRapportPretVerify() {
+    const zoneActions = document.getElementById('zoneActionsRapportVerify');
+    const partageOk = NexusPdfMoteur.webShareDisponible();
+    zoneActions.innerHTML = `
+      <div class="statut-rapport statut-pret">Rapport prêt.</div>
+      <div class="rapport-actions">
+        ${partageOk ? `<button class="btn-rapport-pdf" id="btnPartagerRapportVerify" type="button">Partager le PDF</button>` : ''}
+        <button class="btn-rapport-pdf${partageOk ? ' secondaire' : ''}" id="btnOuvrirRapportVerify" type="button">${partageOk ? 'Ouvrir le PDF' : 'Ouvrir / enregistrer le PDF'}</button>
+      </div>
+      <button class="btn-lien" id="btnRegenererRapportVerify" type="button">Régénérer (autre période ?)</button>
+    `;
+    if (partageOk) {
+      document.getElementById('btnPartagerRapportVerify').addEventListener('click', async () => {
+        const r = await NexusPdfMoteur.partagerPdf(dernierRapportPdfVerify.bytes, dernierRapportPdfVerify.nomFichier, { titre: dernierRapportPdfVerify.titre, texte: dernierRapportPdfVerify.texte });
+        const s = zoneActions.querySelector('.statut-rapport');
+        if (r === 'echec' || r === 'indisponible') { if (s) s.textContent = 'Partage impossible sur cet appareil — utilisez « Ouvrir le PDF ».'; }
+        else if (r === 'partage') { if (s) s.textContent = 'Rapport partagé.'; }
+      });
+    }
+    document.getElementById('btnOuvrirRapportVerify').addEventListener('click', async () => {
+      await NexusPdfMoteur.telechargerPdf(dernierRapportPdfVerify.bytes, dernierRapportPdfVerify.nomFichier);
+      const s = zoneActions.querySelector('.statut-rapport');
+      if (s) s.textContent = 'Rapport ouvert.';
+    });
+    document.getElementById('btnRegenererRapportVerify').addEventListener('click', lancerGenerationRapportVerify);
   }
 
   document.getElementById('v_date').valueAsDate = new Date();
@@ -1488,9 +1785,10 @@
     const tabNouveau = document.getElementById('tabNouveau');
     const tabHistorique = document.getElementById('tabHistorique');
     tabNouveau.addEventListener('click', () => {
-      tabNouveau.classList.add('active'); tabHistorique.classList.remove('active');
+      tabNouveau.classList.add('active'); tabHistorique.classList.remove('active'); tabRapport.classList.remove('active');
       document.getElementById('vueNouveau').style.display = 'block';
       document.getElementById('vueHistorique').style.display = 'none';
+      document.getElementById('vueRapport').style.display = 'none';
       // Si on revient d'une correction d'audit ancien sans avoir enregistré,
       // on ne garde ni sa valeur de repli ni son prix figé pour la prochaine
       // saisie — sinon un nouvel audit pourrait hériter à tort du prix d'un
@@ -1501,10 +1799,21 @@
       document.getElementById('notePrixCarburantFige').style.display = 'none';
     });
     tabHistorique.addEventListener('click', async () => {
-      tabHistorique.classList.add('active'); tabNouveau.classList.remove('active');
+      tabHistorique.classList.add('active'); tabNouveau.classList.remove('active'); tabRapport.classList.remove('active');
       document.getElementById('vueNouveau').style.display = 'none';
       document.getElementById('vueHistorique').style.display = 'block';
+      document.getElementById('vueRapport').style.display = 'none';
       await afficherHistorique();
+    });
+    const tabRapport = document.getElementById('tabRapport');
+    tabRapport.addEventListener('click', () => {
+      tabRapport.classList.add('active'); tabNouveau.classList.remove('active'); tabHistorique.classList.remove('active');
+      document.getElementById('vueNouveau').style.display = 'none';
+      document.getElementById('vueHistorique').style.display = 'none';
+      document.getElementById('vueRapport').style.display = 'block';
+      dernierRapportPdfVerify = null;
+      document.getElementById('zoneActionsRapportVerify').innerHTML = '<button class="btn-rapport-pdf" id="btnGenererRapportVerify" type="button">Générer mon rapport</button>';
+      document.getElementById('btnGenererRapportVerify').addEventListener('click', lancerGenerationRapportVerify);
     });
 
     // ------------------------------------------------------------

@@ -682,6 +682,24 @@
       });
     }
 
+    // === Paragraphe libre, plusieurs lignes, borné à la zone (ex. synthèse
+    // exécutive de Brief NEXUS, remarques Conseiller de Verify…) — jamais de
+    // débordement hors zone : si le texte est trop long, la dernière ligne
+    // visible reçoit une ellipse plutôt que de déborder sur le bloc suivant.
+    paragraphe(zone, { titre, texte, taille = 9, interligne = 12.5, couleur = COULEUR.texte } = {}) {
+      let y = zone.yHaut - 10;
+      if (titre) { this._texte(titre, zone.x, y, { taille: 8.7, gras: true, couleur: COULEUR.cyan }); y -= 13; }
+      const lignes = decouperEnLignes(this._assainir(texte), this.police, taille, zone.largeur);
+      const disponible = Math.max(1, Math.floor((y - zone.yBas) / interligne));
+      const tronque = lignes.length > disponible;
+      const visibles = tronque ? lignes.slice(0, disponible) : lignes;
+      visibles.forEach((l, i) => {
+        const dernier = tronque && i === visibles.length - 1;
+        this._texte(dernier ? `${l}…` : l, zone.x, y, { taille, couleur });
+        y -= interligne;
+      });
+    }
+
     /** Pied de page unique (pas de numérotation — un rapport une-page n'en a pas besoin). */
     piedDePage(zone, texteGauche, texteDroite) {
       this.page.drawLine({ start: { x: zone.x, y: zone.yHaut }, end: { x: zone.x + zone.largeur, y: zone.yHaut }, thickness: 0.5, color: COULEUR.ligne });
