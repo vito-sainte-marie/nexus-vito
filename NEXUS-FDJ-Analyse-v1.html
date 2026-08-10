@@ -1207,7 +1207,11 @@
     });
     const topJeux = jeux
       .map(j => ({ jeu: j, ca: (parJeuActuel[j.id] || {}).ca || 0, tickets: (parJeuActuel[j.id] || {}).tickets || 0 }))
-      .filter(l => l.ca > 0).sort((a, b) => b.ca - a.ca).slice(0, 8);
+      .filter(l => l.ca > 0).sort((a, b) => b.ca - a.ca);
+    // Pas de plafond ici : le rapport 1 page (construireRapportPdf) et
+    // les autres consommateurs de cette liste décident eux-mêmes
+    // combien afficher (Article 11 — la donnée reste complète, seule la
+    // présentation plafonne).
     const jeuMoteur = topJeux[0] ? topJeux[0].jeu : null;
 
     // Répartition du CA par palier (1/2/3/5/10/15 €) — même agrégation que la Vue d'ensemble.
@@ -1286,10 +1290,17 @@
   // l'objet reçu par le callback (`animation.chart`, documenté par
   // Chart.js pour cet usage précis) plutôt que par la variable fermée
   // `chart` évite complètement le problème.
+  // Canvas volontairement très large et bas (aspect ~4,6:1) : dans le
+  // rapport 1 page, la zone "graphique" ne dispose que d'environ 45mm
+  // de hauteur (contre le pleine hauteur d'un rapport détaillé) — un
+  // canvas proche du ratio final évite qu'une image "carrée" soit
+  // redimensionnée en une bande étroite au centre de la page (retour de
+  // Frédéric du 10/08/2026 : « le graphique actuel est beaucoup trop
+  // haut… avec environ 1/3 de sa hauteur actuelle »).
   function genererImageGraphiqueCa(labels, valeurs) {
     return new Promise(resolve => {
       const canvas = document.createElement('canvas');
-      canvas.width = 900; canvas.height = 380;
+      canvas.width = 1200; canvas.height = 260;
       new Chart(canvas, {
         type: 'line',
         data: { labels, datasets: [{ data: valeurs, borderColor: '#0a6b78', backgroundColor: 'rgba(10,107,120,0.15)', fill: true, tension: 0.25, pointRadius: 3, borderWidth: 2 }] },
@@ -1314,6 +1325,50 @@
     });
   }
 
+  // Compose un texte "Conseil NEXUS" court (≤ 250 caractères, plafond
+  // appliqué aussi défensivement par le moteur) à partir des VRAIES
+  // données de la période — jamais un texte générique ou inventé — puis
+  // ajoute le thème Coach dominant seulement si la place le permet.
+  // Reste dans la page (Article 11) : composition métier, pas dans le
+  // moteur PDF générique.
+  function construireTexteConseilRapport(donnees) {
+    let texte;
+    if (donnees.palierMoteur && donnees.topJeux.length) {
+      const nomsTop = donnees.topJeux.slice(0, 2).map(l => l.jeu.nom).join(' et ');
+      texte = `Le palier ${donnees.palierMoteur} € porte l'essentiel du CA (${nomsTop}). Maintenez leur disponibilité en priorité.`;
+    } else {
+      texte = 'Pas assez de données sur cette période pour dégager une dynamique de vente claire.';
+    }
+    if (donnees.syntheseCoach && donnees.syntheseCoach.dominant) {
+      const suffixe = ` Thème Coach dominant : ${labelRegleCoach(donnees.syntheseCoach.dominant)}.`;
+      if ((texte + suffixe).length <= 250) texte += suffixe;
+    }
+    return texte;
+  }
+
+  // Un seul vendeur "référence" (échantillon suffisant, cf. Équipe) mis
+  // en avant, les autres affichés sans classement — "vérité avant
+  // certitude" (retour de Frédéric du 10/08/2026) : comparer des
+  // employés sur un échantillon de 1 ou 2 quarts donnerait un classement
+  // trompeur.
+  function choisirReferenceEquipe(topVendeurs) {
+    const eligibles = topVendeurs.filter(v => v.caMoyen != null);
+    if (!eligibles.length) return { reference: null, autres: topVendeurs.slice(0, 4) };
+    const reference = eligibles.reduce((meilleur, v) => (v.caMoyen > meilleur.caMoyen ? v : meilleur), eligibles[0]);
+    const autres = topVendeurs.filter(v => v !== reference).slice(0, 3);
+    return { reference, autres };
+  }
+
+  // Jeux "en vigilance" réellement prioritaires : ceux qui vendent bien
+  // (présents dans le Top jeux) ET dont le stock caisse est bas — une
+  // rotation forte + un stock bas est plus urgent qu'un jeu qui ne se
+  // vend pas. Repli sur les premiers de la liste si aucune intersection.
+  function choisirJeuxPrioritaires(enVigilance, topJeux) {
+    const idsTop = new Set(topJeux.map(l => l.jeu.id));
+    const prioritaires = enVigilance.filter(j => idsTop.has(j.id)).slice(0, 4);
+    return prioritaires.length ? prioritaires : enVigilance.slice(0, 4);
+  }
+
   // Construit le PDF avec nexus-pdf-moteur.js (générique) à partir des
   // données assemblées ci-dessus et renvoie { bytes, nomFichier, titre,
   // texte } — NE diffuse rien elle-même (voir lancerGenerationRapport/
@@ -1322,106 +1377,134 @@
   // 10/08/2026 — "Partager" doit rester un geste direct de l'utilisateur
   // sur un fichier déjà prêt, jamais enchaîné automatiquement après une
   // construction qui peut prendre une seconde ou deux).
+  // Rapport 1 page A4 — refonte du 10/08/2026 à la demande de Frédéric :
+  // « Le moteur PDF ne doit pas essayer d'imprimer l'intégralité des
+  // données disponibles : il doit sélectionner et hiérarchiser les
+  // informations réellement utiles au pilotage. » Mise en page à zones
+  // fixes (ZONES_1P, moteur commun) : chaque bloc a un budget de
+  // hauteur immuable, jamais de deuxième page. Le détail complet reste
+  // consultable dans FDJ Pilotage — le PDF est une synthèse
+  // décisionnelle, pas une reproduction de l'application.
   async function construireRapportPdf() {
     const donnees = await assemblerDonneesRapportFdj();
     const imageCaPng = await genererImageGraphiqueCa(donnees.labelsCa, donnees.valeursCa);
-    const { COULEUR } = NexusPdfMoteur;
+    const { COULEUR, ZONES_1P, MM: MM1P } = NexusPdfMoteur;
 
-      const c = await NexusPdfMoteur.creerRapport({
-        titre: `NEXUS FDJ — Rapport ${donnees.periodeLabel}`,
-        sujet: 'Rapport FDJ Pilotage',
-        entete: { app: 'NEXUS FDJ · Pilotage', sousTitre: donnees.site },
-      });
+    const c = await NexusPdfMoteur.creerRapportUnePage({
+      titre: `NEXUS FDJ — Rapport ${donnees.periodeLabel}`,
+      sujet: 'Rapport FDJ Pilotage',
+    });
 
-      c.titre('NEXUS FDJ — Rapport');
-      c.sousTitre(`${donnees.periodeLabel} · ${donnees.periodeSousLabel} · ${donnees.site}`);
-      c.sousTitre(`Généré le ${donnees.genereLe.toLocaleDateString('fr-FR')} à ${donnees.genereLe.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`, { taille: 8.5 });
-      if (donnees.donneesProvisoires) {
-        c.bandeau(`${donnees.nbNonControles} quart${donnees.nbNonControles > 1 ? 's' : ''} sur ${donnees.totalQuarts} pas encore contrôlé${donnees.nbNonControles > 1 ? 's' : ''} par un manager — les chiffres de ce rapport sont provisoires et peuvent encore évoluer.`);
-      }
+    // --- En-tête compact ---
+    const zEntete = c.allouerZone(ZONES_1P.entete);
+    c.entete(zEntete, {
+      app: 'NEXUS FDJ · PILOTAGE',
+      ligne1: `Rapport ${donnees.periodeLabel}`,
+      ligne2: `${donnees.periodeSousLabel} · ${donnees.site}${donnees.donneesProvisoires ? ' · données provisoires' : ''}`,
+    });
 
-      c.sectionTitre('Synthèse');
-      c.ligneCle('CA FDJ (grattage + tirages)', fmtEuro(donnees.ca + (donnees.caisseTirages || 0)));
-      c.ligneCle(`Évolution vs ${donnees.labelComp.toLowerCase()}`, fmtEvolution(donnees.evolCa), { couleurValeur: donnees.evolCa > 0 ? COULEUR.vert : (donnees.evolCa < 0 ? COULEUR.rouge : COULEUR.texte) });
-      c.ligneCle('Jeu moteur', donnees.jeuMoteur ? donnees.jeuMoteur.nom : '—');
-      c.ligneCle('Palier moteur', donnees.palierMoteur ? `${donnees.palierMoteur} €` : '—');
-      c.ligneCle('Jour le plus performant', donnees.meilleurJour ? new Date(donnees.meilleurJour.date + 'T00:00:00').toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' }) : '—');
-      c.ligneCle('Jour à booster', donnees.pireJour ? new Date(donnees.pireJour.date + 'T00:00:00').toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' }) : '—');
-      // Deux lignes distinctes plutôt qu'un seul pourcentage — la qualité
-      // du résultat (quarts conformes parmi les quarts contrôlés) et la
-      // couverture du contrôle (quarts contrôlés parmi le total) sont
-      // deux informations différentes ; un seul "33,3 %" à côté de
-      // "6/6" prêtait à confusion (retour de Frédéric, 10/08/2026).
-      c.ligneCle('Quarts conformes', donnees.quartsControles > 0 ? `${donnees.quartsConformes} / ${donnees.quartsControles} — ${fmtPct(donnees.tauxConformite)}` : '—');
-      c.ligneCle('Quarts contrôlés', `${donnees.quartsControles} / ${donnees.totalQuarts}`);
-      c.ligneCle('Écart caisse cumulé', fmtEuro(donnees.ecartTotal));
+    // --- KPI (4 chiffres clés) ---
+    const zKpi = c.allouerZone(ZONES_1P.kpi);
+    const ecartSigne = donnees.ecartTotal > 0 ? '+' : '';
+    c.ligneKpi(zKpi, [
+      { label: 'CA FDJ', valeur: fmtEuro(donnees.ca + (donnees.caisseTirages || 0)) },
+      {
+        label: 'Évolution',
+        valeur: donnees.evolCa === null ? 'Comparaison indisponible' : fmtEvolution(donnees.evolCa),
+        couleurValeur: donnees.evolCa > 0 ? COULEUR.vert : (donnees.evolCa < 0 ? COULEUR.rouge : COULEUR.texte),
+      },
+      {
+        label: 'Quarts conformes',
+        valeur: donnees.quartsControles > 0 ? `${donnees.quartsConformes}/${donnees.quartsControles} · ${fmtPct(donnees.tauxConformite)}` : '—',
+      },
+      { label: 'Écart caisse', valeur: `${ecartSigne}${fmtEuro(donnees.ecartTotal)}`, couleurValeur: donnees.ecartTotal < 0 ? COULEUR.rouge : COULEUR.texte },
+    ]);
 
-      c.sectionTitre('Analyse des ventes');
-      await c.image(imageCaPng, { legende: 'CA grattage — évolution jour par jour sur la période' });
-      if (donnees.topJeux.length) {
-        c.tableau(
-          [{ label: 'Jeu', cle: 'nom', largeur: 0.5 }, { label: 'Tickets', cle: 'tickets', largeur: 0.2, align: 'droite' }, { label: 'CA', cle: 'ca', largeur: 0.3, align: 'droite' }],
-          donnees.topJeux.map(l => ({ nom: l.jeu.nom, tickets: fmtNum(l.tickets), ca: fmtEuro(l.ca) })),
-        );
-      }
-      if (donnees.repartitionPalier.length) {
-        c.sousTitre('Répartition du CA par palier', { taille: 9.5, couleur: COULEUR.texte });
-        c.tableau(
-          [{ label: 'Palier', cle: 'palier', largeur: 0.5 }, { label: 'CA', cle: 'ca', largeur: 0.5, align: 'droite' }],
-          donnees.repartitionPalier.map(p => ({ palier: `${p.prix} €`, ca: fmtEuro(p.ca) })),
-        );
-      }
+    // --- Ce qu'il faut savoir (5 points maximum) ---
+    const zSynthese = c.allouerZone(ZONES_1P.synthese);
+    c.listePoints(zSynthese, {
+      points: [
+        { label: 'Jeu moteur', valeur: donnees.jeuMoteur ? `${donnees.jeuMoteur.nom} — ${fmtEuro(donnees.topJeux[0].ca)}` : '—' },
+        { label: 'Palier moteur', valeur: donnees.palierMoteur ? `${donnees.palierMoteur} € — ${fmtEuro(Math.max(...donnees.repartitionPalier.map(p => p.ca), 0))}` : '—' },
+        { label: 'Jour le plus fort', valeur: donnees.meilleurJour ? new Date(donnees.meilleurJour.date + 'T00:00:00').toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' }) : '—' },
+        { label: 'Jour à booster', valeur: donnees.pireJour ? new Date(donnees.pireJour.date + 'T00:00:00').toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' }) : '—' },
+        { label: 'Point de vigilance', valeur: donnees.enRupture.length ? `${donnees.enRupture[0].nom} en rupture` : (donnees.enVigilance.length ? `${donnees.enVigilance.length} jeu${donnees.enVigilance.length > 1 ? 'x' : ''} à surveiller` : 'Rien à signaler') },
+      ],
+      max: 5,
+    });
 
-      c.sectionTitre('Performance équipe');
-      if (donnees.topVendeurs.length) {
-        c.tableau(
-          [{ label: 'Employé', cle: 'nom', largeur: 0.34 }, { label: 'Quarts', cle: 'quarts', largeur: 0.16, align: 'droite' }, { label: 'CA', cle: 'ca', largeur: 0.25, align: 'droite' }, { label: 'CA moy/quart', cle: 'caMoyen', largeur: 0.25, align: 'droite' }],
-          donnees.topVendeurs.map(v => ({ nom: v.nom, quarts: v.quarts, ca: fmtEuro(v.ca), caMoyen: v.caMoyen !== null ? fmtEuro(v.caMoyen) : 'trop peu de quarts' })),
-        );
-      } else {
-        c.paragraphe('Aucun quart contrôlé sur cette période.');
-      }
+    // --- Graphique CA (réduit) ---
+    const zGraph = c.allouerZone(ZONES_1P.graphique);
+    await c.graphique(zGraph, imageCaPng, { legende: 'CA grattage — évolution quotidienne' });
 
-      c.sectionTitre('Stock & activations');
-      c.ligneCle('Activations sur la période', fmtNum(donnees.activationsPeriode));
-      c.ligneCle('Jeux en rupture (bureau + caisse à 0)', String(donnees.enRupture.length));
-      c.ligneCle('Jeux en vigilance (caisse non activée à 0)', String(donnees.enVigilance.length));
-      if (donnees.enRupture.length) c.paragraphe(`En rupture : ${donnees.enRupture.map(j => j.nom).join(', ')}.`, { couleur: COULEUR.rouge });
-      if (donnees.enVigilance.length) c.paragraphe(`En vigilance : ${donnees.enVigilance.map(j => j.nom).join(', ')}.`, { couleur: COULEUR.ambre });
+    // --- Ventes / Mix produits : Top jeux (gauche) + répartition par palier (droite) ---
+    const zVentes = c.allouerZone(ZONES_1P.ventes);
+    const colsVentes = c.diviserColonnes(zVentes);
+    c.tableauCompact(colsVentes.gauche, {
+      titre: 'TOP JEUX',
+      max: 5,
+      texteRenvoi: 'voir FDJ Pilotage',
+      colonnes: [{ label: 'Jeu', cle: 'nom', largeur: 0.68 }, { label: 'CA', cle: 'ca', largeur: 0.32, align: 'droite' }],
+      lignes: donnees.topJeux.map(l => ({ nom: l.jeu.nom, ca: fmtEuro(l.ca) })),
+    });
+    const maxPalier = Math.max(...donnees.repartitionPalier.map(p => p.ca), 1);
+    c.barresHorizontales(colsVentes.droite, {
+      titre: 'RÉPARTITION PAR PALIER',
+      max: 6,
+      items: donnees.repartitionPalier.map(p => ({ label: `${p.prix} €`, valeur: fmtEuro(p.ca), part: p.ca / maxPalier })),
+    });
 
-      c.sectionTitre('Conseil NEXUS');
-      if (donnees.syntheseCoach) {
-        const lignesConseil = [
-          { texte: `Thème dominant : ${labelRegleCoach(donnees.syntheseCoach.dominant)}`, gras: true },
-          { texte: `${donnees.syntheseCoach.employesDominant} collaborateur${donnees.syntheseCoach.employesDominant > 1 ? 's' : ''} concerné${donnees.syntheseCoach.employesDominant > 1 ? 's' : ''} · ${donnees.syntheseCoach.nDominant} conseil${donnees.syntheseCoach.nDominant > 1 ? 's' : ''} diffusé${donnees.syntheseCoach.nDominant > 1 ? 's' : ''} sur la période.` },
-        ];
-        if (donnees.syntheseCoach.evolution != null) lignesConseil.push({ texte: `Évolution vs ${donnees.labelComp.toLowerCase()} : ${fmtEvolution(donnees.syntheseCoach.evolution)}.` });
-        c.encadre(lignesConseil);
-      } else {
-        c.paragraphe('Aucun conseil Coach FDJ diffusé sur cette période.');
-      }
+    // --- Équipe (gauche) + Stock & activations (droite) ---
+    const zEquipeStock = c.allouerZone(ZONES_1P.equipe);
+    const colsEquipeStock = c.diviserColonnes(zEquipeStock);
+    const { reference, autres } = choisirReferenceEquipe(donnees.topVendeurs);
+    c.listeEquipe(colsEquipeStock.gauche, {
+      titre: 'ÉQUIPE',
+      reference: reference ? { nom: reference.nom, valeurParUnite: `${fmtEuro(reference.caMoyen)}/quart`, quantite: `${reference.quarts} quart${reference.quarts > 1 ? 's' : ''}` } : null,
+      autres: autres.map(v => ({ nom: v.nom, detail: `${v.quarts} quart${v.quarts > 1 ? 's' : ''} · ${fmtEuro(v.ca)}` })),
+      texteInsuffisant: autres.length ? 'Données insuffisantes pour comparaison fiable.' : null,
+      texteAucuneDonnee: 'Aucun quart contrôlé sur cette période.',
+    });
+    const jeuxPrioritaires = choisirJeuxPrioritaires(donnees.enVigilance, donnees.topJeux);
+    c.stockCondense(colsEquipeStock.droite, {
+      titre: 'STOCK & ACTIVATIONS',
+      ruptures: donnees.enRupture,
+      nbSurveillance: donnees.enVigilance.length,
+      prioritaires: jeuxPrioritaires,
+      texteRenvoi: donnees.enVigilance.length ? 'Liste complète dans FDJ Pilotage.' : '',
+    });
 
-      c.sectionTitre('Décisions recommandées');
-      if (donnees.decisions.length) {
-        donnees.decisions.forEach(dec => {
-          c.encadre([
-            { texte: dec.article, gras: true },
-            { texte: dec.pourquoi },
-            { texte: `Décision : ${dec.decision}` },
-          ], { couleurBordure: dec.rang <= 1 ? COULEUR.rouge : COULEUR.cyan });
-        });
-      } else {
-        c.paragraphe('Rien qui mérite l’attention du manager sur cette période — aucun signal déterministe déclenché.');
-      }
+    // --- Conseil NEXUS + Décisions recommandées (zone partagée) ---
+    const zBas = c.allouerZone(ZONES_1P.decisions);
+    const [zConseil, zDecisions] = c.diviserLignes(zBas, [16 * MM1P, 34 * MM1P]);
+    c.conseil(zConseil, { texte: construireTexteConseilRapport(donnees), max: 250 });
+    c.decisions(zDecisions, {
+      max: 3,
+      texteAucune: 'Rien qui mérite l’attention du manager sur cette période — aucun signal déterministe déclenché.',
+      items: donnees.decisions.map(dec => ({
+        urgence: dec.rang <= 1 ? 'critique' : (dec.rang === 2 ? 'important' : 'observation'),
+        titre: dec.decision || dec.article,
+        detail: dec.pourquoi,
+      })),
+    });
 
-      c.piedDePageToutesPages('NEXUS FDJ · Rapport généré automatiquement — vérité avant certitude, jamais une prédiction.');
-      const bytes = await NexusPdfMoteur.finaliser(c);
-      const nomFichier = `NEXUS-FDJ-Rapport-${dateISO(periodeResolue.debut)}-${dateISO(periodeResolue.fin)}.pdf`;
-      return {
-        bytes, nomFichier,
-        titre: `NEXUS FDJ — Rapport ${donnees.periodeLabel}`,
-        texte: `Rapport FDJ Pilotage — ${donnees.site}`,
-      };
+    // --- Pied de page ---
+    const zPied = c.allouerZone(ZONES_1P.piedDePage);
+    c.piedDePage(
+      zPied,
+      donnees.donneesProvisoires
+        ? `${donnees.nbNonControles} quart${donnees.nbNonControles > 1 ? 's' : ''} sur ${donnees.totalQuarts} pas encore contrôlé${donnees.nbNonControles > 1 ? 's' : ''} — chiffres provisoires.`
+        : 'NEXUS FDJ · Rapport généré automatiquement — vérité avant certitude, jamais une prédiction.',
+      `Généré le ${donnees.genereLe.toLocaleDateString('fr-FR')} à ${donnees.genereLe.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`,
+    );
+
+    const bytes = await NexusPdfMoteur.finaliser(c);
+    const nomFichier = `NEXUS-FDJ-Rapport-${dateISO(periodeResolue.debut)}-${dateISO(periodeResolue.fin)}.pdf`;
+    return {
+      bytes, nomFichier,
+      titre: `NEXUS FDJ — Rapport ${donnees.periodeLabel}`,
+      texte: `Rapport FDJ Pilotage — ${donnees.site}`,
+    };
   }
 
   // Étape 1/2 : construit le PDF (peut prendre une seconde ou deux —
@@ -1520,7 +1603,7 @@
       <div id="zoneActionsRapport">
         <button class="btn-rapport-pdf" id="btnGenererRapport" type="button">Générer mon rapport</button>
       </div>
-      <div class="champ-note">Le rapport contient : synthèse, analyse des ventes (courbe CA, top jeux, répartition par palier), performance équipe, stock & activations, conseil NEXUS et décisions recommandées. Changez de période au-dessus pour un rapport hebdomadaire, mensuel ou annuel.</div>
+      <div class="champ-note">Une seule page A4 : l'essentiel à retenir, l'évolution des ventes, le top jeux et la répartition par palier, l'équipe, le stock, un conseil NEXUS et jusqu'à 3 décisions recommandées. Le détail complet reste consultable dans FDJ Pilotage. Changez de période au-dessus pour un rapport hebdomadaire, mensuel ou annuel.</div>
     `;
 
     document.getElementById('btnGenererRapport').addEventListener('click', lancerGenerationRapport);

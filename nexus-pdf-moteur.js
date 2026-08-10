@@ -60,6 +60,7 @@
     cyan: rgb(0.02, 0.4, 0.48),
     vert: rgb(0.09, 0.45, 0.28),
     ambre: rgb(0.58, 0.4, 0.0),
+    jaune: rgb(0.62, 0.5, 0.04),
     rouge: rgb(0.6, 0.11, 0.12),
     ligne: rgb(0.86, 0.88, 0.9),
     fondEntete: rgb(0.94, 0.96, 0.97),
@@ -104,6 +105,32 @@
   const JEU_WINANSI = construireJeuWinAnsi();
 
   /**
+   * Point d'entrée UNIQUE pour l'assainissement WinAnsi — utilisé par
+   * TOUTES les classes de rapport de ce moteur (ConstructeurRapport,
+   * ConstructeurRapportUnePage, et toute classe future). Un seul
+   * endroit à corriger si un problème d'encodage réapparaît, plutôt
+   * qu'une logique dupliquée par classe (demande explicite de
+   * Frédéric, 10/08/2026 : « une seule correction, dans un moteur
+   * commun, pas une par module »).
+   */
+  function assainirWinAnsi(texte) {
+    let resultat = '';
+    for (const car of String(texte == null ? '' : texte)) {
+      if (JEU_WINANSI.has(car.codePointAt(0))) resultat += car;
+    }
+    return resultat.replace(/[ \t]{2,}/g, ' ').trim();
+  }
+
+  /** Tronque un texte à `max` caractères, en coupant sur un espace si possible, avec une ellipse — pour les blocs à budget de place fixe (ex. Conseil NEXUS d'un rapport une-page). */
+  function tronquerCaracteres(texte, max) {
+    const t = String(texte == null ? '' : texte);
+    if (t.length <= max) return t;
+    const coupe = t.slice(0, max);
+    const dernierEspace = coupe.lastIndexOf(' ');
+    return (dernierEspace > max * 0.6 ? coupe.slice(0, dernierEspace) : coupe) + '…';
+  }
+
+  /**
    * Découpe un texte en lignes qui tiennent dans `largeurMax`, pour une
    * police/taille donnée — pdf-lib ne fait AUCUN retour à la ligne
    * automatique (contrairement à un rendu HTML), c'est au moteur de
@@ -137,14 +164,6 @@
       this.doc = doc;
       this.police = police;
       this.policeGrasse = policeGrasse;
-      // Jeux de caractères réellement représentables par les polices
-      // embarquées (Helvetica standard = encodage WinAnsi/cp1252) —
-      // table figée (voir JEU_WINANSI ci-dessus), PAS une introspection
-      // runtime de la police (cf. historique dans le commentaire de
-      // JEU_WINANSI : getCharacterSet() s'est révélé peu fiable pour
-      // les polices standard 14 en conditions réelles).
-      this._jeuCarPolice = JEU_WINANSI;
-      this._jeuCarPoliceGrasse = JEU_WINANSI;
       this.entete = entete || null; // { app, sousTitre } répété en haut de chaque page
       this.page = null;
       this.y = 0;
@@ -163,13 +182,8 @@
      * écran ailleurs dans l'app (ex. "🔴 CRITIQUE") ne doit jamais
      * planter le PDF, il doit simplement être retiré.
      */
-    _assainir(texte, gras) {
-      const jeu = gras ? this._jeuCarPoliceGrasse : this._jeuCarPolice;
-      let resultat = '';
-      for (const car of String(texte == null ? '' : texte)) {
-        if (jeu.has(car.codePointAt(0))) resultat += car;
-      }
-      return resultat.replace(/[ \t]{2,}/g, ' ').trim();
+    _assainir(texte) {
+      return assainirWinAnsi(texte);
     }
 
     _nouvellePage() {
@@ -341,6 +355,354 @@
     }
   }
 
+  /* ------------------------------------------------------------
+   * ConstructeurRapportUnePage — rapport "synthèse dirigeante" tenant
+   * TOUJOURS sur une seule page A4, quelle que soit la quantité de
+   * données disponibles (demande explicite de Frédéric, 10/08/2026) :
+   * « Le moteur PDF ne doit pas essayer d'imprimer l'intégralité des
+   * données disponibles : il doit sélectionner et hiérarchiser les
+   * informations réellement utiles au pilotage. »
+   *
+   * Contrairement à ConstructeurRapport (pagination automatique, texte
+   * qui coule librement, pour des rapports détaillés multi-pages), ce
+   * constructeur utilise des ZONES DE HAUTEUR FIXE allouées une seule
+   * fois à la construction : la page ne s'allonge jamais. Si un module
+   * appelant fournit trop d'éléments (ex. 12 employés), c'est à LUI de
+   * plafonner (Top 5, 4 employés, 3 décisions…) — chaque primitive
+   * plafonne aussi défensivement en interne et peut afficher une ligne
+   * de renvoi ("+ N autres — voir détail dans l'app") au lieu de
+   * déborder.
+   *
+   * Générique par construction (Article 11, "une seule vérité") : ce
+   * fichier ne connaît toujours rien à FDJ, Verify, Inventaire, Brief,
+   * etc. Tout module NEXUS voulant un rapport "1 page" (hebdomadaire,
+   * mensuel, annuel — la spec d'un module donné change simplement LES
+   * DONNÉES envoyées à ces primitives, jamais leur mise en page) utilise
+   * ces mêmes primitives.
+   * ------------------------------------------------------------ */
+
+  // 1 mm en points PDF (unité native de pdf-lib) — les zones ci-dessous
+  // sont définies en millimètres pour rester lisibles/vérifiables
+  // contre un gabarit papier réel, puis converties une fois ici.
+  const MM = 72 / 25.4;
+  const mm = n => n * MM;
+
+  // Marges volontairement plus serrées qu'un rapport détaillé multi-page
+  // (MARGE=44pt/~15.5mm) : un rapport une-page doit maximiser la
+  // surface utile pour tenir toute l'info sur un seul A4.
+  const MARGE_1P = mm(10);
+  const LARGEUR_UTILE_1P = A4.largeur - MARGE_1P * 2;
+
+  // Budget vertical fixe par bloc, en mm — somme ≈ 277mm, la hauteur
+  // utile d'un A4 (297mm) avec 10mm de marge en haut et en bas. Un
+  // module appelant peut ignorer les blocs qu'il n'utilise pas (ex. pas
+  // de graphique) et redistribuer leur budget à d'autres blocs.
+  const ZONES_1P = {
+    entete: mm(20),
+    kpi: mm(25),
+    synthese: mm(30),
+    graphique: mm(45),
+    ventes: mm(55),
+    equipe: mm(45),
+    decisions: mm(50),
+    piedDePage: mm(7),
+  };
+
+  class ConstructeurRapportUnePage {
+    constructor(doc, police, policeGrasse) {
+      this.doc = doc;
+      this.police = police;
+      this.policeGrasse = policeGrasse;
+      this.page = doc.addPage([A4.largeur, A4.hauteur]);
+      this.x = MARGE_1P;
+      this.largeur = LARGEUR_UTILE_1P;
+      this.y = A4.hauteur - MARGE_1P;
+    }
+
+    _assainir(texte) {
+      return assainirWinAnsi(texte);
+    }
+
+    _texte(texte, x, y, { taille = 9, gras = false, couleur = COULEUR.texte } = {}) {
+      const t = this._assainir(texte);
+      if (!t) return t;
+      this.page.drawText(t, { x, y, size: taille, font: gras ? this.policeGrasse : this.police, color: couleur });
+      return t;
+    }
+
+    _largeurTexte(texte, taille, gras) {
+      const t = this._assainir(texte);
+      return (gras ? this.policeGrasse : this.police).widthOfTextAtSize(t, taille);
+    }
+
+    _texteCentre(texte, xCentre, y, opts = {}) {
+      const largeur = this._largeurTexte(texte, opts.taille || 9, !!opts.gras);
+      this._texte(texte, xCentre - largeur / 2, y, opts);
+    }
+
+    _texteDroite(texte, xDroite, y, opts = {}) {
+      const largeur = this._largeurTexte(texte, opts.taille || 9, !!opts.gras);
+      this._texte(texte, xDroite - largeur, y, opts);
+    }
+
+    /** Petit carré coloré (marqueur d'urgence/priorité) — remplace les emoji, non représentables par la police standard. */
+    _puce(x, y, couleur, taille = 6) {
+      this.page.drawRectangle({ x, y, width: taille, height: taille, color: couleur });
+    }
+
+    /**
+     * Alloue un bloc de hauteur fixe `hauteurPt` (voir ZONES_1P) en
+     * partant du haut de la zone déjà consommée. Retourne les bornes du
+     * bloc — c'est aux méthodes ci-dessous (ou à un module appelant
+     * avancé) de dessiner DANS ces bornes, jamais au-delà.
+     */
+    allouerZone(hauteurPt) {
+      const yHaut = this.y;
+      const yBas = this.y - hauteurPt;
+      this.y = yBas;
+      return { x: this.x, yHaut, yBas, largeur: this.largeur, hauteur: hauteurPt };
+    }
+
+    /** Divise une zone en deux colonnes côte à côte (même hauteur). */
+    diviserColonnes(zone, { gouttiere = 14, ratioGauche = 0.5 } = {}) {
+      const largeurGauche = (zone.largeur - gouttiere) * ratioGauche;
+      const largeurDroite = zone.largeur - gouttiere - largeurGauche;
+      return {
+        gauche: { x: zone.x, yHaut: zone.yHaut, yBas: zone.yBas, largeur: largeurGauche, hauteur: zone.hauteur },
+        droite: { x: zone.x + largeurGauche + gouttiere, yHaut: zone.yHaut, yBas: zone.yBas, largeur: largeurDroite, hauteur: zone.hauteur },
+      };
+    }
+
+    /** Sous-divise une zone verticalement en `n` tranches empilées (ex. Conseil NEXUS + Décisions dans la même zone). */
+    diviserLignes(zone, hauteurs) {
+      const total = hauteurs.reduce((s, h) => s + h, 0);
+      const echelle = total > zone.hauteur ? zone.hauteur / total : 1;
+      let yHaut = zone.yHaut;
+      return hauteurs.map(h => {
+        const hEch = h * echelle;
+        const bloc = { x: zone.x, yHaut, yBas: yHaut - hEch, largeur: zone.largeur, hauteur: hEch };
+        yHaut -= hEch;
+        return bloc;
+      });
+    }
+
+    // === Bloc en-tête compact : nom d'app + 1-2 lignes de contexte ===
+    entete(zone, { app, ligne1, ligne2 }) {
+      let y = zone.yHaut - 15;
+      this._texte(app, zone.x, y, { taille: 13.5, gras: true, couleur: COULEUR.cyan });
+      y -= 16;
+      if (ligne1) { this._texte(ligne1, zone.x, y, { taille: 10, gras: true, couleur: COULEUR.texte }); y -= 13; }
+      if (ligne2) { this._texte(ligne2, zone.x, y, { taille: 8.5, couleur: COULEUR.texteDim }); }
+      this.page.drawLine({ start: { x: zone.x, y: zone.yBas + 4 }, end: { x: zone.x + zone.largeur, y: zone.yBas + 4 }, thickness: 1, color: COULEUR.cyan });
+    }
+
+    // === Rangée de KPI (2 à 4 cartes réparties uniformément) ===
+    // kpis: [{ label, valeur, detail, couleurValeur }]
+    ligneKpi(zone, kpis) {
+      const n = kpis.length;
+      const largeurCase = zone.largeur / n;
+      kpis.forEach((k, i) => {
+        const xCentre = zone.x + i * largeurCase + largeurCase / 2;
+        if (i > 0) this.page.drawLine({ start: { x: zone.x + i * largeurCase, y: zone.yHaut }, end: { x: zone.x + i * largeurCase, y: zone.yBas + 4 }, thickness: 0.6, color: COULEUR.ligne });
+        this._texteCentre(k.label, xCentre, zone.yHaut - 14, { taille: 7.8, couleur: COULEUR.texteDim, gras: true });
+        this._texteCentre(k.valeur, xCentre, zone.yHaut - 33, { taille: 15, gras: true, couleur: k.couleurValeur || COULEUR.texte });
+        if (k.detail) this._texteCentre(k.detail, xCentre, zone.yHaut - 47, { taille: 7.5, couleur: COULEUR.texteDim });
+      });
+      this.page.drawLine({ start: { x: zone.x, y: zone.yBas + 4 }, end: { x: zone.x + zone.largeur, y: zone.yBas + 4 }, thickness: 0.6, color: COULEUR.ligne });
+    }
+
+    // === "Ce qu'il faut savoir" : liste de points clé plafonnée ===
+    // points: [{ label, valeur }] ou chaînes déjà formées.
+    listePoints(zone, { titre = 'CE QU\'IL FAUT SAVOIR', points, max = 5, texteRenvoi } = {}) {
+      let y = zone.yHaut - 11;
+      this._texte(titre, zone.x, y, { taille: 9.5, gras: true, couleur: COULEUR.cyan });
+      y -= 15;
+      const visibles = points.slice(0, max);
+      const interligne = Math.min(13.5, (zone.hauteur - 22) / Math.max(1, visibles.length + (points.length > max ? 1 : 0)));
+      visibles.forEach(p => {
+        const texte = typeof p === 'string' ? p : `${p.label} : ${p.valeur}`;
+        this.page.drawRectangle({ x: zone.x, y: y - 6.5, width: 3, height: 3, color: COULEUR.cyan });
+        this._texte(texte, zone.x + 9, y - 8, { taille: 9.3, couleur: COULEUR.texte });
+        y -= interligne;
+      });
+      if (points.length > max && texteRenvoi) {
+        this._texte(`+ ${points.length - max} autres — ${texteRenvoi}`, zone.x + 9, y - 8, { taille: 8, couleur: COULEUR.texteDim });
+      }
+    }
+
+    // === Image (graphique déjà rendu en PNG, ex. Chart.js) réduite pour tenir dans la zone ===
+    async graphique(zone, pngDataUrl, { legende } = {}) {
+      const img = await this.doc.embedPng(pngDataUrl);
+      const hauteurLegende = legende ? 12 : 0;
+      const dims = img.scaleToFit(zone.largeur, zone.hauteur - hauteurLegende - 4);
+      const xImg = zone.x + (zone.largeur - dims.width) / 2;
+      this.page.drawImage(img, { x: xImg, y: zone.yBas + hauteurLegende + 4, width: dims.width, height: dims.height });
+      if (legende) this._texte(legende, zone.x, zone.yBas + 2, { taille: 7.8, couleur: COULEUR.texteDim });
+    }
+
+    // === Mini-tableau plafonné (2 colonnes typiquement : libellé / valeur) ===
+    // colonnes: [{ label, cle, largeur (fraction), align }], lignes: [{ [cle]: valeur }]
+    tableauCompact(zone, { titre, colonnes, lignes, max = 5, texteRenvoi } = {}) {
+      let y = zone.yHaut - 10;
+      if (titre) { this._texte(titre, zone.x, y, { taille: 8.7, gras: true, couleur: COULEUR.texte }); y -= 13; }
+      const visibles = lignes.slice(0, max);
+      const nLignesTotal = visibles.length + (titre ? 0 : 0) + 1; // +1 pour l'en-tête colonnes
+      const interligne = Math.min(13, (zone.hauteur - (zone.yHaut - y) - (lignes.length > max ? 10 : 0)) / Math.max(1, nLignesTotal));
+      // en-tête colonnes
+      let x = zone.x;
+      colonnes.forEach(col => {
+        const largeurCol = col.largeur * zone.largeur;
+        const texte = this._assainir(col.label);
+        const decal = col.align === 'droite' ? largeurCol - this._largeurTexte(texte, 7.5, true) - 4 : 0;
+        this._texte(texte, x + decal, y - 8, { taille: 7.5, gras: true, couleur: COULEUR.texteDim });
+        x += largeurCol;
+      });
+      y -= interligne;
+      visibles.forEach((ligne, i) => {
+        if (i % 2 === 1) this.page.drawRectangle({ x: zone.x, y: y - interligne + 3, width: zone.largeur, height: interligne, color: COULEUR.fondAlterne });
+        let xx = zone.x;
+        colonnes.forEach(col => {
+          const largeurCol = col.largeur * zone.largeur;
+          const val = this._assainir(ligne[col.cle] == null ? '—' : ligne[col.cle]);
+          const decal = col.align === 'droite' ? largeurCol - this._largeurTexte(val, 8.6, false) - 4 : 0;
+          this._texte(val, xx + decal, y - 8, { taille: 8.6, couleur: COULEUR.texte });
+          xx += largeurCol;
+        });
+        y -= interligne;
+      });
+      if (lignes.length > max && texteRenvoi) {
+        this._texte(`+ ${lignes.length - max} autres — ${texteRenvoi}`, zone.x, zone.yBas + 2, { taille: 7.3, couleur: COULEUR.texteDim });
+      }
+    }
+
+    // === Petites barres horizontales (ex. répartition par palier) ===
+    // items: [{ label, valeur, part (0..1) }]
+    barresHorizontales(zone, { titre, items, max = 6, texteRenvoi } = {}) {
+      let y = zone.yHaut - 10;
+      if (titre) { this._texte(titre, zone.x, y, { taille: 8.7, gras: true, couleur: COULEUR.texte }); y -= 14; }
+      const visibles = items.slice(0, max);
+      const hauteurBas = (items.length > max && texteRenvoi) ? 10 : 0;
+      const interligne = Math.min(15, (zone.hauteur - (zone.yHaut - y) - hauteurBas) / Math.max(1, visibles.length));
+      const largeurLabel = 34, largeurValeur = 46;
+      const largeurBarreMax = zone.largeur - largeurLabel - largeurValeur - 8;
+      visibles.forEach(it => {
+        this._texte(it.label, zone.x, y - 8, { taille: 8.2, couleur: COULEUR.texteDim });
+        const xBarre = zone.x + largeurLabel;
+        this.page.drawRectangle({ x: xBarre, y: y - 9, width: largeurBarreMax, height: 7, color: COULEUR.fondAlterne });
+        const part = Math.max(0, Math.min(1, it.part || 0));
+        if (part > 0) this.page.drawRectangle({ x: xBarre, y: y - 9, width: largeurBarreMax * part, height: 7, color: COULEUR.cyan });
+        this._texteDroite(it.valeur, zone.x + zone.largeur, y - 8, { taille: 8.2, gras: true, couleur: COULEUR.texte });
+        y -= interligne;
+      });
+      if (items.length > max && texteRenvoi) {
+        this._texte(`+ ${items.length - max} autres — ${texteRenvoi}`, zone.x, zone.yBas + 2, { taille: 7.3, couleur: COULEUR.texteDim });
+      }
+    }
+
+    // === Équipe : 1 référence (échantillon suffisant) + reste sans classement (« vérité avant certitude ») ===
+    // reference: { nom, valeurParUnite, unite, quantite } | null ; autres: [{ nom, detail }]
+    listeEquipe(zone, { titre, reference, autres = [], texteInsuffisant, texteAucuneDonnee } = {}) {
+      let y = zone.yHaut - 10;
+      if (titre) { this._texte(titre, zone.x, y, { taille: 8.7, gras: true, couleur: COULEUR.texte }); y -= 14; }
+      if (!reference && !autres.length) {
+        this._texte(texteAucuneDonnee || 'Aucune donnée sur cette période.', zone.x, y - 8, { taille: 8.4, couleur: COULEUR.texteDim });
+        return;
+      }
+      if (reference) {
+        this._puce(zone.x, y - 8, COULEUR.cyan, 6);
+        this._texte(`Référence : ${reference.nom} — ${reference.valeurParUnite} (${reference.quantite})`, zone.x + 10, y - 8, { taille: 8.6, gras: true, couleur: COULEUR.texte });
+        y -= 14;
+      }
+      autres.slice(0, 4).forEach(a => {
+        this._texte(`${a.nom} — ${a.detail}`, zone.x + 10, y - 8, { taille: 8.2, couleur: COULEUR.texteDim });
+        y -= 12;
+      });
+      if (autres.length && texteInsuffisant) {
+        this._texte(texteInsuffisant, zone.x + 10, y - 8, { taille: 7.6, couleur: COULEUR.texteDim });
+      }
+    }
+
+    // === Stock condensé : ruptures + surveillance, jamais la liste complète ===
+    stockCondense(zone, { titre, ruptures = [], nbSurveillance = 0, prioritaires = [], texteRenvoi } = {}) {
+      let y = zone.yHaut - 10;
+      if (titre) { this._texte(titre, zone.x, y, { taille: 8.7, gras: true, couleur: COULEUR.texte }); y -= 14; }
+      if (ruptures.length) {
+        this._puce(zone.x, y - 8, COULEUR.rouge, 6);
+        this._texte(`${ruptures.length} rupture${ruptures.length > 1 ? 's' : ''} : ${ruptures.map(r => r.nom).slice(0, 2).join(', ')}${ruptures.length > 2 ? '…' : ''}`, zone.x + 10, y - 8, { taille: 8.4, gras: true, couleur: COULEUR.rouge });
+        y -= 13;
+      } else {
+        this._texte('Aucune rupture.', zone.x, y - 8, { taille: 8.4, couleur: COULEUR.vert });
+        y -= 13;
+      }
+      if (nbSurveillance > 0) {
+        this._puce(zone.x, y - 8, COULEUR.ambre, 6);
+        this._texte(`${nbSurveillance} jeu${nbSurveillance > 1 ? 'x' : ''} à surveiller, dont ${prioritaires.length} prioritaire${prioritaires.length > 1 ? 's' : ''}`, zone.x + 10, y - 8, { taille: 8.4, couleur: COULEUR.ambre });
+        y -= 13;
+      }
+      prioritaires.slice(0, 4).forEach(p => {
+        this._texte(`• ${p.nom}`, zone.x + 10, y - 8, { taille: 8, couleur: COULEUR.texteDim });
+        y -= 11;
+      });
+      if (texteRenvoi) this._texte(texteRenvoi, zone.x, zone.yBas + 2, { taille: 7.3, couleur: COULEUR.texteDim });
+    }
+
+    // === Conseil NEXUS : encadré, texte plafonné en caractères ===
+    conseil(zone, { titre = 'CONSEIL NEXUS', texte, max = 250 } = {}) {
+      const t = tronquerCaracteres(this._assainir(texte), max);
+      this._texte(titre, zone.x, zone.yHaut - 9, { taille: 8.7, gras: true, couleur: COULEUR.cyan });
+      const hauteurBoite = zone.hauteur - 12;
+      this.page.drawRectangle({ x: zone.x, y: zone.yBas, width: zone.largeur, height: hauteurBoite, color: COULEUR.fondAlterne, borderColor: COULEUR.cyan, borderWidth: 0.8 });
+      const lignes = decouperEnLignes(t, this.police, 8.6, zone.largeur - 16);
+      const interligne = Math.min(11.5, (hauteurBoite - 10) / Math.max(1, lignes.length));
+      let y = zone.yBas + hauteurBoite - 12;
+      lignes.forEach(l => { this._texte(l, zone.x + 8, y, { taille: 8.6, couleur: COULEUR.texte }); y -= interligne; });
+    }
+
+    // === Décisions recommandées : maximum `max`, marqueur coloré par urgence ===
+    // items: [{ urgence: 'critique'|'important'|'observation', titre, detail }]
+    decisions(zone, { titre = 'DÉCISIONS RECOMMANDÉES', items = [], max = 3, texteAucune } = {}) {
+      this._texte(titre, zone.x, zone.yHaut - 9, { taille: 8.7, gras: true, couleur: COULEUR.texte });
+      let y = zone.yHaut - 22;
+      const visibles = items.slice(0, max);
+      if (!visibles.length) {
+        this._texte(texteAucune || 'Rien qui mérite l’attention du manager sur cette période.', zone.x, y, { taille: 8.4, couleur: COULEUR.texteDim });
+        return;
+      }
+      const interligne = Math.min(30, (zone.hauteur - 22) / visibles.length);
+      const couleurUrgence = { critique: COULEUR.rouge, important: COULEUR.ambre, observation: COULEUR.jaune };
+      visibles.forEach(it => {
+        const couleur = couleurUrgence[it.urgence] || COULEUR.cyan;
+        this._puce(zone.x, y - 7, couleur, 6);
+        this._texte(it.titre, zone.x + 10, y - 8, { taille: 8.8, gras: true, couleur: COULEUR.texte });
+        if (it.detail) {
+          const ligneDetail = decouperEnLignes(this._assainir(it.detail), this.police, 8, zone.largeur - 10)[0];
+          this._texte(ligneDetail, zone.x + 10, y - 19, { taille: 8, couleur: COULEUR.texteDim });
+        }
+        y -= interligne;
+      });
+    }
+
+    /** Pied de page unique (pas de numérotation — un rapport une-page n'en a pas besoin). */
+    piedDePage(zone, texteGauche, texteDroite) {
+      this.page.drawLine({ start: { x: zone.x, y: zone.yHaut }, end: { x: zone.x + zone.largeur, y: zone.yHaut }, thickness: 0.5, color: COULEUR.ligne });
+      this._texte(texteGauche || '', zone.x, zone.yHaut - 11, { taille: 7, couleur: COULEUR.texteDim });
+      if (texteDroite) this._texteDroite(texteDroite, zone.x + zone.largeur, zone.yHaut - 11, { taille: 7, couleur: COULEUR.texteDim });
+    }
+  }
+
+  /** Crée un document PDF A4 + polices standard embarquées et un ConstructeurRapportUnePage prêt à l'emploi — voir ConstructeurRapportUnePage pour la philosophie "toujours 1 page". */
+  async function creerRapportUnePage({ titre, auteur = 'NEXUS OS', sujet } = {}) {
+    const doc = await PDFDocument.create();
+    if (titre) doc.setTitle(titre);
+    doc.setAuthor(auteur);
+    if (sujet) doc.setSubject(sujet);
+    doc.setCreator('NEXUS PDF Moteur');
+    doc.setProducer('NEXUS PDF Moteur (pdf-lib)');
+    const police = await doc.embedFont(StandardFonts.Helvetica);
+    const policeGrasse = await doc.embedFont(StandardFonts.HelveticaBold);
+    return new ConstructeurRapportUnePage(doc, police, policeGrasse);
+  }
+
   /**
    * Crée un document PDF A4 + polices standard embarquées (Helvetica,
    * gras) et un ConstructeurRapport prêt à l'emploi. `entete` :
@@ -450,5 +812,12 @@
     A4,
     MARGE,
     LARGEUR_UTILE,
+    // Rapport "1 page A4" (synthèse dirigeante) — voir ConstructeurRapportUnePage.
+    creerRapportUnePage,
+    ConstructeurRapportUnePage,
+    MM,
+    MARGE_1P,
+    LARGEUR_UTILE_1P,
+    ZONES_1P,
   };
 })(window);

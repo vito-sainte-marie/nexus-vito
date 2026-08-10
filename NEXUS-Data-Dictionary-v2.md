@@ -335,8 +335,44 @@ activations (ruptures/vigilance via `etatLigneStock()`, activations sur la péri
 
 **Mention « données provisoires » (§23) :** dès qu'au moins un quart de la période n'a pas encore
 été contrôlé par un manager (`nb_quarts_controles < nb_quarts` — même signal que le taux de quarts
-conformes affiché ailleurs sur la page, aucun nouveau seuil inventé), un bandeau explicite l'indique
-en tête du rapport.
+conformes affiché ailleurs sur la page, aucun nouveau seuil inventé), le rapport l'indique.
+
+**Refonte "1 page A4" (10/08/2026)** à la demande explicite de Frédéric, après avoir testé la
+première version multi-page pdf-lib : « Le moteur PDF ne doit pas essayer d'imprimer l'intégralité
+des données disponibles : il doit sélectionner et hiérarchiser les informations réellement utiles
+au pilotage. » `construireRapportPdf()` réécrit intégralement pour utiliser
+`NexusPdfMoteur.ConstructeurRapportUnePage` (voir section 8) — zones fixes, jamais de deuxième page,
+quelle que soit la quantité de données. Composition (toute la logique métier reste dans cette page,
+le moteur reste générique) :
+
+- **En-tête (20mm)** : app + période + site (+ mention "données provisoires" si applicable).
+- **KPI (25mm)** : CA FDJ, Évolution, Quarts conformes, Écart caisse — 4 cartes.
+- **Ce qu'il faut savoir (30mm)** : 5 points maximum (jeu moteur, palier moteur, jour le plus fort,
+  jour à booster, point de vigilance).
+- **Graphique (45mm)** : courbe CA réduite (canvas Chart.js repensé en 1200×260, ratio proche de la
+  zone finale, pour ne pas être redessinée en bande étroite après réduction).
+- **Ventes / mix produits (55mm, 2 colonnes)** : Top jeux (5 max, `tableauCompact`) à gauche,
+  répartition par palier en mini-barres horizontales (`barresHorizontales`) à droite.
+- **Équipe & Stock (45mm, 2 colonnes)** : à gauche, `choisirReferenceEquipe()` — UN SEUL vendeur
+  "référence" (celui avec le CA/quart le plus élevé parmi les employés ayant atteint le seuil de 3
+  quarts contrôlés, même seuil que l'onglet Équipe), les autres affichés sans classement ("vérité
+  avant certitude" — comparer sur un échantillon de 1-2 quarts serait trompeur). À droite,
+  `choisirJeuxPrioritaires()` — parmi les jeux en vigilance, ceux qui vendent bien (présents dans le
+  Top jeux) sont mis en avant en priorité (rotation forte + stock bas = plus urgent qu'un jeu qui ne
+  se vend pas), repli sur les 4 premiers si aucune intersection ; jamais la liste complète (renvoi
+  vers FDJ Pilotage pour le détail).
+- **Conseil & décisions (50mm, sous-divisé)** : `construireTexteConseilRapport()` compose un texte
+  ≤ 250 caractères à partir des vraies données (palier/jeu moteur, thème Coach dominant si la place
+  le permet — jamais un texte générique) ; décisions recommandées plafonnées à 3, marqueur carré
+  coloré par urgence (rang 1 = critique/rouge, rang 2 = important/ambre, rang ≥ 3 =
+  observation/jaune) — jamais d'emoji (non représentables par la police standard, cf. correctifs
+  WinAnsi ci-dessous).
+- **Pied de page (7mm)** : mention "données provisoires" si applicable, sinon la signature standard
+  "vérité avant certitude, jamais une prédiction" + date/heure de génération.
+
+`topJeux` n'est plus plafonné à 8 dans `assemblerDonneesRapportFdj()` (retiré le `.slice(0, 8)`) :
+la donnée reste complète, seule la présentation (`max: 5` côté composition) plafonne — sinon le
+compteur "+ N autres" du Top jeux aurait été faux au-delà de 8 jeux vendus.
 
 **Diffusion du PDF généré :** `NexusPdfMoteur.partagerOuTelechargerPdf()` — Web Share API avec
 fichier en priorité (fonctionne sur iOS Safari 15+ et Android Chrome, y compris en PWA standalone),
@@ -391,6 +427,46 @@ sections, quelles données) ne vit jamais dans ce fichier générique. Premier m
 / "Ouvrir le PDF", affichés une fois le PDF prêt) sont deux étapes séparées plutôt qu'un
 enchaînement automatique — le clic sur "Partager" reste un geste direct de l'utilisateur sur un
 fichier déjà construit.
+
+### `ConstructeurRapportUnePage` — rapport "synthèse dirigeante" tenant toujours sur 1 page A4
+
+Ajouté le 10/08/2026, à la demande explicite de Frédéric : « Le moteur PDF ne doit pas essayer
+d'imprimer l'intégralité des données disponibles : il doit sélectionner et hiérarchiser les
+informations réellement utiles au pilotage. » Contrairement à `ConstructeurRapport` (pagination
+automatique, texte qui coule librement — pour des rapports détaillés multi-pages), ce constructeur
+utilise des **zones de hauteur fixe** allouées une seule fois à la construction, en millimètres,
+converties en points PDF (`NexusPdfMoteur.MM`) :
+
+```
+ZONES_1P = { entete: 20mm, kpi: 25mm, synthese: 30mm, graphique: 45mm,
+             ventes: 55mm, equipe: 45mm, decisions: 50mm, piedDePage: 7mm }
+// total ≈ 277mm = hauteur utile d'un A4 (297mm) avec 10mm de marge en haut et en bas.
+```
+
+La page ne s'allonge jamais : c'est au module appelant de plafonner ce qu'il envoie à chaque
+primitive (`max`), et chaque primitive plafonne aussi défensivement en interne — au-delà du
+plafond, elle peut afficher une ligne de renvoi ("+ N autres — texte fourni par l'appelant") plutôt
+que de déborder. `creerRapportUnePage()` crée le document + la seule page ; `allouerZone(hauteurPt)`
+avance un curseur vertical unique et renvoie les bornes du bloc ; `diviserColonnes(zone)` scinde une
+zone en deux colonnes côte à côte ; `diviserLignes(zone, [h1, h2, …])` sous-divise une zone en
+tranches empilées (ex. Conseil NEXUS + Décisions dans la même zone "decisions"). Primitives de
+contenu : `entete`, `ligneKpi` (2 à 4 cartes), `listePoints` (liste à puces plafonnée), `graphique`
+(image PNG réduite à la zone), `tableauCompact` (mini-tableau plafonné), `barresHorizontales`
+(mini-graphique à barres, ex. répartition par palier), `listeEquipe` (1 "référence" + reste sans
+classement), `stockCondense` (ruptures + N à surveiller, jamais la liste complète), `conseil`
+(encadré, texte plafonné en caractères via `tronquerCaracteres`), `decisions` (max plafonné,
+marqueur carré coloré par urgence — jamais d'emoji, non représentables par la police standard),
+`piedDePage`. Toujours générique (Article 11) : aucune de ces primitives ne connaît FDJ, Verify,
+Inventaire ou Brief — seules les DONNÉES envoyées changent d'un module à l'autre, jamais la classe.
+
+Le filtre WinAnsi (`assainirWinAnsi()`, voir "Correctif critique #2" ci-dessous) a été factorisé en
+UNE fonction module-level utilisée par `ConstructeurRapport` ET `ConstructeurRapportUnePage` — une
+seule correction possible, dans un seul endroit, pour toutes les classes de rapport présentes et
+futures (demande explicite de Frédéric du 10/08/2026 : « une seule correction, dans un moteur
+commun, pas une par module »).
+
+Premier rapport recomposé avec cette classe : `NEXUS-FDJ-Analyse-v1.html`, `construireRapportPdf()`
+(voir section 7, Étape 6 — remplace intégralement la version multi-page du 10/08/2026 matin).
 
 **Correctif critique (10/08/2026) — caractères non supportés par la police standard :** premier
 test réel de Frédéric (Safari normal, pas PWA standalone) : génération en échec. Cause identifiée
@@ -456,6 +532,7 @@ Frédéric sur son iPhone après ce correctif.
 | v2.9 | 10/08/2026 | Corrections suite au premier test réel de Frédéric (Safari normal, pas PWA) : (1) bug bloquant identifié — un texte métier contenant une flèche Unicode ou un emoji (ex. `LABEL_REGLE_COACH.fdj_regularite_levier`, badges `ETAT_FDJ`/`ETAT_COACH` de `nexus-conseiller.js`) fait planter pdf-lib (police standard WinAnsi, n'encode pas ces caractères) — `nexus-pdf-moteur.js` filtre désormais tout caractère non supporté par la police embarquée avant chaque `drawText()` (`ConstructeurRapport._assainir`, basé sur `PDFFont.getCharacterSet()`) ; (2) `NEXUS-FDJ-Analyse-v1.html` renommé "FDJ Pilotage" à l'affichage (titre, eyebrow, footer, navigation) — "Analyse" évoquait un tableau de statistiques, "Pilotage" résume comprendre → décider → agir ; fichier et références internes inchangés ; (3) flux PDF séparé en deux étapes (`construireRapportPdf` puis `afficherActionsRapportPret`) — "Générer mon rapport" construit le PDF, puis "Partager le PDF" / "Ouvrir le PDF" apparaissent séparément (bouton Partager absent si `NexusPdfMoteur.webShareDisponible()` est faux) ; `nexus-pdf-moteur.js` décomposé en `partagerPdf`/`telechargerPdf` réutilisables séparément (`partagerOuTelechargerPdf` conservé, recompose les deux) ; (4) affichage "Taux de quarts conformes" corrigé en deux lignes distinctes (couverture du contrôle vs qualité du résultat) dans Vue d'ensemble, Rapports et le PDF ; (5) définition canonique de "CA FDJ" (période) écrite dans la section 7 ; (6) onglet "Rapports / Export" renommé "Rapports", scroll-snap ajouté à la barre d'onglets (un onglet ne doit plus rester affiché à moitié coupé au bord de l'écran). |
 | v2.10 | 10/08/2026 | Deuxième bug bloquant trouvé au test réel suivant (message d'erreur "Cannot access 'chart' before initialization", visible grâce au détail technique ajouté en v2.9) : `genererImageGraphiqueCa()` lisait la variable fermée `chart` dans `animation.onComplete`, or Chart.js peut appeler ce callback de façon SYNCHRONE avec `duration: 0` — donc avant la fin de l'affectation `const chart = new Chart(...)` (zone morte temporelle). Corrigé en utilisant l'objet `chart` fourni en argument par Chart.js à `onComplete` (`{ chart, currentStep, initial, numSteps }`, documenté pour cet usage précis) plutôt que la variable fermée. Reproduit puis vérifié corrigé par un test simulant un `onComplete` synchrone. |
 | v2.11 | 10/08/2026 | Troisième bug bloquant trouvé au test réel suivant : MÊME symptôme que le correctif v2.9 (`WinAnsi cannot encode "→" (0x2192)`), preuve que le filtre basé sur `PDFFont.getCharacterSet()` ne fonctionnait pas réellement — seulement en mock. Remplacé par une table WinAnsiEncoding codée en dur (`JEU_WINANSI` dans `nexus-pdf-moteur.js`, standard figé PDF spec Appendix D.2), qui ne dépend plus d'aucune introspection runtime de pdf-lib. Voir "Correctif critique #2" ci-dessus. Leçon retenue : sans accès à la vraie bibliothèque pdf-lib dans le bac à sable, les mocks ne peuvent pas valider des hypothèses sur le comportement exact d'une dépendance tierce — seul le test réel de Frédéric fait foi pour ce type de bug. |
+| v2.12 | 10/08/2026 | Refonte "1 page A4" du rapport FDJ, à la demande explicite de Frédéric : le rapport ne doit plus jamais dépasser une page, quelle que soit la période. Nouvelle classe générique `NexusPdfMoteur.ConstructeurRapportUnePage` (section 8) dans `nexus-pdf-moteur.js` — zones de hauteur fixe (`ZONES_1P`), colonnes, primitives plafonnées (`ligneKpi`, `listePoints`, `tableauCompact`, `barresHorizontales`, `listeEquipe`, `stockCondense`, `conseil`, `decisions`) — explicitement générique et réutilisable par tout futur module NEXUS voulant un rapport 1 page (Verify, Inventaire, Brief, rapports mensuels/annuels), pas seulement FDJ. Le filtre WinAnsi (`assainirWinAnsi`) a été factorisé en une fonction unique partagée par `ConstructeurRapport` et `ConstructeurRapportUnePage` — une seule correction possible pour toutes les classes. `NEXUS-FDJ-Analyse-v1.html` : `construireRapportPdf()` entièrement recomposé (voir section 7, Étape 6) avec sélection/hiérarchisation des données (Top 5 jeux, 4 employés max avec logique "1 référence + vérité avant certitude" pour le reste, 3 décisions max, conseil ≤ 250 caractères, stock condensé avec renvoi vers FDJ Pilotage pour le détail complet) plutôt qu'une reproduction exhaustive des données. Canvas du graphique CA repensé (1200×260) pour un rendu correct une fois réduit à ~45mm de hauteur. Vérifié par mocks (aucune exception, une seule page créée, logique de référence équipe et de jeux prioritaires testée sur données réalistes) — la confirmation définitive reste, comme toujours pour ce module, le prochain test réel de Frédéric. |
 
 Prochaine révision suggérée : après vérification des sections héritées (§5) et des deux chantiers
 au statut inconnu (§4 — Anomalie stock, Capacité de réassort). Côté FDJ : figer les formules de
