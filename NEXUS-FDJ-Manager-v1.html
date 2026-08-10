@@ -626,6 +626,12 @@
       <div class="card" id="listeHistorique">
         ${historique.length ? historique.map((s, i) => renderHistoItem(s, i)).join('') : '<div class="empty">Aucun quart FDJ enregistré pour l’instant.</div>'}
       </div>
+
+      <!-- Paramètres FDJ (10/08/2026, audit "Paramétrage autonome & multi-
+           site", étape 3) : même discipline que Contrôle inventaire — un
+           seul lien vers l'écran de configuration dédié, cet écran reste
+           centré sur "que dois-je traiter maintenant ?". -->
+      <a href="NEXUS-FDJ-Parametres-v1.html" class="section-titre" style="display:block; text-decoration:none; margin-top:18px;">⚙️ Paramètres FDJ →</a>
     `;
 
     document.getElementById('btnNouveauQuart').addEventListener('click', () => ouvrirEditionNouveau());

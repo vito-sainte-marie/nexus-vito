@@ -118,6 +118,9 @@ const NEXUS_SIDEBAR_GROUPES = [
       // Ajouté 07/08/2026, demande de Frédéric — rejoint aussi le tiroir
       // "Explorer NEXUS" (NEXUS-App-v1.html, groupe Administrer) le même jour.
       { label: 'Paramètres Inventaire', href: 'NEXUS-Parametres-Inventaire-v1.html', icon: null, emoji: '⚙️' },
+      // Paramètres FDJ (10/08/2026, audit "Paramétrage autonome & multi-
+      // site", étape 3) : rejoint Paramètres Inventaire, même logique.
+      { label: 'Paramètres FDJ', href: 'NEXUS-FDJ-Parametres-v1.html', icon: null, emoji: '⚙️' },
       { label: 'Rappels', href: 'NEXUS-Parametres-Rappels-v1.html', icon: 'assets/icons/icon-rappels.png' },
     ],
   },

@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<link rel="icon" type="image/x-icon" href="favicon.ico">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+<link rel="manifest" href="site.webmanifest">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="NEXUS">
+<meta name="theme-color" content="#0B0F14">
+<title>NEXUS — Paramètres FDJ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="nexus-auth.js"></script>
+<script src="nexus-forfait.js"></script>
+<script src="nexus-desktop.js"></script>
+<style>
+  :root{
+    --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
+    --text:#EDF1F5; --text-mid:#8A96A5; --text-dim:#57626F;
+    --green:#34D399; --green-dim:#153629;
+    --amber:#F5A623; --amber-dim:#3A2E14;
+    --red:#F0575A; --red-dim:#3A1D1F;
+    --cyan:#4FC3D9; --gold:#D4AF37;
+    --mono:'IBM Plex Mono',monospace; --sans:'IBM Plex Sans',sans-serif;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{background:var(--bg); font-family:var(--sans); color:var(--text);}
+  body{display:flex; justify-content:center; min-height:100vh;}
+  .phone{width:100%; max-width:460px; min-height:100vh; display:flex; flex-direction:column; border-left:1px solid var(--hairline); border-right:1px solid var(--hairline); padding-top:env(safe-area-inset-top); padding-bottom:env(safe-area-inset-bottom);}
+
+  .header{padding:24px 20px 14px; position:relative;}
+  .menu-btn{
+    position:absolute; top:18px; right:18px; display:flex; align-items:center; gap:6px;
+    font-family:var(--mono); font-size:10.5px; font-weight:600; letter-spacing:0.03em; text-transform:uppercase;
+    color:var(--cyan); background:rgba(79,195,217,0.1); border:1px solid rgba(79,195,217,0.3);
+    border-radius:20px; padding:7px 12px; text-decoration:none; white-space:nowrap; z-index:5;
+  }
+  .menu-btn:active{background:rgba(79,195,217,0.2);}
+  .eyebrow{font-family:var(--mono); font-size:11px; letter-spacing:0.12em; text-transform:uppercase; color:var(--cyan);}
+  .title{font-size:22px; font-weight:600; margin-top:4px;}
+  .sub{font-size:13px; color:var(--text-mid); margin-top:6px; line-height:1.5;}
+  .divider{height:1px; background:var(--hairline); margin:0 20px;}
+  .section{padding:16px 20px;}
+  .loading{padding:60px 20px; text-align:center; color:var(--text-dim); font-size:13px;}
+  .locked{padding:80px 24px; text-align:center; color:var(--text-mid); font-size:14px;}
+  .empty{padding:24px; text-align:center; color:var(--text-dim); font-size:12.5px;}
+
+  .onglet-row{display:flex; gap:6px; overflow-x:auto; padding:14px 20px 4px; scrollbar-width:none;}
+  .onglet-row::-webkit-scrollbar{display:none;}
+  .onglet{flex:0 0 auto; padding:9px 13px; border-radius:20px; font-family:var(--mono); font-size:10.5px; font-weight:600; letter-spacing:0.02em; color:var(--text-dim); background:var(--panel-raised); border:1px solid var(--hairline); cursor:pointer; white-space:nowrap;}
+  .onglet.active{color:var(--cyan); border-color:rgba(79,195,217,0.4); background:rgba(79,195,217,0.1);}
+
+  .question-titre{font-family:var(--sans); font-size:18px; font-weight:700; line-height:1.3; color:var(--text); margin:4px 0 14px;}
+  .question-titre:first-child{margin-top:0;}
+  .section-titre{font-family:var(--mono); font-size:11px; letter-spacing:0.08em; text-transform:uppercase; color:var(--text-dim); margin:18px 2px 10px;}
+  .section-titre:first-child{margin-top:0;}
+
+  .card{background:var(--panel); border:1px solid var(--hairline); border-radius:12px; margin-bottom:10px; overflow:hidden; padding:2px 14px;}
+
+  .param-ligne{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:9px 0; border-bottom:1px solid var(--hairline); font-size:12.5px;}
+  .param-ligne:last-child{border-bottom:none;}
+  .param-ligne label{color:var(--text-mid); flex-shrink:0;}
+  .param-input{font-family:var(--mono); font-size:16px; background:var(--panel-raised); border:1px solid var(--hairline); border-radius:7px; color:var(--text); padding:6px 8px; text-align:right; max-width:150px;}
+  .param-input:focus{outline:none; border-color:var(--cyan);}
+  select.param-input{text-align:left; max-width:170px;}
+  .param-note{font-size:11px; color:var(--text-dim); padding:2px 0 16px; line-height:1.5;}
+  .param-enregistre{font-family:var(--mono); font-size:10px; color:var(--green); opacity:0; transition:opacity .2s; margin-left:8px;}
+  .param-enregistre.visible{opacity:1;}
+
+  .toggle-switch{width:42px; height:24px; border-radius:12px; background:var(--panel-raised); border:1px solid var(--hairline); position:relative; cursor:pointer; flex-shrink:0; transition:background .15s;}
+  .toggle-switch.on{background:rgba(79,195,217,0.3); border-color:var(--cyan);}
+  .toggle-knob{width:18px; height:18px; border-radius:50%; background:var(--text-mid); position:absolute; top:2px; left:2px; transition:left .15s, background .15s;}
+  .toggle-switch.on .toggle-knob{left:21px; background:var(--cyan);}
+
+  .jeu-row{padding:10px 12px;}
+  .jeu-row + .jeu-row{border-top:1px solid var(--hairline);}
+  .jeu-nom-ligne{display:flex; align-items:center; justify-content:space-between; margin-bottom:7px;}
+  .jeu-nom{font-size:12.5px; font-weight:600;}
+  .jeu-ventes{font-family:var(--mono); font-size:10.5px; color:var(--text-dim);}
+  .jeu-ventes.calc{color:var(--cyan);}
+  .jeu-inputs{display:flex; gap:6px;}
+  .jeu-input-wrap{flex:1;}
+  .jeu-input-label{font-family:var(--mono); font-size:8px; color:var(--text-dim); text-transform:uppercase; margin-bottom:3px; text-align:center;}
+  .jeu-input{width:100%; background:var(--panel-raised); border:1px solid var(--hairline); border-radius:8px; padding:8px 4px; color:var(--text); font-family:var(--mono); font-size:13px; text-align:center;}
+  .jeu-input:focus{outline:none; border-color:var(--cyan);}
+
+  .champ-label{font-family:var(--mono); font-size:10.5px; color:var(--text-mid); margin-bottom:6px; letter-spacing:0.03em; display:block;}
+  .champ-row{display:flex; gap:8px; margin-bottom:12px;}
+  .champ-row > *{flex:1;}
+  .champ-input, .champ-select{
+    width:100%; background:var(--panel-raised); border:1px solid var(--hairline); border-radius:10px;
+    padding:11px 12px; color:var(--text); font-family:var(--sans); font-size:14px;
+  }
+  .champ-input:focus, .champ-select:focus{outline:none; border-color:var(--cyan);}
+  .champ-input.mono{font-family:var(--mono); text-align:right;}
+
+  .btn-primary{width:100%; padding:14px; border:none; border-radius:10px; font-size:14px; font-weight:600; background:var(--cyan); color:#04141a; cursor:pointer; margin-top:6px;}
+  .btn-ghost{width:100%; padding:12px; border:1px solid var(--hairline); border-radius:10px; background:transparent; color:var(--text-mid); font-size:13px; cursor:pointer; margin-top:8px;}
+  .btn-nouveau{width:100%; padding:12px; border:1.5px dashed rgba(79,195,217,0.4); border-radius:12px; background:rgba(79,195,217,0.06); color:var(--cyan); font-size:13px; font-weight:600; cursor:pointer; margin:4px 0 4px;}
+
+  footer{margin-top:auto; padding:16px 20px 24px; font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:center; border-top:1px solid var(--hairline);}
+</style>
+</head>
+<body>
+<div class="phone">
+  <div class="header">
+    <a href="NEXUS-FDJ-Manager-v1.html" class="menu-btn">☰ Menu</a>
+    <div class="eyebrow">NEXUS · Paramètres FDJ</div>
+    <div class="title" id="titre">Chargement…</div>
+    <div class="sub">Ce qui se règle une fois pour ce site — organisation, catalogue des jeux, emplacements — pas ce qui se traite au quotidien.</div>
+  </div>
+  <div class="divider"></div>
+  <div class="onglet-row" id="ongletRow"></div>
+
+  <div class="section desktop-grid" id="content">
+    <div class="loading">Chargement…</div>
+  </div>
+  <footer>NEXUS Paramètres FDJ v1 · Fondations de l'audit "Paramétrage autonome &amp; multi-site"</footer>
+</div>
+
+<script>
+  // ------------------------------------------------------------
+  // NEXUS FDJ — Paramètres (10/08/2026) — étape 3 de l'audit développeur
+  // "NEXUS FDJ — Paramétrage autonome & multi-site" fourni par Frédéric
+  // (§6.1 Organisation, §6.2 Catalogue des jeux, §6.3 Emplacements) : premier
+  // écran manager permettant de configurer FDJ sans SQL. S'appuie sur les
+  // fondations posées juste avant (table fdj_site_settings) et sur les
+  // tables fdj_games/fdj_locations, déjà paramétrables par site mais
+  // jusqu'ici éditables uniquement par requête SQL directe.
+  //
+  // Ce qui N'EST PAS encore construit ici (étapes suivantes de l'audit,
+  // hors périmètre de ce lot) : Stock & mouvements (profil de stock réel,
+  // §6.4), écran "Tester ma configuration" (§21), versionnage/rollback
+  // (§20), duplication de site (§22), assistant de mise en service (§7).
+  // Les seuils de caisse et le "Coach actif" sont enregistrés ici mais pas
+  // encore lus par un calcul automatique — documenté honnêtement dans les
+  // notes de chaque section plutôt que de laisser croire qu'ils agissent
+  // déjà.
+  // ------------------------------------------------------------
+
+  let managerCourant = null;
+  let siteId = 'vito-sainte-marie';
+  let ongletActif = 'organisation';
+
+  let parametresSite = null;
+  let jeux = [];
+  let emplacements = [];
+
+  let jeuOuvert = null;
+  let emplacementOuvert = null;
+  let formNouveauJeuOuvert = false;
+  let formNouvelEmplacementOuvert = false;
+  let nouveauJeu = { nom: '', prix: '', tickets_par_carnet: '' };
+  let nouvelEmplacement = { nom: '', type: 'autre' };
+
+  const DEFAULTS_FDJ_SITE_SETTINGS = {
+    profil_stock: 'reserve_centrale', nombre_quarts: 2, horaire_bascule_quart2_repli: '12:40',
+    seuil_caisse_vert: 0, seuil_caisse_rouge: 5, validation_manager_obligatoire: true,
+    seuil_min_quarts_moyenne: 3,
+    coach_actif: true, coach_seuil_risque_recurrent: 3, coach_seuil_axe_equipe: 3,
+    coach_seuil_progres_base: 3, coach_seuil_progres_baisse: 0.5,
+  };
+  const LABELS_PROFIL_STOCK = {
+    reserve_centrale: 'Réserve centrale bureau', direct_caisse: 'Direct caisse',
+    multi_caisse: 'Multi-caisse', avance: 'Avancé',
+  };
+  const TYPES_EMPLACEMENT = { bureau: 'Bureau', caisse: 'Caisse', bloque: 'Zone bloquée / retrait', autre: 'Autre' };
+
+  function fmtEuro(n) { return (n === null || n === undefined || isNaN(n)) ? '—' : `${Number(n).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`; }
+
+  // ------------------------------------------------------------
+  // CHARGEMENT
+  // ------------------------------------------------------------
+  async function chargerParametresSiteFdj(site) {
+    const { data, error } = await nexusClient.from('fdj_site_settings').select('*').eq('site', site).maybeSingle();
+    if (error) { console.error('Chargement paramètres FDJ site:', error); return { ...DEFAULTS_FDJ_SITE_SETTINGS }; }
+    return { ...DEFAULTS_FDJ_SITE_SETTINGS, ...(data || {}) };
+  }
+  async function chargerJeuxTous(site) {
+    const { data, error } = await nexusClient.from('fdj_games').select('*').eq('site', site).order('ordre_affichage', { ascending: true }).order('nom', { ascending: true });
+    if (error) { console.error('Chargement jeux FDJ:', error); return []; }
+    return data || [];
+  }
+  async function chargerEmplacementsTous(site) {
+    const { data, error } = await nexusClient.from('fdj_locations').select('*').eq('site', site).order('ordre_affichage', { ascending: true });
+    if (error) { console.error('Chargement emplacements FDJ:', error); return []; }
+    return data || [];
+  }
+
+  // ------------------------------------------------------------
+  // ONGLET 1 — ORGANISATION (fdj_site_settings)
+  // ------------------------------------------------------------
+  async function enregistrerParametreSiteFdj(cle, valeur) {
+    parametresSite = { ...parametresSite, [cle]: valeur };
+    const { error } = await nexusClient.from('fdj_site_settings').upsert(
+      { site: siteId, [cle]: valeur, updated_at: new Date().toISOString(), updated_by: managerCourant.id },
+      { onConflict: 'site' }
+    );
+    if (error) { console.error('Sauvegarde paramètre FDJ site:', error); alert("Erreur d'enregistrement — réessayez."); return; }
+    const badge = document.getElementById('paramEnregistre');
+    if (badge) { badge.classList.add('visible'); setTimeout(() => badge.classList.remove('visible'), 1600); }
+  }
+
+  function renderOrganisation() {
+    const p = parametresSite;
+    const optionsProfil = Object.entries(LABELS_PROFIL_STOCK).map(([v, l]) => `<option value="${v}" ${p.profil_stock === v ? 'selected' : ''}>${l}</option>`).join('');
+    return `
+      <div class="question-titre">Comment fonctionne ce site ?</div>
+      <div class="card" style="margin-bottom:4px;">
+        <div class="param-ligne"><label>Profil de stock</label><select class="param-input" id="paramProfilStock">${optionsProfil}</select></div>
+        <div class="param-ligne"><label>Nombre de quarts / jour</label><input type="number" min="1" max="4" step="1" class="param-input" id="paramNombreQuarts" value="${p.nombre_quarts}"></div>
+        <div class="param-ligne"><label>Bascule quart 1→2 (repli)</label><input type="time" class="param-input" id="paramHoraireRepli" value="${p.horaire_bascule_quart2_repli}"><span class="param-enregistre" id="paramEnregistre">✓ Enregistré</span></div>
+      </div>
+      <div class="param-note">Le profil de stock est informationnel pour l'instant — aucun écran ni calcul ne l'utilise encore, il prépare la prochaine étape (Stock &amp; mouvements). L'horaire de bascule quart 1→2 est d'abord lu dans Paramètres Station (horaires du site) ; celui-ci ne sert que de repli si Paramètres Station n'a rien d'enregistré.</div>
+
+      <div class="section-titre">Pilotage</div>
+      <div class="card" style="margin-bottom:4px;">
+        <div class="param-ligne"><label>Quarts minimum pour un CA moyen fiable</label><input type="number" min="1" step="1" class="param-input" id="paramSeuilMinQuarts" value="${p.seuil_min_quarts_moyenne}"></div>
+      </div>
+      <div class="param-note">En dessous de ce nombre de quarts contrôlés sur la période choisie, FDJ Pilotage affiche « trop peu de quarts » plutôt qu'une moyenne par quart peu fiable (onglet Équipe et Top vendeurs du rapport).</div>
+
+      <div class="section-titre">Contrôle de caisse</div>
+      <div class="card" style="margin-bottom:4px;">
+        <div class="param-ligne"><label>Seuil « conforme » (€)</label><input type="number" min="0" step="0.5" class="param-input" id="paramSeuilVert" value="${p.seuil_caisse_vert}"></div>
+        <div class="param-ligne"><label>Seuil « écart significatif » (€)</label><input type="number" min="0" step="0.5" class="param-input" id="paramSeuilRouge" value="${p.seuil_caisse_rouge}"></div>
+        <div class="param-ligne"><label>Validation manager obligatoire</label><div class="toggle-switch ${p.validation_manager_obligatoire ? 'on' : ''}" data-toggle="validation_manager_obligatoire" data-actif="${p.validation_manager_obligatoire ? '1' : '0'}"><div class="toggle-knob"></div></div></div>
+      </div>
+      <div class="param-note">Ces seuils sont enregistrés pour préparer un statut de caisse automatique (« à contrôler » entre les deux bornes) — aujourd'hui, le manager choisit encore lui-même le statut de chaque quart dans Contrôle FDJ, aucun calcul ne s'appuie encore sur ces valeurs.</div>
+
+      <div class="section-titre">Coach FDJ</div>
+      <div class="card">
+        <div class="param-ligne"><label>Coach actif</label><div class="toggle-switch ${p.coach_actif ? 'on' : ''}" data-toggle="coach_actif" data-actif="${p.coach_actif ? '1' : '0'}"><div class="toggle-knob"></div></div></div>
+        <div class="param-ligne"><label>Seuil risque récurrent (occurrences)</label><input type="number" min="1" step="1" class="param-input" id="paramCoachRisque" value="${p.coach_seuil_risque_recurrent}"></div>
+        <div class="param-ligne"><label>Seuil axe équipe (employés concernés)</label><input type="number" min="1" step="1" class="param-input" id="paramCoachAxe" value="${p.coach_seuil_axe_equipe}"></div>
+        <div class="param-ligne"><label>Seuil progrès (occurrences de base)</label><input type="number" min="1" step="1" class="param-input" id="paramCoachProgresBase" value="${p.coach_seuil_progres_base}"></div>
+        <div class="param-ligne"><label>Seuil progrès (baisse minimum, 0 à 1)</label><input type="number" min="0" max="1" step="0.05" class="param-input" id="paramCoachProgresBaisse" value="${p.coach_seuil_progres_baisse}"></div>
+      </div>
+      <div class="param-note">Les 4 seuils sont déjà utilisés par la synthèse « Coaching équipe » (FDJ Pilotage et Brief NEXUS). « Coach actif » n'est en revanche pas encore lu par un écran — Coach FDJ reste toujours actif aujourd'hui, ce réglage prépare la suite.</div>
+    `;
+  }
+
+  function wireOrganisation() {
+    const bind = (id, cle, parse) => { const el = document.getElementById(id); if (el) el.addEventListener('change', () => enregistrerParametreSiteFdj(cle, parse(el.value))); };
+    bind('paramProfilStock', 'profil_stock', v => v);
+    bind('paramNombreQuarts', 'nombre_quarts', v => parseInt(v) || DEFAULTS_FDJ_SITE_SETTINGS.nombre_quarts);
+    bind('paramHoraireRepli', 'horaire_bascule_quart2_repli', v => v || DEFAULTS_FDJ_SITE_SETTINGS.horaire_bascule_quart2_repli);
+    bind('paramSeuilMinQuarts', 'seuil_min_quarts_moyenne', v => parseInt(v) || DEFAULTS_FDJ_SITE_SETTINGS.seuil_min_quarts_moyenne);
+    bind('paramSeuilVert', 'seuil_caisse_vert', v => { const n = parseFloat(v); return isNaN(n) ? 0 : n; });
+    bind('paramSeuilRouge', 'seuil_caisse_rouge', v => { const n = parseFloat(v); return isNaN(n) ? 0 : n; });
+    bind('paramCoachRisque', 'coach_seuil_risque_recurrent', v => parseInt(v) || DEFAULTS_FDJ_SITE_SETTINGS.coach_seuil_risque_recurrent);
+    bind('paramCoachAxe', 'coach_seuil_axe_equipe', v => parseInt(v) || DEFAULTS_FDJ_SITE_SETTINGS.coach_seuil_axe_equipe);
+    bind('paramCoachProgresBase', 'coach_seuil_progres_base', v => parseInt(v) || DEFAULTS_FDJ_SITE_SETTINGS.coach_seuil_progres_base);
+    bind('paramCoachProgresBaisse', 'coach_seuil_progres_baisse', v => { const n = parseFloat(v); return isNaN(n) ? DEFAULTS_FDJ_SITE_SETTINGS.coach_seuil_progres_baisse : Math.min(1, Math.max(0, n)); });
+    document.querySelectorAll('[data-toggle]').forEach(el => el.addEventListener('click', async () => {
+      const cle = el.dataset.toggle, actif = el.dataset.actif === '1';
+      el.style.pointerEvents = 'none';
+      await enregistrerParametreSiteFdj(cle, !actif);
+      render();
+    }));
+  }
+
+  // ------------------------------------------------------------
+  // ONGLET 2 — CATALOGUE DES JEUX (fdj_games)
+  // ------------------------------------------------------------
+  function renderJeuLigne(j) {
+    const ouvert = jeuOuvert === j.id;
+    return `
+      <div class="jeu-row">
+        <div class="jeu-nom-ligne" data-jeu-toggle="${j.id}" style="cursor:pointer;">
+          <div class="jeu-nom">${j.actif ? '' : '🚫 '}${j.nom}</div>
+          <div class="jeu-ventes calc">${fmtEuro(j.prix)}</div>
+        </div>
+        ${ouvert ? `
+          <div class="jeu-inputs" style="margin-bottom:10px;">
+            <div class="jeu-input-wrap"><div class="jeu-input-label">Prix (€)</div><input type="number" min="0" step="0.5" class="jeu-input" data-jeu-champ="prix" data-jeu-id="${j.id}" value="${j.prix}"></div>
+            <div class="jeu-input-wrap"><div class="jeu-input-label">Tickets/carnet</div><input type="number" min="1" step="1" class="jeu-input" data-jeu-champ="tickets_par_carnet" data-jeu-id="${j.id}" placeholder="?" value="${j.tickets_par_carnet != null ? j.tickets_par_carnet : ''}"></div>
+            <div class="jeu-input-wrap"><div class="jeu-input-label">Ordre</div><input type="number" step="1" class="jeu-input" data-jeu-champ="ordre_affichage" data-jeu-id="${j.id}" value="${j.ordre_affichage}"></div>
+          </div>
+          <div class="param-ligne"><label>Référence FDJ (EAN13)</label><input type="text" class="param-input" style="text-align:left; max-width:170px;" data-jeu-champ="ean13" data-jeu-id="${j.id}" value="${j.ean13 || ''}"></div>
+          <div class="param-ligne"><label>Actif</label><div class="toggle-switch ${j.actif ? 'on' : ''}" data-jeu-toggle-actif="${j.id}" data-actif="${j.actif ? '1' : '0'}"><div class="toggle-knob"></div></div></div>
+        ` : ''}
+      </div>
+    `;
+  }
+  function renderFormNouveauJeu() {
+    return `
+      <div class="card" style="margin-top:2px; padding:14px;">
+        <div class="champ-label">Nom du jeu</div>
+        <input type="text" class="champ-input" id="nvJeuNom" value="${nouveauJeu.nom}" style="margin-bottom:10px;">
+        <div class="champ-row">
+          <div><div class="champ-label">Prix (€)</div><input type="number" min="0" step="0.5" class="champ-input mono" id="nvJeuPrix" value="${nouveauJeu.prix}"></div>
+          <div><div class="champ-label">Tickets/carnet</div><input type="number" min="1" step="1" class="champ-input mono" id="nvJeuTickets" placeholder="Non vérifié" value="${nouveauJeu.tickets_par_carnet}"></div>
+        </div>
+        <button type="button" class="btn-primary" id="btnEnregistrerNouveauJeu">Ajouter ce jeu</button>
+        <button type="button" class="btn-ghost" id="btnAnnulerNouveauJeu">Annuler</button>
+      </div>
+    `;
+  }
+  function renderCatalogueJeux() {
+    return `
+      <div class="question-titre">Catalogue des jeux</div>
+      <div class="param-note">Un jeu désactivé n'est jamais supprimé — il reste dans l'historique (audit §9). Le nombre de tickets par carnet peut rester vide tant qu'il n'est pas vérifié : NEXUS n'effectue alors aucune conversion automatique carnet → tickets.</div>
+      <div class="card" style="margin-bottom:10px;">
+        ${jeux.length === 0 ? '<div class="empty">Aucun jeu.</div>' : jeux.map(j => renderJeuLigne(j)).join('')}
+      </div>
+      <button type="button" class="btn-nouveau" id="btnNouveauJeu">${formNouveauJeuOuvert ? '− Fermer' : '+ Nouveau jeu'}</button>
+      ${formNouveauJeuOuvert ? renderFormNouveauJeu() : ''}
+    `;
+  }
+  async function modifierJeu(id, champ, valeur) {
+    let v = valeur;
+    if (champ === 'prix') { const n = parseFloat(valeur); v = isNaN(n) ? 0 : n; }
+    else if (champ === 'tickets_par_carnet') { const n = parseInt(valeur); v = valeur === '' || isNaN(n) ? null : n; }
+    else if (champ === 'ordre_affichage') { const n = parseInt(valeur); v = isNaN(n) ? 0 : n; }
+    else if (champ === 'ean13') v = valeur.trim() || null;
+    const { error } = await nexusClient.from('fdj_games').update({ [champ]: v }).eq('id', id);
+    if (error) { console.error('Modification jeu FDJ:', error); alert('Erreur — réessayez.'); return; }
+    jeux = await chargerJeuxTous(siteId);
+    render();
+  }
+  async function ajouterJeu() {
+    const nom = (nouveauJeu.nom || '').trim();
+    const prix = parseFloat(nouveauJeu.prix);
+    if (!nom) { alert('Le nom du jeu est obligatoire.'); return; }
+    if (isNaN(prix) || prix <= 0) { alert('Le prix doit être un nombre positif.'); return; }
+    const ticketsNum = parseInt(nouveauJeu.tickets_par_carnet);
+    const tickets = nouveauJeu.tickets_par_carnet === '' || isNaN(ticketsNum) ? null : ticketsNum;
+    const { error } = await nexusClient.from('fdj_games').insert({ site: siteId, nom, prix, tickets_par_carnet: tickets, ordre_affichage: jeux.length, actif: true });
+    if (error) { console.error('Ajout jeu FDJ:', error); alert('Erreur — réessayez.'); return; }
+    jeux = await chargerJeuxTous(siteId);
+    formNouveauJeuOuvert = false;
+    nouveauJeu = { nom: '', prix: '', tickets_par_carnet: '' };
+    render();
+  }
+  function wireCatalogueJeux() {
+    document.querySelectorAll('[data-jeu-toggle]').forEach(el => el.addEventListener('click', () => { jeuOuvert = jeuOuvert === el.dataset.jeuToggle ? null : el.dataset.jeuToggle; render(); }));
+    document.querySelectorAll('[data-jeu-champ]').forEach(el => el.addEventListener('change', () => modifierJeu(el.dataset.jeuId, el.dataset.jeuChamp, el.value)));
+    document.querySelectorAll('[data-jeu-toggle-actif]').forEach(el => el.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const actif = el.dataset.actif === '1';
+      el.style.pointerEvents = 'none';
+      await modifierJeu(el.dataset.jeuToggleActif, 'actif', !actif);
+    }));
+    const btnNouveau = document.getElementById('btnNouveauJeu');
+    if (btnNouveau) btnNouveau.addEventListener('click', () => { formNouveauJeuOuvert = !formNouveauJeuOuvert; render(); });
+    const btnAnnuler = document.getElementById('btnAnnulerNouveauJeu');
+    if (btnAnnuler) btnAnnuler.addEventListener('click', () => { formNouveauJeuOuvert = false; nouveauJeu = { nom: '', prix: '', tickets_par_carnet: '' }; render(); });
+    const inpNom = document.getElementById('nvJeuNom'); if (inpNom) inpNom.addEventListener('input', () => { nouveauJeu.nom = inpNom.value; });
+    const inpPrix = document.getElementById('nvJeuPrix'); if (inpPrix) inpPrix.addEventListener('input', () => { nouveauJeu.prix = inpPrix.value; });
+    const inpTickets = document.getElementById('nvJeuTickets'); if (inpTickets) inpTickets.addEventListener('input', () => { nouveauJeu.tickets_par_carnet = inpTickets.value; });
+    const btnEnr = document.getElementById('btnEnregistrerNouveauJeu'); if (btnEnr) btnEnr.addEventListener('click', ajouterJeu);
+  }
+
+  // ------------------------------------------------------------
+  // ONGLET 3 — EMPLACEMENTS (fdj_locations)
+  // ------------------------------------------------------------
+  function renderEmplacementLigne(e) {
+    const ouvert = emplacementOuvert === e.id;
+    return `
+      <div class="jeu-row">
+        <div class="jeu-nom-ligne" data-emp-toggle="${e.id}" style="cursor:pointer;">
+          <div class="jeu-nom">${e.actif ? '' : '🚫 '}${e.nom}</div>
+          <div class="jeu-ventes">${TYPES_EMPLACEMENT[e.type] || e.type}</div>
+        </div>
+        ${ouvert ? `
+          <div class="param-ligne"><label>Nom</label><input type="text" class="param-input" style="text-align:left; max-width:170px;" data-emp-champ="nom" data-emp-id="${e.id}" value="${e.nom}"></div>
+          <div class="param-ligne"><label>Type</label><select class="param-input" data-emp-champ="type" data-emp-id="${e.id}">${Object.entries(TYPES_EMPLACEMENT).map(([v, l]) => `<option value="${v}" ${e.type === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+          <div class="param-ligne"><label>Ordre d'affichage</label><input type="number" step="1" class="param-input" data-emp-champ="ordre_affichage" data-emp-id="${e.id}" value="${e.ordre_affichage}"></div>
+          <div class="param-ligne"><label>Actif</label><div class="toggle-switch ${e.actif ? 'on' : ''}" data-emp-toggle-actif="${e.id}" data-actif="${e.actif ? '1' : '0'}"><div class="toggle-knob"></div></div></div>
+        ` : ''}
+      </div>
+    `;
+  }
+  function renderFormNouvelEmplacement() {
+    return `
+      <div class="card" style="margin-top:2px; padding:14px;">
+        <div class="champ-label">Nom</div>
+        <input type="text" class="champ-input" id="nvEmpNom" value="${nouvelEmplacement.nom}" style="margin-bottom:10px;">
+        <div class="champ-label">Type</div>
+        <select class="champ-select" id="nvEmpType" style="margin-bottom:10px;">${Object.entries(TYPES_EMPLACEMENT).map(([v, l]) => `<option value="${v}" ${nouvelEmplacement.type === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
+        <button type="button" class="btn-primary" id="btnEnregistrerNouvelEmplacement">Ajouter cet emplacement</button>
+        <button type="button" class="btn-ghost" id="btnAnnulerNouvelEmplacement">Annuler</button>
+      </div>
+    `;
+  }
+  function renderEmplacements() {
+    return `
+      <div class="question-titre">Emplacements FDJ</div>
+      <div class="param-note">Un emplacement désactivé reste visible dans l'historique des mouvements de stock — jamais supprimé.</div>
+      <div class="card" style="margin-bottom:10px;">
+        ${emplacements.length === 0 ? '<div class="empty">Aucun emplacement.</div>' : emplacements.map(e => renderEmplacementLigne(e)).join('')}
+      </div>
+      <button type="button" class="btn-nouveau" id="btnNouvelEmplacement">${formNouvelEmplacementOuvert ? '− Fermer' : '+ Nouvel emplacement'}</button>
+      ${formNouvelEmplacementOuvert ? renderFormNouvelEmplacement() : ''}
+    `;
+  }
+  async function modifierEmplacement(id, champ, valeur) {
+    let v = valeur;
+    if (champ === 'ordre_affichage') { const n = parseInt(valeur); v = isNaN(n) ? 0 : n; }
+    else if (champ === 'nom') v = valeur.trim();
+    const { error } = await nexusClient.from('fdj_locations').update({ [champ]: v }).eq('id', id);
+    if (error) { console.error('Modification emplacement FDJ:', error); alert('Erreur — réessayez.'); return; }
+    emplacements = await chargerEmplacementsTous(siteId);
+    render();
+  }
+  async function ajouterEmplacement() {
+    const nom = (nouvelEmplacement.nom || '').trim();
+    if (!nom) { alert("Le nom de l'emplacement est obligatoire."); return; }
+    const { error } = await nexusClient.from('fdj_locations').insert({ site: siteId, nom, type: nouvelEmplacement.type, ordre_affichage: emplacements.length, actif: true });
+    if (error) { console.error('Ajout emplacement FDJ:', error); alert('Erreur — réessayez.'); return; }
+    emplacements = await chargerEmplacementsTous(siteId);
+    formNouvelEmplacementOuvert = false;
+    nouvelEmplacement = { nom: '', type: 'autre' };
+    render();
+  }
+  function wireEmplacements() {
+    document.querySelectorAll('[data-emp-toggle]').forEach(el => el.addEventListener('click', () => { emplacementOuvert = emplacementOuvert === el.dataset.empToggle ? null : el.dataset.empToggle; render(); }));
+    document.querySelectorAll('[data-emp-champ]').forEach(el => el.addEventListener('change', () => modifierEmplacement(el.dataset.empId, el.dataset.empChamp, el.value)));
+    document.querySelectorAll('[data-emp-toggle-actif]').forEach(el => el.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const actif = el.dataset.actif === '1';
+      el.style.pointerEvents = 'none';
+      await modifierEmplacement(el.dataset.empToggleActif, 'actif', !actif);
+    }));
+    const btnNouveau = document.getElementById('btnNouvelEmplacement');
+    if (btnNouveau) btnNouveau.addEventListener('click', () => { formNouvelEmplacementOuvert = !formNouvelEmplacementOuvert; render(); });
+    const btnAnnuler = document.getElementById('btnAnnulerNouvelEmplacement');
+    if (btnAnnuler) btnAnnuler.addEventListener('click', () => { formNouvelEmplacementOuvert = false; nouvelEmplacement = { nom: '', type: 'autre' }; render(); });
+    const inpNom = document.getElementById('nvEmpNom'); if (inpNom) inpNom.addEventListener('input', () => { nouvelEmplacement.nom = inpNom.value; });
+    const selType = document.getElementById('nvEmpType'); if (selType) selType.addEventListener('change', () => { nouvelEmplacement.type = selType.value; });
+    const btnEnr = document.getElementById('btnEnregistrerNouvelEmplacement'); if (btnEnr) btnEnr.addEventListener('click', ajouterEmplacement);
+  }
+
+  // ------------------------------------------------------------
+  // ORCHESTRATION ONGLETS
+  // ------------------------------------------------------------
+  const ONGLETS = [
+    { value: 'organisation', label: '⚙️ Organisation' },
+    { value: 'catalogue', label: '🎟️ Catalogue des jeux' },
+    { value: 'emplacements', label: '📍 Emplacements' },
+  ];
+  function renderOnglets() {
+    document.getElementById('ongletRow').innerHTML = ONGLETS.map(o => `<div class="onglet ${ongletActif === o.value ? 'active' : ''}" data-onglet="${o.value}">${o.label}</div>`).join('');
+    document.querySelectorAll('[data-onglet]').forEach(el => el.addEventListener('click', () => { ongletActif = el.dataset.onglet; render(); }));
+  }
+  function render() {
+    renderOnglets();
+    const content = document.getElementById('content');
+    if (ongletActif === 'organisation') content.innerHTML = renderOrganisation();
+    else if (ongletActif === 'catalogue') content.innerHTML = renderCatalogueJeux();
+    else if (ongletActif === 'emplacements') content.innerHTML = renderEmplacements();
+    wire();
+  }
+  function wire() {
+    if (ongletActif === 'organisation') wireOrganisation();
+    else if (ongletActif === 'catalogue') wireCatalogueJeux();
+    else if (ongletActif === 'emplacements') wireEmplacements();
+  }
+
+  // ------------------------------------------------------------
+  // INITIALISATION
+  // ------------------------------------------------------------
+  nexusRequireAuth().then(async employee => {
+    if (!employee) return;
+    if (employee.role !== 'manager' && employee.role !== 'gerant') {
+      document.body.innerHTML = '<div class="locked">Cet écran est réservé aux managers.</div>';
+      return;
+    }
+    managerCourant = employee;
+    siteId = employee.site_id || 'vito-sainte-marie';
+    if (!(await NexusForfait.nexusRequireProfessional('NEXUS-FDJ-Parametres-v1.html', siteId))) return;
+    document.getElementById('titre').textContent = 'Paramètres FDJ';
+
+    [parametresSite, jeux, emplacements] = await Promise.all([
+      chargerParametresSiteFdj(siteId), chargerJeuxTous(siteId), chargerEmplacementsTous(siteId),
+    ]);
+    render();
+  });
+</script>
+</body>
+</html>
