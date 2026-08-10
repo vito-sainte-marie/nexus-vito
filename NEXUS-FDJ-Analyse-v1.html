@@ -1031,15 +1031,9 @@
   // seulement un comptage/regroupement de faits déjà décidés (Article 11 :
   // la sélection reste dans nexus-coach-fdj-moteur.js, jamais dupliquée).
   // ------------------------------------------------------------
-  const LABEL_REGLE_COACH = {
-    fdj_activation_chain: 'Chaîne d’activation à sécuriser', fdj_report_missing: 'Rapports FDJ manquants',
-    fdj_report_late: 'Rapports FDJ tardifs', fdj_correction_recurrente: 'Corrections de comptage récurrentes',
-    fdj_stock_rupture_risk: 'Risque de rupture de stock', fdj_stock_reserve_faible: 'Réserve de stock faible',
-    fdj_regularite_levier: 'Rigueur acquise → levier commercial', fdj_palier_sous_represente: 'Palier sous-représenté',
-    fdj_jour_faible: 'Jour habituellement faible', fdj_jour_fort: 'Jour habituellement fort',
-    fdj_relation_client_opportunite: 'Opportunité de proposition simple', fdj_conseil_general: 'Conseil général de procédure',
-  };
-  function labelRegleCoach(ruleId) { return LABEL_REGLE_COACH[ruleId] || ruleId; }
+  // Libellés partagés avec calculerCandidatsCoachEquipe (nexus-coach-fdj-moteur.js)
+  // — jamais deux intitulés différents pour la même règle (Article 11).
+  function labelRegleCoach(ruleId) { return NexusCoachFdj.LABEL_REGLE_COACH[ruleId] || ruleId; }
 
   async function chargerSyntheseCoachEquipe() {
     const debut = dateISO(periodeResolue.debut), fin = dateISO(periodeResolue.fin);

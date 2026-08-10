@@ -277,7 +277,25 @@ période de comparaison (une seule comparaison, jamais présentée comme une ten
 discipline que le Conseiller FDJ), et un détail par employé **replié par défaut** (audit §12 : « Le
 manager ne doit pas lire les 10 conseils un par un »).
 
-**Étapes suivantes (non commencées) :** la remontée vers Brief (audit §27, item 13).
+**Étape 5 — remontée Brief (09/08/2026) :** `NexusCoachFdj.calculerCandidatsCoachEquipe()` reprend
+le tableau situation → restitution de l'audit §13, à partir de `coach_daily_recommendations` déjà
+écrites (aucune règle recalculée dans Brief — "Brief doit être alimenté par le même moteur de
+règles de FDJ Pilotage, pas par une logique recodée dans Brief") :
+
+| Situation | Restitution |
+|---|---|
+| Tout conforme | Aucune carte |
+| Règle sécurité/rigueur signalée ≥ 3 fois sur la période | Carte rouge — risque de contrôle récurrent |
+| Même règle chez ≥ 3 collaborateurs | Carte orange — axe équipe à travailler |
+| Signaux sécurité/rigueur en baisse ≥ 50 % vs la période précédente (base ≥ 3) | Carte verte — progrès équipe |
+
+Normalisé via `NexusConseiller.normaliserCoach()` (moteur `coach`, distinct du moteur `fdj` du
+Conseiller — deux sources différentes, jamais mélangées), non validable, rejoint le tri fusionné de
+`NEXUS-Brief-v1.html` aux côtés des 8 autres moteurs. Les 4 situations et la garde anti-doublon
+(une règle déjà couverte par la carte rouge n'ouvre pas aussi une carte orange) sont testées.
+
+**Étapes suivantes (non commencées, audit §27) :** l'export PDF (item 14), puis la mesure d'utilité
+(item 15).
 
 ---
 
@@ -292,6 +310,7 @@ manager ne doit pas lire les 10 conseils un par un »).
 | v2.3 | 09/08/2026 | Coach x FDJ Pilotage, étape "brancher les données" (audit §27, item 10) : `nexus-coach-fdj-donnees.js` (chargeurs réels + orchestration idempotente), nouvelle vue `view_fdj_employee_price_tier_daily`, limite honnête documentée sur le proxy de retard de clôture, vérification de bout en bout contre les données réelles du site. |
 | v2.4 | 09/08/2026 | Coach x FDJ Pilotage, étape "écran employé" (audit §27, item 11) : `NEXUS-Coach-FDJ-v1.html` (Conseil du jour), navigation wirée (sidebar, Explorer, recherche), et resserrement de la RLS `coach_daily_recommendations`/`coach_recommendation_events` pour respecter l'audit §21 (un employé ne voit que son propre conseil). |
 | v2.5 | 09/08/2026 | Coach x FDJ Pilotage, étape "écran manager" (audit §27, item 12 / §12) : section "Coaching équipe" ajoutée à l'onglet Conseiller de `NEXUS-FDJ-Analyse-v1.html`, nouvelle classification `NexusCoachFdj.FAMILLE_PAR_REGLE` (sécurité/rigueur/stock/progression/vente/général) partagée pour toute synthèse future. |
+| v2.6 | 09/08/2026 | Coach x FDJ Pilotage, étape "remontée Brief" (audit §27, item 13 / §13) : `NexusCoachFdj.calculerCandidatsCoachEquipe()` (3 règles : risque récurrent/axe équipe/progrès équipe), `NexusConseiller.normaliserCoach()`, moteur `coach` ajouté au tri fusionné de `NEXUS-Brief-v1.html`. `LABEL_REGLE_COACH` relocalisé dans le moteur partagé (retiré du doublon local de FDJ-Analyse). |
 
 Prochaine révision suggérée : après vérification des sections héritées (§5) et des deux chantiers
 au statut inconnu (§4 — Anomalie stock, Capacité de réassort). Côté FDJ : figer les formules de

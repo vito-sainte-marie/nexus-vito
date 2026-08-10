@@ -631,6 +631,29 @@
     };
   }
 
+  // Convertit un candidat NexusCoachFdj.calculerCandidatsCoachEquipe()
+  // (Coach x FDJ Pilotage, étape "remontée Brief", 09/08/2026, audit §13) —
+  // même schéma commun, moteur distinct ('coach') de 'fdj' (Conseiller FDJ,
+  // Phase D) : deux sources différentes (candidats FDJ Pilotage bruts vs
+  // synthèses déjà décidées par Coach), jamais mélangées sous le même nom
+  // de moteur. Non validable pour la même raison que normaliserFdj — la
+  // résolution se constate dans NEXUS-FDJ-Analyse-v1.html (section
+  // Coaching équipe), pas via journal_decisions.
+  const RANG_COACH = { critique: 0, attention: 1, positif: 2 };
+  const ETAT_COACH = { critique: '🔴 CRITIQUE', attention: '🟡 À VÉRIFIER', positif: '📈 OPPORTUNITÉ' };
+  function normaliserCoach(c) {
+    return {
+      candidate_id: c.id, ruleId: c.type, rang: RANG_COACH[c.niveau] != null ? RANG_COACH[c.niveau] : 2,
+      moteur: 'coach',
+      etat: ETAT_COACH[c.niveau] || '📋 SIGNAL', impact_eur: c.impactEur || 0, article: c.titre, categorie: 'Coach FDJ',
+      decision: c.decision, pourquoi: c.constat,
+      impactAttendu: c.impactAttendu, preuve: c.preuve, limites: c.limites || null,
+      cible: c.cible || 'NEXUS-FDJ-Analyse-v1.html',
+      validable: false,
+      confiance: c.confiance || null,
+    };
+  }
+
   // Graine du jour : stable pour un même site à la même date (la rotation
   // ne bouge donc pas à chaque rechargement de page dans la même journée),
   // mais change chaque jour — c'est ce qui donne l'effet "vivant" demandé
@@ -715,7 +738,7 @@
     analyserProduitsStrategiques,
     normaliserProduit, normaliserMarge, normaliserTempo, normaliserAdvisor,
     normaliserCaissePersonne, normaliserStockRayon, normaliserRappel,
-    normaliserFdj,
+    normaliserFdj, normaliserCoach,
     fusionnerEtSelectionner, genererGraineJour,
   };
 })(window);

@@ -145,6 +145,18 @@
     securite: 'Sécurité / conformité', rigueur: 'Rigueur de saisie', stock: 'Stock',
     progression: 'Progression', vente: 'Vente', general: 'Général',
   };
+  // Libellés courts par règle — présentation uniquement (jamais une
+  // formule), partagés entre l'onglet Conseiller de NEXUS-FDJ-Analyse-v1
+  // (section Coaching équipe) et calculerCandidatsCoachEquipe ci-dessous,
+  // pour ne jamais avoir deux intitulés différents pour la même règle.
+  const LABEL_REGLE_COACH = {
+    fdj_activation_chain: 'Chaîne d’activation à sécuriser', fdj_report_missing: 'Rapports FDJ manquants',
+    fdj_report_late: 'Rapports FDJ tardifs', fdj_correction_recurrente: 'Corrections de comptage récurrentes',
+    fdj_stock_rupture_risk: 'Risque de rupture de stock', fdj_stock_reserve_faible: 'Réserve de stock faible',
+    fdj_regularite_levier: 'Rigueur acquise → levier commercial', fdj_palier_sous_represente: 'Palier sous-représenté',
+    fdj_jour_faible: 'Jour habituellement faible', fdj_jour_fort: 'Jour habituellement fort',
+    fdj_relation_client_opportunite: 'Opportunité de proposition simple', fdj_conseil_general: 'Conseil général de procédure',
+  };
 
   // Hachage simple et stable (pas de dépendance à Math.random) — sert
   // uniquement à choisir une variante de formulation de façon
@@ -423,9 +435,141 @@
     };
   }
 
+  // ------------------------------------------------------------
+  // CANDIDATS COACH ÉQUIPE — étape "remontée Brief" (audit §27 item 13 /
+  // §13) : "Brief ne doit pas devenir un duplicata de Coach. Il reçoit
+  // uniquement les synthèses qui méritent une décision manager ou
+  // dirigeant [...] Brief doit être alimenté par le même moteur de règles
+  // de FDJ Pilotage, pas par une logique recodée dans Brief." D'où cette
+  // fonction ICI (pas dans NEXUS-Brief-v1.html) : Brief se contente
+  // d'appeler calculerCandidatsCoachEquipe() puis de normaliser son
+  // résultat, exactement comme il le fait déjà pour calculerCandidatsFdj
+  // (Phase D).
+  //
+  // Reprend le tableau situation → restitution de l'audit §13, à partir
+  // des lignes déjà écrites dans coach_daily_recommendations (aucune règle
+  // recalculée, uniquement un comptage/regroupement de décisions déjà
+  // prises — même discipline que la section "Coaching équipe" de
+  // NEXUS-FDJ-Analyse-v1.html) :
+  //   - Tout est conforme                              -> aucune carte.
+  //   - Risque de contrôle récurrent (sécurité/rigueur) -> carte rouge.
+  //   - Même thème pour plusieurs employés              -> carte orange.
+  //   - Amélioration nette (sécurité/rigueur en baisse)  -> carte verte.
+  //
+  // `donnees` = {
+  //   actuel: [{employee_id, rule_id}] — coach_daily_recommendations de
+  //     la période,
+  //   comp: [{rule_id}] — coach_daily_recommendations de la période de
+  //     comparaison (employee_id non nécessaire ici),
+  //   labelPeriode / labelComp, periodeCle (voir calculerCandidatsFdj).
+  // }
+  const SEUIL_RISQUE_RECURRENT = 3; // occurrences d'une même règle sécurité/rigueur sur la période
+  const SEUIL_AXE_EQUIPE = 3; // collaborateurs distincts concernés par la même règle
+  const SEUIL_PROGRES_BASE = 3; // occurrences minimum en période de comparaison pour parler de progrès
+  const SEUIL_PROGRES_BAISSE = 0.5; // baisse d'au moins 50 % pour parler d'amélioration nette
+  function calculerCandidatsCoachEquipe(donnees) {
+    const d = donnees || {};
+    const actuel = d.actuel || [];
+    const comp = d.comp || [];
+    const labelPeriode = d.labelPeriode || 'cette période';
+    const labelComp = d.labelComp || 'la période précédente';
+    const cle = d.periodeCle || 'periode';
+    const candidats = [];
+    if (!actuel.length) return candidats; // "tout est conforme" (ou aucune donnée) -> aucune carte
+
+    const parRegle = {}, employesParRegle = {};
+    actuel.forEach(r => {
+      parRegle[r.rule_id] = (parRegle[r.rule_id] || 0) + 1;
+      (employesParRegle[r.rule_id] = employesParRegle[r.rule_id] || new Set()).add(r.employee_id);
+    });
+    const parFamilleActuel = {};
+    actuel.forEach(r => { const f = FAMILLE_PAR_REGLE[r.rule_id] || 'general'; parFamilleActuel[f] = (parFamilleActuel[f] || 0) + 1; });
+    const parFamilleComp = {};
+    comp.forEach(r => { const f = FAMILLE_PAR_REGLE[r.rule_id] || 'general'; parFamilleComp[f] = (parFamilleComp[f] || 0) + 1; });
+
+    // A) Risque de contrôle récurrent — carte rouge.
+    let pireRisque = null;
+    Object.entries(parRegle).forEach(([ruleId, n]) => {
+      const famille = FAMILLE_PAR_REGLE[ruleId];
+      if ((famille === 'securite' || famille === 'rigueur') && n >= SEUIL_RISQUE_RECURRENT) {
+        if (!pireRisque || n > pireRisque.n) pireRisque = { ruleId, n };
+      }
+    });
+    if (pireRisque) {
+      const label = LABEL_REGLE_COACH[pireRisque.ruleId] || pireRisque.ruleId;
+      candidats.push({
+        id: `FDJ-COACH-RISQUE-${pireRisque.ruleId}-${cle}`,
+        type: 'FDJ-COACH-RISQUE-RECURRENT', niveau: 'critique',
+        titre: 'Risque de contrôle récurrent (Coach FDJ)',
+        constat: `« ${label} » a été signalé ${pireRisque.n} fois par Coach FDJ sur ${labelPeriode} — un signal qui revient, pas un cas isolé.`,
+        preuve: `Recommandations Coach FDJ générées automatiquement à partir des faits FDJ réels (mouvements de stock, rapports de quart).`,
+        decision: `Vérifiez avec l'équipe pourquoi ce point revient aussi souvent.`,
+        impactAttendu: "Cause structurelle identifiée avant qu'elle ne s'installe.",
+        limites: "Un conseil Coach répété ne désigne pas automatiquement une seule personne en cause — plusieurs employés peuvent être concernés.",
+        confiance: 'Élevée',
+        cible: 'NEXUS-FDJ-Analyse-v1.html', impactEur: 0,
+      });
+    }
+
+    // B) Même thème pour plusieurs employés — carte orange (audit §13,
+    // même exemple qu'en §12 : "4 collaborateurs concernés"). Écarte la
+    // règle déjà retenue en A pour ne jamais publier deux cartes sur le
+    // même fait.
+    let theme = null;
+    Object.entries(employesParRegle).forEach(([ruleId, set]) => {
+      if (pireRisque && ruleId === pireRisque.ruleId) return;
+      if (set.size >= SEUIL_AXE_EQUIPE && (!theme || set.size > theme.n)) theme = { ruleId, n: set.size };
+    });
+    if (theme) {
+      const label = LABEL_REGLE_COACH[theme.ruleId] || theme.ruleId;
+      const famille = FAMILLE_PAR_REGLE[theme.ruleId] || 'general';
+      candidats.push({
+        id: `FDJ-COACH-AXE-${theme.ruleId}-${cle}`,
+        type: 'FDJ-COACH-AXE-EQUIPE', niveau: 'attention',
+        titre: 'Axe équipe à travailler (Coach FDJ)',
+        constat: `« ${label} » concerne ${theme.n} collaborateurs sur ${labelPeriode}.`,
+        preuve: `Recommandations Coach FDJ générées automatiquement à partir des faits FDJ réels.`,
+        decision: `Abordez ce point en équipe plutôt qu'individuellement — plusieurs collaborateurs sont concernés en même temps.`,
+        impactAttendu: famille === 'vente' ? "Vente additionnelle mieux répartie sur l'équipe." : "Pratique harmonisée sur l'équipe.",
+        limites: null, confiance: 'Élevée',
+        cible: 'NEXUS-FDJ-Analyse-v1.html', impactEur: 0,
+      });
+    }
+
+    // C) Amélioration nette — carte verte. Scopée aux familles à risque
+    // (sécurité/rigueur) : une baisse de leurs signaux est un progrès
+    // mesurable, contrairement à une simple variation commerciale qui
+    // mérite déjà sa propre lecture dans le Conseiller FDJ (Phase D).
+    let progres = null;
+    ['securite', 'rigueur'].forEach(famille => {
+      const nComp = parFamilleComp[famille] || 0;
+      const nActuel = parFamilleActuel[famille] || 0;
+      if (nComp >= SEUIL_PROGRES_BASE && nActuel <= nComp * (1 - SEUIL_PROGRES_BAISSE)) {
+        if (!progres || (nComp - nActuel) > (progres.nComp - progres.nActuel)) progres = { famille, nComp, nActuel };
+      }
+    });
+    if (progres) {
+      candidats.push({
+        id: `FDJ-COACH-PROGRES-${progres.famille}-${cle}`,
+        type: 'FDJ-COACH-PROGRES-EQUIPE', niveau: 'positif',
+        titre: 'Progrès équipe (Coach FDJ)',
+        constat: `Les signaux « ${FAMILLE_LABEL[progres.famille]} » sont passés de ${progres.nComp} à ${progres.nActuel} sur ${labelPeriode}, vs ${labelComp}.`,
+        preuve: `Recommandations Coach FDJ générées automatiquement à partir des faits FDJ réels.`,
+        decision: `Ce n'est pas nécessaire d'agir — c'est le moment de le reconnaître auprès de l'équipe.`,
+        impactAttendu: "Dynamique positive maintenue si elle reste reconnue.",
+        limites: "Comparaison sur une seule période — à confirmer si la baisse se maintient dans la durée.",
+        confiance: 'Moyenne',
+        cible: 'NEXUS-FDJ-Analyse-v1.html', impactEur: 0,
+      });
+    }
+
+    return candidats;
+  }
+
   global.NexusCoachFdj = {
-    FORMULATIONS, FAMILLE_PAR_REGLE, FAMILLE_LABEL, hacherTexte, construireMessageCoach, evaluerJour,
+    FORMULATIONS, FAMILLE_PAR_REGLE, FAMILLE_LABEL, LABEL_REGLE_COACH, hacherTexte, construireMessageCoach, evaluerJour,
     evaluerReglesCoach, selectionnerRecommandationCoach, construireRecommandation, estEnCooldown,
+    calculerCandidatsCoachEquipe,
     // Exposés individuellement pour les tests unitaires.
     DETECTEURS,
   };

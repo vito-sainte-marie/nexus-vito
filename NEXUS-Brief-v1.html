@@ -239,6 +239,7 @@
 <script src="nexus-tempo.js"></script>
 <script src="nexus-stock.js"></script>
 <script src="nexus-fdj-moteur.js"></script>
+<script src="nexus-coach-fdj-moteur.js"></script>
 <script src="nexus-conseiller.js"></script>
 <script>
   // ============================================================
@@ -273,12 +274,13 @@
     "📌 RAPPEL": "etat-recommandation", "🗓️ TEMPO": "etat-recommandation",
     "📋 SIGNAL": "etat-recommandation",
   };
-  const MOTEUR_LABEL = { produits: 'Produits', marge: 'Marge+', tempo: 'Tempo', advisor: 'Signal', caisse: 'Caisse', stock: 'Stock', rappel: 'Rappel', fdj: 'FDJ' };
+  const MOTEUR_LABEL = { produits: 'Produits', marge: 'Marge+', tempo: 'Tempo', advisor: 'Signal', caisse: 'Caisse', stock: 'Stock', rappel: 'Rappel', fdj: 'FDJ', coach: 'Coach FDJ' };
   const MOTEUR_SOURCE = {
     produits: 'des ventes réelles importées (Produits)', marge: 'la comparaison de marge entre produits comparables (Marge+)',
     tempo: 'l’historique de caisse par jour de semaine (Tempo)', advisor: 'la détection Qualité/Caisse automatique',
     caisse: 'un audit de caisse réel (Verify)', stock: 'les relevés de stock (Scanner Stock)', rappel: 'un rappel ajouté manuellement',
     fdj: 'le stock et les comptages de quart FDJ réels (Analyse FDJ)',
+    coach: 'les recommandations Coach FDJ déjà générées pour chaque employé (Coach FDJ)',
   };
   const COULEUR_STATUT_DOMAINE = {
     'En progression': 'var(--green)', 'Sous contrôle': 'var(--green)', 'Stable': 'var(--text-mid)',
@@ -549,6 +551,32 @@
     return candidatsBrut.map(NexusConseiller.normaliserFdj);
   }
 
+  // Candidats Coach FDJ — étape "remontée Brief" (09/08/2026, audit §13).
+  // Lit coach_daily_recommendations déjà écrites (aucune règle recalculée
+  // ici, voir NexusCoachFdj.calculerCandidatsCoachEquipe — Article 11).
+  // Même fenêtre fixe que chargerCandidatsFdj ci-dessus, pour une seule
+  // logique de période dans ce fichier.
+  async function chargerCandidatsCoachEquipe() {
+    const finActuelle = new Date(); finActuelle.setHours(23, 59, 59, 999);
+    const debutActuelle = new Date(finActuelle); debutActuelle.setDate(debutActuelle.getDate() - 6); debutActuelle.setHours(0, 0, 0, 0);
+    const finComp = new Date(debutActuelle); finComp.setDate(finComp.getDate() - 1); finComp.setHours(23, 59, 59, 999);
+    const debutComp = new Date(finComp); debutComp.setDate(debutComp.getDate() - 6); debutComp.setHours(0, 0, 0, 0);
+    const iso = d => d.toISOString().slice(0, 10);
+
+    const [{ data: actuel, error: e1 }, { data: comp, error: e2 }] = await Promise.all([
+      nexusClient.from('coach_daily_recommendations').select('employee_id, rule_id').eq('site', SITE_ACTUEL).gte('date', iso(debutActuelle)).lte('date', iso(finActuelle)),
+      nexusClient.from('coach_daily_recommendations').select('rule_id').eq('site', SITE_ACTUEL).gte('date', iso(debutComp)).lte('date', iso(finComp)),
+    ]);
+    if (e1 || e2) { [e1, e2].forEach(e => { if (e) console.error('Chargement coach_daily_recommendations (Brief):', e); }); return []; }
+
+    const candidatsBrut = NexusCoachFdj.calculerCandidatsCoachEquipe({
+      actuel: actuel || [], comp: comp || [],
+      labelPeriode: '7 derniers jours', labelComp: '7 jours précédents',
+      periodeCle: iso(debutActuelle),
+    });
+    return candidatsBrut.map(NexusConseiller.normaliserCoach);
+  }
+
   // Domaine Équipe — repris de chargerDomainesRadarHome() dans App-v1
   // (ponctualité uniquement, comme partout ailleurs dans NEXUS).
   async function chargerDomaineEquipe() {
@@ -710,9 +738,9 @@
     const candidatsProduitsBrut = NexusConseiller.calculerCandidatsProduits(rowsBrut);
     const produitsStrategiques = paire ? NexusConseiller.analyserProduitsStrategiques(rowsPaireActuelle, rowsPairePrecedente) : null;
 
-    const [margePlusResultat, constatTempo, messagesAdvisor, candidatsCaisseObj, candidatsStock, candidatsRappels, candidatsFdj, domaineEquipe, alertesInvOuvertes, controlesVerifyRestants, missionsRestantes] = await Promise.all([
+    const [margePlusResultat, constatTempo, messagesAdvisor, candidatsCaisseObj, candidatsStock, candidatsRappels, candidatsFdj, candidatsCoach, domaineEquipe, alertesInvOuvertes, controlesVerifyRestants, missionsRestantes] = await Promise.all([
       chargerMargePlus(rowsBrut), chargerConstatTempo(), chargerMessagesAdvisor(),
-      chargerCandidatsCaisse(), chargerCandidatsStock(), chargerCandidatsRappels(), chargerCandidatsFdj(), chargerDomaineEquipe(),
+      chargerCandidatsCaisse(), chargerCandidatsStock(), chargerCandidatsRappels(), chargerCandidatsFdj(), chargerCandidatsCoachEquipe(), chargerDomaineEquipe(),
       chargerAlertesInventaireOuvertes(), chargerControlesVerifyRestants(), chargerMissionsRestantes(),
     ]);
 
@@ -836,10 +864,10 @@
     const candidatsAdvisorListe = messagesAdvisor
       .filter(m => m.message_text && m.message_text.trim().length >= 12)
       .map(NexusConseiller.normaliserAdvisor);
-    const nbMoteursActifs = [candidatsProduitsNormalises, candidatMargeListe, candidatTempoListe, candidatsAdvisorListe, candidatsCaisseObj.normalises, candidatsStock, candidatsRappels, candidatsFdj].filter(l => l.length > 0).length;
+    const nbMoteursActifs = [candidatsProduitsNormalises, candidatMargeListe, candidatTempoListe, candidatsAdvisorListe, candidatsCaisseObj.normalises, candidatsStock, candidatsRappels, candidatsFdj, candidatsCoach].filter(l => l.length > 0).length;
 
     const fusion = NexusConseiller.fusionnerEtSelectionner(
-      [candidatsProduitsNormalises, candidatMargeListe, candidatTempoListe, candidatsAdvisorListe, candidatsCaisseObj.normalises, candidatsStock, candidatsRappels, candidatsFdj],
+      [candidatsProduitsNormalises, candidatMargeListe, candidatTempoListe, candidatsAdvisorListe, candidatsCaisseObj.normalises, candidatsStock, candidatsRappels, candidatsFdj, candidatsCoach],
       { site: SITE_ACTUEL, n: 6 }
     );
     const decisions = fusion.slice(0, 3);
