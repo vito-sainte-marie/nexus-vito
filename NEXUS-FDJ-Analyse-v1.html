@@ -337,6 +337,20 @@
     return daily;
   }
 
+  // Paramétrage FDJ du site (10/08/2026, audit "Paramétrage autonome &
+  // multi-site" — fondations) : remplace la constante JS SEUIL_MIN_QUARTS,
+  // jusque-là identique quel que soit le site. Une ligne absente retombe
+  // sur la même valeur par défaut que l'ancienne constante (aucun
+  // changement de comportement tant que le manager ne configure rien).
+  let parametresFdjSiteCache = undefined;
+  async function chargerParametresFdjSite() {
+    if (parametresFdjSiteCache !== undefined) return parametresFdjSiteCache;
+    const { data, error } = await nexusClient.from('fdj_site_settings').select('*').eq('site', siteId).maybeSingle();
+    if (error) console.error('Chargement paramètres FDJ site:', error);
+    parametresFdjSiteCache = data || { seuil_min_quarts_moyenne: 3 };
+    return parametresFdjSiteCache;
+  }
+
   async function chargerEmplacements() {
     const { data, error } = await nexusClient.from('fdj_locations').select('*').eq('site', siteId).eq('actif', true);
     if (error) { console.error('Chargement emplacements FDJ:', error); return []; }
@@ -850,7 +864,7 @@
   // ------------------------------------------------------------
   async function renderEquipe(zone) {
     const d = await chargerDonneesPeriode();
-    const SEUIL_MIN_QUARTS = 3;
+    const SEUIL_MIN_QUARTS = (await chargerParametresFdjSite()).seuil_min_quarts_moyenne ?? 3;
     const parEmployeActuel = {}, parEmployeComp = {};
     d.employeeDaily.actuel.forEach(l => {
       if (!parEmployeActuel[l.employee_id]) parEmployeActuel[l.employee_id] = { ca: 0, quarts: 0, quartsControles: 0, quartsConformes: 0, ecart: 0 };
@@ -1354,7 +1368,7 @@
     }
 
     // Top vendeurs — même agrégation que l'onglet Équipe (même seuil minimum de quarts pour le CA moyen).
-    const SEUIL_MIN_QUARTS = 3;
+    const SEUIL_MIN_QUARTS = (await chargerParametresFdjSite()).seuil_min_quarts_moyenne ?? 3;
     const parEmployeActuel = {};
     d.employeeDaily.actuel.forEach(l => {
       if (!parEmployeActuel[l.employee_id]) parEmployeActuel[l.employee_id] = { ca: 0, quarts: 0, quartsControles: 0, quartsConformes: 0 };

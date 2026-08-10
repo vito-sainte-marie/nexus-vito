@@ -416,6 +416,60 @@ fabriquée. `statut_caisse` des lignes importées vaut `conforme` si écart = 0,
 `valide_avec_ecart` (jamais `provisoire`), donc incluses par tous les filtres existants
 `WHERE statut_caisse <> 'provisoire'`.
 
+### Paramétrage FDJ par site (`fdj_site_settings`, 10/08/2026) — fondations
+
+Suite à l'audit développeur "NEXUS FDJ — Paramétrage autonome & multi-site" (document fourni par
+Frédéric, 09/08/2026) dont le principe directeur est : *"le développeur construit le moteur, le
+manager administre le métier — aucun changement normal d'exploitation ne doit nécessiter une
+modification du code."* Premier lot ("fondations", étapes 1-2 de l'ordre de développement recommandé
+par l'audit) : formaliser un schéma de configuration par site et éliminer les dernières constantes
+JS identifiées comme identiques pour tous les sites alors qu'elles devraient être un réglage local.
+
+**Table `fdj_site_settings`** — une ligne par site (`site` en clé primaire, RLS scopée par
+`current_employee_site_id()` comme `fdj_games`/`fdj_locations`) :
+- `profil_stock` (`reserve_centrale`/`direct_caisse`/`multi_caisse`/`avance`, audit §4/§8) —
+  informationnel pour l'instant, aucun écran ni règle moteur ne le lit encore. Posé maintenant pour
+  ne pas re-designer le schéma à l'étape suivante (écran "Paramètres FDJ").
+- `nombre_quarts`, `horaire_bascule_quart2_repli` (audit §13) — l'horaire de bascule quart 1 → quart
+  2 reste d'abord lu depuis `station_config.horaires.quart2.normal` (partagé avec Inventaire) ;
+  cette colonne ne sert que de repli FDJ si `station_config` est vide, remplaçant l'ancienne
+  constante `HORAIRE_DEFAUT_DEBUT_QUART2 = '12:40'` de `NEXUS-FDJ-v1.html`.
+- `seuil_caisse_vert`, `seuil_caisse_rouge`, `validation_manager_obligatoire` (audit §14) — posés
+  pour la suite (aucun statut de caisse "à contrôler" à seuil n'existe encore dans le flux natif
+  aujourd'hui ; le manager choisit directement le statut, ce n'était donc pas une constante à
+  éliminer mais une fonctionnalité qui reste à construire).
+- `seuil_min_quarts_moyenne` (audit §15) — remplace la constante JS `SEUIL_MIN_QUARTS = 3`, dupliquée
+  à deux endroits de `NEXUS-FDJ-Analyse-v1.html` (onglet Équipe et Top vendeurs du rapport PDF).
+- `coach_actif`, `coach_seuil_risque_recurrent`, `coach_seuil_axe_equipe`, `coach_seuil_progres_base`,
+  `coach_seuil_progres_baisse` (audit §17) — remplacent les 4 constantes JS de
+  `nexus-coach-fdj-moteur.js` (`SEUIL_RISQUE_RECURRENT`, `SEUIL_AXE_EQUIPE`, `SEUIL_PROGRES_BASE`,
+  `SEUIL_PROGRES_BAISSE`) utilisées par `calculerCandidatsCoachEquipe()`.
+
+**Aucun changement de comportement à la création de cette table** : les valeurs par défaut des
+colonnes reproduisent exactement les anciennes constantes, et une ligne absente retombe sur les
+mêmes valeurs côté JS (`{ horaire_bascule_quart2_repli: '12:40' }`, `{ seuil_min_quarts_moyenne: 3 }`,
+`NexusCoachFdj.SEUILS_COACH_EQUIPE_DEFAUT`).
+
+**Respect d'Article 11 dans `nexus-coach-fdj-moteur.js`** : ce fichier reste une bibliothèque de
+fonctions pures, sans aucun accès Supabase (principe déjà en place pour `nexus-fdj-moteur.js`).
+`calculerCandidatsCoachEquipe(donnees, seuils)` reçoit donc les seuils en second paramètre optionnel
+(fusionnés avec `SEUILS_COACH_EQUIPE_DEFAUT` si absents) plutôt que de lire `fdj_site_settings`
+elle-même ; c'est l'appelant (`NEXUS-Brief-v1.html`, seul appelant existant) qui charge
+`fdj_site_settings` et transmet les 4 valeurs.
+
+**Pas encore construit** (étapes suivantes de l'audit, hors périmètre de ce lot) : écran manager pour
+éditer ces réglages (modification par SQL uniquement pour l'instant), profil de stock réellement
+consommé par le moteur, statut de caisse "à contrôler" basé sur `seuil_caisse_vert`/`seuil_caisse_rouge`,
+versionnage/audit des modifications (`fdj_config_versions`), duplication de site, assistant de mise
+en service.
+
+Vérifié : migration appliquée et RLS relue (`select`/`update` scopées par site, écriture large
+réservée à `service_role`), `node --check` sur les 4 scripts extraits modifiés
+(`NEXUS-FDJ-v1.html`, `NEXUS-FDJ-Analyse-v1.html`, `NEXUS-Brief-v1.html`, `nexus-coach-fdj-moteur.js`),
+et les 4 tests de composition existants (`test_fdj_composition.js`, `test_fdj_granularite.js`,
+`test_brief_composition.js`, plus le test WinAnsi non concerné) toujours verts — le second paramètre
+de `calculerCandidatsCoachEquipe` étant optionnel, aucun appel existant n'est cassé.
+
 ---
 
 ## 8. NEXUS PDF Moteur — export PDF applicatif partagé (`nexus-pdf-moteur.js`, 10/08/2026)
@@ -639,6 +693,7 @@ correct d'une année complète en 12 mois et d'un mois en 5-6 semaines ISO.
 | v2.16 | 10/08/2026 | Import de l'historique FDJ 2026 (tableur Google Sheets "CAISSE JOURNALIERE FDJ 2026") dans la nouvelle table peuplée `fdj_imported_history` (442 lignes, 01/01→09/08/2026, écart par employé sur 7 dates de juillet où le tableur le détaillait), à la demande de Frédéric ("mettons en pause le parametrage fdj un instant"). Toutes les lignes marquées `data->>'statut'='verifie'` (demande explicite du même jour). Fusionné ensuite dans `view_fdj_shift_facts` (UNION ALL native ∪ importé, dédupliqué par `(site,date,quart)`, native toujours prioritaire) — voir section 7, "Historique importé" — pour que FDJ Pilotage (tous onglets sauf Jeux/Équipe/Stock, qui restent honnêtement natifs faute de détail par jeu/employé dans le tableur) et le rapport PDF couvrent 2026 sans aucun changement JS, migration Supabase pure (`blend_fdj_imported_history_into_shift_facts`), aucun fichier applicatif modifié, aucun zip nécessaire pour ce lot. Vérifié par requêtes directes : total vues (444 = 436 importées + 8 natives, dont 1 site de test), somme annuelle (CA grattage 261 367,00 €, écart cumulé -159,83 €, conforme à l'extraction source), agrégats mensuels plausibles (~60 quarts/mois), et 4 spot-checks de valeurs individuelles contre le tableur source. |
 | v2.17 | 10/08/2026 | Onglet Jeux de FDJ Pilotage : demande de Frédéric de ne jamais laisser la liste vide/clairsemée silencieusement quand la période sélectionnée déborde sur l'historique importé (sans détail par jeu). `NEXUS-FDJ-Analyse-v1.html` garde exactement les jours natifs disponibles dans `view_fdj_game_daily` (jamais de donnée inventée pour les jours importés) et ajoute désormais une phrase explicite au-dessus du Top 10 (`champ-note`) quand la période contient au moins un jour sans détail par jeu : nombre de jours natifs sur le total de la période, date de démarrage réelle du suivi par jeu (`chargerPremiereDateSuiviJeu()`, `MIN(date)` de `fdj_shifts`, jamais codée en dur), et rappel que le CA global de ces jours reste visible dans Vue d'ensemble/Ventes. Vérifié par `node --check` du script extrait et par requête directe confirmant 4 jours natifs avec détail par jeu (07→10/08/2026, 15 à 29 jeux comptés par jour). Aucun autre fichier touché, aucun zip nécessaire (changement JS pur, pas de nouvelle dépendance). |
 | v2.18 | 10/08/2026 | Ajout de "Caisse réelle totale" (somme du montant physiquement compté, grattage + loto, filtrée sur les quarts déjà contrôlés) — demande explicite de Frédéric, capture d'écran du tableur à l'appui : c'est cette valeur, pas le CA théorique, qu'il compare au dépôt réel pour déduire les commissions FDJ ("il faut que cette ligne puisse apparaître"). Nouvelle colonne `caisse_reelle_totale` (`sum(caisse_reelle) FILTER (WHERE statut_caisse <> 'provisoire')`, ajoutée en dernière position pour ne casser aucune vue dépendante) sur les 4 vues de synthèse `view_fdj_daily/weekly/monthly/yearly_summary` — fonctionne aussi bien sur les jours natifs que sur l'historique importé grâce à la fusion v2.16. Propagée dans `CHAMPS_SUMMARY`, affichée dans la carte de l'onglet Ventes (ligne "Caisse réelle totale" avec sa note d'usage) et comme 5ᵉ KPI du rapport PDF (`construireRapportPdf`, `ligneKpi` générique sur le nombre de cartes, aucun changement dans `nexus-pdf-moteur.js`). Vérifié par requête directe sur la semaine du 03→09/08/2026 : CA grattage 9185 €, caisse loto 5190,15 €, écart 6,10 €, caisse réelle totale 8698,25 € — identiques aux "TOTAUX semaine" du tableur source à l'euro près. `node --check` du script extrait OK ; les tests de composition PDF existants (`test_fdj_composition.js`, `test_fdj_granularite.js`) repassent sans régression (`ligneKpi` déjà générique sur le nombre de cartes, non modifié). |
+| v2.20 | 10/08/2026 | Premier lot ("fondations") de l'audit "NEXUS FDJ — Paramétrage autonome & multi-site" fourni par Frédéric : nouvelle table `fdj_site_settings` (une ligne par site, RLS scopée `current_employee_site_id()`) regroupant profil de stock, quarts/horaire de repli, seuils de caisse, `seuil_min_quarts_moyenne` et 4 seuils Coach. Élimination des constantes JS jusque-là identiques pour tous les sites : `HORAIRE_DEFAUT_DEBUT_QUART2` (`NEXUS-FDJ-v1.html`), `SEUIL_MIN_QUARTS` (`NEXUS-FDJ-Analyse-v1.html`, 2 occurrences), et les 4 seuils de `calculerCandidatsCoachEquipe()` dans `nexus-coach-fdj-moteur.js` — devenus un second paramètre optionnel (`seuils`) plutôt que des constantes internes, pour préserver Article 11 (moteur sans accès Supabase) ; `NEXUS-Brief-v1.html` charge désormais `fdj_site_settings` et les transmet. Aucun changement de comportement (mêmes valeurs par défaut qu'avant). Voir section 7, "Paramétrage FDJ par site". Reste à construire : écran manager, statut caisse "à contrôler", versionnage, duplication de site — étapes suivantes du même audit. |
 | v2.19 | 10/08/2026 | Mise en évidence de "Caisse réelle totale" (demande de Frédéric, "encadré ou d'une autre couleur") : côté écran, sortie de la carte résumé neutre de l'onglet Ventes vers un nouvel encadré dédié (`.caisse-reelle-box`, teinte + bordure cyan, valeur en 20px/800), placé juste après ; côté rapport PDF, le 5ᵉ KPI "Caisse réelle" reçoit `couleurValeur: COULEUR.cyan` (seule carte colorée par défaut, indépendamment du signe, pour qu'elle saute aux yeux au milieu des 4 autres) — même traitement visuel (cyan) qu'à l'écran, sans dupliquer de logique de couleur. Vérifié : `node --check` du script extrait OK, `test_fdj_composition.js`/`test_fdj_granularite.js` toujours verts (`ligneKpi`/`COULEUR.cyan` déjà génériques, `nexus-pdf-moteur.js` non modifié). |
 
 Prochaine révision suggérée : après vérification des sections héritées (§5) et des deux chantiers

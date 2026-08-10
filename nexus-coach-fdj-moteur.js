@@ -463,17 +463,32 @@
   //     comparaison (employee_id non nécessaire ici),
   //   labelPeriode / labelComp, periodeCle (voir calculerCandidatsFdj).
   // }
-  const SEUIL_RISQUE_RECURRENT = 3; // occurrences d'une même règle sécurité/rigueur sur la période
-  const SEUIL_AXE_EQUIPE = 3; // collaborateurs distincts concernés par la même règle
-  const SEUIL_PROGRES_BASE = 3; // occurrences minimum en période de comparaison pour parler de progrès
-  const SEUIL_PROGRES_BAISSE = 0.5; // baisse d'au moins 50 % pour parler d'amélioration nette
-  function calculerCandidatsCoachEquipe(donnees) {
+  // Seuils déclencheurs (10/08/2026, audit "Paramétrage autonome & multi-
+  // site" §17 : "Seuils déclencheurs" doit être un paramètre de site, pas
+  // une constante identique pour tous). Comme le reste de ce moteur
+  // (Article 11 — aucune donnée Supabase lue ici), ces seuils sont
+  // désormais un paramètre fourni par l'appelant plutôt que des constantes
+  // figées : les valeurs ci-dessous ne servent plus que de repli si
+  // l'appelant ne fournit rien (donc aucun changement de comportement pour
+  // un site qui ne configure rien dans fdj_site_settings).
+  const SEUILS_COACH_EQUIPE_DEFAUT = {
+    risqueRecurrent: 3, // occurrences d'une même règle sécurité/rigueur sur la période
+    axeEquipe: 3, // collaborateurs distincts concernés par la même règle
+    progresBase: 3, // occurrences minimum en période de comparaison pour parler de progrès
+    progresBaisse: 0.5, // baisse d'au moins 50 % pour parler d'amélioration nette
+  };
+  function calculerCandidatsCoachEquipe(donnees, seuils) {
     const d = donnees || {};
     const actuel = d.actuel || [];
     const comp = d.comp || [];
     const labelPeriode = d.labelPeriode || 'cette période';
     const labelComp = d.labelComp || 'la période précédente';
     const cle = d.periodeCle || 'periode';
+    const s = Object.assign({}, SEUILS_COACH_EQUIPE_DEFAUT, seuils || {});
+    const SEUIL_RISQUE_RECURRENT = s.risqueRecurrent;
+    const SEUIL_AXE_EQUIPE = s.axeEquipe;
+    const SEUIL_PROGRES_BASE = s.progresBase;
+    const SEUIL_PROGRES_BAISSE = s.progresBaisse;
     const candidats = [];
     if (!actuel.length) return candidats; // "tout est conforme" (ou aucune donnée) -> aucune carte
 
@@ -569,7 +584,7 @@
   global.NexusCoachFdj = {
     FORMULATIONS, FAMILLE_PAR_REGLE, FAMILLE_LABEL, LABEL_REGLE_COACH, hacherTexte, construireMessageCoach, evaluerJour,
     evaluerReglesCoach, selectionnerRecommandationCoach, construireRecommandation, estEnCooldown,
-    calculerCandidatsCoachEquipe,
+    calculerCandidatsCoachEquipe, SEUILS_COACH_EQUIPE_DEFAUT,
     // Exposés individuellement pour les tests unitaires.
     DETECTEURS,
   };

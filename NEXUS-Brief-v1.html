@@ -569,6 +569,23 @@
     return candidatsBrut.map(NexusConseiller.normaliserFdj);
   }
 
+  // Paramétrage FDJ du site (10/08/2026, audit "Paramétrage autonome &
+  // multi-site" §17) : les seuils déclencheurs de calculerCandidatsCoachEquipe
+  // viennent désormais de fdj_site_settings plutôt que d'être identiques
+  // pour tous les sites. Absence de ligne -> repli sur les mêmes valeurs
+  // que l'ancien comportement (voir NexusCoachFdj.SEUILS_COACH_EQUIPE_DEFAUT).
+  async function chargerSeuilsCoachEquipeFdj() {
+    const { data, error } = await nexusClient.from('fdj_site_settings').select('coach_seuil_risque_recurrent, coach_seuil_axe_equipe, coach_seuil_progres_base, coach_seuil_progres_baisse').eq('site', SITE_ACTUEL).maybeSingle();
+    if (error) { console.error('Chargement paramètres FDJ site (seuils Coach):', error); return undefined; }
+    if (!data) return undefined;
+    return {
+      risqueRecurrent: data.coach_seuil_risque_recurrent,
+      axeEquipe: data.coach_seuil_axe_equipe,
+      progresBase: data.coach_seuil_progres_base,
+      progresBaisse: data.coach_seuil_progres_baisse,
+    };
+  }
+
   // Candidats Coach FDJ — étape "remontée Brief" (09/08/2026, audit §13).
   // Lit coach_daily_recommendations déjà écrites (aucune règle recalculée
   // ici, voir NexusCoachFdj.calculerCandidatsCoachEquipe — Article 11).
@@ -587,11 +604,12 @@
     ]);
     if (e1 || e2) { [e1, e2].forEach(e => { if (e) console.error('Chargement coach_daily_recommendations (Brief):', e); }); return []; }
 
+    const seuils = await chargerSeuilsCoachEquipeFdj();
     const candidatsBrut = NexusCoachFdj.calculerCandidatsCoachEquipe({
       actuel: actuel || [], comp: comp || [],
       labelPeriode: '7 derniers jours', labelComp: '7 jours précédents',
       periodeCle: iso(debutActuelle),
-    });
+    }, seuils);
     return candidatsBrut.map(NexusConseiller.normaliserCoach);
   }
 

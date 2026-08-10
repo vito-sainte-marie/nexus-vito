@@ -251,13 +251,30 @@
   function fmtNum(n) { return (n === null || n === undefined || isNaN(n)) ? '—' : Number(n).toLocaleString('fr-FR', { maximumFractionDigits: 2 }); }
   function fmtEuro(n) { return (n === null || n === undefined || isNaN(n)) ? '—' : `${Number(n).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`; }
 
+  // Paramétrage FDJ du site (10/08/2026, audit "Paramétrage autonome &
+  // multi-site" — fondations) : fdj_site_settings remplace les constantes
+  // JS qui étaient jusque-là identiques quel que soit le site. Une ligne
+  // absente retombe sur les mêmes valeurs par défaut que les anciennes
+  // constantes (aucun changement de comportement tant que le manager ne
+  // configure rien) — voir NEXUS-Data-Dictionary-v2 pour le détail.
+  let parametresFdjSiteCache = undefined;
+  async function chargerParametresFdjSite() {
+    if (parametresFdjSiteCache !== undefined) return parametresFdjSiteCache;
+    const { data, error } = await nexusClient.from('fdj_site_settings').select('*').eq('site', siteId).maybeSingle();
+    if (error) console.error('Chargement paramètres FDJ site:', error);
+    parametresFdjSiteCache = data || { horaire_bascule_quart2_repli: '12:40' };
+    return parametresFdjSiteCache;
+  }
+
   // Quart du moment dérivé des horaires réels de la station (même logique
   // que NEXUS Inventaire — station_config.horaires.quart2.normal), converti
   // en '1'/'2' pour coller au vocabulaire des feuilles FDJ papier réelles
-  // ("Quart : 1" / "Quart : 2").
-  const HORAIRE_DEFAUT_DEBUT_QUART2 = '12:40';
+  // ("Quart : 1" / "Quart : 2"). Repli FDJ (si station_config est vide) lu
+  // depuis fdj_site_settings.horaire_bascule_quart2_repli, plus jamais une
+  // constante JS figée pour tous les sites.
   async function quartDuMoment() {
-    let debutQuart2 = HORAIRE_DEFAUT_DEBUT_QUART2;
+    const parametresSite = await chargerParametresFdjSite();
+    let debutQuart2 = parametresSite.horaire_bascule_quart2_repli || '12:40';
     const { data, error } = await nexusClient.from('station_config').select('horaires').eq('site', siteId).maybeSingle();
     if (error) console.error('Chargement horaires station (quart FDJ par défaut):', error);
     else if (data && data.horaires && data.horaires.quart2 && data.horaires.quart2.normal) debutQuart2 = data.horaires.quart2.normal;
