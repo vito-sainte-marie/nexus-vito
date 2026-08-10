@@ -132,6 +132,40 @@
   .filtre-row select{flex:1; min-width:110px;}
 
   footer{margin-top:auto; padding:16px 20px 24px; font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:center; border-top:1px solid var(--hairline);}
+
+  /* --- Analyse : onglet Rapports / Export --- */
+  .rapport-entete{margin-bottom:6px;}
+  .rapport-titre{font-size:16px; font-weight:700;}
+  .rapport-sous{font-size:11.5px; color:var(--text-mid); margin-top:4px;}
+  .rapport-provisoire{font-size:11.5px; color:var(--amber); background:var(--amber-dim); border-radius:8px; padding:9px 11px; margin-top:10px; line-height:1.5;}
+  .btn-imprimer{display:block; width:100%; margin:14px 0 8px; padding:12px; border-radius:10px; border:1px solid rgba(79,195,217,0.3); background:rgba(79,195,217,0.1); color:var(--cyan); font-family:var(--sans); font-size:13.5px; font-weight:600; cursor:pointer;}
+
+  /* --- Impression / export PDF (§23 : solution locale navigateur,
+     sans dépendance payante) — masque toute la chrome interactive de
+     l'app et repasse en thème clair pour ne pas imprimer des pages
+     noires ; ne concerne que ce qui est visible au moment de
+     l'impression (l'onglet Rapports au premier plan). --- */
+  @media print {
+    .menu-btn, .tabs-nav, .periode-select-row, .periode-iso-row, .periode-perso-row,
+    .periode-label-comparaison, .nexus-sidebar, .nexus-sidebar-toggle, footer, .no-print { display:none !important; }
+    body, .phone { background:#fff !important; }
+    .phone { max-width:100% !important; border:none !important; padding-top:0 !important; }
+    body.nexus-desktop .desktop-grid{column-count:1 !important;}
+    .eyebrow, .title, .sub, .section-titre, .rapport-titre, .rapport-sous,
+    .stat-label, .stat-value, .stat-sub, .chart-titre, .chart-question,
+    .decision-card, .champ-note { color:#111 !important; }
+    .resume-card, .chart-wrap, .decision-card, .card{
+      background:#fff !important; border:1px solid #ccc !important; box-shadow:none !important;
+      break-inside:avoid; page-break-inside:avoid;
+    }
+    .stat-value.cyan{color:#0a6b7a !important;}
+    .stat-value.green{color:#1a7a4c !important;}
+    .stat-value.amber{color:#966600 !important;}
+    .stat-value.red{color:#a01c1c !important;}
+    .decision-card.risque{border-color:#a01c1c !important;}
+    .rapport-provisoire{background:#fff !important; border:1px solid #d9a400 !important; color:#7a5a00 !important;}
+    .divider{background:#ccc !important;}
+  }
 </style>
 </head>
 <body>
@@ -168,7 +202,11 @@
   //
   // Portée de cette Phase C (§46) : vue d'ensemble, graphiques, filtres,
   // historique analytique. Le Conseiller NEXUS FDJ (objet recommandation
-  // commun, Brief) et les exports PDF sont les Phases D et E — pas ici.
+  // commun, Brief) est la Phase D — ajouté plus tard dans ce même fichier
+  // (onglet Conseiller). L'onglet Rapports / Export (audit Coach x FDJ
+  // Pilotage §23, §27 étape 14) réutilise l'export PDF natif du
+  // navigateur (window.print() + feuille @media print) plutôt qu'une
+  // nouvelle dépendance — voir renderRapports() plus bas.
   // ------------------------------------------------------------
 
   let managerCourant = null;
@@ -374,7 +412,7 @@
     { id: 'controle', label: 'Contrôle & écarts' },
     { id: 'historique', label: 'Historique' },
     { id: 'conseiller', label: 'Conseiller' },
-    { id: 'rapports', label: 'Rapports / Export', desactive: true },
+    { id: 'rapports', label: 'Rapports / Export' },
   ];
 
   async function renderPage() {
@@ -460,6 +498,7 @@
       else if (ongletActuel === 'controle') await renderControle(zone);
       else if (ongletActuel === 'historique') await renderHistorique(zone);
       else if (ongletActuel === 'conseiller') await renderConseiller(zone);
+      else if (ongletActuel === 'rapports') await renderRapports(zone);
     } catch (e) {
       console.error('Erreur de rendu onglet FDJ Analyse:', e);
       zone.innerHTML = '<div class="loading">Erreur de chargement. Réessayez.</div>';
@@ -1129,6 +1168,99 @@
         }
       });
     }
+  }
+
+  // ------------------------------------------------------------
+  // RAPPORTS / EXPORT — audit Coach x FDJ Pilotage §23, §27 étape 14.
+  // "Sélection par dates ou numéro de semaine, hebdomadaire / mensuel /
+  // annuel" : déjà couvert par le sélecteur de période universel de la
+  // page (§8) — pas de second sélecteur à construire. Export PDF via
+  // window.print() + feuille @media print dédiée (ci-dessous dans
+  // <style>) : solution 100% locale navigateur, sans dépendance payante
+  // ("solution locale navigateur... sans dépendance obligatoire à une
+  // API payante", §23) — aucune librairie jsPDF/html2canvas ajoutée.
+  // Contenu du rapport = résumé manager + graphique CA + conseils
+  // collectifs et tendances Coach FDJ, en réutilisant EXACTEMENT les
+  // mêmes fonctions que le reste de l'onglet Conseiller
+  // (candidatsFdjPeriode, chargerSyntheseCoachEquipe,
+  // calculerSyntheseCoach) — jamais une troisième version des mêmes
+  // règles (Article 11, "une seule vérité"). Mention "données
+  // provisoires" (§23) dès qu'un quart de la période n'a pas encore été
+  // contrôlé par un manager — même signal que le taux de quarts
+  // conformes affiché ailleurs sur la page.
+  // ------------------------------------------------------------
+  async function renderRapports(zone) {
+    const d = await chargerDonneesPeriode();
+    const actuel = sommerChamps(d.daily.actuel, CHAMPS_SUMMARY);
+    const comp = sommerChamps(d.daily.comp, CHAMPS_SUMMARY);
+    const compDisponible = comp.nb_quarts_controles > 0;
+    const evolCa = compDisponible ? evolution(actuel.ca_grattage, comp.ca_grattage) : null;
+    const tauxConformite = actuel.nb_quarts_controles > 0 ? actuel.nb_quarts_conformes / actuel.nb_quarts_controles : null;
+    const nbNonControles = actuel.nb_quarts - actuel.nb_quarts_controles;
+    const donneesProvisoires = nbNonControles > 0;
+
+    const [candidatsBrut, coachData] = await Promise.all([candidatsFdjPeriode(), chargerSyntheseCoachEquipe()]);
+    const candidats = candidatsBrut.map(NexusConseiller.normaliserFdj).sort((a, b) => a.rang - b.rang).slice(0, 5);
+    const synthese = calculerSyntheseCoach(coachData.actuel, coachData.comp);
+
+    const lignesTriees = d.daily.actuel.slice().sort((a, b) => a.date.localeCompare(b.date));
+    const labels = lignesTriees.map(l => new Date(l.date + 'T00:00:00').toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }));
+    const valeurs = lignesTriees.map(l => l.ca_grattage !== null ? Number(l.ca_grattage) : 0);
+
+    zone.innerHTML = `
+      <div class="rapport-entete">
+        <div class="rapport-titre">Rapport FDJ — ${periodeResolue.label}</div>
+        <div class="rapport-sous">${periodeResolue.debut.toLocaleDateString('fr-FR')} → ${periodeResolue.fin.toLocaleDateString('fr-FR')} · généré le ${new Date().toLocaleDateString('fr-FR')} à ${new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</div>
+        ${donneesProvisoires ? `<div class="rapport-provisoire">⚠️ ${nbNonControles} quart${nbNonControles > 1 ? 's' : ''} sur ${actuel.nb_quarts} pas encore contrôlé${nbNonControles > 1 ? 's' : ''} par un manager — les chiffres de ce rapport sont provisoires et peuvent encore évoluer.</div>` : ''}
+      </div>
+      <button class="btn-imprimer no-print" id="btnImprimerRapport" type="button">🖨️ Imprimer / Enregistrer en PDF</button>
+      <div class="champ-note no-print">Utilisez le bouton ci-dessus, puis « Enregistrer au format PDF » dans la fenêtre d'impression de votre navigateur — changez de période au-dessus pour un autre rapport hebdomadaire, mensuel ou annuel.</div>
+
+      <div class="section-titre">Résumé manager</div>
+      <div class="resume-card">
+        <div class="stat-row total"><div class="stat-label">CA FDJ (${periodeResolue.label.toLowerCase()})</div><div class="stat-value cyan">${fmtEuro(actuel.ca_grattage + (actuel.caisse_tirages || 0))}</div></div>
+        <div class="stat-row"><div class="stat-label">Évolution vs ${periodeResolue.labelComp.toLowerCase()}</div><div class="stat-value ${classeEvolution(evolCa)}">${fmtEvolution(evolCa)}</div></div>
+        <div class="stat-row"><div class="stat-label">Taux de quarts conformes</div><div class="stat-value ${tauxConformite === null ? '' : (tauxConformite >= 0.9 ? 'green' : (tauxConformite >= 0.7 ? 'amber' : 'red'))}">${fmtPct(tauxConformite)}</div></div>
+        <div class="stat-sub">${actuel.nb_quarts_controles} quart${actuel.nb_quarts_controles > 1 ? 's' : ''} contrôlé${actuel.nb_quarts_controles > 1 ? 's' : ''} sur ${actuel.nb_quarts} au total</div>
+      </div>
+
+      <div class="chart-wrap">
+        <div class="chart-titre">Courbe CA grattage</div>
+        <div class="chart-canvas-wrap"><canvas id="chartRapportCa"></canvas></div>
+      </div>
+
+      <div class="section-titre">Signaux &amp; décisions suggérées</div>
+      ${candidats.length ? candidats.map(c => `
+        <div class="decision-card ${c.rang <= 1 ? 'risque' : ''}">
+          <div style="font-weight:700; font-size:12.5px; margin-bottom:4px;">${c.article}</div>
+          <div style="margin-bottom:4px;">${c.pourquoi}</div>
+          <div style="font-weight:600;">→ ${c.decision}</div>
+        </div>
+      `).join('') : '<div class="champ-note">Rien qui mérite l’attention du manager sur cette période.</div>'}
+
+      <div class="section-titre">Coaching équipe — conseils collectifs et tendances</div>
+      ${synthese ? `
+        <div class="resume-card">
+          <div class="stat-row"><div class="stat-label">Thème dominant</div><div class="stat-value">${labelRegleCoach(synthese.dominant)}</div></div>
+          <div class="stat-sub">${synthese.employesDominant} collaborateur${synthese.employesDominant > 1 ? 's' : ''} concerné${synthese.employesDominant > 1 ? 's' : ''} · ${synthese.nDominant} conseil${synthese.nDominant > 1 ? 's' : ''}</div>
+          ${synthese.evolution != null ? `<div class="stat-row"><div class="stat-label">Évolution vs ${periodeResolue.labelComp.toLowerCase()}</div><div class="stat-value ${classeEvolution(synthese.evolution)}">${fmtEvolution(synthese.evolution)}</div></div>` : ''}
+          <div class="stat-row"><div class="stat-label">Conseils diffusés</div><div class="stat-value">${synthese.totalConseils}</div></div>
+          <div class="stat-row"><div class="stat-label">Collaborateurs concernés</div><div class="stat-value">${synthese.employesConcernes}</div></div>
+        </div>
+        <div class="section-titre" style="margin-top:10px;">Répartition par famille</div>
+        ${Object.entries(synthese.parFamille).sort((a, b) => b[1] - a[1]).map(([f, n]) => `
+          <div class="stat-row"><div class="stat-label">${NexusCoachFdj.FAMILLE_LABEL[f] || f}</div><div class="stat-value">${n}</div></div>
+        `).join('')}
+      ` : '<div class="champ-note">Aucun conseil Coach FDJ diffusé sur cette période.</div>'}
+    `;
+
+    chartsActifs.rapportCa = new Chart(document.getElementById('chartRapportCa'), {
+      type: 'line',
+      data: { labels, datasets: [{ data: valeurs, borderColor: '#4FC3D9', backgroundColor: 'rgba(79,195,217,0.12)', fill: true, tension: 0.25, pointRadius: 3 }] },
+      options: { ...optionsGraphiqueBase(), plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => fmtEuro(ctx.parsed.y) } } } },
+    });
+
+    document.getElementById('btnImprimerRapport').addEventListener('click', () => window.print());
   }
 
   // ------------------------------------------------------------

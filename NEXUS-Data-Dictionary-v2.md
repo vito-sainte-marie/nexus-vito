@@ -294,8 +294,33 @@ Conseiller — deux sources différentes, jamais mélangées), non validable, re
 `NEXUS-Brief-v1.html` aux côtés des 8 autres moteurs. Les 4 situations et la garde anti-doublon
 (une règle déjà couverte par la carte rouge n'ouvre pas aussi une carte orange) sont testées.
 
-**Étapes suivantes (non commencées, audit §27) :** l'export PDF (item 14), puis la mesure d'utilité
-(item 15).
+**Étape 6 — export PDF (09/08/2026, audit §23, §27 item 14) :** nouvel onglet **Rapports / Export**
+dans `NEXUS-FDJ-Analyse-v1.html`, activé (retiré de la liste des onglets désactivés). « Sélection par
+dates ou numéro de semaine, hebdomadaire / mensuel / annuel » (§23) : déjà couvert par le sélecteur
+de période universel de la page (§8) — aucun second sélecteur construit. Génération PDF via
+`window.print()` + feuille `@media print` dédiée : solution 100 % locale navigateur, **aucune
+dépendance ajoutée** (pas de jsPDF/html2canvas — confirmé qu'aucun précédent n'existait dans le
+code) conformément à « solution locale navigateur… sans dépendance obligatoire à une API payante »
+(§23). La feuille d'impression masque la chrome interactive (menu, onglets, sélecteurs, barre
+latérale desktop, pied de page, bouton Imprimer lui-même) et repasse en thème clair pour éviter
+d'imprimer des pages sombres.
+
+Contenu du rapport — réutilise strictement les fonctions déjà en place ailleurs sur la page, jamais
+une troisième version des mêmes règles (Article 11) :
+- résumé manager (CA, évolution, taux de quarts conformes) — mêmes champs que l'onglet Vue
+  d'ensemble ;
+- graphique CA grattage de la période (même chart que l'onglet Ventes) ;
+- signaux & décisions suggérées — `candidatsFdjPeriode()` (Phase D), 5 maximum ;
+- conseils collectifs et tendances Coach FDJ — `chargerSyntheseCoachEquipe()` /
+  `calculerSyntheseCoach()` (Étape 4), thème dominant, évolution, répartition par famille.
+
+**Mention « données provisoires » (§23) :** dès qu'au moins un quart de la période n'a pas encore
+été contrôlé par un manager (`nb_quarts_controles < nb_quarts` — même signal que le taux de quarts
+conformes affiché ailleurs sur la page, aucun nouveau seuil inventé), un bandeau explicite l'indique
+en tête du rapport.
+
+**Étape suivante (non commencée, audit §27, item 15) :** mesure d'utilité et suppression des règles
+peu pertinentes — nécessite plusieurs semaines d'usage réel, pas un chantier à un coup.
 
 ---
 
@@ -311,6 +336,7 @@ Conseiller — deux sources différentes, jamais mélangées), non validable, re
 | v2.4 | 09/08/2026 | Coach x FDJ Pilotage, étape "écran employé" (audit §27, item 11) : `NEXUS-Coach-FDJ-v1.html` (Conseil du jour), navigation wirée (sidebar, Explorer, recherche), et resserrement de la RLS `coach_daily_recommendations`/`coach_recommendation_events` pour respecter l'audit §21 (un employé ne voit que son propre conseil). |
 | v2.5 | 09/08/2026 | Coach x FDJ Pilotage, étape "écran manager" (audit §27, item 12 / §12) : section "Coaching équipe" ajoutée à l'onglet Conseiller de `NEXUS-FDJ-Analyse-v1.html`, nouvelle classification `NexusCoachFdj.FAMILLE_PAR_REGLE` (sécurité/rigueur/stock/progression/vente/général) partagée pour toute synthèse future. |
 | v2.6 | 09/08/2026 | Coach x FDJ Pilotage, étape "remontée Brief" (audit §27, item 13 / §13) : `NexusCoachFdj.calculerCandidatsCoachEquipe()` (3 règles : risque récurrent/axe équipe/progrès équipe), `NexusConseiller.normaliserCoach()`, moteur `coach` ajouté au tri fusionné de `NEXUS-Brief-v1.html`. `LABEL_REGLE_COACH` relocalisé dans le moteur partagé (retiré du doublon local de FDJ-Analyse). |
+| v2.7 | 09/08/2026 | Coach x FDJ Pilotage, étape "export PDF" (audit §27, item 14 / §23) : nouvel onglet Rapports / Export dans `NEXUS-FDJ-Analyse-v1.html`, `window.print()` + feuille `@media print` dédiée (aucune dépendance ajoutée), réutilise le sélecteur de période universel existant, le résumé manager, le graphique CA, `candidatsFdjPeriode()` et la synthèse Coaching équipe déjà construits. Bandeau "données provisoires" quand des quarts de la période ne sont pas encore contrôlés. |
 
 Prochaine révision suggérée : après vérification des sections héritées (§5) et des deux chantiers
 au statut inconnu (§4 — Anomalie stock, Capacité de réassort). Côté FDJ : figer les formules de
