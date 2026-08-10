@@ -121,6 +121,31 @@
     },
   };
 
+  // Familles de règles — audit §4/§12 : la synthèse manager ("Priorités
+  // sécurité vs vente vs rigueur") regroupe les 12 règles en quelques
+  // familles lisibles plutôt que d'énumérer des rule_id. Donnée pure,
+  // partagée entre l'onglet Conseiller de NEXUS-FDJ-Analyse-v1.html (seul
+  // consommateur aujourd'hui) et tout futur écran qui en aurait besoin
+  // (Brief notamment) — une seule classification, jamais redéfinie.
+  const FAMILLE_PAR_REGLE = {
+    fdj_activation_chain: 'securite',
+    fdj_report_missing: 'rigueur',
+    fdj_report_late: 'rigueur',
+    fdj_correction_recurrente: 'rigueur',
+    fdj_stock_rupture_risk: 'stock',
+    fdj_stock_reserve_faible: 'stock',
+    fdj_regularite_levier: 'progression',
+    fdj_palier_sous_represente: 'vente',
+    fdj_jour_faible: 'vente',
+    fdj_jour_fort: 'vente',
+    fdj_relation_client_opportunite: 'vente',
+    fdj_conseil_general: 'general',
+  };
+  const FAMILLE_LABEL = {
+    securite: 'Sécurité / conformité', rigueur: 'Rigueur de saisie', stock: 'Stock',
+    progression: 'Progression', vente: 'Vente', general: 'Général',
+  };
+
   // Hachage simple et stable (pas de dépendance à Math.random) — sert
   // uniquement à choisir une variante de formulation de façon
   // déterministe par employé/jour/règle : stable pendant la journée
@@ -399,7 +424,7 @@
   }
 
   global.NexusCoachFdj = {
-    FORMULATIONS, hacherTexte, construireMessageCoach, evaluerJour,
+    FORMULATIONS, FAMILLE_PAR_REGLE, FAMILLE_LABEL, hacherTexte, construireMessageCoach, evaluerJour,
     evaluerReglesCoach, selectionnerRecommandationCoach, construireRecommandation, estEnCooldown,
     // Exposés individuellement pour les tests unitaires.
     DETECTEURS,

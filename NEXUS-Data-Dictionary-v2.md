@@ -267,8 +267,17 @@ large ici, un conseil personnalisé étant plus sensible qu'un mouvement de stoc
 n'autoriser la lecture qu'à l'employé concerné (`employee_id = auth.uid()`, vrai dans ce projet où
 `employees.id = auth.uid()`) ou à un manager/gérant du site — jamais un autre employé.
 
-**Étapes suivantes (non commencées) :** la synthèse manager et la remontée vers Brief (audit §27,
-items 12 et 13) — dans cet ordre, comme prévu par l'audit lui-même.
+**Étape 4 — synthèse manager (09/08/2026) :** l'audit nomme explicitement cet écran « Écran manager
+dans FDJ Pilotage » (§12) — ajouté dans l'onglet **Conseiller** de `NEXUS-FDJ-Analyse-v1.html`
+(pas un nouvel onglet), sous la section « Coaching équipe ». Lit `coach_daily_recommendations` déjà
+écrites côté employé — aucune règle recalculée. Affiche le thème dominant de la période, le nombre
+de collaborateurs concernés, la répartition par famille (`NexusCoachFdj.FAMILLE_PAR_REGLE`,
+classification partagée : sécurité/rigueur/stock/progression/vente/général), une évolution vs la
+période de comparaison (une seule comparaison, jamais présentée comme une tendance confirmée — même
+discipline que le Conseiller FDJ), et un détail par employé **replié par défaut** (audit §12 : « Le
+manager ne doit pas lire les 10 conseils un par un »).
+
+**Étapes suivantes (non commencées) :** la remontée vers Brief (audit §27, item 13).
 
 ---
 
@@ -282,6 +291,7 @@ items 12 et 13) — dans cet ordre, comme prévu par l'audit lui-même.
 | v2.2 | 09/08/2026 | Ajout à la section 7 : Conseiller FDJ (Phase D — `calculerCandidatsFdj`/`normaliserFdj`, remontée Brief) et NEXUS Coach x FDJ Pilotage (Phase 1 — schéma `coach_*` + 12 règles V1 de `nexus-coach-fdj-moteur.js`), déclenchés respectivement par l'audit "Moteur de clairvoyance manager" (§46) et l'audit "Coach x FDJ Pilotage" (§16/§27/§28). |
 | v2.3 | 09/08/2026 | Coach x FDJ Pilotage, étape "brancher les données" (audit §27, item 10) : `nexus-coach-fdj-donnees.js` (chargeurs réels + orchestration idempotente), nouvelle vue `view_fdj_employee_price_tier_daily`, limite honnête documentée sur le proxy de retard de clôture, vérification de bout en bout contre les données réelles du site. |
 | v2.4 | 09/08/2026 | Coach x FDJ Pilotage, étape "écran employé" (audit §27, item 11) : `NEXUS-Coach-FDJ-v1.html` (Conseil du jour), navigation wirée (sidebar, Explorer, recherche), et resserrement de la RLS `coach_daily_recommendations`/`coach_recommendation_events` pour respecter l'audit §21 (un employé ne voit que son propre conseil). |
+| v2.5 | 09/08/2026 | Coach x FDJ Pilotage, étape "écran manager" (audit §27, item 12 / §12) : section "Coaching équipe" ajoutée à l'onglet Conseiller de `NEXUS-FDJ-Analyse-v1.html`, nouvelle classification `NexusCoachFdj.FAMILLE_PAR_REGLE` (sécurité/rigueur/stock/progression/vente/général) partagée pour toute synthèse future. |
 
 Prochaine révision suggérée : après vérification des sections héritées (§5) et des deux chantiers
 au statut inconnu (§4 — Anomalie stock, Capacité de réassort). Côté FDJ : figer les formules de

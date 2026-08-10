@@ -22,6 +22,7 @@
 <script src="nexus-forfait.js"></script>
 <script src="nexus-desktop.js"></script>
 <script src="nexus-fdj-moteur.js"></script>
+<script src="nexus-coach-fdj-moteur.js"></script>
 <script src="nexus-conseiller.js"></script>
 <style>
   :root{
@@ -1018,9 +1019,69 @@
     if (niveau === 'Faible') return 'faible';
     return '';
   }
+
+  // ------------------------------------------------------------
+  // COACHING ÉQUIPE — audit "Coach x FDJ Pilotage" §12/§27 (étape "écran
+  // manager"), volontairement DANS l'onglet Conseiller de FDJ Pilotage
+  // (le §2 de cet audit le nomme littéralement "Écran manager dans FDJ
+  // Pilotage", pas un nouvel onglet) : "Le manager ne doit pas lire les 10
+  // conseils un par un par défaut. Il doit voir les tendances." Lit
+  // directement coach_daily_recommendations (déjà écrit par
+  // NexusCoachFdjDonnees côté employé) — aucune règle recalculée ici,
+  // seulement un comptage/regroupement de faits déjà décidés (Article 11 :
+  // la sélection reste dans nexus-coach-fdj-moteur.js, jamais dupliquée).
+  // ------------------------------------------------------------
+  const LABEL_REGLE_COACH = {
+    fdj_activation_chain: 'Chaîne d’activation à sécuriser', fdj_report_missing: 'Rapports FDJ manquants',
+    fdj_report_late: 'Rapports FDJ tardifs', fdj_correction_recurrente: 'Corrections de comptage récurrentes',
+    fdj_stock_rupture_risk: 'Risque de rupture de stock', fdj_stock_reserve_faible: 'Réserve de stock faible',
+    fdj_regularite_levier: 'Rigueur acquise → levier commercial', fdj_palier_sous_represente: 'Palier sous-représenté',
+    fdj_jour_faible: 'Jour habituellement faible', fdj_jour_fort: 'Jour habituellement fort',
+    fdj_relation_client_opportunite: 'Opportunité de proposition simple', fdj_conseil_general: 'Conseil général de procédure',
+  };
+  function labelRegleCoach(ruleId) { return LABEL_REGLE_COACH[ruleId] || ruleId; }
+
+  async function chargerSyntheseCoachEquipe() {
+    const debut = dateISO(periodeResolue.debut), fin = dateISO(periodeResolue.fin);
+    const compDebut = dateISO(periodeResolue.compDebut), compFin = dateISO(periodeResolue.compFin);
+    const [{ data: actuel, error: e1 }, { data: comp, error: e2 }] = await Promise.all([
+      nexusClient.from('coach_daily_recommendations').select('employee_id, rule_id, date').eq('site', siteId).gte('date', debut).lte('date', fin),
+      nexusClient.from('coach_daily_recommendations').select('rule_id').eq('site', siteId).gte('date', compDebut).lte('date', compFin),
+    ]);
+    if (e1) console.error('Chargement coach_daily_recommendations (Coaching équipe):', e1);
+    if (e2) console.error('Chargement coach_daily_recommendations comparaison (Coaching équipe):', e2);
+    return { actuel: actuel || [], comp: comp || [] };
+  }
+
+  // Évolution du thème dominant vs la période de comparaison — même
+  // discipline que le reste de cette page (Phase D) : une seule
+  // comparaison de période, jamais présentée comme une tendance confirmée.
+  function calculerSyntheseCoach(actuel, comp) {
+    if (!actuel.length) return null;
+    const parRegle = {}, employesParRegle = {};
+    actuel.forEach(r => {
+      parRegle[r.rule_id] = (parRegle[r.rule_id] || 0) + 1;
+      (employesParRegle[r.rule_id] = employesParRegle[r.rule_id] || new Set()).add(r.employee_id);
+    });
+    let dominant = null, maxN = 0;
+    Object.entries(parRegle).forEach(([ruleId, n]) => { if (n > maxN) { maxN = n; dominant = ruleId; } });
+    const parFamille = {};
+    actuel.forEach(r => { const f = (NexusCoachFdj.FAMILLE_PAR_REGLE[r.rule_id]) || 'general'; parFamille[f] = (parFamille[f] || 0) + 1; });
+    const familleDominante = NexusCoachFdj.FAMILLE_PAR_REGLE[dominant] || 'general';
+    const nCompFamilleDominante = comp.filter(r => (NexusCoachFdj.FAMILLE_PAR_REGLE[r.rule_id] || 'general') === familleDominante).length;
+    const nActuelFamilleDominante = parFamille[familleDominante] || 0;
+    const evolution = nCompFamilleDominante > 0 ? (nActuelFamilleDominante - nCompFamilleDominante) / nCompFamilleDominante : null;
+    return {
+      dominant, nDominant: maxN, employesDominant: employesParRegle[dominant].size,
+      parFamille, totalConseils: actuel.length, employesConcernes: new Set(actuel.map(r => r.employee_id)).size,
+      evolution,
+    };
+  }
+
   async function renderConseiller(zone) {
-    const candidatsBrut = await candidatsFdjPeriode();
+    const [candidatsBrut, coachData] = await Promise.all([candidatsFdjPeriode(), chargerSyntheseCoachEquipe()]);
     const candidats = candidatsBrut.map(NexusConseiller.normaliserFdj).sort((a, b) => a.rang - b.rang);
+    const synthese = calculerSyntheseCoach(coachData.actuel, coachData.comp);
     zone.innerHTML = `
       <div class="section-titre">Conseiller FDJ — ${periodeResolue.label.toLowerCase()}</div>
       <div class="champ-note">Signaux déterministes calculés à partir des données FDJ réelles de la période — jamais une prédiction, jamais un jugement sur une personne. Chaque carte part du fait constaté, s'appuie sur une preuve, propose une action et indique un niveau de confiance lié à la nature de la mesure.</div>
@@ -1038,7 +1099,42 @@
           ${c.cible ? `<a href="${c.cible}" style="display:block; margin-top:10px; font-size:11px; color:var(--cyan); text-decoration:none;">→ Ouvrir</a>` : ''}
         </div>
       `).join('') : '<div class="champ-note">Rien qui mérite l’attention du manager sur cette période — aucun signal déterministe déclenché.</div>'}
+
+      <div class="section-titre" style="margin-top:18px;">Coaching équipe — ${periodeResolue.label.toLowerCase()}</div>
+      ${synthese ? `
+        <div class="resume-card">
+          <div class="stat-row"><div class="stat-label">Thème dominant</div><div class="stat-value">${labelRegleCoach(synthese.dominant)}</div></div>
+          <div class="stat-sub">${synthese.employesDominant} collaborateur${synthese.employesDominant > 1 ? 's' : ''} concerné${synthese.employesDominant > 1 ? 's' : ''} · ${synthese.nDominant} conseil${synthese.nDominant > 1 ? 's' : ''} sur la période</div>
+          ${synthese.evolution != null ? `<div class="stat-row"><div class="stat-label">Évolution du thème vs ${periodeResolue.labelComp.toLowerCase()}</div><div class="stat-value ${classeEvolution(synthese.evolution)}">${fmtEvolution(synthese.evolution)}</div></div>` : ''}
+          <div class="stat-row"><div class="stat-label">Conseils diffusés</div><div class="stat-value">${synthese.totalConseils}</div></div>
+          <div class="stat-row"><div class="stat-label">Collaborateurs concernés</div><div class="stat-value">${synthese.employesConcernes}</div></div>
+        </div>
+        <div class="section-titre" style="margin-top:14px;">Répartition par famille</div>
+        ${Object.entries(synthese.parFamille).sort((a, b) => b[1] - a[1]).map(([f, n]) => `
+          <div class="stat-row"><div class="stat-label">${NexusCoachFdj.FAMILLE_LABEL[f] || f}</div><div class="stat-value">${n}</div></div>
+        `).join('')}
+        <button class="accordion-btn" id="btnDetailCoachEquipe" type="button" style="margin-top:14px; background:none; border:none; color:var(--cyan); font-family:var(--sans); font-size:13px; font-weight:600; cursor:pointer; padding:0;">Voir le détail par employé, si besoin ›</button>
+        <div id="detailCoachEquipe" style="display:none; margin-top:10px;"></div>
+      ` : '<div class="champ-note">Aucun conseil Coach FDJ diffusé sur cette période.</div>'}
     `;
+    if (synthese) {
+      document.getElementById('btnDetailCoachEquipe').addEventListener('click', () => {
+        const zoneDetail = document.getElementById('detailCoachEquipe');
+        const ouvert = zoneDetail.style.display !== 'none';
+        zoneDetail.style.display = ouvert ? 'none' : 'block';
+        if (!ouvert && !zoneDetail.dataset.rempli) {
+          zoneDetail.dataset.rempli = '1';
+          const parEmploye = {};
+          coachData.actuel.forEach(r => { (parEmploye[r.employee_id] = parEmploye[r.employee_id] || []).push(r.rule_id); });
+          zoneDetail.innerHTML = `<div class="card">${Object.entries(parEmploye).map(([empId, regles]) => `
+            <div class="jeu-row">
+              <div class="jeu-nom-ligne"><div class="jeu-nom">${nomEmploye(empId)}</div></div>
+              <div class="histo-sub">${regles.map(r => labelRegleCoach(r)).join(' · ')}</div>
+            </div>
+          `).join('')}</div>`;
+        }
+      });
+    }
   }
 
   // ------------------------------------------------------------
