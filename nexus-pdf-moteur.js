@@ -68,6 +68,42 @@
   };
 
   /**
+   * Table WinAnsiEncoding (Windows-1252 / PDF spec Appendix D.2) codée
+   * EN DUR — c'est un standard figé, immuable, donc une constante fixe
+   * est fiable par construction, contrairement à une introspection
+   * runtime de la police (PDFFont.getCharacterSet()).
+   *
+   * Historique : la première version de ce moteur s'appuyait sur
+   * police.getCharacterSet() pour déterminer les caractères
+   * représentables. Ça a semblé correct en test (mocks), mais en
+   * conditions réelles, pour les 14 polices standard (Helvetica,
+   * Helvetica-Bold) embarquées via l'énum StandardFonts — donc SANS
+   * fichier de police réel à introspecter — getCharacterSet() ne
+   * reflète pas fiablement le support WinAnsi : des caractères comme
+   * "→" (0x2192) passaient le filtre puis faisaient planter drawText()
+   * avec "WinAnsi cannot encode...". D'où cette table figée qui ne
+   * dépend d'aucun comportement interne de pdf-lib.
+   */
+  const CODES_WINANSI_SPECIAUX = [
+    0x20ac, 0x201a, 0x0192, 0x201e, 0x2026, 0x2020, 0x2021, 0x02c6,
+    0x2030, 0x0160, 0x2039, 0x0152, 0x017d, 0x2018, 0x2019, 0x201c,
+    0x201d, 0x2022, 0x2013, 0x2014, 0x02dc, 0x2122, 0x0161, 0x203a,
+    0x0153, 0x017e, 0x0178,
+  ];
+
+  function construireJeuWinAnsi() {
+    const jeu = new Set();
+    for (let i = 0x20; i <= 0x7e; i++) jeu.add(i); // ASCII imprimable
+    for (let i = 0xa0; i <= 0xff; i++) jeu.add(i); // Latin-1 (accents français)
+    CODES_WINANSI_SPECIAUX.forEach(c => jeu.add(c));
+    return jeu;
+  }
+
+  // Identique pour Helvetica normale et grasse : WinAnsiEncoding ne
+  // varie pas selon la graisse de la police.
+  const JEU_WINANSI = construireJeuWinAnsi();
+
+  /**
    * Découpe un texte en lignes qui tiennent dans `largeurMax`, pour une
    * police/taille donnée — pdf-lib ne fait AUCUN retour à la ligne
    * automatique (contrairement à un rendu HTML), c'est au moteur de
@@ -103,9 +139,12 @@
       this.policeGrasse = policeGrasse;
       // Jeux de caractères réellement représentables par les polices
       // embarquées (Helvetica standard = encodage WinAnsi/cp1252) —
-      // calculés une seule fois, utilisés par _assainir() ci-dessous.
-      this._jeuCarPolice = new Set(police.getCharacterSet());
-      this._jeuCarPoliceGrasse = new Set(policeGrasse.getCharacterSet());
+      // table figée (voir JEU_WINANSI ci-dessus), PAS une introspection
+      // runtime de la police (cf. historique dans le commentaire de
+      // JEU_WINANSI : getCharacterSet() s'est révélé peu fiable pour
+      // les polices standard 14 en conditions réelles).
+      this._jeuCarPolice = JEU_WINANSI;
+      this._jeuCarPoliceGrasse = JEU_WINANSI;
       this.entete = entete || null; // { app, sousTitre } répété en haut de chaque page
       this.page = null;
       this.y = 0;

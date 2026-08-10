@@ -399,11 +399,28 @@ commercial") contient une flèche Unicode, et les badges `ETAT_FDJ`/`ETAT_COACH`
 `nexus-conseiller.js` utilisés ailleurs dans l'app contiennent des emoji (🔴/🟡/📈) — la police
 standard Helvetica (encodage WinAnsi) ne sait représenter ni l'un ni l'autre, et pdf-lib lève une
 exception à `drawText()` dès qu'elle en rencontre un, faisant échouer TOUT le rapport pour un seul
-caractère fautif. `ConstructeurRapport` filtre désormais chaque texte via `_assainir()` (basé sur
-`PDFFont.getCharacterSet()`, calculé une fois par police à la construction) avant tout `drawText()`
-— défensif par construction, puisque ce moteur générique ne contrôle pas à l'avance le texte métier
-que chaque module lui donne. Reproduit et vérifié par régression (texte avec flèche + emoji → plus
-d'exception, texte utile conservé, caractères non supportés retirés proprement).
+caractère fautif. `ConstructeurRapport` filtre désormais chaque texte via `_assainir()` avant tout
+`drawText()` — défensif par construction, puisque ce moteur générique ne contrôle pas à l'avance le
+texte métier que chaque module lui donne.
+
+**Correctif critique #2 (10/08/2026) — `getCharacterSet()` insuffisant en conditions réelles :**
+la première version de `_assainir()` (v2.9 ci-dessus) déterminait le jeu de caractères filtrable via
+`PDFFont.getCharacterSet()`, calculé une fois par police à la construction. Ça passait tous les
+tests mockés, mais Frédéric a retesté sur iPhone et obtenu la MÊME exception,
+`WinAnsi cannot encode "→" (0x2192)` — donc `getCharacterSet()` ne bloquait pas réellement la
+flèche en conditions réelles. Hypothèse retenue : pour les 14 polices standard (Helvetica,
+Helvetica-Bold) embarquées via l'énum `StandardFonts` — donc sans fichier de police réel à
+introspecter — `getCharacterSet()` n'est pas fiable. Correctif : abandon total de l'introspection
+runtime, remplacée par une table WinAnsiEncoding (Windows-1252, PDF spec Appendix D.2) codée EN DUR
+dans `nexus-pdf-moteur.js` (constante `JEU_WINANSI` : ASCII imprimable 0x20-0x7E + Latin-1
+0xA0-0xFF + les ~27 codes de ponctuation "intelligente" WinAnsi). C'est un standard figé et
+immuable, donc une table fixe est fiable par construction, indépendamment de tout comportement
+interne de pdf-lib. `ConstructeurRapport._jeuCarPolice`/`_jeuCarPoliceGrasse` pointent maintenant
+directement vers cette table (identique pour la police normale et grasse, l'encodage WinAnsi ne
+variant pas avec la graisse). Reproduit et vérifié par régression (texte avec flèche + emoji → plus
+d'exception, texte utile conservé, caractères non supportés retirés proprement) — cette fois le mock
+de test ne fournit même plus de `getCharacterSet()` du tout, pour prouver que le nouveau chemin de
+code ne l'appelle plus jamais.
 
 **Vérifié (10/08/2026)** sans accès npm dans le bac à sable (registre bloqué, 403) : un mock minimal
 de `pdf-lib` (juste assez d'API pour exécuter réellement `nexus-pdf-moteur.js`) a permis de composer
@@ -438,6 +455,7 @@ Frédéric sur son iPhone après ce correctif.
 | v2.8 | 10/08/2026 | Remplacement de `window.print()` par un vrai moteur PDF applicatif, à la demande de Frédéric, après signalement du bug WebKit documenté (aperçu d'impression cassé en PWA standalone iOS). Nouveau fichier générique `nexus-pdf-moteur.js` (section 8, pdf-lib, pagination automatique, Web Share API + repli téléchargement) réutilisable par tout NEXUS, pas seulement FDJ. `NEXUS-FDJ-Analyse-v1.html` recomposé pour l'utiliser (`assemblerDonneesRapportFdj`/`construireEtDiffuserRapportPdf`), avec en plus Top jeux, répartition par palier et Top vendeurs qui n'étaient pas dans la V1 window.print(). |
 | v2.9 | 10/08/2026 | Corrections suite au premier test réel de Frédéric (Safari normal, pas PWA) : (1) bug bloquant identifié — un texte métier contenant une flèche Unicode ou un emoji (ex. `LABEL_REGLE_COACH.fdj_regularite_levier`, badges `ETAT_FDJ`/`ETAT_COACH` de `nexus-conseiller.js`) fait planter pdf-lib (police standard WinAnsi, n'encode pas ces caractères) — `nexus-pdf-moteur.js` filtre désormais tout caractère non supporté par la police embarquée avant chaque `drawText()` (`ConstructeurRapport._assainir`, basé sur `PDFFont.getCharacterSet()`) ; (2) `NEXUS-FDJ-Analyse-v1.html` renommé "FDJ Pilotage" à l'affichage (titre, eyebrow, footer, navigation) — "Analyse" évoquait un tableau de statistiques, "Pilotage" résume comprendre → décider → agir ; fichier et références internes inchangés ; (3) flux PDF séparé en deux étapes (`construireRapportPdf` puis `afficherActionsRapportPret`) — "Générer mon rapport" construit le PDF, puis "Partager le PDF" / "Ouvrir le PDF" apparaissent séparément (bouton Partager absent si `NexusPdfMoteur.webShareDisponible()` est faux) ; `nexus-pdf-moteur.js` décomposé en `partagerPdf`/`telechargerPdf` réutilisables séparément (`partagerOuTelechargerPdf` conservé, recompose les deux) ; (4) affichage "Taux de quarts conformes" corrigé en deux lignes distinctes (couverture du contrôle vs qualité du résultat) dans Vue d'ensemble, Rapports et le PDF ; (5) définition canonique de "CA FDJ" (période) écrite dans la section 7 ; (6) onglet "Rapports / Export" renommé "Rapports", scroll-snap ajouté à la barre d'onglets (un onglet ne doit plus rester affiché à moitié coupé au bord de l'écran). |
 | v2.10 | 10/08/2026 | Deuxième bug bloquant trouvé au test réel suivant (message d'erreur "Cannot access 'chart' before initialization", visible grâce au détail technique ajouté en v2.9) : `genererImageGraphiqueCa()` lisait la variable fermée `chart` dans `animation.onComplete`, or Chart.js peut appeler ce callback de façon SYNCHRONE avec `duration: 0` — donc avant la fin de l'affectation `const chart = new Chart(...)` (zone morte temporelle). Corrigé en utilisant l'objet `chart` fourni en argument par Chart.js à `onComplete` (`{ chart, currentStep, initial, numSteps }`, documenté pour cet usage précis) plutôt que la variable fermée. Reproduit puis vérifié corrigé par un test simulant un `onComplete` synchrone. |
+| v2.11 | 10/08/2026 | Troisième bug bloquant trouvé au test réel suivant : MÊME symptôme que le correctif v2.9 (`WinAnsi cannot encode "→" (0x2192)`), preuve que le filtre basé sur `PDFFont.getCharacterSet()` ne fonctionnait pas réellement — seulement en mock. Remplacé par une table WinAnsiEncoding codée en dur (`JEU_WINANSI` dans `nexus-pdf-moteur.js`, standard figé PDF spec Appendix D.2), qui ne dépend plus d'aucune introspection runtime de pdf-lib. Voir "Correctif critique #2" ci-dessus. Leçon retenue : sans accès à la vraie bibliothèque pdf-lib dans le bac à sable, les mocks ne peuvent pas valider des hypothèses sur le comportement exact d'une dépendance tierce — seul le test réel de Frédéric fait foi pour ce type de bug. |
 
 Prochaine révision suggérée : après vérification des sections héritées (§5) et des deux chantiers
 au statut inconnu (§4 — Anomalie stock, Capacité de réassort). Côté FDJ : figer les formules de
