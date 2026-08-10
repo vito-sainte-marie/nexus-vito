@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<link rel="icon" type="image/x-icon" href="favicon.ico">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+<link rel="manifest" href="site.webmanifest">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="NEXUS">
+<meta name="theme-color" content="#0B0F14">
+<title>NEXUS — Coach FDJ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="nexus-auth.js"></script>
+<script src="nexus-forfait.js"></script>
+<script src="nexus-desktop.js"></script>
+<script src="nexus-fdj-moteur.js"></script>
+<script src="nexus-coach-fdj-moteur.js"></script>
+<script src="nexus-coach-fdj-donnees.js"></script>
+<style>
+  :root{
+    --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
+    --text:#EDF1F5; --text-mid:#8A96A5; --text-dim:#57626F;
+    --green:#34D399; --green-dim:#153629;
+    --amber:#F5A623; --amber-dim:#3A2E14;
+    --red:#F0575A; --red-dim:#3A1D1F;
+    --cyan:#4FC3D9; --gold:#D4AF37;
+    --mono:'IBM Plex Mono',monospace; --sans:'IBM Plex Sans',sans-serif;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{background:var(--bg); font-family:var(--sans); color:var(--text);}
+  body{display:flex; justify-content:center; min-height:100vh;}
+  .phone{width:100%; max-width:460px; min-height:100vh; display:flex; flex-direction:column; border-left:1px solid var(--hairline); border-right:1px solid var(--hairline); padding-top:env(safe-area-inset-top); padding-bottom:env(safe-area-inset-bottom);}
+
+  .header{padding:24px 20px 14px; position:relative;}
+  .menu-btn{
+    position:absolute; top:18px; right:18px; display:flex; align-items:center; gap:6px;
+    font-family:var(--mono); font-size:10.5px; font-weight:600; letter-spacing:0.03em; text-transform:uppercase;
+    color:var(--cyan); background:rgba(79,195,217,0.1); border:1px solid rgba(79,195,217,0.3);
+    border-radius:20px; padding:7px 12px; text-decoration:none; white-space:nowrap; z-index:5;
+  }
+  .menu-btn:active{background:rgba(79,195,217,0.2);}
+  .eyebrow{font-family:var(--mono); font-size:11px; letter-spacing:0.12em; text-transform:uppercase; color:var(--cyan);}
+  .title{font-size:22px; font-weight:600; margin-top:4px;}
+  .sub{font-size:13px; color:var(--text-mid); margin-top:6px; line-height:1.5;}
+  .section{padding:8px 20px 32px;}
+  .loading{padding:80px 20px; text-align:center; color:var(--text-dim); font-size:13px;}
+
+  .conseil-card{
+    background:linear-gradient(145deg, var(--panel), var(--panel-raised));
+    border:1.5px solid var(--hairline); border-radius:18px; padding:24px 22px;
+    box-shadow:0 4px 18px rgba(0,0,0,0.3); margin-bottom:14px;
+  }
+  .conseil-card.critique{border-color:rgba(240,87,90,0.4); box-shadow:0 0 0 1px rgba(240,87,90,0.15), 0 4px 18px rgba(0,0,0,0.3);}
+  .conseil-badge{
+    display:inline-flex; align-items:center; font-family:var(--mono); font-size:9.5px; letter-spacing:0.05em;
+    text-transform:uppercase; color:var(--text-dim); background:var(--panel-raised); border-radius:8px;
+    padding:3px 8px; margin-bottom:12px;
+  }
+  .conseil-message{font-size:16.5px; font-weight:600; line-height:1.45;}
+
+  .accordion{margin-top:16px; border-top:1px solid var(--hairline); padding-top:14px;}
+  .accordion-btn{
+    background:none; border:none; color:var(--cyan); font-family:var(--sans); font-size:13px; font-weight:600;
+    cursor:pointer; padding:0; display:flex; align-items:center; gap:6px;
+  }
+  .accordion-chevron{transition:transform .2s; font-size:11px;}
+  .accordion-chevron.ouvert{transform:rotate(90deg);}
+  .accordion-content{display:none; margin-top:10px; font-size:13px; color:var(--text-mid); line-height:1.55;}
+  .accordion-content.ouvert{display:block;}
+
+  .btn-applique{
+    width:100%; margin-top:20px; padding:14px; border-radius:12px; border:1.5px solid rgba(52,211,153,0.35);
+    background:rgba(52,211,153,0.1); color:var(--green); font-family:var(--sans); font-size:14px; font-weight:700;
+    cursor:pointer; transition:opacity .2s;
+  }
+  .btn-applique:active{background:rgba(52,211,153,0.18);}
+  .btn-applique.fait{opacity:0.6; pointer-events:none;}
+
+  .rien-card{
+    background:var(--panel); border:1px solid var(--hairline); border-radius:16px; padding:22px 20px;
+    text-align:center; color:var(--text-mid); font-size:13.5px; line-height:1.6;
+  }
+
+  footer{margin-top:auto; padding:16px 20px 24px; font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:center; border-top:1px solid var(--hairline);}
+</style>
+</head>
+<body>
+<div class="phone">
+  <div class="header">
+    <a href="NEXUS-App-v1.html" class="menu-btn">☰ Menu</a>
+    <div class="eyebrow">NEXUS · COACH FDJ</div>
+    <div class="title" id="titre">Conseil du jour</div>
+    <div class="sub" id="sousTitre"></div>
+  </div>
+  <div class="section" id="content"><div class="loading">Chargement…</div></div>
+  <footer>NEXUS OS — Coaching quotidien fondé sur les données</footer>
+</div>
+
+<script>
+  // `nexusClient` est déjà déclaré globalement par nexus-auth.js — jamais
+  // redéclaré ici (une seconde déclaration top-level `let`/`const` du même
+  // nom lèverait une erreur de syntaxe, les <script> classiques partagent
+  // la même portée lexicale sur une page).
+  let employeeCourant = null;
+  let siteId = 'vito-sainte-marie';
+  let recommandationActuelle = null;
+
+  function dateISO(d) { d = d || new Date(); return d.toISOString().slice(0, 10); }
+
+  // ------------------------------------------------------------
+  // Enregistrement d'un événement d'interaction (audit §16 : table
+  // coach_recommendation_events) — jamais une note de performance,
+  // uniquement un journal d'usage pour mesurer le taux de consultation
+  // (§30) et, plus tard, l'effet des conseils (§10/§37).
+  // ------------------------------------------------------------
+  async function enregistrerEvenement(recommendationId, eventType) {
+    const { error } = await nexusClient.from('coach_recommendation_events').insert({
+      site: siteId, recommendation_id: recommendationId, event_type: eventType, actor_id: employeeCourant.id,
+    });
+    if (error) console.error(`Coach FDJ — enregistrement événement (${eventType}):`, error); // non bloquant
+  }
+
+  function renderConseil(reco) {
+    recommandationActuelle = reco;
+    document.getElementById('sousTitre').textContent = `Bonjour ${employeeCourant.nom} — ${new Date(reco.date + 'T00:00:00').toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}`;
+
+    if (!reco.message) {
+      // Filet de sécurité : ne devrait pas arriver (le repli "conseil
+      // général" a toujours un message), mais NEXUS ne doit jamais
+      // afficher un écran vide sans explication (Article 5).
+      document.getElementById('content').innerHTML = `
+        <div class="rien-card">NEXUS n'a pas pu préparer votre conseil du jour. Réessayez un peu plus tard, ou signalez-le à votre manager si cela persiste.</div>
+      `;
+      return;
+    }
+
+    const estGeneral = reco.rule_id === 'fdj_conseil_general';
+    const estCritique = (reco.priority || 6) <= 2;
+
+    document.getElementById('content').innerHTML = `
+      <div class="conseil-card ${estCritique ? 'critique' : ''}">
+        ${estGeneral ? '<div class="conseil-badge">Conseil général de procédure</div>' : ''}
+        <div class="conseil-message">${reco.message}</div>
+        <div class="accordion">
+          <button class="accordion-btn" id="btnAccordion" type="button">
+            <span class="accordion-chevron" id="chevronAccordion">›</span>
+            Pourquoi ce conseil ?
+          </button>
+          <div class="accordion-content" id="contenuAccordion">${reco.reason || 'Aucune précision supplémentaire disponible.'}</div>
+        </div>
+        <button class="btn-applique" id="btnApplique" type="button">Je l’applique aujourd’hui</button>
+      </div>
+    `;
+
+    document.getElementById('btnAccordion').addEventListener('click', () => {
+      document.getElementById('chevronAccordion').classList.toggle('ouvert');
+      document.getElementById('contenuAccordion').classList.toggle('ouvert');
+    });
+
+    const btnApplique = document.getElementById('btnApplique');
+    btnApplique.addEventListener('click', async () => {
+      btnApplique.disabled = true;
+      btnApplique.textContent = 'Merci !';
+      btnApplique.classList.add('fait');
+      await enregistrerEvenement(reco.id, 'acknowledged');
+    });
+
+    // Un conseil consulté est marqué "shown" une seule fois par affichage
+    // — la stabilité pendant la journée (obtenirRecommandationDuJour est
+    // idempotent) évite de spammer l'historique à chaque rechargement,
+    // mais un nouveau chargement de page reste un nouvel affichage réel.
+    enregistrerEvenement(reco.id, 'shown');
+  }
+
+  nexusRequireAuth().then(async employee => {
+    if (!employee) return; // nexus-auth.js gère déjà la redirection vers NEXUS-Login-v1.html
+    employeeCourant = employee;
+    siteId = employee.site_id || 'vito-sainte-marie';
+    if (!(await NexusForfait.nexusRequireProfessional('NEXUS-Coach-FDJ-v1.html', siteId))) return;
+
+    const reco = await NexusCoachFdjDonnees.obtenirRecommandationDuJour(nexusClient, siteId, employeeCourant.id, dateISO());
+    if (!reco) {
+      document.getElementById('content').innerHTML = `
+        <div class="rien-card">NEXUS n'a pas pu préparer votre conseil du jour. Réessayez un peu plus tard, ou signalez-le à votre manager si cela persiste.</div>
+      `;
+      return;
+    }
+    renderConseil(reco);
+  });
+</script>
+</body>
+</html>
