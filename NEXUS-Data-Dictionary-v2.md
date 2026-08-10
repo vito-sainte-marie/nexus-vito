@@ -133,12 +133,76 @@ client.
 
 ---
 
+## 7. NEXUS FDJ — Grattage & tirages (tables `fdj_*`) — nouvelle section, 09/08/2026
+
+Module distinct des sections 1 à 6 (produits d'épicerie/tabac) : la Française des Jeux a son
+propre moteur de calcul, **`nexus-fdj-moteur.js`**, seule source de vérité pour les formules
+ci-dessous — jamais dupliquées dans `NEXUS-FDJ-v1.html` (écran employé) ni
+`NEXUS-FDJ-Manager-v1.html` (écran manager). Définitions imposées par l'audit "Moteur de
+clairvoyance manager" (§32) avant de construire toute statistique dessus (Phase B de ce même
+audit).
+
+| KPI | Définition | Formule | Source |
+|---|---|---|---|
+| CA grattage | Chiffre d'affaires grattage d'un quart | Somme, par jeu, de `(stock_initial + appro − stock_final) × prix` | `NexusFdjMoteur.ventesGrattageTotal()` |
+| Caisse grattage | Caisse théorique issue du grattage seul | `ventes_grattage_valeur − lots_payes_grattage` | `NexusFdjMoteur.caisseGrattage()` |
+| Caisse attendue | Caisse totale que NEXUS attend en fin de quart | `caisse_grattage + caisse_tirages + régularisations` | `NexusFdjMoteur.caisseAttendue()` |
+| Écart | Écart de caisse d'un quart | `caisse_réelle − caisse_attendue` | `NexusFdjMoteur.ecartCaisse()` |
+| Stock bureau | Carnets non activés physiquement au bureau, pour un jeu | Solde des mouvements (`reception`, `transfert`, `retour`, `blocage`) affectant le bureau, depuis le dernier point zéro (voir plus bas) | `NexusFdjMoteur.soldesCarnetsAvecReference().bureau` |
+| Stock caisse non activé | Carnets confiés à la caisse mais pas encore activés, pour un jeu | Transferts vers la caisse − activations − retours/blocages depuis la caisse, depuis le dernier point zéro | `NexusFdjMoteur.soldesCarnetsAvecReference().nonActives` |
+| Rotation | Vitesse d'écoulement d'un jeu | Non figée : proxy actuellement disponible = nombre d'activations par jour (`view_fdj_game_daily.nb_activations`), formule d'unité de temps précise à figer en Phase C | *À compléter en Phase C* |
+| Autonomie | Nombre de jours de stock restant pour un jeu | Stock disponible (bureau + caisse non activé) ÷ rythme moyen de vente récent | **Non implémenté** — nécessite de combiner l'état stock (JS) et un rythme de vente (SQL), volontairement reporté à la Phase C (voir note "Vérité avant certitude" ci-dessous) |
+| Taux conformité | Part des quarts sans écart, sur une période | `nb_quarts_conformes / nb_quarts_controles` (uniquement les quarts dont la caisse n'est plus "provisoire") | `view_fdj_daily_summary` et dérivées |
+
+**Vérité avant certitude :** tant que `tickets_par_carnet` n'est pas connu pour un jeu, ou que
+l'historique de ventes est insuffisant, l'autonomie ne doit jamais être affichée comme un chiffre
+— uniquement « non calculable ». Même règle pour la rotation tant que la formule n'est pas figée.
+
+### Point zéro du stock (`fdj_stock_references`)
+
+Le stock bureau/caisse n'est pas un compteur stocké : il se recalcule à partir des mouvements
+bruts (`fdj_stock_movements`) et du dernier **inventaire de référence validé** (contrôle physique
+manager, table `fdj_stock_references` + `fdj_stock_reference_lignes`). Tout mouvement antérieur à
+ce point zéro est ignoré pour le calcul physique (il reste dans l'historique/audit) — « à compter
+de cet inventaire, seuls les mouvements postérieurs modifient le stock » (demande explicite de
+Frédéric, 09/08/2026). Premier point zéro certifié : 09/08/2026, 75 carnets bureau + 17 caisse non
+activée = 92 au total, jeu par jeu.
+
+### Vues d'agrégation Phase B (grain quotidien, jamais une nouvelle vérité)
+
+Créées le 09/08/2026 pour préparer la page NEXUS FDJ - Analyse (Phase C) sans recalculer aucune
+formule métier — elles assemblent des valeurs déjà validées. Grain quotidien partout : n'importe
+quelle période (aujourd'hui, semaine, mois, dates personnalisées) se recompose par somme sur une
+plage de dates, sans multiplier les vues par période.
+
+| Vue | Grain | Contenu |
+|---|---|---|
+| `view_fdj_shift_facts` | 1 ligne / quart | Base commune : quart + caisse + ventes assemblés, jamais recalculés |
+| `view_fdj_daily_summary` / `_weekly_summary` / `_monthly_summary` / `_yearly_summary` | jour / semaine ISO / mois / année | CA grattage, tickets vendus, caisse tirages, écart total, quarts conformes — écarts "provisoire" toujours exclus |
+| `view_fdj_game_daily_ventes` | jour × jeu | Tickets vendus, CA, nombre de quarts comptés (uniquement quarts validés) |
+| `view_fdj_game_daily_mouvements` | jour × jeu | Activations, transferts, réceptions, blocages (comptes ET quantités) — toujours connu, jamais `null` |
+| `view_fdj_game_daily` | jour × jeu | Fusion des deux précédentes (FULL OUTER JOIN) — `tickets_vendus`/`ca` restent `null` si aucun comptage validé ce jour-là (à ne jamais confondre avec 0) |
+| `view_fdj_price_tier_daily` | jour × palier de prix | Tickets vendus et CA par palier (1 €, 2 €, 3 €, 5 €, 10 €, 15 €), calculés à partir des ventes réelles |
+| `view_fdj_employee_daily` | jour × employé | CA, tickets, écarts, toujours avec le nombre de quarts (jamais un classement sans volume) |
+| `view_fdj_discrepancy_daily` | jour × motif d'écart | Occurrences et montant des écarts validés, pour retrouver une cause récurrente sans recompter la caisse |
+
+**Choix délibéré — pas de `view_fdj_stock_state` :** contrairement à la suggestion de l'audit,
+l'état du stock (bureau/caisse/activé) n'a pas été dupliqué en vue SQL. Ce calcul dépend du point
+zéro et vit déjà, testé, dans `NexusFdjMoteur.soldesCarnetsAvecReference()` — le réécrire en SQL
+créerait exactement le risque que l'Article 11 interdit (deux formules pour la même vérité,
+vouées à diverger). La page Analyse (Phase C) doit continuer à appeler cette fonction JS pour
+tout ce qui touche à l'état du stock.
+
+---
+
 ## Historique des versions
 
 | Version | Date | Changement |
 |---|---|---|
 | v1 | 07/07/2026 | Création initiale — pipeline Decenium (.xls), formule d'évolution naïve, NEXUS Score composite (jamais implémenté depuis, à notre connaissance) |
 | v2 | 08/08/2026 | Réécriture complète des sections Ventes & Marge et Évolution/Comparaison de périodes à partir du code réel. Ajout de la section R2/R3/R4 (absente de la v1). Mise à jour du statut des chantiers ouverts (écart de caisse résolu autrement que prévu). Déclenchée par la découverte, le même jour, que le Centre d'Intelligence NEXUS dupliquait le moteur de détection au lieu d'utiliser `nexus-conseiller.js` — corrigé dans le même lot de travail. Sections Classification/Merchandising non revérifiées, marquées comme héritées. |
+| v2.1 | 09/08/2026 | Ajout de la section 7 — NEXUS FDJ (grattage & tirages), déclenché par l'audit "Moteur de clairvoyance manager" qui exige une définition unique par KPI avant de construire les statistiques (Phase B). Documente les formules déjà en production dans `nexus-fdj-moteur.js`, le modèle de point zéro du stock, et les 9 vues d'agrégation créées ce jour. |
 
 Prochaine révision suggérée : après vérification des sections héritées (§5) et des deux chantiers
-au statut inconnu (§4 — Anomalie stock, Capacité de réassort).
+au statut inconnu (§4 — Anomalie stock, Capacité de réassort). Côté FDJ : figer les formules de
+rotation et d'autonomie au moment de construire la Phase C (page Analyse).
