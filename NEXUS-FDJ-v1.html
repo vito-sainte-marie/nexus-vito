@@ -212,7 +212,8 @@
   let regularisations = 0;
   let caisseReelle = null;
   let carnetsDeclaresCeQuart = 0; // compteur d'affichage seulement (session en cours), pas persisté
-  let soldesCarnets = {};       // game_id -> { confies, actives, nonActives } — voir NexusFdjMoteur.soldesCarnetsParJeu
+  let soldesCarnets = {};       // game_id -> { bureau, confies, actives, nonActives } — voir NexusFdjMoteur.soldesCarnetsAvecReference
+  let derniereReference = null; // dernière "Inventaire de référence" validée (point zéro physique) — voir chargerDerniereReference
   let exceptionCarnetEnCours = null; // game_id en attente d'un motif (voir demarrerExceptionCarnet)
   let motifExceptionChoisi = null;
   // 'accueil' | 'ouverture' | 'carnet' | 'carnet-exception' | 'grattage' | 'tirages' | 'caisse' | 'resume'
@@ -331,9 +332,25 @@
   // NexusFdjMoteur.soldesCarnetsParJeu, jamais dupliqué avec l'écran
   // manager ("Réapprovisionner la caisse").
   async function chargerMouvementsStock() {
-    const { data, error } = await nexusClient.from('fdj_stock_movements').select('type_mouvement, quantite, game_id, location_source_id, location_destination_id').eq('site', siteId);
+    const { data, error } = await nexusClient.from('fdj_stock_movements').select('type_mouvement, quantite, game_id, location_source_id, location_destination_id, created_at').eq('site', siteId);
     if (error) { console.error('Chargement mouvements stock FDJ:', error); return []; }
     return data || [];
+  }
+
+  // Dernière "Inventaire de référence" validée (09/08/2026, demande de
+  // Frédéric) — point zéro du stock physique Bureau/Caisse. Tant qu'aucun
+  // contrôle physique n'a été fait, reference vaut null et
+  // NexusFdjMoteur.soldesCarnetsAvecReference se comporte comme l'ancien
+  // calcul (bureau non fiable, caisse depuis zéro).
+  async function chargerDerniereReference() {
+    const { data: ref, error: e1 } = await nexusClient.from('fdj_stock_references').select('*').eq('site', siteId).eq('statut', 'valide').order('date', { ascending: false }).order('created_at', { ascending: false }).limit(1).maybeSingle();
+    if (e1) { console.error('Chargement référence stock FDJ:', e1); return null; }
+    if (!ref) return null;
+    const { data: lignes, error: e2 } = await nexusClient.from('fdj_stock_reference_lignes').select('game_id, bureau_reel, caisse_reel').eq('reference_id', ref.id);
+    if (e2) { console.error('Chargement lignes référence stock FDJ:', e2); return null; }
+    const map = {};
+    (lignes || []).forEach(l => { map[l.game_id] = { bureau: l.bureau_reel, caisse: l.caisse_reel }; });
+    return { creeLe: ref.created_at, date: ref.date, lignes: map };
   }
 
   // Ajoute automatiquement les tickets d'un carnet à l'appro du quart en
@@ -674,9 +691,11 @@
     document.getElementById('content').innerHTML = '<div class="loading">Chargement des jeux…</div>';
     if (!jeux.length) jeux = await chargerJeux();
     if (!emplacements.length) emplacements = await chargerEmplacements();
-    const mouvements = await chargerMouvementsStock();
+    const [mouvements, reference] = await Promise.all([chargerMouvementsStock(), chargerDerniereReference()]);
+    derniereReference = reference;
     const caisse = emplacementParType('caisse');
-    soldesCarnets = NexusFdjMoteur.soldesCarnetsParJeu(mouvements, caisse ? caisse.id : null);
+    const bureau = emplacementParType('bureau');
+    soldesCarnets = NexusFdjMoteur.soldesCarnetsAvecReference(mouvements, caisse ? caisse.id : null, bureau ? bureau.id : null, derniereReference);
     phase = 'carnet';
     renderCarnet();
   }

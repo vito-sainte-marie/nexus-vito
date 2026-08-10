@@ -199,7 +199,8 @@
   let employesSite = [];
   let emplacements = [];
   let reappro = null; // état de saisie de l'écran "Réapprovisionner la caisse"
-  let vue = 'liste'; // 'liste' | 'edition' | 'reappro'
+  let inventaireRef = null; // état de saisie de l'écran "Inventaire de référence FDJ" (contrôle physique)
+  let vue = 'liste'; // 'liste' | 'edition' | 'reappro' | 'inventaire-ref'
 
   // État du formulaire d'édition en cours (nouveau OU existant).
   let edition = null;
@@ -363,9 +364,38 @@
   // employé. Relit tout l'historique fdj_stock_movements du site : volume
   // faible en V1, à revoir (agrégation serveur) si ça grossit beaucoup.
   async function chargerMouvementsStock() {
-    const { data, error } = await nexusClient.from('fdj_stock_movements').select('type_mouvement, quantite, game_id, location_source_id, location_destination_id').eq('site', siteId);
+    const { data, error } = await nexusClient.from('fdj_stock_movements').select('type_mouvement, quantite, game_id, location_source_id, location_destination_id, created_at').eq('site', siteId);
     if (error) { console.error('Chargement mouvements stock FDJ:', error); return []; }
     return data || [];
+  }
+
+  // ------------------------------------------------------------
+  // INVENTAIRE DE RÉFÉRENCE — 09/08/2026, demande de Frédéric : un contrôle
+  // physique certifié (Bureau + Caisse non activé) devient le nouveau point
+  // zéro du stock. "À compter de cet inventaire, seuls les mouvements
+  // postérieurs modifient le stock" — les mouvements déjà enregistrés
+  // restent intacts pour leur valeur d'historique (appro, audit), mais le
+  // calcul du stock physique confié (bureau/caisse) repart de ce contrôle.
+  // ------------------------------------------------------------
+  async function chargerDerniereReference() {
+    const { data: ref, error: e1 } = await nexusClient.from('fdj_stock_references').select('*').eq('site', siteId).eq('statut', 'valide').order('date', { ascending: false }).order('created_at', { ascending: false }).limit(1).maybeSingle();
+    if (e1) { console.error('Chargement référence stock FDJ:', e1); return null; }
+    if (!ref) return null;
+    const { data: lignes, error: e2 } = await nexusClient.from('fdj_stock_reference_lignes').select('game_id, bureau_reel, caisse_reel').eq('reference_id', ref.id);
+    if (e2) { console.error('Chargement lignes référence stock FDJ:', e2); return null; }
+    const map = {};
+    (lignes || []).forEach(l => { map[l.game_id] = { bureau: l.bureau_reel, caisse: l.caisse_reel }; });
+    return { id: ref.id, date: ref.date, type: ref.type, controlePar: ref.controle_par, creeLe: ref.created_at, lignes: map };
+  }
+  async function soldesActuels() {
+    if (!emplacements.length) emplacements = await chargerEmplacements();
+    const [mouvements, reference] = await Promise.all([chargerMouvementsStock(), chargerDerniereReference()]);
+    const caisse = emplacementParType('caisse');
+    const bureau = emplacementParType('bureau');
+    return {
+      soldes: NexusFdjMoteur.soldesCarnetsAvecReference(mouvements, caisse ? caisse.id : null, bureau ? bureau.id : null, reference),
+      reference,
+    };
   }
 
   // Soldes négatifs EN DIRECT (09/08/2026, demande de Frédéric : "le solde
@@ -376,10 +406,7 @@
   // bruts — elle reflète l'état actuel, pas un évènement passé, et
   // n'est jamais masquée tant que le solde reste négatif.
   async function calculerSoldesNegatifs() {
-    if (!emplacements.length) emplacements = await chargerEmplacements();
-    const mouvements = await chargerMouvementsStock();
-    const caisse = emplacementParType('caisse');
-    const soldes = NexusFdjMoteur.soldesCarnetsParJeu(mouvements, caisse ? caisse.id : null);
+    const { soldes } = await soldesActuels();
     return jeux
       .filter(j => (soldes[j.id] || {}).nonActives < 0)
       .map(j => ({ jeu: j, solde: soldes[j.id] }));
@@ -567,6 +594,8 @@
       <div class="section-titre">Stock FDJ</div>
       <button class="btn-nouveau" id="btnReappro" style="color:var(--gold); border-color:rgba(212,175,55,0.4); background:rgba(212,175,55,0.06);">🔁 Réapprovisionner la caisse</button>
       <div class="champ-note">Bureau → Caisse : les carnets confiés restent non activés, aucun impact sur l'appro tant que la caissière ne les active pas.</div>
+      <button class="btn-nouveau" id="btnInventaireRef">📋 Contrôle physique du stock (inventaire de référence)</button>
+      <div class="champ-note">Compare le stock théorique NEXUS au comptage physique réel. Un contrôle validé devient le nouveau point zéro — seuls les mouvements qui suivent modifient le stock ensuite.</div>
 
       <div class="section-titre">Historique</div>
       <div class="card" id="listeHistorique">
@@ -576,6 +605,7 @@
 
     document.getElementById('btnNouveauQuart').addEventListener('click', () => ouvrirEditionNouveau());
     document.getElementById('btnReappro').addEventListener('click', () => ouvrirReappro());
+    document.getElementById('btnInventaireRef').addEventListener('click', () => ouvrirInventaireRef());
     if (quart1) document.getElementById(`carteQuart1`).addEventListener('click', () => ouvrirEditionExistant(quart1));
     if (quart2) document.getElementById(`carteQuart2`).addEventListener('click', () => ouvrirEditionExistant(quart2));
 
@@ -667,13 +697,8 @@
   async function ouvrirReappro() {
     document.getElementById('content').innerHTML = '<div class="loading">Chargement…</div>';
     if (!jeux.length) jeux = await chargerJeux();
-    if (!emplacements.length) emplacements = await chargerEmplacements();
-    const mouvements = await chargerMouvementsStock();
-    const caisse = emplacementParType('caisse');
-    reappro = {
-      soldes: NexusFdjMoteur.soldesCarnetsParJeu(mouvements, caisse ? caisse.id : null),
-      quantites: {},
-    };
+    const { soldes } = await soldesActuels();
+    reappro = { soldes, quantites: {} };
     vue = 'reappro';
     renderReappro();
   }
@@ -768,6 +793,152 @@
     const { error } = await nexusClient.from('fdj_stock_movements').insert(lignes);
     if (error) { console.error('Réapprovisionnement caisse FDJ:', error); btn.disabled = false; btn.textContent = 'Confirmer le réapprovisionnement'; alert("Erreur d'enregistrement. Réessayez."); return; }
     vue = 'liste'; reappro = null;
+    renderAccueil();
+  }
+
+  // ------------------------------------------------------------
+  // INVENTAIRE DE RÉFÉRENCE FDJ — 09/08/2026, demande de Frédéric : "Ce
+  // relevé constitue le premier état physique certifié du stock de carnets
+  // non activés [...] les mouvements racontent ce qui aurait dû se passer ;
+  // le contrôle physique établit ce qui existe réellement." Compare, jeu
+  // par jeu, le stock théorique (issu des mouvements depuis le dernier
+  // point zéro) au comptage physique réel saisi ici. Valider ce contrôle
+  // crée une nouvelle ligne fdj_stock_references (type='recomptage') qui
+  // devient le nouveau point zéro — les mouvements antérieurs restent dans
+  // l'historique mais n'influencent plus le calcul du stock physique.
+  // ------------------------------------------------------------
+  async function ouvrirInventaireRef() {
+    document.getElementById('content').innerHTML = '<div class="loading">Chargement…</div>';
+    if (!jeux.length) jeux = await chargerJeux();
+    const { soldes, reference } = await soldesActuels();
+    const saisie = {};
+    jeux.forEach(j => {
+      const s = soldes[j.id] || { bureau: 0, confies: 0 };
+      saisie[j.id] = { bureau: s.bureau, caisse: s.confies };
+    });
+    inventaireRef = { derniereReference: reference, soldesTheoriques: soldes, saisie };
+    vue = 'inventaire-ref';
+    renderInventaireRef();
+  }
+
+  function statutInventaireLigne(theoBureau, theoCaisse, reelBureau, reelCaisse) {
+    const ecartBureau = Number(reelBureau) - Number(theoBureau);
+    const ecartCaisse = Number(reelCaisse) - Number(theoCaisse);
+    if (ecartBureau === 0 && ecartCaisse === 0) return { classe: 'green', texte: '🟢 Conforme' };
+    const n = Math.abs(ecartBureau) + Math.abs(ecartCaisse);
+    return { classe: 'amber', texte: `🟠 Écart de ${n} carnet${n > 1 ? 's' : ''} à expliquer` };
+  }
+
+  function renderInventaireRef() {
+    document.getElementById('titre').textContent = 'Inventaire de référence FDJ';
+    document.getElementById('sousTitre').textContent = 'Comptage physique réel — Bureau et Caisse non activé. Valider ce contrôle devient le nouveau point zéro du stock.';
+    const ref = inventaireRef.derniereReference;
+    const groupes = grouperParPalier(jeux);
+    let totalTheoBureau = 0, totalTheoCaisse = 0, totalReelBureau = 0, totalReelCaisse = 0;
+    jeux.forEach(j => {
+      const theo = inventaireRef.soldesTheoriques[j.id] || { bureau: 0, confies: 0 };
+      const s = inventaireRef.saisie[j.id];
+      totalTheoBureau += Number(theo.bureau) || 0; totalTheoCaisse += Number(theo.confies) || 0;
+      totalReelBureau += Number(s.bureau) || 0; totalReelCaisse += Number(s.caisse) || 0;
+    });
+    document.getElementById('content').innerHTML = `
+      <button type="button" class="btn-retour-fleche" id="btnRetourInventaireRef">← Retour</button>
+      ${ref ? `<div class="champ-note" style="margin-top:-4px;">Dernier point zéro : ${new Date(ref.date + 'T00:00:00').toLocaleDateString('fr-FR')} (${ref.type === 'initialisation' ? 'initialisation' : 'recomptage'}).</div>` : `<div class="champ-note" style="margin-top:-4px;">Aucun contrôle physique enregistré pour l'instant — le stock théorique part de zéro.</div>`}
+      <div class="resume-card">
+        <div class="stat-row"><div class="stat-label">Théorique (Bureau + Caisse)</div><div class="stat-value">${fmtNum(totalTheoBureau)} + ${fmtNum(totalTheoCaisse)} = ${fmtNum(totalTheoBureau + totalTheoCaisse)}</div></div>
+        <div class="stat-row total"><div class="stat-label">Comptage réel (Bureau + Caisse)</div><div class="stat-value cyan">${fmtNum(totalReelBureau)} + ${fmtNum(totalReelCaisse)} = ${fmtNum(totalReelBureau + totalReelCaisse)}</div></div>
+      </div>
+      ${groupes.map(g => `
+        <div class="palier-block">
+          <div class="palier-head">${fmtNum(g.prix)} €</div>
+          <div class="card">${g.items.map(j => renderJeuInventaireRef(j)).join('')}</div>
+        </div>
+      `).join('')}
+      <button class="btn-primary" id="btnValiderInventaireRef">Valider ce contrôle</button>
+      <button class="btn-ghost" id="btnAnnulerInventaireRef">Annuler</button>
+    `;
+    document.getElementById('btnRetourInventaireRef').addEventListener('click', () => { vue = 'liste'; inventaireRef = null; renderAccueil(); });
+    document.getElementById('btnAnnulerInventaireRef').addEventListener('click', () => { vue = 'liste'; inventaireRef = null; renderAccueil(); });
+    wireInventaireRefInputs();
+    document.getElementById('btnValiderInventaireRef').addEventListener('click', validerInventaireRef);
+  }
+
+  function renderJeuInventaireRef(jeu) {
+    const theo = inventaireRef.soldesTheoriques[jeu.id] || { bureau: 0, confies: 0 };
+    const s = inventaireRef.saisie[jeu.id];
+    const statut = statutInventaireLigne(theo.bureau, theo.confies, s.bureau, s.caisse);
+    return `
+      <div class="jeu-row" data-jeu-invref="${jeu.id}">
+        <div class="jeu-nom-ligne">
+          <div class="jeu-nom">${jeu.nom}</div>
+          <div class="jeu-ventes ${statut.classe === 'amber' ? 'anomalie' : 'calc'}" id="statut-invref-${jeu.id}">${statut.texte}</div>
+        </div>
+        <div class="jeu-inputs">
+          <div class="jeu-input-wrap">
+            <div class="jeu-input-label">Théo. Bureau</div>
+            <div class="champ-readonly" style="text-align:center; padding:8px 4px; font-size:13px;">${fmtNum(theo.bureau)}</div>
+          </div>
+          <div class="jeu-input-wrap">
+            <div class="jeu-input-label">Réel Bureau</div>
+            <input type="number" inputmode="numeric" min="0" step="1" class="jeu-input champ-invref" data-jeu="${jeu.id}" data-champ="bureau" value="${s.bureau ?? 0}">
+          </div>
+          <div class="jeu-input-wrap">
+            <div class="jeu-input-label">Théo. Caisse</div>
+            <div class="champ-readonly" style="text-align:center; padding:8px 4px; font-size:13px;">${fmtNum(theo.confies)}</div>
+          </div>
+          <div class="jeu-input-wrap">
+            <div class="jeu-input-label">Réel Caisse</div>
+            <input type="number" inputmode="numeric" min="0" step="1" class="jeu-input champ-invref" data-jeu="${jeu.id}" data-champ="caisse" value="${s.caisse ?? 0}">
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  function wireInventaireRefInputs() {
+    document.querySelectorAll('.champ-invref').forEach(input => {
+      input.addEventListener('input', () => {
+        const gameId = input.dataset.jeu, champ = input.dataset.champ;
+        const val = input.value === '' ? 0 : Number(input.value);
+        inventaireRef.saisie[gameId][champ] = val;
+        const theo = inventaireRef.soldesTheoriques[gameId] || { bureau: 0, confies: 0 };
+        const s = inventaireRef.saisie[gameId];
+        const statut = statutInventaireLigne(theo.bureau, theo.confies, s.bureau, s.caisse);
+        const statutEl = document.getElementById(`statut-invref-${gameId}`);
+        if (statutEl) { statutEl.textContent = statut.texte; statutEl.className = `jeu-ventes ${statut.classe === 'amber' ? 'anomalie' : 'calc'}`; }
+      });
+    });
+  }
+
+  async function validerInventaireRef() {
+    const btn = document.getElementById('btnValiderInventaireRef');
+    btn.disabled = true;
+    btn.innerHTML = 'Enregistrement<span class="btn-loading-dots"><i></i><i></i><i></i></span>';
+
+    const { data: ref, error: eRef } = await nexusClient.from('fdj_stock_references').insert({
+      site: siteId, date: dateISO(), controle_par: managerCourant.id, type: 'recomptage', statut: 'valide',
+    }).select().single();
+    if (eRef) { console.error('Création inventaire de référence FDJ:', eRef); btn.disabled = false; btn.textContent = 'Valider ce contrôle'; alert("Erreur d'enregistrement. Réessayez."); return; }
+
+    const lignes = jeux.map(j => {
+      const theo = inventaireRef.soldesTheoriques[j.id] || { bureau: 0, confies: 0 };
+      const s = inventaireRef.saisie[j.id];
+      return {
+        site: siteId, reference_id: ref.id, game_id: j.id,
+        bureau_reel: s.bureau || 0, caisse_reel: s.caisse || 0,
+        stock_theorique_bureau_avant: theo.bureau, stock_theorique_caisse_avant: theo.confies,
+      };
+    });
+    const { error: eLignes } = await nexusClient.from('fdj_stock_reference_lignes').insert(lignes);
+    if (eLignes) { console.error('Enregistrement lignes inventaire de référence FDJ:', eLignes); btn.disabled = false; btn.textContent = 'Valider ce contrôle'; alert("Erreur d'enregistrement des lignes. Réessayez."); return; }
+
+    await nexusClient.from('fdj_audit_log').insert({
+      site: siteId, shift_id: null, entite_type: 'fdj_stock_reference', entite_id: ref.id,
+      action: 'inventaire_reference_valide', acteur_id: managerCourant.id,
+      nouvelle_valeur: { date: ref.date, lignes: lignes.map(l => ({ game_id: l.game_id, bureau_reel: l.bureau_reel, caisse_reel: l.caisse_reel, ecart_bureau: l.bureau_reel - (l.stock_theorique_bureau_avant || 0), ecart_caisse: l.caisse_reel - (l.stock_theorique_caisse_avant || 0) })) },
+    });
+
+    vue = 'liste'; inventaireRef = null;
     renderAccueil();
   }
 

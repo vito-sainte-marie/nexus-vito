@@ -104,5 +104,64 @@
     return soldes[gameId] || { confies: 0, actives: 0, nonActives: 0 };
   }
 
-  global.NexusFdjMoteur = { calculerVentesJeu, ventesGrattageTotal, caisseGrattage, caisseAttendue, ecartCaisse, soldesCarnetsParJeu, soldeCarnetsJeu };
+  // ------------------------------------------------------------
+  // POINT ZÉRO — 09/08/2026, demande de Frédéric : "Inventaire de référence
+  // FDJ". Un contrôle physique certifié (Bureau + Caisse non activé)
+  // devient le nouveau point de départ du stock. Les mouvements déjà
+  // enregistrés avant cette date gardent toute leur valeur d'historique
+  // (activations → appro, audit) mais n'entrent plus dans le calcul du
+  // stock physique confié : "à compter de cet inventaire, seuls les
+  // mouvements postérieurs modifient le stock." Fonction dédiée plutôt que
+  // de complexifier soldesCarnetsParJeu (qui reste utilisée telle quelle
+  // partout où aucune référence n'existe encore).
+  //
+  // `reference` : { creeLe: <ISO string, ex. fdj_stock_references.created_at>,
+  //   lignes: { [game_id]: { bureau, caisse } } } — ou null/undefined pour
+  //   se comporter comme avant toute initialisation (bureau part de 0,
+  //   jamais vraiment fiable tant qu'aucun inventaire n'a été fait).
+  // `locationBureauId` : id de l'emplacement de type 'bureau' du site.
+  // Retourne { [game_id]: { bureau, confies, actives, nonActives } }.
+  function soldesCarnetsAvecReference(mouvements, locationCaisseId, locationBureauId, reference) {
+    const soldes = {};
+    const assurer = (id) => {
+      if (!soldes[id]) {
+        const ligne = reference && reference.lignes ? reference.lignes[id] : null;
+        soldes[id] = {
+          bureau: ligne ? Number(ligne.bureau) || 0 : 0,
+          confies: ligne ? Number(ligne.caisse) || 0 : 0,
+          actives: 0,
+          nonActives: 0,
+        };
+      }
+      return soldes[id];
+    };
+    const seuil = reference && reference.creeLe ? new Date(reference.creeLe).getTime() : null;
+    (mouvements || []).forEach(m => {
+      if (seuil !== null && m.created_at && new Date(m.created_at).getTime() <= seuil) return; // avant le point zéro : déjà incorporé dans la référence
+      const qte = Number(m.quantite) || 0;
+      const s = assurer(m.game_id);
+      if (m.type_mouvement === 'transfert' && m.location_destination_id === locationCaisseId) {
+        s.confies += qte;
+        if (m.location_source_id === locationBureauId) s.bureau -= qte;
+      } else if (m.type_mouvement === 'activation') {
+        s.actives += qte;
+      } else if (m.type_mouvement === 'retour' && m.location_source_id === locationCaisseId) {
+        s.confies -= qte;
+        if (m.location_destination_id === locationBureauId) s.bureau += qte;
+      } else if (m.type_mouvement === 'reception' && m.location_destination_id === locationBureauId) {
+        s.bureau += qte;
+      } else if (m.type_mouvement === 'correction') {
+        if (m.location_destination_id === locationCaisseId) s.confies += qte;
+        else if (m.location_destination_id === locationBureauId) s.bureau += qte;
+      }
+    });
+    if (reference && reference.lignes) Object.keys(reference.lignes).forEach(id => assurer(id));
+    Object.values(soldes).forEach(s => { s.nonActives = s.confies - s.actives; });
+    return soldes;
+  }
+
+  global.NexusFdjMoteur = {
+    calculerVentesJeu, ventesGrattageTotal, caisseGrattage, caisseAttendue, ecartCaisse,
+    soldesCarnetsParJeu, soldeCarnetsJeu, soldesCarnetsAvecReference,
+  };
 })(typeof window !== 'undefined' ? window : globalThis);
