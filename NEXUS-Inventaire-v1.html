@@ -219,6 +219,15 @@
 
   .ecoulement-note{font-size:11px; color:var(--text-dim); line-height:1.5; margin-top:10px; padding-top:10px; border-top:1px solid var(--hairline);}
 
+  /* Message pré-comptage (10/08/2026, demande de Frédéric) : affiché une
+     seule fois par session de comptage, juste avant le premier comptage —
+     jamais un rappel répété qu'on finit par ignorer. Voir demarrerOuverture(). */
+  .precomptage-card{background:var(--panel); border:1px solid var(--hairline); border-radius:16px; padding:26px 22px; margin-top:8px; text-align:center;}
+  .precomptage-emoji{font-size:30px; margin-bottom:12px;}
+  .precomptage-titre{font-size:16.5px; font-weight:700; line-height:1.4; margin-bottom:10px;}
+  .precomptage-texte{font-size:13px; color:var(--text-mid); line-height:1.6; margin-bottom:14px;}
+  .precomptage-regle{font-size:13.5px; font-weight:600; color:var(--cyan); line-height:1.5; padding:12px; background:rgba(79,195,217,0.08); border:1px solid rgba(79,195,217,0.25); border-radius:10px; margin-bottom:18px;}
+
   footer{margin-top:auto; padding:16px 20px 24px; font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:center; border-top:1px solid var(--hairline);}
 </style>
 </head>
@@ -610,7 +619,43 @@
   // ------------------------------------------------------------
   // OUVERTURE (prise de poste)
   // ------------------------------------------------------------
-  async function demarrerOuverture() {
+  // Message pré-comptage (10/08/2026, demande de Frédéric) : "le bon moment
+  // serait juste avant le premier comptage, une seule fois par inventaire"
+  // — jamais une notification répétitive qu'on finit par ignorer. Gardé
+  // volontairement fixe pour l'instant (le message adaptatif selon les
+  // anomalies récentes est un lot séparé, à venir). Règle non négociable
+  // rappelée par Frédéric : aucun chiffre financier inventé — ce texte ne
+  // parle donc que de conséquence (écarts, contrôles, temps), jamais d'un
+  // montant en euros que NEXUS ne peut pas démontrer.
+  //
+  // "Une fois par inventaire" = une fois par ligne inventaire_quart_employes
+  // (l'unité de session déjà utilisée par a_valide_ouverture/a_valide_cloture
+  // pour cet écran), mémorisé en localStorage (device), même convention que
+  // nexus_pointage_tentative_en_cours dans NEXUS-Pointage-v1.html.
+  function clePrecomptageVu() { return `nexus_inventaire_precomptage_vu_${quartEmployeRow.id}`; }
+  function precomptageDejaVu() {
+    try { return localStorage.getItem(clePrecomptageVu()) === '1'; } catch (e) { return false; }
+  }
+  function marquerPrecomptageVu() {
+    try { localStorage.setItem(clePrecomptageVu(), '1'); } catch (e) {}
+  }
+  function demarrerOuverture() {
+    if (precomptageDejaVu()) { demarrerOuvertureComptage(); return; }
+    document.getElementById('content').innerHTML = `
+      <div class="precomptage-card">
+        <div class="precomptage-emoji">🎯</div>
+        <div class="precomptage-titre">Un comptage juste fait gagner du temps à toute l'équipe.</div>
+        <div class="precomptage-texte">Une erreur fausse les écarts, déclenche des contrôles inutiles et peut masquer une perte réelle.</div>
+        <div class="precomptage-regle">Comptez le réel, ne recopiez jamais le stock précédent.</div>
+        <button class="btn-primary" id="btnCommencerPrecomptage">✓ Je commence mon inventaire</button>
+      </div>
+    `;
+    document.getElementById('btnCommencerPrecomptage').addEventListener('click', () => {
+      marquerPrecomptageVu();
+      demarrerOuvertureComptage();
+    });
+  }
+  async function demarrerOuvertureComptage() {
     document.getElementById('content').innerHTML = '<div class="loading">Chargement des produits…</div>';
     produitsZone = await chargerProduitsZone(zoneActive);
     const ids = produitsZone.map(p => p.id);
@@ -940,8 +985,18 @@
       // vérifie s'il reste des produits dont seul le dépôt a été saisi —
       // l'employé est censé être passé en boutique entre-temps, on lui
       // demande donc de finir ceux-là avant de clôturer l'ouverture.
-      if (produitsDoubleLieuEnAttenteBoutique().length) { renderFinalisationDoubleLieu('ouverture'); return; }
-      validerOuverture();
+      // Filet de sécurité (07/08/2026, signalé par Frédéric — un employé
+      // sur Android n'arrivait plus à valider, sans aucun message) : sans
+      // ce try/catch, une erreur imprévue ici s'arrêtait en silence — plus
+      // aucun clic ne semblait faire quoi que ce soit, et personne (ni
+      // l'employé, ni nous) ne pouvait savoir pourquoi.
+      try {
+        if (produitsDoubleLieuEnAttenteBoutique().length) { renderFinalisationDoubleLieu('ouverture'); return; }
+        validerOuverture();
+      } catch (err) {
+        console.error('Erreur validation ouverture:', err);
+        alert('Une erreur est survenue et la validation a été bloquée : ' + (err && err.message ? err.message : err) + '\n\nMerci de faire une capture d\'écran de ce message et de la transmettre.');
+      }
     });
     document.getElementById('btnAnnulerOuverture').addEventListener('click', renderAccueil);
   }
@@ -1575,8 +1630,18 @@
     document.getElementById('btnValiderCloture').addEventListener('click', () => {
       // Comptage en deux lieux (05/08/2026) : même principe qu'à
       // l'ouverture — on rattrape la boutique avant de clôturer.
-      if (produitsDoubleLieuEnAttenteBoutique().length) { renderFinalisationDoubleLieu('cloture'); return; }
-      validerCloture();
+      // Filet de sécurité (07/08/2026, signalé par Frédéric — un employé
+      // sur Android n'arrivait plus à clôturer, sans aucun message) : sans
+      // ce try/catch, une erreur imprévue ici s'arrêtait en silence — plus
+      // aucun clic ne semblait faire quoi que ce soit, et personne (ni
+      // l'employé, ni nous) ne pouvait savoir pourquoi.
+      try {
+        if (produitsDoubleLieuEnAttenteBoutique().length) { renderFinalisationDoubleLieu('cloture'); return; }
+        validerCloture();
+      } catch (err) {
+        console.error('Erreur validation clôture:', err);
+        alert('Une erreur est survenue et la clôture a été bloquée : ' + (err && err.message ? err.message : err) + '\n\nMerci de faire une capture d\'écran de ce message et de la transmettre.');
+      }
     });
     document.getElementById('btnAnnulerCloture').addEventListener('click', renderAccueil);
   }
@@ -1634,28 +1699,36 @@
     const premier = document.querySelector('.produit-input-finalisation');
     if (premier) { premier.focus(); premier.select(); }
     document.getElementById('btnValiderFinalisationDoubleLieu').addEventListener('click', () => {
-      const champs = Array.from(document.querySelectorAll('.produit-input-finalisation'));
-      for (const el of champs) {
-        const produitId = el.dataset.produit;
-        const p = produitsZone.find(x => x.id === produitId);
-        let vBoutique = el.value === '' ? null : parseFloat(el.value);
-        if (vBoutique === null || isNaN(vBoutique)) {
-          if (!confirm(`Aucun chiffre saisi pour la boutique sur ${p.designation} — on enregistre 0. Confirmer ?`)) return; // reste sur l'écran, rien n'est perdu
-          vBoutique = 0;
+      // Filet de sécurité (07/08/2026) : même principe que sur les boutons
+      // de validation ouverture/clôture — une erreur ici ne doit jamais
+      // rester invisible pour l'employé.
+      try {
+        const champs = Array.from(document.querySelectorAll('.produit-input-finalisation'));
+        for (const el of champs) {
+          const produitId = el.dataset.produit;
+          const p = produitsZone.find(x => x.id === produitId);
+          let vBoutique = el.value === '' ? null : parseFloat(el.value);
+          if (vBoutique === null || isNaN(vBoutique)) {
+            if (!confirm(`Aucun chiffre saisi pour la boutique sur ${p ? p.designation : 'ce produit'} — on enregistre 0. Confirmer ?`)) return; // reste sur l'écran, rien n'est perdu
+            vBoutique = 0;
+          }
+          const s = comptagesSaisie[produitId];
+          s.compteBoutique = vBoutique;
+          s.compte = s.compteDepot + vBoutique;
+          if (typeFlux !== 'cloture') {
+            // L'écart n'a de sens que côté ouverture (comparaison avec le
+            // stock transmis par le quart précédent) — la clôture n'a jamais
+            // calculé d'écart, on ne commence pas à en inventer un ici.
+            const transmis = dernierStock[produitId] ? dernierStock[produitId].quantite : 0;
+            s.ecartNonNul = Math.abs(s.compte - transmis) > 0.001;
+          }
         }
-        const s = comptagesSaisie[produitId];
-        s.compteBoutique = vBoutique;
-        s.compte = s.compteDepot + vBoutique;
-        if (typeFlux !== 'cloture') {
-          // L'écart n'a de sens que côté ouverture (comparaison avec le
-          // stock transmis par le quart précédent) — la clôture n'a jamais
-          // calculé d'écart, on ne commence pas à en inventer un ici.
-          const transmis = dernierStock[produitId] ? dernierStock[produitId].quantite : 0;
-          s.ecartNonNul = Math.abs(s.compte - transmis) > 0.001;
-        }
+        sauvegarderDraft(typeFlux);
+        if (typeFlux === 'cloture') validerCloture(); else validerOuverture();
+      } catch (err) {
+        console.error('Erreur finalisation double lieu:', err);
+        alert('Une erreur est survenue et la validation a été bloquée : ' + (err && err.message ? err.message : err) + '\n\nMerci de faire une capture d\'écran de ce message et de la transmettre.');
       }
-      sauvegarderDraft(typeFlux);
-      if (typeFlux === 'cloture') validerCloture(); else validerOuverture();
     });
   }
 

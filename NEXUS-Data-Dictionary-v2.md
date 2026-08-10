@@ -707,6 +707,48 @@ correct d'une année complète en 12 mois et d'un mois en 5-6 semaines ISO.
 
 ---
 
+## 9. Message pré-comptage — Inventaire & FDJ (10/08/2026)
+
+À la demande de Frédéric — dans la philosophie NEXUS, "à condition de ne pas transformer l'inventaire
+en succession de messages moralisateurs" : un court message pédagogique s'affiche désormais **une
+seule fois par session de comptage**, juste avant le premier comptage (validation du stock de départ),
+sur `NEXUS-Inventaire-v1.html` (onglet Ouverture) et `NEXUS-FDJ-v1.html` (Valider mon stock de départ).
+Il explique la CONSÉQUENCE d'un mauvais comptage plutôt que de simplement demander de "bien compter" :
+
+> 🎯 Un comptage juste fait gagner du temps à toute l'équipe.
+> Une erreur fausse les écarts, déclenche des contrôles inutiles et peut masquer une perte réelle.
+> **Comptez le réel, ne recopiez jamais le stock précédent.**
+>
+> [✓ Je commence mon inventaire]
+
+**Règle non négociable, rappelée explicitement par Frédéric** : aucun chiffre financier inventé
+(jamais un "cela vous a coûté 35 €" que NEXUS ne peut pas démontrer). Le message ne parle que de
+conséquence qualitative (écarts, contrôles, temps, risque de perte) — jamais d'un montant précis tant
+que NEXUS ne dispose pas des éléments pour le calculer réellement.
+
+**Mécanique "une fois par session"** : les deux écrans ont déjà une notion de session de comptage
+(`inventaire_quart_employes` pour Inventaire, `fdj_shifts` pour FDJ — même logique que
+`a_valide_ouverture`/`ouverture_validee`). La fonction `demarrerOuverture()`, jusque-là le point
+d'entrée direct du comptage, devient une garde : elle affiche le message (marqué vu en localStorage,
+clé dérivée de l'id de session — même convention que `nexus_pointage_tentative_en_cours` dans
+`NEXUS-Pointage-v1.html`) si non encore vu pour CETTE session, sinon appelle directement l'ancienne
+logique désormais renommée `demarrerOuvertureComptage()`. Aucun autre comportement du comptage n'est
+modifié — pure insertion en amont.
+
+**Volontairement pas encore fait** (lot séparé, à la demande de Frédéric) : le message adaptatif dont
+le ton varie selon les anomalies réellement constatées récemment (ex. "erreurs de ressaisie
+fréquentes" → message plus insistant type "comptez chaque produit physiquement" ; "derniers
+comptages fiables" → message de reconnaissance plutôt que de vigilance). Cela demandera une détection
+d'historique par employé (ex. fréquence des `inventaire_alertes`/`fdj_alertes` de type "stock initial
+modifié" sur les dernières sessions) — non construite dans ce lot, volontairement livré d'abord avec
+le message fixe pour valider l'usage réel avant d'ajouter de la logique adaptative.
+
+Vérifié : `node --check` des deux scripts extraits, seul appelant de `demarrerOuverture()` dans chaque
+fichier est l'écouteur de clic existant (aucun `await` sur son retour, donc la conversion de fonction
+`async` vers synchrone-avec-branche-asynchrone ne casse rien).
+
+---
+
 ## Historique des versions
 
 | Version | Date | Changement |
@@ -731,6 +773,7 @@ correct d'une année complète en 12 mois et d'un mois en 5-6 semaines ISO.
 | v2.16 | 10/08/2026 | Import de l'historique FDJ 2026 (tableur Google Sheets "CAISSE JOURNALIERE FDJ 2026") dans la nouvelle table peuplée `fdj_imported_history` (442 lignes, 01/01→09/08/2026, écart par employé sur 7 dates de juillet où le tableur le détaillait), à la demande de Frédéric ("mettons en pause le parametrage fdj un instant"). Toutes les lignes marquées `data->>'statut'='verifie'` (demande explicite du même jour). Fusionné ensuite dans `view_fdj_shift_facts` (UNION ALL native ∪ importé, dédupliqué par `(site,date,quart)`, native toujours prioritaire) — voir section 7, "Historique importé" — pour que FDJ Pilotage (tous onglets sauf Jeux/Équipe/Stock, qui restent honnêtement natifs faute de détail par jeu/employé dans le tableur) et le rapport PDF couvrent 2026 sans aucun changement JS, migration Supabase pure (`blend_fdj_imported_history_into_shift_facts`), aucun fichier applicatif modifié, aucun zip nécessaire pour ce lot. Vérifié par requêtes directes : total vues (444 = 436 importées + 8 natives, dont 1 site de test), somme annuelle (CA grattage 261 367,00 €, écart cumulé -159,83 €, conforme à l'extraction source), agrégats mensuels plausibles (~60 quarts/mois), et 4 spot-checks de valeurs individuelles contre le tableur source. |
 | v2.17 | 10/08/2026 | Onglet Jeux de FDJ Pilotage : demande de Frédéric de ne jamais laisser la liste vide/clairsemée silencieusement quand la période sélectionnée déborde sur l'historique importé (sans détail par jeu). `NEXUS-FDJ-Analyse-v1.html` garde exactement les jours natifs disponibles dans `view_fdj_game_daily` (jamais de donnée inventée pour les jours importés) et ajoute désormais une phrase explicite au-dessus du Top 10 (`champ-note`) quand la période contient au moins un jour sans détail par jeu : nombre de jours natifs sur le total de la période, date de démarrage réelle du suivi par jeu (`chargerPremiereDateSuiviJeu()`, `MIN(date)` de `fdj_shifts`, jamais codée en dur), et rappel que le CA global de ces jours reste visible dans Vue d'ensemble/Ventes. Vérifié par `node --check` du script extrait et par requête directe confirmant 4 jours natifs avec détail par jeu (07→10/08/2026, 15 à 29 jeux comptés par jour). Aucun autre fichier touché, aucun zip nécessaire (changement JS pur, pas de nouvelle dépendance). |
 | v2.18 | 10/08/2026 | Ajout de "Caisse réelle totale" (somme du montant physiquement compté, grattage + loto, filtrée sur les quarts déjà contrôlés) — demande explicite de Frédéric, capture d'écran du tableur à l'appui : c'est cette valeur, pas le CA théorique, qu'il compare au dépôt réel pour déduire les commissions FDJ ("il faut que cette ligne puisse apparaître"). Nouvelle colonne `caisse_reelle_totale` (`sum(caisse_reelle) FILTER (WHERE statut_caisse <> 'provisoire')`, ajoutée en dernière position pour ne casser aucune vue dépendante) sur les 4 vues de synthèse `view_fdj_daily/weekly/monthly/yearly_summary` — fonctionne aussi bien sur les jours natifs que sur l'historique importé grâce à la fusion v2.16. Propagée dans `CHAMPS_SUMMARY`, affichée dans la carte de l'onglet Ventes (ligne "Caisse réelle totale" avec sa note d'usage) et comme 5ᵉ KPI du rapport PDF (`construireRapportPdf`, `ligneKpi` générique sur le nombre de cartes, aucun changement dans `nexus-pdf-moteur.js`). Vérifié par requête directe sur la semaine du 03→09/08/2026 : CA grattage 9185 €, caisse loto 5190,15 €, écart 6,10 €, caisse réelle totale 8698,25 € — identiques aux "TOTAUX semaine" du tableur source à l'euro près. `node --check` du script extrait OK ; les tests de composition PDF existants (`test_fdj_composition.js`, `test_fdj_granularite.js`) repassent sans régression (`ligneKpi` déjà générique sur le nombre de cartes, non modifié). |
+| v2.22 | 10/08/2026 | Message pré-comptage (`NEXUS-Inventaire-v1.html` + `NEXUS-FDJ-v1.html`) : texte pédagogique fixe affiché une seule fois par session de comptage, juste avant le premier comptage, expliquant la conséquence d'une erreur plutôt qu'un simple rappel — jamais de chiffre financier inventé. `demarrerOuverture()` devient une garde devant `demarrerOuvertureComptage()`. Voir section 9. Le message adaptatif selon les anomalies récentes est un lot séparé, non construit ici. |
 | v2.21 | 10/08/2026 | Étape 3 de l'audit "Paramétrage FDJ" : nouvel écran manager `NEXUS-FDJ-Parametres-v1.html` (onglets Organisation/Catalogue des jeux/Emplacements) permettant d'éditer `fdj_site_settings`, `fdj_games` et `fdj_locations` sans SQL. Navigation wirée (sidebar bureau, Explorer NEXUS, recherche, lien direct depuis Contrôle FDJ). Voir section 7, "Écran manager Paramètres FDJ". Reste à construire : Stock & mouvements, test de configuration, versionnage, duplication de site. |
 | v2.20 | 10/08/2026 | Premier lot ("fondations") de l'audit "NEXUS FDJ — Paramétrage autonome & multi-site" fourni par Frédéric : nouvelle table `fdj_site_settings` (une ligne par site, RLS scopée `current_employee_site_id()`) regroupant profil de stock, quarts/horaire de repli, seuils de caisse, `seuil_min_quarts_moyenne` et 4 seuils Coach. Élimination des constantes JS jusque-là identiques pour tous les sites : `HORAIRE_DEFAUT_DEBUT_QUART2` (`NEXUS-FDJ-v1.html`), `SEUIL_MIN_QUARTS` (`NEXUS-FDJ-Analyse-v1.html`, 2 occurrences), et les 4 seuils de `calculerCandidatsCoachEquipe()` dans `nexus-coach-fdj-moteur.js` — devenus un second paramètre optionnel (`seuils`) plutôt que des constantes internes, pour préserver Article 11 (moteur sans accès Supabase) ; `NEXUS-Brief-v1.html` charge désormais `fdj_site_settings` et les transmet. Aucun changement de comportement (mêmes valeurs par défaut qu'avant). Voir section 7, "Paramétrage FDJ par site". Reste à construire : écran manager, statut caisse "à contrôler", versionnage, duplication de site — étapes suivantes du même audit. |
 | v2.19 | 10/08/2026 | Mise en évidence de "Caisse réelle totale" (demande de Frédéric, "encadré ou d'une autre couleur") : côté écran, sortie de la carte résumé neutre de l'onglet Ventes vers un nouvel encadré dédié (`.caisse-reelle-box`, teinte + bordure cyan, valeur en 20px/800), placé juste après ; côté rapport PDF, le 5ᵉ KPI "Caisse réelle" reçoit `couleurValeur: COULEUR.cyan` (seule carte colorée par défaut, indépendamment du signe, pour qu'elle saute aux yeux au milieu des 4 autres) — même traitement visuel (cyan) qu'à l'écran, sans dupliquer de logique de couleur. Vérifié : `node --check` du script extrait OK, `test_fdj_composition.js`/`test_fdj_granularite.js` toujours verts (`ligneKpi`/`COULEUR.cyan` déjà génériques, `nexus-pdf-moteur.js` non modifié). |

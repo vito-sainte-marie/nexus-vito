@@ -158,6 +158,15 @@
   .motif-item.selectionne{border-color:var(--amber); background:rgba(245,166,35,0.08);}
   .motif-item.selectionne .pastille{background:var(--amber); border-color:var(--amber);}
 
+  /* Message pré-comptage (10/08/2026, demande de Frédéric) — même
+     composant que NEXUS-Inventaire-v1.html, affiché une seule fois par
+     quart avant la validation du stock de départ. */
+  .precomptage-card{background:var(--panel); border:1px solid var(--hairline); border-radius:16px; padding:26px 22px; margin-top:8px; text-align:center;}
+  .precomptage-emoji{font-size:30px; margin-bottom:12px;}
+  .precomptage-titre{font-size:16.5px; font-weight:700; line-height:1.4; margin-bottom:10px;}
+  .precomptage-texte{font-size:13px; color:var(--text-mid); line-height:1.6; margin-bottom:14px;}
+  .precomptage-regle{font-size:13.5px; font-weight:600; color:var(--cyan); line-height:1.5; padding:12px; background:rgba(79,195,217,0.08); border:1px solid rgba(79,195,217,0.25); border-radius:10px; margin-bottom:18px;}
+
   footer{margin-top:auto; padding:16px 20px 24px; font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:center; border-top:1px solid var(--hairline);}
 </style>
 </head>
@@ -576,7 +585,38 @@
   // départ hérité du quart précédent. Une fois validé, ce stock devient
   // en lecture seule pour la clôture (09/08/2026, demande de Frédéric).
   // ------------------------------------------------------------
-  async function demarrerOuverture() {
+  // Message pré-comptage (10/08/2026, demande de Frédéric) : même principe
+  // et même composant que NEXUS-Inventaire-v1.html (voir son commentaire
+  // pour le contexte complet) — une seule fois par quart, juste avant le
+  // premier comptage (ici : la validation du stock de départ), jamais un
+  // rappel répété. Fixe pour l'instant, le message adaptatif selon les
+  // anomalies récentes est un lot séparé à venir. "Une fois par quart" =
+  // mémorisé en localStorage par shiftRow.id (device), même convention que
+  // nexus_pointage_tentative_en_cours.
+  function clePrecomptageVuFdj() { return `nexus_fdj_precomptage_vu_${shiftRow.id}`; }
+  function precomptageDejaVuFdj() {
+    try { return localStorage.getItem(clePrecomptageVuFdj()) === '1'; } catch (e) { return false; }
+  }
+  function marquerPrecomptageVuFdj() {
+    try { localStorage.setItem(clePrecomptageVuFdj(), '1'); } catch (e) {}
+  }
+  function demarrerOuverture() {
+    if (precomptageDejaVuFdj()) { demarrerOuvertureComptage(); return; }
+    document.getElementById('content').innerHTML = `
+      <div class="precomptage-card">
+        <div class="precomptage-emoji">🎯</div>
+        <div class="precomptage-titre">Un comptage juste fait gagner du temps à toute l'équipe.</div>
+        <div class="precomptage-texte">Une erreur fausse les écarts, déclenche des contrôles inutiles et peut masquer une perte réelle.</div>
+        <div class="precomptage-regle">Comptez le réel, ne recopiez jamais le stock précédent.</div>
+        <button class="btn-primary" id="btnCommencerPrecomptage">✓ Je commence mon inventaire</button>
+      </div>
+    `;
+    document.getElementById('btnCommencerPrecomptage').addEventListener('click', () => {
+      marquerPrecomptageVuFdj();
+      demarrerOuvertureComptage();
+    });
+  }
+  async function demarrerOuvertureComptage() {
     document.getElementById('content').innerHTML = '<div class="loading">Chargement des jeux…</div>';
     if (!jeux.length) jeux = await chargerJeux();
     dernierStockFinal = await chargerDernierStockFinal();
