@@ -334,6 +334,21 @@
     if (error) { console.error('Chargement emplacements FDJ:', error); return []; }
     return data || [];
   }
+  // Date de démarrage du suivi natif par jeu (fdj_shift_counts) — l'historique
+  // importé (fdj_imported_history, fusionné dans view_fdj_shift_facts le
+  // 10/08/2026) ne détaille jamais les ventes par jeu, seulement l'agrégat
+  // caisse. L'onglet Jeux reste donc honnêtement natif ; cette date sert à
+  // expliquer pourquoi plutôt que de laisser une liste vide sans contexte
+  // (retour de Frédéric, 10/08/2026 : "garde les informations natives de
+  // nexus plutôt que de laisser vide").
+  let premiereDateSuiviJeuCache = undefined;
+  async function chargerPremiereDateSuiviJeu() {
+    if (premiereDateSuiviJeuCache !== undefined) return premiereDateSuiviJeuCache;
+    const { data, error } = await nexusClient.from('fdj_shifts').select('date').eq('site', siteId).order('date', { ascending: true }).limit(1).maybeSingle();
+    if (error) { console.error('Chargement première date suivi jeu FDJ:', error); premiereDateSuiviJeuCache = null; return null; }
+    premiereDateSuiviJeuCache = data ? data.date : null;
+    return premiereDateSuiviJeuCache;
+  }
   function emplacementParType(type) { return emplacements.find(e => e.type === type) || null; }
   async function chargerMouvementsStock() {
     const { data, error } = await nexusClient.from('fdj_stock_movements').select('*').eq('site', siteId);
@@ -692,7 +707,25 @@
 
     const top10 = lignes.filter(l => l.ca > 0).slice(0, 10);
 
+    // Note de couverture — le détail par jeu n'existe que pour les quarts
+    // saisis nativement dans NEXUS (fdj_shift_counts), jamais pour
+    // l'historique importé (voir Data Dictionary §7, "Historique importé").
+    // On garde toujours les jours natifs disponibles tels quels (jamais une
+    // liste vidée), avec une phrase explicite plutôt qu'un silence — retour
+    // de Frédéric du 10/08/2026.
+    const nbJoursPeriodeTotal = Math.round((periodeResolue.fin - periodeResolue.debut) / 86400000) + 1;
+    const joursNatifsPeriode = new Set(d.gameDaily.actuel.map(l => l.date)).size;
+    const premiereDateSuiviJeu = await chargerPremiereDateSuiviJeu();
+    let noteCouverture = '';
+    if (joursNatifsPeriode < nbJoursPeriodeTotal) {
+      const dateLabel = premiereDateSuiviJeu ? new Date(premiereDateSuiviJeu + 'T00:00:00').toLocaleDateString('fr-FR') : null;
+      noteCouverture = joursNatifsPeriode > 0
+        ? `<div class="champ-note">Détail par jeu disponible seulement depuis${dateLabel ? ` le ${dateLabel}` : ' le démarrage du suivi NEXUS'} — ${joursNatifsPeriode} jour${joursNatifsPeriode > 1 ? 's' : ''} natif${joursNatifsPeriode > 1 ? 's' : ''} sur ${nbJoursPeriodeTotal} jour${nbJoursPeriodeTotal > 1 ? 's' : ''} dans cette période. Le reste (historique importé) n'est visible qu'en CA global, pas par jeu (Vue d'ensemble, Ventes).</div>`
+        : `<div class="champ-note">Aucun jour de cette période n'a de détail par jeu — le suivi par jeu n'existe que depuis${dateLabel ? ` le ${dateLabel}` : ' le démarrage du suivi NEXUS'}. Le CA de cette période reste visible en agrégat dans Vue d'ensemble et Ventes.</div>`;
+    }
+
     zone.innerHTML = `
+      ${noteCouverture}
       <div class="chart-wrap">
         <div class="chart-titre">Top 10 jeux</div>
         <div class="chart-question">Quels jeux tirent l'activité ?</div>
