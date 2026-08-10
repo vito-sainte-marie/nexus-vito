@@ -851,8 +851,11 @@
       titre: 'ÉCARTS OUVERTS',
       max: 5,
       texteRenvoi: 'voir Inventaire',
+      // Fallback distinct de l'en-tête de colonne ('Produit') — sinon la
+      // ligne affiche littéralement le même mot que le titre de colonne
+      // au-dessus, illisible (constaté au test iPhone du 10/08/2026).
       colonnes: [{ label: 'Produit', cle: 'nom', largeur: 0.65 }, { label: 'Gravité', cle: 'gravite', largeur: 0.35, align: 'droite' }],
-      lignes: alertesTriees.map(a => ({ nom: a.inventaire_zone_produit ? a.inventaire_zone_produit.designation : 'Produit', gravite: a.gravite })),
+      lignes: alertesTriees.map(a => ({ nom: a.inventaire_zone_produit ? a.inventaire_zone_produit.designation : 'Produit non identifié', gravite: a.gravite })),
     });
 
     const zDecisionsResume = c.allouerZone(ZONES_1P.equipe);

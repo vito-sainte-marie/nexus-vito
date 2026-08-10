@@ -1486,8 +1486,12 @@
     c.ligneKpi(zKpi, [
       { label: 'CA FDJ', valeur: fmtEuro(donnees.ca + (donnees.caisseTirages || 0)) },
       {
+        // "Comparaison indisponible" est trop long pour tenir dans la carte
+        // KPI (police 15 grasse) — la valeur principale reste courte, le
+        // détail (police 7.5, plus de place) porte l'explication.
         label: 'Évolution',
-        valeur: donnees.evolCa === null ? 'Comparaison indisponible' : fmtEvolution(donnees.evolCa),
+        valeur: donnees.evolCa === null ? '—' : fmtEvolution(donnees.evolCa),
+        detail: donnees.evolCa === null ? 'Comparaison indisponible' : undefined,
         couleurValeur: donnees.evolCa > 0 ? COULEUR.vert : (donnees.evolCa < 0 ? COULEUR.rouge : COULEUR.texte),
       },
       {

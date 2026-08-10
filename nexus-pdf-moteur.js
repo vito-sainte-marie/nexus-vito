@@ -113,9 +113,23 @@
    * Frédéric, 10/08/2026 : « une seule correction, dans un moteur
    * commun, pas une par module »).
    */
+  // Caractères non-WinAnsi mais STRUCTURANTS (ils portent un sens dans la
+  // phrase, ex. une plage de dates "10/08 → 16/08") — remplacés par un
+  // équivalent ASCII plutôt que supprimés silencieusement. Bug réel constaté
+  // au test iPhone du 10/08/2026 : "10/08/2026 → 16/08/2026" affichait
+  // "10/08/2026  16/08/2026" (séparateur invisible, juste un espace en trop),
+  // parce que la flèche disparaissait sans rien laisser à sa place. Les
+  // emoji, eux, restent supprimés sans remplacement : purement décoratifs.
+  const REMPLACEMENTS_STRUCTURANTS = [
+    [/[→⇒➜➔]/g, '-'],
+    [/[←⇐]/g, '-'],
+  ];
+
   function assainirWinAnsi(texte) {
+    let brut = String(texte == null ? '' : texte);
+    REMPLACEMENTS_STRUCTURANTS.forEach(([motif, remplacement]) => { brut = brut.replace(motif, remplacement); });
     let resultat = '';
-    for (const car of String(texte == null ? '' : texte)) {
+    for (const car of brut) {
       if (JEU_WINANSI.has(car.codePointAt(0))) resultat += car;
     }
     return resultat.replace(/[ \t]{2,}/g, ' ').trim();
@@ -600,13 +614,23 @@
 
     // === Petites barres horizontales (ex. répartition par palier) ===
     // items: [{ label, valeur, part (0..1) }]
-    barresHorizontales(zone, { titre, items, max = 6, texteRenvoi } = {}) {
+    // largeurLabel n'est PAS fixé en dur : cette primitive a d'abord été
+    // pensée pour des libellés courts (paliers FDJ "1 €"/"5 €"…), mais
+    // d'autres modules l'utilisent avec des libellés plus longs ("Commerce",
+    // "Opérations", "À surveiller"…). Sans mesure réelle, un libellé trop
+    // long pour 34pt fixes se coupait de façon illisible ("Com…", "Opéra…")
+    // — constaté au test iPhone du 10/08/2026 (Brief : boussole 5 axes,
+    // Verify : répartition par gravité). La colonne s'élargit maintenant
+    // selon le libellé le plus long réellement affiché, plafonnée à 42% de
+    // la zone pour laisser de la place à la barre elle-même.
+    barresHorizontales(zone, { titre, items, max = 6, texteRenvoi, largeurValeur = 46 } = {}) {
       let y = zone.yHaut - 10;
       if (titre) { this._texte(titre, zone.x, y, { taille: 8.7, gras: true, couleur: COULEUR.texte }); y -= 14; }
       const visibles = items.slice(0, max);
       const hauteurBas = (items.length > max && texteRenvoi) ? 10 : 0;
       const interligne = Math.min(15, (zone.hauteur - (zone.yHaut - y) - hauteurBas) / Math.max(1, visibles.length));
-      const largeurLabel = 34, largeurValeur = 46;
+      const largeurLabelSouhaitee = visibles.reduce((max2, it) => Math.max(max2, this._largeurTexte(it.label, 8.2)), 0) + 6;
+      const largeurLabel = Math.min(zone.largeur * 0.42, Math.max(34, largeurLabelSouhaitee));
       const largeurBarreMax = zone.largeur - largeurLabel - largeurValeur - 8;
       visibles.forEach(it => {
         this._texte(this._tronquerLargeur(it.label, 8.2, largeurLabel - 3), zone.x, y - 8, { taille: 8.2, couleur: COULEUR.texteDim });
