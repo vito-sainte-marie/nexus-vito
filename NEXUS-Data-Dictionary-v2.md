@@ -193,6 +193,56 @@ créerait exactement le risque que l'Article 11 interdit (deux formules pour la 
 vouées à diverger). La page Analyse (Phase C) doit continuer à appeler cette fonction JS pour
 tout ce qui touche à l'état du stock.
 
+### Conseiller FDJ (Phase D, 09/08/2026)
+
+`NexusFdjMoteur.calculerCandidatsFdj()` reprend les règles déterministes (rupture/vigilance de
+stock, écarts de caisse validés, recul/progression de CA) déjà exposées dans l'onglet Vue
+d'ensemble et l'onglet Conseiller de `NEXUS-FDJ-Analyse-v1.html` — une seule implémentation,
+consommée aussi par `NexusConseiller.normaliserFdj()` pour rejoindre le tri fusionné de
+`NEXUS-Brief-v1.html` (moteur `fdj`, non validable, résolution constatée directement dans l'écran
+FDJ concerné plutôt que via `journal_decisions`).
+
+### NEXUS Coach x FDJ Pilotage (Phase 1, 09/08/2026)
+
+Micro-coaching quotidien **par employé** — un conseil maximum par jour, choisi selon la
+hiérarchie stricte de l'audit "Coach x FDJ Pilotage" (§5) : 1) risque de contrôle actif,
+2) action obligatoire/procédure sensible, 3) stock susceptible de bloquer la vente, 4) axe de
+progression individuel documenté, 5) opportunité commerciale, 6) conseil général de procédure en
+repli. Distinct du Conseiller FDJ ci-dessus : celui-ci alimente Brief/FDJ-Analyse avec plusieurs
+signaux pour le manager, Coach n'en retient qu'un seul pour l'employé lui-même — même principe
+Article 11 que partout ailleurs (« la détection ne doit pas vivre dans Coach, elle doit vivre
+dans le moteur FDJ Pilotage » — audit §2), donc **`nexus-coach-fdj-moteur.js`** est le seul
+endroit où les règles sont évaluées ; aucune copie prévue dans un futur écran employé/manager.
+
+| Table | Rôle |
+|---|---|
+| `coach_rules` | Catalogue des règles (`rule_id`, `priority` = tier 1 à 6, `minimum_sample`, `cooldown_days`, `message_template_id`, `active`) |
+| `coach_daily_recommendations` | La recommandation retenue pour un employé et un jour donnés — `unique(site, employee_id, date)` impose au niveau base la règle « jamais plus d'un conseil par jour » (audit §26), pas seulement côté application |
+| `coach_recommendation_events` | Historique d'interaction (`shown`/`acknowledged`/`dismissed`/`completed`) — jamais une note de performance |
+
+Règles V1 (12, dans la fourchette 10-15 recommandée par l'audit §27) :
+
+| rule_id | Tier | Famille | Condition |
+|---|---|---|---|
+| `fdj_activation_chain` | 1 | Sécurité/conformité | Une activation a été tracée sans transfert de carnet correspondant (réutilise `fdj_alertes` existante) |
+| `fdj_report_missing` | 2 | Rigueur de saisie | Un quart récent reste en brouillon, jamais clôturé |
+| `fdj_report_late` | 2 | Rigueur de saisie | Clôture en retard sur ≥ 50 % des derniers quarts mesurés (échantillon ≥ 5) |
+| `fdj_correction_recurrente` | 2 | Rigueur de saisie | Correction de comptage sur ≥ 40 % des derniers quarts (échantillon ≥ 5) |
+| `fdj_stock_rupture_risk` | 3 | Stock | Un jeu n'a plus de carnet non activé en caisse |
+| `fdj_stock_reserve_faible` | 3 | Stock | Un jeu n'a plus qu'un carnet non activé et peu de réserve au bureau |
+| `fdj_regularite_levier` | 4 | Progression | Taux de conformité ≥ 95 % sur ≥ 10 quarts contrôlés — passer au levier commercial |
+| `fdj_palier_sous_represente` | 5 | Vente | Un palier de prix pèse < 60 % de son poids site, sur ≥ 10 ventes |
+| `fdj_jour_faible` | 5 | Heures/jours forts | CA moyen du jour ≤ 80 % de la moyenne personnelle, sur ≥ 8 occurrences |
+| `fdj_jour_fort` | 5 | Heures/jours forts | CA moyen du jour ≥ 120 % de la moyenne personnelle, sur ≥ 8 occurrences |
+| `fdj_relation_client_opportunite` | 5 | Relation client | Jour historiquement actif **au niveau du site** et stock du plus petit palier sain (jamais une intuition — deux faits mesurés) |
+| `fdj_conseil_general` | 6 | — | Repli si aucune règle personnalisée n'est fiable — toujours identifié comme générique |
+
+**Étapes suivantes (non commencées) :** brancher les données réelles (fdj_shifts,
+fdj_shift_counts, vues Phase B) pour construire l'objet `faits` attendu par
+`NexusCoachFdj.evaluerReglesCoach()`, puis l'écran employé « Conseil du jour », la synthèse
+manager, et la remontée vers Brief (audit §27, items 10 à 13) — dans cet ordre, comme prévu par
+l'audit lui-même.
+
 ---
 
 ## Historique des versions
@@ -202,6 +252,7 @@ tout ce qui touche à l'état du stock.
 | v1 | 07/07/2026 | Création initiale — pipeline Decenium (.xls), formule d'évolution naïve, NEXUS Score composite (jamais implémenté depuis, à notre connaissance) |
 | v2 | 08/08/2026 | Réécriture complète des sections Ventes & Marge et Évolution/Comparaison de périodes à partir du code réel. Ajout de la section R2/R3/R4 (absente de la v1). Mise à jour du statut des chantiers ouverts (écart de caisse résolu autrement que prévu). Déclenchée par la découverte, le même jour, que le Centre d'Intelligence NEXUS dupliquait le moteur de détection au lieu d'utiliser `nexus-conseiller.js` — corrigé dans le même lot de travail. Sections Classification/Merchandising non revérifiées, marquées comme héritées. |
 | v2.1 | 09/08/2026 | Ajout de la section 7 — NEXUS FDJ (grattage & tirages), déclenché par l'audit "Moteur de clairvoyance manager" qui exige une définition unique par KPI avant de construire les statistiques (Phase B). Documente les formules déjà en production dans `nexus-fdj-moteur.js`, le modèle de point zéro du stock, et les 9 vues d'agrégation créées ce jour. |
+| v2.2 | 09/08/2026 | Ajout à la section 7 : Conseiller FDJ (Phase D — `calculerCandidatsFdj`/`normaliserFdj`, remontée Brief) et NEXUS Coach x FDJ Pilotage (Phase 1 — schéma `coach_*` + 12 règles V1 de `nexus-coach-fdj-moteur.js`), déclenchés respectivement par l'audit "Moteur de clairvoyance manager" (§46) et l'audit "Coach x FDJ Pilotage" (§16/§27/§28). |
 
 Prochaine révision suggérée : après vérification des sections héritées (§5) et des deux chantiers
 au statut inconnu (§4 — Anomalie stock, Capacité de réassort). Côté FDJ : figer les formules de
