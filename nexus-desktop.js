@@ -72,10 +72,10 @@ const NEXUS_SIDEBAR_GROUPES = [
       // NEXUS FDJ - Analyse (09/08/2026, Phase C de l'audit "Moteur de
       // clairvoyance manager") : moteur de statistiques/tendances/décisions,
       // juste après Contrôle FDJ.
-      { label: 'Analyse FDJ', href: 'NEXUS-FDJ-Analyse-v1.html', icon: null, emoji: '📊' },
+      { label: 'FDJ Pilotage', href: 'NEXUS-FDJ-Analyse-v1.html', icon: null, emoji: '📊' },
       // NEXUS Coach x FDJ Pilotage (09/08/2026, étape "écran employé" de
       // l'audit "Coach x FDJ Pilotage") : micro-coaching quotidien par
-      // employé, juste après Analyse FDJ.
+      // employé, juste après FDJ Pilotage.
       { label: 'Coach FDJ', href: 'NEXUS-Coach-FDJ-v1.html', icon: null, emoji: '🎓' },
       { label: 'Missions', href: 'NEXUS-Missions-v1.html', icon: 'assets/icons/icon-missions.png' },
       { label: 'Assignations', href: 'NEXUS-Assignations-v1.html', icon: 'assets/icons/icon-assignations.png' },

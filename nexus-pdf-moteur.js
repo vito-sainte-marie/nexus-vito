@@ -101,11 +101,36 @@
       this.doc = doc;
       this.police = police;
       this.policeGrasse = policeGrasse;
+      // Jeux de caractères réellement représentables par les polices
+      // embarquées (Helvetica standard = encodage WinAnsi/cp1252) —
+      // calculés une seule fois, utilisés par _assainir() ci-dessous.
+      this._jeuCarPolice = new Set(police.getCharacterSet());
+      this._jeuCarPoliceGrasse = new Set(policeGrasse.getCharacterSet());
       this.entete = entete || null; // { app, sousTitre } répété en haut de chaque page
       this.page = null;
       this.y = 0;
       this.numeroPage = 0;
       this._nouvellePage();
+    }
+
+    /**
+     * Filtre les caractères que la police embarquée ne sait pas
+     * représenter (emoji, flèches Unicode →, etc.) — pdf-lib lève une
+     * exception à drawText() sinon ("WinAnsi cannot encode…"), ce qui
+     * fait échouer TOUTE la génération du rapport pour un seul caractère
+     * fautif. Défensif par construction : ce moteur est générique
+     * (Article 11) et ne contrôle pas à l'avance le texte métier que
+     * chaque module NEXUS lui donne — un emoji utilisé pour l'affichage
+     * écran ailleurs dans l'app (ex. "🔴 CRITIQUE") ne doit jamais
+     * planter le PDF, il doit simplement être retiré.
+     */
+    _assainir(texte, gras) {
+      const jeu = gras ? this._jeuCarPoliceGrasse : this._jeuCarPolice;
+      let resultat = '';
+      for (const car of String(texte == null ? '' : texte)) {
+        if (jeu.has(car.codePointAt(0))) resultat += car;
+      }
+      return resultat.replace(/[ \t]{2,}/g, ' ').trim();
     }
 
     _nouvellePage() {
@@ -116,11 +141,13 @@
     }
 
     _dessinerBandeauEntete() {
+      const app = this._assainir(this.entete.app, true);
       this.page.drawRectangle({ x: 0, y: A4.hauteur - 30, width: A4.largeur, height: 30, color: COULEUR.fondEntete });
-      this.page.drawText(this.entete.app, { x: MARGE, y: A4.hauteur - 20, size: 9, font: this.policeGrasse, color: COULEUR.cyan });
+      this.page.drawText(app, { x: MARGE, y: A4.hauteur - 20, size: 9, font: this.policeGrasse, color: COULEUR.cyan });
       if (this.entete.sousTitre) {
-        const largeurSous = this.police.widthOfTextAtSize(this.entete.sousTitre, 8.5);
-        this.page.drawText(this.entete.sousTitre, { x: A4.largeur - MARGE - largeurSous, y: A4.hauteur - 20, size: 8.5, font: this.police, color: COULEUR.texteDim });
+        const sousTitre = this._assainir(this.entete.sousTitre, false);
+        const largeurSous = this.police.widthOfTextAtSize(sousTitre, 8.5);
+        this.page.drawText(sousTitre, { x: A4.largeur - MARGE - largeurSous, y: A4.hauteur - 20, size: 8.5, font: this.police, color: COULEUR.texteDim });
       }
       this.y = A4.hauteur - 30 - 22;
     }
@@ -134,21 +161,23 @@
     }
 
     titre(texte, { taille = 19 } = {}) {
+      const t = this._assainir(texte, true);
       this.assurerEspace(taille + 14);
-      this.page.drawText(texte, { x: MARGE, y: this.y - taille, size: taille, font: this.policeGrasse, color: COULEUR.texte });
+      this.page.drawText(t, { x: MARGE, y: this.y - taille, size: taille, font: this.policeGrasse, color: COULEUR.texte });
       this.y -= taille + 14;
     }
 
     sousTitre(texte, { taille = 10.5, couleur = COULEUR.texteDim } = {}) {
+      const t = this._assainir(texte, false);
       this.assurerEspace(taille + 10);
-      this.page.drawText(texte, { x: MARGE, y: this.y - taille, size: taille, font: this.police, color: couleur });
+      this.page.drawText(t, { x: MARGE, y: this.y - taille, size: taille, font: this.police, color: couleur });
       this.y -= taille + 10;
     }
 
     /** Bandeau d'alerte plein largeur (ex. "données provisoires"). */
     bandeau(texte, { couleur = COULEUR.ambre } = {}) {
       const taille = 9.5, interligne = 13;
-      const lignes = decouperEnLignes(texte, this.police, taille, LARGEUR_UTILE - 20);
+      const lignes = decouperEnLignes(this._assainir(texte, false), this.police, taille, LARGEUR_UTILE - 20);
       const hauteur = lignes.length * interligne + 12;
       this.assurerEspace(hauteur + 8);
       this.page.drawRectangle({ x: MARGE, y: this.y - hauteur, width: LARGEUR_UTILE, height: hauteur, color: COULEUR.fondAlterne, borderColor: couleur, borderWidth: 1 });
@@ -158,16 +187,17 @@
     }
 
     sectionTitre(texte) {
+      const t = this._assainir(texte, true).toUpperCase();
       this.assurerEspace(30);
       this.y -= 4;
       this.page.drawLine({ start: { x: MARGE, y: this.y }, end: { x: A4.largeur - MARGE, y: this.y }, thickness: 1.2, color: COULEUR.cyan });
       this.y -= 16;
-      this.page.drawText(texte.toUpperCase(), { x: MARGE, y: this.y - 10, size: 10.5, font: this.policeGrasse, color: COULEUR.texte });
+      this.page.drawText(t, { x: MARGE, y: this.y - 10, size: 10.5, font: this.policeGrasse, color: COULEUR.texte });
       this.y -= 22;
     }
 
     paragraphe(texte, { taille = 9.5, couleur = COULEUR.texte, interligne = 13 } = {}) {
-      decouperEnLignes(texte, this.police, taille, LARGEUR_UTILE).forEach(ligne => {
+      decouperEnLignes(this._assainir(texte, false), this.police, taille, LARGEUR_UTILE).forEach(ligne => {
         this.assurerEspace(interligne);
         this.page.drawText(ligne, { x: MARGE, y: this.y - taille, size: taille, font: this.police, color: couleur });
         this.y -= interligne;
@@ -177,9 +207,10 @@
     /** Ligne clé / valeur alignée à droite (ex. "CA FDJ" … "12 480,50 €"). */
     ligneCle(label, valeur, { couleurValeur = COULEUR.texte } = {}) {
       const taille = 10;
+      const texteLabel = this._assainir(label, false);
+      const texteValeur = this._assainir(valeur, true);
       this.assurerEspace(18);
-      this.page.drawText(String(label), { x: MARGE, y: this.y - taille, size: taille, font: this.police, color: COULEUR.texteDim });
-      const texteValeur = String(valeur);
+      this.page.drawText(texteLabel, { x: MARGE, y: this.y - taille, size: taille, font: this.police, color: COULEUR.texteDim });
       const largeurValeur = this.policeGrasse.widthOfTextAtSize(texteValeur, taille);
       this.page.drawText(texteValeur, { x: A4.largeur - MARGE - largeurValeur, y: this.y - taille, size: taille, font: this.policeGrasse, color: couleurValeur });
       this.y -= 8;
@@ -191,7 +222,7 @@
     encadre(lignes, { couleurBordure = COULEUR.cyan } = {}) {
       const taille = 9.5, interligne = 13;
       const decoupees = [];
-      lignes.forEach(l => decouperEnLignes(l.texte, l.gras ? this.policeGrasse : this.police, taille, LARGEUR_UTILE - 24)
+      lignes.forEach(l => decouperEnLignes(this._assainir(l.texte, !!l.gras), l.gras ? this.policeGrasse : this.police, taille, LARGEUR_UTILE - 24)
         .forEach(ligne => decoupees.push({ ligne, gras: l.gras })));
       const hauteur = decoupees.length * interligne + 18;
       this.assurerEspace(hauteur + 10);
@@ -219,7 +250,7 @@
       this.page.drawRectangle({ x: MARGE, y: this.y - interligne, width: LARGEUR_UTILE, height: interligne, color: COULEUR.fondEntete });
       colonnes.forEach(col => {
         const largeurCol = col.largeur * LARGEUR_UTILE;
-        const texte = col.label;
+        const texte = this._assainir(col.label, true);
         const decal = col.align === 'droite' ? largeurCol - this.policeGrasse.widthOfTextAtSize(texte, tailleEnTete) - 6 : 6;
         this.page.drawText(texte, { x: x + decal, y: this.y - interligne + 4.5, size: tailleEnTete, font: this.policeGrasse, color: COULEUR.texte });
         x += largeurCol;
@@ -231,7 +262,7 @@
         let xx = MARGE;
         colonnes.forEach(col => {
           const largeurCol = col.largeur * LARGEUR_UTILE;
-          const val = String(ligne[col.cle] == null ? '—' : ligne[col.cle]);
+          const val = this._assainir(ligne[col.cle] == null ? '—' : ligne[col.cle], false);
           const decal = col.align === 'droite' ? largeurCol - this.police.widthOfTextAtSize(val, taille) - 6 : 6;
           this.page.drawText(val, { x: xx + decal, y: this.y - interligne + 4.5, size: taille, font: this.police, color: COULEUR.texte });
           xx += largeurCol;
@@ -259,10 +290,11 @@
 
     /** Pied de page numéroté ("Page X / Y") + texte de gauche, appliqué à TOUTES les pages déjà créées — à appeler en dernier, une fois le contenu terminé. */
     piedDePageToutesPages(texteGauche) {
+      const gauche = this._assainir(texteGauche || '', false);
       const pages = this.doc.getPages();
       pages.forEach((p, i) => {
         p.drawLine({ start: { x: MARGE, y: MARGE - 8 }, end: { x: A4.largeur - MARGE, y: MARGE - 8 }, thickness: 0.5, color: COULEUR.ligne });
-        p.drawText(String(texteGauche || ''), { x: MARGE, y: MARGE - 20, size: 7.5, font: this.police, color: COULEUR.texteDim });
+        p.drawText(gauche, { x: MARGE, y: MARGE - 20, size: 7.5, font: this.police, color: COULEUR.texteDim });
         const texteDroite = `Page ${i + 1} / ${pages.length}`;
         const largeur = this.police.widthOfTextAtSize(texteDroite, 7.5);
         p.drawText(texteDroite, { x: A4.largeur - MARGE - largeur, y: MARGE - 20, size: 7.5, font: this.police, color: COULEUR.texteDim });
@@ -292,38 +324,50 @@
     return constructeur.doc.save();
   }
 
+  /** La Web Share API (avec fichiers) est-elle disponible dans ce navigateur ? Utile pour n'afficher un bouton "Partager" que s'il a une chance de fonctionner. */
+  function webShareDisponible() {
+    return !!(global.navigator && navigator.canShare && navigator.share);
+  }
+
   /**
-   * Diffuse un PDF déjà généré (Uint8Array) — remplace window.print()
-   * comme point de sortie de NEXUS. Ordre volontaire (audit
-   * "developpeur" 09/08/2026, limites documentées de window.print() en
-   * PWA standalone iOS) :
-   *   1. Web Share API avec fichier — iOS Safari 15+ et Android Chrome,
-   *      fonctionne aussi en PWA installée sur l'écran d'accueil.
-   *   2. Téléchargement direct du Blob (lien <a download>) — fonctionne
-   *      partout ; sur iOS Safari en onglet normal (hors standalone),
-   *      ouvre le PDF dans la visionneuse native avec son propre bouton
-   *      de partage/enregistrement.
-   *   3. Dernier recours seulement : ouverture dans un nouvel onglet.
-   * Retourne une chaîne indiquant le chemin emprunté, utile pour
-   * adapter un message à l'utilisateur ('partage' | 'annule' |
-   * 'telechargement' | 'nouvel_onglet').
+   * Partage un PDF déjà généré via la Web Share API — iOS Safari 15+ et
+   * Android Chrome, y compris en PWA installée sur l'écran d'accueil
+   * (contourne le bug d'impression documenté de window.print() en mode
+   * standalone iOS, audit "developpeur" 09/08/2026). Ne fait AUCUN repli
+   * automatique — à appeler directement depuis un geste utilisateur
+   * (clic), jamais après une longue attente asynchrone, certains
+   * navigateurs (Safari en particulier) exigeant que le partage reste
+   * proche du geste qui l'a déclenché. Retourne 'partage' | 'annule'
+   * (l'utilisateur a fermé la feuille de partage — pas une erreur) |
+   * 'echec' | 'indisponible' (pas de Web Share API ici, ou fichier PDF
+   * refusé — au développeur de proposer `telechargerPdf` à la place).
    */
-  async function partagerOuTelechargerPdf(pdfBytes, nomFichier, { titre, texte } = {}) {
+  async function partagerPdf(pdfBytes, nomFichier, { titre, texte } = {}) {
+    if (!webShareDisponible()) return 'indisponible';
     const blob = new Blob([pdfBytes], { type: 'application/pdf' });
-
-    if (global.navigator && navigator.canShare && navigator.share) {
-      try {
-        const fichier = new File([blob], nomFichier, { type: 'application/pdf' });
-        if (navigator.canShare({ files: [fichier] })) {
-          await navigator.share({ files: [fichier], title: titre || nomFichier, text: texte || '' });
-          return 'partage';
-        }
-      } catch (e) {
-        if (e && e.name === 'AbortError') return 'annule'; // l'utilisateur a fermé la feuille de partage — pas une erreur
-        console.warn('NexusPdfMoteur : partage impossible, repli sur le téléchargement.', e);
-      }
+    try {
+      const fichier = new File([blob], nomFichier, { type: 'application/pdf' });
+      if (!navigator.canShare({ files: [fichier] })) return 'indisponible';
+      await navigator.share({ files: [fichier], title: titre || nomFichier, text: texte || '' });
+      return 'partage';
+    } catch (e) {
+      if (e && e.name === 'AbortError') return 'annule';
+      console.warn('NexusPdfMoteur : partage impossible.', e);
+      return 'echec';
     }
+  }
 
+  /**
+   * Téléchargement direct du Blob (lien <a download>) — fonctionne
+   * partout. Sur iOS Safari en onglet normal (hors PWA standalone), le
+   * navigateur ignore souvent l'attribut download pour un blob: et ouvre
+   * simplement le PDF dans sa visionneuse native, avec son propre bouton
+   * de partage/enregistrement — c'est un repli tout à fait correct, pas
+   * un échec. Dernier recours seulement si même ça échoue : ouverture
+   * dans un nouvel onglet. Retourne 'telechargement' | 'nouvel_onglet'.
+   */
+  async function telechargerPdf(pdfBytes, nomFichier) {
+    const blob = new Blob([pdfBytes], { type: 'application/pdf' });
     try {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -336,15 +380,31 @@
     } catch (e) {
       console.warn('NexusPdfMoteur : téléchargement impossible, dernier recours (nouvel onglet).', e);
     }
-
     const urlSecours = URL.createObjectURL(blob);
     global.open(urlSecours, '_blank');
     return 'nouvel_onglet';
   }
 
+  /**
+   * Diffuse un PDF déjà généré en un seul appel — essaie `partagerPdf`
+   * puis retombe sur `telechargerPdf` si le partage est indisponible ou
+   * échoue (mais pas si l'utilisateur a simplement annulé). Pratique
+   * pour un module qui veut un unique bouton "faire le bon choix" plutôt
+   * que deux actions distinctes (voir `partagerPdf`/`telechargerPdf`
+   * pour une UI à deux boutons, ex. "Partager" / "Ouvrir").
+   */
+  async function partagerOuTelechargerPdf(pdfBytes, nomFichier, options) {
+    const resultat = await partagerPdf(pdfBytes, nomFichier, options);
+    if (resultat === 'partage' || resultat === 'annule') return resultat;
+    return telechargerPdf(pdfBytes, nomFichier);
+  }
+
   global.NexusPdfMoteur = {
     creerRapport,
     finaliser,
+    webShareDisponible,
+    partagerPdf,
+    telechargerPdf,
     partagerOuTelechargerPdf,
     ConstructeurRapport,
     COULEUR,

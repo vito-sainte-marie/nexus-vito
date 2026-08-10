@@ -158,6 +158,23 @@ audit).
 l'historique de ventes est insuffisant, l'autonomie ne doit jamais être affichée comme un chiffre
 — uniquement « non calculable ». Même règle pour la rotation tant que la formule n'est pas figée.
 
+**Définition canonique : « CA FDJ » (10/08/2026, retour de Frédéric)** — le tableau ci-dessus
+définit « CA grattage » au grain d'un quart. L'indicateur affiché partout dans l'app sous le nom
+**« CA FDJ »** (Vue d'ensemble, Rapports, Brief) est une notion différente, à grain période, et doit
+avoir une seule définition écrite ici pour ne jamais diverger d'un écran à l'autre :
+
+> **CA FDJ (période) = `ca_grattage` + `caisse_tirages`**, sommés sur la période sélectionnée à
+> partir de `view_fdj_daily_summary` (champs déjà validés, jamais recalculés — `sommerChamps(...,
+> CHAMPS_SUMMARY)` dans `NEXUS-FDJ-Analyse-v1.html`).
+
+Ce n'est PAS : les mises engagées par les clients, les encaissements bruts de caisse, ni une
+« recette nette » après reversement FDJ — c'est la somme du chiffre d'affaires grattage (tel que
+défini dans le tableau ci-dessus) et de la caisse tirages déclarée. Tout écran ou export qui
+affiche « CA FDJ » doit utiliser exactement cette somme — ne jamais improviser une variante (ex.
+grattage seul, ou avec une pondération différente) sous le même libellé, pour éviter qu'un jour
+Brief annonce un chiffre et Pilotage un autre pour une définition légèrement différente du même nom
+(Article 11, "une seule vérité").
+
 ### Point zéro du stock (`fdj_stock_references`)
 
 Le stock bureau/caisse n'est pas un compteur stocké : il se recalcule à partir des mouvements
@@ -353,30 +370,55 @@ module concerné, ce fichier ne fait que les mettre en page). Il expose :
   via `chart.toBase64Image()` — mis à l'échelle en conservant les proportions via `scaleToFit`),
   `piedDePageToutesPages()` (numérotation "Page X / Y" appliquée rétroactivement à toutes les pages) ;
 - `NexusPdfMoteur.finaliser(constructeur)` — renvoie les octets du PDF (`Uint8Array`) ;
-- `NexusPdfMoteur.partagerOuTelechargerPdf(bytes, nomFichier, { titre, texte })` — diffuse le PDF
-  généré, dans cet ordre : (1) Web Share API avec fichier (iOS Safari 15+, Android Chrome, y compris
-  en PWA standalone — contourne le bug d'impression iOS documenté ci-dessus), (2) téléchargement
-  direct du Blob, (3) dernier recours seulement, ouverture dans un nouvel onglet.
+- `NexusPdfMoteur.webShareDisponible()` — la Web Share API (avec fichiers) existe-t-elle sur cet
+  appareil ? Sert à n'afficher un bouton "Partager" que s'il a une chance de fonctionner ;
+- `NexusPdfMoteur.partagerPdf(bytes, nomFichier, { titre, texte })` — partage direct via la Web
+  Share API, sans aucun repli automatique — à appeler depuis un geste utilisateur (clic) le plus
+  directement possible, certains navigateurs (Safari) exigeant que l'appel reste proche du geste ;
+  retourne `'partage' | 'annule' | 'echec' | 'indisponible'` ;
+- `NexusPdfMoteur.telechargerPdf(bytes, nomFichier)` — téléchargement direct du Blob (lien
+  `<a download>`), avec repli sur l'ouverture dans un nouvel onglet si même ça échoue ;
+- `NexusPdfMoteur.partagerOuTelechargerPdf(bytes, nomFichier, { titre, texte })` — combine les deux
+  ci-dessus en un seul appel (partage puis repli téléchargement) pour un module qui veut un bouton
+  unique plutôt qu'une UI à deux actions.
 
 Chaque module NEXUS (FDJ Pilotage, Coach, et à terme Verify, Inventaire, Brief, rapports manager…)
 compose SON rapport avec ces primitives dans SA propre page — la composition métier (quelles
 sections, quelles données) ne vit jamais dans ce fichier générique. Premier module câblé :
-`NEXUS-FDJ-Analyse-v1.html` (`assemblerDonneesRapportFdj()` / `construireEtDiffuserRapportPdf()`,
-voir section 7, Étape 6).
+`NEXUS-FDJ-Analyse-v1.html` (`assemblerDonneesRapportFdj()` / `construireRapportPdf()` /
+`lancerGenerationRapport()` / `afficherActionsRapportPret()`, voir section 7, Étape 6). Depuis le
+10/08/2026, la génération (bouton "Générer mon rapport") et la diffusion (boutons "Partager le PDF"
+/ "Ouvrir le PDF", affichés une fois le PDF prêt) sont deux étapes séparées plutôt qu'un
+enchaînement automatique — le clic sur "Partager" reste un geste direct de l'utilisateur sur un
+fichier déjà construit.
+
+**Correctif critique (10/08/2026) — caractères non supportés par la police standard :** premier
+test réel de Frédéric (Safari normal, pas PWA standalone) : génération en échec. Cause identifiée
+par grep sur les moteurs métier : `LABEL_REGLE_COACH.fdj_regularite_levier` ("… → levier
+commercial") contient une flèche Unicode, et les badges `ETAT_FDJ`/`ETAT_COACH` de
+`nexus-conseiller.js` utilisés ailleurs dans l'app contiennent des emoji (🔴/🟡/📈) — la police
+standard Helvetica (encodage WinAnsi) ne sait représenter ni l'un ni l'autre, et pdf-lib lève une
+exception à `drawText()` dès qu'elle en rencontre un, faisant échouer TOUT le rapport pour un seul
+caractère fautif. `ConstructeurRapport` filtre désormais chaque texte via `_assainir()` (basé sur
+`PDFFont.getCharacterSet()`, calculé une fois par police à la construction) avant tout `drawText()`
+— défensif par construction, puisque ce moteur générique ne contrôle pas à l'avance le texte métier
+que chaque module lui donne. Reproduit et vérifié par régression (texte avec flèche + emoji → plus
+d'exception, texte utile conservé, caractères non supportés retirés proprement).
 
 **Vérifié (10/08/2026)** sans accès npm dans le bac à sable (registre bloqué, 403) : un mock minimal
 de `pdf-lib` (juste assez d'API pour exécuter réellement `nexus-pdf-moteur.js`) a permis de composer
 un rapport complet (tableau de 40 lignes, image, plusieurs encadrés) et de vérifier par assertions
 que la pagination automatique se déclenche correctement (3 pages), qu'aucun élément ne déborde sous
-le bas d'une page, et que le pied de page numéroté est appliqué à chaque page. `partagerOuTelechargerPdf()`
-vérifié séparément sur 5 scénarios (partage réussi, annulation utilisateur, échec de partage avec
-repli, absence de Web Share API, `canShare()` refusant le fichier). L'algorithme de retour à la ligne
-(`decouperEnLignes`) vérifié sur 4 cas (texte vide, court, multi-lignes sans perte de mot, mot plus
-large que la page sans boucle infinie). Toutes les signatures pdf-lib utilisées (`embedFont`,
-`embedPng`, `drawText`/`drawRectangle`/`drawLine`/`drawImage`, `widthOfTextAtSize`, `scaleToFit`,
-`save`) confirmées contre la documentation officielle pdf-lib.js.org — aucun test d'intégration réel
-avec la vraie bibliothèque pdf-lib n'a pu être exécuté (pas d'accès npm ici) : **à vérifier une
-dernière fois en conditions réelles (navigateur) avant diffusion large.**
+le bas d'une page, et que le pied de page numéroté est appliqué à chaque page — y compris après le
+correctif WinAnsi (retest de non-régression). `partagerPdf`/`telechargerPdf`/`partagerOuTelechargerPdf`
+vérifiés séparément sur 10 scénarios (succès, annulation, échec avec repli, absence de Web Share
+API, fichier refusé par `canShare()`, chaque fonction granulaire isolément). L'algorithme de retour
+à la ligne (`decouperEnLignes`) vérifié sur 4 cas. Toutes les signatures pdf-lib utilisées
+(`embedFont`, `embedPng`, `drawText`/`drawRectangle`/`drawLine`/`drawImage`, `widthOfTextAtSize`,
+`getCharacterSet`, `scaleToFit`, `save`) confirmées contre la documentation officielle
+pdf-lib.js.org. Toujours **aucun test d'intégration avec la vraie bibliothèque pdf-lib** (pas
+d'accès npm ici, uniquement des mocks) — la confirmation définitive reste le prochain test réel de
+Frédéric sur son iPhone après ce correctif.
 
 ---
 
@@ -394,6 +436,7 @@ dernière fois en conditions réelles (navigateur) avant diffusion large.**
 | v2.6 | 09/08/2026 | Coach x FDJ Pilotage, étape "remontée Brief" (audit §27, item 13 / §13) : `NexusCoachFdj.calculerCandidatsCoachEquipe()` (3 règles : risque récurrent/axe équipe/progrès équipe), `NexusConseiller.normaliserCoach()`, moteur `coach` ajouté au tri fusionné de `NEXUS-Brief-v1.html`. `LABEL_REGLE_COACH` relocalisé dans le moteur partagé (retiré du doublon local de FDJ-Analyse). |
 | v2.7 | 09/08/2026 | Coach x FDJ Pilotage, étape "export PDF" (audit §27, item 14 / §23) : nouvel onglet Rapports / Export dans `NEXUS-FDJ-Analyse-v1.html`, `window.print()` + feuille `@media print` dédiée (aucune dépendance ajoutée), réutilise le sélecteur de période universel existant, le résumé manager, le graphique CA, `candidatsFdjPeriode()` et la synthèse Coaching équipe déjà construits. Bandeau "données provisoires" quand des quarts de la période ne sont pas encore contrôlés. |
 | v2.8 | 10/08/2026 | Remplacement de `window.print()` par un vrai moteur PDF applicatif, à la demande de Frédéric, après signalement du bug WebKit documenté (aperçu d'impression cassé en PWA standalone iOS). Nouveau fichier générique `nexus-pdf-moteur.js` (section 8, pdf-lib, pagination automatique, Web Share API + repli téléchargement) réutilisable par tout NEXUS, pas seulement FDJ. `NEXUS-FDJ-Analyse-v1.html` recomposé pour l'utiliser (`assemblerDonneesRapportFdj`/`construireEtDiffuserRapportPdf`), avec en plus Top jeux, répartition par palier et Top vendeurs qui n'étaient pas dans la V1 window.print(). |
+| v2.9 | 10/08/2026 | Corrections suite au premier test réel de Frédéric (Safari normal, pas PWA) : (1) bug bloquant identifié — un texte métier contenant une flèche Unicode ou un emoji (ex. `LABEL_REGLE_COACH.fdj_regularite_levier`, badges `ETAT_FDJ`/`ETAT_COACH` de `nexus-conseiller.js`) fait planter pdf-lib (police standard WinAnsi, n'encode pas ces caractères) — `nexus-pdf-moteur.js` filtre désormais tout caractère non supporté par la police embarquée avant chaque `drawText()` (`ConstructeurRapport._assainir`, basé sur `PDFFont.getCharacterSet()`) ; (2) `NEXUS-FDJ-Analyse-v1.html` renommé "FDJ Pilotage" à l'affichage (titre, eyebrow, footer, navigation) — "Analyse" évoquait un tableau de statistiques, "Pilotage" résume comprendre → décider → agir ; fichier et références internes inchangés ; (3) flux PDF séparé en deux étapes (`construireRapportPdf` puis `afficherActionsRapportPret`) — "Générer mon rapport" construit le PDF, puis "Partager le PDF" / "Ouvrir le PDF" apparaissent séparément (bouton Partager absent si `NexusPdfMoteur.webShareDisponible()` est faux) ; `nexus-pdf-moteur.js` décomposé en `partagerPdf`/`telechargerPdf` réutilisables séparément (`partagerOuTelechargerPdf` conservé, recompose les deux) ; (4) affichage "Taux de quarts conformes" corrigé en deux lignes distinctes (couverture du contrôle vs qualité du résultat) dans Vue d'ensemble, Rapports et le PDF ; (5) définition canonique de "CA FDJ" (période) écrite dans la section 7 ; (6) onglet "Rapports / Export" renommé "Rapports", scroll-snap ajouté à la barre d'onglets (un onglet ne doit plus rester affiché à moitié coupé au bord de l'écran). |
 
 Prochaine révision suggérée : après vérification des sections héritées (§5) et des deux chantiers
 au statut inconnu (§4 — Anomalie stock, Capacité de réassort). Côté FDJ : figer les formules de

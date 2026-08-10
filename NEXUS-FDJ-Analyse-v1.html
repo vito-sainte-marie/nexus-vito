@@ -13,7 +13,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="NEXUS">
 <meta name="theme-color" content="#0B0F14">
-<title>NEXUS — FDJ · Analyse</title>
+<title>NEXUS — FDJ · Pilotage</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -110,9 +110,14 @@
   .periode-label-comparaison{font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:center; margin-top:2px;}
 
   /* --- Analyse : onglets --- */
-  .tabs-nav{display:flex; gap:6px; overflow-x:auto; padding-bottom:6px; margin-bottom:14px; -webkit-overflow-scrolling:touch;}
+  /* scroll-snap : un onglet ne doit jamais rester affiché à moitié
+     coupé au bord de l'écran pendant le défilement (retour de
+     Frédéric, 10/08/2026 — "…ôle & écarts" tronqué sur iPhone donnait
+     l'impression qu'un élément était caché) ; padding droit
+     supplémentaire pour que le dernier onglet respire aussi. */
+  .tabs-nav{display:flex; gap:6px; overflow-x:auto; padding-bottom:6px; padding-right:8px; margin-bottom:14px; -webkit-overflow-scrolling:touch; scroll-snap-type:x proximity;}
   .tabs-nav::-webkit-scrollbar{display:none;}
-  .tab-pill{flex:0 0 auto; padding:9px 14px; border-radius:20px; border:1px solid var(--hairline); background:var(--panel); color:var(--text-mid); font-size:12px; font-weight:600; cursor:pointer; white-space:nowrap;}
+  .tab-pill{flex:0 0 auto; padding:9px 14px; border-radius:20px; border:1px solid var(--hairline); background:var(--panel); color:var(--text-mid); font-size:12px; font-weight:600; cursor:pointer; white-space:nowrap; scroll-snap-align:start;}
   .tab-pill.actif{background:rgba(79,195,217,0.14); border-color:var(--cyan); color:var(--cyan);}
   .tab-pill.desactive{opacity:0.35; cursor:default;}
 
@@ -142,14 +147,21 @@
   .rapport-provisoire{font-size:11.5px; color:var(--amber); background:var(--amber-dim); border-radius:8px; padding:9px 11px; margin-top:10px; line-height:1.5;}
   .btn-rapport-pdf{display:block; width:100%; margin:14px 0 8px; padding:13px; border-radius:10px; border:none; background:var(--cyan); color:#0B0F14; font-family:var(--sans); font-size:13.5px; font-weight:700; cursor:pointer;}
   .btn-rapport-pdf:disabled{opacity:0.55; cursor:default;}
-  .statut-rapport{font-size:11.5px; color:var(--text-mid); text-align:center; margin-top:8px; min-height:14px;}
+  .btn-rapport-pdf.secondaire{background:var(--panel-raised); color:var(--text); border:1px solid var(--hairline);}
+  .rapport-actions{display:flex; gap:8px;}
+  .rapport-actions .btn-rapport-pdf{margin:14px 0 0;}
+  .btn-lien{display:block; width:100%; margin:10px 0 8px; padding:6px; border:none; background:none; color:var(--text-dim); font-family:var(--sans); font-size:11.5px; text-decoration:underline; cursor:pointer;}
+  .statut-rapport{font-size:11.5px; color:var(--text-mid); text-align:center; margin-top:8px; min-height:14px; line-height:1.5;}
+  .statut-rapport.statut-pret{color:var(--green);}
+  .statut-rapport.statut-erreur{color:var(--red);}
+  .statut-detail{font-family:var(--mono); font-size:10px; color:var(--text-dim);}
 </style>
 </head>
 <body>
 <div class="phone">
   <div class="header">
     <a href="NEXUS-App-v1.html" class="menu-btn">☰ Menu</a>
-    <div class="eyebrow">NEXUS · FDJ · Analyse</div>
+    <div class="eyebrow">NEXUS · FDJ · Pilotage</div>
     <div class="title" id="titre">Chargement…</div>
     <div class="sub" id="sousTitre"></div>
   </div>
@@ -159,7 +171,7 @@
     <div class="loading">Chargement…</div>
   </div>
 
-  <footer>NEXUS FDJ · Analyse v1 · Moteur de clairvoyance manager · Vito Sainte-Marie Usine</footer>
+  <footer>NEXUS FDJ · Pilotage v1 · Moteur de clairvoyance manager · Vito Sainte-Marie Usine</footer>
 </div>
 
 <script>
@@ -201,6 +213,7 @@
   let periodeActuelle = { type: 'semaine', debut: null, fin: null, annee: null, semaine: null };
   let periodeResolue = null; // { debut, fin, compDebut, compFin, label, labelComp } — Date objects
   let chartsActifs = {}; // id -> instance Chart.js, détruites avant chaque re-rendu
+  let dernierRapportPdf = null; // { bytes, nomFichier, titre, texte } — remis à null à chaque entrée dans l'onglet Rapports ou changement de période (jamais proposer au partage un PDF d'une autre période)
 
   function fmtEuro(n) { return (n === null || n === undefined || isNaN(n)) ? '—' : `${Number(n).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`; }
   function fmtNum(n) { return (n === null || n === undefined || isNaN(n)) ? '—' : Number(n).toLocaleString('fr-FR', { maximumFractionDigits: 1 }); }
@@ -391,11 +404,11 @@
     { id: 'controle', label: 'Contrôle & écarts' },
     { id: 'historique', label: 'Historique' },
     { id: 'conseiller', label: 'Conseiller' },
-    { id: 'rapports', label: 'Rapports / Export' },
+    { id: 'rapports', label: 'Rapports' },
   ];
 
   async function renderPage() {
-    document.getElementById('titre').textContent = 'FDJ · Analyse';
+    document.getElementById('titre').textContent = 'FDJ · Pilotage';
     document.getElementById('sousTitre').textContent = "Ce qui mérite l'attention aujourd'hui — jamais un mur de graphiques.";
     document.getElementById('content').innerHTML = `
       <div class="periode-bar">
@@ -479,7 +492,7 @@
       else if (ongletActuel === 'conseiller') await renderConseiller(zone);
       else if (ongletActuel === 'rapports') await renderRapports(zone);
     } catch (e) {
-      console.error('Erreur de rendu onglet FDJ Analyse:', e);
+      console.error('Erreur de rendu onglet FDJ Pilotage:', e);
       zone.innerHTML = '<div class="loading">Erreur de chargement. Réessayez.</div>';
     }
   }
@@ -546,6 +559,12 @@
     // niveau de confiance par candidat, vit dans l'onglet Conseiller.
     const candidatsEnsemble = await candidatsFdjPeriode();
     const decisionsAffichees = candidatsEnsemble.slice(0, 3).map(c => ({ risque: c.niveau !== 'positif', texte: `${c.constat} ${c.decision}` }));
+    // Couverture du contrôle vs qualité du résultat — deux informations
+    // distinctes, jamais un seul pourcentage à côté de "6/6" (retour de
+    // Frédéric, 10/08/2026).
+    const texteConformite = actuel.nb_quarts_controles > 0
+      ? `${actuel.nb_quarts_conformes} / ${actuel.nb_quarts_controles} — ${fmtPct(tauxConformite)}`
+      : '—';
 
     zone.innerHTML = `
       <div class="resume-card">
@@ -553,8 +572,8 @@
         <div class="stat-row"><div class="stat-label">Évolution</div><div class="stat-value ${classeEvolution(evolCa)}">${fmtEvolution(evolCa)}</div></div>
         ${partGrattageDispo ? `
         <div class="stat-row"><div class="stat-label">Part grattage / tirages</div><div class="stat-value">${fmtPct(totalFlux ? actuel.ca_grattage / totalFlux : null)} / ${fmtPct(totalFlux ? actuel.caisse_tirages / totalFlux : null)}</div></div>` : ''}
-        <div class="stat-row"><div class="stat-label">Taux de quarts conformes</div><div class="stat-value ${tauxConformite === null ? '' : (tauxConformite >= 0.9 ? 'green' : (tauxConformite >= 0.7 ? 'amber' : 'red'))}">${fmtPct(tauxConformite)}</div></div>
-        <div class="stat-sub">${actuel.nb_quarts_controles} quart${actuel.nb_quarts_controles > 1 ? 's' : ''} contrôlé${actuel.nb_quarts_controles > 1 ? 's' : ''} sur ${actuel.nb_quarts} au total</div>
+        <div class="stat-row"><div class="stat-label">Quarts conformes</div><div class="stat-value ${tauxConformite === null ? '' : (tauxConformite >= 0.9 ? 'green' : (tauxConformite >= 0.7 ? 'amber' : 'red'))}">${texteConformite}</div></div>
+        <div class="stat-sub">${actuel.nb_quarts_controles} / ${actuel.nb_quarts} quarts contrôlés</div>
         <div class="stat-row"><div class="stat-label">Jeu moteur</div><div class="stat-value">${jeuMoteur ? nomJeu(jeuMoteur) : '—'}</div></div>
         <div class="stat-row"><div class="stat-label">Palier moteur</div><div class="stat-value">${palierMoteur ? `${palierMoteur} €` : '—'}</div></div>
         <div class="stat-row"><div class="stat-label">Meilleur jour</div><div class="stat-value">${meilleurJour ? `${new Date(meilleurJour.date + 'T00:00:00').toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' })}` : '—'}</div></div>
@@ -1239,7 +1258,7 @@
       labelComp: periodeResolue.labelComp, genereLe: new Date(),
       donneesProvisoires: nbNonControles > 0, nbNonControles, totalQuarts: actuel.nb_quarts,
       ca: actuel.ca_grattage, caisseTirages: actuel.caisse_tirages, evolCa, tauxConformite,
-      quartsControles: actuel.nb_quarts_controles,
+      quartsControles: actuel.nb_quarts_controles, quartsConformes: actuel.nb_quarts_conformes,
       ecartTotal: actuel.ecart_total, nbEcartsNonNuls: actuel.nb_ecarts_non_nuls,
       jeuMoteur, palierMoteur, meilleurJour, pireJour, labelsCa, valeursCa,
       topJeux, repartitionPalier, topVendeurs,
@@ -1285,19 +1304,18 @@
     });
   }
 
-  // Compose le PDF avec nexus-pdf-moteur.js (générique) à partir des
-  // données assemblées ci-dessus, puis le diffuse (partage / téléchargement
-  // / dernier recours nouvel onglet — jamais window.print()).
-  async function construireEtDiffuserRapportPdf() {
-    const btn = document.getElementById('btnGenererRapport');
-    const statut = document.getElementById('statutRapport');
-    const texteInitial = btn.textContent;
-    btn.disabled = true; btn.textContent = 'Génération du rapport…';
-    statut.textContent = '';
-    try {
-      const donnees = await assemblerDonneesRapportFdj();
-      const imageCaPng = await genererImageGraphiqueCa(donnees.labelsCa, donnees.valeursCa);
-      const { COULEUR } = NexusPdfMoteur;
+  // Construit le PDF avec nexus-pdf-moteur.js (générique) à partir des
+  // données assemblées ci-dessus et renvoie { bytes, nomFichier, titre,
+  // texte } — NE diffuse rien elle-même (voir lancerGenerationRapport/
+  // afficherActionsRapportPret plus bas : construire le PDF et le
+  // partager sont deux étapes séparées, §4 retour de Frédéric du
+  // 10/08/2026 — "Partager" doit rester un geste direct de l'utilisateur
+  // sur un fichier déjà prêt, jamais enchaîné automatiquement après une
+  // construction qui peut prendre une seconde ou deux).
+  async function construireRapportPdf() {
+    const donnees = await assemblerDonneesRapportFdj();
+    const imageCaPng = await genererImageGraphiqueCa(donnees.labelsCa, donnees.valeursCa);
+    const { COULEUR } = NexusPdfMoteur;
 
       const c = await NexusPdfMoteur.creerRapport({
         titre: `NEXUS FDJ — Rapport ${donnees.periodeLabel}`,
@@ -1319,7 +1337,13 @@
       c.ligneCle('Palier moteur', donnees.palierMoteur ? `${donnees.palierMoteur} €` : '—');
       c.ligneCle('Jour le plus performant', donnees.meilleurJour ? new Date(donnees.meilleurJour.date + 'T00:00:00').toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' }) : '—');
       c.ligneCle('Jour à booster', donnees.pireJour ? new Date(donnees.pireJour.date + 'T00:00:00').toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' }) : '—');
-      c.ligneCle('Taux de quarts conformes', fmtPct(donnees.tauxConformite));
+      // Deux lignes distinctes plutôt qu'un seul pourcentage — la qualité
+      // du résultat (quarts conformes parmi les quarts contrôlés) et la
+      // couverture du contrôle (quarts contrôlés parmi le total) sont
+      // deux informations différentes ; un seul "33,3 %" à côté de
+      // "6/6" prêtait à confusion (retour de Frédéric, 10/08/2026).
+      c.ligneCle('Quarts conformes', donnees.quartsControles > 0 ? `${donnees.quartsConformes} / ${donnees.quartsControles} — ${fmtPct(donnees.tauxConformite)}` : '—');
+      c.ligneCle('Quarts contrôlés', `${donnees.quartsControles} / ${donnees.totalQuarts}`);
       c.ligneCle('Écart caisse cumulé', fmtEuro(donnees.ecartTotal));
 
       c.sectionTitre('Analyse des ventes');
@@ -1373,7 +1397,7 @@
           c.encadre([
             { texte: dec.article, gras: true },
             { texte: dec.pourquoi },
-            { texte: `→ ${dec.decision}` },
+            { texte: `Décision : ${dec.decision}` },
           ], { couleurBordure: dec.rang <= 1 ? COULEUR.rouge : COULEUR.cyan });
         });
       } else {
@@ -1383,23 +1407,75 @@
       c.piedDePageToutesPages('NEXUS FDJ · Rapport généré automatiquement — vérité avant certitude, jamais une prédiction.');
       const bytes = await NexusPdfMoteur.finaliser(c);
       const nomFichier = `NEXUS-FDJ-Rapport-${dateISO(periodeResolue.debut)}-${dateISO(periodeResolue.fin)}.pdf`;
-      const resultat = await NexusPdfMoteur.partagerOuTelechargerPdf(bytes, nomFichier, {
+      return {
+        bytes, nomFichier,
         titre: `NEXUS FDJ — Rapport ${donnees.periodeLabel}`,
         texte: `Rapport FDJ Pilotage — ${donnees.site}`,
-      });
-      if (resultat === 'partage') statut.textContent = 'Rapport partagé.';
-      else if (resultat === 'telechargement') statut.textContent = 'Rapport téléchargé.';
-      else if (resultat === 'nouvel_onglet') statut.textContent = 'Rapport ouvert dans un nouvel onglet.';
-      else statut.textContent = '';
+      };
+  }
+
+  // Étape 1/2 : construit le PDF (peut prendre une seconde ou deux —
+  // requêtes réseau + composition), affiche l'état d'avancement, puis
+  // bascule vers les actions de diffusion (étape 2/2,
+  // afficherActionsRapportPret). En cas d'erreur, log complet en
+  // console (retour de Frédéric du 10/08/2026 : « il faut au minimum
+  // console.error » pour pouvoir diagnostiquer sans deviner) + message
+  // utilisateur qui reste lisible, avec le détail technique en petit
+  // pour ne pas avoir à redemander la console à chaque panne.
+  async function lancerGenerationRapport() {
+    const zoneActions = document.getElementById('zoneActionsRapport');
+    zoneActions.innerHTML = `
+      <button class="btn-rapport-pdf" disabled type="button">Génération en cours…</button>
+      <div class="statut-rapport">Cela peut prendre quelques secondes.</div>
+    `;
+    try {
+      dernierRapportPdf = await construireRapportPdf();
+      afficherActionsRapportPret();
     } catch (e) {
-      console.error('Génération du rapport PDF FDJ:', e);
-      statut.textContent = 'Erreur lors de la génération du rapport — réessayez.';
-    } finally {
-      btn.disabled = false; btn.textContent = texteInitial;
+      console.error('NEXUS FDJ — génération du rapport PDF :', e);
+      zoneActions.innerHTML = `
+        <button class="btn-rapport-pdf" id="btnGenererRapport" type="button">Générer mon rapport</button>
+        <div class="statut-rapport statut-erreur">Erreur lors de la génération du rapport — réessayez.<br><span class="statut-detail">${(e && e.message) ? e.message : 'Erreur inconnue — voir la console du navigateur.'}</span></div>
+      `;
+      document.getElementById('btnGenererRapport').addEventListener('click', lancerGenerationRapport);
     }
   }
 
+  // Étape 2/2 : le PDF est prêt (dernierRapportPdf) — deux actions
+  // distinctes plutôt qu'un enchaînement automatique (retour de
+  // Frédéric du 10/08/2026) : « Partager » n'apparaît que si la Web
+  // Share API existe sur cet appareil, et reste un geste direct de
+  // l'utilisateur (jamais après une attente asynchrone) pour rester
+  // fiable sur Safari. « Ouvrir » télécharge / ouvre le PDF directement.
+  function afficherActionsRapportPret() {
+    const zoneActions = document.getElementById('zoneActionsRapport');
+    const partageOk = NexusPdfMoteur.webShareDisponible();
+    zoneActions.innerHTML = `
+      <div class="statut-rapport statut-pret">Rapport prêt.</div>
+      <div class="rapport-actions">
+        ${partageOk ? `<button class="btn-rapport-pdf" id="btnPartagerRapport" type="button">Partager le PDF</button>` : ''}
+        <button class="btn-rapport-pdf${partageOk ? ' secondaire' : ''}" id="btnOuvrirRapport" type="button">${partageOk ? 'Ouvrir le PDF' : 'Ouvrir / enregistrer le PDF'}</button>
+      </div>
+      <button class="btn-lien" id="btnRegenererRapport" type="button">Régénérer (autre période ?)</button>
+    `;
+    if (partageOk) {
+      document.getElementById('btnPartagerRapport').addEventListener('click', async () => {
+        const r = await NexusPdfMoteur.partagerPdf(dernierRapportPdf.bytes, dernierRapportPdf.nomFichier, { titre: dernierRapportPdf.titre, texte: dernierRapportPdf.texte });
+        const s = zoneActions.querySelector('.statut-rapport');
+        if (r === 'echec' || r === 'indisponible') { if (s) s.textContent = 'Partage impossible sur cet appareil — utilisez « Ouvrir le PDF ».'; }
+        else if (r === 'partage') { if (s) s.textContent = 'Rapport partagé.'; }
+      });
+    }
+    document.getElementById('btnOuvrirRapport').addEventListener('click', async () => {
+      await NexusPdfMoteur.telechargerPdf(dernierRapportPdf.bytes, dernierRapportPdf.nomFichier);
+      const s = zoneActions.querySelector('.statut-rapport');
+      if (s) s.textContent = 'Rapport ouvert.';
+    });
+    document.getElementById('btnRegenererRapport').addEventListener('click', lancerGenerationRapport);
+  }
+
   async function renderRapports(zone) {
+    dernierRapportPdf = null; // un rapport déjà généré ne vaut plus rien si on change de période
     const d = await chargerDonneesPeriode();
     const actuel = sommerChamps(d.daily.actuel, CHAMPS_SUMMARY);
     const comp = sommerChamps(d.daily.comp, CHAMPS_SUMMARY);
@@ -1408,27 +1484,36 @@
     const tauxConformite = actuel.nb_quarts_controles > 0 ? actuel.nb_quarts_conformes / actuel.nb_quarts_controles : null;
     const nbNonControles = actuel.nb_quarts - actuel.nb_quarts_controles;
     const donneesProvisoires = nbNonControles > 0;
+    // Couverture du contrôle (quarts contrôlés / total) et qualité du
+    // résultat (quarts conformes / quarts contrôlés) sont deux
+    // informations différentes — les séparer clairement plutôt qu'un
+    // seul pourcentage à côté de "6/6" qui prêtait à confusion (retour
+    // de Frédéric, 10/08/2026 : "pourquoi 33,3 % alors qu'il y a 6/6 ?").
+    const texteConformite = actuel.nb_quarts_controles > 0
+      ? `${actuel.nb_quarts_conformes} / ${actuel.nb_quarts_controles} — ${fmtPct(tauxConformite)}`
+      : '—';
 
     zone.innerHTML = `
       <div class="rapport-entete">
         <div class="rapport-titre">Rapport FDJ — ${periodeResolue.label}</div>
         <div class="rapport-sous">${periodeResolue.debut.toLocaleDateString('fr-FR')} → ${periodeResolue.fin.toLocaleDateString('fr-FR')}</div>
-        ${donneesProvisoires ? `<div class="rapport-provisoire">⚠️ ${nbNonControles} quart${nbNonControles > 1 ? 's' : ''} sur ${actuel.nb_quarts} pas encore contrôlé${nbNonControles > 1 ? 's' : ''} par un manager — le rapport généré sera provisoire.</div>` : ''}
+        ${donneesProvisoires ? `<div class="rapport-provisoire">${nbNonControles} quart${nbNonControles > 1 ? 's' : ''} sur ${actuel.nb_quarts} pas encore contrôlé${nbNonControles > 1 ? 's' : ''} par un manager — le rapport généré sera provisoire.</div>` : ''}
       </div>
 
       <div class="resume-card">
         <div class="stat-row total"><div class="stat-label">CA FDJ (${periodeResolue.label.toLowerCase()})</div><div class="stat-value cyan">${fmtEuro(actuel.ca_grattage + (actuel.caisse_tirages || 0))}</div></div>
         <div class="stat-row"><div class="stat-label">Évolution vs ${periodeResolue.labelComp.toLowerCase()}</div><div class="stat-value ${classeEvolution(evolCa)}">${fmtEvolution(evolCa)}</div></div>
-        <div class="stat-row"><div class="stat-label">Taux de quarts conformes</div><div class="stat-value ${tauxConformite === null ? '' : (tauxConformite >= 0.9 ? 'green' : (tauxConformite >= 0.7 ? 'amber' : 'red'))}">${fmtPct(tauxConformite)}</div></div>
-        <div class="stat-sub">${actuel.nb_quarts_controles} quart${actuel.nb_quarts_controles > 1 ? 's' : ''} contrôlé${actuel.nb_quarts_controles > 1 ? 's' : ''} sur ${actuel.nb_quarts} au total</div>
+        <div class="stat-row"><div class="stat-label">Quarts conformes</div><div class="stat-value ${tauxConformite === null ? '' : (tauxConformite >= 0.9 ? 'green' : (tauxConformite >= 0.7 ? 'amber' : 'red'))}">${texteConformite}</div></div>
+        <div class="stat-sub">${actuel.nb_quarts_controles} / ${actuel.nb_quarts} quarts contrôlés</div>
       </div>
 
-      <button class="btn-rapport-pdf" id="btnGenererRapport" type="button">📄 Générer le rapport PDF</button>
-      <div class="statut-rapport" id="statutRapport"></div>
-      <div class="champ-note">Le rapport PDF complet contient : synthèse, analyse des ventes (courbe CA, top jeux, répartition par palier), performance équipe, stock & activations, conseil NEXUS et décisions recommandées. Changez de période au-dessus pour un rapport hebdomadaire, mensuel ou annuel.</div>
+      <div id="zoneActionsRapport">
+        <button class="btn-rapport-pdf" id="btnGenererRapport" type="button">Générer mon rapport</button>
+      </div>
+      <div class="champ-note">Le rapport contient : synthèse, analyse des ventes (courbe CA, top jeux, répartition par palier), performance équipe, stock & activations, conseil NEXUS et décisions recommandées. Changez de période au-dessus pour un rapport hebdomadaire, mensuel ou annuel.</div>
     `;
 
-    document.getElementById('btnGenererRapport').addEventListener('click', construireEtDiffuserRapportPdf);
+    document.getElementById('btnGenererRapport').addEventListener('click', lancerGenerationRapport);
   }
 
   // ------------------------------------------------------------
