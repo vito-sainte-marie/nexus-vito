@@ -18,12 +18,14 @@
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
 <script src="nexus-auth.js"></script>
 <script src="nexus-forfait.js"></script>
 <script src="nexus-desktop.js"></script>
 <script src="nexus-fdj-moteur.js"></script>
 <script src="nexus-coach-fdj-moteur.js"></script>
 <script src="nexus-conseiller.js"></script>
+<script src="nexus-pdf-moteur.js"></script>
 <style>
   :root{
     --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
@@ -138,34 +140,9 @@
   .rapport-titre{font-size:16px; font-weight:700;}
   .rapport-sous{font-size:11.5px; color:var(--text-mid); margin-top:4px;}
   .rapport-provisoire{font-size:11.5px; color:var(--amber); background:var(--amber-dim); border-radius:8px; padding:9px 11px; margin-top:10px; line-height:1.5;}
-  .btn-imprimer{display:block; width:100%; margin:14px 0 8px; padding:12px; border-radius:10px; border:1px solid rgba(79,195,217,0.3); background:rgba(79,195,217,0.1); color:var(--cyan); font-family:var(--sans); font-size:13.5px; font-weight:600; cursor:pointer;}
-
-  /* --- Impression / export PDF (§23 : solution locale navigateur,
-     sans dépendance payante) — masque toute la chrome interactive de
-     l'app et repasse en thème clair pour ne pas imprimer des pages
-     noires ; ne concerne que ce qui est visible au moment de
-     l'impression (l'onglet Rapports au premier plan). --- */
-  @media print {
-    .menu-btn, .tabs-nav, .periode-select-row, .periode-iso-row, .periode-perso-row,
-    .periode-label-comparaison, .nexus-sidebar, .nexus-sidebar-toggle, footer, .no-print { display:none !important; }
-    body, .phone { background:#fff !important; }
-    .phone { max-width:100% !important; border:none !important; padding-top:0 !important; }
-    body.nexus-desktop .desktop-grid{column-count:1 !important;}
-    .eyebrow, .title, .sub, .section-titre, .rapport-titre, .rapport-sous,
-    .stat-label, .stat-value, .stat-sub, .chart-titre, .chart-question,
-    .decision-card, .champ-note { color:#111 !important; }
-    .resume-card, .chart-wrap, .decision-card, .card{
-      background:#fff !important; border:1px solid #ccc !important; box-shadow:none !important;
-      break-inside:avoid; page-break-inside:avoid;
-    }
-    .stat-value.cyan{color:#0a6b7a !important;}
-    .stat-value.green{color:#1a7a4c !important;}
-    .stat-value.amber{color:#966600 !important;}
-    .stat-value.red{color:#a01c1c !important;}
-    .decision-card.risque{border-color:#a01c1c !important;}
-    .rapport-provisoire{background:#fff !important; border:1px solid #d9a400 !important; color:#7a5a00 !important;}
-    .divider{background:#ccc !important;}
-  }
+  .btn-rapport-pdf{display:block; width:100%; margin:14px 0 8px; padding:13px; border-radius:10px; border:none; background:var(--cyan); color:#0B0F14; font-family:var(--sans); font-size:13.5px; font-weight:700; cursor:pointer;}
+  .btn-rapport-pdf:disabled{opacity:0.55; cursor:default;}
+  .statut-rapport{font-size:11.5px; color:var(--text-mid); text-align:center; margin-top:8px; min-height:14px;}
 </style>
 </head>
 <body>
@@ -204,9 +181,11 @@
   // historique analytique. Le Conseiller NEXUS FDJ (objet recommandation
   // commun, Brief) est la Phase D — ajouté plus tard dans ce même fichier
   // (onglet Conseiller). L'onglet Rapports / Export (audit Coach x FDJ
-  // Pilotage §23, §27 étape 14) réutilise l'export PDF natif du
-  // navigateur (window.print() + feuille @media print) plutôt qu'une
-  // nouvelle dépendance — voir renderRapports() plus bas.
+  // Pilotage §23, §27 étape 14) compose un vrai PDF applicatif via
+  // nexus-pdf-moteur.js (générique, partagé par tout NEXUS, pdf-lib) —
+  // jamais window.print() (limites documentées des PWA iOS en mode
+  // standalone) — voir assemblerDonneesRapportFdj()/renderRapports()
+  // plus bas.
   // ------------------------------------------------------------
 
   let managerCourant = null;
@@ -1171,24 +1150,255 @@
   }
 
   // ------------------------------------------------------------
-  // RAPPORTS / EXPORT — audit Coach x FDJ Pilotage §23, §27 étape 14.
-  // "Sélection par dates ou numéro de semaine, hebdomadaire / mensuel /
-  // annuel" : déjà couvert par le sélecteur de période universel de la
-  // page (§8) — pas de second sélecteur à construire. Export PDF via
-  // window.print() + feuille @media print dédiée (ci-dessous dans
-  // <style>) : solution 100% locale navigateur, sans dépendance payante
-  // ("solution locale navigateur... sans dépendance obligatoire à une
-  // API payante", §23) — aucune librairie jsPDF/html2canvas ajoutée.
-  // Contenu du rapport = résumé manager + graphique CA + conseils
-  // collectifs et tendances Coach FDJ, en réutilisant EXACTEMENT les
-  // mêmes fonctions que le reste de l'onglet Conseiller
-  // (candidatsFdjPeriode, chargerSyntheseCoachEquipe,
-  // calculerSyntheseCoach) — jamais une troisième version des mêmes
-  // règles (Article 11, "une seule vérité"). Mention "données
-  // provisoires" (§23) dès qu'un quart de la période n'a pas encore été
-  // contrôlé par un manager — même signal que le taux de quarts
-  // conformes affiché ailleurs sur la page.
+  // RAPPORTS / EXPORT — audit Coach x FDJ Pilotage §23, §27 étape 14 —
+  // revu le 10/08/2026 à la demande de Frédéric : NEXUS ne dépend plus
+  // de window.print() (limites documentées des PWA iOS en mode
+  // standalone : aperçu d'impression non fonctionnel). Le moteur PDF
+  // (nexus-pdf-moteur.js, générique, partagé par tout NEXUS) reçoit
+  // directement les DONNÉES déjà calculées par cette page et compose
+  // un vrai fichier PDF — jamais une "photo" de l'écran. "Sélection par
+  // dates ou numéro de semaine, hebdomadaire / mensuel / annuel" (§23)
+  // : déjà couverte par le sélecteur de période universel de la page
+  // (§8), pas de second sélecteur à construire.
+  //
+  // assemblerDonneesRapportFdj() réutilise EXACTEMENT les mêmes
+  // fonctions/agrégations que le reste de la page (chargerDonneesPeriode,
+  // candidatsFdjPeriode, chargerSyntheseCoachEquipe/calculerSyntheseCoach,
+  // calculerEtatStock, etatLigneStock) — jamais une troisième version
+  // des mêmes règles (Article 11, "une seule vérité"). Les seules
+  // agrégations nouvelles ici (Top jeux, Top vendeurs, répartition par
+  // palier) reprennent le calcul déjà fait ailleurs sur la page
+  // (onglets Jeux/Équipe/Vue d'ensemble), pas une nouvelle formule.
   // ------------------------------------------------------------
+  async function assemblerDonneesRapportFdj() {
+    const d = await chargerDonneesPeriode();
+    const actuel = sommerChamps(d.daily.actuel, CHAMPS_SUMMARY);
+    const comp = sommerChamps(d.daily.comp, CHAMPS_SUMMARY);
+    const compDisponible = comp.nb_quarts_controles > 0;
+    const evolCa = compDisponible ? evolution(actuel.ca_grattage, comp.ca_grattage) : null;
+    const tauxConformite = actuel.nb_quarts_controles > 0 ? actuel.nb_quarts_conformes / actuel.nb_quarts_controles : null;
+    const nbNonControles = actuel.nb_quarts - actuel.nb_quarts_controles;
+
+    // Top jeux — même agrégation que l'onglet Jeux.
+    const parJeuActuel = {};
+    d.gameDaily.actuel.forEach(l => {
+      if (!parJeuActuel[l.game_id]) parJeuActuel[l.game_id] = { ca: 0, tickets: 0 };
+      if (l.ca) parJeuActuel[l.game_id].ca += Number(l.ca);
+      if (l.tickets_vendus) parJeuActuel[l.game_id].tickets += Number(l.tickets_vendus);
+    });
+    const topJeux = jeux
+      .map(j => ({ jeu: j, ca: (parJeuActuel[j.id] || {}).ca || 0, tickets: (parJeuActuel[j.id] || {}).tickets || 0 }))
+      .filter(l => l.ca > 0).sort((a, b) => b.ca - a.ca).slice(0, 8);
+    const jeuMoteur = topJeux[0] ? topJeux[0].jeu : null;
+
+    // Répartition du CA par palier (1/2/3/5/10/15 €) — même agrégation que la Vue d'ensemble.
+    const palierCa = {};
+    d.gameDaily.actuel.forEach(l => { if (l.ca) { const j = jeux.find(x => x.id === l.game_id); if (j) palierCa[j.prix] = (palierCa[j.prix] || 0) + Number(l.ca); } });
+    const repartitionPalier = Object.entries(palierCa).map(([prix, ca]) => ({ prix: Number(prix), ca })).sort((a, b) => a.prix - b.prix);
+    let palierMoteur = null, caPalierMoteur = 0;
+    repartitionPalier.forEach(p => { if (p.ca > caPalierMoteur) { caPalierMoteur = p.ca; palierMoteur = p.prix; } });
+
+    // Jour le plus performant / jour à booster — même tri que la Vue d'ensemble.
+    const joursTries = [...d.daily.actuel].filter(l => l.ca_grattage !== null).sort((a, b) => Number(b.ca_grattage) - Number(a.ca_grattage));
+    const meilleurJour = joursTries[0] || null;
+    const pireJour = joursTries.length > 1 ? joursTries[joursTries.length - 1] : null;
+
+    // Courbe CA chronologique (pour le graphique du rapport).
+    const lignesTriees = d.daily.actuel.slice().sort((a, b) => a.date.localeCompare(b.date));
+    const labelsCa = lignesTriees.map(l => new Date(l.date + 'T00:00:00').toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }));
+    const valeursCa = lignesTriees.map(l => l.ca_grattage !== null ? Number(l.ca_grattage) : 0);
+
+    // Top vendeurs — même agrégation que l'onglet Équipe (même seuil minimum de quarts pour le CA moyen).
+    const SEUIL_MIN_QUARTS = 3;
+    const parEmployeActuel = {};
+    d.employeeDaily.actuel.forEach(l => {
+      if (!parEmployeActuel[l.employee_id]) parEmployeActuel[l.employee_id] = { ca: 0, quarts: 0, quartsControles: 0, quartsConformes: 0 };
+      const e = parEmployeActuel[l.employee_id];
+      e.ca += Number(l.ca_grattage || 0); e.quarts += Number(l.nb_quarts || 0);
+      e.quartsControles += Number(l.nb_quarts_controles || 0); e.quartsConformes += Number(l.nb_quarts_conformes || 0);
+    });
+    const topVendeurs = Object.entries(parEmployeActuel).map(([id, e]) => ({
+      nom: nomEmploye(id), ca: e.ca, quarts: e.quarts,
+      caMoyen: e.quartsControles >= SEUIL_MIN_QUARTS ? e.ca / e.quartsControles : null,
+    })).sort((a, b) => b.ca - a.ca).slice(0, 8);
+
+    // Stock & activations — état actuel (comme l'onglet Stock, indépendant de la période) + activations sur la période sélectionnée.
+    const { soldes } = await calculerEtatStock();
+    const enRupture = jeux.filter(j => etatLigneStock(soldes[j.id] || {}).texte.includes('Rupture'));
+    const enVigilance = jeux.filter(j => etatLigneStock(soldes[j.id] || {}).texte.includes('Vigilance'));
+    const activationsPeriode = d.gameDaily.actuel.reduce((s, l) => s + Number(l.nb_activations || 0), 0);
+
+    // Signaux, décisions et Coach FDJ — moteurs partagés, jamais recalculés ici.
+    const [candidatsBrut, coachData] = await Promise.all([candidatsFdjPeriode(), chargerSyntheseCoachEquipe()]);
+    const decisions = candidatsBrut.map(NexusConseiller.normaliserFdj).sort((a, b) => a.rang - b.rang).slice(0, 6);
+    const syntheseCoach = calculerSyntheseCoach(coachData.actuel, coachData.comp);
+
+    return {
+      site: siteId, periodeLabel: periodeResolue.label,
+      periodeSousLabel: `${periodeResolue.debut.toLocaleDateString('fr-FR')} → ${periodeResolue.fin.toLocaleDateString('fr-FR')}`,
+      labelComp: periodeResolue.labelComp, genereLe: new Date(),
+      donneesProvisoires: nbNonControles > 0, nbNonControles, totalQuarts: actuel.nb_quarts,
+      ca: actuel.ca_grattage, caisseTirages: actuel.caisse_tirages, evolCa, tauxConformite,
+      quartsControles: actuel.nb_quarts_controles,
+      ecartTotal: actuel.ecart_total, nbEcartsNonNuls: actuel.nb_ecarts_non_nuls,
+      jeuMoteur, palierMoteur, meilleurJour, pireJour, labelsCa, valeursCa,
+      topJeux, repartitionPalier, topVendeurs,
+      enRupture, enVigilance, activationsPeriode,
+      decisions, syntheseCoach,
+    };
+  }
+
+  // Graphique CA — rendu sur un canvas JAMAIS attaché au DOM (dimensions
+  // fixes, responsive:false), uniquement pour produire une image PNG à
+  // intégrer au PDF via chart.toBase64Image(). Détruit aussitôt après :
+  // pas d'instance Chart.js fantôme qui traînerait en mémoire.
+  //
+  // Capture différée via animation.onComplete (jamais un appel
+  // synchrone juste après `new Chart(...)`) : Chart.js dessine son
+  // premier rendu via requestAnimationFrame, pas forcément terminé au
+  // moment où le constructeur retourne — un appel immédiat à
+  // toBase64Image() capturerait parfois un canvas encore vide.
+  function genererImageGraphiqueCa(labels, valeurs) {
+    return new Promise(resolve => {
+      const canvas = document.createElement('canvas');
+      canvas.width = 900; canvas.height = 380;
+      const chart = new Chart(canvas, {
+        type: 'line',
+        data: { labels, datasets: [{ data: valeurs, borderColor: '#0a6b78', backgroundColor: 'rgba(10,107,120,0.15)', fill: true, tension: 0.25, pointRadius: 3, borderWidth: 2 }] },
+        options: {
+          responsive: false,
+          animation: {
+            duration: 0,
+            onComplete: () => {
+              const dataUrl = chart.toBase64Image('image/png', 1);
+              chart.destroy();
+              resolve(dataUrl);
+            },
+          },
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { ticks: { color: '#333', font: { size: 13 } }, grid: { color: '#e2e2e2' } },
+            y: { ticks: { color: '#333', font: { size: 13 } }, grid: { color: '#e2e2e2' }, beginAtZero: true },
+          },
+        },
+      });
+    });
+  }
+
+  // Compose le PDF avec nexus-pdf-moteur.js (générique) à partir des
+  // données assemblées ci-dessus, puis le diffuse (partage / téléchargement
+  // / dernier recours nouvel onglet — jamais window.print()).
+  async function construireEtDiffuserRapportPdf() {
+    const btn = document.getElementById('btnGenererRapport');
+    const statut = document.getElementById('statutRapport');
+    const texteInitial = btn.textContent;
+    btn.disabled = true; btn.textContent = 'Génération du rapport…';
+    statut.textContent = '';
+    try {
+      const donnees = await assemblerDonneesRapportFdj();
+      const imageCaPng = await genererImageGraphiqueCa(donnees.labelsCa, donnees.valeursCa);
+      const { COULEUR } = NexusPdfMoteur;
+
+      const c = await NexusPdfMoteur.creerRapport({
+        titre: `NEXUS FDJ — Rapport ${donnees.periodeLabel}`,
+        sujet: 'Rapport FDJ Pilotage',
+        entete: { app: 'NEXUS FDJ · Pilotage', sousTitre: donnees.site },
+      });
+
+      c.titre('NEXUS FDJ — Rapport');
+      c.sousTitre(`${donnees.periodeLabel} · ${donnees.periodeSousLabel} · ${donnees.site}`);
+      c.sousTitre(`Généré le ${donnees.genereLe.toLocaleDateString('fr-FR')} à ${donnees.genereLe.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`, { taille: 8.5 });
+      if (donnees.donneesProvisoires) {
+        c.bandeau(`${donnees.nbNonControles} quart${donnees.nbNonControles > 1 ? 's' : ''} sur ${donnees.totalQuarts} pas encore contrôlé${donnees.nbNonControles > 1 ? 's' : ''} par un manager — les chiffres de ce rapport sont provisoires et peuvent encore évoluer.`);
+      }
+
+      c.sectionTitre('Synthèse');
+      c.ligneCle('CA FDJ (grattage + tirages)', fmtEuro(donnees.ca + (donnees.caisseTirages || 0)));
+      c.ligneCle(`Évolution vs ${donnees.labelComp.toLowerCase()}`, fmtEvolution(donnees.evolCa), { couleurValeur: donnees.evolCa > 0 ? COULEUR.vert : (donnees.evolCa < 0 ? COULEUR.rouge : COULEUR.texte) });
+      c.ligneCle('Jeu moteur', donnees.jeuMoteur ? donnees.jeuMoteur.nom : '—');
+      c.ligneCle('Palier moteur', donnees.palierMoteur ? `${donnees.palierMoteur} €` : '—');
+      c.ligneCle('Jour le plus performant', donnees.meilleurJour ? new Date(donnees.meilleurJour.date + 'T00:00:00').toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' }) : '—');
+      c.ligneCle('Jour à booster', donnees.pireJour ? new Date(donnees.pireJour.date + 'T00:00:00').toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' }) : '—');
+      c.ligneCle('Taux de quarts conformes', fmtPct(donnees.tauxConformite));
+      c.ligneCle('Écart caisse cumulé', fmtEuro(donnees.ecartTotal));
+
+      c.sectionTitre('Analyse des ventes');
+      await c.image(imageCaPng, { legende: 'CA grattage — évolution jour par jour sur la période' });
+      if (donnees.topJeux.length) {
+        c.tableau(
+          [{ label: 'Jeu', cle: 'nom', largeur: 0.5 }, { label: 'Tickets', cle: 'tickets', largeur: 0.2, align: 'droite' }, { label: 'CA', cle: 'ca', largeur: 0.3, align: 'droite' }],
+          donnees.topJeux.map(l => ({ nom: l.jeu.nom, tickets: fmtNum(l.tickets), ca: fmtEuro(l.ca) })),
+        );
+      }
+      if (donnees.repartitionPalier.length) {
+        c.sousTitre('Répartition du CA par palier', { taille: 9.5, couleur: COULEUR.texte });
+        c.tableau(
+          [{ label: 'Palier', cle: 'palier', largeur: 0.5 }, { label: 'CA', cle: 'ca', largeur: 0.5, align: 'droite' }],
+          donnees.repartitionPalier.map(p => ({ palier: `${p.prix} €`, ca: fmtEuro(p.ca) })),
+        );
+      }
+
+      c.sectionTitre('Performance équipe');
+      if (donnees.topVendeurs.length) {
+        c.tableau(
+          [{ label: 'Employé', cle: 'nom', largeur: 0.34 }, { label: 'Quarts', cle: 'quarts', largeur: 0.16, align: 'droite' }, { label: 'CA', cle: 'ca', largeur: 0.25, align: 'droite' }, { label: 'CA moy/quart', cle: 'caMoyen', largeur: 0.25, align: 'droite' }],
+          donnees.topVendeurs.map(v => ({ nom: v.nom, quarts: v.quarts, ca: fmtEuro(v.ca), caMoyen: v.caMoyen !== null ? fmtEuro(v.caMoyen) : 'trop peu de quarts' })),
+        );
+      } else {
+        c.paragraphe('Aucun quart contrôlé sur cette période.');
+      }
+
+      c.sectionTitre('Stock & activations');
+      c.ligneCle('Activations sur la période', fmtNum(donnees.activationsPeriode));
+      c.ligneCle('Jeux en rupture (bureau + caisse à 0)', String(donnees.enRupture.length));
+      c.ligneCle('Jeux en vigilance (caisse non activée à 0)', String(donnees.enVigilance.length));
+      if (donnees.enRupture.length) c.paragraphe(`En rupture : ${donnees.enRupture.map(j => j.nom).join(', ')}.`, { couleur: COULEUR.rouge });
+      if (donnees.enVigilance.length) c.paragraphe(`En vigilance : ${donnees.enVigilance.map(j => j.nom).join(', ')}.`, { couleur: COULEUR.ambre });
+
+      c.sectionTitre('Conseil NEXUS');
+      if (donnees.syntheseCoach) {
+        const lignesConseil = [
+          { texte: `Thème dominant : ${labelRegleCoach(donnees.syntheseCoach.dominant)}`, gras: true },
+          { texte: `${donnees.syntheseCoach.employesDominant} collaborateur${donnees.syntheseCoach.employesDominant > 1 ? 's' : ''} concerné${donnees.syntheseCoach.employesDominant > 1 ? 's' : ''} · ${donnees.syntheseCoach.nDominant} conseil${donnees.syntheseCoach.nDominant > 1 ? 's' : ''} diffusé${donnees.syntheseCoach.nDominant > 1 ? 's' : ''} sur la période.` },
+        ];
+        if (donnees.syntheseCoach.evolution != null) lignesConseil.push({ texte: `Évolution vs ${donnees.labelComp.toLowerCase()} : ${fmtEvolution(donnees.syntheseCoach.evolution)}.` });
+        c.encadre(lignesConseil);
+      } else {
+        c.paragraphe('Aucun conseil Coach FDJ diffusé sur cette période.');
+      }
+
+      c.sectionTitre('Décisions recommandées');
+      if (donnees.decisions.length) {
+        donnees.decisions.forEach(dec => {
+          c.encadre([
+            { texte: dec.article, gras: true },
+            { texte: dec.pourquoi },
+            { texte: `→ ${dec.decision}` },
+          ], { couleurBordure: dec.rang <= 1 ? COULEUR.rouge : COULEUR.cyan });
+        });
+      } else {
+        c.paragraphe('Rien qui mérite l’attention du manager sur cette période — aucun signal déterministe déclenché.');
+      }
+
+      c.piedDePageToutesPages('NEXUS FDJ · Rapport généré automatiquement — vérité avant certitude, jamais une prédiction.');
+      const bytes = await NexusPdfMoteur.finaliser(c);
+      const nomFichier = `NEXUS-FDJ-Rapport-${dateISO(periodeResolue.debut)}-${dateISO(periodeResolue.fin)}.pdf`;
+      const resultat = await NexusPdfMoteur.partagerOuTelechargerPdf(bytes, nomFichier, {
+        titre: `NEXUS FDJ — Rapport ${donnees.periodeLabel}`,
+        texte: `Rapport FDJ Pilotage — ${donnees.site}`,
+      });
+      if (resultat === 'partage') statut.textContent = 'Rapport partagé.';
+      else if (resultat === 'telechargement') statut.textContent = 'Rapport téléchargé.';
+      else if (resultat === 'nouvel_onglet') statut.textContent = 'Rapport ouvert dans un nouvel onglet.';
+      else statut.textContent = '';
+    } catch (e) {
+      console.error('Génération du rapport PDF FDJ:', e);
+      statut.textContent = 'Erreur lors de la génération du rapport — réessayez.';
+    } finally {
+      btn.disabled = false; btn.textContent = texteInitial;
+    }
+  }
+
   async function renderRapports(zone) {
     const d = await chargerDonneesPeriode();
     const actuel = sommerChamps(d.daily.actuel, CHAMPS_SUMMARY);
@@ -1199,24 +1409,13 @@
     const nbNonControles = actuel.nb_quarts - actuel.nb_quarts_controles;
     const donneesProvisoires = nbNonControles > 0;
 
-    const [candidatsBrut, coachData] = await Promise.all([candidatsFdjPeriode(), chargerSyntheseCoachEquipe()]);
-    const candidats = candidatsBrut.map(NexusConseiller.normaliserFdj).sort((a, b) => a.rang - b.rang).slice(0, 5);
-    const synthese = calculerSyntheseCoach(coachData.actuel, coachData.comp);
-
-    const lignesTriees = d.daily.actuel.slice().sort((a, b) => a.date.localeCompare(b.date));
-    const labels = lignesTriees.map(l => new Date(l.date + 'T00:00:00').toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }));
-    const valeurs = lignesTriees.map(l => l.ca_grattage !== null ? Number(l.ca_grattage) : 0);
-
     zone.innerHTML = `
       <div class="rapport-entete">
         <div class="rapport-titre">Rapport FDJ — ${periodeResolue.label}</div>
-        <div class="rapport-sous">${periodeResolue.debut.toLocaleDateString('fr-FR')} → ${periodeResolue.fin.toLocaleDateString('fr-FR')} · généré le ${new Date().toLocaleDateString('fr-FR')} à ${new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</div>
-        ${donneesProvisoires ? `<div class="rapport-provisoire">⚠️ ${nbNonControles} quart${nbNonControles > 1 ? 's' : ''} sur ${actuel.nb_quarts} pas encore contrôlé${nbNonControles > 1 ? 's' : ''} par un manager — les chiffres de ce rapport sont provisoires et peuvent encore évoluer.</div>` : ''}
+        <div class="rapport-sous">${periodeResolue.debut.toLocaleDateString('fr-FR')} → ${periodeResolue.fin.toLocaleDateString('fr-FR')}</div>
+        ${donneesProvisoires ? `<div class="rapport-provisoire">⚠️ ${nbNonControles} quart${nbNonControles > 1 ? 's' : ''} sur ${actuel.nb_quarts} pas encore contrôlé${nbNonControles > 1 ? 's' : ''} par un manager — le rapport généré sera provisoire.</div>` : ''}
       </div>
-      <button class="btn-imprimer no-print" id="btnImprimerRapport" type="button">🖨️ Imprimer / Enregistrer en PDF</button>
-      <div class="champ-note no-print">Utilisez le bouton ci-dessus, puis « Enregistrer au format PDF » dans la fenêtre d'impression de votre navigateur — changez de période au-dessus pour un autre rapport hebdomadaire, mensuel ou annuel.</div>
 
-      <div class="section-titre">Résumé manager</div>
       <div class="resume-card">
         <div class="stat-row total"><div class="stat-label">CA FDJ (${periodeResolue.label.toLowerCase()})</div><div class="stat-value cyan">${fmtEuro(actuel.ca_grattage + (actuel.caisse_tirages || 0))}</div></div>
         <div class="stat-row"><div class="stat-label">Évolution vs ${periodeResolue.labelComp.toLowerCase()}</div><div class="stat-value ${classeEvolution(evolCa)}">${fmtEvolution(evolCa)}</div></div>
@@ -1224,43 +1423,12 @@
         <div class="stat-sub">${actuel.nb_quarts_controles} quart${actuel.nb_quarts_controles > 1 ? 's' : ''} contrôlé${actuel.nb_quarts_controles > 1 ? 's' : ''} sur ${actuel.nb_quarts} au total</div>
       </div>
 
-      <div class="chart-wrap">
-        <div class="chart-titre">Courbe CA grattage</div>
-        <div class="chart-canvas-wrap"><canvas id="chartRapportCa"></canvas></div>
-      </div>
-
-      <div class="section-titre">Signaux &amp; décisions suggérées</div>
-      ${candidats.length ? candidats.map(c => `
-        <div class="decision-card ${c.rang <= 1 ? 'risque' : ''}">
-          <div style="font-weight:700; font-size:12.5px; margin-bottom:4px;">${c.article}</div>
-          <div style="margin-bottom:4px;">${c.pourquoi}</div>
-          <div style="font-weight:600;">→ ${c.decision}</div>
-        </div>
-      `).join('') : '<div class="champ-note">Rien qui mérite l’attention du manager sur cette période.</div>'}
-
-      <div class="section-titre">Coaching équipe — conseils collectifs et tendances</div>
-      ${synthese ? `
-        <div class="resume-card">
-          <div class="stat-row"><div class="stat-label">Thème dominant</div><div class="stat-value">${labelRegleCoach(synthese.dominant)}</div></div>
-          <div class="stat-sub">${synthese.employesDominant} collaborateur${synthese.employesDominant > 1 ? 's' : ''} concerné${synthese.employesDominant > 1 ? 's' : ''} · ${synthese.nDominant} conseil${synthese.nDominant > 1 ? 's' : ''}</div>
-          ${synthese.evolution != null ? `<div class="stat-row"><div class="stat-label">Évolution vs ${periodeResolue.labelComp.toLowerCase()}</div><div class="stat-value ${classeEvolution(synthese.evolution)}">${fmtEvolution(synthese.evolution)}</div></div>` : ''}
-          <div class="stat-row"><div class="stat-label">Conseils diffusés</div><div class="stat-value">${synthese.totalConseils}</div></div>
-          <div class="stat-row"><div class="stat-label">Collaborateurs concernés</div><div class="stat-value">${synthese.employesConcernes}</div></div>
-        </div>
-        <div class="section-titre" style="margin-top:10px;">Répartition par famille</div>
-        ${Object.entries(synthese.parFamille).sort((a, b) => b[1] - a[1]).map(([f, n]) => `
-          <div class="stat-row"><div class="stat-label">${NexusCoachFdj.FAMILLE_LABEL[f] || f}</div><div class="stat-value">${n}</div></div>
-        `).join('')}
-      ` : '<div class="champ-note">Aucun conseil Coach FDJ diffusé sur cette période.</div>'}
+      <button class="btn-rapport-pdf" id="btnGenererRapport" type="button">📄 Générer le rapport PDF</button>
+      <div class="statut-rapport" id="statutRapport"></div>
+      <div class="champ-note">Le rapport PDF complet contient : synthèse, analyse des ventes (courbe CA, top jeux, répartition par palier), performance équipe, stock & activations, conseil NEXUS et décisions recommandées. Changez de période au-dessus pour un rapport hebdomadaire, mensuel ou annuel.</div>
     `;
 
-    chartsActifs.rapportCa = new Chart(document.getElementById('chartRapportCa'), {
-      type: 'line',
-      data: { labels, datasets: [{ data: valeurs, borderColor: '#4FC3D9', backgroundColor: 'rgba(79,195,217,0.12)', fill: true, tension: 0.25, pointRadius: 3 }] },
-      options: { ...optionsGraphiqueBase(), plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => fmtEuro(ctx.parsed.y) } } } },
-    });
-
-    document.getElementById('btnImprimerRapport').addEventListener('click', () => window.print());
+    document.getElementById('btnGenererRapport').addEventListener('click', construireEtDiffuserRapportPdf);
   }
 
   // ------------------------------------------------------------

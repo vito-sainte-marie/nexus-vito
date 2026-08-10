@@ -294,33 +294,89 @@ Conseiller — deux sources différentes, jamais mélangées), non validable, re
 `NEXUS-Brief-v1.html` aux côtés des 8 autres moteurs. Les 4 situations et la garde anti-doublon
 (une règle déjà couverte par la carte rouge n'ouvre pas aussi une carte orange) sont testées.
 
-**Étape 6 — export PDF (09/08/2026, audit §23, §27 item 14) :** nouvel onglet **Rapports / Export**
+**Étape 6 — export PDF (09-10/08/2026, audit §23, §27 item 14) :** nouvel onglet **Rapports / Export**
 dans `NEXUS-FDJ-Analyse-v1.html`, activé (retiré de la liste des onglets désactivés). « Sélection par
-dates ou numéro de semaine, hebdomadaire / mensuel / annuel » (§23) : déjà couvert par le sélecteur
-de période universel de la page (§8) — aucun second sélecteur construit. Génération PDF via
-`window.print()` + feuille `@media print` dédiée : solution 100 % locale navigateur, **aucune
-dépendance ajoutée** (pas de jsPDF/html2canvas — confirmé qu'aucun précédent n'existait dans le
-code) conformément à « solution locale navigateur… sans dépendance obligatoire à une API payante »
-(§23). La feuille d'impression masque la chrome interactive (menu, onglets, sélecteurs, barre
-latérale desktop, pied de page, bouton Imprimer lui-même) et repasse en thème clair pour éviter
-d'imprimer des pages sombres.
+dates ou numéro de semaine, hebdomadaire / mensuel / annuel » (§23) : déjà couverte par le sélecteur
+de période universel de la page (§8) — aucun second sélecteur construit.
+
+Première version (09/08/2026) : génération PDF via `window.print()` + feuille `@media print`.
+**Revue le lendemain (10/08/2026)** à la demande explicite de Frédéric, après avoir signalé un vrai
+risque : les PWA iOS en mode standalone (`display: standalone`, le mode configuré dans
+`site.webmanifest` de NEXUS) ont un bug WebKit documenté de longue date où l'aperçu d'impression ne
+s'affiche pas correctement (bouton de sélection d'imprimante grisé) — `window.print()` n'est donc pas
+fiable dans l'usage réel attendu (NEXUS installé sur l'écran d'accueil). Remplacé par un **moteur PDF
+applicatif** (`nexus-pdf-moteur.js`, voir section 8) qui compose lui-même le document à partir des
+données, jamais une "photo" de l'écran.
 
 Contenu du rapport — réutilise strictement les fonctions déjà en place ailleurs sur la page, jamais
-une troisième version des mêmes règles (Article 11) :
-- résumé manager (CA, évolution, taux de quarts conformes) — mêmes champs que l'onglet Vue
-  d'ensemble ;
-- graphique CA grattage de la période (même chart que l'onglet Ventes) ;
-- signaux & décisions suggérées — `candidatsFdjPeriode()` (Phase D), 5 maximum ;
-- conseils collectifs et tendances Coach FDJ — `chargerSyntheseCoachEquipe()` /
-  `calculerSyntheseCoach()` (Étape 4), thème dominant, évolution, répartition par famille.
+une troisième version des mêmes règles (Article 11) : synthèse (CA, évolution, jeu moteur, palier
+moteur, jour le plus performant, jour à booster, taux de conformité, écart caisse cumulé) ; analyse
+des ventes (courbe CA en image + Top jeux + répartition du CA par palier 1/2/3/5/10/15 €) ;
+performance équipe (Top vendeurs, même seuil minimum de quarts que l'onglet Équipe) ; stock &
+activations (ruptures/vigilance via `etatLigneStock()`, activations sur la période) ; conseil NEXUS
+(synthèse Coach FDJ équipe, Étape 4) ; décisions recommandées (`candidatsFdjPeriode()`, Phase D).
 
 **Mention « données provisoires » (§23) :** dès qu'au moins un quart de la période n'a pas encore
 été contrôlé par un manager (`nb_quarts_controles < nb_quarts` — même signal que le taux de quarts
 conformes affiché ailleurs sur la page, aucun nouveau seuil inventé), un bandeau explicite l'indique
 en tête du rapport.
 
+**Diffusion du PDF généré :** `NexusPdfMoteur.partagerOuTelechargerPdf()` — Web Share API avec
+fichier en priorité (fonctionne sur iOS Safari 15+ et Android Chrome, y compris en PWA standalone),
+repli sur un téléchargement direct du Blob, et en tout dernier recours seulement l'ouverture dans un
+nouvel onglet. Jamais `window.print()`.
+
 **Étape suivante (non commencée, audit §27, item 15) :** mesure d'utilité et suppression des règles
 peu pertinentes — nécessite plusieurs semaines d'usage réel, pas un chantier à un coup.
+
+---
+
+## 8. NEXUS PDF Moteur — export PDF applicatif partagé (`nexus-pdf-moteur.js`, 10/08/2026)
+
+Décision explicite de Frédéric (10/08/2026) : NEXUS n'utilise plus `window.print()` comme moteur
+principal d'export PDF, pour aucun module. À la place, `nexus-pdf-moteur.js` construit de vrais
+fichiers PDF (Blob) à partir de DONNÉES fournies par la page appelante — jamais une "photo" de ce
+qui est affiché à l'écran. Bibliothèque : **pdf-lib** (CDN cdnjs, licence MIT, aucune dépendance
+payante), chargée avant ce script.
+
+**Portée volontairement générique** — ce fichier ne connaît rien à FDJ, à Coach, ni à aucun module
+métier NEXUS (Article 11, "une seule vérité" : les chiffres viennent toujours du moteur métier du
+module concerné, ce fichier ne fait que les mettre en page). Il expose :
+- `NexusPdfMoteur.creerRapport({ titre, auteur, sujet, entete })` — crée un document A4 + polices
+  Helvetica/Helvetica-Bold embarquées + un `ConstructeurRapport` prêt à l'emploi ;
+- `ConstructeurRapport` — primitives de mise en page avec **pagination automatique** (chaque ajout
+  vérifie l'espace vertical restant et insère une nouvelle page si nécessaire, jamais un contenu
+  tronqué) : `titre()`, `sousTitre()`, `bandeau()` (alerte pleine largeur), `sectionTitre()`,
+  `paragraphe()` (retour à la ligne automatique — pdf-lib n'en fait aucun nativement), `ligneCle()`
+  (ligne clé/valeur), `encadre()` (bloc à bordure colorée), `tableau()` (colonnes proportionnelles,
+  pagination ligne par ligne), `image()` (embarque un PNG — typiquement un graphique Chart.js exporté
+  via `chart.toBase64Image()` — mis à l'échelle en conservant les proportions via `scaleToFit`),
+  `piedDePageToutesPages()` (numérotation "Page X / Y" appliquée rétroactivement à toutes les pages) ;
+- `NexusPdfMoteur.finaliser(constructeur)` — renvoie les octets du PDF (`Uint8Array`) ;
+- `NexusPdfMoteur.partagerOuTelechargerPdf(bytes, nomFichier, { titre, texte })` — diffuse le PDF
+  généré, dans cet ordre : (1) Web Share API avec fichier (iOS Safari 15+, Android Chrome, y compris
+  en PWA standalone — contourne le bug d'impression iOS documenté ci-dessus), (2) téléchargement
+  direct du Blob, (3) dernier recours seulement, ouverture dans un nouvel onglet.
+
+Chaque module NEXUS (FDJ Pilotage, Coach, et à terme Verify, Inventaire, Brief, rapports manager…)
+compose SON rapport avec ces primitives dans SA propre page — la composition métier (quelles
+sections, quelles données) ne vit jamais dans ce fichier générique. Premier module câblé :
+`NEXUS-FDJ-Analyse-v1.html` (`assemblerDonneesRapportFdj()` / `construireEtDiffuserRapportPdf()`,
+voir section 7, Étape 6).
+
+**Vérifié (10/08/2026)** sans accès npm dans le bac à sable (registre bloqué, 403) : un mock minimal
+de `pdf-lib` (juste assez d'API pour exécuter réellement `nexus-pdf-moteur.js`) a permis de composer
+un rapport complet (tableau de 40 lignes, image, plusieurs encadrés) et de vérifier par assertions
+que la pagination automatique se déclenche correctement (3 pages), qu'aucun élément ne déborde sous
+le bas d'une page, et que le pied de page numéroté est appliqué à chaque page. `partagerOuTelechargerPdf()`
+vérifié séparément sur 5 scénarios (partage réussi, annulation utilisateur, échec de partage avec
+repli, absence de Web Share API, `canShare()` refusant le fichier). L'algorithme de retour à la ligne
+(`decouperEnLignes`) vérifié sur 4 cas (texte vide, court, multi-lignes sans perte de mot, mot plus
+large que la page sans boucle infinie). Toutes les signatures pdf-lib utilisées (`embedFont`,
+`embedPng`, `drawText`/`drawRectangle`/`drawLine`/`drawImage`, `widthOfTextAtSize`, `scaleToFit`,
+`save`) confirmées contre la documentation officielle pdf-lib.js.org — aucun test d'intégration réel
+avec la vraie bibliothèque pdf-lib n'a pu être exécuté (pas d'accès npm ici) : **à vérifier une
+dernière fois en conditions réelles (navigateur) avant diffusion large.**
 
 ---
 
@@ -337,6 +393,7 @@ peu pertinentes — nécessite plusieurs semaines d'usage réel, pas un chantier
 | v2.5 | 09/08/2026 | Coach x FDJ Pilotage, étape "écran manager" (audit §27, item 12 / §12) : section "Coaching équipe" ajoutée à l'onglet Conseiller de `NEXUS-FDJ-Analyse-v1.html`, nouvelle classification `NexusCoachFdj.FAMILLE_PAR_REGLE` (sécurité/rigueur/stock/progression/vente/général) partagée pour toute synthèse future. |
 | v2.6 | 09/08/2026 | Coach x FDJ Pilotage, étape "remontée Brief" (audit §27, item 13 / §13) : `NexusCoachFdj.calculerCandidatsCoachEquipe()` (3 règles : risque récurrent/axe équipe/progrès équipe), `NexusConseiller.normaliserCoach()`, moteur `coach` ajouté au tri fusionné de `NEXUS-Brief-v1.html`. `LABEL_REGLE_COACH` relocalisé dans le moteur partagé (retiré du doublon local de FDJ-Analyse). |
 | v2.7 | 09/08/2026 | Coach x FDJ Pilotage, étape "export PDF" (audit §27, item 14 / §23) : nouvel onglet Rapports / Export dans `NEXUS-FDJ-Analyse-v1.html`, `window.print()` + feuille `@media print` dédiée (aucune dépendance ajoutée), réutilise le sélecteur de période universel existant, le résumé manager, le graphique CA, `candidatsFdjPeriode()` et la synthèse Coaching équipe déjà construits. Bandeau "données provisoires" quand des quarts de la période ne sont pas encore contrôlés. |
+| v2.8 | 10/08/2026 | Remplacement de `window.print()` par un vrai moteur PDF applicatif, à la demande de Frédéric, après signalement du bug WebKit documenté (aperçu d'impression cassé en PWA standalone iOS). Nouveau fichier générique `nexus-pdf-moteur.js` (section 8, pdf-lib, pagination automatique, Web Share API + repli téléchargement) réutilisable par tout NEXUS, pas seulement FDJ. `NEXUS-FDJ-Analyse-v1.html` recomposé pour l'utiliser (`assemblerDonneesRapportFdj`/`construireEtDiffuserRapportPdf`), avec en plus Top jeux, répartition par palier et Top vendeurs qui n'étaient pas dans la V1 window.print(). |
 
 Prochaine révision suggérée : après vérification des sections héritées (§5) et des deux chantiers
 au statut inconnu (§4 — Anomalie stock, Capacité de réassort). Côté FDJ : figer les formules de
