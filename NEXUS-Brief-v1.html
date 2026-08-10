@@ -188,7 +188,17 @@
   .decision-chip.confiance-eleve{color:var(--green); border-color:rgba(52,211,153,0.3);}
   .decision-chip.confiance-moyen{color:var(--amber); border-color:rgba(245,166,35,0.3);}
   .decision-valider, .decision-fait{width:100%; margin-top:14px; padding:11px; border:none; border-radius:8px; font-size:12.5px; font-weight:600; background:var(--green); color:#04141a; cursor:pointer;}
+  .decision-valider:disabled, .decision-fait:disabled{opacity:0.85; cursor:default;}
   .decision-lien{display:block; text-align:center; margin-top:14px; padding:11px; border:1px solid var(--hairline); border-radius:8px; color:var(--cyan); font-family:var(--mono); font-size:11.5px; text-decoration:none;}
+  /* Confirmation optimiste (10/08/2026, correction du bug signalé par
+     Frédéric : "le bouton Accepter cette décision ne fonctionne pas") —
+     l'écriture réseau réussissait déjà (vérifié directement en base), mais
+     rien ne le montrait avant la fin du rechargement complet du Brief
+     (plusieurs appels réseau) : le clic paraissait sans effet, et un
+     rechargement manuel impatient pendant ce délai pouvait donner
+     l'impression que la décision "revenait". La carte se grise et se
+     confirme visuellement dès le clic, avant même la fin de l'écriture. */
+  .decision-card.valide-optimiste{opacity:0.55; pointer-events:none;}
   .caisse-justifie-row{display:flex; align-items:center; gap:8px; margin-top:10px; font-size:11.5px; color:var(--text-dim); cursor:pointer;}
 
   /* WATCHLIST */
@@ -1355,19 +1365,42 @@
 
     root.querySelectorAll('.decision-valider').forEach(btn => {
       btn.addEventListener('click', async (e) => {
-        e.stopPropagation(); btn.disabled = true;
+        e.stopPropagation();
         const plan = BRIEF.decisions.find(p => p.candidate_id === btn.dataset.id);
         if (!plan) return;
+        // Confirmation optimiste immédiate, avant même la fin de l'écriture
+        // réseau (voir commentaire CSS .valide-optimiste) : le clic doit se
+        // voir tout de suite, jamais après le rechargement complet du Brief.
+        const carte = btn.closest('.decision-card');
+        btn.disabled = true;
+        btn.textContent = '✓ Décision acceptée';
+        if (carte) carte.classList.add('valide-optimiste');
         const ok = await enregistrerJournalDecision(plan);
-        if (!ok) { btn.disabled = false; alert("Erreur d'enregistrement — réessayez."); return; }
+        if (!ok) {
+          btn.disabled = false;
+          btn.textContent = '✓ Accepter cette décision';
+          if (carte) carte.classList.remove('valide-optimiste');
+          alert("Erreur d'enregistrement — réessayez.");
+          return;
+        }
         await rafraichir();
       });
     });
     root.querySelectorAll('.decision-fait').forEach(btn => {
       btn.addEventListener('click', async (e) => {
-        e.stopPropagation(); btn.disabled = true;
+        e.stopPropagation();
+        const carte = btn.closest('.decision-card');
+        btn.disabled = true;
+        btn.textContent = '✓ Marqué comme fait';
+        if (carte) carte.classList.add('valide-optimiste');
         const ok = await marquerRappelFait(btn.dataset.rappelId);
-        if (!ok) { btn.disabled = false; alert("Erreur — réessayez."); return; }
+        if (!ok) {
+          btn.disabled = false;
+          btn.textContent = '✓ Marquer comme fait';
+          if (carte) carte.classList.remove('valide-optimiste');
+          alert("Erreur — réessayez.");
+          return;
+        }
         await rafraichir();
       });
     });
