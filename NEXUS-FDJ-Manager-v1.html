@@ -200,7 +200,10 @@
   let emplacements = [];
   let reappro = null; // état de saisie de l'écran "Réapprovisionner la caisse"
   let inventaireRef = null; // état de saisie de l'écran "Inventaire de référence FDJ" (contrôle physique)
-  let vue = 'liste'; // 'liste' | 'edition' | 'reappro' | 'inventaire-ref'
+  let reception = null; // état de saisie de l'écran "Réceptionner une livraison FDJ"
+  let stockEtat = null; // état affiché de l'écran "État du stock FDJ"
+  let blocage = null; // état de saisie du formulaire "Signaler un retrait / blocage"
+  let vue = 'liste'; // 'liste' | 'edition' | 'reappro' | 'inventaire-ref' | 'reception' | 'stock-etat' | 'blocage'
 
   // État du formulaire d'édition en cours (nouveau OU existant).
   let edition = null;
@@ -392,10 +395,28 @@
     const [mouvements, reference] = await Promise.all([chargerMouvementsStock(), chargerDerniereReference()]);
     const caisse = emplacementParType('caisse');
     const bureau = emplacementParType('bureau');
+    const bloque = emplacementParType('bloque');
     return {
-      soldes: NexusFdjMoteur.soldesCarnetsAvecReference(mouvements, caisse ? caisse.id : null, bureau ? bureau.id : null, reference),
-      reference,
+      soldes: NexusFdjMoteur.soldesCarnetsAvecReference(mouvements, { caisse: caisse ? caisse.id : null, bureau: bureau ? bureau.id : null, bloque: bloque ? bloque.id : null }, reference),
+      reference, mouvements,
     };
+  }
+  // Date de dernière réception par jeu (§4 Phase A : "règles de date de
+  // réception / ancienneté") — max(created_at) des mouvements
+  // type='reception', jamais une prétention à connaître l'ordre physique
+  // exact d'une pile sans identification individuelle du carnet (§2, §17).
+  function derniereReceptionParJeu(mouvements) {
+    const map = {};
+    (mouvements || []).forEach(m => {
+      if (m.type_mouvement !== 'reception') return;
+      if (!map[m.game_id] || new Date(m.created_at) > new Date(map[m.game_id])) map[m.game_id] = m.created_at;
+    });
+    return map;
+  }
+  function ancienneteJours(dateISOStr) {
+    if (!dateISOStr) return null;
+    const ms = Date.now() - new Date(dateISOStr).getTime();
+    return Math.max(0, Math.floor(ms / 86400000));
   }
 
   // Soldes négatifs EN DIRECT (09/08/2026, demande de Frédéric : "le solde
@@ -592,6 +613,10 @@
       <button class="btn-nouveau" id="btnNouveauQuart">+ Nouveau quart FDJ</button>
 
       <div class="section-titre">Stock FDJ</div>
+      <button class="btn-nouveau" id="btnEtatStock">📊 État du stock (Bureau / Caisse / Activés)</button>
+      <div class="champ-note">Vue d'ensemble par jeu, dernière réception, retraits/blocages en cours.</div>
+      <button class="btn-nouveau" id="btnReception">📦 Réceptionner une livraison FDJ</button>
+      <div class="champ-note">Transporteur → Bureau. N'active rien, n'alimente jamais l'appro tickets.</div>
       <button class="btn-nouveau" id="btnReappro" style="color:var(--gold); border-color:rgba(212,175,55,0.4); background:rgba(212,175,55,0.06);">🔁 Réapprovisionner la caisse</button>
       <div class="champ-note">Bureau → Caisse : les carnets confiés restent non activés, aucun impact sur l'appro tant que la caissière ne les active pas.</div>
       <button class="btn-nouveau" id="btnInventaireRef">📋 Contrôle physique du stock (inventaire de référence)</button>
@@ -606,6 +631,8 @@
     document.getElementById('btnNouveauQuart').addEventListener('click', () => ouvrirEditionNouveau());
     document.getElementById('btnReappro').addEventListener('click', () => ouvrirReappro());
     document.getElementById('btnInventaireRef').addEventListener('click', () => ouvrirInventaireRef());
+    document.getElementById('btnReception').addEventListener('click', () => ouvrirReception());
+    document.getElementById('btnEtatStock').addEventListener('click', () => ouvrirStockEtat());
     if (quart1) document.getElementById(`carteQuart1`).addEventListener('click', () => ouvrirEditionExistant(quart1));
     if (quart2) document.getElementById(`carteQuart2`).addEventListener('click', () => ouvrirEditionExistant(quart2));
 
@@ -940,6 +967,253 @@
 
     vue = 'liste'; inventaireRef = null;
     renderAccueil();
+  }
+
+  // ------------------------------------------------------------
+  // RÉCEPTIONNER UNE LIVRAISON FDJ — 09/08/2026, audit "Moteur de
+  // clairvoyance manager" (§3, §43) : nouvel événement distinct du
+  // réapprovisionnement caisse et de l'activation. Transporteur → Bureau,
+  // toujours non activé, aucun impact sur l'appro tickets — seule
+  // l'activation en caisse déclenche ça (voir NEXUS-FDJ-v1.html).
+  // ------------------------------------------------------------
+  async function ouvrirReception() {
+    document.getElementById('content').innerHTML = '<div class="loading">Chargement…</div>';
+    if (!jeux.length) jeux = await chargerJeux();
+    const { soldes } = await soldesActuels();
+    reception = { soldes, quantites: {}, source: '' };
+    vue = 'reception';
+    renderReception();
+  }
+
+  function renderReception() {
+    document.getElementById('titre').textContent = 'Réceptionner une livraison FDJ';
+    document.getElementById('sousTitre').textContent = 'Transporteur → Bureau. Toujours non activé, aucun impact sur l\'appro tickets.';
+    const groupes = grouperParPalier(jeux);
+    document.getElementById('content').innerHTML = `
+      <button type="button" class="btn-retour-fleche" id="btnRetourReception">← Retour</button>
+      <label class="champ-label">Provenance (transporteur, n° de bon de livraison…) — optionnel</label>
+      <input type="text" class="champ-input" id="champSourceReception" value="${reception.source}" placeholder="Ex. Transporteur X, BL n°12345" style="margin-bottom:16px;">
+      ${groupes.map(g => `
+        <div class="palier-block">
+          <div class="palier-head">${fmtNum(g.prix)} €</div>
+          <div class="card">${g.items.map(j => renderJeuReception(j)).join('')}</div>
+        </div>
+      `).join('')}
+      <button class="btn-primary" id="btnConfirmerReception">Confirmer la réception</button>
+      <button class="btn-ghost" id="btnAnnulerReception">Annuler</button>
+    `;
+    document.getElementById('btnRetourReception').addEventListener('click', () => { vue = 'liste'; reception = null; renderAccueil(); });
+    document.getElementById('btnAnnulerReception').addEventListener('click', () => { vue = 'liste'; reception = null; renderAccueil(); });
+    document.getElementById('champSourceReception').addEventListener('input', e => { reception.source = e.target.value; });
+    document.querySelectorAll('[data-moins-r]').forEach(btn => btn.addEventListener('click', () => ajusterQuantiteReception(btn.dataset.moinsR, -1)));
+    document.querySelectorAll('[data-plus-r]').forEach(btn => btn.addEventListener('click', () => ajusterQuantiteReception(btn.dataset.plusR, 1)));
+    document.querySelectorAll('[data-raccourci-r]').forEach(btn => btn.addEventListener('click', () => ajusterQuantiteReception(btn.dataset.raccourciR, parseInt(btn.dataset.inc, 10))));
+    document.getElementById('btnConfirmerReception').addEventListener('click', enregistrerReception);
+  }
+
+  function renderJeuReception(jeu) {
+    const theo = (reception.soldes[jeu.id] || {}).bureau || 0;
+    const qte = reception.quantites[jeu.id] || 0;
+    return `
+      <div class="jeu-row">
+        <div class="jeu-nom-ligne">
+          <div class="jeu-nom">${jeu.nom}</div>
+          <div class="jeu-ventes">${fmtNum(theo)} au bureau actuellement</div>
+        </div>
+        <div class="jeu-input-label" style="text-align:center;">Carnets reçus</div>
+        <div class="stepper-qte">
+          <button type="button" class="btn-stepper" data-moins-r="${jeu.id}">−</button>
+          <div class="stepper-valeur" id="qte-r-${jeu.id}">${qte}</div>
+          <button type="button" class="btn-stepper" data-plus-r="${jeu.id}">+</button>
+        </div>
+        <div class="raccourcis-qte">
+          <button type="button" class="btn-raccourci" data-raccourci-r="${jeu.id}" data-inc="1">+1 carnet</button>
+          <button type="button" class="btn-raccourci" data-raccourci-r="${jeu.id}" data-inc="5">+5 carnets</button>
+        </div>
+      </div>
+    `;
+  }
+
+  function ajusterQuantiteReception(gameId, delta) {
+    const nouveau = Math.max(0, (reception.quantites[gameId] || 0) + delta);
+    reception.quantites[gameId] = nouveau;
+    const el = document.getElementById(`qte-r-${gameId}`);
+    if (el) el.textContent = nouveau;
+  }
+
+  async function enregistrerReception() {
+    const btn = document.getElementById('btnConfirmerReception');
+    const bureau = emplacementParType('bureau');
+    const lignes = Object.entries(reception.quantites)
+      .filter(([, qte]) => qte > 0)
+      .map(([gameId, qte]) => ({
+        site: siteId, game_id: gameId, type_mouvement: 'reception', quantite: qte,
+        location_source_id: null, location_destination_id: bureau ? bureau.id : null,
+        methode_identification: 'quantite', booklet_id: null, employee_id: managerCourant.id,
+        source: reception.source || null,
+        justification: `Réception FDJ (manager)${reception.source ? ` — ${reception.source}` : ''}.`,
+      }));
+    if (!lignes.length) { alert('Indiquez au moins un jeu avec une quantité reçue.'); return; }
+    btn.disabled = true;
+    btn.innerHTML = 'Enregistrement<span class="btn-loading-dots"><i></i><i></i><i></i></span>';
+    const { error } = await nexusClient.from('fdj_stock_movements').insert(lignes);
+    if (error) { console.error('Réception FDJ:', error); btn.disabled = false; btn.textContent = 'Confirmer la réception'; alert("Erreur d'enregistrement. Réessayez."); return; }
+    vue = 'liste'; reception = null;
+    renderAccueil();
+  }
+
+  // ------------------------------------------------------------
+  // ÉTAT DU STOCK FDJ — 09/08/2026, audit "Moteur de clairvoyance manager"
+  // (§44) : Bureau / Caisse non activé / Activés (depuis le point zéro) /
+  // dernière réception / état, jeu par jeu. Les chiffres viennent
+  // exclusivement des mouvements et du dernier contrôle physique — jamais
+  // codés en dur. Inclut les retraits/blocages en cours (§18, gestion par
+  // exception : rien à afficher tant qu'il n'y en a pas).
+  // ------------------------------------------------------------
+  async function ouvrirStockEtat() {
+    document.getElementById('content').innerHTML = '<div class="loading">Chargement…</div>';
+    if (!jeux.length) jeux = await chargerJeux();
+    const { soldes, reference, mouvements } = await soldesActuels();
+    stockEtat = { soldes, reference, dernieresReceptions: derniereReceptionParJeu(mouvements) };
+    vue = 'stock-etat';
+    renderStockEtat();
+  }
+
+  function etatLigneStock(solde) {
+    if (solde.nonActives <= 0 && solde.bureau <= 0) return { classe: 'anomalie', texte: '🔴 Rupture' };
+    if (solde.nonActives <= 0) return { classe: 'anomalie', texte: '🟠 Vigilance — rien en caisse' };
+    return { classe: 'calc', texte: '🟢 OK' };
+  }
+
+  function renderStockEtat() {
+    document.getElementById('titre').textContent = 'État du stock FDJ';
+    document.getElementById('sousTitre').textContent = 'Bureau, caisse non activée et activés depuis le dernier point zéro — jamais codé en dur.';
+    const ref = stockEtat.reference;
+    const groupes = grouperParPalier(jeux);
+    const bloques = jeux.map(j => ({ jeu: j, solde: stockEtat.soldes[j.id] || {} })).filter(x => (x.solde.bloques || 0) > 0);
+    document.getElementById('content').innerHTML = `
+      <button type="button" class="btn-retour-fleche" id="btnRetourStockEtat">← Retour</button>
+      ${ref ? `<div class="champ-note" style="margin-top:-4px;">Point zéro : ${new Date(ref.date + 'T00:00:00').toLocaleDateString('fr-FR')}.</div>` : `<div class="champ-note" style="margin-top:-4px;">Aucun contrôle physique enregistré — stock théorique depuis zéro, à fiabiliser via "Contrôle physique du stock".</div>`}
+      <button class="btn-nouveau" id="btnOuvrirBlocage">🚫 Signaler un retrait / blocage</button>
+      ${bloques.length ? `
+        <div class="section-titre">Retraits / blocages en cours (${bloques.length})</div>
+        <div class="card" style="margin-bottom:16px;">
+          ${bloques.map(({ jeu, solde }) => `
+            <div class="jeu-row" data-jeu-bloque="${jeu.id}">
+              <div class="jeu-nom-ligne">
+                <div class="jeu-nom">${jeu.nom}</div>
+                <div class="jeu-ventes anomalie">${solde.bloques} bloqué${solde.bloques > 1 ? 's' : ''}</div>
+              </div>
+              <button type="button" class="btn-modifier" data-retourner="${jeu.id}" style="margin-top:6px; width:100%;">↩️ Retourner au bureau</button>
+            </div>
+          `).join('')}
+        </div>
+      ` : ''}
+      <div class="section-titre">Par jeu</div>
+      ${groupes.map(g => `
+        <div class="palier-block">
+          <div class="palier-head">${fmtNum(g.prix)} €</div>
+          <div class="card">${g.items.map(j => renderJeuStockEtat(j)).join('')}</div>
+        </div>
+      `).join('')}
+    `;
+    document.getElementById('btnRetourStockEtat').addEventListener('click', () => { vue = 'liste'; stockEtat = null; renderAccueil(); });
+    document.getElementById('btnOuvrirBlocage').addEventListener('click', () => ouvrirBlocage());
+    document.querySelectorAll('[data-retourner]').forEach(btn => btn.addEventListener('click', () => retournerDepuisBloque(btn.dataset.retourner)));
+  }
+
+  function renderJeuStockEtat(jeu) {
+    const solde = stockEtat.soldes[jeu.id] || { bureau: 0, confies: 0, actives: 0, bloques: 0, nonActives: 0 };
+    const derniereReception = stockEtat.dernieresReceptions[jeu.id];
+    const anciennete = ancienneteJours(derniereReception);
+    const etat = etatLigneStock(solde);
+    return `
+      <div class="jeu-row">
+        <div class="jeu-nom-ligne">
+          <div class="jeu-nom">${jeu.nom}</div>
+          <div class="jeu-ventes ${etat.classe}">${etat.texte}</div>
+        </div>
+        <div class="jeu-inputs">
+          <div class="jeu-input-wrap"><div class="jeu-input-label">Bureau</div><div class="champ-readonly" style="text-align:center; padding:8px 4px; font-size:13px;">${fmtNum(solde.bureau)}</div></div>
+          <div class="jeu-input-wrap"><div class="jeu-input-label">Caisse non act.</div><div class="champ-readonly" style="text-align:center; padding:8px 4px; font-size:13px;">${fmtNum(solde.nonActives)}</div></div>
+          <div class="jeu-input-wrap"><div class="jeu-input-label">Activés</div><div class="champ-readonly" style="text-align:center; padding:8px 4px; font-size:13px;">${fmtNum(solde.actives)}</div></div>
+        </div>
+        <div class="histo-sub" style="margin-top:6px;">${derniereReception ? `Dernière réception : il y a ${anciennete} jour${anciennete > 1 ? 's' : ''} (${new Date(derniereReception).toLocaleDateString('fr-FR')})` : 'Aucune réception enregistrée'}</div>
+      </div>
+    `;
+  }
+
+  // Retrait/blocage (§3, §18) : formulaire minimal, gestion par exception —
+  // pas d'écran permanent, juste ce qu'il faut pour tracer "qui, quoi,
+  // combien, pourquoi" sans jamais modifier un stock sans un fait déclaré.
+  async function ouvrirBlocage() {
+    blocage = { gameId: jeux[0] ? jeux[0].id : null, quantite: 1, emplacement: 'bureau', motif: '' };
+    vue = 'blocage';
+    renderBlocage();
+  }
+
+  function renderBlocage() {
+    document.getElementById('titre').textContent = 'Signaler un retrait / blocage';
+    document.getElementById('sousTitre').textContent = "Isole un jeu/série sans modifier le reste du stock — n'active rien, n'ajoute rien à l'appro.";
+    document.getElementById('content').innerHTML = `
+      <button type="button" class="btn-retour-fleche" id="btnRetourBlocage">← Retour</button>
+      <label class="champ-label">Jeu concerné</label>
+      <select class="champ-select" id="champJeuBlocage" style="margin-bottom:12px;">
+        ${jeux.map(j => `<option value="${j.id}" ${j.id===blocage.gameId?'selected':''}>${j.nom}</option>`).join('')}
+      </select>
+      <label class="champ-label">Emplacement source</label>
+      <select class="champ-select" id="champEmplacementBlocage" style="margin-bottom:12px;">
+        <option value="bureau" ${blocage.emplacement==='bureau'?'selected':''}>Bureau</option>
+        <option value="caisse" ${blocage.emplacement==='caisse'?'selected':''}>Caisse</option>
+      </select>
+      <label class="champ-label">Quantité</label>
+      <input type="number" inputmode="numeric" min="1" step="1" class="champ-input mono" id="champQteBlocage" value="${blocage.quantite}" style="margin-bottom:12px;">
+      <label class="champ-label">Motif</label>
+      <input type="text" class="champ-input" id="champMotifBlocage" value="${blocage.motif}" placeholder="Ex. instruction FDJ, série suspecte…" style="margin-bottom:16px;">
+      <button class="btn-primary" id="btnConfirmerBlocage">Signaler</button>
+      <button class="btn-ghost" id="btnAnnulerBlocage">Annuler</button>
+    `;
+    document.getElementById('btnRetourBlocage').addEventListener('click', () => { vue = 'stock-etat'; blocage = null; renderStockEtat(); });
+    document.getElementById('btnAnnulerBlocage').addEventListener('click', () => { vue = 'stock-etat'; blocage = null; renderStockEtat(); });
+    document.getElementById('champJeuBlocage').addEventListener('change', e => blocage.gameId = e.target.value);
+    document.getElementById('champEmplacementBlocage').addEventListener('change', e => blocage.emplacement = e.target.value);
+    document.getElementById('champQteBlocage').addEventListener('input', e => blocage.quantite = e.target.value === '' ? 1 : Math.max(1, parseInt(e.target.value, 10) || 1));
+    document.getElementById('champMotifBlocage').addEventListener('input', e => blocage.motif = e.target.value);
+    document.getElementById('btnConfirmerBlocage').addEventListener('click', enregistrerBlocage);
+  }
+
+  async function enregistrerBlocage() {
+    if (!blocage.motif.trim()) { alert('Indiquez un motif — NEXUS ne modifie jamais un stock sans un fait déclaré.'); return; }
+    const btn = document.getElementById('btnConfirmerBlocage');
+    btn.disabled = true;
+    btn.innerHTML = 'Enregistrement<span class="btn-loading-dots"><i></i><i></i><i></i></span>';
+    const source = emplacementParType(blocage.emplacement);
+    const zoneBloquee = emplacementParType('bloque');
+    const { error } = await nexusClient.from('fdj_stock_movements').insert({
+      site: siteId, game_id: blocage.gameId, type_mouvement: 'blocage', quantite: blocage.quantite,
+      location_source_id: source ? source.id : null, location_destination_id: zoneBloquee ? zoneBloquee.id : null,
+      methode_identification: 'quantite', booklet_id: null, employee_id: managerCourant.id,
+      justification: `Retrait/blocage (manager) — ${blocage.motif}`,
+    });
+    if (error) { console.error('Blocage FDJ:', error); btn.disabled = false; btn.textContent = 'Signaler'; alert("Erreur d'enregistrement. Réessayez."); return; }
+    vue = 'stock-etat'; blocage = null;
+    await ouvrirStockEtat();
+  }
+
+  async function retournerDepuisBloque(gameId) {
+    const solde = stockEtat.soldes[gameId];
+    if (!solde || !(solde.bloques > 0)) return;
+    if (!confirm(`Retourner les ${solde.bloques} carnet(s) bloqué(s) de ce jeu au Bureau ?`)) return;
+    const zoneBloquee = emplacementParType('bloque');
+    const bureau = emplacementParType('bureau');
+    const { error } = await nexusClient.from('fdj_stock_movements').insert({
+      site: siteId, game_id: gameId, type_mouvement: 'retour', quantite: solde.bloques,
+      location_source_id: zoneBloquee ? zoneBloquee.id : null, location_destination_id: bureau ? bureau.id : null,
+      methode_identification: 'quantite', booklet_id: null, employee_id: managerCourant.id,
+      justification: 'Retour au bureau depuis la zone bloquée (manager).',
+    });
+    if (error) { console.error('Retour depuis bloqué FDJ:', error); alert("Erreur d'enregistrement. Réessayez."); return; }
+    await ouvrirStockEtat();
   }
 
   // ------------------------------------------------------------

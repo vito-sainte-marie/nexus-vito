@@ -115,13 +115,21 @@
   // de complexifier soldesCarnetsParJeu (qui reste utilisée telle quelle
   // partout où aucune référence n'existe encore).
   //
+  // 09/08/2026, audit "Moteur de clairvoyance manager" (Phase A, §3/§18) :
+  // ajout de la réception FDJ (Transporteur → Bureau) et des retraits /
+  // blocages (Bureau ou Caisse → Zone bloquée, réversible vers le Bureau).
+  // Un carnet bloqué sort du stock disponible (bureau/caisse) sans jamais
+  // être compté comme activé — "ne pas modifier sans fait".
+  //
   // `reference` : { creeLe: <ISO string, ex. fdj_stock_references.created_at>,
   //   lignes: { [game_id]: { bureau, caisse } } } — ou null/undefined pour
   //   se comporter comme avant toute initialisation (bureau part de 0,
   //   jamais vraiment fiable tant qu'aucun inventaire n'a été fait).
-  // `locationBureauId` : id de l'emplacement de type 'bureau' du site.
-  // Retourne { [game_id]: { bureau, confies, actives, nonActives } }.
-  function soldesCarnetsAvecReference(mouvements, locationCaisseId, locationBureauId, reference) {
+  // `locations` : { caisse, bureau, bloque } — ids des emplacements du site
+  //   (bloque peut être omis si l'emplacement n'existe pas encore).
+  // Retourne { [game_id]: { bureau, confies, actives, bloques, nonActives } }.
+  function soldesCarnetsAvecReference(mouvements, locations, reference) {
+    locations = locations || {};
     const soldes = {};
     const assurer = (id) => {
       if (!soldes[id]) {
@@ -130,6 +138,7 @@
           bureau: ligne ? Number(ligne.bureau) || 0 : 0,
           confies: ligne ? Number(ligne.caisse) || 0 : 0,
           actives: 0,
+          bloques: 0,
           nonActives: 0,
         };
       }
@@ -140,19 +149,28 @@
       if (seuil !== null && m.created_at && new Date(m.created_at).getTime() <= seuil) return; // avant le point zéro : déjà incorporé dans la référence
       const qte = Number(m.quantite) || 0;
       const s = assurer(m.game_id);
-      if (m.type_mouvement === 'transfert' && m.location_destination_id === locationCaisseId) {
+      if (m.type_mouvement === 'transfert' && m.location_destination_id === locations.caisse) {
         s.confies += qte;
-        if (m.location_source_id === locationBureauId) s.bureau -= qte;
+        if (m.location_source_id === locations.bureau) s.bureau -= qte;
       } else if (m.type_mouvement === 'activation') {
         s.actives += qte;
-      } else if (m.type_mouvement === 'retour' && m.location_source_id === locationCaisseId) {
-        s.confies -= qte;
-        if (m.location_destination_id === locationBureauId) s.bureau += qte;
-      } else if (m.type_mouvement === 'reception' && m.location_destination_id === locationBureauId) {
+      } else if (m.type_mouvement === 'retour') {
+        if (m.location_source_id === locations.caisse) {
+          s.confies -= qte;
+          if (m.location_destination_id === locations.bureau) s.bureau += qte;
+        } else if (m.location_source_id === locations.bloque) {
+          s.bloques -= qte;
+          if (m.location_destination_id === locations.bureau) s.bureau += qte;
+          else if (m.location_destination_id === locations.caisse) s.confies += qte;
+        }
+      } else if (m.type_mouvement === 'reception' && m.location_destination_id === locations.bureau) {
         s.bureau += qte;
+      } else if (m.type_mouvement === 'blocage') {
+        if (m.location_source_id === locations.bureau) { s.bureau -= qte; s.bloques += qte; }
+        else if (m.location_source_id === locations.caisse) { s.confies -= qte; s.bloques += qte; }
       } else if (m.type_mouvement === 'correction') {
-        if (m.location_destination_id === locationCaisseId) s.confies += qte;
-        else if (m.location_destination_id === locationBureauId) s.bureau += qte;
+        if (m.location_destination_id === locations.caisse) s.confies += qte;
+        else if (m.location_destination_id === locations.bureau) s.bureau += qte;
       }
     });
     if (reference && reference.lignes) Object.keys(reference.lignes).forEach(id => assurer(id));

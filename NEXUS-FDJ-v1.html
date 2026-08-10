@@ -695,7 +695,8 @@
     derniereReference = reference;
     const caisse = emplacementParType('caisse');
     const bureau = emplacementParType('bureau');
-    soldesCarnets = NexusFdjMoteur.soldesCarnetsAvecReference(mouvements, caisse ? caisse.id : null, bureau ? bureau.id : null, derniereReference);
+    const bloque = emplacementParType('bloque');
+    soldesCarnets = NexusFdjMoteur.soldesCarnetsAvecReference(mouvements, { caisse: caisse ? caisse.id : null, bureau: bureau ? bureau.id : null, bloque: bloque ? bloque.id : null }, derniereReference);
     phase = 'carnet';
     renderCarnet();
   }
