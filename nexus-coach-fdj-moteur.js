@@ -266,29 +266,39 @@
     };
   }
 
+  // Seuils "jour faible"/"jour fort" — factorisés en une seule fonction
+  // pure car réutilisés à deux niveaux : par employé (detecterJourFaible/
+  // detecterJourFort ci-dessous) ET au niveau du site (jourFortSite,
+  // calculé par le futur chargeur de données pour alimenter
+  // detecterOpportuniteRelationClient) — une seule définition de "jour
+  // fort", jamais deux seuils qui pourraient diverger (Article 11).
+  // Retourne { suffisant, ratio, faible, fort }.
+  function evaluerJour(perf, moyenneGenerale, minimumSample) {
+    if (!perf || !minimumSample || perf.nbOcc < minimumSample) return { suffisant: false, ratio: null, faible: false, fort: false };
+    if (moyenneGenerale == null || moyenneGenerale <= 0) return { suffisant: false, ratio: null, faible: false, fort: false };
+    const ratio = perf.moyenneCa / moyenneGenerale;
+    return { suffisant: true, ratio, faible: ratio <= 0.8, fort: ratio >= 1.2 };
+  }
+
   // Tier 5 — Jour historiquement faible pour cet employé.
   function detecterJourFaible(faits, regle) {
     const perf = (faits.performanceJourEmploye || {})[faits.jourSemaineActuel];
-    if (!perf || !regle.minimum_sample || perf.nbOcc < regle.minimum_sample) return null;
-    if (faits.moyenneGeneraleEmploye == null || faits.moyenneGeneraleEmploye <= 0) return null;
-    const ratio = perf.moyenneCa / faits.moyenneGeneraleEmploye;
-    if (ratio > 0.8) return null;
+    const ev = evaluerJour(perf, faits.moyenneGeneraleEmploye, regle.minimum_sample);
+    if (!ev.suffisant || !ev.faible) return null;
     return {
       rule_id: 'fdj_jour_faible', priority: regle.priority, confidence: 'Moyenne',
-      evidence: { nbOcc: perf.nbOcc, ratio }, evidenceCount: perf.nbOcc,
+      evidence: { nbOcc: perf.nbOcc, ratio: ev.ratio }, evidenceCount: perf.nbOcc,
     };
   }
 
   // Tier 5 — Jour historiquement fort pour cet employé.
   function detecterJourFort(faits, regle) {
     const perf = (faits.performanceJourEmploye || {})[faits.jourSemaineActuel];
-    if (!perf || !regle.minimum_sample || perf.nbOcc < regle.minimum_sample) return null;
-    if (faits.moyenneGeneraleEmploye == null || faits.moyenneGeneraleEmploye <= 0) return null;
-    const ratio = perf.moyenneCa / faits.moyenneGeneraleEmploye;
-    if (ratio < 1.2) return null;
+    const ev = evaluerJour(perf, faits.moyenneGeneraleEmploye, regle.minimum_sample);
+    if (!ev.suffisant || !ev.fort) return null;
     return {
       rule_id: 'fdj_jour_fort', priority: regle.priority, confidence: 'Moyenne',
-      evidence: { nbOcc: perf.nbOcc, ratio }, evidenceCount: perf.nbOcc,
+      evidence: { nbOcc: perf.nbOcc, ratio: ev.ratio }, evidenceCount: perf.nbOcc,
     };
   }
 
@@ -389,7 +399,7 @@
   }
 
   global.NexusCoachFdj = {
-    FORMULATIONS, hacherTexte, construireMessageCoach,
+    FORMULATIONS, hacherTexte, construireMessageCoach, evaluerJour,
     evaluerReglesCoach, selectionnerRecommandationCoach, construireRecommandation, estEnCooldown,
     // Exposés individuellement pour les tests unitaires.
     DETECTEURS,

@@ -237,11 +237,27 @@ Règles V1 (12, dans la fourchette 10-15 recommandée par l'audit §27) :
 | `fdj_relation_client_opportunite` | 5 | Relation client | Jour historiquement actif **au niveau du site** et stock du plus petit palier sain (jamais une intuition — deux faits mesurés) |
 | `fdj_conseil_general` | 6 | — | Repli si aucune règle personnalisée n'est fiable — toujours identifié comme générique |
 
-**Étapes suivantes (non commencées) :** brancher les données réelles (fdj_shifts,
-fdj_shift_counts, vues Phase B) pour construire l'objet `faits` attendu par
-`NexusCoachFdj.evaluerReglesCoach()`, puis l'écran employé « Conseil du jour », la synthèse
-manager, et la remontée vers Brief (audit §27, items 10 à 13) — dans cet ordre, comme prévu par
-l'audit lui-même.
+**Étape 2 — données réelles branchées (09/08/2026) :** `nexus-coach-fdj-donnees.js` assemble
+l'objet `faits` à partir des tables réelles et orchestre `obtenirRecommandationDuJour()`, idempotent
+(une recommandation déjà générée pour un employé/jour n'est jamais recalculée — audit §3). Nouvelle
+vue **`view_fdj_employee_price_tier_daily`** (jour × employé × palier, même filtre que
+`view_fdj_game_daily_ventes` avec la dimension employé en plus) : aucune vue Phase B n'avait cette
+dimension, nécessaire à `fdj_palier_sous_represente`.
+
+**Limite honnête assumée — proxy de « retard de clôture » :** NEXUS ne stocke aujourd'hui aucune
+heure de fin de quart théorique. `fdj_report_late` utilise donc un indicateur binaire grossier mais
+vérifiable (quart clôturé un autre jour calendaire que sa date de service = « en retard »), pas un
+nombre de minutes réel malgré le nom du champ `clotureRetardMin`. À corriger si NEXUS ajoute un jour
+une heure de fin de quart planifiée — un seul endroit à changer (`chargerShiftsRecentsAvecCloture`).
+
+**Vérifié de bout en bout (09/08/2026)** contre les données réelles du site (employé avec 3 quarts
+validés) : assemblage des faits + sélection + construction du message, avec repli correct sur le
+conseil général — l'échantillon actuel (3 quarts) est sous tous les seuils `minimum_sample` des
+règles statistiques, NEXUS ne conclut donc rien de personnalisé, comme prévu par « vérité avant
+certitude ».
+
+**Étapes suivantes (non commencées) :** l'écran employé « Conseil du jour », la synthèse manager, et
+la remontée vers Brief (audit §27, items 11 à 13) — dans cet ordre, comme prévu par l'audit lui-même.
 
 ---
 
@@ -253,6 +269,7 @@ l'audit lui-même.
 | v2 | 08/08/2026 | Réécriture complète des sections Ventes & Marge et Évolution/Comparaison de périodes à partir du code réel. Ajout de la section R2/R3/R4 (absente de la v1). Mise à jour du statut des chantiers ouverts (écart de caisse résolu autrement que prévu). Déclenchée par la découverte, le même jour, que le Centre d'Intelligence NEXUS dupliquait le moteur de détection au lieu d'utiliser `nexus-conseiller.js` — corrigé dans le même lot de travail. Sections Classification/Merchandising non revérifiées, marquées comme héritées. |
 | v2.1 | 09/08/2026 | Ajout de la section 7 — NEXUS FDJ (grattage & tirages), déclenché par l'audit "Moteur de clairvoyance manager" qui exige une définition unique par KPI avant de construire les statistiques (Phase B). Documente les formules déjà en production dans `nexus-fdj-moteur.js`, le modèle de point zéro du stock, et les 9 vues d'agrégation créées ce jour. |
 | v2.2 | 09/08/2026 | Ajout à la section 7 : Conseiller FDJ (Phase D — `calculerCandidatsFdj`/`normaliserFdj`, remontée Brief) et NEXUS Coach x FDJ Pilotage (Phase 1 — schéma `coach_*` + 12 règles V1 de `nexus-coach-fdj-moteur.js`), déclenchés respectivement par l'audit "Moteur de clairvoyance manager" (§46) et l'audit "Coach x FDJ Pilotage" (§16/§27/§28). |
+| v2.3 | 09/08/2026 | Coach x FDJ Pilotage, étape "brancher les données" (audit §27, item 10) : `nexus-coach-fdj-donnees.js` (chargeurs réels + orchestration idempotente), nouvelle vue `view_fdj_employee_price_tier_daily`, limite honnête documentée sur le proxy de retard de clôture, vérification de bout en bout contre les données réelles du site. |
 
 Prochaine révision suggérée : après vérification des sections héritées (§5) et des deux chantiers
 au statut inconnu (§4 — Anomalie stock, Capacité de réassort). Côté FDJ : figer les formules de
