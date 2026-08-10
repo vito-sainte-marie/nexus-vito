@@ -116,6 +116,22 @@
   .champ-note{font-size:11.5px; color:var(--text-dim); line-height:1.5; margin-bottom:14px; margin-top:-8px;}
   .champ-sep{height:1px; background:var(--hairline); margin:16px 0;}
 
+  /* Bouton de signe pour "Caisse tirages" (10/08/2026, demande de
+     Frédéric : "il faut que tu me donne la possibilité de mettre le
+     symbole -, car parfois la caisse tirage peut être négative"). Le
+     champ était déjà techniquement capable de stocker une valeur
+     négative (aucun plancher côté moteur), mais le clavier numérique
+     mobile déclenché par inputmode="decimal" n'affiche pas toujours la
+     touche "-" — un bouton dédié garantit que le signe reste accessible
+     sur tous les téléphones, sans dépendre du clavier virtuel. */
+  .champ-input-signe-row{display:flex; gap:8px; margin-bottom:14px;}
+  .champ-input-signe-row .champ-input{margin-bottom:0; flex:1;}
+  .btn-signe{
+    flex-shrink:0; width:46px; background:var(--panel-raised); border:1px solid var(--hairline); border-radius:10px;
+    color:var(--text-mid); font-family:var(--mono); font-size:19px; font-weight:700; cursor:pointer;
+  }
+  .btn-signe.actif{color:var(--red); border-color:rgba(240,87,90,0.45); background:var(--red-dim);}
+
   .resume-card{background:var(--panel); border:1px solid var(--hairline); border-radius:14px; padding:18px; margin-bottom:14px;}
   .stat-row{display:flex; justify-content:space-between; align-items:center; padding:9px 0;}
   .stat-row + .stat-row{border-top:1px solid var(--hairline);}
@@ -1090,8 +1106,11 @@
       <div class="champ-note">Ligne "Total des lots payés" en bas du RAPPORT JOURNALIER.</div>
 
       <div class="champ-label">Caisse tirages (RAPPORT JOURNALIER TEMPS RÉEL)</div>
-      <input type="number" inputmode="decimal" class="champ-input" id="champCaisseTirages" value="${reportTempsReel.caisse_tirages ?? ''}" placeholder="0,00">
-      <div class="champ-note">Ligne "CAISSE" du RAPPORT JOURNALIER TEMPS RÉEL ON-LINE (Loto, Keno, Amigo…).</div>
+      <div class="champ-input-signe-row">
+        <button type="button" class="btn-signe ${(reportTempsReel.caisse_tirages ?? 0) < 0 ? 'actif' : ''}" id="btnSigneCaisseTirages" aria-label="Rendre négatif / positif">±</button>
+        <input type="number" inputmode="decimal" class="champ-input" id="champCaisseTirages" value="${reportTempsReel.caisse_tirages ?? ''}" placeholder="0,00">
+      </div>
+      <div class="champ-note">Ligne "CAISSE" du RAPPORT JOURNALIER TEMPS RÉEL ON-LINE (Loto, Keno, Amigo…). Peut être négative (bouton ± à gauche) si le rapport l'indique.</div>
 
       <div class="etat-banner">Caisse grattage calculée : <b>${fmtEuro(caisseGrattage())}</b> (ventes grattage ${fmtEuro(ventesGrattageTotal())} − lots payés ${fmtEuro(reportJournalier.lots_payes_grattage)})</div>
 
@@ -1099,7 +1118,24 @@
       <button class="btn-ghost" id="btnRetourGrattage">Retour</button>
     `;
     document.getElementById('champLotsPayes').addEventListener('input', e => { reportJournalier.lots_payes_grattage = e.target.value === '' ? null : Number(e.target.value); sauvegarderDraft(); majBanniereTirages(); });
-    document.getElementById('champCaisseTirages').addEventListener('input', e => { reportTempsReel.caisse_tirages = e.target.value === '' ? null : Number(e.target.value); sauvegarderDraft(); });
+    document.getElementById('champCaisseTirages').addEventListener('input', e => {
+      reportTempsReel.caisse_tirages = e.target.value === '' ? null : Number(e.target.value);
+      document.getElementById('btnSigneCaisseTirages').classList.toggle('actif', (reportTempsReel.caisse_tirages ?? 0) < 0);
+      sauvegarderDraft();
+    });
+    // Bouton ± (10/08/2026) : inverse le signe de la valeur déjà saisie,
+    // garantit un moyen d'entrer une caisse tirages négative même quand le
+    // clavier numérique mobile n'affiche pas la touche "-".
+    document.getElementById('btnSigneCaisseTirages').addEventListener('click', () => {
+      const input = document.getElementById('champCaisseTirages');
+      const valeur = input.value === '' ? 0 : Number(input.value);
+      const inversee = -valeur;
+      input.value = inversee === 0 ? '' : inversee;
+      reportTempsReel.caisse_tirages = input.value === '' ? null : inversee;
+      document.getElementById('btnSigneCaisseTirages').classList.toggle('actif', inversee < 0);
+      sauvegarderDraft();
+      input.focus();
+    });
     document.getElementById('btnSuiteTirages').addEventListener('click', () => { phase = 'caisse'; renderCaisse(); });
     document.getElementById('btnRetourGrattage').addEventListener('click', () => { phase = 'grattage'; renderGrattage(); });
   }

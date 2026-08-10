@@ -97,6 +97,18 @@
   .champ-note{font-size:11px; color:var(--text-dim); line-height:1.5; margin:-6px 0 12px;}
   .champ-readonly{padding:11px 12px; background:var(--panel); border:1px solid var(--hairline); border-radius:10px; font-family:var(--mono); font-size:14px; color:var(--text-mid);}
 
+  /* Bouton de signe pour "Caisse tirages" (10/08/2026, demande de
+     Frédéric — même correctif que NEXUS-FDJ-v1.html) : le clavier
+     numérique mobile n'affiche pas toujours la touche "-", un bouton
+     dédié garantit que le signe reste accessible sur tous les téléphones. */
+  .champ-input-signe-row{display:flex; gap:8px; margin-bottom:12px;}
+  .champ-input-signe-row .champ-input{margin-bottom:0; flex:1;}
+  .btn-signe{
+    flex-shrink:0; width:44px; background:var(--panel-raised); border:1px solid var(--hairline); border-radius:10px;
+    color:var(--text-mid); font-family:var(--mono); font-size:18px; font-weight:700; cursor:pointer;
+  }
+  .btn-signe.actif{color:var(--red); border-color:rgba(240,87,90,0.45); background:var(--red-dim);}
+
   .palier-block{margin-bottom:14px;}
   .palier-head{font-family:var(--mono); font-size:10px; letter-spacing:0.06em; text-transform:uppercase; color:var(--text-dim); padding:0 2px 6px;}
   .jeu-row{padding:10px 12px;}
@@ -1369,7 +1381,10 @@
       <label class="champ-label">Total des lots payés — grattage</label>
       <input type="number" inputmode="decimal" class="champ-input mono" id="champLotsPayes" value="${edition.lotsPayes ?? ''}" placeholder="0,00" style="margin-bottom:12px;">
       <label class="champ-label">Caisse tirages</label>
-      <input type="number" inputmode="decimal" class="champ-input mono" id="champCaisseTirages" value="${edition.caisseTirages ?? ''}" placeholder="0,00">
+      <div class="champ-input-signe-row">
+        <button type="button" class="btn-signe ${(edition.caisseTirages ?? 0) < 0 ? 'actif' : ''}" id="btnSigneCaisseTirages" aria-label="Rendre négatif / positif">±</button>
+        <input type="number" inputmode="decimal" class="champ-input mono" id="champCaisseTirages" value="${edition.caisseTirages ?? ''}" placeholder="0,00">
+      </div>
 
       <div class="champ-sep"></div>
       <div class="section-titre">Caisse</div>
@@ -1480,7 +1495,25 @@
       });
     });
     document.getElementById('champLotsPayes').addEventListener('input', e => { edition.lotsPayes = e.target.value === '' ? null : Number(e.target.value); majResume(); });
-    document.getElementById('champCaisseTirages').addEventListener('input', e => { edition.caisseTirages = e.target.value === '' ? null : Number(e.target.value); majResume(); });
+    document.getElementById('champCaisseTirages').addEventListener('input', e => {
+      edition.caisseTirages = e.target.value === '' ? null : Number(e.target.value);
+      document.getElementById('btnSigneCaisseTirages').classList.toggle('actif', (edition.caisseTirages ?? 0) < 0);
+      majResume();
+    });
+    // Bouton ± (10/08/2026) : même correctif que NEXUS-FDJ-v1.html — inverse
+    // le signe de la valeur déjà saisie, garantit un moyen d'entrer une
+    // caisse tirages négative même quand le clavier numérique mobile
+    // n'affiche pas la touche "-".
+    document.getElementById('btnSigneCaisseTirages').addEventListener('click', () => {
+      const input = document.getElementById('champCaisseTirages');
+      const valeur = input.value === '' ? 0 : Number(input.value);
+      const inversee = -valeur;
+      input.value = inversee === 0 ? '' : inversee;
+      edition.caisseTirages = input.value === '' ? null : inversee;
+      document.getElementById('btnSigneCaisseTirages').classList.toggle('actif', inversee < 0);
+      majResume();
+      input.focus();
+    });
     document.getElementById('champRegul').addEventListener('input', e => { edition.regularisations = e.target.value === '' ? 0 : Number(e.target.value); majResume(); });
     document.getElementById('champCaisseReelle').addEventListener('input', e => { edition.caisseReelle = e.target.value === '' ? null : Number(e.target.value); majResume(); });
 
