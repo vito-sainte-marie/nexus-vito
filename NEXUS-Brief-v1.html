@@ -267,6 +267,8 @@
 <script src="nexus-fdj-moteur.js"></script>
 <script src="nexus-coach-fdj-moteur.js"></script>
 <script src="nexus-boussole-moteur.js"></script>
+<script src="nexus-carburant-moteur.js"></script>
+<script src="nexus-carburant-donnees.js"></script>
 <script src="nexus-conseiller.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
 <script src="nexus-pdf-moteur.js"></script>
@@ -536,6 +538,42 @@
     return { creeLe: data.created_at, lignes: map };
   }
 
+  // Carburants (11/08/2026, Phase 1 de la montée en puissance de NEXUS
+  // Carburants demandée par Frédéric) : résumé condensé, PAS intégré au
+  // classement cross-moteurs ci-dessus (fusionnerEtSelectionner) — une
+  // carte autonome, sur le modèle exact donné par Frédéric ("⛽ Carburants
+  // — À surveiller / GO : écart de −186 L ce matin. / Voir le détail →"),
+  // pas une compétition avec les 3 décisions prioritaires. Réutilise TEL
+  // QUEL nexus-carburant-moteur.js/nexus-carburant-donnees.js — jamais un
+  // recalcul local du statut ou de l'évolution (Article 11).
+  async function chargerCarburantsBrief() {
+    const aujourdhui = new Date().toISOString().slice(0, 10);
+    // 7 derniers jours glissants vs les 7 jours précédents — PAS la semaine
+    // calendaire (lundi→dimanche) : une semaine calendaire en cours (ex.
+    // mardi) n'aurait que 2 jours de données face à 7 jours pour la
+    // référence, ce qui fabriquerait une "évolution" massivement négative
+    // sans rapport avec la réalité. Même convention que
+    // chargerCandidatsFdj() ci-dessous, dans ce même fichier — toujours
+    // comparer des fenêtres de durée égale.
+    const finActuelle = new Date(); finActuelle.setHours(23, 59, 59, 999);
+    const debutActuelle = new Date(finActuelle); debutActuelle.setDate(debutActuelle.getDate() - 6);
+    const finPrecedente = new Date(debutActuelle); finPrecedente.setDate(finPrecedente.getDate() - 1);
+    const debutPrecedente = new Date(finPrecedente); debutPrecedente.setDate(debutPrecedente.getDate() - 6);
+    const iso = d => d.toISOString().slice(0, 10);
+
+    const [controle, actuel, reference] = await Promise.all([
+      NexusCarburantDonnees.chargerControleJour(nexusClient, SITE_ACTUEL, aujourdhui),
+      NexusCarburantDonnees.chargerVentesPeriode(nexusClient, SITE_ACTUEL, iso(debutActuelle), iso(finActuelle)),
+      NexusCarburantDonnees.chargerVentesPeriode(nexusClient, SITE_ACTUEL, iso(debutPrecedente), iso(finPrecedente)),
+    ]);
+    const M = NexusCarburantMoteur;
+    const mix = M.calculerMixCarburant(actuel.ventes);
+    const mixRef = M.calculerMixCarburant(reference.ventes);
+    const evolution = mix && mixRef ? M.calculerEvolutionVolume(mix.total, mixRef.total) : null;
+    const produitMoteur = M.identifierProduitMoteur(actuel.ventes);
+    return { controle, volumeSemaine: mix ? mix.total : null, evolution, produitMoteur };
+  }
+
   async function chargerCandidatsFdj() {
     const finActuelle = new Date(); finActuelle.setHours(23, 59, 59, 999);
     const debutActuelle = new Date(finActuelle); debutActuelle.setDate(debutActuelle.getDate() - 6); debutActuelle.setHours(0, 0, 0, 0);
@@ -700,10 +738,10 @@
     const candidatsProduitsBrut = NexusConseiller.calculerCandidatsProduits(rowsBrut);
     const produitsStrategiques = paire ? NexusConseiller.analyserProduitsStrategiques(rowsPaireActuelle, rowsPairePrecedente) : null;
 
-    const [margePlusResultat, constatTempo, messagesAdvisor, candidatsCaisseObj, candidatsStock, candidatsRappels, candidatsFdj, candidatsCoach, domaineEquipe, alertesInvOuvertes, controlesVerifyRestants, missionsRestantes] = await Promise.all([
+    const [margePlusResultat, constatTempo, messagesAdvisor, candidatsCaisseObj, candidatsStock, candidatsRappels, candidatsFdj, candidatsCoach, domaineEquipe, alertesInvOuvertes, controlesVerifyRestants, missionsRestantes, carburants] = await Promise.all([
       chargerMargePlus(rowsBrut), chargerConstatTempo(), chargerMessagesAdvisor(),
       chargerCandidatsCaisse(), chargerCandidatsStock(), chargerCandidatsRappels(), chargerCandidatsFdj(), chargerCandidatsCoachEquipe(), chargerDomaineEquipe(),
-      chargerAlertesInventaireOuvertes(), chargerControlesVerifyRestants(), chargerMissionsRestantes(),
+      chargerAlertesInventaireOuvertes(), chargerControlesVerifyRestants(), chargerMissionsRestantes(), chargerCarburantsBrief(),
     ]);
 
     // Succès à féliciter — même détection que MEILLEUR_SUCCES du Cockpit
@@ -896,6 +934,7 @@
       decisions: decisionsEnrichies, watchlist: watchlistPrecise,
       impact: { gain, risque, delai: 'Cette semaine', confianceGlobale: `${nbMoteursActifs}/7 moteurs NEXUS ont contribué à cette synthèse aujourd'hui.` },
       missionsRestantes,
+      carburants,
     };
   }
 
@@ -1109,6 +1148,64 @@
   // ------------------------------------------------------------
   let dernierRapportPdf = null;
 
+  // Carburants (11/08/2026) — carte condensée sur le modèle donné par
+  // Frédéric : statut du jour (le pire des 3 carburants, jamais une
+  // moyenne qui masquerait un carburant à corriger), écart(s) à
+  // mentionner, volume de la semaine et son évolution. Toujours honnête
+  // si les données manquent encore (carburant_releves vide tant que le
+  // manager n'a pas commencé à utiliser le Relevé du jour) plutôt que de
+  // masquer la carte ou d'inventer un statut.
+  const ORDRE_GRAVITE_CARBURANT = ['À corriger', 'À surveiller', 'Sous contrôle', 'Données insuffisantes'];
+  function renderCarburants(brief) {
+    const c = brief.carburants;
+    if (!c) return '';
+    const NOM = { go: 'GO', sp95: 'SP95', gnr: 'GNR' };
+
+    let statutGlobal = 'Données insuffisantes';
+    let ligneEcarts = "Aucun relevé enregistré pour l'instant — le contrôle s'activera dès le premier jaugeage saisi dans Carburants.";
+    if (!c.controle.aucunReleve && c.controle.parCarburant) {
+      const statuts = Object.values(c.controle.parCarburant).map(r => r.statut);
+      statutGlobal = ORDRE_GRAVITE_CARBURANT.find(s => statuts.includes(s)) || 'Données insuffisantes';
+      const aSurveiller = Object.entries(c.controle.parCarburant).filter(([, r]) => r.statut === 'À surveiller' || r.statut === 'À corriger');
+      if (aSurveiller.length) {
+        ligneEcarts = aSurveiller.map(([cle, r]) => `${NOM[cle]} : écart de ${r.ecart != null ? `${r.ecart >= 0 ? '+' : ''}${Math.round(r.ecart)} L` : 'non calculable'} ce matin.`).join(' ');
+        const okListe = Object.entries(c.controle.parCarburant).filter(([, r]) => r.statut === 'Sous contrôle').map(([cle]) => NOM[cle]);
+        if (okListe.length) ligneEcarts += ` ${okListe.join(' et ')} sous contrôle.`;
+      } else if (statutGlobal === 'Sous contrôle') {
+        ligneEcarts = 'Les 3 carburants sont sous contrôle ce matin.';
+      } else {
+        ligneEcarts = "Écart non calculable pour l'instant sur au moins un carburant (données insuffisantes).";
+      }
+    }
+
+    const STYLE_STATUT = {
+      'À corriger': { c: 'var(--red)', f: 'var(--red-dim)' },
+      'À surveiller': { c: 'var(--amber)', f: 'var(--amber-dim)' },
+      'Sous contrôle': { c: 'var(--green)', f: 'var(--green-dim)' },
+      'Données insuffisantes': { c: 'var(--text-dim)', f: 'var(--panel-raised)' },
+    };
+    const couleur = STYLE_STATUT[statutGlobal] || STYLE_STATUT['Données insuffisantes'];
+
+    let ligneVolume;
+    if (c.volumeSemaine == null) {
+      ligneVolume = "Pas encore assez de litrage capté sur les 7 derniers jours pour un volume fiable.";
+    } else {
+      const evolTxt = c.evolution != null ? ` <span style="color:${c.evolution >= 0 ? 'var(--green)' : 'var(--red)'};">${c.evolution >= 0 ? '↗' : '↘'} ${c.evolution >= 0 ? '+' : ''}${(c.evolution * 100).toFixed(1)} %</span> vs 7 jours précédents` : '';
+      const moteurTxt = c.produitMoteur ? ` · Moteur : ${NOM[c.produitMoteur.cle]} (${Math.round(c.produitMoteur.pct * 100)} % des volumes)` : '';
+      ligneVolume = `${Math.round(c.volumeSemaine).toLocaleString('fr-FR')} L vendus sur les 7 derniers jours${evolTxt}${moteurTxt}`;
+    }
+
+    return `
+      <div class="section">
+        <div class="section-title">⛽ Carburants <span class="badge" style="color:${couleur.c}; background:${couleur.f};">${statutGlobal}</span></div>
+        <div class="force-card" style="cursor:default;">
+          <div class="force-detail">${ligneEcarts}</div>
+          <div class="force-detail" style="margin-top:6px;">${ligneVolume}</div>
+        </div>
+        <a href="NEXUS-Carburants-Pilotage-v1.html" class="decision-lien">→ Voir Carburants Pilotage</a>
+      </div>`;
+  }
+
   function renderRapportBrief() {
     return `
       <div class="section">
@@ -1275,6 +1372,7 @@
       ${renderDecisions(BRIEF)}
       ${renderWatchlist(BRIEF)}
       ${renderImpact(BRIEF)}
+      ${renderCarburants(BRIEF)}
       ${renderRapportBrief()}
     </div>`;
     document.getElementById('btnGenererRapport').addEventListener('click', lancerGenerationRapport);

@@ -107,10 +107,109 @@
     return { theorique, ecart, ecartRatio, statut: statutCarburant(ecartRatio) };
   }
 
+  // ============================================================
+  // Performance commerciale (11/08/2026) — Phase 1 de "NEXUS Carburants
+  // Pilotage", à la demande de Frédéric (vision détaillée en 6 familles
+  // d'intelligence sur le seul moteur existant, sans nouvelle saisie).
+  // Ces fonctions consomment les MÊMES volumes déjà sommés par
+  // sommerVentesPeriode() ci-dessus ({go, sp95, gnr}, litres, null si
+  // aucune ligne de la période n'a de litrage renseigné) — jamais une
+  // deuxième source de vérité pour "combien on a vendu".
+  // ============================================================
+
+  const CLES_CARBURANT = ['go', 'sp95', 'gnr'];
+
+  // Répartition en % du volume total par carburant. Un carburant à null
+  // (aucune vente captée) est exclu du total et de la répartition plutôt
+  // que traité comme 0 L, pour ne pas fausser le mix affiché. Retourne
+  // null si AUCUN carburant n'a de volume connu sur la période.
+  function calculerMixCarburant(ventes) {
+    if (!ventes) return null;
+    const connus = CLES_CARBURANT.filter(c => ventes[c] != null);
+    if (!connus.length) return null;
+    const total = connus.reduce((s, c) => s + ventes[c], 0);
+    const resultat = { total };
+    CLES_CARBURANT.forEach(c => {
+      resultat[c] = ventes[c] == null ? null : { litres: ventes[c], pct: total > 0 ? ventes[c] / total : null };
+    });
+    return resultat;
+  }
+
+  // Évolution en ratio (0.12 = +12 %) entre un volume actuel et une
+  // référence — même convention que NexusPeriodes.evolutionAgregee : null
+  // si la référence est nulle/absente ou nulle (0), jamais un pourcentage
+  // fabriqué à partir de rien.
+  function calculerEvolutionVolume(actuel, reference) {
+    if (actuel == null || reference == null || !reference) return null;
+    return (actuel - reference) / reference;
+  }
+
+  // Le "produit moteur" : le carburant qui pèse le plus dans les volumes
+  // de la période. Retourne null si aucun volume connu.
+  function identifierProduitMoteur(ventes) {
+    const mix = calculerMixCarburant(ventes);
+    if (!mix) return null;
+    let meilleur = null;
+    CLES_CARBURANT.forEach(c => {
+      if (mix[c] == null) return;
+      if (!meilleur || mix[c].litres > mix[meilleur].litres) meilleur = c;
+    });
+    return meilleur ? { cle: meilleur, litres: mix[meilleur].litres, pct: mix[meilleur].pct } : null;
+  }
+
+  // Décompose l'évolution TOTALE de volume entre deux périodes en
+  // contribution par carburant — répond à "d'où vient la hausse/la
+  // baisse", pas seulement "il y a une hausse/une baisse". Un carburant
+  // sans donnée sur l'une des deux périodes est exclu du calcul (jamais
+  // traité comme 0, qui gonflerait artificiellement sa "contribution").
+  // `contributionPct` : part du delta total expliquée par ce carburant —
+  // peut dépasser 100 % ou être négative si un carburant compense un
+  // autre (ex. GO −1850 L, SP95 +310 L : SP95 a une contribution négative
+  // au recul, il l'atténue).
+  function decomposerEvolution(ventesActuel, ventesReference) {
+    if (!ventesActuel || !ventesReference) return null;
+    const parCarburant = {};
+    let deltaTotal = 0;
+    let auMoinsUn = false;
+    CLES_CARBURANT.forEach(c => {
+      if (ventesActuel[c] == null || ventesReference[c] == null) { parCarburant[c] = null; return; }
+      const delta = ventesActuel[c] - ventesReference[c];
+      parCarburant[c] = { delta, actuel: ventesActuel[c], reference: ventesReference[c] };
+      deltaTotal += delta;
+      auMoinsUn = true;
+    });
+    if (!auMoinsUn) return null;
+    CLES_CARBURANT.forEach(c => {
+      if (parCarburant[c]) parCarburant[c].contributionPct = deltaTotal !== 0 ? parCarburant[c].delta / deltaTotal : null;
+    });
+    return { parCarburant, deltaTotal };
+  }
+
+  // Le "moteur de progression" : le carburant dont le delta va dans le
+  // même sens que le delta total et y contribue le plus — DIFFÉRENT du
+  // produit moteur (le plus gros volume n'est pas forcément celui qui
+  // explique le mouvement). Retourne null si aucune décomposition
+  // possible ou si aucun carburant ne va dans le sens du mouvement total.
+  function identifierMoteurEvolution(decomposition) {
+    if (!decomposition || !decomposition.deltaTotal) return null;
+    const sensTotal = decomposition.deltaTotal > 0;
+    let meilleur = null;
+    CLES_CARBURANT.forEach(c => {
+      const d = decomposition.parCarburant[c];
+      if (!d) return;
+      const memeSens = sensTotal ? d.delta > 0 : d.delta < 0;
+      if (!memeSens) return;
+      if (!meilleur || Math.abs(d.delta) > Math.abs(decomposition.parCarburant[meilleur].delta)) meilleur = c;
+    });
+    return meilleur ? { cle: meilleur, ...decomposition.parCarburant[meilleur] } : null;
+  }
+
   global.NexusCarburantMoteur = {
-    SEUIL_ECART_PCT_SURVEILLER, SEUIL_ECART_PCT_CORRIGER,
+    SEUIL_ECART_PCT_SURVEILLER, SEUIL_ECART_PCT_CORRIGER, CLES_CARBURANT,
     stockReelGoTotal, sommerVentesPeriode,
     calculerTheorique, calculerEcart, calculerEcartRatio, statutCarburant,
     calculerCarburant,
+    calculerMixCarburant, calculerEvolutionVolume, identifierProduitMoteur,
+    decomposerEvolution, identifierMoteurEvolution,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

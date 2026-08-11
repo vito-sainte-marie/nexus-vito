@@ -40,6 +40,7 @@
     'NEXUS-Rapport-v1.html': { label: 'Rapport NEXUS', emoji: '📑', desc: 'CA, marge et décisions sur une période choisie' },
     'NEXUS-Rayon-v1.html': { label: 'Rayon', emoji: '🗂️', desc: 'CA, marge, top ventes par catégorie' },
     'NEXUS-Carburants-v1.html': { label: 'Carburants', emoji: '⛽', desc: "Jaugeage à l'ouverture, théorique et écart" },
+    'NEXUS-Carburants-Pilotage-v1.html': { label: 'Carburants Pilotage', emoji: '📈', desc: 'Volumes, mix et moteurs de performance' },
     'NEXUS-FDJ-Analyse-v1.html': { label: 'FDJ Pilotage', emoji: '📊', desc: 'Tendances, jeux, équipe, stock et écarts', forfait: 'professional' },
     'NEXUS-Scanner-Stock-v1.html': { label: 'Scanner Stock', emoji: '📦', desc: "Où vous perdez de l'argent, quoi recompter" },
     'NEXUS-Missions-v1.html': { label: 'Missions', emoji: '✅', desc: '55 procédures · checklist interactive' },
