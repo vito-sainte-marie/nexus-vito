@@ -331,17 +331,6 @@
   .entreprise-footer{display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin-top:16px; padding-top:14px; border-top:1px solid var(--hairline); font-size:12.5px; color:var(--text-mid);}
   .entreprise-brief-lien{font-family:var(--mono); font-size:12px; font-weight:700; color:var(--cyan); text-decoration:none;}
 
-  /* "À retenir aujourd'hui" (26/07/2026) — trois cartes compactes, même
-     motif visuel que .reveles-grid/.revele-card dans NEXUS Tempo (Jour
-     moteur / En progression / À renforcer), pour garder une signature
-     visuelle cohérente entre les deux pages plutôt qu'inventer un
-     nouveau style de carte. */
-  .retenir-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:8px; padding:0 20px;}
-  .retenir-card{background:var(--panel); border:1px solid var(--hairline); border-radius:14px; padding:13px 11px; text-align:center; display:block; text-decoration:none; color:inherit;}
-  .retenir-tag{font-family:var(--mono); font-size:8.5px; letter-spacing:0.05em; text-transform:uppercase; margin-bottom:8px;}
-  .retenir-titre{font-size:13px; font-weight:700; line-height:1.3;}
-  .retenir-detail{font-family:var(--mono); font-size:9.5px; color:var(--text-mid); margin-top:6px; line-height:1.4;}
-  .retenir-vide{font-size:10px; color:var(--text-dim); font-style:italic; line-height:1.4; margin-top:6px;}
 
   .priorite-item{display:flex; gap:10px; padding:11px 0; border-top:1px solid var(--hairline); align-items:flex-start;}
   .priorite-item:first-of-type{border-top:none;}
@@ -392,12 +381,6 @@
   .conseiller-footer{display:flex; justify-content:space-between; align-items:center; margin-top:12px; padding-top:12px; border-top:1px solid var(--hairline); font-family:var(--mono); font-size:11px; color:var(--text-mid);}
   .conseiller-footer b{color:var(--green);}
 
-  .kpi-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px; padding:0 20px;}
-  .kpi-chip{background:var(--panel); border:1px solid var(--hairline); border-radius:12px; padding:13px 14px; text-decoration:none; color:var(--text); display:block;}
-  .kpi-chip-label{font-family:var(--mono); font-size:9px; letter-spacing:0.06em; text-transform:uppercase; color:var(--text-dim);}
-  .kpi-chip-value{font-family:var(--mono); font-size:18px; font-weight:700; margin-top:5px;}
-  .kpi-chip-sub{font-size:10.5px; color:var(--text-mid); margin-top:3px;}
-
   .outils-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px; padding:0 20px;}
   .outil-card{background:var(--panel); border:1px solid var(--hairline); border-radius:14px; padding:16px; text-decoration:none; color:var(--text); display:block;}
   .outil-icon{width:36px; height:36px; border-radius:10px; background:var(--panel-raised); display:flex; align-items:center; justify-content:center; margin-bottom:10px; overflow:hidden;}
@@ -426,7 +409,6 @@
      refonte "Porte NEXUS" V2 (10/08/2026) — une seule carte pleine largeur
      (.entreprise-card) remplace les deux colonnes, plus besoin de grille
      dédiée ici en vue bureau. */
-  body.nexus-desktop .kpi-grid{grid-template-columns:repeat(4,1fr);}
   body.nexus-desktop .outils-grid{grid-template-columns:repeat(4,1fr);}
 </style>
 </head>
@@ -540,11 +522,20 @@
       </a>
     </div>
 
-    <div class="section-tag">À retenir aujourd'hui</div>
-    <div class="retenir-grid" id="retenirGrid"></div>
-
-    <div class="section-tag">Aujourd'hui</div>
-    <div class="kpi-grid" id="kpiGrid"></div>
+    <!-- "À retenir aujourd'hui" et "Aujourd'hui" retirés le 10/08/2026
+         (demande de Frédéric, "simplifie l'écran") — la carte "Votre
+         entreprise aujourd'hui" ci-dessus et "Vos raccourcis" ci-dessous
+         couvrent déjà l'essentiel sans dupliquer l'information (Journal
+         NEXUS et Contrôle FDJ/Verify restent l'endroit pour le détail).
+         Suppression complète, pas seulement visuelle (même discipline que
+         v2.27) : renderARetenir, renderKpiGrid et leurs helpers
+         (detailDecisionsSemaine, detailResultatsEquipe) sont supprimés, de
+         même que les chargeurs devenus orphelins (chargerDecisionsSemaine
+         + debutSemaineISO, chargerMissionsRestantesHome,
+         chargerAlertesInventaireHome, chargerMissionsAValiderHome) et
+         leurs entrées dans le Promise.all de initPosteManager.
+         compterRappelsUrgents() est conservée : encore appelée pour le
+         badge "Urgent" du menu (voir ligne ~2385). -->
 
     <div class="section-tag">Vos raccourcis</div>
     <div class="outils-grid" id="outilsGrid"></div>
@@ -1165,28 +1156,6 @@
     return new Set((data || []).map(d => d.candidate_id));
   }
 
-  // Cumul hebdomadaire plutôt que journalier (26/07/2026, demande de
-  // Frédéric) : "17 décisions validées" sans période ni impact n'avait pas
-  // de sens de lecture — un compteur du jour retombe presque toujours à 0
-  // ou 1 en début de matinée, ce qui semble être un mauvais résultat alors
-  // que la donnée est simplement insuffisante à cette heure. La semaine
-  // calendaire (lundi → aujourd'hui) donne un cumul plus stable et un gain
-  // cumulé plus représentatif du travail réellement mesuré.
-  function debutSemaineISO(d) {
-    const jour = d.getDay();
-    const diffLundi = jour === 0 ? -6 : 1 - jour;
-    const lundi = new Date(d);
-    lundi.setDate(d.getDate() + diffLundi);
-    return lundi.toISOString().slice(0, 10);
-  }
-
-  async function chargerDecisionsSemaine(siteId) {
-    const debut = debutSemaineISO(new Date());
-    const { data, error } = await nexusClient.from('journal_decisions').select('impact_eur').eq('site', siteId).gte('date', debut);
-    if (error) { console.error('Chargement décisions de la semaine:', error); return { nb: 0, gain: 0 }; }
-    return { nb: (data || []).length, gain: (data || []).reduce((s, d) => s + (d.impact_eur || 0), 0) };
-  }
-
   // Mêmes formules que NEXUS-Radar-Manager-v1.html (Équipe via retards de
   // pointage, Développement via points de missions) — reproduites ici pour
   // que le domaine "Équipe" de l'État global et celui du Radar affichent
@@ -1246,61 +1215,6 @@
     if (error) { console.error('Chargement audits_caisse (accueil):', error); return null; }
     const quartsFaits = new Set((data || []).map(a => a.quart));
     return Math.max(0, 2 - quartsFaits.size);
-  }
-
-  // Missions restantes aujourd'hui (26/07/2026, demande de Frédéric) —
-  // remplace "X missions actives au catalogue" (taille du catalogue, pas
-  // le travail du jour) par une vraie mesure du jour : missions
-  // récurrentes du catalogue moins celles déjà complétées aujourd'hui
-  // (comptage par mission_id distinct dans mission_completions). C'est une
-  // approximation volontairement simple — elle ne reproduit pas la
-  // logique fine par rôle/fenêtre horaire de NEXUS-Missions-v1.html — mais
-  // elle donne une mesure honnête du travail restant plutôt que la taille
-  // du catalogue.
-  async function chargerMissionsRestantesHome(siteId) {
-    const aujourdhui = new Date().toISOString().slice(0, 10);
-    const [catalogueRes, completionsRes] = await Promise.all([
-      nexusClient.from('mission_catalog').select('mission_id', { count: 'exact', head: true })
-        .eq('actif', true).eq('ponctuelle', false).eq('site_id', siteId),
-      nexusClient.from('mission_completions').select('mission_id').eq('site_id', siteId).eq('date', aujourdhui),
-    ]);
-    if (catalogueRes.error) { console.error('Chargement mission_catalog (accueil):', catalogueRes.error); return { restantes: null }; }
-    if (completionsRes.error) console.error('Chargement mission_completions du jour (accueil):', completionsRes.error);
-    const total = catalogueRes.count != null ? catalogueRes.count : null;
-    if (total == null) return { restantes: null };
-    const faitesAujourdhui = new Set((completionsRes.data || []).map(r => r.mission_id)).size;
-    return { restantes: Math.max(0, total - faitesAujourdhui) };
-  }
-
-  // Contrôle inventaire (02/08/2026, demande de Frédéric) : nombre réel
-  // d'alertes inventaire_alertes encore ouvertes (écarts non résolus),
-  // tous quarts confondus — même donnée que la carte "Alertes ouvertes" de
-  // NEXUS-Inventaire-Manager-v1.html, jamais un chiffre inventé.
-  // Contrôle inventaire est passé en Professional le 05/08/2026 : un site
-  // Essential ne doit pas voir apparaître une case d'accueil qui pointe
-  // vers un écran qui le renverra aussitôt — on ne charge donc même pas
-  // le chiffre pour ces sites.
-  async function chargerAlertesInventaireHome(siteId) {
-    const forfait = await NexusForfait.chargerForfait(siteId);
-    if (forfait !== null && !NexusForfait.estProfessional(forfait)) return null;
-    const { count, error } = await nexusClient.from('inventaire_alertes')
-      .select('id', { count: 'exact', head: true }).eq('site', siteId).eq('statut', 'ouverte');
-    if (error) { console.error('Chargement alertes inventaire (accueil):', error); return null; }
-    return count;
-  }
-
-  // Notification "missions à valider" (03/08/2026, demande de Frédéric —
-  // "une notification dans NEXUS" plutôt qu'un canal externe payant). Même
-  // logique que les autres chips conditionnels : n'apparaît que s'il y a
-  // réellement une mission à preuve photo en attente de validation manager
-  // (voir statut_validation, NEXUS-Resultats-Equipe-v1.html). Le manager la
-  // voit dès qu'il ouvre son poste de pilotage, sans avoir à aller chercher
-  // l'information dans Résultats Équipe.
-  async function chargerMissionsAValiderHome(siteId) {
-    const { count, error } = await nexusClient.from('mission_completions')
-      .select('id', { count: 'exact', head: true }).eq('site_id', siteId).eq('statut_validation', 'en_attente');
-    if (error) { console.error('Chargement missions à valider (accueil):', error); return null; }
-    return count;
   }
 
   // ------------------------------------------------------------
@@ -1541,51 +1455,6 @@
     };
   }
 
-  // "À retenir aujourd'hui" (26/07/2026 ; renommé le 27/07/2026, demande de
-  // Frédéric — "le cerveau comprend immédiatement") — remplace les anciens
-  // bandeaux .tempo-banner/.tempo-banner-fort par trois cartes compactes
-  // (même motif visuel que .reveles-grid dans NEXUS Tempo). Sources
-  // inchangées, seuls le nom, l'icône et la couleur changent : Opportunité
-  // 🟢 (ex-Performance, jour moteur Tempo), Attention 🟠 (ex-Vigilance, jour
-  // à renforcer Tempo), Action immédiate 🔵 (ex-Exécution, contrôles Verify
-  // en attente). Chaque carte affiche honnêtement son état vide plutôt que
-  // de masquer la carte, pour garder la promesse "3 informations, toujours
-  // au même endroit". Les trois cartes restent cliquables — Opportunité et
-  // Attention renvoient vers NEXUS Tempo (l'analyse complète du jour
-  // concerné), Action immédiate vers NEXUS Verify (où se fait le contrôle
-  // caisse), même en état vide pour rester cohérent (on peut toujours aller
-  // consulter).
-  function renderARetenir({ jourMoteur, jourARenforcer, controlesVerify }) {
-    function carte(href, icone, tag, couleur, titre, detail) {
-      return `<a class="retenir-card" href="${href}">
-        <div class="retenir-tag" style="color:${couleur};">${icone} ${tag}</div>
-        <div class="retenir-titre">${titre}</div>
-        ${detail ? `<div class="retenir-detail">${detail}</div>` : ''}
-      </a>`;
-    }
-    const majuscule = s => s.charAt(0).toUpperCase() + s.slice(1);
-
-    const opportunite = jourMoteur
-      ? carte('NEXUS-Tempo-v1.html', '🟢', 'OPPORTUNITÉ', 'var(--green)', majuscule(jourMoteur.nom), 'Jour créateur de valeur')
-      : `<a class="retenir-card" href="NEXUS-Tempo-v1.html"><div class="retenir-tag" style="color:var(--green);">🟢 OPPORTUNITÉ</div><div class="retenir-vide">Historique encore insuffisant.</div></a>`;
-
-    let attention;
-    if (jourARenforcer) {
-      const pctBoutique = jourARenforcer.evolutionBoutique !== null ? `${jourARenforcer.evolutionBoutique >= 0 ? '+' : ''}${(jourARenforcer.evolutionBoutique * 100).toFixed(0)} % boutique` : null;
-      const pctPiste = jourARenforcer.evolutionPiste !== null ? `${jourARenforcer.evolutionPiste >= 0 ? '+' : ''}${(jourARenforcer.evolutionPiste * 100).toFixed(0)} % piste` : null;
-      const detail = [pctPiste, pctBoutique].filter(Boolean).join(' · ');
-      attention = carte('NEXUS-Tempo-v1.html', '🟠', 'ATTENTION', 'var(--amber)', majuscule(jourARenforcer.nom), detail || "Principale opportunité d'amélioration");
-    } else {
-      attention = `<a class="retenir-card" href="NEXUS-Tempo-v1.html"><div class="retenir-tag" style="color:var(--amber);">🟠 ATTENTION</div><div class="retenir-vide">Aucun point de vigilance identifié.</div></a>`;
-    }
-
-    const actionImmediate = (controlesVerify != null && controlesVerify > 0)
-      ? carte('NEXUS-Verify-v1.html', '🔵', 'ACTION IMMÉDIATE', 'var(--cyan)', `${controlesVerify} contrôle${controlesVerify > 1 ? 's' : ''} caisse`, 'à effectuer')
-      : `<a class="retenir-card" href="NEXUS-Verify-v1.html"><div class="retenir-tag" style="color:var(--cyan);">🔵 ACTION IMMÉDIATE</div><div class="retenir-titre" style="color:var(--green);">À jour</div><div class="retenir-detail">Aucun contrôle en attente</div></a>`;
-
-    document.getElementById('retenirGrid').innerHTML = opportunite + attention + actionImmediate;
-  }
-
   let SITE_HOME = 'vito-sainte-marie';
   let EMPLOYEE_HOME_ID = null;
 
@@ -1677,105 +1546,6 @@
     decisionsEl.textContent = nbDecisions > 0
       ? `${nbDecisions} décision${nbDecisions > 1 ? 's' : ''} mérite${nbDecisions > 1 ? 'nt' : ''} votre attention`
       : 'Rien ne nécessite votre attention immédiate aujourd’hui';
-  }
-
-  // "Fierté de NEXUS" (24/07/2026, demande de Frédéric) : sous la carte
-  // "Décisions validées", on affichait le gain du jour en €. Remplacé par
-  // une phrase qualitative — le nombre de décisions reste réel et affiché
-  // en grand (kpi-chip-value), seule la sous-ligne change de registre.
-  // Mise à jour du 26/07/2026 (demande de Frédéric, suite au tableau de
-  // critique) : "17 décisions validées" devient un cumul hebdomadaire avec
-  // impact chiffré ("cette semaine · 286 € mesurés") — le ton reste factuel
-  // plutôt qu'enthousiaste (retrait des emojis de "fierté"), cohérent avec
-  // la reformulation des autres indicateurs de cette même passe.
-  function detailDecisionsSemaine(nb, gain) {
-    if (nb === 0) return 'Aucune décision validée cette semaine';
-    const gainTxt = gain > 0 ? ` · ${Math.round(gain).toLocaleString('fr-FR')} € mesurés` : '';
-    return `cette semaine${gainTxt}`;
-  }
-
-  // Ponctualité avec contexte (26/07/2026, demande de Frédéric) : "0 % de
-  // ponctualité mesurée" sans détail ressemblait à une mauvaise performance
-  // alors que les données étaient probablement insuffisantes — on affiche
-  // désormais le nombre de retards réellement observés, jamais un simple
-  // pourcentage nu.
-  // Chip "Résultats Équipe" (30/07/2026, demande de Frédéric : remplace le
-  // chip "Équipe" qui pointait vers le Radar du Manager) — Résultats
-  // Équipe et Radar du Manager n'ont pas la même fonction : le Radar donne
-  // une photo agrégée de 8 domaines (dont un score de ponctualité global),
-  // Résultats Équipe donne le détail employé par employé (missions,
-  // points, historique des retards) et signale ceux qui méritent
-  // l'attention du manager (seuil : 3 retards ou plus, même règle que
-  // dans NEXUS-Resultats-Equipe-v1.html). Le chip doit donc afficher CE
-  // chiffre-là, pas le score de ponctualité du Radar sous un autre nom.
-  function detailResultatsEquipe(employesASurveiller) {
-    if (employesASurveiller == null) return 'Pas encore assez de données';
-    if (employesASurveiller === 0) return 'Aucun employé à surveiller';
-    return `à surveiller (3+ retards)`;
-  }
-
-  // Rappels (26/07/2026, demande de Frédéric) : "0 rappel" occupait une
-  // case entière pour dire qu'il n'y avait rien à signaler — un KPI qui
-  // affiche "rien d'urgent" n'aide jamais une lecture en 10 secondes. Le
-  // chip n'apparaît désormais que s'il y a réellement un rappel à traiter ;
-  // les 3 autres chips prennent alors toute la grille.
-  function renderKpiGrid({ missionsRestantes, nbRappels, decisionsSemaine, employesASurveiller, alertesInventaire, missionsAValider }) {
-    const chips = [];
-    chips.push(`
-      <a class="kpi-chip" href="NEXUS-Missions-v1.html">
-        <div class="kpi-chip-label">Missions</div>
-        <div class="kpi-chip-value" style="color:${missionsRestantes === 0 ? 'var(--green)' : 'var(--text)'};">${missionsRestantes != null ? missionsRestantes : '—'}</div>
-        <div class="kpi-chip-sub">${missionsRestantes == null ? 'Calcul en cours' : (missionsRestantes === 0 ? 'toutes faites aujourd’hui' : 'restantes aujourd’hui')}</div>
-      </a>
-    `);
-    if (nbRappels > 0) {
-      chips.push(`
-        <a class="kpi-chip" href="NEXUS-Parametres-Rappels-v1.html">
-          <div class="kpi-chip-label">Rappels</div>
-          <div class="kpi-chip-value" style="color:var(--red);">${nbRappels}</div>
-          <div class="kpi-chip-sub">à traiter sous 24h</div>
-        </a>
-      `);
-    }
-    // Contrôle inventaire (02/08/2026, demande de Frédéric) : même logique
-    // que Rappels — n'occupe une case que s'il y a réellement un écart à
-    // traiter.
-    if (alertesInventaire > 0) {
-      chips.push(`
-        <a class="kpi-chip" href="NEXUS-Inventaire-Manager-v1.html">
-          <div class="kpi-chip-label">Contrôle inventaire</div>
-          <div class="kpi-chip-value" style="color:var(--amber);">${alertesInventaire}</div>
-          <div class="kpi-chip-sub">produit(s) nécessitant votre attention</div>
-        </a>
-      `);
-    }
-    // Missions à valider (03/08/2026, demande de Frédéric) : n'occupe une
-    // case que s'il y a réellement une mission à preuve photo en attente —
-    // même règle que Rappels et Contrôle inventaire.
-    if (missionsAValider > 0) {
-      chips.push(`
-        <a class="kpi-chip" href="NEXUS-Resultats-Equipe-v1.html">
-          <div class="kpi-chip-label">Missions à valider</div>
-          <div class="kpi-chip-value" style="color:var(--amber);">${missionsAValider}</div>
-          <div class="kpi-chip-sub">preuve photo en attente</div>
-        </a>
-      `);
-    }
-    chips.push(`
-      <a class="kpi-chip" href="NEXUS-Journal-v1.html">
-        <div class="kpi-chip-label">Décisions validées</div>
-        <div class="kpi-chip-value" style="color:var(--green);">${decisionsSemaine.nb}</div>
-        <div class="kpi-chip-sub">${detailDecisionsSemaine(decisionsSemaine.nb, decisionsSemaine.gain)}</div>
-      </a>
-    `);
-    chips.push(`
-      <a class="kpi-chip" href="NEXUS-Resultats-Equipe-v1.html">
-        <div class="kpi-chip-label">Résultats Équipe</div>
-        <div class="kpi-chip-value" style="color:${employesASurveiller ? 'var(--amber)' : 'var(--text)'};">${employesASurveiller != null ? employesASurveiller : '—'}</div>
-        <div class="kpi-chip-sub">${detailResultatsEquipe(employesASurveiller)}</div>
-      </a>
-    `);
-    document.getElementById('kpiGrid').innerHTML = chips.join('');
   }
 
   // Carte Tempo (25/07/2026, demande de Frédéric : "dans vos outils
@@ -1895,39 +1665,26 @@
     const [
       { candidats, facteurs },
       valideesSite,
-      decisionsSemaine,
       domainesRadar,
       controlesVerify,
-      missionsRestantesRes,
       margePlusResultat,
       constatTempo,
       messagesAdvisor,
-      alertesInventaire,
-      missionsAValider,
       raccourcisSite,
     ] = await Promise.all([
       calculerCandidatsHome(SITE_HOME),
       chargerValideesHome(SITE_HOME),
-      chargerDecisionsSemaine(SITE_HOME),
       chargerDomainesRadarHome(),
       chargerControlesVerifyHome(SITE_HOME),
-      chargerMissionsRestantesHome(SITE_HOME),
       chargerMargePlusHome(SITE_HOME),
       chargerConstatTempoHome(SITE_HOME),
       chargerMessagesAdvisorHome(SITE_HOME),
-      chargerAlertesInventaireHome(SITE_HOME),
-      chargerMissionsAValiderHome(SITE_HOME),
       chargerRaccourcisHome(SITE_HOME),
     ]);
     afficherHeureRecalcul();
 
     const candidatsDisponibles = candidats.filter(c => !valideesSite.has(c.candidate_id));
 
-    renderARetenir({
-      jourMoteur: constatTempo.jourMoteur,
-      jourARenforcer: constatTempo.jourARenforcer,
-      controlesVerify,
-    });
     // Conseiller cross-moteurs (26/07/2026, demande de Frédéric) : "et si
     // le CIN récupérait toutes les décisions prises par les différents
     // moteurs et faisait un tri... trois déductions prioritaires sur
@@ -1955,14 +1712,6 @@
       domainesRadar,
       jourARenforcer: constatTempo.jourARenforcer,
       nbDecisions: candidatsConseiller.length,
-    });
-    renderKpiGrid({
-      missionsRestantes: missionsRestantesRes.restantes,
-      nbRappels: compterRappelsUrgents(),
-      decisionsSemaine,
-      employesASurveiller: domainesRadar.employesASurveiller,
-      alertesInventaire,
-      missionsAValider,
     });
 
     // Priorités / à surveiller / meilleure opportunité (26/07/2026, demande
