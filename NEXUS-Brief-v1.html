@@ -269,6 +269,8 @@
 <script src="nexus-boussole-moteur.js"></script>
 <script src="nexus-carburant-moteur.js"></script>
 <script src="nexus-carburant-donnees.js"></script>
+<script src="nexus-secteurs-catalogue.js"></script>
+<script src="nexus-secteurs-moteur.js"></script>
 <script src="nexus-conseiller.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
 <script src="nexus-pdf-moteur.js"></script>
@@ -326,6 +328,12 @@
   let employeeCourantId = null;
   let VALIDEES_SITE = new Set();
   let JOURNAL_DECISIONS = [];
+  // Secteurs configurables (11/08/2026, audit stratégique Brief/Rapport de
+  // Direction) : type_commerce/secteurs viennent de la table sites
+  // (migration ajouter_secteurs_configurables_sites) — repli sur le preset
+  // station-service tant que la ligne n'est pas encore chargée, jamais un
+  // écran vide au premier rendu.
+  let SITE_SECTEURS_CONFIG = { type_commerce: 'station-service', secteurs: null };
   let STATION_CONFIG = { manager_prenom: '', manager_role: '', station_nom: 'Ma station', logo_url: '' };
   let BRIEF = null;
 
@@ -590,8 +598,8 @@
       nexusClient.from('fdj_stock_movements').select('type_mouvement, quantite, game_id, location_source_id, location_destination_id, created_at').eq('site', SITE_ACTUEL),
       chargerDerniereReferenceFdj(),
     ]);
-    if (e1 || e2 || e3 || e4 || e5) { [e1, e2, e3, e4, e5].forEach(e => { if (e) console.error('Chargement données FDJ (Brief):', e); }); return []; }
-    if (!jeuxData || !jeuxData.length) return [];
+    if (e1 || e2 || e3 || e4 || e5) { [e1, e2, e3, e4, e5].forEach(e => { if (e) console.error('Chargement données FDJ (Brief):', e); }); return { candidats: [], resume: null }; }
+    if (!jeuxData || !jeuxData.length) return { candidats: [], resume: null };
 
     const champs = ['ca_grattage', 'nb_ecarts_non_nuls', 'nb_quarts_controles'];
     const sommer = lignes => champs.reduce((acc, c) => { acc[c] = (lignes || []).reduce((s, l) => s + (l[c] != null ? Number(l[c]) : 0), 0); return acc; }, {});
@@ -616,7 +624,20 @@
       labelPeriode: '7 derniers jours', labelComp: '7 jours précédents',
       periodeCle: iso(debutActuelle),
     });
-    return candidatsBrut.map(NexusConseiller.normaliserFdj);
+    // resume (11/08/2026, secteur FDJ du Brief V3) : ces mêmes nombres
+    // (actuel.ca_grattage, evolCa, jeuMoteur, nb_ecarts_non_nuls) servaient
+    // déjà à calculer candidatsBrut ci-dessus mais n'étaient jusqu'ici pas
+    // retournés à l'appelant — ajout additif pour que
+    // NexusSecteursMoteur.construireSecteurs (Article 11, aucun second
+    // calcul) puisse construire le secteur FDJ du Bloc B sans réinterroger
+    // Supabase une deuxième fois pour les mêmes lignes.
+    return {
+      candidats: candidatsBrut.map(NexusConseiller.normaliserFdj),
+      resume: {
+        caGrattage: actuel.ca_grattage, evolutionCa: evolCa, jeuMoteur,
+        nbEcarts: actuel.nb_ecarts_non_nuls, nbQuartsControles: actuel.nb_quarts_controles,
+      },
+    };
   }
 
   // Paramétrage FDJ du site (10/08/2026, audit "Paramétrage autonome &
@@ -711,18 +732,14 @@
   }
 
   // ------------------------------------------------------------
-  // Statuts par axe + scores 0-100 de la Boussole — définis une seule fois
-  // dans nexus-boussole-moteur.js (Article 11, "une seule vérité") et
-  // partagés avec NEXUS-App-v1.html. Avant le 10/08/2026, ces fonctions
-  // étaient dupliquées ici avec un commentaire promettant qu'elles restaient
-  // "identiques" aux copies d'APP — cette extraction rend la promesse
-  // impossible à casser plutôt que de compter sur la discipline humaine.
+  // Statuts par secteur + scores 0-100 — définis une seule fois dans
+  // nexus-boussole-moteur.js (Article 11, "une seule vérité"), consommés
+  // depuis le 11/08/2026 par NexusSecteursMoteur (voir construireSecteurs)
+  // plutôt que directement ici : ce fichier ne garde que ce qui sert
+  // encore au rendu (couleurAxe pour le point coloré du radar,
+  // genererBoussoleSVG pour le radar lui-même).
   // ------------------------------------------------------------
-  const {
-    statutCommerce, statutValeur, statutEquipe, statutRisques,
-    scoreDepuisEvolution, scoreDepuisMarge, scoreOperations, scoreRisques,
-    couleurAxe, genererBoussoleSVG,
-  } = NexusBoussoleMoteur;
+  const { couleurAxe, genererBoussoleSVG } = NexusBoussoleMoteur;
 
   // ------------------------------------------------------------
   // Assemblage complet du Brief — une seule fonction qui appelle tous les
@@ -738,11 +755,13 @@
     const candidatsProduitsBrut = NexusConseiller.calculerCandidatsProduits(rowsBrut);
     const produitsStrategiques = paire ? NexusConseiller.analyserProduitsStrategiques(rowsPaireActuelle, rowsPairePrecedente) : null;
 
-    const [margePlusResultat, constatTempo, messagesAdvisor, candidatsCaisseObj, candidatsStock, candidatsRappels, candidatsFdj, candidatsCoach, domaineEquipe, alertesInvOuvertes, controlesVerifyRestants, missionsRestantes, carburants] = await Promise.all([
+    const [margePlusResultat, constatTempo, messagesAdvisor, candidatsCaisseObj, candidatsStock, candidatsRappels, candidatsFdjObj, candidatsCoach, domaineEquipe, alertesInvOuvertes, controlesVerifyRestants, missionsRestantes, carburants] = await Promise.all([
       chargerMargePlus(rowsBrut), chargerConstatTempo(), chargerMessagesAdvisor(),
       chargerCandidatsCaisse(), chargerCandidatsStock(), chargerCandidatsRappels(), chargerCandidatsFdj(), chargerCandidatsCoachEquipe(), chargerDomaineEquipe(),
       chargerAlertesInventaireOuvertes(), chargerControlesVerifyRestants(), chargerMissionsRestantes(), chargerCarburantsBrief(),
     ]);
+    const candidatsFdj = candidatsFdjObj.candidats;
+    const fdjResume = candidatsFdjObj.resume;
 
     // Succès à féliciter — même détection que MEILLEUR_SUCCES du Cockpit
     // (plus forte progression, base ≥ 50 € pour ne pas célébrer un
@@ -760,96 +779,89 @@
       });
     }
 
-    const statutCommerceVal = statutCommerce(facteurs);
-    const statutValeurVal = statutValeur(facteurs, margePlusResultat);
-    const statutOperationsVal = constatTempo.statutOperations;
-    const statutEquipeVal = statutEquipe(domaineEquipe.equipeScore, domaineEquipe.totalPointages);
-    const risquesR2 = candidatsProduitsBrut.filter(c => c.rule_id === 'R2-BAISSE');
-    const pertesR2Total = risquesR2.reduce((s, c) => s + (c.impact_eur || 0), 0);
-    const risqueStockTotal = candidatsStock.reduce((s, c) => s + (c.impact_eur || 0), 0);
     const nbCritiquesCaisse = candidatsCaisseObj.raw.filter(c => c.statut === 'critique').length;
-    const scoreRisquesVal = scoreRisques({ nbCritiquesCaisse, alertesInventaireOuvertes: alertesInvOuvertes, risqueStockTotal, pertesR2Total });
-    const statutRisquesVal = statutRisques(scoreRisquesVal);
+    const risqueStockTotal = candidatsStock.reduce((s, c) => s + (c.impact_eur || 0), 0);
 
-    // type : 'reel' si l'axe vient d'un seul facteur mesuré directement
-    // (Commerce/Marge/Opérations/Équipe), 'derive' si l'axe interprète
-    // plusieurs signaux combinés par une pondération encore provisoire
-    // (Risques — voir scoreRisques) — distinction demandée par Frédéric
-    // (02/08/2026 soir) pour ne jamais faire passer une interprétation
-    // pour une mesure directe. moteurs : liste des moteurs du Conseiller
-    // dont une décision peut légitimement être rattachée à cet axe dans
-    // la Boussole (Décision liée, voir renderBoussole).
-    const AXES = [
-      { nom: 'Commerce', icone: '🛒', type: 'reel', moteurs: ['produits'], valeur: scoreDepuisEvolution(facteurs ? facteurs.evolutionReelle : null), statut: statutCommerceVal, cible: 'NEXUS-Produits-v1.html', detail: facteurs && facteurs.evolutionReelle != null ? `Évolution du CA : ${facteurs.evolutionReelle >= 0 ? '+' : ''}${(facteurs.evolutionReelle * 100).toFixed(1)} % vs période précédente comparable.` : "Pas encore de paire de périodes comparables." },
-      { nom: 'Marge', icone: '💰', type: 'reel', moteurs: ['marge'], valeur: scoreDepuisMarge(facteurs ? facteurs.margeReelle : null), statut: statutValeurVal, cible: 'NEXUS-Scanner-v1.html', detail: facteurs && facteurs.margeReelle != null ? `Marge réelle : ${(facteurs.margeReelle * 100).toFixed(1)} %${margePlusResultat && margePlusResultat.nbEcarts ? ` · ${margePlusResultat.nbEcarts} écart${margePlusResultat.nbEcarts > 1 ? 's' : ''} de marge actif${margePlusResultat.nbEcarts > 1 ? 's' : ''}` : ''}.` : "Marge non calculable sur les données actuelles." },
-      { nom: 'Opérations', icone: '⚙️', type: 'reel', moteurs: ['caisse'], valeur: scoreOperations(constatTempo.detailOperations, constatTempo.totalJours), statut: statutOperationsVal, cible: 'NEXUS-Verify-v1.html', detail: constatTempo.totalJours ? `Écart de caisse moyen : ${Math.round(constatTempo.detailOperations)} €/jour${controlesVerifyRestants ? ` · ${controlesVerifyRestants} contrôle${controlesVerifyRestants > 1 ? 's' : ''} caisse en attente aujourd'hui` : ''}.` : "Pas encore assez d'audits de caisse enregistrés." },
-      { nom: 'Équipe', icone: '👥', type: 'reel', moteurs: [], valeur: domaineEquipe.equipeScore, statut: statutEquipeVal, cible: 'NEXUS-Resultats-Equipe-v1.html', detail: domaineEquipe.totalPointages != null && domaineEquipe.totalPointages >= SEUIL_MIN_POINTAGES_EQUIPE ? `Ponctualité mesurée sur ${domaineEquipe.totalPointages} pointages${domaineEquipe.employesASurveiller ? ` · ${domaineEquipe.employesASurveiller} employé${domaineEquipe.employesASurveiller > 1 ? 's' : ''} à surveiller` : ''}.` : "Pas encore assez de pointages enregistrés." },
-      { nom: 'Risques', icone: '⚠️', type: 'derive', moteurs: ['caisse', 'stock'], valeur: scoreRisquesVal, statut: statutRisquesVal, cible: 'NEXUS-Scanner-Stock-v1.html', detail: `${nbCritiquesCaisse} écart${nbCritiquesCaisse > 1 ? 's' : ''} de caisse critique${nbCritiquesCaisse > 1 ? 's' : ''} · ${alertesInvOuvertes || 0} alerte${(alertesInvOuvertes || 0) > 1 ? 's' : ''} inventaire ouverte${(alertesInvOuvertes || 0) > 1 ? 's' : ''} · ${Math.round(risqueStockTotal).toLocaleString('fr-FR')} € de risque stock estimé.` },
-    ];
+    // Secteurs (Brief V3, 11/08/2026, audit stratégique Brief/Rapport de
+    // Direction) : remplace la Boussole à 5 axes de granularité hétérogène
+    // (Commerce/Marge/Opérations/Équipe + Risques dérivé) par les 6 secteurs
+    // dirigeant recommandés par l'audit (Bloc B, section 4). Le contrat de
+    // chaque secteur (statut/évolution/force/frein/décision liée) est
+    // assemblé par NexusSecteursMoteur — jamais un second calcul ici
+    // (Article 11) : ce fichier ne fait que passer les valeurs déjà connues
+    // (facteurs, margePlusResultat, constatTempo, domaineEquipe, carburants,
+    // fdjResume) au moteur partagé. La liste de secteurs ACTIFS vient de
+    // NexusSecteursCatalogue.secteursActifsSite(SITE_SECTEURS_CONFIG) — pour
+    // Vito comme pour tout site station-service aujourd'hui : les 6 secteurs
+    // historiques, dans le même ordre. L'ancien axe "Risques" (dérivé, non
+    // structurant au sens de l'audit) est retiré en tant qu'axe autonome ;
+    // ses composantes (écarts de caisse critiques, alertes inventaire,
+    // risque stock) vivent maintenant dans le secteur Opérations (risks[],
+    // transversal — exactement la définition donnée par l'audit section 11).
+    const secteursActifs = NexusSecteursCatalogue.secteursActifsSite(SITE_SECTEURS_CONFIG);
+    const secteurs = NexusSecteursMoteur.construireSecteurs(secteursActifs, {
+      carburants, facteurs, margePlusResultat, fdjResume, constatTempo, controlesVerifyRestants,
+      nbCritiquesCaisse, alertesInvOuvertes, risqueStockTotal,
+      domaineEquipe, seuilMinPointages: SEUIL_MIN_POINTAGES_EQUIPE,
+    });
+    // AXES : alias historique conservé pour renderBoussole()/le PDF, qui
+    // lisent `a.nom` (convention Brief) là où le contrat secteur partagé
+    // utilise `label` (convention Annexe A de l'audit, partagée avec
+    // NEXUS-Rapport-v1.html) — un seul mapping, jamais deux champs tenus
+    // manuellement en parallèle.
+    const AXES = secteurs.map(s => ({ ...s, nom: s.label }));
 
     // Indice Boussole explicable (demande de Frédéric, 02/08/2026 soir ;
     // renommé "Indice NEXUS" → "Indice Boussole" le 10/08/2026) : sur cet
     // écran, l'indice N'EST PAS le même calcul que l'Indice Marge de
     // l'accueil/Radar du Manager (nexus-indice.js, marge+évolution CA
-    // uniquement) — il est la moyenne des axes de la Boussole réellement
-    // mesurés aujourd'hui, chacun recentré à 50 (neutre), pour pouvoir se
-    // décomposer honnêtement axe par axe ("Comprendre l'Indice Boussole 62").
-    // Un axe non mesuré est exclu de la moyenne, jamais compté comme 50 par
-    // défaut (Article 5 : jamais un chiffre inventé).
+    // uniquement) — il est la moyenne des secteurs réellement mesurés
+    // aujourd'hui, chacun recentré à 50 (neutre), pour pouvoir se
+    // décomposer honnêtement secteur par secteur. Un secteur non mesuré est
+    // exclu de la moyenne, jamais compté comme 50 par défaut (Article 5).
     const axesMesures = AXES.filter(a => a.valeur != null);
     const scoreGlobal = axesMesures.length ? Math.round(axesMesures.reduce((s, a) => s + a.valeur, 0) / axesMesures.length) : null;
     const indiceExplication = {
-      periodeLabel, nbMesures: axesMesures.length,
+      periodeLabel, nbMesures: axesMesures.length, totalAxes: AXES.length,
       deltas: AXES.map(a => ({ nom: a.nom, icone: a.icone, mesure: a.valeur != null, delta: a.valeur != null ? a.valeur - 50 : null })),
     };
 
-    // Synthèse exécutive — structure imposée par Frédéric (02/08/2026 soir) :
-    // où vous en êtes → ce qui explique la situation → priorité de la
-    // semaine, recalculée à partir des signaux réels (jamais un commentaire
-    // générique). Le 3e temps ("les 3 décisions") et le 4e/5e ("impact
-    // attendu", "niveau de confiance") vivent dans les sections Décisions et
-    // Impact juste en dessous plutôt que dans ce paragraphe, pour ne pas
-    // produire un mur de texte — la synthèse annonce, les sections suivantes
-    // développent.
-    function syntheseExecutive() {
-      const concerns = AXES.filter(a => a.statut === 'À surveiller' || a.statut === 'En repli' || a.statut === 'À corriger').map(a => a.nom.toLowerCase());
-      const debut = statutCommerceVal === 'En progression' ? "Votre activité commerciale progresse"
-        : statutCommerceVal === 'En repli' ? "Votre activité commerciale recule"
-        : statutCommerceVal === 'Stable' ? "Votre activité commerciale reste stable" : null;
-      let phrase1;
-      if (!concerns.length) {
-        phrase1 = debut ? `${debut}, sans point de vigilance identifié aujourd'hui sur les 5 axes suivis par NEXUS.` : "NEXUS n'a pas encore assez de données pour évaluer l'état global de votre commerce.";
-      } else {
-        const liste = concerns.length === 1 ? concerns[0] : concerns.slice(0, -1).join(', ') + ' et ' + concerns[concerns.length - 1];
-        phrase1 = `${debut || "NEXUS analyse encore votre activité"}, mais ${liste} ${concerns.length > 1 ? 'se dégradent' : 'se dégrade'}.`;
-      }
-      // `decisions` est déclaré plus bas dans cette même fonction mais déjà
-      // affecté au moment où syntheseExecutive() est APPELÉE (dans l'objet
-      // retourné en toute fin de construireBrief) — fermeture JS classique,
-      // pas un accès à une variable non initialisée.
-      const priorite = decisions[0];
-      const phrase2 = priorite ? ` Priorité cette semaine : ${priorite.decision.charAt(0).toLowerCase()}${priorite.decision.slice(1)}` : '';
-      return phrase1 + phrase2;
-    }
-
-    // Forces — max 2, seulement des signaux positifs réels (jamais complétées
-    // artificiellement pour "faire un compte rond").
+    // Forces (Bloc D de l'audit, "deux ou trois forces maximum") — fusionne
+    // les succès produits déjà détectés (spécifiques, ex. "Coca-Cola 2L en
+    // forte progression") avec les forces au niveau secteur assemblées par
+    // NexusSecteursMoteur (ex. "CA FDJ en forte progression") : les
+    // premières restent prioritaires (plus précises, niveau dirigeant), les
+    // secondes complètent jusqu'à 3 seulement si nécessaire.
     const forces = [];
     if (meilleurSucces) forces.push({ icone: '📈', titre: `${meilleurSucces.article} en forte progression`, detail: `+${(meilleurSucces.evolution * 100).toFixed(0)} % sur la période, soit environ ${Math.round(meilleurSucces.gain).toLocaleString('fr-FR')} € de gain.`, cible: 'NEXUS-Produits-v1.html' });
     if (produitsStrategiques && produitsStrategiques.margeEnProgression.length) {
       const m = produitsStrategiques.margeEnProgression[0];
       forces.push({ icone: '💰', titre: `Marge en progression sur ${m.article}`, detail: `Marge en hausse de ${(m.evolutionMarge * 100).toFixed(0)} % sur la période.`, cible: 'NEXUS-Scanner-v1.html' });
     }
-    if (forces.length < 2 && constatTempo.jourPlusRentable) forces.push({ icone: '🗓️', titre: `${constatTempo.jourPlusRentable.nom} — votre journée la plus rentable`, detail: "Confirmé sur plusieurs semaines d'historique, produits d'appel exclus.", cible: 'NEXUS-Tempo-v1.html' });
-    if (forces.length < 2 && statutEquipeVal === 'Sous contrôle') forces.push({ icone: '👥', titre: "Ponctualité de l'équipe sous contrôle", detail: `Score de ponctualité : ${domaineEquipe.equipeScore}/100 sur ${domaineEquipe.totalPointages} pointages.`, cible: 'NEXUS-Resultats-Equipe-v1.html' });
+    if (forces.length < 3 && constatTempo.jourPlusRentable) forces.push({ icone: '🗓️', titre: `${constatTempo.jourPlusRentable.nom} — votre journée la plus rentable`, detail: "Confirmé sur plusieurs semaines d'historique, produits d'appel exclus.", cible: 'NEXUS-Tempo-v1.html' });
+    secteurs.forEach(s => { if (forces.length < 3 && s.force) forces.push({ icone: s.icone, titre: s.force.titre, detail: s.force.detail, cible: s.force.cible }); });
 
     // Moteur de priorité cross-moteurs — les 7 moteurs disponibles dans
     // NEXUS aujourd'hui, fusionnés par NexusConseiller.fusionnerEtSelectionner
     // (rang partagé, jamais un simple tri par euros). n=6 : les 3 premiers
     // deviennent les décisions, les 3 suivants la liste de vigilance — un
     // seul et même classement pour les deux, pas deux logiques distinctes.
-    const candidatsProduitsNormalises = candidatsProduitsBrut.filter(c => !VALIDEES_SITE.has(c.candidate_id)).map(NexusConseiller.normaliserProduit);
-    const candidatMargeListe = margePlusResultat && margePlusResultat.candidatTop && !VALIDEES_SITE.has(margePlusResultat.candidatTop.candidate_id) ? [NexusConseiller.normaliserMarge(margePlusResultat.candidatTop)] : [];
+    // Granularité stratégique (Bloc G de l'audit, demande confirmée de
+    // Frédéric) : "une référence produit ne remonte au Brief que si elle
+    // est structurante." Filtre appliqué AVANT normalisation — c'est là que
+    // `contribution`/`impact_eur` sont encore présents sur le candidat brut
+    // (normaliserProduit()/normaliserMarge() ne les recopient pas tous) —
+    // voir NexusSecteursMoteur.estDecisionStrategique. Ce filtre est une
+    // politique d'affichage propre à Brief NEXUS : le Cockpit et
+    // NEXUS-Produits-v1.html continuent de voir CHAQUE décision, y compris
+    // au niveau SKU — nexus-conseiller.js lui-même n'est pas modifié.
+    const candidatsProduitsNormalises = candidatsProduitsBrut
+      .filter(c => !VALIDEES_SITE.has(c.candidate_id) && NexusSecteursMoteur.estDecisionStrategique(c))
+      .map(NexusConseiller.normaliserProduit);
+    const candidatMargeListe = margePlusResultat && margePlusResultat.candidatTop
+      && !VALIDEES_SITE.has(margePlusResultat.candidatTop.candidate_id)
+      && NexusSecteursMoteur.estDecisionStrategique(margePlusResultat.candidatTop)
+      ? [NexusConseiller.normaliserMarge(margePlusResultat.candidatTop)] : [];
     const candidatTempoBrut = construireCandidatTempo(constatTempo);
     const candidatTempoListe = candidatTempoBrut ? [NexusConseiller.normaliserTempo(candidatTempoBrut)] : [];
     // Règle non négociable pour ce Brief (demande de Frédéric, 02/08/2026
@@ -928,9 +940,22 @@
     // décisions (texteActionPrecis) — même règle non négociable, qu'un
     // signal advisor apparaisse en position 1 ou en position 5.
     const watchlistPrecise = watchlist.map(p => ({ ...p, action: texteActionPrecis(p) }));
+
+    // Blocs A/C/E/F de la structure Brief V3 (audit, section 4) — construits
+    // par NexusSecteursMoteur à partir des secteurs déjà assemblés, jamais
+    // un second calcul ici. Bloc A (verdict) reçoit la première décision
+    // déjà filtrée au stratégique (Bloc G) pour rester cohérent : le
+    // dirigeant lit la même priorité dans le verdict et dans la carte
+    // "Décisions recommandées" juste en dessous.
+    const verdict = NexusSecteursMoteur.construireVerdictDirection(AXES, decisionsEnrichies[0]);
+    const ceQuiAChange = NexusSecteursMoteur.construireCeQuiAChange(AXES);
+    const freins = NexusSecteursMoteur.construireFreins(AXES);
+    const lectureDirecteur = NexusSecteursMoteur.construireLectureDirecteur(AXES);
+
     return {
       periodeAffichage, periodeLabel, scoreGlobal, indiceExplication, axes: AXES,
-      synthese: syntheseExecutive(), forces: forces.slice(0, 2),
+      synthese: verdict, ceQuiAChange, freins, lectureDirecteur,
+      forces: forces.slice(0, 3),
       decisions: decisionsEnrichies, watchlist: watchlistPrecise,
       impact: { gain, risque, delai: 'Cette semaine', confianceGlobale: `${nbMoteursActifs}/7 moteurs NEXUS ont contribué à cette synthèse aujourd'hui.` },
       missionsRestantes,
@@ -972,7 +997,7 @@
         <div class="indice-explain-wrap" id="indiceExplainWrap">
           <div class="indice-explain-toggle" onclick="document.getElementById('indiceExplainWrap').classList.toggle('open')">Comprendre l'Indice Boussole ${brief.scoreGlobal != null ? brief.scoreGlobal : '—'} <span class="chev">›</span></div>
           <div class="indice-explain">
-            <div class="section-note" style="margin-top:0;">Moyenne des axes de la Boussole mesurés aujourd'hui (${ex.nbMesures}/5), chacun recentré à 50 = neutre. ${ex.periodeLabel}.</div>
+            <div class="section-note" style="margin-top:0;">Moyenne des secteurs mesurés aujourd'hui (${ex.nbMesures}/${ex.totalAxes}), chacun recentré à 50 = neutre. ${ex.periodeLabel}.</div>
             ${deltasHTML}
             <div class="section-note" style="font-style:italic;">Cet Indice Boussole diffère volontairement de l'Indice Marge affiché sur votre écran d'accueil (calculé, lui, uniquement à partir de la marge et de l'évolution du CA) — pas un bug, deux indices distincts avec leur propre nom : ici la vision d'ensemble du dirigeant, là un signal opérationnel plus étroit.</div>
           </div>
@@ -984,21 +1009,26 @@
   const NOM_ECRAN = {
     'NEXUS-Produits-v1.html': 'Produits', 'NEXUS-Scanner-v1.html': 'Scanner NEXUS', 'NEXUS-Verify-v1.html': 'Verify',
     'NEXUS-Resultats-Equipe-v1.html': 'Résultats Équipe', 'NEXUS-Scanner-Stock-v1.html': 'Scanner Stock',
+    'NEXUS-Carburants-Pilotage-v1.html': 'Carburants Pilotage', 'NEXUS-FDJ-Analyse-v1.html': 'FDJ Pilotage',
   };
-  // Chaque axe, au clic, ouvre trois informations demandées par Frédéric
-  // (02/08/2026 soir) : État (statut + valeur), Cause principale (le detail
-  // déjà calculé pour cet axe — jamais un texte différent inventé pour
-  // l'occasion) et Décision liée (la première décision affichée aujourd'hui
-  // dont le moteur source correspond à cet axe, ou une phrase honnête s'il
-  // n'y en a aucune — jamais une décision qui n'existe pas).
+  // "Vos secteurs" (11/08/2026, Brief V3, Bloc B de l'audit) — remplace la
+  // Boussole à 5 axes par les 6 secteurs dirigeant (voir construireBrief).
+  // Nom interne "Boussole"/axe-* conservé dans le code (CSS, ids) pour ne
+  // pas réécrire toute la mise en page pour un simple renommage — seul le
+  // texte visible par le manager change. Chaque secteur, au clic, ouvre
+  // trois informations demandées par Frédéric (02/08/2026 soir) : État
+  // (statut + valeur), Cause principale (le detail déjà calculé pour ce
+  // secteur — jamais un texte différent inventé pour l'occasion) et
+  // Décision liée (la première décision affichée aujourd'hui dont le
+  // moteur source correspond à ce secteur, ou une phrase honnête s'il n'y
+  // en a aucune — jamais une décision qui n'existe pas).
   function renderBoussole(brief) {
     const svg = genererBoussoleSVG(brief.axes);
-    const nbReels = brief.axes.filter(a => a.type === 'reel').length;
-    const nbDerives = brief.axes.filter(a => a.type === 'derive').length;
+    const nbMesures = brief.axes.filter(a => a.confiance === 'RÉEL').length;
     const rows = brief.axes.map((a, i) => {
       const c = couleurAxe(a.valeur);
       const decisionLiee = (a.moteurs || []).length ? brief.decisions.find(d => a.moteurs.includes(d.moteur)) : null;
-      const typeInfo = a.type === 'reel' ? { label: 'RÉEL', cls: 'badge-real' } : { label: 'DÉRIVÉ', cls: 'badge-derived' };
+      const typeInfo = a.confiance === 'RÉEL' ? { label: 'RÉEL', cls: 'badge-real' } : { label: 'DONNÉES INSUFFISANTES', cls: 'badge-derived' };
       return `
         <div class="axe-block" id="axe-${i}">
           <div class="axe-row" onclick="document.getElementById('axe-${i}').classList.toggle('open')">
@@ -1010,19 +1040,62 @@
           <div class="axe-detail">
             <div class="decision-field"><div class="decision-field-label">État <span class="badge ${typeInfo.cls}" style="margin-left:6px;">${typeInfo.label}</span></div><div class="decision-field-text">${a.statut}${a.valeur != null ? ` — ${a.valeur}/100` : ''}</div></div>
             <div class="decision-field"><div class="decision-field-label">Cause principale</div><div class="decision-field-text">${a.detail}</div></div>
-            <div class="decision-field"><div class="decision-field-label">Décision liée</div><div class="decision-field-text">${decisionLiee ? decisionLiee.decision : "Aucune décision prioritaire liée à cet axe aujourd'hui."}</div></div>
+            <div class="decision-field"><div class="decision-field-label">Décision liée</div><div class="decision-field-text">${decisionLiee ? decisionLiee.decision : "Aucune décision prioritaire liée à ce secteur aujourd'hui."}</div></div>
             <a href="${a.cible}" class="decision-lien">→ Ouvrir ${NOM_ECRAN[a.cible] || a.cible}</a>
           </div>
         </div>`;
     }).join('');
     return `
       <div class="section">
-        <div class="section-title">Boussole NEXUS <span class="badge badge-real">${nbReels} réels</span><span class="badge badge-derived" style="margin-left:5px;">${nbDerives} dérivé</span></div>
+        <div class="section-title">Vos secteurs <span class="badge badge-real">${nbMesures}/${brief.axes.length} mesurés</span></div>
         <div class="boussole-card">
           <div class="boussole-svg-wrap">${svg}</div>
           ${rows}
         </div>
-        <div class="section-note">Un axe grisé n'est pas mauvais, il manque simplement de données pour l'instant. Touchez un axe pour voir son état, sa cause principale et la décision qui s'y rattache.</div>
+        <div class="section-note">Un secteur grisé n'est pas mauvais, il manque simplement de données pour l'instant. Touchez un secteur pour voir son état, sa cause principale et la décision qui s'y rattache.</div>
+      </div>`;
+  }
+
+  // Bloc C — "Ce qui a changé" (audit, section 4) : 3 évolutions maximum,
+  // déjà sélectionnées par NexusSecteursMoteur.construireCeQuiAChange à
+  // partir des secteurs. Rien à afficher si aucun secteur n'a bougé de plus
+  // de 5 % (ou seuil équivalent) sur la période — jamais une liste vide
+  // remplie artificiellement.
+  function renderCeQuiAChange(brief) {
+    if (!brief.ceQuiAChange.length) return '';
+    return `
+      <div class="section">
+        <div class="section-title">Ce qui a changé <span class="badge badge-derived">dérivé</span></div>
+        ${brief.ceQuiAChange.map(texte => `<div class="force-card" style="cursor:default;"><div class="force-detail">${texte}</div></div>`).join('')}
+      </div>`;
+  }
+
+  // Bloc E — "Ce qui freine la performance" (audit, section 4) : symétrique
+  // du Bloc D (Forces), 3 fragilités maximum, sourcées des secteurs
+  // (frein[]) — jamais un duplicata des décisions déjà listées plus bas.
+  function renderFreins(brief) {
+    if (!brief.freins.length) return '';
+    return `
+      <div class="section">
+        <div class="section-title">Ce qui freine la performance <span class="badge badge-real">réel</span></div>
+        ${brief.freins.map(f => `<a class="force-card" href="${f.cible}" style="text-decoration:none;">
+          <div class="force-titre">${f.titre}</div>
+          <div class="force-detail">${f.detail}</div>
+        </a>`).join('')}
+      </div>`;
+  }
+
+  // Bloc F — "Lecture du directeur d'exploitation" (audit, section 4) :
+  // interprétation courte issue de règles déterministes
+  // (NexusSecteursMoteur.construireLectureDirecteur), jamais un texte libre
+  // généré à la volée — signature éditoriale nouvelle demandée par l'audit.
+  function renderLectureDirecteur(brief) {
+    return `
+      <div class="section">
+        <div class="section-title">Lecture du directeur d'exploitation <span class="badge badge-derived">dérivé</span></div>
+        <div class="force-card" style="cursor:default;">
+          <div class="force-detail" style="font-style:italic;">${brief.lectureDirecteur}</div>
+        </div>
       </div>`;
   }
 
@@ -1030,7 +1103,7 @@
     if (!brief.forces.length) return '';
     return `
       <div class="section">
-        <div class="section-title">Ce qui va bien <span class="badge badge-real">réel</span></div>
+        <div class="section-title">Forces du moment <span class="badge badge-real">réel</span></div>
         ${brief.forces.map(f => `<a class="force-card" href="${f.cible}" style="text-decoration:none;">
           <div class="force-icon">${f.icone}</div>
           <div class="force-titre">${f.titre}</div>
@@ -1072,16 +1145,22 @@
       </div>`;
   }
 
+  // "Décisions de direction" (11/08/2026, Brief V3, Bloc G de l'audit —
+  // renommé depuis "Décisions recommandées") : depuis ce lot, la liste ne
+  // contient plus que des décisions déjà filtrées au stratégique/transversal
+  // (voir NexusSecteursMoteur.estDecisionStrategique, appliqué en amont dans
+  // construireBrief) — jamais une référence produit isolée sauf si elle
+  // explique une part majeure du CA/marge de son rayon.
   function renderDecisions(brief) {
     if (!brief.decisions.length) {
-      return `<div class="section"><div class="section-title">Décisions recommandées <span class="badge badge-real">réel</span></div>
+      return `<div class="section"><div class="section-title">Décisions de direction <span class="badge badge-real">réel</span></div>
         <div class="empty-serein">✅ Rien ne nécessite une décision du dirigeant aujourd'hui — toutes les priorités identifiées ont été traitées ou validées.</div></div>`;
     }
     return `
       <div class="section">
-        <div class="section-title">Décisions recommandées <span class="badge badge-real">réel</span></div>
+        <div class="section-title">Décisions de direction <span class="badge badge-real">réel</span></div>
         ${brief.decisions.map((p, i) => decisionCardHTML(p, i, i === 0)).join('')}
-        <div class="section-note">Classement partagé entre 7 moteurs NEXUS (Produits, Marge+, Tempo, Signaux Qualité/Caisse, Verify, Scanner Stock, Rappels) — jamais un simple tri par montant, qui favoriserait toujours le même moteur. Délai et confiance (<span class="badge badge-derived" style="padding:1px 6px;">dérivé</span>) sont déduits du rang de priorité, pas mesurés directement.</div>
+        <div class="section-note">Classement partagé entre 7 moteurs NEXUS (Produits, Marge+, Tempo, Signaux Qualité/Caisse, Verify, Scanner Stock, Rappels), filtré aux décisions stratégiques ou transversales — jamais un simple tri par montant, qui favoriserait toujours le même moteur. Délai et confiance (<span class="badge badge-derived" style="padding:1px 6px;">dérivé</span>) sont déduits du rang de priorité, pas mesurés directement.</div>
       </div>`;
   }
 
@@ -1244,14 +1323,16 @@
     const zSynthese = c.allouerZone(ZONES_1P.synthese);
     c.paragraphe(zSynthese, { titre: 'SYNTHÈSE', texte: brief.synthese, taille: 9.3, interligne: 13 });
 
-    // Zone "graphique" réutilisée pour la Boussole (5 axes, mini-barres) —
-    // pas de courbe temporelle disponible côté Brief, mais le principe
+    // Zone "graphique" réutilisée pour les secteurs (mini-barres) — pas de
+    // courbe temporelle disponible côté Brief, mais le principe
     // "mini-graphique borné à la zone" du moteur partagé s'applique
-    // exactement pareil.
+    // exactement pareil. Titre et max dynamiques (11/08/2026, Brief V3) :
+    // le nombre de secteurs dépend du preset du site (secteursActifsSite),
+    // 6 pour une station-service aujourd'hui, jamais un "5" codé en dur.
     const zBoussole = c.allouerZone(ZONES_1P.graphique);
     c.barresHorizontales(zBoussole, {
-      titre: 'BOUSSOLE NEXUS (5 AXES)',
-      max: 5,
+      titre: `VOS SECTEURS (${brief.axes.length})`,
+      max: brief.axes.length,
       items: brief.axes.map(a => ({ label: a.nom, valeur: a.valeur != null ? `${a.valeur}/100` : '—', part: a.valeur != null ? a.valeur / 100 : 0 })),
     });
 
@@ -1355,10 +1436,17 @@
   function renderBrief() {
     const root = document.getElementById('briefRoot');
     dernierRapportPdf = null; // un Brief déjà rafraîchi invalide le rapport déjà généré
+    // Ordre Brief V3 (audit, section 4) : A Verdict (hero) → B Secteurs →
+    // C Ce qui a changé → D Forces → E Ce qui freine → F Lecture du
+    // directeur d'exploitation → G Décisions de direction → vigilance →
+    // impact → détail Carburants → export PDF.
     root.innerHTML = `<div class="desktop-grid">
       ${renderHeroEtSynthese(BRIEF)}
       ${renderBoussole(BRIEF)}
+      ${renderCeQuiAChange(BRIEF)}
       ${renderForces(BRIEF)}
+      ${renderFreins(BRIEF)}
+      ${renderLectureDirecteur(BRIEF)}
       ${renderDecisions(BRIEF)}
       ${renderWatchlist(BRIEF)}
       ${renderImpact(BRIEF)}
@@ -1474,9 +1562,10 @@
     if (!(await NexusForfait.nexusRequireBriefNexus(SITE_ACTUEL))) return;
     STATION_CONFIG.manager_prenom = employee.nom;
     STATION_CONFIG.manager_role = employee.role;
-    const { data: siteActuel } = await nexusClient.from('sites').select('nom_entreprise, logo_url').eq('site_id', SITE_ACTUEL).maybeSingle();
+    const { data: siteActuel } = await nexusClient.from('sites').select('nom_entreprise, logo_url, type_commerce, secteurs').eq('site_id', SITE_ACTUEL).maybeSingle();
     if (siteActuel && siteActuel.nom_entreprise) STATION_CONFIG.station_nom = siteActuel.nom_entreprise;
     if (siteActuel && siteActuel.logo_url) STATION_CONFIG.logo_url = siteActuel.logo_url;
+    if (siteActuel) SITE_SECTEURS_CONFIG = { type_commerce: siteActuel.type_commerce, secteurs: siteActuel.secteurs };
     const header = document.getElementById('nexus-header');
     header.innerHTML = `
       <div class="logo-frame"><img class="logo" src="${STATION_CONFIG.logo_url}" alt="${STATION_CONFIG.station_nom}" onerror="this.style.display='none'"></div>

@@ -104,13 +104,29 @@
   }
 
   /**
-   * Construit le contenu du Chapitre 2 — Santé de l'entreprise, limité
-   * (V1, voir en-tête) aux axes Commerce et Marge. Réutilise directement
-   * les résultats déjà calculés pour le Chapitre 1 plutôt que de
-   * recharger/recalculer (une seule vérité par rapport, pas juste par
-   * moteur) — passer chapitreSynthese en entrée.
+   * Construit le contenu du Chapitre 2 — Santé de l'entreprise / "Rapport
+   * par secteur" (audit stratégique Brief/Rapport de Direction, 11/08/2026,
+   * section 4). Commerce et Marge restent la base V1 (voir en-tête du
+   * fichier). `extra` (optionnel, additif — signature rétrocompatible avec
+   * les appelants qui ne passent que chapitreSynthese) permet d'ajouter
+   * Carburants et FDJ dès que le manager les scope sur la même période —
+   * ces deux secteurs ont une source période-scopée réelle
+   * (NexusCarburantDonnees.chargerVentesPeriode, vues view_fdj_*), calculée
+   * par l'appelant (NEXUS-Rapport-v1.html) et simplement mise en forme ici
+   * (Article 11 : ce fichier ne recalcule jamais un volume ou un CA FDJ,
+   * il compose). Opérations et Équipe restent honnêtement "Non couverts
+   * (V1)" — aucun scoping par période calendaire fiable n'existe encore
+   * pour l'écart de caisse ou les pointages (voir Brief NEXUS, où ces deux
+   * secteurs restent scopés "aujourd'hui"/"glissant", jamais sur une
+   * période calendaire arbitraire).
+   *
+   * extra.carburants / extra.fdj, si fournis : soit
+   *   { disponible:true, ... } → ajouté à `axes`,
+   *   { disponible:false, raison } → ajouté à `axesNonCouverts`,
+   *   absent → secteur non demandé par l'appelant (pas de trace dans le
+   *   rapport, ex. site sans secteur FDJ activé).
    */
-  function construireChapitreSante(chapitreSynthese) {
+  function construireChapitreSante(chapitreSynthese, extra) {
     const axes = [
       {
         nom: 'Commerce', icone: '🛒',
@@ -134,6 +150,34 @@
       { nom: 'Opérations', icone: '⚙️', raison: "Le scoping par période calendaire de l'écart de caisse n'est pas encore construit." },
       { nom: 'Équipe', icone: '👥', raison: "Le scoping par période calendaire des pointages n'est pas encore construit." },
     ];
+
+    const e = extra || {};
+    if (e.carburants) {
+      if (e.carburants.disponible) {
+        const evol = e.carburants.evolution;
+        axes.push({
+          nom: 'Carburants', icone: '⛽',
+          statut: evol == null ? 'Données insuffisantes' : directionTexte(evol),
+          detail: `Volume : ${Math.round(e.carburants.volumeActuel).toLocaleString('fr-FR')} L${evol != null ? ` (${evol >= 0 ? '+' : ''}${(evol * 100).toFixed(1)} %)` : ''}${e.carburants.produitMoteur ? ` · Moteur : ${(e.carburants.produitMoteur.cle || '').toUpperCase()}` : ''}${e.carburants.couvertureIncertaine ? ' — couverture partielle des quarts, volume indicatif' : ''}.`,
+          confiance: e.carburants.couvertureIncertaine ? 'derive' : 'reel',
+        });
+      } else {
+        axesNonCouverts.push({ nom: 'Carburants', icone: '⛽', raison: e.carburants.raison || "Aucune vente carburant enregistrée sur cette période." });
+      }
+    }
+    if (e.fdj) {
+      if (e.fdj.disponible) {
+        const evol = e.fdj.evolution;
+        axes.push({
+          nom: 'FDJ', icone: '🎟️',
+          statut: evol == null ? 'Données insuffisantes' : directionTexte(evol),
+          detail: `CA FDJ : ${formaterEuros(e.fdj.caActuel)}${evol != null ? ` (${evol >= 0 ? '+' : ''}${(evol * 100).toFixed(1)} %)` : ''}${e.fdj.jeuMoteur ? ` · Jeu moteur : ${e.fdj.jeuMoteur.nom}` : ''}.`,
+          confiance: 'reel',
+        });
+      } else {
+        axesNonCouverts.push({ nom: 'FDJ', icone: '🎟️', raison: e.fdj.raison || "Aucun quart FDJ contrôlé sur cette période." });
+      }
+    }
 
     const forces = axes.filter(a => a.statut === 'En hausse' || a.statut === 'Stable');
     const fragilites = axes.filter(a => a.statut === 'En baisse');

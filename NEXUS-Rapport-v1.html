@@ -21,6 +21,8 @@
 <script src="nexus-auth.js"></script>
 <script src="nexus-desktop.js"></script>
 <script src="nexus-periodes.js"></script>
+<script src="nexus-carburant-moteur.js"></script>
+<script src="nexus-carburant-donnees.js"></script>
 <script src="nexus-rapport-donnees.js"></script>
 <script src="nexus-rapport-moteur.js"></script>
 <script src="nexus-pdf-moteur.js"></script>
@@ -209,6 +211,49 @@
     document.getElementById('libreBar').classList.toggle('visible', TYPE_PERIODE === 'libre');
   }
 
+  // Carburants/FDJ période-scopés (11/08/2026, "Rapport par secteur", audit
+  // stratégique Brief/Rapport de Direction) — chargeurs locaux à cet écran,
+  // sur le même modèle que chargerCaPeriode/chargerMargePeriode
+  // (nexus-rapport-donnees.js) : reçoivent (client, site, periode),
+  // retournent { disponible:true, ... } ou { disponible:false, raison },
+  // donc réutilisables tels quels par NexusRapportDonnees.chargerAvecRepli
+  // pour la référence (jamais une deuxième boucle de repli réécrite ici).
+  // Carburants : réutilise NexusCarburantDonnees.chargerVentesPeriode +
+  // NexusCarburantMoteur (calculerMixCarburant/identifierProduitMoteur) —
+  // exactement les primitives déjà utilisées par Carburants Pilotage,
+  // jamais un second calcul de volume/mix (Article 11).
+  async function chargerCarburantsPeriode(client, site, periode) {
+    const donnees = await NexusCarburantDonnees.chargerVentesPeriode(client, site, periode.debut, periode.fin);
+    const mix = NexusCarburantMoteur.calculerMixCarburant(donnees.ventes);
+    if (!mix || !mix.total) return { disponible: false, raison: `Aucune vente carburant ne couvre la période ${periode.debut} → ${periode.fin}.` };
+    return {
+      disponible: true, volumeActuel: mix.total,
+      produitMoteur: NexusCarburantMoteur.identifierProduitMoteur(donnees.ventes),
+      couvertureIncertaine: donnees.nbQuartsTotal > 0 && donnees.nbQuartsAvecLitrage < donnees.nbQuartsTotal,
+    };
+  }
+
+  // FDJ : mêmes vues que Brief NEXUS (view_fdj_daily_summary/
+  // view_fdj_game_daily), simplement filtrées sur la période choisie par
+  // le manager au lieu d'une fenêtre glissante fixe de 7 jours.
+  async function chargerFdjPeriode(client, site, periode) {
+    const [{ data: dailyRows, error: e1 }, { data: gameDailyRows, error: e2 }, { data: jeuxData, error: e3 }] = await Promise.all([
+      client.from('view_fdj_daily_summary').select('ca_grattage, nb_quarts_controles').eq('site', site).gte('date', periode.debut).lte('date', periode.fin),
+      client.from('view_fdj_game_daily').select('game_id, ca').eq('site', site).gte('date', periode.debut).lte('date', periode.fin),
+      client.from('fdj_games').select('id, nom').eq('site', site).eq('actif', true),
+    ]);
+    if (e1 || e2 || e3) { [e1, e2, e3].forEach(e => { if (e) console.error('Rapport NEXUS — chargement FDJ période:', e); }); return { disponible: false, raison: 'Erreur de chargement des données FDJ.' }; }
+    const rows = dailyRows || [];
+    const nbQuartsControles = rows.reduce((s, r) => s + (r.nb_quarts_controles || 0), 0);
+    if (!nbQuartsControles) return { disponible: false, raison: `Aucun quart FDJ contrôlé sur la période ${periode.debut} → ${periode.fin}.` };
+    const caActuel = rows.reduce((s, r) => s + (r.ca_grattage || 0), 0);
+    const gameCa = {};
+    (gameDailyRows || []).forEach(l => { if (l.ca) gameCa[l.game_id] = (gameCa[l.game_id] || 0) + Number(l.ca); });
+    let jeuMoteur = null, caMax = 0;
+    Object.entries(gameCa).forEach(([gid, ca]) => { if (ca > caMax) { caMax = ca; const j = (jeuxData || []).find(j => j.id === gid); jeuMoteur = { id: gid, nom: j ? j.nom : gid }; } });
+    return { disponible: true, caActuel, jeuMoteur };
+  }
+
   async function chargerEtRendre(bornesLibres) {
     document.getElementById('content').innerHTML = '<div class="loading">Calcul du rapport…</div>';
     document.getElementById('btnPdf').style.display = 'none';
@@ -217,18 +262,35 @@
     document.getElementById('periodeLabel').textContent = `Période : ${periode.label} (${periode.debut} → ${periode.fin})`;
     const referencesCandidates = NexusPeriodes.resoudrePeriodesReference(periode);
 
-    const [ca, marge, decisions] = await Promise.all([
+    const [ca, marge, decisions, carbActuel, fdjActuel] = await Promise.all([
       NexusRapportDonnees.chargerCaPeriode(nexusClient, SITE_ID, periode),
       NexusRapportDonnees.chargerMargePeriode(nexusClient, SITE_ID, periode),
       NexusRapportDonnees.chargerDecisionsPeriode(nexusClient, SITE_ID, periode),
+      chargerCarburantsPeriode(nexusClient, SITE_ID, periode),
+      chargerFdjPeriode(nexusClient, SITE_ID, periode),
     ]);
-    const [caRef, margeRef] = await Promise.all([
+    const [caRef, margeRef, carbRef, fdjRef] = await Promise.all([
       NexusRapportDonnees.chargerAvecRepli(NexusRapportDonnees.chargerCaPeriode, nexusClient, SITE_ID, referencesCandidates),
       NexusRapportDonnees.chargerAvecRepli(NexusRapportDonnees.chargerMargePeriode, nexusClient, SITE_ID, referencesCandidates),
+      NexusRapportDonnees.chargerAvecRepli(chargerCarburantsPeriode, nexusClient, SITE_ID, referencesCandidates),
+      NexusRapportDonnees.chargerAvecRepli(chargerFdjPeriode, nexusClient, SITE_ID, referencesCandidates),
     ]);
 
     CHAPITRE1 = NexusRapportMoteur.construireChapitreSynthese({ periode, ca, caRef, marge, margeRef, decisions });
-    CHAPITRE2 = NexusRapportMoteur.construireChapitreSante(CHAPITRE1);
+    // Carburants/FDJ combinés ICI (actuel + référence → évolution), sur le
+    // même principe que ca/caRef pour le Chapitre 1 — le moteur pur reçoit
+    // un objet déjà comparé, jamais deux mesures séparées à recombiner
+    // lui-même.
+    const carburantsChapitre = carbActuel.disponible
+      ? { disponible: true, volumeActuel: carbActuel.volumeActuel, produitMoteur: carbActuel.produitMoteur,
+          couvertureIncertaine: carbActuel.couvertureIncertaine || (carbRef.disponible && carbRef.couvertureIncertaine),
+          evolution: carbRef.disponible ? NexusCarburantMoteur.calculerEvolutionVolume(carbActuel.volumeActuel, carbRef.volumeActuel) : null }
+      : { disponible: false, raison: carbActuel.raison };
+    const fdjChapitre = fdjActuel.disponible
+      ? { disponible: true, caActuel: fdjActuel.caActuel, jeuMoteur: fdjActuel.jeuMoteur,
+          evolution: (fdjRef.disponible && fdjRef.caActuel > 0) ? (fdjActuel.caActuel - fdjRef.caActuel) / fdjRef.caActuel : null }
+      : { disponible: false, raison: fdjActuel.raison };
+    CHAPITRE2 = NexusRapportMoteur.construireChapitreSante(CHAPITRE1, { carburants: carburantsChapitre, fdj: fdjChapitre });
 
     render();
     document.getElementById('btnPdf').style.display = 'block';
@@ -299,7 +361,7 @@
 
       <div class="chapitre">
         <div class="chapitre-titre">Chapitre 2 — Santé de l'entreprise</div>
-        <div class="chapitre-note">Direction de chaque axe sur la période, comparée à sa référence — périmètre V1 : Commerce et Marge (les deux axes déjà scopés par période calendaire). Opérations et Équipe listés ci-dessous par transparence, non calculés dans ce premier chapitre.</div>
+        <div class="chapitre-note">Direction de chaque secteur sur la période, comparée à sa référence — Commerce, Marge, Carburants et FDJ sont scopés par période calendaire. Opérations et Équipe listés ci-dessous par transparence, non calculés dans ce chapitre (aucun scoping par période calendaire fiable de l'écart de caisse ou des pointages).</div>
         ${axesHTML}
         ${axesNonCouvertsHTML}
       </div>
@@ -356,7 +418,7 @@
     // Chapitre 2 — nouvelle page pour une lecture nette.
     rapport._nouvellePage();
     rapport.sectionTitre('Chapitre 2 — Santé de l\'entreprise');
-    rapport.paragraphe("Périmètre V1 : Commerce et Marge, les deux axes déjà scopés par période calendaire. Opérations et Équipe seront ajoutés dans une itération suivante.", { taille: 8.5, couleur: NexusPdfMoteur.COULEUR.texteDim });
+    rapport.paragraphe("Commerce, Marge, Carburants et FDJ sont scopés par période calendaire. Opérations et Équipe seront ajoutés dans une itération suivante (aucun scoping fiable par période calendaire aujourd'hui).", { taille: 8.5, couleur: NexusPdfMoteur.COULEUR.texteDim });
     CHAPITRE2.axes.forEach(a => {
       rapport.encadre([
         { texte: `${a.icone} ${a.nom} — ${a.statut}`, gras: true },
