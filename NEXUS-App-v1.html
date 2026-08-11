@@ -1064,6 +1064,7 @@
 <script src="nexus-boussole-moteur.js"></script>
 <script src="nexus-conseiller.js"></script>
 <script src="nexus-forfait.js"></script>
+<script src="nexus-raccourcis-catalogue.js"></script>
 <script>
   // ------------------------------------------------------------
   // Calendrier fournisseurs partagé — extrait le 24/07/2026 (était
@@ -1812,29 +1813,65 @@
     return lignes.join('<br>');
   }
 
-  function renderOutilsGrid({ nbPriorites, nbASurveiller, meilleureOpportunite, controlesVerify, jourARenforcerTempo, totalJoursTempo, nbRecommandations }) {
-    document.getElementById('outilsGrid').innerHTML = `
-      <a class="outil-card" href="NEXUS-Cockpit-v2.html">
-        <div class="outil-icon"><img src="assets/icons/icon-home.png" alt=""></div>
-        <div class="outil-title">Cockpit</div>
-        <div class="outil-desc">${descriptionCockpitHome(nbPriorites, nbASurveiller, meilleureOpportunite)}</div>
-      </a>
-      <a class="outil-card" href="NEXUS-Verify-v1.html">
-        <div class="outil-icon"><img src="assets/icons/icon-nexus-verify.png" alt="" style="filter:grayscale(1) brightness(1.05) contrast(1.05) sepia(1) hue-rotate(152deg) saturate(4);"></div>
-        <div class="outil-title">Verify</div>
-        <div class="outil-desc">${controlesVerify == null ? 'Contrôle caisse et écarts' : (controlesVerify > 0 ? `<span style="color:var(--amber);">${controlesVerify} contrôle${controlesVerify > 1 ? 's' : ''}</span> à effectuer` : `<span style="color:var(--green);">Audits du jour à jour</span>`)}</div>
-      </a>
-      <a class="outil-card" href="NEXUS-Tempo-v1.html">
-        <div class="outil-icon"><img src="assets/icons/icon-nexus-tempo.png" alt=""></div>
-        <div class="outil-title">Tempo</div>
-        <div class="outil-desc">${descriptionTempoHome(jourARenforcerTempo, totalJoursTempo)}</div>
-      </a>
-      <a class="outil-card" href="NEXUS-Produits-v1.html">
-        <div class="outil-icon"><img src="assets/icons/icon-produits.png" alt=""></div>
-        <div class="outil-title">Produits</div>
-        <div class="outil-desc">${nbRecommandations > 0 ? `<span style="color:var(--cyan);">${nbRecommandations} priorité${nbRecommandations > 1 ? 's' : ''} produit${nbRecommandations > 1 ? 's' : ''}</span> aujourd’hui` : 'Aucune priorité produit aujourd’hui'}</div>
-      </a>
-    `;
+  // ------------------------------------------------------------
+  // Raccourcis configurables (10/08/2026, demande de Frédéric — vision du
+  // "Parcours du manager" : "faire de Vos raccourcis quelque chose de
+  // configurable via Paramètres Station"). Avant ce jour, "Vos raccourcis"
+  // était une liste FIXE de 4 outils (Cockpit/Verify/Tempo/Produits),
+  // codée en dur dans renderOutilsGrid. Le catalogue (RACCOURCIS_CATALOGUE/
+  // RACCOURCIS_DEFAUT/MAX_RACCOURCIS) vit maintenant dans
+  // nexus-raccourcis-catalogue.js (Article 11, "une seule vérité"),
+  // partagé avec NEXUS-Parametres-Station-v1.html (sélecteur) — jamais
+  // deux listes séparées qui pourraient diverger.
+  //
+  // Seuls Cockpit/Verify/Tempo/Produits ont une description "vivante"
+  // (recalculée à partir des vraies données du jour, voir
+  // descriptionRaccourci ci-dessous) — les autres raccourcis affichent la
+  // description statique du catalogue, identique à celle de PAGES_INDEX.
+  const { RACCOURCIS_CATALOGUE, RACCOURCIS_DEFAUT, MAX_RACCOURCIS } = NexusRaccourcisCatalogue;
+
+  function descriptionRaccourci(href, ctx) {
+    if (href === 'NEXUS-Cockpit-v2.html') return descriptionCockpitHome(ctx.nbPriorites, ctx.nbASurveiller, ctx.meilleureOpportunite);
+    if (href === 'NEXUS-Verify-v1.html') return ctx.controlesVerify == null ? 'Contrôle caisse et écarts' : (ctx.controlesVerify > 0 ? `<span style="color:var(--amber);">${ctx.controlesVerify} contrôle${ctx.controlesVerify > 1 ? 's' : ''}</span> à effectuer` : `<span style="color:var(--green);">Audits du jour à jour</span>`);
+    if (href === 'NEXUS-Tempo-v1.html') return descriptionTempoHome(ctx.jourARenforcerTempo, ctx.totalJoursTempo);
+    if (href === 'NEXUS-Produits-v1.html') return ctx.nbRecommandations > 0 ? `<span style="color:var(--cyan);">${ctx.nbRecommandations} priorité${ctx.nbRecommandations > 1 ? 's' : ''} produit${ctx.nbRecommandations > 1 ? 's' : ''}</span> aujourd’hui` : 'Aucune priorité produit aujourd’hui';
+    const cat = RACCOURCIS_CATALOGUE[href];
+    return cat ? cat.desc : '';
+  }
+
+  function iconeRaccourciHTML(cat) {
+    if (cat.icone) return `<img src="${cat.icone}" alt="" ${cat.filtreIcone ? `style="${cat.filtreIcone}"` : ''}>`;
+    return `<span style="font-size:18px;">${cat.emoji || '🔗'}</span>`;
+  }
+
+  // `raccourcisSite` : tableau de href venu de station_config.raccourcis
+  // (voir chargerRaccourcisHome), ou null si le site n'a jamais configuré
+  // les siens — repli sur RACCOURCIS_DEFAUT, jamais un écran vide. Une
+  // entrée qui ne correspond plus à rien du catalogue (page renommée,
+  // forfait changé) est silencieusement ignorée plutôt que d'afficher un
+  // lien cassé.
+  function renderOutilsGrid(ctx, raccourcisSite) {
+    const liste = ((raccourcisSite && raccourcisSite.length) ? raccourcisSite : RACCOURCIS_DEFAUT)
+      .filter(href => RACCOURCIS_CATALOGUE[href])
+      .slice(0, MAX_RACCOURCIS);
+    document.getElementById('outilsGrid').innerHTML = (liste.length ? liste : RACCOURCIS_DEFAUT).map(href => {
+      const cat = RACCOURCIS_CATALOGUE[href];
+      return `
+        <a class="outil-card" href="${href}">
+          <div class="outil-icon">${iconeRaccourciHTML(cat)}</div>
+          <div class="outil-title">${cat.label}</div>
+          <div class="outil-desc">${descriptionRaccourci(href, ctx)}</div>
+        </a>`;
+    }).join('');
+  }
+
+  // Chargée une seule fois par visite (pas besoin de la refaire à chaque
+  // rendu) — voir initPosteManager, en parallèle du reste des données
+  // manager du jour.
+  async function chargerRaccourcisHome(site) {
+    const { data, error } = await nexusClient.from('station_config').select('raccourcis').eq('site', site).maybeSingle();
+    if (error) { console.error('Chargement raccourcis (station_config):', error); return null; }
+    return (data && Array.isArray(data.raccourcis) && data.raccourcis.length) ? data.raccourcis : null;
   }
 
   // Pouls d'activité de l'en-tête (27/07/2026, demande de Frédéric — "le
@@ -1867,6 +1904,7 @@
       messagesAdvisor,
       alertesInventaire,
       missionsAValider,
+      raccourcisSite,
     ] = await Promise.all([
       calculerCandidatsHome(SITE_HOME),
       chargerValideesHome(SITE_HOME),
@@ -1879,6 +1917,7 @@
       chargerMessagesAdvisorHome(SITE_HOME),
       chargerAlertesInventaireHome(SITE_HOME),
       chargerMissionsAValiderHome(SITE_HOME),
+      chargerRaccourcisHome(SITE_HOME),
     ]);
     afficherHeureRecalcul();
 
@@ -1943,7 +1982,7 @@
       nbPriorites, nbASurveiller, meilleureOpportunite, controlesVerify,
       jourARenforcerTempo: constatTempo.jourARenforcer, totalJoursTempo: constatTempo.totalJours,
       nbRecommandations: nbPriorites,
-    });
+    }, raccourcisSite);
   }
 
   // Pointage du manager (24/07/2026, refactoré le 27/07/2026) — voir
