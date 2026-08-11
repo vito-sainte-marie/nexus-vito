@@ -170,6 +170,7 @@ a{color:inherit; text-decoration:none;}
 <script src="nexus-forfait.js"></script>
 <script src="nexus-periodes.js"></script>
 <script src="nexus-marge.js"></script>
+<script src="nexus-conseiller.js"></script>
 </head>
 <body>
 <div class="app">
@@ -329,11 +330,19 @@ a{color:inherit; text-decoration:none;}
     return data || [];
   }
 
-  // Reproduit les seuils R2/R3/R4 (Cockpit) + R5 (Nexus Marge+) pour savoir
-  // combien de recommandations restent en attente et quel potentiel elles
-  // représentent — même moteur que NEXUS-App-v1.html, volontairement
-  // allégé ici : seuls le compte et le total sont nécessaires, pas le texte
-  // de chaque recommandation.
+  // Compte combien de recommandations R2/R3/R4 (Produits/CA) + R5 (Nexus
+  // Marge+) restent en attente et quel potentiel elles représentent.
+  //
+  // CORRIGÉ le 11/08/2026 (audit "philosophie/architecture", Article 11) :
+  // ce fichier recalculait localement ses propres seuils R2/R3/R4
+  // (0.15/0.20/-0.30) et candidate_id, en parallèle de la même logique déjà
+  // centralisée dans nexus-conseiller.js::calculerCandidatsProduits(). Le
+  // moteur partagé renvoie plus de champs que nécessaire ici (texte,
+  // verdict...), mais Capital n'en garde que candidate_id/categorie/
+  // impact_eur — plus simple et plus sûr que de réimplémenter les seuils en
+  // double, et garantit que "nombre d'opportunités en attente" reste
+  // toujours en phase avec ce que Cockpit/Brief/App/Missions/Produits
+  // affichent réellement.
   async function chargerOpportunitesNonAppliquees(siteId) {
     const [{ data, error }, produitsAppelRes, exclusionsRes, valideesRes] = await Promise.all([
       fetchAllRowsCapital(() => nexusClient.from('products')
@@ -349,36 +358,13 @@ a{color:inherit; text-decoration:none;}
 
     const produitsAppel = new Set(((produitsAppelRes && produitsAppelRes.data) || []).map(r => r.article));
     const rowsBrut = data.filter(r => !produitsAppel.has(r.article));
-    const { periodeAffichage, rowsAffichage, paire, rowsPaireActuelle, rowsPairePrecedente } = NexusPeriodes.analyserPeriodes(rowsBrut);
+    const { periodeAffichage, rowsAffichage } = NexusPeriodes.analyserPeriodes(rowsBrut);
     if (!periodeAffichage) return { nb: 0, potentiel: 0, topCategorie: null };
 
     const validees = new Set(((valideesRes && valideesRes.data) || []).map(d => d.candidate_id));
-    const candidats = [];
+    const candidats = NexusConseiller.calculerCandidatsProduits(rowsBrut)
+      .map(c => ({ candidate_id: c.candidate_id, categorie: c.categorie, impact_eur: c.impact_eur }));
 
-    const caTotalParRayon = {};
-    rowsAffichage.forEach(r => { caTotalParRayon[r.categorie] = (caTotalParRayon[r.categorie] || 0) + (r.ca || 0); });
-    rowsAffichage.forEach(p => {
-      const caRayon = caTotalParRayon[p.categorie] || 0;
-      const contribution = caRayon > 0 ? p.ca / caRayon : 0;
-      if (contribution >= 0.15 && p.ca > 0) {
-        candidats.push({ candidate_id: `LIVE-R4-${p.categorie}|${p.article}`, categorie: p.categorie, impact_eur: p.ca });
-      }
-    });
-    if (paire) {
-      const precedentParArticle = {};
-      rowsPairePrecedente.forEach(r => {
-        const cle = r.categorie + '|' + r.article;
-        precedentParArticle[cle] = (precedentParArticle[cle] || 0) + (r.ca || 0);
-      });
-      rowsPaireActuelle.forEach(p => {
-        const cle = p.categorie + '|' + p.article;
-        const caPrec = precedentParArticle[cle];
-        if (!caPrec || caPrec <= 0) return;
-        const evolution = (p.ca - caPrec) / caPrec;
-        if (evolution >= 0.20) candidats.push({ candidate_id: `LIVE-R3-${cle}`, categorie: p.categorie, impact_eur: Math.max(p.ca - caPrec, 0) });
-        if (evolution <= -0.30) candidats.push({ candidate_id: `LIVE-R2-${cle}`, categorie: p.categorie, impact_eur: Math.max(caPrec - p.ca, 0) });
-      });
-    }
     const exclusionsManuelles = new Set(((exclusionsRes && exclusionsRes.data) || []).map(r => r.article));
     const rowsPropresMarge = rowsAffichage.filter(r => (r.ca || 0) > 0 && (r.marge || 0) >= 0 && (r.marge || 0) <= (r.ca || 0));
     NexusMarge.detecterEcartsMarge(rowsPropresMarge, exclusionsManuelles).forEach(e => {

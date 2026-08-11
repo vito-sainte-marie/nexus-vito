@@ -164,6 +164,19 @@
     },
   };
 
+  // Seuils R2/R3/R4 exposés (11/08/2026, audit "philosophie/architecture",
+  // Article 11) : NEXUS-Produits-v1.html a besoin d'annoter CHAQUE ligne
+  // produit affichée (pas seulement les candidats qualifiés) avec le même
+  // statut "🔥 À AGIR / 📈 OPPORTUNITÉ / 🟡 À SURVEILLER" — il ne peut donc
+  // pas se contenter d'appeler calculerCandidatsProduits() (qui ne renvoie
+  // que les candidats retenus, pas une annotation par ligne). Plutôt que de
+  // laisser ce fichier recopier 0.15/0.20/-0.30 en dur une deuxième fois,
+  // les seuils sont exportés ici comme source unique ; calculerCandidatsProduits
+  // les utilise elle-même ci-dessous.
+  const SEUIL_CONTRIBUTION_FORTE = 0.15;
+  const SEUIL_HAUSSE = 0.20;
+  const SEUIL_BAISSE = -0.30;
+
   // rowsBrut : lignes `products` déjà filtrées des produits d'appel (même
   // filtrage que partout ailleurs). Retourne le tableau de candidats — la
   // page appelante gère elle-même sa propre exclusion des candidate_id
@@ -188,7 +201,7 @@
       const caRayon = caTotalParRayon[p.categorie] || 0;
       const contribution = caRayon > 0 ? p.ca / caRayon : 0;
       const cle = p.categorie + '|' + p.article;
-      if (contribution >= 0.15 && p.ca > 0) {
+      if (contribution >= SEUIL_CONTRIBUTION_FORTE && p.ca > 0) {
         const lang = LANGAGE_ACTION[typeActionPourCategorie(p.categorie)];
         candidats.push({
           etat: '🔥 À AGIR', rule_id: 'R4-RENFORT-A', article: p.article,
@@ -220,7 +233,7 @@
         const caPrec = precedentParArticle[cle];
         const evolution = (caPrec && caPrec > 0) ? (p.ca - caPrec) / caPrec : null;
         if (evolution === null) return;
-        if (evolution >= 0.20) {
+        if (evolution >= SEUIL_HAUSSE) {
           const gain = Math.max(p.ca - caPrec, 0);
           const lang = LANGAGE_ACTION[typeActionPourCategorie(p.categorie)];
           candidats.push({
@@ -239,7 +252,7 @@
             ca_reference: p.ca, periode_reference_debut: paire.actuelle.debut, periode_reference_fin: paire.actuelle.fin,
           });
         }
-        if (evolution <= -0.30) {
+        if (evolution <= SEUIL_BAISSE) {
           const perte = Math.max(caPrec - p.ca, 0);
           const lang = LANGAGE_ACTION[typeActionPourCategorie(p.categorie)];
           candidats.push({
@@ -262,6 +275,44 @@
     }
     candidats.sort((a, b) => b.impact_eur - a.impact_eur);
     return candidats;
+  }
+
+  // "Succès à féliciter" + vue d'ensemble des produits en baisse — extrait
+  // le 11/08/2026 (audit "philosophie/architecture", Article 11) : Cockpit
+  // et Brief calculaient chacun, dans une boucle locale identique, le
+  // produit à la plus forte progression sur la paire de périodes
+  // comparables (base ≥ 50 € pour ne pas célébrer un pourcentage gonflé
+  // par un tout petit chiffre de départ) — Brief se contentait du
+  // commentaire "même détection que MEILLEUR_SUCCES du Cockpit" plutôt que
+  // d'appeler un moteur commun. `produitsEnBaisse` (toute évolution
+  // négative, pas seulement le seuil -30 % qui déclenche R2-BAISSE) n'est
+  // utilisé que par Cockpit aujourd'hui, mais reste calculé ici pour ne
+  // garder qu'UNE boucle sur rowsPaireActuelle.
+  function analyserEvolutionsPaire(rowsPaireActuelle, rowsPairePrecedente, options) {
+    const seuilBase = (options && options.seuilBase != null) ? options.seuilBase : 50;
+    let meilleurSucces = null;
+    const produitsEnBaisse = [];
+    const precedentParArticle = {};
+    (rowsPairePrecedente || []).forEach(r => {
+      const cle = r.categorie + '|' + r.article;
+      precedentParArticle[cle] = (precedentParArticle[cle] || 0) + (r.ca || 0);
+    });
+    (rowsPaireActuelle || []).forEach(p => {
+      const cle = p.categorie + '|' + p.article;
+      const caPrec = precedentParArticle[cle];
+      const evolution = (caPrec && caPrec > 0) ? (p.ca - caPrec) / caPrec : null;
+      if (evolution === null) return;
+      if (evolution > 0 && caPrec >= seuilBase) {
+        if (!meilleurSucces || evolution > meilleurSucces.evolution) {
+          meilleurSucces = { article: p.article, evolution, gain: Math.max(p.ca - caPrec, 0) };
+        }
+      }
+      if (evolution < 0) {
+        produitsEnBaisse.push({ article: p.article, categorie: p.categorie, evolution, perte: Math.max(caPrec - p.ca, 0) });
+      }
+    });
+    produitsEnBaisse.sort((a, b) => a.evolution - b.evolution);
+    return { meilleurSucces, produitsEnBaisse };
   }
 
   // ------------------------------------------------------------
@@ -735,7 +786,8 @@
 
   global.NexusConseiller = {
     typeActionPourCategorie, LANGAGE_ACTION, calculerCandidatsProduits,
-    analyserProduitsStrategiques,
+    SEUIL_CONTRIBUTION_FORTE, SEUIL_HAUSSE, SEUIL_BAISSE,
+    analyserProduitsStrategiques, analyserEvolutionsPaire,
     normaliserProduit, normaliserMarge, normaliserTempo, normaliserAdvisor,
     normaliserCaissePersonne, normaliserStockRayon, normaliserRappel,
     normaliserFdj, normaliserCoach,

@@ -329,11 +329,14 @@ nexusRequireAuth().then(async employee => {
       let statut = null;
       const evolution = (pairPrec && pairPrec.ca > 0 && pairAct) ? (pairAct.ca - pairPrec.ca) / pairPrec.ca : null;
       const lang = NexusConseiller.LANGAGE_ACTION[NexusConseiller.typeActionPourCategorie(p.categorie)];
-      if (pct_contrib !== null && pct_contrib >= 0.15 && p.ca > 0) {
+      // Seuils repris de NexusConseiller (source unique, voir commentaire du
+      // 08/08/2026 ci-dessous et nexus-conseiller.js) — plus jamais recopiés
+      // en dur ici (11/08/2026, audit Article 11).
+      if (pct_contrib !== null && pct_contrib >= NexusConseiller.SEUIL_CONTRIBUTION_FORTE && p.ca > 0) {
         statut = { etat: '🔥 À AGIR', texte: lang.recoAgir(p.article), analyse: lang.analyseAgir };
-      } else if (evolution !== null && evolution >= 0.20) {
+      } else if (evolution !== null && evolution >= NexusConseiller.SEUIL_HAUSSE) {
         statut = { etat: '📈 OPPORTUNITÉ', texte: lang.recoHausse(p.article), analyse: "Cette dynamique dépasse une croissance ordinaire." };
-      } else if (evolution !== null && evolution <= -0.30) {
+      } else if (evolution !== null && evolution <= NexusConseiller.SEUIL_BAISSE) {
         statut = { etat: '🟡 À SURVEILLER', texte: lang.recoBaisse(p.article), analyse: "Je ne peux pas encore conclure à une vraie tendance sans vérification terrain." };
       }
 
@@ -392,15 +395,15 @@ nexusRequireAuth().then(async employee => {
         action: `Aucune vente enregistrée sur la dernière période pour ${p.article} — vérifiez sa présence en rayon ou envisagez un déréférencement.`,
       };
     }
-    if (p.pct_contrib !== null && p.pct_contrib >= 0.15) {
+    if (p.pct_contrib !== null && p.pct_contrib >= NexusConseiller.SEUIL_CONTRIBUTION_FORTE) {
       return { cle: 'strategique', label: 'Produit stratégique', action: lang.recoAgir(p.article) };
     }
-    if (evolution !== null && evolution <= -0.30) {
+    if (evolution !== null && evolution <= NexusConseiller.SEUIL_BAISSE) {
       return { cle: 'surveiller', label: 'À surveiller', action: lang.recoBaisse(p.article) };
     }
     return {
       cle: 'performant', label: 'Produit performant',
-      action: (evolution !== null && evolution >= 0.20)
+      action: (evolution !== null && evolution >= NexusConseiller.SEUIL_HAUSSE)
         ? lang.recoHausse(p.article)
         : `Rien n'indique de risque particulier pour ${p.article} actuellement — maintenez le réassort habituel.`,
     };

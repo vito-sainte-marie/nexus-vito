@@ -804,35 +804,15 @@
       // cross-moteurs) — seule source du calcul, partagée avec App-v1.
       const candidats = NexusConseiller.calculerCandidatsProduits(rowsBrut);
       // Succès à féliciter / Vue d'ensemble des produits en baisse — stats
-      // propres au Cockpit, sans lien avec le classement des candidats,
-      // toujours calculées ici sur la même paire de périodes comparables.
+      // propres au Cockpit, sans lien avec le classement des candidats.
+      // Extrait le 11/08/2026 (Article 11) dans
+      // NexusConseiller.analyserEvolutionsPaire(), source unique désormais
+      // partagée avec NEXUS-Brief-v1.html pour "Succès à féliciter" (voir
+      // ce fichier).
       if (paire) {
-        const precedentParArticle = {};
-        rowsPairePrecedente.forEach(r => {
-          const cle = r.categorie + '|' + r.article;
-          precedentParArticle[cle] = (precedentParArticle[cle] || 0) + (r.ca || 0);
-        });
-        rowsPaireActuelle.forEach(p => {
-          const cle = p.categorie + '|' + p.article;
-          const caPrec = precedentParArticle[cle];
-          const evolution = (caPrec && caPrec > 0) ? (p.ca - caPrec) / caPrec : null;
-          if (evolution === null) return;
-          // Succès à féliciter — la plus forte progression, sur une base assez significative
-          // pour ne pas célébrer un pourcentage gonflé par un tout petit chiffre de départ.
-          if (evolution > 0 && caPrec >= 50) {
-            if (!MEILLEUR_SUCCES || evolution > MEILLEUR_SUCCES.evolution) {
-              MEILLEUR_SUCCES = { article: p.article, evolution, gain: Math.max(p.ca - caPrec, 0) };
-            }
-          }
-          // Vue d'ensemble des produits en baisse — toute évolution négative,
-          // pas seulement le seuil -30% qui déclenche R2-BAISSE. Demande de
-          // Frédéric le 23/07/2026 : une donnée utile au manager, affichée en
-          // dehors des Plans d'action pour ne pas la mélanger aux 5 priorités
-          // scorées (qui restent centrées sur ce qui mérite une action).
-          if (evolution < 0) {
-            PRODUITS_EN_BAISSE.push({ article: p.article, categorie: p.categorie, evolution, perte: Math.max(caPrec - p.ca, 0) });
-          }
-        });
+        const { meilleurSucces, produitsEnBaisse } = NexusConseiller.analyserEvolutionsPaire(rowsPaireActuelle, rowsPairePrecedente);
+        MEILLEUR_SUCCES = meilleurSucces;
+        PRODUITS_EN_BAISSE = produitsEnBaisse;
       }
       const risques = candidats.filter(c => c.rule_id === 'R2-BAISSE').sort((a,b) => b.impact_eur - a.impact_eur);
       PIRE_RISQUE = risques[0] || null;

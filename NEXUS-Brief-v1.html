@@ -432,7 +432,11 @@
     return moyenneEcartAbsolu <= SEUIL_ECART_OPERATIONS_EUR ? 'Stable' : 'À surveiller';
   }
 
-  // Constat NEXUS Tempo — repris à l'identique de chargerConstatTempoHome().
+  // Constat NEXUS Tempo — centralisé le 11/08/2026 (audit "philosophie/
+  // architecture", Article 11) dans NexusTempo.calculerConstatTempo(),
+  // source unique désormais partagée avec NEXUS-App-v1.html. Cette fonction
+  // ne fait plus que charger les lignes (glue Supabase, propre à cet écran)
+  // et calculer le statut opérations local.
   async function chargerConstatTempo() {
     const [{ data, error }, produitsRes] = await Promise.all([
       fetchAllRows(() => nexusClient.from('audits_caisse')
@@ -444,61 +448,19 @@
       console.error('Chargement audits_caisse (constat Tempo, Brief):', error);
       return { jourARenforcer: null, jourMoteur: null, jourPlusRentable: null, jourProgression: null, totalJours: 0, statutOperations: 'Données insuffisantes', detailOperations: null };
     }
-    const joursAgreges = NexusTempo.agregerParJour(data);
-    const totalJours = joursAgreges.length;
-    const joursExploitables = NexusTempo.filtrerJoursClos(joursAgreges);
-    const periodesProduitsAppel = NexusTempo.calculerPeriodesProduitsAppel(produitsRes && produitsRes.error ? [] : (produitsRes.data || []), estProduitAppel);
-    const joursValorises = NexusTempo.attribuerValorisationBoutique(joursExploitables, periodesProduitsAppel);
-    const regroupement = NexusTempo.regrouperParJourSemaine(joursValorises);
-    const classement = NexusTempo.calculerClassement(regroupement);
-    const { jourARenforcer, jourMoteur: jourMoteurBrut, jourProgression: jourProgressionBrut } = NexusTempo.identifierJoursReveles(classement);
-    const jourPlusRentableBrut = NexusTempo.identifierJourPlusRentable(classement);
-    const SEUIL_CONSTAT_TEMPO = -0.10;
-    const jourARenforcerRetenu = (!jourARenforcer || !jourARenforcer.confianceTendance || jourARenforcer.evolutionCombinee === null || jourARenforcer.evolutionCombinee > SEUIL_CONSTAT_TEMPO) ? null : jourARenforcer;
-    const jourMoteur = (jourMoteurBrut && jourMoteurBrut.confianceTendance) ? jourMoteurBrut : null;
-    const jourPlusRentable = (jourPlusRentableBrut && jourPlusRentableBrut.nbOccValorisation > 0) ? jourPlusRentableBrut : null;
-    const jourProgression = (jourProgressionBrut && jourProgressionBrut.confianceTendance) ? jourProgressionBrut : null;
-    const detailOperations = totalJours > 0 ? joursAgreges.reduce((s, j) => s + Math.abs(j.ecartPiste) + Math.abs(j.ecartBoutique), 0) / totalJours : null;
-    const statutOperationsVal = calculerStatutOperations(detailOperations, totalJours);
-    return { jourARenforcer: jourARenforcerRetenu, jourMoteur, jourPlusRentable, jourProgression, totalJours, statutOperations: statutOperationsVal, detailOperations };
+    const constat = NexusTempo.calculerConstatTempo(data, (produitsRes && produitsRes.error ? [] : (produitsRes.data || [])), estProduitAppel);
+    const statutOperationsVal = calculerStatutOperations(constat.detailOperations, constat.totalJours);
+    return { ...constat, statutOperations: statutOperationsVal };
   }
 
-  // Candidat Tempo enrichi pour le Conseiller — repris à l'identique de
-  // construireCandidatTempoHome() dans NEXUS-App-v1.html.
-  function construireCandidatTempo(constatTempo) {
-    const { jourPlusRentable, jourMoteur, jourARenforcer, jourProgression } = constatTempo;
-    const jourCible = jourPlusRentable || jourMoteur;
-    if (!jourCible) return null;
-    const fmt = v => `${Math.round(v).toLocaleString('fr-FR')} €`;
-    const fmtPct = v => `${v >= 0 ? '+' : ''}${(v * 100).toFixed(1).replace('.', ',')} %`;
-    const majuscule = s => s.charAt(0).toUpperCase() + s.slice(1);
-    const diverge = !!(jourPlusRentable && jourMoteur && jourPlusRentable.jourSemaine !== jourMoteur.jourSemaine);
-    let pourquoi = `Le ${jourCible.nom} est actuellement la journée qui crée le plus de valeur pour votre station.`;
-    let pourquoiBullets = null, pourquoiPasAutre = null;
-    if (jourPlusRentable) {
-      pourquoiBullets = [
-        `Meilleure performance piste : ${fmt(jourPlusRentable.moyennePisteValorisation)}`,
-        `Meilleure estimation de valeur : ${fmt(jourPlusRentable.moyenneCombineeValorisee)}`,
-        `Données issues de ${jourPlusRentable.nbOccValorisation} journée${jourPlusRentable.nbOccValorisation > 1 ? 's' : ''} exploitable${jourPlusRentable.nbOccValorisation > 1 ? 's' : ''}`,
-      ];
-    }
-    if (diverge) {
-      pourquoi += ` Le ${jourMoteur.nom} génère davantage de chiffre d'affaires brut, mais une part importante provient de produits d'appel à faible contribution.`;
-      pourquoiPasAutre = { titre: `Pourquoi pas le ${jourMoteur.nom} ?`, texte: `Le chiffre d'affaires boutique y est supérieur (${fmt(jourMoteur.moyenneBoutique)}), mais il est fortement influencé par des produits d'appel. Ces ventes génèrent beaucoup de trafic mais relativement peu de valeur.` };
-    } else if (jourPlusRentable) {
-      pourquoi += ` Cette estimation reste cohérente une fois les produits d'appel retirés du calcul.`;
-    }
-    let limites = null;
-    if (jourMoteur && jourMoteur.nbOccValorisation === 0 && jourMoteur.occurrences && jourMoteur.occurrences.length > 0) {
-      limites = `Le ${jourMoteur.nom} n'a pas encore été entièrement valorisé — le calcul sera actualisé au prochain import.`;
-    }
-    return {
-      jourCible, decision: `Concentrez vos prochaines actions commerciales le ${jourCible.nom}.`,
-      pourquoi, pourquoiBullets, pourquoiPasAutre,
-      impactAttendu: `En privilégiant le ${jourCible.nom} pour vos animations et mises en avant, vous exploitez la journée offrant aujourd'hui le meilleur potentiel économique.`,
-      limites,
-    };
-  }
+  // Candidat Tempo enrichi pour le Conseiller — centralisé le 11/08/2026
+  // dans NexusTempo.construireCandidatTempo() (Article 11). Cette copie
+  // locale était encore décrite comme "reprise à l'identique" de
+  // NEXUS-App-v1.html alors qu'elle avait déjà divergé : elle ne
+  // construisait jamais le bloc `opportunites` (jour en progression / jour
+  // à renforcer), contrairement à App-v1 — corrigé en passant à la version
+  // partagée, désormais strictement identique sur les deux écrans.
+  const construireCandidatTempo = NexusTempo.construireCandidatTempo;
 
   async function chargerCandidatsCaisse() {
     const { data, error } = await fetchAllRows(() => nexusClient.from('v_caisse_ecart_a_traiter').select('*').eq('site', SITE_ACTUEL));
@@ -763,21 +725,10 @@
     const candidatsFdj = candidatsFdjObj.candidats;
     const fdjResume = candidatsFdjObj.resume;
 
-    // Succès à féliciter — même détection que MEILLEUR_SUCCES du Cockpit
-    // (plus forte progression, base ≥ 50 € pour ne pas célébrer un
-    // pourcentage gonflé par un tout petit chiffre de départ).
-    let meilleurSucces = null;
-    if (paire) {
-      const precedentParArticle = {};
-      rowsPairePrecedente.forEach(r => { const cle = r.categorie + '|' + r.article; precedentParArticle[cle] = (precedentParArticle[cle] || 0) + (r.ca || 0); });
-      rowsPaireActuelle.forEach(p => {
-        const cle = p.categorie + '|' + p.article;
-        const caPrec = precedentParArticle[cle];
-        const evolution = (caPrec && caPrec > 0) ? (p.ca - caPrec) / caPrec : null;
-        if (evolution === null || evolution <= 0 || caPrec < 50) return;
-        if (!meilleurSucces || evolution > meilleurSucces.evolution) meilleurSucces = { article: p.article, evolution, gain: Math.max(p.ca - caPrec, 0) };
-      });
-    }
+    // Succès à féliciter — extrait le 11/08/2026 (Article 11) dans
+    // NexusConseiller.analyserEvolutionsPaire(), source unique désormais
+    // partagée avec NEXUS-Cockpit-v2.html (MEILLEUR_SUCCES).
+    const meilleurSucces = paire ? NexusConseiller.analyserEvolutionsPaire(rowsPaireActuelle, rowsPairePrecedente).meilleurSucces : null;
 
     const nbCritiquesCaisse = candidatsCaisseObj.raw.filter(c => c.statut === 'critique').length;
     const risqueStockTotal = candidatsStock.reduce((s, c) => s + (c.impact_eur || 0), 0);

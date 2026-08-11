@@ -1385,9 +1385,10 @@
   // tendance est réellement calculable (au moins 2 occurrences du même
   // jour de semaine, voir SEUILS.MIN_OCCURRENCES_TENDANCE dans
   // nexus-tempo.js) et clairement défavorable — jamais un simple écart
-  // du jour, qui pourrait n'être qu'un hasard de calendrier.
+  // du jour, qui pourrait n'être qu'un hasard de calendrier. Seuil
+  // (-10 %) désormais NexusTempo.SEUILS.SEUIL_CONSTAT_TEMPO (11/08/2026,
+  // Article 11 — n'est plus recopié ici).
   // ------------------------------------------------------------
-  const SEUIL_CONSTAT_TEMPO = -0.10;
 
   // Opérations — seuil désormais partagé avec NEXUS-Brief-v1.html via
   // nexus-boussole-moteur.js (Article 11), provisoire, non recalibré (même
@@ -1430,37 +1431,14 @@
       console.error('Chargement audits_caisse (constat Tempo):', error);
       return { jourARenforcer: null, jourMoteur: null, jourPlusRentable: null, jourProgression: null, totalJours: 0, statutOperations: 'Données insuffisantes', detailOperations: null };
     }
-    const joursAgreges = NexusTempo.agregerParJour(data);
-    const totalJours = joursAgreges.length;
-    // Jours clos uniquement (27/07/2026) — corrige une incohérence : ce
-    // constat comptait jusqu'ici le jour en cours comme exploitable, alors
-    // que NEXUS Tempo lui-même l'exclut toujours (voir filtrerJoursClos).
-    const joursExploitables = NexusTempo.filtrerJoursClos(joursAgreges);
+    // Pipeline Tempo (agrégation → valorisation → classement → seuils de
+    // confiance) centralisé dans NexusTempo.calculerConstatTempo() depuis le
+    // 11/08/2026 (audit Article 11) — cette page ne fait plus que charger
+    // les lignes et calculer le statut opérations, propre à cet écran.
+    const constat = NexusTempo.calculerConstatTempo(data, (produitsRes && produitsRes.error ? [] : (produitsRes.data || [])), estProduitAppelHome);
+    const statutOperationsVal = calculerStatutOperations(constat.detailOperations, constat.totalJours);
 
-    // Valorisation boutique (produits d'appel exclus) — même pipeline que
-    // NEXUS Tempo (27/07/2026, demande de Frédéric) : le Conseiller doit
-    // pouvoir construire sa décision sur le jour le plus rentable, pas
-    // seulement sur le jour au CA brut le plus haut.
-    const periodesProduitsAppel = NexusTempo.calculerPeriodesProduitsAppel(produitsRes && produitsRes.error ? [] : (produitsRes.data || []), estProduitAppelHome);
-    const joursValorises = NexusTempo.attribuerValorisationBoutique(joursExploitables, periodesProduitsAppel);
-
-    const regroupement = NexusTempo.regrouperParJourSemaine(joursValorises);
-    const classement = NexusTempo.calculerClassement(regroupement);
-    const { jourARenforcer, jourMoteur: jourMoteurBrut, jourProgression: jourProgressionBrut } = NexusTempo.identifierJoursReveles(classement);
-    const jourPlusRentableBrut = NexusTempo.identifierJourPlusRentable(classement);
-
-    const jourARenforcerRetenu = (!jourARenforcer || !jourARenforcer.confianceTendance || jourARenforcer.evolutionCombinee === null || jourARenforcer.evolutionCombinee > SEUIL_CONSTAT_TEMPO)
-      ? null : jourARenforcer;
-    const jourMoteur = (jourMoteurBrut && jourMoteurBrut.confianceTendance) ? jourMoteurBrut : null;
-    const jourPlusRentable = (jourPlusRentableBrut && jourPlusRentableBrut.nbOccValorisation > 0) ? jourPlusRentableBrut : null;
-    const jourProgression = (jourProgressionBrut && jourProgressionBrut.confianceTendance) ? jourProgressionBrut : null;
-
-    const detailOperations = totalJours > 0
-      ? joursAgreges.reduce((s, j) => s + Math.abs(j.ecartPiste) + Math.abs(j.ecartBoutique), 0) / totalJours
-      : null;
-    const statutOperationsVal = calculerStatutOperations(detailOperations, totalJours);
-
-    return { jourARenforcer: jourARenforcerRetenu, jourMoteur, jourPlusRentable, jourProgression, totalJours, statutOperations: statutOperationsVal, detailOperations };
+    return { ...constat, statutOperations: statutOperationsVal };
   }
 
   // chargerStockSanteHome()/statutStock() (27/07/2026, "vrai 5e domaine" de
@@ -1471,66 +1449,12 @@
   // Retirer l'appel réseau associé (stock_sante_historique) plutôt que de
   // le laisser tourner pour un résultat qui ne sert plus à rien.
 
-  // Candidat Tempo enrichi pour le Conseiller (27/07/2026, demande de
-  // Frédéric) : priorité au jour le plus rentable (CA valorisé, produits
-  // d'appel exclus) plutôt qu'au seul jour à renforcer — reproduit
-  // exactement la structure Décision → Pourquoi → Impact attendu →
-  // Preuves → Limites, avec le même exemple travaillé qu'il a fourni
-  // (jeudi plus rentable, vendredi plus fort en CA brut mais tiré par des
-  // produits d'appel). Retourne null si aucun jour n'est identifiable.
-  function construireCandidatTempoHome(constatTempo) {
-    const { jourPlusRentable, jourMoteur, jourARenforcer, jourProgression } = constatTempo;
-    const jourCible = jourPlusRentable || jourMoteur;
-    if (!jourCible) return null;
-
-    const fmt = v => `${Math.round(v).toLocaleString('fr-FR')} €`;
-    const fmtPct = v => `${v >= 0 ? '+' : ''}${(v * 100).toFixed(1).replace('.', ',')} %`;
-    const majuscule = s => s.charAt(0).toUpperCase() + s.slice(1);
-    const diverge = !!(jourPlusRentable && jourMoteur && jourPlusRentable.jourSemaine !== jourMoteur.jourSemaine);
-
-    let pourquoi = `Le ${jourCible.nom} est actuellement la journée qui crée le plus de valeur pour votre station.`;
-    let pourquoiBullets = null;
-    let pourquoiPasAutre = null;
-
-    if (jourPlusRentable) {
-      pourquoiBullets = [
-        `Meilleure performance piste : ${fmt(jourPlusRentable.moyennePisteValorisation)}`,
-        `Meilleure estimation de valeur : ${fmt(jourPlusRentable.moyenneCombineeValorisee)}`,
-        `Données issues de ${jourPlusRentable.nbOccValorisation} journée${jourPlusRentable.nbOccValorisation > 1 ? 's' : ''} exploitable${jourPlusRentable.nbOccValorisation > 1 ? 's' : ''}`,
-      ];
-    }
-    if (diverge) {
-      pourquoi += ` Le ${jourMoteur.nom} génère davantage de chiffre d'affaires brut, mais une part importante provient de produits d'appel à faible contribution.`;
-      pourquoiPasAutre = {
-        titre: `Pourquoi pas le ${jourMoteur.nom} ?`,
-        texte: `Le chiffre d'affaires boutique y est supérieur (${fmt(jourMoteur.moyenneBoutique)}), mais il est fortement influencé par des produits d'appel (cartes prépayées, téléphonie, presse, gaz, tabac). Ces ventes génèrent beaucoup de trafic mais relativement peu de valeur.`,
-      };
-    } else if (jourPlusRentable) {
-      pourquoi += ` Cette estimation reste cohérente une fois les produits d'appel retirés du calcul.`;
-    }
-
-    const opportunitesTempo = [];
-    if (jourProgression && jourProgression.jourSemaine !== jourCible.jourSemaine && jourProgression.evolutionCombinee !== null) {
-      opportunitesTempo.push({ icone: '🟢', label: majuscule(jourProgression.nom), detail: `Plus forte progression : ${fmtPct(jourProgression.evolutionCombinee)}` });
-    }
-    if (jourARenforcer && jourARenforcer.jourSemaine !== jourCible.jourSemaine && jourARenforcer.evolutionCombinee !== null) {
-      opportunitesTempo.push({ icone: '⚠️', label: majuscule(jourARenforcer.nom), detail: `Journée la plus faible : ${fmtPct(jourARenforcer.evolutionCombinee)}` });
-    }
-
-    let limites = null;
-    if (jourMoteur && jourMoteur.nbOccValorisation === 0 && jourMoteur.occurrences && jourMoteur.occurrences.length > 0) {
-      limites = `Le ${jourMoteur.nom} n'a pas encore été entièrement valorisé. Sa dernière occurrence est postérieure au dernier import Produits. Le calcul sera automatiquement actualisé lors du prochain import.`;
-    }
-
-    return {
-      jourCible,
-      decision: `Concentrez vos prochaines actions commerciales le ${jourCible.nom}.`,
-      pourquoi, pourquoiBullets, pourquoiPasAutre,
-      opportunites: opportunitesTempo.length ? opportunitesTempo : null,
-      impactAttendu: `En privilégiant le ${jourCible.nom} pour vos animations et mises en avant, vous exploitez la journée offrant aujourd'hui le meilleur potentiel économique.`,
-      limites,
-    };
-  }
+  // Candidat Tempo enrichi pour le Conseiller — centralisé le 11/08/2026
+  // (audit Article 11) dans NexusTempo.construireCandidatTempo(), source
+  // unique désormais partagée avec NEXUS-Brief-v1.html (voir ce fichier —
+  // les deux copies avaient divergé silencieusement sur le bloc
+  // `opportunites`).
+  const construireCandidatTempoHome = NexusTempo.construireCandidatTempo;
 
   let SITE_HOME = 'vito-sainte-marie';
   let EMPLOYEE_HOME_ID = null;

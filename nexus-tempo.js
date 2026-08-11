@@ -79,6 +79,12 @@
     // précipitations (mm/jour) — en dessous, la pluie est jugée trop
     // faible pour avoir un effet mesurable sur la fréquentation.
     SEUIL_PLUIE_MM: 1,
+    // "Jour à renforcer" pour le constat Conseiller (NEXUS-App-v1.html et
+    // NEXUS-Brief-v1.html) : évolution combinée en dessous de -10 % avant
+    // de qualifier un jour comme suffisamment fragile pour être remonté
+    // (ajouté ici le 11/08/2026, Article 11 — les deux pages avaient chacune
+    // leur propre copie de cette même valeur -0.10).
+    SEUIL_CONSTAT_TEMPO: -0.10,
     // Scanner Stock (25/07/2026) : nombre minimum de jours "à
     // surveiller" ET de jours "sans alerte" nécessaires avant de
     // comparer leur CA. Aujourd'hui, stock_sante_historique n'est
@@ -1267,6 +1273,110 @@
   }
 
   // ------------------------------------------------------------
+  // 10bis) Constat Conseiller (11/08/2026, audit "philosophie/architecture",
+  //     Article 11 "une seule vérité") — NEXUS-App-v1.html et
+  //     NEXUS-Brief-v1.html avaient chacun leur propre copie EXACTE de
+  //     chargerConstatTempoHome()/chargerConstatTempo() et de
+  //     construireCandidatTempoHome()/construireCandidatTempo(), l'une
+  //     explicitement commentée "repris à l'identique de ... App-v1.html".
+  //     Une vraie divergence s'était déjà glissée entre les deux copies :
+  //     la version Brief ne construisait jamais le bloc `opportunites`
+  //     (jour en progression / jour à renforcer, hors jourCible), alors que
+  //     celle d'App-v1 le fait — un manager lisant sa décision Tempo sur
+  //     Brief voyait donc moins d'information que sur l'accueil, sans
+  //     raison. calculerConstatTempo() et construireCandidatTempo()
+  //     devenues ici la source unique corrigent cette divergence : les deux
+  //     pages appellent désormais directement ces fonctions à partir des
+  //     lignes déjà chargées (audits_caisse, products), chacune gardant sa
+  //     propre requête Supabase (glue, pas de logique) et son propre
+  //     estProduitAppel (déjà une source unique via NexusMarge.familleMarge).
+  // ------------------------------------------------------------
+  function calculerConstatTempo(auditsCaisseRows, productsRows, estProduitAppelFn) {
+    const joursAgreges = agregerParJour(auditsCaisseRows || []);
+    const totalJours = joursAgreges.length;
+    const joursExploitables = filtrerJoursClos(joursAgreges);
+    const periodesProduitsAppel = calculerPeriodesProduitsAppel(productsRows || [], estProduitAppelFn);
+    const joursValorises = attribuerValorisationBoutique(joursExploitables, periodesProduitsAppel);
+    const regroupement = regrouperParJourSemaine(joursValorises);
+    const classement = calculerClassement(regroupement);
+    const { jourARenforcer, jourMoteur: jourMoteurBrut, jourProgression: jourProgressionBrut } = identifierJoursReveles(classement);
+    const jourPlusRentableBrut = identifierJourPlusRentable(classement);
+
+    const jourARenforcerRetenu = (!jourARenforcer || !jourARenforcer.confianceTendance || jourARenforcer.evolutionCombinee === null || jourARenforcer.evolutionCombinee > SEUILS.SEUIL_CONSTAT_TEMPO)
+      ? null : jourARenforcer;
+    const jourMoteur = (jourMoteurBrut && jourMoteurBrut.confianceTendance) ? jourMoteurBrut : null;
+    const jourPlusRentable = (jourPlusRentableBrut && jourPlusRentableBrut.nbOccValorisation > 0) ? jourPlusRentableBrut : null;
+    const jourProgression = (jourProgressionBrut && jourProgressionBrut.confianceTendance) ? jourProgressionBrut : null;
+
+    const detailOperations = totalJours > 0
+      ? joursAgreges.reduce((s, j) => s + Math.abs(j.ecartPiste) + Math.abs(j.ecartBoutique), 0) / totalJours
+      : null;
+
+    return { jourARenforcer: jourARenforcerRetenu, jourMoteur, jourPlusRentable, jourProgression, totalJours, detailOperations };
+  }
+
+  // Candidat Tempo enrichi pour le Conseiller (27/07/2026, demande de
+  // Frédéric) : priorité au jour le plus rentable (CA valorisé, produits
+  // d'appel exclus) plutôt qu'au seul jour à renforcer — structure
+  // Décision → Pourquoi → Impact attendu → Preuves → Limites, avec le même
+  // exemple travaillé qu'il a fourni (jeudi plus rentable, vendredi plus
+  // fort en CA brut mais tiré par des produits d'appel). Retourne null si
+  // aucun jour n'est identifiable. Consommée par NexusConseiller.normaliserTempo().
+  function construireCandidatTempo(constatTempo) {
+    const { jourPlusRentable, jourMoteur, jourARenforcer, jourProgression } = constatTempo;
+    const jourCible = jourPlusRentable || jourMoteur;
+    if (!jourCible) return null;
+
+    const fmt = v => `${Math.round(v).toLocaleString('fr-FR')} €`;
+    const fmtPct = v => `${v >= 0 ? '+' : ''}${(v * 100).toFixed(1).replace('.', ',')} %`;
+    const majuscule = s => s.charAt(0).toUpperCase() + s.slice(1);
+    const diverge = !!(jourPlusRentable && jourMoteur && jourPlusRentable.jourSemaine !== jourMoteur.jourSemaine);
+
+    let pourquoi = `Le ${jourCible.nom} est actuellement la journée qui crée le plus de valeur pour votre station.`;
+    let pourquoiBullets = null;
+    let pourquoiPasAutre = null;
+
+    if (jourPlusRentable) {
+      pourquoiBullets = [
+        `Meilleure performance piste : ${fmt(jourPlusRentable.moyennePisteValorisation)}`,
+        `Meilleure estimation de valeur : ${fmt(jourPlusRentable.moyenneCombineeValorisee)}`,
+        `Données issues de ${jourPlusRentable.nbOccValorisation} journée${jourPlusRentable.nbOccValorisation > 1 ? 's' : ''} exploitable${jourPlusRentable.nbOccValorisation > 1 ? 's' : ''}`,
+      ];
+    }
+    if (diverge) {
+      pourquoi += ` Le ${jourMoteur.nom} génère davantage de chiffre d'affaires brut, mais une part importante provient de produits d'appel à faible contribution.`;
+      pourquoiPasAutre = {
+        titre: `Pourquoi pas le ${jourMoteur.nom} ?`,
+        texte: `Le chiffre d'affaires boutique y est supérieur (${fmt(jourMoteur.moyenneBoutique)}), mais il est fortement influencé par des produits d'appel (cartes prépayées, téléphonie, presse, gaz, tabac). Ces ventes génèrent beaucoup de trafic mais relativement peu de valeur.`,
+      };
+    } else if (jourPlusRentable) {
+      pourquoi += ` Cette estimation reste cohérente une fois les produits d'appel retirés du calcul.`;
+    }
+
+    const opportunitesTempo = [];
+    if (jourProgression && jourProgression.jourSemaine !== jourCible.jourSemaine && jourProgression.evolutionCombinee !== null) {
+      opportunitesTempo.push({ icone: '🟢', label: majuscule(jourProgression.nom), detail: `Plus forte progression : ${fmtPct(jourProgression.evolutionCombinee)}` });
+    }
+    if (jourARenforcer && jourARenforcer.jourSemaine !== jourCible.jourSemaine && jourARenforcer.evolutionCombinee !== null) {
+      opportunitesTempo.push({ icone: '⚠️', label: majuscule(jourARenforcer.nom), detail: `Journée la plus faible : ${fmtPct(jourARenforcer.evolutionCombinee)}` });
+    }
+
+    let limites = null;
+    if (jourMoteur && jourMoteur.nbOccValorisation === 0 && jourMoteur.occurrences && jourMoteur.occurrences.length > 0) {
+      limites = `Le ${jourMoteur.nom} n'a pas encore été entièrement valorisé. Sa dernière occurrence est postérieure au dernier import Produits. Le calcul sera automatiquement actualisé lors du prochain import.`;
+    }
+
+    return {
+      jourCible,
+      decision: `Concentrez vos prochaines actions commerciales le ${jourCible.nom}.`,
+      pourquoi, pourquoiBullets, pourquoiPasAutre,
+      opportunites: opportunitesTempo.length ? opportunitesTempo : null,
+      impactAttendu: `En privilégiant le ${jourCible.nom} pour vos animations et mises en avant, vous exploitez la journée offrant aujourd'hui le meilleur potentiel économique.`,
+      limites,
+    };
+  }
+
+  // ------------------------------------------------------------
   // 11) Architecture — sources de données que NEXUS Tempo est déjà
   //     capable de lire, et celles prévues pour affiner sa mémoire
   //     temporelle à mesure qu'elles seront branchées. Déclarer une
@@ -1307,5 +1417,6 @@
     agregerInventaireParDate, dernierEtatInventaire,
     dernierEtatCapital, analyserImpactDecisionsTempo,
     dateLocale, moyenne, ecartType, evolution,
+    calculerConstatTempo, construireCandidatTempo,
   };
 })();

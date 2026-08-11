@@ -20,6 +20,7 @@
 <script src="nexus-auth.js"></script>
 <script src="nexus-desktop.js"></script>
 <script src="nexus-periodes.js"></script>
+<script src="nexus-conseiller.js"></script>
 <style>
   :root{
     --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
@@ -780,64 +781,22 @@
   // d'Intelligence (candidate_id type "LIVE-R4-<rayon>|<article>") — valider
   // une recommandation ailleurs ne pouvait donc jamais faire disparaitre
   // celle-ci. Missions utilise maintenant le MEME moteur live (memes regles,
-  // memes candidate_id) que Cockpit/CIN, sur les memes donnees "products",
-  // pour que valider une recommandation depuis n'importe quel ecran la fasse
-  // disparaitre partout.
+  // memes candidate_id) que Cockpit/CIN.
+  //
+  // RE-CORRIGÉ le 11/08/2026 (audit "philosophie/architecture", priorité
+  // Article 11 "une seule vérité") : ce fichier avait malgré tout gardé sa
+  // propre copie de typeActionPourCategorie/LANGAGE_ACTION/R2-R3-R4, en
+  // parallèle de la même logique déjà centralisée dans
+  // nexus-conseiller.js::calculerCandidatsProduits() et déjà utilisée par
+  // Cockpit/Brief/App/Centre d'Intelligence. Missions appelle maintenant le
+  // moteur partagé directement, comme les autres. Différence de
+  // comportement assumée : l'ancienne copie locale désactivait R2/R3 dès
+  // que la période la plus récente était encore en cours (periodeEnCours),
+  // alors que le moteur partagé les évalue toujours sur la paire de
+  // périodes comparables déjà validée par NexusPeriodes.analyserPeriodes,
+  // indépendamment d'une période plus récente encore incomplète — Missions
+  // s'aligne ainsi sur le comportement déjà en vigueur partout ailleurs.
   // ------------------------------------------------------------
-  function typeActionPourCategorie(categorie) {
-    const c = (categorie || '').toLowerCase();
-    if (c.includes('gaz')) return 'stock';
-    if (c.includes('carte') || c.includes('prépayé') || c.includes('prepaye') || c.includes('transcash') || c.includes('pcs')) return 'support';
-    if (c.includes('pain') || c.includes('patisserie') || c.includes('pâtisserie') || c.includes('viennoiserie') || c.includes('sandwich') || c.includes('snack')) return 'production';
-    if (c.includes('tabac') || c.includes('cigarette') || c.includes('paquet de')) return 'comptoir';
-    if (c.includes('presse')) return 'presentoir';
-    return 'facing';
-  }
-
-  const LANGAGE_ACTION = {
-    facing: {
-      analyseAgir: "Une référence à ce niveau de contribution mérite un facing à la hauteur de son poids réel.",
-      recoAgir: a => `Je recommande de vérifier et renforcer le facing de ${a}.`,
-      consAgir: m => `Un sous-dimensionnement de facing sur cette référence représente un risque estimé à ${m} €.`,
-      recoHausse: a => `Il serait utile de renforcer le facing de ${a} avant le prochain réapprovisionnement.`,
-      recoBaisse: a => `Vérifiez la présence en rayon de ${a} avant toute décision.`,
-    },
-    stock: {
-      analyseAgir: "Une référence à ce niveau de contribution ne doit jamais être en rupture en dépôt — elle n'est pas exposée en rayon comme les autres.",
-      recoAgir: a => `Je recommande de vérifier le stock disponible en dépôt/cage pour ${a}.`,
-      consAgir: m => `Une rupture de stock sur cette référence représente un risque estimé à ${m} €.`,
-      recoHausse: a => `Sécurisez davantage de stock de ${a} avant le prochain réapprovisionnement.`,
-      recoBaisse: a => `Vérifiez le stock en dépôt/cage de ${a} avant toute décision.`,
-    },
-    support: {
-      analyseAgir: "Une référence à ce niveau de contribution dépend surtout de la disponibilité du support et de son activation en caisse, pas d'un emplacement en rayon.",
-      recoAgir: a => `Je recommande de vérifier le stock de cartes et la bonne activation en caisse pour ${a}.`,
-      consAgir: m => `Une indisponibilité de ce support représente un risque estimé à ${m} €.`,
-      recoHausse: a => `Prévoyez davantage de support et d'activation pour ${a} avant le prochain réapprovisionnement.`,
-      recoBaisse: a => `Vérifiez la disponibilité du support et son activation en caisse pour ${a} avant toute décision.`,
-    },
-    production: {
-      analyseAgir: "Une référence à ce niveau de contribution dépend surtout de la quantité produite ou commandée chaque jour — c'est un produit frais, pas un facing.",
-      recoAgir: a => `Je recommande d'ajuster la quantité commandée ou produite de ${a} au niveau réel de la demande.`,
-      consAgir: m => `Une quantité insuffisante sur cette référence fraîche représente un risque estimé à ${m} €.`,
-      recoHausse: a => `Augmentez la quantité commandée ou produite de ${a} avant le prochain réapprovisionnement.`,
-      recoBaisse: a => `Vérifiez si la quantité produite ou commandée de ${a} a été réduite avant toute décision.`,
-    },
-    comptoir: {
-      analyseAgir: "Une référence à ce niveau de contribution doit rester visible et disponible au comptoir en priorité.",
-      recoAgir: a => `Je recommande de vérifier la disponibilité au comptoir de ${a}.`,
-      consAgir: m => `Une rupture au comptoir sur cette référence représente un risque estimé à ${m} €.`,
-      recoHausse: a => `Garantissez la disponibilité au comptoir de ${a} avant le prochain réapprovisionnement.`,
-      recoBaisse: a => `Vérifiez la disponibilité au comptoir de ${a} avant toute décision.`,
-    },
-    presentoir: {
-      analyseAgir: "Une référence à ce niveau de contribution mérite une bonne visibilité sur le présentoir.",
-      recoAgir: a => `Je recommande de vérifier l'emplacement de ${a} sur le présentoir.`,
-      consAgir: m => `Un mauvais emplacement sur cette référence représente un risque estimé à ${m} €.`,
-      recoHausse: a => `Améliorez l'emplacement de ${a} sur le présentoir avant le prochain réapprovisionnement.`,
-      recoBaisse: a => `Vérifiez l'emplacement de ${a} sur le présentoir avant toute décision.`,
-    },
-  };
 
   async function chargerProduitsAppel() {
     const { data, error } = await nexusClient.from('produits_appel').select('article').eq('site', SITE_ACTUEL);
@@ -874,84 +833,9 @@
     if (error || !data || !data.length) { if (error) console.error('Chargement products (plans action):', error); return []; }
 
     const rowsBrut = data.filter(r => !produitsAppel.has(r.article));
-
-    // CORRECTIF 23/07/2026 (harmonisation demandée par Frédéric : "un système,
-    // pas une succession de pages") — même bug et même correctif que sur
-    // Rayon/Cockpit/Produits/Centre-Intelligence le même jour : comparer
-    // aveuglément les deux périodes les plus récentes fabrique une évolution
-    // fausse dès qu'elles se chevauchent ou n'ont pas une durée comparable.
-    // Le moteur partagé nexus-periodes.js sépare "période affichée" (sert au
-    // calcul R4, qui ne dépend d'aucun historique) de "paire comparable"
-    // (utilisée uniquement pour R3-HAUSSE/R2-BAISSE, et seulement si la
-    // période affichée en fait elle-même partie).
-    const { periodeAffichage, rowsAffichage: rowsActuels, paire, rowsPairePrecedente, periodeEnCours } = NexusPeriodes.analyserPeriodes(rowsBrut);
-    if (!periodeAffichage) { console.error('Aucune période exploitable dans products.'); return []; }
-    const rowsPrecedentsComparables = (paire && !periodeEnCours) ? rowsPairePrecedente : [];
-
-    const caTotalParRayon = {};
-    rowsActuels.forEach(r => { caTotalParRayon[r.categorie] = (caTotalParRayon[r.categorie] || 0) + (r.ca || 0); });
-
-    const precedentParArticle = {};
-    rowsPrecedentsComparables.forEach(r => {
-      const cle = r.categorie + '|' + r.article;
-      precedentParArticle[cle] = (precedentParArticle[cle] || 0) + (r.ca || 0);
-    });
-
-    const candidats = [];
-    const fmt = v => Math.round(v).toLocaleString('fr-FR');
-
-    rowsActuels.forEach(p => {
-      const caRayon = caTotalParRayon[p.categorie] || 0;
-      const contribution = caRayon > 0 ? p.ca / caRayon : 0;
-      const cle = p.categorie + '|' + p.article;
-      const caPrec = precedentParArticle[cle];
-      const evolution = (caPrec && caPrec > 0) ? (p.ca - caPrec) / caPrec : null;
-
-      if (contribution >= 0.15 && p.ca > 0) {
-        const lang = LANGAGE_ACTION[typeActionPourCategorie(p.categorie)];
-        candidats.push({
-          etat: "🔥 À AGIR", rule_id: "R4-RENFORT-A", article: p.article, categorie: p.categorie,
-          situation: `${p.article} représente ${(contribution*100).toFixed(1)} % du chiffre d'affaires du rayon ${p.categorie}.`,
-          contexte: "Cette contribution est calculée sur l'ensemble des références du rayon.",
-          analyse: lang.analyseAgir,
-          consequence: lang.consAgir(fmt(p.ca)),
-          recommandation: lang.recoAgir(p.article),
-          impact: `Vous sécurisez environ ${fmt(p.ca)} € de chiffre d'affaires déjà généré par cette référence.`,
-          candidate_id: `LIVE-R4-${cle}`, impact_eur: p.ca,
-        });
-      }
-      if (evolution !== null && evolution >= 0.20) {
-        const gain = Math.max(p.ca - caPrec, 0);
-        const lang = LANGAGE_ACTION[typeActionPourCategorie(p.categorie)];
-        candidats.push({
-          etat: "📈 OPPORTUNITÉ", rule_id: "R3-HAUSSE", article: p.article, categorie: p.categorie,
-          situation: `Les ventes de ${p.article} progressent de ${(evolution*100).toFixed(1)} % sur la période.`,
-          contexte: "Cette progression est mesurée entre les deux périodes importées.",
-          analyse: "Cette dynamique dépasse une croissance ordinaire.",
-          consequence: "Cette croissance peut être amplifiée si l'offre suit la demande.",
-          recommandation: lang.recoHausse(p.article),
-          impact: `Vous avez gagné environ ${fmt(gain)} € sur cette référence depuis la période précédente.`,
-          candidate_id: `LIVE-R3-${cle}`, impact_eur: gain,
-        });
-      }
-      if (evolution !== null && evolution <= -0.30) {
-        const perte = Math.max(caPrec - p.ca, 0);
-        const lang = LANGAGE_ACTION[typeActionPourCategorie(p.categorie)];
-        candidats.push({
-          etat: "🟡 À SURVEILLER", rule_id: "R2-BAISSE", article: p.article, categorie: p.categorie,
-          situation: `Les ventes de ${p.article} chutent de ${(evolution*100).toFixed(1)} % sur la période.`,
-          contexte: "NEXUS ne dispose pas de la donnée de stock pour cette référence.",
-          analyse: "Je ne peux pas encore conclure à une vraie tendance sans vérification terrain.",
-          consequence: "Une rupture non détectée expliquerait aussi bien cette baisse qu'un désintérêt réel.",
-          recommandation: lang.recoBaisse(p.article),
-          impact: "Vérification demandée — aucune conclusion tant que le stock n'est pas confirmé.",
-          candidate_id: `LIVE-R2-${cle}`, impact_eur: perte,
-        });
-      }
-    });
-
-    candidats.sort((a, b) => b.impact_eur - a.impact_eur);
-    return candidats;
+    // Moteur R2/R3/R4 partagé (nexus-conseiller.js) — voir commentaire
+    // au-dessus de chargerProduitsAppel() pour le détail de la migration.
+    return NexusConseiller.calculerCandidatsProduits(rowsBrut);
   }
 
   let PLANS_ACTION = [];
