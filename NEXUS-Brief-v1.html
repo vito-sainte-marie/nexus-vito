@@ -1155,28 +1155,18 @@
   // si les données manquent encore (carburant_releves vide tant que le
   // manager n'a pas commencé à utiliser le Relevé du jour) plutôt que de
   // masquer la carte ou d'inventer un statut.
-  const ORDRE_GRAVITE_CARBURANT = ['À corriger', 'À surveiller', 'Sous contrôle', 'Données insuffisantes'];
+  // Statut global + phrase du jour (11/08/2026) : construits par
+  // NexusCarburantMoteur.statutGlobalControle/texteControleJour — extrait
+  // ce jour même dans le moteur partagé pour que cette carte, la mini-fiche
+  // Carburants de l'accueil APP et Carburants Pilotage racontent toujours
+  // exactement la même chose (Article 11, jamais une deuxième formule).
   function renderCarburants(brief) {
     const c = brief.carburants;
     if (!c) return '';
-    const NOM = { go: 'GO', sp95: 'SP95', gnr: 'GNR' };
+    const NOM = NexusCarburantMoteur.NOM_CARBURANT_COURT;
 
-    let statutGlobal = 'Données insuffisantes';
-    let ligneEcarts = "Aucun relevé enregistré pour l'instant — le contrôle s'activera dès le premier jaugeage saisi dans Carburants.";
-    if (!c.controle.aucunReleve && c.controle.parCarburant) {
-      const statuts = Object.values(c.controle.parCarburant).map(r => r.statut);
-      statutGlobal = ORDRE_GRAVITE_CARBURANT.find(s => statuts.includes(s)) || 'Données insuffisantes';
-      const aSurveiller = Object.entries(c.controle.parCarburant).filter(([, r]) => r.statut === 'À surveiller' || r.statut === 'À corriger');
-      if (aSurveiller.length) {
-        ligneEcarts = aSurveiller.map(([cle, r]) => `${NOM[cle]} : écart de ${r.ecart != null ? `${r.ecart >= 0 ? '+' : ''}${Math.round(r.ecart)} L` : 'non calculable'} ce matin.`).join(' ');
-        const okListe = Object.entries(c.controle.parCarburant).filter(([, r]) => r.statut === 'Sous contrôle').map(([cle]) => NOM[cle]);
-        if (okListe.length) ligneEcarts += ` ${okListe.join(' et ')} sous contrôle.`;
-      } else if (statutGlobal === 'Sous contrôle') {
-        ligneEcarts = 'Les 3 carburants sont sous contrôle ce matin.';
-      } else {
-        ligneEcarts = "Écart non calculable pour l'instant sur au moins un carburant (données insuffisantes).";
-      }
-    }
+    const statutGlobal = NexusCarburantMoteur.statutGlobalControle(c.controle.aucunReleve ? null : c.controle.parCarburant);
+    const ligneEcarts = NexusCarburantMoteur.texteControleJour(c.controle.parCarburant, c.controle.aucunReleve);
 
     const STYLE_STATUT = {
       'À corriger': { c: 'var(--red)', f: 'var(--red-dim)' },

@@ -327,7 +327,7 @@
      remplace Conseiller + État global par une seule carte résumé, qui
      consomme les mêmes statuts d'axe que Brief NEXUS (voir
      renderEntrepriseAujourdhui, nexus-boussole-moteur.js). Un badge par
-     axe (🟢/🟠/🔴/⚫), jamais un score numérique concurrent de l'Indice
+     axe (🟢/🟠/🔴/⚪), jamais un score numérique concurrent de l'Indice
      Boussole affiché dans Brief — la carte pointe vers Brief pour le
      détail plutôt que de le reconstruire ici. */
   .entreprise-card{margin:0 20px; padding:22px; border-radius:18px; background:radial-gradient(120% 140% at 50% -10%, rgba(212,175,55,0.12), rgba(79,195,217,0.05) 55%, transparent 80%), var(--panel); border:1px solid rgba(212,175,55,0.2); box-shadow:0 12px 30px rgba(0,0,0,0.28);}
@@ -337,7 +337,24 @@
      pourrait retomber sur une seule ligne illisible sur un petit écran ou
      sur 3 lignes inégales selon la longueur des libellés. */
   .entreprise-axes{display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; margin-top:14px;}
-  .entreprise-axe{font-family:var(--mono); font-size:10.5px; color:var(--text-mid); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; text-align:center; padding:6px 4px; border-radius:8px; background:var(--panel-raised);}
+  /* Axes entièrement cliquables (11/08/2026, demande de Frédéric — "elles
+     sont visuellement assez présentes pour que l'utilisateur ait
+     naturellement envie de les toucher"). Passage de <span> à <button> :
+     toute la cellule réagit au tap, pas seulement le texte. Effet de
+     pression discret (background légèrement plus clair au tap/hover),
+     jamais un gros bouton qui alourdit la carte — reste un badge compact,
+     juste réagissant maintenant. */
+  .entreprise-axe{font-family:var(--mono); font-size:10.5px; color:var(--text-mid); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; text-align:center; padding:6px 4px; border-radius:8px; background:var(--panel-raised); border:1px solid transparent; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:3px; width:100%; -webkit-tap-highlight-color:transparent; transition:background 0.12s ease, border-color 0.12s ease;}
+  .entreprise-axe:hover, .entreprise-axe:active{background:var(--panel-hover, rgba(255,255,255,0.06));}
+  .entreprise-axe.actif{border-color:rgba(212,175,55,0.35); background:var(--panel-hover, rgba(255,255,255,0.06));}
+  .entreprise-axe-chevron{color:var(--text-dim); font-size:11px;}
+  /* Mini-fiche (11/08/2026) : "Pourquoi ?" intermédiaire entre le badge et
+     le moteur spécialisé — statut + phrase courte + lien, jamais le détail
+     complet (qui reste dans le moteur spécialisé lui-même). */
+  .entreprise-fiche{margin-top:10px; padding:12px 14px; border-radius:12px; background:var(--panel-raised); border:1px solid var(--hairline);}
+  .fiche-titre{font-family:var(--mono); font-size:12.5px; font-weight:700; margin-bottom:4px;}
+  .fiche-detail{font-size:12.5px; line-height:1.55; color:var(--text-mid);}
+  .fiche-lien{display:inline-block; margin-top:8px; font-family:var(--mono); font-size:12px; font-weight:700; color:var(--cyan); text-decoration:none;}
   .entreprise-footer{display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin-top:16px; padding-top:14px; border-top:1px solid var(--hairline); font-size:12.5px; color:var(--text-mid);}
   .entreprise-brief-lien{font-family:var(--mono); font-size:12px; font-weight:700; color:var(--cyan); text-decoration:none;}
 
@@ -491,6 +508,10 @@
     <div class="entreprise-card" id="entrepriseCard">
       <div class="entreprise-synthese" id="entrepriseSynthese">Analyse en cours…</div>
       <div class="entreprise-axes" id="entrepriseAxes"></div>
+      <!-- Mini-fiche (11/08/2026, demande de Frédéric) : panneau inline qui
+           s'ouvre sous les 6 axes au clic sur l'un d'eux (voir
+           renderFicheAxe) — jamais une navigation immédiate. -->
+      <div class="entreprise-fiche" id="entrepriseFiche" style="display:none;"></div>
       <div class="entreprise-footer">
         <span id="entrepriseDecisions">—</span>
         <a class="entreprise-brief-lien" href="NEXUS-Brief-v1.html" data-brief-nexus="1">Voir mon Brief →</a>
@@ -1242,19 +1263,20 @@
   }
 
   // Axe Carburants pour "Votre entreprise aujourd'hui" (11/08/2026, demande
-  // de Frédéric — passage à 6 axes) : réutilise TEL QUEL le même calcul que
-  // Carburants Pilotage/Brief (NexusCarburantDonnees.chargerControleJour,
-  // NexusCarburantMoteur) — jamais une troisième formule pour "quel est le
-  // statut carburant du jour" (Article 11). Le statut retenu est le PIRE
-  // des 3 carburants, jamais une moyenne qui masquerait un carburant à
-  // corriger derrière deux carburants sous contrôle.
-  const ORDRE_GRAVITE_CARBURANT_HOME = ['À corriger', 'À surveiller', 'Sous contrôle', 'Données insuffisantes'];
+  // de Frédéric — passage à 6 axes, puis mini-fiche interactive) : réutilise
+  // TEL QUEL le même calcul que Carburants Pilotage/Brief
+  // (NexusCarburantDonnees.chargerControleJour + NexusCarburantMoteur.
+  // statutGlobalControle/texteControleJour) — jamais une troisième formule
+  // pour "quel est le statut carburant du jour" (Article 11). Retourne
+  // aussi parCarburant/aucunReleve (pas seulement le statut) pour que la
+  // mini-fiche puisse afficher la phrase du jour sans un second aller-retour
+  // réseau.
   async function chargerStatutCarburantsHome(siteId) {
     const aujourdhui = new Date().toISOString().slice(0, 10);
     const { parCarburant, aucunReleve } = await NexusCarburantDonnees.chargerControleJour(nexusClient, siteId, aujourdhui);
-    if (aucunReleve) return 'Données insuffisantes';
-    const statuts = Object.values(parCarburant).map(r => r.statut);
-    return ORDRE_GRAVITE_CARBURANT_HOME.find(s => statuts.includes(s)) || 'Données insuffisantes';
+    const statut = NexusCarburantMoteur.statutGlobalControle(aucunReleve ? null : parCarburant);
+    const detail = NexusCarburantMoteur.texteControleJour(parCarburant, aucunReleve);
+    return { statut, detail, parCarburant, aucunReleve };
   }
 
   // Axe FDJ pour "Votre entreprise aujourd'hui" : réutilise le même signal
@@ -1576,39 +1598,124 @@
   const EMOJI_STATUT_AXE = {
     'En progression': '🟢', 'Sous contrôle': '🟢', 'Stable': '⚪',
     'À surveiller': '🟠', 'En repli': '🔴', 'À corriger': '🔴',
-    'Données insuffisantes': '⚫',
+    // ⚫→⚪ (11/08/2026, demande de Frédéric) : le noir se lisait comme "en
+    // panne / mauvais signal", alors que "Données insuffisantes" veut dire
+    // "NEXUS n'a pas encore assez de données", pas "ça va mal". Légende
+    // cible : 🟢 Sous contrôle / 🟠 À surveiller / 🔴 À corriger /
+    // ⚪ Données insuffisantes.
+    'Données insuffisantes': '⚪',
   };
 
-  // 6 axes (11/08/2026, demande de Frédéric — "Votre entreprise aujourd'hui
-  // doit maintenant accueillir tes 6 axes") : Carburants et FDJ rejoignent
-  // Commerce/Marge/Opérations/Équipe. Chaque nouvel axe réutilise TEL QUEL
-  // un statut déjà calculé ailleurs dans ce même fichier (Article 11) —
-  // jamais un second calcul : Carburants vient de
-  // chargerStatutCarburantsHome (même moteur que Carburants Pilotage/Brief),
-  // FDJ vient du même compteur d'alertes non vues que le point rouge de la
-  // sidebar. Toujours en grille 2 lignes × 3 colonnes (jamais une seule
-  // ligne qui deviendrait illisible sur mobile, comme demandé) — voir
-  // .entreprise-axes.
-  function renderEntrepriseAujourdhui({ facteurs, margePlusResultat, statutOperationsVal, domainesRadar, jourARenforcer, nbDecisions, contientSignalGenerique, statutCarburants, statutFdj }) {
-    const syntheseEl = document.getElementById('entrepriseSynthese');
+  // Mini-fiches interactives par axe (11/08/2026, demande de Frédéric —
+  // "elles sont visuellement assez présentes pour que l'utilisateur ait
+  // naturellement envie de les toucher... je ferais Carburants, Commerce,
+  // Marge, FDJ, Opérations et Équipe entièrement cliquables, avec une
+  // mini-fiche intermédiaire"). Architecture en 3 profondeurs voulue par
+  // Frédéric : la carte = "Comment va mon entreprise ?", les 6 axes = "Dans
+  // quel domaine ?", le clic = "Pourquoi ?" (mini-fiche), le moteur
+  // spécialisé = "Montrez-moi tout." Chaque phrase "detail" ci-dessous
+  // réutilise TEL QUEL les mêmes données déjà chargées ailleurs sur cette
+  // page (Article 11 — jamais un second calcul) ; pour Commerce/Marge/
+  // Opérations/Équipe, la formulation reprend mot pour mot celle des AXES
+  // de Brief NEXUS (construireBrief()) pour que la mini-fiche APP et le
+  // Brief ne racontent jamais deux histoires différentes du même chiffre.
+  let AXES_COURANTS = [];
+  let AXE_OUVERT = null;
+
+  function construireAxes({ facteurs, margePlusResultat, statutOperationsVal, detailOperations, totalJoursOperations, controlesVerify, domainesRadar, statutCarburants, alertesFdjNonVues }) {
+    const statutCommerceVal = statutCommerce(facteurs);
+    const statutValeurVal = statutValeur(facteurs, margePlusResultat);
+    const statutEquipeVal = statutEquipe(domainesRadar.equipeScore, domainesRadar.totalPointages);
+    const statutFdjVal = alertesFdjNonVues == null ? 'Données insuffisantes' : (alertesFdjNonVues > 0 ? 'À surveiller' : 'Sous contrôle');
+
+    return [
+      {
+        cle: 'carburants', nom: 'Carburants',
+        statut: statutCarburants.statut,
+        detail: statutCarburants.detail,
+        lien: 'NEXUS-Carburants-Pilotage-v1.html', libelleLien: 'Voir Carburants Pilotage →',
+      },
+      {
+        cle: 'commerce', nom: 'Commerce',
+        statut: statutCommerceVal,
+        detail: facteurs && facteurs.evolutionReelle != null ? `Évolution du CA : ${facteurs.evolutionReelle >= 0 ? '+' : ''}${(facteurs.evolutionReelle * 100).toFixed(1)} % vs période précédente comparable.` : "Pas encore de paire de périodes comparables.",
+        lien: 'NEXUS-Produits-v1.html', libelleLien: 'Voir Produits →',
+      },
+      {
+        cle: 'marge', nom: 'Marge',
+        statut: statutValeurVal,
+        detail: facteurs && facteurs.margeReelle != null ? `Marge réelle : ${(facteurs.margeReelle * 100).toFixed(1)} %${margePlusResultat && margePlusResultat.nbEcarts ? ` · ${margePlusResultat.nbEcarts} écart${margePlusResultat.nbEcarts > 1 ? 's' : ''} de marge actif${margePlusResultat.nbEcarts > 1 ? 's' : ''}` : ''}.` : "Marge non calculable sur les données actuelles.",
+        lien: 'NEXUS-Scanner-v1.html', libelleLien: 'Comprendre pourquoi →',
+      },
+      {
+        cle: 'fdj', nom: 'FDJ',
+        statut: statutFdjVal,
+        detail: alertesFdjNonVues == null ? "Pas encore de compteur d'alertes FDJ disponible." : (alertesFdjNonVues > 0 ? `${alertesFdjNonVues} alerte${alertesFdjNonVues > 1 ? 's' : ''} non vue${alertesFdjNonVues > 1 ? 's' : ''} à traiter.` : 'Aucune alerte FDJ non vue.'),
+        lien: 'NEXUS-FDJ-Analyse-v1.html', libelleLien: 'Voir FDJ Pilotage →',
+      },
+      {
+        cle: 'operations', nom: 'Opérations',
+        statut: statutOperationsVal,
+        detail: totalJoursOperations ? `Écart de caisse moyen : ${Math.round(detailOperations)} €/jour${controlesVerify ? ` · ${controlesVerify} contrôle${controlesVerify > 1 ? 's' : ''} caisse en attente aujourd'hui` : ''}.` : "Pas encore assez d'audits de caisse enregistrés.",
+        lien: 'NEXUS-Verify-v1.html', libelleLien: 'Voir Verify →',
+      },
+      {
+        cle: 'equipe', nom: 'Équipe',
+        statut: statutEquipeVal,
+        detail: domainesRadar.totalPointages != null && domainesRadar.totalPointages >= SEUIL_MIN_POINTAGES_EQUIPE ? `Ponctualité mesurée sur ${domainesRadar.totalPointages} pointages${domainesRadar.employesASurveiller ? ` · ${domainesRadar.employesASurveiller} employé${domainesRadar.employesASurveiller > 1 ? 's' : ''} à surveiller` : ''}.` : "Pas encore assez de pointages enregistrés.",
+        lien: 'NEXUS-Resultats-Equipe-v1.html', libelleLien: 'Voir le détail équipe →',
+      },
+    ];
+  }
+
+  // Zone cliquable = toute la cellule (pas seulement le texte), effet de
+  // pression discret + chevron ("🟠 Marge ›") — pas d'ouverture de page
+  // immédiate, seulement la mini-fiche intermédiaire (demande explicite de
+  // Frédéric : "ce ne seraient pas de gros boutons... mais des axes
+  // interactifs discrets"). Comportement accordéon : recliquer sur l'axe
+  // ouvert referme la fiche plutôt que de la rouvrir identique.
+  function renderAxesEntreprise(axes) {
     const axesEl = document.getElementById('entrepriseAxes');
+    AXES_COURANTS = axes;
+    axesEl.innerHTML = axes.map((a, i) => `<button type="button" class="entreprise-axe${AXE_OUVERT === i ? ' actif' : ''}" data-idx="${i}">${EMOJI_STATUT_AXE[a.statut] || '⚪'} ${a.nom} <span class="entreprise-axe-chevron">${AXE_OUVERT === i ? '⌄' : '›'}</span></button>`).join('');
+    axesEl.querySelectorAll('.entreprise-axe').forEach(btn => {
+      btn.addEventListener('click', () => toggleFicheAxe(Number(btn.dataset.idx)));
+    });
+    renderFicheAxe();
+  }
+
+  const COULEUR_FICHE_STATUT = {
+    'Sous contrôle': 'var(--green)', 'À surveiller': 'var(--amber)',
+    'À corriger': 'var(--red)', 'Données insuffisantes': 'var(--text-dim)',
+  };
+
+  function toggleFicheAxe(idx) {
+    AXE_OUVERT = AXE_OUVERT === idx ? null : idx;
+    renderAxesEntreprise(AXES_COURANTS);
+  }
+
+  function renderFicheAxe() {
+    const ficheEl = document.getElementById('entrepriseFiche');
+    if (AXE_OUVERT == null || !AXES_COURANTS[AXE_OUVERT]) { ficheEl.style.display = 'none'; ficheEl.innerHTML = ''; return; }
+    const a = AXES_COURANTS[AXE_OUVERT];
+    ficheEl.style.display = 'block';
+    ficheEl.innerHTML = `
+      <div class="fiche-titre" style="color:${COULEUR_FICHE_STATUT[a.statut] || 'var(--text-dim)'};">${a.nom} — ${a.statut}</div>
+      <div class="fiche-detail">${a.detail}</div>
+      <a class="fiche-lien" href="${a.lien}">${a.libelleLien}</a>`;
+  }
+
+  function renderEntrepriseAujourdhui({ facteurs, margePlusResultat, statutOperationsVal, detailOperations, totalJoursOperations, controlesVerify, domainesRadar, jourARenforcer, nbDecisions, contientSignalGenerique, statutCarburants, alertesFdjNonVues }) {
+    const syntheseEl = document.getElementById('entrepriseSynthese');
     const decisionsEl = document.getElementById('entrepriseDecisions');
 
     const statutCommerceVal = statutCommerce(facteurs);
     const statutValeurVal = statutValeur(facteurs, margePlusResultat);
-    const statutEquipeVal = statutEquipe(domainesRadar.equipeScore, domainesRadar.totalPointages);
 
     syntheseEl.textContent = syntheseEtatGlobal(statutCommerceVal, statutValeurVal, statutOperationsVal, jourARenforcer, null);
 
-    const axes = [
-      { nom: 'Carburants', statut: statutCarburants },
-      { nom: 'Commerce', statut: statutCommerceVal },
-      { nom: 'Marge', statut: statutValeurVal },
-      { nom: 'FDJ', statut: statutFdj },
-      { nom: 'Opérations', statut: statutOperationsVal },
-      { nom: 'Équipe', statut: statutEquipeVal },
-    ];
-    axesEl.innerHTML = axes.map(a => `<span class="entreprise-axe">${EMOJI_STATUT_AXE[a.statut] || '⚫'} ${a.nom}</span>`).join('');
+    AXE_OUVERT = null;
+    renderAxesEntreprise(construireAxes({ facteurs, margePlusResultat, statutOperationsVal, detailOperations, totalJoursOperations, controlesVerify, domainesRadar, statutCarburants, alertesFdjNonVues }));
 
     // "Sujets" vs "décisions" (11/08/2026, demande de Frédéric) : "cela
     // évite de transformer chaque signal en décision." Le Conseiller
@@ -1703,8 +1810,9 @@
   function urgenceRaccourci(href, ctx) {
     if (href === 'NEXUS-Verify-v1.html') return ctx.controlesVerify > 0 ? 2 : 0;
     if (href === 'NEXUS-Carburants-v1.html' || href === 'NEXUS-Carburants-Pilotage-v1.html') {
-      if (ctx.statutCarburants === 'À corriger') return 3;
-      if (ctx.statutCarburants === 'À surveiller') return 2;
+      const statut = ctx.statutCarburants && ctx.statutCarburants.statut;
+      if (statut === 'À corriger') return 3;
+      if (statut === 'À surveiller') return 2;
       return 0;
     }
     if (href === 'NEXUS-FDJ-Manager-v1.html') return (ctx.alertesFdjNonVues || 0) > 0 ? 2 : 0;
@@ -1819,12 +1927,15 @@
     renderEntrepriseAujourdhui({
       facteurs, margePlusResultat,
       statutOperationsVal: constatTempo.statutOperations,
+      detailOperations: constatTempo.detailOperations,
+      totalJoursOperations: constatTempo.totalJours,
+      controlesVerify,
       domainesRadar,
       jourARenforcer: constatTempo.jourARenforcer,
       nbDecisions: candidatsConseiller.length,
       contientSignalGenerique: candidatsConseiller.some(c => c.moteur === 'advisor'),
       statutCarburants,
-      statutFdj: alertesFdjNonVues == null ? 'Données insuffisantes' : (alertesFdjNonVues > 0 ? 'À surveiller' : 'Sous contrôle'),
+      alertesFdjNonVues,
     });
 
     // Priorités / à surveiller / meilleure opportunité (26/07/2026, demande

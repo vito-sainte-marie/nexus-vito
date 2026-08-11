@@ -204,12 +204,52 @@
     return meilleur ? { cle: meilleur, ...decomposition.parCarburant[meilleur] } : null;
   }
 
+  // ============================================================
+  // Résumé "Contrôle du jour" en texte (11/08/2026) — extrait le 11/08 du
+  // code initialement écrit deux fois (Brief NEXUS et la mini-fiche
+  // Carburants de l'accueil APP) : exactement le genre de duplication que
+  // l'Article 11 interdit ("une seule vérité"), corrigé ici avant qu'elle
+  // ne diverge. Prend directement `parCarburant`/`aucunReleve`, la sortie
+  // de NexusCarburantDonnees.chargerControleJour — aucun accès Supabase.
+  // ============================================================
+
+  const NOM_CARBURANT_COURT = { go: 'GO', sp95: 'SP95', gnr: 'GNR' };
+  const ORDRE_GRAVITE_CONTROLE = ['À corriger', 'À surveiller', 'Sous contrôle', 'Données insuffisantes'];
+
+  // Le pire statut des 3 carburants — jamais une moyenne, qui masquerait
+  // un carburant à corriger derrière deux carburants sous contrôle.
+  function statutGlobalControle(parCarburant) {
+    if (!parCarburant) return 'Données insuffisantes';
+    const statuts = Object.values(parCarburant).map(r => r.statut);
+    return ORDRE_GRAVITE_CONTROLE.find(s => statuts.includes(s)) || 'Données insuffisantes';
+  }
+
+  // Phrase courte résumant le contrôle du jour — honnête si aucun relevé
+  // n'existe encore, nomme le(s) carburant(s) à surveiller/corriger avec
+  // leur écart sinon.
+  function texteControleJour(parCarburant, aucunReleve) {
+    if (aucunReleve || !parCarburant) {
+      return "Aucun relevé enregistré pour l'instant — le contrôle s'activera dès le premier jaugeage saisi dans Carburants.";
+    }
+    const statutGlobal = statutGlobalControle(parCarburant);
+    const aSurveiller = Object.entries(parCarburant).filter(([, r]) => r.statut === 'À surveiller' || r.statut === 'À corriger');
+    if (aSurveiller.length) {
+      let texte = aSurveiller.map(([cle, r]) => `${NOM_CARBURANT_COURT[cle]} : écart de ${r.ecart != null ? `${r.ecart >= 0 ? '+' : ''}${Math.round(r.ecart)} L` : 'non calculable'}.`).join(' ');
+      const ok = Object.entries(parCarburant).filter(([, r]) => r.statut === 'Sous contrôle').map(([cle]) => NOM_CARBURANT_COURT[cle]);
+      if (ok.length) texte += ` ${ok.join(' et ')} sous contrôle.`;
+      return texte;
+    }
+    if (statutGlobal === 'Sous contrôle') return 'Les 3 carburants sont sous contrôle.';
+    return "Le relevé du jour n'a pas encore été validé, ou des ventes ne sont pas encore captées — écart non calculable pour l'instant sur au moins un carburant.";
+  }
+
   global.NexusCarburantMoteur = {
-    SEUIL_ECART_PCT_SURVEILLER, SEUIL_ECART_PCT_CORRIGER, CLES_CARBURANT,
+    SEUIL_ECART_PCT_SURVEILLER, SEUIL_ECART_PCT_CORRIGER, CLES_CARBURANT, NOM_CARBURANT_COURT,
     stockReelGoTotal, sommerVentesPeriode,
     calculerTheorique, calculerEcart, calculerEcartRatio, statutCarburant,
     calculerCarburant,
     calculerMixCarburant, calculerEvolutionVolume, identifierProduitMoteur,
     decomposerEvolution, identifierMoteurEvolution,
+    statutGlobalControle, texteControleJour,
   };
 })(typeof window !== 'undefined' ? window : globalThis);
