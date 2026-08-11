@@ -1279,7 +1279,7 @@
     return `
       <div class="section">
         <div class="rapport-titre">Rapport PDF</div>
-        <div class="rapport-sous">Une page A4 — la synthèse du jour à imprimer ou partager.</div>
+        <div class="rapport-sous">2-3 pages — la synthèse du jour à imprimer ou partager.</div>
         <div id="zoneActionsRapport">
           <button class="btn-rapport-pdf" id="btnGenererRapport" type="button">Générer mon rapport</button>
         </div>
@@ -1296,88 +1296,70 @@
     }));
   }
 
+  // Étendu le 11/08/2026 (demande de Frédéric) : le PDF Brief passe de
+  // ConstructeurRapportUnePage (1 page stricte) à ConstructeurRapport
+  // (pagination automatique, 2-3 pages selon le contenu réel). Le Brief à
+  // l'écran reste synthétique — c'est le contenu déjà curaté par
+  // construireBrief() (3 forces max, 3 items watchlist max, 3 décisions
+  // max) qui décide de la longueur, jamais un remplissage artificiel :
+  // le PDF respire un peu plus qu'avant, il ne devient pas le Rapport de
+  // Direction (celui-ci vit dans NEXUS-Rapport-v1.html, 8-20 pages, voir
+  // nexus-rapport-direction-moteur.js).
   async function construireRapportPdf() {
     const brief = BRIEF;
-    const { COULEUR, ZONES_1P, MM: MM1P } = NexusPdfMoteur;
-    const c = await NexusPdfMoteur.creerRapportUnePage({
+    const { COULEUR } = NexusPdfMoteur;
+    const c = await NexusPdfMoteur.creerRapport({
       titre: `NEXUS Brief — ${brief.periodeLabel}`,
       sujet: 'Brief NEXUS — synthèse dirigeant',
+      entete: { app: 'NEXUS · BRIEF', sousTitre: STATION_CONFIG.station_nom },
     });
 
-    const zEntete = c.allouerZone(ZONES_1P.entete);
-    c.entete(zEntete, {
-      app: 'NEXUS · BRIEF',
-      ligne1: `Synthèse du ${brief.periodeLabel}`,
-      ligne2: `${STATION_CONFIG.station_nom} · ${brief.decisions.length} décision${brief.decisions.length > 1 ? 's' : ''} prioritaire${brief.decisions.length > 1 ? 's' : ''}`,
+    c.pageDeGarde({
+      titre: 'NEXUS BRIEF',
+      nomEntreprise: STATION_CONFIG.station_nom,
+      periodeBornes: `Synthèse du ${brief.periodeLabel}`,
+      mentionBas: `Généré le ${new Date().toLocaleDateString('fr-FR')} à ${new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`,
     });
+    c._nouvellePage();
 
-    const zKpi = c.allouerZone(ZONES_1P.kpi);
     const confianceCourte = (brief.impact.confianceGlobale || '').split(' ')[0] || '—';
-    c.ligneKpi(zKpi, [
-      { label: 'Indice Boussole', valeur: brief.scoreGlobal != null ? `${brief.scoreGlobal}/100` : '—' },
-      { label: 'Gain potentiel', valeur: `${Math.round(brief.impact.gain).toLocaleString('fr-FR')} €`, couleurValeur: COULEUR.vert },
-      { label: 'Risque identifié', valeur: `${Math.round(brief.impact.risque).toLocaleString('fr-FR')} €`, couleurValeur: brief.impact.risque > 0 ? COULEUR.rouge : COULEUR.texte },
-      { label: 'Fiabilité', valeur: confianceCourte, detail: 'moteurs actifs' },
-    ]);
+    c.ligneCle('Indice Boussole', brief.scoreGlobal != null ? `${brief.scoreGlobal}/100` : '—');
+    c.ligneCle('Gain potentiel', `${Math.round(brief.impact.gain).toLocaleString('fr-FR')} €`, { couleurValeur: COULEUR.vert });
+    c.ligneCle('Risque identifié', `${Math.round(brief.impact.risque).toLocaleString('fr-FR')} €`, { couleurValeur: brief.impact.risque > 0 ? COULEUR.rouge : COULEUR.texte });
+    c.ligneCle('Fiabilité (moteurs actifs)', confianceCourte);
 
-    const zSynthese = c.allouerZone(ZONES_1P.synthese);
-    c.paragraphe(zSynthese, { titre: 'SYNTHÈSE', texte: brief.synthese, taille: 9.3, interligne: 13 });
+    c.sectionTitre('Synthèse');
+    c.paragraphe(brief.synthese, { taille: 9.5 });
 
-    // Zone "graphique" réutilisée pour les secteurs (mini-barres) — pas de
-    // courbe temporelle disponible côté Brief, mais le principe
-    // "mini-graphique borné à la zone" du moteur partagé s'applique
-    // exactement pareil. Titre et max dynamiques (11/08/2026, Brief V3) :
-    // le nombre de secteurs dépend du preset du site (secteursActifsSite),
-    // 6 pour une station-service aujourd'hui, jamais un "5" codé en dur.
-    const zBoussole = c.allouerZone(ZONES_1P.graphique);
-    c.barresHorizontales(zBoussole, {
-      titre: `VOS SECTEURS (${brief.axes.length})`,
-      max: brief.axes.length,
-      items: brief.axes.map(a => ({ label: a.nom, valeur: a.valeur != null ? `${a.valeur}/100` : '—', part: a.valeur != null ? a.valeur / 100 : 0 })),
-    });
+    c.sectionTitre(`Vos secteurs (${brief.axes.length})`);
+    brief.axes.forEach(a => c.ligneCle(a.nom, a.valeur != null ? `${a.statut} (${a.valeur}/100)` : 'Données insuffisantes'));
 
-    const zForcesWatch = c.allouerZone(ZONES_1P.ventes);
-    const colsForcesWatch = c.diviserColonnes(zForcesWatch);
-    c.listePoints(colsForcesWatch.gauche, {
-      titre: 'FORCES DU MOMENT',
-      max: 2,
-      points: brief.forces.length ? brief.forces.map(f => ({ label: f.titre, valeur: f.detail })) : [{ label: 'Aucune force identifiée', valeur: 'sur cette période' }],
-    });
-    c.listePoints(colsForcesWatch.droite, {
-      titre: 'À SURVEILLER',
-      max: 3,
-      // w.article est souvent null (les candidats Tempo/Advisor/Caisse/Rappel
-      // n'ont pas d'article associé) — on reprend exactement les champs déjà
-      // utilisés par l'affichage à l'écran (renderWatchlist : action en gras,
-      // pourquoi en détail), toujours renseignés quel que soit le moteur
-      // d'origine du candidat. Bug réel constaté au test iPhone du 10/08/2026 :
-      // "null :" affiché dans le PDF pour les candidats sans article.
-      points: brief.watchlist.length ? brief.watchlist.map(w => ({ label: w.action, valeur: w.pourquoi })) : [{ label: 'Rien à surveiller', valeur: 'en dehors des décisions ci-dessous' }],
-    });
+    c.sectionTitre('Forces du moment');
+    if (brief.forces.length) brief.forces.forEach(f => c.encadre([{ texte: f.titre, gras: true }, { texte: f.detail }], { couleurBordure: COULEUR.vert }));
+    else c.paragraphe('Aucune force identifiée sur cette période.', { taille: 9, couleur: COULEUR.texteDim });
 
-    // Zone "équipe" réallouée aux décisions (Brief n'a pas de bloc
-    // équipe/stock distinct — l'axe Équipe vit déjà dans la Boussole
-    // ci-dessus) : les décisions gagnent le budget des deux zones réunies
-    // pour un détail plus lisible sur les 3 décisions prioritaires.
-    const zDecisions = c.allouerZone(ZONES_1P.equipe + ZONES_1P.decisions);
-    c.decisions(zDecisions, {
-      titre: 'DÉCISIONS PRIORITAIRES',
-      max: 3,
-      texteAucune: '✅ Rien ne nécessite une décision du dirigeant aujourd’hui.',
-      items: brief.decisions.map((p, i) => ({
-        urgence: i === 0 ? 'critique' : (i === 1 ? 'important' : 'observation'),
-        titre: p.decision,
-        detail: p.pourquoi,
-      })),
-    });
+    c.sectionTitre('À surveiller');
+    // w.article est souvent null (les candidats Tempo/Advisor/Caisse/Rappel
+    // n'ont pas d'article associé) — on reprend exactement les champs déjà
+    // utilisés par l'affichage à l'écran (renderWatchlist : action en gras,
+    // pourquoi en détail), toujours renseignés quel que soit le moteur
+    // d'origine du candidat.
+    if (brief.watchlist.length) brief.watchlist.forEach(w => c.encadre([{ texte: w.action, gras: true }, { texte: w.pourquoi }], { couleurBordure: COULEUR.ambre }));
+    else c.paragraphe('Rien à surveiller en dehors des décisions ci-dessous.', { taille: 9, couleur: COULEUR.texteDim });
 
-    const zPied = c.allouerZone(ZONES_1P.piedDePage);
-    c.piedDePage(
-      zPied,
-      'NEXUS Brief · synthèse générée automatiquement — vérité avant certitude, jamais une prédiction.',
-      `Généré le ${new Date().toLocaleDateString('fr-FR')} à ${new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`,
-    );
+    c.sectionTitre('Décisions prioritaires');
+    if (brief.decisions.length) {
+      brief.decisions.forEach((p, i) => {
+        c.sousTitre(`${i + 1}. ${p.decision}`, { taille: 10, couleur: COULEUR.texte });
+        c.paragraphe(p.pourquoi, { taille: 9 });
+      });
+    } else {
+      c.paragraphe('Rien ne nécessite une décision du dirigeant sur cette période.', { taille: 9.5, couleur: COULEUR.vert });
+    }
 
+    c.paragraphe('NEXUS Brief · synthèse générée automatiquement — vérité avant certitude, jamais une prédiction.', { taille: 7.5, couleur: COULEUR.texteDim });
+
+    c.piedDePageToutesPages('NEXUS OS · Brief NEXUS');
     const bytes = await NexusPdfMoteur.finaliser(c);
     const nomFichier = `NEXUS-Brief-${new Date().toISOString().slice(0, 10)}.pdf`;
     return {

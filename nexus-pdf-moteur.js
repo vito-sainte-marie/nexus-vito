@@ -182,7 +182,14 @@
       this.page = null;
       this.y = 0;
       this.numeroPage = 0;
-      this._nouvellePage();
+      // La toute première page ne porte jamais le bandeau d'en-tête, même
+      // si `entete` est fourni au constructeur — c'est la page que
+      // pageDeGarde() (ci-dessous) va utiliser pour la couverture premium
+      // du rapport, qui doit rester sobre (aucun bandeau applicatif dessus).
+      // Si l'appelant n'utilise pas pageDeGarde(), cette première page
+      // reste simplement sans bandeau — un choix par défaut plus sobre,
+      // jamais bloquant.
+      this._nouvellePage({ sansBandeau: true });
     }
 
     /**
@@ -200,11 +207,11 @@
       return assainirWinAnsi(texte);
     }
 
-    _nouvellePage() {
+    _nouvellePage(options) {
       this.page = this.doc.addPage([A4.largeur, A4.hauteur]);
       this.numeroPage += 1;
       this.y = A4.hauteur - MARGE;
-      if (this.entete) this._dessinerBandeauEntete();
+      if (this.entete && !(options && options.sansBandeau)) this._dessinerBandeauEntete();
     }
 
     _dessinerBandeauEntete() {
@@ -353,6 +360,56 @@
       this.y -= dims.height + 6;
       if (legende) this.sousTitre(legende, { taille: 8.5 });
       this.y -= 6;
+    }
+
+    /**
+     * Page de couverture premium (11/08/2026, "Rapport NEXUS de
+     * Direction") — sobre, sans aucun KPI : titre du rapport, nom de
+     * l'entreprise, période, puis la signature NEXUS centrée plus bas,
+     * et la mention de génération en petit en bas de page. Toujours sa
+     * propre page (jamais mélangée à du contenu de chapitre), sans le
+     * bandeau d'en-tête habituel (this.entete neutralisé le temps de
+     * cette page puis restauré) — une couverture ne doit pas porter le
+     * même bandeau que les pages de chapitre.
+     * `{ titre, nomEntreprise, periodeLabel, periodeBornes, accroche,
+     *   sousAccroche, mentionBas }`
+     *
+     * Doit être le tout premier appel après creerRapport() : dessine sur
+     * la page 1 déjà créée sans bandeau par le constructeur, plutôt que
+     * d'en ouvrir une nouvelle (qui laisserait une page 1 vide en tête du
+     * document). Appeler rapport._nouvellePage() juste après pour passer
+     * au premier chapitre sur une page fraîche, avec bandeau cette fois.
+     */
+    pageDeGarde({ titre, nomEntreprise, periodeLabel, periodeBornes, accroche, sousAccroche, mentionBas }) {
+      const centrer = (texte, police, taille) => (A4.largeur - police.widthOfTextAtSize(texte, taille)) / 2;
+
+      let y = A4.hauteur - 300;
+
+      const t = this._assainir(titre || 'RAPPORT NEXUS DE DIRECTION', true);
+      this.page.drawText(t, { x: centrer(t, this.policeGrasse, 22), y, size: 22, font: this.policeGrasse, color: COULEUR.texte });
+      y -= 34;
+
+      if (nomEntreprise) {
+        const n = this._assainir(nomEntreprise, false);
+        this.page.drawText(n, { x: centrer(n, this.police, 14), y, size: 14, font: this.police, color: COULEUR.texteDim });
+        y -= 24;
+      }
+      if (periodeBornes || periodeLabel) {
+        const p = this._assainir(periodeBornes || periodeLabel, false);
+        this.page.drawText(p, { x: centrer(p, this.police, 11.5), y, size: 11.5, font: this.police, color: COULEUR.cyan });
+        y -= 60;
+      }
+
+      const acc = this._assainir(accroche || 'Propulsé par le Conseiller NEXUS', true);
+      this.page.drawText(acc, { x: centrer(acc, this.policeGrasse, 11), y, size: 11, font: this.policeGrasse, color: COULEUR.texte });
+      y -= 16;
+      const sAcc = this._assainir(sousAccroche || 'Des données aux décisions.', false);
+      this.page.drawText(sAcc, { x: centrer(sAcc, this.police, 10), y, size: 10, font: this.police, color: COULEUR.texteDim });
+
+      if (mentionBas) {
+        const m = this._assainir(mentionBas, false);
+        this.page.drawText(m, { x: centrer(m, this.police, 9), y: MARGE + 30, size: 9, font: this.police, color: COULEUR.texteDim });
+      }
     }
 
     /** Pied de page numéroté ("Page X / Y") + texte de gauche, appliqué à TOUTES les pages déjà créées — à appeler en dernier, une fois le contenu terminé. */

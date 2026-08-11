@@ -238,8 +238,57 @@
     return [{ debut: ajouterJours(debut, -jours), fin: ajouterJours(debut, -1), label: 'Période précédente de même durée' }];
   }
 
+  // ============================================================
+  // Regroupement par MOIS CALENDAIRE — ajout du 11/08/2026 pour le chapitre
+  // "Trajectoire" du Rapport NEXUS de Direction (demande de Frédéric :
+  // "12 derniers mois" avec courbes CA/marge). `products` n'est pas un flux
+  // quotidien : c'est une suite de blocs d'import aux bornes irrégulières
+  // (periode_debut/periode_fin saisies à l'import), qui ne coïncident pas
+  // avec les mois calendaires. Il n'existe aucune mesure infra-bloc — NEXUS
+  // ne sait pas combien du CA d'un bloc a été fait tel jour précis.
+  //
+  // Méthode choisie, documentée pour rester honnête plutôt que de simuler
+  // une fausse précision : chaque bloc est intégralement rattaché au mois
+  // calendaire de SON periode_debut (pas de répartition au prorata des
+  // jours, qui donnerait une illusion de précision journalière que les
+  // données ne permettent pas). Un bloc à cheval sur plusieurs mois calendaires
+  // (periode_debut et periode_fin dans des mois différents) est signalé
+  // (`blocsPartiels`) pour que l'écran/le PDF affiche la réserve — jamais
+  // caché.
+  function regrouperParMoisCalendaire(rows, options) {
+    const champDebut = (options && options.champDebut) || 'periode_debut';
+    const champFin = (options && options.champFin) || 'periode_fin';
+    const champCa = (options && options.champCa) || 'ca';
+    const champMarge = (options && options.champMarge) || 'marge';
+
+    const parMois = {};
+    let blocsPartiels = 0;
+    const blocsVus = new Set();
+    (rows || []).forEach(r => {
+      const debut = r[champDebut], fin = r[champFin];
+      if (!debut) return;
+      const cleBloc = `${debut}|${fin}`;
+      if (fin && debut.slice(0, 7) !== fin.slice(0, 7) && !blocsVus.has(cleBloc)) {
+        blocsVus.add(cleBloc);
+        blocsPartiels++;
+      }
+      const moisCle = debut.slice(0, 7); // 'YYYY-MM'
+      if (!parMois[moisCle]) parMois[moisCle] = { moisCle, ca: 0, marge: 0, nbLignes: 0 };
+      parMois[moisCle].ca += r[champCa] || 0;
+      parMois[moisCle].marge += r[champMarge] || 0;
+      parMois[moisCle].nbLignes += 1;
+    });
+
+    const mois = Object.values(parMois).sort((a, b) => a.moisCle.localeCompare(b.moisCle)).map(m => {
+      const [annee, moisIdx] = m.moisCle.split('-');
+      return { ...m, label: `${NOMS_MOIS[parseInt(moisIdx, 10) - 1]} ${annee}` };
+    });
+
+    return { mois, blocsPartiels, methode: 'affectation_debut_bloc' };
+  }
+
   global.NexusPeriodes = {
     joursEntre, paireValide, analyserPeriodes, evolutionAgregee,
-    resoudrePeriodeCalendaire, resoudrePeriodesReference,
+    resoudrePeriodeCalendaire, resoudrePeriodesReference, regrouperParMoisCalendaire,
   };
 })(window);

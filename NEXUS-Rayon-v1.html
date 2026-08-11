@@ -138,6 +138,7 @@
 <script src="nexus-auth.js"></script>
 <script src="nexus-vocabulaire.js"></script>
 <script src="nexus-periodes.js"></script>
+<script src="nexus-rayon-moteur.js"></script>
 </head>
 <body>
 <div class="phone">
@@ -199,42 +200,10 @@ async function fetchAllRows(builderFactory, pageSize = 1000) {
   return { data: toutes, error: null };
 }
 
-// Rayons "de trafic" — le rôle premier de ces familles n'est pas la marge
-// mais d'attirer/retenir le client (recharges, cartes prépayées, presse,
-// jeux, timbres...). Détection par mot-clé sur le nom de catégorie, même
-// principe que corrigerCategorie() côté Import pour le CBD : transparent,
-// ajustable, jamais une vérité cachée. Demande de Frédéric le 23/07/2026,
-// suite à l'analyse externe sur le rayon Cartes prépayées.
-const MOTCLE_RAYON_TRAFIC = /cart.?e?s?\s*pr[ée]pay|pr[ée]pay[ée]e|\bfdj\b|\bpresse\b|\btimbre/i;
-function estRayonTrafic(nomCategorie) {
-  return MOTCLE_RAYON_TRAFIC.test(nomCategorie || '');
-}
-
-// Sous-familles par mot-clé — utile surtout pour les rayons "trafic" qui
-// regroupent plusieurs opérateurs/marques sous une même catégorie (ex :
-// Transcash, PCS, Digicel, Orange, SFR dans "Cartes prépayées"). Si aucun
-// mot-clé connu ne matche une part significative des références, la
-// section ne s'affiche pas — pas de découpage forcé sur des rayons où ça
-// n'a pas de sens (biscuiterie, entretien...).
-const MOTSCLES_SOUS_FAMILLE = ['Transcash', 'PCS', 'Digicel', 'Orange', 'SFR', 'Claro', 'Vitocarte', 'Lyca', 'Free Mobile', 'Bouygues', 'Western Union', 'MoneyGram'];
-function detecterSousFamilles(produits) {
-  const groupes = {};
-  produits.forEach(p => {
-    const trouve = MOTSCLES_SOUS_FAMILLE.find(m => new RegExp(m.replace(/\s/g, '\\s*'), 'i').test(p.article));
-    const cle = trouve || 'Autres';
-    if (!groupes[cle]) groupes[cle] = { nom: cle, ca: 0, marge: 0, nb: 0 };
-    groupes[cle].ca += p.ca || 0;
-    groupes[cle].marge += p.marge || 0;
-    groupes[cle].nb += 1;
-  });
-  const liste = Object.values(groupes).sort((a, b) => b.ca - a.ca);
-  const caTotal = produits.reduce((s, p) => s + (p.ca || 0), 0);
-  const partAutres = caTotal > 0 ? (groupes['Autres'] ? groupes['Autres'].ca / caTotal : 0) : 1;
-  // Si "Autres" représente la quasi-totalité du CA, aucun mot-clé connu n'a
-  // vraiment matché ce rayon — on n'affiche rien plutôt qu'un faux découpage.
-  return partAutres >= 0.95 ? [] : liste;
-}
-
+// Calcul par catégorie extrait le 11/08/2026 dans nexus-rayon-moteur.js
+// (module partagé, Article 11) — pour que le nouveau chapitre "Commerce" du
+// Rapport NEXUS de Direction réutilise exactement le même calcul plutôt que
+// d'en écrire une deuxième version. Ce fichier ne garde que l'accès réseau.
 async function construireRayons() {
   const { data, error } = await fetchAllRows(() => nexusClient
     .from('products')
@@ -243,85 +212,7 @@ async function construireRayons() {
     .order('periode_debut', { ascending: false })
     .order('article', { ascending: true }));
   if (error || !data || !data.length) { console.error('Chargement products:', error); return { rayons: {}, magasin: null }; }
-
-  // Comparaison de périodes — moteur partagé nexus-periodes.js (23/07/2026,
-  // demande de Frédéric : "je ne veux pas que l'appli soit une succession
-  // de pages mais un système" — même algorithme que Cockpit/Produits/
-  // Centre-Intelligence/Missions au lieu d'une copie locale par page qui
-  // finit par diverger). Voir ce fichier pour le détail de la règle (paire
-  // non chevauchante, durées proches à ±20%).
-  const { periodeAffichage, rowsAffichage, paire, rowsPaireActuelle, rowsPairePrecedente, periodeEnCours } = NexusPeriodes.analyserPeriodes(data);
-  if (!periodeAffichage) { console.error('Aucune période exploitable dans products.'); return { rayons: {}, magasin: null }; }
-
-  const caActuelleParCat = {}, caPrecedentParCat = {};
-  rowsPaireActuelle.forEach(r => { caActuelleParCat[r.categorie] = (caActuelleParCat[r.categorie] || 0) + (r.ca || 0); });
-  rowsPairePrecedente.forEach(r => { caPrecedentParCat[r.categorie] = (caPrecedentParCat[r.categorie] || 0) + (r.ca || 0); });
-
-  const parCategorie = {};
-  rowsAffichage.forEach(r => {
-    if (!parCategorie[r.categorie]) parCategorie[r.categorie] = [];
-    parCategorie[r.categorie].push(r);
-  });
-  // La comparaison peut porter sur des catégories absentes de la période
-  // affichée (si celle-ci est encore en cours) — on les inclut aussi, avec
-  // un CA affiché à 0, plutôt que de les faire disparaître silencieusement.
-  if (paire) {
-    Object.keys(caActuelleParCat).forEach(nom => { if (!parCategorie[nom]) parCategorie[nom] = []; });
-  }
-
-  const rayons = {};
-  Object.entries(parCategorie).forEach(([nom, produits]) => {
-    const ca_total = produits.reduce((s, p) => s + (p.ca || 0), 0);
-    const marge_total = produits.reduce((s, p) => s + (p.marge || 0), 0);
-    const marge_pct_moyenne = ca_total > 0 ? marge_total / ca_total : 0;
-
-    // Évolution/tendance : toujours calculée sur la paire de périodes
-    // comparables trouvée ci-dessus — pas forcément la période affichée.
-    // raison_indisponible distingue deux cas bien différents pour l'honnêteté
-    // du message affiché : soit aucune paire de périodes comparables n'existe
-    // DU TOUT (aucun historique exploitable), soit une paire existe mais le
-    // CA de CE rayon précis y est à 0 — souvent le signe d'un import où la
-    // catégorie n'a pas été correctement rattachée (repéré le 23/07/2026 :
-    // "Cartes prépayées" a bien une période 01/01→31/03, mais à 0 € dedans).
-    let evolution_ca = null, raison_indisponible = null;
-    if (!paire) {
-      raison_indisponible = 'aucune_paire';
-    } else {
-      const caPrec = caPrecedentParCat[nom];
-      const caAct = caActuelleParCat[nom] || 0;
-      if (caPrec && caPrec > 0) {
-        evolution_ca = (caAct - caPrec) / caPrec;
-      } else {
-        raison_indisponible = 'baseline_nulle';
-      }
-    }
-
-    const avecMarge = produits.map(p => ({ ...p, marge_pct: p.ca > 0 ? (p.marge || 0) / p.ca : 0 }));
-    const top_ventes = [...produits].sort((a, b) => b.ca - a.ca).slice(0, 5).map(p => ({ article: p.article, ca: p.ca }));
-    const top_marge = [...avecMarge].sort((a, b) => b.marge_pct - a.marge_pct).slice(0, 5).map(p => ({ article: p.article, marge_pct: p.marge_pct, ca: p.ca }));
-    const top_marge_eur = [...produits].sort((a, b) => (b.marge || 0) - (a.marge || 0)).slice(0, 5).map(p => ({ article: p.article, marge: p.marge || 0 }));
-    const produits_faibles = [...produits].sort((a, b) => a.ca - b.ca).slice(0, 8).map(p => ({ article: p.article, ca: p.ca }));
-    const sous_familles = detecterSousFamilles(produits);
-
-    rayons[nom] = {
-      nom, nb_references: produits.length, ca_total, marge_total, marge_pct_moyenne,
-      evolution_ca, raison_indisponible, top_ventes, top_marge, top_marge_eur, produits_faibles, sous_familles,
-      trafic: estRayonTrafic(nom),
-      nb_decisions_actives: 0, // le moteur de recommandations ne tourne pas encore sur les données importées librement
-    };
-  });
-
-  const caTotalMagasin = Object.values(rayons).reduce((s, r) => s + r.ca_total, 0);
-  const margeTotalMagasin = Object.values(rayons).reduce((s, r) => s + r.marge_total, 0);
-
-  return {
-    rayons,
-    magasin: {
-      ca_total: caTotalMagasin, marge_total: margeTotalMagasin,
-      periodeAffichage, periodeEnCours,
-      paire, // { actuelle, precedente } ou null si aucune paire comparable trouvée
-    },
-  };
+  return NexusRayonMoteur.construireRayonsDepuisLignes(data);
 }
 
 let SITE_ACTUEL = 'vito-sainte-marie'; // ecrase par employee.site_id une fois connecte

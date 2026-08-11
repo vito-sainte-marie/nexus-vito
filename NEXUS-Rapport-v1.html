@@ -23,8 +23,13 @@
 <script src="nexus-periodes.js"></script>
 <script src="nexus-carburant-moteur.js"></script>
 <script src="nexus-carburant-donnees.js"></script>
+<script src="nexus-rayon-moteur.js"></script>
+<script src="nexus-verify-moteur.js"></script>
+<script src="nexus-secteurs-moteur.js"></script>
 <script src="nexus-rapport-donnees.js"></script>
+<script src="nexus-rapport-direction-donnees.js"></script>
 <script src="nexus-rapport-moteur.js"></script>
+<script src="nexus-rapport-direction-moteur.js"></script>
 <script src="nexus-pdf-moteur.js"></script>
 <style>
   :root{
@@ -137,9 +142,10 @@
     <div class="loading">Chargement…</div>
   </div>
 
+  <div class="periode-label" style="padding-top:0; padding-bottom:10px;">L'écran ci-dessus reste un aperçu synthétique (Synthèse + Santé). Le PDF est le Rapport NEXUS de Direction complet — 18 sections, 8 à 20 pages selon les données disponibles.</div>
   <button class="btn-pdf" id="btnPdf" style="display:none;">Générer le PDF</button>
 
-  <footer>NEXUS Rapport v1 (V1-Socle, 2 chapitres) · Vito Sainte-Marie Usine</footer>
+  <footer>NEXUS Rapport de Direction · Vito Sainte-Marie Usine</footer>
 </div>
 
 <script>
@@ -166,10 +172,12 @@
   // ------------------------------------------------------------
 
   let SITE_ID = 'vito-sainte-marie';
+  let NOM_ENTREPRISE = null;
   let MANAGER_COURANT = null;
   let TYPE_PERIODE = 'semaine';
   let CHAPITRE1 = null;
   let CHAPITRE2 = null;
+  let RAPPORT_DIRECTION = null; // 11/08/2026 — Rapport NEXUS de Direction (18 sections), voir nexus-rapport-direction-moteur.js
 
   const TYPES = [
     { cle: 'semaine', label: 'Semaine' },
@@ -227,7 +235,7 @@
     const mix = NexusCarburantMoteur.calculerMixCarburant(donnees.ventes);
     if (!mix || !mix.total) return { disponible: false, raison: `Aucune vente carburant ne couvre la période ${periode.debut} → ${periode.fin}.` };
     return {
-      disponible: true, volumeActuel: mix.total,
+      disponible: true, volumeActuel: mix.total, ventes: donnees.ventes,
       produitMoteur: NexusCarburantMoteur.identifierProduitMoteur(donnees.ventes),
       couvertureIncertaine: donnees.nbQuartsTotal > 0 && donnees.nbQuartsAvecLitrage < donnees.nbQuartsTotal,
     };
@@ -249,9 +257,11 @@
     const caActuel = rows.reduce((s, r) => s + (r.ca_grattage || 0), 0);
     const gameCa = {};
     (gameDailyRows || []).forEach(l => { if (l.ca) gameCa[l.game_id] = (gameCa[l.game_id] || 0) + Number(l.ca); });
-    let jeuMoteur = null, caMax = 0;
-    Object.entries(gameCa).forEach(([gid, ca]) => { if (ca > caMax) { caMax = ca; const j = (jeuxData || []).find(j => j.id === gid); jeuMoteur = { id: gid, nom: j ? j.nom : gid }; } });
-    return { disponible: true, caActuel, jeuMoteur };
+    const jeuxTop5 = Object.entries(gameCa)
+      .sort((a, b) => b[1] - a[1]).slice(0, 5)
+      .map(([gid, ca]) => { const j = (jeuxData || []).find(j => j.id === gid); return { id: gid, nom: j ? j.nom : gid, ca }; });
+    const jeuMoteur = jeuxTop5[0] || null;
+    return { disponible: true, caActuel, jeuMoteur, jeuxTop5 };
   }
 
   async function chargerEtRendre(bornesLibres) {
@@ -291,6 +301,59 @@
           evolution: (fdjRef.disponible && fdjRef.caActuel > 0) ? (fdjActuel.caActuel - fdjRef.caActuel) / fdjRef.caActuel : null }
       : { disponible: false, raison: fdjActuel.raison };
     CHAPITRE2 = NexusRapportMoteur.construireChapitreSante(CHAPITRE1, { carburants: carburantsChapitre, fdj: fdjChapitre });
+
+    // ------------------------------------------------------------
+    // Rapport NEXUS de Direction (11/08/2026) — chargement des données
+    // complémentaires (catégories Commerce, Opérations, Équipe,
+    // Trajectoire) puis assemblage des 18 sections. Le Chapitre 1/2
+    // ci-dessus reste la base (jamais recalculée) ; le reste est ajouté
+    // par-dessus (Article 11).
+    // ------------------------------------------------------------
+    const [commerceCategories, operations, equipe, trajectoire] = await Promise.all([
+      NexusRapportDirectionDonnees.chargerCommerceCategories(nexusClient, SITE_ID),
+      NexusRapportDirectionDonnees.chargerOperationsPeriode(nexusClient, SITE_ID, periode),
+      NexusRapportDirectionDonnees.chargerEquipePeriode(nexusClient, SITE_ID, periode),
+      NexusRapportDirectionDonnees.chargerTrajectoire(nexusClient, SITE_ID),
+    ]);
+
+    // Carburants détaillé : mix + décomposition d'évolution par carburant
+    // (moteur d'évolution), calculés ICI à partir des ventes actuel/
+    // référence déjà chargées — jamais un second appel réseau, jamais un
+    // second calcul de volume (Article 11 : NexusCarburantMoteur fait le
+    // calcul, ce fichier ne fait que le déclencher avec les bonnes
+    // entrées).
+    let carburantsDetail = { disponible: false, raison: carburantsChapitre.raison };
+    if (carburantsChapitre.disponible) {
+      const mix = NexusCarburantMoteur.calculerMixCarburant(carbActuel.ventes);
+      let moteurEvolution = null;
+      if (carbRef.disponible && carbRef.ventes) {
+        const decomposition = NexusCarburantMoteur.decomposerEvolution(carbActuel.ventes, carbRef.ventes);
+        moteurEvolution = NexusCarburantMoteur.identifierMoteurEvolution(decomposition);
+      }
+      carburantsDetail = {
+        disponible: true, mix, evolution: carburantsChapitre.evolution,
+        produitMoteur: carburantsChapitre.produitMoteur, moteurEvolution,
+        couvertureIncertaine: carburantsChapitre.couvertureIncertaine,
+      };
+    }
+    const fdjDetail = fdjChapitre.disponible
+      ? { disponible: true, caActuel: fdjChapitre.caActuel, evolution: fdjChapitre.evolution, jeuMoteur: fdjChapitre.jeuMoteur, jeuxTop5: fdjActuel.jeuxTop5 }
+      : { disponible: false, raison: fdjChapitre.raison };
+
+    // Granularité stratégique (même filtre que Brief NEXUS, appliqué ici
+    // aux décisions déjà journalisées plutôt qu'à des candidats bruts —
+    // journal_decisions porte les mêmes champs article/impact_eur) :
+    // les 3 "décisions dirigeant" de la Synthèse exécutive ne montrent
+    // jamais une décision SKU isolée de faible matérialité.
+    const decisionsStrategiques = (CHAPITRE1.decisions || [])
+      .filter(d => NexusSecteursMoteur.estDecisionStrategique(d))
+      .sort((a, b) => (b.impact_eur || 0) - (a.impact_eur || 0));
+
+    RAPPORT_DIRECTION = NexusRapportDirectionMoteur.construireRapportDirection({
+      nomEntreprise: NOM_ENTREPRISE, periode, dateReference: new Date(),
+      chapitre1: CHAPITRE1, chapitre2: CHAPITRE2, decisionsStrategiques,
+      commerceCategories, carburantsDetail, fdjDetail, operations, equipe, trajectoire,
+    });
 
     render();
     document.getElementById('btnPdf').style.display = 'block';
@@ -369,71 +432,315 @@
   }
 
   // ------------------------------------------------------------
-  // Export PDF multi-pages (NexusPdfMoteur.ConstructeurRapport) — même
-  // objet CHAPITRE1/CHAPITRE2 que l'écran, jamais recalculé.
+  // Export PDF — RAPPORT NEXUS DE DIRECTION (11/08/2026), refonte demandée
+  // par Frédéric : "le PDF doit devenir un véritable rapport de direction
+  // [...] 8 à 20 pages selon la période et les données disponibles, sans
+  // jamais remplir artificiellement." Consomme UNIQUEMENT l'objet
+  // RAPPORT_DIRECTION déjà construit par NexusRapportDirectionMoteur —
+  // aucun recalcul ici, seulement de la mise en page (Article 11). Chaque
+  // section absente de données affiche honnêtement "Donnée insuffisante"
+  // plutôt que d'être improvisée ou masquée (Article 5).
   // ------------------------------------------------------------
+  const CO = () => NexusPdfMoteur.COULEUR;
+  const DM = () => NexusRapportDirectionMoteur;
+
+  function pdfEncadreInsuffisant(rapport, texte) {
+    rapport.paragraphe(`Donnée insuffisante — ${texte}`, { taille: 9, couleur: CO().texteDim });
+  }
+
+  function pdfSousSection(rapport, titre) {
+    rapport.sousTitre(titre.toUpperCase(), { taille: 9.5, couleur: CO().cyan });
+  }
+
   async function genererPdf() {
     const btn = document.getElementById('btnPdf');
     btn.disabled = true;
     btn.textContent = 'Génération…';
+    const R = RAPPORT_DIRECTION;
+    const fmt = DM();
 
     const rapport = await NexusPdfMoteur.creerRapport({
-      titre: `Rapport NEXUS — ${CHAPITRE1.periode.label}`,
-      sujet: 'Rapport NEXUS — Synthèse dirigeant et santé de l\'entreprise',
-      entete: { app: 'NEXUS OS · Rapport', sousTitre: CHAPITRE1.periode.label },
+      titre: `Rapport NEXUS de Direction — ${R.couverture.periodeLabel}`,
+      sujet: 'Rapport NEXUS de Direction',
+      entete: { app: 'NEXUS OS · Rapport de Direction', sousTitre: R.couverture.periodeLabel },
     });
 
-    // Page de garde légère.
-    rapport.titre('Rapport NEXUS');
-    rapport.sousTitre(`${CHAPITRE1.periode.label} · ${CHAPITRE1.periode.debut} → ${CHAPITRE1.periode.fin}`);
-    rapport.sousTitre(`Généré le ${new Date().toLocaleDateString('fr-FR')} par ${MANAGER_COURANT.nom || 'NEXUS'}.`, { taille: 9 });
+    // ---- 1. Page de couverture ----
+    rapport.pageDeGarde({
+      nomEntreprise: R.couverture.nomEntreprise,
+      periodeBornes: R.couverture.periodeLabel + ' · ' + R.couverture.periodeBornes,
+      mentionBas: `Généré le ${R.couverture.genereLe.toLocaleDateString('fr-FR')}${MANAGER_COURANT && MANAGER_COURANT.nom ? ' par ' + MANAGER_COURANT.nom : ''}.`,
+    });
+    rapport._nouvellePage();
 
-    // Chapitre 1.
-    rapport.sectionTitre('Chapitre 1 — Synthèse dirigeant');
-    rapport.paragraphe(CHAPITRE1.syntheseTexte);
-    rapport.ligneCle('CA de la période', CHAPITRE1.ca.disponible ? NexusRapportMoteur.formaterEuros(CHAPITRE1.ca.valeur) : 'Données insuffisantes');
-    if (CHAPITRE1.evolutionCa != null) rapport.ligneCle('Évolution CA', `${CHAPITRE1.evolutionCa >= 0 ? '+' : ''}${(CHAPITRE1.evolutionCa * 100).toFixed(1)} % vs ${CHAPITRE1.caRef.periodeUtilisee.label}`);
-    rapport.ligneCle('Marge de la période', CHAPITRE1.marge.disponible && CHAPITRE1.marge.tauxPct != null ? `${CHAPITRE1.marge.tauxPct.toFixed(1)} %` : 'Données insuffisantes');
-    if (CHAPITRE1.evolutionMargeTaux != null) rapport.ligneCle('Évolution marge', `${CHAPITRE1.evolutionMargeTaux >= 0 ? '+' : ''}${CHAPITRE1.evolutionMargeTaux.toFixed(1)} pt vs ${CHAPITRE1.margeRef.periodeUtilisee.label}`);
-    rapport.ligneCle('Décisions sur la période', `${CHAPITRE1.nbDecisions}${CHAPITRE1.impactDecisions ? ` · ${NexusRapportMoteur.formaterEuros(CHAPITRE1.impactDecisions)}` : ''}`);
+    // ---- 2. Synthèse exécutive ----
+    rapport.sectionTitre('Synthèse exécutive');
+    rapport.sousTitre('ÉTAT GÉNÉRAL', { taille: 9.5, couleur: CO().cyan });
+    rapport.paragraphe(R.syntheseExecutive.etatGeneral, { taille: 11, couleur: CO().texte });
+    rapport.paragraphe(R.syntheseExecutive.phraseDirecteur);
+    pdfSousSection(rapport, 'Les 3 choses à retenir');
+    if (R.syntheseExecutive.troisChoses.length) {
+      R.syntheseExecutive.troisChoses.forEach((c, i) => rapport.paragraphe(`${i + 1}. ${c.titre} — ${c.detail}`, { taille: 9.5 }));
+    } else {
+      pdfEncadreInsuffisant(rapport, 'pas assez de mesures sur cette période pour dégager 3 points.');
+    }
+    pdfSousSection(rapport, '3 décisions dirigeant');
+    if (R.syntheseExecutive.troisDecisions.length) {
+      R.syntheseExecutive.troisDecisions.forEach((d, i) => rapport.paragraphe(`${i + 1}. ${d.texte}`, { taille: 9.5 }));
+    } else {
+      pdfEncadreInsuffisant(rapport, 'aucune décision stratégique enregistrée sur cette période.');
+    }
 
-    if (CHAPITRE1.decisions.length) {
-      rapport.sousTitre('Décisions prises pendant la période', { taille: 10 });
+    // ---- 3. Tableau de bord économique ----
+    rapport._nouvellePage();
+    rapport.sectionTitre('Tableau de bord économique');
+    const tb = R.tableauDeBord;
+    pdfSousSection(rapport, 'Commerce');
+    rapport.ligneCle('CA période', fmt.fmtEuros(tb.commerce.ca));
+    rapport.ligneCle('Évolution', fmt.fmtPct(tb.commerce.evolution));
+    rapport.ligneCle('Marge %', tb.commerce.marge_pct != null ? tb.commerce.marge_pct.toFixed(1) + ' %' : '—');
+    rapport.ligneCle('Évolution marge', fmt.fmtPts(tb.commerce.evolutionMarge));
+    pdfSousSection(rapport, 'FDJ');
+    if (tb.fdj.disponible !== false) {
+      rapport.ligneCle('CA FDJ', fmt.fmtEuros(tb.fdj.ca));
+      rapport.ligneCle('Évolution', fmt.fmtPct(tb.fdj.evolution));
+    } else pdfEncadreInsuffisant(rapport, 'aucun quart FDJ contrôlé sur cette période.');
+    pdfSousSection(rapport, 'Carburants (litrage)');
+    if (tb.carburants.disponible !== false && tb.carburants.mix) {
+      NexusCarburantMoteur.CLES_CARBURANT.forEach(c => {
+        if (tb.carburants.mix[c] != null) rapport.ligneCle(NexusCarburantMoteur.NOM_CARBURANT_COURT[c], fmt.fmtL(tb.carburants.mix[c].litres));
+      });
+      rapport.ligneCle('Total', fmt.fmtL(tb.carburants.total));
+      rapport.ligneCle('Évolution', fmt.fmtPct(tb.carburants.evolution));
+    } else pdfEncadreInsuffisant(rapport, 'aucune vente carburant sur cette période.');
+    pdfSousSection(rapport, 'Opérations');
+    if (tb.operations.disponible !== false) {
+      rapport.ligneCle('Contrôles caisse', String(tb.operations.nbControles));
+      rapport.ligneCle('Taux conforme', tb.operations.tauxConforme != null ? (tb.operations.tauxConforme * 100).toFixed(0) + ' %' : '—');
+      rapport.ligneCle('Anomalies', String(tb.operations.nbAnomalies));
+    } else pdfEncadreInsuffisant(rapport, 'aucun contrôle caisse sur cette période.');
+    if (tb.operationsInventaire.disponible !== false) {
+      rapport.ligneCle('Inventaires (comptages)', String(tb.operationsInventaire.totalCounts));
+      rapport.ligneCle('Écarts ouverts', String(tb.operationsInventaire.openDiscrepancies));
+    }
+    pdfSousSection(rapport, 'Équipe');
+    if (tb.equipe.disponible !== false) {
+      rapport.ligneCle('Collaborateurs actifs', String(tb.equipe.collaborateursActifs));
+      rapport.ligneCle('Ponctualité', tb.equipe.tauxPonctualite != null ? (tb.equipe.tauxPonctualite * 100).toFixed(0) + ' %' : '—');
+      rapport.ligneCle('Missions réalisées', `${tb.equipe.tauxMissions != null ? (tb.equipe.tauxMissions * 100).toFixed(0) + ' %' : '—'}`);
+    } else pdfEncadreInsuffisant(rapport, 'aucun pointage ni mission sur cette période.');
+
+    // ---- 4. Trajectoire ----
+    rapport._nouvellePage();
+    rapport.sectionTitre("Trajectoire de l'entreprise");
+    if (R.trajectoire.disponible) {
       rapport.tableau(
-        [
-          { label: 'Date', cle: 'date', largeur: 0.16 },
-          { label: 'Recommandation', cle: 'recommandation', largeur: 0.52 },
-          { label: 'État', cle: 'etat', largeur: 0.16 },
-          { label: 'Impact', cle: 'impact', largeur: 0.16, align: 'droite' },
-        ],
-        CHAPITRE1.decisions.slice(0, 25).map(d => ({
-          date: d.date, recommandation: d.recommandation || d.article || d.candidate_id, etat: d.etat || '—',
-          impact: d.impact_eur ? NexusRapportMoteur.formaterEuros(d.impact_eur) : '—',
+        [{ label: 'Mois', cle: 'label', largeur: 0.4 }, { label: 'CA', cle: 'ca', largeur: 0.3, align: 'droite' }, { label: 'Marge', cle: 'marge', largeur: 0.3, align: 'droite' }],
+        R.trajectoire.mois.map(m => ({ label: m.label, ca: fmt.fmtEuros(m.ca), marge: fmt.fmtEuros(m.marge) })),
+      );
+      rapport.ligneCle('Évolution vs mois précédent', fmt.fmtPct(R.trajectoire.evolutionMoisPrecedent));
+      rapport.ligneCle('Évolution vs moyenne récente', fmt.fmtPct(R.trajectoire.evolutionVsMoyenne3Mois));
+      rapport.ligneCle('Évolution vs même mois N-1', R.trajectoire.disponibleN1 ? fmt.fmtPct(R.trajectoire.evolutionN1) : 'Donnée insuffisante');
+      rapport.paragraphe(R.trajectoire.commentaire);
+      if (R.trajectoire.blocsPartiels) rapport.paragraphe(R.trajectoire.methodeNote, { taille: 8, couleur: CO().texteDim });
+    } else {
+      pdfEncadreInsuffisant(rapport, R.trajectoire.raison);
+    }
+
+    // ---- 5-6. Commerce + Produits ----
+    rapport._nouvellePage();
+    rapport.sectionTitre('Commerce');
+    if (R.commerce.disponible) {
+      rapport.paragraphe(`Période affichée : ${R.commerce.periodeAffichage.debut} → ${R.commerce.periodeAffichage.fin}${R.commerce.periodeEnCours ? ' (en cours)' : ''}.`, { taille: 8.5, couleur: CO().texteDim });
+      rapport.ligneCle('CA total', fmt.fmtEuros(R.commerce.ca_total));
+      rapport.ligneCle('Marge totale', fmt.fmtEuros(R.commerce.marge_total));
+      if (R.commerce.phraseContribution) rapport.paragraphe(R.commerce.phraseContribution);
+      rapport.tableau(
+        [{ label: 'Catégorie', cle: 'nom', largeur: 0.32 }, { label: 'CA', cle: 'ca', largeur: 0.22, align: 'droite' }, { label: 'Part CA', cle: 'part', largeur: 0.16, align: 'droite' }, { label: 'Évolution', cle: 'evol', largeur: 0.15, align: 'droite' }, { label: 'Marge %', cle: 'marge', largeur: 0.15, align: 'droite' }],
+        R.commerce.categories.slice(0, 15).map(c => ({
+          nom: c.nom, ca: fmt.fmtEuros(c.ca_total), part: c.part_du_ca != null ? (c.part_du_ca * 100).toFixed(0) + ' %' : '—',
+          evol: fmt.fmtPct(c.evolution_ca), marge: (c.marge_pct_moyenne * 100).toFixed(0) + ' %',
         })),
       );
-    } else {
-      rapport.paragraphe('Aucune décision enregistrée dans le journal sur cette période.', { couleur: NexusPdfMoteur.COULEUR.texteDim });
-    }
+    } else pdfEncadreInsuffisant(rapport, R.commerce.raison);
 
-    // Chapitre 2 — nouvelle page pour une lecture nette.
+    rapport.sectionTitre('Produits moteurs et à potentiel');
+    if (R.produitsMoteurs.disponible) {
+      pdfSousSection(rapport, 'Produits moteurs');
+      rapport.paragraphe(`Ces ${R.produitsMoteurs.produitsMoteurs.length} références représentent ${R.produitsMoteurs.partMoteurs != null ? (R.produitsMoteurs.partMoteurs * 100).toFixed(0) + ' %' : '—'} du CA boutique.`, { taille: 9.5 });
+      R.produitsMoteurs.produitsMoteurs.forEach(p => rapport.paragraphe(`• ${p.article} (${p.categorie}) — ${fmt.fmtEuros(p.ca)}`, { taille: 9 }));
+      pdfSousSection(rapport, 'Produits à potentiel');
+      if (R.produitsMoteurs.produitsPotentiel.length) {
+        R.produitsMoteurs.produitsPotentiel.forEach(p => rapport.paragraphe(`• ${p.article} (${p.categorie}) — marge ${(p.marge_pct * 100).toFixed(0)} %`, { taille: 9 }));
+        rapport.paragraphe(R.produitsMoteurs.heuristiquePotentielNote, { taille: 8, couleur: CO().texteDim });
+      } else pdfEncadreInsuffisant(rapport, 'aucun produit ne ressort de cette lecture sur la période.');
+    } else pdfEncadreInsuffisant(rapport, 'catégories Commerce indisponibles.');
+
+    // ---- 7. Marge ----
     rapport._nouvellePage();
-    rapport.sectionTitre('Chapitre 2 — Santé de l\'entreprise');
-    rapport.paragraphe("Commerce, Marge, Carburants et FDJ sont scopés par période calendaire. Opérations et Équipe seront ajoutés dans une itération suivante (aucun scoping fiable par période calendaire aujourd'hui).", { taille: 8.5, couleur: NexusPdfMoteur.COULEUR.texteDim });
-    CHAPITRE2.axes.forEach(a => {
-      rapport.encadre([
-        { texte: `${a.icone} ${a.nom} — ${a.statut}`, gras: true },
-        { texte: a.detail },
-      ], { couleurBordure: a.statut === 'En baisse' ? NexusPdfMoteur.COULEUR.rouge : a.statut === 'En hausse' ? NexusPdfMoteur.COULEUR.vert : NexusPdfMoteur.COULEUR.cyan });
-    });
-    if (CHAPITRE2.axesNonCouverts.length) {
-      rapport.sousTitre('Non couverts dans ce chapitre (V1)', { taille: 9.5 });
-      CHAPITRE2.axesNonCouverts.forEach(a => rapport.paragraphe(`${a.icone} ${a.nom} — ${a.raison}`, { taille: 9, couleur: NexusPdfMoteur.COULEUR.texteDim }));
-    }
+    rapport.sectionTitre('Marge');
+    if (R.marge.disponible) {
+      const cl = R.marge.classement;
+      rapport.ligneCle('Marge moyenne pondérée du magasin', (cl.margeMoyennePonderee * 100).toFixed(1) + ' %');
+      pdfSousSection(rapport, 'Catégories moteurs de marge');
+      rapport.paragraphe(cl.moteurs.length ? cl.moteurs.map(m => m.nom).join(', ') : 'Aucune catégorie nettement au-dessus de la moyenne.', { taille: 9.5 });
+      pdfSousSection(rapport, 'Catégories neutres');
+      rapport.paragraphe(cl.neutres.length ? cl.neutres.map(m => m.nom).join(', ') : '—', { taille: 9.5 });
+      pdfSousSection(rapport, 'Catégories qui détruisent de la marge');
+      rapport.paragraphe(cl.destructeurs.length ? cl.destructeurs.map(m => m.nom).join(', ') : 'Aucune.', { taille: 9.5 });
+      pdfSousSection(rapport, 'Explication de la variation');
+      pdfEncadreInsuffisant(rapport, R.marge.decompositionNote);
+    } else pdfEncadreInsuffisant(rapport, 'catégories Commerce indisponibles.');
 
-    rapport.piedDePageToutesPages('NEXUS OS · Rapport NEXUS v1');
+    // ---- 8. Carburants ----
+    rapport._nouvellePage();
+    rapport.sectionTitre('Carburants');
+    if (R.carburants.disponible) {
+      pdfSousSection(rapport, 'Mix carburants');
+      NexusCarburantMoteur.CLES_CARBURANT.forEach(c => {
+        if (R.carburants.mix[c] != null) rapport.ligneCle(NexusCarburantMoteur.NOM_CARBURANT_COURT[c], `${fmt.fmtL(R.carburants.mix[c].litres)} (${(R.carburants.mix[c].pct * 100).toFixed(0)} %)`);
+      });
+      if (R.carburants.moteurEvolution) {
+        rapport.paragraphe(`Moteur de l'évolution : ${NexusCarburantMoteur.NOM_CARBURANT_COURT[R.carburants.moteurEvolution.cle]} (${R.carburants.moteurEvolution.delta >= 0 ? '+' : ''}${Math.round(R.carburants.moteurEvolution.delta).toLocaleString('fr-FR')} L).`, { taille: 9.5 });
+      }
+      if (R.carburants.couvertureIncertaine) rapport.paragraphe('Couverture partielle des quarts sur cette période — volume indicatif.', { taille: 8, couleur: CO().ambre });
+      pdfSousSection(rapport, 'Stock et livraisons');
+      pdfEncadreInsuffisant(rapport, R.carburants.stockNote);
+      pdfSousSection(rapport, 'Économie carburant');
+      pdfEncadreInsuffisant(rapport, R.carburants.economieNote);
+    } else pdfEncadreInsuffisant(rapport, R.carburants.raison);
+
+    // ---- 9. FDJ ----
+    rapport._nouvellePage();
+    rapport.sectionTitre('FDJ');
+    if (R.fdj.disponible) {
+      rapport.ligneCle('CA FDJ', fmt.fmtEuros(R.fdj.caActuel));
+      rapport.ligneCle('Évolution', fmt.fmtPct(R.fdj.evolution));
+      pdfSousSection(rapport, 'Jeux moteurs (Top 5)');
+      if (R.fdj.jeuxTop.length) rapport.tableau(
+        [{ label: 'Jeu', cle: 'nom', largeur: 0.6 }, { label: 'CA', cle: 'ca', largeur: 0.4, align: 'droite' }],
+        R.fdj.jeuxTop.map(j => ({ nom: j.nom, ca: fmt.fmtEuros(j.ca) })),
+      ); else pdfEncadreInsuffisant(rapport, 'aucun détail par jeu sur cette période.');
+      rapport.paragraphe(R.fdj.lectureNexus, { taille: 9.5 });
+    } else pdfEncadreInsuffisant(rapport, R.fdj.raison);
+
+    // ---- 10. Opérations ----
+    rapport._nouvellePage();
+    rapport.sectionTitre('Opérations');
+    pdfSousSection(rapport, 'Piste (contrôles caisse)');
+    if (R.operations.piste.disponible !== false) {
+      rapport.ligneCle('Contrôles', String(R.operations.piste.total));
+      rapport.ligneCle('Taux conforme', R.operations.piste.tauxConforme != null ? (R.operations.piste.tauxConforme * 100).toFixed(0) + ' %' : '—');
+      rapport.ligneCle('Écart cumulé', fmt.fmtEuros(R.operations.piste.ecartCumule));
+      rapport.ligneCle('Composante la plus touchée', R.operations.piste.composantePlusTouchee || '—');
+    } else pdfEncadreInsuffisant(rapport, 'aucun contrôle caisse sur cette période.');
+    pdfSousSection(rapport, 'Boutique (inventaire)');
+    if (R.operations.boutique.disponible !== false) {
+      rapport.ligneCle('Comptages', String(R.operations.boutique.totalCounts));
+      rapport.ligneCle('Écarts détectés', String(R.operations.boutique.totalDiscrepancies));
+      rapport.ligneCle('Écarts ouverts', String(R.operations.boutique.openDiscrepancies));
+      rapport.ligneCle('Démarque potentielle estimée', fmt.fmtEuros(R.operations.boutique.estimatedValue));
+    } else pdfEncadreInsuffisant(rapport, 'aucune synthèse inventaire sur cette période.');
+    rapport.paragraphe(R.operations.syntheseTexte, { taille: 9.5 });
+
+    // ---- 11. Équipe ----
+    rapport._nouvellePage();
+    rapport.sectionTitre('Équipe');
+    if (R.equipe.disponible) {
+      pdfSousSection(rapport, 'Fiabilité collective');
+      rapport.ligneCle('Collaborateurs actifs', String(R.equipe.collaborateursActifs));
+      rapport.ligneCle('Ponctualité', R.equipe.tauxPonctualite != null ? (R.equipe.tauxPonctualite * 100).toFixed(0) + ' %' : '—');
+      rapport.ligneCle('Missions réalisées', `${R.equipe.nbMissionsTerminees} / ${R.equipe.nbMissions}`);
+      rapport.ligneCle('Conformité caisse', R.equipe.tauxConformeCaisse != null ? (R.equipe.tauxConformeCaisse * 100).toFixed(0) + ' %' : '—');
+      pdfSousSection(rapport, 'Progression');
+      pdfEncadreInsuffisant(rapport, R.equipe.progressionNote);
+      pdfSousSection(rapport, 'Axes de formation');
+      rapport.paragraphe(R.equipe.axeFormation || 'Aucun axe de formation prioritaire identifié sur cette période.', { taille: 9.5 });
+      if (R.equipe.recommandationManageriale) {
+        pdfSousSection(rapport, 'Recommandation managériale');
+        rapport.paragraphe(R.equipe.recommandationManageriale, { taille: 9.5 });
+      }
+    } else pdfEncadreInsuffisant(rapport, R.equipe.raison);
+
+    // ---- 12. Risques et contrôle interne ----
+    rapport._nouvellePage();
+    rapport.sectionTitre('Risques et contrôle interne');
+    if (R.risques.disponible) {
+      rapport.tableau(
+        [{ label: 'Catégorie', cle: 'categorie', largeur: 0.18 }, { label: 'Constat', cle: 'libelle', largeur: 0.52 }, { label: 'Impact', cle: 'impact', largeur: 0.15 }, { label: 'Urgence', cle: 'urgence', largeur: 0.15 }],
+        R.risques.risques,
+      );
+    } else pdfEncadreInsuffisant(rapport, 'aucun signal de risque significatif détecté sur cette période.');
+
+    // ---- 13-14. Forces / Ce qui doit progresser ----
+    rapport._nouvellePage();
+    rapport.sectionTitre('Ce qui va bien');
+    if (R.forces.length) {
+      R.forces.forEach(f => rapport.encadre([{ texte: f.titreCourt, gras: true }, { texte: f.detail }], { couleurBordure: CO().vert }));
+    } else pdfEncadreInsuffisant(rapport, 'pas assez de mesures positives distinctes sur cette période.');
+
+    rapport._nouvellePage();
+    rapport.sectionTitre('Ce qui doit progresser');
+    if (R.ameliorer.length) {
+      R.ameliorer.forEach(a => {
+        rapport.sousTitre(a.constat, { taille: 10.5, couleur: CO().texte });
+        rapport.paragraphe(`Constat : ${a.impact}`, { taille: 9 });
+        rapport.paragraphe(`Cause probable : ${a.causeProbable}`, { taille: 9, couleur: CO().texteDim });
+        rapport.paragraphe(`Action proposée : ${a.actionProposee}`, { taille: 9.5 });
+      });
+    } else rapport.paragraphe('Aucun point de vigilance majeur identifié sur cette période.', { taille: 9.5, couleur: CO().vert });
+
+    // ---- 15. Projection économique ----
+    rapport._nouvellePage();
+    rapport.sectionTitre('Projection économique');
+    if (R.projection.disponible) {
+      rapport.bandeau(R.projection.mention, { couleur: CO().ambre });
+      rapport.ligneCle('Scénario rythme actuel', fmt.fmtEuros(R.projection.rythmeActuel));
+      rapport.ligneCle(`Scénario moyenne ${R.projection.nbMoisMoyenne} derniers mois`, R.projection.scenarioMoyenneNMois != null ? fmt.fmtEuros(R.projection.scenarioMoyenneNMois) : 'Donnée insuffisante');
+      rapport.ligneCle('Scénario même période N-1', 'Donnée insuffisante');
+    } else pdfEncadreInsuffisant(rapport, R.projection.raison);
+
+    // ---- 16. Suggestions de développement ----
+    rapport._nouvellePage();
+    rapport.sectionTitre('Suggestions de développement');
+    if (R.suggestions.length) {
+      R.suggestions.forEach(s => {
+        rapport.sousTitre(s.secteur.toUpperCase(), { taille: 9.5, couleur: CO().cyan });
+        rapport.paragraphe(s.suggestion, { taille: 10 });
+        rapport.paragraphe(`Pourquoi : ${s.pourquoi}`, { taille: 8.5, couleur: CO().texteDim });
+        rapport.paragraphe(`Données utilisées : ${s.donneesUtilisees} · Confiance : ${s.confiance}`, { taille: 8, couleur: CO().texteDim });
+        rapport.paragraphe(`Ce qui manque pour confirmer : ${s.manquePourConfirmer}`, { taille: 8, couleur: CO().texteDim });
+      });
+    } else pdfEncadreInsuffisant(rapport, 'aucun signal exploitable pour une suggestion sur cette période.');
+
+    // ---- 17. Décisions prises + effets observés ----
+    rapport._nouvellePage();
+    rapport.sectionTitre('Décisions prises sur la période');
+    if (R.decisionsChapitre.disponible) {
+      rapport.tableau(
+        [{ label: 'Date', cle: 'date', largeur: 0.14 }, { label: 'Décision', cle: 'decision', largeur: 0.42 }, { label: 'Secteur', cle: 'secteur', largeur: 0.2 }, { label: 'Statut', cle: 'statut', largeur: 0.24 }],
+        R.decisionsChapitre.decisions.slice(0, 30),
+      );
+    } else pdfEncadreInsuffisant(rapport, 'aucune décision enregistrée sur cette période.');
+    pdfSousSection(rapport, 'Effets observés');
+    pdfEncadreInsuffisant(rapport, R.decisionsChapitre.effetsObservesNote);
+
+    // ---- 18. Priorités + signature ----
+    rapport._nouvellePage();
+    rapport.sectionTitre('Priorités de la prochaine période');
+    if (R.priorites.length) {
+      R.priorites.forEach(p => rapport.paragraphe(`${p.rang} — ${p.titre} : ${p.action}`, { taille: 10 }));
+    } else rapport.paragraphe('Aucune priorité de direction identifiée sur cette période.', { taille: 9.5 });
+
+    rapport.y -= 20;
+    rapport.sousTitre(R.signature.accroche, { taille: 11, couleur: CO().texte });
+    rapport.sousTitre(R.signature.sousAccroche, { taille: 9.5, couleur: CO().texteDim });
+    rapport.paragraphe(R.signature.mentionConfiance, { taille: 7.5, couleur: CO().texteDim });
+
+    rapport.piedDePageToutesPages('NEXUS OS · Rapport NEXUS de Direction');
     const pdfBytes = await NexusPdfMoteur.finaliser(rapport);
-    const nomFichier = `NEXUS-Rapport-${CHAPITRE1.periode.debut}-${CHAPITRE1.periode.fin}.pdf`;
-    await NexusPdfMoteur.partagerOuTelechargerPdf(pdfBytes, nomFichier, { titre: 'Rapport NEXUS' });
+    const nomFichier = `NEXUS-Rapport-Direction-${CHAPITRE1.periode.debut}-${CHAPITRE1.periode.fin}.pdf`;
+    await NexusPdfMoteur.partagerOuTelechargerPdf(pdfBytes, nomFichier, { titre: 'Rapport NEXUS de Direction' });
 
     btn.disabled = false;
     btn.textContent = 'Générer le PDF';
@@ -450,6 +757,8 @@
     }
     MANAGER_COURANT = employee;
     SITE_ID = employee.site_id || 'vito-sainte-marie';
+    const { data: siteRow } = await nexusClient.from('sites').select('nom_entreprise').eq('site_id', SITE_ID).maybeSingle();
+    NOM_ENTREPRISE = (siteRow && siteRow.nom_entreprise) || SITE_ID;
 
     renderBarrePeriodes();
     document.getElementById('btnLibreValider').addEventListener('click', () => {
