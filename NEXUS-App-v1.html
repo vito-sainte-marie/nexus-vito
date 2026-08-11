@@ -278,6 +278,18 @@
   .section-tag::after{content:''; flex:1; height:1px; background:var(--hairline);}
   .section-tag .n1{color:var(--gold);}
 
+  /* "Que voulez-vous faire ?" (10/08/2026, refonte "Porte NEXUS") — même
+     grille visuelle que .outils-grid/.outil-card (cohérence), mais un jeu
+     de cartes distinct : celles-ci ne pointent jamais directement vers un
+     moteur, toujours vers un point d'entrée par intention (Comprendre
+     NEXUS ou Brief NEXUS), jamais un nom de module. */
+  .intention-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px; padding:0 20px;}
+  .intention-card{background:var(--panel); border:1px solid var(--hairline); border-radius:14px; padding:16px; text-decoration:none; color:var(--text); display:block;}
+  .intention-icon{font-size:22px; margin-bottom:8px;}
+  .intention-title{font-size:13.5px; font-weight:600;}
+  .intention-desc{font-size:10.5px; color:var(--text-mid); margin-top:4px; line-height:1.4;}
+  body.nexus-desktop .intention-grid{grid-template-columns:repeat(4,1fr);}
+
   /* Refonte du 26/07/2026 (demande de Frédéric) — "État global" : badge de
      statut + Indice sur une seule ligne, une phrase de synthèse, puis 4
      domaines (Commerce/Valeur/Opérations/Équipe) plutôt que deux colonnes
@@ -402,10 +414,17 @@
      du wrapper .app-top-row et désaligne les deux colonnes. .conseiller-card
      a aussi 16px de margin-top (pas .etat-card) : à annuler aussi, sinon le
      haut des deux cadres ne s'aligne pas malgré des .section-tag identiques
-     au-dessus (signalé par Frédéric le 02/08/2026). */
+     au-dessus (signalé par Frédéric le 02/08/2026).
+     Refonte "Porte NEXUS" (10/08/2026) : le section-tag "Le Conseiller" a
+     été retiré au-dessus de .conseiller-card (voir commentaire HTML), mais
+     "État global" garde le sien — les deux cadres n'ont donc plus la même
+     hauteur de départ. .conseiller-card retrouve ici un margin-top calé sur
+     la hauteur d'un .section-tag (~44px) pour que les deux colonnes restent
+     alignées en vue bureau, sans réintroduire un label inutile. */
   body.nexus-desktop .app-top-row .section-tag{padding-left:0; padding-right:0;}
   body.nexus-desktop .app-top-row .conseiller-card,
   body.nexus-desktop .app-top-row .etat-card{margin-left:0; margin-right:0; margin-top:0;}
+  body.nexus-desktop .app-top-row .conseiller-card{margin-top:44px;}
   body.nexus-desktop .kpi-grid{grid-template-columns:repeat(4,1fr);}
   body.nexus-desktop .outils-grid{grid-template-columns:repeat(4,1fr);}
 </style>
@@ -467,9 +486,15 @@
          (voir body.nexus-desktop .app-top-row plus haut dans le <style>) :
          c'est le Conseiller qui accueille (demande de Frédéric du
          27/07/2026), donc il garde la plus grande part. -->
+    <!-- Refonte "Porte NEXUS" (10/08/2026, demande de Frédéric) : le
+         section-tag "1 Le Conseiller" a été retiré ici, volontairement —
+         "pas besoin d'annoncer au nouvel utilisateur qu'il entre dans le
+         Conseiller, il comprend la fonction par l'expérience." Le "Bonjour
+         {prénom}, N décisions méritent votre attention aujourd'hui" déjà
+         écrit dans renderConseillerHome() (conseillerCorps) sert désormais
+         directement de phrase d'accueil de la page — rien à ajouter au-dessus. -->
     <div class="app-top-row">
     <div class="app-top-col">
-    <div class="section-tag"><span class="n1">1</span> Le Conseiller</div>
     <div class="conseiller-card conseiller-card-hero">
       <div class="conseiller-head">
         <img class="conseiller-avatar" src="assets/nexus-avatar.png" alt="Conseiller NEXUS">
@@ -483,7 +508,7 @@
     </div>
 
     <div class="app-top-col">
-    <div class="section-tag"><span class="n1">2</span> État global</div>
+    <div class="section-tag">État global</div>
     <div class="etat-card">
       <div class="etat-header">
         <span class="etat-statut-badge" id="etatStatutBadge"></span>
@@ -512,13 +537,48 @@
     </div>
     <!-- /app-top-row -->
 
-    <div class="section-tag"><span class="n1">3</span> À retenir aujourd'hui</div>
+    <!-- "Que voulez-vous faire ?" (10/08/2026, refonte "Porte NEXUS",
+         demande de Frédéric) : jamais un nom de module — l'utilisateur
+         choisit son problème, pas l'outil. Teaser de 4 cartes qui renvoient
+         vers "Comprendre NEXUS" (point d'entrée par intention déjà
+         construit), ou directement vers Brief NEXUS pour "Savoir quoi
+         faire". "Améliorer mes résultats" et "Garder le contrôle"
+         recouvrent chacune 2 intentions de Comprendre NEXUS
+         (ventes+marge, caisses+stocks) — pas de présélection forcée pour
+         ces deux-là, on atterrit sur la liste complète des objectifs.
+         "Faire progresser mon équipe" a une correspondance directe
+         (piloter-equipe) — lien profond via ?intention=. -->
+    <div class="section-tag">Que voulez-vous faire ?</div>
+    <div class="intention-grid">
+      <a class="intention-card" href="NEXUS-Documentation-v1.html">
+        <div class="intention-icon">💰</div>
+        <div class="intention-title">Améliorer mes résultats</div>
+        <div class="intention-desc">Ventes, marge, produits et opportunités.</div>
+      </a>
+      <a class="intention-card" href="NEXUS-Documentation-v1.html">
+        <div class="intention-icon">🛡</div>
+        <div class="intention-title">Garder le contrôle</div>
+        <div class="intention-desc">Caisses, stocks, anomalies et risques.</div>
+      </a>
+      <a class="intention-card" href="NEXUS-Documentation-v1.html?intention=piloter-equipe">
+        <div class="intention-icon">👥</div>
+        <div class="intention-title">Faire progresser mon équipe</div>
+        <div class="intention-desc">Missions, performance, organisation.</div>
+      </a>
+      <a class="intention-card" href="NEXUS-Brief-v1.html" data-brief-nexus="1">
+        <div class="intention-icon">🎯</div>
+        <div class="intention-title">Savoir quoi faire maintenant</div>
+        <div class="intention-desc">Les décisions prioritaires selon NEXUS.</div>
+      </a>
+    </div>
+
+    <div class="section-tag">À retenir aujourd'hui</div>
     <div class="retenir-grid" id="retenirGrid"></div>
 
-    <div class="section-tag"><span class="n1">4</span> Aujourd'hui</div>
+    <div class="section-tag">Aujourd'hui</div>
     <div class="kpi-grid" id="kpiGrid"></div>
 
-    <div class="section-tag"><span class="n1">5</span> Vos outils principaux</div>
+    <div class="section-tag">Vos raccourcis</div>
     <div class="outils-grid" id="outilsGrid"></div>
   </div>
 
@@ -592,11 +652,17 @@
        manager-only séparé juste en dessous, plutôt que la même grande
        div qu'avant : Recherche doit rester accessible à l'employé alors
        qu'Explorer NEXUS ne l'est jamais. -->
-  <div class="section-label">Rechercher</div>
+  <!-- Reformulation "Porte NEXUS" (10/08/2026, demande de Frédéric) : la
+       recherche devient une question d'intention ("Que cherchez-vous à
+       faire ?"), pas une recherche de nom de page — les données
+       (PAGES_INDEX) sont déjà rédigées en langage d'utilité, seul le
+       cadrage visible autour change. Le placeholder par rôle est mis à
+       jour dans initRechercheNexus() plus bas. -->
+  <div class="section-label">Que cherchez-vous à faire ?</div>
   <div class="recherche-nexus">
     <div class="recherche-nexus-champ">
       <span class="recherche-nexus-loupe">🔍</span>
-      <input type="text" id="rechercheNexusInput" placeholder="Rechercher une page NEXUS (pointage, marge, planning…)" autocomplete="off">
+      <input type="text" id="rechercheNexusInput" placeholder="contrôler une caisse, comprendre ma marge, voir mes stocks…" autocomplete="off">
     </div>
     <div class="recherche-nexus-resultats" id="rechercheNexusResultats"></div>
   </div>
@@ -2354,9 +2420,13 @@
     // Frédéric) : "marge" et "planning" (génération d'équipe) ne
     // signifient rien pour un employé — il cherche plutôt son pointage,
     // ses missions ou sa progression.
+    // Reformulation en intention (10/08/2026, refonte "Porte NEXUS") :
+    // remplace "Rechercher une page NEXUS (...)" par des exemples de ce
+    // que l'utilisateur veut FAIRE, pas des noms de pages — cohérent avec
+    // le nouveau label "Que cherchez-vous à faire ?" au-dessus du champ.
     input.placeholder = estNiveauManager
-      ? 'Rechercher une page NEXUS (pointage, marge, planning…)'
-      : 'Rechercher une page NEXUS (pointage, missions, ma progression…)';
+      ? 'contrôler une caisse, comprendre ma marge, voir mes stocks…'
+      : 'pointer mon arrivée, voir mes missions, ma progression…';
 
     const visibles = PAGES_INDEX.filter(p => {
       // Inventaire masqué pour un renfort (03/08/2026, demande de Frédéric) :

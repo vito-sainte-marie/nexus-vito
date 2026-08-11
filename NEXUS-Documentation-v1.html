@@ -802,6 +802,18 @@
       resetChip.classList.remove('visible');
       reinitialiserAffichage();
     });
+
+    // Lien direct par intention (10/08/2026, refonte "Porte NEXUS" de
+    // NEXUS-App-v1.html) : une carte "Que voulez-vous faire ?" de l'accueil
+    // peut désormais arriver ici avec ?intention=piloter-equipe et
+    // atterrir directement sur le bon parcours, au lieu de revenir sur la
+    // liste complète des 6 objectifs à choisir soi-même. Réutilise le clic
+    // existant sur le chip correspondant — aucune deuxième logique.
+    const intentionUrl = new URLSearchParams(window.location.search).get('intention');
+    if (intentionUrl) {
+      const chipCible = chips.find(c => c.dataset.intention === intentionUrl);
+      if (chipCible) chipCible.click();
+    }
   }
 
   (async function init() {
