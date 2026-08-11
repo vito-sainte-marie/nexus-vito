@@ -294,12 +294,12 @@
      statut + Indice sur une seule ligne, une phrase de synthèse, puis 4
      domaines (Commerce/Valeur/Opérations/Équipe) plutôt que deux colonnes
      Indice/Marge+ séparées. Marge+ n'a pas disparu : son écart devient le
-     détail du domaine Valeur (voir renderEtatGlobal). L'ancien
-     .etat-narrative/.etat-dot/.indice-badge/.etat-row/.etat-col n'ont plus
-     d'usage et sont retirés ; .etat-card, .indice-legende et .legende-*
-     restent identiques (légende de l'Indice inchangée). Remplace aussi les
-     bandeaux .alerte-banner/.tempo-banner/.tempo-banner-fort par la grille
-     "À retenir aujourd'hui" (.retenir-grid) plus bas. */
+     détail du domaine Valeur (voir renderEtatGlobal).
+     Remplacée le 10/08/2026 (refonte "Porte NEXUS" V2) par .entreprise-card
+     (voir plus bas) — ces règles ne sont plus utilisées sur cet écran mais
+     restent ici sans risque (aucun élément ne porte plus ces classes),
+     conservées uniquement pour ne pas casser un futur diff si ce format
+     redevient utile ailleurs. */
   .etat-card{margin:0 20px; padding:24px 22px; border-radius:20px; background:radial-gradient(120% 140% at 50% -10%, rgba(212,175,55,0.14), rgba(79,195,217,0.05) 55%, transparent 80%), var(--panel); border:1px solid rgba(212,175,55,0.2); box-shadow:0 12px 34px rgba(0,0,0,0.32);}
   .etat-header{display:flex; align-items:center; gap:10px; flex-wrap:wrap;}
   .etat-statut-badge{font-family:var(--mono); font-size:10.5px; font-weight:700; padding:4px 11px; border-radius:20px; text-transform:uppercase; letter-spacing:0.04em;}
@@ -316,6 +316,20 @@
   .domaine-nom{color:var(--text-mid); padding-top:1px;}
   .domaine-statut{font-family:var(--mono); font-size:11px; font-weight:700; text-align:right; white-space:nowrap;}
   .domaine-detail{display:block; font-family:var(--mono); font-size:9.5px; color:var(--text-dim); font-weight:400; margin-top:2px;}
+
+  /* "Votre entreprise aujourd'hui" (10/08/2026, refonte "Porte NEXUS" V2) —
+     remplace Conseiller + État global par une seule carte résumé, qui
+     consomme les mêmes statuts d'axe que Brief NEXUS (voir
+     renderEntrepriseAujourdhui, nexus-boussole-moteur.js). Un badge par
+     axe (🟢/🟠/🔴/⚫), jamais un score numérique concurrent de l'Indice
+     Boussole affiché dans Brief — la carte pointe vers Brief pour le
+     détail plutôt que de le reconstruire ici. */
+  .entreprise-card{margin:0 20px; padding:22px; border-radius:18px; background:radial-gradient(120% 140% at 50% -10%, rgba(212,175,55,0.12), rgba(79,195,217,0.05) 55%, transparent 80%), var(--panel); border:1px solid rgba(212,175,55,0.2); box-shadow:0 12px 30px rgba(0,0,0,0.28);}
+  .entreprise-synthese{font-size:14px; line-height:1.65; color:var(--text);}
+  .entreprise-axes{display:flex; flex-wrap:wrap; gap:8px 16px; margin-top:14px;}
+  .entreprise-axe{font-family:var(--mono); font-size:11.5px; color:var(--text-mid); white-space:nowrap;}
+  .entreprise-footer{display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin-top:16px; padding-top:14px; border-top:1px solid var(--hairline); font-size:12.5px; color:var(--text-mid);}
+  .entreprise-brief-lien{font-family:var(--mono); font-size:12px; font-weight:700; color:var(--cyan); text-decoration:none;}
 
   /* "À retenir aujourd'hui" (26/07/2026) — trois cartes compactes, même
      motif visuel que .reveles-grid/.revele-card dans NEXUS Tempo (Jour
@@ -408,23 +422,10 @@
      reste identique à avant.
      ============================================================ */
   body.nexus-desktop .app{max-width:1180px; margin:0 auto; padding:0 28px;}
-  body.nexus-desktop .app-top-row{display:grid; grid-template-columns:1.3fr 1fr; gap:20px; align-items:start; padding:0 20px;}
-  /* .conseiller-card et .etat-card utilisent margin (pas padding) pour leur
-     inset horizontal habituel — à annuler ici, sinon il s'ajoute au padding
-     du wrapper .app-top-row et désaligne les deux colonnes. .conseiller-card
-     a aussi 16px de margin-top (pas .etat-card) : à annuler aussi, sinon le
-     haut des deux cadres ne s'aligne pas malgré des .section-tag identiques
-     au-dessus (signalé par Frédéric le 02/08/2026).
-     Refonte "Porte NEXUS" (10/08/2026) : le section-tag "Le Conseiller" a
-     été retiré au-dessus de .conseiller-card (voir commentaire HTML), mais
-     "État global" garde le sien — les deux cadres n'ont donc plus la même
-     hauteur de départ. .conseiller-card retrouve ici un margin-top calé sur
-     la hauteur d'un .section-tag (~44px) pour que les deux colonnes restent
-     alignées en vue bureau, sans réintroduire un label inutile. */
-  body.nexus-desktop .app-top-row .section-tag{padding-left:0; padding-right:0;}
-  body.nexus-desktop .app-top-row .conseiller-card,
-  body.nexus-desktop .app-top-row .etat-card{margin-left:0; margin-right:0; margin-top:0;}
-  body.nexus-desktop .app-top-row .conseiller-card{margin-top:44px;}
+  /* .app-top-row (Conseiller + État global côte à côte) a disparu avec la
+     refonte "Porte NEXUS" V2 (10/08/2026) — une seule carte pleine largeur
+     (.entreprise-card) remplace les deux colonnes, plus besoin de grille
+     dédiée ici en vue bureau. */
   body.nexus-desktop .kpi-grid{grid-template-columns:repeat(4,1fr);}
   body.nexus-desktop .outils-grid{grid-template-columns:repeat(4,1fr);}
 </style>
@@ -480,62 +481,29 @@
        de ce bloc manager-only pour que Recherche reste visible à l'employé
        (voir plus bas). -->
   <div data-role="manager" style="display:none;">
-    <!-- app-top-row (02/08/2026, vue bureau) : wrapper purement additif —
-         aucun effet en mobile (une <div> sans style propre), les deux blocs
-         restent empilés comme avant. En vue bureau, ils passent côte à côte
-         (voir body.nexus-desktop .app-top-row plus haut dans le <style>) :
-         c'est le Conseiller qui accueille (demande de Frédéric du
-         27/07/2026), donc il garde la plus grande part. -->
-    <!-- Refonte "Porte NEXUS" (10/08/2026, demande de Frédéric) : le
-         section-tag "1 Le Conseiller" a été retiré ici, volontairement —
-         "pas besoin d'annoncer au nouvel utilisateur qu'il entre dans le
-         Conseiller, il comprend la fonction par l'expérience." Le "Bonjour
-         {prénom}, N décisions méritent votre attention aujourd'hui" déjà
-         écrit dans renderConseillerHome() (conseillerCorps) sert désormais
-         directement de phrase d'accueil de la page — rien à ajouter au-dessus. -->
-    <div class="app-top-row">
-    <div class="app-top-col">
-    <div class="conseiller-card conseiller-card-hero">
-      <div class="conseiller-head">
-        <img class="conseiller-avatar" src="assets/nexus-avatar.png" alt="Conseiller NEXUS">
-        <div>
-          <div class="conseiller-name">CONSEILLER NEXUS</div>
-          <div class="conseiller-sub">Votre chef d'orchestre du jour</div>
-        </div>
+    <!-- "Votre entreprise aujourd'hui" (10/08/2026, refonte "Porte NEXUS"
+         V2, demande de Frédéric) : remplace les deux cartes précédentes
+         (Conseiller pleine page + État global), qui recalculaient chacune
+         leur propre diagnostic (Article 11 : deux vérités pour la même
+         question). "Brief devient la vérité du diagnostic dirigeant. APP
+         en affiche uniquement un résumé" — cette carte compacte réutilise
+         les mêmes statuts d'axe que Brief NEXUS (nexus-boussole-moteur.js,
+         voir renderEntrepriseAujourdhui) : une phrase de synthèse, 4
+         badges Commerce/Marge/Opérations/Équipe, le nombre de décisions en
+         attente, et un lien vers Brief NEXUS pour le détail complet
+         (Décision → Pourquoi → Impact → Preuves), qui n'existe plus qu'à
+         un seul endroit. Pas de chiffre d'indice ici, volontairement :
+         un résumé qualitatif, pas un second calcul numérique concurrent
+         de l'Indice Boussole de Brief. -->
+    <div class="section-tag">Votre entreprise aujourd'hui</div>
+    <div class="entreprise-card" id="entrepriseCard">
+      <div class="entreprise-synthese" id="entrepriseSynthese">Analyse en cours…</div>
+      <div class="entreprise-axes" id="entrepriseAxes"></div>
+      <div class="entreprise-footer">
+        <span id="entrepriseDecisions">—</span>
+        <a class="entreprise-brief-lien" href="NEXUS-Brief-v1.html" data-brief-nexus="1">Voir mon Brief →</a>
       </div>
-      <div id="conseillerCorps"><div class="conseiller-text">Analyse de vos données en cours…</div></div>
     </div>
-    </div>
-
-    <div class="app-top-col">
-    <div class="section-tag">État global</div>
-    <div class="etat-card">
-      <div class="etat-header">
-        <span class="etat-statut-badge" id="etatStatutBadge"></span>
-        <!-- Renommage "INDICE" → "INDICE MARGE" (10/08/2026, demande de
-             Frédéric — cf. NEXUS-Brief-V2-Architecture-v1.md) : les deux
-             formules d'indice restent volontairement distinctes (décision
-             du 10/08/2026 : "garder les deux, mais les nommer"), mais la
-             distinction doit être lisible directement dans le libellé,
-             pas seulement dans l'infobulle ⓘ qu'il faut ouvrir pour la
-             découvrir. Voir aussi NEXUS-Brief-v1.html ("Indice Boussole")
-             et NEXUS-Radar-Manager-v1.html. -->
-        <span class="etat-indice-inline">INDICE MARGE <b id="indiceValeur">—</b></span>
-        <span id="indiceLegendeToggle">ⓘ</span>
-      </div>
-      <div class="indice-legende" id="indiceLegende">
-        <div class="legende-row"><span class="legende-dot" style="background:var(--green);"></span>90–100 · Excellence</div>
-        <div class="legende-row"><span class="legende-dot" style="background:var(--green);"></span>75–89 · Sous contrôle</div>
-        <div class="legende-row"><span class="legende-dot" style="background:var(--amber);"></span>60–74 · À surveiller</div>
-        <div class="legende-row"><span class="legende-dot" style="background:var(--red);"></span>Moins de 60 · Priorité élevée</div>
-        <div class="legende-row" style="border-top:1px solid var(--hairline); margin-top:6px; padding-top:8px; font-style:italic; color:var(--text-dim);">Indice Marge : calculé ici à partir de la marge et de l'évolution du CA uniquement. Différent de l'Indice Boussole affiché dans Brief NEXUS, qui moyenne les 5 axes de la Boussole (Commerce, Marge, Opérations, Équipe, Risques) — pas un bug, deux indices distincts, chacun avec son propre nom.</div>
-      </div>
-      <div class="etat-synthese" id="etatSynthese">Analyse en cours…</div>
-      <div class="etat-domaines" id="etatDomaines"></div>
-    </div>
-    </div>
-    </div>
-    <!-- /app-top-row -->
 
     <!-- "Que voulez-vous faire ?" (10/08/2026, refonte "Porte NEXUS",
          demande de Frédéric) : jamais un nom de module — l'utilisateur
@@ -824,6 +792,18 @@
         </div>
         <div class="nav-arrow">›</div>
       </a>
+      <!-- Carburants (10/08/2026, demande de Frédéric — routine matinale
+           réelle : jaugeage à l'ouverture comparé au théorique). Ne redemande
+           jamais le litrage vendu, déjà saisi dans Verify (litrage_gazole/
+           sp95/gnr) — voir nexus-carburant-moteur.js. -->
+      <a class="nav-item" data-role="manager" href="NEXUS-Carburants-v1.html">
+        <div class="nav-icon" style="display:flex; align-items:center; justify-content:center; font-size:20px;">⛽</div>
+        <div class="nav-body">
+          <div class="nav-title">Carburants</div>
+          <div class="nav-desc">Jaugeage à l'ouverture, théorique et écart calculés</div>
+        </div>
+        <div class="nav-arrow">›</div>
+      </a>
       <!-- Inventaire (02/08/2026, demande de Frédéric) : registre numérique
            des comptages de quart — icône dédiée fournie le 02/08/2026. -->
       <a class="nav-item" data-role="manager" href="NEXUS-Inventaire-v1.html">
@@ -1068,6 +1048,7 @@
 <script src="nexus-indice.js"></script>
 <script src="nexus-marge.js"></script>
 <script src="nexus-tempo.js"></script>
+<script src="nexus-boussole-moteur.js"></script>
 <script src="nexus-conseiller.js"></script>
 <script src="nexus-forfait.js"></script>
 <script>
@@ -1403,10 +1384,11 @@
   // ------------------------------------------------------------
   const SEUIL_CONSTAT_TEMPO = -0.10;
 
-  // Opérations (26/07/2026, demande de Frédéric) : seuil provisoire, non
-  // recalibré (même esprit que la pondération de nexus-indice.js) — à
-  // ajuster une fois plusieurs semaines d'historique réel disponibles.
-  const SEUIL_ECART_OPERATIONS_EUR = 15;
+  // Opérations — seuil désormais partagé avec NEXUS-Brief-v1.html via
+  // nexus-boussole-moteur.js (Article 11), provisoire, non recalibré (même
+  // esprit que la pondération de nexus-indice.js) — à ajuster une fois
+  // plusieurs semaines d'historique réel disponibles.
+  const { SEUIL_ECART_OPERATIONS_EUR } = NexusBoussoleMoteur;
   function calculerStatutOperations(moyenneEcartAbsolu, nbJours) {
     if (!nbJours) return 'Données insuffisantes';
     return moyenneEcartAbsolu <= SEUIL_ECART_OPERATIONS_EUR ? 'Stable' : 'À surveiller';
@@ -1476,31 +1458,13 @@
     return { jourARenforcer: jourARenforcerRetenu, jourMoteur, jourPlusRentable, jourProgression, totalJours, statutOperations: statutOperationsVal, detailOperations };
   }
 
-  // Domaine Stock de l'État global (27/07/2026, demande de Frédéric — "vrai
-  // 5e domaine") — même source que Scanner Stock/NEXUS Tempo
-  // (stock_sante_historique), réduite au dernier instantané calculé
-  // (NexusTempo.dernierEtatStock) : Scanner Stock n'est pas encore recalculé
-  // quotidiennement, donc l'État global affiche honnêtement l'état constaté
-  // au dernier passage, jamais une tendance qui n'existe pas encore.
-  async function chargerStockSanteHome(siteId) {
-    const { data, error } = await nexusClient.from('stock_sante_historique')
-      .select('calcule_le, indice_confiance, nb_references_stables, nb_references_a_surveiller, nb_references_a_verifier, nb_references_non_concluantes, risque_estime_eur')
-      .eq('site', siteId).order('calcule_le', { ascending: true });
-    if (error || !data) {
-      console.error('Chargement stock_sante_historique (État global):', error);
-      return null;
-    }
-    return NexusTempo.dernierEtatStock(NexusTempo.agregerStockParJour(data));
-  }
-
-  // "Données insuffisantes" tant qu'aucun calcul Scanner Stock n'existe —
-  // ensuite "À surveiller" dès qu'au moins une référence est à surveiller ou
-  // à vérifier, "Stable" sinon (même logique que NexusTempo.croiserStock).
-  function statutStock(dernierEtat) {
-    if (!dernierEtat) return 'Données insuffisantes';
-    const nbAttention = (dernierEtat.nbASurveiller || 0) + (dernierEtat.nbAVerifier || 0);
-    return nbAttention > 0 ? 'À surveiller' : 'Stable';
-  }
+  // chargerStockSanteHome()/statutStock() (27/07/2026, "vrai 5e domaine" de
+  // l'ancien "État global") retirés le 10/08/2026 avec la refonte "Porte
+  // NEXUS" V2 : le domaine Stock ne fait pas partie des 4 axes de "Votre
+  // entreprise aujourd'hui" (voir renderEntrepriseAujourdhui) — Scanner
+  // Stock reste accessible depuis "Garder le contrôle" pour le détail réel.
+  // Retirer l'appel réseau associé (stock_sante_historique) plutôt que de
+  // le laisser tourner pour un résultat qui ne sert plus à rien.
 
   // Candidat Tempo enrichi pour le Conseiller (27/07/2026, demande de
   // Frédéric) : priorité au jour le plus rentable (CA valorisé, produits
@@ -1612,75 +1576,42 @@
   let EMPLOYEE_HOME_ID = null;
 
   // Généralisé le 26/07/2026 (Conseiller cross-moteurs) : ruleId vient
-  // désormais directement du candidat normalisé (NexusConseiller), plus
-  // besoin de le redeviner depuis le préfixe de candidate_id — et ça
-  // fonctionne pour R5-MARGE-ECART (avec ca_reference/periode_reference,
-  // comme NEXUS-Scanner-v1.html) en plus de R2/R3/R4. N'est appelé que pour
-  // les candidats validable === true (voir priorItemComplet/Court) : les
-  // candidats Tempo et advisor_messages ont leur propre mécanisme de
-  // résolution, ailleurs.
-  async function validerDecisionHome(candidat) {
-    const { error } = await nexusClient.from('journal_decisions').insert({
-      site: SITE_HOME, candidate_id: candidat.candidate_id, rule_id: candidat.ruleId, etat: candidat.etat,
-      recommandation: candidat.decision, impact_eur: candidat.impact_eur, article: candidat.article,
-      categorie: candidat.categorie, date: new Date().toISOString().slice(0, 10), heure: new Date().toTimeString().slice(0, 5),
-      employee_id: EMPLOYEE_HOME_ID,
-      ca_reference: candidat.ca_reference != null ? candidat.ca_reference : null,
-      periode_reference_debut: candidat.periode_reference_debut || null,
-      periode_reference_fin: candidat.periode_reference_fin || null,
-    });
-    if (error) { console.error('Enregistrement décision (accueil):', error); return false; }
-    return true;
-  }
-
   // ------------------------------------------------------------
-  // "État global" (26/07/2026, refonte demandée par Frédéric ; renommage
-  // + 5e domaine le 27/07/2026) — un badge de statut + l'Indice sur une
-  // seule ligne, une phrase de synthèse, puis 5 domaines : Performance
-  // (ex-Commerce), Valeur, Caisse (ex-Opérations), Stock (nouveau,
-  // Scanner Stock) et Équipe. Chaque domaine a son propre seuil minimum
-  // de données avant d'afficher un statut réel — "Données insuffisantes"
-  // plutôt qu'un chiffre optimiste par défaut (Article 5).
+  // "Votre entreprise aujourd'hui" (10/08/2026, refonte "Porte NEXUS" V2,
+  // demande de Frédéric) — remplace le Conseiller pleine page et "État
+  // global" (deux cartes séparées, chacune avec son propre calcul de
+  // diagnostic — exactement la duplication que l'Article 11 interdit) par
+  // une seule carte résumé. Les statuts par axe viennent de
+  // nexus-boussole-moteur.js : APP ne recalcule plus rien ici, elle
+  // affiche les mêmes statuts que Brief NEXUS. Le détail complet d'une
+  // décision (Décision → Pourquoi → Impact → Preuves → Limites, validable
+  // directement) n'existe plus que sur Brief NEXUS — "Brief devient la
+  // vérité du diagnostic dirigeant. APP en affiche uniquement un résumé"
+  // (demande de Frédéric, 10/08/2026). validerDecisionHome() et le rendu
+  // détaillé des décisions (priorItemComplet/Court, renderConseillerHome,
+  // verbeActionAleatoire) ont donc été retirés avec ce changement : plus
+  // aucun appelant depuis ce retrait. Un site sans Brief NEXUS inclus
+  // (sites.brief_nexus_inclus) perd donc la possibilité d'agir sur une
+  // décision directement dans NEXUS — situation aujourd'hui théorique
+  // (tous les sites réels ont Brief NEXUS inclus) mais à surveiller si de
+  // nouveaux sites sans cette option sont créés (voir Data Dictionary v2.27).
   // ------------------------------------------------------------
-  const COULEUR_STATUT_DOMAINE = {
-    'En progression': 'var(--green)', 'Sous contrôle': 'var(--green)', 'Stable': 'var(--text-mid)',
-    'À surveiller': 'var(--amber)', 'En repli': 'var(--red)', 'À corriger': 'var(--red)',
-    'Données insuffisantes': 'var(--text-dim)',
-  };
 
-  // Commerce : dynamique du CA (evolutionReelle, déjà calculée par
-  // NexusIndice.calculerFacteurs à partir d'une paire de périodes
-  // comparables — null tant qu'une seule période a été importée).
-  function statutCommerce(facteurs) {
-    if (!facteurs || facteurs.evolutionReelle == null) return 'Données insuffisantes';
-    if (facteurs.evolutionReelle >= 0.05) return 'En progression';
-    if (facteurs.evolutionReelle <= -0.05) return 'En repli';
-    return 'Stable';
-  }
+  // Statuts Commerce/Valeur/Équipe — définis une seule fois dans
+  // nexus-boussole-moteur.js (Article 11, "une seule vérité") et partagés
+  // avec NEXUS-Brief-v1.html. Avant le 10/08/2026, ce fichier et Brief NEXUS
+  // en gardaient chacun une copie locale, "promise" identique par un
+  // commentaire mais jamais garantie par le code — cette extraction rend la
+  // promesse impossible à casser.
+  const { statutCommerce, statutValeur, statutEquipe, SEUIL_MIN_POINTAGES_EQUIPE } = NexusBoussoleMoteur;
 
-  // Valeur : marge réelle + écarts de marge actifs identifiés par Marge+
-  // (même moteur que l'ancienne colonne Marge+ retirée de cet écran — son
-  // résultat devient le détail de ce domaine plutôt qu'une colonne à part).
-  function statutValeur(facteurs, margePlusResultat) {
-    if (!facteurs || facteurs.margeReelle == null) return 'Données insuffisantes';
-    if (margePlusResultat && margePlusResultat.nbEcarts > 0) return 'À surveiller';
-    return 'Sous contrôle';
-  }
-
-  // Équipe : ponctualité, mais seulement si assez de pointages ont été
-  // enregistrés — sinon un score à 100 % par défaut (aucun retard observé
-  // faute de données) donnerait une fausse impression d'excellence.
-  const SEUIL_MIN_POINTAGES_EQUIPE = 5;
-  function statutEquipe(equipeScore, totalPointages) {
-    if (equipeScore == null || totalPointages == null || totalPointages < SEUIL_MIN_POINTAGES_EQUIPE) return 'Données insuffisantes';
-    if (equipeScore >= 90) return 'Sous contrôle';
-    if (equipeScore >= 70) return 'À surveiller';
-    return 'À corriger';
-  }
-
-  // Phrase de synthèse (26/07/2026) : combine la tendance Commerce avec les
-  // points de vigilance réels (jour Tempo à renforcer, marge, opérations) —
-  // jamais plus qu'un constat court, jamais une liste de chiffres.
+  // Phrase de synthèse (26/07/2026, conservée telle quelle en V2) : combine
+  // la tendance Commerce avec les points de vigilance réels (jour Tempo à
+  // renforcer, marge, opérations) — jamais plus qu'un constat court, jamais
+  // une liste de chiffres. statutStockVal n'est plus fourni par la carte
+  // compacte (Stock ne fait pas partie des 4 axes affichés ici — voir
+  // Brief NEXUS pour le diagnostic complet), la fonction accepte toujours
+  // le paramètre pour ne pas diverger d'un futur appelant.
   function syntheseEtatGlobal(statutCommerceVal, statutValeurVal, statutOperationsVal, jourARenforcer, statutStockVal) {
     const concerns = [];
     if (jourARenforcer) concerns.push(`la performance du ${jourARenforcer.nom}`);
@@ -1701,202 +1632,37 @@
     return `${debut || 'NEXUS analyse encore votre activité'}, mais ${listeConcerns} nécessite${concerns.length > 1 ? 'nt' : ''} votre attention.`;
   }
 
-  function renderEtatGlobal({ score, facteurs, margePlusResultat, statutOperationsVal, detailOperations, domainesRadar, jourARenforcer, dernierEtatStock }) {
-    const badgeEl = document.getElementById('etatStatutBadge');
-    const valeurEl = document.getElementById('indiceValeur');
-    const syntheseEl = document.getElementById('etatSynthese');
-    const domainesEl = document.getElementById('etatDomaines');
+  // Badge par axe — même intention que l'ancien COULEUR_STATUT_DOMAINE
+  // (retiré avec "État global"), mais en émoji directement lisible dans
+  // une ligne compacte plutôt qu'un bloc de couleur CSS par ligne.
+  const EMOJI_STATUT_AXE = {
+    'En progression': '🟢', 'Sous contrôle': '🟢', 'Stable': '⚪',
+    'À surveiller': '🟠', 'En repli': '🔴', 'À corriger': '🔴',
+    'Données insuffisantes': '⚫',
+  };
 
-    let couleur = 'var(--text-dim)', statutTexte = 'Données insuffisantes';
-    if (score == null) {
-      valeurEl.textContent = '—';
-    } else {
-      valeurEl.textContent = score;
-      if (score >= 90) { couleur = 'var(--green)'; statutTexte = 'Excellence'; }
-      else if (score >= 75) { couleur = 'var(--green)'; statutTexte = 'Sous contrôle'; }
-      else if (score >= 60) { couleur = 'var(--amber)'; statutTexte = 'À surveiller'; }
-      else { couleur = 'var(--red)'; statutTexte = 'Priorité élevée'; }
-    }
-    badgeEl.textContent = statutTexte;
-    badgeEl.style.color = couleur;
-    badgeEl.style.background = score == null ? 'var(--panel-raised)' : (score >= 75 ? 'var(--green-dim)' : (score >= 60 ? 'var(--amber-dim)' : 'var(--red-dim)'));
+  function renderEntrepriseAujourdhui({ facteurs, margePlusResultat, statutOperationsVal, domainesRadar, jourARenforcer, nbDecisions }) {
+    const syntheseEl = document.getElementById('entrepriseSynthese');
+    const axesEl = document.getElementById('entrepriseAxes');
+    const decisionsEl = document.getElementById('entrepriseDecisions');
 
     const statutCommerceVal = statutCommerce(facteurs);
     const statutValeurVal = statutValeur(facteurs, margePlusResultat);
     const statutEquipeVal = statutEquipe(domainesRadar.equipeScore, domainesRadar.totalPointages);
-    const statutStockVal = statutStock(dernierEtatStock);
 
-    syntheseEl.textContent = syntheseEtatGlobal(statutCommerceVal, statutValeurVal, statutOperationsVal, jourARenforcer, statutStockVal);
+    syntheseEl.textContent = syntheseEtatGlobal(statutCommerceVal, statutValeurVal, statutOperationsVal, jourARenforcer, null);
 
-    function ligneDomaine(nom, statut, detail) {
-      const c = COULEUR_STATUT_DOMAINE[statut] || 'var(--text-dim)';
-      return `<div class="domaine-row">
-        <span class="domaine-nom">${nom}</span>
-        <span class="domaine-statut" style="color:${c};">${statut}${detail ? `<span class="domaine-detail">${detail}</span>` : ''}</span>
-      </div>`;
-    }
+    const axes = [
+      { nom: 'Commerce', statut: statutCommerceVal },
+      { nom: 'Marge', statut: statutValeurVal },
+      { nom: 'Opérations', statut: statutOperationsVal },
+      { nom: 'Équipe', statut: statutEquipeVal },
+    ];
+    axesEl.innerHTML = axes.map(a => `<span class="entreprise-axe">${EMOJI_STATUT_AXE[a.statut] || '⚫'} ${a.nom}</span>`).join('');
 
-    const detailStock = statutStockVal !== 'Données insuffisantes' && dernierEtatStock
-      ? (((dernierEtatStock.nbASurveiller || 0) + (dernierEtatStock.nbAVerifier || 0)) > 0
-          ? `${(dernierEtatStock.nbASurveiller || 0) + (dernierEtatStock.nbAVerifier || 0)} référence(s) à vérifier`
-          : `${dernierEtatStock.nbStables || 0} référence(s) stables`)
-      : null;
-
-    domainesEl.innerHTML = [
-      ligneDomaine('Performance', statutCommerceVal, (facteurs && facteurs.evolutionReelle != null) ? `${facteurs.evolutionReelle >= 0 ? '+' : ''}${(facteurs.evolutionReelle * 100).toFixed(1)} % vs période précédente` : null),
-      ligneDomaine('Valeur', statutValeurVal, (margePlusResultat && margePlusResultat.nbEcarts > 0) ? `${Math.round(margePlusResultat.gainPotentiel).toLocaleString('fr-FR')} € de potentiel identifié` : ((facteurs && facteurs.margeReelle != null) ? `Marge ${(facteurs.margeReelle * 100).toFixed(1)} %` : null)),
-      ligneDomaine('Caisse', statutOperationsVal, detailOperations != null ? `${Math.round(detailOperations).toLocaleString('fr-FR')} € d'écart moyen/jour` : null),
-      ligneDomaine('Stock', statutStockVal, detailStock),
-      ligneDomaine('Équipe', statutEquipeVal, statutEquipeVal !== 'Données insuffisantes' ? `${domainesRadar.equipeScore} % de ponctualité` : null),
-    ].join('');
-  }
-
-  // Verbes d'action du Conseiller (24/07/2026, demande de Frédéric) —
-  // remplace le lien fixe "Voir dans Produits →", trop passif, par un verbe
-  // qui pousse à agir. Choisi au hasard à chaque affichage, dans un pool
-  // adapté au type de décision (🔥 À AGIR / 📈 OPPORTUNITÉ / 🟡 À SURVEILLER)
-  // — l'aléatoire est volontaire : le but est que le Conseiller NEXUS donne
-  // l'impression d'être présent et de reformuler, pas de répéter un bouton
-  // figé. MISE À JOUR 26/07/2026 (demande de Frédéric) : le lien pointe
-  // désormais directement sur la fiche du produit concerné (?article=...),
-  // au lieu de la page Produits générique — seul le verbe reste tiré au
-  // hasard, la destination est maintenant précise.
-  const VERBES_ACTION_CONSEILLER = {
-    '🔥 À AGIR': ['Corriger', 'Ajuster', 'Régler', 'Traiter'],
-    '📈 OPPORTUNITÉ': ['Renforcer', 'Saisir', 'Amplifier', 'Capitaliser'],
-    '🟡 À SURVEILLER': ['Vérifier', 'Analyser', 'Examiner', 'Investiguer'],
-  };
-  const VERBES_ACTION_DEFAUT = ['Ouvrir', 'Consulter', 'Résoudre'];
-  function verbeActionAleatoire(etat) {
-    const pool = VERBES_ACTION_CONSEILLER[etat] || VERBES_ACTION_DEFAUT;
-    return pool[Math.floor(Math.random() * pool.length)];
-  }
-
-  // Refonte du 26/07/2026 (demande de Frédéric) — format "directeur
-  // d'exploitation" plutôt que rapport : la priorité n°1 s'affiche en
-  // entier au format Constat → Conséquence → Décision, avec ses preuves
-  // repliées derrière un toggle ("Voir les preuves et les limites de
-  // l'analyse"). Les priorités 2 et 3 restent disponibles — rien n'est
-  // supprimé — mais repliées derrière un seul toggle, l'App donnant la
-  // synthèse et la priorité n°1, le détail complet restant l'affaire du
-  // Conseiller. Pas de lettre de confiance A/B/C/D ici (décision de
-  // Frédéric le 26/07/2026) : ces candidats R2/R3/R4 reposent sur une
-  // seule comparaison de période, sans signal de confiance gradué encore
-  // disponible — en inventer un serait afficher un chiffre qui n'existe
-  // pas. La limite (comparaison sur une seule période) est donc dite en
-  // toutes lettres dans le détail replié plutôt que résumée par une
-  // fausse lettre.
-  // Généralisé le 26/07/2026 (Conseiller cross-moteurs) : c.cible remplace
-  // le lien fixe vers la fiche produit — chaque moteur pointe vers son
-  // propre écran (Produits pour R2-R4, Scanner pour Marge+, Tempo pour
-  // R6, l'écran concerné pour un signal Qualité/Caisse). La case à cocher
-  // ne s'affiche que si c.validable : les candidats Tempo et
-  // advisor_messages se résolvent ailleurs (voir NexusConseiller), les
-  // afficher comme "validables" ici créerait une mémoire incohérente.
-  // Refonte du 27/07/2026 (demande de Frédéric, deuxième passe — principe
-  // fondamental) : "le Conseiller ne décrit jamais l'entreprise, il décrit
-  // uniquement ce qu'il faut faire, pourquoi, ce que cela va apporter...
-  // Décision ↓ Pourquoi ↓ Impact ↓ Preuves ↓ Limites. On commence toujours
-  // par la conclusion." La carte s'ouvre donc directement sur la décision
-  // à l'impératif (c.decision), jamais sur un diagnostic — le pourquoi
-  // (c.pourquoi, avec ses éventuels compléments pourquoiBullets /
-  // pourquoiPasAutre / opportunites) et les limites ne sont visibles que
-  // si le dirigeant déplie "Voir les preuves". Remplace l'ancien ordre
-  // Verdict → Constat → Décision → Impact attendu (27/07/2026, première
-  // passe), lui-même explicitement remplacé par cette demande.
-  function priorItemComplet(c, i) {
-    return `
-      <div class="priorite-item" id="priorite-item-${i}">
-        ${c.validable ? `<span class="priorite-check" data-idx="${i}">✓</span>` : ''}
-        <div class="priorite-body">
-          <div class="priorite-tag">Décision prioritaire</div>
-          <div class="priorite-decision">${c.decision}</div>
-          ${c.impactAttendu ? `
-          <div class="priorite-impact-label">Impact attendu :</div>
-          <div class="priorite-impact">${c.impactAttendu}</div>` : ''}
-          ${(c.pourquoi || c.preuve || c.limites) ? `
-          <div class="conseiller-detail-toggle" data-target="preuve-${i}">Voir les preuves et la méthode d'analyse ▾</div>
-          <div class="conseiller-detail-body" id="preuve-${i}">
-            ${c.pourquoi ? `<div class="priorite-section-label">Pourquoi ?</div><div class="priorite-pourquoi">${c.pourquoi}</div>` : ''}
-            ${c.pourquoiBullets ? `<ul class="priorite-bullets">${c.pourquoiBullets.map(b => `<li>${b}</li>`).join('')}</ul>` : ''}
-            ${c.pourquoiPasAutre ? `<div class="priorite-section-label">${c.pourquoiPasAutre.titre}</div><div class="priorite-pourquoi">${c.pourquoiPasAutre.texte}</div>` : ''}
-            ${c.preuve ? `<div class="priorite-pourquoi">${c.preuve}</div>` : ''}
-            ${c.opportunites ? `<div class="priorite-section-label">Opportunités complémentaires</div>${c.opportunites.map(o => `<div class="priorite-opportunite">${o.icone} <b>${o.label}</b> — ${o.detail}</div>`).join('')}` : ''}
-            ${c.limites ? `<div class="priorite-section-label priorite-limites-label">Limites de l'analyse</div><div class="priorite-limites">${c.limites}</div>` : ''}
-          </div>` : ''}
-          <a class="priorite-lien" href="${c.cible}">${verbeActionAleatoire(c.etat)} →</a>
-        </div>
-      </div>`;
-  }
-
-  function priorItemCourt(c, i) {
-    return `
-      <div class="priorite-item-court" id="priorite-item-${i}">
-        ${c.validable ? `<span class="priorite-check" data-idx="${i}">✓</span>` : ''}
-        <div class="priorite-body">
-          <b style="color:var(--gold);">${c.decision}</b>
-          <a class="priorite-lien" href="${c.cible}">${verbeActionAleatoire(c.etat)} →</a>
-        </div>
-      </div>`;
-  }
-
-  // Message d'accueil (27/07/2026, demande de Frédéric ; simplifié le
-  // même jour — "on sait maintenant que NEXUS a analysé mon commerce",
-  // c'est déjà porté par l'en-tête (badge Connecté + "Décisions
-  // recalculées à HH:MM:SS") : plus besoin de le répéter ici, sous peine
-  // de redondance. Le nombre de décisions varie selon ce qui est
-  // réellement disponible (jamais "3" figé si les moteurs n'en proposent
-  // qu'une ou deux).
-  function renderConseillerHome(top3, employeeNom) {
-    const corps = document.getElementById('conseillerCorps');
-    if (!top3.length) {
-      corps.innerHTML = `<div class="conseiller-text">Bonjour ${employeeNom}, rien ne nécessite votre attention immédiate aujourd'hui. ✅</div>`;
-      return;
-    }
-    const gainTotal = top3.reduce((s, c) => s + c.impact_eur, 0);
-    const autres = top3.slice(1);
-    const n = top3.length;
-    const phraseNombre = `${n} décision${n > 1 ? 's' : ''} mérite${n > 1 ? 'nt' : ''} votre attention aujourd'hui.`;
-    corps.innerHTML = `
-      <div class="conseiller-text">Bonjour ${employeeNom}, ${phraseNombre}</div>
-      ${priorItemComplet(top3[0], 0)}
-      ${autres.length ? `
-        <div class="conseiller-autres-toggle" id="conseillerAutresToggle">Voir ${autres.length === 1 ? "l'autre décision" : `les ${autres.length} autres décisions`} du Conseiller ▾</div>
-        <div class="conseiller-autres-zone" id="conseillerAutresZone">${autres.map((c, idx) => priorItemCourt(c, idx + 1)).join('')}</div>
-      ` : ''}
-      <div class="conseiller-footer"><span id="prioriteProgressHome">0 / ${top3.length} traitées</span><span>Gain potentiel : <b>${Math.round(gainTotal).toLocaleString('fr-FR')} €</b></span></div>
-    `;
-
-    const toggleAutres = document.getElementById('conseillerAutresToggle');
-    if (toggleAutres) {
-      toggleAutres.addEventListener('click', () => {
-        const zone = document.getElementById('conseillerAutresZone');
-        const ouvert = zone.classList.toggle('open');
-        toggleAutres.textContent = ouvert
-          ? 'Réduire ▾'
-          : `Voir ${autres.length === 1 ? "l'autre décision" : `les ${autres.length} autres décisions`} du Conseiller ▾`;
-      });
-    }
-    document.querySelectorAll('#conseillerCorps .conseiller-detail-toggle').forEach(toggle => {
-      toggle.addEventListener('click', () => {
-        document.getElementById(toggle.dataset.target).classList.toggle('open');
-      });
-    });
-
-    let traitees = 0;
-    document.querySelectorAll('#conseillerCorps .priorite-check').forEach(check => {
-      check.addEventListener('click', async (e) => {
-        e.stopPropagation();
-        if (check.style.pointerEvents === 'none') return;
-        check.style.pointerEvents = 'none';
-        const candidat = top3[parseInt(check.dataset.idx, 10)];
-        const ok = await validerDecisionHome(candidat);
-        if (!ok) { check.style.pointerEvents = ''; alert("Erreur d'enregistrement — réessayez."); return; }
-        document.getElementById('priorite-item-' + check.dataset.idx).classList.add('traitee');
-        traitees++;
-        document.getElementById('prioriteProgressHome').textContent = traitees + ' / ' + top3.length + ' traitées';
-      });
-    });
+    decisionsEl.textContent = nbDecisions > 0
+      ? `${nbDecisions} décision${nbDecisions > 1 ? 's' : ''} mérite${nbDecisions > 1 ? 'nt' : ''} votre attention`
+      : 'Rien ne nécessite votre attention immédiate aujourd’hui';
   }
 
   // "Fierté de NEXUS" (24/07/2026, demande de Frédéric) : sous la carte
@@ -2086,7 +1852,6 @@
       margePlusResultat,
       constatTempo,
       messagesAdvisor,
-      dernierEtatStock,
       alertesInventaire,
       missionsAValider,
     ] = await Promise.all([
@@ -2099,23 +1864,13 @@
       chargerMargePlusHome(SITE_HOME),
       chargerConstatTempoHome(SITE_HOME),
       chargerMessagesAdvisorHome(SITE_HOME),
-      chargerStockSanteHome(SITE_HOME),
       chargerAlertesInventaireHome(SITE_HOME),
       chargerMissionsAValiderHome(SITE_HOME),
     ]);
     afficherHeureRecalcul();
 
     const candidatsDisponibles = candidats.filter(c => !valideesSite.has(c.candidate_id));
-    const score = facteurs ? NexusIndice.calculerIndiceNexus(facteurs) : null;
 
-    renderEtatGlobal({
-      score, facteurs, margePlusResultat,
-      statutOperationsVal: constatTempo.statutOperations,
-      detailOperations: constatTempo.detailOperations,
-      domainesRadar,
-      jourARenforcer: constatTempo.jourARenforcer,
-      dernierEtatStock,
-    });
     renderARetenir({
       jourMoteur: constatTempo.jourMoteur,
       jourARenforcer: constatTempo.jourARenforcer,
@@ -2142,7 +1897,13 @@
       [candidatsDisponibles, candidatMarge ? [candidatMarge] : [], candidatTempo ? [candidatTempo] : [], candidatsAdvisor],
       { site: SITE_HOME, n: 3 }
     );
-    renderConseillerHome(candidatsConseiller, employee.nom);
+    renderEntrepriseAujourdhui({
+      facteurs, margePlusResultat,
+      statutOperationsVal: constatTempo.statutOperations,
+      domainesRadar,
+      jourARenforcer: constatTempo.jourARenforcer,
+      nbDecisions: candidatsConseiller.length,
+    });
     renderKpiGrid({
       missionsRestantes: missionsRestantesRes.restantes,
       nbRappels: compterRappelsUrgents(),
@@ -2378,6 +2139,7 @@
     { label: 'Campagnes', desc: 'Déclarer une promotion, mesurer son impact', href: 'NEXUS-Campagne-v1.html', role: 'manager', forfait: 'professional' },
     { label: 'Scanner Stock', desc: 'Où vous perdez de l\'argent, quoi recompter', href: 'NEXUS-Scanner-Stock-v1.html', role: 'manager' },
     { label: 'Verify', desc: 'Contrôle caisse et écarts', href: 'NEXUS-Verify-v1.html', role: 'manager' },
+    { label: 'Carburants', desc: 'Jaugeage à l\'ouverture, théorique et écart calculés', href: 'NEXUS-Carburants-v1.html', role: 'manager' },
     { label: 'Missions', desc: '55 procédures · checklist interactive', href: 'NEXUS-Missions-v1.html', role: 'all' },
     // Inventaire (02/08/2026, demande de Frédéric) : role 'all' — visible
     // par recherche pour l'employé, en plus de la mini carte accueil.
@@ -2527,12 +2289,14 @@
     window.history.replaceState({}, '', window.location.pathname);
   })();
 
-  // Légende de l'Indice NEXUS et repli du Niveau 4 — indépendants du rôle,
-  // câblés une seule fois au chargement (les éléments existent dans le DOM
-  // pour tout le monde, simplement masqués pour un non-manager).
-  document.getElementById('indiceLegendeToggle').addEventListener('click', () => {
-    document.getElementById('indiceLegende').classList.toggle('open');
-  });
+  // Repli du Niveau 4 ("Explorer NEXUS") — indépendant du rôle, câblé une
+  // seule fois au chargement (l'élément existe dans le DOM pour tout le
+  // monde, simplement masqué pour un non-manager).
+  // La légende de l'Indice ("indiceLegendeToggle"/"indiceLegende") a
+  // disparu le 10/08/2026 avec "État global" (refonte "Porte NEXUS" V2,
+  // voir renderEntrepriseAujourdhui) — plus aucun élément ne porte ces id,
+  // l'écouteur correspondant a donc été retiré (il aurait levé une
+  // exception au chargement sinon).
   document.getElementById('plusToggle').addEventListener('click', () => {
     const toggle = document.getElementById('plusToggle');
     const zone = document.getElementById('plusZone');

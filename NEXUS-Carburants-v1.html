@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<link rel="icon" type="image/x-icon" href="favicon.ico">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+<link rel="manifest" href="site.webmanifest">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="NEXUS">
+<meta name="theme-color" content="#0B0F14">
+<title>NEXUS — Carburants</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="nexus-auth.js"></script>
+<script src="nexus-desktop.js"></script>
+<script src="nexus-carburant-moteur.js"></script>
+<style>
+  :root{
+    --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
+    --text:#EDF1F5; --text-mid:#8A96A5; --text-dim:#57626F;
+    --green:#34D399; --green-dim:#153629;
+    --amber:#F5A623; --amber-dim:#3A2E14;
+    --red:#F0575A; --red-dim:#3A1D1F;
+    --cyan:#4FC3D9; --gold:#D4AF37;
+    --mono:'IBM Plex Mono',monospace; --sans:'IBM Plex Sans',sans-serif;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{background:var(--bg); font-family:var(--sans); color:var(--text);}
+  body{display:flex; justify-content:center; min-height:100vh;}
+  .phone{width:100%; max-width:460px; min-height:100vh; display:flex; flex-direction:column; border-left:1px solid var(--hairline); border-right:1px solid var(--hairline); padding-top:env(safe-area-inset-top); padding-bottom:env(safe-area-inset-bottom);}
+
+  .header{padding:24px 20px 14px; position:relative;}
+  .menu-btn{
+    position:absolute; top:18px; right:18px; display:flex; align-items:center; gap:6px;
+    font-family:var(--mono); font-size:10.5px; font-weight:600; letter-spacing:0.03em; text-transform:uppercase;
+    color:var(--cyan); background:rgba(79,195,217,0.1); border:1px solid rgba(79,195,217,0.3);
+    border-radius:20px; padding:7px 12px; text-decoration:none; white-space:nowrap; z-index:5;
+  }
+  .menu-btn:active{background:rgba(79,195,217,0.2);}
+  .eyebrow{font-family:var(--mono); font-size:11px; letter-spacing:0.12em; text-transform:uppercase; color:var(--cyan);}
+  .title{font-size:22px; font-weight:600; margin-top:4px;}
+  .horodateur-discret{font-family:var(--mono); font-size:12px; color:var(--text-dim); margin-top:8px;}
+  .sub{font-size:13px; color:var(--text-mid); margin-top:6px; line-height:1.5;}
+  .divider{height:1px; background:var(--hairline); margin:0 20px;}
+  .section{padding:16px 20px;}
+  .loading{padding:60px 20px; text-align:center; color:var(--text-dim); font-size:13px;}
+  .locked{padding:60px 20px; text-align:center; color:var(--text-dim); font-size:13px;}
+
+  .note{font-size:11.5px; color:var(--text-dim); line-height:1.55; margin-bottom:14px;}
+
+  .carb-card{background:var(--panel); border:1px solid var(--hairline); border-radius:14px; padding:16px; margin-bottom:14px;}
+  .carb-head{display:flex; align-items:baseline; justify-content:space-between; gap:8px; margin-bottom:2px;}
+  .carb-nom{font-size:15px; font-weight:700;}
+  .carb-cuve{font-family:var(--mono); font-size:9.5px; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.04em;}
+
+  .champ-label{font-family:var(--mono); font-size:10.5px; color:var(--text-mid); margin:12px 0 6px; letter-spacing:0.03em;}
+  .champ-input{
+    width:100%; background:var(--panel-raised); border:1px solid var(--hairline); border-radius:10px;
+    padding:11px 13px; color:var(--text); font-family:var(--mono); font-size:16px; text-align:right;
+  }
+  .champ-input:focus{outline:none; border-color:var(--cyan);}
+  .champ-row{display:flex; gap:8px;}
+  .champ-row .champ-input-wrap{flex:1;}
+  .champ-input-sub{font-family:var(--mono); font-size:8.5px; color:var(--text-dim); text-align:center; margin-top:4px; text-transform:uppercase;}
+  .champ-motif{
+    width:100%; background:var(--panel-raised); border:1px solid var(--hairline); border-radius:10px;
+    padding:10px 12px; color:var(--text); font-family:var(--sans); font-size:13px; margin-top:8px;
+  }
+  .champ-motif:focus{outline:none; border-color:var(--cyan);}
+
+  .ventes-banner{margin-top:12px; padding:10px 12px; border-radius:10px; background:var(--panel-raised); font-size:11.5px; color:var(--text-mid); line-height:1.5;}
+  .ventes-banner b{color:var(--text);}
+  .ventes-banner.vide{color:var(--text-dim); font-style:italic;}
+
+  .resultat-panel{margin-top:14px; padding-top:14px; border-top:1px solid var(--hairline);}
+  .resultat-row{display:flex; align-items:center; justify-content:space-between; padding:5px 0; font-size:12.5px;}
+  .resultat-label{color:var(--text-mid);}
+  .resultat-valeur{font-family:var(--mono); font-weight:700;}
+  .resultat-statut{display:inline-block; font-family:var(--mono); font-size:10px; font-weight:700; padding:3px 10px; border-radius:20px; text-transform:uppercase; letter-spacing:0.03em; margin-top:8px;}
+
+  .btn-enregistrer{
+    display:block; width:100%; margin-top:6px; padding:15px; border:none; border-radius:12px;
+    background:var(--cyan); color:#04141a; font-family:var(--sans); font-weight:700; font-size:14.5px; cursor:pointer;
+  }
+  .btn-enregistrer:disabled{opacity:0.5;}
+  .btn-enregistrer:active{opacity:0.85;}
+  .confirmation{display:none; margin-top:10px; padding:10px; background:var(--green-dim); color:var(--green); border-radius:10px; text-align:center; font-size:12.5px;}
+  .confirmation.visible{display:block;}
+
+  footer{margin-top:auto; padding:16px 20px 24px; font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:center; border-top:1px solid var(--hairline);}
+
+  /* Vue bureau (cohérente avec les autres écrans manager NEXUS) */
+  body.nexus-desktop .phone{max-width:640px; border:none;}
+  body.nexus-desktop .desktop-grid{display:grid; grid-template-columns:1fr 1fr; gap:14px; align-items:start;}
+  body.nexus-desktop .desktop-grid > *{grid-column:span 2;}
+</style>
+</head>
+<body>
+<div class="phone">
+  <div class="header">
+    <a href="NEXUS-App-v1.html" class="menu-btn">☰ Menu</a>
+    <div class="eyebrow">NEXUS · CARBURANTS</div>
+    <div class="title">Relevé du jour</div>
+    <div class="horodateur-discret" id="horodateurDiscret">--</div>
+    <div class="sub" id="sousTitre">Chargement…</div>
+  </div>
+  <div class="divider"></div>
+
+  <div class="section" id="content">
+    <div class="loading">Chargement…</div>
+  </div>
+
+  <footer>NEXUS Carburants v1 · Une donnée saisie une fois · Vito Sainte-Marie Usine</footer>
+</div>
+
+<script>
+  // ------------------------------------------------------------
+  // NEXUS Carburants v1 (10/08/2026) — demande de Frédéric, née d'une
+  // observation très concrète : "mon problème n'est pas d'avoir trop peu de
+  // données, c'est l'inverse : je dois ressaisir, recouper, comparer d'un
+  // tableau à l'autre." Sur les 4 étapes de sa routine matinale
+  // (Carburants, FDJ, Caisse veille, Inventaire), Carburants était le seul
+  // domaine sans aucune trace dans NEXUS — ce fichier comble ce manque.
+  //
+  // Principe non négociable : le litrage vendu par carburant existe déjà,
+  // quart par quart, dans audits_caisse (litrage_gazole/sp95/gnr, saisi une
+  // seule fois dans NEXUS Verify). Cet écran ne le redemande JAMAIS — il ne
+  // capture que ce qui n'existe nulle part ailleurs : le stock réel mesuré
+  // physiquement (jaugeage), et les mouvements qui ne sont pas des ventes
+  // (livraison, correction exceptionnelle).
+  //
+  // Structure fidèle au fichier réel de Frédéric ("Variation carburant
+  // 2026.xlsx") : Gasoil sur deux cuves physiques distinctes (20000 L +
+  // 10000 L, jaugées séparément puis additionnées), SP95 et GNR sur une
+  // seule cuve chacun.
+  //
+  // Formule théorique volontairement corrigée par rapport au fichier Excel
+  // — voir nexus-carburant-moteur.js pour le détail complet et la preuve
+  // chiffrée sur le fichier réel qui a motivé ce choix (décision de
+  // Frédéric, 10/08/2026).
+  // ------------------------------------------------------------
+
+  let SITE_ID = 'vito-sainte-marie';
+  let MANAGER_COURANT = null;
+  let DERNIER_RELEVE = null;   // dernier relevé RÉEL avant aujourd'hui (ancre du calcul théorique)
+  let RELEVE_AUJOURDHUI = null; // relevé déjà enregistré aujourd'hui, si le manager revient corriger
+  let VENTES_DEPUIS = { go: null, sp95: null, gnr: null };
+  let ENREGISTREMENT_EN_COURS = false;
+
+  const CARBURANTS = [
+    { cle: 'sp95', nom: 'Sans plomb (SP95)', cuve: 'Cuve 30 000 L', champsReel: ['stock_reel_sp95'] },
+    { cle: 'go', nom: 'Gasoil (GO)', cuve: 'Cuve 20 000 L (1) + Cuve 10 000 L (2)', champsReel: ['stock_reel_go_cuve1', 'stock_reel_go_cuve2'] },
+    { cle: 'gnr', nom: 'Gasoil non routier (GNR)', cuve: 'Cuve 30 000 L', champsReel: ['stock_reel_gnr'] },
+  ];
+
+  const COULEUR_STATUT = {
+    'Sous contrôle': 'var(--green)', 'À surveiller': 'var(--amber)',
+    'À corriger': 'var(--red)', 'Données insuffisantes': 'var(--text-dim)',
+  };
+  const FOND_STATUT = {
+    'Sous contrôle': 'var(--green-dim)', 'À surveiller': 'var(--amber-dim)',
+    'À corriger': 'var(--red-dim)', 'Données insuffisantes': 'var(--panel-raised)',
+  };
+
+  function todayISO() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
+  function formaterDateFr(iso) {
+    if (!iso) return null;
+    const [y, m, d] = iso.split('-');
+    return `${d}/${m}/${y}`;
+  }
+  function numFR(v) {
+    if (v == null || v === '') return null;
+    const n = Number(String(v).replace(',', '.'));
+    return Number.isFinite(n) ? n : null;
+  }
+  function fmtL(v) {
+    return v == null ? '—' : `${Math.round(v).toLocaleString('fr-FR')} L`;
+  }
+
+  async function chargerDernierReleve(siteId, avantDateExclusive) {
+    const { data, error } = await nexusClient.from('carburant_releves').select('*')
+      .eq('site', siteId).lt('date', avantDateExclusive).order('date', { ascending: false }).limit(1).maybeSingle();
+    if (error) { console.error('Chargement dernier relevé carburant:', error); return null; }
+    return data;
+  }
+  async function chargerReleveDuJour(siteId, date) {
+    const { data, error } = await nexusClient.from('carburant_releves').select('*')
+      .eq('site', siteId).eq('date', date).maybeSingle();
+    if (error) { console.error('Chargement relevé carburant du jour:', error); return null; }
+    return data;
+  }
+  // Ventes déjà captées dans NEXUS Verify (litrage_gazole/sp95/gnr) entre le
+  // dernier relevé (exclu) et aujourd'hui (exclu) — jamais ressaisies ici.
+  async function chargerVentesDepuisDernierReleve(siteId, depuisDateExclusive, jusquADateExclusive) {
+    if (!depuisDateExclusive) return { go: null, sp95: null, gnr: null };
+    const { data, error } = await nexusClient.from('audits_caisse')
+      .select('litrage_gazole,litrage_sp95,litrage_gnr')
+      .eq('site', siteId).gt('date', depuisDateExclusive).lt('date', jusquADateExclusive);
+    if (error) { console.error('Chargement ventes carburant (audits_caisse):', error); return { go: null, sp95: null, gnr: null }; }
+    return NexusCarburantMoteur.sommerVentesPeriode(data);
+  }
+
+  function valeurChamp(id) {
+    const el = document.getElementById(id);
+    return el ? numFR(el.value) : null;
+  }
+
+  // Recalcule et affiche le panneau résultat d'un carburant à partir des
+  // champs actuellement saisis à l'écran (réactif à chaque frappe).
+  function recalculerCarburant(carb) {
+    const reelDuJour = carb.cle === 'go'
+      ? (valeurChamp('champ_go_cuve1') != null && valeurChamp('champ_go_cuve2') != null
+          ? valeurChamp('champ_go_cuve1') + valeurChamp('champ_go_cuve2') : null)
+      : valeurChamp(`champ_${carb.cle}`);
+    const dernierReel = carb.cle === 'go'
+      ? NexusCarburantMoteur.stockReelGoTotal(DERNIER_RELEVE)
+      : (DERNIER_RELEVE ? DERNIER_RELEVE[`stock_reel_${carb.cle}`] : null);
+    const livraison = valeurChamp(`champ_${carb.cle}_livraison`) || 0;
+    const mouvement = valeurChamp(`champ_${carb.cle}_mouvement`) || 0;
+    const ventes = VENTES_DEPUIS[carb.cle];
+
+    const resultat = NexusCarburantMoteur.calculerCarburant({ dernierReel, reelDuJour, livraison, mouvement, ventes });
+
+    const panel = document.getElementById(`resultat_${carb.cle}`);
+    if (!panel) return;
+    const ecartPct = resultat.ecartRatio != null ? `${resultat.ecartRatio >= 0 ? '+' : ''}${(resultat.ecartRatio * 100).toFixed(1)} %` : '—';
+    panel.innerHTML = `
+      <div class="resultat-row"><span class="resultat-label">Théorique</span><span class="resultat-valeur">${fmtL(resultat.theorique)}</span></div>
+      <div class="resultat-row"><span class="resultat-label">Écart (réel − théorique)</span><span class="resultat-valeur" style="color:${resultat.ecart != null && resultat.ecart < 0 ? 'var(--red)' : (resultat.ecart != null && resultat.ecart > 0 ? 'var(--green)' : 'var(--text)')};">${resultat.ecart != null ? `${resultat.ecart >= 0 ? '+' : ''}${Math.round(resultat.ecart).toLocaleString('fr-FR')} L` : '—'}</span></div>
+      <div class="resultat-row"><span class="resultat-label">Écart en % des ventes</span><span class="resultat-valeur">${ecartPct}</span></div>
+      <span class="resultat-statut" style="color:${COULEUR_STATUT[resultat.statut]}; background:${FOND_STATUT[resultat.statut]};">${resultat.statut}</span>
+    `;
+  }
+  function recalculerTout() { CARBURANTS.forEach(recalculerCarburant); }
+
+  function render() {
+    const content = document.getElementById('content');
+    document.getElementById('sousTitre').textContent = RELEVE_AUJOURDHUI
+      ? "Relevé déjà enregistré aujourd'hui — vous pouvez le corriger ci-dessous."
+      : "Jaugeage à l'ouverture — les ventes de la veille sont déjà reprises depuis NEXUS Verify, rien à ressaisir.";
+
+    const blocs = CARBURANTS.map(carb => {
+      const ventesTxt = VENTES_DEPUIS[carb.cle] != null
+        ? `<div class="ventes-banner"><b>${Math.round(VENTES_DEPUIS[carb.cle]).toLocaleString('fr-FR')} L</b> vendus depuis le dernier relevé (${formaterDateFr(DERNIER_RELEVE ? DERNIER_RELEVE.date : null)}) — déjà repris depuis NEXUS Verify, aucune saisie nécessaire.</div>`
+        : `<div class="ventes-banner vide">${DERNIER_RELEVE ? "Ventes non disponibles pour cette période (litrage non saisi dans Verify sur au moins un quart) — théorique non calculable." : "Premier relevé enregistré pour ce site — pas encore de comparaison possible, seul le stock réel sera mémorisé aujourd'hui."}</div>`;
+
+      const champsReel = carb.cle === 'go'
+        ? `<div class="champ-row">
+            <div class="champ-input-wrap">
+              <input type="text" inputmode="decimal" class="champ-input" id="champ_go_cuve1" placeholder="0" value="${RELEVE_AUJOURDHUI && RELEVE_AUJOURDHUI.stock_reel_go_cuve1 != null ? String(RELEVE_AUJOURDHUI.stock_reel_go_cuve1) : ''}">
+              <div class="champ-input-sub">Cuve 20 000 L (1)</div>
+            </div>
+            <div class="champ-input-wrap">
+              <input type="text" inputmode="decimal" class="champ-input" id="champ_go_cuve2" placeholder="0" value="${RELEVE_AUJOURDHUI && RELEVE_AUJOURDHUI.stock_reel_go_cuve2 != null ? String(RELEVE_AUJOURDHUI.stock_reel_go_cuve2) : ''}">
+              <div class="champ-input-sub">Cuve 10 000 L (2)</div>
+            </div>
+          </div>`
+        : `<input type="text" inputmode="decimal" class="champ-input" id="champ_${carb.cle}" placeholder="0" value="${RELEVE_AUJOURDHUI && RELEVE_AUJOURDHUI[`stock_reel_${carb.cle}`] != null ? String(RELEVE_AUJOURDHUI[`stock_reel_${carb.cle}`]) : ''}">`;
+
+      return `
+        <div class="carb-card">
+          <div class="carb-head"><span class="carb-nom">${carb.nom}</span></div>
+          <div class="carb-cuve">${carb.cuve}</div>
+          <div class="champ-label">Stock réel mesuré (jaugeage) — litres</div>
+          ${champsReel}
+          ${ventesTxt}
+          <div class="champ-label">Livraison depuis le dernier relevé (optionnel) — litres</div>
+          <input type="text" inputmode="decimal" class="champ-input" id="champ_${carb.cle}_livraison" placeholder="0" value="${RELEVE_AUJOURDHUI && RELEVE_AUJOURDHUI[`livraison_${carb.cle}`] ? String(RELEVE_AUJOURDHUI[`livraison_${carb.cle}`]) : ''}">
+          <div class="champ-label">Mouvement exceptionnel (optionnel) — litres, + ou -</div>
+          <input type="text" inputmode="decimal" class="champ-input" id="champ_${carb.cle}_mouvement" placeholder="0" value="${RELEVE_AUJOURDHUI && RELEVE_AUJOURDHUI[`mouvement_${carb.cle}`] ? String(RELEVE_AUJOURDHUI[`mouvement_${carb.cle}`]) : ''}">
+          <div class="resultat-panel" id="resultat_${carb.cle}"></div>
+        </div>`;
+    }).join('');
+
+    content.innerHTML = `
+      <div class="note">La date, le litrage vendu et les employés du quart ne se saisissent jamais ici — ils viennent déjà de NEXUS Verify. Cet écran ne capture que ce qui n'existe nulle part ailleurs.</div>
+      <div class="desktop-grid">${blocs}</div>
+      <div class="champ-label" style="margin-top:0;">Commentaire (optionnel)</div>
+      <textarea class="champ-motif" id="champCommentaire" rows="2" placeholder="Motif d'un mouvement exceptionnel, remarque…">${RELEVE_AUJOURDHUI && RELEVE_AUJOURDHUI.commentaire ? RELEVE_AUJOURDHUI.commentaire : ''}</textarea>
+      <button class="btn-enregistrer" id="btnEnregistrer" style="margin-top:16px;">${RELEVE_AUJOURDHUI ? 'Mettre à jour le relevé' : 'Enregistrer le relevé du jour'}</button>
+      <div class="confirmation" id="confirmation">✓ Relevé enregistré.</div>
+    `;
+
+    document.querySelectorAll('#content input').forEach(el => el.addEventListener('input', recalculerTout));
+    document.getElementById('btnEnregistrer').addEventListener('click', enregistrerReleve);
+    recalculerTout();
+  }
+
+  async function enregistrerReleve() {
+    if (ENREGISTREMENT_EN_COURS) return;
+    ENREGISTREMENT_EN_COURS = true;
+    const btn = document.getElementById('btnEnregistrer');
+    btn.disabled = true;
+    btn.textContent = 'Enregistrement…';
+
+    const dateJour = todayISO();
+    const ligne = {
+      site: SITE_ID, date: dateJour,
+      stock_reel_go_cuve1: valeurChamp('champ_go_cuve1'),
+      stock_reel_go_cuve2: valeurChamp('champ_go_cuve2'),
+      stock_reel_sp95: valeurChamp('champ_sp95'),
+      stock_reel_gnr: valeurChamp('champ_gnr'),
+      livraison_go: valeurChamp('champ_go_livraison') || 0,
+      livraison_sp95: valeurChamp('champ_sp95_livraison') || 0,
+      livraison_gnr: valeurChamp('champ_gnr_livraison') || 0,
+      mouvement_go: valeurChamp('champ_go_mouvement') || 0,
+      mouvement_sp95: valeurChamp('champ_sp95_mouvement') || 0,
+      mouvement_gnr: valeurChamp('champ_gnr_mouvement') || 0,
+      commentaire: document.getElementById('champCommentaire').value.trim() || null,
+      saisi_par: MANAGER_COURANT.id,
+    };
+
+    const { data, error } = await nexusClient.from('carburant_releves')
+      .upsert(ligne, { onConflict: 'site,date' }).select().maybeSingle();
+
+    ENREGISTREMENT_EN_COURS = false;
+    btn.disabled = false;
+    if (error) {
+      console.error('Enregistrement relevé carburant:', error);
+      btn.textContent = RELEVE_AUJOURDHUI ? 'Mettre à jour le relevé' : 'Enregistrer le relevé du jour';
+      alert("Erreur d'enregistrement — réessayez.");
+      return;
+    }
+    RELEVE_AUJOURDHUI = data;
+    btn.textContent = 'Mettre à jour le relevé';
+    const conf = document.getElementById('confirmation');
+    conf.classList.add('visible');
+    setTimeout(() => conf.classList.remove('visible'), 3000);
+  }
+
+  // ------------------------------------------------------------
+  // INITIALISATION
+  // ------------------------------------------------------------
+  nexusRequireAuth().then(async employee => {
+    if (!employee) return;
+    if (employee.role !== 'manager' && employee.role !== 'gerant') {
+      document.body.innerHTML = '<div class="locked">Cet écran est réservé aux managers.</div>';
+      return;
+    }
+    MANAGER_COURANT = employee;
+    SITE_ID = employee.site_id || 'vito-sainte-marie';
+    const dateJour = todayISO();
+    document.getElementById('horodateurDiscret').textContent = `Aujourd'hui — ${formaterDateFr(dateJour)}`;
+
+    [RELEVE_AUJOURDHUI, DERNIER_RELEVE] = await Promise.all([
+      chargerReleveDuJour(SITE_ID, dateJour),
+      chargerDernierReleve(SITE_ID, dateJour),
+    ]);
+    VENTES_DEPUIS = await chargerVentesDepuisDernierReleve(SITE_ID, DERNIER_RELEVE ? DERNIER_RELEVE.date : null, dateJour);
+
+    render();
+  });
+</script>
+</body>
+</html>

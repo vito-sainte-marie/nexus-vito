@@ -63,6 +63,10 @@ const NEXUS_SIDEBAR_GROUPES = [
     nom: 'Exécuter',
     items: [
       { label: 'Verify', href: 'NEXUS-Verify-v1.html', icon: 'assets/icons/icon-nexus-verify.png' },
+      // Carburants (10/08/2026, demande de Frédéric) : rejoint Exécuter,
+      // juste à côté de Verify — le litrage vendu qu'il consomme vient de
+      // là (litrage_gazole/sp95/gnr), jamais ressaisi.
+      { label: 'Carburants', href: 'NEXUS-Carburants-v1.html', icon: null, emoji: '⛽' },
       { label: 'Inventaire', href: 'NEXUS-Inventaire-v1.html', icon: 'assets/icons/icon-inventaire.png' },
       { label: 'Contrôle inventaire', href: 'NEXUS-Inventaire-Manager-v1.html', icon: null, emoji: '🧭' },
       // NEXUS FDJ (09/08/2026, demande de Frédéric) : rejoint Exécuter,
