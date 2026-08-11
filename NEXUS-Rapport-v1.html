@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<link rel="icon" type="image/x-icon" href="favicon.ico">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+<link rel="manifest" href="site.webmanifest">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="NEXUS">
+<meta name="theme-color" content="#0B0F14">
+<title>NEXUS — Rapport</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+<script src="nexus-auth.js"></script>
+<script src="nexus-desktop.js"></script>
+<script src="nexus-periodes.js"></script>
+<script src="nexus-rapport-donnees.js"></script>
+<script src="nexus-rapport-moteur.js"></script>
+<script src="nexus-pdf-moteur.js"></script>
+<style>
+  :root{
+    --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
+    --text:#EDF1F5; --text-mid:#8A96A5; --text-dim:#57626F;
+    --green:#34D399; --green-dim:#153629;
+    --amber:#F5A623; --amber-dim:#3A2E14;
+    --red:#F0575A; --red-dim:#3A1D1F;
+    --cyan:#4FC3D9; --gold:#D4AF37;
+    --mono:'IBM Plex Mono',monospace; --sans:'IBM Plex Sans',sans-serif;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{background:var(--bg); font-family:var(--sans); color:var(--text);}
+  body{display:flex; justify-content:center; min-height:100vh;}
+  .phone{width:100%; max-width:460px; min-height:100vh; display:flex; flex-direction:column; border-left:1px solid var(--hairline); border-right:1px solid var(--hairline); padding-top:env(safe-area-inset-top); padding-bottom:env(safe-area-inset-bottom);}
+
+  .header{padding:24px 20px 14px; position:relative;}
+  .menu-btn{
+    position:absolute; top:18px; right:18px; display:flex; align-items:center; gap:6px;
+    font-family:var(--mono); font-size:10.5px; font-weight:600; letter-spacing:0.03em; text-transform:uppercase;
+    color:var(--cyan); background:rgba(79,195,217,0.1); border:1px solid rgba(79,195,217,0.3);
+    border-radius:20px; padding:7px 12px; text-decoration:none; white-space:nowrap; z-index:5;
+  }
+  .menu-btn:active{background:rgba(79,195,217,0.2);}
+  .eyebrow{font-family:var(--mono); font-size:11px; letter-spacing:0.12em; text-transform:uppercase; color:var(--cyan);}
+  .title{font-size:22px; font-weight:600; margin-top:4px;}
+  .sub{font-size:13px; color:var(--text-mid); margin-top:6px; line-height:1.5;}
+  .divider{height:1px; background:var(--hairline); margin:0 20px;}
+  .section{padding:16px 20px;}
+  .loading{padding:60px 20px; text-align:center; color:var(--text-dim); font-size:13px;}
+  .locked{padding:60px 20px; text-align:center; color:var(--text-dim); font-size:13px;}
+
+  /* Sélecteur de période */
+  .periode-bar{display:flex; gap:6px; flex-wrap:wrap; padding:0 20px 14px;}
+  .periode-btn{
+    font-family:var(--mono); font-size:11px; font-weight:600; letter-spacing:0.02em;
+    padding:8px 12px; border-radius:20px; border:1px solid var(--hairline); background:var(--panel);
+    color:var(--text-mid); cursor:pointer;
+  }
+  .periode-btn.actif{color:var(--cyan); border-color:rgba(79,195,217,0.5); background:rgba(79,195,217,0.1);}
+  .libre-bar{display:none; gap:8px; padding:0 20px 14px;}
+  .libre-bar.visible{display:flex;}
+  .libre-bar input{flex:1; background:var(--panel-raised); border:1px solid var(--hairline); border-radius:8px; padding:8px 10px; color:var(--text); font-family:var(--mono); font-size:12.5px;}
+  .libre-btn{font-family:var(--sans); font-size:12px; font-weight:700; color:#04141a; background:var(--cyan); border:none; border-radius:8px; padding:8px 14px; cursor:pointer;}
+  .periode-label{padding:0 20px 6px; font-family:var(--mono); font-size:11px; color:var(--text-dim);}
+
+  .badge{display:inline-block; font-family:var(--mono); font-size:8.5px; font-weight:700; letter-spacing:0.03em; padding:2px 7px; border-radius:20px; text-transform:uppercase; margin-left:6px; vertical-align:middle;}
+  .badge-real{color:var(--green); background:var(--green-dim);}
+  .badge-derived{color:var(--cyan); background:rgba(79,195,217,0.12);}
+  .badge-insuffisant{color:var(--text-dim); background:var(--panel-raised);}
+
+  .chapitre{padding:0 20px 8px;}
+  .chapitre-titre{font-size:16px; font-weight:700; margin:18px 0 4px;}
+  .chapitre-note{font-size:11.5px; color:var(--text-dim); line-height:1.5; margin-bottom:12px;}
+
+  .kpi-card{background:var(--panel); border:1px solid var(--hairline); border-radius:14px; padding:16px; margin-bottom:12px;}
+  .kpi-row{display:flex; align-items:baseline; justify-content:space-between; padding:6px 0;}
+  .kpi-row + .kpi-row{border-top:1px solid var(--hairline);}
+  .kpi-label{font-size:12.5px; color:var(--text-mid);}
+  .kpi-valeur{font-family:var(--mono); font-weight:700; font-size:14px;}
+  .kpi-evol{font-family:var(--mono); font-size:11px; margin-left:6px;}
+  .kpi-evol.hausse{color:var(--green);}
+  .kpi-evol.baisse{color:var(--red);}
+  .kpi-evol.stable{color:var(--text-dim);}
+
+  .synthese-texte{font-size:13.5px; line-height:1.6; color:var(--text); background:var(--panel); border:1px solid var(--hairline); border-radius:14px; padding:16px; margin-bottom:12px;}
+
+  .axe-card{background:var(--panel); border:1px solid var(--hairline); border-radius:14px; padding:14px 16px; margin-bottom:10px; display:flex; align-items:center; gap:12px;}
+  .axe-icone{font-size:20px;}
+  .axe-nom{font-size:13.5px; font-weight:700;}
+  .axe-detail{font-size:11.5px; color:var(--text-mid); margin-top:2px;}
+  .axe-statut{margin-left:auto; font-family:var(--mono); font-size:10px; font-weight:700; padding:3px 10px; border-radius:20px; text-transform:uppercase; white-space:nowrap;}
+
+  .decision-ligne{padding:9px 0; border-top:1px solid var(--hairline); font-size:12px;}
+  .decision-ligne:first-child{border-top:none;}
+  .decision-meta{color:var(--text-dim); font-family:var(--mono); font-size:10px; margin-top:2px;}
+
+  .btn-pdf{
+    display:block; width:100%; margin:18px 20px 6px; padding:15px; border:none; border-radius:12px;
+    background:var(--cyan); color:#04141a; font-family:var(--sans); font-weight:700; font-size:14.5px; cursor:pointer; width:calc(100% - 40px);
+  }
+  .btn-pdf:disabled{opacity:0.5;}
+  .btn-pdf:active{opacity:0.85;}
+
+  footer{margin-top:auto; padding:16px 20px 24px; font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:center; border-top:1px solid var(--hairline);}
+
+  /* Vue bureau (cohérente avec les autres écrans manager NEXUS) */
+  body.nexus-desktop .phone{max-width:640px; border:none;}
+</style>
+</head>
+<body>
+<div class="phone">
+  <div class="header">
+    <a href="NEXUS-App-v1.html" class="menu-btn">☰ Menu</a>
+    <div class="eyebrow">NEXUS · RAPPORT</div>
+    <div class="title">Rapport NEXUS</div>
+    <div class="sub" id="sousTitre">Chargement…</div>
+  </div>
+  <div class="divider"></div>
+
+  <div class="periode-bar" id="periodeBar"></div>
+  <div class="libre-bar" id="libreBar">
+    <input type="date" id="libreDebut">
+    <input type="date" id="libreFin">
+    <button class="libre-btn" id="btnLibreValider">Valider</button>
+  </div>
+  <div class="periode-label" id="periodeLabel"></div>
+
+  <div class="section" id="content" style="padding-top:0;">
+    <div class="loading">Chargement…</div>
+  </div>
+
+  <button class="btn-pdf" id="btnPdf" style="display:none;">Générer le PDF</button>
+
+  <footer>NEXUS Rapport v1 (V1-Socle, 2 chapitres) · Vito Sainte-Marie Usine</footer>
+</div>
+
+<script>
+  // ------------------------------------------------------------
+  // NEXUS Rapport v1 (10/08/2026) — premier bout-en-bout du "Rapport
+  // NEXUS" décrit dans le cadrage développeur du 10/08/2026, limité
+  // (choix de Frédéric, "2 chapitres bout-en-bout") aux Chapitres 1
+  // (Synthèse dirigeant) et 2 (Santé de l'entreprise), pour prouver
+  // l'architecture complète — sélection de période calendaire, cascade
+  // de sources honnête, PDF multi-pages — avant de généraliser aux 10
+  // autres chapitres du cadrage.
+  //
+  // Distinct de Brief NEXUS : Brief est un instantané "aujourd'hui",
+  // toujours 1 page, sans sélection de période. Rapport NEXUS compare
+  // une période calendaire choisie par le manager à une référence
+  // résolue automatiquement (voir nexus-periodes.js) et peut s'exporter
+  // en PDF multi-pages (voir NexusPdfMoteur.ConstructeurRapport).
+  //
+  // Toute la logique de calcul vit dans nexus-rapport-moteur.js (pur) et
+  // nexus-periodes.js (résolution de bornes, pur) — ce fichier ne fait
+  // que charger les données (nexus-rapport-donnees.js) et mettre en
+  // forme, à l'écran et dans le PDF, EXACTEMENT le même objet calculé
+  // (Article 11 : jamais deux calculs séparés de la même chose).
+  // ------------------------------------------------------------
+
+  let SITE_ID = 'vito-sainte-marie';
+  let MANAGER_COURANT = null;
+  let TYPE_PERIODE = 'semaine';
+  let CHAPITRE1 = null;
+  let CHAPITRE2 = null;
+
+  const TYPES = [
+    { cle: 'semaine', label: 'Semaine' },
+    { cle: 'mois', label: 'Mois' },
+    { cle: 'trimestre', label: 'Trimestre' },
+    { cle: 'annee', label: 'Année' },
+    { cle: 'libre', label: 'Dates libres' },
+  ];
+
+  const COULEUR_STATUT = {
+    'En hausse': { c: 'var(--green)', f: 'var(--green-dim)' },
+    'En baisse': { c: 'var(--red)', f: 'var(--red-dim)' },
+    'Stable': { c: 'var(--text-mid)', f: 'var(--panel-raised)' },
+    'Données insuffisantes': { c: 'var(--text-dim)', f: 'var(--panel-raised)' },
+  };
+
+  function todayISO() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
+
+  function badgeConfiance(confiance) {
+    if (confiance === 'reel') return '<span class="badge badge-real">RÉEL</span>';
+    if (confiance === 'derive') return '<span class="badge badge-derived">DÉRIVÉ</span>';
+    return '<span class="badge badge-insuffisant">INSUFFISANT</span>';
+  }
+
+  function renderBarrePeriodes() {
+    const bar = document.getElementById('periodeBar');
+    bar.innerHTML = TYPES.map(t => `<button class="periode-btn ${t.cle === TYPE_PERIODE ? 'actif' : ''}" data-type="${t.cle}">${t.label}</button>`).join('');
+    bar.querySelectorAll('.periode-btn').forEach(btn => btn.addEventListener('click', () => {
+      TYPE_PERIODE = btn.dataset.type;
+      renderBarrePeriodes();
+      const libreBar = document.getElementById('libreBar');
+      if (TYPE_PERIODE === 'libre') { libreBar.classList.add('visible'); return; }
+      libreBar.classList.remove('visible');
+      chargerEtRendre();
+    }));
+    document.getElementById('libreBar').classList.toggle('visible', TYPE_PERIODE === 'libre');
+  }
+
+  async function chargerEtRendre(bornesLibres) {
+    document.getElementById('content').innerHTML = '<div class="loading">Calcul du rapport…</div>';
+    document.getElementById('btnPdf').style.display = 'none';
+
+    const periode = NexusPeriodes.resoudrePeriodeCalendaire(TYPE_PERIODE, todayISO(), bornesLibres);
+    document.getElementById('periodeLabel').textContent = `Période : ${periode.label} (${periode.debut} → ${periode.fin})`;
+    const referencesCandidates = NexusPeriodes.resoudrePeriodesReference(periode);
+
+    const [ca, marge, decisions] = await Promise.all([
+      NexusRapportDonnees.chargerCaPeriode(nexusClient, SITE_ID, periode),
+      NexusRapportDonnees.chargerMargePeriode(nexusClient, SITE_ID, periode),
+      NexusRapportDonnees.chargerDecisionsPeriode(nexusClient, SITE_ID, periode),
+    ]);
+    const [caRef, margeRef] = await Promise.all([
+      NexusRapportDonnees.chargerAvecRepli(NexusRapportDonnees.chargerCaPeriode, nexusClient, SITE_ID, referencesCandidates),
+      NexusRapportDonnees.chargerAvecRepli(NexusRapportDonnees.chargerMargePeriode, nexusClient, SITE_ID, referencesCandidates),
+    ]);
+
+    CHAPITRE1 = NexusRapportMoteur.construireChapitreSynthese({ periode, ca, caRef, marge, margeRef, decisions });
+    CHAPITRE2 = NexusRapportMoteur.construireChapitreSante(CHAPITRE1);
+
+    render();
+    document.getElementById('btnPdf').style.display = 'block';
+  }
+
+  function ligneEvolutionHTML(evol) {
+    if (evol == null) return '<span class="kpi-evol stable">—</span>';
+    const cls = evol > 0.02 ? 'hausse' : evol < -0.02 ? 'baisse' : 'stable';
+    return `<span class="kpi-evol ${cls}">${evol >= 0 ? '+' : ''}${(evol * 100).toFixed(1)} %</span>`;
+  }
+
+  function render() {
+    const c1 = CHAPITRE1, c2 = CHAPITRE2;
+    document.getElementById('sousTitre').textContent = `Synthèse et santé de l'entreprise sur la période sélectionnée.`;
+
+    const decisionsHTML = c1.decisions.length
+      ? c1.decisions.slice(0, 8).map(d => `
+        <div class="decision-ligne">
+          ${d.recommandation || d.article || d.candidate_id}
+          <div class="decision-meta">${d.date}${d.impact_eur ? ` · ${NexusRapportMoteur.formaterEuros(d.impact_eur)}` : ''}${d.etat ? ` · ${d.etat}` : ''}</div>
+        </div>`).join('') + (c1.decisions.length > 8 ? `<div class="decision-meta" style="padding-top:8px;">+ ${c1.decisions.length - 8} autre${c1.decisions.length - 8 > 1 ? 's' : ''} — voir Journal NEXUS.</div>` : '')
+      : '<div class="decision-meta">Aucune décision enregistrée sur cette période.</div>';
+
+    const axesHTML = c2.axes.map(a => {
+      const couleur = COULEUR_STATUT[a.statut] || COULEUR_STATUT['Données insuffisantes'];
+      return `
+        <div class="axe-card">
+          <span class="axe-icone">${a.icone}</span>
+          <div>
+            <div class="axe-nom">${a.nom}${a.confiance ? badgeConfiance(a.confiance) : ''}</div>
+            <div class="axe-detail">${a.detail}</div>
+          </div>
+          <span class="axe-statut" style="color:${couleur.c}; background:${couleur.f};">${a.statut}</span>
+        </div>`;
+    }).join('');
+
+    const axesNonCouvertsHTML = c2.axesNonCouverts.map(a => `
+      <div class="axe-card" style="opacity:0.6;">
+        <span class="axe-icone">${a.icone}</span>
+        <div>
+          <div class="axe-nom">${a.nom}</div>
+          <div class="axe-detail">${a.raison}</div>
+        </div>
+        <span class="axe-statut" style="color:var(--text-dim); background:var(--panel-raised);">Non couvert (V1)</span>
+      </div>`).join('');
+
+    document.getElementById('content').innerHTML = `
+      <div class="chapitre">
+        <div class="chapitre-titre">Chapitre 1 — Synthèse dirigeant</div>
+        <div class="synthese-texte">${c1.syntheseTexte}</div>
+        <div class="kpi-card">
+          <div class="kpi-row">
+            <span class="kpi-label">CA de la période ${c1.ca.disponible ? badgeConfiance(c1.ca.confiance) : ''}</span>
+            <span><span class="kpi-valeur">${c1.ca.disponible ? NexusRapportMoteur.formaterEuros(c1.ca.valeur) : '—'}</span>${ligneEvolutionHTML(c1.evolutionCa)}</span>
+          </div>
+          <div class="kpi-row">
+            <span class="kpi-label">Marge de la période ${c1.marge.disponible ? badgeConfiance(c1.marge.confiance) : ''}</span>
+            <span><span class="kpi-valeur">${c1.marge.disponible && c1.marge.tauxPct != null ? c1.marge.tauxPct.toFixed(1) + ' %' : '—'}</span>${c1.evolutionMargeTaux != null ? `<span class="kpi-evol ${c1.evolutionMargeTaux > 0.5 ? 'hausse' : c1.evolutionMargeTaux < -0.5 ? 'baisse' : 'stable'}">${c1.evolutionMargeTaux >= 0 ? '+' : ''}${c1.evolutionMargeTaux.toFixed(1)} pt</span>` : ''}</span>
+          </div>
+          <div class="kpi-row">
+            <span class="kpi-label">Décisions sur la période</span>
+            <span class="kpi-valeur">${c1.nbDecisions}${c1.impactDecisions ? ` (${NexusRapportMoteur.formaterEuros(c1.impactDecisions)})` : ''}</span>
+          </div>
+        </div>
+        <div class="chapitre-note">Décisions prises pendant la période (journal NEXUS) :</div>
+        <div class="kpi-card">${decisionsHTML}</div>
+      </div>
+
+      <div class="chapitre">
+        <div class="chapitre-titre">Chapitre 2 — Santé de l'entreprise</div>
+        <div class="chapitre-note">Direction de chaque axe sur la période, comparée à sa référence — périmètre V1 : Commerce et Marge (les deux axes déjà scopés par période calendaire). Opérations et Équipe listés ci-dessous par transparence, non calculés dans ce premier chapitre.</div>
+        ${axesHTML}
+        ${axesNonCouvertsHTML}
+      </div>
+    `;
+  }
+
+  // ------------------------------------------------------------
+  // Export PDF multi-pages (NexusPdfMoteur.ConstructeurRapport) — même
+  // objet CHAPITRE1/CHAPITRE2 que l'écran, jamais recalculé.
+  // ------------------------------------------------------------
+  async function genererPdf() {
+    const btn = document.getElementById('btnPdf');
+    btn.disabled = true;
+    btn.textContent = 'Génération…';
+
+    const rapport = await NexusPdfMoteur.creerRapport({
+      titre: `Rapport NEXUS — ${CHAPITRE1.periode.label}`,
+      sujet: 'Rapport NEXUS — Synthèse dirigeant et santé de l\'entreprise',
+      entete: { app: 'NEXUS OS · Rapport', sousTitre: CHAPITRE1.periode.label },
+    });
+
+    // Page de garde légère.
+    rapport.titre('Rapport NEXUS');
+    rapport.sousTitre(`${CHAPITRE1.periode.label} · ${CHAPITRE1.periode.debut} → ${CHAPITRE1.periode.fin}`);
+    rapport.sousTitre(`Généré le ${new Date().toLocaleDateString('fr-FR')} par ${MANAGER_COURANT.nom || 'NEXUS'}.`, { taille: 9 });
+
+    // Chapitre 1.
+    rapport.sectionTitre('Chapitre 1 — Synthèse dirigeant');
+    rapport.paragraphe(CHAPITRE1.syntheseTexte);
+    rapport.ligneCle('CA de la période', CHAPITRE1.ca.disponible ? NexusRapportMoteur.formaterEuros(CHAPITRE1.ca.valeur) : 'Données insuffisantes');
+    if (CHAPITRE1.evolutionCa != null) rapport.ligneCle('Évolution CA', `${CHAPITRE1.evolutionCa >= 0 ? '+' : ''}${(CHAPITRE1.evolutionCa * 100).toFixed(1)} % vs ${CHAPITRE1.caRef.periodeUtilisee.label}`);
+    rapport.ligneCle('Marge de la période', CHAPITRE1.marge.disponible && CHAPITRE1.marge.tauxPct != null ? `${CHAPITRE1.marge.tauxPct.toFixed(1)} %` : 'Données insuffisantes');
+    if (CHAPITRE1.evolutionMargeTaux != null) rapport.ligneCle('Évolution marge', `${CHAPITRE1.evolutionMargeTaux >= 0 ? '+' : ''}${CHAPITRE1.evolutionMargeTaux.toFixed(1)} pt vs ${CHAPITRE1.margeRef.periodeUtilisee.label}`);
+    rapport.ligneCle('Décisions sur la période', `${CHAPITRE1.nbDecisions}${CHAPITRE1.impactDecisions ? ` · ${NexusRapportMoteur.formaterEuros(CHAPITRE1.impactDecisions)}` : ''}`);
+
+    if (CHAPITRE1.decisions.length) {
+      rapport.sousTitre('Décisions prises pendant la période', { taille: 10 });
+      rapport.tableau(
+        [
+          { label: 'Date', cle: 'date', largeur: 0.16 },
+          { label: 'Recommandation', cle: 'recommandation', largeur: 0.52 },
+          { label: 'État', cle: 'etat', largeur: 0.16 },
+          { label: 'Impact', cle: 'impact', largeur: 0.16, align: 'droite' },
+        ],
+        CHAPITRE1.decisions.slice(0, 25).map(d => ({
+          date: d.date, recommandation: d.recommandation || d.article || d.candidate_id, etat: d.etat || '—',
+          impact: d.impact_eur ? NexusRapportMoteur.formaterEuros(d.impact_eur) : '—',
+        })),
+      );
+    } else {
+      rapport.paragraphe('Aucune décision enregistrée dans le journal sur cette période.', { couleur: NexusPdfMoteur.COULEUR.texteDim });
+    }
+
+    // Chapitre 2 — nouvelle page pour une lecture nette.
+    rapport._nouvellePage();
+    rapport.sectionTitre('Chapitre 2 — Santé de l\'entreprise');
+    rapport.paragraphe("Périmètre V1 : Commerce et Marge, les deux axes déjà scopés par période calendaire. Opérations et Équipe seront ajoutés dans une itération suivante.", { taille: 8.5, couleur: NexusPdfMoteur.COULEUR.texteDim });
+    CHAPITRE2.axes.forEach(a => {
+      rapport.encadre([
+        { texte: `${a.icone} ${a.nom} — ${a.statut}`, gras: true },
+        { texte: a.detail },
+      ], { couleurBordure: a.statut === 'En baisse' ? NexusPdfMoteur.COULEUR.rouge : a.statut === 'En hausse' ? NexusPdfMoteur.COULEUR.vert : NexusPdfMoteur.COULEUR.cyan });
+    });
+    if (CHAPITRE2.axesNonCouverts.length) {
+      rapport.sousTitre('Non couverts dans ce chapitre (V1)', { taille: 9.5 });
+      CHAPITRE2.axesNonCouverts.forEach(a => rapport.paragraphe(`${a.icone} ${a.nom} — ${a.raison}`, { taille: 9, couleur: NexusPdfMoteur.COULEUR.texteDim }));
+    }
+
+    rapport.piedDePageToutesPages('NEXUS OS · Rapport NEXUS v1');
+    const pdfBytes = await NexusPdfMoteur.finaliser(rapport);
+    const nomFichier = `NEXUS-Rapport-${CHAPITRE1.periode.debut}-${CHAPITRE1.periode.fin}.pdf`;
+    await NexusPdfMoteur.partagerOuTelechargerPdf(pdfBytes, nomFichier, { titre: 'Rapport NEXUS' });
+
+    btn.disabled = false;
+    btn.textContent = 'Générer le PDF';
+  }
+
+  // ------------------------------------------------------------
+  // INITIALISATION
+  // ------------------------------------------------------------
+  nexusRequireAuth().then(async employee => {
+    if (!employee) return;
+    if (employee.role !== 'manager' && employee.role !== 'gerant') {
+      document.body.innerHTML = '<div class="locked">Cet écran est réservé aux managers.</div>';
+      return;
+    }
+    MANAGER_COURANT = employee;
+    SITE_ID = employee.site_id || 'vito-sainte-marie';
+
+    renderBarrePeriodes();
+    document.getElementById('btnLibreValider').addEventListener('click', () => {
+      const debut = document.getElementById('libreDebut').value;
+      const fin = document.getElementById('libreFin').value;
+      if (!debut || !fin || fin < debut) { alert('Choisissez une date de début et une date de fin valides.'); return; }
+      chargerEtRendre({ debut, fin });
+    });
+    document.getElementById('btnPdf').addEventListener('click', genererPdf);
+
+    await chargerEtRendre();
+  });
+</script>
+</body>
+</html>

@@ -673,6 +673,19 @@
         </div>
         <div class="nav-arrow">›</div>
       </a>
+      <!-- Rapport NEXUS (10/08/2026, cadrage développeur de Frédéric) :
+           distinct de Brief NEXUS — période calendaire choisie (semaine/mois/
+           trimestre/année/dates libres) comparée à une référence résolue
+           automatiquement (nexus-periodes.js), export PDF multi-pages. V1 :
+           Chapitres 1 (Synthèse dirigeant) + 2 (Santé de l'entreprise). -->
+      <a class="nav-item" data-role="manager" href="NEXUS-Rapport-v1.html">
+        <div class="nav-icon" style="display:flex; align-items:center; justify-content:center; font-size:20px;">📑</div>
+        <div class="nav-body">
+          <div class="nav-title">Rapport NEXUS</div>
+          <div class="nav-desc">CA, marge et décisions sur une période choisie, comparés à une référence</div>
+        </div>
+        <div class="nav-arrow">›</div>
+      </a>
       <a class="nav-item" data-role="manager" href="NEXUS-Cockpit-v2.html">
         <div class="nav-icon"><img src="assets/icons/icon-home.png" alt="Cockpit"></div>
         <div class="nav-body">
@@ -2098,6 +2111,7 @@
     // Boussole NEXUS à 5 axes + 3 décisions priorisées — en tête de liste,
     // avant le Cockpit (brief opérationnel du manager).
     { label: 'Brief NEXUS', desc: 'La synthèse du dirigeant : 5 axes, 3 décisions, un chiffre', href: 'NEXUS-Brief-v1.html', role: 'manager' },
+    { label: 'Rapport NEXUS', desc: 'CA, marge et décisions sur une période choisie, comparés à une référence', href: 'NEXUS-Rapport-v1.html', role: 'manager' },
     { label: 'Cockpit', desc: 'Le brief du matin, en un coup d\'œil', href: 'NEXUS-Cockpit-v2.html', role: 'manager' },
     { label: 'Centre d\'Intelligence', desc: 'Que détecte NEXUS dans mon commerce ?', href: 'NEXUS-Centre-Intelligence-v1.html', role: 'manager' },
     { label: 'Journal', desc: 'Qu\'est-ce qui a été fait aujourd\'hui ?', href: 'NEXUS-Journal-v1.html', role: 'manager', forfait: 'professional' },

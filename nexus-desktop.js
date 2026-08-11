@@ -43,6 +43,14 @@ const NEXUS_SIDEBAR_GROUPES = [
     nom: 'Piloter',
     items: [
       { label: 'Brief NEXUS', href: 'NEXUS-Brief-v1.html', icon: 'assets/icons/icon-brief-nexus.png' },
+      // Rapport NEXUS (10/08/2026, cadrage développeur de Frédéric) : rejoint
+      // Piloter juste après Brief NEXUS — Brief est l'instantané "aujourd'hui"
+      // (toujours 1 page), Rapport compare une période calendaire choisie
+      // (semaine/mois/trimestre/année/dates libres) à une référence résolue
+      // automatiquement. V1 : Chapitres 1 (Synthèse dirigeant) + 2 (Santé de
+      // l'entreprise) seulement — les 10 autres chapitres du cadrage restent
+      // à construire.
+      { label: 'Rapport NEXUS', href: 'NEXUS-Rapport-v1.html', icon: null, emoji: '📑' },
       { label: 'Cockpit', href: 'NEXUS-Cockpit-v2.html', icon: 'assets/icons/icon-home.png' },
       { label: 'Journal', href: 'NEXUS-Journal-v1.html', icon: 'assets/icons/icon-journal-nexus.png' },
       { label: 'Capital NEXUS', href: 'NEXUS-Capital-v1.html', icon: 'assets/icons/icon-capital.png' },
