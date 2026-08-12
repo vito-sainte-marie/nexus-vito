@@ -78,6 +78,28 @@
     };
   }
 
+  // `confiance` (12/08/2026, corrigé — audit stratégique Brief NEXUS,
+  // P0 "sécuriser l'Indice Boussole") : AVANT ce correctif, `confiance`
+  // était piloté par `aucunReleve` (fraîcheur du CONTRÔLE — a-t-on un relevé
+  // carburant aujourd'hui ?) alors que `valeur` (le score qui alimente
+  // l'Indice Boussole) est piloté par `evolution` (la PERFORMANCE — tendance
+  // volume sur 7 jours), une donnée totalement indépendante. Résultat
+  // observé par l'audit : un site sans relevé du jour affichait "Données
+  // insuffisantes" alors que sa valeur (calculée depuis une évolution très
+  // négative) tirait quand même l'Indice Boussole vers le bas — exactement
+  // ce que la philosophie "vérité avant certitude" interdit ("une donnée
+  // insuffisante ne doit jamais dégrader un score comme une mauvaise
+  // performance"). Invariant maintenant imposé sur TOUS les secteurs
+  // (voir aussi construireSecteurEquipe, construireSecteurFdj) :
+  // confiance === 'RÉEL' si et seulement si valeur !== null — c'est ce même
+  // champ `confiance` que NEXUS-Brief-v1.html utilise pour décider quels
+  // secteurs entrent dans la moyenne de l'Indice Boussole. La fraîcheur du
+  // relevé du jour reste une information réelle, mais elle vit uniquement
+  // dans `statut`/`detail`/`frein` (contrôle), jamais dans `confiance`
+  // (mesurabilité de la performance) — les deux ne sont pas la même
+  // question, exactement la distinction demandée par l'audit ("Carburants :
+  // non évalué sur la fiabilité stock ; litrage commercial disponible.
+  // L'indice n'intègre pas la composante non mesurable").
   function construireSecteurCarburants(entree, carburants) {
     if (!carburants) return secteurVide(entree, "Aucune donnée carburant chargée pour l'instant.");
     const M = carburantMoteur();
@@ -93,7 +115,7 @@
     const force = (evolution != null && evolution >= 0.05) ? { titre: 'Volumes carburant en hausse', detail: changement, cible: entree.cible } : null;
     const frein = (statut === 'À corriger' || statut === 'À surveiller') ? { titre: 'Écart carburant à traiter', detail, cible: entree.cible } : null;
     return {
-      ...entree, type: 'reel', confiance: carburants.controle.aucunReleve ? 'INSUFFISANT' : 'RÉEL',
+      ...entree, type: 'reel', confiance: valeur != null ? 'RÉEL' : 'INSUFFISANT',
       statut, valeur, detail, moteurs: [], changement, force, frein, risques: [],
     };
   }
@@ -160,8 +182,13 @@
     const frein = statut === 'À surveiller'
       ? { titre: nbEcarts > 0 ? `${nbEcarts} écart${nbEcarts > 1 ? 's' : ''} de caisse FDJ non nul${nbEcarts > 1 ? 's' : ''}` : 'CA FDJ en recul', detail, cible: entree.cible }
       : null;
+    // `confiance` (12/08/2026, corrigé pour le même invariant que les
+    // autres secteurs) : était codée en dur à 'RÉEL' même quand `valeur`
+    // est null (aucune évolution calculable) — mismatch mineur qui ne
+    // faisait pas baisser l'Indice (un `valeur` null est déjà exclu de la
+    // moyenne), mais affichait un badge "RÉEL" trompeur sur la carte.
     return {
-      ...entree, type: 'reel', confiance: 'RÉEL',
+      ...entree, type: 'reel', confiance: valeur != null ? 'RÉEL' : 'INSUFFISANT',
       statut, valeur, detail, moteurs: ['fdj', 'coach'], changement, force, frein, risques: [],
     };
   }
@@ -203,8 +230,18 @@
   function construireSecteurEquipe(entree, { domaineEquipe, seuilMinPointages }) {
     const B = boussole();
     const statut = B.statutEquipe(domaineEquipe.equipeScore, domaineEquipe.totalPointages);
-    const valeur = domaineEquipe.equipeScore;
     const mesureSuffisante = domaineEquipe.totalPointages != null && domaineEquipe.totalPointages >= seuilMinPointages;
+    // `valeur` (12/08/2026, corrigé — même correctif que Carburants,
+    // pendant symétrique du même bug) : `domaineEquipe.equipeScore` est
+    // calculé dès qu'il existe AU MOINS UN pointage (0 retard sur 1
+    // pointage = score 100), sans jamais vérifier `seuilMinPointages` —
+    // avant ce correctif, un échantillon minuscule pouvait donc peser dans
+    // l'Indice Boussole exactement comme une mesure fiable, alors que la
+    // carte elle-même affiche "Pas encore assez de pointages enregistrés."
+    // Gardé par `mesureSuffisante` désormais, pour respecter le même
+    // invariant que les autres secteurs : confiance === 'RÉEL' ⟺ valeur
+    // !== null.
+    const valeur = mesureSuffisante ? domaineEquipe.equipeScore : null;
     const detail = mesureSuffisante
       ? `Ponctualité mesurée sur ${domaineEquipe.totalPointages} pointages${domaineEquipe.employesASurveiller ? ` · ${domaineEquipe.employesASurveiller} employé${domaineEquipe.employesASurveiller > 1 ? 's' : ''} à surveiller` : ''}.`
       : "Pas encore assez de pointages enregistrés.";

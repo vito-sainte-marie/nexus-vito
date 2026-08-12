@@ -479,6 +479,31 @@
       .filter(s => s.domaine === 'caisse' && s.niveau !== 'anomalie')
       .map(s => `${NexusRisques.LABEL_NIVEAU[s.niveau] || s.niveau} — Quart ${(s.cle_signal || '').replace('caisse:quart:', '')}.`);
 
+    // Déduplication Décisions/À surveiller vs Risques (12/08/2026, audit
+    // stratégique Brief NEXUS, P0 "dédupliquer les signaux") : la capture
+    // de l'audit montre le même sujet apparaissant à la fois dans « À
+    // surveiller » et dans « Risques — À surveiller ». Cause identifiée :
+    // `candidatMargeListe` (Marge+, comparaison de pairs sur la période en
+    // cours) et `candidatsCaisseObj` (écarts caisse encore à traiter,
+    // `v_caisse_ecart_a_traiter`) alimentent Décisions/Watchlist SANS tenir
+    // compte du fait qu'une même catégorie/un même quart peut AUSSI être
+    // déjà qualifié par NexusRisques — et c'est même garanti pour la marge,
+    // puisque `categoriesEnEcart` (ci-dessus) alimente déjà le moteur de
+    // risques avec les catégories que Marge+ a repérées. Règle imposée par
+    // l'audit : « Si un signal opérationnel devient un risque qualifié, il
+    // disparaît de la rubrique secondaire et reste uniquement dans
+    // Risques. » Déduplication par identifiant de fait source (catégorie
+    // pour la marge, quart pour la caisse) — jamais par simple libellé
+    // texte, qui pourrait diverger entre les deux formulations.
+    const risqueMargeCategoriesQualifiees = new Set(
+      signauxRisqueBruts.filter(s => s.domaine === 'marge' && s.niveau !== 'anomalie')
+        .map(s => (s.cle_signal || '').replace('marge:categorie:', ''))
+    );
+    const risqueCaisseQuartsQualifies = new Set(
+      signauxRisqueBruts.filter(s => s.domaine === 'caisse' && s.niveau !== 'anomalie')
+        .map(s => (s.cle_signal || '').replace('caisse:quart:', ''))
+    );
+
     // Succès à féliciter — extrait le 11/08/2026 (Article 11) dans
     // NexusConseiller.analyserEvolutionsPaire(), source unique désormais
     // partagée avec NEXUS-Cockpit-v2.html (MEILLEUR_SUCCES).
@@ -527,7 +552,20 @@
     // aujourd'hui, chacun recentré à 50 (neutre), pour pouvoir se
     // décomposer honnêtement secteur par secteur. Un secteur non mesuré est
     // exclu de la moyenne, jamais compté comme 50 par défaut (Article 5).
-    const axesMesures = AXES.filter(a => a.valeur != null);
+    //
+    // Filtre corrigé le 12/08/2026 (audit stratégique Brief NEXUS, P0
+    // "sécuriser l'Indice Boussole") : filtrait auparavant sur
+    // `a.valeur != null`, un champ que certains secteurs (Carburants,
+    // Équipe) pouvaient remplir avec un score réel MÊME quand leur propre
+    // `confiance` disait "INSUFFISANT" à l'utilisateur — un secteur pouvait
+    // donc afficher "Données insuffisantes" tout en tirant l'Indice vers le
+    // bas silencieusement. Corrigé à la source dans nexus-secteurs-moteur.js
+    // (invariant désormais imposé : confiance === 'RÉEL' ⟺ valeur !== null
+    // pour les 6 secteurs), et le filtre ici lit maintenant `confiance`
+    // directement — la même donnée que le badge "X/6 mesurés" affiché à
+    // l'écran (renderBoussole), pour ne plus jamais avoir deux comptages
+    // différents du nombre de secteurs mesurés sur le même écran.
+    const axesMesures = AXES.filter(a => a.confiance === 'RÉEL');
     const scoreGlobal = axesMesures.length ? Math.round(axesMesures.reduce((s, a) => s + a.valeur, 0) / axesMesures.length) : null;
     const indiceExplication = {
       periodeLabel, nbMesures: axesMesures.length, totalAxes: AXES.length,
@@ -540,11 +578,32 @@
     // NexusSecteursMoteur (ex. "CA FDJ en forte progression") : les
     // premières restent prioritaires (plus précises, niveau dirigeant), les
     // secondes complètent jusqu'à 3 seulement si nécessaire.
+    //
+    // Matérialité (12/08/2026, audit stratégique Brief NEXUS, P0 "filtrer
+    // la granularité dirigeant") : `meilleurSucces` (NexusConseiller.
+    // analyserEvolutionsPaire) et `margeEnProgression` (NexusConseiller.
+    // analyserProduitsStrategiques) ne portent AUCUN seuil de matérialité —
+    // `meilleurSucces` ne demande qu'un CA précédent >= 50 €, et
+    // `margeEnProgression` trie uniquement par pourcentage d'évolution de
+    // marge, sans plancher en euros. Un article passé de 55 € à 700 € de CA
+    // ressort donc comme "+1200 %", exactement l'exemple cité par l'audit
+    // ("un +1200 % peut provenir d'une base faible et n'est pas
+    // automatiquement une information de direction"). Ces deux fonctions
+    // restent inchangées dans nexus-conseiller.js (Article 11 : Cockpit les
+    // consomme aussi, à raison, pour son propre usage SKU — voir
+    // NEXUS-Cockpit-v2.html) ; le filtre de matérialité est donc appliqué
+    // ICI, uniquement pour Brief, en réutilisant le seuil déjà établi par
+    // NexusSecteursMoteur.estDecisionStrategique() (500 €) plutôt que
+    // d'inventer un 2e seuil — même principe, même ordre de grandeur, un
+    // seul chiffre à faire évoluer avec l'usage réel.
+    const SEUIL_FORCE_PRODUIT_EUR = NexusSecteursMoteur.SEUIL_IMPACT_STRATEGIQUE_EUR;
     const forces = [];
-    if (meilleurSucces) forces.push({ icone: '📈', titre: `${meilleurSucces.article} en forte progression`, detail: `+${(meilleurSucces.evolution * 100).toFixed(0)} % sur la période, soit environ ${Math.round(meilleurSucces.gain).toLocaleString('fr-FR')} € de gain.`, cible: 'NEXUS-Produits-v1.html' });
+    if (meilleurSucces && meilleurSucces.gain >= SEUIL_FORCE_PRODUIT_EUR) {
+      forces.push({ icone: '📈', titre: `${meilleurSucces.article} en forte progression`, detail: `+${(meilleurSucces.evolution * 100).toFixed(0)} % sur la période, soit environ ${Math.round(meilleurSucces.gain).toLocaleString('fr-FR')} € de gain.`, cible: 'NEXUS-Produits-v1.html' });
+    }
     if (produitsStrategiques && produitsStrategiques.margeEnProgression.length) {
-      const m = produitsStrategiques.margeEnProgression[0];
-      forces.push({ icone: '💰', titre: `Marge en progression sur ${m.article}`, detail: `Marge en hausse de ${(m.evolutionMarge * 100).toFixed(0)} % sur la période.`, cible: 'NEXUS-Scanner-v1.html' });
+      const m = produitsStrategiques.margeEnProgression.find(p => p.marge >= SEUIL_FORCE_PRODUIT_EUR);
+      if (m) forces.push({ icone: '💰', titre: `Marge en progression sur ${m.article}`, detail: `Marge en hausse de ${(m.evolutionMarge * 100).toFixed(0)} % sur la période (${Math.round(m.marge).toLocaleString('fr-FR')} € de marge sur la période).`, cible: 'NEXUS-Scanner-v1.html' });
     }
     if (forces.length < 3 && constatTempo.jourPlusRentable) forces.push({ icone: '🗓️', titre: `${constatTempo.jourPlusRentable.nom} — votre journée la plus rentable`, detail: "Confirmé sur plusieurs semaines d'historique, produits d'appel exclus.", cible: 'NEXUS-Tempo-v1.html' });
     secteurs.forEach(s => { if (forces.length < 3 && s.force) forces.push({ icone: s.icone, titre: s.force.titre, detail: s.force.detail, cible: s.force.cible }); });
@@ -566,12 +625,28 @@
     const candidatsProduitsNormalises = candidatsProduitsBrut
       .filter(c => !VALIDEES_SITE.has(c.candidate_id) && NexusSecteursMoteur.estDecisionStrategique(c))
       .map(NexusConseiller.normaliserProduit);
+    // `!risqueMargeCategoriesQualifiees.has(...)` (12/08/2026, dédoublonnage
+    // P0) : si NexusRisques a déjà qualifié cette catégorie (signal_faible+,
+    // comparaison à sa propre référence historique), elle reste UNIQUEMENT
+    // dans "Risques — À surveiller" — jamais recopiée en Décision/Watchlist
+    // pour le même fait.
     const candidatMargeListe = margePlusResultat && margePlusResultat.candidatTop
       && !VALIDEES_SITE.has(margePlusResultat.candidatTop.candidate_id)
       && NexusSecteursMoteur.estDecisionStrategique(margePlusResultat.candidatTop)
+      && !risqueMargeCategoriesQualifiees.has(margePlusResultat.candidatTop.categorie)
       ? [NexusConseiller.normaliserMarge(margePlusResultat.candidatTop)] : [];
     const candidatTempoBrut = construireCandidatTempo(constatTempo);
     const candidatTempoListe = candidatTempoBrut ? [NexusConseiller.normaliserTempo(candidatTempoBrut)] : [];
+    // Même règle pour la caisse (12/08/2026, dédoublonnage P0) : un quart
+    // déjà qualifié par NexusRisques (`caisse:quart:${quart}`, comparaison à
+    // sa propre référence sur fenêtre glissante) ne doit plus apparaître en
+    // Décision/Watchlist via `v_caisse_ecart_a_traiter` — seuls les écarts
+    // encore à traiter sur un quart NON déjà qualifié restent dans cette
+    // liste secondaire. Filtré sur `.raw` (avant normalisation, où `.quart`
+    // est encore présent tel quel) puis renormalisé à l'identique.
+    const candidatsCaisseNormalisesDedupliques = candidatsCaisseObj.raw
+      .filter(c => !risqueCaisseQuartsQualifies.has(String(c.quart)))
+      .map(NexusConseiller.normaliserCaissePersonne);
     // Règle non négociable pour ce Brief (demande de Frédéric, 02/08/2026
     // soir) : "si NEXUS ne peut pas expliquer précisément pourquoi une
     // information mérite l'attention du dirigeant, elle ne doit pas
@@ -585,10 +660,10 @@
     const candidatsAdvisorListe = messagesAdvisor
       .filter(m => m.message_text && m.message_text.trim().length >= 12)
       .map(NexusConseiller.normaliserAdvisor);
-    const nbMoteursActifs = [candidatsProduitsNormalises, candidatMargeListe, candidatTempoListe, candidatsAdvisorListe, candidatsCaisseObj.normalises, candidatsStock, candidatsRappels, candidatsFdj, candidatsCoach].filter(l => l.length > 0).length;
+    const nbMoteursActifs = [candidatsProduitsNormalises, candidatMargeListe, candidatTempoListe, candidatsAdvisorListe, candidatsCaisseNormalisesDedupliques, candidatsStock, candidatsRappels, candidatsFdj, candidatsCoach].filter(l => l.length > 0).length;
 
     const fusion = NexusConseiller.fusionnerEtSelectionner(
-      [candidatsProduitsNormalises, candidatMargeListe, candidatTempoListe, candidatsAdvisorListe, candidatsCaisseObj.normalises, candidatsStock, candidatsRappels, candidatsFdj, candidatsCoach],
+      [candidatsProduitsNormalises, candidatMargeListe, candidatTempoListe, candidatsAdvisorListe, candidatsCaisseNormalisesDedupliques, candidatsStock, candidatsRappels, candidatsFdj, candidatsCoach],
       { site: SITE_ACTUEL, n: 6 }
     );
     const decisions = fusion.slice(0, 3);
