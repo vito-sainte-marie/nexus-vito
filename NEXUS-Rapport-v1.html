@@ -25,9 +25,11 @@
 <script src="nexus-carburant-donnees.js"></script>
 <script src="nexus-rayon-moteur.js"></script>
 <script src="nexus-verify-moteur.js"></script>
+<script src="nexus-risques-moteur.js"></script>
 <script src="nexus-secteurs-moteur.js"></script>
 <script src="nexus-rapport-donnees.js"></script>
 <script src="nexus-rapport-direction-donnees.js"></script>
+<script src="nexus-risques-donnees.js"></script>
 <script src="nexus-rapport-moteur.js"></script>
 <script src="nexus-rapport-direction-moteur.js"></script>
 <script src="nexus-pdf-moteur.js"></script>
@@ -349,10 +351,34 @@
       .filter(d => NexusSecteursMoteur.estDecisionStrategique(d))
       .sort((a, b) => (b.impact_eur || 0) - (a.impact_eur || 0));
 
+    // Moteur de risques (12/08/2026, migration partielle du chapitre 12,
+    // suite v2.46-v2.48) — LECTURE SEULE ici, volontairement : ce fichier
+    // ne relance aucune qualification/écriture (contrairement à Brief/
+    // Cockpit, qui tournent sur une fenêtre glissante de 30 jours et
+    // enregistrent à chaque ouverture). La période du Rapport est choisie
+    // librement par le manager (semaine/mois/trimestre/année/libre) —
+    // relancer une observation avec cette fenêtre arbitraire polluerait
+    // la mémoire du signal (récurrence comptée sur une durée incohérente
+    // avec les autres appelants). Le Rapport se contente donc de lire les
+    // signaux déjà entretenus par Brief/Cockpit (chargerSignauxSite) et de
+    // les présenter formatés, jamais un 2e calcul de matérialité.
+    const signauxRisqueBruts = await NexusRisquesDonnees.chargerSignauxSite(nexusClient, SITE_ID, { statut: 'surveille' });
+    const signauxRisqueQualifies = signauxRisqueBruts.filter(s => s.niveau !== 'anomalie').map(s => ({
+      niveau: s.niveau,
+      phrase: NexusRisques.genererPhraseContexte({
+        domaineLabel: s.domaine === 'marge' ? 'Marge' : 'Caisse',
+        sujet: s.domaine === 'marge' ? (s.cle_signal || '').replace('marge:categorie:', '') : `Quart ${(s.cle_signal || '').replace('caisse:quart:', '')}`,
+        niveau: s.niveau,
+        motif: (s.historique_transitions && s.historique_transitions.length) ? s.historique_transitions[s.historique_transitions.length - 1].motif : '',
+      }),
+      actionRecommandee: s.action_recommandee, niveauConfiance: s.niveau_confiance, depuisLe: s.premiere_detection_le,
+    }));
+
     RAPPORT_DIRECTION = NexusRapportDirectionMoteur.construireRapportDirection({
       nomEntreprise: NOM_ENTREPRISE, periode, dateReference: new Date(),
       chapitre1: CHAPITRE1, chapitre2: CHAPITRE2, decisionsStrategiques,
       commerceCategories, carburantsDetail, fdjDetail, operations, equipe, trajectoire,
+      signauxQualifies: signauxRisqueQualifies,
     });
 
     render();
@@ -665,12 +691,39 @@
     // ---- 12. Risques et contrôle interne ----
     rapport._nouvellePage();
     rapport.sectionTitre('Risques et contrôle interne');
-    if (R.risques.disponible) {
+    // Signaux qualifiés par le moteur de risques (12/08/2026, v2.46-v2.49) —
+    // sous-section À PART du tableau ci-dessous, jamais fusionnée dedans :
+    // ceux-ci sont comparés à leur propre référence historique et confirmés
+    // dans le temps (mémoire du signal, Marge+Caisse uniquement pour
+    // l'instant) ; le tableau qui suit reste des constats instantanés
+    // (seuils/comparaison de pairs sur la période choisie), pour tous les
+    // domaines. Les deux se complètent, aucun des deux ne remplace l'autre.
+    if (R.risques.signauxQualifies && R.risques.signauxQualifies.length) {
+      pdfSousSection(rapport, 'Signaux suivis dans le temps (moteur de risques)');
+      R.risques.signauxQualifies.forEach(s => {
+        const [entete, ...reste] = s.phrase.split('\n');
+        rapport.encadre(
+          [
+            { texte: entete, gras: true },
+            { texte: reste.join(' ') },
+            ...(s.actionRecommandee ? [{ texte: s.actionRecommandee }] : []),
+          ],
+          { couleurBordure: s.niveau === 'risque_avere' ? CO().rouge : CO().ambre },
+        );
+      });
+      rapport.paragraphe("NEXUS compare chaque signal à sa propre référence historique et ne le qualifie de risque qu'une fois suffisamment d'éléments réunis — mémoire partagée avec Brief NEXUS et le Cockpit.", { taille: 8, couleur: CO().texteDim });
+    }
+    pdfSousSection(rapport, 'Autres constats de la période');
+    if (R.risques.risques.length) {
       rapport.tableau(
         [{ label: 'Catégorie', cle: 'categorie', largeur: 0.18 }, { label: 'Constat', cle: 'libelle', largeur: 0.52 }, { label: 'Impact', cle: 'impact', largeur: 0.15 }, { label: 'Urgence', cle: 'urgence', largeur: 0.15 }],
         R.risques.risques,
       );
-    } else pdfEncadreInsuffisant(rapport, 'aucun signal de risque significatif détecté sur cette période.');
+    } else if (!R.risques.disponible) {
+      pdfEncadreInsuffisant(rapport, 'aucun signal de risque significatif détecté sur cette période.');
+    } else {
+      rapport.paragraphe('Aucun autre constat instantané sur cette période.', { taille: 9.5, couleur: CO().texteDim });
+    }
 
     // ---- 13-14. Forces / Ce qui doit progresser ----
     rapport._nouvellePage();

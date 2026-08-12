@@ -383,7 +383,20 @@
   // ------------------------------------------------------------
   // 12. Risques et contrôle interne
   // ------------------------------------------------------------
-  function construireChapitreRisques({ operations, chapitreCarburants, chapitreMarge, chapitreCommerce }) {
+  // `signauxQualifies` (12/08/2026, migration partielle vers le moteur de
+  // risques v2.46-v2.48) — déjà formaté par l'appelant (NEXUS-Rapport-v1.html,
+  // via NexusRisques.genererPhraseContexte) : ce fichier reste un simple
+  // passthrough, aucune 2e classification écrite ici. Volontairement séparé
+  // de la liste `risques` ci-dessous (seuils instantanés/comparaison de
+  // pairs, sans mémoire dans le temps) plutôt que fusionné dedans : les deux
+  // répondent à des questions différentes (voir Data Dictionary v2.49) et
+  // mélanger leurs lignes ferait perdre cette distinction au lecteur.
+  // Migration complète du chapitre (remplacement des seuils instantanés par
+  // le moteur, pour TOUS les domaines) reste un chantier séparé, non fait
+  // ici — seuls Marge et Caisse ont une lecture du moteur de risques
+  // aujourd'hui, les autres constats (Commercial, Carburants, Inventaire)
+  // gardent leur logique d'origine, pas encore migrée.
+  function construireChapitreRisques({ operations, chapitreCarburants, chapitreMarge, chapitreCommerce, signauxQualifies }) {
     const risques = [];
     const verify = operations && operations.verify && operations.verify.disponible ? operations.verify : null;
     const inventaire = operations && operations.inventaire && operations.inventaire.disponible ? operations.inventaire : null;
@@ -411,7 +424,8 @@
       risques.push({ categorie: 'Commercial', libelle: `Volume carburant en recul de ${fmtPct(chapitreCarburants.evolution)} sur la période.`, impact: 'moyen', urgence: 'moyenne' });
     }
 
-    return { disponible: risques.length > 0, risques };
+    const signaux = signauxQualifies || [];
+    return { disponible: risques.length > 0 || signaux.length > 0, risques, signauxQualifies: signaux };
   }
 
   // ------------------------------------------------------------
@@ -597,7 +611,7 @@
     });
     const forces = construireForces({ chapitre2: input.chapitre2, chapitreMarge, operations: input.operations || {} });
     const ameliorer = construireAmeliorer({ chapitre2: input.chapitre2, chapitreMarge, operations: input.operations || {}, chapitreCommerce });
-    const risques = construireChapitreRisques({ operations: input.operations || {}, chapitreCarburants, chapitreMarge, chapitreCommerce });
+    const risques = construireChapitreRisques({ operations: input.operations || {}, chapitreCarburants, chapitreMarge, chapitreCommerce, signauxQualifies: input.signauxQualifies });
     const projection = construireProjection({ periode: input.periode, chapitre1: input.chapitre1, trajectoire: input.trajectoire, dateReference: input.dateReference });
     const suggestions = construireSuggestions({ chapitreCommerce, chapitreMarge, chapitreCarburants, chapitreFdj, chapitreEquipe });
     const decisionsChapitre = construireDecisionsChapitre(input.chapitre1.decisions);
