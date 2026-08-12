@@ -172,11 +172,19 @@
    * — utilisé par Chapitre 1 ("décisions prises pendant la période").
    * Retourne toujours un tableau (jamais null) — un journal vide est une
    * information légitime, pas une erreur.
+   *
+   * `periode_reference_debut`/`periode_reference_fin` ajoutés à la
+   * sélection (12/08/2026, cadrage §13, lot P2.2 "effets observés") —
+   * colonnes déjà présentes sur `journal_decisions` depuis l'origine (Marge+
+   * les écrit pour ses décisions R5-MARGE-ECART) mais jamais lues jusqu'ici.
+   * Nécessaires à `NexusRapportDirectionMoteur.construireDecisionsChapitre()`
+   * pour retrouver la marge % de la catégorie AU MOMENT de la décision et la
+   * comparer à la période la plus récente disponible.
    */
   async function chargerDecisionsPeriode(client, site, periode) {
     const { data, error } = await client
       .from('journal_decisions')
-      .select('id, candidate_id, rule_id, etat, recommandation, impact_eur, article, categorie, date, employee_id, created_at')
+      .select('id, candidate_id, rule_id, etat, recommandation, impact_eur, article, categorie, date, employee_id, created_at, periode_reference_debut, periode_reference_fin')
       .eq('site', site)
       .gte('date', periode.debut)
       .lte('date', periode.fin)

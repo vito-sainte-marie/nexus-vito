@@ -637,10 +637,27 @@
     // consomme aussi, à raison, pour son propre usage SKU — voir
     // NEXUS-Cockpit-v2.html) ; le filtre de matérialité est donc appliqué
     // ICI, uniquement pour Brief, en réutilisant le seuil déjà établi par
-    // NexusSecteursMoteur.estDecisionStrategique() (500 €) plutôt que
-    // d'inventer un 2e seuil — même principe, même ordre de grandeur, un
-    // seul chiffre à faire évoluer avec l'usage réel.
-    const SEUIL_FORCE_PRODUIT_EUR = NexusSecteursMoteur.SEUIL_IMPACT_STRATEGIQUE_EUR;
+    // NexusSecteursMoteur.estDecisionStrategique() plutôt que d'inventer un
+    // 2e seuil — même principe, même ordre de grandeur, un seul chiffre à
+    // faire évoluer avec l'usage réel.
+    //
+    // Matérialité relative (12/08/2026, cadrage §4/§15, lot P2.1) : "Seuils
+    // adaptatifs selon la taille du site et l'importance du secteur." Le
+    // seuil fixe (500 €) ne s'adaptait pas à la taille du site — vérifié en
+    // base : sur le site pilote, 500 € représente 0,44 à 0,76 % du CA total
+    // de la période selon la fenêtre (2 à 3 semaines), un même montant
+    // deviendrait dérisoire sur un site bien plus grand ou écrasant sur un
+    // site bien plus petit. `caTotalPeriode` réutilise `rowsBrut`/
+    // `periodeAffichage`, déjà en mémoire (aucune nouvelle lecture
+    // Supabase) — calculé UNE SEULE FOIS ici, appliqué à la fois aux Forces
+    // (ci-dessous) ET aux Décisions/Watchlist (candidatsProduitsNormalises/
+    // candidatMargeListe, plus bas) : un seul seuil de matérialité pour tout
+    // Brief, jamais deux barres différentes dans le même écran.
+    const caTotalPeriode = periodeAffichage
+      ? rowsBrut.filter(r => r.periode_debut === periodeAffichage.debut).reduce((s, r) => s + (Number(r.ca) || 0), 0)
+      : null;
+    const seuilImpactAdaptatif = NexusSecteursMoteur.calculerSeuilImpactAdaptatif(caTotalPeriode);
+    const SEUIL_FORCE_PRODUIT_EUR = seuilImpactAdaptatif;
     const forces = [];
     if (meilleurSucces && meilleurSucces.gain >= SEUIL_FORCE_PRODUIT_EUR) {
       forces.push({ icone: '📈', titre: `${meilleurSucces.article} en forte progression`, detail: `+${(meilleurSucces.evolution * 100).toFixed(0)} % sur la période, soit environ ${Math.round(meilleurSucces.gain).toLocaleString('fr-FR')} € de gain.`, cible: 'NEXUS-Produits-v1.html' });
@@ -667,7 +684,7 @@
     // NEXUS-Produits-v1.html continuent de voir CHAQUE décision, y compris
     // au niveau SKU — nexus-conseiller.js lui-même n'est pas modifié.
     const candidatsProduitsNormalises = candidatsProduitsBrut
-      .filter(c => !VALIDEES_SITE.has(c.candidate_id) && NexusSecteursMoteur.estDecisionStrategique(c))
+      .filter(c => !VALIDEES_SITE.has(c.candidate_id) && NexusSecteursMoteur.estDecisionStrategique(c, seuilImpactAdaptatif))
       .map(NexusConseiller.normaliserProduit);
     // `!risqueMargeCategoriesQualifiees.has(...)` (12/08/2026, dédoublonnage
     // P0) : si NexusRisques a déjà qualifié cette catégorie (signal_faible+,
@@ -676,7 +693,7 @@
     // pour le même fait.
     const candidatMargeListe = margePlusResultat && margePlusResultat.candidatTop
       && !VALIDEES_SITE.has(margePlusResultat.candidatTop.candidate_id)
-      && NexusSecteursMoteur.estDecisionStrategique(margePlusResultat.candidatTop)
+      && NexusSecteursMoteur.estDecisionStrategique(margePlusResultat.candidatTop, seuilImpactAdaptatif)
       && !risqueMargeCategoriesQualifiees.has(margePlusResultat.candidatTop.categorie)
       ? [NexusConseiller.normaliserMarge(margePlusResultat.candidatTop)] : [];
     const candidatTempoBrut = construireCandidatTempo(constatTempo);

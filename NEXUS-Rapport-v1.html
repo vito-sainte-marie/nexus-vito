@@ -786,8 +786,23 @@
         R.decisionsChapitre.decisions.slice(0, 30),
       );
     } else pdfEncadreInsuffisant(rapport, 'aucune décision enregistrée sur cette période.');
+    // Effets observés (12/08/2026, cadrage §13, lot P2.2) : jusqu'ici
+    // toujours rendu comme "Donnée insuffisante" quel que soit le contenu
+    // réel — desormais un vrai rendu dès que `construireDecisionsChapitre()`
+    // a pu remesurer au moins une décision Marge+ (voir
+    // nexus-rapport-direction-moteur.js, evaluerEffetDecisionMarge). Repli
+    // inchangé (pdfEncadreInsuffisant) si aucune décision n'a encore de
+    // mesure disponible.
     pdfSousSection(rapport, 'Effets observés');
-    pdfEncadreInsuffisant(rapport, R.decisionsChapitre.effetsObservesNote);
+    if (R.decisionsChapitre.effetsObservesDisponible) {
+      R.decisionsChapitre.decisions.filter(d => d.effet && d.effet.disponible).forEach(d => {
+        rapport.sousTitre(d.secteur, { taille: 9, couleur: CO().cyan });
+        rapport.paragraphe(d.effet.phrase, { taille: 9 });
+      });
+      rapport.paragraphe(R.decisionsChapitre.effetsObservesNote, { taille: 8, couleur: CO().texteDim });
+    } else {
+      pdfEncadreInsuffisant(rapport, R.decisionsChapitre.effetsObservesNote);
+    }
 
     // ---- 18. Priorités + signature ----
     rapport._nouvellePage();

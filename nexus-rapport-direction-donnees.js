@@ -52,7 +52,15 @@
     if (error || !data || !data.length) return { disponible: false, raison: 'Aucune ligne products pour ce site.' };
     const { rayons, magasin } = global.NexusRayonMoteur.construireRayonsDepuisLignes(data);
     if (!magasin) return { disponible: false, raison: 'Aucune période exploitable dans products.' };
-    return { disponible: true, rayons, magasin };
+    // rowsBrut (12/08/2026, lot P2.2 "effets observés") : `data` (toutes
+    // les lignes products du site, déjà chargées ci-dessus, aucune requête
+    // supplémentaire) exposée telle quelle en plus de `rayons`/`magasin` —
+    // NexusRapportDirectionMoteur.construireDecisionsChapitre() en a besoin
+    // pour remesurer la marge % d'une catégorie sur une période ARBITRAIRE
+    // (la période de référence d'une décision passée), que `rayons`/
+    // `magasin` (réduits à la période affichage + sa paire) ne permettent
+    // pas de retrouver.
+    return { disponible: true, rayons, magasin, rowsBrut: data };
   }
 
   /**

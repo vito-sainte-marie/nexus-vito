@@ -584,15 +584,80 @@
   // ------------------------------------------------------------
   // 17. Décisions prises + effets observés
   // ------------------------------------------------------------
-  function construireDecisionsChapitre(decisions) {
-    const liste = (decisions || []).map(d => ({
-      date: d.date, decision: d.recommandation || d.rule_id, secteur: d.categorie || d.article || '—',
-      responsable: d.employee_id || '—', statut: d.etat, impact_eur: d.impact_eur,
-    }));
+  // Effet observé d'une décision Marge+ (12/08/2026, cadrage §13, lot
+  // P2.2 "Rapport de Direction complet") : compare la marge % de la
+  // catégorie AU MOMENT de la décision (`periode_reference_debut/fin`,
+  // déjà écrits par Marge+ dans journal_decisions, jamais lus jusqu'ici) à
+  // la marge % de la période la PLUS RÉCENTE disponible depuis. Portée
+  // volontairement limitée aux décisions `rule_id === 'R5-MARGE-ECART'` —
+  // seul domaine où une remesure propre est possible sans nouvelle donnée
+  // (le CA/marge d'une catégorie se recalcule directement depuis
+  // `products`, déjà chargé pour le chapitre Commerce). Les décisions
+  // Produits (R2/R3/R4, comparaison de CA/volume) suivraient une logique
+  // de mesure différente (évolution de CA, pas de marge %) — non couvertes
+  // par ce lot, consignées comme extension future plutôt que traitées à la
+  // légère avec la même formule.
+  //
+  // IMPORTANT (Article 5) : une hausse de marge après la période de
+  // référence ne PROUVE PAS que la décision en est la cause — seulement
+  // que la situation a évolué dans ce sens depuis. Le texte produit reste
+  // descriptif ("la marge a progressé depuis"), jamais causal ("la
+  // décision a fonctionné").
+  const SEUIL_BRUIT_EFFET_MARGE_POINTS = 1; // en dessous, ne pas conclure (bruit normal de mix produit)
+  function evaluerEffetDecisionMarge(rowsBrut, categorie, periodeReferenceDebut, periodeReferenceFin) {
+    if (!rowsBrut || !categorie || !periodeReferenceDebut) return { disponible: false, raison: 'Référence de période absente sur cette décision.' };
+    const parPeriode = {};
+    rowsBrut.forEach(r => {
+      if (r.categorie !== categorie) return;
+      const cle = r.periode_debut;
+      if (!parPeriode[cle]) parPeriode[cle] = { ca: 0, marge: 0, debut: r.periode_debut, fin: r.periode_fin };
+      parPeriode[cle].ca += Number(r.ca) || 0;
+      parPeriode[cle].marge += Number(r.marge) || 0;
+    });
+    const periodes = Object.values(parPeriode).filter(p => p.ca > 0).sort((a, b) => (a.debut < b.debut ? -1 : 1));
+    const ref = periodes.find(p => p.debut === periodeReferenceDebut);
+    if (!ref) return { disponible: false, raison: 'Période de référence introuvable dans les données actuelles.' };
+    const margeRefPct = (ref.marge / ref.ca) * 100;
+    const bornePosterieure = periodeReferenceFin || periodeReferenceDebut;
+    const posterieures = periodes.filter(p => p.debut > bornePosterieure);
+    if (!posterieures.length) return { disponible: false, raison: 'Aucune période postérieure à la décision disponible pour l\'instant.' };
+    const plusRecente = posterieures[posterieures.length - 1];
+    const margeRecentePct = (plusRecente.marge / plusRecente.ca) * 100;
+    const deltaPoints = margeRecentePct - margeRefPct;
+    let statut;
+    if (deltaPoints >= SEUIL_BRUIT_EFFET_MARGE_POINTS) statut = 'amelioration';
+    else if (deltaPoints <= -SEUIL_BRUIT_EFFET_MARGE_POINTS) statut = 'degradation';
+    else statut = 'stable';
+    const phrase = statut === 'amelioration'
+      ? `Marge en progression depuis : ${fmtPts(deltaPoints)} (${margeRefPct.toFixed(1)} % → ${margeRecentePct.toFixed(1)} %).`
+      : statut === 'degradation'
+        ? `Marge toujours en retrait depuis : ${fmtPts(deltaPoints)} (${margeRefPct.toFixed(1)} % → ${margeRecentePct.toFixed(1)} %).`
+        : `Marge stable depuis (${fmtPts(deltaPoints)}) — pas d'évolution significative.`;
+    return { disponible: true, statut, deltaPoints, margeRefPct, margeRecentePct, periodeRecenteLabel: `${fmtDateFr(plusRecente.debut)} – ${fmtDateFr(plusRecente.fin)}`, phrase };
+  }
+
+  function construireDecisionsChapitre(decisions, rowsBrut) {
+    const liste = (decisions || []).map(d => {
+      const effet = (d.rule_id === 'R5-MARGE-ECART' && d.periode_reference_debut)
+        ? evaluerEffetDecisionMarge(rowsBrut, d.categorie, d.periode_reference_debut, d.periode_reference_fin)
+        : { disponible: false, raison: d.rule_id === 'R5-MARGE-ECART' ? 'Aucune période de référence enregistrée pour cette décision.' : "Effet observé non disponible pour ce type de décision (couverture actuelle : décisions Marge+ uniquement)." };
+      return {
+        date: d.date, decision: d.recommandation || d.rule_id, secteur: d.categorie || d.article || '—',
+        responsable: d.employee_id || '—', statut: d.etat, impact_eur: d.impact_eur,
+        effet,
+      };
+    });
+    const decisionsMargeAvecEffet = liste.filter(d => d.effet.disponible);
     return {
       disponible: liste.length > 0, decisions: liste,
-      effetsObservesDisponible: false,
-      effetsObservesNote: "NEXUS ne mesure pas encore les effets a posteriori d'une décision (pas de boucle avant/après) — impact_eur ci-dessus est une estimation faite au moment de la décision, pas un résultat constaté.",
+      // effetsObservesDisponible reflète désormais la couverture RÉELLE,
+      // pas un booléen figé — vrai dès qu'au moins une décision Marge+ a pu
+      // être remesurée, faux sinon (aucune décision Marge+ sur la période,
+      // ou aucune n'a encore de période postérieure disponible).
+      effetsObservesDisponible: decisionsMargeAvecEffet.length > 0,
+      effetsObservesNote: decisionsMargeAvecEffet.length > 0
+        ? `Effet observé disponible sur ${decisionsMargeAvecEffet.length} décision(s) Marge+ (comparaison de la marge % de la catégorie avant/après la décision) — une évolution favorable ne démontre pas que la décision en est la cause, seulement que la situation a changé dans ce sens depuis. Les autres types de décision (Produits, Caisse, Stock...) ne sont pas encore couverts par cette mesure.`
+        : "NEXUS ne mesure pas encore d'effet a posteriori sur cette période — soit aucune décision Marge+ n'a été prise, soit aucune période postérieure n'est encore disponible pour remesurer. impact_eur reste une estimation faite au moment de la décision, pas un résultat constaté.",
     };
   }
 
@@ -637,7 +702,7 @@
     const risques = construireChapitreRisques({ operations: input.operations || {}, chapitreCarburants, chapitreMarge, chapitreCommerce, signauxQualifies: input.signauxQualifies });
     const projection = construireProjection({ periode: input.periode, chapitre1: input.chapitre1, trajectoire: input.trajectoire, dateReference: input.dateReference });
     const suggestions = construireSuggestions({ chapitreCommerce, chapitreMarge, chapitreCarburants, chapitreFdj, chapitreEquipe });
-    const decisionsChapitre = construireDecisionsChapitre(input.chapitre1.decisions);
+    const decisionsChapitre = construireDecisionsChapitre(input.chapitre1.decisions, input.commerceCategories && input.commerceCategories.rowsBrut);
     const priorites = construirePriorites(ameliorer);
 
     return {
@@ -657,7 +722,7 @@
     construireChapitreCommerce, construireProduitsMoteurs, construireChapitreMarge,
     construireChapitreCarburants, construireChapitreFdj, construireChapitreOperations, construireChapitreEquipe,
     construireChapitreRisques, construireForces, construireAmeliorer, construireProjection,
-    construireSuggestions, construireDecisionsChapitre, construirePriorites, construireSignature,
+    construireSuggestions, construireDecisionsChapitre, evaluerEffetDecisionMarge, construirePriorites, construireSignature,
     construireRapportDirection,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

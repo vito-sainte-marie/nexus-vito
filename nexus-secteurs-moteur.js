@@ -49,8 +49,39 @@
   // Une référence dont la contribution au CA de son rayon dépasse ce seuil
   // est déjà considérée structurante par nexus-conseiller.js lui-même
   // (règle R4-RENFORT-A, contribution >= 0.15) — repris ici à l'identique,
-  // jamais une deuxième valeur qui pourrait diverger.
+  // jamais une deuxième valeur qui pourrait diverger. Ce seuil est DÉJÀ
+  // adaptatif à l'importance du secteur : un pourcentage du CA du rayon,
+  // pas un montant fixe (P2.1 ne le touche pas).
   const SEUIL_CONTRIBUTION_STRATEGIQUE = 0.15;
+
+  // Matérialité relative (12/08/2026, cadrage §4/§15, lot P2.1) : "Seuils
+  // adaptatifs selon la taille du site et l'importance du secteur."
+  // SEUIL_IMPACT_STRATEGIQUE_EUR (500 €, montant ABSOLU) ne s'adaptait pas
+  // à la taille du site — vérifié en base sur le site pilote : CA total
+  // produits sur 2 semaines (24/07-06/08/2026) = 65 907 €, sur 3 semaines
+  // (01/07-23/07) = 113 279 € ; 500 € y représente 0,44 à 0,76 % du CA de
+  // la période, une proportion cohérente à CETTE échelle. Le même montant
+  // fixe deviendrait dérisoire sur un site bien plus gros (tout
+  // paraîtrait "structurant") ou écrasant sur un site bien plus petit
+  // (rien ne remonterait jamais) — exactement le défaut que l'audit
+  // signale. `PROPORTION_IMPACT_STRATEGIQUE_CA` est calibrée pour
+  // retomber près de 500 € à l'échelle réelle du site pilote ; plancher et
+  // plafond évitent les deux cas pathologiques (site quasi sans donnée,
+  // ou site déjà très grand).
+  const PROPORTION_IMPACT_STRATEGIQUE_CA = 0.006; // 0,6 % du CA total de la période
+  const PLANCHER_IMPACT_STRATEGIQUE_EUR = 150;
+  const PLAFOND_IMPACT_STRATEGIQUE_EUR = 2000;
+
+  // caTotalPeriode : somme du CA de la période affichée, déjà calculée par
+  // l'appelant (Brief a déjà `rowsBrut`/`periodeAffichage` en mémoire —
+  // aucune nouvelle lecture Supabase). Repli explicite sur le seuil fixe
+  // si le CA n'est pas connu (Article 5 : ne jamais laisser un seuil
+  // tomber à 0, ce qui ferait paraître n'importe quel euro "structurant").
+  function calculerSeuilImpactAdaptatif(caTotalPeriode) {
+    if (!caTotalPeriode || caTotalPeriode <= 0) return SEUIL_IMPACT_STRATEGIQUE_EUR;
+    const propose = caTotalPeriode * PROPORTION_IMPACT_STRATEGIQUE_CA;
+    return Math.min(PLAFOND_IMPACT_STRATEGIQUE_EUR, Math.max(PLANCHER_IMPACT_STRATEGIQUE_EUR, propose));
+  }
 
   // candidatBrut : un candidat AVANT normalisation (ex. un élément de
   // candidatsProduitsBrut, ou margePlusResultat.candidatTop) — c'est-à-dire
@@ -59,11 +90,18 @@
   // Caisse, Stock, Rappel, FDJ, Coach, Advisor) est par construction déjà
   // au niveau agrégé/transversal — jamais un SKU — donc toujours considéré
   // stratégique.
-  function estDecisionStrategique(candidatBrut) {
+  //
+  // `seuilImpactEur` (12/08/2026, P2.1) : 2e paramètre optionnel — l'appelant
+  // qui connaît le CA de la période doit passer `calculerSeuilImpactAdaptatif(caTotalPeriode)`
+  // ici ; à défaut (paramètre omis), repli sur `SEUIL_IMPACT_STRATEGIQUE_EUR`
+  // (non-régression totale pour tout appelant existant qui n'a pas encore
+  // été mis à jour).
+  function estDecisionStrategique(candidatBrut, seuilImpactEur) {
     if (!candidatBrut) return false;
     if (!candidatBrut.article) return true;
     if (candidatBrut.contribution != null && candidatBrut.contribution >= SEUIL_CONTRIBUTION_STRATEGIQUE) return true;
-    return (candidatBrut.impact_eur || 0) >= SEUIL_IMPACT_STRATEGIQUE_EUR;
+    const seuil = seuilImpactEur != null ? seuilImpactEur : SEUIL_IMPACT_STRATEGIQUE_EUR;
+    return (candidatBrut.impact_eur || 0) >= seuil;
   }
 
   // ------------------------------------------------------------
@@ -438,6 +476,8 @@
 
   global.NexusSecteursMoteur = {
     SEUIL_IMPACT_STRATEGIQUE_EUR, SEUIL_CONTRIBUTION_STRATEGIQUE, SEUIL_FDJ_EVOLUTION,
+    PROPORTION_IMPACT_STRATEGIQUE_CA, PLANCHER_IMPACT_STRATEGIQUE_EUR, PLAFOND_IMPACT_STRATEGIQUE_EUR,
+    calculerSeuilImpactAdaptatif,
     estDecisionStrategique,
     construireSecteurs,
     construireVerdictDirection, construireCeQuiAChange, construireFreins, construireLectureDirecteur,
