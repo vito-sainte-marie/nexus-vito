@@ -182,12 +182,17 @@
   }
 
   // ------------------------------------------------------------
-  // ORCHESTRATION — PILOTE BRIEF NEXUS (Marge + Caisse)
+  // ORCHESTRATION PARTAGÉE — PILOTE Marge + Caisse
   //
-  // Point d'entrée unique appelé depuis NEXUS-Brief-v1.html (et réutilisable
-  // tel quel depuis Cockpit/Rapport/secteurs plus tard — Article 11, jamais
-  // une 2e orchestration réécrite ailleurs). Qualifie et enregistre les
-  // observations du jour, puis retourne les signaux actifs du site.
+  // Point d'entrée unique, appelé à l'identique depuis NEXUS-Brief-v1.html
+  // ET NEXUS-Cockpit-v2.html (12/08/2026 — Article 11, jamais une 2e
+  // orchestration réécrite ailleurs ; Rapport/secteurs suivront). Qualifie
+  // et enregistre les observations du jour, puis retourne les signaux
+  // actifs du site. Renommée le 12/08/2026 (elle s'appelait
+  // `qualifierEtEnregistrerRisquesBriefPilote`, un nom qui laissait croire
+  // à tort qu'elle était propre à Brief) au moment de son 2e appelant réel
+  // — pas avant, pour ne pas généraliser un nom sur la base d'une seule
+  // utilisation.
   //
   // Domaine Caisse : un signal par quart ayant au moins un audit dans la
   // fenêtre (`agregationCaisseParQuart`, sortie de
@@ -195,14 +200,14 @@
   //
   // Domaine Marge : UNIQUEMENT les catégories déjà repérées par Marge+
   // (nexus-marge.js, comparaison à la médiane du groupe économique sur la
-  // période en cours) — `categoriesEnEcart`, calculée par
-  // NexusBriefDonnees.chargerMargePlus(). Ce moteur n'effectue PAS un 2e
-  // balayage indépendant de toutes les catégories du site à chaque
-  // ouverture de Brief (coût réseau et lisibilité) : il ajoute sa propre
-  // lecture temporelle (dégradation confirmée dans le temps ou non) aux
-  // catégories déjà jugées notables par la comparaison de pairs existante.
-  // `rowsBrut`/`periodeAffichage` viennent de ce que Brief a déjà chargé
-  // (NexusConseillerDonnees.chargerProduitsBrut + NexusPeriodes.
+  // période en cours) — `categoriesEnEcart`. Sur Brief, cette liste vient
+  // de NexusBriefDonnees.chargerMargePlus(). Un appelant qui ne calcule pas
+  // Marge+ (ex. Cockpit aujourd'hui, qui ne charge pas nexus-marge.js) peut
+  // passer `categoriesEnEcart: []` — le volet Marge est alors simplement
+  // ignoré pour cet appelant, jamais un balayage de secours qui
+  // redéfinirait la règle "catégories déjà repérées par Marge+" en douce.
+  // `rowsBrut`/`periodeAffichage` viennent de ce que l'appelant a déjà
+  // chargé (NexusConseillerDonnees.chargerProduitsBrut + NexusPeriodes.
   // analyserPeriodes) — zéro requête Supabase supplémentaire pour ce volet.
   //
   // Chaque candidat est TOUJOURS enregistré (même niveau anomalie), pas
@@ -211,7 +216,7 @@
   // jamais figé à son ancien niveau ni supprimé silencieusement). Le tri
   // "digne d'être affiché" (niveau non-anomalie) est un filtre d'AFFICHAGE
   // fait par l'appelant, jamais une décision de ne pas écrire.
-  async function qualifierEtEnregistrerRisquesBriefPilote(client, siteId, params) {
+  async function qualifierEtEnregistrerRisquesPilote(client, siteId, params) {
     const { rowsBrut, periodeAffichage, categoriesEnEcart, agregationCaisseParQuart } = params || {};
     if (!global.NexusRisques) { console.error('NexusRisques non chargé — inclure nexus-risques-moteur.js avant nexus-risques-donnees.js.'); return []; }
     const R = global.NexusRisques;
@@ -301,6 +306,6 @@
     chargerSignalExistant, chargerSignauxSite, enregistrerObservation, resoudreSignal,
     chargerAgregationCaisseQuart, chargerAgregationCaisseTousQuarts,
     chargerPeriodesAnterieures, chargerMargeCategoriePeriode, chargerHistoriqueMargeCategorie,
-    qualifierEtEnregistrerRisquesBriefPilote,
+    qualifierEtEnregistrerRisquesPilote,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

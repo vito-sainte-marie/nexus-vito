@@ -458,7 +458,7 @@
     // fois le niveau justifié — philosophie explicite de Frédéric. Vit
     // dans NexusRisquesDonnees (pas ici) pour rester appelable à
     // l'identique depuis Cockpit/Rapport/secteurs (Article 11).
-    const signauxRisqueBruts = await NexusRisquesDonnees.qualifierEtEnregistrerRisquesBriefPilote(nexusClient, SITE_ACTUEL, {
+    const signauxRisqueBruts = await NexusRisquesDonnees.qualifierEtEnregistrerRisquesPilote(nexusClient, SITE_ACTUEL, {
       rowsBrut, periodeAffichage, categoriesEnEcart: margePlusResultat ? margePlusResultat.categoriesEnEcart : [],
       agregationCaisseParQuart,
     });

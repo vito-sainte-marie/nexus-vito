@@ -183,6 +183,7 @@
   }
   .badge-real{color:var(--green); background:var(--green-dim);}
   .badge-derived{color:var(--cyan); background:rgba(79,195,217,0.12);}
+  .section-note{font-size:11px; color:var(--text-dim); line-height:1.5; margin-top:10px;}
   /* MISSIONS */
   .mission{
     display:flex; align-items:flex-start; gap:12px; padding:12px 0; border-bottom:1px solid var(--hairline);
@@ -209,6 +210,21 @@
   .risk-title{font-size:14px; font-weight:600; color:var(--text);}
   .risk-desc{font-size:12.5px; color:var(--text-mid); line-height:1.5;}
   .risk-caveat{font-family:var(--mono); font-size:10.5px; color:var(--amber); margin-top:4px;}
+  /* RISQUES QUALIFIÉS (moteur de risques, 12/08/2026) — même structure
+     visuelle que NEXUS-Brief-v1.html (.risque-item), délibérément distincte
+     de .risk-card ci-dessus (qui reste toujours rouge, un seul cas) : ici
+     la couleur du point suit le NIVEAU (ambre pour signal faible/
+     exposition, rouge pour risque avéré), jamais un unique voyant. */
+  .risque-item{display:flex; align-items:flex-start; gap:10px; padding:11px 0; border-bottom:1px solid var(--hairline);}
+  .risque-item:last-child{border-bottom:none;}
+  .risque-dot{width:8px; height:8px; border-radius:50%; flex-shrink:0; margin-top:5px;}
+  .risque-dot.niveau-signal_faible{background:var(--amber); box-shadow:0 0 8px rgba(245,166,35,0.6);}
+  .risque-dot.niveau-exposition{background:var(--amber); box-shadow:0 0 8px rgba(245,166,35,0.6);}
+  .risque-dot.niveau-risque_avere{background:var(--red); box-shadow:0 0 8px rgba(240,87,90,0.6);}
+  .risque-text{flex:1; font-size:12.5px; line-height:1.55; color:var(--text-mid);}
+  .risque-niveau{color:var(--text); font-weight:600; display:block; margin-bottom:2px;}
+  .risque-action{color:var(--cyan); font-size:11.5px; margin-top:4px; display:block;}
+  .risque-meta{color:var(--text-dim); font-family:var(--mono); font-size:10px; margin-top:4px; display:block;}
   /* BOUCLAGE DES DECISIONS — "qu'est-ce que ça a donné ?" (23/07/2026) */
   .bouclage-card{
     border-radius:12px; padding:14px 16px; margin-bottom:10px; border:1px solid var(--hairline); background:var(--panel-raised, rgba(255,255,255,0.02));
@@ -330,8 +346,11 @@
 <script src="nexus-vocabulaire.js"></script>
 <script src="nexus-periodes.js"></script>
 <script src="nexus-stock.js"></script>
+<script src="nexus-verify-moteur.js"></script>
+<script src="nexus-risques-moteur.js"></script>
 <script src="nexus-conseiller.js"></script>
 <script src="nexus-conseiller-donnees.js"></script>
+<script src="nexus-risques-donnees.js"></script>
 </head>
 <body>
 <div class="phone">
@@ -367,6 +386,17 @@
     <div id="baisseSection"></div>
     <div class="empty-serein" id="nouvellesVide" style="display:none;">✅ Rien de particulier à signaler depuis votre dernière visite — tout est sous contrôle.</div>
   </div>
+  <div class="divider"></div>
+  <!-- Signaux de risque qualifiés (moteur de risques, 12/08/2026, pilote
+       Marge+Caisse — déjà branché sur NEXUS-Brief-v1.html) — volontairement
+       en dehors de "Nouvelles" ci-dessus (qui répond à "depuis votre
+       dernière visite") : un signal de risque reste affiché tant qu'il est
+       actif, indépendamment des visites. Volontairement pas nommée
+       "Risques" tout court non plus, pour ne jamais se confondre avec la
+       section #risqueSection existante (renderRisques(), pire produit en
+       baisse — question différente, axe complémentaire, voir Data
+       Dictionary v2.48). -->
+  <div class="section" id="risquesQualifiesSection"></div>
   <div class="divider"></div>
   <div class="section">
     <div class="section-title">Plan d'exploitation du jour <span class="badge badge-real">Conseiller NEXUS · toutes catégories</span></div>
@@ -638,6 +668,14 @@
     let SITE_ACTUEL = null; // jamais 'vito-sainte-marie' par defaut (de-Vito-isation, 11/08/2026) - toujours ecrase par employee.site_id apres nexusRequireAuth()
     let MEILLEUR_SUCCES = null;
     let PIRE_RISQUE = null;
+    // Signaux du moteur de risques (12/08/2026, pilote Marge+Caisse) — voir
+    // construirePlansAction() (rafraîchie en même temps que PLANS_ACTION,
+    // même orchestration partagée que NEXUS-Brief-v1.html) et
+    // renderRisquesQualifies(). Cockpit ne charge pas nexus-marge.js
+    // aujourd'hui : le volet Marge de l'orchestration reste donc
+    // systématiquement vide ici (categoriesEnEcart: []) tant que Marge+
+    // n'est pas branché sur cette page — seul le volet Caisse est actif.
+    let RISQUES_QUALIFIES_SITE = [];
     let TOP_VENTES = [];
     // Analyse multi-indicateurs (28/07/2026, demande de Frédéric) —
     // remplace le classement brut par CA quand une paire de périodes
@@ -767,14 +805,28 @@
       // NexusConseillerDonnees.chargerCandidatsCaisse retourne { raw,
       // normalises } (Brief a besoin des deux) — Cockpit ne consomme que
       // normalises, comme avant ce refactoring.
-      const [candidatsCaisseObj, candidatsStock, candidatsRappels] = await Promise.all([
+      const [candidatsCaisseObj, candidatsStock, candidatsRappels, agregationCaisseParQuart] = await Promise.all([
         NexusConseillerDonnees.chargerCandidatsCaisse(nexusClient, SITE_ACTUEL),
         NexusConseillerDonnees.chargerCandidatsStock(nexusClient, SITE_ACTUEL),
         NexusConseillerDonnees.chargerCandidatsRappels(nexusClient, SITE_ACTUEL),
+        NexusRisquesDonnees.chargerAgregationCaisseTousQuarts(nexusClient, SITE_ACTUEL, 30),
       ]);
       const candidatsCaisse = candidatsCaisseObj.normalises;
       const candidatsProduitsNormalises = candidats.map(NexusConseiller.normaliserProduit);
       const total = candidatsProduitsNormalises.length + candidatsCaisse.length + candidatsStock.length + candidatsRappels.length;
+      // Moteur de risques (pilote Marge+Caisse, 12/08/2026) — même
+      // orchestration partagée que NEXUS-Brief-v1.html
+      // (NexusRisquesDonnees.qualifierEtEnregistrerRisquesPilote, Article
+      // 11). `categoriesEnEcart: []` car cette page ne calcule pas Marge+
+      // aujourd'hui (nexus-marge.js n'est pas chargé ici) — le volet Marge
+      // de l'orchestration reste donc inactif pour Cockpit tant que Marge+
+      // n'y est pas branché ; seul le volet Caisse est actif. Rafraîchi à
+      // chaque appel de construirePlansAction() (même rythme que
+      // PLANS_ACTION), affiché par renderRisquesQualifies().
+      const signauxRisqueBruts = await NexusRisquesDonnees.qualifierEtEnregistrerRisquesPilote(nexusClient, SITE_ACTUEL, {
+        rowsBrut, periodeAffichage, categoriesEnEcart: [], agregationCaisseParQuart,
+      });
+      RISQUES_QUALIFIES_SITE = signauxRisqueBruts.filter(s => s.niveau !== 'anomalie').slice(0, 4);
       return NexusConseiller.fusionnerEtSelectionner(
         [candidatsProduitsNormalises, candidatsCaisse, candidatsStock, candidatsRappels],
         { n: total || 1, site: SITE_ACTUEL }
@@ -858,6 +910,12 @@
     // dans VALIDEES_SITE (ils disparaissent d'eux-mêmes dès que la donnée
     // sous-jacente change — audit commenté, écart de stock résorbé).
     function renderPlansAction() {
+      // Rendu couplé à renderPlansAction() plutôt que dupliqué dans chacun
+      // des 6 sites d'appel de construirePlansAction() (validation rappel,
+      // justification caisse, exclusion produit, init, etc.) — RISQUES_QUALIFIES_SITE
+      // est de toute façon rafraîchie au même rythme que PLANS_ACTION dans
+      // construirePlansAction() (12/08/2026).
+      renderRisquesQualifies();
       // VALIDEES_SITE vient de journal_decisions (base de données, partagée
       // par toute l'équipe) depuis le 23/07/2026 — plus de localStorage.
       const disponibles = PLANS_ACTION.filter(p => !p.validable || !VALIDEES_SITE.has(p.candidate_id));
@@ -1113,6 +1171,44 @@
           renderTopVentes();
         }
       });
+    }
+    // Signaux de risque qualifiés (moteur de risques, 12/08/2026, pilote
+    // Marge+Caisse) — délibérément une fonction et une section DOM à part
+    // de renderRisques() ci-dessus, jamais fusionnées : celle-ci répond à
+    // "quel est le produit qui baisse le plus fort en ce moment ?" (un seul
+    // cas, mesuré sur la période), celle-ci répond à "quels faits se
+    // répètent dans le temps au point de devenir un risque avéré ?"
+    // (matrice de matérialité, mémoire du signal). Voir NEXUS-Brief-v1.html
+    // pour la même section — même structure de rendu, même styles
+    // .risque-item/.risque-dot/.risque-text, contrat de données identique
+    // (sortie de NexusRisquesDonnees.chargerSignauxSite via
+    // qualifierEtEnregistrerRisquesPilote).
+    function renderRisquesQualifies() {
+      const el = document.getElementById('risquesQualifiesSection');
+      if (!el) return;
+      if (!RISQUES_QUALIFIES_SITE.length) { el.innerHTML = ''; return; }
+      el.innerHTML = `
+        <div class="section-title">Signaux de risque — À surveiller <span class="badge badge-derived">dérivé</span></div>
+        ${RISQUES_QUALIFIES_SITE.map(s => {
+          const phrase = NexusRisques.genererPhraseContexte({
+            domaineLabel: s.domaine === 'marge' ? 'Marge' : 'Caisse',
+            sujet: s.domaine === 'marge' ? (s.cle_signal || '').replace('marge:categorie:', '') : `Quart ${(s.cle_signal || '').replace('caisse:quart:', '')}`,
+            niveau: s.niveau,
+            motif: (s.historique_transitions && s.historique_transitions.length) ? s.historique_transitions[s.historique_transitions.length - 1].motif : '',
+          });
+          const [entete, ...reste] = phrase.split('\n');
+          const motif = reste.join(' ');
+          const depuis = s.premiere_detection_le ? new Date(s.premiere_detection_le).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }) : null;
+          return `<div class="risque-item">
+            <span class="risque-dot niveau-${s.niveau}"></span>
+            <span class="risque-text">
+              <span class="risque-niveau">${entete}</span>${motif}
+              ${s.action_recommandee ? `<span class="risque-action">${s.action_recommandee}</span>` : ''}
+              <span class="risque-meta">Confiance ${s.niveau_confiance || '—'}${depuis ? ` · suivi depuis le ${depuis}` : ''}</span>
+            </span>
+          </div>`;
+        }).join('')}
+        <div class="section-note">NEXUS compare chaque signal à sa propre référence historique et ne le qualifie de risque qu'une fois suffisamment d'éléments réunis.</div>`;
     }
     // Vue d'ensemble des produits en baisse — complète Risques (qui ne montre
     // que le pire cas) sans mélanger ça aux 5 Plans d'action scorés. Repliée
