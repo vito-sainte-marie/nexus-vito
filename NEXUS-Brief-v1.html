@@ -208,6 +208,22 @@
   .watch-text{flex:1; font-size:12.5px; line-height:1.55; color:var(--text-mid);}
   .watch-text b{color:var(--text); font-weight:600;}
   .watch-chev{color:var(--text-dim); font-size:13px; margin-top:3px;}
+  /* RISQUES — moteur de qualification du risque (pilote Marge+Caisse,
+     12/08/2026). Reprend la structure de .watch-item, mais la couleur du
+     point suit le NIVEAU du signal (jamais un simple voyant rouge unique —
+     signal_faible reste ambre, exposition/risque_avere passent au rouge),
+     et chaque ligne affiche la phrase de contexte complète du moteur
+     (NexusRisques.genererPhraseContexte), pas juste un titre tronqué. */
+  .risque-item{display:flex; align-items:flex-start; gap:10px; padding:11px 0; border-bottom:1px solid var(--hairline);}
+  .risque-item:last-child{border-bottom:none;}
+  .risque-dot{width:8px; height:8px; border-radius:50%; flex-shrink:0; margin-top:5px;}
+  .risque-dot.niveau-signal_faible{background:var(--amber); box-shadow:0 0 8px rgba(245,166,35,0.6);}
+  .risque-dot.niveau-exposition{background:var(--amber); box-shadow:0 0 8px rgba(245,166,35,0.6);}
+  .risque-dot.niveau-risque_avere{background:var(--red); box-shadow:0 0 8px rgba(240,87,90,0.6);}
+  .risque-text{flex:1; font-size:12.5px; line-height:1.55; color:var(--text-mid);}
+  .risque-niveau{color:var(--text); font-weight:600; display:block; margin-bottom:2px;}
+  .risque-action{color:var(--cyan); font-size:11.5px; margin-top:4px; display:block;}
+  .risque-meta{color:var(--text-dim); font-family:var(--mono); font-size:10px; margin-top:4px; display:block;}
 
   /* IMPACT */
   .impact-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
@@ -271,8 +287,11 @@
 <script src="nexus-carburant-donnees.js"></script>
 <script src="nexus-secteurs-catalogue.js"></script>
 <script src="nexus-secteurs-moteur.js"></script>
+<script src="nexus-verify-moteur.js"></script>
+<script src="nexus-risques-moteur.js"></script>
 <script src="nexus-conseiller.js"></script>
 <script src="nexus-conseiller-donnees.js"></script>
+<script src="nexus-risques-donnees.js"></script>
 <script src="nexus-brief-donnees.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
 <script src="nexus-pdf-moteur.js"></script>
@@ -412,7 +431,7 @@
     // 11/08/2026) — chacun appelé directement avec (nexusClient, SITE_ACTUEL,
     // ...) plutôt que via un alias local, ce fichier ne gardant plus que
     // l'orchestration et l'affichage (Data Dictionary v2.40).
-    const [margePlusResultat, constatTempo, messagesAdvisor, candidatsCaisseObj, candidatsStock, candidatsRappels, candidatsFdjObj, candidatsCoach, domaineEquipe, alertesInvOuvertes, controlesVerifyRestants, missionsRestantes, carburants] = await Promise.all([
+    const [margePlusResultat, constatTempo, messagesAdvisor, candidatsCaisseObj, candidatsStock, candidatsRappels, candidatsFdjObj, candidatsCoach, domaineEquipe, alertesInvOuvertes, controlesVerifyRestants, missionsRestantes, carburants, agregationCaisseParQuart] = await Promise.all([
       NexusBriefDonnees.chargerMargePlus(nexusClient, SITE_ACTUEL, rowsBrut),
       NexusBriefDonnees.chargerConstatTempo(nexusClient, SITE_ACTUEL),
       NexusBriefDonnees.chargerMessagesAdvisor(nexusClient, SITE_ACTUEL),
@@ -426,9 +445,24 @@
       NexusBriefDonnees.chargerControlesVerifyRestants(nexusClient, SITE_ACTUEL),
       NexusBriefDonnees.chargerMissionsRestantes(nexusClient, SITE_ACTUEL),
       NexusBriefDonnees.chargerCarburantsBrief(nexusClient, SITE_ACTUEL),
+      NexusRisquesDonnees.chargerAgregationCaisseTousQuarts(nexusClient, SITE_ACTUEL, 30),
     ]);
     const candidatsFdj = candidatsFdjObj.candidats;
     const fdjResume = candidatsFdjObj.resume;
+
+    // Moteur de risques (pilote Marge+Caisse, 12/08/2026) — qualifie et
+    // enregistre les observations du jour, puis ne garde pour l'affichage
+    // que les signaux ayant dépassé le simple constat isolé (niveau
+    // non-anomalie) : NEXUS observe silencieusement en base à chaque
+    // ouverture de Brief, mais ne "parle" de risque au dirigeant qu'une
+    // fois le niveau justifié — philosophie explicite de Frédéric. Vit
+    // dans NexusRisquesDonnees (pas ici) pour rester appelable à
+    // l'identique depuis Cockpit/Rapport/secteurs (Article 11).
+    const signauxRisqueBruts = await NexusRisquesDonnees.qualifierEtEnregistrerRisquesBriefPilote(nexusClient, SITE_ACTUEL, {
+      rowsBrut, periodeAffichage, categoriesEnEcart: margePlusResultat ? margePlusResultat.categoriesEnEcart : [],
+      agregationCaisseParQuart,
+    });
+    const signauxRisque = signauxRisqueBruts.filter(s => s.niveau !== 'anomalie').slice(0, 4);
 
     // Succès à féliciter — extrait le 11/08/2026 (Article 11) dans
     // NexusConseiller.analyserEvolutionsPaire(), source unique désormais
@@ -615,6 +649,17 @@
       synthese: verdict, ceQuiAChange, freins, lectureDirecteur,
       forces: forces.slice(0, 3),
       decisions: decisionsEnrichies, watchlist: watchlistPrecise,
+      risquesQualifies: signauxRisque.map(s => ({
+        niveau: s.niveau, niveauLabel: NexusRisques.LABEL_NIVEAU[s.niveau] || s.niveau,
+        domaine: s.domaine, secteur: s.secteur,
+        phrase: NexusRisques.genererPhraseContexte({
+          domaineLabel: s.domaine === 'marge' ? 'Marge' : 'Caisse',
+          sujet: s.domaine === 'marge' ? (s.cle_signal || '').replace('marge:categorie:', '') : `Quart ${(s.cle_signal || '').replace('caisse:quart:', '')}`,
+          niveau: s.niveau, motif: (s.historique_transitions && s.historique_transitions.length) ? s.historique_transitions[s.historique_transitions.length - 1].motif : '',
+        }),
+        actionRecommandee: s.action_recommandee, niveauConfiance: s.niveau_confiance,
+        depuisLe: s.premiere_detection_le,
+      })),
       impact: { gain, risque, delai: 'Cette semaine', confianceGlobale: `${nbMoteursActifs}/7 moteurs NEXUS ont contribué à cette synthèse aujourd'hui.` },
       missionsRestantes,
       carburants,
@@ -833,6 +878,39 @@
           <span class="watch-chev">›</span>
         </a>`).join('')}
         <div class="section-note">Ces signaux suivent juste derrière les 3 décisions ci-dessus dans le même classement — pas encore prioritaires, mais à ne pas perdre de vue.</div>
+      </div>`;
+  }
+
+  // Risques — À surveiller (moteur de qualification du risque, pilote
+  // Marge+Caisse, 12/08/2026) : section volontairement séparée du
+  // classement Décisions/À surveiller ci-dessus, pas fusionnée dedans — ce
+  // moteur répond à une question différente ("ce fait se répète-t-il dans
+  // le temps au point de devenir un risque ?"), complémentaire des
+  // moteurs Caisse/Marge+ déjà présents dans le classement (écarts encore
+  // non traités / écart ponctuel vs médiane du groupe), pas un doublon.
+  // N'affiche jamais un signal de niveau "anomalie" seul — NEXUS observe
+  // d'abord en silence (voir construireBrief(), tous les niveaux sont
+  // enregistrés en base), il ne remonte ici que ce qui a dépassé le
+  // simple constat isolé.
+  function renderRisques(brief) {
+    if (!brief.risquesQualifies || !brief.risquesQualifies.length) return '';
+    return `
+      <div class="section">
+        <div class="section-title">Risques — À surveiller <span class="badge badge-derived">dérivé</span></div>
+        ${brief.risquesQualifies.map(r => {
+          const [entete, ...reste] = r.phrase.split('\n');
+          const motif = reste.join(' ');
+          const depuis = r.depuisLe ? new Date(r.depuisLe).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }) : null;
+          return `<div class="risque-item">
+            <span class="risque-dot niveau-${r.niveau}"></span>
+            <span class="risque-text">
+              <span class="risque-niveau">${entete}</span>${motif}
+              ${r.actionRecommandee ? `<span class="risque-action">${r.actionRecommandee}</span>` : ''}
+              <span class="risque-meta">Confiance ${r.niveauConfiance || '—'}${depuis ? ` · suivi depuis le ${depuis}` : ''}</span>
+            </span>
+          </div>`;
+        }).join('')}
+        <div class="section-note">NEXUS compare chaque signal à sa propre référence historique (jamais à une moyenne générale) et ne le qualifie de risque qu'une fois suffisamment d'éléments réunis — un signal ne disparaît jamais silencieusement, il est résolu explicitement une fois traité.</div>
       </div>`;
   }
 
@@ -1112,6 +1190,7 @@
       ${renderLectureDirecteur(BRIEF)}
       ${renderDecisions(BRIEF)}
       ${renderWatchlist(BRIEF)}
+      ${renderRisques(BRIEF)}
       ${renderImpact(BRIEF)}
       ${renderCarburants(BRIEF)}
       ${renderRapportBrief()}

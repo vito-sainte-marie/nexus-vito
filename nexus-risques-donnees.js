@@ -160,6 +160,94 @@
     return global.NexusVerifyMoteur.agregerAudits(data || []);
   }
 
+  // Variante multi-quarts de chargerAgregationCaisseQuart — UNE seule
+  // requête pour tous les quarts du site plutôt qu'une requête par quart
+  // (ajouté le 12/08/2026 pour l'intégration Brief NEXUS, où le nombre de
+  // quarts actifs n'est pas connu à l'avance et ne doit jamais être codé
+  // en dur — voir Paramétrage FDJ, même discipline). Retourne une map
+  // quart -> sortie de NexusVerifyMoteur.agregerAudits(), prête pour
+  // NexusRisques.qualifierEcartCaisse() par quart.
+  async function chargerAgregationCaisseTousQuarts(client, siteId, depuisNJours) {
+    const depuis = new Date(Date.now() - (depuisNJours || 30) * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const { data, error } = await client.from('audits_caisse')
+      .select('date, quart, ecart_piste, ecart_boutique, statut, commentaire')
+      .eq('site', siteId).gte('date', depuis).order('date', { ascending: false });
+    if (error) { console.error('Chargement audits caisse tous quarts (risque):', error); return {}; }
+    if (!global.NexusVerifyMoteur) { console.error('NexusVerifyMoteur non chargé — inclure nexus-verify-moteur.js avant nexus-risques-donnees.js.'); return {}; }
+    const parQuart = {};
+    (data || []).forEach(r => { (parQuart[r.quart] = parQuart[r.quart] || []).push(r); });
+    const resultat = {};
+    Object.keys(parQuart).forEach(q => { resultat[q] = global.NexusVerifyMoteur.agregerAudits(parQuart[q]); });
+    return resultat;
+  }
+
+  // ------------------------------------------------------------
+  // ORCHESTRATION — PILOTE BRIEF NEXUS (Marge + Caisse)
+  //
+  // Point d'entrée unique appelé depuis NEXUS-Brief-v1.html (et réutilisable
+  // tel quel depuis Cockpit/Rapport/secteurs plus tard — Article 11, jamais
+  // une 2e orchestration réécrite ailleurs). Qualifie et enregistre les
+  // observations du jour, puis retourne les signaux actifs du site.
+  //
+  // Domaine Caisse : un signal par quart ayant au moins un audit dans la
+  // fenêtre (`agregationCaisseParQuart`, sortie de
+  // chargerAgregationCaisseTousQuarts).
+  //
+  // Domaine Marge : UNIQUEMENT les catégories déjà repérées par Marge+
+  // (nexus-marge.js, comparaison à la médiane du groupe économique sur la
+  // période en cours) — `categoriesEnEcart`, calculée par
+  // NexusBriefDonnees.chargerMargePlus(). Ce moteur n'effectue PAS un 2e
+  // balayage indépendant de toutes les catégories du site à chaque
+  // ouverture de Brief (coût réseau et lisibilité) : il ajoute sa propre
+  // lecture temporelle (dégradation confirmée dans le temps ou non) aux
+  // catégories déjà jugées notables par la comparaison de pairs existante.
+  // `rowsBrut`/`periodeAffichage` viennent de ce que Brief a déjà chargé
+  // (NexusConseillerDonnees.chargerProduitsBrut + NexusPeriodes.
+  // analyserPeriodes) — zéro requête Supabase supplémentaire pour ce volet.
+  //
+  // Chaque candidat est TOUJOURS enregistré (même niveau anomalie), pas
+  // seulement les niveaux élevés : c'est ce qui permet une désescalade
+  // propre (un signal déjà suivi qui redescend à anomalie doit être tracé,
+  // jamais figé à son ancien niveau ni supprimé silencieusement). Le tri
+  // "digne d'être affiché" (niveau non-anomalie) est un filtre d'AFFICHAGE
+  // fait par l'appelant, jamais une décision de ne pas écrire.
+  async function qualifierEtEnregistrerRisquesBriefPilote(client, siteId, params) {
+    const { rowsBrut, periodeAffichage, categoriesEnEcart, agregationCaisseParQuart } = params || {};
+    if (!global.NexusRisques) { console.error('NexusRisques non chargé — inclure nexus-risques-moteur.js avant nexus-risques-donnees.js.'); return []; }
+    const R = global.NexusRisques;
+
+    const promessesCaisse = Object.keys(agregationCaisseParQuart || {}).map(quart => {
+      const agg = agregationCaisseParQuart[quart];
+      if (!agg || !agg.total) return Promise.resolve(null);
+      const classif = R.qualifierEcartCaisse(agg);
+      return enregistrerObservation(client, siteId, {
+        domaine: 'caisse', cleSignal: `caisse:quart:${quart}`, typeSignal: 'ecart_caisse_recurrent',
+        secteur: 'Opérations', classification: classif,
+        actionRecommandee: `Vérifiez les procédures de comptage du quart ${quart} avec l'équipe concernée.`,
+      });
+    });
+
+    const promessesMarge = periodeAffichage ? (categoriesEnEcart || []).map(categorie => {
+      const rowsCategorie = (rowsBrut || []).filter(r => r.categorie === categorie && r.periode_debut === periodeAffichage.debut);
+      const caActuel = rowsCategorie.reduce((s, r) => s + (Number(r.ca) || 0), 0);
+      const margeActuelle = rowsCategorie.reduce((s, r) => s + (Number(r.marge) || 0), 0);
+      if (!(caActuel > 0)) return Promise.resolve(null);
+      const { margeHistorique, caHistoriqueMoyen } = R.assemblerHistoriqueMargeCategorie(rowsBrut, categorie, periodeAffichage.debut, 3);
+      const classif = R.qualifierMargeCategorie({
+        categorie, margePctActuelle: (margeActuelle / caActuel) * 100,
+        margeHistorique, caActuel, caHistoriqueMoyen,
+      });
+      return enregistrerObservation(client, siteId, {
+        domaine: 'marge', cleSignal: `marge:categorie:${categorie}`, typeSignal: 'ecart_marge_categorie',
+        secteur: 'Marge', classification: classif,
+        actionRecommandee: `Vérifiez le prix d'achat et les remises sur la catégorie ${categorie}.`,
+      });
+    }) : [];
+
+    await Promise.all([...promessesCaisse, ...promessesMarge]);
+    return chargerSignauxSite(client, siteId, { statut: 'surveille' });
+  }
+
   // ------------------------------------------------------------
   // SOURCE — DOMAINE PILOTE MARGE
   // ------------------------------------------------------------
@@ -211,7 +299,8 @@
 
   global.NexusRisquesDonnees = {
     chargerSignalExistant, chargerSignauxSite, enregistrerObservation, resoudreSignal,
-    chargerAgregationCaisseQuart,
+    chargerAgregationCaisseQuart, chargerAgregationCaisseTousQuarts,
     chargerPeriodesAnterieures, chargerMargeCategoriePeriode, chargerHistoriqueMargeCategorie,
+    qualifierEtEnregistrerRisquesBriefPilote,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

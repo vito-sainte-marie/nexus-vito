@@ -89,7 +89,12 @@
       impact: `Si aligné sur la médiane du groupe, gain potentiel estimé à environ ${Math.round(meilleur.gainPotentiel).toLocaleString('fr-FR')} € sur cette période — une hypothèse, pas une garantie.`,
       ca_reference: meilleur.ca, periode_reference_debut: periodeAffichage.debut, periode_reference_fin: periodeAffichage.fin,
     } : null;
-    return { nbEcarts: ecarts.length, gainPotentiel: ecarts.reduce((s, e) => s + e.gainPotentiel, 0), candidatTop };
+    // categoriesEnEcart (12/08/2026, pilote moteur de risques) : catégories
+    // distinctes déjà repérées ici par comparaison de pairs — sert de
+    // périmètre borné à NexusRisquesDonnees.qualifierEtEnregistrerRisquesBriefPilote(),
+    // qui y ajoute sa propre lecture temporelle. Une seule exécution de
+    // detecterEcartsMarge (Article 11), jamais un second balayage.
+    return { nbEcarts: ecarts.length, gainPotentiel: ecarts.reduce((s, e) => s + e.gainPotentiel, 0), candidatTop, categoriesEnEcart: [...new Set(ecarts.map(e => e.categorie))] };
   }
 
   // chargerMessagesAdvisor / calculerStatutOperations / chargerConstatTempo

@@ -321,10 +321,49 @@
     };
   }
 
+  // ------------------------------------------------------------
+  // Assemblage de l'historique marge d'UNE catégorie à partir de lignes
+  // `products` déjà en mémoire (categorie, ca, marge, periode_debut) —
+  // ajouté le 12/08/2026 pour brancher Brief NEXUS sans requête Supabase
+  // supplémentaire : Brief charge déjà l'intégralité de `products` du site
+  // (toutes périodes confondues, voir NexusConseillerDonnees.
+  // chargerProduitsBrut) pour ses propres besoins (Marge+, secteurs...) —
+  // recalculer la même chose par une requête ciblée serait un doublon
+  // d'accès réseau, pas un doublon de RÈGLE (Article 11 porte sur les
+  // règles de calcul, pas sur la source des lignes). Regroupe par période,
+  // exclut la période actuelle et les périodes à CA nul, garde les
+  // `nbPeriodes` plus récentes — même forme de sortie que
+  // NexusRisquesDonnees.chargerHistoriqueMargeCategorie() (requête
+  // Supabase ciblée, utilisée par les appelants qui n'ont pas `rowsBrut`
+  // déjà en mémoire, ex. un futur contrôle isolé depuis Rapport/Cockpit) :
+  // { margeHistorique: [pct...], caHistoriqueMoyen }.
+  function assemblerHistoriqueMargeCategorie(rowsBrut, categorie, periodeActuelleDebut, nbPeriodes) {
+    const parPeriode = {};
+    (rowsBrut || []).forEach(r => {
+      if (r.categorie !== categorie || r.periode_debut === periodeActuelleDebut) return;
+      const cle = r.periode_debut;
+      if (!parPeriode[cle]) parPeriode[cle] = { ca: 0, marge: 0 };
+      parPeriode[cle].ca += Number(r.ca) || 0;
+      parPeriode[cle].marge += Number(r.marge) || 0;
+    });
+    const periodesTriees = Object.keys(parPeriode)
+      .filter(debut => parPeriode[debut].ca > 0)
+      .sort((a, b) => (a < b ? 1 : -1)) // décroissant (plus récent d'abord)
+      .slice(0, nbPeriodes || 3);
+    const valides = periodesTriees.map(debut => ({
+      ca: parPeriode[debut].ca, margePct: (parPeriode[debut].marge / parPeriode[debut].ca) * 100,
+    }));
+    if (!valides.length) return { margeHistorique: [], caHistoriqueMoyen: null };
+    return {
+      margeHistorique: valides.map(v => v.margePct),
+      caHistoriqueMoyen: valides.reduce((s, v) => s + v.ca, 0) / valides.length,
+    };
+  }
+
   global.NexusRisques = {
     NIVEAUX, RANG_NIVEAU, LABEL_NIVEAU,
     classifierNiveau, determinerTransition, genererPhraseContexte,
-    qualifierEcartCaisse, qualifierMargeCategorie,
+    qualifierEcartCaisse, qualifierMargeCategorie, assemblerHistoriqueMargeCategorie,
     niveauConfiance,
     SEUIL_IMPACT_MESURE_MATERIEL_EUR, SEUIL_IMPACT_POTENTIEL_SIGNIFICATIF_EUR,
     SEUIL_RECURRENCE_SIGNAL_FAIBLE, SEUIL_RECURRENCE_RISQUE_AVERE,
