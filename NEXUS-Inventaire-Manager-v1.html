@@ -22,6 +22,7 @@
 <script src="nexus-auth.js"></script>
 <script src="nexus-forfait.js"></script>
 <script src="nexus-desktop.js"></script>
+<script src="nexus-inventaire-manager-donnees.js"></script>
 <script src="nexus-pdf-moteur.js"></script>
 <style>
   :root{
@@ -557,18 +558,7 @@
   // Station, pas sur un seuil fixe codé en dur.
   const HORAIRE_DEFAUT_DEBUT_QUART2 = '12:40';
   async function quartDuMoment(site) {
-    let debutQuart2 = HORAIRE_DEFAUT_DEBUT_QUART2;
-    const { data, error } = await nexusClient
-      .from('station_config').select('horaires').eq('site', site).maybeSingle();
-    if (error) console.error('Chargement horaires station (quart par défaut):', error);
-    else if (data && data.horaires && data.horaires.quart2 && data.horaires.quart2.normal) {
-      debutQuart2 = data.horaires.quart2.normal;
-    }
-    const maintenant = new Date();
-    const minutesMaintenant = maintenant.getHours() * 60 + maintenant.getMinutes();
-    const [hQ2, mQ2] = debutQuart2.split(':').map(Number);
-    const minutesQ2 = hQ2 * 60 + (mQ2 || 0);
-    return minutesMaintenant < minutesQ2 ? 'matin' : 'soir';
+    return NexusInventaireManagerDonnees.quartDuMoment(nexusClient, site, HORAIRE_DEFAUT_DEBUT_QUART2);
   }
 
   function libelleStatutQuart(q) {
@@ -614,75 +604,40 @@
   }
 
   // ------------------------------------------------------------
-  // CHARGEMENT DES DONNÉES
+  // CHARGEMENT DES DONNÉES — extrait le 11/08/2026 vers
+  // nexus-inventaire-manager-donnees.js (refactoring des pages
+  // monolithiques, 4e page après Brief/Cockpit/App ; voir Data Dictionary
+  // v2.43). Alias conservés (mêmes noms/signatures) pour que le reste de ce
+  // fichier n'ait rien à changer. Les actions qui ÉCRIVENT (comme
+  // sauvegarderParametresInventaire ci-dessous) restent ici — un fichier
+  // `-donnees.js` ne fait jamais d'écriture (Article 11).
   // ------------------------------------------------------------
   async function chargerQuart(site, date, quart) {
-    const { data, error } = await nexusClient.from('inventaire_quarts').select('*').eq('site', site).eq('date', date).eq('quart', quart).maybeSingle();
-    if (error) { console.error('Chargement quart:', error); return null; }
-    return data;
+    return NexusInventaireManagerDonnees.chargerQuart(nexusClient, site, date, quart);
   }
 
   async function chargerAlertesOuvertesQuart(site, quartId) {
-    const { data, error } = await nexusClient.from('inventaire_alertes')
-      .select('*, inventaire_zone_produit(designation)')
-      .eq('site', site).eq('quart_id', quartId).eq('statut', 'ouverte')
-      .order('cree_le', { ascending: false });
-    if (error) { console.error('Chargement alertes ouvertes:', error); return []; }
-    return data || [];
+    return NexusInventaireManagerDonnees.chargerAlertesOuvertesQuart(nexusClient, site, quartId);
   }
 
   async function chargerComptagesQuart(quartId) {
-    const { data, error } = await nexusClient.from('inventaire_comptages')
-      .select('produit_id, type_comptage').eq('quart_id', quartId).in('type_comptage', ['ouverture', 'cloture']);
-    if (error) { console.error('Chargement comptages du quart:', error); return { ouverts: new Set(), clotures: new Set() }; }
-    const ouverts = new Set(), clotures = new Set();
-    for (const row of (data || [])) {
-      if (row.type_comptage === 'ouverture') ouverts.add(row.produit_id);
-      if (row.type_comptage === 'cloture') clotures.add(row.produit_id);
-    }
-    return { ouverts, clotures };
+    return NexusInventaireManagerDonnees.chargerComptagesQuart(nexusClient, quartId);
   }
 
   async function chargerProduitsSensibles(site) {
-    const { data, error } = await nexusClient.from('inventaire_zone_produit')
-      .select('id, designation, zone_id, inventaire_zones(code)')
-      .eq('site', site).eq('sensible', true).eq('actif', true).order('designation');
-    if (error) { console.error('Chargement produits sensibles:', error); return []; }
-    return data || [];
+    return NexusInventaireManagerDonnees.chargerProduitsSensibles(nexusClient, site);
   }
 
-  // Synthèse du quart (02/08/2026, demande de Frédéric) : tous les produits
-  // actifs du site (pas seulement les sensibles) pour calculer la vraie
-  // progression de comptage et le regroupement par catégorie de
-  // "À terminer" — même logique que produitsRequis() côté employé
-  // (NEXUS-Inventaire-v1.html), le jaugeage carburant n'étant requis que
-  // s'il est activé.
   async function chargerTousProduitsActifsSite(site) {
-    const { data, error } = await nexusClient.from('inventaire_zone_produit')
-      .select('id, designation, categorie_id, inventaire_categories(nom), inventaire_zones(code)')
-      .eq('site', site).eq('actif', true);
-    if (error) { console.error('Chargement produits actifs (synthèse):', error); return []; }
-    return data || [];
+    return NexusInventaireManagerDonnees.chargerTousProduitsActifsSite(nexusClient, site);
   }
 
-  // État du quart contextualisé (02/08/2026, demande de Frédéric) : l'heure
-  // normale de clôture vient réellement de Paramètres Station
-  // (station_config.horaires.quartX.fin_normal), jamais une heure inventée.
   async function chargerHorairesStation(site) {
-    const { data, error } = await nexusClient.from('station_config').select('horaires').eq('site', site).maybeSingle();
-    if (error) { console.error('Chargement horaires station (état du quart):', error); return null; }
-    return data ? data.horaires : null;
+    return NexusInventaireManagerDonnees.chargerHorairesStation(nexusClient, site);
   }
 
-  // Paramètres de contrôle inventaire (02/08/2026, évolution "Supervision
-  // configurable des inventaires") : fréquence de synthèse choisie par le
-  // manager, seuils d'alerte, catégories sensibles et délai de clôture.
-  // Toujours fusionnés avec les valeurs par défaut pour rester tolérants à
-  // un enregistrement partiel.
   async function chargerParametresInventaire(site) {
-    const { data, error } = await nexusClient.from('station_config').select('parametres_inventaire').eq('site', site).maybeSingle();
-    if (error) { console.error('Chargement paramètres inventaire:', error); return { ...DEFAULTS_PARAMETRES_INVENTAIRE }; }
-    return { ...DEFAULTS_PARAMETRES_INVENTAIRE, ...(data && data.parametres_inventaire ? data.parametres_inventaire : {}) };
+    return NexusInventaireManagerDonnees.chargerParametresInventaire(nexusClient, site, DEFAULTS_PARAMETRES_INVENTAIRE);
   }
 
   async function sauvegarderParametresInventaire(site, patch) {
@@ -694,58 +649,23 @@
   }
 
   async function chargerCategoriesSite(site) {
-    const { data, error } = await nexusClient.from('inventaire_categories').select('id, nom')
-      .eq('site', site).eq('actif', true).order('ordre_affichage');
-    if (error) { console.error('Chargement catégories site:', error); return []; }
-    return data || [];
+    return NexusInventaireManagerDonnees.chargerCategoriesSite(nexusClient, site);
   }
 
-  // Décisions du quart sélectionné (02/08/2026, demande de Frédéric —
-  // remplace l'ancien double affichage "Décisions du quart" / "Décisions
-  // prises" qui montrait deux chiffres différents (70 vs 30) parce qu'ils
-  // portaient sur des périmètres différents : ici, une seule source de
-  // vérité, uniquement les décisions prises sur CE quart précis. L'audit
-  // multi-quarts/multi-sessions existe déjà sur NEXUS-Journal-v1.html —
-  // inutile de le dupliquer ici avec un scope différent qui prête à
-  // confusion.
   async function chargerDecisionsQuart(quartId) {
-    const { data, error } = await nexusClient.from('inventaire_alertes')
-      .select('*, inventaire_zone_produit(designation)').eq('quart_id', quartId).eq('statut', 'resolue')
-      .order('resolue_le', { ascending: false });
-    if (error) { console.error('Chargement décisions du quart:', error); return []; }
-    return data || [];
+    return NexusInventaireManagerDonnees.chargerDecisionsQuart(nexusClient, quartId);
   }
 
-  // Équivalents "période" des deux chargements ci-dessus (02/08/2026,
-  // supervision configurable) — mêmes tables, filtrées par date de
-  // création plutôt que par quart_id, pour les vues semaine/mois/
-  // personnalisée. Ne modifient jamais rien, purement des lectures.
   async function chargerAlertesOuvertesPeriode(site, debut, fin) {
-    const { data, error } = await nexusClient.from('inventaire_alertes')
-      .select('*, inventaire_zone_produit(designation, categorie_id)')
-      .eq('site', site).in('statut', ['ouverte', 'en_cours'])
-      .gte('cree_le', `${debut}T00:00:00`).lte('cree_le', `${fin}T23:59:59`)
-      .order('cree_le', { ascending: false });
-    if (error) { console.error('Chargement alertes ouvertes (période):', error); return []; }
-    return data || [];
+    return NexusInventaireManagerDonnees.chargerAlertesOuvertesPeriode(nexusClient, site, debut, fin);
   }
 
   async function chargerDecisionsPeriode(site, debut, fin) {
-    const { data, error } = await nexusClient.from('inventaire_alertes')
-      .select('*, inventaire_zone_produit(designation, categorie_id)')
-      .eq('site', site).in('statut', ['resolue', 'archivee', 'ignoree'])
-      .gte('cree_le', `${debut}T00:00:00`).lte('cree_le', `${fin}T23:59:59`)
-      .order('resolue_le', { ascending: false });
-    if (error) { console.error('Chargement décisions (période):', error); return []; }
-    return data || [];
+    return NexusInventaireManagerDonnees.chargerDecisionsPeriode(nexusClient, site, debut, fin);
   }
 
   async function chargerReviewPeriode(site, debut, fin, typeRevue) {
-    const { data, error } = await nexusClient.rpc('generate_inventory_review', {
-      p_site: site, p_period_start: debut, p_period_end: fin, p_review_type: typeRevue,
-    });
-    if (error) { console.error('Génération synthèse période:', error); return null; }
-    return data;
+    return NexusInventaireManagerDonnees.chargerReviewPeriode(nexusClient, site, debut, fin, typeRevue);
   }
 
   // ------------------------------------------------------------
@@ -949,19 +869,11 @@
   }
 
   async function chargerEmployesSite(site) {
-    const { data, error } = await nexusClient.from('employees').select('id, nom, role').eq('site_id', site).eq('actif', true).order('nom');
-    if (error) { console.error('Chargement employés:', error); return []; }
-    // Le mode aveugle cible les employés qui comptent le stock sur le
-    // terrain — pas les managers/gérants, qui ne sont pas concernés.
-    return (data || []).filter(e => e.role !== 'manager' && e.role !== 'gerant');
+    return NexusInventaireManagerDonnees.chargerEmployesSite(nexusClient, site);
   }
 
   async function chargerModesAveugleActifs(site) {
-    const { data, error } = await nexusClient.from('inventaire_modes_controle')
-      .select('*').eq('site', site).eq('mode', 'aveugle').eq('actif', true)
-      .is('categorie_id', null).is('produit_id', null);
-    if (error) { console.error('Chargement modes aveugle:', error); return []; }
-    return data || [];
+    return NexusInventaireManagerDonnees.chargerModesAveugleActifs(nexusClient, site);
   }
 
   // Jaugeage carburant (02/08/2026, demande de Frédéric) : grisé et non
@@ -970,18 +882,11 @@
   // mécanisme que le mode aveugle (inventaire_modes_controle) mais sans
   // ciblage par employé.
   async function chargerModeJaugeageActif(site) {
-    const { data, error } = await nexusClient.from('inventaire_modes_controle')
-      .select('id').eq('site', site).eq('mode', 'jaugeage_actif').eq('actif', true).maybeSingle();
-    if (error) { console.error('Chargement mode jaugeage:', error); return false; }
-    return !!data;
+    return NexusInventaireManagerDonnees.chargerModeJaugeageActif(nexusClient, site);
   }
 
   async function chargerHistoriqueEcartsRecents(site) {
-    const depuis = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString();
-    const { data, error } = await nexusClient.from('inventaire_alertes')
-      .select('produit_id').eq('site', site).eq('type_alerte', 'ecart_ouverture').gte('cree_le', depuis);
-    if (error) { console.error('Chargement historique écarts récents:', error); return []; }
-    return data || [];
+    return NexusInventaireManagerDonnees.chargerHistoriqueEcartsRecents(nexusClient, site);
   }
 
   // ------------------------------------------------------------
@@ -1204,10 +1109,7 @@
   }
 
   async function chargerCatalogueProduitsPourVentes(site) {
-    const { data, error } = await nexusClient.from('inventaire_zone_produit')
-      .select('id, designation, code_barres').eq('site', site).eq('actif', true);
-    if (error) { console.error('Chargement catalogue produits (ventes):', error); return []; }
-    return data || [];
+    return NexusInventaireManagerDonnees.chargerCatalogueProduitsPourVentes(nexusClient, site);
   }
 
   function parserFichierVentesDecenium(fichier) {
@@ -1294,13 +1196,7 @@
   const CATEGORIES_PERISSABLES_JOUR = ['Pains / Sandwichs', 'Viennoiserie'];
 
   async function chargerCategoriesProduitsParId(produitIds) {
-    if (!produitIds || !produitIds.length) return {};
-    const { data, error } = await nexusClient.from('inventaire_zone_produit')
-      .select('id, inventaire_categories(nom)').in('id', produitIds);
-    if (error) { console.error('Chargement catégories produits (écoulement journée):', error); return {}; }
-    const map = {};
-    (data || []).forEach(p => { map[p.id] = p.inventaire_categories ? p.inventaire_categories.nom : null; });
-    return map;
+    return NexusInventaireManagerDonnees.chargerCategoriesProduitsParId(nexusClient, produitIds);
   }
 
   // Même logique que calculerEcoulementPhysiqueQuart, mais l'ouverture est
@@ -1794,11 +1690,7 @@
   }
 
   async function chargerComptageActuel(produitId, quartId, typeComptage) {
-    const { data, error } = await nexusClient.from('inventaire_comptages')
-      .select('*').eq('produit_id', produitId).eq('quart_id', quartId).eq('type_comptage', typeComptage)
-      .order('compte_le', { ascending: false }).limit(1).maybeSingle();
-    if (error) { console.error('Chargement comptage (correction):', error); return null; }
-    return data;
+    return NexusInventaireManagerDonnees.chargerComptageActuel(nexusClient, produitId, quartId, typeComptage);
   }
 
   // Impact de premier ordre uniquement (04/08/2026) — jamais un chiffre
@@ -1806,10 +1698,7 @@
   // on compte les comptages qui référencent DIRECTEMENT celui-ci comme
   // comptage_source_id, on ne prétend pas recalculer toute la suite.
   async function chargerImpactCorrection(comptageId) {
-    const { count, error } = await nexusClient.from('inventaire_comptages')
-      .select('id', { count: 'exact', head: true }).eq('comptage_source_id', comptageId);
-    if (error) { console.error('Chargement impact correction:', error); return 0; }
-    return count || 0;
+    return NexusInventaireManagerDonnees.chargerImpactCorrection(nexusClient, comptageId);
   }
 
   async function chargerEtAfficherCorrection() {
