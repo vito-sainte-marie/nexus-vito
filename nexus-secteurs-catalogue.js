@@ -59,16 +59,57 @@
   const SECTEUR_PRESET_DEFAUT = 'station-service';
 
   // Résout la liste de secteurs ACTIFS pour un site donné ({type_commerce,
-  // secteurs} — ex. une ligne de la table sites). Ne retombe jamais sur une
-  // liste vide silencieuse : un type_commerce inconnu ou un site sans
-  // colonne renseignée utilise le preset station-service par défaut.
-  // Filtre ensuite sur SECTEURS_CATALOGUE (id inconnu = ignoré plutôt que de
-  // planter le rendu).
+  // secteurs} — ex. une ligne de la table sites).
+  //
+  // DURCI le 11/08/2026 (audit "philosophie/architecture", section 6.4,
+  // demande explicite de Frédéric) : cette fonction retombait auparavant
+  // TOUJOURS, silencieusement, sur le preset station-service dès que `site`
+  // était absent (site non chargé, erreur réseau, site_id invalide) ou que
+  // `type_commerce` était vide/inconnu — un manager d'un site mal configuré
+  // aurait alors vu les 6 secteurs d'une station-service (Carburants, FDJ...)
+  // sans jamais savoir que NEXUS avait deviné à sa place. Pire : un
+  // type_commerce RECONNU mais pas encore outillé (ex. 'boulangerie', dont
+  // aucun id de preset n'existe dans SECTEURS_CATALOGUE aujourd'hui)
+  // produisait une liste vide sans passer par ce repli — un Brief NEXUS
+  // silencieusement sans aucun secteur, sans explication.
+  //
+  // Retourne désormais TOUJOURS { secteurs, statut, typeCommerce } — jamais
+  // un simple tableau — pour que l'appelant distingue explicitement 3 cas :
+  //   'ok'                  — configuration reconnue et outillée
+  //   'non_configure'       — site absent ou type_commerce non renseigné
+  //   'metier_non_outille'  — type_commerce reconnu (ou secteurs personnalisés
+  //                           fournis) mais aucun des secteurs demandés
+  //                           n'existe dans SECTEURS_CATALOGUE (aucun
+  //                           constructeur métier construit pour l'instant)
+  // Aucun des deux derniers cas ne retombe plus sur station-service : c'est
+  // à l'appelant d'afficher explicitement "configuration métier incomplète"
+  // (voir NEXUS-Brief-v1.html) plutôt que de laisser croire à une mesure
+  // réelle.
   function secteursActifsSite(site) {
-    const typeCommerce = (site && site.type_commerce) || SECTEUR_PRESET_DEFAUT;
-    const override = site && Array.isArray(site.secteurs) && site.secteurs.length ? site.secteurs : null;
-    const ids = override || SECTEURS_PRESET_METIER[typeCommerce] || SECTEURS_PRESET_METIER[SECTEUR_PRESET_DEFAUT];
-    return ids.map(id => SECTEURS_CATALOGUE[id]).filter(Boolean);
+    if (!site || !site.type_commerce) {
+      return { secteurs: [], statut: 'non_configure', typeCommerce: (site && site.type_commerce) || null };
+    }
+    const typeCommerce = site.type_commerce;
+    const override = Array.isArray(site.secteurs) && site.secteurs.length ? site.secteurs : null;
+    const presetConnu = SECTEURS_PRESET_METIER[typeCommerce];
+    if (!override && !presetConnu) {
+      return { secteurs: [], statut: 'non_configure', typeCommerce };
+    }
+    const ids = override || presetConnu;
+    const secteurs = ids.map(id => SECTEURS_CATALOGUE[id]).filter(Boolean);
+    // Couverture INTÉGRALE exigée, pas seulement "au moins un secteur"
+    // (bug trouvé en testant ce correctif, 11/08/2026) : le preset
+    // 'boulangerie' partage 2 ids avec le catalogue station-service
+    // ('marge', 'equipe') sur ses 6 ids demandés — un simple `secteurs.length
+    // > 0` aurait laissé passer un Brief à 2 secteurs sur 6, avec statut
+    // 'ok', sans que rien ne signale les 4 secteurs manquants. Si TOUS les
+    // ids demandés ne sont pas dans SECTEURS_CATALOGUE, le métier est
+    // considéré comme non outillé dans son ensemble plutôt que partiellement
+    // affiché.
+    if (secteurs.length !== ids.length) {
+      return { secteurs: [], statut: 'metier_non_outille', typeCommerce };
+    }
+    return { secteurs, statut: 'ok', typeCommerce };
   }
 
   global.NexusSecteursCatalogue = {

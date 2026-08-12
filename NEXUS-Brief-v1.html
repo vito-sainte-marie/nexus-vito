@@ -333,7 +333,12 @@
   // (migration ajouter_secteurs_configurables_sites) — repli sur le preset
   // station-service tant que la ligne n'est pas encore chargée, jamais un
   // écran vide au premier rendu.
-  let SITE_SECTEURS_CONFIG = { type_commerce: 'station-service', secteurs: null };
+  // Placeholder AVANT chargement de la ligne `sites` — jamais 'station-service'
+  // par défaut (durci le 11/08/2026, Article 11/Article 5) : si la requête
+  // `sites` échoue ou n'est jamais atteinte, ce placeholder doit rester
+  // "non configuré" plutôt que de laisser croire que le site est une
+  // station-service par défaut. Voir NexusSecteursCatalogue.secteursActifsSite().
+  let SITE_SECTEURS_CONFIG = { type_commerce: null, secteurs: null };
   let STATION_CONFIG = { manager_prenom: '', manager_role: '', station_nom: 'Ma station', logo_url: '' };
   let BRIEF = null;
 
@@ -708,6 +713,20 @@
   // moteurs, puis construit l'objet ExecutiveBrief rendu par renderBrief().
   // ------------------------------------------------------------
   async function construireBrief() {
+    // Garde ajoutée le 11/08/2026 (audit "philosophie/architecture", section
+    // 6.4, demande explicite de Frédéric "durcissement du repli métier
+    // silencieux") : avant tout chargement de données, on vérifie que ce
+    // site a une configuration métier réellement outillée. Si non, Brief
+    // NEXUS ne doit ni deviner un métier par défaut, ni afficher une
+    // synthèse vide qui ressemblerait à "tout va bien" — il s'arrête ici et
+    // remonte un état explicite que renderBrief() affiche en plein écran,
+    // avant même de lancer les ~15 requêtes réseau habituelles (inutiles
+    // tant que la configuration n'est pas résolue).
+    const secteursCheck = NexusSecteursCatalogue.secteursActifsSite(SITE_SECTEURS_CONFIG);
+    if (secteursCheck.statut !== 'ok') {
+      return { configurationIncomplete: { statut: secteursCheck.statut, typeCommerce: secteursCheck.typeCommerce } };
+    }
+
     const rowsBrut = await chargerProducts();
     const { periodeAffichage, paire, rowsPaireActuelle, rowsPairePrecedente } = NexusPeriodes.analyserPeriodes(rowsBrut);
     const facteurs = NexusIndice.calculerFacteurs(rowsBrut);
@@ -749,8 +768,10 @@
     // ses composantes (écarts de caisse critiques, alertes inventaire,
     // risque stock) vivent maintenant dans le secteur Opérations (risks[],
     // transversal — exactement la définition donnée par l'audit section 11).
-    const secteursActifs = NexusSecteursCatalogue.secteursActifsSite(SITE_SECTEURS_CONFIG);
-    const secteurs = NexusSecteursMoteur.construireSecteurs(secteursActifs, {
+    // secteursCheck.statut === 'ok' est garanti ici (vérifié en tête de
+    // fonction, avant tout chargement) — on réutilise le même résultat
+    // plutôt que de rappeler secteursActifsSite() une seconde fois.
+    const secteurs = NexusSecteursMoteur.construireSecteurs(secteursCheck.secteurs, {
       carburants, facteurs, margePlusResultat, fdjResume, constatTempo, controlesVerifyRestants,
       nbCritiquesCaisse, alertesInvOuvertes, risqueStockTotal,
       domaineEquipe, seuilMinPointages: SEUIL_MIN_POINTAGES_EQUIPE,
@@ -1369,6 +1390,29 @@
   function renderBrief() {
     const root = document.getElementById('briefRoot');
     dernierRapportPdf = null; // un Brief déjà rafraîchi invalide le rapport déjà généré
+
+    // Configuration métier incomplète (11/08/2026, durcissement du repli
+    // silencieux vers station-service) : Brief NEXUS s'arrête ici, avant
+    // toute tentative de lecture de BRIEF.axes/decisions/etc. (absents dans
+    // ce cas — voir construireBrief()). Message différent selon que le
+    // métier n'est pas configuré du tout ou qu'il est configuré mais pas
+    // encore outillé, pour que le manager sache exactement quoi corriger ou
+    // qui contacter.
+    if (BRIEF && BRIEF.configurationIncomplete) {
+      const { statut, typeCommerce } = BRIEF.configurationIncomplete;
+      const texte = statut === 'metier_non_outille'
+        ? `Ce site est configuré pour le métier « ${typeCommerce} », mais NEXUS ne dispose pas encore des moteurs de calcul pour ce métier — seule la station-service est pleinement outillée aujourd'hui.`
+        : "NEXUS n'a pas encore pu déterminer le secteur d'activité de ce site (type de commerce non configuré).";
+      root.innerHTML = `<div class="desktop-grid">
+        <div style="padding:40px 20px; text-align:center;">
+          <div style="font-size:34px; margin-bottom:14px;">⚪</div>
+          <div style="font-size:15px; font-weight:600; margin-bottom:10px;">Configuration métier incomplète</div>
+          <div style="font-size:13px; color:var(--text-dim); max-width:420px; margin:0 auto; line-height:1.6;">${texte} Contactez l'administrateur NEXUS pour configurer le type de commerce de ce site (table <code>sites</code>, colonne <code>type_commerce</code>) avant de pouvoir consulter Brief NEXUS.</div>
+        </div>
+      </div>`;
+      return;
+    }
+
     // Ordre Brief V3 (audit, section 4) : A Verdict (hero) → B Secteurs →
     // C Ce qui a changé → D Forces → E Ce qui freine → F Lecture du
     // directeur d'exploitation → G Décisions de direction → vigilance →

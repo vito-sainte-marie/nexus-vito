@@ -207,10 +207,14 @@
     equipe: (entree, d) => construireSecteurEquipe(entree, { domaineEquipe: d.domaineEquipe, seuilMinPointages: d.seuilMinPointages }),
   };
 
-  // secteursActifs : résultat de NexusSecteursCatalogue.secteursActifsSite()
-  // — un secteur du catalogue sans constructeur ici (autres métiers,
-  // section 5 de l'audit) est ignoré plutôt que de faire planter le rendu :
-  // mieux vaut un secteur absent qu'un secteur affiché sans données.
+  // secteursActifs : le champ `.secteurs` du résultat de
+  // NexusSecteursCatalogue.secteursActifsSite() (depuis le 11/08/2026 cette
+  // fonction retourne { secteurs, statut, typeCommerce } — c'est à
+  // l'appelant de vérifier `.statut === 'ok'` AVANT d'arriver ici ; voir
+  // NEXUS-Brief-v1.html) — un secteur du catalogue sans constructeur ici
+  // (autres métiers, section 5 de l'audit) est ignoré plutôt que de faire
+  // planter le rendu : mieux vaut un secteur absent qu'un secteur affiché
+  // sans données.
   function construireSecteurs(secteursActifs, donnees) {
     return secteursActifs.map(entree => {
       const constructeur = CONSTRUCTEURS_SECTEUR[entree.id];
