@@ -634,7 +634,7 @@
       return ok;
     }
     let employeeCourantId = null;
-    let SITE_ACTUEL = 'vito-sainte-marie'; // ecrase par employee.site_id une fois connecte
+    let SITE_ACTUEL = null; // jamais 'vito-sainte-marie' par defaut (de-Vito-isation, 11/08/2026) - toujours ecrase par employee.site_id apres nexusRequireAuth()
     let MEILLEUR_SUCCES = null;
     let PIRE_RISQUE = null;
     let TOP_VENTES = [];
@@ -1420,7 +1420,7 @@
     nexusRequireAuth().then(async employee => {
       if (!employee) return; // nexus-auth.js gère déjà la redirection vers NEXUS-Login-v1.html
       employeeCourantId = employee.id;
-      SITE_ACTUEL = employee.site_id || 'vito-sainte-marie';
+      SITE_ACTUEL = employee.site_id;
       await chargerJournalDecisions();
       PLANS_ACTION = await construirePlansAction();
       renderPlansAction();

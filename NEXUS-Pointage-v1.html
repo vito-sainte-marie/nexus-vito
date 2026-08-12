@@ -121,6 +121,37 @@
   .equipe-statut.retard{color:var(--red);}
 
   footer{margin-top:auto; padding:16px 20px 24px; font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:center; border-top:1px solid var(--hairline);}
+
+  /* Capture caméra en page (10/08/2026, demande de Frédéric suite au 3e cas
+     de Samantha — Samsung Galaxy S24 cette fois) : remplace l'appareil
+     photo natif comme moyen PRINCIPAL de prendre la photo de pointage.
+     L'appareil photo natif (via <input capture>) fait quitter la page —
+     certains navigateurs Android (Samsung Internet notamment) déchargent
+     alors la page en arrière-plan pour récupérer de la mémoire, et
+     l'employé revient sur un écran "neuf" sans que rien n'ait été
+     enregistré (voir les 2 correctifs précédents plus haut dans le JS).
+     En restant dans la page (flux vidéo + capture canvas), NEXUS ne quitte
+     jamais son propre contexte : Android n'a plus de raison de le tuer.
+     L'ancien mécanisme (label + input capture) est conservé comme repli
+     si getUserMedia est indisponible ou refusé — jamais un employé
+     totalement bloqué faute de caméra en page. */
+  .camera-overlay{position:fixed; inset:0; background:#000; z-index:100; display:flex; flex-direction:column;}
+  .camera-video-wrap{flex:1; position:relative; overflow:hidden; background:#000;}
+  .camera-video-wrap video, .camera-video-wrap img{width:100%; height:100%; object-fit:cover; display:block;}
+  .camera-consigne{position:absolute; top:0; left:0; right:0; padding:14px 18px; padding-top:calc(14px + env(safe-area-inset-top)); background:linear-gradient(rgba(0,0,0,0.65), transparent); color:#fff; font-size:13px; line-height:1.5; text-align:center;}
+  .camera-close{position:absolute; top:calc(14px + env(safe-area-inset-top)); right:14px; width:34px; height:34px; border-radius:50%; background:rgba(0,0,0,0.45); border:1px solid rgba(255,255,255,0.25); color:#fff; font-size:16px; display:flex; align-items:center; justify-content:center; cursor:pointer; -webkit-tap-highlight-color:transparent;}
+  .camera-controls{padding:22px 20px calc(22px + env(safe-area-inset-bottom)); background:#0B0F14; display:flex; align-items:center; justify-content:center; gap:22px;}
+  .camera-btn-capture{width:68px; height:68px; border-radius:50%; background:#fff; border:4px solid rgba(255,255,255,0.35); cursor:pointer; -webkit-tap-highlight-color:transparent;}
+  .camera-btn-capture:active{background:#dcdcdc;}
+  .camera-controls-preview{padding:18px 20px calc(18px + env(safe-area-inset-bottom)); background:#0B0F14; display:flex; gap:12px;}
+  .camera-btn-texte{flex:1; padding:14px; border-radius:10px; font-family:var(--sans); font-size:14px; font-weight:600; cursor:pointer; -webkit-tap-highlight-color:transparent; border:none; text-align:center;}
+  .camera-btn-texte.reprendre{background:var(--panel-raised); color:var(--text); border:1px solid var(--hairline);}
+  .camera-btn-texte.valider{background:var(--cyan); color:#04141a;}
+  .camera-etat{position:absolute; inset:0; display:flex; align-items:center; justify-content:center; padding:32px; text-align:center; color:#fff; font-size:13.5px; line-height:1.6;}
+  .camera-etat-actions{margin-top:18px; display:flex; flex-direction:column; gap:10px; width:100%; max-width:280px;}
+  .camera-etat-actions button, .camera-etat-actions label{display:block; padding:13px; border-radius:10px; font-family:var(--sans); font-size:13.5px; font-weight:600; cursor:pointer; -webkit-tap-highlight-color:transparent; border:none; text-align:center;}
+  .camera-etat-actions .primaire{background:var(--cyan); color:#04141a;}
+  .camera-etat-actions .secondaire{background:rgba(255,255,255,0.1); color:#fff; border:1px solid rgba(255,255,255,0.25);}
 </style>
 </head>
 <body>
@@ -247,6 +278,135 @@
     }
   }
 
+  // Capture caméra EN PAGE (10/08/2026, demande de Frédéric — voir le
+  // commentaire CSS .camera-overlay pour le contexte complet du 3e cas de
+  // Samantha, Samsung Galaxy S24). Devient le moyen PRINCIPAL de prendre la
+  // photo de pointage — jamais quitter le contexte de la page NEXUS elle-
+  // même, donc plus aucune raison pour Android de la décharger pendant que
+  // l'appareil photo est au premier plan. Retourne : un File (photo validée
+  // par l'employé après aperçu) ; ou la chaîne 'repli' si l'employé a choisi
+  // l'appareil photo natif (le <label for="inputId"> à l'intérieur de cette
+  // fonction déclenche alors un vrai clic utilisateur sur l'input caché
+  // existant, dont l'écouteur 'change' — inchangé — prend le relais
+  // exactement comme avant ce chantier) ; ou null si l'employé a
+  // véritablement annulé (aucune tentative en cours, natif ou en page).
+  async function ouvrirCameraPointage({ consigne, inputId }) {
+    return new Promise(resolve => {
+      let flux = null;
+      let photoBlobUrl = null;
+      let resolu = false;
+
+      const overlay = document.createElement('div');
+      overlay.className = 'camera-overlay';
+      document.body.appendChild(overlay);
+
+      function arreterFlux() {
+        if (flux) { flux.getTracks().forEach(t => { try { t.stop(); } catch (e) {} }); flux = null; }
+        if (photoBlobUrl) { try { URL.revokeObjectURL(photoBlobUrl); } catch (e) {} photoBlobUrl = null; }
+      }
+      function fermer(valeur) {
+        if (resolu) return;
+        resolu = true;
+        arreterFlux();
+        overlay.remove();
+        resolve(valeur);
+      }
+      function afficherEtat(html) { overlay.innerHTML = `<div class="camera-etat">${html}</div>`; }
+
+      // Repli vers l'appareil photo natif (label + input capture, mécanisme
+      // historique conservé tel quel) — jamais un employé bloqué faute de
+      // caméra en page : indisponible, refusée, ou capture impossible.
+      function afficherRepli(message) {
+        afficherEtat(`
+          <div>
+            <div style="margin-bottom:6px; font-size:22px;">📷</div>
+            <div>${message}</div>
+            <div class="camera-etat-actions">
+              <label class="primaire" for="${inputId}">Utiliser l'appareil photo du téléphone</label>
+              <button class="secondaire" type="button" data-annuler-camera>Annuler</button>
+            </div>
+          </div>
+        `);
+        overlay.querySelector('[data-annuler-camera]').addEventListener('click', () => fermer(null));
+        // Résolution spéciale 'repli' (et non null) : l'appelant doit savoir
+        // que le mécanisme natif prend le relais (repère localStorage à
+        // conserver, contrairement à une annulation volontaire).
+        overlay.querySelector(`label[for="${inputId}"]`).addEventListener('click', () => fermer('repli'));
+      }
+
+      async function demarrer() {
+        if (!navigator.mediaDevices || typeof navigator.mediaDevices.getUserMedia !== 'function') {
+          afficherRepli("La capture caméra intégrée n'est pas disponible sur ce navigateur.");
+          return;
+        }
+        afficherEtat('Ouverture de la caméra…');
+        try {
+          flux = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false });
+        } catch (err) {
+          console.error('getUserMedia (pointage):', err);
+          const refuse = err && (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError');
+          afficherRepli(refuse
+            ? "Accès à la caméra refusé. Autorisez l'accès dans les réglages de votre téléphone, ou utilisez l'appareil photo natif ci-dessous."
+            : "Impossible d'ouvrir la caméra intégrée à l'application. Utilisez l'appareil photo de votre téléphone à la place.");
+          return;
+        }
+        if (resolu) { flux.getTracks().forEach(t => { try { t.stop(); } catch (e) {} }); return; }
+        afficherVue();
+      }
+
+      function afficherVue() {
+        overlay.innerHTML = `
+          <div class="camera-video-wrap">
+            <div class="camera-consigne">${consigne}</div>
+            <div class="camera-close" data-fermer-camera>✕</div>
+            <video autoplay playsinline muted></video>
+          </div>
+          <div class="camera-controls"><button type="button" class="camera-btn-capture" aria-label="Prendre la photo"></button></div>
+        `;
+        const video = overlay.querySelector('video');
+        video.srcObject = flux;
+        overlay.querySelector('[data-fermer-camera]').addEventListener('click', () => fermer(null));
+        overlay.querySelector('.camera-btn-capture').addEventListener('click', () => capturer(video));
+      }
+
+      function capturer(video) {
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth || 1280;
+        canvas.height = video.videoHeight || 720;
+        canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+        canvas.toBlob(blob => {
+          if (!blob) { afficherRepli("La photo n'a pas pu être capturée. Utilisez l'appareil photo de votre téléphone à la place."); return; }
+          photoBlobUrl = URL.createObjectURL(blob);
+          afficherApercu(blob);
+        }, 'image/jpeg', 0.9);
+      }
+
+      function afficherApercu(blob) {
+        overlay.innerHTML = `
+          <div class="camera-video-wrap">
+            <div class="camera-consigne">${consigne}</div>
+            <div class="camera-close" data-fermer-camera>✕</div>
+            <img src="${photoBlobUrl}" alt="Photo prise">
+          </div>
+          <div class="camera-controls-preview">
+            <button type="button" class="camera-btn-texte reprendre" data-reprendre>Reprendre</button>
+            <button type="button" class="camera-btn-texte valider" data-valider>Valider cette photo</button>
+          </div>
+        `;
+        overlay.querySelector('[data-fermer-camera]').addEventListener('click', () => fermer(null));
+        overlay.querySelector('[data-reprendre]').addEventListener('click', () => {
+          if (photoBlobUrl) { try { URL.revokeObjectURL(photoBlobUrl); } catch (e) {} photoBlobUrl = null; }
+          afficherVue();
+        });
+        overlay.querySelector('[data-valider]').addEventListener('click', () => {
+          fermer(new File([blob], 'photo.jpg', { type: 'image/jpeg' }));
+        });
+      }
+
+      demarrer();
+    });
+  }
+
   async function uploaderPhotoPointage(employeeId, type, file) {
     const fichier = await redimensionnerPhotoPointage(file);
     const ext = (fichier.name && fichier.name.includes('.')) ? fichier.name.split('.').pop().toLowerCase() : 'jpg';
@@ -331,7 +491,7 @@
     demarrerHorloge();
 
     const estNiveauManager = employee.role === 'manager' || employee.role === 'gerant';
-    const siteId = employee.site_id || 'vito-sainte-marie';
+    const siteId = employee.site_id;
 
     const { data: stationConfig } = await nexusClient
       .from('station_config').select('manager_pointage_requis').eq('site', siteId).maybeSingle();
@@ -451,24 +611,25 @@
         ${sousTexte ? `<span class="sous">${sousTexte}</span>` : ''}
       `;
 
-      // Action active nécessitant une photo (01/08/2026, 2e correction) :
-      // remplacé <button> + input.click() en JS par un <label for="…">
-      // associé nativement à l'input file. Un premier correctif (séparer
-      // l'input du bouton en frères plutôt qu'en parent/enfant) n'a pas
-      // suffi — signalé par Frédéric : AUCUN Android ne parvenait à ouvrir
-      // l'appareil photo, pas seulement Angelique. Un <label> délègue
-      // l'activation de son input associé au niveau du NAVIGATEUR lui-même
-      // (comportement HTML natif standard), sans dépendre d'un input.click()
-      // déclenché en JS — c'est la solution robuste connue pour ce cas
-      // précis sur mobile. L'input reste cliquable mais visuellement masqué
-      // via un habillage "visually-hidden" (et non display:none, pour
-      // écarter tout doute sur l'activation par clic délégué).
+      // Action active nécessitant une photo (10/08/2026, correction en
+      // profondeur — 3e cas de Samantha, Samsung Galaxy S24) : le bouton
+      // ouvre désormais une capture caméra EN PAGE (voir ouvrirCameraPointage
+      // et .camera-overlay) — on ne quitte plus jamais le contexte NEXUS,
+      // donc plus aucune raison pour Android de décharger la page pendant
+      // la prise de vue. L'ancien mécanisme (01/08/2026 : <label for="…">
+      // associé nativement à un <input capture>, pour contourner un bug où
+      // AUCUN Android ne parvenait à ouvrir l'appareil photo via
+      // input.click() en JS) est conservé tel quel comme REPLI — l'input
+      // caché reste dans le DOM, et ouvrirCameraPointage crée lui-même un
+      // <label for="${inputId}"> (vrai clic utilisateur, jamais un
+      // .click() programmatique) quand la caméra en page est indisponible,
+      // refusée, ou en échec.
       if (!fait && !bloque && info.photoRequise) {
         const inputId = `photoInput-${type}`;
         return `<div class="pointage-item">
-          <label class="${classes.join(' ')}" for="${inputId}" data-type="${type}">
+          <button type="button" class="${classes.join(' ')}" data-type="${type}" data-photo-btn>
             ${contenuInterieur}
-          </label>
+          </button>
           <input type="file" id="${inputId}" accept="image/*" capture="environment" class="pointage-photo-input" data-type="${type}"
             style="position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0;">
         </div>`;
@@ -498,54 +659,68 @@
     chargerActiviteJour(employee, siteId);
     majServiceLive();
 
-    // Seuls les <button> (actions sans photo, ou déjà pointées/bloquées)
-    // ont besoin d'un clic JS — les actions avec photo sont désormais des
-    // <label> qui ouvrent leur input associé nativement (voir plus haut).
-    // heureClic capturé au clic lui-même (03/08/2026) : c'est cet instant,
-    // pas celui — potentiellement bien plus tardif pour une action photo —
-    // où l'enregistrement aboutit réellement, qui doit faire foi (voir
+    // Actions sans photo : simple <button>, clic direct. heureClic capturé
+    // au clic lui-même (03/08/2026) : c'est cet instant, pas celui —
+    // potentiellement bien plus tardif pour une action photo — où
+    // l'enregistrement aboutit réellement, qui doit faire foi (voir
     // enregistrerPointage).
-    document.querySelectorAll('button.pointage-btn[data-type]').forEach(btn => {
+    document.querySelectorAll('button.pointage-btn[data-type]:not([data-photo-btn])').forEach(btn => {
       btn.addEventListener('click', () => {
         if (btn.disabled) return;
         finaliserPointage(btn, employee, siteId, btn.dataset.type, shiftActif, null, new Date());
       });
     });
 
-    // Capture de l'instant du clic sur les actions avec photo (03/08/2026) :
-    // ce listener ne fait qu'enregistrer l'heure, sans jamais empêcher le
-    // comportement natif du <label> (ouverture de l'appareil photo via
-    // l'input associé) — voir TOLERANCE_CLIC_VALIDATION_MS plus haut.
+    // Actions avec photo (10/08/2026, correction en profondeur — 3e cas de
+    // Samantha, Samsung Galaxy S24) : le bouton ouvre désormais la capture
+    // caméra EN PAGE (voir ouvrirCameraPointage) au lieu de déléguer à un
+    // <label> associé à l'appareil photo natif — voir TOLERANCE_CLIC_
+    // VALIDATION_MS plus haut pour la règle "le clic est le moment
+    // d'arrivée".
     //
-    // Repère posé DÈS le clic, avant l'ouverture de l'appareil photo
-    // (07/08/2026, 2e cas de Samantha — Samsung Internet cette fois) :
-    // certains navigateurs Android déchargent complètement la page pendant
-    // que l'appareil photo natif est au premier plan (pour récupérer de la
-    // mémoire) — au retour, la page repart de zéro, sans jamais déclencher
-    // le 'change' de l'input ni son propre repère (posé plus bas, donc trop
-    // tard pour ce cas précis, confirmé par les logs Supabase : aucune photo
-    // envoyée, aucun pointage inséré, la page a rechargé ses données à
-    // l'identique en boucle). Pour l'employée, l'écran a l'air "neuf" à
-    // chaque tentative et rien n'explique pourquoi ça ne marche jamais. En
-    // posant ce repère ici, il survit au rechargement complet (localStorage,
-    // contrairement aux variables JS) et déclenche au prochain chargement
-    // l'avertissement "tentative interrompue" déjà en place plus haut, au
-    // lieu d'un écran muet indiscernable d'un premier essai.
-    document.querySelectorAll('label.pointage-btn[data-type]').forEach(label => {
-      label.addEventListener('click', () => {
-        const type = label.dataset.type;
+    // Repère posé DÈS le clic, avant l'ouverture de la caméra (07/08/2026,
+    // 2e cas de Samantha — Samsung Internet cette fois) : certains
+    // navigateurs Android pouvaient décharger complètement la page pendant
+    // que l'appareil photo natif était au premier plan (pour récupérer de
+    // la mémoire) — au retour, la page repartait de zéro, sans jamais
+    // déclencher le 'change' de l'input ni son propre repère (posé trop
+    // tard pour ce cas précis). Ce risque disparaît en grande partie avec
+    // la caméra en page (10/08/2026), mais le repère est conservé dès le
+    // clic par prudence, et reste indispensable pour le chemin de repli
+    // (appareil photo natif) qui, lui, garde exactement l'ancien risque.
+    document.querySelectorAll('button.pointage-btn[data-photo-btn]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        if (btn.disabled) return;
+        const type = btn.dataset.type;
+        const info = LABELS_TYPES[type];
         clicPointage[type] = new Date();
         try {
           localStorage.setItem(CLE_TENTATIVE_EN_COURS, JSON.stringify({ employeeId: employee.id, type, depuis: Date.now() }));
         } catch (e) { console.error('Pose du repère de tentative de pointage (au clic):', e); }
+
+        const inputId = `photoInput-${type}`;
+        const resultat = await ouvrirCameraPointage({ consigne: info.consignePhoto, inputId });
+
+        if (resultat === 'repli') return; // l'input caché + son écouteur 'change' (ci-dessous) prennent le relais, repère conservé
+        if (!resultat) {
+          // Annulation volontaire (fermeture de l'overlay) : ce n'est pas
+          // une tentative interrompue à signaler au prochain chargement.
+          try { localStorage.removeItem(CLE_TENTATIVE_EN_COURS); } catch (e) {}
+          return;
+        }
+        await traiterPhotoPointage(resultat, btn, type, employee, siteId, shiftActif, clicPointage[type]);
       });
     });
 
+    // Chemin de repli : appareil photo natif (mécanisme du 01/08/2026,
+    // inchangé) — déclenché depuis l'intérieur de ouvrirCameraPointage via
+    // un vrai clic utilisateur sur le <label for="${inputId}">.
     document.querySelectorAll('.pointage-photo-input').forEach(input => {
       input.addEventListener('change', async () => {
         const file = input.files && input.files[0];
-        // L'input et le <label> associé sont frères dans .pointage-item.
+        // L'input et le bouton associé sont frères dans .pointage-item.
         const btn = input.parentElement && input.parentElement.querySelector('.pointage-btn');
+        const type = input.dataset.type;
         if (!file) {
           // 01/08/2026 — signalé par Frédéric : un employé (Angelique)
           // restait bloqué sur cet écran sans comprendre pourquoi, car un
@@ -564,56 +739,64 @@
           if (sousVide) sousVide.textContent = "Aucune photo reçue — réessaie et autorise l'accès à l'appareil photo si ton téléphone te le demande.";
           return;
         }
-        const type = input.dataset.type;
         const heureClic = clicPointage[type] || new Date();
-        setElementOccupe(btn, true);
-
-        // Avertissement d'attente bien visible (03/08/2026, demande de
-        // Frédéric, suite au cas de Samantha) : le petit sous-texte du
-        // bouton ne suffisait pas à se faire remarquer — on affiche donc
-        // aussi une bannière pleine largeur, au même endroit que la
-        // confirmation finale, pour que l'employé sache qu'il doit
-        // patienter et ne pas quitter la page pendant l'envoi.
-        btn.querySelector('.sous').textContent = 'Photo reçue — envoi en cours…';
-        const banner = document.getElementById('confirmBanner');
-        if (banner) {
-          banner.classList.remove('retard');
-          banner.innerHTML = `<div class="confirm-banner-titre">⏳ Photo reçue, patientez…</div><div class="confirm-banner-sous">L'enregistrement est en cours — ne quittez pas cette page.</div>`;
-          banner.classList.add('show');
-        }
-
-        // Repère "tentative en cours" (03/08/2026) : posé juste avant
-        // l'envoi, retiré dès que le résultat (succès ou échec) est connu.
-        // S'il subsiste au prochain chargement de la page, l'envoi a été
-        // interrompu en cours de route (page quittée, réseau coupé) — voir
-        // la vérification en haut de afficherFormulairePointage().
-        try {
-          localStorage.setItem(CLE_TENTATIVE_EN_COURS, JSON.stringify({ employeeId: employee.id, type, depuis: Date.now() }));
-        } catch (e) { console.error('Pose du repère de tentative de pointage:', e); }
-
-        const photoUrl = await uploaderPhotoPointageAvecRelance(employee.id, type, file);
-        try { localStorage.removeItem(CLE_TENTATIVE_EN_COURS); } catch (e) {}
-
-        if (!photoUrl) {
-          // Échec technique persistant, même après relance (07/08/2026,
-          // demande de Frédéric) : un problème technique ne doit jamais
-          // mettre en doute la bonne foi de l'employé, ni le bloquer — le
-          // pointage est accepté sans photo (voir enregistrerPointage, qui
-          // affiche la confirmation avec cette précision), avec une trace
-          // explicite (photo_echec_technique) pour rester honnête envers le
-          // manager sur ce qui s'est passé, sans pénaliser l'employé.
-          await finaliserPointage(btn, employee, siteId, type, shiftActif, null, heureClic, true);
-          return;
-        }
-        await finaliserPointage(btn, employee, siteId, type, shiftActif, photoUrl, heureClic, false);
+        await traiterPhotoPointage(file, btn, type, employee, siteId, shiftActif, heureClic);
       });
     });
   }
 
-  // setElementOccupe (01/08/2026) : équivalent de btn.disabled qui fonctionne
-  // aussi sur un <label> (les actions avec photo ne sont plus des <button>,
-  // voir plus haut) — un <label> n'a pas de propriété .disabled qui bloque
-  // réellement les clics, donc on ajoute une classe qui coupe pointer-events.
+  // traiterPhotoPointage (10/08/2026) : logique d'envoi extraite pour être
+  // partagée par les deux chemins de capture — caméra en page (chemin
+  // principal) et appareil photo natif (chemin de repli) — qui ne
+  // diffèrent que par la façon dont le File a été obtenu.
+  async function traiterPhotoPointage(file, btn, type, employee, siteId, shiftActif, heureClic) {
+    setElementOccupe(btn, true);
+
+    // Avertissement d'attente bien visible (03/08/2026, demande de
+    // Frédéric, suite au cas de Samantha) : le petit sous-texte du bouton
+    // ne suffisait pas à se faire remarquer — on affiche donc aussi une
+    // bannière pleine largeur, au même endroit que la confirmation finale,
+    // pour que l'employé sache qu'il doit patienter et ne pas quitter la
+    // page pendant l'envoi.
+    const sousEl = btn && btn.querySelector('.sous');
+    if (sousEl) sousEl.textContent = 'Photo reçue — envoi en cours…';
+    const banner = document.getElementById('confirmBanner');
+    if (banner) {
+      banner.classList.remove('retard');
+      banner.innerHTML = `<div class="confirm-banner-titre">⏳ Photo reçue, patientez…</div><div class="confirm-banner-sous">L'enregistrement est en cours — ne quittez pas cette page.</div>`;
+      banner.classList.add('show');
+    }
+
+    // Repère "tentative en cours" (03/08/2026) : posé juste avant l'envoi,
+    // retiré dès que le résultat (succès ou échec) est connu. S'il subsiste
+    // au prochain chargement de la page, l'envoi a été interrompu en cours
+    // de route (page quittée, réseau coupé) — voir la vérification en haut
+    // de afficherFormulairePointage().
+    try {
+      localStorage.setItem(CLE_TENTATIVE_EN_COURS, JSON.stringify({ employeeId: employee.id, type, depuis: Date.now() }));
+    } catch (e) { console.error('Pose du repère de tentative de pointage:', e); }
+
+    const photoUrl = await uploaderPhotoPointageAvecRelance(employee.id, type, file);
+    try { localStorage.removeItem(CLE_TENTATIVE_EN_COURS); } catch (e) {}
+
+    if (!photoUrl) {
+      // Échec technique persistant, même après relance (07/08/2026, demande
+      // de Frédéric) : un problème technique ne doit jamais mettre en doute
+      // la bonne foi de l'employé, ni le bloquer — le pointage est accepté
+      // sans photo (voir enregistrerPointage, qui affiche la confirmation
+      // avec cette précision), avec une trace explicite
+      // (photo_echec_technique) pour rester honnête envers le manager sur
+      // ce qui s'est passé, sans pénaliser l'employé.
+      await finaliserPointage(btn, employee, siteId, type, shiftActif, null, heureClic, true);
+      return;
+    }
+    await finaliserPointage(btn, employee, siteId, type, shiftActif, photoUrl, heureClic, false);
+  }
+
+  // setElementOccupe (01/08/2026) : équivalent de btn.disabled — les
+  // actions avec photo restent des <button> (10/08/2026), mais on garde
+  // cette indirection pour uniformiser avec les autres appels et couvrir
+  // d'éventuels éléments sans propriété .disabled.
   function setElementOccupe(el, occupe) {
     if (!el) return;
     if ('disabled' in el) el.disabled = occupe;

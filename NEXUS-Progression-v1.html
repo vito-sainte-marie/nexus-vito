@@ -219,7 +219,7 @@
     const estNiveauManager = employee.role === 'manager' || employee.role === 'gerant';
     const params = new URLSearchParams(window.location.search);
     const employeParamId = params.get('employe');
-    const siteId = employee.site_id || 'vito-sainte-marie';
+    const siteId = employee.site_id;
 
     let cibleId = employee.id;
     let vueManager = false;

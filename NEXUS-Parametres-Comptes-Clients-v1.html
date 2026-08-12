@@ -128,7 +128,7 @@
     if (!employeeCourant) return;
     const estNiveauManager = employeeCourant.role === 'manager' || employeeCourant.role === 'gerant';
     if (!estNiveauManager && !employeeCourant.est_createur) { window.location.href = 'NEXUS-App-v1.html'; return; }
-    const siteId = employeeCourant.site_id || 'vito-sainte-marie';
+    const siteId = employeeCourant.site_id;
     const ok = await NexusForfait.nexusRequireProfessional('NEXUS-Parametres-Comptes-Clients-v1.html', siteId);
     if (!ok) return;
 
@@ -138,7 +138,7 @@
   })();
 
   async function chargerParametres() {
-    const site = employeeCourant.site_id || 'vito-sainte-marie';
+    const site = employeeCourant.site_id;
     let { data, error } = await nexusClient.from('client_comptes_parametres').select('*').eq('site', site).maybeSingle();
     if (error) { console.error('Chargement paramètres:', error); }
     if (!data) {
@@ -203,7 +203,7 @@
   }
 
   async function chargerEtAfficherJournal() {
-    const site = employeeCourant.site_id || 'vito-sainte-marie';
+    const site = employeeCourant.site_id;
     const { data, error } = await nexusClient.from('client_comptes_audit_logs')
       .select('*, clients(raison_sociale)').eq('site', site).order('date_action', { ascending: false }).limit(50);
     const zone = document.getElementById('ongletContenu');
@@ -481,7 +481,7 @@
       if (!lignes.length) { zone.innerHTML = '<div class="param-note">Fichier vide ou illisible.</div>'; return; }
 
       let creesOk = 0, aConfirmer = 0, ignores = 0;
-      const site = employeeCourant.site_id || 'vito-sainte-marie';
+      const site = employeeCourant.site_id;
       for (const ligne of lignes) {
         const idClient = ligne['ID client'];
         const compteClient = ligne['Compte client'];

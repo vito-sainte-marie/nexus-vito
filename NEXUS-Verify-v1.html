@@ -625,7 +625,7 @@
 </div>
 
 <script>
-  let SITE_ACTUEL = 'vito-sainte-marie'; // ecrase par employee.site_id une fois connecte
+  let SITE_ACTUEL = null; // jamais 'vito-sainte-marie' par defaut (de-Vito-isation, 11/08/2026) - toujours ecrase par employee.site_id apres nexusRequireAuth()
   let EMPLOYEE_ID = null;
 
   // Classification d'écart extraite le 11/08/2026 dans nexus-verify-moteur.js
@@ -914,7 +914,7 @@
       document.getElementById('app').innerHTML = '<div class="locked">Nexus Verify est réservé aux managers et gérants.</div>';
       return;
     }
-    SITE_ACTUEL = employee.site_id || 'vito-sainte-marie';
+    SITE_ACTUEL = employee.site_id;
     EMPLOYEE_ID = employee.id;
 
     // ------------------------------------------------------------

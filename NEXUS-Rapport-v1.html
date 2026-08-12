@@ -171,7 +171,7 @@
   // (Article 11 : jamais deux calculs séparés de la même chose).
   // ------------------------------------------------------------
 
-  let SITE_ID = 'vito-sainte-marie';
+  let SITE_ID = null; // jamais 'vito-sainte-marie' par defaut (de-Vito-isation, 11/08/2026) - toujours ecrase par employee.site_id apres nexusRequireAuth()
   let NOM_ENTREPRISE = null;
   let MANAGER_COURANT = null;
   let TYPE_PERIODE = 'semaine';
@@ -756,7 +756,7 @@
       return;
     }
     MANAGER_COURANT = employee;
-    SITE_ID = employee.site_id || 'vito-sainte-marie';
+    SITE_ID = employee.site_id;
     const { data: siteRow } = await nexusClient.from('sites').select('nom_entreprise').eq('site_id', SITE_ID).maybeSingle();
     NOM_ENTREPRISE = (siteRow && siteRow.nom_entreprise) || SITE_ID;
 

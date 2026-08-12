@@ -1058,7 +1058,7 @@
 
   let employeActuel = null;
   let employeeId = null;
-  let SITE_ACTUEL = 'vito-sainte-marie'; // ecrase par employee.site_id une fois connecte
+  let SITE_ACTUEL = null; // jamais 'vito-sainte-marie' par defaut (de-Vito-isation, 11/08/2026) - toujours ecrase par employee.site_id apres nexusRequireAuth()
   let checkState = {};
   // Photo par action (27/07/2026) : { "missionId_index": photoUrl } — ne
   // contient une entrée que pour les items déjà photographiés, sur les
@@ -2313,7 +2313,7 @@
 
     employeActuel = employee.nom;
     employeeId = employee.id;
-    SITE_ACTUEL = employee.site_id || 'vito-sainte-marie';
+    SITE_ACTUEL = employee.site_id;
 
     if (!employee.consultation_externe) {
       const shiftDuJour = await chargerShiftAujourdhui(employeeId);

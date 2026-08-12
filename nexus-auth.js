@@ -24,6 +24,24 @@ async function nexusRequireAuth() {
     window.location.href = "NEXUS-Login-v1.html";
     return null;
   }
+
+  // Garde ajoutée le 11/08/2026 (audit "philosophie/architecture", section
+  // "dé-Vito-iser le cœur") : jusqu'ici, chaque page retombait séparément
+  // sur `employee.site_id` dès que site_id était
+  // absent — un repli SILENCIEUX vers le site pilote, répété dans ~44
+  // fichiers. Ce n'est pas un filet de sécurité : un compte mal configuré
+  // (site_id NULL) verrait et modifierait alors les données de Vito
+  // Sainte-Marie sans le savoir, ce qui est pire qu'un blocage franc.
+  // nexusRequireAuth() est le seul point d'entrée de toutes les pages
+  // authentifiées : garantir ICI que site_id est toujours renseigné permet
+  // à tout le reste de l'application de lire `employee.site_id` directement,
+  // sans jamais avoir besoin (ni le droit) de deviner un site par défaut.
+  if (!employee.site_id) {
+    console.error('nexusRequireAuth: employé sans site_id — configuration de compte incomplète. Refus de continuer avec un site déduit arbitrairement.');
+    await nexusClient.auth.signOut();
+    window.location.href = "NEXUS-Login-v1.html?erreur=site_manquant";
+    return null;
+  }
   employee.consultation_externe = false;
   if (employee.est_createur) {
     const siteConsulte = localStorage.getItem('nexus_site_consulte_createur');
@@ -69,7 +87,9 @@ async function nexusPointageArriveeManquant(employee) {
   if (NEXUS_PAGES_SEQUENCE_OBLIGATOIRE.includes(pageActuelle)) return false;
   if (employee.consultation_externe) return false; // créateur en simple consultation d'un autre site
 
-  const siteId = employee.site_id || 'vito-sainte-marie';
+  // site_id est garanti non-nul ici : nexusRequireAuth() refuse toute
+  // session dont l'employé n'a pas de site_id (voir plus haut).
+  const siteId = employee.site_id;
   const estNiveauManager = employee.role === 'manager' || employee.role === 'gerant';
   if (estNiveauManager) {
     const { data: config } = await nexusClient

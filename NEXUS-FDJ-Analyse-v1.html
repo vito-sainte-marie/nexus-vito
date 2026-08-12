@@ -209,7 +209,7 @@
   // ------------------------------------------------------------
 
   let managerCourant = null;
-  let siteId = 'vito-sainte-marie';
+  let siteId = null; // jamais 'vito-sainte-marie' par defaut (de-Vito-isation, 11/08/2026) - toujours ecrase par employee.site_id apres nexusRequireAuth()
   let jeux = [];
   let employesSite = [];
   let emplacements = [];
@@ -1780,7 +1780,7 @@
       return;
     }
     managerCourant = employee;
-    siteId = employee.site_id || 'vito-sainte-marie';
+    siteId = employee.site_id;
     if (!(await NexusForfait.nexusRequireProfessional('NEXUS-FDJ-Analyse-v1.html', siteId))) return;
     [jeux, employesSite, emplacements] = await Promise.all([chargerJeux(), chargerEmployesSite(), chargerEmplacements()]);
     await renderPage();

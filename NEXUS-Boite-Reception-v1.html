@@ -157,7 +157,7 @@
       window.location.href = 'NEXUS-App-v1.html';
       return;
     }
-    siteId = employeeCourant.site_id || 'vito-sainte-marie';
+    siteId = employeeCourant.site_id;
     const ok = await NexusForfait.nexusRequireProfessional('NEXUS-Boite-Reception-v1.html', siteId);
     if (!ok) return;
 

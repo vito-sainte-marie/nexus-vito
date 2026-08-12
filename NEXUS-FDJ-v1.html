@@ -224,7 +224,7 @@
   // ------------------------------------------------------------
 
   let employeeCourant = null;
-  let siteId = 'vito-sainte-marie';
+  let siteId = null; // jamais 'vito-sainte-marie' par defaut (de-Vito-isation, 11/08/2026) - toujours ecrase par employee.site_id apres nexusRequireAuth()
   let quartActuel = null;      // '1' | '2'
   let shiftRow = null;         // ligne fdj_shifts
   let jeux = [];                // catalogue fdj_games actif, trié ordre_affichage
@@ -1273,7 +1273,7 @@
   nexusRequireAuth().then(async employee => {
     if (!employee) return; // nexus-auth.js gère déjà la redirection vers NEXUS-Login-v1.html
     employeeCourant = employee;
-    siteId = employee.site_id || 'vito-sainte-marie';
+    siteId = employee.site_id;
     if (!(await NexusForfait.nexusRequireProfessional('NEXUS-FDJ-v1.html', siteId))) return;
     demarrerHorloge();
     quartActuel = await quartDuMoment();

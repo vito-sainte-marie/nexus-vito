@@ -255,7 +255,7 @@
       document.body.innerHTML = '<div style="padding:60px 20px; text-align:center; color:var(--text-dim); font-family:var(--sans);">Cet écran est réservé aux managers.</div>';
       return;
     }
-    if (!(await NexusForfait.nexusRequireProfessional('NEXUS-Resultats-Equipe-v1.html', employee.site_id || 'vito-sainte-marie'))) return;
+    if (!(await NexusForfait.nexusRequireProfessional('NEXUS-Resultats-Equipe-v1.html', employee.site_id))) return;
 
     const [equipeActive, completions, { data: pointagesRetard, error: erreurPointages }] = await Promise.all([
       chargerEquipeActive(), chargerCompletions(),

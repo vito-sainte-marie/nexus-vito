@@ -774,14 +774,14 @@ a{color:inherit; text-decoration:none;}
     window.CANDIDATS_MARGE = construireCandidatsMarge(stats.rowsPropres, donnees.periodeDebut, donnees.periodeFin);
     renderMarge(window.CANDIDATS_MARGE);
   }
-  let SITE_ACTUEL = 'vito-sainte-marie'; // ecrase par employee.site_id une fois connecte
+  let SITE_ACTUEL = null; // jamais 'vito-sainte-marie' par defaut (de-Vito-isation, 11/08/2026) - toujours ecrase par employee.site_id apres nexusRequireAuth()
   nexusRequireAuth().then(async employee => {
     if (!employee) return; // nexus-auth.js gère déjà la redirection vers NEXUS-Login-v1.html
     if (employee.role !== 'manager' && employee.role !== 'gerant') {
       document.body.innerHTML = '<div style="padding:60px 20px; text-align:center; color:#8A96A5; font-family:sans-serif; background:#0B0F14; min-height:100vh;">Cet écran est réservé aux managers.</div>';
       return;
     }
-    SITE_ACTUEL = employee.site_id || 'vito-sainte-marie';
+    SITE_ACTUEL = employee.site_id;
     if (!(await NexusForfait.nexusRequireProfessional('NEXUS-Scanner-v1.html', SITE_ACTUEL))) return;
     EMPLOYEE_COURANT_ID = employee.id;
     const [donnees] = await Promise.all([chargerDonneesScanner(), chargerValideesMarge(), chargerExclusionsMarge()]);

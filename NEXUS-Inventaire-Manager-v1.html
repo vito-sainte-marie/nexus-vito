@@ -410,7 +410,7 @@
 
 <script>
   let managerCourant = null;
-  let siteId = 'vito-sainte-marie';
+  let siteId = null; // jamais 'vito-sainte-marie' par defaut (de-Vito-isation, 11/08/2026) - toujours ecrase par employee.site_id apres nexusRequireAuth()
   let dateSelectionnee = '';
   let quartSelectionne = 'matin';
   let quartRow = null;
@@ -559,7 +559,7 @@
   async function quartDuMoment(site) {
     let debutQuart2 = HORAIRE_DEFAUT_DEBUT_QUART2;
     const { data, error } = await nexusClient
-      .from('station_config').select('horaires').eq('site', site || 'vito-sainte-marie').maybeSingle();
+      .from('station_config').select('horaires').eq('site', site).maybeSingle();
     if (error) console.error('Chargement horaires station (quart par défaut):', error);
     else if (data && data.horaires && data.horaires.quart2 && data.horaires.quart2.normal) {
       debutQuart2 = data.horaires.quart2.normal;
@@ -2600,7 +2600,7 @@
       return;
     }
     managerCourant = employee;
-    siteId = employee.site_id || 'vito-sainte-marie';
+    siteId = employee.site_id;
     if (!(await NexusForfait.nexusRequireProfessional('NEXUS-Inventaire-Manager-v1.html', siteId))) return;
     demarrerHorloge();
     document.getElementById('titre').textContent = 'Contrôle inventaire';

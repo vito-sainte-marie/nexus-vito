@@ -155,7 +155,7 @@ footer{margin-top:auto; padding:20px 20px 24px; font-family:var(--mono); font-si
     return d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
   }
 
-  let SITE_ID = 'vito-sainte-marie';
+  let SITE_ID = null; // jamais 'vito-sainte-marie' par defaut (de-Vito-isation, 11/08/2026) - toujours ecrase par employee.site_id apres nexusRequireAuth()
   let EMPLOYEE = null;
   let produitsSelectionnes = [];
   // Catalogue réel (25/07/2026) — construit à partir des imports products
@@ -172,7 +172,7 @@ footer{margin-top:auto; padding:20px 20px 24px; font-family:var(--mono); font-si
       return;
     }
     EMPLOYEE = employee;
-    SITE_ID = employee.site_id || 'vito-sainte-marie';
+    SITE_ID = employee.site_id;
     if (!(await NexusForfait.nexusRequireProfessional('NEXUS-Campagne-v1.html', SITE_ID))) return;
     await chargerEtAfficher();
   });

@@ -124,7 +124,7 @@
       return;
     }
     const session = { prenom: employee.nom, role: employee.role };
-    const SITE_ACTUEL = employee.site_id || 'vito-sainte-marie';
+    const SITE_ACTUEL = employee.site_id;
     if (!(await NexusForfait.nexusRequireProfessional('NEXUS-Radar-Manager-v1.html', SITE_ACTUEL))) return;
 
   // Supabase plafonne chaque requete a 1000 lignes par defaut, sans erreur —

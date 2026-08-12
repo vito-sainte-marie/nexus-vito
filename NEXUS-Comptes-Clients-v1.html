@@ -205,7 +205,7 @@
       window.location.href = 'NEXUS-App-v1.html';
       return;
     }
-    const siteId = employeeCourant.site_id || 'vito-sainte-marie';
+    const siteId = employeeCourant.site_id;
     const ok = await NexusForfait.nexusRequireProfessional('NEXUS-Comptes-Clients-v1.html', siteId);
     if (!ok) return;
 
@@ -217,14 +217,14 @@
   })();
 
   async function chargerTemplates() {
-    const site = employeeCourant.site_id || 'vito-sainte-marie';
+    const site = employeeCourant.site_id;
     const { data, error } = await nexusClient.from('email_templates').select('code, nom').eq('site', site).not('code', 'is', null).order('nom');
     if (error) { console.error('Chargement modèles:', error); templatesDisponibles = []; return; }
     templatesDisponibles = data || [];
   }
 
   async function chargerClients() {
-    const site = employeeCourant.site_id || 'vito-sainte-marie';
+    const site = employeeCourant.site_id;
     const { data: clients, error } = await nexusClient.from('clients').select('*').eq('site', site).order('raison_sociale', { ascending: true });
     if (error) { console.error('Chargement clients:', error); clientsListe = []; return; }
     const ids = (clients || []).map(c => c.id);
@@ -244,7 +244,7 @@
 
   async function journaliser(clientId, action, ancienneValeur, nouvelleValeur) {
     await nexusClient.from('client_comptes_audit_logs').insert({
-      site: employeeCourant.site_id || 'vito-sainte-marie', client_id: clientId, entite_type: 'client',
+      site: employeeCourant.site_id, client_id: clientId, entite_type: 'client',
       entite_id: clientId, action, ancienne_valeur: ancienneValeur || null, nouvelle_valeur: nouvelleValeur || null,
       acteur_id: employeeCourant.id,
     });
@@ -644,7 +644,7 @@
   async function enregistrerClient(clientExistant) {
     const raisonSociale = document.getElementById('fRaisonSociale').value.trim();
     if (!raisonSociale) { alert('La raison sociale est obligatoire.'); return; }
-    const site = employeeCourant.site_id || 'vito-sainte-marie';
+    const site = employeeCourant.site_id;
 
     const payloadClient = {
       site, raison_sociale: raisonSociale,

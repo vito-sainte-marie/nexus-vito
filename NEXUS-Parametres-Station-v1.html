@@ -320,7 +320,7 @@
   // (corrige le 15/07/2026 : les autres appareils continuaient a calculer les
   // retards sur les valeurs par defaut sans que personne ne s'en rende compte).
   async function chargerConfig() {
-    const { data, error } = await nexusClient.from('station_config').select('horaires').eq('site', employee.site_id || 'vito-sainte-marie').maybeSingle();
+    const { data, error } = await nexusClient.from('station_config').select('horaires').eq('site', employee.site_id).maybeSingle();
     if (error) { console.error('Chargement station_config:', error); return HORAIRES_DEFAUT; }
     return (data && data.horaires) || HORAIRES_DEFAUT;
   }
@@ -352,7 +352,7 @@
   // La colonne sites.forfait reste la seule source de vérité, modifiable
   // uniquement par le créateur depuis NEXUS-Admin-Sites-v1.html.
   (async function afficherForfait() {
-    const { data, error } = await nexusClient.from('sites').select('forfait').eq('site_id', employee.site_id || 'vito-sainte-marie').maybeSingle();
+    const { data, error } = await nexusClient.from('sites').select('forfait').eq('site_id', employee.site_id).maybeSingle();
     const el = document.getElementById('forfaitActuel');
     if (error) { console.error('Chargement forfait:', error); el.textContent = 'Forfait indisponible pour le moment.'; return; }
     const forfait = (data && data.forfait) || 'essential';
@@ -408,7 +408,7 @@
 
   (async function initRaccourcis() {
     document.getElementById('maxRaccourcisTexte').textContent = String(MAX_RACCOURCIS);
-    const siteId = employee.site_id || 'vito-sainte-marie';
+    const siteId = employee.site_id;
     const [forfait, configRow] = await Promise.all([
       NexusForfait.chargerForfait(siteId),
       nexusClient.from('station_config').select('raccourcis').eq('site', siteId).maybeSingle(),
@@ -470,7 +470,7 @@
       temps_habillage_min: parseInt(document.getElementById('temps_habillage').value, 10) || 0,
     };
     const { error } = await nexusClient.from('station_config').upsert(
-      { site: employee.site_id || 'vito-sainte-marie', horaires: config, updated_at: new Date().toISOString() },
+      { site: employee.site_id, horaires: config, updated_at: new Date().toISOString() },
       { onConflict: 'site' }
     );
     btn.disabled = false;
@@ -484,7 +484,7 @@
 
   document.getElementById('reinitialiser').addEventListener('click', async () => {
     const { error } = await nexusClient.from('station_config').upsert(
-      { site: employee.site_id || 'vito-sainte-marie', horaires: HORAIRES_DEFAUT, updated_at: new Date().toISOString() },
+      { site: employee.site_id, horaires: HORAIRES_DEFAUT, updated_at: new Date().toISOString() },
       { onConflict: 'site' }
     );
     if (error) { console.error('Réinitialisation station_config:', error); alert('Erreur — réessayez.'); return; }
@@ -499,7 +499,7 @@
   // même colonne pour griser ou non l'entrée "Pointage" du menu manager.
   // ------------------------------------------------------------
   async function chargerPointageManager() {
-    const { data, error } = await nexusClient.from('station_config').select('manager_pointage_requis').eq('site', employee.site_id || 'vito-sainte-marie').maybeSingle();
+    const { data, error } = await nexusClient.from('station_config').select('manager_pointage_requis').eq('site', employee.site_id).maybeSingle();
     if (error) { console.error('Chargement manager_pointage_requis:', error); return false; }
     return !!(data && data.manager_pointage_requis);
   }
@@ -521,7 +521,7 @@
     const actif = e.target.checked;
     e.target.disabled = true;
     const { error } = await nexusClient.from('station_config').upsert(
-      { site: employee.site_id || 'vito-sainte-marie', manager_pointage_requis: actif, horaires: CONFIG_HORAIRES_ACTUEL, updated_at: new Date().toISOString() },
+      { site: employee.site_id, manager_pointage_requis: actif, horaires: CONFIG_HORAIRES_ACTUEL, updated_at: new Date().toISOString() },
       { onConflict: 'site' }
     );
     e.target.disabled = false;
@@ -562,7 +562,7 @@
   }
 
   async function chargerPrixCarburants() {
-    const { data, error } = await nexusClient.from('station_config').select('prix_carburants').eq('site', employee.site_id || 'vito-sainte-marie').maybeSingle();
+    const { data, error } = await nexusClient.from('station_config').select('prix_carburants').eq('site', employee.site_id).maybeSingle();
     if (error) { console.error('Chargement prix_carburants:', error); return null; }
     return (data && data.prix_carburants) || null;
   }
@@ -595,7 +595,7 @@
     btn.disabled = true;
     const prix_carburants = { mois: moisCourantISO(), sp, go, gnr, maj_par: employee.nom, maj_le: new Date().toISOString() };
     const { error } = await nexusClient.from('station_config').upsert(
-      { site: employee.site_id || 'vito-sainte-marie', prix_carburants, horaires: CONFIG_HORAIRES_ACTUEL, updated_at: new Date().toISOString() },
+      { site: employee.site_id, prix_carburants, horaires: CONFIG_HORAIRES_ACTUEL, updated_at: new Date().toISOString() },
       { onConflict: 'site' }
     );
     btn.disabled = false;
@@ -620,7 +620,7 @@
     const { data, error } = await nexusClient
       .from('marge_exceptions')
       .select('id, article, categorie, raison')
-      .eq('site', employee.site_id || 'vito-sainte-marie')
+      .eq('site', employee.site_id)
       .order('ajoute_le', { ascending: false });
     if (error) { console.error('Chargement marge_exceptions:', error); el.innerHTML = '<div class="liste-vide">Erreur de chargement.</div>'; return; }
     if (!data || !data.length) { el.innerHTML = '<div class="liste-vide">Aucun article exclu pour l\'instant.</div>'; return; }
@@ -652,7 +652,7 @@
       const { data, error } = await nexusClient
         .from('products')
         .select('article, categorie')
-        .eq('site', employee.site_id || 'vito-sainte-marie')
+        .eq('site', employee.site_id)
         .ilike('article', `%${terme}%`)
         .limit(100);
       if (error) { console.error('Recherche article:', error); return; }
@@ -676,7 +676,7 @@
           btn.disabled = true;
           const raison = document.getElementById('raisonExceptionMarge').value.trim() || null;
           const { error } = await nexusClient.from('marge_exceptions').upsert({
-            site: employee.site_id || 'vito-sainte-marie',
+            site: employee.site_id,
             article: item.dataset.article, categorie: item.dataset.categorie || null,
             raison, ajoute_par: employee.id,
           }, { onConflict: 'site,article' });
@@ -709,7 +709,7 @@
   }
 
   async function chargerGoogleSheet() {
-    const { data, error } = await nexusClient.from('station_config').select('google_sheet_id').eq('site', employee.site_id || 'vito-sainte-marie').maybeSingle();
+    const { data, error } = await nexusClient.from('station_config').select('google_sheet_id').eq('site', employee.site_id).maybeSingle();
     if (error) { console.error('Chargement google_sheet_id:', error); return null; }
     return (data && data.google_sheet_id) || null;
   }
@@ -733,7 +733,7 @@
     btn.disabled = true;
     const google_sheet_id = actif ? idSaisi : null;
     const { error } = await nexusClient.from('station_config').upsert(
-      { site: employee.site_id || 'vito-sainte-marie', google_sheet_id, horaires: CONFIG_HORAIRES_ACTUEL, updated_at: new Date().toISOString() },
+      { site: employee.site_id, google_sheet_id, horaires: CONFIG_HORAIRES_ACTUEL, updated_at: new Date().toISOString() },
       { onConflict: 'site' }
     );
     btn.disabled = false;
@@ -766,7 +766,7 @@
     // synchronisation n'est pas encore activée) pour que le test porte
     // bien sur CE classeur.
     const { error: saveErr } = await nexusClient.from('station_config').upsert(
-      { site: employee.site_id || 'vito-sainte-marie', google_sheet_id: idSaisi, horaires: CONFIG_HORAIRES_ACTUEL, updated_at: new Date().toISOString() },
+      { site: employee.site_id, google_sheet_id: idSaisi, horaires: CONFIG_HORAIRES_ACTUEL, updated_at: new Date().toISOString() },
       { onConflict: 'site' }
     );
     if (saveErr) {

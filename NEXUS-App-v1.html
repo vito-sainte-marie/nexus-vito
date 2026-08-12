@@ -1456,7 +1456,7 @@
   // `opportunites`).
   const construireCandidatTempoHome = NexusTempo.construireCandidatTempo;
 
-  let SITE_HOME = 'vito-sainte-marie';
+  let SITE_HOME = null; // jamais 'vito-sainte-marie' par defaut (de-Vito-isation, 11/08/2026) - toujours ecrase par employee.site_id apres nexusRequireAuth()
   let EMPLOYEE_HOME_ID = null;
 
   // Généralisé le 26/07/2026 (Conseiller cross-moteurs) : ruleId vient
@@ -1797,7 +1797,7 @@
   }
 
   async function initPosteManager(employee) {
-    SITE_HOME = employee.site_id || 'vito-sainte-marie';
+    SITE_HOME = employee.site_id;
     EMPLOYEE_HOME_ID = employee.id;
 
     const [
@@ -2353,14 +2353,14 @@
         if (wrap) plusZone.appendChild(wrap);
       });
 
-      pointageRequisManager = await chargerPointageRequisManager(employee.site_id || 'vito-sainte-marie');
+      pointageRequisManager = await chargerPointageRequisManager(employee.site_id);
       await initPosteManager(employee);
-      forfaitProfessional = await verrouillerNavForfait(employee.site_id || 'vito-sainte-marie');
-      briefNexusInclus = await verrouillerNavBriefNexus(employee.site_id || 'vito-sainte-marie');
+      forfaitProfessional = await verrouillerNavForfait(employee.site_id);
+      briefNexusInclus = await verrouillerNavBriefNexus(employee.site_id);
     } else {
       document.getElementById('conseillerEmployeWrap').style.display = '';
       document.getElementById('conseillerEmployeTexte').textContent = `Bonjour ${employee.nom}. J'ai préparé votre journée.`;
-      afficherPointageMini(employee, employee.site_id || 'vito-sainte-marie');
+      afficherPointageMini(employee, employee.site_id);
 
       // Inventaire masqué pour un renfort (03/08/2026, demande de Frédéric) :
       // le comptage d'ouverture/clôture de quart suppose un poste titulaire
@@ -2377,7 +2377,7 @@
       // révélée seulement si le forfait du site l'autorise. On ne réutilise
       // pas `forfaitProfessional` (calculé uniquement côté manager plus
       // haut, jamais pour un employé) : lecture directe via nexus-forfait.js.
-      NexusForfait.chargerForfait(employee.site_id || 'vito-sainte-marie').then(forfait => {
+      NexusForfait.chargerForfait(employee.site_id).then(forfait => {
         if (forfait === null) return; // erreur réseau : ne bloque pas, reste masquée par prudence
         if (NexusForfait.estProfessional(forfait)) {
           const fdjMini = document.getElementById('fdjMini');
@@ -2410,7 +2410,7 @@
     // seul : aucune mise en page ne casse, prêt pour n'importe quel futur
     // client sans logo au démarrage.
     (async function chargerMarqueSite() {
-      const siteId = employee.site_id || 'vito-sainte-marie';
+      const siteId = employee.site_id;
       const { data: site, error } = await nexusClient.from('sites').select('nom_entreprise, logo_url').eq('site_id', siteId).maybeSingle();
       if (error || !site) return;
       const titre = document.getElementById('stationTitle');
@@ -2425,7 +2425,7 @@
 
     // Rappel du Conseiller NEXUS — prix carburants du mois (SP / GO / GNR).
     if (estNiveauManager && !employee.consultation_externe) {
-      const siteId = employee.site_id || 'vito-sainte-marie';
+      const siteId = employee.site_id;
       const cleRappel = 'nexus_rappel_prix_carburants_' + siteId;
       const uneHeure = 60 * 60 * 1000;
 

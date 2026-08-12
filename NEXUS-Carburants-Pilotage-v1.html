@@ -169,7 +169,7 @@
   // mettre en forme — jamais un calcul recopié localement (Article 11).
   // ------------------------------------------------------------
 
-  let SITE_ID = 'vito-sainte-marie';
+  let SITE_ID = null; // jamais 'vito-sainte-marie' par defaut (de-Vito-isation, 11/08/2026) - toujours ecrase par employee.site_id apres nexusRequireAuth()
   let TYPE_PERIODE = 'semaine';
 
   const TYPES = [
@@ -376,7 +376,7 @@
       document.body.innerHTML = '<div class="locked">Cet écran est réservé aux managers.</div>';
       return;
     }
-    SITE_ID = employee.site_id || 'vito-sainte-marie';
+    SITE_ID = employee.site_id;
 
     renderBarrePeriodes();
     document.getElementById('btnLibreValider').addEventListener('click', () => {

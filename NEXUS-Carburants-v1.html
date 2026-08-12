@@ -148,7 +148,7 @@
   // Frédéric, 10/08/2026).
   // ------------------------------------------------------------
 
-  let SITE_ID = 'vito-sainte-marie';
+  let SITE_ID = null; // jamais 'vito-sainte-marie' par defaut (de-Vito-isation, 11/08/2026) - toujours ecrase par employee.site_id apres nexusRequireAuth()
   let MANAGER_COURANT = null;
   let DERNIER_RELEVE = null;   // dernier relevé RÉEL avant aujourd'hui (ancre du calcul théorique)
   let RELEVE_AUJOURDHUI = null; // relevé déjà enregistré aujourd'hui, si le manager revient corriger
@@ -349,7 +349,7 @@
       return;
     }
     MANAGER_COURANT = employee;
-    SITE_ID = employee.site_id || 'vito-sainte-marie';
+    SITE_ID = employee.site_id;
     const dateJour = todayISO();
     document.getElementById('horodateurDiscret').textContent = `Aujourd'hui — ${formaterDateFr(dateJour)}`;
 

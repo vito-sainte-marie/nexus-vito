@@ -342,7 +342,7 @@
       return;
     }
 
-    if (!(await NexusForfait.nexusRequireProfessional('NEXUS-Assignations-v1.html', employee.site_id || 'vito-sainte-marie'))) return;
+    if (!(await NexusForfait.nexusRequireProfessional('NEXUS-Assignations-v1.html', employee.site_id))) return;
 
     employeeCourant = employee;
     [catalogue, employesEquipe, assignations] = await Promise.all([

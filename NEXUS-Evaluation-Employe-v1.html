@@ -184,7 +184,7 @@
 </div>
 
 <script>
-  let SITE_ACTUEL = 'vito-sainte-marie'; // ecrase par employee.site_id une fois connecte
+  let SITE_ACTUEL = null; // jamais 'vito-sainte-marie' par defaut (de-Vito-isation, 11/08/2026) - toujours ecrase par employee.site_id apres nexusRequireAuth()
   let EVALUATEUR_ID = null;
   let ROSTER = [];
 
@@ -194,7 +194,7 @@
       document.body.innerHTML = '<div style="padding:60px 20px; text-align:center; color:var(--text-dim); font-family:var(--sans);">Cet écran est réservé aux managers.</div>';
       return;
     }
-    SITE_ACTUEL = employee.site_id || 'vito-sainte-marie';
+    SITE_ACTUEL = employee.site_id;
     EVALUATEUR_ID = employee.id;
 
     if (!(await NexusForfait.nexusRequireProfessional('NEXUS-Evaluation-Employe-v1.html', SITE_ACTUEL))) return;

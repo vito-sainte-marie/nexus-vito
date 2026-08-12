@@ -324,7 +324,7 @@
   // nexus-boussole-moteur.js (Article 11) et simplement relus ici.
   const { SEUIL_ECART_OPERATIONS_EUR, SEUIL_MIN_POINTAGES_EQUIPE } = NexusBoussoleMoteur;
 
-  let SITE_ACTUEL = 'vito-sainte-marie';
+  let SITE_ACTUEL = null; // jamais 'vito-sainte-marie' par defaut (de-Vito-isation, 11/08/2026) - toujours ecrase par employee.site_id apres nexusRequireAuth()
   let employeeCourantId = null;
   let VALIDEES_SITE = new Set();
   let JOURNAL_DECISIONS = [];
@@ -1491,7 +1491,7 @@
       return;
     }
     employeeCourantId = employee.id;
-    SITE_ACTUEL = employee.site_id || 'vito-sainte-marie';
+    SITE_ACTUEL = employee.site_id;
     if (!(await NexusForfait.nexusRequireBriefNexus(SITE_ACTUEL))) return;
     STATION_CONFIG.manager_prenom = employee.nom;
     STATION_CONFIG.manager_role = employee.role;

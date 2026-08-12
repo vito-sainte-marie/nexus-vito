@@ -109,7 +109,7 @@
   // nom lèverait une erreur de syntaxe, les <script> classiques partagent
   // la même portée lexicale sur une page).
   let employeeCourant = null;
-  let siteId = 'vito-sainte-marie';
+  let siteId = null; // jamais 'vito-sainte-marie' par defaut (de-Vito-isation, 11/08/2026) - toujours ecrase par employee.site_id apres nexusRequireAuth()
   let recommandationActuelle = null;
 
   function dateISO(d) { d = d || new Date(); return d.toISOString().slice(0, 10); }
@@ -182,7 +182,7 @@
   nexusRequireAuth().then(async employee => {
     if (!employee) return; // nexus-auth.js gère déjà la redirection vers NEXUS-Login-v1.html
     employeeCourant = employee;
-    siteId = employee.site_id || 'vito-sainte-marie';
+    siteId = employee.site_id;
     if (!(await NexusForfait.nexusRequireProfessional('NEXUS-Coach-FDJ-v1.html', siteId))) return;
 
     const reco = await NexusCoachFdjDonnees.obtenirRecommandationDuJour(nexusClient, siteId, employeeCourant.id, dateISO());

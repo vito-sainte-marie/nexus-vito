@@ -168,7 +168,7 @@
   // dans Paramètres → Inventaire → Gestion des profils. Un manager qui
   // ne vend ni SDD ni presse ne devrait jamais avoir besoin d'y venir.
   let managerCourant = null;
-  let siteId = 'vito-sainte-marie';
+  let siteId = null; // jamais 'vito-sainte-marie' par defaut (de-Vito-isation, 11/08/2026) - toujours ecrase par employee.site_id apres nexusRequireAuth()
   let ongletActif = 'lots';
   let produitsLotTracked = []; // règles produit (profil lot_glissant/presse) + infos produit
   let tousLesLots = [];
@@ -597,7 +597,7 @@
       return;
     }
     managerCourant = employee;
-    siteId = employee.site_id || 'vito-sainte-marie';
+    siteId = employee.site_id;
     if (!(await NexusForfait.nexusRequireProfessional('NEXUS-Tracabilite-v1.html', siteId))) return;
     document.getElementById('titre').textContent = 'Traçabilité';
 

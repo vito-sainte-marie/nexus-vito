@@ -268,7 +268,7 @@ footer{margin-top:auto; padding:20px 20px 24px; font-family:var(--mono); font-si
       document.getElementById('app').innerHTML = '<div class="reserve">Cet écran est réservé aux managers.</div>';
       return;
     }
-    const siteId = employee.site_id || 'vito-sainte-marie';
+    const siteId = employee.site_id;
     if (!(await NexusForfait.nexusRequireProfessional('NEXUS-Tempo-v1.html', siteId))) return;
 
     const [{ data: auditsRows, error: e1 }, { data: employesRows, error: e2 }, { data: stockRows, error: e3 }, { data: journalRows, error: e4 }, { data: inventaireRows, error: e5 }, { data: productsRows, error: e6 }] = await Promise.all([

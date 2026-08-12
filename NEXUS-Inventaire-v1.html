@@ -368,7 +368,7 @@
   async function quartDuMoment(siteId) {
     let debutQuart2 = HORAIRE_DEFAUT_DEBUT_QUART2;
     const { data, error } = await nexusClient
-      .from('station_config').select('horaires').eq('site', siteId || 'vito-sainte-marie').maybeSingle();
+      .from('station_config').select('horaires').eq('site', siteId).maybeSingle();
     if (error) console.error('Chargement horaires station (quart par défaut):', error);
     else if (data && data.horaires && data.horaires.quart2 && data.horaires.quart2.normal) {
       debutQuart2 = data.horaires.quart2.normal;
@@ -407,7 +407,7 @@
   }
 
   async function obtenirOuCreerQuart() {
-    const site = employeeCourant.site_id || 'vito-sainte-marie';
+    const site = employeeCourant.site_id;
     const { data: existant, error: e1 } = await nexusClient
       .from('inventaire_quarts').select('*').eq('site', site).eq('date', dateISO()).eq('quart', quartActuel).maybeSingle();
     if (e1) { console.error('Lecture quart:', e1); }
@@ -465,7 +465,7 @@
     // le matin seulement). quarts_comptage NULL = matin et soir = comportement
     // historique inchangé pour tout produit non configuré.
     if (liste.length && quartActuel) {
-      const site = employeeCourant.site_id || 'vito-sainte-marie';
+      const site = employeeCourant.site_id;
       const { data: regles, error: e2 } = await nexusClient.from('inventaire_regles_produit')
         .select('produit_id, quarts_comptage').eq('site', site).in('produit_id', liste.map(p => p.id));
       if (e2) { console.error('Chargement quarts de comptage par produit:', e2); }
@@ -499,7 +499,7 @@
   }
 
   async function chargerModesAveugle() {
-    const site = employeeCourant.site_id || 'vito-sainte-marie';
+    const site = employeeCourant.site_id;
     const { data, error } = await nexusClient
       .from('inventaire_modes_controle').select('*').eq('site', site).eq('mode', 'aveugle').eq('actif', true);
     if (error) { console.error('Modes de contrôle:', error); return []; }
@@ -507,7 +507,7 @@
   }
 
   async function chargerModeJaugeageActif() {
-    const site = employeeCourant.site_id || 'vito-sainte-marie';
+    const site = employeeCourant.site_id;
     const { data, error } = await nexusClient
       .from('inventaire_modes_controle').select('id').eq('site', site).eq('mode', 'jaugeage_actif').eq('actif', true).maybeSingle();
     if (error) { console.error('Chargement mode jaugeage:', error); return false; }
@@ -1431,7 +1431,7 @@
     // Viennoiserie).
     for (const m of mouvementsSaisie) {
       const { error } = await nexusClient.from('inventaire_mouvements').insert({
-        site: employeeCourant.site_id || 'vito-sainte-marie', quart_id: quartRow.id, produit_id: m.produit_id,
+        site: employeeCourant.site_id, quart_id: quartRow.id, produit_id: m.produit_id,
         type_mouvement: m.type_mouvement, quantite: m.quantite, employee_id: employeeCourant.id, justification: m.justification || null,
         reason_code: m.type_mouvement, zone_source_id: m.zone_source_id || null, zone_destination_id: m.zone_destination_id || null,
       });
@@ -1450,7 +1450,7 @@
       // Matérialise le stock transmis comme événement séparé, avec sa
       // source explicite (jamais une valeur saisie librement).
       const { data: evtTransmis, error: e1 } = await nexusClient.from('inventaire_comptages').insert({
-        site: employeeCourant.site_id || 'vito-sainte-marie', quart_id: quartRow.id, produit_id: p.id,
+        site: employeeCourant.site_id, quart_id: quartRow.id, produit_id: p.id,
         type_comptage: 'transmis', quantite: valeurTransmise,
         comptage_source_id: transmis ? transmis.comptage_id : null, quantite_transmise: valeurTransmise,
         source: 'auto',
@@ -1458,7 +1458,7 @@
       if (e1) console.error('Comptage transmis:', e1);
 
       const { error: e2 } = await nexusClient.from('inventaire_comptages').insert({
-        site: employeeCourant.site_id || 'vito-sainte-marie', quart_id: quartRow.id, produit_id: p.id,
+        site: employeeCourant.site_id, quart_id: quartRow.id, produit_id: p.id,
         type_comptage: 'ouverture', quantite: saisie.compte, employee_id: employeeCourant.id,
         comptage_source_id: evtTransmis ? evtTransmis.id : null, quantite_transmise: valeurTransmise,
         source: 'manuel', commentaire: saisie.justification || null,
@@ -1494,7 +1494,7 @@
           resolution = `Motif déclaré par l'employé : ${motifLibelle}.`;
         }
         await nexusClient.from('inventaire_alertes').insert({
-          site: employeeCourant.site_id || 'vito-sainte-marie', quart_id: quartRow.id, produit_id: p.id,
+          site: employeeCourant.site_id, quart_id: quartRow.id, produit_id: p.id,
           type_alerte: 'ecart_ouverture', gravite: Math.abs(ecartVal) > 2 ? 'critique' : 'attention',
           valeur_attendue: valeurTransmise, valeur_constatee: saisie.compte,
           resolution, categorie_anomalie: 'saisie',
@@ -1811,7 +1811,7 @@
     // Mouvements déclarés
     for (const m of mouvementsSaisie) {
       const { error } = await nexusClient.from('inventaire_mouvements').insert({
-        site: employeeCourant.site_id || 'vito-sainte-marie', quart_id: quartRow.id, produit_id: m.produit_id,
+        site: employeeCourant.site_id, quart_id: quartRow.id, produit_id: m.produit_id,
         type_mouvement: m.type_mouvement, quantite: m.quantite, employee_id: employeeCourant.id, justification: m.justification || null,
         reason_code: m.type_mouvement, zone_source_id: m.zone_source_id || null, zone_destination_id: m.zone_destination_id || null,
       });
@@ -1824,7 +1824,7 @@
       if (!saisie || saisie.compte === undefined) continue;
       nbClotures++;
       const { error } = await nexusClient.from('inventaire_comptages').insert({
-        site: employeeCourant.site_id || 'vito-sainte-marie', quart_id: quartRow.id, produit_id: p.id,
+        site: employeeCourant.site_id, quart_id: quartRow.id, produit_id: p.id,
         type_comptage: 'cloture', quantite: saisie.compte, employee_id: employeeCourant.id, source: 'manuel', statut: 'valide',
         quantite_depot: saisie.compteDepot !== undefined ? saisie.compteDepot : null,
         quantite_boutique: saisie.compteBoutique !== undefined ? saisie.compteBoutique : null,
@@ -1843,7 +1843,7 @@
     // produits manquants, et peut rouvrir la clôture depuis État du quart.
     if (clotureIncomplete) {
       await nexusClient.from('inventaire_alertes').insert({
-        site: employeeCourant.site_id || 'vito-sainte-marie', quart_id: quartRow.id, type_alerte: 'cloture_incomplete',
+        site: employeeCourant.site_id, quart_id: quartRow.id, type_alerte: 'cloture_incomplete',
         gravite: 'critique', valeur_attendue: requis.length, valeur_constatee: nbClotures,
         resolution: `Clôture validée par ${employeeCourant.nom} avec ${manquants.length} produit(s) sur ${requis.length} non comptés.`,
       });

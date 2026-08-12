@@ -302,7 +302,7 @@ a{color:inherit; text-decoration:none;}
     `;
   }
 
-  let SITE_ACTUEL = 'vito-sainte-marie';
+  let SITE_ACTUEL = null; // jamais 'vito-sainte-marie' par defaut (de-Vito-isation, 11/08/2026) - toujours ecrase par employee.site_id apres nexusRequireAuth()
 
   function fetchAllRowsCapital(builderFactory, pageSize = 1000) {
     return (async () => {
@@ -605,7 +605,7 @@ a{color:inherit; text-decoration:none;}
       document.body.innerHTML = '<div style="padding:60px 20px; text-align:center; color:#8A96A5; font-family:sans-serif; background:#0B0F14; min-height:100vh;">Cet écran est réservé aux managers.</div>';
       return;
     }
-    SITE_ACTUEL = employee.site_id || 'vito-sainte-marie';
+    SITE_ACTUEL = employee.site_id;
     if (!(await NexusForfait.nexusRequireProfessional('NEXUS-Capital-v1.html', SITE_ACTUEL))) return;
 
     const [decisions, opportunites] = await Promise.all([

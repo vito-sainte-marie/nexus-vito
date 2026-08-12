@@ -221,7 +221,7 @@
       return;
     }
 
-    const siteId = employee.site_id || 'vito-sainte-marie';
+    const siteId = employee.site_id;
     if (!(await NexusForfait.nexusRequireProfessional('NEXUS-Planning-v1.html', siteId))) return;
     let MOIS_COURANT = premierJourMois(new Date());
     let EMPLOYES = [];

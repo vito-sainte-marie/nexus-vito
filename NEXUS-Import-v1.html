@@ -295,7 +295,7 @@ nexusRequireAuth().then(async employee => {
   // place pour Stock instantané et Panier moyen ci-dessous.
   try {
     const resDernierePeriode = await nexusClient.from('products').select('periode_fin')
-      .eq('site', employee.site_id || 'vito-sainte-marie').order('periode_fin', { ascending: false }).limit(1);
+      .eq('site', employee.site_id).order('periode_fin', { ascending: false }).limit(1);
     dernierePeriodeFinVentes = resDernierePeriode.data && resDernierePeriode.data[0] ? resDernierePeriode.data[0].periode_fin : null;
   } catch (err) { console.error('Dernière période ventes:', err); }
   try {
@@ -312,19 +312,19 @@ nexusRequireAuth().then(async employee => {
   try {
     const resCampagnes = await nexusClient.from('campagnes_nexus')
       .select('id, nom, date_debut, date_fin, type')
-      .eq('site', employee.site_id || 'vito-sainte-marie')
+      .eq('site', employee.site_id)
       .order('date_debut', { ascending: false });
     campagnesDisponibles = resCampagnes.data || [];
     const resImports = await nexusClient.from('campagnes_nexus_imports')
       .select('campagne_id, phase, periode_debut, periode_fin')
-      .eq('site', employee.site_id || 'vito-sainte-marie');
+      .eq('site', employee.site_id);
     importsCampagnes = resImports.data || [];
   } catch (err) { console.error('Chargement campagnes_nexus (table pas encore créée ?):', err); }
 
   let countPanier = 0, dernierJourPanier = null;
   try {
     const resPanier = await nexusClient.from('panier_moyen_quotidien')
-      .select('date', { count: 'exact' }).eq('site', employee.site_id || 'vito-sainte-marie')
+      .select('date', { count: 'exact' }).eq('site', employee.site_id)
       .order('date', { ascending: false }).limit(1);
     countPanier = resPanier.count || 0;
     dernierJourPanier = resPanier.data && resPanier.data[0] ? resPanier.data[0].date : null;
@@ -864,7 +864,7 @@ async function envoyerVentes(msg) {
   const { count: nbExistant, error: erreurVerif } = await nexusClient
     .from('products')
     .select('id', { count: 'exact', head: true })
-    .eq('site', employee.site_id || 'vito-sainte-marie')
+    .eq('site', employee.site_id)
     .eq('periode_debut', debut)
     .eq('periode_fin', fin);
 
@@ -881,7 +881,7 @@ async function envoyerVentes(msg) {
     sendPilot.style.pointerEvents = 'none';
     const { error: erreurSuppr } = await nexusClient
       .from('products').delete()
-      .eq('site', employee.site_id || 'vito-sainte-marie').eq('periode_debut', debut).eq('periode_fin', fin);
+      .eq('site', employee.site_id).eq('periode_debut', debut).eq('periode_fin', fin);
     if (erreurSuppr) {
       console.error('Suppression avant remplacement:', erreurSuppr);
       msg.textContent = "Erreur lors du remplacement — rien n'a été modifié, réessayez.";
@@ -903,7 +903,7 @@ async function envoyerVentes(msg) {
     const marge = (!isNaN(q) && !isNaN(pa) && !isNaN(pv)) ? q * (pv - pa) : 0;
     const articleNom = String(r[artKey] || '');
     return {
-      site: employee.site_id || 'vito-sainte-marie',
+      site: employee.site_id,
       periode_debut: debut,
       periode_fin: fin,
       categorie: corrigerCategorie(String(r[catKey] || 'Non classé'), articleNom),
@@ -980,7 +980,7 @@ async function envoyerCampagneProduits(msg) {
   }
 
   const { debut, fin } = calculerPeriodeCampagne(campagne, phaseChoisie);
-  const site = employee.site_id || 'vito-sainte-marie';
+  const site = employee.site_id;
 
   // Un import précédent existe déjà pour cette promotion + cette
   // phase ? On le remplace proprement (anciennes lignes products +
@@ -1075,7 +1075,7 @@ async function envoyerPanierMoyen(msg) {
   sendPilot.textContent = 'Envoi en cours…';
   sendPilot.style.pointerEvents = 'none';
 
-  const site = employee.site_id || 'vito-sainte-marie';
+  const site = employee.site_id;
   const lignes = currentPanierLignes.map(l => ({
     site, date: l.date, nb_tickets: l.nb_tickets,
     panier_moyen_ht: l.panier_moyen_ht, panier_moyen_ttc: l.panier_moyen_ttc,
@@ -1135,7 +1135,7 @@ async function envoyerStockInstantane(msg) {
     const q = toNumber(r[qKey]);
     const articleNom = String(r[artKey] || '');
     return {
-      site: employee.site_id || 'vito-sainte-marie',
+      site: employee.site_id,
       releve_le: releveLe,
       categorie: catKey ? corrigerCategorie(String(r[catKey] || 'Non classé'), articleNom) : null,
       article: articleNom,
