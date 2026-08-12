@@ -25,6 +25,7 @@
 <script src="nexus-fdj-moteur.js"></script>
 <script src="nexus-coach-fdj-moteur.js"></script>
 <script src="nexus-conseiller.js"></script>
+<script src="nexus-fdj-analyse-donnees.js"></script>
 <script src="nexus-pdf-moteur.js"></script>
 <style>
   :root{
@@ -288,9 +289,7 @@
   // recalculée ici (Article 11, "une seule vérité").
   // ------------------------------------------------------------
   async function chargerVue(nomVue, dateDebut, dateFin) {
-    const { data, error } = await nexusClient.from(nomVue).select('*').eq('site', siteId).gte('date', dateISO(dateDebut)).lte('date', dateISO(dateFin));
-    if (error) { console.error(`Chargement ${nomVue}:`, error); return []; }
-    return data || [];
+    return NexusFdjAnalyseDonnees.chargerVue(nexusClient, siteId, nomVue, dateISO(dateDebut), dateISO(dateFin));
   }
   function sommerChamps(lignes, champs) {
     const r = {}; champs.forEach(c => r[c] = 0);
@@ -345,16 +344,12 @@
   let parametresFdjSiteCache = undefined;
   async function chargerParametresFdjSite() {
     if (parametresFdjSiteCache !== undefined) return parametresFdjSiteCache;
-    const { data, error } = await nexusClient.from('fdj_site_settings').select('*').eq('site', siteId).maybeSingle();
-    if (error) console.error('Chargement paramètres FDJ site:', error);
-    parametresFdjSiteCache = data || { seuil_min_quarts_moyenne: 3 };
+    parametresFdjSiteCache = await NexusFdjAnalyseDonnees.chargerParametresFdjSite(nexusClient, siteId, { seuil_min_quarts_moyenne: 3 });
     return parametresFdjSiteCache;
   }
 
   async function chargerEmplacements() {
-    const { data, error } = await nexusClient.from('fdj_locations').select('*').eq('site', siteId).eq('actif', true);
-    if (error) { console.error('Chargement emplacements FDJ:', error); return []; }
-    return data || [];
+    return NexusFdjAnalyseDonnees.chargerEmplacements(nexusClient, siteId);
   }
   // Date de démarrage du suivi natif par jeu (fdj_shift_counts) — l'historique
   // importé (fdj_imported_history, fusionné dans view_fdj_shift_facts le
@@ -366,36 +361,21 @@
   let premiereDateSuiviJeuCache = undefined;
   async function chargerPremiereDateSuiviJeu() {
     if (premiereDateSuiviJeuCache !== undefined) return premiereDateSuiviJeuCache;
-    const { data, error } = await nexusClient.from('fdj_shifts').select('date').eq('site', siteId).order('date', { ascending: true }).limit(1).maybeSingle();
-    if (error) { console.error('Chargement première date suivi jeu FDJ:', error); premiereDateSuiviJeuCache = null; return null; }
-    premiereDateSuiviJeuCache = data ? data.date : null;
+    premiereDateSuiviJeuCache = await NexusFdjAnalyseDonnees.chargerPremiereDateSuiviJeu(nexusClient, siteId);
     return premiereDateSuiviJeuCache;
   }
   function emplacementParType(type) { return emplacements.find(e => e.type === type) || null; }
   async function chargerMouvementsStock() {
-    const { data, error } = await nexusClient.from('fdj_stock_movements').select('*').eq('site', siteId);
-    if (error) { console.error('Chargement mouvements stock FDJ:', error); return []; }
-    return data || [];
+    return NexusFdjAnalyseDonnees.chargerMouvementsStock(nexusClient, siteId);
   }
   async function chargerDerniereReference() {
-    const { data: ref, error: e1 } = await nexusClient.from('fdj_stock_references').select('*').eq('site', siteId).eq('statut', 'valide').order('date', { ascending: false }).order('created_at', { ascending: false }).limit(1).maybeSingle();
-    if (e1) { console.error('Chargement référence stock FDJ:', e1); return null; }
-    if (!ref) return null;
-    const { data: lignes, error: e2 } = await nexusClient.from('fdj_stock_reference_lignes').select('game_id, bureau_reel, caisse_reel').eq('reference_id', ref.id);
-    if (e2) { console.error('Chargement lignes référence stock FDJ:', e2); return null; }
-    const map = {};
-    (lignes || []).forEach(l => { map[l.game_id] = { bureau: l.bureau_reel, caisse: l.caisse_reel }; });
-    return { id: ref.id, date: ref.date, creeLe: ref.created_at, lignes: map };
+    return NexusFdjAnalyseDonnees.chargerDerniereReference(nexusClient, siteId);
   }
   async function chargerJeux() {
-    const { data, error } = await nexusClient.from('fdj_games').select('*').eq('site', siteId).eq('actif', true).order('ordre_affichage', { ascending: true });
-    if (error) { console.error('Chargement jeux FDJ:', error); return []; }
-    return data || [];
+    return NexusFdjAnalyseDonnees.chargerJeux(nexusClient, siteId);
   }
   async function chargerEmployesSite() {
-    const { data, error } = await nexusClient.from('employees').select('id, nom').eq('site_id', siteId).eq('actif', true).order('nom', { ascending: true });
-    if (error) { console.error('Chargement employés site:', error); return []; }
-    return data || [];
+    return NexusFdjAnalyseDonnees.chargerEmployesSite(nexusClient, siteId);
   }
   function nomJeu(id) { const j = jeux.find(x => x.id === id); return j ? j.nom : '—'; }
   function nomEmploye(id) { const e = employesSite.find(x => x.id === id); return e ? e.nom : '—'; }
@@ -622,9 +602,7 @@
   }
 
   async function chargerShiftFacts(dateDebut, dateFin) {
-    const { data, error } = await nexusClient.from('view_fdj_shift_facts').select('*').eq('site', siteId).gte('date', dateISO(dateDebut)).lte('date', dateISO(dateFin));
-    if (error) { console.error('Chargement view_fdj_shift_facts:', error); return []; }
-    return data || [];
+    return NexusFdjAnalyseDonnees.chargerShiftFacts(nexusClient, siteId, dateISO(dateDebut), dateISO(dateFin));
   }
 
   // ------------------------------------------------------------
@@ -1134,13 +1112,7 @@
   async function chargerSyntheseCoachEquipe() {
     const debut = dateISO(periodeResolue.debut), fin = dateISO(periodeResolue.fin);
     const compDebut = dateISO(periodeResolue.compDebut), compFin = dateISO(periodeResolue.compFin);
-    const [{ data: actuel, error: e1 }, { data: comp, error: e2 }] = await Promise.all([
-      nexusClient.from('coach_daily_recommendations').select('employee_id, rule_id, date').eq('site', siteId).gte('date', debut).lte('date', fin),
-      nexusClient.from('coach_daily_recommendations').select('rule_id').eq('site', siteId).gte('date', compDebut).lte('date', compFin),
-    ]);
-    if (e1) console.error('Chargement coach_daily_recommendations (Coaching équipe):', e1);
-    if (e2) console.error('Chargement coach_daily_recommendations comparaison (Coaching équipe):', e2);
-    return { actuel: actuel || [], comp: comp || [] };
+    return NexusFdjAnalyseDonnees.chargerSyntheseCoachEquipe(nexusClient, siteId, debut, fin, compDebut, compFin);
   }
 
   // Évolution du thème dominant vs la période de comparaison — même
