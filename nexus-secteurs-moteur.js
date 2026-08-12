@@ -112,7 +112,7 @@
   function secteurVide(entree, raison) {
     return {
       ...entree, type: 'reel', confiance: 'INSUFFISANT', statut: 'Données insuffisantes', valeur: null,
-      detail: raison, moteurs: [], changement: null, force: null, frein: null, risques: [],
+      detail: raison, moteurs: [], changement: null, force: null, frein: null, risques: [], coherence: null,
     };
   }
 
@@ -138,6 +138,21 @@
   // question, exactement la distinction demandée par l'audit ("Carburants :
   // non évalué sur la fiabilité stock ; litrage commercial disponible.
   // L'indice n'intègre pas la composante non mesurable").
+  // `coherence` (13/08/2026, correctif direct sur retour d'usage de
+  // Frédéric — écran Brief live) : ce que le P0.1 ci-dessus corrige à la
+  // SOURCE (le calcul), ce champ le corrige à la LECTURE (l'affichage).
+  // Constat exact rapporté : la carte Carburants pouvait afficher
+  // "Données insuffisantes" (statut, piloté par `aucunReleve` — la
+  // fraîcheur du CONTRÔLE/jaugeage du jour) tout en listant "0/100" puis
+  // "-50" dans le détail de l'Indice Boussole (valeur, pilotée par
+  // `evolution` — la PERFORMANCE volumes sur 7 jours). Les deux affirmations
+  // sont individuellement vraies (aucun relevé aujourd'hui ; volumes en
+  // fort recul sur 7 jours) mais juxtaposées sans explication, elles
+  // ressemblent à une contradiction — exactement ce que "chaque statut doit
+  // toujours pouvoir être expliqué" interdit. `coherence` ne change AUCUN
+  // calcul (confiance/valeur restent régies par l'invariant P0.1) : elle
+  // nomme explicitement la distinction pour le dirigeant, réutilisant les
+  // mêmes signaux déjà calculés ci-dessus (Article 11).
   function construireSecteurCarburants(entree, carburants) {
     if (!carburants) return secteurVide(entree, "Aucune donnée carburant chargée pour l'instant.");
     const M = carburantMoteur();
@@ -152,9 +167,12 @@
     }
     const force = (evolution != null && evolution >= 0.05) ? { titre: 'Volumes carburant en hausse', detail: changement, cible: entree.cible } : null;
     const frein = (statut === 'À corriger' || statut === 'À surveiller') ? { titre: 'Écart carburant à traiter', detail, cible: entree.cible } : null;
+    const coherence = (carburants.controle.aucunReleve && valeur != null)
+      ? "Contrôle du jour (jauge) indisponible — aucun relevé enregistré aujourd'hui. La valeur ci-dessus mesure autre chose : l'évolution des volumes vendus sur 7 jours, disponible même sans relevé du jour — c'est elle qui alimente l'Indice Boussole."
+      : null;
     return {
       ...entree, type: 'reel', confiance: valeur != null ? 'RÉEL' : 'INSUFFISANT',
-      statut, valeur, detail, moteurs: [], changement, force, frein, risques: [],
+      statut, valeur, detail, moteurs: [], changement, force, frein, risques: [], coherence,
     };
   }
 
@@ -172,7 +190,7 @@
     const frein = statut === 'En repli' ? { titre: 'Activité commerciale en repli', detail, cible: entree.cible } : null;
     return {
       ...entree, type: 'reel', confiance: facteurs && facteurs.evolutionReelle != null ? 'RÉEL' : 'INSUFFISANT',
-      statut, valeur, detail, moteurs: ['produits'], changement, force: null, frein, risques: [],
+      statut, valeur, detail, moteurs: ['produits'], changement, force: null, frein, risques: [], coherence: null,
     };
   }
 
@@ -231,9 +249,24 @@
     const frein = (statut === 'À surveiller' || risques.length)
       ? { titre: 'Écarts de marge actifs', detail: syntheseFrein || detail, cible: entree.cible }
       : null;
+    // `coherence` (13/08/2026, même principe que Carburants ci-dessus,
+    // appliqué ici au retour d'usage sur Marge) : `valeur` mesure le NIVEAU
+    // de marge globale (scoreDepuisMarge, recentré à 50) ; `statut` mesure
+    // la VIGILANCE (présence d'écarts de marge actifs sur des catégories
+    // précises, comparaison de pairs). Un secteur peut légitimement être
+    // positif sur l'un et vigilant sur l'autre — ce ne sont pas la même
+    // question. Constat exact rapporté : "Marge +8, statut à surveiller —
+    // le dirigeant se demande si +8 est bon ou mauvais." Réutilise `nbEcarts`
+    // déjà calculé ci-dessus, aucun second calcul (Article 11).
+    let coherence = null;
+    if (valeur != null && statut === 'À surveiller' && valeur > 50) {
+      coherence = `Marge globale positive, mais ${nbEcarts || 'certains'} écart${nbEcarts > 1 ? 's' : ''} de marge reste${nbEcarts > 1 ? 'nt' : ''} actif${nbEcarts > 1 ? 's' : ''} sur des catégories spécifiques (voir Marge+).`;
+    } else if (valeur != null && statut === 'Sous contrôle' && valeur < 50) {
+      coherence = "Marge globale en retrait sur la période, sans écart de marge actif détecté sur une catégorie précise — l'écart porte sur le niveau global, pas sur une catégorie isolée.";
+    }
     return {
       ...entree, type: 'reel', confiance: facteurs && facteurs.margeReelle != null ? 'RÉEL' : 'INSUFFISANT',
-      statut, valeur, detail, moteurs: ['marge'], changement, force: null, frein, risques,
+      statut, valeur, detail, moteurs: ['marge'], changement, force: null, frein, risques, coherence,
     };
   }
 
@@ -259,9 +292,25 @@
     // est null (aucune évolution calculable) — mismatch mineur qui ne
     // faisait pas baisser l'Indice (un `valeur` null est déjà exclu de la
     // moyenne), mais affichait un badge "RÉEL" trompeur sur la carte.
+    // `coherence` (13/08/2026, retour d'usage : "le score −42 indique une
+    // dégradation, cohérent avec 'à surveiller', mais il serait utile de
+    // savoir si cela vient du CA FDJ, des écarts de caisse, ou d'un mélange
+    // des deux") — nomme la cause précise à partir de `nbEcarts`/
+    // `evolutionCa`, déjà calculés ci-dessus, aucun second calcul.
+    let coherence = null;
+    if (statut === 'À surveiller') {
+      const repliCa = evolutionCa != null && evolutionCa <= -SEUIL_FDJ_EVOLUTION;
+      if (nbEcarts > 0 && repliCa) {
+        coherence = `Origine du signal : ${nbEcarts} écart${nbEcarts > 1 ? 's' : ''} de caisse FDJ ET un repli du CA de ${Math.abs(evolutionCa * 100).toFixed(1)} % sur 7 jours — les deux dimensions sont dégradées.`;
+      } else if (nbEcarts > 0) {
+        coherence = `Origine du signal : ${nbEcarts} écart${nbEcarts > 1 ? 's' : ''} de caisse FDJ, indépendamment du CA (voir Contrôle FDJ).`;
+      } else if (repliCa) {
+        coherence = `Origine du signal : repli du CA FDJ de ${Math.abs(evolutionCa * 100).toFixed(1)} % sur 7 jours, aucun écart de caisse détecté.`;
+      }
+    }
     return {
       ...entree, type: 'reel', confiance: valeur != null ? 'RÉEL' : 'INSUFFISANT',
-      statut, valeur, detail, moteurs: ['fdj', 'coach'], changement, force, frein, risques: [],
+      statut, valeur, detail, moteurs: ['fdj', 'coach'], changement, force, frein, risques: [], coherence,
     };
   }
 
@@ -295,7 +344,7 @@
       : null;
     return {
       ...entree, type: 'reel', confiance: constatTempo.totalJours ? 'RÉEL' : 'INSUFFISANT',
-      statut, valeur, detail, moteurs: ['caisse', 'stock'], changement: null, force: null, frein, risques,
+      statut, valeur, detail, moteurs: ['caisse', 'stock'], changement: null, force: null, frein, risques, coherence: null,
     };
   }
 
@@ -375,7 +424,7 @@
     const frein = (statut === 'À surveiller' || statut === 'À corriger') ? { titre: freinTitre, detail, cible: entree.cible } : null;
     return {
       ...entree, type: 'reel', confiance: mesureSuffisante ? 'RÉEL' : 'INSUFFISANT',
-      statut, valeur, detail, moteurs: [], changement: null, force, frein, risques: [],
+      statut, valeur, detail, moteurs: [], changement: null, force, frein, risques: [], coherence: null,
     };
   }
 
@@ -414,8 +463,35 @@
   const STATUTS_POSITIFS = ['Sous contrôle', 'En progression', 'Stable'];
   const STATUTS_DEGRADES = ['À corriger', 'En repli'];
 
-  // Bloc A — verdict de direction, 2 à 4 lignes maximum.
-  function construireVerdictDirection(secteurs, premiereDecision) {
+  // Priorité de direction (13/08/2026, correctif direct — retour d'usage
+  // de Frédéric sur l'écran Brief live, "rupture de niveau") : AVANT ce
+  // correctif, la phrase "Priorité :" du verdict reprenait verbatim
+  // `premiereDecision.decision` — la première décision du Bloc G, qui reste
+  // filtrée au stratégique (P0.2) mais peut très bien être une décision
+  // SKU individuelle ("renforcez le facing de Vin chavron..."). Le verdict
+  // de direction (Bloc A) parle au niveau ENTREPRISE ("Marge, FDJ sont à
+  // surveiller") ; faire suivre cette phrase d'une action produit précise
+  // rompt le niveau de lecture — exactement le "score global parle
+  // d'entreprise ; la priorité descend immédiatement au SKU" rapporté.
+  // Cette fonction reste au même niveau que `phrase1` : elle nomme la
+  // priorité à partir des secteurs déjà classés en difficulté/à surveiller
+  // (mêmes tableaux que ci-dessus, aucun second calcul — Article 11),
+  // via `frein.titre` — déjà un texte secteur, jamais un SKU. La décision
+  // SKU d'origine n'est pas perdue : elle reste affichée telle quelle,
+  // inchangée, dans la carte "Décisions recommandées" juste en dessous du
+  // verdict (voir NEXUS-Brief-v1.html/construireBrief).
+  function construirePrioriteDirection(enDifficulte, aSurveiller) {
+    const cibles = [...enDifficulte, ...aSurveiller].filter(s => s.frein && s.frein.titre).slice(0, 2);
+    if (!cibles.length) return '';
+    const titres = cibles.map(s => s.frein.titre.charAt(0).toLowerCase() + s.frein.titre.slice(1));
+    return ` Priorité : ${titres.join(' et ')}.`;
+  }
+
+  // Bloc A — verdict de direction, 2 à 4 lignes maximum. `premiereDecision`
+  // (13/08/2026) : paramètre retiré — voir construirePrioriteDirection
+  // ci-dessus. Les appelants existants qui passent encore un 2e argument ne
+  // cassent rien (simplement ignoré), non-régression totale.
+  function construireVerdictDirection(secteurs) {
     const enDifficulte = secteurs.filter(s => STATUTS_DEGRADES.includes(s.statut));
     const aSurveiller = secteurs.filter(s => s.statut === 'À surveiller');
     const sousControle = secteurs.filter(s => STATUTS_POSITIFS.includes(s.statut));
@@ -431,7 +507,7 @@
       if (aSurveiller.length) parts.push(`${noms(aSurveiller)} ${aSurveiller.length > 1 ? 'sont' : 'est'} à surveiller`);
       phrase1 = `L'activité progresse de façon inégale : ${parts.join(' ; ')}.`;
     }
-    const phrase2 = premiereDecision ? ` Priorité : ${premiereDecision.decision.charAt(0).toLowerCase()}${premiereDecision.decision.slice(1)}` : '';
+    const phrase2 = construirePrioriteDirection(enDifficulte, aSurveiller);
     return phrase1 + phrase2;
   }
 
@@ -480,7 +556,7 @@
     calculerSeuilImpactAdaptatif,
     estDecisionStrategique,
     construireSecteurs,
-    construireVerdictDirection, construireCeQuiAChange, construireFreins, construireLectureDirecteur,
+    construireVerdictDirection, construirePrioriteDirection, construireCeQuiAChange, construireFreins, construireLectureDirecteur,
     construireSyntheseFreinMarge, classifierPorteeEquipe, libellePorteeEquipe,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

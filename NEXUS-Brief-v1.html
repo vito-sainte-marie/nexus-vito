@@ -787,11 +787,15 @@
 
     // Blocs A/C/E/F de la structure Brief V3 (audit, section 4) — construits
     // par NexusSecteursMoteur à partir des secteurs déjà assemblés, jamais
-    // un second calcul ici. Bloc A (verdict) reçoit la première décision
-    // déjà filtrée au stratégique (Bloc G) pour rester cohérent : le
-    // dirigeant lit la même priorité dans le verdict et dans la carte
-    // "Décisions recommandées" juste en dessous.
-    const verdict = NexusSecteursMoteur.construireVerdictDirection(AXES, decisionsEnrichies[0]);
+    // un second calcul ici. Bloc A (verdict) — 13/08/2026, correctif
+    // "rupture de niveau" (retour d'usage direct) : ne reçoit plus la
+    // première décision brute (qui pouvait être un SKU individuel comme
+    // "Vin chavron") — sa "Priorité :" est maintenant dérivée uniquement
+    // des secteurs en difficulté/à surveiller (voir
+    // NexusSecteursMoteur.construirePrioriteDirection), donc toujours au
+    // niveau entreprise. La décision SKU d'origine reste visible, inchangée,
+    // dans la carte "Décisions recommandées" juste en dessous.
+    const verdict = NexusSecteursMoteur.construireVerdictDirection(AXES);
     const ceQuiAChange = NexusSecteursMoteur.construireCeQuiAChange(AXES);
     const freins = NexusSecteursMoteur.construireFreins(AXES);
     const lectureDirecteur = NexusSecteursMoteur.construireLectureDirecteur(AXES);
@@ -853,7 +857,7 @@
         <div class="indice-explain-wrap" id="indiceExplainWrap">
           <div class="indice-explain-toggle" onclick="document.getElementById('indiceExplainWrap').classList.toggle('open')">Comprendre l'Indice Boussole ${brief.scoreGlobal != null ? brief.scoreGlobal : '—'} <span class="chev">›</span></div>
           <div class="indice-explain">
-            <div class="section-note" style="margin-top:0;">Moyenne des secteurs mesurés aujourd'hui (${ex.nbMesures}/${ex.totalAxes}), chacun recentré à 50 = neutre. ${ex.periodeLabel}.</div>
+            <div class="section-note" style="margin-top:0;">Moyenne des secteurs mesurés aujourd'hui (${ex.nbMesures}/${ex.totalAxes}), chacun recentré à 50 = neutre. ${ex.periodeLabel}. « Mesuré » signifie qu'une valeur chiffrée existe pour ce secteur — pas que toutes ses données du jour sont disponibles (un secteur peut afficher une note ci-dessous s'il combine une donnée manquante sur un point précis et une valeur mesurée sur un autre).</div>
             ${deltasHTML}
             <div class="section-note" style="font-style:italic;">Cet Indice Boussole diffère volontairement de l'Indice Marge affiché sur votre écran d'accueil (calculé, lui, uniquement à partir de la marge et de l'évolution du CA) — pas un bug, deux indices distincts avec leur propre nom : ici la vision d'ensemble du dirigeant, là un signal opérationnel plus étroit.</div>
           </div>
@@ -895,6 +899,7 @@
           </div>
           <div class="axe-detail">
             <div class="decision-field"><div class="decision-field-label">État <span class="badge ${typeInfo.cls}" style="margin-left:6px;">${typeInfo.label}</span></div><div class="decision-field-text">${a.statut}${a.valeur != null ? ` — ${a.valeur}/100` : ''}</div></div>
+            ${a.coherence ? `<div class="decision-field"><div class="decision-field-label">Pourquoi ces deux informations coexistent</div><div class="decision-field-text" style="font-style:italic;">${a.coherence}</div></div>` : ''}
             <div class="decision-field"><div class="decision-field-label">Cause principale</div><div class="decision-field-text">${a.detail}</div></div>
             <div class="decision-field"><div class="decision-field-label">Décision liée</div><div class="decision-field-text">${decisionLiee ? decisionLiee.decision : "Aucune décision prioritaire liée à ce secteur aujourd'hui."}</div></div>
             <a href="${a.cible}" class="decision-lien">→ Ouvrir ${NOM_ECRAN[a.cible] || a.cible}</a>
