@@ -116,7 +116,15 @@
     };
   }
 
-  function construireSecteurMarge(entree, { facteurs, margePlusResultat }) {
+  // `phrasesRisqueMarge` (12/08/2026, moteur de risques v2.46-v2.49) —
+  // phrases déjà formatées par l'appelant (une par catégorie qualifiée
+  // signal_faible+ par NexusRisques, comparaison à SA PROPRE référence
+  // historique — distinct de `margePlusResultat.nbEcarts` ci-dessus, qui
+  // vient de la comparaison à la médiane du groupe économique sur la seule
+  // période en cours). Les deux se complètent dans `risques[]`, jamais
+  // fusionnés en un seul décompte : une catégorie peut être signalée par
+  // l'un sans l'autre.
+  function construireSecteurMarge(entree, { facteurs, margePlusResultat, phrasesRisqueMarge }) {
     const B = boussole();
     const statut = B.statutValeur(facteurs, margePlusResultat);
     const valeur = B.scoreDepuisMarge(facteurs ? facteurs.margeReelle : null);
@@ -125,10 +133,13 @@
       ? `Marge réelle : ${(facteurs.margeReelle * 100).toFixed(1)} %${nbEcarts ? ` · ${nbEcarts} écart${nbEcarts > 1 ? 's' : ''} de marge actif${nbEcarts > 1 ? 's' : ''}` : ''}.`
       : "Marge non calculable sur les données actuelles.";
     const changement = nbEcarts > 0 ? `${nbEcarts} écart${nbEcarts > 1 ? 's' : ''} de marge actif${nbEcarts > 1 ? 's' : ''} détecté${nbEcarts > 1 ? 's' : ''} sur la période.` : null;
-    const frein = statut === 'À surveiller' ? { titre: 'Écarts de marge actifs', detail, cible: entree.cible } : null;
+    const risques = phrasesRisqueMarge || [];
+    const frein = (statut === 'À surveiller' || risques.length)
+      ? { titre: 'Écarts de marge actifs', detail: risques.length ? risques.join(' ') : detail, cible: entree.cible }
+      : null;
     return {
       ...entree, type: 'reel', confiance: facteurs && facteurs.margeReelle != null ? 'RÉEL' : 'INSUFFISANT',
-      statut, valeur, detail, moteurs: ['marge'], changement, force: null, frein, risques: [],
+      statut, valeur, detail, moteurs: ['marge'], changement, force: null, frein, risques,
     };
   }
 
@@ -155,7 +166,16 @@
     };
   }
 
-  function construireSecteurOperations(entree, { constatTempo, controlesVerifyRestants, nbCritiquesCaisse, alertesInvOuvertes, risqueStockTotal }) {
+  // `phrasesRisqueCaisse` (12/08/2026, moteur de risques v2.46-v2.49) —
+  // phrases déjà formatées par l'appelant (une par quart qualifié
+  // signal_faible+ par NexusRisques.qualifierEcartCaisse, comparaison au
+  // propre historique du quart sur une fenêtre glissante — distinct de
+  // `nbCritiquesCaisse` ci-dessous, qui compte les écarts individuels
+  // encore À TRAITER au sens de v_caisse_ecart_a_traiter). Un quart peut
+  // apparaître dans l'un sans l'autre : le moteur de risques répond à "ce
+  // quart montre-t-il un vrai motif dans le temps ?", pas "reste-t-il un
+  // écart non justifié aujourd'hui ?".
+  function construireSecteurOperations(entree, { constatTempo, controlesVerifyRestants, nbCritiquesCaisse, alertesInvOuvertes, risqueStockTotal, phrasesRisqueCaisse }) {
     const B = boussole();
     const statut = constatTempo.statutOperations;
     const valeur = B.scoreOperations(constatTempo.detailOperations, constatTempo.totalJours);
@@ -170,6 +190,7 @@
     if (nbCritiquesCaisse) risques.push(`${nbCritiquesCaisse} écart${nbCritiquesCaisse > 1 ? 's' : ''} de caisse critique${nbCritiquesCaisse > 1 ? 's' : ''}.`);
     if (alertesInvOuvertes) risques.push(`${alertesInvOuvertes} alerte${alertesInvOuvertes > 1 ? 's' : ''} inventaire ouverte${alertesInvOuvertes > 1 ? 's' : ''}.`);
     if (risqueStockTotal > 0) risques.push(`${Math.round(risqueStockTotal).toLocaleString('fr-FR')} € de risque stock estimé.`);
+    (phrasesRisqueCaisse || []).forEach(p => risques.push(p));
     const frein = (statut !== 'Sous contrôle' || risques.length)
       ? { titre: statut !== 'Sous contrôle' ? 'Écarts de caisse à corriger' : 'Risques opérationnels ouverts', detail: risques.length ? risques.join(' ') : detail, cible: entree.cible }
       : null;
@@ -198,11 +219,12 @@
   const CONSTRUCTEURS_SECTEUR = {
     carburants: (entree, d) => construireSecteurCarburants(entree, d.carburants),
     commerce: (entree, d) => construireSecteurCommerce(entree, d.facteurs),
-    marge: (entree, d) => construireSecteurMarge(entree, { facteurs: d.facteurs, margePlusResultat: d.margePlusResultat }),
+    marge: (entree, d) => construireSecteurMarge(entree, { facteurs: d.facteurs, margePlusResultat: d.margePlusResultat, phrasesRisqueMarge: d.phrasesRisqueMarge }),
     fdj: (entree, d) => construireSecteurFdj(entree, d.fdjResume),
     operations: (entree, d) => construireSecteurOperations(entree, {
       constatTempo: d.constatTempo, controlesVerifyRestants: d.controlesVerifyRestants,
       nbCritiquesCaisse: d.nbCritiquesCaisse, alertesInvOuvertes: d.alertesInvOuvertes, risqueStockTotal: d.risqueStockTotal,
+      phrasesRisqueCaisse: d.phrasesRisqueCaisse,
     }),
     equipe: (entree, d) => construireSecteurEquipe(entree, { domaineEquipe: d.domaineEquipe, seuilMinPointages: d.seuilMinPointages }),
   };

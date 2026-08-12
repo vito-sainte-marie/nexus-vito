@@ -464,6 +464,21 @@
     });
     const signauxRisque = signauxRisqueBruts.filter(s => s.niveau !== 'anomalie').slice(0, 4);
 
+    // phrasesRisqueMarge/phrasesRisqueCaisse (12/08/2026) — dérivées de
+    // signauxRisqueBruts SANS le plafond d'affichage à 4 (`signauxRisque`
+    // ci-dessus) : Freins/Lecture du directeur (construireFreins,
+    // construireLectureDirecteur, dans NexusSecteursMoteur) doivent refléter
+    // l'image complète des signaux confirmés, pas seulement le top-4 montré
+    // dans la section "Risques — À surveiller". Phrase courte, cohérente
+    // avec le style des autres entrées de risques[] (constat factuel, sans
+    // rappeler le domaine déjà porté par le secteur qui les affiche).
+    const phrasesRisqueMarge = signauxRisqueBruts
+      .filter(s => s.domaine === 'marge' && s.niveau !== 'anomalie')
+      .map(s => `${NexusRisques.LABEL_NIVEAU[s.niveau] || s.niveau} — ${(s.cle_signal || '').replace('marge:categorie:', '')}.`);
+    const phrasesRisqueCaisse = signauxRisqueBruts
+      .filter(s => s.domaine === 'caisse' && s.niveau !== 'anomalie')
+      .map(s => `${NexusRisques.LABEL_NIVEAU[s.niveau] || s.niveau} — Quart ${(s.cle_signal || '').replace('caisse:quart:', '')}.`);
+
     // Succès à féliciter — extrait le 11/08/2026 (Article 11) dans
     // NexusConseiller.analyserEvolutionsPaire(), source unique désormais
     // partagée avec NEXUS-Cockpit-v2.html (MEILLEUR_SUCCES).
@@ -495,6 +510,7 @@
       carburants, facteurs, margePlusResultat, fdjResume, constatTempo, controlesVerifyRestants,
       nbCritiquesCaisse, alertesInvOuvertes, risqueStockTotal,
       domaineEquipe, seuilMinPointages: SEUIL_MIN_POINTAGES_EQUIPE,
+      phrasesRisqueMarge, phrasesRisqueCaisse,
     });
     // AXES : alias historique conservé pour renderBoussole()/le PDF, qui
     // lisent `a.nom` (convention Brief) là où le contrat secteur partagé
