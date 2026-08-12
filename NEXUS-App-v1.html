@@ -1099,6 +1099,8 @@
 <script src="nexus-carburant-moteur.js"></script>
 <script src="nexus-carburant-donnees.js"></script>
 <script src="nexus-conseiller.js"></script>
+<script src="nexus-conseiller-donnees.js"></script>
+<script src="nexus-app-donnees.js"></script>
 <script src="nexus-forfait.js"></script>
 <script src="nexus-raccourcis-catalogue.js"></script>
 <script>
@@ -1155,291 +1157,18 @@
     return n;
   }
 
-  // Supabase plafonne chaque requete a 1000 lignes par defaut — meme
-  // helper que Cockpit/Scanner/Verify/etc.
-  async function fetchAllRowsHome(builderFactory, pageSize = 1000) {
-    let toutes = [];
-    let from = 0;
-    while (true) {
-      const { data, error } = await builderFactory().range(from, from + pageSize - 1);
-      if (error) return { data: null, error };
-      toutes = toutes.concat(data || []);
-      if (!data || data.length < pageSize) break;
-      from += pageSize;
-    }
-    return { data: toutes, error: null };
-  }
-
-  // Refonte du 26/07/2026 (demande de Frédéric) : le moteur R2/R3/R4
-  // vivait ici en copie locale (une des 3 copies identiques avec Cockpit
-  // et Centre d'Intelligence — même risque de divergence déjà corrigé
-  // pour périodes/indice/marge). Il vient maintenant de nexus-conseiller.js,
-  // seule source du calcul ; ce fichier se contente de normaliser le
-  // résultat au format d'affichage du Conseiller (constat/consequence/
-  // preuve/cible/validable), via NexusConseiller.normaliserProduit.
-  async function calculerCandidatsHome(siteId) {
-    const [{ data, error }, produitsAppelRes] = await Promise.all([
-      fetchAllRowsHome(() => nexusClient.from('products')
-        .select('categorie, article, ca, marge, periode_debut, periode_fin')
-        .eq('site', siteId)
-        .order('periode_debut', { ascending: false })
-        .order('article', { ascending: true })),
-      nexusClient.from('produits_appel').select('article').eq('site', siteId),
-    ]);
-    if (error || !data || !data.length) { console.error('Chargement products (accueil):', error); return { candidats: [], facteurs: null }; }
-    const produitsAppel = new Set(((produitsAppelRes && produitsAppelRes.data) || []).map(r => r.article));
-    const rowsBrut = data.filter(r => !produitsAppel.has(r.article));
-
-    const facteurs = NexusIndice.calculerFacteurs(rowsBrut);
-    const candidats = NexusConseiller.calculerCandidatsProduits(rowsBrut).map(NexusConseiller.normaliserProduit);
-    return { candidats, facteurs };
-  }
-
-  async function chargerValideesHome(siteId) {
-    const { data, error } = await nexusClient.from('journal_decisions').select('candidate_id').eq('site', siteId);
-    if (error) { console.error('Chargement journal_decisions (accueil):', error); return new Set(); }
-    return new Set((data || []).map(d => d.candidate_id));
-  }
-
-  // Mêmes formules que NEXUS-Radar-Manager-v1.html (Équipe via retards de
-  // pointage, Développement via points de missions) — reproduites ici pour
-  // que le domaine "Équipe" de l'État global et celui du Radar affichent
-  // toujours le même nombre.
-  async function chargerDomainesRadarHome() {
-    // Mise à jour du 26/07/2026 (demande de Frédéric) : le domaine
-    // "Équipe" de l'État global exige de savoir si assez de pointages ont
-    // été enregistrés, pas seulement combien ont un retard — sans ce total,
-    // "0 retard" et "aucun pointage" seraient indiscernables et donneraient
-    // un score de 100 % par défaut, une fausse excellence plutôt qu'une
-    // absence de données (voir statutEquipe plus bas).
-    //
-    // employesASurveiller (30/07/2026, demande de Frédéric — le KPI
-    // "Aujourd'hui" pointe désormais vers Résultats Équipe plutôt que le
-    // Radar du Manager) : reprend exactement le même seuil que
-    // NEXUS-Resultats-Equipe-v1.html (3 retards ou plus = 🟡 À SURVEILLER),
-    // pour que le chiffre affiché ici corresponde bien à ce que la page de
-    // destination va montrer — jamais la formule du Radar réutilisée sous
-    // un autre nom.
-    const [{ data: completions, error: e1 }, { data: pointagesRetard, error: e2 }, { count: totalPointages, error: e3 }] = await Promise.all([
-      nexusClient.from('mission_completions').select('points'),
-      nexusClient.from('pointages').select('employee_id, retard_min').eq('type', 'arrivee').gt('retard_min', 0),
-      nexusClient.from('pointages').select('id', { count: 'exact', head: true }).eq('type', 'arrivee'),
-    ]);
-    if (e1) console.error('Chargement mission_completions (accueil):', e1);
-    if (e2) console.error('Chargement pointages (accueil):', e2);
-    if (e3) console.error('Chargement total pointages (accueil):', e3);
-    let devScore = null;
-    if (completions && completions.length) {
-      const points = completions.reduce((s, c) => s + (c.points || 0), 0);
-      devScore = Math.round(Math.max(0, points) / (completions.length * 12) * 100);
-    }
-    let equipeScore = null;
-    let nbRetards = 0;
-    let employesASurveiller = null;
-    if (pointagesRetard) {
-      nbRetards = pointagesRetard.length;
-      const totalRetard = pointagesRetard.reduce((s, p) => s + (p.retard_min || 0), 0);
-      equipeScore = Math.round(Math.max(0, 100 - totalRetard));
-      const retardsParEmploye = {};
-      pointagesRetard.forEach(p => {
-        if (!p.employee_id) return;
-        retardsParEmploye[p.employee_id] = (retardsParEmploye[p.employee_id] || 0) + 1;
-      });
-      employesASurveiller = Object.values(retardsParEmploye).filter(n => n >= 3).length;
-    }
-    return { devScore, equipeScore, nbRetards, employesASurveiller, totalPointages: totalPointages != null ? totalPointages : null };
-  }
-
-  // Nexus Verify n'a pas de notion de "contrôle en attente" en base — sa
-  // convention est 2 quarts/jour (quart1/quart2, cf. station_config.horaires
-  // partout ailleurs dans NEXUS). On compare donc les quarts déjà audités
-  // aujourd'hui à ces 2 quarts attendus, sans inventer de troisième chiffre.
-  async function chargerControlesVerifyHome(siteId) {
-    const aujourdhui = new Date().toISOString().slice(0, 10);
-    const { data, error } = await nexusClient.from('audits_caisse').select('quart').eq('site', siteId).eq('date', aujourdhui);
-    if (error) { console.error('Chargement audits_caisse (accueil):', error); return null; }
-    const quartsFaits = new Set((data || []).map(a => a.quart));
-    return Math.max(0, 2 - quartsFaits.size);
-  }
-
-  // Axe Carburants pour "Votre entreprise aujourd'hui" (11/08/2026, demande
-  // de Frédéric — passage à 6 axes, puis mini-fiche interactive) : réutilise
-  // TEL QUEL le même calcul que Carburants Pilotage/Brief
-  // (NexusCarburantDonnees.chargerControleJour + NexusCarburantMoteur.
-  // statutGlobalControle/texteControleJour) — jamais une troisième formule
-  // pour "quel est le statut carburant du jour" (Article 11). Retourne
-  // aussi parCarburant/aucunReleve (pas seulement le statut) pour que la
-  // mini-fiche puisse afficher la phrase du jour sans un second aller-retour
-  // réseau.
-  async function chargerStatutCarburantsHome(siteId) {
-    const aujourdhui = new Date().toISOString().slice(0, 10);
-    const { parCarburant, aucunReleve } = await NexusCarburantDonnees.chargerControleJour(nexusClient, siteId, aujourdhui);
-    const statut = NexusCarburantMoteur.statutGlobalControle(aucunReleve ? null : parCarburant);
-    const detail = NexusCarburantMoteur.texteControleJour(parCarburant, aucunReleve);
-    return { statut, detail, parCarburant, aucunReleve };
-  }
-
-  // Axe FDJ pour "Votre entreprise aujourd'hui" : réutilise le même signal
-  // que le point rouge de la sidebar (fdj_alertes non vues, voir
-  // nexus-desktop.js/nexusVerifierAlertesFdj) — jamais un second calcul de
-  // "l'état FDJ du jour". Volontairement minimal (0 alerte = sous
-  // contrôle, sinon à surveiller) plutôt qu'une analyse inventée : une
-  // vraie synthèse FDJ (ventes, écarts, coaching équipe) existe déjà dans
-  // FDJ Pilotage, cet axe ne fait que signaler qu'il y a quelque chose à
-  // aller y voir.
-  async function chargerAlertesFdjNonVuesHome(siteId) {
-    const { count, error } = await nexusClient.from('fdj_alertes')
-      .select('id', { count: 'exact', head: true }).eq('site', siteId).eq('vue', false);
-    if (error) { console.error('Chargement alertes FDJ non vues (accueil):', error); return null; }
-    return count;
-  }
-
-  // ------------------------------------------------------------
-  // Nexus Marge+ dans le cadre Niveau 1 (24/07/2026, demande de Frédéric) —
-  // remplace Capital NEXUS (qui restait une démo sans calcul réel, voir
-  // NEXUS-Capital-v1.html). Nexus Marge+ EST réel : même moteur
-  // NexusMarge.detecterEcartsMarge() que la section "Optimisation de marge"
-  // de NEXUS-Scanner-v1.html (règle R5-MARGE-ECART), mêmes exclusions
-  // (tabac réglementé codé dans nexus-marge.js + exclusions manuelles de la
-  // table marge_exceptions), même filtrage des décisions déjà validées via
-  // journal_decisions. Seul le format d'affichage change : ici un résumé en
-  // une valeur, pas la liste complète des écarts (qui reste dans Scanner).
-  // ------------------------------------------------------------
-  async function chargerMargePlusHome(siteId) {
-    const [{ data, error }, produitsAppelRes, exclusionsRes, valideesRes] = await Promise.all([
-      fetchAllRowsHome(() => nexusClient.from('products')
-        .select('categorie, article, ca, marge, periode_debut, periode_fin')
-        .eq('site', siteId)
-        .order('periode_debut', { ascending: false })
-        .order('article', { ascending: true })),
-      nexusClient.from('produits_appel').select('article').eq('site', siteId),
-      nexusClient.from('marge_exceptions').select('article').eq('site', siteId),
-      nexusClient.from('journal_decisions').select('candidate_id').eq('site', siteId).eq('rule_id', 'R5-MARGE-ECART'),
-    ]);
-    if (error || !data || !data.length) { console.error('Chargement products (marge accueil):', error); return null; }
-
-    const produitsAppel = new Set(((produitsAppelRes && produitsAppelRes.data) || []).map(r => r.article));
-    const rowsBrut = data.filter(r => !produitsAppel.has(r.article));
-    const { periodeAffichage, rowsAffichage } = NexusPeriodes.analyserPeriodes(rowsBrut);
-    if (!periodeAffichage) return null;
-
-    // Même définition d'anomalie que construireStats() dans Scanner : une
-    // ligne dont le CA ou la marge n'a pas de sens économique fausserait
-    // toute comparaison de marge entre produits.
-    const rowsPropres = rowsAffichage.filter(r => (r.ca || 0) > 0 && (r.marge || 0) >= 0 && (r.marge || 0) <= (r.ca || 0));
-
-    const exclusionsManuelles = new Set(((exclusionsRes && exclusionsRes.data) || []).map(r => r.article));
-    const valideesMarge = new Set(((valideesRes && valideesRes.data) || []).map(d => d.candidate_id));
-
-    const ecarts = NexusMarge.detecterEcartsMarge(rowsPropres, exclusionsManuelles)
-      .filter(e => !valideesMarge.has(`LIVE-R5-${e.categorie}|${e.article}`));
-
-    // Meilleur écart converti en candidat pour le Conseiller (26/07/2026,
-    // demande de Frédéric — Conseiller cross-moteurs) : mêmes champs et
-    // même candidate_id que NEXUS-Scanner-v1.html, pour rester validable et
-    // cohérent des deux côtés (voir NexusConseiller.normaliserMarge).
-    const meilleur = ecarts[0];
-    const candidatTop = meilleur ? {
-      candidate_id: `LIVE-R5-${meilleur.categorie}|${meilleur.article}`, etat: '💡 RECOMMANDATION',
-      article: meilleur.article, categorie: meilleur.categorie, impact_eur: meilleur.gainPotentiel,
-      situation: `${meilleur.article} a une marge de ${meilleur.margePct.toFixed(1)} %, contre ${meilleur.medianeGroupe.toFixed(1)} % pour les ${meilleur.tailleGroupe} produits comparables du même type.`,
-      contexte: `Comparaison faite uniquement entre produits économiquement comparables.`,
-      analyse: `Cet écart peut venir d'un prix d'achat renégocié, d'une remise non répercutée, ou d'un choix délibéré — à vérifier avant d'ajuster quoi que ce soit.`,
-      recommandation: `Vérifiez si le prix d'achat ou de vente de ${meilleur.article} peut se rapprocher de la marge médiane de son groupe.`,
-      impact: `Si aligné sur la médiane du groupe, gain potentiel estimé à environ ${Math.round(meilleur.gainPotentiel).toLocaleString('fr-FR')} € sur cette période — une hypothèse, pas une garantie.`,
-      ca_reference: meilleur.ca, periode_reference_debut: periodeAffichage.debut, periode_reference_fin: periodeAffichage.fin,
-    } : null;
-
-    return { nbEcarts: ecarts.length, gainPotentiel: ecarts.reduce((s, e) => s + e.gainPotentiel, 0), candidatTop };
-  }
-
-  // Signaux Qualité/Caisse (26/07/2026, demande de Frédéric — Conseiller
-  // cross-moteurs) : lit advisor_messages, alimentée par ailleurs (Centre
-  // d'Intelligence) — cette page ne fait que lire, jamais générer, pour ne
-  // pas dupliquer la logique de détection. Un même problème peut avoir
-  // généré plusieurs messages au fil des jours (ex : écart caisse récurrent
-  // constaté à deux dates) — on ne garde que le plus récent par règle pour
-  // éviter de montrer deux fois le même sujet dans le Conseiller.
-  async function chargerMessagesAdvisorHome(siteId) {
-    const { data, error } = await nexusClient
-      .from('advisor_messages')
-      .select('id, priority, confidence_level, message_text, generated_at, advisor_rules(code, domain, name)')
-      .eq('site_id', siteId)
-      .not('status', 'in', '(resolu,expire)')
-      .order('generated_at', { ascending: false });
-    if (error) { console.error('Chargement advisor_messages (accueil):', error); return []; }
-    const parRegle = new Map();
-    (data || []).forEach(m => {
-      const code = (m.advisor_rules && m.advisor_rules.code) || m.id;
-      if (!parRegle.has(code)) {
-        parRegle.set(code, { id: m.id, priority: m.priority, confidence_level: m.confidence_level, message_text: m.message_text, generated_at: m.generated_at, code, domaine: m.advisor_rules && m.advisor_rules.domain, nomRegle: m.advisor_rules && m.advisor_rules.name });
-      }
-    });
-    return Array.from(parRegle.values());
-  }
-
-  // ------------------------------------------------------------
-  // NEXUS Tempo — constat ponctuel sur l'accueil (25/07/2026, demande de
-  // Frédéric) : "le Cockpit et le Conseiller affichent la conclusion, la
-  // page NEXUS Tempo fournit l'analyse complète." Ne remonte QUE si une
-  // tendance est réellement calculable (au moins 2 occurrences du même
-  // jour de semaine, voir SEUILS.MIN_OCCURRENCES_TENDANCE dans
-  // nexus-tempo.js) et clairement défavorable — jamais un simple écart
-  // du jour, qui pourrait n'être qu'un hasard de calendrier. Seuil
-  // (-10 %) désormais NexusTempo.SEUILS.SEUIL_CONSTAT_TEMPO (11/08/2026,
-  // Article 11 — n'est plus recopié ici).
-  // ------------------------------------------------------------
-
-  // Opérations — seuil désormais partagé avec NEXUS-Brief-v1.html via
-  // nexus-boussole-moteur.js (Article 11), provisoire, non recalibré (même
-  // esprit que la pondération de nexus-indice.js) — à ajuster une fois
-  // plusieurs semaines d'historique réel disponibles.
-  const { SEUIL_ECART_OPERATIONS_EUR } = NexusBoussoleMoteur;
-  function calculerStatutOperations(moyenneEcartAbsolu, nbJours) {
-    if (!nbJours) return 'Données insuffisantes';
-    return moyenneEcartAbsolu <= SEUIL_ECART_OPERATIONS_EUR ? 'Stable' : 'À surveiller';
-  }
-
-  // Mise à jour du 26/07/2026 (demande de Frédéric) : l'accueil doit aussi
-  // répondre à "où est ma meilleure performance ?", pas seulement "où est
-  // ma vigilance ?" — jusqu'ici seul le jour faible remontait sur App-v1.
-  // On calcule jourMoteur en plus de jourARenforcer, sans coût réseau
-  // supplémentaire (même agrégat audits_caisse, déjà chargé). Exigence de
-  // confianceTendance (≥2 occurrences du même jour) avant de l'afficher,
-  // comme pour le jour faible — jamais désigner "votre meilleur jour"
-  // après une seule occurrence, ce serait un hasard de calendrier. Le
-  // domaine "Opérations" de l'État global (moyenne des écarts de caisse)
-  // est calculé ici aussi, sur les mêmes lignes déjà chargées.
-  // Jour le plus rentable (26/07/2026) : même définition de "produit
-  // d'appel" que NEXUS Marge+ (nexus-marge.js) — jamais une deuxième liste
-  // codée en dur qui risquerait de diverger de la première. Identique à
-  // NEXUS-Tempo-v1.html.
-  function estProduitAppelHome(categorie, article) {
-    return NexusMarge.familleMarge(categorie, article).exclue;
-  }
-
-  async function chargerConstatTempoHome(siteId) {
-    const [{ data, error }, produitsRes] = await Promise.all([
-      fetchAllRowsHome(() => nexusClient.from('audits_caisse')
-        .select('date, quart, vente_piste, vente_boutique, ecart_piste, ecart_boutique, employes_piste, employes_boutique')
-        .eq('site', siteId).order('date', { ascending: true })),
-      fetchAllRowsHome(() => nexusClient.from('products')
-        .select('categorie, article, ca, periode_debut, periode_fin')
-        .eq('site', siteId)),
-    ]);
-    if (error || !data) {
-      console.error('Chargement audits_caisse (constat Tempo):', error);
-      return { jourARenforcer: null, jourMoteur: null, jourPlusRentable: null, jourProgression: null, totalJours: 0, statutOperations: 'Données insuffisantes', detailOperations: null };
-    }
-    // Pipeline Tempo (agrégation → valorisation → classement → seuils de
-    // confiance) centralisé dans NexusTempo.calculerConstatTempo() depuis le
-    // 11/08/2026 (audit Article 11) — cette page ne fait plus que charger
-    // les lignes et calculer le statut opérations, propre à cet écran.
-    const constat = NexusTempo.calculerConstatTempo(data, (produitsRes && produitsRes.error ? [] : (produitsRes.data || [])), estProduitAppelHome);
-    const statutOperationsVal = calculerStatutOperations(constat.detailOperations, constat.totalJours);
-
-    return { ...constat, statutOperations: statutOperationsVal };
-  }
+  // fetchAllRowsHome / calculerCandidatsHome / chargerValideesHome /
+  // chargerDomainesRadarHome / chargerControlesVerifyHome /
+  // chargerStatutCarburantsHome / chargerAlertesFdjNonVuesHome /
+  // chargerMargePlusHome / chargerMessagesAdvisorHome / estProduitAppelHome /
+  // chargerConstatTempoHome — extraits le 11/08/2026 (refactoring des pages
+  // monolithiques, 3e page après Brief et Cockpit) : fetchAllRowsHome,
+  // chargerControlesVerifyHome, chargerMessagesAdvisorHome, estProduitAppelHome
+  // et chargerConstatTempoHome étaient des doublons identiques à Brief (voir
+  // nexus-conseiller-donnees.js) ; les autres, propres à l'accueil, vivent
+  // désormais dans nexus-app-donnees.js. Écart de comportement repéré entre
+  // chargerMargePlusHome et l'équivalent Brief (champ `contexte`) documenté
+  // là-bas plutôt qu'unifié en douce — voir Data Dictionary v2.42.
 
   // chargerStockSanteHome()/statutStock() (27/07/2026, "vrai 5e domaine" de
   // l'ancien "État global") retirés le 10/08/2026 avec la refonte "Porte
@@ -1812,16 +1541,16 @@
       statutCarburants,
       alertesFdjNonVues,
     ] = await Promise.all([
-      calculerCandidatsHome(SITE_HOME),
-      chargerValideesHome(SITE_HOME),
-      chargerDomainesRadarHome(),
-      chargerControlesVerifyHome(SITE_HOME),
-      chargerMargePlusHome(SITE_HOME),
-      chargerConstatTempoHome(SITE_HOME),
-      chargerMessagesAdvisorHome(SITE_HOME),
+      NexusAppDonnees.calculerCandidatsHome(nexusClient, SITE_HOME),
+      NexusAppDonnees.chargerValideesHome(nexusClient, SITE_HOME),
+      NexusAppDonnees.chargerDomainesRadarHome(nexusClient),
+      NexusConseillerDonnees.chargerControlesVerifyRestants(nexusClient, SITE_HOME),
+      NexusAppDonnees.chargerMargePlusHome(nexusClient, SITE_HOME),
+      NexusConseillerDonnees.chargerConstatTempo(nexusClient, SITE_HOME),
+      NexusConseillerDonnees.chargerMessagesAdvisor(nexusClient, SITE_HOME),
       chargerRaccourcisHome(SITE_HOME),
-      chargerStatutCarburantsHome(SITE_HOME),
-      chargerAlertesFdjNonVuesHome(SITE_HOME),
+      NexusAppDonnees.chargerStatutCarburantsHome(nexusClient, SITE_HOME),
+      NexusAppDonnees.chargerAlertesFdjNonVuesHome(nexusClient, SITE_HOME),
     ]);
     afficherHeureRecalcul();
 

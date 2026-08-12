@@ -23,7 +23,8 @@
 // propres variables.
 //
 // Inclure après nexus-stock.js et nexus-conseiller.js, et AVANT tout
-// fichier `-donnees.js` de page qui en dépend (nexus-brief-donnees.js) :
+// fichier `-donnees.js` de page qui en dépend (nexus-brief-donnees.js,
+// nexus-app-donnees.js) :
 // <script src="nexus-conseiller-donnees.js"></script>
 // ------------------------------------------------------------
 
@@ -54,9 +55,10 @@
   // Lignes `products` brutes de la période, MOINS les produits d'appel
   // (exclus des recommandations — voir nexus-marge.js/NexusMarge pour la
   // logique de familleMarge ailleurs dans NEXUS). Utilisé tel quel par
-  // Brief (nexus-brief-donnees.js::chargerProducts) et par Cockpit
-  // (construirePlansAction), qui faisaient jusqu'ici chacun leur propre
-  // copie de ce même Promise.all + filtre.
+  // Brief (nexus-brief-donnees.js::chargerProducts), Cockpit
+  // (construirePlansAction) et App (nexus-app-donnees.js::calculerCandidatsHome),
+  // qui faisaient jusqu'ici chacun leur propre copie de ce même
+  // Promise.all + filtre.
   async function chargerProduitsBrut(client, siteId) {
     const [{ data, error }, produitsAppel] = await Promise.all([
       fetchAllRows(() => client.from('products')
@@ -118,10 +120,78 @@
     return (data || []).map(global.NexusConseiller.normaliserRappel);
   }
 
+  // MISE À JOUR 11/08/2026 (3e page du refactoring, NEXUS-App-v1.html) : 5
+  // fonctions de plus, repérées identiques entre App et Brief lors de la
+  // cartographie d'App (Data Dictionary v2.42) — un exemple pur produit
+  // d'appel, un formatage de statut, une glue Tempo, une glue Advisor, une
+  // glue Verify.
+
+  function estProduitAppel(categorie, article) {
+    return global.NexusMarge.familleMarge(categorie, article).exclue;
+  }
+
+  function calculerStatutOperations(moyenneEcartAbsolu, nbJours) {
+    if (!nbJours) return 'Données insuffisantes';
+    return moyenneEcartAbsolu <= global.NexusBoussoleMoteur.SEUIL_ECART_OPERATIONS_EUR ? 'Stable' : 'À surveiller';
+  }
+
+  // Constat NEXUS Tempo — le calcul lui-même vit dans
+  // NexusTempo.calculerConstatTempo() (Article 11) ; cette fonction ne fait
+  // que charger les lignes et calculer le statut opérations. Identique
+  // entre App-v1 (chargerConstatTempoHome) et Brief (chargerConstatTempo).
+  async function chargerConstatTempo(client, siteId) {
+    const [{ data, error }, produitsRes] = await Promise.all([
+      fetchAllRows(() => client.from('audits_caisse')
+        .select('date, quart, vente_piste, vente_boutique, ecart_piste, ecart_boutique, employes_piste, employes_boutique')
+        .eq('site', siteId).order('date', { ascending: true })),
+      fetchAllRows(() => client.from('products').select('categorie, article, ca, periode_debut, periode_fin').eq('site', siteId)),
+    ]);
+    if (error || !data) {
+      console.error('Chargement audits_caisse (constat Tempo):', error);
+      return { jourARenforcer: null, jourMoteur: null, jourPlusRentable: null, jourProgression: null, totalJours: 0, statutOperations: 'Données insuffisantes', detailOperations: null };
+    }
+    const constat = global.NexusTempo.calculerConstatTempo(data, (produitsRes && produitsRes.error ? [] : (produitsRes.data || [])), estProduitAppel);
+    const statutOperationsVal = calculerStatutOperations(constat.detailOperations, constat.totalJours);
+    return { ...constat, statutOperations: statutOperationsVal };
+  }
+
+  // Messages Advisor — lit advisor_messages, alimentée ailleurs (Centre
+  // d'Intelligence) ; cette fonction ne fait que lire. Identique entre
+  // App-v1, Brief et NEXUS-Centre-Intelligence-v1.html (cette 3e copie
+  // n'est pas encore traitée, voir Data Dictionary v2.42).
+  async function chargerMessagesAdvisor(client, siteId) {
+    const { data, error } = await client
+      .from('advisor_messages')
+      .select('id, priority, confidence_level, message_text, generated_at, advisor_rules(code, domain, name)')
+      .eq('site_id', siteId).not('status', 'in', '(resolu,expire)').order('generated_at', { ascending: false });
+    if (error) { console.error('Chargement advisor_messages:', error); return []; }
+    const parRegle = new Map();
+    (data || []).forEach(m => {
+      const code = (m.advisor_rules && m.advisor_rules.code) || m.id;
+      if (!parRegle.has(code)) {
+        parRegle.set(code, { id: m.id, priority: m.priority, confidence_level: m.confidence_level, message_text: m.message_text, generated_at: m.generated_at, code, domaine: m.advisor_rules && m.advisor_rules.domain, nomRegle: m.advisor_rules && m.advisor_rules.name });
+      }
+    });
+    return Array.from(parRegle.values());
+  }
+
+  // Contrôles Verify restants — NEXUS Verify n'a pas de notion de "contrôle
+  // en attente" en base ; convention 2 quarts/jour (quart1/quart2, cf.
+  // station_config.horaires). Identique entre App-v1 et Brief.
+  async function chargerControlesVerifyRestants(client, siteId) {
+    const aujourdhui = new Date().toISOString().slice(0, 10);
+    const { data, error } = await client.from('audits_caisse').select('quart').eq('site', siteId).eq('date', aujourdhui);
+    if (error) { console.error('Chargement audits_caisse (contrôles restants):', error); return null; }
+    const quartsFaits = new Set((data || []).map(a => a.quart));
+    return Math.max(0, 2 - quartsFaits.size);
+  }
+
   global.NexusConseillerDonnees = {
     fetchAllRows,
     chargerProduitsAppel, chargerProduitsBrut,
     chargerJournalDecisions,
     chargerCandidatsCaisse, chargerCandidatsStock, chargerCandidatsRappels,
+    estProduitAppel, calculerStatutOperations, chargerConstatTempo,
+    chargerMessagesAdvisor, chargerControlesVerifyRestants,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

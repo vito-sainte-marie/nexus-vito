@@ -49,8 +49,12 @@
 // ------------------------------------------------------------
 
 (function (global) {
+  // estProduitAppel extrait vers nexus-conseiller-donnees.js (3e page du
+  // refactoring, App-v1, 11/08/2026 — identique aux 3 copies). Alias
+  // conservé : NexusBriefDonnees.estProduitAppel reste appelable de
+  // l'extérieur si un futur code en a besoin.
   function estProduitAppel(categorie, article) {
-    return global.NexusMarge.familleMarge(categorie, article).exclue;
+    return global.NexusConseillerDonnees.estProduitAppel(categorie, article);
   }
 
   // Délègue à NexusConseillerDonnees.chargerProduitsBrut (partagé avec
@@ -88,47 +92,19 @@
     return { nbEcarts: ecarts.length, gainPotentiel: ecarts.reduce((s, e) => s + e.gainPotentiel, 0), candidatTop };
   }
 
+  // chargerMessagesAdvisor / calculerStatutOperations / chargerConstatTempo
+  // extraits vers nexus-conseiller-donnees.js (3e page du refactoring,
+  // App-v1, 11/08/2026 — identiques entre App et Brief). Alias conservés.
   async function chargerMessagesAdvisor(client, siteId) {
-    const { data, error } = await client
-      .from('advisor_messages')
-      .select('id, priority, confidence_level, message_text, generated_at, advisor_rules(code, domain, name)')
-      .eq('site_id', siteId).not('status', 'in', '(resolu,expire)').order('generated_at', { ascending: false });
-    if (error) { console.error('Chargement advisor_messages (Brief):', error); return []; }
-    const parRegle = new Map();
-    (data || []).forEach(m => {
-      const code = (m.advisor_rules && m.advisor_rules.code) || m.id;
-      if (!parRegle.has(code)) {
-        parRegle.set(code, { id: m.id, priority: m.priority, confidence_level: m.confidence_level, message_text: m.message_text, generated_at: m.generated_at, code, domaine: m.advisor_rules && m.advisor_rules.domain, nomRegle: m.advisor_rules && m.advisor_rules.name });
-      }
-    });
-    return Array.from(parRegle.values());
+    return global.NexusConseillerDonnees.chargerMessagesAdvisor(client, siteId);
   }
 
   function calculerStatutOperations(moyenneEcartAbsolu, nbJours) {
-    if (!nbJours) return 'Données insuffisantes';
-    return moyenneEcartAbsolu <= global.NexusBoussoleMoteur.SEUIL_ECART_OPERATIONS_EUR ? 'Stable' : 'À surveiller';
+    return global.NexusConseillerDonnees.calculerStatutOperations(moyenneEcartAbsolu, nbJours);
   }
 
-  // Constat NEXUS Tempo — le calcul lui-même vit dans
-  // NexusTempo.calculerConstatTempo() (centralisé le 11/08/2026, Article
-  // 11, source unique partagée avec NEXUS-App-v1.html) ; cette fonction ne
-  // fait plus que charger les lignes (glue Supabase) et calculer le statut
-  // opérations local, propre à Brief.
   async function chargerConstatTempo(client, siteId) {
-    const F = global.NexusConseillerDonnees.fetchAllRows;
-    const [{ data, error }, produitsRes] = await Promise.all([
-      F(() => client.from('audits_caisse')
-        .select('date, quart, vente_piste, vente_boutique, ecart_piste, ecart_boutique, employes_piste, employes_boutique')
-        .eq('site', siteId).order('date', { ascending: true })),
-      F(() => client.from('products').select('categorie, article, ca, periode_debut, periode_fin').eq('site', siteId)),
-    ]);
-    if (error || !data) {
-      console.error('Chargement audits_caisse (constat Tempo, Brief):', error);
-      return { jourARenforcer: null, jourMoteur: null, jourPlusRentable: null, jourProgression: null, totalJours: 0, statutOperations: 'Données insuffisantes', detailOperations: null };
-    }
-    const constat = global.NexusTempo.calculerConstatTempo(data, (produitsRes && produitsRes.error ? [] : (produitsRes.data || [])), estProduitAppel);
-    const statutOperationsVal = calculerStatutOperations(constat.detailOperations, constat.totalJours);
-    return { ...constat, statutOperations: statutOperationsVal };
+    return global.NexusConseillerDonnees.chargerConstatTempo(client, siteId);
   }
 
   // Caisse/Stock/Rappels — extraits vers nexus-conseiller-donnees.js
@@ -317,11 +293,7 @@
   }
 
   async function chargerControlesVerifyRestants(client, siteId) {
-    const aujourdhui = new Date().toISOString().slice(0, 10);
-    const { data, error } = await client.from('audits_caisse').select('quart').eq('site', siteId).eq('date', aujourdhui);
-    if (error) { console.error('Chargement audits_caisse (contrôles restants, Brief):', error); return null; }
-    const quartsFaits = new Set((data || []).map(a => a.quart));
-    return Math.max(0, 2 - quartsFaits.size);
+    return global.NexusConseillerDonnees.chargerControlesVerifyRestants(client, siteId);
   }
 
   async function chargerMissionsRestantes(client, siteId) {
