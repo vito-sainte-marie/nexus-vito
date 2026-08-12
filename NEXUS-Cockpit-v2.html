@@ -331,6 +331,7 @@
 <script src="nexus-periodes.js"></script>
 <script src="nexus-stock.js"></script>
 <script src="nexus-conseiller.js"></script>
+<script src="nexus-conseiller-donnees.js"></script>
 </head>
 <body>
 <div class="phone">
@@ -601,11 +602,11 @@
     // d'Intelligence, avec le risque de divergence déjà corrigé pour
     // périodes/indice/marge. typeActionPourCategorie/LANGAGE_ACTION sont
     // désormais NexusConseiller.typeActionPourCategorie/LANGAGE_ACTION.
-    async function chargerProduitsAppel() {
-      const { data, error } = await nexusClient.from('produits_appel').select('article').eq('site', SITE_ACTUEL);
-      if (error) { console.error('Chargement produits d’appel:', error); return new Set(); }
-      return new Set((data || []).map(r => r.article));
-    }
+    // chargerProduitsAppel() extraite le 11/08/2026 dans
+    // nexus-conseiller-donnees.js (partagée avec Brief, Article 11) — la
+    // lecture seule vit désormais dans NexusConseillerDonnees.chargerProduitsBrut
+    // (voir construirePlansAction ci-dessous) ; seules les actions d'écriture
+    // propres au Cockpit restent ici.
     async function marquerProduitAppel(article) {
       const { error } = await nexusClient.from('produits_appel').insert({ site: SITE_ACTUEL, article, ajoute_par: employeeCourantId });
       if (error) { console.error('Ajout produit d’appel:', error); alert('Erreur — réessayez.'); return false; }
@@ -669,106 +670,28 @@
     // 28/07/2026 — il vit exclusivement dans État Global (App-v1), pour ne
     // plus dupliquer le même chiffre à deux endroits (voir restructuration
     // en tête de fichier).
-    // Supabase plafonne chaque requete a 1000 lignes par defaut, sans erreur —
-    // au-dela, le reste est silencieusement absent. Ce helper boucle par pages
-    // de 1000 jusqu'a tout recuperer (trouve le 15/07/2026 : un import T2
-    // reussi restait invisible partout des que products a depasse 1000 lignes).
-    async function fetchAllRows(builderFactory, pageSize = 1000) {
-      let toutes = [];
-      let from = 0;
-      while (true) {
-        const { data, error } = await builderFactory().range(from, from + pageSize - 1);
-        if (error) return { data: null, error };
-        toutes = toutes.concat(data || []);
-        if (!data || data.length < pageSize) break;
-        from += pageSize;
-      }
-      return { data: toutes, error: null };
-    }
-    // Charge la mémoire des décisions depuis la base (journal_decisions),
-    // au lieu du localStorage propre à un seul appareil utilisé jusqu'ici.
-    // Alimente à la fois VALIDEES_SITE (masquer ce qui a déjà été validé,
-    // partagé par toute l'équipe) et JOURNAL_DECISIONS (données complètes
-    // pour renderBouclage()). Appelée une fois au chargement du Cockpit.
+    // fetchAllRows / chargerJournalDecisions / chargerCandidatsCaisse /
+    // chargerCandidatsStock / chargerCandidatsRappels — extraites le
+    // 11/08/2026 dans nexus-conseiller-donnees.js (refactoring des pages
+    // monolithiques, 2e page après Brief) : ces 5 chargeurs étaient recopiés
+    // à l'identique entre NEXUS-Cockpit-v2.html et NEXUS-Brief-v1.html,
+    // repéré dès la cartographie de Brief (Data Dictionary v2.40). Ce
+    // fichier ne garde qu'un alias pour chargerJournalDecisions() (qui
+    // alimente l'état de page JOURNAL_DECISIONS/VALIDEES_SITE, donc reste
+    // ici) ; les autres sont appelés directement
+    // NexusConseillerDonnees.xxx(nexusClient, SITE_ACTUEL) où ils étaient
+    // utilisés. Voir Data Dictionary v2.41.
     async function chargerJournalDecisions() {
-      const { data, error } = await fetchAllRows(() => nexusClient
-        .from('journal_decisions')
-        .select('*')
-        .eq('site', SITE_ACTUEL)
-        .order('created_at', { ascending: false }));
-      if (error) { console.error('Chargement journal_decisions:', error); return; }
-      JOURNAL_DECISIONS = data || [];
-      VALIDEES_SITE = new Set(JOURNAL_DECISIONS.map(d => d.candidate_id));
-    }
-    // Candidats Caisse (28/07/2026, demande de Frédéric — "Fred, va voir
-    // Dylan. Un écart de caisse de 40 € coûte plus cher qu'un mauvais
-    // facing"). Source : v_caisse_ecart_a_traiter (anomalie/critique, 14
-    // derniers jours), normalisée par NexusConseiller.normaliserCaissePersonne
-    // (nomme l'employé quand le quart n'a qu'une seule personne identifiée).
-    async function chargerCandidatsCaisse() {
-      const { data, error } = await fetchAllRows(() => nexusClient
-        .from('v_caisse_ecart_a_traiter')
-        .select('*')
-        .eq('site', SITE_ACTUEL));
-      if (error) { console.error('Chargement v_caisse_ecart_a_traiter:', error); return []; }
-      return (data || []).map(NexusConseiller.normaliserCaissePersonne);
-    }
-    // Candidats Stock (28/07/2026, demande de Frédéric — "fais un
-    // inventaire tournant des boissons énergétiques... le rayon avec la
-    // plus forte démarque potentielle"). Même calcul par référence que
-    // NEXUS-Scanner-Stock-v1.html (nexus-stock.js, source unique), agrégé
-    // par rayon puis normalisé par NexusConseiller.normaliserStockRayon.
-    async function chargerCandidatsStock() {
-      const { data: releves, error: err1 } = await fetchAllRows(() => nexusClient
-        .from('stock_releves')
-        .select('article, categorie, quantite_theorique, releve_le')
-        .eq('site', SITE_ACTUEL)
-        .order('releve_le', { ascending: true })
-        .order('article', { ascending: true }));
-      if (err1) { console.error('Chargement stock_releves (Cockpit):', err1); return []; }
-      if (!releves || !releves.length) return [];
-      const { data: ventes } = await fetchAllRows(() => nexusClient
-        .from('products')
-        .select('article, quantite, prix_vente, periode_debut, periode_fin')
-        .eq('site', SITE_ACTUEL)
-        .order('article', { ascending: true }));
-      const { data: controles } = await fetchAllRows(() => nexusClient
-        .from('controles_stock')
-        .select('article, ecart, controle_le')
-        .eq('site', SITE_ACTUEL)
-        .order('controle_le', { ascending: false })
-        .order('article', { ascending: true }));
-      const analyse = NexusStock.calculerAnalyseStock(releves, ventes, controles);
-      const parRayon = NexusStock.calculerRisqueParRayon(analyse);
-      return parRayon.map(NexusConseiller.normaliserStockRayon);
-    }
-    // Candidats Rappels (28/07/2026, retour de Frédéric — "tu aurais dû
-    // juste brancher rappels dans produits au cockpit") : un rappel manuel
-    // est un travail à distribuer comme les autres, il rejoint donc la même
-    // liste fusionnée au lieu d'une section séparée. Ne remonte que les
-    // rappels non faits du site — voir normaliserRappel() pour le rang
-    // (retard ou non) et la clôture (marquerRappelFait, pas de journal_decisions).
-    async function chargerCandidatsRappels() {
-      const { data, error } = await fetchAllRows(() => nexusClient
-        .from('rappels')
-        .select('*').eq('site', SITE_ACTUEL).eq('fait', false)
-        .order('date_echeance', { ascending: true, nullsFirst: false })
-        .order('created_at', { ascending: true }));
-      if (error) { console.error('Chargement rappels:', error); return []; }
-      return (data || []).map(NexusConseiller.normaliserRappel);
+      const { journal, validees } = await NexusConseillerDonnees.chargerJournalDecisions(nexusClient, SITE_ACTUEL);
+      JOURNAL_DECISIONS = journal;
+      VALIDEES_SITE = validees;
     }
     async function construirePlansAction() {
-      const [{ data, error }, produitsAppel] = await Promise.all([
-        fetchAllRows(() => nexusClient
-          .from('products')
-          .select('categorie, article, ca, marge, quantite, periode_debut, periode_fin')
-          .eq('site', SITE_ACTUEL)
-          .order('periode_debut', { ascending: false })
-          .order('article', { ascending: true })),
-        chargerProduitsAppel(),
-      ]);
-      if (error || !data || !data.length) { console.error('Chargement products (plans action):', error); return []; }
-      const rowsBrut = data.filter(r => !produitsAppel.has(r.article));
+      // Produits bruts (products moins produits d'appel) — même service que
+      // NEXUS-Brief-v1.html, extrait le 11/08/2026 dans
+      // NexusConseillerDonnees.chargerProduitsBrut (Article 11).
+      const rowsBrut = await NexusConseillerDonnees.chargerProduitsBrut(nexusClient, SITE_ACTUEL);
+      if (!rowsBrut.length) { console.error('Chargement products (plans action) : aucune ligne exploitable.'); return []; }
       // ------------------------------------------------------------
       // CORRECTIF 23/07/2026 (audit général NEXUS) : comparer aveuglément
       // les deux périodes les plus récentes fabrique des évolutions fausses
@@ -841,9 +764,15 @@
       // n'en affiche que 5 à la fois et fait apparaître la suite au fur et
       // à mesure des validations.
       // ------------------------------------------------------------
-      const [candidatsCaisse, candidatsStock, candidatsRappels] = await Promise.all([
-        chargerCandidatsCaisse(), chargerCandidatsStock(), chargerCandidatsRappels(),
+      // NexusConseillerDonnees.chargerCandidatsCaisse retourne { raw,
+      // normalises } (Brief a besoin des deux) — Cockpit ne consomme que
+      // normalises, comme avant ce refactoring.
+      const [candidatsCaisseObj, candidatsStock, candidatsRappels] = await Promise.all([
+        NexusConseillerDonnees.chargerCandidatsCaisse(nexusClient, SITE_ACTUEL),
+        NexusConseillerDonnees.chargerCandidatsStock(nexusClient, SITE_ACTUEL),
+        NexusConseillerDonnees.chargerCandidatsRappels(nexusClient, SITE_ACTUEL),
       ]);
+      const candidatsCaisse = candidatsCaisseObj.normalises;
       const candidatsProduitsNormalises = candidats.map(NexusConseiller.normaliserProduit);
       const total = candidatsProduitsNormalises.length + candidatsCaisse.length + candidatsStock.length + candidatsRappels.length;
       return NexusConseiller.fusionnerEtSelectionner(

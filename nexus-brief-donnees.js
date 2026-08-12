@@ -35,47 +35,29 @@
 // principe "un service récupère les données, il ne décide pas de l'état de
 // la page qui l'appelle".
 //
-// Inclure après nexus-conseiller.js (et tous les moteurs qu'il utilise) :
+// MISE À JOUR 11/08/2026 (2e page du refactoring, NEXUS-Cockpit-v2.html) :
+// 5 des chargeurs qui vivaient ici en copie (repérés comme dupliqués dès
+// la v2.40) sont désormais dans nexus-conseiller-donnees.js, un fichier
+// réellement partagé entre Brief et Cockpit — ce fichier ne garde qu'un
+// alias de même nom qui délègue, pour que NEXUS-Brief-v1.html n'ait AUCUN
+// changement d'appel à faire (Article 11 appliqué sans casser l'existant).
+// Voir Data Dictionary v2.41.
+//
+// Inclure après nexus-conseiller.js ET nexus-conseiller-donnees.js :
+// <script src="nexus-conseiller-donnees.js"></script>
 // <script src="nexus-brief-donnees.js"></script>
 // ------------------------------------------------------------
 
 (function (global) {
-  // Pagination générique par lots de 1000 lignes — identique à la version
-  // qui existait en local dans NEXUS-Brief-v1.html (et, à l'identique,
-  // dans une quinzaine d'autres pages NEXUS non touchées par ce lot ; voir
-  // Data Dictionary v2.40 pour la dette résiduelle documentée).
-  async function fetchAllRows(builderFactory, pageSize = 1000) {
-    let toutes = [];
-    let from = 0;
-    while (true) {
-      const { data, error } = await builderFactory().range(from, from + pageSize - 1);
-      if (error) return { data: null, error };
-      toutes = toutes.concat(data || []);
-      if (!data || data.length < pageSize) break;
-      from += pageSize;
-    }
-    return { data: toutes, error: null };
-  }
-
-  async function chargerProduitsAppel(client, siteId) {
-    const { data, error } = await client.from('produits_appel').select('article').eq('site', siteId);
-    if (error) { console.error('Chargement produits d’appel (Brief):', error); return new Set(); }
-    return new Set((data || []).map(r => r.article));
-  }
-
   function estProduitAppel(categorie, article) {
     return global.NexusMarge.familleMarge(categorie, article).exclue;
   }
 
+  // Délègue à NexusConseillerDonnees.chargerProduitsBrut (partagé avec
+  // Cockpit — identique requête + filtre produits d'appel). Nom et
+  // signature conservés pour que construireBrief() n'ait rien à changer.
   async function chargerProducts(client, siteId) {
-    const [{ data, error }, produitsAppel] = await Promise.all([
-      fetchAllRows(() => client.from('products')
-        .select('categorie, article, ca, marge, quantite, periode_debut, periode_fin')
-        .eq('site', siteId).order('periode_debut', { ascending: false }).order('article', { ascending: true })),
-      chargerProduitsAppel(client, siteId),
-    ]);
-    if (error || !data) { console.error('Chargement products (Brief):', error); return []; }
-    return data.filter(r => !produitsAppel.has(r.article));
+    return global.NexusConseillerDonnees.chargerProduitsBrut(client, siteId);
   }
 
   // Nexus Marge+ — même moteur que NEXUS-Scanner-v1.html (R5-MARGE-ECART),
@@ -133,11 +115,12 @@
   // fait plus que charger les lignes (glue Supabase) et calculer le statut
   // opérations local, propre à Brief.
   async function chargerConstatTempo(client, siteId) {
+    const F = global.NexusConseillerDonnees.fetchAllRows;
     const [{ data, error }, produitsRes] = await Promise.all([
-      fetchAllRows(() => client.from('audits_caisse')
+      F(() => client.from('audits_caisse')
         .select('date, quart, vente_piste, vente_boutique, ecart_piste, ecart_boutique, employes_piste, employes_boutique')
         .eq('site', siteId).order('date', { ascending: true })),
-      fetchAllRows(() => client.from('products').select('categorie, article, ca, periode_debut, periode_fin').eq('site', siteId)),
+      F(() => client.from('products').select('categorie, article, ca, periode_debut, periode_fin').eq('site', siteId)),
     ]);
     if (error || !data) {
       console.error('Chargement audits_caisse (constat Tempo, Brief):', error);
@@ -148,31 +131,19 @@
     return { ...constat, statutOperations: statutOperationsVal };
   }
 
+  // Caisse/Stock/Rappels — extraits vers nexus-conseiller-donnees.js
+  // (partagé avec Cockpit, 11/08/2026). Alias conservés pour que
+  // construireBrief() n'ait rien à changer.
   async function chargerCandidatsCaisse(client, siteId) {
-    const { data, error } = await fetchAllRows(() => client.from('v_caisse_ecart_a_traiter').select('*').eq('site', siteId));
-    if (error) { console.error('Chargement v_caisse_ecart_a_traiter (Brief):', error); return { raw: [], normalises: [] }; }
-    return { raw: data || [], normalises: (data || []).map(global.NexusConseiller.normaliserCaissePersonne) };
+    return global.NexusConseillerDonnees.chargerCandidatsCaisse(client, siteId);
   }
 
   async function chargerCandidatsStock(client, siteId) {
-    const { data: releves, error: err1 } = await fetchAllRows(() => client
-      .from('stock_releves').select('article, categorie, quantite_theorique, releve_le').eq('site', siteId)
-      .order('releve_le', { ascending: true }).order('article', { ascending: true }));
-    if (err1 || !releves || !releves.length) { if (err1) console.error('Chargement stock_releves (Brief):', err1); return []; }
-    const { data: ventes } = await fetchAllRows(() => client.from('products')
-      .select('article, quantite, prix_vente, periode_debut, periode_fin').eq('site', siteId).order('article', { ascending: true }));
-    const { data: controles } = await fetchAllRows(() => client.from('controles_stock')
-      .select('article, ecart, controle_le').eq('site', siteId).order('controle_le', { ascending: false }).order('article', { ascending: true }));
-    const analyse = global.NexusStock.calculerAnalyseStock(releves, ventes, controles);
-    const parRayon = global.NexusStock.calculerRisqueParRayon(analyse);
-    return parRayon.map(global.NexusConseiller.normaliserStockRayon);
+    return global.NexusConseillerDonnees.chargerCandidatsStock(client, siteId);
   }
 
   async function chargerCandidatsRappels(client, siteId) {
-    const { data, error } = await fetchAllRows(() => client.from('rappels').select('*').eq('site', siteId).eq('fait', false)
-      .order('date_echeance', { ascending: true, nullsFirst: false }).order('created_at', { ascending: true }));
-    if (error) { console.error('Chargement rappels (Brief):', error); return []; }
-    return (data || []).map(global.NexusConseiller.normaliserRappel);
+    return global.NexusConseillerDonnees.chargerCandidatsRappels(client, siteId);
   }
 
   async function chargerDerniereReferenceFdj(client, siteId) {
@@ -366,21 +337,15 @@
     return Math.max(0, total - faitesAujourdhui);
   }
 
-  // Journal des décisions — retourne { journal, validees } plutôt que de
-  // modifier un état de page par effet de bord (voir note en tête de
-  // fichier). C'est à l'appelant (NEXUS-Brief-v1.html) d'assigner le
-  // résultat à ses propres variables JOURNAL_DECISIONS/VALIDEES_SITE.
+  // Journal des décisions — extrait vers nexus-conseiller-donnees.js
+  // (partagé avec Cockpit, 11/08/2026 : même requête exacte que Brief).
+  // Alias conservé pour que construireBrief() n'ait rien à changer.
   async function chargerJournalDecisions(client, siteId) {
-    const { data, error } = await fetchAllRows(() => client
-      .from('journal_decisions').select('*').eq('site', siteId).order('created_at', { ascending: false }));
-    if (error) { console.error('Chargement journal_decisions (Brief):', error); return { journal: [], validees: new Set() }; }
-    const journal = data || [];
-    return { journal, validees: new Set(journal.map(d => d.candidate_id)) };
+    return global.NexusConseillerDonnees.chargerJournalDecisions(client, siteId);
   }
 
   global.NexusBriefDonnees = {
-    fetchAllRows,
-    chargerProduitsAppel, estProduitAppel, chargerProducts,
+    estProduitAppel, chargerProducts,
     chargerMargePlus, chargerMessagesAdvisor, calculerStatutOperations, chargerConstatTempo,
     chargerCandidatsCaisse, chargerCandidatsStock, chargerCandidatsRappels,
     chargerDerniereReferenceFdj, chargerCarburantsBrief, chargerCandidatsFdj,
