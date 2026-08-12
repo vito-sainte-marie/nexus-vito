@@ -691,15 +691,25 @@
     // ---- 12. Risques et contrôle interne ----
     rapport._nouvellePage();
     rapport.sectionTitre('Risques et contrôle interne');
-    // Signaux qualifiés par le moteur de risques (12/08/2026, v2.46-v2.49) —
-    // sous-section À PART du tableau ci-dessous, jamais fusionnée dedans :
-    // ceux-ci sont comparés à leur propre référence historique et confirmés
-    // dans le temps (mémoire du signal, Marge+Caisse uniquement pour
-    // l'instant) ; le tableau qui suit reste des constats instantanés
-    // (seuils/comparaison de pairs sur la période choisie), pour tous les
-    // domaines. Les deux se complètent, aucun des deux ne remplace l'autre.
+    // Restructuré le 12/08/2026 (cadrage développeur de Frédéric, Phase 1) :
+    // "Risques & vigilances" est désormais LA SEULE sous-section à utiliser
+    // le mot "risque" dans ce chapitre, exclusivement issue de
+    // `signauxQualifies` (NexusRisques — comparaison à SA PROPRE référence
+    // historique, confirmée dans le temps). "Constats sectoriels" (ex-
+    // "Autres constats de la période") est purement descriptif — plus de
+    // colonnes Impact/Urgence empruntant un vocabulaire de risque à des
+    // seuils instantanés/comparaisons de pairs qui n'ont pas la preuve de
+    // récurrence exigée par NEXUS pour parler de risque. Les deux
+    // continuent de se compléter, sans jamais se substituer l'une à
+    // l'autre (voir Data Dictionary v2.49/v2.51).
+    pdfSousSection(rapport, 'Risques & vigilances');
     if (R.risques.signauxQualifies && R.risques.signauxQualifies.length) {
-      pdfSousSection(rapport, 'Signaux suivis dans le temps (moteur de risques)');
+      const resume = R.risques.resume || {};
+      const partiesResume = [];
+      if (resume.risqueAvere) partiesResume.push(`${resume.risqueAvere} risque${resume.risqueAvere > 1 ? 's' : ''} avéré${resume.risqueAvere > 1 ? 's' : ''}`);
+      if (resume.exposition) partiesResume.push(`${resume.exposition} exposition${resume.exposition > 1 ? 's' : ''}`);
+      if (resume.signalFaible) partiesResume.push(`${resume.signalFaible} signal${resume.signalFaible > 1 ? 'aux' : ''} faible${resume.signalFaible > 1 ? 's' : ''}`);
+      if (partiesResume.length) rapport.encadre([{ texte: partiesResume.join(' · '), gras: true }], { couleurBordure: CO().cyan });
       R.risques.signauxQualifies.forEach(s => {
         const [entete, ...reste] = s.phrase.split('\n');
         rapport.encadre(
@@ -712,17 +722,18 @@
         );
       });
       rapport.paragraphe("NEXUS compare chaque signal à sa propre référence historique et ne le qualifie de risque qu'une fois suffisamment d'éléments réunis — mémoire partagée avec Brief NEXUS et le Cockpit.", { taille: 8, couleur: CO().texteDim });
-    }
-    pdfSousSection(rapport, 'Autres constats de la période');
-    if (R.risques.risques.length) {
-      rapport.tableau(
-        [{ label: 'Catégorie', cle: 'categorie', largeur: 0.18 }, { label: 'Constat', cle: 'libelle', largeur: 0.52 }, { label: 'Impact', cle: 'impact', largeur: 0.15 }, { label: 'Urgence', cle: 'urgence', largeur: 0.15 }],
-        R.risques.risques,
-      );
-    } else if (!R.risques.disponible) {
-      pdfEncadreInsuffisant(rapport, 'aucun signal de risque significatif détecté sur cette période.');
     } else {
-      rapport.paragraphe('Aucun autre constat instantané sur cette période.', { taille: 9.5, couleur: CO().texteDim });
+      pdfEncadreInsuffisant(rapport, 'aucun signal de risque confirmé sur cette période — NEXUS observe, aucune récurrence suffisante pour conclure à un risque pour l\'instant.');
+    }
+    pdfSousSection(rapport, 'Constats sectoriels');
+    if (R.risques.constatsSectoriels.length) {
+      rapport.paragraphe('Observations descriptives sur la période — un constat sectoriel n\'est pas nécessairement un risque : il peut s\'expliquer par un positionnement volontaire, une saisonnalité ou une évolution normale de l\'activité.', { taille: 8, couleur: CO().texteDim });
+      rapport.tableau(
+        [{ label: 'Secteur', cle: 'secteur', largeur: 0.22 }, { label: 'Constat', cle: 'libelle', largeur: 0.78 }],
+        R.risques.constatsSectoriels,
+      );
+    } else {
+      rapport.paragraphe('Aucun constat sectoriel notable sur cette période.', { taille: 9.5, couleur: CO().texteDim });
     }
 
     // ---- 13-14. Forces / Ce qui doit progresser ----

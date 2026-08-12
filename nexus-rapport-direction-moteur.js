@@ -383,49 +383,72 @@
   // ------------------------------------------------------------
   // 12. Risques et contrôle interne
   // ------------------------------------------------------------
-  // `signauxQualifies` (12/08/2026, migration partielle vers le moteur de
-  // risques v2.46-v2.48) — déjà formaté par l'appelant (NEXUS-Rapport-v1.html,
-  // via NexusRisques.genererPhraseContexte) : ce fichier reste un simple
-  // passthrough, aucune 2e classification écrite ici. Volontairement séparé
-  // de la liste `risques` ci-dessous (seuils instantanés/comparaison de
-  // pairs, sans mémoire dans le temps) plutôt que fusionné dedans : les deux
-  // répondent à des questions différentes (voir Data Dictionary v2.49) et
-  // mélanger leurs lignes ferait perdre cette distinction au lecteur.
-  // Migration complète du chapitre (remplacement des seuils instantanés par
-  // le moteur, pour TOUS les domaines) reste un chantier séparé, non fait
-  // ici — seuls Marge et Caisse ont une lecture du moteur de risques
-  // aujourd'hui, les autres constats (Commercial, Carburants, Inventaire)
-  // gardent leur logique d'origine, pas encore migrée.
+  // Restructuré le 12/08/2026 (cadrage développeur de Frédéric, Phase 1 —
+  // "le Rapport ne doit plus classifier lui-même les risques") : ce chapitre
+  // ne contient plus qu'UNE source de vérité pour le mot "risque" —
+  // `signauxQualifies`, produit exclusivement par `NexusRisques` (passthrough
+  // pur, aucune 2e classification écrite ici, inchangé depuis v2.49). Ce qui
+  // s'appelait `risques` (seuils instantanés/comparaison de pairs sur la
+  // période choisie, sans mémoire dans le temps) est renommé
+  // `constatsSectoriels` et volontairement dépouillé de tout vocabulaire de
+  // risque (`categorie`→`secteur`, disparition de `impact`/`urgence` — ces
+  // deux notions sont désormais réservées aux signaux réellement qualifiés
+  // par le moteur de risques, cadrage §9-10) : ce sont des observations
+  // descriptives ("Boissons recule de 7,2 %"), jamais un verdict. Principe
+  // du cadrage §1 : "Une catégorie sous la moyenne de marge du magasin ne
+  // signifie pas nécessairement qu'elle est en difficulté" — elle peut être
+  // structurellement peu margée, un produit d'appel, en forte progression de
+  // volume, etc. NEXUS le CONSTATE, il ne le QUALIFIE plus comme risque tant
+  // qu'aucune preuve de récurrence n'existe (c'est exactement le rôle de
+  // `NexusRisques`, comparaison à SA PROPRE référence, jamais à la seule
+  // médiane du groupe).
+  // Migration complète (faire qualifier CES constats eux-mêmes par
+  // NexusRisques, domaines Commerce/Carburants/Inventaire) reste un chantier
+  // séparé (cadrage Phase 5-6, domaines non encore branchés sur le moteur) —
+  // ce lot retire uniquement le VOCABULAIRE et la STRUCTURE de risque
+  // usurpés par ces constats, il ne les fait pas encore qualifier par le
+  // moteur.
   function construireChapitreRisques({ operations, chapitreCarburants, chapitreMarge, chapitreCommerce, signauxQualifies }) {
-    const risques = [];
+    const constatsSectoriels = [];
     const verify = operations && operations.verify && operations.verify.disponible ? operations.verify : null;
     const inventaire = operations && operations.inventaire && operations.inventaire.disponible ? operations.inventaire : null;
 
     if (verify && verify.ecartCumule > 0) {
-      risques.push({ categorie: 'Financier', libelle: `Écarts de caisse cumulés : ${fmtEuros(verify.ecartCumule)}`, impact: verify.ecartCumule >= 100 ? 'élevé' : 'moyen', urgence: (verify.parStatut.critique || 0) > 0 ? 'élevée' : 'moyenne' });
+      constatsSectoriels.push({ secteur: 'Opérations', libelle: `Écarts de caisse cumulés : ${fmtEuros(verify.ecartCumule)}.` });
     }
     if (inventaire && inventaire.estimatedValue) {
-      risques.push({ categorie: 'Financier', libelle: `Démarque potentielle estimée : ${fmtEuros(inventaire.estimatedValue)}`, impact: inventaire.estimatedValue >= 200 ? 'élevé' : 'moyen', urgence: 'moyenne' });
+      constatsSectoriels.push({ secteur: 'Opérations', libelle: `Démarque potentielle estimée : ${fmtEuros(inventaire.estimatedValue)}.` });
     }
     if (chapitreMarge && chapitreMarge.disponible && chapitreMarge.classement.destructeurs && chapitreMarge.classement.destructeurs.length) {
-      risques.push({ categorie: 'Financier', libelle: `${chapitreMarge.classement.destructeurs.length} catégorie(s) sous la moyenne de marge du magasin.`, impact: 'moyen', urgence: 'moyenne' });
+      constatsSectoriels.push({ secteur: 'Marge', libelle: `${chapitreMarge.classement.destructeurs.length} catégorie(s) sous la moyenne de marge du magasin (comparaison à la période en cours, pas nécessairement un signe de difficulté).` });
     }
     if (inventaire && inventaire.openDiscrepancies) {
-      risques.push({ categorie: 'Opérationnel', libelle: `${inventaire.openDiscrepancies} écart(s) inventaire encore ouvert(s).`, impact: 'moyen', urgence: inventaire.openDiscrepancies >= 5 ? 'élevée' : 'moyenne' });
+      constatsSectoriels.push({ secteur: 'Opérations', libelle: `${inventaire.openDiscrepancies} écart(s) inventaire encore ouvert(s).` });
     }
     if (inventaire && inventaire.missingCounts) {
-      risques.push({ categorie: 'Opérationnel', libelle: `${inventaire.missingCounts} comptage(s) manquant(s) sur la période.`, impact: 'faible', urgence: 'moyenne' });
+      constatsSectoriels.push({ secteur: 'Opérations', libelle: `${inventaire.missingCounts} comptage(s) manquant(s) sur la période.` });
     }
     if (chapitreCommerce && chapitreCommerce.disponible) {
       const enBaisse = chapitreCommerce.categories.filter(c => c.evolution_ca != null && c.evolution_ca < 0);
-      if (enBaisse.length) risques.push({ categorie: 'Commercial', libelle: `${enBaisse.length} catégorie(s) en recul : ${enBaisse.slice(0, 3).map(c => c.nom).join(', ')}.`, impact: 'moyen', urgence: 'faible' });
+      if (enBaisse.length) constatsSectoriels.push({ secteur: 'Commerce', libelle: `${enBaisse.length} catégorie(s) en recul : ${enBaisse.slice(0, 3).map(c => c.nom).join(', ')}.` });
     }
     if (chapitreCarburants && chapitreCarburants.disponible && chapitreCarburants.evolution != null && chapitreCarburants.evolution < -0.05) {
-      risques.push({ categorie: 'Commercial', libelle: `Volume carburant en recul de ${fmtPct(chapitreCarburants.evolution)} sur la période.`, impact: 'moyen', urgence: 'moyenne' });
+      constatsSectoriels.push({ secteur: 'Carburants', libelle: `Volume carburant en recul de ${fmtPct(chapitreCarburants.evolution)} sur la période.` });
     }
 
+    // Résumé (cadrage §15-16) : uniquement dérivé de signauxQualifies —
+    // jamais un mélange avec constatsSectoriels, qui n'a par construction
+    // aucun niveau de gravité NEXUS.
     const signaux = signauxQualifies || [];
-    return { disponible: risques.length > 0 || signaux.length > 0, risques, signauxQualifies: signaux };
+    const resume = {
+      risqueAvere: signaux.filter(s => s.niveau === 'risque_avere').length,
+      exposition: signaux.filter(s => s.niveau === 'exposition').length,
+      signalFaible: signaux.filter(s => s.niveau === 'signal_faible').length,
+    };
+    return {
+      disponible: constatsSectoriels.length > 0 || signaux.length > 0,
+      constatsSectoriels, signauxQualifies: signaux, resume,
+    };
   }
 
   // ------------------------------------------------------------
