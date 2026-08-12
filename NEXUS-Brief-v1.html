@@ -222,6 +222,13 @@
   .risque-dot.niveau-risque_avere{background:var(--red); box-shadow:0 0 8px rgba(240,87,90,0.6);}
   .risque-text{flex:1; font-size:12.5px; line-height:1.55; color:var(--text-mid);}
   .risque-niveau{color:var(--text); font-weight:600; display:block; margin-bottom:2px;}
+  /* Urgence (12/08/2026, cadrage §9) : 2e dimension affichée à côté de la
+     gravité, jamais en remplacement — badge discret, pas un second point
+     coloré qui dupliquerait visuellement risque-dot. */
+  .risque-urgence{display:inline-block; font-size:9.5px; font-family:var(--mono); font-weight:600; letter-spacing:0.02em; padding:1px 7px; border-radius:9px; margin-bottom:4px;}
+  .risque-urgence.urgence-immediate{color:var(--red); background:rgba(240,87,90,0.12);}
+  .risque-urgence.urgence-moyenne{color:var(--amber); background:rgba(245,166,35,0.12);}
+  .risque-urgence.urgence-faible{color:var(--text-dim); background:rgba(255,255,255,0.06);}
   .risque-action{color:var(--cyan); font-size:11.5px; margin-top:4px; display:block;}
   .risque-meta{color:var(--text-dim); font-family:var(--mono); font-size:10px; margin-top:4px; display:block;}
 
@@ -462,47 +469,84 @@
       rowsBrut, periodeAffichage, categoriesEnEcart: margePlusResultat ? margePlusResultat.categoriesEnEcart : [],
       agregationCaisseParQuart,
     });
-    const signauxRisque = signauxRisqueBruts.filter(s => s.niveau !== 'anomalie').slice(0, 4);
+    // Tri par urgence d'abord, gravité ensuite (12/08/2026, cadrage §9 :
+    // "Brief doit montrer en priorité l'urgence, tout en conservant la
+    // gravité. Une exposition immédiate peut être plus importante
+    // aujourd'hui qu'un risque avéré de moyen terme.") — jamais un tri par
+    // gravité seule comme avant ce lot, qui aurait pu masquer une
+    // exposition urgente derrière un risque avéré déjà installé depuis des
+    // mois. Plafond ramené de 4 à 3 (critère d'acceptation explicite du
+    // cadrage : "Brief affiche au maximum 3 risques/expositions
+    // significatifs."). `chargerSignauxSite` (nexus-risques-donnees.js)
+    // trie déjà par gravité pour ses autres appelants (Cockpit) — ce
+    // re-tri est local à Brief, pas une modification de la fonction
+    // partagée (même discipline que P0.2 : Brief-only quand la granularité
+    // d'affichage diffère d'un autre écran).
+    const RANG_URG = NexusRisques.RANG_URGENCE;
+    const RANG_NIV = NexusRisques.RANG_NIVEAU;
+    const signauxRisque = signauxRisqueBruts
+      .filter(s => s.niveau !== 'anomalie')
+      .slice()
+      .sort((a, b) => {
+        const diffUrg = (RANG_URG[b.urgence] || 0) - (RANG_URG[a.urgence] || 0);
+        if (diffUrg !== 0) return diffUrg;
+        return (RANG_NIV[b.niveau] || 0) - (RANG_NIV[a.niveau] || 0);
+      })
+      .slice(0, 3);
 
-    // phrasesRisqueMarge/phrasesRisqueCaisse (12/08/2026) — dérivées de
-    // signauxRisqueBruts SANS le plafond d'affichage à 4 (`signauxRisque`
-    // ci-dessus) : Freins/Lecture du directeur (construireFreins,
-    // construireLectureDirecteur, dans NexusSecteursMoteur) doivent refléter
-    // l'image complète des signaux confirmés, pas seulement le top-4 montré
-    // dans la section "Risques — À surveiller". Phrase courte, cohérente
-    // avec le style des autres entrées de risques[] (constat factuel, sans
-    // rappeler le domaine déjà porté par le secteur qui les affiche).
-    const phrasesRisqueMarge = signauxRisqueBruts
+    // Signaux qualifiés par domaine, filtrés UNE SEULE FOIS (12/08/2026,
+    // regroupé à l'occasion du lot P1 — jusqu'ici la même paire de filtres
+    // `domaine === 'marge'/'caisse' && niveau !== 'anomalie'` était répétée
+    // à 3 endroits indépendants : phrasesRisqueMarge/Caisse, les deux Sets
+    // de dédoublonnage P0.3, et maintenant l'agrégateur "Ce qui freine"
+    // P1.1 — Article 11, une seule source plutôt que 3 copies qui
+    // auraient pu diverger). SANS le plafond d'affichage à 3
+    // (`signauxRisque` ci-dessus, réservé à la section "Risques &
+    // expositions") : Freins/Lecture du directeur/dédoublonnage doivent
+    // refléter l'image complète des signaux confirmés, jamais seulement le
+    // sous-ensemble montré dans cette section.
+    const signauxRisqueMargeQualifies = signauxRisqueBruts
       .filter(s => s.domaine === 'marge' && s.niveau !== 'anomalie')
-      .map(s => `${NexusRisques.LABEL_NIVEAU[s.niveau] || s.niveau} — ${(s.cle_signal || '').replace('marge:categorie:', '')}.`);
-    const phrasesRisqueCaisse = signauxRisqueBruts
+      .map(s => ({ categorie: (s.cle_signal || '').replace('marge:categorie:', ''), niveau: s.niveau }));
+    const signauxRisqueCaisseQualifies = signauxRisqueBruts
       .filter(s => s.domaine === 'caisse' && s.niveau !== 'anomalie')
-      .map(s => `${NexusRisques.LABEL_NIVEAU[s.niveau] || s.niveau} — Quart ${(s.cle_signal || '').replace('caisse:quart:', '')}.`);
+      .map(s => ({ quart: (s.cle_signal || '').replace('caisse:quart:', ''), niveau: s.niveau }));
 
-    // Déduplication Décisions/À surveiller vs Risques (12/08/2026, audit
-    // stratégique Brief NEXUS, P0 "dédupliquer les signaux") : la capture
-    // de l'audit montre le même sujet apparaissant à la fois dans « À
-    // surveiller » et dans « Risques — À surveiller ». Cause identifiée :
-    // `candidatMargeListe` (Marge+, comparaison de pairs sur la période en
-    // cours) et `candidatsCaisseObj` (écarts caisse encore à traiter,
-    // `v_caisse_ecart_a_traiter`) alimentent Décisions/Watchlist SANS tenir
-    // compte du fait qu'une même catégorie/un même quart peut AUSSI être
-    // déjà qualifié par NexusRisques — et c'est même garanti pour la marge,
-    // puisque `categoriesEnEcart` (ci-dessus) alimente déjà le moteur de
-    // risques avec les catégories que Marge+ a repérées. Règle imposée par
+    // Phrase courte, cohérente avec le style des autres entrées de
+    // risques[] (constat factuel, sans rappeler le domaine déjà porté par
+    // le secteur qui les affiche) — consommées par construireFreins()/
+    // construireLectureDirecteur() (Opérations) pour `risques[]`. Pour
+    // Marge, `risques[]` reste alimenté à l'identique (contrat Annexe A
+    // inchangé) ; le `frein` affiché, lui, passe désormais par
+    // NexusSecteursMoteur.construireSyntheseFreinMarge() ci-dessous (P1.1),
+    // qui reçoit signauxRisqueMargeQualifies directement plutôt que des
+    // phrases déjà formatées, pour pouvoir agréger (compter les catégories,
+    // en nommer jusqu'à 3) au lieu de tout concaténer.
+    const phrasesRisqueMarge = signauxRisqueMargeQualifies
+      .map(s => `${NexusRisques.LABEL_NIVEAU[s.niveau] || s.niveau} — ${s.categorie}.`);
+    const phrasesRisqueCaisse = signauxRisqueCaisseQualifies
+      .map(s => `${NexusRisques.LABEL_NIVEAU[s.niveau] || s.niveau} — Quart ${s.quart}.`);
+
+    // Déduplication Décisions/Signaux opérationnels vs Risques (12/08/2026,
+    // audit stratégique Brief NEXUS, P0 "dédupliquer les signaux") : la
+    // capture de l'audit montre le même sujet apparaissant à la fois dans
+    // « À surveiller » (désormais « Signaux opérationnels ») et dans «
+    // Risques — À surveiller » (désormais « Risques & expositions »).
+    // Cause identifiée : `candidatMargeListe` (Marge+, comparaison de
+    // pairs sur la période en cours) et `candidatsCaisseObj` (écarts
+    // caisse encore à traiter, `v_caisse_ecart_a_traiter`) alimentent
+    // Décisions/Watchlist SANS tenir compte du fait qu'une même
+    // catégorie/un même quart peut AUSSI être déjà qualifié par
+    // NexusRisques — et c'est même garanti pour la marge, puisque
+    // `categoriesEnEcart` (ci-dessus) alimente déjà le moteur de risques
+    // avec les catégories que Marge+ a repérées. Règle imposée par
     // l'audit : « Si un signal opérationnel devient un risque qualifié, il
     // disparaît de la rubrique secondaire et reste uniquement dans
     // Risques. » Déduplication par identifiant de fait source (catégorie
     // pour la marge, quart pour la caisse) — jamais par simple libellé
     // texte, qui pourrait diverger entre les deux formulations.
-    const risqueMargeCategoriesQualifiees = new Set(
-      signauxRisqueBruts.filter(s => s.domaine === 'marge' && s.niveau !== 'anomalie')
-        .map(s => (s.cle_signal || '').replace('marge:categorie:', ''))
-    );
-    const risqueCaisseQuartsQualifies = new Set(
-      signauxRisqueBruts.filter(s => s.domaine === 'caisse' && s.niveau !== 'anomalie')
-        .map(s => (s.cle_signal || '').replace('caisse:quart:', ''))
-    );
+    const risqueMargeCategoriesQualifiees = new Set(signauxRisqueMargeQualifies.map(s => s.categorie));
+    const risqueCaisseQuartsQualifies = new Set(signauxRisqueCaisseQualifies.map(s => s.quart));
 
     // Succès à féliciter — extrait le 11/08/2026 (Article 11) dans
     // NexusConseiller.analyserEvolutionsPaire(), source unique désormais
@@ -535,7 +579,7 @@
       carburants, facteurs, margePlusResultat, fdjResume, constatTempo, controlesVerifyRestants,
       nbCritiquesCaisse, alertesInvOuvertes, risqueStockTotal,
       domaineEquipe, seuilMinPointages: SEUIL_MIN_POINTAGES_EQUIPE,
-      phrasesRisqueMarge, phrasesRisqueCaisse,
+      phrasesRisqueMarge, phrasesRisqueCaisse, signauxRisqueMargeQualifies,
     });
     // AXES : alias historique conservé pour renderBoussole()/le PDF, qui
     // lisent `a.nom` (convention Brief) là où le contrat secteur partagé
@@ -742,6 +786,7 @@
       decisions: decisionsEnrichies, watchlist: watchlistPrecise,
       risquesQualifies: signauxRisque.map(s => ({
         niveau: s.niveau, niveauLabel: NexusRisques.LABEL_NIVEAU[s.niveau] || s.niveau,
+        urgence: s.urgence, urgenceLabel: NexusRisques.LABEL_URGENCE[s.urgence] || s.urgence,
         domaine: s.domaine, secteur: s.secteur,
         phrase: NexusRisques.genererPhraseContexte({
           domaineLabel: s.domaine === 'marge' ? 'Marge' : 'Caisse',
@@ -958,17 +1003,26 @@
       </div>`;
   }
 
+  // Renommé "À surveiller" -> "Signaux opérationnels" (12/08/2026, cadrage
+  // §10 : "Renommer « À surveiller » en « À ne pas perdre de vue » ou «
+  // Signaux opérationnels ». Réserver « Risques & expositions »
+  // exclusivement aux signaux qualifiés par NexusRisques.") — les deux
+  // sections partageaient jusqu'ici la même expression dans leur titre
+  // ("À surveiller" ici, "Risques — À surveiller" plus bas), ce qui
+  // suggérait au dirigeant un doublon même une fois la déduplication de
+  // fond faite (P0.3). Contenu inchangé : reste le classement partagé
+  // Décisions/Watchlist (candidats non qualifiés par NexusRisques).
   function renderWatchlist(brief) {
     if (!brief.watchlist.length) return '';
     return `
       <div class="section">
-        <div class="section-title">À surveiller <span class="badge badge-derived">dérivé</span></div>
+        <div class="section-title">Signaux opérationnels <span class="badge badge-derived">dérivé</span></div>
         ${brief.watchlist.map(p => `<a class="watch-item" href="${p.cible || '#'}">
           <span class="watch-dot"></span>
           <span class="watch-text"><b>${p.action}</b><br>${p.pourquoi}</span>
           <span class="watch-chev">›</span>
         </a>`).join('')}
-        <div class="section-note">Ces signaux suivent juste derrière les 3 décisions ci-dessus dans le même classement — pas encore prioritaires, mais à ne pas perdre de vue.</div>
+        <div class="section-note">Ces signaux suivent juste derrière les 3 décisions ci-dessus dans le même classement — pas encore prioritaires, mais à ne pas perdre de vue. Distinct de « Risques & expositions » ci-dessous : ici, aucun de ces sujets n'a (encore) été qualifié par NexusRisques.</div>
       </div>`;
   }
 
@@ -983,11 +1037,20 @@
   // d'abord en silence (voir construireBrief(), tous les niveaux sont
   // enregistrés en base), il ne remonte ici que ce qui a dépassé le
   // simple constat isolé.
+  // Renommé "Risques — À surveiller" -> "Risques & expositions" (12/08/2026,
+  // cadrage §6/§10 — c'est littéralement le nom de la section cible du
+  // cadrage) : évite le doublon lexical avec "À surveiller" (désormais
+  // "Signaux opérationnels", voir renderWatchlist). Urgence affichée à
+  // côté de la gravité sur chaque ligne (cadrage §9 : "gravité et urgence"
+  // toutes deux visibles, jamais l'une sans l'autre) — l'ORDRE d'affichage
+  // (déjà trié par urgence puis gravité dans construireBrief()) reste la
+  // priorisation réelle, le badge n'est qu'un rappel visuel.
+  const CLASSE_URGENCE = { immediate: 'urgence-immediate', moyenne: 'urgence-moyenne', faible: 'urgence-faible' };
   function renderRisques(brief) {
     if (!brief.risquesQualifies || !brief.risquesQualifies.length) return '';
     return `
       <div class="section">
-        <div class="section-title">Risques — À surveiller <span class="badge badge-derived">dérivé</span></div>
+        <div class="section-title">Risques &amp; expositions <span class="badge badge-derived">dérivé</span></div>
         ${brief.risquesQualifies.map(r => {
           const [entete, ...reste] = r.phrase.split('\n');
           const motif = reste.join(' ');
@@ -995,13 +1058,15 @@
           return `<div class="risque-item">
             <span class="risque-dot niveau-${r.niveau}"></span>
             <span class="risque-text">
-              <span class="risque-niveau">${entete}</span>${motif}
+              <span class="risque-niveau">${entete}</span>
+              <span class="risque-urgence ${CLASSE_URGENCE[r.urgence] || ''}">Urgence : ${r.urgenceLabel || '—'}</span>
+              ${motif}
               ${r.actionRecommandee ? `<span class="risque-action">${r.actionRecommandee}</span>` : ''}
               <span class="risque-meta">Confiance ${r.niveauConfiance || '—'}${depuis ? ` · suivi depuis le ${depuis}` : ''}</span>
             </span>
           </div>`;
         }).join('')}
-        <div class="section-note">NEXUS compare chaque signal à sa propre référence historique (jamais à une moyenne générale) et ne le qualifie de risque qu'une fois suffisamment d'éléments réunis — un signal ne disparaît jamais silencieusement, il est résolu explicitement une fois traité.</div>
+        <div class="section-note">NEXUS compare chaque signal à sa propre référence historique (jamais à une moyenne générale) et ne le qualifie de risque qu'une fois suffisamment d'éléments réunis — un signal ne disparaît jamais silencieusement, il est résolu explicitement une fois traité. Classé par urgence d'abord, gravité ensuite : une exposition immédiate peut passer avant un risque avéré déjà connu depuis longtemps.</div>
       </div>`;
   }
 
@@ -1165,7 +1230,7 @@
     if (brief.forces.length) brief.forces.forEach(f => c.encadre([{ texte: f.titre, gras: true }, { texte: f.detail }], { couleurBordure: COULEUR.vert }));
     else c.paragraphe('Aucune force identifiée sur cette période.', { taille: 9, couleur: COULEUR.texteDim });
 
-    c.sectionTitre('À surveiller');
+    c.sectionTitre('Signaux opérationnels');
     // w.article est souvent null (les candidats Tempo/Advisor/Caisse/Rappel
     // n'ont pas d'article associé) — on reprend exactement les champs déjà
     // utilisés par l'affichage à l'écran (renderWatchlist : action en gras,

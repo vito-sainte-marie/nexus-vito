@@ -281,14 +281,29 @@
     if (e2) console.error('Chargement pointages (Brief):', e2);
     if (e3) console.error('Chargement total pointages (Brief):', e3);
     let equipeScore = null, employesASurveiller = null;
+    // totalAnomalies/collaborateursConcernes (12/08/2026, cadrage §11, lot
+    // P1.4 "Lecture Équipe") : `pointagesRetard` contenait déjà
+    // `employee_id` par ligne — la granularité nécessaire pour distinguer
+    // incident individuel / récurrence individuelle / problème collectif
+    // existait donc depuis la première version de cette fonction, jamais
+    // exploitée au-delà du seul comptage `employesASurveiller` (nb de
+    // collaborateurs à ≥3 retards). Aucune nouvelle requête : ce lot ne
+    // fait qu'exposer 2 agrégats calculés à partir des mêmes lignes déjà
+    // chargées.
+    let totalAnomalies = 0, collaborateursConcernes = 0;
     if (pointagesRetard) {
       const totalRetard = pointagesRetard.reduce((s, p) => s + (p.retard_min || 0), 0);
       equipeScore = Math.round(Math.max(0, 100 - totalRetard));
       const retardsParEmploye = {};
       pointagesRetard.forEach(p => { if (p.employee_id) retardsParEmploye[p.employee_id] = (retardsParEmploye[p.employee_id] || 0) + 1; });
       employesASurveiller = Object.values(retardsParEmploye).filter(n => n >= 3).length;
+      totalAnomalies = pointagesRetard.length;
+      collaborateursConcernes = Object.keys(retardsParEmploye).length;
     }
-    return { equipeScore, employesASurveiller, totalPointages: totalPointages != null ? totalPointages : null };
+    return {
+      equipeScore, employesASurveiller, totalPointages: totalPointages != null ? totalPointages : null,
+      totalAnomalies, collaborateursConcernes,
+    };
   }
 
   async function chargerAlertesInventaireOuvertes(client, siteId) {

@@ -40,9 +40,24 @@
     return data;
   }
 
+  // Jours écoulés depuis une date ISO — utilisé UNIQUEMENT pour dériver
+  // `ancienneteJours` (NexusRisques.classifierUrgence, 12/08/2026, cadrage
+  // §9) à partir de `premiere_detection_le`, déjà en mémoire depuis la
+  // toute première version de ce fichier (11/08/2026) — aucune nouvelle
+  // colonne, aucune nouvelle lecture Supabase, juste un calcul enfin fait
+  // sur une donnée qui existait déjà sans être exploitée.
+  function joursDepuisISO(dateISO) {
+    if (!dateISO) return 0;
+    const diffMs = Date.now() - new Date(dateISO).getTime();
+    return Math.max(0, Math.floor(diffMs / (24 * 60 * 60 * 1000)));
+  }
+
   // Liste des signaux actifs d'un site, pour alimenter Brief/Rapport/
   // Cockpit/secteurs — triés du plus grave au moins grave, puis par
-  // dernière détection la plus récente.
+  // dernière détection la plus récente. Chaque ligne gagne un champ
+  // `urgence` dérivé (12/08/2026, cadrage §9) — jamais persisté (calcul pur
+  // à la lecture, `premiere_detection_le` suffit), disponible à tous les
+  // appelants sans rien changer pour ceux qui l'ignorent encore.
   async function chargerSignauxSite(client, siteId, filtres) {
     const f = filtres || {};
     let requete = client.from('nexus_risk_signals').select('*').eq('site_id', siteId);
@@ -51,8 +66,13 @@
     if (f.niveau) requete = requete.eq('niveau', f.niveau);
     const { data, error } = await requete;
     if (error) { console.error('Chargement signaux de risque du site:', error); return []; }
+    const R = global.NexusRisques;
+    const avecUrgence = (data || []).map(row => ({
+      ...row,
+      urgence: R ? R.classifierUrgence({ niveau: row.niveau, ancienneteJours: joursDepuisISO(row.premiere_detection_le) }) : null,
+    }));
     const rang = { risque_avere: 3, exposition: 2, signal_faible: 1, anomalie: 0 };
-    return (data || []).sort((a, b) => {
+    return avecUrgence.sort((a, b) => {
       const diff = (rang[b.niveau] || 0) - (rang[a.niveau] || 0);
       if (diff !== 0) return diff;
       return new Date(b.derniere_detection_le) - new Date(a.derniere_detection_le);

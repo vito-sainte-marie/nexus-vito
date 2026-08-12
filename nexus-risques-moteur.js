@@ -360,9 +360,64 @@
     };
   }
 
+  // ------------------------------------------------------------
+  // URGENCE — 2e dimension du signal (cadrage développeur "Évolution du
+  // moteur Risques NEXUS", 12/08/2026, §9) : *"Séparer gravité et urgence
+  // ... Brief doit montrer en priorité l'urgence, tout en conservant la
+  // gravité. Une exposition immédiate peut être plus importante aujourd'hui
+  // qu'un risque avéré de moyen terme."* Gravité (`niveau`, ci-dessus)
+  // répond à "est-ce grave/démontré ?" ; urgence répond à "faut-il agir
+  // maintenant ?" — deux questions différentes, jamais un simple mapping
+  // 1:1 de l'une vers l'autre, sinon ce ne serait pas une 2e dimension.
+  //
+  // Dérivée du niveau ET de l'ancienneté RÉELLE du signal (jours écoulés
+  // depuis `premiere_detection_le` en mémoire, `nexus_risk_signals`) —
+  // jamais inventée : le champ `ancienneteJours` correspond exactement à
+  // ce que le commentaire d'origine de ce fichier annonçait sans jamais le
+  // câbler ("urgence dérivée de l'ampleur + l'ancienneté", voir plus haut).
+  // Calculée par l'appelant à l'écriture/lecture en mémoire
+  // (nexus-risques-donnees.js), jamais ici (ce fichier ne connaît pas
+  // l'horloge ni la base) — voir joursDepuisISO() + chargerSignauxSite().
+  const URGENCES = ['faible', 'moyenne', 'immediate'];
+  const RANG_URGENCE = { faible: 0, moyenne: 1, immediate: 2 };
+  const LABEL_URGENCE = { immediate: 'Immédiate', moyenne: 'Moyenne', faible: 'Faible' };
+
+  // Ancienneté au-delà de laquelle un risque avéré est considéré "installé"
+  // (déjà sous surveillance, l'enjeu devient la correction structurelle,
+  // pas l'urgence du jour) plutôt que "vient d'être démontré" (rien n'est
+  // encore en place pour y répondre). 14 jours = 2 cycles hebdomadaires de
+  // lecture du Brief par le dirigeant — pas un seuil arbitraire déconnecté
+  // du rythme réel de consultation.
+  const SEUIL_ANCIENNETE_INSTALLEE_JOURS = 14;
+
+  // Rejoue exactement les 4 exemples du cadrage §9 (voir test unitaire) :
+  // - Marge en baisse depuis 6 mois (risque_avere, ancien) -> Moyenne
+  // - Autonomie GO sous délai de livraison (exposition)    -> Immédiate
+  // - Écart caisse isolé (anomalie)                        -> Faible
+  // - 3 écarts de marge dans le même sens (signal_faible)  -> Moyenne
+  function classifierUrgence({ niveau, ancienneteJours }) {
+    const anciennete = ancienneteJours != null ? Number(ancienneteJours) : 0;
+    if (niveau === 'exposition') {
+      // Une exposition est par nature une fenêtre qui se referme : agir
+      // avant que l'impact ne devienne réel est tout le sens du mot.
+      return 'immediate';
+    }
+    if (niveau === 'risque_avere') {
+      return anciennete >= SEUIL_ANCIENNETE_INSTALLEE_JOURS ? 'moyenne' : 'immediate';
+    }
+    if (niveau === 'signal_faible') {
+      // Tendance qui se dessine : à ne pas ignorer, mais rien ne démontre
+      // encore qu'une action immédiate change l'issue.
+      return 'moyenne';
+    }
+    // Anomalie : fait isolé, rien ne dit qu'il se reproduira.
+    return 'faible';
+  }
+
   global.NexusRisques = {
     NIVEAUX, RANG_NIVEAU, LABEL_NIVEAU,
-    classifierNiveau, determinerTransition, genererPhraseContexte,
+    URGENCES, RANG_URGENCE, LABEL_URGENCE, SEUIL_ANCIENNETE_INSTALLEE_JOURS,
+    classifierNiveau, determinerTransition, genererPhraseContexte, classifierUrgence,
     qualifierEcartCaisse, qualifierMargeCategorie, assemblerHistoriqueMargeCategorie,
     niveauConfiance,
     SEUIL_IMPACT_MESURE_MATERIEL_EUR, SEUIL_IMPACT_POTENTIEL_SIGNIFICATIF_EUR,

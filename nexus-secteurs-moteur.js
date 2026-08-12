@@ -146,7 +146,40 @@
   // période en cours). Les deux se complètent dans `risques[]`, jamais
   // fusionnés en un seul décompte : une catégorie peut être signalée par
   // l'un sans l'autre.
-  function construireSecteurMarge(entree, { facteurs, margePlusResultat, phrasesRisqueMarge }) {
+  // Bloc E, agrégateur Marge (12/08/2026, cadrage §5/§7, lot P1.1) : "La
+  // liste actuelle de nombreux signaux faibles de marge est trop détaillée
+  // pour un dirigeant. Elle doit être agrégée avant d'être présentée dans
+  // Brief." Avant ce lot, `frein.detail` faisait `risques.join(' ')` —
+  // concaténait toutes les phrases une par une ("Signal faible — Snacking.
+  // Signal faible — Boissons. ..."), exactement la "liste de 30 écarts"
+  // que l'audit interdit. Cible donnée par le cadrage, reprise ici : "Marge
+  // - dispersion à surveiller : 30 écarts actifs détectés, dont 10
+  // catégories avec signal faible récurrent. Les principales concentrations
+  // concernent X, Y et Z. Voir Marge+." Combine deux comptages déjà
+  // disponibles et déjà distincts (voir commentaire v2.50 : jamais fusionnés
+  // en un seul décompte) — `nbEcartsMargePlus` (comparaison de pairs sur la
+  // période en cours) et `signauxRisqueMarge` (comparaison à la propre
+  // référence historique, qualifiée par NexusRisques) — sans jamais
+  // prétendre qu'ils mesurent la même chose.
+  function construireSyntheseFreinMarge(nbEcartsMargePlus, signauxRisqueMarge) {
+    const nbEcarts = nbEcartsMargePlus || 0;
+    const signaux = signauxRisqueMarge || [];
+    const nbCategoriesQualifiees = signaux.length;
+    if (!nbEcarts && !nbCategoriesQualifiees) return null;
+    const top = signaux.slice(0, 3).map(s => s.categorie).filter(Boolean);
+    let corps;
+    if (nbEcarts && nbCategoriesQualifiees) {
+      corps = `${nbEcarts} écart${nbEcarts > 1 ? 's' : ''} actif${nbEcarts > 1 ? 's' : ''} détecté${nbEcarts > 1 ? 's' : ''}, dont ${nbCategoriesQualifiees} catégorie${nbCategoriesQualifiees > 1 ? 's' : ''} confirmée${nbCategoriesQualifiees > 1 ? 's' : ''} par NexusRisques`;
+    } else if (nbEcarts) {
+      corps = `${nbEcarts} écart${nbEcarts > 1 ? 's' : ''} actif${nbEcarts > 1 ? 's' : ''} détecté${nbEcarts > 1 ? 's' : ''} sur la période`;
+    } else {
+      corps = `${nbCategoriesQualifiees} catégorie${nbCategoriesQualifiees > 1 ? 's' : ''} avec signal faible ou plus, confirmée${nbCategoriesQualifiees > 1 ? 's' : ''} par NexusRisques`;
+    }
+    const concentration = top.length ? ` Principale${top.length > 1 ? 's' : ''} concentration${top.length > 1 ? 's' : ''} : ${top.join(', ')}.` : '';
+    return `Marge — dispersion à surveiller : ${corps}.${concentration} Voir Marge+.`;
+  }
+
+  function construireSecteurMarge(entree, { facteurs, margePlusResultat, phrasesRisqueMarge, signauxRisqueMargeQualifies }) {
     const B = boussole();
     const statut = B.statutValeur(facteurs, margePlusResultat);
     const valeur = B.scoreDepuisMarge(facteurs ? facteurs.margeReelle : null);
@@ -156,8 +189,9 @@
       : "Marge non calculable sur les données actuelles.";
     const changement = nbEcarts > 0 ? `${nbEcarts} écart${nbEcarts > 1 ? 's' : ''} de marge actif${nbEcarts > 1 ? 's' : ''} détecté${nbEcarts > 1 ? 's' : ''} sur la période.` : null;
     const risques = phrasesRisqueMarge || [];
+    const syntheseFrein = construireSyntheseFreinMarge(nbEcarts, signauxRisqueMargeQualifies);
     const frein = (statut === 'À surveiller' || risques.length)
-      ? { titre: 'Écarts de marge actifs', detail: risques.length ? risques.join(' ') : detail, cible: entree.cible }
+      ? { titre: 'Écarts de marge actifs', detail: syntheseFrein || detail, cible: entree.cible }
       : null;
     return {
       ...entree, type: 'reel', confiance: facteurs && facteurs.margeReelle != null ? 'RÉEL' : 'INSUFFISANT',
@@ -227,6 +261,39 @@
     };
   }
 
+  // Portée du phénomène Équipe (12/08/2026, cadrage §11, lot P1.4) :
+  // *"Un libellé comme « Ponctualité mesurée sur 41 pointages » décrit la
+  // quantité de données, pas la performance... Distinguer incident
+  // individuel, récurrence individuelle et problème collectif. Ne jamais
+  // conclure à un besoin de formation collective à partir d'un seul
+  // collaborateur."* `collaborateursRecurrents` réutilise le seuil déjà
+  // établi pour `employesASurveiller` (≥3 retards) — jamais un 2e seuil
+  // inventé pour la même idée (Article 11). "Collectif" exige AU MOINS 2
+  // collaborateurs individuellement récurrents : un seul collaborateur, si
+  // récurrent, reste "récurrence individuelle", jamais promu "collectif"
+  // — c'est exactement la règle demandée par l'audit.
+  function classifierPorteeEquipe(collaborateursConcernes, collaborateursRecurrents) {
+    if (!collaborateursConcernes) return null;
+    if (collaborateursRecurrents >= 2) return 'collectif';
+    if (collaborateursRecurrents === 1 && collaborateursConcernes === 1) return 'recurrence_individuelle';
+    if (collaborateursConcernes === 1) return 'incident_individuel';
+    // Plusieurs collaborateurs concernés, mais aucun n'atteint seul le
+    // seuil de récurrence — des incidents isolés répartis, pas encore une
+    // preuve de motif individuel NI collectif (Article 5 : ne pas trancher
+    // au-delà de ce que les faits démontrent).
+    return 'incidents_isoles';
+  }
+
+  function libellePorteeEquipe(portee) {
+    switch (portee) {
+      case 'collectif': return 'semble collectif';
+      case 'recurrence_individuelle': return "concerne un seul collaborateur, de façon récurrente";
+      case 'incident_individuel': return 'reste un incident isolé chez un seul collaborateur';
+      case 'incidents_isoles': return 'reste ponctuel, réparti sur plusieurs collaborateurs sans récurrence individuelle démontrée';
+      default: return null;
+    }
+  }
+
   function construireSecteurEquipe(entree, { domaineEquipe, seuilMinPointages }) {
     const B = boussole();
     const statut = B.statutEquipe(domaineEquipe.equipeScore, domaineEquipe.totalPointages);
@@ -242,11 +309,32 @@
     // invariant que les autres secteurs : confiance === 'RÉEL' ⟺ valeur
     // !== null.
     const valeur = mesureSuffisante ? domaineEquipe.equipeScore : null;
+    const totalAnomalies = domaineEquipe.totalAnomalies || 0;
+    const collaborateursConcernes = domaineEquipe.collaborateursConcernes || 0;
+    const portee = classifierPorteeEquipe(collaborateursConcernes, domaineEquipe.employesASurveiller || 0);
+    // Taille de l'échantillon affichée comme CONTEXTE ("sur N pointages"),
+    // jamais comme conclusion (l'ancienne phrase EST la conclusion visible
+    // en tête — "Ponctualité mesurée sur..." — corrigé ici : la conclusion
+    // porte maintenant sur le phénomène observé, pas sur le volume de
+    // données). "Contre N sur la période précédente" (exemple du cadrage)
+    // n'est PAS reproduit : `chargerDomaineEquipe()` ne connaît aujourd'hui
+    // aucune fenêtre de période pour les pointages (portée existante,
+    // documentée depuis avant ce lot) — l'ajouter inventerait une
+    // comparaison que NEXUS ne peut pas encore prouver (Article 5).
     const detail = mesureSuffisante
-      ? `Ponctualité mesurée sur ${domaineEquipe.totalPointages} pointages${domaineEquipe.employesASurveiller ? ` · ${domaineEquipe.employesASurveiller} employé${domaineEquipe.employesASurveiller > 1 ? 's' : ''} à surveiller` : ''}.`
+      ? (totalAnomalies > 0
+          ? `Équipe — fiabilité à renforcer : ${totalAnomalies} anomalie${totalAnomalies > 1 ? 's' : ''} de ponctualité sur ${domaineEquipe.totalPointages} pointages. Le phénomène concerne ${collaborateursConcernes} collaborateur${collaborateursConcernes > 1 ? 's' : ''} et ${libellePorteeEquipe(portee)}.`
+          : `Ponctualité sous contrôle sur ${domaineEquipe.totalPointages} pointages.`)
       : "Pas encore assez de pointages enregistrés.";
     const force = statut === 'Sous contrôle' ? { titre: "Ponctualité de l'équipe sous contrôle", detail, cible: entree.cible } : null;
-    const frein = (statut === 'À surveiller' || statut === 'À corriger') ? { titre: "Fiabilité d'équipe à surveiller", detail, cible: entree.cible } : null;
+    // Titre du frein reflète désormais la portée réelle (12/08/2026) —
+    // jamais "à surveiller" générique quand NEXUS peut dire précisément si
+    // le sujet touche un collaborateur ou plusieurs, ce qui change l'action
+    // du dirigeant (entretien individuel vs revue d'équipe).
+    const freinTitre = portee === 'collectif' ? "Fiabilité d'équipe à surveiller (plusieurs collaborateurs)"
+      : (portee === 'recurrence_individuelle' || portee === 'incident_individuel') ? "Fiabilité à surveiller (un seul collaborateur)"
+      : "Fiabilité d'équipe à surveiller";
+    const frein = (statut === 'À surveiller' || statut === 'À corriger') ? { titre: freinTitre, detail, cible: entree.cible } : null;
     return {
       ...entree, type: 'reel', confiance: mesureSuffisante ? 'RÉEL' : 'INSUFFISANT',
       statut, valeur, detail, moteurs: [], changement: null, force, frein, risques: [],
@@ -256,7 +344,7 @@
   const CONSTRUCTEURS_SECTEUR = {
     carburants: (entree, d) => construireSecteurCarburants(entree, d.carburants),
     commerce: (entree, d) => construireSecteurCommerce(entree, d.facteurs),
-    marge: (entree, d) => construireSecteurMarge(entree, { facteurs: d.facteurs, margePlusResultat: d.margePlusResultat, phrasesRisqueMarge: d.phrasesRisqueMarge }),
+    marge: (entree, d) => construireSecteurMarge(entree, { facteurs: d.facteurs, margePlusResultat: d.margePlusResultat, phrasesRisqueMarge: d.phrasesRisqueMarge, signauxRisqueMargeQualifies: d.signauxRisqueMargeQualifies }),
     fdj: (entree, d) => construireSecteurFdj(entree, d.fdjResume),
     operations: (entree, d) => construireSecteurOperations(entree, {
       constatTempo: d.constatTempo, controlesVerifyRestants: d.controlesVerifyRestants,
@@ -353,5 +441,6 @@
     estDecisionStrategique,
     construireSecteurs,
     construireVerdictDirection, construireCeQuiAChange, construireFreins, construireLectureDirecteur,
+    construireSyntheseFreinMarge, classifierPorteeEquipe, libellePorteeEquipe,
   };
 })(typeof window !== 'undefined' ? window : globalThis);
