@@ -288,13 +288,40 @@
      grille visuelle que .outils-grid/.outil-card (cohérence), mais un jeu
      de cartes distinct : celles-ci ne pointent jamais directement vers un
      moteur, toujours vers un point d'entrée par intention (Comprendre
-     NEXUS ou Brief NEXUS), jamais un nom de module. */
+     NEXUS ou Brief NEXUS), jamais un nom de module.
+
+     Corrigé le 11/08/2026 (retour de Frédéric, incohérence repérée en
+     testant) : la 1ère version regroupait les 6 objectifs réels de
+     "Comprendre NEXUS" (NEXUS-Documentation-v1.html) en seulement 2 cartes
+     ("Améliorer mes résultats", "Garder le contrôle") sans lien profond —
+     un clic y menait vers la liste complète des 6 objectifs sans rien
+     présélectionner, contrairement à "Faire progresser mon équipe" qui,
+     elle, arrivait directement sur sa fiche recommandations. Comportement
+     incohérent d'une carte à l'autre. Remplacé par les 6 vraies cartes
+     d'objectif (mêmes id/emoji/libellé que INTENTIONS dans
+     NEXUS-Documentation-v1.html), chacune avec son propre lien profond
+     ?intention= — même comportement partout. */
   .intention-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px; padding:0 20px;}
   .intention-card{background:var(--panel); border:1px solid var(--hairline); border-radius:14px; padding:16px; text-decoration:none; color:var(--text); display:block;}
   .intention-icon{font-size:22px; margin-bottom:8px;}
   .intention-title{font-size:13.5px; font-weight:600;}
   .intention-desc{font-size:10.5px; color:var(--text-mid); margin-top:4px; line-height:1.4;}
-  body.nexus-desktop .intention-grid{grid-template-columns:repeat(4,1fr);}
+  body.nexus-desktop .intention-grid{grid-template-columns:repeat(3,1fr);}
+
+  /* "Vous ne savez pas où commencer ?" — même style que le raccourci Brief
+     NEXUS de NEXUS-Documentation-v1.html (accent cyan plutôt que bordure
+     discrète) : contrairement aux 6 objectifs, ce raccourci ne filtre
+     rien, il envoie directement vers Brief NEXUS. */
+  .intention-demarrage{
+    display:flex; align-items:center; gap:12px; margin:10px 20px 0;
+    background:rgba(79,195,217,0.08); border:1px solid rgba(79,195,217,0.35); border-radius:10px;
+    padding:13px 14px; text-decoration:none; -webkit-tap-highlight-color:transparent;
+  }
+  .intention-demarrage .id-emoji{font-size:20px; flex-shrink:0;}
+  .intention-demarrage .id-corps{flex:1; min-width:0;}
+  .intention-demarrage .id-titre{font-size:12.5px; font-weight:700; color:var(--text);}
+  .intention-demarrage .id-texte{font-size:11px; color:var(--text-mid); margin-top:2px; line-height:1.45;}
+  .intention-demarrage .id-fleche{color:var(--cyan); font-family:var(--mono); font-size:14px; flex-shrink:0;}
 
   /* Refonte du 26/07/2026 (demande de Frédéric) — "État global" : badge de
      statut + Indice sur une seule ligne, une phrase de synthèse, puis 4
@@ -520,38 +547,56 @@
 
     <!-- "Que voulez-vous faire ?" (10/08/2026, refonte "Porte NEXUS",
          demande de Frédéric) : jamais un nom de module — l'utilisateur
-         choisit son problème, pas l'outil. Teaser de 4 cartes qui renvoient
-         vers "Comprendre NEXUS" (point d'entrée par intention déjà
-         construit), ou directement vers Brief NEXUS pour "Savoir quoi
-         faire". "Améliorer mes résultats" et "Garder le contrôle"
-         recouvrent chacune 2 intentions de Comprendre NEXUS
-         (ventes+marge, caisses+stocks) — pas de présélection forcée pour
-         ces deux-là, on atterrit sur la liste complète des objectifs.
-         "Faire progresser mon équipe" a une correspondance directe
-         (piloter-equipe) — lien profond via ?intention=. -->
+         choisit son problème, pas l'outil. Chaque carte est un lien
+         profond direct vers sa fiche recommandations dans
+         NEXUS-Documentation-v1.html (?intention=...), même id/emoji/libellé
+         que le tableau INTENTIONS de ce fichier — à maintenir en cohérence
+         si un objectif change là-bas. Corrigé le 11/08/2026 : les 6 vraies
+         cartes remplacent l'ancien teaser de 4 cartes qui en regroupait 2
+         sans lien profond (voir commentaire CSS ci-dessus pour le détail
+         du problème trouvé). "Vous ne savez pas où commencer ?" reste un
+         raccourci à part, non filtrant, vers Brief NEXUS. -->
     <div class="section-tag">Que voulez-vous faire ?</div>
     <div class="intention-grid">
-      <a class="intention-card" href="NEXUS-Documentation-v1.html">
-        <div class="intention-icon">💰</div>
-        <div class="intention-title">Améliorer mes résultats</div>
-        <div class="intention-desc">Ventes, marge, produits et opportunités.</div>
+      <a class="intention-card" href="NEXUS-Documentation-v1.html?intention=comprendre-activite">
+        <div class="intention-icon">🧭</div>
+        <div class="intention-title">Comprendre mon activité</div>
+        <div class="intention-desc">État des lieux, priorités du jour, causes d'un résultat.</div>
       </a>
-      <a class="intention-card" href="NEXUS-Documentation-v1.html">
-        <div class="intention-icon">🛡</div>
-        <div class="intention-title">Garder le contrôle</div>
-        <div class="intention-desc">Caisses, stocks, anomalies et risques.</div>
+      <a class="intention-card" href="NEXUS-Documentation-v1.html?intention=augmenter-ventes">
+        <div class="intention-icon">📈</div>
+        <div class="intention-title">Augmenter mes ventes</div>
+        <div class="intention-desc">Potentiel par produit, bons créneaux, actions commerciales.</div>
+      </a>
+      <a class="intention-card" href="NEXUS-Documentation-v1.html?intention=ameliorer-marge">
+        <div class="intention-icon">💰</div>
+        <div class="intention-title">Améliorer ma marge</div>
+        <div class="intention-desc">Catégories et produits à corriger, impact suivi.</div>
+      </a>
+      <a class="intention-card" href="NEXUS-Documentation-v1.html?intention=controler-caisses">
+        <div class="intention-icon">🧾</div>
+        <div class="intention-title">Contrôler mes caisses</div>
+        <div class="intention-desc">Contrôle du jour, écarts, déroulé exact d'une journée.</div>
+      </a>
+      <a class="intention-card" href="NEXUS-Documentation-v1.html?intention=maitriser-stocks">
+        <div class="intention-icon">📦</div>
+        <div class="intention-title">Maîtriser mes stocks</div>
+        <div class="intention-desc">Comptages, écarts terrain, priorités, rappels.</div>
       </a>
       <a class="intention-card" href="NEXUS-Documentation-v1.html?intention=piloter-equipe">
         <div class="intention-icon">👥</div>
-        <div class="intention-title">Faire progresser mon équipe</div>
-        <div class="intention-desc">Missions, performance, organisation.</div>
-      </a>
-      <a class="intention-card" href="NEXUS-Brief-v1.html" data-brief-nexus="1">
-        <div class="intention-icon">🎯</div>
-        <div class="intention-title">Savoir quoi faire maintenant</div>
-        <div class="intention-desc">Les décisions prioritaires selon NEXUS.</div>
+        <div class="intention-title">Piloter mon équipe</div>
+        <div class="intention-desc">Planning, missions, résultats, évaluations.</div>
       </a>
     </div>
+    <a class="intention-demarrage" href="NEXUS-Brief-v1.html" data-brief-nexus="1">
+      <span class="id-emoji">🎯</span>
+      <div class="id-corps">
+        <div class="id-titre">Vous ne savez pas où commencer ?</div>
+        <div class="id-texte">Brief NEXUS analyse votre activité et vous montre les priorités du moment.</div>
+      </div>
+      <span class="id-fleche">→</span>
+    </a>
 
     <!-- "À retenir aujourd'hui" et "Aujourd'hui" retirés le 10/08/2026
          (demande de Frédéric, "simplifie l'écran") — la carte "Votre
