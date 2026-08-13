@@ -554,7 +554,39 @@
   }
 
   function renderAlerte(a) {
-    return a.type === 'activation_sans_carnet_confie' ? renderAlerteActivationSansCarnet(a) : renderAlerteStock(a);
+    if (a.type === 'activation_sans_carnet_confie') return renderAlerteActivationSansCarnet(a);
+    if (a.type === 'chaine_interrompue') return renderAlerteChaineInterrompue(a);
+    return renderAlerteStock(a);
+  }
+
+  // 13/08/2026, capture d'écran de Frédéric : quand le quart précédent
+  // retrouvé n'est pas le quart immédiatement précédent (quarts manquants
+  // entre les deux), une seule alerte racine remplace les N alertes par jeu
+  // — comparer des jours qui ne se suivent pas n'a pas de sens (voir
+  // NexusFdjMoteur.chaineContinuite). Chaque quart manquant ouvre
+  // directement son édition (comme le rattrapage FDJ Pilotage, même lien).
+  function renderAlerteChaineInterrompue(a) {
+    const manquants = a.quarts_manquants || [];
+    return `
+      <div class="jeu-row" data-alerte="${a.id}" style="padding:12px 14px;">
+        <div class="jeu-nom-ligne">
+          <div class="jeu-nom">🔴 Chaîne d'inventaire interrompue</div>
+        </div>
+        <div class="histo-sub" style="margin-bottom:8px;">
+          Dernier quart validé retrouvé : <b style="color:var(--text);">${libelleQuart(a.quartPrecedent)}</b><br>
+          Quart actuel : <b style="color:var(--text);">${libelleQuart(a.quartActuel)}</b>${a.employee_id ? ` · ${nomEmploye(a.employee_id)}` : ''}<br>
+          ${manquants.length} quart${manquants.length > 1 ? 's' : ''} manquant${manquants.length > 1 ? 's' : ''} entre les deux — les écarts de stock ne sont pas comparables tant qu'ils ne sont pas comptés.
+        </div>
+        ${manquants.length ? `
+          <div style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px;">
+            ${manquants.map(m => `<button type="button" class="btn-modifier" data-completer="${m.date}|${m.quart}" style="margin-top:0; flex:0 0 auto;">Compléter ${new Date(m.date + 'T00:00:00').toLocaleDateString('fr-FR')} · Q${m.quart}</button>`).join('')}
+          </div>
+        ` : ''}
+        <div style="display:flex; gap:8px;">
+          <button type="button" class="btn-modifier" data-vue="${a.id}" style="margin-top:0; flex:1; color:var(--text-mid); border-color:var(--hairline);">Marquer comme vue</button>
+        </div>
+      </div>
+    `;
   }
 
   function renderAlerteStock(a) {
@@ -672,6 +704,15 @@
         btn.addEventListener('click', async () => {
           const shift = await chargerShiftAvecCaisseParId(btn.dataset.corriger);
           if (shift) ouvrirEditionExistant(shift);
+        });
+      });
+      // 13/08/2026 : bouton "Compléter" de l'alerte chaîne interrompue —
+      // même chemin que le rattrapage FDJ Pilotage (ouvrirDepuisParametresUrl),
+      // mais en navigation directe (pas de rechargement de page).
+      listeAlertes.querySelectorAll('[data-completer]').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const [date, quart] = btn.dataset.completer.split('|');
+          await ouvrirDepuisParametresUrl(date, quart);
         });
       });
       listeAlertes.querySelectorAll('[data-vue]').forEach(btn => {

@@ -303,9 +303,71 @@
     return candidats;
   }
 
+  // ------------------------------------------------------------
+  // CONTINUITÉ DE LA CHAÎNE DE QUARTS — 13/08/2026, capture d'écran de
+  // Frédéric : Samantha ouvre son quart du 13/08 Q1, NEXUS le compare au
+  // 10/08 Q2 (dernier quart validé RETROUVÉ), mais 3 jours de quarts sont
+  // manquants entre les deux (11/08 et 12/08 jamais comptés). Résultat :
+  // 15 fausses alertes "stock initial modifié", une par jeu, alors que le
+  // vrai problème est unique et en amont — la chaîne est interrompue, pas
+  // les comptages de Samantha qui sont mal faits.
+  //
+  // Le calendrier FDJ a exactement 2 quarts fixes par jour, '1' puis '2'
+  // (voir QUARTS_FDJ_JOUR dans nexus-fdj-analyse-donnees.js — même vérité,
+  // jamais dupliquée). Pure fonction : aucune dépendance Supabase/DOM.
+  // Consommée par NEXUS-FDJ-v1.html (avant de créer une alerte
+  // stock_initial_modifie, à l'ouverture d'un quart) et par
+  // NEXUS-FDJ-Manager-v1.html (pour afficher une alerte racine unique de
+  // rupture plutôt que N alertes par jeu).
+  // ------------------------------------------------------------
+  function ajouterJoursIso(dateIso, n) {
+    const d = new Date(`${dateIso}T00:00:00`);
+    d.setDate(d.getDate() + n);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
+
+  // Quart immédiatement précédent celui donné, dans le calendrier FDJ à 2
+  // quarts/jour (Q2 -> Q1 même jour ; Q1 -> Q2 la veille).
+  function quartPrecedentAttendu(date, quart) {
+    return quart === '2' ? { date, quart: '1' } : { date: ajouterJoursIso(date, -1), quart: '2' };
+  }
+
+  // Quart immédiatement suivant celui donné (symétrique de quartPrecedentAttendu).
+  function quartSuivant(date, quart) {
+    return quart === '1' ? { date, quart: '2' } : { date: ajouterJoursIso(date, 1), quart: '1' };
+  }
+
+  function quartAvant(a, b) {
+    return a.date !== b.date ? a.date < b.date : a.quart < b.quart;
+  }
+
+  // `quartTrouve` : { date, quart } du dernier quart VALIDÉ retrouvé avant
+  // `quartActuel` (ou null si aucun quart précédent n'existe encore — premier
+  // quart jamais compté, ce n'est pas une rupture). Retourne { rompue,
+  // manquants } — manquants : liste ordonnée des { date, quart } strictement
+  // entre les deux (bornes exclues). rompue = false et manquants = [] si les
+  // deux quarts sont déjà consécutifs (chaîne intacte).
+  function chaineContinuite(quartTrouve, quartActuel) {
+    if (!quartTrouve) return { rompue: false, manquants: [] };
+    const attendu = quartPrecedentAttendu(quartActuel.date, quartActuel.quart);
+    if (quartTrouve.date === attendu.date && quartTrouve.quart === attendu.quart) {
+      return { rompue: false, manquants: [] };
+    }
+    const manquants = [];
+    let cur = quartSuivant(quartTrouve.date, quartTrouve.quart);
+    let garde = 0; // sécurité anti-boucle infinie (jamais > ~2 ans de quarts manquants)
+    while (quartAvant(cur, quartActuel) && garde < 2000) {
+      manquants.push({ date: cur.date, quart: cur.quart });
+      cur = quartSuivant(cur.date, cur.quart);
+      garde++;
+    }
+    return { rompue: manquants.length > 0, manquants };
+  }
+
   global.NexusFdjMoteur = {
     calculerVentesJeu, ventesGrattageTotal, caisseGrattage, caisseAttendue, ecartCaisse,
     soldesCarnetsParJeu, soldeCarnetsJeu, soldesCarnetsAvecReference,
     calculerCandidatsFdj,
+    quartPrecedentAttendu, quartSuivant, chaineContinuite,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -231,6 +231,7 @@
   let emplacements = [];        // catalogue fdj_locations du site (Bureau, Caisse…)
   let dernierStockFinal = {};   // game_id -> stock_final du quart précédent validé
   let dernierShiftPrecedentId = null; // id du quart précédent (pour l'alerte si le stock initial hérité est modifié)
+  let chaineRompue = { rompue: false, manquants: [] }; // 13/08/2026 : le quart précédent retrouvé n'est pas le quart immédiatement précédent (quarts manquants entre les deux) — voir NexusFdjMoteur.chaineContinuite
   let countsSaisie = {};        // game_id -> { stock_initial, appro, stock_final }
   let reportJournalier = { lots_payes_grattage: null };
   let reportTempsReel = { caisse_tirages: null };
@@ -432,9 +433,16 @@
       .select('id, date, quart').eq('site', siteId).eq('statut', 'valide')
       .or(`date.lt.${shiftRow.date},and(date.eq.${shiftRow.date},quart.lt.${shiftRow.quart})`)
       .order('date', { ascending: false }).order('quart', { ascending: false }).limit(1).maybeSingle();
-    if (e1) { console.error('Dernier quart FDJ validé:', e1); dernierShiftPrecedentId = null; return {}; }
-    if (!prevShift) { dernierShiftPrecedentId = null; return {}; }
+    if (e1) { console.error('Dernier quart FDJ validé:', e1); dernierShiftPrecedentId = null; chaineRompue = { rompue: false, manquants: [] }; return {}; }
+    if (!prevShift) { dernierShiftPrecedentId = null; chaineRompue = { rompue: false, manquants: [] }; return {}; }
     dernierShiftPrecedentId = prevShift.id;
+    // 13/08/2026 : le dernier quart validé retrouvé n'est pas forcément le
+    // quart immédiatement précédent (quarts manquants entre les deux, non
+    // comptés) — vérifie la continuité avant toute comparaison par jeu.
+    chaineRompue = NexusFdjMoteur.chaineContinuite(
+      { date: prevShift.date, quart: prevShift.quart },
+      { date: shiftRow.date, quart: shiftRow.quart }
+    );
     const { data: counts, error: e2 } = await nexusClient.from('fdj_shift_counts').select('game_id, stock_final').eq('shift_id', prevShift.id);
     if (e2) { console.error('Comptage précédent FDJ:', e2); return {}; }
     const map = {};
@@ -699,8 +707,12 @@
 
     // Signale, dès l'ouverture, tout écart avec le stock hérité — c'est
     // ici (et non plus à la clôture) que la correction remet en cause le
-    // quart précédent (09/08/2026, demande de Frédéric).
-    const jeuxModifies = jeuxAvecStockInitialModifie();
+    // quart précédent (09/08/2026, demande de Frédéric). 13/08/2026 : si la
+    // chaîne est interrompue (quarts manquants entre le quart précédent
+    // retrouvé et celui-ci), la comparaison par jeu n'a plus de sens — elle
+    // compare des jours qui ne se suivent pas. On suspend alors les N
+    // alertes par jeu au profit d'une seule alerte racine (voir plus bas).
+    const jeuxModifies = chaineRompue.rompue ? [] : jeuxAvecStockInitialModifie();
 
     const lignes = jeux
       .filter(j => countsSaisie[j.id] && countsSaisie[j.id].stock_initial !== null && countsSaisie[j.id].stock_initial !== undefined)
@@ -726,6 +738,13 @@
       }));
       const { error: eAlerte } = await nexusClient.from('fdj_alertes').insert(alertes);
       if (eAlerte) console.error('Enregistrement alertes stock initial FDJ:', eAlerte); // non bloquant
+    } else if (chaineRompue.rompue) {
+      // Une seule alerte racine plutôt que N alertes par jeu — 13/08/2026.
+      const { error: eAlerteChaine } = await nexusClient.from('fdj_alertes').insert({
+        site: siteId, type: 'chaine_interrompue', shift_id: shiftRow.id, shift_precedent_id: dernierShiftPrecedentId,
+        game_id: null, employee_id: employeeCourant.id, quarts_manquants: chaineRompue.manquants,
+      });
+      if (eAlerteChaine) console.error('Enregistrement alerte chaîne interrompue FDJ:', eAlerteChaine); // non bloquant
     }
 
     await nexusClient.from('fdj_audit_log').insert({
