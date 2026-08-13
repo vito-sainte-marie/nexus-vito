@@ -64,19 +64,24 @@
      donc mathématiquement centré pour n'importe quel commerce, sans
      mesurer le texte en JS. Le mot NEXUS est volontairement plus espacé
      (letter-spacing) pour occuper davantage sa moitié gauche. */
-  .header-brandrow{display:grid; grid-template-columns:1fr auto 1fr; align-items:center; gap:14px;}
-  .header-brand-side{display:flex; align-items:center; gap:14px; min-width:0;}
+  /* Rangée de marque réduite (12/08/2026, demande de Frédéric — "le logo
+     est trop gros") : logo NEXUS ramené de 50px à 38px (-24%), wordmark et
+     nom du commerce resserrés d'un cran, dans le même esprit que la
+     réduction de hauteur d'en-tête du 11/08/2026 — rien retiré
+     visuellement, juste un cran plus discret. */
+  .header-brandrow{display:grid; grid-template-columns:1fr auto 1fr; align-items:center; gap:12px;}
+  .header-brand-side{display:flex; align-items:center; gap:12px; min-width:0;}
   .header-brand-left{justify-content:flex-end;}
   .header-brand-right{justify-content:flex-start;}
-  .header-wordmark{font-family:var(--mono); font-weight:700; font-size:15px; letter-spacing:0.36em; color:var(--cyan);}
-  .header-divider{width:1px; height:24px; background:var(--hairline); flex-shrink:0;}
-  .header-mark{position:relative; width:50px; height:50px; flex-shrink:0;}
-  .header-mark-glow{position:absolute; inset:-9px; border-radius:50%; background:radial-gradient(circle, rgba(79,195,217,0.38), transparent 70%); filter:blur(5px);}
+  .header-wordmark{font-family:var(--mono); font-weight:700; font-size:13px; letter-spacing:0.32em; color:var(--cyan);}
+  .header-divider{width:1px; height:20px; background:var(--hairline); flex-shrink:0;}
+  .header-mark{position:relative; width:38px; height:38px; flex-shrink:0;}
+  .header-mark-glow{position:absolute; inset:-7px; border-radius:50%; background:radial-gradient(circle, rgba(79,195,217,0.38), transparent 70%); filter:blur(5px);}
   .header-mark-img{position:relative; width:100%; height:100%; object-fit:contain; display:block;}
   .header-sitewrap{display:inline-flex; align-items:center; gap:7px; min-width:0; max-width:150px;}
   .logo-frame{display:inline-flex; flex-shrink:0;}
-  .logo-frame img{width:22px; height:22px; border-radius:50%; object-fit:cover; box-shadow:0 0 0 1px var(--hairline);}
-  .header-sitename{font-size:14.5px; font-weight:600; letter-spacing:-0.01em; color:var(--text); text-align:left; line-height:1.25;}
+  .logo-frame img{width:20px; height:20px; border-radius:50%; object-fit:cover; box-shadow:0 0 0 1px var(--hairline);}
+  .header-sitename{font-size:13px; font-weight:600; letter-spacing:-0.01em; color:var(--text); text-align:left; line-height:1.25;}
   /* Rangée Connecté + pouls d'activité réel (27/07/2026, demande de
      Frédéric — "le dirigeant ne ressent pas que NEXUS travaille") :
      #headerLive affiche l'heure réelle de fin du dernier chargement de
@@ -1817,10 +1822,12 @@
   // ------------------------------------------------------------
   const PAGES_INDEX = [
     // Brief NEXUS (02/08/2026, demande de Frédéric) : synthèse à
-    // l'attention du dirigeant, agrège les 7 moteurs NEXUS (Produits,
-    // Marge+, Tempo, Verify, Scanner Stock, Inventaire, Rappels) en une
-    // Boussole NEXUS à 5 axes + 3 décisions priorisées — en tête de liste,
-    // avant le Cockpit (brief opérationnel du manager).
+    // l'attention du dirigeant, agrège les moteurs NEXUS réellement actifs
+    // et contributeurs pour ce site (registre central, voir
+    // nexus-moteurs-registre.js, 13/08/2026 — plus de liste ni de compte
+    // fixe codés en dur ici) en une Boussole NEXUS à 6 secteurs + 3
+    // décisions priorisées — en tête de liste, avant le Cockpit (brief
+    // opérationnel du manager).
     { label: 'Brief NEXUS', desc: 'La synthèse du dirigeant : 5 axes, 3 décisions, un chiffre', href: 'NEXUS-Brief-v1.html', role: 'manager' },
     { label: 'Rapport NEXUS', desc: 'CA, marge et décisions sur une période choisie, comparés à une référence', href: 'NEXUS-Rapport-v1.html', role: 'manager' },
     { label: 'Cockpit', desc: 'Le brief du matin, en un coup d\'œil', href: 'NEXUS-Cockpit-v2.html', role: 'manager' },

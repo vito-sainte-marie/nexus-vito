@@ -275,7 +275,7 @@
       <div class="plans-loading-text">NEXUS agrège vos moteurs<span class="loading-dots"><span>.</span><span>.</span><span>.</span></span></div>
     </div>
   </div>
-  <footer>NEXUS Brief · synthèse dirigeant · agrège Produits, Marge+, Tempo, Verify, Stock, Inventaire, Missions, Équipe</footer>
+  <footer id="briefFooter">NEXUS Brief · synthèse dirigeant</footer>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -293,6 +293,7 @@
 <script src="nexus-carburant-moteur.js"></script>
 <script src="nexus-carburant-donnees.js"></script>
 <script src="nexus-secteurs-catalogue.js"></script>
+<script src="nexus-moteurs-registre.js"></script>
 <script src="nexus-secteurs-moteur.js"></script>
 <script src="nexus-verify-moteur.js"></script>
 <script src="nexus-risques-moteur.js"></script>
@@ -335,14 +336,11 @@
     "📌 RAPPEL": "etat-recommandation", "🗓️ TEMPO": "etat-recommandation",
     "📋 SIGNAL": "etat-recommandation",
   };
-  const MOTEUR_LABEL = { produits: 'Produits', marge: 'Marge+', tempo: 'Tempo', advisor: 'Signal', caisse: 'Caisse', stock: 'Stock', rappel: 'Rappel', fdj: 'FDJ', coach: 'Coach FDJ' };
-  const MOTEUR_SOURCE = {
-    produits: 'des ventes réelles importées (Produits)', marge: 'la comparaison de marge entre produits comparables (Marge+)',
-    tempo: 'l’historique de caisse par jour de semaine (Tempo)', advisor: 'la détection Qualité/Caisse automatique',
-    caisse: 'un audit de caisse réel (Verify)', stock: 'les relevés de stock (Scanner Stock)', rappel: 'un rappel ajouté manuellement',
-    fdj: 'le stock et les comptages de quart FDJ réels (FDJ Pilotage)',
-    coach: 'les recommandations Coach FDJ déjà générées pour chaque employé (Coach FDJ)',
-  };
+  // MOTEUR_LABEL/MOTEUR_SOURCE (13/08/2026) : déplacés dans
+  // nexus-moteurs-registre.js — registre central, une seule vérité sur "à
+  // quoi correspond ce moteur" (cadrage "moteurs dynamiques", Frédéric).
+  // `MOTEUR_LABEL[x]` devient `NexusMoteursRegistre.nomPublic(x)`.
+  const MOTEUR_SOURCE = NexusMoteursRegistre.MOTEUR_SOURCE;
   const COULEUR_STATUT_DOMAINE = {
     'En progression': 'var(--green)', 'Sous contrôle': 'var(--green)', 'Stable': 'var(--text-mid)',
     'À surveiller': 'var(--amber)', 'En repli': 'var(--red)', 'À corriger': 'var(--red)',
@@ -736,7 +734,35 @@
     const candidatsAdvisorListe = messagesAdvisor
       .filter(m => m.message_text && m.message_text.trim().length >= 12)
       .map(NexusConseiller.normaliserAdvisor);
-    const nbMoteursActifs = [candidatsProduitsNormalises, candidatMargeListe, candidatTempoListe, candidatsAdvisorListe, candidatsCaisseNormalisesDedupliques, candidatsStock, candidatsRappels, candidatsFdj, candidatsCoach].filter(l => l.length > 0).length;
+    // Signaux "decisions" pour le registre de moteurs (13/08/2026,
+    // NexusMoteursRegistre — cadrage "moteurs dynamiques") : un simple
+    // booléen par clé `decisionKey` du registre, dérivé des candidats déjà
+    // calculés ci-dessus, aucun second calcul (Article 11). Remplace
+    // l'ancien `nbMoteursActifs` (comptage brut, dénominateur "/7" fixe
+    // codé plus bas) par une liste NOMMÉE de moteurs, réutilisable pour le
+    // pied de page ET la mention de fiabilité.
+    const signauxDecisionsMoteurs = {
+      produits: candidatsProduitsNormalises.length > 0, marge: candidatMargeListe.length > 0,
+      tempo: candidatTempoListe.length > 0, advisor: candidatsAdvisorListe.length > 0,
+      caisse: candidatsCaisseNormalisesDedupliques.length > 0, stock: candidatsStock.length > 0,
+      rappel: candidatsRappels.length > 0, fdj: candidatsFdj.length > 0, coach: candidatsCoach.length > 0,
+    };
+    // Signaux "axes" pour le registre de moteurs — un booléen par secteur du
+    // contrat commun (`confiance === 'RÉEL'`), pour les moteurs sans
+    // decisionKey propre (Contrôles/Équipe/Carburants). `AXES` est déjà
+    // construit plus haut (secteurs.map, avant les candidats de décision).
+    const signauxAxesMoteurs = Object.fromEntries(AXES.map(a => [a.id, a.confiance === 'RÉEL']));
+    // Registre de moteurs (cadrage "moteurs dynamiques", 13/08/2026) : plus
+    // aucun nom de moteur écrit en dur — actifs = filtrés par les secteurs
+    // réellement actifs de CE site (`secteursCheck.secteurs`, déjà résolu
+    // plus haut), contributeurs = filtrés par les signaux `decisions`/`axes`
+    // ci-dessus.
+    const moteursActifsListe = NexusMoteursRegistre.moteursActifsPourSite(secteursCheck.secteurs.map(s => s.id));
+    const moteursContributeursListe = NexusMoteursRegistre.moteursContributeurs(
+      { decisions: signauxDecisionsMoteurs, axes: signauxAxesMoteurs }, moteursActifsListe
+    );
+    const mentionFiabiliteMoteurs = NexusMoteursRegistre.construireMentionFiabilite(moteursContributeursListe, moteursActifsListe);
+    const texteAgregationMoteurs = NexusMoteursRegistre.construireTexteAgregation(moteursContributeursListe);
 
     const fusion = NexusConseiller.fusionnerEtSelectionner(
       [candidatsProduitsNormalises, candidatMargeListe, candidatTempoListe, candidatsAdvisorListe, candidatsCaisseNormalisesDedupliques, candidatsStock, candidatsRappels, candidatsFdj, candidatsCoach],
@@ -782,7 +808,7 @@
         ...p,
         ceQueJObserve: p.pourquoi,
         pourquoiCelaCompte: p.impactAttendu,
-        ceQuiSembleLExpliquer: `Détecté par le moteur ${MOTEUR_LABEL[p.moteur] || p.moteur} à partir de ${MOTEUR_SOURCE[p.moteur] || 'données réelles'}.`,
+        ceQuiSembleLExpliquer: `Détecté par le moteur ${NexusMoteursRegistre.nomPublic(p.moteur) || p.moteur} à partir de ${MOTEUR_SOURCE[p.moteur] || 'données réelles'}.`,
         ceQuiManquePourConfirmer: p.limites || "Aucune réserve identifiée — signal directement mesuré.",
         ceQueJeRecommande: action,
         teaser: teaserPrecis(p, action),
@@ -832,7 +858,8 @@
         actionRecommandee: s.action_recommandee, niveauConfiance: s.niveau_confiance,
         depuisLe: s.premiere_detection_le,
       })),
-      impact: { gain, risque, delai: 'Cette semaine', confianceGlobale: `${nbMoteursActifs}/7 moteurs NEXUS ont contribué à cette synthèse aujourd'hui.` },
+      impact: { gain, risque, delai: 'Cette semaine', confianceGlobale: mentionFiabiliteMoteurs },
+      footerTexte: texteAgregationMoteurs,
       missionsRestantes,
       carburants,
     };
@@ -1035,13 +1062,13 @@
           <div class="decision-chips">
             <span class="decision-chip">📅 ${p.quandAgir}</span>
             <span class="decision-chip ${p.niveauDeConfiance === 'Élevé' ? 'confiance-eleve' : 'confiance-moyen'}">Confiance : ${p.niveauDeConfiance}</span>
-            <span class="decision-chip">${MOTEUR_LABEL[p.moteur] || 'Signal'}</span>
+            <span class="decision-chip">${NexusMoteursRegistre.nomPublic(p.moteur) || 'Signal'}</span>
           </div>
           ${p.validable
             ? `<button class="decision-valider" data-id="${p.candidate_id}">✓ Accepter cette décision</button>`
             : p.moteur === 'rappel'
               ? `<button class="decision-fait" data-rappel-id="${p.rappelId}">✓ Marquer comme fait</button>`
-              : p.cible ? `<a href="${p.cible}" class="decision-lien">→ Voir les preuves dans ${MOTEUR_LABEL[p.moteur] || p.cible}</a>` : ''}
+              : p.cible ? `<a href="${p.cible}" class="decision-lien">→ Voir les preuves dans ${NexusMoteursRegistre.nomPublic(p.moteur) || p.cible}</a>` : ''}
           ${p.moteur === 'caisse' && p.auditId ? `<label class="caisse-justifie-row"><input type="checkbox" class="caisse-justifie-checkbox" data-audit-id="${p.auditId}"><span>Justifié — ne plus me signaler cet écart</span></label>` : ''}
         </div>
       </div>`;
@@ -1140,7 +1167,7 @@
   // montant n'est décoratif.
   const ETATS_GAIN = ['🔥 À AGIR', '📈 OPPORTUNITÉ', '💡 RECOMMANDATION'];
   function renderImpact(brief) {
-    const sujet = p => (p.article || MOTEUR_LABEL[p.moteur] || p.decision || '').toString().slice(0, 42);
+    const sujet = p => (p.article || NexusMoteursRegistre.nomPublic(p.moteur) || p.decision || '').toString().slice(0, 42);
     const gainItems = brief.decisions.filter(p => ETATS_GAIN.includes(p.etat) && p.impact_eur > 0);
     const risqueItems = brief.decisions.filter(p => !ETATS_GAIN.includes(p.etat) && p.impact_eur > 0);
     const ligne = (p, signe) => `<div class="impact-meta-row"><span class="impact-meta-label">${sujet(p)}</span><span class="impact-meta-val">${signe}${Math.round(p.impact_eur).toLocaleString('fr-FR')} €</span></div>`;
@@ -1414,6 +1441,12 @@
       ${renderCarburants(BRIEF)}
       ${renderRapportBrief()}
     </div>`;
+    // Pied de page dynamique (registre de moteurs, 13/08/2026) : plus de
+    // liste de moteurs codée en dur — `BRIEF.footerTexte` vient de
+    // NexusMoteursRegistre.construireTexteAgregation(), déjà limité aux
+    // moteurs qui ont réellement contribué à CETTE synthèse, pour CE site.
+    const footerEl = document.getElementById('briefFooter');
+    if (footerEl && BRIEF && BRIEF.footerTexte) footerEl.textContent = BRIEF.footerTexte;
     document.getElementById('btnGenererRapport').addEventListener('click', lancerGenerationRapport);
 
     root.querySelectorAll('.decision-valider').forEach(btn => {
