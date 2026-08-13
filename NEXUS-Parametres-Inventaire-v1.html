@@ -162,6 +162,22 @@
   .catalogue-resultat:active{background:var(--hairline);}
   .catalogue-resultat-meta{font-family:var(--mono); font-size:10px; color:var(--text-dim);}
   .produit-choisi-badge{background:rgba(79,195,217,0.1); border:1px solid rgba(79,195,217,0.35); border-radius:8px; padding:10px 12px; margin-bottom:8px; font-size:13px;}
+  /* Produit hors catalogue (13/08/2026, demande de Frédéric : "je ne trouve
+     pas glace écaille 8 kg Crystal dans ajouter un produit") — la recherche
+     ne porte que sur `products`, qui ne contient que les articles déjà
+     VENDUS AU MOINS UNE FOIS (importés depuis les ventes réelles, jamais un
+     catalogue fournisseur à part) : un produit tout juste reçu, jamais
+     encore vendu, n'y figure donc pas encore, même sans faute de frappe.
+     Le schéma prévoyait déjà cette situation (`source` accepte 'catalogue'
+     OU 'interne' depuis l'origine de la table) sans qu'aucun écran ne le
+     propose — ce lot active ce chemin resté mort. */
+  .badge-manuel{display:inline-block; font-family:var(--mono); font-size:8.5px; font-weight:700; letter-spacing:0.03em; text-transform:uppercase; padding:2px 7px; border-radius:20px; margin-left:8px; vertical-align:middle; color:var(--amber); background:rgba(245,166,35,0.12); border:1px solid rgba(245,166,35,0.35);}
+  .catalogue-manuel-suggestion{
+    padding:10px 12px; border-radius:8px; background:rgba(245,166,35,0.06); border:1px dashed rgba(245,166,35,0.4);
+    margin-bottom:10px; cursor:pointer; font-size:12.5px; color:var(--text);
+  }
+  .catalogue-manuel-suggestion:active{background:rgba(245,166,35,0.14);}
+  .catalogue-manuel-note{font-size:11px; color:var(--text-dim); line-height:1.5; margin:-2px 0 10px;}
 
   /* Onglet Parcours d'inventaire */
   .parcours-item{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 0; border-bottom:1px solid var(--hairline);}
@@ -335,9 +351,19 @@
       site: siteId, designation: produitCatalogueChoisi.article, code_barres: produitCatalogueChoisi.code_barres || null,
       categorie_id: ajoutForm.categorieId, zone_id: ajoutForm.zoneId, sensible: !!ajoutForm.sensible,
       comptage_deux_lieux: !!ajoutForm.doubleLieu,
-      actif: true, source: 'catalogue',
+      actif: true, source: produitCatalogueChoisi.manuel ? 'interne' : 'catalogue',
     }).select().single();
-    if (error) { console.error('Ajout produit inventaire:', error); alert('Erreur — réessayez.'); if (btn) { btn.disabled = false; btn.textContent = 'Ajouter ce produit'; } return; }
+    if (error) {
+      console.error('Ajout produit inventaire:', error);
+      // Nom déjà suivi (contrainte UNIQUE site+designation) — plus probable
+      // sur le chemin manuel, une saisie libre, que sur le chemin catalogue
+      // (déjà filtré par `dejaSuivis` dans rechercherCatalogue()). Message
+      // ciblé plutôt que le "Erreur — réessayez." générique, qui laisserait
+      // croire à un problème réseau alors que le produit existe déjà.
+      alert(error.code === '23505' ? 'Un produit avec exactement ce nom est déjà suivi en Inventaire.' : 'Erreur — réessayez.');
+      if (btn) { btn.disabled = false; btn.textContent = 'Ajouter ce produit'; }
+      return;
+    }
 
     // Dupliquer les paramètres d'un produit existant (04/08/2026, demande
     // de Frédéric — "en 5 secondes, le produit est opérationnel") : copie
@@ -437,16 +463,29 @@
   }
 
   function renderFormAjoutProduit() {
+    // Produit hors catalogue (13/08/2026) — `products` (et donc la
+    // recherche ci-dessous) ne contient que les articles déjà vendus au
+    // moins une fois (importés depuis les ventes réelles) : un produit
+    // tout juste réceptionné, jamais encore vendu, n'y figure pas encore,
+    // même sans faute de frappe. Plutôt qu'une impasse ("Aucun article
+    // trouvé"), on propose de le déclarer manuellement — le schéma
+    // acceptait déjà `source: 'interne'` depuis l'origine de la table,
+    // resté inutilisé jusqu'ici faute d'écran pour le déclencher.
+    const rechercheVide = !produitCatalogueChoisi && !resultatsCatalogue.length && rechercheCatalogueTexte.trim().length >= 2;
     return `
       <div class="card" style="margin-bottom:12px; padding:14px;">
         <input type="text" class="champ-recherche" id="rechercheCatalogue" placeholder="Rechercher un article (catalogue produits)…" value="${rechercheCatalogueTexte}" style="margin-bottom:8px;">
         ${produitCatalogueChoisi ? `
-          <div class="produit-choisi-badge">✓ ${produitCatalogueChoisi.article}</div>
+          <div class="produit-choisi-badge">✓ ${produitCatalogueChoisi.article}${produitCatalogueChoisi.manuel ? ' <span class="badge-manuel">Nouveau produit</span>' : ''}</div>
         ` : resultatsCatalogue.length ? resultatsCatalogue.map(r => `
           <div class="catalogue-resultat" data-choisir-catalogue="${r.article.replace(/"/g, '&quot;')}" data-code-barres="${r.code_barres || ''}">
             <span>${r.article}</span><span class="catalogue-resultat-meta">${r.categorie || ''}</span>
           </div>
-        `).join('') : rechercheCatalogueTexte.trim().length >= 2 ? '<div class="empty">Aucun article trouvé (ou déjà suivi).</div>' : ''}
+        `).join('') : rechercheVide ? `
+          <div class="empty" style="margin-bottom:8px;">Aucun article vendu sous ce nom pour l'instant.</div>
+          <div class="catalogue-manuel-suggestion" data-choisir-manuel="${rechercheCatalogueTexte.trim().replace(/"/g, '&quot;')}">➕ Ajouter « ${rechercheCatalogueTexte.trim()} » comme nouveau produit</div>
+          <div class="catalogue-manuel-note">Ce produit n'a encore jamais été vendu (donc jamais importé) — vous pouvez quand même le suivre en Inventaire dès aujourd'hui. Vérifiez l'orthographe avant de valider : NEXUS ne pourra pas le relier automatiquement à ses futures ventes si le nom diffère de celui du ticket de caisse.</div>
+        ` : ''}
         ${produitCatalogueChoisi ? `
           <select class="mouv-select" id="ajoutCategorie" style="margin-bottom:8px;">
             <option value="">Catégorie…</option>
@@ -1169,7 +1208,11 @@
       inputRechercheCatalogue.addEventListener('input', () => { rechercheCatalogueTexte = inputRechercheCatalogue.value; rechercherCatalogue(); });
     }
     document.querySelectorAll('[data-choisir-catalogue]').forEach(el => el.addEventListener('click', () => {
-      produitCatalogueChoisi = { article: el.dataset.choisirCatalogue, code_barres: el.dataset.codeBarres || null };
+      produitCatalogueChoisi = { article: el.dataset.choisirCatalogue, code_barres: el.dataset.codeBarres || null, manuel: false };
+      render();
+    }));
+    document.querySelectorAll('[data-choisir-manuel]').forEach(el => el.addEventListener('click', () => {
+      produitCatalogueChoisi = { article: el.dataset.choisirManuel, code_barres: null, manuel: true };
       render();
     }));
     const selAjoutCategorie = document.getElementById('ajoutCategorie');
