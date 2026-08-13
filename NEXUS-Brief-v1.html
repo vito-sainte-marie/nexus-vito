@@ -100,11 +100,34 @@
   .plans-loading{padding:36px 20px; text-align:center;}
   .plans-loading-logo{width:38px; height:38px; margin-bottom:12px; animation:nexusSpin 1.3s linear infinite; filter:drop-shadow(0 0 10px rgba(79,195,217,0.4));}
   @keyframes nexusSpin{ to{ transform:rotate(360deg); } }
-  .plans-loading-text{font-size:12.5px; color:var(--text-dim);}
+  .plans-loading-text{font-size:12.5px; color:var(--text-dim); transition:opacity 0.25s ease;}
+  .plans-loading-text.fade{opacity:0;}
   .loading-dots span{animation:loadingDot 1.4s infinite; opacity:0;}
   .loading-dots span:nth-child(2){animation-delay:0.2s;}
   .loading-dots span:nth-child(3){animation-delay:0.4s;}
   @keyframes loadingDot{ 0%,80%,100%{opacity:0;} 40%{opacity:1;} }
+  /* Checklist de chargement "pendant que NEXUS réfléchit" (13/08/2026) —
+     même vocabulaire visuel que le connecteur de données de
+     NEXUS-Verify-v1.html (.dc-check-item/.dc-check-mark), repris ici sous
+     un autre nom de classe car le contenu diffère de nature : chez Verify,
+     chaque ligne reflète une donnée réellement détectée dans un import ;
+     ici, chaque ligne est un jalon d'un minutage d'attente (pas un flux
+     d'état réel par secteur — la synthèse réelle n'est prête qu'au tout
+     dernier appel de renderBrief(), qui remplace cet écran entièrement).
+     Purement une pacing UI, jamais une prétention de progression mesurée
+     (Article 5) — les noms de moteurs eux-mêmes restent au niveau secteur
+     ("Commerce", "Marge"...), jamais les 9 moteurs techniques du registre
+     (NexusMoteursRegistre) : ce niveau de détail reste réservé à la
+     mention de fiabilité affichée une fois la synthèse réellement prête
+     (voir impact.confianceGlobale / #briefFooter). */
+  .brief-loading-checklist{max-width:230px; margin:16px auto 0; text-align:left;}
+  .brief-loading-checklist .dc-check-item{
+    display:flex; align-items:center; gap:8px; font-family:var(--sans); font-size:12.5px; color:var(--text);
+    padding:4px 0; opacity:0; transform:translateY(4px);
+    animation:dcCheckIn 0.35s ease forwards;
+  }
+  .brief-loading-checklist .dc-check-item .dc-check-mark{color:var(--green); font-weight:700; flex-shrink:0;}
+  @keyframes dcCheckIn{ to{ opacity:1; transform:translateY(0); } }
 
   /* SECTION generic */
   .section{padding:20px 20px;}
@@ -272,7 +295,8 @@
   <div id="briefRoot">
     <div class="plans-loading">
       <img class="plans-loading-logo" src="nexus-avatar.png" alt="">
-      <div class="plans-loading-text">NEXUS agrège vos moteurs<span class="loading-dots"><span>.</span><span>.</span><span>.</span></span></div>
+      <div class="plans-loading-text" id="briefLoadingMsg">NEXUS analyse votre activité<span class="loading-dots"><span>.</span><span>.</span><span>.</span></span></div>
+      <div class="brief-loading-checklist" id="briefLoadingChecklist"></div>
     </div>
   </div>
   <footer id="briefFooter">NEXUS Brief · synthèse dirigeant</footer>
@@ -1545,12 +1569,59 @@
     return true;
   }
 
+  // Animation "pendant que NEXUS réfléchit" (13/08/2026, demande de
+  // Frédéric — même esprit que le connecteur de données de
+  // NEXUS-Verify-v1.html) : un minutage fixe, pas un flux d'état réel par
+  // secteur (la vraie synthèse peut aller plus vite ou plus lentement
+  // selon le réseau/Supabase — le premier `root.innerHTML = ...` de
+  // renderBrief() coupe cette animation à tout moment, à n'importe quelle
+  // étape, sans que ça ait besoin d'être « propre »). Les jalons du
+  // milieu restent au niveau secteur (Commerce/Marge/FDJ/Contrôles),
+  // jamais les 9 moteurs techniques du registre — ce niveau de détail
+  // reste réservé à la mention de fiabilité affichée une fois la vraie
+  // synthèse prête (voir construireMentionFiabilite()/#briefFooter).
+  function demarrerAnimationChargement() {
+    const msgEl = document.getElementById('briefLoadingMsg');
+    const checklistEl = document.getElementById('briefLoadingChecklist');
+    if (!msgEl || !checklistEl) return; // écran déjà remplacé (chargement très rapide)
+
+    function changerMessage(texte) {
+      const el = document.getElementById('briefLoadingMsg');
+      if (!el) return;
+      el.classList.add('fade');
+      setTimeout(() => {
+        const el2 = document.getElementById('briefLoadingMsg');
+        if (!el2) return;
+        el2.innerHTML = `${texte}<span class="loading-dots"><span>.</span><span>.</span><span>.</span></span>`;
+        el2.classList.remove('fade');
+      }, 250);
+    }
+    function ajouterItem(texte) {
+      const el = document.getElementById('briefLoadingChecklist');
+      if (!el) return;
+      const div = document.createElement('div');
+      div.className = 'dc-check-item';
+      div.innerHTML = `<span class="dc-check-mark">✓</span>${texte}`;
+      el.appendChild(div);
+    }
+
+    const JALONS = [
+      { t: 700, action: () => ajouterItem('Commerce analysé') },
+      { t: 1050, action: () => ajouterItem('Marge analysée') },
+      { t: 1400, action: () => ajouterItem('FDJ analysée') },
+      { t: 1750, action: () => ajouterItem('Contrôles consolidés') },
+      { t: 2350, action: () => changerMessage('NEXUS hiérarchise vos priorités') },
+    ];
+    JALONS.forEach(j => setTimeout(j.action, j.t));
+  }
+
   nexusRequireAuth().then(async employee => {
     if (!employee) return;
     if (employee.role !== 'manager' && employee.role !== 'gerant') {
       document.body.innerHTML = '<div class="locked">Brief NEXUS est réservé aux managers et gérants.</div>';
       return;
     }
+    demarrerAnimationChargement();
     employeeCourantId = employee.id;
     SITE_ACTUEL = employee.site_id;
     if (!(await NexusForfait.nexusRequireBriefNexus(SITE_ACTUEL))) return;
