@@ -239,6 +239,16 @@
         <label class="lbl">Nom de l'expéditeur affiché (boîte e-mail)</label>
         <input type="text" id="pNomExpediteurEmail" value="${esc(r.nom_expediteur_email)}" placeholder="Ex : Station Vito Sainte Marie">
         <div class="param-note">Le nom visible comme expéditeur dans la boîte de réception du client — peut différer du signataire ci-dessous.</div>
+        <!-- 13/08/2026, demande de Frédéric : envoi automatique des factures
+             par e-mail (bouton "Envoyer" dans la fiche client). Ces deux
+             champs alimentent la Edge Function nexus-envoyer-facture — le
+             mot de passe n'est PAS le mot de passe du compte Gmail, mais un
+             "mot de passe d'application" généré dans les réglages Google. -->
+        <label class="lbl">Adresse d'envoi des factures (Gmail)</label>
+        <input type="email" id="pAdresseExpeditionEmail" value="${esc(r.adresse_expedition_email)}" placeholder="Ex : vito.saintemarie2@gmail.com">
+        <label class="lbl">Mot de passe d'application Gmail</label>
+        <input type="password" id="pMotDePasseAppEmail" value="${esc(r.mot_de_passe_app_email)}" placeholder="${r.mot_de_passe_app_email ? '••••••••••••••••' : 'Généré dans les réglages Google, pas le mot de passe habituel'}" autocomplete="new-password">
+        <div class="param-note">Nécessaire pour que le bouton "Envoyer" fonctionne sur les factures. Ce n'est pas le mot de passe de connexion à Gmail — c'est un code à 16 caractères généré dans myaccount.google.com → Sécurité → Mots de passe des applications (la validation en 2 étapes doit être activée sur ce compte Google). Stocké ici pour l'envoi automatique, visible uniquement par les managers de ce site.</div>
         <label class="lbl">Nom du signataire</label>
         <input type="text" id="pExpediteurNom" value="${esc(r.expediteur_nom)}" placeholder="Ex : Frédéric Bragance">
         <label class="lbl">Fonction du signataire</label>
@@ -378,6 +388,7 @@
         nom_etablissement: val('pNomEtablissement'), nom_expediteur_email: val('pNomExpediteurEmail'), expediteur_nom: val('pExpediteurNom'),
         expediteur_fonction: val('pExpediteurFonction'), telephone: val('pTelephone'),
         adresse: val('pAdresse'), signature_texte: val('pSignature'),
+        adresse_expedition_email: val('pAdresseExpeditionEmail'), mot_de_passe_app_email: val('pMotDePasseAppEmail'),
       }));
     } else if (ongletActif === 'communication') {
       document.querySelectorAll('#civiliteDefautGrid .radio-opt').forEach(el => {

@@ -113,6 +113,15 @@
   .champ-label{font-family:var(--mono); font-size:10px; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.03em; margin-bottom:6px;}
   .champ-valeur{font-size:14px; color:var(--text);}
   .champ-valeur.vide{color:var(--text-dim); font-style:italic;}
+  /* 13/08/2026 — bloc "Historique" de la fiche client : liste des factures
+     avec bouton d'envoi (voir renderFacturesBloc / envoyerFacture). */
+  .facture-row{display:flex; align-items:center; gap:10px; padding:10px 0; border-bottom:1px solid var(--hairline);}
+  .facture-row:last-child{border-bottom:none;}
+  .facture-info{flex:1; min-width:0;}
+  .facture-nom{font-size:13px; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .facture-meta{font-size:11px; color:var(--text-mid); margin-top:2px;}
+  .btn-envoyer{flex-shrink:0; font-family:var(--sans); font-size:11.5px; font-weight:700; color:#062026; background:var(--cyan); border:none; border-radius:9px; padding:8px 12px; cursor:pointer;}
+  .btn-envoyer:disabled{background:var(--panel-raised); color:var(--text-dim); cursor:default;}
 
   input[type=text], input[type=email], input[type=tel], input, select, textarea{
     width:100%; background:var(--panel-raised); border:1px solid var(--hairline); border-radius:9px;
@@ -228,17 +237,24 @@
     const { data: clients, error } = await nexusClient.from('clients').select('*').eq('site', site).order('raison_sociale', { ascending: true });
     if (error) { console.error('Chargement clients:', error); clientsListe = []; return; }
     const ids = (clients || []).map(c => c.id);
-    let contacts = [], prefs = [];
+    let contacts = [], prefs = [], factures = [];
     if (ids.length) {
       const { data: c } = await nexusClient.from('client_contacts').select('*').in('client_id', ids).eq('est_contact_principal', true);
       contacts = c || [];
       const { data: p } = await nexusClient.from('client_preferences').select('*').in('client_id', ids);
       prefs = p || [];
+      // 13/08/2026, demande de Frédéric : "comment envoyer les messages avec
+      // leurs factures" — chargées ici en une seule fois (même convention
+      // que contacts/prefs ci-dessus) et affichées dans le bloc "Historique"
+      // de la fiche client (voir renderFicheClient / renderFacturesBloc).
+      const { data: f } = await nexusClient.from('invoices').select('*').in('client_id', ids).order('created_at', { ascending: false });
+      factures = f || [];
     }
     clientsListe = (clients || []).map(c => ({
       ...c,
       contact: contacts.find(x => x.client_id === c.id) || null,
       preferences: prefs.find(x => x.client_id === c.id) || null,
+      factures: factures.filter(x => x.client_id === c.id),
     }));
   }
 
@@ -464,9 +480,7 @@
 
           <div class="bloc">
             <div class="bloc-titre">Historique</div>
-            <div class="empty-state" style="padding:20px 4px;">
-              <div class="es-desc">Aucun historique pour l'instant — apparaîtra dès la première facturation mensuelle traitée dans NEXUS.</div>
-            </div>
+            ${renderFacturesBloc(c)}
           </div>
 
           <button class="btn-primary" id="btnModifierClient">Modifier cette fiche</button>
@@ -487,6 +501,83 @@
       await chargerClients();
       render();
     });
+    document.querySelectorAll('[data-envoyer-facture]').forEach(btn => {
+      btn.addEventListener('click', () => envoyerFacture(btn.dataset.envoyerFacture, btn));
+    });
+  }
+
+  // ------------------------------------------------------------
+  // FACTURES — bloc "Historique" de la fiche client (13/08/2026, demande de
+  // Frédéric : "comment envoyer les messages avec leurs factures"). V1
+  // volontairement simple : un bouton "Envoyer" par facture, pas de lot —
+  // voir NEXUS-Data-Dictionary-v2 pour la portée exacte de cette V1 et ce
+  // qu'elle laisse délibérément de côté (email_batches/email_messages avec
+  // 7 "checks" de rapprochement, prévus en base pour une Phase 2 future).
+  // ------------------------------------------------------------
+  const LIBELLES_STATUT_FACTURE = {
+    envoyee: { classe: 'st-vert', texte: 'Envoyée' },
+    bloquee: { classe: 'st-rouge', texte: 'Bloquée' },
+  };
+  function statutFacture(f) {
+    return LIBELLES_STATUT_FACTURE[f.statut] || { classe: 'st-orange', texte: "En attente d'envoi" };
+  }
+  function renderFacturesBloc(c) {
+    const factures = c.factures || [];
+    if (!factures.length) {
+      return `
+        <div class="empty-state" style="padding:20px 4px;">
+          <div class="es-desc">Aucune facture pour l'instant — apparaîtra dès qu'un document sera déposé et identifié pour ce client dans la Boîte de réception.</div>
+        </div>
+      `;
+    }
+    return factures.map(f => {
+      const st = statutFacture(f);
+      const dateAffichee = f.date_facture ? new Date(f.date_facture + 'T00:00:00').toLocaleDateString('fr-FR') : new Date(f.created_at).toLocaleDateString('fr-FR');
+      const dejaEnvoyee = f.statut === 'envoyee';
+      return `
+        <div class="facture-row">
+          <div class="facture-info">
+            <div class="facture-nom">${escHtml(f.reference || 'Facture')} — ${dateAffichee}</div>
+            <div class="facture-meta">${f.montant_total !== null && f.montant_total !== undefined ? Number(f.montant_total).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €' : 'Montant non extrait'}</div>
+          </div>
+          <span class="cc-statut ${st.classe}">${st.texte}</span>
+          <button type="button" class="btn-envoyer" data-envoyer-facture="${f.id}" ${dejaEnvoyee ? 'disabled' : ''}>${dejaEnvoyee ? 'Envoyée' : 'Envoyer'}</button>
+        </div>
+      `;
+    }).join('');
+  }
+
+  async function envoyerFacture(invoiceId, btn) {
+    if (!confirm('Envoyer cette facture par e-mail au client ?')) return;
+    const texteInitial = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Envoi…';
+    const { data: sessionData } = await nexusClient.auth.getSession();
+    const token = sessionData && sessionData.session && sessionData.session.access_token;
+    if (!token) {
+      alert('Session expirée — reconnectez-vous puis réessayez.');
+      btn.disabled = false; btn.textContent = texteInitial;
+      return;
+    }
+    try {
+      const resp = await fetch(`${NEXUS_SUPABASE_URL}/functions/v1/nexus-envoyer-facture`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, apikey: NEXUS_SUPABASE_ANON_KEY },
+        body: JSON.stringify({ invoiceId }),
+      });
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok) {
+        alert("Envoi impossible : " + (data.error || 'Erreur inconnue.'));
+        btn.disabled = false; btn.textContent = texteInitial;
+        return;
+      }
+      await chargerClients();
+      render();
+    } catch (e) {
+      console.error('Envoi facture:', e);
+      alert("Erreur réseau pendant l'envoi — vérifiez la connexion et réessayez.");
+      btn.disabled = false; btn.textContent = texteInitial;
+    }
   }
 
   // ------------------------------------------------------------
