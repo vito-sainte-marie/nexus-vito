@@ -194,6 +194,22 @@ const NEXUS_DESKTOP_CSS = `
   .nexus-sidebar-brand img{width:30px; height:30px; border-radius:8px; object-fit:cover;}
   .nexus-sidebar-brand span{font-family:'IBM Plex Mono',monospace; font-size:13px; font-weight:700; color:#EDF1F5; letter-spacing:0.03em;}
   .nexus-sidebar-scroll{flex:1; overflow-y:auto; padding:0 10px 16px;}
+  /* Curseur de défilement dédié au menu (13/08/2026, demande de Frédéric :
+     "un curseur afin de monter ou descendre uniquement le menu de gauche
+     en vue bureau") — le menu défile déjà indépendamment du contenu
+     principal (overflow-y:auto ci-dessus, sur .nexus-sidebar-scroll
+     uniquement, jamais sur body), mais le curseur système par défaut est
+     trop discret (barres superposées et auto-masquées de macOS
+     notamment) pour qu'on remarque que le menu peut défiler. Barre fine,
+     toujours visible dès que le menu dépasse la hauteur d'écran, dans les
+     teintes NEXUS plutôt que le gris système générique.
+     Firefox : */
+  .nexus-sidebar-scroll{ scrollbar-width:thin; scrollbar-color:rgba(79,195,217,0.4) transparent; }
+  /* Chrome/Safari/Edge : */
+  .nexus-sidebar-scroll::-webkit-scrollbar{ width:6px; }
+  .nexus-sidebar-scroll::-webkit-scrollbar-track{ background:transparent; }
+  .nexus-sidebar-scroll::-webkit-scrollbar-thumb{ background:rgba(79,195,217,0.4); border-radius:10px; }
+  .nexus-sidebar-scroll::-webkit-scrollbar-thumb:hover{ background:rgba(79,195,217,0.7); }
   .nexus-sidebar-group{font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:0.08em; text-transform:uppercase; color:#57626F; padding:14px 10px 6px;}
   .nexus-sidebar-link{display:flex; align-items:center; gap:10px; padding:8px 10px; border-radius:8px; color:#8A96A5; text-decoration:none; font-size:12.5px; margin-bottom:2px;}
   .nexus-sidebar-link:hover{background:#1A222C; color:#EDF1F5;}
