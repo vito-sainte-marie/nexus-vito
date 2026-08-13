@@ -1608,6 +1608,17 @@
     // prefillFormPourModification() à partir du prix archivé sur l'audit,
     // remis à null pour toute nouvelle saisie.
     let PRIX_CARBURANT_FIGE_AUDIT = null;
+    // Flag de réinitialisation (13/08/2026, demande de Frédéric) — posé à
+    // true juste après un enregistrement réussi. Consommé par le prochain
+    // clic sur l'onglet "Nouvel audit" (et lui seul) pour vider tout le
+    // formulaire : ainsi, revenir sur "Nouvel audit" après être passé par
+    // Historique (ou tout autre onglet) repart d'un formulaire vierge,
+    // sans jamais effacer une saisie en cours si le manager n'a fait que
+    // jeter un oeil ailleurs sans enregistrer. Neutralisé par
+    // prefillFormPourModification() avant qu'elle ne clique elle-même sur
+    // l'onglet "Nouvel audit", pour ne jamais effacer le pré-remplissage
+    // d'une correction d'audit.
+    let AUDIT_VIENT_DETRE_ENREGISTRE = false;
 
     // Mois courant calculé en heure LOCALE (pas toISOString, qui est en UTC :
     // passé 20h heure de Martinique (UTC-4), l'UTC est déjà le lendemain, ce
@@ -1768,10 +1779,22 @@
       document.getElementById('vueNouveau').style.display = 'block';
       document.getElementById('vueHistorique').style.display = 'none';
       document.getElementById('vueRapport').style.display = 'none';
-      // Si on revient d'une correction d'audit ancien sans avoir enregistré,
-      // on ne garde ni sa valeur de repli ni son prix figé pour la prochaine
-      // saisie — sinon un nouvel audit pourrait hériter à tort du prix d'un
-      // mois passé.
+      // Un audit vient d'être calculé et enregistré, et on revient sur
+      // "Nouvel audit" après être passé ailleurs (Historique, Rapport...) —
+      // tout le formulaire repart à zéro plutôt que de laisser les valeurs
+      // du dernier audit affichées (13/08/2026, demande de Frédéric). Ce
+      // reset englobe déjà VENTE_PISTE_LEGACY/PRIX_CARBURANT_FIGE_AUDIT, pas
+      // besoin de les traiter séparément dans ce cas.
+      if (AUDIT_VIENT_DETRE_ENREGISTRE) {
+        AUDIT_VIENT_DETRE_ENREGISTRE = false;
+        reinitialiserFormulaireNouveau();
+        return;
+      }
+      // Sinon (simple navigation sans enregistrement entre-temps) : on ne
+      // garde ni valeur de repli ni prix figé d'une éventuelle correction
+      // abandonnée — sinon un nouvel audit pourrait hériter à tort du prix
+      // d'un mois passé — mais on laisse le reste de la saisie en cours
+      // intact.
       VENTE_PISTE_LEGACY = null;
       PRIX_CARBURANT_FIGE_AUDIT = null;
       document.getElementById('noteVentePisteLegacy').style.display = 'none';
@@ -1994,6 +2017,68 @@
       document.getElementById('totalReglementBoutique').textContent = reglementBoutique.toFixed(2).replace('.', ',') + ' €';
       const apercuReglement = document.getElementById('v_apercu_reglement');
       if (apercuReglement) apercuReglement.textContent = (reglementPiste + reglementBoutique).toFixed(2).replace('.', ',') + ' €';
+    }
+
+    // Réinitialisation complète du formulaire "Nouvel audit" (13/08/2026,
+    // demande de Frédéric) — repart d'un formulaire strictement identique à
+    // celui du tout premier chargement de la page : mêmes champs vidés,
+    // mêmes listes ramenées à une ligne vide par défaut, mêmes cartes
+    // repliables fermées. Déclenchée uniquement via AUDIT_VIENT_DETRE_ENREGISTRE
+    // (voir déclaration plus haut), jamais automatiquement à chaque clic sur
+    // l'onglet.
+    function reinitialiserFormulaireNouveau() {
+      document.getElementById('v_date').valueAsDate = new Date();
+      document.getElementById('v_quart').value = '1';
+
+      [
+        'v_litrage_go', 'v_litrage_sp', 'v_litrage_gnr', 'v_montant_piste', 'v_vente_boutique', 'v_transfert',
+        'v_drop_piste_billets', 'v_drop_piste_pieces', 'v_drop_piste_chq', 'v_drop_piste_cb',
+        'v_drop_boutique_billets', 'v_drop_boutique_pieces', 'v_drop_boutique_chq', 'v_drop_boutique_cb',
+        'v_cuve_sp_litres', 'v_cuve_go_litres', 'v_cuve_gnr_litres',
+      ].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+      document.getElementById('v_commentaire').value = '';
+
+      // Listes dynamiques — vidées puis une ligne vide par défaut, exactement
+      // comme au tout premier chargement de la page (voir les mêmes appels
+      // plus bas, hors de cette fonction).
+      document.getElementById('bonsPisteListe').innerHTML = ''; ajouterLigneBon();
+      document.getElementById('depensesListe').innerHTML = ''; ajouterLigneDepense();
+      document.getElementById('vacataireListe').innerHTML = ''; ajouterLigneVacataire();
+      document.getElementById('carteFideliteListe').innerHTML = ''; ajouterLigneCarteFidelite();
+      document.getElementById('reglementCompteListe').innerHTML = ''; ajouterLigneReglementCompte();
+      majTotauxListes();
+
+      // Cartes repliables — repartent fermées, comme à l'arrivée sur un
+      // formulaire vierge (voir prefillFormPourModification, qui les rouvre
+      // au contraire quand la donnée existe réellement).
+      ['cardReglementCompte', 'cardDepenses', 'cardCuve', 'cardAutres'].forEach(id => {
+        const c = document.getElementById(id); if (c) c.classList.remove('open');
+      });
+      majAffichageCuve();
+      majAffichageVentePiste();
+
+      // Employés présents — redémarre sans personne cochée.
+      employesSelectionnes.piste = new Set();
+      employesSelectionnes.boutique = new Set();
+      renderMenuEmployes('piste'); renderMenuEmployes('boutique');
+      majLabelEmployes('piste'); majLabelEmployes('boutique');
+
+      // Valeur de repli / prix figé d'une éventuelle correction passée —
+      // jamais hérités par un nouvel audit.
+      VENTE_PISTE_LEGACY = null;
+      PRIX_CARBURANT_FIGE_AUDIT = null;
+      document.getElementById('noteVentePisteLegacy').style.display = 'none';
+      document.getElementById('notePrixCarburantFige').style.display = 'none';
+
+      // Résultat et Conseiller NEXUS de l'audit précédent — jamais laissés
+      // affichés au-dessus d'un formulaire vierge (source de confusion : on
+      // pourrait croire qu'ils concernent la prochaine saisie).
+      const resultBox = document.getElementById('resultatAudit');
+      if (resultBox) resultBox.innerHTML = '';
+      const carteConseiller = document.getElementById('conseillerVerifyCard');
+      const corpsConseiller = document.getElementById('conseillerVerifyCorps');
+      if (carteConseiller) carteConseiller.classList.remove('show');
+      if (corpsConseiller) corpsConseiller.innerHTML = '';
     }
 
     // Cartes repliables (02/08/2026) — un seul clic sur l'en-tête ouvre/ferme
@@ -2240,6 +2325,12 @@
       PRIX_CARBURANT_FIGE_AUDIT = null;
       document.getElementById('noteVentePisteLegacy').style.display = 'none';
       document.getElementById('notePrixCarburantFige').style.display = 'none';
+      // Enregistrement réussi (13/08/2026, demande de Frédéric) — le
+      // prochain retour sur l'onglet "Nouvel audit" videra tout le
+      // formulaire plutôt que de laisser cet audit affiché. Le résultat et
+      // le Conseiller ci-dessous restent visibles tant qu'on ne quitte pas
+      // cet onglet : seul le RETOUR déclenche le reset (voir tabNouveau).
+      AUDIT_VIENT_DETRE_ENREGISTRE = true;
 
       // Avertissement champs obligatoires vides (01/08/2026) — affiché en
       // tête de résultat, jamais masqué même si les écarts sont conformes :
@@ -2448,6 +2539,12 @@
     }
 
     function prefillFormPourModification(a) {
+      // Neutralise le reset : cette fonction clique elle-même plus bas sur
+      // l'onglet "Nouvel audit" (voir tabNouveau.click() en fin de
+      // fonction) pour y afficher son pré-remplissage — sans ceci, ce clic
+      // déclencherait le reset s'il restait posé depuis un enregistrement
+      // précédent, et effacerait la correction qu'on vient de préparer.
+      AUDIT_VIENT_DETRE_ENREGISTRE = false;
       document.getElementById('v_date').value = a.date;
       document.getElementById('v_quart').value = a.quart;
       setValFR('v_vente_boutique', a.vente_boutique);
