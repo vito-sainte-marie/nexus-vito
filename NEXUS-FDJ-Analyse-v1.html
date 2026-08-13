@@ -164,6 +164,24 @@
   .statut-rapport.statut-pret{color:var(--green);}
   .statut-rapport.statut-erreur{color:var(--red);}
   .statut-detail{font-family:var(--mono); font-size:10px; color:var(--text-dim);}
+
+  /* --- Rattrapage des comptages FDJ manquants (13/08/2026) — même style
+     que le widget "Jaugeages en attente" de NEXUS-Carburants-Pilotage-v1.html,
+     adapté au vocabulaire FDJ (quarts plutôt que jaugeage). --- */
+  .fdj-rattrapage-card{background:var(--panel); border:1px solid rgba(245,166,35,0.35); border-radius:14px; padding:14px 16px; margin-bottom:14px;}
+  .fdj-rattrapage-card.calme{border-color:var(--hairline);}
+  .fdj-rattrapage-head{display:flex; align-items:center; gap:8px; margin-bottom:8px;}
+  .fdj-rattrapage-icon{font-size:15px;}
+  .fdj-rattrapage-titre{font-size:13px; font-weight:700; color:var(--amber);}
+  .fdj-rattrapage-titre.calme{color:var(--text-mid); font-weight:600;}
+  .fdj-rattrapage-texte{font-size:12px; color:var(--text-mid); line-height:1.5; margin-bottom:10px;}
+  .fdj-rattrapage-chips{display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px;}
+  .fdj-rattrapage-chip{font-family:var(--mono); font-size:11px; padding:6px 10px; border-radius:8px; background:var(--amber-dim); color:var(--amber); text-decoration:none; white-space:nowrap;}
+  .fdj-rattrapage-chip.brouillon{background:var(--panel-raised); color:var(--text-mid); border:1px dashed var(--hairline);}
+  .fdj-rattrapage-manuel{display:flex; gap:8px;}
+  .fdj-rattrapage-manuel input{flex:1;}
+  .fdj-rattrapage-manuel select{width:110px; flex:none;}
+  .fdj-rattrapage-manuel-btn{padding:0 14px; border:none; border-radius:10px; background:var(--cyan); color:#04141a; font-family:var(--sans); font-size:12.5px; font-weight:600; cursor:pointer;}
 </style>
 </head>
 <body>
@@ -424,6 +442,59 @@
     { id: 'rapports', label: 'Rapports' },
   ];
 
+  // Rattrapage des comptages FDJ manquants (13/08/2026, demande directe de
+  // Frédéric : "revenir sur les caisses FDJ dans Pilotage car les employés
+  // n'ont pas fait les inventaires") — même principe que le widget
+  // "Jaugeages en attente" de NEXUS-Carburants-Pilotage-v1.html : toujours
+  // visible (indépendant de la période sélectionnée), deux tons selon qu'il
+  // y a réellement quelque chose à rattraper ou non — jamais un ton
+  // alarmant sans raison réelle (Article 5). Chaque chip ouvre directement
+  // NEXUS-FDJ-Manager-v1.html sur le quart concerné (le manager a déjà
+  // "pouvoir total" pour le créer/corriger, voir ouvrirDepuisParametresUrl
+  // dans ce fichier) ; un sélecteur libre date+quart reste disponible en
+  // complément, pour tout autre jour au-delà de la fenêtre de détection.
+  function formaterDateFrCourtFdj(iso) {
+    return new Date(`${iso}T00:00:00`).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+  }
+  async function chargerEtRendreRattrapageFdj() {
+    const zone = document.getElementById('rattrapageFdjZone');
+    if (!zone) return;
+    const { jours } = await NexusFdjAnalyseDonnees.chargerJoursSansComptage(nexusClient, siteId, dateISO(new Date()));
+    const nbQuartsManquants = jours.reduce((n, j) => n + j.quarts.length, 0);
+    const alerte = nbQuartsManquants > 0;
+    const chips = jours.flatMap(j => j.quarts.map(q => {
+      const brouillon = q.statut === 'brouillon';
+      const label = `${formaterDateFrCourtFdj(j.date)} · Quart ${q.quart}${brouillon ? ' (brouillon)' : ''}`;
+      return `<a class="fdj-rattrapage-chip${brouillon ? ' brouillon' : ''}" href="NEXUS-FDJ-Manager-v1.html?date=${j.date}&quart=${q.quart}">${label}</a>`;
+    })).join('');
+    zone.innerHTML = `
+      <div class="fdj-rattrapage-card${alerte ? '' : ' calme'}">
+        <div class="fdj-rattrapage-head">
+          <span class="fdj-rattrapage-icon">${alerte ? '⏱' : '📅'}</span>
+          <span class="fdj-rattrapage-titre${alerte ? '' : ' calme'}">${alerte ? 'Comptages en attente' : 'Corriger un comptage passé'}</span>
+        </div>
+        <div class="fdj-rattrapage-texte">${alerte
+          ? `${nbQuartsManquants} quart${nbQuartsManquants > 1 ? 's' : ''} sans comptage validé sur les 14 derniers jours. Cliquez pour ouvrir directement la saisie de ce quart.`
+          : 'Tous les quarts des 14 derniers jours sont comptés et validés. Besoin de corriger un jour plus ancien ?'}</div>
+        ${chips ? `<div class="fdj-rattrapage-chips">${chips}</div>` : ''}
+        <div class="fdj-rattrapage-manuel">
+          <input type="date" class="champ-input" id="rattrapageFdjDate" max="${dateISO(new Date())}">
+          <select class="champ-select" id="rattrapageFdjQuart">
+            <option value="1">Quart 1</option>
+            <option value="2">Quart 2</option>
+          </select>
+          <button type="button" class="fdj-rattrapage-manuel-btn" id="btnRattrapageFdjOuvrir">Ouvrir</button>
+        </div>
+      </div>
+    `;
+    document.getElementById('btnRattrapageFdjOuvrir').addEventListener('click', () => {
+      const v = document.getElementById('rattrapageFdjDate').value;
+      const q = document.getElementById('rattrapageFdjQuart').value;
+      if (!v) { alert('Choisissez une date.'); return; }
+      window.location.href = `NEXUS-FDJ-Manager-v1.html?date=${v}&quart=${q}`;
+    });
+  }
+
   async function renderPage() {
     document.getElementById('titre').textContent = 'FDJ · Pilotage';
     document.getElementById('sousTitre').textContent = "Ce qui mérite l'attention aujourd'hui — jamais un mur de graphiques.";
@@ -454,6 +525,7 @@
         <div class="periode-label-actuelle" id="labelPeriodeActuelle"></div>
         <div class="periode-label-comparaison" id="labelPeriodeComparaison"></div>
       </div>
+      <div id="rattrapageFdjZone"></div>
       <div class="tabs-nav" id="tabsNav">
         ${ONGLETS.map(o => `<div class="tab-pill ${o.id === ongletActuel ? 'actif' : ''} ${o.desactive ? 'desactive' : ''}" data-onglet="${o.id}" title="${o.desactive ? 'Phase suivante — pas encore construit' : ''}">${o.label}</div>`).join('')}
       </div>
@@ -487,6 +559,11 @@
         await rafraichirOnglet();
       });
     });
+    // Rattrapage des comptages manquants — indépendant du sélecteur de
+    // période et des onglets (toujours visible, comme le widget équivalent
+    // de NEXUS-Carburants-Pilotage-v1.html), donc lancé une fois ici plutôt
+    // que rechargé à chaque changement de période/onglet dans rafraichirOnglet().
+    chargerEtRendreRattrapageFdj();
     await rafraichirOnglet();
   }
 

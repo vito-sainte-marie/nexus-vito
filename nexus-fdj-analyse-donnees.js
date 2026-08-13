@@ -135,9 +135,57 @@
     return { actuel: actuel || [], comp: comp || [] };
   }
 
+  // Détection des comptages manquants (13/08/2026, demande directe de
+  // Frédéric : "les caisses de ces derniers jours n'ont pas été faites, ou
+  // plutôt les employés n'ont pas fait les inventaires") — même principe
+  // que nexus-carburant-donnees.js::chargerJoursSansReleve (fenêtre récente
+  // bornée, jamais un jour signalé avant le tout premier comptage réel du
+  // site), adapté à 2 quarts FIXES par jour (Quart 1/Quart 2 — voir le
+  // sélecteur figé de NEXUS-FDJ-Manager-v1.html, aucun site n'a un nombre
+  // de quarts différent) au lieu d'un relevé unique par jour.
+  //
+  // Deux états distincts remontés pour chaque quart en défaut (Article 5 —
+  // "pas fait" recouvre deux réalités différentes, jamais confondues) :
+  // 'absent' (aucune ligne fdj_shifts du tout pour ce quart — rien n'a
+  // jamais été commencé) et 'brouillon' (un employé a ouvert le quart,
+  // fdj_shifts.statut vaut toujours 'brouillon' — voir l'insert dans
+  // NEXUS-FDJ-v1.html — mais ne l'a jamais validé via validerQuart()).
+  // Un quart 'valide' n'est jamais reporté, quel que soit son écart de
+  // caisse — l'écart est un problème de contrôle, pas d'inventaire manquant
+  // (hors périmètre de cette détection).
+  const QUARTS_FDJ_JOUR = ['1', '2'];
+  async function chargerJoursSansComptage(client, site, dateDuJour, fenetreJours = 14) {
+    const premierJour = await chargerPremiereDateSuiviJeu(client, site);
+    if (!premierJour) return { jours: [], premierJour: null };
+    const bornInf = new Date(`${dateDuJour}T00:00:00`);
+    bornInf.setDate(bornInf.getDate() - fenetreJours);
+    const fenetreDebut = `${bornInf.getFullYear()}-${String(bornInf.getMonth() + 1).padStart(2, '0')}-${String(bornInf.getDate()).padStart(2, '0')}`;
+    const dateDebut = premierJour > fenetreDebut ? premierJour : fenetreDebut;
+    const { data: shifts, error } = await client.from('fdj_shifts').select('date, quart, statut')
+      .eq('site', site).gte('date', dateDebut).lt('date', dateDuJour);
+    if (error) { console.error('Chargement jours sans comptage FDJ:', error); return { jours: [], premierJour }; }
+    const parCle = {};
+    (shifts || []).forEach(s => { parCle[`${s.date}|${s.quart}`] = s.statut; });
+    const jours = [];
+    const cursor = new Date(`${dateDebut}T00:00:00`);
+    const limite = new Date(`${dateDuJour}T00:00:00`);
+    while (cursor < limite) {
+      const iso = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}-${String(cursor.getDate()).padStart(2, '0')}`;
+      const quartsProbleme = [];
+      QUARTS_FDJ_JOUR.forEach(q => {
+        const statut = parCle[`${iso}|${q}`];
+        if (statut === undefined) quartsProbleme.push({ quart: q, statut: 'absent' });
+        else if (statut === 'brouillon') quartsProbleme.push({ quart: q, statut: 'brouillon' });
+      });
+      if (quartsProbleme.length) jours.push({ date: iso, quarts: quartsProbleme });
+      cursor.setDate(cursor.getDate() + 1);
+    }
+    return { jours, premierJour };
+  }
+
   global.NexusFdjAnalyseDonnees = {
     chargerVue, chargerParametresFdjSite, chargerEmplacements, chargerPremiereDateSuiviJeu,
     chargerMouvementsStock, chargerDerniereReference, chargerJeux, chargerEmployesSite,
-    chargerShiftFacts, chargerSyntheseCoachEquipe,
+    chargerShiftFacts, chargerSyntheseCoachEquipe, chargerJoursSansComptage,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

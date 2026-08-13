@@ -1237,10 +1237,15 @@
   // ------------------------------------------------------------
   // OUVERTURE DE L'ÉDITION (nouveau ou existant)
   // ------------------------------------------------------------
-  async function ouvrirEditionNouveau() {
+  // dateOverride/quartOverride (13/08/2026, demande de Frédéric : pouvoir
+  // rattraper directement un comptage FDJ manquant depuis FDJ Pilotage,
+  // même principe que le rattrapage carburant déjà livré) — permettent
+  // d'ouvrir directement un quart neuf sur une date/quart précis plutôt que
+  // sur aujourd'hui/Quart 1 par défaut. Voir ouvrirDepuisParametresUrl().
+  async function ouvrirEditionNouveau(dateOverride, quartOverride) {
     document.getElementById('content').innerHTML = '<div class="loading">Chargement…</div>';
     edition = {
-      shiftId: null, date: dateISO(), quart: '1', employeeId: employesSite[0] ? employesSite[0].id : null,
+      shiftId: null, date: dateOverride || dateISO(), quart: quartOverride || '1', employeeId: employesSite[0] ? employesSite[0].id : null,
       statutShift: 'brouillon', counts: {}, stockInitialAuto: {}, lotsPayes: null, caisseTirages: null, regularisations: 0,
       caisseReelle: null, motifEcart: '', statutCaisse: 'provisoire', avant: null, estNouveau: true, historiqueAudit: [],
     };
@@ -1302,6 +1307,23 @@
     await reprefillStockInitial();
     vue = 'edition';
     renderEdition();
+  }
+
+  // Ouverture directe depuis un lien de rattrapage (13/08/2026, demande de
+  // Frédéric — "revenir sur les caisses FDJ dans Pilotage car les employés
+  // n'ont pas fait les inventaires") : NEXUS-FDJ-Analyse-v1.html (Pilotage)
+  // pointe ici avec `?date=...&quart=...` pour un quart détecté manquant.
+  // Le manager a déjà "pouvoir total" pour créer/éditer n'importe quel
+  // quart (voir ouvrirEditionNouveau/ouvrirEditionExistant, existants avant
+  // ce lot) — ce lot ajoute uniquement le point d'entrée direct, aucune
+  // nouvelle capacité d'édition. Si un quart existe déjà à cette date (même
+  // en brouillon), on l'ouvre pour complétion plutôt que d'en recréer un
+  // second en doublon (contrainte UNIQUE(site,date,quart) de toute façon).
+  async function ouvrirDepuisParametresUrl(dateParam, quartParam) {
+    const shifts = await chargerShiftsAvecCaisse(dateParam);
+    const existant = shifts.find(s => s.quart === quartParam);
+    if (existant) { await ouvrirEditionExistant(existant); return; }
+    await ouvrirEditionNouveau(dateParam, quartParam);
   }
 
   // ------------------------------------------------------------
@@ -1632,7 +1654,21 @@
     if (!(await NexusForfait.nexusRequireProfessional('NEXUS-FDJ-Manager-v1.html', siteId))) return;
     demarrerHorloge();
     [jeux, employesSite, emplacements] = await Promise.all([chargerJeux(), chargerEmployesSite(), chargerEmplacements()]);
-    renderAccueil();
+    // Lien de rattrapage (13/08/2026) — `?date=YYYY-MM-DD&quart=1|2` ouvre
+    // directement l'édition de ce quart au lieu de l'accueil habituel.
+    // Validé strictement : tout paramètre absent/mal formé retombe
+    // silencieusement sur l'accueil normal (comportement inchangé pour
+    // n'importe quel lien existant, qui n'a jamais eu ces paramètres).
+    const paramsUrl = new URLSearchParams(window.location.search);
+    const dateParam = paramsUrl.get('date');
+    const quartParam = paramsUrl.get('quart');
+    const dateValide = dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam);
+    const quartValide = quartParam === '1' || quartParam === '2';
+    if (dateValide && quartValide) {
+      await ouvrirDepuisParametresUrl(dateParam, quartParam);
+    } else {
+      renderAccueil();
+    }
   });
 </script>
 </body>
