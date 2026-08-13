@@ -364,10 +364,50 @@
     return { rompue: manquants.length > 0, manquants };
   }
 
+  // ------------------------------------------------------------
+  // APPRO NON TRACÉE — 13/08/2026, capture d'écran de Frédéric : après avoir
+  // complété un quart FDJ ancien (rattrapage ou correction manager), l'écran
+  // "État du stock" continuait d'afficher "OK" pour CASH alors qu'en réalité
+  // 2 carnets de moins restaient en caisse non activée. Cause : l'appro
+  // (compteur TICKETS, fdj_shift_counts) et les mouvements de stock
+  // (compteur CARNETS, fdj_stock_movements) ne sont synchronisés que lors
+  // d'une activation EN DIRECT (executerActivationCarnet, NEXUS-FDJ-v1.html)
+  // — jamais quand un manager saisit ou corrige l'appro après coup
+  // (enregistrerEdition, NEXUS-FDJ-Manager-v1.html n'écrit jamais dans
+  // fdj_stock_movements). Périmètre validé avec Frédéric : détecter et
+  // signaler honnêtement, jamais reconstruire ou deviner une activation à
+  // sa place (voir NEXUS-Data-Dictionary-v2, v2.67) — un rejeu chronologique
+  // complet (3 types d'événements, versions temporelles) reste un chantier
+  // séparé, à cadrer si le besoin se confirme à l'usage.
+  //
+  // `shiftCounts` : [{shift_id, game_id, appro}] — uniquement les lignes
+  // avec appro > 0 (à filtrer côté appelant). `mouvements` : lignes brutes
+  // fdj_stock_movements (shift_id, game_id, type_mouvement). Un mouvement
+  // 'activation' avec un shift_id donné pour un jeu donné "couvre" l'appro
+  // de CE quart pour CE jeu — un rapprochement quantité-à-quantité serait
+  // une fausse précision tant que la conversion tickets/carnet n'est pas
+  // garantie sans reste (carnet entamé). Retourne { [game_id]:
+  // approNonTraceTickets } — uniquement les jeux réellement concernés.
+  function approNonTraceParJeu(shiftCounts, mouvements) {
+    const couverts = new Set();
+    (mouvements || []).forEach(m => {
+      if (m.type_mouvement === 'activation' && m.shift_id) couverts.add(`${m.shift_id}|${m.game_id}`);
+    });
+    const total = {};
+    (shiftCounts || []).forEach(c => {
+      if (!c.appro || Number(c.appro) <= 0) return;
+      const cle = `${c.shift_id}|${c.game_id}`;
+      if (couverts.has(cle)) return;
+      total[c.game_id] = (total[c.game_id] || 0) + Number(c.appro);
+    });
+    return total;
+  }
+
   global.NexusFdjMoteur = {
     calculerVentesJeu, ventesGrattageTotal, caisseGrattage, caisseAttendue, ecartCaisse,
     soldesCarnetsParJeu, soldeCarnetsJeu, soldesCarnetsAvecReference,
     calculerCandidatsFdj,
     quartPrecedentAttendu, quartSuivant, chaineContinuite,
+    approNonTraceParJeu,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

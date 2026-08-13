@@ -220,7 +220,8 @@
   let reception = null; // état de saisie de l'écran "Réceptionner une livraison FDJ"
   let stockEtat = null; // état affiché de l'écran "État du stock FDJ"
   let blocage = null; // état de saisie du formulaire "Signaler un retrait / blocage"
-  let vue = 'liste'; // 'liste' | 'edition' | 'reappro' | 'inventaire-ref' | 'reception' | 'stock-etat' | 'blocage' | 'apres-enregistrement'
+  let rapprochement = null; // état de saisie du formulaire "Enregistrer un carnet manquant" (13/08/2026, rapprochement appro non tracée)
+  let vue = 'liste'; // 'liste' | 'edition' | 'reappro' | 'inventaire-ref' | 'reception' | 'stock-etat' | 'blocage' | 'apres-enregistrement' | 'rapprochement'
 
   // État du formulaire d'édition en cours (nouveau OU existant).
   let edition = null;
@@ -384,7 +385,9 @@
   // employé. Relit tout l'historique fdj_stock_movements du site : volume
   // faible en V1, à revoir (agrégation serveur) si ça grossit beaucoup.
   async function chargerMouvementsStock() {
-    const { data, error } = await nexusClient.from('fdj_stock_movements').select('type_mouvement, quantite, game_id, location_source_id, location_destination_id, created_at').eq('site', siteId);
+    // shift_id ajouté (13/08/2026) : nécessaire à NexusFdjMoteur.approNonTraceParJeu()
+    // pour savoir quel mouvement 'activation' couvre quel quart précis.
+    const { data, error } = await nexusClient.from('fdj_stock_movements').select('type_mouvement, quantite, game_id, location_source_id, location_destination_id, created_at, shift_id').eq('site', siteId);
     if (error) { console.error('Chargement mouvements stock FDJ:', error); return []; }
     return data || [];
   }
@@ -417,6 +420,17 @@
       soldes: NexusFdjMoteur.soldesCarnetsAvecReference(mouvements, { caisse: caisse ? caisse.id : null, bureau: bureau ? bureau.id : null, bloque: bloque ? bloque.id : null }, reference),
       reference, mouvements,
     };
+  }
+
+  // 13/08/2026 — appro (fdj_shift_counts, compteur TICKETS) saisie sur
+  // n'importe quel quart, y compris complété/corrigé après coup sans
+  // mouvement de stock correspondant. Seules les lignes appro > 0
+  // intéressent NexusFdjMoteur.approNonTraceParJeu() (filtre côté requête,
+  // volume faible en V1 comme chargerMouvementsStock()).
+  async function chargerApproShiftCounts() {
+    const { data, error } = await nexusClient.from('fdj_shift_counts').select('shift_id, game_id, appro').eq('site', siteId).gt('appro', 0);
+    if (error) { console.error('Chargement appro FDJ (rapprochement stock):', error); return []; }
+    return data || [];
   }
   // Date de dernière réception par jeu (§4 Phase A : "règles de date de
   // réception / ancienneté") — max(created_at) des mouvements
@@ -1137,13 +1151,25 @@
   async function ouvrirStockEtat() {
     document.getElementById('content').innerHTML = '<div class="loading">Chargement…</div>';
     if (!jeux.length) jeux = await chargerJeux();
-    const { soldes, reference, mouvements } = await soldesActuels();
-    stockEtat = { soldes, reference, dernieresReceptions: derniereReceptionParJeu(mouvements) };
+    const [{ soldes, reference, mouvements }, shiftCounts] = await Promise.all([soldesActuels(), chargerApproShiftCounts()]);
+    stockEtat = {
+      soldes, reference, dernieresReceptions: derniereReceptionParJeu(mouvements),
+      approNonTrace: NexusFdjMoteur.approNonTraceParJeu(shiftCounts, mouvements),
+    };
     vue = 'stock-etat';
     renderStockEtat();
   }
 
-  function etatLigneStock(solde) {
+  // 13/08/2026 : "Stock à rapprocher" prime sur Rupture/Vigilance/OK — tant
+  // que l'appro d'un quart n'est pas couverte par un mouvement, le nombre
+  // affiché (nonActives) n'est pas fiable, ce n'est ni "OK" ni "rupture"
+  // réelle, c'est INCONNU. Jamais deviner : estimation en carnets seulement
+  // si tickets_par_carnet est connu pour ce jeu, sinon dit explicitement.
+  function etatLigneStock(solde, approNonTrace, ticketsParCarnet) {
+    if (approNonTrace > 0) {
+      const carnetsEstimes = ticketsParCarnet ? Math.floor(approNonTrace / ticketsParCarnet) : null;
+      return { classe: 'anomalie', texte: '⚠️ Stock à rapprocher', rapprochement: true, carnetsEstimes, approNonTrace };
+    }
     if (solde.nonActives <= 0 && solde.bureau <= 0) return { classe: 'anomalie', texte: '🔴 Rupture' };
     if (solde.nonActives <= 0) return { classe: 'anomalie', texte: '🟠 Vigilance — rien en caisse' };
     return { classe: 'calc', texte: '🟢 OK' };
@@ -1184,13 +1210,18 @@
     document.getElementById('btnRetourStockEtat').addEventListener('click', () => { vue = 'liste'; stockEtat = null; renderAccueil(); });
     document.getElementById('btnOuvrirBlocage').addEventListener('click', () => ouvrirBlocage());
     document.querySelectorAll('[data-retourner]').forEach(btn => btn.addEventListener('click', () => retournerDepuisBloque(btn.dataset.retourner)));
+    document.querySelectorAll('[data-rapprocher]').forEach(btn => btn.addEventListener('click', () => {
+      const estime = btn.dataset.estime ? Number(btn.dataset.estime) : null;
+      ouvrirRapprochement(btn.dataset.rapprocher, estime);
+    }));
   }
 
   function renderJeuStockEtat(jeu) {
     const solde = stockEtat.soldes[jeu.id] || { bureau: 0, confies: 0, actives: 0, bloques: 0, nonActives: 0 };
     const derniereReception = stockEtat.dernieresReceptions[jeu.id];
     const anciennete = ancienneteJours(derniereReception);
-    const etat = etatLigneStock(solde);
+    const approNonTrace = stockEtat.approNonTrace[jeu.id] || 0;
+    const etat = etatLigneStock(solde, approNonTrace, jeu.tickets_par_carnet);
     return `
       <div class="jeu-row">
         <div class="jeu-nom-ligne">
@@ -1202,9 +1233,75 @@
           <div class="jeu-input-wrap"><div class="jeu-input-label">Caisse non act.</div><div class="champ-readonly" style="text-align:center; padding:8px 4px; font-size:13px;">${fmtNum(solde.nonActives)}</div></div>
           <div class="jeu-input-wrap"><div class="jeu-input-label">Activés</div><div class="champ-readonly" style="text-align:center; padding:8px 4px; font-size:13px;">${fmtNum(solde.actives)}</div></div>
         </div>
-        <div class="histo-sub" style="margin-top:6px;">${derniereReception ? `Dernière réception : il y a ${anciennete} jour${anciennete > 1 ? 's' : ''} (${new Date(derniereReception).toLocaleDateString('fr-FR')})` : 'Aucune réception enregistrée'}</div>
+        ${etat.rapprochement ? `
+          <div class="histo-sub" style="margin-top:6px; color:var(--amber);">
+            Mouvements NEXUS : ${fmtNum(solde.nonActives)} non activé${Math.abs(solde.nonActives) > 1 ? 's' : ''} en caisse. Appro non tracée (quart(s) complété(s)/corrigé(s) après coup) : ${fmtNum(etat.approNonTrace)} ticket${etat.approNonTrace > 1 ? 's' : ''}${etat.carnetsEstimes !== null ? ` (~${etat.carnetsEstimes} carnet${etat.carnetsEstimes > 1 ? 's' : ''} estimé${etat.carnetsEstimes > 1 ? 's' : ''})` : ' — quantité de tickets par carnet inconnue pour ce jeu, estimation impossible'}.
+          </div>
+          <button type="button" class="btn-modifier" data-rapprocher="${jeu.id}" data-estime="${etat.carnetsEstimes ?? ''}" style="margin-top:6px; width:100%;">🔧 Enregistrer le(s) carnet(s) manquant(s)</button>
+        ` : `
+          <div class="histo-sub" style="margin-top:6px;">${derniereReception ? `Dernière réception : il y a ${anciennete} jour${anciennete > 1 ? 's' : ''} (${new Date(derniereReception).toLocaleDateString('fr-FR')})` : 'Aucune réception enregistrée'}</div>
+        `}
       </div>
     `;
+  }
+
+  // ------------------------------------------------------------
+  // RAPPROCHEMENT MANUEL — 13/08/2026, capture d'écran de Frédéric. Le
+  // manager confirme lui-même qu'un carnet a réellement été activé pendant
+  // un quart complété/corrigé après coup (jamais NEXUS qui déduit ou
+  // invente à sa place — "vérité avant certitude"). Insère un mouvement
+  // 'activation' classique (même type que executerActivationCarnet dans
+  // NEXUS-FDJ-v1.html, mais methode_identification='saisie_manuelle' et
+  // shift_id=null puisqu'il ne s'agit pas d'un quart précis mais d'un
+  // rattrapage global sur ce jeu). Formulaire dédié plutôt qu'un prompt()
+  // générique — même discipline que "Signaler un retrait/blocage" plus bas.
+  // ------------------------------------------------------------
+  function ouvrirRapprochement(gameId, carnetsEstimes) {
+    rapprochement = { gameId, quantite: carnetsEstimes && carnetsEstimes > 0 ? carnetsEstimes : 1, justification: '' };
+    vue = 'rapprochement';
+    renderRapprochement();
+  }
+
+  function renderRapprochement() {
+    const jeu = jeux.find(j => j.id === rapprochement.gameId);
+    document.getElementById('titre').textContent = 'Enregistrer un carnet manquant';
+    document.getElementById('sousTitre').textContent = "Confirme qu'un carnet a réellement été activé pendant un quart complété/corrigé après coup — NEXUS ne le déduit jamais seul.";
+    document.getElementById('content').innerHTML = `
+      <button type="button" class="btn-retour-fleche" id="btnRetourRapprochement">← Retour</button>
+      <div class="champ-note" style="margin-top:-4px;">${jeu ? jeu.nom : ''}</div>
+      <label class="champ-label">Nombre de carnets réellement activés</label>
+      <input type="number" inputmode="numeric" min="1" step="1" class="champ-input mono" id="champQteRapprochement" value="${rapprochement.quantite}" style="margin-bottom:4px;">
+      <div class="champ-note" style="margin-bottom:12px;">Estimation NEXUS à partir des tickets non tracés — à corriger si vous comptez autrement.</div>
+      <label class="champ-label">Constat (pourquoi cette correction)</label>
+      <input type="text" class="champ-input" id="champJustifRapprochement" value="${rapprochement.justification}" placeholder="Ex. carnet activé pendant le quart du 11/08, jamais tracé en direct" style="margin-bottom:16px;">
+      <button class="btn-primary" id="btnValiderRapprochement">Confirmer l'activation</button>
+    `;
+    document.getElementById('btnRetourRapprochement').addEventListener('click', () => { vue = 'stock-etat'; rapprochement = null; renderStockEtat(); });
+    document.getElementById('champQteRapprochement').addEventListener('input', e => { rapprochement.quantite = e.target.value === '' ? null : Number(e.target.value); });
+    document.getElementById('champJustifRapprochement').addEventListener('input', e => { rapprochement.justification = e.target.value; });
+    document.getElementById('btnValiderRapprochement').addEventListener('click', validerRapprochement);
+  }
+
+  async function validerRapprochement() {
+    if (!rapprochement.quantite || rapprochement.quantite <= 0) { alert('Indiquez un nombre de carnets supérieur à 0.'); return; }
+    const btn = document.getElementById('btnValiderRapprochement');
+    btn.disabled = true;
+    btn.innerHTML = 'Enregistrement<span class="btn-loading-dots"><i></i><i></i><i></i></span>';
+    const caisse = emplacementParType('caisse');
+    const { error } = await nexusClient.from('fdj_stock_movements').insert({
+      site: siteId, game_id: rapprochement.gameId, shift_id: null, type_mouvement: 'activation', quantite: rapprochement.quantite,
+      location_source_id: caisse ? caisse.id : null, location_destination_id: caisse ? caisse.id : null,
+      methode_identification: 'saisie_manuelle', employee_id: null,
+      justification: `Rapprochement manuel manager — quart(s) complété(s)/corrigé(s) après coup sans mouvement tracé.${rapprochement.justification ? ` ${rapprochement.justification}` : ''}`,
+    });
+    if (error) {
+      console.error('Rapprochement stock FDJ:', error);
+      btn.disabled = false; btn.textContent = "Confirmer l'activation";
+      alert("Erreur d'enregistrement. Réessayez.");
+      return;
+    }
+    rapprochement = null;
+    await ouvrirStockEtat();
   }
 
   // Retrait/blocage (§3, §18) : formulaire minimal, gestion par exception —
