@@ -258,7 +258,12 @@
   let stockEtatPaliersReplies = new Set(); // paliers de prix repliés par l'utilisateur (clés = String(prix))
   let blocage = null; // état de saisie du formulaire "Signaler un retrait / blocage"
   let rapprochement = null; // état de saisie du formulaire "Enregistrer un carnet manquant" (13/08/2026, rapprochement appro non tracée)
-  let vue = 'liste'; // 'liste' | 'edition' | 'reappro' | 'inventaire-ref' | 'reception' | 'stock-etat' | 'blocage' | 'apres-enregistrement' | 'rapprochement'
+  // 13/08/2026 — "Règle d'accès aux quarts FDJ V1" (demande de Frédéric,
+  // exigence #5 "Toute exception nécessite une dérogation manager tracée") :
+  // état de saisie du formulaire de dérogation ouvert depuis le panneau
+  // "Accès aux quarts — aujourd'hui" (voir chargerVerrousJour/renderVerrouJour).
+  let derogation = null; // { verrouId, employeeId, quartActuel, autreQuart, motif }
+  let vue = 'liste'; // 'liste' | 'edition' | 'reappro' | 'inventaire-ref' | 'reception' | 'stock-etat' | 'blocage' | 'apres-enregistrement' | 'rapprochement' | 'derogation'
 
   // État du formulaire d'édition en cours (nouveau OU existant).
   let edition = null;
@@ -316,9 +321,21 @@
     { value: 'erreur_stock', label: 'Erreur de stock' },
     { value: 'autre', label: 'Autre' },
   ];
+  // 13/08/2026 — "Règle d'accès aux quarts FDJ V1", exigence #5 : motifs
+  // proposés pour la dérogation manager qui déplace le verrou d'un employé
+  // vers l'autre quart. Un motif est obligatoire (voir enregistrerDerogationQuart) —
+  // "Toute exception nécessite une dérogation manager tracée", pas juste un clic.
+  const MOTIFS_DEROGATION_QUART = [
+    { value: '', label: 'Choisir un motif…' },
+    { value: 'erreur_selection_employe', label: "L'employé s'est trompé de quart" },
+    { value: 'remplacement_urgence', label: "Remplacement / renfort en urgence" },
+    { value: 'changement_planning', label: "Changement de planning validé" },
+    { value: 'autre', label: 'Autre raison' },
+  ];
   function labelStatutCaisse(v) { const s = STATUTS_CAISSE.find(x => x.value === v); return s ? s.label : v; }
   function labelMotifEcart(v) { const m = MOTIFS_ECART_FDJ.find(x => x.value === v); return m ? m.label : v; }
   function labelMotifException(v) { const m = MOTIFS_EXCEPTION_CARNET.find(x => x.value === v); return m ? m.label : (v || '—'); }
+  function labelMotifDerogationQuart(v) { const m = MOTIFS_DEROGATION_QUART.find(x => x.value === v); return m ? m.label : (v || '—'); }
 
   // ------------------------------------------------------------
   // HISTORIQUE DES CORRECTIONS — 09/08/2026, demande de Frédéric :
@@ -616,6 +633,115 @@
     return s ? `${new Date(s.date + 'T00:00:00').toLocaleDateString('fr-FR')} · Quart ${s.quart}` : '—';
   }
 
+  // 13/08/2026 — "Règle d'accès aux quarts FDJ V1" : verrous du jour posés
+  // sur fdj_employee_shift_locks (dès qu'un employé a validé son stock de
+  // départ, il est verrouillé sur ce quart pour la journée — voir
+  // NEXUS-FDJ-v1.html::validerOuverture). Ce panneau donne au manager la
+  // seule porte de sortie prévue par la règle (exigence #5) : une dérogation
+  // tracée, jamais une modification silencieuse.
+  async function chargerVerrousJour() {
+    const { data, error } = await nexusClient.from('fdj_employee_shift_locks').select('*')
+      .eq('site', siteId).eq('date_service', dateISO()).order('locked_at', { ascending: false });
+    if (error) { console.error('Chargement verrous quart FDJ du jour:', error); return []; }
+    return data || [];
+  }
+  function renderVerrouJour(v) {
+    const autreQuart = v.quart === '1' ? '2' : '1';
+    const origine = v.source_lock === 'override_manager'
+      ? `Dérogation manager${v.override_motif ? ` — ${labelMotifDerogationQuart(v.override_motif)}` : ''}`
+      : 'Validation du stock de départ';
+    return `
+      <div class="jeu-row" data-verrou="${v.id}" style="padding:12px 14px;">
+        <div class="jeu-nom-ligne">
+          <div class="jeu-nom">🔒 ${nomEmploye(v.employee_id)} — Quart ${v.quart}</div>
+        </div>
+        <div class="histo-sub" style="margin-bottom:8px;">
+          ${origine} · ${new Date(v.locked_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+        </div>
+        <div style="display:flex; gap:8px;">
+          <button type="button" class="btn-modifier" data-deroger="${v.id}" data-autre-quart="${autreQuart}" style="margin-top:0; flex:1;">Déroger vers Quart ${autreQuart}</button>
+        </div>
+      </div>
+    `;
+  }
+
+  // ------------------------------------------------------------
+  // DÉROGATION MANAGER — exigence #5 de la règle d'accès aux quarts : la
+  // seule façon de faire passer un employé déjà verrouillé vers l'autre
+  // quart. Ne touche jamais fdj_shifts/fdj_shift_counts (ce n'est pas une
+  // correction de comptage, seulement un déplacement du verrou) — pour ça,
+  // enregistrerEdition() reste le bon écran, et il n'est pas concerné par le
+  // verrou (exigence #6, corrections historiques manager toujours autorisées).
+  // ------------------------------------------------------------
+  async function ouvrirDerogationQuart(verrouId, autreQuart) {
+    document.getElementById('content').innerHTML = '<div class="loading">Chargement…</div>';
+    if (!employesSite.length) employesSite = await chargerEmployesSite();
+    const { data: v, error } = await nexusClient.from('fdj_employee_shift_locks').select('*').eq('id', verrouId).single();
+    if (error || !v) { console.error('Lecture verrou avant dérogation:', error); alert('Erreur — réessayez.'); renderAccueil(); return; }
+    derogation = { verrouId: v.id, employeeId: v.employee_id, quartActuel: v.quart, autreQuart, motif: '' };
+    vue = 'derogation';
+    renderDerogationQuart();
+  }
+
+  function renderDerogationQuart() {
+    document.getElementById('titre').textContent = 'Dérogation — changement de quart';
+    document.getElementById('sousTitre').textContent = "Toute exception au verrou d'un employé doit être tracée avec un motif.";
+    document.getElementById('content').innerHTML = `
+      <button type="button" class="btn-retour-fleche" id="btnRetourDerogation">← Retour</button>
+      <div class="etat-banner" style="text-align:left;">
+        <b style="color:var(--text);">${nomEmploye(derogation.employeeId)}</b> est actuellement verrouillé sur le
+        <b style="color:var(--text);">Quart ${derogation.quartActuel}</b> pour aujourd'hui.<br>
+        Cette dérogation le fera passer sur le <b style="color:var(--cyan);">Quart ${derogation.autreQuart}</b> — le Quart ${derogation.quartActuel} lui redeviendra inaccessible sans une nouvelle dérogation.
+      </div>
+      <label class="champ-label">Motif de la dérogation</label>
+      <select class="champ-select" id="champMotifDerogation" style="margin-bottom:16px;">
+        ${MOTIFS_DEROGATION_QUART.map(m => `<option value="${m.value}" ${m.value === derogation.motif ? 'selected' : ''}>${m.label}</option>`).join('')}
+      </select>
+      <button class="btn-primary" id="btnConfirmerDerogation">Confirmer la dérogation</button>
+      <button class="btn-ghost" id="btnAnnulerDerogation">Annuler</button>
+    `;
+    document.getElementById('btnRetourDerogation').addEventListener('click', () => { vue = 'liste'; derogation = null; renderAccueil(); });
+    document.getElementById('btnAnnulerDerogation').addEventListener('click', () => { vue = 'liste'; derogation = null; renderAccueil(); });
+    document.getElementById('champMotifDerogation').addEventListener('change', e => { derogation.motif = e.target.value; });
+    document.getElementById('btnConfirmerDerogation').addEventListener('click', enregistrerDerogationQuart);
+  }
+
+  async function enregistrerDerogationQuart() {
+    if (!derogation.motif) { alert('Un motif est obligatoire pour tracer la dérogation.'); return; }
+    const btn = document.getElementById('btnConfirmerDerogation');
+    btn.disabled = true;
+    btn.innerHTML = 'Enregistrement<span class="btn-loading-dots"><i></i><i></i><i></i></span>';
+
+    const { data: verrouAvant } = await nexusClient.from('fdj_employee_shift_locks').select('quart, source_lock').eq('id', derogation.verrouId).single();
+
+    // La policy RLS "ecriture_fdj_employee_shift_locks_manager" exige
+    // exactement ces 3 champs ensemble (source_lock='override_manager' +
+    // override_manager_id=auth.uid()) — c'est elle, pas ce code, qui fait
+    // vraiment autorité sur "seul un manager peut déroger" (voir migration
+    // fdj_employee_shift_locks).
+    const { error } = await nexusClient.from('fdj_employee_shift_locks').update({
+      quart: derogation.autreQuart, source_lock: 'override_manager',
+      override_manager_id: managerCourant.id, override_motif: derogation.motif,
+      locked_at: new Date().toISOString(),
+    }).eq('id', derogation.verrouId);
+    if (error) {
+      console.error('Dérogation quart FDJ:', error);
+      btn.disabled = false; btn.textContent = 'Confirmer la dérogation';
+      alert("Erreur d'enregistrement de la dérogation. Réessayez.");
+      return;
+    }
+
+    await nexusClient.from('fdj_audit_log').insert({
+      site: siteId, entite_type: 'fdj_employee_shift_lock', entite_id: derogation.verrouId,
+      action: 'derogation_manager', acteur_id: managerCourant.id, motif: derogation.motif,
+      ancienne_valeur: verrouAvant || { quart: derogation.quartActuel, source_lock: null },
+      nouvelle_valeur: { quart: derogation.autreQuart, source_lock: 'override_manager', override_manager_id: managerCourant.id, override_motif: derogation.motif },
+    });
+
+    vue = 'liste'; derogation = null;
+    renderAccueil();
+  }
+
   function renderAlerte(a) {
     if (a.type === 'activation_sans_carnet_confie') return renderAlerteActivationSansCarnet(a);
     if (a.type === 'chaine_interrompue') return renderAlerteChaineInterrompue(a);
@@ -700,8 +826,8 @@
     document.getElementById('content').innerHTML = '<div class="loading">Chargement…</div>';
 
     const aujourdhui = dateISO();
-    const [duJour, historique, alertes, soldesNegatifs] = await Promise.all([
-      chargerShiftsAvecCaisse(aujourdhui), chargerShiftsAvecCaisse(null), chargerAlertesNonVues(), calculerSoldesNegatifs(),
+    const [duJour, historique, alertes, soldesNegatifs, verrousJour] = await Promise.all([
+      chargerShiftsAvecCaisse(aujourdhui), chargerShiftsAvecCaisse(null), chargerAlertesNonVues(), calculerSoldesNegatifs(), chargerVerrousJour(),
     ]);
     const quart1 = duJour.find(s => s.quart === '1');
     const quart2 = duJour.find(s => s.quart === '2');
@@ -715,6 +841,11 @@
       ${alertes.length ? `
         <div class="section-titre">⚠️ Alertes stock (${alertes.length})</div>
         <div class="card" id="listeAlertes">${alertes.map(renderAlerte).join('')}</div>
+      ` : ''}
+
+      ${verrousJour.length ? `
+        <div class="section-titre">🔒 Accès aux quarts — aujourd'hui (${verrousJour.length})</div>
+        <div class="card" id="listeVerrous" style="margin-bottom:16px;">${verrousJour.map(renderVerrouJour).join('')}</div>
       ` : ''}
 
       <div class="section-titre">Aujourd'hui</div>
@@ -785,6 +916,13 @@
           if (error) { console.error('Marquage alerte FDJ vue:', error); btn.disabled = false; return; }
           renderAccueil();
         });
+      });
+    }
+
+    const listeVerrous = document.getElementById('listeVerrous');
+    if (listeVerrous) {
+      listeVerrous.querySelectorAll('[data-deroger]').forEach(btn => {
+        btn.addEventListener('click', () => ouvrirDerogationQuart(btn.dataset.deroger, btn.dataset.autreQuart));
       });
     }
   }

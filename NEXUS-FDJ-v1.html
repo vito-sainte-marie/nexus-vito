@@ -75,6 +75,13 @@
   .quart-visuel-item{flex:1; text-align:center; padding:11px; border-radius:12px; border:1.5px solid var(--hairline); background:var(--panel); font-size:13px; font-weight:600; color:var(--text-dim); cursor:pointer;}
   .quart-visuel-item:active{background:var(--panel-raised);}
   .quart-visuel-item.actif{border-color:var(--cyan); background:rgba(79,195,217,0.14); color:var(--cyan); box-shadow:0 0 0 1px rgba(79,195,217,0.25);}
+  /* 13/08/2026 — Règle d'accès aux quarts FDJ V1 : quart hors fenêtre horaire
+     ou verrouillé sur l'autre quart après engagement réel. Grisé mais reste
+     cliquable (le clic déclenche un message explicite, jamais un no-op muet
+     — voir changerQuart()). */
+  .quart-visuel-item.verrouille{opacity:0.55; cursor:not-allowed;}
+  .quart-visuel-item.verrouille.actif{opacity:0.85;}
+  .quart-visuel-sub{font-size:10.5px; font-weight:500; margin-top:3px; opacity:0.85;}
 
   .stepper{display:flex; gap:6px; margin-bottom:16px;}
   .stepper-item{flex:1; height:5px; border-radius:3px; background:var(--panel-raised);}
@@ -227,6 +234,16 @@
   let siteId = null; // jamais 'vito-sainte-marie' par defaut (de-Vito-isation, 11/08/2026) - toujours ecrase par employee.site_id apres nexusRequireAuth()
   let quartActuel = null;      // '1' | '2'
   let shiftRow = null;         // ligne fdj_shifts
+  // 13/08/2026 — "Règle d'accès aux quarts FDJ V1" (demande de Frédéric) :
+  // horairesQuartsSite = { quart1: '05:45', quart2: '12:40' } (station_config.horaires,
+  // déjà paramétrable par site — aucune nouvelle table), verrouJour = la ligne
+  // fdj_employee_shift_locks du jour pour cet employé si elle existe (dès qu'il a
+  // validé son stock de départ, ce quart devient le seul accessible pour la
+  // journée). Les deux sont chargés à l'initialisation, AVANT que quartActuel
+  // soit fixé, pour qu'un verrou existant prime sur la détection par l'heure —
+  // voir NexusFdjMoteur.evaluerAccesQuart et NEXUS-Data-Dictionary-v2, v2.72.
+  let horairesQuartsSite = {};
+  let verrouJour = null;
   let jeux = [];                // catalogue fdj_games actif, trié ordre_affichage
   let emplacements = [];        // catalogue fdj_locations du site (Bureau, Caisse…)
   let dernierStockFinal = {};   // game_id -> stock_final du quart précédent validé
@@ -309,6 +326,33 @@
     const [hQ2, mQ2] = debutQuart2.split(':').map(Number);
     const minutesQ2 = hQ2 * 60 + (mQ2 || 0);
     return minutesMaintenant < minutesQ2 ? '1' : '2';
+  }
+
+  // 13/08/2026 — "Règle d'accès aux quarts FDJ V1" : horaires de DÉBUT des
+  // deux quarts, pour la fenêtre d'accès de 30 min (NexusFdjMoteur.evaluerAccesQuart).
+  // Contrairement à quartDuMoment() (qui n'a besoin que de l'heure de bascule
+  // Q1→Q2), ici il faut les deux heures de début. Horaire absent pour un
+  // quart = undefined, jamais 0 par défaut — quartDansFenetreAcces() ne
+  // bloque alors jamais ce quart (vérité avant certitude, Article 5).
+  async function chargerHorairesQuartsSite() {
+    const { data, error } = await nexusClient.from('station_config').select('horaires').eq('site', siteId).maybeSingle();
+    if (error) { console.error('Chargement horaires quarts station (accès FDJ):', error); return {}; }
+    const h = data && data.horaires;
+    return {
+      quart1: h && h.quart1 && h.quart1.normal,
+      quart2: h && h.quart2 && h.quart2.normal,
+    };
+  }
+
+  // Verrou du jour pour cet employé (s'il existe déjà) — dès qu'il a validé
+  // son stock de départ sur un quart, cette ligne fixe pour la journée quel
+  // quart lui reste accessible (source_lock='validation_stock_depart'), sauf
+  // dérogation manager tracée qui la remplace (source_lock='override_manager').
+  async function chargerVerrouJour() {
+    const { data, error } = await nexusClient.from('fdj_employee_shift_locks').select('*')
+      .eq('employee_id', employeeCourant.id).eq('date_service', dateISO()).maybeSingle();
+    if (error) { console.error('Chargement verrou quart FDJ du jour:', error); return null; }
+    return data;
   }
 
   // ------------------------------------------------------------
@@ -580,11 +624,33 @@
     if (ouvertureFaite && !clotureFaite) document.getElementById('carteCloture').addEventListener('click', demarrerCloture);
   }
 
+  // 13/08/2026 — décision d'accès pour un quart donné, déléguée au moteur
+  // partagé (Article 11) : jamais recalculée différemment ici et côté
+  // Manager. Voir NexusFdjMoteur.evaluerAccesQuart pour les 3 branches
+  // (verrouillé sur l'autre quart / verrouillé sur celui-ci / pas de verrou
+  // encore, dépend juste de la fenêtre horaire).
+  function accesQuart(quart) {
+    const maintenant = new Date();
+    const minutesMaintenant = maintenant.getHours() * 60 + maintenant.getMinutes();
+    const horaire = horairesQuartsSite['quart' + quart];
+    return NexusFdjMoteur.evaluerAccesQuart(quart, minutesMaintenant, horaire, 30, verrouJour);
+  }
   function renderQuartVisuel() {
+    const acces1 = accesQuart('1');
+    const acces2 = accesQuart('2');
+    const sousTitre = (quart, acces) => {
+      if (acces.accessible) return '';
+      if (acces.motif === 'verrouille_autre_quart') return '<div class="quart-visuel-sub">🔒 Verrouillé — voir votre manager</div>';
+      if (acces.motif === 'hors_fenetre') {
+        const h = horairesQuartsSite['quart' + quart];
+        return h ? `<div class="quart-visuel-sub">Accessible à partir de ${h}</div>` : '';
+      }
+      return '';
+    };
     return `
       <div class="quart-visuel">
-        <div class="quart-visuel-item ${quartActuel === '1' ? 'actif' : ''}" data-quart="1">☀️ Quart 1</div>
-        <div class="quart-visuel-item ${quartActuel === '2' ? 'actif' : ''}" data-quart="2">🌙 Quart 2</div>
+        <div class="quart-visuel-item ${quartActuel === '1' ? 'actif' : ''} ${!acces1.accessible ? 'verrouille' : ''}" data-quart="1" data-accessible="${acces1.accessible}">☀️ Quart 1${sousTitre('1', acces1)}</div>
+        <div class="quart-visuel-item ${quartActuel === '2' ? 'actif' : ''} ${!acces2.accessible ? 'verrouille' : ''}" data-quart="2" data-accessible="${acces2.accessible}">🌙 Quart 2${sousTitre('2', acces2)}</div>
       </div>
     `;
   }
@@ -593,6 +659,20 @@
   }
   async function changerQuart(nouveauQuart) {
     if (nouveauQuart === quartActuel) return;
+    // 13/08/2026 — "Règle d'accès aux quarts FDJ V1" : refuser le changement
+    // (pas seulement griser le bouton) si le quart demandé n'est pas
+    // accessible — hors fenêtre horaire, ou verrouillé sur l'autre quart
+    // suite à un engagement réel. Message explicite, jamais un simple no-op.
+    const acces = accesQuart(nouveauQuart);
+    if (!acces.accessible) {
+      if (acces.motif === 'verrouille_autre_quart') {
+        alert(`Vous êtes verrouillé sur le Quart ${verrouJour.quart} pour aujourd'hui (stock de départ déjà validé). Le changement de quart nécessite une dérogation manager.`);
+      } else if (acces.motif === 'hors_fenetre') {
+        const h = horairesQuartsSite['quart' + nouveauQuart];
+        alert(h ? `Le Quart ${nouveauQuart} n'est pas encore accessible — il ouvre à ${h} (30 minutes avant l'heure officielle).` : `Le Quart ${nouveauQuart} n'est pas encore accessible.`);
+      }
+      return;
+    }
     const enCours = Object.keys(countsSaisie).length > 0 || caisseReelle !== null;
     if (enCours && !confirm('Changer de quart maintenant abandonnera la saisie en cours (non enregistrée). Continuer ?')) return;
     quartActuel = nouveauQuart;
@@ -747,6 +827,24 @@
       if (eAlerteChaine) console.error('Enregistrement alerte chaîne interrompue FDJ:', eAlerteChaine); // non bloquant
     }
 
+    // 13/08/2026 — "Règle d'accès aux quarts FDJ V1" (demande de Frédéric) :
+    // c'est CE moment — la validation du stock de départ — qui constitue le
+    // "premier engagement réel" dans le quart. On pose le verrou du jour ici.
+    // Non bloquant si l'insert échoue (log seul) : la contrainte
+    // UNIQUE(employee_id, date_service) côté base reste le vrai filet de
+    // sécurité, pas cette ligne applicative — voir migration
+    // fdj_employee_shift_locks et NEXUS-Data-Dictionary-v2, v2.72. Si un
+    // verrou existe déjà pour aujourd'hui (rechargement de page après un
+    // premier passage, ou re-validation du même quart), on ne le recrée pas.
+    if (!verrouJour) {
+      const { data: verrouCree, error: eVerrou } = await nexusClient.from('fdj_employee_shift_locks').insert({
+        site: siteId, employee_id: employeeCourant.id, date_service: dateISO(), quart: quartActuel,
+        source_lock: 'validation_stock_depart',
+      }).select().single();
+      if (eVerrou) console.error('Pose du verrou de quart FDJ:', eVerrou); // non bloquant
+      else verrouJour = verrouCree;
+    }
+
     await nexusClient.from('fdj_audit_log').insert({
       site: siteId, shift_id: shiftRow.id, entite_type: 'fdj_shift', entite_id: shiftRow.id,
       action: 'ouverture_validee', acteur_id: employeeCourant.id,
@@ -765,6 +863,7 @@
       <div class="final-greet">Merci ${employeeCourant.nom} !</div>
       <div class="final-sub">Votre stock de départ est enregistré. Bon quart !</div>
       ${jeuxModifies.length ? `<div class="etat-banner" style="margin-top:14px; text-align:left;">⚠️ Stock corrigé pour ${jeuxModifies.length === 1 ? jeuxModifies[0].nom : `${jeuxModifies.length} jeux`} par rapport au quart précédent — le manager en a été averti.</div>` : ''}
+      <div class="etat-banner" style="margin-top:14px;">Quart ${quartActuel} confirmé pour aujourd'hui.<br>Le changement de quart nécessite une validation manager.</div>
       <button class="btn-primary" id="btnRetourAccueilOuv2">Retour à l'accueil</button>
     `;
     document.getElementById('btnRetourAccueilOuv2').addEventListener('click', () => { phase = 'accueil'; renderAccueil(); });
@@ -1295,7 +1394,11 @@
     siteId = employee.site_id;
     if (!(await NexusForfait.nexusRequireProfessional('NEXUS-FDJ-v1.html', siteId))) return;
     demarrerHorloge();
-    quartActuel = await quartDuMoment();
+    // 13/08/2026 — Règle d'accès aux quarts FDJ V1 : le verrou du jour (s'il
+    // existe) doit primer sur la détection par l'heure, sinon un employé
+    // verrouillé sur Q1 le matin se retrouverait sur Q2 par défaut l'après-midi.
+    [horairesQuartsSite, verrouJour] = await Promise.all([chargerHorairesQuartsSite(), chargerVerrouJour()]);
+    quartActuel = verrouJour ? verrouJour.quart : await quartDuMoment();
     jeux = await chargerJeux();
     shiftRow = await obtenirOuCreerShift();
     if (!shiftRow) { document.getElementById('content').innerHTML = '<div class="loading">Impossible de charger le quart FDJ. Réessayez.</div>'; return; }

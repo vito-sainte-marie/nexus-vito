@@ -413,11 +413,64 @@
     return total;
   }
 
+  // ------------------------------------------------------------
+  // RÈGLE D'ACCÈS AUX QUARTS — 13/08/2026, spécification de Frédéric
+  // ("Règle d'accès aux quarts FDJ — V1") : un quart devient accessible 30
+  // minutes avant son heure officielle (paramétrable par station, déjà lue
+  // depuis station_config.horaires.quart1/quart2.normal — jamais une
+  // constante JS, voir NEXUS-FDJ-v1.html::quartDuMoment). Dès qu'un employé
+  // s'engage réellement dans un quart (validation du stock de départ), ce
+  // quart est verrouillé pour lui pour le reste de la journée — l'autre
+  // devient inaccessible sans dérogation manager tracée (voir
+  // fdj_employee_shift_locks, Data Dictionary v2.72). Pure fonction : le
+  // verrou lui-même (`verrou`) est fourni par l'appelant (déjà chargé
+  // depuis Supabase), jamais interrogé ici.
+  //
+  // `horaireDebutHHMM` : chaîne "HH:MM" | null/undefined si l'horaire de ce
+  // quart n'est pas connu pour ce site — dans ce cas la fenêtre horaire
+  // n'est jamais bloquante (vérité avant certitude : NEXUS ne verrouille
+  // jamais sur une donnée qu'il n'a pas).
+  function minutesDepuisMinuit(hhmm) {
+    if (!hhmm) return null;
+    const [h, m] = String(hhmm).split(':').map(Number);
+    if (Number.isNaN(h)) return null;
+    return h * 60 + (Number.isNaN(m) ? 0 : m);
+  }
+
+  function quartDansFenetreAcces(minutesMaintenant, horaireDebutHHMM, fenetreAvantMin) {
+    const debut = minutesDepuisMinuit(horaireDebutHHMM);
+    if (debut === null || minutesMaintenant === null || minutesMaintenant === undefined) return true;
+    const fenetre = (fenetreAvantMin === null || fenetreAvantMin === undefined) ? 30 : fenetreAvantMin;
+    return minutesMaintenant >= debut - fenetre;
+  }
+
+  // `verrou` : { quart, locked_at, source_lock, ... } | null — le verrou du
+  // jour pour CET employé (au plus une ligne par employé et par jour, voir
+  // la contrainte UNIQUE(employee_id, date_service)). Retourne
+  // { accessible, motif } avec motif = null | 'verrouille_autre_quart' |
+  // 'hors_fenetre'. Le verrou prime toujours sur la fenêtre horaire : un
+  // quart verrouillé sur cet employé reste accessible même hors fenêtre
+  // (elle a déjà commencé son quart), mais l'AUTRE quart lui reste fermé
+  // même s'il entre dans sa propre fenêtre.
+  function evaluerAccesQuart(quart, minutesMaintenant, horaireDebutHHMM, fenetreAvantMin, verrou) {
+    if (verrou && verrou.quart !== quart) {
+      return { accessible: false, motif: 'verrouille_autre_quart' };
+    }
+    if (verrou && verrou.quart === quart) {
+      return { accessible: true, motif: null };
+    }
+    if (!quartDansFenetreAcces(minutesMaintenant, horaireDebutHHMM, fenetreAvantMin)) {
+      return { accessible: false, motif: 'hors_fenetre' };
+    }
+    return { accessible: true, motif: null };
+  }
+
   global.NexusFdjMoteur = {
     calculerVentesJeu, ventesGrattageTotal, caisseGrattage, caisseAttendue, ecartCaisse,
     soldesCarnetsParJeu, soldeCarnetsJeu, soldesCarnetsAvecReference,
     calculerCandidatsFdj,
     quartPrecedentAttendu, quartSuivant, chaineContinuite,
     approNonTraceParJeu, lignesApproNonTracees,
+    minutesDepuisMinuit, quartDansFenetreAcces, evaluerAccesQuart,
   };
 })(typeof window !== 'undefined' ? window : globalThis);
