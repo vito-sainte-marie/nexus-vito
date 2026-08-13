@@ -153,6 +153,11 @@
   .btn-retour-fleche{display:flex; align-items:center; gap:6px; background:none; border:none; color:var(--cyan); font-family:var(--sans); font-size:13px; font-weight:600; padding:0 0 16px; cursor:pointer;}
   .btn-retour-fleche:active{opacity:0.7;}
   .btn-nouveau{width:100%; padding:12px; border:1.5px dashed rgba(79,195,217,0.4); border-radius:12px; background:rgba(79,195,217,0.06); color:var(--cyan); font-size:13px; font-weight:600; cursor:pointer; margin:4px 0 4px;}
+  /* Choix de destination après enregistrement (13/08/2026) */
+  .apres-enreg-card{padding:24px 18px; text-align:center;}
+  .apres-enreg-icone{font-size:30px; margin-bottom:8px;}
+  .apres-enreg-titre{font-size:14px; color:var(--text); margin-bottom:4px; font-weight:600;}
+  .apres-enreg-sous{font-size:12.5px; color:var(--text-mid); margin-bottom:20px;}
   .btn-loading-dots{display:inline-flex; gap:3px; margin-left:6px; vertical-align:middle;}
   .btn-loading-dots i{width:4px; height:4px; border-radius:50%; background:currentColor; display:inline-block; font-style:normal; animation:btnDotsBounce 1.2s infinite ease-in-out;}
   .btn-loading-dots i:nth-child(2){animation-delay:0.15s;} .btn-loading-dots i:nth-child(3){animation-delay:0.3s;}
@@ -215,7 +220,7 @@
   let reception = null; // état de saisie de l'écran "Réceptionner une livraison FDJ"
   let stockEtat = null; // état affiché de l'écran "État du stock FDJ"
   let blocage = null; // état de saisie du formulaire "Signaler un retrait / blocage"
-  let vue = 'liste'; // 'liste' | 'edition' | 'reappro' | 'inventaire-ref' | 'reception' | 'stock-etat' | 'blocage'
+  let vue = 'liste'; // 'liste' | 'edition' | 'reappro' | 'inventaire-ref' | 'reception' | 'stock-etat' | 'blocage' | 'apres-enregistrement'
 
   // État du formulaire d'édition en cours (nouveau OU existant).
   let edition = null;
@@ -1636,8 +1641,34 @@
       ancienne_valeur: edition.avant, nouvelle_valeur: { date: edition.date, quart: edition.quart, counts: edition.counts, lotsPayes: edition.lotsPayes, caisseTirages: edition.caisseTirages, regularisations: edition.regularisations, caisseReelle: edition.caisseReelle, statutCaisse: edition.statutCaisse, motifEcart: edition.motifEcart, employeeId: edition.employeeId, ecart },
     });
 
-    vue = 'liste'; edition = null;
-    renderAccueil();
+    edition = null;
+    afficherChoixApresEnregistrement();
+  }
+
+  // Choix de destination après enregistrement (13/08/2026, demande directe
+  // de Frédéric : "quand je suis dans modifier ce quart FDJ, quand je
+  // valide j'aurais aimé avoir le choix de retourner dans FDJ pilotage ou
+  // dans l'accueil du Contrôle FDJ") — avant ce lot, valider renvoyait
+  // systématiquement à l'accueil (`vue='liste'`), sans jamais proposer
+  // l'autre destination naturelle après une correction : la vue d'ensemble
+  // FDJ Pilotage. S'applique aussi bien à "Nouveau quart FDJ" qu'à
+  // "Modifier ce quart FDJ" (même fonction d'enregistrement, même choix de
+  // destination utile dans les deux cas).
+  function afficherChoixApresEnregistrement() {
+    vue = 'apres-enregistrement';
+    document.getElementById('titre').textContent = 'Quart enregistré';
+    document.getElementById('sousTitre').textContent = '';
+    document.getElementById('content').innerHTML = `
+      <div class="card apres-enreg-card">
+        <div class="apres-enreg-icone">✅</div>
+        <div class="apres-enreg-titre">Quart FDJ enregistré.</div>
+        <div class="apres-enreg-sous">Où voulez-vous aller maintenant ?</div>
+        <button class="btn-primary" id="btnApresAccueil">← Retour à l'accueil Contrôle FDJ</button>
+        <button class="btn-ghost" id="btnApresPilotage">Aller à FDJ Pilotage →</button>
+      </div>
+    `;
+    document.getElementById('btnApresAccueil').addEventListener('click', () => { vue = 'liste'; renderAccueil(); });
+    document.getElementById('btnApresPilotage').addEventListener('click', () => { window.location.href = 'NEXUS-FDJ-Analyse-v1.html'; });
   }
 
   // ------------------------------------------------------------
