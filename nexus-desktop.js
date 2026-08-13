@@ -194,22 +194,30 @@ const NEXUS_DESKTOP_CSS = `
   .nexus-sidebar-brand img{width:30px; height:30px; border-radius:8px; object-fit:cover;}
   .nexus-sidebar-brand span{font-family:'IBM Plex Mono',monospace; font-size:13px; font-weight:700; color:#EDF1F5; letter-spacing:0.03em;}
   .nexus-sidebar-scroll{flex:1; overflow-y:auto; padding:0 10px 16px;}
-  /* Curseur de défilement dédié au menu (13/08/2026, demande de Frédéric :
-     "un curseur afin de monter ou descendre uniquement le menu de gauche
-     en vue bureau") — le menu défile déjà indépendamment du contenu
-     principal (overflow-y:auto ci-dessus, sur .nexus-sidebar-scroll
-     uniquement, jamais sur body), mais le curseur système par défaut est
-     trop discret (barres superposées et auto-masquées de macOS
-     notamment) pour qu'on remarque que le menu peut défiler. Barre fine,
-     toujours visible dès que le menu dépasse la hauteur d'écran, dans les
-     teintes NEXUS plutôt que le gris système générique.
-     Firefox : */
-  .nexus-sidebar-scroll{ scrollbar-width:thin; scrollbar-color:rgba(79,195,217,0.4) transparent; }
-  /* Chrome/Safari/Edge : */
-  .nexus-sidebar-scroll::-webkit-scrollbar{ width:6px; }
-  .nexus-sidebar-scroll::-webkit-scrollbar-track{ background:transparent; }
-  .nexus-sidebar-scroll::-webkit-scrollbar-thumb{ background:rgba(79,195,217,0.4); border-radius:10px; }
-  .nexus-sidebar-scroll::-webkit-scrollbar-thumb:hover{ background:rgba(79,195,217,0.7); }
+  /* Curseur de défilement dédié au menu — le menu défile déjà indépendamment
+     du contenu principal (overflow-y:auto ci-dessus, sur
+     .nexus-sidebar-scroll uniquement, jamais sur body). Premier essai
+     (13/08/2026) : styler le curseur natif du navigateur (scrollbar-width/
+     ::-webkit-scrollbar). Insuffisant en pratique — sur macOS et plusieurs
+     navigateurs, le curseur natif reste invisible au repos (barres overlay
+     auto-masquées par l'OS, indépendamment de la couleur CSS), donc Frédéric
+     ne voyait toujours rien tant qu'il ne scrollait pas activement. Corrigé
+     (13/08/2026, v2) : curseur natif masqué, remplacé par un vrai petit
+     curseur custom (.nexus-sidebar-curseur-*), positionné/dimensionné en JS
+     (nexusInstallerCurseurSidebar ci-dessous) pour rester calé exactement
+     sur .nexus-sidebar-scroll, toujours visible dès que le menu dépasse la
+     hauteur d'écran, déplaçable à la souris comme un vrai curseur. */
+  .nexus-sidebar-scroll{ scrollbar-width:none; }
+  .nexus-sidebar-scroll::-webkit-scrollbar{ display:none; }
+  .nexus-sidebar-curseur-track{
+    position:absolute; right:3px; width:4px; border-radius:3px;
+    background:rgba(255,255,255,0.05); z-index:5;
+  }
+  .nexus-sidebar-curseur-thumb{
+    width:100%; border-radius:3px; background:rgba(79,195,217,0.5);
+    cursor:pointer; touch-action:none;
+  }
+  .nexus-sidebar-curseur-thumb:hover, .nexus-sidebar-curseur-thumb.glisse{ background:rgba(79,195,217,0.85); }
   .nexus-sidebar-group{font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:0.08em; text-transform:uppercase; color:#57626F; padding:14px 10px 6px;}
   .nexus-sidebar-link{display:flex; align-items:center; gap:10px; padding:8px 10px; border-radius:8px; color:#8A96A5; text-decoration:none; font-size:12.5px; margin-bottom:2px;}
   .nexus-sidebar-link:hover{background:#1A222C; color:#EDF1F5;}
@@ -303,6 +311,71 @@ async function nexusVerifierAlertesFdj() {
   } catch (e) { console.error('Vérification alertes FDJ (sidebar):', e); }
 }
 
+// Curseur de défilement custom du menu (13/08/2026, v2 — voir commentaire
+// CSS .nexus-sidebar-curseur-track ci-dessus pour le pourquoi). Piste
+// positionnée en JS pour rester calée exactement sur .nexus-sidebar-scroll
+// (offsetTop/clientHeight, relatifs à .nexus-sidebar qui est "positioned"
+// via position:sticky) quel que soit le nombre d'items du menu — jamais de
+// coordonnées codées en dur qui casseraient si le menu change de longueur.
+function nexusInstallerCurseurSidebar() {
+  const scrollEl = document.querySelector('.nexus-sidebar-scroll');
+  const sidebar = document.querySelector('.nexus-sidebar');
+  if (!scrollEl || !sidebar) return;
+
+  const track = document.createElement('div');
+  track.className = 'nexus-sidebar-curseur-track';
+  const thumb = document.createElement('div');
+  thumb.className = 'nexus-sidebar-curseur-thumb';
+  track.appendChild(thumb);
+  sidebar.appendChild(track);
+
+  function positionnerTrack() {
+    track.style.top = `${scrollEl.offsetTop}px`;
+    track.style.height = `${scrollEl.clientHeight}px`;
+  }
+
+  function majThumb() {
+    const { scrollHeight, clientHeight, scrollTop } = scrollEl;
+    if (scrollHeight <= clientHeight + 1) { track.style.display = 'none'; return; } // rien à faire défiler : pas de curseur
+    track.style.display = 'block';
+    const trackHeight = track.clientHeight;
+    const thumbHeight = Math.max(24, (clientHeight / scrollHeight) * trackHeight);
+    const maxThumbTop = trackHeight - thumbHeight;
+    const thumbTop = maxThumbTop > 0 ? maxThumbTop * (scrollTop / (scrollHeight - clientHeight)) : 0;
+    thumb.style.height = `${thumbHeight}px`;
+    thumb.style.transform = `translateY(${thumbTop}px)`;
+  }
+
+  function rafraichir() { positionnerTrack(); majThumb(); }
+
+  scrollEl.addEventListener('scroll', majThumb, { passive: true });
+  window.addEventListener('resize', rafraichir);
+  window.addEventListener('load', rafraichir);
+  setTimeout(rafraichir, 0); // laisse le temps aux icônes de se mettre en page avant la 1ère mesure
+  rafraichir();
+
+  // Glisser le curseur (souris/tactile/stylet via Pointer Events) pour
+  // scroller le menu — clic sur la piste hors curseur : saute directement à
+  // cet endroit, comme n'importe quelle scrollbar.
+  function deplacerVers(clientY, decalage) {
+    const rectTrack = track.getBoundingClientRect();
+    const maxThumbTop = rectTrack.height - thumb.offsetHeight;
+    if (maxThumbTop <= 0) return;
+    const thumbTop = Math.max(0, Math.min(maxThumbTop, clientY - rectTrack.top - decalage));
+    scrollEl.scrollTop = (thumbTop / maxThumbTop) * (scrollEl.scrollHeight - scrollEl.clientHeight);
+  }
+  let decalagePrise = 0;
+  thumb.addEventListener('pointerdown', (e) => {
+    thumb.classList.add('glisse');
+    decalagePrise = e.clientY - thumb.getBoundingClientRect().top;
+    thumb.setPointerCapture(e.pointerId);
+    e.preventDefault();
+  });
+  thumb.addEventListener('pointermove', (e) => { if (thumb.hasPointerCapture(e.pointerId)) deplacerVers(e.clientY, decalagePrise); });
+  thumb.addEventListener('pointerup', () => thumb.classList.remove('glisse'));
+  track.addEventListener('pointerdown', (e) => { if (e.target !== thumb) deplacerVers(e.clientY, thumb.offsetHeight / 2); });
+}
+
 function nexusInitVueBureau() {
   const style = document.createElement('style');
   style.textContent = NEXUS_DESKTOP_CSS;
@@ -314,6 +387,7 @@ function nexusInitVueBureau() {
     sidebar.className = 'nexus-sidebar';
     sidebar.innerHTML = nexusConstruireSidebarHTML();
     document.body.insertBefore(sidebar, document.body.firstChild);
+    nexusInstallerCurseurSidebar();
     nexusVerifierAlertesFdj();
   } else {
     const bouton = document.createElement('button');
