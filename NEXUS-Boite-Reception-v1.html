@@ -189,7 +189,14 @@
     const annee = maintenant.getFullYear();
     const { data: existante } = await nexusClient.from('billing_periods').select('id').eq('site', siteId).eq('mois', mois).eq('annee', annee).maybeSingle();
     if (existante) return existante.id;
-    const { data: creee, error } = await nexusClient.from('billing_periods').insert({ site: siteId, mois, annee, statut: 'ouverte' }).select('id').single();
+    // 13/08/2026 — bug réel trouvé en conditions réelles (Frédéric : 11 documents déposés,
+    // aucun n'apparaît) : `statut: 'ouverte'` violait la contrainte CHECK de billing_periods
+    // (seules 'en_cours'/'pret'/'envoye'/'cloture' sont acceptées) — chaque tentative de
+    // création de période échouait en 400, périodeId retombait à null, et TOUS les
+    // documents (bons et factures) échouaient ensuite silencieusement à l'enregistrement
+    // (RLS sur supporting_documents/invoices exige un billing_period_id valide). 'en_cours'
+    // est aussi la valeur par défaut de la colonne — cohérent avec le reste de NEXUS.
+    const { data: creee, error } = await nexusClient.from('billing_periods').insert({ site: siteId, mois, annee, statut: 'en_cours' }).select('id').single();
     if (error) { console.error('Création période de facturation:', error); return null; }
     return creee.id;
   }

@@ -111,7 +111,9 @@ def _periode_courante_id(sb, site: str) -> str | None:
     existante = sb.table("billing_periods").select("id").eq("site", site).eq("mois", mois).eq("annee", annee).maybe_single().execute()
     if existante.data:
         return existante.data["id"]
-    creee = sb.table("billing_periods").insert({"site": site, "mois": mois, "annee": annee, "statut": "ouverte"}).select("id").single().execute()
+    # 13/08/2026 — même bug que NEXUS-Boite-Reception-v1.html : 'ouverte' viole la
+    # contrainte CHECK de billing_periods (en_cours/pret/envoye/cloture uniquement).
+    creee = sb.table("billing_periods").insert({"site": site, "mois": mois, "annee": annee, "statut": "en_cours"}).select("id").single().execute()
     return creee.data["id"] if creee.data else None
 
 
