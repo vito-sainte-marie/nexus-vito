@@ -611,9 +611,24 @@
     // différents du nombre de secteurs mesurés sur le même écran.
     const axesMesures = AXES.filter(a => a.confiance === 'RÉEL');
     const scoreGlobal = axesMesures.length ? Math.round(axesMesures.reduce((s, a) => s + a.valeur, 0) / axesMesures.length) : null;
+    // `couverture` (13/08/2026, reformulation Performance/Maîtrise — voir
+    // nexus-boussole-moteur.js) : distingue, PARMI les secteurs mesurés,
+    // ceux où les deux dimensions (Performance ET Maîtrise) sont connues
+    // ("complet") de ceux où l'une des deux manque aujourd'hui
+    // ("partiel" — ex. Carburants sans jaugeage du jour, Marge sans
+    // comparaison Marge+ disponible). Remplace le seul badge "X/6 mesurés"
+    // (v2.52-v2.55), qui ne distinguait pas ces deux cas.
+    const nbComplets = axesMesures.filter(a => a.couverture === 'complete').length;
+    const nbPartiels = axesMesures.filter(a => a.couverture === 'partielle').length;
     const indiceExplication = {
-      periodeLabel, nbMesures: axesMesures.length, totalAxes: AXES.length,
-      deltas: AXES.map(a => ({ nom: a.nom, icone: a.icone, mesure: a.valeur != null, delta: a.valeur != null ? a.valeur - 50 : null })),
+      periodeLabel, nbMesures: axesMesures.length, totalAxes: AXES.length, nbComplets, nbPartiels,
+      // `deltas` (13/08/2026) : affiche désormais le score BRUT /100 de
+      // chaque secteur, plus le delta ±50 par rapport au neutre — retour
+      // d'usage direct de Frédéric : *"74/100 est beaucoup plus
+      // compréhensible que +24 par rapport à 50."* Le delta reste calculé
+      // (utile en interne pour le radar SVG), simplement plus mis en avant
+      // dans ce texte.
+      deltas: AXES.map(a => ({ nom: a.nom, icone: a.icone, mesure: a.valeur != null, valeur: a.valeur, delta: a.valeur != null ? a.valeur - 50 : null })),
     };
 
     // Forces (Bloc D de l'audit, "deux ou trois forces maximum") — fusionne
@@ -835,11 +850,16 @@
       else { couleur = 'var(--red)'; statutTexte = 'Priorité élevée'; }
     }
     const ex = brief.indiceExplication;
+    // Score brut /100 mis en avant (13/08/2026, retour d'usage direct de
+    // Frédéric — voir nexus-boussole-moteur.js) : le delta ±50 recentré
+    // n'est plus la lecture principale ("+24" nécessite de savoir que 50 est
+    // neutre ; "74/100" se comprend seul). Le delta reste affiché en petit,
+    // repère optionnel pour qui veut le detail.
     const deltasHTML = ex.deltas.map(d => {
       if (!d.mesure) return `<div class="indice-delta-row"><span>${d.icone} ${d.nom}</span><span class="indice-delta-absent">Non mesuré</span></div>`;
+      const c = d.valeur >= 70 ? 'var(--green)' : d.valeur >= 40 ? 'var(--amber)' : 'var(--red)';
       const signe = d.delta >= 0 ? '+' : '';
-      const c = d.delta > 0 ? 'var(--green)' : d.delta < 0 ? 'var(--red)' : 'var(--text-dim)';
-      return `<div class="indice-delta-row"><span>${d.icone} ${d.nom}</span><span style="color:${c}; font-family:var(--mono); font-weight:700;">${signe}${d.delta}</span></div>`;
+      return `<div class="indice-delta-row"><span>${d.icone} ${d.nom}</span><span style="color:${c}; font-family:var(--mono); font-weight:700;">${d.valeur}/100 <span style="opacity:0.55; font-weight:400;">(${signe}${d.delta})</span></span></div>`;
     }).join('');
     return `
       <div class="brief-hero">
@@ -857,7 +877,7 @@
         <div class="indice-explain-wrap" id="indiceExplainWrap">
           <div class="indice-explain-toggle" onclick="document.getElementById('indiceExplainWrap').classList.toggle('open')">Comprendre l'Indice Boussole ${brief.scoreGlobal != null ? brief.scoreGlobal : '—'} <span class="chev">›</span></div>
           <div class="indice-explain">
-            <div class="section-note" style="margin-top:0;">Moyenne des secteurs mesurés aujourd'hui (${ex.nbMesures}/${ex.totalAxes}), chacun recentré à 50 = neutre. ${ex.periodeLabel}. « Mesuré » signifie qu'une valeur chiffrée existe pour ce secteur — pas que toutes ses données du jour sont disponibles (un secteur peut afficher une note ci-dessous s'il combine une donnée manquante sur un point précis et une valeur mesurée sur un autre).</div>
+            <div class="section-note" style="margin-top:0;">Moyenne des secteurs mesurés aujourd'hui (${ex.nbMesures}/${ex.totalAxes}), chaque secteur combinant une note de Performance et une note de Maîtrise. ${ex.periodeLabel}.</div>
             ${deltasHTML}
             <div class="section-note" style="font-style:italic;">Cet Indice Boussole diffère volontairement de l'Indice Marge affiché sur votre écran d'accueil (calculé, lui, uniquement à partir de la marge et de l'évolution du CA) — pas un bug, deux indices distincts avec leur propre nom : ici la vision d'ensemble du dirigeant, là un signal opérationnel plus étroit.</div>
           </div>
@@ -884,22 +904,43 @@
   // en a aucune — jamais une décision qui n'existe pas).
   function renderBoussole(brief) {
     const svg = genererBoussoleSVG(brief.axes);
-    const nbMesures = brief.axes.filter(a => a.confiance === 'RÉEL').length;
+    const mesures = brief.axes.filter(a => a.confiance === 'RÉEL');
+    const nbMesures = mesures.length;
+    // Badge "N secteurs analysés · X complets · Y partiels" (13/08/2026,
+    // reformulation Performance/Maîtrise, remplace "X/6 mesurés") — retour
+    // d'usage direct de Frédéric : *"la phrase est techniquement vraie...
+    // mais elle induit en erreur."* `couverture` vient des constructeurs de
+    // nexus-secteurs-moteur.js, jamais recalculée ici (Article 11).
+    const nbPartiels = mesures.filter(a => a.couverture === 'partielle').length;
+    const nbComplets = nbMesures - nbPartiels;
+    const badgeCouverture = nbPartiels > 0
+      ? `${nbComplets} complet${nbComplets > 1 ? 's' : ''} · ${nbPartiels} partiel${nbPartiels > 1 ? 's' : ''}`
+      : `${nbComplets} complet${nbComplets > 1 ? 's' : ''}`;
     const rows = brief.axes.map((a, i) => {
       const c = couleurAxe(a.valeur);
       const decisionLiee = (a.moteurs || []).length ? brief.decisions.find(d => a.moteurs.includes(d.moteur)) : null;
       const typeInfo = a.confiance === 'RÉEL' ? { label: 'RÉEL', cls: 'badge-real' } : { label: 'DONNÉES INSUFFISANTES', cls: 'badge-derived' };
+      // Détail Activité/Maîtrise (13/08/2026) : remplace le champ "État"
+      // brut (qui juxtaposait statut et valeur sans les relier) par les
+      // deux dimensions qui COMPOSENT `valeur`, sur le modèle donné par
+      // Frédéric ("Activité : 25/100 · Maîtrise : 40/100"). Une dimension
+      // non modélisée pour ce secteur (ex. Maîtrise pour Commerce) n'a pas
+      // de ligne — absence de ligne, jamais un "0/100" qui laisserait
+      // croire à une pénalité.
+      const ligneActivite = a.activite != null ? `<div class="decision-field"><div class="decision-field-label">Activité</div><div class="decision-field-text">${a.activite}/100</div></div>` : '';
+      const ligneMaitrise = a.maitrise != null ? `<div class="decision-field"><div class="decision-field-label">Maîtrise</div><div class="decision-field-text">${a.maitrise}/100</div></div>` : '';
       return `
         <div class="axe-block" id="axe-${i}">
           <div class="axe-row" onclick="document.getElementById('axe-${i}').classList.toggle('open')">
             <span class="axe-dot" style="background:${c.hex}; color:${c.hex};"></span>
             <span class="axe-nom">${a.icone} ${a.nom}</span>
-            <span class="axe-statut" style="color:${COULEUR_STATUT_DOMAINE[a.statut] || 'var(--text-dim)'};">${a.statut}</span>
+            <span class="axe-statut" style="color:${COULEUR_STATUT_DOMAINE[a.statut] || 'var(--text-dim)'};">${a.valeur != null ? `${a.valeur}/100 · ` : ''}${a.statut}</span>
             <span class="axe-chev">›</span>
           </div>
           <div class="axe-detail">
             <div class="decision-field"><div class="decision-field-label">État <span class="badge ${typeInfo.cls}" style="margin-left:6px;">${typeInfo.label}</span></div><div class="decision-field-text">${a.statut}${a.valeur != null ? ` — ${a.valeur}/100` : ''}</div></div>
-            ${a.coherence ? `<div class="decision-field"><div class="decision-field-label">Pourquoi ces deux informations coexistent</div><div class="decision-field-text" style="font-style:italic;">${a.coherence}</div></div>` : ''}
+            ${ligneActivite}
+            ${ligneMaitrise}
             <div class="decision-field"><div class="decision-field-label">Cause principale</div><div class="decision-field-text">${a.detail}</div></div>
             <div class="decision-field"><div class="decision-field-label">Décision liée</div><div class="decision-field-text">${decisionLiee ? decisionLiee.decision : "Aucune décision prioritaire liée à ce secteur aujourd'hui."}</div></div>
             <a href="${a.cible}" class="decision-lien">→ Ouvrir ${NOM_ECRAN[a.cible] || a.cible}</a>
@@ -908,7 +949,7 @@
     }).join('');
     return `
       <div class="section">
-        <div class="section-title">Vos secteurs <span class="badge badge-real">${nbMesures}/${brief.axes.length} mesurés</span></div>
+        <div class="section-title">Vos secteurs <span class="badge badge-real">${brief.axes.length} analysés · ${badgeCouverture}</span></div>
         <div class="boussole-card">
           <div class="boussole-svg-wrap">${svg}</div>
           ${rows}

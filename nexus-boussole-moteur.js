@@ -86,6 +86,101 @@
     return Math.max(0, Math.min(100, Math.round(100 - penalite)));
   }
 
+  // ------------------------------------------------------------
+  // Reformulation Performance/Maîtrise (13/08/2026, retour d'usage direct de
+  // Frédéric sur une capture d'écran réelle de Brief NEXUS — voir aussi
+  // v2.55, correctif immédiatement précédent). Constat de Frédéric : au lieu
+  // d'AJOUTER un texte explicatif chaque fois que `statut` et `valeur`
+  // semblaient se contredire (v2.55, champ `coherence`), il vaut mieux
+  // changer la formule pour que la contradiction devienne structurellement
+  // impossible. *"Je ne chercherais plus à l'expliquer. Je modifierais
+  // légèrement la formule."*
+  //
+  // Trois situations, jamais confondues (règle fondamentale énoncée par
+  // Frédéric) :
+  //   1. La donnée n'existe pas / n'est pas accessible -> ne pas pénaliser
+  //      (contribution neutre, 0).
+  //   2. Le contrôle devait être réalisé mais ne l'est pas encore -> légère
+  //      pénalité de MAÎTRISE (l'entreprise n'a pas encore vérifié, ce n'est
+  //      pas la même chose que "je n'ai aucune information").
+  //   3. Le contrôle est réalisé et révèle une anomalie -> pénalité de
+  //      MAÎTRISE selon la matérialité/récurrence de l'anomalie.
+  //
+  // Chaque secteur du contrat commun (nexus-secteurs-moteur.js) se décompose
+  // désormais en deux contributions bornées à budget égal :
+  //   Performance : comment le secteur se comporte (évolution litres/CA,
+  //   marge, fiabilité) — de -25 à +25.
+  //   Maîtrise : l'entreprise contrôle-t-elle correctement ce secteur
+  //   aujourd'hui (jaugeage fait, caisse vérifiée, écarts expliqués) —
+  //   de -25 à +25.
+  // Score secteur = 50 + Performance + Maîtrise, toujours dans [0,100].
+  // Un secteur sans dimension Maîtrise modélisée (Commerce aujourd'hui) ou
+  // sans dimension Performance distincte (Opérations, Équipe — déjà
+  // fondamentalement des mesures de maîtrise) passe `null` pour la
+  // contribution non pertinente : `null` est traité comme 0 (neutre),
+  // jamais comme une pénalité — c'est la différence entre "non modélisé"
+  // et "insuffisant", les deux ne doivent jamais peser pareil qu'une vraie
+  // anomalie mesurée.
+  const BUDGET_DIMENSION = 25;
+  const BUDGET_DIMENSION_UNIQUE = 50;
+  function clampContribution(x) {
+    if (x == null) return null;
+    return Math.max(-BUDGET_DIMENSION, Math.min(BUDGET_DIMENSION, Math.round(x)));
+  }
+  // Pour un secteur à UNE SEULE dimension modélisée (Commerce n'a que la
+  // Performance ; Opérations/Équipe n'ont que la Maîtrise), la clamper à
+  // ±25 comprimerait sa sensibilité de moitié sans raison : rien ne se
+  // partage le budget avec une dimension neutre. Ces secteurs gardent donc
+  // le budget PLEIN (±50, la totalité de l'écart possible à 50) pour leur
+  // unique dimension — Commerce le fait déjà nativement via
+  // `scoreDepuisEvolution` (jamais touché par cette reformulation) ;
+  // Opérations/Équipe l'utilisent explicitement ici.
+  function clampContributionPleine(x) {
+    if (x == null) return null;
+    return Math.max(-BUDGET_DIMENSION_UNIQUE, Math.min(BUDGET_DIMENSION_UNIQUE, Math.round(x)));
+  }
+  // Score d'affichage d'UNE dimension seule (0-100, 50 = neutre) — jamais
+  // utilisé pour l'Indice Boussole lui-même (qui lit toujours `valeur`, la
+  // combinaison des deux), uniquement pour le détail "Activité X/100 ·
+  // Maîtrise Y/100" de la carte secteur, sur le modèle donné par Frédéric.
+  function scoreDimension(contribution) {
+    if (contribution == null) return null;
+    return Math.max(0, Math.min(100, 50 + contribution));
+  }
+  function assemblerScoreSecteur(contributionPerformance, contributionMaitrise) {
+    return Math.max(0, Math.min(100, Math.round(50 + (contributionPerformance || 0) + (contributionMaitrise || 0))));
+  }
+  // Statut générique dérivé du score COMBINÉ, mêmes seuils que couleurAxe()
+  // ci-dessous (70/40, déjà établis) — remplace les statuts propres à
+  // chaque secteur (basés sur des règles disparates : nbEcarts pour Marge,
+  // aucunReleve pour Carburants...) par une seule vérité (Article 11) :
+  // puisque `statut` dérive maintenant TOUJOURS de `valeur`, les deux ne
+  // peuvent plus jamais se contredire à l'écran — la contradiction
+  // rapportée par Frédéric (Marge "+8" mais "à surveiller") devient
+  // structurellement impossible plutôt que simplement expliquée. Réservé
+  // aux secteurs à double dimension (Carburants/Marge/FDJ/Opérations/
+  // Équipe) ; Commerce garde `statutCommerce` (sa Maîtrise étant neutre,
+  // son statut reste par construction aligné avec sa seule Performance).
+  function statutDepuisScore(score) {
+    if (score == null) return 'Données insuffisantes';
+    if (score >= 70) return 'Sous contrôle';
+    if (score >= 40) return 'À surveiller';
+    return 'À corriger';
+  }
+  // Contribution Maîtrise dérivée d'un nombre d'écarts actifs déjà compté
+  // ailleurs (Marge+ `nbEcarts`, écarts de caisse FDJ) — une seule échelle
+  // partagée par les deux secteurs (Article 11), jamais deux barèmes qui
+  // pourraient diverger. `nbEcarts` null/undefined -> contribution null
+  // (neutre : la comparaison elle-même n'a pas pu tourner, situation 1, pas
+  // situation 2/3).
+  function contributionMaitriseEcarts(nbEcarts) {
+    if (nbEcarts == null) return null;
+    if (nbEcarts === 0) return 10;
+    if (nbEcarts <= 2) return -5;
+    if (nbEcarts <= 5) return -15;
+    return -25;
+  }
+
   function couleurAxe(valeur) {
     if (valeur === null) return { hex: '#57626F', nom: 'Donnée insuffisante' };
     if (valeur >= 70) return { hex: '#34D399', nom: 'Sous contrôle' };
@@ -134,5 +229,7 @@
     statutCommerce, statutValeur, statutEquipe, statutRisques,
     scoreDepuisEvolution, scoreDepuisMarge, scoreOperations, scoreRisques,
     couleurAxe, genererBoussoleSVG,
+    BUDGET_DIMENSION, BUDGET_DIMENSION_UNIQUE, clampContribution, clampContributionPleine,
+    scoreDimension, assemblerScoreSecteur, statutDepuisScore, contributionMaitriseEcarts,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

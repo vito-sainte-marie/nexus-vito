@@ -113,6 +113,7 @@
     return {
       ...entree, type: 'reel', confiance: 'INSUFFISANT', statut: 'Données insuffisantes', valeur: null,
       detail: raison, moteurs: [], changement: null, force: null, frein: null, risques: [], coherence: null,
+      activite: null, maitrise: null, couverture: null,
     };
   }
 
@@ -138,28 +139,50 @@
   // question, exactement la distinction demandée par l'audit ("Carburants :
   // non évalué sur la fiabilité stock ; litrage commercial disponible.
   // L'indice n'intègre pas la composante non mesurable").
-  // `coherence` (13/08/2026, correctif direct sur retour d'usage de
-  // Frédéric — écran Brief live) : ce que le P0.1 ci-dessus corrige à la
-  // SOURCE (le calcul), ce champ le corrige à la LECTURE (l'affichage).
-  // Constat exact rapporté : la carte Carburants pouvait afficher
-  // "Données insuffisantes" (statut, piloté par `aucunReleve` — la
-  // fraîcheur du CONTRÔLE/jaugeage du jour) tout en listant "0/100" puis
-  // "-50" dans le détail de l'Indice Boussole (valeur, pilotée par
-  // `evolution` — la PERFORMANCE volumes sur 7 jours). Les deux affirmations
-  // sont individuellement vraies (aucun relevé aujourd'hui ; volumes en
-  // fort recul sur 7 jours) mais juxtaposées sans explication, elles
-  // ressemblent à une contradiction — exactement ce que "chaque statut doit
-  // toujours pouvoir être expliqué" interdit. `coherence` ne change AUCUN
-  // calcul (confiance/valeur restent régies par l'invariant P0.1) : elle
-  // nomme explicitement la distinction pour le dirigeant, réutilisant les
-  // mêmes signaux déjà calculés ci-dessus (Article 11).
+  // Reformulation Performance/Maîtrise (13/08/2026, remplace le correctif
+  // `coherence` de la v2.55 — voir le commentaire détaillé dans
+  // nexus-boussole-moteur.js). Carburants est le cas qui a déclenché la
+  // reformulation : `evolution` (volumes 7 jours, PERFORMANCE) et
+  // `carburants.controle` (jaugeage du jour, MAÎTRISE) restent deux sources
+  // indépendantes comme avant P0.1/v2.55, mais elles ne sont plus mélangées
+  // dans un seul `valeur` ambigu — chacune devient une contribution bornée
+  // à ±25, combinées en `valeur = 50 + performance + maîtrise`. Exemple
+  // donné par Frédéric, rejoué dans les tests : volumes -19,9 % (Performance
+  // ≈ -25) + jaugeage non fait (Maîtrise = -10) => 50-25-10 = 15/100,
+  // "À corriger" — plus aucune contradiction possible entre `statut`
+  // (dérivé du même score) et `valeur`.
   function construireSecteurCarburants(entree, carburants) {
     if (!carburants) return secteurVide(entree, "Aucune donnée carburant chargée pour l'instant.");
+    const B = boussole();
     const M = carburantMoteur();
-    const statut = M.statutGlobalControle(carburants.controle.aucunReleve ? null : carburants.controle.parCarburant);
-    const detail = M.texteControleJour(carburants.controle.parCarburant, carburants.controle.aucunReleve);
+    const { aucunReleve, parCarburant } = carburants.controle;
     const evolution = carburants.evolution;
-    const valeur = evolution != null ? boussole().scoreDepuisEvolution(evolution) : null;
+    // Performance : évolution des volumes sur 7 jours. MÊME slope que
+    // l'ancien scoreDepuisEvolution (×250, extrême atteint vers ±20 %) —
+    // seul le budget final change (clamp à ±25 au lieu de ±50, la Maîtrise
+    // occupant l'autre moitié). Calibrage vérifié sur les deux exemples
+    // donnés par Frédéric : -19,9 % => -25 (plafond) ; +6 % => +15 (pas de
+    // plafond, 0,06×250=15).
+    const contribPerformance = B.clampContribution(evolution != null ? evolution * 250 : null);
+    // Maîtrise : 3 situations distinctes (règle fondamentale de Frédéric).
+    //  - Contrôle réalisé, conforme -> légère prime (+15).
+    //  - Contrôle réalisé, écart à surveiller/corriger -> pénalité graduée.
+    //  - Contrôle attendu mais pas encore réalisé (aucunReleve) -> légère
+    //    pénalité (-10, valeur exacte donnée par Frédéric) — jamais assimilé
+    //    à une "donnée indisponible" : NEXUS SAIT que le jaugeage n'a pas
+    //    été fait aujourd'hui, ce n'est pas une absence d'information.
+    let contribMaitrise;
+    if (aucunReleve) {
+      contribMaitrise = -10;
+    } else if (parCarburant) {
+      const statutControle = M.statutGlobalControle(parCarburant);
+      contribMaitrise = statutControle === 'Sous contrôle' ? 15 : statutControle === 'À surveiller' ? -10 : -25;
+    } else {
+      contribMaitrise = null; // ni relevé ni contrôle explicite : rien à évaluer aujourd'hui.
+    }
+    const valeur = B.assemblerScoreSecteur(contribPerformance, contribMaitrise);
+    const statut = B.statutDepuisScore(valeur);
+    const detail = M.texteControleJour(parCarburant, aucunReleve);
     let changement = null;
     if (evolution != null && Math.abs(evolution) >= 0.05) {
       const moteurTxt = carburants.produitMoteur ? ` (moteur : ${M.NOM_CARBURANT_COURT[carburants.produitMoteur.cle] || carburants.produitMoteur.cle})` : '';
@@ -167,15 +190,25 @@
     }
     const force = (evolution != null && evolution >= 0.05) ? { titre: 'Volumes carburant en hausse', detail: changement, cible: entree.cible } : null;
     const frein = (statut === 'À corriger' || statut === 'À surveiller') ? { titre: 'Écart carburant à traiter', detail, cible: entree.cible } : null;
-    const coherence = (carburants.controle.aucunReleve && valeur != null)
-      ? "Contrôle du jour (jauge) indisponible — aucun relevé enregistré aujourd'hui. La valeur ci-dessus mesure autre chose : l'évolution des volumes vendus sur 7 jours, disponible même sans relevé du jour — c'est elle qui alimente l'Indice Boussole."
-      : null;
     return {
-      ...entree, type: 'reel', confiance: valeur != null ? 'RÉEL' : 'INSUFFISANT',
-      statut, valeur, detail, moteurs: [], changement, force, frein, risques: [], coherence,
+      ...entree, type: 'reel', confiance: 'RÉEL',
+      statut, valeur, detail, moteurs: [], changement, force, frein, risques: [], coherence: null,
+      activite: B.scoreDimension(contribPerformance), maitrise: B.scoreDimension(contribMaitrise),
+      couverture: (evolution != null && !aucunReleve) ? 'complete' : 'partielle',
     };
   }
 
+  // Commerce n'a, à ce jour, aucune dimension Maîtrise modélisée (pas de
+  // "contrôle" du commerce boutique distinct de son activité elle-même —
+  // précision de Frédéric : *"Maîtrise : neutre pour l'instant."*). Il
+  // garde donc l'ancienne formule PLEINE ÉCHELLE (`scoreDepuisEvolution`,
+  // budget ±50, pas ±25) plutôt que la contribution partagée ±25 des
+  // secteurs à double dimension : rien ne justifie de comprimer sa
+  // sensibilité de moitié pour une dimension qui n'existe pas encore.
+  // `statut` reste piloté par `statutCommerce` (même formule, jamais
+  // `statutDepuisScore`) — les deux restent par construction alignés
+  // puisque `valeur` et `statut` dérivent tous deux de la seule
+  // `evolutionReelle`.
   function construireSecteurCommerce(entree, facteurs) {
     const B = boussole();
     const statut = B.statutCommerce(facteurs);
@@ -191,6 +224,7 @@
     return {
       ...entree, type: 'reel', confiance: facteurs && facteurs.evolutionReelle != null ? 'RÉEL' : 'INSUFFISANT',
       statut, valeur, detail, moteurs: ['produits'], changement, force: null, frein, risques: [], coherence: null,
+      activite: valeur, maitrise: null, couverture: valeur != null ? 'complete' : null,
     };
   }
 
@@ -235,82 +269,74 @@
     return `Marge — dispersion à surveiller : ${corps}.${concentration} Voir Marge+.`;
   }
 
+  // Reformulation Performance/Maîtrise (13/08/2026 — voir Carburants
+  // ci-dessus et le commentaire détaillé dans nexus-boussole-moteur.js).
+  // Performance = niveau de marge globale (`margeReelle`, même formule que
+  // l'ancien `scoreDepuisMarge`, désormais bornée à ±25). Maîtrise = écarts
+  // Marge+ actifs (`nbEcarts`, comparaison de pairs sur la période en
+  // cours) via `contributionMaitriseEcarts()`, partagée avec FDJ (Article
+  // 11 : un seul barème écarts -> pénalité). Le cas exact rapporté par
+  // Frédéric ("Marge +8, statut à surveiller — le dirigeant se demande si
+  // +8 est bon ou mauvais") devient structurellement impossible : `statut`
+  // dérive maintenant du même score combiné que `valeur`, jamais d'un
+  // signal séparé (`nbEcarts` seul, comme avant ce lot).
   function construireSecteurMarge(entree, { facteurs, margePlusResultat, phrasesRisqueMarge, signauxRisqueMargeQualifies }) {
     const B = boussole();
-    const statut = B.statutValeur(facteurs, margePlusResultat);
-    const valeur = B.scoreDepuisMarge(facteurs ? facteurs.margeReelle : null);
-    const nbEcarts = margePlusResultat && margePlusResultat.nbEcarts;
-    const detail = facteurs && facteurs.margeReelle != null
-      ? `Marge réelle : ${(facteurs.margeReelle * 100).toFixed(1)} %${nbEcarts ? ` · ${nbEcarts} écart${nbEcarts > 1 ? 's' : ''} de marge actif${nbEcarts > 1 ? 's' : ''}` : ''}.`
-      : "Marge non calculable sur les données actuelles.";
+    const margeReelle = facteurs ? facteurs.margeReelle : null;
+    const nbEcarts = margePlusResultat ? margePlusResultat.nbEcarts : null;
+    if (margeReelle == null) return secteurVide(entree, "Marge non calculable sur les données actuelles.");
+    const contribPerformance = B.clampContribution((margeReelle - 0.25) * 100);
+    const contribMaitrise = B.contributionMaitriseEcarts(nbEcarts);
+    const valeur = B.assemblerScoreSecteur(contribPerformance, contribMaitrise);
+    const statut = B.statutDepuisScore(valeur);
+    const detail = `Marge réelle : ${(margeReelle * 100).toFixed(1)} %${nbEcarts ? ` · ${nbEcarts} écart${nbEcarts > 1 ? 's' : ''} de marge actif${nbEcarts > 1 ? 's' : ''}` : ''}.`;
     const changement = nbEcarts > 0 ? `${nbEcarts} écart${nbEcarts > 1 ? 's' : ''} de marge actif${nbEcarts > 1 ? 's' : ''} détecté${nbEcarts > 1 ? 's' : ''} sur la période.` : null;
     const risques = phrasesRisqueMarge || [];
     const syntheseFrein = construireSyntheseFreinMarge(nbEcarts, signauxRisqueMargeQualifies);
-    const frein = (statut === 'À surveiller' || risques.length)
+    const frein = (statut !== 'Sous contrôle' || risques.length)
       ? { titre: 'Écarts de marge actifs', detail: syntheseFrein || detail, cible: entree.cible }
       : null;
-    // `coherence` (13/08/2026, même principe que Carburants ci-dessus,
-    // appliqué ici au retour d'usage sur Marge) : `valeur` mesure le NIVEAU
-    // de marge globale (scoreDepuisMarge, recentré à 50) ; `statut` mesure
-    // la VIGILANCE (présence d'écarts de marge actifs sur des catégories
-    // précises, comparaison de pairs). Un secteur peut légitimement être
-    // positif sur l'un et vigilant sur l'autre — ce ne sont pas la même
-    // question. Constat exact rapporté : "Marge +8, statut à surveiller —
-    // le dirigeant se demande si +8 est bon ou mauvais." Réutilise `nbEcarts`
-    // déjà calculé ci-dessus, aucun second calcul (Article 11).
-    let coherence = null;
-    if (valeur != null && statut === 'À surveiller' && valeur > 50) {
-      coherence = `Marge globale positive, mais ${nbEcarts || 'certains'} écart${nbEcarts > 1 ? 's' : ''} de marge reste${nbEcarts > 1 ? 'nt' : ''} actif${nbEcarts > 1 ? 's' : ''} sur des catégories spécifiques (voir Marge+).`;
-    } else if (valeur != null && statut === 'Sous contrôle' && valeur < 50) {
-      coherence = "Marge globale en retrait sur la période, sans écart de marge actif détecté sur une catégorie précise — l'écart porte sur le niveau global, pas sur une catégorie isolée.";
-    }
     return {
-      ...entree, type: 'reel', confiance: facteurs && facteurs.margeReelle != null ? 'RÉEL' : 'INSUFFISANT',
-      statut, valeur, detail, moteurs: ['marge'], changement, force: null, frein, risques, coherence,
+      ...entree, type: 'reel', confiance: 'RÉEL',
+      statut, valeur, detail, moteurs: ['marge'], changement, force: null, frein, risques, coherence: null,
+      activite: B.scoreDimension(contribPerformance), maitrise: B.scoreDimension(contribMaitrise),
+      couverture: margePlusResultat != null ? 'complete' : 'partielle',
     };
   }
 
   // Seuil repris à l'identique de nexus-fdj-moteur.js (règles
   // FDJ-JOUR-RECUL / FDJ-CROISSANCE, ±15 %) — jamais une deuxième valeur.
   const SEUIL_FDJ_EVOLUTION = 0.15;
+  // Reformulation Performance/Maîtrise (13/08/2026 — voir Carburants/Marge
+  // ci-dessus). Performance = évolution du CA FDJ sur 7 jours (même slope
+  // ×250 que Carburants, extrême atteint vers ±20 %, clampé au budget ±25).
+  // Maîtrise = écarts de caisse FDJ (`nbEcarts`), même
+  // barème partagé que Marge (`contributionMaitriseEcarts`). Répond
+  // explicitement à la question de Frédéric ("le score -42 vient-il du CA,
+  // des écarts de caisse, ou des deux ?") : les deux causes sont maintenant
+  // deux nombres visibles séparément (`activite`/`maitrise`) plutôt qu'une
+  // seule valeur agrégée à décoder.
   function construireSecteurFdj(entree, resume) {
     if (!resume || !resume.nbQuartsControles) return secteurVide(entree, "Pas encore assez de quarts FDJ contrôlés sur 7 jours.");
     const { caGrattage, evolutionCa, jeuMoteur, nbEcarts } = resume;
-    let statut = nbEcarts > 0 ? 'À surveiller' : (evolutionCa != null && evolutionCa <= -SEUIL_FDJ_EVOLUTION ? 'À surveiller' : 'Sous contrôle');
-    const valeur = evolutionCa != null ? boussole().scoreDepuisEvolution(evolutionCa) : null;
+    const contribPerformance = boussole().clampContribution(evolutionCa != null ? evolutionCa * 250 : null);
+    const contribMaitrise = boussole().contributionMaitriseEcarts(nbEcarts);
+    const valeur = boussole().assemblerScoreSecteur(contribPerformance, contribMaitrise);
+    const statut = boussole().statutDepuisScore(valeur);
     const detail = `CA FDJ : ${Math.round(caGrattage).toLocaleString('fr-FR')} € sur 7 jours${evolutionCa != null ? ` (${evolutionCa >= 0 ? '+' : ''}${(evolutionCa * 100).toFixed(1)} % vs 7 jours précédents)` : ''}${jeuMoteur ? ` · Jeu moteur : ${jeuMoteur.nom}` : ''}.`;
     let changement = null;
     if (evolutionCa != null && Math.abs(evolutionCa) >= SEUIL_FDJ_EVOLUTION) {
       changement = `Le CA FDJ ${evolutionCa >= 0 ? 'progresse' : 'recule'} de ${Math.abs(evolutionCa * 100).toFixed(1)} % sur 7 jours.`;
     }
     const force = (evolutionCa != null && evolutionCa >= SEUIL_FDJ_EVOLUTION) ? { titre: 'CA FDJ en forte progression', detail: changement, cible: entree.cible } : null;
-    const frein = statut === 'À surveiller'
+    const frein = statut !== 'Sous contrôle'
       ? { titre: nbEcarts > 0 ? `${nbEcarts} écart${nbEcarts > 1 ? 's' : ''} de caisse FDJ non nul${nbEcarts > 1 ? 's' : ''}` : 'CA FDJ en recul', detail, cible: entree.cible }
       : null;
-    // `confiance` (12/08/2026, corrigé pour le même invariant que les
-    // autres secteurs) : était codée en dur à 'RÉEL' même quand `valeur`
-    // est null (aucune évolution calculable) — mismatch mineur qui ne
-    // faisait pas baisser l'Indice (un `valeur` null est déjà exclu de la
-    // moyenne), mais affichait un badge "RÉEL" trompeur sur la carte.
-    // `coherence` (13/08/2026, retour d'usage : "le score −42 indique une
-    // dégradation, cohérent avec 'à surveiller', mais il serait utile de
-    // savoir si cela vient du CA FDJ, des écarts de caisse, ou d'un mélange
-    // des deux") — nomme la cause précise à partir de `nbEcarts`/
-    // `evolutionCa`, déjà calculés ci-dessus, aucun second calcul.
-    let coherence = null;
-    if (statut === 'À surveiller') {
-      const repliCa = evolutionCa != null && evolutionCa <= -SEUIL_FDJ_EVOLUTION;
-      if (nbEcarts > 0 && repliCa) {
-        coherence = `Origine du signal : ${nbEcarts} écart${nbEcarts > 1 ? 's' : ''} de caisse FDJ ET un repli du CA de ${Math.abs(evolutionCa * 100).toFixed(1)} % sur 7 jours — les deux dimensions sont dégradées.`;
-      } else if (nbEcarts > 0) {
-        coherence = `Origine du signal : ${nbEcarts} écart${nbEcarts > 1 ? 's' : ''} de caisse FDJ, indépendamment du CA (voir Contrôle FDJ).`;
-      } else if (repliCa) {
-        coherence = `Origine du signal : repli du CA FDJ de ${Math.abs(evolutionCa * 100).toFixed(1)} % sur 7 jours, aucun écart de caisse détecté.`;
-      }
-    }
     return {
-      ...entree, type: 'reel', confiance: valeur != null ? 'RÉEL' : 'INSUFFISANT',
-      statut, valeur, detail, moteurs: ['fdj', 'coach'], changement, force, frein, risques: [], coherence,
+      ...entree, type: 'reel', confiance: 'RÉEL',
+      statut, valeur, detail, moteurs: ['fdj', 'coach'], changement, force, frein, risques: [], coherence: null,
+      activite: boussole().scoreDimension(contribPerformance), maitrise: boussole().scoreDimension(contribMaitrise),
+      couverture: evolutionCa != null ? 'complete' : 'partielle',
     };
   }
 
@@ -323,13 +349,24 @@
   // apparaître dans l'un sans l'autre : le moteur de risques répond à "ce
   // quart montre-t-il un vrai motif dans le temps ?", pas "reste-t-il un
   // écart non justifié aujourd'hui ?".
+  // Reformulation Performance/Maîtrise (13/08/2026 — voir Carburants/Marge/
+  // FDJ ci-dessus). Opérations est, par nature, déjà un secteur de
+  // MAÎTRISE (caisse vérifiée, inventaire fait, procédures suivies) — pas
+  // d'axe "performance" distinct identifié à ce jour (précision de
+  // Frédéric : *"Opérations : principalement Maîtrise"*). `scoreOperations`
+  // (écart de caisse moyen, formule inchangée, Article 11) devient donc
+  // directement la contribution Maîtrise, recentrée sur le budget ±25 ;
+  // Performance reste neutre (null) — pas une absence de donnée, un choix
+  // de modélisation assumé (`couverture` reste 'complete' pour ce secteur,
+  // un axe non modélisé n'est pas un axe manquant).
   function construireSecteurOperations(entree, { constatTempo, controlesVerifyRestants, nbCritiquesCaisse, alertesInvOuvertes, risqueStockTotal, phrasesRisqueCaisse }) {
     const B = boussole();
-    const statut = constatTempo.statutOperations;
-    const valeur = B.scoreOperations(constatTempo.detailOperations, constatTempo.totalJours);
-    const detail = constatTempo.totalJours
-      ? `Écart de caisse moyen : ${Math.round(constatTempo.detailOperations)} €/jour${controlesVerifyRestants ? ` · ${controlesVerifyRestants} contrôle${controlesVerifyRestants > 1 ? 's' : ''} caisse en attente aujourd'hui` : ''}.`
-      : "Pas encore assez d'audits de caisse enregistrés.";
+    if (!constatTempo.totalJours) return secteurVide(entree, "Pas encore assez d'audits de caisse enregistrés.");
+    const scoreEcart = B.scoreOperations(constatTempo.detailOperations, constatTempo.totalJours);
+    const contribMaitrise = B.clampContributionPleine(scoreEcart != null ? scoreEcart - 50 : null);
+    const valeur = B.assemblerScoreSecteur(null, contribMaitrise);
+    const statut = B.statutDepuisScore(valeur);
+    const detail = `Écart de caisse moyen : ${Math.round(constatTempo.detailOperations)} €/jour${controlesVerifyRestants ? ` · ${controlesVerifyRestants} contrôle${controlesVerifyRestants > 1 ? 's' : ''} caisse en attente aujourd'hui` : ''}.`;
     // Risques (Annexe A) : distincts du statut lui-même — Opérations est le
     // secteur transversal qui agrège caisse/inventaire/stock, exactement
     // comme demandé par l'audit ("Opérations est transversal... sans
@@ -343,8 +380,9 @@
       ? { titre: statut !== 'Sous contrôle' ? 'Écarts de caisse à corriger' : 'Risques opérationnels ouverts', detail: risques.length ? risques.join(' ') : detail, cible: entree.cible }
       : null;
     return {
-      ...entree, type: 'reel', confiance: constatTempo.totalJours ? 'RÉEL' : 'INSUFFISANT',
+      ...entree, type: 'reel', confiance: 'RÉEL',
       statut, valeur, detail, moteurs: ['caisse', 'stock'], changement: null, force: null, frein, risques, coherence: null,
+      activite: null, maitrise: B.scoreDimension(contribMaitrise), couverture: 'complete',
     };
   }
 
@@ -381,21 +419,32 @@
     }
   }
 
+  // Reformulation Performance/Maîtrise (13/08/2026 — voir Carburants/Marge/
+  // FDJ/Opérations ci-dessus). Équipe, comme Opérations, est fondamentalement
+  // un secteur de MAÎTRISE (ponctualité, fiabilité, récurrence des
+  // anomalies) — pas d'axe "performance" distinct (précision de Frédéric :
+  // *"Performance/maîtrise opérationnelle : ponctualité, missions,
+  // fiabilité"*, les deux notions se confondent ici). `equipeScore` (formule
+  // inchangée, Article 11) devient la contribution Maîtrise ; Performance
+  // reste neutre (null), même logique que Opérations.
   function construireSecteurEquipe(entree, { domaineEquipe, seuilMinPointages }) {
     const B = boussole();
-    const statut = B.statutEquipe(domaineEquipe.equipeScore, domaineEquipe.totalPointages);
     const mesureSuffisante = domaineEquipe.totalPointages != null && domaineEquipe.totalPointages >= seuilMinPointages;
-    // `valeur` (12/08/2026, corrigé — même correctif que Carburants,
-    // pendant symétrique du même bug) : `domaineEquipe.equipeScore` est
-    // calculé dès qu'il existe AU MOINS UN pointage (0 retard sur 1
+    // `mesureSuffisante` (12/08/2026, corrigé — même correctif que
+    // Carburants, pendant symétrique du même bug) : `domaineEquipe.equipeScore`
+    // est calculé dès qu'il existe AU MOINS UN pointage (0 retard sur 1
     // pointage = score 100), sans jamais vérifier `seuilMinPointages` —
     // avant ce correctif, un échantillon minuscule pouvait donc peser dans
-    // l'Indice Boussole exactement comme une mesure fiable, alors que la
-    // carte elle-même affiche "Pas encore assez de pointages enregistrés."
-    // Gardé par `mesureSuffisante` désormais, pour respecter le même
-    // invariant que les autres secteurs : confiance === 'RÉEL' ⟺ valeur
-    // !== null.
-    const valeur = mesureSuffisante ? domaineEquipe.equipeScore : null;
+    // l'Indice Boussole exactement comme une mesure fiable. Reste, après la
+    // reformulation Performance/Maîtrise, le SEUL cas d'exclusion totale de
+    // ce secteur (`confiance: 'INSUFFISANT'`) : un échantillon trop petit
+    // n'est vraiment "pas assez de données" (situation 1), pas un contrôle
+    // non réalisé (situation 2) — NEXUS ne choisit pas de pénaliser une
+    // maîtrise qu'il ne peut même pas mesurer.
+    if (!mesureSuffisante) return secteurVide(entree, "Pas encore assez de pointages enregistrés.");
+    const contribMaitrise = B.clampContributionPleine(domaineEquipe.equipeScore - 50);
+    const valeur = B.assemblerScoreSecteur(null, contribMaitrise);
+    const statut = B.statutDepuisScore(valeur);
     const totalAnomalies = domaineEquipe.totalAnomalies || 0;
     const collaborateursConcernes = domaineEquipe.collaborateursConcernes || 0;
     const portee = classifierPorteeEquipe(collaborateursConcernes, domaineEquipe.employesASurveiller || 0);
@@ -408,11 +457,9 @@
     // aucune fenêtre de période pour les pointages (portée existante,
     // documentée depuis avant ce lot) — l'ajouter inventerait une
     // comparaison que NEXUS ne peut pas encore prouver (Article 5).
-    const detail = mesureSuffisante
-      ? (totalAnomalies > 0
-          ? `Équipe — fiabilité à renforcer : ${totalAnomalies} anomalie${totalAnomalies > 1 ? 's' : ''} de ponctualité sur ${domaineEquipe.totalPointages} pointages. Le phénomène concerne ${collaborateursConcernes} collaborateur${collaborateursConcernes > 1 ? 's' : ''} et ${libellePorteeEquipe(portee)}.`
-          : `Ponctualité sous contrôle sur ${domaineEquipe.totalPointages} pointages.`)
-      : "Pas encore assez de pointages enregistrés.";
+    const detail = totalAnomalies > 0
+      ? `Équipe — fiabilité à renforcer : ${totalAnomalies} anomalie${totalAnomalies > 1 ? 's' : ''} de ponctualité sur ${domaineEquipe.totalPointages} pointages. Le phénomène concerne ${collaborateursConcernes} collaborateur${collaborateursConcernes > 1 ? 's' : ''} et ${libellePorteeEquipe(portee)}.`
+      : `Ponctualité sous contrôle sur ${domaineEquipe.totalPointages} pointages.`;
     const force = statut === 'Sous contrôle' ? { titre: "Ponctualité de l'équipe sous contrôle", detail, cible: entree.cible } : null;
     // Titre du frein reflète désormais la portée réelle (12/08/2026) —
     // jamais "à surveiller" générique quand NEXUS peut dire précisément si
@@ -423,8 +470,9 @@
       : "Fiabilité d'équipe à surveiller";
     const frein = (statut === 'À surveiller' || statut === 'À corriger') ? { titre: freinTitre, detail, cible: entree.cible } : null;
     return {
-      ...entree, type: 'reel', confiance: mesureSuffisante ? 'RÉEL' : 'INSUFFISANT',
+      ...entree, type: 'reel', confiance: 'RÉEL',
       statut, valeur, detail, moteurs: [], changement: null, force, frein, risques: [], coherence: null,
+      activite: null, maitrise: B.scoreDimension(contribMaitrise), couverture: 'complete',
     };
   }
 
