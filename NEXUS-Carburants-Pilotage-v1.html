@@ -357,7 +357,14 @@
     const periode = NexusPeriodes.resoudrePeriodeCalendaire(TYPE_PERIODE, todayISO(), bornesLibres);
     const enCours = periode.fin > todayISO();
     document.getElementById('periodeLabel').textContent = `Période : ${periode.label} (${periode.debut} → ${periode.fin})${enCours ? ' — en cours' : ''}`;
-    const referencesCandidates = NexusPeriodes.resoudrePeriodesReference(periode);
+    // "Toujours comparer ce qui est comparable" (13/08/2026, demande directe
+    // de Frédéric suite à un -54,5 % trompeur : une semaine entamée depuis 3
+    // jours comparée à une semaine précédente COMPLÈTE). Passer todayISO()
+    // explicitement fait tronquer chaque référence candidate au même nombre
+    // de jours écoulés QUAND la période est en cours (voir
+    // nexus-periodes.js::resoudrePeriodesReference) — une période déjà
+    // terminée continue de se comparer intégralement, sans changement.
+    const referencesCandidates = NexusPeriodes.resoudrePeriodesReference(periode, todayISO());
 
     const [actuel, reference] = await Promise.all([
       NexusCarburantDonnees.chargerVentesPeriode(nexusClient, SITE_ID, periode.debut, periode.fin),
@@ -379,11 +386,19 @@
     const couvertureTxt = actuel.nbQuartsTotal > 0
       ? `Couverture : ${actuel.nbQuartsAvecLitrage}/${actuel.nbQuartsTotal} quart${actuel.nbQuartsTotal > 1 ? 's' : ''} avec litrage renseigné sur la période.`
       : "Aucun quart enregistré sur cette période.";
-    // Honnêteté sur une période en cours (Article 5) : comparer un
-    // "mois" entamé à 3 jours contre un mois de référence complet
-    // fabriquerait une évolution trompeuse — jamais masquée, mais
-    // signalée explicitement plutôt que présentée comme un chiffre stable.
-    const caveatEnCours = enCours ? ' Cette période n\'est pas terminée — la comparaison ci-dessous porte donc sur une période partielle face à une référence complète.' : '';
+    // Comparaison à avancement égal (13/08/2026) : la référence utilisée
+    // est déjà tronquée aux mêmes jours écoulés par
+    // NexusPeriodes.resoudrePeriodesReference (voir plus haut) — l'ancien
+    // avertissement "période partielle face à une référence complète"
+    // n'est donc plus vrai et serait lui-même trompeur. Un mot honnête
+    // subsiste seulement pour le cas résiduel où la référence elle-même
+    // est trop courte pour être tronquée à due proportion (ex. comparer un
+    // mois de 31 jours entamé au jour 30 à un février de référence — voir
+    // le flag `tronquee` renvoyé par le moteur).
+    const refUtilisee = reference.periodeUtilisee;
+    const caveatEnCours = (refUtilisee && refUtilisee.couvertureInsuffisante)
+      ? ' Référence plus courte que la période en cours — comparaison limitée à sa durée réelle.'
+      : '';
 
     // --- Volumes & performance ---
     let volumesHTML;
@@ -401,7 +416,9 @@
           <div class="kpi-row"><span class="kpi-label"><b>Total station</b></span><span><span class="kpi-valeur">${fmtL(mix.total)}</span>${fmtEvol(evolutionTotale)}</span></div>
           ${lignes}
         </div>
-        <div class="section-note">${couvertureTxt}${reference.periodeUtilisee ? ` Comparé à : ${reference.periodeUtilisee.label}.` : ' Aucune période de référence avec des données disponibles.'}${caveatEnCours}</div>
+        <div class="section-note">${couvertureTxt}${refUtilisee
+          ? ` Comparé à : ${refUtilisee.label}${refUtilisee.tronquee ? ` — mêmes jours écoulés (${formaterDateFrCourt(refUtilisee.debut)} → ${formaterDateFrCourt(refUtilisee.fin)}).` : '.'}`
+          : ' Aucune période de référence avec des données disponibles.'}${caveatEnCours}</div>
       `;
     }
 

@@ -196,27 +196,49 @@
    * chargeur de données (nexus-rapport-donnees.js) peut ne trouver de
    * données pour AUCUNE d'entre elles, auquel cas la comparaison doit
    * être affichée comme indisponible plutôt que fabriquée.
+   *
+   * `dateDuJourISO` (13/08/2026, demande directe de Frédéric, capture
+   * NEXUS Carburants Pilotage : "18 413 L −54,5 %" sur une semaine
+   * entamée depuis 3 jours comparée à une semaine précédente COMPLÈTE —
+   * "le calcul actuel est mathématiquement défendable, mais visuellement
+   * il raconte une histoire trompeuse") — par défaut aujourd'hui, mais
+   * paramétrable pour rester une fonction pure et testable sans dépendre
+   * de `new Date()` au moment de l'appel. Quand la période affichée n'est
+   * pas terminée (`fin > dateDuJourISO`), chaque référence candidate est
+   * TRONQUÉE au même nombre de jours écoulés depuis SON PROPRE début —
+   * "toujours comparer ce qui est comparable", la règle proposée par
+   * Frédéric, appliquée une seule fois ici plutôt que dupliquée en 5
+   * variantes par type de période (semaine/mois/trimestre/année/libre
+   * suivent donc tous exactement la même logique de troncature, aucun cas
+   * particulier codé en dur). Une période déjà TERMINÉE (fin <=
+   * dateDuJourISO) n'est jamais tronquée : elle continue de se comparer
+   * intégralement à une référence intégrale, comme avant ce lot — aucun
+   * changement de comportement pour un rapport sur une période passée.
+   * Chaque référence tronquée porte `tronquee: true`, `finPeriodeComplete`
+   * (la fin réelle du mois/trimestre/année de référence, pour qui voudrait
+   * l'afficher) et `joursEcoules`, pour que l'écran puisse construire un
+   * libellé honnête ("mêmes jours écoulés") plutôt que de laisser croire à
+   * une période de référence complète.
    */
-  function resoudrePeriodesReference(periode) {
+  function resoudrePeriodesReference(periode, dateDuJourISO) {
     const { type, debut, fin } = periode;
     const d = new Date(debut + 'T00:00:00');
 
+    let candidats;
     if (type === 'semaine') {
       const debutPrec = ajouterJours(debut, -7), finPrec = ajouterJours(fin, -7);
-      return [{ debut: debutPrec, fin: finPrec, label: 'Semaine précédente' }];
-    }
-    if (type === 'mois') {
+      candidats = [{ debut: debutPrec, fin: finPrec, label: 'Semaine précédente' }];
+    } else if (type === 'mois') {
       const moisPrec = new Date(d.getFullYear(), d.getMonth() - 1, 1);
       const debutPrec = `${moisPrec.getFullYear()}-${pad2(moisPrec.getMonth() + 1)}-01`;
       const finPrec = dernierJourMois(moisPrec.getFullYear(), moisPrec.getMonth());
       const debutAnPrec = `${d.getFullYear() - 1}-${pad2(d.getMonth() + 1)}-01`;
       const finAnPrec = dernierJourMois(d.getFullYear() - 1, d.getMonth());
-      return [
+      candidats = [
         { debut: debutPrec, fin: finPrec, label: 'Mois précédent' },
         { debut: debutAnPrec, fin: finAnPrec, label: `${NOMS_MOIS[d.getMonth()]} ${d.getFullYear() - 1} (même mois, année précédente)` },
       ];
-    }
-    if (type === 'trimestre') {
+    } else if (type === 'trimestre') {
       const q = Math.floor(d.getMonth() / 3);
       const moisDebutTrimPrec = q * 3 - 3;
       const anneeTrimPrec = moisDebutTrimPrec < 0 ? d.getFullYear() - 1 : d.getFullYear();
@@ -225,17 +247,37 @@
       const finPrec = dernierJourMois(anneeTrimPrec, moisTrimPrec + 2);
       const debutAnPrec = `${d.getFullYear() - 1}-${pad2(q * 3 + 1)}-01`;
       const finAnPrec = dernierJourMois(d.getFullYear() - 1, q * 3 + 2);
-      return [
+      candidats = [
         { debut: debutPrec, fin: finPrec, label: 'Trimestre précédent' },
         { debut: debutAnPrec, fin: finAnPrec, label: `T${q + 1} ${d.getFullYear() - 1} (même trimestre, année précédente)` },
       ];
+    } else if (type === 'annee') {
+      candidats = [{ debut: `${d.getFullYear() - 1}-01-01`, fin: `${d.getFullYear() - 1}-12-31`, label: 'Année précédente' }];
+    } else {
+      // 'libre' : période précédente de même durée, immédiatement avant.
+      const jours = joursEntre(debut, fin);
+      candidats = [{ debut: ajouterJours(debut, -jours), fin: ajouterJours(debut, -1), label: 'Période précédente de même durée' }];
     }
-    if (type === 'annee') {
-      return [{ debut: `${d.getFullYear() - 1}-01-01`, fin: `${d.getFullYear() - 1}-12-31`, label: 'Année précédente' }];
-    }
-    // 'libre' : période précédente de même durée, immédiatement avant.
-    const jours = joursEntre(debut, fin);
-    return [{ debut: ajouterJours(debut, -jours), fin: ajouterJours(debut, -1), label: 'Période précédente de même durée' }];
+
+    const dateDuJour = dateDuJourISO || isoDate(new Date());
+    if (fin <= dateDuJour) return candidats; // période déjà terminée : jamais tronquée
+
+    const joursEcoules = Math.max(1, joursEntre(debut, dateDuJour));
+    return candidats.map(c => {
+      const finPeriodeComplete = c.fin;
+      const dureeCandidatComplet = joursEntre(c.debut, finPeriodeComplete);
+      const finVoulue = ajouterJours(c.debut, joursEcoules - 1);
+      // Jamais dépasser la fin réelle du candidat (ex. comparer un mois de
+      // 31 jours entamé au jour 30 à un février de référence : on s'arrête
+      // à la fin réelle de février, la troncature "à avancement égal"
+      // atteint alors sa limite honnête plutôt que de fabriquer des jours
+      // qui n'existent pas dans le mois de référence). `couvertureInsuffisante`
+      // signale précisément ce cas résiduel à l'écran, pour qu'il l'affiche
+      // plutôt que de laisser croire à une troncature parfaite.
+      const finRetenue = finVoulue < finPeriodeComplete ? finVoulue : finPeriodeComplete;
+      const couvertureInsuffisante = dureeCandidatComplet < joursEcoules;
+      return { ...c, fin: finRetenue, finPeriodeComplete, tronquee: finRetenue !== finPeriodeComplete, joursEcoules, couvertureInsuffisante };
+    });
   }
 
   // ============================================================

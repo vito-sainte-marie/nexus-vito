@@ -272,7 +272,14 @@
 
     const periode = NexusPeriodes.resoudrePeriodeCalendaire(TYPE_PERIODE, todayISO(), bornesLibres);
     document.getElementById('periodeLabel').textContent = `Période : ${periode.label} (${periode.debut} → ${periode.fin})`;
-    const referencesCandidates = NexusPeriodes.resoudrePeriodesReference(periode);
+    // Comparaison à avancement égal (13/08/2026) — même correctif que
+    // NEXUS-Carburants-Pilotage-v1.html : si "Semaine"/"Mois" est choisi
+    // alors que la période est encore en cours, chaque référence est
+    // désormais tronquée aux mêmes jours écoulés plutôt que comparée à une
+    // période de référence complète (voir
+    // nexus-periodes.js::resoudrePeriodesReference). Aucun changement pour
+    // un rapport généré sur une période déjà terminée.
+    const referencesCandidates = NexusPeriodes.resoudrePeriodesReference(periode, todayISO());
 
     const [ca, marge, decisions, carbActuel, fdjActuel] = await Promise.all([
       NexusRapportDonnees.chargerCaPeriode(nexusClient, SITE_ID, periode),
