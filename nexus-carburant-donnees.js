@@ -90,5 +90,42 @@
     return { parCarburant, aucunReleve: false, dateDernierReleve: dernierReleve ? dernierReleve.date : null };
   }
 
-  global.NexusCarburantDonnees = { CARBURANTS_INFO, chargerVentesPeriode, chargerControleJour };
+  // Jours sans jaugeage saisi (13/08/2026, demande de Frédéric : "ça fait
+  // 2-3 jours que le jaugeage n'a pas été indiqué") — détecte les trous
+  // récents dans `carburant_releves` pour que Carburants Pilotage puisse
+  // pointer directement les jours à rattraper, plutôt que de laisser le
+  // manager les retrouver de tête. Fenêtre volontairement bornée
+  // (`fenetreJours`, 14 par défaut) : au-delà, un site sans relevé depuis
+  // longtemps a un problème plus profond qu'un oubli de 2-3 jours, hors
+  // périmètre de ce widget. Jamais de jour signalé "manquant" avant le
+  // tout premier relevé RÉEL du site (Article 5) — un site fraîchement
+  // onboardé n'a simplement pas encore commencé, ce n'est pas un oubli.
+  async function chargerJoursSansReleve(client, siteId, dateDuJour, fenetreJours = 14) {
+    const { data: premier, error: e1 } = await client.from('carburant_releves')
+      .select('date').eq('site', siteId).order('date', { ascending: true }).limit(1).maybeSingle();
+    if (e1) { console.error('Chargement premier relevé carburant (rattrapage):', e1); return { jours: [], premierReleve: null }; }
+    if (!premier) return { jours: [], premierReleve: null };
+
+    const bornInf = new Date(`${dateDuJour}T00:00:00`);
+    bornInf.setDate(bornInf.getDate() - fenetreJours);
+    const fenetreDebut = `${bornInf.getFullYear()}-${String(bornInf.getMonth() + 1).padStart(2, '0')}-${String(bornInf.getDate()).padStart(2, '0')}`;
+    const dateDebut = premier.date > fenetreDebut ? premier.date : fenetreDebut;
+
+    const { data: releves, error: e2 } = await client.from('carburant_releves')
+      .select('date').eq('site', siteId).gte('date', dateDebut).lt('date', dateDuJour);
+    if (e2) { console.error('Chargement relevés carburant (rattrapage):', e2); return { jours: [], premierReleve: premier.date }; }
+    const connues = new Set((releves || []).map(r => r.date));
+
+    const jours = [];
+    const cursor = new Date(`${dateDebut}T00:00:00`);
+    const limite = new Date(`${dateDuJour}T00:00:00`);
+    while (cursor < limite) {
+      const iso = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}-${String(cursor.getDate()).padStart(2, '0')}`;
+      if (!connues.has(iso)) jours.push(iso);
+      cursor.setDate(cursor.getDate() + 1);
+    }
+    return { jours, premierReleve: premier.date };
+  }
+
+  global.NexusCarburantDonnees = { CARBURANTS_INFO, chargerVentesPeriode, chargerControleJour, chargerJoursSansReleve };
 })(typeof window !== 'undefined' ? window : globalThis);

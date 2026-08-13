@@ -54,6 +54,14 @@
 
   .note{font-size:11.5px; color:var(--text-dim); line-height:1.55; margin-bottom:14px;}
 
+  /* Rattrapage (13/08/2026) — bannière posée en tête de contenu quand la
+     date éditée n'est pas aujourd'hui, pour qu'on ne puisse jamais
+     confondre visuellement cet écran avec le relevé du jour. */
+  .rattrapage-banniere{display:flex; gap:10px; padding:12px 14px; border-radius:12px; background:rgba(245,166,35,0.08); border:1px solid rgba(245,166,35,0.3); margin-bottom:14px;}
+  .rattrapage-banniere-icon{font-size:16px; flex-shrink:0;}
+  .rattrapage-banniere-titre{font-size:12.5px; font-weight:700; color:var(--amber); margin-bottom:3px;}
+  .rattrapage-banniere-texte{font-size:11.5px; color:var(--text-mid); line-height:1.5;}
+
   .carb-card{background:var(--panel); border:1px solid var(--hairline); border-radius:14px; padding:16px; margin-bottom:14px;}
   .carb-head{display:flex; align-items:baseline; justify-content:space-between; gap:8px; margin-bottom:2px;}
   .carb-nom{font-size:15px; font-weight:700;}
@@ -105,14 +113,14 @@
 <div class="phone">
   <div class="header">
     <a href="NEXUS-App-v1.html" class="menu-btn">☰ Menu</a>
-    <div class="eyebrow">NEXUS · CARBURANTS</div>
-    <div class="title">Relevé du jour</div>
+    <div class="eyebrow" id="eyebrowTitre">NEXUS · CARBURANTS</div>
+    <div class="title" id="titrePrincipal">Relevé du jour</div>
     <div class="horodateur-discret" id="horodateurDiscret">--</div>
     <div class="sub" id="sousTitre">Chargement…</div>
   </div>
   <div class="divider"></div>
 
-  <a href="NEXUS-Carburants-Pilotage-v1.html" style="display:block; margin:14px 20px 0; padding:11px 14px; border-radius:12px; background:rgba(79,195,217,0.08); border:1px solid rgba(79,195,217,0.25); color:var(--cyan); text-decoration:none; font-family:var(--mono); font-size:11.5px; font-weight:600; text-align:center;">📈 Voir Carburants Pilotage (volumes, mix, tendances)</a>
+  <a href="NEXUS-Carburants-Pilotage-v1.html" id="lienPilotage" style="display:block; margin:14px 20px 0; padding:11px 14px; border-radius:12px; background:rgba(79,195,217,0.08); border:1px solid rgba(79,195,217,0.25); color:var(--cyan); text-decoration:none; font-family:var(--mono); font-size:11.5px; font-weight:600; text-align:center;">📈 Voir Carburants Pilotage (volumes, mix, tendances)</a>
 
   <div class="section" id="content">
     <div class="loading">Chargement…</div>
@@ -150,8 +158,17 @@
 
   let SITE_ID = null; // jamais 'vito-sainte-marie' par defaut (de-Vito-isation, 11/08/2026) - toujours ecrase par employee.site_id apres nexusRequireAuth()
   let MANAGER_COURANT = null;
-  let DERNIER_RELEVE = null;   // dernier relevé RÉEL avant aujourd'hui (ancre du calcul théorique)
-  let RELEVE_AUJOURDHUI = null; // relevé déjà enregistré aujourd'hui, si le manager revient corriger
+  // Rattrapage (13/08/2026, demande de Frédéric : "ça fait 2-3 jours que le
+  // jaugeage n'a pas été indiqué") — cet écran n'est plus figé sur
+  // aujourd'hui. `DATE_CIBLE` vient de `?date=YYYY-MM-DD` (lien envoyé
+  // depuis Carburants Pilotage) et retombe sur aujourd'hui si absent/
+  // invalide/futur — comportement strictement identique à avant pour tout
+  // lien existant qui n'a jamais eu ce paramètre.
+  let DATE_CIBLE = null;
+  let EST_AUJOURDHUI = true;
+  let DERNIER_RELEVE = null;   // dernier relevé RÉEL avant DATE_CIBLE (ancre du calcul théorique)
+  let RELEVE_CIBLE = null;     // relevé déjà enregistré pour DATE_CIBLE, si le manager revient corriger
+  let PROCHAIN_RELEVE = null;  // relevé RÉEL le plus proche APRÈS DATE_CIBLE (rattrapage seulement — jamais recalculé, juste informatif)
   let VENTES_DEPUIS = { go: null, sp95: null, gnr: null };
   let ENREGISTREMENT_EN_COURS = false;
 
@@ -187,11 +204,34 @@
   function fmtL(v) {
     return v == null ? '—' : `${Math.round(v).toLocaleString('fr-FR')} L`;
   }
+  // Date de rattrapage demandée dans l'URL (lien envoyé par Carburants
+  // Pilotage) — validée strictement (format + jamais dans le futur, saisir
+  // un jaugeage qui n'a pas encore eu lieu n'a pas de sens) avant d'être
+  // utilisée. Toute valeur absente/invalide retombe silencieusement sur
+  // aujourd'hui, jamais une erreur qui bloquerait l'écran.
+  function dateCibleDepuisURL() {
+    try {
+      const p = new URLSearchParams(window.location.search).get('date');
+      if (p && /^\d{4}-\d{2}-\d{2}$/.test(p) && p <= todayISO()) return p;
+    } catch (e) {}
+    return null;
+  }
 
   async function chargerDernierReleve(siteId, avantDateExclusive) {
     const { data, error } = await nexusClient.from('carburant_releves').select('*')
       .eq('site', siteId).lt('date', avantDateExclusive).order('date', { ascending: false }).limit(1).maybeSingle();
     if (error) { console.error('Chargement dernier relevé carburant:', error); return null; }
+    return data;
+  }
+  // Relevé RÉEL le plus proche APRÈS une date donnée — utilisé uniquement
+  // en mode rattrapage, pour informer le manager qu'un jour plus récent est
+  // déjà rempli (jamais modifié ni recalculé par cette page : la formule du
+  // moteur se recale d'elle-même sur le relevé le plus proche en amont à
+  // chaque calcul, voir nexus-carburant-moteur.js).
+  async function chargerProchainReleve(siteId, apresDateExclusive) {
+    const { data, error } = await nexusClient.from('carburant_releves').select('date')
+      .eq('site', siteId).gt('date', apresDateExclusive).order('date', { ascending: true }).limit(1).maybeSingle();
+    if (error) { console.error('Chargement prochain relevé carburant:', error); return null; }
     return data;
   }
   async function chargerReleveDuJour(siteId, date) {
@@ -246,27 +286,48 @@
 
   function render() {
     const content = document.getElementById('content');
-    document.getElementById('sousTitre').textContent = RELEVE_AUJOURDHUI
-      ? "Relevé déjà enregistré aujourd'hui — vous pouvez le corriger ci-dessous."
-      : "Jaugeage à l'ouverture — les ventes de la veille sont déjà reprises depuis NEXUS Verify, rien à ressaisir.";
+    const dateTxt = formaterDateFr(DATE_CIBLE);
+    if (EST_AUJOURDHUI) {
+      document.getElementById('sousTitre').textContent = RELEVE_CIBLE
+        ? "Relevé déjà enregistré aujourd'hui — vous pouvez le corriger ci-dessous."
+        : "Jaugeage à l'ouverture — les ventes de la veille sont déjà reprises depuis NEXUS Verify, rien à ressaisir.";
+    } else {
+      document.getElementById('sousTitre').textContent = RELEVE_CIBLE
+        ? `Relevé du ${dateTxt} déjà enregistré — vous pouvez le corriger ci-dessous.`
+        : `Vous complétez un jour passé — les ventes de la période concernée sont déjà reprises depuis NEXUS Verify, rien à ressaisir.`;
+    }
+
+    // Bannière de rattrapage (13/08/2026) — visible uniquement quand
+    // DATE_CIBLE n'est pas aujourd'hui : pose le contexte avant les
+    // champs de saisie (jamais une page qui ressemble à s'y méprendre au
+    // relevé du jour, ce qui serait une source d'erreur — saisir le
+    // jaugeage d'hier dans la case d'aujourd'hui par inattention).
+    const banniereRattrapage = !EST_AUJOURDHUI ? `
+      <div class="rattrapage-banniere">
+        <span class="rattrapage-banniere-icon">⏱</span>
+        <div>
+          <div class="rattrapage-banniere-titre">Rattrapage — ${dateTxt}</div>
+          <div class="rattrapage-banniere-texte">Ce relevé sera enregistré à cette date précise, pas à aujourd'hui. Les écarts des jours suivants se recalculent automatiquement dès l'enregistrement.${PROCHAIN_RELEVE ? ` Un relevé plus récent existe déjà (${formaterDateFr(PROCHAIN_RELEVE.date)}) — il n'est pas modifié par cette saisie.` : ''}</div>
+        </div>
+      </div>` : '';
 
     const blocs = CARBURANTS.map(carb => {
       const ventesTxt = VENTES_DEPUIS[carb.cle] != null
         ? `<div class="ventes-banner"><b>${Math.round(VENTES_DEPUIS[carb.cle]).toLocaleString('fr-FR')} L</b> vendus depuis le dernier relevé (${formaterDateFr(DERNIER_RELEVE ? DERNIER_RELEVE.date : null)}) — déjà repris depuis NEXUS Verify, aucune saisie nécessaire.</div>`
-        : `<div class="ventes-banner vide">${DERNIER_RELEVE ? "Ventes non disponibles pour cette période (litrage non saisi dans Verify sur au moins un quart) — théorique non calculable." : "Premier relevé enregistré pour ce site — pas encore de comparaison possible, seul le stock réel sera mémorisé aujourd'hui."}</div>`;
+        : `<div class="ventes-banner vide">${DERNIER_RELEVE ? "Ventes non disponibles pour cette période (litrage non saisi dans Verify sur au moins un quart) — théorique non calculable." : `Premier relevé enregistré pour ce site — pas encore de comparaison possible, seul le stock réel sera mémorisé${EST_AUJOURDHUI ? " aujourd'hui" : ` pour le ${dateTxt}`}.`}</div>`;
 
       const champsReel = carb.cle === 'go'
         ? `<div class="champ-row">
             <div class="champ-input-wrap">
-              <input type="text" inputmode="decimal" class="champ-input" id="champ_go_cuve1" placeholder="0" value="${RELEVE_AUJOURDHUI && RELEVE_AUJOURDHUI.stock_reel_go_cuve1 != null ? String(RELEVE_AUJOURDHUI.stock_reel_go_cuve1) : ''}">
+              <input type="text" inputmode="decimal" class="champ-input" id="champ_go_cuve1" placeholder="0" value="${RELEVE_CIBLE && RELEVE_CIBLE.stock_reel_go_cuve1 != null ? String(RELEVE_CIBLE.stock_reel_go_cuve1) : ''}">
               <div class="champ-input-sub">Cuve 20 000 L (1)</div>
             </div>
             <div class="champ-input-wrap">
-              <input type="text" inputmode="decimal" class="champ-input" id="champ_go_cuve2" placeholder="0" value="${RELEVE_AUJOURDHUI && RELEVE_AUJOURDHUI.stock_reel_go_cuve2 != null ? String(RELEVE_AUJOURDHUI.stock_reel_go_cuve2) : ''}">
+              <input type="text" inputmode="decimal" class="champ-input" id="champ_go_cuve2" placeholder="0" value="${RELEVE_CIBLE && RELEVE_CIBLE.stock_reel_go_cuve2 != null ? String(RELEVE_CIBLE.stock_reel_go_cuve2) : ''}">
               <div class="champ-input-sub">Cuve 10 000 L (2)</div>
             </div>
           </div>`
-        : `<input type="text" inputmode="decimal" class="champ-input" id="champ_${carb.cle}" placeholder="0" value="${RELEVE_AUJOURDHUI && RELEVE_AUJOURDHUI[`stock_reel_${carb.cle}`] != null ? String(RELEVE_AUJOURDHUI[`stock_reel_${carb.cle}`]) : ''}">`;
+        : `<input type="text" inputmode="decimal" class="champ-input" id="champ_${carb.cle}" placeholder="0" value="${RELEVE_CIBLE && RELEVE_CIBLE[`stock_reel_${carb.cle}`] != null ? String(RELEVE_CIBLE[`stock_reel_${carb.cle}`]) : ''}">`;
 
       return `
         <div class="carb-card">
@@ -276,20 +337,28 @@
           ${champsReel}
           ${ventesTxt}
           <div class="champ-label">Livraison depuis le dernier relevé (optionnel) — litres</div>
-          <input type="text" inputmode="decimal" class="champ-input" id="champ_${carb.cle}_livraison" placeholder="0" value="${RELEVE_AUJOURDHUI && RELEVE_AUJOURDHUI[`livraison_${carb.cle}`] ? String(RELEVE_AUJOURDHUI[`livraison_${carb.cle}`]) : ''}">
+          <input type="text" inputmode="decimal" class="champ-input" id="champ_${carb.cle}_livraison" placeholder="0" value="${RELEVE_CIBLE && RELEVE_CIBLE[`livraison_${carb.cle}`] ? String(RELEVE_CIBLE[`livraison_${carb.cle}`]) : ''}">
           <div class="champ-label">Mouvement exceptionnel (optionnel) — litres, + ou -</div>
-          <input type="text" inputmode="decimal" class="champ-input" id="champ_${carb.cle}_mouvement" placeholder="0" value="${RELEVE_AUJOURDHUI && RELEVE_AUJOURDHUI[`mouvement_${carb.cle}`] ? String(RELEVE_AUJOURDHUI[`mouvement_${carb.cle}`]) : ''}">
+          <input type="text" inputmode="decimal" class="champ-input" id="champ_${carb.cle}_mouvement" placeholder="0" value="${RELEVE_CIBLE && RELEVE_CIBLE[`mouvement_${carb.cle}`] ? String(RELEVE_CIBLE[`mouvement_${carb.cle}`]) : ''}">
           <div class="resultat-panel" id="resultat_${carb.cle}"></div>
         </div>`;
     }).join('');
 
+    const noteTxt = EST_AUJOURDHUI
+      ? "La date, le litrage vendu et les employés du quart ne se saisissent jamais ici — ils viennent déjà de NEXUS Verify. Cet écran ne capture que ce qui n'existe nulle part ailleurs."
+      : "Le litrage vendu et les employés du quart ne se saisissent jamais ici — ils viennent déjà de NEXUS Verify pour la période concernée. Cet écran ne capture que ce qui n'existe nulle part ailleurs.";
+    const libelleBouton = RELEVE_CIBLE
+      ? `Mettre à jour le relevé${EST_AUJOURDHUI ? '' : ` du ${dateTxt}`}`
+      : (EST_AUJOURDHUI ? 'Enregistrer le relevé du jour' : `Enregistrer le relevé du ${dateTxt}`);
+
     content.innerHTML = `
-      <div class="note">La date, le litrage vendu et les employés du quart ne se saisissent jamais ici — ils viennent déjà de NEXUS Verify. Cet écran ne capture que ce qui n'existe nulle part ailleurs.</div>
+      ${banniereRattrapage}
+      <div class="note">${noteTxt}</div>
       <div class="desktop-grid">${blocs}</div>
       <div class="champ-label" style="margin-top:0;">Commentaire (optionnel)</div>
-      <textarea class="champ-motif" id="champCommentaire" rows="2" placeholder="Motif d'un mouvement exceptionnel, remarque…">${RELEVE_AUJOURDHUI && RELEVE_AUJOURDHUI.commentaire ? RELEVE_AUJOURDHUI.commentaire : ''}</textarea>
-      <button class="btn-enregistrer" id="btnEnregistrer" style="margin-top:16px;">${RELEVE_AUJOURDHUI ? 'Mettre à jour le relevé' : 'Enregistrer le relevé du jour'}</button>
-      <div class="confirmation" id="confirmation">✓ Relevé enregistré.</div>
+      <textarea class="champ-motif" id="champCommentaire" rows="2" placeholder="Motif d'un mouvement exceptionnel, remarque…">${RELEVE_CIBLE && RELEVE_CIBLE.commentaire ? RELEVE_CIBLE.commentaire : ''}</textarea>
+      <button class="btn-enregistrer" id="btnEnregistrer" style="margin-top:16px;">${libelleBouton}</button>
+      <div class="confirmation" id="confirmation">✓ Relevé${EST_AUJOURDHUI ? '' : ` du ${dateTxt}`} enregistré.</div>
     `;
 
     document.querySelectorAll('#content input').forEach(el => el.addEventListener('input', recalculerTout));
@@ -304,9 +373,8 @@
     btn.disabled = true;
     btn.textContent = 'Enregistrement…';
 
-    const dateJour = todayISO();
     const ligne = {
-      site: SITE_ID, date: dateJour,
+      site: SITE_ID, date: DATE_CIBLE,
       stock_reel_go_cuve1: valeurChamp('champ_go_cuve1'),
       stock_reel_go_cuve2: valeurChamp('champ_go_cuve2'),
       stock_reel_sp95: valeurChamp('champ_sp95'),
@@ -328,12 +396,15 @@
     btn.disabled = false;
     if (error) {
       console.error('Enregistrement relevé carburant:', error);
-      btn.textContent = RELEVE_AUJOURDHUI ? 'Mettre à jour le relevé' : 'Enregistrer le relevé du jour';
+      const dateTxt = formaterDateFr(DATE_CIBLE);
+      btn.textContent = RELEVE_CIBLE
+        ? `Mettre à jour le relevé${EST_AUJOURDHUI ? '' : ` du ${dateTxt}`}`
+        : (EST_AUJOURDHUI ? 'Enregistrer le relevé du jour' : `Enregistrer le relevé du ${dateTxt}`);
       alert("Erreur d'enregistrement — réessayez.");
       return;
     }
-    RELEVE_AUJOURDHUI = data;
-    btn.textContent = 'Mettre à jour le relevé';
+    RELEVE_CIBLE = data;
+    btn.textContent = `Mettre à jour le relevé${EST_AUJOURDHUI ? '' : ` du ${formaterDateFr(DATE_CIBLE)}`}`;
     const conf = document.getElementById('confirmation');
     conf.classList.add('visible');
     setTimeout(() => conf.classList.remove('visible'), 3000);
@@ -350,14 +421,31 @@
     }
     MANAGER_COURANT = employee;
     SITE_ID = employee.site_id;
-    const dateJour = todayISO();
-    document.getElementById('horodateurDiscret').textContent = `Aujourd'hui — ${formaterDateFr(dateJour)}`;
 
-    [RELEVE_AUJOURDHUI, DERNIER_RELEVE] = await Promise.all([
-      chargerReleveDuJour(SITE_ID, dateJour),
-      chargerDernierReleve(SITE_ID, dateJour),
+    DATE_CIBLE = dateCibleDepuisURL() || todayISO();
+    EST_AUJOURDHUI = DATE_CIBLE === todayISO();
+
+    const eyebrowEl = document.getElementById('eyebrowTitre');
+    const titreEl = document.getElementById('titrePrincipal');
+    const lienPilotageEl = document.getElementById('lienPilotage');
+    if (EST_AUJOURDHUI) {
+      eyebrowEl.textContent = 'NEXUS · CARBURANTS';
+      titreEl.textContent = 'Relevé du jour';
+      document.getElementById('horodateurDiscret').textContent = `Aujourd'hui — ${formaterDateFr(DATE_CIBLE)}`;
+    } else {
+      eyebrowEl.textContent = 'NEXUS · CARBURANTS · RATTRAPAGE';
+      eyebrowEl.style.color = 'var(--amber)';
+      titreEl.textContent = 'Rattrapage du jaugeage';
+      document.getElementById('horodateurDiscret').textContent = `Jour choisi — ${formaterDateFr(DATE_CIBLE)}`;
+      if (lienPilotageEl) lienPilotageEl.textContent = '← Retour à Carburants Pilotage';
+    }
+
+    [RELEVE_CIBLE, DERNIER_RELEVE, PROCHAIN_RELEVE] = await Promise.all([
+      chargerReleveDuJour(SITE_ID, DATE_CIBLE),
+      chargerDernierReleve(SITE_ID, DATE_CIBLE),
+      EST_AUJOURDHUI ? Promise.resolve(null) : chargerProchainReleve(SITE_ID, DATE_CIBLE),
     ]);
-    VENTES_DEPUIS = await chargerVentesDepuisDernierReleve(SITE_ID, DERNIER_RELEVE ? DERNIER_RELEVE.date : null, dateJour);
+    VENTES_DEPUIS = await chargerVentesDepuisDernierReleve(SITE_ID, DERNIER_RELEVE ? DERNIER_RELEVE.date : null, DATE_CIBLE);
 
     render();
   });
