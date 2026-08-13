@@ -388,16 +388,26 @@
   // une fausse précision tant que la conversion tickets/carnet n'est pas
   // garantie sans reste (carnet entamé). Retourne { [game_id]:
   // approNonTraceTickets } — uniquement les jeux réellement concernés.
-  function approNonTraceParJeu(shiftCounts, mouvements) {
+  // 13/08/2026 (v2, redesign écran État du stock) : extrait de
+  // approNonTraceParJeu pour exposer aussi le détail ligne par ligne (quels
+  // quarts précis sont non tracés, pas seulement le total par jeu) — utile
+  // pour afficher "quart(s) concernés" dans le détail dépliable de l'écran,
+  // sans dupliquer la logique de détection (Article 11). Retourne les
+  // lignes `shiftCounts` filtrées, telles quelles (shift_id, game_id, appro).
+  function lignesApproNonTracees(shiftCounts, mouvements) {
     const couverts = new Set();
     (mouvements || []).forEach(m => {
       if (m.type_mouvement === 'activation' && m.shift_id) couverts.add(`${m.shift_id}|${m.game_id}`);
     });
+    return (shiftCounts || []).filter(c => {
+      if (!c.appro || Number(c.appro) <= 0) return false;
+      return !couverts.has(`${c.shift_id}|${c.game_id}`);
+    });
+  }
+
+  function approNonTraceParJeu(shiftCounts, mouvements) {
     const total = {};
-    (shiftCounts || []).forEach(c => {
-      if (!c.appro || Number(c.appro) <= 0) return;
-      const cle = `${c.shift_id}|${c.game_id}`;
-      if (couverts.has(cle)) return;
+    lignesApproNonTracees(shiftCounts, mouvements).forEach(c => {
       total[c.game_id] = (total[c.game_id] || 0) + Number(c.appro);
     });
     return total;
@@ -408,6 +418,6 @@
     soldesCarnetsParJeu, soldeCarnetsJeu, soldesCarnetsAvecReference,
     calculerCandidatsFdj,
     quartPrecedentAttendu, quartSuivant, chaineContinuite,
-    approNonTraceParJeu,
+    approNonTraceParJeu, lignesApproNonTracees,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

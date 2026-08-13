@@ -95,5 +95,29 @@ const SHIFT_13Q1 = 'shift-13-q1'; // quart live normal, avec mouvement
   assertEqual(r, { [CASH]: 10 }, 'un mouvement sans shift_id ne couvre aucun quart précis (évite un faux rapprochement)');
 }
 
+// --- 13/08/2026 (v2, refonte écran État du stock) : lignesApproNonTracees
+// expose maintenant le détail ligne par ligne (pas seulement le total), pour
+// afficher "quart(s) concerné(s)" dans le détail dépliable — même détection
+// que approNonTraceParJeu (Article 11), juste consommée à un niveau plus fin. ---
+{
+  const shiftCounts = [
+    { shift_id: SHIFT_11Q1, game_id: CASH, appro: 10 },
+    { shift_id: SHIFT_11Q2, game_id: CASH, appro: 10 },
+    { shift_id: SHIFT_13Q1, game_id: CASH, appro: 5 },
+  ];
+  const mouvements = [{ shift_id: SHIFT_13Q1, game_id: CASH, type_mouvement: 'activation' }];
+  const lignes = M.lignesApproNonTracees(shiftCounts, mouvements);
+  assertEqual(lignes, [
+    { shift_id: SHIFT_11Q1, game_id: CASH, appro: 10 },
+    { shift_id: SHIFT_11Q2, game_id: CASH, appro: 10 },
+  ], 'lignesApproNonTracees renvoie les lignes brutes non couvertes (shift_id inclus), pas seulement un total par jeu');
+
+  // approNonTraceParJeu doit rester la somme exacte de ces lignes — une
+  // seule vérité, jamais deux calculs qui pourraient diverger.
+  const total = M.approNonTraceParJeu(shiftCounts, mouvements);
+  const sommeLignes = lignes.filter(l => l.game_id === CASH).reduce((s, l) => s + l.appro, 0);
+  assertEqual(total[CASH], sommeLignes, 'approNonTraceParJeu(...) === somme des lignes de lignesApproNonTracees(...) pour le même jeu');
+}
+
 console.log(`${passed} test(s) réussi(s), ${failed} échec(s).`);
 process.exit(failed ? 1 : 0);
