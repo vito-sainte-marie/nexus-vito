@@ -316,7 +316,14 @@
       const { data: creee, error: erreurInsert } = await nexusClient.from('invoices').insert({
         billing_period_id: periodeId, client_id: clientId, fichier_path: chemin, fichier_hash: hash,
         siret_detecte: siret, email_detecte: email, methode_identification: methode,
-        confiance_identification: confiance, statut: clientId ? 'a_traiter' : 'client_a_confirmer',
+        // 13/08/2026 — même famille de bug que billing_periods.statut ci-dessus :
+        // 'a_traiter'/'client_a_confirmer' ne sont pas dans la contrainte CHECK
+        // d'invoices.statut (seules 'importee'/'identifiee'/'a_verifier'/'rapprochee'/
+        // 'prete'/'envoyee'/'bloquee' sont acceptées) — chaque facture à texte natif
+        // échouait donc aussi en 400, silencieusement. 'identifiee' (client trouvé
+        // automatiquement) / 'a_verifier' (client à confirmer manuellement) sont les
+        // valeurs autorisées les plus proches de l'intention d'origine.
+        confiance_identification: confiance, statut: clientId ? 'identifiee' : 'a_verifier',
       }).select('id').single();
       if (erreurInsert) { console.error('Insertion facture:', erreurInsert); return { ok: false, nom: file.name, raison: "Échec de l'enregistrement" }; }
 
@@ -335,7 +342,12 @@
     if (erreurFile) { console.error('Mise en file OCR:', erreurFile); return { ok: false, nom: file.name, raison: 'Échec de la mise en file OCR' }; }
 
     const { error: erreurDoc } = await nexusClient.from('supporting_documents').insert({
-      client_id: null, billing_period_id: periodeId, type_document: 'bon_livraison',
+      // 13/08/2026 — 3e bug de la même famille trouvé en cascade : la contrainte CHECK
+      // de supporting_documents.type_document n'accepte que 'bon'/'facture'/'autre'
+      // (jamais 'bon_livraison', qui reste correct côté documents_ocr_file — cette
+      // colonne-là n'a pas de contrainte). Chaque bon échouait donc encore en 400
+      // même une fois billing_periods corrigé.
+      client_id: null, billing_period_id: periodeId, type_document: 'bon',
       fichier_path: chemin, fichier_hash: hash, statut_extraction: 'en_attente', documents_ocr_file_id: fileOcr.id,
     });
     if (erreurDoc) { console.error('Insertion bon:', erreurDoc); return { ok: false, nom: file.name, raison: "Échec de l'enregistrement" }; }
@@ -370,7 +382,7 @@
   async function changerClientDocument(type, id, nouveauClientId) {
     const table = type === 'facture' ? 'invoices' : 'supporting_documents';
     const payload = { client_id: nouveauClientId || null };
-    if (type === 'facture') payload.statut = nouveauClientId ? 'a_traiter' : 'client_a_confirmer';
+    if (type === 'facture') payload.statut = nouveauClientId ? 'identifiee' : 'a_verifier';
     const { error } = await nexusClient.from(table).update(payload).eq('id', id);
     if (error) { console.error('Changement de client:', error); return; }
     await nexusClient.from('client_comptes_audit_logs').insert({
