@@ -105,9 +105,22 @@ def _detecter_client(sb, site: str, siret: str | None, email: str | None):
     return None, "manuel", None
 
 
-def _periode_courante_id(sb, site: str) -> str | None:
+def _periode_document_id(sb, site: str) -> str | None:
+    """13/08/2026, révisé deux fois. Premier correctif : détecter le mois
+    dans le texte/nom de fichier (bug réel : "..._juillet_2026.pdf" envoyée
+    le 13 août était rattachée à "août"). Frédéric a ensuite tranché la
+    règle réelle, plus simple et fiable que toute détection : "le mois -1
+    par rapport à la date d'aujourd'hui donc juillet pour août, août pour
+    septembre" (13/08/2026) — un document déposé est TOUJOURS rattaché au
+    mois calendaire PRÉCÉDENT, jamais au mois du dépôt ni à un mois deviné
+    dans le contenu. Miroir exact de periodeDocumentId()
+    (NEXUS-Boite-Reception-v1.html)."""
     aujourdhui = date.today()
-    mois, annee = aujourdhui.month, aujourdhui.year
+    mois = aujourdhui.month - 1
+    annee = aujourdhui.year
+    if mois == 0:
+        mois = 12
+        annee -= 1
     existante = sb.table("billing_periods").select("id").eq("site", site).eq("mois", mois).eq("annee", annee).maybe_single().execute()
     if existante.data:
         return existante.data["id"]
@@ -153,14 +166,21 @@ def _traiter_un_fichier(sb, site: str, bucket: str, chemin: Path) -> bool:
         siret = siret_match.group(0) if siret_match else None
         email = email_match.group(0) if email_match else None
         client_id, methode, confiance = _detecter_client(sb, site, siret, email)
-        periode_id = _periode_courante_id(sb, site)
+        periode_id = _periode_document_id(sb, site)
 
         try:
             sb.table("invoices").insert({
                 "billing_period_id": periode_id, "client_id": client_id, "fichier_path": chemin_storage,
                 "fichier_hash": fichier_hash, "siret_detecte": siret, "email_detecte": email,
                 "methode_identification": methode, "confiance_identification": confiance,
-                "statut": "a_traiter" if client_id else "client_a_confirmer",
+                # 13/08/2026 — ce chemin (dossier surveillé) n'avait jamais reçu le
+                # correctif appliqué côté NEXUS-Boite-Reception-v1.html le même jour :
+                # 'a_traiter'/'client_a_confirmer' violent la contrainte CHECK
+                # d'invoices.statut (seules 'importee'/'identifiee'/'a_verifier'/
+                # 'rapprochee'/'prete'/'envoyee'/'bloquee' sont acceptées) — chaque
+                # dépôt via le dossier surveillé échouait donc silencieusement en
+                # base depuis l'origine de ce correctif côté navigateur.
+                "statut": "identifiee" if client_id else "a_verifier",
             }).execute()
         except Exception:
             logger.exception("Échec insertion facture (dossier surveillé) pour %s", chemin.name)
@@ -173,13 +193,18 @@ def _traiter_un_fichier(sb, site: str, bucket: str, chemin: Path) -> bool:
     if not _uploader(sb, bucket, chemin_storage, contenu, content_type):
         return False
 
-    periode_id = _periode_courante_id(sb, site)
+    periode_id = _periode_document_id(sb, site)
     try:
         file_ocr = sb.table("documents_ocr_file").insert({
             "site": site, "fichier_path": chemin_storage, "type_document": "bon_livraison", "depose_par": None,
         }).select("id").single().execute()
         sb.table("supporting_documents").insert({
-            "client_id": None, "billing_period_id": periode_id, "type_document": "bon_livraison",
+            # 13/08/2026 — même correctif que ci-dessus : la contrainte CHECK de
+            # supporting_documents.type_document n'accepte que 'bon'/'facture'/'autre'
+            # (jamais 'bon_livraison', qui reste correct pour documents_ocr_file
+            # ci-dessus — cette colonne-là n'a pas de contrainte, voir le même
+            # commentaire côté NEXUS-Boite-Reception-v1.html).
+            "client_id": None, "billing_period_id": periode_id, "type_document": "bon",
             "fichier_path": chemin_storage, "fichier_hash": fichier_hash, "statut_extraction": "en_attente",
             "documents_ocr_file_id": file_ocr.data["id"],
         }).execute()

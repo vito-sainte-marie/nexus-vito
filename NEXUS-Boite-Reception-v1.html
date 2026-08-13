@@ -180,13 +180,22 @@
     clientsListe = data || [];
   }
 
-  // Période de facturation courante (07/08/2026) : chaque document déposé
-  // est rattaché au mois calendaire en cours — get-or-create, jamais de
-  // doublon (une ligne par site/mois/année).
-  async function periodeCouranteId() {
+  // Période de facturation du document (07/08/2026, révisé le 13/08/2026 —
+  // deux fois). Premier correctif : détecter le mois dans le texte/nom de
+  // fichier (bug réel trouvé par Frédéric — une facture de juillet déposée le
+  // 13 août était rattachée à "août"). Frédéric a ensuite tranché la règle
+  // réelle, plus simple et plus fiable que toute détection : "le mois -1 par
+  // rapport à la date d'aujourd'hui donc juillet pour août, août pour
+  // septembre" (13/08/2026) — un document déposé est TOUJOURS rattaché au
+  // mois CALENDAIRE PRÉCÉDENT, jamais au mois du dépôt ni à un mois deviné
+  // dans le contenu. Remplace la tentative de détection par un calcul
+  // calendaire pur, sans exception (get-or-create, toujours une seule ligne
+  // par site/mois/année).
+  async function periodeDocumentId() {
     const maintenant = new Date();
-    const mois = maintenant.getMonth() + 1;
-    const annee = maintenant.getFullYear();
+    let mois = maintenant.getMonth(); // déjà le mois précédent en 1-indexé (ex: août réel → getMonth()=7 → 7 = juillet)
+    let annee = maintenant.getFullYear();
+    if (mois === 0) { mois = 12; annee -= 1; } // janvier → décembre de l'année précédente
     const { data: existante } = await nexusClient.from('billing_periods').select('id').eq('site', siteId).eq('mois', mois).eq('annee', annee).maybeSingle();
     if (existante) return existante.id;
     // 13/08/2026 — bug réel trouvé en conditions réelles (Frédéric : 11 documents déposés,
@@ -311,7 +320,7 @@
       const siret = siretMatch ? siretMatch[0] : null;
       const email = emailMatch ? emailMatch[0] : null;
       const { clientId, methode, confiance } = await detecterClient(siret, email);
-      const periodeId = await periodeCouranteId();
+      const periodeId = await periodeDocumentId();
 
       const { data: creee, error: erreurInsert } = await nexusClient.from('invoices').insert({
         billing_period_id: periodeId, client_id: clientId, fichier_path: chemin, fichier_hash: hash,
@@ -335,7 +344,7 @@
     const { error: erreurUpload } = await nexusClient.storage.from(BUCKET).upload(chemin, file, { contentType: file.type || 'application/octet-stream' });
     if (erreurUpload) { console.error('Upload bon:', erreurUpload); return { ok: false, nom: file.name, raison: "Échec de l'envoi" }; }
 
-    const periodeId = await periodeCouranteId();
+    const periodeId = await periodeDocumentId();
     const { data: fileOcr, error: erreurFile } = await nexusClient.from('documents_ocr_file').insert({
       site: siteId, fichier_path: chemin, type_document: 'bon_livraison', depose_par: employeeCourant.id,
     }).select('id').single();

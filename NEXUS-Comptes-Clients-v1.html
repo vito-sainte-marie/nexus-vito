@@ -82,6 +82,10 @@
   .cc-statut.st-orange{background:var(--amber-dim); color:var(--amber);}
   .cc-statut.st-rouge{background:var(--red-dim); color:var(--red);}
   .cc-statut.st-gris{background:var(--panel-raised); color:var(--text-mid);}
+  .cc-badges-row{margin-top:8px; display:flex; flex-wrap:wrap; gap:6px;}
+  .cc-badge-facture{display:inline-flex; align-items:center; gap:5px; font-family:var(--mono); font-size:9.5px; font-weight:700; padding:4px 9px; border-radius:12px; white-space:nowrap;}
+  .cc-badge-facture.bf-orange{background:var(--amber-dim); color:var(--amber);}
+  .cc-badge-facture.bf-vert{background:var(--green-dim); color:var(--green);}
   .cc-contact{font-size:12.5px; color:var(--text-mid); margin-top:10px;}
   .cc-email{font-family:var(--mono); font-size:11px; color:var(--text-dim); margin-top:2px;}
   .cc-ligne{font-size:12px; color:var(--text-mid); margin-top:6px; display:flex; align-items:center; gap:6px;}
@@ -280,12 +284,26 @@
     if (p && p.facture_envoi_email && (!c.contact || !c.contact.email_principal)) {
       return { couleur: 'orange', icone: '!', libelle: 'E-mail manquant' };
     }
-    // Import (07/08/2026) : un client dont le mode de facturation ou les
-    // bons restent "à confirmer" dans le fichier source est signalé ici —
-    // NEXUS ne devine jamais ce que le fichier lui-même laisse en
-    // attente, mais ne le cache pas non plus au manager.
-    if (p && p.preferences_particulieres && /à confirmer/i.test(p.preferences_particulieres)) {
-      return { couleur: 'orange', icone: '!', libelle: 'Configuration à confirmer' };
+    // 13/08/2026 — CORRECTIF RÉEL (Frédéric : "j'ai Configuration à confirmer
+    // alors que c'est déjà fait pour tous les comptes"). L'ancienne version
+    // lisait preferences_particulieres, une note texte écrite UNE SEULE FOIS
+    // au moment de l'import (07/08/2026) pour signaler ce qui restait à
+    // vérifier À CE MOMENT-LÀ — jamais mise à jour depuis. Vérifié par SQL
+    // direct : 18 des 24 clients actifs ont déjà canal ET bons renseignés en
+    // base (ex. ADGS, Alexandre, Clio…) alors que leur note d'import contient
+    // toujours "à confirmer", ce qui déclenchait ce badge à tort pour eux.
+    // On vérifie maintenant la vraie donnée structurée plutôt que ce texte
+    // figé : un compte est "à confirmer" seulement si le canal de facture OU
+    // le choix des bons n'a jamais été renseigné (valeur NULL — jamais
+    // 'false', qui est une réponse déjà donnée, ex. "sans bons"/"compte
+    // interne" côté Bonyc Fuel Distribution).
+    if (p) {
+      const renseigne = v => v !== null && v !== undefined;
+      const canalResolu = renseigne(p.facture_envoi_email) && renseigne(p.facture_remise_main_propre);
+      const bonsResolu = renseigne(p.bons_joindre_email) && renseigne(p.bons_remise_main_propre) && renseigne(p.bons_ne_pas_envoyer);
+      if (!canalResolu || !bonsResolu) {
+        return { couleur: 'orange', icone: '!', libelle: 'Configuration à confirmer' };
+      }
     }
     if (!c.contact) {
       return { couleur: 'orange', icone: '!', libelle: 'Aucun interlocuteur renseigné' };
@@ -305,12 +323,24 @@
     return parts.length ? parts.join(' + ') : 'Non paramétré';
   }
 
+  // 13/08/2026, demande de Frédéric : "voir ce qu'il me reste à envoyer, ce
+  // qui a été envoyé" — maintenant que l'envoi réel existe (statut 'envoyee'
+  // sur invoices, chargé par facture dans chargerClients()), on peut
+  // distinguer les deux sans rien inventer : une facture est soit 'envoyee',
+  // soit pas encore (peu importe son statut exact parmi identifiee/a_verifier/
+  // bloquee — toutes comptent comme "à envoyer" tant que l'e-mail n'est pas
+  // parti).
+  function facturesEnAttente(c) { return (c.factures || []).filter(f => f.statut !== 'envoyee'); }
+  function facturesEnvoyeesListe(c) { return (c.factures || []).filter(f => f.statut === 'envoyee'); }
+
   function calculerKpis() {
     const enCompte = clientsListe.filter(c => c.actif).length;
-    // Les 5 KPI suivants dépendent de la facturation mensuelle et du
-    // rapprochement (Phase 2, pas encore implémentés) — ils restent à 0
-    // tant qu'aucune donnée réelle ne les alimente.
-    return { enCompte, aEnvoyer: 0, prets: 0, aControler: 0, remisMainPropre: 0, anomalies: 0 };
+    const aEnvoyer = clientsListe.filter(c => c.actif && facturesEnAttente(c).length > 0).length;
+    // prets/aControler/remisMainPropre/anomalies dépendent de règles métier
+    // jamais spécifiées par Frédéric (voir email_batches/email_messages, hors
+    // scope V1 de l'envoi) — ils restent à 0 tant qu'aucune donnée réelle ne
+    // les alimente. Seul "envoyé / pas envoyé" est une donnée réelle aujourd'hui.
+    return { enCompte, aEnvoyer, prets: 0, aControler: 0, remisMainPropre: 0, anomalies: 0 };
   }
 
   function clientsFiltres() {
@@ -325,10 +355,14 @@
     if (filtreActif === 'email') liste = liste.filter(c => c.preferences && c.preferences.facture_envoi_email);
     if (filtreActif === 'main_propre') liste = liste.filter(c => c.preferences && c.preferences.facture_remise_main_propre);
     if (filtreActif === 'documents_manquants') liste = liste.filter(c => determinerStatut(c).couleur === 'orange');
-    // 'a_envoyer', 'prets', 'anomalies', 'factures_envoyees' dépendent de
-    // la facturation (Phase 2) — sans données, ils renvoient une liste
-    // vide plutôt qu'une liste inventée.
-    if (['a_envoyer', 'prets', 'anomalies', 'factures_envoyees'].includes(filtreActif)) liste = [];
+    if (filtreActif === 'a_envoyer') liste = liste.filter(c => facturesEnAttente(c).length > 0);
+    // "Factures envoyées" = à jour : au moins une facture envoyée, et plus
+    // aucune en attente — distinct de 'a_envoyer' pour ne jamais compter un
+    // client dans les deux filtres à la fois.
+    if (filtreActif === 'factures_envoyees') liste = liste.filter(c => facturesEnvoyeesListe(c).length > 0 && facturesEnAttente(c).length === 0);
+    // 'prets' et 'anomalies' dépendent de règles métier jamais spécifiées
+    // (voir calculerKpis) — jamais une liste inventée.
+    if (['prets', 'anomalies'].includes(filtreActif)) liste = [];
     return liste;
   }
 
@@ -411,6 +445,18 @@
   function renderCarteClient(c) {
     const statut = determinerStatut(c);
     const contact = c.contact;
+    // Badge d'envoi (13/08/2026) : priorité à "reste à envoyer" (l'action
+    // encore à faire) — si tout est envoyé, on le confirme brièvement plutôt
+    // que de laisser la carte silencieuse. Rien affiché si le client n'a
+    // encore aucune facture (rien à signaler).
+    const enAttente = facturesEnAttente(c);
+    const envoyees = facturesEnvoyeesListe(c);
+    let badgeFacture = '';
+    if (enAttente.length > 0) {
+      badgeFacture = `<span class="cc-badge-facture bf-orange">📤 ${enAttente.length} facture${enAttente.length > 1 ? 's' : ''} à envoyer</span>`;
+    } else if (envoyees.length > 0) {
+      badgeFacture = `<span class="cc-badge-facture bf-vert">✅ Facture${envoyees.length > 1 ? 's' : ''} envoyée${envoyees.length > 1 ? 's' : ''}</span>`;
+    }
     return `
       <div class="carte-client st-${statut.couleur}" data-client="${c.id}">
         <div class="cc-head">
@@ -420,6 +466,7 @@
           </div>
           <span class="cc-statut st-${statut.couleur}">${statut.icone} ${statut.libelle}</span>
         </div>
+        ${badgeFacture ? `<div class="cc-badges-row">${badgeFacture}</div>` : ''}
         ${contact ? `
           <div class="cc-contact">${[contact.prenom, contact.nom].filter(Boolean).join(' ') || contact.fonction || '—'}</div>
           ${contact.email_principal ? `<div class="cc-email">${escHtml(contact.email_principal)}</div>` : ''}
