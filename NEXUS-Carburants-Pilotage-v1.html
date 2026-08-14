@@ -263,6 +263,15 @@
   const NOM_CARBURANT = { go: 'Gasoil (GO)', sp95: 'Sans plomb (SP95)', gnr: 'Gasoil non routier (GNR)' };
   const COURT_CARBURANT = { go: 'GO', sp95: 'SP95', gnr: 'GNR' };
   const COULEUR_CARBURANT = { go: 'var(--cyan)', sp95: 'var(--gold)', gnr: 'var(--amber)' };
+  // Couleur fixe par carburant pour le REMPLISSAGE des jauges de cuve
+  // (14/08/2026, demande de Frédéric : "GO jaune, SP vert, GNR rouge, je
+  // veux que la hauteur soit colorée") — volontairement distincte de
+  // COULEUR_STATUT : la couleur de la jauge identifie le carburant, le
+  // badge sous la jauge garde la couleur de statut (vert/orange/rouge
+  // sous-contrôle/à-surveiller/à-corriger). En hexadécimal (pas var())
+  // pour que le dégradé `${couleur}CC` (légère transparence en bas de
+  // jauge) reste une valeur CSS valide.
+  const COULEUR_JAUGE_CARBURANT = { go: '#F5D033', sp95: '#34D399', gnr: '#F0575A' };
   const COULEUR_STATUT = {
     'Sous contrôle': { c: 'var(--green)', f: 'var(--green-dim)' },
     'À surveiller': { c: 'var(--amber)', f: 'var(--amber-dim)' },
@@ -373,7 +382,7 @@
         <div class="carb-carte ${classeStatutCarte(r.statut)}" title="${detailCuves} — capacité ${capacite.toLocaleString('fr-FR')} L">
           <div class="carb-nom">${COURT_CARBURANT[cle]}</div>
           <div class="carb-jauge">
-            <div class="carb-jauge-remplissage" data-pct="${pctStock != null ? Math.round(pctStock * 100) : 0}" style="background:linear-gradient(180deg, ${couleur.c}, ${couleur.c}CC);"></div>
+            <div class="carb-jauge-remplissage" data-pct="${pctStock != null ? Math.round(pctStock * 100) : 0}" style="background:linear-gradient(180deg, ${COULEUR_JAUGE_CARBURANT[cle]}, ${COULEUR_JAUGE_CARBURANT[cle]}CC);"></div>
             ${pctTheo != null ? `<div class="carb-jauge-marqueur" style="bottom:${Math.round(pctTheo * 100)}%;"></div>` : ''}
           </div>
           <div class="carb-pct">${pctStock != null ? `${Math.round(pctStock * 100)} %` : '—'}</div>
