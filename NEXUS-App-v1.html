@@ -676,12 +676,21 @@
         <a class="pointage-mini-btn couleur-fdj" href="NEXUS-FDJ-v1.html">Compter le FDJ →</a>
       </div>
       <!-- Réception carburant — mini carte accueil employé (14/08/2026,
-           audit "Réceptions, deltas et effet économique du stock", P1) :
-           même mécanisme que Pointage/Inventaire/FDJ ci-dessus, toujours
-           visible (Carburants n'est pas un module Professional, ni
-           NEXUS-Carburants-v1.html ni NEXUS-Carburants-Pilotage-v1.html
-           n'incluent nexus-forfait.js — pas de gate ici non plus). -->
-      <div class="pointage-mini" id="receptionCarburantMini">
+           audit "Réceptions, deltas et effet économique du stock", P1 ;
+           réglage par site ajouté le même jour, demande de Frédéric :
+           "intègre dans les paramétrages qui parmi les employés ou/et
+           manager fait la réception du carburant"). Masquée par défaut
+           (display:none inline) : contrairement à Inventaire, cette
+           carte dépend maintenant de station_config.reception_carburant_
+           role — révélée uniquement si ce réglage vaut 'employe' (défaut)
+           ou 'les_deux' (voir chargerReceptionCarburantRoleSiteEtRevele
+           MiniEmploye plus bas). Aucun lien avec le forfait : Carburants
+           n'est pas un module Professional, pas de gate nexus-forfait.js
+           ici non plus. Quel que soit ce réglage, l'entrée reste de toute
+           façon trouvable par le manager via Explorer NEXUS et la
+           recherche (catalogue toujours complet, même logique
+           qu'Inventaire/Carburants Pilotage). -->
+      <div class="pointage-mini" id="receptionCarburantMini" style="display:none;">
         <div class="pointage-mini-texte">Livraison carburant : jaugeage et bon de livraison.</div>
         <a class="pointage-mini-btn couleur-reception" href="NEXUS-Carburant-Reception-v1.html">Réceptionner une livraison →</a>
       </div>
@@ -903,7 +912,12 @@
       <!-- Réception carburant (14/08/2026, audit "Réceptions, deltas et
            effet économique du stock", P1) : trouvable ici aussi pour le
            manager (Explorer NEXUS), en plus de la mini carte accueil
-           employé et de la recherche. -->
+           employé et de la recherche. Volontairement TOUJOURS visible
+           ici, quel que soit station_config.reception_carburant_role —
+           Explorer NEXUS reste le catalogue complet du manager (même
+           logique qu'Inventaire, Carburants Pilotage, etc.), pas une
+           liste filtrée par tâche assignée. Seule la mini-carte accueil
+           employé ci-dessus est conditionnée par ce réglage. -->
       <a class="nav-item" data-role="manager" href="NEXUS-Carburant-Reception-v1.html">
         <div class="nav-icon" style="display:flex; align-items:center; justify-content:center; font-size:20px;">🚚</div>
         <div class="nav-body">
@@ -1703,6 +1717,17 @@
     return !error && !!(data && data.manager_pointage_requis);
   }
 
+  // Réception carburant — qui la fait (14/08/2026, demande de Frédéric,
+  // voir migration-station-config-reception-carburant-role-v1.sql).
+  // Défaut 'employe' si la colonne est absente/nulle ou en cas d'erreur
+  // réseau : préserve le comportement déjà livré (mini-carte employé
+  // visible par défaut) plutôt que de tout masquer silencieusement.
+  async function chargerReceptionCarburantRole(siteId) {
+    const { data, error } = await nexusClient.from('station_config').select('reception_carburant_role').eq('site', siteId).maybeSingle();
+    if (error) { console.error('Chargement reception_carburant_role:', error); return 'employe'; }
+    return (data && data.reception_carburant_role) || 'employe';
+  }
+
   // Mini carte Pointage — accueil employé (28/07/2026, demande de Frédéric :
   // "il n'y a pas de boutons pointage cliquable dans le menu de l'employé
   // pour prendre sa pause ou finir sa journée"). L'arrivée est déjà pointée
@@ -2196,6 +2221,18 @@
         if (NexusForfait.estProfessional(forfait)) {
           const fdjMini = document.getElementById('fdjMini');
           if (fdjMini) fdjMini.style.display = '';
+        }
+      });
+
+      // Réception carburant mini-carte : révélée seulement si
+      // station_config.reception_carburant_role (14/08/2026, paramétrage
+      // Frédéric) confie cette tâche à l'employé (défaut 'employe') ou
+      // aux deux ('les_deux'). Erreur réseau : reste masquée par
+      // prudence, même logique que FDJ ci-dessus.
+      chargerReceptionCarburantRole(employee.site_id).then(role => {
+        if (role === 'employe' || role === 'les_deux') {
+          const receptionMini = document.getElementById('receptionCarburantMini');
+          if (receptionMini) receptionMini.style.display = '';
         }
       });
 
