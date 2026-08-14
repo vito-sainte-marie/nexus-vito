@@ -100,6 +100,7 @@
   .carb-pct{font-family:var(--mono); font-size:13px; font-weight:700;}
   .carb-chiffres{font-family:var(--mono); font-size:9px; color:var(--text-mid); text-align:center; line-height:1.65; margin-top:7px;}
   .carb-chiffres .val{color:var(--text); font-weight:700; display:block; font-size:9.5px;}
+  .carb-chiffres .val-fiabilite{font-family:var(--sans); font-size:8.5px; font-weight:600; line-height:1.35; white-space:normal; text-align:center; margin-top:1px;}
   .carb-statut-badge{margin-top:7px; font-family:var(--mono); font-size:7.5px; font-weight:700; padding:3px 8px; border-radius:20px; text-transform:uppercase; letter-spacing:0.02em;}
   .jauge-legende{display:flex; align-items:center; gap:6px; padding:8px 20px 0; font-family:var(--mono); font-size:9.5px; color:var(--text-dim);}
   .jauge-legende-trait{width:14px; height:2px; background:var(--cyan);}
@@ -279,6 +280,16 @@
     'Données insuffisantes': { c: 'var(--text-dim)', f: 'var(--panel-raised)' },
   };
   const ICONE_MESSAGE = { alerte: '🔴', attention: '🟠', info: 'ℹ️', positif: '🟢' };
+  // Couleurs pour les niveaux normalisés retournés par
+  // NexusCarburantMoteur.fiabiliteControle()/libelleRapprochementLivraison()
+  // (14/08/2026) — 'attente' est volontairement neutre (ni vert ni rouge) :
+  // un rapprochement pas encore possible n'est pas une alerte.
+  const NIVEAU_COULEUR = {
+    ok: { c: 'var(--green)', f: 'var(--green-dim)' },
+    attention: { c: 'var(--amber)', f: 'var(--amber-dim)' },
+    alerte: { c: 'var(--red)', f: 'var(--red-dim)' },
+    attente: { c: 'var(--text-dim)', f: 'var(--panel-raised)' },
+  };
 
   function todayISO() {
     const d = new Date();
@@ -374,10 +385,21 @@
       const capacite = M.capaciteTotale(cfg.cuves);
       const pctStock = M.pourcentageRemplissage(r.stockPhysiqueAffiche, capacite);
       const pctTheo = M.pourcentageRemplissage(r.theorique, capacite);
-      const couleur = COULEUR_STATUT[r.statut] || COULEUR_STATUT['Données insuffisantes'];
       const autonomie = ctx.autonomiesParCarburant[cle];
+      const statutAuto = M.statutAutonomie(autonomie);
       const ecartTxt = r.ecart != null ? `${r.ecart >= 0 ? '+' : ''}${Math.round(r.ecart).toLocaleString('fr-FR')} L` : '—';
       const detailCuves = cfg.cuves.length > 1 ? cfg.cuves.map(cv => cv.label).join(' + ') : cfg.cuves[0].label;
+      // 14/08/2026, retour de Frédéric : "Fiabilité du contrôle" remplace le
+      // badge générique "Données insuffisantes" — motif précis (jaugeage
+      // manquant, ventes non disponibles, relevé incomplet, première
+      // mesure) quand le théorique n'est pas calculable, sinon le statut
+      // d'écart normal. Une seule composition, faite par le moteur, jamais
+      // reconstruite ici.
+      const fiabilite = M.fiabiliteControle(r, {
+        dernierReleveExiste: !!ctx.dernierReleve, dernierReel: r.dernierReel,
+        releveDuJourExiste: !!ctx.releveDuJour, ventes: r.ventesDepuis,
+      });
+      const couleurFiab = NIVEAU_COULEUR[fiabilite.niveau] || NIVEAU_COULEUR.attente;
       return `
         <div class="carb-carte ${classeStatutCarte(r.statut)}" title="${detailCuves} — capacité ${capacite.toLocaleString('fr-FR')} L">
           <div class="carb-nom">${COURT_CARBURANT[cle]}</div>
@@ -390,9 +412,9 @@
             Physique<span class="val">${fmtL(r.stockPhysiqueAffiche)}</span>
             Théorique<span class="val">${fmtL(r.theorique)}</span>
             Écart<span class="val" style="color:${r.ecart != null && r.ecart < 0 ? 'var(--red)' : (r.ecart != null && r.ecart > 0 ? 'var(--green)' : 'var(--text)')};">${ecartTxt}</span>
-            Autonomie<span class="val">${autonomie != null ? `${autonomie.toFixed(1)} j` : '—'}</span>
+            Autonomie<span class="val">${autonomie != null ? `${autonomie.toFixed(1)} j — ${statutAuto}` : '—'}</span>
+            Fiabilité du contrôle<span class="val val-fiabilite" style="color:${couleurFiab.c};">${fiabilite.texte}</span>
           </div>
-          <span class="carb-statut-badge" style="color:${couleur.c}; background:${couleur.f};">${r.statut}</span>
         </div>`;
     }).join('');
 
@@ -455,15 +477,20 @@
       const vol = Number(releve[`livraison_${cle}`]);
       total += vol;
       let statutHTML = '';
-      // Le rapprochement (Intégrée / Écart à vérifier) n'est honnête que
-      // pour la livraison du jour, où le statut de contrôle vient d'être
-      // recalculé en direct — pour une livraison plus ancienne, NEXUS ne
-      // relance pas un contrôle historique ici (hors périmètre de cette
-      // page), il reste factuel.
+      // Le rapprochement n'est honnête que pour la livraison du jour, où le
+      // statut de contrôle vient d'être recalculé en direct — pour une
+      // livraison plus ancienne, NEXUS ne relance pas un contrôle
+      // historique ici (hors périmètre de cette page), il reste factuel.
+      // 14/08/2026, retour de Frédéric : "Écart à vérifier" laissait penser
+      // qu'un écart était déjà détecté, alors que le cas le plus fréquent
+      // est simplement que le théorique n'est pas encore calculable —
+      // libellé désormais tri-état (Intégrée / Écart détecté / Rapprochement
+      // à confirmer), jamais les deux derniers confondus.
       if (estAujourdhui && CONTROLE_CTX.parCarburant[cle]) {
         const st = CONTROLE_CTX.parCarburant[cle].statut;
-        const ok = st === 'Sous contrôle' || st === 'À surveiller';
-        statutHTML = `<span class="livraison-statut" style="color:${ok ? 'var(--green)' : 'var(--red)'}; background:${ok ? 'var(--green-dim)' : 'var(--red-dim)'};">${ok ? 'Intégrée' : 'Écart à vérifier'}</span>`;
+        const libelle = NexusCarburantMoteur.libelleRapprochementLivraison(st);
+        const c = NIVEAU_COULEUR[libelle.niveau] || NIVEAU_COULEUR.attente;
+        statutHTML = `<span class="livraison-statut" style="color:${c.c}; background:${c.f};">${libelle.texte}</span>`;
       }
       return `<div class="livraison-ligne"><span>${NOM_CARBURANT[cle]}</span><span style="display:flex; align-items:center; gap:8px;"><b>${fmtL(vol)}</b>${statutHTML}</span></div>`;
     }).join('');
@@ -622,21 +649,29 @@
       const lignesStock = M.CLES_CARBURANT.filter(cle => CUVES_CONFIG[cle] && CUVES_CONFIG[cle].actif).map(cle => {
         const r = CONTROLE_CTX.parCarburant[cle];
         const autonomie = CONTROLE_CTX.autonomiesParCarburant[cle];
-        const couleur = COULEUR_STATUT[r.statut] || COULEUR_STATUT['Données insuffisantes'];
+        // 14/08/2026 : même composition que la carte jauge — jamais un
+        // "Données insuffisantes" nu, toujours le motif précis quand le
+        // théorique n'est pas calculable (Article 11, une seule fiabilité).
+        const fiabilite = M.fiabiliteControle(r, {
+          dernierReleveExiste: !!CONTROLE_CTX.dernierReleve, dernierReel: r.dernierReel,
+          releveDuJourExiste: !!CONTROLE_CTX.releveDuJour, ventes: r.ventesDepuis,
+        });
+        const couleur = NIVEAU_COULEUR[fiabilite.niveau] || NIVEAU_COULEUR.attente;
+        const statutAuto = M.statutAutonomie(autonomie);
         return `
           <tr>
             <td class="nom-cell">${COURT_CARBURANT[cle]}</td>
             <td>${fmtL(r.stockPhysiqueAffiche)}</td>
             <td>${fmtL(r.theorique)}</td>
             <td style="color:${r.ecart != null && r.ecart < 0 ? 'var(--red)' : (r.ecart != null && r.ecart > 0 ? 'var(--green)' : 'var(--text-mid)')};">${r.ecart != null ? `${r.ecart >= 0 ? '+' : ''}${Math.round(r.ecart).toLocaleString('fr-FR')} L` : '—'}</td>
-            <td>${autonomie != null ? `${autonomie.toFixed(1)} j` : '—'}</td>
-            <td><span style="color:${couleur.c};">●</span> ${r.statut}</td>
+            <td>${autonomie != null ? `${autonomie.toFixed(1)} j — ${statutAuto}` : '—'}</td>
+            <td><span style="color:${couleur.c};">●</span> ${fiabilite.texte}</td>
           </tr>`;
       }).join('');
       stockTableHTML = `
         <div class="stock-table-wrap">
           <table class="stock-table">
-            <thead><tr><th>Carburant</th><th>Physique</th><th>Théorique</th><th>Écart</th><th>Autonomie</th><th>Statut</th></tr></thead>
+            <thead><tr><th>Carburant</th><th>Physique</th><th>Théorique</th><th>Écart</th><th>Autonomie</th><th>Fiabilité du contrôle</th></tr></thead>
             <tbody>${lignesStock}</tbody>
           </table>
         </div>
@@ -648,8 +683,13 @@
     let moteurHTML = '';
     if (mix) {
       const syntheseTexte = construireSyntheseEvolution(mix, mixRef, decomposition, moteurEvolution, decomposition ? decomposition.deltaTotal : null, evolutionTotale);
+      // 14/08/2026, retour de Frédéric : "on passe de l'analyse à la
+      // décision" — phrase actionnable ajoutée après la synthèse
+      // descriptive, sans recalcul (relit juste `decomposition` déjà
+      // produit par NexusCarburantMoteur.decomposerEvolution ci-dessus).
+      const phraseDecision = NexusCarburantMoteur.phraseDecisionMoteur(decomposition);
       moteurHTML = `
-        <div class="synthese-texte">${syntheseTexte}</div>
+        <div class="synthese-texte">${syntheseTexte}${phraseDecision ? `<div style="margin-top:10px; padding-top:10px; border-top:1px solid var(--hairline); font-weight:600;">${phraseDecision}</div>` : ''}</div>
         <div class="kpi-card">
           <div class="kpi-row"><span class="kpi-label">Produit moteur (plus gros volume)</span><span class="kpi-valeur">${produitMoteur ? `${NOM_CARBURANT[produitMoteur.cle]} — ${Math.round(produitMoteur.pct * 100)} %` : '—'}</span></div>
           <div class="kpi-row"><span class="kpi-label">Moteur de progression (explique le plus le mouvement)</span><span class="kpi-valeur">${moteurEvolution ? NOM_CARBURANT[moteurEvolution.cle] : '—'}</span></div>

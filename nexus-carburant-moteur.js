@@ -256,6 +256,13 @@
   // provisoire qu'aucune alerte du tout.
   const SEUIL_AUTONOMIE_ALERTE_JOURS = 1.5;
   const SEUIL_AUTONOMIE_VIGILANCE_JOURS = 3;
+  // Palier "Confortable" (14/08/2026, retour de Frédéric : "le dirigeant
+  // doit savoir si c'est bon ou non" — un chiffre brut de jours ne suffit
+  // pas) : au-delà de ce seuil, l'autonomie n'est plus juste "sous
+  // contrôle", elle donne une vraie marge de manœuvre. Provisoire comme les
+  // 2 seuils ci-dessus — le vrai délai de livraison et le stock de sécurité
+  // ne sont toujours pas paramétrés (audit §7) ; à recalibrer avec Frédéric.
+  const SEUIL_AUTONOMIE_CONFORTABLE_JOURS = 8;
 
   // Jours d'autonomie au rythme de consommation récent. Null si le stock
   // ou la consommation moyenne manquent, ou si la consommation est nulle/
@@ -270,7 +277,8 @@
     if (jours == null) return 'Données insuffisantes';
     if (jours < SEUIL_AUTONOMIE_ALERTE_JOURS) return 'À corriger';
     if (jours < SEUIL_AUTONOMIE_VIGILANCE_JOURS) return 'À surveiller';
-    return 'Sous contrôle';
+    if (jours < SEUIL_AUTONOMIE_CONFORTABLE_JOURS) return 'Sous contrôle';
+    return 'Confortable';
   }
 
   // Remplissage d'une cuve/carburant (0..1), borné — un écart de saisie ne
@@ -283,6 +291,75 @@
 
   function capaciteTotale(cuves) {
     return (cuves || []).reduce((s, c) => s + (Number(c.capacite) || 0), 0);
+  }
+
+  // ============================================================
+  // FIABILITÉ DU CONTRÔLE (14/08/2026, retour de Frédéric après le premier
+  // test réel de Carburants Pilotage) — "Données insuffisantes" est trop
+  // générique : le dirigeant doit savoir PRÉCISÉMENT pourquoi le théorique
+  // n'est pas calculable pour ce carburant, pour pouvoir agir (faire le
+  // jaugeage, compléter une cuve, attendre le prochain quart vérifié...)
+  // plutôt que de rester face à un mot vague. Distingue explicitement les 4
+  // causes possibles d'un théorique null (voir calculerTheorique) — une
+  // seule sortie normalisée, jamais reconstruite différemment par chaque
+  // écran (Article 11).
+  function motifTheoriqueIndisponible({ dernierReleveExiste, dernierReel, releveDuJourExiste, ventes }) {
+    if (!dernierReleveExiste) return 'Aucun relevé antérieur — première mesure, pas encore de référence pour calculer un théorique.';
+    if (dernierReel == null) return 'Dernier relevé incomplet pour ce carburant (cuve non renseignée) — théorique non calculable.';
+    if (!releveDuJourExiste) return 'Jaugeage du jour manquant.';
+    if (ventes == null) return 'Ventes depuis le dernier relevé non disponibles — aucun quart avec litrage capté sur cette période.';
+    return null;
+  }
+
+  // "Fiabilité du contrôle" à afficher pour un carburant : le statut
+  // d'écart normal (Sous contrôle / À surveiller / À corriger) quand le
+  // théorique est calculable, sinon le motif précis ci-dessus — jamais
+  // "Données insuffisantes" tout seul, qui ne dit rien d'actionnable.
+  function fiabiliteControle(resultatCarburant, contexteMotif) {
+    if (resultatCarburant && resultatCarburant.statut && resultatCarburant.statut !== 'Données insuffisantes') {
+      return { texte: resultatCarburant.statut, niveau: resultatCarburant.statut === 'À corriger' ? 'alerte' : (resultatCarburant.statut === 'À surveiller' ? 'attention' : 'ok') };
+    }
+    const motif = motifTheoriqueIndisponible(contexteMotif);
+    return { texte: motif || 'Données insuffisantes', niveau: 'attente' };
+  }
+
+  // Libellé de rapprochement affiché à côté d'une livraison (14/08/2026,
+  // retour de Frédéric : "Écart à vérifier" laissait penser qu'un écart
+  // était déjà détecté, alors que la plupart du temps le théorique n'est
+  // simplement pas encore calculable). Trois issues honnêtement
+  // distinctes : un vrai écart trouvé, un contrôle propre, ou un
+  // rapprochement pas encore possible — jamais la 3e confondue avec la 1re.
+  function libelleRapprochementLivraison(statutCarburantJour) {
+    if (statutCarburantJour === 'À corriger') return { texte: 'Écart détecté', niveau: 'alerte' };
+    if (statutCarburantJour === 'Sous contrôle' || statutCarburantJour === 'À surveiller') return { texte: 'Intégrée', niveau: 'ok' };
+    return { texte: 'Rapprochement à confirmer', niveau: 'attente' };
+  }
+
+  // ============================================================
+  // PHRASE DE DÉCISION — "Moteur & progression" (14/08/2026, retour de
+  // Frédéric : "on passe de l'analyse à la décision"). Ne recalcule rien :
+  // relit la décomposition déjà produite par decomposerEvolution() pour
+  // dire explicitement si le mouvement est généralisé sur les carburants
+  // principaux (donc pas une anomalie de mix, rien à investiguer côté
+  // produit) ou concentré sur un seul (donc une vraie piste à vérifier :
+  // trafic, prix, ou spécifique à ce carburant).
+  function phraseDecisionMoteur(decomposition) {
+    if (!decomposition || !decomposition.deltaTotal) return null;
+    const hausse = decomposition.deltaTotal > 0;
+    const sens = hausse ? 'la hausse' : 'le recul';
+    const accordGeneralise = hausse ? 'généralisée' : 'généralisé';
+    const carburantsConnus = CLES_CARBURANT.filter(c => decomposition.parCarburant[c]);
+    const memeSens = carburantsConnus.filter(c => {
+      const d = decomposition.parCarburant[c].delta;
+      return d !== 0 && Math.sign(d) === Math.sign(decomposition.deltaTotal);
+    });
+    if (memeSens.length >= 2) {
+      return `À ce stade, ${sens} est ${accordGeneralise} sur les carburants principaux ; aucune anomalie de mix n'est identifiée.`;
+    }
+    if (memeSens.length === 1) {
+      return `Priorité : vérifier si ${sens} provient du trafic global, d'un effet prix, ou d'une dynamique propre au ${NOM_CARBURANT_COURT[memeSens[0]]}.`;
+    }
+    return null;
   }
 
   // ============================================================
@@ -378,8 +455,9 @@
     calculerMixCarburant, calculerEvolutionVolume, identifierProduitMoteur,
     decomposerEvolution, identifierMoteurEvolution,
     statutGlobalControle, texteControleJour,
-    SEUIL_AUTONOMIE_ALERTE_JOURS, SEUIL_AUTONOMIE_VIGILANCE_JOURS,
+    SEUIL_AUTONOMIE_ALERTE_JOURS, SEUIL_AUTONOMIE_VIGILANCE_JOURS, SEUIL_AUTONOMIE_CONFORTABLE_JOURS,
     calculerAutonomieJours, statutAutonomie, pourcentageRemplissage, capaciteTotale,
+    motifTheoriqueIndisponible, fiabiliteControle, libelleRapprochementLivraison, phraseDecisionMoteur,
     construireMessagesPilotage,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -101,6 +101,12 @@
       parCarburant[cle] = {
         ...M.calculerCarburant({ dernierReel, reelDuJour, livraison, mouvement, ventes: ventesDepuis[cle] }),
         reelDuJour, dernierReel, livraison, mouvement,
+        // Remonté tel quel (14/08/2026, retour de Frédéric) pour que l'écran
+        // puisse expliquer PRÉCISÉMENT pourquoi le théorique est absent
+        // (NexusCarburantMoteur.motifTheoriqueIndisponible) plutôt que
+        // d'afficher juste "Données insuffisantes" — jamais recalculé une
+        // seconde fois côté HTML, seulement transmis.
+        ventesDepuis: ventesDepuis[cle],
         // Stock physique "actuel" à afficher : la dernière mesure RÉELLE
         // connue, que ce soit celle du jour (si le jaugeage est déjà fait)
         // ou la précédente sinon — jamais une valeur théorique présentée
