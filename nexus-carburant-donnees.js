@@ -44,6 +44,30 @@
     return { ventes, nbQuartsTotal: lignes.length, nbQuartsAvecLitrage };
   }
 
+  // Dernier "point zéro carburants" valide, à date <= dateLimite ou sans
+  // limite (14/08/2026, demande de Frédéric : "point zéro" = un contrôle
+  // physique certifié qui devient la nouvelle référence de calcul,
+  // exactement comme fdj_stock_references pour le stock FDJ). Retourne
+  // null si aucun point zéro n'a jamais été certifié pour ce site — dans ce
+  // cas la chaîne de calcul continue de fonctionner exactement comme avant
+  // (aucune régression pour les sites qui n'utilisent pas cette fonction).
+  async function chargerDernierPointZero(client, siteId, dateLimite) {
+    let requete = client.from('carburant_stock_references')
+      .select('*').eq('site', siteId).eq('statut', 'valide');
+    if (dateLimite) requete = requete.lte('date', dateLimite);
+    const { data: ref, error: e1 } = await requete
+      .order('date', { ascending: false }).order('created_at', { ascending: false })
+      .limit(1).maybeSingle();
+    if (e1) { console.error('Chargement point zéro carburants:', e1); return null; }
+    if (!ref) return null;
+    const { data: lignes, error: e2 } = await client.from('carburant_stock_reference_lignes')
+      .select('carburant,stock_reel').eq('reference_id', ref.id);
+    if (e2) { console.error('Chargement lignes point zéro carburants:', e2); return null; }
+    const parCarburant = { go: null, sp95: null, gnr: null };
+    (lignes || []).forEach(l => { parCarburant[l.carburant] = Number(l.stock_reel); });
+    return { ...ref, lignes: parCarburant };
+  }
+
   // Reprend exactement la chaîne de NEXUS-Carburants-v1.html : dernier
   // relevé RÉEL avant `date` (ancre), ventes captées depuis le jour de ce
   // relevé INCLUS jusqu'à `date` EXCLUE (convention "relevé = ouverture du
@@ -54,37 +78,72 @@
   // relevé n'existe encore pour ce site" de "un relevé existe mais les
   // données sont insuffisantes pour calculer un écart", deux situations
   // honnêtement différentes à l'affichage (Brief/Pilotage).
+  //
+  // POINT ZÉRO (14/08/2026, demande de Frédéric) : si un point zéro certifié
+  // existe et qu'il est plus récent que le dernier relevé RÉEL antérieur à
+  // `date` (ou qu'aucun relevé réel n'existe), il devient l'ANCRE du calcul
+  // à la place de ce relevé — le relevé réel plus ancien est explicitement
+  // disqualifié ("l'ancienne chaîne temporelle n'est pas suffisamment
+  // fiable pour servir de référence", pas de tentative de le corriger). Si
+  // `date` est antérieure ou égale à la date du point zéro lui-même, la
+  // période est "historique non fiable" : NEXUS ne calcule et n'affiche
+  // AUCUN écart pour cette période (Article 5 — mieux vaut le dire
+  // explicitement que d'afficher un théorique construit sur une ancre
+  // disqualifiée). Un relevé réel POSTÉRIEUR au point zéro redevient une
+  // ancre normale pour les dates encore plus tardives : le point zéro n'est
+  // qu'un plancher, pas une ancre permanente.
   async function chargerControleJour(client, siteId, date) {
     const M = global.NexusCarburantMoteur;
-    const [{ data: releveDuJour, error: e1 }, { data: dernierReleve, error: e2 }] = await Promise.all([
+    const [{ data: releveDuJour, error: e1 }, { data: dernierReleve, error: e2 }, pointZero] = await Promise.all([
       client.from('carburant_releves').select('*').eq('site', siteId).eq('date', date).maybeSingle(),
       client.from('carburant_releves').select('*').eq('site', siteId).lt('date', date).order('date', { ascending: false }).limit(1).maybeSingle(),
+      chargerDernierPointZero(client, siteId, date),
     ]);
     if (e1) console.error('Chargement relevé carburant du jour (contrôle):', e1);
     if (e2) console.error('Chargement dernier relevé carburant (contrôle):', e2);
 
-    if (!releveDuJour && !dernierReleve) {
+    if (!releveDuJour && !dernierReleve && !pointZero) {
       return { parCarburant: null, aucunReleve: true };
     }
+
+    // Historique antérieur ou égal au point zéro : rapprochement non fiable,
+    // libellé exact demandé par Frédéric — jamais un écart calculé sur une
+    // ancre déjà disqualifiée.
+    if (pointZero && date <= pointZero.date) {
+      return {
+        parCarburant: null, aucunReleve: false, historiqueNonFiable: true,
+        pointZero, dateDernierReleve: dernierReleve ? dernierReleve.date : null,
+        releveDuJour: releveDuJour || null, dernierReleve: dernierReleve || null,
+        messageHistoriqueNonFiable: `Rapprochement historique non fiable — période précédant le point zéro du ${pointZero.date}. Les horaires de jaugeage et la période de ventes n'étaient pas suffisamment synchronisés pour qualifier cet écart. Non reporté dans les calculs ultérieurs.`,
+      };
+    }
+
+    // Le point zéro devient l'ancre s'il est plus récent que le dernier
+    // relevé réel antérieur à `date` (ou si aucun relevé réel n'existe) :
+    // c'est la certification qui doit servir de référence, pas une lecture
+    // plus ancienne devenue non fiable.
+    const ancreEstPointZero = !!pointZero && (!dernierReleve || pointZero.date >= dernierReleve.date);
+    const dateAncre = ancreEstPointZero ? pointZero.date : (dernierReleve ? dernierReleve.date : null);
 
     // Convention temporelle formalisée par Frédéric le 14/08/2026 (voir
     // l'en-tête de nexus-carburant-moteur.js, "CONVENTION TEMPORELLE") :
     // le relevé représente le stock à l'OUVERTURE du jour. Les ventes à
-    // sommer sont donc celles datées >= le jour du DERNIER relevé (ses
-    // propres ventes ont eu lieu après SA propre ouverture, elles comptent)
-    // ET < le jour du relevé COURANT (les ventes de ce jour n'ont pas
-    // encore eu lieu au moment de cette ouverture, elles ne comptent PAS
-    // ici — elles compteront dans le théorique du PROCHAIN relevé).
+    // sommer sont donc celles datées >= le jour de l'ANCRE (dernier relevé
+    // réel, ou point zéro s'il est plus récent — ses propres ventes ont eu
+    // lieu après SA propre ouverture, elles comptent) ET < le jour du
+    // relevé COURANT (les ventes de ce jour n'ont pas encore eu lieu au
+    // moment de cette ouverture, elles ne comptent PAS ici — elles
+    // compteront dans le théorique du PROCHAIN relevé).
     // Historique de ce point précis : v2.79/v2.82 avaient d'abord exclu les
     // DEUX bornes (toujours vide en cadence quotidienne, théorique jamais
     // calculable), puis v2.82 avait à tort inclus la date cible elle-même
     // (comptait des ventes non encore advenues au moment de l'ouverture) —
-    // corrigé ici en bornes [dernier relevé inclus, date cible exclue).
+    // corrigé ici en bornes [ancre incluse, date cible exclue).
     let ventesDepuis = { go: null, sp95: null, gnr: null };
-    if (dernierReleve) {
+    if (dateAncre) {
       const { data: lignesVentes, error: e3 } = await client.from('audits_caisse')
         .select('litrage_gazole,litrage_sp95,litrage_gnr')
-        .eq('site', siteId).gte('date', dernierReleve.date).lt('date', date);
+        .eq('site', siteId).gte('date', dateAncre).lt('date', date);
       if (e3) console.error('Chargement ventes depuis dernier relevé (contrôle):', e3);
       ventesDepuis = M.sommerVentesPeriode(lignesVentes || []);
     }
@@ -94,9 +153,13 @@
       const reelDuJour = cle === 'go'
         ? M.stockReelGoTotal(releveDuJour)
         : (releveDuJour ? releveDuJour[`stock_reel_${cle}`] : null);
-      const dernierReel = cle === 'go'
-        ? M.stockReelGoTotal(dernierReleve)
-        : (dernierReleve ? dernierReleve[`stock_reel_${cle}`] : null);
+      // Stock de l'ancre : un point zéro certifie UNE valeur totale par
+      // carburant (pas de détail par cuve, contrairement à un relevé réel
+      // GO qui somme 2 cuves) — d'où la lecture directe de pointZero.lignes
+      // quand l'ancre est le point zéro, sans passer par stockReelGoTotal.
+      const dernierReel = ancreEstPointZero
+        ? (pointZero.lignes ? pointZero.lignes[cle] : null)
+        : (cle === 'go' ? M.stockReelGoTotal(dernierReleve) : (dernierReleve ? dernierReleve[`stock_reel_${cle}`] : null));
       const livraison = releveDuJour ? (releveDuJour[`livraison_${cle}`] || 0) : 0;
       const mouvement = releveDuJour ? (releveDuJour[`mouvement_${cle}`] || 0) : 0;
       // 13/08/2026, audit Carburants Pilotage : la page a besoin d'afficher
@@ -123,6 +186,11 @@
 
     return {
       parCarburant, aucunReleve: false, dateDernierReleve: dernierReleve ? dernierReleve.date : null,
+      // Point zéro utilisé comme ancre (ou null) : Pilotage l'utilise pour
+      // afficher explicitement "Référence : point zéro du [date] ([source])"
+      // plutôt que de laisser croire que le calcul part d'un jaugeage
+      // quotidien classique.
+      pointZero, ancreEstPointZero,
       // 13/08/2026, audit Carburants Pilotage : la page a besoin du détail
       // du relevé du jour (pour signaler une livraison) et du dernier
       // relevé réel (pour le message "jaugeage du jour manquant, dernier
@@ -232,9 +300,41 @@
     return data;
   }
 
+  // Certifie un nouveau point zéro carburants (14/08/2026, demande de
+  // Frédéric : "Créer un point zéro carburants" / "Certifier un stock de
+  // référence", exactement comme validerInventaireRef() pour FDJ). N'écrit
+  // JAMAIS dans carburant_releves ni ne modifie l'historique existant : un
+  // point zéro est une table séparée, purement additive — l'ancien
+  // historique reste archivé et consultable tel quel, seulement disqualifié
+  // comme ancre de calcul pour les dates postérieures (voir
+  // chargerControleJour ci-dessus). `valeurs` : { go: {stockReel, theoriqueAvant},
+  // sp95: {...}, gnr: {...} } — theoriqueAvant est optionnel, pure
+  // traçabilité, jamais réutilisé dans un calcul.
+  async function certifierPointZero(client, siteId, { date, heure, source, controlePar, type, note, valeurs }) {
+    const { data: ref, error: e1 } = await client.from('carburant_stock_references').insert({
+      site: siteId, date, heure: heure || null, source: source || 'terrain',
+      controle_par: controlePar || null, type: type || 'initialisation',
+      statut: 'valide', note: note || null,
+    }).select().single();
+    if (e1) { console.error('Certification point zéro carburants:', e1); return { ok: false, error: e1 }; }
+
+    const lignes = CARBURANTS_INFO.map(({ cle }) => {
+      const v = (valeurs && valeurs[cle]) || {};
+      return {
+        reference_id: ref.id, site: siteId, carburant: cle,
+        stock_reel: Number(v.stockReel) || 0,
+        stock_theorique_avant: v.theoriqueAvant != null ? Number(v.theoriqueAvant) : null,
+      };
+    });
+    const { error: e2 } = await client.from('carburant_stock_reference_lignes').insert(lignes);
+    if (e2) { console.error('Certification lignes point zéro carburants:', e2); return { ok: false, error: e2 }; }
+
+    return { ok: true, reference: ref };
+  }
+
   global.NexusCarburantDonnees = {
     CARBURANTS_INFO, chargerVentesPeriode, chargerControleJour, chargerJoursSansReleve,
     chargerCuvesConfig, chargerConsommationJournaliereMoyenne, CUVES_PAR_DEFAUT,
-    chargerDerniereLivraison,
+    chargerDerniereLivraison, chargerDernierPointZero, certifierPointZero,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

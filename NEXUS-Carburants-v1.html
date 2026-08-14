@@ -182,6 +182,18 @@
   let RELEVE_CIBLE = null;     // relevé déjà enregistré pour DATE_CIBLE, si le manager revient corriger
   let PROCHAIN_RELEVE = null;  // relevé RÉEL le plus proche APRÈS DATE_CIBLE (rattrapage seulement — jamais recalculé, juste informatif)
   let VENTES_DEPUIS = { go: null, sp95: null, gnr: null };
+  // Point zéro carburants (14/08/2026, demande de Frédéric : "Créer un point
+  // zéro carburants" — contrôle physique certifié qui devient la nouvelle
+  // référence de calcul, exactement comme pour le stock FDJ). S'il est plus
+  // récent que DERNIER_RELEVE, il devient l'ancre à sa place — voir
+  // ANCRE_EST_POINT_ZERO/DATE_ANCRE ci-dessous. Si DATE_CIBLE est antérieure
+  // ou égale à sa date, la saisie reste possible (correction d'un jour
+  // passé) mais l'aperçu théorique affiche "historique non fiable" plutôt
+  // qu'un écart calculé sur une ancre déjà disqualifiée (Article 5).
+  let POINT_ZERO = null;
+  let ANCRE_EST_POINT_ZERO = false;
+  let DATE_ANCRE = null;
+  let HISTORIQUE_NON_FIABLE = false;
   let ENREGISTREMENT_EN_COURS = false;
   // 13/08/2026, demande de Frédéric : "rendre cliquable [le message 'ventes
   // non disponibles'] afin que je retrouve la caisse où il n'y a pas de
@@ -242,6 +254,25 @@
     if (error) { console.error('Chargement dernier relevé carburant:', error); return null; }
     return data;
   }
+  // Dernier point zéro certifié à date <= dateLimite (14/08/2026) — même
+  // requête que NexusCarburantDonnees.chargerDernierPointZero, dupliquée ici
+  // car cette page n'inclut que nexus-carburant-moteur.js (jamais
+  // nexus-carburant-donnees.js) : une seule vérité de CALCUL (le moteur),
+  // mais chaque écran garde ses propres chargeurs Supabase (Article 11).
+  async function chargerDernierPointZero(siteId, dateLimite) {
+    const { data: ref, error: e1 } = await nexusClient.from('carburant_stock_references')
+      .select('*').eq('site', siteId).eq('statut', 'valide').lte('date', dateLimite)
+      .order('date', { ascending: false }).order('created_at', { ascending: false })
+      .limit(1).maybeSingle();
+    if (e1) { console.error('Chargement point zéro carburants:', e1); return null; }
+    if (!ref) return null;
+    const { data: lignes, error: e2 } = await nexusClient.from('carburant_stock_reference_lignes')
+      .select('carburant,stock_reel').eq('reference_id', ref.id);
+    if (e2) { console.error('Chargement lignes point zéro carburants:', e2); return null; }
+    const parCarburant = { go: null, sp95: null, gnr: null };
+    (lignes || []).forEach(l => { parCarburant[l.carburant] = Number(l.stock_reel); });
+    return { ...ref, lignes: parCarburant };
+  }
   // Relevé RÉEL le plus proche APRÈS une date donnée — utilisé uniquement
   // en mode rattrapage, pour informer le manager qu'un jour plus récent est
   // déjà rempli (jamais modifié ni recalculé par cette page : la formule du
@@ -297,7 +328,7 @@
     if (!el) return;
     const champ = CHAMP_LITRAGE[carbCle];
     if (!LIGNES_PERIODE_VENTES.length) {
-      const depuisTxt = DERNIER_RELEVE ? formaterDateFr(DERNIER_RELEVE.date) : '—';
+      const depuisTxt = DATE_ANCRE ? formaterDateFr(DATE_ANCRE) : '—';
       const jusquaTxt = formaterDateFr(DATE_CIBLE);
       el.innerHTML = `<div class="ventes-detail-note">Aucun quart de caisse trouvé dans NEXUS Verify entre le ${depuisTxt} (inclus) et le ${jusquaTxt} (exclu) — ce n'est pas nécessairement une anomalie si aucun quart n'a encore eu lieu sur cette période.</div>`;
       return;
@@ -321,21 +352,40 @@
   // Recalcule et affiche le panneau résultat d'un carburant à partir des
   // champs actuellement saisis à l'écran (réactif à chaque frappe).
   function recalculerCarburant(carb) {
+    const panel = document.getElementById(`resultat_${carb.cle}`);
+    if (!panel) return;
+
+    // Point zéro (14/08/2026) : aucun théorique/écart affiché pour une date
+    // antérieure ou égale au point zéro — la saisie du stock réel reste
+    // possible (correction d'un jour passé), mais NEXUS ne qualifie pas un
+    // écart construit sur une ancre déjà disqualifiée (Article 5).
+    if (HISTORIQUE_NON_FIABLE) {
+      panel.innerHTML = `
+        <div class="resultat-row"><span class="resultat-label">Théorique</span><span class="resultat-valeur">—</span></div>
+        <span class="resultat-statut" style="color:var(--text-dim); background:var(--panel-raised);">Rapprochement historique non fiable — période précédant le point zéro du ${formaterDateFr(POINT_ZERO.date)}</span>
+      `;
+      return;
+    }
+
     const reelDuJour = carb.cle === 'go'
       ? (valeurChamp('champ_go_cuve1') != null && valeurChamp('champ_go_cuve2') != null
           ? valeurChamp('champ_go_cuve1') + valeurChamp('champ_go_cuve2') : null)
       : valeurChamp(`champ_${carb.cle}`);
-    const dernierReel = carb.cle === 'go'
-      ? NexusCarburantMoteur.stockReelGoTotal(DERNIER_RELEVE)
-      : (DERNIER_RELEVE ? DERNIER_RELEVE[`stock_reel_${carb.cle}`] : null);
+    // Ancre du calcul : le point zéro s'il est plus récent que
+    // DERNIER_RELEVE (ou si aucun relevé réel n'existe), sinon le dernier
+    // relevé réel comme avant — voir ANCRE_EST_POINT_ZERO ci-dessus. Un
+    // point zéro certifie UNE valeur totale par carburant (pas de détail
+    // par cuve), d'où la lecture directe de POINT_ZERO.lignes sans passer
+    // par stockReelGoTotal.
+    const dernierReel = ANCRE_EST_POINT_ZERO
+      ? (POINT_ZERO.lignes ? POINT_ZERO.lignes[carb.cle] : null)
+      : (carb.cle === 'go' ? NexusCarburantMoteur.stockReelGoTotal(DERNIER_RELEVE) : (DERNIER_RELEVE ? DERNIER_RELEVE[`stock_reel_${carb.cle}`] : null));
     const livraison = valeurChamp(`champ_${carb.cle}_livraison`) || 0;
     const mouvement = valeurChamp(`champ_${carb.cle}_mouvement`) || 0;
     const ventes = VENTES_DEPUIS[carb.cle];
 
     const resultat = NexusCarburantMoteur.calculerCarburant({ dernierReel, reelDuJour, livraison, mouvement, ventes });
 
-    const panel = document.getElementById(`resultat_${carb.cle}`);
-    if (!panel) return;
     const ecartPct = resultat.ecartRatio != null ? `${resultat.ecartRatio >= 0 ? '+' : ''}${(resultat.ecartRatio * 100).toFixed(1)} %` : '—';
     panel.innerHTML = `
       <div class="resultat-row"><span class="resultat-label">Théorique</span><span class="resultat-valeur">${fmtL(resultat.theorique)}</span></div>
@@ -374,12 +424,15 @@
       </div>` : '';
 
     const blocs = CARBURANTS.map(carb => {
-      const ventesTxt = VENTES_DEPUIS[carb.cle] != null
-        ? `<div class="ventes-banner"><b>${Math.round(VENTES_DEPUIS[carb.cle]).toLocaleString('fr-FR')} L</b> vendus depuis le dernier relevé (${formaterDateFr(DERNIER_RELEVE ? DERNIER_RELEVE.date : null)}) — déjà repris depuis NEXUS Verify, aucune saisie nécessaire.</div>`
-        : (DERNIER_RELEVE
-            ? `<div class="ventes-banner vide ventes-banner-clic" data-carb="${carb.cle}" role="button" tabindex="0">Ventes non disponibles pour cette période (litrage non saisi dans Verify sur au moins un quart) — théorique non calculable.<span class="ventes-banner-lien">Voir le détail des quarts →</span></div>
-               <div class="ventes-detail" id="ventesDetail_${carb.cle}" style="display:none;"></div>`
-            : `<div class="ventes-banner vide">Premier relevé enregistré pour ce site — pas encore de comparaison possible, seul le stock réel sera mémorisé${EST_AUJOURDHUI ? " aujourd'hui" : ` pour le ${dateTxt}`}.</div>`);
+      const libelleAncre = ANCRE_EST_POINT_ZERO ? `point zéro du ${formaterDateFr(DATE_ANCRE)}` : `dernier relevé (${formaterDateFr(DATE_ANCRE)})`;
+      const ventesTxt = HISTORIQUE_NON_FIABLE
+        ? `<div class="ventes-banner vide">Rapprochement historique non fiable — période précédant le point zéro du ${formaterDateFr(POINT_ZERO.date)}. Le stock réel saisi ici reste enregistré, mais aucun théorique n'est calculé sur cette période.</div>`
+        : (VENTES_DEPUIS[carb.cle] != null
+            ? `<div class="ventes-banner"><b>${Math.round(VENTES_DEPUIS[carb.cle]).toLocaleString('fr-FR')} L</b> vendus depuis le ${libelleAncre} — déjà repris depuis NEXUS Verify, aucune saisie nécessaire.</div>`
+            : (DATE_ANCRE
+                ? `<div class="ventes-banner vide ventes-banner-clic" data-carb="${carb.cle}" role="button" tabindex="0">Ventes non disponibles pour cette période (litrage non saisi dans Verify sur au moins un quart) — théorique non calculable.<span class="ventes-banner-lien">Voir le détail des quarts →</span></div>
+                   <div class="ventes-detail" id="ventesDetail_${carb.cle}" style="display:none;"></div>`
+                : `<div class="ventes-banner vide">Premier relevé enregistré pour ce site — pas encore de comparaison possible, seul le stock réel sera mémorisé${EST_AUJOURDHUI ? " aujourd'hui" : ` pour le ${dateTxt}`}.</div>`));
 
       const champsReel = carb.cle === 'go'
         ? `<div class="champ-row">
@@ -520,12 +573,27 @@
       if (lienPilotageEl) lienPilotageEl.textContent = '← Retour à Carburants Pilotage';
     }
 
-    [RELEVE_CIBLE, DERNIER_RELEVE, PROCHAIN_RELEVE] = await Promise.all([
+    [RELEVE_CIBLE, DERNIER_RELEVE, PROCHAIN_RELEVE, POINT_ZERO] = await Promise.all([
       chargerReleveDuJour(SITE_ID, DATE_CIBLE),
       chargerDernierReleve(SITE_ID, DATE_CIBLE),
       EST_AUJOURDHUI ? Promise.resolve(null) : chargerProchainReleve(SITE_ID, DATE_CIBLE),
+      chargerDernierPointZero(SITE_ID, DATE_CIBLE),
     ]);
-    VENTES_DEPUIS = await chargerVentesDepuisDernierReleve(SITE_ID, DERNIER_RELEVE ? DERNIER_RELEVE.date : null, DATE_CIBLE);
+
+    // Point zéro (14/08/2026) : historique non fiable si DATE_CIBLE est
+    // antérieure ou égale à sa date — la saisie reste possible (correction
+    // d'un jour passé) mais aucun théorique n'est calculé sur cette
+    // période. Sinon, le point zéro devient l'ancre s'il est plus récent
+    // que DERNIER_RELEVE (ou si aucun relevé réel n'existe) — plancher,
+    // pas ancre permanente : un relevé réel postérieur au point zéro
+    // redevient une ancre normale pour les dates encore plus tardives.
+    HISTORIQUE_NON_FIABLE = !!POINT_ZERO && DATE_CIBLE <= POINT_ZERO.date;
+    ANCRE_EST_POINT_ZERO = !!POINT_ZERO && !HISTORIQUE_NON_FIABLE && (!DERNIER_RELEVE || POINT_ZERO.date >= DERNIER_RELEVE.date);
+    DATE_ANCRE = ANCRE_EST_POINT_ZERO ? POINT_ZERO.date : (DERNIER_RELEVE ? DERNIER_RELEVE.date : null);
+
+    VENTES_DEPUIS = HISTORIQUE_NON_FIABLE
+      ? { go: null, sp95: null, gnr: null }
+      : await chargerVentesDepuisDernierReleve(SITE_ID, DATE_ANCRE, DATE_CIBLE);
 
     render();
   });

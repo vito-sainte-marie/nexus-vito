@@ -419,6 +419,12 @@
     if (c.aucunReleve) {
       return [{ type: 'info', texte: "Aucun relevé enregistré pour l'instant — le pilotage s'activera dès le premier jaugeage saisi." }];
     }
+    // Point zéro (14/08/2026) : jour de la certification elle-même — aucun
+    // théorique n'est encore calculable, le premier le sera au prochain
+    // relevé. Message explicite plutôt qu'un panneau vide ou une erreur.
+    if (c.historiqueNonFiable) {
+      return [{ type: 'info', texte: c.messageHistoriqueNonFiable || "Rapprochement historique non fiable — période précédant le point zéro." }];
+    }
 
     const messages = [];
 

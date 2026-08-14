@@ -168,6 +168,31 @@
   .rattrapage-manuel-btn{font-family:var(--sans); font-size:12px; font-weight:700; color:var(--text); background:var(--panel-raised); border:1px solid var(--hairline); border-radius:8px; padding:8px 14px; cursor:pointer; white-space:nowrap;}
   .rattrapage-manuel-btn:active{background:var(--panel);}
 
+  /* Point zéro carburants (14/08/2026, demande de Frédéric : "Créer un
+     point zéro carburants" / "Certifier un stock de référence" — un
+     contrôle physique certifié qui devient la nouvelle référence de
+     calcul, exactement comme pour le stock FDJ). Volontairement discret
+     (bouton texte, pas une carte pleine largeur) : une action exceptionnelle
+     de manager, pas un geste quotidien. */
+  .pointzero-toggle-wrap{padding:0 20px 14px;}
+  .pointzero-toggle-btn{width:100%; font-family:var(--mono); font-size:11px; font-weight:600; letter-spacing:0.02em; color:var(--text-mid); background:var(--panel); border:1px solid var(--hairline); border-radius:10px; padding:9px 12px; cursor:pointer; text-align:center;}
+  .pointzero-toggle-btn:active{background:var(--panel-raised);}
+  .pointzero-panel{margin:0 20px 16px; padding:16px; border-radius:14px; background:var(--panel); border:1px solid rgba(212,175,55,0.35);}
+  .pointzero-titre{font-size:13.5px; font-weight:700; margin-bottom:6px; color:var(--gold);}
+  .pointzero-texte{font-size:11.5px; color:var(--text-mid); line-height:1.55; margin-bottom:12px;}
+  .pointzero-dernier{font-size:11px; color:var(--text-dim); line-height:1.5; margin-bottom:12px; padding:9px 11px; background:var(--panel-raised); border-radius:10px;}
+  .pointzero-champ-label{font-size:11px; color:var(--text-mid); margin:10px 0 5px;}
+  .pointzero-row{display:flex; gap:8px;}
+  .pointzero-row + .pointzero-champ-label{margin-top:12px;}
+  .pointzero-input, .pointzero-select, .pointzero-textarea{flex:1; background:var(--panel-raised); border:1px solid var(--hairline); border-radius:8px; padding:9px 10px; color:var(--text); font-family:var(--mono); font-size:13px; width:100%;}
+  .pointzero-textarea{font-family:var(--sans); font-size:12.5px; resize:vertical;}
+  .pointzero-fuel-row{display:flex; align-items:center; gap:8px; margin-bottom:8px;}
+  .pointzero-fuel-label{width:52px; font-size:12px; font-weight:600; flex-shrink:0;}
+  .pointzero-btn{width:100%; margin-top:14px; font-family:var(--sans); font-size:13px; font-weight:700; color:#04141a; background:var(--gold); border:none; border-radius:10px; padding:11px 14px; cursor:pointer;}
+  .pointzero-btn:disabled{opacity:0.6;}
+  .pointzero-confirmation{margin-top:10px; font-size:12px; color:var(--green); text-align:center; display:none;}
+  .pointzero-confirmation.visible{display:block;}
+
   footer{margin-top:auto; padding:16px 20px 24px; font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:center; border-top:1px solid var(--hairline);}
 
   /* Vue bureau (cohérente avec les autres écrans manager NEXUS) */
@@ -192,6 +217,14 @@
   <div class="section-titre" style="margin-top:0;">Situation aujourd'hui</div>
   <div id="situationZone"><div class="loading">Chargement…</div></div>
   <div class="jauge-legende" id="jaugeLegende" style="display:none;"><span class="jauge-legende-trait"></span> Trait cyan = stock théorique attendu</div>
+
+  <!-- Point zéro carburants (14/08/2026) — action exceptionnelle de
+       manager, repliée par défaut : certifie un stock physique comme
+       nouvelle référence de calcul, sans jamais modifier l'historique. -->
+  <div class="pointzero-toggle-wrap">
+    <button class="pointzero-toggle-btn" id="btnPointZeroToggle">🎯 Certifier un stock de référence (point zéro)</button>
+  </div>
+  <div class="pointzero-panel" id="pointZeroPanel" style="display:none;"></div>
 
   <!-- 2) Ce que NEXUS vous dit -->
   <div class="section-titre">Ce que NEXUS vous dit</div>
@@ -246,6 +279,7 @@
   // ------------------------------------------------------------
 
   let SITE_ID = null; // jamais 'vito-sainte-marie' par defaut (de-Vito-isation, 11/08/2026) - toujours ecrase par employee.site_id apres nexusRequireAuth()
+  let MANAGER_COURANT = null; // 14/08/2026, ajouté pour le point zéro : controle_par sur carburant_stock_references
   let TYPE_PERIODE = 'semaine';
   // Contexte "aujourd'hui" (indépendant de la période sélectionnée),
   // chargé une seule fois à l'initialisation et réutilisé par le bloc
@@ -378,6 +412,15 @@
       legende.style.display = 'none';
       return;
     }
+    // Point zéro (14/08/2026) : le jour même de la certification, aucun
+    // théorique n'est encore calculable — le premier le sera au prochain
+    // relevé, qui utilisera ce point zéro comme ancre. Jamais un écart
+    // affiché sur une ancre déjà disqualifiée (Article 5).
+    if (ctx.historiqueNonFiable) {
+      zone.innerHTML = `<div class="controle-vide">${ctx.messageHistoriqueNonFiable || `Point zéro certifié le ${formaterDateFrCourt(ctx.pointZero.date)} — le premier théorique sera calculé au prochain relevé.`}</div>`;
+      legende.style.display = 'none';
+      return;
+    }
     const M = NexusCarburantMoteur;
     const cartes = M.CLES_CARBURANT.filter(cle => ctx.cuvesConfig[cle] && ctx.cuvesConfig[cle].actif).map(cle => {
       const cfg = ctx.cuvesConfig[cle];
@@ -486,7 +529,7 @@
       // est simplement que le théorique n'est pas encore calculable —
       // libellé désormais tri-état (Intégrée / Écart détecté / Rapprochement
       // à confirmer), jamais les deux derniers confondus.
-      if (estAujourdhui && CONTROLE_CTX.parCarburant[cle]) {
+      if (estAujourdhui && CONTROLE_CTX.parCarburant && CONTROLE_CTX.parCarburant[cle]) {
         const st = CONTROLE_CTX.parCarburant[cle].statut;
         const libelle = NexusCarburantMoteur.libelleRapprochementLivraison(st);
         const c = NIVEAU_COULEUR[libelle.niveau] || NIVEAU_COULEUR.attente;
@@ -651,7 +694,12 @@
 
     // --- 6) Stock & autonomie — tableau détaillé (audit §9.6) ---
     let stockTableHTML = '';
-    if (CONTROLE_CTX && !CONTROLE_CTX.aucunReleve) {
+    if (CONTROLE_CTX && CONTROLE_CTX.historiqueNonFiable) {
+      // Point zéro (14/08/2026) : jour de la certification elle-même,
+      // aucune ligne théorique/écart tant que le prochain relevé n'a pas
+      // été saisi — jamais un tableau construit sur une ancre disqualifiée.
+      stockTableHTML = `<div class="controle-vide">${CONTROLE_CTX.messageHistoriqueNonFiable || `Point zéro certifié le ${formaterDateFrCourt(CONTROLE_CTX.pointZero.date)} — le premier théorique sera calculé au prochain relevé.`}</div>`;
+    } else if (CONTROLE_CTX && !CONTROLE_CTX.aucunReleve) {
       const lignesStock = M.CLES_CARBURANT.filter(cle => CUVES_CONFIG[cle] && CUVES_CONFIG[cle].actif).map(cle => {
         const r = CONTROLE_CTX.parCarburant[cle];
         const autonomie = CONTROLE_CTX.autonomiesParCarburant[cle];
@@ -716,6 +764,118 @@
   }
 
   // ------------------------------------------------------------
+  // POINT ZÉRO CARBURANTS (14/08/2026, demande de Frédéric : "Créer un
+  // point zéro carburants" / "Certifier un stock de référence" —
+  // exactement comme l'inventaire de référence FDJ). Action manager
+  // exceptionnelle : certifie un stock physique comme nouvelle ancre de
+  // calcul, sans jamais toucher à carburant_releves ni à l'historique
+  // existant (voir NexusCarburantDonnees.certifierPointZero, purement
+  // additif). Le panneau reste replié par défaut.
+  // ------------------------------------------------------------
+  let POINTZERO_PANEL_OUVERT = false;
+  let POINTZERO_EN_COURS = false;
+
+  function renderPointZeroPanel() {
+    const panel = document.getElementById('pointZeroPanel');
+    const pz = CONTROLE_CTX ? CONTROLE_CTX.pointZero : null;
+    const dernierTxt = pz
+      ? `Dernier point zéro : ${formaterDateFrCourt(pz.date)}${pz.heure ? ` à ${pz.heure.slice(0, 5)}` : ''} — source ${pz.source === 'insite360' ? 'Insite360' : (pz.source === 'terrain' ? 'terrain' : 'autre')}.`
+      : "Aucun point zéro certifié pour l'instant — l'historique actuel reste la seule référence.";
+    // Pré-remplissage : dernière mesure PHYSIQUE connue (jamais une valeur
+    // théorique présentée comme réelle, Article 5) — un point de départ à
+    // corriger par le manager avec la valeur qu'il vient de lire, pas une
+    // valeur déjà validée.
+    const valeurActuelle = (cle) => (CONTROLE_CTX && CONTROLE_CTX.parCarburant && CONTROLE_CTX.parCarburant[cle] && CONTROLE_CTX.parCarburant[cle].stockPhysiqueAffiche != null)
+      ? String(Math.round(CONTROLE_CTX.parCarburant[cle].stockPhysiqueAffiche)) : '';
+    panel.innerHTML = `
+      <div class="pointzero-titre">Certifier un stock de référence</div>
+      <div class="pointzero-texte">À utiliser après un contrôle physique fiable (ex. Insite360) : ce stock devient la nouvelle référence de calcul à partir de la date choisie. L'historique reste archivé mais n'est plus utilisé pour les écarts futurs — rien n'est jamais modifié ni supprimé.</div>
+      <div class="pointzero-dernier">${dernierTxt}</div>
+      <div class="pointzero-champ-label">Date du contrôle</div>
+      <div class="pointzero-row">
+        <input type="date" class="pointzero-input" id="pz_date" max="${todayISO()}" value="${todayISO()}">
+        <input type="time" class="pointzero-input" id="pz_heure" step="1" placeholder="Heure (optionnel)">
+      </div>
+      <div class="pointzero-champ-label">Source</div>
+      <select class="pointzero-select" id="pz_source">
+        <option value="insite360">Insite360 (jauge automatique)</option>
+        <option value="terrain">Terrain (jaugeage manuel)</option>
+        <option value="autre">Autre</option>
+      </select>
+      <div class="pointzero-champ-label">Stock réel certifié — litres</div>
+      <div class="pointzero-fuel-row"><span class="pointzero-fuel-label">GO</span><input type="text" inputmode="decimal" class="pointzero-input" id="pz_go" placeholder="0" value="${valeurActuelle('go')}"></div>
+      <div class="pointzero-fuel-row"><span class="pointzero-fuel-label">SP95</span><input type="text" inputmode="decimal" class="pointzero-input" id="pz_sp95" placeholder="0" value="${valeurActuelle('sp95')}"></div>
+      <div class="pointzero-fuel-row"><span class="pointzero-fuel-label">GNR</span><input type="text" inputmode="decimal" class="pointzero-input" id="pz_gnr" placeholder="0" value="${valeurActuelle('gnr')}"></div>
+      <div class="pointzero-champ-label">Note (optionnel)</div>
+      <textarea class="pointzero-textarea" id="pz_note" rows="2" placeholder="Contexte, référence du relevé Insite360…"></textarea>
+      <button class="pointzero-btn" id="btnPointZeroValider">Certifier ce point zéro</button>
+      <div class="pointzero-confirmation" id="pointZeroConfirmation">✓ Point zéro certifié — les prochains calculs partent de cette référence.</div>
+    `;
+    document.getElementById('btnPointZeroValider').addEventListener('click', validerPointZero);
+  }
+
+  function numFRPointZero(v) {
+    if (v == null || v === '') return null;
+    const n = Number(String(v).replace(',', '.'));
+    return Number.isFinite(n) ? n : null;
+  }
+
+  async function validerPointZero() {
+    if (POINTZERO_EN_COURS) return;
+    const date = document.getElementById('pz_date').value;
+    const go = numFRPointZero(document.getElementById('pz_go').value);
+    const sp95 = numFRPointZero(document.getElementById('pz_sp95').value);
+    const gnr = numFRPointZero(document.getElementById('pz_gnr').value);
+    if (!date) { alert('Choisissez une date.'); return; }
+    if (go == null || sp95 == null || gnr == null) { alert('Renseignez un stock réel pour les 3 carburants.'); return; }
+
+    POINTZERO_EN_COURS = true;
+    const btn = document.getElementById('btnPointZeroValider');
+    btn.disabled = true;
+    btn.textContent = 'Certification…';
+
+    const theoriqueAvant = (cle) => (CONTROLE_CTX && CONTROLE_CTX.parCarburant && CONTROLE_CTX.parCarburant[cle]) ? CONTROLE_CTX.parCarburant[cle].theorique : null;
+    const resultat = await NexusCarburantDonnees.certifierPointZero(nexusClient, SITE_ID, {
+      date,
+      heure: document.getElementById('pz_heure').value || null,
+      source: document.getElementById('pz_source').value,
+      controlePar: MANAGER_COURANT.id,
+      type: (CONTROLE_CTX && CONTROLE_CTX.pointZero) ? 'recomptage' : 'initialisation',
+      note: document.getElementById('pz_note').value.trim() || null,
+      valeurs: {
+        go: { stockReel: go, theoriqueAvant: theoriqueAvant('go') },
+        sp95: { stockReel: sp95, theoriqueAvant: theoriqueAvant('sp95') },
+        gnr: { stockReel: gnr, theoriqueAvant: theoriqueAvant('gnr') },
+      },
+    });
+
+    POINTZERO_EN_COURS = false;
+    if (!resultat.ok) {
+      btn.disabled = false;
+      btn.textContent = 'Certifier ce point zéro';
+      alert('Erreur de certification — réessayez.');
+      return;
+    }
+
+    // Recharge tout ce qui dépend du contrôle du jour : le point zéro vient
+    // de devenir l'ancre, "Situation aujourd'hui", "Ce que NEXUS vous dit"
+    // et "Stock & autonomie" doivent refléter la nouvelle référence
+    // immédiatement, pas seulement au prochain chargement de page.
+    CONTROLE_CTX = await chargerControleEtAutonomie();
+    renderSituation(CONTROLE_CTX);
+    renderMessages();
+    await Promise.all([chargerEtRendreLivraison(), chargerEtRendrePeriode()]);
+
+    // Reconstruit le panneau (pré-remplissage à jour, nouvelle "Dernier
+    // point zéro") PUIS affiche la confirmation par-dessus — l'ordre
+    // inverse effacerait la confirmation en reconstruisant le HTML.
+    renderPointZeroPanel();
+    const conf = document.getElementById('pointZeroConfirmation');
+    conf.classList.add('visible');
+    setTimeout(() => conf.classList.remove('visible'), 4000);
+  }
+
+  // ------------------------------------------------------------
   // INITIALISATION
   // ------------------------------------------------------------
   nexusRequireAuth().then(async employee => {
@@ -725,6 +885,14 @@
       return;
     }
     SITE_ID = employee.site_id;
+    MANAGER_COURANT = employee;
+
+    document.getElementById('btnPointZeroToggle').addEventListener('click', () => {
+      POINTZERO_PANEL_OUVERT = !POINTZERO_PANEL_OUVERT;
+      const panel = document.getElementById('pointZeroPanel');
+      if (POINTZERO_PANEL_OUVERT) { renderPointZeroPanel(); panel.style.display = 'block'; }
+      else { panel.style.display = 'none'; }
+    });
 
     renderBarrePeriodes();
     document.getElementById('btnLibreValider').addEventListener('click', () => {
