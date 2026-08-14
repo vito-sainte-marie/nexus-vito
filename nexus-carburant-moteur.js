@@ -243,6 +243,133 @@
     return "Le relevé du jour n'a pas encore été validé, ou des ventes ne sont pas encore captées — écart non calculable pour l'instant sur au moins un carburant.";
   }
 
+  // ============================================================
+  // AUTONOMIE & JAUGES (13/08/2026) — audit "NEXUS_Audit_Carburants_
+  // Pilotage.pdf" de Frédéric : "l'autonomie est une information de
+  // pilotage essentielle", jusqu'ici totalement absente de l'écran.
+  // ============================================================
+
+  // Seuils provisoires (même esprit que SEUIL_ECART_PCT_* ci-dessus) — le
+  // délai réel de livraison et le stock de sécurité ne sont pas encore
+  // paramétrés (audit §7) ; à recalibrer avec Frédéric une fois cette
+  // information disponible. En attendant, mieux vaut un seuil honnêtement
+  // provisoire qu'aucune alerte du tout.
+  const SEUIL_AUTONOMIE_ALERTE_JOURS = 1.5;
+  const SEUIL_AUTONOMIE_VIGILANCE_JOURS = 3;
+
+  // Jours d'autonomie au rythme de consommation récent. Null si le stock
+  // ou la consommation moyenne manquent, ou si la consommation est nulle/
+  // négative (une autonomie "infinie" n'est pas une information utile —
+  // NEXUS préfère se taire plutôt que d'afficher l'infini ou un zéro faux).
+  function calculerAutonomieJours(stockPhysique, consommationMoyenneJour) {
+    if (stockPhysique == null || consommationMoyenneJour == null || consommationMoyenneJour <= 0) return null;
+    return stockPhysique / consommationMoyenneJour;
+  }
+
+  function statutAutonomie(jours) {
+    if (jours == null) return 'Données insuffisantes';
+    if (jours < SEUIL_AUTONOMIE_ALERTE_JOURS) return 'À corriger';
+    if (jours < SEUIL_AUTONOMIE_VIGILANCE_JOURS) return 'À surveiller';
+    return 'Sous contrôle';
+  }
+
+  // Remplissage d'une cuve/carburant (0..1), borné — un écart de saisie ne
+  // doit jamais faire déborder visuellement une jauge au-delà de sa
+  // capacité configurée.
+  function pourcentageRemplissage(stock, capacite) {
+    if (stock == null || !capacite) return null;
+    return Math.max(0, Math.min(1, stock / capacite));
+  }
+
+  function capaciteTotale(cuves) {
+    return (cuves || []).reduce((s, c) => s + (Number(c.capacite) || 0), 0);
+  }
+
+  // ============================================================
+  // "CE QUE NEXUS VOUS DIT" (13/08/2026, audit §10) — le bloc qui doit
+  // produire l'effet NEXUS : hiérarchiser et interpréter plutôt que
+  // répéter les chiffres déjà affichés ailleurs sur la page. Compose au
+  // maximum 3 messages, triés par priorité (écarts physique/théorique
+  // d'abord — le sujet le plus concret et actionnable — puis livraison
+  // intégrée, puis autonomie faible, puis mouvement de ventes marqué). Si
+  // rien ne mérite l'attention, le dit explicitement plutôt que de laisser
+  // un bloc vide (Article 5, "ne jamais laisser un silence ambigu").
+  //
+  // `ctx` = {
+  //   parCarburant, aucunReleve, releveDuJour — sortie de
+  //     NexusCarburantDonnees.chargerControleJour,
+  //   autonomiesParCarburant: { go, sp95, gnr } (jours ou null),
+  //   deltaTotal, evolutionTotale, moteurEvolution — sorties du calcul de
+  //     période sélectionnée (decomposerEvolution/calculerEvolutionVolume/
+  //     identifierMoteurEvolution),
+  //   labelPeriode — libellé déjà résolu de la période sélectionnée.
+  // }
+  function construireMessagesPilotage(ctx) {
+    const c = ctx || {};
+    if (c.aucunReleve) {
+      return [{ type: 'info', texte: "Aucun relevé enregistré pour l'instant — le pilotage s'activera dès le premier jaugeage saisi." }];
+    }
+
+    const messages = [];
+
+    // 0) Jaugeage du jour manquant (audit §8, exemple cible) — quand le
+    // relevé du jour n'a pas été saisi mais qu'un relevé antérieur existe,
+    // aucun écart n'est réellement calculable aujourd'hui : le dire
+    // explicitement, avec les deux chiffres qui permettent d'agir, plutôt
+    // que de laisser deviner via un simple "Données insuffisantes".
+    if (!c.releveDuJour && c.dernierReleve && c.parCarburant) {
+      const dateTxt = (c.dernierReleve.date || '').split('-').reverse().join('/');
+      messages.push({
+        type: 'attention',
+        texte: `Jaugeage du jour manquant. Dernier relevé physique : ${dateTxt}. Saisissez le jaugeage pour contrôler l'écart.`,
+      });
+    }
+
+    // 1) Écarts physique/théorique.
+    if (c.parCarburant) {
+      CLES_CARBURANT.forEach(cle => {
+        const r = c.parCarburant[cle];
+        if (!r || (r.statut !== 'À corriger' && r.statut !== 'À surveiller')) return;
+        const ecartTxt = r.ecart != null ? `${r.ecart >= 0 ? '+' : ''}${Math.round(r.ecart).toLocaleString('fr-FR')} L` : 'non calculable';
+        messages.push({
+          type: r.statut === 'À corriger' ? 'alerte' : 'attention',
+          texte: `${NOM_CARBURANT_COURT[cle]} : écart physique/théorique de ${ecartTxt}${r.ecartRatio != null ? ` (${(r.ecartRatio * 100).toFixed(1)} % des ventes)` : ''} — ${r.statut === 'À corriger' ? 'à vérifier rapidement' : 'à surveiller'}.`,
+        });
+      });
+    }
+
+    // 2) Livraison du jour intégrée — événement à signaler explicitement.
+    if (c.releveDuJour) {
+      const carburantsLivres = CLES_CARBURANT.filter(cle => Number(c.releveDuJour[`livraison_${cle}`]) > 0);
+      if (carburantsLivres.length) {
+        const details = carburantsLivres.map(cle => `${Math.round(c.releveDuJour[`livraison_${cle}`]).toLocaleString('fr-FR')} L ${NOM_CARBURANT_COURT[cle]}`).join(', ');
+        messages.push({ type: 'info', texte: `Livraison du ${(c.releveDuJour.date || '').split('-').reverse().join('/')} intégrée au stock théorique : ${details}.` });
+      }
+    }
+
+    // 3) Autonomie faible.
+    if (c.autonomiesParCarburant) {
+      CLES_CARBURANT.forEach(cle => {
+        const jours = c.autonomiesParCarburant[cle];
+        if (jours != null && jours < SEUIL_AUTONOMIE_ALERTE_JOURS) {
+          messages.push({ type: 'alerte', texte: `${NOM_CARBURANT_COURT[cle]} : autonomie de ${jours.toFixed(1)} jour${jours >= 2 ? 's' : ''} au rythme de vente actuel — réapprovisionnement à anticiper.` });
+        }
+      });
+    }
+
+    // 4) Mouvement de ventes marqué (≥ 15 %) — réutilise les calculs déjà
+    // faits par l'appelant pour la section Ventes, jamais un second calcul.
+    if (c.deltaTotal != null && Math.abs(c.deltaTotal) >= 1 && c.evolutionTotale != null && Math.abs(c.evolutionTotale) >= 0.15) {
+      const sens = c.deltaTotal > 0 ? 'progressent' : 'reculent';
+      let texte = `Les ventes ${sens} de ${Math.abs(Math.round(c.evolutionTotale * 100))} % sur ${c.labelPeriode || 'la période sélectionnée'}.`;
+      if (c.moteurEvolution) texte += ` ${NOM_CARBURANT_COURT[c.moteurEvolution.cle]} explique la majorité du mouvement.`;
+      messages.push({ type: c.deltaTotal > 0 ? 'positif' : 'attention', texte });
+    }
+
+    if (!messages.length) return [{ type: 'positif', texte: 'Situation carburants sous contrôle aujourd\'hui.' }];
+    return messages.slice(0, 3);
+  }
+
   global.NexusCarburantMoteur = {
     SEUIL_ECART_PCT_SURVEILLER, SEUIL_ECART_PCT_CORRIGER, CLES_CARBURANT, NOM_CARBURANT_COURT,
     stockReelGoTotal, sommerVentesPeriode,
@@ -251,5 +378,8 @@
     calculerMixCarburant, calculerEvolutionVolume, identifierProduitMoteur,
     decomposerEvolution, identifierMoteurEvolution,
     statutGlobalControle, texteControleJour,
+    SEUIL_AUTONOMIE_ALERTE_JOURS, SEUIL_AUTONOMIE_VIGILANCE_JOURS,
+    calculerAutonomieJours, statutAutonomie, pourcentageRemplissage, capaciteTotale,
+    construireMessagesPilotage,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

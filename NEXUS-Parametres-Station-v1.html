@@ -129,6 +129,8 @@
 <script src="nexus-desktop.js"></script>
 <script src="nexus-forfait.js"></script>
 <script src="nexus-raccourcis-catalogue.js"></script>
+<script src="nexus-carburant-moteur.js"></script>
+<script src="nexus-carburant-donnees.js"></script>
 </head>
 <body>
 <div class="phone">
@@ -246,6 +248,28 @@
       <div class="row"><label>Gasoil non routier (GNR) — €/L</label><input type="text" inputmode="decimal" id="prix_gnr" placeholder="0,000"></div>
       <button class="btn btn-primary" id="sauvegarderPrix">Enregistrer les prix du mois</button>
       <div class="saved-note" id="savedNotePrix">✓ Prix enregistrés pour ce mois</div>
+    </div>
+
+    <!-- ------------------------------------------------------------
+         Cuves & capacités carburants (13/08/2026, audit "NEXUS_Audit_
+         Carburants_Pilotage.pdf" de Frédéric : "rends moi paramétrable
+         également le type de carburant et répartition dans les cuves").
+         Même pattern que la carte "Prix carburants" ci-dessus —
+         station_config.cuves_carburants (jsonb), éditable ici, consommé
+         par NEXUS-Carburants-Pilotage-v1.html pour dimensionner les jauges
+         de stock. Limite assumée : le NOMBRE de cuves par carburant reste
+         fixe (GO = 2 cuves, SP95/GNR = 1 chacun) car carburant_releves a
+         des colonnes dédiées (stock_reel_go_cuve1/cuve2/sp95/gnr) —
+         seules les CAPACITÉS et le fait qu'un carburant soit vendu ou non
+         sur ce site sont ici paramétrables. Changer le nombre de cuves
+         resterait un chantier séparé touchant l'écran de relevé lui-même.
+         ------------------------------------------------------------ -->
+    <div class="card" id="cardCuvesCarburants">
+      <div class="section-label">Cuves & capacités carburants</div>
+      <div class="note">Ces capacités dimensionnent les jauges de stock affichées dans Carburants Pilotage. Désactivez un carburant que la station ne vend pas — ses jauges disparaissent sans perdre sa configuration.</div>
+      <div id="cuvesCarburantsListe"><div class="note">Chargement…</div></div>
+      <button class="btn btn-primary" id="sauvegarderCuves">Enregistrer les cuves</button>
+      <div class="saved-note" id="savedNoteCuves">✓ Configuration des cuves enregistrée</div>
     </div>
 
     <!-- ------------------------------------------------------------
@@ -606,6 +630,92 @@
     const statutEl = document.getElementById('statutPrixMois');
     statutEl.textContent = `✓ Prix à jour pour ${moisLabel(moisCourantISO())}.`;
     statutEl.style.color = 'var(--green)';
+  });
+
+  // ------------------------------------------------------------
+  // Cuves & capacités carburants (13/08/2026, audit Carburants Pilotage) —
+  // même pattern que Prix carburants ci-dessus : station_config.cuves_
+  // carburants (jsonb), jamais une deuxième copie des valeurs par défaut
+  // (NexusCarburantDonnees.CUVES_PAR_DEFAUT, chargé via nexus-carburant-
+  // donnees.js, Article 11 — une seule vérité). Ordre volontairement
+  // GO/SP95/GNR, identique partout ailleurs dans NEXUS Carburants.
+  // ------------------------------------------------------------
+  const ORDRE_CARBURANTS = ['go', 'sp95', 'gnr'];
+  let CUVES_CONFIG_ACTUELLE = null;
+
+  function renderCuvesCarburants(config) {
+    const zone = document.getElementById('cuvesCarburantsListe');
+    zone.innerHTML = ORDRE_CARBURANTS.map(cle => {
+      const c = config[cle] || NexusCarburantDonnees.CUVES_PAR_DEFAUT[cle];
+      const cuvesHTML = c.cuves.map((cuve, i) => `
+        <div class="row">
+          <label>${cuve.label || `Cuve ${i + 1}`} — litres</label>
+          <input type="number" inputmode="numeric" min="0" step="100" id="cuve_${cle}_${cuve.id}" value="${cuve.capacite != null ? cuve.capacite : ''}">
+        </div>`).join('');
+      return `
+        <div class="toggle-row" style="margin-bottom:10px;">
+          <div class="tr-text">
+            <div class="tr-title">${c.label}</div>
+            <div class="tr-desc">${c.cuves.length > 1 ? `${c.cuves.length} cuves — capacité totale ${c.cuves.reduce((s, x) => s + (Number(x.capacite) || 0), 0).toLocaleString('fr-FR')} L` : `Capacité ${Math.round(Number(c.cuves[0].capacite) || 0).toLocaleString('fr-FR')} L`}</div>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" class="cuve-actif" data-carb="${cle}" ${c.actif ? 'checked' : ''}>
+            <span class="toggle-track"></span>
+            <span class="toggle-thumb"></span>
+          </label>
+        </div>
+        <div class="cuves-detail" id="cuvesDetail_${cle}" style="${c.actif ? '' : 'opacity:0.4;'} margin:0 0 16px;">${cuvesHTML}</div>
+      `;
+    }).join('');
+    zone.querySelectorAll('.cuve-actif').forEach(chk => {
+      chk.addEventListener('change', () => {
+        document.getElementById(`cuvesDetail_${chk.dataset.carb}`).style.opacity = chk.checked ? '1' : '0.4';
+      });
+    });
+  }
+
+  (async function initCuvesCarburants() {
+    const { config } = await NexusCarburantDonnees.chargerCuvesConfig(nexusClient, employee.site_id);
+    CUVES_CONFIG_ACTUELLE = config;
+    renderCuvesCarburants(config);
+  })();
+
+  document.getElementById('sauvegarderCuves').addEventListener('click', async () => {
+    const btn = document.getElementById('sauvegarderCuves');
+    const config = {};
+    let erreur = false;
+    ORDRE_CARBURANTS.forEach(cle => {
+      const base = (CUVES_CONFIG_ACTUELLE && CUVES_CONFIG_ACTUELLE[cle]) || NexusCarburantDonnees.CUVES_PAR_DEFAUT[cle];
+      const actif = document.querySelector(`.cuve-actif[data-carb="${cle}"]`).checked;
+      const cuves = base.cuves.map(cuve => {
+        const val = document.getElementById(`cuve_${cle}_${cuve.id}`).value;
+        const capacite = parseInt(val, 10);
+        if (isNaN(capacite) || capacite <= 0) erreur = true;
+        return { id: cuve.id, label: cuve.label, capacite: isNaN(capacite) ? cuve.capacite : capacite };
+      });
+      config[cle] = { actif, label: base.label, cuves };
+    });
+    if (erreur) { alert('Renseignez une capacité positive pour chaque cuve active.'); return; }
+    btn.disabled = true;
+    // Même précaution que Prix carburants : on renvoie aussi horaires et
+    // prix_carburants déjà connus pour ne jamais les vider par inadvertance
+    // via l'upsert (station_config n'a qu'une ligne par site).
+    const { data: existant } = await nexusClient.from('station_config').select('horaires,prix_carburants').eq('site', employee.site_id).maybeSingle();
+    const { error } = await nexusClient.from('station_config').upsert(
+      {
+        site: employee.site_id, cuves_carburants: config,
+        horaires: (existant && existant.horaires) || CONFIG_HORAIRES_ACTUEL,
+        prix_carburants: existant ? existant.prix_carburants : null,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'site' }
+    );
+    btn.disabled = false;
+    if (error) { console.error('Enregistrement cuves_carburants:', error); alert('Erreur — réessayez.'); return; }
+    CUVES_CONFIG_ACTUELLE = config;
+    const note = document.getElementById('savedNoteCuves');
+    note.style.display = 'block';
+    setTimeout(() => note.style.display = 'none', 3000);
   });
 
   // ------------------------------------------------------------

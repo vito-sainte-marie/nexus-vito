@@ -69,24 +69,84 @@
   .libre-btn{font-family:var(--sans); font-size:12px; font-weight:700; color:#04141a; background:var(--cyan); border:none; border-radius:8px; padding:8px 14px; cursor:pointer;}
   .periode-label{padding:0 20px 6px; font-family:var(--mono); font-size:11px; color:var(--text-dim);}
 
-  .section-titre{font-size:15px; font-weight:700; margin:16px 20px 8px;}
+  .section-titre{font-size:15px; font-weight:700; margin:20px 20px 10px;}
   .section-note{font-size:11.5px; color:var(--text-dim); line-height:1.5; margin:0 20px 10px;}
+  .controle-vide{padding:16px 20px; text-align:center; color:var(--text-dim); font-size:12px; background:var(--panel); border:1px solid var(--hairline); border-radius:14px; margin:0 20px; line-height:1.5;}
 
   .badge{display:inline-block; font-family:var(--mono); font-size:8.5px; font-weight:700; letter-spacing:0.03em; padding:2px 7px; border-radius:20px; text-transform:uppercase; margin-left:6px; vertical-align:middle;}
 
-  .controle-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:8px; padding:0 20px;}
-  .controle-card{background:var(--panel); border:1px solid var(--hairline); border-radius:14px; padding:12px 10px; text-align:center;}
-  .controle-nom{font-size:11.5px; font-weight:700;}
-  .controle-ecart{font-family:var(--mono); font-size:13px; font-weight:700; margin-top:6px;}
-  .controle-statut{display:inline-block; margin-top:6px; font-family:var(--mono); font-size:8.5px; font-weight:700; padding:2px 8px; border-radius:20px; text-transform:uppercase;}
-  .controle-vide{padding:16px 20px; text-align:center; color:var(--text-dim); font-size:12px; background:var(--panel); border:1px solid var(--hairline); border-radius:14px; margin:0 20px; line-height:1.5;}
+  /* ------------------------------------------------------------
+     SITUATION AUJOURD'HUI — jauges de cuve par carburant (13/08/2026,
+     audit "NEXUS_Audit_Carburants_Pilotage.pdf" §2/§4/§7 : "la page ne
+     doit pas commencer par les ventes, elle doit commencer par l'état des
+     cuves et la maîtrise du stock" — cette section est désormais la
+     toute première chose que la page affiche après le lien de relevé et
+     le rattrapage éventuel).
+     Jauge en pur CSS (pas de canvas/svg externe) : un tube arrondi, un
+     remplissage animé au chargement, un trait cyan marquant le niveau
+     théorique attendu — pour comparer d'un coup d'oeil "ce qui est
+     mesuré" et "ce que NEXUS attend".
+     ------------------------------------------------------------ */
+  .situation-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:9px; padding:0 20px;}
+  .carb-carte{background:var(--panel); border:1px solid var(--hairline); border-radius:16px; padding:12px 8px 13px; display:flex; flex-direction:column; align-items:center; transition:border-color .2s;}
+  .carb-carte.statut-corriger{border-color:rgba(240,87,90,0.45);}
+  .carb-carte.statut-surveiller{border-color:rgba(245,166,35,0.4);}
+  .carb-nom{font-size:11.5px; font-weight:700; margin-bottom:9px; text-align:center;}
+  .carb-jauge{position:relative; width:34px; height:96px; border-radius:9px; background:var(--panel-raised); border:1px solid var(--hairline); overflow:hidden; margin-bottom:9px; box-shadow:inset 0 2px 6px rgba(0,0,0,0.35);}
+  .carb-jauge-remplissage{position:absolute; bottom:0; left:0; right:0; height:0%; border-radius:0 0 8px 8px; transition:height 1s cubic-bezier(.22,1,.36,1);}
+  .carb-jauge-remplissage::after{content:''; position:absolute; top:0; left:0; right:0; height:5px; background:rgba(255,255,255,0.22);}
+  .carb-jauge-marqueur{position:absolute; left:-4px; right:-4px; height:2px; background:var(--cyan); opacity:0.9;}
+  .carb-jauge-marqueur::before{content:''; position:absolute; right:-2px; top:-3px; width:0; height:0; border-style:solid; border-width:4px 0 4px 5px; border-color:transparent transparent transparent var(--cyan);}
+  .carb-pct{font-family:var(--mono); font-size:13px; font-weight:700;}
+  .carb-chiffres{font-family:var(--mono); font-size:9px; color:var(--text-mid); text-align:center; line-height:1.65; margin-top:7px;}
+  .carb-chiffres .val{color:var(--text); font-weight:700; display:block; font-size:9.5px;}
+  .carb-statut-badge{margin-top:7px; font-family:var(--mono); font-size:7.5px; font-weight:700; padding:3px 8px; border-radius:20px; text-transform:uppercase; letter-spacing:0.02em;}
+  .jauge-legende{display:flex; align-items:center; gap:6px; padding:8px 20px 0; font-family:var(--mono); font-size:9.5px; color:var(--text-dim);}
+  .jauge-legende-trait{width:14px; height:2px; background:var(--cyan);}
+
+  /* Ce que NEXUS vous dit */
+  .message-carte{display:flex; gap:9px; align-items:flex-start; padding:12px 14px; border-radius:12px; margin:0 20px 8px; font-size:12.5px; line-height:1.5;}
+  .message-carte.alerte{background:var(--red-dim); border:1px solid rgba(240,87,90,0.3);}
+  .message-carte.attention{background:var(--amber-dim); border:1px solid rgba(245,166,35,0.3);}
+  .message-carte.info{background:rgba(79,195,217,0.08); border:1px solid rgba(79,195,217,0.25);}
+  .message-carte.positif{background:var(--green-dim); border:1px solid rgba(52,211,153,0.3);}
+  .message-icone{font-size:14px; flex-shrink:0; line-height:1.4;}
+
+  /* Dernière livraison */
+  .livraison-carte{background:var(--panel); border:1px solid var(--hairline); border-radius:14px; padding:14px 16px; margin:0 20px 12px;}
+  .livraison-ligne{display:flex; justify-content:space-between; align-items:baseline; padding:7px 0; border-bottom:1px solid var(--hairline); font-size:12.5px;}
+  .livraison-ligne:last-child{border-bottom:none;}
+  .livraison-total{font-weight:700;}
+  .livraison-statut{font-family:var(--mono); font-size:8.5px; font-weight:700; padding:2px 8px; border-radius:20px; text-transform:uppercase;}
+
+  .kpi-card{background:var(--panel); border:1px solid var(--hairline); border-radius:14px; padding:16px; margin:0 20px 12px;}
+  .kpi-row{display:flex; align-items:baseline; justify-content:space-between; padding:7px 0;}
+  .kpi-row + .kpi-row{border-top:1px solid var(--hairline);}
+  .kpi-label{font-size:12.5px; color:var(--text-mid);}
+  .kpi-valeur{font-family:var(--mono); font-weight:700; font-size:14px;}
+  .kpi-evol{font-family:var(--mono); font-size:11px; margin-left:6px;}
+  .kpi-evol.hausse{color:var(--green);}
+  .kpi-evol.baisse{color:var(--red);}
+  .kpi-evol.stable{color:var(--text-dim);}
+
+  .mix-bar-wrap{margin-bottom:10px;}
+  .mix-bar-tete{display:flex; justify-content:space-between; font-size:12px; margin-bottom:4px;}
+  .mix-bar-piste{height:8px; border-radius:5px; background:var(--panel-raised); overflow:hidden;}
+  .mix-bar-remplissage{height:100%; border-radius:5px; transition:width .8s cubic-bezier(.22,1,.36,1);}
+
+  .synthese-texte{font-size:13.5px; line-height:1.6; color:var(--text); background:var(--panel); border:1px solid var(--hairline); border-radius:14px; padding:16px; margin:0 20px 12px;}
+
+  /* Stock & autonomie — tableau détaillé */
+  .stock-table-wrap{margin:0 20px 12px; border:1px solid var(--hairline); border-radius:14px; overflow:hidden;}
+  .stock-table{width:100%; border-collapse:collapse; font-size:11px;}
+  .stock-table th{font-family:var(--mono); font-size:8.5px; text-transform:uppercase; letter-spacing:0.03em; color:var(--text-dim); font-weight:600; text-align:left; padding:9px 8px; background:var(--panel-raised); border-bottom:1px solid var(--hairline);}
+  .stock-table td{padding:9px 8px; border-bottom:1px solid var(--hairline); font-family:var(--mono);}
+  .stock-table tr:last-child td{border-bottom:none;}
+  .stock-table .nom-cell{font-family:var(--sans); font-weight:600;}
 
   /* Rattrapage (13/08/2026, demande de Frédéric : "ça fait 2-3 jours que
      le jaugeage n'a pas été indiqué") — carte d'accès rapide vers
-     NEXUS-Carburants-v1.html?date=... pour un jour passé. Deux tons : un
-     ton alerte (ambre) quand des jours récents sont réellement sans
-     relevé, un ton neutre sinon (jamais alarmer un manager pour rien —
-     Article 5). */
+     NEXUS-Carburants-v1.html?date=... pour un jour passé. */
   .rattrapage-card{margin:0 20px 14px; padding:14px 16px; border-radius:14px; background:rgba(245,166,35,0.08); border:1px solid rgba(245,166,35,0.3);}
   .rattrapage-card.calme{background:var(--panel); border:1px solid var(--hairline);}
   .rattrapage-head{display:flex; align-items:center; gap:8px; margin-bottom:4px;}
@@ -106,23 +166,6 @@
   .rattrapage-manuel input{flex:1; background:var(--panel-raised); border:1px solid var(--hairline); border-radius:8px; padding:8px 10px; color:var(--text); font-family:var(--mono); font-size:12.5px;}
   .rattrapage-manuel-btn{font-family:var(--sans); font-size:12px; font-weight:700; color:var(--text); background:var(--panel-raised); border:1px solid var(--hairline); border-radius:8px; padding:8px 14px; cursor:pointer; white-space:nowrap;}
   .rattrapage-manuel-btn:active{background:var(--panel);}
-
-  .kpi-card{background:var(--panel); border:1px solid var(--hairline); border-radius:14px; padding:16px; margin:0 20px 12px;}
-  .kpi-row{display:flex; align-items:baseline; justify-content:space-between; padding:7px 0;}
-  .kpi-row + .kpi-row{border-top:1px solid var(--hairline);}
-  .kpi-label{font-size:12.5px; color:var(--text-mid);}
-  .kpi-valeur{font-family:var(--mono); font-weight:700; font-size:14px;}
-  .kpi-evol{font-family:var(--mono); font-size:11px; margin-left:6px;}
-  .kpi-evol.hausse{color:var(--green);}
-  .kpi-evol.baisse{color:var(--red);}
-  .kpi-evol.stable{color:var(--text-dim);}
-
-  .mix-bar-wrap{margin-bottom:10px;}
-  .mix-bar-tete{display:flex; justify-content:space-between; font-size:12px; margin-bottom:4px;}
-  .mix-bar-piste{height:8px; border-radius:5px; background:var(--panel-raised); overflow:hidden;}
-  .mix-bar-remplissage{height:100%; border-radius:5px;}
-
-  .synthese-texte{font-size:13.5px; line-height:1.6; color:var(--text); background:var(--panel); border:1px solid var(--hairline); border-radius:14px; padding:16px; margin:0 20px 12px;}
 
   footer{margin-top:auto; padding:16px 20px 24px; font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:center; border-top:1px solid var(--hairline);}
 
@@ -144,8 +187,18 @@
 
   <div id="rattrapageZone"></div>
 
-  <div class="section-titre" style="margin-top:0;">Contrôle du jour</div>
-  <div id="controleZone"><div class="loading">Chargement…</div></div>
+  <!-- 1) Situation aujourd'hui — jauges par carburant -->
+  <div class="section-titre" style="margin-top:0;">Situation aujourd'hui</div>
+  <div id="situationZone"><div class="loading">Chargement…</div></div>
+  <div class="jauge-legende" id="jaugeLegende" style="display:none;"><span class="jauge-legende-trait"></span> Trait cyan = stock théorique attendu</div>
+
+  <!-- 2) Ce que NEXUS vous dit -->
+  <div class="section-titre">Ce que NEXUS vous dit</div>
+  <div id="messagesZone"><div class="loading">Chargement…</div></div>
+
+  <!-- 3) Dernière livraison -->
+  <div class="section-titre">Dernière livraison</div>
+  <div id="livraisonZone"><div class="loading">Chargement…</div></div>
 
   <div class="periode-bar" id="periodeBar"></div>
   <div class="libre-bar" id="libreBar">
@@ -159,46 +212,45 @@
     <div class="loading">Chargement…</div>
   </div>
 
-  <footer>NEXUS Carburants Pilotage v1 (Phase 1) · Vito Sainte-Marie Usine</footer>
+  <footer>NEXUS Carburants Pilotage v1 (refonte 13/08/2026) · Vito Sainte-Marie Usine</footer>
 </div>
 
 <script>
   // ------------------------------------------------------------
-  // NEXUS Carburants Pilotage v1 (11/08/2026) — Phase 1 de la montée en
-  // puissance de NEXUS Carburants, à la demande de Frédéric (vision
-  // détaillée en 6 familles d'intelligence, construites sur le SEUL
-  // moteur existant, sans nouvelle saisie manager). Distinct de
-  // NEXUS-Carburants-v1.html ("Relevé du jour", écran opérationnel de
-  // saisie/contrôle) : cet écran est la couche dirigeant — il ne capture
-  // rien, il explique. Relevé collecte les faits, le moteur calcule,
-  // Pilotage comprend — même logique que FDJ Pilotage.
+  // NEXUS Carburants Pilotage v2 (13/08/2026) — refonte complète à partir
+  // de l'audit "NEXUS_Audit_Carburants_Pilotage.pdf" transmis par Frédéric.
+  // Principe directeur de l'audit, repris tel quel : "Carburants Pilotage
+  // ne doit pas commencer par les ventes. Il doit commencer par l'état des
+  // cuves et la maîtrise du stock."
   //
-  // Contenu de cette Phase 1 (les deux autres familles — autonomie de
-  // stock/livraisons et couche économique — sont des phases séparées,
-  // choisies et validées par Frédéric le 11/08/2026) :
-  //  - Contrôle du jour : reprend le statut par carburant déjà calculé
-  //    par nexus-carburant-moteur.js (jamais une deuxième formule) pour
-  //    aujourd'hui, en lecture seule.
-  //  - Volumes & performance : litres vendus sur la période sélectionnée
-  //    (déjà captés par NEXUS Verify, jamais ressaisis) et évolution vs
-  //    référence résolue par nexus-periodes.js (même moteur que Rapport
-  //    NEXUS — une seule façon de choisir "la bonne période de
-  //    comparaison" dans tout NEXUS).
-  //  - Mix carburant : répartition des volumes entre GO/SP95/GNR.
-  //  - Moteur & progression : le carburant qui pèse le plus dans les
-  //    volumes (produit moteur) n'est pas forcément celui qui explique le
-  //    mouvement de la période (moteur d'évolution) — les deux sont
-  //    distingués, avec une phrase de synthèse qui décompose l'évolution
-  //    carburant par carburant (nexus-carburant-moteur.js,
-  //    decomposerEvolution/identifierMoteurEvolution).
+  // Architecture de la page (audit §9), dans cet ordre :
+  //  1. Situation aujourd'hui — jauges stock physique/théorique/écart/
+  //     autonomie/statut par carburant (cuves dimensionnées depuis
+  //     station_config.cuves_carburants, paramétrable dans Paramètres
+  //     Station).
+  //  2. Ce que NEXUS vous dit — maximum 3 messages hiérarchisés
+  //     (NexusCarburantMoteur.construireMessagesPilotage).
+  //  3. Dernière livraison — visible et rapprochée du stock théorique.
+  //  4. Ventes carburants — période sélectionnée (ex-"Volumes &
+  //     performance", renommé audit §2).
+  //  5. Répartition des ventes (ex-"Mix carburant", renommé audit §3).
+  //  6. Stock & autonomie — tableau détaillé (audit §9.6).
+  //  7. Moteur & progression — inchangé dans le fond, phrase enrichie
+  //     (audit §11).
   //
-  // Toute la logique de calcul vit dans nexus-carburant-moteur.js (pur).
-  // Ce fichier ne fait que charger (nexus-carburant-donnees.js) et
-  // mettre en forme — jamais un calcul recopié localement (Article 11).
+  // Aucun nouveau calcul dupliqué ici : tout vit dans
+  // nexus-carburant-moteur.js (pur) et nexus-carburant-donnees.js (glue
+  // Supabase) — cette page ne fait que charger et mettre en forme
+  // (Article 11, "une seule vérité").
   // ------------------------------------------------------------
 
   let SITE_ID = null; // jamais 'vito-sainte-marie' par defaut (de-Vito-isation, 11/08/2026) - toujours ecrase par employee.site_id apres nexusRequireAuth()
   let TYPE_PERIODE = 'semaine';
+  // Contexte "aujourd'hui" (indépendant de la période sélectionnée),
+  // chargé une seule fois à l'initialisation et réutilisé par le bloc
+  // "Ce que NEXUS vous dit" en plus des signaux dépendants de la période.
+  let CONTROLE_CTX = null;
+  let CUVES_CONFIG = null;
 
   const TYPES = [
     { cle: 'semaine', label: 'Semaine' },
@@ -217,6 +269,7 @@
     'À corriger': { c: 'var(--red)', f: 'var(--red-dim)' },
     'Données insuffisantes': { c: 'var(--text-dim)', f: 'var(--panel-raised)' },
   };
+  const ICONE_MESSAGE = { alerte: '🔴', attention: '🟠', info: 'ℹ️', positif: '🟢' };
 
   function todayISO() {
     const d = new Date();
@@ -228,16 +281,16 @@
     const cls = evol > 0.02 ? 'hausse' : evol < -0.02 ? 'baisse' : 'stable';
     return `<span class="kpi-evol ${cls}">${evol >= 0 ? '+' : ''}${(evol * 100).toFixed(1)} %</span>`;
   }
+  function classeStatutCarte(statut) {
+    if (statut === 'À corriger') return 'statut-corriger';
+    if (statut === 'À surveiller') return 'statut-surveiller';
+    return '';
+  }
 
   // ------------------------------------------------------------
   // Rattrapage (13/08/2026, demande de Frédéric : "ça fait 2-3 jours que
-  // le jaugeage n'a pas été indiqué") — pointe directement les jours
-  // récents sans relevé (NexusCarburantDonnees.chargerJoursSansReleve,
-  // jamais un second calcul local, Article 11) et propose en plus une
-  // date libre pour rattraper n'importe quel autre jour. Chaque jour
-  // devient un lien direct vers NEXUS-Carburants-v1.html?date=..., qui
-  // sait depuis ce lot ouvrir une "session" de saisie sur cette date
-  // précise au lieu d'aujourd'hui.
+  // le jaugeage n'a pas été indiqué") — inchangé dans son principe,
+  // reporté tel quel de la v1 de cette page.
   // ------------------------------------------------------------
   function formaterDateFrCourt(iso) {
     const [, m, d] = iso.split('-');
@@ -277,38 +330,145 @@
   }
 
   // ------------------------------------------------------------
-  // Contrôle du jour — indépendant de la période sélectionnée (toujours
-  // "aujourd'hui"), chargé une seule fois à l'initialisation.
+  // 1) SITUATION AUJOURD'HUI — jauges par carburant. Indépendant de la
+  // période sélectionnée (toujours "aujourd'hui"), chargé une seule fois.
   // ------------------------------------------------------------
-  async function chargerEtRendreControle() {
-    const zone = document.getElementById('controleZone');
-    const { parCarburant, aucunReleve, dateDernierReleve } = await NexusCarburantDonnees.chargerControleJour(nexusClient, SITE_ID, todayISO());
+  async function chargerControleEtAutonomie() {
+    const [{ config }, controle, consoMoyenne] = await Promise.all([
+      NexusCarburantDonnees.chargerCuvesConfig(nexusClient, SITE_ID),
+      NexusCarburantDonnees.chargerControleJour(nexusClient, SITE_ID, todayISO()),
+      NexusCarburantDonnees.chargerConsommationJournaliereMoyenne(nexusClient, SITE_ID, todayISO()),
+    ]);
+    CUVES_CONFIG = config;
+    const autonomiesParCarburant = {};
+    if (controle.parCarburant) {
+      NexusCarburantMoteur.CLES_CARBURANT.forEach(cle => {
+        const stock = controle.parCarburant[cle].stockPhysiqueAffiche;
+        autonomiesParCarburant[cle] = NexusCarburantMoteur.calculerAutonomieJours(stock, consoMoyenne[cle]);
+      });
+    }
+    return { ...controle, cuvesConfig: config, autonomiesParCarburant };
+  }
 
-    if (aucunReleve) {
-      zone.innerHTML = `<div class="controle-vide">Aucun relevé enregistré pour ce site pour l'instant — le contrôle quotidien s'activera dès le premier jaugeage saisi dans le Relevé du jour.</div>`;
+  function renderSituation(ctx) {
+    const zone = document.getElementById('situationZone');
+    const legende = document.getElementById('jaugeLegende');
+    if (ctx.aucunReleve) {
+      zone.innerHTML = `<div class="controle-vide">Aucun relevé enregistré pour ce site pour l'instant — le pilotage s'activera dès le premier jaugeage saisi dans le Relevé du jour.</div>`;
+      legende.style.display = 'none';
       return;
     }
-
-    const cartes = Object.keys(NOM_CARBURANT).map(cle => {
-      const r = parCarburant[cle];
+    const M = NexusCarburantMoteur;
+    const cartes = M.CLES_CARBURANT.filter(cle => ctx.cuvesConfig[cle] && ctx.cuvesConfig[cle].actif).map(cle => {
+      const cfg = ctx.cuvesConfig[cle];
+      const r = ctx.parCarburant[cle];
+      const capacite = M.capaciteTotale(cfg.cuves);
+      const pctStock = M.pourcentageRemplissage(r.stockPhysiqueAffiche, capacite);
+      const pctTheo = M.pourcentageRemplissage(r.theorique, capacite);
       const couleur = COULEUR_STATUT[r.statut] || COULEUR_STATUT['Données insuffisantes'];
+      const autonomie = ctx.autonomiesParCarburant[cle];
       const ecartTxt = r.ecart != null ? `${r.ecart >= 0 ? '+' : ''}${Math.round(r.ecart).toLocaleString('fr-FR')} L` : '—';
+      const detailCuves = cfg.cuves.length > 1 ? cfg.cuves.map(cv => cv.label).join(' + ') : cfg.cuves[0].label;
       return `
-        <div class="controle-card">
-          <div class="controle-nom">${COURT_CARBURANT[cle]}</div>
-          <div class="controle-ecart" style="color:${r.ecart != null && r.ecart < 0 ? 'var(--red)' : (r.ecart != null && r.ecart > 0 ? 'var(--green)' : 'var(--text)')};">${ecartTxt}</div>
-          <span class="controle-statut" style="color:${couleur.c}; background:${couleur.f};">${r.statut}</span>
+        <div class="carb-carte ${classeStatutCarte(r.statut)}" title="${detailCuves} — capacité ${capacite.toLocaleString('fr-FR')} L">
+          <div class="carb-nom">${COURT_CARBURANT[cle]}</div>
+          <div class="carb-jauge">
+            <div class="carb-jauge-remplissage" data-pct="${pctStock != null ? Math.round(pctStock * 100) : 0}" style="background:linear-gradient(180deg, ${couleur.c}, ${couleur.c}CC);"></div>
+            ${pctTheo != null ? `<div class="carb-jauge-marqueur" style="bottom:${Math.round(pctTheo * 100)}%;"></div>` : ''}
+          </div>
+          <div class="carb-pct">${pctStock != null ? `${Math.round(pctStock * 100)} %` : '—'}</div>
+          <div class="carb-chiffres">
+            Physique<span class="val">${fmtL(r.stockPhysiqueAffiche)}</span>
+            Théorique<span class="val">${fmtL(r.theorique)}</span>
+            Écart<span class="val" style="color:${r.ecart != null && r.ecart < 0 ? 'var(--red)' : (r.ecart != null && r.ecart > 0 ? 'var(--green)' : 'var(--text)')};">${ecartTxt}</span>
+            Autonomie<span class="val">${autonomie != null ? `${autonomie.toFixed(1)} j` : '—'}</span>
+          </div>
+          <span class="carb-statut-badge" style="color:${couleur.c}; background:${couleur.f};">${r.statut}</span>
         </div>`;
     }).join('');
 
-    zone.innerHTML = `
-      <div class="controle-grid">${cartes}</div>
-      ${dateDernierReleve ? `<div class="section-note">Écart calculé depuis le dernier relevé du ${dateDernierReleve.split('-').reverse().join('/')}.</div>` : ''}
-    `;
+    zone.innerHTML = `<div class="situation-grid">${cartes}</div>${ctx.dateDernierReleve ? `<div class="section-note">Écart calculé depuis le dernier relevé du ${ctx.dateDernierReleve.split('-').reverse().join('/')}. Autonomie estimée sur la consommation moyenne des 7 derniers jours avec données.</div>` : ''}`;
+    legende.style.display = 'flex';
+    // Anime le remplissage après le premier paint (transition CSS déjà
+    // posée sur height, mais partir de 0% puis appliquer la vraie valeur
+    // juste après force le navigateur à jouer la transition plutôt que
+    // d'afficher directement la valeur finale).
+    requestAnimationFrame(() => {
+      zone.querySelectorAll('.carb-jauge-remplissage').forEach(el => { el.style.height = `${el.dataset.pct}%`; });
+    });
   }
 
   // ------------------------------------------------------------
-  // Volumes / mix / moteur — dépendent de la période sélectionnée.
+  // 2) CE QUE NEXUS VOUS DIT — combine le contexte "aujourd'hui" (écarts,
+  // livraison, autonomie, jaugeage manquant) avec le mouvement de ventes
+  // de la période actuellement sélectionnée. Rendu à part pour pouvoir
+  // être ré-invoqué quand la période change SANS recharger le contrôle du
+  // jour (qui, lui, ne dépend jamais de la période).
+  // ------------------------------------------------------------
+  let SIGNAUX_PERIODE = {};
+  function renderMessages() {
+    const zone = document.getElementById('messagesZone');
+    if (!CONTROLE_CTX) return;
+    const messages = NexusCarburantMoteur.construireMessagesPilotage({
+      parCarburant: CONTROLE_CTX.parCarburant, aucunReleve: CONTROLE_CTX.aucunReleve,
+      releveDuJour: CONTROLE_CTX.releveDuJour, dernierReleve: CONTROLE_CTX.dernierReleve,
+      autonomiesParCarburant: CONTROLE_CTX.autonomiesParCarburant,
+      ...SIGNAUX_PERIODE,
+    });
+    zone.innerHTML = messages.map(m => `<div class="message-carte ${m.type}"><span class="message-icone">${ICONE_MESSAGE[m.type] || 'ℹ️'}</span><span>${m.texte}</span></div>`).join('');
+  }
+
+  // ------------------------------------------------------------
+  // 3) DERNIÈRE LIVRAISON — visible même si elle ne date pas d'aujourd'hui
+  // (audit §6 : "une livraison ne doit pas disparaître dans les calculs").
+  // ------------------------------------------------------------
+  async function chargerEtRendreLivraison() {
+    const zone = document.getElementById('livraisonZone');
+    const M = NexusCarburantMoteur;
+    let releve = null, estAujourdhui = false;
+    if (CONTROLE_CTX && CONTROLE_CTX.releveDuJour && M.CLES_CARBURANT.some(cle => Number(CONTROLE_CTX.releveDuJour[`livraison_${cle}`]) > 0)) {
+      releve = CONTROLE_CTX.releveDuJour;
+      estAujourdhui = true;
+    } else {
+      releve = await NexusCarburantDonnees.chargerDerniereLivraison(nexusClient, SITE_ID);
+    }
+    if (!releve) {
+      zone.innerHTML = `<div class="controle-vide">Aucune livraison enregistrée pour l'instant.</div>`;
+      return;
+    }
+    const carburantsLivres = M.CLES_CARBURANT.filter(cle => Number(releve[`livraison_${cle}`]) > 0);
+    if (!carburantsLivres.length) {
+      zone.innerHTML = `<div class="controle-vide">Aucune livraison enregistrée pour l'instant.</div>`;
+      return;
+    }
+    let total = 0;
+    const lignes = carburantsLivres.map(cle => {
+      const vol = Number(releve[`livraison_${cle}`]);
+      total += vol;
+      let statutHTML = '';
+      // Le rapprochement (Intégrée / Écart à vérifier) n'est honnête que
+      // pour la livraison du jour, où le statut de contrôle vient d'être
+      // recalculé en direct — pour une livraison plus ancienne, NEXUS ne
+      // relance pas un contrôle historique ici (hors périmètre de cette
+      // page), il reste factuel.
+      if (estAujourdhui && CONTROLE_CTX.parCarburant[cle]) {
+        const st = CONTROLE_CTX.parCarburant[cle].statut;
+        const ok = st === 'Sous contrôle' || st === 'À surveiller';
+        statutHTML = `<span class="livraison-statut" style="color:${ok ? 'var(--green)' : 'var(--red)'}; background:${ok ? 'var(--green-dim)' : 'var(--red-dim)'};">${ok ? 'Intégrée' : 'Écart à vérifier'}</span>`;
+      }
+      return `<div class="livraison-ligne"><span>${NOM_CARBURANT[cle]}</span><span style="display:flex; align-items:center; gap:8px;"><b>${fmtL(vol)}</b>${statutHTML}</span></div>`;
+    }).join('');
+    zone.innerHTML = `
+      <div class="livraison-carte">
+        <div class="section-note" style="margin:0 0 4px;">${estAujourdhui ? "Livraison du jour" : `Dernière livraison connue — ${releve.date.split('-').reverse().join('/')}`}</div>
+        ${lignes}
+        <div class="livraison-ligne livraison-total"><span>Total</span><span>${fmtL(total)}</span></div>
+      </div>`;
+  }
+
+  // ------------------------------------------------------------
+  // 4/5/6/7) Ventes, répartition, stock & autonomie détaillé, moteur —
+  // dépendent de la période sélectionnée.
   // ------------------------------------------------------------
   function renderBarrePeriodes() {
     const bar = document.getElementById('periodeBar');
@@ -336,17 +496,40 @@
     return { ventes: { go: null, sp95: null, gnr: null }, nbQuartsTotal: 0, nbQuartsAvecLitrage: 0, periodeUtilisee: null };
   }
 
-  function construireSyntheseEvolution(mix, decomposition, moteurEvolution, deltaTotal) {
+  // Phrase de synthèse enrichie (audit §11) : ne se limite plus au seul
+  // carburant "moteur", nomme aussi le second carburant principal et son
+  // propre taux d'évolution, et précise si le mouvement touche les deux
+  // carburants principaux ou un seul (déplacement de mix vs recul global).
+  function construireSyntheseEvolution(mix, mixRef, decomposition, moteurEvolution, deltaTotal, evolutionTotale) {
     if (!mix || deltaTotal == null) return "Pas encore assez de données pour comparer cette période à une référence.";
     if (Math.abs(deltaTotal) < 1) return "Les volumes de la période sont stables par rapport à la référence.";
-    const sens = deltaTotal > 0 ? 'hausse' : 'baisse';
-    if (!moteurEvolution) return `Les volumes de la période sont en ${sens} (${deltaTotal >= 0 ? '+' : ''}${Math.round(deltaTotal).toLocaleString('fr-FR')} L), sans carburant identifié comme principal moteur de ce mouvement.`;
-    let phrase = `La ${sens} de la période provient principalement du ${NOM_CARBURANT[moteurEvolution.cle]}.`;
-    const compensateurs = Object.keys(NOM_CARBURANT).filter(c => c !== moteurEvolution.cle && decomposition.parCarburant[c] && decomposition.parCarburant[c].delta !== 0 && Math.sign(decomposition.parCarburant[c].delta) !== Math.sign(deltaTotal));
-    if (compensateurs.length === 1) {
-      phrase += ` Le ${NOM_CARBURANT[compensateurs[0]]} compense partiellement le mouvement.`;
-    } else if (compensateurs.length > 1) {
-      phrase += ` ${compensateurs.map(c => NOM_CARBURANT[c]).join(' et ')} compensent partiellement le mouvement.`;
+    const sens = deltaTotal > 0 ? 'progressent' : 'reculent';
+    const pctTotal = evolutionTotale != null ? `${Math.abs(Math.round(evolutionTotale * 100))} %` : null;
+    if (!moteurEvolution) {
+      return `Les volumes ${sens}${pctTotal ? ` de ${pctTotal}` : ''} (${deltaTotal >= 0 ? '+' : ''}${Math.round(deltaTotal).toLocaleString('fr-FR')} L), sans carburant identifié comme principal moteur de ce mouvement.`;
+    }
+    let phrase = `Les ventes ${sens}${pctTotal ? ` de ${pctTotal}` : ''} à jours comparables. Le ${NOM_CARBURANT[moteurEvolution.cle]} explique la majorité du mouvement`;
+    const evolMoteur = mixRef && mixRef[moteurEvolution.cle] ? NexusCarburantMoteur.calculerEvolutionVolume(mix[moteurEvolution.cle] ? mix[moteurEvolution.cle].litres : null, mixRef[moteurEvolution.cle].litres) : null;
+    if (evolMoteur != null) phrase += ` : ${evolMoteur >= 0 ? '+' : ''}${(evolMoteur * 100).toFixed(1)} %`;
+    phrase += '.';
+
+    const autres = NexusCarburantMoteur.CLES_CARBURANT.filter(c => c !== moteurEvolution.cle && decomposition.parCarburant[c]);
+    if (autres.length) {
+      const detailsAutres = autres.map(c => {
+        const d = decomposition.parCarburant[c];
+        const evolC = mixRef && mixRef[c] && mix[c] ? NexusCarburantMoteur.calculerEvolutionVolume(mix[c].litres, mixRef[c].litres) : null;
+        return `${NOM_CARBURANT[c]}${evolC != null ? ` (${evolC >= 0 ? '+' : ''}${(evolC * 100).toFixed(1)} %)` : ''}`;
+      }).join(', ');
+      const memeSensQueTotal = autres.some(c => decomposition.parCarburant[c].delta !== 0 && Math.sign(decomposition.parCarburant[c].delta) === Math.sign(deltaTotal));
+      phrase += memeSensQueTotal
+        ? ` Le mouvement touche aussi ${detailsAutres} : il ne s'agit pas uniquement d'un déplacement du mix.`
+        : ` ${detailsAutres} compense partiellement le mouvement.`;
+    }
+    if (mix.total > 0) {
+      const produitMoteur = NexusCarburantMoteur.identifierProduitMoteur({ go: mix.go ? mix.go.litres : null, sp95: mix.sp95 ? mix.sp95.litres : null, gnr: mix.gnr ? mix.gnr.litres : null });
+      if (produitMoteur && produitMoteur.cle !== moteurEvolution.cle) {
+        phrase += ` ${NOM_CARBURANT[produitMoteur.cle]} reste toutefois le carburant moteur avec ${Math.round(produitMoteur.pct * 100)} % des volumes.`;
+      }
     }
     return phrase;
   }
@@ -357,13 +540,6 @@
     const periode = NexusPeriodes.resoudrePeriodeCalendaire(TYPE_PERIODE, todayISO(), bornesLibres);
     const enCours = periode.fin > todayISO();
     document.getElementById('periodeLabel').textContent = `Période : ${periode.label} (${periode.debut} → ${periode.fin})${enCours ? ' — en cours' : ''}`;
-    // "Toujours comparer ce qui est comparable" (13/08/2026, demande directe
-    // de Frédéric suite à un -54,5 % trompeur : une semaine entamée depuis 3
-    // jours comparée à une semaine précédente COMPLÈTE). Passer todayISO()
-    // explicitement fait tronquer chaque référence candidate au même nombre
-    // de jours écoulés QUAND la période est en cours (voir
-    // nexus-periodes.js::resoudrePeriodesReference) — une période déjà
-    // terminée continue de se comparer intégralement, sans changement.
     const referencesCandidates = NexusPeriodes.resoudrePeriodesReference(periode, todayISO());
 
     const [actuel, reference] = await Promise.all([
@@ -379,28 +555,23 @@
     const mixRef = M.calculerMixCarburant(reference.ventes);
     const evolutionTotale = mix && mixRef ? M.calculerEvolutionVolume(mix.total, mixRef.total) : null;
 
-    document.getElementById('sousTitre').textContent = 'Volumes, mix et moteurs de performance sur la période sélectionnée.';
+    document.getElementById('sousTitre').textContent = 'État des cuves, contrôle du jour et performance des ventes.';
 
-    // Couverture honnête (Article 5) : combien de quarts de la période ont
-    // réellement un litrage renseigné, jamais présenté comme 100 % par défaut.
+    // Signaux dépendants de la période, transmis au bloc "Ce que NEXUS
+    // vous dit" (fusionnés avec CONTROLE_CTX, indépendant lui de la
+    // période) — jamais un second calcul du mouvement de ventes.
+    SIGNAUX_PERIODE = { deltaTotal: decomposition ? decomposition.deltaTotal : null, evolutionTotale, moteurEvolution, labelPeriode: periode.label };
+    renderMessages();
+
     const couvertureTxt = actuel.nbQuartsTotal > 0
       ? `Couverture : ${actuel.nbQuartsAvecLitrage}/${actuel.nbQuartsTotal} quart${actuel.nbQuartsTotal > 1 ? 's' : ''} avec litrage renseigné sur la période.`
       : "Aucun quart enregistré sur cette période.";
-    // Comparaison à avancement égal (13/08/2026) : la référence utilisée
-    // est déjà tronquée aux mêmes jours écoulés par
-    // NexusPeriodes.resoudrePeriodesReference (voir plus haut) — l'ancien
-    // avertissement "période partielle face à une référence complète"
-    // n'est donc plus vrai et serait lui-même trompeur. Un mot honnête
-    // subsiste seulement pour le cas résiduel où la référence elle-même
-    // est trop courte pour être tronquée à due proportion (ex. comparer un
-    // mois de 31 jours entamé au jour 30 à un février de référence — voir
-    // le flag `tronquee` renvoyé par le moteur).
     const refUtilisee = reference.periodeUtilisee;
     const caveatEnCours = (refUtilisee && refUtilisee.couvertureInsuffisante)
       ? ' Référence plus courte que la période en cours — comparaison limitée à sa durée réelle.'
       : '';
 
-    // --- Volumes & performance ---
+    // --- 4) Ventes carburants — période sélectionnée (ex-"Volumes & performance") ---
     let volumesHTML;
     if (!mix) {
       volumesHTML = `<div class="controle-vide">Données insuffisantes pour cette période — aucun litrage renseigné dans NEXUS Verify.</div>`;
@@ -413,7 +584,7 @@
       }).join('');
       volumesHTML = `
         <div class="kpi-card">
-          <div class="kpi-row"><span class="kpi-label"><b>Total station</b></span><span><span class="kpi-valeur">${fmtL(mix.total)}</span>${fmtEvol(evolutionTotale)}</span></div>
+          <div class="kpi-row"><span class="kpi-label"><b>Total station — ${fmtL(mix.total)} vendus</b></span>${fmtEvol(evolutionTotale)}</div>
           ${lignes}
         </div>
         <div class="section-note">${couvertureTxt}${refUtilisee
@@ -422,7 +593,7 @@
       `;
     }
 
-    // --- Mix carburant ---
+    // --- 5) Répartition des ventes (ex-"Mix carburant") ---
     let mixHTML = '';
     if (mix) {
       mixHTML = `<div class="kpi-card">` + Object.keys(NOM_CARBURANT).map(cle => {
@@ -430,16 +601,44 @@
         const pct = v ? Math.round(v.pct * 100) : 0;
         return `
           <div class="mix-bar-wrap">
-            <div class="mix-bar-tete"><span>${COURT_CARBURANT[cle]}</span><span style="font-family:var(--mono);">${v != null ? pct + ' %' : '—'}</span></div>
+            <div class="mix-bar-tete"><span>${COURT_CARBURANT[cle]}${v != null ? ` — ${pct} % des litres vendus` : ''}</span><span style="font-family:var(--mono);">${v != null ? pct + ' %' : '—'}</span></div>
             <div class="mix-bar-piste"><div class="mix-bar-remplissage" style="width:${pct}%; background:${COULEUR_CARBURANT[cle]};"></div></div>
           </div>`;
       }).join('') + `</div>`;
     }
 
-    // --- Moteur & progression ---
+    // --- 6) Stock & autonomie — tableau détaillé (audit §9.6) ---
+    let stockTableHTML = '';
+    if (CONTROLE_CTX && !CONTROLE_CTX.aucunReleve) {
+      const lignesStock = M.CLES_CARBURANT.filter(cle => CUVES_CONFIG[cle] && CUVES_CONFIG[cle].actif).map(cle => {
+        const r = CONTROLE_CTX.parCarburant[cle];
+        const autonomie = CONTROLE_CTX.autonomiesParCarburant[cle];
+        const couleur = COULEUR_STATUT[r.statut] || COULEUR_STATUT['Données insuffisantes'];
+        return `
+          <tr>
+            <td class="nom-cell">${COURT_CARBURANT[cle]}</td>
+            <td>${fmtL(r.stockPhysiqueAffiche)}</td>
+            <td>${fmtL(r.theorique)}</td>
+            <td style="color:${r.ecart != null && r.ecart < 0 ? 'var(--red)' : (r.ecart != null && r.ecart > 0 ? 'var(--green)' : 'var(--text-mid)')};">${r.ecart != null ? `${r.ecart >= 0 ? '+' : ''}${Math.round(r.ecart).toLocaleString('fr-FR')} L` : '—'}</td>
+            <td>${autonomie != null ? `${autonomie.toFixed(1)} j` : '—'}</td>
+            <td><span style="color:${couleur.c};">●</span> ${r.statut}</td>
+          </tr>`;
+      }).join('');
+      stockTableHTML = `
+        <div class="stock-table-wrap">
+          <table class="stock-table">
+            <thead><tr><th>Carburant</th><th>Physique</th><th>Théorique</th><th>Écart</th><th>Autonomie</th><th>Statut</th></tr></thead>
+            <tbody>${lignesStock}</tbody>
+          </table>
+        </div>
+        <div class="section-note">Seuils d'écart : ± ${(M.SEUIL_ECART_PCT_SURVEILLER * 100).toFixed(0)} % des ventes = sous contrôle, jusqu'à ± ${(M.SEUIL_ECART_PCT_CORRIGER * 100).toFixed(0)} % = à surveiller, au-delà = à corriger. Seuil d'autonomie : sous ${M.SEUIL_AUTONOMIE_ALERTE_JOURS} jour${M.SEUIL_AUTONOMIE_ALERTE_JOURS > 1 ? 's' : ''} = à corriger. Seuils provisoires, à recalibrer.</div>
+      `;
+    }
+
+    // --- 7) Moteur & progression ---
     let moteurHTML = '';
     if (mix) {
-      const syntheseTexte = construireSyntheseEvolution(mix, decomposition, moteurEvolution, decomposition ? decomposition.deltaTotal : null);
+      const syntheseTexte = construireSyntheseEvolution(mix, mixRef, decomposition, moteurEvolution, decomposition ? decomposition.deltaTotal : null, evolutionTotale);
       moteurHTML = `
         <div class="synthese-texte">${syntheseTexte}</div>
         <div class="kpi-card">
@@ -450,10 +649,12 @@
     }
 
     document.getElementById('content').innerHTML = `
-      <div class="section-titre" style="margin-top:0;">Volumes & performance</div>
+      <div class="section-titre" style="margin-top:0;">Ventes carburants — période sélectionnée</div>
       ${volumesHTML}
 
-      ${mix ? `<div class="section-titre">Mix carburant</div>${mixHTML}` : ''}
+      ${mix ? `<div class="section-titre">Répartition des ventes</div>${mixHTML}` : ''}
+
+      ${stockTableHTML ? `<div class="section-titre">Stock & autonomie</div>${stockTableHTML}` : ''}
 
       ${mix ? `<div class="section-titre">Moteur & progression</div>${moteurHTML}` : ''}
     `;
@@ -478,7 +679,13 @@
       chargerEtRendrePeriode({ debut, fin });
     });
 
-    await Promise.all([chargerEtRendreControle(), chargerEtRendrePeriode(), chargerEtRendreRattrapage()]);
+    // Le contrôle du jour (Situation aujourd'hui + Dernière livraison +
+    // premiers messages) est indépendant de la période — chargé une seule
+    // fois, avant la période, pour être immédiatement disponible.
+    CONTROLE_CTX = await chargerControleEtAutonomie();
+    renderSituation(CONTROLE_CTX);
+
+    await Promise.all([chargerEtRendreLivraison(), chargerEtRendrePeriode(), chargerEtRendreRattrapage()]);
   });
 </script>
 </body>
