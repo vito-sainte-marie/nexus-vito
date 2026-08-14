@@ -85,6 +85,18 @@
   .ventes-banner{margin-top:12px; padding:10px 12px; border-radius:10px; background:var(--panel-raised); font-size:11.5px; color:var(--text-mid); line-height:1.5;}
   .ventes-banner b{color:var(--text);}
   .ventes-banner.vide{color:var(--text-dim); font-style:italic;}
+  /* 13/08/2026, demande de Frédéric : "rendre ceci cliquable afin que je
+     retrouve la caisse où il n'y a pas de litrage" — la bannière "vide"
+     devient un déclencheur vers le détail quart par quart. */
+  .ventes-banner-clic{cursor:pointer; font-style:normal;}
+  .ventes-banner-lien{display:block; margin-top:4px; color:var(--amber); font-weight:600; font-style:normal;}
+  .ventes-detail{margin-top:6px; padding:8px 10px; border-radius:8px; background:var(--panel); border:1px solid var(--hairline);}
+  .ventes-detail-note{font-size:11px; color:var(--text-dim); line-height:1.5;}
+  .ventes-detail-ligne{display:flex; align-items:center; justify-content:space-between; gap:8px; padding:6px 0; border-bottom:1px solid var(--hairline); font-size:11px; flex-wrap:wrap;}
+  .ventes-detail-ligne:last-child{border-bottom:none;}
+  .ventes-detail-ligne.manquant span:nth-child(2){color:var(--amber); font-weight:600;}
+  .ventes-detail-lien{color:var(--amber); text-decoration:none; font-weight:600; font-size:10.5px;}
+  .ventes-detail-lien:hover{text-decoration:underline;}
 
   .resultat-panel{margin-top:14px; padding-top:14px; border-top:1px solid var(--hairline);}
   .resultat-row{display:flex; align-items:center; justify-content:space-between; padding:5px 0; font-size:12.5px;}
@@ -171,6 +183,13 @@
   let PROCHAIN_RELEVE = null;  // relevé RÉEL le plus proche APRÈS DATE_CIBLE (rattrapage seulement — jamais recalculé, juste informatif)
   let VENTES_DEPUIS = { go: null, sp95: null, gnr: null };
   let ENREGISTREMENT_EN_COURS = false;
+  // 13/08/2026, demande de Frédéric : "rendre cliquable [le message 'ventes
+  // non disponibles'] afin que je retrouve la caisse où il n'y a pas de
+  // litrage" — lignes brutes (date, quart, litrage_*) de la même période que
+  // VENTES_DEPUIS, gardées pour construire le détail au clic sans requête
+  // supplémentaire (même source, jamais une deuxième vérité).
+  let LIGNES_PERIODE_VENTES = [];
+  const CHAMP_LITRAGE = { go: 'litrage_gazole', sp95: 'litrage_sp95', gnr: 'litrage_gnr' };
 
   const CARBURANTS = [
     { cle: 'sp95', nom: 'Sans plomb (SP95)', cuve: 'Cuve 30 000 L', champsReel: ['stock_reel_sp95'] },
@@ -243,12 +262,41 @@
   // Ventes déjà captées dans NEXUS Verify (litrage_gazole/sp95/gnr) entre le
   // dernier relevé (exclu) et aujourd'hui (exclu) — jamais ressaisies ici.
   async function chargerVentesDepuisDernierReleve(siteId, depuisDateExclusive, jusquADateExclusive) {
+    LIGNES_PERIODE_VENTES = [];
     if (!depuisDateExclusive) return { go: null, sp95: null, gnr: null };
     const { data, error } = await nexusClient.from('audits_caisse')
-      .select('litrage_gazole,litrage_sp95,litrage_gnr')
-      .eq('site', siteId).gt('date', depuisDateExclusive).lt('date', jusquADateExclusive);
+      .select('date,quart,litrage_gazole,litrage_sp95,litrage_gnr')
+      .eq('site', siteId).gt('date', depuisDateExclusive).lt('date', jusquADateExclusive)
+      .order('date', { ascending: true }).order('quart', { ascending: true });
     if (error) { console.error('Chargement ventes carburant (audits_caisse):', error); return { go: null, sp95: null, gnr: null }; }
+    LIGNES_PERIODE_VENTES = data || [];
     return NexusCarburantMoteur.sommerVentesPeriode(data);
+  }
+
+  // Détail quart par quart de la période "depuis le dernier relevé", pour le
+  // clic sur la bannière "ventes non disponibles" (13/08/2026). Ne recalcule
+  // rien : relit juste LIGNES_PERIODE_VENTES déjà chargée, et signale
+  // honnêtement l'absence totale de quart plutôt que de laisser un panneau
+  // vide sans explication (Article 11, non-invention).
+  function renderDetailVentesManquantes(carbCle) {
+    const el = document.getElementById(`ventesDetail_${carbCle}`);
+    if (!el) return;
+    const champ = CHAMP_LITRAGE[carbCle];
+    if (!LIGNES_PERIODE_VENTES.length) {
+      const depuisTxt = DERNIER_RELEVE ? formaterDateFr(DERNIER_RELEVE.date) : '—';
+      const jusquaTxt = formaterDateFr(DATE_CIBLE);
+      el.innerHTML = `<div class="ventes-detail-note">Aucun quart de caisse trouvé dans NEXUS Verify entre le ${depuisTxt} (exclu) et le ${jusquaTxt} (exclu) — ce n'est pas nécessairement une anomalie si aucun quart n'a encore eu lieu sur cette période.</div>`;
+      return;
+    }
+    el.innerHTML = LIGNES_PERIODE_VENTES.map(l => {
+      const manquant = l[champ] == null;
+      return `
+        <div class="ventes-detail-ligne ${manquant ? 'manquant' : ''}">
+          <span>${formaterDateFr(l.date)} · Quart ${l.quart}</span>
+          <span>${manquant ? '⚠ Litrage manquant' : `${Number(l[champ]).toLocaleString('fr-FR')} L`}</span>
+          ${manquant ? `<a href="NEXUS-Verify-v1.html?ouvrir_date=${l.date}&ouvrir_quart=${l.quart}" class="ventes-detail-lien">Corriger dans Verify →</a>` : ''}
+        </div>`;
+    }).join('');
   }
 
   function valeurChamp(id) {
@@ -314,7 +362,10 @@
     const blocs = CARBURANTS.map(carb => {
       const ventesTxt = VENTES_DEPUIS[carb.cle] != null
         ? `<div class="ventes-banner"><b>${Math.round(VENTES_DEPUIS[carb.cle]).toLocaleString('fr-FR')} L</b> vendus depuis le dernier relevé (${formaterDateFr(DERNIER_RELEVE ? DERNIER_RELEVE.date : null)}) — déjà repris depuis NEXUS Verify, aucune saisie nécessaire.</div>`
-        : `<div class="ventes-banner vide">${DERNIER_RELEVE ? "Ventes non disponibles pour cette période (litrage non saisi dans Verify sur au moins un quart) — théorique non calculable." : `Premier relevé enregistré pour ce site — pas encore de comparaison possible, seul le stock réel sera mémorisé${EST_AUJOURDHUI ? " aujourd'hui" : ` pour le ${dateTxt}`}.`}</div>`;
+        : (DERNIER_RELEVE
+            ? `<div class="ventes-banner vide ventes-banner-clic" data-carb="${carb.cle}" role="button" tabindex="0">Ventes non disponibles pour cette période (litrage non saisi dans Verify sur au moins un quart) — théorique non calculable.<span class="ventes-banner-lien">Voir le détail des quarts →</span></div>
+               <div class="ventes-detail" id="ventesDetail_${carb.cle}" style="display:none;"></div>`
+            : `<div class="ventes-banner vide">Premier relevé enregistré pour ce site — pas encore de comparaison possible, seul le stock réel sera mémorisé${EST_AUJOURDHUI ? " aujourd'hui" : ` pour le ${dateTxt}`}.</div>`);
 
       const champsReel = carb.cle === 'go'
         ? `<div class="champ-row">
@@ -363,6 +414,21 @@
 
     document.querySelectorAll('#content input').forEach(el => el.addEventListener('input', recalculerTout));
     document.getElementById('btnEnregistrer').addEventListener('click', enregistrerReleve);
+    // 13/08/2026 : clic sur la bannière "ventes non disponibles" — ouvre/
+    // ferme le détail quart par quart, rempli à la première ouverture.
+    document.querySelectorAll('.ventes-banner-clic').forEach(banniere => {
+      const ouvrir = () => {
+        const carbCle = banniere.dataset.carb;
+        const detail = document.getElementById(`ventesDetail_${carbCle}`);
+        if (!detail) return;
+        const visible = detail.style.display !== 'none';
+        if (visible) { detail.style.display = 'none'; return; }
+        if (!detail.innerHTML) renderDetailVentesManquantes(carbCle);
+        detail.style.display = 'block';
+      };
+      banniere.addEventListener('click', ouvrir);
+      banniere.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ouvrir(); } });
+    });
     recalculerTout();
   }
 

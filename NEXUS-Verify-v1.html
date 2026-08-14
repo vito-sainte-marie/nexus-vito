@@ -1818,6 +1818,36 @@
       document.getElementById('btnGenererRapportVerify').addEventListener('click', lancerGenerationRapportVerify);
     });
 
+    // 13/08/2026 — deep-link vers un audit précis (?ouvrir_date=YYYY-MM-DD&
+    // ouvrir_quart=1|2), utilisé depuis NEXUS-Carburants-v1.html : la
+    // bannière "ventes non disponibles" y liste maintenant les quarts sans
+    // litrage avec un lien "Corriger dans Verify →" vers ici. Bascule sur
+    // Historique, attend le chargement, puis ouvre et surligne la ligne
+    // correspondante — jamais une saisie automatique, juste amener le
+    // manager exactement où corriger.
+    (async () => {
+      let dateCible = null, quartCible = null;
+      try {
+        const params = new URLSearchParams(window.location.search);
+        dateCible = params.get('ouvrir_date');
+        quartCible = params.get('ouvrir_quart');
+      } catch (e) {}
+      if (!dateCible) return;
+      tabHistorique.classList.add('active'); tabNouveau.classList.remove('active'); tabRapport.classList.remove('active');
+      document.getElementById('vueNouveau').style.display = 'none';
+      document.getElementById('vueHistorique').style.display = 'block';
+      document.getElementById('vueRapport').style.display = 'none';
+      await afficherHistorique();
+      const selecteur = `.histo-item[data-date="${dateCible}"]${quartCible ? `[data-quart="${quartCible}"]` : ''}`;
+      const item = document.querySelector(selecteur);
+      if (item) {
+        document.getElementById(`detail-${item.dataset.idx}`).classList.add('open');
+        item.style.outline = '2px solid var(--amber)';
+        item.style.borderRadius = '10px';
+        item.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    })();
+
     // ------------------------------------------------------------
     // Calcul et enregistrement
     // ------------------------------------------------------------
@@ -2390,7 +2420,7 @@
         const stP = classifierEcart(Math.abs(a.ecart_piste));
         const stB = classifierEcart(Math.abs(a.ecart_boutique));
         return `
-        <div class="histo-item" data-idx="${i}">
+        <div class="histo-item" data-idx="${i}" data-date="${a.date}" data-quart="${a.quart}">
           <div class="histo-date">${new Date(a.date + 'T00:00:00').toLocaleDateString('fr-FR')} <span class="histo-quart">· Quart ${a.quart}</span></div>
           <div class="histo-ecarts">
             <div class="histo-ecart-item">
