@@ -127,6 +127,14 @@
   .jauge-legende{display:flex; align-items:center; gap:6px; padding:8px 20px 0; font-family:var(--mono); font-size:9.5px; color:var(--text-dim);}
   .jauge-legende-trait{width:14px; height:2px; background:var(--cyan);}
 
+  /* "Lecture NEXUS" (14/08/2026) — bloc extrêmement compact, volontairement
+     plus dense/petit que les autres cartes : ce n'est pas une section de
+     plus, c'est le résumé qui dispense de lire les sections en dessous. */
+  .lecture-nexus-card{margin:10px 20px 14px; padding:11px 13px; border-radius:12px; background:var(--panel); border:1px solid var(--hairline);}
+  .lecture-nexus-titre{font-family:var(--mono); font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; color:var(--text-dim); margin-bottom:6px;}
+  .lecture-nexus-ligne{display:flex; align-items:flex-start; gap:7px; font-size:11.5px; line-height:1.45; padding:2px 0; color:var(--text);}
+  .lecture-nexus-emoji{flex-shrink:0; font-size:10px; line-height:1.5;}
+
   /* Ce que NEXUS vous dit */
   .message-carte{display:flex; gap:9px; align-items:flex-start; padding:12px 14px; border-radius:12px; margin:0 20px 8px; font-size:12.5px; line-height:1.5;}
   .message-carte.alerte{background:var(--red-dim); border:1px solid rgba(240,87,90,0.3);}
@@ -349,6 +357,13 @@
   <div id="situationZone"><div class="loading">Chargement…</div></div>
   <div class="jauge-legende" id="jaugeLegende" style="display:none;"><span class="jauge-legende-trait"></span> Trait cyan = stock théorique attendu</div>
 
+  <!-- "Lecture NEXUS" (14/08/2026, demande de Frédéric : "ce dernier
+       niveau qui transformera une belle page Carburants en véritable
+       directeur d'exploitation numérique") — synthèse à 4 lignes toujours
+       visible, jamais dans un accordéon : Stock, Rapprochement,
+       Autonomie, Commerce. Voir renderLectureNexus() plus bas. -->
+  <div id="lectureNexusZone"></div>
+
   <!-- Point zéro carburants (14/08/2026) — action exceptionnelle de
        manager, repliée par défaut : certifie un stock physique comme
        nouvelle référence de calcul, sans jamais modifier l'historique. -->
@@ -415,9 +430,9 @@
         <span class="accordion-titre">Répartition des ventes</span>
         <span class="accordion-sous">Répartition par carburant</span>
       </span>
-      <span class="accordion-chevron" id="chevronRepartition">⌄</span>
+      <span class="accordion-chevron" id="chevronRepartition">›</span>
     </button>
-    <div class="accordion-body" id="bodyRepartition">
+    <div class="accordion-body" id="bodyRepartition" style="display:none;">
       <div id="repartitionZone"><div class="loading">Chargement…</div></div>
     </div>
   </div>
@@ -440,8 +455,8 @@
   <!-- 7) Moteur & progression -->
   <div class="accordion-card" data-accordion="moteur">
     <button type="button" class="accordion-header" data-key="moteur">
-      <span class="accordion-icon accordion-icon-cyan">⚙️</span>
-      <span class="accordion-titles"><span class="accordion-titre">Moteur & progression</span></span>
+      <span class="accordion-icon accordion-icon-cyan">🔎</span>
+      <span class="accordion-titles"><span class="accordion-titre">Ce qui explique l'évolution</span></span>
       <span class="accordion-chevron" id="chevronMoteur">⌄</span>
     </button>
     <div class="accordion-body" id="bodyMoteur">
@@ -566,7 +581,12 @@
   // ------------------------------------------------------------
   const ACCORDIONS = {
     messages: false, livraison: false,
-    ventes: true, repartition: true, stock: true, moteur: true, historique: true,
+    // 14/08/2026, retour de Frédéric : "Répartition des ventes... 45 % GO
+    // / 55 % SP95 ne déclenche pas forcément une décision" — repliée par
+    // défaut. "Stock & autonomie devrait probablement être ouvert par
+    // défaut, car c'est une information opérationnelle majeure" — déjà
+    // ouvert, inchangé.
+    ventes: true, repartition: false, stock: true, moteur: true, historique: true,
   };
   function majChevronId(key) {
     return 'chevron' + key.charAt(0).toUpperCase() + key.slice(1);
@@ -794,6 +814,102 @@
   }
 
   // ------------------------------------------------------------
+  // "LECTURE NEXUS" (14/08/2026, demande de Frédéric : « Voilà ce que cela
+  // signifie pour votre station et ce que vous devriez regarder
+  // maintenant » — « c'est ce dernier niveau qui transformera une belle
+  // page Carburants en véritable directeur d'exploitation numérique »).
+  // Synthèse à 4 lignes fixes (Stock / Rapprochement / Autonomie /
+  // Commerce), toujours visible sous les jauges, jamais dans un
+  // accordéon. AUCUN nouveau calcul : chaque ligne relit des champs déjà
+  // produits ailleurs sur cette même page (fiabiliteControle() et
+  // statutAutonomie() du moteur partagé, déjà utilisés par les cartes
+  // jauge et le tableau "Stock & autonomie" ; libelleRapprochementLivraison()
+  // déjà utilisé par "Dernière livraison" ; SIGNAUX_PERIODE.evolutionTotale
+  // déjà utilisé par "Ce que NEXUS vous dit"). Cette fonction ne fait que
+  // choisir le pire cas et le reformuler en une phrase courte (Article 11 :
+  // une seule vérité, cette page ne fait qu'en changer la présentation).
+  // ------------------------------------------------------------
+  const PRIORITE_NIVEAU_LECTURE = { alerte: 3, attention: 2, attente: 1, ok: 0 };
+  const EMOJI_NIVEAU_LECTURE = { ok: '🟢', attention: '🟠', alerte: '🔴', attente: '🟠' };
+
+  function pireFiabiliteCarburants() {
+    if (!CONTROLE_CTX || !CONTROLE_CTX.parCarburant || !CUVES_CONFIG) return null;
+    const M = NexusCarburantMoteur;
+    let pire = null;
+    M.CLES_CARBURANT.filter(cle => CUVES_CONFIG[cle] && CUVES_CONFIG[cle].actif).forEach(cle => {
+      const r = CONTROLE_CTX.parCarburant[cle];
+      if (!r) return;
+      const fiab = M.fiabiliteControle(r, {
+        dernierReleveExiste: !!CONTROLE_CTX.dernierReleve, dernierReel: r.dernierReel,
+        releveDuJourExiste: !!CONTROLE_CTX.releveDuJour, ventes: r.ventesDepuis,
+      });
+      if (!pire || PRIORITE_NIVEAU_LECTURE[fiab.niveau] > PRIORITE_NIVEAU_LECTURE[pire.niveau]) {
+        pire = { cle, niveau: fiab.niveau, texte: fiab.texte };
+      }
+    });
+    return pire;
+  }
+
+  function ligneLectureStock() {
+    const pire = pireFiabiliteCarburants();
+    if (!pire) return { niveau: 'attente', texte: 'Stock : donnée insuffisante pour se prononcer.' };
+    if (pire.niveau === 'ok') return { niveau: 'ok', texte: 'Stocks cohérents avec la référence certifiée.' };
+    return { niveau: pire.niveau, texte: `${COURT_CARBURANT[pire.cle]} : ${pire.texte.charAt(0).toLowerCase()}${pire.texte.slice(1)}.` };
+  }
+
+  function ligneLectureRapprochement() {
+    const M = NexusCarburantMoteur;
+    if (!CONTROLE_CTX || !CONTROLE_CTX.releveDuJour) return { niveau: 'ok', texte: 'Aucune anomalie de rapprochement détectée.' };
+    const livres = M.CLES_CARBURANT.filter(cle => Number(CONTROLE_CTX.releveDuJour[`livraison_${cle}`]) > 0);
+    if (!livres.length) return { niveau: 'ok', texte: 'Aucune anomalie de rapprochement détectée.' };
+    let pire = null;
+    livres.forEach(cle => {
+      const st = CONTROLE_CTX.parCarburant[cle] ? CONTROLE_CTX.parCarburant[cle].statut : null;
+      const libelle = M.libelleRapprochementLivraison(st);
+      if (!pire || PRIORITE_NIVEAU_LECTURE[libelle.niveau] > PRIORITE_NIVEAU_LECTURE[pire.niveau]) pire = libelle;
+    });
+    if (!pire || pire.niveau === 'ok') return { niveau: 'ok', texte: 'Aucune anomalie de rapprochement détectée.' };
+    return { niveau: pire.niveau, texte: `Rapprochement livraison à confirmer (${pire.texte.toLowerCase()}).` };
+  }
+
+  function ligneLectureAutonomie() {
+    if (!CONTROLE_CTX || !CONTROLE_CTX.autonomiesParCarburant || !CUVES_CONFIG) return { niveau: 'attente', texte: 'Autonomie : donnée insuffisante.' };
+    const M = NexusCarburantMoteur;
+    const cles = M.CLES_CARBURANT.filter(cle => CUVES_CONFIG[cle] && CUVES_CONFIG[cle].actif && CONTROLE_CTX.autonomiesParCarburant[cle] != null);
+    if (!cles.length) return { niveau: 'attente', texte: 'Autonomie : donnée insuffisante.' };
+    const NIVEAU_PAR_STATUT = { 'À corriger': 'alerte', 'À surveiller': 'attention', 'Sous contrôle': 'ok', 'Confortable': 'ok' };
+    let pireCle = null, pireJours = Infinity, pireStatut = null;
+    cles.forEach(cle => {
+      const j = CONTROLE_CTX.autonomiesParCarburant[cle];
+      if (j < pireJours) { pireJours = j; pireCle = cle; pireStatut = M.statutAutonomie(j); }
+    });
+    const tousConfortables = cles.every(cle => M.statutAutonomie(CONTROLE_CTX.autonomiesParCarburant[cle]) === 'Confortable');
+    if (tousConfortables) return { niveau: 'ok', texte: 'Autonomie confortable sur tous les carburants.' };
+    return { niveau: NIVEAU_PAR_STATUT[pireStatut] || 'attente', texte: `${COURT_CARBURANT[pireCle]} : autonomie ${pireJours.toFixed(1)} jours, ${pireStatut.toLowerCase()}.` };
+  }
+
+  function ligneLectureCommerce() {
+    const v = SIGNAUX_PERIODE ? SIGNAUX_PERIODE.evolutionTotale : null;
+    if (v == null) return { niveau: 'attente', texte: 'Ventes : données insuffisantes sur la période.' };
+    const pct = `${v >= 0 ? '+' : ''}${(v * 100).toFixed(1)} %`;
+    if (v < -0.02) return { niveau: 'alerte', texte: `Ventes : ${pct} à jours comparables.` };
+    if (v > 0.02) return { niveau: 'ok', texte: `Ventes : ${pct} à jours comparables.` };
+    return { niveau: 'ok', texte: 'Ventes stables à jours comparables.' };
+  }
+
+  function renderLectureNexus() {
+    const zone = document.getElementById('lectureNexusZone');
+    if (!zone || !CONTROLE_CTX) return;
+    if (CONTROLE_CTX.aucunReleve) { zone.innerHTML = ''; return; }
+    const lignes = [ligneLectureStock(), ligneLectureRapprochement(), ligneLectureAutonomie(), ligneLectureCommerce()];
+    zone.innerHTML = `
+      <div class="lecture-nexus-card">
+        <div class="lecture-nexus-titre">Lecture NEXUS</div>
+        ${lignes.map(l => `<div class="lecture-nexus-ligne"><span class="lecture-nexus-emoji">${EMOJI_NIVEAU_LECTURE[l.niveau] || '🟢'}</span><span>${l.texte}</span></div>`).join('')}
+      </div>`;
+  }
+
+  // ------------------------------------------------------------
   // 3) DERNIÈRE LIVRAISON — visible même si elle ne date pas d'aujourd'hui
   // (audit §6 : "une livraison ne doit pas disparaître dans les calculs").
   // ------------------------------------------------------------
@@ -924,6 +1040,59 @@
     return phrase;
   }
 
+  // 14/08/2026, retour de Frédéric : "Ce que je modifierais... « Moteur &
+  // progression »... reste un peu technique. Je préférerais quelque chose
+  // comme : Ce qui explique l'évolution... c'est plus immédiatement
+  // exploitable." Remplace la prose de `construireSyntheseEvolution` (qui
+  // reste définie ci-dessus, inutilisée pour l'instant, au cas où) par une
+  // liste compacte de lignes chiffrées + une phrase de synthèse courte.
+  // Mêmes données déjà calculées par NexusCarburantMoteur
+  // (decomposerEvolution/identifierMoteurEvolution/calculerEvolutionVolume)
+  // — aucun nouveau calcul, uniquement une présentation plus dense.
+  function construireLigneMoteurCompact(mix, mixRef, decomposition, moteurEvolution, evolutionTotale) {
+    const M = NexusCarburantMoteur;
+    const fmtPct = (v) => v == null ? '—' : `${v >= 0 ? '+' : ''}${(v * 100).toFixed(1)} %`;
+    const fmtPctColore = (v) => {
+      if (v == null) return '—';
+      const c = v > 0.02 ? 'var(--green)' : (v < -0.02 ? 'var(--red)' : 'var(--text-mid)');
+      return `<span style="color:${c};">${fmtPct(v)}</span>`;
+    };
+    if (!mix || !decomposition || decomposition.deltaTotal == null) {
+      return { lignes: [], synthese: "Pas encore assez de données pour comparer cette période à une référence." };
+    }
+    const deltaTotal = decomposition.deltaTotal;
+    if (Math.abs(deltaTotal) < 1) {
+      return { lignes: [{ lbl: 'Ventes à jours comparables', val: fmtPctColore(evolutionTotale) }], synthese: "Les volumes sont stables par rapport à la période de référence." };
+    }
+    const sens = deltaTotal > 0 ? 'hausse' : 'recul';
+    const lignes = [{ lbl: 'Ventes à jours comparables', val: fmtPctColore(evolutionTotale) }];
+    if (!moteurEvolution) {
+      return { lignes, synthese: `Aucun carburant ne se distingue comme principal contributeur de ce ${sens}.` };
+    }
+    const evolMoteur = mixRef && mixRef[moteurEvolution.cle] && mix[moteurEvolution.cle]
+      ? M.calculerEvolutionVolume(mix[moteurEvolution.cle].litres, mixRef[moteurEvolution.cle].litres) : null;
+    lignes.push({ lbl: `Principal contributeur au ${sens}`, val: `${COURT_CARBURANT[moteurEvolution.cle]} ${fmtPctColore(evolMoteur)}` });
+
+    const autres = M.CLES_CARBURANT.filter(c => c !== moteurEvolution.cle && decomposition.parCarburant[c]);
+    autres.forEach(c => {
+      const evolC = mixRef && mixRef[c] && mix[c] ? M.calculerEvolutionVolume(mix[c].litres, mixRef[c].litres) : null;
+      lignes.push({ lbl: COURT_CARBURANT[c], val: fmtPctColore(evolC) });
+    });
+
+    let synthese;
+    if (!autres.length) {
+      synthese = sens === 'recul'
+        ? `Le recul porte uniquement sur ${NOM_CARBURANT[moteurEvolution.cle]}.`
+        : `La hausse porte uniquement sur ${NOM_CARBURANT[moteurEvolution.cle]}.`;
+    } else {
+      const memeSensQueTotal = autres.some(c => decomposition.parCarburant[c].delta !== 0 && Math.sign(decomposition.parCarburant[c].delta) === Math.sign(deltaTotal));
+      synthese = memeSensQueTotal
+        ? `${sens === 'recul' ? 'Le recul touche' : 'La hausse touche'} les deux carburants principaux.`
+        : `${autres.map(c => NOM_CARBURANT[c]).join(', ')} compense partiellement le mouvement.`;
+    }
+    return { lignes, synthese };
+  }
+
   async function chargerEtRendrePeriode(bornesLibres) {
     // 14/08/2026, refonte visuelle : la période alimente désormais 4
     // accordéons distincts (Ventes/Répartition/Stock/Moteur) au lieu d'un
@@ -959,6 +1128,7 @@
     // période) — jamais un second calcul du mouvement de ventes.
     SIGNAUX_PERIODE = { deltaTotal: decomposition ? decomposition.deltaTotal : null, evolutionTotale, moteurEvolution, labelPeriode: periode.label };
     renderMessages();
+    renderLectureNexus();
 
     const couvertureTxt = actuel.nbQuartsTotal > 0
       ? `Couverture : ${actuel.nbQuartsAvecLitrage}/${actuel.nbQuartsTotal} quart${actuel.nbQuartsTotal > 1 ? 's' : ''} avec litrage renseigné sur la période.`
@@ -1040,21 +1210,17 @@
       `;
     }
 
-    // --- 7) Moteur & progression ---
+    // --- 7) Ce qui explique l'évolution (ex-"Moteur & progression",
+    // renommé et redensifié le 14/08/2026 sur retour de Frédéric : "plus
+    // immédiatement exploitable" — lignes chiffrées plutôt que de la
+    // prose, mêmes calculs qu'avant. ---
     let moteurHTML = '';
     if (mix) {
-      const syntheseTexte = construireSyntheseEvolution(mix, mixRef, decomposition, moteurEvolution, decomposition ? decomposition.deltaTotal : null, evolutionTotale);
-      // 14/08/2026, retour de Frédéric : "on passe de l'analyse à la
-      // décision" — phrase actionnable ajoutée après la synthèse
-      // descriptive, sans recalcul (relit juste `decomposition` déjà
-      // produit par NexusCarburantMoteur.decomposerEvolution ci-dessus).
-      const phraseDecision = NexusCarburantMoteur.phraseDecisionMoteur(decomposition);
+      const { lignes, synthese } = construireLigneMoteurCompact(mix, mixRef, decomposition, moteurEvolution, evolutionTotale);
+      const lignesHTML = lignes.map(l => `<div class="kpi-row"><span class="kpi-label">${l.lbl}</span><span class="kpi-valeur">${l.val}</span></div>`).join('');
       moteurHTML = `
-        <div class="synthese-texte">${syntheseTexte}${phraseDecision ? `<div style="margin-top:10px; padding-top:10px; border-top:1px solid var(--hairline); font-weight:600;">${phraseDecision}</div>` : ''}</div>
-        <div class="kpi-card">
-          <div class="kpi-row"><span class="kpi-label">Produit moteur (plus gros volume)</span><span class="kpi-valeur">${produitMoteur ? `${NOM_CARBURANT[produitMoteur.cle]} — ${Math.round(produitMoteur.pct * 100)} %` : '—'}</span></div>
-          <div class="kpi-row"><span class="kpi-label">Moteur de progression (explique le plus le mouvement)</span><span class="kpi-valeur">${moteurEvolution ? NOM_CARBURANT[moteurEvolution.cle] : '—'}</span></div>
-        </div>
+        ${lignesHTML ? `<div class="kpi-card">${lignesHTML}</div>` : ''}
+        <div class="synthese-texte">${synthese}</div>
       `;
     }
 
@@ -1198,6 +1364,7 @@
     CONTROLE_CTX = await chargerControleEtAutonomie();
     renderSituation(CONTROLE_CTX);
     renderMessages();
+    renderLectureNexus();
     await Promise.all([chargerEtRendreLivraison(), chargerEtRendrePeriode(), chargerEtRendreHistorique()]);
 
     // Reconstruit le panneau (pré-remplissage à jour, nouvelle "Dernier
@@ -1346,6 +1513,7 @@
     // fois, avant la période, pour être immédiatement disponible.
     CONTROLE_CTX = await chargerControleEtAutonomie();
     renderSituation(CONTROLE_CTX);
+    renderLectureNexus();
 
     await Promise.all([chargerEtRendreLivraison(), chargerEtRendrePeriode(), chargerEtRendreRattrapage(), chargerEtRendreHistorique()]);
   });
