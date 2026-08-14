@@ -269,9 +269,13 @@
   // car cette page n'inclut que nexus-carburant-moteur.js (jamais
   // nexus-carburant-donnees.js) : une seule vérité de CALCUL (le moteur),
   // mais chaque écran garde ses propres chargeurs Supabase (Article 11).
+  // CORRECTIF 14/08/2026 (retour de Frédéric, "recomptage ne doit pas créer
+  // un deuxième point zéro automatiquement") : seules les certifications
+  // 'initialisation' comptent comme ancre — même règle que
+  // NexusCarburantDonnees.chargerDernierPointZero, voir son commentaire.
   async function chargerDernierPointZero(siteId, dateLimite) {
     const { data: ref, error: e1 } = await nexusClient.from('carburant_stock_references')
-      .select('*').eq('site', siteId).eq('statut', 'valide').lte('date', dateLimite)
+      .select('*').eq('site', siteId).eq('statut', 'valide').eq('type', 'initialisation').lte('date', dateLimite)
       .order('date', { ascending: false }).order('created_at', { ascending: false })
       .limit(1).maybeSingle();
     if (e1) { console.error('Chargement point zéro carburants:', e1); return null; }
@@ -397,8 +401,16 @@
     // doivent continuer à afficher normalement").
     let reelDuJourEffectif = reelDuJour;
     if (REFERENCE_CERTIFIEE_CE_JOUR && reelDuJourEffectif == null) reelDuJourEffectif = dernierReel;
-    const livraison = valeurChamp(`champ_${carb.cle}_livraison`) || 0;
-    const mouvement = valeurChamp(`champ_${carb.cle}_mouvement`) || 0;
+    // CORRECTIF 14/08/2026 (retour de Frédéric, "BUG CRITIQUE POINT ZÉRO") :
+    // le jour même de la certification, toute livraison/mouvement saisi ici
+    // est présumé déjà incorporé dans le stock physique certifié — l'ajouter
+    // en plus double-compterait un mouvement antérieur au point zéro (cas
+    // réel : livraison de 15 000 L GO déjà reflétée dans le relevé Insite360
+    // de 02:00, réinjectée dans le théorique si ce champ n'est pas ignoré ce
+    // jour-là). Les valeurs saisies restent enregistrées sur le relevé pour
+    // trace, seul le calcul les ignore (voir note affichée sous ces champs).
+    const livraison = REFERENCE_CERTIFIEE_CE_JOUR ? 0 : (valeurChamp(`champ_${carb.cle}_livraison`) || 0);
+    const mouvement = REFERENCE_CERTIFIEE_CE_JOUR ? 0 : (valeurChamp(`champ_${carb.cle}_mouvement`) || 0);
     const ventes = VENTES_DEPUIS[carb.cle];
 
     const resultat = NexusCarburantMoteur.calculerCarburant({ dernierReel, reelDuJour: reelDuJourEffectif, livraison, mouvement, ventes });
@@ -483,6 +495,7 @@
           <input type="text" inputmode="decimal" class="champ-input" id="champ_${carb.cle}_livraison" placeholder="0" value="${RELEVE_CIBLE && RELEVE_CIBLE[`livraison_${carb.cle}`] ? String(RELEVE_CIBLE[`livraison_${carb.cle}`]) : ''}">
           <div class="champ-label">Mouvement exceptionnel (optionnel) — litres, + ou -</div>
           <input type="text" inputmode="decimal" class="champ-input" id="champ_${carb.cle}_mouvement" placeholder="0" value="${RELEVE_CIBLE && RELEVE_CIBLE[`mouvement_${carb.cle}`] ? String(RELEVE_CIBLE[`mouvement_${carb.cle}`]) : ''}">
+          ${REFERENCE_CERTIFIEE_CE_JOUR ? `<div class="ventes-banner vide" style="margin-top:8px;">Ces deux champs sont enregistrés pour trace mais ignorés dans le calcul du jour de la certification — tout mouvement de cette date est présumé déjà reflété dans le stock certifié (correctif 14/08/2026, évite le double comptage).</div>` : ''}
           <div class="resultat-panel" id="resultat_${carb.cle}"></div>
         </div>`;
     }).join('');

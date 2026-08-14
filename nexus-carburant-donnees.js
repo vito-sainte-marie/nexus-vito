@@ -51,9 +51,18 @@
   // null si aucun point zéro n'a jamais été certifié pour ce site — dans ce
   // cas la chaîne de calcul continue de fonctionner exactement comme avant
   // (aucune régression pour les sites qui n'utilisent pas cette fonction).
+  // CORRECTIF 14/08/2026 (retour de Frédéric, "recomptage ne doit pas
+  // créer un deuxième point zéro automatiquement sauf nouvelle
+  // certification explicite") : seules les certifications de type
+  // 'initialisation' (une "nouvelle référence", action délibérée) peuvent
+  // devenir l'ANCRE de calcul. Un 'recomptage' reste enregistré et visible
+  // dans le journal (chargerHistoriquePointsZero, jamais filtré), mais
+  // n'est jamais choisi ici — sinon un simple contrôle physique
+  // intermédiaire remplacerait silencieusement la référence de calcul et
+  // masquerait l'écart qu'il est censé révéler.
   async function chargerDernierPointZero(client, siteId, dateLimite) {
     let requete = client.from('carburant_stock_references')
-      .select('*').eq('site', siteId).eq('statut', 'valide');
+      .select('*').eq('site', siteId).eq('statut', 'valide').eq('type', 'initialisation');
     if (dateLimite) requete = requete.lte('date', dateLimite);
     const { data: ref, error: e1 } = await requete
       .order('date', { ascending: false }).order('created_at', { ascending: false })
@@ -172,8 +181,25 @@
       // mesure physique). Si un relevé réel existe aussi ce jour précis
       // (cas rare), il prime : l'écart devient alors réellement informatif.
       if (referenceCertifieeCeJour && reelDuJour == null) reelDuJour = dernierReel;
-      const livraison = releveDuJour ? (releveDuJour[`livraison_${cle}`] || 0) : 0;
-      const mouvement = releveDuJour ? (releveDuJour[`mouvement_${cle}`] || 0) : 0;
+      // CORRECTIF 14/08/2026 (retour de Frédéric, "BUG CRITIQUE POINT
+      // ZÉRO") : le jour même de la certification, toute livraison/
+      // mouvement saisi sur le relevé de CE jour est présumé déjà reflété
+      // dans le stock physique certifié lui-même (le point zéro est une
+      // mesure prise à un instant précis — ici 02:00 — qui incorpore déjà
+      // tout ce qui s'est passé avant cet instant). Les compter en plus du
+      // stock certifié revient à les compter deux fois : c'est exactement
+      // ce qui produisait un théorique fictif de dernierReel+livraison
+      // (ex. 24 537+15 000=39 537 L GO) comparé à un stock réel bien plus
+      // bas, donc un "écart" énorme et faux (-13 936 L GO / -16 097 L
+      // SP95 dans le cas réel signalé). Règle : après certification, seuls
+      // les mouvements STRICTEMENT postérieurs au point zéro comptent — en
+      // l'absence d'horodatage précis sur chaque mouvement, la limite la
+      // plus honnête que permette le modèle actuel (granularité JOUR) est
+      // de ne jamais rejouer un mouvement daté du jour même de la
+      // certification, symétriquement à ventesDepuis déjà mis à 0 plus
+      // haut pour ce même jour.
+      const livraison = referenceCertifieeCeJour ? 0 : (releveDuJour ? (releveDuJour[`livraison_${cle}`] || 0) : 0);
+      const mouvement = referenceCertifieeCeJour ? 0 : (releveDuJour ? (releveDuJour[`mouvement_${cle}`] || 0) : 0);
       // 13/08/2026, audit Carburants Pilotage : la page a besoin d'afficher
       // le "stock physique" en toutes lettres (jauge + tableau), pas
       // seulement l'écart déjà calculé — reelDuJour/dernierReel sont donc
@@ -415,8 +441,13 @@
     const releves = (relevesDesc || []).slice().reverse(); // ascendant
     if (!releves.length) return [];
 
+    // CORRECTIF 14/08/2026 : seules les certifications 'initialisation'
+    // servent d'ancre ici aussi (voir chargerDernierPointZero) — un
+    // 'recomptage' n'est jamais rejoué comme référence de calcul dans
+    // l'historique, il reste un journal de contrôle, pas une nouvelle
+    // frontière.
     const { data: pointsZeroAsc, error: e2 } = await client.from('carburant_stock_references')
-      .select('*').eq('site', siteId).eq('statut', 'valide').lte('date', fin)
+      .select('*').eq('site', siteId).eq('statut', 'valide').eq('type', 'initialisation').lte('date', fin)
       .order('date', { ascending: true });
     if (e2) console.error('Chargement points zéro (historique relevés):', e2);
     let lignesParPointZero = {};
@@ -493,8 +524,13 @@
         const dernierReel = ancreEstPointZero
           ? (lignesParPointZero[pz.id] ? lignesParPointZero[pz.id][cle] : null)
           : (cle === 'go' ? M.stockReelGoTotal(prevReleve) : (prevReleve ? prevReleve[`stock_reel_${cle}`] : null));
-        const livraison = releve[`livraison_${cle}`] || 0;
-        const mouvement = releve[`mouvement_${cle}`] || 0;
+        // CORRECTIF 14/08/2026 (même règle que chargerControleJour) : le
+        // jour même de la certification, la livraison/le mouvement saisi
+        // sur CE relevé est présumé déjà incorporé dans le stock certifié
+        // — l'ajouter en plus double-compterait un mouvement antérieur au
+        // point zéro.
+        const livraison = referenceCertifieeCeJour ? 0 : (releve[`livraison_${cle}`] || 0);
+        const mouvement = referenceCertifieeCeJour ? 0 : (releve[`mouvement_${cle}`] || 0);
         const resultatCarb = M.calculerCarburant({ dernierReel, reelDuJour, livraison, mouvement, ventes: ventes[cle] });
         if (referenceCertifieeCeJour) resultatCarb.statut = 'Référence certifiée';
         parCarburant[cle] = resultatCarb;

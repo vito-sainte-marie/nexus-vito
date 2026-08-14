@@ -190,6 +190,9 @@
   .pointzero-texte{font-size:11.5px; color:var(--text-mid); line-height:1.55; margin-bottom:12px;}
   .pointzero-dernier{font-size:11px; color:var(--text-dim); line-height:1.5; margin-bottom:12px; padding:9px 11px; background:var(--panel-raised); border-radius:10px;}
   .pointzero-champ-label{font-size:11px; color:var(--text-mid); margin:10px 0 5px;}
+  .pointzero-type-option{display:flex; gap:9px; align-items:flex-start; padding:9px 10px; margin-bottom:7px; border-radius:10px; background:var(--panel-raised); border:1px solid var(--hairline); font-size:11.5px; color:var(--text-mid); line-height:1.5; cursor:pointer;}
+  .pointzero-type-option input{margin-top:2px; flex-shrink:0;}
+  .pointzero-type-option b{color:var(--text);}
   .pointzero-row{display:flex; gap:8px;}
   .pointzero-row + .pointzero-champ-label{margin-top:12px;}
   .pointzero-input, .pointzero-select, .pointzero-textarea{flex:1; background:var(--panel-raised); border:1px solid var(--hairline); border-radius:8px; padding:9px 10px; color:var(--text); font-family:var(--mono); font-size:13px; width:100%;}
@@ -828,10 +831,32 @@
     // valeur déjà validée.
     const valeurActuelle = (cle) => (CONTROLE_CTX && CONTROLE_CTX.parCarburant && CONTROLE_CTX.parCarburant[cle] && CONTROLE_CTX.parCarburant[cle].stockPhysiqueAffiche != null)
       ? String(Math.round(CONTROLE_CTX.parCarburant[cle].stockPhysiqueAffiche)) : '';
+    // CORRECTIF 14/08/2026 (retour de Frédéric, "le bouton Recomptage ne
+    // devrait pas créer un deuxième point zéro automatiquement sauf si tu
+    // demandes explicitement une nouvelle certification") : le type n'est
+    // plus déduit automatiquement (l'ancien code faisait "recomptage" dès
+    // qu'un point zéro existait déjà, silencieusement) — dès qu'une
+    // référence existe, le manager choisit explicitement entre un contrôle
+    // qui ne change rien au calcul et une nouvelle certification qui
+    // remplace la référence. Sans référence existante, il n'y a qu'un choix
+    // sensé (la toute première certification), le sélecteur ne s'affiche
+    // pas.
+    const selecteurType = pz ? `
+      <div class="pointzero-champ-label">Type de contrôle</div>
+      <label class="pointzero-type-option">
+        <input type="radio" name="pz_type" value="recomptage" checked>
+        <span><b>Recomptage</b> — contrôle physique intermédiaire. Compare le stock actuel au théorique calculé depuis la référence en vigueur, sans jamais la remplacer.</span>
+      </label>
+      <label class="pointzero-type-option">
+        <input type="radio" name="pz_type" value="initialisation">
+        <span><b>Nouvelle certification</b> — remplace la référence de calcul à partir de cette date. À réserver à un vrai reset (l'historique reste archivé, jamais supprimé).</span>
+      </label>
+    ` : '';
     panel.innerHTML = `
       <div class="pointzero-titre">Certifier un stock de référence</div>
-      <div class="pointzero-texte">À utiliser après un contrôle physique fiable (ex. Insite360) : ce stock devient la nouvelle référence de calcul à partir de la date choisie. L'historique reste archivé mais n'est plus utilisé pour les écarts futurs — rien n'est jamais modifié ni supprimé.</div>
+      <div class="pointzero-texte">${pz ? "Un point zéro est déjà actif — choisissez ci-dessous s'il s'agit d'un simple contrôle ou d'une nouvelle référence." : "À utiliser après un contrôle physique fiable (ex. Insite360) : ce stock devient la référence de calcul à partir de la date choisie. L'historique reste archivé mais n'est plus utilisé pour les écarts futurs — rien n'est jamais modifié ni supprimé."}</div>
       <div class="pointzero-dernier">${dernierTxt}</div>
+      ${selecteurType}
       <div class="pointzero-champ-label">Date du contrôle</div>
       <div class="pointzero-row">
         <input type="date" class="pointzero-input" id="pz_date" max="${todayISO()}" value="${todayISO()}">
@@ -850,7 +875,7 @@
       <div class="pointzero-champ-label">Note (optionnel)</div>
       <textarea class="pointzero-textarea" id="pz_note" rows="2" placeholder="Contexte, référence du relevé Insite360…"></textarea>
       <button class="pointzero-btn" id="btnPointZeroValider">Certifier ce point zéro</button>
-      <div class="pointzero-confirmation" id="pointZeroConfirmation">✓ Point zéro certifié — les prochains calculs partent de cette référence.</div>
+      <div class="pointzero-confirmation" id="pointZeroConfirmation"></div>
     `;
     document.getElementById('btnPointZeroValider').addEventListener('click', validerPointZero);
   }
@@ -876,12 +901,18 @@
     btn.textContent = 'Certification…';
 
     const theoriqueAvant = (cle) => (CONTROLE_CTX && CONTROLE_CTX.parCarburant && CONTROLE_CTX.parCarburant[cle]) ? CONTROLE_CTX.parCarburant[cle].theorique : null;
+    // CORRECTIF 14/08/2026 : type choisi explicitement par le manager (voir
+    // selecteurType dans renderPointZeroPanel) — plus jamais déduit
+    // automatiquement de la présence d'un point zéro existant. Sans
+    // référence existante, il n'y a qu'un choix sensé : 'initialisation'.
+    const radioType = document.querySelector('input[name="pz_type"]:checked');
+    const type = (CONTROLE_CTX && CONTROLE_CTX.pointZero) ? (radioType ? radioType.value : 'recomptage') : 'initialisation';
     const resultat = await NexusCarburantDonnees.certifierPointZero(nexusClient, SITE_ID, {
       date,
       heure: document.getElementById('pz_heure').value || null,
       source: document.getElementById('pz_source').value,
       controlePar: MANAGER_COURANT.id,
-      type: (CONTROLE_CTX && CONTROLE_CTX.pointZero) ? 'recomptage' : 'initialisation',
+      type,
       note: document.getElementById('pz_note').value.trim() || null,
       valeurs: {
         go: { stockReel: go, theoriqueAvant: theoriqueAvant('go') },
@@ -912,6 +943,12 @@
     // inverse effacerait la confirmation en reconstruisant le HTML.
     renderPointZeroPanel();
     const conf = document.getElementById('pointZeroConfirmation');
+    // CORRECTIF 14/08/2026 : confirmation différenciée — un 'recomptage' ne
+    // devient JAMAIS la référence, le dire clairement évite au manager de
+    // croire à tort que le calcul en a été affecté.
+    conf.textContent = type === 'recomptage'
+      ? '✓ Recomptage enregistré — contrôle intermédiaire, la référence de calcul n\'a pas changé.'
+      : '✓ Nouvelle référence certifiée — les prochains calculs partent de ce stock.';
     conf.classList.add('visible');
     setTimeout(() => conf.classList.remove('visible'), 4000);
   }
@@ -948,6 +985,11 @@
         const sourceTxt = pz.source === 'insite360' ? 'Insite360' : (pz.source === 'terrain' ? 'Terrain' : 'Autre');
         const typeTxt = pz.type === 'recomptage' ? 'Recomptage' : 'Initialisation';
         const valeurs = M.CLES_CARBURANT.map(cle => `${COURT_CARBURANT[cle]} ${fmtL(pz.lignes[cle])}`).join(' · ');
+        // CORRECTIF 14/08/2026 : rappel visible qu'un recomptage n'est
+        // jamais devenu l'ancre de calcul (voir chargerDernierPointZero,
+        // filtré sur type='initialisation') — évite toute ambiguïté en
+        // relisant le journal a posteriori.
+        const noteType = pz.type === 'recomptage' ? '<div class="historique-pz-note">Contrôle intermédiaire — n\'a pas remplacé la référence de calcul.</div>' : '';
         return `
           <div class="historique-pz-carte">
             <div class="historique-pz-tete">
@@ -956,6 +998,7 @@
             </div>
             <div class="historique-pz-valeurs">${valeurs}</div>
             ${pz.note ? `<div class="historique-pz-note">${pz.note}</div>` : ''}
+            ${noteType}
           </div>`;
       }).join('');
       pzHTML = `<div class="historique-souszone">Points zéro certifiés</div>${cartes}`;
