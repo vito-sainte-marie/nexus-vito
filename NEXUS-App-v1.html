@@ -1301,6 +1301,10 @@
   const EMOJI_STATUT_AXE = {
     'En progression': '🟢', 'Sous contrôle': '🟢', 'Stable': '⚪',
     'À surveiller': '🟠', 'En repli': '🔴', 'À corriger': '🔴',
+    // 'Référence certifiée' (14/08/2026) : jour d'une certification de
+    // point zéro carburants, écart=0 par construction — un statut sain,
+    // même famille visuelle que 'Sous contrôle'.
+    'Référence certifiée': '🟢',
     // ⚫→⚪ (11/08/2026, demande de Frédéric) : le noir se lisait comme "en
     // panne / mauvais signal", alors que "Données insuffisantes" veut dire
     // "NEXUS n'a pas encore assez de données", pas "ça va mal". Légende
@@ -1390,6 +1394,7 @@
   const COULEUR_FICHE_STATUT = {
     'Sous contrôle': 'var(--green)', 'À surveiller': 'var(--amber)',
     'À corriger': 'var(--red)', 'Données insuffisantes': 'var(--text-dim)',
+    'Référence certifiée': 'var(--green)',
   };
 
   function toggleFicheAxe(idx) {

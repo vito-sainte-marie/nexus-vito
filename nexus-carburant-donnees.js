@@ -106,24 +106,24 @@
       return { parCarburant: null, aucunReleve: true };
     }
 
-    // Historique antérieur ou égal au point zéro : rapprochement non fiable,
-    // libellé exact demandé par Frédéric — jamais un écart calculé sur une
-    // ancre déjà disqualifiée.
-    if (pointZero && date <= pointZero.date) {
-      return {
-        parCarburant: null, aucunReleve: false, historiqueNonFiable: true,
-        pointZero, dateDernierReleve: dernierReleve ? dernierReleve.date : null,
-        releveDuJour: releveDuJour || null, dernierReleve: dernierReleve || null,
-        messageHistoriqueNonFiable: `Rapprochement historique non fiable — période précédant le point zéro du ${pointZero.date}. Les horaires de jaugeage et la période de ventes n'étaient pas suffisamment synchronisés pour qualifier cet écart. Non reporté dans les calculs ultérieurs.`,
-      };
-    }
-
     // Le point zéro devient l'ancre s'il est plus récent que le dernier
     // relevé réel antérieur à `date` (ou si aucun relevé réel n'existe) :
     // c'est la certification qui doit servir de référence, pas une lecture
     // plus ancienne devenue non fiable.
     const ancreEstPointZero = !!pointZero && (!dernierReleve || pointZero.date >= dernierReleve.date);
     const dateAncre = ancreEstPointZero ? pointZero.date : (dernierReleve ? dernierReleve.date : null);
+
+    // CORRECTIF 14/08/2026 (retour de Frédéric le jour même de la première
+    // certification) : "Créer un point zéro ne signifie pas mettre les
+    // stocks à zéro. Cela signifie : stock théorique de départ = stock
+    // physique certifié, donc écart initial = 0." Le jour même de la
+    // certification, la fenêtre de ventes [ancre incluse, date exclue) est
+    // vide par construction (ancre == date) — ce n'est PAS une donnée
+    // manquante, c'est zéro jour écoulé depuis la certification, donc zéro
+    // vente. Une première version de ce correctif traitait ce jour comme
+    // "historique non fiable" (jauges masquées) : c'était une erreur,
+    // corrigée ici — voir plus bas.
+    const referenceCertifieeCeJour = ancreEstPointZero && dateAncre === date;
 
     // Convention temporelle formalisée par Frédéric le 14/08/2026 (voir
     // l'en-tête de nexus-carburant-moteur.js, "CONVENTION TEMPORELLE") :
@@ -140,7 +140,12 @@
     // (comptait des ventes non encore advenues au moment de l'ouverture) —
     // corrigé ici en bornes [ancre incluse, date cible exclue).
     let ventesDepuis = { go: null, sp95: null, gnr: null };
-    if (dateAncre) {
+    if (referenceCertifieeCeJour) {
+      // Zéro jour écoulé depuis la certification : zéro vente, explicite —
+      // jamais une requête sur une plage vide qui redonnerait `null` et
+      // ferait retomber le statut sur "Données insuffisantes".
+      ventesDepuis = { go: 0, sp95: 0, gnr: 0 };
+    } else if (dateAncre) {
       const { data: lignesVentes, error: e3 } = await client.from('audits_caisse')
         .select('litrage_gazole,litrage_sp95,litrage_gnr')
         .eq('site', siteId).gte('date', dateAncre).lt('date', date);
@@ -150,7 +155,7 @@
 
     const parCarburant = {};
     CARBURANTS_INFO.forEach(({ cle }) => {
-      const reelDuJour = cle === 'go'
+      let reelDuJour = cle === 'go'
         ? M.stockReelGoTotal(releveDuJour)
         : (releveDuJour ? releveDuJour[`stock_reel_${cle}`] : null);
       // Stock de l'ancre : un point zéro certifie UNE valeur totale par
@@ -160,6 +165,13 @@
       const dernierReel = ancreEstPointZero
         ? (pointZero.lignes ? pointZero.lignes[cle] : null)
         : (cle === 'go' ? M.stockReelGoTotal(dernierReleve) : (dernierReleve ? dernierReleve[`stock_reel_${cle}`] : null));
+      // Jour de la référence sans jaugeage séparé saisi ce jour-là (le cas
+      // normal — un point zéro n'est pas un relevé) : le stock physique
+      // AFFICHÉ est le stock certifié lui-même, jamais une case vide le
+      // jour même de la certification (Article 5 — un point zéro EST une
+      // mesure physique). Si un relevé réel existe aussi ce jour précis
+      // (cas rare), il prime : l'écart devient alors réellement informatif.
+      if (referenceCertifieeCeJour && reelDuJour == null) reelDuJour = dernierReel;
       const livraison = releveDuJour ? (releveDuJour[`livraison_${cle}`] || 0) : 0;
       const mouvement = releveDuJour ? (releveDuJour[`mouvement_${cle}`] || 0) : 0;
       // 13/08/2026, audit Carburants Pilotage : la page a besoin d'afficher
@@ -167,8 +179,15 @@
       // seulement l'écart déjà calculé — reelDuJour/dernierReel sont donc
       // remontés tels quels en plus du résultat de calculerCarburant,
       // jamais recalculés une seconde fois côté HTML.
+      const resultat = M.calculerCarburant({ dernierReel, reelDuJour, livraison, mouvement, ventes: ventesDepuis[cle] });
+      // Le jour de la certification, statutCarburant() renverrait "Données
+      // insuffisantes" (ecartRatio null car ventes=0 → division évitée par
+      // calculerEcartRatio) — faux : l'écart EST connu, il vaut 0 par
+      // construction. Statut dédié, reconnu tel quel par
+      // NexusCarburantMoteur.fiabiliteControle() (niveau "ok").
+      if (referenceCertifieeCeJour) resultat.statut = 'Référence certifiée';
       parCarburant[cle] = {
-        ...M.calculerCarburant({ dernierReel, reelDuJour, livraison, mouvement, ventes: ventesDepuis[cle] }),
+        ...resultat,
         reelDuJour, dernierReel, livraison, mouvement,
         // Remonté tel quel (14/08/2026, retour de Frédéric) pour que l'écran
         // puisse expliquer PRÉCISÉMENT pourquoi le théorique est absent
@@ -187,10 +206,24 @@
     return {
       parCarburant, aucunReleve: false, dateDernierReleve: dernierReleve ? dernierReleve.date : null,
       // Point zéro utilisé comme ancre (ou null) : Pilotage l'utilise pour
-      // afficher explicitement "Référence : point zéro du [date] ([source])"
-      // plutôt que de laisser croire que le calcul part d'un jaugeage
-      // quotidien classique.
-      pointZero, ancreEstPointZero,
+      // afficher explicitement "Référence NEXUS : certifiée le [date]
+      // ([source])" plutôt que de laisser croire que le calcul part d'un
+      // jaugeage quotidien classique.
+      pointZero, ancreEstPointZero, referenceCertifieeCeJour,
+      // Message "élégant" demandé par Frédéric (14/08/2026), affiché en
+      // plus des jauges (jamais à leur place) le jour même de la
+      // certification.
+      messageReferenceCertifiee: referenceCertifieeCeJour
+        ? `Nouvelle référence carburants certifiée le ${pointZero.date}. Les écarts antérieurs ne sont plus propagés. Les prochains écarts seront calculés à partir de cette référence.`
+        : null,
+      // Explication secondaire ("Voir pourquoi l'historique précédent a été
+      // neutralisé"), reléguée derrière un lien plutôt qu'affichée en
+      // premier plan comme dans la toute première version de ce correctif
+      // — l'ancien texte reste disponible ici, jamais supprimé, seulement
+      // démoté au rang d'information secondaire.
+      messageHistoriqueNeutralise: (pointZero && ancreEstPointZero)
+        ? `L'historique de rapprochement antérieur au ${pointZero.date} n'était pas suffisamment fiable pour servir de référence (jaugeages et fenêtres de ventes pas toujours synchronisés) — il reste archivé et consultable, mais n'est plus utilisé pour qualifier les écarts à partir de cette date.`
+        : null,
       // 13/08/2026, audit Carburants Pilotage : la page a besoin du détail
       // du relevé du jour (pour signaler une livraison) et du dernier
       // relevé réel (pour le message "jaugeage du jour manquant, dernier
@@ -362,7 +395,7 @@
   // nouvelle règle de calcul : les mêmes fonctions pures du moteur
   // (`calculerCarburant`, `stockReelGoTotal`) sont réutilisées à l'identique
   // pour chaque jour. Retourne du plus récent au plus ancien :
-  // [{ date, historiqueNonFiable, ancreEstPointZero, parCarburant: {go:{theorique,ecart,statut,...}, ...} }, ...]
+  // [{ date, referenceCertifieeCeJour, ancreEstPointZero, parCarburant: {go:{theorique,ecart,statut,...}, ...} }, ...]
   async function chargerHistoriqueReleves(client, siteId, joursFenetre = 30, dateFin) {
     const M = global.NexusCarburantMoteur;
     const fin = dateFin || new Date().toISOString().slice(0, 10);
@@ -445,15 +478,15 @@
       const pz = pointZeroApplicable(releve.date);
       const ancreEstPointZero = !!pz && (!prevReleve || pz.date >= prevReleve.date);
       const dateAncre = ancreEstPointZero ? pz.date : (prevReleve ? prevReleve.date : null);
+      // Jour de la certification elle-même : théorique = physique certifié
+      // (écart = 0 par construction, voir chargerControleJour) — jamais
+      // "pas de théorique" (correctif 14/08/2026, retour de Frédéric : "ne
+      // pas faire disparaître les jauges").
+      const referenceCertifieeCeJour = ancreEstPointZero && dateAncre === releve.date;
 
-      // Jour de la certification elle-même (voir chargerControleJour) :
-      // aucun théorique calculé, ancre déjà disqualifiée pour CE jour précis.
-      if (pz && releve.date === pz.date && ancreEstPointZero) {
-        resultat.push({ date: releve.date, historiqueNonFiable: true, pointZeroDate: pz.date, parCarburant: null });
-        return;
-      }
-
-      const ventes = dateAncre ? sommeVentesFenetre(dateAncre, releve.date) : { go: null, sp95: null, gnr: null };
+      const ventes = referenceCertifieeCeJour
+        ? { go: 0, sp95: 0, gnr: 0 }
+        : (dateAncre ? sommeVentesFenetre(dateAncre, releve.date) : { go: null, sp95: null, gnr: null });
       const parCarburant = {};
       CARBURANTS_INFO.forEach(({ cle }) => {
         const reelDuJour = cle === 'go' ? M.stockReelGoTotal(releve) : releve[`stock_reel_${cle}`];
@@ -462,9 +495,11 @@
           : (cle === 'go' ? M.stockReelGoTotal(prevReleve) : (prevReleve ? prevReleve[`stock_reel_${cle}`] : null));
         const livraison = releve[`livraison_${cle}`] || 0;
         const mouvement = releve[`mouvement_${cle}`] || 0;
-        parCarburant[cle] = M.calculerCarburant({ dernierReel, reelDuJour, livraison, mouvement, ventes: ventes[cle] });
+        const resultatCarb = M.calculerCarburant({ dernierReel, reelDuJour, livraison, mouvement, ventes: ventes[cle] });
+        if (referenceCertifieeCeJour) resultatCarb.statut = 'Référence certifiée';
+        parCarburant[cle] = resultatCarb;
       });
-      resultat.push({ date: releve.date, historiqueNonFiable: false, ancreEstPointZero, parCarburant });
+      resultat.push({ date: releve.date, referenceCertifieeCeJour, ancreEstPointZero, parCarburant });
     });
 
     // Seuls les jours de la fenêtre demandée sont restitués — les relevés

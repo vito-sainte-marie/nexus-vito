@@ -190,10 +190,18 @@
   // ou égale à sa date, la saisie reste possible (correction d'un jour
   // passé) mais l'aperçu théorique affiche "historique non fiable" plutôt
   // qu'un écart calculé sur une ancre déjà disqualifiée (Article 5).
+  // CORRECTIF 14/08/2026 (retour de Frédéric le jour même de la première
+  // certification, "remettre l'écart historique à zéro ne doit surtout pas
+  // faire disparaître les jauges") : le jour EXACT de la certification
+  // (DATE_CIBLE === POINT_ZERO.date) n'est PAS un historique non fiable —
+  // c'est REFERENCE_CERTIFIEE_CE_JOUR, où théorique = physique certifié et
+  // écart = 0, jamais un panneau vide. HISTORIQUE_NON_FIABLE ne couvre plus
+  // que les jours strictement antérieurs au point zéro.
   let POINT_ZERO = null;
   let ANCRE_EST_POINT_ZERO = false;
   let DATE_ANCRE = null;
   let HISTORIQUE_NON_FIABLE = false;
+  let REFERENCE_CERTIFIEE_CE_JOUR = false;
   let ENREGISTREMENT_EN_COURS = false;
   // 13/08/2026, demande de Frédéric : "rendre cliquable [le message 'ventes
   // non disponibles'] afin que je retrouve la caisse où il n'y a pas de
@@ -212,10 +220,12 @@
   const COULEUR_STATUT = {
     'Sous contrôle': 'var(--green)', 'À surveiller': 'var(--amber)',
     'À corriger': 'var(--red)', 'Données insuffisantes': 'var(--text-dim)',
+    'Référence certifiée': 'var(--green)',
   };
   const FOND_STATUT = {
     'Sous contrôle': 'var(--green-dim)', 'À surveiller': 'var(--amber-dim)',
     'À corriger': 'var(--red-dim)', 'Données insuffisantes': 'var(--panel-raised)',
+    'Référence certifiée': 'var(--green-dim)',
   };
 
   function todayISO() {
@@ -380,11 +390,19 @@
     const dernierReel = ANCRE_EST_POINT_ZERO
       ? (POINT_ZERO.lignes ? POINT_ZERO.lignes[carb.cle] : null)
       : (carb.cle === 'go' ? NexusCarburantMoteur.stockReelGoTotal(DERNIER_RELEVE) : (DERNIER_RELEVE ? DERNIER_RELEVE[`stock_reel_${carb.cle}`] : null));
+    // CORRECTIF 14/08/2026 : le jour de la certification, si le manager n'a
+    // pas ressaisi le jaugeage dans ce champ (rien à ressaisir, il vient de
+    // le certifier), le stock du jour retombe sur la valeur physique
+    // certifiée elle-même — jamais null/vide (Frédéric : "les jauges
+    // doivent continuer à afficher normalement").
+    let reelDuJourEffectif = reelDuJour;
+    if (REFERENCE_CERTIFIEE_CE_JOUR && reelDuJourEffectif == null) reelDuJourEffectif = dernierReel;
     const livraison = valeurChamp(`champ_${carb.cle}_livraison`) || 0;
     const mouvement = valeurChamp(`champ_${carb.cle}_mouvement`) || 0;
     const ventes = VENTES_DEPUIS[carb.cle];
 
-    const resultat = NexusCarburantMoteur.calculerCarburant({ dernierReel, reelDuJour, livraison, mouvement, ventes });
+    const resultat = NexusCarburantMoteur.calculerCarburant({ dernierReel, reelDuJour: reelDuJourEffectif, livraison, mouvement, ventes });
+    if (REFERENCE_CERTIFIEE_CE_JOUR) resultat.statut = 'Référence certifiée';
 
     const ecartPct = resultat.ecartRatio != null ? `${resultat.ecartRatio >= 0 ? '+' : ''}${(resultat.ecartRatio * 100).toFixed(1)} %` : '—';
     panel.innerHTML = `
@@ -425,7 +443,14 @@
 
     const blocs = CARBURANTS.map(carb => {
       const libelleAncre = ANCRE_EST_POINT_ZERO ? `point zéro du ${formaterDateFr(DATE_ANCRE)}` : `dernier relevé (${formaterDateFr(DATE_ANCRE)})`;
-      const ventesTxt = HISTORIQUE_NON_FIABLE
+      // CORRECTIF 14/08/2026 : le jour EXACT de la certification n'est plus
+      // traité comme un historique non fiable — un message positif dédié
+      // remplace l'ancien bandeau bloquant (Frédéric : "Nouvelle référence
+      // carburants certifiée..."), le HISTORIQUE_NON_FIABLE générique ne
+      // couvrant plus que les jours strictement antérieurs.
+      const ventesTxt = REFERENCE_CERTIFIEE_CE_JOUR
+        ? `<div class="ventes-banner">Nouvelle référence carburants certifiée le ${formaterDateFr(POINT_ZERO.date)}. Les écarts antérieurs ne sont plus propagés — les prochains écarts seront calculés à partir de cette référence.</div>`
+        : HISTORIQUE_NON_FIABLE
         ? `<div class="ventes-banner vide">Rapprochement historique non fiable — période précédant le point zéro du ${formaterDateFr(POINT_ZERO.date)}. Le stock réel saisi ici reste enregistré, mais aucun théorique n'est calculé sur cette période.</div>`
         : (VENTES_DEPUIS[carb.cle] != null
             ? `<div class="ventes-banner"><b>${Math.round(VENTES_DEPUIS[carb.cle]).toLocaleString('fr-FR')} L</b> vendus depuis le ${libelleAncre} — déjà repris depuis NEXUS Verify, aucune saisie nécessaire.</div>`
@@ -587,13 +612,16 @@
     // que DERNIER_RELEVE (ou si aucun relevé réel n'existe) — plancher,
     // pas ancre permanente : un relevé réel postérieur au point zéro
     // redevient une ancre normale pour les dates encore plus tardives.
-    HISTORIQUE_NON_FIABLE = !!POINT_ZERO && DATE_CIBLE <= POINT_ZERO.date;
+    HISTORIQUE_NON_FIABLE = !!POINT_ZERO && DATE_CIBLE < POINT_ZERO.date;
     ANCRE_EST_POINT_ZERO = !!POINT_ZERO && !HISTORIQUE_NON_FIABLE && (!DERNIER_RELEVE || POINT_ZERO.date >= DERNIER_RELEVE.date);
     DATE_ANCRE = ANCRE_EST_POINT_ZERO ? POINT_ZERO.date : (DERNIER_RELEVE ? DERNIER_RELEVE.date : null);
+    REFERENCE_CERTIFIEE_CE_JOUR = ANCRE_EST_POINT_ZERO && DATE_ANCRE === DATE_CIBLE;
 
     VENTES_DEPUIS = HISTORIQUE_NON_FIABLE
       ? { go: null, sp95: null, gnr: null }
-      : await chargerVentesDepuisDernierReleve(SITE_ID, DATE_ANCRE, DATE_CIBLE);
+      : (REFERENCE_CERTIFIEE_CE_JOUR
+          ? { go: 0, sp95: 0, gnr: 0 }
+          : await chargerVentesDepuisDernierReleve(SITE_ID, DATE_ANCRE, DATE_CIBLE));
 
     render();
   });

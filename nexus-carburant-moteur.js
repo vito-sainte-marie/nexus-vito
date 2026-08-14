@@ -247,7 +247,14 @@
   // ============================================================
 
   const NOM_CARBURANT_COURT = { go: 'GO', sp95: 'SP95', gnr: 'GNR' };
-  const ORDRE_GRAVITE_CONTROLE = ['À corriger', 'À surveiller', 'Sous contrôle', 'Données insuffisantes'];
+  // CORRECTIF 14/08/2026 : 'Référence certifiée' (jour exact d'une
+  // certification de point zéro, écart=0 par construction) est un statut
+  // SAIN, jamais une absence de donnée — placé au même rang que 'Sous
+  // contrôle' pour que ce moteur partagé (consommé par Brief/APP en plus
+  // de Pilotage) ne redescende jamais ce jour-là vers "Données
+  // insuffisantes" (Article 11 : une seule vérité, jamais deux lectures
+  // différentes du même jour selon l'écran).
+  const ORDRE_GRAVITE_CONTROLE = ['À corriger', 'À surveiller', 'Sous contrôle', 'Référence certifiée', 'Données insuffisantes'];
 
   // Le pire statut des 3 carburants — jamais une moyenne, qui masquerait
   // un carburant à corriger derrière deux carburants sous contrôle.
@@ -272,6 +279,7 @@
       if (ok.length) texte += ` ${ok.join(' et ')} sous contrôle.`;
       return texte;
     }
+    if (statutGlobal === 'Référence certifiée') return 'Nouvelle référence carburants certifiée aujourd\'hui — écarts repartis à zéro.';
     if (statutGlobal === 'Sous contrôle') return 'Les 3 carburants sont sous contrôle.';
     return "Le relevé du jour n'a pas encore été validé, ou des ventes ne sont pas encore captées — écart non calculable pour l'instant sur au moins un carburant.";
   }
@@ -419,21 +427,23 @@
     if (c.aucunReleve) {
       return [{ type: 'info', texte: "Aucun relevé enregistré pour l'instant — le pilotage s'activera dès le premier jaugeage saisi." }];
     }
-    // Point zéro (14/08/2026) : jour de la certification elle-même — aucun
-    // théorique n'est encore calculable, le premier le sera au prochain
-    // relevé. Message explicite plutôt qu'un panneau vide ou une erreur.
-    if (c.historiqueNonFiable) {
-      return [{ type: 'info', texte: c.messageHistoriqueNonFiable || "Rapprochement historique non fiable — période précédant le point zéro." }];
-    }
-
     const messages = [];
+
+    // Point zéro (14/08/2026, correctif du même jour — retour de Frédéric :
+    // "ne pas faire disparaître les jauges") : le jour de la certification,
+    // un message d'accueil positif s'ajoute EN PLUS des jauges normales
+    // (jamais à leur place) — la formulation "élégante" demandée par
+    // Frédéric, prioritaire sur les autres messages.
+    if (c.referenceCertifieeCeJour) {
+      messages.push({ type: 'positif', texte: c.messageReferenceCertifiee || 'Nouvelle référence carburants certifiée aujourd\'hui.' });
+    }
 
     // 0) Jaugeage du jour manquant (audit §8, exemple cible) — quand le
     // relevé du jour n'a pas été saisi mais qu'un relevé antérieur existe,
     // aucun écart n'est réellement calculable aujourd'hui : le dire
     // explicitement, avec les deux chiffres qui permettent d'agir, plutôt
     // que de laisser deviner via un simple "Données insuffisantes".
-    if (!c.releveDuJour && c.dernierReleve && c.parCarburant) {
+    if (!c.releveDuJour && c.dernierReleve && c.parCarburant && !c.referenceCertifieeCeJour) {
       const dateTxt = (c.dernierReleve.date || '').split('-').reverse().join('/');
       messages.push({
         type: 'attention',
