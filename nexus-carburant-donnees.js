@@ -45,11 +45,11 @@
   }
 
   // Reprend exactement la chaîne de NEXUS-Carburants-v1.html : dernier
-  // relevé RÉEL avant `date` (ancre), ventes captées depuis ce relevé
-  // jusqu'à `date` INCLUSE (14/08/2026 — voir chargerVentesDepuisDernierReleve
-  // dans NEXUS-Carburants-v1.html pour la justification du correctif), stock
-  // réel DE `date` si un relevé existe pour ce jour précis. Retourne
-  // { parCarburant: {go:{...},sp95:{...},gnr:{...}},
+  // relevé RÉEL avant `date` (ancre), ventes captées depuis le jour de ce
+  // relevé INCLUS jusqu'à `date` EXCLUE (convention "relevé = ouverture du
+  // jour", formalisée le 14/08/2026 — voir l'en-tête de
+  // nexus-carburant-moteur.js), stock réel DE `date` si un relevé existe
+  // pour ce jour précis. Retourne { parCarburant: {go:{...},sp95:{...},gnr:{...}},
   // aucunReleve: bool } — `aucunReleve` distingue explicitement "aucun
   // relevé n'existe encore pour ce site" de "un relevé existe mais les
   // données sont insuffisantes pour calculer un écart", deux situations
@@ -67,18 +67,24 @@
       return { parCarburant: null, aucunReleve: true };
     }
 
-    // Plage INCLUSIVE de `date` depuis le 14/08/2026 (demande de Frédéric,
-    // "pourquoi je n'ai pas le stock théorique ?") — voir le même correctif
-    // et sa justification complète dans NEXUS-Carburants-v1.html
-    // ::chargerVentesDepuisDernierReleve(). En cadence quotidienne (dernier
-    // relevé = la veille), l'ancienne plage strictement exclusive des deux
-    // bornes était TOUJOURS vide, rendant le théorique en permanence
-    // incalculable — pas la limitation ponctuelle prévue à l'origine.
+    // Convention temporelle formalisée par Frédéric le 14/08/2026 (voir
+    // l'en-tête de nexus-carburant-moteur.js, "CONVENTION TEMPORELLE") :
+    // le relevé représente le stock à l'OUVERTURE du jour. Les ventes à
+    // sommer sont donc celles datées >= le jour du DERNIER relevé (ses
+    // propres ventes ont eu lieu après SA propre ouverture, elles comptent)
+    // ET < le jour du relevé COURANT (les ventes de ce jour n'ont pas
+    // encore eu lieu au moment de cette ouverture, elles ne comptent PAS
+    // ici — elles compteront dans le théorique du PROCHAIN relevé).
+    // Historique de ce point précis : v2.79/v2.82 avaient d'abord exclu les
+    // DEUX bornes (toujours vide en cadence quotidienne, théorique jamais
+    // calculable), puis v2.82 avait à tort inclus la date cible elle-même
+    // (comptait des ventes non encore advenues au moment de l'ouverture) —
+    // corrigé ici en bornes [dernier relevé inclus, date cible exclue).
     let ventesDepuis = { go: null, sp95: null, gnr: null };
     if (dernierReleve) {
       const { data: lignesVentes, error: e3 } = await client.from('audits_caisse')
         .select('litrage_gazole,litrage_sp95,litrage_gnr')
-        .eq('site', siteId).gt('date', dernierReleve.date).lte('date', date);
+        .eq('site', siteId).gte('date', dernierReleve.date).lt('date', date);
       if (e3) console.error('Chargement ventes depuis dernier relevé (contrôle):', e3);
       ventesDepuis = M.sommerVentesPeriode(lignesVentes || []);
     }

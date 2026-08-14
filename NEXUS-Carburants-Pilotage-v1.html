@@ -494,9 +494,15 @@
       }
       return `<div class="livraison-ligne"><span>${NOM_CARBURANT[cle]}</span><span style="display:flex; align-items:center; gap:8px;"><b>${fmtL(vol)}</b>${statutHTML}</span></div>`;
     }).join('');
+    // 14/08/2026, convention temporelle formalisée par Frédéric : une
+    // livraison enregistrée sur le relevé du jour n'a pas forcément été
+    // reçue "aujourd'hui" au sens propre — le champ capture tout ce qui est
+    // arrivé depuis le relevé précédent, jusqu'au moment de CE jaugeage
+    // d'ouverture. "Livraison du jour" (qui affirmait un moment précis) est
+    // donc remplacé par une formulation neutre sur le "quand".
     zone.innerHTML = `
       <div class="livraison-carte">
-        <div class="section-note" style="margin:0 0 4px;">${estAujourdhui ? "Livraison du jour" : `Dernière livraison connue — ${releve.date.split('-').reverse().join('/')}`}</div>
+        <div class="section-note" style="margin:0 0 4px;">${estAujourdhui ? "Livraison enregistrée sur le relevé du jour" : `Dernière livraison connue — relevé du ${releve.date.split('-').reverse().join('/')}`}</div>
         ${lignes}
         <div class="livraison-ligne livraison-total"><span>Total</span><span>${fmtL(total)}</span></div>
       </div>`;

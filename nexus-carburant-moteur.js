@@ -27,6 +27,39 @@
 // Aucun changement de saisie pour Frédéric — uniquement une formule plus
 // honnête (Article 5, "vérité avant certitude").
 //
+// ============================================================
+// CONVENTION TEMPORELLE (formalisée par Frédéric le 14/08/2026, après un
+// aller-retour sur un bug de fenêtre de dates — voir Data Dictionary v2.82
+// et v2.84) — SOURCE UNIQUE DE VÉRITÉ pour toute future modification de ce
+// moteur ou de ses appelants :
+//
+//   Le relevé carburant représente le stock physique À L'OUVERTURE du jour.
+//   Les ventes du jour D et les livraisons/mouvements intervenus APRÈS ce
+//   relevé servent à calculer le théorique du PROCHAIN relevé D+1 — jamais
+//   celui du relevé D lui-même (rien de ce qui se passe après une mesure ne
+//   peut être comparé à cette même mesure).
+//
+//   Théorique(D) = Réel(D-1) + livraisons entre les deux relevés
+//                            + mouvements entre les deux relevés
+//                            - ventes depuis le relevé D-1
+//
+// Conséquences concrètes :
+//   - `ventes` (paramètre de calculerTheorique ci-dessous) doit être sommé
+//     sur les dates >= date du relevé précédent ET < date du relevé
+//     courant (le jour du relevé précédent est INCLUS — ses propres ventes
+//     ont eu lieu après SA propre ouverture ; le jour du relevé courant est
+//     EXCLU — ses ventes n'ont pas encore eu lieu au moment de cette
+//     ouverture). Voir chargerControleJour() dans nexus-carburant-donnees.js
+//     et chargerVentesDepuisDernierReleve() dans NEXUS-Carburants-v1.html.
+//   - `livraison`/`mouvement` sont saisis directement SUR la ligne du
+//     relevé courant (champ "Livraison depuis le dernier relevé") : le
+//     data-model respecte déjà la convention par construction — le manager
+//     ne peut saisir que ce qu'il connaît au moment de la prise de mesure.
+//     Point de vigilance opérationnel (non automatisable avec un simple
+//     champ `date`, pas d'heure) : une livraison arrivée APRÈS l'ouverture
+//     du jour D ne doit pas être ajoutée en correction sur la ligne D déjà
+//     soumise — elle doit être saisie sur le relevé SUIVANT.
+//
 // Aucune dépendance DOM/Supabase — pures fonctions de calcul.
 // Inclure : <script src="nexus-carburant-moteur.js"></script>
 // ------------------------------------------------------------
@@ -415,12 +448,18 @@
       });
     }
 
-    // 2) Livraison du jour intégrée — événement à signaler explicitement.
+    // 2) Livraison enregistrée sur ce relevé — événement à signaler
+    // explicitement. Formulation volontairement neutre sur le moment exact
+    // ("enregistrée sur le relevé du...", pas "livrée le...") : ce champ
+    // capture une livraison reçue depuis le relevé précédent, entrée par le
+    // manager au moment de CE jaugeage — elle a pu arriver la veille ou le
+    // matin même, NEXUS ne connaît pas l'heure (convention temporelle,
+    // voir l'en-tête du moteur), donc ne l'affirme jamais.
     if (c.releveDuJour) {
       const carburantsLivres = CLES_CARBURANT.filter(cle => Number(c.releveDuJour[`livraison_${cle}`]) > 0);
       if (carburantsLivres.length) {
         const details = carburantsLivres.map(cle => `${Math.round(c.releveDuJour[`livraison_${cle}`]).toLocaleString('fr-FR')} L ${NOM_CARBURANT_COURT[cle]}`).join(', ');
-        messages.push({ type: 'info', texte: `Livraison du ${(c.releveDuJour.date || '').split('-').reverse().join('/')} intégrée au stock théorique : ${details}.` });
+        messages.push({ type: 'info', texte: `Livraison enregistrée sur le relevé du ${(c.releveDuJour.date || '').split('-').reverse().join('/')}, intégrée à son théorique : ${details}.` });
       }
     }
 
