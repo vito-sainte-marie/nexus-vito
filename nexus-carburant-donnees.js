@@ -46,8 +46,10 @@
 
   // Reprend exactement la chaîne de NEXUS-Carburants-v1.html : dernier
   // relevé RÉEL avant `date` (ancre), ventes captées depuis ce relevé
-  // jusqu'à `date` (exclue), stock réel DE `date` si un relevé existe pour
-  // ce jour précis. Retourne { parCarburant: {go:{...},sp95:{...},gnr:{...}},
+  // jusqu'à `date` INCLUSE (14/08/2026 — voir chargerVentesDepuisDernierReleve
+  // dans NEXUS-Carburants-v1.html pour la justification du correctif), stock
+  // réel DE `date` si un relevé existe pour ce jour précis. Retourne
+  // { parCarburant: {go:{...},sp95:{...},gnr:{...}},
   // aucunReleve: bool } — `aucunReleve` distingue explicitement "aucun
   // relevé n'existe encore pour ce site" de "un relevé existe mais les
   // données sont insuffisantes pour calculer un écart", deux situations
@@ -65,11 +67,18 @@
       return { parCarburant: null, aucunReleve: true };
     }
 
+    // Plage INCLUSIVE de `date` depuis le 14/08/2026 (demande de Frédéric,
+    // "pourquoi je n'ai pas le stock théorique ?") — voir le même correctif
+    // et sa justification complète dans NEXUS-Carburants-v1.html
+    // ::chargerVentesDepuisDernierReleve(). En cadence quotidienne (dernier
+    // relevé = la veille), l'ancienne plage strictement exclusive des deux
+    // bornes était TOUJOURS vide, rendant le théorique en permanence
+    // incalculable — pas la limitation ponctuelle prévue à l'origine.
     let ventesDepuis = { go: null, sp95: null, gnr: null };
     if (dernierReleve) {
       const { data: lignesVentes, error: e3 } = await client.from('audits_caisse')
         .select('litrage_gazole,litrage_sp95,litrage_gnr')
-        .eq('site', siteId).gt('date', dernierReleve.date).lt('date', date);
+        .eq('site', siteId).gt('date', dernierReleve.date).lte('date', date);
       if (e3) console.error('Chargement ventes depuis dernier relevé (contrôle):', e3);
       ventesDepuis = M.sommerVentesPeriode(lignesVentes || []);
     }

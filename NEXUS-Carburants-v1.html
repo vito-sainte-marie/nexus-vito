@@ -260,13 +260,27 @@
     return data;
   }
   // Ventes déjà captées dans NEXUS Verify (litrage_gazole/sp95/gnr) entre le
-  // dernier relevé (exclu) et aujourd'hui (exclu) — jamais ressaisies ici.
-  async function chargerVentesDepuisDernierReleve(siteId, depuisDateExclusive, jusquADateExclusive) {
+  // dernier relevé (exclu) et la date cible (INCLUSE) — jamais ressaisies ici.
+  //
+  // Correctif du 14/08/2026 (demande de Frédéric, "pourquoi je n'ai pas le
+  // stock théorique ?") : jusqu'au 13/08, cette plage excluait la date cible
+  // elle-même (jusquADateExclusive), pour ne jamais deviner si un quart daté
+  // du même jour que le relevé avait eu lieu avant ou après le jaugeage.
+  // Conséquence non anticipée : avec un jaugeage quotidien (le dernier relevé
+  // est presque toujours la veille), la plage "strictement entre les deux"
+  // est TOUJOURS vide — le théorique ne pouvait donc jamais se calculer en
+  // cadence quotidienne, seulement s'il y avait un vrai jour d'écart entre
+  // deux relevés. Frédéric a confirmé vouloir inclure la date cible : les
+  // ventes de `audits_caisse` déjà présentes pour ce jour-là (litrage réel
+  // déjà saisi dans Verify) sont donc désormais comptées, qu'elles aient eu
+  // lieu avant ou après le jaugeage du jour — jamais une vente inventée,
+  // seulement une vente déjà réellement captée ailleurs dans NEXUS.
+  async function chargerVentesDepuisDernierReleve(siteId, depuisDateExclusive, jusquADateIncluse) {
     LIGNES_PERIODE_VENTES = [];
     if (!depuisDateExclusive) return { go: null, sp95: null, gnr: null };
     const { data, error } = await nexusClient.from('audits_caisse')
       .select('date,quart,litrage_gazole,litrage_sp95,litrage_gnr')
-      .eq('site', siteId).gt('date', depuisDateExclusive).lt('date', jusquADateExclusive)
+      .eq('site', siteId).gt('date', depuisDateExclusive).lte('date', jusquADateIncluse)
       .order('date', { ascending: true }).order('quart', { ascending: true });
     if (error) { console.error('Chargement ventes carburant (audits_caisse):', error); return { go: null, sp95: null, gnr: null }; }
     LIGNES_PERIODE_VENTES = data || [];
@@ -285,7 +299,7 @@
     if (!LIGNES_PERIODE_VENTES.length) {
       const depuisTxt = DERNIER_RELEVE ? formaterDateFr(DERNIER_RELEVE.date) : '—';
       const jusquaTxt = formaterDateFr(DATE_CIBLE);
-      el.innerHTML = `<div class="ventes-detail-note">Aucun quart de caisse trouvé dans NEXUS Verify entre le ${depuisTxt} (exclu) et le ${jusquaTxt} (exclu) — ce n'est pas nécessairement une anomalie si aucun quart n'a encore eu lieu sur cette période.</div>`;
+      el.innerHTML = `<div class="ventes-detail-note">Aucun quart de caisse trouvé dans NEXUS Verify entre le ${depuisTxt} (exclu) et le ${jusquaTxt} (inclus) — ce n'est pas nécessairement une anomalie si aucun quart n'a encore eu lieu sur cette période.</div>`;
       return;
     }
     el.innerHTML = LIGNES_PERIODE_VENTES.map(l => {
