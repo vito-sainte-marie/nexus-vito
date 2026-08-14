@@ -332,9 +332,150 @@
     return { ok: true, reference: ref };
   }
 
+  // Historique des points zéro certifiés (14/08/2026, section "Historique"
+  // de Carburants Pilotage, demande de Frédéric) — simple journal, le plus
+  // récent en premier, avec le détail des 3 carburants par certification.
+  // Jamais recalculé : c'est un journal d'actions, pas un contrôle.
+  async function chargerHistoriquePointsZero(client, siteId, limite = 20) {
+    const { data: refs, error: e1 } = await client.from('carburant_stock_references')
+      .select('*').eq('site', siteId).order('date', { ascending: false }).order('created_at', { ascending: false }).limit(limite);
+    if (e1) { console.error('Chargement historique points zéro carburants:', e1); return []; }
+    if (!refs || !refs.length) return [];
+    const { data: lignes, error: e2 } = await client.from('carburant_stock_reference_lignes')
+      .select('reference_id,carburant,stock_reel').in('reference_id', refs.map(r => r.id));
+    if (e2) console.error('Chargement lignes historique points zéro carburants:', e2);
+    const parRef = {};
+    (lignes || []).forEach(l => {
+      if (!parRef[l.reference_id]) parRef[l.reference_id] = { go: null, sp95: null, gnr: null };
+      parRef[l.reference_id][l.carburant] = Number(l.stock_reel);
+    });
+    return refs.map(r => ({ ...r, lignes: parRef[r.id] || { go: null, sp95: null, gnr: null } }));
+  }
+
+  // Historique des relevés (14/08/2026, section "Historique" de Carburants
+  // Pilotage) — reproduit, jour par jour sur une fenêtre récente, le même
+  // calcul que chargerControleJour() (même règle d'ancrage : dernier relevé
+  // réel, ou point zéro s'il est plus récent — voir son en-tête pour le
+  // détail de la convention), mais en UNE passe sur des données déjà
+  // chargées plutôt que N appels séparés à chargerControleJour (qui
+  // multiplierait les allers-retours réseau pour une simple liste). Aucune
+  // nouvelle règle de calcul : les mêmes fonctions pures du moteur
+  // (`calculerCarburant`, `stockReelGoTotal`) sont réutilisées à l'identique
+  // pour chaque jour. Retourne du plus récent au plus ancien :
+  // [{ date, historiqueNonFiable, ancreEstPointZero, parCarburant: {go:{theorique,ecart,statut,...}, ...} }, ...]
+  async function chargerHistoriqueReleves(client, siteId, joursFenetre = 30, dateFin) {
+    const M = global.NexusCarburantMoteur;
+    const fin = dateFin || new Date().toISOString().slice(0, 10);
+    const finDate = new Date(`${fin}T00:00:00`);
+    const debutDate = new Date(finDate);
+    debutDate.setDate(debutDate.getDate() - joursFenetre);
+    const debutISO = `${debutDate.getFullYear()}-${String(debutDate.getMonth() + 1).padStart(2, '0')}-${String(debutDate.getDate()).padStart(2, '0')}`;
+
+    // Relevés de la fenêtre + une marge de sécurité de relevés plus anciens
+    // (pour disposer de l'ancre du tout premier relevé affiché, même si la
+    // cadence n'est pas strictement quotidienne) — chargés ascendants pour
+    // un balayage séquentiel simple.
+    const { data: relevesDesc, error: e1 } = await client.from('carburant_releves')
+      .select('*').eq('site', siteId).lte('date', fin)
+      .order('date', { ascending: false }).limit(joursFenetre + 5);
+    if (e1) { console.error('Chargement historique relevés carburant:', e1); return []; }
+    const releves = (relevesDesc || []).slice().reverse(); // ascendant
+    if (!releves.length) return [];
+
+    const { data: pointsZeroAsc, error: e2 } = await client.from('carburant_stock_references')
+      .select('*').eq('site', siteId).eq('statut', 'valide').lte('date', fin)
+      .order('date', { ascending: true });
+    if (e2) console.error('Chargement points zéro (historique relevés):', e2);
+    let lignesParPointZero = {};
+    if (pointsZeroAsc && pointsZeroAsc.length) {
+      const { data: lignes, error: e3 } = await client.from('carburant_stock_reference_lignes')
+        .select('reference_id,carburant,stock_reel').in('reference_id', pointsZeroAsc.map(r => r.id));
+      if (e3) console.error('Chargement lignes points zéro (historique relevés):', e3);
+      (lignes || []).forEach(l => {
+        if (!lignesParPointZero[l.reference_id]) lignesParPointZero[l.reference_id] = { go: null, sp95: null, gnr: null };
+        lignesParPointZero[l.reference_id][l.carburant] = Number(l.stock_reel);
+      });
+    }
+
+    // Ventes agrégées par jour sur toute la période couverte (du premier
+    // relevé chargé à `fin`) — une seule requête, sommée en mémoire, plutôt
+    // qu'une requête par relevé.
+    const debutVentes = releves[0].date;
+    const { data: lignesVentes, error: e4 } = await client.from('audits_caisse')
+      .select('date,litrage_gazole,litrage_sp95,litrage_gnr')
+      .eq('site', siteId).gte('date', debutVentes).lte('date', fin);
+    if (e4) console.error('Chargement ventes (historique relevés):', e4);
+    const ventesParJour = {};
+    (lignesVentes || []).forEach(l => {
+      if (!ventesParJour[l.date]) ventesParJour[l.date] = { go: 0, sp95: 0, gnr: 0, aUnLitrage: false };
+      const j = ventesParJour[l.date];
+      if (l.litrage_gazole != null) { j.go += Number(l.litrage_gazole); j.aUnLitrage = true; }
+      if (l.litrage_sp95 != null) { j.sp95 += Number(l.litrage_sp95); j.aUnLitrage = true; }
+      if (l.litrage_gnr != null) { j.gnr += Number(l.litrage_gnr); j.aUnLitrage = true; }
+    });
+    // Somme des ventes connues sur [depuisInclus, jusquExclu) — null si
+    // aucun jour de la fenêtre n'a de litrage renseigné (même honnêteté que
+    // sommerVentesPeriode côté moteur : jamais un 0 déguisé en "pas de vente").
+    function sommeVentesFenetre(depuisInclus, jusquExclu) {
+      const total = { go: 0, sp95: 0, gnr: 0 };
+      let trouve = false;
+      const cursor = new Date(`${depuisInclus}T00:00:00`);
+      const limite = new Date(`${jusquExclu}T00:00:00`);
+      while (cursor < limite) {
+        const iso = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}-${String(cursor.getDate()).padStart(2, '0')}`;
+        const j = ventesParJour[iso];
+        if (j && j.aUnLitrage) { total.go += j.go; total.sp95 += j.sp95; total.gnr += j.gnr; trouve = true; }
+        cursor.setDate(cursor.getDate() + 1);
+      }
+      return trouve ? total : { go: null, sp95: null, gnr: null };
+    }
+
+    // Point zéro applicable à une date donnée : le plus récent avec
+    // date <= cette date (même règle que chargerDernierPointZero) —
+    // recherche linéaire, la liste est courte en pratique.
+    function pointZeroApplicable(date) {
+      let trouve = null;
+      (pointsZeroAsc || []).forEach(pz => { if (pz.date <= date) trouve = pz; });
+      return trouve;
+    }
+
+    const resultat = [];
+    releves.forEach((releve, i) => {
+      const prevReleve = i > 0 ? releves[i - 1] : null;
+      const pz = pointZeroApplicable(releve.date);
+      const ancreEstPointZero = !!pz && (!prevReleve || pz.date >= prevReleve.date);
+      const dateAncre = ancreEstPointZero ? pz.date : (prevReleve ? prevReleve.date : null);
+
+      // Jour de la certification elle-même (voir chargerControleJour) :
+      // aucun théorique calculé, ancre déjà disqualifiée pour CE jour précis.
+      if (pz && releve.date === pz.date && ancreEstPointZero) {
+        resultat.push({ date: releve.date, historiqueNonFiable: true, pointZeroDate: pz.date, parCarburant: null });
+        return;
+      }
+
+      const ventes = dateAncre ? sommeVentesFenetre(dateAncre, releve.date) : { go: null, sp95: null, gnr: null };
+      const parCarburant = {};
+      CARBURANTS_INFO.forEach(({ cle }) => {
+        const reelDuJour = cle === 'go' ? M.stockReelGoTotal(releve) : releve[`stock_reel_${cle}`];
+        const dernierReel = ancreEstPointZero
+          ? (lignesParPointZero[pz.id] ? lignesParPointZero[pz.id][cle] : null)
+          : (cle === 'go' ? M.stockReelGoTotal(prevReleve) : (prevReleve ? prevReleve[`stock_reel_${cle}`] : null));
+        const livraison = releve[`livraison_${cle}`] || 0;
+        const mouvement = releve[`mouvement_${cle}`] || 0;
+        parCarburant[cle] = M.calculerCarburant({ dernierReel, reelDuJour, livraison, mouvement, ventes: ventes[cle] });
+      });
+      resultat.push({ date: releve.date, historiqueNonFiable: false, ancreEstPointZero, parCarburant });
+    });
+
+    // Seuls les jours de la fenêtre demandée sont restitués — les relevés
+    // plus anciens n'ont servi qu'à calculer l'ancre du premier jour affiché.
+    return resultat.filter(r => r.date >= debutISO).reverse(); // du plus récent au plus ancien
+  }
+
   global.NexusCarburantDonnees = {
     CARBURANTS_INFO, chargerVentesPeriode, chargerControleJour, chargerJoursSansReleve,
     chargerCuvesConfig, chargerConsommationJournaliereMoyenne, CUVES_PAR_DEFAUT,
     chargerDerniereLivraison, chargerDernierPointZero, certifierPointZero,
+    chargerHistoriquePointsZero, chargerHistoriqueReleves,
   };
 })(typeof window !== 'undefined' ? window : globalThis);
