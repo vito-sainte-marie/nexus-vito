@@ -75,6 +75,11 @@ const NEXUS_SIDEBAR_GROUPES = [
       // juste à côté de Verify — le litrage vendu qu'il consomme vient de
       // là (litrage_gazole/sp95/gnr), jamais ressaisi.
       { label: 'Carburants', href: 'NEXUS-Carburants-v1.html', icon: null, emoji: '⛽' },
+      // Réception carburant (14/08/2026, audit "Réceptions, deltas et
+      // effet économique du stock", P1) : parcours employé dédié à la
+      // réception d'une livraison (jaugeage avant/après, BL, calcul NEXUS)
+      // — juste à côté de Carburants, comme FDJ/Contrôle FDJ.
+      { label: 'Réception carburant', href: 'NEXUS-Carburant-Reception-v1.html', icon: null, emoji: '🚚' },
       // Carburants Pilotage (11/08/2026, Phase 1 de la montée en puissance
       // demandée par Frédéric) : la couche dirigeant, juste après le Relevé
       // du jour — même position relative que FDJ Pilotage après Contrôle FDJ.

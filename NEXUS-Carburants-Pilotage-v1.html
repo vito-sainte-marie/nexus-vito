@@ -22,6 +22,8 @@
 <script src="nexus-periodes.js"></script>
 <script src="nexus-carburant-moteur.js"></script>
 <script src="nexus-carburant-donnees.js"></script>
+<script src="nexus-reception-moteur.js"></script>
+<script src="nexus-reception-donnees.js"></script>
 <style>
   :root{
     --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
@@ -149,6 +151,19 @@
   .livraison-ligne:last-child{border-bottom:none;}
   .livraison-total{font-weight:700;}
   .livraison-statut{font-family:var(--mono); font-size:8.5px; font-weight:700; padding:2px 8px; border-radius:20px; text-transform:uppercase;}
+
+  /* Sous-accordéon "Qualité des réceptions" (14/08/2026) — même langage
+     visuel que .accordion-* mais volontairement plus discret (pas de
+     cercle icône, taille réduite) : c'est un niveau imbriqué à l'intérieur
+     de "Dernière livraison", jamais une section de même rang. */
+  .sous-accordion{margin-top:10px; border-top:1px solid var(--hairline); padding-top:10px;}
+  .sous-accordion-header{width:100%; display:flex; align-items:center; justify-content:space-between; padding:4px 2px; background:none; border:none; cursor:pointer; font-family:var(--sans); color:var(--text-mid); font-size:12px; font-weight:600;}
+  .sous-accordion-chevron{font-size:13px; color:var(--text-dim);}
+  .sous-accordion-body{padding-top:8px;}
+  .qualite-reception-carte{background:var(--panel-raised); border:1px solid var(--hairline); border-radius:12px; padding:12px 14px; margin-bottom:8px;}
+  .qualite-reception-ligne{display:flex; justify-content:space-between; align-items:baseline; padding:5px 0; border-bottom:1px solid var(--hairline); font-size:12px;}
+  .qualite-reception-ligne:last-child{border-bottom:none;}
+  .qualite-reception-badge{font-family:var(--mono); font-size:8.5px; font-weight:700; padding:2px 8px; border-radius:20px; text-transform:uppercase;}
 
   .kpi-card{background:var(--panel); border:1px solid var(--hairline); border-radius:14px; padding:16px; margin:0 20px 12px;}
   .kpi-row{display:flex; align-items:baseline; justify-content:space-between; padding:7px 0;}
@@ -399,6 +414,23 @@
     </button>
     <div class="accordion-body" id="bodyLivraison" style="display:none;">
       <div id="livraisonZone"><div class="loading">Chargement…</div></div>
+      <!-- Qualité des réceptions (14/08/2026, audit "Réceptions, deltas et
+           effet économique du stock", priorité P1) — sous-accordéon replié
+           par défaut : détail de la DERNIÈRE réception saisie via le
+           nouveau parcours employé (NEXUS-Carburant-Reception-v1.html),
+           distinct de "Dernière livraison" ci-dessus qui reste basé sur
+           carburant_releves (champ manager historique). Trois vérités
+           affichées côte à côte sans jamais se substituer : BL, terrain,
+           système — voir nexus-reception-moteur.js. -->
+      <div class="sous-accordion" id="sousAccordionQualite">
+        <button type="button" class="sous-accordion-header" id="btnQualiteReceptions">
+          <span class="sous-accordion-titre">Qualité des réceptions</span>
+          <span class="sous-accordion-chevron" id="chevronQualiteReceptions">›</span>
+        </button>
+        <div class="sous-accordion-body" id="bodyQualiteReceptions" style="display:none;">
+          <div id="qualiteReceptionsZone"><div class="loading">Chargement…</div></div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -973,6 +1005,69 @@
   }
 
   // ------------------------------------------------------------
+  // 3bis) QUALITÉ DES RÉCEPTIONS (14/08/2026, audit "Réceptions, deltas et
+  // effet économique du stock", P1) — sous-accordéon replié par défaut,
+  // imbriqué sous "Dernière livraison". Affiche la DERNIÈRE réception
+  // saisie via le nouveau parcours employé (table carburant_receptions +
+  // carburant_reception_mesures), jamais mélangée avec "Dernière
+  // livraison" ci-dessus qui reste alimentée par carburant_releves.
+  // Aucun calcul ici : tout vient de nexus-reception-moteur.js (déjà
+  // appliqué côté employé au moment de la soumission) — cette carte relit
+  // le statut stocké, elle ne le recalcule jamais une deuxième fois.
+  // ------------------------------------------------------------
+  let SOUS_ACCORDION_QUALITE_OUVERT = false;
+  function toggleSousAccordionQualite() {
+    SOUS_ACCORDION_QUALITE_OUVERT = !SOUS_ACCORDION_QUALITE_OUVERT;
+    const body = document.getElementById('bodyQualiteReceptions');
+    const chevron = document.getElementById('chevronQualiteReceptions');
+    if (body) body.style.display = SOUS_ACCORDION_QUALITE_OUVERT ? 'block' : 'none';
+    if (chevron) chevron.textContent = SOUS_ACCORDION_QUALITE_OUVERT ? '⌄' : '›';
+  }
+
+  async function chargerEtRendreQualiteReceptions() {
+    const zone = document.getElementById('qualiteReceptionsZone');
+    if (!zone || !global_NexusReceptionDonnees_disponible()) { if (zone) zone.innerHTML = ''; return; }
+    const reception = await NexusReceptionDonnees.chargerDerniereReception(nexusClient, SITE_ID);
+    if (!reception) {
+      zone.innerHTML = `<div class="controle-vide">Aucune réception saisie pour l'instant via le parcours Réception carburant.</div>`;
+      return;
+    }
+    const M = NexusReceptionMoteur;
+    const libelle = M.libelleStatutReception(reception.statut);
+    const c = NIVEAU_COULEUR[libelle.niveau] || NIVEAU_COULEUR.attente;
+    const dateTxt = (reception.date_livraison || '').split('-').reverse().join('/');
+    const deltaTotal = (reception.mesures || []).every(m => m.delta_mesure_l != null)
+      ? reception.mesures.reduce((s, m) => s + Number(m.delta_mesure_l), 0)
+      : null;
+    const mesuresLignes = (reception.mesures || []).map(m => `
+      <div class="qualite-reception-ligne">
+        <span>Cuve ${m.cuve_id}</span>
+        <span>${m.jaugeage_avant_l != null ? fmtL(m.jaugeage_avant_l) : '—'} → ${m.jaugeage_apres_l != null ? fmtL(m.jaugeage_apres_l) : '—'}${m.delta_mesure_l != null ? ` (${m.delta_mesure_l >= 0 ? '+' : ''}${fmtL(m.delta_mesure_l)})` : ''}</span>
+      </div>`).join('');
+    zone.innerHTML = `
+      <div class="qualite-reception-carte">
+        <div class="section-note" style="margin:0 0 4px;">${NOM_CARBURANT[reception.carburant] || reception.carburant} — reçue le ${dateTxt}</div>
+        <div class="qualite-reception-ligne"><span>Quantité BL (documentaire)</span><span><b>${fmtL(reception.quantite_bl_l)}</b></span></div>
+        ${mesuresLignes}
+        <div class="qualite-reception-ligne"><span>Total mesuré terrain</span><span><b>${deltaTotal != null ? `${deltaTotal >= 0 ? '+' : ''}${fmtL(deltaTotal)}` : '—'}</b></span></div>
+        ${reception.quantite_systeme_l != null ? `<div class="qualite-reception-ligne"><span>Lecture système (${reception.quantite_systeme_source || 'manuel'})</span><span>${fmtL(reception.quantite_systeme_l)}</span></div>` : ''}
+        <div class="qualite-reception-ligne">
+          <span>Statut</span>
+          <span class="qualite-reception-badge" style="color:${c.c}; background:${c.f};">${libelle.texte}</span>
+        </div>
+        ${reception.commentaire_rapprochement ? `<div class="qualite-reception-ligne"><span>Note manager</span><span>${reception.commentaire_rapprochement}</span></div>` : ''}
+      </div>`;
+  }
+  // Garde-fou : cette page (Carburants Pilotage) doit continuer à
+  // fonctionner même si nexus-reception-donnees.js / nexus-reception-moteur.js
+  // n'ont pas encore été déployés sur un environnement donné (déploiement
+  // progressif du P1) — jamais une exception qui casserait "Dernière
+  // livraison" à cause d'une fonctionnalité annexe.
+  function global_NexusReceptionDonnees_disponible() {
+    return typeof NexusReceptionDonnees !== 'undefined' && typeof NexusReceptionMoteur !== 'undefined';
+  }
+
+  // ------------------------------------------------------------
   // 4/5/6/7) Ventes, répartition, stock & autonomie détaillé, moteur —
   // dépendent de la période sélectionnée.
   // ------------------------------------------------------------
@@ -1492,6 +1587,8 @@
     MANAGER_COURANT = employee;
 
     initAccordions();
+    const btnQualite = document.getElementById('btnQualiteReceptions');
+    if (btnQualite) btnQualite.addEventListener('click', toggleSousAccordionQualite);
 
     document.getElementById('btnPointZeroToggle').addEventListener('click', () => {
       POINTZERO_PANEL_OUVERT = !POINTZERO_PANEL_OUVERT;
@@ -1515,7 +1612,7 @@
     renderSituation(CONTROLE_CTX);
     renderLectureNexus();
 
-    await Promise.all([chargerEtRendreLivraison(), chargerEtRendrePeriode(), chargerEtRendreRattrapage(), chargerEtRendreHistorique()]);
+    await Promise.all([chargerEtRendreLivraison(), chargerEtRendrePeriode(), chargerEtRendreRattrapage(), chargerEtRendreHistorique(), chargerEtRendreQualiteReceptions()]);
   });
 </script>
 </body>

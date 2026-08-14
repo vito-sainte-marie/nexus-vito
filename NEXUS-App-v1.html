@@ -267,6 +267,7 @@
   .pointage-mini-btn.couleur-depart{background:var(--red);}
   .pointage-mini-btn.couleur-inventaire{background:var(--cyan);}
   .pointage-mini-btn.couleur-fdj{background:var(--gold);}
+  .pointage-mini-btn.couleur-reception{background:var(--amber);}
   .pointage-mini.termine{background:var(--green-dim); border-color:rgba(52,211,153,0.3);}
   .pointage-mini.termine .pointage-mini-texte{color:var(--green);}
   .prix-row{display:flex; align-items:center; gap:8px; margin-bottom:10px;}
@@ -674,6 +675,16 @@
         <div class="pointage-mini-texte">Grattage, tirages et caisse FDJ de votre quart.</div>
         <a class="pointage-mini-btn couleur-fdj" href="NEXUS-FDJ-v1.html">Compter le FDJ →</a>
       </div>
+      <!-- Réception carburant — mini carte accueil employé (14/08/2026,
+           audit "Réceptions, deltas et effet économique du stock", P1) :
+           même mécanisme que Pointage/Inventaire/FDJ ci-dessus, toujours
+           visible (Carburants n'est pas un module Professional, ni
+           NEXUS-Carburants-v1.html ni NEXUS-Carburants-Pilotage-v1.html
+           n'incluent nexus-forfait.js — pas de gate ici non plus). -->
+      <div class="pointage-mini" id="receptionCarburantMini">
+        <div class="pointage-mini-texte">Livraison carburant : jaugeage et bon de livraison.</div>
+        <a class="pointage-mini-btn couleur-reception" href="NEXUS-Carburant-Reception-v1.html">Réceptionner une livraison →</a>
+      </div>
     </div>
   </div>
 
@@ -886,6 +897,18 @@
         <div class="nav-body">
           <div class="nav-title">Carburants</div>
           <div class="nav-desc">Jaugeage à l'ouverture, théorique et écart calculés</div>
+        </div>
+        <div class="nav-arrow">›</div>
+      </a>
+      <!-- Réception carburant (14/08/2026, audit "Réceptions, deltas et
+           effet économique du stock", P1) : trouvable ici aussi pour le
+           manager (Explorer NEXUS), en plus de la mini carte accueil
+           employé et de la recherche. -->
+      <a class="nav-item" data-role="manager" href="NEXUS-Carburant-Reception-v1.html">
+        <div class="nav-icon" style="display:flex; align-items:center; justify-content:center; font-size:20px;">🚚</div>
+        <div class="nav-body">
+          <div class="nav-title">Réception carburant</div>
+          <div class="nav-desc">Livraison, jaugeage avant/après et calcul NEXUS</div>
         </div>
         <div class="nav-arrow">›</div>
       </a>
@@ -1878,6 +1901,11 @@
     { label: 'Verify', desc: 'Contrôle caisse et écarts', href: 'NEXUS-Verify-v1.html', role: 'manager' },
     { label: 'Carburants', desc: 'Jaugeage à l\'ouverture, théorique et écart calculés', href: 'NEXUS-Carburants-v1.html', role: 'manager' },
     { label: 'Carburants Pilotage', desc: 'Volumes, mix et moteurs de performance sur une période choisie', href: 'NEXUS-Carburants-Pilotage-v1.html', role: 'manager' },
+    // Réception carburant (14/08/2026, audit "Réceptions, deltas et effet
+    // économique du stock", P1) : role 'all' — comme Inventaire, c'est un
+    // outil du quotidien pour l'employé qui réceptionne une livraison, pas
+    // seulement pour le manager.
+    { label: 'Réception carburant', desc: 'Livraison, jaugeage avant/après et calcul NEXUS', href: 'NEXUS-Carburant-Reception-v1.html', role: 'all' },
     { label: 'Missions', desc: '55 procédures · checklist interactive', href: 'NEXUS-Missions-v1.html', role: 'all' },
     // Inventaire (02/08/2026, demande de Frédéric) : role 'all' — visible
     // par recherche pour l'employé, en plus de la mini carte accueil.

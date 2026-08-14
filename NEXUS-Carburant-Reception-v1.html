@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<link rel="icon" type="image/x-icon" href="favicon.ico">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+<link rel="manifest" href="site.webmanifest">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="NEXUS">
+<meta name="theme-color" content="#0B0F14">
+<title>NEXUS — Réception carburant</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="nexus-auth.js"></script>
+<script src="nexus-desktop.js"></script>
+<script src="nexus-reception-moteur.js"></script>
+<script src="nexus-reception-donnees.js"></script>
+<style>
+  :root{
+    --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
+    --text:#EDF1F5; --text-mid:#8A96A5; --text-dim:#57626F;
+    --green:#34D399; --green-dim:#153629;
+    --amber:#F5A623; --amber-dim:#3A2E14;
+    --red:#F0575A; --red-dim:#3A1D1F;
+    --cyan:#4FC3D9; --gold:#D4AF37;
+    --mono:'IBM Plex Mono',monospace; --sans:'IBM Plex Sans',sans-serif;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{background:var(--bg); font-family:var(--sans); color:var(--text);}
+  body{display:flex; justify-content:center; min-height:100vh;}
+  .phone{width:100%; max-width:460px; min-height:100vh; display:flex; flex-direction:column; border-left:1px solid var(--hairline); border-right:1px solid var(--hairline); padding-top:env(safe-area-inset-top); padding-bottom:env(safe-area-inset-bottom);}
+
+  .header{padding:24px 20px 14px; position:relative;}
+  .menu-btn{
+    position:absolute; top:18px; right:18px; display:flex; align-items:center; gap:6px;
+    font-family:var(--mono); font-size:10.5px; font-weight:600; letter-spacing:0.03em; text-transform:uppercase;
+    color:var(--cyan); background:rgba(79,195,217,0.1); border:1px solid rgba(79,195,217,0.3);
+    border-radius:20px; padding:7px 12px; text-decoration:none; white-space:nowrap; z-index:5;
+  }
+  .menu-btn:active{background:rgba(79,195,217,0.2);}
+  .eyebrow{font-family:var(--mono); font-size:11px; letter-spacing:0.12em; text-transform:uppercase; color:var(--cyan);}
+  .title{font-size:22px; font-weight:600; margin-top:4px;}
+  .horodateur-discret{font-family:var(--mono); font-size:12px; color:var(--text-dim); margin-top:8px;}
+  .sub{font-size:13px; color:var(--text-mid); margin-top:6px; line-height:1.5;}
+  .divider{height:1px; background:var(--hairline); margin:0 20px;}
+  .section{padding:16px 20px;}
+  .loading{padding:60px 20px; text-align:center; color:var(--text-dim); font-size:13px;}
+
+  .choix-grid{display:flex; flex-direction:column; gap:12px;}
+  .choix-card{
+    position:relative; background:linear-gradient(145deg, var(--panel), var(--panel-raised));
+    border:1.5px solid var(--hairline); border-radius:16px; padding:18px 20px;
+    display:flex; align-items:center; gap:16px; cursor:pointer;
+    box-shadow:0 4px 14px rgba(0,0,0,0.25); transition:transform .15s;
+  }
+  .choix-card:active{transform:scale(0.98);}
+  .choix-icone{width:52px; height:52px; border-radius:14px; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:24px; background:radial-gradient(circle at 32% 28%, rgba(79,195,217,0.30), var(--panel-raised) 72%); box-shadow:inset 0 0 0 1px rgba(79,195,217,0.25);}
+  .choix-titre{font-size:15.5px; font-weight:700;}
+  .choix-sub{font-size:11.5px; color:var(--text-mid); margin-top:3px; line-height:1.4;}
+
+  .stepper{display:flex; gap:6px; margin-bottom:16px;}
+  .stepper-item{flex:1; height:5px; border-radius:3px; background:var(--panel-raised);}
+  .stepper-item.fait{background:var(--cyan);}
+  .stepper-item.actif{background:var(--cyan); opacity:0.6;}
+  .stepper-label{font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:center; margin-bottom:14px; letter-spacing:0.03em; text-transform:uppercase;}
+
+  .carburant-grid{display:flex; gap:8px; margin-bottom:16px;}
+  .carburant-chip{flex:1; text-align:center; padding:14px 8px; border-radius:12px; border:1.5px solid var(--hairline); background:var(--panel); font-size:14px; font-weight:700; color:var(--text-dim); cursor:pointer;}
+  .carburant-chip:active{background:var(--panel-raised);}
+  .carburant-chip.actif{border-color:var(--cyan); background:rgba(79,195,217,0.14); color:var(--cyan); box-shadow:0 0 0 1px rgba(79,195,217,0.25);}
+
+  .champ-label{font-family:var(--mono); font-size:10.5px; color:var(--text-mid); margin-bottom:6px; letter-spacing:0.03em;}
+  .champ-label .optionnel{color:var(--text-dim); text-transform:none; letter-spacing:0; font-family:var(--sans);}
+  .champ-input{
+    width:100%; background:var(--panel-raised); border:1px solid var(--hairline); border-radius:10px;
+    padding:12px 14px; color:var(--text); font-family:var(--mono); font-size:16px; margin-bottom:14px;
+  }
+  .champ-input.texte{font-family:var(--sans); font-size:15px;}
+  .champ-input:focus{outline:none; border-color:var(--cyan);}
+  .champ-note{font-size:11.5px; color:var(--text-dim); line-height:1.5; margin-bottom:14px; margin-top:-8px;}
+
+  .cuve-card{background:var(--panel); border:1px solid var(--hairline); border-radius:12px; padding:14px 16px; margin-bottom:12px;}
+  .cuve-titre{font-size:13.5px; font-weight:700; margin-bottom:10px; display:flex; align-items:center; gap:8px;}
+  .cuve-titre .capacite{font-family:var(--mono); font-size:10.5px; color:var(--text-dim); font-weight:500;}
+
+  .compartiment-row{display:flex; gap:8px; margin-bottom:8px; align-items:center;}
+  .compartiment-row .champ-input{margin-bottom:0; flex:1;}
+  .btn-retirer{flex-shrink:0; width:38px; height:38px; border-radius:9px; border:1px solid var(--hairline); background:var(--panel-raised); color:var(--red); font-size:16px; cursor:pointer;}
+  .btn-ajouter-compartiment{width:100%; padding:11px; border:1.5px dashed var(--hairline); border-radius:10px; background:transparent; color:var(--text-mid); font-size:12.5px; font-weight:600; cursor:pointer; margin-bottom:14px;}
+  .compartiment-total{background:var(--panel); border:1px solid var(--hairline); border-radius:10px; padding:12px 14px; margin-bottom:14px; font-size:13px; display:flex; justify-content:space-between; align-items:center;}
+  .compartiment-total .valeur{font-family:var(--mono); font-weight:700;}
+  .compartiment-total.ok{border-color:rgba(52,211,153,0.35); background:var(--green-dim);}
+  .compartiment-total.ok .valeur{color:var(--green);}
+  .compartiment-total.ecart{border-color:rgba(245,166,35,0.35); background:var(--amber-dim);}
+  .compartiment-total.ecart .valeur{color:var(--amber);}
+
+  .resume-card{background:var(--panel); border:1px solid var(--hairline); border-radius:14px; padding:18px; margin-bottom:14px;}
+  .stat-row{display:flex; justify-content:space-between; align-items:center; padding:9px 0;}
+  .stat-row + .stat-row{border-top:1px solid var(--hairline);}
+  .stat-label{font-size:13px; color:var(--text-mid);}
+  .stat-value{font-family:var(--mono); font-size:15px; font-weight:700;}
+  .stat-value.amber{color:var(--amber);}
+  .stat-value.cyan{color:var(--cyan);}
+  .stat-value.red{color:var(--red);}
+  .stat-value.green{color:var(--green);}
+  .stat-row.total{margin-top:6px; padding-top:14px; border-top:1.5px solid var(--hairline);}
+  .stat-row.total .stat-label{font-weight:700; color:var(--text);}
+  .stat-row.total .stat-value{font-size:19px;}
+
+  .badge-statut{display:inline-block; font-family:var(--mono); font-size:11px; font-weight:700; letter-spacing:0.03em; text-transform:uppercase; padding:6px 12px; border-radius:20px; margin-bottom:14px;}
+  .badge-statut.ok{background:var(--green-dim); color:var(--green);}
+  .badge-statut.attention{background:var(--amber-dim); color:var(--amber);}
+  .badge-statut.alerte{background:var(--red-dim); color:var(--red);}
+  .badge-statut.attente{background:var(--panel-raised); color:var(--text-mid);}
+
+  .nexus-dit{background:rgba(79,195,217,0.08); border:1px solid rgba(79,195,217,0.25); border-radius:12px; padding:14px 16px; margin-bottom:14px; font-size:12.5px; line-height:1.55; color:var(--text-mid);}
+  .nexus-dit b{color:var(--text);}
+
+  .btn-primary{width:100%; padding:14px; border:none; border-radius:10px; font-size:14px; font-weight:600; background:var(--cyan); color:#04141a; cursor:pointer; margin-top:6px;}
+  .btn-primary:disabled{opacity:0.35; cursor:not-allowed;}
+  .btn-ghost{width:100%; padding:12px; border:1px solid var(--hairline); border-radius:10px; background:transparent; color:var(--text-mid); font-size:13px; cursor:pointer; margin-top:8px;}
+  .btn-loading-dots{display:inline-flex; gap:3px; margin-left:6px; vertical-align:middle;}
+  .btn-loading-dots i{width:4px; height:4px; border-radius:50%; background:currentColor; display:inline-block; font-style:normal; animation:btnDotsBounce 1.2s infinite ease-in-out;}
+  .btn-loading-dots i:nth-child(2){animation-delay:0.15s;}
+  .btn-loading-dots i:nth-child(3){animation-delay:0.3s;}
+  @keyframes btnDotsBounce{0%,80%,100%{opacity:0.25; transform:translateY(0);} 40%{opacity:1; transform:translateY(-2px);}}
+
+  .checkmark{width:56px; height:56px; border-radius:50%; background:var(--green-dim); color:var(--green); font-size:26px; display:flex; align-items:center; justify-content:center; margin:0 auto 18px;}
+  .final-greet{font-size:19px; font-weight:700; text-align:center; margin-bottom:6px;}
+  .final-sub{font-size:12.5px; color:var(--text-mid); text-align:center; margin-bottom:20px;}
+
+  .locked{padding:80px 24px; text-align:center; color:var(--text-mid); font-size:14px;}
+
+  footer{margin-top:auto; padding:16px 20px 24px; font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:center; border-top:1px solid var(--hairline);}
+</style>
+</head>
+<body>
+<div class="phone">
+  <div class="header">
+    <a href="NEXUS-App-v1.html" class="menu-btn">☰ Menu</a>
+    <div class="eyebrow">NEXUS · Carburants</div>
+    <div class="title" id="titre">Chargement…</div>
+    <div class="horodateur-discret" id="horodateurDiscret">--</div>
+    <div class="sub" id="sousTitre"></div>
+  </div>
+  <div class="divider"></div>
+
+  <div class="section desktop-grid" id="content">
+    <div class="loading">Chargement…</div>
+  </div>
+
+  <footer>NEXUS Réception carburant v1 · Réceptions, deltas &amp; effet stock · Vito Sainte-Marie Usine</footer>
+</div>
+
+<script>
+  // ------------------------------------------------------------
+  // NEXUS Réception carburant v1 (14/08/2026) — construit à partir de
+  // "Audit_NEXUS_Carburants_Receptions_Effet_Prix_Stock.pdf" de Frédéric,
+  // priorité développeur P1. Calque le formulaire papier existant en 6
+  // étapes : livraison attendue, jaugeage avant, compartiments camion,
+  // jaugeage après, calcul automatique NEXUS, confirmation employé.
+  //
+  // Règle de conception explicite de l'audit : "L'employé saisit les
+  // faits. NEXUS calcule. Le manager qualifie uniquement lorsque les
+  // éléments sont suffisants." Conséquence directe sur ce fichier :
+  //   - AUCUN calcul n'est fait ici à la main — tout passe par
+  //     NexusReceptionMoteur (Article 11, une seule vérité).
+  //   - La soumission finale (étape 6) est UNE SEULE écriture atomique
+  //     (NexusReceptionDonnees.insererReceptionComplete) : l'employé n'a
+  //     jamais besoin de revenir modifier sa saisie après coup, ce qui
+  //     permet à la RLS de lui refuser tout UPDATE sur ces tables (seul le
+  //     manager/gérant peut qualifier une réception après coup, voir
+  //     migration "carburant_receptions_p1").
+  //   - Trois vérités distinctes ne se substituent jamais : quantité BL
+  //     (documentaire), jaugeage terrain (mesure physique), quantité
+  //     système (Insite360/manuel, optionnelle en P1 — connexion
+  //     automatique différée en P3).
+  //
+  // Étape 3 "Compartiments camion" : aucune table dédiée en P1 (choix de
+  // schéma assumé — voir migration) — c'est une vérification en direct
+  // côté employé (somme des compartiments vs quantité BL), jamais persistée
+  // séparément, jamais une deuxième vérité concurrente de quantite_bl_l.
+  // ------------------------------------------------------------
+
+  let employeeCourant = null;
+  let siteId = null;
+  let etape = 'accueil'; // accueil | livraison | jaugeage_avant | compartiments | jaugeage_apres | calcul | confirmation | succes
+  const ETAPES = ['livraison', 'jaugeage_avant', 'compartiments', 'jaugeage_apres', 'calcul', 'confirmation'];
+  const ETAPES_LABELS = { livraison: 'Livraison attendue', jaugeage_avant: 'Jaugeage avant', compartiments: 'Compartiments camion', jaugeage_apres: 'Jaugeage après', calcul: 'Calcul automatique NEXUS', confirmation: 'Confirmation' };
+
+  let cuvesActives = { go: [], sp95: [], gnr: [] }; // depuis station_config.cuves_carburants (uniquement les carburants actifs)
+  let carburantChoisi = null;
+  let cuvesDuCarburant = [];
+
+  let entete = { transporteur: '', chauffeur: '', immatriculation: '', quantite_bl_l: '', bon_livraison_reference: '', heure_debut: '' };
+  let mesuresParCuve = {}; // cuveId -> { jaugeage_avant_l, jaugeage_avant_le, jaugeage_apres_l, jaugeage_apres_le }
+  let compartimentsSaisis = ['', '']; // volumes déclarés (vérification en direct, non persistée)
+  let heureFin = '';
+  let quantiteSystemeSaisie = '';
+  let resultatCalcul = null; // sortie de NexusReceptionMoteur.calculerReception, sur les totaux agrégés
+  let enSoumission = false;
+  let dernierRecu = null; // { id, statut } — après soumission réussie
+
+  function heureLocale() { return new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }); }
+  function demarrerHorloge() {
+    const maj = () => {
+      const el = document.getElementById('horodateurDiscret');
+      if (!el) return;
+      const jour = new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
+      el.textContent = `${jour.charAt(0).toUpperCase()}${jour.slice(1)} · ${heureLocale()}`;
+    };
+    maj(); setInterval(maj, 15000);
+  }
+  function dateISO(d) {
+    const dt = d || new Date();
+    return `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
+  }
+  // Format d'un <input type="datetime-local"> à partir de maintenant (heure locale, pas UTC).
+  function datetimeLocalMaintenant() {
+    const d = new Date();
+    const pad = n => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+  function fmtNum(n) { return (n === null || n === undefined || isNaN(n)) ? '—' : Number(n).toLocaleString('fr-FR', { maximumFractionDigits: 1 }); }
+  const NOM_CARBURANT = { go: 'Gasoil (GO)', sp95: 'Sans plomb (SP95)', gnr: 'Gasoil non routier (GNR)' };
+  const NOM_CARBURANT_COURT = { go: 'GO', sp95: 'SP95', gnr: 'GNR' };
+
+  async function chargerCuvesActives() {
+    const { data, error } = await nexusClient.from('station_config').select('cuves_carburants').eq('site', siteId).maybeSingle();
+    if (error) { console.error('Chargement cuves actives (réception):', error); return { go: [], sp95: [], gnr: [] }; }
+    const cfg = (data && data.cuves_carburants) || {};
+    const out = { go: [], sp95: [], gnr: [] };
+    ['go', 'sp95', 'gnr'].forEach(c => { if (cfg[c] && cfg[c].actif && Array.isArray(cfg[c].cuves)) out[c] = cfg[c].cuves; });
+    return out;
+  }
+
+  // ------------------------------------------------------------
+  // NAVIGATION ÉTAPES
+  // ------------------------------------------------------------
+  function indexEtape() { return ETAPES.indexOf(etape); }
+  function stepperHtml() {
+    const idx = indexEtape();
+    if (idx < 0) return '';
+    return `
+      <div class="stepper">${ETAPES.map((e,i) => `<div class="stepper-item ${i < idx ? 'fait' : (i === idx ? 'actif' : '')}"></div>`).join('')}</div>
+      <div class="stepper-label">Étape ${idx+1} sur ${ETAPES.length} — ${ETAPES_LABELS[etape]}</div>
+    `;
+  }
+  function allerEtape(e) { etape = e; render(); }
+
+  function render() {
+    document.getElementById('titre').textContent = etape === 'accueil' ? 'Réception carburant' : (etape === 'succes' ? 'Réception enregistrée' : NOM_CARBURANT_COURT[carburantChoisi] ? `Réception ${NOM_CARBURANT_COURT[carburantChoisi]}` : 'Réception carburant');
+    document.getElementById('sousTitre').textContent = etape === 'accueil' ? "Livraison, jaugeage terrain et rapprochement — l'employé saisit les faits, NEXUS calcule." : '';
+    if (etape === 'accueil') renderAccueil();
+    else if (etape === 'livraison') renderLivraison();
+    else if (etape === 'jaugeage_avant') renderJaugeage('avant');
+    else if (etape === 'compartiments') renderCompartiments();
+    else if (etape === 'jaugeage_apres') renderJaugeage('apres');
+    else if (etape === 'calcul') renderCalcul();
+    else if (etape === 'confirmation') renderConfirmation();
+    else if (etape === 'succes') renderSucces();
+  }
+
+  // ------------------------------------------------------------
+  // ACCUEIL
+  // ------------------------------------------------------------
+  function renderAccueil() {
+    const carburantsDisponibles = ['go', 'sp95', 'gnr'].filter(c => cuvesActives[c].length > 0);
+    if (!carburantsDisponibles.length) {
+      document.getElementById('content').innerHTML = `<div class="locked">Aucun carburant actif n'est configuré pour ce site. Contactez votre manager.</div>`;
+      return;
+    }
+    document.getElementById('content').innerHTML = `
+      <div class="choix-grid">
+        ${carburantsDisponibles.map(c => `
+          <div class="choix-card" data-carburant="${c}">
+            <div class="choix-icone">⛽</div>
+            <div>
+              <div class="choix-titre">${NOM_CARBURANT[c]}</div>
+              <div class="choix-sub">Démarrer une réception de livraison</div>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    `;
+    document.querySelectorAll('[data-carburant]').forEach(el => el.addEventListener('click', () => demarrerReception(el.getAttribute('data-carburant'))));
+  }
+
+  function demarrerReception(carburant) {
+    carburantChoisi = carburant;
+    cuvesDuCarburant = cuvesActives[carburant];
+    entete = { transporteur: '', chauffeur: '', immatriculation: '', quantite_bl_l: '', bon_livraison_reference: '', heure_debut: datetimeLocalMaintenant() };
+    mesuresParCuve = {};
+    cuvesDuCarburant.forEach(cu => { mesuresParCuve[cu.id] = { jaugeage_avant_l: '', jaugeage_avant_le: '', jaugeage_apres_l: '', jaugeage_apres_le: '' }; });
+    compartimentsSaisis = ['', ''];
+    heureFin = '';
+    quantiteSystemeSaisie = '';
+    resultatCalcul = null;
+    allerEtape('livraison');
+  }
+
+  // ------------------------------------------------------------
+  // ÉTAPE 1 — LIVRAISON ATTENDUE
+  // ------------------------------------------------------------
+  function renderLivraison() {
+    document.getElementById('content').innerHTML = `
+      ${stepperHtml()}
+      <div class="champ-label">Transporteur <span class="optionnel">(optionnel)</span></div>
+      <input class="champ-input texte" id="fTransporteur" placeholder="Nom du transporteur" value="${entete.transporteur}">
+      <div class="champ-label">Chauffeur <span class="optionnel">(optionnel)</span></div>
+      <input class="champ-input texte" id="fChauffeur" placeholder="Nom du chauffeur" value="${entete.chauffeur}">
+      <div class="champ-label">Immatriculation <span class="optionnel">(optionnel)</span></div>
+      <input class="champ-input texte" id="fImmat" placeholder="AA-123-BB" value="${entete.immatriculation}">
+      <div class="champ-label">Quantité selon le bon de livraison (L)</div>
+      <input class="champ-input" id="fQuantiteBl" type="number" inputmode="decimal" placeholder="0" value="${entete.quantite_bl_l}">
+      <div class="champ-note">La quantité documentaire du BL — jamais remplacée par le jaugeage terrain, uniquement comparée à lui.</div>
+      <div class="champ-label">Référence du BL <span class="optionnel">(optionnel)</span></div>
+      <input class="champ-input texte" id="fRefBl" placeholder="N° du bon de livraison" value="${entete.bon_livraison_reference}">
+      <div class="champ-label">Heure de début de livraison</div>
+      <input class="champ-input" id="fHeureDebut" type="datetime-local" value="${entete.heure_debut}">
+      <button class="btn-primary" id="btnContinuerLivraison" disabled>Continuer</button>
+      <button class="btn-ghost" id="btnAnnulerLivraison">Annuler</button>
+    `;
+    const maj = () => {
+      entete.transporteur = document.getElementById('fTransporteur').value;
+      entete.chauffeur = document.getElementById('fChauffeur').value;
+      entete.immatriculation = document.getElementById('fImmat').value;
+      entete.quantite_bl_l = document.getElementById('fQuantiteBl').value;
+      entete.bon_livraison_reference = document.getElementById('fRefBl').value;
+      entete.heure_debut = document.getElementById('fHeureDebut').value;
+      document.getElementById('btnContinuerLivraison').disabled = !(entete.quantite_bl_l && Number(entete.quantite_bl_l) > 0 && entete.heure_debut);
+    };
+    ['fTransporteur','fChauffeur','fImmat','fQuantiteBl','fRefBl','fHeureDebut'].forEach(id => document.getElementById(id).addEventListener('input', maj));
+    maj();
+    document.getElementById('btnContinuerLivraison').addEventListener('click', () => allerEtape('jaugeage_avant'));
+    document.getElementById('btnAnnulerLivraison').addEventListener('click', () => { if (confirm('Annuler cette réception ? La saisie en cours sera perdue.')) allerEtape('accueil'); });
+  }
+
+  // ------------------------------------------------------------
+  // ÉTAPES 2 & 4 — JAUGEAGE (avant / après), une carte par cuve
+  // ------------------------------------------------------------
+  function renderJaugeage(phase) {
+    const champL = phase === 'avant' ? 'jaugeage_avant_l' : 'jaugeage_apres_l';
+    const champLe = phase === 'avant' ? 'jaugeage_avant_le' : 'jaugeage_apres_le';
+    const titrePhase = phase === 'avant' ? 'Jaugeage avant déchargement' : 'Jaugeage après déchargement';
+    const notePhase = phase === 'avant'
+      ? 'Mesurez le niveau de chaque cuve de destination AVANT le début du déchargement.'
+      : 'Mesurez le niveau de chaque cuve de destination une fois le déchargement terminé.';
+    document.getElementById('content').innerHTML = `
+      ${stepperHtml()}
+      <div class="champ-note" style="margin-top:0;">${notePhase}</div>
+      ${cuvesDuCarburant.map(cu => `
+        <div class="cuve-card">
+          <div class="cuve-titre">${cu.label || cu.id} <span class="capacite">${cu.capacite ? `(${fmtNum(cu.capacite)} L)` : ''}</span></div>
+          <div class="champ-label">Niveau mesuré (L)</div>
+          <input class="champ-input" data-cuve="${cu.id}" data-champ="${champL}" type="number" inputmode="decimal" placeholder="0" value="${mesuresParCuve[cu.id][champL]}" style="margin-bottom:0;">
+        </div>
+      `).join('')}
+      <button class="btn-primary" id="btnContinuerJaugeage" disabled style="margin-top:8px;">Continuer</button>
+      <button class="btn-ghost" id="btnRetourJaugeage">Retour</button>
+    `;
+    document.querySelectorAll('[data-cuve]').forEach(input => input.addEventListener('input', () => {
+      const cuveId = input.getAttribute('data-cuve'), champ = input.getAttribute('data-champ');
+      mesuresParCuve[cuveId][champ] = input.value;
+      majBoutonJaugeage(champL);
+    }));
+    majBoutonJaugeage(champL);
+    document.getElementById('btnContinuerJaugeage').addEventListener('click', () => {
+      const maintenant = new Date().toISOString();
+      cuvesDuCarburant.forEach(cu => { mesuresParCuve[cu.id][champLe] = maintenant; });
+      if (phase === 'apres') { heureFin = new Date().toISOString(); allerEtape('calcul'); }
+      else allerEtape('compartiments');
+    });
+    document.getElementById('btnRetourJaugeage').addEventListener('click', () => allerEtape(phase === 'avant' ? 'livraison' : 'compartiments'));
+  }
+  function majBoutonJaugeage(champL) {
+    const complet = cuvesDuCarburant.every(cu => mesuresParCuve[cu.id][champL] !== '' && !isNaN(Number(mesuresParCuve[cu.id][champL])));
+    const btn = document.getElementById('btnContinuerJaugeage');
+    if (btn) btn.disabled = !complet;
+  }
+
+  // ------------------------------------------------------------
+  // ÉTAPE 3 — COMPARTIMENTS CAMION (vérification en direct, non persistée
+  // — voir note d'en-tête : aucune table dédiée en P1, jamais une deuxième
+  // vérité concurrente de quantite_bl_l saisie à l'étape 1)
+  // ------------------------------------------------------------
+  function renderCompartiments() {
+    const total = compartimentsSaisis.reduce((s, v) => s + (Number(v) || 0), 0);
+    const bl = Number(entete.quantite_bl_l) || 0;
+    const ecart = total - bl;
+    const coherent = bl > 0 && Math.abs(ecart) <= bl * 0.02;
+    document.getElementById('content').innerHTML = `
+      ${stepperHtml()}
+      <div class="champ-note" style="margin-top:0;">Reportez le détail des compartiments du camion tel qu'indiqué sur le bon de livraison (vérification, pas une nouvelle saisie officielle).</div>
+      <div id="compartimentsListe">
+        ${compartimentsSaisis.map((v, i) => `
+          <div class="compartiment-row">
+            <input class="champ-input" data-idx="${i}" type="number" inputmode="decimal" placeholder="Compartiment ${i+1} (L)" value="${v}">
+            <button class="btn-retirer" data-retirer="${i}" ${compartimentsSaisis.length <= 1 ? 'disabled style="opacity:0.3;"' : ''}>✕</button>
+          </div>
+        `).join('')}
+      </div>
+      <button class="btn-ajouter-compartiment" id="btnAjouterCompartiment">+ Ajouter un compartiment</button>
+      <div class="compartiment-total ${total > 0 ? (coherent ? 'ok' : 'ecart') : ''}">
+        <span>Total compartiments vs BL (${fmtNum(bl)} L)</span>
+        <span class="valeur">${fmtNum(total)} L${total > 0 && bl > 0 ? ` (${ecart >= 0 ? '+' : ''}${fmtNum(ecart)} L)` : ''}</span>
+      </div>
+      <button class="btn-primary" id="btnContinuerCompartiments">Continuer</button>
+      <button class="btn-ghost" id="btnRetourCompartiments">Retour</button>
+    `;
+    document.querySelectorAll('[data-idx]').forEach(input => input.addEventListener('input', () => {
+      compartimentsSaisis[Number(input.getAttribute('data-idx'))] = input.value;
+      renderCompartiments();
+    }));
+    document.querySelectorAll('[data-retirer]').forEach(btn => btn.addEventListener('click', () => {
+      const i = Number(btn.getAttribute('data-retirer'));
+      if (compartimentsSaisis.length > 1) { compartimentsSaisis.splice(i, 1); renderCompartiments(); }
+    }));
+    document.getElementById('btnAjouterCompartiment').addEventListener('click', () => { compartimentsSaisis.push(''); renderCompartiments(); });
+    document.getElementById('btnContinuerCompartiments').addEventListener('click', () => allerEtape('jaugeage_apres'));
+    document.getElementById('btnRetourCompartiments').addEventListener('click', () => allerEtape('jaugeage_avant'));
+  }
+
+  // ------------------------------------------------------------
+  // ÉTAPE 5 — CALCUL AUTOMATIQUE NEXUS
+  // Agrégation : le delta terrain se calcule cuve par cuve, mais l'écart
+  // vs BL se calcule sur le TOTAL des cuves face à l'unique quantite_bl_l
+  // de la livraison (jamais une comparaison cuve par cuve contre le même
+  // BL, qui compterait la même référence plusieurs fois).
+  // ------------------------------------------------------------
+  function calculerResultatAgrege() {
+    const M = NexusReceptionMoteur;
+    let deltaTotal = 0, tousComplets = true;
+    const deltasParCuve = {};
+    cuvesDuCarburant.forEach(cu => {
+      const m = mesuresParCuve[cu.id];
+      const delta = M.calculerDeltaMesure(Number(m.jaugeage_avant_l), m.jaugeage_apres_l === '' ? null : Number(m.jaugeage_apres_l));
+      deltasParCuve[cu.id] = delta;
+      if (delta == null) tousComplets = false; else deltaTotal += delta;
+    });
+    const deltaMesureTotal = tousComplets ? deltaTotal : null;
+    const quantiteBlL = Number(entete.quantite_bl_l);
+    const ecartTerrainBl = M.calculerEcartTerrainBl(deltaMesureTotal, quantiteBlL, null);
+    const ecartRatioTerrainBl = M.calculerEcartRatio(ecartTerrainBl, quantiteBlL);
+    const quantiteSystemeL = quantiteSystemeSaisie !== '' ? Number(quantiteSystemeSaisie) : null;
+    const ecartSystemeBl = M.calculerEcartSystemeBl(quantiteSystemeL, quantiteBlL);
+    const ecartRatioSystemeBl = M.calculerEcartRatio(ecartSystemeBl, quantiteBlL);
+    const statut = M.statutInitialReception({ jaugeageApresL: tousComplets ? 1 : null, quantiteBlL, ecartRatioTerrainBl });
+    return { deltasParCuve, deltaMesureTotal, ecartTerrainBl, ecartRatioTerrainBl, ecartSystemeBl, ecartRatioSystemeBl, statut };
+  }
+
+  function renderCalcul() {
+    resultatCalcul = calculerResultatAgrege();
+    const M = NexusReceptionMoteur;
+    const libelle = M.libelleStatutReception(resultatCalcul.statut);
+    document.getElementById('content').innerHTML = `
+      ${stepperHtml()}
+      <div class="badge-statut ${libelle.niveau}">${libelle.texte}</div>
+      <div class="resume-card">
+        ${cuvesDuCarburant.map(cu => `
+          <div class="stat-row">
+            <span class="stat-label">Variation ${cu.label || cu.id}</span>
+            <span class="stat-value cyan">${resultatCalcul.deltasParCuve[cu.id] != null ? `${resultatCalcul.deltasParCuve[cu.id] >= 0 ? '+' : ''}${fmtNum(resultatCalcul.deltasParCuve[cu.id])} L` : '—'}</span>
+          </div>
+        `).join('')}
+        <div class="stat-row total">
+          <span class="stat-label">Total mesuré terrain</span>
+          <span class="stat-value">${resultatCalcul.deltaMesureTotal != null ? `${resultatCalcul.deltaMesureTotal >= 0 ? '+' : ''}${fmtNum(resultatCalcul.deltaMesureTotal)} L` : '—'}</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">Quantité BL</span>
+          <span class="stat-value">${fmtNum(entete.quantite_bl_l)} L</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">Écart terrain / BL</span>
+          <span class="stat-value ${resultatCalcul.statut === 'a_rapprocher' ? 'amber' : (resultatCalcul.statut === 'coherente' ? 'green' : '')}">${M.texteEcart(resultatCalcul.ecartTerrainBl, resultatCalcul.ecartRatioTerrainBl)}</span>
+        </div>
+      </div>
+      <div class="champ-label">Lecture système (Insite360 ou autre) <span class="optionnel">— optionnelle, si disponible</span></div>
+      <input class="champ-input" id="fQuantiteSysteme" type="number" inputmode="decimal" placeholder="Laisser vide si non disponible" value="${quantiteSystemeSaisie}">
+      <div class="champ-note">Connexion automatique Insite360 à venir — en attendant, une lecture manuelle reste optionnelle et n'écrase jamais le jaugeage terrain ni le BL.</div>
+      <div class="nexus-dit">
+        <b>Ce que NEXUS constate :</b> ${texteLectureCalcul(resultatCalcul)}
+      </div>
+      <button class="btn-primary" id="btnContinuerCalcul">Continuer</button>
+      <button class="btn-ghost" id="btnRetourCalcul">Retour</button>
+    `;
+    document.getElementById('fQuantiteSysteme').addEventListener('input', (e) => {
+      quantiteSystemeSaisie = e.target.value;
+      resultatCalcul = calculerResultatAgrege();
+      const nexusDit = document.querySelector('.nexus-dit');
+      if (nexusDit) nexusDit.innerHTML = `<b>Ce que NEXUS constate :</b> ${texteLectureCalcul(resultatCalcul)}`;
+    });
+    document.getElementById('btnContinuerCalcul').addEventListener('click', () => allerEtape('confirmation'));
+    document.getElementById('btnRetourCalcul').addEventListener('click', () => allerEtape('jaugeage_apres'));
+  }
+
+  function texteLectureCalcul(r) {
+    if (r.statut === 'coherente') return `La réception terrain est cohérente avec le bon de livraison (écart de ${NexusReceptionMoteur.texteEcart(r.ecartTerrainBl, r.ecartRatioTerrainBl)}).`;
+    if (r.statut === 'a_rapprocher') return `Un écart de ${NexusReceptionMoteur.texteEcart(r.ecartTerrainBl, r.ecartRatioTerrainBl)} est détecté entre la mesure terrain et le BL — votre manager devra le rapprocher.`;
+    return `Mesure incomplète — l'écart avec le BL ne peut pas encore être calculé.`;
+  }
+
+  // ------------------------------------------------------------
+  // ÉTAPE 6 — CONFIRMATION EMPLOYÉ (soumission atomique unique)
+  // ------------------------------------------------------------
+  function renderConfirmation() {
+    const M = NexusReceptionMoteur;
+    const libelle = M.libelleStatutReception(resultatCalcul.statut);
+    document.getElementById('content').innerHTML = `
+      ${stepperHtml()}
+      <div class="champ-note" style="margin-top:0;">Vérifiez le récapitulatif avant validation — cette réception ne pourra plus être modifiée après validation (seul votre manager pourra la qualifier si nécessaire).</div>
+      <div class="resume-card">
+        <div class="stat-row"><span class="stat-label">Carburant</span><span class="stat-value">${NOM_CARBURANT[carburantChoisi]}</span></div>
+        <div class="stat-row"><span class="stat-label">Quantité BL</span><span class="stat-value">${fmtNum(entete.quantite_bl_l)} L</span></div>
+        ${entete.transporteur ? `<div class="stat-row"><span class="stat-label">Transporteur</span><span class="stat-value">${entete.transporteur}</span></div>` : ''}
+        ${entete.immatriculation ? `<div class="stat-row"><span class="stat-label">Immatriculation</span><span class="stat-value">${entete.immatriculation}</span></div>` : ''}
+        <div class="stat-row"><span class="stat-label">Total mesuré terrain</span><span class="stat-value">${resultatCalcul.deltaMesureTotal != null ? `${resultatCalcul.deltaMesureTotal >= 0 ? '+' : ''}${fmtNum(resultatCalcul.deltaMesureTotal)} L` : '—'}</span></div>
+        <div class="stat-row total"><span class="stat-label">Statut proposé</span><span class="stat-value">${libelle.texte}</span></div>
+      </div>
+      <button class="btn-primary" id="btnValider">Valider la réception</button>
+      <button class="btn-ghost" id="btnRetourConfirmation">Retour</button>
+    `;
+    document.getElementById('btnValider').addEventListener('click', soumettreReception);
+    document.getElementById('btnRetourConfirmation').addEventListener('click', () => allerEtape('calcul'));
+  }
+
+  async function soumettreReception() {
+    if (enSoumission) return;
+    enSoumission = true;
+    const btn = document.getElementById('btnValider');
+    btn.disabled = true;
+    btn.innerHTML = `Enregistrement<span class="btn-loading-dots"><i></i><i></i><i></i></span>`;
+
+    const heureDebutISO = entete.heure_debut ? new Date(entete.heure_debut).toISOString() : new Date().toISOString();
+    const heureFinISO = heureFin || new Date().toISOString();
+    const quantiteSystemeL = quantiteSystemeSaisie !== '' ? Number(quantiteSystemeSaisie) : null;
+
+    const ligneEntete = {
+      site: siteId,
+      carburant: carburantChoisi,
+      date_livraison: dateISO(new Date(heureDebutISO)),
+      heure_debut: heureDebutISO,
+      heure_fin: heureFinISO,
+      transporteur: entete.transporteur || null,
+      chauffeur: entete.chauffeur || null,
+      immatriculation: entete.immatriculation || null,
+      quantite_bl_l: Number(entete.quantite_bl_l),
+      bon_livraison_reference: entete.bon_livraison_reference || null,
+      employe_id: employeeCourant.id,
+      quantite_systeme_l: quantiteSystemeL,
+      quantite_systeme_source: quantiteSystemeL != null ? 'manuel' : null,
+      quantite_systeme_saisie_par: quantiteSystemeL != null ? employeeCourant.id : null,
+      quantite_systeme_saisie_le: quantiteSystemeL != null ? new Date().toISOString() : null,
+      statut: resultatCalcul.statut,
+    };
+    const lignesMesures = cuvesDuCarburant.map(cu => {
+      const m = mesuresParCuve[cu.id];
+      return {
+        cuve_id: cu.id,
+        jaugeage_avant_l: Number(m.jaugeage_avant_l),
+        jaugeage_avant_le: m.jaugeage_avant_le,
+        jaugeage_apres_l: m.jaugeage_apres_l !== '' ? Number(m.jaugeage_apres_l) : null,
+        jaugeage_apres_le: m.jaugeage_apres_le || null,
+        delta_mesure_l: resultatCalcul.deltasParCuve[cu.id],
+        ventes_pendant_livraison_l: null,
+        reception_corrigee_l: null,
+      };
+    });
+
+    const { data, error } = await NexusReceptionDonnees.insererReceptionComplete(nexusClient, ligneEntete, lignesMesures);
+    enSoumission = false;
+    if (error) {
+      btn.disabled = false;
+      btn.textContent = 'Valider la réception';
+      alert("Une erreur est survenue pendant l'enregistrement. Réessayez.");
+      return;
+    }
+    dernierRecu = data;
+    allerEtape('succes');
+  }
+
+  // ------------------------------------------------------------
+  // SUCCÈS
+  // ------------------------------------------------------------
+  function renderSucces() {
+    const M = NexusReceptionMoteur;
+    const libelle = dernierRecu ? M.libelleStatutReception(dernierRecu.statut) : null;
+    document.getElementById('content').innerHTML = `
+      <div class="checkmark">✓</div>
+      <div class="final-greet">Merci ${employeeCourant.nom} !</div>
+      <div class="final-sub">Réception ${NOM_CARBURANT[carburantChoisi]} enregistrée.</div>
+      ${libelle ? `<div style="text-align:center;"><div class="badge-statut ${libelle.niveau}">${libelle.texte}</div></div>` : ''}
+      <button class="btn-primary" id="btnAutreCarburant">Ajouter un autre carburant de ce camion</button>
+      <button class="btn-ghost" id="btnRetourAccueilFinal">Retour à l'accueil</button>
+    `;
+    document.getElementById('btnAutreCarburant').addEventListener('click', () => {
+      // Reprend transporteur/chauffeur/immatriculation (même camion), pratique
+      // pour les livraisons multi-carburants (GO + SP95 en une seule visite).
+      const t = entete.transporteur, ch = entete.chauffeur, im = entete.immatriculation;
+      allerEtape('accueil');
+      setTimeout(() => { entete.transporteur = t; entete.chauffeur = ch; entete.immatriculation = im; }, 0);
+    });
+    document.getElementById('btnRetourAccueilFinal').addEventListener('click', () => allerEtape('accueil'));
+  }
+
+  // ------------------------------------------------------------
+  // INITIALISATION
+  // ------------------------------------------------------------
+  nexusRequireAuth().then(async employee => {
+    if (!employee) return; // nexus-auth.js gère déjà la redirection vers NEXUS-Login-v1.html
+    employeeCourant = employee;
+    siteId = employee.site_id;
+    // Carburants n'est pas un module Professional (ni NEXUS-Carburants-v1.html
+    // ni NEXUS-Carburants-Pilotage-v1.html n'incluent nexus-forfait.js) —
+    // aucune gate ici non plus, pour rester cohérent avec le reste du module.
+    demarrerHorloge();
+    cuvesActives = await chargerCuvesActives();
+    render();
+  });
+</script>
+</body>
+</html>
