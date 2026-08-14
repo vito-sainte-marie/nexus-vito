@@ -465,6 +465,39 @@
     return { accessible: true, motif: null };
   }
 
+  // ------------------------------------------------------------
+  // MOTEUR D'INTÉGRITÉ FDJ — 13/08/2026, Étape 1 de l'audit de fiabilisation
+  // ("NEXUS_FDJ_Audit_Fiabilisation_Chaine_Quarts.pdf", §11/§14 : chaque
+  // écran doit pouvoir afficher un niveau de confiance unique — OK /
+  // PARTIELLE / ROMPUE — plutôt que de laisser chaque écran retrouver ou
+  // interpréter lui-même les signaux de rupture. Ne remplace aucun moteur
+  // métier existant : compose seulement des signaux déjà calculés ailleurs
+  // (chaineContinuite pour la rupture de chaîne, déjà en place depuis plus
+  // tôt le 13/08/2026 ; a_revoir et le statut de fdj_cash_controls pour la
+  // validation manager) en une seule sortie normalisée. Volontairement une
+  // pure fonction : tous les signaux sont fournis par l'appelant, jamais
+  // interrogés ici.
+  //
+  // `signaux` = {
+  //   rompue: bool — sortie de chaineContinuite(...).rompue pour ce quart,
+  //   aRevoir: bool — fdj_shifts.a_revoir de ce quart,
+  //   validationManagerFaite: bool | null — true si fdj_cash_controls.statut
+  //     de ce quart est déjà 'conforme'/'valide_avec_ecart'/'regularise'
+  //     (donc autre chose que 'provisoire' ou absent) ; null si aucun
+  //     contrôle de caisse n'existe encore pour ce quart (pas encore
+  //     clôturé — ne compte pas comme un défaut de confiance, juste "pas
+  //     encore là").
+  // }
+  // Retourne { integrite: 'OK'|'PARTIELLE'|'ROMPUE', motif } — motif = null
+  // | 'quart_manquant' | 'a_revoir' | 'validation_manager_attendue'.
+  function etatIntegriteFdj(signaux) {
+    const s = signaux || {};
+    if (s.rompue) return { integrite: 'ROMPUE', motif: 'quart_manquant' };
+    if (s.aRevoir) return { integrite: 'PARTIELLE', motif: 'a_revoir' };
+    if (s.validationManagerFaite === false) return { integrite: 'PARTIELLE', motif: 'validation_manager_attendue' };
+    return { integrite: 'OK', motif: null };
+  }
+
   global.NexusFdjMoteur = {
     calculerVentesJeu, ventesGrattageTotal, caisseGrattage, caisseAttendue, ecartCaisse,
     soldesCarnetsParJeu, soldeCarnetsJeu, soldesCarnetsAvecReference,
@@ -472,5 +505,6 @@
     quartPrecedentAttendu, quartSuivant, chaineContinuite,
     approNonTraceParJeu, lignesApproNonTracees,
     minutesDepuisMinuit, quartDansFenetreAcces, evaluerAccesQuart,
+    etatIntegriteFdj,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

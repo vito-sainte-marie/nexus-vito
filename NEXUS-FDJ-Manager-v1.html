@@ -850,8 +850,8 @@
 
       <div class="section-titre">Aujourd'hui</div>
       <div class="quart-jour-grid">
-        ${renderCarteQuartJour('1', quart1)}
-        ${renderCarteQuartJour('2', quart2)}
+        ${renderCarteQuartJour('1', quart1, historique)}
+        ${renderCarteQuartJour('2', quart2, historique)}
       </div>
       <button class="btn-nouveau" id="btnNouveauQuart">+ Nouveau quart FDJ</button>
 
@@ -867,7 +867,7 @@
 
       <div class="section-titre">Historique</div>
       <div class="card" id="listeHistorique">
-        ${historique.length ? historique.map((s, i) => renderHistoItem(s, i)).join('') : '<div class="empty">Aucun quart FDJ enregistré pour l’instant.</div>'}
+        ${historique.length ? historique.map((s, i) => renderHistoItem(s, i, historique)).join('') : '<div class="empty">Aucun quart FDJ enregistré pour l’instant.</div>'}
       </div>
 
       <!-- Paramètres FDJ (10/08/2026, audit "Paramétrage autonome & multi-
@@ -927,22 +927,55 @@
     }
   }
 
-  function renderCarteQuartJour(quart, shift) {
+  // ------------------------------------------------------------
+  // CONFIANCE DE LA CHAÎNE — Fiabilisation FDJ Étape 1 (13/08/2026, audit de
+  // cadrage "NEXUS_FDJ_Audit_Fiabilisation_Chaine_Quarts.pdf", §14). Compose
+  // NexusFdjMoteur.etatIntegriteFdj à partir de ce que cet écran a déjà
+  // chargé (previous_shift_id, a_revoir, statut de fdj_cash_controls) —
+  // aucune nouvelle requête. `ensemble` : liste de quarts déjà chargée
+  // (chargerShiftsAvecCaisse), utilisée uniquement pour reconnaître le tout
+  // premier quart connu du site (previous_shift_id vide n'est alors pas une
+  // rupture, juste "il n'y a rien avant").
+  function premierQuartConnu(ensemble) {
+    if (!ensemble || !ensemble.length) return null;
+    return ensemble.reduce((plusAncien, s) => {
+      if (!plusAncien) return s;
+      return (s.date < plusAncien.date || (s.date === plusAncien.date && s.quart < plusAncien.quart)) ? s : plusAncien;
+    }, null);
+  }
+  function calculerIntegriteQuart(s, ensemble) {
+    if (!s) return null;
+    const premier = premierQuartConnu(ensemble);
+    const rompue = s.previous_shift_id == null && !(premier && premier.id === s.id);
+    const validationManagerFaite = s.statut !== 'valide' ? null : (s.cash ? s.cash.statut !== 'provisoire' : false);
+    return NexusFdjMoteur.etatIntegriteFdj({ rompue, aRevoir: !!s.a_revoir, validationManagerFaite });
+  }
+  function badgeIntegrite(etat) {
+    if (!etat) return '';
+    const libelles = { OK: '🟢 Chaîne fiable', PARTIELLE: '🟠 Chaîne partielle', ROMPUE: '🔴 Chaîne interrompue' };
+    const classes = { OK: 'green', PARTIELLE: 'amber', ROMPUE: 'red' };
+    return `<span class="badge-integrite stat-value ${classes[etat.integrite]}" style="font-size:9px; font-family:var(--mono); letter-spacing:0.03em;">${libelles[etat.integrite]}</span>`;
+  }
+
+  function renderCarteQuartJour(quart, shift, ensemble) {
     if (!shift) return `<div class="quart-jour-card" id="carteQuart${quart}"><div class="quart-jour-label">Quart ${quart}</div><div class="quart-jour-statut" style="color:var(--text-dim);">Non compté</div></div>`;
     const ecart = shift.cash ? shift.cash.ecart : null;
     const classe = ecart === null ? '' : (ecart === 0 ? 'green' : (Math.abs(ecart) <= 1 ? 'amber' : 'red'));
+    const integrite = calculerIntegriteQuart(shift, ensemble);
     return `
       <div class="quart-jour-card" id="carteQuart${quart}">
         <div class="quart-jour-label">Quart ${quart}</div>
         <div class="quart-jour-statut">${nomEmploye(shift.employee_id)}</div>
         <div class="quart-jour-ecart ${classe ? `stat-value ${classe}` : ''}">${ecart !== null ? `${ecart > 0 ? '+' : ''}${fmtEuro(ecart)}` : shift.statut === 'valide' ? 'Validé' : 'Brouillon'}</div>
+        ${integrite && integrite.integrite !== 'OK' ? `<div style="margin-top:5px;">${badgeIntegrite(integrite)}</div>` : ''}
       </div>
     `;
   }
 
-  function renderHistoItem(s, i) {
+  function renderHistoItem(s, i, ensemble) {
     const ecart = s.cash ? s.cash.ecart : null;
     const classe = ecart === null ? '' : (ecart === 0 ? 'green' : (Math.abs(ecart) <= 1 ? 'amber' : 'red'));
+    const integrite = calculerIntegriteQuart(s, ensemble);
     return `
       <div class="histo-item" data-idx="${i}">
         <div class="histo-top">
@@ -953,6 +986,7 @@
           <div style="text-align:right;">
             <div class="histo-ecart ${classe}">${ecart !== null ? `${ecart > 0 ? '+' : ''}${fmtEuro(ecart)}` : '—'}</div>
             <div style="margin-top:4px;"><span class="statut-badge ${s.cash ? s.cash.statut : s.statut}">${s.cash ? labelStatutCaisse(s.cash.statut) : (s.statut === 'valide' ? 'Validé' : 'Brouillon')}</span></div>
+            ${integrite && integrite.integrite !== 'OK' ? `<div style="margin-top:4px;">${badgeIntegrite(integrite)}</div>` : ''}
           </div>
         </div>
         <div class="histo-detail" id="detail-${i}">

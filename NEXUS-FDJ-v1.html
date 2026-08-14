@@ -487,6 +487,20 @@
       { date: prevShift.date, quart: prevShift.quart },
       { date: shiftRow.date, quart: shiftRow.quart }
     );
+    // Fiabilisation FDJ Étape 1 (13/08/2026, audit de cadrage) : persiste le
+    // lien explicite previous_shift_id sur ce quart dès qu'il est résolu de
+    // façon fiable — uniquement si la chaîne n'est PAS rompue (sinon on
+    // laisserait croire à une continuité qui n'existe pas ; NULL reste la
+    // valeur honnête tant que le vrai quart précédent n'a pas été comblé,
+    // voir Étape 6 "Gestion des quarts manquants" de l'audit). N'écrit
+    // qu'une fois (shiftRow.previous_shift_id encore vide) pour ne jamais
+    // écraser un lien déjà posé par un replay futur (Étape 4).
+    if (!chaineRompue.rompue && shiftRow.previous_shift_id == null) {
+      const { error: eLien } = await nexusClient.from('fdj_shifts')
+        .update({ previous_shift_id: prevShift.id }).eq('id', shiftRow.id);
+      if (eLien) console.error('Lien previous_shift_id FDJ:', eLien);
+      else shiftRow.previous_shift_id = prevShift.id;
+    }
     const { data: counts, error: e2 } = await nexusClient.from('fdj_shift_counts').select('game_id, stock_final').eq('shift_id', prevShift.id);
     if (e2) { console.error('Comptage précédent FDJ:', e2); return {}; }
     const map = {};
