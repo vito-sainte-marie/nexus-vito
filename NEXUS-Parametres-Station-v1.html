@@ -132,6 +132,21 @@
   .raccourci-item.selectionne .ri-check{background:var(--cyan); border-color:var(--cyan); color:#04141a;}
   .raccourci-compteur{font-family:var(--mono); font-size:11px; color:var(--text-dim); margin-bottom:10px;}
 
+  /* Réception carburant — configuration / consignes / contact manager
+     (15/08/2026, refonte complète du module "visite camion"). Même esprit
+     que "Exceptions de marge" (liste éditable) et "Cuves & capacités"
+     (réglages numériques) ci-dessus — rien de nouveau visuellement,
+     réutilise .exception-item / .btn-mini / .liste-vide / .row. */
+  .consigne-row{background:var(--panel-raised); border-radius:8px; padding:10px; margin-top:8px;}
+  .consigne-row .cr-top{display:flex; gap:8px; margin-bottom:6px;}
+  .consigne-row input[type=text]{flex:1; min-width:0; background:var(--panel); border:1px solid var(--hairline); border-radius:6px; padding:8px 10px; color:var(--text); font-family:var(--sans); font-size:12.5px;}
+  .consigne-row textarea{width:100%; background:var(--panel); border:1px solid var(--hairline); border-radius:6px; padding:8px 10px; color:var(--text); font-family:var(--sans); font-size:12.5px; resize:vertical; min-height:44px;}
+  .ordre-cuve-row{display:flex; align-items:center; gap:10px; padding:9px 10px; background:var(--panel-raised); border-radius:8px; margin-top:8px;}
+  .ordre-cuve-row .oc-rang{font-family:var(--mono); font-size:11px; color:var(--text-dim); width:16px; flex-shrink:0;}
+  .ordre-cuve-row .oc-label{flex:1; min-width:0; font-size:12.5px;}
+  .ordre-cuve-row .oc-btns{display:flex; gap:6px; flex-shrink:0;}
+  .ordre-cuve-row .btn-mini:disabled{opacity:0.3; cursor:not-allowed;}
+
   footer{margin-top:auto; padding:16px 20px 24px; font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:center; border-top:1px solid var(--hairline);}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -141,6 +156,7 @@
 <script src="nexus-raccourcis-catalogue.js"></script>
 <script src="nexus-carburant-moteur.js"></script>
 <script src="nexus-carburant-donnees.js"></script>
+<script src="nexus-reception-moteur.js"></script>
 </head>
 <body>
 <div class="phone">
@@ -303,6 +319,68 @@
         <div class="role-chip" data-valeur="les_deux">Les deux</div>
       </div>
       <div class="toggle-etat" id="receptionCarburantRoleEtat">Chargement…</div>
+    </div>
+
+    <!-- ------------------------------------------------------------
+         Réception carburant — configuration (15/08/2026, refonte
+         complète du module en assistant guidé "visite camion"). station_
+         config.reception_carburant_config (jsonb : nombre_compartiments_
+         defaut, seuil_ecart_compartiments_pct, seuil_ecart_mesure_pct,
+         ordre_cuves). L'ordre de jaugeage doit être paramétrable par
+         station ("une autre station peut avoir une autre configuration",
+         demande de Frédéric) — reconstruit ici à partir des mêmes cuves
+         actives que la carte "Cuves & capacités carburants" ci-dessus,
+         réordonnées avec ▲/▼. Sans ordre personnalisé enregistré, NEXUS
+         utilise l'ordre par défaut (SP95 puis GO puis GNR, cuves dans
+         l'ordre où elles sont déclarées) — voir NexusReceptionMoteur.
+         construireListeCuvesOrdonnee, même fonction que consomme
+         NEXUS-Carburant-Reception-v1.html côté employé (Article 11 : une
+         seule vérité pour cet ordre).
+         ------------------------------------------------------------ -->
+    <div class="card" id="cardReceptionConfig">
+      <div class="section-label">Réception carburant — configuration</div>
+      <div class="note">Pilote les contrôles automatiques de l'assistant de réception (compartiments du camion, seuils d'écart, ordre de jaugeage des cuves).</div>
+      <div class="row"><label>Compartiments par camion (par défaut)</label><input type="number" inputmode="numeric" min="1" max="12" id="receptionNombreCompartiments" style="width:70px;"></div>
+      <div class="row"><label>Seuil d'écart compartiments / BL (%)</label><input type="text" inputmode="decimal" id="receptionSeuilCompartiments" style="width:70px;"></div>
+      <div class="row"><label>Seuil d'écart jaugeage / prévu (%)</label><input type="text" inputmode="decimal" id="receptionSeuilMesure" style="width:70px;"></div>
+      <div class="section-label" style="margin-top:18px;">Ordre de jaugeage (Veeder-Root)</div>
+      <div class="note" style="margin-top:0;">Reproduit l'ordre réel dans lequel le pompiste relève les cuves sur le terrain, réglable avec ▲ / ▼.</div>
+      <div id="receptionOrdreCuvesListe"><div class="liste-vide">Chargement…</div></div>
+      <button class="btn btn-primary" id="sauvegarderReceptionConfig">Enregistrer</button>
+      <div class="saved-note" id="savedNoteReceptionConfig">✓ Configuration réception carburant enregistrée</div>
+    </div>
+
+    <!-- ------------------------------------------------------------
+         Réception carburant — consignes de sécurité (15/08/2026).
+         station_config.consignes_securite_reception (jsonb, tableau de
+         {theme, texte}), affichées par Coach NEXUS sur l'écran d'accueil
+         de NEXUS-Carburant-Reception-v1.html avant que l'employé démarre —
+         "il ne faut pas coder des consignes spécifiques à Sainte-Marie
+         directement dans la page" (Frédéric). Vide par défaut, comme les
+         prix carburants : c'est au manager de les saisir ici.
+         ------------------------------------------------------------ -->
+    <div class="card" id="cardConsignesReception">
+      <div class="section-label">Réception carburant — consignes de sécurité</div>
+      <div class="note">Affichées à l'employé juste avant qu'il démarre une réception (Coach NEXUS). Un thème court (ex. "EPI") aide à les repérer d'un coup d'œil.</div>
+      <div id="consignesReceptionListe"><div class="liste-vide">Chargement…</div></div>
+      <button class="btn btn-secondary" id="ajouterConsigneReception">+ Ajouter une consigne</button>
+      <button class="btn btn-primary" id="sauvegarderConsignesReception">Enregistrer les consignes</button>
+      <div class="saved-note" id="savedNoteConsignesReception">✓ Consignes enregistrées</div>
+    </div>
+
+    <!-- ------------------------------------------------------------
+         Réception carburant — contact manager (15/08/2026). station_
+         config.contact_manager_reception (jsonb {nom, telephone}),
+         affiché à l'employé en cas d'anomalie bloquante pendant la
+         réception ("Contactez votre manager immédiatement").
+         ------------------------------------------------------------ -->
+    <div class="card" id="cardContactManagerReception">
+      <div class="section-label">Réception carburant — contact manager</div>
+      <div class="note">Affiché à l'employé si une anomalie bloque la réception (écart camion/BL, compartiment non livré…).</div>
+      <div class="row"><label>Nom</label><input type="text" id="contactReceptionNom" placeholder="Ex. Frédéric"></div>
+      <div class="row"><label>Téléphone</label><input type="text" inputmode="tel" id="contactReceptionTel" placeholder="Ex. 06 XX XX XX XX"></div>
+      <button class="btn btn-primary" id="sauvegarderContactReception">Enregistrer</button>
+      <div class="saved-note" id="savedNoteContactReception">✓ Contact manager enregistré</div>
     </div>
 
     <!-- ------------------------------------------------------------
@@ -808,6 +886,177 @@
         majChipsReceptionCarburantRole(valeurPrecedente);
       }
     });
+  });
+
+  // ------------------------------------------------------------
+  // Réception carburant — configuration (15/08/2026, refonte "visite
+  // camion"). station_config.reception_carburant_config, jamais un
+  // seuil/nombre codé en dur ailleurs (Article 11 — nexus-reception-
+  // moteur.js et NEXUS-Carburant-Reception-v1.html consomment tous deux
+  // cette même colonne via NexusReceptionDonnees.chargerConfigReception).
+  // L'ordre des cuves réutilise NexusReceptionMoteur.construireListeCuves
+  // Ordonnee — même fonction, mêmes règles de repli, que côté écran
+  // employé, pour ne jamais présenter un ordre différent de celui
+  // réellement appliqué pendant une réception.
+  // ------------------------------------------------------------
+  const NOM_CARBURANT_COURT_PARAM = { sp95: 'SP95', go: 'GO', gnr: 'GNR' };
+  let RECEPTION_ORDRE_CUVES_ACTUEL = [];
+
+  function renderReceptionOrdreCuves() {
+    const zone = document.getElementById('receptionOrdreCuvesListe');
+    if (!RECEPTION_ORDRE_CUVES_ACTUEL.length) {
+      zone.innerHTML = '<div class="liste-vide">Aucune cuve active — configurez d\'abord "Cuves &amp; capacités carburants" ci-dessus.</div>';
+      return;
+    }
+    zone.innerHTML = RECEPTION_ORDRE_CUVES_ACTUEL.map((cu, i) => `
+      <div class="ordre-cuve-row">
+        <div class="oc-rang">${i + 1}</div>
+        <div class="oc-label">${NOM_CARBURANT_COURT_PARAM[cu.carburant] || cu.carburant} — ${cu.label || cu.id}</div>
+        <div class="oc-btns">
+          <button type="button" class="btn-mini" data-monter="${i}" ${i === 0 ? 'disabled' : ''}>▲</button>
+          <button type="button" class="btn-mini" data-descendre="${i}" ${i === RECEPTION_ORDRE_CUVES_ACTUEL.length - 1 ? 'disabled' : ''}>▼</button>
+        </div>
+      </div>
+    `).join('');
+    zone.querySelectorAll('[data-monter]').forEach(btn => btn.addEventListener('click', () => {
+      const i = Number(btn.getAttribute('data-monter'));
+      if (i <= 0) return;
+      [RECEPTION_ORDRE_CUVES_ACTUEL[i - 1], RECEPTION_ORDRE_CUVES_ACTUEL[i]] = [RECEPTION_ORDRE_CUVES_ACTUEL[i], RECEPTION_ORDRE_CUVES_ACTUEL[i - 1]];
+      renderReceptionOrdreCuves();
+    }));
+    zone.querySelectorAll('[data-descendre]').forEach(btn => btn.addEventListener('click', () => {
+      const i = Number(btn.getAttribute('data-descendre'));
+      if (i >= RECEPTION_ORDRE_CUVES_ACTUEL.length - 1) return;
+      [RECEPTION_ORDRE_CUVES_ACTUEL[i], RECEPTION_ORDRE_CUVES_ACTUEL[i + 1]] = [RECEPTION_ORDRE_CUVES_ACTUEL[i + 1], RECEPTION_ORDRE_CUVES_ACTUEL[i]];
+      renderReceptionOrdreCuves();
+    }));
+  }
+
+  (async function initReceptionConfig() {
+    const { data, error } = await nexusClient.from('station_config').select('cuves_carburants, reception_carburant_config').eq('site', employee.site_id).maybeSingle();
+    if (error) { console.error('Chargement reception_carburant_config:', error); return; }
+    const cuvesCarburants = (data && data.cuves_carburants) || {};
+    const rc = (data && data.reception_carburant_config) || {};
+    const M = NexusReceptionMoteur;
+    document.getElementById('receptionNombreCompartiments').value = rc.nombre_compartiments_defaut != null ? rc.nombre_compartiments_defaut : 4;
+    document.getElementById('receptionSeuilCompartiments').value = String(rc.seuil_ecart_compartiments_pct != null ? rc.seuil_ecart_compartiments_pct : M.SEUIL_ECART_COMPARTIMENTS_PCT_DEFAUT).replace('.', ',');
+    document.getElementById('receptionSeuilMesure').value = String(rc.seuil_ecart_mesure_pct != null ? rc.seuil_ecart_mesure_pct : M.SEUIL_ECART_MESURE_PCT_DEFAUT).replace('.', ',');
+    RECEPTION_ORDRE_CUVES_ACTUEL = M.construireListeCuvesOrdonnee(cuvesCarburants, rc.ordre_cuves);
+    renderReceptionOrdreCuves();
+  })();
+
+  document.getElementById('sauvegarderReceptionConfig').addEventListener('click', async () => {
+    const btn = document.getElementById('sauvegarderReceptionConfig');
+    const nombreCompartiments = parseInt(document.getElementById('receptionNombreCompartiments').value, 10);
+    const seuilCompartiments = numFR(document.getElementById('receptionSeuilCompartiments').value);
+    const seuilMesure = numFR(document.getElementById('receptionSeuilMesure').value);
+    if (isNaN(nombreCompartiments) || nombreCompartiments < 1) { alert('Renseignez un nombre de compartiments valide (au moins 1).'); return; }
+    if (isNaN(seuilCompartiments) || seuilCompartiments < 0 || isNaN(seuilMesure) || seuilMesure < 0) { alert('Renseignez des seuils d\'écart valides (0 ou plus).'); return; }
+    btn.disabled = true;
+    const reception_carburant_config = {
+      nombre_compartiments_defaut: nombreCompartiments,
+      seuil_ecart_compartiments_pct: seuilCompartiments,
+      seuil_ecart_mesure_pct: seuilMesure,
+      ordre_cuves: RECEPTION_ORDRE_CUVES_ACTUEL.map(cu => ({ carburant: cu.carburant, cuve_id: cu.id })),
+    };
+    const { error } = await nexusClient.from('station_config').upsert(
+      { site: employee.site_id, reception_carburant_config, updated_at: new Date().toISOString() },
+      { onConflict: 'site' }
+    );
+    btn.disabled = false;
+    if (error) { console.error('Enregistrement reception_carburant_config:', error); alert('Erreur — réessayez.'); return; }
+    const note = document.getElementById('savedNoteReceptionConfig');
+    note.style.display = 'block';
+    setTimeout(() => note.style.display = 'none', 3000);
+  });
+
+  // ------------------------------------------------------------
+  // Réception carburant — consignes de sécurité (15/08/2026). Liste
+  // éditable {theme, texte}, même esprit que "Exceptions de marge"
+  // ci-dessous (ajout/suppression de lignes). Une consigne sans texte
+  // n'est jamais enregistrée (rien à afficher à l'employé sinon).
+  // ------------------------------------------------------------
+  let RECEPTION_CONSIGNES_ACTUELLES = [];
+
+  function renderConsignesReception() {
+    const zone = document.getElementById('consignesReceptionListe');
+    if (!RECEPTION_CONSIGNES_ACTUELLES.length) { zone.innerHTML = '<div class="liste-vide">Aucune consigne enregistrée.</div>'; return; }
+    zone.innerHTML = RECEPTION_CONSIGNES_ACTUELLES.map((c, i) => `
+      <div class="consigne-row">
+        <div class="cr-top">
+          <input type="text" placeholder="Thème (ex. EPI)" data-champ="theme" data-i="${i}" value="${(c.theme || '').replace(/"/g, '&quot;')}">
+          <button type="button" class="btn-mini" data-supprimer="${i}">Supprimer</button>
+        </div>
+        <textarea placeholder="Consigne…" data-champ="texte" data-i="${i}">${c.texte || ''}</textarea>
+      </div>
+    `).join('');
+    zone.querySelectorAll('[data-champ]').forEach(el => el.addEventListener('input', () => {
+      const i = Number(el.getAttribute('data-i'));
+      RECEPTION_CONSIGNES_ACTUELLES[i][el.getAttribute('data-champ')] = el.value;
+    }));
+    zone.querySelectorAll('[data-supprimer]').forEach(btn => btn.addEventListener('click', () => {
+      RECEPTION_CONSIGNES_ACTUELLES.splice(Number(btn.getAttribute('data-supprimer')), 1);
+      renderConsignesReception();
+    }));
+  }
+
+  (async function initConsignesReception() {
+    const { data, error } = await nexusClient.from('station_config').select('consignes_securite_reception').eq('site', employee.site_id).maybeSingle();
+    if (error) { console.error('Chargement consignes_securite_reception:', error); return; }
+    RECEPTION_CONSIGNES_ACTUELLES = Array.isArray(data && data.consignes_securite_reception) ? data.consignes_securite_reception.map(c => ({ ...c })) : [];
+    renderConsignesReception();
+  })();
+
+  document.getElementById('ajouterConsigneReception').addEventListener('click', () => {
+    RECEPTION_CONSIGNES_ACTUELLES.push({ theme: '', texte: '' });
+    renderConsignesReception();
+  });
+
+  document.getElementById('sauvegarderConsignesReception').addEventListener('click', async () => {
+    const btn = document.getElementById('sauvegarderConsignesReception');
+    const consignes = RECEPTION_CONSIGNES_ACTUELLES.map(c => ({ theme: (c.theme || '').trim(), texte: (c.texte || '').trim() })).filter(c => c.texte);
+    btn.disabled = true;
+    const { error } = await nexusClient.from('station_config').upsert(
+      { site: employee.site_id, consignes_securite_reception: consignes, updated_at: new Date().toISOString() },
+      { onConflict: 'site' }
+    );
+    btn.disabled = false;
+    if (error) { console.error('Enregistrement consignes_securite_reception:', error); alert('Erreur — réessayez.'); return; }
+    RECEPTION_CONSIGNES_ACTUELLES = consignes.map(c => ({ ...c }));
+    renderConsignesReception();
+    const note = document.getElementById('savedNoteConsignesReception');
+    note.style.display = 'block';
+    setTimeout(() => note.style.display = 'none', 3000);
+  });
+
+  // ------------------------------------------------------------
+  // Réception carburant — contact manager (15/08/2026). station_config.
+  // contact_manager_reception {nom, telephone} — les deux facultatifs
+  // (NEXUS-Carburant-Reception-v1.html masque déjà la carte contact si
+  // aucun des deux n'est renseigné, voir contactManagerHtml()).
+  // ------------------------------------------------------------
+  (async function initContactManagerReception() {
+    const { data, error } = await nexusClient.from('station_config').select('contact_manager_reception').eq('site', employee.site_id).maybeSingle();
+    if (error) { console.error('Chargement contact_manager_reception:', error); return; }
+    const cm = (data && data.contact_manager_reception) || {};
+    document.getElementById('contactReceptionNom').value = cm.nom || '';
+    document.getElementById('contactReceptionTel').value = cm.telephone || '';
+  })();
+
+  document.getElementById('sauvegarderContactReception').addEventListener('click', async () => {
+    const btn = document.getElementById('sauvegarderContactReception');
+    const nom = document.getElementById('contactReceptionNom').value.trim();
+    const telephone = document.getElementById('contactReceptionTel').value.trim();
+    btn.disabled = true;
+    const { error } = await nexusClient.from('station_config').upsert(
+      { site: employee.site_id, contact_manager_reception: { nom, telephone }, updated_at: new Date().toISOString() },
+      { onConflict: 'site' }
+    );
+    btn.disabled = false;
+    if (error) { console.error('Enregistrement contact_manager_reception:', error); alert('Erreur — réessayez.'); return; }
+    const note = document.getElementById('savedNoteContactReception');
+    note.style.display = 'block';
+    setTimeout(() => note.style.display = 'none', 3000);
   });
 
   // ------------------------------------------------------------

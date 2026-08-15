@@ -1006,14 +1006,18 @@
 
   // ------------------------------------------------------------
   // 3bis) QUALITÉ DES RÉCEPTIONS (14/08/2026, audit "Réceptions, deltas et
-  // effet économique du stock", P1) — sous-accordéon replié par défaut,
-  // imbriqué sous "Dernière livraison". Affiche la DERNIÈRE réception
-  // saisie via le nouveau parcours employé (table carburant_receptions +
-  // carburant_reception_mesures), jamais mélangée avec "Dernière
-  // livraison" ci-dessus qui reste alimentée par carburant_releves.
-  // Aucun calcul ici : tout vient de nexus-reception-moteur.js (déjà
-  // appliqué côté employé au moment de la soumission) — cette carte relit
-  // le statut stocké, elle ne le recalcule jamais une deuxième fois.
+  // effet économique du stock", P1 — RÉÉCRIT le 15/08/2026 pour le modèle
+  // "visite camion" v2, voir en-tête de nexus-reception-moteur.js) —
+  // sous-accordéon replié par défaut, imbriqué sous "Dernière livraison".
+  // Affiche la DERNIÈRE VISITE saisie via le parcours employé (tables
+  // carburant_reception_visites + _visite_lignes + _compartiments +
+  // _mesures), jamais mélangée avec "Dernière livraison" ci-dessus qui
+  // reste alimentée par carburant_releves. Une visite peut désormais
+  // couvrir PLUSIEURS carburants (compartiments d'un même camion) — une
+  // carte par carburant livré, jamais une seule carte qui mélangerait
+  // leurs chiffres. Aucun calcul ici : tout vient de nexus-reception-
+  // moteur.js, déjà appliqué côté employé au moment de la soumission —
+  // cette carte relit les statuts stockés, elle ne les recalcule jamais.
   // ------------------------------------------------------------
   let SOUS_ACCORDION_QUALITE_OUVERT = false;
   function toggleSousAccordionQualite() {
@@ -1027,36 +1031,44 @@
   async function chargerEtRendreQualiteReceptions() {
     const zone = document.getElementById('qualiteReceptionsZone');
     if (!zone || !global_NexusReceptionDonnees_disponible()) { if (zone) zone.innerHTML = ''; return; }
-    const reception = await NexusReceptionDonnees.chargerDerniereReception(nexusClient, SITE_ID);
-    if (!reception) {
+    const visite = await NexusReceptionDonnees.chargerDerniereVisite(nexusClient, SITE_ID);
+    if (!visite) {
       zone.innerHTML = `<div class="controle-vide">Aucune réception saisie pour l'instant via le parcours Réception carburant.</div>`;
       return;
     }
     const M = NexusReceptionMoteur;
-    const libelle = M.libelleStatutReception(reception.statut);
-    const c = NIVEAU_COULEUR[libelle.niveau] || NIVEAU_COULEUR.attente;
-    const dateTxt = (reception.date_livraison || '').split('-').reverse().join('/');
-    const deltaTotal = (reception.mesures || []).every(m => m.delta_mesure_l != null)
-      ? reception.mesures.reduce((s, m) => s + Number(m.delta_mesure_l), 0)
-      : null;
-    const mesuresLignes = (reception.mesures || []).map(m => `
-      <div class="qualite-reception-ligne">
-        <span>Cuve ${m.cuve_id}</span>
-        <span>${m.jaugeage_avant_l != null ? fmtL(m.jaugeage_avant_l) : '—'} → ${m.jaugeage_apres_l != null ? fmtL(m.jaugeage_apres_l) : '—'}${m.delta_mesure_l != null ? ` (${m.delta_mesure_l >= 0 ? '+' : ''}${fmtL(m.delta_mesure_l)})` : ''}</span>
-      </div>`).join('');
-    zone.innerHTML = `
-      <div class="qualite-reception-carte">
-        <div class="section-note" style="margin:0 0 4px;">${NOM_CARBURANT[reception.carburant] || reception.carburant} — reçue le ${dateTxt}</div>
-        <div class="qualite-reception-ligne"><span>Quantité BL (documentaire)</span><span><b>${fmtL(reception.quantite_bl_l)}</b></span></div>
-        ${mesuresLignes}
-        <div class="qualite-reception-ligne"><span>Total mesuré terrain</span><span><b>${deltaTotal != null ? `${deltaTotal >= 0 ? '+' : ''}${fmtL(deltaTotal)}` : '—'}</b></span></div>
-        ${reception.quantite_systeme_l != null ? `<div class="qualite-reception-ligne"><span>Lecture système (${reception.quantite_systeme_source || 'manuel'})</span><span>${fmtL(reception.quantite_systeme_l)}</span></div>` : ''}
+    const dateTxt = (visite.date_visite || '').split('-').reverse().join('/');
+    const enTete = `<div class="section-note" style="margin:0 0 4px;">Visite du ${dateTxt}${visite.transporteur ? ` — ${visite.transporteur}` : ''}${visite.statut === 'terminee_avec_derogation' ? ' · dérogation manager tracée' : ''}</div>`;
+
+    const cartesCarburant = (visite.lignes || []).map(ligne => {
+      const libelle = M.libelleStatutReception(ligne.statut);
+      const c = NIVEAU_COULEUR[libelle.niveau] || NIVEAU_COULEUR.attente;
+      const mesuresLignes = (visite.mesures || []).filter(m => m.carburant === ligne.carburant).map(m => `
         <div class="qualite-reception-ligne">
-          <span>Statut</span>
-          <span class="qualite-reception-badge" style="color:${c.c}; background:${c.f};">${libelle.texte}</span>
-        </div>
-        ${reception.commentaire_rapprochement ? `<div class="qualite-reception-ligne"><span>Note manager</span><span>${reception.commentaire_rapprochement}</span></div>` : ''}
-      </div>`;
+          <span>Cuve ${m.cuve_id}</span>
+          <span>${m.jaugeage_avant_l != null ? fmtL(m.jaugeage_avant_l) : '—'} → ${m.jaugeage_apres_l != null ? fmtL(m.jaugeage_apres_l) : '—'}${m.delta_mesure_l != null ? ` (${m.delta_mesure_l >= 0 ? '+' : ''}${fmtL(m.delta_mesure_l)})` : ''}</span>
+        </div>`).join('');
+      return `
+        <div class="qualite-reception-carte">
+          <div class="section-note" style="margin:0 0 4px;">${NOM_CARBURANT[ligne.carburant] || ligne.carburant}</div>
+          <div class="qualite-reception-ligne"><span>Quantité BL (documentaire)</span><span><b>${fmtL(ligne.quantite_bl_l)}</b></span></div>
+          <div class="qualite-reception-ligne"><span>Compartiments déclarés (terrain)</span><span><b>${fmtL(ligne.quantite_compartiments_l)}</b></span></div>
+          ${mesuresLignes}
+          <div class="qualite-reception-ligne"><span>Total mesuré par jaugeage</span><span><b>${ligne.quantite_mesuree_l != null ? fmtL(ligne.quantite_mesuree_l) : '—'}</b></span></div>
+          <div class="qualite-reception-ligne"><span>Écart mesuré / prévu</span><span>${M.texteEcart(ligne.delta_l, ligne.delta_ratio)}</span></div>
+          <div class="qualite-reception-ligne">
+            <span>Statut</span>
+            <span class="qualite-reception-badge" style="color:${c.c}; background:${c.f};">${libelle.texte}</span>
+          </div>
+        </div>`;
+    }).join('');
+
+    const compartimentsNonReceptionnes = (visite.compartiments || []).filter(cp => cp.statut === 'non_receptionne');
+    const noteCompartiments = compartimentsNonReceptionnes.length
+      ? `<div class="qualite-reception-carte"><div class="qualite-reception-ligne"><span>Compartiments non réceptionnés</span><span>${compartimentsNonReceptionnes.length} (dérogation manager tracée)</span></div></div>`
+      : '';
+
+    zone.innerHTML = enTete + (cartesCarburant || `<div class="controle-vide">Visite enregistrée sans carburant rattaché.</div>`) + noteCompartiments;
   }
   // Garde-fou : cette page (Carburants Pilotage) doit continuer à
   // fonctionner même si nexus-reception-donnees.js / nexus-reception-moteur.js

@@ -30,6 +30,7 @@
     --red:#F0575A; --red-dim:#3A1D1F;
     --cyan:#4FC3D9; --gold:#D4AF37;
     --mono:'IBM Plex Mono',monospace; --sans:'IBM Plex Sans',sans-serif;
+    --sp95:#34D399; --go:#F5A623; --gnr:#F0575A;
   }
   *{box-sizing:border-box; margin:0; padding:0;}
   html,body{background:var(--bg); font-family:var(--sans); color:var(--text);}
@@ -52,28 +53,11 @@
   .section{padding:16px 20px;}
   .loading{padding:60px 20px; text-align:center; color:var(--text-dim); font-size:13px;}
 
-  .choix-grid{display:flex; flex-direction:column; gap:12px;}
-  .choix-card{
-    position:relative; background:linear-gradient(145deg, var(--panel), var(--panel-raised));
-    border:1.5px solid var(--hairline); border-radius:16px; padding:18px 20px;
-    display:flex; align-items:center; gap:16px; cursor:pointer;
-    box-shadow:0 4px 14px rgba(0,0,0,0.25); transition:transform .15s;
-  }
-  .choix-card:active{transform:scale(0.98);}
-  .choix-icone{width:52px; height:52px; border-radius:14px; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:24px; background:radial-gradient(circle at 32% 28%, rgba(79,195,217,0.30), var(--panel-raised) 72%); box-shadow:inset 0 0 0 1px rgba(79,195,217,0.25);}
-  .choix-titre{font-size:15.5px; font-weight:700;}
-  .choix-sub{font-size:11.5px; color:var(--text-mid); margin-top:3px; line-height:1.4;}
-
   .stepper{display:flex; gap:6px; margin-bottom:16px;}
   .stepper-item{flex:1; height:5px; border-radius:3px; background:var(--panel-raised);}
-  .stepper-item.fait{background:var(--cyan);}
-  .stepper-item.actif{background:var(--cyan); opacity:0.6;}
+  .stepper-item.fait{background:var(--green);}
+  .stepper-item.actif{background:var(--cyan); opacity:0.85;}
   .stepper-label{font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:center; margin-bottom:14px; letter-spacing:0.03em; text-transform:uppercase;}
-
-  .carburant-grid{display:flex; gap:8px; margin-bottom:16px;}
-  .carburant-chip{flex:1; text-align:center; padding:14px 8px; border-radius:12px; border:1.5px solid var(--hairline); background:var(--panel); font-size:14px; font-weight:700; color:var(--text-dim); cursor:pointer;}
-  .carburant-chip:active{background:var(--panel-raised);}
-  .carburant-chip.actif{border-color:var(--cyan); background:rgba(79,195,217,0.14); color:var(--cyan); box-shadow:0 0 0 1px rgba(79,195,217,0.25);}
 
   .champ-label{font-family:var(--mono); font-size:10.5px; color:var(--text-mid); margin-bottom:6px; letter-spacing:0.03em;}
   .champ-label .optionnel{color:var(--text-dim); text-transform:none; letter-spacing:0; font-family:var(--sans);}
@@ -84,22 +68,106 @@
   .champ-input.texte{font-family:var(--sans); font-size:15px;}
   .champ-input:focus{outline:none; border-color:var(--cyan);}
   .champ-note{font-size:11.5px; color:var(--text-dim); line-height:1.5; margin-bottom:14px; margin-top:-8px;}
+  select.champ-input{appearance:none; -webkit-appearance:none; background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6'><path d='M0 0L5 6L10 0Z' fill='%238A96A5'/></svg>"); background-repeat:no-repeat; background-position:right 14px center;}
 
-  .cuve-card{background:var(--panel); border:1px solid var(--hairline); border-radius:12px; padding:14px 16px; margin-bottom:12px;}
-  .cuve-titre{font-size:13.5px; font-weight:700; margin-bottom:10px; display:flex; align-items:center; gap:8px;}
+  /* ---- Coach NEXUS ---- */
+  .nexus-dit{background:rgba(79,195,217,0.08); border:1px solid rgba(79,195,217,0.25); border-radius:12px; padding:14px 16px; margin-bottom:14px; font-size:12.5px; line-height:1.55; color:var(--text-mid);}
+  .nexus-dit b{color:var(--text);}
+  .nexus-dit .coach-tete{display:flex; align-items:center; gap:8px; margin-bottom:8px; font-family:var(--mono); font-size:10.5px; font-weight:700; letter-spacing:0.04em; text-transform:uppercase; color:var(--cyan);}
+
+  /* ---- Accueil ---- */
+  .accueil-hero{text-align:center; padding:6px 4px 4px;}
+  .accueil-icone{width:64px; height:64px; border-radius:20px; margin:0 auto 16px; display:flex; align-items:center; justify-content:center; font-size:30px; background:radial-gradient(circle at 32% 28%, rgba(79,195,217,0.30), var(--panel-raised) 72%); box-shadow:inset 0 0 0 1px rgba(79,195,217,0.25);}
+  .consignes-liste{display:flex; flex-direction:column; gap:8px; margin:10px 0 4px;}
+  .consigne-item{display:flex; gap:10px; align-items:flex-start; font-size:12.5px; line-height:1.5; color:var(--text-mid);}
+  .consigne-puce{flex-shrink:0; width:18px; height:18px; border-radius:50%; background:var(--panel-raised); color:var(--cyan); font-size:10px; display:flex; align-items:center; justify-content:center; margin-top:1px;}
+  .consigne-theme{color:var(--text); font-weight:600;}
+
+  /* ---- Carburant attendu (étape 1) ---- */
+  .carburant-attendu-card{background:var(--panel); border:1.5px solid var(--hairline); border-radius:14px; padding:14px 16px; margin-bottom:10px; transition:border-color .15s;}
+  .carburant-attendu-card.actif{border-color:var(--cc, var(--cyan));}
+  .carburant-attendu-tete{display:flex; align-items:center; justify-content:space-between; gap:10px;}
+  .carburant-attendu-nom{display:flex; align-items:center; gap:8px; font-size:14.5px; font-weight:700;}
+  .carburant-pastille{width:10px; height:10px; border-radius:50%; background:var(--cc, var(--text-dim));}
+  .toggle-switch{position:relative; width:42px; height:24px; border-radius:14px; background:var(--panel-raised); border:1px solid var(--hairline); cursor:pointer; flex-shrink:0;}
+  .toggle-switch.on{background:rgba(79,195,217,0.25); border-color:var(--cyan);}
+  .toggle-knob{position:absolute; top:2px; left:2px; width:18px; height:18px; border-radius:50%; background:var(--text-dim); transition:left .15s, background .15s;}
+  .toggle-switch.on .toggle-knob{left:20px; background:var(--cyan);}
+  .carburant-attendu-corps{margin-top:12px;}
+  .carburant-attendu-vide{font-size:12px; color:var(--text-dim); margin-top:2px;}
+
+  /* ---- Jauge cuve (étapes 2 & 5) ---- */
+  .cuve-card{background:var(--panel); border:1px solid var(--hairline); border-radius:14px; padding:16px; margin-bottom:12px;}
+  .cuve-titre{display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;}
+  .cuve-titre-nom{font-size:13.5px; font-weight:700; display:flex; align-items:center; gap:8px;}
   .cuve-titre .capacite{font-family:var(--mono); font-size:10.5px; color:var(--text-dim); font-weight:500;}
+  .cuve-jauge-visuelle{position:relative; height:22px; border-radius:8px; background:var(--panel-raised); border:1px solid var(--hairline); overflow:hidden; margin-bottom:12px;}
+  .cuve-jauge-remplissage{position:absolute; left:0; top:0; bottom:0; border-radius:7px 0 0 7px; transition:width .3s ease;}
+  .cuve-jauge-pct{position:absolute; right:8px; top:50%; transform:translateY(-50%); font-family:var(--mono); font-size:10px; font-weight:700; color:var(--text-mid);}
+  .cuve-avant-recap{display:flex; justify-content:space-between; font-size:12px; color:var(--text-mid); margin-bottom:8px; font-family:var(--mono);}
+  .cuve-variation{font-family:var(--mono); font-size:13px; font-weight:700; text-align:right; margin-top:6px;}
 
-  .compartiment-row{display:flex; gap:8px; margin-bottom:8px; align-items:center;}
-  .compartiment-row .champ-input{margin-bottom:0; flex:1;}
-  .btn-retirer{flex-shrink:0; width:38px; height:38px; border-radius:9px; border:1px solid var(--hairline); background:var(--panel-raised); color:var(--red); font-size:16px; cursor:pointer;}
-  .btn-ajouter-compartiment{width:100%; padding:11px; border:1.5px dashed var(--hairline); border-radius:10px; background:transparent; color:var(--text-mid); font-size:12.5px; font-weight:600; cursor:pointer; margin-bottom:14px;}
-  .compartiment-total{background:var(--panel); border:1px solid var(--hairline); border-radius:10px; padding:12px 14px; margin-bottom:14px; font-size:13px; display:flex; justify-content:space-between; align-items:center;}
+  /* ---- Camion / compartiments ---- */
+  .camion-cadre{background:var(--panel); border:1px solid var(--hairline); border-radius:16px; padding:16px 12px; margin-bottom:14px;}
+  .camion-titre{font-family:var(--mono); font-size:10.5px; color:var(--text-mid); text-transform:uppercase; letter-spacing:0.04em; margin-bottom:12px; text-align:center;}
+  .camion-grille{display:flex; gap:6px;}
+  .compartiment-bloc{
+    flex:1; aspect-ratio:1/1.3; border-radius:10px; border:2px solid var(--hairline); background:var(--panel-raised);
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; cursor:pointer;
+    font-family:var(--mono); position:relative; transition:transform .12s;
+  }
+  .compartiment-bloc:active{transform:scale(0.94);}
+  .compartiment-numero{font-size:11px; color:var(--text-dim); font-weight:700;}
+  .compartiment-carburant{font-size:10px; font-weight:700;}
+  .compartiment-qte{font-size:9px; color:var(--text-dim);}
+  .compartiment-check{position:absolute; top:-6px; right:-6px; width:18px; height:18px; border-radius:50%; background:var(--green); color:#04141a; font-size:11px; font-weight:900; display:flex; align-items:center; justify-content:center; border:2px solid var(--panel);}
+  .compartiment-bloc.carb-sp95{border-color:var(--sp95); background:rgba(52,211,153,0.10);}
+  .compartiment-bloc.carb-go{border-color:var(--go); background:rgba(245,166,35,0.10);}
+  .compartiment-bloc.carb-gnr{border-color:var(--gnr); background:rgba(240,87,90,0.10);}
+  .compartiment-bloc.non-receptionne{border-color:var(--red); background:var(--red-dim); animation:pulseAlerte 1.6s infinite;}
+  @keyframes pulseAlerte{0%,100%{box-shadow:0 0 0 0 rgba(240,87,90,0.35);} 50%{box-shadow:0 0 0 6px rgba(240,87,90,0);}}
+  .camion-legende{display:flex; justify-content:center; gap:14px; margin-top:12px; font-size:10.5px; color:var(--text-mid);}
+  .camion-legende span{display:inline-flex; align-items:center; gap:5px;}
+  .camion-legende i{width:9px; height:9px; border-radius:50%; display:inline-block;}
+
+  .btn-ajuster-compartiments{width:100%; display:flex; gap:8px; margin-bottom:14px;}
+  .btn-ajuster-compartiments button{flex:1; padding:9px; border:1.5px dashed var(--hairline); border-radius:10px; background:transparent; color:var(--text-mid); font-size:12px; font-weight:600; cursor:pointer;}
+
+  .fiche-compartiment{background:var(--panel-raised); border:1px solid var(--hairline); border-radius:14px; padding:16px; margin-bottom:14px;}
+  .fiche-titre{font-size:13.5px; font-weight:700; margin-bottom:12px;}
+  .carburant-chip-row{display:flex; gap:8px; margin-bottom:14px;}
+  .carburant-chip{flex:1; text-align:center; padding:12px 6px; border-radius:10px; border:1.5px solid var(--hairline); background:var(--panel); font-size:13px; font-weight:700; color:var(--text-dim); cursor:pointer;}
+  .carburant-chip.actif{border-color:var(--cc, var(--cyan)); background:rgba(79,195,217,0.14); color:var(--cc, var(--cyan));}
+
+  .compartiment-total{background:var(--panel); border:1px solid var(--hairline); border-radius:12px; padding:12px 14px; margin-bottom:10px; font-size:13px; display:flex; justify-content:space-between; align-items:center;}
   .compartiment-total .valeur{font-family:var(--mono); font-weight:700;}
   .compartiment-total.ok{border-color:rgba(52,211,153,0.35); background:var(--green-dim);}
   .compartiment-total.ok .valeur{color:var(--green);}
-  .compartiment-total.ecart{border-color:rgba(245,166,35,0.35); background:var(--amber-dim);}
-  .compartiment-total.ecart .valeur{color:var(--amber);}
+  .compartiment-total.ecart{border-color:rgba(240,87,90,0.35); background:var(--red-dim);}
+  .compartiment-total.ecart .valeur{color:var(--red);}
 
+  /* ---- Blocage / anomalie ---- */
+  .blocage-card{background:var(--red-dim); border:1.5px solid rgba(240,87,90,0.4); border-radius:16px; padding:18px; margin-bottom:14px;}
+  .blocage-tete{display:flex; align-items:center; gap:10px; margin-bottom:12px;}
+  .blocage-icone{font-size:22px;}
+  .blocage-titre{font-size:15px; font-weight:700; color:var(--red);}
+  .blocage-section{margin-bottom:10px;}
+  .blocage-label{font-family:var(--mono); font-size:10px; color:var(--text-mid); text-transform:uppercase; letter-spacing:0.03em; margin-bottom:4px;}
+  .blocage-valeur{font-size:13px; line-height:1.5;}
+  .blocage-consigne{font-size:13px; font-weight:600; color:var(--text); margin-top:12px; padding-top:12px; border-top:1px solid rgba(240,87,90,0.25);}
+  .contact-manager-card{background:var(--panel); border:1px solid var(--hairline); border-radius:12px; padding:14px; margin-bottom:14px; display:flex; align-items:center; gap:12px;}
+  .contact-manager-icone{font-size:20px;}
+  .contact-manager-nom{font-size:13.5px; font-weight:700;}
+  .contact-manager-tel{font-family:var(--mono); font-size:13px; color:var(--cyan);}
+
+  .derogation-panel{background:var(--panel); border:1.5px dashed var(--hairline); border-radius:14px; padding:16px; margin-top:6px;}
+  .derogation-titre{font-size:12.5px; font-weight:700; margin-bottom:10px; color:var(--text-mid);}
+
+  .motif-liste{display:flex; flex-direction:column; gap:8px;}
+  .motif-item{background:var(--panel); border:1.5px solid var(--hairline); border-radius:10px; padding:12px 14px; font-size:13px; cursor:pointer; display:flex; justify-content:space-between; align-items:center;}
+  .motif-item:active{background:var(--panel-raised);}
+
+  /* ---- Résumé / rapprochement ---- */
   .resume-card{background:var(--panel); border:1px solid var(--hairline); border-radius:14px; padding:18px; margin-bottom:14px;}
   .stat-row{display:flex; justify-content:space-between; align-items:center; padding:9px 0;}
   .stat-row + .stat-row{border-top:1px solid var(--hairline);}
@@ -112,6 +180,8 @@
   .stat-row.total{margin-top:6px; padding-top:14px; border-top:1.5px solid var(--hairline);}
   .stat-row.total .stat-label{font-weight:700; color:var(--text);}
   .stat-row.total .stat-value{font-size:19px;}
+  .carburant-resultat-tete{font-size:14px; font-weight:700; display:flex; align-items:center; gap:8px; margin-bottom:6px; margin-top:16px;}
+  .carburant-resultat-tete:first-child{margin-top:0;}
 
   .badge-statut{display:inline-block; font-family:var(--mono); font-size:11px; font-weight:700; letter-spacing:0.03em; text-transform:uppercase; padding:6px 12px; border-radius:20px; margin-bottom:14px;}
   .badge-statut.ok{background:var(--green-dim); color:var(--green);}
@@ -119,11 +189,9 @@
   .badge-statut.alerte{background:var(--red-dim); color:var(--red);}
   .badge-statut.attente{background:var(--panel-raised); color:var(--text-mid);}
 
-  .nexus-dit{background:rgba(79,195,217,0.08); border:1px solid rgba(79,195,217,0.25); border-radius:12px; padding:14px 16px; margin-bottom:14px; font-size:12.5px; line-height:1.55; color:var(--text-mid);}
-  .nexus-dit b{color:var(--text);}
-
   .btn-primary{width:100%; padding:14px; border:none; border-radius:10px; font-size:14px; font-weight:600; background:var(--cyan); color:#04141a; cursor:pointer; margin-top:6px;}
   .btn-primary:disabled{opacity:0.35; cursor:not-allowed;}
+  .btn-primary.danger{background:var(--red); color:#2a0708;}
   .btn-ghost{width:100%; padding:12px; border:1px solid var(--hairline); border-radius:10px; background:transparent; color:var(--text-mid); font-size:13px; cursor:pointer; margin-top:8px;}
   .btn-loading-dots{display:inline-flex; gap:3px; margin-left:6px; vertical-align:middle;}
   .btn-loading-dots i{width:4px; height:4px; border-radius:50%; background:currentColor; display:inline-block; font-style:normal; animation:btnDotsBounce 1.2s infinite ease-in-out;}
@@ -131,11 +199,19 @@
   .btn-loading-dots i:nth-child(3){animation-delay:0.3s;}
   @keyframes btnDotsBounce{0%,80%,100%{opacity:0.25; transform:translateY(0);} 40%{opacity:1; transform:translateY(-2px);}}
 
-  .checkmark{width:56px; height:56px; border-radius:50%; background:var(--green-dim); color:var(--green); font-size:26px; display:flex; align-items:center; justify-content:center; margin:0 auto 18px;}
-  .final-greet{font-size:19px; font-weight:700; text-align:center; margin-bottom:6px;}
-  .final-sub{font-size:12.5px; color:var(--text-mid); text-align:center; margin-bottom:20px;}
+  .checkmark{width:64px; height:64px; border-radius:50%; background:var(--green-dim); color:var(--green); font-size:30px; display:flex; align-items:center; justify-content:center; margin:8px auto 18px;}
+  .final-greet{font-size:19px; font-weight:700; text-align:center; margin-bottom:10px;}
+  .final-liste{display:flex; flex-direction:column; gap:8px; margin-bottom:18px;}
+  .final-item{display:flex; gap:10px; align-items:flex-start; font-size:13px; line-height:1.5; color:var(--text-mid);}
+  .final-item i{color:var(--green); flex-shrink:0; margin-top:1px;}
+  .final-merci{font-size:12.5px; color:var(--text-dim); text-align:center; margin-bottom:6px;}
 
   .locked{padding:80px 24px; text-align:center; color:var(--text-mid); font-size:14px;}
+
+  .accordeon-toggle{display:flex; justify-content:space-between; align-items:center; padding:10px 0; cursor:pointer; font-size:12.5px; color:var(--text-mid); font-weight:600;}
+
+  .content-fade{animation:contentFade .22s ease;}
+  @keyframes contentFade{from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:translateY(0);}}
 
   footer{margin-top:auto; padding:16px 20px 24px; font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:center; border-top:1px solid var(--hairline);}
 </style>
@@ -155,73 +231,71 @@
     <div class="loading">Chargement…</div>
   </div>
 
-  <footer>NEXUS Réception carburant v1 · Réceptions, deltas &amp; effet stock · Vito Sainte-Marie Usine</footer>
+  <footer>NEXUS Réception carburant v2 · Visite guidée, contrôlée, tracée · Vito Sainte-Marie Usine</footer>
 </div>
 
 <script>
   // ------------------------------------------------------------
-  // NEXUS Réception carburant v1 (14/08/2026) — construit à partir de
-  // "Audit_NEXUS_Carburants_Receptions_Effet_Prix_Stock.pdf" de Frédéric,
-  // priorité développeur P1. Calque le formulaire papier existant en 6
-  // étapes : livraison attendue, jaugeage avant, compartiments camion,
-  // jaugeage après, calcul automatique NEXUS, confirmation employé.
+  // NEXUS Réception carburant v2 (15/08/2026) — reconstruction complète à
+  // partir de la demande détaillée de Frédéric ("Demande d'évolution —
+  // Module NEXUS Réception Carburant"). Remplace le modèle v1 (14/08/2026,
+  // 1 carburant à la fois, répété) par une VISITE camion unique pouvant
+  // porter plusieurs carburants dans des compartiments différents, avec un
+  // vrai contrôle central bloquant (compartiments vs BL) et une réception
+  // compartiment par compartiment tracée.
   //
-  // Règle de conception explicite de l'audit : "L'employé saisit les
-  // faits. NEXUS calcule. Le manager qualifie uniquement lorsque les
-  // éléments sont suffisants." Conséquence directe sur ce fichier :
-  //   - AUCUN calcul n'est fait ici à la main — tout passe par
-  //     NexusReceptionMoteur (Article 11, une seule vérité).
-  //   - La soumission finale (étape 6) est UNE SEULE écriture atomique
-  //     (NexusReceptionDonnees.insererReceptionComplete) : l'employé n'a
-  //     jamais besoin de revenir modifier sa saisie après coup, ce qui
-  //     permet à la RLS de lui refuser tout UPDATE sur ces tables (seul le
-  //     manager/gérant peut qualifier une réception après coup, voir
-  //     migration "carburant_receptions_p1").
-  //   - Trois vérités distinctes ne se substituent jamais : quantité BL
-  //     (documentaire), jaugeage terrain (mesure physique), quantité
-  //     système (Insite360/manuel, optionnelle en P1 — connexion
-  //     automatique différée en P3).
-  //
-  // Étape 3 "Compartiments camion" : aucune table dédiée en P1 (choix de
-  // schéma assumé — voir migration) — c'est une vérification en direct
-  // côté employé (somme des compartiments vs quantité BL), jamais persistée
-  // séparément, jamais une deuxième vérité concurrente de quantite_bl_l.
+  // Règles de conception explicites de la demande, structurantes pour ce
+  // fichier :
+  //   - "L'employé ne doit jamais devoir décider lui-même si un écart est
+  //     normal." → aucun jugement n'est écrit ici à la main, tout passe par
+  //     NexusReceptionMoteur (Article 11).
+  //   - "Ne rien coder spécifiquement pour Sainte-Marie." → cuves (ordre,
+  //     capacité), nombre de compartiments, seuils, consignes de sécurité
+  //     et contact manager viennent tous de station_config via
+  //     NexusReceptionDonnees.chargerConfigReception(), jamais une valeur
+  //     en dur dans ce fichier (seul TRANSPORTEUR_DEFAUT reste une
+  //     exception assumée, héritée de v1, propre au site pilote).
+  //   - La soumission finale est UNE SEULE écriture atomique
+  //     (NexusReceptionDonnees.soumettreVisiteComplete) : l'employé n'a
+  //     jamais besoin de revenir modifier sa saisie après coup.
+  //   - Déverrouillage manager (P1) : déclaratif — nom du manager
+  //     sélectionné dans la liste des managers/gérants du site + motif
+  //     libre, tracé dans carburant_reception_anomalies. Non
+  //     ré-authentifié cryptographiquement dans ce lot (limite documentée
+  //     dans le Data Dictionary) — le manager est supposé physiquement
+  //     présent, comme le décrit la demande ("Le manager peut disposer
+  //     d'une validation exceptionnelle, tracée dans l'audit").
   // ------------------------------------------------------------
 
   let employeeCourant = null;
   let siteId = null;
-  let etape = 'accueil'; // accueil | livraison | jaugeage_avant | compartiments | jaugeage_apres | calcul | confirmation | succes
-  const ETAPES = ['livraison', 'jaugeage_avant', 'compartiments', 'jaugeage_apres', 'calcul', 'confirmation'];
-  const ETAPES_LABELS = { livraison: 'Livraison attendue', jaugeage_avant: 'Jaugeage avant', compartiments: 'Compartiments camion', jaugeage_apres: 'Jaugeage après', calcul: 'Calcul automatique NEXUS', confirmation: 'Confirmation' };
+  let config = null; // NexusReceptionDonnees.chargerConfigReception()
+  let managersSite = [];
 
-  let cuvesActives = { go: [], sp95: [], gnr: [] }; // depuis station_config.cuves_carburants (uniquement les carburants actifs)
-  let carburantChoisi = null;
-  let cuvesDuCarburant = [];
+  let etape = 'accueil';
+  // 5 étapes visibles dans le stepper (demande explicite de Frédéric) —
+  // 'calcul' (rapprochement) et 'succes' sont des écrans de conclusion,
+  // hors barre de progression, comme dans la maquette fournie.
+  const ETAPES = ['livraison', 'jaugeage_avant', 'compartiments', 'reception', 'jaugeage_final'];
+  const ETAPES_LABELS = { livraison: 'Livraison attendue', jaugeage_avant: 'Jaugeage initial', compartiments: 'Camion', reception: 'Réception', jaugeage_final: 'Jaugeage final' };
 
-  // Transporteur par défaut (14/08/2026, demande de Frédéric : "mets par
-  // défaut TRANSHYDRO SARL") — même convention que HORAIRES_DEFAUT dans
-  // NEXUS-Parametres-Station-v1.html : valeur codée en dur propre au site
-  // pilote Vito Sainte-Marie Usine, reste éditable au cas où un autre
-  // transporteur livre exceptionnellement.
   const TRANSPORTEUR_DEFAUT = 'TRANSHYDRO SARL';
 
-  let entete = { transporteur: '', chauffeur: '', immatriculation: '', quantite_bl_l: '', bon_livraison_reference: '', heure_debut: '' };
-  // Mémorise transporteur/chauffeur/immatriculation/n° BL ou facture entre
-  // deux carburants d'une même visite camion (14/08/2026, corrige un bug :
-  // "Ajouter un autre carburant" prétendait déjà reprendre ces champs via
-  // un setTimeout, mais demarrerReception() écrasait entete juste après
-  // avec des valeurs vides avant que le setTimeout ne s'exécute — la
-  // reprise n'avait donc jamais réellement lieu). Uniquement rempli par le
-  // bouton "Ajouter un autre carburant" du succès ; jamais persisté,
-  // remis à null au retour explicite à l'accueil (fin de la visite).
-  let dernierEnTeteMemorise = null;
-  let mesuresParCuve = {}; // cuveId -> { jaugeage_avant_l, jaugeage_avant_le, jaugeage_apres_l, jaugeage_apres_le }
-  let compartimentsSaisis = ['', '']; // volumes déclarés (vérification en direct, non persistée)
+  let visite = { transporteur: '', chauffeur: '', immatriculation: '', bon_livraison_reference: '', heure_debut: '' };
+  let dernierEnTeteMemorise = null; // repris d'une visite précédente immédiate — non utilisé en v2 (1 seule visite = tous les carburants), conservé null.
+
+  let lignes = { sp95: { actif: false, quantite_bl_l: '' }, go: { actif: false, quantite_bl_l: '' }, gnr: { actif: false, quantite_bl_l: '' } };
+  let mesuresParCuve = {}; // cuveId -> { carburant, jaugeage_avant_l, jaugeage_avant_le, jaugeage_apres_l, jaugeage_apres_le }
+  let compartiments = []; // [{ numero, carburant, quantite_declaree_l, cuve_destination_id, statut, motif_non_receptionne, receptionne_le }]
+  let compartimentOuvert = null; // numero du compartiment dont la fiche est ouverte
+  let controleCompartiments = null; // sortie de verifierCompartimentsVsBl, calculée une fois tous les compartiments assignés
+  let derogationGlobaleCompartiments = null; // { nom, motif, le } si un manager a levé l'anomalie compartiments vs BL
+  let derogationsParCompartiment = {}; // numero -> { nom, motif, le }
+  let panneauDerogationPour = null; // 'compartiments' | numero de compartiment | null
   let heureFin = '';
-  let quantiteSystemeSaisie = '';
-  let resultatCalcul = null; // sortie de NexusReceptionMoteur.calculerReception, sur les totaux agrégés
+  let resultatsParCarburant = null; // { sp95: sortie calculerReceptionCarburant + comparaisonHistorique, ... }
   let enSoumission = false;
-  let dernierRecu = null; // { id, statut } — après soumission réussie
+  let derniereVisite = null; // après soumission réussie
 
   function heureLocale() { return new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }); }
   function demarrerHorloge() {
@@ -237,23 +311,29 @@
     const dt = d || new Date();
     return `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
   }
-  // Format d'un <input type="datetime-local"> à partir de maintenant (heure locale, pas UTC).
   function datetimeLocalMaintenant() {
     const d = new Date();
     const pad = n => String(n).padStart(2, '0');
     return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
   }
   function fmtNum(n) { return (n === null || n === undefined || isNaN(n)) ? '—' : Number(n).toLocaleString('fr-FR', { maximumFractionDigits: 1 }); }
-  const NOM_CARBURANT = { go: 'Gasoil (GO)', sp95: 'Sans plomb (SP95)', gnr: 'Gasoil non routier (GNR)' };
-  const NOM_CARBURANT_COURT = { go: 'GO', sp95: 'SP95', gnr: 'GNR' };
+  const NOM_CARBURANT = { sp95: 'Sans plomb (SP95)', go: 'Gasoil (GO)', gnr: 'Gasoil non routier (GNR)' };
+  const NOM_CARBURANT_COURT = { sp95: 'SP95', go: 'GO', gnr: 'GNR' };
 
-  async function chargerCuvesActives() {
-    const { data, error } = await nexusClient.from('station_config').select('cuves_carburants').eq('site', siteId).maybeSingle();
-    if (error) { console.error('Chargement cuves actives (réception):', error); return { go: [], sp95: [], gnr: [] }; }
-    const cfg = (data && data.cuves_carburants) || {};
-    const out = { go: [], sp95: [], gnr: [] };
-    ['go', 'sp95', 'gnr'].forEach(c => { if (cfg[c] && cfg[c].actif && Array.isArray(cfg[c].cuves)) out[c] = cfg[c].cuves; });
-    return out;
+  function carburantsPrevus() { return NexusReceptionMoteur.CARBURANTS.filter(c => lignes[c].actif && Number(lignes[c].quantite_bl_l) > 0); }
+  function cuvesPrevues() { const prevus = carburantsPrevus(); return (config.cuvesOrdonnees || []).filter(cu => prevus.includes(cu.carburant)); }
+  // Clé composite pour mesuresParCuve — l'id d'une cuve n'est unique QUE
+  // dans la liste de son propre carburant côté station_config (ex. réel
+  // Vito Sainte-Marie : SP95 et GNR ont chacun une cuve id="unique"). Une
+  // clé "cuveId" seule collisionnerait dès qu'une visite porte les deux
+  // carburants à la fois — jamais observé pendant la conception, trouvé en
+  // écrivant le test avec la config réelle du site pilote.
+  function cleCuve(cu) { return `${cu.carburant}__${cu.id}`; }
+
+  async function chargerManagersSite() {
+    const { data, error } = await nexusClient.from('employees').select('id, nom').eq('site_id', siteId).in('role', ['manager', 'gerant']).eq('actif', true);
+    if (error) { console.error('Chargement managers site (réception):', error); return []; }
+    return data || [];
   }
 
   // ------------------------------------------------------------
@@ -271,390 +351,664 @@
   function allerEtape(e) { etape = e; render(); }
 
   function render() {
-    document.getElementById('titre').textContent = etape === 'accueil' ? 'Réception carburant' : (etape === 'succes' ? 'Réception enregistrée' : NOM_CARBURANT_COURT[carburantChoisi] ? `Réception ${NOM_CARBURANT_COURT[carburantChoisi]}` : 'Réception carburant');
-    document.getElementById('sousTitre').textContent = etape === 'accueil' ? "Livraison, jaugeage terrain et rapprochement — l'employé saisit les faits, NEXUS calcule." : '';
+    document.getElementById('titre').textContent = etape === 'accueil' ? 'Réception carburant' : (etape === 'succes' ? 'Réception terminée' : 'Réception carburant');
+    document.getElementById('sousTitre').textContent = etape === 'accueil' ? 'Livraison, jaugeage terrain et rapprochement. Vous saisissez les faits, NEXUS effectue les contrôles.' : '';
+    const c = document.getElementById('content');
+    c.classList.remove('content-fade'); void c.offsetWidth; c.classList.add('content-fade');
     if (etape === 'accueil') renderAccueil();
     else if (etape === 'livraison') renderLivraison();
     else if (etape === 'jaugeage_avant') renderJaugeage('avant');
-    else if (etape === 'compartiments') renderCompartiments();
-    else if (etape === 'jaugeage_apres') renderJaugeage('apres');
+    else if (etape === 'compartiments') renderCompartimentsEtape();
+    else if (etape === 'reception') renderReceptionEtape();
+    else if (etape === 'jaugeage_final') renderJaugeage('apres');
     else if (etape === 'calcul') renderCalcul();
-    else if (etape === 'confirmation') renderConfirmation();
     else if (etape === 'succes') renderSucces();
   }
 
   // ------------------------------------------------------------
-  // ACCUEIL
+  // ACCUEIL — consignes de sécurité paramétrées par site (Coach NEXUS)
   // ------------------------------------------------------------
   function renderAccueil() {
-    const carburantsDisponibles = ['go', 'sp95', 'gnr'].filter(c => cuvesActives[c].length > 0);
-    if (!carburantsDisponibles.length) {
+    if (!cuvesActivesSite().length) {
       document.getElementById('content').innerHTML = `<div class="locked">Aucun carburant actif n'est configuré pour ce site. Contactez votre manager.</div>`;
       return;
     }
+    const consignes = config.consignesSecurite || [];
     document.getElementById('content').innerHTML = `
-      <div class="choix-grid">
-        ${carburantsDisponibles.map(c => `
-          <div class="choix-card" data-carburant="${c}">
-            <div class="choix-icone">⛽</div>
-            <div>
-              <div class="choix-titre">${NOM_CARBURANT[c]}</div>
-              <div class="choix-sub">Démarrer une réception de livraison</div>
-            </div>
-          </div>
-        `).join('')}
+      <div class="accueil-hero">
+        <div class="accueil-icone">🚛</div>
       </div>
+      ${consignes.length ? `
+        <div class="nexus-dit">
+          <div class="coach-tete">🧭 Coach NEXUS — avant de commencer</div>
+          <div class="consignes-liste">
+            ${consignes.map(c => `<div class="consigne-item"><div class="consigne-puce">•</div><div><span class="consigne-theme">${c.theme ? c.theme + ' — ' : ''}</span>${c.texte}</div></div>`).join('')}
+          </div>
+        </div>
+      ` : ''}
+      <button class="btn-primary" id="btnDemarrer">Démarrons ensemble</button>
     `;
-    document.querySelectorAll('[data-carburant]').forEach(el => el.addEventListener('click', () => demarrerReception(el.getAttribute('data-carburant'))));
+    document.getElementById('btnDemarrer').addEventListener('click', demarrerVisite);
   }
+  function cuvesActivesSite() { return config.cuvesOrdonnees || []; }
 
-  function demarrerReception(carburant) {
-    carburantChoisi = carburant;
-    cuvesDuCarburant = cuvesActives[carburant];
-    // Transporteur/chauffeur/immatriculation/n° BL ou facture : repris de
-    // dernierEnTeteMemorise si cette réception fait suite à "Ajouter un
-    // autre carburant" (même camion, même visite) — sinon transporteur
-    // par défaut TRANSHYDRO SARL et le reste vide. quantite_bl_l n'est
-    // JAMAIS repris (chaque carburant a sa propre quantité documentaire,
-    // voir la feuille papier "Livraison prévue" : SP/GO/GNR distincts).
-    entete = {
-      transporteur: (dernierEnTeteMemorise && dernierEnTeteMemorise.transporteur) || TRANSPORTEUR_DEFAUT,
-      chauffeur: (dernierEnTeteMemorise && dernierEnTeteMemorise.chauffeur) || '',
-      immatriculation: (dernierEnTeteMemorise && dernierEnTeteMemorise.immatriculation) || '',
-      quantite_bl_l: '',
-      bon_livraison_reference: (dernierEnTeteMemorise && dernierEnTeteMemorise.bon_livraison_reference) || '',
-      heure_debut: datetimeLocalMaintenant(),
-    };
+  function demarrerVisite() {
+    visite = { transporteur: TRANSPORTEUR_DEFAUT, chauffeur: '', immatriculation: '', bon_livraison_reference: '', heure_debut: datetimeLocalMaintenant() };
+    lignes = { sp95: { actif: false, quantite_bl_l: '' }, go: { actif: false, quantite_bl_l: '' }, gnr: { actif: false, quantite_bl_l: '' } };
     mesuresParCuve = {};
-    cuvesDuCarburant.forEach(cu => { mesuresParCuve[cu.id] = { jaugeage_avant_l: '', jaugeage_avant_le: '', jaugeage_apres_l: '', jaugeage_apres_le: '' }; });
-    compartimentsSaisis = ['', ''];
+    compartiments = [];
+    compartimentOuvert = null;
+    controleCompartiments = null;
+    derogationGlobaleCompartiments = null;
+    derogationsParCompartiment = {};
+    panneauDerogationPour = null;
     heureFin = '';
-    quantiteSystemeSaisie = '';
-    resultatCalcul = null;
+    resultatsParCarburant = null;
     allerEtape('livraison');
   }
 
   // ------------------------------------------------------------
-  // ÉTAPE 1 — LIVRAISON ATTENDUE
+  // ÉTAPE 1 — LIVRAISON ATTENDUE (multi-carburant)
   // ------------------------------------------------------------
   function renderLivraison() {
+    const carburantsDisponibles = NexusReceptionMoteur.CARBURANTS.filter(c => (config.cuvesCarburants[c] || {}).actif);
     document.getElementById('content').innerHTML = `
       ${stepperHtml()}
-      <div class="champ-label">Transporteur <span class="optionnel">(optionnel)</span></div>
-      <input class="champ-input texte" id="fTransporteur" placeholder="Nom du transporteur" value="${entete.transporteur}">
+      <div class="champ-label">Carburants livrés</div>
+      ${carburantsDisponibles.map(c => `
+        <div class="carburant-attendu-card ${lignes[c].actif ? 'actif' : ''}" style="--cc:var(--${c});">
+          <div class="carburant-attendu-tete">
+            <div class="carburant-attendu-nom"><span class="carburant-pastille" style="--cc:var(--${c});"></span>${NOM_CARBURANT[c]}</div>
+            <div class="toggle-switch ${lignes[c].actif ? 'on' : ''}" data-toggle="${c}"><div class="toggle-knob"></div></div>
+          </div>
+          <div class="carburant-attendu-corps">
+            ${lignes[c].actif ? `
+              <div class="champ-label" style="margin-top:10px;">Quantité attendue (L)</div>
+              <input class="champ-input" data-qte="${c}" type="number" inputmode="decimal" placeholder="0" value="${lignes[c].quantite_bl_l}" style="margin-bottom:0;">
+            ` : `<div class="carburant-attendu-vide">Non prévu</div>`}
+          </div>
+        </div>
+      `).join('')}
+      <div class="champ-label" style="margin-top:16px;">Transporteur <span class="optionnel">(optionnel)</span></div>
+      <input class="champ-input texte" id="fTransporteur" placeholder="Nom du transporteur" value="${visite.transporteur}">
       <div class="champ-label">Chauffeur <span class="optionnel">(optionnel)</span></div>
-      <input class="champ-input texte" id="fChauffeur" placeholder="Nom du chauffeur" value="${entete.chauffeur}">
+      <input class="champ-input texte" id="fChauffeur" placeholder="Nom du chauffeur" value="${visite.chauffeur}">
       <div class="champ-label">Immatriculation <span class="optionnel">(optionnel)</span></div>
-      <input class="champ-input texte" id="fImmat" placeholder="AA-123-BB" value="${entete.immatriculation}">
-      <div class="champ-label">Quantité selon le bon de livraison (L)</div>
-      <input class="champ-input" id="fQuantiteBl" type="number" inputmode="decimal" placeholder="0" value="${entete.quantite_bl_l}">
-      <div class="champ-note">La quantité documentaire du BL — jamais remplacée par le jaugeage terrain, uniquement comparée à lui.</div>
+      <input class="champ-input texte" id="fImmat" placeholder="AA-123-BB" value="${visite.immatriculation}">
       <div class="champ-label">N° de BL ou de facture <span class="optionnel">(optionnel)</span></div>
-      <input class="champ-input texte" id="fRefBl" placeholder="N° du bon de livraison, ou FAC-XXXXX" value="${entete.bon_livraison_reference}">
-      <div class="champ-label">Heure de début de livraison</div>
-      <input class="champ-input" id="fHeureDebut" type="datetime-local" value="${entete.heure_debut}">
+      <input class="champ-input texte" id="fRefBl" placeholder="N° du bon de livraison, ou FAC-XXXXX" value="${visite.bon_livraison_reference}">
+      <div class="champ-label">Heure de début de réception</div>
+      <input class="champ-input" id="fHeureDebut" type="datetime-local" value="${visite.heure_debut}">
       <button class="btn-primary" id="btnContinuerLivraison" disabled>Continuer</button>
       <button class="btn-ghost" id="btnAnnulerLivraison">Annuler</button>
     `;
+    document.querySelectorAll('[data-toggle]').forEach(el => el.addEventListener('click', () => {
+      const c = el.getAttribute('data-toggle');
+      lignes[c].actif = !lignes[c].actif;
+      if (!lignes[c].actif) lignes[c].quantite_bl_l = '';
+      renderLivraison();
+    }));
+    document.querySelectorAll('[data-qte]').forEach(input => input.addEventListener('input', () => {
+      lignes[input.getAttribute('data-qte')].quantite_bl_l = input.value;
+      majBoutonLivraison();
+    }));
     const maj = () => {
-      entete.transporteur = document.getElementById('fTransporteur').value;
-      entete.chauffeur = document.getElementById('fChauffeur').value;
-      entete.immatriculation = document.getElementById('fImmat').value;
-      entete.quantite_bl_l = document.getElementById('fQuantiteBl').value;
-      entete.bon_livraison_reference = document.getElementById('fRefBl').value;
-      entete.heure_debut = document.getElementById('fHeureDebut').value;
-      document.getElementById('btnContinuerLivraison').disabled = !(entete.quantite_bl_l && Number(entete.quantite_bl_l) > 0 && entete.heure_debut);
+      visite.transporteur = document.getElementById('fTransporteur').value;
+      visite.chauffeur = document.getElementById('fChauffeur').value;
+      visite.immatriculation = document.getElementById('fImmat').value;
+      visite.bon_livraison_reference = document.getElementById('fRefBl').value;
+      visite.heure_debut = document.getElementById('fHeureDebut').value;
+      majBoutonLivraison();
     };
-    ['fTransporteur','fChauffeur','fImmat','fQuantiteBl','fRefBl','fHeureDebut'].forEach(id => document.getElementById(id).addEventListener('input', maj));
-    maj();
-    document.getElementById('btnContinuerLivraison').addEventListener('click', () => allerEtape('jaugeage_avant'));
+    ['fTransporteur','fChauffeur','fImmat','fRefBl','fHeureDebut'].forEach(id => document.getElementById(id).addEventListener('input', maj));
+    majBoutonLivraison();
+    document.getElementById('btnContinuerLivraison').addEventListener('click', () => {
+      // Prépare les mesures de cuve pour les carburants prévus (étape 2).
+      mesuresParCuve = {};
+      cuvesPrevues().forEach(cu => { mesuresParCuve[cleCuve(cu)] = { cuve_id: cu.id, carburant: cu.carburant, jaugeage_avant_l: '', jaugeage_avant_le: '', jaugeage_apres_l: '', jaugeage_apres_le: '' }; });
+      // Compartiments par défaut, nombre configuré par site — l'employé
+      // peut ajuster à l'étape 3 (add/retirer), jamais figé.
+      const n = config.nombreCompartimentsDefaut || 4;
+      compartiments = Array.from({ length: n }, (_, i) => ({ numero: i + 1, carburant: null, quantite_declaree_l: '', cuve_destination_id: null, statut: 'a_receptionner', motif_non_receptionne: null, receptionne_le: null }));
+      allerEtape('jaugeage_avant');
+    });
     document.getElementById('btnAnnulerLivraison').addEventListener('click', () => { if (confirm('Annuler cette réception ? La saisie en cours sera perdue.')) allerEtape('accueil'); });
+  }
+  function majBoutonLivraison() {
+    const prevus = carburantsPrevus();
+    const ok = prevus.length > 0 && visite.heure_debut;
+    const btn = document.getElementById('btnContinuerLivraison');
+    if (btn) btn.disabled = !ok;
   }
 
   // ------------------------------------------------------------
-  // ÉTAPES 2 & 4 — JAUGEAGE (avant / après), une carte par cuve
+  // ÉTAPES 2 & 5 — JAUGEAGE (avant / après), reproduit le Veeder-Root
   // ------------------------------------------------------------
   function renderJaugeage(phase) {
     const champL = phase === 'avant' ? 'jaugeage_avant_l' : 'jaugeage_apres_l';
     const champLe = phase === 'avant' ? 'jaugeage_avant_le' : 'jaugeage_apres_le';
-    const titrePhase = phase === 'avant' ? 'Jaugeage avant déchargement' : 'Jaugeage après déchargement';
+    const cuves = cuvesPrevues();
     const notePhase = phase === 'avant'
-      ? 'Mesurez le niveau de chaque cuve de destination AVANT le début du déchargement.'
-      : 'Mesurez le niveau de chaque cuve de destination une fois le déchargement terminé.';
+      ? 'Mesurez le niveau de chaque cuve concernée AVANT le début du déchargement — reproduisez ce que vous lisez sur le Veeder-Root.'
+      : 'Mesurez le niveau de chaque cuve une fois le déchargement terminé.';
     document.getElementById('content').innerHTML = `
       ${stepperHtml()}
       <div class="champ-note" style="margin-top:0;">${notePhase}</div>
-      ${cuvesDuCarburant.map(cu => `
+      ${cuves.map(cu => {
+        const cle = cleCuve(cu);
+        const m = mesuresParCuve[cle];
+        const val = m[champL];
+        const pct = cu.capacite ? Math.max(0, Math.min(100, (Number(val || 0) / cu.capacite) * 100)) : 0;
+        return `
         <div class="cuve-card">
-          <div class="cuve-titre">${cu.label || cu.id} <span class="capacite">${cu.capacite ? `(${fmtNum(cu.capacite)} L)` : ''}</span></div>
-          <div class="champ-label">Niveau mesuré (L)</div>
-          <input class="champ-input" data-cuve="${cu.id}" data-champ="${champL}" type="number" inputmode="decimal" placeholder="0" value="${mesuresParCuve[cu.id][champL]}" style="margin-bottom:0;">
+          <div class="cuve-titre">
+            <div class="cuve-titre-nom"><span class="carburant-pastille" style="--cc:var(--${cu.carburant});"></span>${cu.label || cu.id} <span class="capacite">${cu.carburant ? NOM_CARBURANT_COURT[cu.carburant] : ''}</span></div>
+            <span class="capacite">${cu.capacite ? `${fmtNum(cu.capacite)} L` : ''}</span>
+          </div>
+          ${phase === 'apres' ? `<div class="cuve-avant-recap"><span>Avant</span><span>${fmtNum(m.jaugeage_avant_l)} L</span></div>` : ''}
+          <div class="cuve-jauge-visuelle">
+            <div class="cuve-jauge-remplissage" style="width:${pct}%; background:var(--${cu.carburant});"></div>
+            <div class="cuve-jauge-pct">${val !== '' && val != null ? fmtNum(pct) + ' %' : ''}</div>
+          </div>
+          <div class="champ-label">Jaugeage ${phase} (L)</div>
+          <input class="champ-input" data-cuve="${cle}" data-champ="${champL}" type="number" inputmode="decimal" placeholder="0" value="${val}" style="margin-bottom:0;">
+          ${phase === 'apres' && val !== '' && m.jaugeage_avant_l !== '' ? `<div class="cuve-variation" style="color:var(--${cu.carburant});">Variation : ${(Number(val) - Number(m.jaugeage_avant_l)) >= 0 ? '+' : ''}${fmtNum(Number(val) - Number(m.jaugeage_avant_l))} L</div>` : ''}
         </div>
-      `).join('')}
+      `; }).join('')}
       <button class="btn-primary" id="btnContinuerJaugeage" disabled style="margin-top:8px;">Continuer</button>
       <button class="btn-ghost" id="btnRetourJaugeage">Retour</button>
     `;
     document.querySelectorAll('[data-cuve]').forEach(input => input.addEventListener('input', () => {
-      const cuveId = input.getAttribute('data-cuve'), champ = input.getAttribute('data-champ');
-      mesuresParCuve[cuveId][champ] = input.value;
-      majBoutonJaugeage(champL);
+      const cle = input.getAttribute('data-cuve'), champ = input.getAttribute('data-champ');
+      mesuresParCuve[cle][champ] = input.value;
+      renderJaugeage(phase);
     }));
     majBoutonJaugeage(champL);
     document.getElementById('btnContinuerJaugeage').addEventListener('click', () => {
       const maintenant = new Date().toISOString();
-      cuvesDuCarburant.forEach(cu => { mesuresParCuve[cu.id][champLe] = maintenant; });
-      if (phase === 'apres') { heureFin = new Date().toISOString(); allerEtape('calcul'); }
+      cuves.forEach(cu => { mesuresParCuve[cleCuve(cu)][champLe] = maintenant; });
+      if (phase === 'apres') { heureFin = maintenant; allerEtape('calcul'); }
       else allerEtape('compartiments');
     });
-    document.getElementById('btnRetourJaugeage').addEventListener('click', () => allerEtape(phase === 'avant' ? 'livraison' : 'compartiments'));
+    document.getElementById('btnRetourJaugeage').addEventListener('click', () => allerEtape(phase === 'avant' ? 'livraison' : 'reception'));
   }
   function majBoutonJaugeage(champL) {
-    const complet = cuvesDuCarburant.every(cu => mesuresParCuve[cu.id][champL] !== '' && !isNaN(Number(mesuresParCuve[cu.id][champL])));
+    const cuves = cuvesPrevues();
+    const complet = cuves.every(cu => mesuresParCuve[cleCuve(cu)][champL] !== '' && !isNaN(Number(mesuresParCuve[cleCuve(cu)][champL])));
     const btn = document.getElementById('btnContinuerJaugeage');
     if (btn) btn.disabled = !complet;
   }
 
   // ------------------------------------------------------------
-  // ÉTAPE 3 — COMPARTIMENTS CAMION (vérification en direct, non persistée
-  // — voir note d'en-tête : aucune table dédiée en P1, jamais une deuxième
-  // vérité concurrente de quantite_bl_l saisie à l'étape 1)
+  // CAMION — grille de compartiments partagée (étapes 3 & 4)
   // ------------------------------------------------------------
-  function renderCompartiments() {
-    const total = compartimentsSaisis.reduce((s, v) => s + (Number(v) || 0), 0);
-    const bl = Number(entete.quantite_bl_l) || 0;
-    const ecart = total - bl;
-    const coherent = bl > 0 && Math.abs(ecart) <= bl * 0.02;
-    document.getElementById('content').innerHTML = `
-      ${stepperHtml()}
-      <div class="champ-note" style="margin-top:0;">Reportez le détail des compartiments du camion tel qu'indiqué sur le bon de livraison (vérification, pas une nouvelle saisie officielle).</div>
-      <div id="compartimentsListe">
-        ${compartimentsSaisis.map((v, i) => `
-          <div class="compartiment-row">
-            <input class="champ-input" data-idx="${i}" type="number" inputmode="decimal" placeholder="Compartiment ${i+1} (L)" value="${v}">
-            <button class="btn-retirer" data-retirer="${i}" ${compartimentsSaisis.length <= 1 ? 'disabled style="opacity:0.3;"' : ''}>✕</button>
-          </div>
-        `).join('')}
+  function camionGrilleHtml(mode) {
+    return `
+      <div class="camion-cadre">
+        <div class="camion-titre">Camion — ${compartiments.length} compartiment${compartiments.length > 1 ? 's' : ''}</div>
+        <div class="camion-grille">
+          ${compartiments.map(c => {
+            const classeCarb = c.carburant ? `carb-${c.carburant}` : '';
+            const classeAlerte = mode === 'reception' && c.statut === 'non_receptionne' && !derogationsParCompartiment[c.numero] ? 'non-receptionne' : '';
+            const coche = mode === 'reception' && c.statut === 'receptionne';
+            return `
+            <div class="compartiment-bloc ${classeCarb} ${classeAlerte}" data-compartiment="${c.numero}">
+              ${coche ? '<div class="compartiment-check">✓</div>' : ''}
+              <div class="compartiment-numero">${c.numero}</div>
+              <div class="compartiment-carburant" style="color:${c.carburant ? `var(--${c.carburant})` : 'var(--text-dim)'};">${c.carburant ? NOM_CARBURANT_COURT[c.carburant] : '—'}</div>
+              ${c.quantite_declaree_l ? `<div class="compartiment-qte">${fmtNum(c.quantite_declaree_l)} L</div>` : ''}
+            </div>
+          `; }).join('')}
+        </div>
+        <div class="camion-legende">
+          <span><i style="background:var(--sp95);"></i>SP95</span>
+          <span><i style="background:var(--go);"></i>GO</span>
+          <span><i style="background:var(--gnr);"></i>GNR</span>
+        </div>
       </div>
-      <button class="btn-ajouter-compartiment" id="btnAjouterCompartiment">+ Ajouter un compartiment</button>
-      <div class="compartiment-total ${total > 0 ? (coherent ? 'ok' : 'ecart') : ''}">
-        <span>Total compartiments vs BL (${fmtNum(bl)} L)</span>
-        <span class="valeur">${fmtNum(total)} L${total > 0 && bl > 0 ? ` (${ecart >= 0 ? '+' : ''}${fmtNum(ecart)} L)` : ''}</span>
-      </div>
-      <button class="btn-primary" id="btnContinuerCompartiments">Continuer</button>
-      <button class="btn-ghost" id="btnRetourCompartiments">Retour</button>
     `;
-    document.querySelectorAll('[data-idx]').forEach(input => input.addEventListener('input', () => {
-      compartimentsSaisis[Number(input.getAttribute('data-idx'))] = input.value;
-      renderCompartiments();
-    }));
-    document.querySelectorAll('[data-retirer]').forEach(btn => btn.addEventListener('click', () => {
-      const i = Number(btn.getAttribute('data-retirer'));
-      if (compartimentsSaisis.length > 1) { compartimentsSaisis.splice(i, 1); renderCompartiments(); }
-    }));
-    document.getElementById('btnAjouterCompartiment').addEventListener('click', () => { compartimentsSaisis.push(''); renderCompartiments(); });
-    document.getElementById('btnContinuerCompartiments').addEventListener('click', () => allerEtape('jaugeage_apres'));
-    document.getElementById('btnRetourCompartiments').addEventListener('click', () => allerEtape('jaugeage_avant'));
   }
 
   // ------------------------------------------------------------
-  // ÉTAPE 5 — CALCUL AUTOMATIQUE NEXUS
-  // Agrégation : le delta terrain se calcule cuve par cuve, mais l'écart
-  // vs BL se calcule sur le TOTAL des cuves face à l'unique quantite_bl_l
-  // de la livraison (jamais une comparaison cuve par cuve contre le même
-  // BL, qui compterait la même référence plusieurs fois).
+  // ÉTAPE 3 — COMPARTIMENTS DU CAMION (assignation + contrôle bloquant)
   // ------------------------------------------------------------
-  function calculerResultatAgrege() {
+  function renderCompartimentsEtape() {
     const M = NexusReceptionMoteur;
-    let deltaTotal = 0, tousComplets = true;
-    const deltasParCuve = {};
-    cuvesDuCarburant.forEach(cu => {
-      const m = mesuresParCuve[cu.id];
-      const delta = M.calculerDeltaMesure(Number(m.jaugeage_avant_l), m.jaugeage_apres_l === '' ? null : Number(m.jaugeage_apres_l));
-      deltasParCuve[cu.id] = delta;
-      if (delta == null) tousComplets = false; else deltaTotal += delta;
+    const tousAssignes = compartiments.every(c => c.carburant && Number(c.quantite_declaree_l) > 0 && c.cuve_destination_id);
+    if (tousAssignes) {
+      const lignesAttendues = carburantsPrevus().map(c => ({ carburant: c, quantite_bl_l: Number(lignes[c].quantite_bl_l) }));
+      controleCompartiments = M.verifierCompartimentsVsBl(lignesAttendues, compartiments, config.seuilEcartCompartimentsPct);
+    } else {
+      controleCompartiments = null;
+    }
+
+    document.getElementById('content').innerHTML = `
+      ${stepperHtml()}
+      <div class="champ-note" style="margin-top:0;">Touchez chaque compartiment pour indiquer le carburant, la quantité et la cuve de destination, tel qu'indiqué sur le bon de livraison.</div>
+      ${camionGrilleHtml('assignation')}
+      <div class="btn-ajuster-compartiments">
+        <button id="btnRetirerCompartiment" ${compartiments.length <= 1 ? 'disabled style="opacity:0.35;"' : ''}>− Retirer</button>
+        <button id="btnAjouterCompartiment">+ Ajouter</button>
+      </div>
+      <div id="ficheCompartimentZone"></div>
+      ${controleCompartiments ? renderVerdictCompartiments() : ''}
+      <button class="btn-primary" id="btnContinuerCompartiments" ${!(controleCompartiments && controleCompartiments.coherentGlobal) && !derogationGlobaleCompartiments ? 'disabled' : ''}>Continuer vers la réception</button>
+      <button class="btn-ghost" id="btnRetourCompartiments">Retour</button>
+    `;
+    document.querySelectorAll('[data-compartiment]').forEach(el => el.addEventListener('click', () => {
+      compartimentOuvert = Number(el.getAttribute('data-compartiment'));
+      renderFicheCompartiment();
+    }));
+    if (compartimentOuvert != null) renderFicheCompartiment();
+    document.getElementById('btnAjouterCompartiment').addEventListener('click', () => {
+      compartiments.push({ numero: compartiments.length + 1, carburant: null, quantite_declaree_l: '', cuve_destination_id: null, statut: 'a_receptionner', motif_non_receptionne: null, receptionne_le: null });
+      renderCompartimentsEtape();
     });
-    const deltaMesureTotal = tousComplets ? deltaTotal : null;
-    const quantiteBlL = Number(entete.quantite_bl_l);
-    const ecartTerrainBl = M.calculerEcartTerrainBl(deltaMesureTotal, quantiteBlL, null);
-    const ecartRatioTerrainBl = M.calculerEcartRatio(ecartTerrainBl, quantiteBlL);
-    const quantiteSystemeL = quantiteSystemeSaisie !== '' ? Number(quantiteSystemeSaisie) : null;
-    const ecartSystemeBl = M.calculerEcartSystemeBl(quantiteSystemeL, quantiteBlL);
-    const ecartRatioSystemeBl = M.calculerEcartRatio(ecartSystemeBl, quantiteBlL);
-    const statut = M.statutInitialReception({ jaugeageApresL: tousComplets ? 1 : null, quantiteBlL, ecartRatioTerrainBl });
-    return { deltasParCuve, deltaMesureTotal, ecartTerrainBl, ecartRatioTerrainBl, ecartSystemeBl, ecartRatioSystemeBl, statut };
+    document.getElementById('btnRetirerCompartiment').addEventListener('click', () => {
+      if (compartiments.length > 1) { compartiments.pop(); if (compartimentOuvert > compartiments.length) compartimentOuvert = null; renderCompartimentsEtape(); }
+    });
+    document.getElementById('btnContinuerCompartiments').addEventListener('click', () => {
+      // Nombre réel de compartiments retenu pour la visite (peut avoir été
+      // ajusté à cette étape) — écrit dans visite.nombre_compartiments à la
+      // soumission finale.
+      allerEtape('reception');
+    });
+    document.getElementById('btnRetourCompartiments').addEventListener('click', () => allerEtape('jaugeage_avant'));
+    // Le panneau de dérogation (s'il est affiché, cf. renderVerdictCompartiments)
+    // fait partie du HTML injecté ci-dessus — ses écouteurs doivent être
+    // posés après coup, comme tout le reste de cette fonction.
+    cablerDerogation(renderCompartimentsEtape);
+  }
+
+  function renderFicheCompartiment() {
+    const zone = document.getElementById('ficheCompartimentZone');
+    if (!zone) return;
+    const c = compartiments.find(x => x.numero === compartimentOuvert);
+    if (!c) { zone.innerHTML = ''; return; }
+    const prevus = carburantsPrevus();
+    zone.innerHTML = `
+      <div class="fiche-compartiment">
+        <div class="fiche-titre">Compartiment ${c.numero}</div>
+        <div class="champ-label">Carburant</div>
+        <div class="carburant-chip-row">
+          ${prevus.map(carb => `<div class="carburant-chip ${c.carburant === carb ? 'actif' : ''}" style="--cc:var(--${carb});" data-carb="${carb}">${NOM_CARBURANT_COURT[carb]}</div>`).join('')}
+        </div>
+        <div class="champ-label">Quantité (L)</div>
+        <input class="champ-input" id="fQteCompartiment" type="number" inputmode="decimal" placeholder="0" value="${c.quantite_declaree_l}">
+        <div class="champ-label">Cuve destination</div>
+        <select class="champ-input" id="fCuveCompartiment" ${!c.carburant ? 'disabled' : ''}>
+          <option value="">— Choisir —</option>
+          ${(config.cuvesOrdonnees || []).filter(cu => cu.carburant === c.carburant).map(cu => `<option value="${cu.id}" ${c.cuve_destination_id === cu.id ? 'selected' : ''}>${cu.label || cu.id}</option>`).join('')}
+        </select>
+        <button class="btn-primary" id="btnValiderCompartiment" style="margin-top:0;">Valider</button>
+      </div>
+    `;
+    document.querySelectorAll('[data-carb]').forEach(el => el.addEventListener('click', () => {
+      c.carburant = el.getAttribute('data-carb');
+      c.cuve_destination_id = null;
+      renderFicheCompartiment();
+    }));
+    document.getElementById('fQteCompartiment').addEventListener('input', (e) => { c.quantite_declaree_l = e.target.value; });
+    document.getElementById('fCuveCompartiment').addEventListener('change', (e) => { c.cuve_destination_id = e.target.value || null; });
+    document.getElementById('btnValiderCompartiment').addEventListener('click', () => {
+      compartimentOuvert = null;
+      renderCompartimentsEtape();
+    });
+  }
+
+  function renderVerdictCompartiments() {
+    const M = NexusReceptionMoteur;
+    if (controleCompartiments.coherentGlobal) {
+      return `
+        <div class="compartiment-total ok">
+          <span>✅ Chargement cohérent avec le bon de livraison</span>
+        </div>
+      `;
+    }
+    const lignesEcart = controleCompartiments.carburantsEnAnomalie.map(carb => {
+      const r = controleCompartiments.parCarburant[carb];
+      return `
+        <div class="blocage-section">
+          <div class="blocage-label">${NOM_CARBURANT[carb]}</div>
+          <div class="blocage-valeur">Livraison attendue : <b>${fmtNum(r.attendu)} L</b> — Compartiments déclarés : <b>${fmtNum(r.declare)} L</b> — Écart : <b>${M.texteEcart(r.ecart, r.ecartPct)}</b></div>
+        </div>
+      `;
+    }).join('');
+    return `
+      <div class="blocage-card">
+        <div class="blocage-tete"><span class="blocage-icone">🔴</span><span class="blocage-titre">Anomalie détectée</span></div>
+        ${lignesEcart}
+        <div class="blocage-consigne">Ne commencez pas la réception. Contactez votre manager.</div>
+      </div>
+      ${contactManagerHtml()}
+      ${derogationGlobaleCompartiments
+        ? `<div class="compartiment-total ok"><span>🔓 Déverrouillé par ${derogationGlobaleCompartiments.nom}</span></div>`
+        : renderBoutonDerogation('compartiments')}
+      ${panneauDerogationPour === 'compartiments' ? renderPanneauDerogation('compartiments') : ''}
+    `;
+  }
+
+  function contactManagerHtml() {
+    const cm = config.contactManager || {};
+    if (!cm.nom && !cm.telephone) return '';
+    return `
+      <div class="contact-manager-card">
+        <div class="contact-manager-icone">📞</div>
+        <div>
+          <div class="contact-manager-nom">${cm.nom || 'Manager du site'}</div>
+          ${cm.telephone ? `<div class="contact-manager-tel">${cm.telephone}</div>` : ''}
+        </div>
+      </div>
+    `;
+  }
+
+  function renderBoutonDerogation(pour) {
+    return `<button class="btn-ghost" id="btnOuvrirDerogation" data-pour="${pour}">Un manager est présent, déverrouiller</button>`;
+  }
+
+  function renderPanneauDerogation(pour) {
+    return `
+      <div class="derogation-panel">
+        <div class="derogation-titre">Déverrouillage manager — décision tracée dans l'audit</div>
+        <div class="champ-label">Manager présent</div>
+        <select class="champ-input" id="fDerogationManager">
+          <option value="">— Choisir —</option>
+          ${managersSite.map(m => `<option value="${m.nom}">${m.nom}</option>`).join('')}
+        </select>
+        <div class="champ-label">Motif de la dérogation</div>
+        <input class="champ-input texte" id="fDerogationMotif" placeholder="Ex : écart connu, contrôlé sur place">
+        <button class="btn-primary" id="btnConfirmerDerogation" data-pour="${pour}" disabled>Confirmer le déverrouillage</button>
+        <button class="btn-ghost" id="btnAnnulerDerogation">Annuler</button>
+      </div>
+    `;
+  }
+
+  // Écouteurs communs aux panneaux de dérogation — appelés après chaque
+  // render des étapes 3 et 4 (délégation légère, ces boutons n'existent
+  // pas toujours dans le DOM).
+  function cablerDerogation(rerender) {
+    const btnOuvrir = document.getElementById('btnOuvrirDerogation');
+    if (btnOuvrir) btnOuvrir.addEventListener('click', () => { panneauDerogationPour = btnOuvrir.getAttribute('data-pour'); rerender(); });
+    const selectManager = document.getElementById('fDerogationManager');
+    const inputMotif = document.getElementById('fDerogationMotif');
+    const btnConfirmer = document.getElementById('btnConfirmerDerogation');
+    const majBtn = () => { if (btnConfirmer) btnConfirmer.disabled = !(selectManager.value && inputMotif.value.trim()); };
+    if (selectManager) { selectManager.addEventListener('change', majBtn); inputMotif.addEventListener('input', majBtn); majBtn(); }
+    if (btnConfirmer) btnConfirmer.addEventListener('click', () => {
+      const derogation = { nom: selectManager.value, motif: inputMotif.value.trim(), le: new Date().toISOString() };
+      const pour = btnConfirmer.getAttribute('data-pour');
+      if (pour === 'compartiments') derogationGlobaleCompartiments = derogation;
+      else derogationsParCompartiment[pour] = derogation;
+      panneauDerogationPour = null;
+      rerender();
+    });
+    const btnAnnuler = document.getElementById('btnAnnulerDerogation');
+    if (btnAnnuler) btnAnnuler.addEventListener('click', () => { panneauDerogationPour = null; rerender(); });
+  }
+
+  // ------------------------------------------------------------
+  // ÉTAPE 4 — RÉCEPTION COMPARTIMENT PAR COMPARTIMENT
+  // ------------------------------------------------------------
+  function renderReceptionEtape() {
+    const M = NexusReceptionMoteur;
+    const bloquants = M.compartimentsBloquants(compartiments).filter(c => !derogationsParCompartiment[c.numero]);
+    document.getElementById('content').innerHTML = `
+      ${stepperHtml()}
+      <div class="champ-note" style="margin-top:0;">Touchez un compartiment au fur et à mesure de son déchargement effectif.</div>
+      ${camionGrilleHtml('reception')}
+      <div id="ficheReceptionZone"></div>
+      ${bloquants.length ? `<div class="compartiment-total ecart"><span>🔴 ${bloquants.length} compartiment${bloquants.length>1?'s':''} non réceptionné${bloquants.length>1?'s':''}</span></div>` : ''}
+      <button class="btn-primary" id="btnContinuerReception" ${bloquants.length ? 'disabled' : ''}>Continuer vers le jaugeage final</button>
+      <button class="btn-ghost" id="btnRetourReception">Retour</button>
+    `;
+    document.querySelectorAll('[data-compartiment]').forEach(el => el.addEventListener('click', () => {
+      compartimentOuvert = Number(el.getAttribute('data-compartiment'));
+      renderFicheReception();
+    }));
+    if (compartimentOuvert != null) renderFicheReception();
+    document.getElementById('btnContinuerReception').addEventListener('click', () => allerEtape('jaugeage_final'));
+    document.getElementById('btnRetourReception').addEventListener('click', () => allerEtape('compartiments'));
+  }
+
+  function renderFicheReception() {
+    const zone = document.getElementById('ficheReceptionZone');
+    if (!zone) return;
+    const c = compartiments.find(x => x.numero === compartimentOuvert);
+    if (!c) { zone.innerHTML = ''; return; }
+    const M = NexusReceptionMoteur;
+
+    if (c.statut === 'non_receptionne' && !derogationsParCompartiment[c.numero]) {
+      const motif = M.libelleMotifNonReception(c.motif_non_receptionne);
+      zone.innerHTML = `
+        <div class="blocage-card">
+          <div class="blocage-tete"><span class="blocage-icone">🔴</span><span class="blocage-titre">Compartiment ${c.numero} non réceptionné</span></div>
+          <div class="blocage-valeur">${fmtNum(c.quantite_declaree_l)} L de ${NOM_CARBURANT_COURT[c.carburant] || ''} étaient prévus dans ce compartiment.</div>
+          <div class="blocage-consigne">${motif.message}</div>
+        </div>
+        ${contactManagerHtml()}
+        ${renderBoutonDerogation(String(c.numero))}
+        ${panneauDerogationPour === String(c.numero) ? renderPanneauDerogation(String(c.numero)) : ''}
+        <button class="btn-ghost" id="btnRevenirSurCompartiment">Revenir sur ce compartiment</button>
+      `;
+      const btnRevenir = document.getElementById('btnRevenirSurCompartiment');
+      if (btnRevenir) btnRevenir.addEventListener('click', () => { c.statut = 'a_receptionner'; c.motif_non_receptionne = null; renderReceptionEtape(); });
+      cablerDerogation(renderReceptionEtape);
+      return;
+    }
+
+    zone.innerHTML = `
+      <div class="fiche-compartiment">
+        <div class="fiche-titre">Compartiment ${c.numero} — ${NOM_CARBURANT_COURT[c.carburant] || ''} · ${fmtNum(c.quantite_declaree_l)} L</div>
+        ${c.statut === 'receptionne'
+          ? `<div class="compartiment-total ok"><span>✓ Compartiment réceptionné</span></div>`
+          : `<button class="btn-primary" id="btnMarquerReceptionne" style="margin-top:0;">✓ Compartiment réceptionné</button>
+             <div class="champ-label" style="margin-top:14px;">Ce compartiment n'a pas été réceptionné ?</div>
+             <div class="motif-liste">
+               ${Object.keys(M.MOTIFS_NON_RECEPTION).map(m => `<div class="motif-item" data-motif="${m}">${M.MOTIFS_NON_RECEPTION[m].label}<span>›</span></div>`).join('')}
+             </div>`
+        }
+      </div>
+    `;
+    const btnOk = document.getElementById('btnMarquerReceptionne');
+    if (btnOk) btnOk.addEventListener('click', () => { c.statut = 'receptionne'; c.receptionne_le = new Date().toISOString(); compartimentOuvert = null; renderReceptionEtape(); });
+    document.querySelectorAll('[data-motif]').forEach(el => el.addEventListener('click', () => {
+      const motif = el.getAttribute('data-motif');
+      const infos = M.libelleMotifNonReception(motif);
+      if (!infos.bloquant) {
+        // 'oubli_validation' : NEXUS permet de revenir sur le compartiment,
+        // aucune anomalie tracée — l'employé va simplement le valider.
+        c.statut = 'a_receptionner'; c.motif_non_receptionne = null; compartimentOuvert = null; renderReceptionEtape();
+        return;
+      }
+      c.statut = 'non_receptionne'; c.motif_non_receptionne = motif;
+      renderReceptionEtape();
+    }));
+  }
+
+  // ------------------------------------------------------------
+  // RAPPROCHEMENT FINAL — les 3 vérités (prévu / compartiments / mesuré)
+  // ------------------------------------------------------------
+  function calculerResultatsFinal() {
+    const M = NexusReceptionMoteur;
+    const compartimentsParCarburant = M.sommeCompartimentsParCarburant(compartiments);
+    const deltasParCarburant = M.agregerDeltaParCarburant(Object.values(mesuresParCuve).map(m => ({ carburant: m.carburant, jaugeage_avant_l: m.jaugeage_avant_l === '' ? null : Number(m.jaugeage_avant_l), jaugeage_apres_l: m.jaugeage_apres_l === '' ? null : Number(m.jaugeage_apres_l) })));
+    const out = {};
+    carburantsPrevus().forEach(carb => {
+      out[carb] = M.calculerReceptionCarburant({
+        attenduL: Number(lignes[carb].quantite_bl_l),
+        compartimentsL: compartimentsParCarburant[carb] != null ? compartimentsParCarburant[carb] : null,
+        mesureL: deltasParCarburant[carb] != null ? deltasParCarburant[carb] : null,
+        seuilPct: config.seuilEcartMesurePct,
+      });
+    });
+    return out;
+  }
+
+  async function chargerComparaisonsHistoriques() {
+    const M = NexusReceptionMoteur;
+    const out = {};
+    await Promise.all(carburantsPrevus().map(async carb => {
+      const historique = await NexusReceptionDonnees.chargerHistoriqueEcartsRatio(nexusClient, siteId, carb);
+      out[carb] = M.comparerHistorique(resultatsParCarburant[carb].ecartMesureRatio, historique);
+    }));
+    return out;
   }
 
   function renderCalcul() {
-    resultatCalcul = calculerResultatAgrege();
+    resultatsParCarburant = calculerResultatsFinal();
     const M = NexusReceptionMoteur;
-    const libelle = M.libelleStatutReception(resultatCalcul.statut);
+    const statutGlobal = M.statutGlobalVisite(carburantsPrevus().map(c => resultatsParCarburant[c].statut));
+    const libelle = M.libelleStatutReception(statutGlobal);
     document.getElementById('content').innerHTML = `
-      ${stepperHtml()}
       <div class="badge-statut ${libelle.niveau}">${libelle.texte}</div>
-      <div class="resume-card">
-        ${cuvesDuCarburant.map(cu => `
-          <div class="stat-row">
-            <span class="stat-label">Variation ${cu.label || cu.id}</span>
-            <span class="stat-value cyan">${resultatCalcul.deltasParCuve[cu.id] != null ? `${resultatCalcul.deltasParCuve[cu.id] >= 0 ? '+' : ''}${fmtNum(resultatCalcul.deltasParCuve[cu.id])} L` : '—'}</span>
-          </div>
-        `).join('')}
-        <div class="stat-row total">
-          <span class="stat-label">Total mesuré terrain</span>
-          <span class="stat-value">${resultatCalcul.deltaMesureTotal != null ? `${resultatCalcul.deltaMesureTotal >= 0 ? '+' : ''}${fmtNum(resultatCalcul.deltaMesureTotal)} L` : '—'}</span>
-        </div>
-        <div class="stat-row">
-          <span class="stat-label">Quantité BL</span>
-          <span class="stat-value">${fmtNum(entete.quantite_bl_l)} L</span>
-        </div>
-        <div class="stat-row">
-          <span class="stat-label">Écart terrain / BL</span>
-          <span class="stat-value ${resultatCalcul.statut === 'a_rapprocher' ? 'amber' : (resultatCalcul.statut === 'coherente' ? 'green' : '')}">${M.texteEcart(resultatCalcul.ecartTerrainBl, resultatCalcul.ecartRatioTerrainBl)}</span>
-        </div>
+      <div class="resume-card" id="resumeFinal">
+        ${carburantsPrevus().map(carb => {
+          const r = resultatsParCarburant[carb];
+          return `
+          <div class="carburant-resultat-tete"><span class="carburant-pastille" style="--cc:var(--${carb});"></span>${NOM_CARBURANT[carb]}</div>
+          <div class="stat-row"><span class="stat-label">Prévu (BL)</span><span class="stat-value">${fmtNum(r.attenduL)} L</span></div>
+          <div class="stat-row"><span class="stat-label">Compartiments</span><span class="stat-value">${fmtNum(r.compartimentsL)} L</span></div>
+          <div class="stat-row total"><span class="stat-label">Mesuré par jaugeage</span><span class="stat-value">${r.mesureL != null ? fmtNum(r.mesureL) + ' L' : '—'}</span></div>
+          <div class="stat-row"><span class="stat-label">Delta</span><span class="stat-value ${r.statut === 'a_rapprocher' ? 'red' : (r.statut === 'coherente' ? 'green' : '')}">${M.texteEcart(r.ecartMesureL, r.ecartMesureRatio)}</span></div>
+        `; }).join('')}
       </div>
-      <div class="champ-label">Lecture système (Insite360 ou autre) <span class="optionnel">— optionnelle, si disponible</span></div>
-      <input class="champ-input" id="fQuantiteSysteme" type="number" inputmode="decimal" placeholder="Laisser vide si non disponible" value="${quantiteSystemeSaisie}">
-      <div class="champ-note">Connexion automatique Insite360 à venir — en attendant, une lecture manuelle reste optionnelle et n'écrase jamais le jaugeage terrain ni le BL.</div>
-      <div class="nexus-dit">
-        <b>Ce que NEXUS constate :</b> ${texteLectureCalcul(resultatCalcul)}
-      </div>
-      <button class="btn-primary" id="btnContinuerCalcul">Continuer</button>
+      <div class="nexus-dit" id="lectureNexus"><div class="coach-tete">🧭 Coach NEXUS</div><div id="lectureNexusTexte">Comparaison à l'historique en cours…</div></div>
+      <button class="btn-primary" id="btnTerminerReception">Terminer la réception</button>
       <button class="btn-ghost" id="btnRetourCalcul">Retour</button>
     `;
-    document.getElementById('fQuantiteSysteme').addEventListener('input', (e) => {
-      quantiteSystemeSaisie = e.target.value;
-      resultatCalcul = calculerResultatAgrege();
-      const nexusDit = document.querySelector('.nexus-dit');
-      if (nexusDit) nexusDit.innerHTML = `<b>Ce que NEXUS constate :</b> ${texteLectureCalcul(resultatCalcul)}`;
+    chargerComparaisonsHistoriques().then(comparaisons => {
+      const phrases = carburantsPrevus().map(carb => {
+        const r = resultatsParCarburant[carb];
+        if (r.statut !== 'a_rapprocher') return null;
+        return M.phraseRapprochement(NOM_CARBURANT_COURT[carb], r.ecartMesureL, r.ecartMesureRatio, comparaisons[carb]);
+      }).filter(Boolean);
+      const texte = phrases.length ? phrases.join(' ') : 'La réception terrain est cohérente avec le bon de livraison, sur l\'ensemble des carburants livrés.';
+      const zone = document.getElementById('lectureNexusTexte');
+      if (zone) zone.innerHTML = texte;
     });
-    document.getElementById('btnContinuerCalcul').addEventListener('click', () => allerEtape('confirmation'));
-    document.getElementById('btnRetourCalcul').addEventListener('click', () => allerEtape('jaugeage_apres'));
-  }
-
-  function texteLectureCalcul(r) {
-    if (r.statut === 'coherente') return `La réception terrain est cohérente avec le bon de livraison (écart de ${NexusReceptionMoteur.texteEcart(r.ecartTerrainBl, r.ecartRatioTerrainBl)}).`;
-    if (r.statut === 'a_rapprocher') return `Un écart de ${NexusReceptionMoteur.texteEcart(r.ecartTerrainBl, r.ecartRatioTerrainBl)} est détecté entre la mesure terrain et le BL — votre manager devra le rapprocher.`;
-    return `Mesure incomplète — l'écart avec le BL ne peut pas encore être calculé.`;
+    document.getElementById('btnTerminerReception').addEventListener('click', soumettreVisite);
+    document.getElementById('btnRetourCalcul').addEventListener('click', () => allerEtape('jaugeage_final'));
   }
 
   // ------------------------------------------------------------
-  // ÉTAPE 6 — CONFIRMATION EMPLOYÉ (soumission atomique unique)
+  // SOUMISSION ATOMIQUE
   // ------------------------------------------------------------
-  function renderConfirmation() {
-    const M = NexusReceptionMoteur;
-    const libelle = M.libelleStatutReception(resultatCalcul.statut);
-    document.getElementById('content').innerHTML = `
-      ${stepperHtml()}
-      <div class="champ-note" style="margin-top:0;">Vérifiez le récapitulatif avant validation — cette réception ne pourra plus être modifiée après validation (seul votre manager pourra la qualifier si nécessaire).</div>
-      <div class="resume-card">
-        <div class="stat-row"><span class="stat-label">Carburant</span><span class="stat-value">${NOM_CARBURANT[carburantChoisi]}</span></div>
-        <div class="stat-row"><span class="stat-label">Quantité BL</span><span class="stat-value">${fmtNum(entete.quantite_bl_l)} L</span></div>
-        ${entete.transporteur ? `<div class="stat-row"><span class="stat-label">Transporteur</span><span class="stat-value">${entete.transporteur}</span></div>` : ''}
-        ${entete.immatriculation ? `<div class="stat-row"><span class="stat-label">Immatriculation</span><span class="stat-value">${entete.immatriculation}</span></div>` : ''}
-        ${entete.bon_livraison_reference ? `<div class="stat-row"><span class="stat-label">N° BL / facture</span><span class="stat-value">${entete.bon_livraison_reference}</span></div>` : ''}
-        <div class="stat-row"><span class="stat-label">Total mesuré terrain</span><span class="stat-value">${resultatCalcul.deltaMesureTotal != null ? `${resultatCalcul.deltaMesureTotal >= 0 ? '+' : ''}${fmtNum(resultatCalcul.deltaMesureTotal)} L` : '—'}</span></div>
-        <div class="stat-row total"><span class="stat-label">Statut proposé</span><span class="stat-value">${libelle.texte}</span></div>
-      </div>
-      <button class="btn-primary" id="btnValider">Valider la réception</button>
-      <button class="btn-ghost" id="btnRetourConfirmation">Retour</button>
-    `;
-    document.getElementById('btnValider').addEventListener('click', soumettreReception);
-    document.getElementById('btnRetourConfirmation').addEventListener('click', () => allerEtape('calcul'));
-  }
-
-  async function soumettreReception() {
+  async function soumettreVisite() {
     if (enSoumission) return;
     enSoumission = true;
-    const btn = document.getElementById('btnValider');
+    const btn = document.getElementById('btnTerminerReception');
     btn.disabled = true;
     btn.innerHTML = `Enregistrement<span class="btn-loading-dots"><i></i><i></i><i></i></span>`;
 
-    const heureDebutISO = entete.heure_debut ? new Date(entete.heure_debut).toISOString() : new Date().toISOString();
+    const M = NexusReceptionMoteur;
+    const heureDebutISO = visite.heure_debut ? new Date(visite.heure_debut).toISOString() : new Date().toISOString();
     const heureFinISO = heureFin || new Date().toISOString();
-    const quantiteSystemeL = quantiteSystemeSaisie !== '' ? Number(quantiteSystemeSaisie) : null;
+    const uneDerogation = !!derogationGlobaleCompartiments || Object.keys(derogationsParCompartiment).length > 0;
 
-    const ligneEntete = {
+    const ligneVisite = {
       site: siteId,
-      carburant: carburantChoisi,
-      date_livraison: dateISO(new Date(heureDebutISO)),
+      date_visite: dateISO(new Date(heureDebutISO)),
       heure_debut: heureDebutISO,
       heure_fin: heureFinISO,
-      transporteur: entete.transporteur || null,
-      chauffeur: entete.chauffeur || null,
-      immatriculation: entete.immatriculation || null,
-      quantite_bl_l: Number(entete.quantite_bl_l),
-      bon_livraison_reference: entete.bon_livraison_reference || null,
+      transporteur: visite.transporteur || null,
+      chauffeur: visite.chauffeur || null,
+      immatriculation: visite.immatriculation || null,
+      bon_livraison_reference: visite.bon_livraison_reference || null,
       employe_id: employeeCourant.id,
-      quantite_systeme_l: quantiteSystemeL,
-      quantite_systeme_source: quantiteSystemeL != null ? 'manuel' : null,
-      quantite_systeme_saisie_par: quantiteSystemeL != null ? employeeCourant.id : null,
-      quantite_systeme_saisie_le: quantiteSystemeL != null ? new Date().toISOString() : null,
-      statut: resultatCalcul.statut,
+      nombre_compartiments: compartiments.length,
+      statut: uneDerogation ? 'terminee_avec_derogation' : 'terminee',
     };
-    const lignesMesures = cuvesDuCarburant.map(cu => {
-      const m = mesuresParCuve[cu.id];
+
+    const lignesFinales = carburantsPrevus().map(carb => {
+      const r = resultatsParCarburant[carb];
       return {
-        cuve_id: cu.id,
-        jaugeage_avant_l: Number(m.jaugeage_avant_l),
-        jaugeage_avant_le: m.jaugeage_avant_le,
-        jaugeage_apres_l: m.jaugeage_apres_l !== '' ? Number(m.jaugeage_apres_l) : null,
-        jaugeage_apres_le: m.jaugeage_apres_le || null,
-        delta_mesure_l: resultatCalcul.deltasParCuve[cu.id],
-        ventes_pendant_livraison_l: null,
-        reception_corrigee_l: null,
+        carburant: carb,
+        quantite_bl_l: r.attenduL,
+        quantite_compartiments_l: r.compartimentsL,
+        quantite_mesuree_l: r.mesureL,
+        delta_l: r.ecartMesureL,
+        delta_ratio: r.ecartMesureRatio,
+        statut: r.statut,
       };
     });
 
-    const { data, error } = await NexusReceptionDonnees.insererReceptionComplete(nexusClient, ligneEntete, lignesMesures);
+    const compartimentsFinaux = compartiments.map(c => ({
+      numero: c.numero,
+      carburant: c.carburant,
+      quantite_declaree_l: c.quantite_declaree_l !== '' ? Number(c.quantite_declaree_l) : null,
+      cuve_destination_id: c.cuve_destination_id,
+      statut: c.statut,
+      motif_non_receptionne: c.motif_non_receptionne,
+      receptionne_le: c.receptionne_le,
+    }));
+
+    const mesuresFinales = Object.values(mesuresParCuve).map(m => ({
+      cuve_id: m.cuve_id,
+      carburant: m.carburant,
+      jaugeage_avant_l: Number(m.jaugeage_avant_l),
+      jaugeage_avant_le: m.jaugeage_avant_le,
+      jaugeage_apres_l: m.jaugeage_apres_l !== '' ? Number(m.jaugeage_apres_l) : null,
+      jaugeage_apres_le: m.jaugeage_apres_le || null,
+      delta_mesure_l: M.calculerDeltaMesure(Number(m.jaugeage_avant_l), m.jaugeage_apres_l === '' ? null : Number(m.jaugeage_apres_l)),
+    }));
+
+    const anomalies = [];
+    if (derogationGlobaleCompartiments && controleCompartiments) {
+      controleCompartiments.carburantsEnAnomalie.forEach(carb => {
+        const r = controleCompartiments.parCarburant[carb];
+        anomalies.push({
+          type: 'compartiments_vs_bl', carburant: carb,
+          details: { attendu: r.attendu, declare: r.declare, ecart: r.ecart, ecart_pct: r.ecartPct },
+          statut: 'derogation_manager',
+          derogation_manager_nom: derogationGlobaleCompartiments.nom,
+          derogation_motif: derogationGlobaleCompartiments.motif,
+          derogation_le: derogationGlobaleCompartiments.le,
+        });
+      });
+    }
+    Object.keys(derogationsParCompartiment).forEach(numero => {
+      const c = compartiments.find(x => x.numero === Number(numero));
+      const d = derogationsParCompartiment[numero];
+      anomalies.push({
+        type: 'compartiment_non_receptionne', carburant: c ? c.carburant : null, compartiment_numero: Number(numero),
+        details: { motif: c ? c.motif_non_receptionne : null, quantite_declaree_l: c ? c.quantite_declaree_l : null },
+        statut: 'derogation_manager',
+        derogation_manager_nom: d.nom, derogation_motif: d.motif, derogation_le: d.le,
+      });
+    });
+
+    const { data, error } = await NexusReceptionDonnees.soumettreVisiteComplete(nexusClient, ligneVisite, lignesFinales, compartimentsFinaux, mesuresFinales, anomalies);
     enSoumission = false;
     if (error) {
       btn.disabled = false;
-      btn.textContent = 'Valider la réception';
+      btn.textContent = 'Terminer la réception';
       alert("Une erreur est survenue pendant l'enregistrement. Réessayez.");
       return;
     }
-    dernierRecu = data;
+    derniereVisite = data;
     allerEtape('succes');
   }
 
   // ------------------------------------------------------------
-  // SUCCÈS
+  // SUCCÈS — message positif et rassurant
   // ------------------------------------------------------------
   function renderSucces() {
     const M = NexusReceptionMoteur;
-    const libelle = dernierRecu ? M.libelleStatutReception(dernierRecu.statut) : null;
+    const statutGlobal = M.statutGlobalVisite(carburantsPrevus().map(c => resultatsParCarburant[c].statut));
+    const tousCoherents = statutGlobal === 'coherente';
     document.getElementById('content').innerHTML = `
       <div class="checkmark">✓</div>
-      <div class="final-greet">Merci ${employeeCourant.nom} !</div>
-      <div class="final-sub">Réception ${NOM_CARBURANT[carburantChoisi]} enregistrée.</div>
-      ${libelle ? `<div style="text-align:center;"><div class="badge-statut ${libelle.niveau}">${libelle.texte}</div></div>` : ''}
-      <button class="btn-primary" id="btnAutreCarburant">Ajouter un autre carburant de ce camion</button>
-      <button class="btn-ghost" id="btnRetourAccueilFinal">Retour à l'accueil</button>
+      <div class="final-greet">Réception terminée</div>
+      <div class="final-liste">
+        <div class="final-item"><i>✓</i>Tous les compartiments ont été réceptionnés.</div>
+        <div class="final-item"><i>✓</i>Le chargement camion correspond au bon de livraison${derogationGlobaleCompartiments ? ' (déverrouillage manager tracé).' : '.'}</div>
+        <div class="final-item"><i>${tousCoherents ? '✓' : '•'}</i>${tousCoherents ? 'Le rapprochement des jaugeages est cohérent avec les seuils de contrôle de la station.' : 'Un écart de rapprochement a été signalé — votre manager le consultera dans Carburants Pilotage.'}</div>
+      </div>
+      <div class="final-merci">Vous pouvez rouvrir la piste et reprendre le service carburant selon la procédure du site.</div>
+      <div class="final-merci">Merci ${employeeCourant.nom} ! À bientôt lors de la prochaine livraison.</div>
+      <button class="btn-primary" id="btnRetourAccueilFinal">Terminer</button>
     `;
-    document.getElementById('btnAutreCarburant').addEventListener('click', () => {
-      // Mémorise transporteur/chauffeur/immatriculation/n° BL ou facture
-      // AVANT de revenir à l'accueil (même camion, même visite) — lu par
-      // demarrerReception() au choix du prochain carburant, pour ne pas
-      // faire ressaisir ces champs pour GO puis GNR (demande de Frédéric,
-      // 14/08/2026). Corrige un bug : l'ancienne version tentait la même
-      // chose via un setTimeout après allerEtape('accueil'), mais
-      // demarrerReception() écrasait entete entre-temps — la reprise
-      // n'avait donc jamais lieu (voir dernierEnTeteMemorise plus haut).
-      dernierEnTeteMemorise = {
-        transporteur: entete.transporteur,
-        chauffeur: entete.chauffeur,
-        immatriculation: entete.immatriculation,
-        bon_livraison_reference: entete.bon_livraison_reference,
-      };
-      allerEtape('accueil');
-    });
-    document.getElementById('btnRetourAccueilFinal').addEventListener('click', () => {
-      // "Retour à l'accueil" (par opposition à "Ajouter un autre
-      // carburant") marque la fin de cette visite camion : la mémoire
-      // partagée ne doit pas fuiter dans une réception ultérieure sans
-      // rapport (camion différent, jour différent).
-      dernierEnTeteMemorise = null;
-      allerEtape('accueil');
-    });
+    document.getElementById('btnRetourAccueilFinal').addEventListener('click', () => allerEtape('accueil'));
   }
 
   // ------------------------------------------------------------
@@ -664,11 +1018,12 @@
     if (!employee) return; // nexus-auth.js gère déjà la redirection vers NEXUS-Login-v1.html
     employeeCourant = employee;
     siteId = employee.site_id;
-    // Carburants n'est pas un module Professional (ni NEXUS-Carburants-v1.html
-    // ni NEXUS-Carburants-Pilotage-v1.html n'incluent nexus-forfait.js) —
-    // aucune gate ici non plus, pour rester cohérent avec le reste du module.
     demarrerHorloge();
-    cuvesActives = await chargerCuvesActives();
+    [config, managersSite] = await Promise.all([
+      NexusReceptionDonnees.chargerConfigReception(nexusClient, siteId),
+      chargerManagersSite(),
+    ]);
+    if (!config) config = { cuvesOrdonnees: [], cuvesCarburants: {}, nombreCompartimentsDefaut: 4, seuilEcartCompartimentsPct: 2, seuilEcartMesurePct: 2, consignesSecurite: [], contactManager: {} };
     render();
   });
 </script>
