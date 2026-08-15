@@ -228,6 +228,29 @@
   .precomptage-texte{font-size:13px; color:var(--text-mid); line-height:1.6; margin-bottom:14px;}
   .precomptage-regle{font-size:13.5px; font-weight:600; color:var(--cyan); line-height:1.5; padding:12px; background:rgba(79,195,217,0.08); border:1px solid rgba(79,195,217,0.25); border-radius:10px; margin-bottom:18px;}
 
+  /* Calculatrice de comptage (16/08/2026, demande de Frédéric) — voir
+     evaluerAdditionChainee() et ouvrirCalculatricePopup(). */
+  .champ-comptage{display:flex; flex-direction:column; gap:6px; flex:1;}
+  .calc-barre{display:flex; align-items:center; gap:6px;}
+  .calc-op-btn{font-family:var(--mono); font-size:16px; font-weight:700; color:var(--cyan); background:var(--panel-raised); border:1px solid var(--hairline); border-radius:8px; width:32px; height:28px; cursor:pointer; flex-shrink:0; line-height:1;}
+  .calc-op-btn:active{background:rgba(79,195,217,0.18);}
+  .calc-pop-btn{font-size:14px; background:var(--panel-raised); border:1px solid var(--hairline); border-radius:8px; width:32px; height:28px; cursor:pointer; flex-shrink:0; margin-left:auto; line-height:1;}
+  .calc-pop-btn:active{background:var(--hairline);}
+  .calc-apercu{font-family:var(--mono); font-size:11.5px; color:var(--cyan); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+
+  .calc-overlay{position:fixed; inset:0; background:rgba(0,0,0,0.6); display:flex; align-items:flex-end; justify-content:center; z-index:300;}
+  .calc-modal{width:100%; max-width:460px; background:var(--panel); border:1px solid var(--hairline); border-top-left-radius:18px; border-top-right-radius:18px; padding:18px 16px calc(18px + env(safe-area-inset-bottom));}
+  .calc-display{font-family:var(--mono); font-size:30px; font-weight:700; text-align:right; padding:10px 8px; margin-bottom:14px; background:var(--panel-raised); border-radius:10px; border:1px solid var(--hairline); overflow-x:auto; white-space:nowrap;}
+  .calc-keys{display:grid; grid-template-columns:repeat(4, 1fr); gap:8px;}
+  .calc-key{font-family:var(--mono); font-size:19px; font-weight:600; color:var(--text); background:var(--panel-raised); border:1px solid var(--hairline); border-radius:10px; padding:16px 0; cursor:pointer;}
+  .calc-key:active{background:var(--hairline);}
+  .calc-key-op{color:var(--cyan);}
+  .calc-key-fn{color:var(--amber);}
+  .calc-key-eq{background:var(--cyan); color:#04141a; border-color:var(--cyan);}
+  .calc-key-eq:active{background:#3cb3c9;}
+  .calc-actions{display:flex; gap:10px; margin-top:14px;}
+  .calc-actions .btn-ghost, .calc-actions .btn-primary{margin-top:0;}
+
   footer{margin-top:auto; padding:16px 20px 24px; font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:center; border-top:1px solid var(--hairline);}
 </style>
 </head>
@@ -397,6 +420,28 @@
   function fmtNum(n) {
     if (n === null || n === undefined) return '—';
     return Number(n).toLocaleString('fr-FR', { maximumFractionDigits: 2 });
+  }
+
+  // Calculatrice de comptage (16/08/2026, demande de Frédéric — "possible
+  // d'intégrer une calculatrice ?", écran carrousel "Comptage dépôt") :
+  // deux façons complémentaires de calculer un total sans sortir du champ.
+  // 1) Addition en chaîne : le champ accepte directement une suite de
+  // nombres séparés par + ou - (ex: "6+6+12"), saisie via les boutons [+]/[−]
+  // sous le champ (le clavier numérique natif ne propose pas ces symboles).
+  // evaluerAdditionChainee() remplace parseFloat() partout où un comptage
+  // est lu — un nombre seul ("24") reste interprété exactement comme avant,
+  // c'est le comportement très large majoritaire, rien ne change pour lui.
+  // Retourne NaN (jamais une exception) pour une chaîne invalide ou
+  // incomplète (ex: "6+" en cours de frappe) — traité par le code appelant
+  // exactement comme un champ vide, la saisie n'est jamais bloquée.
+  function evaluerAdditionChainee(brut) {
+    if (brut === null || brut === undefined) return NaN;
+    const nettoye = String(brut).trim().replace(/,/g, '.').replace(/\s+/g, '');
+    if (nettoye === '') return NaN;
+    if (!/^-?\d+(\.\d+)?([+\-]\d+(\.\d+)?)*$/.test(nettoye)) return NaN;
+    const tokens = nettoye.match(/[+\-]?\d+(\.\d+)?/g) || [];
+    if (!tokens.length) return NaN;
+    return tokens.reduce((somme, t) => somme + Number(t), 0);
   }
 
   // Le rôle du quart en cours (shifts.role) prime sur employees.role : un
@@ -1167,7 +1212,7 @@
   // masquer, sans jamais reconstruire la ligne.
   function majLigneCategorie(produitId) {
     const input = document.querySelector(`.produit-input[data-produit="${produitId}"]`);
-    const val = input.value === '' ? null : parseFloat(input.value);
+    const val = input.value === '' ? null : evaluerAdditionChainee(input.value);
     const p = produitsZone.find(x => x.id === produitId);
 
     // Comptage en deux lieux (05/08/2026) : phase "Dépôt" uniquement ici —
@@ -1257,12 +1302,18 @@
           </div>
         ` : p.comptage_deux_lieux ? `
           <div class="badge-double-lieu">📍 Dépôt — boutique demandée en fin d'inventaire</div>
-          <input type="number" inputmode="decimal" step="0.01" class="produit-input carrousel-input" id="carrouselInput"
-                 placeholder="Comptage dépôt" value="${dejaSaisi && dejaSaisi.compteDepot !== undefined && dejaSaisi.compteDepot !== null ? dejaSaisi.compteDepot : ''}" onfocus="this.select()">
+          <div class="champ-comptage">
+            <input type="text" inputmode="decimal" class="produit-input carrousel-input" id="carrouselInput"
+                   placeholder="Comptage dépôt" value="${dejaSaisi && dejaSaisi.compteDepot !== undefined && dejaSaisi.compteDepot !== null ? dejaSaisi.compteDepot : ''}" onfocus="this.select()">
+            ${calcBarreHtml()}
+          </div>
           <button class="btn-primary" id="btnValiderProduit">Valider ce produit</button>
         ` : `
-          <input type="number" inputmode="decimal" step="0.01" class="produit-input carrousel-input" id="carrouselInput"
-                 placeholder="Votre comptage" value="${valeurDepart}" onfocus="this.select()">
+          <div class="champ-comptage">
+            <input type="text" inputmode="decimal" class="produit-input carrousel-input" id="carrouselInput"
+                   placeholder="Votre comptage" value="${valeurDepart}" onfocus="this.select()">
+            ${calcBarreHtml()}
+          </div>
           <div class="ecart-tag" id="ecartCarrousel"></div>
           ${renderSelectMotif('Carrousel', dejaSaisi && dejaSaisi.motifEcart ? dejaSaisi.motifEcart : '', dejaSaisi && dejaSaisi.ecartNonNul).replace('data-produit-motif="Carrousel"', 'id="motifCarrousel"')}
           <input type="text" class="justif-input" id="justifCarrousel" placeholder="Commentaire (facultatif)" value="${dejaSaisi && dejaSaisi.justification ? dejaSaisi.justification : ''}" style="${dejaSaisi && dejaSaisi.ecartNonNul ? '' : 'display:none;'}">
@@ -1321,7 +1372,7 @@
       // d'écart tant que le total réel n'est pas connu.
       if (p.comptage_deux_lieux) {
         const input = document.getElementById('carrouselInput');
-        let vDepot = input.value === '' ? null : parseFloat(input.value);
+        let vDepot = input.value === '' ? null : evaluerAdditionChainee(input.value);
         if (vDepot === null || isNaN(vDepot)) {
           if (!confirm(`Aucun chiffre saisi pour le dépôt sur ${p.designation} — on enregistre 0. Confirmer ?`)) return;
           vDepot = 0;
@@ -1332,7 +1383,7 @@
         return;
       }
       const input = document.getElementById('carrouselInput');
-      let val = input.value === '' ? null : parseFloat(input.value);
+      let val = input.value === '' ? null : evaluerAdditionChainee(input.value);
       // Corrigé (02/08/2026, demande de Frédéric — "si je valide sans
       // mettre de chiffre, considère que c'est zéro mais envoie un message
       // d'alerte pour m'avertir que c'est correct") : on ne bloque plus la
@@ -1372,7 +1423,7 @@
     const justifInput = document.getElementById('justifCarrousel');
     const motifSelect = document.getElementById('motifCarrousel');
     if (!input || !ecartDiv) return;
-    const val = input.value === '' ? null : parseFloat(input.value);
+    const val = input.value === '' ? null : evaluerAdditionChainee(input.value);
     if (val === null || isNaN(val)) { ecartDiv.textContent = ''; if (justifInput) justifInput.style.display = 'none'; if (motifSelect) motifSelect.style.display = 'none'; return; }
     const ecart = val - valeurTransmise;
     const ecartNonNul = Math.abs(ecart) > 0.001;
@@ -1453,8 +1504,11 @@
         </div>
         <div class="produit-transmis">${transmisTexte}</div>
         <div class="produit-controls" style="margin-top:8px;">
-          <input type="number" inputmode="decimal" step="0.01" class="produit-input" data-produit="${p.id}"
-                 placeholder="${p.comptage_deux_lieux ? 'Comptage dépôt' : 'Votre comptage'}" value="${valeurAffichee}" onfocus="this.select()">
+          <div class="champ-comptage">
+            <input type="text" inputmode="decimal" class="produit-input" data-produit="${p.id}"
+                   placeholder="${p.comptage_deux_lieux ? 'Comptage dépôt' : 'Votre comptage'}" value="${valeurAffichee}" onfocus="this.select()">
+            ${calcBarreHtml()}
+          </div>
           ${p.comptage_deux_lieux ? '' : `<button class="btn-identique" data-produit="${p.id}" ${masque ? 'disabled' : ''}>Identique</button>`}
         </div>
         ${p.comptage_deux_lieux ? '' : `
@@ -1673,7 +1727,7 @@
     document.querySelectorAll('.produit-input').forEach(el => {
       el.addEventListener('input', () => {
         const p = produitsZone.find(x => x.id === el.dataset.produit);
-        const v = el.value === '' ? null : parseFloat(el.value);
+        const v = el.value === '' ? null : evaluerAdditionChainee(el.value);
         // Comptage en deux lieux (05/08/2026, retour de Frédéric — l'employé
         // reste au dépôt jusqu'à avoir fini) : phase "Dépôt" uniquement ici,
         // la boutique est rattrapée à la fin (voir renderFinalisationDoubleLieu).
@@ -1715,8 +1769,11 @@
           ${p.comptage_deux_lieux ? '<span class="badge-double-lieu">📍 Dépôt — boutique en fin d\'inventaire</span>' : ''}
         </div>
         <div class="produit-controls">
-          <input type="number" inputmode="decimal" step="0.01" class="produit-input" data-produit="${p.id}"
-                 placeholder="${p.comptage_deux_lieux ? 'Comptage dépôt' : 'Stock final'}" value="${valeurAffichee}" onfocus="this.select()" ${desactive ? 'disabled' : ''}>
+          <div class="champ-comptage">
+            <input type="text" inputmode="decimal" class="produit-input" data-produit="${p.id}"
+                   placeholder="${p.comptage_deux_lieux ? 'Comptage dépôt' : 'Stock final'}" value="${valeurAffichee}" onfocus="this.select()" ${desactive ? 'disabled' : ''}>
+            ${desactive ? '' : calcBarreHtml()}
+          </div>
         </div>
       </div>
     `;
@@ -1759,8 +1816,11 @@
             <div class="produit-nom-ligne"><span class="produit-nom">${p.designation}</span></div>
             <div class="produit-transmis">Dépôt déjà saisi : ${fmtNum(comptagesSaisie[p.id].compteDepot)} ${p.unite}</div>
             <div class="produit-controls" style="margin-top:8px;">
-              <input type="number" inputmode="decimal" step="0.01" class="produit-input-finalisation" data-produit="${p.id}"
-                     placeholder="Comptage boutique" value="" onfocus="this.select()">
+              <div class="champ-comptage">
+                <input type="text" inputmode="decimal" class="produit-input-finalisation" data-produit="${p.id}"
+                       placeholder="Comptage boutique" value="" onfocus="this.select()">
+                ${calcBarreHtml()}
+              </div>
             </div>
           </div>
         `).join('')}
@@ -1779,7 +1839,7 @@
         for (const el of champs) {
           const produitId = el.dataset.produit;
           const p = produitsZone.find(x => x.id === produitId);
-          let vBoutique = el.value === '' ? null : parseFloat(el.value);
+          let vBoutique = el.value === '' ? null : evaluerAdditionChainee(el.value);
           if (vBoutique === null || isNaN(vBoutique)) {
             if (!confirm(`Aucun chiffre saisi pour la boutique sur ${p ? p.designation : 'ce produit'} — on enregistre 0. Confirmer ?`)) return; // reste sur l'écran, rien n'est perdu
             vBoutique = 0;
@@ -1947,13 +2007,215 @@
     document.getElementById('btnRetourAccueil').addEventListener('click', renderAccueil);
   }
 
-  // Écoute déléguée globale (03/08/2026) pour le bouton "Déclarer cette
-  // livraison" — posée une seule fois ici plutôt que ré-attachée à chaque
-  // frappe : la pastille d'écart (ecartDiv/ecartCarrousel) est recréée en
+  // ------------------------------------------------------------
+  // CALCULATRICE DE COMPTAGE (16/08/2026, demande de Frédéric — "possible
+  // d'intégrer une calculatrice ?"). Deux briques, toutes deux branchées
+  // sur l'écoute déléguée globale ci-dessous (mêmes raisons que pour
+  // "Déclarer cette livraison" : ces boutons vivent dans du HTML recréé en
   // continu pendant la saisie, un addEventListener direct dessus serait
+  // perdu à chaque re-rendu) :
+  //  1) Addition en chaîne — boutons [+]/[−] sous le champ, qui ajoutent
+  //     l'opérateur au texte déjà saisi (evaluerAdditionChainee calcule le
+  //     total à la volée, voir plus haut).
+  //  2) Calculatrice complète (+ − × ÷) — icône 🖩, ouvre un clavier en
+  //     recouvrement ; "Utiliser ce résultat" remplace le contenu du champ
+  //     par le résultat final.
+  // ------------------------------------------------------------
+  function calcBarreHtml() {
+    return `
+      <div class="calc-barre">
+        <button type="button" class="calc-op-btn" data-calc-op="+">+</button>
+        <button type="button" class="calc-op-btn" data-calc-op="-">−</button>
+        <span class="calc-apercu"></span>
+        <button type="button" class="calc-pop-btn" title="Calculatrice">🖩</button>
+      </div>
+    `;
+  }
+
+  // Ajoute un opérateur à la fin du champ ciblé (jamais en tête, jamais deux
+  // opérateurs à la suite) puis redéclenche un événement 'input' — c'est ce
+  // même événement que les écrans (majLigneCategorie, majCarrousel, etc.)
+  // écoutent déjà pour recalculer écart/aperçu, aucune duplication de
+  // logique n'est nécessaire ici.
+  function ajouterOperateurChamp(input, op) {
+    if (!input) return;
+    const brut = input.value;
+    if (brut.trim() === '') return; // rien à additionner à une case vide
+    const nouveauBrut = /[+\-]\s*$/.test(brut) ? brut.replace(/[+\-]\s*$/, op) : brut + op;
+    input.value = nouveauBrut;
+    input.focus();
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+
+  // Aperçu "= 24" affiché sous le champ dès que l'expression contient au
+  // moins deux termes — jamais pour un nombre seul ("24" reste juste "24"),
+  // pour ne pas alourdir l'écran dans le cas très majoritaire.
+  function majApercuChamp(input) {
+    const conteneur = input.closest && input.closest('.champ-comptage');
+    if (!conteneur) return;
+    const apercu = conteneur.querySelector('.calc-apercu');
+    if (!apercu) return;
+    const brut = String(input.value || '').trim();
+    const plusieursTermesRegex = /^-?\d+(\.\d+|,\d+)?\s*[+\-]/;
+    if (!plusieursTermesRegex.test(brut)) { apercu.textContent = ''; return; }
+    const val = evaluerAdditionChainee(brut);
+    apercu.textContent = isNaN(val) ? '' : `= ${fmtNum(val)}`;
+  }
+
+  // Calculatrice complète (+ − × ÷), moteur "à quatre opérations" classique
+  // (jamais un eval() de chaîne — plus sûr, et gère nativement la virgule
+  // française) : un accumulateur, l'opérateur en attente, et l'affichage en
+  // cours de frappe.
+  let calcEtat = null;
+  let calcPopupCibleInput = null;
+  function calcApplique(a, b, op) {
+    if (op === '+') return a + b;
+    if (op === '-') return a - b;
+    if (op === '*') return a * b;
+    if (op === '/') return b === 0 ? NaN : a / b;
+    return b;
+  }
+  function majAffichageCalc() {
+    const disp = document.getElementById('calcDisplay');
+    if (disp && calcEtat) disp.textContent = calcEtat.affichage;
+  }
+  function calcAppuiChiffre(chiffre) {
+    if (!calcEtat) return;
+    if (calcEtat.effacerAuProchainChiffre || calcEtat.affichage === '0') {
+      calcEtat.affichage = chiffre === ',' ? '0,' : chiffre;
+      calcEtat.effacerAuProchainChiffre = false;
+    } else {
+      if (chiffre === ',' && calcEtat.affichage.includes(',')) return;
+      calcEtat.affichage += chiffre;
+    }
+    majAffichageCalc();
+  }
+  function calcAppuiOperateur(op) {
+    if (!calcEtat) return;
+    const valActuelle = Number(calcEtat.affichage.replace(',', '.'));
+    if (calcEtat.accumulateur !== null && calcEtat.operateurEnAttente && !calcEtat.effacerAuProchainChiffre) {
+      calcEtat.accumulateur = calcApplique(calcEtat.accumulateur, valActuelle, calcEtat.operateurEnAttente);
+      calcEtat.affichage = String(calcEtat.accumulateur).replace('.', ',');
+    } else {
+      calcEtat.accumulateur = valActuelle;
+    }
+    calcEtat.operateurEnAttente = op;
+    calcEtat.effacerAuProchainChiffre = true;
+    majAffichageCalc();
+  }
+  function calcAppuiEgal() {
+    if (!calcEtat || calcEtat.operateurEnAttente === null) return;
+    const valActuelle = Number(calcEtat.affichage.replace(',', '.'));
+    const resultat = calcApplique(calcEtat.accumulateur, valActuelle, calcEtat.operateurEnAttente);
+    calcEtat.affichage = isNaN(resultat) ? 'Erreur' : String(Math.round(resultat * 1000) / 1000).replace('.', ',');
+    calcEtat.accumulateur = null;
+    calcEtat.operateurEnAttente = null;
+    calcEtat.effacerAuProchainChiffre = true;
+    majAffichageCalc();
+  }
+  function calcEffacer() {
+    calcEtat = { affichage: '0', accumulateur: null, operateurEnAttente: null, effacerAuProchainChiffre: false };
+    majAffichageCalc();
+  }
+  function calcRetourArriere() {
+    if (!calcEtat) return;
+    if (calcEtat.affichage.length <= 1 || calcEtat.affichage === 'Erreur') { calcEtat.affichage = '0'; }
+    else {
+      calcEtat.affichage = calcEtat.affichage.slice(0, -1);
+      if (calcEtat.affichage === '' || calcEtat.affichage === '-') calcEtat.affichage = '0';
+    }
+    majAffichageCalc();
+  }
+  function ouvrirCalculatricePopup(input) {
+    if (!input) return;
+    calcPopupCibleInput = input;
+    const ancien = document.getElementById('calcOverlay');
+    if (ancien) ancien.remove();
+    const overlay = document.createElement('div');
+    overlay.id = 'calcOverlay';
+    overlay.className = 'calc-overlay';
+    overlay.innerHTML = `
+      <div class="calc-modal">
+        <div class="calc-display" id="calcDisplay">0</div>
+        <div class="calc-keys">
+          <button type="button" class="calc-key calc-key-fn" data-calc-key="C">C</button>
+          <button type="button" class="calc-key calc-key-fn" data-calc-key="back">⌫</button>
+          <button type="button" class="calc-key calc-key-op" data-calc-key="/">÷</button>
+          <button type="button" class="calc-key calc-key-op" data-calc-key="*">×</button>
+          <button type="button" class="calc-key" data-calc-key="7">7</button>
+          <button type="button" class="calc-key" data-calc-key="8">8</button>
+          <button type="button" class="calc-key" data-calc-key="9">9</button>
+          <button type="button" class="calc-key calc-key-op" data-calc-key="-">−</button>
+          <button type="button" class="calc-key" data-calc-key="4">4</button>
+          <button type="button" class="calc-key" data-calc-key="5">5</button>
+          <button type="button" class="calc-key" data-calc-key="6">6</button>
+          <button type="button" class="calc-key calc-key-op" data-calc-key="+">+</button>
+          <button type="button" class="calc-key" data-calc-key="1">1</button>
+          <button type="button" class="calc-key" data-calc-key="2">2</button>
+          <button type="button" class="calc-key" data-calc-key="3">3</button>
+          <button type="button" class="calc-key calc-key-eq" data-calc-key="=" style="grid-row: span 2;">=</button>
+          <button type="button" class="calc-key" data-calc-key="0" style="grid-column: span 2;">0</button>
+          <button type="button" class="calc-key" data-calc-key=",">,</button>
+        </div>
+        <div class="calc-actions">
+          <button type="button" class="btn-ghost" id="btnCalcAnnuler">Annuler</button>
+          <button type="button" class="btn-primary" id="btnCalcUtiliser">Utiliser ce résultat</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+    const valeurExistante = input.value === '' ? NaN : evaluerAdditionChainee(input.value);
+    calcEtat = { affichage: !isNaN(valeurExistante) ? String(valeurExistante).replace('.', ',') : '0', accumulateur: null, operateurEnAttente: null, effacerAuProchainChiffre: true };
+    majAffichageCalc();
+    document.getElementById('btnCalcAnnuler').addEventListener('click', fermerCalculatricePopup);
+    document.getElementById('btnCalcUtiliser').addEventListener('click', () => {
+      const val = Number((calcEtat.affichage || '0').replace(',', '.'));
+      if (!isNaN(val) && calcPopupCibleInput) {
+        calcPopupCibleInput.value = String(val);
+        calcPopupCibleInput.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+      fermerCalculatricePopup();
+    });
+  }
+  function fermerCalculatricePopup() {
+    const overlay = document.getElementById('calcOverlay');
+    if (overlay) overlay.remove();
+    calcPopupCibleInput = null;
+    calcEtat = null;
+  }
+
+  // Écoute déléguée globale (03/08/2026, étendue 16/08/2026 pour la
+  // calculatrice) pour tous les boutons qui vivent dans du HTML recréé en
+  // continu pendant la saisie — un addEventListener direct dessus serait
   // perdu à chaque re-rendu. document.addEventListener survit à tous les
   // changements d'écran (contrairement à un listener posé sur #content).
   document.addEventListener('click', (e) => {
+    const opBtn = e.target.closest('.calc-op-btn');
+    if (opBtn) {
+      const conteneur = opBtn.closest('.champ-comptage');
+      const input = conteneur ? conteneur.querySelector('input') : null;
+      ajouterOperateurChamp(input, opBtn.dataset.calcOp);
+      return;
+    }
+    const popBtn = e.target.closest('.calc-pop-btn');
+    if (popBtn) {
+      const conteneur = popBtn.closest('.champ-comptage');
+      const input = conteneur ? conteneur.querySelector('input') : null;
+      ouvrirCalculatricePopup(input);
+      return;
+    }
+    const calcKey = e.target.closest('.calc-key');
+    if (calcKey) {
+      const k = calcKey.dataset.calcKey;
+      if (k === 'C') calcEffacer();
+      else if (k === 'back') calcRetourArriere();
+      else if (k === '=') calcAppuiEgal();
+      else if (k === '+' || k === '-' || k === '*' || k === '/') calcAppuiOperateur(k);
+      else calcAppuiChiffre(k);
+      return;
+    }
+    if (e.target.id === 'calcOverlay') { fermerCalculatricePopup(); return; }
+
     const btn = e.target.closest('.btn-declarer-livraison');
     if (!btn) return;
     const produitId = btn.dataset.produit;
@@ -1962,6 +2224,13 @@
     declarerLivraisonRapide(produitId, qte);
     const conteneur = btn.closest('.ecart-tag');
     if (conteneur) conteneur.innerHTML = rendreContenuEcart(produitId, qte);
+  });
+
+  // Aperçu "= X" (voir majApercuChamp) tenu à jour à chaque frappe, qu'elle
+  // vienne du clavier natif ou des boutons [+]/[−] — une seule écoute
+  // déléguée plutôt qu'une réattachée à chaque re-rendu de champ.
+  document.addEventListener('input', (e) => {
+    if (e.target.closest && e.target.closest('.champ-comptage')) majApercuChamp(e.target);
   });
 
   // ------------------------------------------------------------
