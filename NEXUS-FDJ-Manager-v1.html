@@ -1445,7 +1445,7 @@
     // rupture), sinon "tous" (rien à prioriser).
     const etatsInitiaux = {};
     jeux.forEach(j => {
-      etatsInitiaux[j.id] = NexusFdjMoteur.etatLigneStockV2(stockEtat.soldes[j.id], stockEtat.approNonTrace[j.id] || 0, j.tickets_par_carnet, autonomieParJeu[j.id]);
+      etatsInitiaux[j.id] = NexusFdjMoteur.etatLigneStockV2(stockEtat.soldes[j.id], stockEtat.approNonTrace[j.id] || 0, j.tickets_par_carnet, ticketsRestantsParJeu[j.id], autonomieParJeu[j.id]);
     });
     const compteReappro = jeux.filter(j => etatsInitiaux[j.id].statut === 'reapprovisionner').length;
     const compteRapprocher = jeux.filter(j => etatsInitiaux[j.id].statut === 'rapprocher').length;
@@ -1462,7 +1462,7 @@
   // lit rotationParJeu/ticketsRestantsParJeu/autonomieParJeu déjà calculés
   // dans ouvrirStockEtat, jamais recalculés ici.
   function etatLigneStock(gameId, solde, approNonTrace, ticketsParCarnet) {
-    return NexusFdjMoteur.etatLigneStockV2(solde, approNonTrace, ticketsParCarnet, stockEtat.autonomieParJeu[gameId]);
+    return NexusFdjMoteur.etatLigneStockV2(solde, approNonTrace, ticketsParCarnet, stockEtat.ticketsRestantsParJeu[gameId], stockEtat.autonomieParJeu[gameId]);
   }
 
   const FDJ_STOCK_FILTRES = [

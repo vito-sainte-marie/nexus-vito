@@ -107,33 +107,65 @@ console.log('✓ 4. calculerAutonomieJeu');
 // ------------------------------------------------------------
 {
   // CASH 5€ : bureau 22, caisse non activés 2, en cours 1 -> 🟢 OK
-  const cash = M.etatLigneStockV2({ bureau: 22, nonActives: 2, actives: 1 }, 0, 50, { jours: 10, motif: null });
+  const cash = M.etatLigneStockV2({ bureau: 22, nonActives: 2, actives: 1 }, 0, 50, 25, { jours: 10, motif: null });
   assert.strictEqual(cash.statut, 'ok', `CASH attendu OK, obtenu ${cash.statut}`);
 
   // X10 2€ : bureau 9, caisse non activés 1, en cours 0 -> 🟠 Vigilance
-  const x10 = M.etatLigneStockV2({ bureau: 9, nonActives: 1, actives: 0 }, 0, 50, { jours: 10, motif: null });
+  const x10 = M.etatLigneStockV2({ bureau: 9, nonActives: 1, actives: 0 }, 0, 50, null, { jours: 10, motif: null });
   assert.strictEqual(x10.statut, 'vigilance', `X10 attendu vigilance, obtenu ${x10.statut}`);
 
-  // BANCO 1€ : bureau 3, caisse non activés 0, en cours 0 -> 🔴 Réapprovisionner
-  const banco = M.etatLigneStockV2({ bureau: 3, nonActives: 0, actives: 0 }, 0, 50, { jours: null, motif: 'rotation_inconnue' });
+  // BANCO 1€ : bureau 3, caisse non activés 0, en cours 0 (aucun carnet en
+  // cours identifiable) -> 🔴 Réapprovisionner, la règle "pas encore à
+  // moitié" ne s'applique pas sans carnet en cours.
+  const banco = M.etatLigneStockV2({ bureau: 3, nonActives: 0, actives: 0 }, 0, 50, null, { jours: null, motif: 'rotation_inconnue' });
   assert.strictEqual(banco.statut, 'reapprovisionner', `BANCO attendu reapprovisionner, obtenu ${banco.statut}`);
   assert.strictEqual(banco.badge, '🔴 Réapprovisionner');
 
   // Rupture totale : rien nulle part.
-  const rupture = M.etatLigneStockV2({ bureau: 0, nonActives: 0, actives: 0 }, 0, 50, null);
+  const rupture = M.etatLigneStockV2({ bureau: 0, nonActives: 0, actives: 0 }, 0, 50, null, null);
   assert.strictEqual(rupture.statut, 'reapprovisionner');
   assert.strictEqual(rupture.badge, '🔴 Rupture totale');
 
   // Rapprochement : prime sur tout, même avec un stock par ailleurs sain.
-  const rapprocher = M.etatLigneStockV2({ bureau: 22, nonActives: 2, actives: 1 }, 120, 50, { jours: 10, motif: null });
+  const rapprocher = M.etatLigneStockV2({ bureau: 22, nonActives: 2, actives: 1 }, 120, 50, 25, { jours: 10, motif: null });
   assert.strictEqual(rapprocher.statut, 'rapprocher');
   assert.strictEqual(rapprocher.carnetsEstimes, 2);
 
   // Autonomie courte : bascule en vigilance même avec du stock caisse.
-  const autonomieCourte = M.etatLigneStockV2({ bureau: 5, nonActives: 4, actives: 1 }, 0, 50, { jours: 2, motif: null });
+  const autonomieCourte = M.etatLigneStockV2({ bureau: 5, nonActives: 4, actives: 1 }, 0, 50, 25, { jours: 2, motif: null });
   assert.strictEqual(autonomieCourte.statut, 'vigilance', 'Autonomie <= seuil : vigilance même si nonActives>0 et actives>0');
+
+  // ------------------------------------------------------------
+  // Règle "pas encore à la moitié du carnet" (14/08/2026, demande de
+  // Frédéric) : nonActives=0 (rien en caisse), MAIS un carnet est en cours
+  // (actives=1) et il en reste plus de la moitié -> pas de réapprovisionner,
+  // juste une vigilance.
+  // ------------------------------------------------------------
+  // 30/50 tickets restants = 60% > 50% : pas encore à moitié -> vigilance, pas rouge.
+  const pasEncoreMoitie = M.etatLigneStockV2({ bureau: 5, nonActives: 0, actives: 1 }, 0, 50, 30, { jours: 5, motif: null });
+  assert.strictEqual(pasEncoreMoitie.statut, 'vigilance', `Attendu vigilance (carnet pas encore à moitié), obtenu ${pasEncoreMoitie.statut}`);
+  assert.strictEqual(pasEncoreMoitie.badge, '🟠 Vigilance');
+
+  // 24/50 = 48% <= 50% : déjà passé la moitié -> réapprovisionner, comme avant.
+  const dejaPasseeMoitie = M.etatLigneStockV2({ bureau: 5, nonActives: 0, actives: 1 }, 0, 50, 24, { jours: 5, motif: null });
+  assert.strictEqual(dejaPasseeMoitie.statut, 'reapprovisionner', `Attendu reapprovisionner (déjà à plus de moitié), obtenu ${dejaPasseeMoitie.statut}`);
+
+  // Exactement la moitié (25/50) : la règle dit "pas ENCORE arrivé à la
+  // moitié" -> à la moitié pile, ce n'est plus "pas encore", donc rouge.
+  const piegeMoitiePile = M.etatLigneStockV2({ bureau: 5, nonActives: 0, actives: 1 }, 0, 50, 25, { jours: 5, motif: null });
+  assert.strictEqual(piegeMoitiePile.statut, 'reapprovisionner', `À exactement la moitié : plus "pas encore", attendu reapprovisionner, obtenu ${piegeMoitiePile.statut}`);
+
+  // Sans carnet en cours (actives=0), la règle ne s'applique jamais, même
+  // si ticketsRestants était connu par ailleurs (cas normalement impossible
+  // en pratique, mais la garde doit rester stricte sur `actives > 0`).
+  const sansCarnetEnCours = M.etatLigneStockV2({ bureau: 5, nonActives: 0, actives: 0 }, 0, 50, 40, { jours: 5, motif: null });
+  assert.strictEqual(sansCarnetEnCours.statut, 'reapprovisionner', 'Sans carnet en cours, la règle "pas encore à moitié" ne doit jamais s\'appliquer');
+
+  // ticketsParCarnet inconnu : impossible de juger "à moitié", reste rouge.
+  const sansTaille = M.etatLigneStockV2({ bureau: 5, nonActives: 0, actives: 1 }, 0, null, 30, { jours: 5, motif: null });
+  assert.strictEqual(sansTaille.statut, 'reapprovisionner', 'tickets_par_carnet inconnu : jamais d\'exception (rien à évaluer)');
 }
-console.log('✓ 5. etatLigneStockV2 — 3 exemples de Frédéric (CASH/X10/BANCO) + rupture totale + rapprochement + autonomie courte');
+console.log('✓ 5. etatLigneStockV2 — 3 exemples de Frédéric (CASH/X10/BANCO) + rupture totale + rapprochement + autonomie courte + règle "pas encore à moitié"');
 
 // ------------------------------------------------------------
 // 6) phraseFamillePalier

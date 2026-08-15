@@ -442,6 +442,22 @@
   const FDJ_ROTATION_FENETRE_JOURS_DEFAUT = 30;
   const FDJ_SEUIL_AUTONOMIE_VIGILANCE_JOURS = 3;
 
+  // Seuil "pas encore à la moitié du carnet" (14/08/2026, demande de
+  // Frédéric : "si je ne suis pas arrivé à la moitié du carnet, même s'il
+  // n'y a pas de carnet en caisse, ne me demande pas de réapprovisionner").
+  // Règle simple et fixe pour l'instant, volontairement — Frédéric a lui-
+  // même envisagé une évolution où NEXUS "apprend du roulement" propre à
+  // chaque jeu (rotation réelle) et n'aurait plus besoin de ce seuil fixe
+  // après une soixantaine de quarts consécutifs de données par jeu ; non
+  // implémenté ici (aucune spécification du modèle d'apprentissage, aucun
+  // historique encore assez profond sur le site pilote pour le valider) —
+  // à cadrer séparément si le besoin se confirme à l'usage. Voir
+  // `etatLigneStockV2` : ne s'applique QUE s'il existe un carnet en cours
+  // identifiable (`solde.actives > 0` et tickets restants calculables) —
+  // sans carnet en cours, rien ne dit qu'il reste du temps, donc pas
+  // d'exception à la règle.
+  const FDJ_SEUIL_FRACTION_CARNET_PAS_ENCORE_MOITIE = 0.5;
+
   // Carnets activés par jour en moyenne, sur une fenêtre bornée par le
   // dernier point zéro (jamais avant — les mouvements antérieurs sont déjà
   // absorbés dans la référence, les compter reviendrait à dupliquer une
@@ -519,22 +535,35 @@
   // Priorité : un rapprochement en attente prime toujours (les chiffres de
   // stock ne sont pas fiables tant qu'il n'est pas résolu) — inchangé par
   // rapport à l'ancienne version, juste renommé/étendu.
-  //   - 'reapprovisionner' (🔴) : plus rien en caisse non activée. Le
-  //     libellé distingue "Rupture totale" (rien nulle part, y compris le
-  //     bureau) de "Réapprovisionner" (une réserve existe au bureau, il
+  //   - 'reapprovisionner' (🔴) : plus rien en caisse non activée ET le
+  //     carnet en cours (s'il y en a un identifiable) est déjà entamé au-
+  //     delà de sa moitié — voir FDJ_SEUIL_FRACTION_CARNET_PAS_ENCORE_MOITIE.
+  //     Le libellé distingue "Rupture totale" (rien nulle part, y compris
+  //     le bureau) de "Réapprovisionner" (une réserve existe au bureau, il
   //     suffit de la redescendre) — même donnée, deux degrés d'urgence.
-  //   - 'vigilance' (🟠) : une réserve existe en caisse, mais rien n'est
-  //     actuellement en cours de vente (`solde.actives <= 0`, entre deux
-  //     carnets) OU l'autonomie estimée est courte
-  //     (FDJ_SEUIL_AUTONOMIE_VIGILANCE_JOURS) quand elle est calculable.
+  //   - 'vigilance' (🟠) : soit une réserve existe en caisse mais rien
+  //     n'est actuellement en cours de vente (`solde.actives <= 0`, entre
+  //     deux carnets) OU l'autonomie estimée est courte
+  //     (FDJ_SEUIL_AUTONOMIE_VIGILANCE_JOURS) quand elle est calculable ;
+  //     soit rien en caisse non activée MAIS le carnet en cours n'a pas
+  //     encore atteint sa moitié (14/08/2026, demande de Frédéric : "si je
+  //     ne suis pas arrivé à la moitié du carnet, même s'il n'y a pas de
+  //     carnet en caisse, ne me demande pas de réapprovisionner" — il
+  //     reste du temps, pas la peine d'alarmer, mais l'absence de réserve
+  //     mérite quand même d'être visible plutôt que masquée en 🟢 OK).
   //   - 'ok' (🟢) : le reste.
-  function etatLigneStockV2(solde, approNonTrace, ticketsParCarnet, autonomie) {
+  function etatLigneStockV2(solde, approNonTrace, ticketsParCarnet, ticketsRestants, autonomie) {
     if (approNonTrace > 0) {
       const carnetsEstimes = ticketsParCarnet ? Math.floor(approNonTrace / ticketsParCarnet) : null;
       return { statut: 'rapprocher', couleur: 'ambre', badge: '⚠️ À rapprocher', rapprochement: true, carnetsEstimes, approNonTrace };
     }
     const s = solde || { bureau: 0, actives: 0, nonActives: 0 };
     if (s.nonActives <= 0) {
+      const carnetEnCoursPasEncoreMoitie = s.actives > 0 && ticketsParCarnet && ticketsRestants != null
+        && (ticketsRestants / ticketsParCarnet) > FDJ_SEUIL_FRACTION_CARNET_PAS_ENCORE_MOITIE;
+      if (carnetEnCoursPasEncoreMoitie) {
+        return { statut: 'vigilance', couleur: 'ambre', badge: '🟠 Vigilance' };
+      }
       const rupture = s.bureau <= 0;
       return { statut: 'reapprovisionner', couleur: 'rouge', badge: rupture ? '🔴 Rupture totale' : '🔴 Réapprovisionner' };
     }
@@ -679,6 +708,7 @@
     minutesDepuisMinuit, quartDansFenetreAcces, evaluerAccesQuart,
     etatIntegriteFdj,
     FDJ_ROTATION_FENETRE_JOURS_DEFAUT, FDJ_SEUIL_AUTONOMIE_VIGILANCE_JOURS,
+    FDJ_SEUIL_FRACTION_CARNET_PAS_ENCORE_MOITIE,
     rotationCarnetsJeu, ticketsRestantsCarnetEnCours, calculerAutonomieJeu,
     etatLigneStockV2, phraseFamillePalier, syntheseGlobaleFdjStock,
   };
