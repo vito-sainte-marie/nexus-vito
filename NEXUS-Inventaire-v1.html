@@ -2044,6 +2044,17 @@
     const nouveauBrut = /[+\-]\s*$/.test(brut) ? brut.replace(/[+\-]\s*$/, op) : brut + op;
     input.value = nouveauBrut;
     input.focus();
+    // Corrigé (16/08/2026, signalé par Frédéric sur iPhone — "je tape 6, ça
+    // efface 120+ et met juste 6") : chaque champ de comptage porte
+    // `onfocus="this.select()"` (pour pouvoir retaper vite par-dessus un
+    // chiffre déjà saisi) — .focus() redéclenche donc CE onfocus et
+    // sélectionne tout le texte, y compris l'opérateur qu'on vient
+    // d'ajouter. Le prochain chiffre tapé remplaçait alors "120+" en
+    // entier au lieu de s'ajouter après. On repositionne le curseur en fin
+    // de champ juste après, pour annuler cette sélection involontaire —
+    // aucun impact sur le comportement normal de onfocus (un tap manuel
+    // sur le champ, lui, doit toujours tout sélectionner).
+    input.setSelectionRange(input.value.length, input.value.length);
     input.dispatchEvent(new Event('input', { bubbles: true }));
   }
 
