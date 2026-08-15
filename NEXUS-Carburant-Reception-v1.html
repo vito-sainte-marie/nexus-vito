@@ -198,7 +198,23 @@
   let carburantChoisi = null;
   let cuvesDuCarburant = [];
 
+  // Transporteur par défaut (14/08/2026, demande de Frédéric : "mets par
+  // défaut TRANSHYDRO SARL") — même convention que HORAIRES_DEFAUT dans
+  // NEXUS-Parametres-Station-v1.html : valeur codée en dur propre au site
+  // pilote Vito Sainte-Marie Usine, reste éditable au cas où un autre
+  // transporteur livre exceptionnellement.
+  const TRANSPORTEUR_DEFAUT = 'TRANSHYDRO SARL';
+
   let entete = { transporteur: '', chauffeur: '', immatriculation: '', quantite_bl_l: '', bon_livraison_reference: '', heure_debut: '' };
+  // Mémorise transporteur/chauffeur/immatriculation/n° BL ou facture entre
+  // deux carburants d'une même visite camion (14/08/2026, corrige un bug :
+  // "Ajouter un autre carburant" prétendait déjà reprendre ces champs via
+  // un setTimeout, mais demarrerReception() écrasait entete juste après
+  // avec des valeurs vides avant que le setTimeout ne s'exécute — la
+  // reprise n'avait donc jamais réellement lieu). Uniquement rempli par le
+  // bouton "Ajouter un autre carburant" du succès ; jamais persisté,
+  // remis à null au retour explicite à l'accueil (fin de la visite).
+  let dernierEnTeteMemorise = null;
   let mesuresParCuve = {}; // cuveId -> { jaugeage_avant_l, jaugeage_avant_le, jaugeage_apres_l, jaugeage_apres_le }
   let compartimentsSaisis = ['', '']; // volumes déclarés (vérification en direct, non persistée)
   let heureFin = '';
@@ -295,7 +311,20 @@
   function demarrerReception(carburant) {
     carburantChoisi = carburant;
     cuvesDuCarburant = cuvesActives[carburant];
-    entete = { transporteur: '', chauffeur: '', immatriculation: '', quantite_bl_l: '', bon_livraison_reference: '', heure_debut: datetimeLocalMaintenant() };
+    // Transporteur/chauffeur/immatriculation/n° BL ou facture : repris de
+    // dernierEnTeteMemorise si cette réception fait suite à "Ajouter un
+    // autre carburant" (même camion, même visite) — sinon transporteur
+    // par défaut TRANSHYDRO SARL et le reste vide. quantite_bl_l n'est
+    // JAMAIS repris (chaque carburant a sa propre quantité documentaire,
+    // voir la feuille papier "Livraison prévue" : SP/GO/GNR distincts).
+    entete = {
+      transporteur: (dernierEnTeteMemorise && dernierEnTeteMemorise.transporteur) || TRANSPORTEUR_DEFAUT,
+      chauffeur: (dernierEnTeteMemorise && dernierEnTeteMemorise.chauffeur) || '',
+      immatriculation: (dernierEnTeteMemorise && dernierEnTeteMemorise.immatriculation) || '',
+      quantite_bl_l: '',
+      bon_livraison_reference: (dernierEnTeteMemorise && dernierEnTeteMemorise.bon_livraison_reference) || '',
+      heure_debut: datetimeLocalMaintenant(),
+    };
     mesuresParCuve = {};
     cuvesDuCarburant.forEach(cu => { mesuresParCuve[cu.id] = { jaugeage_avant_l: '', jaugeage_avant_le: '', jaugeage_apres_l: '', jaugeage_apres_le: '' }; });
     compartimentsSaisis = ['', ''];
@@ -320,8 +349,8 @@
       <div class="champ-label">Quantité selon le bon de livraison (L)</div>
       <input class="champ-input" id="fQuantiteBl" type="number" inputmode="decimal" placeholder="0" value="${entete.quantite_bl_l}">
       <div class="champ-note">La quantité documentaire du BL — jamais remplacée par le jaugeage terrain, uniquement comparée à lui.</div>
-      <div class="champ-label">Référence du BL <span class="optionnel">(optionnel)</span></div>
-      <input class="champ-input texte" id="fRefBl" placeholder="N° du bon de livraison" value="${entete.bon_livraison_reference}">
+      <div class="champ-label">N° de BL ou de facture <span class="optionnel">(optionnel)</span></div>
+      <input class="champ-input texte" id="fRefBl" placeholder="N° du bon de livraison, ou FAC-XXXXX" value="${entete.bon_livraison_reference}">
       <div class="champ-label">Heure de début de livraison</div>
       <input class="champ-input" id="fHeureDebut" type="datetime-local" value="${entete.heure_debut}">
       <button class="btn-primary" id="btnContinuerLivraison" disabled>Continuer</button>
@@ -521,6 +550,7 @@
         <div class="stat-row"><span class="stat-label">Quantité BL</span><span class="stat-value">${fmtNum(entete.quantite_bl_l)} L</span></div>
         ${entete.transporteur ? `<div class="stat-row"><span class="stat-label">Transporteur</span><span class="stat-value">${entete.transporteur}</span></div>` : ''}
         ${entete.immatriculation ? `<div class="stat-row"><span class="stat-label">Immatriculation</span><span class="stat-value">${entete.immatriculation}</span></div>` : ''}
+        ${entete.bon_livraison_reference ? `<div class="stat-row"><span class="stat-label">N° BL / facture</span><span class="stat-value">${entete.bon_livraison_reference}</span></div>` : ''}
         <div class="stat-row"><span class="stat-label">Total mesuré terrain</span><span class="stat-value">${resultatCalcul.deltaMesureTotal != null ? `${resultatCalcul.deltaMesureTotal >= 0 ? '+' : ''}${fmtNum(resultatCalcul.deltaMesureTotal)} L` : '—'}</span></div>
         <div class="stat-row total"><span class="stat-label">Statut proposé</span><span class="stat-value">${libelle.texte}</span></div>
       </div>
@@ -601,13 +631,30 @@
       <button class="btn-ghost" id="btnRetourAccueilFinal">Retour à l'accueil</button>
     `;
     document.getElementById('btnAutreCarburant').addEventListener('click', () => {
-      // Reprend transporteur/chauffeur/immatriculation (même camion), pratique
-      // pour les livraisons multi-carburants (GO + SP95 en une seule visite).
-      const t = entete.transporteur, ch = entete.chauffeur, im = entete.immatriculation;
+      // Mémorise transporteur/chauffeur/immatriculation/n° BL ou facture
+      // AVANT de revenir à l'accueil (même camion, même visite) — lu par
+      // demarrerReception() au choix du prochain carburant, pour ne pas
+      // faire ressaisir ces champs pour GO puis GNR (demande de Frédéric,
+      // 14/08/2026). Corrige un bug : l'ancienne version tentait la même
+      // chose via un setTimeout après allerEtape('accueil'), mais
+      // demarrerReception() écrasait entete entre-temps — la reprise
+      // n'avait donc jamais lieu (voir dernierEnTeteMemorise plus haut).
+      dernierEnTeteMemorise = {
+        transporteur: entete.transporteur,
+        chauffeur: entete.chauffeur,
+        immatriculation: entete.immatriculation,
+        bon_livraison_reference: entete.bon_livraison_reference,
+      };
       allerEtape('accueil');
-      setTimeout(() => { entete.transporteur = t; entete.chauffeur = ch; entete.immatriculation = im; }, 0);
     });
-    document.getElementById('btnRetourAccueilFinal').addEventListener('click', () => allerEtape('accueil'));
+    document.getElementById('btnRetourAccueilFinal').addEventListener('click', () => {
+      // "Retour à l'accueil" (par opposition à "Ajouter un autre
+      // carburant") marque la fin de cette visite camion : la mémoire
+      // partagée ne doit pas fuiter dans une réception ultérieure sans
+      // rapport (camion différent, jour différent).
+      dernierEnTeteMemorise = null;
+      allerEtape('accueil');
+    });
   }
 
   // ------------------------------------------------------------
