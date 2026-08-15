@@ -338,6 +338,17 @@
   let categorieActive = null;       // nom de la catégorie affichée en détail
   let carrouselIndex = 0;           // index courant dans la catégorie en mode carrousel
   let carrouselModeCorrection = false; // true dès que l'employé a tapé "Corriger" sur le produit courant
+  // Parcours dépôt → boutique → reste (15/08/2026, demande de Frédéric —
+  // "une fois que le comptage dépôt est terminé, passe par le comptage
+  // boutique et en fin le comptage du reste des produits comme predefini") :
+  // dès que le dépôt est entièrement compté, l'écran "Comptage boutique"
+  // (renderFinalisationDoubleLieu) se propose automatiquement plutôt que
+  // d'attendre la validation finale — mais reste souple (l'employé peut
+  // revenir aux catégories s'il préfère). `true` dès qu'il a explicitement
+  // choisi de la reporter à plus tard, pour ne pas la lui re-proposer en
+  // boucle à chaque retour sur l'écran catégories (le filet de sécurité à
+  // la validation finale, lui, reste actif quoi qu'il arrive).
+  let boutiqueRattrapageIgnore = false;
 
   // Horodateur discret (02/08/2026, demande de Frédéric) : plus de secondes
   // affichées, donc plus besoin d'une mise à jour chaque seconde — toutes
@@ -549,6 +560,33 @@
     return Object.values(groupes).sort((a, b) => a.ordre - b.ordre);
   }
 
+  // Parcours dépôt → boutique → reste (15/08/2026, demande de Frédéric).
+  // Une catégorie "dépôt" est une catégorie dont les produits sont comptés
+  // en deux lieux (`comptage_deux_lieux` — Boissons chaudes/Bières, Huiles,
+  // Lave-glace sur le site pilote) : l'employé les compte au dépôt d'abord,
+  // la boutique étant rattrapée séparément (voir renderFinalisationDoubleLieu).
+  // Réordonne l'ensemble des catégories pour que ces catégories "dépôt"
+  // apparaissent EN PREMIER, et TOUT le reste (viennoiserie, journaux, pain,
+  // CBD, cigarettes, petits articles… — les catégories "prédéfinies"
+  // normales, sans dépôt) EN DERNIER — tri stable, l'ordre relatif interne
+  // (ordre_affichage) de chaque groupe est conservé.
+  function ordonnerParcoursDepotBoutiqueReste(groupes) {
+    const depot = groupes.filter(g => g.items.some(p => p.comptage_deux_lieux));
+    const reste = groupes.filter(g => !g.items.some(p => p.comptage_deux_lieux));
+    return [...depot, ...reste];
+  }
+
+  // Vrai dès que toutes les catégories "dépôt" (voir ci-dessus) sont
+  // terminées — `categorieEstTerminee` ne regarde que `compteDepot` pour un
+  // produit en deux lieux (voir produitEstCompte), donc cette fonction ne
+  // regarde bien que la phase dépôt, jamais la boutique. `false` s'il n'y a
+  // aucune catégorie dépôt sur cette zone (rien à rattraper).
+  function depotEntierementTermine(groupes) {
+    const groupesDepot = groupes.filter(g => g.items.some(p => p.comptage_deux_lieux));
+    if (!groupesDepot.length) return false;
+    return groupesDepot.every(g => categorieEstTerminee(g.items));
+  }
+
   // ------------------------------------------------------------
   // ÉCRAN D'ACCUEIL
   // ------------------------------------------------------------
@@ -667,6 +705,7 @@
     // repartir de zéro après un retour arrière accidentel ou un rechargement.
     const draft = chargerDraft('ouverture');
     comptagesSaisie = (draft && draft.comptagesSaisie) ? draft.comptagesSaisie : {};
+    boutiqueRattrapageIgnore = false;
     renderCategoriesOuverture();
   }
 
@@ -910,10 +949,26 @@
   // ------------------------------------------------------------
   function renderCategoriesOuverture() {
     categorieActive = null;
+
+    // Parcours dépôt → boutique → reste (15/08/2026, demande de Frédéric —
+    // "une fois que le comptage dépôt est terminé, passe par le comptage
+    // boutique et en fin le comptage du reste des produits comme
+    // predefini"). Dès que toutes les catégories dépôt sont terminées et
+    // que la boutique n'est pas encore rattrapée, on propose directement
+    // l'écran "Comptage boutique" au lieu de la liste des catégories —
+    // souple : l'employé peut toujours revenir aux catégories s'il préfère
+    // (voir le lien "Plus tard" dans renderFinalisationDoubleLieu), et le
+    // filet de sécurité à la validation finale reste inchangé.
+    const groupesPourParcours = ordonnerParcoursDepotBoutiqueReste(grouperParCategorie(produitsZone));
+    if (!boutiqueRattrapageIgnore && depotEntierementTermine(groupesPourParcours) && produitsDoubleLieuEnAttenteBoutique().length) {
+      renderFinalisationDoubleLieu('ouverture', { auto: true });
+      return;
+    }
+
     document.getElementById('titre').textContent = "Inventaire d'ouverture";
     document.getElementById('sousTitre').textContent = 'Vérifiez les quantités transmises. Corrigez uniquement les différences.';
 
-    const groupes = grouperParCategorie(produitsZone);
+    const groupes = groupesPourParcours;
     // Le jaugeage ne compte comme "requis" que s'il est à la fois activé
     // par le manager ET qu'on est à l'ouverture du quart matin (voir
     // "desactive" ci-dessous, même condition) — sinon une catégorie grisée
@@ -1586,10 +1641,13 @@
         <div class="mouv-liste" id="listeMouvements"></div>
       </div>
 
-      ${grouperParCategorie(produitsZone).map(g => {
+      ${ordonnerParcoursDepotBoutiqueReste(grouperParCategorie(produitsZone)).map(g => {
         // Jaugeage de début (03/08/2026, demande de Frédéric) : uniquement à
         // l'ouverture du quart matin (voir renderCategoriesOuverture) —
         // jamais à la clôture, quel que soit le quart ou le toggle manager.
+        // Parcours dépôt → boutique → reste (15/08/2026) : catégories
+        // dépôt (comptage_deux_lieux) affichées en premier, "reste" en
+        // dernier — voir ordonnerParcoursDepotBoutiqueReste.
         const desactive = g.nom === JAUGEAGE_NOM;
         return `
         <div class="cat-block ${desactive ? 'desactive' : ''}">
@@ -1677,10 +1735,23 @@
     });
   }
 
-  function renderFinalisationDoubleLieu(typeFlux) {
+  // `options.auto` (15/08/2026, demande de Frédéric — parcours dépôt →
+  // boutique → reste) : distingue le déclenchement automatique, dès que le
+  // dépôt est terminé (voir renderCategoriesOuverture), du déclenchement
+  // historique juste avant la validation finale (bouton "Terminer..."). En
+  // mode auto, valider ce comptage boutique ramène simplement aux
+  // catégories (pour enchaîner sur le "reste" — viennoiserie, journaux…),
+  // ça ne soumet jamais l'inventaire tout seul ; un lien "Plus tard" permet
+  // aussi de reporter ce rattrapage sans le perdre (le filet de sécurité à
+  // la validation finale, lui, redéclenchera cet écran en mode non-auto si
+  // besoin).
+  function renderFinalisationDoubleLieu(typeFlux, options) {
+    const auto = !!(options && options.auto);
     const enAttente = produitsDoubleLieuEnAttenteBoutique();
     document.getElementById('titre').textContent = 'Comptage boutique';
-    document.getElementById('sousTitre').textContent = "Vous êtes maintenant en boutique — complétez le comptage des produits déjà comptés au dépôt.";
+    document.getElementById('sousTitre').textContent = auto
+      ? 'Dépôt terminé — comptez maintenant ces mêmes produits en boutique, avant de passer au reste (viennoiserie, journaux…).'
+      : 'Vous êtes maintenant en boutique — complétez le comptage des produits déjà comptés au dépôt.';
     document.getElementById('content').innerHTML = `
       <div class="card">
         ${enAttente.map(p => `
@@ -1694,7 +1765,8 @@
           </div>
         `).join('')}
       </div>
-      <button class="btn-primary" id="btnValiderFinalisationDoubleLieu">${typeFlux === 'cloture' ? "Terminer et clôturer mon inventaire" : "Terminer et valider mon inventaire d'ouverture"}</button>
+      <button class="btn-primary" id="btnValiderFinalisationDoubleLieu">${auto ? 'Valider le comptage boutique' : (typeFlux === 'cloture' ? "Terminer et clôturer mon inventaire" : "Terminer et valider mon inventaire d'ouverture")}</button>
+      ${auto ? `<button class="btn-text" id="btnPlusTardFinalisationDoubleLieu">Plus tard — retour aux catégories</button>` : ''}
     `;
     const premier = document.querySelector('.produit-input-finalisation');
     if (premier) { premier.focus(); premier.select(); }
@@ -1724,12 +1796,19 @@
           }
         }
         sauvegarderDraft(typeFlux);
+        if (auto) { renderCategoriesOuverture(); return; }
         if (typeFlux === 'cloture') validerCloture(); else validerOuverture();
       } catch (err) {
         console.error('Erreur finalisation double lieu:', err);
         alert('Une erreur est survenue et la validation a été bloquée : ' + (err && err.message ? err.message : err) + '\n\nMerci de faire une capture d\'écran de ce message et de la transmettre.');
       }
     });
+    if (auto) {
+      document.getElementById('btnPlusTardFinalisationDoubleLieu').addEventListener('click', () => {
+        boutiqueRattrapageIgnore = true;
+        renderCategoriesOuverture();
+      });
+    }
   }
 
   // L'employé saisit toujours une quantité positive (une magnitude, jamais
