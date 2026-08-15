@@ -71,6 +71,20 @@
   .etat-banner{background:var(--panel); border:1px solid var(--hairline); border-radius:12px; padding:14px 16px; margin-bottom:14px; font-size:12.5px; color:var(--text-mid); line-height:1.5;}
   .etat-banner b{color:var(--text);}
 
+  /* Carte "écart de caisse" (16/08/2026, demande de Frédéric : même
+     présentation visuelle que la caisse boutique/piste de NEXUS-Verify-v1.html
+     — voir renderCarteEcart) — simple, intuitive, un coup d'œil suffit. */
+  .ecart-bloc{background:var(--panel-raised); border:1px solid var(--hairline); border-radius:14px; padding:16px 18px; margin-bottom:14px;}
+  .ecart-bloc-top{display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;}
+  .ecart-bloc-label{font-family:var(--mono); font-size:11px; color:var(--text-mid); text-transform:uppercase; letter-spacing:0.06em;}
+  .ecart-montant{font-family:var(--mono); font-size:30px; font-weight:700; line-height:1; margin-bottom:8px;}
+  .ecart-phrase{font-size:12.5px; color:var(--text-mid); line-height:1.5;}
+  .statut-badge{display:inline-block; font-family:var(--mono); font-size:10px; font-weight:700; letter-spacing:0.05em; text-transform:uppercase; padding:4px 10px; border-radius:20px;}
+  .statut-badge.provisoire{background:var(--panel); color:var(--text-mid); border:1px solid var(--hairline);}
+  .statut-badge.a_controler,.statut-badge.en_attente{background:var(--amber-dim); color:var(--amber);}
+  .statut-badge.expliquee,.statut-badge.regularise,.statut-badge.valide_avec_ecart{background:rgba(79,195,217,0.14); color:var(--cyan);}
+  .statut-badge.conforme{background:var(--green-dim); color:var(--green);}
+
   .quart-visuel{display:flex; gap:10px; margin-bottom:16px;}
   .quart-visuel-item{flex:1; text-align:center; padding:11px; border-radius:12px; border:1.5px solid var(--hairline); background:var(--panel); font-size:13px; font-weight:600; color:var(--text-dim); cursor:pointer;}
   .quart-visuel-item:active{background:var(--panel-raised);}
@@ -306,6 +320,61 @@
   }
   function fmtNum(n) { return (n === null || n === undefined || isNaN(n)) ? '—' : Number(n).toLocaleString('fr-FR', { maximumFractionDigits: 2 }); }
   function fmtEuro(n) { return (n === null || n === undefined || isNaN(n)) ? '—' : `${Number(n).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`; }
+
+  // ------------------------------------------------------------
+  // CARTE "ÉCART DE CAISSE" — 16/08/2026, demande de Frédéric : présenter
+  // l'écart FDJ "comme la caisse boutique ou piste" (NEXUS-Verify-v1.html)
+  // — une carte unique, un montant net en gros caractères, un badge de
+  // statut coloré, une phrase de lecture, plutôt qu'une ligne de texte
+  // brute. Seul générateur de cette carte dans ce fichier (Article 11) :
+  // consommée à l'identique par l'accueil (écart déjà transmis), le résumé
+  // avant transmission (aperçu, badge neutre) et l'aperçu en direct pendant
+  // la saisie (voir renderCarteEcart appelé depuis renderAccueil,
+  // renderResume et renderApercuEcart).
+  // Statuts repris tels quels de NEXUS-FDJ-Manager-v1.html (STATUTS_CAISSE)
+  // — un seul jeu de libellés dans tout NEXUS FDJ, jamais deux traductions
+  // différentes du même statut.
+  const LIBELLES_STATUT_CAISSE = {
+    provisoire: 'En attente de validation',
+    a_controler: 'À contrôler',
+    en_attente: 'En attente',
+    expliquee: 'Expliquée',
+    regularise: 'Régularisé',
+    valide_avec_ecart: 'Validé avec écart',
+    conforme: 'Conforme',
+  };
+  function renderCarteEcart(ecart, statut, options) {
+    const opts = options || {};
+    const label = opts.label || 'Caisse FDJ';
+    // Couleur posée en style inline plutôt que via une classe partagée avec
+    // .stat-value (16/08/2026) : .stat-value{font-size:15px} est déclarée
+    // plus bas dans la feuille de style que .ecart-montant{font-size:30px}
+    // — à spécificité CSS égale, la déclaration la plus tardive gagne, ce
+    // qui aurait discrètement écrasé la grande taille du montant. Éviter la
+    // collision plutôt que jouer sur l'ordre des règles.
+    const couleurMontant = ecart === null || ecart === undefined ? 'var(--text)' : (ecart === 0 ? 'var(--green)' : (Math.abs(ecart) <= 1 ? 'var(--amber)' : 'var(--red)'));
+    const montantTxt = ecart === null || ecart === undefined ? '—' : `${ecart > 0 ? '+' : ''}${fmtEuro(ecart)}`;
+    const badgeStatut = statut ? `<span class="statut-badge ${statut}">${LIBELLES_STATUT_CAISSE[statut] || statut}</span>` : '';
+    const phrase = opts.phrase || phraseEcartCaisse(ecart, statut);
+    return `
+      <div class="ecart-bloc">
+        <div class="ecart-bloc-top">
+          <span class="ecart-bloc-label">${label}</span>
+          ${badgeStatut}
+        </div>
+        <div class="ecart-montant" style="color:${couleurMontant};">${montantTxt}</div>
+        ${phrase ? `<div class="ecart-phrase">${phrase}</div>` : ''}
+      </div>
+    `;
+  }
+  function phraseEcartCaisse(ecart, statut) {
+    if (ecart === null || ecart === undefined) return 'Comptez la caisse réelle pour voir l\'écart.';
+    if (ecart === 0) return 'Caisse exacte, à l\'euro près.';
+    const sens = ecart > 0 ? 'excédent' : 'manque';
+    const base = `${sens.charAt(0).toUpperCase()}${sens.slice(1)} de ${fmtEuro(Math.abs(ecart))} par rapport à la caisse attendue.`;
+    if (!statut || statut === 'provisoire') return `${base} En attente de vérification par le manager.`;
+    return base;
+  }
 
   // Paramétrage FDJ du site (10/08/2026, audit "Paramétrage autonome &
   // multi-site" — fondations) : fdj_site_settings remplace les constantes
@@ -701,17 +770,20 @@
 
     // 16/08/2026 : l'écart n'est plus jamais masqué à l'employé (voir
     // commentaire au sommet du fichier) — seul le libellé de statut change
-    // selon que le manager a déjà validé la caisse ou non.
+    // selon que le manager a déjà validé la caisse ou non. 16/08/2026
+    // (suite, même jour) — demande de Frédéric : reprendre la présentation
+    // visuelle de "caisse boutique/piste" (NEXUS-Verify-v1.html, carte
+    // .ecart-bloc + badge de statut coloré) plutôt qu'un simple bandeau de
+    // texte, pour que ce soit "simple, intuitif et graphiquement agréable"
+    // — voir renderCarteEcart, seul générateur de cette carte (accueil,
+    // résumé avant transmission et aperçu en direct la consomment tous les
+    // trois, Article 11).
     let blocCaisse = '';
     let demandeCorrectionEnCours = null;
     if (clotureFaite) {
       const cash = await chargerCashControlDuQuart(shiftRow.id);
       if (cash) {
-        const classe = cash.ecart === 0 ? 'green' : (Math.abs(cash.ecart) <= 1 ? 'amber' : 'red');
-        const ecartHtml = `<b class="stat-value ${classe}" style="font-size:inherit;">${cash.ecart > 0 ? '+' : ''}${fmtEuro(cash.ecart)}</b>`;
-        blocCaisse = cash.statut !== 'provisoire'
-          ? `<div class="etat-banner">Caisse validée par le manager — écart ${ecartHtml}.</div>`
-          : `<div class="etat-banner">⏳ Écart constaté : ${ecartHtml} — en attente de validation par le manager.</div>`;
+        blocCaisse = renderCarteEcart(cash.ecart, cash.statut, { label: `Caisse FDJ · Quart ${shiftRow.quart}` });
         demandeCorrectionEnCours = await chargerDemandeCorrectionEnCours(shiftRow.id);
       }
     }
@@ -1417,7 +1489,7 @@
       <div class="champ-label">Caisse réelle comptée</div>
       <input type="number" inputmode="decimal" class="champ-input" id="champCaisseReelle" value="${caisseReelle ?? ''}" placeholder="0,00">
 
-      <div class="etat-banner" id="banniereEcartCaisse">${renderApercuEcart()}</div>
+      <div id="carteEcartCaisse">${renderCarteEcart(caisseReelle === null ? null : ecartCaisse(), null, { label: 'Aperçu — Caisse FDJ' })}</div>
 
       <button class="btn-primary" id="btnSuiteCaisse" ${caisseReelle === null ? 'disabled' : ''}>Continuer — Résumé</button>
       <button class="btn-ghost" id="btnRetourTirages">Retour</button>
@@ -1425,39 +1497,29 @@
     document.getElementById('champRegul').addEventListener('input', e => {
       regularisations = e.target.value === '' ? 0 : Number(e.target.value);
       sauvegarderDraft();
-      document.getElementById('banniereEcartCaisse').innerHTML = renderApercuEcart();
+      document.getElementById('carteEcartCaisse').innerHTML = renderCarteEcart(caisseReelle === null ? null : ecartCaisse(), null, { label: 'Aperçu — Caisse FDJ' });
     });
     document.getElementById('champCaisseReelle').addEventListener('input', e => {
       caisseReelle = e.target.value === '' ? null : Number(e.target.value);
       sauvegarderDraft();
       document.getElementById('btnSuiteCaisse').disabled = (caisseReelle === null);
-      document.getElementById('banniereEcartCaisse').innerHTML = renderApercuEcart();
+      document.getElementById('carteEcartCaisse').innerHTML = renderCarteEcart(caisseReelle === null ? null : ecartCaisse(), null, { label: 'Aperçu — Caisse FDJ' });
     });
     document.getElementById('btnSuiteCaisse').addEventListener('click', () => { phase = 'resume'; renderResume(); });
     document.getElementById('btnRetourTirages').addEventListener('click', () => { phase = 'tirages'; renderTirages(); });
   }
 
-  // Aperçu en direct de l'écart (16/08/2026) — factorisé pour être appelé à
-  // chaque frappe sans reconstruire tout le formulaire (même logique que
-  // majBanniereTirages juste au-dessus).
-  function renderApercuEcart() {
-    if (caisseReelle === null) return `Caisse attendue calculée : <b>${fmtEuro(caisseAttendue())}</b>. Saisissez la caisse réelle pour voir l'écart.`;
-    const ecart = ecartCaisse();
-    const classe = ecart === 0 ? 'green' : (Math.abs(ecart) <= 1 ? 'amber' : 'red');
-    return `Caisse attendue : <b>${fmtEuro(caisseAttendue())}</b> · Écart : <b class="stat-value ${classe}" style="font-size:inherit;">${ecart > 0 ? '+' : ''}${fmtEuro(ecart)}</b>`;
-  }
-
   // ------------------------------------------------------------
-  // PHASE 4 — RÉSUMÉ + VALIDATION. 16/08/2026 : affiche désormais la
-  // caisse attendue et l'écart (voir renderCaisse) — dernière chance de
-  // vérifier/corriger avant transmission, puisqu'après ce bouton l'employé
-  // ne pourra plus modifier directement (voir demarrerDemandeCorrection).
+  // PHASE 4 — RÉSUMÉ + VALIDATION. 16/08/2026 : même carte "écart de
+  // caisse" (voir renderCarteEcart) que l'accueil et l'aperçu en direct —
+  // dernière chance de vérifier/corriger avant transmission, puisqu'après
+  // ce bouton l'employé ne pourra plus modifier directement (voir
+  // demarrerDemandeCorrection).
   // ------------------------------------------------------------
   function renderResume() {
     document.getElementById('titre').textContent = 'Résumé de votre saisie';
     document.getElementById('sousTitre').textContent = '';
     const ecart = ecartCaisse();
-    const classe = ecart === null ? '' : (ecart === 0 ? 'green' : (Math.abs(ecart) <= 1 ? 'amber' : 'red'));
     document.getElementById('content').innerHTML = `
       ${renderStepper('Résumé')}
       <div class="resume-card">
@@ -1466,9 +1528,9 @@
         <div class="stat-row"><div class="stat-label">Caisse tirages</div><div class="stat-value">${fmtEuro(reportTempsReel.caisse_tirages)}</div></div>
         <div class="stat-row"><div class="stat-label">Régularisations</div><div class="stat-value">${fmtEuro(regularisations)}</div></div>
         <div class="stat-row"><div class="stat-label">Caisse réelle comptée</div><div class="stat-value">${fmtEuro(caisseReelle)}</div></div>
-        <div class="stat-row"><div class="stat-label">Caisse attendue</div><div class="stat-value cyan">${fmtEuro(caisseAttendue())}</div></div>
-        <div class="stat-row total"><div class="stat-label">Écart</div><div class="stat-value ${classe}">${ecart !== null ? `${ecart > 0 ? '+' : ''}${fmtEuro(ecart)}` : '—'}</div></div>
+        <div class="stat-row" style="margin-bottom:0;"><div class="stat-label">Caisse attendue</div><div class="stat-value cyan">${fmtEuro(caisseAttendue())}</div></div>
       </div>
+      ${renderCarteEcart(ecart, null, { label: 'Aperçu — Caisse FDJ' })}
       <div class="champ-note">Vérifiez avant de transmettre : une fois transmis, vous ne pourrez plus corriger directement — seulement demander une correction au manager.</div>
       <button class="btn-primary" id="btnValider">Transmettre mon quart FDJ</button>
       <button class="btn-ghost" id="btnRetourCaisse">Retour</button>
