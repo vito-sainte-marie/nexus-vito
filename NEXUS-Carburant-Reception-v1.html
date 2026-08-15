@@ -125,6 +125,8 @@
   .compartiment-bloc.carb-go{border-color:var(--go); background:rgba(245,166,35,0.10);}
   .compartiment-bloc.carb-gnr{border-color:var(--gnr); background:rgba(240,87,90,0.10);}
   .compartiment-bloc.non-receptionne{border-color:var(--red); background:var(--red-dim); animation:pulseAlerte 1.6s infinite;}
+  .compartiment-bloc.compartiment-vide{border-color:var(--hairline); background:repeating-linear-gradient(45deg, var(--panel-raised), var(--panel-raised) 6px, var(--panel) 6px, var(--panel) 12px); opacity:0.7;}
+  .compartiment-bloc.compartiment-vide .compartiment-carburant{color:var(--text-dim);}
   @keyframes pulseAlerte{0%,100%{box-shadow:0 0 0 0 rgba(240,87,90,0.35);} 50%{box-shadow:0 0 0 6px rgba(240,87,90,0);}}
   .camion-legende{display:flex; justify-content:center; gap:14px; margin-top:12px; font-size:10.5px; color:var(--text-mid);}
   .camion-legende span{display:inline-flex; align-items:center; gap:5px;}
@@ -342,6 +344,16 @@
     return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
   }
   function fmtNum(n) { return (n === null || n === undefined || isNaN(n)) ? '—' : Number(n).toLocaleString('fr-FR', { maximumFractionDigits: 1 }); }
+  // 15/08/2026 — saisie en m³ (×1000 L) pour aller plus vite au clavier sur
+  // 2 champs précis (quantité BL étape 1, quantité compartiment étape 3),
+  // demande explicite de Frédéric. Le m³ n'est QU'une commodité de saisie :
+  // la donnée stockée (quantite_bl_l / quantite_declaree_l) reste TOUJOURS
+  // en Litres, seule unité que connaissent le moteur, la base et tous les
+  // calculs/résultats/deltas affichés ailleurs (jaugeage, rapprochement,
+  // Pilotage, PDF) — jamais touchés par ce changement (Article 11, une
+  // seule vérité de stockage).
+  function litresVersM3(l) { return (l === '' || l === null || l === undefined || isNaN(Number(l))) ? '' : Number(l) / 1000; }
+  function m3VersLitres(m3) { return (m3 === '' || m3 === null || m3 === undefined || isNaN(Number(m3))) ? '' : Math.round(Number(m3) * 1000); }
   const NOM_CARBURANT = { sp95: 'Sans plomb (SP95)', go: 'Gasoil (GO)', gnr: 'Gasoil non routier (GNR)' };
   const NOM_CARBURANT_COURT = { sp95: 'SP95', go: 'GO', gnr: 'GNR' };
 
@@ -448,8 +460,8 @@
           </div>
           <div class="carburant-attendu-corps">
             ${lignes[c].actif ? `
-              <div class="champ-label" style="margin-top:10px;">Quantité attendue (L)</div>
-              <input class="champ-input" data-qte="${c}" type="number" inputmode="decimal" placeholder="0" value="${lignes[c].quantite_bl_l}" style="margin-bottom:0;">
+              <div class="champ-label" style="margin-top:10px;">Quantité attendue (m³)</div>
+              <input class="champ-input" data-qte="${c}" type="number" inputmode="decimal" step="0.001" placeholder="0" value="${litresVersM3(lignes[c].quantite_bl_l)}" style="margin-bottom:0;">
             ` : `<div class="carburant-attendu-vide">Non prévu</div>`}
           </div>
         </div>
@@ -474,7 +486,7 @@
       renderLivraison();
     }));
     document.querySelectorAll('[data-qte]').forEach(input => input.addEventListener('input', () => {
-      lignes[input.getAttribute('data-qte')].quantite_bl_l = input.value;
+      lignes[input.getAttribute('data-qte')].quantite_bl_l = m3VersLitres(input.value);
       majBoutonLivraison();
     }));
     const maj = () => {
@@ -492,9 +504,12 @@
       mesuresParCuve = {};
       cuvesPrevues().forEach(cu => { mesuresParCuve[cleCuve(cu)] = { cuve_id: cu.id, carburant: cu.carburant, jaugeage_avant_l: '', jaugeage_avant_le: '', jaugeage_apres_l: '', jaugeage_apres_le: '' }; });
       // Compartiments par défaut, nombre configuré par site — l'employé
-      // peut ajuster à l'étape 3 (add/retirer), jamais figé.
-      const n = config.nombreCompartimentsDefaut || 4;
-      compartiments = Array.from({ length: n }, (_, i) => ({ numero: i + 1, carburant: null, quantite_declaree_l: '', cuve_destination_id: null, statut: 'a_receptionner', motif_non_receptionne: null, receptionne_le: null }));
+      // peut ajuster à l'étape 3 (add/retirer), jamais figé. Un compartiment
+      // peut être marqué "vide" (non utilisé pour cette livraison, ex. un
+      // camion à 6 compartiments qui n'en charge que 5) : `vide:false` à la
+      // création, l'employé le bascule lui-même à l'étape 3.
+      const n = config.nombreCompartimentsDefaut || 6;
+      compartiments = Array.from({ length: n }, (_, i) => ({ numero: i + 1, carburant: null, quantite_declaree_l: '', cuve_destination_id: null, vide: false, statut: 'a_receptionner', motif_non_receptionne: null, receptionne_le: null }));
       allerEtape('jaugeage_avant');
     });
     document.getElementById('btnAnnulerLivraison').addEventListener('click', () => { if (confirm('Annuler cette réception ? La saisie en cours sera perdue.')) allerEtape('accueil'); });
@@ -648,15 +663,15 @@
         <div class="camion-titre">Camion — ${compartiments.length} compartiment${compartiments.length > 1 ? 's' : ''}</div>
         <div class="camion-grille">
           ${compartiments.map(c => {
-            const classeCarb = c.carburant ? `carb-${c.carburant}` : '';
+            const classeCarb = c.vide ? 'compartiment-vide' : (c.carburant ? `carb-${c.carburant}` : '');
             const classeAlerte = mode === 'reception' && c.statut === 'non_receptionne' && !derogationsParCompartiment[c.numero] ? 'non-receptionne' : '';
             const coche = mode === 'reception' && c.statut === 'receptionne';
             return `
             <div class="compartiment-bloc ${classeCarb} ${classeAlerte}" data-compartiment="${c.numero}">
               ${coche ? '<div class="compartiment-check">✓</div>' : ''}
               <div class="compartiment-numero">${c.numero}</div>
-              <div class="compartiment-carburant" style="color:${c.carburant ? `var(--${c.carburant})` : 'var(--text-dim)'};">${c.carburant ? NOM_CARBURANT_COURT[c.carburant] : '—'}</div>
-              ${c.quantite_declaree_l ? `<div class="compartiment-qte">${fmtNum(c.quantite_declaree_l)} L</div>` : ''}
+              <div class="compartiment-carburant" style="color:${c.carburant ? `var(--${c.carburant})` : 'var(--text-dim)'};">${c.vide ? 'Vide' : (c.carburant ? NOM_CARBURANT_COURT[c.carburant] : '—')}</div>
+              ${!c.vide && c.quantite_declaree_l ? `<div class="compartiment-qte">${fmtNum(c.quantite_declaree_l)} L</div>` : ''}
             </div>
           `; }).join('')}
         </div>
@@ -703,7 +718,10 @@
   // restait faux et AUCUN message ne s'affichait — rien à comparer au BL
   // tant que l'assignation elle-même n'est pas complète).
   function messageCompartimentsIncompletsHtml() {
-    const manquants = compartiments.filter(c => !(c.carburant && Number(c.quantite_declaree_l) > 0 && c.cuve_destination_id));
+    // Un compartiment marqué "vide" (non utilisé pour cette livraison) est
+    // considéré complet sans aucune saisie — ce n'est pas un oubli, c'est
+    // une déclaration explicite de l'employé.
+    const manquants = compartiments.filter(c => !c.vide && !(c.carburant && Number(c.quantite_declaree_l) > 0 && c.cuve_destination_id));
     if (manquants.length === 0) return '';
     const details = manquants.map(c => {
       const champsManquants = [];
@@ -721,7 +739,7 @@
 
   function renderCompartimentsEtape() {
     const M = NexusReceptionMoteur;
-    const tousAssignes = compartiments.every(c => c.carburant && Number(c.quantite_declaree_l) > 0 && c.cuve_destination_id);
+    const tousAssignes = compartiments.every(c => c.vide || (c.carburant && Number(c.quantite_declaree_l) > 0 && c.cuve_destination_id));
     if (tousAssignes) {
       const lignesAttendues = carburantsPrevus().map(c => ({ carburant: c, quantite_bl_l: Number(lignes[c].quantite_bl_l) }));
       controleCompartiments = M.verifierCompartimentsVsBl(lignesAttendues, compartiments, config.seuilEcartCompartimentsPct);
@@ -749,7 +767,7 @@
     }));
     if (compartimentOuvert != null) renderFicheCompartiment();
     document.getElementById('btnAjouterCompartiment').addEventListener('click', () => {
-      compartiments.push({ numero: compartiments.length + 1, carburant: null, quantite_declaree_l: '', cuve_destination_id: null, statut: 'a_receptionner', motif_non_receptionne: null, receptionne_le: null });
+      compartiments.push({ numero: compartiments.length + 1, carburant: null, quantite_declaree_l: '', cuve_destination_id: null, vide: false, statut: 'a_receptionner', motif_non_receptionne: null, receptionne_le: null });
       renderCompartimentsEtape();
     });
     document.getElementById('btnRetirerCompartiment').addEventListener('click', () => {
@@ -790,28 +808,40 @@
     zone.innerHTML = `
       <div class="fiche-compartiment">
         <div class="fiche-titre">Compartiment ${c.numero}</div>
-        <div class="champ-label">Carburant</div>
-        <div class="carburant-chip-row">
-          ${prevus.map(carb => `<div class="carburant-chip ${c.carburant === carb ? 'actif' : ''}" style="--cc:var(--${carb});" data-carb="${carb}">${NOM_CARBURANT_COURT[carb]}</div>`).join('')}
-        </div>
-        <div class="champ-label">Quantité (L)</div>
-        <input class="champ-input" id="fQteCompartiment" type="number" inputmode="decimal" placeholder="0" value="${c.quantite_declaree_l}">
-        <div class="champ-label">Cuve destination</div>
-        <select class="champ-input" id="fCuveCompartiment" ${!c.carburant ? 'disabled' : ''}>
-          <option value="">— Choisir —</option>
-          ${(config.cuvesOrdonnees || []).filter(cu => cu.carburant === c.carburant).map(cu => `<option value="${cu.id}" ${c.cuve_destination_id === cu.id ? 'selected' : ''}>${cu.label || cu.id}</option>`).join('')}
-        </select>
+        <button class="btn-ghost" id="btnToggleVideCompartiment" style="margin-top:0;">${c.vide ? '↺ Ce compartiment n\'est finalement pas vide' : '○ Marquer ce compartiment comme vide (non utilisé)'}</button>
+        ${c.vide ? `
+          <div class="champ-note">Compartiment vide — non utilisé pour cette livraison, il est ignoré du contrôle et de la réception.</div>
+        ` : `
+          <div class="champ-label">Carburant</div>
+          <div class="carburant-chip-row">
+            ${prevus.map(carb => `<div class="carburant-chip ${c.carburant === carb ? 'actif' : ''}" style="--cc:var(--${carb});" data-carb="${carb}">${NOM_CARBURANT_COURT[carb]}</div>`).join('')}
+          </div>
+          <div class="champ-label">Quantité (m³)</div>
+          <input class="champ-input" id="fQteCompartiment" type="number" inputmode="decimal" step="0.001" placeholder="0" value="${litresVersM3(c.quantite_declaree_l)}">
+          <div class="champ-label">Cuve destination</div>
+          <select class="champ-input" id="fCuveCompartiment" ${!c.carburant ? 'disabled' : ''}>
+            <option value="">— Choisir —</option>
+            ${(config.cuvesOrdonnees || []).filter(cu => cu.carburant === c.carburant).map(cu => `<option value="${cu.id}" ${c.cuve_destination_id === cu.id ? 'selected' : ''}>${cu.label || cu.id}</option>`).join('')}
+          </select>
+        `}
         <button class="btn-primary" id="btnValiderCompartiment" style="margin-top:0;">Valider</button>
       </div>
     `;
-    document.querySelectorAll('[data-carb]').forEach(el => el.addEventListener('click', () => {
-      c.carburant = el.getAttribute('data-carb');
-      const cuvesCarb = cuvesPourCarburant(c.carburant);
-      c.cuve_destination_id = cuvesCarb.length === 1 ? cuvesCarb[0].id : null;
+    document.getElementById('btnToggleVideCompartiment').addEventListener('click', () => {
+      c.vide = !c.vide;
+      if (c.vide) { c.carburant = null; c.quantite_declaree_l = ''; c.cuve_destination_id = null; }
       renderFicheCompartiment();
-    }));
-    document.getElementById('fQteCompartiment').addEventListener('input', (e) => { c.quantite_declaree_l = e.target.value; });
-    document.getElementById('fCuveCompartiment').addEventListener('change', (e) => { c.cuve_destination_id = e.target.value || null; });
+    });
+    if (!c.vide) {
+      document.querySelectorAll('[data-carb]').forEach(el => el.addEventListener('click', () => {
+        c.carburant = el.getAttribute('data-carb');
+        const cuvesCarb = cuvesPourCarburant(c.carburant);
+        c.cuve_destination_id = cuvesCarb.length === 1 ? cuvesCarb[0].id : null;
+        renderFicheCompartiment();
+      }));
+      document.getElementById('fQteCompartiment').addEventListener('input', (e) => { c.quantite_declaree_l = m3VersLitres(e.target.value); });
+      document.getElementById('fCuveCompartiment').addEventListener('change', (e) => { c.cuve_destination_id = e.target.value || null; });
+    }
     document.getElementById('btnValiderCompartiment').addEventListener('click', () => {
       compartimentOuvert = null;
       renderCompartimentsEtape();
@@ -913,7 +943,10 @@
   // ------------------------------------------------------------
   function renderReceptionEtape() {
     const M = NexusReceptionMoteur;
-    const bloquants = M.compartimentsBloquants(compartiments).filter(c => !derogationsParCompartiment[c.numero]);
+    // Un compartiment "vide" n'a jamais rien à décharger : il ne doit
+    // jamais bloquer la suite du parcours, ni être ouvrable ici (rien à y
+    // réceptionner).
+    const bloquants = M.compartimentsBloquants(compartiments).filter(c => !derogationsParCompartiment[c.numero] && !c.vide);
     document.getElementById('content').innerHTML = `
       ${stepperHtml()}
       <div class="champ-note" style="margin-top:0;">Touchez un compartiment au fur et à mesure de son déchargement effectif.</div>
@@ -924,7 +957,10 @@
       <button class="btn-ghost" id="btnRetourReception">Retour</button>
     `;
     document.querySelectorAll('[data-compartiment]').forEach(el => el.addEventListener('click', () => {
-      compartimentOuvert = Number(el.getAttribute('data-compartiment'));
+      const numero = Number(el.getAttribute('data-compartiment'));
+      const comp = compartiments.find(x => x.numero === numero);
+      if (comp && comp.vide) return; // rien à réceptionner sur un compartiment vide
+      compartimentOuvert = numero;
       renderFicheReception();
     }));
     if (compartimentOuvert != null) renderFicheReception();
@@ -1185,7 +1221,7 @@
       NexusReceptionDonnees.chargerConfigReception(nexusClient, siteId),
       chargerManagersSite(),
     ]);
-    if (!config) config = { cuvesOrdonnees: [], cuvesCarburants: {}, nombreCompartimentsDefaut: 4, seuilEcartCompartimentsPct: 2, seuilEcartMesurePct: 2, consignesSecurite: [], contactManager: {} };
+    if (!config) config = { cuvesOrdonnees: [], cuvesCarburants: {}, nombreCompartimentsDefaut: 6, seuilEcartCompartimentsPct: 2, seuilEcartMesurePct: 2, consignesSecurite: [], contactManager: {} };
     render();
   });
 </script>

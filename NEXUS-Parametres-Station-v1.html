@@ -962,7 +962,7 @@
     const cuvesCarburants = (data && data.cuves_carburants) || {};
     const rc = (data && data.reception_carburant_config) || {};
     const M = NexusReceptionMoteur;
-    document.getElementById('receptionNombreCompartiments').value = rc.nombre_compartiments_defaut != null ? rc.nombre_compartiments_defaut : 4;
+    document.getElementById('receptionNombreCompartiments').value = rc.nombre_compartiments_defaut != null ? rc.nombre_compartiments_defaut : 6;
     document.getElementById('receptionSeuilCompartiments').value = String(rc.seuil_ecart_compartiments_pct != null ? rc.seuil_ecart_compartiments_pct : M.SEUIL_ECART_COMPARTIMENTS_PCT_DEFAUT).replace('.', ',');
     document.getElementById('receptionSeuilMesure').value = String(rc.seuil_ecart_mesure_pct != null ? rc.seuil_ecart_mesure_pct : M.SEUIL_ECART_MESURE_PCT_DEFAUT).replace('.', ',');
     RECEPTION_ORDRE_CUVES_ACTUEL = M.construireListeCuvesOrdonnee(cuvesCarburants, rc.ordre_cuves);

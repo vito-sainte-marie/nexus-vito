@@ -41,7 +41,7 @@
     return {
       cuvesOrdonnees: M.construireListeCuvesOrdonnee(cuvesCarburants, rc.ordre_cuves),
       cuvesCarburants,
-      nombreCompartimentsDefaut: rc.nombre_compartiments_defaut != null ? rc.nombre_compartiments_defaut : 4,
+      nombreCompartimentsDefaut: rc.nombre_compartiments_defaut != null ? rc.nombre_compartiments_defaut : 6,
       seuilEcartCompartimentsPct: rc.seuil_ecart_compartiments_pct != null ? rc.seuil_ecart_compartiments_pct : M.SEUIL_ECART_COMPARTIMENTS_PCT_DEFAUT,
       seuilEcartMesurePct: rc.seuil_ecart_mesure_pct != null ? rc.seuil_ecart_mesure_pct : M.SEUIL_ECART_MESURE_PCT_DEFAUT,
       consignesSecurite: Array.isArray(data && data.consignes_securite_reception) ? data.consignes_securite_reception : [],

@@ -178,10 +178,11 @@ async function attendreInit() {
   H.demarrerVisite();
   sandbox.document.querySelectorAll('[data-toggle]').find(el => el.getAttribute('data-toggle') === 'sp95')._listeners.click();
   sandbox.document.querySelectorAll('[data-toggle]').find(el => el.getAttribute('data-toggle') === 'go')._listeners.click();
+  // Champ en m³ depuis le 15/08/2026 : "19" tapé -> 19000 L stockés.
   const qteSp = sandbox.document.querySelectorAll('[data-qte]').find(el => el.getAttribute('data-qte') === 'sp95');
-  qteSp.value = '19000'; qteSp._listeners.input({ target: qteSp });
+  qteSp.value = '19'; qteSp._listeners.input({ target: qteSp });
   const qteGo = sandbox.document.querySelectorAll('[data-qte]').find(el => el.getAttribute('data-qte') === 'go');
-  qteGo.value = '17000'; qteGo._listeners.input({ target: qteGo });
+  qteGo.value = '17'; qteGo._listeners.input({ target: qteGo });
   sandbox.document.getElementById('fHeureDebut').value = '2026-08-15T09:07';
   sandbox.document.getElementById('fHeureDebut')._listeners.input();
   sandbox.document.getElementById('btnContinuerLivraison')._listeners.click();
@@ -189,12 +190,14 @@ async function attendreInit() {
   sandbox.document.getElementById('btnContinuerJaugeage')._listeners.click();
   assert.strictEqual(H.etape, 'compartiments');
 
-  function assigner(numero, carburant, quantite, cuveId) {
+  // `quantiteLitres` reste en Litres pour la lisibilité du test — le champ
+  // étant en m³, on divise par 1000 pour simuler la saisie réelle.
+  function assigner(numero, carburant, quantiteLitres, cuveId) {
     H.compartimentOuvert = numero;
     H.renderFicheCompartiment();
     sandbox.document.querySelectorAll('[data-carb]').find(el => el.getAttribute('data-carb') === carburant)._listeners.click();
     const qte = sandbox.document.getElementById('fQteCompartiment');
-    qte.value = String(quantite); qte._listeners.input({ target: qte });
+    qte.value = String(quantiteLitres / 1000); qte._listeners.input({ target: qte });
     if (cuveId !== undefined) {
       const cuve = sandbox.document.getElementById('fCuveCompartiment');
       cuve.value = cuveId; cuve._listeners.change({ target: cuve });

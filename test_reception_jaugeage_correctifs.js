@@ -179,8 +179,9 @@ async function attendreInit() {
   // attendus, pour une cuve de 20 000 L de capacité.
   H.demarrerVisite();
   sandbox.document.querySelectorAll('[data-toggle]').find(el => el.getAttribute('data-toggle') === 'sp95')._listeners.click();
+  // Champ en m³ depuis le 15/08/2026 : "19" tapé -> 19000 L stockés.
   const qte = sandbox.document.querySelectorAll('[data-qte]').find(el => el.getAttribute('data-qte') === 'sp95');
-  qte.value = '19000'; qte._listeners.input({ target: qte });
+  qte.value = '19'; qte._listeners.input({ target: qte });
   sandbox.document.getElementById('fHeureDebut').value = '2026-08-15T07:00';
   sandbox.document.getElementById('fHeureDebut')._listeners.input();
   sandbox.document.getElementById('btnContinuerLivraison')._listeners.click();

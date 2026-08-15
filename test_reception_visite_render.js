@@ -240,11 +240,12 @@ async function attendreInit() {
   assert.strictEqual(H.lignes.sp95.actif, true);
   assert.strictEqual(H.lignes.go.actif, true);
   assert.strictEqual(H.lignes.gnr.actif, false, 'GNR doit rester non prévu (non touché)');
-  // Quantités attendues.
+  // Quantités attendues — champ saisi en m³ (15/08/2026), donc on tape "17"
+  // (m³) pour obtenir 17000 L stockés, et "15" pour 15000 L.
   const qteSp95 = sandbox.document.querySelectorAll('[data-qte]').find(el => el.getAttribute('data-qte') === 'sp95');
-  qteSp95.value = '17000'; qteSp95._listeners.input({ target: qteSp95 });
+  qteSp95.value = '17'; qteSp95._listeners.input({ target: qteSp95 });
   const qteGo = sandbox.document.querySelectorAll('[data-qte]').find(el => el.getAttribute('data-qte') === 'go');
-  qteGo.value = '15000'; qteGo._listeners.input({ target: qteGo });
+  qteGo.value = '15'; qteGo._listeners.input({ target: qteGo });
   sandbox.document.getElementById('fHeureDebut').value = '2026-08-15T07:03';
   sandbox.document.getElementById('fHeureDebut')._listeners.input();
   assert.strictEqual(sandbox.document.getElementById('btnContinuerLivraison').disabled, false, '"Continuer" doit être activé (SP95+GO prévus, heure renseignée)');
@@ -274,12 +275,16 @@ async function attendreInit() {
   assert.strictEqual(H.etape, 'compartiments');
   assert.strictEqual(H.compartiments.length, 3, 'Nombre de compartiments par défaut = config (3)');
 
-  function assignerCompartiment(numero, carburant, quantite, cuveId) {
+  // `quantiteLitres` reste exprimé en Litres (c'est ce que le test veut
+  // vérifier être stocké) — le champ de saisie étant désormais en m³
+  // (15/08/2026), on divise par 1000 pour simuler exactement ce que
+  // l'employé taperait au clavier.
+  function assignerCompartiment(numero, carburant, quantiteLitres, cuveId) {
     H.compartimentOuvert = numero;
     H.renderFicheCompartiment();
     sandbox.document.querySelectorAll('[data-carb]').find(el => el.getAttribute('data-carb') === carburant)._listeners.click();
     const qte = sandbox.document.getElementById('fQteCompartiment');
-    qte.value = String(quantite); qte._listeners.input({ target: qte });
+    qte.value = String(quantiteLitres / 1000); qte._listeners.input({ target: qte });
     const cuve = sandbox.document.getElementById('fCuveCompartiment');
     cuve.value = cuveId; cuve._listeners.change({ target: cuve });
     sandbox.document.getElementById('btnValiderCompartiment')._listeners.click();
