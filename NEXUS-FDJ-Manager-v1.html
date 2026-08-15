@@ -132,7 +132,19 @@
      Niveau 1 : ligne compacte par jeu (.fdj-stock-row). Niveau 2 : détail
      dépliable au clic (.fdj-stock-detail), même mécanique de repli que
      .histo-item/.histo-detail plus haut — Article 11, jamais un second
-     système de dépli. Niveau 3 : filtres Tous/À rapprocher/Vigilance/OK. */
+     système de dépli. Niveau 3 : filtres Tous/À réapprovisionner/
+     Vigilance/À rapprocher/OK.
+     14/08/2026 — refonte "lecture managériale" (retour détaillé de
+     Frédéric, capture d'écran commentée) : colonnes renommées (Réserve/
+     Non activé/En cours), 5 filtres au lieu de 4 (l'ancien bucket
+     "vigilance" mélangeait rupture réelle et simple vigilance), synthèse
+     globale en tête d'écran (.fdj-stock-synthese) et phrase par palier
+     (.fdj-stock-palier-phrase) — mêmes classes de badges (vert/ambre/
+     rouge), juste plus de contexte autour, jamais une nouvelle page. */
+  .fdj-stock-synthese{margin-bottom:14px;}
+  .fdj-stock-synthese .titre-synthese{font-size:14px; font-weight:700; margin-bottom:4px;}
+  .fdj-stock-synthese .ligne-synthese{font-family:var(--mono); font-size:11px; color:var(--text-mid); line-height:1.6;}
+  .fdj-stock-synthese .recommandation{margin-top:8px; padding:8px 10px; background:rgba(79,195,217,0.08); border:1px solid rgba(79,195,217,0.25); border-radius:8px; font-size:12px; color:var(--cyan); font-weight:600;}
   .fdj-stock-filtres{display:flex; gap:6px; margin-bottom:14px; flex-wrap:wrap;}
   .fdj-stock-filtre{padding:6px 10px; border-radius:20px; border:1px solid var(--hairline); background:var(--panel); color:var(--text-mid); font-size:11.5px; font-weight:600; cursor:pointer; font-family:var(--sans);}
   .fdj-stock-filtre.active{background:rgba(79,195,217,0.12); border-color:rgba(79,195,217,0.4); color:var(--cyan);}
@@ -140,21 +152,28 @@
   .fdj-stock-palier-head{display:flex; align-items:center; justify-content:space-between; cursor:pointer; padding:0 2px 6px; font-family:var(--mono); font-size:10px; letter-spacing:0.06em; text-transform:uppercase; color:var(--text-dim);}
   .fdj-stock-palier-head .fleche{transition:transform .15s ease; display:inline-block;}
   .fdj-stock-palier-head.replie .fleche{transform:rotate(-90deg);}
+  .fdj-stock-palier-phrase{padding:0 2px 8px; font-family:var(--sans); font-size:11.5px; color:var(--text-mid); line-height:1.5;}
   .fdj-stock-head{display:flex; align-items:center; padding:8px 12px; border-bottom:1px solid var(--hairline); font-family:var(--mono); font-size:8.5px; letter-spacing:0.04em; text-transform:uppercase; color:var(--text-dim);}
   .fdj-stock-head-nom{flex:1;}
-  .fdj-stock-head-metrics{display:flex; gap:14px;}
-  .fdj-stock-head-metrics span{width:34px; text-align:center;}
-  .fdj-stock-head-statut{width:96px; text-align:right;}
+  .fdj-stock-head-metrics{display:flex; gap:10px;}
+  .fdj-stock-head-metrics span{width:40px; text-align:center;}
+  .fdj-stock-head-statut{width:104px; text-align:right;}
   .fdj-stock-item + .fdj-stock-item{border-top:1px solid var(--hairline);}
   .fdj-stock-row{display:flex; align-items:center; padding:10px 12px; cursor:pointer; gap:8px;}
   .fdj-stock-row:active{background:var(--panel-raised);}
   .fdj-stock-nom{flex:1; font-size:12.5px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
-  .fdj-stock-metrics{display:flex; gap:14px; font-family:var(--mono); font-size:12.5px;}
-  .fdj-stock-metrics span{width:34px; text-align:center;}
-  .fdj-stock-statut{width:96px; text-align:right; font-family:var(--mono); font-size:10px; font-weight:700; white-space:nowrap;}
+  .fdj-stock-metrics{display:flex; gap:10px; font-family:var(--mono); font-size:12.5px;}
+  .fdj-stock-metrics span{width:40px; text-align:center;}
+  .fdj-stock-statut{width:104px; text-align:right; font-family:var(--mono); font-size:10px; font-weight:700; white-space:nowrap;}
   .fdj-stock-statut.vert{color:var(--cyan);}
   .fdj-stock-statut.ambre{color:var(--amber);}
   .fdj-stock-statut.rouge{color:var(--red);}
+  .fdj-stock-mesure-row{display:flex; justify-content:space-between; font-size:11.5px; color:var(--text-mid); padding:3px 0;}
+  .fdj-stock-mesure-row b{color:var(--text); font-weight:600;}
+  .fdj-stock-conclusion{margin-top:8px; padding:8px 10px; border-radius:8px; font-size:11.5px; font-weight:600;}
+  .fdj-stock-conclusion.vert{background:var(--green-dim); color:var(--green);}
+  .fdj-stock-conclusion.ambre{background:var(--amber-dim); color:var(--amber);}
+  .fdj-stock-conclusion.rouge{background:var(--red-dim); color:var(--red);}
   .fdj-stock-detail{max-height:0; overflow:hidden; transition:max-height .2s ease; padding:0 12px;}
   .fdj-stock-detail.open{max-height:420px; padding:0 12px 12px;}
   .fdj-stock-badges{display:flex; flex-wrap:wrap; gap:6px; margin:2px 0 8px;}
@@ -478,12 +497,18 @@
 
   // 13/08/2026 — appro (fdj_shift_counts, compteur TICKETS) saisie sur
   // n'importe quel quart, y compris complété/corrigé après coup sans
-  // mouvement de stock correspondant. Seules les lignes appro > 0
-  // intéressent NexusFdjMoteur.approNonTraceParJeu() (filtre côté requête,
-  // volume faible en V1 comme chargerMouvementsStock()).
-  async function chargerApproShiftCounts() {
-    const { data, error } = await nexusClient.from('fdj_shift_counts').select('shift_id, game_id, appro').eq('site', siteId).gt('appro', 0);
-    if (error) { console.error('Chargement appro FDJ (rapprochement stock):', error); return []; }
+  // mouvement de stock correspondant. Consommé par
+  // NexusFdjMoteur.approNonTraceParJeu() (filtre appro>0 en interne).
+  // 14/08/2026 (refonte lecture managériale) : élargi à TOUTES les lignes
+  // (plus seulement appro>0) et à ventes_qte/created_at en plus d'appro —
+  // nécessaire à NexusFdjMoteur.ticketsRestantsCarnetEnCours(), qui doit
+  // pouvoir sommer les ventes de tickets de n'importe quel quart depuis la
+  // dernière activation d'un jeu, pas seulement ceux où de l'appro a été
+  // saisie. Volume faible en V1 comme chargerMouvementsStock() — même
+  // remarque, à revoir (agrégation serveur) si ça grossit beaucoup.
+  async function chargerShiftCountsStock() {
+    const { data, error } = await nexusClient.from('fdj_shift_counts').select('shift_id, game_id, appro, ventes_qte, created_at').eq('site', siteId);
+    if (error) { console.error('Chargement compteurs de quart FDJ (état du stock):', error); return []; }
     return data || [];
   }
   // 13/08/2026 (v2, refonte État du stock) : date/quart des quarts non
@@ -1372,11 +1397,16 @@
   async function ouvrirStockEtat() {
     document.getElementById('content').innerHTML = '<div class="loading">Chargement…</div>';
     if (!jeux.length) jeux = await chargerJeux();
-    const [{ soldes, reference, mouvements }, shiftCounts] = await Promise.all([soldesActuels(), chargerApproShiftCounts()]);
+    const [{ soldes, reference, mouvements }, shiftCountsStock] = await Promise.all([soldesActuels(), chargerShiftCountsStock()]);
+    const referenceCreeLe = reference ? reference.creeLe : null;
     // 13/08/2026 (v2, refonte) : détail par quart (pas seulement le total)
     // pour afficher "quart(s) concerné(s)" au clic — même fonction moteur
     // que le total (Article 11), juste consommée à un niveau plus fin.
-    const lignesNonTracees = NexusFdjMoteur.lignesApproNonTracees(shiftCounts, mouvements);
+    // 14/08/2026 : referenceCreeLe transmis pour exclure du rapprochement
+    // tout ce qui est antérieur au dernier point zéro certifié — déjà
+    // absorbé dans le stock physique recertifié, ne doit plus polluer la
+    // vue opérationnelle (demande de Frédéric, capture d'écran commentée).
+    const lignesNonTracees = NexusFdjMoteur.lignesApproNonTracees(shiftCountsStock, mouvements, referenceCreeLe);
     const idsShifts = [...new Set(lignesNonTracees.map(l => l.shift_id))];
     const shiftsMap = await chargerShiftsParIds(idsShifts);
     const quartsConcernesParJeu = {};
@@ -1386,69 +1416,93 @@
       quartsConcernesParJeu[l.game_id].push({ date: s ? s.date : null, quart: s ? s.quart : null });
     });
     Object.values(quartsConcernesParJeu).forEach(liste => liste.sort((a, b) => (a.date || '').localeCompare(b.date || '') || (a.quart || '').localeCompare(b.quart || '')));
+
+    // Rotation/autonomie/tickets restants — 14/08/2026 (refonte lecture
+    // managériale) : calculés une fois ici par jeu, réutilisés à la fois
+    // pour la classification (etatLigneStockV2) et pour le détail dépliable
+    // (renderJeuStockEtat), jamais recalculés à deux endroits (Article 11).
+    const maintenant = new Date();
+    const rotationParJeu = {}, ticketsRestantsParJeu = {}, autonomieParJeu = {};
+    jeux.forEach(j => {
+      const rotation = NexusFdjMoteur.rotationCarnetsJeu(mouvements, j.id, maintenant, undefined, referenceCreeLe);
+      const ticketsRestants = NexusFdjMoteur.ticketsRestantsCarnetEnCours(mouvements, shiftCountsStock, j.id, j.tickets_par_carnet);
+      rotationParJeu[j.id] = rotation;
+      ticketsRestantsParJeu[j.id] = ticketsRestants;
+      autonomieParJeu[j.id] = NexusFdjMoteur.calculerAutonomieJeu({
+        solde: soldes[j.id], ticketsRestants, ticketsParCarnet: j.tickets_par_carnet, rotationCarnetsJour: rotation,
+      });
+    });
+
     stockEtat = {
       soldes, reference, dernieresReceptions: derniereReceptionParJeu(mouvements),
-      approNonTrace: NexusFdjMoteur.approNonTraceParJeu(shiftCounts, mouvements),
-      quartsConcernesParJeu,
+      approNonTrace: NexusFdjMoteur.approNonTraceParJeu(shiftCountsStock, mouvements, referenceCreeLe),
+      quartsConcernesParJeu, rotationParJeu, ticketsRestantsParJeu, autonomieParJeu,
     };
-    // Filtre par défaut : "à rapprocher" s'il y en a (demande de Frédéric —
-    // "par défaut, côté manager, je mettrais même 'à rapprocher'"), sinon
-    // "tous" (rien à prioriser).
-    const compteRapprocher = jeux.filter(j => (stockEtat.approNonTrace[j.id] || 0) > 0).length;
-    stockEtatFiltre = compteRapprocher > 0 ? 'rapprocher' : 'tous';
+    // Filtre par défaut : priorité au plus urgent — "à réapprovisionner"
+    // s'il y en a, sinon "à rapprocher" s'il y en a (demande de Frédéric —
+    // "par défaut, côté manager, je mettrais même 'à rapprocher'", conservé
+    // pour l'axe traçabilité, mais désormais après le vrai risque de
+    // rupture), sinon "tous" (rien à prioriser).
+    const etatsInitiaux = {};
+    jeux.forEach(j => {
+      etatsInitiaux[j.id] = NexusFdjMoteur.etatLigneStockV2(stockEtat.soldes[j.id], stockEtat.approNonTrace[j.id] || 0, j.tickets_par_carnet, autonomieParJeu[j.id]);
+    });
+    const compteReappro = jeux.filter(j => etatsInitiaux[j.id].statut === 'reapprovisionner').length;
+    const compteRapprocher = jeux.filter(j => etatsInitiaux[j.id].statut === 'rapprocher').length;
+    stockEtatFiltre = compteReappro > 0 ? 'reapprovisionner' : (compteRapprocher > 0 ? 'rapprocher' : 'tous');
     vue = 'stock-etat';
     renderStockEtat();
   }
 
-  // "Stock à rapprocher" prime sur Rupture/Vigilance/OK — tant que l'appro
-  // d'un quart n'est pas couverte par un mouvement, le nombre affiché
-  // (nonActives) n'est pas fiable, ce n'est ni "OK" ni "rupture" réelle,
-  // c'est INCONNU. Jamais deviner : estimation en carnets seulement si
-  // tickets_par_carnet est connu pour ce jeu, sinon dit explicitement.
-  // `statut` : bucket de filtrage ('rapprocher'|'vigilance'|'ok') — rupture
-  // et vigilance partagent le même bucket "Vigilance" (les 2 sont des
-  // situations de stock réel constaté, juste plus ou moins critiques),
-  // mais restent visuellement distinguées sur la ligne (`badge`/`couleur`)
-  // pour ne jamais effacer la différence (Article 5).
-  function etatLigneStock(solde, approNonTrace, ticketsParCarnet) {
-    if (approNonTrace > 0) {
-      const carnetsEstimes = ticketsParCarnet ? Math.floor(approNonTrace / ticketsParCarnet) : null;
-      return { statut: 'rapprocher', couleur: 'ambre', badge: '⚠️ À rapprocher', rapprochement: true, carnetsEstimes, approNonTrace };
-    }
-    if (solde.nonActives <= 0 && solde.bureau <= 0) return { statut: 'vigilance', couleur: 'rouge', badge: '🔴 Rupture' };
-    if (solde.nonActives <= 0) return { statut: 'vigilance', couleur: 'ambre', badge: '🟠 Vigilance' };
-    return { statut: 'ok', couleur: 'vert', badge: '🟢 OK' };
+  // Classification de ligne — voir NexusFdjMoteur.etatLigneStockV2 pour le
+  // détail des règles (14/08/2026, refonte lecture managériale : sépare
+  // 'reapprovisionner'/'vigilance'/'ok' — l'axe STOCK — de 'rapprocher' —
+  // l'axe TRAÇABILITÉ, un rapprochement en attente prime toujours car les
+  // chiffres de stock ne sont alors pas fiables). Wrapper local minimal :
+  // lit rotationParJeu/ticketsRestantsParJeu/autonomieParJeu déjà calculés
+  // dans ouvrirStockEtat, jamais recalculés ici.
+  function etatLigneStock(gameId, solde, approNonTrace, ticketsParCarnet) {
+    return NexusFdjMoteur.etatLigneStockV2(solde, approNonTrace, ticketsParCarnet, stockEtat.autonomieParJeu[gameId]);
   }
 
   const FDJ_STOCK_FILTRES = [
     { cle: 'tous', label: 'Tous' },
-    { cle: 'rapprocher', label: '⚠️ À rapprocher' },
+    { cle: 'reapprovisionner', label: '🔴 À réapprovisionner' },
     { cle: 'vigilance', label: '🟠 Vigilance' },
+    { cle: 'rapprocher', label: '⚠️ À rapprocher' },
     { cle: 'ok', label: '🟢 OK' },
   ];
 
   function renderStockEtat() {
     document.getElementById('titre').textContent = 'État du stock FDJ';
-    document.getElementById('sousTitre').textContent = 'Bureau, caisse non activée et activés depuis le dernier point zéro — jamais codé en dur.';
+    document.getElementById('sousTitre').textContent = 'Réserve bureau, caisse non activée et carnet en cours — jamais codé en dur.';
     const ref = stockEtat.reference;
     const bloques = jeux.map(j => ({ jeu: j, solde: stockEtat.soldes[j.id] || {} })).filter(x => (x.solde.bloques || 0) > 0);
 
     const etats = {};
     jeux.forEach(j => {
-      etats[j.id] = etatLigneStock(stockEtat.soldes[j.id] || { bureau: 0, confies: 0, actives: 0, bloques: 0, nonActives: 0 }, stockEtat.approNonTrace[j.id] || 0, j.tickets_par_carnet);
+      etats[j.id] = etatLigneStock(j.id, stockEtat.soldes[j.id] || { bureau: 0, confies: 0, actives: 0, bloques: 0, nonActives: 0 }, stockEtat.approNonTrace[j.id] || 0, j.tickets_par_carnet);
     });
-    const compte = { tous: jeux.length, rapprocher: 0, vigilance: 0, ok: 0 };
+    const compte = { tous: jeux.length, reapprovisionner: 0, vigilance: 0, rapprocher: 0, ok: 0 };
     jeux.forEach(j => { compte[etats[j.id].statut]++; });
+
+    // Synthèse globale (14/08/2026, refonte lecture managériale) —
+    // "🎟️ État FDJ caisse" : totaux + recommandation d'action dérivée de
+    // faits déjà connus (jamais une supposition), voir
+    // NexusFdjMoteur.syntheseGlobaleFdjStock.
+    const synthese = NexusFdjMoteur.syntheseGlobaleFdjStock(jeux, etats, stockEtat.soldes);
 
     const jeuxFiltres = jeux.filter(j => stockEtatFiltre === 'tous' || etats[j.id].statut === stockEtatFiltre);
     const groupes = grouperParPalier(jeuxFiltres);
 
     document.getElementById('content').innerHTML = `
       <button type="button" class="btn-retour-fleche" id="btnRetourStockEtat">← Retour</button>
-      <div class="resume-card">
-        <div class="section-titre" style="margin-top:0;">Stock FDJ</div>
-        <div class="histo-sub">${compte.tous} jeu${compte.tous > 1 ? 'x' : ''} suivi${compte.tous > 1 ? 's' : ''} · ${compte.ok} OK · ${compte.rapprocher} à rapprocher · ${compte.vigilance} vigilance</div>
-        <div class="histo-sub">${ref ? `Dernier point zéro : ${new Date(ref.date + 'T00:00:00').toLocaleDateString('fr-FR')}.` : 'Aucun contrôle physique enregistré — stock théorique depuis zéro, à fiabiliser via "Contrôle physique du stock".'}</div>
+      <div class="resume-card fdj-stock-synthese">
+        <div class="titre-synthese">🎟️ État FDJ caisse</div>
+        <div class="ligne-synthese">${synthese.compte.tous} jeu${synthese.compte.tous > 1 ? 'x' : ''} suivi${synthese.compte.tous > 1 ? 's' : ''} · ${fmtNum(synthese.carnetsDisponiblesCaisse)} carnet${synthese.carnetsDisponiblesCaisse > 1 ? 's' : ''} disponible${synthese.carnetsDisponiblesCaisse > 1 ? 's' : ''} en caisse</div>
+        <div class="ligne-synthese">🟢 ${synthese.compte.ok} couvert${synthese.compte.ok > 1 ? 's' : ''} · 🟠 ${synthese.compte.vigilance} à surveiller · 🔴 ${synthese.compte.reapprovisionner} à réapprovisionner${synthese.compte.rapprocher ? ` · ⚠️ ${synthese.compte.rapprocher} à rapprocher` : ''}</div>
+        <div class="ligne-synthese">${ref ? `Dernier point zéro : ${new Date(ref.date + 'T00:00:00').toLocaleDateString('fr-FR')}.` : 'Aucun contrôle physique enregistré — stock théorique depuis zéro, à fiabiliser via "Contrôle physique du stock".'}</div>
+        ${synthese.recommandation ? `<div class="recommandation">NEXUS recommande : ${synthese.recommandation}</div>` : ''}
       </div>
       <div class="fdj-stock-filtres">
         ${FDJ_STOCK_FILTRES.map(f => `<button type="button" class="fdj-stock-filtre${stockEtatFiltre === f.cle ? ' active' : ''}" data-filtre="${f.cle}">${f.label} <span class="compte">${compte[f.cle]}</span></button>`).join('')}
@@ -1469,22 +1523,26 @@
         </div>
       ` : ''}
       <div class="section-titre">Par jeu</div>
-      ${groupes.length ? groupes.map(g => `
+      ${groupes.length ? groupes.map(g => {
+        const items = g.items.map(j => ({ jeu: j, etat: etats[j.id] }));
+        return `
         <div class="palier-block">
           <div class="fdj-stock-palier-head${stockEtatPaliersReplies.has(String(g.prix)) ? ' replie' : ''}" data-palier="${g.prix}">
             <span>${fmtNum(g.prix)} € — ${g.items.length} jeu${g.items.length > 1 ? 'x' : ''}</span>
             <span class="fleche">▾</span>
           </div>
           <div class="card fdj-stock-palier-corps" id="palierCorps-${String(g.prix).replace('.', '_')}" style="${stockEtatPaliersReplies.has(String(g.prix)) ? 'display:none;' : ''}">
+            <div class="fdj-stock-palier-phrase">${NexusFdjMoteur.phraseFamillePalier(items)}</div>
             <div class="fdj-stock-head">
               <div class="fdj-stock-head-nom">Jeu</div>
-              <div class="fdj-stock-head-metrics"><span>Bureau</span><span>Caisse</span><span>Activés</span></div>
+              <div class="fdj-stock-head-metrics"><span>Réserve</span><span>Caisse</span><span>En cours</span></div>
               <div class="fdj-stock-head-statut"></div>
             </div>
             ${g.items.map(j => renderJeuStockEtat(j, etats[j.id])).join('')}
           </div>
         </div>
-      `).join('') : `<div class="empty">Aucun jeu dans ce filtre.</div>`}
+      `;
+      }).join('') : `<div class="empty">Aucun jeu dans ce filtre.</div>`}
     `;
     document.getElementById('btnRetourStockEtat').addEventListener('click', () => { vue = 'liste'; stockEtat = null; stockEtatFiltre = 'tous'; renderAccueil(); });
     document.getElementById('btnOuvrirBlocage').addEventListener('click', () => ouvrirBlocage());
@@ -1508,14 +1566,43 @@
     }));
   }
 
+  // Phrase de conclusion du détail (14/08/2026) — une ligne, cohérente
+  // avec le badge de la ligne compacte, jamais un second jugement
+  // concurrent. Ne s'affiche que pour l'axe stock (jamais pour
+  // 'rapprocher', qui a déjà son propre bloc dédié ci-dessous).
+  function conclusionStock(etat) {
+    if (etat.statut === 'reapprovisionner') return { couleur: 'rouge', texte: etat.badge === '🔴 Rupture totale' ? 'Aucun réapprovisionnement possible depuis le bureau — commande à prévoir.' : 'Réapprovisionnement nécessaire : redescendez un carnet du bureau vers la caisse.' };
+    if (etat.statut === 'vigilance') return { couleur: 'ambre', texte: 'À surveiller — activez un carnet en réserve ou préparez le réapprovisionnement.' };
+    if (etat.statut === 'ok') return { couleur: 'vert', texte: 'Aucun réapprovisionnement nécessaire.' };
+    return null;
+  }
+
   // Niveau 1 (ligne compacte, toujours visible) + Niveau 2 (détail replié,
   // ouvert au clic sur la ligne — même mécanique que .histo-item plus haut).
+  // 14/08/2026 (refonte lecture managériale) : le détail expose maintenant
+  // tickets restants du carnet en cours, rotation moyenne et autonomie
+  // estimée — chacun avec son propre "non calculable" explicite si les
+  // données manquent (Article 5 : jamais un chiffre inventé).
   function renderJeuStockEtat(jeu, etat) {
     const solde = stockEtat.soldes[jeu.id] || { bureau: 0, confies: 0, actives: 0, bloques: 0, nonActives: 0 };
     const derniereReception = stockEtat.dernieresReceptions[jeu.id];
     const anciennete = ancienneteJours(derniereReception);
     const quartsConcernes = stockEtat.quartsConcernesParJeu[jeu.id] || [];
     const noteReception = `<div class="histo-sub">${derniereReception ? `Dernière réception : il y a ${anciennete} jour${anciennete > 1 ? 's' : ''} (${new Date(derniereReception).toLocaleDateString('fr-FR')})` : 'Aucune réception enregistrée'}</div>`;
+
+    const ticketsRestants = stockEtat.ticketsRestantsParJeu[jeu.id];
+    const rotation = stockEtat.rotationParJeu[jeu.id];
+    const autonomie = stockEtat.autonomieParJeu[jeu.id];
+    const mesures = !etat.rapprochement ? `
+      <div class="fdj-stock-mesure-row"><span>Réserve bureau</span><b>${fmtNum(solde.bureau)} carnet${solde.bureau > 1 ? 's' : ''}</b></div>
+      <div class="fdj-stock-mesure-row"><span>Caisse non activés</span><b>${fmtNum(solde.nonActives)} carnet${solde.nonActives > 1 ? 's' : ''}</b></div>
+      <div class="fdj-stock-mesure-row"><span>Carnet en cours</span><b>${solde.actives > 0 ? `${fmtNum(solde.actives)} activé${solde.actives > 1 ? 's' : ''} depuis le point zéro` : 'Aucun'}</b></div>
+      <div class="fdj-stock-mesure-row"><span>Tickets restants</span><b>${ticketsRestants !== null ? `${fmtNum(ticketsRestants)} / ${jeu.tickets_par_carnet}` : 'Non calculable'}</b></div>
+      <div class="fdj-stock-mesure-row"><span>Rotation moyenne</span><b>${rotation > 0 ? `${fmtNum(Math.round(rotation * 100) / 100)} carnet/jour` : 'Aucune activation récente'}</b></div>
+      <div class="fdj-stock-mesure-row"><span>Autonomie caisse estimée</span><b>${autonomie.jours !== null ? `${fmtNum(autonomie.jours)} jour${autonomie.jours > 1 ? 's' : ''}` : 'Non calculable'}</b></div>
+    ` : '';
+    const conclusion = !etat.rapprochement ? conclusionStock(etat) : null;
+
     return `
       <div class="fdj-stock-item">
         <div class="fdj-stock-row">
@@ -1536,7 +1623,7 @@
             ${quartsConcernes.length ? `<div class="histo-sub">Quart(s) concerné(s) : ${quartsConcernes.map(q => q.date ? `${new Date(q.date + 'T00:00:00').toLocaleDateString('fr-FR')} · Q${q.quart}` : '—').join(', ')}</div>` : ''}
             ${noteReception}
             <button type="button" class="btn-modifier" data-rapprocher="${jeu.id}" data-estime="${etat.carnetsEstimes ?? ''}" style="margin-top:10px; width:100%;">🔧 Enregistrer le(s) carnet(s) manquant(s)</button>
-          ` : noteReception}
+          ` : `${mesures}${noteReception}${conclusion ? `<div class="fdj-stock-conclusion ${conclusion.couleur}">${conclusion.texte}</div>` : ''}`}
         </div>
       </div>
     `;

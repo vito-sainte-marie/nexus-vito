@@ -394,23 +394,195 @@
   // pour afficher "quart(s) concernés" dans le détail dépliable de l'écran,
   // sans dupliquer la logique de détection (Article 11). Retourne les
   // lignes `shiftCounts` filtrées, telles quelles (shift_id, game_id, appro).
-  function lignesApproNonTracees(shiftCounts, mouvements) {
+  // `referenceCreeLe` (14/08/2026, demande de Frédéric — voir "État du
+  // stock FDJ, refonte lecture managériale") : ISO du dernier point zéro
+  // certifié (fdj_stock_references.created_at), optionnel. Un appro non
+  // tracé antérieur à ce point zéro est déjà absorbé dans le stock
+  // physique certifié depuis — le laisser remonter indéfiniment dans
+  // "⚠️ À rapprocher" mélange deux sujets très différents ("il faut
+  // remettre un carnet en caisse" et "NEXUS ne parvient pas à
+  // reconstruire proprement le mouvement historique") et fait perdre sa
+  // valeur à l'alerte (observé : 20 jeux sur 29 en "à rapprocher" sur le
+  // site pilote, tous antérieurs au point zéro du 13/08/2026). Sans
+  // référence fournie (site jamais encore certifié), comportement
+  // inchangé : rien n'est filtré. `shiftCounts` doit alors porter
+  // `created_at` (déjà une colonne native de fdj_shift_counts) en plus de
+  // shift_id/game_id/appro — à charger côté appelant.
+  function lignesApproNonTracees(shiftCounts, mouvements, referenceCreeLe) {
     const couverts = new Set();
     (mouvements || []).forEach(m => {
       if (m.type_mouvement === 'activation' && m.shift_id) couverts.add(`${m.shift_id}|${m.game_id}`);
     });
+    const seuil = referenceCreeLe ? new Date(referenceCreeLe).getTime() : null;
     return (shiftCounts || []).filter(c => {
       if (!c.appro || Number(c.appro) <= 0) return false;
+      if (seuil !== null && c.created_at && new Date(c.created_at).getTime() <= seuil) return false; // absorbé dans le point zéro
       return !couverts.has(`${c.shift_id}|${c.game_id}`);
     });
   }
 
-  function approNonTraceParJeu(shiftCounts, mouvements) {
+  function approNonTraceParJeu(shiftCounts, mouvements, referenceCreeLe) {
     const total = {};
-    lignesApproNonTracees(shiftCounts, mouvements).forEach(c => {
+    lignesApproNonTracees(shiftCounts, mouvements, referenceCreeLe).forEach(c => {
       total[c.game_id] = (total[c.game_id] || 0) + Number(c.appro);
     });
     return total;
+  }
+
+  // ------------------------------------------------------------
+  // ROTATION / AUTONOMIE / TICKETS RESTANTS — 14/08/2026, demande de
+  // Frédéric ("État du stock FDJ, refonte lecture managériale") : retrouver
+  // le visuel opérationnel qu'il avait sur papier (stock caisse, rotation,
+  // ce qui reste à vendre) sans jamais inventer un chiffre que NEXUS ne
+  // peut pas réellement établir (Article 5). Même famille de calcul que
+  // l'autonomie carburant (nexus-carburant-moteur.js) : stock disponible /
+  // consommation moyenne récente = jours d'autonomie — transposée ici en
+  // carnets/jour plutôt qu'en litres/jour.
+  // ------------------------------------------------------------
+  const FDJ_ROTATION_FENETRE_JOURS_DEFAUT = 30;
+  const FDJ_SEUIL_AUTONOMIE_VIGILANCE_JOURS = 3;
+
+  // Carnets activés par jour en moyenne, sur une fenêtre bornée par le
+  // dernier point zéro (jamais avant — les mouvements antérieurs sont déjà
+  // absorbés dans la référence, les compter reviendrait à dupliquer une
+  // activité déjà comptée ailleurs) ET par `fenetreJours`. Le nombre de
+  // jours réellement écoulés sert de diviseur (jamais la fenêtre nominale
+  // complète si le point zéro est plus récent qu'elle — même discipline que
+  // chargerConsommationJournaliereMoyenne côté Carburants : ne jamais
+  // diluer une moyenne par des jours qui n'existent pas encore). Retourne
+  // un nombre >= 0, jamais null (0 activation sur la fenêtre est un fait,
+  // pas une absence de donnée) — c'est à l'appelant (calculerAutonomieJeu)
+  // de décider qu'une rotation nulle rend l'autonomie non calculable.
+  function rotationCarnetsJeu(mouvements, gameId, maintenant, fenetreJours, referenceCreeLe) {
+    const fenetre = fenetreJours || FDJ_ROTATION_FENETRE_JOURS_DEFAUT;
+    const maintenantMs = maintenant instanceof Date ? maintenant.getTime() : new Date(maintenant).getTime();
+    const debutFenetreMs = maintenantMs - fenetre * 86400000;
+    const referenceMs = referenceCreeLe ? new Date(referenceCreeLe).getTime() : null;
+    const debutMs = referenceMs !== null ? Math.max(debutFenetreMs, referenceMs) : debutFenetreMs;
+    let total = 0;
+    (mouvements || []).forEach(m => {
+      if (m.type_mouvement !== 'activation' || m.game_id !== gameId || !m.created_at) return;
+      const t = new Date(m.created_at).getTime();
+      if (t > debutMs && t <= maintenantMs) total += Number(m.quantite) || 0;
+    });
+    const joursEcoules = Math.max((maintenantMs - debutMs) / 86400000, 1);
+    return total / joursEcoules;
+  }
+
+  // Tickets restants dans le carnet actuellement en cours (le plus
+  // récemment activé pour ce jeu) : tickets_par_carnet - tickets vendus
+  // (fdj_shift_counts.ventes_qte) depuis cette activation. Retourne null —
+  // jamais 0 par défaut — si aucun carnet n'a jamais été activé pour ce
+  // jeu, ou si tickets_par_carnet est inconnu (jeu non encore répertorié
+  // dans la planche FDJ) : "non calculable" plutôt qu'un faux zéro.
+  // Plancher à 0 si le calcul devient négatif (carnet déjà épuisé sans
+  // qu'un nouveau n'ait encore été activé — fait réel, pas une erreur de
+  // calcul, mais jamais restitué en négatif).
+  function ticketsRestantsCarnetEnCours(mouvements, shiftCounts, gameId, ticketsParCarnet) {
+    if (!ticketsParCarnet) return null;
+    let derniereActivation = null;
+    (mouvements || []).forEach(m => {
+      if (m.type_mouvement !== 'activation' || m.game_id !== gameId || !m.created_at) return;
+      if (!derniereActivation || new Date(m.created_at) > new Date(derniereActivation)) derniereActivation = m.created_at;
+    });
+    if (!derniereActivation) return null;
+    const seuil = new Date(derniereActivation).getTime();
+    let vendu = 0;
+    (shiftCounts || []).forEach(c => {
+      if (c.game_id !== gameId || !c.created_at) return;
+      if (new Date(c.created_at).getTime() > seuil) vendu += Number(c.ventes_qte) || 0;
+    });
+    return Math.max(Number(ticketsParCarnet) - vendu, 0);
+  }
+
+  // Combine solde (carnets en caisse non activés) + fraction du carnet en
+  // cours (tickets restants / tickets par carnet) en un stock disponible
+  // en équivalent-carnets, puis en jours d'autonomie via la rotation
+  // moyenne. `jours: null` avec `motif` explicite si non calculable —
+  // jamais une estimation fabriquée à partir d'une rotation nulle/inconnue.
+  function calculerAutonomieJeu({ solde, ticketsRestants, ticketsParCarnet, rotationCarnetsJour }) {
+    const nonActives = (solde && solde.nonActives) || 0;
+    const fractionEnCours = (ticketsParCarnet && ticketsRestants != null) ? ticketsRestants / ticketsParCarnet : 0;
+    const stockDisponibleCarnets = nonActives + fractionEnCours;
+    if (!rotationCarnetsJour || rotationCarnetsJour <= 0) {
+      return { jours: null, stockDisponibleCarnets, motif: 'rotation_inconnue' };
+    }
+    return { jours: Math.round((stockDisponibleCarnets / rotationCarnetsJour) * 10) / 10, stockDisponibleCarnets, motif: null };
+  }
+
+  // ------------------------------------------------------------
+  // ÉTAT DE LIGNE — V2 (14/08/2026) — sépare strictement deux axes que
+  // l'ancienne etatLigneStock() mélangeait dans un même bucket "vigilance"
+  // (couleur différente sur la ligne, mais même filtre) : le stock réel
+  // (0 carnet en caisse = agir MAINTENANT) et la traçabilité (appro non
+  // rapproché = NEXUS ne sait pas encore, indépendant du niveau de stock).
+  // Priorité : un rapprochement en attente prime toujours (les chiffres de
+  // stock ne sont pas fiables tant qu'il n'est pas résolu) — inchangé par
+  // rapport à l'ancienne version, juste renommé/étendu.
+  //   - 'reapprovisionner' (🔴) : plus rien en caisse non activée. Le
+  //     libellé distingue "Rupture totale" (rien nulle part, y compris le
+  //     bureau) de "Réapprovisionner" (une réserve existe au bureau, il
+  //     suffit de la redescendre) — même donnée, deux degrés d'urgence.
+  //   - 'vigilance' (🟠) : une réserve existe en caisse, mais rien n'est
+  //     actuellement en cours de vente (`solde.actives <= 0`, entre deux
+  //     carnets) OU l'autonomie estimée est courte
+  //     (FDJ_SEUIL_AUTONOMIE_VIGILANCE_JOURS) quand elle est calculable.
+  //   - 'ok' (🟢) : le reste.
+  function etatLigneStockV2(solde, approNonTrace, ticketsParCarnet, autonomie) {
+    if (approNonTrace > 0) {
+      const carnetsEstimes = ticketsParCarnet ? Math.floor(approNonTrace / ticketsParCarnet) : null;
+      return { statut: 'rapprocher', couleur: 'ambre', badge: '⚠️ À rapprocher', rapprochement: true, carnetsEstimes, approNonTrace };
+    }
+    const s = solde || { bureau: 0, actives: 0, nonActives: 0 };
+    if (s.nonActives <= 0) {
+      const rupture = s.bureau <= 0;
+      return { statut: 'reapprovisionner', couleur: 'rouge', badge: rupture ? '🔴 Rupture totale' : '🔴 Réapprovisionner' };
+    }
+    const autonomieCourte = autonomie && autonomie.jours !== null && autonomie.jours <= FDJ_SEUIL_AUTONOMIE_VIGILANCE_JOURS;
+    if (s.actives <= 0 || autonomieCourte) {
+      return { statut: 'vigilance', couleur: 'ambre', badge: '🟠 Vigilance' };
+    }
+    return { statut: 'ok', couleur: 'vert', badge: '🟢 OK' };
+  }
+
+  // Phrase de synthèse par palier de prix (14/08/2026) : évite de faire
+  // relire ligne par ligne un palier entier quand tout va bien, et nomme
+  // explicitement ce qui ne va pas sinon. `items` : [{ jeu:{nom}, etat }],
+  // etat = sortie de etatLigneStockV2. Ne mentionne jamais les jeux en
+  // 'rapprocher' (axe traçabilité, volontairement hors de cette phrase —
+  // consigne de Frédéric : ne jamais mélanger les deux sujets).
+  function phraseFamillePalier(items) {
+    const aReapprovisionner = items.filter(x => x.etat.statut === 'reapprovisionner');
+    const vigilance = items.filter(x => x.etat.statut === 'vigilance');
+    if (!aReapprovisionner.length && !vigilance.length) return 'Tous les jeux de ce palier sont couverts.';
+    const phrases = [];
+    aReapprovisionner.forEach(x => phrases.push(`🔴 ${x.jeu.nom} n'a aucun carnet en caisse.`));
+    vigilance.forEach(x => phrases.push(`🟠 ${x.jeu.nom} est à surveiller.`));
+    const couverts = items.length - aReapprovisionner.length - vigilance.length;
+    if (couverts > 0) phrases.push(couverts === 1 ? 'Le reste est couvert.' : 'Le reste est couvert.');
+    return phrases.join(' ');
+  }
+
+  // Synthèse globale (bandeau haut d'écran, 14/08/2026) : totaux + une
+  // seule recommandation d'action, dérivée exclusivement de faits déjà
+  // connus (jamais une supposition sur les habitudes du site) — descendre
+  // au bureau les jeux en 'reapprovisionner' pour lesquels une réserve
+  // existe réellement (`solde.bureau > 0`), jamais pour ceux en rupture
+  // totale (rien à descendre). `jeux` : [{id, nom}], `etats` : {
+  // [game_id]: etatLigneStockV2(...) }, `soldes` : { [game_id]: solde }.
+  function syntheseGlobaleFdjStock(jeux, etats, soldes) {
+    const compte = { tous: jeux.length, ok: 0, vigilance: 0, reapprovisionner: 0, rapprocher: 0 };
+    let carnetsDisponiblesCaisse = 0;
+    jeux.forEach(j => {
+      compte[etats[j.id].statut]++;
+      const s = soldes[j.id];
+      if (s && s.nonActives > 0) carnetsDisponiblesCaisse += s.nonActives;
+    });
+    const aRedescendre = jeux.filter(j => etats[j.id].statut === 'reapprovisionner' && soldes[j.id] && soldes[j.id].bureau > 0);
+    const recommandation = aRedescendre.length
+      ? `Descendre ${aRedescendre.length === 1 ? '1 carnet' : `${aRedescendre.length} carnets`} du bureau : ${aRedescendre.map(j => j.nom).join(', ')}.`
+      : null;
+    return { compte, carnetsDisponiblesCaisse, recommandation };
   }
 
   // ------------------------------------------------------------
@@ -506,5 +678,8 @@
     approNonTraceParJeu, lignesApproNonTracees,
     minutesDepuisMinuit, quartDansFenetreAcces, evaluerAccesQuart,
     etatIntegriteFdj,
+    FDJ_ROTATION_FENETRE_JOURS_DEFAUT, FDJ_SEUIL_AUTONOMIE_VIGILANCE_JOURS,
+    rotationCarnetsJeu, ticketsRestantsCarnetEnCours, calculerAutonomieJeu,
+    etatLigneStockV2, phraseFamillePalier, syntheseGlobaleFdjStock,
   };
 })(typeof window !== 'undefined' ? window : globalThis);
