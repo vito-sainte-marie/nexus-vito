@@ -130,6 +130,15 @@
   .camion-legende span{display:inline-flex; align-items:center; gap:5px;}
   .camion-legende i{width:9px; height:9px; border-radius:50%; display:inline-block;}
 
+  /* 15/08/2026 — rappel des quantités attendues (BL) en tête d'étape 3,
+     pour comparer d'un coup d'œil pendant l'assignation des compartiments
+     sans avoir à revenir à l'étape 1. */
+  .rappel-bl{display:flex; flex-wrap:wrap; gap:8px; margin-bottom:14px;}
+  .rappel-bl-item{flex:1; min-width:90px; display:flex; align-items:center; gap:7px; background:var(--panel); border:1px solid var(--hairline); border-radius:10px; padding:9px 12px;}
+  .rappel-bl-item .carburant-pastille{flex-shrink:0;}
+  .rappel-bl-nom{font-size:10.5px; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.03em;}
+  .rappel-bl-valeur{font-family:var(--mono); font-size:13px; font-weight:700; color:var(--text);}
+
   .btn-ajuster-compartiments{width:100%; display:flex; gap:8px; margin-bottom:14px;}
   .btn-ajuster-compartiments button{flex:1; padding:9px; border:1.5px dashed var(--hairline); border-radius:10px; background:transparent; color:var(--text-mid); font-size:12px; font-weight:600; cursor:pointer;}
 
@@ -147,6 +156,14 @@
   .compartiment-total.ecart .valeur{color:var(--red);}
 
   /* ---- Blocage / anomalie ---- */
+  /* 15/08/2026 — alerte capacité au jaugeage initial (étape 2) : le
+     litrage attendu (BL, étape 1) ne rentre pas dans la place restante
+     des cuves du carburant concerné. Ton amber (avertissement avant coup),
+     pas rouge (pas un blocage — le pompiste peut décider d'appeler son
+     manager ou de répartir autrement). */
+  .capacite-alerte{background:var(--amber-dim); border:1.5px solid rgba(245,166,35,0.4); border-radius:12px; padding:12px 14px; margin-bottom:14px;}
+  .capacite-alerte-titre{font-size:12.5px; font-weight:700; color:var(--amber); margin-bottom:4px;}
+  .capacite-alerte-ligne{font-size:12px; color:var(--text-mid); line-height:1.5;}
   .blocage-card{background:var(--red-dim); border:1.5px solid rgba(240,87,90,0.4); border-radius:16px; padding:18px; margin-bottom:14px;}
   .blocage-tete{display:flex; align-items:center; gap:10px; margin-bottom:12px;}
   .blocage-icone{font-size:22px;}
@@ -484,6 +501,78 @@
   // ------------------------------------------------------------
   // ÉTAPES 2 & 5 — JAUGEAGE (avant / après), reproduit le Veeder-Root
   // ------------------------------------------------------------
+  // 15/08/2026 — au jaugeage initial (phase "avant"), on avertit le
+  // pompiste si le litrage attendu (BL, étape 1) ne rentre pas dans la
+  // place restante des cuves de ce carburant. Vérification par CARBURANT
+  // (pas par cuve individuelle) : à cette étape, la répartition entre
+  // cuves d'un même carburant multi-cuves (ex. GO) n'est pas encore
+  // connue — elle ne le sera qu'à l'étape 3 (compartiments). C'est donc
+  // une vérification agrégée, la seule possible avec l'information
+  // disponible ici, mais elle suffit à repérer le cas réel visé :
+  // "la facture ne rentre pas dans ce qu'il reste de place".
+  function verifierCapaciteJaugeage() {
+    const parCarburant = {};
+    cuvesPrevues().forEach(cu => {
+      if (!parCarburant[cu.carburant]) parCarburant[cu.carburant] = { capacite: 0, jaugeageAvant: 0 };
+      parCarburant[cu.carburant].capacite += Number(cu.capacite) || 0;
+      const val = mesuresParCuve[cleCuve(cu)].jaugeage_avant_l;
+      parCarburant[cu.carburant].jaugeageAvant += (val !== '' && val != null && !isNaN(Number(val))) ? Number(val) : 0;
+    });
+    return Object.keys(parCarburant).map(carb => {
+      const p = parCarburant[carb];
+      const attendu = Number(lignes[carb].quantite_bl_l) || 0;
+      const disponible = p.capacite - p.jaugeageAvant;
+      return { carburant: carb, attendu, disponible, exces: attendu - disponible };
+    }).filter(a => a.attendu > 0 && a.exces > 0);
+  }
+  function jaugeageAlerteHtml() {
+    const depassements = verifierCapaciteJaugeage();
+    if (depassements.length === 0) return '';
+    return `
+      <div class="capacite-alerte">
+        <div class="capacite-alerte-titre">⚠ Attention — la livraison risque de ne pas rentrer</div>
+        ${depassements.map(a => `<div class="capacite-alerte-ligne">${NOM_CARBURANT_COURT[a.carburant]} : ${fmtNum(a.attendu)} L attendus pour ${fmtNum(a.disponible)} L de place restante — dépassement d'environ ${fmtNum(a.exces)} L. Prévenez votre manager avant le déchargement.</div>`).join('')}
+      </div>
+    `;
+  }
+  // Met à jour uniquement la jauge visuelle d'UNE cuve après une saisie —
+  // ne touche jamais à #content.innerHTML pendant la frappe : régénérer
+  // tout le HTML recréait l'input à chaque caractère et fermait le
+  // clavier numérique du téléphone après chaque chiffre (bug remonté le
+  // 15/08/2026). L'input reste désormais le même nœud DOM du début à la
+  // fin de la saisie.
+  // Ciblage par id (jaugeRemplissage_/jaugePct_/jaugeVariation_, tous
+  // suffixés par la clé composite de cuve) plutôt que par .closest()/
+  // querySelector(classe) : plus robuste, et cohérent avec le reste de
+  // l'écran qui identifie déjà tout par id ou attribut data-xxx.
+  function majJaugeVisuelle(phase, cu) {
+    const cle = cleCuve(cu);
+    const champL = phase === 'avant' ? 'jaugeage_avant_l' : 'jaugeage_apres_l';
+    const m = mesuresParCuve[cle];
+    const val = m[champL];
+    const pct = cu.capacite ? Math.max(0, Math.min(100, (Number(val || 0) / cu.capacite) * 100)) : 0;
+    const remplissage = document.getElementById(`jaugeRemplissage_${cle}`);
+    if (remplissage) remplissage.style.width = pct + '%';
+    const pctTexte = document.getElementById(`jaugePct_${cle}`);
+    if (pctTexte) pctTexte.textContent = val !== '' && val != null ? fmtNum(pct) + ' %' : '';
+    if (phase === 'apres') {
+      const variation = document.getElementById(`jaugeVariation_${cle}`);
+      if (variation) {
+        if (val !== '' && val != null && m.jaugeage_avant_l !== '' && m.jaugeage_avant_l != null) {
+          const diff = Number(val) - Number(m.jaugeage_avant_l);
+          variation.textContent = `Variation : ${diff >= 0 ? '+' : ''}${fmtNum(diff)} L`;
+          variation.style.display = '';
+        } else {
+          variation.textContent = '';
+          variation.style.display = 'none';
+        }
+      }
+    }
+    if (phase === 'avant') {
+      const alerteZone = document.getElementById('jaugeageAlerteZone');
+      if (alerteZone) alerteZone.innerHTML = jaugeageAlerteHtml();
+    }
+  }
   function renderJaugeage(phase) {
     const champL = phase === 'avant' ? 'jaugeage_avant_l' : 'jaugeage_apres_l';
     const champLe = phase === 'avant' ? 'jaugeage_avant_le' : 'jaugeage_apres_le';
@@ -494,6 +583,7 @@
     document.getElementById('content').innerHTML = `
       ${stepperHtml()}
       <div class="champ-note" style="margin-top:0;">${notePhase}</div>
+      ${phase === 'avant' ? `<div id="jaugeageAlerteZone">${jaugeageAlerteHtml()}</div>` : ''}
       ${cuves.map(cu => {
         const cle = cleCuve(cu);
         const m = mesuresParCuve[cle];
@@ -507,12 +597,12 @@
           </div>
           ${phase === 'apres' ? `<div class="cuve-avant-recap"><span>Avant</span><span>${fmtNum(m.jaugeage_avant_l)} L</span></div>` : ''}
           <div class="cuve-jauge-visuelle">
-            <div class="cuve-jauge-remplissage" style="width:${pct}%; background:var(--${cu.carburant});"></div>
-            <div class="cuve-jauge-pct">${val !== '' && val != null ? fmtNum(pct) + ' %' : ''}</div>
+            <div class="cuve-jauge-remplissage" id="jaugeRemplissage_${cle}" style="width:${pct}%; background:var(--${cu.carburant});"></div>
+            <div class="cuve-jauge-pct" id="jaugePct_${cle}">${val !== '' && val != null ? fmtNum(pct) + ' %' : ''}</div>
           </div>
           <div class="champ-label">Jaugeage ${phase} (L)</div>
           <input class="champ-input" data-cuve="${cle}" data-champ="${champL}" type="number" inputmode="decimal" placeholder="0" value="${val}" style="margin-bottom:0;">
-          ${phase === 'apres' && val !== '' && m.jaugeage_avant_l !== '' ? `<div class="cuve-variation" style="color:var(--${cu.carburant});">Variation : ${(Number(val) - Number(m.jaugeage_avant_l)) >= 0 ? '+' : ''}${fmtNum(Number(val) - Number(m.jaugeage_avant_l))} L</div>` : ''}
+          ${phase === 'apres' ? `<div class="cuve-variation" id="jaugeVariation_${cle}" style="color:var(--${cu.carburant}); ${val !== '' && val != null && m.jaugeage_avant_l !== '' ? '' : 'display:none;'}">${val !== '' && val != null && m.jaugeage_avant_l !== '' ? `Variation : ${(Number(val) - Number(m.jaugeage_avant_l)) >= 0 ? '+' : ''}${fmtNum(Number(val) - Number(m.jaugeage_avant_l))} L` : ''}</div>` : ''}
         </div>
       `; }).join('')}
       <button class="btn-primary" id="btnContinuerJaugeage" disabled style="margin-top:8px;">Continuer</button>
@@ -521,7 +611,9 @@
     document.querySelectorAll('[data-cuve]').forEach(input => input.addEventListener('input', () => {
       const cle = input.getAttribute('data-cuve'), champ = input.getAttribute('data-champ');
       mesuresParCuve[cle][champ] = input.value;
-      renderJaugeage(phase);
+      const cu = cuves.find(c => cleCuve(c) === cle);
+      if (cu) majJaugeVisuelle(phase, cu);
+      majBoutonJaugeage(champL);
     }));
     majBoutonJaugeage(champL);
     document.getElementById('btnContinuerJaugeage').addEventListener('click', () => {
@@ -569,6 +661,28 @@
     `;
   }
 
+  // 15/08/2026 — bandeau rappel des quantités attendues (saisies à l'étape
+  // 1) affiché en tête de l'étape 3, un badge coloré par carburant PRÉVU
+  // uniquement (jamais un carburant à 0 ou non coché — Article 5, on
+  // n'affiche que ce qui a réellement été déclaré).
+  function rappelQuantitesBlHtml() {
+    const prevus = carburantsPrevus();
+    if (prevus.length === 0) return '';
+    return `
+      <div class="rappel-bl">
+        ${prevus.map(c => `
+          <div class="rappel-bl-item" style="border-color:var(--${c});">
+            <span class="carburant-pastille" style="--cc:var(--${c});"></span>
+            <div>
+              <div class="rappel-bl-nom">${NOM_CARBURANT_COURT[c]}</div>
+              <div class="rappel-bl-valeur">${fmtNum(lignes[c].quantite_bl_l)} L</div>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    `;
+  }
+
   // ------------------------------------------------------------
   // ÉTAPE 3 — COMPARTIMENTS DU CAMION (assignation + contrôle bloquant)
   // ------------------------------------------------------------
@@ -584,6 +698,7 @@
 
     document.getElementById('content').innerHTML = `
       ${stepperHtml()}
+      ${rappelQuantitesBlHtml()}
       <div class="champ-note" style="margin-top:0;">Touchez chaque compartiment pour indiquer le carburant, la quantité et la cuve de destination, tel qu'indiqué sur le bon de livraison.</div>
       ${camionGrilleHtml('assignation')}
       <div class="btn-ajuster-compartiments">
@@ -620,11 +735,24 @@
     cablerDerogation(renderCompartimentsEtape);
   }
 
+  // 15/08/2026 — quand un carburant n'a qu'une seule cuve sur le site (cas
+  // le plus courant, ex. "Réservoir 1" unique pour le SP95), on assigne
+  // directement cette cuve au lieu de forcer un choix dans un menu à une
+  // seule option : c'est ce menu à une seule option, sur mobile, qui
+  // bloquait la validation du compartiment (le tap sur "Valider" tombait
+  // parfois sur le picker natif encore ouvert). Quand plusieurs cuves
+  // existent (ex. GO avec 2 cuves), le choix manuel reste obligatoire.
+  function cuvesPourCarburant(carb) { return (config.cuvesOrdonnees || []).filter(cu => cu.carburant === carb); }
+
   function renderFicheCompartiment() {
     const zone = document.getElementById('ficheCompartimentZone');
     if (!zone) return;
     const c = compartiments.find(x => x.numero === compartimentOuvert);
     if (!c) { zone.innerHTML = ''; return; }
+    if (c.carburant && !c.cuve_destination_id) {
+      const cuvesCarb = cuvesPourCarburant(c.carburant);
+      if (cuvesCarb.length === 1) c.cuve_destination_id = cuvesCarb[0].id;
+    }
     const prevus = carburantsPrevus();
     zone.innerHTML = `
       <div class="fiche-compartiment">
@@ -645,7 +773,8 @@
     `;
     document.querySelectorAll('[data-carb]').forEach(el => el.addEventListener('click', () => {
       c.carburant = el.getAttribute('data-carb');
-      c.cuve_destination_id = null;
+      const cuvesCarb = cuvesPourCarburant(c.carburant);
+      c.cuve_destination_id = cuvesCarb.length === 1 ? cuvesCarb[0].id : null;
       renderFicheCompartiment();
     }));
     document.getElementById('fQteCompartiment').addEventListener('input', (e) => { c.quantite_declaree_l = e.target.value; });

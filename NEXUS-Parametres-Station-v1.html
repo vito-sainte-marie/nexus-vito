@@ -289,6 +289,13 @@
          seules les CAPACITÉS et le fait qu'un carburant soit vendu ou non
          sur ce site sont ici paramétrables. Changer le nombre de cuves
          resterait un chantier séparé touchant l'écran de relevé lui-même.
+         15/08/2026 : le NOM du réservoir (cuve.label) devient éditable ici
+         aussi — jusque-là figé sur le défaut de seed ("Cuve unique",
+         "Cuve 1"...), maintenant modifiable en "Réservoir 1/2/3/4" ou tout
+         autre nom réel affiché sur site. Ce label est la seule vérité
+         utilisée partout ailleurs (Réception carburant étapes 2-5,
+         Pilotage) via le pattern `cu.label || cu.id` déjà en place —
+         aucun autre fichier à modifier pour que le nouveau nom apparaisse.
          ------------------------------------------------------------ -->
     <div class="card" id="cardCuvesCarburants">
       <div class="section-label">Cuves & capacités carburants</div>
@@ -760,6 +767,10 @@
       const c = config[cle] || NexusCarburantDonnees.CUVES_PAR_DEFAUT[cle];
       const cuvesHTML = c.cuves.map((cuve, i) => `
         <div class="row">
+          <label>Nom du réservoir</label>
+          <input type="text" id="cuveLabel_${cle}_${cuve.id}" value="${cuve.label || `Cuve ${i + 1}`}" placeholder="Réservoir ${i + 1}">
+        </div>
+        <div class="row">
           <label>${cuve.label || `Cuve ${i + 1}`} — litres</label>
           <input type="number" inputmode="numeric" min="0" step="100" id="cuve_${cle}_${cuve.id}" value="${cuve.capacite != null ? cuve.capacite : ''}">
         </div>`).join('');
@@ -783,6 +794,18 @@
         document.getElementById(`cuvesDetail_${chk.dataset.carb}`).style.opacity = chk.checked ? '1' : '0.4';
       });
     });
+    // Nom du réservoir tapé en direct -> reflété aussitôt dans le libellé
+    // du champ capacité juste en dessous, sans attendre l'enregistrement.
+    zone.querySelectorAll('[id^="cuveLabel_"]').forEach(inputLabel => {
+      inputLabel.addEventListener('input', () => {
+        const idCapacite = inputLabel.id.replace('cuveLabel_', 'cuve_');
+        const champCapacite = document.getElementById(idCapacite);
+        if (champCapacite) {
+          const labelCapacite = champCapacite.closest('.row').querySelector('label');
+          labelCapacite.textContent = `${inputLabel.value || 'Cuve'} — litres`;
+        }
+      });
+    });
   }
 
   (async function initCuvesCarburants() {
@@ -802,7 +825,8 @@
         const val = document.getElementById(`cuve_${cle}_${cuve.id}`).value;
         const capacite = parseInt(val, 10);
         if (isNaN(capacite) || capacite <= 0) erreur = true;
-        return { id: cuve.id, label: cuve.label, capacite: isNaN(capacite) ? cuve.capacite : capacite };
+        const labelSaisi = (document.getElementById(`cuveLabel_${cle}_${cuve.id}`).value || '').trim();
+        return { id: cuve.id, label: labelSaisi || cuve.label, capacite: isNaN(capacite) ? cuve.capacite : capacite };
       });
       config[cle] = { actif, label: base.label, cuves };
     });
