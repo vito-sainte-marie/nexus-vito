@@ -63,63 +63,58 @@ console.log('✓ 1. lignesApproNonTracees/approNonTraceParJeu — filtrage point
 console.log('✓ 2. rotationCarnetsJeu — fenêtre bornée par le point zéro');
 
 // ------------------------------------------------------------
-// 3) ticketsRestantsCarnetEnCours
+// 3) ticketsRestantsCarnetEnCours — v2 (15/08/2026)
 // ------------------------------------------------------------
+// Source reconstruite à la demande de Frédéric, après vérification en
+// direct de l'écran déployé : "les tickets en cours doivent être pris du
+// stock de fin de la dernière caisse [...] de Loanne" — le stock_final du
+// DERNIER comptage de quart (fdj_shift_counts), jamais reconstruit depuis
+// fdj_stock_movements (l'ancienne version, corrigée une première fois ce
+// même jour pour le point zéro, restait aveugle à un carnet réellement en
+// cours de vente sans activation tracée après une certification physique).
 {
-  const mouvements = [
-    { type_mouvement: 'activation', game_id: 'cash5', created_at: '2026-08-13T08:00:00Z' },
-    { type_mouvement: 'activation', game_id: 'cash5', created_at: '2026-08-14T08:00:00Z' }, // la plus récente
-  ];
   const shiftCounts = [
-    { game_id: 'cash5', ventes_qte: 5, created_at: '2026-08-13T20:00:00Z' }, // avant la dernière activation : ignoré
-    { game_id: 'cash5', ventes_qte: 12, created_at: '2026-08-14T12:00:00Z' }, // après : compté
+    { game_id: 'cash5', created_at: '2026-08-13T20:00:00Z', stock_final: 45 }, // pas le plus récent : ignoré
+    { game_id: 'cash5', created_at: '2026-08-14T12:00:00Z', stock_final: 38 }, // le plus récent : retenu
   ];
-  const restants = M.ticketsRestantsCarnetEnCours(mouvements, shiftCounts, 'cash5', 50);
-  assert.strictEqual(restants, 38, `Attendu 50-12=38, obtenu ${restants}`);
+  const restants = M.ticketsRestantsCarnetEnCours(shiftCounts, 'cash5', 50);
+  assert.strictEqual(restants, 38, `Attendu 38 (dernier stock_final), obtenu ${restants}`);
 
-  assert.strictEqual(M.ticketsRestantsCarnetEnCours([], [], 'jamais-active', 50), null, 'Aucune activation : non calculable (null), jamais 0');
-  assert.strictEqual(M.ticketsRestantsCarnetEnCours(mouvements, shiftCounts, 'cash5', null), null, 'tickets_par_carnet inconnu : non calculable');
+  assert.strictEqual(M.ticketsRestantsCarnetEnCours([], 'jamais-compte', 50), null, 'Aucun comptage de quart : non calculable (null), jamais 0');
+  assert.strictEqual(M.ticketsRestantsCarnetEnCours(shiftCounts, 'cash5', null), null, 'tickets_par_carnet inconnu : non calculable');
 
-  // Carnet déjà épuisé (vendu > tickets_par_carnet) : plancher à 0, jamais négatif.
-  const shiftCountsExcedent = [{ game_id: 'cash5', ventes_qte: 999, created_at: '2026-08-14T12:00:00Z' }];
-  assert.strictEqual(M.ticketsRestantsCarnetEnCours(mouvements, shiftCountsExcedent, 'cash5', 50), 0);
-
-  // 15/08/2026 — bug réel constaté en production (BANCO 1€, Vito Sainte-
-  // Marie) : une activation antérieure au point zéro certifié ne doit plus
-  // jamais être prise en compte comme "carnet en cours" — le comptage
-  // physique l'a déjà recouvert, même si aucun mouvement de clôture explicite
-  // n'existe. Sans filtre, l'écran affichait "Carnet en cours: Aucun"
-  // (actives=0, calculé depuis le point zéro) en même temps que "Tickets
-  // restants: 138/150" (calculé sans tenir compte du point zéro) — une
-  // contradiction visible pour le manager.
-  const mouvementsAvantPointZero = [
-    { type_mouvement: 'activation', game_id: 'banco', created_at: '2026-08-13T15:12:32Z' }, // avant le point zéro
-  ];
-  const referenceCreeLe = '2026-08-14T00:03:04Z';
-  assert.strictEqual(
-    M.ticketsRestantsCarnetEnCours(mouvementsAvantPointZero, [], 'banco', 150, referenceCreeLe),
-    null,
-    'Activation antérieure au point zéro : non calculable (null), pas un vieux total stale'
-  );
-  // Sans référence transmise (comportement pré-15/08 conservé) : la même
-  // activation compte encore — non-régression du cas déjà couvert plus haut.
-  assert.strictEqual(
-    M.ticketsRestantsCarnetEnCours(mouvementsAvantPointZero, [], 'banco', 150),
-    150,
-    'Sans référence transmise : comportement inchangé (rétrocompatibilité)'
-  );
-  // Une activation postérieure au point zéro reste, elle, bien prise en compte.
-  const mouvementsApresPointZero = [
-    { type_mouvement: 'activation', game_id: 'banco', created_at: '2026-08-13T15:12:32Z' },
-    { type_mouvement: 'activation', game_id: 'banco', created_at: '2026-08-14T09:00:00Z' }, // après
+  // Cas réel BANCO 1€ (Vito Sainte-Marie, capture d'écran du 15/08) : la
+  // certification du point zéro (13/08 au soir) a enregistré 0 carnet en
+  // caisse, mais le comptage de quart de Samantha juste après (14/08
+  // 08h59) démarrait déjà à 136/150 — carnet manifestement déjà entamé,
+  // jamais tracé comme "activé" côté mouvements. La v1 (basée sur
+  // fdj_stock_movements, filtrée par point zéro) retournait `null` ici,
+  // recréant "Carnet en cours: Aucun" + "Tickets restants: Non calculable"
+  // alors qu'un employé comptait bien un carnet en cours. La v2 lit
+  // directement le dernier stock_final connu, indépendamment du point
+  // zéro (un comptage de quart reste vrai quoi qu'il arrive côté
+  // certification carnet).
+  const shiftCountsBanco = [
+    { game_id: 'banco', created_at: '2026-08-14T08:59:40Z', stock_final: 130 }, // Samantha, quart 1
+    { game_id: 'banco', created_at: '2026-08-14T18:50:41Z', stock_final: 129 }, // Loane, quart 2 — le plus récent
   ];
   assert.strictEqual(
-    M.ticketsRestantsCarnetEnCours(mouvementsApresPointZero, [], 'banco', 150, referenceCreeLe),
-    150,
-    'Activation postérieure au point zéro : bien prise en compte (carnet réellement en cours)'
+    M.ticketsRestantsCarnetEnCours(shiftCountsBanco, 'banco', 150),
+    129,
+    'BANCO 1€ : dernier comptage de quart (Loane, 14/08 quart 2) retenu, jamais "non calculable"'
   );
+
+  // Carnet épuisé au dernier comptage (stock_final = 0) : un vrai zéro,
+  // jamais null — l'employé a bien compté 0 ticket restant.
+  const shiftCountsEpuise = [{ game_id: 'x', created_at: '2026-08-14T12:00:00Z', stock_final: 0 }];
+  assert.strictEqual(M.ticketsRestantsCarnetEnCours(shiftCountsEpuise, 'x', 50), 0);
+
+  // stock_final négatif (ne devrait jamais arriver en usage normal) :
+  // plancher à 0, jamais restitué en négatif.
+  const shiftCountsNegatif = [{ game_id: 'y', created_at: '2026-08-14T12:00:00Z', stock_final: -3 }];
+  assert.strictEqual(M.ticketsRestantsCarnetEnCours(shiftCountsNegatif, 'y', 50), 0);
 }
-console.log('✓ 3. ticketsRestantsCarnetEnCours (+ filtrage point zéro, bug BANCO 1€ du 15/08)');
+console.log('✓ 3. ticketsRestantsCarnetEnCours v2 (source fdj_shift_counts.stock_final, cas réel BANCO 1€)');
 
 // ------------------------------------------------------------
 // 4) calculerAutonomieJeu
@@ -190,17 +185,41 @@ console.log('✓ 4. calculerAutonomieJeu');
   const piegeMoitiePile = M.etatLigneStockV2({ bureau: 5, nonActives: 0, actives: 1 }, 0, 50, 25, { jours: 5, motif: null });
   assert.strictEqual(piegeMoitiePile.statut, 'reapprovisionner', `À exactement la moitié : plus "pas encore", attendu reapprovisionner, obtenu ${piegeMoitiePile.statut}`);
 
-  // Sans carnet en cours (actives=0), la règle ne s'applique jamais, même
-  // si ticketsRestants était connu par ailleurs (cas normalement impossible
-  // en pratique, mais la garde doit rester stricte sur `actives > 0`).
-  const sansCarnetEnCours = M.etatLigneStockV2({ bureau: 5, nonActives: 0, actives: 0 }, 0, 50, 40, { jours: 5, motif: null });
-  assert.strictEqual(sansCarnetEnCours.statut, 'reapprovisionner', 'Sans carnet en cours, la règle "pas encore à moitié" ne doit jamais s\'appliquer');
+  // Sans AUCUN signal de carnet en cours connu (ni solde.actives, ni
+  // ticketsRestants du dernier comptage de quart), la règle ne s'applique
+  // jamais — rien à évaluer.
+  const sansCarnetEnCours = M.etatLigneStockV2({ bureau: 5, nonActives: 0, actives: 0 }, 0, 50, null, { jours: 5, motif: null });
+  assert.strictEqual(sansCarnetEnCours.statut, 'reapprovisionner', 'Sans aucun signal de carnet en cours, la règle "pas encore à moitié" ne doit jamais s\'appliquer');
 
   // ticketsParCarnet inconnu : impossible de juger "à moitié", reste rouge.
   const sansTaille = M.etatLigneStockV2({ bureau: 5, nonActives: 0, actives: 1 }, 0, null, 30, { jours: 5, motif: null });
   assert.strictEqual(sansTaille.statut, 'reapprovisionner', 'tickets_par_carnet inconnu : jamais d\'exception (rien à évaluer)');
+
+  // 15/08/2026 — cas réel BANCO 1€ : solde.actives=0 (le solde de
+  // mouvements carnet n'a jamais vu d'activation post-point zéro), MAIS
+  // ticketsRestants=129/150 (86%, connu via le dernier comptage de quart de
+  // Loane) — le signal ticketsRestants doit primer sur solde.actives resté
+  // à 0 pour un carnet manifestement toujours en cours de vente : la règle
+  // "pas encore à moitié" s'applique bien -> vigilance, jamais
+  // réapprovisionner malgré actives=0.
+  const bancoReel = M.etatLigneStockV2({ bureau: 3, nonActives: 0, actives: 0 }, 0, 150, 129, { jours: null, motif: 'rotation_inconnue' });
+  assert.strictEqual(bancoReel.statut, 'vigilance', `BANCO 1€ réel (actives=0 mais 129/150 tickets restants) : attendu vigilance, obtenu ${bancoReel.statut}`);
+  assert.strictEqual(bancoReel.badge, '🟠 Vigilance');
+
+  // Même scénario mais ticketsRestants sous la moitié (actives=0 toujours) :
+  // ticketsRestants prime toujours sur solde.actives, mais la fraction ne
+  // passe pas le seuil -> reste réapprovisionner.
+  const bancoReelSousMoitie = M.etatLigneStockV2({ bureau: 3, nonActives: 0, actives: 0 }, 0, 150, 60, { jours: null, motif: 'rotation_inconnue' });
+  assert.strictEqual(bancoReelSousMoitie.statut, 'reapprovisionner', 'ticketsRestants connu mais sous la moitié : réapprovisionner, même logique de seuil qu\'avec actives>0');
+
+  // Symétrique dans l'autre branche (nonActives>0) : solde.actives=0 mais
+  // ticketsRestants>0 connu -> plus "vigilance par défaut d'info", mais un
+  // vrai OK si l'autonomie est confortable (le signal fiable dit qu'un
+  // carnet est bien en cours).
+  const okMalgreActivesZero = M.etatLigneStockV2({ bureau: 10, nonActives: 2, actives: 0 }, 0, 150, 90, { jours: 10, motif: null });
+  assert.strictEqual(okMalgreActivesZero.statut, 'ok', 'nonActives>0 + ticketsRestants>0 connu (même si actives=0) + autonomie confortable -> OK');
 }
-console.log('✓ 5. etatLigneStockV2 — 3 exemples de Frédéric (CASH/X10/BANCO) + rupture totale + rapprochement + autonomie courte + règle "pas encore à moitié"');
+console.log('✓ 5. etatLigneStockV2 — 3 exemples de Frédéric (CASH/X10/BANCO) + rupture totale + rapprochement + autonomie courte + règle "pas encore à moitié" + priorité ticketsRestants sur solde.actives (cas réel BANCO 1€)');
 
 // ------------------------------------------------------------
 // 6) phraseFamillePalier

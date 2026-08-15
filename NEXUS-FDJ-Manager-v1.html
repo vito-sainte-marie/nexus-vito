@@ -1425,7 +1425,7 @@
     const rotationParJeu = {}, ticketsRestantsParJeu = {}, autonomieParJeu = {};
     jeux.forEach(j => {
       const rotation = NexusFdjMoteur.rotationCarnetsJeu(mouvements, j.id, maintenant, undefined, referenceCreeLe);
-      const ticketsRestants = NexusFdjMoteur.ticketsRestantsCarnetEnCours(mouvements, shiftCountsStock, j.id, j.tickets_par_carnet, referenceCreeLe);
+      const ticketsRestants = NexusFdjMoteur.ticketsRestantsCarnetEnCours(shiftCountsStock, j.id, j.tickets_par_carnet);
       rotationParJeu[j.id] = rotation;
       ticketsRestantsParJeu[j.id] = ticketsRestants;
       autonomieParJeu[j.id] = NexusFdjMoteur.calculerAutonomieJeu({
@@ -1593,10 +1593,20 @@
     const ticketsRestants = stockEtat.ticketsRestantsParJeu[jeu.id];
     const rotation = stockEtat.rotationParJeu[jeu.id];
     const autonomie = stockEtat.autonomieParJeu[jeu.id];
+    // 15/08/2026 : "Carnet en cours" reflète désormais en priorité le
+    // dernier comptage de quart réel (ticketsRestants) plutôt que le seul
+    // solde de mouvements carnet (solde.actives) — même signal que
+    // etatLigneStockV2 (carnetEnCoursConnu), pour ne jamais afficher "Aucun"
+    // ici alors que "Tickets restants" montre un chiffre juste en dessous.
+    // solde.actives ne sert de repli que si aucun comptage de quart n'existe
+    // encore pour ce jeu (ticketsRestants === null).
+    const carnetEnCoursTexte = ticketsRestants !== null
+      ? (ticketsRestants > 0 ? '1 (déduit du dernier comptage de quart)' : 'Aucun (carnet épuisé)')
+      : (solde.actives > 0 ? `${fmtNum(solde.actives)} activé${solde.actives > 1 ? 's' : ''} depuis le point zéro` : 'Aucun');
     const mesures = !etat.rapprochement ? `
       <div class="fdj-stock-mesure-row"><span>Réserve bureau</span><b>${fmtNum(solde.bureau)} carnet${solde.bureau > 1 ? 's' : ''}</b></div>
       <div class="fdj-stock-mesure-row"><span>Caisse non activés</span><b>${fmtNum(solde.nonActives)} carnet${solde.nonActives > 1 ? 's' : ''}</b></div>
-      <div class="fdj-stock-mesure-row"><span>Carnet en cours</span><b>${solde.actives > 0 ? `${fmtNum(solde.actives)} activé${solde.actives > 1 ? 's' : ''} depuis le point zéro` : 'Aucun'}</b></div>
+      <div class="fdj-stock-mesure-row"><span>Carnet en cours</span><b>${carnetEnCoursTexte}</b></div>
       <div class="fdj-stock-mesure-row"><span>Tickets restants</span><b>${ticketsRestants !== null ? `${fmtNum(ticketsRestants)} / ${jeu.tickets_par_carnet}` : 'Non calculable'}</b></div>
       <div class="fdj-stock-mesure-row"><span>Rotation moyenne</span><b>${rotation > 0 ? `${fmtNum(Math.round(rotation * 100) / 100)} carnet/jour` : 'Aucune activation récente'}</b></div>
       <div class="fdj-stock-mesure-row"><span>Autonomie caisse estimée</span><b>${autonomie.jours !== null ? `${fmtNum(autonomie.jours)} jour${autonomie.jours > 1 ? 's' : ''}` : 'Non calculable'}</b></div>

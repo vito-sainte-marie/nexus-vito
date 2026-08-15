@@ -469,6 +469,13 @@
   // un nombre >= 0, jamais null (0 activation sur la fenêtre est un fait,
   // pas une absence de donnée) — c'est à l'appelant (calculerAutonomieJeu)
   // de décider qu'une rotation nulle rend l'autonomie non calculable.
+  // Limite connue (15/08/2026, non corrigée ici — hors périmètre de la
+  // demande "tickets restants") : cette fonction compte des mouvements
+  // 'activation' réels, donc peut sous-compter la rotation d'un jeu dont
+  // un carnet reste en cours sans activation tracée après une
+  // certification physique (même écart de modèle que documenté pour
+  // ticketsRestantsCarnetEnCours) — à reprendre si l'usage montre que ça
+  // fausse l'autonomie affichée.
   function rotationCarnetsJeu(mouvements, gameId, maintenant, fenetreJours, referenceCreeLe) {
     const fenetre = fenetreJours || FDJ_ROTATION_FENETRE_JOURS_DEFAUT;
     const maintenantMs = maintenant instanceof Date ? maintenant.getTime() : new Date(maintenant).getTime();
@@ -485,41 +492,42 @@
     return total / joursEcoules;
   }
 
-  // Tickets restants dans le carnet actuellement en cours (le plus
-  // récemment activé pour ce jeu) : tickets_par_carnet - tickets vendus
-  // (fdj_shift_counts.ventes_qte) depuis cette activation. Retourne null —
-  // jamais 0 par défaut — si aucun carnet n'a jamais été activé pour ce
-  // jeu, ou si tickets_par_carnet est inconnu (jeu non encore répertorié
-  // dans la planche FDJ) : "non calculable" plutôt qu'un faux zéro.
-  // Plancher à 0 si le calcul devient négatif (carnet déjà épuisé sans
-  // qu'un nouveau n'ait encore été activé — fait réel, pas une erreur de
-  // calcul, mais jamais restitué en négatif).
-  function ticketsRestantsCarnetEnCours(mouvements, shiftCounts, gameId, ticketsParCarnet, referenceCreeLe) {
+  // Tickets restants dans le carnet actuellement en cours, pour un jeu.
+  // 15/08/2026 (v2) : source RECONSTRUITE — demande de Frédéric après
+  // vérification en direct de l'écran ("les tickets en cours doivent être
+  // pris du stock de fin de la dernière caisse [...] de Loanne"). Ancienne
+  // version : reconstruction indirecte à partir de la dernière activation
+  // trouvée dans fdj_stock_movements, puis somme des ventes depuis cette
+  // date. Deux défauts, tous deux constatés en usage réel sur BANCO 1€ :
+  // (1) une activation antérieure au point zéro pouvait remonter un total
+  // périmé (corrigé une première fois le 15/08 par un filtre sur
+  // referenceCreeLe — toujours insuffisant, voir (2)) ; (2) même filtrée,
+  // cette approche reste aveugle à un carnet réellement entamé mais dont
+  // l'activation n'a jamais été (re)tracée comme mouvement après une
+  // certification physique — le comptage physique d'un point zéro capture
+  // un TOTAL de carnets en caisse (`caisse_reel`), jamais "combien sont en
+  // cours de vente" : sur BANCO 1€, la certification du 13/08 au soir a
+  // enregistré 0 carnet en caisse, alors que le comptage de quart suivant
+  // (14/08 08h59, Samantha) démarrait déjà à 136/150 tickets — carnet
+  // manifestement déjà entamé, jamais compté comme "actif" par le système
+  // de mouvements. **Nouvelle source, directe et fiable** : le
+  // `stock_final` du DERNIER comptage de quart enregistré pour ce jeu
+  // (`fdj_shift_counts`) — un chiffre physiquement compté par l'employé à
+  // chaque quart, jamais recalculé ni sujet au même écart de modèle.
+  // Retourne null — jamais 0 par défaut — si aucun comptage de quart
+  // n'existe encore pour ce jeu, ou si tickets_par_carnet est inconnu
+  // (jeu non encore répertorié dans la planche FDJ). Plancher à 0 si la
+  // valeur enregistrée était négative (ne devrait jamais arriver en usage
+  // normal, mais jamais restitué en négatif).
+  function ticketsRestantsCarnetEnCours(shiftCounts, gameId, ticketsParCarnet) {
     if (!ticketsParCarnet) return null;
-    const referenceMs = referenceCreeLe ? new Date(referenceCreeLe).getTime() : null;
-    let derniereActivation = null;
-    (mouvements || []).forEach(m => {
-      if (m.type_mouvement !== 'activation' || m.game_id !== gameId || !m.created_at) return;
-      // 15/08/2026 : une activation antérieure au dernier point zéro certifié
-      // ne décrit plus un carnet réellement "en cours" — le comptage
-      // physique l'a déjà recouvert (a pu le remettre à 0 carnet actif sans
-      // qu'aucun mouvement de clôture n'existe dans ce modèle). Sans ce
-      // filtre, un vieux carnet activé avant certification réapparaissait
-      // comme "tickets restants" alors que "Carnet en cours" affichait déjà
-      // "Aucun" (actives=0 post-certification) — contradiction constatée en
-      // usage réel (BANCO 1€ : activation du 13/08 15h12, point zéro du
-      // 14/08 00h03, "Carnet en cours: Aucun" + "Tickets restants: 138/150").
-      if (referenceMs !== null && new Date(m.created_at).getTime() <= referenceMs) return;
-      if (!derniereActivation || new Date(m.created_at) > new Date(derniereActivation)) derniereActivation = m.created_at;
-    });
-    if (!derniereActivation) return null;
-    const seuil = new Date(derniereActivation).getTime();
-    let vendu = 0;
+    let dernier = null;
     (shiftCounts || []).forEach(c => {
-      if (c.game_id !== gameId || !c.created_at) return;
-      if (new Date(c.created_at).getTime() > seuil) vendu += Number(c.ventes_qte) || 0;
+      if (c.game_id !== gameId || !c.created_at || c.stock_final === null || c.stock_final === undefined) return;
+      if (!dernier || new Date(c.created_at) > new Date(dernier.created_at)) dernier = c;
     });
-    return Math.max(Number(ticketsParCarnet) - vendu, 0);
+    if (!dernier) return null;
+    return Math.max(Number(dernier.stock_final) || 0, 0);
   }
 
   // Combine solde (carnets en caisse non activés) + fraction du carnet en
@@ -569,8 +577,19 @@
       return { statut: 'rapprocher', couleur: 'ambre', badge: '⚠️ À rapprocher', rapprochement: true, carnetsEstimes, approNonTrace };
     }
     const s = solde || { bureau: 0, actives: 0, nonActives: 0 };
+    // 15/08/2026 : signal unique "un carnet est actuellement en cours de
+    // vente" — priorité au dernier comptage de quart réel (ticketsRestants,
+    // cf. ticketsRestantsCarnetEnCours) sur le solde de mouvements carnet
+    // (solde.actives), qui peut être aveugle à un carnet déjà entamé avant
+    // une certification physique (celle-ci ne capture qu'un TOTAL de
+    // carnets en caisse, jamais "combien sont en cours" — écart de modèle
+    // confirmé sur BANCO 1€, cf. commentaire de ticketsRestantsCarnetEnCours).
+    // solde.actives ne sert plus de repli que si ticketsRestants est
+    // lui-même inconnu (aucun comptage de quart, ou tickets_par_carnet non
+    // répertorié — rien d'autre à évaluer dans ce cas).
+    const carnetEnCoursConnu = ticketsRestants != null ? ticketsRestants > 0 : s.actives > 0;
     if (s.nonActives <= 0) {
-      const carnetEnCoursPasEncoreMoitie = s.actives > 0 && ticketsParCarnet && ticketsRestants != null
+      const carnetEnCoursPasEncoreMoitie = carnetEnCoursConnu && ticketsParCarnet && ticketsRestants != null
         && (ticketsRestants / ticketsParCarnet) > FDJ_SEUIL_FRACTION_CARNET_PAS_ENCORE_MOITIE;
       if (carnetEnCoursPasEncoreMoitie) {
         return { statut: 'vigilance', couleur: 'ambre', badge: '🟠 Vigilance' };
@@ -579,7 +598,7 @@
       return { statut: 'reapprovisionner', couleur: 'rouge', badge: rupture ? '🔴 Rupture totale' : '🔴 Réapprovisionner' };
     }
     const autonomieCourte = autonomie && autonomie.jours !== null && autonomie.jours <= FDJ_SEUIL_AUTONOMIE_VIGILANCE_JOURS;
-    if (s.actives <= 0 || autonomieCourte) {
+    if (!carnetEnCoursConnu || autonomieCourte) {
       return { statut: 'vigilance', couleur: 'ambre', badge: '🟠 Vigilance' };
     }
     return { statut: 'ok', couleur: 'vert', badge: '🟢 OK' };
