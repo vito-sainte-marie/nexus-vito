@@ -351,10 +351,20 @@
     { value: 'changement_planning', label: "Changement de planning validé" },
     { value: 'autre', label: 'Autre raison' },
   ];
+  // Motifs de "Demander une correction" côté employé (NEXUS-FDJ-v1.html,
+  // demarrerDemandeCorrection) — dupliqués ici pour le libellé, même
+  // remarque que MOTIFS_EXCEPTION_CARNET ci-dessus.
+  const MOTIFS_CORRECTION_CAISSE = [
+    { value: 'caisse_reelle_erronee', label: 'Caisse réelle mal comptée' },
+    { value: 'lots_payes_ou_tirages_errones', label: 'Lots payés / caisse tirages mal recopiés' },
+    { value: 'grattage_erronee', label: 'Comptage grattage à revoir' },
+    { value: 'autre', label: 'Autre' },
+  ];
   function labelStatutCaisse(v) { const s = STATUTS_CAISSE.find(x => x.value === v); return s ? s.label : v; }
   function labelMotifEcart(v) { const m = MOTIFS_ECART_FDJ.find(x => x.value === v); return m ? m.label : v; }
   function labelMotifException(v) { const m = MOTIFS_EXCEPTION_CARNET.find(x => x.value === v); return m ? m.label : (v || '—'); }
   function labelMotifDerogationQuart(v) { const m = MOTIFS_DEROGATION_QUART.find(x => x.value === v); return m ? m.label : (v || '—'); }
+  function labelMotifCorrectionCaisse(v) { const m = MOTIFS_CORRECTION_CAISSE.find(x => x.value === v); return m ? m.label : (v || '—'); }
 
   // ------------------------------------------------------------
   // HISTORIQUE DES CORRECTIONS — 09/08/2026, demande de Frédéric :
@@ -911,7 +921,31 @@
     if (a.type === 'activation_sans_carnet_confie') return renderAlerteActivationSansCarnet(a);
     if (a.type === 'chaine_interrompue') return renderAlerteChaineInterrompue(a);
     if (a.type === 'continuite_stock_a_verifier') return renderAlerteContinuiteStock(a);
+    if (a.type === 'correction_caisse_demandee') return renderAlerteCorrectionCaisse(a);
     return renderAlerteStock(a);
+  }
+
+  // "Demander une correction" (16/08/2026, demande de Frédéric) : une fois
+  // son quart validé, l'employé ne modifie plus rien lui-même sur la caisse
+  // — il signale ici ce qui doit être revu, et c'est au manager d'ouvrir ce
+  // quart et de régulariser depuis "Modifier ce quart FDJ" (le constat
+  // d'origine qu'il voit là-bas n'est jamais effacé, voir renderEdition).
+  function renderAlerteCorrectionCaisse(a) {
+    return `
+      <div class="jeu-row" data-alerte="${a.id}" style="padding:12px 14px;">
+        <div class="jeu-nom-ligne">
+          <div class="jeu-nom">🟡 Correction demandée — ${libelleQuart(a.quartActuel)}</div>
+        </div>
+        <div class="histo-sub" style="margin-bottom:8px;">
+          ${a.employee_id ? `${nomEmploye(a.employee_id)} signale une erreur sur ce quart` : 'Erreur signalée sur ce quart'}${a.valeur_saisie !== null && a.valeur_saisie !== undefined ? ` (écart constaté à la transmission : <b style="color:var(--amber);">${a.valeur_saisie > 0 ? '+' : ''}${fmtEuro(a.valeur_saisie)}</b>)` : ''}.<br>
+          Motif indiqué : <b style="color:var(--text);">${labelMotifCorrectionCaisse(a.motif)}</b>
+        </div>
+        <div style="display:flex; gap:8px;">
+          ${a.shift_id ? `<button type="button" class="btn-modifier" data-corriger="${a.shift_id}" style="margin-top:0; flex:1;">Ouvrir ce quart</button>` : ''}
+          <button type="button" class="btn-modifier" data-vue="${a.id}" style="margin-top:0; flex:1; color:var(--text-mid); border-color:var(--hairline);">Marquer comme vue</button>
+        </div>
+      </div>
+    `;
   }
 
   // Continuité de stock à vérifier (16/08/2026, demande de Frédéric) : la
@@ -1210,6 +1244,12 @@
             <div class="stat-row"><div class="stat-label">Caisse attendue</div><div class="stat-value cyan">${fmtEuro(s.cash.caisse_attendue)}</div></div>
             <div class="stat-row"><div class="stat-label">Caisse réelle</div><div class="stat-value">${fmtEuro(s.cash.caisse_reelle)}</div></div>
             ${s.cash.motif_ecart ? `<div class="stat-row"><div class="stat-label">Motif</div><div class="stat-value" style="font-size:11.5px; font-weight:400;">${s.cash.motif_ecart}</div></div>` : ''}
+            ${s.cash.caisse_reelle_origine !== null && s.cash.caisse_reelle_origine !== undefined && (s.cash.caisse_reelle_origine !== s.cash.caisse_reelle || s.cash.ecart_origine !== s.cash.ecart) ? `
+              <div class="stat-row" style="border-top:1px dashed var(--hairline); margin-top:4px; padding-top:8px;">
+                <div class="stat-label">Constat initial (employé)</div>
+                <div class="stat-value" style="font-size:11.5px; font-weight:400; color:var(--text-mid);">Caisse ${fmtEuro(s.cash.caisse_reelle_origine)} · écart ${s.cash.ecart_origine > 0 ? '+' : ''}${fmtEuro(s.cash.ecart_origine)} — régularisé depuis</div>
+              </div>
+            ` : ''}
           ` : '<div class="empty">Pas encore de rapprochement caisse pour ce quart.</div>'}
           <button type="button" class="btn-modifier" data-idx="${i}">✏️ Modifier ce quart</button>
         </div>
@@ -1973,6 +2013,7 @@
       shiftId: null, date: dateOverride || dateISO(), quart: quartOverride || '1', employeeId: employesSite[0] ? employesSite[0].id : null,
       statutShift: 'brouillon', counts: {}, stockInitialAuto: {}, lotsPayes: null, caisseTirages: null, regularisations: 0,
       caisseReelle: null, motifEcart: '', statutCaisse: 'provisoire', avant: null, estNouveau: true, historiqueAudit: [],
+      caisseReelleOrigine: null, ecartOrigine: null,
     };
     jeux.forEach(j => { edition.counts[j.id] = { stock_initial: null, appro: 0, stock_final: null }; });
     // Préremplissage (09/08/2026, demande de Frédéric) : un quart tout
@@ -2014,6 +2055,12 @@
       caisseReelle: cash ? cash.caisse_reelle : null,
       motifEcart: cash ? (cash.motif_ecart || '') : '',
       statutCaisse: cash ? cash.statut : 'provisoire',
+      // 16/08/2026 : constat d'origine (voir NEXUS-FDJ-v1.html::validerQuart)
+      // — jamais réinjecté dans l'upsert ci-dessous (enregistrerEdition),
+      // simplement affiché en lecture seule pour que "régulariser" ne fasse
+      // jamais disparaître ce que l'employé a réellement transmis.
+      caisseReelleOrigine: cash ? cash.caisse_reelle_origine : null,
+      ecartOrigine: cash ? cash.ecart_origine : null,
       estNouveau: false,
       historiqueAudit,
     };
@@ -2135,6 +2182,11 @@
 
       <div class="champ-sep"></div>
       <div class="section-titre">Caisse</div>
+      ${edition.caisseReelleOrigine !== null && edition.caisseReelleOrigine !== undefined ? `
+        <div class="etat-banner" style="color:var(--text-mid);">
+          Constat initial transmis par l'employé — caisse <b style="color:var(--text);">${fmtEuro(edition.caisseReelleOrigine)}</b>, écart <b style="color:var(--text);">${edition.ecartOrigine > 0 ? '+' : ''}${fmtEuro(edition.ecartOrigine)}</b>. Jamais effacé, même si vous régularisez ci-dessous.
+        </div>
+      ` : ''}
       <label class="champ-label">Régularisations</label>
       <input type="number" inputmode="decimal" class="champ-input mono" id="champRegul" value="${edition.regularisations ?? 0}" placeholder="0,00" style="margin-bottom:12px;">
       <label class="champ-label">Caisse réelle comptée</label>

@@ -59,6 +59,24 @@
   }
 
   // ------------------------------------------------------------
+  // RÈGLE DE PERMISSION — ÉCART DE CAISSE FDJ (16/08/2026, demande de
+  // Frédéric) : "Voir : oui. Corriger avant validation : oui, avec
+  // traçabilité. Modifier après validation : non. Régulariser après
+  // validation : manager uniquement, sans effacer le constat d'origine."
+  // "Validation" = le quart lui-même validé (transmis) par l'employé
+  // (fdj_shifts.statut === 'valide'), pas la validation manager de la
+  // caisse — une fois transmis, l'employé ne touche plus rien directement,
+  // il ne peut plus que demander une correction (voir
+  // NEXUS-FDJ-v1.html::soumettreDemandeCorrection, alerte tracée type
+  // 'correction_caisse_demandee'). Source unique consommée par les deux
+  // écrans (Article 11) plutôt que deux implémentations du même bout de
+  // phrase.
+  function permissionsEcartCaisseEmploye(shift) {
+    const valide = !!(shift && shift.statut === 'valide');
+    return { voir: true, corrigerDirectement: !valide, demanderCorrection: valide };
+  }
+
+  // ------------------------------------------------------------
   // SOLDES DE CARNETS — 09/08/2026, précision terrain de Frédéric : un
   // transfert Bureau → Caisse n'est PAS une activation. Un carnet confié à
   // la caisse reste "non activé" (aucun impact sur l'appro, aucun
@@ -808,7 +826,7 @@
   }
 
   global.NexusFdjMoteur = {
-    calculerVentesJeu, ventesGrattageTotal, caisseGrattage, caisseAttendue, ecartCaisse,
+    calculerVentesJeu, ventesGrattageTotal, caisseGrattage, caisseAttendue, ecartCaisse, permissionsEcartCaisseEmploye,
     soldesCarnetsParJeu, soldeCarnetsJeu, soldesCarnetsAvecReference,
     calculerCandidatsFdj,
     quartPrecedentAttendu, quartSuivant, chaineContinuite,

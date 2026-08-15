@@ -271,11 +271,24 @@
   //   l'ouverture) — seuls appro et stock final restent saisissables.
   // Entre les deux, "Déclarer un carnet ouvert" peut être utilisé à tout
   // moment du quart, sans dépendre d'aucune des deux phases.
-  // Par ailleurs l'écart de caisse n'est plus jamais montré à l'employé :
-  // il ne le voit qu'une fois que le manager a validé la caisse (statut
-  // fdj_cash_controls différent de "provisoire") — en attendant, l'employé
-  // voit seulement "en attente de validation".
+  // 16/08/2026, demande de Frédéric — règle de permission sur l'écart de
+  // caisse FDJ, remplace la décision du 09/08 ci-dessus (qui masquait
+  // l'écart à l'employé) : "Voir : oui. Corriger avant validation : oui,
+  // avec traçabilité. Modifier après validation : non. Régulariser après
+  // validation : manager uniquement, sans effacer le constat d'origine."
+  // Concrètement : l'employé voit désormais toujours son écart (en direct
+  // pendant la saisie, puis sur l'accueil, avant ET après la validation
+  // manager). Tant que SON quart n'est pas encore transmis ("validé"), il
+  // corrige librement — c'est déjà le cas nativement puisque rien n'est en
+  // base avant la transmission. Une fois transmis, il ne modifie plus rien
+  // directement : il peut seulement "demander une correction" (voir
+  // demarrerDemandeCorrection), une alerte tracée qui prévient le manager
+  // — seul habilité à régulariser, sans jamais effacer ce constat initial
+  // (voir caisse_reelle_origine/ecart_origine, posées une seule fois ici et
+  // plus jamais réécrites, y compris par une régularisation manager).
+  // Voir NexusFdjMoteur.permissionsEcartCaisseEmploye (source unique).
   let phase = 'accueil';
+  let demandeCorrectionMotifChoisi = null; // voir demarrerDemandeCorrection
 
   function heureLocale() { return new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }); }
   function demarrerHorloge() {
@@ -579,6 +592,102 @@
     return data;
   }
 
+  // 16/08/2026 — évite de reproposer "Signaler une erreur" en boucle si une
+  // demande est déjà en attente d'un manager pour ce quart (voir
+  // demarrerDemandeCorrection). 'vue=true' = déjà traitée par le manager,
+  // redevient normalement invisible ici (le bouton réapparaît).
+  async function chargerDemandeCorrectionEnCours(shiftId) {
+    const { data, error } = await nexusClient.from('fdj_alertes').select('*')
+      .eq('shift_id', shiftId).eq('type', 'correction_caisse_demandee').eq('vue', false).order('created_at', { ascending: false }).limit(1).maybeSingle();
+    if (error) { console.error('Chargement demande de correction FDJ en cours:', error); return null; }
+    return data;
+  }
+
+  // ------------------------------------------------------------
+  // DEMANDER UNE CORRECTION — 16/08/2026, demande de Frédéric : une fois
+  // le quart validé (transmis), l'employé ne corrige plus rien lui-même
+  // ("Modifier après validation : non"). Il peut seulement demander une
+  // correction — une alerte tracée qui prévient le manager, seul habilité à
+  // régulariser ("Régulariser après validation : manager uniquement, sans
+  // effacer le constat d'origine"). Même schéma que
+  // demarrerExceptionCarnet/MOTIFS_EXCEPTION_CARNET plus haut : une grille
+  // de motifs plutôt qu'un confirm() générique invisible au manager.
+  // ------------------------------------------------------------
+  const MOTIFS_CORRECTION_CAISSE = [
+    { value: 'caisse_reelle_erronee', label: 'Caisse réelle mal comptée' },
+    { value: 'lots_payes_ou_tirages_errones', label: 'Lots payés / caisse tirages mal recopiés' },
+    { value: 'grattage_erronee', label: 'Comptage grattage à revoir' },
+    { value: 'autre', label: 'Autre' },
+  ];
+
+  function demarrerDemandeCorrection() {
+    demandeCorrectionMotifChoisi = null;
+    phase = 'demande-correction';
+    renderDemandeCorrection();
+  }
+
+  function renderDemandeCorrection() {
+    document.getElementById('titre').textContent = 'Signaler une erreur';
+    document.getElementById('sousTitre').textContent = '';
+    document.getElementById('content').innerHTML = `
+      <div class="etat-banner">Ce quart est déjà transmis, vous ne pouvez plus le modifier vous-même. Indiquez ce qui doit être revu — le manager sera prévenu et corrigera depuis Contrôle FDJ.</div>
+      <div class="motif-grid" id="grilleMotifsCorrection">
+        ${MOTIFS_CORRECTION_CAISSE.map(m => `
+          <div class="motif-item" data-motif="${m.value}">
+            <div class="pastille"></div>
+            <div>${m.label}</div>
+          </div>
+        `).join('')}
+      </div>
+      <label class="champ-label">Précisez (optionnel)</label>
+      <textarea class="champ-input" id="champDetailCorrection" rows="3" style="text-align:left; font-family:var(--sans); font-size:14px; resize:vertical;" placeholder="Ex : j'ai compté 320€ et non 302€, erreur de lecture au comptage."></textarea>
+      <button class="btn-primary" id="btnEnvoyerDemandeCorrection" disabled style="margin-top:12px;">Envoyer au manager</button>
+      <button class="btn-ghost" id="btnAnnulerDemandeCorrection">Annuler</button>
+    `;
+    document.querySelectorAll('#grilleMotifsCorrection .motif-item').forEach(el => {
+      el.addEventListener('click', () => {
+        demandeCorrectionMotifChoisi = el.dataset.motif;
+        document.querySelectorAll('#grilleMotifsCorrection .motif-item').forEach(x => x.classList.toggle('selectionne', x.dataset.motif === demandeCorrectionMotifChoisi));
+        document.getElementById('btnEnvoyerDemandeCorrection').disabled = false;
+      });
+    });
+    document.getElementById('btnEnvoyerDemandeCorrection').addEventListener('click', soumettreDemandeCorrection);
+    document.getElementById('btnAnnulerDemandeCorrection').addEventListener('click', () => { phase = 'accueil'; renderAccueil(); });
+  }
+
+  async function soumettreDemandeCorrection() {
+    const btn = document.getElementById('btnEnvoyerDemandeCorrection');
+    btn.disabled = true;
+    btn.innerHTML = 'Envoi<span class="btn-loading-dots"><i></i><i></i><i></i></span>';
+    const detail = (document.getElementById('champDetailCorrection').value || '').trim();
+    const cash = await chargerCashControlDuQuart(shiftRow.id);
+
+    // Alerte tracée (jamais une modification directe de fdj_cash_controls —
+    // c'est exactement la limite posée par "Modifier après validation :
+    // non") : le manager voit la demande dans son panneau d'alertes et
+    // corrige lui-même depuis Contrôle FDJ.
+    const { error: eAlerte } = await nexusClient.from('fdj_alertes').insert({
+      site: siteId, type: 'correction_caisse_demandee', shift_id: shiftRow.id, shift_precedent_id: null,
+      game_id: null, valeur_quart_precedent: null, valeur_saisie: cash ? cash.ecart : null,
+      employee_id: employeeCourant.id, motif: demandeCorrectionMotifChoisi,
+    });
+    if (eAlerte) {
+      console.error('Enregistrement demande de correction caisse FDJ:', eAlerte);
+      btn.disabled = false; btn.textContent = 'Envoyer au manager';
+      alert("Erreur d'enregistrement de la demande. Réessayez.");
+      return;
+    }
+
+    await nexusClient.from('fdj_audit_log').insert({
+      site: siteId, shift_id: shiftRow.id, entite_type: 'fdj_cash_control', entite_id: shiftRow.id,
+      action: 'fdj_correction_caisse_demandee', acteur_id: employeeCourant.id, motif: demandeCorrectionMotifChoisi,
+      nouvelle_valeur: { detail: detail || null, ecart_constate: cash ? cash.ecart : null },
+    });
+
+    phase = 'accueil';
+    renderAccueil();
+  }
+
   async function renderAccueil() {
     document.getElementById('titre').textContent = `Bonjour ${employeeCourant.nom}`;
     document.getElementById('sousTitre').textContent = '';
@@ -590,14 +699,20 @@
     // "Contrôle FDJ" (historique, correction, changement de date) tout seul.
     const estManager = employeeCourant.role === 'manager' || employeeCourant.role === 'gerant';
 
+    // 16/08/2026 : l'écart n'est plus jamais masqué à l'employé (voir
+    // commentaire au sommet du fichier) — seul le libellé de statut change
+    // selon que le manager a déjà validé la caisse ou non.
     let blocCaisse = '';
+    let demandeCorrectionEnCours = null;
     if (clotureFaite) {
       const cash = await chargerCashControlDuQuart(shiftRow.id);
-      if (cash && cash.statut !== 'provisoire') {
+      if (cash) {
         const classe = cash.ecart === 0 ? 'green' : (Math.abs(cash.ecart) <= 1 ? 'amber' : 'red');
-        blocCaisse = `<div class="etat-banner">Caisse validée par le manager — écart <b class="stat-value ${classe}" style="font-size:inherit;">${cash.ecart > 0 ? '+' : ''}${fmtEuro(cash.ecart)}</b>.</div>`;
-      } else {
-        blocCaisse = `<div class="etat-banner">⏳ Caisse transmise, en attente de validation par le manager. L'écart ne s'affiche qu'une fois la caisse validée.</div>`;
+        const ecartHtml = `<b class="stat-value ${classe}" style="font-size:inherit;">${cash.ecart > 0 ? '+' : ''}${fmtEuro(cash.ecart)}</b>`;
+        blocCaisse = cash.statut !== 'provisoire'
+          ? `<div class="etat-banner">Caisse validée par le manager — écart ${ecartHtml}.</div>`
+          : `<div class="etat-banner">⏳ Écart constaté : ${ecartHtml} — en attente de validation par le manager.</div>`;
+        demandeCorrectionEnCours = await chargerDemandeCorrectionEnCours(shiftRow.id);
       }
     }
 
@@ -630,12 +745,19 @@
         </div>
       </div>
       ${blocCaisse}
-      ${clotureFaite ? '<div class="etat-banner">Ce quart a déjà été transmis. Une correction ne peut se faire que depuis Contrôle FDJ (manager).</div>' : ''}
+      ${clotureFaite ? (
+        demandeCorrectionEnCours
+          ? `<div class="etat-banner">🟡 Demande de correction envoyée le ${new Date(demandeCorrectionEnCours.created_at).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })} — en attente du manager.</div>`
+          : `<div class="etat-banner">Ce quart a déjà été transmis. Vous ne pouvez plus le modifier directement.</div>
+             <button type="button" class="btn-ghost" id="btnDemanderCorrection" style="margin-top:0;">Signaler une erreur sur ce quart</button>`
+      ) : ''}
     `;
     wireQuartVisuel();
     if (!ouvertureFaite) document.getElementById('carteOuverture').addEventListener('click', demarrerOuverture);
     document.getElementById('carteCarnet').addEventListener('click', demarrerCarnet);
     if (ouvertureFaite && !clotureFaite) document.getElementById('carteCloture').addEventListener('click', demarrerCloture);
+    const btnDemanderCorrection = document.getElementById('btnDemanderCorrection');
+    if (btnDemanderCorrection) btnDemanderCorrection.addEventListener('click', demarrerDemandeCorrection);
   }
 
   // 13/08/2026 — décision d'accès pour un quart donné, déléguée au moteur
@@ -1278,14 +1400,15 @@
 
   // ------------------------------------------------------------
   // PHASE 3 — CAISSE (attendue calculée en interne, réelle comptée par
-  // l'employé). 09/08/2026, demande de Frédéric : l'employé ne voit plus
-  // ni la caisse attendue ni l'écart à cette étape — seul le manager les
-  // verra en validant. NEXUS calcule et enregistre toujours l'écart réel
-  // en base, seul l'affichage change.
+  // l'employé). 16/08/2026, demande de Frédéric ("Voir : oui") : l'écart
+  // s'affiche désormais en direct dès que la caisse réelle est saisie —
+  // remplace la décision du 09/08 qui le masquait jusqu'à la validation
+  // manager. NEXUS calcule et enregistre l'écart de la même façon dans les
+  // deux cas, seul l'affichage change.
   // ------------------------------------------------------------
   function renderCaisse() {
     document.getElementById('titre').textContent = 'Caisse FDJ';
-    document.getElementById('sousTitre').textContent = 'Comptez la caisse réelle et notez-la ici. Le manager validera ensuite.';
+    document.getElementById('sousTitre').textContent = 'Comptez la caisse réelle et notez-la ici.';
     document.getElementById('content').innerHTML = `
       ${renderStepper('Caisse')}
       <div class="champ-label">Régularisations (si besoin, +/-)</div>
@@ -1294,26 +1417,47 @@
       <div class="champ-label">Caisse réelle comptée</div>
       <input type="number" inputmode="decimal" class="champ-input" id="champCaisseReelle" value="${caisseReelle ?? ''}" placeholder="0,00">
 
+      <div class="etat-banner" id="banniereEcartCaisse">${renderApercuEcart()}</div>
+
       <button class="btn-primary" id="btnSuiteCaisse" ${caisseReelle === null ? 'disabled' : ''}>Continuer — Résumé</button>
       <button class="btn-ghost" id="btnRetourTirages">Retour</button>
     `;
-    document.getElementById('champRegul').addEventListener('input', e => { regularisations = e.target.value === '' ? 0 : Number(e.target.value); sauvegarderDraft(); });
+    document.getElementById('champRegul').addEventListener('input', e => {
+      regularisations = e.target.value === '' ? 0 : Number(e.target.value);
+      sauvegarderDraft();
+      document.getElementById('banniereEcartCaisse').innerHTML = renderApercuEcart();
+    });
     document.getElementById('champCaisseReelle').addEventListener('input', e => {
       caisseReelle = e.target.value === '' ? null : Number(e.target.value);
       sauvegarderDraft();
       document.getElementById('btnSuiteCaisse').disabled = (caisseReelle === null);
+      document.getElementById('banniereEcartCaisse').innerHTML = renderApercuEcart();
     });
     document.getElementById('btnSuiteCaisse').addEventListener('click', () => { phase = 'resume'; renderResume(); });
     document.getElementById('btnRetourTirages').addEventListener('click', () => { phase = 'tirages'; renderTirages(); });
   }
 
+  // Aperçu en direct de l'écart (16/08/2026) — factorisé pour être appelé à
+  // chaque frappe sans reconstruire tout le formulaire (même logique que
+  // majBanniereTirages juste au-dessus).
+  function renderApercuEcart() {
+    if (caisseReelle === null) return `Caisse attendue calculée : <b>${fmtEuro(caisseAttendue())}</b>. Saisissez la caisse réelle pour voir l'écart.`;
+    const ecart = ecartCaisse();
+    const classe = ecart === 0 ? 'green' : (Math.abs(ecart) <= 1 ? 'amber' : 'red');
+    return `Caisse attendue : <b>${fmtEuro(caisseAttendue())}</b> · Écart : <b class="stat-value ${classe}" style="font-size:inherit;">${ecart > 0 ? '+' : ''}${fmtEuro(ecart)}</b>`;
+  }
+
   // ------------------------------------------------------------
-  // PHASE 4 — RÉSUMÉ + VALIDATION. Récapitule la saisie brute de
-  // l'employé (jamais la caisse attendue ni l'écart — voir plus haut).
+  // PHASE 4 — RÉSUMÉ + VALIDATION. 16/08/2026 : affiche désormais la
+  // caisse attendue et l'écart (voir renderCaisse) — dernière chance de
+  // vérifier/corriger avant transmission, puisqu'après ce bouton l'employé
+  // ne pourra plus modifier directement (voir demarrerDemandeCorrection).
   // ------------------------------------------------------------
   function renderResume() {
     document.getElementById('titre').textContent = 'Résumé de votre saisie';
     document.getElementById('sousTitre').textContent = '';
+    const ecart = ecartCaisse();
+    const classe = ecart === null ? '' : (ecart === 0 ? 'green' : (Math.abs(ecart) <= 1 ? 'amber' : 'red'));
     document.getElementById('content').innerHTML = `
       ${renderStepper('Résumé')}
       <div class="resume-card">
@@ -1321,9 +1465,11 @@
         <div class="stat-row"><div class="stat-label">Lots payés</div><div class="stat-value">${fmtEuro(reportJournalier.lots_payes_grattage)}</div></div>
         <div class="stat-row"><div class="stat-label">Caisse tirages</div><div class="stat-value">${fmtEuro(reportTempsReel.caisse_tirages)}</div></div>
         <div class="stat-row"><div class="stat-label">Régularisations</div><div class="stat-value">${fmtEuro(regularisations)}</div></div>
-        <div class="stat-row total"><div class="stat-label">Caisse réelle comptée</div><div class="stat-value">${fmtEuro(caisseReelle)}</div></div>
+        <div class="stat-row"><div class="stat-label">Caisse réelle comptée</div><div class="stat-value">${fmtEuro(caisseReelle)}</div></div>
+        <div class="stat-row"><div class="stat-label">Caisse attendue</div><div class="stat-value cyan">${fmtEuro(caisseAttendue())}</div></div>
+        <div class="stat-row total"><div class="stat-label">Écart</div><div class="stat-value ${classe}">${ecart !== null ? `${ecart > 0 ? '+' : ''}${fmtEuro(ecart)}` : '—'}</div></div>
       </div>
-      <div class="champ-note">L'écart entre la caisse attendue et la caisse réelle sera calculé et vérifié par le manager — vous ne le voyez pas à cette étape.</div>
+      <div class="champ-note">Vérifiez avant de transmettre : une fois transmis, vous ne pourrez plus corriger directement — seulement demander une correction au manager.</div>
       <button class="btn-primary" id="btnValider">Transmettre mon quart FDJ</button>
       <button class="btn-ghost" id="btnRetourCaisse">Retour</button>
     `;
@@ -1357,15 +1503,19 @@
     // 3) Rapprochement caisse — upsert unique par shift_id. statut reste
     // "provisoire" tant qu'un manager ne l'a pas validé (jamais utilisé par
     // Ma Progression avant ça — règle audit §22).
-    // L'écart est toujours calculé et enregistré ici — seul son affichage
-    // à l'employé disparaît (09/08/2026, demande de Frédéric) : il ne le
-    // verra qu'une fois le manager passé par "Contrôle FDJ".
+    // 16/08/2026 : caisse_reelle_origine/ecart_origine sont posées ICI, la
+    // toute première fois que ce quart passe en caisse — jamais réécrites
+    // ensuite, y compris par une régularisation manager (voir
+    // NEXUS-FDJ-Manager-v1.html::enregistrerEdition, qui ne les inclut
+    // jamais dans son upsert). C'est le "constat d'origine" que la règle de
+    // Frédéric interdit d'effacer.
     const ecart = ecartCaisse();
     const { error: eCash } = await nexusClient.from('fdj_cash_controls').upsert({
       site: siteId, shift_id: shiftRow.id,
       ventes_grattage_valeur: ventesGrattageTotal(), lots_payes_grattage: reportJournalier.lots_payes_grattage,
       caisse_grattage: caisseGrattage(), caisse_tirages: reportTempsReel.caisse_tirages,
       regularisations: regularisations || 0, caisse_attendue: caisseAttendue(), caisse_reelle: caisseReelle,
+      caisse_reelle_origine: caisseReelle, ecart_origine: ecart,
       ecart, motif_ecart: null, statut: 'provisoire', updated_at: new Date().toISOString(),
     }, { onConflict: 'shift_id' });
     if (eCash) { console.error('Enregistrement caisse FDJ:', eCash); btn.disabled = false; btn.textContent = 'Valider mon quart FDJ'; alert("Erreur d'enregistrement de la caisse. Réessayez."); return; }
