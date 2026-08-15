@@ -139,6 +139,14 @@
   .rappel-bl-nom{font-size:10.5px; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.03em;}
   .rappel-bl-valeur{font-family:var(--mono); font-size:13px; font-weight:700; color:var(--text);}
 
+  /* 15/08/2026 — message explicite quand "Continuer" reste grisé faute de
+     compartiment(s) pas encore complets (carburant + quantité + cuve) —
+     remonté par Frédéric : le bouton restait grisé sans aucune explication
+     même quand la somme des quantités correspondait déjà au BL, tant qu'un
+     seul compartiment n'avait pas sa cuve de destination choisie. */
+  .compartiments-incomplet{background:var(--panel); border:1px solid var(--hairline); border-radius:10px; padding:10px 14px; margin-bottom:14px; font-size:12px; color:var(--text-mid); line-height:1.5;}
+  .compartiments-incomplet b{color:var(--text);}
+
   .btn-ajuster-compartiments{width:100%; display:flex; gap:8px; margin-bottom:14px;}
   .btn-ajuster-compartiments button{flex:1; padding:9px; border:1.5px dashed var(--hairline); border-radius:10px; background:transparent; color:var(--text-mid); font-size:12px; font-weight:600; cursor:pointer;}
 
@@ -686,6 +694,31 @@
   // ------------------------------------------------------------
   // ÉTAPE 3 — COMPARTIMENTS DU CAMION (assignation + contrôle bloquant)
   // ------------------------------------------------------------
+  // 15/08/2026 — explique précisément, compartiment par compartiment, ce
+  // qui manque encore quand "Continuer" reste grisé faute d'assignation
+  // complète (carburant + quantité + cuve de destination) — jamais laisser
+  // le bouton grisé sans dire pourquoi (remonté par Frédéric : la somme
+  // des quantités correspondait déjà au BL, mais une cuve de destination
+  // n'avait pas été choisie sur un compartiment GO, donc `tousAssignes`
+  // restait faux et AUCUN message ne s'affichait — rien à comparer au BL
+  // tant que l'assignation elle-même n'est pas complète).
+  function messageCompartimentsIncompletsHtml() {
+    const manquants = compartiments.filter(c => !(c.carburant && Number(c.quantite_declaree_l) > 0 && c.cuve_destination_id));
+    if (manquants.length === 0) return '';
+    const details = manquants.map(c => {
+      const champsManquants = [];
+      if (!c.carburant) champsManquants.push('carburant');
+      else if (!(Number(c.quantite_declaree_l) > 0)) champsManquants.push('quantité');
+      if (c.carburant && !c.cuve_destination_id) champsManquants.push('cuve de destination');
+      return `compartiment ${c.numero} (${champsManquants.join(', ')})`;
+    });
+    return `
+      <div class="compartiments-incomplet">
+        <b>Encore incomplet :</b> ${details.join(' · ')}. Touchez chaque compartiment listé pour compléter l'assignation — "Continuer" ne s'active qu'une fois tous les compartiments complets.
+      </div>
+    `;
+  }
+
   function renderCompartimentsEtape() {
     const M = NexusReceptionMoteur;
     const tousAssignes = compartiments.every(c => c.carburant && Number(c.quantite_declaree_l) > 0 && c.cuve_destination_id);
@@ -706,7 +739,7 @@
         <button id="btnAjouterCompartiment">+ Ajouter</button>
       </div>
       <div id="ficheCompartimentZone"></div>
-      ${controleCompartiments ? renderVerdictCompartiments() : ''}
+      ${controleCompartiments ? renderVerdictCompartiments() : messageCompartimentsIncompletsHtml()}
       <button class="btn-primary" id="btnContinuerCompartiments" ${!(controleCompartiments && controleCompartiments.coherentGlobal) && !derogationGlobaleCompartiments ? 'disabled' : ''}>Continuer vers la réception</button>
       <button class="btn-ghost" id="btnRetourCompartiments">Retour</button>
     `;
