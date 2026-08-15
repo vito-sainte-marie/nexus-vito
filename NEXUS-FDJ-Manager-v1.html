@@ -506,8 +506,18 @@
   // dernière activation d'un jeu, pas seulement ceux où de l'appro a été
   // saisie. Volume faible en V1 comme chargerMouvementsStock() — même
   // remarque, à revoir (agrégation serveur) si ça grossit beaucoup.
+  // 15/08/2026 — bug réel trouvé (remonté par Frédéric : "Carnet en cours"
+  // affichait "Aucun"/"Non calculable" pour tous les jeux alors qu'un
+  // comptage de quart existait bien, ex. BANCO 1€, Loane, 14/08 quart 2) :
+  // `stock_final` — la colonne que lit RÉELLEMENT NexusFdjMoteur.
+  // ticketsRestantsCarnetEnCours() depuis sa réécriture v2 (15/08, cf. son
+  // commentaire) — n'était PAS dans ce select. Chaque ligne arrivait donc
+  // avec `stock_final === undefined`, la fonction moteur les ignorait
+  // TOUTES sans exception (garde explicite sur ce champ) et retournait
+  // systématiquement null, quelle que soit la donnée réelle en base.
+  // Ajoutée ici.
   async function chargerShiftCountsStock() {
-    const { data, error } = await nexusClient.from('fdj_shift_counts').select('shift_id, game_id, appro, ventes_qte, created_at').eq('site', siteId);
+    const { data, error } = await nexusClient.from('fdj_shift_counts').select('shift_id, game_id, appro, ventes_qte, stock_final, created_at').eq('site', siteId);
     if (error) { console.error('Chargement compteurs de quart FDJ (état du stock):', error); return []; }
     return data || [];
   }
