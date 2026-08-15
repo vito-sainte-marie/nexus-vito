@@ -365,6 +365,74 @@
   }
 
   // ------------------------------------------------------------
+  // CONTINUITÉ DYNAMIQUE — 16/08/2026, demande de Frédéric : "Cette alerte
+  // ne doit pas être persistée comme un statut définitif d'un quart. Elle
+  // doit être calculée dynamiquement à partir de la chaîne chronologique
+  // réelle." Constat qui a motivé ce lot : `previous_shift_id` (Étape 1,
+  // 13/08/2026) n'est écrit qu'UNE SEULE fois, seulement si la chaîne
+  // n'était pas rompue au moment où l'employé a ouvert son quart — si le
+  // quart précédent était alors manquant, previous_shift_id reste NULL
+  // pour toujours (aucun "replay" ne le comble rétroactivement, voir Étape
+  // 4 du backlog Fiabilisation, pas encore construite). Un badge qui lit
+  // cette colonne reste donc bloqué sur "rompue" même après que le quart
+  // manquant a été complété. Cette fonction ne lit et n'écrit AUCUNE
+  // colonne : elle recalcule la vérité à chaque appel, à partir de
+  // `ensemble` (la liste des quarts déjà chargée par l'écran appelant,
+  // aucune requête supplémentaire) — donc automatiquement à jour à chaque
+  // rendu, sans "déclencheur" explicite à poser sur chaque action.
+  //
+  // Règle demandée, appliquée au SEUL quart immédiatement attendu avant
+  // quartActuel (pas un scan arbitraire en arrière comme chaineContinuite,
+  // qui répond à une question différente — voir plus haut) :
+  //   - absent (aucun quart à ce jour+quart précis) → rompue
+  //   - présent mais statut != 'valide' (encore brouillon) → rompue
+  //   - présent et 'valide' → chaîne intacte
+  // Exception : le tout premier quart jamais connu du site n'a rien à
+  // attendre avant lui — détecté en cherchant si un SEUL quart, de
+  // n'importe quel statut, existe avant quartActuel dans `ensemble` (pas
+  // une liste figée en base, ce qui permet au tout premier quart réel de
+  // ne jamais être signalé à tort).
+  //
+  // `quartActuel` = { id, date, quart }. `ensemble` = [{ id, date, quart,
+  // statut }] tous les quarts connus du site, tous statuts confondus.
+  // Retourne { rompue, motif } — motif = null | 'quart_manquant' |
+  // 'quart_incomplet'.
+  function chaineInterrompueDynamique(quartActuel, ensemble) {
+    const liste = ensemble || [];
+    const existeQuartAvant = liste.some(s => s.id !== quartActuel.id && quartAvant({ date: s.date, quart: s.quart }, quartActuel));
+    if (!existeQuartAvant) return { rompue: false, motif: null };
+    const attendu = quartPrecedentAttendu(quartActuel.date, quartActuel.quart);
+    const candidat = liste.find(s => s.id !== quartActuel.id && s.date === attendu.date && s.quart === attendu.quart);
+    if (!candidat) return { rompue: true, motif: 'quart_manquant' };
+    if (candidat.statut !== 'valide') return { rompue: true, motif: 'quart_incomplet' };
+    return { rompue: false, motif: null };
+  }
+
+  // CONTINUITÉ DE STOCK — 16/08/2026, demande de Frédéric : "si la chaîne
+  // temporelle est restaurée mais que stock_final_quart_précédent !=
+  // stock_initial_quart_suivant, remplacer l'alerte par une anomalie
+  // spécifique de type Continuité de stock à vérifier, sans qualifier la
+  // chaîne d'interrompue." N'a de sens que lorsque
+  // chaineInterrompueDynamique(...).rompue est déjà false — comparer des
+  // quarts qui ne se suivent pas n'aurait aucun sens (voir chaineContinuite
+  // plus haut, même principe). Ne compare un jeu que si les DEUX valeurs
+  // sont connues (jamais 0 par défaut, qui inventerait un écart ou un
+  // faux "conforme"). Retourne la liste des jeux en écart, jamais un
+  // simple booléen : chaque jeu en écart devient sa propre anomalie.
+  function ecartsContinuiteStock(stockFinalPrecedentParJeu, stockInitialActuelParJeu) {
+    const finMap = stockFinalPrecedentParJeu || {};
+    const initMap = stockInitialActuelParJeu || {};
+    const jeux = new Set([...Object.keys(finMap), ...Object.keys(initMap)]);
+    const ecarts = [];
+    jeux.forEach(gameId => {
+      const f = finMap[gameId], i = initMap[gameId];
+      if (f === undefined || f === null || i === undefined || i === null) return;
+      if (Number(f) !== Number(i)) ecarts.push({ game_id: gameId, stock_final_precedent: Number(f), stock_initial_actuel: Number(i) });
+    });
+    return ecarts;
+  }
+
+  // ------------------------------------------------------------
   // APPRO NON TRACÉE — 13/08/2026, capture d'écran de Frédéric : après avoir
   // complété un quart FDJ ancien (rattrapage ou correction manager), l'écran
   // "État du stock" continuait d'afficher "OK" pour CASH alors qu'en réalité
@@ -710,7 +778,11 @@
   // interrogés ici.
   //
   // `signaux` = {
-  //   rompue: bool — sortie de chaineContinuite(...).rompue pour ce quart,
+  //   rompue: bool — sortie de chaineInterrompueDynamique(...).rompue pour
+  //     ce quart (16/08/2026 : plus jamais depuis previous_shift_id figé),
+  //   stockAVerifier: bool — 16/08/2026, une anomalie continuite_stock_a_verifier
+  //     est active pour ce quart (chaîne intacte, mais stock_final du
+  //     précédent ≠ stock_initial saisi ici),
   //   aRevoir: bool — fdj_shifts.a_revoir de ce quart,
   //   validationManagerFaite: bool | null — true si fdj_cash_controls.statut
   //     de ce quart est déjà 'conforme'/'valide_avec_ecart'/'regularise'
@@ -720,10 +792,16 @@
   //     encore là").
   // }
   // Retourne { integrite: 'OK'|'PARTIELLE'|'ROMPUE', motif } — motif = null
-  // | 'quart_manquant' | 'a_revoir' | 'validation_manager_attendue'.
+  // | 'quart_manquant' | 'continuite_stock_a_verifier' | 'a_revoir' |
+  // 'validation_manager_attendue'. rompue reste prioritaire (un vrai trou
+  // dans la chaîne prime sur tout le reste), stockAVerifier ensuite (une
+  // chaîne intacte mais un stock qui ne recolle pas mérite un œil, mais ce
+  // n'est jamais qualifié de "chaîne interrompue" — demande explicite de
+  // Frédéric).
   function etatIntegriteFdj(signaux) {
     const s = signaux || {};
     if (s.rompue) return { integrite: 'ROMPUE', motif: 'quart_manquant' };
+    if (s.stockAVerifier) return { integrite: 'PARTIELLE', motif: 'continuite_stock_a_verifier' };
     if (s.aRevoir) return { integrite: 'PARTIELLE', motif: 'a_revoir' };
     if (s.validationManagerFaite === false) return { integrite: 'PARTIELLE', motif: 'validation_manager_attendue' };
     return { integrite: 'OK', motif: null };
@@ -734,6 +812,7 @@
     soldesCarnetsParJeu, soldeCarnetsJeu, soldesCarnetsAvecReference,
     calculerCandidatsFdj,
     quartPrecedentAttendu, quartSuivant, chaineContinuite,
+    chaineInterrompueDynamique, ecartsContinuiteStock,
     approNonTraceParJeu, lignesApproNonTracees,
     minutesDepuisMinuit, quartDansFenetreAcces, evaluerAccesQuart,
     etatIntegriteFdj,

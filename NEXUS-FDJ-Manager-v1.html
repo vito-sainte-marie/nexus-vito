@@ -640,18 +640,26 @@
   }
 
   // ------------------------------------------------------------
-  // ALERTES — un panneau, deux origines. "stock_initial_modifie" : un
+  // ALERTES — un panneau, trois origines. "stock_initial_modifie" : un
   // employé a corrigé un stock initial hérité du quart précédent, ce qui
   // remet en cause le stock final de ce quart précédent (09/08/2026).
   // "activation_sans_carnet_confie" : un employé a activé un carnet sans
   // qu'aucun solde non-activé ne soit enregistré en caisse — exception
   // tracée avec motif choisi, jamais un simple confirm() local (09/08/2026,
-  // demande de Frédéric : "NEXUS crée automatiquement une alerte"). Chaque
-  // alerte disparaît des yeux du manager dès qu'il la marque comme vue —
-  // ce qui éteint aussi le point rouge sur "Contrôle FDJ" en vue bureau.
+  // demande de Frédéric : "NEXUS crée automatiquement une alerte").
+  // "continuite_stock_a_verifier" (16/08/2026) : la chaîne temporelle est
+  // intacte mais le stock ne recolle pas — voir reconcilierAlertesChaine.
+  // Chaque alerte disparaît des yeux du manager dès qu'il la marque comme
+  // vue — ce qui éteint aussi le point rouge sur "Contrôle FDJ" en vue
+  // bureau. `resolue_automatiquement` (16/08/2026) est un filtre distinct
+  // de `vue` : une alerte "chaine_interrompue" résolue par NEXUS lui-même
+  // (le quart manquant a été complété) ne doit plus jamais réapparaître
+  // comme active, MÊME si aucun manager ne l'a jamais marquée vue — elle
+  // reste en base pour le Journal (voir chargerJournalChaine), simplement
+  // exclue de ce panneau "à traiter".
   // ------------------------------------------------------------
   async function chargerAlertesNonVues() {
-    const { data, error } = await nexusClient.from('fdj_alertes').select('*').eq('site', siteId).eq('vue', false).order('created_at', { ascending: false });
+    const { data, error } = await nexusClient.from('fdj_alertes').select('*').eq('site', siteId).eq('vue', false).eq('resolue_automatiquement', false).order('created_at', { ascending: false });
     if (error) { console.error('Chargement alertes FDJ:', error); return []; }
     if (!data || !data.length) return [];
     const shiftIds = [...new Set(data.flatMap(a => [a.shift_id, a.shift_precedent_id]).filter(Boolean))];
@@ -660,6 +668,128 @@
     const shiftsMap = Object.fromEntries((shiftsRows || []).map(s => [s.id, s]));
     return data.map(a => ({ ...a, quartActuel: shiftsMap[a.shift_id], quartPrecedent: a.shift_precedent_id ? shiftsMap[a.shift_precedent_id] : null }));
   }
+
+  // Journal — continuité FDJ (16/08/2026, demande de Frédéric : "Aucun
+  // historique ne doit être supprimé. Le Journal peut conserver : 17:22 —
+  // Chaîne interrompue détectée... puis 17:35 — Q1 complété — chaîne
+  // rétablie automatiquement"). Relit les alertes 'chaine_interrompue' des
+  // derniers jours, résolues ou non — chacune porte déjà sa propre
+  // horodate de détection (created_at) et, si elle a été rétablie,
+  // resolue_le (posé par reconcilierAlertesChaine). Rien n'est jamais
+  // supprimé ni réécrit ici, uniquement lu.
+  async function chargerJournalChaine() {
+    const { data, error } = await nexusClient.from('fdj_alertes').select('*')
+      .eq('site', siteId).eq('type', 'chaine_interrompue').order('created_at', { ascending: false }).limit(8);
+    if (error) { console.error('Chargement journal continuité FDJ:', error); return []; }
+    if (!data || !data.length) return [];
+    const shiftIds = [...new Set(data.flatMap(a => [a.shift_id, a.shift_precedent_id]).filter(Boolean))];
+    const { data: shiftsRows, error: eShifts } = await nexusClient.from('fdj_shifts').select('id, date, quart').in('id', shiftIds);
+    if (eShifts) console.error('Chargement quarts liés au journal continuité FDJ:', eShifts);
+    const shiftsMap = Object.fromEntries((shiftsRows || []).map(s => [s.id, s]));
+    return data.map(a => ({ ...a, quartActuel: shiftsMap[a.shift_id], quartPrecedent: a.shift_precedent_id ? shiftsMap[a.shift_precedent_id] : null }));
+  }
+  function renderJournalChaineItem(a) {
+    const dt = new Date(a.created_at);
+    const detection = `${dt.toLocaleDateString('fr-FR')} · ${dt.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`;
+    const nbManquants = (a.quarts_manquants || []).length;
+    let ligneResolution;
+    if (a.resolue_le) {
+      const dr = new Date(a.resolue_le);
+      ligneResolution = `🟢 ${dr.toLocaleDateString('fr-FR')} · ${dr.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })} — Chaîne rétablie automatiquement`;
+    } else {
+      ligneResolution = `<span style="color:var(--text-dim);">Toujours active</span>`;
+    }
+    return `
+      <div class="jeu-row" style="padding:10px 14px;">
+        <div class="histo-sub">
+          🔴 ${detection} — Chaîne interrompue détectée : ${libelleQuart(a.quartActuel)}${nbManquants ? ` (${nbManquants} quart${nbManquants > 1 ? 's' : ''} manquant${nbManquants > 1 ? 's' : ''})` : ''}<br>
+          ${ligneResolution}
+        </div>
+      </div>
+    `;
+  }
+
+  // Comparaison stock_final(quart précédent) / stock_initial(quart
+  // actuel) jeu par jeu (16/08/2026) — colle Supabase autour de la
+  // fonction pure NexusFdjMoteur.ecartsContinuiteStock.
+  async function ecartsContinuiteStockQuart(shiftPrecedentId, shiftActuelId) {
+    const [{ data: finPrec, error: e1 }, { data: initActuel, error: e2 }] = await Promise.all([
+      nexusClient.from('fdj_shift_counts').select('game_id, stock_final').eq('shift_id', shiftPrecedentId),
+      nexusClient.from('fdj_shift_counts').select('game_id, stock_initial').eq('shift_id', shiftActuelId),
+    ]);
+    if (e1) console.error('Continuité stock FDJ (quart précédent):', e1);
+    if (e2) console.error('Continuité stock FDJ (quart actuel):', e2);
+    const finMap = {}; (finPrec || []).forEach(r => { if (r.stock_final !== null) finMap[r.game_id] = r.stock_final; });
+    const initMap = {}; (initActuel || []).forEach(r => { if (r.stock_initial !== null) initMap[r.game_id] = r.stock_initial; });
+    return NexusFdjMoteur.ecartsContinuiteStock(finMap, initMap);
+  }
+
+  // RÉCONCILIATION DYNAMIQUE — 16/08/2026, demande de Frédéric : "Cette
+  // alerte ne doit pas être persistée comme un statut définitif d'un
+  // quart [...] Une fois un quart manquant complété, l'alerte doit
+  // disparaître automatiquement sans action manager." Appelée à chaque
+  // chargement de l'accueil manager (donc à chaque création, validation,
+  // régularisation ou modification d'un quart, puisque chacune de ces
+  // actions ramène ici — voir enregistrerEdition, enregistrerDerogationQuart,
+  // etc.) : revérifie CHAQUE alerte 'chaine_interrompue' encore active
+  // (`alertesBrutes` déjà filtrée sur resolue_automatiquement=false) contre
+  // l'état réel de la chaîne. Trois issues possibles, jamais une
+  // suppression :
+  //  - toujours rompue -> rien ne change.
+  //  - rétablie, stock cohérent -> marquée resolue_automatiquement (retirée
+  //    du panneau "Alertes", reste visible au Journal).
+  //  - rétablie, stock incohérent -> résolue pour la CHAÎNE (elle ne l'est
+  //    plus, jamais qualifiée d'interrompue), mais une ou plusieurs
+  //    nouvelles anomalies 'continuite_stock_a_verifier' sont posées (une
+  //    par jeu en écart, jamais dupliquées d'un appel à l'autre).
+  // Retourne true si au moins une écriture a eu lieu (l'appelant sait
+  // alors qu'il doit relire les alertes avant de les afficher).
+  async function reconcilierAlertesChaine(alertesBrutes, ensemble) {
+    let mutations = false;
+    for (const a of alertesBrutes) {
+      if (a.type !== 'chaine_interrompue') continue;
+      const quartActuelInfo = ensemble.find(s => s.id === a.shift_id);
+      if (!quartActuelInfo) continue; // shift introuvable — prudence, on n'y touche pas
+      const etat = NexusFdjMoteur.chaineInterrompueDynamique({ id: quartActuelInfo.id, date: quartActuelInfo.date, quart: quartActuelInfo.quart }, ensemble);
+      if (etat.rompue) continue; // toujours rompue, rien à faire
+
+      const maintenant = new Date().toISOString();
+      const { error: eResolution } = await nexusClient.from('fdj_alertes')
+        .update({ resolue_automatiquement: true, resolue_le: maintenant }).eq('id', a.id);
+      if (eResolution) { console.error('Résolution auto alerte chaîne FDJ:', eResolution); continue; }
+      mutations = true;
+      await nexusClient.from('fdj_audit_log').insert({
+        site: siteId, shift_id: a.shift_id, entite_type: 'fdj_alerte', entite_id: a.id,
+        action: 'fdj_chaine_retablie_automatiquement', acteur_id: null,
+        ancienne_valeur: { type: 'chaine_interrompue', resolue_automatiquement: false },
+        nouvelle_valeur: { resolue_automatiquement: true, resolue_le: maintenant },
+      });
+
+      const predAttendu = NexusFdjMoteur.quartPrecedentAttendu(quartActuelInfo.date, quartActuelInfo.quart);
+      const predShift = ensemble.find(s => s.date === predAttendu.date && s.quart === predAttendu.quart);
+      if (!predShift) continue;
+      const ecarts = await ecartsContinuiteStockQuart(predShift.id, a.shift_id);
+      if (!ecarts.length) continue;
+      const { data: existantes } = await nexusClient.from('fdj_alertes').select('id, game_id')
+        .eq('site', siteId).eq('type', 'continuite_stock_a_verifier').eq('shift_id', a.shift_id);
+      const gamesDejaSignales = new Set((existantes || []).map(r => r.game_id));
+      const nouvelles = ecarts.filter(e => !gamesDejaSignales.has(e.game_id)).map(e => ({
+        site: siteId, type: 'continuite_stock_a_verifier', shift_id: a.shift_id, shift_precedent_id: predShift.id,
+        game_id: e.game_id, valeur_quart_precedent: e.stock_final_precedent, valeur_saisie: e.stock_initial_actuel,
+        employee_id: quartActuelInfo.employee_id || null,
+      }));
+      if (!nouvelles.length) continue;
+      const { error: eInsert } = await nexusClient.from('fdj_alertes').insert(nouvelles);
+      if (eInsert) { console.error('Insertion anomalies continuité stock FDJ:', eInsert); continue; }
+      await nexusClient.from('fdj_audit_log').insert({
+        site: siteId, shift_id: a.shift_id, entite_type: 'fdj_alerte', entite_id: a.id,
+        action: 'fdj_continuite_stock_a_verifier_posee', acteur_id: null,
+        ancienne_valeur: null, nouvelle_valeur: { jeux: nouvelles.map(n => n.game_id) },
+      });
+    }
+    return mutations;
+  }
+
   function nomJeu(gameId) {
     const j = jeux.find(x => x.id === gameId);
     return j ? j.nom : '—';
@@ -780,7 +910,34 @@
   function renderAlerte(a) {
     if (a.type === 'activation_sans_carnet_confie') return renderAlerteActivationSansCarnet(a);
     if (a.type === 'chaine_interrompue') return renderAlerteChaineInterrompue(a);
+    if (a.type === 'continuite_stock_a_verifier') return renderAlerteContinuiteStock(a);
     return renderAlerteStock(a);
+  }
+
+  // Continuité de stock à vérifier (16/08/2026, demande de Frédéric) : la
+  // chaîne temporelle EST intacte (sinon ce serait encore une alerte
+  // 'chaine_interrompue', jamais celle-ci en même temps) — seul le chiffre
+  // ne recolle pas d'un quart à l'autre. Volontairement un rendu distinct
+  // de renderAlerteStock (⚠️ stock_initial_modifie) : là, un employé a
+  // lui-même corrigé une valeur en le sachant ; ici, personne n'a rien
+  // corrigé, c'est NEXUS qui a détecté l'écart après avoir constaté que la
+  // chaîne était redevenue intacte.
+  function renderAlerteContinuiteStock(a) {
+    return `
+      <div class="jeu-row" data-alerte="${a.id}" style="padding:12px 14px;">
+        <div class="jeu-nom-ligne">
+          <div class="jeu-nom">🟡 Continuité de stock à vérifier — ${nomJeu(a.game_id)}</div>
+        </div>
+        <div class="histo-sub" style="margin-bottom:8px;">
+          Chaîne rétablie, mais le stock ne se recoupe pas : quart précédent (${libelleQuart(a.quartPrecedent)}) — stock final <b style="color:var(--text);">${fmtNum(a.valeur_quart_precedent)}</b><br>
+          ${libelleQuart(a.quartActuel)}${a.employee_id ? ` · ${nomEmploye(a.employee_id)}` : ''} — stock initial saisi <b style="color:var(--amber);">${fmtNum(a.valeur_saisie)}</b>
+        </div>
+        <div style="display:flex; gap:8px;">
+          ${a.quartPrecedent ? `<button type="button" class="btn-modifier" data-corriger="${a.shift_precedent_id}" style="margin-top:0; flex:1;">Corriger le quart précédent</button>` : ''}
+          <button type="button" class="btn-modifier" data-vue="${a.id}" style="margin-top:0; flex:1; color:var(--text-mid); border-color:var(--hairline);">Marquer comme vue</button>
+        </div>
+      </div>
+    `;
   }
 
   // 13/08/2026, capture d'écran de Frédéric : quand le quart précédent
@@ -861,8 +1018,20 @@
     document.getElementById('content').innerHTML = '<div class="loading">Chargement…</div>';
 
     const aujourdhui = dateISO();
-    const [duJour, historique, alertes, soldesNegatifs, verrousJour] = await Promise.all([
+    const [duJour, historique, alertesInitiales, soldesNegatifs, verrousJour] = await Promise.all([
       chargerShiftsAvecCaisse(aujourdhui), chargerShiftsAvecCaisse(null), chargerAlertesNonVues(), calculerSoldesNegatifs(), chargerVerrousJour(),
+    ]);
+    // Recalcul dynamique de la chaîne (16/08/2026, demande de Frédéric) : à
+    // CHAQUE affichage de cet accueil — donc après toute création,
+    // validation, régularisation ou modification d'un quart, puisque
+    // toutes ces actions ramènent ici — on revérifie les alertes
+    // "chaîne interrompue" encore actives contre l'état réel. Si l'une
+    // d'elles vient d'être résolue ou remplacée, on relit les alertes pour
+    // ne jamais afficher une donnée qu'on vient de réécrire sous les yeux.
+    const mutationsAlertes = await reconcilierAlertesChaine(alertesInitiales, historique);
+    const [alertes, journalChaine] = await Promise.all([
+      mutationsAlertes ? chargerAlertesNonVues() : Promise.resolve(alertesInitiales),
+      chargerJournalChaine(),
     ]);
     const quart1 = duJour.find(s => s.quart === '1');
     const quart2 = duJour.find(s => s.quart === '2');
@@ -883,10 +1052,15 @@
         <div class="card" id="listeVerrous" style="margin-bottom:16px;">${verrousJour.map(renderVerrouJour).join('')}</div>
       ` : ''}
 
+      ${journalChaine.length ? `
+        <div class="section-titre">🕒 Journal — continuité FDJ</div>
+        <div class="card" style="margin-bottom:16px;">${journalChaine.map(renderJournalChaineItem).join('')}</div>
+      ` : ''}
+
       <div class="section-titre">Aujourd'hui</div>
       <div class="quart-jour-grid">
-        ${renderCarteQuartJour('1', quart1, historique)}
-        ${renderCarteQuartJour('2', quart2, historique)}
+        ${renderCarteQuartJour('1', quart1, historique, alertes)}
+        ${renderCarteQuartJour('2', quart2, historique, alertes)}
       </div>
       <button class="btn-nouveau" id="btnNouveauQuart">+ Nouveau quart FDJ</button>
 
@@ -902,7 +1076,7 @@
 
       <div class="section-titre">Historique</div>
       <div class="card" id="listeHistorique">
-        ${historique.length ? historique.map((s, i) => renderHistoItem(s, i, historique)).join('') : '<div class="empty">Aucun quart FDJ enregistré pour l’instant.</div>'}
+        ${historique.length ? historique.map((s, i) => renderHistoItem(s, i, historique, alertes)).join('') : '<div class="empty">Aucun quart FDJ enregistré pour l’instant.</div>'}
       </div>
 
       <!-- Paramètres FDJ (10/08/2026, audit "Paramétrage autonome & multi-
@@ -963,40 +1137,44 @@
   }
 
   // ------------------------------------------------------------
-  // CONFIANCE DE LA CHAÎNE — Fiabilisation FDJ Étape 1 (13/08/2026, audit de
-  // cadrage "NEXUS_FDJ_Audit_Fiabilisation_Chaine_Quarts.pdf", §14). Compose
-  // NexusFdjMoteur.etatIntegriteFdj à partir de ce que cet écran a déjà
-  // chargé (previous_shift_id, a_revoir, statut de fdj_cash_controls) —
-  // aucune nouvelle requête. `ensemble` : liste de quarts déjà chargée
-  // (chargerShiftsAvecCaisse), utilisée uniquement pour reconnaître le tout
-  // premier quart connu du site (previous_shift_id vide n'est alors pas une
-  // rupture, juste "il n'y a rien avant").
-  function premierQuartConnu(ensemble) {
-    if (!ensemble || !ensemble.length) return null;
-    return ensemble.reduce((plusAncien, s) => {
-      if (!plusAncien) return s;
-      return (s.date < plusAncien.date || (s.date === plusAncien.date && s.quart < plusAncien.quart)) ? s : plusAncien;
-    }, null);
-  }
-  function calculerIntegriteQuart(s, ensemble) {
+  // CONFIANCE DE LA CHAÎNE — Fiabilisation FDJ Étape 1 (13/08/2026), corrigée
+  // le 16/08/2026 (demande de Frédéric — capture d'écran Samantha/Loane) :
+  // "Cette alerte ne doit pas être persistée comme un statut définitif d'un
+  // quart. Elle doit être calculée dynamiquement à partir de la chaîne
+  // chronologique réelle." L'ancienne version lisait `previous_shift_id`,
+  // une colonne écrite UNE SEULE fois par l'employé à l'ouverture de son
+  // quart (jamais mise à jour ensuite) — un quart resté "rompu" à cet
+  // instant-là s'affichait donc "Chaîne interrompue" pour toujours, même
+  // après que le quart manquant ait été complété. Ici, plus aucune colonne
+  // figée : NexusFdjMoteur.chaineInterrompueDynamique recalcule la vérité
+  // à chaque appel, à partir de `ensemble` (liste de quarts déjà chargée,
+  // tous statuts confondus, aucune requête supplémentaire) — donc toujours
+  // à jour au prochain rendu, sans "déclencheur" à poser sur chaque action.
+  // `alertesActives` (16/08/2026) : liste déjà réconciliée par
+  // reconcilierAlertesChaine — permet de savoir si une anomalie
+  // 'continuite_stock_a_verifier' est ouverte pour ce quart précis.
+  function calculerIntegriteQuart(s, ensemble, alertesActives) {
     if (!s) return null;
-    const premier = premierQuartConnu(ensemble);
-    const rompue = s.previous_shift_id == null && !(premier && premier.id === s.id);
+    const rompue = NexusFdjMoteur.chaineInterrompueDynamique({ id: s.id, date: s.date, quart: s.quart }, ensemble || []).rompue;
+    const stockAVerifier = (alertesActives || []).some(a => a.type === 'continuite_stock_a_verifier' && a.shift_id === s.id);
     const validationManagerFaite = s.statut !== 'valide' ? null : (s.cash ? s.cash.statut !== 'provisoire' : false);
-    return NexusFdjMoteur.etatIntegriteFdj({ rompue, aRevoir: !!s.a_revoir, validationManagerFaite });
+    return NexusFdjMoteur.etatIntegriteFdj({ rompue, stockAVerifier, aRevoir: !!s.a_revoir, validationManagerFaite });
   }
   function badgeIntegrite(etat) {
-    if (!etat) return '';
-    const libelles = { OK: '🟢 Chaîne fiable', PARTIELLE: '🟠 Chaîne partielle', ROMPUE: '🔴 Chaîne interrompue' };
-    const classes = { OK: 'green', PARTIELLE: 'amber', ROMPUE: 'red' };
-    return `<span class="badge-integrite stat-value ${classes[etat.integrite]}" style="font-size:9px; font-family:var(--mono); letter-spacing:0.03em;">${libelles[etat.integrite]}</span>`;
+    if (!etat || etat.integrite === 'OK') return '';
+    // 16/08/2026 : la "Continuité de stock à vérifier" a son propre libellé,
+    // jamais confondu avec "Chaîne interrompue" — la chaîne, elle, est
+    // intacte dans ce cas précis (motif !== 'quart_manquant').
+    if (etat.integrite === 'ROMPUE') return `<span class="badge-integrite stat-value red" style="font-size:9px; font-family:var(--mono); letter-spacing:0.03em;">🔴 Chaîne interrompue</span>`;
+    if (etat.motif === 'continuite_stock_a_verifier') return `<span class="badge-integrite stat-value amber" style="font-size:9px; font-family:var(--mono); letter-spacing:0.03em;">🟡 Continuité de stock à vérifier</span>`;
+    return `<span class="badge-integrite stat-value amber" style="font-size:9px; font-family:var(--mono); letter-spacing:0.03em;">🟠 Chaîne partielle</span>`;
   }
 
-  function renderCarteQuartJour(quart, shift, ensemble) {
+  function renderCarteQuartJour(quart, shift, ensemble, alertesActives) {
     if (!shift) return `<div class="quart-jour-card" id="carteQuart${quart}"><div class="quart-jour-label">Quart ${quart}</div><div class="quart-jour-statut" style="color:var(--text-dim);">Non compté</div></div>`;
     const ecart = shift.cash ? shift.cash.ecart : null;
     const classe = ecart === null ? '' : (ecart === 0 ? 'green' : (Math.abs(ecart) <= 1 ? 'amber' : 'red'));
-    const integrite = calculerIntegriteQuart(shift, ensemble);
+    const integrite = calculerIntegriteQuart(shift, ensemble, alertesActives);
     return `
       <div class="quart-jour-card" id="carteQuart${quart}">
         <div class="quart-jour-label">Quart ${quart}</div>
@@ -1007,10 +1185,10 @@
     `;
   }
 
-  function renderHistoItem(s, i, ensemble) {
+  function renderHistoItem(s, i, ensemble, alertesActives) {
     const ecart = s.cash ? s.cash.ecart : null;
     const classe = ecart === null ? '' : (ecart === 0 ? 'green' : (Math.abs(ecart) <= 1 ? 'amber' : 'red'));
-    const integrite = calculerIntegriteQuart(s, ensemble);
+    const integrite = calculerIntegriteQuart(s, ensemble, alertesActives);
     return `
       <div class="histo-item" data-idx="${i}">
         <div class="histo-top">
