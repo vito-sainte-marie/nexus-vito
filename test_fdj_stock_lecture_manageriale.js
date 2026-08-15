@@ -83,8 +83,43 @@ console.log('✓ 2. rotationCarnetsJeu — fenêtre bornée par le point zéro')
   // Carnet déjà épuisé (vendu > tickets_par_carnet) : plancher à 0, jamais négatif.
   const shiftCountsExcedent = [{ game_id: 'cash5', ventes_qte: 999, created_at: '2026-08-14T12:00:00Z' }];
   assert.strictEqual(M.ticketsRestantsCarnetEnCours(mouvements, shiftCountsExcedent, 'cash5', 50), 0);
+
+  // 15/08/2026 — bug réel constaté en production (BANCO 1€, Vito Sainte-
+  // Marie) : une activation antérieure au point zéro certifié ne doit plus
+  // jamais être prise en compte comme "carnet en cours" — le comptage
+  // physique l'a déjà recouvert, même si aucun mouvement de clôture explicite
+  // n'existe. Sans filtre, l'écran affichait "Carnet en cours: Aucun"
+  // (actives=0, calculé depuis le point zéro) en même temps que "Tickets
+  // restants: 138/150" (calculé sans tenir compte du point zéro) — une
+  // contradiction visible pour le manager.
+  const mouvementsAvantPointZero = [
+    { type_mouvement: 'activation', game_id: 'banco', created_at: '2026-08-13T15:12:32Z' }, // avant le point zéro
+  ];
+  const referenceCreeLe = '2026-08-14T00:03:04Z';
+  assert.strictEqual(
+    M.ticketsRestantsCarnetEnCours(mouvementsAvantPointZero, [], 'banco', 150, referenceCreeLe),
+    null,
+    'Activation antérieure au point zéro : non calculable (null), pas un vieux total stale'
+  );
+  // Sans référence transmise (comportement pré-15/08 conservé) : la même
+  // activation compte encore — non-régression du cas déjà couvert plus haut.
+  assert.strictEqual(
+    M.ticketsRestantsCarnetEnCours(mouvementsAvantPointZero, [], 'banco', 150),
+    150,
+    'Sans référence transmise : comportement inchangé (rétrocompatibilité)'
+  );
+  // Une activation postérieure au point zéro reste, elle, bien prise en compte.
+  const mouvementsApresPointZero = [
+    { type_mouvement: 'activation', game_id: 'banco', created_at: '2026-08-13T15:12:32Z' },
+    { type_mouvement: 'activation', game_id: 'banco', created_at: '2026-08-14T09:00:00Z' }, // après
+  ];
+  assert.strictEqual(
+    M.ticketsRestantsCarnetEnCours(mouvementsApresPointZero, [], 'banco', 150, referenceCreeLe),
+    150,
+    'Activation postérieure au point zéro : bien prise en compte (carnet réellement en cours)'
+  );
 }
-console.log('✓ 3. ticketsRestantsCarnetEnCours');
+console.log('✓ 3. ticketsRestantsCarnetEnCours (+ filtrage point zéro, bug BANCO 1€ du 15/08)');
 
 // ------------------------------------------------------------
 // 4) calculerAutonomieJeu

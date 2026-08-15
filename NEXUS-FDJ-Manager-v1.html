@@ -1425,7 +1425,7 @@
     const rotationParJeu = {}, ticketsRestantsParJeu = {}, autonomieParJeu = {};
     jeux.forEach(j => {
       const rotation = NexusFdjMoteur.rotationCarnetsJeu(mouvements, j.id, maintenant, undefined, referenceCreeLe);
-      const ticketsRestants = NexusFdjMoteur.ticketsRestantsCarnetEnCours(mouvements, shiftCountsStock, j.id, j.tickets_par_carnet);
+      const ticketsRestants = NexusFdjMoteur.ticketsRestantsCarnetEnCours(mouvements, shiftCountsStock, j.id, j.tickets_par_carnet, referenceCreeLe);
       rotationParJeu[j.id] = rotation;
       ticketsRestantsParJeu[j.id] = ticketsRestants;
       autonomieParJeu[j.id] = NexusFdjMoteur.calculerAutonomieJeu({

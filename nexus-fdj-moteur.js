@@ -494,11 +494,22 @@
   // Plancher à 0 si le calcul devient négatif (carnet déjà épuisé sans
   // qu'un nouveau n'ait encore été activé — fait réel, pas une erreur de
   // calcul, mais jamais restitué en négatif).
-  function ticketsRestantsCarnetEnCours(mouvements, shiftCounts, gameId, ticketsParCarnet) {
+  function ticketsRestantsCarnetEnCours(mouvements, shiftCounts, gameId, ticketsParCarnet, referenceCreeLe) {
     if (!ticketsParCarnet) return null;
+    const referenceMs = referenceCreeLe ? new Date(referenceCreeLe).getTime() : null;
     let derniereActivation = null;
     (mouvements || []).forEach(m => {
       if (m.type_mouvement !== 'activation' || m.game_id !== gameId || !m.created_at) return;
+      // 15/08/2026 : une activation antérieure au dernier point zéro certifié
+      // ne décrit plus un carnet réellement "en cours" — le comptage
+      // physique l'a déjà recouvert (a pu le remettre à 0 carnet actif sans
+      // qu'aucun mouvement de clôture n'existe dans ce modèle). Sans ce
+      // filtre, un vieux carnet activé avant certification réapparaissait
+      // comme "tickets restants" alors que "Carnet en cours" affichait déjà
+      // "Aucun" (actives=0 post-certification) — contradiction constatée en
+      // usage réel (BANCO 1€ : activation du 13/08 15h12, point zéro du
+      // 14/08 00h03, "Carnet en cours: Aucun" + "Tickets restants: 138/150").
+      if (referenceMs !== null && new Date(m.created_at).getTime() <= referenceMs) return;
       if (!derniereActivation || new Date(m.created_at) > new Date(derniereActivation)) derniereActivation = m.created_at;
     });
     if (!derniereActivation) return null;
