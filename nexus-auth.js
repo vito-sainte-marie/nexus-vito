@@ -91,9 +91,21 @@ async function nexusPointageArriveeManquant(employee) {
   // session dont l'employé n'a pas de site_id (voir plus haut).
   const siteId = employee.site_id;
   const estNiveauManager = employee.role === 'manager' || employee.role === 'gerant';
+
+  const { data: config } = await nexusClient
+    .from('station_config').select('pointage_actif, manager_pointage_requis').eq('site', siteId).maybeSingle();
+
+  // Pointage des employés (16/08/2026, demande de Frédéric) — interrupteur
+  // maître par site, station_config.pointage_actif, DÉFAUT TRUE (préserve
+  // le comportement historique). Si désactivé, PERSONNE n'est jamais
+  // bloqué en attente d'un pointage d'arrivée — ni employé ni manager —
+  // sans quoi un site l'ayant désactivé enfermerait ses employés dans une
+  // redirection permanente vers une page Pointage devenue inutile.
+  // Distinct de manager_pointage_requis ci-dessous, qui ne dispense QUE le
+  // manager quand Pointage reste actif pour les employés.
+  if (config && config.pointage_actif === false) return false;
+
   if (estNiveauManager) {
-    const { data: config } = await nexusClient
-      .from('station_config').select('manager_pointage_requis').eq('site', siteId).maybeSingle();
     if (!config || !config.manager_pointage_requis) return false; // pas requis pour ce poste
   }
 

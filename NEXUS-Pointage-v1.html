@@ -494,8 +494,22 @@
     const siteId = employee.site_id;
 
     const { data: stationConfig } = await nexusClient
-      .from('station_config').select('manager_pointage_requis').eq('site', siteId).maybeSingle();
+      .from('station_config').select('pointage_actif, manager_pointage_requis').eq('site', siteId).maybeSingle();
     const pointageRequisManager = !!(stationConfig && stationConfig.manager_pointage_requis);
+
+    // Pointage désactivé pour tout le site (16/08/2026, demande de Frédéric)
+    // — verrou défensif : en pratique nexus-auth.js ne redirige plus jamais
+    // personne vers cette page tant que pointage_actif=false, et les points
+    // d'entrée (accueil, recherche) ont disparu, mais un lien direct copié/
+    // collé ou mis en favori doit quand même retomber sur un message clair
+    // plutôt qu'un formulaire de pointage qui n'a plus lieu d'être.
+    if (stationConfig && stationConfig.pointage_actif === false) {
+      document.getElementById('pageTitle').textContent = 'Pointage';
+      document.getElementById('app').innerHTML = `
+        <div class="locked">Le pointage est désactivé sur ce site.<br>Un manager peut le réactiver depuis Paramètres Station.</div>
+      `;
+      return;
+    }
 
     if (estNiveauManager && !pointageRequisManager) {
       document.getElementById('pageTitle').textContent = 'Pointage';

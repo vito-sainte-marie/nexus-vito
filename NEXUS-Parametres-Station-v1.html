@@ -241,13 +241,45 @@
     <div class="saved-note" id="savedNote">✓ Horaires enregistrés — pris en compte au prochain pointage</div>
 
     <!-- ------------------------------------------------------------
+         Pointage des employés (16/08/2026, demande de Frédéric : "mets une
+         option dans les paramètres station pour activer ou non le pointage
+         des employés") — interrupteur MAÎTRE par site, station_config.
+         pointage_actif, défaut TRUE (Pointage reste actif tant qu'un
+         manager ne le désactive pas explicitement ici). Quand désactivé :
+         plus personne — employé ni manager — n'est bloqué en attente d'un
+         pointage d'arrivée (voir nexus-auth.js::nexusPointageArriveeManquant),
+         et l'entrée Pointage disparaît de l'accueil et de la recherche
+         NEXUS (voir NEXUS-App-v1.html::chargerPointageActif). Distinct de
+         "Pointage du manager" ci-dessous, qui ne dispense QUE le manager
+         quand Pointage reste actif pour les employés — désactiver ce
+         réglage-ci rend ce second réglage sans objet (les employés ne
+         pointent plus non plus).
+         ------------------------------------------------------------ -->
+    <div class="card" id="cardPointageActif">
+      <div class="section-label">Pointage des employés</div>
+      <div class="toggle-row">
+        <div class="tr-text">
+          <div class="tr-title">Le pointage est actif sur ce site</div>
+          <div class="tr-desc">Arrivée, pause, départ. Si désactivé, personne ne pointe plus — l'entrée Pointage disparaît entièrement du menu, pour tous les postes.</div>
+        </div>
+        <label class="toggle-switch">
+          <input type="checkbox" id="pointageActif">
+          <span class="toggle-track"></span>
+          <span class="toggle-thumb"></span>
+        </label>
+      </div>
+      <div class="toggle-etat" id="pointageActifEtat">Chargement…</div>
+    </div>
+
+    <!-- ------------------------------------------------------------
          Pointage du manager (24/07/2026, demande de Frédéric) — réglage
          par site, jamais codé en dur dans le menu. Défaut à FALSE : le
          manager n'est pas tenu de pointer. N'affecte que son propre
-         rôle (manager/gérant) — les employés pointent dans tous les cas,
-         quel que soit ce réglage. Voir NEXUS-App-v1.html pour la lecture
-         de station_config.manager_pointage_requis qui grise ou non
-         l'entrée "Pointage" du menu.
+         rôle (manager/gérant) — les employés pointent dans tous les cas
+         (sauf si le pointage est désactivé pour tout le site ci-dessus).
+         Voir NEXUS-App-v1.html pour la lecture de station_config.
+         manager_pointage_requis qui grise ou non l'entrée "Pointage" du
+         menu.
          ------------------------------------------------------------ -->
     <div class="card" id="cardPointageManager">
       <div class="section-label">Pointage du manager</div>
@@ -632,6 +664,49 @@
     if (error) { console.error('Réinitialisation station_config:', error); alert('Erreur — réessayez.'); return; }
     CONFIG_HORAIRES_ACTUEL = HORAIRES_DEFAUT;
     remplirFormulaire(HORAIRES_DEFAUT);
+  });
+
+  // ------------------------------------------------------------
+  // Pointage des employés (16/08/2026) — station_config.pointage_actif,
+  // booléen par site, DÉFAUT TRUE (voir migration station_config_pointage_
+  // actif). Interrupteur maître : quand désactivé, nexus-auth.js ne bloque
+  // plus personne en attente d'un pointage d'arrivée, et NEXUS-App-v1.html
+  // masque l'entrée Pointage partout (accueil + recherche).
+  // ------------------------------------------------------------
+  async function chargerPointageActif() {
+    const { data, error } = await nexusClient.from('station_config').select('pointage_actif').eq('site', employee.site_id).maybeSingle();
+    if (error) { console.error('Chargement pointage_actif:', error); return true; }
+    return !(data && data.pointage_actif === false);
+  }
+
+  function majEtatPointageActif(actif) {
+    const etat = document.getElementById('pointageActifEtat');
+    etat.innerHTML = actif
+      ? 'Actif (par défaut) — <b>Pointage</b> apparaît normalement pour tous les postes.'
+      : 'Inactif — <b>Pointage</b> a disparu du menu pour tous les postes. Personne n\'est bloqué en attendant de pointer.';
+  }
+
+  (async function initPointageActif() {
+    const actif = await chargerPointageActif();
+    document.getElementById('pointageActif').checked = actif;
+    majEtatPointageActif(actif);
+  })();
+
+  document.getElementById('pointageActif').addEventListener('change', async (e) => {
+    const actif = e.target.checked;
+    e.target.disabled = true;
+    const { error } = await nexusClient.from('station_config').upsert(
+      { site: employee.site_id, pointage_actif: actif, horaires: CONFIG_HORAIRES_ACTUEL, updated_at: new Date().toISOString() },
+      { onConflict: 'site' }
+    );
+    e.target.disabled = false;
+    if (error) {
+      console.error('Enregistrement pointage_actif:', error);
+      alert('Erreur — réessayez.');
+      e.target.checked = !actif; // annule visuellement, l'ecriture a echoue
+      return;
+    }
+    majEtatPointageActif(actif);
   });
 
   // ------------------------------------------------------------

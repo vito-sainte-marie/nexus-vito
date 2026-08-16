@@ -1717,6 +1717,22 @@
     return !error && !!(data && data.manager_pointage_requis);
   }
 
+  // Pointage des employés (16/08/2026, demande de Frédéric : "mets une
+  // option dans les paramètres station pour activer ou non le pointage des
+  // employés") — interrupteur MAÎTRE par site, station_config.pointage_actif,
+  // DÉFAUT TRUE (voir migration station_config_pointage_actif) : ne jamais
+  // masquer Pointage sur une erreur réseau ou une colonne absente, seul un
+  // choix explicite du manager (pointage_actif = false) doit le faire
+  // disparaître. Sert uniquement à masquer les points d'entrée visuels ici
+  // (mini-carte accueil, recherche NEXUS) — le vrai verrou d'accès (ne plus
+  // jamais bloquer un employé en attente d'un pointage d'arrivée) vit dans
+  // nexus-auth.js::nexusPointageArriveeManquant, cohérent avec ce chargeur.
+  async function chargerPointageActif(siteId) {
+    const { data, error } = await nexusClient.from('station_config').select('pointage_actif').eq('site', siteId).maybeSingle();
+    if (error) { console.error('Chargement pointage_actif:', error); return true; }
+    return !(data && data.pointage_actif === false);
+  }
+
   // Réception carburant — qui la fait (14/08/2026, demande de Frédéric,
   // voir migration-station-config-reception-carburant-role-v1.sql).
   // Défaut 'employe' si la colonne est absente/nulle ou en cas d'erreur
@@ -1964,7 +1980,7 @@
     return (s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   }
 
-  function initRechercheNexus(employee, estNiveauManager, forfaitProfessional, briefNexusInclus, pointageRequisManager, roleDuJour) {
+  function initRechercheNexus(employee, estNiveauManager, forfaitProfessional, briefNexusInclus, pointageRequisManager, roleDuJour, pointageActif) {
     const input = document.getElementById('rechercheNexusInput');
     const resultats = document.getElementById('rechercheNexusResultats');
     if (!input || !resultats) return;
@@ -1982,6 +1998,11 @@
       : 'pointer mon arrivée, voir mes missions, ma progression…';
 
     const visibles = PAGES_INDEX.filter(p => {
+      // Pointage désactivé pour tout le site (16/08/2026, demande de
+      // Frédéric) : disparaît entièrement de la recherche, pour tous les
+      // rôles — contrairement au cas "non requis pour le manager" plus bas
+      // (pointageDesactive), qui laisse l'entrée visible mais grisée.
+      if (p.href === 'NEXUS-Pointage-v1.html' && !pointageActif) return false;
       // Inventaire masqué pour un renfort (03/08/2026, demande de Frédéric) :
       // même logique que la mini-carte d'accueil — un renfort n'a pas de
       // comptage d'ouverture/clôture à faire, il ne doit donc pas non plus
@@ -2107,6 +2128,10 @@
     let pointageRequisManager = true;
     let forfaitProfessional = true;
     let briefNexusInclus = true;
+    // Pointage des employés (16/08/2026) — interrupteur maître, lu une
+    // seule fois ici pour les deux branches (manager/employé) : mini-carte
+    // accueil (employé) et recherche NEXUS (tous rôles) en dépendent.
+    const pointageActif = await chargerPointageActif(employee.site_id);
 
     // roleDuJour (03/08/2026, demande de Frédéric) : rôle choisi à la prise
     // de poste pour AUJOURD'HUI (shifts.role) — sert à masquer la section
@@ -2199,7 +2224,12 @@
     } else {
       document.getElementById('conseillerEmployeWrap').style.display = '';
       document.getElementById('conseillerEmployeTexte').textContent = `Bonjour ${employee.nom}. J'ai préparé votre journée.`;
-      afficherPointageMini(employee, employee.site_id);
+      // Pointage désactivé pour ce site (16/08/2026) : la mini-carte reste
+      // masquée (display:none par défaut dans le HTML), on ne charge même
+      // pas son contenu.
+      if (pointageActif) {
+        afficherPointageMini(employee, employee.site_id);
+      }
 
       // Inventaire masqué pour un renfort (03/08/2026, demande de Frédéric) :
       // le comptage d'ouverture/clôture de quart suppose un poste titulaire
@@ -2380,7 +2410,7 @@
       }
     })();
 
-    initRechercheNexus(employee, estNiveauManager, forfaitProfessional, briefNexusInclus, pointageRequisManager, roleDuJour);
+    initRechercheNexus(employee, estNiveauManager, forfaitProfessional, briefNexusInclus, pointageRequisManager, roleDuJour, pointageActif);
     initGroupes();
   });
 
