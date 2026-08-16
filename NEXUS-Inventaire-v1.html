@@ -595,14 +595,49 @@
     });
   }
 
+  // Scission des catégories mixtes (16/08/2026, demande de Frédéric — "je
+  // voudrais que le café n'apparaisse qu'après les bières, pas mélangé au
+  // même écran que la phase dépôt"). Une catégorie MIXTE (des produits
+  // comptage_deux_lieux et d'autres non — ex. Boissons chaudes/Bières =
+  // bières en deux lieux + café/chocolat en un seul lieu) affichait jusqu'ici
+  // TOUS ses produits sur un seul écran, y compris ceux qui n'ont rien à
+  // faire au dépôt : l'employé devait saisir le café en même temps que les
+  // bières, avant même d'avoir terminé la phase dépôt. On la scinde donc ici
+  // en deux GROUPES D'AFFICHAGE distincts, jamais deux catégories réelles en
+  // base (`inventaire_categories` et `categorie_id` des produits ne sont
+  // jamais touchés — Article 11, la catégorie reste la vérité produit) :
+  //   - un groupe "dépôt" ne contenant QUE les produits comptage_deux_lieux
+  //     de la catégorie (classé en tête par ordonnerParcoursDepotBoutiqueReste,
+  //     exactement comme avant) ;
+  //   - un groupe "— reste" ne contenant que les autres produits, classé
+  //     avec les catégories normales, après le rattrapage boutique.
+  // Une catégorie homogène (100% en deux lieux, comme Huiles/Lave-glace, ou
+  // 100% normale) n'est jamais scindée : comportement strictement identique
+  // à avant, zéro régression. Le +0.5 sur l'ordre du groupe "reste" garantit
+  // qu'il se classe toujours juste après son groupe "dépôt" (jamais avant),
+  // quel que soit l'ordre_affichage respectif des produits eux-mêmes à
+  // l'intérieur de la catégorie — le manager continue de tout régler via les
+  // réglages déjà existants (case "Compté en deux lieux" par produit, ordre
+  // des catégories, ordre_affichage), sans nouvel écran de paramétrage.
   function grouperParCategorie(produits) {
-    const groupes = {};
+    const parCategorie = {};
     for (const p of produits) {
-      const nom = p.inventaire_categories ? p.inventaire_categories.nom : 'Autres';
-      if (!groupes[nom]) groupes[nom] = { nom, ordre: p.inventaire_categories ? p.inventaire_categories.ordre_affichage : 99, items: [] };
-      groupes[nom].items.push(p);
+      const nomBase = p.inventaire_categories ? p.inventaire_categories.nom : 'Autres';
+      const ordreBase = p.inventaire_categories ? p.inventaire_categories.ordre_affichage : 99;
+      if (!parCategorie[nomBase]) parCategorie[nomBase] = { nomBase, ordreBase, doubles: [], simples: [] };
+      (p.comptage_deux_lieux ? parCategorie[nomBase].doubles : parCategorie[nomBase].simples).push(p);
     }
-    return Object.values(groupes).sort((a, b) => a.ordre - b.ordre);
+    const groupes = [];
+    Object.values(parCategorie).forEach(c => {
+      const mixte = c.doubles.length > 0 && c.simples.length > 0;
+      if (!mixte) {
+        groupes.push({ nom: c.nomBase, ordre: c.ordreBase, items: [...c.doubles, ...c.simples] });
+        return;
+      }
+      groupes.push({ nom: c.nomBase, ordre: c.ordreBase, items: c.doubles });
+      groupes.push({ nom: `${c.nomBase} — reste`, ordre: c.ordreBase + 0.5, items: c.simples });
+    });
+    return groupes.sort((a, b) => a.ordre - b.ordre);
   }
 
   // Parcours dépôt → boutique → reste (15/08/2026, demande de Frédéric).
