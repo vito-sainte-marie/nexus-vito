@@ -29,6 +29,12 @@
     --red:#F0575A; --red-dim:#3A1D1F;
     --cyan:#4FC3D9; --cyan-dim:rgba(79,195,217,0.12);
     --gold:#D4AF37;
+    /* Mes résultats — Boutique/Piste/FDJ (16/08/2026) : une couleur dédiée
+       par activité, distincte des couleurs de statut (vert/ambre/rouge)
+       pour ne jamais confondre "quelle activité" et "quel résultat". */
+    --type-boutique:#8C9EFF; --type-boutique-dim:rgba(140,158,255,0.14);
+    --type-piste:#4FC3D9; --type-piste-dim:rgba(79,195,217,0.14);
+    --type-fdj:#F0A84E; --type-fdj-dim:rgba(240,168,78,0.14);
     --mono:'IBM Plex Mono',monospace; --sans:'IBM Plex Sans',sans-serif;
   }
   *{box-sizing:border-box; margin:0; padding:0;}
@@ -125,6 +131,34 @@
   .caisse-jour-detail.open{display:block;}
   .causes-list{margin:8px 0 0; padding-left:18px; color:var(--text-dim); font-size:11.5px; line-height:1.7;}
   .caisses-empty{padding:20px 0; text-align:center; color:var(--text-dim); font-size:12.5px;}
+  .caisse-jour-montant.vide{color:var(--text-dim); font-size:10.5px; font-family:var(--sans);}
+
+  /* Mes résultats — Boutique/Piste/FDJ (16/08/2026, demande de Frédéric) —
+     mêmes couleurs dédiées par activité utilisées partout dans ce bloc
+     (mini-cartes Niveau 1, badges Niveau 3, filtres) : jamais une couleur
+     réinventée pour la même activité à deux endroits différents. */
+  .activite-cards-stack{display:flex; flex-direction:column; gap:10px;}
+  .activite-card{background:var(--panel-raised); border:1px solid var(--hairline); border-left:3px solid var(--hairline); border-radius:10px; padding:12px 14px;}
+  .activite-card.boutique{border-left-color:var(--type-boutique);}
+  .activite-card.piste{border-left-color:var(--type-piste);}
+  .activite-card.fdj{border-left-color:var(--type-fdj);}
+  .activite-card-ligne{font-size:12.5px; color:var(--text-mid); margin-top:8px;}
+  .activite-card-cumul{font-family:var(--mono); font-size:13px; font-weight:600; margin-top:3px;}
+  .activite-card-alerte{font-family:var(--mono); font-size:10.5px; color:var(--red); margin-top:4px;}
+  .activite-card-vide{font-size:12px; color:var(--text-dim); margin-top:8px;}
+  .activite-badge{display:inline-flex; align-items:center; gap:4px; font-family:var(--mono); font-size:10px; font-weight:600; letter-spacing:0.03em; padding:3px 9px; border-radius:20px;}
+  .activite-badge.small{font-size:9px; padding:2px 8px; margin-top:6px;}
+  .activite-badge.boutique{color:var(--type-boutique); background:var(--type-boutique-dim);}
+  .activite-badge.piste{color:var(--type-piste); background:var(--type-piste-dim);}
+  .activite-badge.fdj{color:var(--type-fdj); background:var(--type-fdj-dim);}
+
+  .filtre-activite{display:flex; gap:6px; flex-wrap:wrap; padding-bottom:12px;}
+  .filtre-pill{font-family:var(--mono); font-size:10.5px; font-weight:600; letter-spacing:0.02em; color:var(--text-mid); background:var(--panel-raised); border:1px solid var(--hairline); border-radius:20px; padding:6px 12px; cursor:pointer;}
+  .filtre-pill.active{color:var(--bg); background:var(--cyan); border-color:var(--cyan);}
+
+  .fdj-detail-grid{display:flex; flex-direction:column; gap:6px; margin-top:4px;}
+  .fdj-detail-label{display:block; font-family:var(--mono); font-size:9.5px; text-transform:uppercase; letter-spacing:0.03em; color:var(--text-dim);}
+  .fdj-detail-val{display:block; font-family:var(--mono); font-size:13px; font-weight:600; margin-top:1px;}
 
   /* Score missions (03/08/2026, demande de Frédéric) — même grille de
      statistiques que Mes Caisses, vocabulaire dédié aux missions. */
@@ -255,6 +289,7 @@
       { data: completionsRows, error: e6 },
       { data: catalogueRows, error: e7 },
       { data: inventaireRows, error: e8 },
+      { data: fdjShiftsRows, error: e9 },
     ] = await Promise.all([
       // id/valide_le/ecart_*_valide/commentaire_validation ajoutés le
       // 03/08/2026 pour "Mes Caisses" — distinguer un écart provisoire d'un
@@ -280,6 +315,13 @@
       // "inventaire obligatoire terminé" du point de fiabilité — jamais
       // utilisé pour rien d'autre ici.
       nexusClient.from('inventaire_quarts').select('date, quart, statut').eq('site', siteId),
+      // FDJ dans Ma Progression (16/08/2026, demande de Frédéric) : même
+      // forme que NEXUS-FDJ-Manager-v1.html::chargerShiftsAvecCaisse,
+      // filtrée site + employé. Un quart sans caisse enregistrée (pas
+      // encore transmis) n'a rien à montrer ici — voir
+      // NexusProgression.construireServicesCaisseFdj.
+      fetchAllRows(() => nexusClient.from('fdj_shifts').select('*, fdj_cash_controls(*)')
+        .eq('site', siteId).eq('employee_id', cible.id).order('date', { ascending: false })),
     ]);
     if (e1) console.error('Chargement audits_caisse (progression):', e1);
     if (e2) console.error('Chargement pointages (progression):', e2);
@@ -289,10 +331,15 @@
     if (e6) console.error('Chargement mission_completions (progression):', e6);
     if (e7) console.error('Chargement mission_catalog (progression):', e7);
     if (e8) console.error('Chargement inventaire_quarts (progression):', e8);
+    if (e9) console.error('Chargement fdj_shifts (progression):', e9);
 
     const N = NexusProgression;
     const services = N.construireServicesCaisse(auditsRows || [], cible.id);
     const ecarts = N.ecartsAttribuables(services);
+    // Ma Progression multi-activité (16/08/2026) : FDJ + historique unifié
+    // Boutique/Piste/FDJ — voir nexus-progression.js section 11.
+    const servicesFdj = N.construireServicesCaisseFdj(fdjShiftsRows || []);
+    const lignesUnifiees = N.construireHistoriqueUnifie(services, servicesFdj);
     const statutCaisseVal = N.statutCaisse(services);
     const statutPonctualiteVal = N.statutPonctualite(pointagesRows || []);
     const statutMissionsVal = N.statutMissions(assignationsRows || []);
@@ -355,12 +402,26 @@
     // données pour l'affichage, jamais un second calcul divergent.
     // ------------------------------------------------------------
     const moisRef = new Date().toISOString().slice(0, 7);
-    const agregatMois = N.agregerMoisCaisse(services, moisRef);
-    const agregatMoisPrecedent = N.agregerMoisCaisse(services, N.moisPrecedent(moisRef));
-    const tendanceMois = N.tendanceMoisCaisse(agregatMois, agregatMoisPrecedent);
-    const joursSansEcartValide = N.joursConsecutifsSansEcartValide(services);
     const serieConformeVal = N.serieValideeConforme(services);
     const bonusRegulariteVal = N.bonusRegulariteCaisse(serieConformeVal);
+
+    // "Mes résultats" multi-activité (16/08/2026, demande de Frédéric —
+    // remplace l'ancien bloc "Mes Caisses" boutique/piste seul par une
+    // lecture à 3 niveaux couvrant Boutique/Piste/FDJ : voir
+    // nexus-progression.js section 11 pour toute la logique. Ici,
+    // uniquement l'assemblage pour l'affichage — jamais un second calcul
+    // divergent.
+    const moisPrecedentRef = N.moisPrecedent(moisRef);
+    const syntheseCombActuelle = N.syntheseCombinee(lignesUnifiees, moisRef);
+    const syntheseCombPrecedente = N.syntheseCombinee(lignesUnifiees, moisPrecedentRef);
+    const tendanceComb = N.tendanceMoisCaisse(syntheseCombActuelle, syntheseCombPrecedente);
+    const serieUnifiee = N.serieValideeConformeUnifiee(lignesUnifiees);
+    const lignesBoutique = lignesUnifiees.filter(l => l.activite === 'boutique');
+    const lignesPiste = lignesUnifiees.filter(l => l.activite === 'piste');
+    const lignesFdj = lignesUnifiees.filter(l => l.activite === 'fdj');
+    const syntheseBoutique = N.syntheseActivite(lignesBoutique, moisRef);
+    const synthesePiste = N.syntheseActivite(lignesPiste, moisRef);
+    const syntheseFdj = N.syntheseActivite(lignesFdj, moisRef);
 
     // Écarts VALIDÉS attribuables — même logique que ecartsAttribuables
     // (section 1) mais construite sur les montants définitifs, jamais les
@@ -378,32 +439,6 @@
     });
     const tendanceValidee = N.tendanceEcartMoyen(ecartsValidesAttribuables);
     const ameliorationDetectee = !!(tendanceValidee && tendanceValidee.ameliore);
-
-    // Montant attribuable affiché pour un service donné — respecte
-    // strictement la séparation provisoire/validé (jamais les deux
-    // colonnes mélangées) et l'attribution solo (jamais un poste partagé).
-    //
-    // Correction du 03/08/2026 (signalée par Frédéric — "pourquoi Angélique
-    // ne voit pas son écart réel, elle voit 0 alors que son écart d'hier
-    // est de -0,20 €") : cette fonction ne renvoyait un montant QUE si
-    // l'écart dépassait le seuil de conformité — un service "Validée
-    // conforme" affichait donc TOUJOURS un blanc (aucun montant), même
-    // quand un vrai petit écart existait (-0,20 €, -0,02 €...). Le seuil
-    // sert à qualifier le service (statutCaisseJour), jamais à cacher le
-    // montant réel : le montant réellement attribuable s'affiche
-    // maintenant toujours, quel que soit son statut.
-    function montantAttribuableService(s) {
-      const statut = N.statutCaisseJour(s);
-      let total = 0, trouve = false;
-      if (statut === 'provisoire') {
-        if (s.soloPiste) { total += s.ecartPiste; trouve = true; }
-        if (s.soloBoutique) { total += s.ecartBoutique; trouve = true; }
-      } else if (statut === 'validee_conforme' || statut === 'validee_ecart') {
-        if (s.soloPiste && s.ecartPisteValide != null) { total += s.ecartPisteValide; trouve = true; }
-        if (s.soloBoutique && s.ecartBoutiqueValide != null) { total += s.ecartBoutiqueValide; trouve = true; }
-      }
-      return trouve ? total : null;
-    }
 
     // Points de fiabilité (03/08/2026) — cumulés sur tout l'historique
     // connu, jamais stockés (toujours recalculés à partir des données
@@ -451,7 +486,6 @@
       .sort((a, b) => (b.date + (b.heure || '')).localeCompare(a.date + (a.heure || '')))
       .slice(0, 20);
 
-    const servicesDuMois = services.filter(s => s.date && s.date.slice(0, 7) === moisRef);
     const MOIS_LABELS = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
     const labelMois = `${MOIS_LABELS[parseInt(moisRef.slice(5,7),10)-1]} ${moisRef.slice(0,4)}`;
 
@@ -470,64 +504,138 @@
       : `Bonjour ${prenom}. ${vueManager ? 'Le Coach NEXUS commence tout juste à apprendre la manière de travailler de cet employé' : 'Aujourd\'hui, je serai à vos côtés pour vous accompagner dans vos missions et vous aider à progresser'} — chaque service ${vueManager ? 'qu\'il enregistre m\'aide à mieux le' : 'que vous enregistrez m\'aide à mieux vous'} comprendre.`;
 
     // ------------------------------------------------------------
-    // Rendu "Mes Caisses"
+    // Rendu "Mes résultats" — Boutique / Piste / FDJ (16/08/2026)
+    //
+    // Spécification de Frédéric, suivie au plus près : 3 niveaux de
+    // lecture (mini-cartes par activité → KPI mensuels combinés (max 6) →
+    // historique unifié filtrable, une ligne = une activité = un
+    // statut = un montant), jamais plus de 6 tuiles, jamais deux activités
+    // mélangées dans une même ligne d'historique.
     // ------------------------------------------------------------
     const TENDANCE_LABEL = { ameliore: '📈 En amélioration', degrade: '📉 En hausse', stable: '➡️ Stable' };
-    const tendanceTexte = tendanceMois ? TENDANCE_LABEL[tendanceMois.evolution] : 'Données insuffisantes';
+    const tendanceTexte = tendanceComb ? TENDANCE_LABEL[tendanceComb.evolution] : 'Données insuffisantes';
 
     const statItem = (valeur, label) => `<div class="stat-item"><div class="stat-value">${valeur}</div><div class="stat-label">${label}</div></div>`;
 
-    const statsGridHtml = [
-      statItem(agregatMois.caissesConformes, 'Caisses conformes'),
-      statItem(agregatMois.caissesEcartValide, 'Caisses avec écart validé'),
-      statItem(`${agregatMois.ecartProvisoireCumule >= 0 ? '+' : ''}${agregatMois.ecartProvisoireCumule.toFixed(2)} €`, 'Cumul provisoire du mois'),
-      statItem(`${agregatMois.ecartValideCumule >= 0 ? '+' : ''}${agregatMois.ecartValideCumule.toFixed(2)} €`, 'Cumul validé du mois'),
-      statItem(tendanceTexte, 'Vs mois précédent'),
-      statItem(joursSansEcartValide, 'Jours sans écart validé'),
+    // Niveau 1 — mini-cartes par activité.
+    const ACTIVITE_LABEL = { boutique: 'Boutique', piste: 'Piste', fdj: 'FDJ' };
+    const ACTIVITE_ICONE = { boutique: '🏪', piste: '⛽', fdj: '🎟️' };
+    const miniCarteActivite = (activite, synth) => {
+      const cumulTxt = `${synth.cumulValide >= 0 ? '+' : ''}${synth.cumulValide.toFixed(2)} €`;
+      return `
+      <div class="activite-card ${activite}">
+        <span class="activite-badge ${activite}">${ACTIVITE_ICONE[activite]} ${ACTIVITE_LABEL[activite]}</span>
+        ${synth.nbControles > 0 ? `
+          <div class="activite-card-ligne">${synth.nbControles} contrôle${synth.nbControles > 1 ? 's' : ''} · ${synth.conformes} conforme${synth.conformes > 1 ? 's' : ''}</div>
+          <div class="activite-card-cumul">Cumul validé : ${cumulTxt}</div>
+          ${synth.aRegulariser > 0 ? `<div class="activite-card-alerte">${synth.aRegulariser} à régulariser</div>` : ''}
+        ` : `<div class="activite-card-vide">Aucun contrôle ce mois-ci.</div>`}
+      </div>`;
+    };
+    const miniCartesHtml = [
+      miniCarteActivite('boutique', syntheseBoutique),
+      miniCarteActivite('piste', synthesePiste),
+      miniCarteActivite('fdj', syntheseFdj),
     ].join('');
 
-    const caisseJourItemHtml = (s, i) => {
-      const statut = N.statutCaisseJour(s);
-      const montant = montantAttribuableService(s);
-      const dateLabel = new Date(s.date + 'T00:00:00').toLocaleDateString('fr-FR');
-      // Le quart est une valeur libre saisie dans Verify (ex: "1", "2") — pas
-      // un enum matin/soir garanti (voir v_quart dans NEXUS-Verify-v1.html).
-      // On l'affiche donc tel quel, jamais une étiquette matin/soir devinée.
-      const quartLabel = `Quart ${s.quart}`;
-      const messageCoach = N.messageCoachCaisseJour({ statut, montantEcart: montant, serieValideeConformeVal: serieConformeVal, ameliorationDetectee });
-      const causesHtml = statut === 'validee_ecart'
+    // Niveau 2 — KPI mensuels combinés, 6 tuiles maximum.
+    const statsGridHtml = [
+      statItem(syntheseCombActuelle.caissesConformes, 'Contrôles conformes'),
+      statItem(syntheseCombActuelle.caissesEcartValide, 'Écarts validés'),
+      statItem(`${syntheseCombActuelle.ecartValideCumule >= 0 ? '+' : ''}${syntheseCombActuelle.ecartValideCumule.toFixed(2)} €`, 'Cumul validé du mois'),
+      statItem(serieUnifiee.enCours, 'Validations conformes d\'affilée'),
+      statItem(pointsFiabiliteTotal, 'Points de fiabilité'),
+      statItem(tendanceTexte, 'Vs mois précédent'),
+    ].join('');
+
+    // Niveau 3 — historique unifié, une ligne = une activité, filtrable.
+    // Le détail Boutique/Piste réutilise le message Coach + les causes
+    // possibles déjà établis (section 10) — jamais un second discours
+    // divergent pour la même donnée. Le détail FDJ reste volontairement
+    // limité aux montants de caisse déjà transmis dans cette page (caisse
+    // attendue/écart constaté/régularisation/motif) : le détail jeu par jeu
+    // (stock grattage/tirages) n'est pas rechargé ici pour ne pas alourdir
+    // "Ma Progression" d'une requête supplémentaire — il reste consultable
+    // en détail dans Contrôle FDJ, lien fourni dans la fiche.
+    const MOTIF_ECART_FDJ_LABEL = {
+      erreur_saisie: 'Erreur de saisie', erreur_comptage: 'Erreur de comptage',
+      carnet_non_declare: 'Carnet non déclaré', mouvement_oublie: 'Réapprovisionnement non enregistré',
+      erreur_rapport: 'Erreur sur le rapport FDJ', autre: 'Autre raison', non_explique: 'Non expliqué',
+    };
+    const fmtEuroSigne = v => v == null ? '—' : `${v >= 0 ? '+' : ''}${v.toFixed(2)} €`;
+
+    const detailBoutiquePisteHtml = (l) => {
+      const messageCoach = N.messageCoachCaisseJour({ statut: l.statut, montantEcart: l.montant, serieValideeConformeVal: serieConformeVal, ameliorationDetectee });
+      const causesHtml = l.statut === 'validee_ecart'
         ? `<div class="causes-list-wrap"><b>Ce qui peut expliquer cet écart (hypothèses à vérifier, jamais des certitudes) :</b>
             <ul class="causes-list">${N.CAUSES_POSSIBLES_CAISSE.map(c => `<li>${c}</li>`).join('')}</ul>
            </div>`
         : '';
       return `
-      <div class="caisse-jour-item" data-idx="${i}">
+        ${l.statut === 'provisoire' ? `<div class="protection-note" style="margin-top:0; padding-top:0; border-top:none;">${N.MENTION_PROTECTION_COURTE}</div>` : ''}
+        <div style="margin-top:8px;">${messageCoach}</div>
+        ${causesHtml}`;
+    };
+
+    const detailFdjHtml = (s) => {
+      const regularise = s.ecart != null && s.ecartOrigine != null && s.ecart !== s.ecartOrigine;
+      return `
+        <div class="fdj-detail-grid">
+          <div><span class="fdj-detail-label">Caisse attendue</span><span class="fdj-detail-val">${fmtEuroSigne(s.caisseAttendue)}</span></div>
+          <div><span class="fdj-detail-label">Écart constaté à la clôture</span><span class="fdj-detail-val">${fmtEuroSigne(s.ecartOrigine)}</span></div>
+          ${regularise ? `<div><span class="fdj-detail-label">Après régularisation manager</span><span class="fdj-detail-val">${fmtEuroSigne(s.ecart)}</span></div>` : ''}
+          ${s.motifEcart ? `<div><span class="fdj-detail-label">Motif</span><span class="fdj-detail-val">${MOTIF_ECART_FDJ_LABEL[s.motifEcart] || s.motifEcart}</span></div>` : ''}
+        </div>
+        <div style="margin-top:8px; font-size:11.5px; color:var(--text-dim);">Détail complet du quart (jeux, tirages, stock) disponible dans Contrôle FDJ.</div>`;
+    };
+
+    const ligneHistoriqueItemHtml = (l, i) => {
+      const dateLabel = new Date(l.date + 'T00:00:00').toLocaleDateString('fr-FR');
+      // Le quart est une valeur libre saisie côté Verify (ex: "1", "2") —
+      // pas un enum matin/soir garanti. On l'affiche tel quel.
+      const quartLabel = `Quart ${l.quart}`;
+      const detailHtml = l.activite === 'fdj' ? detailFdjHtml(l.source) : detailBoutiquePisteHtml(l);
+      const montantHtml = l.montant != null
+        ? `<div class="caisse-jour-montant">${l.montant >= 0 ? '+' : ''}${l.montant.toFixed(2)} €</div>`
+        : (!l.attribuable ? `<div class="caisse-jour-montant vide">Poste partagé — écart non attribuable individuellement</div>` : '');
+      return `
+      <div class="caisse-jour-item" data-activite="${l.activite}" data-idx="${i}">
         <div class="caisse-jour-top">
-          <div><span class="caisse-jour-date">${dateLabel}</span><span class="caisse-jour-quart">· ${quartLabel}</span></div>
-          <span class="statut-badge-caisse ${statut}" title="${statut === 'provisoire' ? N.MENTION_PROTECTION_COURTE : ''}">${N.LIBELLE_STATUT_CAISSE_JOUR[statut]}</span>
+          <div>
+            <div><span class="caisse-jour-date">${dateLabel}</span><span class="caisse-jour-quart">· ${quartLabel}</span></div>
+            <span class="activite-badge small ${l.activite}">${ACTIVITE_ICONE[l.activite]} ${ACTIVITE_LABEL[l.activite]}</span>
+          </div>
+          <span class="statut-badge-caisse ${l.statut}" title="${l.statut === 'provisoire' ? N.MENTION_PROTECTION_COURTE : ''}">${N.LIBELLE_STATUT_CAISSE_JOUR[l.statut]}</span>
         </div>
-        ${montant != null ? `<div class="caisse-jour-montant">${montant >= 0 ? '+' : ''}${montant.toFixed(2)} €</div>` : ''}
-        <div class="caisse-jour-detail" id="caisseDetail-${i}">
-          ${statut === 'provisoire' ? `<div class="protection-note" style="margin-top:0; padding-top:0; border-top:none;">${N.MENTION_PROTECTION_COURTE}</div>` : ''}
-          <div style="margin-top:8px;">${messageCoach}</div>
-          ${causesHtml}
-        </div>
+        ${montantHtml}
+        <div class="caisse-jour-detail" id="histDetail-${i}">${detailHtml}</div>
       </div>`;
     };
 
-    const caissesListeHtml = servicesDuMois.length
-      ? servicesDuMois.map((s, i) => caisseJourItemHtml(s, i)).join('')
-      : `<div class="caisses-empty">Aucune caisse contrôlée ce mois-ci pour l\'instant.</div>`;
+    const historiqueListeHtml = lignesUnifiees.length
+      ? lignesUnifiees.map((l, i) => ligneHistoriqueItemHtml(l, i)).join('')
+      : `<div class="caisses-empty">Aucun contrôle de caisse enregistré pour l\'instant.</div>`;
 
-    const mesCaissesHtml = `
-      <div class="section-label">Mes caisses</div>
+    const mesResultatsHtml = `
+      <div class="section-label">Mes résultats — ${labelMois}</div>
       <div class="coach-card">
-        <div class="caisses-sub">Suivez vos résultats de caisse et votre régularité au fil du temps — ${labelMois}.</div>
+        <div class="caisses-sub">Suivez vos résultats par activité et votre régularité dans le temps.</div>
+        <div class="activite-cards-stack">${miniCartesHtml}</div>
+      </div>
+      <div class="coach-card">
         <div class="caisses-stats-grid">${statsGridHtml}</div>
-        ${bonusRegulariteVal.paliersAtteints > 0 || pointsFiabiliteTotal > 0 ? `<div class="fiabilite-line">🏅 ${pointsFiabiliteTotal} point${pointsFiabiliteTotal > 1 ? 's' : ''} de fiabilité cumulé${pointsFiabiliteTotal > 1 ? 's' : ''}${bonusRegulariteVal.paliersAtteints > 0 ? ` · dont +${bonusRegulariteVal.points} de régularité (${serieConformeVal.enCours} validées conformes d'affilée)` : ''}</div>` : ''}
+        ${bonusRegulariteVal.paliersAtteints > 0 ? `<div class="fiabilite-line">🏅 dont +${bonusRegulariteVal.points} de régularité (${serieConformeVal.enCours} validées conformes d'affilée, Boutique/Piste)</div>` : ''}
         <div class="protection-note">${N.MENTION_PROTECTION_COURTE} <span class="info-dot" title="${N.MENTION_PROTECTION_LONGUE}">ⓘ en savoir plus</span></div>
       </div>
-      <div class="coach-card" id="caissesListeCard">${caissesListeHtml}</div>
+      <div class="coach-card" style="padding-bottom:6px;">
+        <div class="filtre-activite" id="filtreActivite">
+          <button class="filtre-pill active" data-filtre="tous" type="button">Tous</button>
+          <button class="filtre-pill" data-filtre="boutique" type="button">Boutique</button>
+          <button class="filtre-pill" data-filtre="piste" type="button">Piste</button>
+          <button class="filtre-pill" data-filtre="fdj" type="button">FDJ</button>
+        </div>
+      </div>
+      <div class="coach-card" id="historiqueListeCard">${historiqueListeHtml}</div>
     `;
 
     // ------------------------------------------------------------
@@ -621,7 +729,7 @@
 
       ${scoreMissionsHtml}
 
-      ${mesCaissesHtml}
+      ${mesResultatsHtml}
 
       <div class="section-label">${vueManager ? 'Ses réussites' : 'Vos réussites'}</div>
       <div class="badges-grid">
@@ -635,14 +743,31 @@
       </div>
     `;
 
-    // Ouvrir/fermer le détail d'un jour "Mes Caisses" — même mécanisme que
-    // l'historique de NEXUS-Verify-v1.html (clic sur la ligne).
+    // Ouvrir/fermer le détail d'une ligne d'historique (clic sur la ligne)
+    // — même mécanisme que l'historique de NEXUS-Verify-v1.html.
     document.querySelectorAll('.caisse-jour-item').forEach(item => {
       item.addEventListener('click', () => {
-        const detail = document.getElementById(`caisseDetail-${item.dataset.idx}`);
+        const detail = document.getElementById(`histDetail-${item.dataset.idx}`);
         if (detail) detail.classList.toggle('open');
       });
     });
+
+    // Filtres rapides "Tous | Boutique | Piste | FDJ" (16/08/2026, demande
+    // de Frédéric) — purement client (aucun rechargement Supabase), simple
+    // affichage/masquage des lignes déjà rendues, pour rester réactif.
+    const filtreBar = document.getElementById('filtreActivite');
+    if (filtreBar) {
+      filtreBar.addEventListener('click', (ev) => {
+        const btn = ev.target.closest('.filtre-pill');
+        if (!btn) return;
+        filtreBar.querySelectorAll('.filtre-pill').forEach(p => p.classList.remove('active'));
+        btn.classList.add('active');
+        const filtre = btn.dataset.filtre;
+        document.querySelectorAll('#historiqueListeCard .caisse-jour-item').forEach(item => {
+          item.style.display = (filtre === 'tous' || item.dataset.activite === filtre) ? '' : 'none';
+        });
+      });
+    }
   });
 </script>
 </body>

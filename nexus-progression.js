@@ -939,6 +939,187 @@
     return `${base} Les données n'indiquent pas encore la cause précise — les causes possibles ci-dessous restent des hypothèses à vérifier, jamais des certitudes.`;
   }
 
+  // ------------------------------------------------------------
+  // 11) "Ma Progression" multi-activité (16/08/2026, demande de Frédéric —
+  //    voir sa spécification complète : intégrer Boutique / Piste / FDJ
+  //    dans une seule page, lisible "en 2 secondes", sans jamais mélanger
+  //    deux activités dans une même ligne ni dans un même statut).
+  //
+  //    Construit une lecture PAR ACTIVITÉ à partir des mêmes données
+  //    brutes que la section 10 — jamais un second calcul divergent des
+  //    montants ou seuils déjà définis plus haut (SEUIL_ECART_CONFORME,
+  //    estConforme). Ne modifie ni ne remplace statutCaisseJour /
+  //    agregerMoisCaisse (section 10) : ces fonctions restent la référence
+  //    de tout autre écran qui les consomme déjà (aucune régression).
+  // ------------------------------------------------------------
+
+  // Statut d'UNE activité (piste OU boutique) d'un service Verify —
+  // distinct de statutCaisseJour (section 10) qui combine les deux postes
+  // en un seul statut. Ici, chaque activité a son propre statut,
+  // indépendant de l'autre poste éventuellement tenu le même quart : un
+  // écart sur la piste ne doit jamais colorer la ligne "boutique" du même
+  // quart, et inversement (nécessaire pour la demande explicite de
+  // Frédéric : "une ligne d'historique = une activité = un statut = un
+  // montant").
+  function statutActivite(service, activite) {
+    if (!service) return null;
+    if (!service.valideLe) return 'provisoire';
+    const solo = activite === 'piste' ? service.soloPiste : service.soloBoutique;
+    const ecartValide = solo ? (activite === 'piste' ? service.ecartPisteValide : service.ecartBoutiqueValide) : null;
+    if (ecartValide == null) return 'validee_conforme';
+    return estConforme(ecartValide) ? 'validee_conforme' : 'validee_ecart';
+  }
+
+  // Une ligne d'historique pour UNE activité tenue (piste et/ou boutique) —
+  // null si l'employé n'a pas tenu ce poste ce quart-là. Un même service
+  // Verify où l'employé a tenu piste ET boutique produit donc deux lignes
+  // indépendantes. Le montant n'est affiché que pour un poste tenu SEUL
+  // (règle d'attribution, section 1) ; un poste partagé reste visible
+  // (transparence : "j'ai bien tenu ce poste ce jour-là") mais sans chiffre
+  // individuel imputable.
+  function ligneActiviteCaisse(service, activite) {
+    const sur = activite === 'piste' ? service.surPiste : service.surBoutique;
+    if (!sur) return null;
+    const solo = activite === 'piste' ? service.soloPiste : service.soloBoutique;
+    const statut = statutActivite(service, activite);
+    let montant = null;
+    if (solo) {
+      montant = statut === 'provisoire'
+        ? (activite === 'piste' ? service.ecartPiste : service.ecartBoutique)
+        : (activite === 'piste' ? service.ecartPisteValide : service.ecartBoutiqueValide);
+    }
+    return { activite, date: service.date, quart: service.quart, statut, montant, attribuable: solo, source: service };
+  }
+
+  // FDJ — reconstruction des services caisse par employé. rowsShiftsFdj :
+  // lignes fdj_shifts déjà filtrées site + employé, chargées avec
+  // select('*, fdj_cash_controls(*)') — même forme que
+  // NEXUS-FDJ-Manager-v1.html::chargerShiftsAvecCaisse (PostgREST renvoie
+  // l'objet imbriqué comme OBJET, pas tableau, tant que la contrainte
+  // unique shift_id existe — voir le commentaire historique de cette
+  // fonction — mais on gère les deux formes par robustesse). Un quart sans
+  // caisse enregistrée n'a rien à montrer ici : rien n'a encore été
+  // transmis. Aucune règle d'attribution "solo" nécessaire côté FDJ :
+  // chaque ligne fdj_cash_controls est déjà rattachée à un employee_id
+  // unique (fdj_shifts.employee_id) — pas de poste partagé possible,
+  // contrairement à Verify (section 1).
+  function construireServicesCaisseFdj(rowsShiftsFdj) {
+    const services = [];
+    (rowsShiftsFdj || []).forEach(s => {
+      const c = Array.isArray(s.fdj_cash_controls) ? (s.fdj_cash_controls[0] || null) : (s.fdj_cash_controls || null);
+      if (!c) return;
+      services.push({
+        id: s.id, date: s.date, quart: s.quart,
+        quartValide: s.statut === 'valide',
+        statutCash: c.statut || null,
+        caisseAttendue: c.caisse_attendue != null ? Number(c.caisse_attendue) : null,
+        caisseReelle: c.caisse_reelle != null ? Number(c.caisse_reelle) : null,
+        caisseReelleOrigine: c.caisse_reelle_origine != null ? Number(c.caisse_reelle_origine) : null,
+        ecart: c.ecart != null ? Number(c.ecart) : null,
+        ecartOrigine: c.ecart_origine != null ? Number(c.ecart_origine) : null,
+        motifEcart: c.motif_ecart || null,
+        valideLe: c.valide_le || null,
+      });
+    });
+    services.sort((x, y) => (x.date < y.date ? 1 : x.date > y.date ? -1 : 0));
+    return services;
+  }
+
+  // Statut FDJ ramené au même vocabulaire à 3 niveaux que Verify
+  // (provisoire / validee_conforme / validee_ecart) — FDJ n'a pas de seuil
+  // numérique automatique comme Verify (SEUIL_ECART_CONFORME) : c'est le
+  // manager qui choisit un statut qualitatif parmi 7 valeurs (STATUTS_CAISSE
+  // de NEXUS-FDJ-Manager-v1.html). On les range ici dans le même
+  // vocabulaire à 3 niveaux pour qu'une seule grammaire de statuts soit
+  // lisible dans toute la page "Ma Progression", quelle que soit
+  // l'activité : 'provisoire'/absent -> provisoire ; 'conforme' ->
+  // validee_conforme ; tout autre statut posé par le manager (à
+  // contrôler / en attente / expliquée / régularisé / validé avec écart)
+  // -> validee_ecart.
+  function statutCaisseJourFdj(service) {
+    if (!service) return null;
+    const s = service.statutCash;
+    if (!s || s === 'provisoire') return 'provisoire';
+    if (s === 'conforme') return 'validee_conforme';
+    return 'validee_ecart';
+  }
+
+  function ligneActiviteFdj(service) {
+    const statut = statutCaisseJourFdj(service);
+    const montant = statut === 'provisoire' ? service.ecartOrigine : service.ecart;
+    return { activite: 'fdj', date: service.date, quart: service.quart, statut, montant, attribuable: true, source: service };
+  }
+
+  // Historique unifié — une ligne par activité réellement tenue, jamais
+  // deux activités mélangées dans une même ligne. Trié du plus récent au
+  // plus ancien.
+  function construireHistoriqueUnifie(servicesCaisse, servicesFdj) {
+    const lignes = [];
+    (servicesCaisse || []).forEach(s => {
+      const lp = ligneActiviteCaisse(s, 'piste'); if (lp) lignes.push(lp);
+      const lb = ligneActiviteCaisse(s, 'boutique'); if (lb) lignes.push(lb);
+    });
+    (servicesFdj || []).forEach(s => lignes.push(ligneActiviteFdj(s)));
+    lignes.sort((a, b) => {
+      if (a.date !== b.date) return a.date < b.date ? 1 : -1;
+      const qa = String(a.quart), qb = String(b.quart);
+      return qa < qb ? 1 : (qa > qb ? -1 : 0);
+    });
+    return lignes;
+  }
+
+  // Synthèse d'une activité pour un mois donné — alimente les mini-cartes
+  // Boutique / Piste / FDJ du Niveau 1. Même règle non négociable que
+  // partout ailleurs dans NEXUS : seuls les montants NON provisoires
+  // entrent dans le cumul affiché.
+  function syntheseActivite(lignesActivite, moisRef) {
+    const duMois = (lignesActivite || []).filter(l => l.date && l.date.slice(0, 7) === moisRef);
+    let conformes = 0, aRegulariser = 0, cumulValide = 0;
+    duMois.forEach(l => {
+      if (l.statut === 'validee_conforme') conformes += 1;
+      else if (l.statut === 'validee_ecart') aRegulariser += 1;
+      if (l.statut !== 'provisoire' && l.attribuable && l.montant != null) cumulValide += l.montant;
+    });
+    return { nbControles: duMois.length, conformes, aRegulariser, cumulValide };
+  }
+
+  // Synthèse combinée toutes activités confondues, sur le mois — forme de
+  // sortie volontairement identique à agregerMoisCaisse (mêmes noms de
+  // champs) pour pouvoir réutiliser tendanceMoisCaisse/moisPrecedent tels
+  // quels (Article 11 — jamais un second calcul de tendance divergent).
+  function syntheseCombinee(lignesUnifiees, moisRef) {
+    const duMois = (lignesUnifiees || []).filter(l => l.date && l.date.slice(0, 7) === moisRef);
+    let caissesConformes = 0, caissesEcartValide = 0, ecartValideCumule = 0;
+    duMois.forEach(l => {
+      if (l.statut === 'validee_conforme') caissesConformes += 1;
+      else if (l.statut === 'validee_ecart') caissesEcartValide += 1;
+      if (l.statut !== 'provisoire' && l.attribuable && l.montant != null) ecartValideCumule += l.montant;
+    });
+    return { moisRef, caissesControlees: duMois.length, caissesConformes, caissesEcartValide, ecartValideCumule };
+  }
+
+  // Validations conformes consécutives, toutes activités confondues
+  // (Niveau 2 — remplace "jours sans écart validé" par une lecture plus
+  // fine : compte des CONTRÔLES résolus, pas des jours calendaires, cohérent
+  // avec le fait qu'un même jour peut porter plusieurs contrôles sur des
+  // activités différentes). Ignore les lignes encore provisoires (statut
+  // pas encore tranché par un manager — ni comptées, ni interruptrices),
+  // s'appuie uniquement sur les lignes déjà résolues, en ordre chronologique.
+  function serieValideeConformeUnifiee(lignesUnifiees) {
+    const resolues = (lignesUnifiees || [])
+      .filter(l => l.statut !== 'provisoire')
+      .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : (String(a.quart) < String(b.quart) ? -1 : 1)));
+    let record = 0, courante = 0, enCours = 0;
+    resolues.forEach(l => {
+      if (l.statut === 'validee_conforme') { courante += 1; if (courante > record) record = courante; }
+      else { courante = 0; }
+    });
+    for (let i = resolues.length - 1; i >= 0; i--) {
+      if (resolues[i].statut === 'validee_conforme') enCours += 1; else break;
+    }
+    return { enCours, record, total: resolues.length };
+  }
+
   global.NexusProgression = {
     SEUIL_ECART_CONFORME,
     construireServicesCaisse, estConforme, serviceEstPropre,
@@ -958,5 +1139,10 @@
     joursConsecutifsSansEcartValide, serieValideeConforme,
     pointFiabiliteEligible, bonusRegulariteCaisse,
     CAUSES_POSSIBLES_CAISSE, messageCoachCaisseJour,
+    // Ma Progression multi-activité (16/08/2026)
+    statutActivite, ligneActiviteCaisse,
+    construireServicesCaisseFdj, statutCaisseJourFdj, ligneActiviteFdj,
+    construireHistoriqueUnifie, syntheseActivite, syntheseCombinee,
+    serieValideeConformeUnifiee,
   };
 })(window);
