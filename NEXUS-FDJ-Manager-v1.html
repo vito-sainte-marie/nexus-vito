@@ -625,6 +625,26 @@
   // dont le relevé de clôture manque ou a échoué — jamais silencieux, une
   // action "Réessayer" tente une reconstruction depuis les données déjà
   // persistées (voir reessayerReleveClotureManquant).
+  // 17/08/2026, demande de Frédéric : section dépliable — après le
+  // correctif des faux positifs (migration 007, quarts 'anterieur' exclus)
+  // cette liste devrait rester vide la plupart du temps, mais ne doit
+  // jamais disparaître silencieusement : le nombre de quarts à régulariser
+  // reste visible même repliée, seul le détail se déplie sur demande
+  // (même discipline que le Journal — continuité FDJ, ci-dessous).
+  function renderRelevesEnErreurBloc(relevesEnErreur) {
+    if (!relevesEnErreur.length) return '';
+    return `
+      <div class="section-titre">🔴 Relevés de clôture à régulariser (${relevesEnErreur.length})</div>
+      <div class="card" id="listeRelevesEnErreur" style="margin-bottom:16px; border:1px solid rgba(211,71,71,0.4); background:rgba(211,71,71,0.06);">
+        <button type="button" id="btnRelevesEnErreurToggle" style="width:100%; text-align:left; background:none; border:none; padding:10px 14px; color:var(--red); cursor:pointer; font:inherit; font-weight:600;">
+          Voir le détail — ${relevesEnErreur.length} quart${relevesEnErreur.length > 1 ? 's' : ''} concerné${relevesEnErreur.length > 1 ? 's' : ''} ▾
+        </button>
+        <div id="relevesEnErreurListe" style="display:none; border-top:1px solid rgba(211,71,71,0.4);">
+          ${relevesEnErreur.map(renderReleveEnErreur).join('')}
+        </div>
+      </div>
+    `;
+  }
   function renderReleveEnErreur(s) {
     const statutTexte = s.releve_cloture_statut === 'erreur' ? 'Échec d’écriture' : 'En attente d’écriture';
     return `
@@ -680,9 +700,16 @@
   // releve_cloture_statut n'est pas 'ok' (voir 005_fdj_shifts_releve_
   // cloture_statut.sql) est un quart dont la PREUVE peut manquer — jamais
   // silencieux, toujours listé ici pour réparation manager.
+  // 17/08/2026, correctif demandé par Frédéric : `!= 'ok'` incluait à tort
+  // les quarts validés AVANT que cette fonctionnalité n'existe (jamais de
+  // relevé tenté pour eux, donc jamais une erreur à réparer) — voir
+  // migration 007_fdj_shifts_releve_cloture_statut_anterieur_et_backfill.
+  // Ces quarts sont désormais marqués 'anterieur' et explicitement exclus
+  // ici ; seuls 'erreur' (échec confirmé) et 'en_attente' (quart validé
+  // dont le suivi n'a, par anomalie, jamais été résolu) restent listés.
   async function chargerShiftsReleveEnErreur() {
     const { data, error } = await nexusClient.from('fdj_shifts').select('*, fdj_cash_controls(*)')
-      .eq('site', siteId).eq('statut', 'valide').neq('releve_cloture_statut', 'ok')
+      .eq('site', siteId).eq('statut', 'valide').in('releve_cloture_statut', ['erreur', 'en_attente'])
       .order('date', { ascending: false }).order('quart', { ascending: false }).limit(30);
     if (error) { console.error('Chargement quarts en attente de relevé FDJ:', error); return []; }
     return (data || []).map(s => ({ ...s, cash: extraireCash(s) }));
@@ -1588,10 +1615,7 @@
     const quart2 = duJour.find(s => s.quart === '2');
 
     document.getElementById('content').innerHTML = `
-      ${relevesEnErreur.length ? `
-        <div class="section-titre">🔴 Relevés de clôture à régulariser (${relevesEnErreur.length})</div>
-        <div class="card" id="listeRelevesEnErreur" style="margin-bottom:16px; border:1px solid rgba(211,71,71,0.4); background:rgba(211,71,71,0.06);">${relevesEnErreur.map(renderReleveEnErreur).join('')}</div>
-      ` : ''}
+      ${renderRelevesEnErreurBloc(relevesEnErreur)}
 
       ${soldesNegatifs.length ? `
         <div class="section-titre">🔴 Mouvements FDJ à vérifier (${soldesNegatifs.length})</div>
@@ -1671,6 +1695,17 @@
     // réparé, ou toujours présent avec un message d'échec sinon).
     const listeRelevesEnErreur = document.getElementById('listeRelevesEnErreur');
     if (listeRelevesEnErreur) {
+      // 17/08/2026 — section dépliable (demande de Frédéric), même
+      // mécanique que le Journal — continuité FDJ ci-dessus.
+      const btnRelevesToggle = document.getElementById('btnRelevesEnErreurToggle');
+      if (btnRelevesToggle) {
+        btnRelevesToggle.addEventListener('click', () => {
+          const bloc = document.getElementById('relevesEnErreurListe');
+          const ouvert = bloc.style.display !== 'none';
+          bloc.style.display = ouvert ? 'none' : '';
+          btnRelevesToggle.textContent = btnRelevesToggle.textContent.replace(ouvert ? '▴' : '▾', ouvert ? '▾' : '▴');
+        });
+      }
       listeRelevesEnErreur.querySelectorAll('[data-reessayer-releve]').forEach(btn => {
         btn.addEventListener('click', async () => {
           btn.disabled = true;
@@ -3542,7 +3577,24 @@
       });
       // Non bloquant (le quart est déjà enregistré à ce stade) mais jamais
       // silencieux — la fiche de clôture est une preuve, pas un à-côté.
-      if (eReleve) console.error('Relevé de clôture FDJ (version manager):', eReleve);
+      // 17/08/2026, correctif demandé par Frédéric : ce site d'écriture ne
+      // mettait jamais à jour fdj_shifts.releve_cloture_statut — un quart
+      // créé directement par le manager (pouvoir total, !precedent) avait
+      // pourtant bien son relevé écrit, mais restait affiché comme "en
+      // attente" pour toujours, gonflant à tort le panneau "Relevés de
+      // clôture à régulariser". Même discipline que validerQuart() côté
+      // employé : 'ok' au succès (y compris 23505, idempotence point 5),
+      // 'erreur' sinon, jamais silencieux.
+      if (eReleve) {
+        if (eReleve.code === '23505') {
+          await nexusClient.from('fdj_shifts').update({ releve_cloture_statut: 'ok' }).eq('id', shift.id);
+        } else {
+          console.error('Relevé de clôture FDJ (version manager):', eReleve);
+          await nexusClient.from('fdj_shifts').update({ releve_cloture_statut: 'erreur' }).eq('id', shift.id);
+        }
+      } else {
+        await nexusClient.from('fdj_shifts').update({ releve_cloture_statut: 'ok' }).eq('id', shift.id);
+      }
     }
 
     edition = null;
