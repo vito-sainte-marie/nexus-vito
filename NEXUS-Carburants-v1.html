@@ -503,9 +503,7 @@
     const noteTxt = EST_AUJOURDHUI
       ? "La date, le litrage vendu et les employés du quart ne se saisissent jamais ici — ils viennent déjà de NEXUS Verify. Cet écran ne capture que ce qui n'existe nulle part ailleurs."
       : "Le litrage vendu et les employés du quart ne se saisissent jamais ici — ils viennent déjà de NEXUS Verify pour la période concernée. Cet écran ne capture que ce qui n'existe nulle part ailleurs.";
-    const libelleBouton = RELEVE_CIBLE
-      ? `Mettre à jour le relevé${EST_AUJOURDHUI ? '' : ` du ${dateTxt}`}`
-      : (EST_AUJOURDHUI ? 'Enregistrer le relevé du jour' : `Enregistrer le relevé du ${dateTxt}`);
+    const libelleBouton = libelleBoutonEnregistrer();
 
     content.innerHTML = `
       ${banniereRattrapage}
@@ -513,6 +511,10 @@
       <div class="desktop-grid">${blocs}</div>
       <div class="champ-label" style="margin-top:0;">Commentaire (optionnel)</div>
       <textarea class="champ-motif" id="champCommentaire" rows="2" placeholder="Motif d'un mouvement exceptionnel, remarque…">${RELEVE_CIBLE && RELEVE_CIBLE.commentaire ? RELEVE_CIBLE.commentaire : ''}</textarea>
+      ${RELEVE_CIBLE ? `
+        <div class="champ-label">Motif de la correction (obligatoire)</div>
+        <textarea class="champ-motif" id="champMotifCorrection" rows="2" placeholder="Pourquoi ce relevé est corrigé — la valeur initialement saisie reste conservée et consultable."></textarea>
+      ` : ''}
       <button class="btn-enregistrer" id="btnEnregistrer" style="margin-top:16px;">${libelleBouton}</button>
       <div class="confirmation" id="confirmation">✓ Relevé${EST_AUJOURDHUI ? '' : ` du ${dateTxt}`} enregistré.</div>
     `;
@@ -537,6 +539,21 @@
     recalculerTout();
   }
 
+  // 17/08/2026, Sprint C1 "Preuve" de l'audit Carburants (NEXUS_Audit_
+  // Carburants_Chaine_Preuve_Developpeur.pdf) : "Un relevé physique est un
+  // fait : il ne doit jamais être réécrit silencieusement" (principe 1).
+  // Chaque écriture — première saisie OU correction — pose D'ABORD sa
+  // preuve dans carburant_releve_versions (append-only, jamais réécrite ni
+  // supprimée) AVANT de toucher carburant_releves (la vue "courante",
+  // équivalent de fdj_cash_controls). Si la preuve échoue, rien n'est
+  // modifié. Même discipline que la Trace de contrôle FDJ (v2.116-v2.119).
+  function libelleBoutonEnregistrer() {
+    const dateTxt = formaterDateFr(DATE_CIBLE);
+    return RELEVE_CIBLE
+      ? `Mettre à jour le relevé${EST_AUJOURDHUI ? '' : ` du ${dateTxt}`}`
+      : (EST_AUJOURDHUI ? 'Enregistrer le relevé du jour' : `Enregistrer le relevé du ${dateTxt}`);
+  }
+
   async function enregistrerReleve() {
     if (ENREGISTREMENT_EN_COURS) return;
     ENREGISTREMENT_EN_COURS = true;
@@ -544,8 +561,22 @@
     btn.disabled = true;
     btn.textContent = 'Enregistrement…';
 
-    const ligne = {
-      site: SITE_ID, date: DATE_CIBLE,
+    // Toute correction d'un relevé déjà existant doit être motivée — audit
+    // §7 : "Chaque correction doit porter : auteur, date/heure, motif...".
+    // Aucun motif exigé pour une première saisie (rien à expliquer, c'est
+    // la baseline).
+    const motifCorrectionEl = document.getElementById('champMotifCorrection');
+    const motifCorrection = motifCorrectionEl ? motifCorrectionEl.value.trim() : '';
+    if (RELEVE_CIBLE && !motifCorrection) {
+      ENREGISTREMENT_EN_COURS = false;
+      btn.disabled = false;
+      btn.textContent = libelleBoutonEnregistrer();
+      alert('Motif de la correction obligatoire — expliquez brièvement pourquoi ce relevé est corrigé.');
+      motifCorrectionEl.focus();
+      return;
+    }
+
+    const nouveauSnapshot = {
       stock_reel_go_cuve1: valeurChamp('champ_go_cuve1'),
       stock_reel_go_cuve2: valeurChamp('champ_go_cuve2'),
       stock_reel_sp95: valeurChamp('champ_sp95'),
@@ -556,7 +587,46 @@
       mouvement_go: valeurChamp('champ_go_mouvement') || 0,
       mouvement_sp95: valeurChamp('champ_sp95_mouvement') || 0,
       mouvement_gnr: valeurChamp('champ_gnr_mouvement') || 0,
+      motif_mouvement: RELEVE_CIBLE && RELEVE_CIBLE.motif_mouvement ? RELEVE_CIBLE.motif_mouvement : null,
       commentaire: document.getElementById('champCommentaire').value.trim() || null,
+    };
+
+    const { versionNum, typeVersion } = NexusCarburantMoteur.prochaineVersionReleveCarburant(RELEVE_CIBLE);
+    const diff = NexusCarburantMoteur.diffReleveCarburant(RELEVE_CIBLE, nouveauSnapshot);
+
+    // Plan de tests de l'audit, scénario C09 : "Correction sans changement
+    // de valeur → Pas de nouvelle version inutile" — si rien n'a réellement
+    // changé, ne pas poser de version ni toucher la vue courante.
+    if (RELEVE_CIBLE && !diff) {
+      ENREGISTREMENT_EN_COURS = false;
+      btn.disabled = false;
+      btn.textContent = libelleBoutonEnregistrer();
+      alert('Aucune valeur modifiée — rien à enregistrer.');
+      return;
+    }
+
+    const { error: eVersion } = await nexusClient.from('carburant_releve_versions').insert({
+      site: SITE_ID, date: DATE_CIBLE, version_num: versionNum, type_version: typeVersion,
+      ...nouveauSnapshot,
+      motif_correction: typeVersion === 'correction_manager' ? motifCorrection : null,
+      diff_vs_precedent: diff,
+      auteur: MANAGER_COURANT.id,
+    });
+    if (eVersion && eVersion.code !== '23505') {
+      // 23505 = conflit d'unicité (site,date,version_num) — double clic ou
+      // retry réseau, traité comme un succès bénin, jamais une erreur
+      // (même discipline d'idempotence que fdj_releves_cloture).
+      console.error('Preuve relevé carburant (carburant_releve_versions):', eVersion);
+      ENREGISTREMENT_EN_COURS = false;
+      btn.disabled = false;
+      btn.textContent = libelleBoutonEnregistrer();
+      alert("Erreur d'enregistrement — la preuve de version n'a pas pu être créée, rien n'a été modifié. Réessayez.");
+      return;
+    }
+
+    const ligne = {
+      site: SITE_ID, date: DATE_CIBLE, version_num: versionNum,
+      ...nouveauSnapshot,
       saisi_par: MANAGER_COURANT.id,
     };
 
@@ -566,15 +636,13 @@
     ENREGISTREMENT_EN_COURS = false;
     btn.disabled = false;
     if (error) {
-      console.error('Enregistrement relevé carburant:', error);
-      const dateTxt = formaterDateFr(DATE_CIBLE);
-      btn.textContent = RELEVE_CIBLE
-        ? `Mettre à jour le relevé${EST_AUJOURDHUI ? '' : ` du ${dateTxt}`}`
-        : (EST_AUJOURDHUI ? 'Enregistrer le relevé du jour' : `Enregistrer le relevé du ${dateTxt}`);
-      alert("Erreur d'enregistrement — réessayez.");
+      console.error('Enregistrement relevé carburant (vue courante):', error);
+      btn.textContent = libelleBoutonEnregistrer();
+      alert("La preuve de cette version a bien été enregistrée, mais la mise à jour du relevé affiché a échoué — réessayez, l'historique reste intact.");
       return;
     }
     RELEVE_CIBLE = data;
+    if (motifCorrectionEl) motifCorrectionEl.value = '';
     btn.textContent = `Mettre à jour le relevé${EST_AUJOURDHUI ? '' : ` du ${formaterDateFr(DATE_CIBLE)}`}`;
     const conf = document.getElementById('confirmation');
     conf.classList.add('visible');

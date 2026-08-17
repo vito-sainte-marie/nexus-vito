@@ -502,6 +502,54 @@
     return messages.slice(0, 3);
   }
 
+  // ============================================================
+  // CHAINE DE PREUVE — Sprint C1 (17/08/2026, NEXUS_Audit_Carburants_
+  // Chaine_Preuve_Developpeur.pdf, cadrage transmis par Frédéric le
+  // 16/08/2026) : transposer à Carburants la même discipline que la Trace
+  // de contrôle FDJ (v2.116-v2.119) — "Un relevé physique est un fait : il
+  // ne doit jamais être réécrit silencieusement" (audit, principe 1).
+  // carburant_releves reste la vue COURANTE (comme fdj_cash_controls) ;
+  // carburant_releve_versions est la preuve APPEND-ONLY de chaque écriture,
+  // initiale ou correction (comme fdj_releves_cloture). Critère de sortie
+  // du sprint (audit §16) : "Aucune correction silencieuse."
+  // ============================================================
+
+  // Détermine le prochain numéro de version et le type de version à partir
+  // du relevé courant déjà en base pour ce (site, date) — jamais déduit
+  // d'un compteur local qui pourrait diverger de la base. `precedent` :
+  // ligne carburant_releves existante (ou null/undefined si aucun relevé
+  // n'existe encore pour ce jour — première saisie).
+  function prochaineVersionReleveCarburant(precedent) {
+    return {
+      versionNum: precedent ? (Number(precedent.version_num) || 1) + 1 : 1,
+      typeVersion: precedent ? 'correction_manager' : 'saisie_initiale',
+    };
+  }
+
+  // Diff minimal entre deux snapshots de relevé carburant — même discipline
+  // que diffClotureFdj (nexus-fdj-moteur.js) : seulement les champs qui ont
+  // réellement changé, jamais un diff bruyant qui recopie tout l'objet.
+  // `precedent` : null pour une saisie initiale (pas de diff, c'est la
+  // baseline). Retourne null si rien n'a changé (une "correction" qui ne
+  // change aucune valeur ne doit pas produire un diff vide trompeur — voir
+  // scénario C09 du plan de tests de l'audit).
+  const CHAMPS_RELEVE_CARBURANT = [
+    'stock_reel_go_cuve1', 'stock_reel_go_cuve2', 'stock_reel_sp95', 'stock_reel_gnr',
+    'livraison_go', 'livraison_sp95', 'livraison_gnr',
+    'mouvement_go', 'mouvement_sp95', 'mouvement_gnr',
+    'motif_mouvement', 'commentaire',
+  ];
+  function diffReleveCarburant(precedent, nouveau) {
+    if (!precedent) return null;
+    const diff = {};
+    CHAMPS_RELEVE_CARBURANT.forEach(champ => {
+      const avant = precedent[champ] === undefined ? null : precedent[champ];
+      const apres = nouveau[champ] === undefined ? null : nouveau[champ];
+      if (avant !== apres) diff[champ] = { avant, apres };
+    });
+    return Object.keys(diff).length ? diff : null;
+  }
+
   global.NexusCarburantMoteur = {
     SEUIL_ECART_PCT_SURVEILLER, SEUIL_ECART_PCT_CORRIGER, CLES_CARBURANT, NOM_CARBURANT_COURT,
     stockReelGoTotal, sommerVentesPeriode,
@@ -514,5 +562,6 @@
     calculerAutonomieJours, statutAutonomie, pourcentageRemplissage, capaciteTotale,
     motifTheoriqueIndisponible, fiabiliteControle, libelleRapprochementLivraison, phraseDecisionMoteur,
     construireMessagesPilotage,
+    prochaineVersionReleveCarburant, diffReleveCarburant,
   };
 })(typeof window !== 'undefined' ? window : globalThis);
