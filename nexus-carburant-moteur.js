@@ -550,6 +550,54 @@
     return Object.keys(diff).length ? diff : null;
   }
 
+  // ============================================================
+  // QUALITÉ DE CHAÎNE — Sprint C2 (17/08/2026, audit Carburants §6 "Etats
+  // et qualité : éviter les faux écarts") : "NEXUS ne doit jamais afficher
+  // une perte ou un gain comme réel tant que la comparabilité de la chaine
+  // n'est pas démontrée" (règle absolue, audit §2). Distinct du statut
+  // d'écart (statutCarburant ci-dessus, qui mesure une AMPLEUR une fois le
+  // théorique connu) : ceci qualifie la CONFIANCE dans la chaîne elle-même,
+  // AVANT même de regarder si l'écart est grand ou petit. Critère de sortie
+  // du sprint (roadmap audit §16) : "Aucun faux écart définitif."
+  //
+  // Seuls 2 états sont honnêtement détectables avec la granularité actuelle
+  // du modèle (dates, sans horodatage précis du jaugeage) :
+  //   - NON_COMPARABLE : une donnée critique manque -> le théorique n'est
+  //     même pas calculable (calculerTheorique renverrait null). Jamais un
+  //     écart affiché.
+  //   - PROVISOIRE : le théorique EST calculable, mais un mouvement
+  //     exceptionnel a été saisi sans être documenté (audit §6.1, "Mouvement
+  //     exceptionnel non documenté") -> l'écart est affichable mais avec une
+  //     cause de prudence explicite.
+  //   - FIABLE sinon.
+  // Les autres causes listées par l'audit (jaugeage pris après le début des
+  // ventes, deux références concurrentes...) nécessitent un horodatage plus
+  // fin que ce que `carburant_releves` capture aujourd'hui (dates seules) —
+  // non fabriquées ici plutôt que de prétendre les détecter (Article 5,
+  // "vérité avant certitude"). Reste ouvert pour un sprint ultérieur si
+  // Frédéric confirme le besoin.
+  function qualiteChaineCarburant({ referenceExiste, dernierReel, referenceCertifieeCeJour, reelDuJour, ventes, mouvement, commentaire }) {
+    if (referenceCertifieeCeJour) return { qualite: 'fiable', cause: null };
+    if (!referenceExiste) return { qualite: 'non_comparable', cause: 'reference_absente' };
+    if (dernierReel == null) return { qualite: 'non_comparable', cause: 'reference_incomplete' };
+    if (reelDuJour == null) return { qualite: 'non_comparable', cause: 'mesure_finale_absente' };
+    if (ventes == null) return { qualite: 'non_comparable', cause: 'ventes_indisponibles' };
+    if (mouvement && !commentaire) return { qualite: 'provisoire', cause: 'mouvement_exceptionnel_sans_motif' };
+    return { qualite: 'fiable', cause: null };
+  }
+
+  const LIBELLE_CAUSE_QUALITE_CHAINE = {
+    reference_absente: 'Aucun relevé antérieur — première mesure, pas encore de référence pour calculer un théorique.',
+    reference_incomplete: 'Dernier relevé incomplet pour ce carburant (cuve non renseignée) — théorique non calculable.',
+    mesure_finale_absente: 'Jaugeage du jour manquant ou incomplet pour ce carburant.',
+    ventes_indisponibles: 'Ventes depuis le dernier relevé non disponibles — aucun quart avec litrage capté sur cette période.',
+    mouvement_exceptionnel_sans_motif: 'Mouvement exceptionnel saisi sans motif documenté (champ Commentaire) — écart affiché avec prudence.',
+    anterieur_au_point_zero: 'Période antérieure au point zéro certifié — aucun théorique qualifié sur cette période (Article 5).',
+  };
+  function libelleCauseQualiteChaine(cause) {
+    return LIBELLE_CAUSE_QUALITE_CHAINE[cause] || null;
+  }
+
   global.NexusCarburantMoteur = {
     SEUIL_ECART_PCT_SURVEILLER, SEUIL_ECART_PCT_CORRIGER, CLES_CARBURANT, NOM_CARBURANT_COURT,
     stockReelGoTotal, sommerVentesPeriode,
@@ -563,5 +611,6 @@
     motifTheoriqueIndisponible, fiabiliteControle, libelleRapprochementLivraison, phraseDecisionMoteur,
     construireMessagesPilotage,
     prochaineVersionReleveCarburant, diffReleveCarburant,
+    qualiteChaineCarburant, libelleCauseQualiteChaine,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

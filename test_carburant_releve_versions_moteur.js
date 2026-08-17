@@ -77,4 +77,91 @@ const M = global.NexusCarburantMoteur;
   console.log('OK — diffReleveCarburant : diff minimal et ciblé, null si rien n\'a changé (scénario C09), jamais de bruit sur les champs inchangés.');
 })();
 
-console.log('\nTous les tests "Carburants — chaîne de preuve (Sprint C1)" passent.');
+// ------------------------------------------------------------
+// qualiteChaineCarburant — Sprint C2 "Contrôle" (audit §6, "NEXUS ne doit
+// jamais afficher une perte ou un gain comme réel tant que la
+// comparabilité de la chaine n'est pas démontrée"). Chaque cas du plan de
+// tests métier de l'audit qui est honnêtement détectable avec la
+// granularité actuelle (dates, pas d'horodatage précis).
+// ------------------------------------------------------------
+(() => {
+  // C01 — Point zéro à ouverture -> toujours fiable, écart 0 par construction.
+  assert.deepStrictEqual(
+    M.qualiteChaineCarburant({ referenceExiste: true, dernierReel: 12000, referenceCertifieeCeJour: true, reelDuJour: 12000, ventes: 0, mouvement: 0, commentaire: null }),
+    { qualite: 'fiable', cause: null },
+    'C01 — Référence certifiée ce jour -> toujours fiable'
+  );
+
+  // Aucun relevé antérieur (première mesure) -> non_comparable, cause explicite.
+  assert.deepStrictEqual(
+    M.qualiteChaineCarburant({ referenceExiste: false, dernierReel: null, referenceCertifieeCeJour: false, reelDuJour: 12000, ventes: 500, mouvement: 0, commentaire: null }),
+    { qualite: 'non_comparable', cause: 'reference_absente' },
+    'Aucune référence antérieure -> non_comparable/reference_absente'
+  );
+
+  // Référence existe mais incomplète pour ce carburant (ex. une cuve GO non
+  // jaugée) -> non_comparable, jamais un théorique bricolé sur une donnée
+  // partielle.
+  assert.deepStrictEqual(
+    M.qualiteChaineCarburant({ referenceExiste: true, dernierReel: null, referenceCertifieeCeJour: false, reelDuJour: 12000, ventes: 500, mouvement: 0, commentaire: null }),
+    { qualite: 'non_comparable', cause: 'reference_incomplete' },
+    'Référence incomplète -> non_comparable/reference_incomplete'
+  );
+
+  // Mesure du jour manquante -> non_comparable (donnée critique absente,
+  // audit §6.1).
+  assert.deepStrictEqual(
+    M.qualiteChaineCarburant({ referenceExiste: true, dernierReel: 12000, referenceCertifieeCeJour: false, reelDuJour: null, ventes: 500, mouvement: 0, commentaire: null }),
+    { qualite: 'non_comparable', cause: 'mesure_finale_absente' },
+    'Mesure finale absente -> non_comparable/mesure_finale_absente'
+  );
+
+  // C02 — ventes après point zéro, pas de livraison -> théorique baisse,
+  // qualité fiable dès que toutes les données sont là (pas de mouvement).
+  assert.deepStrictEqual(
+    M.qualiteChaineCarburant({ referenceExiste: true, dernierReel: 12000, referenceCertifieeCeJour: false, reelDuJour: 11500, ventes: 480, mouvement: 0, commentaire: null }),
+    { qualite: 'fiable', cause: null },
+    'C02 — toutes les données présentes, aucun mouvement -> fiable'
+  );
+
+  // Ventes non disponibles -> non_comparable (théorique non calculable,
+  // jamais un écart affiché comme réel).
+  assert.deepStrictEqual(
+    M.qualiteChaineCarburant({ referenceExiste: true, dernierReel: 12000, referenceCertifieeCeJour: false, reelDuJour: 11500, ventes: null, mouvement: 0, commentaire: null }),
+    { qualite: 'non_comparable', cause: 'ventes_indisponibles' },
+    'Ventes indisponibles -> non_comparable/ventes_indisponibles'
+  );
+
+  // Mouvement exceptionnel saisi SANS motif documenté (commentaire vide) —
+  // audit §6.1 "Mouvement exceptionnel non documenté" -> provisoire,
+  // jamais non_comparable (le théorique reste calculable) ni fiable
+  // (silencieux sur un mouvement non expliqué).
+  assert.deepStrictEqual(
+    M.qualiteChaineCarburant({ referenceExiste: true, dernierReel: 12000, referenceCertifieeCeJour: false, reelDuJour: 26500, ventes: 480, mouvement: 15000, commentaire: null }),
+    { qualite: 'provisoire', cause: 'mouvement_exceptionnel_sans_motif' },
+    'Mouvement exceptionnel sans commentaire -> provisoire/mouvement_exceptionnel_sans_motif'
+  );
+
+  // Même mouvement, mais documenté (commentaire renseigné) -> fiable.
+  assert.deepStrictEqual(
+    M.qualiteChaineCarburant({ referenceExiste: true, dernierReel: 12000, referenceCertifieeCeJour: false, reelDuJour: 26500, ventes: 480, mouvement: 15000, commentaire: 'Livraison de 15000L reçue le matin même, avant jaugeage' }),
+    { qualite: 'fiable', cause: null },
+    'Mouvement exceptionnel documenté (commentaire renseigné) -> fiable'
+  );
+
+  console.log('OK — qualiteChaineCarburant : fiable/provisoire/non_comparable avec cause explicite, jamais un écart affiché comme réel sur une chaîne non comparable (règle absolue, audit §2).');
+})();
+
+// ------------------------------------------------------------
+// libelleCauseQualiteChaine — une phrase par cause, jamais un code brut
+// affiché au manager, jamais d'exception sur une cause inconnue.
+// ------------------------------------------------------------
+(() => {
+  assert.strictEqual(typeof M.libelleCauseQualiteChaine('reference_absente'), 'string', 'reference_absente a un libellé');
+  assert.strictEqual(typeof M.libelleCauseQualiteChaine('mouvement_exceptionnel_sans_motif'), 'string', 'mouvement_exceptionnel_sans_motif a un libellé');
+  assert.strictEqual(M.libelleCauseQualiteChaine('cause_inconnue_future'), null, 'Cause inconnue -> null, jamais une exception');
+  assert.strictEqual(M.libelleCauseQualiteChaine(null), null, 'Aucune cause (qualité fiable) -> null');
+  console.log('OK — libelleCauseQualiteChaine : une phrase par cause connue, null sinon, jamais une exception.');
+})();
+
+console.log('\nTous les tests "Carburants — chaîne de preuve (Sprints C1-C2)" passent.');

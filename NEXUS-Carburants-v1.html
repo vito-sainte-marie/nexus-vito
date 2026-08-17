@@ -547,6 +547,68 @@
   // supprimée) AVANT de toucher carburant_releves (la vue "courante",
   // équivalent de fdj_cash_controls). Si la preuve échoue, rien n'est
   // modifié. Même discipline que la Trace de contrôle FDJ (v2.116-v2.119).
+  // 17/08/2026, Sprint C2 "Contrôle" de l'audit Carburants (§5.3 + §6) :
+  // pose, pour chacun des 3 carburants, un contrôle versionné entre l'ancre
+  // (dernier relevé ou point zéro) et le relevé qui vient d'être écrit —
+  // avec sa qualité (fiable/provisoire/non_comparable) et sa cause
+  // explicite si dégradée. Reprend EXACTEMENT la même logique que l'écran
+  // (recalculerCarburant, plus haut) pour ne jamais qualifier différemment
+  // ce qui est affiché et ce qui est prouvé (Article 11). N'écrit jamais
+  // dans carburant_releves ni ne modifie l'historique — purement additif.
+  // Limite assumée de ce sprint : une correction sur un relevé ANTÉRIEUR
+  // ne recalcule pas encore les contrôles des jours suivants — c'est
+  // explicitement le sujet du Sprint C3 "Recalcul en cascade".
+  async function enregistrerControlesCarburant(versionNum) {
+    const referenceType = ANCRE_EST_POINT_ZERO ? 'point_zero' : 'releve';
+    const referenceDate = ANCRE_EST_POINT_ZERO ? (POINT_ZERO ? POINT_ZERO.date : null) : (DERNIER_RELEVE ? DERNIER_RELEVE.date : null);
+    const referenceExiste = ANCRE_EST_POINT_ZERO ? !!POINT_ZERO : !!DERNIER_RELEVE;
+    const commentaireActuel = RELEVE_CIBLE && RELEVE_CIBLE.commentaire ? RELEVE_CIBLE.commentaire : null;
+
+    for (const carb of CARBURANTS) {
+      const dernierReel = ANCRE_EST_POINT_ZERO
+        ? (POINT_ZERO && POINT_ZERO.lignes ? POINT_ZERO.lignes[carb.cle] : null)
+        : (carb.cle === 'go' ? NexusCarburantMoteur.stockReelGoTotal(DERNIER_RELEVE) : (DERNIER_RELEVE ? DERNIER_RELEVE[`stock_reel_${carb.cle}`] : null));
+      let reelDuJour = carb.cle === 'go' ? NexusCarburantMoteur.stockReelGoTotal(RELEVE_CIBLE) : RELEVE_CIBLE[`stock_reel_${carb.cle}`];
+      if (reelDuJour === undefined) reelDuJour = null;
+      if (REFERENCE_CERTIFIEE_CE_JOUR && reelDuJour == null) reelDuJour = dernierReel;
+      const livraison = REFERENCE_CERTIFIEE_CE_JOUR ? 0 : (Number(RELEVE_CIBLE[`livraison_${carb.cle}`]) || 0);
+      const mouvement = REFERENCE_CERTIFIEE_CE_JOUR ? 0 : (Number(RELEVE_CIBLE[`mouvement_${carb.cle}`]) || 0);
+      const ventes = VENTES_DEPUIS[carb.cle];
+
+      let qualite, cause, theorique = null, ecart = null;
+      if (HISTORIQUE_NON_FIABLE) {
+        qualite = 'non_comparable';
+        cause = 'anterieur_au_point_zero';
+      } else {
+        const q = NexusCarburantMoteur.qualiteChaineCarburant({
+          referenceExiste, dernierReel, referenceCertifieeCeJour: REFERENCE_CERTIFIEE_CE_JOUR,
+          reelDuJour, ventes, mouvement, commentaire: commentaireActuel,
+        });
+        qualite = q.qualite;
+        cause = q.cause;
+        if (qualite !== 'non_comparable') {
+          theorique = NexusCarburantMoteur.calculerTheorique(dernierReel, livraison, mouvement, ventes);
+          ecart = NexusCarburantMoteur.calculerEcart(reelDuJour, theorique);
+        }
+      }
+
+      const { error } = await nexusClient.from('carburant_controles').insert({
+        site: SITE_ID, date: DATE_CIBLE, carburant: carb.cle, version_num: versionNum,
+        reference_date: referenceDate, reference_type: referenceType,
+        theorique, physique: reelDuJour, ecart, ventes, livraison, mouvement, qualite, cause,
+      });
+      // 23505 = ce contrôle (site,date,carburant,version_num) existe déjà —
+      // même idempotence que le relevé lui-même. Toute autre erreur est
+      // journalisée : le relevé (la preuve principale, Sprint C1) est déjà
+      // écrit et intact à ce stade, seule cette interprétation dérivée
+      // manquerait — jamais bloquant pour le manager, mais jamais silencieux
+      // non plus côté développeur.
+      if (error && error.code !== '23505') {
+        console.error(`Contrôle carburant carburant_controles (${carb.cle}) :`, error);
+      }
+    }
+  }
+
   function libelleBoutonEnregistrer() {
     const dateTxt = formaterDateFr(DATE_CIBLE);
     return RELEVE_CIBLE
@@ -642,6 +704,7 @@
       return;
     }
     RELEVE_CIBLE = data;
+    await enregistrerControlesCarburant(versionNum);
     if (motifCorrectionEl) motifCorrectionEl.value = '';
     btn.textContent = `Mettre à jour le relevé${EST_AUJOURDHUI ? '' : ` du ${formaterDateFr(DATE_CIBLE)}`}`;
     const conf = document.getElementById('confirmation');
