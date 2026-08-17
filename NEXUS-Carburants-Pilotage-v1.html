@@ -24,6 +24,8 @@
 <script src="nexus-carburant-donnees.js"></script>
 <script src="nexus-reception-moteur.js"></script>
 <script src="nexus-reception-donnees.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+<script src="nexus-pdf-moteur.js"></script>
 <style>
   :root{
     --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
@@ -165,6 +167,32 @@
   .qualite-reception-ligne:last-child{border-bottom:none;}
   .qualite-reception-badge{font-family:var(--mono); font-size:8.5px; font-weight:700; padding:2px 8px; border-radius:20px; text-transform:uppercase;}
 
+  /* Sprint C6 "Pilotage" (17/08/2026, audit §10.1) — modale "Relevé de
+     contrôle" / "Relevé de réception" : même pattern bottom-sheet que
+     .recep-overlay/.recep-modal (Réception carburant) et
+     .cloture-overlay/.cloture-modal (FDJ), jamais un nouveau pattern. */
+  .controle-overlay{position:fixed; inset:0; background:rgba(0,0,0,0.6); display:flex; align-items:flex-end; justify-content:center; z-index:300;}
+  .controle-modal{width:100%; max-width:480px; background:var(--panel); border:1px solid var(--hairline); border-top-left-radius:18px; border-top-right-radius:18px; padding:22px 20px calc(22px + env(safe-area-inset-bottom)); max-height:88vh; overflow-y:auto;}
+  .controle-modal-titre{font-family:var(--sans); font-size:16px; font-weight:700; margin-bottom:2px;}
+  .controle-modal-soustitre{font-size:11.5px; color:var(--text-dim); margin-bottom:14px;}
+  .controle-modal-fermer{position:absolute; top:16px; right:16px; background:none; border:none; color:var(--text-dim); font-size:20px; cursor:pointer; line-height:1;}
+  .controle-section-titre{font-family:var(--sans); font-size:11px; font-weight:700; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.04em; margin:16px 0 8px;}
+  .controle-ligne{display:flex; justify-content:space-between; align-items:baseline; padding:5px 0; border-bottom:1px solid var(--hairline); font-size:12.5px;}
+  .controle-ligne:last-child{border-bottom:none;}
+  .controle-carburant-bloc{background:var(--panel-raised); border:1px solid var(--hairline); border-radius:12px; padding:12px 14px; margin-bottom:10px;}
+  .controle-carburant-titre{font-family:var(--sans); font-weight:700; font-size:13px; display:flex; align-items:center; justify-content:space-between; margin-bottom:4px;}
+  .controle-badge{font-family:var(--mono); font-size:8.5px; font-weight:700; padding:2px 8px; border-radius:20px; text-transform:uppercase;}
+  .controle-cause{font-size:11px; color:var(--text-dim); margin-top:4px; line-height:1.4;}
+  .controle-versions-toggle{width:100%; text-align:left; background:none; border:none; color:var(--cyan); font-family:var(--sans); font-size:11.5px; font-weight:600; padding:6px 0; cursor:pointer;}
+  .controle-version-item{padding:6px 0; border-top:1px solid var(--hairline); font-size:11px; color:var(--text-mid); line-height:1.5;}
+  .controle-modal-btn{width:100%; margin-top:16px; font-family:var(--sans); font-size:13px; font-weight:700; color:#04141a; background:var(--cyan); border:none; border-radius:10px; padding:11px 14px; cursor:pointer;}
+  .controle-modal-btn.secondaire{background:var(--panel-raised); color:var(--text);}
+  .controle-modal-actions{display:flex; gap:8px; margin-top:16px;}
+  .controle-modal-actions .controle-modal-btn{margin-top:0;}
+  .controle-statut-rapport{font-size:11px; color:var(--text-dim); margin-top:8px; text-align:center;}
+  .controle-statut-rapport.statut-pret{color:var(--green);}
+  .controle-statut-rapport.statut-erreur{color:var(--red);}
+
   .kpi-card{background:var(--panel); border:1px solid var(--hairline); border-radius:14px; padding:16px; margin:0 20px 12px;}
   .kpi-row{display:flex; align-items:baseline; justify-content:space-between; padding:7px 0;}
   .kpi-row + .kpi-row{border-top:1px solid var(--hairline);}
@@ -255,6 +283,14 @@
   .historique-pz-note{font-size:11px; color:var(--text-dim); margin-top:5px; line-height:1.5;}
   .historique-releve-row{cursor:pointer;}
   .historique-releve-row:active{background:var(--panel-raised);}
+  .historique-releve-preuve{font-family:var(--mono); font-size:8.5px; font-weight:700; color:var(--cyan); text-transform:uppercase; letter-spacing:0.02em; background:rgba(2,102,122,0.12); border:1px solid rgba(2,102,122,0.35); padding:2px 8px; border-radius:20px; white-space:nowrap; cursor:pointer;}
+  .historique-releve-preuve:active{opacity:0.7;}
+  /* Sprint C6 (17/08/2026, audit §10) — cartes "Réceptions" dans
+     Historique, même gabarit que .historique-pz-carte (bordure gold) mais
+     en cyan pour distinguer visuellement preuve de contrôle vs preuve de
+     réception ; cliquables vers ouvrirReleveReceptionParId(). */
+  .historique-recep-carte{background:var(--panel); border:1px solid rgba(2,102,122,0.3); border-radius:12px; padding:11px 14px; margin:0 20px 8px; cursor:pointer;}
+  .historique-recep-carte:active{background:var(--panel-raised);}
   .historique-releve-hnf{color:var(--text-dim); font-style:italic;}
   footer{margin-top:auto; padding:16px 20px 24px; font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:center; border-top:1px solid var(--hairline);}
 
@@ -553,6 +589,10 @@
   // "Ce que NEXUS vous dit" en plus des signaux dépendants de la période.
   let CONTROLE_CTX = null;
   let CUVES_CONFIG = null;
+  // Sprint C6 (audit §10) : dernière visite de réception chargée, réutilisée
+  // par "Ce que NEXUS vous dit" (événement dérogation) et par le lien "Voir
+  // le relevé de réception" — jamais rechargée deux fois pour ces 2 usages.
+  let DERNIERE_VISITE = null;
 
   const TYPES = [
     { cle: 'semaine', label: 'Semaine' },
@@ -709,10 +749,14 @@
   // période sélectionnée (toujours "aujourd'hui"), chargé une seule fois.
   // ------------------------------------------------------------
   async function chargerControleEtAutonomie() {
-    const [{ config }, controle, consoMoyenne] = await Promise.all([
+    const [{ config }, controle, consoMoyenne, derniersControles] = await Promise.all([
       NexusCarburantDonnees.chargerCuvesConfig(nexusClient, SITE_ID),
       NexusCarburantDonnees.chargerControleJour(nexusClient, SITE_ID, todayISO()),
       NexusCarburantDonnees.chargerConsommationJournaliereMoyenne(nexusClient, SITE_ID, todayISO()),
+      // Sprint C6 (audit §10) : badge de qualité par carburant — lit la
+      // preuve déjà posée dans carburant_controles, jamais une deuxième
+      // dérivation de la qualité de chaîne côté écran (Article 11).
+      NexusCarburantDonnees.chargerDerniersControles(nexusClient, SITE_ID, todayISO()),
     ]);
     CUVES_CONFIG = config;
     const autonomiesParCarburant = {};
@@ -722,7 +766,7 @@
         autonomiesParCarburant[cle] = NexusCarburantMoteur.calculerAutonomieJours(stock, consoMoyenne[cle]);
       });
     }
-    return { ...controle, cuvesConfig: config, autonomiesParCarburant };
+    return { ...controle, cuvesConfig: config, autonomiesParCarburant, derniersControles };
   }
 
   function renderSituation(ctx) {
@@ -756,8 +800,20 @@
       });
       const couleurFiab = NIVEAU_COULEUR[fiabilite.niveau] || NIVEAU_COULEUR.attente;
       const couleurCarb = COULEUR_JAUGE_CARBURANT[cle];
+      // Sprint C6 (audit §10, "Situation aujourd'hui — Badge de qualité par
+      // carburant : référence fiable, contrôle provisoire, non comparable")
+      // — lit la PREUVE déjà posée dans carburant_controles (ctx.derniersControles),
+      // distincte de "Fiabilité du contrôle" ci-dessus qui porte sur
+      // l'AMPLEUR de l'écart affiché à l'instant présent. Un contrôle
+      // absent (jaugeage du jour pas encore saisi, ou écriture en échec —
+      // controle_statut, Sprint C5) affiche "Non calculé", jamais une
+      // fausse certitude. Toute la carte devient cliquable vers le relevé
+      // de contrôle détaillé du jour (audit §10.1).
+      const controleJour = ctx.derniersControles ? ctx.derniersControles[cle] : null;
+      const qualite = M.libelleQualiteControle(controleJour ? controleJour.qualite : null);
+      const couleurQualite = NIVEAU_COULEUR[qualite.niveau] || NIVEAU_COULEUR.attente;
       return `
-        <div class="carb-carte2 ${classeStatutCarte(r.statut)}" style="--carb-couleur:${couleurCarb};" title="${detailCuves} — capacité ${capacite.toLocaleString('fr-FR')} L">
+        <div class="carb-carte2 ${classeStatutCarte(r.statut)}" style="--carb-couleur:${couleurCarb}; cursor:pointer;" title="${detailCuves} — capacité ${capacite.toLocaleString('fr-FR')} L — voir le relevé de contrôle" data-releve-controle="${cle}">
           <div class="carb-carte2-titre">${COURT_CARBURANT[cle]}</div>
           <div class="carb-carte2-tete">
             <div class="carb-icon-circle"></div>
@@ -772,6 +828,7 @@
           <div class="carb-stat-row"><span class="lbl">Écart</span><span class="val" style="color:${r.ecart != null && r.ecart < 0 ? 'var(--red)' : (r.ecart != null && r.ecart > 0 ? 'var(--green)' : 'var(--text)')};">${ecartTxt}</span></div>
           <div class="carb-autonomie-bloc"><span class="lbl">Autonomie</span><span class="val">${autonomie != null ? `${autonomie.toFixed(1)} j — ${statutAuto}` : '—'}</span></div>
           <div class="carb-fiab-row"><span style="color:${couleurFiab.c};">${fiabilite.texte}</span><span class="carb-fiab-badge" style="background:${couleurFiab.f}; color:${couleurFiab.c};">${ICONE_NIVEAU[fiabilite.niveau] || '?'}</span></div>
+          <div class="carb-fiab-row"><span style="color:${couleurQualite.c};">Contrôle : ${qualite.texte}</span><span class="carb-fiab-badge" style="background:${couleurQualite.f}; color:${couleurQualite.c};">${ICONE_NIVEAU[qualite.niveau] || '?'}</span></div>
         </div>`;
     }).join('');
 
@@ -801,6 +858,11 @@
         detail.style.display = detail.style.display === 'none' ? 'block' : 'none';
       });
     }
+    // Sprint C6 (audit §10.1) : chaque carte ouvre le relevé de contrôle du
+    // jour, focalisé sur son carburant.
+    zone.querySelectorAll('[data-releve-controle]').forEach(carte => {
+      carte.addEventListener('click', () => ouvrirReleveControle(todayISO(), carte.dataset.releveControle));
+    });
     // Anime le remplissage après le premier paint (transition CSS déjà
     // posée sur height, mais partir de 0% puis appliquer la vraie valeur
     // juste après force le navigateur à jouer la transition plutôt que
@@ -827,6 +889,8 @@
       autonomiesParCarburant: CONTROLE_CTX.autonomiesParCarburant,
       referenceCertifieeCeJour: CONTROLE_CTX.referenceCertifieeCeJour,
       messageReferenceCertifiee: CONTROLE_CTX.messageReferenceCertifiee,
+      derniersControles: CONTROLE_CTX.derniersControles,
+      derniereVisite: DERNIERE_VISITE,
       ...SIGNAUX_PERIODE,
     });
     zone.innerHTML = messages.map(m => `<div class="message-carte ${m.type}"><span class="message-icone">${ICONE_MESSAGE[m.type] || 'ℹ️'}</span><span>${m.texte}</span></div>`).join('');
@@ -1032,6 +1096,13 @@
     const zone = document.getElementById('qualiteReceptionsZone');
     if (!zone || !global_NexusReceptionDonnees_disponible()) { if (zone) zone.innerHTML = ''; return; }
     const visite = await NexusReceptionDonnees.chargerDerniereVisite(nexusClient, SITE_ID);
+    // Sprint C6 (audit §10) : partagée avec "Ce que NEXUS vous dit" (événement
+    // dérogation) et le lien "Voir le relevé de réception" ci-dessous —
+    // re-render des messages une fois cette info disponible (chargée en
+    // parallèle des autres blocs, potentiellement après le premier
+    // renderMessages() de l'initialisation).
+    DERNIERE_VISITE = visite;
+    if (CONTROLE_CTX) renderMessages();
     if (!visite) {
       zone.innerHTML = `<div class="controle-vide">Aucune réception saisie pour l'instant via le parcours Réception carburant.</div>`;
       return;
@@ -1068,7 +1139,14 @@
       ? `<div class="qualite-reception-carte"><div class="qualite-reception-ligne"><span>Compartiments non réceptionnés</span><span>${compartimentsNonReceptionnes.length} (dérogation manager tracée)</span></div></div>`
       : '';
 
-    zone.innerHTML = enTete + (cartesCarburant || `<div class="controle-vide">Visite enregistrée sans carburant rattaché.</div>`) + noteCompartiments;
+    // Sprint C6 (audit §10, bloc "Dernière livraison" — lien "Voir le
+    // relevé de réception"). La visite est déjà entièrement chargée
+    // (lignes/compartiments/mesures) : aucune requête supplémentaire.
+    const lienReleveReception = `<div class="lien-historique-neutralise"><a href="#" id="lienReleveReception">Voir le relevé de réception</a></div>`;
+
+    zone.innerHTML = enTete + (cartesCarburant || `<div class="controle-vide">Visite enregistrée sans carburant rattaché.</div>`) + noteCompartiments + lienReleveReception;
+    const lienRecep = document.getElementById('lienReleveReception');
+    if (lienRecep) lienRecep.addEventListener('click', (e) => { e.preventDefault(); ouvrirReleveReception(visite); });
   }
   // Garde-fou : cette page (Carburants Pilotage) doit continuer à
   // fonctionner même si nexus-reception-donnees.js / nexus-reception-moteur.js
@@ -1077,6 +1155,319 @@
   // livraison" à cause d'une fonctionnalité annexe.
   function global_NexusReceptionDonnees_disponible() {
     return typeof NexusReceptionDonnees !== 'undefined' && typeof NexusReceptionMoteur !== 'undefined';
+  }
+
+  // ------------------------------------------------------------
+  // Sprint C6 "Pilotage" (17/08/2026, audit §10.1) — action manager "Voir
+  // le relevé de contrôle" : période/référence/ventes/livraisons/théorique/
+  // physique/écart/qualité+cause + historique des versions, par date, tous
+  // carburants actifs. Lit EXCLUSIVEMENT carburant_controles (la preuve déjà
+  // posée depuis C2/C3/C5) — aucun recalcul, jamais une deuxième formule
+  // (Article 11). Modale bottom-sheet, même pattern que .recep-modal/
+  // .cloture-modal.
+  // ------------------------------------------------------------
+  let CONTROLE_MODAL_PDF_REFS = {};
+  const LIBELLE_REFERENCE_TYPE = { point_zero: 'point zéro certifié', releve: 'dernier relevé physique' };
+
+  async function ouvrirReleveControle(date, focusCarburant) {
+    const overlay = document.getElementById('controleOverlay');
+    const modal = document.getElementById('controleModal');
+    overlay.style.display = 'flex';
+    modal.innerHTML = '<div class="loading">Chargement…</div>';
+    const M = NexusCarburantMoteur;
+    const cles = M.CLES_CARBURANT.filter(cle => !CUVES_CONFIG || !CUVES_CONFIG[cle] || CUVES_CONFIG[cle].actif);
+    // Réutilise le contrôle déjà chargé pour "aujourd'hui" (Situation
+    // aujourd'hui) plutôt que de le requêter deux fois — pour une date
+    // passée (cliquée depuis Historique), on charge à la demande.
+    const controles = (date === todayISO() && CONTROLE_CTX && CONTROLE_CTX.derniersControles)
+      ? CONTROLE_CTX.derniersControles
+      : await NexusCarburantDonnees.chargerDerniersControles(nexusClient, SITE_ID, date);
+    const versionsParCarburant = {};
+    await Promise.all(cles.map(async cle => {
+      versionsParCarburant[cle] = await NexusCarburantDonnees.chargerVersionsControleCarburant(nexusClient, SITE_ID, cle, date);
+    }));
+    renderReleveControleModal(date, controles, versionsParCarburant, cles, focusCarburant);
+  }
+
+  function fermerControleModal() {
+    document.getElementById('controleOverlay').style.display = 'none';
+  }
+
+  function renderReleveControleModal(date, controles, versionsParCarburant, cles, focusCarburant) {
+    const M = NexusCarburantMoteur;
+    const modal = document.getElementById('controleModal');
+    const dateTxt = formaterDateFrCourt(date);
+
+    const blocsCarburant = cles.map(cle => {
+      const ctrl = controles[cle];
+      const qualite = M.libelleQualiteControle(ctrl ? ctrl.qualite : null);
+      const couleur = NIVEAU_COULEUR[qualite.niveau] || NIVEAU_COULEUR.attente;
+      const causeTxt = ctrl ? M.libelleCauseQualiteChaine(ctrl.cause) : null;
+      const versions = versionsParCarburant[cle] || [];
+      if (!ctrl) {
+        return `
+          <div class="controle-carburant-bloc">
+            <div class="controle-carburant-titre"><span>${NOM_CARBURANT[cle]}</span></div>
+            <div class="controle-vide" style="margin:0;">Aucun contrôle posé pour cette date — jaugeage pas encore saisi, ou écriture de contrôle en attente/échouée.</div>
+          </div>`;
+      }
+      const refTxt = ctrl.reference_date
+        ? `${formaterDateFrCourt(ctrl.reference_date)} (${LIBELLE_REFERENCE_TYPE[ctrl.reference_type] || ctrl.reference_type || '—'})`
+        : '—';
+      const ecartTxt = ctrl.ecart != null ? `${ctrl.ecart >= 0 ? '+' : ''}${Math.round(ctrl.ecart).toLocaleString('fr-FR')} L` : '—';
+      const versionsHTML = versions.length > 1
+        ? `
+          <button type="button" class="controle-versions-toggle" data-toggle-versions="${cle}">Historique des versions (${versions.length}) ›</button>
+          <div class="controle-versions-liste" id="versionsListe_${cle}" style="display:none;">
+            ${versions.map(v => {
+              const qv = M.libelleQualiteControle(v.qualite);
+              const dateVersion = v.cree_le ? new Date(v.cree_le).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
+              const ev = v.ecart != null ? `${v.ecart >= 0 ? '+' : ''}${Math.round(v.ecart).toLocaleString('fr-FR')} L` : '—';
+              return `<div class="controle-version-item">Version ${v.version_num} — ${dateVersion} — écart ${ev} — ${qv.texte}</div>`;
+            }).join('')}
+          </div>`
+        : (versions.length === 1 ? `<div class="controle-cause">Version unique (aucune reconstruction en cascade sur cette date).</div>` : '');
+      return `
+        <div class="controle-carburant-bloc" ${focusCarburant === cle ? 'style="border-color:var(--cyan);"' : ''}>
+          <div class="controle-carburant-titre">
+            <span>${NOM_CARBURANT[cle]}</span>
+            <span class="controle-badge" style="background:${couleur.f}; color:${couleur.c};">${qualite.texte}</span>
+          </div>
+          <div class="controle-ligne"><span>Référence de départ</span><span>${refTxt}</span></div>
+          <div class="controle-ligne"><span>Ventes prises en compte</span><span>${ctrl.ventes != null ? fmtL(ctrl.ventes) : '—'}</span></div>
+          <div class="controle-ligne"><span>Livraison</span><span>${fmtL(ctrl.livraison)}</span></div>
+          <div class="controle-ligne"><span>Mouvement exceptionnel</span><span>${fmtL(ctrl.mouvement)}</span></div>
+          <div class="controle-ligne"><span>Stock théorique</span><span>${fmtL(ctrl.theorique)}</span></div>
+          <div class="controle-ligne"><span>Stock physique</span><span>${fmtL(ctrl.physique)}</span></div>
+          <div class="controle-ligne"><span>Écart</span><span style="color:${ctrl.ecart != null && ctrl.ecart < 0 ? 'var(--red)' : (ctrl.ecart != null && ctrl.ecart > 0 ? 'var(--green)' : 'var(--text)')};">${ecartTxt}</span></div>
+          ${causeTxt ? `<div class="controle-cause">${causeTxt}</div>` : ''}
+          ${versionsHTML}
+        </div>`;
+    }).join('');
+
+    modal.innerHTML = `
+      <button type="button" class="controle-modal-fermer" id="btnFermerControleModal">✕</button>
+      <div class="controle-modal-titre">Relevé de contrôle</div>
+      <div class="controle-modal-soustitre">${dateTxt} — preuve posée dans carburant_controles, jamais recalculée à l'écran</div>
+      ${blocsCarburant}
+      <div id="controleModalPdfZone"></div>
+      <button type="button" class="controle-modal-btn secondaire" id="btnGenererPdfControle">Exporter le relevé de contrôle (PDF)</button>
+    `;
+    document.getElementById('btnFermerControleModal').addEventListener('click', fermerControleModal);
+    modal.querySelectorAll('[data-toggle-versions]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const liste = document.getElementById(`versionsListe_${btn.dataset.toggleVersions}`);
+        if (liste) liste.style.display = liste.style.display === 'none' ? 'block' : 'none';
+      });
+    });
+    document.getElementById('btnGenererPdfControle').addEventListener('click', () => {
+      const zone = document.getElementById('controleModalPdfZone');
+      genererEtAfficherPdfCarburant(zone, () => construireReleveControlePdf(date, controles, versionsParCarburant, cles), CONTROLE_MODAL_PDF_REFS);
+    });
+  }
+
+  // Génère puis propose Partager/Ouvrir — même flux en 2 temps que partout
+  // ailleurs dans NEXUS (retour de Frédéric du 10/08/2026 : jamais enchaîné
+  // automatiquement), factorisé une seule fois pour les 2 exports PDF de ce
+  // sprint (relevé de contrôle, relevé de réception).
+  async function genererEtAfficherPdfCarburant(zoneEl, construireFn, refs) {
+    zoneEl.innerHTML = `<div class="controle-statut-rapport">Génération en cours…</div>`;
+    try {
+      refs.dernierPdf = await construireFn();
+      afficherActionsPdfPretCarburant(zoneEl, refs, construireFn);
+    } catch (e) {
+      console.error('NEXUS Carburants Pilotage — génération PDF :', e);
+      zoneEl.innerHTML = `
+        <div class="controle-statut-rapport statut-erreur">Erreur lors de la génération — réessayez.</div>
+        <button type="button" class="controle-modal-btn secondaire" id="btnReessayerPdfCarburant">Réessayer</button>
+      `;
+      zoneEl.querySelector('#btnReessayerPdfCarburant').addEventListener('click', () => genererEtAfficherPdfCarburant(zoneEl, construireFn, refs));
+    }
+  }
+  function afficherActionsPdfPretCarburant(zoneEl, refs, construireFn) {
+    const partageOk = NexusPdfMoteur.webShareDisponible();
+    zoneEl.innerHTML = `
+      <div class="controle-statut-rapport statut-pret">Relevé prêt.</div>
+      <div class="controle-modal-actions">
+        ${partageOk ? `<button type="button" class="controle-modal-btn" id="btnPartagerPdfCarburant">Partager</button>` : ''}
+        <button type="button" class="controle-modal-btn secondaire" id="btnOuvrirPdfCarburant">${partageOk ? 'Ouvrir' : 'Ouvrir / enregistrer'}</button>
+      </div>
+    `;
+    if (partageOk) {
+      zoneEl.querySelector('#btnPartagerPdfCarburant').addEventListener('click', async () => {
+        const r = await NexusPdfMoteur.partagerPdf(refs.dernierPdf.bytes, refs.dernierPdf.nomFichier, { titre: refs.dernierPdf.titre, texte: refs.dernierPdf.texte });
+        const s = zoneEl.querySelector('.controle-statut-rapport');
+        if (r === 'echec' || r === 'indisponible') { if (s) s.textContent = 'Partage impossible sur cet appareil — utilisez « Ouvrir ».'; }
+        else if (r === 'partage') { if (s) s.textContent = 'Relevé partagé.'; }
+      });
+    }
+    zoneEl.querySelector('#btnOuvrirPdfCarburant').addEventListener('click', async () => {
+      await NexusPdfMoteur.telechargerPdf(refs.dernierPdf.bytes, refs.dernierPdf.nomFichier);
+      const s = zoneEl.querySelector('.controle-statut-rapport');
+      if (s) s.textContent = 'Relevé ouvert.';
+    });
+  }
+
+  async function construireReleveControlePdf(date, controles, versionsParCarburant, cles) {
+    const dateTxt = formaterDateFrCourt(date);
+    const M = NexusCarburantMoteur;
+    const c = await NexusPdfMoteur.creerRapport({
+      titre: `NEXUS Carburants — Relevé de contrôle — ${date}`,
+      sujet: 'Relevé de contrôle carburant — chaîne de preuve',
+      entete: { app: 'NEXUS CARBURANTS · RELEVÉ DE CONTRÔLE', sousTitre: dateTxt },
+    });
+    c.titre('Relevé de contrôle carburant');
+    c.sousTitre(dateTxt);
+    c.sousTitre('Preuve posée dans carburant_controles — jamais recalculée pour cet export.', { taille: 8.5, couleur: NexusPdfMoteur.COULEUR.texteDim });
+
+    cles.forEach(cle => {
+      const ctrl = controles[cle];
+      c.sectionTitre(NOM_CARBURANT[cle].toUpperCase());
+      if (!ctrl) {
+        c.paragraphe('Aucun contrôle posé pour cette date.', { taille: 9.5, couleur: NexusPdfMoteur.COULEUR.texteDim });
+        return;
+      }
+      const qualite = M.libelleQualiteControle(ctrl.qualite);
+      const causeTxt = M.libelleCauseQualiteChaine(ctrl.cause);
+      c.ligneCle('Référence de départ', ctrl.reference_date ? `${formaterDateFrCourt(ctrl.reference_date)} (${LIBELLE_REFERENCE_TYPE[ctrl.reference_type] || ctrl.reference_type || '—'})` : '—');
+      c.ligneCle('Ventes prises en compte', ctrl.ventes != null ? fmtL(ctrl.ventes) : '—');
+      c.ligneCle('Livraison', fmtL(ctrl.livraison));
+      c.ligneCle('Mouvement exceptionnel', fmtL(ctrl.mouvement));
+      c.ligneCle('Stock théorique', fmtL(ctrl.theorique));
+      c.ligneCle('Stock physique', fmtL(ctrl.physique));
+      const ecart = ctrl.ecart;
+      c.ligneCle('Écart', ecart != null ? `${ecart >= 0 ? '+' : ''}${Math.round(ecart).toLocaleString('fr-FR')} L` : '—', { couleurValeur: ecart == null ? NexusPdfMoteur.COULEUR.texte : (ecart === 0 ? NexusPdfMoteur.COULEUR.vert : NexusPdfMoteur.COULEUR.ambre) });
+      c.ligneCle('Qualité du contrôle', qualite.texte, { couleurValeur: qualite.niveau === 'ok' ? NexusPdfMoteur.COULEUR.vert : NexusPdfMoteur.COULEUR.ambre });
+      if (causeTxt) c.paragraphe(causeTxt, { taille: 8.5, couleur: NexusPdfMoteur.COULEUR.texteDim });
+
+      const versions = versionsParCarburant[cle] || [];
+      if (versions.length > 1) {
+        c.paragraphe(`Historique des versions (${versions.length}) :`, { taille: 9, couleur: NexusPdfMoteur.COULEUR.texte });
+        versions.forEach(v => {
+          const qv = M.libelleQualiteControle(v.qualite);
+          const dateVersion = v.cree_le ? new Date(v.cree_le).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
+          const ev = v.ecart != null ? `${v.ecart >= 0 ? '+' : ''}${Math.round(v.ecart).toLocaleString('fr-FR')} L` : '—';
+          c.paragraphe(`  · Version ${v.version_num} — ${dateVersion} — écart ${ev} — ${qv.texte}`, { taille: 8.5, couleur: NexusPdfMoteur.COULEUR.texteDim });
+        });
+      }
+    });
+
+    c.piedDePageToutesPages('NEXUS Carburants · Relevé de contrôle — trace de preuve, jamais un jugement automatique.');
+    const bytes = await NexusPdfMoteur.finaliser(c);
+    const nomFichier = `NEXUS-Carburants-Releve-Controle-${date}.pdf`;
+    return { bytes, nomFichier, titre: `NEXUS Carburants — Relevé de contrôle ${dateTxt}`, texte: `Relevé de contrôle carburant — ${dateTxt}` };
+  }
+
+  // ------------------------------------------------------------
+  // Sprint C6 (audit §10) — "Voir le relevé de réception" : réutilise la
+  // visite déjà chargée par "Qualité des réceptions" (aucune requête
+  // supplémentaire), présentée en modale plein détail + export PDF —
+  // symétrique du relevé de contrôle ci-dessus.
+  // ------------------------------------------------------------
+  let RECEPTION_MODAL_PDF_REFS = {};
+  function ouvrirReleveReception(visite) {
+    const overlay = document.getElementById('controleOverlay');
+    overlay.style.display = 'flex';
+    renderReleveReceptionModal(visite);
+  }
+
+  // Historique enrichi (Sprint C6, tâche C6.5) : les visites listées dans
+  // Historique n'ont que leur en-tête (chargerHistoriqueVisites), pas leurs
+  // lignes/compartiments/mesures — récupérées à la demande au clic, avec un
+  // état de chargement, plutôt que de charger le détail de toutes les
+  // visites de l'historique par avance (inutile tant qu'aucune n'est
+  // ouverte).
+  async function ouvrirReleveReceptionParId(visiteId) {
+    const overlay = document.getElementById('controleOverlay');
+    const modal = document.getElementById('controleModal');
+    overlay.style.display = 'flex';
+    modal.innerHTML = '<div class="loading">Chargement…</div>';
+    const visite = await NexusReceptionDonnees.chargerVisiteDetail(nexusClient, visiteId);
+    if (!visite) {
+      modal.innerHTML = `
+        <button type="button" class="controle-modal-fermer" id="btnFermerControleModal">✕</button>
+        <div class="controle-vide">Visite introuvable.</div>`;
+      document.getElementById('btnFermerControleModal').addEventListener('click', fermerControleModal);
+      return;
+    }
+    renderReleveReceptionModal(visite);
+  }
+
+  function renderReleveReceptionModal(visite) {
+    const modal = document.getElementById('controleModal');
+    const M = NexusReceptionMoteur;
+    const dateTxt = formaterDateFrCourt(visite.date_visite);
+    const lignesHTML = (visite.lignes || []).map(ligne => {
+      const libelle = M.libelleStatutReception(ligne.statut);
+      const c = NIVEAU_COULEUR[libelle.niveau] || NIVEAU_COULEUR.attente;
+      return `
+        <div class="controle-carburant-bloc">
+          <div class="controle-carburant-titre">
+            <span>${NOM_CARBURANT[ligne.carburant] || ligne.carburant}</span>
+            <span class="controle-badge" style="background:${c.f}; color:${c.c};">${libelle.texte}</span>
+          </div>
+          <div class="controle-ligne"><span>BL attendu</span><span>${fmtL(ligne.quantite_bl_l)}</span></div>
+          <div class="controle-ligne"><span>Compartiments déclarés</span><span>${fmtL(ligne.quantite_compartiments_l)}</span></div>
+          <div class="controle-ligne"><span>Total mesuré (jaugeage)</span><span>${ligne.quantite_mesuree_l != null ? fmtL(ligne.quantite_mesuree_l) : '—'}</span></div>
+          <div class="controle-ligne"><span>Écart mesuré / prévu</span><span>${M.texteEcart(ligne.delta_l, ligne.delta_ratio)}</span></div>
+        </div>`;
+    }).join('');
+    const compartimentsNonReceptionnes = (visite.compartiments || []).filter(cp => cp.statut === 'non_receptionne');
+    modal.innerHTML = `
+      <button type="button" class="controle-modal-fermer" id="btnFermerControleModal">✕</button>
+      <div class="controle-modal-titre">Relevé de réception</div>
+      <div class="controle-modal-soustitre">${dateTxt}${visite.transporteur ? ` — ${visite.transporteur}` : ''}${visite.chauffeur ? ` — ${visite.chauffeur}` : ''}</div>
+      <div class="controle-ligne"><span>Immatriculation</span><span>${visite.immatriculation || '—'}</span></div>
+      <div class="controle-ligne"><span>Bon de livraison</span><span>${visite.bon_livraison_reference || '—'}</span></div>
+      <div class="controle-ligne"><span>Statut de la visite</span><span>${visite.statut === 'terminee_avec_derogation' ? 'Terminée avec dérogation manager' : 'Terminée'}</span></div>
+      ${lignesHTML}
+      ${compartimentsNonReceptionnes.length ? `<div class="controle-cause">${compartimentsNonReceptionnes.length} compartiment(s) non réceptionné(s) — dérogation manager tracée.</div>` : ''}
+      <div id="controleModalPdfZone"></div>
+      <button type="button" class="controle-modal-btn secondaire" id="btnGenererPdfReception">Exporter le relevé de réception (PDF)</button>
+    `;
+    document.getElementById('btnFermerControleModal').addEventListener('click', fermerControleModal);
+    document.getElementById('btnGenererPdfReception').addEventListener('click', () => {
+      const zone = document.getElementById('controleModalPdfZone');
+      genererEtAfficherPdfCarburant(zone, () => construireReleveReceptionPdf(visite), RECEPTION_MODAL_PDF_REFS);
+    });
+  }
+
+  async function construireReleveReceptionPdf(visite) {
+    const M = NexusReceptionMoteur;
+    const dateTxt = formaterDateFrCourt(visite.date_visite);
+    const c = await NexusPdfMoteur.creerRapport({
+      titre: `NEXUS Carburants — Relevé de réception — ${visite.date_visite}`,
+      sujet: 'Relevé de réception carburant — chaîne de preuve',
+      entete: { app: 'NEXUS CARBURANTS · RELEVÉ DE RÉCEPTION', sousTitre: dateTxt },
+    });
+    c.titre('Relevé de réception carburant');
+    c.sousTitre(`${dateTxt}${visite.transporteur ? ` — ${visite.transporteur}` : ''}`);
+    c.sectionTitre('IDENTIFICATION');
+    c.ligneCle('Chauffeur', visite.chauffeur || '—');
+    c.ligneCle('Immatriculation', visite.immatriculation || '—');
+    c.ligneCle('Bon de livraison', visite.bon_livraison_reference || '—');
+    c.ligneCle('Statut', visite.statut === 'terminee_avec_derogation' ? 'Terminée avec dérogation manager' : 'Terminée');
+
+    (visite.lignes || []).forEach(ligne => {
+      c.sectionTitre((NOM_CARBURANT[ligne.carburant] || ligne.carburant).toUpperCase());
+      c.ligneCle('BL attendu', fmtL(ligne.quantite_bl_l));
+      c.ligneCle('Compartiments déclarés', fmtL(ligne.quantite_compartiments_l));
+      c.ligneCle('Total mesuré (jaugeage)', ligne.quantite_mesuree_l != null ? fmtL(ligne.quantite_mesuree_l) : '—');
+      c.ligneCle('Écart mesuré / prévu', M.texteEcart(ligne.delta_l, ligne.delta_ratio));
+      const libelle = M.libelleStatutReception(ligne.statut);
+      c.ligneCle('Statut', libelle.texte);
+    });
+
+    const compartimentsNonReceptionnes = (visite.compartiments || []).filter(cp => cp.statut === 'non_receptionne');
+    if (compartimentsNonReceptionnes.length) {
+      c.sectionTitre('ANOMALIES');
+      c.paragraphe(`${compartimentsNonReceptionnes.length} compartiment(s) non réceptionné(s) — dérogation manager tracée.`, { taille: 9.5, couleur: NexusPdfMoteur.COULEUR.ambre });
+    }
+
+    c.piedDePageToutesPages('NEXUS Carburants · Relevé de réception — trace de preuve, jamais un jugement automatique.');
+    const bytes = await NexusPdfMoteur.finaliser(c);
+    const nomFichier = `NEXUS-Carburants-Releve-Reception-${visite.date_visite}.pdf`;
+    return { bytes, nomFichier, titre: `NEXUS Carburants — Relevé de réception ${dateTxt}`, texte: `Relevé de réception carburant — ${dateTxt}` };
   }
 
   // ------------------------------------------------------------
@@ -1499,22 +1890,31 @@
   // que `chargerControleJour`, ce bloc ne fait que composer le HTML.
   // ------------------------------------------------------------
   async function chargerEtRendreHistorique() {
-    const [pointsZero, releves] = await Promise.all([
+    // Sprint C6 (audit §10) — "Historique enrichi" : les visites de
+    // réception rejoignent la timeline points-zéro/relevés, chacune
+    // cliquable vers sa propre preuve (ouvrirReleveReceptionParId), même
+    // esprit que le lien "Voir le relevé de réception" de "Qualité des
+    // réceptions". Garde-fou déploiement progressif : disponible seulement
+    // si nexus-reception-donnees.js est chargé (cf.
+    // global_NexusReceptionDonnees_disponible ailleurs sur cette page).
+    const [pointsZero, releves, visites] = await Promise.all([
       NexusCarburantDonnees.chargerHistoriquePointsZero(nexusClient, SITE_ID, 20),
       NexusCarburantDonnees.chargerHistoriqueReleves(nexusClient, SITE_ID, 30),
+      global_NexusReceptionDonnees_disponible() ? NexusReceptionDonnees.chargerHistoriqueVisites(nexusClient, SITE_ID, 15) : Promise.resolve([]),
     ]);
-    renderHistorique(pointsZero, releves);
+    renderHistorique(pointsZero, releves, visites);
   }
 
-  function renderHistorique(pointsZero, releves) {
+  function renderHistorique(pointsZero, releves, visites) {
+    visites = visites || [];
     const zone = document.getElementById('historiqueZone');
     const sousTitreEl = document.getElementById('historiqueSousTitre');
-    if (!pointsZero.length && !releves.length) {
+    if (!pointsZero.length && !releves.length && !visites.length) {
       zone.innerHTML = `<div class="controle-vide">Aucun historique pour l'instant.</div>`;
       if (sousTitreEl) sousTitreEl.textContent = 'Vide';
       return;
     }
-    if (sousTitreEl) sousTitreEl.textContent = `${pointsZero.length} point${pointsZero.length > 1 ? 's' : ''} zéro · ${releves.length} relevé${releves.length > 1 ? 's' : ''}`;
+    if (sousTitreEl) sousTitreEl.textContent = `${pointsZero.length} point${pointsZero.length > 1 ? 's' : ''} zéro · ${releves.length} relevé${releves.length > 1 ? 's' : ''} · ${visites.length} réception${visites.length > 1 ? 's' : ''}`;
     const M = NexusCarburantMoteur;
 
     let pzHTML = '';
@@ -1561,28 +1961,64 @@
           const couleur = c.ecart < 0 ? 'var(--red)' : (c.ecart > 0 ? 'var(--green)' : 'var(--text-mid)');
           return `<td style="color:${couleur};">${c.ecart >= 0 ? '+' : ''}${Math.round(c.ecart).toLocaleString('fr-FR')} L</td>`;
         }).join('');
+        // Sprint C6 (audit §10.1) : le clic sur la ligne conserve son
+        // comportement d'origine (ouvrir la saisie/rattrapage du jaugeage
+        // de cette date, sur NEXUS-Carburants-v1.html) — un badge dédié
+        // "Preuve" ouvre en plus la modale "Relevé de contrôle" (lecture
+        // seule, contrôle déjà posé) sans quitter la page, deux actions
+        // distinctes, jamais fusionnées.
         return `<tr class="historique-releve-row" data-date="${r.date}">
           <td class="nom-cell">${formaterDateFrCourt(r.date)}${r.ancreEstPointZero ? ' 🎯' : ''}</td>
           ${cellules}
+          <td><span class="historique-releve-preuve" data-preuve-date="${r.date}">Preuve</span></td>
         </tr>`;
       }).join('');
       relevesHTML = `
-        <div class="historique-souszone">Relevés — 30 derniers jours (écart réel − théorique, clic pour ouvrir)</div>
+        <div class="historique-souszone">Relevés — 30 derniers jours (écart réel − théorique, clic pour saisir/corriger)</div>
         <div class="stock-table-wrap">
           <table class="stock-table">
-            <thead><tr><th>Date</th><th>GO</th><th>SP95</th><th>GNR</th></tr></thead>
+            <thead><tr><th>Date</th><th>GO</th><th>SP95</th><th>GNR</th><th></th></tr></thead>
             <tbody>${lignes}</tbody>
           </table>
         </div>
-        <div class="section-note">🎯 = premier relevé après un point zéro certifié.</div>
+        <div class="section-note">🎯 = premier relevé après un point zéro certifié. « Preuve » ouvre le relevé de contrôle déjà posé pour cette date, sans quitter la page.</div>
       `;
     }
 
-    zone.innerHTML = pzHTML + relevesHTML;
+    // Sprint C6 (audit §10) — Réceptions dans Historique, mêmes conventions
+    // que les points zéro (carte + clic), triées comme reçues (déjà
+    // décroissant depuis chargerHistoriqueVisites).
+    let visitesHTML = '';
+    if (visites.length) {
+      const cartes = visites.map(v => {
+        const dateTxt = formaterDateFrCourt(v.date_visite);
+        const statutTxt = v.statut === 'terminee_avec_derogation' ? 'Terminée avec dérogation manager' : 'Terminée';
+        return `
+          <div class="historique-recep-carte" data-visite-id="${v.id}">
+            <div class="historique-pz-tete">
+              <span class="historique-pz-date">🚛 ${dateTxt}${v.transporteur ? ` — ${v.transporteur}` : ''}</span>
+              <span class="historique-pz-source" style="color:var(--cyan); background:rgba(2,102,122,0.12); border-color:rgba(2,102,122,0.3);">Voir ›</span>
+            </div>
+            <div class="historique-pz-valeurs">${statutTxt}${v.bon_livraison_reference ? ` · BL ${v.bon_livraison_reference}` : ''}</div>
+          </div>`;
+      }).join('');
+      visitesHTML = `<div class="historique-souszone">Réceptions</div>${cartes}`;
+    }
+
+    zone.innerHTML = pzHTML + relevesHTML + visitesHTML;
     zone.querySelectorAll('.historique-releve-row').forEach(row => {
       row.addEventListener('click', () => {
         window.location.href = `NEXUS-Carburants-v1.html?date=${row.dataset.date}`;
       });
+    });
+    zone.querySelectorAll('[data-preuve-date]').forEach(badge => {
+      badge.addEventListener('click', (e) => {
+        e.stopPropagation();
+        ouvrirReleveControle(badge.dataset.preuveDate, null);
+      });
+    });
+    zone.querySelectorAll('.historique-recep-carte').forEach(carte => {
+      carte.addEventListener('click', () => ouvrirReleveReceptionParId(carte.dataset.visiteId));
     });
   }
 
@@ -1627,5 +2063,16 @@
     await Promise.all([chargerEtRendreLivraison(), chargerEtRendrePeriode(), chargerEtRendreRattrapage(), chargerEtRendreHistorique(), chargerEtRendreQualiteReceptions()]);
   });
 </script>
+
+<!-- Sprint C6 "Pilotage" (17/08/2026, audit §10.1) — modale bottom-sheet
+     "Relevé de contrôle" (par date, tous carburants) et "Relevé de
+     réception" (par visite) : même pattern que les modales de confirmation
+     déjà posées ailleurs dans NEXUS (.recep-overlay/.recep-modal,
+     .cloture-overlay/.cloture-modal) — jamais un nouveau pattern
+     d'interaction. Contenu injecté par ouvrirReleveControle()/
+     ouvrirReleveReception() ci-dessus dans le script principal. -->
+<div class="controle-overlay" id="controleOverlay" style="display:none;">
+  <div class="controle-modal" id="controleModal"></div>
+</div>
 </body>
 </html>

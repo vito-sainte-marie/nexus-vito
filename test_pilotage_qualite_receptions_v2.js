@@ -65,6 +65,14 @@ function construireFonction(nexusClientMock, nexusReceptionDonneesMock, zone) {
     ${constNiveauCouleur}
     ${fnFmtLSrc}
     ${fnDisponibleSrc}
+    // Sprint C6 (17/08/2026) : chargerEtRendreQualiteReceptions renseigne
+    // désormais DERNIERE_VISITE et redéclenche renderMessages() (lien
+    // "Voir le relevé de réception" + messages qualité partagés) — variables
+    // module-level réelles de la page, simulées ici en isolation.
+    let CONTROLE_CTX = null;
+    let DERNIERE_VISITE = null;
+    function renderMessages() {}
+    function ouvrirReleveReception() {}
     return (${fnQualiteSrc.replace(/^async function \w+/, 'async function chargerEtRendreQualiteReceptions')});
   `;
   const fn = new Function('document', 'nexusClient', 'NexusReceptionDonnees', 'NexusReceptionMoteur', 'SITE_ID', prelude)(

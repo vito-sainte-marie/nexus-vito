@@ -543,10 +543,53 @@
     return resultat.filter(r => r.date >= debutISO).reverse(); // du plus récent au plus ancien
   }
 
+  // ============================================================
+  // Sprint C6 "Pilotage" (17/08/2026, audit Carburants — chaîne de preuve,
+  // §10 : "Carburants Pilotage doit consommer la dernière version fiable de
+  // chaque contrôle") — lecture SEULE de carburant_controles (écrit depuis
+  // le Sprint C2, versionné depuis C3, avec controleInchange depuis C5).
+  // Contrairement à chargerControleJour ci-dessus (qui REDÉRIVE le
+  // théorique/écart en direct depuis carburant_releves — utilisé pour les
+  // jauges "Situation aujourd'hui", toujours à jour même si le contrôle
+  // écrit n'a pas encore été (re)calculé), ces deux chargeurs lisent la
+  // PREUVE déjà posée en base, aucun recalcul : c'est la source du badge de
+  // qualité et de la modale "Relevé de contrôle".
+  // ============================================================
+
+  // Dernier contrôle posé (le plus grand version_num) par carburant pour un
+  // (site, date) exact — {go, sp95, gnr}, chaque valeur étant la ligne
+  // carburant_controles complète ou null si aucun contrôle n'a encore été
+  // écrit pour ce carburant à cette date (jaugeage pas encore saisi, ou
+  // écriture de contrôle en échec — voir carburant_releves.controle_statut,
+  // Sprint C5).
+  async function chargerDerniersControles(client, siteId, date) {
+    const { data, error } = await client.from('carburant_controles')
+      .select('*').eq('site', siteId).eq('date', date)
+      .order('version_num', { ascending: false });
+    if (error) { console.error('Chargement derniers contrôles carburant:', error); return { go: null, sp95: null, gnr: null }; }
+    const parCarburant = { go: null, sp95: null, gnr: null };
+    (data || []).forEach(row => { if (!parCarburant[row.carburant]) parCarburant[row.carburant] = row; }); // premier = plus grand version_num
+    return parCarburant;
+  }
+
+  // Toutes les versions du contrôle d'UN carburant à UNE date, la plus
+  // récente en premier — alimente "Historique des versions et corrections"
+  // de la modale "Relevé de contrôle" (audit §10.1). `limite` par défaut 20
+  // (large marge : un contrôle relancé en cascade plusieurs fois reste rare
+  // au-delà de quelques versions grâce à controleInchange, Sprint C5).
+  async function chargerVersionsControleCarburant(client, siteId, carburant, date, limite = 20) {
+    const { data, error } = await client.from('carburant_controles')
+      .select('*').eq('site', siteId).eq('carburant', carburant).eq('date', date)
+      .order('version_num', { ascending: false }).limit(limite);
+    if (error) { console.error('Chargement versions contrôle carburant:', error); return []; }
+    return data || [];
+  }
+
   global.NexusCarburantDonnees = {
     CARBURANTS_INFO, chargerVentesPeriode, chargerControleJour, chargerJoursSansReleve,
     chargerCuvesConfig, chargerConsommationJournaliereMoyenne, CUVES_PAR_DEFAUT,
     chargerDerniereLivraison, chargerDernierPointZero, certifierPointZero,
     chargerHistoriquePointsZero, chargerHistoriqueReleves,
+    chargerDerniersControles, chargerVersionsControleCarburant,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

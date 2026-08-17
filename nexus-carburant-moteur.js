@@ -451,6 +451,37 @@
       });
     }
 
+    // 0bis) Qualité de chaîne dégradée (Sprint C6, audit §10 : "Ce que
+    // NEXUS vous dit — Maximum 3 messages issus des contrôles fiables et
+    // événements de réception"). Distinct des écarts d'ampleur ci-dessous
+    // (statutCarburant) — ceci porte sur la CONFIANCE dans la chaîne elle-
+    // même, condition préalable pour interpréter un écart. Priorité juste
+    // après le jaugeage manquant : un contrôle non comparable/provisoire
+    // explique souvent pourquoi l'écart affiché plus bas doit être lu avec
+    // prudence, jamais un doublon silencieux du même problème.
+    if (c.derniersControles) {
+      CLES_CARBURANT.forEach(cle => {
+        const ctrl = c.derniersControles[cle];
+        if (!ctrl || ctrl.qualite === 'fiable') return;
+        const causeTxt = libelleCauseQualiteChaine(ctrl.cause);
+        const suffixe = causeTxt ? ` — ${causeTxt.charAt(0).toLowerCase()}${causeTxt.slice(1)}` : '';
+        messages.push({
+          type: 'attention',
+          texte: `${NOM_CARBURANT_COURT[cle]} : contrôle ${ctrl.qualite === 'non_comparable' ? 'non comparable' : 'provisoire'}${suffixe}`,
+        });
+      });
+    }
+
+    // 0ter) Événement de réception récent nécessitant l'attention du
+    // manager (Sprint C6) : une visite conclue avec dérogation manager
+    // (compartiment non réceptionné débloqué) mérite un signalement au même
+    // titre qu'un écart de contrôle — c'est un fait déjà tracé et qualifié
+    // (Sprint C4), jamais recalculé ici.
+    if (c.derniereVisite && c.derniereVisite.statut === 'terminee_avec_derogation') {
+      const dateTxt = (c.derniereVisite.date_visite || '').split('-').reverse().join('/');
+      messages.push({ type: 'attention', texte: `Réception du ${dateTxt} conclue avec dérogation manager (compartiment non réceptionné débloqué) — voir le relevé de réception.` });
+    }
+
     // 1) Écarts physique/théorique.
     if (c.parCarburant) {
       CLES_CARBURANT.forEach(cle => {
@@ -598,6 +629,25 @@
     return LIBELLE_CAUSE_QUALITE_CHAINE[cause] || null;
   }
 
+  // Sprint C6 "Pilotage" (17/08/2026, audit §10 : "Situation aujourd'hui —
+  // Badge de qualité par carburant : référence fiable, contrôle provisoire,
+  // non comparable"). Traduit une `qualite` de carburant_controles (posée
+  // dès le Sprint C2) en {texte, niveau} — mêmes 4 niveaux que le reste de
+  // l'écran (NIVEAU_COULEUR : ok/attention/alerte/attente), jamais une 5e
+  // catégorie inventée pour ce badge. `non_comparable` reste volontairement
+  // 'attente' (ni vert ni rouge) : l'audit est explicite, une chaîne non
+  // comparable n'est PAS une alerte de performance, c'est une absence de
+  // preuve — la confondre avec une alerte inciterait à y voir un problème
+  // opérationnel qui n'est peut-être pas réel (Article 5).
+  const LIBELLE_QUALITE_CONTROLE = {
+    fiable: { texte: 'Fiable', niveau: 'ok' },
+    provisoire: { texte: 'Provisoire', niveau: 'attention' },
+    non_comparable: { texte: 'Non comparable', niveau: 'attente' },
+  };
+  function libelleQualiteControle(qualite) {
+    return LIBELLE_QUALITE_CONTROLE[qualite] || { texte: 'Non calculé', niveau: 'attente' };
+  }
+
   // Résolution de l'ancre de calcul (dernier relevé réel OU point zéro
   // certifié, le plus récent des deux gagne) pour une date donnée — même
   // logique que l'écran depuis le 14/08/2026 (point zéro = plancher, pas
@@ -658,5 +708,6 @@
     construireMessagesPilotage,
     prochaineVersionReleveCarburant, diffReleveCarburant,
     qualiteChaineCarburant, libelleCauseQualiteChaine, resoudreAncreCarburant,
+    libelleQualiteControle,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

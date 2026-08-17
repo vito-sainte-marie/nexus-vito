@@ -203,11 +203,30 @@
     return data || [];
   }
 
+  // Détail complet d'une visite par id — alimente la modale "Relevé de
+  // réception" (Sprint C6, audit §10) quand elle est ouverte depuis
+  // Historique plutôt que depuis "Qualité des réceptions" (qui a déjà la
+  // visite entièrement chargée en mémoire et n'a donc pas besoin de cette
+  // fonction). Même structure de retour que chargerDerniereVisite.
+  async function chargerVisiteDetail(client, visiteId) {
+    const { data: visite, error: e1 } = await client.from('carburant_reception_visites')
+      .select('*').eq('id', visiteId).maybeSingle();
+    if (e1 || !visite) { console.error('Chargement détail visite réception carburant:', e1); return null; }
+    const [{ data: lignes, error: e2 }, { data: compartiments, error: e3 }, { data: mesures, error: e4 }] = await Promise.all([
+      client.from('carburant_reception_visite_lignes').select('*').eq('visite_id', visite.id),
+      client.from('carburant_reception_compartiments').select('*').eq('visite_id', visite.id).order('numero', { ascending: true }),
+      client.from('carburant_reception_mesures').select('*').eq('visite_id', visite.id),
+    ]);
+    if (e2 || e3 || e4) console.error('Chargement détail visite réception carburant:', e2 || e3 || e4);
+    return { ...visite, lignes: lignes || [], compartiments: compartiments || [], mesures: mesures || [] };
+  }
+
   global.NexusReceptionDonnees = {
     chargerConfigReception,
     chargerHistoriqueEcartsRatio,
     soumettreVisiteComplete,
     chargerDerniereVisite,
     chargerHistoriqueVisites,
+    chargerVisiteDetail,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

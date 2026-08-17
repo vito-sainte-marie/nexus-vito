@@ -257,4 +257,76 @@ const M = global.NexusCarburantMoteur;
   console.log('OK — controleInchange : relance d\'un recalcul en cascade sans changement de contenu -> aucune nouvelle version (scénario C16, audit §12).');
 })();
 
-console.log('\nTous les tests "Carburants — chaîne de preuve (Sprints C1-C5)" passent.');
+// ------------------------------------------------------------
+// libelleQualiteControle — Sprint C6 "Pilotage" (17/08/2026, audit §10) :
+// badge de qualité par carburant, consommé directement depuis
+// carburant_controles (jamais recalculé à l'écran, Article 11). non_
+// comparable -> niveau 'attente' (neutre), jamais 'alerte' (Article 5 :
+// absence de preuve ≠ problème opérationnel).
+// ------------------------------------------------------------
+(() => {
+  assert.deepStrictEqual(M.libelleQualiteControle('fiable'), { texte: 'Fiable', niveau: 'ok' }, 'fiable -> niveau ok');
+  assert.deepStrictEqual(M.libelleQualiteControle('provisoire'), { texte: 'Provisoire', niveau: 'attention' }, 'provisoire -> niveau attention');
+  assert.deepStrictEqual(M.libelleQualiteControle('non_comparable'), { texte: 'Non comparable', niveau: 'attente' }, 'non_comparable -> niveau attente (neutre), jamais alerte (Article 5)');
+  assert.deepStrictEqual(M.libelleQualiteControle(null), { texte: 'Non calculé', niveau: 'attente' }, 'Aucun contrôle -> "Non calculé", jamais une exception');
+  assert.deepStrictEqual(M.libelleQualiteControle('valeur_inconnue'), { texte: 'Non calculé', niveau: 'attente' }, 'Valeur inconnue -> repli neutre, jamais une exception');
+  console.log('OK — libelleQualiteControle : badge par carburant fidèle à carburant_controles.qualite, jamais recalculé (Article 11), non_comparable toujours neutre (Article 5).');
+})();
+
+// ------------------------------------------------------------
+// construireMessagesPilotage — extension Sprint C6 (audit §10, "Ce que
+// NEXUS vous dit" doit inclure les contrôles non fiables et les événements
+// de réception, plafonné à 3 messages).
+// ------------------------------------------------------------
+(() => {
+  // Un contrôle non_comparable sur un seul carburant -> message dédié,
+  // texte de cause inclus, jamais un doublon de la ligne "écart" (qui reste
+  // silencieuse ici puisque parCarburant n'est pas fourni dans ce cas).
+  const msgsNonComparable = M.construireMessagesPilotage({
+    parCarburant: null,
+    derniersControles: { go: { qualite: 'non_comparable', cause: 'reference_absente' }, sp95: { qualite: 'fiable', cause: null }, gnr: null },
+  });
+  assert.strictEqual(msgsNonComparable.length, 1, 'Un seul carburant non fiable (les 2 autres fiable/absent) -> un seul message qualité');
+  assert.ok(msgsNonComparable[0].texte.includes('GO') && msgsNonComparable[0].texte.includes('non comparable'), 'Message qualité GO doit nommer le carburant et "non comparable"');
+  assert.strictEqual(msgsNonComparable[0].type, 'attention', 'Contrôle non fiable -> type attention (jamais alerte, Article 5)');
+
+  // Tous les contrôles fiables -> aucun message qualité (pas de bruit).
+  const msgsToutFiable = M.construireMessagesPilotage({
+    parCarburant: null,
+    derniersControles: { go: { qualite: 'fiable', cause: null }, sp95: { qualite: 'fiable', cause: null }, gnr: { qualite: 'fiable', cause: null } },
+  });
+  assert.deepStrictEqual(msgsToutFiable, [{ type: 'positif', texte: 'Situation carburants sous contrôle aujourd\'hui.' }], 'Tous les contrôles fiables, aucun autre signal -> message neutre positif par défaut, aucun bruit qualité');
+
+  // Visite conclue avec dérogation manager -> message dédié mentionnant la
+  // date et renvoyant vers le relevé de réception.
+  const msgsDerogation = M.construireMessagesPilotage({
+    parCarburant: null,
+    derniereVisite: { statut: 'terminee_avec_derogation', date_visite: '2026-08-16' },
+  });
+  assert.strictEqual(msgsDerogation.length, 1, 'Dérogation manager seule -> un seul message');
+  assert.ok(msgsDerogation[0].texte.includes('16/08/2026') && msgsDerogation[0].texte.includes('dérogation'), 'Message dérogation doit citer la date et le mot "dérogation"');
+
+  // Visite terminée normalement (sans dérogation) -> aucun message ajouté.
+  const msgsSansDerogation = M.construireMessagesPilotage({
+    parCarburant: null,
+    derniereVisite: { statut: 'terminee', date_visite: '2026-08-16' },
+  });
+  assert.deepStrictEqual(msgsSansDerogation, [{ type: 'positif', texte: 'Situation carburants sous contrôle aujourd\'hui.' }], 'Visite terminée sans dérogation -> aucun message dérogation, aucun bruit');
+
+  // Plafond de 3 messages (audit §10, "max 3 messages") même quand qualité
+  // + réception + écarts + autonomie cumulent plus de signaux.
+  const msgsPlafond = M.construireMessagesPilotage({
+    derniersControles: { go: { qualite: 'non_comparable', cause: 'reference_absente' }, sp95: { qualite: 'provisoire', cause: 'mouvement_exceptionnel_sans_motif' }, gnr: { qualite: 'fiable', cause: null } },
+    derniereVisite: { statut: 'terminee_avec_derogation', date_visite: '2026-08-16' },
+    parCarburant: {
+      go: { statut: 'À corriger', ecart: -1200, ecartRatio: -0.08 },
+      sp95: { statut: 'À surveiller', ecart: 400, ecartRatio: 0.03 },
+      gnr: { statut: 'OK', ecart: 10, ecartRatio: 0.001 },
+    },
+  });
+  assert.strictEqual(msgsPlafond.length, 3, 'Cumul de signaux qualité + réception + écarts -> toujours plafonné à 3 messages (jamais un manager submergé)');
+
+  console.log('OK — construireMessagesPilotage (C6) : contrôles non fiables et dérogation réception remontent en messages "Ce que NEXUS vous dit", toujours plafonné à 3 (audit §10).');
+})();
+
+console.log('\nTous les tests "Carburants — chaîne de preuve (Sprints C1-C6)" passent.');
