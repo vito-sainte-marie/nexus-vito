@@ -113,6 +113,10 @@
   .palier-head{font-family:var(--mono); font-size:10px; letter-spacing:0.06em; text-transform:uppercase; color:var(--text-dim); padding:0 2px 6px;}
   .jeu-row{padding:10px 12px;}
   .jeu-row + .jeu-row{border-top:1px solid var(--hairline);}
+  /* 16/08/2026, demande de Frédéric : repérer immédiatement le jeu visé par
+     une alerte "Continuité de stock à vérifier" — voir surlignerJeuCible(). */
+  .jeu-row-cible-clignote{animation:jeuCibleClignote 1s ease-in-out 4;}
+  @keyframes jeuCibleClignote{0%,100%{background:transparent;} 50%{background:rgba(255,90,90,0.22);}}
   .jeu-nom-ligne{display:flex; align-items:center; justify-content:space-between; margin-bottom:7px;}
   .jeu-nom{font-size:12.5px; font-weight:600;}
   .jeu-ventes{font-family:var(--mono); font-size:10.5px; color:var(--text-dim);}
@@ -698,6 +702,31 @@
     const shiftsMap = Object.fromEntries((shiftsRows || []).map(s => [s.id, s]));
     return data.map(a => ({ ...a, quartActuel: shiftsMap[a.shift_id], quartPrecedent: a.shift_precedent_id ? shiftsMap[a.shift_precedent_id] : null }));
   }
+  // BLOC REPLIÉ — 16/08/2026, demande de Frédéric : "Par défaut, il devrait
+  // montrer seulement : État actuel : ✅ Chaîne continue. Puis un lien
+  // déroulant : Voir l'historique des interruptions — 3 événements [...]
+  // Tu veux savoir en priorité : Est-ce que ma chaîne FDJ est saine
+  // maintenant ?, pas revoir en permanence toutes les erreurs passées."
+  // L'état actuel se déduit du journal lui-même (déjà chargé, aucune
+  // requête supplémentaire) : si au moins un événement n'a pas encore de
+  // resolue_le, la chaîne est actuellement rompue quelque part.
+  function renderJournalChaineBloc(journalChaine) {
+    if (!journalChaine.length) return '';
+    const rompue = journalChaine.some(a => !a.resolue_le);
+    const etatLigne = rompue ? '🔴 Chaîne interrompue — un ou plusieurs quarts manquants' : '✅ Chaîne continue';
+    return `
+      <div class="section-titre">🕒 Journal — continuité FDJ</div>
+      <div class="card" style="margin-bottom:16px;">
+        <div class="jeu-row" style="padding:10px 14px;"><div class="histo-sub">État actuel : ${etatLigne}</div></div>
+        <button type="button" id="btnJournalChaineToggle" style="width:100%; text-align:left; background:none; border:none; border-top:1px solid var(--border); padding:10px 14px; color:var(--gold); cursor:pointer; font:inherit;">
+          Voir l'historique des interruptions — ${journalChaine.length} événement${journalChaine.length > 1 ? 's' : ''} ▾
+        </button>
+        <div id="journalChaineHistorique" style="display:none; border-top:1px solid var(--border);">
+          ${journalChaine.map(renderJournalChaineItem).join('')}
+        </div>
+      </div>
+    `;
+  }
   function renderJournalChaineItem(a) {
     const dt = new Date(a.created_at);
     const detection = `${dt.toLocaleDateString('fr-FR')} · ${dt.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`;
@@ -722,16 +751,97 @@
   // Comparaison stock_final(quart précédent) / stock_initial(quart
   // actuel) jeu par jeu (16/08/2026) — colle Supabase autour de la
   // fonction pure NexusFdjMoteur.ecartsContinuiteStock.
+  // 16/08/2026 : retourne désormais aussi `autoMap` (stock_initial_auto du
+  // quart ACTUEL, jeu par jeu) — nécessaire à reconcilierAlertesChaine pour
+  // trancher, jeu par jeu, entre correction automatique et alerte manuelle
+  // (voir NexusFdjMoteur.ecartsContinuiteAAppliquer). Seul appelant de
+  // cette fonction, aucune autre signature à maintenir en parallèle.
   async function ecartsContinuiteStockQuart(shiftPrecedentId, shiftActuelId) {
     const [{ data: finPrec, error: e1 }, { data: initActuel, error: e2 }] = await Promise.all([
       nexusClient.from('fdj_shift_counts').select('game_id, stock_final').eq('shift_id', shiftPrecedentId),
-      nexusClient.from('fdj_shift_counts').select('game_id, stock_initial').eq('shift_id', shiftActuelId),
+      nexusClient.from('fdj_shift_counts').select('game_id, stock_initial, stock_initial_auto').eq('shift_id', shiftActuelId),
     ]);
     if (e1) console.error('Continuité stock FDJ (quart précédent):', e1);
     if (e2) console.error('Continuité stock FDJ (quart actuel):', e2);
     const finMap = {}; (finPrec || []).forEach(r => { if (r.stock_final !== null) finMap[r.game_id] = r.stock_final; });
-    const initMap = {}; (initActuel || []).forEach(r => { if (r.stock_initial !== null) initMap[r.game_id] = r.stock_initial; });
-    return NexusFdjMoteur.ecartsContinuiteStock(finMap, initMap);
+    const initMap = {}; const autoMap = {};
+    (initActuel || []).forEach(r => {
+      if (r.stock_initial !== null) initMap[r.game_id] = r.stock_initial;
+      autoMap[r.game_id] = r.stock_initial_auto === true;
+    });
+    const ecarts = NexusFdjMoteur.ecartsContinuiteStock(finMap, initMap);
+    return { ecarts, autoMap };
+  }
+
+  // CORRECTION AUTOMATIQUE — 16/08/2026, décision explicite de Frédéric
+  // face au cas le plus sensible (quart déjà validé par un manager avec un
+  // écart potentiellement faux) : "Recalculer et réécrire automatiquement"
+  // plutôt que de se contenter d'alerter. Ne s'applique QU'aux jeux dont le
+  // stock_initial actuel est encore "hérité automatiquement" — jamais
+  // confirmé par un humain (voir migration stock_initial_auto +
+  // NexusFdjMoteur.ecartsContinuiteAAppliquer, seule ligne rouge qui reste
+  // même après cette décision). Trois temps, jamais un raccourci :
+  //  1) corrige fdj_shift_counts.stock_initial + ventes du/des jeu(x)
+  //     concerné(s) avec le stock_final réel du quart précédent ;
+  //  2) recalcule l'écart de caisse du quart ENTIER via le moteur partagé
+  //     (Article 11 — jamais une formule locale) et le RÉÉCRIT, même si le
+  //     quart était déjà validé ;
+  //  3) ne touche JAMAIS fdj_cash_controls.ecart_origine ni
+  //     caisse_reelle_origine (constat d'origine, jamais effacé — v2.108) —
+  //     seul l'écart COURANT est mis à jour, avec une trace d'audit
+  //     explicite (jamais un écrasement silencieux, même en pouvoir total).
+  async function appliquerCorrectionsAutomatiquesContinuite(shiftId, applicables) {
+    if (!applicables.length) return;
+    if (!jeux.length) jeux = await chargerJeux();
+
+    for (const e of applicables) {
+      const { error } = await nexusClient.from('fdj_shift_counts')
+        .update({ stock_initial: e.stock_final_precedent, updated_at: new Date().toISOString() })
+        .eq('shift_id', shiftId).eq('game_id', e.game_id);
+      if (error) console.error('Correction auto stock_initial FDJ:', error);
+    }
+
+    const [{ data: counts }, { data: reports }, { data: cash }] = await Promise.all([
+      nexusClient.from('fdj_shift_counts').select('*').eq('shift_id', shiftId),
+      nexusClient.from('fdj_reports').select('*').eq('shift_id', shiftId),
+      nexusClient.from('fdj_cash_controls').select('*').eq('shift_id', shiftId).maybeSingle(),
+    ]);
+    const countsParJeu = {};
+    (counts || []).forEach(c => { countsParJeu[c.game_id] = { stock_initial: c.stock_initial, appro: c.appro, stock_final: c.stock_final }; });
+
+    for (const e of applicables) {
+      const jeu = jeux.find(j => j.id === e.game_id);
+      if (!jeu) continue;
+      const v = NexusFdjMoteur.calculerVentesJeu(countsParJeu[e.game_id], jeu.prix);
+      const { error } = await nexusClient.from('fdj_shift_counts')
+        .update({ ventes_qte: v.qte, ventes_valeur: v.valeur, updated_at: new Date().toISOString() })
+        .eq('shift_id', shiftId).eq('game_id', e.game_id);
+      if (error) console.error('Recalcul ventes auto FDJ:', error);
+    }
+
+    if (!cash) return; // caisse pas encore saisie pour ce quart -> rien à réécrire côté écart
+
+    const repJournalier = (reports || []).find(r => r.type_rapport === 'journalier');
+    const repTempsReel = (reports || []).find(r => r.type_rapport === 'temps_reel');
+    const ventesTotal = NexusFdjMoteur.ventesGrattageTotal(jeux, countsParJeu);
+    const grattage = NexusFdjMoteur.caisseGrattage(ventesTotal, repJournalier ? repJournalier.lots_payes_grattage : null);
+    const attendue = NexusFdjMoteur.caisseAttendue(grattage, repTempsReel ? repTempsReel.caisse_tirages : null, cash.regularisations);
+    const nouvelEcart = NexusFdjMoteur.ecartCaisse(cash.caisse_reelle, attendue);
+    const avant = { ecart: cash.ecart, caisse_attendue: cash.caisse_attendue, ventes_grattage_valeur: cash.ventes_grattage_valeur, caisse_grattage: cash.caisse_grattage };
+
+    const { error: eCash } = await nexusClient.from('fdj_cash_controls').update({
+      ventes_grattage_valeur: ventesTotal, caisse_grattage: grattage, caisse_attendue: attendue, ecart: nouvelEcart,
+      updated_at: new Date().toISOString(),
+    }).eq('shift_id', shiftId);
+    if (eCash) { console.error('Réécriture auto écart FDJ:', eCash); return; }
+
+    await nexusClient.from('fdj_audit_log').insert({
+      site: siteId, shift_id: shiftId, entite_type: 'fdj_cash_control', entite_id: shiftId,
+      action: 'fdj_ecart_recalcule_apres_retablissement_chaine', acteur_id: null,
+      motif: `Recalcul automatique après rétablissement de chaîne — jeux corrigés : ${applicables.map(a => a.game_id).join(', ')}`,
+      ancienne_valeur: avant,
+      nouvelle_valeur: { ecart: nouvelEcart, caisse_attendue: attendue, ventes_grattage_valeur: ventesTotal, caisse_grattage: grattage },
+    });
   }
 
   // RÉCONCILIATION DYNAMIQUE — 16/08/2026, demande de Frédéric : "Cette
@@ -778,24 +888,43 @@
       const predAttendu = NexusFdjMoteur.quartPrecedentAttendu(quartActuelInfo.date, quartActuelInfo.quart);
       const predShift = ensemble.find(s => s.date === predAttendu.date && s.quart === predAttendu.quart);
       if (!predShift) continue;
-      const ecarts = await ecartsContinuiteStockQuart(predShift.id, a.shift_id);
+      const { ecarts, autoMap } = await ecartsContinuiteStockQuart(predShift.id, a.shift_id);
       if (!ecarts.length) continue;
-      const { data: existantes } = await nexusClient.from('fdj_alertes').select('id, game_id')
-        .eq('site', siteId).eq('type', 'continuite_stock_a_verifier').eq('shift_id', a.shift_id);
-      const gamesDejaSignales = new Set((existantes || []).map(r => r.game_id));
-      const nouvelles = ecarts.filter(e => !gamesDejaSignales.has(e.game_id)).map(e => ({
-        site: siteId, type: 'continuite_stock_a_verifier', shift_id: a.shift_id, shift_precedent_id: predShift.id,
-        game_id: e.game_id, valeur_quart_precedent: e.stock_final_precedent, valeur_saisie: e.stock_initial_actuel,
-        employee_id: quartActuelInfo.employee_id || null,
-      }));
-      if (!nouvelles.length) continue;
-      const { error: eInsert } = await nexusClient.from('fdj_alertes').insert(nouvelles);
-      if (eInsert) { console.error('Insertion anomalies continuité stock FDJ:', eInsert); continue; }
-      await nexusClient.from('fdj_audit_log').insert({
-        site: siteId, shift_id: a.shift_id, entite_type: 'fdj_alerte', entite_id: a.id,
-        action: 'fdj_continuite_stock_a_verifier_posee', acteur_id: null,
-        ancienne_valeur: null, nouvelle_valeur: { jeux: nouvelles.map(n => n.game_id) },
-      });
+
+      // 16/08/2026 : "une chaîne rétablie ne signifie pas forcément que les
+      // anciens écarts calculés pendant la rupture sont automatiquement
+      // valides [...] résolution de l'alerte + recalcul des données doivent
+      // être indissociables." Sépare les jeux en écart selon qu'une main
+      // humaine a déjà confirmé leur stock_initial ou non (voir
+      // NexusFdjMoteur.ecartsContinuiteAAppliquer) : les uns sont corrigés
+      // tout seuls (voir appliquerCorrectionsAutomatiquesContinuite), les
+      // autres suivent le flux d'alerte manuelle existant, inchangé.
+      const { applicables, aRevoir } = NexusFdjMoteur.ecartsContinuiteAAppliquer(ecarts, autoMap);
+
+      if (applicables.length) {
+        await appliquerCorrectionsAutomatiquesContinuite(a.shift_id, applicables);
+        mutations = true;
+      }
+
+      if (aRevoir.length) {
+        const { data: existantes } = await nexusClient.from('fdj_alertes').select('id, game_id')
+          .eq('site', siteId).eq('type', 'continuite_stock_a_verifier').eq('shift_id', a.shift_id);
+        const gamesDejaSignales = new Set((existantes || []).map(r => r.game_id));
+        const nouvelles = aRevoir.filter(e => !gamesDejaSignales.has(e.game_id)).map(e => ({
+          site: siteId, type: 'continuite_stock_a_verifier', shift_id: a.shift_id, shift_precedent_id: predShift.id,
+          game_id: e.game_id, valeur_quart_precedent: e.stock_final_precedent, valeur_saisie: e.stock_initial_actuel,
+          employee_id: quartActuelInfo.employee_id || null,
+        }));
+        if (nouvelles.length) {
+          const { error: eInsert } = await nexusClient.from('fdj_alertes').insert(nouvelles);
+          if (eInsert) { console.error('Insertion anomalies continuité stock FDJ:', eInsert); continue; }
+          await nexusClient.from('fdj_audit_log').insert({
+            site: siteId, shift_id: a.shift_id, entite_type: 'fdj_alerte', entite_id: a.id,
+            action: 'fdj_continuite_stock_a_verifier_posee', acteur_id: null,
+            ancienne_valeur: null, nouvelle_valeur: { jeux: nouvelles.map(n => n.game_id) },
+          });
+        }
+      }
     }
     return mutations;
   }
@@ -956,6 +1085,19 @@
   // lui-même corrigé une valeur en le sachant ; ici, personne n'a rien
   // corrigé, c'est NEXUS qui a détecté l'écart après avoir constaté que la
   // chaîne était redevenue intacte.
+  // Repère visuel du jeu concerné (16/08/2026) — voir wireEditionInputs
+  // n'est pas encore appelé au moment de ce scroll (renderEdition vient de
+  // s'exécuter de façon synchrone dans ouvrirEditionExistant, le DOM est
+  // donc déjà à jour) : un simple querySelector suffit, sans attendre de
+  // cycle de rendu supplémentaire.
+  function surlignerJeuCible(gameId) {
+    const row = document.querySelector(`.jeu-row[data-jeu="${gameId}"]`);
+    if (!row) return;
+    row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    row.classList.add('jeu-row-cible-clignote');
+    setTimeout(() => row.classList.remove('jeu-row-cible-clignote'), 4200);
+  }
+
   function renderAlerteContinuiteStock(a) {
     return `
       <div class="jeu-row" data-alerte="${a.id}" style="padding:12px 14px;">
@@ -967,7 +1109,7 @@
           ${libelleQuart(a.quartActuel)}${a.employee_id ? ` · ${nomEmploye(a.employee_id)}` : ''} — stock initial saisi <b style="color:var(--amber);">${fmtNum(a.valeur_saisie)}</b>
         </div>
         <div style="display:flex; gap:8px;">
-          ${a.quartPrecedent ? `<button type="button" class="btn-modifier" data-corriger="${a.shift_precedent_id}" style="margin-top:0; flex:1;">Corriger le quart précédent</button>` : ''}
+          ${a.quartPrecedent ? `<button type="button" class="btn-modifier" data-corriger="${a.shift_precedent_id}" data-jeu-cible="${a.game_id}" style="margin-top:0; flex:1;">Corriger le quart précédent</button>` : ''}
           <button type="button" class="btn-modifier" data-vue="${a.id}" style="margin-top:0; flex:1; color:var(--text-mid); border-color:var(--hairline);">Marquer comme vue</button>
         </div>
       </div>
@@ -1086,10 +1228,7 @@
         <div class="card" id="listeVerrous" style="margin-bottom:16px;">${verrousJour.map(renderVerrouJour).join('')}</div>
       ` : ''}
 
-      ${journalChaine.length ? `
-        <div class="section-titre">🕒 Journal — continuité FDJ</div>
-        <div class="card" style="margin-bottom:16px;">${journalChaine.map(renderJournalChaineItem).join('')}</div>
-      ` : ''}
+      ${renderJournalChaineBloc(journalChaine)}
 
       <div class="section-titre">Aujourd'hui</div>
       <div class="quart-jour-grid">
@@ -1120,6 +1259,18 @@
       <a href="NEXUS-FDJ-Parametres-v1.html" class="section-titre" style="display:block; text-decoration:none; margin-top:18px;">⚙️ Paramètres FDJ →</a>
     `;
 
+    // Journal continuité replié par défaut (16/08/2026) — le manager sait
+    // en un coup d'œil si la chaîne est saine ; l'historique complet ne
+    // s'ouvre que sur demande explicite.
+    const btnJournalToggle = document.getElementById('btnJournalChaineToggle');
+    if (btnJournalToggle) {
+      btnJournalToggle.addEventListener('click', () => {
+        const bloc = document.getElementById('journalChaineHistorique');
+        const ouvert = bloc.style.display !== 'none';
+        bloc.style.display = ouvert ? 'none' : '';
+        btnJournalToggle.textContent = btnJournalToggle.textContent.replace(ouvert ? '▴' : '▾', ouvert ? '▾' : '▴');
+      });
+    }
     document.getElementById('btnNouveauQuart').addEventListener('click', () => ouvrirEditionNouveau());
     document.getElementById('btnReappro').addEventListener('click', () => ouvrirReappro());
     document.getElementById('btnInventaireRef').addEventListener('click', () => ouvrirInventaireRef());
@@ -1140,7 +1291,15 @@
       listeAlertes.querySelectorAll('[data-corriger]').forEach(btn => {
         btn.addEventListener('click', async () => {
           const shift = await chargerShiftAvecCaisseParId(btn.dataset.corriger);
-          if (shift) ouvrirEditionExistant(shift);
+          if (!shift) return;
+          await ouvrirEditionExistant(shift);
+          // 16/08/2026, demande de Frédéric : "quand j'ai une alerte car un
+          // stock de fin ne correspond au stock de départ et que je clique
+          // sur vérifier le quart, envoie le curseur directement sur le jeu
+          // [...] un petit voyant rouge qui scintille" — repère le jeu visé
+          // par l'alerte 'continuite_stock_a_verifier' plutôt que de laisser
+          // le manager le rechercher dans la liste (voir surlignerJeuCible).
+          if (btn.dataset.jeuCible) surlignerJeuCible(btn.dataset.jeuCible);
         });
       });
       // 13/08/2026 : bouton "Compléter" de l'alerte chaîne interrompue —
@@ -2064,15 +2223,24 @@
       chargerHistoriqueAudit(shift.id),
     ]);
     const countsMap = {};
+    const stockInitialAutoCharge = {};
     jeux.forEach(j => { countsMap[j.id] = { stock_initial: null, appro: 0, stock_final: null }; });
-    (counts || []).forEach(c => { countsMap[c.game_id] = { stock_initial: c.stock_initial, appro: c.appro, stock_final: c.stock_final }; });
+    (counts || []).forEach(c => {
+      countsMap[c.game_id] = { stock_initial: c.stock_initial, appro: c.appro, stock_final: c.stock_final };
+      // 16/08/2026 : recharge le vrai flag persisté plutôt que de repartir
+      // de {} — sinon reprefillStockInitial ne peut jamais savoir qu'une
+      // valeur déjà en base était "héritée automatiquement" et donc
+      // éligible à une future réécriture automatique par
+      // reconcilierAlertesChaine.
+      stockInitialAutoCharge[c.game_id] = c.stock_initial_auto === true;
+    });
     const repJournalier = (reports || []).find(r => r.type_rapport === 'journalier');
     const repTempsReel = (reports || []).find(r => r.type_rapport === 'temps_reel');
     const cash = shift.cash;
 
     edition = {
       shiftId: shift.id, date: shift.date, quart: shift.quart, employeeId: shift.employee_id,
-      statutShift: shift.statut, counts: countsMap, stockInitialAuto: {},
+      statutShift: shift.statut, counts: countsMap, stockInitialAuto: stockInitialAutoCharge,
       lotsPayes: repJournalier ? repJournalier.lots_payes_grattage : null,
       caisseTirages: repTempsReel ? repTempsReel.caisse_tirages : null,
       regularisations: cash ? cash.regularisations : 0,
@@ -2399,7 +2567,12 @@
     }).map(j => {
       const s = edition.counts[j.id];
       const v = calculerVentesEdition(j.id);
-      return { site: siteId, shift_id: shift.id, game_id: j.id, stock_initial: s.stock_initial, appro: s.appro || 0, stock_final: s.stock_final, ventes_qte: v.qte, ventes_valeur: v.valeur, updated_at: new Date().toISOString() };
+      // 16/08/2026 : persiste enfin edition.stockInitialAuto (jusqu'ici
+      // uniquement en mémoire) — condition nécessaire pour que
+      // reconcilierAlertesChaine sache, après coup, si ce stock_initial
+      // reste éligible à une réécriture automatique lors d'un futur
+      // rétablissement de chaîne, ou s'il a été confirmé par un humain.
+      return { site: siteId, shift_id: shift.id, game_id: j.id, stock_initial: s.stock_initial, appro: s.appro || 0, stock_final: s.stock_final, ventes_qte: v.qte, ventes_valeur: v.valeur, stock_initial_auto: !!edition.stockInitialAuto[j.id], updated_at: new Date().toISOString() };
     });
     if (lignes.length) {
       const { error } = await nexusClient.from('fdj_shift_counts').upsert(lignes, { onConflict: 'shift_id,game_id' });

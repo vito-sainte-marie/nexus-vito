@@ -933,11 +933,16 @@
     if (!jeux.length) jeux = await chargerJeux();
     dernierStockFinal = await chargerDernierStockFinal();
     const { data: existants } = await nexusClient.from('fdj_shift_counts').select('*').eq('shift_id', shiftRow.id);
-    (existants || []).forEach(c => { countsSaisie[c.game_id] = { stock_initial: c.stock_initial, appro: c.appro, stock_final: c.stock_final }; });
+    (existants || []).forEach(c => { countsSaisie[c.game_id] = { stock_initial: c.stock_initial, appro: c.appro, stock_final: c.stock_final, stock_initial_auto: c.stock_initial_auto }; });
     phase = 'ouverture';
     const draft = chargerDraft('ouverture');
     if (draft) countsSaisie = { ...countsSaisie, ...draft.countsSaisie };
-    jeux.forEach(j => { if (!countsSaisie[j.id]) countsSaisie[j.id] = { stock_initial: dernierStockFinal[j.id] ?? null, appro: 0, stock_final: null }; });
+    // 16/08/2026 : stock_initial_auto=true tant qu'aucun humain n'a jamais
+    // touché ce champ — permet à NEXUS de le corriger tout seul si le quart
+    // précédent est recalculé après rétablissement de la chaîne (voir
+    // reconcilierAlertesChaine, NEXUS-FDJ-Manager-v1.html). Passe à false
+    // dès la première frappe (voir wireOuvertureInputs ci-dessous).
+    jeux.forEach(j => { if (!countsSaisie[j.id]) countsSaisie[j.id] = { stock_initial: dernierStockFinal[j.id] ?? null, appro: 0, stock_final: null, stock_initial_auto: true }; });
     renderOuverture();
   }
 
@@ -1004,6 +1009,10 @@
         const val = input.value === '' ? null : Number(input.value);
         if (!countsSaisie[gameId]) countsSaisie[gameId] = { stock_initial: null, appro: 0, stock_final: null };
         countsSaisie[gameId].stock_initial = val;
+        // Dès qu'un humain touche lui-même le stock de départ, ce n'est
+        // plus une valeur héritée automatiquement — NEXUS ne la réécrira
+        // plus jamais tout seul (voir migration stock_initial_auto).
+        countsSaisie[gameId].stock_initial_auto = false;
         sauvegarderDraft();
       });
       input.addEventListener('keydown', jeuInputToucheEntree);
@@ -1030,6 +1039,10 @@
         site: siteId, shift_id: shiftRow.id, game_id: j.id,
         stock_initial: countsSaisie[j.id].stock_initial, appro: countsSaisie[j.id].appro || 0,
         stock_final: countsSaisie[j.id].stock_final ?? null, updated_at: new Date().toISOString(),
+        // 16/08/2026 : défaut prudent à false si l'information manque (ex.
+        // brouillon local sauvegardé avant ce lot) — ne jamais présumer
+        // qu'une valeur est sans risque à réécrire automatiquement.
+        stock_initial_auto: countsSaisie[j.id].stock_initial_auto === true,
       }));
     if (lignes.length) {
       const { error } = await nexusClient.from('fdj_shift_counts').upsert(lignes, { onConflict: 'shift_id,game_id' });

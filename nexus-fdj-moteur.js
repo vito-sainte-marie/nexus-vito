@@ -450,6 +450,38 @@
     return ecarts;
   }
 
+  // AUTO vs À REVOIR — 16/08/2026, demande de Frédéric : une chaîne
+  // rétablie ne signifie pas que les anciens écarts calculés pendant la
+  // rupture sont automatiquement valides ; "résolution de l'alerte +
+  // recalcul des données doivent être indissociables". Décision explicite
+  // de Frédéric (question posée sur le cas le plus sensible — un quart déjà
+  // validé par un manager avec un écart potentiellement faux) : "Recalculer
+  // et réécrire automatiquement". Cette fonction pure trace la seule ligne
+  // rouge qui reste, indépendante de cette décision : ne jamais réécrire
+  // automatiquement une valeur qu'un humain a lui-même tapée/confirmée —
+  // seules les valeurs encore "héritées automatiquement" (jamais touchées
+  // par personne, voir fdj_shift_counts.stock_initial_auto) sont
+  // propagées sans arbitrage. Sépare `ecarts` (sortie de
+  // ecartsContinuiteStock) en deux lots :
+  //   - `applicables` : stock_initial_auto === true sur le quart actuel
+  //     pour ce jeu -> NEXUS peut corriger stock_initial + recalculer
+  //     ventes/écart tout seul (voir reconcilierAlertesChaine).
+  //   - `aRevoir` : stock_initial_auto !== true (false ou inconnu) -> flux
+  //     inchangé, alerte 'continuite_stock_a_verifier' posée pour
+  //     arbitrage manager.
+  // `stockInitialAutoParJeu` : { [game_id]: boolean } du quart ACTUEL
+  // uniquement (celui dont le stock_initial est en jeu, pas le précédent).
+  function ecartsContinuiteAAppliquer(ecarts, stockInitialAutoParJeu) {
+    const auto = stockInitialAutoParJeu || {};
+    const applicables = [];
+    const aRevoir = [];
+    (ecarts || []).forEach(e => {
+      if (auto[e.game_id] === true) applicables.push(e);
+      else aRevoir.push(e);
+    });
+    return { applicables, aRevoir };
+  }
+
   // ------------------------------------------------------------
   // APPRO NON TRACÉE — 13/08/2026, capture d'écran de Frédéric : après avoir
   // complété un quart FDJ ancien (rattrapage ou correction manager), l'écran
@@ -830,7 +862,7 @@
     soldesCarnetsParJeu, soldeCarnetsJeu, soldesCarnetsAvecReference,
     calculerCandidatsFdj,
     quartPrecedentAttendu, quartSuivant, chaineContinuite,
-    chaineInterrompueDynamique, ecartsContinuiteStock,
+    chaineInterrompueDynamique, ecartsContinuiteStock, ecartsContinuiteAAppliquer,
     approNonTraceParJeu, lignesApproNonTracees,
     minutesDepuisMinuit, quartDansFenetreAcces, evaluerAccesQuart,
     etatIntegriteFdj,
