@@ -12,19 +12,29 @@
 
 const assert = require('assert');
 
-require('/sessions/dazzling-compassionate-ride/mnt/image nexus project/nexus-fdj-moteur.js');
+require(__dirname + '/nexus-fdj-moteur.js');
 const M = global.NexusFdjMoteur;
 
 // ------------------------------------------------------------
 // statutRelevecloture — jamais un jugement, un simple constat chiffré.
+// 16/08/2026, sécurisation structurelle demandée par Frédéric, point 1 :
+// "Ne plus déduire `regularise` simplement de `version_num > 1`. Une
+// version `recalcul_automatique_chaine` n'est pas une régularisation
+// manager." Le statut dépend désormais de `type_version` (3e argument),
+// jamais du seul numéro de version.
 // ------------------------------------------------------------
 (() => {
-  assert.strictEqual(M.statutRelevecloture(1, 0), 'conforme', 'Version 1, écart nul -> conforme');
-  assert.strictEqual(M.statutRelevecloture(1, 5), 'valide_avec_ecart', 'Version 1, écart positif -> valide_avec_ecart');
-  assert.strictEqual(M.statutRelevecloture(1, -3.5), 'valide_avec_ecart', 'Version 1, écart négatif -> valide_avec_ecart');
-  assert.strictEqual(M.statutRelevecloture(2, 0), 'regularise', 'Version 2 (régularisation manager) -> toujours regularise, même écart nul');
-  assert.strictEqual(M.statutRelevecloture(3, 5), 'regularise', 'Toute version > 1 -> regularise');
-  console.log('OK — statutRelevecloture : version 1 = conforme/valide_avec_ecart selon l\'écart, version 2+ = toujours regularise.');
+  assert.strictEqual(M.statutRelevecloture(1, 0, 'validation_employe'), 'conforme', 'Validation employé, écart nul -> conforme');
+  assert.strictEqual(M.statutRelevecloture(1, 5, 'validation_employe'), 'valide_avec_ecart', 'Validation employé, écart positif -> valide_avec_ecart');
+  assert.strictEqual(M.statutRelevecloture(1, -3.5, 'validation_employe'), 'valide_avec_ecart', 'Validation employé, écart négatif -> valide_avec_ecart');
+  assert.strictEqual(M.statutRelevecloture(2, 0, 'regularisation_manager'), 'regularise', 'type_version=regularisation_manager -> toujours regularise, même écart nul');
+  assert.strictEqual(M.statutRelevecloture(3, 5, 'regularisation_manager'), 'regularise', 'Toute régularisation manager -> regularise, quel que soit version_num');
+  // Le cœur du point 1 : un recalcul automatique après rétablissement de la
+  // chaîne (aucune action humaine) ne doit JAMAIS être confondu avec une
+  // régularisation manager, même à version_num identique.
+  assert.strictEqual(M.statutRelevecloture(2, 0, 'recalcul_automatique_chaine'), 'recalcule_automatiquement', 'type_version=recalcul_automatique_chaine -> jamais regularise, même à version_num=2');
+  assert.strictEqual(M.statutRelevecloture(3, 5, 'recalcul_automatique_chaine'), 'recalcule_automatiquement', 'Recalcul automatique -> recalcule_automatiquement à toute version');
+  console.log('OK — statutRelevecloture : dépend de type_version (validation_employe/regularisation_manager/recalcul_automatique_chaine), jamais du seul version_num.');
 })();
 
 // ------------------------------------------------------------
@@ -66,12 +76,19 @@ const M = global.NexusFdjMoteur;
 // ------------------------------------------------------------
 // caractereRelevecloture — 16/08/2026, demande de Frédéric : "Chaîne
 // continue → Relevé définitif. Chaîne interrompue / donnée manquante →
-// Relevé provisoire — continuité à régulariser."
+// Relevé provisoire — continuité à régulariser." Sécurisation structurelle
+// point 2 : "Séparer chaine_interrompue et continuite_stock_a_verifier.
+// Les deux peuvent rendre un relevé provisoire mais ne doivent pas être
+// enregistrées comme la même anomalie." La signature prend désormais un
+// objet à deux clés distinctes plutôt qu'un booléen fusionné.
 // ------------------------------------------------------------
 (() => {
-  assert.strictEqual(M.caractereRelevecloture(false), 'definitif', 'Chaîne intacte -> relevé définitif');
-  assert.strictEqual(M.caractereRelevecloture(true), 'provisoire', 'Chaîne rompue (ou anomalie de stock ouverte) -> relevé provisoire');
-  console.log('OK — caractereRelevecloture : definitif/provisoire selon la qualité de la chaîne au moment du snapshot.');
+  assert.strictEqual(M.caractereRelevecloture({ chaineInterrompue: false, continuiteStockAVerifier: false }), 'definitif', 'Aucune anomalie -> relevé définitif');
+  assert.strictEqual(M.caractereRelevecloture({ chaineInterrompue: true, continuiteStockAVerifier: false }), 'provisoire', 'Chaîne interrompue seule -> relevé provisoire');
+  assert.strictEqual(M.caractereRelevecloture({ chaineInterrompue: false, continuiteStockAVerifier: true }), 'provisoire', 'Continuité de stock à vérifier seule (chaîne saine) -> relevé provisoire aussi');
+  assert.strictEqual(M.caractereRelevecloture({ chaineInterrompue: true, continuiteStockAVerifier: true }), 'provisoire', 'Les deux anomalies à la fois -> toujours provisoire');
+  assert.strictEqual(M.caractereRelevecloture(), 'definitif', 'Aucun argument -> jamais une exception, traité comme aucune anomalie');
+  console.log('OK — caractereRelevecloture : definitif/provisoire selon deux causes distinctes (chaîne interrompue, continuité de stock à vérifier), jamais fusionnées en amont.');
 })();
 
 console.log('\nTous les tests "relevé de clôture FDJ — moteur" passent.');

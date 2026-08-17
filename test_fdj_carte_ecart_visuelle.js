@@ -11,7 +11,7 @@
 const fs = require('fs');
 const assert = require('assert');
 
-const html = fs.readFileSync('/sessions/dazzling-compassionate-ride/mnt/image nexus project/NEXUS-FDJ-v1.html', 'utf8');
+const html = fs.readFileSync(__dirname + '/NEXUS-FDJ-v1.html', 'utf8');
 const script = html.match(/<script>([\s\S]*)<\/script>/)[1];
 
 function extraire(nomFonction) {

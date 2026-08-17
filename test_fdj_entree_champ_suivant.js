@@ -129,7 +129,7 @@ function testerFichier(chemin, nomFichier) {
   })();
 }
 
-testerFichier('/sessions/dazzling-compassionate-ride/mnt/image nexus project/NEXUS-FDJ-v1.html', 'NEXUS-FDJ-v1.html');
-testerFichier('/sessions/dazzling-compassionate-ride/mnt/image nexus project/NEXUS-FDJ-Manager-v1.html', 'NEXUS-FDJ-Manager-v1.html');
+testerFichier(__dirname + '/NEXUS-FDJ-v1.html', 'NEXUS-FDJ-v1.html');
+testerFichier(__dirname + '/NEXUS-FDJ-Manager-v1.html', 'NEXUS-FDJ-Manager-v1.html');
 
 console.log('\nTous les tests "Entrée -> champ suivant (FDJ)" passent.');

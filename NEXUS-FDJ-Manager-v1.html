@@ -78,6 +78,7 @@
   .statut-badge.provisoire{background:var(--panel-raised); color:var(--text-dim);}
   .statut-badge.a_controler,.statut-badge.en_attente{background:var(--amber-dim); color:var(--amber);}
   .statut-badge.expliquee,.statut-badge.regularise,.statut-badge.valide_avec_ecart{background:rgba(79,195,217,0.12); color:var(--cyan);}
+  .statut-badge.recalcule_automatiquement{background:rgba(79,195,217,0.12); color:var(--cyan);}
   .statut-badge.conforme{background:var(--green-dim); color:var(--green);}
   .statut-badge.brouillon{background:var(--panel-raised); color:var(--text-dim);}
   .statut-badge.valide{background:var(--green-dim); color:var(--green);}
@@ -352,6 +353,19 @@
     { value: 'valide_avec_ecart', label: 'Validé avec écart' },
     { value: 'conforme', label: 'Conforme' },
   ];
+  // 16/08/2026, sécurisation structurelle point 1 : `fdj_releves_cloture.statut`
+  // peut désormais valoir 'recalcule_automatiquement' (type_version=
+  // 'recalcul_automatique_chaine'), une valeur qui N'EXISTE PAS dans
+  // fdj_cash_controls.statut (contrainte check distincte, sans cette
+  // valeur). Ne JAMAIS ajouter cette valeur à STATUTS_CAISSE : ce tableau
+  // alimente aussi le <select> "Statut du contrôle" (fdj_cash_controls,
+  // ligne ~3083) et y proposer 'recalcule_automatiquement' romprait
+  // l'enregistrement (violation de contrainte). labelStatutRelevecloture()
+  // est le seul point d'affichage du statut d'un RELEVÉ (fdj_releves_cloture).
+  function labelStatutRelevecloture(v) {
+    if (v === 'recalcule_automatiquement') return 'Recalculé automatiquement';
+    return labelStatutCaisse(v);
+  }
   const MOTIFS_ECART_FDJ = [
     { value: '', label: 'Choisir un motif…' },
     { value: 'erreur_saisie', label: 'Erreur de saisie' },
@@ -607,6 +621,22 @@
       .filter(j => (soldes[j.id] || {}).nonActives < 0)
       .map(j => ({ jeu: j, solde: soldes[j.id] }));
   }
+  // 16/08/2026, sécurisation structurelle point 4 : carte d'un quart validé
+  // dont le relevé de clôture manque ou a échoué — jamais silencieux, une
+  // action "Réessayer" tente une reconstruction depuis les données déjà
+  // persistées (voir reessayerReleveClotureManquant).
+  function renderReleveEnErreur(s) {
+    const statutTexte = s.releve_cloture_statut === 'erreur' ? 'Échec d’écriture' : 'En attente d’écriture';
+    return `
+      <div class="jeu-row" data-releve-erreur="${s.id}" style="padding:12px 14px;">
+        <div class="jeu-nom-ligne">
+          <div class="jeu-nom">🔴 ${libelleQuart(s)}${s.employee_id ? ` · ${nomEmploye(s.employee_id)}` : ''}</div>
+        </div>
+        <div class="histo-sub" style="margin-bottom:8px;">Quart validé, mais son relevé de clôture (preuve d'audit) n'a pas pu être enregistré — ${statutTexte.toLowerCase()}.</div>
+        <button type="button" class="btn-lien" data-reessayer-releve="${s.id}">🔁 Réessayer l'écriture du relevé</button>
+      </div>
+    `;
+  }
   function renderSoldeNegatif({ jeu, solde }) {
     const n = Math.abs(solde.nonActives);
     return `
@@ -644,6 +674,19 @@
     if (error) { console.error('Chargement quart FDJ par id:', error); return null; }
     return data ? { ...data, cash: extraireCash(data) } : null;
   }
+  // 16/08/2026, sécurisation structurelle demandée par Frédéric, point 4 :
+  // "Éviter qu'un quart puisse être validé sans son relevé de clôture […]
+  // ou prévoir un mécanisme pending/error/retry." Un quart 'valide' dont
+  // releve_cloture_statut n'est pas 'ok' (voir 005_fdj_shifts_releve_
+  // cloture_statut.sql) est un quart dont la PREUVE peut manquer — jamais
+  // silencieux, toujours listé ici pour réparation manager.
+  async function chargerShiftsReleveEnErreur() {
+    const { data, error } = await nexusClient.from('fdj_shifts').select('*, fdj_cash_controls(*)')
+      .eq('site', siteId).eq('statut', 'valide').neq('releve_cloture_statut', 'ok')
+      .order('date', { ascending: false }).order('quart', { ascending: false }).limit(30);
+    if (error) { console.error('Chargement quarts en attente de relevé FDJ:', error); return []; }
+    return (data || []).map(s => ({ ...s, cash: extraireCash(s) }));
+  }
 
   // ------------------------------------------------------------
   // TRACE DE CONTRÔLE FDJ — écran manager (16/08/2026). Toutes les
@@ -680,6 +723,24 @@
   };
   function libelleTypeVersionReleve(v) { return LIBELLES_TYPE_VERSION_RELEVE[v] || v; }
   function libelleCaractereReleve(c) { return c === 'provisoire' ? 'Provisoire — continuité à régulariser' : 'Définitif'; }
+  // 16/08/2026, sécurisation structurelle point 2 : affichage à deux lignes
+  // distinctes (chaine_interrompue / continuite_stock_a_verifier) au lieu
+  // d'un seul libellé "Interrompue/Intacte" qui fusionnait les deux causes.
+  // Tolère l'ancien format `{ rompue: bool, manquants }` (relevés posés
+  // avant cette correction) en le traitant comme chaine_interrompue=rompue,
+  // continuite_stock_a_verifier inconnue (non affichée) — jamais réécrit
+  // rétroactivement, seulement lu avec indulgence.
+  function libelleAnomalieChaine(a) {
+    if (!a) return [];
+    if ('chaine_interrompue' in a || 'continuite_stock_a_verifier' in a) {
+      return [
+        { label: 'Chaîne au moment de ce constat', valeur: a.chaine_interrompue ? 'Interrompue' : 'Intacte' },
+        { label: 'Continuité de stock à vérifier', valeur: a.continuite_stock_a_verifier ? 'Oui' : 'Non' },
+      ];
+    }
+    // Ancien format (avant sécurisation structurelle) : une seule cause tracée.
+    return [{ label: 'Chaîne au moment de ce constat', valeur: a.rompue ? 'Interrompue' : 'Intacte' }];
+  }
   const LABELS_DIFF_RELEVE = {
     ecart: 'Écart', caisse_attendue: 'Caisse attendue', caisse_reelle: 'Caisse réelle',
     ventes_grattage_valeur: 'Ventes grattage', lots_payes_grattage: 'Lots payés',
@@ -1124,14 +1185,20 @@
       ventes_grattage_valeur: cash ? cash.ventes_grattage_valeur : null, lots_payes_grattage: repJournalier ? repJournalier.lots_payes_grattage : null,
       caisse_tirages: repTempsReel ? repTempsReel.caisse_tirages : null, regularisations: cash ? cash.regularisations : 0,
       caisse_attendue: cash ? cash.caisse_attendue : null, caisse_reelle: cash ? cash.caisse_reelle : null, ecart: cash ? cash.ecart : null,
-      statut: NexusFdjMoteur.statutRelevecloture(versionNum, cash ? cash.ecart : null),
-      anomalie_chaine: { rompue: !!aRevoirEnAttente },
-      // Chaîne confirmée intacte (cette fonction n'est appelée qu'une fois
-      // etat.rompue===false) — mais tant qu'il reste un jeu à vérifier
-      // manuellement sur CE quart, le relevé reste 'provisoire' : la
-      // continuité temporelle est rétablie, la fiabilité du chiffre ne
-      // l'est pas encore complètement.
-      caractere: NexusFdjMoteur.caractereRelevecloture(!!aRevoirEnAttente),
+      // Sécurisation structurelle point 1 : cette fonction ne pose jamais
+      // une action humaine — 'recalcul_automatique_chaine' est passé
+      // explicitement pour que statutRelevecloture ne la confonde jamais
+      // avec une régularisation manager.
+      statut: NexusFdjMoteur.statutRelevecloture(versionNum, cash ? cash.ecart : null, 'recalcul_automatique_chaine'),
+      // Sécurisation structurelle point 2 : chaîne confirmée intacte (cette
+      // fonction n'est appelée qu'une fois etat.rompue===false), donc
+      // chaine_interrompue est toujours false ici — mais tant qu'il reste
+      // un jeu à vérifier manuellement sur CE quart, continuite_stock_a_verifier
+      // reste vraie et le relevé reste 'provisoire' : la continuité
+      // temporelle est rétablie, la fiabilité du chiffre ne l'est pas
+      // encore complètement. Les deux causes restent distinguables.
+      anomalie_chaine: { chaine_interrompue: false, continuite_stock_a_verifier: !!aRevoirEnAttente },
+      caractere: NexusFdjMoteur.caractereRelevecloture({ chaineInterrompue: false, continuiteStockAVerifier: !!aRevoirEnAttente }),
     };
     const diff = NexusFdjMoteur.diffClotureFdj(precedent, nouveauSnapshot);
     // Un changement de `caractere` (provisoire -> définitif) est TOUJOURS
@@ -1155,6 +1222,86 @@
       signature,
     });
     if (eReleve) console.error('Relevé de clôture FDJ (version recalcul automatique):', eReleve);
+  }
+
+  // 16/08/2026, sécurisation structurelle demandée par Frédéric, point 4 :
+  // réparation manager d'un quart 'valide' dont l'écriture du relevé de
+  // clôture a échoué (voir chargerShiftsReleveEnErreur). Le comptage et le
+  // contrôle de caisse existent déjà (fdj_shift_counts/fdj_cash_controls,
+  // écrits par l'employé) — seule la ligne de PREUVE (fdj_releves_cloture)
+  // manque. Cette fonction ne modifie AUCUNE donnée saisie, elle reconstruit
+  // la version 1 ('validation_employe') à partir de ce qui est déjà
+  // persisté, exactement ce que validerQuart() aurait dû écrire. Point 5 :
+  // toujours vérifiée contre l'idempotence (index unique + code 23505)
+  // avant de conclure à une erreur réelle.
+  async function reessayerReleveClotureManquant(shift) {
+    const { data: existant, error: eExistant } = await nexusClient.from('fdj_releves_cloture').select('id')
+      .eq('shift_id', shift.id).eq('type_version', 'validation_employe').limit(1);
+    if (eExistant) { console.error('Vérification relevé existant avant reprise:', eExistant); return { ok: false, motif: 'Vérification impossible — réessayez.' }; }
+    if (existant && existant.length) {
+      // Le relevé existe déjà (écriture finalement réussie, ou reprise
+      // concurrente) — on corrige seulement le suivi, jamais de doublon.
+      await nexusClient.from('fdj_shifts').update({ releve_cloture_statut: 'ok' }).eq('id', shift.id);
+      return { ok: true, dejaPresent: true };
+    }
+
+    const cash = shift.cash || extraireCash(shift);
+    if (!cash) return { ok: false, motif: "Aucun contrôle de caisse enregistré pour ce quart — impossible de reconstruire le relevé automatiquement. Utilisez « Modifier » pour compléter le quart manuellement." };
+
+    const [{ data: counts }, { data: reports }, { data: alertesOuvertes }] = await Promise.all([
+      nexusClient.from('fdj_shift_counts').select('*').eq('shift_id', shift.id),
+      nexusClient.from('fdj_reports').select('*').eq('shift_id', shift.id),
+      nexusClient.from('fdj_alertes').select('id, type').eq('shift_id', shift.id).in('type', ['chaine_interrompue', 'continuite_stock_a_verifier']).eq('resolue_automatiquement', false).eq('vue', false),
+    ]);
+    const stockInitialParJeu = {}, approParJeu = {}, stockFinalParJeu = {}, ventesParJeu = {};
+    (counts || []).forEach(c => {
+      stockInitialParJeu[c.game_id] = c.stock_initial ?? null;
+      approParJeu[c.game_id] = c.appro || 0;
+      stockFinalParJeu[c.game_id] = c.stock_final ?? null;
+      ventesParJeu[c.game_id] = { qte: c.ventes_qte ?? null, valeur: c.ventes_valeur ?? null };
+    });
+    const repJournalier = (reports || []).find(r => r.type_rapport === 'journalier');
+    const repTempsReel = (reports || []).find(r => r.type_rapport === 'temps_reel');
+    const chaineInterrompueOuverte = (alertesOuvertes || []).some(a => a.type === 'chaine_interrompue');
+    const continuiteStockAVerifierOuverte = (alertesOuvertes || []).some(a => a.type === 'continuite_stock_a_verifier');
+    const ecart = cash.ecart;
+
+    const signature = {
+      utilisateur_id: managerCourant.id, nom: managerCourant.nom, role: 'manager',
+      date_heure: new Date().toISOString(), version_donnees: 1,
+      session_id: (typeof navigator !== 'undefined' && navigator.userAgent) || null,
+      quart_id: shift.id,
+      // cree_par reste l'employé (comme validerQuart) : cette ligne
+      // reconstruit SA constatation d'origine déjà persistée, elle n'en
+      // crée pas une nouvelle — c'est la signature ci-dessus, avec le rôle
+      // 'manager', qui documente honnêtement qui a déclenché la reprise.
+      message_confirmation: "Reprise manager d'un relevé de clôture manquant (échec d'écriture initial). Données reconstruites depuis le comptage et le contrôle de caisse déjà enregistrés par l'employé — aucune valeur saisie n'a été modifiée.",
+    };
+    const { error: eReleve } = await nexusClient.from('fdj_releves_cloture').insert({
+      site: siteId, shift_id: shift.id, date: shift.date, quart: shift.quart, employee_id: shift.employee_id,
+      version_num: 1, type_version: 'validation_employe', cree_par: shift.employee_id,
+      stock_initial_par_jeu: stockInitialParJeu, appro_par_jeu: approParJeu, stock_final_par_jeu: stockFinalParJeu, ventes_par_jeu: ventesParJeu,
+      ventes_grattage_valeur: cash.ventes_grattage_valeur, lots_payes_grattage: repJournalier ? repJournalier.lots_payes_grattage : null,
+      caisse_tirages: repTempsReel ? repTempsReel.caisse_tirages : null, regularisations: cash.regularisations || 0,
+      caisse_attendue: cash.caisse_attendue, caisse_reelle: cash.caisse_reelle, ecart,
+      anomalie_chaine: { chaine_interrompue: chaineInterrompueOuverte, continuite_stock_a_verifier: continuiteStockAVerifierOuverte },
+      caractere: NexusFdjMoteur.caractereRelevecloture({ chaineInterrompue: chaineInterrompueOuverte, continuiteStockAVerifier: continuiteStockAVerifierOuverte }),
+      statut: NexusFdjMoteur.statutRelevecloture(1, ecart, 'validation_employe'),
+      signature,
+    });
+    if (eReleve) {
+      if (eReleve.code === '23505') {
+        // Idempotence (point 5) : une validation employé vient d'apparaître
+        // entre notre vérification et cet insert — jamais une erreur.
+        await nexusClient.from('fdj_shifts').update({ releve_cloture_statut: 'ok' }).eq('id', shift.id);
+        return { ok: true, dejaPresent: true };
+      }
+      console.error('Reprise relevé de clôture FDJ:', eReleve);
+      await nexusClient.from('fdj_shifts').update({ releve_cloture_statut: 'erreur' }).eq('id', shift.id);
+      return { ok: false, motif: "L'écriture a de nouveau échoué. Réessayez, ou contactez le support si le problème persiste." };
+    }
+    await nexusClient.from('fdj_shifts').update({ releve_cloture_statut: 'ok' }).eq('id', shift.id);
+    return { ok: true };
   }
 
   function nomJeu(gameId) {
@@ -1422,8 +1569,8 @@
     document.getElementById('content').innerHTML = '<div class="loading">Chargement…</div>';
 
     const aujourdhui = dateISO();
-    const [duJour, historique, alertesInitiales, soldesNegatifs, verrousJour] = await Promise.all([
-      chargerShiftsAvecCaisse(aujourdhui), chargerShiftsAvecCaisse(null), chargerAlertesNonVues(), calculerSoldesNegatifs(), chargerVerrousJour(),
+    const [duJour, historique, alertesInitiales, soldesNegatifs, verrousJour, relevesEnErreur] = await Promise.all([
+      chargerShiftsAvecCaisse(aujourdhui), chargerShiftsAvecCaisse(null), chargerAlertesNonVues(), calculerSoldesNegatifs(), chargerVerrousJour(), chargerShiftsReleveEnErreur(),
     ]);
     // Recalcul dynamique de la chaîne (16/08/2026, demande de Frédéric) : à
     // CHAQUE affichage de cet accueil — donc après toute création,
@@ -1441,6 +1588,11 @@
     const quart2 = duJour.find(s => s.quart === '2');
 
     document.getElementById('content').innerHTML = `
+      ${relevesEnErreur.length ? `
+        <div class="section-titre">🔴 Relevés de clôture à régulariser (${relevesEnErreur.length})</div>
+        <div class="card" id="listeRelevesEnErreur" style="margin-bottom:16px; border:1px solid rgba(211,71,71,0.4); background:rgba(211,71,71,0.06);">${relevesEnErreur.map(renderReleveEnErreur).join('')}</div>
+      ` : ''}
+
       ${soldesNegatifs.length ? `
         <div class="section-titre">🔴 Mouvements FDJ à vérifier (${soldesNegatifs.length})</div>
         <div class="card" style="margin-bottom:16px;">${soldesNegatifs.map(renderSoldeNegatif).join('')}</div>
@@ -1512,6 +1664,30 @@
     document.getElementById('btnReception').addEventListener('click', () => ouvrirReception());
     document.getElementById('btnEtatStock').addEventListener('click', () => ouvrirStockEtat());
     document.getElementById('btnHistoriqueEmploye').addEventListener('click', () => ouvrirHistoriqueEmployeListe());
+    // 16/08/2026, sécurisation structurelle point 4 : bouton "Réessayer"
+    // du panneau "Relevés de clôture à régulariser" — désactivé pendant
+    // l'opération (jamais de double-clic sur une écriture), puis on
+    // recharge tout l'accueil pour refléter l'état réel (panneau vidé si
+    // réparé, ou toujours présent avec un message d'échec sinon).
+    const listeRelevesEnErreur = document.getElementById('listeRelevesEnErreur');
+    if (listeRelevesEnErreur) {
+      listeRelevesEnErreur.querySelectorAll('[data-reessayer-releve]').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          btn.disabled = true;
+          btn.textContent = 'Reprise en cours…';
+          const shift = relevesEnErreur.find(s => s.id === btn.dataset.reessayerReleve);
+          if (!shift) { btn.disabled = false; return; }
+          const resultat = await reessayerReleveClotureManquant(shift);
+          if (!resultat.ok) {
+            btn.disabled = false;
+            btn.textContent = "🔁 Réessayer l'écriture du relevé";
+            alert(resultat.motif || "L'écriture a échoué. Réessayez.");
+            return;
+          }
+          renderAccueil();
+        });
+      });
+    }
     if (quart1) document.getElementById(`carteQuart1`).addEventListener('click', () => ouvrirEditionExistant(quart1));
     if (quart2) document.getElementById(`carteQuart2`).addEventListener('click', () => ouvrirEditionExistant(quart2));
 
@@ -2495,7 +2671,7 @@
         <div class="stat-row"><div class="stat-label">Heure de validation</div><div class="stat-value">${heureValidation}</div></div>
         <div class="stat-row"><div class="stat-label">Identifiant du relevé</div><div class="stat-value" style="font-size:10.5px; font-family:var(--mono); color:var(--text-dim);">${shift.id}</div></div>
         <div class="stat-row"><div class="stat-label">Caractère</div><div class="stat-value"><span class="badge-caractere ${dernier.caractere}">${libelleCaractereReleve(dernier.caractere)}</span></div></div>
-        <div class="stat-row"><div class="stat-label">Statut</div><div class="stat-value"><span class="statut-badge ${dernier.statut}">${labelStatutCaisse(dernier.statut)}</span></div></div>
+        <div class="stat-row"><div class="stat-label">Statut</div><div class="stat-value"><span class="statut-badge ${dernier.statut}">${labelStatutRelevecloture(dernier.statut)}</span></div></div>
       </div>
 
       ${dernier.caractere === 'provisoire' ? `
@@ -2524,7 +2700,7 @@
         <div class="stat-row"><div class="stat-label">Caisse attendue</div><div class="stat-value cyan">${fmtEuro(dernier.caisse_attendue)}</div></div>
         <div class="stat-row"><div class="stat-label">Caisse réelle</div><div class="stat-value">${fmtEuro(dernier.caisse_reelle)}</div></div>
         <div class="stat-row total"><div class="stat-label">Écart</div><div class="stat-value ${classeEcart}">${ecart !== null && ecart !== undefined ? `${ecart > 0 ? '+' : ''}${fmtEuro(ecart)}` : '—'}</div></div>
-        ${dernier.anomalie_chaine ? `<div class="stat-row"><div class="stat-label">Chaîne au moment de ce constat</div><div class="stat-value" style="font-size:11.5px; font-weight:400;">${dernier.anomalie_chaine.rompue ? 'Interrompue' : 'Intacte'}</div></div>` : ''}
+        ${libelleAnomalieChaine(dernier.anomalie_chaine).map(l => `<div class="stat-row"><div class="stat-label">${l.label}</div><div class="stat-value" style="font-size:11.5px; font-weight:400;">${l.valeur}</div></div>`).join('')}
       </div>
 
       <div class="section-titre">Historique des versions (${releves.length})</div>
@@ -2589,7 +2765,7 @@
     c.sectionTitre('IDENTIFICATION');
     c.ligneCle('Heure de validation (employé)', heureValidation);
     c.ligneCle('Caractère', libelleCaractereReleve(dernier.caractere), { couleurValeur: dernier.caractere === 'provisoire' ? COULEUR.ambre : COULEUR.vert });
-    c.ligneCle('Statut', labelStatutCaisse(dernier.statut));
+    c.ligneCle('Statut', labelStatutRelevecloture(dernier.statut));
 
     c.sectionTitre('STOCK PAR JEU');
     c.tableau(
@@ -2621,7 +2797,7 @@
     c.ligneCle('Caisse réelle', fmtEuro(dernier.caisse_reelle));
     const ecart = dernier.ecart;
     c.ligneCle('Écart', ecart !== null && ecart !== undefined ? `${ecart > 0 ? '+' : ''}${fmtEuro(ecart)}` : '—', { couleurValeur: ecart === null || ecart === undefined ? COULEUR.texte : (ecart === 0 ? COULEUR.vert : COULEUR.ambre) });
-    c.ligneCle('Chaîne au moment de ce constat', dernier.anomalie_chaine && dernier.anomalie_chaine.rompue ? 'Interrompue' : 'Intacte');
+    libelleAnomalieChaine(dernier.anomalie_chaine).forEach(l => c.ligneCle(l.label, l.valeur));
 
     c.sectionTitre(`HISTORIQUE DES VERSIONS (${releves.length})`);
     releves.forEach((r, i) => {
@@ -2733,7 +2909,7 @@
         : '—';
       c.ligneCle('Heure de validation', heureValidation);
       c.ligneCle('Caractère', libelleCaractereReleve(dernier.caractere), { couleurValeur: dernier.caractere === 'provisoire' ? COULEUR.ambre : COULEUR.vert });
-      c.ligneCle('Statut', labelStatutCaisse(dernier.statut));
+      c.ligneCle('Statut', labelStatutRelevecloture(dernier.statut));
       const ecart = dernier.ecart;
       c.ligneCle('Écart', ecart !== null && ecart !== undefined ? `${ecart > 0 ? '+' : ''}${fmtEuro(ecart)}` : '—');
       c.ligneCle('Caisse réelle', fmtEuro(dernier.caisse_reelle));
@@ -3313,9 +3489,20 @@
     // continuite_stock_a_verifier encore ouverte sur ce quart précis rend
     // le relevé 'provisoire', même si le manager vient de régulariser
     // autre chose (ex. un motif d'écart) sans toucher au stock en cause.
-    const { data: alertesOuvertesShift } = await nexusClient.from('fdj_alertes').select('id')
+    // 16/08/2026, sécurisation structurelle demandée par Frédéric, point 2 :
+    // "Séparer chaine_interrompue et continuite_stock_a_verifier. Les deux
+    // peuvent rendre un relevé provisoire mais ne doivent pas être
+    // enregistrées comme la même anomalie." Avant cette correction, les
+    // deux types étaient interrogés ensemble puis réduits à UN SEUL booléen
+    // (`chaineOuStockAVerifier`) avant même d'atteindre `anomalie_chaine` —
+    // impossible ensuite de savoir, en relisant un relevé, LAQUELLE des
+    // deux causes l'a rendu provisoire. Une seule requête reste suffisante
+    // (mêmes filtres), mais chaque type est désormais distingué côté
+    // application avant d'être écrit.
+    const { data: alertesOuvertesShift } = await nexusClient.from('fdj_alertes').select('id, type')
       .eq('shift_id', shift.id).in('type', ['chaine_interrompue', 'continuite_stock_a_verifier']).eq('resolue_automatiquement', false).eq('vue', false);
-    const chaineOuStockAVerifier = !!(alertesOuvertesShift && alertesOuvertesShift.length);
+    const chaineInterrompueOuverte = (alertesOuvertesShift || []).some(a => a.type === 'chaine_interrompue');
+    const continuiteStockAVerifierOuverte = (alertesOuvertesShift || []).some(a => a.type === 'continuite_stock_a_verifier');
     const versionNum = precedent ? precedent.version_num + 1 : 1;
     const nouveauSnapshot = {
       stock_initial_par_jeu: stockInitialParJeu, appro_par_jeu: approParJeu, stock_final_par_jeu: stockFinalParJeu, ventes_par_jeu: ventesParJeu,
@@ -3326,9 +3513,15 @@
       // ajouté seulement à l'insertion) — sinon diffClotureFdj comparerait
       // toujours precedent.statut à `undefined` et fabriquerait un faux
       // diff à chaque réenregistrement, même sans aucun changement réel.
-      statut: NexusFdjMoteur.statutRelevecloture(versionNum, ecart),
-      anomalie_chaine: { rompue: chaineOuStockAVerifier },
-      caractere: NexusFdjMoteur.caractereRelevecloture(chaineOuStockAVerifier),
+      // Sécurisation structurelle point 1 : `statutRelevecloture` reçoit
+      // désormais 'regularisation_manager' — cet écran ne pose jamais rien
+      // d'autre, que la version soit une régularisation d'un constat
+      // employé existant ou la toute première ligne créée par le manager
+      // (pouvoir total) ; dans les deux cas, le fait qu'un manager ait posé
+      // ce snapshot reste tracé.
+      statut: NexusFdjMoteur.statutRelevecloture(versionNum, ecart, 'regularisation_manager'),
+      anomalie_chaine: { chaine_interrompue: chaineInterrompueOuverte, continuite_stock_a_verifier: continuiteStockAVerifierOuverte },
+      caractere: NexusFdjMoteur.caractereRelevecloture({ chaineInterrompue: chaineInterrompueOuverte, continuiteStockAVerifier: continuiteStockAVerifierOuverte }),
     };
     const diff = precedent ? NexusFdjMoteur.diffClotureFdj(precedent, nouveauSnapshot) : null;
     if (!precedent || diff) {

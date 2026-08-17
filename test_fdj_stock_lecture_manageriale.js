@@ -12,7 +12,7 @@
 // besoin de vm ni de mock DOM ici.
 
 const path = require('path');
-require(path.join('/sessions/dazzling-compassionate-ride/mnt/image nexus project', 'nexus-fdj-moteur.js'));
+require(path.join(__dirname, 'nexus-fdj-moteur.js'));
 const M = global.NexusFdjMoteur;
 const assert = require('assert');
 

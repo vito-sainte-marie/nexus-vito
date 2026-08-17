@@ -18,7 +18,7 @@
 const fs = require('fs');
 const assert = require('assert');
 
-const CHEMIN_BASE = '/sessions/dazzling-compassionate-ride/mnt/image nexus project';
+const CHEMIN_BASE = __dirname;
 
 const html = fs.readFileSync(`${CHEMIN_BASE}/NEXUS-FDJ-Manager-v1.html`, 'utf8');
 const script = html.match(/<script>([\s\S]*)<\/script>/)[1];
@@ -157,6 +157,13 @@ async function runVoletPdf() {
     extraire('libelleCaractereReleve'),
     extraireConst('STATUTS_CAISSE'),
     extraire('labelStatutCaisse'),
+    // 16/08/2026, sécurisation structurelle : construireReleveClotureQuartPdf
+    // et construireExportJourneePdf appellent désormais labelStatutRelevecloture
+    // (jamais labelStatutCaisse directement, voir point 1) et
+    // libelleAnomalieChaine (point 2) — les deux doivent être extraites ici
+    // pour que le contexte vm dispose de tout ce que le vrai fichier utilise.
+    extraire('labelStatutRelevecloture'),
+    extraire('libelleAnomalieChaine'),
     extraire('nomJeu'),
     extraire('nomEmploye'),
     extraire('jeuxDuSnapshot'),
@@ -180,7 +187,7 @@ async function runVoletPdf() {
     ventes_par_jeu: { j1: { qte: 7, valeur: 35 }, j2: { qte: 2, valeur: 20 } },
     ventes_grattage_valeur: 55, lots_payes_grattage: 10, caisse_tirages: 20, regularisations: 0,
     caisse_attendue: 271.8, caisse_reelle: 276.8, ecart: 5,
-    anomalie_chaine: { rompue: false }, statut: 'valide_avec_ecart', caractere: 'definitif',
+    anomalie_chaine: { chaine_interrompue: false, continuite_stock_a_verifier: false }, statut: 'valide_avec_ecart', caractere: 'definitif',
     motif_regularisation: null, diff_vs_precedent: null,
     signature: { nom: 'Loane', role: 'employe', date_heure: '2026-08-16T20:05:00Z' },
   };
@@ -190,7 +197,7 @@ async function runVoletPdf() {
     ventes_par_jeu: { j1: { qte: 6, valeur: 30 }, j2: { qte: 2, valeur: 20 } },
     ventes_grattage_valeur: 50, lots_payes_grattage: 10, caisse_tirages: 20, regularisations: 0,
     caisse_attendue: 276.8, caisse_reelle: 276.8, ecart: 0,
-    anomalie_chaine: { rompue: false }, statut: 'regularise', caractere: 'definitif',
+    anomalie_chaine: { chaine_interrompue: false, continuite_stock_a_verifier: false }, statut: 'regularise', caractere: 'definitif',
     motif_regularisation: 'Erreur de stock initial sur CASH 5€ : 24 -> 23.',
     diff_vs_precedent: { ecart: { avant: 5, apres: 0 }, stock_initial_par_jeu: { j1: { avant: 24, apres: 23 } } },
     signature: { nom: 'Manager', role: 'manager', date_heure: '2026-08-17T09:00:00Z' },
@@ -207,10 +214,14 @@ async function runVoletPdf() {
   // gère ce cas en amont sans appeler la composition PDF), mais le cas "provisoire,
   // une seule version" doit lui fonctionner sans erreur.
   addPageCount = 0;
+  // Ancien format d'anomalie_chaine (`{ rompue, manquants }`, posé avant la
+  // sécurisation structurelle du 16/08/2026) volontairement conservé ici :
+  // libelleAnomalieChaine doit continuer à le lire sans planter (voir son
+  // fallback), un relevé historique n'est jamais réécrit rétroactivement.
   const vProvisoire = { ...v1, caractere: 'provisoire', anomalie_chaine: { rompue: true, manquants: ['2026-08-15|1'] }, diff_vs_precedent: null };
   const pdfProvisoire = await ctx.__construireReleveClotureQuartPdf(shift, [vProvisoire]);
   assert.ok(pdfProvisoire.bytes.length > 0, 'PDF relevé provisoire (version unique) produit des octets sans planter');
-  console.log('OK — construireReleveClotureQuartPdf : relevé provisoire à version unique ne plante jamais (bandeau + aucun historique de diff).');
+  console.log('OK — construireReleveClotureQuartPdf : relevé provisoire à version unique ne plante jamais (bandeau + aucun historique de diff), même avec l\'ancien format anomalie_chaine (compatibilité rétroactive).');
 
   // Export journée : Quart 1 sans relevé, Quart 2 avec 2 versions.
   addPageCount = 0;

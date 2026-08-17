@@ -14,7 +14,7 @@ const path = require('path');
 const vm = require('vm');
 const assert = require('assert');
 
-const DIR = '/sessions/dazzling-compassionate-ride/mnt/image nexus project';
+const DIR = __dirname;
 const html = fs.readFileSync(path.join(DIR, 'NEXUS-FDJ-Manager-v1.html'), 'utf8');
 const scripts = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m => m[1]);
 if (scripts.length !== 1) throw new Error(`Attendu 1 <script> inline, trouvé ${scripts.length}`);

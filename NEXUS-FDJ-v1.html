@@ -1705,7 +1705,16 @@
       stockFinalParJeu[j.id] = s.stock_final ?? null;
       ventesParJeu[j.id] = { qte: v.qte, valeur: v.valeur };
     });
-    const statutReleve = NexusFdjMoteur.statutRelevecloture(1, ecart);
+    // 16/08/2026, sécurisation structurelle demandée par Frédéric, point 1 :
+    // le statut dépend désormais de QUI produit la version ('validation_employe'
+    // ici), jamais seulement de version_num. Point 2 : la chaîne interrompue
+    // et la continuité de stock à vérifier sont deux anomalies distinctes —
+    // à la validation employé, seule la chaîne est connue (aucune alerte
+    // continuite_stock_a_verifier n'existe encore à ce stade, elle n'est
+    // créée qu'a posteriori par la réconciliation manager), donc l'autre
+    // dimension est explicitement `false`, jamais fusionnée.
+    const statutReleve = NexusFdjMoteur.statutRelevecloture(1, ecart, 'validation_employe');
+    const caractereReleve = NexusFdjMoteur.caractereRelevecloture({ chaineInterrompue: chaineRompue.rompue, continuiteStockAVerifier: false });
     const signature = {
       utilisateur_id: employeeCourant.id, nom: employeeCourant.nom, role: employeeCourant.role || 'employe',
       date_heure: new Date().toISOString(), version_donnees: shiftRow.version || 1,
@@ -1720,7 +1729,6 @@
       ventes_grattage_valeur: ventesGrattageTotal(), lots_payes_grattage: reportJournalier.lots_payes_grattage,
       caisse_tirages: reportTempsReel.caisse_tirages, regularisations: regularisations || 0,
       caisse_attendue: caisseAttendue(), caisse_reelle: caisseReelle, ecart,
-      anomalie_chaine: chaineRompue.rompue ? { rompue: true, manquants: chaineRompue.manquants } : { rompue: false },
       // 16/08/2026, demande de Frédéric : "si un quart précédent manque, je
       // ne veux pas qu'un relevé soit présenté comme totalement définitif
       // [...] Chaîne interrompue / donnée manquante → Relevé provisoire —
@@ -1728,15 +1736,37 @@
       // dès que la chaîne se rétablit (voir
       // NEXUS-FDJ-Manager-v1.html::synchroniserRelevesApresRetablissementChaine),
       // sans jamais réécrire cette version 1 — une nouvelle version est
-      // posée à la place.
-      caractere: NexusFdjMoteur.caractereRelevecloture(chaineRompue.rompue),
+      // posée à la place. Les deux causes possibles de provisoire restent
+      // deux champs distincts, jamais une seule anomalie fusionnée
+      // (sécurisation structurelle, point 2) — `continuite_stock_a_verifier`
+      // n'est pas encore observable à cet instant, donc explicitement `false`.
+      anomalie_chaine: { chaine_interrompue: chaineRompue.rompue, manquants: chaineRompue.manquants || [], continuite_stock_a_verifier: false },
+      caractere: caractereReleve,
       statut: statutReleve, signature,
     });
-    // Non bloquant côté employé (le quart est déjà validé et enregistré à
-    // ce stade) — mais jamais silencieux : une erreur ici doit être visible
-    // pour investigation, la fiche de clôture est une preuve, pas un
-    // à-côté facultatif.
-    if (eReleve) console.error('Relevé de clôture FDJ (version employé):', eReleve);
+    // 16/08/2026, sécurisation structurelle demandée par Frédéric, point 4 :
+    // "Éviter qu'un quart puisse être validé sans son relevé de clôture
+    // [...] prévoir un mécanisme pending/error/retry." Le quart est déjà
+    // validé à ce stade (étape non bloquante côté employé — la fiche de
+    // clôture reste une preuve, pas un à-côté facultatif, donc jamais
+    // silencieuse) ; `fdj_shifts.releve_cloture_statut` trace explicitement
+    // le résultat pour que le manager puisse détecter et réparer un échec
+    // (voir NEXUS-FDJ-Manager-v1.html, panneau "Relevés de clôture à
+    // régulariser" + reessayerReleveClotureManquant()). Point 5 :
+    // l'idempotence est garantie côté base par un index unique partiel —
+    // le code Postgres 23505 signifie ici qu'une validation employé existe
+    // déjà pour ce quart (rejeu réseau, double-clic déjà absorbé côté UI
+    // par la désactivation du bouton) : ce n'est jamais une vraie erreur.
+    if (eReleve) {
+      if (eReleve.code === '23505') {
+        await nexusClient.from('fdj_shifts').update({ releve_cloture_statut: 'ok' }).eq('id', shiftRow.id);
+      } else {
+        console.error('Relevé de clôture FDJ (version employé):', eReleve);
+        await nexusClient.from('fdj_shifts').update({ releve_cloture_statut: 'erreur' }).eq('id', shiftRow.id);
+      }
+    } else {
+      await nexusClient.from('fdj_shifts').update({ releve_cloture_statut: 'ok' }).eq('id', shiftRow.id);
+    }
 
     effacerDraft();
     renderConfirmationCloture();

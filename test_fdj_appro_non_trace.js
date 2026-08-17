@@ -14,7 +14,7 @@
 // pure logique).
 
 global.window = global;
-const BASE = '/sessions/dazzling-compassionate-ride/mnt/image nexus project/';
+const BASE = __dirname + '/';
 require(BASE + 'nexus-fdj-moteur.js');
 
 const M = global.NexusFdjMoteur;

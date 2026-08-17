@@ -11,7 +11,7 @@
 // contrainte UNIQUE(employee_id, date_service) et les policies RLS, pas ici.
 
 global.window = global;
-const BASE = '/sessions/dazzling-compassionate-ride/mnt/image nexus project/';
+const BASE = __dirname + '/';
 require(BASE + 'nexus-fdj-moteur.js');
 
 const M = global.NexusFdjMoteur;

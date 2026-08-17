@@ -19,7 +19,7 @@ const fs = require('fs');
 const assert = require('assert');
 const vm = require('vm');
 
-const CHEMIN_BASE = '/sessions/dazzling-compassionate-ride/mnt/image nexus project';
+const CHEMIN_BASE = __dirname;
 
 require(`${CHEMIN_BASE}/nexus-fdj-moteur.js`);
 const NexusFdjMoteur = global.NexusFdjMoteur;

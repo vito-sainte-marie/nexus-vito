@@ -10,7 +10,7 @@
 // dès qu'il est require()-é (voir la dernière ligne du fichier) — aucun
 // mock nécessaire, ce sont les vraies fonctions pures testées ici.
 
-require('/sessions/dazzling-compassionate-ride/mnt/image nexus project/nexus-fdj-moteur.js');
+require(__dirname + '/nexus-fdj-moteur.js');
 const assert = require('assert');
 const M = globalThis.NexusFdjMoteur;
 

@@ -870,25 +870,39 @@
   // (régularisation, version 2+, diff obligatoire).
   // ------------------------------------------------------------
 
-  // Statut d'une version du relevé de clôture : la toute première version
-  // (l'employé) est 'conforme' si l'écart est nul, 'valide_avec_ecart'
-  // sinon — jamais un jugement, un simple constat chiffré. Toute version
-  // ultérieure (régularisation manager) est systématiquement 'regularise',
-  // quel que soit le nouvel écart (même 0€ : le fait qu'il y ait EU une
-  // intervention reste tracé).
-  // "Caractère" du relevé (16/08/2026, demande de Frédéric) — dimension
-  // SÉPARÉE du statut (qui parle de l'écart) : parle de la CONFIANCE dans
-  // les données au moment du snapshot. `provisoire` tant que la chaîne de
-  // continuité est rompue OU qu'une anomalie de stock reste à vérifier sur
-  // ce quart ; `definitif` sinon. "Chaîne continue → Relevé définitif.
-  // Chaîne interrompue / donnée manquante → Relevé provisoire — continuité
-  // à régulariser."
-  function caractereRelevecloture(chaineRompueOuAVerifier) {
-    return chaineRompueOuAVerifier ? 'provisoire' : 'definitif';
+  // Statut d'une version du relevé de clôture (corrigé le 16/08/2026,
+  // sécurisation structurelle demandée par Frédéric, point 1 : "Ne plus
+  // déduire `regularise` simplement de `version_num > 1`. Une version
+  // `recalcul_automatique_chaine` n'est pas une régularisation manager.")
+  // — le statut reflète maintenant QUI/QUOI a produit la version
+  // (`typeVersion`), jamais seulement sa position dans la séquence :
+  //   - 'regularisation_manager' -> toujours 'regularise' (le fait qu'il y
+  //     ait EU une intervention humaine reste tracé, même à écart nul) ;
+  //   - 'recalcul_automatique_chaine' -> 'recalcule_automatiquement' (un
+  //     acteur système, jamais un jugement manager) ;
+  //   - 'validation_employe' (ou type absent/inconnu, jamais un blocage) ->
+  //     'conforme' si l'écart est nul, 'valide_avec_ecart' sinon, un simple
+  //     constat chiffré. `versionNum` n'intervient plus dans ce calcul —
+  //     conservé en paramètre pour ne pas casser la signature des 3 sites
+  //     d'appel existants.
+  // "Caractère" du relevé (16/08/2026, demande de Frédéric, revu le même
+  // jour — sécurisation point 2 : "Séparer chaine_interrompue et
+  // continuite_stock_a_verifier. Les deux peuvent rendre un relevé
+  // provisoire mais ne doivent pas être enregistrés comme la même
+  // anomalie.") — dimension SÉPARÉE du statut (qui parle de l'écart) :
+  // parle de la CONFIANCE dans les données au moment du snapshot.
+  // `provisoire` si la chaîne de continuité est rompue OU si une anomalie
+  // de stock reste à vérifier sur ce quart (les deux causes restent
+  // distinctes dans `anomalie_chaine`, voir call sites — cette fonction ne
+  // fait que les COMBINER pour la seule question "peut-on faire confiance
+  // à ce snapshot ?", jamais les fusionner en une même anomalie stockée).
+  function caractereRelevecloture({ chaineInterrompue, continuiteStockAVerifier } = {}) {
+    return (chaineInterrompue || continuiteStockAVerifier) ? 'provisoire' : 'definitif';
   }
 
-  function statutRelevecloture(versionNum, ecart) {
-    if (versionNum > 1) return 'regularise';
+  function statutRelevecloture(versionNum, ecart, typeVersion) {
+    if (typeVersion === 'regularisation_manager') return 'regularise';
+    if (typeVersion === 'recalcul_automatique_chaine') return 'recalcule_automatiquement';
     return (ecart === null || ecart === undefined || ecart === 0) ? 'conforme' : 'valide_avec_ecart';
   }
 
