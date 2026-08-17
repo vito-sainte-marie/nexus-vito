@@ -1567,8 +1567,8 @@
         <div class="stat-row" style="margin-bottom:0;"><div class="stat-label">Caisse attendue</div><div class="stat-value cyan">${fmtEuro(caisseAttendue())}</div></div>
       </div>
       ${renderCarteEcart(ecart, null, { label: 'Aperçu — Caisse FDJ' })}
-      <div class="champ-note">Vérifiez avant de transmettre : une fois transmis, vous ne pourrez plus corriger directement — seulement demander une correction au manager.</div>
-      <button class="btn-primary" id="btnValider">Transmettre mon quart FDJ</button>
+      <div class="champ-note">En validant, vous confirmez que les informations saisies correspondent à votre contrôle de fin de quart. Après validation, elles ne pourront plus être modifiées par vous — seulement demander une correction au manager.</div>
+      <button class="btn-primary" id="btnValider">Valider définitivement mon quart</button>
       <button class="btn-ghost" id="btnRetourCaisse">Retour</button>
     `;
     document.getElementById('btnValider').addEventListener('click', validerQuart);
@@ -1576,6 +1576,15 @@
   }
 
   async function validerQuart() {
+    // 16/08/2026, demande de Frédéric ("Trace de contrôle FDJ") : l'action
+    // de cliquer sur "Valider définitivement mon quart" devient elle-même
+    // la trace — utilisateur authentifié + horodatage + confirmation
+    // explicite du message ci-dessous, jamais une signature manuscrite,
+    // mais un geste techniquement tracé (voir la fiche de clôture posée
+    // plus bas). Le message reprend le texte exact validé par Frédéric.
+    const messageConfirmation = "En validant, vous confirmez que les informations saisies correspondent à votre contrôle de fin de quart. Après validation, elles ne pourront plus être modifiées par vous.";
+    if (!confirm(messageConfirmation)) return;
+
     const btn = document.getElementById('btnValider');
     btn.disabled = true;
     btn.innerHTML = 'Enregistrement<span class="btn-loading-dots"><i></i><i></i><i></i></span>';
@@ -1630,6 +1639,45 @@
       action: 'quart_valide', acteur_id: employeeCourant.id,
       nouvelle_valeur: { caisse_attendue: caisseAttendue(), caisse_reelle: caisseReelle, ecart },
     });
+
+    // 5) Relevé de clôture FDJ / Trace de contrôle FDJ (16/08/2026, demande
+    // de Frédéric) : version 1, IMMUABLE — "Situation au moment où l'employé
+    // valide". Snapshot complet, jamais une référence vers des lignes qui
+    // pourraient changer après coup ; jamais réécrit ensuite, même par une
+    // régularisation manager (voir NEXUS-FDJ-Manager-v1.html, version 2+
+    // dans la même table). "NEXUS conserve le fait" — pas un jugement, un
+    // constat daté et signé.
+    const stockInitialParJeu = {}, approParJeu = {}, stockFinalParJeu = {}, ventesParJeu = {};
+    jeux.filter(jeuEstCompte).forEach(j => {
+      const s = countsSaisie[j.id] || {};
+      const v = calculerVentes(j.id);
+      stockInitialParJeu[j.id] = s.stock_initial ?? null;
+      approParJeu[j.id] = s.appro || 0;
+      stockFinalParJeu[j.id] = s.stock_final ?? null;
+      ventesParJeu[j.id] = { qte: v.qte, valeur: v.valeur };
+    });
+    const statutReleve = NexusFdjMoteur.statutRelevecloture(1, ecart);
+    const signature = {
+      utilisateur_id: employeeCourant.id, nom: employeeCourant.nom, role: employeeCourant.role || 'employe',
+      date_heure: new Date().toISOString(), version_donnees: shiftRow.version || 1,
+      session_id: (typeof navigator !== 'undefined' && navigator.userAgent) || null,
+      quart_id: shiftRow.id, message_confirmation: messageConfirmation,
+    };
+    const { error: eReleve } = await nexusClient.from('fdj_releves_cloture').insert({
+      site: siteId, shift_id: shiftRow.id, date: shiftRow.date, quart: shiftRow.quart, employee_id: employeeCourant.id,
+      version_num: 1, type_version: 'validation_employe', cree_par: employeeCourant.id,
+      stock_initial_par_jeu: stockInitialParJeu, appro_par_jeu: approParJeu, stock_final_par_jeu: stockFinalParJeu, ventes_par_jeu: ventesParJeu,
+      ventes_grattage_valeur: ventesGrattageTotal(), lots_payes_grattage: reportJournalier.lots_payes_grattage,
+      caisse_tirages: reportTempsReel.caisse_tirages, regularisations: regularisations || 0,
+      caisse_attendue: caisseAttendue(), caisse_reelle: caisseReelle, ecart,
+      anomalie_chaine: chaineRompue.rompue ? { rompue: true, manquants: chaineRompue.manquants } : { rompue: false },
+      statut: statutReleve, signature,
+    });
+    // Non bloquant côté employé (le quart est déjà validé et enregistré à
+    // ce stade) — mais jamais silencieux : une erreur ici doit être visible
+    // pour investigation, la fiche de clôture est une preuve, pas un
+    // à-côté facultatif.
+    if (eReleve) console.error('Relevé de clôture FDJ (version employé):', eReleve);
 
     effacerDraft();
     renderConfirmationCloture();

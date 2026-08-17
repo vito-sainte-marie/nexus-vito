@@ -857,6 +857,62 @@
     return { integrite: 'OK', motif: null };
   }
 
+  // ------------------------------------------------------------
+  // TRACE DE CONTRÔLE FDJ — 16/08/2026, demande de Frédéric : "je créerais
+  // [...] une fiche de clôture immuable [...] Le point le plus important est
+  // justement la conservation de deux niveaux : Situation au moment où
+  // l'employé valide, puis, s'il y a intervention ensuite : Situation après
+  // régularisation manager." Chaque version posée dans fdj_releves_cloture
+  // est un snapshot complet, jamais réécrit — ces deux fonctions PURES
+  // (Article 11, une seule vérité) calculent le statut et le différentiel
+  // affiché entre deux versions, consommées à la fois par l'écran employé
+  // (validation, version 1, jamais de diff) et l'écran manager
+  // (régularisation, version 2+, diff obligatoire).
+  // ------------------------------------------------------------
+
+  // Statut d'une version du relevé de clôture : la toute première version
+  // (l'employé) est 'conforme' si l'écart est nul, 'valide_avec_ecart'
+  // sinon — jamais un jugement, un simple constat chiffré. Toute version
+  // ultérieure (régularisation manager) est systématiquement 'regularise',
+  // quel que soit le nouvel écart (même 0€ : le fait qu'il y ait EU une
+  // intervention reste tracé).
+  function statutRelevecloture(versionNum, ecart) {
+    if (versionNum > 1) return 'regularise';
+    return (ecart === null || ecart === undefined || ecart === 0) ? 'conforme' : 'valide_avec_ecart';
+  }
+
+  // Différentiel entre deux versions successives d'un même quart — ex.
+  // "stock initial CASH 24 → 23, écart +5,00€ → 0,00€". Ne retient QUE les
+  // champs qui ont réellement changé (jamais un diff bruyant listant tout).
+  // `precedent`/`nouveau` : objets au même format que les colonnes de
+  // fdj_releves_cloture (stock_initial_par_jeu, ecart, caisse_reelle, etc.).
+  // Retourne null si rien n'a changé ou s'il n'y a pas de version précédente
+  // (première validation employé — jamais de diff contre du vide).
+  function diffClotureFdj(precedent, nouveau) {
+    if (!precedent) return null;
+    const diff = {};
+    const champsSimples = ['ventes_grattage_valeur', 'lots_payes_grattage', 'caisse_tirages', 'regularisations', 'caisse_attendue', 'caisse_reelle', 'ecart', 'statut'];
+    champsSimples.forEach(champ => {
+      const avant = precedent[champ] === undefined ? null : precedent[champ];
+      const apres = nouveau[champ] === undefined ? null : nouveau[champ];
+      if (avant !== apres) diff[champ] = { avant, apres };
+    });
+    const champsParJeu = ['stock_initial_par_jeu', 'appro_par_jeu', 'stock_final_par_jeu'];
+    champsParJeu.forEach(champ => {
+      const avantMap = precedent[champ] || {};
+      const apresMap = nouveau[champ] || {};
+      const jeuxTouches = new Set([...Object.keys(avantMap), ...Object.keys(apresMap)]);
+      const parJeu = {};
+      jeuxTouches.forEach(gameId => {
+        const avant = avantMap[gameId] === undefined ? null : avantMap[gameId];
+        const apres = apresMap[gameId] === undefined ? null : apresMap[gameId];
+        if (avant !== apres) parJeu[gameId] = { avant, apres };
+      });
+      if (Object.keys(parJeu).length) diff[champ] = parJeu;
+    });
+    return Object.keys(diff).length ? diff : null;
+  }
+
   global.NexusFdjMoteur = {
     calculerVentesJeu, ventesGrattageTotal, caisseGrattage, caisseAttendue, ecartCaisse, permissionsEcartCaisseEmploye,
     soldesCarnetsParJeu, soldeCarnetsJeu, soldesCarnetsAvecReference,
@@ -870,5 +926,6 @@
     FDJ_SEUIL_FRACTION_CARNET_PAS_ENCORE_MOITIE,
     rotationCarnetsJeu, ticketsRestantsCarnetEnCours, calculerAutonomieJeu,
     etatLigneStockV2, phraseFamillePalier, syntheseGlobaleFdjStock,
+    statutRelevecloture, diffClotureFdj,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

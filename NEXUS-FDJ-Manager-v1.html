@@ -2611,6 +2611,57 @@
       ancienne_valeur: edition.avant, nouvelle_valeur: { date: edition.date, quart: edition.quart, counts: edition.counts, lotsPayes: edition.lotsPayes, caisseTirages: edition.caisseTirages, regularisations: edition.regularisations, caisseReelle: edition.caisseReelle, statutCaisse: edition.statutCaisse, motifEcart: edition.motifEcart, employeeId: edition.employeeId, ecart },
     });
 
+    // 6) Relevé de clôture FDJ / Trace de contrôle FDJ — version
+    // régularisation manager (16/08/2026, demande de Frédéric). Chaque
+    // intervention manager pose une NOUVELLE version, jamais un écrasement
+    // de la précédente (immuable en base, voir RLS insert-only). Une
+    // version n'est posée que si quelque chose a RÉELLEMENT changé (via
+    // NexusFdjMoteur.diffClotureFdj) — jamais un doublon vide si le manager
+    // rouvre puis réenregistre sans rien modifier — sauf pour la toute
+    // première version d'un quart créé directement par le manager (aucune
+    // version précédente à comparer, c'est la ligne de base).
+    const stockInitialParJeu = {}, approParJeu = {}, stockFinalParJeu = {}, ventesParJeu = {};
+    jeux.forEach(j => {
+      const s = edition.counts[j.id];
+      if (!s || (s.stock_initial === null && !s.appro && s.stock_final === null)) return;
+      const v = calculerVentesEdition(j.id);
+      stockInitialParJeu[j.id] = s.stock_initial ?? null;
+      approParJeu[j.id] = s.appro || 0;
+      stockFinalParJeu[j.id] = s.stock_final ?? null;
+      ventesParJeu[j.id] = { qte: v.qte, valeur: v.valeur };
+    });
+    const { data: precedentes } = await nexusClient.from('fdj_releves_cloture').select('*').eq('shift_id', shift.id).order('version_num', { ascending: false }).limit(1);
+    const precedent = (precedentes || [])[0] || null;
+    const nouveauSnapshot = {
+      stock_initial_par_jeu: stockInitialParJeu, appro_par_jeu: approParJeu, stock_final_par_jeu: stockFinalParJeu, ventes_par_jeu: ventesParJeu,
+      ventes_grattage_valeur: ventesGrattageTotalEdition(), lots_payes_grattage: edition.lotsPayes,
+      caisse_tirages: edition.caisseTirages, regularisations: edition.regularisations || 0,
+      caisse_attendue: caisseAttendueEdition(), caisse_reelle: edition.caisseReelle, ecart,
+    };
+    const versionNum = precedent ? precedent.version_num + 1 : 1;
+    const diff = precedent ? NexusFdjMoteur.diffClotureFdj(precedent, nouveauSnapshot) : null;
+    if (!precedent || diff) {
+      const signature = {
+        utilisateur_id: managerCourant.id, nom: managerCourant.nom, role: 'manager',
+        date_heure: new Date().toISOString(), version_donnees: versionNum,
+        session_id: (typeof navigator !== 'undefined' && navigator.userAgent) || null,
+        quart_id: shift.id,
+        message_confirmation: precedent ? 'Régularisation manager du quart (pouvoir total, constat d\'origine jamais effacé).' : 'Création/complétion du quart par le manager (pouvoir total).',
+      };
+      const { error: eReleve } = await nexusClient.from('fdj_releves_cloture').insert({
+        site: siteId, shift_id: shift.id, date: edition.date, quart: edition.quart, employee_id: edition.employeeId,
+        version_num: versionNum, type_version: 'regularisation_manager', cree_par: managerCourant.id,
+        ...nouveauSnapshot,
+        statut: NexusFdjMoteur.statutRelevecloture(versionNum, ecart),
+        motif_regularisation: precedent ? (edition.motifEcart || null) : null,
+        diff_vs_precedent: diff,
+        signature,
+      });
+      // Non bloquant (le quart est déjà enregistré à ce stade) mais jamais
+      // silencieux — la fiche de clôture est une preuve, pas un à-côté.
+      if (eReleve) console.error('Relevé de clôture FDJ (version manager):', eReleve);
+    }
+
     edition = null;
     afficherChoixApresEnregistrement();
   }
