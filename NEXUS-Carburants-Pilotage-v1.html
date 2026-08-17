@@ -172,7 +172,7 @@
      .recep-overlay/.recep-modal (Réception carburant) et
      .cloture-overlay/.cloture-modal (FDJ), jamais un nouveau pattern. */
   .controle-overlay{position:fixed; inset:0; background:rgba(0,0,0,0.6); display:flex; align-items:flex-end; justify-content:center; z-index:300;}
-  .controle-modal{width:100%; max-width:480px; background:var(--panel); border:1px solid var(--hairline); border-top-left-radius:18px; border-top-right-radius:18px; padding:22px 20px calc(22px + env(safe-area-inset-bottom)); max-height:88vh; overflow-y:auto;}
+  .controle-modal{position:relative; width:100%; max-width:480px; background:var(--panel); border:1px solid var(--hairline); border-top-left-radius:18px; border-top-right-radius:18px; padding:22px 20px calc(22px + env(safe-area-inset-bottom)); max-height:88vh; overflow-y:auto;}
   .controle-modal-titre{font-family:var(--sans); font-size:16px; font-weight:700; margin-bottom:2px;}
   .controle-modal-soustitre{font-size:11.5px; color:var(--text-dim); margin-bottom:14px;}
   .controle-modal-fermer{position:absolute; top:16px; right:16px; background:none; border:none; color:var(--text-dim); font-size:20px; cursor:pointer; line-height:1;}
@@ -2298,6 +2298,21 @@
     initAccordions();
     const btnQualite = document.getElementById('btnQualiteReceptions');
     if (btnQualite) btnQualite.addEventListener('click', toggleSousAccordionQualite);
+
+    // Correctif (17/08/2026, retour de Frédéric : "j'ai un popup qui
+    // s'ouvre mais je n'arrive pas à le fermer") — la modale "Relevé de
+    // contrôle"/"Relevé de réception" (badge "Preuve" dans Historique)
+    // n'avait qu'un bouton ✕ pour se fermer, mal positionné : `.controle-
+    // modal-fermer` est en `position:absolute` mais `.controle-modal`
+    // n'avait pas `position:relative`, donc le ✕ se positionnait par
+    // rapport au plein écran (l'overlay), pas par rapport à la carte
+    // elle-même — invisible/déconnectée du popup en bas d'écran. Corrigé
+    // (position:relative ajouté sur .controle-modal) et complété ici par
+    // un clic sur le fond sombre pour fermer, filet de sécurité
+    // supplémentaire même si le ✕ est mal placé une prochaine fois.
+    document.getElementById('controleOverlay').addEventListener('click', (e) => {
+      if (e.target.id === 'controleOverlay') fermerControleModal();
+    });
 
     document.getElementById('btnPointZeroToggle').addEventListener('click', () => {
       POINTZERO_PANEL_OUVERT = !POINTZERO_PANEL_OUVERT;
