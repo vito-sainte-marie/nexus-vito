@@ -150,6 +150,7 @@ const sandbox = {
   nexusClient: nexusClientMock, setInterval: () => 0, Date,
   alert: (msg) => { throw new Error(`alert() appelé de façon inattendue : ${msg}`); },
   confirm: () => true,
+  crypto: { randomUUID: () => require('crypto').randomUUID() },
 };
 vm.createContext(sandbox);
 vm.runInContext(moteurSrc, sandbox);

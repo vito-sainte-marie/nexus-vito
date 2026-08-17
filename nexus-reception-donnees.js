@@ -67,9 +67,10 @@
     return (data || []).map(l => l.delta_ratio).filter(v => v != null);
   }
 
-  // Soumission atomique complète d'une visite (audit : "L'employé saisit
-  // les faits" en UNE fois — même principe que le modèle v1). `visite` =
-  // les colonnes de carburant_reception_visites. `lignes` = tableau de
+  // Soumission complète d'une visite (audit : "L'employé saisit les faits"
+  // en UNE fois — même principe que le modèle v1). `visite` = les colonnes
+  // de carburant_reception_visites, DOIT porter `idempotency_key` (généré
+  // une seule fois par visite côté écran, Sprint C4). `lignes` = tableau de
   // carburant_reception_visite_lignes SANS visite_id. `compartiments` =
   // tableau de carburant_reception_compartiments SANS visite_id. `mesures`
   // = tableau de carburant_reception_mesures SANS visite_id. `anomalies` =
@@ -77,11 +78,44 @@
   // vide — uniquement les anomalies réellement rencontrées, y compris déjà
   // levées par dérogation manager). Si un insert intermédiaire échoue après
   // la création de l'en-tête, l'en-tête orpheline est supprimée (pas de
-  // vraie transaction multi-tables côté client Supabase) — même stratégie
-  // de nettoyage explicite que le modèle v1.
+  // vraie transaction multi-tables côté client Supabase — l'atomicité
+  // complète par RPC transactionnelle est explicitement le sujet du Sprint
+  // C5 "Robustesse", pas de celui-ci) — même stratégie de nettoyage
+  // explicite que le modèle v1.
+  //
+  // Idempotence (Sprint C4, audit §4 "Idempotence livraison" + scénario de
+  // test C04 "Double clic validation livraison → Une seule réception
+  // comptabilisée") : un conflit 23505 sur idempotency_key signifie que
+  // cette même soumission a déjà été tentée (double clic, retry réseau) —
+  // jamais une erreur bloquante. On retrouve la visite existante et : si
+  // ses lignes existent déjà, la soumission précédente est allée à son
+  // terme, on ne recompte rien (succès idempotent immédiat) ; sinon, la
+  // tentative précédente s'est arrêtée en cours de route (coupure réseau
+  // avant réponse) et on complète la même visite plutôt que d'en créer une
+  // seconde — même discipline que le traitement du 23505 sur
+  // carburant_releve_versions (Sprint C1) et fdj_releves_cloture.
   async function soumettreVisiteComplete(client, visite, lignes, compartiments, mesures, anomalies) {
-    const { data: v, error: eVisite } = await client.from('carburant_reception_visites').insert(visite).select().single();
-    if (eVisite) { console.error('Création visite réception carburant:', eVisite); return { error: eVisite }; }
+    let v;
+    const { data: vInsert, error: eVisite } = await client.from('carburant_reception_visites').insert(visite).select().single();
+    if (eVisite) {
+      if (eVisite.code !== '23505' || !visite.idempotency_key) {
+        console.error('Création visite réception carburant:', eVisite);
+        return { error: eVisite };
+      }
+      const { data: existante, error: eFetch } = await client.from('carburant_reception_visites')
+        .select().eq('idempotency_key', visite.idempotency_key).maybeSingle();
+      if (eFetch || !existante) {
+        console.error('Réception carburant — conflit idempotent mais visite existante introuvable:', eFetch);
+        return { error: eVisite };
+      }
+      const { count, error: eCount } = await client.from('carburant_reception_visite_lignes')
+        .select('id', { count: 'exact', head: true }).eq('visite_id', existante.id);
+      if (eCount) { console.error('Réception carburant — vérification complétude visite existante:', eCount); return { error: eCount }; }
+      if ((count || 0) > 0) return { data: existante, idempotent: true };
+      v = existante; // en-tête déjà créée par une tentative précédente interrompue avant la suite — on la complète, on n'en recrée pas une seconde.
+    } else {
+      v = vInsert;
+    }
 
     const nettoyer = async () => { await client.from('carburant_reception_visites').delete().eq('id', v.id); };
 

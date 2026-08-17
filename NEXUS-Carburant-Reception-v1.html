@@ -226,6 +226,21 @@
   .btn-loading-dots i:nth-child(3){animation-delay:0.3s;}
   @keyframes btnDotsBounce{0%,80%,100%{opacity:0.25; transform:translateY(0);} 40%{opacity:1; transform:translateY(-2px);}}
 
+  /* Modale de validation finale de la réception (Sprint C4, audit §9.1,
+     17/08/2026) — même structure bottom-sheet que .cloture-overlay/
+     .cloture-modal (NEXUS-FDJ-v1.html) : jamais un confirm() natif du
+     navigateur pour verrouiller une réception. */
+  .recep-overlay{position:fixed; inset:0; background:rgba(0,0,0,0.6); display:flex; align-items:flex-end; justify-content:center; z-index:300;}
+  .recep-modal{width:100%; max-width:460px; background:var(--panel); border:1px solid var(--hairline); border-top-left-radius:18px; border-top-right-radius:18px; padding:22px 20px calc(22px + env(safe-area-inset-bottom)); max-height:85vh; overflow-y:auto;}
+  .recep-titre{font-size:16.5px; font-weight:700; margin-bottom:14px;}
+  .recep-ligne{display:flex; justify-content:space-between; align-items:center; gap:10px; background:var(--panel-raised); border:1px solid var(--hairline); border-radius:10px; padding:11px 13px; margin-bottom:10px; font-size:12.5px;}
+  .recep-valeur{font-family:var(--mono); font-weight:700; font-size:13.5px; white-space:nowrap;}
+  .recep-valeur.green{color:var(--green);}
+  .recep-valeur.amber{color:var(--amber);}
+  .recep-texte{font-size:13px; color:var(--text-mid); line-height:1.6; margin-bottom:14px;}
+  .recep-avertissement{font-size:12.5px; color:var(--amber); background:var(--amber-dim); border:1px solid rgba(245,166,35,0.3); border-radius:10px; padding:10px 12px; margin-bottom:14px; line-height:1.5;}
+  .recep-actions .btn-ghost, .recep-actions .btn-primary{margin-top:8px;}
+
   .checkmark{width:64px; height:64px; border-radius:50%; background:var(--green-dim); color:var(--green); font-size:30px; display:flex; align-items:center; justify-content:center; margin:8px auto 18px;}
   .final-greet{font-size:19px; font-weight:700; text-align:center; margin-bottom:10px;}
   .final-liste{display:flex; flex-direction:column; gap:8px; margin-bottom:18px;}
@@ -323,6 +338,16 @@
   let resultatsParCarburant = null; // { sp95: sortie calculerReceptionCarburant + comparaisonHistorique, ... }
   let enSoumission = false;
   let derniereVisite = null; // après soumission réussie
+  // Sprint C4 "Réception" (audit Carburants, 17/08/2026) — clé générée UNE
+  // SEULE FOIS par visite (à "Démarrons ensemble"), jamais régénérée avant
+  // une nouvelle visite. Envoyée à chaque tentative de soumission : un
+  // double clic ou un retry réseau après coupure porte la même clé, donc
+  // n'est jamais compté deux fois (nexus-reception-donnees.js gère le
+  // conflit 23505 correspondant comme un succès idempotent).
+  let idempotencyKey = null;
+  function genererIdempotencyKey() {
+    return (crypto && crypto.randomUUID) ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  }
 
   function heureLocale() { return new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }); }
   function demarrerHorloge() {
@@ -430,6 +455,7 @@
   function cuvesActivesSite() { return config.cuvesOrdonnees || []; }
 
   function demarrerVisite() {
+    idempotencyKey = genererIdempotencyKey();
     visite = { transporteur: TRANSPORTEUR_DEFAUT, chauffeur: '', immatriculation: '', bon_livraison_reference: '', heure_debut: datetimeLocalMaintenant() };
     lignes = { sp95: { actif: false, quantite_bl_l: '' }, go: { actif: false, quantite_bl_l: '' }, gnr: { actif: false, quantite_bl_l: '' } };
     mesuresParCuve = {};
@@ -1084,12 +1110,102 @@
       const zone = document.getElementById('lectureNexusTexte');
       if (zone) zone.innerHTML = texte;
     });
-    document.getElementById('btnTerminerReception').addEventListener('click', soumettreVisite);
+    document.getElementById('btnTerminerReception').addEventListener('click', confirmerEtSoumettre);
     document.getElementById('btnRetourCalcul').addEventListener('click', () => allerEtape('jaugeage_final'));
   }
 
+  // Liste des anomalies de la visite en cours (dérogations manager sur le
+  // contrôle compartiments vs BL et/ou sur des compartiments non
+  // réceptionnés) — extrait de soumettreVisite() pour que la modale de
+  // validation finale (§9.1 de l'audit) et la soumission réelle affichent
+  // et enregistrent EXACTEMENT la même liste, jamais deux constructions
+  // séparées qui pourraient diverger (Article 11).
+  function construireAnomaliesVisite() {
+    const anomalies = [];
+    if (derogationGlobaleCompartiments && controleCompartiments) {
+      controleCompartiments.carburantsEnAnomalie.forEach(carb => {
+        const r = controleCompartiments.parCarburant[carb];
+        anomalies.push({
+          type: 'compartiments_vs_bl', carburant: carb,
+          details: { attendu: r.attendu, declare: r.declare, ecart: r.ecart, ecart_pct: r.ecartPct },
+          statut: 'derogation_manager',
+          derogation_manager_nom: derogationGlobaleCompartiments.nom,
+          derogation_motif: derogationGlobaleCompartiments.motif,
+          derogation_le: derogationGlobaleCompartiments.le,
+        });
+      });
+    }
+    Object.keys(derogationsParCompartiment).forEach(numero => {
+      const c = compartiments.find(x => x.numero === Number(numero));
+      const d = derogationsParCompartiment[numero];
+      anomalies.push({
+        type: 'compartiment_non_receptionne', carburant: c ? c.carburant : null, compartiment_numero: Number(numero),
+        details: { motif: c ? c.motif_non_receptionne : null, quantite_declaree_l: c ? c.quantite_declaree_l : null },
+        statut: 'derogation_manager',
+        derogation_manager_nom: d.nom, derogation_motif: d.motif, derogation_le: d.le,
+      });
+    });
+    return anomalies;
+  }
+
   // ------------------------------------------------------------
-  // SOUMISSION ATOMIQUE
+  // MODALE DE VALIDATION FINALE — audit Carburants §9.1 (17/08/2026) :
+  // "remplacer les confirmations navigateur par une modale NEXUS présentant
+  // les faits avant verrouillage." Même structure bottom-sheet que
+  // .cloture-overlay/.cloture-modal (NEXUS-FDJ-v1.html, demande de
+  // Frédéric : "je ferais une vraie modale cohérente avec l'interface") —
+  // jamais un confirm() natif pour un geste aussi engageant. Retourne une
+  // Promise résolue à true si l'employé confirme, false sinon (fermeture,
+  // clic hors modale, "Revoir avant de valider").
+  // ------------------------------------------------------------
+  function demanderConfirmationReception() {
+    return new Promise(resolve => {
+      const M = NexusReceptionMoteur;
+      const anomalies = construireAnomaliesVisite();
+      const totalCompartiments = compartiments.length;
+      const compartimentsReceptionnes = compartiments.filter(c => c.statut === 'receptionne').length;
+      const lignesHtml = carburantsPrevus().map(carb => {
+        const r = resultatsParCarburant[carb];
+        return `
+          <div class="recep-ligne">
+            <span>${NOM_CARBURANT_COURT[carb]} — BL ${fmtNum(r.attenduL)} L / mesuré ${r.mesureL != null ? fmtNum(r.mesureL) + ' L' : '—'}</span>
+            <span class="recep-valeur ${r.statut === 'a_rapprocher' ? 'amber' : 'green'}">${M.texteEcart(r.ecartMesureL, r.ecartMesureRatio)}</span>
+          </div>`;
+      }).join('');
+      const overlay = document.createElement('div');
+      overlay.className = 'recep-overlay';
+      overlay.innerHTML = `
+        <div class="recep-modal">
+          <div class="recep-titre">Clôturer cette réception ?</div>
+          ${lignesHtml}
+          <div class="recep-texte">Compartiments confirmés : ${compartimentsReceptionnes}/${totalCompartiments}.</div>
+          ${anomalies.length ? `<div class="recep-avertissement">🟠 ${anomalies.length} anomalie${anomalies.length > 1 ? 's' : ''} déverrouillée${anomalies.length > 1 ? 's' : ''} par dérogation manager sera${anomalies.length > 1 ? 'ont' : ''} enregistrée${anomalies.length > 1 ? 's' : ''} avec cette réception.</div>` : ''}
+          <div class="recep-texte">Après validation, vous ne pourrez plus modifier cette réception. Toute correction sera tracée par le manager.</div>
+          <div class="recep-actions">
+            <button type="button" class="btn-primary" id="btnRecepValider">Clôturer la réception</button>
+            <button type="button" class="btn-ghost" id="btnRecepRetour">Revoir avant de valider</button>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(overlay);
+      const fermer = (resultat) => { overlay.remove(); resolve(resultat); };
+      document.getElementById('btnRecepValider').addEventListener('click', () => fermer(true));
+      document.getElementById('btnRecepRetour').addEventListener('click', () => fermer(false));
+      overlay.addEventListener('click', e => { if (e.target === overlay) fermer(false); });
+    });
+  }
+
+  let modaleReceptionOuverte = false; // évite d'empiler deux modales sur un double-tap avant que la première n'ait eu le temps de s'afficher.
+  async function confirmerEtSoumettre() {
+    if (modaleReceptionOuverte || enSoumission) return;
+    modaleReceptionOuverte = true;
+    const confirme = await demanderConfirmationReception();
+    modaleReceptionOuverte = false;
+    if (confirme) await soumettreVisite();
+  }
+
+  // ------------------------------------------------------------
+  // SOUMISSION
   // ------------------------------------------------------------
   async function soumettreVisite() {
     if (enSoumission) return;
@@ -1115,6 +1231,7 @@
       employe_id: employeeCourant.id,
       nombre_compartiments: compartiments.length,
       statut: uneDerogation ? 'terminee_avec_derogation' : 'terminee',
+      idempotency_key: idempotencyKey,
     };
 
     const lignesFinales = carburantsPrevus().map(carb => {
@@ -1150,30 +1267,7 @@
       delta_mesure_l: M.calculerDeltaMesure(Number(m.jaugeage_avant_l), m.jaugeage_apres_l === '' ? null : Number(m.jaugeage_apres_l)),
     }));
 
-    const anomalies = [];
-    if (derogationGlobaleCompartiments && controleCompartiments) {
-      controleCompartiments.carburantsEnAnomalie.forEach(carb => {
-        const r = controleCompartiments.parCarburant[carb];
-        anomalies.push({
-          type: 'compartiments_vs_bl', carburant: carb,
-          details: { attendu: r.attendu, declare: r.declare, ecart: r.ecart, ecart_pct: r.ecartPct },
-          statut: 'derogation_manager',
-          derogation_manager_nom: derogationGlobaleCompartiments.nom,
-          derogation_motif: derogationGlobaleCompartiments.motif,
-          derogation_le: derogationGlobaleCompartiments.le,
-        });
-      });
-    }
-    Object.keys(derogationsParCompartiment).forEach(numero => {
-      const c = compartiments.find(x => x.numero === Number(numero));
-      const d = derogationsParCompartiment[numero];
-      anomalies.push({
-        type: 'compartiment_non_receptionne', carburant: c ? c.carburant : null, compartiment_numero: Number(numero),
-        details: { motif: c ? c.motif_non_receptionne : null, quantite_declaree_l: c ? c.quantite_declaree_l : null },
-        statut: 'derogation_manager',
-        derogation_manager_nom: d.nom, derogation_motif: d.motif, derogation_le: d.le,
-      });
-    });
+    const anomalies = construireAnomaliesVisite();
 
     const { data, error } = await NexusReceptionDonnees.soumettreVisiteComplete(nexusClient, ligneVisite, lignesFinales, compartimentsFinaux, mesuresFinales, anomalies);
     enSoumission = false;
