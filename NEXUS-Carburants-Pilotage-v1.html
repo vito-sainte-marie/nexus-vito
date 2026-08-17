@@ -551,6 +551,28 @@
     </div>
   </div>
 
+  <!-- Économie (Sprint C8, 17/08/2026, audit "Carburants — Réceptions,
+       deltas et effet économique du stock" §6/§7) — coût moyen pondéré
+       (CMP) et effet potentiel des changements de prix sur le stock
+       actuellement en cuve, indépendant de la période sélectionnée
+       ci-dessus, chargé une seule fois à l'initialisation comme Analyse.
+       Reste silencieux tant qu'aucun coût d'achat n'a été saisi par un
+       manager (Article 5) -- voir renderReleveReceptionModal pour la
+       saisie. -->
+  <div class="accordion-card" data-accordion="economie">
+    <button type="button" class="accordion-header" data-key="economie">
+      <span class="accordion-icon accordion-icon-dim">💶</span>
+      <span class="accordion-titles">
+        <span class="accordion-titre">Économie</span>
+        <span class="accordion-sous">Coût moyen du stock & effet prix</span>
+      </span>
+      <span class="accordion-chevron" id="chevronEconomie">⌄</span>
+    </button>
+    <div class="accordion-body" id="bodyEconomie">
+      <div id="economieZone"><div class="loading">Chargement…</div></div>
+    </div>
+  </div>
+
   <!-- Historique (14/08/2026, demande de Frédéric) — journal des points
        zéro certifiés + relevés jour par jour, indépendant de la période
        sélectionnée ci-dessus, chargé une seule fois à l'initialisation. -->
@@ -681,7 +703,9 @@
     // Sprint C7 "Analyse" (17/08/2026) : repliée par défaut, même logique
     // que "messages"/"livraison"/"repartition" — approfondissement à la
     // demande, pas la vue par défaut de l'écran.
-    analyse: false, historique: true,
+    // Sprint C8 "Économie" (17/08/2026) : repliée par défaut, même
+    // logique — approfondissement économique, pas la vue par défaut.
+    analyse: false, economie: false, historique: true,
   };
   function majChevronId(key) {
     return 'chevron' + key.charAt(0).toUpperCase() + key.slice(1);
@@ -1434,6 +1458,12 @@
           <div class="controle-ligne"><span>Total mesuré (jaugeage)</span><span>${ligne.quantite_mesuree_l != null ? fmtL(ligne.quantite_mesuree_l) : '—'}</span></div>
           <div class="controle-ligne"><span>Écart mesuré / prévu</span><span>${M.texteEcart(ligne.delta_l, ligne.delta_ratio)}</span></div>
           ${global_NexusReceptionDonnees_disponible() ? `<div class="controle-cause" id="signatureLigne_${ligne.carburant}">Comparaison au profil du site…</div>` : ''}
+          ${ligne.cout_achat_par_litre != null
+            ? `<div class="controle-ligne"><span>Coût d'achat saisi</span><span>${Number(ligne.cout_achat_par_litre).toFixed(3)} €/L${ligne.cout_saisi_par ? ` (par ${ligne.cout_saisi_par})` : ''}</span></div>`
+            : `<div style="display:flex; gap:8px; align-items:center; margin-top:6px;">
+                 <input type="text" inputmode="decimal" class="pointzero-input" id="coutAchatInput_${ligne.id}" placeholder="Coût d'achat €/L (Sprint C8)">
+                 <button type="button" class="controle-modal-btn secondaire" data-cout-ligne-id="${ligne.id}" data-cout-carburant="${ligne.carburant}" style="white-space:nowrap;">Enregistrer</button>
+               </div>`}
         </div>`;
     }).join('');
     const compartimentsNonReceptionnes = (visite.compartiments || []).filter(cp => cp.statut === 'non_receptionne');
@@ -1454,6 +1484,16 @@
       const zone = document.getElementById('controleModalPdfZone');
       genererEtAfficherPdfCarburant(zone, () => construireReleveReceptionPdf(visite), RECEPTION_MODAL_PDF_REFS);
     });
+    // Sprint C8 "Économique" (17/08/2026, audit §10 "modèle de données
+    // minimal", cout_achat_par_litre) — le coût d'achat n'est jamais connu
+    // par l'employé au moment de la livraison (le BL ne porte
+    // généralement pas le prix, la facture arrive souvent après) : un
+    // manager peut le saisir a posteriori depuis ce relevé, sur une ligne
+    // qui n'en a pas déjà un (jamais un écrasement silencieux d'une valeur
+    // déjà saisie — il n'y a tout simplement pas de bouton dans ce cas).
+    modal.querySelectorAll('[data-cout-ligne-id]').forEach(btn => {
+      btn.addEventListener('click', () => enregistrerCoutAchat(btn.dataset.coutLigneId, btn.dataset.coutCarburant, visite));
+    });
     // Sprint C7 (audit "signature delta livraison") : situe chaque écart de
     // CETTE réception par rapport au profil habituel du site — chargé après
     // coup (jamais bloquant pour l'ouverture de la modale, même esprit que
@@ -1472,6 +1512,32 @@
       const situation = R.situerFaceSignature(ligne.delta_ratio, signature);
       cible.textContent = situation.texte;
     }));
+  }
+
+  // Sprint C8 "Économique" (17/08/2026) : écriture manager du coût
+  // d'achat par litre sur une ligne de réception déjà posée. Met à jour
+  // l'objet `visite` déjà en mémoire (jamais un rechargement complet pour
+  // un seul champ) puis ré-affiche la modale (le bouton "Enregistrer"
+  // disparaît, remplacé par la valeur saisie, même pattern que le reste
+  // de NEXUS après une écriture réussie) et rafraîchit l'accordéon
+  // "Économie" (le nouveau coût peut changer le CMP affiché).
+  async function enregistrerCoutAchat(ligneId, carburant, visite) {
+    const input = document.getElementById(`coutAchatInput_${ligneId}`);
+    if (!input) return;
+    const valeur = parseFloat(String(input.value).replace(',', '.'));
+    if (!isFinite(valeur) || valeur < 0) {
+      alert('Saisissez un coût d\'achat valide (nombre positif, en €/L).');
+      return;
+    }
+    const ok = await NexusCarburantDonnees.enregistrerCoutAchatLigne(nexusClient, ligneId, valeur, MANAGER_COURANT ? MANAGER_COURANT.nom : null);
+    if (!ok) { alert('Erreur — réessayez.'); return; }
+    const ligne = (visite.lignes || []).find(l => String(l.id) === String(ligneId));
+    if (ligne) {
+      ligne.cout_achat_par_litre = valeur;
+      ligne.cout_saisi_par = MANAGER_COURANT ? MANAGER_COURANT.nom : null;
+    }
+    renderReleveReceptionModal(visite);
+    chargerEtRendreEconomie();
   }
 
   async function construireReleveReceptionPdf(visite) {
@@ -1905,7 +1971,7 @@
     renderSituation(CONTROLE_CTX);
     renderMessages();
     renderLectureNexus();
-    await Promise.all([chargerEtRendreLivraison(), chargerEtRendrePeriode(), chargerEtRendreHistorique(), chargerEtRendreAnalyse()]);
+    await Promise.all([chargerEtRendreLivraison(), chargerEtRendrePeriode(), chargerEtRendreHistorique(), chargerEtRendreAnalyse(), chargerEtRendreEconomie()]);
 
     // Reconstruit le panneau (pré-remplissage à jour, nouvelle "Dernier
     // point zéro") PUIS affiche la confirmation par-dessus — l'ordre
@@ -2150,6 +2216,74 @@
   }
 
   // ------------------------------------------------------------
+  // ÉCONOMIE — Sprint C8 "Économique" (17/08/2026, audit "Carburants —
+  // Réceptions, deltas et effet économique du stock" §6/§7 : coût moyen
+  // pondéré, stock hérité, effet potentiel des changements de prix).
+  // Indépendant de la période sélectionnée, chargé une seule fois à
+  // l'initialisation comme Analyse (C7) — reste silencieux tant qu'aucun
+  // coût d'achat n'a été saisi par un manager (voir
+  // renderReleveReceptionModal, section "Coût d'achat").
+  // ------------------------------------------------------------
+  async function chargerEtRendreEconomie() {
+    const zone = document.getElementById('economieZone');
+    if (!zone) return;
+    const M = NexusCarburantMoteur;
+    const cles = M.CLES_CARBURANT.filter(cle => !CUVES_CONFIG || !CUVES_CONFIG[cle] || CUVES_CONFIG[cle].actif);
+    const prix = await NexusCarburantDonnees.chargerPrixCarburantsCourant(nexusClient, SITE_ID);
+    const donnees = {};
+    await Promise.all(cles.map(async cle => {
+      const livraisons = await NexusCarburantDonnees.chargerLivraisonsCouteesCarburant(nexusClient, SITE_ID, cle, 60);
+      const cmpData = M.calculerCmpProgressif(livraisons);
+      const stockActuelL = (CONTROLE_CTX && CONTROLE_CTX.parCarburant && CONTROLE_CTX.parCarburant[cle]) ? CONTROLE_CTX.parCarburant[cle].stockPhysiqueAffiche : null;
+      const prixVente = prix ? prix[cle] : null;
+      const effet = M.calculerEffetPrixStockHerite({ cmp: cmpData.cmp, coutRemplacementActuel: cmpData.coutRemplacementActuel, prixVenteDuMois: prixVente, stockPhysiqueActuelL: stockActuelL });
+      donnees[cle] = { cmpData, effet, stockActuelL };
+    }));
+    renderEconomie(donnees, cles, prix);
+  }
+
+  function renderEconomie(donnees, cles, prix) {
+    const zone = document.getElementById('economieZone');
+    if (!zone) return;
+    const M = NexusCarburantMoteur;
+
+    const blocs = cles.map(cle => {
+      const { cmpData, effet, stockActuelL } = donnees[cle];
+      if (!cmpData.suffisant) {
+        return `
+          <div class="controle-carburant-bloc">
+            <div class="controle-carburant-titre"><span>${NOM_CARBURANT[cle]}</span></div>
+            <div class="controle-vide" style="margin:0;">${M.libelleCmp(cmpData)}</div>
+          </div>`;
+      }
+      const ligneMarge = effet.suffisant && effet.margeReelleStockHerite != null
+        ? `<div class="controle-ligne"><span>Marge réelle du stock actuel</span><span>${effet.margeReelleStockHerite.toFixed(3)} €/L</span></div>
+           <div class="controle-ligne"><span>Marge de référence (dernier coût)</span><span>${effet.margeReference.toFixed(3)} €/L</span></div>`
+        : '';
+      const valeurStock = stockActuelL != null
+        ? `<div class="controle-ligne"><span>Valeur du stock actuel</span><span>${fmtL(stockActuelL)} × ${cmpData.cmp.toFixed(3)} €/L ≈ ${Math.round(stockActuelL * cmpData.cmp).toLocaleString('fr-FR')} €</span></div>`
+        : '';
+      return `
+        <div class="controle-carburant-bloc">
+          <div class="controle-carburant-titre"><span>${NOM_CARBURANT[cle]}</span></div>
+          <div class="controle-ligne"><span>Coût moyen pondéré (CMP)</span><span>${cmpData.cmp.toFixed(3)} €/L</span></div>
+          <div class="controle-ligne"><span>Dernier coût d'achat connu</span><span>${cmpData.coutRemplacementActuel.toFixed(3)} €/L</span></div>
+          ${valeurStock}
+          ${ligneMarge}
+          <div class="controle-cause">${M.libelleEffetPrixStockHerite(effet)}</div>
+        </div>`;
+    }).join('');
+
+    const prixTxt = prix && prix.mois ? `Prix de vente en vigueur (${prix.mois})` : 'Prix de vente en vigueur';
+
+    zone.innerHTML = `
+      <div class="historique-souszone">${prixTxt}</div>
+      ${blocs}
+      <div class="section-note">Le coût d'achat n'est jamais connu par l'employé au moment de la livraison — un manager le saisit après coup depuis le relevé de réception ("Enregistrer le coût d'achat"). Sans coût saisi, cette section reste vide, jamais un montant fabriqué. "Dernier coût d'achat connu" n'est pas un prix de marché en temps réel, seulement la dernière livraison coûtée sur ce site.</div>
+    `;
+  }
+
+  // ------------------------------------------------------------
   // INITIALISATION
   // ------------------------------------------------------------
   nexusRequireAuth().then(async employee => {
@@ -2187,7 +2321,7 @@
     renderSituation(CONTROLE_CTX);
     renderLectureNexus();
 
-    await Promise.all([chargerEtRendreLivraison(), chargerEtRendrePeriode(), chargerEtRendreRattrapage(), chargerEtRendreHistorique(), chargerEtRendreQualiteReceptions(), chargerEtRendreAnalyse()]);
+    await Promise.all([chargerEtRendreLivraison(), chargerEtRendrePeriode(), chargerEtRendreRattrapage(), chargerEtRendreHistorique(), chargerEtRendreQualiteReceptions(), chargerEtRendreAnalyse(), chargerEtRendreEconomie()]);
   });
 </script>
 

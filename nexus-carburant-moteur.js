@@ -696,6 +696,109 @@
     return `${pctFiableTxt} % des ${stats.total} derniers contrôles sont fiables (${pctDegradeTxt} % provisoires ou non comparables) — suffisant pour dégager une tendance, en gardant ces jours en réserve.`;
   }
 
+  // ============================================================
+  // VALORISATION ÉCONOMIQUE — Sprint C8 "Économique" (17/08/2026, audit
+  // "Carburants — Réceptions, deltas et effet économique du stock" §6/§7 :
+  // "Le moteur économique peut ensuite exploiter une chaîne physique
+  // fiable [...] Il ne doit pas être mélangé à la phase P0", roadmap
+  // §15/§16 : "Seulement si achats/CMP fiables"). Dernier sprint de la
+  // roadmap C1-C8 — s'appuie sur toute la chaîne de preuve physique déjà
+  // posée (C1-C7), n'invente aucune nouvelle source de vérité physique.
+  //
+  // Aucun coût d'achat n'existait nulle part dans NEXUS avant ce sprint
+  // (vérifié explicitement : seul le PRIX DE VENTE est capturé,
+  // station_config.prix_carburants et audits_caisse.prix_*). Le coût
+  // d'achat par litre est désormais saisi a posteriori par le manager sur
+  // une ligne de réception déjà posée (carburant_reception_visite_
+  // lignes.cout_achat_par_litre, Sprint C8) — l'employé ne le connaît
+  // jamais au moment de la livraison (le BL ne porte généralement pas le
+  // prix). Tant qu'aucun coût n'a été saisi, aucun CMP n'est fabriqué
+  // (Article 5) : ce bloc peut légitimement rester silencieux pendant des
+  // semaines sur un site qui n'a pas encore commencé à saisir ses coûts.
+  //
+  // CMP (coût moyen pondéré) recalculé de façon PROGRESSIVE, livraison
+  // coûtée après livraison coûtée (formule de référence de l'audit §7) :
+  //   nouveau CMP = (ancien_stock × ancien_CMP + nouvelle_quantité × nouveau_coût) / nouveau_volume_total
+  // `stockAvantL` de chaque livraison coûtée vient du jaugeage AVANT
+  // livraison déjà mesuré par l'employé pendant cette même visite
+  // (carburant_reception_mesures.jaugeage_avant_l, sommé par carburant) —
+  // jamais une nouvelle mesure de stock fabriquée pour ce sprint
+  // (Article 11 : réutilise une vérité physique déjà posée par C4).
+  // ============================================================
+
+  // Une seule livraison coûtée : CMP = coût de cette livraison (aucun
+  // "ancien CMP" à pondérer — c'est le point de départ du suivi). Cas
+  // suivants : moyenne pondérée classique. `stockAvantL` manquant/nul (cas
+  // limite, jaugeage incomplet) -> repli sur le coût de cette livraison
+  // plutôt qu'une division par un volume nul ou une exception.
+  function calculerCmpApresLivraison({ cmpPrecedent, stockAvantL, quantiteLivreeL, coutAchatParLitre }) {
+    if (coutAchatParLitre == null || quantiteLivreeL == null || quantiteLivreeL <= 0) return cmpPrecedent != null ? cmpPrecedent : null;
+    if (cmpPrecedent == null || stockAvantL == null || stockAvantL <= 0) return coutAchatParLitre;
+    const nouveauVolumeTotal = stockAvantL + quantiteLivreeL;
+    if (nouveauVolumeTotal <= 0) return coutAchatParLitre;
+    return (stockAvantL * cmpPrecedent + quantiteLivreeL * coutAchatParLitre) / nouveauVolumeTotal;
+  }
+
+  // Rejoue TOUTES les livraisons coûtées d'un carburant, triées
+  // chronologiquement croissant, pour obtenir le CMP courant — même
+  // discipline de reconstruction séquentielle que reconstruireControlesSuivants
+  // (Sprint C3), appliquée ici à la valorisation plutôt qu'au théorique
+  // physique. `livraisons` = [{stockAvantL, quantiteLivreeL, coutAchatParLitre}],
+  // déjà filtrées par l'appelant sur coutAchatParLitre non nul (Article 5 :
+  // ce moteur ne filtre pas lui-même une livraison "invalide", il fait
+  // confiance à des données déjà correctes en entrée, comme le reste du
+  // moteur carburant). `coutRemplacementActuel` = coût de la DERNIÈRE
+  // livraison coûtée connue -- explicitement PAS un prix de marché temps
+  // réel (non disponible), documenté comme tel dans le libellé affiché à
+  // l'écran, jamais présenté comme davantage que ce qu'il est.
+  function calculerCmpProgressif(livraisons) {
+    let cmp = null;
+    let coutRemplacementActuel = null;
+    let nombreLivraisonsCoutees = 0;
+    (livraisons || []).forEach(l => {
+      if (l == null || l.coutAchatParLitre == null) return;
+      cmp = calculerCmpApresLivraison({ cmpPrecedent: cmp, stockAvantL: l.stockAvantL, quantiteLivreeL: l.quantiteLivreeL, coutAchatParLitre: l.coutAchatParLitre });
+      coutRemplacementActuel = l.coutAchatParLitre;
+      nombreLivraisonsCoutees++;
+    });
+    return { suffisant: nombreLivraisonsCoutees > 0, cmp, coutRemplacementActuel, nombreLivraisonsCoutees };
+  }
+
+  function libelleCmp(cmpData) {
+    if (!cmpData || !cmpData.suffisant) return "Aucun coût d'achat saisi pour l'instant — le coût moyen pondéré n'a pas encore de base de calcul.";
+    const n = cmpData.nombreLivraisonsCoutees;
+    return `Coût moyen pondéré : ${cmpData.cmp.toFixed(3)} €/L, calculé sur ${n} livraison${n > 1 ? 's' : ''} coûtée${n > 1 ? 's' : ''}. Dernier coût d'achat connu : ${cmpData.coutRemplacementActuel.toFixed(3)} €/L.`;
+  }
+
+  // Effet économique du stock hérité (audit §6.2/§6.3) : compare le CMP
+  // (coût moyen réellement porté par le stock actuellement en cuve) au
+  // dernier coût d'achat connu (proxy de "coût de remplacement", faute de
+  // flux de prix marché temps réel) et au prix de vente en cours — jamais
+  // une "perte", toujours une "pression potentielle sur marge" (sens
+  // défavorable) ou un "avantage temporaire" (sens favorable), exactement
+  // la formulation demandée par l'audit §6.2. `stockPhysiqueActuelL` vient
+  // de la jauge déjà affichée dans "Situation aujourd'hui" (Article 11 —
+  // jamais une deuxième mesure de stock physique inventée pour ce bloc).
+  function calculerEffetPrixStockHerite({ cmp, coutRemplacementActuel, prixVenteDuMois, stockPhysiqueActuelL }) {
+    if (cmp == null || coutRemplacementActuel == null || stockPhysiqueActuelL == null) {
+      return { suffisant: false };
+    }
+    const margeReelleStockHerite = prixVenteDuMois != null ? prixVenteDuMois - cmp : null;
+    const margeReference = prixVenteDuMois != null ? prixVenteDuMois - coutRemplacementActuel : null;
+    const effetParLitre = coutRemplacementActuel - cmp;
+    const effetTotal = effetParLitre * stockPhysiqueActuelL;
+    const sens = effetTotal > 0 ? 'favorable' : (effetTotal < 0 ? 'defavorable' : 'neutre');
+    return { suffisant: true, margeReelleStockHerite, margeReference, effetParLitre, effetTotal, sens };
+  }
+
+  function libelleEffetPrixStockHerite(effet) {
+    if (!effet || !effet.suffisant) return "Aucun coût d'achat saisi pour l'instant — impossible de valoriser l'effet du stock sur la marge.";
+    const montantTxt = `${Math.abs(Math.round(effet.effetTotal)).toLocaleString('fr-FR')} €`;
+    if (effet.sens === 'favorable') return `Avantage économique temporaire estimé : +${montantTxt} — le stock actuellement en cuve a été acheté en moyenne moins cher que le dernier coût d'achat connu.`;
+    if (effet.sens === 'defavorable') return `Pression potentielle sur marge estimée : -${montantTxt} — jamais une perte constatée, seulement l'effet du coût moyen du stock actuellement en cuve face au dernier coût d'achat connu.`;
+    return "Coût moyen du stock aligné avec le dernier coût d'achat connu — aucun effet prix notable.";
+  }
+
   // Résolution de l'ancre de calcul (dernier relevé réel OU point zéro
   // certifié, le plus récent des deux gagne) pour une date donnée — même
   // logique que l'écran depuis le 14/08/2026 (point zéro = plancher, pas
@@ -758,5 +861,7 @@
     qualiteChaineCarburant, libelleCauseQualiteChaine, resoudreAncreCarburant,
     libelleQualiteControle,
     SEUIL_HISTORIQUE_CHAINE_SUFFISANT, statistiquesFiabiliteChaine, libelleFiabiliteChaine,
+    calculerCmpApresLivraison, calculerCmpProgressif, libelleCmp,
+    calculerEffetPrixStockHerite, libelleEffetPrixStockHerite,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

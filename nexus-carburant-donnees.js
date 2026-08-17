@@ -613,6 +613,96 @@
     return parDate.slice(0, limite);
   }
 
+  // ============================================================
+  // VALORISATION ÉCONOMIQUE — Sprint C8 "Économique" (17/08/2026, audit
+  // "Carburants — Réceptions, deltas et effet économique du stock" §6/§7).
+  // Voir l'en-tête dédié dans nexus-carburant-moteur.js pour le contexte
+  // complet (aucun coût d'achat n'existait nulle part dans NEXUS avant ce
+  // sprint) — ce fichier ne fait AUCUN calcul de CMP/effet prix, il charge
+  // les lignes brutes (Article 11).
+  // ============================================================
+
+  // Livraisons dont le coût d'achat a été saisi par un manager, triées
+  // chronologiquement croissant, avec le stock avant livraison déjà
+  // mesuré par jaugeage pendant cette même visite (carburant_reception_
+  // mesures.jaugeage_avant_l, sommé par carburant — plusieurs cuves
+  // peuvent porter le même carburant) — jamais une deuxième mesure de
+  // stock physique inventée pour la valorisation (Article 11, réutilise
+  // la vérité déjà posée par le Sprint C4). `quantiteLivreeL` = quantité
+  // MESURÉE par jaugeage (vérité terrain), jamais le BL documentaire
+  // (Article 5 — le CMP doit refléter ce qui est réellement entré en
+  // cuve, pas ce qui était annoncé).
+  async function chargerLivraisonsCouteesCarburant(client, siteId, carburant, limite = 60) {
+    const { data: lignes, error: eLignes } = await client.from('carburant_reception_visite_lignes')
+      .select('visite_id, quantite_mesuree_l, cout_achat_par_litre')
+      .eq('site', siteId).eq('carburant', carburant)
+      .not('cout_achat_par_litre', 'is', null)
+      .limit(limite);
+    if (eLignes) { console.error('Chargement livraisons coûtées carburant:', eLignes); return []; }
+    if (!lignes || !lignes.length) return [];
+
+    const visiteIds = lignes.map(l => l.visite_id);
+    const [{ data: visites, error: eVisites }, { data: mesures, error: eMesures }] = await Promise.all([
+      client.from('carburant_reception_visites').select('id, date_visite').in('id', visiteIds),
+      client.from('carburant_reception_mesures').select('visite_id, jaugeage_avant_l').eq('carburant', carburant).in('visite_id', visiteIds),
+    ]);
+    if (eVisites) { console.error('Chargement visites (livraisons coûtées):', eVisites); return []; }
+    if (eMesures) { console.error('Chargement mesures (livraisons coûtées):', eMesures); return []; }
+
+    const dateParVisite = {};
+    (visites || []).forEach(v => { dateParVisite[v.id] = v.date_visite; });
+    const stockAvantParVisite = {};
+    (mesures || []).forEach(m => {
+      if (m.jaugeage_avant_l == null) return;
+      stockAvantParVisite[m.visite_id] = (stockAvantParVisite[m.visite_id] || 0) + Number(m.jaugeage_avant_l);
+    });
+
+    return lignes
+      .map(l => ({
+        date: dateParVisite[l.visite_id] || null,
+        stockAvantL: stockAvantParVisite[l.visite_id] != null ? stockAvantParVisite[l.visite_id] : null,
+        quantiteLivreeL: l.quantite_mesuree_l,
+        coutAchatParLitre: l.cout_achat_par_litre,
+      }))
+      // Une ligne dont la visite est introuvable (cas limite, jamais
+      // observé en production) ne doit jamais entrer dans le calcul
+      // silencieusement — exclue plutôt que triée avec une date null.
+      .filter(l => l.date)
+      .sort((a, b) => (a.date < b.date ? -1 : (a.date > b.date ? 1 : 0)));
+  }
+
+  // Prix de vente courant du site (station_config.prix_carburants — un
+  // SEUL prix "actuel" en base, pas d'historique par mois : même source
+  // déjà utilisée par Paramètres Station/APP/Verify, jamais une deuxième
+  // copie, Article 11). Clés en base "sp"/"go"/"gnr" remappées ici vers
+  // les clés carburant NEXUS standard "sp95"/"go"/"gnr".
+  async function chargerPrixCarburantsCourant(client, siteId) {
+    const { data, error } = await client.from('station_config')
+      .select('prix_carburants').eq('site', siteId).maybeSingle();
+    if (error) { console.error('Chargement prix carburants (Sprint C8):', error); return null; }
+    const p = data && data.prix_carburants;
+    if (!p) return null;
+    return {
+      sp95: p.sp != null ? Number(p.sp) : null,
+      go: p.go != null ? Number(p.go) : null,
+      gnr: p.gnr != null ? Number(p.gnr) : null,
+      mois: p.mois || null,
+    };
+  }
+
+  // Écriture manager du coût d'achat sur une ligne de réception déjà
+  // posée (Sprint C8, l'employé ne connaît jamais ce coût au moment de la
+  // livraison). RLS déjà restreint UPDATE à manager/gérant + site
+  // (vérifié en direct lors du Sprint C5 "Robustesse") — aucune nouvelle
+  // politique nécessaire.
+  async function enregistrerCoutAchatLigne(client, ligneId, coutAchatParLitre, nomManager) {
+    const { error } = await client.from('carburant_reception_visite_lignes')
+      .update({ cout_achat_par_litre: coutAchatParLitre, cout_saisi_par: nomManager || null, cout_saisi_le: new Date().toISOString() })
+      .eq('id', ligneId);
+    if (error) { console.error('Enregistrement coût d\'achat (Sprint C8):', error); return false; }
+    return true;
+  }
+
   global.NexusCarburantDonnees = {
     CARBURANTS_INFO, chargerVentesPeriode, chargerControleJour, chargerJoursSansReleve,
     chargerCuvesConfig, chargerConsommationJournaliereMoyenne, CUVES_PAR_DEFAUT,
@@ -620,5 +710,6 @@
     chargerHistoriquePointsZero, chargerHistoriqueReleves,
     chargerDerniersControles, chargerVersionsControleCarburant,
     chargerHistoriqueControlesCarburant,
+    chargerLivraisonsCouteesCarburant, chargerPrixCarburantsCourant, enregistrerCoutAchatLigne,
   };
 })(typeof window !== 'undefined' ? window : globalThis);
