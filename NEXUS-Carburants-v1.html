@@ -549,39 +549,51 @@
   // modifié. Même discipline que la Trace de contrôle FDJ (v2.116-v2.119).
   // 17/08/2026, Sprint C2 "Contrôle" de l'audit Carburants (§5.3 + §6) :
   // pose, pour chacun des 3 carburants, un contrôle versionné entre l'ancre
-  // (dernier relevé ou point zéro) et le relevé qui vient d'être écrit —
-  // avec sa qualité (fiable/provisoire/non_comparable) et sa cause
-  // explicite si dégradée. Reprend EXACTEMENT la même logique que l'écran
-  // (recalculerCarburant, plus haut) pour ne jamais qualifier différemment
-  // ce qui est affiché et ce qui est prouvé (Article 11). N'écrit jamais
-  // dans carburant_releves ni ne modifie l'historique — purement additif.
-  // Limite assumée de ce sprint : une correction sur un relevé ANTÉRIEUR
-  // ne recalcule pas encore les contrôles des jours suivants — c'est
-  // explicitement le sujet du Sprint C3 "Recalcul en cascade".
-  async function enregistrerControlesCarburant(versionNum) {
-    const referenceType = ANCRE_EST_POINT_ZERO ? 'point_zero' : 'releve';
-    const referenceDate = ANCRE_EST_POINT_ZERO ? (POINT_ZERO ? POINT_ZERO.date : null) : (DERNIER_RELEVE ? DERNIER_RELEVE.date : null);
-    const referenceExiste = ANCRE_EST_POINT_ZERO ? !!POINT_ZERO : !!DERNIER_RELEVE;
-    const commentaireActuel = RELEVE_CIBLE && RELEVE_CIBLE.commentaire ? RELEVE_CIBLE.commentaire : null;
+  // (dernier relevé ou point zéro) et un relevé donné — avec sa qualité
+  // (fiable/provisoire/non_comparable) et sa cause explicite si dégradée.
+  // Reprend EXACTEMENT la même logique que l'écran (recalculerCarburant,
+  // plus haut) pour ne jamais qualifier différemment ce qui est affiché et
+  // ce qui est prouvé (Article 11). N'écrit jamais dans carburant_releves
+  // ni ne modifie l'historique — purement additif.
+  // Fonction générique 17/08/2026 (Sprint C3, voir plus bas) : `ctx` porte
+  // exactement les mêmes variables que celles calculées à l'initialisation
+  // de l'écran pour DATE_CIBLE (dernierReleve/pointZero/historiqueNonFiable/
+  // ancreEstPointZero/referenceCertifieeCeJour/ventesDepuis) — soit lues
+  // directement depuis les globales de l'écran (sauvegarde normale), soit
+  // recalculées pour une AUTRE date (reconstruireControlesSuivants), sans
+  // dupliquer deux fois la même logique de résolution d'ancre.
+  async function prochaineVersionControle(siteId, date, carburant) {
+    const { data, error } = await nexusClient.from('carburant_controles')
+      .select('version_num').eq('site', siteId).eq('date', date).eq('carburant', carburant)
+      .order('version_num', { ascending: false }).limit(1).maybeSingle();
+    if (error) { console.error('Version contrôle carburant existante:', error); return 1; }
+    return data ? data.version_num + 1 : 1;
+  }
+
+  async function enregistrerControleDate(siteId, date, releve, ctx) {
+    const referenceType = ctx.ancreEstPointZero ? 'point_zero' : 'releve';
+    const referenceDate = ctx.ancreEstPointZero ? (ctx.pointZero ? ctx.pointZero.date : null) : (ctx.dernierReleve ? ctx.dernierReleve.date : null);
+    const referenceExiste = ctx.ancreEstPointZero ? !!ctx.pointZero : !!ctx.dernierReleve;
+    const commentaireActuel = releve && releve.commentaire ? releve.commentaire : null;
 
     for (const carb of CARBURANTS) {
-      const dernierReel = ANCRE_EST_POINT_ZERO
-        ? (POINT_ZERO && POINT_ZERO.lignes ? POINT_ZERO.lignes[carb.cle] : null)
-        : (carb.cle === 'go' ? NexusCarburantMoteur.stockReelGoTotal(DERNIER_RELEVE) : (DERNIER_RELEVE ? DERNIER_RELEVE[`stock_reel_${carb.cle}`] : null));
-      let reelDuJour = carb.cle === 'go' ? NexusCarburantMoteur.stockReelGoTotal(RELEVE_CIBLE) : RELEVE_CIBLE[`stock_reel_${carb.cle}`];
+      const dernierReel = ctx.ancreEstPointZero
+        ? (ctx.pointZero && ctx.pointZero.lignes ? ctx.pointZero.lignes[carb.cle] : null)
+        : (carb.cle === 'go' ? NexusCarburantMoteur.stockReelGoTotal(ctx.dernierReleve) : (ctx.dernierReleve ? ctx.dernierReleve[`stock_reel_${carb.cle}`] : null));
+      let reelDuJour = carb.cle === 'go' ? NexusCarburantMoteur.stockReelGoTotal(releve) : (releve ? releve[`stock_reel_${carb.cle}`] : null);
       if (reelDuJour === undefined) reelDuJour = null;
-      if (REFERENCE_CERTIFIEE_CE_JOUR && reelDuJour == null) reelDuJour = dernierReel;
-      const livraison = REFERENCE_CERTIFIEE_CE_JOUR ? 0 : (Number(RELEVE_CIBLE[`livraison_${carb.cle}`]) || 0);
-      const mouvement = REFERENCE_CERTIFIEE_CE_JOUR ? 0 : (Number(RELEVE_CIBLE[`mouvement_${carb.cle}`]) || 0);
-      const ventes = VENTES_DEPUIS[carb.cle];
+      if (ctx.referenceCertifieeCeJour && reelDuJour == null) reelDuJour = dernierReel;
+      const livraison = ctx.referenceCertifieeCeJour ? 0 : (releve ? Number(releve[`livraison_${carb.cle}`]) || 0 : 0);
+      const mouvement = ctx.referenceCertifieeCeJour ? 0 : (releve ? Number(releve[`mouvement_${carb.cle}`]) || 0 : 0);
+      const ventes = ctx.ventesDepuis[carb.cle];
 
       let qualite, cause, theorique = null, ecart = null;
-      if (HISTORIQUE_NON_FIABLE) {
+      if (ctx.historiqueNonFiable) {
         qualite = 'non_comparable';
         cause = 'anterieur_au_point_zero';
       } else {
         const q = NexusCarburantMoteur.qualiteChaineCarburant({
-          referenceExiste, dernierReel, referenceCertifieeCeJour: REFERENCE_CERTIFIEE_CE_JOUR,
+          referenceExiste, dernierReel, referenceCertifieeCeJour: ctx.referenceCertifieeCeJour,
           reelDuJour, ventes, mouvement, commentaire: commentaireActuel,
         });
         qualite = q.qualite;
@@ -592,8 +604,9 @@
         }
       }
 
+      const versionNum = await prochaineVersionControle(siteId, date, carb.cle);
       const { error } = await nexusClient.from('carburant_controles').insert({
-        site: SITE_ID, date: DATE_CIBLE, carburant: carb.cle, version_num: versionNum,
+        site: siteId, date, carburant: carb.cle, version_num: versionNum,
         reference_date: referenceDate, reference_type: referenceType,
         theorique, physique: reelDuJour, ecart, ventes, livraison, mouvement, qualite, cause,
       });
@@ -604,8 +617,63 @@
       // manquerait — jamais bloquant pour le manager, mais jamais silencieux
       // non plus côté développeur.
       if (error && error.code !== '23505') {
-        console.error(`Contrôle carburant carburant_controles (${carb.cle}) :`, error);
+        console.error(`Contrôle carburant carburant_controles (${carb.cle}, ${date}) :`, error);
       }
+    }
+  }
+
+  // Pose le contrôle du jour qui vient d'être enregistré (DATE_CIBLE),
+  // depuis les variables déjà chargées par l'écran — jamais un second jeu
+  // de requêtes pour ce qui est déjà en mémoire.
+  async function enregistrerControlesCarburant() {
+    await enregistrerControleDate(SITE_ID, DATE_CIBLE, RELEVE_CIBLE, {
+      dernierReleve: DERNIER_RELEVE, pointZero: POINT_ZERO,
+      historiqueNonFiable: HISTORIQUE_NON_FIABLE, ancreEstPointZero: ANCRE_EST_POINT_ZERO,
+      referenceCertifieeCeJour: REFERENCE_CERTIFIEE_CE_JOUR, ventesDepuis: VENTES_DEPUIS,
+    });
+  }
+
+  // ------------------------------------------------------------
+  // RECALCUL EN CASCADE — Sprint C3 (17/08/2026, audit §8) : "Une donnée
+  // historique est corrigée -> NEXUS identifie le premier contrôle
+  // impacté -> reconstruit les mouvements dans l'ordre chronologique ->
+  // les stocks théoriques suivants sont recalculés -> les snapshots
+  // physiques historiques ne changent PAS -> une nouvelle version des
+  // contrôles impactés est créée." Appelée uniquement après la correction
+  // d'un relevé déjà existant (jamais après une première saisie, qui n'a
+  // par définition aucun jour suivant à reconstruire différemment).
+  //
+  // "A ne jamais faire" (audit §8) : cette fonction ne réécrit JAMAIS
+  // carburant_releves pour un autre jour que celui corrigé par le manager
+  // — seule l'INTERPRÉTATION théorique (carburant_controles) des jours
+  // suivants est reconstruite, jamais le constat physique de ces jours-là.
+  async function reconstruireControlesSuivants(siteId, dateCorrigee) {
+    const { data: releves, error } = await nexusClient.from('carburant_releves')
+      .select('*').eq('site', siteId).gt('date', dateCorrigee).order('date', { ascending: true });
+    if (error) { console.error('Chargement relevés suivants (recalcul en cascade):', error); return; }
+    if (!releves || !releves.length) return;
+
+    for (const releve of releves) {
+      const [dernierReleve, pointZero] = await Promise.all([
+        chargerDernierReleve(siteId, releve.date),
+        chargerDernierPointZero(siteId, releve.date),
+      ]);
+      const { historiqueNonFiable, ancreEstPointZero, dateAncre, referenceCertifieeCeJour } =
+        NexusCarburantMoteur.resoudreAncreCarburant({ dernierReleve, pointZero, date: releve.date });
+
+      // Un point zéro certifié strictement après la date corrigée coupe la
+      // chaîne à partir d'ici : ce jour et tous les suivants s'ancrent sur
+      // cette référence plus récente, plus jamais sur le relevé corrigé —
+      // rien de plus à reconstruire (Article 5).
+      if (ancreEstPointZero && dateAncre > dateCorrigee) break;
+
+      const ventesDepuis = historiqueNonFiable
+        ? { go: null, sp95: null, gnr: null }
+        : (referenceCertifieeCeJour ? { go: 0, sp95: 0, gnr: 0 } : await chargerVentesDepuisDernierReleve(siteId, dateAncre, releve.date));
+
+      await enregistrerControleDate(siteId, releve.date, releve, {
+        dernierReleve, pointZero, historiqueNonFiable, ancreEstPointZero, referenceCertifieeCeJour, ventesDepuis,
+      });
     }
   }
 
@@ -695,16 +763,27 @@
     const { data, error } = await nexusClient.from('carburant_releves')
       .upsert(ligne, { onConflict: 'site,date' }).select().maybeSingle();
 
-    ENREGISTREMENT_EN_COURS = false;
-    btn.disabled = false;
     if (error) {
+      ENREGISTREMENT_EN_COURS = false;
+      btn.disabled = false;
       console.error('Enregistrement relevé carburant (vue courante):', error);
       btn.textContent = libelleBoutonEnregistrer();
       alert("La preuve de cette version a bien été enregistrée, mais la mise à jour du relevé affiché a échoué — réessayez, l'historique reste intact.");
       return;
     }
     RELEVE_CIBLE = data;
-    await enregistrerControlesCarburant(versionNum);
+    await enregistrerControlesCarburant();
+    // Sprint C3 : une CORRECTION (jamais une première saisie) peut changer
+    // l'ancre ou les ventes prises en compte par tous les relevés déjà
+    // saisis après celui-ci — reconstruit leur contrôle avant de rendre la
+    // main au manager, jamais en silence après coup (audit §8, "correction
+    // rétroactive propagée").
+    if (typeVersion === 'correction_manager') {
+      btn.textContent = 'Reconstruction des jours suivants…';
+      await reconstruireControlesSuivants(SITE_ID, DATE_CIBLE);
+    }
+    ENREGISTREMENT_EN_COURS = false;
+    btn.disabled = false;
     if (motifCorrectionEl) motifCorrectionEl.value = '';
     btn.textContent = `Mettre à jour le relevé${EST_AUJOURDHUI ? '' : ` du ${formaterDateFr(DATE_CIBLE)}`}`;
     const conf = document.getElementById('confirmation');
@@ -756,10 +835,11 @@
     // que DERNIER_RELEVE (ou si aucun relevé réel n'existe) — plancher,
     // pas ancre permanente : un relevé réel postérieur au point zéro
     // redevient une ancre normale pour les dates encore plus tardives.
-    HISTORIQUE_NON_FIABLE = !!POINT_ZERO && DATE_CIBLE < POINT_ZERO.date;
-    ANCRE_EST_POINT_ZERO = !!POINT_ZERO && !HISTORIQUE_NON_FIABLE && (!DERNIER_RELEVE || POINT_ZERO.date >= DERNIER_RELEVE.date);
-    DATE_ANCRE = ANCRE_EST_POINT_ZERO ? POINT_ZERO.date : (DERNIER_RELEVE ? DERNIER_RELEVE.date : null);
-    REFERENCE_CERTIFIEE_CE_JOUR = ANCRE_EST_POINT_ZERO && DATE_ANCRE === DATE_CIBLE;
+    const ancre = NexusCarburantMoteur.resoudreAncreCarburant({ dernierReleve: DERNIER_RELEVE, pointZero: POINT_ZERO, date: DATE_CIBLE });
+    HISTORIQUE_NON_FIABLE = ancre.historiqueNonFiable;
+    ANCRE_EST_POINT_ZERO = ancre.ancreEstPointZero;
+    DATE_ANCRE = ancre.dateAncre;
+    REFERENCE_CERTIFIEE_CE_JOUR = ancre.referenceCertifieeCeJour;
 
     VENTES_DEPUIS = HISTORIQUE_NON_FIABLE
       ? { go: null, sp95: null, gnr: null }

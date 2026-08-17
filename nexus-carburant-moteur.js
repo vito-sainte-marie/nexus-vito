@@ -598,6 +598,22 @@
     return LIBELLE_CAUSE_QUALITE_CHAINE[cause] || null;
   }
 
+  // Résolution de l'ancre de calcul (dernier relevé réel OU point zéro
+  // certifié, le plus récent des deux gagne) pour une date donnée — même
+  // logique que l'écran depuis le 14/08/2026 (point zéro = plancher, pas
+  // ancre permanente), désormais partagée entre l'initialisation de l'écran
+  // et le recalcul en cascade (Sprint C3, 17/08/2026) plutôt que dupliquée
+  // (Article 11 : une seule vérité pour "quelle est la référence de ce
+  // jour"). Fonction pure — ne fait aucune requête, `dernierReleve`/
+  // `pointZero` sont déjà chargés par l'appelant.
+  function resoudreAncreCarburant({ dernierReleve, pointZero, date }) {
+    const historiqueNonFiable = !!pointZero && date < pointZero.date;
+    const ancreEstPointZero = !!pointZero && !historiqueNonFiable && (!dernierReleve || pointZero.date >= dernierReleve.date);
+    const dateAncre = historiqueNonFiable ? null : (ancreEstPointZero ? pointZero.date : (dernierReleve ? dernierReleve.date : null));
+    const referenceCertifieeCeJour = ancreEstPointZero && dateAncre === date;
+    return { historiqueNonFiable, ancreEstPointZero, dateAncre, referenceCertifieeCeJour };
+  }
+
   global.NexusCarburantMoteur = {
     SEUIL_ECART_PCT_SURVEILLER, SEUIL_ECART_PCT_CORRIGER, CLES_CARBURANT, NOM_CARBURANT_COURT,
     stockReelGoTotal, sommerVentesPeriode,
@@ -611,6 +627,6 @@
     motifTheoriqueIndisponible, fiabiliteControle, libelleRapprochementLivraison, phraseDecisionMoteur,
     construireMessagesPilotage,
     prochaineVersionReleveCarburant, diffReleveCarburant,
-    qualiteChaineCarburant, libelleCauseQualiteChaine,
+    qualiteChaineCarburant, libelleCauseQualiteChaine, resoudreAncreCarburant,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

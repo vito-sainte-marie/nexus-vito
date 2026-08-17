@@ -164,4 +164,59 @@ const M = global.NexusCarburantMoteur;
   console.log('OK — libelleCauseQualiteChaine : une phrase par cause connue, null sinon, jamais une exception.');
 })();
 
-console.log('\nTous les tests "Carburants — chaîne de preuve (Sprints C1-C2)" passent.');
+// ------------------------------------------------------------
+// resoudreAncreCarburant — Sprint C3 "Recalcul en cascade" (17/08/2026) :
+// extraite de l'écran (initialisation + reconstruireControlesSuivants)
+// pour n'avoir qu'une seule vérité de résolution d'ancre, désormais
+// testable indépendamment du DOM/Supabase.
+// ------------------------------------------------------------
+(() => {
+  // Aucun relevé, aucun point zéro -> pas d'ancre du tout.
+  assert.deepStrictEqual(
+    NexusCarburantMoteur.resoudreAncreCarburant({ dernierReleve: null, pointZero: null, date: '2026-08-17' }),
+    { historiqueNonFiable: false, ancreEstPointZero: false, dateAncre: null, referenceCertifieeCeJour: false },
+    'Aucune référence -> pas d\'ancre, jamais un historique déclaré non fiable à tort'
+  );
+
+  // Dernier relevé seul (pas de point zéro) -> ancre = ce relevé.
+  assert.deepStrictEqual(
+    NexusCarburantMoteur.resoudreAncreCarburant({ dernierReleve: { date: '2026-08-15' }, pointZero: null, date: '2026-08-16' }),
+    { historiqueNonFiable: false, ancreEstPointZero: false, dateAncre: '2026-08-15', referenceCertifieeCeJour: false },
+    'Dernier relevé sans point zéro -> ancre = dernier relevé'
+  );
+
+  // Point zéro plus récent que le dernier relevé -> devient l'ancre (plancher).
+  assert.deepStrictEqual(
+    NexusCarburantMoteur.resoudreAncreCarburant({ dernierReleve: { date: '2026-08-10' }, pointZero: { date: '2026-08-14' }, date: '2026-08-16' }),
+    { historiqueNonFiable: false, ancreEstPointZero: true, dateAncre: '2026-08-14', referenceCertifieeCeJour: false },
+    'Point zéro plus récent que le dernier relevé -> devient l\'ancre'
+  );
+
+  // Relevé réel POSTÉRIEUR au point zéro -> redevient l'ancre normale (le
+  // point zéro n'est qu'un plancher, jamais une ancre permanente).
+  assert.deepStrictEqual(
+    NexusCarburantMoteur.resoudreAncreCarburant({ dernierReleve: { date: '2026-08-15' }, pointZero: { date: '2026-08-14' }, date: '2026-08-16' }),
+    { historiqueNonFiable: false, ancreEstPointZero: false, dateAncre: '2026-08-15', referenceCertifieeCeJour: false },
+    'Relevé réel postérieur au point zéro -> redevient l\'ancre, le point zéro n\'est qu\'un plancher'
+  );
+
+  // Date antérieure au point zéro -> historique non fiable, aucun théorique
+  // qualifié sur cette période (Article 5).
+  assert.deepStrictEqual(
+    NexusCarburantMoteur.resoudreAncreCarburant({ dernierReleve: { date: '2026-08-10' }, pointZero: { date: '2026-08-14' }, date: '2026-08-12' }),
+    { historiqueNonFiable: true, ancreEstPointZero: false, dateAncre: null, referenceCertifieeCeJour: false },
+    'Date antérieure au point zéro -> historique non fiable'
+  );
+
+  // Le jour EXACT de la certification -> référence certifiée ce jour (pas
+  // un historique non fiable, jamais un panneau vide).
+  assert.deepStrictEqual(
+    NexusCarburantMoteur.resoudreAncreCarburant({ dernierReleve: { date: '2026-08-10' }, pointZero: { date: '2026-08-14' }, date: '2026-08-14' }),
+    { historiqueNonFiable: false, ancreEstPointZero: true, dateAncre: '2026-08-14', referenceCertifieeCeJour: true },
+    'Jour exact de la certification -> référence certifiée ce jour'
+  );
+
+  console.log('OK — resoudreAncreCarburant : même résolution d\'ancre en initialisation d\'écran et en recalcul en cascade, jamais deux logiques divergentes (Article 11).');
+})();
+
+console.log('\nTous les tests "Carburants — chaîne de preuve (Sprints C1-C3)" passent.');
