@@ -219,4 +219,42 @@ const M = global.NexusCarburantMoteur;
   console.log('OK — resoudreAncreCarburant : même résolution d\'ancre en initialisation d\'écran et en recalcul en cascade, jamais deux logiques divergentes (Article 11).');
 })();
 
-console.log('\nTous les tests "Carburants — chaîne de preuve (Sprints C1-C3)" passent.');
+// ------------------------------------------------------------
+// controleInchange — Sprint C5 "Robustesse" (audit §12, scénario de test
+// C16 : "Recalcul relancé deux fois -> Aucun doublon"). Empêche
+// enregistrerControleDate de poser une nouvelle version carburant_controles
+// à chaque relance d'un recalcul en cascade qui ne change rien au contenu.
+// ------------------------------------------------------------
+(() => {
+  const base = {
+    reference_date: '2026-08-14', reference_type: 'point_zero',
+    theorique: 11500, physique: 11480, ecart: -20, ventes: 480, livraison: 0, mouvement: 0,
+    qualite: 'fiable', cause: null,
+  };
+
+  // Aucun contrôle existant -> jamais "inchangé" (il faut bien poser la
+  // toute première version), même si le nouveau contenu ressemble à un
+  // objet "vide".
+  assert.strictEqual(M.controleInchange(null, base), false, 'Aucun contrôle antérieur -> jamais inchangé, la première version doit toujours être posée');
+
+  // Contenu strictement identique -> inchangé, pas de nouvelle version.
+  assert.strictEqual(M.controleInchange({ ...base }, { ...base }), true, 'Contenu identique -> inchangé (scénario C16 : relance sans effet -> aucun doublon)');
+
+  // Un seul champ numérique diffère (nouvel écart recalculé) -> changé.
+  assert.strictEqual(M.controleInchange({ ...base }, { ...base, ecart: -25 }), false, 'Écart différent -> changé, nouvelle version légitime');
+
+  // Écart flottant négligeable (arrondi/precision) sous l'epsilon -> traité
+  // comme inchangé, jamais un doublon "silencieux" causé par une imprécision
+  // de calcul flottant.
+  assert.strictEqual(M.controleInchange({ ...base, theorique: 11500.0000001 }, { ...base, theorique: 11500.0000002 }), true, 'Écart infinitésimal (bruit flottant) -> toujours considéré comme inchangé');
+
+  // qualite ou cause différente (ex. redevenu comparable) -> changé.
+  assert.strictEqual(M.controleInchange({ ...base, qualite: 'non_comparable', cause: 'ventes_indisponibles' }, base), false, 'Qualité de chaîne différente -> changé');
+
+  // reference_date/reference_type différents (nouvelle ancre) -> changé.
+  assert.strictEqual(M.controleInchange({ ...base }, { ...base, reference_date: '2026-08-16', reference_type: 'releve' }), false, 'Référence (date/type) différente -> changé');
+
+  console.log('OK — controleInchange : relance d\'un recalcul en cascade sans changement de contenu -> aucune nouvelle version (scénario C16, audit §12).');
+})();
+
+console.log('\nTous les tests "Carburants — chaîne de preuve (Sprints C1-C5)" passent.');

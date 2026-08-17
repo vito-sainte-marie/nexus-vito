@@ -69,19 +69,35 @@
 
   // Soumission complète d'une visite (audit : "L'employé saisit les faits"
   // en UNE fois — même principe que le modèle v1). `visite` = les colonnes
-  // de carburant_reception_visites, DOIT porter `idempotency_key` (généré
-  // une seule fois par visite côté écran, Sprint C4). `lignes` = tableau de
+  // de carburant_reception_visites (son `statut` porte la cible FINALE —
+  // 'terminee' ou 'terminee_avec_derogation' — jamais posée directement,
+  // voir ci-dessous), DOIT porter `idempotency_key` (généré une seule fois
+  // par visite côté écran, Sprint C4). `lignes` = tableau de
   // carburant_reception_visite_lignes SANS visite_id. `compartiments` =
   // tableau de carburant_reception_compartiments SANS visite_id. `mesures`
   // = tableau de carburant_reception_mesures SANS visite_id. `anomalies` =
   // tableau de carburant_reception_anomalies SANS visite_id (peut être
   // vide — uniquement les anomalies réellement rencontrées, y compris déjà
-  // levées par dérogation manager). Si un insert intermédiaire échoue après
-  // la création de l'en-tête, l'en-tête orpheline est supprimée (pas de
-  // vraie transaction multi-tables côté client Supabase — l'atomicité
-  // complète par RPC transactionnelle est explicitement le sujet du Sprint
-  // C5 "Robustesse", pas de celui-ci) — même stratégie de nettoyage
-  // explicite que le modèle v1.
+  // levées par dérogation manager).
+  //
+  // Atomicité (Sprint C5 "Robustesse", audit §12) : pas de vraie
+  // transaction multi-tables côté client Supabase, donc écriture en DEUX
+  // PHASES plutôt qu'un nettoyage best-effort après coup — même discipline
+  // que carburant_releves.controle_statut et fdj_shifts.releve_cloture_statut
+  // (pending/error/retry) :
+  //   1. L'en-tête est TOUJOURS insérée avec statut='en_cours' d'abord,
+  //      quel que soit le statut final visé par l'appelant.
+  //   2. Les lignes/compartiments/mesures/anomalies sont insérées.
+  //   3. Le statut final n'est posé qu'APRÈS le succès complet de l'étape 2.
+  // Tant que le statut reste 'en_cours', la visite est une preuve durable
+  // qu'une tentative a eu lieu (jamais supprimée : carburant_reception_
+  // visites n'a d'ailleurs aucune politique RLS DELETE — un nettoyage par
+  // suppression aurait de toute façon toujours silencieusement échoué) mais
+  // n'est jamais lue comme une réception réelle (chargerDerniereVisite /
+  // chargerHistoriqueVisites l'excluent) ; en cas de coupure avant l'étape
+  // 3, un retry avec la même idempotency_key complète simplement le travail
+  // restant, y compris la pose tardive du statut final si elle seule avait
+  // échoué.
   //
   // Idempotence (Sprint C4, audit §4 "Idempotence livraison" + scénario de
   // test C04 "Double clic validation livraison → Une seule réception
@@ -89,14 +105,18 @@
   // cette même soumission a déjà été tentée (double clic, retry réseau) —
   // jamais une erreur bloquante. On retrouve la visite existante et : si
   // ses lignes existent déjà, la soumission précédente est allée à son
-  // terme, on ne recompte rien (succès idempotent immédiat) ; sinon, la
-  // tentative précédente s'est arrêtée en cours de route (coupure réseau
-  // avant réponse) et on complète la même visite plutôt que d'en créer une
-  // seconde — même discipline que le traitement du 23505 sur
-  // carburant_releve_versions (Sprint C1) et fdj_releves_cloture.
+  // terme (on s'assure juste que le statut final est bien posé, au cas où
+  // seule cette dernière étape avait échoué) — succès idempotent immédiat,
+  // aucune ligne réinsérée ; sinon, la tentative précédente s'est arrêtée
+  // en cours de route (coupure réseau avant réponse) et on complète la
+  // même visite plutôt que d'en créer une seconde — même discipline que le
+  // traitement du 23505 sur carburant_releve_versions (Sprint C1) et
+  // fdj_releves_cloture.
   async function soumettreVisiteComplete(client, visite, lignes, compartiments, mesures, anomalies) {
+    const statutFinal = visite.statut;
     let v;
-    const { data: vInsert, error: eVisite } = await client.from('carburant_reception_visites').insert(visite).select().single();
+    const { data: vInsert, error: eVisite } = await client.from('carburant_reception_visites')
+      .insert({ ...visite, statut: 'en_cours' }).select().single();
     if (eVisite) {
       if (eVisite.code !== '23505' || !visite.idempotency_key) {
         console.error('Création visite réception carburant:', eVisite);
@@ -111,41 +131,52 @@
       const { count, error: eCount } = await client.from('carburant_reception_visite_lignes')
         .select('id', { count: 'exact', head: true }).eq('visite_id', existante.id);
       if (eCount) { console.error('Réception carburant — vérification complétude visite existante:', eCount); return { error: eCount }; }
-      if ((count || 0) > 0) return { data: existante, idempotent: true };
+      if ((count || 0) > 0) {
+        if (existante.statut === 'en_cours') {
+          const { error: eMajTardif } = await client.from('carburant_reception_visites').update({ statut: statutFinal }).eq('id', existante.id);
+          if (eMajTardif) console.error('Réception carburant — pose tardive du statut final (retry idempotent):', eMajTardif);
+          else existante.statut = statutFinal;
+        }
+        return { data: existante, idempotent: true };
+      }
       v = existante; // en-tête déjà créée par une tentative précédente interrompue avant la suite — on la complète, on n'en recrée pas une seconde.
     } else {
       v = vInsert;
     }
 
-    const nettoyer = async () => { await client.from('carburant_reception_visites').delete().eq('id', v.id); };
-
     const lignesAvecId = (lignes || []).map(l => ({ ...l, visite_id: v.id, site: visite.site }));
     const { error: eLignes } = await client.from('carburant_reception_visite_lignes').insert(lignesAvecId);
-    if (eLignes) { console.error('Création lignes réception carburant:', eLignes); await nettoyer(); return { error: eLignes }; }
+    if (eLignes) { console.error('Création lignes réception carburant:', eLignes); return { error: eLignes }; }
 
     const compartimentsAvecId = (compartiments || []).map(c => ({ ...c, visite_id: v.id, site: visite.site }));
     const { error: eCompartiments } = await client.from('carburant_reception_compartiments').insert(compartimentsAvecId);
-    if (eCompartiments) { console.error('Création compartiments réception carburant:', eCompartiments); await nettoyer(); return { error: eCompartiments }; }
+    if (eCompartiments) { console.error('Création compartiments réception carburant:', eCompartiments); return { error: eCompartiments }; }
 
     const mesuresAvecId = (mesures || []).map(m => ({ ...m, visite_id: v.id, site: visite.site }));
     const { error: eMesures } = await client.from('carburant_reception_mesures').insert(mesuresAvecId);
-    if (eMesures) { console.error('Création mesures réception carburant:', eMesures); await nettoyer(); return { error: eMesures }; }
+    if (eMesures) { console.error('Création mesures réception carburant:', eMesures); return { error: eMesures }; }
 
     if (anomalies && anomalies.length) {
       const anomaliesAvecId = anomalies.map(a => ({ ...a, visite_id: v.id, site: visite.site }));
       const { error: eAnomalies } = await client.from('carburant_reception_anomalies').insert(anomaliesAvecId);
-      if (eAnomalies) { console.error('Création anomalies réception carburant:', eAnomalies); await nettoyer(); return { error: eAnomalies }; }
+      if (eAnomalies) { console.error('Création anomalies réception carburant:', eAnomalies); return { error: eAnomalies }; }
     }
 
-    return { data: v };
+    const { error: eMajFinal } = await client.from('carburant_reception_visites').update({ statut: statutFinal }).eq('id', v.id);
+    if (eMajFinal) { console.error('Pose du statut final réception carburant:', eMajFinal); return { error: eMajFinal }; }
+
+    return { data: { ...v, statut: statutFinal } };
   }
 
   // Dernière visite d'un site, avec ses lignes/compartiments/mesures —
   // alimente le sous-bloc "Qualité des réceptions" de Carburants Pilotage.
-  // Retourne null si aucune visite n'a jamais été saisie.
+  // Retourne null si aucune visite n'a jamais été saisie. Exclut
+  // statut='en_cours' (Sprint C5) : une en-tête posée en preuve durable
+  // d'une tentative interrompue n'est jamais une réception réelle tant que
+  // son statut final n'a pas été confirmé.
   async function chargerDerniereVisite(client, siteId) {
     const { data: visite, error: e1 } = await client.from('carburant_reception_visites')
-      .select('*').eq('site', siteId)
+      .select('*').eq('site', siteId).neq('statut', 'en_cours')
       .order('date_visite', { ascending: false }).order('created_at', { ascending: false })
       .limit(1).maybeSingle();
     if (e1) { console.error('Chargement dernière visite réception carburant:', e1); return null; }
@@ -161,10 +192,11 @@
 
   // Historique des visites sur une période — même esprit que
   // chargerHistoriqueReceptions v1 (liste chronologique simple, aucun
-  // filtre silencieux). `limite` par défaut 10.
+  // filtre silencieux). `limite` par défaut 10. Exclut statut='en_cours'
+  // (Sprint C5), même raison que chargerDerniereVisite ci-dessus.
   async function chargerHistoriqueVisites(client, siteId, limite) {
     const { data, error } = await client.from('carburant_reception_visites')
-      .select('*').eq('site', siteId)
+      .select('*').eq('site', siteId).neq('statut', 'en_cours')
       .order('date_visite', { ascending: false }).order('created_at', { ascending: false })
       .limit(limite || 10);
     if (error) { console.error('Chargement historique visites réception carburant:', error); return []; }

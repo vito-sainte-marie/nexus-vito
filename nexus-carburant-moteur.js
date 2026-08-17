@@ -614,6 +614,35 @@
     return { historiqueNonFiable, ancreEstPointZero, dateAncre, referenceCertifieeCeJour };
   }
 
+  // Sprint C5 "Robustesse" (17/08/2026, audit §8/§12) : "Le moteur de
+  // reconstruction doit pouvoir être relancé sans produire de doublons"
+  // (scénario de test C16 de l'audit, "Recalcul relancé deux fois ->
+  // Résultat identique, aucun doublon"). Compare un contrôle déjà écrit à
+  // ce qui serait écrit maintenant pour la même clé (site,date,carburant) —
+  // si rien n'a changé (même discipline que diffReleveCarburant, C1/C09),
+  // l'écran (enregistrerControleDate) doit sauter l'insertion plutôt que de
+  // poser une nouvelle version identique en boucle à chaque relance. Un
+  // epsilon minime absorbe un éventuel bruit de flottant sans jamais
+  // masquer un vrai changement de valeur.
+  const EPSILON_CONTROLE = 1e-6;
+  function nombresEgaux(a, b) {
+    if (a == null || b == null) return a == null && b == null;
+    return Math.abs(Number(a) - Number(b)) < EPSILON_CONTROLE;
+  }
+  function controleInchange(dernierControle, nouveau) {
+    if (!dernierControle) return false; // rien d'existant -> jamais "inchangé", il faut poser la première version.
+    return dernierControle.reference_date === nouveau.reference_date
+      && dernierControle.reference_type === nouveau.reference_type
+      && nombresEgaux(dernierControle.theorique, nouveau.theorique)
+      && nombresEgaux(dernierControle.physique, nouveau.physique)
+      && nombresEgaux(dernierControle.ecart, nouveau.ecart)
+      && nombresEgaux(dernierControle.ventes, nouveau.ventes)
+      && nombresEgaux(dernierControle.livraison, nouveau.livraison)
+      && nombresEgaux(dernierControle.mouvement, nouveau.mouvement)
+      && dernierControle.qualite === nouveau.qualite
+      && dernierControle.cause === nouveau.cause;
+  }
+
   global.NexusCarburantMoteur = {
     SEUIL_ECART_PCT_SURVEILLER, SEUIL_ECART_PCT_CORRIGER, CLES_CARBURANT, NOM_CARBURANT_COURT,
     stockReelGoTotal, sommerVentesPeriode,
@@ -622,6 +651,7 @@
     calculerMixCarburant, calculerEvolutionVolume, identifierProduitMoteur,
     decomposerEvolution, identifierMoteurEvolution,
     statutGlobalControle, texteControleJour,
+    controleInchange,
     SEUIL_AUTONOMIE_ALERTE_JOURS, SEUIL_AUTONOMIE_VIGILANCE_JOURS, SEUIL_AUTONOMIE_CONFORTABLE_JOURS,
     calculerAutonomieJours, statutAutonomie, pourcentageRemplissage, capaciteTotale,
     motifTheoriqueIndisponible, fiabiliteControle, libelleRapprochementLivraison, phraseDecisionMoteur,

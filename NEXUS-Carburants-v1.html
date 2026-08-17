@@ -562,19 +562,31 @@
   // directement depuis les globales de l'écran (sauvegarde normale), soit
   // recalculées pour une AUTRE date (reconstruireControlesSuivants), sans
   // dupliquer deux fois la même logique de résolution d'ancre.
-  async function prochaineVersionControle(siteId, date, carburant) {
+  // Sprint C5 (17/08/2026, audit §12) : renvoie la DERNIÈRE VERSION COMPLÈTE
+  // du contrôle (pas seulement son numéro) pour permettre à
+  // enregistrerControleDate de comparer "ce qui existe déjà" à "ce qui
+  // serait écrit maintenant" — un relancement du recalcul en cascade ne doit
+  // jamais empiler des versions identiques (scénario C16 de l'audit).
+  async function dernierControleCarburant(siteId, date, carburant) {
     const { data, error } = await nexusClient.from('carburant_controles')
-      .select('version_num').eq('site', siteId).eq('date', date).eq('carburant', carburant)
+      .select('*').eq('site', siteId).eq('date', date).eq('carburant', carburant)
       .order('version_num', { ascending: false }).limit(1).maybeSingle();
-    if (error) { console.error('Version contrôle carburant existante:', error); return 1; }
-    return data ? data.version_num + 1 : 1;
+    if (error) { console.error('Dernier contrôle carburant existant:', error); return null; }
+    return data;
   }
 
+  // Retourne true si tous les carburants concernés ont été écrits (ou
+  // étaient déjà à jour / déjà posés — idempotence), false si au moins une
+  // écriture a réellement échoué — permet à l'appelant de tracer un état
+  // "ok"/"erreur" durable sur carburant_releves.controle_statut (Sprint C5,
+  // même discipline que fdj_shifts.releve_cloture_statut) plutôt qu'un
+  // simple console.error invisible et non rejouable.
   async function enregistrerControleDate(siteId, date, releve, ctx) {
     const referenceType = ctx.ancreEstPointZero ? 'point_zero' : 'releve';
     const referenceDate = ctx.ancreEstPointZero ? (ctx.pointZero ? ctx.pointZero.date : null) : (ctx.dernierReleve ? ctx.dernierReleve.date : null);
     const referenceExiste = ctx.ancreEstPointZero ? !!ctx.pointZero : !!ctx.dernierReleve;
     const commentaireActuel = releve && releve.commentaire ? releve.commentaire : null;
+    let succes = true;
 
     for (const carb of CARBURANTS) {
       const dernierReel = ctx.ancreEstPointZero
@@ -604,33 +616,60 @@
         }
       }
 
-      const versionNum = await prochaineVersionControle(siteId, date, carb.cle);
-      const { error } = await nexusClient.from('carburant_controles').insert({
-        site: siteId, date, carburant: carb.cle, version_num: versionNum,
+      const nouveauControle = {
+        site: siteId, date, carburant: carb.cle,
         reference_date: referenceDate, reference_type: referenceType,
         theorique, physique: reelDuJour, ecart, ventes, livraison, mouvement, qualite, cause,
-      });
+      };
+      const dernier = await dernierControleCarburant(siteId, date, carb.cle);
+
+      // Sprint C5 (audit §8/§12, scénario C16) : si un recalcul relancé
+      // produirait EXACTEMENT le même contrôle que la dernière version déjà
+      // posée, ne rien réécrire — jamais empiler des versions identiques à
+      // chaque relance du recalcul en cascade.
+      if (NexusCarburantMoteur.controleInchange(dernier, nouveauControle)) continue;
+
+      const versionNum = dernier ? dernier.version_num + 1 : 1;
+      const { error } = await nexusClient.from('carburant_controles').insert({ ...nouveauControle, version_num: versionNum });
       // 23505 = ce contrôle (site,date,carburant,version_num) existe déjà —
       // même idempotence que le relevé lui-même. Toute autre erreur est
-      // journalisée : le relevé (la preuve principale, Sprint C1) est déjà
-      // écrit et intact à ce stade, seule cette interprétation dérivée
-      // manquerait — jamais bloquant pour le manager, mais jamais silencieux
-      // non plus côté développeur.
+      // journalisée ET fait basculer le résultat retourné à l'appelant à
+      // false, pour que carburant_releves.controle_statut de ce jour passe
+      // à 'erreur' plutôt que de rester silencieusement invisible (Sprint
+      // C5) : le relevé (la preuve principale, Sprint C1) est déjà écrit et
+      // intact à ce stade, seule cette interprétation dérivée manquerait —
+      // jamais bloquant pour le manager, mais jamais silencieux non plus.
       if (error && error.code !== '23505') {
         console.error(`Contrôle carburant carburant_controles (${carb.cle}, ${date}) :`, error);
+        succes = false;
       }
     }
+    return succes;
+  }
+
+  // Sprint C5 (audit §12) : trace durablement, sur le relevé COURANT de ce
+  // jour précis, le résultat de la dernière tentative d'écriture de son
+  // contrôle — 'ok'/'erreur' — jamais un simple log console invisible.
+  // Erreur elle-même ignorée volontairement (best-effort) : si la mise à
+  // jour du statut échoue, le contrôle lui-même a déjà été correctement
+  // traité juste avant, on ne bloque jamais le manager pour un problème de
+  // traçabilité secondaire.
+  async function majControleStatutReleve(siteId, date, succes) {
+    const { error } = await nexusClient.from('carburant_releves')
+      .update({ controle_statut: succes ? 'ok' : 'erreur' }).eq('site', siteId).eq('date', date);
+    if (error) console.error(`Mise à jour controle_statut carburant_releves (${date}) :`, error);
   }
 
   // Pose le contrôle du jour qui vient d'être enregistré (DATE_CIBLE),
   // depuis les variables déjà chargées par l'écran — jamais un second jeu
   // de requêtes pour ce qui est déjà en mémoire.
   async function enregistrerControlesCarburant() {
-    await enregistrerControleDate(SITE_ID, DATE_CIBLE, RELEVE_CIBLE, {
+    const succes = await enregistrerControleDate(SITE_ID, DATE_CIBLE, RELEVE_CIBLE, {
       dernierReleve: DERNIER_RELEVE, pointZero: POINT_ZERO,
       historiqueNonFiable: HISTORIQUE_NON_FIABLE, ancreEstPointZero: ANCRE_EST_POINT_ZERO,
       referenceCertifieeCeJour: REFERENCE_CERTIFIEE_CE_JOUR, ventesDepuis: VENTES_DEPUIS,
     });
+    await majControleStatutReleve(SITE_ID, DATE_CIBLE, succes);
   }
 
   // ------------------------------------------------------------
@@ -671,9 +710,10 @@
         ? { go: null, sp95: null, gnr: null }
         : (referenceCertifieeCeJour ? { go: 0, sp95: 0, gnr: 0 } : await chargerVentesDepuisDernierReleve(siteId, dateAncre, releve.date));
 
-      await enregistrerControleDate(siteId, releve.date, releve, {
+      const succesDate = await enregistrerControleDate(siteId, releve.date, releve, {
         dernierReleve, pointZero, historiqueNonFiable, ancreEstPointZero, referenceCertifieeCeJour, ventesDepuis,
       });
+      await majControleStatutReleve(siteId, releve.date, succesDate);
     }
   }
 

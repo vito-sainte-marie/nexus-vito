@@ -1,11 +1,13 @@
-// Test — idempotence de soumettreVisiteComplete (Sprint C4 "Réception",
-// audit Carburants — chaîne de preuve, 17/08/2026).
+// Test — idempotence + atomicité en deux phases de soumettreVisiteComplete
+// (Sprint C4 "Réception" + Sprint C5 "Robustesse", audit Carburants —
+// chaîne de preuve, 17/08/2026).
 //
 // Vérifie le comportement attendu par le scénario C04 du plan de tests de
 // l'audit ("Double clic validation livraison → Une seule réception
-// comptabilisée"), sans navigateur — un mock minimal de client Supabase
-// (chaînable .from().insert().select().single() / .eq().maybeSingle() /
-// .eq().select(..., {count}) ) reproduisant les 3 cas réels :
+// comptabilisée") ainsi que le §12 (atomicité pending/error/retry), sans
+// navigateur — un mock minimal de client Supabase (chaînable
+// .from().insert().select().single() / .eq().maybeSingle() /
+// .eq().select(..., {count}) / .update().eq() ) reproduisant les cas réels :
 //   1. Premier appel : insertion normale, aucun conflit.
 //   2. Retry après succès complet (double clic, réponse perdue en route) :
 //      conflit 23505 sur idempotency_key, visite déjà complète -> succès
@@ -17,6 +19,16 @@
 //   4. Un vrai second geste (nouvelle idempotency_key) doit toujours créer
 //      une nouvelle visite distincte — l'idempotence ne doit jamais fusionner
 //      deux réceptions réellement différentes.
+//   5. (Sprint C5) Le statut final n'est posé qu'APRÈS le succès complet des
+//      sous-tables — jamais directement à l'insertion de l'en-tête.
+//   6. (Sprint C5) Un échec d'insertion des lignes laisse l'en-tête en
+//      'en_cours', jamais supprimée — il n'existe plus de nettoyer() par
+//      DELETE (carburant_reception_visites n'a de toute façon aucune
+//      politique RLS DELETE, ce nettoyage était silencieusement no-op).
+//   7. (Sprint C5) Retry idempotent sur une visite déjà complète mais dont
+//      la pose du statut final avait elle-même échoué la première fois
+//      (statut encore 'en_cours' malgré des lignes déjà présentes) : le
+//      retry doit poser tardivement le statut final.
 //
 // Convention : chemin relatif (__dirname), comme les tests FDJ/Carburants
 // déjà durcis (v2.108 et suivants).
@@ -25,7 +37,7 @@ const assert = require('assert');
 require(__dirname + '/nexus-reception-donnees.js');
 const D = global.NexusReceptionDonnees;
 
-function fabriquerClientMock({ visitesExistantes = [], lignesExistantes = {} } = {}) {
+function fabriquerClientMock({ visitesExistantes = [], lignesExistantes = {}, echouerInsertLignes = false } = {}) {
   const visites = [...visitesExistantes];
   const lignesParVisite = { ...lignesExistantes };
   const appelsInsertLignes = [];
@@ -61,6 +73,15 @@ function fabriquerClientMock({ visitesExistantes = [], lignesExistantes = {} } =
           },
         };
       },
+      update(patch) {
+        return {
+          eq(col, val) {
+            const v = visites.find(x => x[col] === val);
+            if (v) Object.assign(v, patch);
+            return Promise.resolve({ error: v ? null : { message: 'not found' } });
+          },
+        };
+      },
       delete() {
         return { eq: (col, val) => { const i = visites.findIndex(v => v.id === val); if (i >= 0) visites.splice(i, 1); return Promise.resolve({ error: null }); } };
       },
@@ -87,6 +108,7 @@ function fabriquerClientMock({ visitesExistantes = [], lignesExistantes = {} } =
           },
           insert(rows) {
             appelsInsertLignes.push(rows);
+            if (echouerInsertLignes) return Promise.resolve({ error: { message: 'panne réseau simulée' } });
             const visiteId = rows[0] && rows[0].visite_id;
             lignesParVisite[visiteId] = (lignesParVisite[visiteId] || []).concat(rows);
             return Promise.resolve({ error: null });
@@ -161,7 +183,51 @@ async function main() {
     console.log('✓ 4. Deux visites avec des clés distinctes restent deux visites distinctes');
   }
 
-  console.log('\nTous les tests "Réception carburant — idempotence (Sprint C4)" passent.');
+  // ------------------------------------------------------------
+  // 5) Le statut final n'est posé qu'après le succès complet des sous-tables.
+  // ------------------------------------------------------------
+  {
+    const client = fabriquerClientMock();
+    const visite = { site: 'site-test', idempotency_key: 'ffff-6', statut: 'terminee_avec_derogation' };
+    const { data, error } = await D.soumettreVisiteComplete(client, visite, [{ carburant: 'go' }], [], [], []);
+    assert.ok(!error, 'Insertion complète ne doit pas échouer');
+    assert.strictEqual(data.statut, 'terminee_avec_derogation', 'Le statut retourné doit être le statut final visé, pas en_cours');
+    assert.strictEqual(client._visites[0].statut, 'terminee_avec_derogation', 'Le statut final doit bien être posé en base après succès complet');
+    console.log('✓ 5. Statut final posé uniquement après succès complet des sous-tables (Sprint C5)');
+  }
+
+  // ------------------------------------------------------------
+  // 6) Échec d'insertion des lignes -> en-tête laissée en 'en_cours', jamais supprimée.
+  // ------------------------------------------------------------
+  {
+    const client = fabriquerClientMock({ echouerInsertLignes: true });
+    const visite = { site: 'site-test', idempotency_key: 'gggg-7', statut: 'terminee' };
+    const { data, error } = await D.soumettreVisiteComplete(client, visite, [{ carburant: 'go' }], [], [], []);
+    assert.ok(error, 'Un échec réel d\'insertion des lignes doit remonter une erreur');
+    assert.strictEqual(client._visites.length, 1, 'L\'en-tête doit rester en base — plus de nettoyer() par DELETE (Sprint C5)');
+    assert.strictEqual(client._visites[0].statut, 'en_cours', 'L\'en-tête reste au statut en_cours tant que la séquence n\'a pas abouti');
+    console.log('✓ 6. Échec des sous-inserts -> en-tête conservée en en_cours (preuve durable, jamais supprimée) (Sprint C5)');
+  }
+
+  // ------------------------------------------------------------
+  // 7) Retry idempotent sur visite complète mais dont la pose du statut
+  //    final avait elle-même échoué la première fois (encore 'en_cours').
+  // ------------------------------------------------------------
+  {
+    const client = fabriquerClientMock({
+      visitesExistantes: [{ id: 'visite-en-cours-complete', site: 'site-test', idempotency_key: 'hhhh-8', statut: 'en_cours' }],
+      lignesExistantes: { 'visite-en-cours-complete': [{ carburant: 'go', visite_id: 'visite-en-cours-complete' }] },
+    });
+    const visite = { site: 'site-test', idempotency_key: 'hhhh-8', statut: 'terminee' };
+    const { data, error, idempotent } = await D.soumettreVisiteComplete(client, visite, [{ carburant: 'go' }], [], [], []);
+    assert.ok(!error, 'Retry idempotent ne doit pas échouer');
+    assert.ok(idempotent, 'Doit être signalé comme un succès idempotent');
+    assert.strictEqual(data.statut, 'terminee', 'Le retry doit poser tardivement le statut final manquant');
+    assert.strictEqual(client._visites[0].statut, 'terminee', 'Le statut final doit être posé en base par le retry');
+    console.log('✓ 7. Retry pose tardivement le statut final resté en_cours après une visite déjà complète (Sprint C5)');
+  }
+
+  console.log('\nTous les tests "Réception carburant — idempotence + atomicité (Sprint C4/C5)" passent.');
 }
 
 main().catch(e => { console.error(e); process.exit(1); });
