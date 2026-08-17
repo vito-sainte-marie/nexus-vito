@@ -611,15 +611,27 @@
   // Soldes négatifs EN DIRECT (09/08/2026, demande de Frédéric : "le solde
   // peut devenir négatif [...] il ne faut surtout pas faire Math.max(0,
   // stock) et cacher le problème [...] cela doit alimenter le manager").
-  // Contrairement au panneau "Alertes" (instantané tracé à l'activation,
-  // acquittable), cette liste est TOUJOURS recalculée depuis les mouvements
-  // bruts — elle reflète l'état actuel, pas un évènement passé, et
-  // n'est jamais masquée tant que le solde reste négatif.
+  // Contrairement au panneau "Alertes" (instantané tracé à l'activation),
+  // cette liste est TOUJOURS recalculée depuis les mouvements bruts — elle
+  // reflète l'état actuel, pas un évènement passé.
+  // 17/08/2026, demande de Frédéric : bouton "Vérifié ☑" pour l'acquitter.
+  // Ceci ne réintroduit PAS le Math.max(0, stock) refusé le 09/08 : l'ack
+  // (fdj_alertes, type 'solde_negatif_verifie') est posé pour une valeur de
+  // solde précise (game_id + valeur_saisie). Si le solde négatif évolue
+  // ensuite, l'ack ne correspond plus au solde constaté et la ligne
+  // réapparaît d'elle-même — jamais un silence permanent sur un problème
+  // qui continue d'évoluer, seulement sur la situation déjà vue et validée.
   async function calculerSoldesNegatifs() {
     const { soldes } = await soldesActuels();
-    return jeux
+    const negatifs = jeux
       .filter(j => (soldes[j.id] || {}).nonActives < 0)
       .map(j => ({ jeu: j, solde: soldes[j.id] }));
+    if (!negatifs.length) return negatifs;
+    const { data: acks, error } = await nexusClient.from('fdj_alertes')
+      .select('game_id, valeur_saisie').eq('site', siteId).eq('type', 'solde_negatif_verifie');
+    if (error) { console.error('Chargement acquittements soldes négatifs FDJ:', error); return negatifs; }
+    const ackMatch = (jeuId, valeur) => (acks || []).some(a => a.game_id === jeuId && Number(a.valeur_saisie) === Number(valeur));
+    return negatifs.filter(n => !ackMatch(n.jeu.id, n.solde.nonActives));
   }
   // 16/08/2026, sécurisation structurelle point 4 : carte d'un quart validé
   // dont le relevé de clôture manque ou a échoué — jamais silencieux, une
@@ -660,9 +672,10 @@
   function renderSoldeNegatif({ jeu, solde }) {
     const n = Math.abs(solde.nonActives);
     return `
-      <div class="jeu-row">
+      <div class="jeu-row" data-solde-negatif="${jeu.id}" data-solde-valeur="${solde.nonActives}">
         <div class="jeu-nom-ligne"><div class="jeu-nom">${jeu.nom}</div></div>
-        <div class="histo-sub">${n} activation${n > 1 ? 's' : ''} non reliée${n > 1 ? 's' : ''} à un carnet confié enregistré (solde actuel : <b style="color:var(--red);">${solde.nonActives}</b>).</div>
+        <div class="histo-sub" style="margin-bottom:8px;">${n} activation${n > 1 ? 's' : ''} non reliée${n > 1 ? 's' : ''} à un carnet confié enregistré (solde actuel : <b style="color:var(--red);">${solde.nonActives}</b>).</div>
+        <button type="button" class="btn-modifier" data-verifier-solde="${jeu.id}" data-verifier-valeur="${solde.nonActives}" style="margin-top:0; color:var(--text-mid); border-color:var(--hairline);">Vérifié ☑</button>
       </div>
     `;
   }
@@ -1473,7 +1486,7 @@
         </div>
         <div style="display:flex; gap:8px;">
           ${a.shift_id ? `<button type="button" class="btn-modifier" data-corriger="${a.shift_id}" style="margin-top:0; flex:1;">Ouvrir ce quart</button>` : ''}
-          <button type="button" class="btn-modifier" data-vue="${a.id}" style="margin-top:0; flex:1; color:var(--text-mid); border-color:var(--hairline);">Marquer comme vue</button>
+          <button type="button" class="btn-modifier" data-vue="${a.id}" style="margin-top:0; flex:1; color:var(--text-mid); border-color:var(--hairline);">Vérifié ☑</button>
         </div>
       </div>
     `;
@@ -1512,7 +1525,7 @@
         </div>
         <div style="display:flex; gap:8px;">
           ${a.quartPrecedent ? `<button type="button" class="btn-modifier" data-corriger="${a.shift_precedent_id}" data-jeu-cible="${a.game_id}" style="margin-top:0; flex:1;">Corriger le quart précédent</button>` : ''}
-          <button type="button" class="btn-modifier" data-vue="${a.id}" style="margin-top:0; flex:1; color:var(--text-mid); border-color:var(--hairline);">Marquer comme vue</button>
+          <button type="button" class="btn-modifier" data-vue="${a.id}" style="margin-top:0; flex:1; color:var(--text-mid); border-color:var(--hairline);">Vérifié ☑</button>
         </div>
       </div>
     `;
@@ -1542,7 +1555,7 @@
           </div>
         ` : ''}
         <div style="display:flex; gap:8px;">
-          <button type="button" class="btn-modifier" data-vue="${a.id}" style="margin-top:0; flex:1; color:var(--text-mid); border-color:var(--hairline);">Marquer comme vue</button>
+          <button type="button" class="btn-modifier" data-vue="${a.id}" style="margin-top:0; flex:1; color:var(--text-mid); border-color:var(--hairline);">Vérifié ☑</button>
         </div>
       </div>
     `;
@@ -1560,7 +1573,7 @@
         </div>
         <div style="display:flex; gap:8px;">
           ${a.quartPrecedent ? `<button type="button" class="btn-modifier" data-corriger="${a.shift_precedent_id}" style="margin-top:0; flex:1;">Corriger le quart précédent</button>` : ''}
-          <button type="button" class="btn-modifier" data-vue="${a.id}" style="margin-top:0; flex:1; color:var(--text-mid); border-color:var(--hairline);">Marquer comme vue</button>
+          <button type="button" class="btn-modifier" data-vue="${a.id}" style="margin-top:0; flex:1; color:var(--text-mid); border-color:var(--hairline);">Vérifié ☑</button>
         </div>
       </div>
     `;
@@ -1581,7 +1594,7 @@
           Motif indiqué : <b style="color:var(--text);">${labelMotifException(a.motif)}</b>
         </div>
         <div style="display:flex; gap:8px;">
-          <button type="button" class="btn-modifier" data-vue="${a.id}" style="margin-top:0; flex:1; color:var(--text-mid); border-color:var(--hairline);">Marquer comme vue</button>
+          <button type="button" class="btn-modifier" data-vue="${a.id}" style="margin-top:0; flex:1; color:var(--text-mid); border-color:var(--hairline);">Vérifié ☑</button>
         </div>
       </div>
     `;
@@ -1619,7 +1632,7 @@
 
       ${soldesNegatifs.length ? `
         <div class="section-titre">🔴 Mouvements FDJ à vérifier (${soldesNegatifs.length})</div>
-        <div class="card" style="margin-bottom:16px;">${soldesNegatifs.map(renderSoldeNegatif).join('')}</div>
+        <div class="card" id="listeSoldesNegatifs" style="margin-bottom:16px;">${soldesNegatifs.map(renderSoldeNegatif).join('')}</div>
       ` : ''}
 
       ${alertes.length ? `
@@ -1782,6 +1795,25 @@
     if (listeVerrous) {
       listeVerrous.querySelectorAll('[data-deroger]').forEach(btn => {
         btn.addEventListener('click', () => ouvrirDerogationQuart(btn.dataset.deroger, btn.dataset.autreQuart));
+      });
+    }
+
+    // 17/08/2026, demande de Frédéric : acquittement "Vérifié ☑" du panneau
+    // "Mouvements FDJ à vérifier" (soldes non-activés négatifs) — voir
+    // calculerSoldesNegatifs pour la logique de réapparition si le solde change.
+    const listeSoldesNegatifs = document.getElementById('listeSoldesNegatifs');
+    if (listeSoldesNegatifs) {
+      listeSoldesNegatifs.querySelectorAll('[data-verifier-solde]').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          btn.disabled = true;
+          const { error } = await nexusClient.from('fdj_alertes').insert({
+            site: siteId, type: 'solde_negatif_verifie', game_id: btn.dataset.verifierSolde,
+            valeur_saisie: btn.dataset.verifierValeur, vue: true,
+            vue_par: managerCourant.id, vue_le: new Date().toISOString(),
+          });
+          if (error) { console.error('Acquittement solde négatif FDJ:', error); btn.disabled = false; return; }
+          renderAccueil();
+        });
       });
     }
   }
