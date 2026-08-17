@@ -976,6 +976,27 @@
       </div>
     `;
   }
+  // Entrée/Retour passe au champ de stock suivant (16/08/2026, demande de
+  // Frédéric : "en vue bureau [...] en inscrivant le stock initial ou
+  // final, passer à la ligne suivante en cliquant sur la touche return ou
+  // entrée"). Uniquement en vue bureau — voir nexus-desktop.js/nexusEst
+  // VueBureau() — pour ne jamais interférer avec le clavier numérique
+  // mobile, dont "suivant"/"terminé" reste géré nativement par le système.
+  // Se base sur l'ordre DOM réel de `.jeu-input` (un seul écran de saisie
+  // affiché à la fois : ouverture OU clôture, jamais les deux en même
+  // temps), donc "champ suivant" correspond toujours au prochain champ
+  // visuellement rencontré, palier par palier, y compris en colonnes
+  // (vue bureau réordonne visuellement via CSS, jamais le DOM).
+  function jeuInputToucheEntree(e) {
+    if (e.key !== 'Enter') return;
+    if (typeof nexusEstVueBureau !== 'function' || !nexusEstVueBureau()) return;
+    e.preventDefault();
+    const champs = Array.from(document.querySelectorAll('.jeu-input'));
+    const i = champs.indexOf(e.target);
+    if (i === -1) return;
+    const suivant = champs[i + 1];
+    if (suivant) { suivant.focus(); if (suivant.select) suivant.select(); }
+  }
   function wireOuvertureInputs() {
     document.querySelectorAll('.champ-stock-initial-ouverture').forEach(input => {
       input.addEventListener('input', () => {
@@ -985,6 +1006,7 @@
         countsSaisie[gameId].stock_initial = val;
         sauvegarderDraft();
       });
+      input.addEventListener('keydown', jeuInputToucheEntree);
     });
   }
 
@@ -1415,6 +1437,7 @@
           banniereAnomalies.textContent = `⚠️ ${anomalies.length} jeu${anomalies.length > 1 ? 'x' : ''} avec des ventes négatives — vérifiez le stock saisi.`;
         }
       });
+      input.addEventListener('keydown', jeuInputToucheEntree);
     });
   }
 

@@ -867,10 +867,23 @@
     zone.querySelectorAll('.cuve-actif').forEach(chk => {
       chk.addEventListener('change', () => {
         document.getElementById(`cuvesDetail_${chk.dataset.carb}`).style.opacity = chk.checked ? '1' : '0.4';
+        // Activer/désactiver un carburant change aussitôt les cuves
+        // disponibles pour "Ordre de jaugeage" plus bas (16/08/2026) —
+        // voir synchroniserOrdreCuvesAvecConfig.
+        if (typeof synchroniserOrdreCuvesAvecConfig === 'function') synchroniserOrdreCuvesAvecConfig(lireConfigCuvesFormulaire());
       });
     });
     // Nom du réservoir tapé en direct -> reflété aussitôt dans le libellé
-    // du champ capacité juste en dessous, sans attendre l'enregistrement.
+    // du champ capacité juste en dessous (comportement d'origine), ET dans
+    // la liste "Ordre de jaugeage (Veeder-Root)" plus bas sur cet écran
+    // (16/08/2026, demande de Frédéric : "l'ordre de jaugeage doit
+    // reprendre les noms des réservoirs donnés pour être sûr de ne pas
+    // avoir de confusion" — jusqu'ici cette liste restait figée sur le nom
+    // chargé au démarrage de la page et ne se mettait jamais à jour tant
+    // qu'on ne rechargeait pas complètement l'écran, même après avoir
+    // renommé et enregistré un réservoir ici). Sans attendre l'enregis-
+    // trement, pour que le manager voie tout de suite le nom qui sera
+    // utilisé pendant une réception.
     zone.querySelectorAll('[id^="cuveLabel_"]').forEach(inputLabel => {
       inputLabel.addEventListener('input', () => {
         const idCapacite = inputLabel.id.replace('cuveLabel_', 'cuve_');
@@ -879,8 +892,34 @@
           const labelCapacite = champCapacite.closest('.row').querySelector('label');
           labelCapacite.textContent = `${inputLabel.value || 'Cuve'} — litres`;
         }
+        if (typeof synchroniserOrdreCuvesAvecConfig === 'function') synchroniserOrdreCuvesAvecConfig(lireConfigCuvesFormulaire());
       });
     });
+  }
+
+  // Lit l'état ACTUEL du formulaire "Cuves & capacités carburants" (avant
+  // tout enregistrement) — même construction que dans le gestionnaire de
+  // clic "Enregistrer les cuves" ci-dessous, factorisée ici (16/08/2026)
+  // pour que la synchronisation live d'"Ordre de jaugeage" et la sauvegarde
+  // lisent strictement la même chose (Article 11 — une seule vérité pour
+  // "que contient ce formulaire en ce moment").
+  function lireConfigCuvesFormulaire() {
+    const config = {};
+    ORDRE_CARBURANTS.forEach(cle => {
+      const base = (CUVES_CONFIG_ACTUELLE && CUVES_CONFIG_ACTUELLE[cle]) || NexusCarburantDonnees.CUVES_PAR_DEFAUT[cle];
+      const chkActif = document.querySelector(`.cuve-actif[data-carb="${cle}"]`);
+      const actif = chkActif ? chkActif.checked : base.actif;
+      const cuves = base.cuves.map(cuve => {
+        const champCapacite = document.getElementById(`cuve_${cle}_${cuve.id}`);
+        const val = champCapacite ? champCapacite.value : cuve.capacite;
+        const capacite = parseInt(val, 10);
+        const champLabel = document.getElementById(`cuveLabel_${cle}_${cuve.id}`);
+        const labelSaisi = champLabel ? (champLabel.value || '').trim() : '';
+        return { id: cuve.id, label: labelSaisi || cuve.label, capacite: isNaN(capacite) ? cuve.capacite : capacite };
+      });
+      config[cle] = { actif, label: base.label, cuves };
+    });
+    return config;
   }
 
   (async function initCuvesCarburants() {
@@ -923,6 +962,10 @@
     btn.disabled = false;
     if (error) { console.error('Enregistrement cuves_carburants:', error); alert('Erreur — réessayez.'); return; }
     CUVES_CONFIG_ACTUELLE = config;
+    // "Ordre de jaugeage" plus bas doit refléter ces noms/activations tout
+    // juste enregistrés, sans attendre un rechargement complet de la page
+    // (16/08/2026 — voir synchroniserOrdreCuvesAvecConfig).
+    if (typeof synchroniserOrdreCuvesAvecConfig === 'function') synchroniserOrdreCuvesAvecConfig(config);
     const note = document.getElementById('savedNoteCuves');
     note.style.display = 'block';
     setTimeout(() => note.style.display = 'none', 3000);
@@ -1029,6 +1072,30 @@
       [RECEPTION_ORDRE_CUVES_ACTUEL[i], RECEPTION_ORDRE_CUVES_ACTUEL[i + 1]] = [RECEPTION_ORDRE_CUVES_ACTUEL[i + 1], RECEPTION_ORDRE_CUVES_ACTUEL[i]];
       renderReceptionOrdreCuves();
     }));
+  }
+
+  // Resynchronise "Ordre de jaugeage" avec la config cuves qui vient de
+  // changer (renommage/activation, live ou après enregistrement) —
+  // 16/08/2026, demande de Frédéric : "l'ordre de jaugeage doit reprendre
+  // les noms des réservoirs donnés pour être sûr de ne pas avoir de
+  // confusion". Reconstruit la liste via NexusReceptionMoteur.
+  // construireListeCuvesOrdonnee (même fonction, Article 11) en repartant
+  // de l'ORDRE déjà choisi par le manager (jamais réinitialisé à l'ordre
+  // par défaut au passage) : seuls le libellé/la capacité/la présence de
+  // chaque cuve sont rafraîchis. Toute cuve nouvellement active qui
+  // n'était pas encore dans l'ordre choisi est ajoutée en fin de liste,
+  // sans perturber l'ordre des autres.
+  function synchroniserOrdreCuvesAvecConfig(config) {
+    const M = NexusReceptionMoteur;
+    const refsActuels = RECEPTION_ORDRE_CUVES_ACTUEL.map(cu => ({ carburant: cu.carburant, cuve_id: cu.id }));
+    const reordonne = M.construireListeCuvesOrdonnee(config, refsActuels);
+    const dejaPresents = new Set(reordonne.map(cu => `${cu.carburant}:${cu.id}`));
+    M.construireListeCuvesOrdonnee(config, null).forEach(cu => {
+      const cle = `${cu.carburant}:${cu.id}`;
+      if (!dejaPresents.has(cle)) { reordonne.push(cu); dejaPresents.add(cle); }
+    });
+    RECEPTION_ORDRE_CUVES_ACTUEL = reordonne;
+    renderReceptionOrdreCuves();
   }
 
   (async function initReceptionConfig() {

@@ -1474,6 +1474,29 @@
     `;
   }
 
+  // Entrée/Retour passe au champ de stock suivant (16/08/2026, demande de
+  // Frédéric : "en vue bureau, que ce soit FDJ ou contrôle FDJ, en
+  // inscrivant le stock initial ou final, passer à la ligne suivante en
+  // cliquant sur la touche return ou entrée"). Uniquement en vue bureau
+  // (nexus-desktop.js::nexusEstVueBureau) — jamais sur mobile, où le
+  // clavier numérique gère nativement son propre bouton "suivant".
+  // `.jeu-input` regroupe, selon l'écran actuellement affiché (jamais deux
+  // à la fois), soit les 3 champs de "Modifier ce quart FDJ" (stock_initial/
+  // appro/stock_final, renderJeuRowEdition), soit les 2 champs de
+  // "Inventaire de référence FDJ" (bureau/caisse) — l'ordre DOM suit
+  // toujours l'ordre visuel réel, y compris en colonnes (vue bureau
+  // réordonne par CSS, jamais par DOM).
+  function jeuInputToucheEntree(e) {
+    if (e.key !== 'Enter') return;
+    if (typeof nexusEstVueBureau !== 'function' || !nexusEstVueBureau()) return;
+    e.preventDefault();
+    const champs = Array.from(document.querySelectorAll('.jeu-input'));
+    const i = champs.indexOf(e.target);
+    if (i === -1) return;
+    const suivant = champs[i + 1];
+    if (suivant) { suivant.focus(); if (suivant.select) suivant.select(); }
+  }
+
   function wireInventaireRefInputs() {
     document.querySelectorAll('.champ-invref').forEach(input => {
       input.addEventListener('input', () => {
@@ -1486,6 +1509,7 @@
         const statutEl = document.getElementById(`statut-invref-${gameId}`);
         if (statutEl) { statutEl.textContent = statut.texte; statutEl.className = `jeu-ventes ${statut.classe === 'amber' ? 'anomalie' : 'calc'}`; }
       });
+      input.addEventListener('keydown', jeuInputToucheEntree);
     });
   }
 
@@ -2292,6 +2316,7 @@
         }
         majResume();
       });
+      input.addEventListener('keydown', jeuInputToucheEntree);
     });
     document.getElementById('champLotsPayes').addEventListener('input', e => { edition.lotsPayes = e.target.value === '' ? null : Number(e.target.value); majResume(); });
     document.getElementById('champCaisseTirages').addEventListener('input', e => {
