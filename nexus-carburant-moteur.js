@@ -648,6 +648,54 @@
     return LIBELLE_QUALITE_CONTROLE[qualite] || { texte: 'Non calculé', niveau: 'attente' };
   }
 
+  // Sprint C7 "Analyse" (17/08/2026, audit roadmap : "Signature delta
+  // livraison / statistiques", critère de sortie "Historique suffisant et
+  // fiable"). Agrège la qualité des N derniers contrôles DÉJÀ posés
+  // (carburant_controles, une ligne par date — jamais recalculé ici,
+  // Article 11) en pourcentages fiable/provisoire/non_comparable, pour que
+  // le manager (et le futur Sprint C8 Économique) puisse juger si
+  // l'historique physique du site est assez solide pour être exploité,
+  // pas seulement contrôle-par-contrôle comme le fait déjà "Ce que NEXUS
+  // vous dit" (C6). `controles` : un contrôle par date (dernière version
+  // uniquement — dédupliqué par l'appelant/le chargeur, jamais toutes les
+  // versions comptées comme des jours distincts).
+  const SEUIL_HISTORIQUE_CHAINE_SUFFISANT = 10;
+  function statistiquesFiabiliteChaine(controles) {
+    const liste = controles || [];
+    if (!liste.length) {
+      return { total: 0, pctFiable: null, pctProvisoire: null, pctNonComparable: null, suffisant: false };
+    }
+    const compte = { fiable: 0, provisoire: 0, non_comparable: 0 };
+    liste.forEach(c => { if (c && compte[c.qualite] !== undefined) compte[c.qualite]++; });
+    const total = liste.length;
+    return {
+      total,
+      pctFiable: compte.fiable / total,
+      pctProvisoire: compte.provisoire / total,
+      pctNonComparable: compte.non_comparable / total,
+      suffisant: total >= SEUIL_HISTORIQUE_CHAINE_SUFFISANT,
+    };
+  }
+
+  // Phrase de lecture pour le manager — jamais une conclusion ferme sur un
+  // historique encore court (Article 5), et jamais un jugement de
+  // performance sur le taux de non_comparable (c'est une mesure de PREUVE
+  // disponible, pas d'exploitation du site).
+  function libelleFiabiliteChaine(stats) {
+    if (!stats || !stats.total) {
+      return "Aucun contrôle posé pour l'instant — l'historique se construira au fil des jaugeages.";
+    }
+    if (!stats.suffisant) {
+      return `Historique encore court (${stats.total} contrôle${stats.total > 1 ? 's' : ''} sur ${SEUIL_HISTORIQUE_CHAINE_SUFFISANT} nécessaires pour une lecture fiable) — à consolider avant d'en tirer une tendance.`;
+    }
+    const pctFiableTxt = Math.round(stats.pctFiable * 100);
+    if (stats.pctNonComparable === 0 && stats.pctProvisoire === 0) {
+      return `Historique solide : ${pctFiableTxt} % des ${stats.total} derniers contrôles sont fiables, aucun trou de preuve.`;
+    }
+    const pctDegradeTxt = Math.round((stats.pctProvisoire + stats.pctNonComparable) * 100);
+    return `${pctFiableTxt} % des ${stats.total} derniers contrôles sont fiables (${pctDegradeTxt} % provisoires ou non comparables) — suffisant pour dégager une tendance, en gardant ces jours en réserve.`;
+  }
+
   // Résolution de l'ancre de calcul (dernier relevé réel OU point zéro
   // certifié, le plus récent des deux gagne) pour une date donnée — même
   // logique que l'écran depuis le 14/08/2026 (point zéro = plancher, pas
@@ -709,5 +757,6 @@
     prochaineVersionReleveCarburant, diffReleveCarburant,
     qualiteChaineCarburant, libelleCauseQualiteChaine, resoudreAncreCarburant,
     libelleQualiteControle,
+    SEUIL_HISTORIQUE_CHAINE_SUFFISANT, statistiquesFiabiliteChaine, libelleFiabiliteChaine,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

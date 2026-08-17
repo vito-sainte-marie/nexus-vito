@@ -585,11 +585,40 @@
     return data || [];
   }
 
+  // Sprint C7 "Analyse" (17/08/2026, audit roadmap : "Signature delta
+  // livraison / statistiques", critère de sortie "Historique suffisant et
+  // fiable") — historique des contrôles d'UN carburant sur les N derniers
+  // jours ayant un contrôle posé, UN SEUL par date (la dernière version —
+  // un recalcul en cascade, Sprint C3, peut poser plusieurs versions pour
+  // la même date ; les compter toutes fausserait la statistique de
+  // fiabilité en sur-pondérant les jours recalculés plusieurs fois).
+  // Sur-requête volontaire (limite*4 lignes brutes avant dédoublonnage) car
+  // le nombre de versions par date est variable et inconnu à l'avance —
+  // marge large plutôt qu'une pagination complexe pour un historique de
+  // consultation, pas une preuve elle-même (qui reste `carburant_controles`
+  // en base, jamais recopiée ni réécrite ici).
+  async function chargerHistoriqueControlesCarburant(client, siteId, carburant, limite = 30) {
+    const { data, error } = await client.from('carburant_controles')
+      .select('*').eq('site', siteId).eq('carburant', carburant)
+      .order('date', { ascending: false }).order('version_num', { ascending: false })
+      .limit(limite * 4);
+    if (error) { console.error('Chargement historique contrôles carburant:', error); return []; }
+    const parDate = [];
+    const datesVues = new Set();
+    (data || []).forEach(row => {
+      if (datesVues.has(row.date)) return; // déjà pris la version la plus récente de cette date
+      datesVues.add(row.date);
+      parDate.push(row);
+    });
+    return parDate.slice(0, limite);
+  }
+
   global.NexusCarburantDonnees = {
     CARBURANTS_INFO, chargerVentesPeriode, chargerControleJour, chargerJoursSansReleve,
     chargerCuvesConfig, chargerConsommationJournaliereMoyenne, CUVES_PAR_DEFAUT,
     chargerDerniereLivraison, chargerDernierPointZero, certifierPointZero,
     chargerHistoriquePointsZero, chargerHistoriqueReleves,
     chargerDerniersControles, chargerVersionsControleCarburant,
+    chargerHistoriqueControlesCarburant,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

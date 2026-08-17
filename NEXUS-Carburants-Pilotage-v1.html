@@ -532,6 +532,25 @@
     </div>
   </div>
 
+  <!-- Analyse (Sprint C7, 17/08/2026, audit roadmap "Signature delta
+       livraison / statistiques") — signature statistique du site (médiane +
+       dispersion des écarts de réception) et fiabilité globale de la chaîne
+       de contrôle, indépendant de la période sélectionnée ci-dessus, chargé
+       une seule fois à l'initialisation comme Historique. -->
+  <div class="accordion-card" data-accordion="analyse">
+    <button type="button" class="accordion-header" data-key="analyse">
+      <span class="accordion-icon accordion-icon-dim">📊</span>
+      <span class="accordion-titles">
+        <span class="accordion-titre">Analyse</span>
+        <span class="accordion-sous">Signature du site & fiabilité de l'historique</span>
+      </span>
+      <span class="accordion-chevron" id="chevronAnalyse">⌄</span>
+    </button>
+    <div class="accordion-body" id="bodyAnalyse">
+      <div id="analyseZone"><div class="loading">Chargement…</div></div>
+    </div>
+  </div>
+
   <!-- Historique (14/08/2026, demande de Frédéric) — journal des points
        zéro certifiés + relevés jour par jour, indépendant de la période
        sélectionnée ci-dessus, chargé une seule fois à l'initialisation. -->
@@ -658,7 +677,11 @@
     // défaut. "Stock & autonomie devrait probablement être ouvert par
     // défaut, car c'est une information opérationnelle majeure" — déjà
     // ouvert, inchangé.
-    ventes: true, repartition: false, stock: true, moteur: true, historique: true,
+    ventes: true, repartition: false, stock: true, moteur: true,
+    // Sprint C7 "Analyse" (17/08/2026) : repliée par défaut, même logique
+    // que "messages"/"livraison"/"repartition" — approfondissement à la
+    // demande, pas la vue par défaut de l'écran.
+    analyse: false, historique: true,
   };
   function majChevronId(key) {
     return 'chevron' + key.charAt(0).toUpperCase() + key.slice(1);
@@ -1410,6 +1433,7 @@
           <div class="controle-ligne"><span>Compartiments déclarés</span><span>${fmtL(ligne.quantite_compartiments_l)}</span></div>
           <div class="controle-ligne"><span>Total mesuré (jaugeage)</span><span>${ligne.quantite_mesuree_l != null ? fmtL(ligne.quantite_mesuree_l) : '—'}</span></div>
           <div class="controle-ligne"><span>Écart mesuré / prévu</span><span>${M.texteEcart(ligne.delta_l, ligne.delta_ratio)}</span></div>
+          ${global_NexusReceptionDonnees_disponible() ? `<div class="controle-cause" id="signatureLigne_${ligne.carburant}">Comparaison au profil du site…</div>` : ''}
         </div>`;
     }).join('');
     const compartimentsNonReceptionnes = (visite.compartiments || []).filter(cp => cp.statut === 'non_receptionne');
@@ -1430,6 +1454,24 @@
       const zone = document.getElementById('controleModalPdfZone');
       genererEtAfficherPdfCarburant(zone, () => construireReleveReceptionPdf(visite), RECEPTION_MODAL_PDF_REFS);
     });
+    // Sprint C7 (audit "signature delta livraison") : situe chaque écart de
+    // CETTE réception par rapport au profil habituel du site — chargé après
+    // coup (jamais bloquant pour l'ouverture de la modale, même esprit que
+    // le flux PDF en 2 temps) et affiché en remplacement du placeholder
+    // "Comparaison au profil du site…" posé ci-dessus.
+    if (global_NexusReceptionDonnees_disponible()) chargerEtAfficherSignatureReception(visite);
+  }
+
+  async function chargerEtAfficherSignatureReception(visite) {
+    const R = NexusReceptionMoteur;
+    await Promise.all((visite.lignes || []).map(async ligne => {
+      const cible = document.getElementById(`signatureLigne_${ligne.carburant}`);
+      if (!cible) return;
+      const historique = await NexusReceptionDonnees.chargerHistoriqueEcartsRatio(nexusClient, SITE_ID, ligne.carburant, 30);
+      const signature = R.signatureDeltaLivraison(historique);
+      const situation = R.situerFaceSignature(ligne.delta_ratio, signature);
+      cible.textContent = situation.texte;
+    }));
   }
 
   async function construireReleveReceptionPdf(visite) {
@@ -1863,7 +1905,7 @@
     renderSituation(CONTROLE_CTX);
     renderMessages();
     renderLectureNexus();
-    await Promise.all([chargerEtRendreLivraison(), chargerEtRendrePeriode(), chargerEtRendreHistorique()]);
+    await Promise.all([chargerEtRendreLivraison(), chargerEtRendrePeriode(), chargerEtRendreHistorique(), chargerEtRendreAnalyse()]);
 
     // Reconstruit le panneau (pré-remplissage à jour, nouvelle "Dernier
     // point zéro") PUIS affiche la confirmation par-dessus — l'ordre
@@ -2023,6 +2065,91 @@
   }
 
   // ------------------------------------------------------------
+  // ANALYSE — Sprint C7 (17/08/2026, audit roadmap : "Signature delta
+  // livraison / statistiques", critère de sortie "Historique suffisant et
+  // fiable"). Deux mesures lues séparément, jamais fusionnées : la
+  // signature juge les LIVRAISONS (carburant_reception_visite_lignes,
+  // via nexus-reception-moteur.js), la fiabilité juge le JAUGEAGE
+  // QUOTIDIEN (carburant_controles, via nexus-carburant-moteur.js). Ni
+  // l'une ni l'autre ne recalcule quoi que ce soit — les deux moteurs
+  // restent l'unique source de vérité (Article 11), cette section ne fait
+  // qu'agréger et afficher des chiffres déjà posés.
+  // ------------------------------------------------------------
+  async function chargerEtRendreAnalyse() {
+    const zone = document.getElementById('analyseZone');
+    if (!zone) return;
+    const M = NexusCarburantMoteur;
+    const cles = M.CLES_CARBURANT.filter(cle => !CUVES_CONFIG || !CUVES_CONFIG[cle] || CUVES_CONFIG[cle].actif);
+    const receptionDisponible = global_NexusReceptionDonnees_disponible();
+    const donnees = {};
+    await Promise.all(cles.map(async cle => {
+      const controles = await NexusCarburantDonnees.chargerHistoriqueControlesCarburant(nexusClient, SITE_ID, cle, 30);
+      const statsChaine = M.statistiquesFiabiliteChaine(controles);
+      let signature = null;
+      if (receptionDisponible) {
+        const deltas = await NexusReceptionDonnees.chargerHistoriqueEcartsRatio(nexusClient, SITE_ID, cle, 30);
+        signature = NexusReceptionMoteur.signatureDeltaLivraison(deltas);
+      }
+      donnees[cle] = { statsChaine, signature };
+    }));
+    renderAnalyse(donnees, cles);
+  }
+
+  function renderAnalyse(donnees, cles) {
+    const zone = document.getElementById('analyseZone');
+    if (!zone) return;
+    const M = NexusCarburantMoteur;
+
+    const blocsSignature = cles.map(cle => {
+      const sig = donnees[cle].signature;
+      if (!sig) {
+        return `
+          <div class="controle-carburant-bloc">
+            <div class="controle-carburant-titre"><span>${NOM_CARBURANT[cle]}</span></div>
+            <div class="controle-vide" style="margin:0;">Module Réception non disponible sur cet environnement.</div>
+          </div>`;
+      }
+      if (!sig.suffisant) {
+        return `
+          <div class="controle-carburant-bloc">
+            <div class="controle-carburant-titre"><span>${NOM_CARBURANT[cle]}</span></div>
+            <div class="controle-vide" style="margin:0;">Historique encore insuffisant (${sig.tailleEchantillon} réception${sig.tailleEchantillon > 1 ? 's' : ''} sur 3 nécessaires) pour dégager une signature.</div>
+          </div>`;
+      }
+      return `
+        <div class="controle-carburant-bloc">
+          <div class="controle-carburant-titre"><span>${NOM_CARBURANT[cle]}</span></div>
+          <div class="controle-ligne"><span>Écart médian à la réception</span><span>${(sig.mediane * 100).toFixed(1)} %</span></div>
+          <div class="controle-ligne"><span>Dispersion habituelle</span><span>± ${(sig.dispersion * 100).toFixed(1)} %</span></div>
+          <div class="controle-ligne"><span>Échantillon</span><span>${sig.tailleEchantillon} réceptions</span></div>
+        </div>`;
+    }).join('');
+
+    const blocsChaine = cles.map(cle => {
+      const stats = donnees[cle].statsChaine;
+      const texte = M.libelleFiabiliteChaine(stats);
+      const detail = stats.total ? `
+          <div class="controle-ligne"><span>Contrôles fiables</span><span>${Math.round(stats.pctFiable * 100)} %</span></div>
+          <div class="controle-ligne"><span>Provisoires</span><span>${Math.round(stats.pctProvisoire * 100)} %</span></div>
+          <div class="controle-ligne"><span>Non comparables</span><span>${Math.round(stats.pctNonComparable * 100)} %</span></div>` : '';
+      return `
+        <div class="controle-carburant-bloc">
+          <div class="controle-carburant-titre"><span>${NOM_CARBURANT[cle]}</span></div>
+          ${detail}
+          <div class="controle-cause">${texte}</div>
+        </div>`;
+    }).join('');
+
+    zone.innerHTML = `
+      <div class="historique-souszone">Signature de réception du site (30 dernières livraisons)</div>
+      ${blocsSignature}
+      <div class="historique-souszone">Fiabilité de la chaîne de contrôle (30 derniers jours avec contrôle)</div>
+      ${blocsChaine}
+      <div class="section-note">Deux mesures distinctes : la signature juge les livraisons reçues, la fiabilité juge le jaugeage quotidien. Un site peut avoir des livraisons très régulières et un historique de contrôle encore court, ou l'inverse.</div>
+    `;
+  }
+
+  // ------------------------------------------------------------
   // INITIALISATION
   // ------------------------------------------------------------
   nexusRequireAuth().then(async employee => {
@@ -2060,7 +2187,7 @@
     renderSituation(CONTROLE_CTX);
     renderLectureNexus();
 
-    await Promise.all([chargerEtRendreLivraison(), chargerEtRendrePeriode(), chargerEtRendreRattrapage(), chargerEtRendreHistorique(), chargerEtRendreQualiteReceptions()]);
+    await Promise.all([chargerEtRendreLivraison(), chargerEtRendrePeriode(), chargerEtRendreRattrapage(), chargerEtRendreHistorique(), chargerEtRendreQualiteReceptions(), chargerEtRendreAnalyse()]);
   });
 </script>
 

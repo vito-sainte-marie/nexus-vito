@@ -274,6 +274,70 @@
   }
 
   // ============================================================
+  // SIGNATURE DELTA LIVRAISON — Sprint C7 "Analyse" (17/08/2026, audit §4 :
+  // "Analyse statistique des deltas — pas de signature de réception propre
+  // au site", roadmap "Signature delta livraison / statistiques", critère
+  // de sortie "Historique suffisant et fiable"). Distincte de
+  // comparerHistorique() ci-dessus, qui reste la comparaison LIVE utilisée
+  // pendant le parcours employé (moyenne des écarts absolus, alerte
+  // immédiate) — ici, on caractérise la distribution elle-même (médiane +
+  // dispersion robuste) pour que le MANAGER puisse consulter après coup le
+  // profil habituel du site, indépendamment d'une réception précise.
+  // Médiane/MAD (écart absolu médian) plutôt que moyenne/écart-type :
+  // robuste à un ou deux deltas exceptionnels dans un échantillon encore
+  // petit (quelques dizaines de réceptions), sans qu'un seul incident ne
+  // déplace toute la signature (Article 5 : la preuve doit rester honnête
+  // même sur peu de données).
+  // ============================================================
+  const FACTEUR_DISPERSION_INHABITUEL = 3;
+  // Jamais un seuil nul même si l'historique du site est parfaitement
+  // stable (dispersion mesurée à 0) — 1 point de pourcentage plancher,
+  // sinon la moindre variation future serait signalée à tort.
+  const PLANCHER_DISPERSION_RATIO = 0.01;
+
+  function medianeTrie(valeursTriees) {
+    const n = valeursTriees.length;
+    if (!n) return null;
+    const milieu = Math.floor(n / 2);
+    return n % 2 === 0 ? (valeursTriees[milieu - 1] + valeursTriees[milieu]) / 2 : valeursTriees[milieu];
+  }
+
+  // `ecartsRatioHistoriques` : même donnée source que comparerHistorique
+  // (carburant_reception_visite_lignes.delta_ratio). En dessous du seuil
+  // d'échantillon minimal, `suffisant:false` — aucune médiane/dispersion
+  // n'est fabriquée sur un historique trop court (même discipline que
+  // comparerHistorique/Article 5).
+  function signatureDeltaLivraison(ecartsRatioHistoriques) {
+    const echantillon = (ecartsRatioHistoriques || []).filter(v => v != null).slice().sort((a, b) => a - b);
+    if (echantillon.length < ECHANTILLON_MIN_HISTORIQUE) {
+      return { suffisant: false, tailleEchantillon: echantillon.length, mediane: null, dispersion: null };
+    }
+    const mediane = medianeTrie(echantillon);
+    const ecartsAbsolusMediane = echantillon.map(v => Math.abs(v - mediane)).sort((a, b) => a - b);
+    const dispersion = medianeTrie(ecartsAbsolusMediane);
+    return { suffisant: true, tailleEchantillon: echantillon.length, mediane, dispersion };
+  }
+
+  // Situe un delta ponctuel (nouvelle réception) par rapport à la signature
+  // déjà calculée du site — jamais "anormal"/"perte", toujours "dans la
+  // normale du site" / "au-delà de l'habituel" avec les chiffres à l'appui.
+  function situerFaceSignature(ecartRatio, signature) {
+    if (ecartRatio == null || !signature || !signature.suffisant) {
+      return {
+        position: 'indetermine',
+        texte: `Historique encore insuffisant pour situer cet écart par rapport au profil habituel du site (au moins ${ECHANTILLON_MIN_HISTORIQUE} réceptions nécessaires).`,
+      };
+    }
+    const seuil = Math.max(signature.dispersion * FACTEUR_DISPERSION_INHABITUEL, PLANCHER_DISPERSION_RATIO);
+    const inhabituel = Math.abs(ecartRatio - signature.mediane) > seuil;
+    const medianeTxt = `${(signature.mediane * 100).toFixed(1)} %`;
+    const texte = inhabituel
+      ? `Écart au-delà du profil habituel du site (médiane ${medianeTxt} sur ${signature.tailleEchantillon} réceptions) — vérification manager recommandée.`
+      : `Écart cohérent avec le profil habituel du site (médiane ${medianeTxt} sur ${signature.tailleEchantillon} réceptions).`;
+    return { position: inhabituel ? 'inhabituel' : 'normal', texte };
+  }
+
+  // ============================================================
   // AFFICHAGE
   // ============================================================
 
@@ -319,6 +383,7 @@
     calculerDeltaMesure, agregerDeltaParCarburant,
     calculerEcartRatio, calculerReceptionCarburant, statutGlobalVisite,
     comparerHistorique,
+    signatureDeltaLivraison, situerFaceSignature,
     libelleStatutReception, texteEcart, phraseRapprochement,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

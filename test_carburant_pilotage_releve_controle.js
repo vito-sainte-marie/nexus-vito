@@ -97,6 +97,8 @@ function construireRenderReceptionModal(modal) {
     function fermerControleModal() {}
     function genererEtAfficherPdfCarburant() {}
     function construireReleveReceptionPdf() {}
+    function global_NexusReceptionDonnees_disponible() { return false; }
+    function chargerEtAfficherSignatureReception() {}
     return (${fnReceptionModalSrc});
   `;
   return new Function('document', 'NexusReceptionMoteur', prelude)(
