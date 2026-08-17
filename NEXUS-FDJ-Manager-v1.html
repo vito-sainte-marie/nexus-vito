@@ -887,46 +887,128 @@
 
       const predAttendu = NexusFdjMoteur.quartPrecedentAttendu(quartActuelInfo.date, quartActuelInfo.quart);
       const predShift = ensemble.find(s => s.date === predAttendu.date && s.quart === predAttendu.quart);
-      if (!predShift) continue;
-      const { ecarts, autoMap } = await ecartsContinuiteStockQuart(predShift.id, a.shift_id);
-      if (!ecarts.length) continue;
+      let aRevoirEnAttente = false;
+      if (predShift) {
+        const { ecarts, autoMap } = await ecartsContinuiteStockQuart(predShift.id, a.shift_id);
+        if (ecarts.length) {
+          // 16/08/2026 : "une chaîne rétablie ne signifie pas forcément que
+          // les anciens écarts calculés pendant la rupture sont
+          // automatiquement valides [...] résolution de l'alerte + recalcul
+          // des données doivent être indissociables." Sépare les jeux en
+          // écart selon qu'une main humaine a déjà confirmé leur
+          // stock_initial ou non (voir NexusFdjMoteur.ecartsContinuiteAAppliquer) :
+          // les uns sont corrigés tout seuls (voir
+          // appliquerCorrectionsAutomatiquesContinuite), les autres suivent
+          // le flux d'alerte manuelle existant, inchangé.
+          const { applicables, aRevoir } = NexusFdjMoteur.ecartsContinuiteAAppliquer(ecarts, autoMap);
 
-      // 16/08/2026 : "une chaîne rétablie ne signifie pas forcément que les
-      // anciens écarts calculés pendant la rupture sont automatiquement
-      // valides [...] résolution de l'alerte + recalcul des données doivent
-      // être indissociables." Sépare les jeux en écart selon qu'une main
-      // humaine a déjà confirmé leur stock_initial ou non (voir
-      // NexusFdjMoteur.ecartsContinuiteAAppliquer) : les uns sont corrigés
-      // tout seuls (voir appliquerCorrectionsAutomatiquesContinuite), les
-      // autres suivent le flux d'alerte manuelle existant, inchangé.
-      const { applicables, aRevoir } = NexusFdjMoteur.ecartsContinuiteAAppliquer(ecarts, autoMap);
+          if (applicables.length) {
+            await appliquerCorrectionsAutomatiquesContinuite(a.shift_id, applicables);
+            mutations = true;
+          }
 
-      if (applicables.length) {
-        await appliquerCorrectionsAutomatiquesContinuite(a.shift_id, applicables);
-        mutations = true;
-      }
-
-      if (aRevoir.length) {
-        const { data: existantes } = await nexusClient.from('fdj_alertes').select('id, game_id')
-          .eq('site', siteId).eq('type', 'continuite_stock_a_verifier').eq('shift_id', a.shift_id);
-        const gamesDejaSignales = new Set((existantes || []).map(r => r.game_id));
-        const nouvelles = aRevoir.filter(e => !gamesDejaSignales.has(e.game_id)).map(e => ({
-          site: siteId, type: 'continuite_stock_a_verifier', shift_id: a.shift_id, shift_precedent_id: predShift.id,
-          game_id: e.game_id, valeur_quart_precedent: e.stock_final_precedent, valeur_saisie: e.stock_initial_actuel,
-          employee_id: quartActuelInfo.employee_id || null,
-        }));
-        if (nouvelles.length) {
-          const { error: eInsert } = await nexusClient.from('fdj_alertes').insert(nouvelles);
-          if (eInsert) { console.error('Insertion anomalies continuité stock FDJ:', eInsert); continue; }
-          await nexusClient.from('fdj_audit_log').insert({
-            site: siteId, shift_id: a.shift_id, entite_type: 'fdj_alerte', entite_id: a.id,
-            action: 'fdj_continuite_stock_a_verifier_posee', acteur_id: null,
-            ancienne_valeur: null, nouvelle_valeur: { jeux: nouvelles.map(n => n.game_id) },
-          });
+          if (aRevoir.length) {
+            aRevoirEnAttente = true;
+            const { data: existantes } = await nexusClient.from('fdj_alertes').select('id, game_id')
+              .eq('site', siteId).eq('type', 'continuite_stock_a_verifier').eq('shift_id', a.shift_id);
+            const gamesDejaSignales = new Set((existantes || []).map(r => r.game_id));
+            const nouvelles = aRevoir.filter(e => !gamesDejaSignales.has(e.game_id)).map(e => ({
+              site: siteId, type: 'continuite_stock_a_verifier', shift_id: a.shift_id, shift_precedent_id: predShift.id,
+              game_id: e.game_id, valeur_quart_precedent: e.stock_final_precedent, valeur_saisie: e.stock_initial_actuel,
+              employee_id: quartActuelInfo.employee_id || null,
+            }));
+            if (nouvelles.length) {
+              const { error: eInsert } = await nexusClient.from('fdj_alertes').insert(nouvelles);
+              if (eInsert) console.error('Insertion anomalies continuité stock FDJ:', eInsert);
+              else await nexusClient.from('fdj_audit_log').insert({
+                site: siteId, shift_id: a.shift_id, entite_type: 'fdj_alerte', entite_id: a.id,
+                action: 'fdj_continuite_stock_a_verifier_posee', acteur_id: null,
+                ancienne_valeur: null, nouvelle_valeur: { jeux: nouvelles.map(n => n.game_id) },
+              });
+            }
+          }
         }
       }
+
+      // 16/08/2026, demande de Frédéric : "le relevé doit connaître la
+      // qualité de la chaîne [...] Chaîne interrompue / donnée manquante →
+      // Relevé provisoire — continuité à régulariser. Puis, lorsque le
+      // quart manquant est complété : recalcul automatique, création d'une
+      // nouvelle version, ancienne version conservée, statut final mis à
+      // jour." Appelée dans TOUS les cas où la chaîne vient d'être
+      // rétablie pour ce quart — y compris quand le stock ne présentait
+      // déjà plus aucun écart (rien à corriger, seul le "caractère" du
+      // relevé doit passer de provisoire à définitif).
+      await synchroniserRelevesApresRetablissementChaine(a.shift_id, aRevoirEnAttente);
     }
     return mutations;
+  }
+
+  // RELEVÉ DE CLÔTURE — synchronisation après rétablissement de chaîne
+  // (16/08/2026). Le relevé posé par l'employé (ou une régularisation
+  // manager) au moment où la chaîne était rompue reste 'provisoire' à
+  // jamais — cette fonction ne le réécrit JAMAIS, elle pose une NOUVELLE
+  // version (type_version='recalcul_automatique_chaine', jamais une action
+  // humaine directe) qui reflète l'état réel une fois la chaîne saine. Ne
+  // fait rien si aucune version n'existe encore pour ce quart (rien à
+  // synchroniser — pas de reconstruction rétroactive d'un historique
+  // pré-existant à cette fonctionnalité).
+  async function synchroniserRelevesApresRetablissementChaine(shiftId, aRevoirEnAttente) {
+    const { data: precedentes } = await nexusClient.from('fdj_releves_cloture').select('*').eq('shift_id', shiftId).order('version_num', { ascending: false }).limit(1);
+    const precedent = (precedentes || [])[0] || null;
+    if (!precedent) return; // aucun relevé encore posé pour ce quart — rien à faire
+
+    const [{ data: counts }, { data: reports }, { data: cash }] = await Promise.all([
+      nexusClient.from('fdj_shift_counts').select('*').eq('shift_id', shiftId),
+      nexusClient.from('fdj_reports').select('*').eq('shift_id', shiftId),
+      nexusClient.from('fdj_cash_controls').select('*').eq('shift_id', shiftId).maybeSingle(),
+    ]);
+    const stockInitialParJeu = {}, approParJeu = {}, stockFinalParJeu = {}, ventesParJeu = {};
+    (counts || []).forEach(c => {
+      stockInitialParJeu[c.game_id] = c.stock_initial ?? null;
+      approParJeu[c.game_id] = c.appro || 0;
+      stockFinalParJeu[c.game_id] = c.stock_final ?? null;
+      ventesParJeu[c.game_id] = { qte: c.ventes_qte ?? null, valeur: c.ventes_valeur ?? null };
+    });
+    const repJournalier = (reports || []).find(r => r.type_rapport === 'journalier');
+    const repTempsReel = (reports || []).find(r => r.type_rapport === 'temps_reel');
+    const versionNum = precedent.version_num + 1;
+    const nouveauSnapshot = {
+      stock_initial_par_jeu: stockInitialParJeu, appro_par_jeu: approParJeu, stock_final_par_jeu: stockFinalParJeu, ventes_par_jeu: ventesParJeu,
+      ventes_grattage_valeur: cash ? cash.ventes_grattage_valeur : null, lots_payes_grattage: repJournalier ? repJournalier.lots_payes_grattage : null,
+      caisse_tirages: repTempsReel ? repTempsReel.caisse_tirages : null, regularisations: cash ? cash.regularisations : 0,
+      caisse_attendue: cash ? cash.caisse_attendue : null, caisse_reelle: cash ? cash.caisse_reelle : null, ecart: cash ? cash.ecart : null,
+      statut: NexusFdjMoteur.statutRelevecloture(versionNum, cash ? cash.ecart : null),
+      anomalie_chaine: { rompue: !!aRevoirEnAttente },
+      // Chaîne confirmée intacte (cette fonction n'est appelée qu'une fois
+      // etat.rompue===false) — mais tant qu'il reste un jeu à vérifier
+      // manuellement sur CE quart, le relevé reste 'provisoire' : la
+      // continuité temporelle est rétablie, la fiabilité du chiffre ne
+      // l'est pas encore complètement.
+      caractere: NexusFdjMoteur.caractereRelevecloture(!!aRevoirEnAttente),
+    };
+    const diff = NexusFdjMoteur.diffClotureFdj(precedent, nouveauSnapshot);
+    // Un changement de `caractere` (provisoire -> définitif) est TOUJOURS
+    // significatif même si diffClotureFdj (qui ne compare que les champs
+    // chiffrés) n'y voit rien à signaler — sinon un quart dont le stock
+    // était déjà juste avant la correction ne recevrait jamais sa version
+    // "définitive" alors que c'est exactement ce que Frédéric a demandé.
+    if (!diff && nouveauSnapshot.caractere === precedent.caractere) return;
+
+    const signature = {
+      utilisateur_id: null, nom: 'NEXUS', role: 'system', date_heure: new Date().toISOString(), version_donnees: versionNum,
+      session_id: null, quart_id: shiftId,
+      message_confirmation: 'Recalcul automatique après rétablissement de la chaîne de continuité FDJ.',
+    };
+    const { error: eReleve } = await nexusClient.from('fdj_releves_cloture').insert({
+      site: siteId, shift_id: shiftId, date: precedent.date, quart: precedent.quart, employee_id: precedent.employee_id,
+      version_num: versionNum, type_version: 'recalcul_automatique_chaine', cree_par: null,
+      ...nouveauSnapshot,
+      motif_regularisation: 'Chaîne FDJ rétablie automatiquement — stocks et écart recalculés à partir des données désormais complètes.',
+      diff_vs_precedent: diff,
+      signature,
+    });
+    if (eReleve) console.error('Relevé de clôture FDJ (version recalcul automatique):', eReleve);
   }
 
   function nomJeu(gameId) {
@@ -2632,13 +2714,28 @@
     });
     const { data: precedentes } = await nexusClient.from('fdj_releves_cloture').select('*').eq('shift_id', shift.id).order('version_num', { ascending: false }).limit(1);
     const precedent = (precedentes || [])[0] || null;
+    // 16/08/2026 : le relevé doit connaître la qualité de la chaîne au
+    // moment de CETTE régularisation — une alerte chaine_interrompue ou
+    // continuite_stock_a_verifier encore ouverte sur ce quart précis rend
+    // le relevé 'provisoire', même si le manager vient de régulariser
+    // autre chose (ex. un motif d'écart) sans toucher au stock en cause.
+    const { data: alertesOuvertesShift } = await nexusClient.from('fdj_alertes').select('id')
+      .eq('shift_id', shift.id).in('type', ['chaine_interrompue', 'continuite_stock_a_verifier']).eq('resolue_automatiquement', false).eq('vue', false);
+    const chaineOuStockAVerifier = !!(alertesOuvertesShift && alertesOuvertesShift.length);
+    const versionNum = precedent ? precedent.version_num + 1 : 1;
     const nouveauSnapshot = {
       stock_initial_par_jeu: stockInitialParJeu, appro_par_jeu: approParJeu, stock_final_par_jeu: stockFinalParJeu, ventes_par_jeu: ventesParJeu,
       ventes_grattage_valeur: ventesGrattageTotalEdition(), lots_payes_grattage: edition.lotsPayes,
       caisse_tirages: edition.caisseTirages, regularisations: edition.regularisations || 0,
       caisse_attendue: caisseAttendueEdition(), caisse_reelle: edition.caisseReelle, ecart,
+      // 16/08/2026 : `statut` inclus DANS le snapshot avant le diff (et pas
+      // ajouté seulement à l'insertion) — sinon diffClotureFdj comparerait
+      // toujours precedent.statut à `undefined` et fabriquerait un faux
+      // diff à chaque réenregistrement, même sans aucun changement réel.
+      statut: NexusFdjMoteur.statutRelevecloture(versionNum, ecart),
+      anomalie_chaine: { rompue: chaineOuStockAVerifier },
+      caractere: NexusFdjMoteur.caractereRelevecloture(chaineOuStockAVerifier),
     };
-    const versionNum = precedent ? precedent.version_num + 1 : 1;
     const diff = precedent ? NexusFdjMoteur.diffClotureFdj(precedent, nouveauSnapshot) : null;
     if (!precedent || diff) {
       const signature = {
@@ -2652,7 +2749,6 @@
         site: siteId, shift_id: shift.id, date: edition.date, quart: edition.quart, employee_id: edition.employeeId,
         version_num: versionNum, type_version: 'regularisation_manager', cree_par: managerCourant.id,
         ...nouveauSnapshot,
-        statut: NexusFdjMoteur.statutRelevecloture(versionNum, ecart),
         motif_regularisation: precedent ? (edition.motifEcart || null) : null,
         diff_vs_precedent: diff,
         signature,

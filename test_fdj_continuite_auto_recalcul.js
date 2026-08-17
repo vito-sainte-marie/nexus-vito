@@ -127,9 +127,11 @@ function nouveauContexte(tables, jeuxInitiaux) {
   const src = [
     extraire('ecartsContinuiteStockQuart'),
     extraire('appliquerCorrectionsAutomatiquesContinuite'),
+    extraire('synchroniserRelevesApresRetablissementChaine'),
     extraire('reconcilierAlertesChaine'),
     'globalThis.__ecartsContinuiteStockQuart = ecartsContinuiteStockQuart;',
     'globalThis.__appliquerCorrectionsAutomatiquesContinuite = appliquerCorrectionsAutomatiquesContinuite;',
+    'globalThis.__synchroniserRelevesApresRetablissementChaine = synchroniserRelevesApresRetablissementChaine;',
     'globalThis.__reconcilierAlertesChaine = reconcilierAlertesChaine;',
   ].join('\n\n');
   vm.runInNewContext(src, ctx);
@@ -269,8 +271,85 @@ async function test3() {
   console.log('OK — reconcilierAlertesChaine : résolution de l\'alerte, recalcul de l\'écart et flux manuel pour les jeux non-auto sont bien indissociables et corrects, bout en bout.');
 }
 
+// ------------------------------------------------------------
+// 4) synchroniserRelevesApresRetablissementChaine — 16/08/2026, demande de
+//    Frédéric : "Chaîne interrompue / donnée manquante → Relevé provisoire
+//    — continuité à régulariser. Puis, lorsque le quart manquant est
+//    complété : recalcul automatique, création d'une nouvelle version,
+//    ancienne version conservée, statut final mis à jour." Un relevé
+//    'provisoire' déjà posé (validation employé pendant que la chaîne
+//    était rompue) doit recevoir une NOUVELLE version 'definitif' une fois
+//    la chaîne rétablie et le stock intégralement corrigé — l'ancienne
+//    version reste intacte, jamais réécrite.
+// ------------------------------------------------------------
+async function test4() {
+  const jeuxTest = [{ id: 'g1', prix: 2 }];
+  const tables = {
+    fdj_alertes: [
+      { id: 'alerte-chaine-2', site: 'site-test', type: 'chaine_interrompue', shift_id: 'cur2', shift_precedent_id: 'prev2', resolue_automatiquement: false, resolue_le: null },
+    ],
+    fdj_shift_counts: [
+      { shift_id: 'prev2', game_id: 'g1', stock_final: 40 },
+      { shift_id: 'cur2', game_id: 'g1', stock_initial: 35, appro: 5, stock_final: 20, ventes_qte: null, ventes_valeur: null, stock_initial_auto: true },
+    ],
+    fdj_reports: [
+      { shift_id: 'cur2', type_rapport: 'journalier', lots_payes_grattage: 10 },
+      { shift_id: 'cur2', type_rapport: 'temps_reel', caisse_tirages: 20 },
+    ],
+    fdj_cash_controls: [
+      { shift_id: 'cur2', caisse_reelle: 190, regularisations: 5, ecart: 999, caisse_attendue: 999, ventes_grattage_valeur: 999, caisse_grattage: 999 },
+    ],
+    fdj_audit_log: [],
+    // Relevé posé par l'employé PENDANT que la chaîne était encore rompue
+    // (voir NEXUS-FDJ-v1.html::validerQuart, caractere='provisoire' dans
+    // ce cas) — jamais réécrit par la suite, seule une nouvelle version
+    // vient s'ajouter.
+    fdj_releves_cloture: [
+      {
+        id: 'releve-v1', site: 'site-test', shift_id: 'cur2', date: '2026-08-16', quart: '2', employee_id: 'emp2',
+        version_num: 1, type_version: 'validation_employe', cree_par: 'emp2',
+        stock_initial_par_jeu: { g1: 35 }, appro_par_jeu: { g1: 5 }, stock_final_par_jeu: { g1: 20 }, ventes_par_jeu: { g1: { qte: 20, valeur: 40 } },
+        ventes_grattage_valeur: 40, lots_payes_grattage: 10, caisse_tirages: 20, regularisations: 5,
+        caisse_attendue: 55, caisse_reelle: 190, ecart: 135,
+        statut: 'valide_avec_ecart', caractere: 'provisoire', anomalie_chaine: { rompue: true, manquants: [{ date: '2026-08-15', quart: '2' }] },
+        signature: { utilisateur_id: 'emp2' },
+      },
+    ],
+  };
+  const ctx = nouveauContexte(tables, jeuxTest);
+
+  const ensemble = [
+    { id: 'prev2', date: '2026-08-16', quart: '1', statut: 'valide', employee_id: 'emp2' },
+    { id: 'cur2', date: '2026-08-16', quart: '2', statut: 'valide', employee_id: 'emp2' },
+  ];
+  const alertesBrutes = tables.fdj_alertes.map(a => ({ ...a }));
+  await ctx.__reconcilierAlertesChaine(alertesBrutes, ensemble);
+
+  const relevesQuart = tables.fdj_releves_cloture.filter(r => r.shift_id === 'cur2').sort((a, b) => a.version_num - b.version_num);
+  assert.strictEqual(relevesQuart.length, 2, 'Une nouvelle version doit être posée, la version 1 reste en place (2 lignes au total)');
+
+  const v1 = relevesQuart[0];
+  assert.strictEqual(v1.caractere, 'provisoire', 'La version 1 (posée pendant la rupture) ne doit JAMAIS être réécrite — elle reste provisoire pour toujours');
+  assert.strictEqual(v1.ecart, 135, 'La version 1 conserve son écart original, jamais modifié');
+
+  const v2 = relevesQuart[1];
+  assert.strictEqual(v2.version_num, 2);
+  assert.strictEqual(v2.type_version, 'recalcul_automatique_chaine', 'La nouvelle version doit être posée par NEXUS lui-même, jamais qualifiée de régularisation manager');
+  assert.strictEqual(v2.cree_par, null, 'Aucun acteur humain — recalcul système (signature.role="system")');
+  assert.strictEqual(v2.caractere, 'definitif', 'Chaîne rétablie ET aucune anomalie de stock restante -> le relevé devient enfin définitif');
+  assert.strictEqual(v2.stock_initial_par_jeu.g1, 40, 'Le nouveau relevé reflète le stock_initial corrigé (40, hérité du vrai stock final du quart précédent)');
+  assert.strictEqual(v2.ecart, 125, 'Le nouveau relevé porte l\'écart RECALCULÉ (190 caisse réelle - 65 attendue avec le stock corrigé)');
+  assert.ok(v2.diff_vs_precedent, 'Un différentiel doit être posé (quelque chose a réellement changé)');
+  assert.deepStrictEqual(v2.diff_vs_precedent.stock_initial_par_jeu, { g1: { avant: 35, apres: 40 } }, 'Diff : stock initial CASH-like 35 -> 40, exactement le mécanisme demandé par Frédéric');
+  assert.deepStrictEqual(v2.diff_vs_precedent.ecart, { avant: 135, apres: 125 }, 'Diff : écart original 135€ -> écart recalculé 125€, les deux restent lisibles (v1 jamais effacée)');
+  assert.strictEqual(v2.signature.role, 'system', 'Signature explicite "system" — jamais attribuée à un humain qui n\'a rien fait');
+
+  console.log('OK — synchroniserRelevesApresRetablissementChaine : nouvelle version définitive posée après rétablissement de chaîne, version provisoire originale jamais réécrite, diff exact.');
+}
+
 (async () => {
   await test2();
   await test3();
+  await test4();
   console.log('\nTous les tests "continuité FDJ v2 — recalcul automatique" passent.');
 })().catch(e => { console.error(e); process.exit(1); });

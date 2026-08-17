@@ -876,6 +876,17 @@
   // ultérieure (régularisation manager) est systématiquement 'regularise',
   // quel que soit le nouvel écart (même 0€ : le fait qu'il y ait EU une
   // intervention reste tracé).
+  // "Caractère" du relevé (16/08/2026, demande de Frédéric) — dimension
+  // SÉPARÉE du statut (qui parle de l'écart) : parle de la CONFIANCE dans
+  // les données au moment du snapshot. `provisoire` tant que la chaîne de
+  // continuité est rompue OU qu'une anomalie de stock reste à vérifier sur
+  // ce quart ; `definitif` sinon. "Chaîne continue → Relevé définitif.
+  // Chaîne interrompue / donnée manquante → Relevé provisoire — continuité
+  // à régulariser."
+  function caractereRelevecloture(chaineRompueOuAVerifier) {
+    return chaineRompueOuAVerifier ? 'provisoire' : 'definitif';
+  }
+
   function statutRelevecloture(versionNum, ecart) {
     if (versionNum > 1) return 'regularise';
     return (ecart === null || ecart === undefined || ecart === 0) ? 'conforme' : 'valide_avec_ecart';
@@ -926,6 +937,6 @@
     FDJ_SEUIL_FRACTION_CARNET_PAS_ENCORE_MOITIE,
     rotationCarnetsJeu, ticketsRestantsCarnetEnCours, calculerAutonomieJeu,
     etatLigneStockV2, phraseFamillePalier, syntheseGlobaleFdjStock,
-    statutRelevecloture, diffClotureFdj,
+    statutRelevecloture, diffClotureFdj, caractereRelevecloture,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

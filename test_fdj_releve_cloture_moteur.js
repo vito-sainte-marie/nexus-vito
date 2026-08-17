@@ -63,4 +63,15 @@ const M = global.NexusFdjMoteur;
   console.log('OK — diffClotureFdj gère un jeu disparu entre deux versions sans jamais l\'ignorer.');
 })();
 
+// ------------------------------------------------------------
+// caractereRelevecloture — 16/08/2026, demande de Frédéric : "Chaîne
+// continue → Relevé définitif. Chaîne interrompue / donnée manquante →
+// Relevé provisoire — continuité à régulariser."
+// ------------------------------------------------------------
+(() => {
+  assert.strictEqual(M.caractereRelevecloture(false), 'definitif', 'Chaîne intacte -> relevé définitif');
+  assert.strictEqual(M.caractereRelevecloture(true), 'provisoire', 'Chaîne rompue (ou anomalie de stock ouverte) -> relevé provisoire');
+  console.log('OK — caractereRelevecloture : definitif/provisoire selon la qualité de la chaîne au moment du snapshot.');
+})();
+
 console.log('\nTous les tests "relevé de clôture FDJ — moteur" passent.');

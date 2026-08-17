@@ -205,6 +205,22 @@
   .precomptage-regle{font-size:13.5px; font-weight:600; color:var(--cyan); line-height:1.5; padding:12px; background:rgba(79,195,217,0.08); border:1px solid rgba(79,195,217,0.25); border-radius:10px; margin-bottom:18px;}
 
   footer{margin-top:auto; padding:16px 20px 24px; font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:center; border-top:1px solid var(--hairline);}
+
+  /* Modale de validation définitive du quart (16/08/2026, demande de
+     Frédéric : "je ne garderais pas longtemps les popups navigateur [...]
+     je ferais une vraie modale cohérente avec l'interface") — même
+     structure bottom-sheet que .calc-overlay/.calc-modal (NEXUS-Inventaire-v1.html),
+     jamais un confirm() natif du navigateur pour un geste aussi engageant. */
+  .cloture-overlay{position:fixed; inset:0; background:rgba(0,0,0,0.6); display:flex; align-items:flex-end; justify-content:center; z-index:300;}
+  .cloture-modal{width:100%; max-width:460px; background:var(--panel); border:1px solid var(--hairline); border-top-left-radius:18px; border-top-right-radius:18px; padding:22px 20px calc(22px + env(safe-area-inset-bottom));}
+  .cloture-titre{font-size:16.5px; font-weight:700; margin-bottom:14px;}
+  .cloture-ecart-ligne{display:flex; justify-content:space-between; align-items:center; background:var(--panel-raised); border:1px solid var(--hairline); border-radius:10px; padding:12px 14px; margin-bottom:14px; font-size:13px;}
+  .cloture-ecart-valeur{font-family:var(--mono); font-weight:700; font-size:15px;}
+  .cloture-ecart-valeur.green{color:var(--green);}
+  .cloture-ecart-valeur.amber{color:var(--amber);}
+  .cloture-texte{font-size:13px; color:var(--text-mid); line-height:1.6; margin-bottom:14px;}
+  .cloture-avertissement{font-size:12.5px; color:var(--amber); background:var(--amber-dim); border:1px solid rgba(245,166,35,0.3); border-radius:10px; padding:10px 12px; margin-bottom:14px; line-height:1.5;}
+  .cloture-actions .btn-ghost, .cloture-actions .btn-primary{margin-top:8px;}
 </style>
 </head>
 <body>
@@ -1575,15 +1591,48 @@
     document.getElementById('btnRetourCaisse').addEventListener('click', () => { phase = 'caisse'; renderCaisse(); });
   }
 
+  // Modale de validation définitive (16/08/2026, demande de Frédéric —
+  // remplace le confirm() natif du navigateur, "beaucoup plus pédagogique
+  // et beaucoup moins brutal qu'une boîte système"). Retourne une Promise
+  // résolue à true si l'employé confirme "Valider mon quart", false s'il
+  // choisit "Retourner au contrôle" ou ferme la modale autrement — mêmes
+  // deux issues qu'un confirm(), juste une présentation cohérente avec le
+  // reste de NEXUS (bottom-sheet, comme la calculatrice d'Inventaire).
+  const messageConfirmationCloture = "En validant, vous confirmez les informations saisies pour ce quart. Vous pourrez consulter ce relevé, mais vous ne pourrez plus le modifier.";
+  function demanderConfirmationCloture(ecart) {
+    return new Promise(resolve => {
+      const classeEcart = ecart === null || ecart === undefined || ecart === 0 ? 'green' : 'amber';
+      const ecartTxt = ecart === null || ecart === undefined ? '—' : `${ecart > 0 ? '+' : ''}${fmtEuro(ecart)}`;
+      const overlay = document.createElement('div');
+      overlay.className = 'cloture-overlay';
+      overlay.innerHTML = `
+        <div class="cloture-modal">
+          <div class="cloture-titre">Valider définitivement ce quart ?</div>
+          <div class="cloture-ecart-ligne"><span>Écart constaté</span><span class="cloture-ecart-valeur ${classeEcart}">${ecartTxt}</span></div>
+          <div class="cloture-texte">${messageConfirmationCloture}</div>
+          ${ecart !== null && ecart !== undefined && ecart !== 0 ? `<div class="cloture-avertissement">🟠 Un écart de ${ecartTxt} sera enregistré dans votre relevé.</div>` : ''}
+          <div class="cloture-actions">
+            <button type="button" class="btn-primary" id="btnClotureValider">Valider mon quart</button>
+            <button type="button" class="btn-ghost" id="btnClotureRetour">Retourner au contrôle</button>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(overlay);
+      const fermer = (resultat) => { overlay.remove(); resolve(resultat); };
+      document.getElementById('btnClotureValider').addEventListener('click', () => fermer(true));
+      document.getElementById('btnClotureRetour').addEventListener('click', () => fermer(false));
+      overlay.addEventListener('click', e => { if (e.target === overlay) fermer(false); });
+    });
+  }
+
   async function validerQuart() {
     // 16/08/2026, demande de Frédéric ("Trace de contrôle FDJ") : l'action
-    // de cliquer sur "Valider définitivement mon quart" devient elle-même
-    // la trace — utilisateur authentifié + horodatage + confirmation
-    // explicite du message ci-dessous, jamais une signature manuscrite,
-    // mais un geste techniquement tracé (voir la fiche de clôture posée
-    // plus bas). Le message reprend le texte exact validé par Frédéric.
-    const messageConfirmation = "En validant, vous confirmez que les informations saisies correspondent à votre contrôle de fin de quart. Après validation, elles ne pourront plus être modifiées par vous.";
-    if (!confirm(messageConfirmation)) return;
+    // de cliquer sur "Valider mon quart" dans cette modale devient
+    // elle-même la trace — utilisateur authentifié + horodatage +
+    // confirmation explicite du message affiché, jamais une signature
+    // manuscrite, mais un geste techniquement tracé (voir la fiche de
+    // clôture posée plus bas).
+    if (!(await demanderConfirmationCloture(ecartCaisse()))) return;
 
     const btn = document.getElementById('btnValider');
     btn.disabled = true;
@@ -1661,7 +1710,8 @@
       utilisateur_id: employeeCourant.id, nom: employeeCourant.nom, role: employeeCourant.role || 'employe',
       date_heure: new Date().toISOString(), version_donnees: shiftRow.version || 1,
       session_id: (typeof navigator !== 'undefined' && navigator.userAgent) || null,
-      quart_id: shiftRow.id, message_confirmation: messageConfirmation,
+      quart_id: shiftRow.id, message_confirmation: messageConfirmationCloture,
+      heure_ouverture_quart: shiftRow.ouvert_le || null,
     };
     const { error: eReleve } = await nexusClient.from('fdj_releves_cloture').insert({
       site: siteId, shift_id: shiftRow.id, date: shiftRow.date, quart: shiftRow.quart, employee_id: employeeCourant.id,
@@ -1671,6 +1721,15 @@
       caisse_tirages: reportTempsReel.caisse_tirages, regularisations: regularisations || 0,
       caisse_attendue: caisseAttendue(), caisse_reelle: caisseReelle, ecart,
       anomalie_chaine: chaineRompue.rompue ? { rompue: true, manquants: chaineRompue.manquants } : { rompue: false },
+      // 16/08/2026, demande de Frédéric : "si un quart précédent manque, je
+      // ne veux pas qu'un relevé soit présenté comme totalement définitif
+      // [...] Chaîne interrompue / donnée manquante → Relevé provisoire —
+      // continuité à régulariser." Recalculé automatiquement en 'definitif'
+      // dès que la chaîne se rétablit (voir
+      // NEXUS-FDJ-Manager-v1.html::synchroniserRelevesApresRetablissementChaine),
+      // sans jamais réécrire cette version 1 — une nouvelle version est
+      // posée à la place.
+      caractere: NexusFdjMoteur.caractereRelevecloture(chaineRompue.rompue),
       statut: statutReleve, signature,
     });
     // Non bloquant côté employé (le quart est déjà validé et enregistré à
