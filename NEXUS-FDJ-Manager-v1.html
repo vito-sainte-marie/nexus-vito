@@ -17,10 +17,12 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
 <script src="nexus-auth.js"></script>
 <script src="nexus-forfait.js"></script>
 <script src="nexus-desktop.js"></script>
 <script src="nexus-fdj-moteur.js"></script>
+<script src="nexus-pdf-moteur.js"></script>
 <style>
   :root{
     --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
@@ -211,6 +213,26 @@
   .btn-retour-fleche{display:flex; align-items:center; gap:6px; background:none; border:none; color:var(--cyan); font-family:var(--sans); font-size:13px; font-weight:600; padding:0 0 16px; cursor:pointer;}
   .btn-retour-fleche:active{opacity:0.7;}
   .btn-nouveau{width:100%; padding:12px; border:1.5px dashed rgba(79,195,217,0.4); border-radius:12px; background:rgba(79,195,217,0.06); color:var(--cyan); font-size:13px; font-weight:600; cursor:pointer; margin:4px 0 4px;}
+  /* Relevé de clôture FDJ / Trace de contrôle — export PDF (16/08/2026),
+     mêmes classes que NEXUS-FDJ-Analyse-v1.html (flux Générer → Partager/
+     Ouvrir en 2 temps, retour de Frédéric du 10/08/2026 : jamais enchaîné
+     automatiquement). */
+  .btn-rapport-pdf{display:block; width:100%; margin:14px 0 8px; padding:13px; border-radius:10px; border:none; background:var(--cyan); color:#0B0F14; font-family:var(--sans); font-size:13.5px; font-weight:700; cursor:pointer;}
+  .btn-rapport-pdf:disabled{opacity:0.55; cursor:default;}
+  .btn-rapport-pdf.secondaire{background:var(--panel-raised); color:var(--text); border:1px solid var(--hairline);}
+  .rapport-actions{display:flex; gap:8px;}
+  .rapport-actions .btn-rapport-pdf{margin:14px 0 0;}
+  .btn-lien{display:block; width:100%; margin:10px 0 8px; padding:6px; border:none; background:none; color:var(--text-dim); font-family:var(--sans); font-size:11.5px; text-decoration:underline; cursor:pointer;}
+  .statut-rapport{font-size:11.5px; color:var(--text-mid); text-align:center; margin-top:8px; min-height:14px; line-height:1.5;}
+  .statut-rapport.statut-pret{color:var(--green);}
+  .statut-rapport.statut-erreur{color:var(--red);}
+  .badge-caractere{display:inline-block; font-size:9.5px; font-family:var(--mono); letter-spacing:0.03em; padding:3px 8px; border-radius:6px; font-weight:600;}
+  .badge-caractere.definitif{background:rgba(52,211,153,0.12); color:var(--green);}
+  .badge-caractere.provisoire{background:rgba(245,166,35,0.14); color:var(--amber);}
+  .releve-version-card{border:1px solid var(--hairline); border-radius:10px; padding:12px 14px; margin-bottom:10px; background:var(--panel-raised);}
+  .releve-version-titre{font-size:12.5px; font-weight:600; color:var(--text); display:flex; justify-content:space-between; align-items:center; gap:8px;}
+  .releve-version-meta{font-size:10.5px; color:var(--text-dim); margin-top:2px;}
+  .releve-version-motif{font-size:11.5px; color:var(--text-mid); margin-top:8px; font-style:italic;}
   /* Choix de destination après enregistrement (13/08/2026) */
   .apres-enreg-card{padding:24px 18px; text-align:center;}
   .apres-enreg-icone{font-size:30px; margin-bottom:8px;}
@@ -286,7 +308,14 @@
   // état de saisie du formulaire de dérogation ouvert depuis le panneau
   // "Accès aux quarts — aujourd'hui" (voir chargerVerrousJour/renderVerrouJour).
   let derogation = null; // { verrouId, employeeId, quartActuel, autreQuart, motif }
-  let vue = 'liste'; // 'liste' | 'edition' | 'reappro' | 'inventaire-ref' | 'reception' | 'stock-etat' | 'blocage' | 'apres-enregistrement' | 'rapprochement' | 'derogation'
+  // 16/08/2026 — Trace de contrôle FDJ, écran manager : état des trois
+  // niveaux de consultation demandés par Frédéric ("Historique FDJ →
+  // sélectionner un quart → Générer le relevé de contrôle", "Exporter la
+  // journée complète", "Historique FDJ de [employé] — [mois]").
+  let releveQuart = null; // { shift, releves (array, version_num croissant), dernierPdf }
+  let exportJournee = null; // { date, shifts: [{shift, releves}], dernierPdf }
+  let historiqueEmploye = null; // { employeeId, moisISO ('YYYY-MM'), shifts, dernierPdf }
+  let vue = 'liste'; // 'liste' | 'edition' | 'reappro' | 'inventaire-ref' | 'reception' | 'stock-etat' | 'blocage' | 'apres-enregistrement' | 'rapprochement' | 'derogation' | 'releve' | 'export-journee' | 'historique-employe-liste' | 'historique-employe'
 
   // État du formulaire d'édition en cours (nouveau OU existant).
   let edition = null;
@@ -614,6 +643,123 @@
     const { data, error } = await nexusClient.from('fdj_shifts').select('*, fdj_cash_controls(*)').eq('id', id).maybeSingle();
     if (error) { console.error('Chargement quart FDJ par id:', error); return null; }
     return data ? { ...data, cash: extraireCash(data) } : null;
+  }
+
+  // ------------------------------------------------------------
+  // TRACE DE CONTRÔLE FDJ — écran manager (16/08/2026). Toutes les
+  // versions d'un relevé de clôture (voir v2.116/v2.117 du Data
+  // Dictionary) : la version 1 (validation employé) puis chaque
+  // régularisation/recalcul ultérieur, jamais un écrasement — la lecture
+  // "état actuel" prend toujours la DERNIÈRE version (releves[releves.
+  // length-1]), l'historique complet reste consultable en dessous.
+  // ------------------------------------------------------------
+  async function chargerRelevesQuart(shiftId) {
+    const { data, error } = await nexusClient.from('fdj_releves_cloture').select('*').eq('shift_id', shiftId).order('version_num', { ascending: true });
+    if (error) { console.error('Chargement relevés de clôture FDJ:', error); return []; }
+    return data || [];
+  }
+  // Quarts d'un employé sur un mois calendaire ('YYYY-MM') — utilisé par
+  // l'écran "Historique FDJ de [employé] — [mois]". Même forme que
+  // chargerShiftsAvecCaisse (cash imbriqué déballé via extraireCash),
+  // ordonné chronologiquement (le plus ancien d'abord, lecture naturelle
+  // d'un historique mensuel) plutôt que desc comme la liste d'accueil.
+  async function chargerShiftsEmployeMois(employeeId, moisISO) {
+    const debut = `${moisISO}-01`;
+    const finDate = new Date(`${moisISO}-01T00:00:00`);
+    finDate.setMonth(finDate.getMonth() + 1);
+    const fin = dateISO(finDate);
+    const { data, error } = await nexusClient.from('fdj_shifts').select('*, fdj_cash_controls(*)').eq('site', siteId).eq('employee_id', employeeId).gte('date', debut).lt('date', fin).order('date', { ascending: true }).order('quart', { ascending: true });
+    if (error) { console.error('Chargement quarts FDJ par employé/mois:', error); return []; }
+    return (data || []).map(s => ({ ...s, cash: extraireCash(s) }));
+  }
+
+  const LIBELLES_TYPE_VERSION_RELEVE = {
+    validation_employe: 'Validation employé',
+    regularisation_manager: 'Régularisation manager',
+    recalcul_automatique_chaine: 'Recalcul automatique (chaîne rétablie)',
+  };
+  function libelleTypeVersionReleve(v) { return LIBELLES_TYPE_VERSION_RELEVE[v] || v; }
+  function libelleCaractereReleve(c) { return c === 'provisoire' ? 'Provisoire — continuité à régulariser' : 'Définitif'; }
+  const LABELS_DIFF_RELEVE = {
+    ecart: 'Écart', caisse_attendue: 'Caisse attendue', caisse_reelle: 'Caisse réelle',
+    ventes_grattage_valeur: 'Ventes grattage', lots_payes_grattage: 'Lots payés',
+    caisse_tirages: 'Caisse tirages', regularisations: 'Régularisations', statut: 'Statut',
+    stock_initial_par_jeu: 'Stock initial', appro_par_jeu: 'Appro', stock_final_par_jeu: 'Stock final',
+  };
+  function formatValeurDiffReleve(champ, valeur) {
+    if (valeur === null || valeur === undefined) return '—';
+    if (champ === 'statut') return labelStatutCaisse(valeur);
+    if (['ecart', 'caisse_attendue', 'caisse_reelle', 'ventes_grattage_valeur', 'lots_payes_grattage', 'caisse_tirages', 'regularisations'].includes(champ)) return fmtEuro(valeur);
+    return fmtNum(valeur);
+  }
+  // Différentiel lisible d'une version de relevé (diff_vs_precedent, déjà
+  // calculé par NexusFdjMoteur.diffClotureFdj à l'écriture — jamais
+  // recalculé ici, Article 11). null = version 1 (pas de précédent) OU
+  // recalcul automatique n'ayant changé aucun chiffre (seul le caractère
+  // definitif/provisoire a basculé, voir synchroniserRelevesApresRetablissementChaine).
+  function renderDiffReleve(diff) {
+    if (!diff) return '';
+    const lignes = [];
+    Object.keys(LABELS_DIFF_RELEVE).forEach(champ => {
+      const v = diff[champ];
+      if (v === undefined) return;
+      if (champ.endsWith('_par_jeu')) {
+        Object.entries(v).forEach(([gameId, chg]) => {
+          lignes.push(`<div class="stat-row"><div class="stat-label">${LABELS_DIFF_RELEVE[champ]} — ${nomJeu(gameId)}</div><div class="stat-value" style="font-size:11.5px; font-weight:400;">${formatValeurDiffReleve(champ, chg.avant)} → ${formatValeurDiffReleve(champ, chg.apres)}</div></div>`);
+        });
+      } else {
+        lignes.push(`<div class="stat-row"><div class="stat-label">${LABELS_DIFF_RELEVE[champ] || champ}</div><div class="stat-value" style="font-size:11.5px; font-weight:400;">${formatValeurDiffReleve(champ, v.avant)} → ${formatValeurDiffReleve(champ, v.apres)}</div></div>`);
+      }
+    });
+    return lignes.join('');
+  }
+
+  // ------------------------------------------------------------
+  // Flux PDF générique en 2 temps (Générer → Partager/Ouvrir) — mêmes
+  // classes CSS et même discipline que NEXUS-FDJ-Analyse-v1.html (retour
+  // de Frédéric du 10/08/2026 : jamais enchaîné automatiquement). Un seul
+  // couple de fonctions réutilisé par les 2 écrans PDF de la trace de
+  // contrôle (relevé de quart, export journée) plutôt que dupliqué —
+  // `refs` est un objet mutable ({ dernierPdf }) porté par l'écran
+  // appelant, `construireFn` une fonction async sans argument qui
+  // construit et renvoie { bytes, nomFichier, titre, texte }.
+  // ------------------------------------------------------------
+  async function genererEtAfficherPdf(zoneEl, construireFn, refs) {
+    zoneEl.innerHTML = `<button class="btn-rapport-pdf" disabled type="button">Génération en cours…</button><div class="statut-rapport">Cela peut prendre quelques secondes.</div>`;
+    try {
+      refs.dernierPdf = await construireFn();
+      afficherActionsPdfPret(zoneEl, refs, construireFn);
+    } catch (e) {
+      console.error('NEXUS FDJ — génération du relevé PDF :', e);
+      zoneEl.innerHTML = `
+        <button class="btn-rapport-pdf" id="btnReessayerPdfReleve" type="button">Réessayer</button>
+        <div class="statut-rapport statut-erreur">Erreur lors de la génération — réessayez.<br><span class="statut-detail">${(e && e.message) ? e.message : 'Erreur inconnue — voir la console du navigateur.'}</span></div>
+      `;
+      zoneEl.querySelector('#btnReessayerPdfReleve').addEventListener('click', () => genererEtAfficherPdf(zoneEl, construireFn, refs));
+    }
+  }
+  function afficherActionsPdfPret(zoneEl, refs, construireFn) {
+    const partageOk = NexusPdfMoteur.webShareDisponible();
+    zoneEl.innerHTML = `
+      <div class="statut-rapport statut-pret">Relevé prêt.</div>
+      <div class="rapport-actions">
+        ${partageOk ? `<button class="btn-rapport-pdf" id="btnPartagerPdfReleve" type="button">Partager le PDF</button>` : ''}
+        <button class="btn-rapport-pdf${partageOk ? ' secondaire' : ''}" id="btnOuvrirPdfReleve" type="button">${partageOk ? 'Ouvrir le PDF' : 'Ouvrir / enregistrer le PDF'}</button>
+      </div>
+    `;
+    if (partageOk) {
+      zoneEl.querySelector('#btnPartagerPdfReleve').addEventListener('click', async () => {
+        const r = await NexusPdfMoteur.partagerPdf(refs.dernierPdf.bytes, refs.dernierPdf.nomFichier, { titre: refs.dernierPdf.titre, texte: refs.dernierPdf.texte });
+        const s = zoneEl.querySelector('.statut-rapport');
+        if (r === 'echec' || r === 'indisponible') { if (s) s.textContent = 'Partage impossible sur cet appareil — utilisez « Ouvrir le PDF ».'; }
+        else if (r === 'partage') { if (s) s.textContent = 'Relevé partagé.'; }
+      });
+    }
+    zoneEl.querySelector('#btnOuvrirPdfReleve').addEventListener('click', async () => {
+      await NexusPdfMoteur.telechargerPdf(refs.dernierPdf.bytes, refs.dernierPdf.nomFichier);
+      const s = zoneEl.querySelector('.statut-rapport');
+      if (s) s.textContent = 'Relevé ouvert.';
+    });
   }
 
   // Stock initial hérité (09/08/2026, demande de Frédéric) : même chaînage
@@ -1334,6 +1480,13 @@
         ${historique.length ? historique.map((s, i) => renderHistoItem(s, i, historique, alertes)).join('') : '<div class="empty">Aucun quart FDJ enregistré pour l’instant.</div>'}
       </div>
 
+      <!-- Trace de contrôle FDJ (16/08/2026) — 3e niveau de consultation
+           demandé par Frédéric : "Historique FDJ de [employé] — [mois]",
+           en plus du relevé par quart et de l'export journée déjà
+           accessibles depuis chaque ligne de l'historique ci-dessus. -->
+      <button class="btn-nouveau" id="btnHistoriqueEmploye">👤 Historique FDJ par employé</button>
+      <div class="champ-note">Relevés de clôture d'un employé sur un mois donné — chaque quart reste consultable individuellement.</div>
+
       <!-- Paramètres FDJ (10/08/2026, audit "Paramétrage autonome & multi-
            site", étape 3) : même discipline que Contrôle inventaire — un
            seul lien vers l'écran de configuration dédié, cet écran reste
@@ -1358,14 +1511,25 @@
     document.getElementById('btnInventaireRef').addEventListener('click', () => ouvrirInventaireRef());
     document.getElementById('btnReception').addEventListener('click', () => ouvrirReception());
     document.getElementById('btnEtatStock').addEventListener('click', () => ouvrirStockEtat());
+    document.getElementById('btnHistoriqueEmploye').addEventListener('click', () => ouvrirHistoriqueEmployeListe());
     if (quart1) document.getElementById(`carteQuart1`).addEventListener('click', () => ouvrirEditionExistant(quart1));
     if (quart2) document.getElementById(`carteQuart2`).addEventListener('click', () => ouvrirEditionExistant(quart2));
 
     document.querySelectorAll('.histo-item').forEach((item, i) => {
       item.addEventListener('click', () => document.getElementById(`detail-${i}`).classList.toggle('open'));
     });
-    document.querySelectorAll('#listeHistorique .btn-modifier').forEach(btn => {
+    document.querySelectorAll('#listeHistorique .btn-modifier[data-idx]').forEach(btn => {
       btn.addEventListener('click', (e) => { e.stopPropagation(); ouvrirEditionExistant(historique[parseInt(btn.dataset.idx, 10)]); });
+    });
+    // 16/08/2026 — Trace de contrôle FDJ : deux entrées supplémentaires
+    // depuis chaque quart déplié de l'historique — "Historique FDJ →
+    // sélectionner un quart → Générer le relevé de contrôle" et "Exporter
+    // la journée complète" (demande explicite de Frédéric).
+    document.querySelectorAll('#listeHistorique [data-releve-idx]').forEach(btn => {
+      btn.addEventListener('click', (e) => { e.stopPropagation(); ouvrirReleveQuart(historique[parseInt(btn.dataset.releveIdx, 10)]); });
+    });
+    document.querySelectorAll('#listeHistorique [data-export-jour]').forEach(btn => {
+      btn.addEventListener('click', (e) => { e.stopPropagation(); ouvrirExportJournee(btn.dataset.exportJour); });
     });
 
     const listeAlertes = document.getElementById('listeAlertes');
@@ -1493,6 +1657,8 @@
             ` : ''}
           ` : '<div class="empty">Pas encore de rapprochement caisse pour ce quart.</div>'}
           <button type="button" class="btn-modifier" data-idx="${i}">✏️ Modifier ce quart</button>
+          <button type="button" class="btn-modifier" data-releve-idx="${i}" style="margin-top:8px; background:rgba(79,195,217,0.1); border-color:rgba(79,195,217,0.35); color:var(--cyan);">📄 Relevé de clôture FDJ</button>
+          <button type="button" class="btn-modifier" data-export-jour="${s.date}" style="margin-top:8px; background:none; border-style:dashed;">📄 Exporter la journée complète (Q1+Q2)</button>
         </div>
       </div>
     `;
@@ -2262,6 +2428,434 @@
     });
     if (error) { console.error('Retour depuis bloqué FDJ:', error); alert("Erreur d'enregistrement. Réessayez."); return; }
     await ouvrirStockEtat();
+  }
+
+  // ------------------------------------------------------------
+  // TRACE DE CONTRÔLE FDJ — ÉCRAN "RELEVÉ DE CLÔTURE" (par quart)
+  // 16/08/2026, demande de Frédéric : "Historique FDJ → sélectionner un
+  // quart → Générer le relevé de contrôle". Le relevé n'est jamais
+  // recalculé ici — il se contente d'afficher tel quel ce que
+  // NexusFdjMoteur (via validerQuart/enregistrerEdition/synchroniser
+  // RelevesApresRetablissementChaine) a déjà écrit dans fdj_releves_cloture.
+  // "NEXUS conserve le fait" : cet écran ne fait que le lire et le mettre
+  // en forme, jamais une nouvelle vérité.
+  // ------------------------------------------------------------
+  async function ouvrirReleveQuart(shift) {
+    document.getElementById('content').innerHTML = '<div class="loading">Chargement…</div>';
+    if (!jeux.length) jeux = await chargerJeux();
+    if (!employesSite.length) employesSite = await chargerEmployesSite();
+    const releves = await chargerRelevesQuart(shift.id);
+    releveQuart = { shift, releves, dernierPdf: null };
+    vue = 'releve';
+    renderReleveQuart();
+  }
+
+  // Liste ordonnée des game_id apparaissant dans au moins une des 3 cartes
+  // *_par_jeu du snapshot — dans l'ordre d'affichage habituel des jeux
+  // (jeux déjà chargés triés par ordre_affichage), jamais un ordre
+  // dépendant des clés JSON (non garanti).
+  function jeuxDuSnapshot(snapshot) {
+    const ids = new Set([
+      ...Object.keys(snapshot.stock_initial_par_jeu || {}),
+      ...Object.keys(snapshot.appro_par_jeu || {}),
+      ...Object.keys(snapshot.stock_final_par_jeu || {}),
+    ]);
+    return jeux.filter(j => ids.has(j.id));
+  }
+
+  function renderReleveQuart() {
+    const { shift, releves } = releveQuart;
+    document.getElementById('titre').textContent = 'Relevé de clôture FDJ';
+    document.getElementById('sousTitre').textContent = `${new Date(shift.date + 'T00:00:00').toLocaleDateString('fr-FR')} · Quart ${shift.quart} · ${nomEmploye(shift.employee_id)}`;
+
+    if (!releves.length) {
+      document.getElementById('content').innerHTML = `
+        <button type="button" class="btn-retour-fleche" id="btnRetourReleve">← Retour</button>
+        <div class="card"><div class="empty">Aucun relevé de clôture pour ce quart — probablement un quart clôturé avant la mise en place de la trace de contrôle FDJ (16/08/2026), ou pas encore validé définitivement par l'employé.</div></div>
+      `;
+      document.getElementById('btnRetourReleve').addEventListener('click', () => { vue = 'liste'; releveQuart = null; renderAccueil(); });
+      return;
+    }
+
+    const dernier = releves[releves.length - 1];
+    const premier = releves[0];
+    const jeuxListe = jeuxDuSnapshot(dernier);
+    const ecart = dernier.ecart;
+    const classeEcart = ecart === null || ecart === undefined ? '' : (ecart === 0 ? 'green' : (Math.abs(ecart) <= 1 ? 'amber' : 'red'));
+    const heureValidation = premier && premier.signature && premier.signature.date_heure
+      ? new Date(premier.signature.date_heure).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+      : '—';
+
+    document.getElementById('content').innerHTML = `
+      <button type="button" class="btn-retour-fleche" id="btnRetourReleve">← Retour</button>
+
+      <div class="card" style="margin-bottom:16px;">
+        <div class="stat-row"><div class="stat-label">Employé</div><div class="stat-value">${nomEmploye(shift.employee_id)}</div></div>
+        <div class="stat-row"><div class="stat-label">Date · Quart</div><div class="stat-value">${new Date(shift.date + 'T00:00:00').toLocaleDateString('fr-FR')} · Quart ${shift.quart}</div></div>
+        <div class="stat-row"><div class="stat-label">Heure de validation</div><div class="stat-value">${heureValidation}</div></div>
+        <div class="stat-row"><div class="stat-label">Identifiant du relevé</div><div class="stat-value" style="font-size:10.5px; font-family:var(--mono); color:var(--text-dim);">${shift.id}</div></div>
+        <div class="stat-row"><div class="stat-label">Caractère</div><div class="stat-value"><span class="badge-caractere ${dernier.caractere}">${libelleCaractereReleve(dernier.caractere)}</span></div></div>
+        <div class="stat-row"><div class="stat-label">Statut</div><div class="stat-value"><span class="statut-badge ${dernier.statut}">${labelStatutCaisse(dernier.statut)}</span></div></div>
+      </div>
+
+      ${dernier.caractere === 'provisoire' ? `
+        <div class="card" style="margin-bottom:16px; border:1px solid rgba(245,166,35,0.4); background:rgba(245,166,35,0.06);">
+          <div class="histo-sub" style="color:var(--amber);">🟠 Relevé provisoire — continuité à régulariser. La chaîne de quarts était interrompue ou une continuité de stock restait à vérifier au moment de ce constat. Ce relevé sera recalculé automatiquement (nouvelle version, celle-ci restant conservée) dès que le quart manquant sera complété.</div>
+        </div>
+      ` : ''}
+
+      <div class="section-titre">Stock par jeu (état retenu)</div>
+      <div class="card" style="margin-bottom:16px;">
+        ${jeuxListe.length ? jeuxListe.map(j => `
+          <div class="jeu-row">
+            <div class="jeu-nom-ligne"><div class="jeu-nom">${j.nom}</div></div>
+            <div class="stat-row"><div class="stat-label">Stock initial → Appro → Stock final</div><div class="stat-value" style="font-size:11.5px; font-weight:400;">${fmtNum((dernier.stock_initial_par_jeu || {})[j.id])} → ${fmtNum((dernier.appro_par_jeu || {})[j.id])} → ${fmtNum((dernier.stock_final_par_jeu || {})[j.id])}</div></div>
+            ${(dernier.ventes_par_jeu || {})[j.id] ? `<div class="stat-row"><div class="stat-label">Ventes</div><div class="stat-value" style="font-size:11.5px; font-weight:400;">${fmtNum((dernier.ventes_par_jeu[j.id] || {}).qte)} tickets · ${fmtEuro((dernier.ventes_par_jeu[j.id] || {}).valeur)}</div></div>` : ''}
+          </div>
+        `).join('') : '<div class="empty">Aucun jeu dans ce snapshot.</div>'}
+      </div>
+
+      <div class="section-titre">Synthèse caisse</div>
+      <div class="card" style="margin-bottom:16px;">
+        <div class="stat-row"><div class="stat-label">Ventes grattage</div><div class="stat-value">${fmtEuro(dernier.ventes_grattage_valeur)}</div></div>
+        <div class="stat-row"><div class="stat-label">Lots payés</div><div class="stat-value">${fmtEuro(dernier.lots_payes_grattage)}</div></div>
+        <div class="stat-row"><div class="stat-label">Caisse tirages</div><div class="stat-value">${fmtEuro(dernier.caisse_tirages)}</div></div>
+        <div class="stat-row"><div class="stat-label">Régularisations</div><div class="stat-value">${fmtEuro(dernier.regularisations)}</div></div>
+        <div class="stat-row"><div class="stat-label">Caisse attendue</div><div class="stat-value cyan">${fmtEuro(dernier.caisse_attendue)}</div></div>
+        <div class="stat-row"><div class="stat-label">Caisse réelle</div><div class="stat-value">${fmtEuro(dernier.caisse_reelle)}</div></div>
+        <div class="stat-row total"><div class="stat-label">Écart</div><div class="stat-value ${classeEcart}">${ecart !== null && ecart !== undefined ? `${ecart > 0 ? '+' : ''}${fmtEuro(ecart)}` : '—'}</div></div>
+        ${dernier.anomalie_chaine ? `<div class="stat-row"><div class="stat-label">Chaîne au moment de ce constat</div><div class="stat-value" style="font-size:11.5px; font-weight:400;">${dernier.anomalie_chaine.rompue ? 'Interrompue' : 'Intacte'}</div></div>` : ''}
+      </div>
+
+      <div class="section-titre">Historique des versions (${releves.length})</div>
+      ${releves.slice().reverse().map((r, idxRev) => {
+        const i = releves.length - 1 - idxRev;
+        const auteur = r.signature && r.signature.nom ? r.signature.nom : (r.cree_par ? nomEmploye(r.cree_par) : '—');
+        const dateVersion = r.cree_le ? new Date(r.cree_le).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
+        return `
+          <div class="releve-version-card">
+            <div class="releve-version-titre">
+              <span>Version ${r.version_num} — ${libelleTypeVersionReleve(r.type_version)}</span>
+              <span class="badge-caractere ${r.caractere}" style="white-space:nowrap;">${r.caractere === 'provisoire' ? 'Provisoire' : 'Définitif'}</span>
+            </div>
+            <div class="releve-version-meta">${dateVersion} · ${auteur}</div>
+            ${r.motif_regularisation ? `<div class="releve-version-motif">${r.motif_regularisation}</div>` : ''}
+            ${i > 0 ? renderDiffReleve(r.diff_vs_precedent) : ''}
+          </div>
+        `;
+      }).join('')}
+
+      <div id="zoneActionsPdfReleve">
+        <button class="btn-rapport-pdf" id="btnGenererPdfReleve" type="button">📄 Générer le relevé de contrôle (PDF)</button>
+      </div>
+    `;
+    document.getElementById('btnRetourReleve').addEventListener('click', () => { vue = 'liste'; releveQuart = null; renderAccueil(); });
+    document.getElementById('btnGenererPdfReleve').addEventListener('click', () => {
+      genererEtAfficherPdf(document.getElementById('zoneActionsPdfReleve'), () => construireReleveClotureQuartPdf(shift, releves), releveQuart);
+    });
+  }
+
+  // Composition PDF du relevé d'un quart — même moteur générique
+  // (nexus-pdf-moteur.js, ConstructeurRapport multi-page, Article 11)
+  // utilisé par tous les rapports NEXUS. Reproduit fidèlement ce que
+  // renderReleveQuart affiche à l'écran : dernière version en synthèse,
+  // historique complet des versions en dessous — "le dossier de preuve du
+  // quart FDJ" (demande de Frédéric, 16/08/2026), jamais une photo de
+  // l'écran mais une composition dédiée.
+  async function construireReleveClotureQuartPdf(shift, releves) {
+    const dernier = releves[releves.length - 1];
+    const premier = releves[0];
+    const jeuxListe = jeuxDuSnapshot(dernier);
+    const dateLabel = new Date(shift.date + 'T00:00:00').toLocaleDateString('fr-FR');
+    const { COULEUR } = NexusPdfMoteur;
+
+    const c = await NexusPdfMoteur.creerRapport({
+      titre: `NEXUS FDJ — Relevé de clôture — ${shift.date} Quart ${shift.quart}`,
+      sujet: 'Relevé de clôture FDJ — Trace de contrôle',
+      entete: { app: 'NEXUS FDJ · RELEVÉ DE CLÔTURE', sousTitre: `${dateLabel} · Quart ${shift.quart}` },
+    });
+
+    c.titre('Relevé de clôture FDJ');
+    c.sousTitre(`${dateLabel} · Quart ${shift.quart} · ${nomEmploye(shift.employee_id)}`);
+    c.sousTitre(`Identifiant du relevé : ${shift.id}`, { taille: 8.5, couleur: COULEUR.texteDim });
+
+    if (dernier.caractere === 'provisoire') {
+      c.bandeau('Relevé PROVISOIRE — continuité de chaîne à régulariser au moment de ce constat. Les chiffres pourront être recalculés automatiquement (nouvelle version) lorsque le quart manquant sera complété — celui-ci restera conservé.', { couleur: COULEUR.ambre });
+    }
+
+    const heureValidation = premier && premier.signature && premier.signature.date_heure
+      ? new Date(premier.signature.date_heure).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+      : '—';
+    c.sectionTitre('IDENTIFICATION');
+    c.ligneCle('Heure de validation (employé)', heureValidation);
+    c.ligneCle('Caractère', libelleCaractereReleve(dernier.caractere), { couleurValeur: dernier.caractere === 'provisoire' ? COULEUR.ambre : COULEUR.vert });
+    c.ligneCle('Statut', labelStatutCaisse(dernier.statut));
+
+    c.sectionTitre('STOCK PAR JEU');
+    c.tableau(
+      [
+        { label: 'Jeu', cle: 'nom', largeur: 0.34 },
+        { label: 'Initial', cle: 'initial', largeur: 0.16, align: 'droite' },
+        { label: 'Appro', cle: 'appro', largeur: 0.14, align: 'droite' },
+        { label: 'Final', cle: 'final', largeur: 0.16, align: 'droite' },
+        { label: 'Ventes', cle: 'ventes', largeur: 0.20, align: 'droite' },
+      ],
+      jeuxListe.map(j => {
+        const v = (dernier.ventes_par_jeu || {})[j.id] || {};
+        return {
+          nom: j.nom,
+          initial: fmtNum((dernier.stock_initial_par_jeu || {})[j.id]),
+          appro: fmtNum((dernier.appro_par_jeu || {})[j.id]),
+          final: fmtNum((dernier.stock_final_par_jeu || {})[j.id]),
+          ventes: v.valeur !== undefined && v.valeur !== null ? fmtEuro(v.valeur) : '—',
+        };
+      }),
+    );
+
+    c.sectionTitre('SYNTHÈSE CAISSE');
+    c.ligneCle('Ventes grattage', fmtEuro(dernier.ventes_grattage_valeur));
+    c.ligneCle('Lots payés', fmtEuro(dernier.lots_payes_grattage));
+    c.ligneCle('Caisse tirages', fmtEuro(dernier.caisse_tirages));
+    c.ligneCle('Régularisations', fmtEuro(dernier.regularisations));
+    c.ligneCle('Caisse attendue', fmtEuro(dernier.caisse_attendue), { couleurValeur: COULEUR.cyan });
+    c.ligneCle('Caisse réelle', fmtEuro(dernier.caisse_reelle));
+    const ecart = dernier.ecart;
+    c.ligneCle('Écart', ecart !== null && ecart !== undefined ? `${ecart > 0 ? '+' : ''}${fmtEuro(ecart)}` : '—', { couleurValeur: ecart === null || ecart === undefined ? COULEUR.texte : (ecart === 0 ? COULEUR.vert : COULEUR.ambre) });
+    c.ligneCle('Chaîne au moment de ce constat', dernier.anomalie_chaine && dernier.anomalie_chaine.rompue ? 'Interrompue' : 'Intacte');
+
+    c.sectionTitre(`HISTORIQUE DES VERSIONS (${releves.length})`);
+    releves.forEach((r, i) => {
+      const auteur = r.signature && r.signature.nom ? r.signature.nom : (r.cree_par ? nomEmploye(r.cree_par) : '—');
+      const dateVersion = r.cree_le ? new Date(r.cree_le).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
+      c.paragraphe(`Version ${r.version_num} — ${libelleTypeVersionReleve(r.type_version)} — ${dateVersion} — ${auteur}`, { taille: 9.5, couleur: COULEUR.texte });
+      if (r.motif_regularisation) c.paragraphe(r.motif_regularisation, { taille: 8.5, couleur: COULEUR.texteDim });
+      if (i > 0 && r.diff_vs_precedent) {
+        Object.keys(LABELS_DIFF_RELEVE).forEach(champ => {
+          const v = r.diff_vs_precedent[champ];
+          if (v === undefined) return;
+          if (champ.endsWith('_par_jeu')) {
+            Object.entries(v).forEach(([gameId, chg]) => {
+              c.paragraphe(`  · ${LABELS_DIFF_RELEVE[champ]} — ${nomJeu(gameId)} : ${formatValeurDiffReleve(champ, chg.avant)} → ${formatValeurDiffReleve(champ, chg.apres)}`, { taille: 8.5, couleur: COULEUR.texteDim });
+            });
+          } else {
+            c.paragraphe(`  · ${LABELS_DIFF_RELEVE[champ] || champ} : ${formatValeurDiffReleve(champ, v.avant)} → ${formatValeurDiffReleve(champ, v.apres)}`, { taille: 8.5, couleur: COULEUR.texteDim });
+          }
+        });
+      }
+    });
+
+    c.piedDePageToutesPages('NEXUS FDJ · Relevé de clôture — trace de contrôle, jamais un jugement automatique.');
+    const bytes = await NexusPdfMoteur.finaliser(c);
+    const nomFichier = `NEXUS-FDJ-Releve-${shift.date}-Q${shift.quart}.pdf`;
+    return {
+      bytes, nomFichier,
+      titre: `NEXUS FDJ — Relevé de clôture ${dateLabel} Quart ${shift.quart}`,
+      texte: `Relevé de clôture FDJ — ${nomEmploye(shift.employee_id)} — ${dateLabel} Quart ${shift.quart}`,
+    };
+  }
+
+  // ------------------------------------------------------------
+  // TRACE DE CONTRÔLE FDJ — ÉCRAN "EXPORTER LA JOURNÉE COMPLÈTE" (Q1+Q2)
+  // 16/08/2026, demande de Frédéric : "Exporter la journée complète".
+  // ------------------------------------------------------------
+  async function ouvrirExportJournee(date) {
+    document.getElementById('content').innerHTML = '<div class="loading">Chargement…</div>';
+    if (!jeux.length) jeux = await chargerJeux();
+    if (!employesSite.length) employesSite = await chargerEmployesSite();
+    const shiftsDuJour = await chargerShiftsAvecCaisse(date);
+    const shiftsAvecReleves = await Promise.all(
+      shiftsDuJour.slice().sort((a, b) => a.quart.localeCompare(b.quart)).map(async s => ({ shift: s, releves: await chargerRelevesQuart(s.id) })),
+    );
+    exportJournee = { date, shifts: shiftsAvecReleves, dernierPdf: null };
+    vue = 'export-journee';
+    renderExportJournee();
+  }
+
+  function renderExportJournee() {
+    const { date, shifts } = exportJournee;
+    document.getElementById('titre').textContent = 'Exporter la journée FDJ';
+    document.getElementById('sousTitre').textContent = new Date(date + 'T00:00:00').toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+
+    document.getElementById('content').innerHTML = `
+      <button type="button" class="btn-retour-fleche" id="btnRetourExportJournee">← Retour</button>
+
+      ${shifts.map(({ shift, releves }) => {
+        const dernier = releves.length ? releves[releves.length - 1] : null;
+        const ecart = dernier ? dernier.ecart : null;
+        const classe = ecart === null || ecart === undefined ? '' : (ecart === 0 ? 'green' : (Math.abs(ecart) <= 1 ? 'amber' : 'red'));
+        return `
+          <div class="card" style="margin-bottom:16px;">
+            <div class="stat-row"><div class="stat-label">Quart ${shift.quart}</div><div class="stat-value">${nomEmploye(shift.employee_id)}</div></div>
+            ${dernier ? `
+              <div class="stat-row"><div class="stat-label">Caractère</div><div class="stat-value"><span class="badge-caractere ${dernier.caractere}">${libelleCaractereReleve(dernier.caractere)}</span></div></div>
+              <div class="stat-row total"><div class="stat-label">Écart</div><div class="stat-value ${classe}">${ecart !== null && ecart !== undefined ? `${ecart > 0 ? '+' : ''}${fmtEuro(ecart)}` : '—'}</div></div>
+            ` : `<div class="empty">Aucun relevé de clôture pour ce quart.</div>`}
+          </div>
+        `;
+      }).join('') || '<div class="card"><div class="empty">Aucun quart FDJ enregistré ce jour.</div></div>'}
+
+      <div id="zoneActionsPdfJournee">
+        <button class="btn-rapport-pdf" id="btnGenererPdfJournee" type="button" ${shifts.every(s => !s.releves.length) ? 'disabled' : ''}>📄 Exporter la journée complète (PDF)</button>
+      </div>
+      ${shifts.every(s => !s.releves.length) ? '<div class="champ-note">Aucun relevé de clôture disponible pour cette journée — export impossible.</div>' : ''}
+    `;
+    document.getElementById('btnRetourExportJournee').addEventListener('click', () => { vue = 'liste'; exportJournee = null; renderAccueil(); });
+    const btnGen = document.getElementById('btnGenererPdfJournee');
+    if (!btnGen.disabled) {
+      btnGen.addEventListener('click', () => {
+        genererEtAfficherPdf(document.getElementById('zoneActionsPdfJournee'), () => construireExportJourneePdf(date, shifts), exportJournee);
+      });
+    }
+  }
+
+  async function construireExportJourneePdf(date, shifts) {
+    const dateLabel = new Date(date + 'T00:00:00').toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    const { COULEUR } = NexusPdfMoteur;
+    const c = await NexusPdfMoteur.creerRapport({
+      titre: `NEXUS FDJ — Journée complète — ${date}`,
+      sujet: 'Export journée FDJ — Trace de contrôle',
+      entete: { app: 'NEXUS FDJ · JOURNÉE COMPLÈTE', sousTitre: dateLabel },
+    });
+    c.titre('Journée FDJ complète');
+    c.sousTitre(dateLabel.charAt(0).toUpperCase() + dateLabel.slice(1));
+
+    shifts.forEach(({ shift, releves }) => {
+      c.sectionTitre(`QUART ${shift.quart} — ${nomEmploye(shift.employee_id).toUpperCase()}`);
+      if (!releves.length) {
+        c.paragraphe('Aucun relevé de clôture pour ce quart.', { couleur: COULEUR.texteDim });
+        return;
+      }
+      const dernier = releves[releves.length - 1];
+      const premier = releves[0];
+      const jeuxListe = jeuxDuSnapshot(dernier);
+      const heureValidation = premier && premier.signature && premier.signature.date_heure
+        ? new Date(premier.signature.date_heure).toLocaleString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+        : '—';
+      c.ligneCle('Heure de validation', heureValidation);
+      c.ligneCle('Caractère', libelleCaractereReleve(dernier.caractere), { couleurValeur: dernier.caractere === 'provisoire' ? COULEUR.ambre : COULEUR.vert });
+      c.ligneCle('Statut', labelStatutCaisse(dernier.statut));
+      const ecart = dernier.ecart;
+      c.ligneCle('Écart', ecart !== null && ecart !== undefined ? `${ecart > 0 ? '+' : ''}${fmtEuro(ecart)}` : '—');
+      c.ligneCle('Caisse réelle', fmtEuro(dernier.caisse_reelle));
+      if (releves.length > 1) c.paragraphe(`${releves.length} versions — voir le relevé de contrôle du quart pour le détail complet des régularisations.`, { taille: 8.5, couleur: COULEUR.texteDim });
+      if (jeuxListe.length) {
+        c.tableau(
+          [
+            { label: 'Jeu', cle: 'nom', largeur: 0.4 },
+            { label: 'Initial', cle: 'initial', largeur: 0.2, align: 'droite' },
+            { label: 'Appro', cle: 'appro', largeur: 0.2, align: 'droite' },
+            { label: 'Final', cle: 'final', largeur: 0.2, align: 'droite' },
+          ],
+          jeuxListe.map(j => ({
+            nom: j.nom,
+            initial: fmtNum((dernier.stock_initial_par_jeu || {})[j.id]),
+            appro: fmtNum((dernier.appro_par_jeu || {})[j.id]),
+            final: fmtNum((dernier.stock_final_par_jeu || {})[j.id]),
+          })),
+        );
+      }
+    });
+
+    c.piedDePageToutesPages('NEXUS FDJ · Export journée complète — trace de contrôle, jamais un jugement automatique.');
+    const bytes = await NexusPdfMoteur.finaliser(c);
+    const nomFichier = `NEXUS-FDJ-Journee-${date}.pdf`;
+    return { bytes, nomFichier, titre: `NEXUS FDJ — Journée complète ${date}`, texte: `Export journée FDJ complète — ${date}` };
+  }
+
+  // ------------------------------------------------------------
+  // TRACE DE CONTRÔLE FDJ — ÉCRAN "HISTORIQUE FDJ DE [EMPLOYÉ] — [MOIS]"
+  // 16/08/2026, demande de Frédéric : 3e niveau de consultation, ex.
+  // "Historique FDJ de Samantha — août 2026".
+  // ------------------------------------------------------------
+  async function ouvrirHistoriqueEmployeListe() {
+    document.getElementById('content').innerHTML = '<div class="loading">Chargement…</div>';
+    if (!employesSite.length) employesSite = await chargerEmployesSite();
+    vue = 'historique-employe-liste';
+    document.getElementById('titre').textContent = 'Historique FDJ par employé';
+    document.getElementById('sousTitre').textContent = 'Sélectionner un employé pour consulter son historique mensuel.';
+    document.getElementById('content').innerHTML = `
+      <button type="button" class="btn-retour-fleche" id="btnRetourHistoEmpListe">← Retour</button>
+      <div class="card">
+        ${employesSite.length ? employesSite.map(e => `<div class="jeu-row" data-employe="${e.id}" style="cursor:pointer;"><div class="jeu-nom-ligne"><div class="jeu-nom">${e.nom}</div></div></div>`).join('') : '<div class="empty">Aucun employé actif sur ce site.</div>'}
+      </div>
+    `;
+    document.getElementById('btnRetourHistoEmpListe').addEventListener('click', () => { vue = 'liste'; renderAccueil(); });
+    document.querySelectorAll('[data-employe]').forEach(el => {
+      el.addEventListener('click', () => ouvrirHistoriqueEmployeMois(el.dataset.employe, dateISO().slice(0, 7)));
+    });
+  }
+
+  async function ouvrirHistoriqueEmployeMois(employeeId, moisISO) {
+    document.getElementById('content').innerHTML = '<div class="loading">Chargement…</div>';
+    if (!employesSite.length) employesSite = await chargerEmployesSite();
+    const shifts = await chargerShiftsEmployeMois(employeeId, moisISO);
+    historiqueEmploye = { employeeId, moisISO, shifts };
+    vue = 'historique-employe';
+    renderHistoriqueEmploye();
+  }
+
+  const LIBELLES_MOIS_FR = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+  function libelleMoisAnnee(moisISO) {
+    const [annee, mois] = moisISO.split('-').map(Number);
+    return `${LIBELLES_MOIS_FR[mois - 1]} ${annee}`;
+  }
+  function decalerMois(moisISO, delta) {
+    const [annee, mois] = moisISO.split('-').map(Number);
+    const d = new Date(annee, mois - 1 + delta, 1);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  }
+
+  function renderHistoriqueEmploye() {
+    const { employeeId, moisISO, shifts } = historiqueEmploye;
+    const nom = nomEmploye(employeeId);
+    document.getElementById('titre').textContent = `Historique FDJ de ${nom}`;
+    document.getElementById('sousTitre').textContent = libelleMoisAnnee(moisISO).replace(/^./, c => c.toUpperCase());
+
+    const quartsControles = shifts.filter(s => s.cash && s.cash.statut && s.cash.statut !== 'provisoire').length;
+    const quartsConformes = shifts.filter(s => s.cash && s.cash.statut === 'conforme').length;
+    const ecartTotal = shifts.reduce((sum, s) => sum + (s.cash && s.cash.ecart ? s.cash.ecart : 0), 0);
+
+    document.getElementById('content').innerHTML = `
+      <button type="button" class="btn-retour-fleche" id="btnRetourHistoEmp">← Retour</button>
+
+      <div class="card" style="margin-bottom:16px; display:flex; align-items:center; justify-content:space-between; padding:12px 16px;">
+        <button type="button" class="btn-ghost" id="btnMoisPrec" style="width:auto; margin:0; padding:8px 14px;">‹</button>
+        <div style="font-size:13px; font-weight:600; color:var(--text);">${libelleMoisAnnee(moisISO).replace(/^./, c => c.toUpperCase())}</div>
+        <button type="button" class="btn-ghost" id="btnMoisSuiv" style="width:auto; margin:0; padding:8px 14px;">›</button>
+      </div>
+
+      <div class="card" style="margin-bottom:16px;">
+        <div class="stat-row"><div class="stat-label">Quarts travaillés</div><div class="stat-value">${shifts.length}</div></div>
+        <div class="stat-row"><div class="stat-label">Quarts contrôlés</div><div class="stat-value">${quartsControles} / ${shifts.length}</div></div>
+        <div class="stat-row"><div class="stat-label">Quarts conformes</div><div class="stat-value">${quartsConformes} / ${quartsControles || 0}</div></div>
+        <div class="stat-row total"><div class="stat-label">Écart cumulé</div><div class="stat-value ${ecartTotal === 0 ? 'green' : (Math.abs(ecartTotal) <= 3 ? 'amber' : 'red')}">${ecartTotal > 0 ? '+' : ''}${fmtEuro(ecartTotal)}</div></div>
+      </div>
+
+      <div class="section-titre">Quarts du mois</div>
+      <div class="card" id="listeHistoEmp">
+        ${shifts.length ? shifts.map((s, i) => {
+          const ecart = s.cash ? s.cash.ecart : null;
+          const classe = ecart === null ? '' : (ecart === 0 ? 'green' : (Math.abs(ecart) <= 1 ? 'amber' : 'red'));
+          return `
+            <div class="histo-item" data-histo-emp-idx="${i}" style="cursor:pointer;">
+              <div class="histo-top">
+                <div><div class="histo-date">${new Date(s.date + 'T00:00:00').toLocaleDateString('fr-FR')} <span style="color:var(--text-mid); font-weight:400;">· Quart ${s.quart}</span></div></div>
+                <div style="text-align:right;">
+                  <div class="histo-ecart ${classe}">${ecart !== null ? `${ecart > 0 ? '+' : ''}${fmtEuro(ecart)}` : '—'}</div>
+                  <div style="margin-top:4px;"><span class="statut-badge ${s.cash ? s.cash.statut : s.statut}">${s.cash ? labelStatutCaisse(s.cash.statut) : (s.statut === 'valide' ? 'Validé' : 'Brouillon')}</span></div>
+                </div>
+              </div>
+            </div>
+          `;
+        }).join('') : '<div class="empty">Aucun quart FDJ pour ce mois.</div>'}
+      </div>
+    `;
+    document.getElementById('btnRetourHistoEmp').addEventListener('click', () => { vue = 'liste'; historiqueEmploye = null; renderAccueil(); });
+    document.getElementById('btnMoisPrec').addEventListener('click', () => ouvrirHistoriqueEmployeMois(employeeId, decalerMois(moisISO, -1)));
+    document.getElementById('btnMoisSuiv').addEventListener('click', () => ouvrirHistoriqueEmployeMois(employeeId, decalerMois(moisISO, 1)));
+    document.querySelectorAll('[data-histo-emp-idx]').forEach(el => {
+      el.addEventListener('click', () => ouvrirReleveQuart(shifts[parseInt(el.dataset.histoEmpIdx, 10)]));
+    });
   }
 
   // ------------------------------------------------------------
