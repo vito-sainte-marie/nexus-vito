@@ -397,16 +397,26 @@
     // signaux déjà entretenus par Brief/Cockpit (chargerSignauxSite) et de
     // les présenter formatés, jamais un 2e calcul de matérialité.
     const signauxRisqueBruts = await NexusRisquesDonnees.chargerSignauxSite(nexusClient, SITE_ID, { statut: 'surveille' });
-    const signauxRisqueQualifies = signauxRisqueBruts.filter(s => s.niveau !== 'anomalie').map(s => ({
-      niveau: s.niveau,
-      phrase: NexusRisques.genererPhraseContexte({
-        domaineLabel: s.domaine === 'marge' ? 'Marge' : 'Caisse',
-        sujet: s.domaine === 'marge' ? (s.cle_signal || '').replace('marge:categorie:', '') : `Quart ${(s.cle_signal || '').replace('caisse:quart:', '')}`,
-        niveau: s.niveau,
-        motif: (s.historique_transitions && s.historique_transitions.length) ? s.historique_transitions[s.historique_transitions.length - 1].motif : '',
-      }),
-      actionRecommandee: s.action_recommandee, niveauConfiance: s.niveau_confiance, depuisLe: s.premiere_detection_le,
-    }));
+    const signauxRisqueQualifies = signauxRisqueBruts.filter(s => s.niveau !== 'anomalie').map(s => {
+      // Cadrage risques Phase 2 (18/08/2026, tâche #231) : `domaine` et
+      // `sujet` (nom brut de la catégorie/du quart, sans mise en forme)
+      // sont désormais conservés en plus de `phrase` — nécessaires pour que
+      // `construireAmeliorer()`/`construireSyntheseExecutive()` (chapitres
+      // 2 et 13-14) puissent eux aussi reclasser leurs constats Marge sur
+      // ces mêmes signaux qualifiés, au lieu d'une comparaison de pairs.
+      // Chapitre 12 continue d'utiliser exclusivement `phrase` (inchangé).
+      const sujet = s.domaine === 'marge' ? (s.cle_signal || '').replace('marge:categorie:', '') : `Quart ${(s.cle_signal || '').replace('caisse:quart:', '')}`;
+      return {
+        niveau: s.niveau, domaine: s.domaine, sujet,
+        phrase: NexusRisques.genererPhraseContexte({
+          domaineLabel: s.domaine === 'marge' ? 'Marge' : 'Caisse',
+          sujet,
+          niveau: s.niveau,
+          motif: (s.historique_transitions && s.historique_transitions.length) ? s.historique_transitions[s.historique_transitions.length - 1].motif : '',
+        }),
+        actionRecommandee: s.action_recommandee, niveauConfiance: s.niveau_confiance, depuisLe: s.premiere_detection_le,
+      };
+    });
 
     RAPPORT_DIRECTION = NexusRapportDirectionMoteur.construireRapportDirection({
       nomEntreprise: NOM_ENTREPRISE, periode, dateReference: new Date(),

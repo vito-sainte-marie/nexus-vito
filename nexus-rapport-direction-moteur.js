@@ -65,7 +65,7 @@
   // ------------------------------------------------------------
   // 2. Synthèse exécutive
   // ------------------------------------------------------------
-  function construireSyntheseExecutive({ chapitre1, chapitre2, decisionsStrategiques, chapitreMarge }) {
+  function construireSyntheseExecutive({ chapitre1, chapitre2, decisionsStrategiques, chapitreMarge, signauxQualifies }) {
     const axesMesures = chapitre2.axes.filter(a => a.statut !== 'Données insuffisantes');
     const nbHausse = chapitre2.axes.filter(a => a.statut === 'En hausse').length;
     const nbBaisse = chapitre2.axes.filter(a => a.statut === 'En baisse').length;
@@ -95,13 +95,31 @@
     const troisChoses = [];
     const meilleurAxe = chapitre2.axes.filter(a => a.statut === 'En hausse')[0];
     if (meilleurAxe) troisChoses.push({ titre: `${meilleurAxe.nom} en progression`, detail: meilleurAxe.detail });
-    if (chapitreMarge && chapitreMarge.disponible && chapitreMarge.classement) {
-      const { moteurs, destructeurs } = chapitreMarge.classement;
-      if (destructeurs && destructeurs.length) {
-        troisChoses.push({ titre: 'Rentabilité sous pression', detail: `${destructeurs.length} catégorie${destructeurs.length > 1 ? 's tirent' : ' tire'} la marge vers le bas : ${destructeurs.slice(0, 3).map(d => d.nom).join(', ')}.` });
-      } else if (moteurs && moteurs.length) {
-        troisChoses.push({ titre: 'Marge tenue par quelques catégories moteurs', detail: `${moteurs.slice(0, 3).map(m => m.nom).join(', ')} portent la rentabilité au-dessus de la moyenne du magasin.` });
-      }
+    // Cadrage risques Phase 2 (18/08/2026, tâche #231) : "Rentabilité sous
+    // pression" ne se déclenche plus sur `chapitreMarge.classement.
+    // destructeurs` (comparaison instantanée à la moyenne pondérée du
+    // magasin — Phase 1/v2.51 a déjà retiré ce vocabulaire de risque du
+    // chapitre 12 pour la même raison : "Une catégorie sous la moyenne de
+    // marge du magasin ne signifie pas nécessairement qu'elle est en
+    // difficulté"), mais sur les signaux `marge` déjà QUALIFIÉS par
+    // NexusRisques (comparaison à la référence historique PROPRE de la
+    // catégorie, récurrence confirmée — même source que le chapitre 12).
+    // Si aucun signal n'est confirmé, on ne prétend plus qu'il y a une
+    // pression sur la rentabilité — silence plutôt que fausse alerte
+    // (Article 5). `chapitreMarge.classement.moteurs` (catégories AU-DESSUS
+    // de la moyenne) reste en revanche une lecture purement positive, sans
+    // vocabulaire de risque à corriger — NexusRisques ne qualifie
+    // aujourd'hui que des dégradations (aucun signal "favorable" n'existe
+    // pour la marge), donc rien à reclasser de ce côté.
+    const signauxMargeSynthese = (signauxQualifies || []).filter(s => s.domaine === 'marge');
+    if (signauxMargeSynthese.length) {
+      const noms = signauxMargeSynthese.map(s => s.sujet).filter(Boolean);
+      troisChoses.push({
+        titre: 'Rentabilité sous pression',
+        detail: `${signauxMargeSynthese.length} catégorie${signauxMargeSynthese.length > 1 ? 's confirmées' : ' confirmée'} en recul de marge par rapport à sa propre référence historique${noms.length ? ' : ' + noms.slice(0, 3).join(', ') : ''}.`,
+      });
+    } else if (chapitreMarge && chapitreMarge.disponible && chapitreMarge.classement && chapitreMarge.classement.moteurs && chapitreMarge.classement.moteurs.length) {
+      troisChoses.push({ titre: 'Marge tenue par quelques catégories moteurs', detail: `${chapitreMarge.classement.moteurs.slice(0, 3).map(m => m.nom).join(', ')} portent la rentabilité au-dessus de la moyenne du magasin.` });
     }
     const pireAxe = chapitre2.axes.filter(a => a.statut === 'En baisse')[0];
     if (pireAxe) troisChoses.push({ titre: `${pireAxe.nom} en retrait`, detail: pireAxe.detail });
@@ -479,19 +497,41 @@
     return forces.slice(0, 5);
   }
 
-  function construireAmeliorer({ chapitre2, chapitreMarge, operations, chapitreCommerce }) {
+  // Cadrage risques Phase 2 (18/08/2026, tâche #231, cahier "Évolution du
+  // moteur Risques NEXUS" §3-4 : donner à "Ce qui doit progresser" une
+  // "référence propre" au lieu d'une comparaison de pairs) : le volet Marge
+  // de cette liste ne vient plus de `chapitreMarge.classement.destructeurs`
+  // (comparaison instantanée à la moyenne pondérée du magasin, sans
+  // mémoire dans le temps — exactement le "Mauvaise approche" du cadrage
+  // §3, déjà retiré du chapitre 12 en Phase 1/v2.51) mais des signaux
+  // `marge` déjà qualifiés par `NexusRisques` (récurrence confirmée contre
+  // la référence historique PROPRE de la catégorie — même source que
+  // "Risques & vigilances", jamais un 2e calcul ici, Article 11). Une
+  // catégorie sous la moyenne du magasin sans historique de dégradation
+  // propre ne figure donc plus dans "Ce qui doit progresser" — ce n'est pas
+  // une donnée perdue : elle reste visible, non qualifiée, dans "Constats
+  // sectoriels" (chapitre 12). Les volets Commerce (`chapitre2.axes` En
+  // baisse, `chapitreCommerce`) et Opérations (écarts de caisse) restent
+  // volontairement sur leur logique existante — ces domaines ne sont pas
+  // encore branchés sur NexusRisques (Phase 6, tâche #235).
+  function construireAmeliorer({ chapitre2, chapitreMarge, operations, chapitreCommerce, signauxQualifies }) {
     const items = [];
     chapitre2.axes.filter(a => a.statut === 'En baisse').forEach(a => items.push({
       constat: `${a.nom} en baisse`, impact: a.detail, causeProbable: 'À confirmer — voir le détail du secteur.', actionProposee: `Analyser ${a.nom.toLowerCase()} dans le détail (voir le module dédié).`,
     }));
-    if (chapitreMarge && chapitreMarge.disponible && chapitreMarge.classement.destructeurs.length) {
-      const pire = chapitreMarge.classement.destructeurs[0];
-      items.push({
-        constat: `Marge ${pire.nom}`, impact: `${fmtPts(pire.ecartPts)} sous la moyenne pondérée du magasin.`,
-        causeProbable: 'Mix produit ou prix d\'achat défavorable sur cette catégorie — à confirmer, décomposition non disponible.',
-        actionProposee: `Analyser le pricing et les références les moins contributrices de ${pire.nom}.`,
+    const RANG_NIVEAU_LOCAL = { risque_avere: 2, exposition: 1, signal_faible: 0 };
+    (signauxQualifies || [])
+      .filter(s => s.domaine === 'marge')
+      .slice()
+      .sort((a, b) => (RANG_NIVEAU_LOCAL[b.niveau] || 0) - (RANG_NIVEAU_LOCAL[a.niveau] || 0))
+      .forEach(s => {
+        items.push({
+          constat: `Marge ${s.sujet || ''}`.trim(),
+          impact: s.phrase,
+          causeProbable: "Confirmé par comparaison à la référence historique propre de la catégorie (NexusRisques) — pas une simple comparaison à la moyenne du magasin.",
+          actionProposee: s.actionRecommandee || `Analyser le pricing et les références les moins contributrices de ${s.sujet || 'cette catégorie'}.`,
+        });
       });
-    }
     if (operations.verify && operations.verify.disponible && operations.verify.parStatut && (operations.verify.parStatut.anomalie + operations.verify.parStatut.critique) > 0) {
       items.push({
         constat: 'Écarts de caisse récurrents',
@@ -701,13 +741,14 @@
     const syntheseExecutive = construireSyntheseExecutive({
       chapitre1: input.chapitre1, chapitre2: input.chapitre2,
       decisionsStrategiques: input.decisionsStrategiques, chapitreMarge,
+      signauxQualifies: input.signauxQualifies,
     });
     const tableauDeBord = construireTableauDeBord({
       chapitre1: input.chapitre1, carburantsDetail: input.carburantsDetail, fdjDetail: input.fdjDetail,
       operations: input.operations || {}, equipe: input.equipe,
     });
     const forces = construireForces({ chapitre2: input.chapitre2, chapitreMarge, operations: input.operations || {} });
-    const ameliorer = construireAmeliorer({ chapitre2: input.chapitre2, chapitreMarge, operations: input.operations || {}, chapitreCommerce });
+    const ameliorer = construireAmeliorer({ chapitre2: input.chapitre2, chapitreMarge, operations: input.operations || {}, chapitreCommerce, signauxQualifies: input.signauxQualifies });
     const risques = construireChapitreRisques({ operations: input.operations || {}, chapitreCarburants, chapitreMarge, chapitreCommerce, signauxQualifies: input.signauxQualifies });
     const projection = construireProjection({ periode: input.periode, chapitre1: input.chapitre1, trajectoire: input.trajectoire, dateReference: input.dateReference });
     const suggestions = construireSuggestions({ chapitreCommerce, chapitreMarge, chapitreCarburants, chapitreFdj, chapitreEquipe });
