@@ -366,6 +366,188 @@
     try { localStorage.removeItem(cle); } catch (e) {}
   }
 
+  // ------------------------------------------------------------
+  // SYNCHRONISATION IMMÉDIATE PAR PRODUIT + FILE D'ATTENTE HORS-LIGNE
+  // (18/08/2026, Sprint 4bis — cahier Inventaire 2.0 §10 "Réseau : sauvegarde
+  // locale immédiate + synchro en arrière-plan", réarchitecture complète
+  // choisie explicitement par Frédéric en suite du Sprint 4 "UX Flash").
+  //
+  // Avant ce lot : un comptage produit ne vivait qu'en mémoire
+  // (comptagesSaisie) + brouillon local jusqu'à la validation finale
+  // (validerOuverture), qui écrivait alors TOUT en une seule boucle. Un
+  // employé perdant son réseau (ou son appareil) avant "Terminer" pouvait
+  // perdre des comptages déjà physiquement faits et validés à l'écran, sans
+  // qu'aucune trace n'existe côté serveur.
+  //
+  // Maintenant (écran ouverture uniquement — voir note dans validerCloture
+  // pour pourquoi la clôture garde son modèle en lot) : chaque geste de
+  // validation d'un produit tente une écriture Supabase immédiate. En cas
+  // d'échec réseau, l'écriture part dans une file d'attente locale, retentée
+  // en arrière-plan (retour réseau, ouverture d'une nouvelle catégorie,
+  // minuterie) et surtout de façon BLOQUANTE juste avant "Terminer" — on ne
+  // finalise jamais un inventaire avec des comptages encore uniquement
+  // locaux sans en avertir l'employé.
+  //
+  // Idempotence sans jamais UPDATE (la table inventaire_comptages reste
+  // append-only : aucune policy RLS UPDATE n'existe, volontairement) :
+  // chaque écriture porte une clé déterministe = hash(quart|produit|type|
+  // valeur). Deux tentatives de la MÊME valeur (vraie retentative réseau,
+  // double tape, rejeu de la file) partagent la même clé -> la deuxième est
+  // ignorée par la base (ON CONFLICT DO NOTHING), jamais un doublon. Une
+  // VRAIE correction (l'employé revient en arrière et change son chiffre) a
+  // une valeur différente -> une clé différente -> une nouvelle ligne —
+  // exactement la même philosophie "historique append-only, le plus récent
+  // gagne" déjà utilisée partout ailleurs dans NEXUS (voir
+  // chargerDerniersStocks : lecture triée par compte_le décroissant, premier
+  // rencontré par produit gagne — même lecture côté NEXUS-Inventaire-
+  // Manager-v1.html).
+  // ------------------------------------------------------------
+
+  // Hash déterministe simple (djb2, déjà utilisé pour le PRNG du plan
+  // tournant — Sprint 2) : pas un usage cryptographique, seulement un
+  // identifiant stable et bien réparti pour la déduplication. Quatre passes
+  // à graines différentes donnent 32 hex chiffres, reformatés en UUID valide
+  // pour la colonne `uuid`.
+  function djb2InventaireHash(str) {
+    let h = 5381;
+    for (let i = 0; i < str.length; i++) h = ((h * 33) ^ str.charCodeAt(i)) >>> 0;
+    return h >>> 0;
+  }
+  function cleIdempotenceComptage(quartId, produitId, typeComptage, valeur) {
+    const base = `${quartId}|${produitId}|${typeComptage}|${valeur}`;
+    const hex = [base, base + '|s2', base + '|s3', base + '|s4']
+      .map(s => djb2InventaireHash(s).toString(16).padStart(8, '0')).join('').slice(0, 32);
+    return `${hex.slice(0,8)}-${hex.slice(8,12)}-${hex.slice(12,16)}-${hex.slice(16,20)}-${hex.slice(20,32)}`;
+  }
+
+  function cleFileSync() {
+    if (!employeeCourant || !quartRow) return null;
+    return `nexus_inventaire_filesync_${employeeCourant.id}_${quartRow.id}`;
+  }
+  function chargerFileSync() {
+    const cle = cleFileSync();
+    if (!cle) return [];
+    try { return JSON.parse(localStorage.getItem(cle) || '[]'); }
+    catch (e) { return []; }
+  }
+  function sauvegarderFileSync(file) {
+    const cle = cleFileSync();
+    if (!cle) return;
+    try { localStorage.setItem(cle, JSON.stringify(file)); }
+    catch (e) { console.error('Sauvegarde file de synchro inventaire:', e); }
+  }
+  function ajouterFileSync(item) {
+    // Remplace toute entrée en attente portant la même clé d'idempotence —
+    // une resaisie du même produit avant que la première tentative n'ait pu
+    // partir ne doit pas empiler deux entrées à retenter, une seule suffit.
+    const sansAncienne = chargerFileSync().filter(x => x.idempotencyKey !== item.idempotencyKey);
+    sansAncienne.push(item);
+    sauvegarderFileSync(sansAncienne);
+  }
+  function retirerFileSync(idempotencyKey) {
+    sauvegarderFileSync(chargerFileSync().filter(x => x.idempotencyKey !== idempotencyKey));
+  }
+
+  // Tente une écriture immédiate d'un événement inventaire_comptages. Ne
+  // bloque jamais l'employé : en cas d'échec réseau, l'événement part dans
+  // la file d'attente locale pour être retenté plus tard — la saisie reste
+  // acquise dans comptagesSaisie/le brouillon local quoi qu'il arrive (déjà
+  // le cas avant ce lot, inchangé).
+  async function ecrireComptageImmediat(payload) {
+    const idempotencyKey = cleIdempotenceComptage(payload.quart_id, payload.produit_id, payload.type_comptage, payload.quantite);
+    try {
+      const { data, error } = await nexusClient
+        .from('inventaire_comptages')
+        .upsert({ ...payload, idempotency_key: idempotencyKey }, { onConflict: 'idempotency_key', ignoreDuplicates: true })
+        .select()
+        .maybeSingle();
+      if (error) throw error;
+      retirerFileSync(idempotencyKey);
+      // data est null si la ligne existait déjà (vraie retentative d'une
+      // écriture déjà réussie plus tôt) — rien de neuf à exploiter côté
+      // appelant dans ce cas (ex. le marquage du plan a déjà eu lieu alors).
+      return data || null;
+    } catch (e) {
+      console.error('Écriture immédiate comptage (mise en file d\'attente):', e);
+      ajouterFileSync({ idempotencyKey, payload, ajouteLe: new Date().toISOString() });
+      return null;
+    }
+  }
+
+  // Vidage de la file d'attente (best-effort, jamais bloquant en usage
+  // opportuniste). Appelé au retour réseau, à l'ouverture d'une nouvelle
+  // catégorie, sur une minuterie, et de façon attendue/bloquante juste avant
+  // la validation finale (voir validerOuverture) — renvoie false s'il reste
+  // au moins un élément non synchronisé après la tentative.
+  async function tenterSynchronisationFileAttente() {
+    const file = chargerFileSync();
+    if (!file.length) return true;
+    let toutSynchronise = true;
+    for (const item of file) {
+      try {
+        const { error } = await nexusClient
+          .from('inventaire_comptages')
+          .upsert({ ...item.payload, idempotency_key: item.idempotencyKey }, { onConflict: 'idempotency_key', ignoreDuplicates: true });
+        if (error) throw error;
+        retirerFileSync(item.idempotencyKey);
+      } catch (e) {
+        toutSynchronise = false;
+      }
+    }
+    return toutSynchronise;
+  }
+
+  // Écrit (au besoin) l'événement "transmis" — valeur constante pour un
+  // produit+quart donné, donc sa clé d'idempotence est naturellement stable
+  // d'une tentative à l'autre : au plus une seule ligne "transmis" existera
+  // jamais pour ce couple produit+quart, quel que soit le nombre de
+  // tentatives (réseau ou resaisies).
+  async function ecrireTransmisImmediat(p) {
+    const transmis = dernierStock[p.id];
+    const valeurTransmise = transmis ? transmis.quantite : 0;
+    return ecrireComptageImmediat({
+      site: employeeCourant.site_id, quart_id: quartRow.id, produit_id: p.id,
+      type_comptage: 'transmis', quantite: valeurTransmise,
+      comptage_source_id: transmis ? transmis.comptage_id : null, quantite_transmise: valeurTransmise,
+      source: 'auto',
+    });
+  }
+
+  // Écrit l'événement "ouverture" pour CE produit avec la valeur
+  // actuellement dans comptagesSaisie — appelée à chaque geste de
+  // validation employé (jamais à chaque frappe). Ne fait rien tant que
+  // `.compte` n'est pas encore connu (ex. produit en deux lieux dont seul le
+  // dépôt est saisi — la vraie écriture attend la finalisation boutique, où
+  // le total devient connu). Marque aussi le plan tournant comme fait,
+  // best-effort/non-bloquant, comme avant ce lot.
+  async function ecrireOuvertureImmediat(p) {
+    const saisie = comptagesSaisie[p.id];
+    if (!saisie || saisie.compte === undefined) return;
+    const transmis = dernierStock[p.id];
+    const valeurTransmise = transmis ? transmis.quantite : 0;
+    const evtTransmis = await ecrireTransmisImmediat(p);
+    const evtOuverture = await ecrireComptageImmediat({
+      site: employeeCourant.site_id, quart_id: quartRow.id, produit_id: p.id,
+      type_comptage: 'ouverture', quantite: saisie.compte, employee_id: employeeCourant.id,
+      comptage_source_id: evtTransmis ? evtTransmis.id : null, quantite_transmise: valeurTransmise,
+      source: 'manuel', commentaire: saisie.justification || null,
+      quantite_depot: saisie.compteDepot !== undefined ? saisie.compteDepot : null,
+      quantite_boutique: saisie.compteBoutique !== undefined ? saisie.compteBoutique : null,
+    });
+    const planItemId = planItemIdParProduit[p.id];
+    if (planItemId && evtOuverture && typeof NexusInventairePlanDonnees !== 'undefined') {
+      NexusInventairePlanDonnees.marquerItemPlanCompte(nexusClient, planItemId, evtOuverture.id);
+    }
+  }
+
+  // Variante pour le mode liste, où seul l'id du produit est disponible côté
+  // appelant — ne tente l'écriture que si le produit est bien considéré
+  // "compté" (voir produitEstCompte), jamais sur une saisie partielle.
+  function tenterEcritureProduit(produitId) {
+    const p = produitsZone.find(x => x.id === produitId);
+    if (p && produitEstCompte(p)) ecrireOuvertureImmediat(p);
+  }
+
   // Écrans catégories / carrousel de l'ouverture (02/08/2026, demande de
   // Frédéric — "une succession de petites actions simples" plutôt qu'une
   // longue liste vue d'un coup). Au-delà de CARROUSEL_SEUIL produits, une
@@ -1279,6 +1461,11 @@
   function ouvrirCategorie(groupe) {
     categorieActive = groupe.nom;
     carrouselModeCorrection = false;
+    // Synchro opportuniste (18/08/2026, Sprint 4bis) : chaque entrée dans
+    // une catégorie est un bon moment discret pour retenter la file
+    // d'attente s'il en reste — best-effort, jamais attendu (fire-and-
+    // forget), ne retarde jamais l'affichage de la catégorie.
+    tenterSynchronisationFileAttente();
     if (groupe.items.length > CARROUSEL_SEUIL) {
       carrouselIndex = groupe.items.findIndex(p => !produitEstCompte(p));
       if (carrouselIndex === -1) carrouselIndex = 0; // déjà terminée : on repasse en revue depuis le début
@@ -1399,8 +1586,14 @@
       // pire qu'utile — seule une action explicite (Entrée, ou Identique
       // ci-dessous) déclenche l'avancée.
       el.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') { e.preventDefault(); focusProchainProduit(el.dataset.produit, groupe); }
+        if (e.key === 'Enter') { e.preventDefault(); tenterEcritureProduit(el.dataset.produit); focusProchainProduit(el.dataset.produit, groupe); }
       });
+      // Filet de sécurité (18/08/2026, Sprint 4bis) : si l'employé tape un
+      // chiffre puis quitte le champ sans presser Entrée (tape sur un autre
+      // champ, sur la calculatrice, etc.), on tente quand même l'écriture —
+      // idempotent, donc jamais de doublon si Entrée avait déjà déclenché la
+      // même écriture juste avant.
+      el.addEventListener('blur', () => tenterEcritureProduit(el.dataset.produit));
     });
     document.querySelectorAll('.btn-identique').forEach(el => {
       el.addEventListener('click', () => {
@@ -1408,6 +1601,7 @@
         const transmis = dernierStock[el.dataset.produit];
         input.value = transmis ? transmis.quantite : 0;
         majLigneCategorie(el.dataset.produit);
+        tenterEcritureProduit(el.dataset.produit);
         focusProchainProduit(el.dataset.produit, groupe);
       });
     });
@@ -1432,6 +1626,7 @@
       simples.forEach(p => {
         const transmis = dernierStock[p.id];
         comptagesSaisie[p.id] = { compte: transmis ? transmis.quantite : 0, ecartNonNul: false, justification: '' };
+        ecrireOuvertureImmediat(p);
       });
       sauvegarderDraft('ouverture');
       // UX Flash (17/08/2026, Sprint 4, INV2-15/16) : "Valider cette
@@ -1572,6 +1767,7 @@
     if (btnConforme) btnConforme.addEventListener('click', () => {
       comptagesSaisie[p.id] = { compte: valeurTransmise, ecartNonNul: false, justification: '' };
       sauvegarderDraft('ouverture');
+      ecrireOuvertureImmediat(p);
       avancerCarrousel(groupe, p.designation);
     });
     const btnCorriger = document.getElementById('btnCorriger');
@@ -1642,6 +1838,7 @@
       const motifSelect = document.getElementById('motifCarrousel');
       comptagesSaisie[p.id] = { compte: val, ecartNonNul, justification: justifInput ? justifInput.value : '', motifEcart: motifSelect ? motifSelect.value : '' };
       sauvegarderDraft('ouverture');
+      ecrireOuvertureImmediat(p);
       avancerCarrousel(groupe, p.designation);
     });
     const btnAnnulerCorrection = document.getElementById('btnAnnulerCorrection');
@@ -1651,6 +1848,7 @@
       // corrigé, ce bouton n'aurait visuellement aucun effet.
       comptagesSaisie[p.id] = { compte: valeurTransmise, ecartNonNul: false, justification: '' };
       sauvegarderDraft('ouverture');
+      ecrireOuvertureImmediat(p);
       carrouselModeCorrection = false;
       renderCarrousel(groupe);
     });
@@ -1796,6 +1994,15 @@
     }
     const nbLivraisonsDeclarees = mouvementsSaisie.length;
 
+    // Écriture par produit (18/08/2026, Sprint 4bis) : dans l'immense
+    // majorité des cas, chaque comptage a déjà été écrit individuellement
+    // au moment même de sa validation (voir ecrireOuvertureImmediat, appelé
+    // depuis btnConforme/btnValiderProduit/Identique/etc.) — cette boucle
+    // est donc surtout un FILET DE SÉCURITÉ final, jamais le premier essai :
+    // elle rejoue l'écriture pour chaque produit compté (idempotente par
+    // construction — même valeur -> même clé -> ON CONFLICT DO NOTHING,
+    // jamais un doublon) pour rattraper tout produit dont la synchro
+    // immédiate aurait échoué ou n'aurait pas encore abouti.
     let nbComptes = 0, nbEcarts = 0;
     for (const p of produitsZone) {
       const saisie = comptagesSaisie[p.id];
@@ -1804,37 +2011,7 @@
       const transmis = dernierStock[p.id];
       const valeurTransmise = transmis ? transmis.quantite : 0;
 
-      // Matérialise le stock transmis comme événement séparé, avec sa
-      // source explicite (jamais une valeur saisie librement).
-      const { data: evtTransmis, error: e1 } = await nexusClient.from('inventaire_comptages').insert({
-        site: employeeCourant.site_id, quart_id: quartRow.id, produit_id: p.id,
-        type_comptage: 'transmis', quantite: valeurTransmise,
-        comptage_source_id: transmis ? transmis.comptage_id : null, quantite_transmise: valeurTransmise,
-        source: 'auto',
-      }).select().single();
-      if (e1) console.error('Comptage transmis:', e1);
-
-      const { data: evtOuverture, error: e2 } = await nexusClient.from('inventaire_comptages').insert({
-        site: employeeCourant.site_id, quart_id: quartRow.id, produit_id: p.id,
-        type_comptage: 'ouverture', quantite: saisie.compte, employee_id: employeeCourant.id,
-        comptage_source_id: evtTransmis ? evtTransmis.id : null, quantite_transmise: valeurTransmise,
-        source: 'manuel', commentaire: saisie.justification || null,
-        // Comptage en deux lieux (05/08/2026) : conservé séparément pour
-        // pouvoir expliquer un écart plus tard (dépôt ou boutique ?) —
-        // quantite reste le total, aucun changement de la logique d'écart.
-        quantite_depot: saisie.compteDepot !== undefined ? saisie.compteDepot : null,
-        quantite_boutique: saisie.compteBoutique !== undefined ? saisie.compteBoutique : null,
-      }).select().single();
-      if (e2) console.error('Comptage ouverture:', e2);
-
-      // Plan tournant (17/08/2026, Sprint 2) : marque l'item du plan comme
-      // fait pour que la couverture reflète la progression réelle — jamais
-      // bloquant, une erreur ici n'empêche pas le comptage d'être acquis
-      // (déjà écrit ci-dessus dans inventaire_comptages).
-      const planItemId = planItemIdParProduit[p.id];
-      if (planItemId && evtOuverture && typeof NexusInventairePlanDonnees !== 'undefined') {
-        NexusInventairePlanDonnees.marquerItemPlanCompte(nexusClient, planItemId, evtOuverture.id);
-      }
+      await ecrireOuvertureImmediat(p);
 
       if (saisie.ecartNonNul) {
         nbEcarts++;
@@ -1872,12 +2049,20 @@
     await nexusClient.from('inventaire_quarts').update({ statut: 'ouvert' }).eq('id', quartRow.id).eq('statut', 'ouverture_en_cours');
     quartEmployeRow.a_valide_ouverture = true;
     mouvementsSaisie = [];
-    effacerDraft('ouverture');
+    // Le brouillon local n'est PAS effacé tant qu'il reste des écritures en
+    // file d'attente (18/08/2026, Sprint 4bis) — comptagesSaisie doit rester
+    // disponible pour que la synchro en arrière-plan (tenterSynchronisation
+    // FileAttente, rappelée par ex. à la prochaine ouverture de l'app) ait
+    // encore la donnée à réessayer d'envoyer. L'employé a bien terminé et
+    // vu l'écran de fin quoi qu'il arrive — seul le nettoyage local est
+    // reporté.
+    const enAttente = chargerFileSync().length;
+    if (!enAttente) effacerDraft('ouverture');
 
-    renderFinalOuverture(nbComptes, nbEcarts, nbLivraisonsDeclarees);
+    renderFinalOuverture(nbComptes, nbEcarts, nbLivraisonsDeclarees, enAttente);
   }
 
-  function renderFinalOuverture(nbComptes, nbEcarts, nbLivraisonsDeclarees) {
+  function renderFinalOuverture(nbComptes, nbEcarts, nbLivraisonsDeclarees, enAttente) {
     document.getElementById('titre').textContent = 'Inventaire d\'ouverture validé';
     document.getElementById('sousTitre').textContent = '';
     document.getElementById('content').innerHTML = `
@@ -1888,6 +2073,7 @@
         <div class="stat-row"><span class="stat-label">Écarts de passage de quart</span><span class="stat-value ${nbEcarts ? 'amber' : ''}">${nbEcarts}</span></div>
         ${nbLivraisonsDeclarees ? `<div class="stat-row"><span class="stat-label">Livraisons déclarées</span><span class="stat-value">${nbLivraisonsDeclarees}</span></div>` : ''}
       </div>
+      ${enAttente ? `<div class="resume-card" style="border-color:var(--amber);">⚠️ ${enAttente} comptage${enAttente > 1 ? 's' : ''} en attente de connexion — sauvegardé${enAttente > 1 ? 's' : ''} sur cet appareil, envoyé${enAttente > 1 ? 's' : ''} dès que le réseau revient. Rien n'est perdu.</div>` : ''}
       <button class="btn-primary" id="btnRetourAccueil">Retour</button>
     `;
     document.getElementById('btnRetourAccueil').addEventListener('click', renderAccueil);
@@ -2115,6 +2301,12 @@
             // calculé d'écart, on ne commence pas à en inventer un ici.
             const transmis = dernierStock[produitId] ? dernierStock[produitId].quantite : 0;
             s.ecartNonNul = Math.abs(s.compte - transmis) > 0.001;
+            // Écriture immédiate (18/08/2026, Sprint 4bis) : c'est ICI, à
+            // l'ouverture, que le total d'un produit en deux lieux devient
+            // enfin connu (dépôt + boutique) — c'est donc le premier moment
+            // où il y a réellement quelque chose à écrire. La clôture garde
+            // son modèle en lot existant (voir validerCloture).
+            if (p) ecrireOuvertureImmediat(p);
           }
         }
         sauvegarderDraft(typeFlux);
