@@ -162,6 +162,7 @@
 
   const DEFAULTS_FDJ_SITE_SETTINGS = {
     profil_stock: 'reserve_centrale', nombre_quarts: 2, horaire_bascule_quart2_repli: '12:40',
+    fenetre_acces_quart_min: 30,
     seuil_caisse_vert: 0, seuil_caisse_rouge: 5, validation_manager_obligatoire: true,
     seuil_min_quarts_moyenne: 3,
     coach_actif: true, coach_seuil_risque_recurrent: 3, coach_seuil_axe_equipe: 3,
@@ -217,8 +218,9 @@
         <div class="param-ligne"><label>Profil de stock</label><select class="param-input" id="paramProfilStock">${optionsProfil}</select></div>
         <div class="param-ligne"><label>Nombre de quarts / jour</label><input type="number" min="1" max="4" step="1" class="param-input" id="paramNombreQuarts" value="${p.nombre_quarts}"></div>
         <div class="param-ligne"><label>Bascule quart 1→2 (repli)</label><input type="time" class="param-input" id="paramHoraireRepli" value="${p.horaire_bascule_quart2_repli}"><span class="param-enregistre" id="paramEnregistre">✓ Enregistré</span></div>
+        <div class="param-ligne"><label>Fenêtre d'accès à un quart (minutes avant l'heure officielle)</label><input type="number" min="0" max="240" step="5" class="param-input" id="paramFenetreAcces" value="${p.fenetre_acces_quart_min}"></div>
       </div>
-      <div class="param-note">Le profil de stock est informationnel pour l'instant — aucun écran ni calcul ne l'utilise encore, il prépare la prochaine étape (Stock &amp; mouvements). L'horaire de bascule quart 1→2 est d'abord lu dans Paramètres Station (horaires du site) ; celui-ci ne sert que de repli si Paramètres Station n'a rien d'enregistré.</div>
+      <div class="param-note">Le profil de stock est informationnel pour l'instant — aucun écran ni calcul ne l'utilise encore, il prépare la prochaine étape (Stock &amp; mouvements). L'horaire de bascule quart 1→2 est d'abord lu dans Paramètres Station (horaires du site) ; celui-ci ne sert que de repli si Paramètres Station n'a rien d'enregistré. La fenêtre d'accès contrôle à partir de quand un employé peut ouvrir un quart avant son heure officielle (FDJ Fiabilisation Étape 7) — un employé qui valide son stock de départ dans cette fenêtre est ensuite verrouillé sur ce quart pour la journée.</div>
 
       <div class="section-titre">Pilotage</div>
       <div class="card" style="margin-bottom:4px;">
@@ -251,6 +253,7 @@
     bind('paramProfilStock', 'profil_stock', v => v);
     bind('paramNombreQuarts', 'nombre_quarts', v => parseInt(v) || DEFAULTS_FDJ_SITE_SETTINGS.nombre_quarts);
     bind('paramHoraireRepli', 'horaire_bascule_quart2_repli', v => v || DEFAULTS_FDJ_SITE_SETTINGS.horaire_bascule_quart2_repli);
+    bind('paramFenetreAcces', 'fenetre_acces_quart_min', v => { const n = parseInt(v); return (isNaN(n) || n < 0) ? DEFAULTS_FDJ_SITE_SETTINGS.fenetre_acces_quart_min : n; });
     bind('paramSeuilMinQuarts', 'seuil_min_quarts_moyenne', v => parseInt(v) || DEFAULTS_FDJ_SITE_SETTINGS.seuil_min_quarts_moyenne);
     bind('paramSeuilVert', 'seuil_caisse_vert', v => { const n = parseFloat(v); return isNaN(n) ? 0 : n; });
     bind('paramSeuilRouge', 'seuil_caisse_rouge', v => { const n = parseFloat(v); return isNaN(n) ? 0 : n; });

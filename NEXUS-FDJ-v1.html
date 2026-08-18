@@ -274,6 +274,7 @@
   // voir NexusFdjMoteur.evaluerAccesQuart et NEXUS-Data-Dictionary-v2, v2.72.
   let horairesQuartsSite = {};
   let verrouJour = null;
+  let fenetreAccesQuartMin = 30; // FDJ Fiabilisation Étape 7 (18/08/2026) : était une constante 30 codée en dur dans accesQuart(), maintenant fdj_site_settings.fenetre_acces_quart_min (repli 30 = comportement historique inchangé) — chargé à l'initialisation, avant renderAccueil(), même schéma que horairesQuartsSite/verrouJour ci-dessus.
   let jeux = [];                // catalogue fdj_games actif, trié ordre_affichage
   let emplacements = [];        // catalogue fdj_locations du site (Bureau, Caisse…)
   let dernierStockFinal = {};   // game_id -> stock_final du quart précédent validé
@@ -404,7 +405,7 @@
     if (parametresFdjSiteCache !== undefined) return parametresFdjSiteCache;
     const { data, error } = await nexusClient.from('fdj_site_settings').select('*').eq('site', siteId).maybeSingle();
     if (error) console.error('Chargement paramètres FDJ site:', error);
-    parametresFdjSiteCache = data || { horaire_bascule_quart2_repli: '12:40' };
+    parametresFdjSiteCache = data || { horaire_bascule_quart2_repli: '12:40', fenetre_acces_quart_min: 30 };
     return parametresFdjSiteCache;
   }
 
@@ -860,7 +861,11 @@
     const maintenant = new Date();
     const minutesMaintenant = maintenant.getHours() * 60 + maintenant.getMinutes();
     const horaire = horairesQuartsSite['quart' + quart];
-    return NexusFdjMoteur.evaluerAccesQuart(quart, minutesMaintenant, horaire, 30, verrouJour);
+    // FDJ Fiabilisation Étape 7 (18/08/2026) : fenêtre configurable par site
+    // (fdj_site_settings.fenetre_acces_quart_min, repli 30) au lieu d'une
+    // constante 30 codée en dur — cahier §18 "la fenêtre de 30 minutes est
+    // configurable par station".
+    return NexusFdjMoteur.evaluerAccesQuart(quart, minutesMaintenant, horaire, fenetreAccesQuartMin, verrouJour);
   }
   function renderQuartVisuel() {
     const acces1 = accesQuart('1');
@@ -896,7 +901,7 @@
         alert(`Vous êtes verrouillé sur le Quart ${verrouJour.quart} pour aujourd'hui (stock de départ déjà validé). Le changement de quart nécessite une dérogation manager.`);
       } else if (acces.motif === 'hors_fenetre') {
         const h = horairesQuartsSite['quart' + nouveauQuart];
-        alert(h ? `Le Quart ${nouveauQuart} n'est pas encore accessible — il ouvre à ${h} (30 minutes avant l'heure officielle).` : `Le Quart ${nouveauQuart} n'est pas encore accessible.`);
+        alert(h ? `Le Quart ${nouveauQuart} n'est pas encore accessible — il ouvre à ${h} (${fenetreAccesQuartMin} minutes avant l'heure officielle).` : `Le Quart ${nouveauQuart} n'est pas encore accessible.`);
       }
       return;
     }
@@ -1836,7 +1841,14 @@
     // 13/08/2026 — Règle d'accès aux quarts FDJ V1 : le verrou du jour (s'il
     // existe) doit primer sur la détection par l'heure, sinon un employé
     // verrouillé sur Q1 le matin se retrouverait sur Q2 par défaut l'après-midi.
-    [horairesQuartsSite, verrouJour] = await Promise.all([chargerHorairesQuartsSite(), chargerVerrouJour()]);
+    // FDJ Fiabilisation Étape 7 (18/08/2026) — fenetreAccesQuartMin doit être
+    // résolu ici aussi, jamais seulement à l'intérieur de quartDuMoment() :
+    // quand un verrouJour existe déjà, quartDuMoment() (et donc
+    // chargerParametresFdjSite()) n'est jamais appelée, et accesQuart()
+    // tournerait avec la valeur par défaut au lieu du paramétrage du site.
+    let parametresFdjSiteInit;
+    [horairesQuartsSite, verrouJour, parametresFdjSiteInit] = await Promise.all([chargerHorairesQuartsSite(), chargerVerrouJour(), chargerParametresFdjSite()]);
+    fenetreAccesQuartMin = (parametresFdjSiteInit && parametresFdjSiteInit.fenetre_acces_quart_min !== null && parametresFdjSiteInit.fenetre_acces_quart_min !== undefined) ? Number(parametresFdjSiteInit.fenetre_acces_quart_min) : 30;
     quartActuel = verrouJour ? verrouJour.quart : await quartDuMoment();
     jeux = await chargerJeux();
     shiftRow = await obtenirOuCreerShift();
