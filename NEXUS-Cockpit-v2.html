@@ -1190,9 +1190,13 @@
       el.innerHTML = `
         <div class="section-title">Signaux de risque — À surveiller <span class="badge badge-derived">dérivé</span></div>
         ${RISQUES_QUALIFIES_SITE.map(s => {
+          // Cadrage risques Phase 5 (18/08/2026, tâche #234) : ternaire
+          // binaire marge/caisse remplacé par le mapping partagé
+          // NexusRisques.domaineLabelSignal/sujetSignal — même correctif
+          // que Brief/Rapport (Article 11, une seule source).
           const phrase = NexusRisques.genererPhraseContexte({
-            domaineLabel: s.domaine === 'marge' ? 'Marge' : 'Caisse',
-            sujet: s.domaine === 'marge' ? (s.cle_signal || '').replace('marge:categorie:', '') : `Quart ${(s.cle_signal || '').replace('caisse:quart:', '')}`,
+            domaineLabel: NexusRisques.domaineLabelSignal(s),
+            sujet: NexusRisques.sujetSignal(s),
             niveau: s.niveau,
             motif: (s.historique_transitions && s.historique_transitions.length) ? s.historique_transitions[s.historique_transitions.length - 1].motif : '',
           });

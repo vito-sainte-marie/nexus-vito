@@ -876,8 +876,14 @@
         urgence: s.urgence, urgenceLabel: NexusRisques.LABEL_URGENCE[s.urgence] || s.urgence,
         domaine: s.domaine, secteur: s.secteur,
         phrase: NexusRisques.genererPhraseContexte({
-          domaineLabel: s.domaine === 'marge' ? 'Marge' : 'Caisse',
-          sujet: s.domaine === 'marge' ? (s.cle_signal || '').replace('marge:categorie:', '') : `Quart ${(s.cle_signal || '').replace('caisse:quart:', '')}`,
+          // Cadrage risques Phase 5 (18/08/2026, tâche #234) : ce ternaire
+          // était binaire marge/caisse en dur — cassé silencieusement dès
+          // qu'un 3e domaine (Carburants) apparaîtrait, puisque `else`
+          // retombait toujours sur "Caisse". Remplacé par le mapping
+          // partagé NexusRisques.domaineLabelSignal/sujetSignal (Article 11
+          // — une seule source pour Brief/Cockpit/Rapport).
+          domaineLabel: NexusRisques.domaineLabelSignal(s),
+          sujet: NexusRisques.sujetSignal(s),
           niveau: s.niveau, motif: (s.historique_transitions && s.historique_transitions.length) ? s.historique_transitions[s.historique_transitions.length - 1].motif : '',
         }),
         actionRecommandee: s.action_recommandee, niveauConfiance: s.niveau_confiance,

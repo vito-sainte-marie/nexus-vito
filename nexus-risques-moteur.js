@@ -485,14 +485,116 @@
     return 'faible';
   }
 
+  // ------------------------------------------------------------
+  // DOMAINE PILOTE 3 — CARBURANTS (autonomie de stock, cadrage risques
+  // Phase 5, tâche #234, 18/08/2026). Premier consommateur RÉEL de la voie
+  // qualitative posée en Phase 4 (`severiteQualitative`) : l'autonomie en
+  // jours ne se traduit pas proprement en €, exactement le cas cité dans le
+  // commentaire d'origine de la Règle B ("produit moteur en rupture,
+  // autonomie carburant faible").
+  //
+  // Ce fichier ne dépend JAMAIS d'un autre moteur de domaine (même
+  // discipline que qualifierEcartCaisse/qualifierMargeCategorie, qui
+  // reçoivent des agrégats déjà calculés par l'appelant, jamais une
+  // référence à NexusVerifyMoteur ou NexusMarge) : les seuils
+  // (SEUIL_AUTONOMIE_ALERTE_JOURS/VIGILANCE_JOURS de
+  // NexusCarburantMoteur, déjà en production depuis le 13/08/2026 pour
+  // colorer la jauge de Carburants Pilotage) sont fournis par l'appelant,
+  // pas relus ici — une seule définition de ces seuils, dans
+  // nexus-carburant-moteur.js (Article 11).
+  //
+  // input :
+  //   autonomieJours            : NexusCarburantMoteur.calculerAutonomieJours(stock actuel, conso moyenne) — peut être null.
+  //   seuilAlerteJours          : NexusCarburantMoteur.SEUIL_AUTONOMIE_ALERTE_JOURS.
+  //   seuilVigilanceJours       : NexusCarburantMoteur.SEUIL_AUTONOMIE_VIGILANCE_JOURS.
+  //   historiqueAutonomieJours  : autonomies des jours précédents (même
+  //                        carburant, même consommation moyenne récente
+  //                        appliquée rétroactivement — approximation
+  //                        assumée et documentée par l'appelant : NEXUS ne
+  //                        recalcule pas une consommation glissante propre
+  //                        à chaque jour passé, ce serait une fausse
+  //                        précision. Voir Constitution NEXUS, complément
+  //                        "fait/calcul/décision" du 18/08/2026, point 3).
+  //
+  // cle attendue par l'appelant pour nexus_risk_signals :
+  // `carburant:autonomie:${carburant}` (carburant = 'go'/'sp95'/'gnr').
+  // ------------------------------------------------------------
+  function qualifierAutonomieCarburant(input) {
+    const jours = input.autonomieJours != null ? Number(input.autonomieJours) : null;
+    if (jours == null) {
+      return {
+        niveau: 'anomalie', niveauConfiance: 'D',
+        motif: 'Autonomie non calculable — stock physique ou consommation moyenne récente indisponible pour ce carburant.',
+        impactMesureEur: null, impactPotentielEur: null, recurrenceCount: 1, tailleEchantillon: 0,
+        preuve: { autonomieJours: null },
+      };
+    }
+
+    const seuilAlerte = input.seuilAlerteJours;
+    const seuilVigilance = input.seuilVigilanceJours;
+    let severite = 'mineure';
+    if (seuilAlerte != null && jours < seuilAlerte) severite = 'majeure';
+    else if (seuilVigilance != null && jours < seuilVigilance) severite = 'significative';
+
+    // Récurrence = aujourd'hui + nombre de jours récents déjà sous le seuil
+    // de vigilance (miroir du principe déjà appliqué par
+    // qualifierMargeCategorie : une dégradation vue sur plusieurs jours de
+    // suite pèse plus qu'un instantané, sans jamais suffire seule si elle
+    // n'est vue qu'une fois — Règle C, seuil de récurrence 2).
+    const historique = (input.historiqueAutonomieJours || []).filter(v => v != null);
+    const recurrence = 1 + (seuilVigilance != null ? historique.filter(v => v < seuilVigilance).length : 0);
+
+    const classification = classifierNiveau({
+      severiteQualitative: severite,
+      recurrenceCount: recurrence,
+      tailleEchantillon: historique.length + 1,
+    });
+
+    return {
+      ...classification,
+      impactMesureEur: null, impactPotentielEur: null,
+      recurrenceCount: recurrence, tailleEchantillon: historique.length + 1,
+      preuve: { autonomieJours: jours, joursRecentsSousVigilance: recurrence - 1, fenetreJours: historique.length },
+    };
+  }
+
+  // ------------------------------------------------------------
+  // LIBELLÉS PAR DOMAINE — un seul mapping domaine/cle_signal -> libellé
+  // lisible, désormais partagé par Brief/Cockpit/Rapport (Cadrage risques
+  // Phase 5, 18/08/2026). Avant ce lot, ce mapping était DUPLIQUÉ en 3
+  // exemplaires (un ternaire binaire `s.domaine === 'marge' ? 'Marge' :
+  // 'Caisse'` par fichier) — jamais un problème tant que seuls 2 domaines
+  // existaient, mais l'ajout de Carburants comme 3e domaine aurait fait
+  // AFFICHER À TORT tout signal carburant comme "Caisse" (le ternaire
+  // binaire retombe sur la branche `else`) dans les 3 écrans si ce mapping
+  // n'avait pas été centralisé ici avant d'ajouter le domaine (Article 11 —
+  // 3 copies qui auraient divergé silencieusement dès qu'un domaine change).
+  const LABEL_DOMAINE = { marge: 'Marge', caisse: 'Caisse', carburant: 'Carburants' };
+  const NOM_CARBURANT_RISQUE = { go: 'Gazole', sp95: 'SP95', gnr: 'GNR' };
+  const PREFIXES_CLE_SIGNAL = { marge: 'marge:categorie:', caisse: 'caisse:quart:', carburant: 'carburant:autonomie:' };
+
+  function domaineLabelSignal(s) {
+    return LABEL_DOMAINE[s.domaine] || s.domaine;
+  }
+
+  function sujetSignal(s) {
+    const prefixe = PREFIXES_CLE_SIGNAL[s.domaine];
+    const brut = prefixe ? (s.cle_signal || '').replace(prefixe, '') : (s.cle_signal || '');
+    if (s.domaine === 'caisse') return `Quart ${brut}`;
+    if (s.domaine === 'carburant') return NOM_CARBURANT_RISQUE[brut] || brut;
+    return brut; // marge, et tout domaine futur non encore mappé : identifiant brut
+  }
+
   global.NexusRisques = {
     NIVEAUX, RANG_NIVEAU, LABEL_NIVEAU,
     URGENCES, RANG_URGENCE, LABEL_URGENCE, SEUIL_ANCIENNETE_INSTALLEE_JOURS,
     classifierNiveau, determinerTransition, genererPhraseContexte, classifierUrgence,
     qualifierEcartCaisse, qualifierMargeCategorie, assemblerHistoriqueMargeCategorie,
+    qualifierAutonomieCarburant,
     niveauConfiance,
     SEUIL_IMPACT_MESURE_MATERIEL_EUR, SEUIL_IMPACT_POTENTIEL_SIGNIFICATIF_EUR,
     SEUIL_RECURRENCE_SIGNAL_FAIBLE, SEUIL_RECURRENCE_RISQUE_AVERE,
     RANG_SEVERITE_QUALITATIVE,
+    LABEL_DOMAINE, domaineLabelSignal, sujetSignal,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

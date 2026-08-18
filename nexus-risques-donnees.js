@@ -202,6 +202,50 @@
   }
 
   // ------------------------------------------------------------
+  // SOURCE — DOMAINE PILOTE 3 CARBURANTS (autonomie de stock, Cadrage
+  // risques Phase 5, tâche #234, 18/08/2026)
+  //
+  // Même précédent que chargerAgregationCaisseQuart ci-dessus : ce fichier
+  // interroge Supabase ET réutilise les fonctions pures d'un AUTRE domaine
+  // (ici NexusCarburantDonnees/NexusCarburantMoteur, déjà en production
+  // depuis le 13/08/2026 pour Carburants Pilotage) — jamais une 2e règle de
+  // seuil ou de calcul d'autonomie écrite ici (Article 11).
+  //
+  // Retourne une map { go: {...}, sp95: {...}, gnr: {...} }, chaque entrée
+  // directement au format attendu par NexusRisques.qualifierAutonomieCarburant()
+  // — ou `null` pour un carburant sans aucun relevé récent (jamais un objet
+  // à moitié rempli qui laisserait croire à une mesure partielle).
+  async function chargerAutonomiesCarburantAvecHistorique(client, siteId, dateDuJour, fenetreJours) {
+    const MC = global.NexusCarburantMoteur;
+    const DC = global.NexusCarburantDonnees;
+    if (!MC || !DC) { console.error('NexusCarburantMoteur/NexusCarburantDonnees non chargés — inclure nexus-carburant-moteur.js et nexus-carburant-donnees.js avant nexus-risques-donnees.js pour qualifier Carburants.'); return {}; }
+    const fenetre = fenetreJours || 7;
+    const [consoMoyenne, historiqueReleves] = await Promise.all([
+      DC.chargerConsommationJournaliereMoyenne(client, siteId, dateDuJour),
+      DC.chargerHistoriqueReleves(client, siteId, fenetre, dateDuJour),
+    ]);
+    // historiqueReleves est trié du plus récent au plus ancien (voir
+    // chargerHistoriqueReleves) : le 1er élément est le jour demandé
+    // lui-même (s'il a un relevé), les suivants sont l'historique.
+    const resultat = {};
+    MC.CLES_CARBURANT.forEach(cle => {
+      const conso = consoMoyenne[cle];
+      const autonomies = historiqueReleves.map(jour => {
+        const stockJour = jour.parCarburant[cle] ? jour.parCarburant[cle].reelDuJour : null;
+        return MC.calculerAutonomieJours(stockJour, conso);
+      });
+      if (!autonomies.length) { resultat[cle] = null; return; }
+      resultat[cle] = {
+        autonomieJours: autonomies[0],
+        historiqueAutonomieJours: autonomies.slice(1).filter(v => v != null),
+        seuilAlerteJours: MC.SEUIL_AUTONOMIE_ALERTE_JOURS,
+        seuilVigilanceJours: MC.SEUIL_AUTONOMIE_VIGILANCE_JOURS,
+      };
+    });
+    return resultat;
+  }
+
+  // ------------------------------------------------------------
   // ORCHESTRATION PARTAGÉE — PILOTE Marge + Caisse
   //
   // Point d'entrée unique, appelé à l'identique depuis NEXUS-Brief-v1.html
@@ -237,7 +281,7 @@
   // "digne d'être affiché" (niveau non-anomalie) est un filtre d'AFFICHAGE
   // fait par l'appelant, jamais une décision de ne pas écrire.
   async function qualifierEtEnregistrerRisquesPilote(client, siteId, params) {
-    const { rowsBrut, periodeAffichage, categoriesEnEcart, agregationCaisseParQuart } = params || {};
+    const { rowsBrut, periodeAffichage, categoriesEnEcart, agregationCaisseParQuart, autonomiesCarburant } = params || {};
     if (!global.NexusRisques) { console.error('NexusRisques non chargé — inclure nexus-risques-moteur.js avant nexus-risques-donnees.js.'); return []; }
     const R = global.NexusRisques;
 
@@ -269,7 +313,26 @@
       });
     }) : [];
 
-    await Promise.all([...promessesCaisse, ...promessesMarge]);
+    // Domaine Carburants (Cadrage risques Phase 5, tâche #234, 18/08/2026) —
+    // OPTIONNEL : un appelant qui ne passe pas `autonomiesCarburant` (Brief/
+    // Cockpit aujourd'hui, avant d'être branchés eux-mêmes) voit simplement
+    // ce volet ignoré, jamais un balayage de secours — même discipline que
+    // le volet Marge quand `categoriesEnEcart` est absent. Un carburant
+    // sans donnée (`null` dans la map) n'est jamais qualifié à sa place.
+    const promessesCarburant = Object.keys(autonomiesCarburant || {}).map(carburant => {
+      const donnee = (autonomiesCarburant || {})[carburant];
+      if (!donnee) return Promise.resolve(null);
+      const classif = R.qualifierAutonomieCarburant(donnee);
+      const cleSignal = `carburant:autonomie:${carburant}`;
+      const nomCarburant = R.sujetSignal({ domaine: 'carburant', cle_signal: cleSignal });
+      return enregistrerObservation(client, siteId, {
+        domaine: 'carburant', cleSignal, typeSignal: 'autonomie_stock_carburant',
+        secteur: 'Carburants', classification: classif,
+        actionRecommandee: `Anticipez le réapprovisionnement ${nomCarburant} — vérifiez le délai de livraison du fournisseur.`,
+      });
+    });
+
+    await Promise.all([...promessesCaisse, ...promessesMarge, ...promessesCarburant]);
     return chargerSignauxSite(client, siteId, { statut: 'surveille' });
   }
 
@@ -326,6 +389,7 @@
     chargerSignalExistant, chargerSignauxSite, enregistrerObservation, resoudreSignal,
     chargerAgregationCaisseQuart, chargerAgregationCaisseTousQuarts,
     chargerPeriodesAnterieures, chargerMargeCategoriePeriode, chargerHistoriqueMargeCategorie,
+    chargerAutonomiesCarburantAvecHistorique,
     qualifierEtEnregistrerRisquesPilote,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

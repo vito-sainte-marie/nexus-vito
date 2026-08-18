@@ -418,12 +418,17 @@
       // calculé (jamais persisté) par `chargerSignauxSite()` via
       // `NexusRisques.classifierUrgence` — zéro nouveau calcul ici, même
       // champ déjà consommé par Brief NEXUS depuis P1.3 (v2.53).
-      const sujet = s.domaine === 'marge' ? (s.cle_signal || '').replace('marge:categorie:', '') : `Quart ${(s.cle_signal || '').replace('caisse:quart:', '')}`;
+      // Cadrage risques Phase 5 (18/08/2026, tâche #234) : ternaire binaire
+      // marge/caisse remplacé par le mapping partagé
+      // NexusRisques.sujetSignal/domaineLabelSignal — même correctif que
+      // Brief/Cockpit (Article 11, une seule source, sinon tout signal
+      // Carburants se serait affiché à tort comme "Caisse").
+      const sujet = NexusRisques.sujetSignal(s);
       return {
         niveau: s.niveau, domaine: s.domaine, sujet,
         urgence: s.urgence, urgenceLabel: NexusRisques.LABEL_URGENCE[s.urgence] || s.urgence,
         phrase: NexusRisques.genererPhraseContexte({
-          domaineLabel: s.domaine === 'marge' ? 'Marge' : 'Caisse',
+          domaineLabel: NexusRisques.domaineLabelSignal(s),
           sujet,
           niveau: s.niveau,
           motif: (s.historique_transitions && s.historique_transitions.length) ? s.historique_transitions[s.historique_transitions.length - 1].motif : '',

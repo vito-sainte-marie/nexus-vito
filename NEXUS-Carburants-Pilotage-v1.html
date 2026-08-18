@@ -22,6 +22,13 @@
 <script src="nexus-periodes.js"></script>
 <script src="nexus-carburant-moteur.js"></script>
 <script src="nexus-carburant-donnees.js"></script>
+<!-- Cadrage risques Phase 5 (18/08/2026, tâche #234) — 1er écran Carburants
+     à qualifier et enregistrer un signal NexusRisques (autonomie de stock).
+     Inclus après nexus-carburant-moteur.js/nexus-carburant-donnees.js
+     (nexus-risques-donnees.js.chargerAutonomiesCarburantAvecHistorique en
+     dépend), avant tout appel à qualifierRisquesCarburantEnArrierePlan(). -->
+<script src="nexus-risques-moteur.js"></script>
+<script src="nexus-risques-donnees.js"></script>
 <script src="nexus-reception-moteur.js"></script>
 <script src="nexus-reception-donnees.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
@@ -895,6 +902,37 @@
       });
     }
     return { ...controle, cuvesConfig: config, autonomiesParCarburant, derniersControles };
+  }
+
+  // ------------------------------------------------------------
+  // Cadrage risques Phase 5 (18/08/2026, tâche #234) — Carburants Pilotage
+  // devient le 1er écran à écrire des signaux NexusRisques pour ce domaine
+  // (Brief/Cockpit/Rapport les LISENT déjà via chargerSignauxSite(), sans
+  // filtre de domaine pour la section "Risques & expositions" — aucune
+  // modification nécessaire côté lecture au-delà du correctif du ternaire
+  // binaire marge/caisse, voir NexusRisques.domaineLabelSignal/sujetSignal).
+  //
+  // Volontairement en ARRIÈRE-PLAN (jamais attendu par le rendu principal,
+  // jamais un `await` dans le flux d'init) : qualifier/enregistrer un
+  // risque est une écriture de mémoire, pas une donnée dont "Situation
+  // aujourd'hui" a besoin pour s'afficher — un échec ici (réseau, moteur
+  // Risques non chargé) ne doit JAMAIS empêcher Carburants Pilotage de
+  // fonctionner, seulement priver Brief/Cockpit/Rapport d'un signal à jour
+  // pour ce tour-ci (traçé en console, jamais une alerte utilisateur pour
+  // une fonctionnalité qui n'affiche rien sur cette page elle-même).
+  async function qualifierRisquesCarburantEnArrierePlan() {
+    try {
+      if (typeof NexusRisquesDonnees === 'undefined') { return; }
+      if (!CUVES_CONFIG) return;
+      const carburantsActifs = NexusCarburantMoteur.CLES_CARBURANT.filter(cle => CUVES_CONFIG[cle] && CUVES_CONFIG[cle].actif);
+      if (!carburantsActifs.length) return;
+      const toutes = await NexusRisquesDonnees.chargerAutonomiesCarburantAvecHistorique(nexusClient, SITE_ID, todayISO());
+      const autonomiesCarburant = {};
+      carburantsActifs.forEach(cle => { autonomiesCarburant[cle] = toutes[cle] || null; });
+      await NexusRisquesDonnees.qualifierEtEnregistrerRisquesPilote(nexusClient, SITE_ID, { autonomiesCarburant });
+    } catch (e) {
+      console.error('Qualification risques Carburants (arrière-plan, sans impact sur la page) :', e);
+    }
   }
 
   function renderSituation(ctx) {
@@ -2856,6 +2894,10 @@
     renderSituation(CONTROLE_CTX);
     renderStatutReleveDuJour(CONTROLE_CTX);
     renderLectureNexus();
+
+    // Cadrage risques Phase 5 (tâche #234) — fire-and-forget, volontairement
+    // pas de `await` : voir le commentaire de la fonction pour le pourquoi.
+    qualifierRisquesCarburantEnArrierePlan();
 
     await Promise.all([chargerEtRendreLivraison(), chargerEtRendrePeriode(), chargerEtRendreRattrapage(), chargerEtRendreHistorique(), chargerEtRendreQualiteReceptions(), chargerEtRendreAnalyse(), chargerEtRendreEconomie()]);
   });

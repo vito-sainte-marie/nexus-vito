@@ -533,6 +533,16 @@
         const mouvement = referenceCertifieeCeJour ? 0 : (releve[`mouvement_${cle}`] || 0);
         const resultatCarb = M.calculerCarburant({ dernierReel, reelDuJour, livraison, mouvement, ventes: ventes[cle] });
         if (referenceCertifieeCeJour) resultatCarb.statut = 'Référence certifiée';
+        // Champ ajouté le 18/08/2026 (Cadrage risques Phase 5, tâche #234) —
+        // additif, aucun champ existant retiré ni renommé : le stock
+        // physique jaugé CE jour, jusqu'ici calculé en local puis jeté sans
+        // être exposé. Nécessaire à NexusRisquesDonnees.
+        // chargerAutonomiesCarburantAvecHistorique() pour reconstituer une
+        // autonomie des jours précédents SANS écrire une 2e requête qui
+        // relirait `carburant_releves` (Article 11 — cette fonction est déjà
+        // la seule à reconstruire le physique par jour en tenant compte du
+        // point zéro).
+        resultatCarb.reelDuJour = reelDuJour;
         parCarburant[cle] = resultatCarb;
       });
       resultat.push({ date: releve.date, referenceCertifieeCeJour, ancreEstPointZero, parCarburant });
