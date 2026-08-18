@@ -315,6 +315,15 @@
   let comptagesSaisie = {};      // produit_id -> { compte, justification }
   let mouvementsSaisie = [];     // { produit_id, type_mouvement, quantite, justification }
   let zonesMap = {};             // code ('piste'/'boutique') -> id (inventaire_zones)
+  // Position de navigation courante (17/08/2026, Sprint 4 "UX Flash" —
+  // cahier Inventaire 2.0, INV2-16 "après interruption, l'employé reprend au
+  // bon produit") : { categorieNom, carrouselIndex } | null. Persistée dans
+  // le brouillon local à chaque changement d'étape/produit — voir
+  // sauvegarderPositionCourante(). Contrairement à comptagesSaisie, ce n'est
+  // qu'un raccourci de navigation, jamais une vérité métier : si elle est
+  // absente ou incohérente (catégorie déjà terminée, etc.), le parcours
+  // retombe simplement sur l'écran catégories, jamais une erreur bloquante.
+  let positionCourante = null;
 
   // ------------------------------------------------------------
   // BROUILLON LOCAL (02/08/2026, demande de Frédéric — "si un employé fait
@@ -336,7 +345,11 @@
   function sauvegarderDraft(phase) {
     const cle = cleDraft(phase);
     if (!cle) return;
-    try { localStorage.setItem(cle, JSON.stringify({ comptagesSaisie, mouvementsSaisie })); }
+    // positionCourante (Sprint 4, INV2-16) : seulement pour 'ouverture', la
+    // seule phase où existe une navigation catégorie/carrousel à reprendre
+    // — la clôture reste une liste continue sans notion d'étape.
+    const payload = phase === 'ouverture' ? { comptagesSaisie, mouvementsSaisie, positionCourante } : { comptagesSaisie, mouvementsSaisie };
+    try { localStorage.setItem(cle, JSON.stringify(payload)); }
     catch (e) { console.error('Sauvegarde brouillon inventaire:', e); }
   }
   function chargerDraft(phase) {
@@ -432,25 +445,50 @@
   }
 
   // Calculatrice de comptage (16/08/2026, demande de Frédéric — "possible
-  // d'intégrer une calculatrice ?", écran carrousel "Comptage dépôt") :
-  // deux façons complémentaires de calculer un total sans sortir du champ.
-  // 1) Addition en chaîne : le champ accepte directement une suite de
-  // nombres séparés par + ou - (ex: "6+6+12"), saisie via les boutons [+]/[−]
-  // sous le champ (le clavier numérique natif ne propose pas ces symboles).
-  // evaluerAdditionChainee() remplace parseFloat() partout où un comptage
-  // est lu — un nombre seul ("24") reste interprété exactement comme avant,
-  // c'est le comportement très large majoritaire, rien ne change pour lui.
-  // Retourne NaN (jamais une exception) pour une chaîne invalide ou
-  // incomplète (ex: "6+" en cours de frappe) — traité par le code appelant
-  // exactement comme un champ vide, la saisie n'est jamais bloquée.
+  // d'intégrer une calculatrice ?", écran carrousel "Comptage dépôt"),
+  // étendue le 17/08/2026 (Sprint 4 "UX Flash", cahier Inventaire 2.0 §10.1
+  // — "3 cartons x 24 + 5 -> 77 injecté directement") : deux façons
+  // complémentaires de calculer un total sans sortir du champ.
+  // 1) Expression en chaîne : le champ accepte directement une suite de
+  // nombres séparés par +, -, x (multiplication) ou / (division), saisie
+  // via les boutons [+]/[−]/[×]/[÷] sous le champ (le clavier numérique
+  // natif ne propose pas ces symboles). × et ÷ sont TOUJOURS prioritaires
+  // sur + et − (ordre des opérations standard, jamais un simple cumul
+  // gauche-à-droite) — sans cette priorité "3 x 24 + 5" donnerait 87
+  // (3 x 29) au lieu des 77 attendus par le cahier. evaluerAdditionChainee()
+  // remplace parseFloat() partout où un comptage est lu — un nombre seul
+  // ("24") reste interprété exactement comme avant, c'est le comportement
+  // très large majoritaire, rien ne change pour lui. Retourne NaN (jamais
+  // une exception) pour une chaîne invalide ou incomplète (ex: "6+" en
+  // cours de frappe) — traité par le code appelant exactement comme un
+  // champ vide, la saisie n'est jamais bloquée. Jamais un eval() de chaîne
+  // (Article 5) : deux passes explicites, comme la calculatrice popup.
   function evaluerAdditionChainee(brut) {
     if (brut === null || brut === undefined) return NaN;
-    const nettoye = String(brut).trim().replace(/,/g, '.').replace(/\s+/g, '');
+    let nettoye = String(brut).trim().replace(/,/g, '.').replace(/\s+/g, '');
+    // Un employé sans boutons dédiés (clavier externe) peut taper "x"/"X"/"×"
+    // pour multiplier ou ":"/"÷" pour diviser — normalisés ici vers les
+    // symboles canoniques '*'/'/' utilisés par le tokenizer ci-dessous.
+    nettoye = nettoye.replace(/[×xX]/g, '*').replace(/[÷:]/g, '/');
     if (nettoye === '') return NaN;
-    if (!/^-?\d+(\.\d+)?([+\-]\d+(\.\d+)?)*$/.test(nettoye)) return NaN;
-    const tokens = nettoye.match(/[+\-]?\d+(\.\d+)?/g) || [];
-    if (!tokens.length) return NaN;
-    return tokens.reduce((somme, t) => somme + Number(t), 0);
+    if (!/^-?\d+(\.\d+)?([+\-*/]\d+(\.\d+)?)*$/.test(nettoye)) return NaN;
+    const tokens = nettoye.match(/^-?\d+(\.\d+)?|[+\-*/]\d+(\.\d+)?/g);
+    if (!tokens || !tokens.length) return NaN;
+    // Passe 1 : résout × et ÷ au fil de l'eau dans le terme courant (priorité
+    // sur + et −). Passe 2 (implicite, `termes.reduce`) : additionne les
+    // termes ainsi obtenus, chacun déjà signé.
+    let termeCourant = Number(tokens[0]);
+    if (isNaN(termeCourant)) return NaN;
+    const termes = [];
+    for (let i = 1; i < tokens.length; i++) {
+      const op = tokens[i][0];
+      const val = Number(tokens[i].slice(1));
+      if (op === '*') termeCourant *= val;
+      else if (op === '/') { if (val === 0) return NaN; termeCourant /= val; }
+      else { termes.push(termeCourant); termeCourant = (op === '-') ? -val : val; }
+    }
+    termes.push(termeCourant);
+    return termes.reduce((somme, t) => somme + t, 0);
   }
 
   // Le rôle du quart en cours (shifts.role) prime sur employees.role : un
@@ -846,6 +884,34 @@
     const draft = chargerDraft('ouverture');
     comptagesSaisie = (draft && draft.comptagesSaisie) ? draft.comptagesSaisie : {};
     boutiqueRattrapageIgnore = false;
+
+    // Reprise exacte après interruption (17/08/2026, Sprint 4, INV2-16 —
+    // cahier §10 "Reprise exacte après interruption client") : si le
+    // brouillon indique une position en cours dans une catégorie pas
+    // encore terminée, on y saute directement plutôt que de repasser par
+    // la grille de choix manuel. Dégradation gracieuse : toute position
+    // introuvable, périmée (catégorie déjà finie, plan changé) ou absente
+    // retombe simplement sur la grille des catégories — jamais d'erreur
+    // bloquante pour l'employé.
+    const position = draft && draft.positionCourante;
+    if (position && position.categorieNom) {
+      const { groupesPourParcours } = groupesParcoursOuverture();
+      const groupe = groupesPourParcours.find(g => g.nom === position.categorieNom);
+      if (groupe && !categorieEstTerminee(groupe.items)) {
+        categorieActive = groupe.nom;
+        carrouselModeCorrection = false;
+        if (groupe.items.length > CARROUSEL_SEUIL) {
+          carrouselIndex = (typeof position.carrouselIndex === 'number' && position.carrouselIndex >= 0 && position.carrouselIndex < groupe.items.length)
+            ? position.carrouselIndex
+            : groupe.items.findIndex(p => !produitEstCompte(p));
+          if (carrouselIndex === -1) carrouselIndex = 0;
+          renderCarrousel(groupe);
+        } else {
+          renderCategorieListe(groupe);
+        }
+        return;
+      }
+    }
     renderCategoriesOuverture();
   }
 
@@ -1082,10 +1148,30 @@
     `;
   }
 
+  // Parcours dépôt → boutique → reste, calculé une seule fois ici et
+  // réutilisé partout où l'ordre/le périmètre des étapes doit être connu
+  // (17/08/2026, Sprint 4 "UX Flash" — extrait de renderCategoriesOuverture
+  // pour que l'auto-enchaînement entre catégories, ouvrirProchaineCategorie,
+  // et l'en-tête "Étape N/M" utilisent exactement la même vérité, Article
+  // 11, jamais une deuxième liste recalculée différemment). Le jaugeage ne
+  // compte comme "requis" que s'il est à la fois activé par le manager ET
+  // qu'on est à l'ouverture du quart matin — sinon une catégorie grisée
+  // resterait comptée dans "toutes les catégories terminées" sans jamais
+  // pouvoir être remplie.
+  function groupesParcoursOuverture() {
+    const groupesPourParcours = ordonnerParcoursDepotBoutiqueReste(grouperParCategorie(produitsZone));
+    const groupesRequis = groupesPourParcours.filter(g => (modeJaugeageActif && quartActuel === 'matin') || g.nom !== JAUGEAGE_NOM);
+    return { groupesPourParcours, groupesRequis };
+  }
+
   // ------------------------------------------------------------
   // ÉCRAN CATÉGORIES — remplace l'ancienne liste plate de tous les
   // produits d'un coup : l'employé touche une catégorie, la termine, puis
-  // revient automatiquement ici (renderCategoriesOuverture()).
+  // revient automatiquement ici (renderCategoriesOuverture()). Depuis le
+  // Sprint 4, ce n'est plus le passage obligé entre deux catégories
+  // (voir ouvrirProchaineCategorie) — cet écran reste accessible via
+  // "← Retour aux catégories" et sert de filet quand aucune étape suivante
+  // ne peut être déterminée automatiquement.
   // ------------------------------------------------------------
   function renderCategoriesOuverture() {
     categorieActive = null;
@@ -1099,7 +1185,7 @@
     // souple : l'employé peut toujours revenir aux catégories s'il préfère
     // (voir le lien "Plus tard" dans renderFinalisationDoubleLieu), et le
     // filet de sécurité à la validation finale reste inchangé.
-    const groupesPourParcours = ordonnerParcoursDepotBoutiqueReste(grouperParCategorie(produitsZone));
+    const { groupesPourParcours, groupesRequis } = groupesParcoursOuverture();
     if (!boutiqueRattrapageIgnore && depotEntierementTermine(groupesPourParcours) && produitsDoubleLieuEnAttenteBoutique().length) {
       renderFinalisationDoubleLieu('ouverture', { auto: true });
       return;
@@ -1109,12 +1195,6 @@
     document.getElementById('sousTitre').textContent = 'Vérifiez les quantités transmises. Corrigez uniquement les différences.';
 
     const groupes = groupesPourParcours;
-    // Le jaugeage ne compte comme "requis" que s'il est à la fois activé
-    // par le manager ET qu'on est à l'ouverture du quart matin (voir
-    // "desactive" ci-dessous, même condition) — sinon une catégorie grisée
-    // resterait comptée dans "toutes les catégories terminées" sans jamais
-    // pouvoir être remplie.
-    const groupesRequis = groupes.filter(g => (modeJaugeageActif && quartActuel === 'matin') || g.nom !== JAUGEAGE_NOM);
     const nbCatTerminees = groupesRequis.filter(g => categorieEstTerminee(g.items)).length;
     const toutTermine = nbCatTerminees === groupesRequis.length;
     const nbRestantes = groupesRequis.length - nbCatTerminees;
@@ -1202,10 +1282,63 @@
     if (groupe.items.length > CARROUSEL_SEUIL) {
       carrouselIndex = groupe.items.findIndex(p => !produitEstCompte(p));
       if (carrouselIndex === -1) carrouselIndex = 0; // déjà terminée : on repasse en revue depuis le début
+      sauvegarderPositionCourante(groupe.nom, carrouselIndex);
       renderCarrousel(groupe);
     } else {
+      sauvegarderPositionCourante(groupe.nom, null);
       renderCategorieListe(groupe);
     }
+  }
+
+  // Position de reprise (17/08/2026, Sprint 4, INV2-16) — voir le
+  // commentaire de `positionCourante` ci-dessus. `carrouselIndex` vaut null
+  // en mode liste (pas d'index à retenir, le produit non compté suffit à
+  // se repérer visuellement dans la grille).
+  function sauvegarderPositionCourante(categorieNom, carrouselIdx) {
+    positionCourante = { categorieNom, carrouselIndex: carrouselIdx };
+    sauvegarderDraft('ouverture');
+  }
+
+  // En-tête "Étape N/M — Catégorie" + "X produits restants" (17/08/2026,
+  // Sprint 4 "UX Flash", cahier Inventaire 2.0 §10 — format cible exact :
+  // "Étape 2/7 - Dépôt Bières - 12 produits restants"). N/M porte sur les
+  // étapes réellement requises ce quart (groupesRequis, jaugeage exclu sauf
+  // ouverture du matin) — même liste que l'écran catégories et
+  // ouvrirProchaineCategorie, jamais un second calcul (Article 11).
+  function libelleEtapeParcours(groupe) {
+    const { groupesRequis } = groupesParcoursOuverture();
+    const idx = groupesRequis.findIndex(g => g.nom === groupe.nom);
+    const prefixeEtape = idx === -1 ? '' : `Étape ${idx + 1}/${groupesRequis.length} — `;
+    const cible = produitsRequis(groupe.items);
+    const restants = cible.filter(p => !produitEstCompte(p)).length;
+    return {
+      titre: `${prefixeEtape}${groupe.nom}`,
+      sousTitre: `${restants} produit${restants > 1 ? 's' : ''} restant${restants > 1 ? 's' : ''}`,
+    };
+  }
+
+  // Auto-enchaînement entre étapes (17/08/2026, Sprint 4 "UX Flash" — cahier
+  // Inventaire 2.0 §6, encadré "Important" : "L'employé ne doit pas choisir
+  // manuellement quelles catégories compter. Le plan doit s'ouvrir
+  // directement sur le parcours du jour.") : appelé à la fin de chaque
+  // catégorie (carrousel ou liste) à la place du retour systématique à
+  // l'écran de sélection — ouvre directement la catégorie suivante du
+  // parcours (même ordre dépôt -> boutique -> reste que l'écran catégories).
+  // L'écran catégories reste joignable via "← Retour aux catégories" (choix
+  // explicite de l'employé, jamais retiré) mais n'est plus l'étape
+  // obligatoire entre deux catégories. Le rattrapage boutique automatique
+  // (renderFinalisationDoubleLieu) garde la priorité, exactement comme dans
+  // renderCategoriesOuverture — même règle, un seul endroit qui pourrait
+  // diverger étant déjà exclu par groupesParcoursOuverture().
+  function ouvrirProchaineCategorie() {
+    const { groupesPourParcours, groupesRequis } = groupesParcoursOuverture();
+    if (!boutiqueRattrapageIgnore && depotEntierementTermine(groupesPourParcours) && produitsDoubleLieuEnAttenteBoutique().length) {
+      renderFinalisationDoubleLieu('ouverture', { auto: true });
+      return;
+    }
+    const prochain = groupesRequis.find(g => !categorieEstTerminee(g.items));
+    if (prochain) { ouvrirCategorie(prochain); return; }
+    renderCategoriesOuverture();
   }
 
   // ------------------------------------------------------------
@@ -1228,15 +1361,25 @@
       const restants = cible.filter(pr => !produitEstCompte(pr)).length;
       afficherFeedbackValidation(groupe.items[idx].designation, restants);
     }
-    if (idx === groupe.items.length - 1) return; // dernier produit : rien à enchaîner
+    if (idx === groupe.items.length - 1) {
+      // UX Flash (17/08/2026, Sprint 4, INV2-15/16) : dernier produit de la
+      // catégorie en mode liste — si tout est compté, enchaîne
+      // automatiquement sur la catégorie suivante (même logique que le
+      // carrousel), après le même délai que le toast de confirmation.
+      if (categorieEstTerminee(groupe.items)) {
+        setTimeout(() => ouvrirProchaineCategorie(), 500);
+      }
+      return;
+    }
     const suivant = groupe.items[idx + 1];
     const inputSuivant = document.querySelector(`.produit-input[data-produit="${suivant.id}"]`);
     if (inputSuivant) { inputSuivant.focus(); inputSuivant.select(); }
   }
 
   function renderCategorieListe(groupe) {
-    document.getElementById('titre').textContent = groupe.nom;
-    document.getElementById('sousTitre').textContent = 'Le stock transmis est celui laissé par le quart précédent — comptez le vôtre, corrigez si besoin.';
+    const libelleEtape = libelleEtapeParcours(groupe);
+    document.getElementById('titre').textContent = libelleEtape.titre;
+    document.getElementById('sousTitre').textContent = libelleEtape.sousTitre;
 
     document.getElementById('content').innerHTML = `
       ${renderBarreProgression(groupe)}
@@ -1291,7 +1434,10 @@
         comptagesSaisie[p.id] = { compte: transmis ? transmis.quantite : 0, ecartNonNul: false, justification: '' };
       });
       sauvegarderDraft('ouverture');
-      renderCategoriesOuverture();
+      // UX Flash (17/08/2026, Sprint 4, INV2-15/16) : "Valider cette
+      // catégorie conforme" enchaîne aussi automatiquement, comme toute
+      // autre validation — jamais de retour à la grille manuelle.
+      ouvrirProchaineCategorie();
     });
     document.getElementById('btnRetourCategories').addEventListener('click', renderCategoriesOuverture);
   }
@@ -1356,8 +1502,9 @@
   function renderCarrousel(groupe) {
     const items = groupe.items;
     const p = items[carrouselIndex];
-    document.getElementById('titre').textContent = groupe.nom;
-    document.getElementById('sousTitre').textContent = '';
+    const libelleEtape = libelleEtapeParcours(groupe);
+    document.getElementById('titre').textContent = libelleEtape.titre;
+    document.getElementById('sousTitre').textContent = libelleEtape.sousTitre;
 
     const transmis = dernierStock[p.id];
     const masque = estMasquePourProduit(p);
@@ -1546,9 +1693,14 @@
     setTimeout(() => {
       if (carrouselIndex < groupe.items.length - 1) {
         carrouselIndex++;
+        sauvegarderPositionCourante(groupe.nom, carrouselIndex);
         renderCarrousel(groupe);
       } else {
-        renderCategoriesOuverture();
+        // UX Flash (17/08/2026, Sprint 4, INV2-15/16) : enchaînement
+        // automatique sur la catégorie suivante du parcours — jamais de
+        // retour à la grille de choix manuel (cahier §6 "L'employé ne doit
+        // pas choisir manuellement quelles catégories compter").
+        ouvrirProchaineCategorie();
       }
     }, nomValide ? 500 : 0);
   }
@@ -1561,6 +1713,7 @@
     if (carrouselIndex <= 0) return;
     carrouselIndex--;
     carrouselModeCorrection = false;
+    sauvegarderPositionCourante(groupe.nom, carrouselIndex);
     renderCarrousel(groupe);
   }
 
@@ -2135,6 +2288,8 @@
       <div class="calc-barre">
         <button type="button" class="calc-op-btn" data-calc-op="+">+</button>
         <button type="button" class="calc-op-btn" data-calc-op="-">−</button>
+        <button type="button" class="calc-op-btn" data-calc-op="*">×</button>
+        <button type="button" class="calc-op-btn" data-calc-op="/">÷</button>
         <span class="calc-apercu"></span>
         <button type="button" class="calc-pop-btn" title="Calculatrice">🖩</button>
       </div>
@@ -2150,7 +2305,7 @@
     if (!input) return;
     const brut = input.value;
     if (brut.trim() === '') return; // rien à additionner à une case vide
-    const nouveauBrut = /[+\-]\s*$/.test(brut) ? brut.replace(/[+\-]\s*$/, op) : brut + op;
+    const nouveauBrut = /[+\-*/]\s*$/.test(brut) ? brut.replace(/[+\-*/]\s*$/, op) : brut + op;
     input.value = nouveauBrut;
     input.focus();
     // Corrigé (16/08/2026, signalé par Frédéric sur iPhone — "je tape 6, ça
@@ -2176,7 +2331,7 @@
     const apercu = conteneur.querySelector('.calc-apercu');
     if (!apercu) return;
     const brut = String(input.value || '').trim();
-    const plusieursTermesRegex = /^-?\d+(\.\d+|,\d+)?\s*[+\-]/;
+    const plusieursTermesRegex = /^-?\d+(\.\d+|,\d+)?\s*[+\-*/]/;
     if (!plusieursTermesRegex.test(brut)) { apercu.textContent = ''; return; }
     const val = evaluerAdditionChainee(brut);
     apercu.textContent = isNaN(val) ? '' : `= ${fmtNum(val)}`;
