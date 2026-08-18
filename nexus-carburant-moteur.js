@@ -867,6 +867,73 @@
       && dernierControle.cause === nouveau.cause;
   }
 
+  // ============================================================
+  // TARIFS D'ACHAT (cahier "Vocabulaire & intégration du prix d'achat",
+  // 17/08/2026, §4/§5/§6). Le manager saisit un tarif d'achat de
+  // référence par carburant et période tarifaire (carburant_tarifs_achat).
+  // La résolution "quel tarif s'applique à telle date" est faite deux
+  // fois par construction, jamais par accident : côté serveur (trigger
+  // carburant_resoudre_prix_achat_snapshot, à la création d'une ligne de
+  // réception — c'est la valeur qui compte, figée pour toujours) et ici,
+  // côté client, UNIQUEMENT pour l'affichage (l'écran "Tarifs actifs" doit
+  // savoir lequel des tarifs déjà saisis est actif aujourd'hui SANS
+  // attendre une nouvelle réception). Même règle des deux côtés : le plus
+  // récent date_effet <= date cible (Article 11 — une seule règle, deux
+  // implémentations nécessaires seulement parce que l'une tourne en SQL
+  // et l'autre en JS, jamais deux règles différentes).
+  // ============================================================
+
+  const MOTIFS_OVERRIDE_PRIX_ACHAT = [
+    { cle: 'facture_differente', label: 'Facture différente' },
+    { cle: 'avoir_rectification', label: 'Avoir / rectification fournisseur' },
+    { cle: 'changement_exceptionnel', label: 'Changement exceptionnel' },
+    { cle: 'autre', label: 'Autre' },
+  ];
+
+  // `tarifs` = lignes carburant_tarifs_achat d'UN SEUL carburant (déjà
+  // filtrées par l'appelant), ordre quelconque. Retourne le tarif actif à
+  // `dateCibleISO` ou null si aucun tarif n'a de date_effet <= cette date
+  // (cas §5.6 du cahier : "Si aucun tarif n'existe").
+  function resoudreTarifActifParmi(tarifs, dateCibleISO) {
+    let trouve = null;
+    (tarifs || []).forEach(t => {
+      if (t.date_effet > dateCibleISO) return;
+      if (!trouve || t.date_effet > trouve.date_effet) trouve = t;
+    });
+    return trouve;
+  }
+
+  const LIBELLE_SOURCE_TARIF = {
+    facture_fournisseur: 'facture fournisseur',
+    bareme: 'barème',
+    saisie_manager: 'saisie manager',
+    autre: 'autre source',
+  };
+
+  function libelleTarifActif(tarif) {
+    if (!tarif) return "Aucun tarif d'achat actif pour l'instant — l'analyse économique restera non calculable tant qu'un tarif n'est pas saisi.";
+    const dateTxt = (tarif.date_effet || '').split('-').reverse().join('/');
+    const sourceTxt = LIBELLE_SOURCE_TARIF[tarif.source_type] || tarif.source_type || 'source non précisée';
+    return `${tarif.prix_achat_par_litre.toFixed(3)} €/L — effet depuis ${dateTxt} (${sourceTxt})`;
+  }
+
+  // Provenance du prix effectivement appliqué à UNE ligne de réception
+  // (carburant_reception_visite_lignes) — une seule fonction de mise en
+  // phrase pour Économie ET la modale "Relevé de réception" (Article 11) :
+  // jamais deux formulations différentes de la même origine.
+  function libelleSourcePrixLigne(ligne) {
+    if (!ligne || ligne.cout_achat_par_litre == null) return null;
+    if (ligne.prix_achat_override) {
+      const motif = (MOTIFS_OVERRIDE_PRIX_ACHAT.find(m => m.cle === ligne.prix_achat_override_motif) || {}).label || ligne.prix_achat_override_motif || 'motif non précisé';
+      return `Prix spécifique à cette livraison — ${motif}${ligne.cout_saisi_par ? ` (${ligne.cout_saisi_par})` : ''}`;
+    }
+    if (ligne.prix_achat_source_id) return `Tarif d'achat actif du mois${ligne.cout_saisi_par ? ` (${ligne.cout_saisi_par})` : ''}`;
+    // Ligne posée avant l'existence des tarifs d'achat (Sprint C8, saisie
+    // manuelle a posteriori) — jamais confondue avec une résolution
+    // automatique qui n'a pas eu lieu pour cette ligne.
+    return `Saisie manuelle${ligne.cout_saisi_par ? ` (${ligne.cout_saisi_par})` : ''}`;
+  }
+
   global.NexusCarburantMoteur = {
     SEUIL_ECART_PCT_SURVEILLER, SEUIL_ECART_PCT_CORRIGER, CLES_CARBURANT, NOM_CARBURANT_COURT,
     stockReelGoTotal, sommerVentesPeriode,
@@ -886,5 +953,6 @@
     SEUIL_HISTORIQUE_CHAINE_SUFFISANT, statistiquesFiabiliteChaine, libelleFiabiliteChaine,
     calculerCmpApresLivraison, calculerCmpProgressif, libelleCmp,
     calculerEffetPrixStockHerite, libelleEffetPrixStockHerite,
+    MOTIFS_OVERRIDE_PRIX_ACHAT, resoudreTarifActifParmi, libelleTarifActif, libelleSourcePrixLigne,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

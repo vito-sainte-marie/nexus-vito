@@ -266,8 +266,13 @@ const M = global.NexusCarburantMoteur;
 // ------------------------------------------------------------
 (() => {
   assert.deepStrictEqual(M.libelleQualiteControle('fiable'), { texte: 'Fiable', niveau: 'ok' }, 'fiable -> niveau ok');
-  assert.deepStrictEqual(M.libelleQualiteControle('provisoire'), { texte: 'Provisoire', niveau: 'attention' }, 'provisoire -> niveau attention');
-  assert.deepStrictEqual(M.libelleQualiteControle('non_comparable'), { texte: 'Non comparable', niveau: 'attente' }, 'non_comparable -> niveau attente (neutre), jamais alerte (Article 5)');
+  // Cahier "Vocabulaire & intégration du prix d'achat" (17/08/2026) §3
+  // "Grammaire NEXUS à figer" : QUALITÉ DE LA DONNÉE = Fiable / À
+  // confirmer / Historique insuffisant / Comparaison partielle — "A
+  // confirmer" et "Comparaison partielle" remplacent les anciens
+  // "Provisoire" / "Non comparable".
+  assert.deepStrictEqual(M.libelleQualiteControle('provisoire'), { texte: 'A confirmer', niveau: 'attention' }, 'provisoire -> "A confirmer" (§3 grammaire NEXUS), niveau attention');
+  assert.deepStrictEqual(M.libelleQualiteControle('non_comparable'), { texte: 'Comparaison partielle', niveau: 'attente' }, 'non_comparable -> "Comparaison partielle" (§3 grammaire NEXUS), niveau attente (neutre), jamais alerte (Article 5)');
   assert.deepStrictEqual(M.libelleQualiteControle(null), { texte: 'Non calculé', niveau: 'attente' }, 'Aucun contrôle -> "Non calculé", jamais une exception');
   assert.deepStrictEqual(M.libelleQualiteControle('valeur_inconnue'), { texte: 'Non calculé', niveau: 'attente' }, 'Valeur inconnue -> repli neutre, jamais une exception');
   console.log('OK — libelleQualiteControle : badge par carburant fidèle à carburant_controles.qualite, jamais recalculé (Article 11), non_comparable toujours neutre (Article 5).');

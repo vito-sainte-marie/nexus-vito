@@ -142,7 +142,10 @@ function construireRenderReceptionModal(modal) {
   assert.ok(out.includes('Relevé de contrôle'), 'Titre de la modale absent');
   assert.ok(out.includes('Gasoil (GO)') && out.includes('Sans plomb (SP95)') && out.includes('Gasoil non routier (GNR)'), 'Les 3 carburants doivent apparaître');
   assert.ok(out.includes('Fiable'), 'Badge "Fiable" (GO) absent');
-  assert.ok(out.includes('Non comparable'), 'Badge "Non comparable" (SP95) absent');
+  // Cahier "Vocabulaire & intégration du prix d'achat" (17/08/2026) §3 :
+  // "Non comparable" a été remplacé par "Comparaison partielle" dans la
+  // grammaire NEXUS figée (QUALITÉ DE LA DONNÉE).
+  assert.ok(out.includes('Comparaison partielle'), 'Badge "Comparaison partielle" (SP95) absent');
   assert.ok(out.includes('Aucun contrôle posé pour cette date'), 'GNR sans contrôle -> message explicite attendu, jamais un bloc vide silencieux');
   assert.ok(out.includes('point zéro certifié'), 'Référence de départ GO doit citer son type (point zéro certifié)');
   assert.ok(out.includes('-20 L') || out.includes('−20 L'), 'Écart GO (-20 L) doit être affiché');

@@ -71,8 +71,15 @@ function construireFonction(nexusClientMock, nexusReceptionDonneesMock, zone) {
     // module-level réelles de la page, simulées ici en isolation.
     let CONTROLE_CTX = null;
     let DERNIERE_VISITE = null;
+    let DERNIERE_LIVRAISON_AFFICHEE = null;
     function renderMessages() {}
     function ouvrirReleveReception() {}
+    // CAR-UX-07 (17/08/2026) : chargerEtRendreQualiteReceptions() rappelle
+    // rafraichirNoteTerrainLivraison() une fois DERNIERE_VISITE disponible
+    // (voir NEXUS-Carburants-Pilotage-v1.html) — stub neutre ici, cette
+    // note appartient au bloc "Dernière livraison", pas à "Qualité des
+    // réceptions" testé par ce fichier.
+    function rafraichirNoteTerrainLivraison() {}
     return (${fnQualiteSrc.replace(/^async function \w+/, 'async function chargerEtRendreQualiteReceptions')});
   `;
   const fn = new Function('document', 'nexusClient', 'NexusReceptionDonnees', 'NexusReceptionMoteur', 'SITE_ID', prelude)(

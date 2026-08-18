@@ -703,6 +703,81 @@
     return true;
   }
 
+  // ============================================================
+  // TARIFS D'ACHAT (cahier "Vocabulaire & intégration du prix d'achat",
+  // 17/08/2026, §4/§5/§6) — table carburant_tarifs_achat (migration
+  // carburant_tarifs_achat_prix_snapshot). La résolution "quel tarif
+  // s'applique à une date" est faite par la BASE (trigger
+  // carburant_resoudre_prix_achat_snapshot) au moment où une réception est
+  // créée — c'est cette valeur, jamais recalculée, qui compte. Ce fichier
+  // ne fait que charger/écrire des lignes brutes (Article 11) ; l'écran
+  // "Tarifs actifs" utilise en plus NexusCarburantMoteur.resoudreTarifActifParmi
+  // pour savoir, à l'affichage, lequel des tarifs déjà saisis est actif
+  // aujourd'hui — même règle, appliquée côté client uniquement pour
+  // montrer l'état courant, jamais pour écrire une réception.
+  // ============================================================
+
+  // Historique des tarifs d'un carburant, le plus récent en premier —
+  // alimente à la fois "Tarifs actifs" (le premier après tri par
+  // date_effet décroissant est l'actif à ce jour) et l'historique complet
+  // affiché dans le bloc manager "Tarifs carburants".
+  async function chargerHistoriqueTarifsAchat(client, siteId, carburant, limite = 24) {
+    const { data, error } = await client.from('carburant_tarifs_achat')
+      .select('*').eq('site', siteId).eq('carburant', carburant)
+      .order('date_effet', { ascending: false }).order('created_at', { ascending: false })
+      .limit(limite);
+    if (error) { console.error('Chargement historique tarifs achat carburant:', error); return []; }
+    return data || [];
+  }
+
+  // Les 3 carburants d'un coup, pour l'écran Économie/Tarifs — une seule
+  // fonction plutôt que 3 appels dispersés dans l'écran (Article 11).
+  async function chargerHistoriqueTarifsAchatTousCarburants(client, siteId, limite = 24) {
+    const M = global.NexusCarburantMoteur;
+    const resultat = {};
+    await Promise.all(M.CLES_CARBURANT.map(async cle => {
+      resultat[cle] = await chargerHistoriqueTarifsAchat(client, siteId, cle, limite);
+    }));
+    return resultat;
+  }
+
+  // Écriture manager d'un nouveau tarif d'achat de référence (§4 du
+  // cahier) — jamais un UPDATE d'une ligne existante : chaque saisie crée
+  // une nouvelle version, la précédente reste en base telle quelle (§10,
+  // "ne réécrit pas les snapshots déjà appliqués"). `dateFin` optionnelle,
+  // purement informative (la résolution ne s'appuie que sur date_effet,
+  // voir le trigger et resoudreTarifActifParmi).
+  async function enregistrerTarifAchat(client, { site, carburant, dateEffet, dateFin, prixAchatParLitre, prixVenteParLitre, sourceType, sourceReference, createdBy }) {
+    const { data, error } = await client.from('carburant_tarifs_achat').insert({
+      site, carburant, date_effet: dateEffet, date_fin: dateFin || null,
+      prix_achat_par_litre: prixAchatParLitre,
+      prix_vente_par_litre: prixVenteParLitre != null ? prixVenteParLitre : null,
+      source_type: sourceType || 'saisie_manager',
+      source_reference: sourceReference || null,
+      created_by: createdBy || null,
+    }).select().single();
+    if (error) { console.error('Enregistrement tarif achat carburant:', error); return null; }
+    return data;
+  }
+
+  // Override manager "prix spécifique à cette livraison" (§6 du cahier) —
+  // motif obligatoire côté appelant (l'UI bloque l'envoi sans motif, cette
+  // fonction ne fait que persister ce qui lui est donné). Ne touche jamais
+  // carburant_tarifs_achat : le tarif de référence du mois reste intact,
+  // seule cette ligne de réception change.
+  async function enregistrerOverridePrixLigne(client, ligneId, { prixParLitre, motif, nomManager }) {
+    const { error } = await client.from('carburant_reception_visite_lignes').update({
+      cout_achat_par_litre: prixParLitre,
+      cout_saisi_par: nomManager || null,
+      cout_saisi_le: new Date().toISOString(),
+      prix_achat_override: true,
+      prix_achat_override_motif: motif,
+      prix_achat_source_id: null,
+    }).eq('id', ligneId);
+    if (error) { console.error('Enregistrement override prix achat (réception):', error); return false; }
+    return true;
+  }
+
   global.NexusCarburantDonnees = {
     CARBURANTS_INFO, chargerVentesPeriode, chargerControleJour, chargerJoursSansReleve,
     chargerCuvesConfig, chargerConsommationJournaliereMoyenne, CUVES_PAR_DEFAUT,
@@ -711,5 +786,7 @@
     chargerDerniersControles, chargerVersionsControleCarburant,
     chargerHistoriqueControlesCarburant,
     chargerLivraisonsCouteesCarburant, chargerPrixCarburantsCourant, enregistrerCoutAchatLigne,
+    chargerHistoriqueTarifsAchat, chargerHistoriqueTarifsAchatTousCarburants,
+    enregistrerTarifAchat, enregistrerOverridePrixLigne,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

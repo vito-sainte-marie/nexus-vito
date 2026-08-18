@@ -622,13 +622,15 @@
     <button type="button" class="accordion-header" data-key="economie">
       <span class="accordion-icon accordion-icon-dim">💶</span>
       <span class="accordion-titles">
-        <span class="accordion-titre">Économie</span>
-        <span class="accordion-sous">Coût moyen du stock & effet prix</span>
+        <span class="accordion-titre">Économie du stock carburant</span>
+        <span class="accordion-sous">Tarifs actifs, coût moyen & effet prix</span>
       </span>
       <span class="accordion-chevron" id="chevronEconomie">⌄</span>
     </button>
     <div class="accordion-body" id="bodyEconomie">
       <div id="economieZone"><div class="loading">Chargement…</div></div>
+      <div class="lien-historique-neutralise"><a href="#" id="lienGererTarifs">Gérer les tarifs carburants</a></div>
+      <div class="historique-neutralise-detail" id="tarifsPanel" style="display:none;"></div>
     </div>
   </div>
 
@@ -983,7 +985,7 @@
           <div class="carb-stat-row"><span class="lbl">Théorique</span><span class="val">${fmtL(r.theorique)}</span></div>
           <div class="carb-stat-row"><span class="lbl">Écart</span><span class="val" style="color:${r.ecart != null && r.ecart < 0 ? 'var(--red)' : (r.ecart != null && r.ecart > 0 ? 'var(--green)' : 'var(--text)')};">${ecartTxt}${ecartNonFiabilise ? ' <span class="ecart-caveat" title="Chaîne de rapprochement non fiabilisée pour ce carburant — écart informatif, pas une perte confirmée.">ⓘ</span>' : ''}</span></div>
           <div class="carb-autonomie-bloc"><span class="lbl">Autonomie</span><span class="val">${autonomie != null ? `${autonomie.toFixed(1)} j — ${statutAuto}` : '—'}</span></div>
-          <div class="carb-fiab-row" ${statutCourt.titre ? `title="${statutCourt.titre}"` : ''}><span style="color:${couleurFiab.c};">Statut : ${statutCourt.texte}</span><span class="carb-fiab-badge" style="background:${couleurFiab.f}; color:${couleurFiab.c};">${ICONE_NIVEAU[fiabilite.niveau] || '?'}</span></div>
+          <div class="carb-fiab-row" ${statutCourt.titre ? `title="${statutCourt.titre}"` : ''}><span style="color:${couleurFiab.c};">Situation stock : ${statutCourt.texte}</span><span class="carb-fiab-badge" style="background:${couleurFiab.f}; color:${couleurFiab.c};">${ICONE_NIVEAU[fiabilite.niveau] || '?'}</span></div>
           <div class="carb-fiab-row"><span style="color:${couleurQualite.c};">Rapprochement : ${qualite.texte}</span><span class="carb-fiab-badge" style="background:${couleurQualite.f}; color:${couleurQualite.c};">${ICONE_NIVEAU[qualite.niveau] || '?'}</span></div>
         </div>`;
     }).join('');
@@ -1285,7 +1287,7 @@
     DERNIERE_LIVRAISON_AFFICHEE = { date: releve.date, estAujourdhui };
     zone.innerHTML = `
       <div class="livraison-carte">
-        <div class="section-note" style="margin:0 0 4px;">${estAujourdhui ? "Livraison enregistrée sur le relevé du jour (saisie manager)" : `Dernière livraison connue — relevé du ${releve.date.split('-').reverse().join('/')} (saisie manager)`}</div>
+        <div class="section-note" style="margin:0 0 4px;">${estAujourdhui ? "Livraison enregistrée sur le relevé du jour (saisie manager)" : `Dernière livraison historique — relevé du ${releve.date.split('-').reverse().join('/')} (saisie manager)`}</div>
         ${lignes}
         <div class="livraison-ligne livraison-total"><span>Total</span><span>${fmtL(total)}</span></div>
         <div class="section-note" id="livraisonNoteTerrain" style="margin:6px 0 0;"></div>
@@ -1662,11 +1664,15 @@
           <div class="controle-ligne"><span>Écart mesuré / prévu</span><span>${M.texteEcart(ligne.delta_l, ligne.delta_ratio)}</span></div>
           ${global_NexusReceptionDonnees_disponible() ? `<div class="controle-cause" id="signatureLigne_${ligne.carburant}">Comparaison au profil du site…</div>` : ''}
           ${ligne.cout_achat_par_litre != null
-            ? `<div class="controle-ligne"><span>Coût d'achat saisi</span><span>${Number(ligne.cout_achat_par_litre).toFixed(3)} €/L${ligne.cout_saisi_par ? ` (par ${ligne.cout_saisi_par})` : ''}</span></div>`
+            ? `<div class="controle-ligne"><span>Prix d'achat appliqué</span><span>${Number(ligne.cout_achat_par_litre).toFixed(3)} €/L</span></div>
+               <div class="controle-cause">${NexusCarburantMoteur.libelleSourcePrixLigne(ligne)}</div>
+               <div class="lien-historique-neutralise"><a href="#" data-override-ligne-id="${ligne.id}" data-override-carburant="${ligne.carburant}">Utiliser un prix spécifique à cette livraison</a></div>
+               <div class="historique-neutralise-detail" id="overridePanel_${ligne.id}" style="display:none;"></div>`
             : `<div style="display:flex; gap:8px; align-items:center; margin-top:6px;">
-                 <input type="text" inputmode="decimal" class="pointzero-input" id="coutAchatInput_${ligne.id}" placeholder="Coût d'achat €/L (Sprint C8)">
+                 <input type="text" inputmode="decimal" class="pointzero-input" id="coutAchatInput_${ligne.id}" placeholder="Coût d'achat €/L">
                  <button type="button" class="controle-modal-btn secondaire" data-cout-ligne-id="${ligne.id}" data-cout-carburant="${ligne.carburant}" style="white-space:nowrap;">Enregistrer</button>
-               </div>`}
+               </div>
+               <div class="section-note" style="margin-top:4px;">Aucun tarif d'achat actif n'a pu être résolu automatiquement pour cette date — saisie manuelle en attendant qu'un tarif soit défini dans "Gérer les tarifs carburants".</div>`}
         </div>`;
     }).join('');
     const compartimentsNonReceptionnes = (visite.compartiments || []).filter(cp => cp.statut === 'non_receptionne');
@@ -1696,6 +1702,16 @@
     // déjà saisie — il n'y a tout simplement pas de bouton dans ce cas).
     modal.querySelectorAll('[data-cout-ligne-id]').forEach(btn => {
       btn.addEventListener('click', () => enregistrerCoutAchat(btn.dataset.coutLigneId, btn.dataset.coutCarburant, visite));
+    });
+    // Cahier "Vocabulaire & intégration du prix d'achat" §6 — override
+    // manager "prix spécifique à cette livraison" : dépliable au clic,
+    // jamais affiché ouvert par défaut (le prix résolu automatiquement
+    // reste la lecture normale, l'override est une exception assumée).
+    modal.querySelectorAll('[data-override-ligne-id]').forEach(lien => {
+      lien.addEventListener('click', (e) => {
+        e.preventDefault();
+        renderOverridePanel(lien.dataset.overrideLigneId, lien.dataset.overrideCarburant, visite);
+      });
     });
     // Sprint C7 (audit "signature delta livraison") : situe chaque écart de
     // CETTE réception par rapport au profil habituel du site — chargé après
@@ -1738,6 +1754,67 @@
     if (ligne) {
       ligne.cout_achat_par_litre = valeur;
       ligne.cout_saisi_par = MANAGER_COURANT ? MANAGER_COURANT.nom : null;
+    }
+    renderReleveReceptionModal(visite);
+    chargerEtRendreEconomie();
+  }
+
+  // Cahier "Vocabulaire & intégration du prix d'achat" §6 — override
+  // manager "prix spécifique à cette livraison" : motif obligatoire
+  // (liste fermée MOTIFS_OVERRIDE_PRIX_ACHAT, jamais de texte libre seul),
+  // trace intégrale via prix_achat_override + prix_achat_override_motif +
+  // cout_saisi_par/cout_saisi_le (déjà existants, Sprint C8). Ne modifie
+  // jamais le tarif de référence carburant_tarifs_achat — seule cette
+  // ligne de réception change (Article 11 : une exception ponctuelle
+  // n'altère jamais la vérité générale).
+  function renderOverridePanel(ligneId, carburant, visite) {
+    const panel = document.getElementById(`overridePanel_${ligneId}`);
+    if (!panel) return;
+    const dejaOuvert = panel.style.display === 'block';
+    if (dejaOuvert) { panel.style.display = 'none'; return; }
+    const M = NexusCarburantMoteur;
+    panel.innerHTML = `
+      <div class="pointzero-champ-label">Prix d'achat spécifique — €/L</div>
+      <input type="text" inputmode="decimal" class="pointzero-input" id="overridePrix_${ligneId}" placeholder="Ex. 1,450">
+      <div class="pointzero-champ-label">Motif (obligatoire)</div>
+      <select class="pointzero-select" id="overrideMotif_${ligneId}">
+        <option value="">— Choisir un motif —</option>
+        ${M.MOTIFS_OVERRIDE_PRIX_ACHAT.map(m => `<option value="${m.cle}">${m.label}</option>`).join('')}
+      </select>
+      <button type="button" class="controle-modal-btn secondaire" id="overrideValider_${ligneId}" style="margin-top:8px;">Appliquer ce prix spécifique</button>
+    `;
+    panel.style.display = 'block';
+    document.getElementById(`overrideValider_${ligneId}`).addEventListener('click', () => validerOverridePrix(ligneId, carburant, visite));
+  }
+
+  async function validerOverridePrix(ligneId, carburant, visite) {
+    const inputPrix = document.getElementById(`overridePrix_${ligneId}`);
+    const selectMotif = document.getElementById(`overrideMotif_${ligneId}`);
+    const prix = parseFloat(String(inputPrix.value).replace(',', '.'));
+    const motif = selectMotif.value;
+    if (!isFinite(prix) || prix < 0) { alert('Saisissez un prix spécifique valide (nombre positif, en €/L).'); return; }
+    if (!motif) { alert('Le motif est obligatoire pour appliquer un prix spécifique.'); return; }
+
+    const btn = document.getElementById(`overrideValider_${ligneId}`);
+    btn.disabled = true;
+    btn.textContent = 'Enregistrement…';
+
+    const ok = await NexusCarburantDonnees.enregistrerOverridePrixLigne(nexusClient, ligneId, {
+      prixParLitre: prix, motif, nomManager: MANAGER_COURANT ? MANAGER_COURANT.nom : null,
+    });
+    if (!ok) {
+      btn.disabled = false;
+      btn.textContent = 'Appliquer ce prix spécifique';
+      alert('Erreur — réessayez.');
+      return;
+    }
+    const ligne = (visite.lignes || []).find(l => String(l.id) === String(ligneId));
+    if (ligne) {
+      ligne.cout_achat_par_litre = prix;
+      ligne.cout_saisi_par = MANAGER_COURANT ? MANAGER_COURANT.nom : null;
+      ligne.prix_achat_override = true;
+      ligne.prix_achat_override_motif = motif;
+      ligne.prix_achat_source_id = null;
     }
     renderReleveReceptionModal(visite);
     chargerEtRendreEconomie();
@@ -2055,14 +2132,14 @@
             <div class="carb-stat-row"><span class="lbl">Théorique</span><span class="val">${fmtL(r.theorique)}</span></div>
             <div class="carb-stat-row"><span class="lbl">Écart</span><span class="val" style="color:${ecartCouleur};">${ecartTxt}</span></div>
             <div class="carb-autonomie-bloc"><span class="lbl">Autonomie</span><span class="val">${autonomie != null ? `${autonomie.toFixed(1)} j — ${statutAuto}` : '—'}</span></div>
-            <div class="carb-fiab-row"><span style="color:${couleur.c};">Fiabilité : ${fiabilite.texte}</span></div>
+            <div class="carb-fiab-row"><span style="color:${couleur.c};">Situation : ${fiabilite.texte}</span></div>
           </div>`,
         };
       });
       stockTableHTML = `
         <div class="stock-table-wrap">
           <table class="stock-table">
-            <thead><tr><th>Carburant</th><th>Physique</th><th>Théorique</th><th>Écart</th><th>Autonomie</th><th>Fiabilité du contrôle</th></tr></thead>
+            <thead><tr><th>Carburant</th><th>Physique</th><th>Théorique</th><th>Écart</th><th>Autonomie</th><th>Situation stock</th></tr></thead>
             <tbody>${lignesStock.map(l => l.ligne).join('')}</tbody>
           </table>
         </div>
@@ -2527,12 +2604,20 @@
   // coût d'achat n'a été saisi par un manager (voir
   // renderReleveReceptionModal, section "Coût d'achat").
   // ------------------------------------------------------------
+  // TARIFS_HISTORIQUE : {go:[...], sp95:[...], gnr:[...]} — chargé une
+  // fois par chargerEtRendreEconomie(), réutilisé par renderTarifsPanel()
+  // (le lien "Gérer les tarifs carburants") pour ne pas refaire la même
+  // requête deux fois (Article 11). Rafraîchi après chaque nouvelle
+  // saisie de tarif.
+  let TARIFS_HISTORIQUE = null;
+
   async function chargerEtRendreEconomie() {
     const zone = document.getElementById('economieZone');
     if (!zone) return;
     const M = NexusCarburantMoteur;
     const cles = M.CLES_CARBURANT.filter(cle => !CUVES_CONFIG || !CUVES_CONFIG[cle] || CUVES_CONFIG[cle].actif);
     const prix = await NexusCarburantDonnees.chargerPrixCarburantsCourant(nexusClient, SITE_ID);
+    TARIFS_HISTORIQUE = await NexusCarburantDonnees.chargerHistoriqueTarifsAchatTousCarburants(nexusClient, SITE_ID);
     const donnees = {};
     await Promise.all(cles.map(async cle => {
       const livraisons = await NexusCarburantDonnees.chargerLivraisonsCouteesCarburant(nexusClient, SITE_ID, cle, 60);
@@ -2545,10 +2630,26 @@
     renderEconomie(donnees, cles, prix);
   }
 
+  // Cahier "Vocabulaire & intégration du prix d'achat" (17/08/2026), §8
+  // "UX recommandée — section Économie" : Tarifs actifs / Coût moyen du
+  // stock / Effet prix, dans cet ordre — le prix d'achat de référence est
+  // désormais le sujet principal de la section (§1 : "Le prix concerné
+  // dans la section Économie est le prix d'achat du carburant"), le prix
+  // de vente reste une donnée complémentaire, jamais un substitut.
   function renderEconomie(donnees, cles, prix) {
     const zone = document.getElementById('economieZone');
     if (!zone) return;
     const M = NexusCarburantMoteur;
+
+    // Sous-bloc "Tarifs actifs" — le tarif le plus récent avec date_effet
+    // <= aujourd'hui, par carburant (même règle que le trigger serveur qui
+    // fige le snapshot à la création d'une réception — ici uniquement pour
+    // l'affichage, jamais pour écrire quoi que ce soit).
+    const tarifsHTML = cles.map(cle => {
+      const actif = TARIFS_HISTORIQUE ? M.resoudreTarifActifParmi(TARIFS_HISTORIQUE[cle], todayISO()) : null;
+      const prixVenteTxt = prix && prix[cle] != null ? ` · Prix de vente : ${Number(prix[cle]).toFixed(3)} €/L` : '';
+      return `<div class="controle-ligne"><span>${NOM_CARBURANT[cle]}</span><span>${M.libelleTarifActif(actif)}${actif ? prixVenteTxt : ''}</span></div>`;
+    }).join('');
 
     const blocs = cles.map(cle => {
       const { cmpData, effet, stockActuelL } = donnees[cle];
@@ -2577,13 +2678,109 @@
         </div>`;
     }).join('');
 
-    const prixTxt = prix && prix.mois ? `Prix de vente en vigueur (${prix.mois})` : 'Prix de vente en vigueur';
-
     zone.innerHTML = `
-      <div class="historique-souszone">${prixTxt}</div>
+      <div class="historique-souszone">Tarifs actifs</div>
+      ${tarifsHTML}
+      <div class="historique-souszone">Coût moyen du stock & effet prix</div>
       ${blocs}
-      <div class="section-note">Le coût d'achat n'est jamais connu par l'employé au moment de la livraison — un manager le saisit après coup depuis le relevé de réception ("Enregistrer le coût d'achat"). Sans coût saisi, cette section reste vide, jamais un montant fabriqué. "Dernier coût d'achat connu" n'est pas un prix de marché en temps réel, seulement la dernière livraison coûtée sur ce site.</div>
+      <div class="section-note">Le prix d'achat appliqué à chaque réception est résolu automatiquement depuis le tarif actif du mois — jamais ressaisi par l'employé, jamais recalculé rétroactivement si le tarif change ensuite. Sans tarif actif ni coût saisi, cette section reste silencieuse, jamais un montant fabriqué. "Dernier coût d'achat connu" n'est pas un prix de marché en temps réel, seulement la dernière livraison coûtée sur ce site.</div>
     `;
+  }
+
+  // ------------------------------------------------------------
+  // TARIFS CARBURANTS — bloc manager indépendant du parcours employé
+  // (cahier §4). Affiché sous "Gérer les tarifs carburants" au bas de
+  // l'accordéon Économie plutôt qu'un nouvel écran séparé — "sans
+  // alourdir le parcours terrain" (§ objectif du cahier), même esprit que
+  // "Certifier un stock de référence" déjà intégré à cette page. Reste
+  // ouvert/fermé indépendamment des re-rendus de chargerEtRendreEconomie()
+  // (élément HTML séparé, jamais recréé par elle).
+  // ------------------------------------------------------------
+  let TARIFS_PANEL_OUVERT = false;
+  let TARIFS_EN_COURS = false;
+
+  function renderTarifsPanel() {
+    const panel = document.getElementById('tarifsPanel');
+    if (!panel) return;
+    const M = NexusCarburantMoteur;
+    const cles = M.CLES_CARBURANT.filter(cle => !CUVES_CONFIG || !CUVES_CONFIG[cle] || CUVES_CONFIG[cle].actif);
+    const historiqueParCle = cles.map(cle => {
+      const liste = (TARIFS_HISTORIQUE && TARIFS_HISTORIQUE[cle]) || [];
+      if (!liste.length) return `<div class="controle-carburant-bloc"><div class="controle-carburant-titre"><span>${NOM_CARBURANT[cle]}</span></div><div class="controle-vide" style="margin:0;">Aucun tarif saisi pour l'instant.</div></div>`;
+      const actif = M.resoudreTarifActifParmi(liste, todayISO());
+      const lignes = liste.slice(0, 6).map(t => {
+        const dateTxt = (t.date_effet || '').split('-').reverse().join('/');
+        const estActif = actif && actif.id === t.id;
+        return `<div class="controle-ligne"><span>${dateTxt}${estActif ? ' — actif' : ''}</span><span>${Number(t.prix_achat_par_litre).toFixed(3)} €/L</span></div>`;
+      }).join('');
+      return `<div class="controle-carburant-bloc"><div class="controle-carburant-titre"><span>${NOM_CARBURANT[cle]}</span></div>${lignes}</div>`;
+    }).join('');
+    panel.innerHTML = `
+      <div class="pointzero-titre">Tarifs carburants</div>
+      <div class="pointzero-texte">Le manager saisit le tarif d'achat actif au début de chaque période tarifaire, par carburant. Chaque réception suivante le reprend automatiquement (rien à ressaisir côté employé) et en conserve un instantané — modifier ce tarif plus tard ne change jamais les réceptions déjà validées.</div>
+      ${historiqueParCle}
+      <div class="pointzero-champ-label">Carburant</div>
+      <select class="pointzero-select" id="tarif_carburant">${cles.map(cle => `<option value="${cle}">${NOM_CARBURANT[cle]}</option>`).join('')}</select>
+      <div class="pointzero-champ-label">Date d'effet</div>
+      <input type="date" class="pointzero-input" id="tarif_date_effet" value="${todayISO()}">
+      <div class="pointzero-champ-label">Prix d'achat de référence — €/L</div>
+      <input type="text" inputmode="decimal" class="pointzero-input" id="tarif_prix_achat" placeholder="Ex. 1,420">
+      <div class="pointzero-champ-label">Prix de vente (optionnel) — €/L</div>
+      <input type="text" inputmode="decimal" class="pointzero-input" id="tarif_prix_vente" placeholder="Optionnel">
+      <div class="pointzero-champ-label">Source</div>
+      <select class="pointzero-select" id="tarif_source">
+        <option value="facture_fournisseur">Facture fournisseur</option>
+        <option value="bareme">Barème</option>
+        <option value="saisie_manager" selected>Saisie manager</option>
+        <option value="autre">Autre</option>
+      </select>
+      <div class="pointzero-champ-label">Référence (optionnel)</div>
+      <input type="text" class="pointzero-input" id="tarif_source_ref" placeholder="N° de facture, référence…">
+      <button class="pointzero-btn" id="btnTarifValider">Enregistrer ce tarif</button>
+      <div class="pointzero-confirmation" id="tarifsConfirmation"></div>
+    `;
+    document.getElementById('btnTarifValider').addEventListener('click', validerTarifAchat);
+  }
+
+  async function validerTarifAchat() {
+    if (TARIFS_EN_COURS) return;
+    const carburant = document.getElementById('tarif_carburant').value;
+    const dateEffet = document.getElementById('tarif_date_effet').value;
+    const prixAchat = numFRPointZero(document.getElementById('tarif_prix_achat').value);
+    const prixVente = numFRPointZero(document.getElementById('tarif_prix_vente').value);
+    if (!dateEffet) { alert('Choisissez une date d\'effet.'); return; }
+    if (prixAchat == null || prixAchat < 0) { alert('Saisissez un prix d\'achat valide (obligatoire, en €/L).'); return; }
+
+    TARIFS_EN_COURS = true;
+    const btn = document.getElementById('btnTarifValider');
+    btn.disabled = true;
+    btn.textContent = 'Enregistrement…';
+
+    const resultat = await NexusCarburantDonnees.enregistrerTarifAchat(nexusClient, SITE_ID, {
+      site: SITE_ID, carburant, dateEffet,
+      prixAchatParLitre: prixAchat,
+      prixVenteParLitre: prixVente,
+      sourceType: document.getElementById('tarif_source').value,
+      sourceReference: document.getElementById('tarif_source_ref').value.trim() || null,
+      createdBy: MANAGER_COURANT ? MANAGER_COURANT.id : null,
+    });
+
+    TARIFS_EN_COURS = false;
+    if (!resultat) {
+      btn.disabled = false;
+      btn.textContent = 'Enregistrer ce tarif';
+      alert('Erreur — réessayez.');
+      return;
+    }
+
+    await chargerEtRendreEconomie();
+    renderTarifsPanel();
+    const conf = document.getElementById('tarifsConfirmation');
+    if (conf) {
+      conf.textContent = '✓ Tarif enregistré — appliqué automatiquement aux prochaines réceptions à partir de cette date.';
+      conf.classList.add('visible');
+      setTimeout(() => conf.classList.remove('visible'), 4000);
+    }
   }
 
   // ------------------------------------------------------------
@@ -2623,6 +2820,20 @@
       if (POINTZERO_PANEL_OUVERT) { renderPointZeroPanel(); panel.style.display = 'block'; }
       else { panel.style.display = 'none'; }
     });
+
+    // "Gérer les tarifs carburants" — lien statique de #bodyEconomie,
+    // en dehors de #economieZone donc jamais recréé par renderEconomie() ;
+    // wiré une seule fois ici, comme btnPointZeroToggle ci-dessus.
+    const lienTarifs = document.getElementById('lienGererTarifs');
+    if (lienTarifs) {
+      lienTarifs.addEventListener('click', (e) => {
+        e.preventDefault();
+        TARIFS_PANEL_OUVERT = !TARIFS_PANEL_OUVERT;
+        const panel = document.getElementById('tarifsPanel');
+        if (TARIFS_PANEL_OUVERT) { renderTarifsPanel(); panel.style.display = 'block'; }
+        else { panel.style.display = 'none'; }
+      });
+    }
 
     renderBarrePeriodes();
     document.getElementById('btnLibreValider').addEventListener('click', () => {
