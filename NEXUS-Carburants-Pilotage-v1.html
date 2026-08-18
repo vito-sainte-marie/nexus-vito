@@ -2756,7 +2756,13 @@
     btn.disabled = true;
     btn.textContent = 'Enregistrement…';
 
-    const resultat = await NexusCarburantDonnees.enregistrerTarifAchat(nexusClient, SITE_ID, {
+    // Correctif 17/08/2026 : enregistrerTarifAchat(client, options) ne prend
+    // que 2 paramètres — un SITE_ID passé en 2e argument positionnel était
+    // ici destructuré à la place du vrai objet d'options (une chaîne n'a pas
+    // de propriété .site), donc `site` partait `undefined` dans l'insert et
+    // violait la policy RLS `site = current_employee_site_id()` (403/42501,
+    // "Erreur — réessayez." systématique, trouvé par Frédéric en test réel).
+    const resultat = await NexusCarburantDonnees.enregistrerTarifAchat(nexusClient, {
       site: SITE_ID, carburant, dateEffet,
       prixAchatParLitre: prixAchat,
       prixVenteParLitre: prixVente,
