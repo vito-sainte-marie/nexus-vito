@@ -1380,11 +1380,19 @@
       const produitIds = Object.keys(venteParProduit);
       const ecoulements = await calculerEcoulementPhysiqueQuart(quartRow.id, produitIds);
 
-      // Retire les anciennes alertes démarque encore ouvertes pour ce quart
-      // avant d'insérer les nouvelles — jamais les alertes déjà résolues
-      // (trace d'une décision manager, on n'efface pas ça).
-      await nexusClient.from('inventaire_alertes').delete()
-        .eq('quart_id', quartRow.id).eq('type_alerte', 'demarque_ventes').eq('statut', 'ouverte');
+      // Chaîne : recalcul honnête plutôt qu'un effacement silencieux
+      // (18/08/2026, Sprint 6, cahier §13 "Alertes dynamiques", INV2-13 —
+      // "une anomalie résolue sort des alertes actives mais reste dans
+      // l'historique"). Avant ce sprint, TOUTES les alertes démarque
+      // encore ouvertes du quart étaient supprimées puis réinsérées à
+      // chaque réimport : un écart qui disparaissait au réimport perdait
+      // toute trace. On charge maintenant les alertes ouvertes existantes,
+      // et NexusInventaireMoteur.reconciliationAlertesDemarque() calcule le
+      // diff exact (résoudre / mettre à jour en place / créer), appliqué
+      // plus bas après le calcul des écarts.
+      const { data: alertesOuvertesExistantes, error: eAlertesExistantes } = await nexusClient.from('inventaire_alertes')
+        .select('id, produit_id').eq('quart_id', quartRow.id).eq('type_alerte', 'demarque_ventes').eq('statut', 'ouverte');
+      if (eAlertesExistantes) console.error('Chargement alertes démarque existantes:', eAlertesExistantes);
 
       // Rapprochement différé par produit (18/08/2026, Sprint 5 Decenium,
       // cahier §8/§11, INV2-12) : une ligne persistée par produit rapproché
@@ -1393,11 +1401,14 @@
       // (fiable/non_comparable, NexusInventaireMoteur.qualiteRapprochementProduit)
       // — jamais un faux écart quand le comptage manque (doctrine §2/§12).
       // Remplace-pas-accumule comme inventaire_ventes_import juste au-dessus :
-      // un nouvel import du même quart remplace le rapprochement précédent.
+      // un nouvel import du même quart remplace le rapprochement précédent
+      // (le rapprochement lui-même n'est pas une alerte, rien à préserver
+      // ligne à ligne ici — seule la reconciliation des ALERTES, ci-dessous,
+      // doit préserver l'historique).
       await nexusClient.from('inventaire_rapprochements').delete().eq('quart_id', quartRow.id);
 
       let nbEcarts = 0, nbSansComptage = 0, valeurEstimee = 0;
-      const nouvellesAlertes = [];
+      const ecartsAuDessusSeuil = [];
       const nouveauxRapprochements = [];
       for (const produitId of produitIds) {
         const detail = ecoulements[produitId];
@@ -1422,9 +1433,8 @@
           nbEcarts++;
           const prixUnitaire = prixVenteParProduit[produitId];
           if (prixUnitaire != null) valeurEstimee += Math.abs(ecart) * prixUnitaire;
-          nouvellesAlertes.push({
-            site: siteId, quart_id: quartRow.id, produit_id: produitId, type_alerte: 'demarque_ventes',
-            gravite: Math.abs(ecart) > 3 ? 'critique' : 'attention',
+          ecartsAuDessusSeuil.push({
+            produit_id: produitId, gravite: Math.abs(ecart) > 3 ? 'critique' : 'attention',
             valeur_attendue: venteDecenium, valeur_constatee: ecoulement,
             // Valeur estimée persistée par alerte (02/08/2026, supervision
             // configurable) — alimente estimatedValue dans les synthèses
@@ -1438,8 +1448,32 @@
         const { error: eRappr } = await nexusClient.from('inventaire_rapprochements').insert(nouveauxRapprochements);
         if (eRappr) console.error('Insertion rapprochements Decenium:', eRappr);
       }
-      if (nouvellesAlertes.length) {
-        const { error: eAlertes } = await nexusClient.from('inventaire_alertes').insert(nouvellesAlertes);
+
+      // Application du diff (Sprint 6) : résoudre (jamais supprimer),
+      // mettre à jour en place (préserve assignee_a/vue_par/cree_le), créer
+      // uniquement les produits réellement nouveaux en écart.
+      const { aResoudre, aMettreAJour, aCreer } = NexusInventaireMoteur.reconciliationAlertesDemarque({
+        alertesOuvertesExistantes: alertesOuvertesExistantes || [], ecartsAuDessusSeuil,
+      });
+      if (aResoudre.length) {
+        const { error: eResoudre } = await nexusClient.from('inventaire_alertes')
+          .update({ statut: 'resolue', resolution: 'Écart disparu après nouvel import Decenium', resolue_le: new Date().toISOString() })
+          .in('id', aResoudre);
+        if (eResoudre) console.error('Résolution automatique alertes démarque disparues:', eResoudre);
+      }
+      for (const maj of aMettreAJour) {
+        const { id, ...champs } = maj;
+        const { error: eMaj } = await nexusClient.from('inventaire_alertes').update(champs).eq('id', id);
+        if (eMaj) console.error('Mise à jour alerte démarque recalculée:', eMaj);
+      }
+      if (aCreer.length) {
+        const { error: eAlertes } = await nexusClient.from('inventaire_alertes').insert(
+          aCreer.map(e => ({
+            site: siteId, quart_id: quartRow.id, produit_id: e.produit_id, type_alerte: 'demarque_ventes',
+            gravite: e.gravite, valeur_attendue: e.valeur_attendue, valeur_constatee: e.valeur_constatee,
+            valeur_estimee: e.valeur_estimee,
+          }))
+        );
         if (eAlertes) console.error('Insertion alertes démarque:', eAlertes);
       }
 

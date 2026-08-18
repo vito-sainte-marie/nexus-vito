@@ -307,11 +307,55 @@
     };
   }
 
+  // ============================================================
+  // Sprint 6 — Chaîne : recalcul, alertes résolues, jamais un effacement
+  // silencieux (cahier §13 "Alertes dynamiques", INV2-13). Avant ce sprint,
+  // comparerVentesQuart (NEXUS-Inventaire-Manager-v1.html) supprimait
+  // purement et simplement toutes les alertes démarque encore ouvertes du
+  // quart avant d'en réinsérer de nouvelles à chaque réimport — un écart
+  // qui disparaissait au réimport perdait toute trace (violant "une
+  // anomalie résolue sort des alertes actives mais reste dans
+  // l'historique", INV2-13, et "Export importé plus tard -> Recalcul", pas
+  // "Export importé plus tard -> table rasée"). Ce moteur calcule le
+  // diff : les alertes dont le produit n'a plus d'écart exploitable
+  // deviennent résolues (jamais supprimées), celles dont le produit a
+  // toujours un écart sont mises à jour en place (préserve assignee_a/
+  // vue_par/cree_le — pas une nouvelle ligne), et seuls les produits
+  // réellement nouveaux en écart déclenchent une insertion.
+  // ============================================================
+
+  function reconciliationAlertesDemarque({ alertesOuvertesExistantes, ecartsAuDessusSeuil }) {
+    const existantes = alertesOuvertesExistantes || [];
+    const ecarts = ecartsAuDessusSeuil || [];
+    const ecartParProduit = new Map(ecarts.map(e => [e.produit_id, e]));
+    const produitsAvecAlerteExistante = new Set(existantes.map(a => a.produit_id));
+
+    const aResoudre = existantes
+      .filter(a => !ecartParProduit.has(a.produit_id))
+      .map(a => a.id);
+
+    const aMettreAJour = existantes
+      .filter(a => ecartParProduit.has(a.produit_id))
+      .map(a => {
+        const e = ecartParProduit.get(a.produit_id);
+        return {
+          id: a.id, valeur_attendue: e.valeur_attendue, valeur_constatee: e.valeur_constatee,
+          valeur_estimee: e.valeur_estimee != null ? e.valeur_estimee : null,
+          gravite: e.gravite,
+        };
+      });
+
+    const aCreer = ecarts.filter(e => !produitsAvecAlerteExistante.has(e.produit_id));
+
+    return { aResoudre, aMettreAJour, aCreer };
+  }
+
   global.NexusInventaireMoteur = {
     FAMILLES_CONTROLE, DEFAUT_DELAI_MAX_JOURS_PAR_FAMILLE,
     libelleRaisonSelection, joursEntreDates, delaiMaxJours, produitEligibleQuart,
     hashDeterministe, prngDeterministe, tirerSurprisesDeterministe,
     construirePlanComptage, libelleTotalProduit,
     qualiteRapprochementProduit, libelleQualiteRapprochement, couverturePhysique,
+    reconciliationAlertesDemarque,
   };
 })(typeof window !== 'undefined' ? window : globalThis);
