@@ -993,6 +993,50 @@
     return { applicables, aRevoir };
   }
 
+  // ============================================================
+  // FDJ Fiabilisation — Étape 3 : boîte d'exceptions manager (cahier
+  // `NEXUS_FDJ_Audit_Fiabilisation_Chaine_Quarts.pdf`, §12 — "Le manager ne
+  // doit pas chercher les incohérences jeu par jeu. NEXUS doit regrouper
+  // les causes racines."). Fonction PURE d'agrégation uniquement — ne
+  // détecte rien elle-même, ne fait que regrouper des signaux déjà
+  // calculés/chargés ailleurs (Article 11) :
+  //  - correctionsRetroactives : union (déjà faite par l'appelant) des
+  //    alertes 'stock_initial_modifie' encore ouvertes et des quarts
+  //    a_revoir=true (posés par propagationCorrectionStock, Étape 2) —
+  //    dans les deux cas "une valeur de stock a changé, un manager doit
+  //    vérifier/valider avant de faire confiance à ce qui en dépend".
+  //  - quartsManquants : alertes 'chaine_interrompue' encore ouvertes
+  //    (chaineInterrompueDynamique).
+  //  - carnetsARapprocher : jeux dont approNonTraceParJeu > 0 — même
+  //    détection que le badge "⚠️ À rapprocher" de l'écran État du stock
+  //    (etatLigneStockV2).
+  //  - ecartsRecalcules : relevés de clôture 'recalcul_automatique_chaine'
+  //    (statutRelevecloture) pas encore marqués revalidés par un manager.
+  //  - replaysRequis : vide tant que needs_replay (Étape 4) n'existe pas —
+  //    le type reste dans la synthèse pour ne pas retoucher cette fonction
+  //    quand l'Étape 4 arrivera.
+  // `signaux` : { correctionsRetroactives, quartsManquants,
+  // carnetsARapprocher, ecartsRecalcules, replaysRequis } — chaque clé
+  // attend un tableau (vide si absent, jamais une exception, Article 5).
+  function syntheseExceptionsManager(signaux) {
+    const s = signaux || {};
+    const categorie = (cle, libelleUn, libellePlusieurs) => {
+      const items = s[cle] || [];
+      return { cle, count: items.length, items, libelle: items.length <= 1 ? libelleUn : libellePlusieurs };
+    };
+    const categories = [
+      categorie('correctionsRetroactives', 'correction rétroactive', 'corrections rétroactives'),
+      categorie('quartsManquants', 'quart manquant', 'quarts manquants'),
+      categorie('carnetsARapprocher', 'carnet à rapprocher', 'carnets à rapprocher'),
+      categorie('ecartsRecalcules', 'écart recalculé', 'écarts recalculés'),
+      categorie('replaysRequis', 'replay requis', 'replays requis'),
+    ];
+    const total = categories.reduce((acc, c) => acc + c.count, 0);
+    const parties = categories.filter(c => c.count > 0).map(c => `${c.count} ${c.libelle}`);
+    const phrase = total === 0 ? "Aucune exception à vérifier aujourd'hui." : `À vérifier aujourd'hui : ${parties.join(' - ')}.`;
+    return { total, categories, phrase };
+  }
+
   global.NexusFdjMoteur = {
     calculerVentesJeu, ventesGrattageTotal, caisseGrattage, caisseAttendue, ecartCaisse, permissionsEcartCaisseEmploye,
     soldesCarnetsParJeu, soldeCarnetsJeu, soldesCarnetsAvecReference,
@@ -1008,5 +1052,6 @@
     etatLigneStockV2, phraseFamillePalier, syntheseGlobaleFdjStock,
     statutRelevecloture, diffClotureFdj, caractereRelevecloture,
     propagationCorrectionStock,
+    syntheseExceptionsManager,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

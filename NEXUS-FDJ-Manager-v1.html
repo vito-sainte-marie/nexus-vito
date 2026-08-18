@@ -995,6 +995,139 @@
     `;
   }
 
+  // ============================================================
+  // FDJ Fiabilisation — Étape 3 : boîte d'exceptions manager (cahier §12).
+  // Ces trois chargeurs n'ajoutent QUE les signaux qui n'étaient encore
+  // listés nulle part (a_revoir, écarts recalculés à revalider) ou qui
+  // nécessitent un agrégat léger dédié (carnets à rapprocher, sans le
+  // calcul complet — rotation/autonomie/tickets restants — de l'écran
+  // État du stock) — les alertes 'stock_initial_modifie' et
+  // 'chaine_interrompue' sont déjà chargées par chargerAlertesNonVues et
+  // réutilisées telles quelles dans renderAccueil (Article 11, jamais une
+  // deuxième requête pour la même donnée).
+  // ============================================================
+
+  // Quarts a_revoir=true (posés par propagationCorrectionStock, Étape 2) —
+  // jusqu'ici un booléen consommé objet-par-objet par calculerIntegriteQuart
+  // (badge de confiance), jamais une liste dédiée pour le manager.
+  async function chargerQuartsARevoir() {
+    const { data, error } = await nexusClient.from('fdj_shifts')
+      .select('id, date, quart, a_revoir_motif, a_revoir_depuis_le')
+      .eq('site', siteId).eq('a_revoir', true).order('a_revoir_depuis_le', { ascending: false });
+    if (error) { console.error('Chargement quarts à revoir FDJ:', error); return []; }
+    return data || [];
+  }
+
+  // Carnets à rapprocher — même détection que le badge "⚠️ À rapprocher" de
+  // l'écran État du stock (NexusFdjMoteur.approNonTraceParJeu), en agrégat
+  // léger : pas de rotation/autonomie/tickets restants ici, inutiles pour
+  // ce seul comptage (Article 11 : même fonction moteur, appelée avec
+  // moins de contexte que ouvrirStockEtat qui en a besoin pour autre chose).
+  async function chargerCarnetsARapprocher() {
+    const [{ mouvements, reference }, shiftCountsStock] = await Promise.all([soldesActuels(), chargerShiftCountsStock()]);
+    const referenceCreeLe = reference ? reference.creeLe : null;
+    const total = NexusFdjMoteur.approNonTraceParJeu(shiftCountsStock, mouvements, referenceCreeLe);
+    return Object.keys(total).filter(gameId => total[gameId] > 0).map(gameId => ({ game_id: gameId, approNonTrace: total[gameId] }));
+  }
+
+  // Écarts recalculés automatiquement (rétablissement de chaîne, Continuité
+  // FDJ v2) pas encore revalidés par un manager. `fdj_releves_cloture`
+  // reste un ledger append-only (RLS SELECT+INSERT uniquement, voir
+  // sécurisation structurelle) : la "revalidation" n'écrit donc JAMAIS
+  // cette table, seulement une entrée fdj_audit_log (action
+  // 'exception_ecart_recalcule_revalide') consultée ici pour exclure ce qui
+  // a déjà été revu — voir revaliderEcartRecalcule ci-dessous.
+  async function chargerEcartsRecalculesAValider() {
+    // `date`/`quart` sont déjà des colonnes directes de fdj_releves_cloture
+    // (snapshot immuable) — pas besoin de rejoindre fdj_shifts pour le
+    // libellé (Article 11 : une donnée déjà disponible, jamais rechargée).
+    const { data: releves, error } = await nexusClient.from('fdj_releves_cloture')
+      .select('id, shift_id, date, quart, version_num, cree_le').eq('site', siteId).eq('type_version', 'recalcul_automatique_chaine')
+      .order('cree_le', { ascending: false });
+    if (error) { console.error('Chargement relevés recalculés FDJ:', error); return []; }
+    if (!releves || !releves.length) return [];
+    const { data: revalides, error: eRevalides } = await nexusClient.from('fdj_audit_log')
+      .select('entite_id').eq('site', siteId).eq('action', 'exception_ecart_recalcule_revalide').in('entite_id', releves.map(r => r.id));
+    if (eRevalides) console.error('Chargement revalidations écarts recalculés FDJ:', eRevalides); // non bloquant, tant pis on affiche tout
+    const dejaRevalides = new Set((revalides || []).map(r => r.entite_id));
+    return releves.filter(r => !dejaRevalides.has(r.id));
+  }
+
+  async function revaliderEcartRecalcule(releveId, shiftId) {
+    const { error } = await nexusClient.from('fdj_audit_log').insert({
+      site: siteId, shift_id: shiftId, entite_type: 'fdj_releves_cloture', entite_id: releveId,
+      action: 'exception_ecart_recalcule_revalide', acteur_id: managerCourant.id,
+      motif: "Écart recalculé automatiquement après rétablissement de chaîne, revu par le manager (boîte d'exceptions).",
+      ancienne_valeur: null, nouvelle_valeur: null,
+    });
+    if (error) { console.error('Revalidation écart recalculé FDJ:', error); alert("Erreur d'enregistrement. Réessayez."); return false; }
+    return true;
+  }
+
+  function renderBoiteExceptions(exceptions) {
+    if (!exceptions.total) return '';
+    const items = (categorie) => (categorie.items || []).map(item => renderExceptionItem(categorie.cle, item)).join('');
+    return `
+      <div class="section-titre">📋 Boîte d'exceptions (${exceptions.total})</div>
+      <div class="card" style="margin-bottom:16px;">
+        <div class="jeu-row" style="padding:10px 14px;"><div class="histo-sub">${exceptions.phrase}</div></div>
+        <button type="button" id="btnBoiteExceptionsToggle" style="width:100%; text-align:left; background:none; border:none; border-top:1px solid var(--border); padding:10px 14px; color:var(--gold); cursor:pointer; font:inherit;">
+          Voir le détail ▾
+        </button>
+        <div id="boiteExceptionsDetail" style="display:none; border-top:1px solid var(--border);">
+          ${exceptions.categories.filter(c => c.count).map(c => `
+            <div class="jeu-row" style="padding:8px 14px; background:rgba(255,255,255,0.02);"><div class="histo-sub" style="font-weight:600;">${c.count} ${c.libelle}</div></div>
+            ${items(c)}
+          `).join('')}
+        </div>
+      </div>
+    `;
+  }
+
+  function renderExceptionItem(categorieCle, item) {
+    if (categorieCle === 'correctionsRetroactives') {
+      if (item.type === 'stock_initial_modifie') {
+        return `
+          <div class="jeu-row" style="padding:10px 14px 10px 22px;">
+            <div class="histo-sub" style="margin-bottom:8px;">Stock d'ouverture modifié — ${nomJeu(item.game_id)} · ${libelleQuart(item.quartActuel)}</div>
+            <button type="button" class="btn-modifier" data-corriger="${item.shift_id}" style="margin-top:0;">Vérifier</button>
+          </div>`;
+      }
+      // quart a_revoir=true — voir NexusFdjMoteur.propagationCorrectionStock (Étape 2)
+      return `
+        <div class="jeu-row" style="padding:10px 14px 10px 22px;">
+          <div class="histo-sub" style="margin-bottom:8px;">Quart ${item.date} · Q${item.quart} — stock initial à confirmer après une correction du quart précédent</div>
+          <button type="button" class="btn-modifier" data-corriger="${item.id}" style="margin-top:0;">Vérifier / valider</button>
+        </div>`;
+    }
+    if (categorieCle === 'quartsManquants') {
+      const nbManquants = (item.quarts_manquants || []).length;
+      return `
+        <div class="jeu-row" style="padding:10px 14px 10px 22px;">
+          <div class="histo-sub" style="margin-bottom:8px;">Quart manquant avant ${libelleQuart(item.quartActuel)}${nbManquants ? ` (${nbManquants} quart${nbManquants > 1 ? 's' : ''})` : ''}</div>
+          <button type="button" class="btn-modifier" data-voir-journal-exception style="margin-top:0;">Voir le journal</button>
+        </div>`;
+    }
+    if (categorieCle === 'carnetsARapprocher') {
+      return `
+        <div class="jeu-row" style="padding:10px 14px 10px 22px;">
+          <div class="histo-sub" style="margin-bottom:8px;">${nomJeu(item.game_id)} — appro non tracé (${item.approNonTrace} ticket${item.approNonTrace > 1 ? 's' : ''})</div>
+          <button type="button" class="btn-modifier" data-ouvrir-etat-stock-exception style="margin-top:0;">Voir chronologie</button>
+        </div>`;
+    }
+    if (categorieCle === 'ecartsRecalcules') {
+      return `
+        <div class="jeu-row" style="padding:10px 14px 10px 22px;">
+          <div class="histo-sub" style="margin-bottom:8px;">${libelleQuart(item)} — écart recalculé automatiquement (v${item.version_num})</div>
+          <div style="display:flex; gap:8px;">
+            <button type="button" class="btn-modifier" data-voir-releve-exception="${item.shift_id}" style="margin-top:0; flex:1;">Voir le relevé</button>
+            <button type="button" class="btn-modifier" data-revalider-ecart="${item.id}" data-revalider-shift="${item.shift_id}" style="margin-top:0; flex:1; color:var(--text-mid); border-color:var(--hairline);">Revalider</button>
+          </div>
+        </div>`;
+    }
+    return ''; // 'replaysRequis' — toujours vide tant que l'Étape 4 n'existe pas
+  }
+
   // Comparaison stock_final(quart précédent) / stock_initial(quart
   // actuel) jeu par jeu (16/08/2026) — colle Supabase autour de la
   // fonction pure NexusFdjMoteur.ecartsContinuiteStock.
@@ -1608,9 +1741,11 @@
     document.getElementById('sousTitre').textContent = '';
     document.getElementById('content').innerHTML = '<div class="loading">Chargement…</div>';
 
+    if (!jeux.length) jeux = await chargerJeux();
     const aujourdhui = dateISO();
-    const [duJour, historique, alertesInitiales, soldesNegatifs, verrousJour, relevesEnErreur] = await Promise.all([
+    const [duJour, historique, alertesInitiales, soldesNegatifs, verrousJour, relevesEnErreur, quartsARevoir, carnetsARapprocher, ecartsRecalculesAValider] = await Promise.all([
       chargerShiftsAvecCaisse(aujourdhui), chargerShiftsAvecCaisse(null), chargerAlertesNonVues(), calculerSoldesNegatifs(), chargerVerrousJour(), chargerShiftsReleveEnErreur(),
+      chargerQuartsARevoir(), chargerCarnetsARapprocher(), chargerEcartsRecalculesAValider(),
     ]);
     // Recalcul dynamique de la chaîne (16/08/2026, demande de Frédéric) : à
     // CHAQUE affichage de cet accueil — donc après toute création,
@@ -1627,8 +1762,19 @@
     const quart1 = duJour.find(s => s.quart === '1');
     const quart2 = duJour.find(s => s.quart === '2');
 
+    // FDJ Fiabilisation — Étape 3 : agrégation des signaux déjà chargés
+    // ci-dessus, jamais une nouvelle détection (Article 11 — voir
+    // NexusFdjMoteur.syntheseExceptionsManager).
+    const exceptions = NexusFdjMoteur.syntheseExceptionsManager({
+      correctionsRetroactives: [...alertes.filter(a => a.type === 'stock_initial_modifie'), ...quartsARevoir],
+      quartsManquants: alertes.filter(a => a.type === 'chaine_interrompue'),
+      carnetsARapprocher, ecartsRecalcules: ecartsRecalculesAValider, replaysRequis: [],
+    });
+
     document.getElementById('content').innerHTML = `
       ${renderRelevesEnErreurBloc(relevesEnErreur)}
+
+      ${renderBoiteExceptions(exceptions)}
 
       ${soldesNegatifs.length ? `
         <div class="section-titre">🔴 Mouvements FDJ à vérifier (${soldesNegatifs.length})</div>
@@ -1812,6 +1958,55 @@
             vue_par: managerCourant.id, vue_le: new Date().toISOString(),
           });
           if (error) { console.error('Acquittement solde négatif FDJ:', error); btn.disabled = false; return; }
+          renderAccueil();
+        });
+      });
+    }
+
+    // FDJ Fiabilisation — Étape 3 : boîte d'exceptions manager.
+    const btnBoiteExceptionsToggle = document.getElementById('btnBoiteExceptionsToggle');
+    if (btnBoiteExceptionsToggle) {
+      btnBoiteExceptionsToggle.addEventListener('click', () => {
+        const bloc = document.getElementById('boiteExceptionsDetail');
+        const ouvert = bloc.style.display !== 'none';
+        bloc.style.display = ouvert ? 'none' : '';
+        btnBoiteExceptionsToggle.textContent = btnBoiteExceptionsToggle.textContent.replace(ouvert ? '▴' : '▾', ouvert ? '▾' : '▴');
+      });
+    }
+    const boiteExceptionsDetail = document.getElementById('boiteExceptionsDetail');
+    if (boiteExceptionsDetail) {
+      boiteExceptionsDetail.querySelectorAll('[data-corriger]').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const shift = await chargerShiftAvecCaisseParId(btn.dataset.corriger);
+          if (!shift) return;
+          await ouvrirEditionExistant(shift);
+        });
+      });
+      boiteExceptionsDetail.querySelectorAll('[data-voir-journal-exception]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const bloc = document.getElementById('journalChaineHistorique');
+          const toggle = document.getElementById('btnJournalChaineToggle');
+          if (!bloc || !toggle) return;
+          bloc.style.display = '';
+          toggle.textContent = toggle.textContent.replace('▾', '▴');
+          toggle.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        });
+      });
+      boiteExceptionsDetail.querySelectorAll('[data-ouvrir-etat-stock-exception]').forEach(btn => {
+        btn.addEventListener('click', () => ouvrirStockEtat());
+      });
+      boiteExceptionsDetail.querySelectorAll('[data-voir-releve-exception]').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const shift = await chargerShiftAvecCaisseParId(btn.dataset.voirReleveException);
+          if (!shift) return;
+          await ouvrirReleveQuart(shift);
+        });
+      });
+      boiteExceptionsDetail.querySelectorAll('[data-revalider-ecart]').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          btn.disabled = true;
+          const ok = await revaliderEcartRecalcule(btn.dataset.revaliderEcart, btn.dataset.revaliderShift);
+          if (!ok) { btn.disabled = false; return; }
           renderAccueil();
         });
       });
