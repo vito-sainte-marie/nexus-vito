@@ -3629,6 +3629,91 @@
       }
     }
 
+    // 7) Propagation automatique + versionnage + repassage a_revoir +
+    // alerte manager (18/08/2026, FDJ Fiabilisation Étape 2 — cahier
+    // `NEXUS_FDJ_Audit_Fiabilisation_Chaine_Quarts.pdf`, désigné par
+    // Frédéric dans le cadrage de l'Étape 1 comme "le vrai cœur du risque
+    // signalé"). Jusqu'ici, seule une chaîne qui se RÉTABLIT après rupture
+    // déclenchait une réconciliation (reconcilierAlertesChaine, Continuité
+    // FDJ v2) — une régularisation manager directe sur un quart déjà lié à
+    // son suivant ne propageait rien : le stock_initial du quart suivant
+    // pouvait rester silencieusement incohérent avec le stock_final tout
+    // juste corrigé. Ne s'applique qu'à une régularisation d'un quart
+    // EXISTANT (une création n'a pas de "avant" à comparer) et seulement
+    // si au moins un stock_final a réellement changé (Article 5). Même
+    // sens de propagation que ecartsContinuiteAAppliquer/
+    // appliquerCorrectionsAutomatiquesContinuite déjà existants — du quart
+    // corrigé vers celui qui le suit immédiatement (Article 11).
+    if (!edition.estNouveau && edition.avant && edition.avant.counts) {
+      const corrections = [];
+      jeux.forEach(j => {
+        const avantFinal = edition.avant.counts[j.id] ? edition.avant.counts[j.id].stock_final : null;
+        const s = edition.counts[j.id];
+        const apresFinal = s ? (s.stock_final ?? null) : null;
+        if (avantFinal !== apresFinal && apresFinal !== null) corrections.push({ game_id: j.id, nouvelle_valeur: apresFinal });
+      });
+
+      if (corrections.length) {
+        // Versionnage (18/08/2026) : simple compteur monotone sur le quart
+        // corrigé lui-même — la colonne `version` posée en Étape 1 restait
+        // jusqu'ici jamais consommée. Un marqueur "ce quart a été corrigé
+        // N fois", pas un second historique complet (déjà couvert par
+        // fdj_audit_log + fdj_releves_cloture ci-dessus, Article 11).
+        await nexusClient.from('fdj_shifts').update({ version: (shift.version || 0) + 1 }).eq('id', shift.id);
+
+        const suivant = NexusFdjMoteur.quartSuivant(shift.date, shift.quart);
+        const { data: shiftSuivant } = await nexusClient.from('fdj_shifts').select('*')
+          .eq('site', siteId).eq('date', suivant.date).eq('quart', suivant.quart).maybeSingle();
+
+        if (shiftSuivant) {
+          const { data: countsSuivant } = await nexusClient.from('fdj_shift_counts')
+            .select('game_id, stock_initial, stock_initial_auto').eq('shift_id', shiftSuivant.id)
+            .in('game_id', corrections.map(c => c.game_id));
+          const contexteSuivant = {};
+          (countsSuivant || []).forEach(c => { contexteSuivant[c.game_id] = { stock_initial: c.stock_initial, stock_initial_auto: c.stock_initial_auto === true }; });
+
+          const { applicables, aRevoir } = NexusFdjMoteur.propagationCorrectionStock(corrections, contexteSuivant);
+
+          if (applicables.length) {
+            await appliquerCorrectionsAutomatiquesContinuite(shiftSuivant.id, applicables);
+            await nexusClient.from('fdj_shifts').update({ version: (shiftSuivant.version || 0) + 1 }).eq('id', shiftSuivant.id);
+            await nexusClient.from('fdj_audit_log').insert({
+              site: siteId, shift_id: shiftSuivant.id, entite_type: 'fdj_shift_counts', entite_id: shiftSuivant.id,
+              action: 'fdj_propagation_correction_stock_amont', acteur_id: managerCourant.id,
+              motif: `Propagation automatique après correction manager du quart précédent (${libelleQuart(shift)}) — stock_initial encore hérité, jamais confirmé par un humain.`,
+              ancienne_valeur: null, nouvelle_valeur: { jeux: applicables.map(a => a.game_id) },
+            });
+          }
+
+          if (aRevoir.length) {
+            const { data: existantes } = await nexusClient.from('fdj_alertes').select('id, game_id')
+              .eq('site', siteId).eq('type', 'continuite_stock_a_verifier').eq('shift_id', shiftSuivant.id).eq('resolue_automatiquement', false);
+            const gamesDejaSignales = new Set((existantes || []).map(r => r.game_id));
+            const nouvelles = aRevoir.filter(e => !gamesDejaSignales.has(e.game_id)).map(e => ({
+              site: siteId, type: 'continuite_stock_a_verifier', shift_id: shiftSuivant.id, shift_precedent_id: shift.id,
+              game_id: e.game_id, valeur_quart_precedent: e.valeur_quart_precedent, valeur_saisie: e.valeur_saisie,
+              employee_id: shiftSuivant.employee_id || null,
+            }));
+            if (nouvelles.length) {
+              const { error: eAlerte } = await nexusClient.from('fdj_alertes').insert(nouvelles);
+              if (eAlerte) console.error('Alerte propagation correction stock FDJ:', eAlerte);
+            }
+            // Repassage a_revoir (18/08/2026) — colonne posée en Étape 1,
+            // jusqu'ici jamais écrite par aucun code : le quart suivant
+            // porte désormais explicitement la trace qu'une valeur en
+            // amont a changé sous ses pieds et mérite un nouveau regard
+            // manager, même si son propre statut reste 'valide'
+            // (orthogonal, jamais fusionné avec le statut — même
+            // discipline que le reste du schéma FDJ).
+            await nexusClient.from('fdj_shifts').update({
+              a_revoir: true, a_revoir_motif: 'correction_amont_stock_initial_deja_confirme',
+              a_revoir_depuis_le: new Date().toISOString(),
+            }).eq('id', shiftSuivant.id);
+          }
+        }
+      }
+    }
+
     edition = null;
     afficherChoixApresEnregistrement();
   }

@@ -938,6 +938,61 @@
     return Object.keys(diff).length ? diff : null;
   }
 
+  // ============================================================
+  // FDJ Fiabilisation — Étape 2 : versionnage des corrections de stock +
+  // propagation automatique + repassage a_revoir + alerte manager (cahier
+  // `NEXUS_FDJ_Audit_Fiabilisation_Chaine_Quarts.pdf`, désigné par Frédéric
+  // lui-même dans le cadrage de l'Étape 1 comme "le vrai cœur du risque
+  // signalé"). Jusqu'ici, `ecartsContinuiteAAppliquer` ne traitait que la
+  // reconstruction APRÈS rétablissement d'une chaîne rompue
+  // (`reconcilierAlertesChaine`, Continuité FDJ v2, 16-18/08) — mais une
+  // régularisation manager directe sur un quart déjà lié à son suivant
+  // (`enregistrerEdition`, écran "Modifier ce quart FDJ") ne déclenchait
+  // AUCUNE propagation ni alerte : le stock_initial du quart suivant
+  // pouvait rester silencieusement incohérent avec le nouveau stock_final
+  // corrigé. Cette fonction comble précisément ce trou, en respectant la
+  // même ligne rouge que `ecartsContinuiteAAppliquer` : ne jamais réécrire
+  // automatiquement une valeur de stock_initial qu'un humain a déjà
+  // confirmée sur le quart suivant.
+  // ============================================================
+
+  // `corrections` : liste de { game_id, nouvelle_valeur } — uniquement les
+  // jeux dont le stock_final du quart corrigé a RÉELLEMENT changé (jamais
+  // un signal sur une valeur identique, Article 5 — c'est à l'appelant de
+  // ne fournir ici que les jeux effectivement modifiés). `contexteSuivant` :
+  // map game_id -> { stock_initial, stock_initial_auto } du quart
+  // immédiatement suivant, tel que chargé par l'appelant (ou absent si ce
+  // quart n'a pas encore de ligne pour ce jeu — rien à propager pour
+  // l'instant, pas une erreur). Retourne :
+  //  - `applicables` : au format attendu par
+  //    `appliquerCorrectionsAutomatiquesContinuite` ({ game_id,
+  //    stock_final_precedent }) — stock_initial du quart suivant encore
+  //    hérité automatiquement (stock_initial_auto===true), jamais touché
+  //    par un humain, propagation sûre.
+  //  - `aRevoir` : au format attendu par l'insertion `fdj_alertes` de type
+  //    `continuite_stock_a_verifier` ({ game_id, valeur_quart_precedent,
+  //    valeur_saisie }) — stock_initial du quart suivant déjà confirmé par
+  //    un humain ET réellement différent de la nouvelle valeur corrigée
+  //    (si la valeur humaine coïncide déjà avec la correction, aucune
+  //    alerte n'est levée — jamais une fausse alarme sur une coïncidence).
+  function propagationCorrectionStock(corrections, contexteSuivant) {
+    const liste = corrections || [];
+    const contexte = contexteSuivant || {};
+    const applicables = [];
+    const aRevoir = [];
+    liste.forEach(c => {
+      if (c.game_id === undefined || c.game_id === null) return;
+      const ctx = contexte[c.game_id];
+      if (!ctx) return; // le quart suivant n'a pas encore de ligne pour ce jeu -> rien à propager pour l'instant
+      if (ctx.stock_initial_auto === true) {
+        applicables.push({ game_id: c.game_id, stock_final_precedent: c.nouvelle_valeur });
+      } else if (ctx.stock_initial !== c.nouvelle_valeur) {
+        aRevoir.push({ game_id: c.game_id, valeur_quart_precedent: c.nouvelle_valeur, valeur_saisie: ctx.stock_initial });
+      }
+    });
+    return { applicables, aRevoir };
+  }
+
   global.NexusFdjMoteur = {
     calculerVentesJeu, ventesGrattageTotal, caisseGrattage, caisseAttendue, ecartCaisse, permissionsEcartCaisseEmploye,
     soldesCarnetsParJeu, soldeCarnetsJeu, soldesCarnetsAvecReference,
@@ -952,5 +1007,6 @@
     rotationCarnetsJeu, ticketsRestantsCarnetEnCours, calculerAutonomieJeu,
     etatLigneStockV2, phraseFamillePalier, syntheseGlobaleFdjStock,
     statutRelevecloture, diffClotureFdj, caractereRelevecloture,
+    propagationCorrectionStock,
   };
 })(typeof window !== 'undefined' ? window : globalThis);
