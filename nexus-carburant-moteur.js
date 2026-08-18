@@ -361,7 +361,13 @@
       return { texte: resultatCarburant.statut, niveau: resultatCarburant.statut === 'À corriger' ? 'alerte' : (resultatCarburant.statut === 'À surveiller' ? 'attention' : 'ok') };
     }
     const motif = motifTheoriqueIndisponible(contexteMotif);
-    return { texte: motif || 'Données insuffisantes', niveau: 'attente' };
+    // Correctif recette UI/UX (17/08/2026, CAR-UX-03) : le repli générique
+    // n'utilise plus "Données insuffisantes" (texte non actionnable, source
+    // de contradiction visuelle avec le badge "Rapprochement" voisin quand
+    // celui-ci affiche "Fiable") mais "Historique d'analyse insuffisant" —
+    // qui dit précisément QUOI manque (l'historique de ventes/relevés pour
+    // juger l'écart), pas si le rapprochement lui-même est fiable.
+    return { texte: motif || 'Historique d\'analyse insuffisant', niveau: 'attente' };
   }
 
   // Libellé de rapprochement affiché à côté d'une livraison (14/08/2026,
@@ -639,12 +645,29 @@
   // comparable n'est PAS une alerte de performance, c'est une absence de
   // preuve — la confondre avec une alerte inciterait à y voir un problème
   // opérationnel qui n'est peut-être pas réel (Article 5).
+  //
+  // Correctif recette UI/UX (17/08/2026, cahier CAR-UX-03 + §2 "Grammaire
+  // visuelle à figer") : les libellés sont désormais strictement pris dans
+  // le vocabulaire "Qualité de donnée" figé par le cahier — Fiable / A
+  // confirmer / Historique insuffisant / Comparaison partielle — jamais un
+  // synonyme improvisé. `non_comparable` se scinde en deux formulations
+  // selon la `cause` déjà posée par qualiteChaineCarburant() : une absence
+  // totale de référence antérieure (reference_absente/reference_incomplete)
+  // est un problème d'HISTORIQUE (rien à comparer), tandis qu'une mesure du
+  // jour ou des ventes manquantes (mesure_finale_absente/ventes_indisponibles/
+  // anterieur_au_point_zero) est une COMPARAISON PARTIELLE (l'historique
+  // existe, seule la donnée du jour manque) — deux réalités différentes que
+  // l'ancien libellé unique "Non comparable" confondait.
   const LIBELLE_QUALITE_CONTROLE = {
     fiable: { texte: 'Fiable', niveau: 'ok' },
-    provisoire: { texte: 'Provisoire', niveau: 'attention' },
-    non_comparable: { texte: 'Non comparable', niveau: 'attente' },
+    provisoire: { texte: 'A confirmer', niveau: 'attention' },
+    non_comparable: { texte: 'Comparaison partielle', niveau: 'attente' },
   };
-  function libelleQualiteControle(qualite) {
+  const CAUSES_HISTORIQUE_INSUFFISANT = new Set(['reference_absente', 'reference_incomplete']);
+  function libelleQualiteControle(qualite, cause) {
+    if (qualite === 'non_comparable' && CAUSES_HISTORIQUE_INSUFFISANT.has(cause)) {
+      return { texte: 'Historique insuffisant', niveau: 'attente' };
+    }
     return LIBELLE_QUALITE_CONTROLE[qualite] || { texte: 'Non calculé', niveau: 'attente' };
   }
 

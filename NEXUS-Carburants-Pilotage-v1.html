@@ -67,15 +67,32 @@
   .locked{padding:60px 20px; text-align:center; color:var(--text-dim); font-size:13px;}
 
   .lien-relever{display:block; margin:0 20px 14px; padding:11px 14px; border-radius:12px; background:rgba(79,195,217,0.08); border:1px solid rgba(79,195,217,0.25); color:var(--cyan); text-decoration:none; font-family:var(--mono); font-size:11.5px; font-weight:600; text-align:center;}
+  /* CAR-UX-01 (17/08/2026, cahier recette UI/UX) : statut du relevé du
+     jour affiché directement sous le bouton d'accès — en 1 regard, le
+     manager sait si le jaugeage du jour est fait, à moitié fait, ou pas
+     fait du tout. */
+  .relever-statut{display:block; margin:-8px 20px 14px; text-align:center; font-family:var(--mono); font-size:10px; color:var(--text-dim);}
+  .relever-statut.a-completer{color:var(--amber);}
+  .relever-statut.non-saisi{color:var(--text-dim);}
+  .relever-statut.saisi{color:var(--green);}
 
   /* Sélecteur de période */
-  .periode-bar{display:flex; gap:6px; flex-wrap:wrap; padding:0 20px 14px;}
+  .periode-bar{display:flex; align-items:center; gap:6px; flex-wrap:wrap; padding:0 20px 14px;}
   .periode-btn{
     font-family:var(--mono); font-size:11px; font-weight:600; letter-spacing:0.02em;
     padding:8px 12px; border-radius:20px; border:1px solid var(--hairline); background:var(--panel);
     color:var(--text-mid); cursor:pointer;
   }
   .periode-btn.actif{color:var(--cyan); border-color:rgba(79,195,217,0.5); background:rgba(79,195,217,0.1);}
+  /* CAR-UX-08 (cahier recette UI/UX, 17/08/2026) : "Périodes standards"
+     (Semaine/Mois/Trimestre/Année) et "Analyse personnalisée" (Dates
+     libres) doivent se distinguer visuellement — même mécanique de
+     sélection, juste un regroupement + un style de bouton différent pour
+     ne jamais les confondre avec un 5e choix standard. */
+  .periode-groupe{display:flex; gap:6px; flex-wrap:wrap;}
+  .periode-separateur{width:1px; align-self:stretch; min-height:20px; background:var(--hairline); margin:0 2px;}
+  .periode-btn-libre{border-style:dashed; color:var(--text-dim);}
+  .periode-btn-libre.actif{color:var(--cyan); border-color:rgba(79,195,217,0.5); background:rgba(79,195,217,0.1);}
   .libre-bar{display:none; gap:8px; padding:0 20px 14px;}
   .libre-bar.visible{display:flex;}
   .libre-bar input{flex:1; background:var(--panel-raised); border:1px solid var(--hairline); border-radius:8px; padding:8px 10px; color:var(--text); font-family:var(--mono); font-size:12.5px;}
@@ -135,9 +152,16 @@
      plus dense/petit que les autres cartes : ce n'est pas une section de
      plus, c'est le résumé qui dispense de lire les sections en dessous. */
   .lecture-nexus-card{margin:10px 20px 14px; padding:11px 13px; border-radius:12px; background:var(--panel); border:1px solid var(--hairline);}
-  .lecture-nexus-titre{font-family:var(--mono); font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; color:var(--text-dim); margin-bottom:6px;}
+  .lecture-nexus-tete{display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;}
+  .lecture-nexus-titre{font-family:var(--mono); font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; color:var(--text-dim); margin-bottom:0;}
+  .lecture-nexus-badge-signalements{font-family:var(--mono); font-size:9px; font-weight:600; color:var(--text-mid); background:var(--panel-raised); border:1px solid var(--hairline); border-radius:20px; padding:2px 8px;}
   .lecture-nexus-ligne{display:flex; align-items:flex-start; gap:7px; font-size:11.5px; line-height:1.45; padding:2px 0; color:var(--text);}
   .lecture-nexus-emoji{flex-shrink:0; font-size:10px; line-height:1.5;}
+  /* CAR-UX-05 (17/08/2026, cahier recette UI/UX) — "Ce que NEXUS vous dit"
+     fusionné dans "Lecture NEXUS" : le détail (cartes message) est replié
+     par défaut sous les 4 lignes de synthèse, réutilisant le style
+     sous-accordion existant plutôt qu'une nouvelle classe. */
+  .lecture-nexus-detail-toggle{margin-top:8px;}
 
   /* Ce que NEXUS vous dit */
   .message-carte{display:flex; gap:9px; align-items:flex-start; padding:12px 14px; border-radius:12px; margin:0 20px 8px; font-size:12.5px; line-height:1.5;}
@@ -202,6 +226,10 @@
   .kpi-evol.hausse{color:var(--green);}
   .kpi-evol.baisse{color:var(--red);}
   .kpi-evol.stable{color:var(--text-dim);}
+  /* CAR-UX-06 (17/08/2026) : tendance provisoire — même emplacement que
+     hausse/baisse, jamais la même force visuelle (couleur neutre + étiquette). */
+  .kpi-evol.provisoire{color:var(--text-mid);}
+  .kpi-evol-tag{font-family:var(--mono); font-size:7.5px; font-weight:700; text-transform:uppercase; letter-spacing:0.04em; color:var(--text-dim); border:1px solid var(--hairline); border-radius:8px; padding:1px 5px; margin-left:5px; vertical-align:middle;}
 
   .mix-bar-wrap{margin-bottom:10px;}
   .mix-bar-tete{display:flex; justify-content:space-between; font-size:12px; margin-bottom:4px;}
@@ -217,6 +245,20 @@
   .stock-table td{padding:9px 8px; border-bottom:1px solid var(--hairline); font-family:var(--mono);}
   .stock-table tr:last-child td{border-bottom:none;}
   .stock-table .nom-cell{font-family:var(--sans); font-weight:600;}
+
+  /* CAR-UX-09 (17/08/2026, cahier recette UI/UX) : "Stock & autonomie" —
+     desktop garde le tableau 6 colonnes, mobile bascule sur une carte par
+     carburant (même vocabulaire que les jauges "Situation aujourd'hui").
+     Scopé à #stockZone uniquement : l'Historique et l'Analyse réutilisent
+     .stock-table-wrap/.stock-table pour d'autres tableaux, hors périmètre
+     CAR-UX-09, qui ne doivent jamais être masqués par cette règle. */
+  #stockZone .stock-mobile-wrap{display:none;}
+  .stock-mobile-carte{background:var(--panel); border:1px solid var(--hairline); border-radius:12px; padding:11px 14px; margin:0 20px 8px;}
+  .stock-mobile-titre{font-size:13px; font-weight:700; margin-bottom:4px;}
+  @media (max-width:600px){
+    #stockZone .stock-table-wrap{display:none;}
+    #stockZone .stock-mobile-wrap{display:block;}
+  }
 
   /* Rattrapage (13/08/2026, demande de Frédéric : "ça fait 2-3 jours que
      le jaugeage n'a pas été indiqué") — carte d'accès rapide vers
@@ -281,10 +323,22 @@
   .historique-pz-source{font-family:var(--mono); font-size:8.5px; font-weight:700; color:var(--gold); text-transform:uppercase; letter-spacing:0.02em; background:rgba(212,175,55,0.12); border:1px solid rgba(212,175,55,0.3); padding:2px 9px; border-radius:20px; white-space:nowrap; text-decoration:none; cursor:pointer;}
   .historique-pz-valeurs{font-family:var(--mono); font-size:11px; color:var(--text-mid); display:flex; gap:12px; flex-wrap:wrap;}
   .historique-pz-note{font-size:11px; color:var(--text-dim); margin-top:5px; line-height:1.5;}
+  /* CAR-UX-14 (17/08/2026, cahier recette UI/UX) : badge de statut du
+     point zéro — lequel sert AUJOURD'HUI de référence de calcul, jamais
+     ambigu même avec plusieurs points zéro dans l'historique. */
+  .historique-pz-statut{display:inline-block; font-family:var(--mono); font-size:8.5px; font-weight:700; text-transform:uppercase; letter-spacing:0.02em; padding:2px 8px; border-radius:20px; margin-bottom:6px;}
+  .historique-pz-statut.actif{color:var(--green); background:var(--green-dim); border:1px solid rgba(52,211,153,0.3);}
+  .historique-pz-statut.intermediaire{color:var(--amber); background:var(--amber-dim); border:1px solid rgba(245,166,35,0.3);}
+  .historique-pz-statut.remplace{color:var(--text-dim); background:var(--panel-raised); border:1px solid var(--hairline);}
   .historique-releve-row{cursor:pointer;}
   .historique-releve-row:active{background:var(--panel-raised);}
   .historique-releve-preuve{font-family:var(--mono); font-size:8.5px; font-weight:700; color:var(--cyan); text-transform:uppercase; letter-spacing:0.02em; background:rgba(2,102,122,0.12); border:1px solid rgba(2,102,122,0.35); padding:2px 8px; border-radius:20px; white-space:nowrap; cursor:pointer;}
   .historique-releve-preuve:active{opacity:0.7;}
+  /* CAR-UX-15/17 (cahier recette UI/UX, 17/08/2026) : nature d'événement
+     (icône, famille fixe §2 du cahier) + source de la preuve, affichées
+     sans alourdir la ligne du tableau Historique. */
+  .historique-releve-nature{font-size:11px;}
+  .historique-releve-source{display:block; font-family:var(--mono); font-size:7.5px; font-weight:600; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.02em; margin-top:3px; white-space:nowrap;}
   /* Sprint C6 (17/08/2026, audit §10) — cartes "Réceptions" dans
      Historique, même gabarit que .historique-pz-carte (bordure gold) mais
      en cyan pour distinguer visuellement preuve de contrôle vs preuve de
@@ -382,6 +436,11 @@
   .carb-stat-row + .carb-stat-row{border-top:1px solid var(--hairline);}
   .carb-stat-row .lbl{color:var(--text-mid);}
   .carb-stat-row .val{font-family:var(--mono); font-weight:700; color:var(--text); white-space:nowrap;}
+  /* T12 (cahier recette UI/UX, 17/08/2026) : indicateur discret quand un
+     écart chiffré s'appuie sur une chaîne de rapprochement non fiabilisée
+     — jamais un nouveau badge (règle de densité §7), juste une puce
+     repliée avec l'explication complète en title. */
+  .ecart-caveat{font-family:var(--sans); font-weight:400; color:var(--text-dim); cursor:help; font-size:10px;}
   .carb-autonomie-bloc{padding:7px 0; border-top:1px solid var(--hairline); font-size:10.5px;}
   .carb-autonomie-bloc .lbl{color:var(--text-mid); display:block; margin-bottom:2px;}
   .carb-autonomie-bloc .val{font-weight:700; color:var(--text); font-size:11.5px;}
@@ -400,6 +459,7 @@
   <div class="divider"></div>
 
   <a class="lien-relever" href="NEXUS-Carburants-v1.html">📋 Aller au Relevé du jour (saisie du jaugeage)</a>
+  <span class="relever-statut" id="releveStatutJour"></span>
 
   <div id="rattrapageZone"></div>
 
@@ -412,7 +472,13 @@
        niveau qui transformera une belle page Carburants en véritable
        directeur d'exploitation numérique") — synthèse à 4 lignes toujours
        visible, jamais dans un accordéon : Stock, Rapprochement,
-       Autonomie, Commerce. Voir renderLectureNexus() plus bas. -->
+       Autonomie, Commerce.
+       CAR-UX-05 (17/08/2026, cahier recette UI/UX) : "Ce que NEXUS vous
+       dit" (ex-accordéon séparé juste en dessous) est désormais fusionné
+       DANS ce même bloc — un nombre de signalements dans l'en-tête, un
+       détail dépliable en dessous. Une seule synthèse de premier niveau,
+       plus deux lectures parallèles qui pouvaient se contredire ou se
+       répéter. Voir renderLectureNexus() plus bas. -->
   <div id="lectureNexusZone"></div>
 
   <!-- Point zéro carburants (14/08/2026) — action exceptionnelle de
@@ -422,21 +488,6 @@
     <button class="pointzero-toggle-btn" id="btnPointZeroToggle">🎯 Certifier un stock de référence (point zéro)</button>
   </div>
   <div class="pointzero-panel" id="pointZeroPanel" style="display:none;"></div>
-
-  <!-- 2) Ce que NEXUS vous dit (accordéon, replié par défaut) -->
-  <div class="accordion-card" data-accordion="messages">
-    <button type="button" class="accordion-header" data-key="messages">
-      <span class="accordion-icon accordion-icon-cyan">💬</span>
-      <span class="accordion-titles">
-        <span class="accordion-titre">Ce que NEXUS vous dit</span>
-        <span class="accordion-sous" id="messagesSousTitre"></span>
-      </span>
-      <span class="accordion-chevron" id="chevronMessages">›</span>
-    </button>
-    <div class="accordion-body" id="bodyMessages" style="display:none;">
-      <div id="messagesZone"><div class="loading">Chargement…</div></div>
-    </div>
-  </div>
 
   <!-- 3) Dernière livraison (accordéon, replié par défaut) -->
   <div class="accordion-card" data-accordion="livraison">
@@ -478,34 +529,13 @@
   </div>
   <div class="periode-label" id="periodeLabel"></div>
 
-  <!-- 4) Ventes carburants — période sélectionnée (accordéon, ouvert par défaut) -->
-  <div class="accordion-card" data-accordion="ventes">
-    <button type="button" class="accordion-header" data-key="ventes">
-      <span class="accordion-icon accordion-icon-cyan">📊</span>
-      <span class="accordion-titles"><span class="accordion-titre">Ventes carburants</span></span>
-      <span class="accordion-chevron" id="chevronVentes">⌄</span>
-    </button>
-    <div class="accordion-body" id="bodyVentes">
-      <div id="ventesZone"><div class="loading">Chargement…</div></div>
-    </div>
-  </div>
+  <!-- CAR-UX-10 (cahier recette UI/UX, 17/08/2026) : deux familles distinctes,
+       Santé du stock (rapprochement/écarts/autonomie) séparée de Dynamique
+       commerciale (ventes/répartition/moteur), sans reflow fonctionnel —
+       simple regroupement visuel des accordéons existants. -->
+  <div class="section-titre" style="margin-top:0;">Santé du stock</div>
 
-  <!-- 5) Répartition des ventes -->
-  <div class="accordion-card" data-accordion="repartition">
-    <button type="button" class="accordion-header" data-key="repartition">
-      <span class="accordion-icon accordion-icon-amber">🥧</span>
-      <span class="accordion-titles">
-        <span class="accordion-titre">Répartition des ventes</span>
-        <span class="accordion-sous">Répartition par carburant</span>
-      </span>
-      <span class="accordion-chevron" id="chevronRepartition">›</span>
-    </button>
-    <div class="accordion-body" id="bodyRepartition" style="display:none;">
-      <div id="repartitionZone"><div class="loading">Chargement…</div></div>
-    </div>
-  </div>
-
-  <!-- 6) Stock & autonomie -->
+  <!-- 4) Stock & autonomie -->
   <div class="accordion-card" data-accordion="stock">
     <button type="button" class="accordion-header" data-key="stock">
       <span class="accordion-icon accordion-icon-green">⛽</span>
@@ -517,6 +547,35 @@
     </button>
     <div class="accordion-body" id="bodyStock">
       <div id="stockZone"><div class="loading">Chargement…</div></div>
+    </div>
+  </div>
+
+  <div class="section-titre">Dynamique commerciale</div>
+
+  <!-- 5) Ventes carburants — période sélectionnée (accordéon, ouvert par défaut) -->
+  <div class="accordion-card" data-accordion="ventes">
+    <button type="button" class="accordion-header" data-key="ventes">
+      <span class="accordion-icon accordion-icon-cyan">📊</span>
+      <span class="accordion-titles"><span class="accordion-titre">Ventes carburants</span></span>
+      <span class="accordion-chevron" id="chevronVentes">⌄</span>
+    </button>
+    <div class="accordion-body" id="bodyVentes">
+      <div id="ventesZone"><div class="loading">Chargement…</div></div>
+    </div>
+  </div>
+
+  <!-- 6) Répartition des ventes -->
+  <div class="accordion-card" data-accordion="repartition">
+    <button type="button" class="accordion-header" data-key="repartition">
+      <span class="accordion-icon accordion-icon-amber">🥧</span>
+      <span class="accordion-titles">
+        <span class="accordion-titre">Répartition des ventes</span>
+        <span class="accordion-sous">Répartition par carburant</span>
+      </span>
+      <span class="accordion-chevron" id="chevronRepartition">›</span>
+    </button>
+    <div class="accordion-body" id="bodyRepartition" style="display:none;">
+      <div id="repartitionZone"><div class="loading">Chargement…</div></div>
     </div>
   </div>
 
@@ -634,6 +693,12 @@
   // par "Ce que NEXUS vous dit" (événement dérogation) et par le lien "Voir
   // le relevé de réception" — jamais rechargée deux fois pour ces 2 usages.
   let DERNIERE_VISITE = null;
+  // CAR-UX-07 (17/08/2026) : mémorise la dernière livraison affichée (date
+  // + estAujourdhui) pour pouvoir recalculer la note de rapprochement
+  // terrain quand DERNIERE_VISITE se charge APRÈS "Dernière livraison"
+  // (les deux se chargent en parallèle, Promise.all) — sans reformuler la
+  // requête livraison elle-même (Article 11).
+  let DERNIERE_LIVRAISON_AFFICHEE = null;
 
   const TYPES = [
     { cle: 'semaine', label: 'Semaine' },
@@ -693,7 +758,10 @@
   // ponctuelles, pas la vue par défaut), tout le reste ouvert.
   // ------------------------------------------------------------
   const ACCORDIONS = {
-    messages: false, livraison: false,
+    // "messages" retiré (17/08/2026, CAR-UX-05) — "Ce que NEXUS vous dit"
+    // n'est plus un accordéon autonome, fusionné dans "Lecture NEXUS"
+    // (toggle géré séparément par LECTURE_NEXUS_DETAIL_OUVERT).
+    livraison: false,
     // 14/08/2026, retour de Frédéric : "Répartition des ventes... 45 % GO
     // / 55 % SP95 ne déclenche pas forcément une décision" — repliée par
     // défaut. "Stock & autonomie devrait probablement être ouvert par
@@ -738,10 +806,21 @@
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   }
   function fmtL(v) { return v == null ? '—' : `${Math.round(v).toLocaleString('fr-FR')} L`; }
-  function fmtEvol(evol) {
+  // Correctif recette UI/UX (17/08/2026, CAR-UX-06) : `provisoire=true`
+  // (période en cours et/ou couverture de quarts incomplète — voir
+  // chargerEtRendrePeriode) désactive la force visuelle habituelle
+  // (vert/rouge plein) au profit d'une couleur neutre + étiquette
+  // "provisoire" : un -51,5 % affiché en rouge vif sur une semaine à
+  // peine entamée laisse croire à une tendance consolidée qui n'existe
+  // pas encore (Règle de tendance, §4 du cahier de recette).
+  function fmtEvol(evol, provisoire) {
     if (evol == null) return '<span class="kpi-evol stable">—</span>';
+    const pct = `${evol >= 0 ? '+' : ''}${(evol * 100).toFixed(1)} %`;
+    if (provisoire) {
+      return `<span class="kpi-evol provisoire">${pct}<span class="kpi-evol-tag">provisoire</span></span>`;
+    }
     const cls = evol > 0.02 ? 'hausse' : evol < -0.02 ? 'baisse' : 'stable';
-    return `<span class="kpi-evol ${cls}">${evol >= 0 ? '+' : ''}${(evol * 100).toFixed(1)} %</span>`;
+    return `<span class="kpi-evol ${cls}">${pct}</span>`;
   }
   function classeStatutCarte(statut) {
     if (statut === 'À corriger') return 'statut-corriger';
@@ -846,6 +925,18 @@
         releveDuJourExiste: !!ctx.releveDuJour, ventes: r.ventesDepuis,
       });
       const couleurFiab = NIVEAU_COULEUR[fiabilite.niveau] || NIVEAU_COULEUR.attente;
+      // Correctif recette UI/UX (17/08/2026, CAR-UX-04) : "conserver %,
+      // physique, théorique, écart, autonomie ; détails secondaires au
+      // niveau suivant" — quand le théorique n'est pas calculable,
+      // fiabilite.texte est une phrase complète (motifTheoriqueIndisponible,
+      // jusqu'à 100+ caractères) qui, sur une carte large d'environ 110px
+      // en grille 3 colonnes mobile, forçait la carte à s'étirer sur
+      // plusieurs lignes. Le badge affiche désormais toujours un statut
+      // court ; la phrase complète reste disponible en title (survol /
+      // appui long) et dans "Lecture NEXUS" (niveau 2), jamais perdue.
+      const statutCourt = ['Sous contrôle', 'À surveiller', 'À corriger'].includes(fiabilite.texte)
+        ? { texte: fiabilite.texte, titre: '' }
+        : { texte: 'Non évaluable', titre: fiabilite.texte };
       const couleurCarb = COULEUR_JAUGE_CARBURANT[cle];
       // Sprint C6 (audit §10, "Situation aujourd'hui — Badge de qualité par
       // carburant : référence fiable, contrôle provisoire, non comparable")
@@ -857,8 +948,26 @@
       // fausse certitude. Toute la carte devient cliquable vers le relevé
       // de contrôle détaillé du jour (audit §10.1).
       const controleJour = ctx.derniersControles ? ctx.derniersControles[cle] : null;
-      const qualite = M.libelleQualiteControle(controleJour ? controleJour.qualite : null);
+      // Correctif recette UI/UX (17/08/2026, CAR-UX-03) : "Contrôle : Fiable"
+      // renommé "Rapprochement : Fiable" — évite la confusion avec le badge
+      // voisin (fiabilité/lecture métier du jour) qui pouvait, pour un même
+      // carburant, sembler le contredire (ex. GNR "Historique d'analyse
+      // insuffisant" + "Contrôle : Fiable" lu comme deux avis opposés, alors
+      // que ce sont deux axes différents : la qualité de la CHAÎNE de calcul
+      // vs l'évaluabilité de l'écart DU JOUR). La cause est transmise pour
+      // distinguer "Historique insuffisant" (aucune référence antérieure) de
+      // "Comparaison partielle" (référence connue, mesure du jour manquante).
+      const qualite = M.libelleQualiteControle(controleJour ? controleJour.qualite : null, controleJour ? controleJour.cause : null);
       const couleurQualite = NIVEAU_COULEUR[qualite.niveau] || NIVEAU_COULEUR.attente;
+      // T12 (cahier recette UI/UX, 17/08/2026) : un écart chiffré (Statut =
+      // Sous contrôle/À surveiller/À corriger, calculé indépendamment sur
+      // le jaugeage du jour) ne doit jamais se lire comme une perte
+      // confirmée quand la chaîne de rapprochement (badge "Rapprochement")
+      // est elle-même non fiabilisée (Comparaison partielle / Historique
+      // insuffisant / Non calculé, niveau "attente") — sans changer le
+      // calcul ni cacher le chiffre réel (Article 5), une note discrète
+      // qualifie l'écart plutôt que de le renommer.
+      const ecartNonFiabilise = ['Sous contrôle', 'À surveiller', 'À corriger'].includes(fiabilite.texte) && qualite.niveau === 'attente';
       return `
         <div class="carb-carte2 ${classeStatutCarte(r.statut)}" style="--carb-couleur:${couleurCarb}; cursor:pointer;" title="${detailCuves} — capacité ${capacite.toLocaleString('fr-FR')} L — voir le relevé de contrôle" data-releve-controle="${cle}">
           <div class="carb-carte2-titre">${COURT_CARBURANT[cle]}</div>
@@ -872,10 +981,10 @@
           </div>
           <div class="carb-stat-row"><span class="lbl">Physique</span><span class="val">${fmtL(r.stockPhysiqueAffiche)}</span></div>
           <div class="carb-stat-row"><span class="lbl">Théorique</span><span class="val">${fmtL(r.theorique)}</span></div>
-          <div class="carb-stat-row"><span class="lbl">Écart</span><span class="val" style="color:${r.ecart != null && r.ecart < 0 ? 'var(--red)' : (r.ecart != null && r.ecart > 0 ? 'var(--green)' : 'var(--text)')};">${ecartTxt}</span></div>
+          <div class="carb-stat-row"><span class="lbl">Écart</span><span class="val" style="color:${r.ecart != null && r.ecart < 0 ? 'var(--red)' : (r.ecart != null && r.ecart > 0 ? 'var(--green)' : 'var(--text)')};">${ecartTxt}${ecartNonFiabilise ? ' <span class="ecart-caveat" title="Chaîne de rapprochement non fiabilisée pour ce carburant — écart informatif, pas une perte confirmée.">ⓘ</span>' : ''}</span></div>
           <div class="carb-autonomie-bloc"><span class="lbl">Autonomie</span><span class="val">${autonomie != null ? `${autonomie.toFixed(1)} j — ${statutAuto}` : '—'}</span></div>
-          <div class="carb-fiab-row"><span style="color:${couleurFiab.c};">${fiabilite.texte}</span><span class="carb-fiab-badge" style="background:${couleurFiab.f}; color:${couleurFiab.c};">${ICONE_NIVEAU[fiabilite.niveau] || '?'}</span></div>
-          <div class="carb-fiab-row"><span style="color:${couleurQualite.c};">Contrôle : ${qualite.texte}</span><span class="carb-fiab-badge" style="background:${couleurQualite.f}; color:${couleurQualite.c};">${ICONE_NIVEAU[qualite.niveau] || '?'}</span></div>
+          <div class="carb-fiab-row" ${statutCourt.titre ? `title="${statutCourt.titre}"` : ''}><span style="color:${couleurFiab.c};">Statut : ${statutCourt.texte}</span><span class="carb-fiab-badge" style="background:${couleurFiab.f}; color:${couleurFiab.c};">${ICONE_NIVEAU[fiabilite.niveau] || '?'}</span></div>
+          <div class="carb-fiab-row"><span style="color:${couleurQualite.c};">Rapprochement : ${qualite.texte}</span><span class="carb-fiab-badge" style="background:${couleurQualite.f}; color:${couleurQualite.c};">${ICONE_NIVEAU[qualite.niveau] || '?'}</span></div>
         </div>`;
     }).join('');
 
@@ -919,17 +1028,51 @@
     });
   }
 
+  // CAR-UX-01 (17/08/2026, cahier recette UI/UX) : statut du relevé du
+  // jour sous le bouton "Aller au Relevé du jour" — Non saisi / Saisi à
+  // HH:MM / À compléter. Relit CONTROLE_CTX.releveDuJour (déjà chargé par
+  // chargerControleEtAutonomie, Article 11 — jamais une requête dédiée) :
+  // "À compléter" si la ligne existe mais qu'un carburant actif n'a pas
+  // de stock réel saisi ce jour, "Saisi à HH:MM" sinon (created_at de la
+  // ligne), "Non saisi" si aucune ligne n'existe encore pour aujourd'hui.
+  function renderStatutReleveDuJour(ctx) {
+    const el = document.getElementById('releveStatutJour');
+    if (!el) return;
+    if (!ctx || ctx.aucunReleve || !ctx.releveDuJour) {
+      el.textContent = 'Non saisi';
+      el.className = 'relever-statut non-saisi';
+      return;
+    }
+    const cree = ctx.releveDuJour.created_at ? new Date(ctx.releveDuJour.created_at) : null;
+    const heureTxt = cree ? `${String(cree.getHours()).padStart(2, '0')}:${String(cree.getMinutes()).padStart(2, '0')}` : null;
+    const carburantsActifs = CUVES_CONFIG ? NexusCarburantMoteur.CLES_CARBURANT.filter(cle => CUVES_CONFIG[cle] && CUVES_CONFIG[cle].actif) : [];
+    const incomplet = carburantsActifs.some(cle => !ctx.parCarburant || ctx.parCarburant[cle] == null || ctx.parCarburant[cle].stockPhysiqueAffiche == null);
+    if (incomplet) {
+      el.textContent = 'À compléter';
+      el.className = 'relever-statut a-completer';
+      return;
+    }
+    el.textContent = heureTxt ? `Saisi à ${heureTxt}` : 'Saisi';
+    el.className = 'relever-statut saisi';
+  }
+
   // ------------------------------------------------------------
   // 2) CE QUE NEXUS VOUS DIT — combine le contexte "aujourd'hui" (écarts,
   // livraison, autonomie, jaugeage manquant) avec le mouvement de ventes
-  // de la période actuellement sélectionnée. Rendu à part pour pouvoir
-  // être ré-invoqué quand la période change SANS recharger le contrôle du
-  // jour (qui, lui, ne dépend jamais de la période).
+  // de la période actuellement sélectionnée. Recalculée à chaque appel pour
+  // pouvoir être ré-invoquée quand la période change SANS recharger le
+  // contrôle du jour (qui, lui, ne dépend jamais de la période).
+  //
+  // Correctif recette UI/UX (17/08/2026, CAR-UX-05) : cette fonction ne
+  // touche plus le DOM elle-même — "Ce que NEXUS vous dit" n'est plus un
+  // accordéon séparé, son contenu (les cartes message) est désormais le
+  // détail dépliable du bloc unique "Lecture NEXUS" (renderLectureNexus()
+  // ci-dessous). Reste une fonction pure {messages, sousTitre} pour ne pas
+  // recalculer la même chose deux fois (Article 11).
   // ------------------------------------------------------------
   let SIGNAUX_PERIODE = {};
-  function renderMessages() {
-    const zone = document.getElementById('messagesZone');
-    if (!CONTROLE_CTX) return;
+  function construireMessagesActuels() {
+    if (!CONTROLE_CTX) return { messages: [], sousTitre: '' };
     const messages = NexusCarburantMoteur.construireMessagesPilotage({
       parCarburant: CONTROLE_CTX.parCarburant, aucunReleve: CONTROLE_CTX.aucunReleve,
       releveDuJour: CONTROLE_CTX.releveDuJour, dernierReleve: CONTROLE_CTX.dernierReleve,
@@ -940,20 +1083,16 @@
       derniereVisite: DERNIERE_VISITE,
       ...SIGNAUX_PERIODE,
     });
-    zone.innerHTML = messages.map(m => `<div class="message-carte ${m.type}"><span class="message-icone">${ICONE_MESSAGE[m.type] || 'ℹ️'}</span><span>${m.texte}</span></div>`).join('');
-    // 14/08/2026, refonte visuelle : sous-titre de l'accordéon — priorité
-    // au type le plus grave présent (alerte > attention > info > positif),
-    // jamais un second calcul de gravité, juste une lecture de `messages`.
-    const sousTitre = document.getElementById('messagesSousTitre');
-    if (sousTitre) {
-      if (!messages.length) {
-        sousTitre.textContent = 'Aucun signalement';
-      } else {
-        const ordre = ['alerte', 'attention', 'info', 'positif'];
-        const pire = ordre.find(t => messages.some(m => m.type === t)) || messages[0].type;
-        sousTitre.textContent = `${ICONE_MESSAGE[pire] || 'ℹ️'} ${messages.length} signalement${messages.length > 1 ? 's' : ''}`;
-      }
+    // Priorité au type le plus grave présent (alerte > attention > info >
+    // positif), jamais un second calcul de gravité, juste une lecture de
+    // `messages`.
+    let sousTitre = 'Aucun signalement prioritaire';
+    if (messages.length) {
+      const ordre = ['alerte', 'attention', 'info', 'positif'];
+      const pire = ordre.find(t => messages.some(m => m.type === t)) || messages[0].type;
+      sousTitre = `${ICONE_MESSAGE[pire] || 'ℹ️'} ${messages.length} signalement${messages.length > 1 ? 's' : ''}`;
     }
+    return { messages, sousTitre };
   }
 
   // ------------------------------------------------------------
@@ -1035,21 +1174,58 @@
     const v = SIGNAUX_PERIODE ? SIGNAUX_PERIODE.evolutionTotale : null;
     if (v == null) return { niveau: 'attente', texte: 'Ventes : données insuffisantes sur la période.' };
     const pct = `${v >= 0 ? '+' : ''}${(v * 100).toFixed(1)} %`;
+    // CAR-UX-06 : jamais le niveau "alerte"/rouge pour une tendance encore
+    // provisoire (période en cours ou couverture de quarts incomplète) —
+    // même donnée que le bloc "Ventes carburants", même statut affiché.
+    if (SIGNAUX_PERIODE && SIGNAUX_PERIODE.provisoire) {
+      return { niveau: 'attente', texte: `Ventes : ${pct} à jours comparables (tendance provisoire).` };
+    }
     if (v < -0.02) return { niveau: 'alerte', texte: `Ventes : ${pct} à jours comparables.` };
     if (v > 0.02) return { niveau: 'ok', texte: `Ventes : ${pct} à jours comparables.` };
     return { niveau: 'ok', texte: 'Ventes stables à jours comparables.' };
   }
 
+  // CAR-UX-05 : l'état ouvert/fermé du détail persiste tant que la page
+  // reste chargée (comme les autres accordéons de l'écran, ACCORDIONS{}),
+  // pour ne pas se refermer à chaque re-rendu déclenché par un changement
+  // de période ou un nouveau chargement de contexte.
+  let LECTURE_NEXUS_DETAIL_OUVERT = false;
   function renderLectureNexus() {
     const zone = document.getElementById('lectureNexusZone');
     if (!zone || !CONTROLE_CTX) return;
     if (CONTROLE_CTX.aucunReleve) { zone.innerHTML = ''; return; }
     const lignes = [ligneLectureStock(), ligneLectureRapprochement(), ligneLectureAutonomie(), ligneLectureCommerce()];
+    const { messages, sousTitre } = construireMessagesActuels();
+    const detailHTML = messages.length
+      ? messages.map(m => `<div class="message-carte ${m.type}"><span class="message-icone">${ICONE_MESSAGE[m.type] || 'ℹ️'}</span><span>${m.texte}</span></div>`).join('')
+      : `<div class="message-carte info"><span class="message-icone">ℹ️</span><span>Aucun signalement prioritaire.</span></div>`;
     zone.innerHTML = `
       <div class="lecture-nexus-card">
-        <div class="lecture-nexus-titre">Lecture NEXUS</div>
+        <div class="lecture-nexus-tete">
+          <div class="lecture-nexus-titre">Lecture NEXUS</div>
+          <span class="lecture-nexus-badge-signalements">${sousTitre}</span>
+        </div>
         ${lignes.map(l => `<div class="lecture-nexus-ligne"><span class="lecture-nexus-emoji">${EMOJI_NIVEAU_LECTURE[l.niveau] || '🟢'}</span><span>${l.texte}</span></div>`).join('')}
+        <div class="sous-accordion lecture-nexus-detail-toggle">
+          <button type="button" class="sous-accordion-header" id="btnLectureNexusDetail">
+            <span class="sous-accordion-titre">Détails</span>
+            <span class="sous-accordion-chevron" id="chevronLectureNexusDetail">${LECTURE_NEXUS_DETAIL_OUVERT ? '⌄' : '›'}</span>
+          </button>
+          <div class="sous-accordion-body" id="bodyLectureNexusDetail" style="display:${LECTURE_NEXUS_DETAIL_OUVERT ? 'block' : 'none'};">
+            ${detailHTML}
+          </div>
+        </div>
       </div>`;
+    const btnDetail = document.getElementById('btnLectureNexusDetail');
+    if (btnDetail) {
+      btnDetail.addEventListener('click', () => {
+        LECTURE_NEXUS_DETAIL_OUVERT = !LECTURE_NEXUS_DETAIL_OUVERT;
+        const body = document.getElementById('bodyLectureNexusDetail');
+        const chevron = document.getElementById('chevronLectureNexusDetail');
+        if (body) body.style.display = LECTURE_NEXUS_DETAIL_OUVERT ? 'block' : 'none';
+        if (chevron) chevron.textContent = LECTURE_NEXUS_DETAIL_OUVERT ? '⌄' : '›';
+      });
+    }
   }
 
   // ------------------------------------------------------------
@@ -1106,13 +1282,39 @@
     // arrivé depuis le relevé précédent, jusqu'au moment de CE jaugeage
     // d'ouverture. "Livraison du jour" (qui affirmait un moment précis) est
     // donc remplacé par une formulation neutre sur le "quand".
+    DERNIERE_LIVRAISON_AFFICHEE = { date: releve.date, estAujourdhui };
     zone.innerHTML = `
       <div class="livraison-carte">
-        <div class="section-note" style="margin:0 0 4px;">${estAujourdhui ? "Livraison enregistrée sur le relevé du jour" : `Dernière livraison connue — relevé du ${releve.date.split('-').reverse().join('/')}`}</div>
+        <div class="section-note" style="margin:0 0 4px;">${estAujourdhui ? "Livraison enregistrée sur le relevé du jour (saisie manager)" : `Dernière livraison connue — relevé du ${releve.date.split('-').reverse().join('/')} (saisie manager)`}</div>
         ${lignes}
         <div class="livraison-ligne livraison-total"><span>Total</span><span>${fmtL(total)}</span></div>
+        <div class="section-note" id="livraisonNoteTerrain" style="margin:6px 0 0;"></div>
       </div>`;
     if (sousTitreEl) sousTitreEl.textContent = `${fmtL(total)} — ${estAujourdhui ? "aujourd'hui" : releve.date.split('-').reverse().join('/')}`;
+    rafraichirNoteTerrainLivraison();
+  }
+
+  // CAR-UX-07 (17/08/2026, cahier recette UI/UX) : "Ajouter statut : saisie
+  // / détectée / réception terrain validée / rapprochement à confirmer" —
+  // "Dernière livraison" reste une donnée déclarative (saisie manager,
+  // carburant_releves) ; cette note ajoute juste si un parcours réception
+  // terrain (carburant_reception_visites, DERNIERE_VISITE) EXISTE pour la
+  // même date, sans jamais fusionner les deux sources (Article 11 : deux
+  // vérités distinctes, jamais réécrites l'une par l'autre). Rappelée à la
+  // fois par chargerEtRendreLivraison() (à son propre chargement) et par
+  // chargerEtRendreQualiteReceptions() une fois DERNIERE_VISITE disponible
+  // (chargement parallèle, Promise.all — l'ordre d'arrivée n'est jamais
+  // garanti).
+  function rafraichirNoteTerrainLivraison() {
+    const el = document.getElementById('livraisonNoteTerrain');
+    if (!el || !DERNIERE_LIVRAISON_AFFICHEE) return;
+    if (DERNIERE_VISITE && DERNIERE_VISITE.date_visite === DERNIERE_LIVRAISON_AFFICHEE.date) {
+      el.textContent = `Réception terrain validée le ${formaterDateFrCourt(DERNIERE_VISITE.date_visite)} — voir Qualité des réceptions ci-dessous.`;
+    } else if (DERNIERE_LIVRAISON_AFFICHEE.estAujourdhui) {
+      el.textContent = 'Réception terrain non confirmée pour cette livraison — rapprochement à confirmer via le parcours Réception carburant.';
+    } else {
+      el.textContent = '';
+    }
   }
 
   // ------------------------------------------------------------
@@ -1145,11 +1347,12 @@
     const visite = await NexusReceptionDonnees.chargerDerniereVisite(nexusClient, SITE_ID);
     // Sprint C6 (audit §10) : partagée avec "Ce que NEXUS vous dit" (événement
     // dérogation) et le lien "Voir le relevé de réception" ci-dessous —
-    // re-render des messages une fois cette info disponible (chargée en
-    // parallèle des autres blocs, potentiellement après le premier
-    // renderMessages() de l'initialisation).
+    // re-render du détail "Lecture NEXUS" une fois cette info disponible
+    // (chargée en parallèle des autres blocs, potentiellement après le
+    // premier renderLectureNexus() de l'initialisation).
     DERNIERE_VISITE = visite;
-    if (CONTROLE_CTX) renderMessages();
+    if (CONTROLE_CTX) renderLectureNexus();
+    rafraichirNoteTerrainLivraison();
     if (!visite) {
       zone.innerHTML = `<div class="controle-vide">Aucune réception saisie pour l'instant via le parcours Réception carburant.</div>`;
       return;
@@ -1583,8 +1786,18 @@
   // dépendent de la période sélectionnée.
   // ------------------------------------------------------------
   function renderBarrePeriodes() {
+    // CAR-UX-08 : deux groupes visuellement distincts — "Périodes
+    // standards" (comparaison à jours comparables, référence automatique)
+    // et "Analyse personnalisée" (Dates libres, bouton en tirets), séparés
+    // par une ligne verticale légère. Même TYPES, même logique de clic,
+    // seul le regroupement à l'affichage change (aucune refonte
+    // fonctionnelle, cf. cahier §0).
     const bar = document.getElementById('periodeBar');
-    bar.innerHTML = TYPES.map(t => `<button class="periode-btn ${t.cle === TYPE_PERIODE ? 'actif' : ''}" data-type="${t.cle}">${t.label}</button>`).join('');
+    const standards = TYPES.filter(t => t.cle !== 'libre');
+    const libre = TYPES.find(t => t.cle === 'libre');
+    const standardsHTML = standards.map(t => `<button class="periode-btn ${t.cle === TYPE_PERIODE ? 'actif' : ''}" data-type="${t.cle}">${t.label}</button>`).join('');
+    const libreHTML = libre ? `<button class="periode-btn periode-btn-libre ${libre.cle === TYPE_PERIODE ? 'actif' : ''}" data-type="${libre.cle}">${libre.label}</button>` : '';
+    bar.innerHTML = `<div class="periode-groupe">${standardsHTML}</div>${libreHTML ? `<div class="periode-separateur"></div><div class="periode-groupe">${libreHTML}</div>` : ''}`;
     bar.querySelectorAll('.periode-btn').forEach(btn => btn.addEventListener('click', () => {
       TYPE_PERIODE = btn.dataset.type;
       renderBarrePeriodes();
@@ -1655,11 +1868,17 @@
   // Mêmes données déjà calculées par NexusCarburantMoteur
   // (decomposerEvolution/identifierMoteurEvolution/calculerEvolutionVolume)
   // — aucun nouveau calcul, uniquement une présentation plus dense.
-  function construireLigneMoteurCompact(mix, mixRef, decomposition, moteurEvolution, evolutionTotale) {
+  function construireLigneMoteurCompact(mix, mixRef, decomposition, moteurEvolution, evolutionTotale, provisoire) {
     const M = NexusCarburantMoteur;
     const fmtPct = (v) => v == null ? '—' : `${v >= 0 ? '+' : ''}${(v * 100).toFixed(1)} %`;
+    // CAR-UX-06 : même règle de tendance provisoire que le bloc "Ventes
+    // carburants" ci-dessus — même donnée (evolutionTotale), jamais un
+    // second vocabulaire de couleur pour la même information (§2 du
+    // cahier, "une même information ne doit pas utiliser deux vocabulaires
+    // différents selon les sections").
     const fmtPctColore = (v) => {
       if (v == null) return '—';
+      if (provisoire) return `<span style="color:var(--text-mid);">${fmtPct(v)}<span class="kpi-evol-tag">provisoire</span></span>`;
       const c = v > 0.02 ? 'var(--green)' : (v < -0.02 ? 'var(--red)' : 'var(--text-mid)');
       return `<span style="color:${c};">${fmtPct(v)}</span>`;
     };
@@ -1679,11 +1898,13 @@
       ? M.calculerEvolutionVolume(mix[moteurEvolution.cle].litres, mixRef[moteurEvolution.cle].litres) : null;
     lignes.push({ lbl: `Principal contributeur au ${sens}`, val: `${COURT_CARBURANT[moteurEvolution.cle]} ${fmtPctColore(evolMoteur)}` });
 
+    // CAR-UX-11 (cahier recette UI/UX, 17/08/2026) : "Ce qui explique
+    // l'évolution" est plafonné à 3 lignes (tendance globale / principal
+    // contributeur / lecture NEXUS) pour rester lisible en <5 s — le détail
+    // par carburant, présent avant, est retiré d'ici ; il reste consultable
+    // dans "Répartition des ventes" (Article 11, une seule vérité par
+    // information, pas de duplication de la même donnée à deux endroits).
     const autres = M.CLES_CARBURANT.filter(c => c !== moteurEvolution.cle && decomposition.parCarburant[c]);
-    autres.forEach(c => {
-      const evolC = mixRef && mixRef[c] && mix[c] ? M.calculerEvolutionVolume(mix[c].litres, mixRef[c].litres) : null;
-      lignes.push({ lbl: COURT_CARBURANT[c], val: fmtPctColore(evolC) });
-    });
 
     let synthese;
     if (!autres.length) {
@@ -1729,13 +1950,6 @@
 
     document.getElementById('sousTitre').textContent = 'État des cuves, contrôle du jour et performance des ventes.';
 
-    // Signaux dépendants de la période, transmis au bloc "Ce que NEXUS
-    // vous dit" (fusionnés avec CONTROLE_CTX, indépendant lui de la
-    // période) — jamais un second calcul du mouvement de ventes.
-    SIGNAUX_PERIODE = { deltaTotal: decomposition ? decomposition.deltaTotal : null, evolutionTotale, moteurEvolution, labelPeriode: periode.label };
-    renderMessages();
-    renderLectureNexus();
-
     const couvertureTxt = actuel.nbQuartsTotal > 0
       ? `Couverture : ${actuel.nbQuartsAvecLitrage}/${actuel.nbQuartsTotal} quart${actuel.nbQuartsTotal > 1 ? 's' : ''} avec litrage renseigné sur la période.`
       : "Aucun quart enregistré sur cette période.";
@@ -1743,6 +1957,22 @@
     const caveatEnCours = (refUtilisee && refUtilisee.couvertureInsuffisante)
       ? ' Référence plus courte que la période en cours — comparaison limitée à sa durée réelle.'
       : '';
+    // CAR-UX-06 : une comparaison est "provisoire" — jamais affichée avec
+    // la force visuelle d'une tendance consolidée — si la période elle-même
+    // n'est pas terminée (enCours) OU si tous les quarts de la période
+    // n'ont pas encore de litrage renseigné (couverture partielle). Calculé
+    // AVANT SIGNAUX_PERIODE/renderLectureNexus() pour que "Lecture NEXUS"
+    // (ligneLectureCommerce) reflète le même statut provisoire que le
+    // bloc "Ventes carburants" plus bas — jamais deux lectures différentes
+    // de la même période (§2 du cahier, grammaire visuelle à figer).
+    const couvertureIncomplete = actuel.nbQuartsTotal > 0 && actuel.nbQuartsAvecLitrage < actuel.nbQuartsTotal;
+    const tendanceProvisoire = enCours || couvertureIncomplete;
+
+    // Signaux dépendants de la période, transmis au bloc "Lecture NEXUS"
+    // (fusionné avec CONTROLE_CTX, indépendant lui de la période) — jamais
+    // un second calcul du mouvement de ventes.
+    SIGNAUX_PERIODE = { deltaTotal: decomposition ? decomposition.deltaTotal : null, evolutionTotale, moteurEvolution, labelPeriode: periode.label, provisoire: tendanceProvisoire };
+    renderLectureNexus();
 
     // --- 4) Ventes carburants — période sélectionnée (ex-"Volumes & performance") ---
     let volumesHTML;
@@ -1753,11 +1983,11 @@
         const v = mix[cle];
         const refV = reference.ventes ? reference.ventes[cle] : null;
         const evol = v != null ? M.calculerEvolutionVolume(v.litres, refV) : null;
-        return `<div class="kpi-row"><span class="kpi-label">${NOM_CARBURANT[cle]}</span><span><span class="kpi-valeur">${v != null ? fmtL(v.litres) : '—'}</span>${fmtEvol(evol)}</span></div>`;
+        return `<div class="kpi-row"><span class="kpi-label">${NOM_CARBURANT[cle]}</span><span><span class="kpi-valeur">${v != null ? fmtL(v.litres) : '—'}</span>${fmtEvol(evol, tendanceProvisoire)}</span></div>`;
       }).join('');
       volumesHTML = `
         <div class="kpi-card">
-          <div class="kpi-row"><span class="kpi-label"><b>Total station — ${fmtL(mix.total)} vendus</b></span>${fmtEvol(evolutionTotale)}</div>
+          <div class="kpi-row"><span class="kpi-label"><b>Total station — ${fmtL(mix.total)} vendus</b></span>${fmtEvol(evolutionTotale, tendanceProvisoire)}</div>
           ${lignes}
         </div>
         <div class="section-note">${couvertureTxt}${refUtilisee
@@ -1781,6 +2011,17 @@
     }
 
     // --- 6) Stock & autonomie — tableau détaillé (audit §9.6) ---
+    // Correctif recette UI/UX (17/08/2026, CAR-UX-09 + CAR-UX-12) :
+    // - CAR-UX-09 : le tableau desktop (6 colonnes) était rendu identique
+    //   sur mobile — aucune règle @media n'existait dans tout le fichier.
+    //   Ajout d'un rendu "cartes empilées" (une par carburant, même
+    //   vocabulaire que les jauges "Situation aujourd'hui") + une paire de
+    //   règles @media qui bascule table (desktop) / cartes (mobile),
+    //   jamais les deux affichées en même temps.
+    // - CAR-UX-12 : les seuils, texte permanent en bas de tableau, passent
+    //   derrière un lien "Comprendre les seuils" (même pattern toggle que
+    //   "Voir pourquoi l'historique précédent a été neutralisé" déjà
+    //   utilisé plus haut sur cette page) — le corps de page reste léger.
     let stockTableHTML = '';
     if (CONTROLE_CTX && !CONTROLE_CTX.aucunReleve) {
       const lignesStock = M.CLES_CARBURANT.filter(cle => CUVES_CONFIG[cle] && CUVES_CONFIG[cle].actif).map(cle => {
@@ -1795,24 +2036,39 @@
         });
         const couleur = NIVEAU_COULEUR[fiabilite.niveau] || NIVEAU_COULEUR.attente;
         const statutAuto = M.statutAutonomie(autonomie);
-        return `
+        const ecartTxt = r.ecart != null ? `${r.ecart >= 0 ? '+' : ''}${Math.round(r.ecart).toLocaleString('fr-FR')} L` : '—';
+        const ecartCouleur = r.ecart != null && r.ecart < 0 ? 'var(--red)' : (r.ecart != null && r.ecart > 0 ? 'var(--green)' : 'var(--text-mid)');
+        return {
+          ligne: `
           <tr>
             <td class="nom-cell">${COURT_CARBURANT[cle]}</td>
             <td>${fmtL(r.stockPhysiqueAffiche)}</td>
             <td>${fmtL(r.theorique)}</td>
-            <td style="color:${r.ecart != null && r.ecart < 0 ? 'var(--red)' : (r.ecart != null && r.ecart > 0 ? 'var(--green)' : 'var(--text-mid)')};">${r.ecart != null ? `${r.ecart >= 0 ? '+' : ''}${Math.round(r.ecart).toLocaleString('fr-FR')} L` : '—'}</td>
+            <td style="color:${ecartCouleur};">${ecartTxt}</td>
             <td>${autonomie != null ? `${autonomie.toFixed(1)} j — ${statutAuto}` : '—'}</td>
             <td><span style="color:${couleur.c};">●</span> ${fiabilite.texte}</td>
-          </tr>`;
-      }).join('');
+          </tr>`,
+          carte: `
+          <div class="stock-mobile-carte">
+            <div class="stock-mobile-titre">${COURT_CARBURANT[cle]}</div>
+            <div class="carb-stat-row"><span class="lbl">Physique</span><span class="val">${fmtL(r.stockPhysiqueAffiche)}</span></div>
+            <div class="carb-stat-row"><span class="lbl">Théorique</span><span class="val">${fmtL(r.theorique)}</span></div>
+            <div class="carb-stat-row"><span class="lbl">Écart</span><span class="val" style="color:${ecartCouleur};">${ecartTxt}</span></div>
+            <div class="carb-autonomie-bloc"><span class="lbl">Autonomie</span><span class="val">${autonomie != null ? `${autonomie.toFixed(1)} j — ${statutAuto}` : '—'}</span></div>
+            <div class="carb-fiab-row"><span style="color:${couleur.c};">Fiabilité : ${fiabilite.texte}</span></div>
+          </div>`,
+        };
+      });
       stockTableHTML = `
         <div class="stock-table-wrap">
           <table class="stock-table">
             <thead><tr><th>Carburant</th><th>Physique</th><th>Théorique</th><th>Écart</th><th>Autonomie</th><th>Fiabilité du contrôle</th></tr></thead>
-            <tbody>${lignesStock}</tbody>
+            <tbody>${lignesStock.map(l => l.ligne).join('')}</tbody>
           </table>
         </div>
-        <div class="section-note">Seuils d'écart : ± ${(M.SEUIL_ECART_PCT_SURVEILLER * 100).toFixed(0)} % des ventes = sous contrôle, jusqu'à ± ${(M.SEUIL_ECART_PCT_CORRIGER * 100).toFixed(0)} % = à surveiller, au-delà = à corriger. Seuil d'autonomie : sous ${M.SEUIL_AUTONOMIE_ALERTE_JOURS} jour${M.SEUIL_AUTONOMIE_ALERTE_JOURS > 1 ? 's' : ''} = à corriger. Seuils provisoires, à recalibrer.</div>
+        <div class="stock-mobile-wrap">${lignesStock.map(l => l.carte).join('')}</div>
+        <div class="lien-historique-neutralise"><a href="#" id="lienComprendreSeuils">Comprendre les seuils</a></div>
+        <div class="historique-neutralise-detail" id="comprendreSeuilsDetail" style="display:none;">Seuils d'écart : ± ${(M.SEUIL_ECART_PCT_SURVEILLER * 100).toFixed(0)} % des ventes = sous contrôle, jusqu'à ± ${(M.SEUIL_ECART_PCT_CORRIGER * 100).toFixed(0)} % = à surveiller, au-delà = à corriger. Seuil d'autonomie : sous ${M.SEUIL_AUTONOMIE_ALERTE_JOURS} jour${M.SEUIL_AUTONOMIE_ALERTE_JOURS > 1 ? 's' : ''} = à corriger. Seuils provisoires, à recalibrer.</div>
       `;
     }
 
@@ -1822,12 +2078,13 @@
     // prose, mêmes calculs qu'avant. ---
     let moteurHTML = '';
     if (mix) {
-      const { lignes, synthese } = construireLigneMoteurCompact(mix, mixRef, decomposition, moteurEvolution, evolutionTotale);
-      const lignesHTML = lignes.map(l => `<div class="kpi-row"><span class="kpi-label">${l.lbl}</span><span class="kpi-valeur">${l.val}</span></div>`).join('');
-      moteurHTML = `
-        ${lignesHTML ? `<div class="kpi-card">${lignesHTML}</div>` : ''}
-        <div class="synthese-texte">${synthese}</div>
-      `;
+      const { lignes, synthese } = construireLigneMoteurCompact(mix, mixRef, decomposition, moteurEvolution, evolutionTotale, tendanceProvisoire);
+      // CAR-UX-11 : la synthèse devient la 3e ligne "Lecture NEXUS" du même
+      // bloc kpi-card, au lieu d'un paragraphe séparé — 3 lignes maximum,
+      // jamais plus, quelle que soit la situation.
+      const lignesAffichees = [...lignes, { lbl: 'Lecture NEXUS', val: synthese }];
+      const lignesHTML = lignesAffichees.map(l => `<div class="kpi-row"><span class="kpi-label">${l.lbl}</span><span class="kpi-valeur">${l.val}</span></div>`).join('');
+      moteurHTML = `<div class="kpi-card">${lignesHTML}</div>`;
     }
 
     document.getElementById('ventesZone').innerHTML = volumesHTML;
@@ -1836,6 +2093,18 @@
       : `<div class="controle-vide">Données insuffisantes pour cette période — aucun litrage renseigné dans NEXUS Verify.</div>`;
     document.getElementById('stockZone').innerHTML = stockTableHTML
       || `<div class="controle-vide">Aucun relevé enregistré pour l'instant.</div>`;
+    // CAR-UX-12 : wiring du toggle "Comprendre les seuils" — même pattern
+    // que "Voir pourquoi l'historique précédent a été neutralisé" (lien +
+    // détail replié), reconstruit à chaque rendu puisque #stockZone est
+    // réécrit en innerHTML.
+    const lienSeuils = document.getElementById('lienComprendreSeuils');
+    if (lienSeuils) {
+      lienSeuils.addEventListener('click', (e) => {
+        e.preventDefault();
+        const detail = document.getElementById('comprendreSeuilsDetail');
+        if (detail) detail.style.display = detail.style.display === 'none' ? 'block' : 'none';
+      });
+    }
     document.getElementById('moteurZone').innerHTML = mix
       ? moteurHTML
       : `<div class="controle-vide">Données insuffisantes pour cette période — aucun litrage renseigné dans NEXUS Verify.</div>`;
@@ -1969,7 +2238,7 @@
     // immédiatement, pas seulement au prochain chargement de page.
     CONTROLE_CTX = await chargerControleEtAutonomie();
     renderSituation(CONTROLE_CTX);
-    renderMessages();
+    renderStatutReleveDuJour(CONTROLE_CTX);
     renderLectureNexus();
     await Promise.all([chargerEtRendreLivraison(), chargerEtRendrePeriode(), chargerEtRendreHistorique(), chargerEtRendreAnalyse(), chargerEtRendreEconomie()]);
 
@@ -2022,11 +2291,26 @@
       if (sousTitreEl) sousTitreEl.textContent = 'Vide';
       return;
     }
-    if (sousTitreEl) sousTitreEl.textContent = `${pointsZero.length} point${pointsZero.length > 1 ? 's' : ''} zéro · ${releves.length} relevé${releves.length > 1 ? 's' : ''} · ${visites.length} réception${visites.length > 1 ? 's' : ''}`;
+    // Correctif recette UI/UX (17/08/2026, CAR-UX-13) : "réception" seul
+    // prêtait à confusion avec "Dernière livraison" plus haut sur la page,
+    // qui lit une source différente (carburant_releves, champ manager) —
+    // "réception terrain validée" précise sans ambiguïté qu'il s'agit du
+    // parcours employé guidé (carburant_reception_visites), jamais une
+    // contradiction entre les deux compteurs.
+    if (sousTitreEl) sousTitreEl.textContent = `${pointsZero.length} point${pointsZero.length > 1 ? 's' : ''} zéro · ${releves.length} relevé${releves.length > 1 ? 's' : ''} · ${visites.length} réception${visites.length > 1 ? 's' : ''} terrain validée${visites.length > 1 ? 's' : ''}`;
     const M = NexusCarburantMoteur;
 
     let pzHTML = '';
     if (pointsZero.length) {
+      // CAR-UX-14 : `pointsZero` est trié date desc, created_at desc
+      // (chargerHistoriquePointsZero) — le premier type='initialisation'
+      // rencontré EST la référence de calcul active (même règle que
+      // chargerDernierPointZero côté données, jamais recalculée
+      // différemment ici, Article 11). Tout 'recomptage' reste "Contrôle
+      // intermédiaire" (jamais une ancre) ; toute 'initialisation' plus
+      // ancienne que l'actif est "Remplacé" — jamais deux points zéro
+      // ambigus sur le statut de référence.
+      let actifTrouve = false;
       const cartes = pointsZero.map(pz => {
         const dateTxt = formaterDateFrCourt(pz.date);
         const sourceTxt = pz.source === 'insite360' ? 'Insite360' : (pz.source === 'terrain' ? 'Terrain' : 'Autre');
@@ -2036,22 +2320,34 @@
         // Uniquement pour la source Insite360 : Terrain/Autre restent du
         // texte simple, aucune URL n'existant pour ces sources (Article 5,
         // ne jamais fabriquer un lien non appuyé sur une donnée réelle).
+        // CAR-UX-16 (cahier recette UI/UX, 17/08/2026) : le badge Insite360
+        // doit se lire comme une action ("Ouvrir la source"), jamais comme
+        // une simple étiquette statique — même lien, même URL fixe fournie
+        // par Frédéric, seul le libellé change.
         const sourceHTML = pz.source === 'insite360'
-          ? `<a class="historique-pz-source" href="${URL_INSITE360_DASHBOARD}" target="_blank" rel="noopener">${sourceTxt} ↗</a>`
+          ? `<a class="historique-pz-source" href="${URL_INSITE360_DASHBOARD}" target="_blank" rel="noopener">Ouvrir la source INSITE360 ↗</a>`
           : `<span class="historique-pz-source">${sourceTxt}</span>`;
         const typeTxt = pz.type === 'recomptage' ? 'Recomptage' : 'Initialisation';
         const valeurs = M.CLES_CARBURANT.map(cle => `${COURT_CARBURANT[cle]} ${fmtL(pz.lignes[cle])}`).join(' · ');
-        // CORRECTIF 14/08/2026 : rappel visible qu'un recomptage n'est
-        // jamais devenu l'ancre de calcul (voir chargerDernierPointZero,
-        // filtré sur type='initialisation') — évite toute ambiguïté en
-        // relisant le journal a posteriori.
-        const noteType = pz.type === 'recomptage' ? '<div class="historique-pz-note">Contrôle intermédiaire — n\'a pas remplacé la référence de calcul.</div>' : '';
+        let statutTxt, statutClasse, noteType;
+        if (pz.type === 'recomptage') {
+          statutTxt = 'Contrôle intermédiaire'; statutClasse = 'intermediaire';
+          noteType = '<div class="historique-pz-note">Contrôle intermédiaire — n\'a pas remplacé la référence de calcul.</div>';
+        } else if (!actifTrouve) {
+          statutTxt = 'Point zéro actif'; statutClasse = 'actif';
+          actifTrouve = true;
+          noteType = '';
+        } else {
+          statutTxt = 'Remplacé'; statutClasse = 'remplace';
+          noteType = '<div class="historique-pz-note">Remplacé par une référence plus récente — n\'est plus utilisé pour le calcul.</div>';
+        }
         return `
           <div class="historique-pz-carte">
             <div class="historique-pz-tete">
               <span class="historique-pz-date">📅 ${dateTxt}${pz.heure ? ` à ${String(pz.heure).slice(0, 5)}` : ''} — ${typeTxt}</span>
               ${sourceHTML}
             </div>
+            <span class="historique-pz-statut ${statutClasse}">${statutTxt}</span>
             <div class="historique-pz-valeurs">${valeurs}</div>
             ${pz.note ? `<div class="historique-pz-note">${pz.note}</div>` : ''}
             ${noteType}
@@ -2072,13 +2368,20 @@
         // Sprint C6 (audit §10.1) : le clic sur la ligne conserve son
         // comportement d'origine (ouvrir la saisie/rattrapage du jaugeage
         // de cette date, sur NEXUS-Carburants-v1.html) — un badge dédié
-        // "Preuve" ouvre en plus la modale "Relevé de contrôle" (lecture
-        // seule, contrôle déjà posé) sans quitter la page, deux actions
-        // distinctes, jamais fusionnées.
+        // ouvre en plus la modale "Relevé de contrôle" (lecture seule,
+        // contrôle déjà posé) sans quitter la page, deux actions distinctes,
+        // jamais fusionnées.
+        // CAR-UX-17 : icône de nature d'événement ("Relevé", famille fixe du
+        // cahier §2) sur chaque ligne — 🎯 reste un indicateur de position
+        // (premier relevé après un point zéro), pas une nature concurrente.
+        // CAR-UX-15 : le badge "Preuve" devient "Voir la preuve" et indique
+        // sa source — ces relevés sont systématiquement une saisie
+        // opérateur dans NEXUS (carburant_releves.saisi_par), jamais une
+        // valeur calculée ou importée à cet endroit (Article 5).
         return `<tr class="historique-releve-row" data-date="${r.date}">
-          <td class="nom-cell">${formaterDateFrCourt(r.date)}${r.ancreEstPointZero ? ' 🎯' : ''}</td>
+          <td class="nom-cell"><span class="historique-releve-nature" title="Relevé">📋</span> ${formaterDateFrCourt(r.date)}${r.ancreEstPointZero ? ' 🎯' : ''}</td>
           ${cellules}
-          <td><span class="historique-releve-preuve" data-preuve-date="${r.date}">Preuve</span></td>
+          <td><span class="historique-releve-preuve" data-preuve-date="${r.date}">Voir la preuve</span><span class="historique-releve-source">Saisie opérateur</span></td>
         </tr>`;
       }).join('');
       relevesHTML = `
@@ -2089,7 +2392,7 @@
             <tbody>${lignes}</tbody>
           </table>
         </div>
-        <div class="section-note">🎯 = premier relevé après un point zéro certifié. « Preuve » ouvre le relevé de contrôle déjà posé pour cette date, sans quitter la page.</div>
+        <div class="section-note">📋 = relevé. 🎯 = premier relevé après un point zéro certifié. « Voir la preuve » ouvre le relevé de contrôle déjà posé pour cette date, sans quitter la page.</div>
       `;
     }
 
@@ -2334,6 +2637,7 @@
     // fois, avant la période, pour être immédiatement disponible.
     CONTROLE_CTX = await chargerControleEtAutonomie();
     renderSituation(CONTROLE_CTX);
+    renderStatutReleveDuJour(CONTROLE_CTX);
     renderLectureNexus();
 
     await Promise.all([chargerEtRendreLivraison(), chargerEtRendrePeriode(), chargerEtRendreRattrapage(), chargerEtRendreHistorique(), chargerEtRendreQualiteReceptions(), chargerEtRendreAnalyse(), chargerEtRendreEconomie()]);
