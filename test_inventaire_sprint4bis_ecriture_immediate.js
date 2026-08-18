@@ -82,6 +82,11 @@ const srcParts = [
   'let produitsZone = [];',
   'let nexusClient = null;',
   'let localStorage = null;',
+  // Sprint 8 (18/08/2026) — ecrireOuvertureImmediat incrémente désormais
+  // compteurTapsSession (INV2-19) ; il faut le déclarer ici comme les
+  // autres lets de module, sinon l'extraction regex de la seule fonction
+  // laisse une référence libre.
+  'let compteurTapsSession = 0;',
   extraire('djb2InventaireHash'),
   extraire('cleIdempotenceComptage'),
   extraire('cleFileSync'),

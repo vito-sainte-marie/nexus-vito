@@ -325,6 +325,20 @@
   // retombe simplement sur l'écran catégories, jamais une erreur bloquante.
   let positionCourante = null;
 
+  // Compteurs de mesures d'adoption (18/08/2026, Sprint 8 — cahier §16,
+  // INV2-19 "Les mesures de temps/taps sont enregistrées sans action
+  // supplémentaire") : accumulés en mémoire à des points de geste déjà
+  // existants (jamais un nouvel événement inventé pour l'occasion — voir
+  // ecrireOuvertureImmediat pour les taps, demarrerOuvertureComptage pour
+  // les interruptions, la boucle de clôture pour ses propres taps), puis
+  // flushés vers inventaire_quarts.nexus_taps_total/nexus_interruptions_total
+  // via flusherMesuresAdoption() — best-effort, jamais visible ni bloquant
+  // pour l'employé. Le temps NEXUS lui-même n'a pas besoin de compteur : il
+  // se dérive d'ouvert_le/cloture_le (déjà existants) côté moteur
+  // (dureeSessionAutomatiqueMinutes, Article 11).
+  let compteurTapsSession = 0;
+  let compteurInterruptionsSession = 0;
+
   // ------------------------------------------------------------
   // BROUILLON LOCAL (02/08/2026, demande de Frédéric — "si un employé fait
   // exprès [sans faire exprès] retourne en arrière, garder en mémoire les
@@ -497,6 +511,35 @@
     return toutSynchronise;
   }
 
+  // Flush best-effort des compteurs d'adoption (18/08/2026, Sprint 8, cahier
+  // §16, INV2-19) — additionne les compteurs en mémoire aux totaux déjà
+  // persistés sur inventaire_quarts (jamais un UPDATE en incrément SQL, ce
+  // client ne fait qu'une lecture-puis-écriture simple : un seul employé
+  // travaille un quart donné à la fois dans l'usage réel de NEXUS, même
+  // hypothèse de concurrence que le reste de cet écran). N'est jamais
+  // bloquant ni visible pour l'employé — une mesure indicative de pilote
+  // (cahier §16), pas une donnée financière ou de stock : en cas d'échec
+  // réseau, les compteurs locaux ne sont PAS remis à zéro et seront
+  // simplement inclus dans la prochaine tentative (prochaine catégorie
+  // ouverte ou validation finale), plutôt que perdus silencieusement.
+  async function flusherMesuresAdoption() {
+    if (!quartRow || (compteurTapsSession === 0 && compteurInterruptionsSession === 0)) return;
+    try {
+      const nouveauxTaps = (quartRow.nexus_taps_total || 0) + compteurTapsSession;
+      const nouvellesInterruptions = (quartRow.nexus_interruptions_total || 0) + compteurInterruptionsSession;
+      const { error } = await nexusClient.from('inventaire_quarts')
+        .update({ nexus_taps_total: nouveauxTaps, nexus_interruptions_total: nouvellesInterruptions })
+        .eq('id', quartRow.id);
+      if (error) throw error;
+      quartRow.nexus_taps_total = nouveauxTaps;
+      quartRow.nexus_interruptions_total = nouvellesInterruptions;
+      compteurTapsSession = 0;
+      compteurInterruptionsSession = 0;
+    } catch (e) {
+      console.error('Flush mesures adoption (best-effort, non bloquant):', e);
+    }
+  }
+
   // Écrit (au besoin) l'événement "transmis" — valeur constante pour un
   // produit+quart donné, donc sa clé d'idempotence est naturellement stable
   // d'une tentative à l'autre : au plus une seule ligne "transmis" existera
@@ -523,6 +566,7 @@
   async function ecrireOuvertureImmediat(p) {
     const saisie = comptagesSaisie[p.id];
     if (!saisie || saisie.compte === undefined) return;
+    compteurTapsSession++; // Sprint 8, INV2-19 : geste réel de validation produit, jamais une action ajoutée pour l'employé
     const transmis = dernierStock[p.id];
     const valeurTransmise = transmis ? transmis.quantite : 0;
     const evtTransmis = await ecrireTransmisImmediat(p);
@@ -1080,6 +1124,7 @@
       const { groupesPourParcours } = groupesParcoursOuverture();
       const groupe = groupesPourParcours.find(g => g.nom === position.categorieNom);
       if (groupe && !categorieEstTerminee(groupe.items)) {
+        compteurInterruptionsSession++; // Sprint 8, INV2-19 : reprise réelle détectée automatiquement (même mécanisme que la reprise INV2-16 ci-dessus)
         categorieActive = groupe.nom;
         carrouselModeCorrection = false;
         if (groupe.items.length > CARROUSEL_SEUIL) {
@@ -1466,6 +1511,10 @@
     // d'attente s'il en reste — best-effort, jamais attendu (fire-and-
     // forget), ne retarde jamais l'affichage de la catégorie.
     tenterSynchronisationFileAttente();
+    // Même rythme opportuniste que la synchro ci-dessus (18/08/2026, Sprint
+    // 8) — flush best-effort des taps/interruptions accumulés, jamais
+    // attendu, ne retarde jamais l'affichage de la catégorie.
+    flusherMesuresAdoption();
     if (groupe.items.length > CARROUSEL_SEUIL) {
       carrouselIndex = groupe.items.findIndex(p => !produitEstCompte(p));
       if (carrouselIndex === -1) carrouselIndex = 0; // déjà terminée : on repasse en revue depuis le début
@@ -2047,6 +2096,12 @@
 
     await nexusClient.from('inventaire_quart_employes').update({ a_valide_ouverture: true, heure_arrivee: quartEmployeRow.heure_arrivee || new Date().toISOString() }).eq('id', quartEmployeRow.id);
     await nexusClient.from('inventaire_quarts').update({ statut: 'ouvert' }).eq('id', quartRow.id).eq('statut', 'ouverture_en_cours');
+    // Flush final des mesures d'adoption (18/08/2026, Sprint 8, INV2-19) —
+    // attendu ici (contrairement au flush opportuniste d'ouvrirCategorie)
+    // pour garantir que les gestes de cette session soient bien comptés
+    // avant l'écran de fin, même si aucune catégorie n'a été rouverte
+    // depuis le dernier flush.
+    await flusherMesuresAdoption();
     quartEmployeRow.a_valide_ouverture = true;
     mouvementsSaisie = [];
     // Le brouillon local n'est PAS effacé tant qu'il reste des écritures en
@@ -2416,6 +2471,7 @@
       const saisie = comptagesSaisie[p.id];
       if (!saisie || saisie.compte === undefined) continue;
       nbClotures++;
+      compteurTapsSession++; // Sprint 8, INV2-19 : geste réel de validation produit (clôture), même logique que l'ouverture
       const { error } = await nexusClient.from('inventaire_comptages').insert({
         site: employeeCourant.site_id, quart_id: quartRow.id, produit_id: p.id,
         type_comptage: 'cloture', quantite: saisie.compte, employee_id: employeeCourant.id, source: 'manuel', statut: 'valide',
@@ -2427,6 +2483,9 @@
 
     await nexusClient.from('inventaire_quart_employes').update({ a_valide_cloture: true, heure_depart: new Date().toISOString() }).eq('id', quartEmployeRow.id);
     await nexusClient.from('inventaire_quarts').update({ statut: 'cloture', cloture_le: new Date().toISOString() }).eq('id', quartRow.id);
+    // Flush final des mesures d'adoption (18/08/2026, Sprint 8, INV2-19) —
+    // même logique que validerOuverture ci-dessus.
+    await flusherMesuresAdoption();
     quartEmployeRow.a_valide_cloture = true;
     effacerDraft('cloture');
 

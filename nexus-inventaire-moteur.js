@@ -369,6 +369,90 @@
     return { aResoudre, aMettreAJour, aCreer };
   }
 
+  // ============================================================
+  // Sprint 8 — Adoption : mesure papier/NEXUS + rapport temps/gestes
+  // (cahier §16, INV2-19 "Les mesures de temps/taps sont enregistrées sans
+  // action supplémentaire"). Ce moteur ne calcule qu'à partir de données
+  // déjà persistées automatiquement : ouvert_le/cloture_le existent depuis
+  // toujours sur inventaire_quarts, nexus_taps_total/nexus_interruptions_
+  // total sont posés par NEXUS-Inventaire-v1.html à des points de geste
+  // déjà existants (jamais un nouvel événement synthétique), et
+  // papier_temps_minutes/papier_produits_comptes/papier_corrections/
+  // nexus_temps_minutes/is_simulation sont saisis manuellement, après coup,
+  // par un manager via l'onglet "Simulation" de
+  // NEXUS-Parametres-Inventaire-v1.html — jamais une évaluation employé (la
+  // feuille papier reste la référence officielle tant que le pilote n'a pas
+  // conclu, cahier §16 tâche 35 "Étendre seulement si NEXUS est au moins
+  // aussi rapide que le papier").
+  // ============================================================
+
+  // Durée automatique d'une session NEXUS (18/08/2026, Sprint 8) — dérivée
+  // d'ouvert_le/cloture_le, jamais une colonne dupliquée (Article 11 : ces
+  // deux timestamps existent déjà sur inventaire_quarts pour tout quart réel
+  // ou simulé). Retourne null si l'un des deux horodatages manque ou si
+  // cloture_le n'est pas postérieur à ouvert_le (donnée corrompue plutôt
+  // qu'une durée négative fabriquée — Article 5).
+  function dureeSessionAutomatiqueMinutes(ouvertLe, clotureLe) {
+    if (!ouvertLe || !clotureLe) return null;
+    const debut = new Date(ouvertLe).getTime();
+    const fin = new Date(clotureLe).getTime();
+    if (!Number.isFinite(debut) || !Number.isFinite(fin) || fin <= debut) return null;
+    return Math.round(((fin - debut) / 60000) * 10) / 10;
+  }
+
+  // Synthèse d'un quart pour la comparaison Papier/NEXUS (18/08/2026,
+  // Sprint 8) : combine les valeurs papier saisies manuellement (référence
+  // officielle) avec le temps NEXUS — priorité à la durée automatique
+  // (ouvert_le/cloture_le, un quart réel travaillé normalement) et repli sur
+  // nexus_temps_minutes (le chronomètre manuel de l'onglet Simulation) s'il
+  // n'y a pas encore de clôture automatique, jamais l'inverse (l'automatique
+  // est toujours la source la plus honnête quand elle existe). `gainMinutes`
+  // reste null tant que l'une des deux durées manque — jamais un gain
+  // inventé à partir d'une seule mesure (Article 5).
+  function syntheseComparaisonAdoption(quart) {
+    if (!quart) return null;
+    const nexusTempsAuto = dureeSessionAutomatiqueMinutes(quart.ouvert_le, quart.cloture_le);
+    const nexusTemps = nexusTempsAuto != null ? nexusTempsAuto
+      : (quart.nexus_temps_minutes != null ? quart.nexus_temps_minutes : null);
+    const papierTemps = quart.papier_temps_minutes != null ? quart.papier_temps_minutes : null;
+    const gainMinutes = (papierTemps != null && nexusTemps != null)
+      ? Math.round((papierTemps - nexusTemps) * 10) / 10 : null;
+    return {
+      papierTempsMinutes: papierTemps,
+      papierProduitsComptes: quart.papier_produits_comptes != null ? quart.papier_produits_comptes : null,
+      papierCorrections: quart.papier_corrections != null ? quart.papier_corrections : null,
+      nexusTempsMinutes: nexusTemps,
+      nexusTempsAutomatique: nexusTempsAuto != null,
+      nexusTapsTotal: quart.nexus_taps_total != null ? quart.nexus_taps_total : null,
+      nexusInterruptionsTotal: quart.nexus_interruptions_total != null ? quart.nexus_interruptions_total : null,
+      gainMinutes,
+    };
+  }
+
+  // Agrégat multi-quarts pour le tableau de bord manager (18/08/2026,
+  // Sprint 8) — remplace le calcul de moyennes qui vivait directement dans
+  // NEXUS-Parametres-Inventaire-v1.html (Article 11 : une seule fonction,
+  // testable, réutilisée partout où une synthèse Papier/NEXUS est affichée).
+  function moyenneSyntheseAdoption(quarts) {
+    const lignes = (quarts || []).map(syntheseComparaisonAdoption).filter(Boolean);
+    const moyenne = (valeurs) => {
+      const v = valeurs.filter(x => x != null);
+      return v.length ? Math.round((v.reduce((s, x) => s + x, 0) / v.length) * 10) / 10 : null;
+    };
+    const tempsMoyenPapier = moyenne(lignes.map(l => l.papierTempsMinutes));
+    const tempsMoyenNexus = moyenne(lignes.map(l => l.nexusTempsMinutes));
+    return {
+      nb: lignes.length,
+      tempsMoyenPapier, tempsMoyenNexus,
+      correctionsMoyennes: moyenne(lignes.map(l => l.papierCorrections)),
+      tapsMoyens: moyenne(lignes.map(l => l.nexusTapsTotal)),
+      interruptionsMoyennes: moyenne(lignes.map(l => l.nexusInterruptionsTotal)),
+      gainMoyenMinutes: (tempsMoyenPapier != null && tempsMoyenNexus != null)
+        ? Math.round((tempsMoyenPapier - tempsMoyenNexus) * 10) / 10 : null,
+      nbAvecComparatif: lignes.filter(l => l.papierTempsMinutes != null).length,
+    };
+  }
+
   global.NexusInventaireMoteur = {
     FAMILLES_CONTROLE, DEFAUT_DELAI_MAX_JOURS_PAR_FAMILLE,
     libelleRaisonSelection, joursEntreDates, delaiMaxJours, produitEligibleQuart,
@@ -376,5 +460,6 @@
     construirePlanComptage, libelleTotalProduit,
     qualiteRapprochementProduit, libelleQualiteRapprochement, couverturePhysique,
     reconciliationAlertesDemarque, syntheseQualiteRapprochements,
+    dureeSessionAutomatiqueMinutes, syntheseComparaisonAdoption, moyenneSyntheseAdoption,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

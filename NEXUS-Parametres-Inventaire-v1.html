@@ -20,6 +20,7 @@
 <script src="nexus-auth.js"></script>
 <script src="nexus-forfait.js"></script>
 <script src="nexus-desktop.js"></script>
+<script src="nexus-inventaire-moteur.js"></script>
 <style>
   :root{
     --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
@@ -1059,17 +1060,20 @@
     (data || []).forEach(r => { map[r.produit_id] = r.quantite; });
     return map;
   }
+  // Délègue entièrement l'agrégation à NexusInventaireMoteur.moyenneSyntheseAdoption
+  // (18/08/2026, Sprint 8, Article 11) — cette fonction ne fait plus que
+  // charger les lignes brutes ; le calcul de moyennes vivait auparavant ici
+  // même, en double avec la logique équivalente ailleurs. `nexus_taps_total`/
+  // `nexus_interruptions_total`/`ouvert_le`/`cloture_le` sont chargés en plus
+  // des colonnes déjà utilisées pour que le moteur puisse aussi dériver un
+  // temps NEXUS automatique quand une session simulation a réellement été
+  // ouverte/close comme un quart normal (voir dureeSessionAutomatiqueMinutes).
   async function chargerStatsSimulation() {
-    const { data, error } = await nexusClient.from('inventaire_quarts').select('id, papier_produits_comptes, papier_temps_minutes, papier_corrections, nexus_temps_minutes').eq('site', siteId).eq('is_simulation', true);
+    const { data, error } = await nexusClient.from('inventaire_quarts')
+      .select('id, papier_produits_comptes, papier_temps_minutes, papier_corrections, nexus_temps_minutes, nexus_taps_total, nexus_interruptions_total, ouvert_le, cloture_le')
+      .eq('site', siteId).eq('is_simulation', true);
     if (error) { console.error('Stats simulation:', error); return { nb: 0 }; }
-    const rows = data || [];
-    const moyenne = (arr) => arr.length ? Math.round((arr.reduce((s, v) => s + v, 0) / arr.length) * 10) / 10 : null;
-    return {
-      nb: rows.length, tempsMoyenPapier: moyenne(rows.map(r => r.papier_temps_minutes).filter(v => v != null)),
-      tempsMoyenNexus: moyenne(rows.map(r => r.nexus_temps_minutes).filter(v => v != null)),
-      correctionsMoyennes: moyenne(rows.map(r => r.papier_corrections).filter(v => v != null)),
-      nbAvecComparatif: rows.filter(r => r.papier_temps_minutes != null).length,
-    };
+    return NexusInventaireMoteur.moyenneSyntheseAdoption(data || []);
   }
   function renderCorpsSimulation() {
     if (!produitsPourSimulation.length) return '<div class="loading">Chargement des produits…</div>';
@@ -1116,17 +1120,25 @@
     const zone = document.getElementById('simulationStatsZone');
     if (zone) zone.innerHTML = renderStatsSimulation();
   }
+  // 18/08/2026, Sprint 8 : gainMoyenMinutes vient désormais du moteur
+  // (NexusInventaireMoteur.moyenneSyntheseAdoption, Article 11 — même calcul
+  // que gainMinutes par quart) ; deux lignes ajoutées pour les gestes/
+  // interruptions automatiques (INV2-19), affichées seulement si au moins
+  // une session en a mesuré (dégradation gracieuse — pas de "0" trompeur sur
+  // des sessions simulation qui n'ont jamais été ouvertes/closes comme un
+  // vrai quart).
   function renderStatsSimulation() {
     if (!statsSimulation || statsSimulation.nb === 0) return `<div class="empty">Aucune session de simulation enregistrée pour l'instant.</div>`;
     const s = statsSimulation;
-    const gain = (s.tempsMoyenPapier != null && s.tempsMoyenNexus != null) ? Math.round((s.tempsMoyenPapier - s.tempsMoyenNexus) * 10) / 10 : null;
     return `
       <div class="card" style="padding:4px 14px;">
         <div class="stat-row"><span class="stat-label">Sessions de simulation</span><span class="stat-value">${s.nb}</span></div>
         <div class="stat-row"><span class="stat-label">Temps moyen papier</span><span class="stat-value">${s.tempsMoyenPapier != null ? s.tempsMoyenPapier + ' min' : '—'}</span></div>
         <div class="stat-row"><span class="stat-label">Temps moyen NEXUS</span><span class="stat-value cyan">${s.tempsMoyenNexus != null ? s.tempsMoyenNexus + ' min' : '—'}</span></div>
         <div class="stat-row"><span class="stat-label">Corrections papier (moy.)</span><span class="stat-value">${s.correctionsMoyennes != null ? s.correctionsMoyennes : '—'}</span></div>
-        ${gain !== null ? `<div class="stat-row"><span class="stat-label">Gain de temps NEXUS</span><span class="stat-value ${gain >= 0 ? 'cyan' : 'amber'}">${gain >= 0 ? '+' : ''}${gain} min</span></div>` : ''}
+        ${s.tapsMoyens != null ? `<div class="stat-row"><span class="stat-label">Gestes NEXUS (moy., automatique)</span><span class="stat-value cyan">${s.tapsMoyens}</span></div>` : ''}
+        ${s.interruptionsMoyennes != null ? `<div class="stat-row"><span class="stat-label">Interruptions/reprises (moy., automatique)</span><span class="stat-value">${s.interruptionsMoyennes}</span></div>` : ''}
+        ${s.gainMoyenMinutes !== null ? `<div class="stat-row"><span class="stat-label">Gain de temps NEXUS</span><span class="stat-value ${s.gainMoyenMinutes >= 0 ? 'cyan' : 'amber'}">${s.gainMoyenMinutes >= 0 ? '+' : ''}${s.gainMoyenMinutes} min</span></div>` : ''}
         <div class="stat-row"><span class="stat-label">Comparatifs renseignés</span><span class="stat-value">${s.nbAvecComparatif}/${s.nb}</span></div>
       </div>
     `;
