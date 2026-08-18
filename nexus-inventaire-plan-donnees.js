@@ -1,11 +1,14 @@
 // NEXUS Inventaire — colle Supabase pour le plan de comptage tournant
-// (cahier "Inventaire 2.0", 17/08/2026, Sprint 2). Partagé par l'écran
-// employé (NEXUS-Inventaire-v1.html, consomme le plan) et l'écran manager
-// (NEXUS-Inventaire-Manager-v1.html, pourra le lire pour la couverture —
-// P1/Sprint 7, hors périmètre de ce lot). Toute la logique de SÉLECTION
-// reste dans nexus-inventaire-moteur.js (Article 11) ; ce fichier ne fait
-// que charger ce qu'il faut au moteur puis persister son résultat une seule
-// fois (jamais recalculé au rechargement — critère de recette INV2-04).
+// (cahier "Inventaire 2.0", 17/08/2026, Sprint 2 ; complété 18/08/2026,
+// Sprint 5, par chargerCouverturePhysique). Partagé par l'écran employé
+// (NEXUS-Inventaire-v1.html, consomme le plan) et l'écran manager
+// (NEXUS-Inventaire-Manager-v1.html, lit la couverture physique 7/14/30
+// jours, cahier §11/INV2-18). Toute la logique de SÉLECTION/CALCUL reste
+// dans nexus-inventaire-moteur.js (Article 11) ; ce fichier ne fait que
+// charger ce qu'il faut au moteur puis persister son résultat une seule
+// fois pour le plan (jamais recalculé au rechargement — critère de recette
+// INV2-04) — la couverture, elle, est un calcul de lecture pure, recalculée
+// à chaque affichage manager comme les autres synthèses de cet écran.
 
 (function (global) {
   'use strict';
@@ -141,8 +144,32 @@
     return true;
   }
 
+  // Couverture physique 7/14/30 jours (cahier §11 "Couverture physique",
+  // Sprint 7 anticipé ici puisque la donnée nécessaire —
+  // view_inventaire_dernier_controle_produit — est déjà exploitée pour le
+  // plan tournant (Sprint 2) : même source, jamais un second calcul du
+  // dernier contrôle par produit (Article 11). Le calcul lui-même reste
+  // dans nexus-inventaire-moteur.js::couverturePhysique — ce chargeur ne
+  // fait que réunir les ingrédients.
+  async function chargerCouverturePhysique(client, site, dateISO, fenetreJours) {
+    const M = global.NexusInventaireMoteur;
+    if (!M) { console.error('NexusInventaireMoteur non chargé — impossible de calculer la couverture.'); return null; }
+    const [{ data: produitsActifs, error: e1 }, { data: derniers, error: e2 }] = await Promise.all([
+      client.from('inventaire_zone_produit').select('id').eq('site', site).eq('actif', true),
+      client.from('view_inventaire_dernier_controle_produit').select('produit_id, dernier_controle_le').eq('site', site),
+    ]);
+    if (e1) console.error('Chargement produits actifs (couverture):', e1);
+    if (e2) console.error('Chargement derniers contrôles (couverture):', e2);
+    const dernierControleParProduit = {};
+    (derniers || []).forEach(d => { dernierControleParProduit[d.produit_id] = d.dernier_controle_le; });
+    return M.couverturePhysique({
+      produitsActifs: produitsActifs || [], dernierControleParProduit, dateISO, fenetreJours,
+    });
+  }
+
   global.NexusInventairePlanDonnees = {
     SOCLE_PAR_DEFAUT, SURPRISES_PAR_DEFAUT,
     chargerPlanExistant, chargerOuGenererPlan, marquerItemPlanCompte,
+    chargerCouverturePhysique,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -22,6 +22,8 @@
 <script src="nexus-auth.js"></script>
 <script src="nexus-forfait.js"></script>
 <script src="nexus-desktop.js"></script>
+<script src="nexus-inventaire-moteur.js"></script>
+<script src="nexus-inventaire-plan-donnees.js"></script>
 <script src="nexus-inventaire-manager-donnees.js"></script>
 <script src="nexus-pdf-moteur.js"></script>
 <style>
@@ -1318,10 +1320,24 @@
     });
     (mouvements || []).forEach(m => { sommeMouvements[m.produit_id] = (sommeMouvements[m.produit_id] || 0) + Number(m.quantite); });
 
+    // Détail retourné en plus de l'écoulement (18/08/2026, Sprint 5 Decenium,
+    // cahier §8.2) : la formule du cahier est explicitement "stock physique
+    // de référence + entrées externes + mouvements signés - stock physique
+    // de fin", ce qui suppose de connaître ouverture/mouvements/clôture
+    // séparément, pas seulement leur résultat — nécessaire pour persister un
+    // rapprochement par produit dans inventaire_rapprochements (Sprint 5).
+    // calculerEcoulementPhysiqueJournee (fonction distincte, juste
+    // au-dessus, écoulement journée Pains/Sandwichs·Viennoiserie) garde son
+    // propre calcul inchangé — seul le SEUL appelant de CETTE fonction
+    // (comparerVentesQuart, ci-dessous) est mis à jour pour lire ce nouveau
+    // format.
     const resultat = {};
     for (const id of produitIds) {
       if (ouverture[id] === undefined || cloture[id] === undefined) { resultat[id] = null; continue; }
-      resultat[id] = ouverture[id] - cloture[id] + (sommeMouvements[id] || 0);
+      resultat[id] = {
+        ecoulement: ouverture[id] - cloture[id] + (sommeMouvements[id] || 0),
+        stockOuverture: ouverture[id], stockCloture: cloture[id], mouvements: sommeMouvements[id] || 0,
+      };
     }
     return resultat;
   }
@@ -1370,12 +1386,37 @@
       await nexusClient.from('inventaire_alertes').delete()
         .eq('quart_id', quartRow.id).eq('type_alerte', 'demarque_ventes').eq('statut', 'ouverte');
 
+      // Rapprochement différé par produit (18/08/2026, Sprint 5 Decenium,
+      // cahier §8/§11, INV2-12) : une ligne persistée par produit rapproché
+      // dans inventaire_rapprochements (table déjà en place mais jamais
+      // écrite jusqu'ici — vérifié le 18/08/2026) avec une qualité honnête
+      // (fiable/non_comparable, NexusInventaireMoteur.qualiteRapprochementProduit)
+      // — jamais un faux écart quand le comptage manque (doctrine §2/§12).
+      // Remplace-pas-accumule comme inventaire_ventes_import juste au-dessus :
+      // un nouvel import du même quart remplace le rapprochement précédent.
+      await nexusClient.from('inventaire_rapprochements').delete().eq('quart_id', quartRow.id);
+
       let nbEcarts = 0, nbSansComptage = 0, valeurEstimee = 0;
       const nouvellesAlertes = [];
+      const nouveauxRapprochements = [];
       for (const produitId of produitIds) {
-        const ecoulement = ecoulements[produitId];
-        if (ecoulement === null) { nbSansComptage++; continue; }
+        const detail = ecoulements[produitId];
+        const ecoulement = detail ? detail.ecoulement : null;
         const venteDecenium = venteParProduit[produitId];
+        const qualite = NexusInventaireMoteur.qualiteRapprochementProduit(ecoulement, venteDecenium);
+        nouveauxRapprochements.push({
+          site: siteId, quart_id: quartRow.id, produit_id: produitId,
+          reference_decenium: lignesRapprochees.find(l => l.produit_id === produitId)?.designation_matchee || null,
+          stock_ouverture_valide: detail ? detail.stockOuverture : null,
+          reassorts: detail ? detail.mouvements : null,
+          ventes_importees: venteDecenium,
+          stock_attendu: detail ? detail.stockOuverture + detail.mouvements - venteDecenium : null,
+          stock_cloture_physique: detail ? detail.stockCloture : null,
+          ecart: ecoulement !== null ? ecoulement - venteDecenium : null,
+          source_import: 'decenium', importe_le: new Date().toISOString(),
+          statut_validation: qualite,
+        });
+        if (ecoulement === null) { nbSansComptage++; continue; }
         const ecart = ecoulement - venteDecenium;
         if (Math.abs(ecart) > SEUIL_DEMARQUE) {
           nbEcarts++;
@@ -1393,6 +1434,10 @@
           });
         }
       }
+      if (nouveauxRapprochements.length) {
+        const { error: eRappr } = await nexusClient.from('inventaire_rapprochements').insert(nouveauxRapprochements);
+        if (eRappr) console.error('Insertion rapprochements Decenium:', eRappr);
+      }
       if (nouvellesAlertes.length) {
         const { error: eAlertes } = await nexusClient.from('inventaire_alertes').insert(nouvellesAlertes);
         if (eAlertes) console.error('Insertion alertes démarque:', eAlertes);
@@ -1407,7 +1452,7 @@
         <div class="synthese-ligne"><span>Références non reconnues</span><span class="synthese-valeur ${nbNonIdentifiees ? 'amber' : 'green'}">${nbNonIdentifiees}</span></div>
         <div class="synthese-ligne"><span>Écarts détectés</span><span class="synthese-valeur ${nbEcarts ? 'amber' : 'green'}">${nbEcarts}</span></div>
         <div class="synthese-ligne"><span>Valeur estimée</span><span class="synthese-valeur ${valeurEstimee ? 'amber' : 'green'}">${fmtNum(valeurEstimee)} €</span></div>
-        ${nbSansComptage ? `<div class="synthese-ligne"><span>Sans comptage (écoulement non calculable)</span><span class="synthese-valeur amber">${nbSansComptage}</span></div>` : ''}
+        ${nbSansComptage ? `<div class="synthese-ligne"><span>${NexusInventaireMoteur.libelleQualiteRapprochement('non_comparable')} (${nbSansComptage})</span><span class="synthese-valeur amber">Comptage manquant</span></div>` : ''}
         <div class="synthese-cloture ${rapprochementComplet ? 'possible' : 'impossible'}">${rapprochementComplet ? 'Rapprochement terminé' : 'Rapprochement incomplet'}</div>
         ${nbEcarts ? '<div style="margin-top:8px; font-size:11.5px; color:var(--text-mid);">Voir la section À contrôler ci-dessous.</div>' : ''}
       `;
@@ -2133,9 +2178,32 @@
     `;
   }
 
+  // Couverture physique 7/14/30 jours (cahier §11 "Couverture physique",
+  // INV2-18 — "Le mode manager affiche la couverture physique 7/14/30
+  // jours") : proportion du catalogue actif réellement observé
+  // physiquement, tous types de comptage confondus, sur chaque fenêtre.
+  // Calculée par NexusInventaireMoteur.couverturePhysique (Sprint 5,
+  // 18/08/2026), chargée une fois par affichage manager comme les autres
+  // synthèses de cet écran — jamais un second calcul ici, uniquement du
+  // rendu.
+  function renderCouverturePhysique(c7, c14, c30) {
+    if (!c7 || !c14 || !c30) return '';
+    const ligne = (label, c) => `
+      <div class="synthese-ligne"><span>${label}</span><span class="synthese-valeur ${c.pourcentage != null && c.pourcentage < 100 ? 'amber' : 'green'}">${c.pourcentage != null ? c.pourcentage + '%' : '—'} (${c.observes} / ${c.total})</span></div>
+    `;
+    return `
+      <div class="synthese-card" style="margin-bottom:10px;">
+        <div class="synthese-titre">Couverture physique du catalogue</div>
+        ${ligne('7 jours', c7)}
+        ${ligne('14 jours', c14)}
+        ${ligne('30 jours', c30)}
+      </div>
+    `;
+  }
+
   function renderTout(ctx) {
     dernierCtx = ctx;
-    const { alertesOuvertes, sensiblesNonComptesDetail, employesSite, modesAveugleActifs, jaugeageActif, synthese, etat, produitsSensiblesTotal, decisionsQuart, review, bornes, alertesPeriode, decisionsPeriode } = ctx;
+    const { alertesOuvertes, sensiblesNonComptesDetail, employesSite, modesAveugleActifs, jaugeageActif, synthese, etat, produitsSensiblesTotal, decisionsQuart, review, bornes, alertesPeriode, decisionsPeriode, couverture7, couverture14, couverture30 } = ctx;
     const modesMap = Object.fromEntries(modesAveugleActifs.map(m => [m.employee_id, m]));
 
     // Vue par exception (02/08/2026, section 4 du cahier des charges) :
@@ -2158,6 +2226,7 @@
 
     document.getElementById('content').innerHTML = `
       ${renderSelecteurPeriode()}
+      ${renderCouverturePhysique(couverture7, couverture14, couverture30)}
       ${periodeSelectionnee === 'jour' ? `
       <div class="quart-select-row">
         <input type="date" id="selDate" class="date-input" value="${dateSelectionnee}">
@@ -2486,10 +2555,21 @@
       importDeceniumFait = (count || 0) > 0;
     }
 
+    // Couverture physique 7/14/30 jours (18/08/2026, Sprint 5, cahier §11 /
+    // INV2-18) — recalculée à chaque affichage manager, ancrée sur la date
+    // du jour réellement affiché (dateSelectionnee), pas sur "aujourd'hui" :
+    // consulter la couverture d'une date passée reste honnête vis-à-vis de
+    // ce qui était réellement observé à ce moment-là.
+    const [couverture7, couverture14, couverture30] = await Promise.all([
+      NexusInventairePlanDonnees.chargerCouverturePhysique(nexusClient, siteId, dateSelectionnee, 7),
+      NexusInventairePlanDonnees.chargerCouverturePhysique(nexusClient, siteId, dateSelectionnee, 14),
+      NexusInventairePlanDonnees.chargerCouverturePhysique(nexusClient, siteId, dateSelectionnee, 30),
+    ]);
+
     renderTout({
       alertesOuvertes, sensiblesNonComptesDetail, employesSite, modesAveugleActifs, jaugeageActif, synthese,
       etat, produitsSensiblesTotal: produitsSensibles.length, decisionsQuart, review, bornes, alertesPeriode, decisionsPeriode,
-      importDeceniumFait,
+      importDeceniumFait, couverture7, couverture14, couverture30,
     });
     if (periodeSelectionnee === 'jour') await genererRemarquesConseiller(alertesOuvertes, sensiblesNonComptesDetail, modesAveugleActifs, synthese);
   }

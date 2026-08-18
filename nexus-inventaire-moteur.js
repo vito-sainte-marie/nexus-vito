@@ -249,10 +249,69 @@
     return `Dépôt ${d} + Boutique ${b} = Total ${comptage.quantite}`;
   }
 
+  // ============================================================
+  // Sprint 5 — Decenium sans API : rapprochement différé + couverture
+  // (cahier §8, §11, INV2-12, INV2-18). Reprend l'écoulement physique déjà
+  // calculé côté Manager (ouverture - clôture + mouvements signés,
+  // calculerEcoulementPhysiqueQuart dans NEXUS-Inventaire-Manager-v1.html —
+  // jamais un second calcul ici, ce moteur ne fait QUE qualifier le
+  // résultat et mesurer la couverture, Article 11).
+  // ============================================================
+
+  // Doctrine du cahier §8.3/§12 : "La V1 doit préférer non comparable à un
+  // faux écart." Un produit sans comptage d'ouverture ET de clôture sur le
+  // quart ne peut STRUCTURELLEMENT pas avoir d'écoulement physique — le
+  // rapprochement reste non_comparable plutôt que d'afficher un écart
+  // inventé. Une fois l'écoulement connu, le rapprochement contre les
+  // ventes Decenium importées est fiable (le fichier ne peut être importé
+  // qu'après coup, source distincte, jamais partiel sur une seule ligne).
+  function qualiteRapprochementProduit(ecoulementPhysique, ventesDecenium) {
+    if (ecoulementPhysique === null || ecoulementPhysique === undefined) return 'non_comparable';
+    if (ventesDecenium === null || ventesDecenium === undefined) return 'provisoire';
+    return 'fiable';
+  }
+
+  const LIBELLE_QUALITE_RAPPROCHEMENT = {
+    fiable: 'Fiable',
+    provisoire: 'Provisoire — rapprochement en attente',
+    non_comparable: 'Non comparable — comptage manquant',
+  };
+
+  function libelleQualiteRapprochement(statut) {
+    return LIBELLE_QUALITE_RAPPROCHEMENT[statut] || 'Statut inconnu';
+  }
+
+  // Couverture physique 7/14/30 jours (cahier §11 "Couverture physique",
+  // INV2-18) : proportion du catalogue actif réellement observé (comptage
+  // physique, tout type confondu) dans la fenêtre. Un produit jamais
+  // contrôlé (absent de dernierControleParProduit) compte comme non
+  // observé, jamais comme une donnée manquante silencieuse (doctrine
+  // §2 "donnée manquante = contrôle provisoire, jamais faux écart" —
+  // appliquée ici à la couverture : il apparaît explicitement en retard).
+  function couverturePhysique({ produitsActifs, dernierControleParProduit, dateISO, fenetreJours }) {
+    const dernier = dernierControleParProduit || {};
+    const produits = produitsActifs || [];
+    const enRetard = [];
+    let observes = 0;
+    produits.forEach(p => {
+      const dernierControle = dernier[p.id] || null;
+      const joursDepuis = dernierControle ? joursEntreDates(dernierControle, dateISO) : null;
+      const estObserve = joursDepuis != null && joursDepuis <= fenetreJours;
+      if (estObserve) observes++;
+      else enRetard.push(p.id);
+    });
+    const total = produits.length;
+    return {
+      total, observes, enRetard,
+      pourcentage: total > 0 ? Math.round((observes / total) * 1000) / 10 : null,
+    };
+  }
+
   global.NexusInventaireMoteur = {
     FAMILLES_CONTROLE, DEFAUT_DELAI_MAX_JOURS_PAR_FAMILLE,
     libelleRaisonSelection, joursEntreDates, delaiMaxJours, produitEligibleQuart,
     hashDeterministe, prngDeterministe, tirerSurprisesDeterministe,
     construirePlanComptage, libelleTotalProduit,
+    qualiteRapprochementProduit, libelleQualiteRapprochement, couverturePhysique,
   };
 })(typeof window !== 'undefined' ? window : globalThis);
