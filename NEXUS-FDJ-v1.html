@@ -286,6 +286,7 @@
   let caisseReelle = null;
   let carnetsDeclaresCeQuart = 0; // compteur d'affichage seulement (session en cours), pas persisté
   let soldesCarnets = {};       // game_id -> { bureau, confies, actives, nonActives } — voir NexusFdjMoteur.soldesCarnetsAvecReference
+  let activationsEnCours = new Set(); // FDJ Fiabilisation Étape 5 : game_id en cours d'activation — garde-fou anti double-tap dans executerActivationCarnet
   let derniereReference = null; // dernière "Inventaire de référence" validée (point zéro physique) — voir chargerDerniereReference
   let exceptionCarnetEnCours = null; // game_id en attente d'un motif (voir demarrerExceptionCarnet)
   let motifExceptionChoisi = null;
@@ -542,25 +543,27 @@
   // cours — 09/08/2026, demande de Frédéric, à partir du fichier réel
   // "Inventaire Grattage – Gamme Intégrale_0.xlsx" (colonne "Nb de tickets
   // par livret") : l'employé n'a plus besoin de connaître ou retaper ce
-  // chiffre à la clôture, ce qui évite les erreurs de saisie. Lit d'abord
-  // la ligne existante (peut ne pas exister si l'ouverture n'a pas encore
-  // été validée pour ce jeu) pour ne jamais écraser stock_initial/final.
+  // chiffre à la clôture, ce qui évite les erreurs de saisie.
+  //
+  // FDJ Fiabilisation Étape 5 (18/08/2026) — l'ancien lire-puis-écrire
+  // (select appro courant → +quantiteTickets en JS → upsert) perdait un
+  // incrément quand deux activations du même jeu/quart étaient concurrentes
+  // (deux onglets, ou l'exception tracée + une activation normale) : les
+  // deux lectures voyaient la même valeur de départ, le deuxième upsert
+  // écrasait le premier au lieu de s'additionner. L'incrément se fait
+  // désormais atomiquement côté base (fdj_incrementer_appro_shift_count,
+  // ON CONFLICT DO UPDATE SET appro = appro + delta dans la même
+  // transaction) — jamais de perte, quel que soit le nombre d'activations
+  // simultanées. Ne touche jamais stock_initial/stock_final (Article 5 :
+  // jamais écraser une valeur posée par un autre chemin).
   async function incrementerApproAutomatique(gameId, quantiteTickets) {
-    const { data: existant, error: eLecture } = await nexusClient.from('fdj_shift_counts').select('*').eq('shift_id', shiftRow.id).eq('game_id', gameId).maybeSingle();
-    if (eLecture) { console.error('Lecture comptage FDJ (appro auto):', eLecture); return null; }
-    const approActuel = (existant && existant.appro !== null && existant.appro !== undefined) ? Number(existant.appro) : 0;
-    const nouvelAppro = approActuel + quantiteTickets;
-    const { error } = await nexusClient.from('fdj_shift_counts').upsert({
-      site: siteId, shift_id: shiftRow.id, game_id: gameId,
-      stock_initial: existant ? existant.stock_initial : null,
-      appro: nouvelAppro,
-      stock_final: existant ? existant.stock_final : null,
-      updated_at: new Date().toISOString(),
-    }, { onConflict: 'shift_id,game_id' });
+    const { data: nouvelAppro, error } = await nexusClient.rpc('fdj_incrementer_appro_shift_count', {
+      p_site: siteId, p_shift_id: shiftRow.id, p_game_id: gameId, p_delta: quantiteTickets,
+    });
     if (error) { console.error('Incrément appro automatique FDJ:', error); return null; }
     // Répercute en mémoire tout de suite si la clôture est déjà chargée.
     if (countsSaisie[gameId]) countsSaisie[gameId].appro = nouvelAppro;
-    else countsSaisie[gameId] = { stock_initial: existant ? existant.stock_initial : null, appro: nouvelAppro, stock_final: null };
+    else countsSaisie[gameId] = { stock_initial: null, appro: nouvelAppro, stock_final: null };
     return nouvelAppro;
   }
 
@@ -1257,19 +1260,56 @@
     await executerActivationCarnet(gameId, null);
   }
 
+  // FDJ Fiabilisation Étape 5 (18/08/2026, cahier §9/§12/§13 "Idempotence des
+  // activations et appro tickets", P0) — même convention que
+  // NEXUS-Carburant-Reception-v1.html/genererIdempotencyKey : une clé
+  // générée UNE SEULE FOIS par tentative d'écriture, envoyée avec l'insert,
+  // rattachée à un index unique côté base (fdj_stock_movements_idempotency_
+  // key_uniq). Un rejeu réseau de la même tentative porte la même clé et se
+  // heurte au conflit 23505, traité comme un succès idempotent — jamais
+  // comme une vraie erreur.
+  function genererIdempotencyKey() {
+    return (crypto && crypto.randomUUID) ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  }
+
   async function executerActivationCarnet(gameId, motifException) {
+    // Garde-fou anti double-tap : un tap sur une ligne déjà en cours
+    // d'activation est ignoré silencieusement plutôt que de relancer un
+    // deuxième insert avant que le premier n'ait répondu — c'est le point
+    // d'écriture FDJ qui n'avait aucune protection avant cette étape
+    // (contrairement aux boutons manager, tous désactivés pendant l'écriture).
+    if (activationsEnCours.has(gameId)) return;
+    activationsEnCours.add(gameId);
+    try {
+      await executerActivationCarnetInterne(gameId, motifException);
+    } finally {
+      activationsEnCours.delete(gameId);
+    }
+  }
+
+  async function executerActivationCarnetInterne(gameId, motifException) {
     const jeu = jeux.find(j => j.id === gameId);
     const solde = soldesCarnets[gameId] || { confies: 0, actives: 0, nonActives: 0 };
     const label = document.querySelector(`[data-carnet-label="${gameId}"]`);
     const ticketsParCarnet = (jeu && jeu.tickets_par_carnet !== null && jeu.tickets_par_carnet !== undefined) ? Number(jeu.tickets_par_carnet) : null;
     if (label) label.textContent = '…';
     const caisse = emplacementParType('caisse');
+    const idempotencyKey = genererIdempotencyKey();
     const { error } = await nexusClient.from('fdj_stock_movements').insert({
       site: siteId, game_id: gameId, shift_id: shiftRow.id, type_mouvement: 'activation', quantite: 1,
       location_source_id: caisse ? caisse.id : null, location_destination_id: caisse ? caisse.id : null,
       methode_identification: 'quantite', booklet_id: null, employee_id: employeeCourant.id,
+      idempotency_key: idempotencyKey,
       justification: `Carnet activé en cours de quart (${shiftRow.date} · Quart ${shiftRow.quart}).${ticketsParCarnet ? ` +${ticketsParCarnet} tickets ajoutés automatiquement à l'appro (Nb de tickets par livret).` : ' Quantité par carnet inconnue pour ce jeu — appro à saisir à la main à la clôture.'}${motifException ? ` Exception tracée : ${MOTIFS_EXCEPTION_CARNET.find(m => m.value === motifException)?.label || motifException}.` : ''}`,
     });
+    if (error && error.code === '23505') {
+      // Rejeu réseau de cette même tentative (clé déjà posée) : l'écriture a
+      // déjà eu lieu au premier passage, y compris l'incrément d'appro —
+      // rien à refaire ici, ce n'est jamais une vraie erreur (même lecture
+      // du code 23505 que fdj_releves_cloture, voir plus bas dans ce fichier).
+      if (label) { label.textContent = 'Activer'; }
+      return;
+    }
     if (error) {
       console.error('Activation carnet FDJ:', error);
       if (label) label.textContent = 'Activer';
