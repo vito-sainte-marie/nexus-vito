@@ -822,6 +822,28 @@
     return "Coût moyen du stock aligné avec le dernier coût d'achat connu — aucun effet prix notable.";
   }
 
+  // Task #480 (18/08/2026, "Brancher Brief/Rapport sur les indicateurs
+  // économiques carburant validés") : Brief et le Rapport de Direction
+  // n'ont la place que pour UNE ligne "Économie carburant", jamais un détail
+  // par carburant comme dans Carburants Pilotage. Réduit un map
+  // {cle: effetPrixStockHerite} à UN SEUL carburant à mettre en avant —
+  // jamais un total additionné entre carburants (Article 5 : un effet
+  // favorable sur un carburant et défavorable sur un autre ne doivent
+  // jamais s'annuler silencieusement dans une moyenne ou une somme).
+  // Priorité : le carburant le plus défavorable (le risque à signaler
+  // d'abord) > le plus favorable > repli sur le premier carburant
+  // disponible si tous sont neutres. `null` si aucun carburant n'a assez de
+  // données (aucun coût d'achat saisi nulle part).
+  function resumerEffetPrixCarburants(effetsParCarburant) {
+    const entrees = Object.entries(effetsParCarburant || {}).filter(([, e]) => e && e.suffisant);
+    if (!entrees.length) return null;
+    const pire = (liste) => liste.reduce((max, cur) => (!max || Math.abs(cur[1].effetTotal) > Math.abs(max[1].effetTotal)) ? cur : max, null);
+    const defavorables = entrees.filter(([, e]) => e.sens === 'defavorable');
+    const favorables = entrees.filter(([, e]) => e.sens === 'favorable');
+    const [cle, effet] = defavorables.length ? pire(defavorables) : (favorables.length ? pire(favorables) : entrees[0]);
+    return { cle, effet };
+  }
+
   // Résolution de l'ancre de calcul (dernier relevé réel OU point zéro
   // certifié, le plus récent des deux gagne) pour une date donnée — même
   // logique que l'écran depuis le 14/08/2026 (point zéro = plancher, pas
@@ -952,7 +974,7 @@
     libelleQualiteControle,
     SEUIL_HISTORIQUE_CHAINE_SUFFISANT, statistiquesFiabiliteChaine, libelleFiabiliteChaine,
     calculerCmpApresLivraison, calculerCmpProgressif, libelleCmp,
-    calculerEffetPrixStockHerite, libelleEffetPrixStockHerite,
+    calculerEffetPrixStockHerite, libelleEffetPrixStockHerite, resumerEffetPrixCarburants,
     MOTIFS_OVERRIDE_PRIX_ACHAT, resoudreTarifActifParmi, libelleTarifActif, libelleSourcePrixLigne,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -1271,12 +1271,21 @@
       ligneVolume = `${Math.round(c.volumeSemaine).toLocaleString('fr-FR')} L vendus sur les 7 derniers jours${evolTxt}${moteurTxt}`;
     }
 
+    // Task #480 (18/08/2026) : effet prix stock hérité (Sprint C8), réduit
+    // au carburant le plus significatif par chargerCarburantsBrief(). Reste
+    // silencieux (aucune ligne) tant qu'aucun coût d'achat n'a été saisi
+    // nulle part — jamais un "0 €" fabriqué (Article 5).
+    const ligneEconomie = c.effetPrixResume
+      ? `<div class="force-detail" style="margin-top:6px;">${NOM[c.effetPrixResume.cle]} — ${NexusCarburantMoteur.libelleEffetPrixStockHerite(c.effetPrixResume.effet)}</div>`
+      : '';
+
     return `
       <div class="section">
         <div class="section-title">⛽ Carburants <span class="badge" style="color:${couleur.c}; background:${couleur.f};">${statutGlobal}</span></div>
         <div class="force-card" style="cursor:default;">
           <div class="force-detail">${ligneEcarts}</div>
           <div class="force-detail" style="margin-top:6px;">${ligneVolume}</div>
+          ${ligneEconomie}
         </div>
         <a href="NEXUS-Carburants-Pilotage-v1.html" class="decision-lien">→ Voir Carburants Pilotage</a>
       </div>`;

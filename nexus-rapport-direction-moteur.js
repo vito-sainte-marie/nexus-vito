@@ -287,6 +287,13 @@
     if (!carburantsDetail || !carburantsDetail.disponible) {
       return { disponible: false, raison: (carburantsDetail && carburantsDetail.raison) || 'Aucune vente carburant sur cette période.' };
     }
+    // Task #480 (18/08/2026) : "Économie carburant" branchée sur le résumé
+    // effet-prix-stock-hérité déjà calculé par l'appelant (Sprint C8) —
+    // reste "non disponible" tant qu'aucun coût d'achat n'a été saisi nulle
+    // part (Article 5 : jamais un chiffre fabriqué). L'autonomie de
+    // stock/livraisons (stockDisponible) reste un chantier séparé, non
+    // couvert par cette tâche.
+    const effetPrixResume = carburantsDetail.effetPrixResume || null;
     return {
       disponible: true,
       mix: carburantsDetail.mix, evolution: carburantsDetail.evolution,
@@ -294,8 +301,10 @@
       couvertureIncertaine: carburantsDetail.couvertureIncertaine,
       stockDisponible: false,
       stockNote: "Autonomie de stock et livraisons : chantier non construit dans cette version (Carburants Phase 2).",
-      economieDisponible: false,
-      economieNote: "Coût moyen pondéré, marge carburant hors effet stock : chantier non construit dans cette version (Carburants Phase 3).",
+      economieDisponible: !!effetPrixResume,
+      economieCle: effetPrixResume ? effetPrixResume.cle : null,
+      economieEffet: effetPrixResume ? effetPrixResume.effet : null,
+      economieNote: effetPrixResume ? null : "Aucun coût d'achat saisi pour l'instant — impossible de valoriser l'effet du stock sur la marge.",
     };
   }
 

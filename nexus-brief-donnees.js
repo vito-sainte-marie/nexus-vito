@@ -160,11 +160,34 @@
       global.NexusCarburantDonnees.chargerVentesPeriode(client, siteId, iso(debutPrecedente), iso(finPrecedente)),
     ]);
     const M = global.NexusCarburantMoteur;
+    const D = global.NexusCarburantDonnees;
     const mix = M.calculerMixCarburant(actuel.ventes);
     const mixRef = M.calculerMixCarburant(reference.ventes);
     const evolution = mix && mixRef ? M.calculerEvolutionVolume(mix.total, mixRef.total) : null;
     const produitMoteur = M.identifierProduitMoteur(actuel.ventes);
-    return { controle, volumeSemaine: mix ? mix.total : null, evolution, produitMoteur };
+
+    // Task #480 (18/08/2026, "Brancher Brief/Rapport sur les indicateurs
+    // économiques carburant validés") : même lecture que Carburants
+    // Pilotage (chargerEtRendreEconomie) — coût moyen pondéré + effet prix
+    // stock hérité (Sprint C8), jamais un second calcul (Article 11), pour
+    // les carburants actifs du site. `stockActuelL` réutilise
+    // controle.parCarburant[cle].stockPhysiqueAffiche déjà chargé ci-dessus
+    // — jamais une deuxième mesure de stock. Réduit à UN SEUL carburant à
+    // mettre en avant via resumerEffetPrixCarburants (une carte Brief n'a
+    // la place que pour une ligne).
+    const cuvesConfig = await D.chargerCuvesConfig(client, siteId);
+    const clesActives = M.CLES_CARBURANT.filter(cle => !cuvesConfig.config || !cuvesConfig.config[cle] || cuvesConfig.config[cle].actif);
+    const prixVente = await D.chargerPrixCarburantsCourant(client, siteId);
+    const effetsParCarburant = {};
+    await Promise.all(clesActives.map(async cle => {
+      const livraisons = await D.chargerLivraisonsCouteesCarburant(client, siteId, cle, 60);
+      const cmpData = M.calculerCmpProgressif(livraisons);
+      const stockActuelL = (controle && controle.parCarburant && controle.parCarburant[cle]) ? controle.parCarburant[cle].stockPhysiqueAffiche : null;
+      effetsParCarburant[cle] = M.calculerEffetPrixStockHerite({ cmp: cmpData.cmp, coutRemplacementActuel: cmpData.coutRemplacementActuel, prixVenteDuMois: prixVente ? prixVente[cle] : null, stockPhysiqueActuelL: stockActuelL });
+    }));
+    const effetPrixResume = M.resumerEffetPrixCarburants(effetsParCarburant);
+
+    return { controle, volumeSemaine: mix ? mix.total : null, evolution, produitMoteur, effetPrixResume };
   }
 
   async function chargerCandidatsFdj(client, siteId) {
