@@ -281,6 +281,25 @@
     return LIBELLE_QUALITE_RAPPROCHEMENT[statut] || 'Statut inconnu';
   }
 
+  // Synthèse qualité (cahier §11, bloc manager "Qualité : Fiable /
+  // provisoire / non comparable") : agrège les lignes déjà persistées dans
+  // inventaire_rapprochements (Sprint 5) par statut_validation — jamais un
+  // second calcul de la qualité elle-même, uniquement un comptage de ce que
+  // qualiteRapprochementProduit a déjà décidé au moment de l'import.
+  function syntheseQualiteRapprochements(rapprochements) {
+    const lignes = rapprochements || [];
+    const compte = { fiable: 0, provisoire: 0, non_comparable: 0 };
+    lignes.forEach(r => {
+      const statut = r && r.statut_validation;
+      if (compte[statut] !== undefined) compte[statut]++;
+    });
+    return {
+      total: lignes.length, fiable: compte.fiable, provisoire: compte.provisoire,
+      nonComparable: compte.non_comparable,
+      toutFiable: lignes.length > 0 && compte.fiable === lignes.length,
+    };
+  }
+
   // Couverture physique 7/14/30 jours (cahier §11 "Couverture physique",
   // INV2-18) : proportion du catalogue actif réellement observé (comptage
   // physique, tout type confondu) dans la fenêtre. Un produit jamais
@@ -356,6 +375,6 @@
     hashDeterministe, prngDeterministe, tirerSurprisesDeterministe,
     construirePlanComptage, libelleTotalProduit,
     qualiteRapprochementProduit, libelleQualiteRapprochement, couverturePhysique,
-    reconciliationAlertesDemarque,
+    reconciliationAlertesDemarque, syntheseQualiteRapprochements,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

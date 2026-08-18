@@ -228,6 +228,19 @@
     return count || 0;
   }
 
+  // Rapprochements Decenium persistés du quart (18/08/2026, Sprint 7 —
+  // cahier §11, bloc manager "Qualité : Fiable / provisoire / non
+  // comparable") : simple lecture de inventaire_rapprochements (peuplée
+  // depuis le Sprint 5 par comparerVentesQuart) — l'agrégation par statut
+  // reste dans nexus-inventaire-moteur.js::syntheseQualiteRapprochements,
+  // ce chargeur ne fait que lire.
+  async function chargerRapprochementsQuart(client, quartId) {
+    const { data, error } = await client.from('inventaire_rapprochements')
+      .select('produit_id, statut_validation').eq('quart_id', quartId);
+    if (error) { console.error('Chargement rapprochements Decenium (qualité):', error); return []; }
+    return data || [];
+  }
+
   global.NexusInventaireManagerDonnees = {
     quartDuMoment, chargerQuart, chargerAlertesOuvertesQuart, chargerComptagesQuart,
     chargerProduitsSensibles, chargerTousProduitsActifsSite, chargerHorairesStation,
@@ -236,5 +249,6 @@
     chargerEmployesSite, chargerModesAveugleActifs, chargerModeJaugeageActif,
     chargerHistoriqueEcartsRecents, chargerCatalogueProduitsPourVentes,
     chargerCategoriesProduitsParId, chargerComptageActuel, chargerImpactCorrection,
+    chargerRapprochementsQuart,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

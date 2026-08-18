@@ -658,6 +658,10 @@
     return NexusInventaireManagerDonnees.chargerDecisionsQuart(nexusClient, quartId);
   }
 
+  async function chargerRapprochementsQuart(quartId) {
+    return NexusInventaireManagerDonnees.chargerRapprochementsQuart(nexusClient, quartId);
+  }
+
   async function chargerAlertesOuvertesPeriode(site, debut, fin) {
     return NexusInventaireManagerDonnees.chargerAlertesOuvertesPeriode(nexusClient, site, debut, fin);
   }
@@ -1840,7 +1844,7 @@
       <div class="alerte-valeurs" style="margin-bottom:${aDetailDeuxLieux ? '4px' : '10px'};"><span>Total retenu actuellement : <b>${fmtNum(c.quantite)}</b></span></div>
       ${aDetailDeuxLieux ? `
       <div style="font-size:11.5px; color:var(--text-mid); margin-bottom:10px;">
-        Détail d'origine : dépôt ${fmtNum(c.quantite_depot || 0)} + boutique ${fmtNum(c.quantite_boutique || 0)} = ${fmtNum((c.quantite_depot || 0) + (c.quantite_boutique || 0))}.
+        Détail d'origine (Voir la preuve, INV2-14) : ${NexusInventaireMoteur.libelleTotalProduit(c)}.
         La correction ci-dessous porte uniquement sur le total — aucune répartition automatique entre dépôt et boutique.
       </div>` : ''}
       <input type="number" inputmode="decimal" step="0.01" class="produit-input" id="correctionNouvelleValeur" placeholder="Nouveau total retenu" style="width:100%; margin-bottom:8px; text-align:left;">
@@ -2235,9 +2239,28 @@
     `;
   }
 
+  // Qualité du rapprochement (cahier §11, bloc manager "Qualité : Fiable /
+  // provisoire / non comparable", 18/08/2026, Sprint 7) : simple comptage
+  // des lignes inventaire_rapprochements du quart, déjà classées par
+  // NexusInventaireMoteur.syntheseQualiteRapprochements — aucun recalcul de
+  // la qualité elle-même ici, uniquement du rendu (Article 11). N'affiche
+  // rien tant qu'aucune ligne n'existe (quart pas encore comparé à
+  // Decenium) plutôt que d'afficher un 0/0 trompeur.
+  function renderQualiteRapprochement(q) {
+    if (!q || q.total === 0) return '';
+    return `
+      <div class="synthese-card" style="margin-bottom:10px;">
+        <div class="synthese-titre">Qualité du rapprochement</div>
+        <div class="synthese-ligne"><span>Fiable</span><span class="synthese-valeur ${q.toutFiable ? 'green' : ''}">${q.fiable} / ${q.total}</span></div>
+        <div class="synthese-ligne"><span>Provisoire — rapprochement en attente</span><span class="synthese-valeur ${q.provisoire ? 'amber' : ''}">${q.provisoire}</span></div>
+        <div class="synthese-ligne"><span>Non comparable — comptage manquant</span><span class="synthese-valeur ${q.nonComparable ? 'amber' : ''}">${q.nonComparable}</span></div>
+      </div>
+    `;
+  }
+
   function renderTout(ctx) {
     dernierCtx = ctx;
-    const { alertesOuvertes, sensiblesNonComptesDetail, employesSite, modesAveugleActifs, jaugeageActif, synthese, etat, produitsSensiblesTotal, decisionsQuart, review, bornes, alertesPeriode, decisionsPeriode, couverture7, couverture14, couverture30 } = ctx;
+    const { alertesOuvertes, sensiblesNonComptesDetail, employesSite, modesAveugleActifs, jaugeageActif, synthese, etat, produitsSensiblesTotal, decisionsQuart, review, bornes, alertesPeriode, decisionsPeriode, couverture7, couverture14, couverture30, qualiteRapprochement } = ctx;
     const modesMap = Object.fromEntries(modesAveugleActifs.map(m => [m.employee_id, m]));
 
     // Vue par exception (02/08/2026, section 4 du cahier des charges) :
@@ -2270,6 +2293,8 @@
       ${quartRow ? renderEtatQuartCard(etat) : '<div class="quart-statut">Aucun inventaire n\'a encore été démarré pour ce quart.</div>'}
 
       ${quartRow ? renderBriefInventaire(synthese, alertesOuvertes, decisionsQuart, ctx.importDeceniumFait) : ''}
+
+      ${quartRow ? renderQualiteRapprochement(qualiteRapprochement) : ''}
 
       ${quartRow ? renderSyntheseQuart(synthese, etat) : ''}
 
@@ -2600,10 +2625,20 @@
       NexusInventairePlanDonnees.chargerCouverturePhysique(nexusClient, siteId, dateSelectionnee, 30),
     ]);
 
+    // Qualité du rapprochement (18/08/2026, Sprint 7, cahier §11 bloc
+    // manager "Qualité : Fiable / provisoire / non comparable") — lecture
+    // des lignes inventaire_rapprochements du quart (Sprint 5), agrégées
+    // par NexusInventaireMoteur.syntheseQualiteRapprochements.
+    let qualiteRapprochement = null;
+    if (quartRow) {
+      const rapprochements = await chargerRapprochementsQuart(quartRow.id);
+      qualiteRapprochement = NexusInventaireMoteur.syntheseQualiteRapprochements(rapprochements);
+    }
+
     renderTout({
       alertesOuvertes, sensiblesNonComptesDetail, employesSite, modesAveugleActifs, jaugeageActif, synthese,
       etat, produitsSensiblesTotal: produitsSensibles.length, decisionsQuart, review, bornes, alertesPeriode, decisionsPeriode,
-      importDeceniumFait, couverture7, couverture14, couverture30,
+      importDeceniumFait, couverture7, couverture14, couverture30, qualiteRapprochement,
     });
     if (periodeSelectionnee === 'jour') await genererRemarquesConseiller(alertesOuvertes, sensiblesNonComptesDetail, modesAveugleActifs, synthese);
   }
