@@ -133,6 +133,41 @@
   const SEUIL_RECURRENCE_SIGNAL_FAIBLE = 2; // occurrences minimum pour sortir du simple constat isolé (ex. "3 périodes de suite")
   const SEUIL_RECURRENCE_RISQUE_AVERE = 5; // occurrences minimum pour parler de risque avéré par répétition seule (ex. "6 écarts sur 18 quarts")
 
+  // ------------------------------------------------------------
+  // EXPOSITION NON FINANCIÈRE — cadrage risques Phase 4 (18/08/2026, tâche
+  // #233, "Exposition non financière (impact qualitatif)"). Question de
+  // cadrage posée à Frédéric avant d'écrire ce code (Règles A/B ci-dessus
+  // exigent TOUTES DEUX un montant en € — un domaine dont l'impact ne se
+  // monétise pas proprement ne pouvait donc jamais dépasser signal_faible,
+  // quelle que soit sa gravité réelle) : il a choisi d'étendre
+  // `classifierNiveau` MAINTENANT plutôt que d'attendre la Phase 5
+  // (Carburants), en infrastructure prête avant le besoin — l'exemple de
+  // Frédéric cité dans le commentaire de Règle B plus bas ("autonomie
+  // carburant faible") ne se traduit pas naturellement en perte constatée
+  // en €, c'est le premier cas réel visé.
+  //
+  // Nouveau champ d'entrée OPTIONNEL, en plus de impactMesureEur/
+  // impactPotentielEur : `severiteQualitative` — un jugement de gravité
+  // posé par le domaine appelant lui-même (lui seul connaît le sens de sa
+  // propre mesure, ex. Carburants Phase 5 jugera "autonomie < 24h" majeure
+  // et "autonomie < 3 jours" significative) :
+  //   'majeure'       — assez grave pour être démontré seul, même sans
+  //                      récurrence (miroir qualitatif de la branche
+  //                      "impact matériel à lui seul" de la Règle A).
+  //   'significative' — pourrait devenir un risque avéré si elle se répète,
+  //                      ou constitue déjà une exposition isolée (miroir
+  //                      qualitatif de la Règle B).
+  //   'mineure'/absent — n'apporte AUCUNE escalade qualitative ; le niveau
+  //                      retombe sur les règles € puis la récurrence seule
+  //                      (Règles C/D), comportement STRICTEMENT INCHANGÉ.
+  // Les deux domaines déjà branchés (`qualifierEcartCaisse`,
+  // `qualifierMargeCategorie`) ne renseignent jamais ce champ — il vaut
+  // donc toujours `undefined` pour eux, les nouvelles Règles A2/B2
+  // ci-dessous ne se déclenchent jamais, zéro changement de comportement
+  // pour l'existant (vérifié par la suite de tests déjà en place,
+  // ré-exécutée sans modification après ce lot).
+  const RANG_SEVERITE_QUALITATIVE = { mineure: 0, significative: 1, majeure: 2 };
+
   function classifierNiveau(input) {
     const impactMesure = input.impactMesureEur != null ? Number(input.impactMesureEur) : null;
     const impactPotentiel = input.impactPotentielEur != null ? Number(input.impactPotentielEur) : null;
@@ -161,6 +196,42 @@
       return {
         niveau: 'exposition', niveauConfiance: confiance,
         motif: `Impact potentiel estimé à ${impactPotentiel.toFixed(0)} € si la situation perdure — aucun impact mesuré à ce stade.`,
+      };
+    }
+
+    // Règles A2/B2 — Exposition non financière (Phase 4, tâche #233) :
+    // miroir qualitatif des Règles A/B ci-dessus, pour un domaine dont
+    // l'impact ne se traduit pas proprement en €. Évaluées seulement si
+    // `severiteQualitative` est renseigné ET qu'aucune Règle A/B € n'a déjà
+    // conclu (jamais un doublon d'évaluation — un impact déjà mesuré en €
+    // prime toujours sur un jugement qualitatif, plus concret). Les deux
+    // domaines existants ne renseignent jamais ce champ : ces deux blocs
+    // sont un no-op garanti pour eux (`severite` reste `undefined`, aucune
+    // des deux conditions ne peut être vraie).
+    const severite = input.severiteQualitative;
+    if (severite === 'majeure') {
+      // Miroir de la branche "matériel à lui seul" de la Règle A : assez
+      // grave pour être démontré même sans récurrence.
+      return {
+        niveau: 'risque_avere', niveauConfiance: confiance,
+        motif: `Situation jugée majeure par le domaine — suffisamment grave pour être démontrée même sans récurrence, sans qu'un montant en € soit disponible pour la chiffrer.`,
+      };
+    }
+    if (severite === 'significative' && recurrence >= SEUIL_RECURRENCE_RISQUE_AVERE) {
+      // Miroir de la branche récurrence de la Règle A : la répétition
+      // démontre le risque même si chaque occurrence, prise seule, ne
+      // suffirait qu'à une exposition.
+      return {
+        niveau: 'risque_avere', niveauConfiance: confiance,
+        motif: `Situation jugée significative par le domaine et observée sur ${recurrence} occurrences — la répétition démontre le risque, sans qu'un montant en € soit disponible pour la chiffrer.`,
+      };
+    }
+    if (severite === 'significative') {
+      // Miroir de la Règle B : pourrait produire une perte si elle
+      // perdure, même sans récurrence suffisante pour l'avéré.
+      return {
+        niveau: 'exposition', niveauConfiance: confiance,
+        motif: `Situation jugée significative par le domaine si elle perdure — aucun montant en € disponible pour la chiffrer à ce stade.`,
       };
     }
 
@@ -422,5 +493,6 @@
     niveauConfiance,
     SEUIL_IMPACT_MESURE_MATERIEL_EUR, SEUIL_IMPACT_POTENTIEL_SIGNIFICATIF_EUR,
     SEUIL_RECURRENCE_SIGNAL_FAIBLE, SEUIL_RECURRENCE_RISQUE_AVERE,
+    RANG_SEVERITE_QUALITATIVE,
   };
 })(typeof window !== 'undefined' ? window : globalThis);
