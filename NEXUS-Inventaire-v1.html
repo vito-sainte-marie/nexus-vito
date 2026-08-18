@@ -19,6 +19,8 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-auth.js"></script>
 <script src="nexus-desktop.js"></script>
+<script src="nexus-inventaire-moteur.js"></script>
+<script src="nexus-inventaire-plan-donnees.js"></script>
 <style>
   :root{
     --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
@@ -303,6 +305,13 @@
   let dernierStock = {};         // produit_id -> { quantite, comptage_id } | null
   let modesAveugle = [];         // règles inventaire_modes_controle actives (mode='aveugle')
   let modeJaugeageActif = false; // inventaire_modes_controle actif (mode='jaugeage_actif') — voir chargerModeJaugeageActif()
+  // Inventaire 2.0 P0 (17/08/2026, Sprint 1+2 — "NEXUS décide quoi
+  // compter"). planQuartActif = { plan, items } tel que retourné par
+  // NexusInventairePlanDonnees.chargerOuGenererPlan — persisté une seule
+  // fois par (site, date, quart), jamais recalculé au rechargement.
+  let planQuartActif = null;
+  let produitsPlanIds = new Set();       // produit_id sélectionnés par NEXUS pour ce quart — vérité physique aveugle
+  let planItemIdParProduit = {};         // produit_id -> inventaire_plan_items.id (pour marquerItemPlanCompte)
   let comptagesSaisie = {};      // produit_id -> { compte, justification }
   let mouvementsSaisie = [];     // { produit_id, type_mouvement, quantite, justification }
   let zonesMap = {};             // code ('piste'/'boutique') -> id (inventaire_zones)
@@ -570,6 +579,38 @@
     return !!data;
   }
 
+  // Plan de comptage tournant (17/08/2026, Sprint 2 — cahier Inventaire 2.0
+  // §5.2) : NEXUS décide quoi compter aujourd'hui pour ce (site, date,
+  // quart), généré une seule fois puis persisté (INV2-04 — un rechargement
+  // ne change jamais la sélection). Le jaugeage carburant reste hors de ce
+  // mécanisme : c'est un relevé physique différent, avec son propre
+  // parcours déjà établi (chargerModeJaugeageActif ci-dessus), pas un
+  // produit que NEXUS "sélectionne" pour comptage tournant.
+  async function chargerEtAppliquerPlanQuart() {
+    // typeof (jamais une référence nue à `window`) : ce fichier tourne aussi
+    // dans des tests Node/vm sans DOM ni `window` global (voir test_inventaire_*),
+    // une référence nue lèverait un ReferenceError avant même le if.
+    const P = typeof NexusInventairePlanDonnees !== 'undefined' ? NexusInventairePlanDonnees : null;
+    if (!P) { console.error('NexusInventairePlanDonnees non chargé — plan de comptage indisponible.'); planQuartActif = null; produitsPlanIds = new Set(); planItemIdParProduit = {}; return; }
+    const site = employeeCourant.site_id;
+    planQuartActif = await P.chargerOuGenererPlan(nexusClient, site, dateISO(), quartActuel, {});
+    const items = (planQuartActif && planQuartActif.items) || [];
+    produitsPlanIds = new Set(items.map(it => it.produit_id));
+    planItemIdParProduit = {};
+    items.forEach(it => { planItemIdParProduit[it.produit_id] = it.id; });
+  }
+
+  // Restreint un catalogue au périmètre choisi par NEXUS pour ce quart. Si
+  // le plan n'a pas pu être chargé (échec réseau, moteur absent) on retombe
+  // sur le catalogue complet plutôt que de bloquer l'inventaire — même
+  // préférence que le reste de NEXUS : une donnée manquante ne doit jamais
+  // empêcher l'employé de travailler, quitte à perdre le bénéfice du plan
+  // pour ce passage-là.
+  function restreindreAuPlanQuart(liste) {
+    if (!planQuartActif) return liste;
+    return liste.filter(p => produitsPlanIds.has(p.id) || (p.inventaire_categories && p.inventaire_categories.nom === JAUGEAGE_NOM));
+  }
+
   // Exclut le jaugeage carburant du calcul de progression/complétion quand
   // il n'a pas été activé par le manager, OU qu'on n'est pas à l'ouverture
   // du quart matin (03/08/2026 — jaugeage de début uniquement) — jamais
@@ -584,6 +625,13 @@
   }
 
   function estMasquePourProduit(produit) {
+    // Comptage aveugle par défaut (17/08/2026, Sprint 1 — cahier Inventaire
+    // 2.0, INV2-01) : tout produit sélectionné par NEXUS pour le plan du
+    // quart est masqué par construction, sans qu'un manager ait besoin de
+    // le paramétrer explicitement via inventaire_modes_controle. Le
+    // jaugeage carburant n'entre jamais dans produitsPlanIds (voir
+    // chargerEtAppliquerPlanQuart) donc son parcours reste inchangé.
+    if (produitsPlanIds.has(produit.id)) return true;
     const today = dateISO();
     return modesAveugle.some(m => {
       if (m.employee_id && m.employee_id !== employeeCourant.id) return false;
@@ -775,9 +823,21 @@
   }
   async function demarrerOuvertureComptage() {
     document.getElementById('content').innerHTML = '<div class="loading">Chargement des produits…</div>';
-    produitsZone = await chargerProduitsZone(zoneActive);
+    await chargerEtAppliquerPlanQuart();
+    produitsZone = restreindreAuPlanQuart(await chargerProduitsZone(zoneActive));
     const ids = produitsZone.map(p => p.id);
     dernierStock = await chargerDerniersStocks(ids);
+    // Masquage réel, pas seulement visuel (17/08/2026, Sprint 1 — point de
+    // vigilance noté lors du cadrage) : les produits sélectionnés par le
+    // plan du jour ne doivent JAMAIS transporter leur stock/vente transmis
+    // jusqu'au navigateur de l'employé, pas uniquement être masqués à
+    // l'affichage. On retire donc ces entrées de dernierStock lui-même —
+    // estMasquePourProduit continue de piloter l'affichage (calcBarreHtml,
+    // bouton "Identique") mais n'a plus de valeur réelle à révéler par erreur
+    // pour ces produits-là.
+    Object.keys(dernierStock).forEach(produitId => {
+      if (produitsPlanIds.has(produitId)) delete dernierStock[produitId];
+    });
     modesAveugle = await chargerModesAveugle();
     modeJaugeageActif = await chargerModeJaugeageActif();
     // Restaure un brouillon local s'il en existe un pour ce quart (02/08/2026,
@@ -1601,7 +1661,7 @@
       }).select().single();
       if (e1) console.error('Comptage transmis:', e1);
 
-      const { error: e2 } = await nexusClient.from('inventaire_comptages').insert({
+      const { data: evtOuverture, error: e2 } = await nexusClient.from('inventaire_comptages').insert({
         site: employeeCourant.site_id, quart_id: quartRow.id, produit_id: p.id,
         type_comptage: 'ouverture', quantite: saisie.compte, employee_id: employeeCourant.id,
         comptage_source_id: evtTransmis ? evtTransmis.id : null, quantite_transmise: valeurTransmise,
@@ -1611,8 +1671,17 @@
         // quantite reste le total, aucun changement de la logique d'écart.
         quantite_depot: saisie.compteDepot !== undefined ? saisie.compteDepot : null,
         quantite_boutique: saisie.compteBoutique !== undefined ? saisie.compteBoutique : null,
-      });
+      }).select().single();
       if (e2) console.error('Comptage ouverture:', e2);
+
+      // Plan tournant (17/08/2026, Sprint 2) : marque l'item du plan comme
+      // fait pour que la couverture reflète la progression réelle — jamais
+      // bloquant, une erreur ici n'empêche pas le comptage d'être acquis
+      // (déjà écrit ci-dessus dans inventaire_comptages).
+      const planItemId = planItemIdParProduit[p.id];
+      if (planItemId && evtOuverture && typeof NexusInventairePlanDonnees !== 'undefined') {
+        NexusInventairePlanDonnees.marquerItemPlanCompte(nexusClient, planItemId, evtOuverture.id);
+      }
 
       if (saisie.ecartNonNul) {
         nbEcarts++;
@@ -1699,7 +1768,12 @@
 
   async function demarrerCloture() {
     document.getElementById('content').innerHTML = '<div class="loading">Chargement…</div>';
-    if (!produitsZone.length) produitsZone = await chargerProduitsZone(zoneActive);
+    // Même périmètre qu'à l'ouverture (17/08/2026, Sprint 1+2) : si l'employé
+    // arrive directement sur la clôture sans être passé par l'ouverture dans
+    // cette session (produitsZone encore vide), on charge aussi le plan du
+    // quart pour ne pas se retrouver avec le catalogue complet non filtré.
+    if (!planQuartActif) await chargerEtAppliquerPlanQuart();
+    if (!produitsZone.length) produitsZone = restreindreAuPlanQuart(await chargerProduitsZone(zoneActive));
     modeJaugeageActif = await chargerModeJaugeageActif();
     // Restaure un brouillon local s'il en existe un pour ce quart (02/08/2026,
     // demande de Frédéric) — reprend mouvements + comptages déjà saisis plutôt

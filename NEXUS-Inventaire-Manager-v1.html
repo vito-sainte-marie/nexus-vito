@@ -1747,9 +1747,24 @@
       `;
     }
     const c = correctionChargee.comptage;
+    // Total produit (17/08/2026, Sprint 3 — cahier Inventaire 2.0, INV2-07/
+    // INV2-08) : le dépôt et la boutique sont déjà agrégés sur la même
+    // ligne de comptage (quantite_depot/quantite_boutique coexistent avec
+    // quantite, le total) — on les affiche ici en lecture seule comme
+    // preuve du détail d'origine, mais le manager ne corrige jamais que le
+    // total retenu ci-dessous. La correction (voir appliquerCorrectionRetroactive)
+    // n'écrit jamais quantite_depot/quantite_boutique sur la nouvelle ligne :
+    // aucune répartition automatique n'est jamais inventée entre les deux.
+    const aDetailDeuxLieux = c.quantite_depot !== null && c.quantite_depot !== undefined
+      || c.quantite_boutique !== null && c.quantite_boutique !== undefined;
     return `
-      <div class="alerte-valeurs" style="margin-bottom:10px;"><span>Valeur initiale : <b>${fmtNum(c.quantite)}</b></span></div>
-      <input type="number" inputmode="decimal" step="0.01" class="produit-input" id="correctionNouvelleValeur" placeholder="Nouvelle valeur" style="width:100%; margin-bottom:8px; text-align:left;">
+      <div class="alerte-valeurs" style="margin-bottom:${aDetailDeuxLieux ? '4px' : '10px'};"><span>Total retenu actuellement : <b>${fmtNum(c.quantite)}</b></span></div>
+      ${aDetailDeuxLieux ? `
+      <div style="font-size:11.5px; color:var(--text-mid); margin-bottom:10px;">
+        Détail d'origine : dépôt ${fmtNum(c.quantite_depot || 0)} + boutique ${fmtNum(c.quantite_boutique || 0)} = ${fmtNum((c.quantite_depot || 0) + (c.quantite_boutique || 0))}.
+        La correction ci-dessous porte uniquement sur le total — aucune répartition automatique entre dépôt et boutique.
+      </div>` : ''}
+      <input type="number" inputmode="decimal" step="0.01" class="produit-input" id="correctionNouvelleValeur" placeholder="Nouveau total retenu" style="width:100%; margin-bottom:8px; text-align:left;">
       ${correctionChargee.impact > 0
         ? `<div class="mission-photo" style="color:var(--amber); margin-bottom:8px;">⚠️ ${correctionChargee.impact} comptage${correctionChargee.impact > 1 ? 's' : ''} ultérieur${correctionChargee.impact > 1 ? 's' : ''} référence${correctionChargee.impact > 1 ? 'nt' : ''} directement cette valeur.</div>`
         : `<div class="mission-photo" style="color:var(--text-dim); margin-bottom:8px;">Aucun comptage ultérieur ne dépend directement de cette valeur.</div>`}
@@ -1877,7 +1892,7 @@
     }
 
     document.getElementById('correctionResultat').innerHTML = `
-      <div class="alerte-note">✓ Correction appliquée. Valeur initiale conservée : <b>${fmtNum(ancien.quantite)}</b> → nouvelle valeur : <b>${fmtNum(nouvelleValeur)}</b>.</div>
+      <div class="alerte-note">✓ Correction appliquée. Total initial conservé : <b>${fmtNum(ancien.quantite)}</b> → nouveau total retenu : <b>${fmtNum(nouvelleValeur)}</b>.</div>
     `;
     correctionChargee = null;
   }
