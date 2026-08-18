@@ -1053,6 +1053,18 @@
     return releves.filter(r => !dejaRevalides.has(r.id));
   }
 
+  // FDJ Fiabilisation — Étape 4 : quarts dont le relevé de clôture n'a pas
+  // pu être resynchronisé automatiquement après une propagation amont
+  // (needs_replay=true, voir rejouerReleveApresPropagation ci-dessus) —
+  // filet de sécurité affiché dans la Boîte d'exceptions, catégorie
+  // "replay requis" (jusqu'ici toujours vide, Étape 3).
+  async function chargerReplaysRequis() {
+    const { data, error } = await nexusClient.from('fdj_shifts')
+      .select('id, date, quart').eq('site', siteId).eq('needs_replay', true).order('date', { ascending: false });
+    if (error) { console.error('Chargement quarts en attente de replay FDJ:', error); return []; }
+    return data || [];
+  }
+
   async function revaliderEcartRecalcule(releveId, shiftId) {
     const { error } = await nexusClient.from('fdj_audit_log').insert({
       site: siteId, shift_id: shiftId, entite_type: 'fdj_releves_cloture', entite_id: releveId,
@@ -1125,7 +1137,17 @@
           </div>
         </div>`;
     }
-    return ''; // 'replaysRequis' — toujours vide tant que l'Étape 4 n'existe pas
+    if (categorieCle === 'replaysRequis') {
+      // FDJ Fiabilisation — Étape 4 : le recalcul automatique du relevé de
+      // clôture a échoué après une propagation amont (rejouerReleveApresPropagation)
+      // — needs_replay reste true jusqu'à un recalcul manuel réussi ici.
+      return `
+        <div class="jeu-row" style="padding:10px 14px 10px 22px;">
+          <div class="histo-sub" style="margin-bottom:8px;">${libelleQuart(item)} — relevé de clôture à recalculer (propagation amont non confirmée)</div>
+          <button type="button" class="btn-modifier" data-recalculer-replay="${item.id}" style="margin-top:0;">Recalculer</button>
+        </div>`;
+    }
+    return '';
   }
 
   // Comparaison stock_final(quart précédent) / stock_initial(quart
@@ -1222,6 +1244,93 @@
       ancienne_valeur: avant,
       nouvelle_valeur: { ecart: nouvelEcart, caisse_attendue: attendue, ventes_grattage_valeur: ventesTotal, caisse_grattage: grattage },
     });
+  }
+
+  // ============================================================
+  // FDJ Fiabilisation — Étape 4 : needs_replay + recalcul du relevé après
+  // propagation amont (cahier `NEXUS_FDJ_Audit_Fiabilisation_Chaine_Quarts.pdf`
+  // §8 "Replay chronologique après correction rétroactive" : "Toute
+  // création ou modification d'un quart antérieur au dernier quart intégré
+  // doit invalider les états calculés postérieurs."). **Exploration
+  // préalable déterminante** : la quasi-totalité de ce que le cahier
+  // redoute est structurellement impossible dans ce module — les soldes
+  // carnets (NexusFdjMoteur.soldesCarnetsAvecReference) et les vues
+  // d'agrégation (view_fdj_*, Phase B) sont TOUJOURS recalculés à la volée
+  // depuis le ledger de mouvements à chaque lecture, jamais mis en cache
+  // (Article 11 — aucun "état dérivé stocké" à invalider là). Le seul état
+  // réellement en cache, et donc réellement périssable, est
+  // `fdj_releves_cloture` — un ledger VERSIONNÉ par construction. Un seul
+  // trou concret a été trouvé en explorant ce module avant de coder : la
+  // propagation automatique de l'Étape 2 (`propagationCorrectionStock`, cas
+  // `applicables` de `enregistrerEdition`) corrige silencieusement
+  // ventes/écart du quart suivant via `appliquerCorrectionsAutomatiquesContinuite`,
+  // mais ne posait jamais de nouvelle version de `fdj_releves_cloture` — le
+  // relevé affiché à l'écran et exporté en PDF restait périmé, sans aucune
+  // alerte. Cette fonction comble précisément ce trou, en réutilisant le
+  // même schéma de snapshot/diff que `synchroniserRelevesApresRetablissementChaine`
+  // ci-dessous (Article 11 — mêmes fonctions moteur `diffClotureFdj`/
+  // `statutRelevecloture`/`caractereRelevecloture`), avec son propre motif
+  // d'audit : ici la cause est une correction manager amont, pas un
+  // rétablissement de chaîne — deux causes distinctes, jamais confondues
+  // (même discipline que `anomalie_chaine`).
+  // `gameIdsCorriges` (optionnel) : seulement pour un motif d'audit
+  // lisible, n'entre dans aucun calcul. Retourne `true` si une nouvelle
+  // version a été posée avec succès OU si aucun recalcul n'était
+  // nécessaire (rien n'a changé, ou aucun relevé encore posé pour ce quart
+  // — rien à synchroniser, pas un échec). Retourne `false` uniquement si
+  // l'écriture a réellement échoué — l'appelant doit alors laisser
+  // `needs_replay=true` (filet de sécurité, voir Boîte d'exceptions Étape 3,
+  // catégorie "replay requis").
+  async function rejouerReleveApresPropagation(shiftId, gameIdsCorriges) {
+    const { data: precedentes } = await nexusClient.from('fdj_releves_cloture').select('*').eq('shift_id', shiftId).order('version_num', { ascending: false }).limit(1);
+    const precedent = (precedentes || [])[0] || null;
+    if (!precedent) return true; // aucun relevé encore posé pour ce quart — rien à synchroniser
+
+    const [{ data: counts }, { data: reports }, { data: cash }, { data: alertesOuvertes }] = await Promise.all([
+      nexusClient.from('fdj_shift_counts').select('*').eq('shift_id', shiftId),
+      nexusClient.from('fdj_reports').select('*').eq('shift_id', shiftId),
+      nexusClient.from('fdj_cash_controls').select('*').eq('shift_id', shiftId).maybeSingle(),
+      nexusClient.from('fdj_alertes').select('id, type').eq('shift_id', shiftId).in('type', ['chaine_interrompue', 'continuite_stock_a_verifier']).eq('resolue_automatiquement', false).eq('vue', false),
+    ]);
+    const stockInitialParJeu = {}, approParJeu = {}, stockFinalParJeu = {}, ventesParJeu = {};
+    (counts || []).forEach(c => {
+      stockInitialParJeu[c.game_id] = c.stock_initial ?? null;
+      approParJeu[c.game_id] = c.appro || 0;
+      stockFinalParJeu[c.game_id] = c.stock_final ?? null;
+      ventesParJeu[c.game_id] = { qte: c.ventes_qte ?? null, valeur: c.ventes_valeur ?? null };
+    });
+    const repJournalier = (reports || []).find(r => r.type_rapport === 'journalier');
+    const repTempsReel = (reports || []).find(r => r.type_rapport === 'temps_reel');
+    const chaineInterrompueOuverte = (alertesOuvertes || []).some(a => a.type === 'chaine_interrompue');
+    const continuiteStockAVerifierOuverte = (alertesOuvertes || []).some(a => a.type === 'continuite_stock_a_verifier');
+    const versionNum = precedent.version_num + 1;
+    const nouveauSnapshot = {
+      stock_initial_par_jeu: stockInitialParJeu, appro_par_jeu: approParJeu, stock_final_par_jeu: stockFinalParJeu, ventes_par_jeu: ventesParJeu,
+      ventes_grattage_valeur: cash ? cash.ventes_grattage_valeur : null, lots_payes_grattage: repJournalier ? repJournalier.lots_payes_grattage : null,
+      caisse_tirages: repTempsReel ? repTempsReel.caisse_tirages : null, regularisations: cash ? cash.regularisations : 0,
+      caisse_attendue: cash ? cash.caisse_attendue : null, caisse_reelle: cash ? cash.caisse_reelle : null, ecart: cash ? cash.ecart : null,
+      statut: NexusFdjMoteur.statutRelevecloture(versionNum, cash ? cash.ecart : null, 'recalcul_automatique_chaine'),
+      anomalie_chaine: { chaine_interrompue: chaineInterrompueOuverte, continuite_stock_a_verifier: continuiteStockAVerifierOuverte },
+      caractere: NexusFdjMoteur.caractereRelevecloture({ chaineInterrompue: chaineInterrompueOuverte, continuiteStockAVerifier: continuiteStockAVerifierOuverte }),
+    };
+    const diff = NexusFdjMoteur.diffClotureFdj(precedent, nouveauSnapshot);
+    if (!diff && nouveauSnapshot.caractere === precedent.caractere) return true; // rien n'a réellement changé
+
+    const signature = {
+      utilisateur_id: null, nom: 'NEXUS', role: 'system', date_heure: new Date().toISOString(), version_donnees: versionNum,
+      session_id: null, quart_id: shiftId,
+      message_confirmation: "Recalcul automatique après correction manager d'un quart antérieur (propagation de stock, Étape 2).",
+    };
+    const { error: eReleve } = await nexusClient.from('fdj_releves_cloture').insert({
+      site: siteId, shift_id: shiftId, date: precedent.date, quart: precedent.quart, employee_id: precedent.employee_id,
+      version_num: versionNum, type_version: 'recalcul_automatique_chaine', cree_par: null,
+      ...nouveauSnapshot,
+      motif_regularisation: `Recalcul automatique après propagation d'une correction du quart précédent${gameIdsCorriges && gameIdsCorriges.length ? ` — jeux concernés : ${gameIdsCorriges.join(', ')}` : ''}.`,
+      diff_vs_precedent: diff,
+      signature,
+    });
+    if (eReleve) { console.error('Relevé de clôture FDJ (recalcul après propagation):', eReleve); return false; }
+    return true;
   }
 
   // RÉCONCILIATION DYNAMIQUE — 16/08/2026, demande de Frédéric : "Cette
@@ -1743,9 +1852,9 @@
 
     if (!jeux.length) jeux = await chargerJeux();
     const aujourdhui = dateISO();
-    const [duJour, historique, alertesInitiales, soldesNegatifs, verrousJour, relevesEnErreur, quartsARevoir, carnetsARapprocher, ecartsRecalculesAValider] = await Promise.all([
+    const [duJour, historique, alertesInitiales, soldesNegatifs, verrousJour, relevesEnErreur, quartsARevoir, carnetsARapprocher, ecartsRecalculesAValider, replaysRequis] = await Promise.all([
       chargerShiftsAvecCaisse(aujourdhui), chargerShiftsAvecCaisse(null), chargerAlertesNonVues(), calculerSoldesNegatifs(), chargerVerrousJour(), chargerShiftsReleveEnErreur(),
-      chargerQuartsARevoir(), chargerCarnetsARapprocher(), chargerEcartsRecalculesAValider(),
+      chargerQuartsARevoir(), chargerCarnetsARapprocher(), chargerEcartsRecalculesAValider(), chargerReplaysRequis(),
     ]);
     // Recalcul dynamique de la chaîne (16/08/2026, demande de Frédéric) : à
     // CHAQUE affichage de cet accueil — donc après toute création,
@@ -1768,7 +1877,7 @@
     const exceptions = NexusFdjMoteur.syntheseExceptionsManager({
       correctionsRetroactives: [...alertes.filter(a => a.type === 'stock_initial_modifie'), ...quartsARevoir],
       quartsManquants: alertes.filter(a => a.type === 'chaine_interrompue'),
-      carnetsARapprocher, ecartsRecalcules: ecartsRecalculesAValider, replaysRequis: [],
+      carnetsARapprocher, ecartsRecalcules: ecartsRecalculesAValider, replaysRequis,
     });
 
     document.getElementById('content').innerHTML = `
@@ -2006,6 +2115,22 @@
         btn.addEventListener('click', async () => {
           btn.disabled = true;
           const ok = await revaliderEcartRecalcule(btn.dataset.revaliderEcart, btn.dataset.revaliderShift);
+          if (!ok) { btn.disabled = false; return; }
+          renderAccueil();
+        });
+      });
+      // FDJ Fiabilisation — Étape 4 : recalcul manuel d'un relevé de
+      // clôture resté périmé (needs_replay=true) — filet de sécurité
+      // quand le recalcul automatique de rejouerReleveApresPropagation
+      // avait échoué au moment de la propagation.
+      boiteExceptionsDetail.querySelectorAll('[data-recalculer-replay]').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          btn.disabled = true;
+          const shiftId = btn.dataset.recalculerReplay;
+          const ok = await rejouerReleveApresPropagation(shiftId, null);
+          await nexusClient.from('fdj_shifts').update(
+            ok ? { needs_replay: false, last_replayed_at: new Date().toISOString() } : { needs_replay: true }
+          ).eq('id', shiftId);
           if (!ok) { btn.disabled = false; return; }
           renderAccueil();
         });
@@ -3878,6 +4003,18 @@
               motif: `Propagation automatique après correction manager du quart précédent (${libelleQuart(shift)}) — stock_initial encore hérité, jamais confirmé par un humain.`,
               ancienne_valeur: null, nouvelle_valeur: { jeux: applicables.map(a => a.game_id) },
             });
+
+            // FDJ Fiabilisation — Étape 4 : le quart suivant vient d'être
+            // recalculé silencieusement (ventes/écart) — son relevé de
+            // clôture, s'il existe déjà, doit refléter ce nouvel état,
+            // sinon l'écran "Relevé de clôture" et son export PDF
+            // resteraient périmés sans aucune alerte visible. Si l'écriture
+            // échoue, needs_replay reste true — la Boîte d'exceptions
+            // (catégorie "replay requis") offre alors un "Recalculer" manuel.
+            const replaySucces = await rejouerReleveApresPropagation(shiftSuivant.id, applicables.map(a => a.game_id));
+            await nexusClient.from('fdj_shifts').update(
+              replaySucces ? { needs_replay: false, last_replayed_at: new Date().toISOString() } : { needs_replay: true }
+            ).eq('id', shiftSuivant.id);
           }
 
           if (aRevoir.length) {
