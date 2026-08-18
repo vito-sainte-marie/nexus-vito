@@ -405,9 +405,23 @@
       // 2 et 13-14) puissent eux aussi reclasser leurs constats Marge sur
       // ces mêmes signaux qualifiés, au lieu d'une comparaison de pairs.
       // Chapitre 12 continue d'utiliser exclusivement `phrase` (inchangé).
+      //
+      // Cadrage risques Phase 3 (18/08/2026, tâche #232, "dimension urgence
+      // + référence au contrat NexusRisques") : `urgence`/`urgenceLabel`
+      // rejoignent `niveauConfiance` — les 3 champs que le contrat de
+      // sortie de `NexusRisques`/`chargerSignauxSite()` expose pour
+      // qualifier un signal (gravité, urgence, confiance de la
+      // qualification), jusqu'ici seul `niveau` (gravité) et
+      // `niveauConfiance` étaient transmis, `urgence` était silencieusement
+      // perdu au passage de `signauxRisqueBruts` à `signauxRisqueQualifies`
+      // — le Rapport n'en montrait donc qu'une fraction. `urgence` est déjà
+      // calculé (jamais persisté) par `chargerSignauxSite()` via
+      // `NexusRisques.classifierUrgence` — zéro nouveau calcul ici, même
+      // champ déjà consommé par Brief NEXUS depuis P1.3 (v2.53).
       const sujet = s.domaine === 'marge' ? (s.cle_signal || '').replace('marge:categorie:', '') : `Quart ${(s.cle_signal || '').replace('caisse:quart:', '')}`;
       return {
         niveau: s.niveau, domaine: s.domaine, sujet,
+        urgence: s.urgence, urgenceLabel: NexusRisques.LABEL_URGENCE[s.urgence] || s.urgence,
         phrase: NexusRisques.genererPhraseContexte({
           domaineLabel: s.domaine === 'marge' ? 'Marge' : 'Caisse',
           sujet,
@@ -760,16 +774,31 @@
       if (partiesResume.length) rapport.encadre([{ texte: partiesResume.join(' · '), gras: true }], { couleurBordure: CO().cyan });
       R.risques.signauxQualifies.forEach(s => {
         const [entete, ...reste] = s.phrase.split('\n');
+        // Cadrage risques Phase 3 (18/08/2026, tâche #232) : la liste est
+        // désormais triée par urgence d'abord, gravité ensuite (fait dans
+        // le moteur, `construireChapitreRisques`) — la ligne méta ci-
+        // dessous affiche les 3 champs du contrat NexusRisques jusqu'ici
+        // réduits à `niveau` seul dans ce chapitre : urgence, confiance de
+        // la qualification, ancienneté du signal. Même contenu que la ligne
+        // `.risque-meta` déjà affichée par Brief NEXUS depuis P1.3, adaptée
+        // au texte brut du PDF.
+        const depuis = s.depuisLe ? fmt.fmtDateFr(s.depuisLe) : null;
+        // `encadre()` (nexus-pdf-moteur.js) rend chaque ligne à taille fixe
+        // (9.5, pas de `taille` par ligne) — la méta est donc une ligne de
+        // plus au même gabarit que le reste, jamais un style en trop qui
+        // n'existerait pas réellement dans le moteur PDF partagé.
+        const meta = `Urgence : ${s.urgenceLabel || '—'} · Confiance ${s.niveauConfiance || '—'}${depuis ? ` · suivi depuis le ${depuis}` : ''}`;
         rapport.encadre(
           [
             { texte: entete, gras: true },
             { texte: reste.join(' ') },
+            { texte: meta },
             ...(s.actionRecommandee ? [{ texte: s.actionRecommandee }] : []),
           ],
           { couleurBordure: s.niveau === 'risque_avere' ? CO().rouge : CO().ambre },
         );
       });
-      rapport.paragraphe("NEXUS compare chaque signal à sa propre référence historique et ne le qualifie de risque qu'une fois suffisamment d'éléments réunis — mémoire partagée avec Brief NEXUS et le Cockpit.", { taille: 8, couleur: CO().texteDim });
+      rapport.paragraphe("NEXUS compare chaque signal à sa propre référence historique et ne le qualifie de risque qu'une fois suffisamment d'éléments réunis — mémoire partagée avec Brief NEXUS et le Cockpit. Classé par urgence d'abord, gravité ensuite : une exposition immédiate peut passer avant un risque avéré déjà connu depuis longtemps.", { taille: 8, couleur: CO().texteDim });
     } else {
       pdfEncadreInsuffisant(rapport, 'aucun signal de risque confirmé sur cette période — NEXUS observe, aucune récurrence suffisante pour conclure à un risque pour l\'instant.');
     }

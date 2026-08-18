@@ -466,7 +466,31 @@
     // Résumé (cadrage §15-16) : uniquement dérivé de signauxQualifies —
     // jamais un mélange avec constatsSectoriels, qui n'a par construction
     // aucun niveau de gravité NEXUS.
-    const signaux = signauxQualifies || [];
+    // Cadrage risques Phase 3 (18/08/2026, tâche #232, "dimension urgence +
+    // référence au contrat NexusRisques") : les signaux qualifiés sont
+    // désormais triés par urgence d'abord, gravité ensuite — même règle et
+    // même source (`NexusRisques.RANG_URGENCE`/`RANG_NIVEAU`) que le tri
+    // local déjà appliqué dans Brief NEXUS depuis P1.3 (v2.53) : "Brief
+    // doit montrer en priorité l'urgence, tout en conservant la gravité.
+    // Une exposition immédiate peut être plus importante aujourd'hui qu'un
+    // risque avéré de moyen terme." Contrairement à Brief, le Rapport
+    // n'écrête PAS la liste à 3 signaux (`slice(0,3)`) — c'est un document
+    // exhaustif, pas une carte de synthèse ; seul l'ORDRE change ici. Fait
+    // ici plutôt que dans `NEXUS-Rapport-v1.html` : le tri est une
+    // transformation pure sur des données déjà qualifiées, donc sa place
+    // naturelle est ce moteur (Article 11), à l'identique du recours déjà
+    // établi à `global.NexusRayonMoteur` un peu plus haut dans ce fichier.
+    // Repli sur `{}` si `NexusRisques` n'est pas chargé (contexte de test
+    // isolé, par exemple) — dans ce cas `RANG[x] || 0` vaut toujours 0 pour
+    // tous les signaux, donc le tri est un no-op stable, jamais une
+    // exception (Article 5).
+    const RANG_URG = (global.NexusRisques && global.NexusRisques.RANG_URGENCE) || {};
+    const RANG_NIV = (global.NexusRisques && global.NexusRisques.RANG_NIVEAU) || {};
+    const signaux = (signauxQualifies || []).slice().sort((a, b) => {
+      const diffUrg = (RANG_URG[b.urgence] || 0) - (RANG_URG[a.urgence] || 0);
+      if (diffUrg !== 0) return diffUrg;
+      return (RANG_NIV[b.niveau] || 0) - (RANG_NIV[a.niveau] || 0);
+    });
     const resume = {
       risqueAvere: signaux.filter(s => s.niveau === 'risque_avere').length,
       exposition: signaux.filter(s => s.niveau === 'exposition').length,
