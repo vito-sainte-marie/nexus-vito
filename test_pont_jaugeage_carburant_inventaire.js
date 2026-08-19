@@ -302,5 +302,116 @@ function creerClientMock(reponses) {
     assert.strictEqual(T.libelleMotifImpossible('valeur_future_inconnue'), 'valeur_future_inconnue', 'Motif inconnu -> repli sur la valeur brute, jamais une exception qui casserait l\'écran');
   });
 
+  // ------------------------------------------------------------
+  // PARTIE 3 — resoudreJaugeageCarburant() (19/08/2026, retour Frédéric :
+  // "si je me connecte en piste je dois voir cette carte") — la condition
+  // suit désormais la ZONE (piste), pas le rôle. Extraction de
+  // resoudreJaugeageCarburant + chargerJaugeageCarburantActif, avec un
+  // nexusClient et un NexusCarburantDonnees mockés (jamais réécrits).
+  // ------------------------------------------------------------
+  function extraireFonction2(nomFonction) {
+    let debut = script.indexOf(`function ${nomFonction}(`);
+    assert.ok(debut !== -1, `Fonction ${nomFonction} introuvable`);
+    const prefixe = 'async ';
+    if (script.slice(debut - prefixe.length, debut) === prefixe) debut -= prefixe.length;
+    let i = script.indexOf('{', debut);
+    let profondeur = 1, j = i + 1;
+    while (profondeur > 0) {
+      if (script[j] === '{') profondeur++;
+      else if (script[j] === '}') profondeur--;
+      j++;
+    }
+    return script.slice(debut, j);
+  }
+
+  function creerContexteResolution({ jaugeageActifSite, statutJour }) {
+    const appelsStationConfig = [];
+    const appelsStatutJour = [];
+    const srcParts2 = [
+      'let jaugeageCarburantActif = false;',
+      'let statutJaugeageJour = null;',
+      'let quartActuel = null;',
+      'let zoneActive = null;',
+      "let employeeCourant = { site_id: 'vito-sainte-marie' };",
+      "function dateISO() { return '2026-08-19'; }",
+      extraireFonction2('chargerJaugeageCarburantActif'),
+      extraireFonction2('resoudreJaugeageCarburant'),
+      `globalThis.__test = {
+        setEnv: (env) => { quartActuel = env.quartActuel; zoneActive = env.zoneActive; },
+        resoudreJaugeageCarburant,
+        lire: () => ({ jaugeageCarburantActif, statutJaugeageJour }),
+      };`,
+    ].join('\n\n');
+    const nexusClient = {
+      from(table) {
+        appelsStationConfig.push(table);
+        return {
+          select() { return this; },
+          eq() { return this; },
+          async maybeSingle() {
+            return { data: { jaugeage_carburant_actif: jaugeageActifSite }, error: null };
+          },
+        };
+      },
+    };
+    const NexusCarburantDonnees = {
+      async chargerStatutJaugeageJour(client, site, date) {
+        appelsStatutJour.push({ client, site, date });
+        return statutJour;
+      },
+    };
+    const ctx2 = { globalThis: {}, console, Date, nexusClient, NexusCarburantDonnees };
+    ctx2.globalThis = ctx2;
+    vm.runInNewContext(srcParts2, ctx2);
+    return { T: ctx2.__test, appelsStationConfig, appelsStatutJour };
+  }
+
+  await testAsync('resoudreJaugeageCarburant : quart matin + zone piste + flag actif -> visible, statut du jour chargé (pompiste, toujours en piste, est donc déjà couvert)', async () => {
+    const { T, appelsStationConfig, appelsStatutJour } = creerContexteResolution({ jaugeageActifSite: true, statutJour: { statut: 'fait', cree_le: '2026-08-19T05:56:00.000Z', motif_impossible: null } });
+    T.setEnv({ quartActuel: 'matin', zoneActive: 'piste' });
+    await T.resoudreJaugeageCarburant();
+    const etat = T.lire();
+    assert.strictEqual(etat.jaugeageCarburantActif, true);
+    assert.strictEqual(etat.statutJaugeageJour.statut, 'fait');
+    assert.strictEqual(appelsStationConfig.length, 1, 'Doit lire station_config une fois');
+    assert.strictEqual(appelsStatutJour.length, 1, 'Doit lire le statut du jour une fois');
+  });
+
+  await testAsync('resoudreJaugeageCarburant : quart matin + zone piste (ex: manager qui a choisi piste) + flag actif -> visible aussi, même chemin que le pompiste', async () => {
+    const { T } = creerContexteResolution({ jaugeageActifSite: true, statutJour: null });
+    T.setEnv({ quartActuel: 'matin', zoneActive: 'piste' });
+    await T.resoudreJaugeageCarburant();
+    const etat = T.lire();
+    assert.strictEqual(etat.jaugeageCarburantActif, true, 'La condition est désormais la zone, pas le rôle : un manager en zone piste voit le bloc');
+  });
+
+  await testAsync('resoudreJaugeageCarburant : quart matin + zone boutique -> invisible, aucune lecture Supabase (ni station_config ni statut jour)', async () => {
+    const { T, appelsStationConfig, appelsStatutJour } = creerContexteResolution({ jaugeageActifSite: true, statutJour: { statut: 'fait' } });
+    T.setEnv({ quartActuel: 'matin', zoneActive: 'boutique' });
+    await T.resoudreJaugeageCarburant();
+    const etat = T.lire();
+    assert.strictEqual(etat.jaugeageCarburantActif, false);
+    assert.strictEqual(etat.statutJaugeageJour, null);
+    assert.strictEqual(appelsStationConfig.length, 0, 'Zone boutique -> ne doit même pas interroger station_config, coût nul');
+    assert.strictEqual(appelsStatutJour.length, 0);
+  });
+
+  await testAsync('resoudreJaugeageCarburant : quart soir + zone piste -> invisible même si le flag site est actif', async () => {
+    const { T } = creerContexteResolution({ jaugeageActifSite: true, statutJour: null });
+    T.setEnv({ quartActuel: 'soir', zoneActive: 'piste' });
+    await T.resoudreJaugeageCarburant();
+    assert.strictEqual(T.lire().jaugeageCarburantActif, false, 'Le jaugeage d\'ouverture n\'a de sens qu\'au Quart 1');
+  });
+
+  await testAsync('resoudreJaugeageCarburant : quart matin + zone piste + flag site inactif -> invisible, statut jamais interrogé', async () => {
+    const { T, appelsStatutJour } = creerContexteResolution({ jaugeageActifSite: false, statutJour: { statut: 'fait' } });
+    T.setEnv({ quartActuel: 'matin', zoneActive: 'piste' });
+    await T.resoudreJaugeageCarburant();
+    const etat = T.lire();
+    assert.strictEqual(etat.jaugeageCarburantActif, false);
+    assert.strictEqual(etat.statutJaugeageJour, null, 'Flag site inactif -> jamais interroger/afficher un statut du jour, même s\'il en existe un en base');
+    assert.strictEqual(appelsStatutJour.length, 0);
+  });
+
   console.log('\nTous les tests "Pont Jaugeage carburant Inventaire → Carburants" passent.');
 })();

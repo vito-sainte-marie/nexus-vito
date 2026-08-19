@@ -308,15 +308,18 @@
   let dernierStock = {};         // produit_id -> { quantite, comptage_id } | null
   let modesAveugle = [];         // règles inventaire_modes_controle actives (mode='aveugle')
   let modeJaugeageActif = false; // inventaire_modes_controle actif (mode='jaugeage_actif') — voir chargerModeJaugeageActif()
-  // Pont Jaugeage carburant → Carburants (19/08/2026, demande de Frédéric) —
-  // NE PAS confondre avec modeJaugeageActif ci-dessus (catégorie produit
-  // "Jaugeage Carburant" comptée dans inventaire_comptages, mécanisme
-  // différent et non touché ici). jaugeageCarburantActif = station_config.
-  // jaugeage_carburant_actif ; statutJaugeageJour = carburant_jaugeage_
-  // statuts_jour du jour (null tant que rien n'a été fait). Résolus une
-  // seule fois au bootstrap, uniquement quand quart=matin et rôle=pompiste
-  // (voir l'initialisation en bas de fichier) — jamais interrogés pour les
-  // autres employés/quarts.
+  // Pont Jaugeage carburant → Carburants (19/08/2026, demande de Frédéric ;
+  // étendu le 19/08/2026 — "si je me connecte en piste je dois voir cette
+  // carte") — NE PAS confondre avec modeJaugeageActif ci-dessus (catégorie
+  // produit "Jaugeage Carburant" comptée dans inventaire_comptages,
+  // mécanisme différent et non touché ici). jaugeageCarburantActif =
+  // station_config.jaugeage_carburant_actif ; statutJaugeageJour =
+  // carburant_jaugeage_statuts_jour du jour (null tant que rien n'a été
+  // fait). Résolus par resoudreJaugeageCarburant() (voir chargerJaugeageCarburantActif
+  // plus bas), rappelée à chaque renderAccueil() — la condition suit la ZONE
+  // (piste), pas le rôle : le pompiste est toujours sur piste, donc déjà
+  // couvert ; un manager/gérant/renfort/vacataire le voit aussi tant qu'il
+  // travaille la zone piste, et il disparaît s'il repasse en boutique.
   let jaugeageCarburantActif = false;
   let statutJaugeageJour = null;
   // Inventaire 2.0 P0 (17/08/2026, Sprint 1+2 — "NEXUS décide quoi
@@ -957,6 +960,27 @@
     return !!(data && data.jaugeage_carburant_actif);
   }
 
+  // Résolution du bloc Jaugeage carburant (19/08/2026, suite retour
+  // Frédéric — "si je me connecte en piste je dois voir cette carte") : ne
+  // dépend plus du rôle mais de la ZONE réellement travaillée (zoneActive),
+  // au quart matin. Le pompiste est toujours cantonné à la zone piste
+  // (zonesPourRole), donc déjà couvert sans cas particulier ; un manager,
+  // gérant, renfort ou vacataire qui choisit la zone piste le voit aussi, et
+  // il disparaît s'il repasse en boutique. Rappelée à chaque renderAccueil()
+  // — donc à chaque changement de zone via "Changer" — coût minime (1-2
+  // lectures), cohérent avec les autres chargeurs déjà rappelés à chaque
+  // rendu de cet écran.
+  async function resoudreJaugeageCarburant() {
+    const doitVoir = quartActuel === 'matin' && zoneActive === 'piste';
+    if (!doitVoir) { jaugeageCarburantActif = false; statutJaugeageJour = null; return; }
+    jaugeageCarburantActif = await chargerJaugeageCarburantActif();
+    if (jaugeageCarburantActif && typeof NexusCarburantDonnees !== 'undefined') {
+      statutJaugeageJour = await NexusCarburantDonnees.chargerStatutJaugeageJour(nexusClient, employeeCourant.site_id, dateISO());
+    } else {
+      statutJaugeageJour = null;
+    }
+  }
+
   // Recommandations de préparation (18/08/2026, M2 — cahier §4) : une par
   // produit à profil production_journaliere, uniquement au quart matin (Q1
   // est le seul moment où la question "combien préparer aujourd'hui" a un
@@ -1130,6 +1154,7 @@
   // ÉCRAN D'ACCUEIL
   // ------------------------------------------------------------
   async function renderAccueil() {
+    await resoudreJaugeageCarburant();
     document.getElementById('titre').textContent = `Bonjour ${employeeCourant.nom}`;
     document.getElementById('sousTitre').textContent = '';
 
@@ -1202,15 +1227,18 @@
 
   // ------------------------------------------------------------
   // PONT JAUGEAGE CARBURANT → CARBURANTS (19/08/2026, demande de Frédéric,
-  // §"Je ferais exactement ce parcours"). Le pompiste du Quart 1 saisit le
-  // jaugeage physique d'ouverture directement ici ; Inventaire DÉCLENCHE
-  // l'action mais écrit dans le domaine Carburants (carburant_releves via
-  // nexus-carburant-donnees.js::enregistrerJaugeageOuverturePompiste),
-  // jamais dans ses propres tables (Article 11 — une seule vérité). Visible
-  // uniquement si les 3 conditions sont réunies (quart matin, rôle pompiste,
-  // flag site actif) — résolues une fois au bootstrap, voir plus bas.
-  // Sur le Quart 2, ce bloc n'existe même pas (jaugeageCarburantActif reste
-  // à false, jamais évalué) : pas de bouton grisé, pas de bruit inutile.
+  // §"Je ferais exactement ce parcours" ; étendu le 19/08/2026 — "si je me
+  // connecte en piste je dois voir cette carte"). Quiconque travaille la
+  // zone piste au Quart 1 saisit le jaugeage physique d'ouverture
+  // directement ici ; Inventaire DÉCLENCHE l'action mais écrit dans le
+  // domaine Carburants (carburant_releves via nexus-carburant-donnees.js
+  // ::enregistrerJaugeageOuverturePompiste), jamais dans ses propres tables
+  // (Article 11 — une seule vérité). Visible uniquement si les 3 conditions
+  // sont réunies (quart matin, zone piste, flag site actif) — résolues par
+  // resoudreJaugeageCarburant() à chaque renderAccueil() (voir plus haut).
+  // Sur le Quart 2 ou en zone boutique, ce bloc n'existe même pas
+  // (jaugeageCarburantActif reste à false) : pas de bouton grisé, pas de
+  // bruit inutile.
   // ------------------------------------------------------------
   function libelleMotifImpossible(motif) {
     return {
@@ -3518,17 +3546,10 @@
     quartActuel = await quartDuMoment(employee.site_id);
     roleDuJour = await chargerRoleDuJour();
 
-    // Pont Jaugeage carburant (19/08/2026) — les trois conditions (quart,
-    // rôle, employé) sont déjà connues à cet instant précis, sans requête
-    // supplémentaire (Frédéric : le pompiste du Quart 1 voit ce bloc "avant
-    // le parcours normal"). Résolu ici une seule fois, jamais recalculé au
-    // fil des re-rendus de renderAccueil.
-    if (quartActuel === 'matin' && roleDuJour === 'pompiste') {
-      jaugeageCarburantActif = await chargerJaugeageCarburantActif();
-      if (jaugeageCarburantActif && typeof NexusCarburantDonnees !== 'undefined') {
-        statutJaugeageJour = await NexusCarburantDonnees.chargerStatutJaugeageJour(nexusClient, employee.site_id, dateISO());
-      }
-    }
+    // Pont Jaugeage carburant (19/08/2026, étendu le 19/08/2026) — la
+    // condition d'affichage dépend de la zone (piste), pas du rôle ; elle
+    // n'est donc plus résolue ici mais dans resoudreJaugeageCarburant(),
+    // appelée à chaque renderAccueil() une fois zoneActive connu.
 
     zonesAutorisees = zonesPourRole(roleDuJour);
     zoneActive = zonesAutorisees[0];
