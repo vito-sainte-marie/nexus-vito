@@ -250,6 +250,13 @@
     // — aucune migration nécessaire pour ceux-là.
     seuilDemarquePct: null, seuilCasseUnites: null, seuilPeremptionJours: 2, rappelRetourFournisseurActif: true,
     sensComptage: 'piste_boutique',
+    // Plan de comptage tournant NEXUS (19/08/2026, demande de Frédéric —
+    // "compter moins mais compter juste", contrôlable par le manager sans
+    // développeur). null = NEXUS applique ses valeurs par défaut (20
+    // produits socle, 4 surprises par quart — voir nexus-inventaire-plan-
+    // donnees.js::SOCLE_PAR_DEFAUT/SURPRISES_PAR_DEFAUT) ; jamais un 0
+    // silencieux qui viderait le plan (Article 5).
+    planSocleCible: null, planSurprisesCible: null,
   };
   let parametresInventaire = { ...DEFAULTS_PARAMETRES_INVENTAIRE };
 
@@ -392,10 +399,11 @@
     const { data: regleSource, error } = await nexusClient.from('inventaire_regles_produit').select('*').eq('site', siteId).eq('produit_id', sourceId).maybeSingle();
     if (error) { console.error('Lecture règle source (duplication):', error); return; }
     if (!regleSource) return; // le produit source suit encore le profil par défaut (continu) — rien à copier
-    const { profil, cycle_frequence, report_veille_autorise, duree_max_vente_jours, action_echeance, mode_agregation_ventes, validation_manager_requise, comptage_masque, seuil_minimal, controle_aleatoire, photo_obligatoire } = regleSource;
+    const { profil, cycle_frequence, report_veille_autorise, duree_max_vente_jours, action_echeance, mode_agregation_ventes, validation_manager_requise, comptage_masque, seuil_minimal, controle_aleatoire, photo_obligatoire, frequence_controle, delai_max_jours_sans_controle } = regleSource;
     await nexusClient.from('inventaire_regles_produit').upsert({
       site: siteId, produit_id: cibleId, profil, cycle_frequence, report_veille_autorise, duree_max_vente_jours,
       action_echeance, mode_agregation_ventes, validation_manager_requise, comptage_masque, seuil_minimal, controle_aleatoire, photo_obligatoire,
+      frequence_controle, delai_max_jours_sans_controle,
     }, { onConflict: 'site,produit_id' });
   }
 
@@ -625,6 +633,21 @@
   function renderOngletParcours() {
     return `
       <div class="question-titre">Dans quel ordre souhaitez-vous les compter ?</div>
+
+      <div class="section-titre" style="margin-top:14px;">🎲 Plan de comptage tournant NEXUS</div>
+      <div class="note">Chaque quart, NEXUS sélectionne automatiquement un nombre réduit de produits à compter (au lieu de tout le catalogue) : les références critiques ou en retard de contrôle en priorité, complétées jusqu'au socle ci-dessous, plus un tirage de "surprises" pour éviter la routine — comptage physique à l'aveugle, jamais un chiffre reconstitué. Laissez vide pour garder les valeurs NEXUS par défaut (20 produits socle, 4 surprises).</div>
+      <div class="card" style="margin-bottom:16px; display:flex; gap:16px; flex-wrap:wrap;">
+        <div>
+          <div class="parcours-sub" style="margin-bottom:4px;">Socle de produits par quart</div>
+          <input type="number" min="0" class="mouv-qte" id="inputPlanSocleCible" placeholder="20 (par défaut)" value="${parametresInventaire.planSocleCible != null ? parametresInventaire.planSocleCible : ''}" style="width:120px;">
+        </div>
+        <div>
+          <div class="parcours-sub" style="margin-bottom:4px;">Surprises tirées au sort par quart</div>
+          <input type="number" min="0" class="mouv-qte" id="inputPlanSurprisesCible" placeholder="4 (par défaut)" value="${parametresInventaire.planSurprisesCible != null ? parametresInventaire.planSurprisesCible : ''}" style="width:120px;">
+        </div>
+      </div>
+      <div class="note" style="margin-top:-8px;">Un changement ici ne s'applique qu'aux prochains plans générés (le plan du jour, une fois créé, n'est jamais recalculé en cours de route). La criticité de chaque produit (qui détermine son délai maximum sans contrôle) se règle produit par produit dans l'onglet ⚙️ Règles.</div>
+
       <div class="section-titre" style="margin-top:14px;">Sens de comptage</div>
       <div class="note">Ordre des zones lors du parcours de comptage terrain.</div>
       <div class="quart-select-row" style="margin-bottom:16px;">
@@ -758,11 +781,19 @@
       controle_aleatoire: !!existant.controle_aleatoire,
       photo_obligatoire: !!existant.photo_obligatoire,
       comptage_deux_lieux: doubleLieuActuel,
+      // Plan de comptage tournant (19/08/2026) : criticité du produit pour
+      // le moteur de sélection (nexus-inventaire-moteur.js::construirePlanComptage).
+      // 'standard' si jamais réglé — même repli que delaiMaxJours() côté
+      // moteur, jamais une valeur différente ici qui désynchroniserait
+      // l'affichage du calcul réel.
+      frequence_controle: existant.frequence_controle || 'standard',
+      delai_max_jours_sans_controle: existant.delai_max_jours_sans_controle != null ? existant.delai_max_jours_sans_controle : null,
     } : {
       produit_id: produitId, production_journaliere: false, remise_a_zero_matin: false, duree_max_vente_jours: null, retour_fournisseur_autorise: false,
       quarts_comptage: null, reapprovisionnable: true, seuil_minimal: null,
       validation_manager_requise: false, comptage_masque: false, controle_aleatoire: false, photo_obligatoire: false,
       comptage_deux_lieux: doubleLieuActuel,
+      frequence_controle: 'standard', delai_max_jours_sans_controle: null,
     };
     render();
   }
@@ -800,6 +831,14 @@
       seuil_minimal: seuilActif ? p.seuil_minimal : null,
       controle_aleatoire: !!p.controle_aleatoire,
       photo_obligatoire: !!p.photo_obligatoire,
+      // Plan de comptage tournant (19/08/2026) : consommé par
+      // nexus-inventaire-plan-donnees.js::chargerIngredientsSelection puis
+      // nexus-inventaire-moteur.js::delaiMaxJours/construirePlanComptage.
+      // delai_max_jours_sans_controle reste un override optionnel — vide =
+      // NEXUS applique le défaut de la famille choisie (0/7/21 jours),
+      // jamais un 0 fabriqué ici (Article 5).
+      frequence_controle: p.frequence_controle || 'standard',
+      delai_max_jours_sans_controle: (p.delai_max_jours_sans_controle !== '' && p.delai_max_jours_sans_controle != null) ? p.delai_max_jours_sans_controle : null,
     };
     const { data, error } = await nexusClient.from('inventaire_regles_produit').upsert(payload, { onConflict: 'site,produit_id' }).select().single();
     if (error) { console.error('Enregistrement règle produit:', error); alert('Erreur — réessayez.'); if (btn) { btn.disabled = false; btn.textContent = 'Enregistrer ces réglages'; } return; }
@@ -903,6 +942,19 @@
           <input type="checkbox" id="profilComptageMasque" ${e.comptage_masque ? 'checked' : ''}>
           <span>Comptage à l'aveugle (valeur transmise cachée)</span>
         </label>
+        <div class="regle-champ-row">
+          <span>🎲 Criticité (plan de comptage tournant)</span>
+          <select id="regleFrequenceControle" class="mouv-select" style="width:auto;">
+            <option value="critique" ${e.frequence_controle === 'critique' ? 'selected' : ''}>Critique — compté chaque quart</option>
+            <option value="standard" ${e.frequence_controle === 'standard' || !e.frequence_controle ? 'selected' : ''}>Standard — délai 7 jours</option>
+            <option value="faible_rotation" ${e.frequence_controle === 'faible_rotation' ? 'selected' : ''}>Faible rotation — délai 21 jours</option>
+          </select>
+        </div>
+        <div class="regle-champ-row">
+          <span>Délai max sans contrôle (jours, override)</span>
+          <input type="number" min="0" class="mouv-qte" id="regleDelaiMaxJours" placeholder="Défaut de la criticité" value="${e.delai_max_jours_sans_controle != null ? e.delai_max_jours_sans_controle : ''}" style="width:74px; flex:none;">
+        </div>
+        <div class="note" style="margin:0 0 8px;">Détermine si NEXUS inclut ce produit dans le plan de comptage réduit du quart (§5.2) : un produit "critique" est demandé chaque quart, "faible rotation" seulement s'il n'a pas été vu depuis 21 jours (ou la valeur ci-dessus si réglée).</div>
         <label class="regle-check-row">
           <input type="checkbox" id="profilControleAleatoire" ${e.controle_aleatoire ? 'checked' : ''}>
           <span>Contrôle aléatoire (peut être tiré au sort par le Conseiller NEXUS)</span>
@@ -1609,6 +1661,19 @@
     document.querySelectorAll('[data-cat-monter]').forEach(el => el.addEventListener('click', () => deplacerCategorie(el.dataset.catMonter, -1)));
     document.querySelectorAll('[data-cat-descendre]').forEach(el => el.addEventListener('click', () => deplacerCategorie(el.dataset.catDescendre, 1)));
     document.querySelectorAll('[data-jour-rotation]').forEach(el => el.addEventListener('click', () => toggleJourRotation(el.dataset.jourRotation, parseInt(el.dataset.jourIso))));
+    // Plan de comptage tournant (19/08/2026) — champ vide = null = NEXUS
+    // garde sa valeur par défaut, jamais un 0 qui viderait silencieusement
+    // le plan (Article 5, même garde que paramSeuilValeur ci-dessous).
+    const inputPlanSocleCible = document.getElementById('inputPlanSocleCible');
+    if (inputPlanSocleCible) inputPlanSocleCible.addEventListener('change', () => {
+      const v = parseInt(inputPlanSocleCible.value, 10);
+      sauvegarderParametresInventaire({ planSocleCible: inputPlanSocleCible.value === '' || isNaN(v) || v < 0 ? null : v });
+    });
+    const inputPlanSurprisesCible = document.getElementById('inputPlanSurprisesCible');
+    if (inputPlanSurprisesCible) inputPlanSurprisesCible.addEventListener('change', () => {
+      const v = parseInt(inputPlanSurprisesCible.value, 10);
+      sauvegarderParametresInventaire({ planSurprisesCible: inputPlanSurprisesCible.value === '' || isNaN(v) || v < 0 ? null : v });
+    });
 
     // --- Règles ---
     const inputRechercheRegles = document.getElementById('rechercheRegles');
@@ -1644,6 +1709,13 @@
     if (profilComptageMasqueEl) profilComptageMasqueEl.addEventListener('change', (e) => { profilEnEdition.comptage_masque = e.target.checked; });
     const profilControleAleatoireEl = document.getElementById('profilControleAleatoire');
     if (profilControleAleatoireEl) profilControleAleatoireEl.addEventListener('change', (e) => { profilEnEdition.controle_aleatoire = e.target.checked; });
+    const regleFrequenceControleEl = document.getElementById('regleFrequenceControle');
+    if (regleFrequenceControleEl) regleFrequenceControleEl.addEventListener('change', (e) => { profilEnEdition.frequence_controle = e.target.value; });
+    const regleDelaiMaxJoursEl = document.getElementById('regleDelaiMaxJours');
+    if (regleDelaiMaxJoursEl) regleDelaiMaxJoursEl.addEventListener('change', (e) => {
+      const v = parseInt(e.target.value, 10);
+      profilEnEdition.delai_max_jours_sans_controle = (e.target.value === '' || isNaN(v) || v < 0) ? null : v;
+    });
     const profilPhotoObligatoireEl = document.getElementById('profilPhotoObligatoire');
     if (profilPhotoObligatoireEl) profilPhotoObligatoireEl.addEventListener('change', (e) => { profilEnEdition.photo_obligatoire = e.target.checked; });
     const profilDoubleLieuEl = document.getElementById('profilDoubleLieu');

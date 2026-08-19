@@ -1014,6 +1014,28 @@
     return produitsZone.filter(p => profilParProduit[p.id] !== 'production_journaliere');
   }
 
+  // Réglages du plan tournant configurables par le manager (19/08/2026,
+  // demande de Frédéric — "que le manager d'un autre site puisse paramétrer
+  // et contrôler Inventaire sans développeur") : socle_cible/surprises_cible
+  // vivaient jusqu'ici uniquement comme constantes par défaut dans
+  // nexus-inventaire-plan-donnees.js (SOCLE_PAR_DEFAUT=20,
+  // SURPRISES_PAR_DEFAUT=4), sans aucun override site lisible nulle part.
+  // Lus depuis station_config.parametres_inventaire — même colonne JSON déjà
+  // utilisée par NEXUS-Parametres-Inventaire-v1.html pour tous les autres
+  // réglages Inventaire (Article 11, aucune nouvelle table). Valeur absente
+  // ou non numérique => undefined => chargerOuGenererPlan retombe sur ses
+  // propres constantes par défaut (jamais un 0 ou une valeur inventée ici).
+  async function chargerReglagesPlanComptage() {
+    const site = employeeCourant.site_id;
+    const { data, error } = await nexusClient
+      .from('station_config').select('parametres_inventaire').eq('site', site).maybeSingle();
+    if (error) { console.error('Chargement réglages plan comptage:', error); return {}; }
+    const p = (data && data.parametres_inventaire) || {};
+    const socleCible = Number.isFinite(p.planSocleCible) ? p.planSocleCible : undefined;
+    const surprisesCible = Number.isFinite(p.planSurprisesCible) ? p.planSurprisesCible : undefined;
+    return { socleCible, surprisesCible };
+  }
+
   // Plan de comptage tournant (17/08/2026, Sprint 2 — cahier Inventaire 2.0
   // §5.2) : NEXUS décide quoi compter aujourd'hui pour ce (site, date,
   // quart), généré une seule fois puis persisté (INV2-04 — un rechargement
@@ -1028,7 +1050,13 @@
     const P = typeof NexusInventairePlanDonnees !== 'undefined' ? NexusInventairePlanDonnees : null;
     if (!P) { console.error('NexusInventairePlanDonnees non chargé — plan de comptage indisponible.'); planQuartActif = null; produitsPlanIds = new Set(); planItemIdParProduit = {}; return; }
     const site = employeeCourant.site_id;
-    planQuartActif = await P.chargerOuGenererPlan(nexusClient, site, dateISO(), quartActuel, {});
+    // Options lues à chaque appel plutôt que mises en cache (19/08/2026) :
+    // n'a d'effet réel que si aucun plan n'existe encore pour (site, date,
+    // quart) — chargerOuGenererPlan relit toujours le plan déjà persisté en
+    // premier (INV2-04) — mais reste sans risque de coût inutile, un seul
+    // SELECT léger sur station_config.
+    const options = await chargerReglagesPlanComptage();
+    planQuartActif = await P.chargerOuGenererPlan(nexusClient, site, dateISO(), quartActuel, options);
     const items = (planQuartActif && planQuartActif.items) || [];
     produitsPlanIds = new Set(items.map(it => it.produit_id));
     planItemIdParProduit = {};
