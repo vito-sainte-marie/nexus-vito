@@ -21,6 +21,7 @@
 <script src="nexus-forfait.js"></script>
 <script src="nexus-desktop.js"></script>
 <script src="nexus-inventaire-moteur.js"></script>
+<script src="nexus-inventaire-production-donnees.js"></script>
 <style>
   :root{
     --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
@@ -676,6 +677,26 @@
   let profilEnEdition = null;
   let rechercheReglesTexte = '';
 
+  // ==============================================================
+  // ONGLET PRODUCTION — quantités recommandées, calendrier, valeurs
+  // spéciales (19/08/2026, tâche #518 "Paramètres manager : recommandations
+  // sans développeur"). Jusqu'ici, `inventaire_production_regles` (M2) ne
+  // pouvait être renseignée que par SQL direct — cet onglet est le SEUL
+  // ajout : aucune logique de calcul dupliquée (le moteur de recommandation
+  // reste entièrement dans nexus-inventaire-moteur.js, Article 11), cet
+  // écran ne fait qu'écrire les 3 tables de configuration que ce moteur lit
+  // déjà (inventaire_production_regles, inventaire_production_valeurs_speciales,
+  // inventaire_calendrier_site).
+  // ==============================================================
+  let produitsProduction = [];
+  let reglesProductionMap = {};
+  let calendrierSite = [];
+  let valeursSpecialesProduction = [];
+  let productionRegleOuverte = null;
+  let productionRegleEnEdition = null;
+  let calendrierForm = { date: '', type: 'vacances', libelle: '' };
+  let valeurSpecialeForm = { produitId: '', date: '', valeur: '', libelle: '' };
+
   async function chargerReglesProduit(site) {
     const { data, error } = await nexusClient.from('inventaire_regles_produit').select('*').eq('site', site);
     if (error) { console.error('Chargement règles produit:', error); return {}; }
@@ -693,6 +714,12 @@
   // reste calculé automatiquement à partir de ces réglages : NEXUS
   // Traçabilité et le reste du code n'ont pas besoin de changer.
   function calculerProfilDepuisReglage(e) {
+    // Production journalière (19/08/2026, tâche #518) : prioritaire sur les
+    // autres réglages dérivés — un produit "préparation recommandée le
+    // matin" (viennoiserie) ne peut pas être en même temps cycle_journalier/
+    // lot_glissant/consommable, ce sont des logiques de comptage mutuellement
+    // exclusives (un seul champ `profil` en base).
+    if (e.production_journaliere) return 'production_journaliere';
     if (e.remise_a_zero_matin) return 'cycle_journalier';
     if (e.duree_max_vente_jours) return 'lot_glissant';
     if (e.seuil_minimal) return 'consommable';
@@ -719,6 +746,7 @@
     const doubleLieuActuel = !!(produit && produit.comptage_deux_lieux);
     profilEnEdition = existant ? {
       produit_id: produitId,
+      production_journaliere: existant.profil === 'production_journaliere',
       remise_a_zero_matin: existant.profil === 'cycle_journalier',
       duree_max_vente_jours: existant.duree_max_vente_jours || null,
       retour_fournisseur_autorise: existant.action_echeance === 'retour_fournisseur_obligatoire',
@@ -731,7 +759,7 @@
       photo_obligatoire: !!existant.photo_obligatoire,
       comptage_deux_lieux: doubleLieuActuel,
     } : {
-      produit_id: produitId, remise_a_zero_matin: false, duree_max_vente_jours: null, retour_fournisseur_autorise: false,
+      produit_id: produitId, production_journaliere: false, remise_a_zero_matin: false, duree_max_vente_jours: null, retour_fournisseur_autorise: false,
       quarts_comptage: null, reapprovisionnable: true, seuil_minimal: null,
       validation_manager_requise: false, comptage_masque: false, controle_aleatoire: false, photo_obligatoire: false,
       comptage_deux_lieux: doubleLieuActuel,
@@ -749,11 +777,19 @@
     const btn = document.getElementById('btnEnregistrerProfil');
     if (btn) { btn.disabled = true; btn.textContent = 'Enregistrement…'; }
     const profilDerive = calculerProfilDepuisReglage(p);
-    const dureeActive = !!p.duree_max_vente_jours;
+    // Production journalière (19/08/2026) : les champs "Remis à zéro"/"Durée
+    // de vente"/"Seuil d'alerte" sont masqués dans le formulaire dès que
+    // cette case est cochée (voir renderFormulaireProfil) mais restent en
+    // mémoire dans `p` (état non réinitialisé) — on les neutralise
+    // explicitement ici pour ne jamais écrire une combinaison incohérente
+    // (ex. profil=production_journaliere ET cycle_frequence=quotidien).
+    const dureeActive = !p.production_journaliere && !!p.duree_max_vente_jours;
+    const remiseAZeroActive = !p.production_journaliere && p.remise_a_zero_matin;
+    const seuilActif = !p.production_journaliere && p.seuil_minimal;
     const payload = {
       site: siteId, produit_id: p.produit_id, profil: profilDerive,
-      cycle_frequence: p.remise_a_zero_matin ? 'quotidien' : null,
-      report_veille_autorise: !p.remise_a_zero_matin,
+      cycle_frequence: remiseAZeroActive ? 'quotidien' : null,
+      report_veille_autorise: !remiseAZeroActive,
       duree_max_vente_jours: dureeActive ? p.duree_max_vente_jours : null,
       action_echeance: dureeActive ? (p.retour_fournisseur_autorise ? 'retour_fournisseur_obligatoire' : 'alerte_manager') : null,
       mode_agregation_ventes: 'aucun',
@@ -761,7 +797,7 @@
       reapprovisionnable: p.reapprovisionnable !== false,
       validation_manager_requise: !!p.validation_manager_requise,
       comptage_masque: !!p.comptage_masque,
-      seuil_minimal: p.seuil_minimal || null,
+      seuil_minimal: seuilActif ? p.seuil_minimal : null,
       controle_aleatoire: !!p.controle_aleatoire,
       photo_obligatoire: !!p.photo_obligatoire,
     };
@@ -784,6 +820,17 @@
       if (idx !== -1) produitsInventaire[idx] = { ...produitsInventaire[idx], comptage_deux_lieux: !!p.comptage_deux_lieux };
     }
 
+    // Onglet Production (19/08/2026, tâche #518) : garder produitsProduction
+    // synchronisé sans recharger toute la page si le manager vient de
+    // basculer ce produit vers/hors du profil production_journaliere ici.
+    const dejaDansProduction = produitsProduction.some(pp => pp.id === p.produit_id);
+    if (profilDerive === 'production_journaliere' && !dejaDansProduction) {
+      const source = produitsInventaire.find(pr => pr.id === p.produit_id);
+      if (source) produitsProduction.push(source);
+    } else if (profilDerive !== 'production_journaliere' && dejaDansProduction) {
+      produitsProduction = produitsProduction.filter(pp => pp.id !== p.produit_id);
+    }
+
     profilProduitOuvert = null; profilEnEdition = null;
     render();
   }
@@ -801,6 +848,15 @@
         </div>
 
         <label class="regle-check-row">
+          <input type="checkbox" id="regleProductionJournaliere" ${e.production_journaliere ? 'checked' : ''}>
+          <span>🥐 Suivi de production journalière (préparation recommandée le matin, viennoiserie type)</span>
+        </label>
+        ${e.production_journaliere ? `
+          <div class="note" style="margin:0 0 10px;">Ce produit apparaît désormais dans l'onglet <b>🥐 Production</b> — configurez-y les quantités conseillées (semaine/samedi/dimanche/vacances). Incompatible avec les réglages "Remis à zéro"/"Durée de vente"/"Seuil d'alerte" ci-dessous (logiques mutuellement exclusives) — masqués tant que cette case est cochée.</div>
+        ` : ''}
+
+        ${!e.production_journaliere ? `
+        <label class="regle-check-row">
           <input type="checkbox" id="regleRemiseAZero" ${e.remise_a_zero_matin ? 'checked' : ''}>
           <span>🔄 Stock remis à zéro chaque matin</span>
         </label>
@@ -809,8 +865,9 @@
           <span>📅 Durée maximale de vente (jours)</span>
           <input type="number" min="1" class="mouv-qte" id="regleDureeMax" placeholder="Illimitée" value="${e.duree_max_vente_jours || ''}" style="width:74px; flex:none;">
         </div>
+        ` : ''}
 
-        ${dureeActive ? `
+        ${!e.production_journaliere && dureeActive ? `
           <label class="regle-check-row">
             <input type="checkbox" id="regleRetourFournisseur" ${e.retour_fournisseur_autorise ? 'checked' : ''}>
             <span>↩️ Retour fournisseur autorisé à l'échéance</span>
@@ -831,10 +888,12 @@
           <span>📦 Produit réapprovisionnable en cours de quart</span>
         </label>
 
+        ${!e.production_journaliere ? `
         <div class="regle-champ-row">
           <span>⚠️ Seuil d'alerte (quantité)</span>
           <input type="number" min="0" class="mouv-qte" id="regleSeuilAlerte" placeholder="Aucun" value="${e.seuil_minimal || ''}" style="width:74px; flex:none;">
         </div>
+        ` : ''}
 
         <label class="regle-check-row">
           <input type="checkbox" id="profilValidationManager" ${e.validation_manager_requise ? 'checked' : ''}>
@@ -867,6 +926,7 @@
   // du profil dérivé (05/08/2026, demande de Frédéric).
   function libelleReglesProduit(regle) {
     if (!regle) return 'Stock continu (par défaut)';
+    if (regle.profil === 'production_journaliere') return '🥐 Suivi de production journalière — voir onglet Production';
     const parties = [];
     if (regle.profil === 'cycle_journalier') parties.push('Remis à zéro le matin');
     if (regle.duree_max_vente_jours) parties.push(`Vente ${regle.duree_max_vente_jours} j`);
@@ -912,6 +972,269 @@
           <div class="card">${items.map(p => renderLigneProfilProduit(p)).join('')}</div>
         </div>
       `).join('')}
+    `;
+  }
+
+  // ==============================================================
+  // ONGLET PRODUCTION — quantités recommandées, calendrier, valeurs
+  // spéciales (19/08/2026, tâche #518). Trois blocs indépendants sur les 3
+  // tables de configuration lues par le moteur de recommandation (M2,
+  // nexus-inventaire-moteur.js::calculerRecommandationPreparation) —
+  // aucune logique de calcul ici, uniquement de l'écriture de configuration.
+  // ==============================================================
+  async function chargerProduitsProduction(site) {
+    if (typeof NexusInventaireProductionDonnees === 'undefined') {
+      console.error('NexusInventaireProductionDonnees non chargé — liste des produits Production indisponible.');
+      return [];
+    }
+    return await NexusInventaireProductionDonnees.chargerProduitsProfilProductionJournaliere(nexusClient, site);
+  }
+  async function chargerReglesProduction(site) {
+    const { data, error } = await nexusClient.from('inventaire_production_regles').select('*').eq('site', site);
+    if (error) { console.error('Chargement règles production:', error); return {}; }
+    const map = {};
+    (data || []).forEach(r => { map[r.produit_id] = r; });
+    return map;
+  }
+  async function chargerCalendrierSite(site) {
+    const { data, error } = await nexusClient.from('inventaire_calendrier_site').select('*').eq('site', site).order('date');
+    if (error) { console.error('Chargement calendrier site:', error); return []; }
+    return data || [];
+  }
+  async function chargerValeursSpecialesProduction(site) {
+    const { data, error } = await nexusClient.from('inventaire_production_valeurs_speciales')
+      .select('*, inventaire_zone_produit(designation)').eq('site', site).order('date');
+    if (error) { console.error('Chargement valeurs spéciales production:', error); return []; }
+    return data || [];
+  }
+
+  function ouvrirEditionRegleProduction(produitId) {
+    if (productionRegleOuverte === produitId) { productionRegleOuverte = null; productionRegleEnEdition = null; render(); return; }
+    productionRegleOuverte = produitId;
+    const existant = reglesProductionMap[produitId];
+    productionRegleEnEdition = existant ? {
+      produit_id: produitId,
+      valeur_semaine: existant.valeur_semaine, valeur_samedi: existant.valeur_samedi,
+      valeur_dimanche: existant.valeur_dimanche, valeur_vacances: existant.valeur_vacances,
+      autoriser_nouvelle_fournee: existant.autoriser_nouvelle_fournee !== false,
+      seuil_reste_surveiller: existant.seuil_reste_surveiller,
+    } : {
+      produit_id: produitId, valeur_semaine: null, valeur_samedi: null, valeur_dimanche: null, valeur_vacances: null,
+      autoriser_nouvelle_fournee: true, seuil_reste_surveiller: null,
+    };
+    render();
+  }
+  async function enregistrerRegleProduction() {
+    const p = productionRegleEnEdition;
+    const btn = document.getElementById('btnEnregistrerRegleProduction');
+    if (btn) { btn.disabled = true; btn.textContent = 'Enregistrement…'; }
+    const payload = {
+      site: siteId, produit_id: p.produit_id,
+      valeur_semaine: p.valeur_semaine, valeur_samedi: p.valeur_samedi,
+      valeur_dimanche: p.valeur_dimanche, valeur_vacances: p.valeur_vacances,
+      autoriser_nouvelle_fournee: p.autoriser_nouvelle_fournee !== false,
+      seuil_reste_surveiller: p.seuil_reste_surveiller,
+    };
+    const { data, error } = await nexusClient.from('inventaire_production_regles').upsert(payload, { onConflict: 'site,produit_id' }).select().single();
+    if (error) { console.error('Enregistrement règle production:', error); alert('Erreur — réessayez.'); if (btn) { btn.disabled = false; btn.textContent = 'Enregistrer ces quantités'; } return; }
+    await nexusClient.from('inventaire_audit_log').insert({
+      site: siteId, entite_type: 'inventaire_production_regles', entite_id: data.id,
+      action: 'configuration_regle_production', nouvelle_valeur: payload, acteur_id: managerCourant.id,
+    });
+    reglesProductionMap[p.produit_id] = data;
+    productionRegleOuverte = null; productionRegleEnEdition = null;
+    render();
+  }
+
+  async function ajouterEntreeCalendrier() {
+    const f = calendrierForm;
+    if (!f.date) return;
+    const btn = document.getElementById('btnAjouterCalendrier');
+    if (btn) { btn.disabled = true; btn.textContent = 'Ajout…'; }
+    const { data, error } = await nexusClient.from('inventaire_calendrier_site').insert({
+      site: siteId, date: f.date, type: f.type, libelle: f.libelle || null, created_by: managerCourant.id,
+    }).select().single();
+    if (error) {
+      console.error('Ajout calendrier site:', error);
+      alert(error.code === '23505' ? 'Une date existe déjà pour ce site — supprimez-la d\'abord si vous voulez la remplacer.' : 'Erreur — réessayez.');
+      if (btn) { btn.disabled = false; btn.textContent = 'Ajouter'; }
+      return;
+    }
+    calendrierSite = [...calendrierSite, data].sort((a, b) => a.date < b.date ? -1 : 1);
+    calendrierForm = { date: '', type: 'vacances', libelle: '' };
+    render();
+  }
+  async function supprimerEntreeCalendrier(id) {
+    const { error } = await nexusClient.from('inventaire_calendrier_site').delete().eq('id', id);
+    if (error) { console.error('Suppression calendrier site:', error); alert('Erreur — réessayez.'); return; }
+    calendrierSite = calendrierSite.filter(c => c.id !== id);
+    render();
+  }
+
+  async function ajouterValeurSpeciale() {
+    const f = valeurSpecialeForm;
+    if (!f.produitId || !f.date || f.valeur === '' || f.valeur == null) return;
+    const btn = document.getElementById('btnAjouterValeurSpeciale');
+    if (btn) { btn.disabled = true; btn.textContent = 'Ajout…'; }
+    const { data, error } = await nexusClient.from('inventaire_production_valeurs_speciales').insert({
+      site: siteId, produit_id: f.produitId, date: f.date, valeur: parseFloat(f.valeur), libelle: f.libelle || null, created_by: managerCourant.id,
+    }).select('*, inventaire_zone_produit(designation)').single();
+    if (error) {
+      console.error('Ajout valeur spéciale production:', error);
+      alert(error.code === '23505' ? 'Une valeur spéciale existe déjà pour ce produit à cette date — supprimez-la d\'abord si vous voulez la remplacer.' : 'Erreur — réessayez.');
+      if (btn) { btn.disabled = false; btn.textContent = 'Ajouter'; }
+      return;
+    }
+    valeursSpecialesProduction = [...valeursSpecialesProduction, data].sort((a, b) => a.date < b.date ? -1 : 1);
+    valeurSpecialeForm = { produitId: '', date: '', valeur: '', libelle: '' };
+    render();
+  }
+  async function supprimerValeurSpeciale(id) {
+    const { error } = await nexusClient.from('inventaire_production_valeurs_speciales').delete().eq('id', id);
+    if (error) { console.error('Suppression valeur spéciale production:', error); alert('Erreur — réessayez.'); return; }
+    valeursSpecialesProduction = valeursSpecialesProduction.filter(v => v.id !== id);
+    render();
+  }
+
+  function renderFormulaireRegleProduction() {
+    const e = productionRegleEnEdition;
+    return `
+      <div class="card" style="margin:0 0 10px; padding:12px 14px;">
+        <div class="regle-champ-row">
+          <span>📅 Quantité conseillée — jour de semaine</span>
+          <input type="number" min="0" step="1" class="mouv-qte" id="prodValeurSemaine" placeholder="—" value="${e.valeur_semaine != null ? e.valeur_semaine : ''}" style="width:74px; flex:none;">
+        </div>
+        <div class="regle-champ-row">
+          <span>📅 Quantité conseillée — samedi</span>
+          <input type="number" min="0" step="1" class="mouv-qte" id="prodValeurSamedi" placeholder="—" value="${e.valeur_samedi != null ? e.valeur_samedi : ''}" style="width:74px; flex:none;">
+        </div>
+        <div class="regle-champ-row">
+          <span>📅 Quantité conseillée — dimanche</span>
+          <input type="number" min="0" step="1" class="mouv-qte" id="prodValeurDimanche" placeholder="—" value="${e.valeur_dimanche != null ? e.valeur_dimanche : ''}" style="width:74px; flex:none;">
+        </div>
+        <div class="regle-champ-row">
+          <span>🏖️ Quantité conseillée — vacances/fériés</span>
+          <input type="number" min="0" step="1" class="mouv-qte" id="prodValeurVacances" placeholder="—" value="${e.valeur_vacances != null ? e.valeur_vacances : ''}" style="width:74px; flex:none;">
+        </div>
+        <div class="note" style="margin:10px 0 8px;">Laissez un champ vide si aucune quantité n'est encore décidée pour ce cas — NEXUS affichera "pas de recommandation" à l'employé plutôt qu'un chiffre inventé (jamais un zéro par défaut).</div>
+
+        <label class="regle-check-row">
+          <input type="checkbox" id="prodAutoriserFournee" ${e.autoriser_nouvelle_fournee !== false ? 'checked' : ''}>
+          <span>🔥 Autoriser une nouvelle fournée en cours de quart (au-delà de la quantité initiale)</span>
+        </label>
+
+        <div class="regle-champ-row">
+          <span>⚠️ Seuil de reste à surveiller (unités)</span>
+          <input type="number" min="0" step="1" class="mouv-qte" id="prodSeuilReste" placeholder="Aucun" value="${e.seuil_reste_surveiller != null ? e.seuil_reste_surveiller : ''}" style="width:74px; flex:none;">
+        </div>
+
+        <button class="btn-primary" id="btnEnregistrerRegleProduction" style="margin-top:0;">Enregistrer ces quantités</button>
+        <button class="btn-text" id="btnAnnulerRegleProduction">Annuler</button>
+      </div>
+    `;
+  }
+  function libelleRegleProduction(regle) {
+    if (!regle) return 'Aucune quantité configurée';
+    const parties = [];
+    if (regle.valeur_semaine != null) parties.push(`Semaine ${regle.valeur_semaine}`);
+    if (regle.valeur_samedi != null) parties.push(`Sam. ${regle.valeur_samedi}`);
+    if (regle.valeur_dimanche != null) parties.push(`Dim. ${regle.valeur_dimanche}`);
+    if (regle.valeur_vacances != null) parties.push(`Vacances ${regle.valeur_vacances}`);
+    return parties.length ? parties.join(' · ') : 'Aucune quantité configurée';
+  }
+  function renderLigneRegleProduction(p) {
+    const regle = reglesProductionMap[p.id];
+    const libelle = libelleRegleProduction(regle);
+    const ouvert = productionRegleOuverte === p.id;
+    const configure = libelle !== 'Aucune quantité configurée';
+    return `
+      <div class="categorie-row" data-regle-production="${p.id}">
+        <div>
+          <div class="categorie-nom" style="font-size:13px;">${p.designation}</div>
+          <div class="categorie-count">${libelle}</div>
+        </div>
+        <div class="categorie-etat ${configure ? 'en-cours' : 'a-faire'}">${ouvert ? '▾' : '▸'}</div>
+      </div>
+      ${ouvert && productionRegleEnEdition ? renderFormulaireRegleProduction() : ''}
+    `;
+  }
+
+  function libelleTypeCalendrier(type) { return type === 'ferie' ? 'Férié' : 'Vacances'; }
+  function renderBlocCalendrier() {
+    const f = calendrierForm;
+    return `
+      <div class="section-titre" style="margin-top:18px;">Calendrier vacances &amp; jours fériés</div>
+      <div class="ventes-desc" style="margin:2px 2px 10px;">Partagé par tous les produits en suivi de production — un jour marqué ici prend le pas sur le calcul semaine/week-end habituel (priorité juste après une éventuelle valeur spéciale du jour).</div>
+      <div class="card" style="margin-bottom:10px;">
+        ${calendrierSite.length === 0 ? '<div class="empty">Aucune date configurée.</div>' : calendrierSite.map(c => `
+          <div class="categorie-row">
+            <div>
+              <div class="categorie-nom" style="font-size:13px;">${c.date} — ${libelleTypeCalendrier(c.type)}</div>
+              <div class="categorie-count">${c.libelle || ''}</div>
+            </div>
+            <div class="categorie-etat a-faire" data-supprimer-calendrier="${c.id}" style="cursor:pointer;">Retirer</div>
+          </div>
+        `).join('')}
+      </div>
+      <div class="card" style="margin-bottom:16px; padding:12px 14px;">
+        <div class="regle-champ-row"><span>Date</span><input type="date" class="mouv-qte" id="calendrierDate" value="${f.date}" style="width:auto; flex:none; text-align:left;"></div>
+        <div class="regle-champ-row" style="flex-direction:column; align-items:stretch;">
+          <span style="margin-bottom:6px;">Type</span>
+          <select class="mouv-select" id="calendrierType">
+            <option value="vacances" ${f.type === 'vacances' ? 'selected' : ''}>Vacances scolaires</option>
+            <option value="ferie" ${f.type === 'ferie' ? 'selected' : ''}>Jour férié</option>
+          </select>
+        </div>
+        <div class="regle-champ-row"><span>Libellé (facultatif)</span><input type="text" class="mouv-select" id="calendrierLibelle" placeholder="ex. Vacances de la Toussaint" value="${f.libelle}" style="width:auto; flex:1.4;"></div>
+        <button class="btn-primary" id="btnAjouterCalendrier" style="margin-top:6px;">Ajouter</button>
+      </div>
+    `;
+  }
+
+  function renderBlocValeursSpeciales() {
+    const f = valeurSpecialeForm;
+    const optionsProduits = produitsProduction.map(p => `<option value="${p.id}" ${f.produitId === p.id ? 'selected' : ''}>${p.designation}</option>`).join('');
+    return `
+      <div class="section-titre" style="margin-top:18px;">Valeurs spéciales (un jour précis)</div>
+      <div class="ventes-desc" style="margin:2px 2px 10px;">Prioritaire sur tout le reste — utile pour un jour exceptionnel connu à l'avance (ex. 14 le 24/12 pour la Baguette).</div>
+      <div class="card" style="margin-bottom:10px;">
+        ${valeursSpecialesProduction.length === 0 ? '<div class="empty">Aucune valeur spéciale configurée.</div>' : valeursSpecialesProduction.map(v => `
+          <div class="categorie-row">
+            <div>
+              <div class="categorie-nom" style="font-size:13px;">${v.date} — ${v.inventaire_zone_produit ? v.inventaire_zone_produit.designation : 'Produit'} : ${v.valeur}</div>
+              <div class="categorie-count">${v.libelle || ''}</div>
+            </div>
+            <div class="categorie-etat a-faire" data-supprimer-valeur-speciale="${v.id}" style="cursor:pointer;">Retirer</div>
+          </div>
+        `).join('')}
+      </div>
+      ${produitsProduction.length === 0 ? '<div class="empty">Aucun produit en suivi de production journalière — activez-en un dans l\'onglet Règles d\'abord.</div>' : `
+      <div class="card" style="margin-bottom:16px; padding:12px 14px;">
+        <div class="regle-champ-row" style="flex-direction:column; align-items:stretch;">
+          <span style="margin-bottom:6px;">Produit</span>
+          <select class="mouv-select" id="valeurSpecialeProduit"><option value="">— Choisir —</option>${optionsProduits}</select>
+        </div>
+        <div class="regle-champ-row"><span>Date</span><input type="date" class="mouv-qte" id="valeurSpecialeDate" value="${f.date}" style="width:auto; flex:none; text-align:left;"></div>
+        <div class="regle-champ-row"><span>Quantité</span><input type="number" min="0" step="1" class="mouv-qte" id="valeurSpecialeValeur" placeholder="—" value="${f.valeur}" style="width:74px; flex:none;"></div>
+        <div class="regle-champ-row"><span>Libellé (facultatif)</span><input type="text" class="mouv-select" id="valeurSpecialeLibelle" placeholder="ex. Réveillon" value="${f.libelle}" style="width:auto; flex:1.4;"></div>
+        <button class="btn-primary" id="btnAjouterValeurSpeciale" style="margin-top:6px;">Ajouter</button>
+      </div>
+      `}
+    `;
+  }
+
+  function renderOngletProduction() {
+    return `
+      <div class="question-titre">Combien préparer, et quand ?</div>
+      <div class="ventes-desc" style="margin:6px 2px 12px;">Ces quantités conseillées ne sont proposées à l'employé qu'au Quart 1 (matin) — le Quart 2 hérite automatiquement du reste. Priorité de calcul : valeur spéciale du jour → calendrier vacances/fériés → samedi/dimanche → semaine.</div>
+      ${produitsProduction.length === 0 ? `
+        <div class="empty">Aucun produit en suivi de production journalière pour l'instant. Activez "🥐 Suivi de production journalière" sur un produit depuis l'onglet <b>⚙️ Règles</b> pour qu'il apparaisse ici.</div>
+      ` : `
+        <div class="section-titre" style="margin-top:0;">Quantités conseillées par produit</div>
+        <div class="card" style="margin-bottom:6px;">${produitsProduction.map(p => renderLigneRegleProduction(p)).join('')}</div>
+      `}
+      ${renderBlocCalendrier()}
+      ${renderBlocValeursSpeciales()}
     `;
   }
 
@@ -1177,6 +1500,7 @@
     { value: 'produits', label: '📦 Produits' },
     { value: 'parcours', label: '📋 Parcours' },
     { value: 'regles', label: '⚙️ Règles' },
+    { value: 'production', label: '🥐 Production' },
     { value: 'alertes', label: '🚨 Alertes' },
     { value: 'tracabilite', label: '🔄 Traçabilité' },
     { value: 'simulation', label: '📊 Simulation' },
@@ -1201,6 +1525,7 @@
     if (ongletActif === 'produits') content.innerHTML = renderOngletProduits();
     else if (ongletActif === 'parcours') content.innerHTML = renderOngletParcours();
     else if (ongletActif === 'regles') content.innerHTML = renderOngletRegles();
+    else if (ongletActif === 'production') content.innerHTML = renderOngletProduction();
     else if (ongletActif === 'alertes') content.innerHTML = renderOngletAlertes();
     else if (ongletActif === 'tracabilite') content.innerHTML = renderOngletTracabilite();
     else if (ongletActif === 'simulation') content.innerHTML = renderOngletSimulation();
@@ -1297,6 +1622,8 @@
     }
     document.querySelectorAll('[data-profil-produit]').forEach(el => el.addEventListener('click', () => ouvrirEditionProfil(el.dataset.profilProduit)));
     document.querySelectorAll('[data-preset]').forEach(el => el.addEventListener('click', () => appliquerPreregleProfil(el.dataset.preset)));
+    const regleProductionJournaliereEl = document.getElementById('regleProductionJournaliere');
+    if (regleProductionJournaliereEl) regleProductionJournaliereEl.addEventListener('change', (e) => { profilEnEdition.production_journaliere = e.target.checked; render(); });
     const regleRemiseAZeroEl = document.getElementById('regleRemiseAZero');
     if (regleRemiseAZeroEl) regleRemiseAZeroEl.addEventListener('change', (e) => { profilEnEdition.remise_a_zero_matin = e.target.checked; });
     const regleDureeMaxEl = document.getElementById('regleDureeMax');
@@ -1325,6 +1652,47 @@
     if (btnEnregistrerProfil) btnEnregistrerProfil.addEventListener('click', enregistrerProfilProduit);
     const btnAnnulerProfil = document.getElementById('btnAnnulerProfil');
     if (btnAnnulerProfil) btnAnnulerProfil.addEventListener('click', () => { profilProduitOuvert = null; profilEnEdition = null; render(); });
+
+    // --- Production (19/08/2026, tâche #518) ---
+    document.querySelectorAll('[data-regle-production]').forEach(el => el.addEventListener('click', () => ouvrirEditionRegleProduction(el.dataset.regleProduction)));
+    const prodValeurSemaineEl = document.getElementById('prodValeurSemaine');
+    if (prodValeurSemaineEl) prodValeurSemaineEl.addEventListener('change', (e) => { productionRegleEnEdition.valeur_semaine = e.target.value !== '' ? parseFloat(e.target.value) : null; });
+    const prodValeurSamediEl = document.getElementById('prodValeurSamedi');
+    if (prodValeurSamediEl) prodValeurSamediEl.addEventListener('change', (e) => { productionRegleEnEdition.valeur_samedi = e.target.value !== '' ? parseFloat(e.target.value) : null; });
+    const prodValeurDimancheEl = document.getElementById('prodValeurDimanche');
+    if (prodValeurDimancheEl) prodValeurDimancheEl.addEventListener('change', (e) => { productionRegleEnEdition.valeur_dimanche = e.target.value !== '' ? parseFloat(e.target.value) : null; });
+    const prodValeurVacancesEl = document.getElementById('prodValeurVacances');
+    if (prodValeurVacancesEl) prodValeurVacancesEl.addEventListener('change', (e) => { productionRegleEnEdition.valeur_vacances = e.target.value !== '' ? parseFloat(e.target.value) : null; });
+    const prodAutoriserFourneeEl = document.getElementById('prodAutoriserFournee');
+    if (prodAutoriserFourneeEl) prodAutoriserFourneeEl.addEventListener('change', (e) => { productionRegleEnEdition.autoriser_nouvelle_fournee = e.target.checked; });
+    const prodSeuilResteEl = document.getElementById('prodSeuilReste');
+    if (prodSeuilResteEl) prodSeuilResteEl.addEventListener('change', (e) => { productionRegleEnEdition.seuil_reste_surveiller = e.target.value !== '' ? parseFloat(e.target.value) : null; });
+    const btnEnregistrerRegleProduction = document.getElementById('btnEnregistrerRegleProduction');
+    if (btnEnregistrerRegleProduction) btnEnregistrerRegleProduction.addEventListener('click', enregistrerRegleProduction);
+    const btnAnnulerRegleProduction = document.getElementById('btnAnnulerRegleProduction');
+    if (btnAnnulerRegleProduction) btnAnnulerRegleProduction.addEventListener('click', () => { productionRegleOuverte = null; productionRegleEnEdition = null; render(); });
+
+    const calendrierDateEl = document.getElementById('calendrierDate');
+    if (calendrierDateEl) calendrierDateEl.addEventListener('change', (e) => { calendrierForm.date = e.target.value; });
+    const calendrierTypeEl = document.getElementById('calendrierType');
+    if (calendrierTypeEl) calendrierTypeEl.addEventListener('change', (e) => { calendrierForm.type = e.target.value; });
+    const calendrierLibelleEl = document.getElementById('calendrierLibelle');
+    if (calendrierLibelleEl) calendrierLibelleEl.addEventListener('input', (e) => { calendrierForm.libelle = e.target.value; });
+    const btnAjouterCalendrier = document.getElementById('btnAjouterCalendrier');
+    if (btnAjouterCalendrier) btnAjouterCalendrier.addEventListener('click', ajouterEntreeCalendrier);
+    document.querySelectorAll('[data-supprimer-calendrier]').forEach(el => el.addEventListener('click', () => supprimerEntreeCalendrier(el.dataset.supprimerCalendrier)));
+
+    const valeurSpecialeProduitEl = document.getElementById('valeurSpecialeProduit');
+    if (valeurSpecialeProduitEl) valeurSpecialeProduitEl.addEventListener('change', (e) => { valeurSpecialeForm.produitId = e.target.value; });
+    const valeurSpecialeDateEl = document.getElementById('valeurSpecialeDate');
+    if (valeurSpecialeDateEl) valeurSpecialeDateEl.addEventListener('change', (e) => { valeurSpecialeForm.date = e.target.value; });
+    const valeurSpecialeValeurEl = document.getElementById('valeurSpecialeValeur');
+    if (valeurSpecialeValeurEl) valeurSpecialeValeurEl.addEventListener('change', (e) => { valeurSpecialeForm.valeur = e.target.value; });
+    const valeurSpecialeLibelleEl = document.getElementById('valeurSpecialeLibelle');
+    if (valeurSpecialeLibelleEl) valeurSpecialeLibelleEl.addEventListener('input', (e) => { valeurSpecialeForm.libelle = e.target.value; });
+    const btnAjouterValeurSpeciale = document.getElementById('btnAjouterValeurSpeciale');
+    if (btnAjouterValeurSpeciale) btnAjouterValeurSpeciale.addEventListener('click', ajouterValeurSpeciale);
+    document.querySelectorAll('[data-supprimer-valeur-speciale]').forEach(el => el.addEventListener('click', () => supprimerValeurSpeciale(el.dataset.supprimerValeurSpeciale)));
 
     // --- Alertes ---
     async function enregistrerParametre(cle, valeur) { await sauvegarderParametresInventaire({ [cle]: valeur }); }
@@ -1391,9 +1759,10 @@
     if (!(await NexusForfait.nexusRequireProfessional('NEXUS-Parametres-Inventaire-v1.html', siteId))) return;
     document.getElementById('titre').textContent = 'Paramètres Inventaire';
 
-    [produitsInventaire, zonesSite, categoriesSite, employesSite, parametresInventaire, reglesProduitMap, modesAveugleActifs, jaugeageActif] = await Promise.all([
+    [produitsInventaire, zonesSite, categoriesSite, employesSite, parametresInventaire, reglesProduitMap, modesAveugleActifs, jaugeageActif, produitsProduction, reglesProductionMap, calendrierSite, valeursSpecialesProduction] = await Promise.all([
       chargerProduitsInventaire(siteId), chargerZonesSite(siteId), chargerCategoriesSite(siteId), chargerEmployesSite(siteId),
       chargerParametresInventaire(siteId), chargerReglesProduit(siteId), chargerModesAveugleActifs(siteId), chargerModeJaugeageActif(siteId),
+      chargerProduitsProduction(siteId), chargerReglesProduction(siteId), chargerCalendrierSite(siteId), chargerValeursSpecialesProduction(siteId),
     ]);
     render();
   });

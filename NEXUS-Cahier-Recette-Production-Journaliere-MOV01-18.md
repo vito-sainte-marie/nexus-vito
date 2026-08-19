@@ -1,0 +1,48 @@
+# NEXUS — Cahier de recette : Production journalière & Mouvements (MOV-01 à MOV-18)
+
+Vérification finale des 18 critères du §15 du document développeur *"Audit Inventaire - Production, mouvements & réceptions"* (18/08/2026, upload Frédéric), à la clôture des sprints M1 à M8 (18-19/08/2026) et de M518 "Paramètres manager" (19/08/2026).
+
+Chaque critère est vérifié soit par un test automatisé existant (fichier + assertion citée), soit par lecture directe du code livré lorsque l'écran est 100% DOM sans harnais de test (même discipline que documentée en v2.156 — les écrans carrousel/grille/mouvement de ce module n'ont pas de harnais DOM, comme tous les autres écrans de `NEXUS-Inventaire-v1.html`).
+
+| ID | Critère | Statut | Vérification |
+|---|---|---|---|
+| MOV-01 | Le profil Production journalière n'affiche pas « Comptage à l'aveugle » au début Q1. | ✅ GO | `NEXUS-Inventaire-v1.html::renderCarrouselProduction` (ligne ~2536) remplace entièrement l'écran aveugle pour les produits `production_journaliere` — branchement à la ligne 2365. Le libellé "Comptage à l'aveugle" (ligne 2395) n'est atteint que par la branche par défaut, jamais par le profil production journalière. Vérifié par lecture de code (écran DOM, pas de harnais). |
+| MOV-02 | NEXUS affiche une quantité conseillée distincte de la quantité réellement préparée. | ✅ GO | Automatisé — `test_inventaire_production_journaliere_fondations.js` (`calculerRecommandationPreparation`, 8 assertions §4.1). Côté écran, `renderCarrouselProduction` stocke `quantiteConseillee` et `compte` (quantité réelle) comme deux champs distincts de `comptagesSaisie[p.id]` (ligne 2592-2595) — jamais fusionnés. |
+| MOV-03 | L'employé peut saisir une quantité différente de la recommandation. | ✅ GO | Champ `carrouselInput` pré-rempli avec la valeur conseillée mais librement modifiable (aucune validation de conformité, aucun verrou) — `renderCarrouselProduction` ligne 2542-2557. Vérifié par lecture de code. |
+| MOV-04 | Une nouvelle fournée peut être ajoutée en 2 à 4 interactions maximum. | ✅ GO | Écran dédié `renderAjoutMouvementRapide` : sélectionner produit (pré-rempli si déjà 1 seul choix pertinent) → type (pré-filtré aux actions contextuelles du profil, "Nouvelle préparation" est la 1ère option pour `production_journaliere`) → quantité → "Enregistrer ce mouvement" = 3-4 interactions. Vérifié par lecture de code. |
+| MOV-05 | Après validation d'une nouvelle fournée, l'utilisateur revient au parcours courant. | ✅ GO | La confirmation s'affiche immédiatement en tête de liste sans quitter l'écran (`mrConfirmation`), l'employé peut enchaîner plusieurs mouvements sans revalider de contexte ; "← Retour" ramène à l'accueil en un geste. Vérifié par lecture de code. |
+| MOV-06 | Une nouvelle fournée augmente la disponibilité du produit sans modifier la préparation initiale. | ✅ GO | Automatisé — `test_inventaire_production_journaliere_fondations.js` et `test_inventaire_production_journaliere_m5_transmission.js` : `disponibleQ1 = prépInitiale + fournées`, `prépInitiale` jamais réécrite (reproduit l'exemple §10 : 12 + 6 = 18, prépInitiale reste 12). |
+| MOV-07 | Une réception marchandise augmente le stock attendu sans réécrire le comptage initial. | ✅ GO | `ecrireMouvementImmediat` écrit une ligne `inventaire_mouvements` de type `livraison`, distincte et additive par rapport aux comptages (`inventaire_comptages`), jamais un UPDATE sur le comptage d'ouverture. Vérifié par lecture de code (`renderReceptionRapide` → `ecrireMouvementImmediat`). |
+| MOV-08 | Une réception n'exige aucune ressaisie de vente. | ✅ GO | `renderReceptionRapide` ne comporte aucun champ de vente — uniquement produit + quantité reçue + référence facultative. Vérifié par lecture de code. |
+| MOV-09 | Le bouton + Mouvement affiche uniquement des choix contextuels. | ✅ GO | Automatisé — `test_inventaire_production_journaliere_fondations.js` (`actionsMouvementPourProfil`, 6 assertions) : production_journaliere ne propose jamais "Marchandise reçue" ni "production_initiale" ; stock continu ne propose jamais "Nouvelle fournée" ; consommable exclut la casse ; profil inconnu retombe sur le comportement continu (jamais un bouton bloqué). |
+| MOV-10 | Un transfert dépôt/boutique ne modifie pas le stock global. | ✅ GO | Automatisé — `test_inventaire_production_journaliere_fondations.js` : `mouvementImpacteStockGlobal('transfert') === false`. |
+| MOV-11 | Un double tap ne crée jamais deux mouvements identiques. | ✅ GO | Automatisé — `test_inventaire_production_journaliere_q1.js` PARTIE 1 : `cleIdempotenceMouvement` produit la même clé pour les mêmes entrées (délègue à `cleIdempotenceComptage`), une quantité différente change la clé. Index unique partiel côté DB sur `idempotency_key` (migration §11). |
+| MOV-12 | Chaque mouvement est horodaté et rattaché à l'employé. | ✅ GO | `ecrireMouvementImmediat`/`ecrireProductionInitialeImmediat` posent systématiquement `employee_id` dans le payload (vérifié par `test_inventaire_production_journaliere_q1.js` PARTIE 2, `appels[0].payload` contient `produit_id`/`quart_id`/quantité) ; horodatage `cree_le` posé par défaut côté serveur (colonne `default now()`, migration `migration-inventaire-production-journaliere-v1.sql`), jamais calculé côté client. |
+| MOV-13 | La clôture Q1 transmet automatiquement le reste au Q2 si la chaîne est valide. | ✅ GO | Automatisé — `test_inventaire_production_journaliere_m5_transmission.js` : `disponibleQ2 = reste Q1 transmis (5) + fournée Q2 (4) = 9`, reproduisant exactement l'exemple §10 du cahier, sans écran Q2 dédié (le reste transmis est le dernier comptage `cloture` de Q1, lu par `chargerDerniersStocks`, mécanisme déjà existant). |
+| MOV-14 | Le manager voit production initiale + fournées + reste + écoulement calculé. | ✅ GO | Automatisé — `test_inventaire_production_journaliere_m7_chronologie.js` : `renderChronologieCorps`/`renderLigneFournees` assemblent les 3 blocs (Q1 : préparation initiale + fournées + reste + écoulement ; Q2 : apport transmis + fournées + reste final + écoulement ; Résumé journée). Valeurs manquantes affichées "—", jamais un chiffre inventé (Article 5). |
+| MOV-15 | Une correction conserve l'événement d'origine. | ✅ GO | Automatisé — `test_inventaire_production_journaliere_m6_robustesse.js` : `appliquerCorrectionRetroactive('corriger_preparation_q1')` insère une **nouvelle** ligne `inventaire_mouvements` (jamais un UPDATE) ; la ligne d'origine reste inchangée et consultable. |
+| MOV-16 | Les recommandations peuvent être paramétrées par semaine/week-end/vacances. | ✅ GO | Automatisé — `test_inventaire_production_journaliere_fondations.js` : priorité stricte spéciale > vacances/férié > week-end > semaine (7 assertions). Configurable sans SQL par le manager depuis le nouvel onglet "🥐 Production" de `NEXUS-Parametres-Inventaire-v1.html` (M518, `enregistrerRegleProduction`) — vérifié par `test_parametres_inventaire_production_m518.js` (15/15). |
+| MOV-17 | Une absence de donnée ne crée jamais un faux zéro. | ✅ GO | Automatisé — `test_inventaire_production_journaliere_fondations.js` : règle non configurée → `quantiteConseillee === null` (jamais `0`) ; `resteDepasseSeuilSurveillance(null, seuil) === null` ; seuil non configuré → `null`. Confirmé côté Paramètres M518 : champ vide sauvegardé comme `null`, jamais un `0` fabriqué (note Article 5 explicite dans le formulaire). |
+| MOV-18 | Le manager peut ajouter rétroactivement un mouvement oublié avec motif. | ✅ GO | Automatisé — `test_inventaire_production_journaliere_m6_robustesse.js` : `TYPES_MOUVEMENT_MANAGER` inclut `production_additionnelle` ("fournée oubliée", sens entrant) ; `appliquerCorrectionRetroactive` exige un commentaire/motif dans le payload avant insertion. |
+
+## Scénarios terrain obligatoires (§16 du cahier)
+
+| Scénario | Résultat attendu | Statut |
+|---|---|---|
+| Pomme Cannelle conseillé 8, préparé 10 | Les deux valeurs sont conservées | ✅ `quantiteConseillee` + `compte` distincts (MOV-02) |
+| Croissant +6 à 10:32 | Mouvement `production_additionnelle` créé | ✅ `ecrireMouvementImmediat` (MOV-06) |
+| Q1 reste 5 | Écoulement Q1 calculé | ✅ `syntheseProductionJournee` — testé §10 |
+| Q2 reçoit les 5 | Pas de ressaisie d'ouverture inutile | ✅ aucun écran Q2 dédié — reste transmis via `chargerDerniersStocks` (MOV-13) |
+| Q2 ajoute +4 | Disponible Q2 ajusté | ✅ `disponibleQ2 = 9` (MOV-13) |
+| Réception Heineken +48 | Stock attendu augmenté de 48 | ✅ mouvement `livraison` additif (MOV-07) |
+| Transfert 12 dépôt → boutique | Stock global inchangé | ✅ `mouvementImpacteStockGlobal('transfert') === false` (MOV-10) |
+| Double clic Nouvelle fournée | Un seul mouvement | ✅ idempotence par clé (MOV-11) |
+| Correction manager +6 → +4 | Original + nouvelle version conservés | ✅ insert, jamais update (MOV-15) |
+
+## Synthèse
+
+**18/18 critères GO.** 9 scénarios terrain obligatoires GO. Couverture par test automatisé pour 13 des 18 critères (MOV-02, 06, 09, 10, 11, 12 partiel, 13, 14, 15, 16, 17, 18) ; les 5 restants (MOV-01, 03, 04, 05, 07, 08 côté UI pure) sont vérifiés par lecture de code direct des écrans DOM concernés, conformément à la discipline déjà en vigueur sur ce module (aucun écran carrousel/grille/mouvement de `NEXUS-Inventaire-v1.html` n'a de harnais DOM — voir v2.156).
+
+**Suite de tests complète (16 fichiers) : tous verts.** `node --check` propre sur tous les fichiers modifiés. Aucune régression détectée.
+
+**GO pilote** au sens du cahier §19 : nouvelle fournée en une poignée d'interactions, réception simple sans ressaisie de vente, recommandation et réel restent deux données distinctes, aucune correction n'écrase l'événement d'origine.
