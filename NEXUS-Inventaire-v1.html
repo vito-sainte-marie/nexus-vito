@@ -21,6 +21,7 @@
 <script src="nexus-desktop.js"></script>
 <script src="nexus-inventaire-moteur.js"></script>
 <script src="nexus-inventaire-plan-donnees.js"></script>
+<script src="nexus-inventaire-production-donnees.js"></script>
 <style>
   :root{
     --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
@@ -315,6 +316,16 @@
   let comptagesSaisie = {};      // produit_id -> { compte, justification }
   let mouvementsSaisie = [];     // { produit_id, type_mouvement, quantite, justification }
   let zonesMap = {};             // code ('piste'/'boutique') -> id (inventaire_zones)
+  // Production journalière (18/08/2026, M2 — cahier "Audit Inventaire -
+  // Production, mouvements & réceptions" §3/§4) : profilParProduit vient de
+  // inventaire_regles_produit.profil (même requête que quartsParProduit,
+  // Article 11 — jamais une deuxième requête pour la même table), peuplé
+  // par chargerProduitsZone(). recommandationsParProduit ne concerne que le
+  // quart matin (obtenue via NexusInventaireProductionDonnees, voir
+  // chargerRecommandationsProduction()) et pilote l'écran renderCarrouselProduction/
+  // la ligne grille dédiée — jamais recalculée une fois affichée (§4.3).
+  let profilParProduit = {};
+  let recommandationsParProduit = {};
   // Position de navigation courante (17/08/2026, Sprint 4 "UX Flash" —
   // cahier Inventaire 2.0, INV2-16 "après interruption, l'employé reprend au
   // bon produit") : { categorieNom, carrouselIndex } | null. Persistée dans
@@ -499,8 +510,13 @@
     let toutSynchronise = true;
     for (const item of file) {
       try {
+        // Table générique (18/08/2026, M2 — la file servait uniquement
+        // inventaire_comptages jusqu'ici ; production_initiale écrit dans
+        // inventaire_mouvements). item.table absent = comportement
+        // historique inchangé pour toute entrée déjà en file avant ce lot.
+        const table = item.table || 'inventaire_comptages';
         const { error } = await nexusClient
-          .from('inventaire_comptages')
+          .from(table)
           .upsert({ ...item.payload, idempotency_key: item.idempotencyKey }, { onConflict: 'idempotency_key', ignoreDuplicates: true });
         if (error) throw error;
         retirerFileSync(item.idempotencyKey);
@@ -589,7 +605,70 @@
   // "compté" (voir produitEstCompte), jamais sur une saisie partielle.
   function tenterEcritureProduit(produitId) {
     const p = produitsZone.find(x => x.id === produitId);
-    if (p && produitEstCompte(p)) ecrireOuvertureImmediat(p);
+    if (p && produitEstCompte(p)) ecrireSaisieImmediat(p);
+  }
+
+  // ------------------------------------------------------------
+  // PRODUCTION JOURNALIÈRE — écriture (18/08/2026, M2/M5/M6 — cahier §3,
+  // §6, §11). Q1 pour un produit à profil production_journaliere n'écrit
+  // JAMAIS un comptage 'ouverture' (ce n'est pas un stock constaté, c'est
+  // une quantité préparée — comparer ce chiffre au dernier comptage de
+  // clôture d'hier produirait un "écart" qui n'a aucun sens métier). On
+  // écrit un mouvement 'production_initiale' dans inventaire_mouvements à
+  // la place, avec la même discipline d'idempotence + file d'attente
+  // hors-ligne que ecrireComptageImmediat (Article 11 : même mécanisme,
+  // seulement généralisé à une deuxième table — voir tenterSynchronisation
+  // FileAttente ci-dessus).
+  // ------------------------------------------------------------
+  function cleIdempotenceMouvement(quartId, produitId, typeMouvement, quantite) {
+    // Même algorithme que cleIdempotenceComptage (djb2, quatre graines) —
+    // délègue plutôt que de dupliquer le hash pour une deuxième table.
+    return cleIdempotenceComptage(quartId, produitId, typeMouvement, quantite);
+  }
+
+  async function ecrireMouvementImmediat(payload) {
+    const idempotencyKey = cleIdempotenceMouvement(payload.quart_id, payload.produit_id, payload.type_mouvement, payload.quantite);
+    try {
+      const { data, error } = await nexusClient
+        .from('inventaire_mouvements')
+        .upsert({ ...payload, idempotency_key: idempotencyKey }, { onConflict: 'idempotency_key', ignoreDuplicates: true })
+        .select()
+        .maybeSingle();
+      if (error) throw error;
+      retirerFileSync(idempotencyKey);
+      return data || null;
+    } catch (e) {
+      console.error('Écriture immédiate mouvement (mise en file d\'attente):', e);
+      ajouterFileSync({ idempotencyKey, payload, table: 'inventaire_mouvements', ajouteLe: new Date().toISOString() });
+      return null;
+    }
+  }
+
+  // Écrit "quantité réellement mise au four" pour CE produit, à l'ouverture
+  // du quart matin uniquement (§3.2) — jamais copiée automatiquement sans
+  // ce geste explicite de validation (même si le champ était pré-rempli
+  // avec la recommandation, voir renderCarrouselProduction).
+  async function ecrireProductionInitialeImmediat(p) {
+    const saisie = comptagesSaisie[p.id];
+    if (!saisie || saisie.compte === undefined) return;
+    compteurTapsSession++; // Sprint 8, INV2-19 : même geste réel qu'un comptage classique
+    return ecrireMouvementImmediat({
+      site: employeeCourant.site_id, quart_id: quartRow.id, produit_id: p.id,
+      type_mouvement: 'production_initiale', quantite: saisie.compte, employee_id: employeeCourant.id,
+      justification: saisie.justification || null, reason_code: 'production_initiale', statut_validation: 'valide',
+    });
+  }
+
+  // Aiguillage unique (18/08/2026, M2) : tous les points de validation
+  // (carrousel, grille, filet de sécurité de validerOuverture) passent par
+  // cette seule fonction plutôt que de tester profilParProduit à chaque
+  // site d'appel — un seul endroit qui décide "comptage ou mouvement de
+  // production", jamais une divergence possible entre deux copies du test.
+  function ecrireSaisieImmediat(p) {
+    if (quartActuel === 'matin' && profilParProduit[p.id] === 'production_journaliere') {
+      return ecrireProductionInitialeImmediat(p);
+    }
+    return ecrireOuvertureImmediat(p);
   }
 
   // Écrans catégories / carrousel de l'ouverture (02/08/2026, demande de
@@ -795,12 +874,18 @@
     // historique inchangé pour tout produit non configuré.
     if (liste.length && quartActuel) {
       const site = employeeCourant.site_id;
+      // profil ajouté à la sélection (18/08/2026, M2) — même requête que
+      // quarts_comptage, jamais une deuxième requête sur cette table
+      // (Article 11) : alimente profilParProduit pour tout l'écran.
       const { data: regles, error: e2 } = await nexusClient.from('inventaire_regles_produit')
-        .select('produit_id, quarts_comptage').eq('site', site).in('produit_id', liste.map(p => p.id));
+        .select('produit_id, quarts_comptage, profil').eq('site', site).in('produit_id', liste.map(p => p.id));
       if (e2) { console.error('Chargement quarts de comptage par produit:', e2); }
       else {
         const quartsParProduit = {};
-        regles.forEach(r => { quartsParProduit[r.produit_id] = r.quarts_comptage; });
+        regles.forEach(r => {
+          quartsParProduit[r.produit_id] = r.quarts_comptage;
+          if (r.profil) profilParProduit[r.produit_id] = r.profil;
+        });
         liste = liste.filter(p => {
           const quarts = quartsParProduit[p.id];
           return !quarts || quarts.includes(quartActuel);
@@ -841,6 +926,39 @@
       .from('inventaire_modes_controle').select('id').eq('site', site).eq('mode', 'jaugeage_actif').eq('actif', true).maybeSingle();
     if (error) { console.error('Chargement mode jaugeage:', error); return false; }
     return !!data;
+  }
+
+  // Recommandations de préparation (18/08/2026, M2 — cahier §4) : une par
+  // produit à profil production_journaliere, uniquement au quart matin (Q1
+  // est le seul moment où la question "combien préparer aujourd'hui" a un
+  // sens — Q2 hérite automatiquement du reste Q1, aucun écran). Séquentiel
+  // (au plus 7-8 produits réels par site) plutôt qu'un Promise.all : ce
+  // chargeur peut aussi écrire une photo de recommandation (§4.3), inutile
+  // de paralléliser des inserts sur un aussi petit volume.
+  async function chargerRecommandationsProduction() {
+    recommandationsParProduit = {};
+    if (quartActuel !== 'matin') return;
+    const P = typeof NexusInventaireProductionDonnees !== 'undefined' ? NexusInventaireProductionDonnees : null;
+    if (!P) { console.error('NexusInventaireProductionDonnees non chargé — recommandations indisponibles.'); return; }
+    const cibles = produitsZone.filter(p => profilParProduit[p.id] === 'production_journaliere');
+    for (const p of cibles) {
+      const r = await P.obtenirOuCalculerRecommandation(nexusClient, employeeCourant.site_id, p.id, dateISO(), quartActuel, quartRow ? quartRow.id : null);
+      if (r) recommandationsParProduit[p.id] = r;
+    }
+  }
+
+  // Périmètre de l'ÉCRAN D'OUVERTURE uniquement (18/08/2026, M2) : au quart
+  // soir, un produit production_journaliere n'a plus rien à faire dans les
+  // catégories d'ouverture — son reste Q1 est hérité automatiquement (voir
+  // ecrireTransmisImmediat, mécanisme 'transmis' déjà existant), aucun écran
+  // à afficher. Jamais appliqué à produitsZone lui-même : la clôture (même
+  // quart ou l'autre) doit toujours pouvoir compter physiquement le reste de
+  // CES MÊMES produits — voir renderCloture/validerCloture, qui lisent
+  // produitsZone directement, jamais ce filtre-ci (Article 11 : une seule
+  // vérité pour "quel catalogue", mais deux usages légitimement différents).
+  function produitsZoneOuverturePourQuart() {
+    if (quartActuel !== 'soir') return produitsZone;
+    return produitsZone.filter(p => profilParProduit[p.id] !== 'production_journaliere');
   }
 
   // Plan de comptage tournant (17/08/2026, Sprint 2 — cahier Inventaire 2.0
@@ -1104,6 +1222,7 @@
     });
     modesAveugle = await chargerModesAveugle();
     modeJaugeageActif = await chargerModeJaugeageActif();
+    await chargerRecommandationsProduction();
     // Restaure un brouillon local s'il en existe un pour ce quart (02/08/2026,
     // demande de Frédéric) — reprend la saisie déjà notée plutôt que de
     // repartir de zéro après un retour arrière accidentel ou un rechargement.
@@ -1340,7 +1459,7 @@
   // petit, en dessous. Sans argument `groupe` (écran des catégories), le
   // comportement global d'origine est inchangé.
   function renderBarreProgression(groupe) {
-    const cibleGlobale = produitsRequis(produitsZone);
+    const cibleGlobale = produitsRequis(produitsZoneOuverturePourQuart());
     const totalGlobal = cibleGlobale.length;
     const comptesGlobal = cibleGlobale.filter(produitEstCompte).length;
 
@@ -1386,7 +1505,7 @@
   // resterait comptée dans "toutes les catégories terminées" sans jamais
   // pouvoir être remplie.
   function groupesParcoursOuverture() {
-    const groupesPourParcours = ordonnerParcoursDepotBoutiqueReste(grouperParCategorie(produitsZone));
+    const groupesPourParcours = ordonnerParcoursDepotBoutiqueReste(grouperParCategorie(produitsZoneOuverturePourQuart()));
     const groupesRequis = groupesPourParcours.filter(g => (modeJaugeageActif && quartActuel === 'matin') || g.nom !== JAUGEAGE_NOM);
     return { groupesPourParcours, groupesRequis };
   }
@@ -1665,17 +1784,23 @@
       // Comptage en deux lieux (05/08/2026) : ces produits doivent toujours
       // être physiquement comptés au dépôt ET en boutique — jamais présumés
       // "identiques" en un clic comme les autres, même via ce raccourci.
-      const simples = groupe.items.filter(p => !p.comptage_deux_lieux);
+      // Production journalière (18/08/2026, M2) : même logique — "conforme
+      // au stock transmis" n'a aucun sens pour une préparation du jour
+      // (§3.2, la recommandation ne doit jamais être copiée automatiquement
+      // sans une validation explicite produit par produit) — exclus de ce
+      // raccourci, toujours saisis individuellement ci-dessus.
+      const production = groupe.items.filter(p => quartActuel === 'matin' && profilParProduit[p.id] === 'production_journaliere');
+      const simples = groupe.items.filter(p => !p.comptage_deux_lieux && !production.includes(p));
       const doubles = groupe.items.filter(p => p.comptage_deux_lieux);
-      if (!simples.length) { alert('Les produits de cette catégorie sont comptés en deux lieux (dépôt + boutique) — saisissez-les individuellement ci-dessus.'); return; }
-      const message = doubles.length
-        ? `Vous confirmez avoir compté les ${simples.length} produit${simples.length > 1 ? 's' : ''} restants de cette catégorie ? (${doubles.length} produit${doubles.length > 1 ? 's' : ''} compté${doubles.length > 1 ? 's' : ''} en deux lieux à saisir individuellement ci-dessus)`
+      if (!simples.length) { alert('Les produits restants de cette catégorie se saisissent individuellement (dépôt + boutique, ou production journalière) — voir ci-dessus.'); return; }
+      const message = (doubles.length || production.length)
+        ? `Vous confirmez avoir compté les ${simples.length} produit${simples.length > 1 ? 's' : ''} restants de cette catégorie ? (${doubles.length + production.length} produit${(doubles.length + production.length) > 1 ? 's' : ''} à saisir individuellement ci-dessus)`
         : `Vous confirmez avoir compté les ${simples.length} produit${simples.length > 1 ? 's' : ''} de cette catégorie ?`;
       if (!confirm(message)) return;
       simples.forEach(p => {
         const transmis = dernierStock[p.id];
         comptagesSaisie[p.id] = { compte: transmis ? transmis.quantite : 0, ecartNonNul: false, justification: '' };
-        ecrireOuvertureImmediat(p);
+        ecrireSaisieImmediat(p);
       });
       sauvegarderDraft('ouverture');
       // UX Flash (17/08/2026, Sprint 4, INV2-15/16) : "Valider cette
@@ -1699,6 +1824,19 @@
     const input = document.querySelector(`.produit-input[data-produit="${produitId}"]`);
     const val = input.value === '' ? null : evaluerAdditionChainee(input.value);
     const p = produitsZone.find(x => x.id === produitId);
+
+    // Production journalière (18/08/2026, M2) : pas d'écart, pas de motif —
+    // "compte" porte ici la quantité préparée, jamais comparée au dernier
+    // stock transmis (voir renderLigneProductionOuverture / ecrireSaisieImmediat).
+    if (p && quartActuel === 'matin' && profilParProduit[p.id] === 'production_journaliere') {
+      comptagesSaisie[produitId] = (val === null || isNaN(val)) ? undefined : {
+        compte: val, ecartNonNul: false, justification: '',
+        quantiteConseillee: recommandationsParProduit[p.id] ? recommandationsParProduit[p.id].quantiteConseillee : null,
+        contexte: recommandationsParProduit[p.id] ? recommandationsParProduit[p.id].contexte : null,
+      };
+      sauvegarderDraft('ouverture');
+      return;
+    }
 
     // Comptage en deux lieux (05/08/2026) : phase "Dépôt" uniquement ici —
     // pas d'écart tant que le total (dépôt + boutique) n'est pas connu, la
@@ -1749,6 +1887,16 @@
     const libelleEtape = libelleEtapeParcours(groupe);
     document.getElementById('titre').textContent = libelleEtape.titre;
     document.getElementById('sousTitre').textContent = libelleEtape.sousTitre;
+
+    // Production journalière (18/08/2026, M2 — cahier §3) : à l'ouverture
+    // du quart matin, ce produit n'a pas de "stock transmis" à comparer —
+    // c'est une préparation du jour. Écran dédié, jamais le carrousel
+    // comptage-aveugle standard (Article 5 : ne jamais faire semblant qu'un
+    // écart existe là où le concept ne s'applique pas).
+    if (quartActuel === 'matin' && profilParProduit[p.id] === 'production_journaliere') {
+      renderCarrouselProduction(groupe, p, items);
+      return;
+    }
 
     const transmis = dernierStock[p.id];
     const masque = estMasquePourProduit(p);
@@ -1906,6 +2054,85 @@
     document.getElementById('btnRetourCategoriesCarrousel').addEventListener('click', renderCategoriesOuverture);
   }
 
+  // ------------------------------------------------------------
+  // ÉCRAN Q1 "PRODUCTION JOURNALIÈRE" (18/08/2026, M2 — cahier §3.2) :
+  // remplace le carrousel comptage-aveugle pour les produits à profil
+  // production_journaliere, uniquement à l'ouverture du quart matin (voir
+  // le branchement dans renderCarrousel ci-dessus). Affiche la
+  // recommandation NEXUS (préchargée par chargerRecommandationsProduction,
+  // jamais recalculée ici — §4.3) et un champ pré-rempli mais librement
+  // modifiable : la recommandation ne doit jamais être copiée
+  // automatiquement sans ce geste explicite de validation (§3.2).
+  // ------------------------------------------------------------
+  function renderCarrouselProduction(groupe, p, items) {
+    const rec = recommandationsParProduit[p.id] || null;
+    const conseillee = rec ? rec.quantiteConseillee : null;
+    const M = typeof NexusInventaireMoteur !== 'undefined' ? NexusInventaireMoteur : null;
+    const contexteLabel = (rec && M) ? M.libelleContexteJour(rec.contexte) : null;
+    const dejaSaisi = comptagesSaisie[p.id];
+    const valeurDepart = (dejaSaisi && dejaSaisi.compte !== undefined)
+      ? dejaSaisi.compte
+      : ((conseillee !== null && conseillee !== undefined) ? conseillee : '');
+
+    document.getElementById('content').innerHTML = `
+      ${renderBarreProgression(groupe)}
+      <div class="carrousel-card">
+        <div class="carrousel-nom">${p.designation}${p.sensible ? '<span class="badge-sensible" style="margin-left:8px;">Sensible</span>' : ''}</div>
+        ${(conseillee !== null && conseillee !== undefined)
+          ? `<div class="carrousel-transmis">Préparation conseillée${contexteLabel ? ' — ' + contexteLabel : ''}</div>
+             <div class="carrousel-valeur">${fmtNum(conseillee)} <span class="carrousel-unite">${p.unite}</span></div>`
+          : `<div class="carrousel-transmis">Pas de recommandation configurée — indiquez votre quantité.</div>`
+        }
+        <div class="champ-comptage">
+          <input type="text" inputmode="decimal" class="produit-input carrousel-input" id="carrouselInput"
+                 placeholder="Quantité réellement mise au four" value="${valeurDepart}" onfocus="this.select()">
+          ${calcBarreHtml()}
+        </div>
+        <button class="btn-primary" id="btnValiderProduit">Valider ce produit</button>
+      </div>
+      <div class="carrousel-footer">Produit ${carrouselIndex + 1} sur ${items.length}</div>
+      ${carrouselIndex > 0 ? `<button class="btn-text" id="btnProduitPrecedent">← Revenir au produit précédent</button>` : ''}
+      <button class="btn-text" id="btnRetourCategoriesCarrousel">← Retour aux catégories</button>
+    `;
+
+    const carrouselInput = document.getElementById('carrouselInput');
+    if (carrouselInput) {
+      carrouselInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); const btn = document.getElementById('btnValiderProduit'); if (btn) btn.click(); }
+      });
+      // Focus synchrone (voir renderCarrousel plus haut pour la raison :
+      // ouverture fiable du clavier numérique mobile).
+      carrouselInput.focus();
+      carrouselInput.select();
+    }
+
+    const btnValiderProduit = document.getElementById('btnValiderProduit');
+    if (btnValiderProduit) btnValiderProduit.addEventListener('click', () => {
+      const input = document.getElementById('carrouselInput');
+      let val = input.value === '' ? null : evaluerAdditionChainee(input.value);
+      if (val === null || isNaN(val)) {
+        if (!confirm(`Aucune quantité saisie pour ${p.designation} — on enregistre 0. Confirmer ?`)) return;
+        val = 0;
+      }
+      // .compte réutilisé volontairement (même clé que le comptage
+      // classique) pour que produitEstCompte/la barre de progression/
+      // avancerCarrousel fonctionnent sans aucune modification — ici la
+      // valeur représente "quantité préparée", jamais un stock constaté
+      // (voir ecrireSaisieImmediat pour l'aiguillage vers le bon type
+      // d'écriture selon profilParProduit).
+      comptagesSaisie[p.id] = {
+        compte: val, ecartNonNul: false, justification: '',
+        quantiteConseillee: conseillee, contexte: rec ? rec.contexte : null,
+      };
+      sauvegarderDraft('ouverture');
+      ecrireSaisieImmediat(p);
+      avancerCarrousel(groupe, p.designation);
+    });
+    const btnProduitPrecedent = document.getElementById('btnProduitPrecedent');
+    if (btnProduitPrecedent) btnProduitPrecedent.addEventListener('click', () => reculerCarrousel(groupe));
+    document.getElementById('btnRetourCategoriesCarrousel').addEventListener('click', renderCategoriesOuverture);
+  }
+
   function majCarrousel(valeurTransmise, produitId) {
     const input = document.getElementById('carrouselInput');
     const ecartDiv = document.getElementById('ecartCarrousel');
@@ -1964,7 +2191,42 @@
     renderCarrousel(groupe);
   }
 
+  // Ligne grille dédiée production_journaliere (18/08/2026, M2) — défensif :
+  // en pratique la catégorie Viennoiserie compte assez de produits pour
+  // rester en mode carrousel (voir renderCarrouselProduction, le vrai
+  // chemin terrain), mais toute catégorie ≤ CARROUSEL_SEUIL contenant un
+  // produit de ce profil doit rester correcte, jamais un comptage-aveugle
+  // par erreur.
+  function renderLigneProductionOuverture(p) {
+    const rec = recommandationsParProduit[p.id] || null;
+    const conseillee = rec ? rec.quantiteConseillee : null;
+    const M = typeof NexusInventaireMoteur !== 'undefined' ? NexusInventaireMoteur : null;
+    const contexteLabel = (rec && M) ? M.libelleContexteJour(rec.contexte) : null;
+    const saisie = comptagesSaisie[p.id];
+    const valeurAffichee = (saisie && saisie.compte !== undefined) ? saisie.compte : '';
+    const texteRecommandation = (conseillee !== null && conseillee !== undefined)
+      ? `Préparation conseillée${contexteLabel ? ' — ' + contexteLabel : ''} : ${fmtNum(conseillee)} ${p.unite}`
+      : 'Pas de recommandation configurée';
+    return `
+      <div class="produit-row" id="ligne-${p.id}">
+        <div class="produit-nom-ligne">
+          <span class="produit-nom">${p.designation}</span>
+          ${p.sensible ? '<span class="badge-sensible">Sensible</span>' : ''}
+        </div>
+        <div class="produit-transmis">${texteRecommandation}</div>
+        <div class="produit-controls" style="margin-top:8px;">
+          <div class="champ-comptage">
+            <input type="text" inputmode="decimal" class="produit-input produit-input-production" data-produit="${p.id}"
+                   placeholder="Quantité réellement mise au four" value="${valeurAffichee}" onfocus="this.select()">
+            ${calcBarreHtml()}
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
   function renderLigneOuverture(p) {
+    if (quartActuel === 'matin' && profilParProduit[p.id] === 'production_journaliere') return renderLigneProductionOuverture(p);
     const transmis = dernierStock[p.id];
     const masque = estMasquePourProduit(p);
     const saisie = comptagesSaisie[p.id];
@@ -2057,10 +2319,20 @@
       const saisie = comptagesSaisie[p.id];
       if (!saisie || saisie.compte === undefined) continue;
       nbComptes++;
+
+      await ecrireSaisieImmediat(p);
+
+      // Production journalière (18/08/2026, M2) : jamais de comparaison au
+      // dernier stock transmis — .compte porte une quantité préparée, pas
+      // un stock constaté (voir renderCarrouselProduction). Un "écart"
+      // calculé ici serait une fausse précision (Article 5) : le vrai
+      // suivi conseillé/préparé/écoulé arrive en M8, sur la bonne base
+      // (mouvements de production), jamais via ce mécanisme d'écart de
+      // passage de quart pensé pour un stock physique.
+      if (quartActuel === 'matin' && profilParProduit[p.id] === 'production_journaliere') continue;
+
       const transmis = dernierStock[p.id];
       const valeurTransmise = transmis ? transmis.quantite : 0;
-
-      await ecrireOuvertureImmediat(p);
 
       if (saisie.ecartNonNul) {
         nbEcarts++;

@@ -87,10 +87,16 @@ const srcParcours = [
   'let modeJaugeageActif = false;',
   'let quartActuel = "soir";',
   'let comptagesSaisie = {};',
+  // Production journalière (18/08/2026, M2) : profilParProduit vide = aucun
+  // produit de ce profil dans ce test, comportement historique inchangé —
+  // ajouté ici uniquement parce que produitsZoneOuverturePourQuart() (ajoutée
+  // par M2) est maintenant appelée depuis groupesParcoursOuverture().
+  'let profilParProduit = {};',
   `const CARROUSEL_SEUIL = ${6};`,
   `const JAUGEAGE_NOM = 'Jaugeage Carburant';`,
   extraire('grouperParCategorie'),
   extraire('ordonnerParcoursDepotBoutiqueReste'),
+  extraire('produitsZoneOuverturePourQuart'),
   extraire('groupesParcoursOuverture'),
   extraire('produitsRequis'),
   extraire('produitEstCompte'),
