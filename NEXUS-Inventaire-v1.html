@@ -326,6 +326,11 @@
   // la ligne grille dédiée — jamais recalculée une fois affichée (§4.3).
   let profilParProduit = {};
   let recommandationsParProduit = {};
+  // "+ Ajouter un mouvement" pendant le quart (18/08/2026, M3) : catalogue
+  // propre à cet écran (jamais restreint au plan tournant, voir
+  // demarrerAjoutMouvementRapide) — distinct de produitsZone pour ne
+  // jamais interférer avec l'état ouverture/clôture en cours.
+  let mouvementRapideProduits = [];
   // Position de navigation courante (17/08/2026, Sprint 4 "UX Flash" —
   // cahier Inventaire 2.0, INV2-16 "après interruption, l'employé reprend au
   // bon produit") : { categorieNom, carrouselIndex } | null. Persistée dans
@@ -1106,6 +1111,13 @@
 
     const ouvertureFaite = quartEmployeRow && quartEmployeRow.a_valide_ouverture;
     const clotureFaite = quartEmployeRow && quartEmployeRow.a_valide_cloture;
+    // "+ Ajouter un mouvement" pendant le quart (18/08/2026, M3 — cahier
+    // §5, MOV-04 "l'employé peut déclarer une nouvelle fournée à tout
+    // moment pendant le quart") : n'a de sens qu'une fois l'ouverture
+    // validée et tant que la clôture n'est pas faite — avant l'ouverture,
+    // rien n'est encore "en cours" pour ce quart ; après la clôture, tout
+    // mouvement relève du quart suivant.
+    const mouvementEnCoursPossible = ouvertureFaite && !clotureFaite;
 
     document.getElementById('content').innerHTML = `
       ${renderQuartVisuel()}
@@ -1119,6 +1131,15 @@
             ${ouvertureFaite ? '<div class="choix-statut fait">✓ Fait pour ce quart</div>' : '<div class="choix-statut attente">À faire</div>'}
           </div>
         </div>
+        ${mouvementEnCoursPossible ? `
+        <div class="choix-card" id="carteMouvementRapide">
+          <div class="choix-icone" style="background:var(--cyan-fonce, #0b4a5a);">📦</div>
+          <div style="flex:1;">
+            <div class="choix-titre">+ Ajouter un mouvement</div>
+            <div class="choix-sub">Nouvelle fournée, casse, retour, retrait — enregistré tout de suite, sans attendre la clôture.</div>
+          </div>
+        </div>
+        ` : ''}
         <div class="choix-card ${!ouvertureFaite || clotureFaite ? 'disabled' : ''}" id="carteCloture">
           <div class="choix-icone cloture">🔴</div>
           <div style="flex:1;">
@@ -1137,6 +1158,8 @@
 
     if (!clotureFaite) document.getElementById('carteOuverture').addEventListener('click', demarrerOuverture);
     if (ouvertureFaite && !clotureFaite) document.getElementById('carteCloture').addEventListener('click', demarrerCloture);
+    const carteMouvementRapide = document.getElementById('carteMouvementRapide');
+    if (carteMouvementRapide) carteMouvementRapide.addEventListener('click', demarrerAjoutMouvementRapide);
   }
 
   function renderChoixZone() {
@@ -1161,6 +1184,94 @@
         quartEmployeRow.zone_id = zoneId;
       }
       renderAccueil();
+    });
+  }
+
+  // ------------------------------------------------------------
+  // "+ AJOUTER UN MOUVEMENT" PENDANT LE QUART (18/08/2026, M3 — cahier
+  // "Audit Inventaire - Production, mouvements & réceptions" §5, MOV-04).
+  // Écran dédié, distinct du bloc "Mouvements pendant le quart" de la
+  // clôture (ajouterMouvement/renderListeMouvements ci-dessous, INCHANGÉ) :
+  // celui-ci écrit IMMÉDIATEMENT (idempotent, comme un comptage — voir
+  // ecrireMouvementImmediat) au lieu d'attendre la validation finale de
+  // clôture, pour qu'une "nouvelle fournée" déclarée à 10h ne soit jamais
+  // perdue si l'employé ne clôture qu'en fin d'après-midi. Les choix de
+  // type de mouvement proposés sont CONTEXTUELS par profil produit — via
+  // NexusInventaireMoteur.actionsMouvementPourProfil (registre unique,
+  // Article 11) — un produit production_journaliere ne voit jamais
+  // "Marchandise reçue" mais voit "Nouvelle préparation" (fournée), qu'aucun
+  // autre profil ne propose.
+  // ------------------------------------------------------------
+  async function demarrerAjoutMouvementRapide() {
+    document.getElementById('content').innerHTML = '<div class="loading">Chargement des produits…</div>';
+    // Catalogue complet de la zone, jamais restreint au plan tournant du
+    // jour (restreindreAuPlanQuart) : un mouvement (fournée, casse, retour…)
+    // doit pouvoir être déclaré sur n'importe quel produit de la zone, pas
+    // seulement ceux que NEXUS a sélectionnés aujourd'hui pour le comptage
+    // aveugle — deux mécanismes différents (Article 11 : ne pas confondre
+    // "quoi compter aujourd'hui" et "quoi peut recevoir un mouvement").
+    mouvementRapideProduits = await chargerProduitsZone(zoneActive);
+    renderAjoutMouvementRapide();
+  }
+
+  function renderAjoutMouvementRapide() {
+    const M = typeof NexusInventaireMoteur !== 'undefined' ? NexusInventaireMoteur : null;
+    document.getElementById('titre').textContent = 'Ajouter un mouvement';
+    document.getElementById('sousTitre').textContent = 'Nouvelle fournée, casse, retour, retrait — enregistré tout de suite.';
+    const optionsProduits = mouvementRapideProduits.map(p => `<option value="${p.id}">${p.designation}</option>`).join('');
+    document.getElementById('content').innerHTML = `
+      <div class="mouv-card">
+        <select class="mouv-select" id="mrProduit" style="width:100%; margin-bottom:8px;">${optionsProduits}</select>
+        <div class="mouv-row">
+          <select class="mouv-select" id="mrType"></select>
+          <input type="number" inputmode="decimal" class="mouv-qte" id="mrQte" placeholder="Qté" onfocus="this.select()">
+        </div>
+        <input type="text" class="mouv-justif" id="mrJustif" placeholder="Justification (facultatif)">
+        <button class="btn-primary" id="btnMrEnregistrer" style="margin-top:8px;">Enregistrer ce mouvement</button>
+        <div class="mouv-liste" id="mrConfirmation"></div>
+      </div>
+      <button class="btn-text" id="btnMrRetour">← Retour</button>
+    `;
+
+    function repeuplerTypes() {
+      const produitId = document.getElementById('mrProduit').value;
+      const profil = profilParProduit[produitId] || null;
+      const actions = (M && M.actionsMouvementPourProfil) ? M.actionsMouvementPourProfil(profil || 'continu') : [];
+      const select = document.getElementById('mrType');
+      select.innerHTML = actions.map(a => `<option value="${a.value}">${a.label}</option>`).join('');
+    }
+    repeuplerTypes();
+    document.getElementById('mrProduit').addEventListener('change', repeuplerTypes);
+
+    document.getElementById('btnMrRetour').addEventListener('click', renderAccueil);
+    document.getElementById('btnMrEnregistrer').addEventListener('click', async () => {
+      const produitId = document.getElementById('mrProduit').value;
+      const type = document.getElementById('mrType').value;
+      const qteSaisie = parseFloat(document.getElementById('mrQte').value);
+      const justif = document.getElementById('mrJustif').value;
+      if (!produitId || !type || isNaN(qteSaisie) || qteSaisie <= 0) { alert('Choisissez un produit, un type de mouvement et une quantité positive.'); return; }
+      const produit = mouvementRapideProduits.find(p => p.id === produitId);
+      const infoType = M ? M.infoTypeMouvement(type) : null;
+      const qte = (infoType && infoType.sens === 'sortant') ? -Math.abs(qteSaisie) : Math.abs(qteSaisie);
+
+      const btn = document.getElementById('btnMrEnregistrer');
+      btn.disabled = true;
+      const idempotencyKey = cleIdempotenceMouvement(quartRow.id, produitId, type, qte);
+      const resultat = await ecrireMouvementImmediat({
+        site: employeeCourant.site_id, quart_id: quartRow.id, produit_id: produitId, type_mouvement: type,
+        quantite: qte, employee_id: employeeCourant.id, justification: justif || null, reason_code: type, statut_validation: 'valide',
+      });
+      btn.disabled = false;
+      document.getElementById('mrQte').value = '';
+      document.getElementById('mrJustif').value = '';
+      const conf = document.getElementById('mrConfirmation');
+      const libelle = infoType ? infoType.label : 'Mouvement';
+      // Que l'écriture réseau ait abouti tout de suite ou soit partie en
+      // file d'attente (voir ecrireMouvementImmediat), le geste de
+      // l'employé est déjà acquis dans les deux cas — jamais un message
+      // d'échec pour une donnée déjà en sécurité localement (même
+      // discipline que le reste de l'écran d'ouverture, Sprint 4bis).
+      conf.innerHTML = `<div class="mouv-item"><span>✓ ${libelle} · ${produit ? produit.designation : ''} · ${qte > 0 ? '+' : ''}${fmtNum(qte)} enregistré${resultat ? '' : ' (hors-ligne — en attente de connexion)'}</span></div>` + conf.innerHTML;
     });
   }
 
