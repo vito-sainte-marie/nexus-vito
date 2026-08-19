@@ -42,8 +42,30 @@
     if (e2) console.error('Chargement valeur spéciale:', e2);
     if (e3) console.error('Chargement calendrier site:', e3);
 
+    // 20/08/2026 — branchement sur NEXUS Tempo (nexus-tempo.js), qui porte
+    // déjà VACANCES_SCOLAIRES_MARTINIQUE (dates officielles, fournies par
+    // Frédéric le 25/07/2026) : une entrée manuelle explicite dans
+    // inventaire_calendrier_site (ex. un férié, ou une fermeture
+    // exceptionnelle) garde toujours la priorité (c'est une décision
+    // manager assumée pour CE jour précis) ; à défaut, on demande à Tempo
+    // si la date tombe en vacances scolaires plutôt que d'exiger du
+    // manager qu'il ressaisisse à la main chacune des ~130 dates de
+    // vacances de l'année (Article 11 — Tempo est déjà la seule vérité du
+    // calendrier scolaire Martinique dans NEXUS, jamais une 2e liste
+    // dupliquée ici). Dégradation gracieuse si nexus-tempo.js n'est pas
+    // chargé sur cette page (Article 5 — jamais une exception pour une
+    // dépendance optionnelle) : le calcul retombe alors sur semaine/week-end
+    // comme avant ce lot.
+    let jourCalendrierEffectif = jourCalendrier || null;
+    if (!jourCalendrierEffectif && global.NexusTempo && typeof global.NexusTempo.estVacancesScolaires === 'function') {
+      const v = global.NexusTempo.estVacancesScolaires(dateISO);
+      if (v && v.vacances) {
+        jourCalendrierEffectif = { type: 'vacances', libelle: v.nom, source: 'tempo' };
+      }
+    }
+
     const resultat = M.calculerRecommandationPreparation({
-      dateISO, regle: regle || null, valeurSpeciale: valeurSpeciale || null, jourCalendrierSite: jourCalendrier || null,
+      dateISO, regle: regle || null, valeurSpeciale: valeurSpeciale || null, jourCalendrierSite: jourCalendrierEffectif,
     });
 
     // Non bloquant : si l'écriture de la photo échoue (réseau), l'employé

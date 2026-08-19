@@ -1216,7 +1216,7 @@
     const f = calendrierForm;
     return `
       <div class="section-titre" style="margin-top:18px;">Calendrier vacances &amp; jours fériés</div>
-      <div class="ventes-desc" style="margin:2px 2px 10px;">Partagé par tous les produits en suivi de production — un jour marqué ici prend le pas sur le calcul semaine/week-end habituel (priorité juste après une éventuelle valeur spéciale du jour).</div>
+      <div class="ventes-desc" style="margin:2px 2px 10px;">Partagé par tous les produits en suivi de production — un jour marqué ici prend le pas sur le calcul semaine/week-end habituel (priorité juste après une éventuelle valeur spéciale du jour). Les vacances scolaires de Martinique sont déjà reconnues automatiquement (calendrier NEXUS Tempo) : inutile de les ressaisir ici — cette liste sert aux jours fériés et aux fermetures exceptionnelles propres à ce site.</div>
       <div class="card" style="margin-bottom:10px;">
         ${calendrierSite.length === 0 ? '<div class="empty">Aucune date configurée.</div>' : calendrierSite.map(c => `
           <div class="categorie-row">
