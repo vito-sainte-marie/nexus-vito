@@ -1139,6 +1139,13 @@
             <div class="choix-sub">Nouvelle fournée, casse, retour, retrait — enregistré tout de suite, sans attendre la clôture.</div>
           </div>
         </div>
+        <div class="choix-card" id="carteReceptionRapide">
+          <div class="choix-icone" style="background:var(--cyan-fonce, #0b4a5a);">📥</div>
+          <div style="flex:1;">
+            <div class="choix-titre">Réception marchandise</div>
+            <div class="choix-sub">Plusieurs produits reçus en une seule livraison, en un seul geste.</div>
+          </div>
+        </div>
         ` : ''}
         <div class="choix-card ${!ouvertureFaite || clotureFaite ? 'disabled' : ''}" id="carteCloture">
           <div class="choix-icone cloture">🔴</div>
@@ -1160,6 +1167,8 @@
     if (ouvertureFaite && !clotureFaite) document.getElementById('carteCloture').addEventListener('click', demarrerCloture);
     const carteMouvementRapide = document.getElementById('carteMouvementRapide');
     if (carteMouvementRapide) carteMouvementRapide.addEventListener('click', demarrerAjoutMouvementRapide);
+    const carteReceptionRapide = document.getElementById('carteReceptionRapide');
+    if (carteReceptionRapide) carteReceptionRapide.addEventListener('click', demarrerReceptionRapide);
   }
 
   function renderChoixZone() {
@@ -1272,6 +1281,121 @@
       // d'échec pour une donnée déjà en sécurité localement (même
       // discipline que le reste de l'écran d'ouverture, Sprint 4bis).
       conf.innerHTML = `<div class="mouv-item"><span>✓ ${libelle} · ${produit ? produit.designation : ''} · ${qte > 0 ? '+' : ''}${fmtNum(qte)} enregistré${resultat ? '' : ' (hors-ligne — en attente de connexion)'}</span></div>` + conf.innerHTML;
+    });
+  }
+
+  // ------------------------------------------------------------
+  // RÉCEPTION MARCHANDISE RAPIDE (18/08/2026, M4 — cahier §6 "nouvelle
+  // fournée / réception marchandise"). Une livraison arrive rarement produit
+  // par produit : c'est une pile de plusieurs références en une seule fois.
+  // Plutôt que de repasser CHAQUE produit dans l'écran "+ Ajouter un
+  // mouvement" (M3, un seul produit à la fois), cet écran compose une petite
+  // liste de lignes (produit + quantité) avant un seul geste de validation
+  // qui écrit chaque ligne comme un mouvement 'livraison' — même primitive
+  // d'écriture idempotente que M3 (ecrireMouvementImmediat, Article 11,
+  // jamais une deuxième implémentation de l'écriture réseau). Les produits
+  // production_journaliere sont exclus du choix (§5 : une pâtisserie n'est
+  // jamais "reçue", elle est préparée — voir l'écran Q1, M2).
+  // ------------------------------------------------------------
+  let receptionLignes = []; // { produit_id, designation, quantite }
+
+  async function demarrerReceptionRapide() {
+    document.getElementById('content').innerHTML = '<div class="loading">Chargement des produits…</div>';
+    const catalogueComplet = await chargerProduitsZone(zoneActive);
+    mouvementRapideProduits = catalogueComplet.filter(p => profilParProduit[p.id] !== 'production_journaliere');
+    receptionLignes = [];
+    renderReceptionRapide();
+  }
+
+  function renderReceptionRapide() {
+    document.getElementById('titre').textContent = 'Réception marchandise';
+    document.getElementById('sousTitre').textContent = 'Ajoutez chaque produit reçu, puis validez la livraison en un seul geste.';
+    if (!mouvementRapideProduits.length) {
+      document.getElementById('content').innerHTML = `
+        <div class="mouv-card">Aucun produit de cette zone ne peut recevoir de livraison directe (produits en préparation journalière exclus — voir l'écran d'ouverture du matin).</div>
+        <button class="btn-text" id="btnRrRetour">← Retour</button>
+      `;
+      document.getElementById('btnRrRetour').addEventListener('click', renderAccueil);
+      return;
+    }
+    const optionsProduits = mouvementRapideProduits.map(p => `<option value="${p.id}">${p.designation}</option>`).join('');
+    document.getElementById('content').innerHTML = `
+      <div class="mouv-card">
+        <div class="mouv-titre">Produits reçus</div>
+        <select class="mouv-select" id="rrProduit" style="width:100%; margin-bottom:8px;">${optionsProduits}</select>
+        <div class="mouv-row">
+          <input type="number" inputmode="decimal" class="mouv-qte" id="rrQte" placeholder="Qté reçue" onfocus="this.select()">
+          <button class="btn-ghost" id="btnRrAjouterLigne" style="margin-top:0;">+ Ajouter à la liste</button>
+        </div>
+        <div class="mouv-liste" id="rrListeLignes"></div>
+      </div>
+      <div class="mouv-card">
+        <input type="text" class="mouv-justif" id="rrJustif" placeholder="Référence livraison / fournisseur (facultatif, appliqué à toute la réception)">
+        <button class="btn-primary" id="btnRrValider" style="margin-top:8px;">Valider la réception (<span id="rrCompteur">0</span> produit(s))</button>
+      </div>
+      <button class="btn-text" id="btnRrRetour">← Retour</button>
+    `;
+
+    function rafraichirListe() {
+      const el = document.getElementById('rrListeLignes');
+      el.innerHTML = receptionLignes.map((l, i) => `
+        <div class="mouv-item">
+          <span>${l.designation} · +${fmtNum(l.quantite)}</span>
+          <span class="rm" data-idx="${i}">✕</span>
+        </div>
+      `).join('');
+      el.querySelectorAll('.rm').forEach(rm => rm.addEventListener('click', () => {
+        receptionLignes.splice(parseInt(rm.dataset.idx), 1);
+        rafraichirListe();
+      }));
+      document.getElementById('rrCompteur').textContent = receptionLignes.length;
+    }
+    rafraichirListe();
+
+    document.getElementById('btnRrAjouterLigne').addEventListener('click', () => {
+      const produitId = document.getElementById('rrProduit').value;
+      const qte = parseFloat(document.getElementById('rrQte').value);
+      if (!produitId || isNaN(qte) || qte <= 0) { alert('Choisissez un produit et une quantité positive.'); return; }
+      const produit = mouvementRapideProduits.find(p => p.id === produitId);
+      // Une même ligne (produit déjà ajouté à cette réception) s'additionne
+      // plutôt que de dupliquer la ligne — deux cartons du même produit
+      // dans la même livraison sont une seule quantité reçue, pas deux
+      // mouvements séparés à écrire.
+      const existante = receptionLignes.find(l => l.produit_id === produitId);
+      if (existante) existante.quantite += qte;
+      else receptionLignes.push({ produit_id: produitId, designation: produit ? produit.designation : '', quantite: qte });
+      document.getElementById('rrQte').value = '';
+      rafraichirListe();
+    });
+
+    document.getElementById('btnRrRetour').addEventListener('click', renderAccueil);
+
+    document.getElementById('btnRrValider').addEventListener('click', async () => {
+      if (!receptionLignes.length) { alert('Ajoutez au moins un produit à la réception avant de valider.'); return; }
+      const justif = document.getElementById('rrJustif').value || null;
+      const btn = document.getElementById('btnRrValider');
+      btn.disabled = true;
+      btn.innerHTML = 'Enregistrement<span class="btn-loading-dots"><i></i><i></i><i></i></span>';
+      let horsLigne = 0;
+      for (const ligne of receptionLignes) {
+        const resultat = await ecrireMouvementImmediat({
+          site: employeeCourant.site_id, quart_id: quartRow.id, produit_id: ligne.produit_id, type_mouvement: 'livraison',
+          quantite: Math.abs(ligne.quantite), employee_id: employeeCourant.id, justification: justif, reason_code: 'livraison', statut_validation: 'valide',
+        });
+        if (!resultat) horsLigne++;
+      }
+      const nb = receptionLignes.length;
+      receptionLignes = [];
+      document.getElementById('content').innerHTML = `
+        <div class="resume-card">
+          <div class="checkmark">✓</div>
+          <div class="final-greet">Réception enregistrée</div>
+          <div class="stat-row"><span class="stat-label">Produits reçus</span><span class="stat-value">${nb}</span></div>
+        </div>
+        ${horsLigne ? `<div class="resume-card" style="border-color:var(--amber);">⚠️ ${horsLigne} ligne${horsLigne > 1 ? 's' : ''} en attente de connexion — sauvegardée${horsLigne > 1 ? 's' : ''} sur cet appareil, envoyée${horsLigne > 1 ? 's' : ''} dès que le réseau revient.</div>` : ''}
+        <button class="btn-primary" id="btnRrTerminer">Retour</button>
+      `;
+      document.getElementById('btnRrTerminer').addEventListener('click', renderAccueil);
     });
   }
 
