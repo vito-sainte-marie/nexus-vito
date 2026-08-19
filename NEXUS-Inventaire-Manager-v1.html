@@ -25,6 +25,7 @@
 <script src="nexus-inventaire-moteur.js"></script>
 <script src="nexus-inventaire-plan-donnees.js"></script>
 <script src="nexus-inventaire-manager-donnees.js"></script>
+<script src="nexus-inventaire-production-donnees.js"></script>
 <script src="nexus-risques-moteur.js"></script>
 <script src="nexus-risques-donnees.js"></script>
 <script src="nexus-pdf-moteur.js"></script>
@@ -1766,6 +1767,12 @@
     { value: 'retour_fournisseur', label: 'Retour fournisseur', sens: 'sortant' },
     { value: 'retrait_interne', label: 'Retrait interne', sens: 'sortant' },
     { value: 'autre', label: 'Autre', sens: 'sortant' },
+    // 18/08/2026, M6 (cahier "Robustesse : corrections versionnées") : permet
+    // de déclarer rétroactivement une fournée oubliée (profil "production
+    // journalière") via le même mécanisme additif "mouvement oublié" —
+    // jamais une deuxième voie d'écriture, juste une nuance de libellé de
+    // plus dans ce registre déjà remappé par typeMouvementValideEnBase.
+    { value: 'production_additionnelle', label: 'Nouvelle préparation (fournée) — oubliée', sens: 'entrant' },
   ];
 
   // Correspondance vers les 9 valeurs réellement acceptées par la contrainte
@@ -1816,6 +1823,21 @@
       wirerFormulaireCorrection();
       return;
     }
+    // M6 — la préparation initiale n'existe qu'au quart matin (§4/§6, un
+    // seul écran Q1, jamais Q2) : quel que soit le pill matin/soir choisi
+    // dans le formulaire commun, on relit toujours le quart MATIN de cette
+    // date, jamais celui affiché par erreur.
+    if (correctionForm.correctionType === 'corriger_preparation_q1') {
+      if (!correctionForm.produitId) { resultatEl.innerHTML = '<div class="empty">Choisissez un produit.</div>'; correctionChargee = null; return; }
+      const quartMatin = correctionForm.quart === 'matin' ? quart : await chargerQuart(siteId, correctionForm.date, 'matin');
+      if (!quartMatin) { resultatEl.innerHTML = '<div class="empty">Aucun quart matin trouvé pour cette date.</div>'; correctionChargee = null; return; }
+      const mouvement = await NexusInventaireProductionDonnees.chargerMouvementProductionInitialeActuel(nexusClient, correctionForm.produitId, quartMatin.id);
+      if (!mouvement) { resultatEl.innerHTML = '<div class="empty">Aucune préparation initiale enregistrée pour ce produit ce matin-là.</div>'; correctionChargee = null; return; }
+      correctionChargee = { quart: quartMatin, mouvement, impact: 0 };
+      resultatEl.innerHTML = renderFormulaireCorrectionCorps();
+      wirerFormulaireCorrection();
+      return;
+    }
     if (!correctionForm.produitId) { resultatEl.innerHTML = '<div class="empty">Choisissez un produit.</div>'; correctionChargee = null; return; }
     const comptage = await chargerComptageActuel(correctionForm.produitId, quart.id, correctionForm.typeComptage);
     if (!comptage) { resultatEl.innerHTML = '<div class="empty">Aucun comptage enregistré pour ce produit à cette date, ce quart et cette phase.</div>'; correctionChargee = null; return; }
@@ -1826,9 +1848,15 @@
   }
 
   function renderChampsCommunsCorrection() {
+    // Cascade "recomptage suivant" : n'a de sens que pour une correction de
+    // comptage chaînée (comptage_source_id) -- ni pour un mouvement oublié
+    // (purement additif, rien à propager), ni pour corriger_preparation_q1
+    // (M6 : la synthèse Q1→Q2 relit toujours le mouvement production_initiale
+    // le plus récent via dernierMouvementParType, aucune chaîne à signaler).
+    const sansPropagation = correctionForm.correctionType === 'mouvement_oublie' || correctionForm.correctionType === 'corriger_preparation_q1';
     return `
       <input type="text" id="correctionCommentaire" class="mouv-justif" placeholder="Motif (ex : erreur de saisie constatée lors du contrôle papier)">
-      ${correctionForm.correctionType !== 'mouvement_oublie' ? `
+      ${!sansPropagation ? `
       <div style="font-size:11.5px; color:var(--text-mid); margin:2px 0 10px;">
         <label style="display:flex; align-items:center; gap:6px; margin-bottom:4px; cursor:pointer;"><input type="radio" name="correctionPropagation" value="session_seule" checked> Corriger uniquement cette session</label>
         <label style="display:flex; align-items:center; gap:6px; cursor:pointer;"><input type="radio" name="correctionPropagation" value="cascade"> Corriger et signaler les sessions suivantes pour recomptage</label>
@@ -1845,6 +1873,19 @@
           <select class="mouv-select" id="correctionTypeMouvement">${TYPES_MOUVEMENT_MANAGER.map(t => `<option value="${t.value}">${t.label}</option>`).join('')}</select>
           <input type="number" inputmode="decimal" class="mouv-qte" id="correctionQuantiteMouvement" placeholder="Qté">
         </div>
+        ${renderChampsCommunsCorrection()}
+      `;
+    }
+    // M6 — correction versionnée de la préparation Q1 (production
+    // journalière) : on insère une NOUVELLE ligne production_initiale
+    // (jamais une modification de l'existante), lue ensuite via
+    // dernierMouvementParType -- même philosophie "append-only, le plus
+    // récent gagne" que la correction de comptage ci-dessous.
+    if (correctionForm.correctionType === 'corriger_preparation_q1') {
+      const m = correctionChargee.mouvement;
+      return `
+        <div class="alerte-valeurs" style="margin-bottom:10px;"><span>Quantité préparée actuellement retenue (Q1) : <b>${fmtNum(m.quantite)}</b></span></div>
+        <input type="number" inputmode="decimal" step="0.01" class="produit-input" id="correctionNouvellePreparation" placeholder="Nouvelle quantité préparée" style="width:100%; margin-bottom:8px; text-align:left;">
         ${renderChampsCommunsCorrection()}
       `;
     }
@@ -1895,8 +1936,9 @@
           <option value="erreur_saisie" ${correctionForm.correctionType === 'erreur_saisie' ? 'selected' : ''}>Corriger une erreur de saisie</option>
           <option value="stock_retenu" ${correctionForm.correctionType === 'stock_retenu' ? 'selected' : ''}>Modifier le stock retenu</option>
           <option value="mouvement_oublie" ${correctionForm.correctionType === 'mouvement_oublie' ? 'selected' : ''}>Ajouter un mouvement oublié</option>
+          <option value="corriger_preparation_q1" ${correctionForm.correctionType === 'corriger_preparation_q1' ? 'selected' : ''}>Corriger la préparation du matin (production journalière)</option>
         </select>
-        ${correctionForm.correctionType !== 'mouvement_oublie' ? `
+        ${(correctionForm.correctionType !== 'mouvement_oublie' && correctionForm.correctionType !== 'corriger_preparation_q1') ? `
         <select class="mouv-select" id="correctionTypeComptage" style="width:100%; margin-bottom:8px;">
           <option value="ouverture" ${correctionForm.typeComptage === 'ouverture' ? 'selected' : ''}>Comptage d'ouverture</option>
           <option value="cloture" ${correctionForm.typeComptage === 'cloture' ? 'selected' : ''}>Comptage de clôture</option>
@@ -1954,6 +1996,46 @@
         acteur_id: managerCourant.id, motif: commentaire || null,
       });
       document.getElementById('correctionResultat').innerHTML = `<div class="alerte-note">✓ Mouvement ajouté rétroactivement (${infoType.label}, ${qte > 0 ? '+' : ''}${fmtNum(qte)}).</div>`;
+      correctionChargee = null;
+      return;
+    }
+
+    if (correctionForm.correctionType === 'corriger_preparation_q1') {
+      const nouvellePreparationEl = document.getElementById('correctionNouvellePreparation');
+      const nouvelleValeur = parseFloat(nouvellePreparationEl.value);
+      if (isNaN(nouvelleValeur) || nouvelleValeur < 0) { alert('Saisissez une quantité positive.'); return; }
+      const ancien = correctionChargee.mouvement;
+      if (btnConfirmer) { btnConfirmer.disabled = true; btnConfirmer.textContent = 'Enregistrement…'; }
+
+      // Append-only, le plus récent gagne (même philosophie que la
+      // correction de comptage ci-dessous) : une NOUVELLE ligne
+      // production_initiale est insérée -- jamais une modification de
+      // l'existante -- et dernierMouvementParType (nexus-inventaire-
+      // production-donnees.js) retiendra celle-ci à la prochaine lecture.
+      const { error: e1 } = await nexusClient.from('inventaire_mouvements').insert({
+        site: siteId, quart_id: ancien.quart_id, produit_id: ancien.produit_id, type_mouvement: 'production_initiale',
+        quantite: nouvelleValeur, employee_id: managerCourant.id, justification: commentaire || null,
+        reason_code: 'correction_preparation_q1', statut_validation: 'valide',
+      });
+      if (e1) { console.error('Préparation Q1 corrigée:', e1); alert('Erreur — réessayez.'); if (btnConfirmer) { btnConfirmer.disabled = false; btnConfirmer.textContent = 'Confirmer la correction'; } return; }
+
+      await nexusClient.from('inventaire_corrections').insert({
+        site: siteId, quart_id: ancien.quart_id, produit_id: ancien.produit_id,
+        correction_type: 'corriger_preparation_q1', old_value: ancien.quantite, new_value: nouvelleValeur,
+        commentaire, operational_date: correctionForm.date, quart: 'matin',
+        created_by: managerCourant.id, propagation_mode: 'session_seule', affected_sessions_count: 0,
+        status: 'validee',
+      });
+
+      await nexusClient.from('inventaire_audit_log').insert({
+        site: siteId, quart_id: ancien.quart_id, entite_type: 'inventaire_mouvements', entite_id: ancien.id,
+        action: 'correction_preparation_q1', ancienne_valeur: { quantite: ancien.quantite }, nouvelle_valeur: { quantite: nouvelleValeur },
+        acteur_id: managerCourant.id, motif: commentaire || null,
+      });
+
+      document.getElementById('correctionResultat').innerHTML = `
+        <div class="alerte-note">✓ Préparation du matin corrigée. Ancienne quantité conservée : <b>${fmtNum(ancien.quantite)}</b> → nouvelle quantité retenue : <b>${fmtNum(nouvelleValeur)}</b>.</div>
+      `;
       correctionChargee = null;
       return;
     }

@@ -119,6 +119,37 @@
     return lignes.length ? lignes[0] : null;
   }
 
+  // Équivalent pour les mouvements (18/08/2026, M6 — cahier "Robustesse :
+  // corrections versionnées") : production_initiale est un SINGLETON par
+  // (quart, produit) -- "la" quantité préparée ce matin-là -- exactement
+  // comme un comptage de clôture. Une correction manager (voir
+  // NEXUS-Inventaire-Manager-v1.html, correctionType='corriger_preparation_q1')
+  // insère donc une NOUVELLE ligne production_initiale plutôt que de
+  // modifier l'existante -- même philosophie "append-only, le plus récent
+  // gagne" que dernierComptageParType ci-dessus, jamais une deuxième règle.
+  // production_additionnelle (les fournées), lui, reste volontairement
+  // hors de cette fonction : plusieurs fournées légitimes coexistent le
+  // même quart et se SOMMENT (sommeMouvementsProduction), elles ne se
+  // remplacent jamais l'une l'autre.
+  function dernierMouvementParType(mouvements, typeMouvement) {
+    const lignes = (mouvements || [])
+      .filter(m => m.type_mouvement === typeMouvement && (m.statut_validation === 'valide' || !m.statut_validation))
+      .sort((a, b) => new Date(b.cree_le || 0) - new Date(a.cree_le || 0));
+    return lignes.length ? lignes[0] : null;
+  }
+
+  // Lecture pour le formulaire de correction manager (M6) : le mouvement
+  // production_initiale actuellement retenu pour ce (produit, quart), tel
+  // qu'affiché à l'employé le matin même -- jamais recalculé, une simple
+  // relecture de ce qui a déjà été écrit (Article 11).
+  async function chargerMouvementProductionInitialeActuel(client, produitId, quartId) {
+    const { data, error } = await client.from('inventaire_mouvements')
+      .select('*').eq('produit_id', produitId).eq('quart_id', quartId).eq('type_mouvement', 'production_initiale')
+      .order('cree_le', { ascending: false }).limit(1).maybeSingle();
+    if (error) { console.error('Chargement mouvement production_initiale (correction):', error); return null; }
+    return data;
+  }
+
   async function chargerHistoriqueProductionProduit(client, site, produitId, dateISO) {
     const { data: quarts, error: eq } = await client.from('inventaire_quarts')
       .select('id, quart, statut, cloture_le').eq('site', site).eq('date', dateISO).order('quart', { ascending: true });
@@ -141,7 +172,7 @@
     const mvts = mouvements || [];
     const cpts = comptages || [];
 
-    const prepInitialeMvt = quartQ1 ? mvts.find(m => m.quart_id === quartQ1.id && m.type_mouvement === 'production_initiale') : null;
+    const prepInitialeMvt = quartQ1 ? dernierMouvementParType(mvts.filter(m => m.quart_id === quartQ1.id), 'production_initiale') : null;
     const fourneesQ1 = quartQ1 ? mvts.filter(m => m.quart_id === quartQ1.id && m.type_mouvement === 'production_additionnelle') : [];
     const fourneesQ2 = quartQ2 ? mvts.filter(m => m.quart_id === quartQ2.id && m.type_mouvement === 'production_additionnelle') : [];
 
@@ -165,6 +196,6 @@
   global.NexusInventaireProductionDonnees = {
     obtenirOuCalculerRecommandation,
     enregistrerMouvement, enregistrerNouvelleFournee, enregistrerReceptionMarchandise, enregistrerPreparationInitiale,
-    dernierComptageParType, chargerHistoriqueProductionProduit,
+    dernierComptageParType, dernierMouvementParType, chargerMouvementProductionInitialeActuel, chargerHistoriqueProductionProduit,
   };
 })(typeof window !== 'undefined' ? window : globalThis);
