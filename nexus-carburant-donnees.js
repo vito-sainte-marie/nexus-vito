@@ -411,6 +411,125 @@
     return refs.map(r => ({ ...r, lignes: parRef[r.id] || { go: null, sp95: null, gnr: null } }));
   }
 
+  // ============================================================
+  // Pont Inventaire → Carburants (19/08/2026, demande de Frédéric) — le
+  // pompiste du Quart 1 saisit le jaugeage physique d'ouverture directement
+  // dans son parcours Inventaire ; Inventaire DÉCLENCHE l'action mais
+  // n'écrit jamais dans ses propres tables pour cette donnée (Article 11) :
+  // elle va directement dans carburant_releves/carburant_releve_versions,
+  // par le MÊME chemin d'écriture ("preuve avant vue", prochaineVersion-
+  // ReleveCarburant/diffReleveCarburant du moteur partagé) que la saisie
+  // manager sur NEXUS-Carburants-v1.html — jamais une deuxième
+  // implémentation de cette logique.
+  // ============================================================
+
+  // Relevé déjà enregistré pour (site, date), si un existe — permet à
+  // Inventaire de savoir si le jaugeage du jour a déjà une valeur (saisie
+  // par le pompiste ou par le manager) sans dupliquer la logique de saisie.
+  // NEXUS-Carburants-v1.html a sa propre copie locale de cette même requête
+  // (antérieure à ce fichier partagé) — non touchée ici pour ne pas prendre
+  // de risque de régression sur un écran manager déjà éprouvé ; à collapser
+  // dans un futur nettoyage si Frédéric le demande.
+  async function chargerReleveDuJour(client, siteId, date) {
+    const { data, error } = await client.from('carburant_releves').select('*')
+      .eq('site', siteId).eq('date', date).maybeSingle();
+    if (error) { console.error('Chargement relevé du jour (pont Inventaire):', error); return null; }
+    return data;
+  }
+
+  // Statut du contrôle d'ouverture du jour (fait / impossible + motif) —
+  // signal UNIQUE consulté à la fois par le bloc Inventaire (pour ne plus
+  // relancer le pompiste une fois fait) et par le manager (bannière "non
+  // réalisé"), distinct de carburant_releves qui porte les valeurs
+  // mesurées elles-mêmes.
+  async function chargerStatutJaugeageJour(client, siteId, date) {
+    const { data, error } = await client.from('carburant_jaugeage_statuts_jour').select('*')
+      .eq('site', siteId).eq('date', date).maybeSingle();
+    if (error) { console.error('Chargement statut jaugeage du jour:', error); return null; }
+    return data;
+  }
+
+  // Écrit le jaugeage d'ouverture du pompiste. `valeurs` : { go_cuve1,
+  // go_cuve2, sp95, gnr } (sous-ensemble éventuel — un champ omis/null
+  // reprend la valeur déjà en base si une ligne existe déjà pour ce jour,
+  // jamais écrasée à null). Ne fixe jamais livraison_*/mouvement_* (repris
+  // du précédent ou 0) : le pompiste ne déclare qu'un jaugeage physique,
+  // pas une livraison ou un mouvement exceptionnel — ces gestes restent la
+  // responsabilité du manager sur son écran habituel.
+  async function enregistrerJaugeageOuverturePompiste(client, siteId, { date, employeeId, valeurs }) {
+    const M = global.NexusCarburantMoteur;
+    if (!M) { console.error('NexusCarburantMoteur non chargé — jaugeage pompiste impossible.'); return { ok: false, error: new Error('moteur carburant absent') }; }
+
+    const precedent = await chargerReleveDuJour(client, siteId, date);
+    const { versionNum, typeVersion } = M.prochaineVersionReleveCarburant(precedent);
+
+    const nouveauSnapshot = {
+      stock_reel_go_cuve1: valeurs.go_cuve1 != null ? Number(valeurs.go_cuve1) : (precedent ? precedent.stock_reel_go_cuve1 : null),
+      stock_reel_go_cuve2: valeurs.go_cuve2 != null ? Number(valeurs.go_cuve2) : (precedent ? precedent.stock_reel_go_cuve2 : null),
+      stock_reel_sp95: valeurs.sp95 != null ? Number(valeurs.sp95) : (precedent ? precedent.stock_reel_sp95 : null),
+      stock_reel_gnr: valeurs.gnr != null ? Number(valeurs.gnr) : (precedent ? precedent.stock_reel_gnr : null),
+      livraison_go: precedent ? precedent.livraison_go : 0,
+      livraison_sp95: precedent ? precedent.livraison_sp95 : 0,
+      livraison_gnr: precedent ? precedent.livraison_gnr : 0,
+      mouvement_go: precedent ? precedent.mouvement_go : 0,
+      mouvement_sp95: precedent ? precedent.mouvement_sp95 : 0,
+      mouvement_gnr: precedent ? precedent.mouvement_gnr : 0,
+      motif_mouvement: precedent ? precedent.motif_mouvement : null,
+      commentaire: precedent ? precedent.commentaire : null,
+    };
+
+    const diff = M.diffReleveCarburant(precedent, nouveauSnapshot);
+    if (precedent && !diff) return { ok: true, dejaAJour: true, releve: precedent };
+
+    const { error: eVersion } = await client.from('carburant_releve_versions').insert({
+      site: siteId, date, version_num: versionNum, type_version: typeVersion,
+      ...nouveauSnapshot,
+      // Un précédent existait déjà (cas rare : manager plus rapide que le
+      // pompiste, ou double-tentative) -> le moteur classe ceci comme
+      // 'correction_manager' (seules deux valeurs existent pour type_version,
+      // jamais une troisième inventée ici, Article 11) ; le motif reste
+      // honnête sur ce qui s'est réellement passé plutôt que de bloquer le
+      // pompiste avec un champ de motif qu'il ne devrait jamais voir.
+      motif_correction: typeVersion === 'correction_manager' ? 'Jaugeage terrain (pont Inventaire, pompiste Quart 1)' : null,
+      diff_vs_precedent: diff, auteur: employeeId, origine: 'terrain_pompiste',
+    });
+    if (eVersion && eVersion.code !== '23505') {
+      console.error('Preuve jaugeage pompiste (carburant_releve_versions):', eVersion);
+      return { ok: false, error: eVersion };
+    }
+
+    const ligne = {
+      site: siteId, date, version_num: versionNum, ...nouveauSnapshot,
+      saisi_par: employeeId, origine: 'terrain_pompiste',
+    };
+    const { data, error } = await client.from('carburant_releves')
+      .upsert(ligne, { onConflict: 'site,date' }).select().maybeSingle();
+    if (error) { console.error('Écriture jaugeage pompiste (carburant_releves):', error); return { ok: false, error }; }
+
+    // Marque le contrôle du jour "fait" — best-effort, non bloquant (Article
+    // 5) : si cette écriture secondaire échoue, le jaugeage réel est déjà en
+    // sécurité dans carburant_releves, seul l'indicateur de statut du jour
+    // manquerait, jamais la donnée elle-même.
+    const { error: eStatut } = await client.from('carburant_jaugeage_statuts_jour')
+      .upsert({ site: siteId, date, statut: 'fait', motif_impossible: null, declare_par: employeeId }, { onConflict: 'site,date' });
+    if (eStatut) console.error('Marquage statut jaugeage "fait" (non bloquant):', eStatut);
+
+    return { ok: true, dejaAJour: false, releve: data };
+  }
+
+  // Déclare le jaugeage du jour impossible (équipement inaccessible, panne
+  // Veeder-Root, etc.) — n'écrit JAMAIS de valeur dans carburant_releves
+  // (Article 5, jamais une fausse précision) : seul le statut du jour est
+  // posé, avec motif obligatoire, pour que le manager voie "non réalisé —
+  // provisoire" plutôt qu'un silence qui ressemblerait à un oubli.
+  async function enregistrerJaugeageImpossible(client, siteId, { date, employeeId, motif, commentaire }) {
+    const { data, error } = await client.from('carburant_jaugeage_statuts_jour')
+      .upsert({ site: siteId, date, statut: 'impossible', motif_impossible: motif, commentaire: commentaire || null, declare_par: employeeId }, { onConflict: 'site,date' })
+      .select().maybeSingle();
+    if (error) { console.error('Déclaration jaugeage impossible:', error); return { ok: false, error }; }
+    return { ok: true, statut: data };
+  }
+
   // Historique des relevés (14/08/2026, section "Historique" de Carburants
   // Pilotage) — reproduit, jour par jour sur une fenêtre récente, le même
   // calcul que chargerControleJour() (même règle d'ancrage : dernier relevé
@@ -793,6 +912,8 @@
     chargerCuvesConfig, chargerConsommationJournaliereMoyenne, CUVES_PAR_DEFAUT,
     chargerDerniereLivraison, chargerDernierPointZero, certifierPointZero,
     chargerHistoriquePointsZero, chargerHistoriqueReleves,
+    chargerReleveDuJour, chargerStatutJaugeageJour,
+    enregistrerJaugeageOuverturePompiste, enregistrerJaugeageImpossible,
     chargerDerniersControles, chargerVersionsControleCarburant,
     chargerHistoriqueControlesCarburant,
     chargerLivraisonsCouteesCarburant, chargerPrixCarburantsCourant, enregistrerCoutAchatLigne,

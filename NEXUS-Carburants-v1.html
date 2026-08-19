@@ -180,6 +180,11 @@
   let EST_AUJOURDHUI = true;
   let DERNIER_RELEVE = null;   // dernier relevé RÉEL avant DATE_CIBLE (ancre du calcul théorique)
   let RELEVE_CIBLE = null;     // relevé déjà enregistré pour DATE_CIBLE, si le manager revient corriger
+  // Pont Jaugeage carburant (19/08/2026) : nom d'affichage du pompiste
+  // quand RELEVE_CIBLE.origine === 'terrain_pompiste' — résolu une seule
+  // fois après le chargement de RELEVE_CIBLE (voir l'initialisation),
+  // jamais recalculé à chaque rendu.
+  let SAISI_PAR_NOM = null;
   let PROCHAIN_RELEVE = null;  // relevé RÉEL le plus proche APRÈS DATE_CIBLE (rattrapage seulement — jamais recalculé, juste informatif)
   let VENTES_DEPUIS = { go: null, sp95: null, gnr: null };
   // Point zéro carburants (14/08/2026, demande de Frédéric : "Créer un point
@@ -505,8 +510,18 @@
       : "Le litrage vendu et les employés du quart ne se saisissent jamais ici — ils viennent déjà de NEXUS Verify pour la période concernée. Cet écran ne capture que ce qui n'existe nulle part ailleurs.";
     const libelleBouton = libelleBoutonEnregistrer();
 
+    // Pont Jaugeage carburant (19/08/2026) — le manager n'a plus besoin de
+    // ressaisir les mêmes litres : les champs ci-dessus sont déjà
+    // pré-remplis (RELEVE_CIBLE vient de la même table carburant_releves,
+    // quelle que soit son origine) ; seule cette bannière est nouvelle,
+    // pour que la provenance reste visible avant toute correction.
+    const banniereProvenance = (RELEVE_CIBLE && RELEVE_CIBLE.origine === 'terrain_pompiste')
+      ? `<div class="ventes-banner" style="margin-bottom:12px;">⛽ Jaugeage d'ouverture saisi à ${new Date(RELEVE_CIBLE.created_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}${SAISI_PAR_NOM ? ` par ${SAISI_PAR_NOM}` : ''} — Source : terrain. Vous pouvez contrôler, corriger ou compléter ci-dessous.</div>`
+      : '';
+
     content.innerHTML = `
       ${banniereRattrapage}
+      ${banniereProvenance}
       <div class="note">${noteTxt}</div>
       <div class="desktop-grid">${blocs}</div>
       <div class="champ-label" style="margin-top:0;">Commentaire (optionnel)</div>
@@ -781,6 +796,12 @@
       motif_correction: typeVersion === 'correction_manager' ? motifCorrection : null,
       diff_vs_precedent: diff,
       auteur: MANAGER_COURANT.id,
+      // Pont Jaugeage carburant (19/08/2026) : toute écriture depuis CET
+      // écran est toujours d'origine 'manager', y compris une correction
+      // d'un relevé initialement saisi par le pompiste (RELEVE_CIBLE.origine
+      // n'est jamais recopié tel quel — la provenance doit refléter QUI a
+      // écrit CETTE version précise, pas la précédente).
+      origine: 'manager',
     });
     if (eVersion && eVersion.code !== '23505') {
       // 23505 = conflit d'unicité (site,date,version_num) — double clic ou
@@ -798,6 +819,12 @@
       site: SITE_ID, date: DATE_CIBLE, version_num: versionNum,
       ...nouveauSnapshot,
       saisi_par: MANAGER_COURANT.id,
+      // Même règle que la version ci-dessus : la vue courante reflète
+      // toujours l'origine de la DERNIÈRE écriture, jamais celle héritée
+      // d'une ligne antérieure (upsert ne touche que les colonnes fournies
+      // ici — sans ceci, une correction manager d'un jaugeage pompiste
+      // laisserait `origine` figé à 'terrain_pompiste').
+      origine: 'manager',
     };
 
     const { data, error } = await nexusClient.from('carburant_releves')
@@ -867,6 +894,15 @@
       EST_AUJOURDHUI ? Promise.resolve(null) : chargerProchainReleve(SITE_ID, DATE_CIBLE),
       chargerDernierPointZero(SITE_ID, DATE_CIBLE),
     ]);
+
+    // Pont Jaugeage carburant (19/08/2026) — provenance affichée au manager
+    // uniquement quand ce relevé vient du pompiste (jamais une requête pour
+    // une saisie manager classique, cas le plus fréquent).
+    if (RELEVE_CIBLE && RELEVE_CIBLE.origine === 'terrain_pompiste' && RELEVE_CIBLE.saisi_par) {
+      const { data: emp, error: eEmp } = await nexusClient.from('employees').select('nom').eq('id', RELEVE_CIBLE.saisi_par).maybeSingle();
+      if (eEmp) console.error('Résolution employé (provenance jaugeage):', eEmp);
+      SAISI_PAR_NOM = (emp && emp.nom) || null;
+    }
 
     // Point zéro (14/08/2026) : historique non fiable si DATE_CIBLE est
     // antérieure ou égale à sa date — la saisie reste possible (correction

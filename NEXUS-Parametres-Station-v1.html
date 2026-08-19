@@ -297,6 +297,38 @@
       <div class="toggle-etat" id="managerPointageEtat">Chargement…</div>
     </div>
 
+    <!-- ------------------------------------------------------------
+         Jaugeage carburant — pont Inventaire (19/08/2026, demande de
+         Frédéric : le pompiste du Quart 1 saisit le jaugeage physique
+         d'ouverture directement dans son parcours Inventaire, en une
+         seule fois — cette saisie alimente automatiquement le Relevé du
+         jour de NEXUS-Carburants-v1.html et NEXUS-Carburants-Pilotage-v1.
+         html, sans double saisie manager). station_config.jaugeage_
+         carburant_actif, défaut FALSE (voir migration-pont-jaugeage-
+         carburant-inventaire-v1.sql) : rien ne change tant que ce
+         réglage n'est pas activé ici — le manager continue de saisir
+         seul comme avant. Visible UNIQUEMENT au pompiste du Quart 1 une
+         fois activé (voir NEXUS-Inventaire-v1.html::chargerJaugeage
+         CarburantActif) ; jamais au Quart 2, jamais grisé si non
+         applicable — l'entrée n'existe simplement pas (cf. spec :
+         "cela ajouterait du bruit inutile").
+         ------------------------------------------------------------ -->
+    <div class="card" id="cardJaugeageCarburantActif">
+      <div class="section-label">Jaugeage carburant — pont Inventaire</div>
+      <div class="toggle-row">
+        <div class="tr-text">
+          <div class="tr-title">Le pompiste du Quart 1 saisit le jaugeage d'ouverture depuis Inventaire</div>
+          <div class="tr-desc">Une seule saisie : le pompiste entre les valeurs physiques (SP95, GO, GNR) au début de son quart, et Carburants Pilotage les récupère automatiquement. Le manager garde la main pour contrôler ou corriger. Si désactivé (par défaut), rien ne change — le manager saisit seul sur Carburants comme avant.</div>
+        </div>
+        <label class="toggle-switch">
+          <input type="checkbox" id="jaugeageCarburantActif">
+          <span class="toggle-track"></span>
+          <span class="toggle-thumb"></span>
+        </label>
+      </div>
+      <div class="toggle-etat" id="jaugeageCarburantActifEtat">Chargement…</div>
+    </div>
+
     <div class="card" id="cardPrixCarburants">
       <div class="section-label">Prix carburants — mois en cours</div>
       <div class="note">Indexés par la préfecture de Martinique, ces prix ne changent qu'au 1ᵉʳ de chaque mois. Ils servent à calculer le montant de la remise en cuve dans Nexus Verify à partir du litrage saisi.</div>
@@ -749,6 +781,53 @@
       return;
     }
     majEtatPointageManager(actif);
+  });
+
+  // ------------------------------------------------------------
+  // Jaugeage carburant — pont Inventaire (19/08/2026) — station_config.
+  // jaugeage_carburant_actif, booléen par site, DÉFAUT FALSE (voir
+  // migration-pont-jaugeage-carburant-inventaire-v1.sql). Quand actif,
+  // NEXUS-Inventaire-v1.html affiche le bloc "Jaugeage carburants —
+  // ouverture" au pompiste du Quart 1 uniquement (jamais au Quart 2, cf.
+  // chargerJaugeageCarburantActif côté Inventaire) et sa saisie écrit
+  // directement dans le domaine Carburants (nexus-carburant-donnees.js::
+  // enregistrerJaugeageOuverturePompiste) — jamais dans les tables
+  // Inventaire (Article 11 : une seule vérité).
+  // ------------------------------------------------------------
+  async function chargerJaugeageCarburantActif() {
+    const { data, error } = await nexusClient.from('station_config').select('jaugeage_carburant_actif').eq('site', employee.site_id).maybeSingle();
+    if (error) { console.error('Chargement jaugeage_carburant_actif:', error); return false; }
+    return !!(data && data.jaugeage_carburant_actif);
+  }
+
+  function majEtatJaugeageCarburantActif(actif) {
+    const etat = document.getElementById('jaugeageCarburantActifEtat');
+    etat.innerHTML = actif
+      ? 'Actif — le pompiste du Quart 1 voit le bloc "Jaugeage carburants — ouverture" dans Inventaire, et sa saisie alimente automatiquement le Relevé du jour.'
+      : 'Inactif (par défaut) — le manager continue de saisir seul le relevé d\'ouverture sur Carburants, comme avant.';
+  }
+
+  (async function initJaugeageCarburantActif() {
+    const actif = await chargerJaugeageCarburantActif();
+    document.getElementById('jaugeageCarburantActif').checked = actif;
+    majEtatJaugeageCarburantActif(actif);
+  })();
+
+  document.getElementById('jaugeageCarburantActif').addEventListener('change', async (e) => {
+    const actif = e.target.checked;
+    e.target.disabled = true;
+    const { error } = await nexusClient.from('station_config').upsert(
+      { site: employee.site_id, jaugeage_carburant_actif: actif, horaires: CONFIG_HORAIRES_ACTUEL, updated_at: new Date().toISOString() },
+      { onConflict: 'site' }
+    );
+    e.target.disabled = false;
+    if (error) {
+      console.error('Enregistrement jaugeage_carburant_actif:', error);
+      alert('Erreur — réessayez.');
+      e.target.checked = !actif; // annule visuellement, l'ecriture a echoue
+      return;
+    }
+    majEtatJaugeageCarburantActif(actif);
   });
 
   // ------------------------------------------------------------

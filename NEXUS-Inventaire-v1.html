@@ -22,6 +22,8 @@
 <script src="nexus-inventaire-moteur.js"></script>
 <script src="nexus-inventaire-plan-donnees.js"></script>
 <script src="nexus-inventaire-production-donnees.js"></script>
+<script src="nexus-carburant-moteur.js"></script>
+<script src="nexus-carburant-donnees.js"></script>
 <style>
   :root{
     --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
@@ -306,6 +308,17 @@
   let dernierStock = {};         // produit_id -> { quantite, comptage_id } | null
   let modesAveugle = [];         // règles inventaire_modes_controle actives (mode='aveugle')
   let modeJaugeageActif = false; // inventaire_modes_controle actif (mode='jaugeage_actif') — voir chargerModeJaugeageActif()
+  // Pont Jaugeage carburant → Carburants (19/08/2026, demande de Frédéric) —
+  // NE PAS confondre avec modeJaugeageActif ci-dessus (catégorie produit
+  // "Jaugeage Carburant" comptée dans inventaire_comptages, mécanisme
+  // différent et non touché ici). jaugeageCarburantActif = station_config.
+  // jaugeage_carburant_actif ; statutJaugeageJour = carburant_jaugeage_
+  // statuts_jour du jour (null tant que rien n'a été fait). Résolus une
+  // seule fois au bootstrap, uniquement quand quart=matin et rôle=pompiste
+  // (voir l'initialisation en bas de fichier) — jamais interrogés pour les
+  // autres employés/quarts.
+  let jaugeageCarburantActif = false;
+  let statutJaugeageJour = null;
   // Inventaire 2.0 P0 (17/08/2026, Sprint 1+2 — "NEXUS décide quoi
   // compter"). planQuartActif = { plan, items } tel que retourné par
   // NexusInventairePlanDonnees.chargerOuGenererPlan — persisté une seule
@@ -933,6 +946,17 @@
     return !!data;
   }
 
+  // Pont Jaugeage carburant (19/08/2026) — même style que chargerModeJaugeageActif
+  // ci-dessus mais lit station_config (feature flag du pont), pas
+  // inventaire_modes_controle (mécanisme différent, non touché).
+  async function chargerJaugeageCarburantActif() {
+    const site = employeeCourant.site_id;
+    const { data, error } = await nexusClient
+      .from('station_config').select('jaugeage_carburant_actif').eq('site', site).maybeSingle();
+    if (error) { console.error('Chargement jaugeage_carburant_actif:', error); return false; }
+    return !!(data && data.jaugeage_carburant_actif);
+  }
+
   // Recommandations de préparation (18/08/2026, M2 — cahier §4) : une par
   // produit à profil production_journaliere, uniquement au quart matin (Q1
   // est le seul moment où la question "combien préparer aujourd'hui" a un
@@ -1122,6 +1146,7 @@
     document.getElementById('content').innerHTML = `
       ${renderQuartVisuel()}
       ${zonesAutorisees.length > 1 ? `<div class="etat-banner">Zone suivie actuellement : <b>${zoneActive === 'piste' ? 'Piste' : 'Boutique'}</b>. <span id="lienChangerZone" style="color:var(--cyan); cursor:pointer;">Changer</span></div>` : ''}
+      ${renderBlocJaugeageCarburant()}
       <div class="choix-grid">
         <div class="choix-card ${clotureFaite ? 'disabled' : ''}" id="carteOuverture">
           <div class="choix-icone ouverture">🟢</div>
@@ -1169,6 +1194,187 @@
     if (carteMouvementRapide) carteMouvementRapide.addEventListener('click', demarrerAjoutMouvementRapide);
     const carteReceptionRapide = document.getElementById('carteReceptionRapide');
     if (carteReceptionRapide) carteReceptionRapide.addEventListener('click', demarrerReceptionRapide);
+    const carteJaugeage = document.getElementById('carteJaugeageCarburant');
+    if (carteJaugeage) carteJaugeage.addEventListener('click', demarrerJaugeageOuverture);
+    const lienVoirReleveJaugeage = document.getElementById('lienVoirReleveJaugeage');
+    if (lienVoirReleveJaugeage) lienVoirReleveJaugeage.addEventListener('click', toggleDetailReleveJaugeage);
+  }
+
+  // ------------------------------------------------------------
+  // PONT JAUGEAGE CARBURANT → CARBURANTS (19/08/2026, demande de Frédéric,
+  // §"Je ferais exactement ce parcours"). Le pompiste du Quart 1 saisit le
+  // jaugeage physique d'ouverture directement ici ; Inventaire DÉCLENCHE
+  // l'action mais écrit dans le domaine Carburants (carburant_releves via
+  // nexus-carburant-donnees.js::enregistrerJaugeageOuverturePompiste),
+  // jamais dans ses propres tables (Article 11 — une seule vérité). Visible
+  // uniquement si les 3 conditions sont réunies (quart matin, rôle pompiste,
+  // flag site actif) — résolues une fois au bootstrap, voir plus bas.
+  // Sur le Quart 2, ce bloc n'existe même pas (jaugeageCarburantActif reste
+  // à false, jamais évalué) : pas de bouton grisé, pas de bruit inutile.
+  // ------------------------------------------------------------
+  function libelleMotifImpossible(motif) {
+    return {
+      equipement_indisponible: 'équipement indisponible',
+      acces_impossible: 'accès impossible',
+      autre: 'autre motif',
+    }[motif] || motif;
+  }
+
+  function renderBlocJaugeageCarburant() {
+    if (!jaugeageCarburantActif) return '';
+    if (statutJaugeageJour && statutJaugeageJour.statut === 'fait') {
+      const heure = new Date(statutJaugeageJour.cree_le).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+      return `
+        <div class="choix-grid" style="margin-bottom:10px;">
+          <div class="choix-card fait" style="cursor:default;">
+            <div class="choix-icone" style="background:#0b4a2e;">⛽</div>
+            <div style="flex:1;">
+              <div class="choix-titre">Jaugeage carburants</div>
+              <div class="choix-statut fait">✅ Effectué à ${heure}</div>
+              <div id="detailReleveJaugeage" style="display:none; margin-top:6px; font-size:12.5px; color:var(--text-mid);"></div>
+              <span id="lienVoirReleveJaugeage" style="color:var(--cyan); cursor:pointer; font-size:12.5px;">Voir le relevé</span>
+            </div>
+          </div>
+        </div>`;
+    }
+    if (statutJaugeageJour && statutJaugeageJour.statut === 'impossible') {
+      return `
+        <div class="choix-grid" style="margin-bottom:10px;">
+          <div class="choix-card" style="cursor:default; opacity:0.85;">
+            <div class="choix-icone" style="background:#4a2e0b;">⚠️</div>
+            <div style="flex:1;">
+              <div class="choix-titre">Jaugeage carburants</div>
+              <div class="choix-sub">Signalé impossible aujourd'hui (${libelleMotifImpossible(statutJaugeageJour.motif_impossible)}). Le contrôle carburant du jour reste provisoire.</div>
+            </div>
+          </div>
+        </div>`;
+    }
+    return `
+      <div class="choix-grid" style="margin-bottom:10px;">
+        <div class="choix-card" id="carteJaugeageCarburant">
+          <div class="choix-icone" style="background:#5a3d0b;">⛽</div>
+          <div style="flex:1;">
+            <div class="choix-titre">Jaugeage carburants — ouverture</div>
+            <div class="choix-sub">À effectuer avant le début des ventes — SP95 · GO · GNR</div>
+            <div class="choix-statut attente">À faire</div>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  async function toggleDetailReleveJaugeage(e) {
+    e.stopPropagation();
+    const zone = document.getElementById('detailReleveJaugeage');
+    if (!zone) return;
+    if (zone.style.display !== 'none') { zone.style.display = 'none'; return; }
+    zone.style.display = 'block';
+    zone.textContent = 'Chargement…';
+    const releve = await NexusCarburantDonnees.chargerReleveDuJour(nexusClient, employeeCourant.site_id, dateISO());
+    if (!releve) { zone.textContent = 'Relevé introuvable.'; return; }
+    const lignes = [
+      releve.stock_reel_sp95 != null ? `SP95 : ${fmtNum(releve.stock_reel_sp95)} L` : null,
+      releve.stock_reel_go_cuve1 != null ? `GO cuve 1 : ${fmtNum(releve.stock_reel_go_cuve1)} L` : null,
+      releve.stock_reel_go_cuve2 != null ? `GO cuve 2 : ${fmtNum(releve.stock_reel_go_cuve2)} L` : null,
+      releve.stock_reel_gnr != null ? `GNR : ${fmtNum(releve.stock_reel_gnr)} L` : null,
+    ].filter(Boolean);
+    zone.textContent = lignes.join(' · ');
+  }
+
+  async function demarrerJaugeageOuverture() {
+    document.getElementById('content').innerHTML = '<div class="loading">Chargement…</div>';
+    const { config } = await NexusCarburantDonnees.chargerCuvesConfig(nexusClient, employeeCourant.site_id);
+    renderJaugeageOuverture(config);
+  }
+
+  function renderJaugeageOuverture(cuvesConfig) {
+    document.getElementById('titre').textContent = 'Jaugeage carburants — ouverture';
+    document.getElementById('sousTitre').textContent = 'Valeurs physiques lues sur la jauge, avant le début des ventes.';
+
+    const goCuves = (cuvesConfig.go && cuvesConfig.go.actif !== false) ? (cuvesConfig.go.cuves || []) : [];
+    const sp95Actif = cuvesConfig.sp95 && cuvesConfig.sp95.actif !== false;
+    const gnrActif = cuvesConfig.gnr && cuvesConfig.gnr.actif !== false;
+
+    const champGo = goCuves.map((c, i) => `
+      <div class="champ-label">${cuvesConfig.go.label || 'Gasoil (GO)'} — ${c.label || `Cuve ${i + 1}`}</div>
+      <input type="number" inputmode="decimal" class="produit-input" id="jg_go_cuve${i + 1}" placeholder="0" style="width:100%; margin-bottom:10px; text-align:left;">
+    `).join('');
+
+    document.getElementById('content').innerHTML = `
+      <div class="mouv-card">
+        ${sp95Actif ? `
+        <div class="champ-label">${cuvesConfig.sp95.label || 'Sans plomb (SP95)'}</div>
+        <input type="number" inputmode="decimal" class="produit-input" id="jg_sp95" placeholder="0" style="width:100%; margin-bottom:10px; text-align:left;">` : ''}
+        ${champGo}
+        ${gnrActif ? `
+        <div class="champ-label">${cuvesConfig.gnr.label || 'Gasoil non routier (GNR)'}</div>
+        <input type="number" inputmode="decimal" class="produit-input" id="jg_gnr" placeholder="0" style="width:100%; margin-bottom:10px; text-align:left;">` : ''}
+        <button class="btn-primary" id="btnJgValider">Valider le jaugeage d'ouverture</button>
+        <button class="btn-text" id="btnJgImpossible" style="margin-top:6px;">Je ne peux pas faire le jaugeage</button>
+        <div class="mouv-liste" id="jgConfirmation"></div>
+      </div>
+      <button class="btn-text" id="btnJgRetour">← Retour</button>
+    `;
+
+    document.getElementById('btnJgRetour').addEventListener('click', renderAccueil);
+
+    document.getElementById('btnJgValider').addEventListener('click', async () => {
+      const lire = id => { const el = document.getElementById(id); if (!el || el.value === '') return null; return parseFloat(el.value); };
+      const valeurs = {
+        sp95: sp95Actif ? lire('jg_sp95') : null,
+        go_cuve1: goCuves[0] ? lire('jg_go_cuve1') : null,
+        go_cuve2: goCuves[1] ? lire('jg_go_cuve2') : null,
+        gnr: gnrActif ? lire('jg_gnr') : null,
+      };
+      const auMoinsUne = Object.values(valeurs).some(v => v != null && !isNaN(v));
+      if (!auMoinsUne) { alert('Saisissez au moins une valeur de jaugeage.'); return; }
+
+      const btn = document.getElementById('btnJgValider');
+      btn.disabled = true;
+      btn.textContent = 'Enregistrement…';
+      const resultat = await NexusCarburantDonnees.enregistrerJaugeageOuverturePompiste(nexusClient, employeeCourant.site_id, {
+        date: dateISO(), employeeId: employeeCourant.id, valeurs,
+      });
+      if (!resultat.ok) {
+        btn.disabled = false;
+        btn.textContent = "Valider le jaugeage d'ouverture";
+        alert("Erreur d'enregistrement — réessayez. Si le problème persiste, utilisez \"Je ne peux pas faire le jaugeage\".");
+        return;
+      }
+      statutJaugeageJour = { statut: 'fait', cree_le: new Date().toISOString(), motif_impossible: null };
+      renderAccueil();
+    });
+
+    document.getElementById('btnJgImpossible').addEventListener('click', renderJaugeageImpossible);
+  }
+
+  function renderJaugeageImpossible() {
+    document.getElementById('titre').textContent = 'Jaugeage impossible';
+    document.getElementById('sousTitre').textContent = "Le contrôle carburant du jour restera provisoire jusqu'au prochain relevé.";
+    document.getElementById('content').innerHTML = `
+      <div class="mouv-card">
+        <select class="mouv-select" id="jgMotif" style="width:100%; margin-bottom:8px;">
+          <option value="equipement_indisponible">Équipement indisponible</option>
+          <option value="acces_impossible">Accès impossible</option>
+          <option value="autre">Autre</option>
+        </select>
+        <textarea class="mouv-justif" id="jgCommentaire" rows="2" placeholder="Précision (facultatif)" style="width:100%;"></textarea>
+        <button class="btn-primary" id="btnJgConfirmerImpossible" style="margin-top:8px;">Confirmer</button>
+      </div>
+      <button class="btn-text" id="btnJgRetourImpossible">← Retour</button>
+    `;
+    document.getElementById('btnJgRetourImpossible').addEventListener('click', () => demarrerJaugeageOuverture());
+    document.getElementById('btnJgConfirmerImpossible').addEventListener('click', async () => {
+      const motif = document.getElementById('jgMotif').value;
+      const commentaire = document.getElementById('jgCommentaire').value.trim();
+      const btn = document.getElementById('btnJgConfirmerImpossible');
+      btn.disabled = true;
+      const resultat = await NexusCarburantDonnees.enregistrerJaugeageImpossible(nexusClient, employeeCourant.site_id, {
+        date: dateISO(), employeeId: employeeCourant.id, motif, commentaire,
+      });
+      if (!resultat.ok) { btn.disabled = false; alert('Erreur — réessayez.'); return; }
+      statutJaugeageJour = { statut: 'impossible', motif_impossible: motif, cree_le: new Date().toISOString() };
+      renderAccueil();
+    });
   }
 
   function renderChoixZone() {
@@ -3311,6 +3517,19 @@
     demarrerHorloge();
     quartActuel = await quartDuMoment(employee.site_id);
     roleDuJour = await chargerRoleDuJour();
+
+    // Pont Jaugeage carburant (19/08/2026) — les trois conditions (quart,
+    // rôle, employé) sont déjà connues à cet instant précis, sans requête
+    // supplémentaire (Frédéric : le pompiste du Quart 1 voit ce bloc "avant
+    // le parcours normal"). Résolu ici une seule fois, jamais recalculé au
+    // fil des re-rendus de renderAccueil.
+    if (quartActuel === 'matin' && roleDuJour === 'pompiste') {
+      jaugeageCarburantActif = await chargerJaugeageCarburantActif();
+      if (jaugeageCarburantActif && typeof NexusCarburantDonnees !== 'undefined') {
+        statutJaugeageJour = await NexusCarburantDonnees.chargerStatutJaugeageJour(nexusClient, employee.site_id, dateISO());
+      }
+    }
+
     zonesAutorisees = zonesPourRole(roleDuJour);
     zoneActive = zonesAutorisees[0];
 

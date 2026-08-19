@@ -82,6 +82,7 @@
   .relever-statut.a-completer{color:var(--amber);}
   .relever-statut.non-saisi{color:var(--text-dim);}
   .relever-statut.saisi{color:var(--green);}
+  .relever-statut.non-realise{color:var(--red);}
 
   /* Sélecteur de période */
   .periode-bar{display:flex; align-items:center; gap:6px; flex-wrap:wrap; padding:0 20px 14px;}
@@ -884,7 +885,7 @@
   // période sélectionnée (toujours "aujourd'hui"), chargé une seule fois.
   // ------------------------------------------------------------
   async function chargerControleEtAutonomie() {
-    const [{ config }, controle, consoMoyenne, derniersControles] = await Promise.all([
+    const [{ config }, controle, consoMoyenne, derniersControles, statutJaugeageJour] = await Promise.all([
       NexusCarburantDonnees.chargerCuvesConfig(nexusClient, SITE_ID),
       NexusCarburantDonnees.chargerControleJour(nexusClient, SITE_ID, todayISO()),
       NexusCarburantDonnees.chargerConsommationJournaliereMoyenne(nexusClient, SITE_ID, todayISO()),
@@ -892,6 +893,10 @@
       // preuve déjà posée dans carburant_controles, jamais une deuxième
       // dérivation de la qualité de chaîne côté écran (Article 11).
       NexusCarburantDonnees.chargerDerniersControles(nexusClient, SITE_ID, todayISO()),
+      // Pont Jaugeage carburant (19/08/2026) : distingue "pas encore fait"
+      // de "signalé impossible" (motif) — sans ceci, renderStatutReleveDuJour
+      // confondait les deux dans le même "Non saisi" générique.
+      NexusCarburantDonnees.chargerStatutJaugeageJour(nexusClient, SITE_ID, todayISO()),
     ]);
     CUVES_CONFIG = config;
     const autonomiesParCarburant = {};
@@ -901,7 +906,7 @@
         autonomiesParCarburant[cle] = NexusCarburantMoteur.calculerAutonomieJours(stock, consoMoyenne[cle]);
       });
     }
-    return { ...controle, cuvesConfig: config, autonomiesParCarburant, derniersControles };
+    return { ...controle, cuvesConfig: config, autonomiesParCarburant, derniersControles, statutJaugeageJour };
   }
 
   // ------------------------------------------------------------
@@ -1075,9 +1080,25 @@
   // "À compléter" si la ligne existe mais qu'un carburant actif n'a pas
   // de stock réel saisi ce jour, "Saisi à HH:MM" sinon (created_at de la
   // ligne), "Non saisi" si aucune ligne n'existe encore pour aujourd'hui.
+  const LIBELLE_MOTIF_JAUGEAGE_IMPOSSIBLE = {
+    equipement_indisponible: 'équipement indisponible',
+    acces_impossible: 'accès impossible',
+    autre: 'motif non précisé',
+  };
+
   function renderStatutReleveDuJour(ctx) {
     const el = document.getElementById('releveStatutJour');
     if (!el) return;
+    // Pont Jaugeage carburant (19/08/2026) : "signalé impossible" par le
+    // pompiste (motif tracé dans carburant_jaugeage_statuts_jour) est un
+    // état distinct de "Non saisi" — le contrôle du jour est provisoire,
+    // pas juste "pas encore fait".
+    if (ctx && ctx.statutJaugeageJour && ctx.statutJaugeageJour.statut === 'impossible' && (!ctx.releveDuJour || ctx.aucunReleve)) {
+      const motifTxt = LIBELLE_MOTIF_JAUGEAGE_IMPOSSIBLE[ctx.statutJaugeageJour.motif_impossible] || 'motif non précisé';
+      el.textContent = `Non réalisé (${motifTxt}) — provisoire`;
+      el.className = 'relever-statut non-realise';
+      return;
+    }
     if (!ctx || ctx.aucunReleve || !ctx.releveDuJour) {
       el.textContent = 'Non saisi';
       el.className = 'relever-statut non-saisi';
