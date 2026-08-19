@@ -212,10 +212,54 @@
     return produits || [];
   }
 
+  // ------------------------------------------------------------
+  // M8 — Analyse : conseillé vs préparé vs écoulé (fondations, 19/08/2026).
+  // Assemble, pour chaque jour d'une période, le conseillé (M2, relu tel
+  // quel dans inventaire_production_recommendations — jamais recalculé
+  // après coup, §4.3) et le préparé/écoulé (M5/M7, chargerHistorique
+  // ProductionProduit) puis fait qualifier l'écart par le moteur partagé
+  // (analyserJourneeProduction, Article 11 — aucune classification ici).
+  // Une requête par jour (chargerHistoriqueProductionProduit) : acceptable
+  // pour ces fondations, pas encore optimisé en une seule requête groupée
+  // — à revoir si Frédéric demande un écran plein sur de longues périodes.
+  // ------------------------------------------------------------
+  function* datesEntre(dateDebutISO, dateFinISO) {
+    let d = new Date(dateDebutISO + 'T00:00:00Z');
+    const fin = new Date(dateFinISO + 'T00:00:00Z');
+    while (d.getTime() <= fin.getTime()) {
+      yield d.toISOString().slice(0, 10);
+      d = new Date(d.getTime() + 86400000);
+    }
+  }
+
+  async function chargerAnalyseConseillePrepareEcoule(client, site, produitId, dateDebutISO, dateFinISO) {
+    const M = global.NexusInventaireMoteur;
+    if (!M) { console.error('NexusInventaireMoteur non chargé — analyse conseillé/préparé/écoulé impossible.'); return null; }
+
+    const { data: recommandations, error: eRec } = await client.from('inventaire_production_recommendations')
+      .select('date, quantite_conseillee').eq('site', site).eq('produit_id', produitId).eq('quart', 'matin')
+      .gte('date', dateDebutISO).lte('date', dateFinISO);
+    if (eRec) console.error('Chargement recommandations (analyse M8):', eRec);
+    const conseilleParDate = {};
+    (recommandations || []).forEach(r => { conseilleParDate[r.date] = r.quantite_conseillee; });
+
+    const lignes = [];
+    for (const date of datesEntre(dateDebutISO, dateFinISO)) {
+      const histo = await chargerHistoriqueProductionProduit(client, site, produitId, date);
+      const conseille = conseilleParDate[date] != null ? conseilleParDate[date] : null;
+      const prepare = (histo && histo.synthese) ? histo.synthese.productionTotale : null;
+      const ecoule = (histo && histo.synthese) ? histo.synthese.ecoulementJournee : null;
+      const analyse = M.analyserJourneeProduction({ conseille, prepare, ecoule });
+      lignes.push({ date, conseille, prepare, ecoule, preparation: analyse.preparation, ecoulement: analyse.ecoulement });
+    }
+
+    return { lignes, synthese: M.syntheseAnalysePeriode(lignes) };
+  }
+
   global.NexusInventaireProductionDonnees = {
     obtenirOuCalculerRecommandation,
     enregistrerMouvement, enregistrerNouvelleFournee, enregistrerReceptionMarchandise, enregistrerPreparationInitiale,
     dernierComptageParType, dernierMouvementParType, chargerMouvementProductionInitialeActuel, chargerHistoriqueProductionProduit,
-    chargerProduitsProfilProductionJournaliere,
+    chargerProduitsProfilProductionJournaliere, chargerAnalyseConseillePrepareEcoule,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -563,6 +563,95 @@
   }
 
   // ============================================================
+  // M8 — Analyse : conseillé vs préparé vs écoulé (fondations, 19/08/2026).
+  // Compare ce que NEXUS a recommandé (M2, calculerRecommandationPreparation)
+  // à ce qui a réellement été préparé et écoulé (M5/M7, syntheseProduction
+  // Journee) — fondations seulement : classification pure à partir de
+  // valeurs déjà calculées ailleurs, jamais un second calcul du conseillé,
+  // du préparé ou de l'écoulé ici (Article 11). Écran manager dédié laissé
+  // pour un sprint ultérieur si Frédéric le demande ; ce sprint pose le
+  // moteur de comparaison + son chargeur (nexus-inventaire-production-
+  // donnees.js::chargerAnalyseConseillePrepareEcoule).
+  // ============================================================
+
+  // Tolérance par défaut : un écart de préparation dans cette fourchette
+  // (±15% du conseillé, ou ±1 unité si le conseillé est petit/nul) est
+  // considéré "conforme" — jamais un seuil à 0% qui signalerait en rouge
+  // la moindre variation normale (pâte qui lève différemment, etc.).
+  const TOLERANCE_ECART_PREPARATION_RATIO = 0.15;
+  const TOLERANCE_ECART_PREPARATION_MIN = 1;
+
+  // Seuil "reste notable" : au-delà de 20% du préparé non écoulé, le
+  // produit mérite un signalement (surproduction récurrente, ou casse/
+  // périmé non tracés) — sous ce seuil, un reste résiduel est normal et
+  // attendu (une préparation pile-poil sans aucune marge serait suspecte).
+  const SEUIL_RESTE_NOTABLE_RATIO = 0.20;
+
+  function toleranceEcartPreparation(conseille) {
+    if (conseille === null || conseille === undefined) return TOLERANCE_ECART_PREPARATION_MIN;
+    return Math.max(TOLERANCE_ECART_PREPARATION_MIN, Math.abs(conseille) * TOLERANCE_ECART_PREPARATION_RATIO);
+  }
+
+  // Compare le conseillé (M2) au préparé réel (M5/M7) pour UNE journée (un
+  // produit, une date). Une valeur manquante -> statut dédié, jamais un
+  // écart inventé (Article 5).
+  function analyserPreparationVsConseil({ conseille, prepare }) {
+    if (conseille === null || conseille === undefined) return { ecart: null, ecartRatio: null, statut: 'sans_recommandation' };
+    if (prepare === null || prepare === undefined) return { ecart: null, ecartRatio: null, statut: 'preparation_inconnue' };
+    const ecart = prepare - conseille;
+    const ecartRatio = conseille !== 0 ? ecart / conseille : (ecart === 0 ? 0 : null);
+    const tolerance = toleranceEcartPreparation(conseille);
+    let statut;
+    if (Math.abs(ecart) <= tolerance) statut = 'conforme';
+    else if (ecart > 0) statut = 'sur_preparation';
+    else statut = 'sous_preparation';
+    return { ecart, ecartRatio, statut };
+  }
+
+  // Compare le préparé à l'écoulé (M5/M7) — le "reste non écoulé", jamais
+  // qualifié de "perte" : une part peut être légitimement transmise/vendue
+  // plus tard, ce moteur ne tranche jamais entre les deux sans donnée de
+  // transmission (Article 5, ne jamais fabriquer une conclusion non prouvée).
+  function analyserEcoulementVsPreparation({ prepare, ecoule }) {
+    if (prepare === null || prepare === undefined) return { reste: null, resteRatio: null, statut: 'sans_donnee' };
+    if (ecoule === null || ecoule === undefined) return { reste: null, resteRatio: null, statut: 'ecoulement_inconnu' };
+    const reste = prepare - ecoule;
+    const resteRatio = prepare !== 0 ? reste / prepare : (reste === 0 ? 0 : null);
+    const statut = (resteRatio !== null && resteRatio > SEUIL_RESTE_NOTABLE_RATIO) ? 'reste_notable' : 'ecoule';
+    return { reste, resteRatio, statut };
+  }
+
+  // Assemble les deux comparaisons pour une journée — une seule fonction
+  // publique consommée par la colle Supabase, jamais deux appels dupliqués
+  // côté appelant.
+  function analyserJourneeProduction({ conseille, prepare, ecoule }) {
+    return {
+      preparation: analyserPreparationVsConseil({ conseille, prepare }),
+      ecoulement: analyserEcoulementVsPreparation({ prepare, ecoule }),
+    };
+  }
+
+  // Synthèse sur une période (plusieurs journées, un produit) : compte les
+  // jours conformes/sur-préparés/sous-préparés et l'écart moyen — UNIQUEMENT
+  // sur les jours réellement comparables (ni "sans_recommandation" ni
+  // "preparation_inconnue"), jamais une moyenne polluée par des jours sans
+  // donnée.
+  function syntheseAnalysePeriode(lignes) {
+    const comparables = (lignes || []).filter(l => l.preparation && l.preparation.statut !== 'sans_recommandation' && l.preparation.statut !== 'preparation_inconnue');
+    const nbConforme = comparables.filter(l => l.preparation.statut === 'conforme').length;
+    const nbSurPreparation = comparables.filter(l => l.preparation.statut === 'sur_preparation').length;
+    const nbSousPreparation = comparables.filter(l => l.preparation.statut === 'sous_preparation').length;
+    const nbResteNotable = (lignes || []).filter(l => l.ecoulement && l.ecoulement.statut === 'reste_notable').length;
+    const ecartMoyen = comparables.length
+      ? comparables.reduce((s, l) => s + Math.abs(l.preparation.ecart), 0) / comparables.length
+      : null;
+    return {
+      nbJours: (lignes || []).length, nbJoursComparables: comparables.length,
+      nbConforme, nbSurPreparation, nbSousPreparation, nbResteNotable, ecartMoyen,
+    };
+  }
+
+  // ============================================================
   // Mouvements — M3/M8 : registre unique des types (§8, §8.1, §11.1). Avant
   // ce lot, NEXUS-Inventaire-Manager-v1.html gardait sa propre liste
   // (TYPES_MOUVEMENT_MANAGER) avec des valeurs absentes du CHECK réel de
@@ -626,6 +715,7 @@
     resteDepasseSeuilSurveillance,
     sommeMouvementsProduction, disponibleQuartProduction, ecoulementQuartProduction,
     syntheseProductionJournee,
+    analyserPreparationVsConseil, analyserEcoulementVsPreparation, analyserJourneeProduction, syntheseAnalysePeriode,
     TYPES_MOUVEMENT, infoTypeMouvement, libelleTypeMouvement, mouvementImpacteStockGlobal,
     ACTIONS_MOUVEMENT_PAR_PROFIL, actionsMouvementPourProfil,
   };
