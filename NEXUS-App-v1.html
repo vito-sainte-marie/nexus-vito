@@ -270,6 +270,88 @@
   .pointage-mini-btn.couleur-reception{background:var(--amber);}
   .pointage-mini.termine{background:var(--green-dim); border-color:rgba(52,211,153,0.3);}
   .pointage-mini.termine .pointage-mini-texte{color:var(--green);}
+
+  /* ============================================================
+     Refonte accueil employé "Apple-like" (20/08/2026, demande de
+     Frédéric — pack d'icônes NEXUS fourni le même jour) : hiérarchie
+     plus claire (accueil concis → progression du service → prochaine
+     action → outils du quart → progression → recherche), moins de blocs
+     visuellement équivalents. L'avatar Coach (assets/nexus-avatar.png)
+     et le logo NEXUS restent inchangés — seules les icônes du pack
+     (assets/icons/icon-*.png) habillent les nouveaux éléments. Palette
+     adoucie : le cyan reste réservé à l'action principale, l'ambre/le
+     rouge du bouton "Prochaine action" restent des signaux d'état réels
+     (pointage), jamais une couleur secondaire répétée sur plusieurs
+     cartes en même temps (un seul bouton coloré visible à la fois).
+     Toutes les données affichées ici (statut, %, tuiles) sont réelles —
+     jamais un chiffre inventé (Article 5) : voir calculerProgressionService,
+     determinerProchaineActionEmploye et choisirTuilesOutilsQuart plus bas
+     dans le script pour le détail des sources.
+     ============================================================ */
+  .conseiller-sparkle{width:13px; height:13px; vertical-align:middle; margin-left:4px; opacity:0.85;}
+  .conseiller-statut-ligne{font-family:var(--mono); font-size:10.5px; color:var(--text-mid); margin-top:1px;}
+
+  .service-progress{margin:14px 20px 0; padding:16px 18px; border-radius:var(--r-md); background:var(--panel); border:1px solid var(--hairline);}
+  .service-progress-head{display:flex; align-items:baseline; justify-content:space-between; margin-bottom:10px;}
+  .service-progress-titre{font-family:var(--mono); font-size:10.5px; letter-spacing:0.06em; text-transform:uppercase; color:var(--text-dim);}
+  .service-progress-pct{font-family:var(--mono); font-size:13px; font-weight:700; color:var(--cyan);}
+  .service-progress-track{height:6px; border-radius:3px; background:var(--panel-raised); overflow:hidden;}
+  .service-progress-fill{height:100%; border-radius:3px; background:linear-gradient(90deg, var(--cyan), #7fe3f2); transition:width .3s ease;}
+  .service-progress-steps{display:flex; justify-content:space-between; margin-top:12px; gap:4px;}
+  .service-step{flex:1; display:flex; flex-direction:column; align-items:center; gap:5px; text-align:center;}
+  .service-step-icon{width:22px; height:22px; border-radius:50%; display:flex; align-items:center; justify-content:center; background:var(--panel-raised); border:1px solid var(--hairline);}
+  .service-step-icon img{width:12px; height:12px; object-fit:contain;}
+  .service-step.fait .service-step-icon{background:var(--green-dim); border-color:rgba(52,211,153,0.4);}
+  .service-step.encours .service-step-icon{background:rgba(79,195,217,0.14); border-color:rgba(79,195,217,0.4);}
+  .service-step.sansobjet .service-step-icon{opacity:0.35;}
+  .service-step-label{font-family:var(--mono); font-size:8.5px; letter-spacing:0.02em; color:var(--text-dim); line-height:1.3;}
+  .service-step.fait .service-step-label{color:var(--green);}
+  .service-step.encours .service-step-label{color:var(--cyan);}
+
+  /* Prochaine action — une seule carte, une seule couleur active à la
+     fois (couleur héritée de .pointage-mini-btn.couleur-*, jamais une
+     nouvelle palette) : reprend exactement le même signal que l'ancienne
+     mini-carte Pointage, simplement mise en avant comme action n°1
+     plutôt qu'empilée parmi d'autres. Si le pointage est désactivé ou
+     terminé, la carte retombe sur la prochaine action réelle disponible
+     (mission obligatoire ou contrôle de quart) — jamais un texte
+     générique sans lien réel. */
+  .prochaine-action-card{margin:14px 20px 0; padding:18px; border-radius:var(--r-md); background:var(--panel-raised); border:1px solid var(--hairline);}
+  .prochaine-action-tag{font-family:var(--mono); font-size:9.5px; letter-spacing:0.08em; text-transform:uppercase; color:var(--text-dim); margin-bottom:6px;}
+  .prochaine-action-titre{font-size:16px; font-weight:700; color:var(--text); margin-bottom:14px;}
+  .prochaine-action-btn{display:flex; align-items:center; justify-content:center; gap:8px; width:100%; padding:14px; border-radius:12px; border:none; text-decoration:none; font-family:var(--sans); font-weight:700; font-size:14px; color:#04141a; cursor:pointer;}
+  .prochaine-action-btn img{width:16px; height:16px; object-fit:contain;}
+  .prochaine-action-btn.couleur-arrivee{background:var(--green);}
+  .prochaine-action-btn.couleur-pause{background:var(--amber);}
+  .prochaine-action-btn.couleur-depart{background:var(--red);}
+  .prochaine-action-btn.couleur-inventaire{background:var(--cyan);}
+  .prochaine-action-btn.couleur-fdj{background:var(--gold);}
+  .prochaine-action-btn.couleur-reception{background:var(--amber);}
+  .prochaine-action-btn.couleur-neutre{background:var(--panel); color:var(--text-mid); border:1px solid var(--hairline);}
+  .prochaine-action-card.termine{background:var(--green-dim); border-color:rgba(52,211,153,0.3);}
+  .prochaine-action-card.termine .prochaine-action-titre{color:var(--green); margin-bottom:0;}
+
+  /* Mes outils du quart — 4 tuiles maximum, choisies parmi Missions /
+     Inventaire / FDJ / Réception carburant / Progression selon ce qui
+     s'applique réellement au rôle et au forfait du site (voir
+     choisirTuilesOutilsQuart) — jamais les 5 en même temps. */
+  .outils-quart-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px; padding:0 20px;}
+  .outil-quart-card{background:var(--panel); border:1px solid var(--hairline); border-radius:14px; padding:15px; text-decoration:none; color:var(--text); display:block; position:relative;}
+  .outil-quart-icon{width:34px; height:34px; border-radius:10px; background:var(--panel-raised); display:flex; align-items:center; justify-content:center; margin-bottom:9px;}
+  .outil-quart-icon img{width:19px; height:19px; object-fit:contain;}
+  .outil-quart-titre{font-size:13px; font-weight:600;}
+  .outil-quart-desc{font-size:10px; color:var(--text-mid); margin-top:3px; line-height:1.35;}
+  body.nexus-desktop .outils-quart-grid{grid-template-columns:repeat(4,1fr);}
+
+  /* Ma progression — teaser léger uniquement (points du jour, lecture
+     seule) : le calcul réel des séries/paliers, qui écrit des badges,
+     reste exclusivement sur NEXUS-Progression-v1.html (Article 11 — une
+     seule vérité, jamais un second calcul ici). */
+  .ma-progression-mini{margin:14px 20px 0; padding:15px 18px; border-radius:var(--r-md); background:var(--panel); border:1px solid var(--hairline); display:flex; align-items:center; justify-content:space-between; gap:12px; text-decoration:none; color:var(--text);}
+  .ma-progression-mini-texte{font-size:12.5px; color:var(--text-mid);}
+  .ma-progression-mini-points{font-family:var(--mono); font-size:15px; font-weight:700; color:var(--cyan);}
+  .ma-progression-mini-lien{font-family:var(--mono); font-size:11px; color:var(--cyan); flex-shrink:0; white-space:nowrap;}
+
   .prix-row{display:flex; align-items:center; gap:8px; margin-bottom:10px;}
   .prix-row label{flex:1; font-size:12px; color:var(--text-mid);}
   .prix-ancien{font-family:var(--mono); font-size:12.5px; color:var(--text-dim); background:var(--panel); border:1px solid var(--hairline); border-radius:8px; padding:8px 10px; width:74px; text-align:center; flex-shrink:0;}
@@ -631,70 +713,80 @@
        chiffrée), donc fixe côté HTML — seul le prénom est réellement
        dynamique (voir #conseillerEmployeTexte plus bas). -->
   <div data-role="employe" style="display:none;" id="conseillerEmployeWrap">
+    <!-- Refonte "Apple-like" (20/08/2026, demande de Frédéric) : carte
+         d'accueil concise (photo Coach + statut réel du service + une
+         seule phrase de recommandation, jamais 3 priorités génériques
+         fixes comme avant) → barre "Progression du service" → carte
+         "Prochaine action" unique et proéminente → tuiles "Mes outils du
+         quart" → teaser "Ma progression" → recherche NEXUS (déjà plus
+         bas dans le fichier, partagée avec le manager). Tout le calcul
+         réel se fait dans calculerProgressionService,
+         determinerProchaineActionEmploye et choisirTuilesOutilsQuart
+         (voir le script) : ce bloc HTML ne contient plus aucune donnée
+         statique inventée. -->
     <div class="conseiller-card conseiller-card-hero">
       <div class="conseiller-head">
         <img class="conseiller-avatar" src="assets/nexus-avatar.png" alt="Coach NEXUS">
         <div>
-          <div class="conseiller-name">COACH NEXUS</div>
-          <div class="conseiller-sub">Votre allié du jour</div>
+          <div class="conseiller-name">COACH NEXUS<img class="conseiller-sparkle" src="assets/icons/icon-sparkle-24.png" alt=""></div>
+          <div class="conseiller-statut-ligne" id="conseillerEmployeStatut">Votre service est en cours</div>
         </div>
       </div>
-      <div class="conseiller-text" id="conseillerEmployeTexte">Bonjour. J'ai préparé votre journée.</div>
-      <ul class="conseiller-priorites">
-        <li class="conseiller-priorite-item"><span class="conseiller-priorite-num">1</span>Réaliser vos missions</li>
-        <li class="conseiller-priorite-item"><span class="conseiller-priorite-num">2</span>Travailler avec précision</li>
-        <li class="conseiller-priorite-item"><span class="conseiller-priorite-num">3</span>Consulter vos progrès en fin de service</li>
-      </ul>
-      <div class="conseiller-actions">
-        <a class="conseiller-btn conseiller-btn-primaire" href="NEXUS-Missions-v1.html">Voir mes missions</a>
-        <a class="conseiller-btn conseiller-btn-secondaire" href="NEXUS-Progression-v1.html">Ma progression<span class="nouveaute-dot" id="dotNouveauteProgression" style="display:none;"></span></a>
-      </div>
-      <div class="pointage-mini" id="pointageMini" style="display:none;">
-        <div class="pointage-mini-texte" id="pointageMiniTexte">Chargement de votre pointage…</div>
-        <a class="pointage-mini-btn" id="pointageMiniBtn" href="NEXUS-Pointage-v1.html">Pointer →</a>
-      </div>
-      <!-- Inventaire — mini carte accueil employé (02/08/2026, demande de
-           Frédéric : "mets la page visible pour les employés comme
-           missions et évaluations"). L'entrée du menu "Explorer NEXUS"
-           reste manager-only (c'est le catalogue du manager, jamais vu
-           par l'employé — voir commentaire du 27/07/2026 plus bas) : le
-           vrai accès employé passe par ce même mécanisme que Pointage et
-           Missions, un lien direct et toujours visible sur l'accueil. -->
-      <div class="pointage-mini" id="inventaireMini">
-        <div class="pointage-mini-texte">Comptage d'ouverture et de clôture de quart.</div>
-        <a class="pointage-mini-btn couleur-inventaire" href="NEXUS-Inventaire-v1.html">Faire l'inventaire →</a>
-      </div>
-      <!-- FDJ — mini carte accueil employé (09/08/2026, demande de Frédéric :
-           "mets un bouton FDJ pour l'employé sur sa page d'accueil comme
-           missions, progressions et inventaire"). Masquée par défaut
-           (display:none inline) : contrairement à Inventaire, FDJ est
-           Professional — le JS ne la révèle que si le forfait du site le
-           permet (voir afficherFdjMiniSiForfaitOk), jamais visible par
-           défaut pour un site Essential. -->
-      <div class="pointage-mini" id="fdjMini" style="display:none;">
-        <div class="pointage-mini-texte">Grattage, tirages et caisse FDJ de votre quart.</div>
-        <a class="pointage-mini-btn couleur-fdj" href="NEXUS-FDJ-v1.html">Compter le FDJ →</a>
-      </div>
-      <!-- Réception carburant — mini carte accueil employé (14/08/2026,
-           audit "Réceptions, deltas et effet économique du stock", P1 ;
-           réglage par site ajouté le même jour, demande de Frédéric :
-           "intègre dans les paramétrages qui parmi les employés ou/et
-           manager fait la réception du carburant"). Masquée par défaut
-           (display:none inline) : contrairement à Inventaire, cette
-           carte dépend maintenant de station_config.reception_carburant_
-           role — révélée uniquement si ce réglage vaut 'employe' (défaut)
-           ou 'les_deux' (voir chargerReceptionCarburantRoleSiteEtRevele
-           MiniEmploye plus bas). Aucun lien avec le forfait : Carburants
-           n'est pas un module Professional, pas de gate nexus-forfait.js
-           ici non plus. Quel que soit ce réglage, l'entrée reste de toute
-           façon trouvable par le manager via Explorer NEXUS et la
-           recherche (catalogue toujours complet, même logique
-           qu'Inventaire/Carburants Pilotage). -->
-      <div class="pointage-mini" id="receptionCarburantMini" style="display:none;">
-        <div class="pointage-mini-texte">Livraison carburant : jaugeage et bon de livraison.</div>
-        <a class="pointage-mini-btn couleur-reception" href="NEXUS-Carburant-Reception-v1.html">Réceptionner une livraison →</a>
-      </div>
+      <div class="conseiller-text" id="conseillerEmployeTexte">J'ai préparé votre journée.</div>
     </div>
+
+    <!-- Progression du service — 4 étapes réelles (Ouverture / Missions /
+         Contrôles / Clôture), calculées par calculerProgressionService()
+         à partir du pointage, du catalogue de missions du rôle et des
+         quarts Inventaire/FDJ clôturés. Une étape "sans objet" (ex.
+         Contrôles pour un renfort sans Inventaire ni FDJ) reste neutre,
+         jamais cochée par défaut (Article 5). Masquée tant que le calcul
+         n'est pas revenu (jamais un pourcentage affiché avant d'être
+         réellement connu). -->
+    <div class="service-progress" id="serviceProgress" style="display:none;">
+      <div class="service-progress-head">
+        <span class="service-progress-titre">Progression du service</span>
+        <span class="service-progress-pct" id="serviceProgressPct">—</span>
+      </div>
+      <div class="service-progress-track"><div class="service-progress-fill" id="serviceProgressFill" style="width:0%;"></div></div>
+      <div class="service-progress-steps" id="serviceProgressSteps"></div>
+    </div>
+
+    <!-- Prochaine action — remplace l'ancienne mini-carte Pointage isolée
+         (mêmes IDs #pointageMini/#pointageMiniTexte/#pointageMiniBtn,
+         voir afficherPointageMini() dans le script, désormais étendue en
+         determinerProchaineActionEmploye() pour retomber sur une mission
+         obligatoire ou un contrôle de quart réel si le pointage est
+         désactivé ou déjà terminé — jamais un texte sans lien réel
+         derrière). Une seule couleur active à la fois, jamais plusieurs
+         boutons colorés simultanés. -->
+    <div class="prochaine-action-card" id="pointageMini" style="display:none;">
+      <div class="prochaine-action-tag" id="prochaineActionTag">Prochaine action</div>
+      <div class="prochaine-action-titre" id="pointageMiniTexte">Chargement…</div>
+      <a class="prochaine-action-btn" id="pointageMiniBtn" href="NEXUS-Pointage-v1.html">
+        <img src="assets/icons/icon-fleche-droite-24.png" alt="">
+        <span id="pointageMiniBtnTexte">Pointer →</span>
+      </a>
+    </div>
+
+    <!-- Mes outils du quart — jusqu'à 4 tuiles, choisies parmi Missions /
+         Inventaire / FDJ / Réception carburant / Progression selon ce qui
+         s'applique réellement (rôle du jour, forfait, réglage réception
+         carburant du site) — voir choisirTuilesOutilsQuart(). Jamais les
+         5 en même temps : "moins de choix, mais les bons choix". -->
+    <div class="section-tag" style="padding-top:18px;">Mes outils du quart</div>
+    <div class="outils-quart-grid" id="outilsQuartGrid"></div>
+
+    <!-- Ma progression — teaser léger (points du jour, lecture seule) :
+         le vrai calcul des séries/paliers reste exclusivement sur
+         NEXUS-Progression-v1.html (Article 11), jamais reconstruit ici. -->
+    <a class="ma-progression-mini" href="NEXUS-Progression-v1.html" id="maProgressionMini">
+      <div>
+        <div class="ma-progression-mini-texte">Points aujourd'hui</div>
+        <div class="ma-progression-mini-points" id="maProgressionPoints">—</div>
+      </div>
+      <span class="ma-progression-mini-lien">Voir mes séries →<span class="nouveaute-dot" id="dotNouveauteProgression" style="display:none;"></span></span>
+    </a>
   </div>
 
   <!-- Recherche NEXUS (27/07/2026, demande de Frédéric) : remplace la
@@ -1744,15 +1836,20 @@
     return (data && data.reception_carburant_role) || 'employe';
   }
 
-  // Mini carte Pointage — accueil employé (28/07/2026, demande de Frédéric :
-  // "il n'y a pas de boutons pointage cliquable dans le menu de l'employé
-  // pour prendre sa pause ou finir sa journée"). L'arrivée est déjà pointée
-  // avant d'atteindre cet écran (nexus-auth.js bloque l'accès sinon), donc
-  // la seule chose à déterminer ici est la prochaine étape parmi pause,
-  // fin de pause et départ — un seul bouton, toujours la bonne couleur/le
-  // bon libellé, jamais une liste. S'il ne reste plus rien à pointer
-  // (départ déjà fait), le bouton disparaît et la carte devient un simple
-  // constat neutre, jamais une invitation à re-pointer.
+  // ============================================================
+  // Refonte accueil employé "Apple-like" (20/08/2026, demande de Frédéric,
+  // pack d'icônes fourni le même jour) — remplace l'ancienne mini-carte
+  // Pointage isolée + les 3 mini-cartes empilées (Inventaire/FDJ/Réception)
+  // par : une carte "Prochaine action" unique et proéminente, une barre
+  // "Progression du service" (4 étapes réelles), et une grille "Mes outils
+  // du quart" (jusqu'à 4 tuiles). Toutes les fonctions "calculer*" et
+  // "choisir*" ci-dessous sont pures (aucun accès DOM/réseau) — seules
+  // initAccueilEmploye() et render*() en fin de section touchent la page
+  // ou Supabase. Objectif : rester testable (voir
+  // test_app_accueil_employe_progression.js) et respecter l'Article 5
+  // (jamais un chiffre inventé — une étape sans donnée réelle reste
+  // "sans objet", jamais cochée par défaut).
+  // ============================================================
   const POINTAGE_MINI_ORDRE = ['arrivee', 'pause_debut', 'pause_fin', 'depart'];
   const POINTAGE_MINI_LIBELLES = {
     arrivee: 'Pointer l’arrivée →',
@@ -1760,36 +1857,327 @@
     pause_fin: 'Pointer la fin de pause →',
     depart: 'Pointer le départ →',
   };
+  const POINTAGE_MINI_TEXTES = {
+    arrivee: 'Votre arrivée n’a pas encore été pointée.',
+    pause_debut: 'Prochaine étape de votre journée : le début de pause.',
+    pause_fin: 'Prochaine étape de votre journée : la fin de pause.',
+    depart: 'Prochaine étape de votre journée : le départ.',
+  };
   const POINTAGE_MINI_COULEURS = { arrivee: 'arrivee', pause_debut: 'pause', pause_fin: 'pause', depart: 'depart' };
 
-  async function afficherPointageMini(employee, siteId) {
-    const wrap = document.getElementById('pointageMini');
-    const texte = document.getElementById('pointageMiniTexte');
-    const btn = document.getElementById('pointageMiniBtn');
-    if (!wrap || !texte || !btn) return;
-
-    const d = new Date();
-    const todayISO = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-    const { data: pointagesJour, error } = await nexusClient
-      .from('pointages').select('type').eq('employee_id', employee.id).eq('site', siteId).eq('date', todayISO);
-    if (error) { console.error('Chargement pointage (mini carte accueil):', error); return; }
-
+  // Prochaine étape de pointage — pure, prend les pointages du jour déjà
+  // chargés (type par ligne) et renvoie le prochain type manquant dans
+  // l'ordre réel de la journée, ou null si tout est pointé.
+  function calculerProchainPointage(pointagesJour) {
     const fait = {};
     (pointagesJour || []).forEach(p => { fait[p.type] = true; });
-    const prochain = POINTAGE_MINI_ORDRE.find(t => !fait[t]);
+    return POINTAGE_MINI_ORDRE.find(t => !fait[t]) || null;
+  }
 
-    wrap.style.display = '';
-    if (!prochain) {
-      wrap.classList.add('termine');
-      texte.textContent = 'Journée pointée — départ enregistré.';
+  // Fenêtre horaire d'une mission — même règle exacte que
+  // NEXUS-Missions-v1.html::missionDansSaFenetreHoraire (Article 11,
+  // jamais un second calcul divergent).
+  function missionDansSaFenetreHoraireAccueil(m, maintenant) {
+    if (!m.time_window) return true;
+    const match = /^avant-(\d{2}):(\d{2})$/.exec(m.time_window);
+    if (!match) return true;
+    const limite = new Date(maintenant);
+    limite.setHours(Number(match[1]), Number(match[2]), 0, 0);
+    return maintenant < limite;
+  }
+
+  // Missions obligatoires du rôle du jour, encore dans leur fenêtre —
+  // "faite" = présence dans mission_completions du jour (validée ou en
+  // attente, même règle que Missions::calculerPotentielJour). Renvoie
+  // aussi les points du jour (validés + ajustement), réutilisés pour le
+  // teaser "Ma progression".
+  function calculerMissionsObligatoiresJour(catalogueRows, completionsRows, roleDuJour, maintenant) {
+    const applicables = (catalogueRows || [])
+      .filter(m => Array.isArray(m.role_required) && m.role_required.includes(roleDuJour))
+      .filter(m => missionDansSaFenetreHoraireAccueil(m, maintenant));
+    const obligatoires = applicables.filter(m => m.disponibilite === 'obligatoire');
+    const faitesIds = new Set((completionsRows || []).map(c => c.mission_id));
+    const faites = obligatoires.filter(m => faitesIds.has(m.mission_id)).length;
+    const pointsAujourdhui = (completionsRows || []).reduce((s, c) => s + (c.points || 0) + (c.points_ajustement || 0), 0);
+    return { total: obligatoires.length, faites, pointsAujourdhui };
+  }
+
+  // Contrôles de quart réels (Inventaire + FDJ) — un contrôle ne compte
+  // que s'il est réellement proposé à l'employé aujourd'hui (rôle,
+  // forfait) : jamais un contrôle "à faire" fantôme.
+  function calculerControlesQuartJour(inventaireApplicable, inventaireFait, fdjApplicable, fdjFait) {
+    const items = [];
+    if (inventaireApplicable) items.push(!!inventaireFait);
+    if (fdjApplicable) items.push(!!fdjFait);
+    if (items.length === 0) return { applicable: false, total: 0, faits: 0 };
+    return { applicable: true, total: items.length, faits: items.filter(Boolean).length };
+  }
+
+  // Les 4 étapes de la barre "Progression du service" — statut parmi
+  // 'fait' / 'aVenir' / 'encours' / 'sansobjet'. "Ouverture" est acquise
+  // par construction quand le pointage est désactivé (nexus-auth.js exige
+  // déjà une prise de poste du jour pour atteindre cet écran) ; "Clôture"
+  // reste "sans objet" dans ce cas — aucun autre signal réel de fin de
+  // service n'existe.
+  function calculerEtapesProgressionService(ctx) {
+    const ouverture = !ctx.pointageActif
+      ? { statut: 'fait' }
+      : { statut: ctx.arriveeFaite ? 'fait' : 'aVenir' };
+    const missions = (!ctx.missionsInfo || ctx.missionsInfo.total === 0)
+      ? { statut: 'sansobjet' }
+      : ctx.missionsInfo.faites >= ctx.missionsInfo.total
+        ? { statut: 'fait' }
+        : ctx.missionsInfo.faites > 0 ? { statut: 'encours' } : { statut: 'aVenir' };
+    const controles = (!ctx.controlesInfo || !ctx.controlesInfo.applicable)
+      ? { statut: 'sansobjet' }
+      : ctx.controlesInfo.faits >= ctx.controlesInfo.total
+        ? { statut: 'fait' }
+        : ctx.controlesInfo.faits > 0 ? { statut: 'encours' } : { statut: 'aVenir' };
+    const cloture = !ctx.pointageActif
+      ? { statut: 'sansobjet' }
+      : { statut: ctx.departFait ? 'fait' : 'aVenir' };
+    return [
+      { code: 'ouverture', label: 'Ouverture', icone: 'assets/icons/icon-valide-24.png', etat: ouverture },
+      { code: 'missions', label: 'Missions', icone: 'assets/icons/icon-valide-24.png', etat: missions },
+      { code: 'controles', label: 'Contrôles', icone: 'assets/icons/icon-valide-24.png', etat: controles },
+      { code: 'cloture', label: 'Clôture', icone: 'assets/icons/icon-valide-24.png', etat: cloture },
+    ];
+  }
+
+  // Pourcentage global — moyenne des étapes réellement applicables
+  // uniquement (une étape "sans objet" ne compte ni pour ni contre).
+  // Renvoie null si aucune étape n'est applicable : la barre reste
+  // masquée plutôt que d'afficher un pourcentage trompeur.
+  function calculerPourcentageProgressionService(etapes) {
+    const poids = { fait: 1, encours: 0.5, aVenir: 0, sansobjet: null };
+    const ratios = etapes.map(e => poids[e.etat.statut]).filter(v => v !== null);
+    if (ratios.length === 0) return null;
+    return Math.round((ratios.reduce((s, r) => s + r, 0) / ratios.length) * 100);
+  }
+
+  // Prochaine action unique — priorité réelle : pointage (le plus
+  // contraint dans le temps) → contrôle de quart non fait (Inventaire
+  // avant FDJ, ordre d'ouverture habituel) → mission obligatoire restante
+  // → sinon un constat neutre honnête ("tout est à jour"), jamais un
+  // texte générique sans lien réel derrière.
+  function determinerProchaineActionEmploye(ctx) {
+    if (ctx.pointageActif && ctx.prochainPointage) {
+      return {
+        couleur: POINTAGE_MINI_COULEURS[ctx.prochainPointage],
+        titre: POINTAGE_MINI_TEXTES[ctx.prochainPointage],
+        lienTexte: POINTAGE_MINI_LIBELLES[ctx.prochainPointage],
+        lien: 'NEXUS-Pointage-v1.html',
+      };
+    }
+    if (ctx.inventaireApplicable && !ctx.inventaireFait) {
+      return { couleur: 'inventaire', titre: 'Le comptage d’ouverture/clôture de votre quart n’a pas encore été fait.', lienTexte: 'Faire l’inventaire →', lien: 'NEXUS-Inventaire-v1.html' };
+    }
+    if (ctx.fdjApplicable && !ctx.fdjFait) {
+      return { couleur: 'fdj', titre: 'Le contrôle FDJ de votre quart n’a pas encore été fait.', lienTexte: 'Compter le FDJ →', lien: 'NEXUS-FDJ-v1.html' };
+    }
+    if (ctx.missionsInfo && ctx.missionsInfo.total > 0 && ctx.missionsInfo.faites < ctx.missionsInfo.total) {
+      const restantes = ctx.missionsInfo.total - ctx.missionsInfo.faites;
+      return {
+        couleur: 'neutre',
+        titre: `${restantes} mission${restantes > 1 ? 's' : ''} obligatoire${restantes > 1 ? 's' : ''} à terminer.`,
+        lienTexte: 'Voir mes missions →',
+        lien: 'NEXUS-Missions-v1.html',
+      };
+    }
+    return { couleur: null, titre: 'Tout est à jour pour l’instant — bon service.', lienTexte: null, lien: null };
+  }
+
+  // Une seule phrase de recommandation du Coach (jamais 3 priorités fixes
+  // comme avant la refonte) — dérivée des mêmes signaux réels que la
+  // barre de progression, jamais un texte générique. Distincte de la
+  // carte "Prochaine action" : celle-ci porte le pointage, la phrase du
+  // Coach porte le travail du quart (contrôles + missions).
+  function determinerPhraseCoach(ctx) {
+    const items = [];
+    if (ctx.inventaireApplicable && !ctx.inventaireFait) items.push('l’inventaire');
+    if (ctx.fdjApplicable && !ctx.fdjFait) items.push('le contrôle FDJ');
+    if (ctx.missionsInfo && ctx.missionsInfo.total > ctx.missionsInfo.faites) items.push('vos missions');
+    if (items.length === 0) return 'Tout est en ordre pour l’instant — continuez comme ça.';
+    if (items.length === 1) return `Commencez par ${items[0]}.`;
+    return `Commencez par ${items[0]}, puis vérifiez ${items.slice(1).join(' et ')}.`;
+  }
+
+  // Tuiles "Mes outils du quart" — jusqu'à 4, choisies parmi ce qui
+  // s'applique réellement (Missions toujours en premier, Progression
+  // toujours en dernier recours) — jamais les 5 en même temps.
+  const TUILES_OUTILS_CATALOGUE = {
+    missions: { titre: 'Missions', desc: 'Voir mes tâches du quart', href: 'NEXUS-Missions-v1.html', icone: 'assets/icons/icon-missions-48.png' },
+    inventaire: { titre: 'Inventaire', desc: 'Compter les produits de votre quart', href: 'NEXUS-Inventaire-v1.html', icone: 'assets/icons/icon-inventaire-48.png' },
+    fdj: { titre: 'FDJ', desc: 'Contrôler votre activité FDJ', href: 'NEXUS-FDJ-v1.html', icone: 'assets/icons/icon-fdj-48.png' },
+    reception: { titre: 'Réception', desc: 'Livraison carburant du jour', href: 'NEXUS-Carburant-Reception-v1.html', icone: 'assets/icons/icon-reception-carburant-48.png' },
+    progression: { titre: 'Progression', desc: 'Mes séries et récompenses', href: 'NEXUS-Progression-v1.html', icone: 'assets/icons/icon-progression-48.png' },
+  };
+  function choisirTuilesOutilsQuart(ctx) {
+    const candidats = ['missions'];
+    if (ctx.inventaireApplicable) candidats.push('inventaire');
+    if (ctx.fdjApplicable) candidats.push('fdj');
+    if (ctx.receptionApplicable) candidats.push('reception');
+    candidats.push('progression');
+    return candidats.slice(0, 4);
+  }
+
+  // ---- Rendu (DOM uniquement, aucun calcul métier ici) ----
+
+  function renderProchaineAction(action) {
+    const carte = document.getElementById('pointageMini');
+    const tag = document.getElementById('prochaineActionTag');
+    const titre = document.getElementById('pointageMiniTexte');
+    const btn = document.getElementById('pointageMiniBtn');
+    const btnTexte = document.getElementById('pointageMiniBtnTexte');
+    if (!carte || !titre || !btn) return;
+    carte.style.display = '';
+    titre.textContent = action.titre;
+    if (!action.lien) {
+      carte.classList.add('termine');
+      if (tag) tag.textContent = 'Service';
       btn.style.display = 'none';
       return;
     }
-    wrap.classList.remove('termine');
+    carte.classList.remove('termine');
+    if (tag) tag.textContent = 'Prochaine action';
     btn.style.display = '';
-    btn.className = `pointage-mini-btn couleur-${POINTAGE_MINI_COULEURS[prochain]}`;
-    btn.textContent = POINTAGE_MINI_LIBELLES[prochain];
-    texte.textContent = prochain === 'arrivee' ? 'Votre arrivée n’a pas encore été pointée.' : 'Prochaine étape de votre journée :';
+    btn.href = action.lien;
+    btn.className = `prochaine-action-btn couleur-${action.couleur}`;
+    if (btnTexte) btnTexte.textContent = action.lienTexte;
+  }
+
+  function renderProgressionService(etapes) {
+    const wrap = document.getElementById('serviceProgress');
+    const pctEl = document.getElementById('serviceProgressPct');
+    const fillEl = document.getElementById('serviceProgressFill');
+    const stepsEl = document.getElementById('serviceProgressSteps');
+    if (!wrap || !pctEl || !fillEl || !stepsEl) return;
+    const pct = calculerPourcentageProgressionService(etapes);
+    if (pct === null) { wrap.style.display = 'none'; return; }
+    wrap.style.display = '';
+    pctEl.textContent = `${pct}%`;
+    fillEl.style.width = `${pct}%`;
+    const iconeParStatut = {
+      fait: 'assets/icons/icon-valide-24.png',
+      encours: 'assets/icons/icon-en-cours-24.png',
+      aVenir: 'assets/icons/icon-en-attente-24.png',
+      sansobjet: 'assets/icons/icon-en-attente-24.png',
+    };
+    const classeParStatut = { fait: 'fait', encours: 'encours', aVenir: '', sansobjet: 'sansobjet' };
+    stepsEl.innerHTML = etapes.map(e => `
+      <div class="service-step ${classeParStatut[e.etat.statut]}">
+        <div class="service-step-icon"><img src="${iconeParStatut[e.etat.statut]}" alt=""></div>
+        <div class="service-step-label">${e.label}</div>
+      </div>
+    `).join('');
+  }
+
+  function renderOutilsQuart(codes) {
+    const grid = document.getElementById('outilsQuartGrid');
+    if (!grid) return;
+    grid.innerHTML = codes.map(code => {
+      const t = TUILES_OUTILS_CATALOGUE[code];
+      if (!t) return '';
+      return `
+        <a class="outil-quart-card" href="${t.href}">
+          <div class="outil-quart-icon"><img src="${t.icone}" alt=""></div>
+          <div class="outil-quart-titre">${t.titre}</div>
+          <div class="outil-quart-desc">${t.desc}</div>
+        </a>`;
+    }).join('');
+  }
+
+  // Orchestrateur — un seul point d'entrée pour tout l'accueil employé
+  // (remplace l'ancien enchaînement afficherPointageMini +
+  // inventaireMini/fdjMini/receptionCarburantMini dispersés). Toutes les
+  // lectures Supabase partent en parallèle (Promise.all) : la page reste
+  // aussi rapide qu'avant malgré le calcul plus riche.
+  async function initAccueilEmploye(employee, roleDuJour, pointageActifSite) {
+    document.getElementById('conseillerEmployeWrap').style.display = '';
+
+    const d = new Date();
+    const todayISO = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const maintenant = new Date();
+
+    const [
+      { data: pointagesJour, error: eP },
+      { data: catalogueRows, error: eC },
+      { data: completionsRows, error: eM },
+      forfait,
+      receptionRole,
+      { data: quartEmployeRows, error: eI },
+      { data: fdjShiftsRows, error: eF },
+      { data: snap, error: eSnap },
+    ] = await Promise.all([
+      pointageActifSite
+        ? nexusClient.from('pointages').select('type').eq('employee_id', employee.id).eq('site', employee.site_id).eq('date', todayISO)
+        : Promise.resolve({ data: [], error: null }),
+      nexusClient.from('mission_catalog').select('mission_id, role_required, disponibilite, time_window').eq('actif', true).eq('ponctuelle', false).eq('site_id', employee.site_id),
+      nexusClient.from('mission_completions').select('mission_id, points, points_ajustement').eq('employee_id', employee.id).eq('date', todayISO),
+      NexusForfait.chargerForfait(employee.site_id),
+      chargerReceptionCarburantRole(employee.site_id),
+      // Inventaire non applicable à un renfort (03/08/2026, même règle
+      // que l'ancienne mini-carte) : pas la peine d'interroger la table.
+      roleDuJour === 'renfort'
+        ? Promise.resolve({ data: [], error: null })
+        : nexusClient.from('inventaire_quart_employes').select('responsable_comptage, inventaire_quarts(date, cloture_le, is_simulation)').eq('employee_id', employee.id),
+      nexusClient.from('fdj_shifts').select('statut').eq('employee_id', employee.id).eq('site', employee.site_id).eq('date', todayISO),
+      nexusClient.from('apprentissage_snapshots').select('nouveaute_en_attente').eq('employee_id', employee.id).maybeSingle(),
+    ]);
+    if (eP) console.error('Chargement pointages (accueil employé):', eP);
+    if (eC) console.error('Chargement mission_catalog (accueil employé):', eC);
+    if (eM) console.error('Chargement mission_completions (accueil employé):', eM);
+    if (eI) console.error('Chargement inventaire_quart_employes (accueil employé):', eI);
+    if (eF) console.error('Chargement fdj_shifts (accueil employé):', eF);
+    if (eSnap) console.error('Lecture apprentissage_snapshots (App-v1):', eSnap);
+
+    const inventaireApplicable = roleDuJour !== 'renfort';
+    const inventaireFait = (quartEmployeRows || []).some(r =>
+      r.responsable_comptage && r.inventaire_quarts &&
+      r.inventaire_quarts.date === todayISO &&
+      r.inventaire_quarts.is_simulation !== true &&
+      !!r.inventaire_quarts.cloture_le
+    );
+
+    // FDJ applicable seulement si le forfait Professional l'autorise
+    // (erreur réseau = forfait null = non applicable, même prudence que
+    // l'ancienne mini-carte fdjMini).
+    const fdjApplicable = forfait !== null && NexusForfait.estProfessional(forfait);
+    const fdjFait = (fdjShiftsRows || []).some(s => s.statut === 'valide');
+
+    const receptionApplicable = receptionRole === 'employe' || receptionRole === 'les_deux';
+
+    const missionsInfo = calculerMissionsObligatoiresJour(catalogueRows, completionsRows, roleDuJour, maintenant);
+    const controlesInfo = calculerControlesQuartJour(inventaireApplicable, inventaireFait, fdjApplicable, fdjFait);
+    const prochainPointage = pointageActifSite ? calculerProchainPointage(pointagesJour) : null;
+    const arriveeFaite = (pointagesJour || []).some(p => p.type === 'arrivee');
+    const departFait = (pointagesJour || []).some(p => p.type === 'depart');
+
+    const ctx = {
+      pointageActif: pointageActifSite, prochainPointage, arriveeFaite, departFait,
+      missionsInfo, controlesInfo,
+      inventaireApplicable, inventaireFait, fdjApplicable, fdjFait, receptionApplicable,
+    };
+
+    renderProgressionService(calculerEtapesProgressionService(ctx));
+    renderProchaineAction(determinerProchaineActionEmploye(ctx));
+    renderOutilsQuart(choisirTuilesOutilsQuart(ctx));
+
+    document.getElementById('conseillerEmployeTexte').textContent = determinerPhraseCoach(ctx);
+    const nbActions = (prochainPointage ? 1 : 0)
+      + Math.max(0, missionsInfo.total - missionsInfo.faites)
+      + Math.max(0, controlesInfo.total - controlesInfo.faits);
+    const statutEl = document.getElementById('conseillerEmployeStatut');
+    if (statutEl) {
+      statutEl.textContent = nbActions === 0
+        ? ((departFait || !pointageActifSite) ? 'Votre service est à jour' : 'Votre service est en cours')
+        : `Votre service est en cours · ${nbActions} action${nbActions > 1 ? 's' : ''} à terminer`;
+    }
+
+    const pointsEl = document.getElementById('maProgressionPoints');
+    if (pointsEl) pointsEl.textContent = `+${missionsInfo.pointsAujourdhui}`;
+    const dot = document.getElementById('dotNouveauteProgression');
+    if (dot && snap && snap.nouveaute_en_attente) dot.style.display = '';
   }
 
   // Verrouillage du menu selon le forfait (26/07/2026) — Essential grise
@@ -2222,61 +2610,11 @@
       forfaitProfessional = await verrouillerNavForfait(employee.site_id);
       briefNexusInclus = await verrouillerNavBriefNexus(employee.site_id);
     } else {
-      document.getElementById('conseillerEmployeWrap').style.display = '';
-      document.getElementById('conseillerEmployeTexte').textContent = `Bonjour ${employee.nom}. J'ai préparé votre journée.`;
-      // Pointage désactivé pour ce site (16/08/2026) : la mini-carte reste
-      // masquée (display:none par défaut dans le HTML), on ne charge même
-      // pas son contenu.
-      if (pointageActif) {
-        afficherPointageMini(employee, employee.site_id);
-      }
-
-      // Inventaire masqué pour un renfort (03/08/2026, demande de Frédéric) :
-      // le comptage d'ouverture/clôture de quart suppose un poste titulaire
-      // (pompiste/caissière) sur la journée — un renfort n'a pas à s'en
-      // charger. On masque la mini-carte d'accueil ; voir aussi
-      // initRechercheNexus() plus bas pour l'entrée "Explorer NEXUS".
-      if (roleDuJour === 'renfort') {
-        const inventaireMini = document.getElementById('inventaireMini');
-        if (inventaireMini) inventaireMini.style.display = 'none';
-      }
-
-      // FDJ mini-carte (09/08/2026, demande de Frédéric) : contrairement à
-      // Inventaire, FDJ est Professional — masquée par défaut dans le HTML,
-      // révélée seulement si le forfait du site l'autorise. On ne réutilise
-      // pas `forfaitProfessional` (calculé uniquement côté manager plus
-      // haut, jamais pour un employé) : lecture directe via nexus-forfait.js.
-      NexusForfait.chargerForfait(employee.site_id).then(forfait => {
-        if (forfait === null) return; // erreur réseau : ne bloque pas, reste masquée par prudence
-        if (NexusForfait.estProfessional(forfait)) {
-          const fdjMini = document.getElementById('fdjMini');
-          if (fdjMini) fdjMini.style.display = '';
-        }
-      });
-
-      // Réception carburant mini-carte : révélée seulement si
-      // station_config.reception_carburant_role (14/08/2026, paramétrage
-      // Frédéric) confie cette tâche à l'employé (défaut 'employe') ou
-      // aux deux ('les_deux'). Erreur réseau : reste masquée par
-      // prudence, même logique que FDJ ci-dessus.
-      chargerReceptionCarburantRole(employee.site_id).then(role => {
-        if (role === 'employe' || role === 'les_deux') {
-          const receptionMini = document.getElementById('receptionCarburantMini');
-          if (receptionMini) receptionMini.style.display = '';
-        }
-      });
-
-      // Petit point "Nouveau" (27/07/2026, demande de Frédéric — "une
-      // petite notification qui apparaît parfois") sur le bouton Ma
-      // progression : lecture légère du flag déjà calculé par Ma
-      // Progression/Ce que NEXUS a appris (jamais recalculé ici, pour ne
-      // pas alourdir le chargement d'App-v1 à chaque connexion).
-      nexusClient.from('apprentissage_snapshots').select('nouveaute_en_attente').eq('employee_id', employee.id).maybeSingle()
-        .then(({ data: snap, error: eSnap }) => {
-          if (eSnap) { console.error('Lecture apprentissage_snapshots (App-v1):', eSnap); return; }
-          const dot = document.getElementById('dotNouveauteProgression');
-          if (dot && snap && snap.nouveaute_en_attente) dot.style.display = '';
-        });
+      // Refonte "Apple-like" (20/08/2026) — un seul orchestrateur
+      // regroupe désormais tout ce qui était dispersé ici (pointage,
+      // inventaire, FDJ, réception carburant, notification Progression) :
+      // voir initAccueilEmploye() et son détail plus haut dans le script.
+      await initAccueilEmploye(employee, roleDuJour, pointageActif);
     }
 
     if (employee.est_createur) {
