@@ -435,6 +435,17 @@
   let correctionChargee = null; // { quart, comptage, impact } une fois "Charger" cliqué
   let produitsPourCorrection = []; // chargé une seule fois, à la première ouverture de la section
 
+  // Chronologie produit — production journalière (19/08/2026, M7 : "Vue
+  // manager : chronologie produit + résumé production/écoulement", suite du
+  // pont Jaugeage). Lecture seule : relit ce que M1-M6 ont déjà écrit
+  // (chargerHistoriqueProductionProduit, nexus-inventaire-production-donnees.js)
+  // sans jamais recalculer une vérité déjà persistée (Article 11). Repli
+  // même principe que "Correction rétroactive" ci-dessous.
+  let sectionChronologieOuverte = false;
+  let chronologieForm = { date: '', produitId: '' };
+  let chronologieChargee = null; // { produit, histo } une fois "Charger" cliqué
+  let produitsChronologie = []; // chargé une seule fois, filtré profil production_journaliere
+
   // "Résoudre avec NEXUS" (04/08/2026, audit §22) : sur une alerte d'écart
   // d'ouverture, propose directement les hypothèses les plus probables au
   // lieu de laisser le manager reconstruire toute l'histoire à la main.
@@ -1798,6 +1809,15 @@
     return produitsPourCorrection;
   }
 
+  // M7 — liste restreinte au profil production_journaliere (viennoiseries,
+  // pâtisserie…) : la chronologie n'a de sens que pour ces produits, jamais
+  // pour un produit "continu" qui n'a ni préparation initiale ni fournée.
+  async function chargerProduitsChronologie() {
+    if (produitsChronologie.length) return produitsChronologie;
+    produitsChronologie = await NexusInventaireProductionDonnees.chargerProduitsProfilProductionJournaliere(nexusClient, siteId);
+    return produitsChronologie;
+  }
+
   async function chargerComptageActuel(produitId, quartId, typeComptage) {
     return NexusInventaireManagerDonnees.chargerComptageActuel(nexusClient, produitId, quartId, typeComptage);
   }
@@ -1912,6 +1932,90 @@
         ? `<div class="mission-photo" style="color:var(--amber); margin-bottom:8px;">⚠️ ${correctionChargee.impact} comptage${correctionChargee.impact > 1 ? 's' : ''} ultérieur${correctionChargee.impact > 1 ? 's' : ''} référence${correctionChargee.impact > 1 ? 'nt' : ''} directement cette valeur.</div>`
         : `<div class="mission-photo" style="color:var(--text-dim); margin-bottom:8px;">Aucun comptage ultérieur ne dépend directement de cette valeur.</div>`}
       ${renderChampsCommunsCorrection()}
+    `;
+  }
+
+  // ------------------------------------------------------------
+  // M7 — CHRONOLOGIE PRODUIT (19/08/2026, "Vue manager : chronologie
+  // produit + résumé production/écoulement", suite du cahier "Production
+  // journalière & Mouvements"). Lecture seule, aucune écriture : assemble
+  // ce que M1-M6 ont déjà persisté (préparation initiale, fournées,
+  // comptages de clôture) via NexusInventaireProductionDonnees.
+  // chargerHistoriqueProductionProduit, et affiche la synthèse déjà
+  // calculée par le moteur partagé (syntheseProductionJournee) — jamais un
+  // second calcul ici (Article 11). Une valeur manquante s'affiche "—"
+  // (fmtNum), jamais un chiffre inventé (Article 5).
+  // ------------------------------------------------------------
+  async function chargerEtAfficherChronologie() {
+    const resultatEl = document.getElementById('chronologieResultat');
+    if (!resultatEl) return;
+    if (!chronologieForm.produitId) { resultatEl.innerHTML = '<div class="empty">Choisissez un produit.</div>'; chronologieChargee = null; return; }
+    resultatEl.innerHTML = '<div class="loading">Chargement…</div>';
+    const produit = produitsChronologie.find(p => p.id === chronologieForm.produitId) || null;
+    const histo = await NexusInventaireProductionDonnees.chargerHistoriqueProductionProduit(nexusClient, siteId, chronologieForm.produitId, chronologieForm.date);
+    if (!histo || !histo.quarts.length) {
+      resultatEl.innerHTML = '<div class="empty">Aucun inventaire trouvé pour cette date.</div>';
+      chronologieChargee = null;
+      return;
+    }
+    chronologieChargee = { produit, histo };
+    resultatEl.innerHTML = renderChronologieCorps(chronologieChargee);
+  }
+
+  // Fournées listées avec leur heure (cree_le, jamais une nouvelle colonne —
+  // même discipline que le pont Jaugeage carburant) plutôt qu'un simple
+  // total, pour que le manager voie QUAND chaque fournée a été ajoutée.
+  function renderLigneFournees(fournees) {
+    if (!fournees || !fournees.length) return '';
+    const heureTxt = (m) => m.cree_le ? new Date(m.cree_le).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '';
+    return `<div class="synthese-ligne" style="font-size:11.5px; color:var(--text-dim);"><span>${fournees.length} fournée${fournees.length > 1 ? 's' : ''} supplémentaire${fournees.length > 1 ? 's' : ''}</span><span>${fournees.map(m => `${fmtNum(m.quantite)}${heureTxt(m) ? ' à ' + heureTxt(m) : ''}`).join(' · ')}</span></div>`;
+  }
+
+  function renderChronologieCorps({ histo }) {
+    const { prepInitialeMvt, fourneesQ1, fourneesQ2, clotureQ1, clotureQ2, synthese } = histo;
+    if (!synthese) return '<div class="empty">Synthèse indisponible (moteur non chargé).</div>';
+    return `
+      <div class="synthese-card" style="margin-top:10px;">
+        <div class="synthese-titre">Quart 1 — Matin</div>
+        <div class="synthese-ligne"><span>Préparation initiale</span><span class="synthese-valeur">${prepInitialeMvt ? fmtNum(prepInitialeMvt.quantite) : '—'}</span></div>
+        ${renderLigneFournees(fourneesQ1)}
+        <div class="synthese-ligne"><span>Disponible</span><span class="synthese-valeur">${fmtNum(synthese.disponibleQ1)}</span></div>
+        <div class="synthese-ligne"><span>Reste compté (clôture Q1)</span><span class="synthese-valeur">${clotureQ1 ? fmtNum(clotureQ1.quantite) : '—'}</span></div>
+        <div class="synthese-ligne"><span>Écoulement Q1</span><span class="synthese-valeur ${synthese.ecoulementQ1 != null && synthese.ecoulementQ1 < 0 ? 'amber' : ''}">${fmtNum(synthese.ecoulementQ1)}</span></div>
+      </div>
+      <div class="synthese-card" style="margin-top:10px;">
+        <div class="synthese-titre">Quart 2 — Soir</div>
+        <div class="synthese-ligne"><span>Apport (reste transmis du Q1)</span><span class="synthese-valeur">${clotureQ1 ? fmtNum(clotureQ1.quantite) : '—'}</span></div>
+        ${renderLigneFournees(fourneesQ2)}
+        <div class="synthese-ligne"><span>Disponible</span><span class="synthese-valeur">${fmtNum(synthese.disponibleQ2)}</span></div>
+        <div class="synthese-ligne"><span>Reste final compté (clôture Q2)</span><span class="synthese-valeur">${clotureQ2 ? fmtNum(clotureQ2.quantite) : '—'}</span></div>
+        <div class="synthese-ligne"><span>Écoulement Q2</span><span class="synthese-valeur ${synthese.ecoulementQ2 != null && synthese.ecoulementQ2 < 0 ? 'amber' : ''}">${fmtNum(synthese.ecoulementQ2)}</span></div>
+      </div>
+      <div class="synthese-card" style="margin-top:10px;">
+        <div class="synthese-titre">Résumé de la journée</div>
+        <div class="synthese-ligne"><span>Production totale</span><span class="synthese-valeur">${fmtNum(synthese.productionTotale)}</span></div>
+        <div class="synthese-ligne"><span>Écoulement journée</span><span class="synthese-valeur">${fmtNum(synthese.ecoulementJournee)}</span></div>
+        <div class="synthese-ligne"><span>Fournées supplémentaires</span><span class="synthese-valeur">${synthese.nbFourneesSupplementaires}</span></div>
+      </div>
+    `;
+  }
+
+  function renderSectionChronologieProduit() {
+    const optionsProduits = produitsChronologie.length
+      ? Object.entries(produitsChronologie.reduce((acc, p) => {
+          const cat = p.inventaire_categories ? p.inventaire_categories.nom : 'Autres';
+          (acc[cat] = acc[cat] || []).push(p);
+          return acc;
+        }, {})).map(([cat, items]) => `<optgroup label="${cat}">${items.map(p => `<option value="${p.id}" ${p.id === chronologieForm.produitId ? 'selected' : ''}>${p.designation}</option>`).join('')}</optgroup>`).join('')
+      : `<option value="">Aucun produit à profil "production journalière" sur ce site</option>`;
+    return `
+      <div id="sectionChronologieProduit" class="card" style="margin-bottom:10px; padding:14px;">
+        <div class="ventes-desc" style="margin-bottom:12px;">Retrace la journée d'un produit à préparation quotidienne : préparation du matin, fournées ajoutées, reste compté, écoulement — tel qu'enregistré, sans recalcul.</div>
+        <input type="date" id="chronologieDate" class="date-input" value="${chronologieForm.date || dateISO()}" style="margin-bottom:8px;">
+        <select class="mouv-select" id="chronologieProduit" style="width:100%; margin-bottom:8px;">${optionsProduits}</select>
+        <button class="btn-ghost" id="btnChargerChronologie" style="margin-top:0;">Charger</button>
+        <div id="chronologieResultat">${chronologieChargee ? renderChronologieCorps(chronologieChargee) : ''}</div>
+      </div>
     `;
   }
 
@@ -2474,6 +2578,12 @@
       ${review ? renderRapportInventaire() : ''}
       `}
 
+      <div class="section-titre section-repliable" id="toggleSectionChronologie">
+        <span>Chronologie d'un produit (production journalière)</span>
+        <span class="repli-chevron ${sectionChronologieOuverte ? 'open' : ''}">›</span>
+      </div>
+      ${sectionChronologieOuverte ? renderSectionChronologieProduit() : ''}
+
       <div class="section-titre section-repliable" id="toggleSectionCorrection">
         <span>Souhaitez-vous modifier un inventaire précédent ?</span>
         <span class="repli-chevron ${sectionCorrectionOuverte ? 'open' : ''}">›</span>
@@ -2583,6 +2693,25 @@
       if (el.dataset.mode === 'jaugeage') await toggleJaugeage(!actif);
       else await toggleModeAveugle(el.dataset.employe, !actif);
     }));
+    const toggleChronologie = document.getElementById('toggleSectionChronologie');
+    if (toggleChronologie) toggleChronologie.addEventListener('click', async () => {
+      sectionChronologieOuverte = !sectionChronologieOuverte;
+      if (sectionChronologieOuverte && !chronologieForm.date) chronologieForm.date = dateISO();
+      renderTout(dernierCtx);
+      if (sectionChronologieOuverte) {
+        await chargerProduitsChronologie();
+        renderTout(dernierCtx);
+      }
+    });
+    const chronologieDateEl = document.getElementById('chronologieDate');
+    if (chronologieDateEl) chronologieDateEl.addEventListener('change', (e) => { chronologieForm.date = e.target.value; });
+    const chronologieProduitEl = document.getElementById('chronologieProduit');
+    if (chronologieProduitEl) chronologieProduitEl.addEventListener('change', (e) => { chronologieForm.produitId = e.target.value; });
+    const btnChargerChronologie = document.getElementById('btnChargerChronologie');
+    if (btnChargerChronologie) btnChargerChronologie.addEventListener('click', () => {
+      if (chronologieProduitEl) chronologieForm.produitId = chronologieProduitEl.value;
+      chargerEtAfficherChronologie();
+    });
     const toggleCorrection = document.getElementById('toggleSectionCorrection');
     if (toggleCorrection) toggleCorrection.addEventListener('click', async () => {
       sectionCorrectionOuverte = !sectionCorrectionOuverte;

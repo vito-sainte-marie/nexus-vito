@@ -193,9 +193,29 @@
     };
   }
 
+  // M7 (19/08/2026) — liste des produits éligibles à la chronologie
+  // production journalière (vue manager). Filtre en 2 requêtes plutôt
+  // qu'une jointure PostgREST complexe : inventaire_regles_produit.profil
+  // décide QUI est concerné (même colonne que profilParProduit côté
+  // employé, Article 11 — jamais un deuxième critère inventé ici),
+  // inventaire_zone_produit fournit le libellé/catégorie pour le select.
+  async function chargerProduitsProfilProductionJournaliere(client, site) {
+    const { data: regles, error: eR } = await client.from('inventaire_regles_produit')
+      .select('produit_id').eq('site', site).eq('profil', 'production_journaliere');
+    if (eR) { console.error('Chargement produits profil production_journaliere (règles):', eR); return []; }
+    const ids = (regles || []).map(r => r.produit_id);
+    if (!ids.length) return [];
+    const { data: produits, error: eP } = await client.from('inventaire_zone_produit')
+      .select('id, designation, categorie_id, inventaire_categories(nom)')
+      .eq('site', site).eq('actif', true).in('id', ids).order('designation');
+    if (eP) { console.error('Chargement produits profil production_journaliere (fiches):', eP); return []; }
+    return produits || [];
+  }
+
   global.NexusInventaireProductionDonnees = {
     obtenirOuCalculerRecommandation,
     enregistrerMouvement, enregistrerNouvelleFournee, enregistrerReceptionMarchandise, enregistrerPreparationInitiale,
     dernierComptageParType, dernierMouvementParType, chargerMouvementProductionInitialeActuel, chargerHistoriqueProductionProduit,
+    chargerProduitsProfilProductionJournaliere,
   };
 })(typeof window !== 'undefined' ? window : globalThis);
