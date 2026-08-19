@@ -170,10 +170,10 @@
   .pnav-chip:active{background:var(--panel-raised);}
   .pnav-chip.actif{color:var(--cyan); border-color:rgba(79,195,217,0.4); background:rgba(79,195,217,0.08);}
 
-  /* Accordéon "grand univers" — un bloc par thème, replié par défaut sauf
-     les deux premiers (Général, Équipe & horaires — recommandation reprise
-     telle quelle de la demande de Frédéric : "seuls 2 premiers blocs
-     ouverts par défaut"). */
+  /* Accordéon "grand univers" — un bloc par thème. Tous repliés par défaut
+     (demande de Frédéric le 20/08/2026 : "repli tout dans paramètres") ;
+     un clic sur l'en-tête ou une puce de navigation ouvre la section
+     voulue. */
   .psec{margin-bottom:14px; break-inside:avoid;}
   .psec-head{width:100%; display:flex; align-items:center; gap:12px; background:var(--panel); border:1px solid var(--hairline); border-radius:12px; padding:16px 18px; cursor:pointer; text-align:left; font-family:var(--sans); color:var(--text);}
   .psec-head:active{background:var(--panel-raised);}
@@ -238,16 +238,15 @@
          Redesign "grands univers" (20/08/2026, demande de Frédéric : la
          page était "très riche mais pas intuitive" — trop de cartes à plat,
          sans hiérarchie). Architecture en 7 accordéons thématiques, chacun
-         avec une phrase d'objectif, repliés par défaut sauf les deux
-         premiers (Général, Équipe & horaires) — recommandation reprise
-         telle quelle de la demande de Frédéric. Chaque carte existante
+         avec une phrase d'objectif, tous repliés par défaut (ajusté le
+         20/08/2026, même jour : "repli tout dans paramètres"). Chaque carte existante
          (id, logique JS, requêtes Supabase) reste identique à l'octet près :
          seul l'emballage visuel change (voir initAccordeonParametres,
          plus bas dans le script). "Vos raccourcis" déplacé ici depuis le
          tout début de la page vers la section "Accueil & affichage" : c'est
          une personnalisation d'interface, pas un réglage d'exploitation.
          ------------------------------------------------------------ -->
-    <section class="psec open" id="secGeneral">
+    <section class="psec" id="secGeneral">
       <button type="button" class="psec-head">
         <span class="psec-icon">🏠</span>
         <span class="psec-headtext">
@@ -269,7 +268,7 @@
       </div>
     </section>
 
-    <section class="psec open" id="secEquipe">
+    <section class="psec" id="secEquipe">
       <button type="button" class="psec-head">
         <span class="psec-icon">👥</span>
         <span class="psec-headtext">

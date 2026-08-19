@@ -1589,3 +1589,16 @@ RLS calquée exactement sur `apprentissage_snapshots` (seule table à écriture 
 **Vérification de non-régression structurelle** (avant tout test fonctionnel, vu l'ampleur du remaniement HTML) : comptage programmatique des balises `<div>`/`<section>`/`<button>` ouvrantes vs fermantes sur le corps de la page (160/160, 7/7, 27/27 — équilibré), recherche d'`id` dupliqués (aucun), et vérification que les 7 `data-target` des puces de navigation correspondent exactement aux 7 `id` de section. `node --check` propre sur le `<script>` extrait.
 
 **Limite assumée** : `nexus-desktop.js` applique un layout CSS en colonnes (`column-count:2`) sur les enfants directs de `.section.desktop-grid` — désormais les 7 `<section class="psec">` plutôt que les ~20 cartes individuelles d'avant. En vue bureau, chaque accordéon (replié ou ouvert) est traité comme un bloc insécable ; l'équilibrage entre les deux colonnes peut donc paraître moins fin qu'avant (7 blocs de hauteurs très inégales plutôt que 20 petites cartes), compromis jugé acceptable au vu du gain de lisibilité en vue mobile, largement majoritaire pour cet écran.
+
+## v2.169 — 20/08/2026 — Paramètres Station : correction du repli par défaut (tous les accordéons fermés)
+
+**Contexte** : Frédéric, juste après avoir reçu le redesign v2.168 — "repli tout dans paramètres". Le redesign avait ouvert Général et Équipe & horaires par défaut (reprise littérale d'une suggestion de son brief initial : "seuls les 2 premiers blocs ouverts par défaut"). Sur relecture, il préfère que les 7 accordéons partent tous repliés — cohérent avec l'objectif affiché de la refonte (une page dense qui se lit d'un coup d'œil, sans contenu qui s'impose avant même un clic).
+
+**Changement** (`NEXUS-Parametres-Station-v1.html`, purement présentationnel, aucun `id`/logique touché) :
+- `<section class="psec open" id="secGeneral">` → `<section class="psec" id="secGeneral">`.
+- `<section class="psec open" id="secEquipe">` → `<section class="psec" id="secEquipe">`.
+- Les 5 autres sections étaient déjà repliées par défaut — inchangées.
+- Commentaire CSS et commentaire HTML de tête (qui documentaient "repliés sauf les deux premiers") corrigés pour refléter le nouvel état.
+- `initAccordeonParametres` (comportement de clic/ouverture/scroll) et les puces de navigation ne changent pas : un clic sur un en-tête ou une puce ouvre toujours la section visée, quel que soit son état de départ.
+
+**Vérification** : comptage `<div>`/`<section>`/`<button>` (195/195, 7/7, 32/32 — équilibré), aucun `id` dupliqué, 7 `data-target` de navigation ↔ 7 `id` de section confirmés en correspondance exacte (un 8e match `${sec.id}` détecté par la recherche est un littéral de gabarit JS dans `initAccordeonParametres`, pas une puce réelle — écarté). `node --check` propre sur le `<script>` unique de la page. Confirmé : 0 section avec `class="psec open"` sur les 7.
