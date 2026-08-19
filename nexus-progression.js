@@ -1298,6 +1298,46 @@
     { code: 'inventaire_x20', seuil: 20, label: 'Inventaire Référence — Série 20', points: 100 },
   ];
 
+  // ------------------------------------------------------------
+  // 14) "Mes séries" — Paramètres manager (P8 du plan d'implémentation du
+  //    cadrage, 20/08/2026). La table Supabase progression_site_settings
+  //    (une ligne par site, colle posée dans l'écran, jamais ici) permet à
+  //    un manager de personnaliser les paliers/points/délai de grâce sans
+  //    développeur. Cette fonction reste pure : elle prend la ligne brute
+  //    (ou null/undefined si aucune ligne n'existe encore pour ce site) et
+  //    renvoie toujours un objet complet et sûr — jamais une erreur, jamais
+  //    un palier à moitié fabriqué (Article 5). Si la ligne est absente ou
+  //    qu'un champ est malformé, retombe sur les constantes par défaut
+  //    (PALIERS_SERIE_CAISSE / PALIERS_SERIE_INVENTAIRE /
+  //    DELAI_GRACE_SERIE_INVENTAIRE_JOURS) pour le champ concerné — jamais
+  //    un recalcul partiel silencieux avec des valeurs à moitié valides.
+  //
+  //    Rappel (voir migration progression_site_settings_series) : la
+  //    tolérance caisse n'est PAS reprise ici — elle reste SEUIL_ECART_CONFORME
+  //    (source unique déjà utilisée par toute la page Mon évolution, pas
+  //    seulement les séries).
+  function paliersValides(valeur) {
+    if (!Array.isArray(valeur) || valeur.length === 0) return null;
+    const ok = valeur.every(p => p && typeof p.code === 'string' && typeof p.seuil === 'number' && p.seuil > 0 && typeof p.points === 'number' && p.points >= 0);
+    return ok ? valeur : null;
+  }
+
+  function resoudreReglesProgressionSite(ligneSite) {
+    const l = ligneSite || {};
+    // l.series_inventaire_delai_grace_jours == null couvre absent ET null —
+    // Number(null) vaut 0 en JS, ce qui ferait passer "pas de valeur" pour
+    // "0 jour de délai" si on ne le testait pas explicitement avant Number().
+    const brut = l.series_inventaire_delai_grace_jours;
+    const delai = brut == null ? NaN : Number(brut);
+    return {
+      caisseActif: l.series_caisse_actif !== false,
+      caissePaliers: paliersValides(l.series_caisse_paliers) || PALIERS_SERIE_CAISSE,
+      inventaireActif: l.series_inventaire_actif !== false,
+      inventaireDelaiGraceJours: (Number.isFinite(delai) && delai >= 0) ? delai : DELAI_GRACE_SERIE_INVENTAIRE_JOURS,
+      inventairePaliers: paliersValides(l.series_inventaire_paliers) || PALIERS_SERIE_INVENTAIRE,
+    };
+  }
+
   global.NexusProgression = {
     SEUIL_ECART_CONFORME,
     construireServicesCaisse, estConforme, serviceEstPropre,
@@ -1328,5 +1368,7 @@
     paliersFranchis, prochainPalier, calculerSerieDepuisEvenements,
     DELAI_GRACE_SERIE_INVENTAIRE_JOURS, CORRECTION_TYPES_IMPUTABLES_INVENTAIRE,
     qualifierQuartsInventaireEmploye, PALIERS_SERIE_INVENTAIRE,
+    // Mes séries — Paramètres manager (20/08/2026)
+    resoudreReglesProgressionSite,
   };
 })(window);

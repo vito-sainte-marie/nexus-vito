@@ -307,6 +307,7 @@
       { data: pointsLedgerRows, error: e11 },
       { data: quartEmployeRows, error: e12 },
       { data: correctionsInventaireRows, error: e13 },
+      { data: reglesSeriesRow, error: e14 },
     ] = await Promise.all([
       // id/valide_le/ecart_*_valide/commentaire_validation ajoutés le
       // 03/08/2026 pour "Mes Caisses" — distinguer un écart provisoire d'un
@@ -356,6 +357,13 @@
       // employé, la qualification (nexus-progression.js) les met en
       // correspondance elle-même via (date|quart).
       fetchAllRows(() => nexusClient.from('inventaire_corrections').select('*').eq('site', siteId)),
+      // Mes séries — Paramètres manager (20/08/2026, P8) : une ligne par
+      // site, résolue via NexusProgression.resoudreReglesProgressionSite
+      // plus bas (jamais un second calcul de fallback ici). Absente tant
+      // qu'aucun manager n'a rien enregistré dans Paramètres Station —
+      // dans ce cas resoudreReglesProgressionSite retombe sur les mêmes
+      // valeurs par défaut qu'avant ce lot (Article 5 : jamais une erreur).
+      nexusClient.from('progression_site_settings').select('*').eq('site', siteId).maybeSingle(),
     ]);
     if (e1) console.error('Chargement audits_caisse (progression):', e1);
     if (e2) console.error('Chargement pointages (progression):', e2);
@@ -370,8 +378,14 @@
     if (e11) console.error('Chargement progression_points_ledger:', e11);
     if (e12) console.error('Chargement inventaire_quart_employes (progression):', e12);
     if (e13) console.error('Chargement inventaire_corrections (progression):', e13);
+    if (e14) console.error('Chargement progression_site_settings (progression):', e14);
 
     const N = NexusProgression;
+    // Mes séries — Paramètres manager (20/08/2026, P8) : résolution unique,
+    // en tête de fonction, consommée par tout ce qui suit (paliers, délai de
+    // grâce, activation par domaine) — jamais un second calcul de fallback
+    // ailleurs dans ce fichier (Article 11).
+    const reglesSeries = N.resoudreReglesProgressionSite(e14 ? null : reglesSeriesRow);
     const services = N.construireServicesCaisse(auditsRows || [], cible.id);
     const ecarts = N.ecartsAttribuables(services);
     // Ma Progression multi-activité (16/08/2026) : FDJ + historique unifié
@@ -470,11 +484,16 @@
     // Factorisé en une seule fonction pour ne jamais faire diverger la
     // logique de crédit entre les deux domaines.
     // ------------------------------------------------------------
-    async function crediterPaliersFranchis(domain, sourceType, catalogue, record, badgesDejaConnus, pointsDejaConnus) {
+    async function crediterPaliersFranchis(domain, sourceType, catalogue, record, badgesDejaConnus, pointsDejaConnus, actif) {
       let badgesObtenus = badgesDejaConnus;
       let pointsLedger = pointsDejaConnus;
       const nouveauxDeblocages = [];
-      if (!vueManager) {
+      // actif=false (réglage manager, Paramètres Station) : plus aucun
+      // NOUVEAU badge/point crédité pour ce domaine tant qu'il reste
+      // désactivé — mais badgesObtenus/pointsLedger déjà acquis restent
+      // intacts et comptent toujours dans le total (cadrage §12 : jamais un
+      // retrait silencieux, même en désactivant la série).
+      if (!vueManager && actif !== false) {
         const codesDejaAcquis = badgesObtenus.filter(b => b.domain === domain).map(b => b.badge_code);
         const nouveauxPaliers = N.paliersFranchis(catalogue, record, codesDejaAcquis);
         for (const palier of nouveauxPaliers) {
@@ -500,17 +519,18 @@
       return { badgesObtenus, pointsLedger, codesAcquisFinal, prochainPalierVal, totalPoints, nouveauxDeblocages };
     }
 
-    const resultatSerieCaisse = await crediterPaliersFranchis('caisse', 'badge_caisse', N.PALIERS_SERIE_CAISSE, serieUnifiee.record, badgeAwardsRows || [], pointsLedgerRows || []);
+    const resultatSerieCaisse = await crediterPaliersFranchis('caisse', 'badge_caisse', reglesSeries.caissePaliers, serieUnifiee.record, badgeAwardsRows || [], pointsLedgerRows || [], reglesSeries.caisseActif);
 
     // Série Inventaire (20/08/2026) — qualification quart par quart depuis
     // inventaire_quart_employes (responsabilité du comptage) +
     // inventaire_corrections (erreur_saisie/mouvement_oublie disqualifient,
     // le reste jamais — voir nexus-progression.js section 13 pour la
-    // doctrine complète, notamment le délai de grâce de 7 jours décidé par
-    // Frédéric le 19/08/2026).
-    const evenementsInventaire = N.qualifierQuartsInventaireEmploye(quartEmployeRows || [], correctionsInventaireRows || [], new Date().toISOString());
+    // doctrine complète). Délai de grâce et paliers viennent de reglesSeries
+    // (Paramètres Station si enregistrés, sinon les mêmes défauts qu'avant
+    // ce lot — voir NexusProgression.resoudreReglesProgressionSite).
+    const evenementsInventaire = N.qualifierQuartsInventaireEmploye(quartEmployeRows || [], correctionsInventaireRows || [], new Date().toISOString(), reglesSeries.inventaireDelaiGraceJours);
     const serieInventaire = N.calculerSerieDepuisEvenements(evenementsInventaire);
-    const resultatSerieInventaire = await crediterPaliersFranchis('inventaire', 'badge_inventaire', N.PALIERS_SERIE_INVENTAIRE, serieInventaire.record, resultatSerieCaisse.badgesObtenus, resultatSerieCaisse.pointsLedger);
+    const resultatSerieInventaire = await crediterPaliersFranchis('inventaire', 'badge_inventaire', reglesSeries.inventairePaliers, serieInventaire.record, resultatSerieCaisse.badgesObtenus, resultatSerieCaisse.pointsLedger, reglesSeries.inventaireActif);
 
     const lignesBoutique = lignesUnifiees.filter(l => l.activite === 'boutique');
     const lignesPiste = lignesUnifiees.filter(l => l.activite === 'piste');
@@ -801,11 +821,19 @@
         </div>`;
     }
 
-    const serieCardHtml = `
+    // Paramètres manager (P8, 20/08/2026) : une série désactivée dans
+    // Paramètres Station n'affiche plus sa carte (mais rien n'est retiré de
+    // l'historique déjà acquis — voir crediterPaliersFranchis plus haut).
+    // Si les deux domaines sont désactivés, le bloc "Mes séries" disparaît
+    // entièrement plutôt que d'afficher un titre sans contenu.
+    const cartesSeriesHtml = [
+      reglesSeries.caisseActif ? renderSerieCard({ icone: '🔥', nomSerie: 'Caisse — validations conformes d\'affilée', catalogue: reglesSeries.caissePaliers, serie: serieUnifiee, resultat: resultatSerieCaisse }) : '',
+      reglesSeries.inventaireActif ? renderSerieCard({ icone: '📦', nomSerie: 'Inventaire — sessions sans correction confirmée', catalogue: reglesSeries.inventairePaliers, serie: serieInventaire, resultat: resultatSerieInventaire }) : '',
+    ].join('');
+    const serieCardHtml = cartesSeriesHtml ? `
       <div class="section-label">Mes séries</div>
-      ${renderSerieCard({ icone: '🔥', nomSerie: 'Caisse — validations conformes d\'affilée', catalogue: N.PALIERS_SERIE_CAISSE, serie: serieUnifiee, resultat: resultatSerieCaisse })}
-      ${renderSerieCard({ icone: '📦', nomSerie: 'Inventaire — sessions sans correction confirmée', catalogue: N.PALIERS_SERIE_INVENTAIRE, serie: serieInventaire, resultat: resultatSerieInventaire })}
-    `;
+      ${cartesSeriesHtml}
+    ` : '';
 
     // Micro-récompense de déblocage (cadrage §7.2) — non bloquante, affichée
     // une seule fois au moment réel du déblocage (nouveauxDeblocages n'est

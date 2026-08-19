@@ -157,6 +157,7 @@
 <script src="nexus-carburant-moteur.js"></script>
 <script src="nexus-carburant-donnees.js"></script>
 <script src="nexus-reception-moteur.js"></script>
+<script src="nexus-progression.js"></script>
 </head>
 <body>
 <div class="phone">
@@ -495,6 +496,59 @@
       <div class="section-label" style="margin-top:18px;">Articles déjà exclus</div>
       <div id="listeExceptionsMarge"><div class="liste-vide">Chargement…</div></div>
     </div>
+
+    <!-- ------------------------------------------------------------
+         Mes séries — Paramètres manager (20/08/2026, P8 du plan
+         d'implémentation du cadrage NEXUS_Ma_Progression_Series_
+         Recompenses_Cadrage_Developpeur.pdf). progression_site_settings
+         (une ligne par site) : activer/désactiver chaque série, ajuster ses
+         3 paliers (seuil de série + points), et le délai de grâce
+         Inventaire. Sans ligne enregistrée, NEXUS utilise les valeurs par
+         défaut du cadrage (5/10/20, 25/50/100 points, 7 jours) — voir
+         NexusProgression.resoudreReglesProgressionSite, jamais un second
+         calcul ici (Article 11). La tolérance caisse n'est délibérément PAS
+         ici : elle reste SEUIL_ECART_CONFORME dans nexus-progression.js,
+         source unique utilisée par toute la page Mon évolution (voir le
+         commentaire de la migration progression_site_settings_series).
+         Modifier un palier ne retire jamais un badge déjà acquis à
+         l'ancien seuil (cadrage §12, §13 : "une modification de palier ne
+         doit pas réécrire silencieusement l'historique antérieur").
+         ------------------------------------------------------------ -->
+    <div class="card" id="cardSeriesRecompenses">
+      <div class="section-label">Mes séries — badges &amp; points (Ma progression)</div>
+      <div class="note">Paliers et points affichés aux employés dans "Mes séries" (Caisse et Inventaire). Sans réglage enregistré ici, NEXUS utilise les valeurs par défaut du cadrage. Modifier un palier ne retire jamais un badge déjà obtenu.</div>
+
+      <div class="toggle-row" style="margin-bottom:14px;">
+        <div class="tr-text">
+          <div class="tr-title">Série Caisse active</div>
+          <div class="tr-desc">Contrôles caisse (Boutique/Piste/FDJ) définitivement validés conformes, à la suite.</div>
+        </div>
+        <label class="toggle-switch">
+          <input type="checkbox" id="seriesCaisseActif">
+          <span class="toggle-track"></span>
+          <span class="toggle-thumb"></span>
+        </label>
+      </div>
+      <div id="seriesCaissePaliers"></div>
+
+      <div class="toggle-row" style="margin:20px 0 14px;">
+        <div class="tr-text">
+          <div class="tr-title">Série Inventaire active</div>
+          <div class="tr-desc">Inventaires validés sans correction de comptage confirmée, à la suite.</div>
+        </div>
+        <label class="toggle-switch">
+          <input type="checkbox" id="seriesInventaireActif">
+          <span class="toggle-track"></span>
+          <span class="toggle-thumb"></span>
+        </label>
+      </div>
+      <div class="row"><label>Délai de grâce avant qu'un inventaire compte (jours)</label><input type="number" min="0" step="1" id="seriesInventaireDelaiGrace" style="width:70px;"></div>
+      <div class="note" style="margin-top:0;">Tant qu'un quart clôturé n'a pas dépassé ce délai, il reste "en attente" — ni comptabilisé, ni perdu — le temps qu'une éventuelle correction manager arrive.</div>
+      <div id="seriesInventairePaliers"></div>
+
+      <button class="btn btn-primary" id="sauvegarderSeries" style="margin-top:14px;">Enregistrer</button>
+      <div class="saved-note" id="savedNoteSeries">✓ Réglages "Mes séries" enregistrés</div>
+    </div>
   </div>
 
   <footer>NEXUS Paramètres v1 · Modifiable sans toucher au code — prêt pour un déploiement multi-station</footer>
@@ -828,6 +882,91 @@
       return;
     }
     majEtatJaugeageCarburantActif(actif);
+  });
+
+  // ------------------------------------------------------------
+  // Mes séries — Paramètres manager (20/08/2026, P8 du plan d'implémentation
+  // du cadrage "Séries & récompenses"). progression_site_settings, une
+  // ligne par site. Chargement + rendu + sauvegarde groupée en un seul
+  // bouton (comme "Réception carburant — configuration" ci-dessus) — pas
+  // d'auto-save par champ : les paliers doivent rester cohérents entre eux
+  // avant d'être enregistrés. Toute résolution de valeurs (site ou défaut)
+  // passe par NexusProgression.resoudreReglesProgressionSite : jamais un
+  // second calcul de fallback ici (Article 11).
+  // ------------------------------------------------------------
+  let reglesSeriesCourantes = null; // dernière résolution connue (site ou défauts), sert de filet si un champ est laissé vide/invalide à la sauvegarde
+
+  function renderPaliersEditor(containerId, paliers) {
+    const zone = document.getElementById(containerId);
+    zone.innerHTML = paliers.map((p, i) => `
+      <div class="row" data-idx="${i}">
+        <label>${p.label || p.code}</label>
+        <input type="number" min="1" step="1" class="palier-seuil" value="${p.seuil}" style="width:60px;" title="Seuil de série">
+        <input type="number" min="0" step="1" class="palier-points" value="${p.points}" style="width:70px;" title="Points">
+      </div>
+    `).join('');
+  }
+
+  function lirePaliersEditor(containerId, paliersOrigine) {
+    const zone = document.getElementById(containerId);
+    return Array.from(zone.querySelectorAll('.row')).map((row, i) => {
+      const origine = paliersOrigine[i] || {};
+      const seuilBrut = parseInt(row.querySelector('.palier-seuil').value, 10);
+      const pointsBrut = parseInt(row.querySelector('.palier-points').value, 10);
+      return {
+        code: origine.code,
+        label: origine.label,
+        seuil: (Number.isFinite(seuilBrut) && seuilBrut > 0) ? seuilBrut : origine.seuil,
+        points: (Number.isFinite(pointsBrut) && pointsBrut >= 0) ? pointsBrut : origine.points,
+      };
+    });
+  }
+
+  async function chargerReglesSeries() {
+    const { data, error } = await nexusClient.from('progression_site_settings').select('*').eq('site', employee.site_id).maybeSingle();
+    if (error) { console.error('Chargement progression_site_settings:', error); return NexusProgression.resoudreReglesProgressionSite(null); }
+    return NexusProgression.resoudreReglesProgressionSite(data);
+  }
+
+  function afficherReglesSeries(regles) {
+    document.getElementById('seriesCaisseActif').checked = regles.caisseActif;
+    document.getElementById('seriesInventaireActif').checked = regles.inventaireActif;
+    document.getElementById('seriesInventaireDelaiGrace').value = regles.inventaireDelaiGraceJours;
+    renderPaliersEditor('seriesCaissePaliers', regles.caissePaliers);
+    renderPaliersEditor('seriesInventairePaliers', regles.inventairePaliers);
+  }
+
+  (async function initSeriesRecompenses() {
+    reglesSeriesCourantes = await chargerReglesSeries();
+    afficherReglesSeries(reglesSeriesCourantes);
+  })();
+
+  document.getElementById('sauvegarderSeries').addEventListener('click', async () => {
+    const btn = document.getElementById('sauvegarderSeries');
+    btn.disabled = true;
+    const caissePaliers = lirePaliersEditor('seriesCaissePaliers', reglesSeriesCourantes.caissePaliers);
+    const inventairePaliers = lirePaliersEditor('seriesInventairePaliers', reglesSeriesCourantes.inventairePaliers);
+    const delaiBrut = parseInt(document.getElementById('seriesInventaireDelaiGrace').value, 10);
+    const delai = (Number.isFinite(delaiBrut) && delaiBrut >= 0) ? delaiBrut : reglesSeriesCourantes.inventaireDelaiGraceJours;
+    const { error } = await nexusClient.from('progression_site_settings').upsert(
+      {
+        site: employee.site_id,
+        series_caisse_actif: document.getElementById('seriesCaisseActif').checked,
+        series_caisse_paliers: caissePaliers,
+        series_inventaire_actif: document.getElementById('seriesInventaireActif').checked,
+        series_inventaire_delai_grace_jours: delai,
+        series_inventaire_paliers: inventairePaliers,
+        updated_at: new Date().toISOString(), updated_by: employee.id,
+      },
+      { onConflict: 'site' }
+    );
+    btn.disabled = false;
+    if (error) { console.error('Enregistrement progression_site_settings:', error); alert('Erreur — réessayez.'); return; }
+    reglesSeriesCourantes = await chargerReglesSeries();
+    afficherReglesSeries(reglesSeriesCourantes);
+    const note = document.getElementById('savedNoteSeries');
+    note.style.display = 'block';
+    setTimeout(() => note.style.display = 'none', 3000);
   });
 
   // ------------------------------------------------------------
