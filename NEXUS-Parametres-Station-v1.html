@@ -169,6 +169,8 @@
   .pnav-chip{flex-shrink:0; display:flex; align-items:center; gap:6px; font-family:var(--sans); font-size:12.5px; font-weight:600; color:var(--text-mid); background:var(--panel); border:1px solid var(--hairline); border-radius:20px; padding:8px 14px; cursor:pointer; white-space:nowrap;}
   .pnav-chip:active{background:var(--panel-raised);}
   .pnav-chip.actif{color:var(--cyan); border-color:rgba(79,195,217,0.4); background:rgba(79,195,217,0.08);}
+  .pnav-more-panel{display:none; flex-wrap:wrap; gap:8px; padding:0 20px 14px;}
+  .pnav-more-panel.open{display:flex;}
 
   /* Accordéon "grand univers" — un bloc par thème. Tous repliés par défaut
      (demande de Frédéric le 20/08/2026 : "repli tout dans paramètres") ;
@@ -215,17 +217,24 @@
     </div>
   </div>
 
-  <!-- Navigation rapide par grands univers (20/08/2026) — chaque puce ouvre
-       et scrolle vers la section correspondante (voir initAccordeonParametres
-       plus bas). Purement du confort de navigation ; aucune donnée. -->
+  <!-- Navigation rapide par grands univers, à 2 niveaux (20/08/2026 ; ajusté
+       le même jour à la demande de Frédéric : les 7 pastilles défilaient
+       horizontalement et certaines étaient coupées sur mobile). Barre
+       compacte : 4 accès visibles (les 3 sections les plus consultées +
+       "Plus…"), qui déplie un petit panneau avec les 4 autres. Chaque puce
+       ouvre et scrolle vers sa section (voir initAccordeonParametres plus
+       bas). Purement du confort de navigation ; aucune donnée. -->
   <div class="pnav" id="pnav">
     <button type="button" class="pnav-chip" data-target="secGeneral">🏠 Général</button>
-    <button type="button" class="pnav-chip" data-target="secEquipe">👥 Équipe &amp; horaires</button>
-    <button type="button" class="pnav-chip" data-target="secAccueil">⭐ Accueil</button>
+    <button type="button" class="pnav-chip" data-target="secEquipe">👥 Équipe</button>
     <button type="button" class="pnav-chip" data-target="secCarburants">⛽ Carburants</button>
-    <button type="button" class="pnav-chip" data-target="secProgression">🏅 Progression</button>
+    <button type="button" class="pnav-chip pnav-more-toggle" id="pnavMoreToggle" aria-expanded="false" aria-controls="pnavMorePanel">⋯ Plus</button>
+  </div>
+  <div class="pnav-more-panel" id="pnavMorePanel">
+    <button type="button" class="pnav-chip" data-target="secAccueil">⭐ Accueil &amp; raccourcis</button>
+    <button type="button" class="pnav-chip" data-target="secProgression">🏅 Progression &amp; récompenses</button>
     <button type="button" class="pnav-chip" data-target="secIntegrations">🔗 Intégrations</button>
-    <button type="button" class="pnav-chip" data-target="secAvance">⚙️ Avancé</button>
+    <button type="button" class="pnav-chip" data-target="secAvance">⚙️ Réglages avancés</button>
   </div>
 
   <div class="divider"></div>
@@ -238,15 +247,17 @@
          Redesign "grands univers" (20/08/2026, demande de Frédéric : la
          page était "très riche mais pas intuitive" — trop de cartes à plat,
          sans hiérarchie). Architecture en 7 accordéons thématiques, chacun
-         avec une phrase d'objectif, tous repliés par défaut (ajusté le
-         20/08/2026, même jour : "repli tout dans paramètres"). Chaque carte existante
-         (id, logique JS, requêtes Supabase) reste identique à l'octet près :
-         seul l'emballage visuel change (voir initAccordeonParametres,
-         plus bas dans le script). "Vos raccourcis" déplacé ici depuis le
-         tout début de la page vers la section "Accueil & affichage" : c'est
+         avec une phrase d'objectif. Ouverture par défaut (ajustée le
+         20/08/2026 en 2 passes : "repli tout dans paramètres" puis, dans la
+         foulée, "sauf Général") : seul Général est ouvert au chargement, les
+         6 autres sont repliées. Chaque carte existante (id, logique JS,
+         requêtes Supabase) reste identique à l'octet près : seul l'emballage
+         visuel change (voir initAccordeonParametres, plus bas dans le
+         script). "Vos raccourcis" déplacé ici depuis le tout début de la
+         page vers la section "Accueil & raccourcis" : c'est
          une personnalisation d'interface, pas un réglage d'exploitation.
          ------------------------------------------------------------ -->
-    <section class="psec" id="secGeneral">
+    <section class="psec open" id="secGeneral">
       <button type="button" class="psec-head">
         <span class="psec-icon">🏠</span>
         <span class="psec-headtext">
@@ -256,14 +267,14 @@
         <span class="psec-chevron">▾</span>
       </button>
       <div class="psec-body">
+        <!-- Site + Forfait fusionnés en une carte compacte (20/08/2026,
+             demande de Frédéric : "très peu modifiés", pas besoin de deux
+             cartes pleines). ids/logique JS inchangés (afficherForfait). -->
         <div class="card" id="cardIdentiteSite">
-          <div class="section-label">Site</div>
-          <div id="identiteSiteNom" class="note" style="margin:0; font-size:13px; color:var(--text);">Chargement…</div>
-        </div>
-        <div class="card" id="cardForfait">
-          <div class="section-label">Forfait NEXUS</div>
+          <div class="section-label">Site &amp; forfait</div>
+          <div id="identiteSiteNom" class="note" style="margin:0 0 10px; font-size:13px; color:var(--text);">Chargement…</div>
           <div id="forfaitActuel" class="forfait-actuel essential">Chargement…</div>
-          <div class="note" style="margin-top:0;">Ce choix n'est pas modifiable depuis cet écran — seul le créateur NEXUS peut attribuer ou changer le forfait d'un site, depuis l'administration multi-site.</div>
+          <div class="note" style="margin-top:8px;">Ce choix n'est pas modifiable depuis cet écran — seul le créateur NEXUS peut attribuer ou changer le forfait d'un site, depuis l'administration multi-site.</div>
         </div>
       </div>
     </section>
@@ -387,7 +398,7 @@
       <button type="button" class="psec-head">
         <span class="psec-icon">⭐</span>
         <span class="psec-headtext">
-          <span class="psec-title">Accueil &amp; affichage</span>
+          <span class="psec-title">Accueil &amp; raccourcis</span>
           <span class="psec-obj">Personnalise ce que voit le manager à l'accueil, sans toucher au fonctionnement métier.</span>
         </span>
         <span class="psec-chevron">▾</span>
@@ -600,7 +611,7 @@
       <button type="button" class="psec-head">
         <span class="psec-icon">🏅</span>
         <span class="psec-headtext">
-          <span class="psec-title">Contrôles &amp; progression</span>
+          <span class="psec-title">Progression &amp; récompenses</span>
           <span class="psec-obj">Règles qui alimentent la motivation et les récompenses employé.</span>
         </span>
         <span class="psec-chevron">▾</span>
@@ -696,7 +707,7 @@
       <button type="button" class="psec-head">
         <span class="psec-icon">⚙️</span>
         <span class="psec-headtext">
-          <span class="psec-title">Avancé</span>
+          <span class="psec-title">Réglages avancés</span>
           <span class="psec-obj">Réglages moins fréquents, pour utilisateurs expérimentés.</span>
         </span>
         <span class="psec-chevron">▾</span>
@@ -737,16 +748,36 @@
     sections.forEach(sec => {
       const head = sec.querySelector('.psec-head');
       if (head) head.addEventListener('click', () => definirEtat(sec, !sec.classList.contains('open')));
-      // Reflète l'état initial (classe "open" posée en HTML sur Général et
-      // Équipe & horaires) dans la puce de navigation correspondante.
+      // Reflète l'état initial (classe "open" posée en HTML sur Général) dans
+      // la puce de navigation correspondante.
       if (sec.classList.contains('open')) definirEtat(sec, true);
     });
-    document.querySelectorAll('.pnav-chip').forEach(chip => {
+    // Panneau "Plus…" (20/08/2026) — les 4 sections les moins consultées
+    // (Accueil, Progression, Intégrations, Avancé) sont repliées dans un
+    // second niveau pour garder la barre compacte sur mobile.
+    const moreToggle = document.getElementById('pnavMoreToggle');
+    const morePanel = document.getElementById('pnavMorePanel');
+    function fermerPanneauPlus() {
+      if (!morePanel) return;
+      morePanel.classList.remove('open');
+      if (moreToggle) { moreToggle.setAttribute('aria-expanded', 'false'); moreToggle.classList.remove('actif'); }
+    }
+    if (moreToggle && morePanel) {
+      moreToggle.addEventListener('click', () => {
+        const ouvert = morePanel.classList.toggle('open');
+        moreToggle.setAttribute('aria-expanded', String(ouvert));
+        moreToggle.classList.toggle('actif', ouvert);
+      });
+    }
+    document.querySelectorAll('.pnav-chip[data-target]').forEach(chip => {
       chip.addEventListener('click', () => {
         const sec = document.getElementById(chip.dataset.target);
         if (!sec) return;
         definirEtat(sec, true);
         sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        // Une puce du panneau "Plus…" referme le panneau après avoir ouvert
+        // sa section — évite qu'il reste déployé une fois son rôle rempli.
+        if (morePanel && morePanel.contains(chip)) fermerPanneauPlus();
       });
     });
   })();

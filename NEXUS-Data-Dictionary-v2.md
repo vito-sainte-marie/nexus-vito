@@ -1602,3 +1602,22 @@ RLS calquée exactement sur `apprentissage_snapshots` (seule table à écriture 
 - `initAccordeonParametres` (comportement de clic/ouverture/scroll) et les puces de navigation ne changent pas : un clic sur un en-tête ou une puce ouvre toujours la section visée, quel que soit son état de départ.
 
 **Vérification** : comptage `<div>`/`<section>`/`<button>` (195/195, 7/7, 32/32 — équilibré), aucun `id` dupliqué, 7 `data-target` de navigation ↔ 7 `id` de section confirmés en correspondance exacte (un 8e match `${sec.id}` détecté par la recherche est un littéral de gabarit JS dans `initAccordeonParametres`, pas une puce réelle — écarté). `node --check` propre sur le `<script>` unique de la page. Confirmé : 0 section avec `class="psec open"` sur les 7.
+
+## v2.170 — 20/08/2026 — Paramètres Station : nav mobile à 2 niveaux, réouverture de Général, 3 renommages, carte Site/Forfait compacte
+
+**Contexte** : Frédéric, retour d'usage sur le redesign v2.168/v2.169 — les 7 pastilles de navigation défilaient horizontalement sur mobile et certaines étaient coupées. Il propose une évolution ciblée : nav compacte à 2 niveaux, réouvrir `Général` par défaut (revient partiellement sur "repli tout" de v2.169), 3 renommages de section, et une carte "Site/Forfait" compacte. Il propose aussi une barre de sauvegarde globale sticky et un panneau "état de santé de la configuration" — ces deux derniers sont des chantiers plus lourds (respectivement : retirer les boutons Enregistrer de ~20 cartes indépendantes et tracker un état "modifié" transverse ; définir des règles métier "configuré / à vérifier" domaine par domaine), cadrés séparément (tâches dédiées) plutôt que codés dans la foulée, pour éviter la fausse précision d'une fonctionnalité bâclée (Article 5).
+
+**Nav à 2 niveaux** (`NEXUS-Parametres-Station-v1.html`) : la barre `.pnav` ne montre plus que 4 puces (🏠 Général, 👥 Équipe, ⛽ Carburants, ⋯ Plus). Un clic sur "Plus" déplie `.pnav-more-panel` avec les 4 puces restantes (⭐ Accueil & raccourcis, 🏅 Progression & récompenses, 🔗 Intégrations, ⚙️ Réglages avancés). Cliquer une puce du panneau "Plus" ouvre sa section, scrolle vers elle, **et referme le panneau** (`fermerPanneauPlus()`), pour ne pas laisser un second bloc de navigation ouvert inutilement. Mécanique de clic/scroll (`definirEtat`, `scrollIntoView`) strictement inchangée — seule la structure d'affichage des puces change (`.pnav-chip[data-target]` reste le sélecteur commun aux 7 puces, primaire ou "Plus").
+
+**Réouverture de Général** : `secGeneral` repasse en `class="psec open"` (les 6 autres, y compris Équipe & horaires, restent fermées — Frédéric a qualifié la réouverture d'Équipe de facultative, non retenue pour garder la page la plus compacte possible au premier coup d'œil).
+
+**3 renommages de titres de section** (texte visible uniquement, `id`/logique inchangés) :
+- "Accueil & affichage" → **"Accueil & raccourcis"**
+- "Contrôles & progression" → **"Progression & récompenses"**
+- "Avancé" → **"Réglages avancés"**
+
+**Carte Site/Forfait compacte** : `cardIdentiteSite` et `cardForfait` (deux cartes pleines dans `secGeneral`) fusionnées en une seule carte "Site & forfait" — nom du site en tête, badge de forfait et note juste en dessous. Les deux champs dynamiques (`#identiteSiteNom`, `#forfaitActuel`) gardent leurs `id` exacts ; `afficherForfait()` n'a pas été touchée (Article 11 — même requête `sites`, même logique de peuplement).
+
+**Vérification** : comptage `<div>`/`<section>`/`<button>` (194/194, 7/7, 33/33 — équilibré), aucun `id` dupliqué, les 7 `id` de section couverts exactement par les 7 `data-target` réels (le `${sec.id}` du gabarit JS écarté comme en v2.169), une seule section (`secGeneral`) avec `class="psec open"`. `node --check` propre sur le `<script>` unique de la page.
+
+**Reporté volontairement** (tâches créées, non commencées) : barre de sauvegarde globale sticky ("N modifications non enregistrées · Annuler · Enregistrer") et panneau de synthèse "état de santé de la configuration" en tête de page. Les deux sont de vrais chantiers de cadrage — pas de la présentation — et seront traités dans une prochaine session, dans l'esprit du cadrage P8 (progression_site_settings) : d'abord définir précisément le comportement et les règles, puis coder.
