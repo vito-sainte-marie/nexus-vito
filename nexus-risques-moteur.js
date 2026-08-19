@@ -559,6 +559,99 @@
   }
 
   // ------------------------------------------------------------
+  // DOMAINE PILOTE 4 — INVENTAIRE (Cadrage risques Phase 6, tâche #235,
+  // 18/08/2026 — motivé directement par l'incident "Glaçons Crystal" du
+  // 18/08/2026, cité dans le complément de Constitution fait/calcul/
+  // décision de la même date : une fiche produit dupliquée avait fait
+  // perdre 11 jours d'historique de comptage sans qu'aucun signal ne le
+  // signale nulle part).
+  //
+  // Zéro dépendance à un autre moteur de domaine (même discipline que les
+  // 3 domaines précédents) : `inventaire_alertes` qualifie déjà chaque
+  // alerte avec un champ `gravite` ('critique'/'attention') posé par le
+  // moteur Inventaire au moment de la détection (écart d'ouverture,
+  // anomalie répétée, clôture en retard) — ce fichier ne réévalue jamais
+  // cette gravité, il la traduit simplement en `severiteQualitative`
+  // (Article 11 : la gravité métier de l'alerte a déjà été décidée une
+  // fois, par le domaine qui connaît le contexte du comptage).
+  //
+  // input :
+  //   gravite            : 'critique' / 'attention' / autre valeur/absent.
+  //   nbAlertesRecentes   : nombre d'alertes (même produit) sur la fenêtre
+  //                         d'observation de l'appelant (récurrence).
+  //   valeurEstimeeTotal  : somme des `valeur_estimee` (€) des alertes de
+  //                         la fenêtre, si le domaine Inventaire a pu
+  //                         l'estimer — jamais un montant mesuré avec
+  //                         certitude (d'où `impactPotentielEur`, jamais
+  //                         `impactMesureEur`, Article 5 : une estimation
+  //                         reste une estimation).
+  //
+  // cle attendue par l'appelant pour nexus_risk_signals :
+  // `inventaire:produit:${designation}`.
+  // ------------------------------------------------------------
+  function qualifierAlerteInventaire(input) {
+    const severite = input.gravite === 'critique' ? 'majeure' : input.gravite === 'attention' ? 'significative' : undefined;
+    const recurrence = Math.max(1, Number(input.nbAlertesRecentes || 1));
+    const impactPotentielEur = input.valeurEstimeeTotal != null ? Number(input.valeurEstimeeTotal) : null;
+    const classification = classifierNiveau({
+      impactPotentielEur, // une estimation prime sur le jugement qualitatif si assez significative — cohérent avec la priorité déjà posée en Phase 4.
+      severiteQualitative: severite,
+      recurrenceCount: recurrence,
+      tailleEchantillon: recurrence,
+    });
+    return {
+      ...classification,
+      impactMesureEur: null, impactPotentielEur,
+      recurrenceCount: recurrence, tailleEchantillon: recurrence,
+      preuve: { gravite: input.gravite || null, nbAlertesRecentes: recurrence, valeurEstimeeTotal: impactPotentielEur },
+    };
+  }
+
+  // ------------------------------------------------------------
+  // DOMAINE PILOTE 5 — ÉQUIPE (ponctualité, Cadrage risques Phase 6,
+  // 18/08/2026). Reprend EXACTEMENT le seuil déjà utilisé par
+  // `nexus-brief-donnees.js`/`nexus-secteurs-moteur.js` pour distinguer un
+  // collaborateur "à surveiller" (`SEUIL_RETARDS_RECURRENTS`, ex-littéral
+  // `3` codé en dur dans `chargerDomaineEquipe`) — une seule définition
+  // désormais, jamais un 2e seuil qui pourrait diverger (Article 11).
+  //
+  // Volontairement PAR COLLABORATEUR (jamais un signal de site agrégé) :
+  // le garde-fou du 18/08/2026 formulé par Frédéric pour la Constitution
+  // ("le manager ne doit voir que ce qui nécessite réellement sa
+  // décision") et la règle de portée déjà posée en P1.4
+  // (`classifierPorteeEquipe`, "ne jamais conclure à un besoin de
+  // formation collective à partir d'un seul collaborateur") exigent que
+  // chaque collaborateur reste un fait distinct, jamais mélangé aux
+  // autres avant que NEXUS n'ait vu la récurrence individuelle ou
+  // collective se former dans le temps (persistée signal par signal).
+  //
+  // input :
+  //   nbRetards               : nombre de retards du collaborateur sur la
+  //                             fenêtre (récurrence).
+  //   totalPointages          : nombre total de pointages du collaborateur
+  //                             sur la même fenêtre (taille d'échantillon).
+  //
+  // cle attendue par l'appelant pour nexus_risk_signals :
+  // `equipe:collaborateur:${nomCollaborateur}`.
+  // ------------------------------------------------------------
+  const SEUIL_RETARDS_RECURRENTS = 3;
+  function qualifierPonctualiteCollaborateur(input) {
+    const nbRetards = Math.max(1, Number(input.nbRetards || 1));
+    const severite = nbRetards >= SEUIL_RETARDS_RECURRENTS ? 'majeure' : undefined;
+    const classification = classifierNiveau({
+      severiteQualitative: severite,
+      recurrenceCount: nbRetards,
+      tailleEchantillon: Math.max(nbRetards, Number(input.totalPointages || nbRetards)),
+    });
+    return {
+      ...classification,
+      impactMesureEur: null, impactPotentielEur: null,
+      recurrenceCount: nbRetards, tailleEchantillon: Number(input.totalPointages || nbRetards),
+      preuve: { nbRetards, totalPointages: input.totalPointages != null ? input.totalPointages : null },
+    };
+  }
+
+  // ------------------------------------------------------------
   // LIBELLÉS PAR DOMAINE — un seul mapping domaine/cle_signal -> libellé
   // lisible, désormais partagé par Brief/Cockpit/Rapport (Cadrage risques
   // Phase 5, 18/08/2026). Avant ce lot, ce mapping était DUPLIQUÉ en 3
@@ -569,9 +662,14 @@
   // binaire retombe sur la branche `else`) dans les 3 écrans si ce mapping
   // n'avait pas été centralisé ici avant d'ajouter le domaine (Article 11 —
   // 3 copies qui auraient divergé silencieusement dès qu'un domaine change).
-  const LABEL_DOMAINE = { marge: 'Marge', caisse: 'Caisse', carburant: 'Carburants' };
+  // Étendu en Phase 6 (18/08/2026) pour Inventaire/FDJ/Équipe — même
+  // mécanisme, aucun changement de forme.
+  const LABEL_DOMAINE = { marge: 'Marge', caisse: 'Caisse', carburant: 'Carburants', inventaire: 'Inventaire', fdj: 'FDJ', equipe: 'Équipe' };
   const NOM_CARBURANT_RISQUE = { go: 'Gazole', sp95: 'SP95', gnr: 'GNR' };
-  const PREFIXES_CLE_SIGNAL = { marge: 'marge:categorie:', caisse: 'caisse:quart:', carburant: 'carburant:autonomie:' };
+  const PREFIXES_CLE_SIGNAL = {
+    marge: 'marge:categorie:', caisse: 'caisse:quart:', carburant: 'carburant:autonomie:',
+    inventaire: 'inventaire:produit:', fdj: 'fdj:quart:', equipe: 'equipe:collaborateur:',
+  };
 
   function domaineLabelSignal(s) {
     return LABEL_DOMAINE[s.domaine] || s.domaine;
@@ -580,9 +678,9 @@
   function sujetSignal(s) {
     const prefixe = PREFIXES_CLE_SIGNAL[s.domaine];
     const brut = prefixe ? (s.cle_signal || '').replace(prefixe, '') : (s.cle_signal || '');
-    if (s.domaine === 'caisse') return `Quart ${brut}`;
+    if (s.domaine === 'caisse' || s.domaine === 'fdj') return `Quart ${brut}`;
     if (s.domaine === 'carburant') return NOM_CARBURANT_RISQUE[brut] || brut;
-    return brut; // marge, et tout domaine futur non encore mappé : identifiant brut
+    return brut; // marge, inventaire, equipe, et tout domaine futur non encore mappé : identifiant brut (déjà un nom lisible pour ces 3 domaines).
   }
 
   global.NexusRisques = {
@@ -591,6 +689,7 @@
     classifierNiveau, determinerTransition, genererPhraseContexte, classifierUrgence,
     qualifierEcartCaisse, qualifierMargeCategorie, assemblerHistoriqueMargeCategorie,
     qualifierAutonomieCarburant,
+    qualifierAlerteInventaire, qualifierPonctualiteCollaborateur, SEUIL_RETARDS_RECURRENTS,
     niveauConfiance,
     SEUIL_IMPACT_MESURE_MATERIEL_EUR, SEUIL_IMPACT_POTENTIEL_SIGNIFICATIF_EUR,
     SEUIL_RECURRENCE_SIGNAL_FAIBLE, SEUIL_RECURRENCE_RISQUE_AVERE,

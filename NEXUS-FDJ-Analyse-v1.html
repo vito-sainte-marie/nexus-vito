@@ -26,6 +26,8 @@
 <script src="nexus-coach-fdj-moteur.js"></script>
 <script src="nexus-conseiller.js"></script>
 <script src="nexus-fdj-analyse-donnees.js"></script>
+<script src="nexus-risques-moteur.js"></script>
+<script src="nexus-risques-donnees.js"></script>
 <script src="nexus-pdf-moteur.js"></script>
 <style>
   :root{
@@ -1833,6 +1835,22 @@
     if (!(await NexusForfait.nexusRequireProfessional('NEXUS-FDJ-Analyse-v1.html', siteId))) return;
     [jeux, employesSite, emplacements] = await Promise.all([chargerJeux(), chargerEmployesSite(), chargerEmplacements()]);
     await renderPage();
+
+    // Cadrage risques Phase 6 (tâche #235, 18/08/2026) — FDJ devient un
+    // domaine NexusRisques (écart de caisse FDJ, `fdj_cash_controls`).
+    // Fire-and-forget, jamais avant `renderPage()` : un échec ici ne doit
+    // jamais empêcher FDJ Pilotage/Analyse de s'afficher (même discipline
+    // que Carburants Pilotage Phase 5, Brief/Équipe et Inventaire Manager
+    // ci-dessus, Phase 6).
+    (async () => {
+      try {
+        if (typeof NexusRisquesDonnees === 'undefined') return;
+        const agregationCaisseFdjParQuart = await NexusRisquesDonnees.chargerAgregationCaisseFdjTousQuarts(nexusClient, siteId, 30);
+        await NexusRisquesDonnees.qualifierEtEnregistrerRisquesPilote(nexusClient, siteId, { agregationCaisseFdjParQuart });
+      } catch (e) {
+        console.error('Qualification risques FDJ (arrière-plan, sans impact sur la page) :', e);
+      }
+    })();
   });
 </script>
 </body>

@@ -281,7 +281,10 @@
   // "digne d'être affiché" (niveau non-anomalie) est un filtre d'AFFICHAGE
   // fait par l'appelant, jamais une décision de ne pas écrire.
   async function qualifierEtEnregistrerRisquesPilote(client, siteId, params) {
-    const { rowsBrut, periodeAffichage, categoriesEnEcart, agregationCaisseParQuart, autonomiesCarburant } = params || {};
+    const {
+      rowsBrut, periodeAffichage, categoriesEnEcart, agregationCaisseParQuart, autonomiesCarburant,
+      alertesInventaire, agregationCaisseFdjParQuart, ponctualiteCollaborateurs,
+    } = params || {};
     if (!global.NexusRisques) { console.error('NexusRisques non chargé — inclure nexus-risques-moteur.js avant nexus-risques-donnees.js.'); return []; }
     const R = global.NexusRisques;
 
@@ -332,7 +335,51 @@
       });
     });
 
-    await Promise.all([...promessesCaisse, ...promessesMarge, ...promessesCarburant]);
+    // Domaine Inventaire (Cadrage risques Phase 6, tâche #235, 18/08/2026)
+    // — OPTIONNEL, même discipline que Marge/Carburants ci-dessus : un
+    // appelant qui ne passe pas `alertesInventaire` voit ce volet ignoré.
+    const promessesInventaire = Object.keys(alertesInventaire || {}).map(produitId => {
+      const donnee = (alertesInventaire || {})[produitId];
+      if (!donnee) return Promise.resolve(null);
+      const classif = R.qualifierAlerteInventaire(donnee);
+      return enregistrerObservation(client, siteId, {
+        domaine: 'inventaire', cleSignal: `inventaire:produit:${donnee.designation}`, typeSignal: 'alerte_inventaire_recurrente',
+        secteur: 'Opérations', classification: classif,
+        actionRecommandee: `Vérifiez la fiche produit et le mode de comptage de ${donnee.designation} — une alerte qui revient signale souvent une cause de fond (fiche dupliquée, emplacement ambigu, mode de comptage inadapté), pas juste un comptage isolé à corriger.`,
+      });
+    });
+
+    // Domaine FDJ — écart de caisse (Cadrage risques Phase 6, 18/08/2026) :
+    // réutilise `qualifierEcartCaisse` tel quel (fonction générique, voir
+    // commentaire de `chargerAgregationCaisseFdjTousQuarts`), jamais une 2e
+    // classification d'écart de caisse.
+    const promessesFdj = Object.keys(agregationCaisseFdjParQuart || {}).map(quart => {
+      const agg = agregationCaisseFdjParQuart[quart];
+      if (!agg || !agg.total) return Promise.resolve(null);
+      const classif = R.qualifierEcartCaisse(agg);
+      return enregistrerObservation(client, siteId, {
+        domaine: 'fdj', cleSignal: `fdj:quart:${quart}`, typeSignal: 'ecart_caisse_fdj_recurrent',
+        secteur: 'FDJ', classification: classif,
+        actionRecommandee: `Vérifiez les procédures de comptage FDJ du quart ${quart} avec l'équipe concernée.`,
+      });
+    });
+
+    // Domaine Équipe — ponctualité (Cadrage risques Phase 6, 18/08/2026) :
+    // un signal par collaborateur AYANT AU MOINS UN RETARD sur la fenêtre —
+    // jamais un signal agrégé au niveau site (voir le commentaire de
+    // `qualifierPonctualiteCollaborateur` dans nexus-risques-moteur.js).
+    const promessesEquipe = Object.keys(ponctualiteCollaborateurs || {}).map(employeeId => {
+      const donnee = (ponctualiteCollaborateurs || {})[employeeId];
+      if (!donnee || !donnee.nbRetards) return Promise.resolve(null);
+      const classif = R.qualifierPonctualiteCollaborateur(donnee);
+      return enregistrerObservation(client, siteId, {
+        domaine: 'equipe', cleSignal: `equipe:collaborateur:${donnee.nom}`, typeSignal: 'ponctualite_recurrente',
+        secteur: 'Équipe', classification: classif,
+        actionRecommandee: `Échangez avec ${donnee.nom} sur les retards constatés — un entretien individuel, pas une mesure collective, tant qu'aucun autre collaborateur n'est concerné de façon récurrente.`,
+      });
+    });
+
+    await Promise.all([...promessesCaisse, ...promessesMarge, ...promessesCarburant, ...promessesInventaire, ...promessesFdj, ...promessesEquipe]);
     return chargerSignauxSite(client, siteId, { statut: 'surveille' });
   }
 
@@ -385,11 +432,135 @@
     };
   }
 
+  // ------------------------------------------------------------
+  // SOURCE — DOMAINE PILOTE 4 INVENTAIRE (Cadrage risques Phase 6, tâche
+  // #235, 18/08/2026). Réutilise deux chargeurs DÉJÀ écrits et testés dans
+  // `nexus-inventaire-manager-donnees.js` — jamais une 2e requête inventée
+  // ici pour la même donnée (Article 11) :
+  //   - `chargerAlertesOuvertesPeriode` : alertes ouvertes/en_cours du
+  //     site, avec `gravite`/`valeur_estimee`/désignation produit déjà
+  //     jointe — la SITUATION actuelle.
+  //   - `chargerHistoriqueEcartsRecents` : alertes `ecart_ouverture` (tout
+  //     statut confondu, y compris déjà résolues) des 14 derniers jours —
+  //     la RÉCURRENCE réelle, y compris les écarts qui reviennent après
+  //     avoir été traités une première fois (exactement le type de motif
+  //     que l'incident Glaçons Crystal du 18/08/2026 aurait dû faire
+  //     remonter : un produit dont l'historique de comptage se dérobe de
+  //     façon répétée).
+  //
+  // Retourne une map { [produit_id]: { designation, gravite, nbAlertesRecentes, valeurEstimeeTotal } }
+  // — un produit sans aucune alerte ouverte n'apparaît pas dans la map
+  // (jamais une entrée à moitié remplie qui laisserait croire à une
+  // mesure partielle, même précédent que Carburants Phase 5).
+  // `RANG_GRAVITE_ALERTE` : seules deux valeurs existent en base
+  // aujourd'hui ('critique'/'attention', voir `inventaire_alertes.gravite`)
+  // — un produit avec plusieurs alertes ouvertes de gravités différentes
+  // remonte sous la PIRE des deux, jamais une moyenne qui diluerait le cas
+  // le plus grave (même principe que `qualifierAlerteInventaire` lui-même,
+  // qui ne réévalue pas la gravité, seulement la pire déjà posée).
+  const RANG_GRAVITE_ALERTE = { attention: 0, critique: 1 };
+
+  async function chargerAlertesInventaireAQualifier(client, siteId) {
+    const D = global.NexusInventaireManagerDonnees;
+    if (!D) { console.error('NexusInventaireManagerDonnees non chargé — inclure nexus-inventaire-manager-donnees.js avant nexus-risques-donnees.js pour qualifier Inventaire.'); return {}; }
+    const fenetreLarge = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const aujourdhui = new Date().toISOString().slice(0, 10);
+    const [alertesOuvertes, historiqueEcarts] = await Promise.all([
+      D.chargerAlertesOuvertesPeriode(client, siteId, fenetreLarge, aujourdhui),
+      D.chargerHistoriqueEcartsRecents(client, siteId), // fenêtre fixe 14 jours, propre à ce chargeur existant.
+    ]);
+    const recurrenceParProduit = {};
+    (historiqueEcarts || []).forEach(r => { if (r.produit_id) recurrenceParProduit[r.produit_id] = (recurrenceParProduit[r.produit_id] || 0) + 1; });
+    const resultat = {};
+    (alertesOuvertes || []).forEach(a => {
+      if (!a.produit_id) return; // alerte transversale au quart (ex. cloture_en_retard), pas rattachable à un produit précis — hors périmètre de ce domaine.
+      const designation = a.inventaire_zone_produit ? a.inventaire_zone_produit.designation : a.produit_id;
+      if (!resultat[a.produit_id]) resultat[a.produit_id] = { designation, gravite: a.gravite || null, valeurEstimeeTotal: 0 };
+      const entree = resultat[a.produit_id];
+      if (RANG_GRAVITE_ALERTE[a.gravite] > RANG_GRAVITE_ALERTE[entree.gravite]) entree.gravite = a.gravite;
+      entree.valeurEstimeeTotal += Number(a.valeur_estimee) || 0;
+    });
+    Object.keys(resultat).forEach(produitId => {
+      resultat[produitId].nbAlertesRecentes = recurrenceParProduit[produitId] || 1;
+    });
+    return resultat;
+  }
+
+  // ------------------------------------------------------------
+  // SOURCE — DOMAINE PILOTE 5 FDJ (écart de caisse, Cadrage risques
+  // Phase 6, 18/08/2026). Réutilise `NexusRisques.qualifierEcartCaisse`
+  // TEL QUEL (fonction générique malgré son nom — elle ne connaît aucun
+  // détail propre à la Caisse boutique/piste, elle attend juste un objet
+  // {ecartCumule, total, parStatut}) plutôt que d'écrire une 2e fonction
+  // de classification pour un 2e type d'écart de caisse (Article 11) :
+  // seule l'agrégation ci-dessous, propre aux colonnes de
+  // `fdj_cash_controls`, est nouvelle. Même construction que
+  // `chargerAgregationCaisseTousQuarts` (agrégation par quart), sur une
+  // table différente.
+  async function chargerAgregationCaisseFdjTousQuarts(client, siteId, depuisNJours) {
+    const depuis = new Date(Date.now() - (depuisNJours || 30) * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const { data: shifts, error: e1 } = await client.from('fdj_shifts')
+      .select('id, quart').eq('site', siteId).gte('date', depuis);
+    if (e1) { console.error('Chargement quarts FDJ (risque):', e1); return {}; }
+    const quartParShift = {};
+    (shifts || []).forEach(s => { quartParShift[s.id] = s.quart; });
+    const shiftIds = Object.keys(quartParShift);
+    if (!shiftIds.length) return {};
+    const { data: controles, error: e2 } = await client.from('fdj_cash_controls')
+      .select('shift_id, ecart, statut').in('shift_id', shiftIds);
+    if (e2) { console.error('Chargement écarts caisse FDJ (risque):', e2); return {}; }
+    const parQuart = {};
+    (controles || []).forEach(c => {
+      const quart = quartParShift[c.shift_id];
+      if (!quart) return;
+      if (!parQuart[quart]) parQuart[quart] = { total: 0, ecartCumule: 0, parStatut: { conforme: 0, surveiller: 0, anomalie: 0, critique: 0 } };
+      const agg = parQuart[quart];
+      agg.total++;
+      agg.ecartCumule += Math.abs(Number(c.ecart) || 0);
+      if (agg.parStatut[c.statut] != null) agg.parStatut[c.statut]++;
+    });
+    return parQuart;
+  }
+
+  // ------------------------------------------------------------
+  // SOURCE — DOMAINE PILOTE 6 ÉQUIPE (ponctualité, Cadrage risques Phase
+  // 6, 18/08/2026). Requête DÉLIBÉRÉMENT filtrée par `site` — à la
+  // différence de `chargerDomaineEquipe` (nexus-brief-donnees.js), qui ne
+  // filtre pas par site depuis sa toute première version (comportement
+  // documenté et volontairement inchangé là-bas). Persister un signal de
+  // risque sous un `site_id` alors que les pointages viendraient de tous
+  // les sites serait une vraie corruption des données (Article 5 : jamais
+  // propager un raccourci existant dans une nouvelle table qui, elle,
+  // s'appuie structurellement sur le site) — ce n'est donc pas une
+  // 2e version divergente d'un même calcul, mais une correction du
+  // périmètre, nécessaire pour ce nouvel usage précis.
+  //
+  // Retourne une map { [employeeId]: { nom, nbRetards, totalPointages } }
+  // — un collaborateur sans retard n'apparaît pas dans la map.
+  async function chargerPonctualiteCollaborateursAQualifier(client, siteId, depuisNJours) {
+    const depuis = new Date(Date.now() - (depuisNJours || 14) * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const [{ data: retards, error: e1 }, { data: totaux, error: e2 }] = await Promise.all([
+      client.from('pointages').select('employee_id, retard_min, employees(nom)').eq('site', siteId).eq('type', 'arrivee').gt('retard_min', 0).gte('date', depuis),
+      client.from('pointages').select('employee_id').eq('site', siteId).eq('type', 'arrivee').gte('date', depuis),
+    ]);
+    if (e1 || e2) { [e1, e2].forEach(e => { if (e) console.error('Chargement ponctualité (risque équipe):', e); }); return {}; }
+    const totalParEmploye = {};
+    (totaux || []).forEach(p => { if (p.employee_id) totalParEmploye[p.employee_id] = (totalParEmploye[p.employee_id] || 0) + 1; });
+    const resultat = {};
+    (retards || []).forEach(p => {
+      if (!p.employee_id) return;
+      if (!resultat[p.employee_id]) resultat[p.employee_id] = { nom: p.employees ? p.employees.nom : p.employee_id, nbRetards: 0, totalPointages: totalParEmploye[p.employee_id] || 0 };
+      resultat[p.employee_id].nbRetards++;
+    });
+    return resultat;
+  }
+
   global.NexusRisquesDonnees = {
     chargerSignalExistant, chargerSignauxSite, enregistrerObservation, resoudreSignal,
     chargerAgregationCaisseQuart, chargerAgregationCaisseTousQuarts,
     chargerPeriodesAnterieures, chargerMargeCategoriePeriode, chargerHistoriqueMargeCategorie,
     chargerAutonomiesCarburantAvecHistorique,
+    chargerAlertesInventaireAQualifier, chargerAgregationCaisseFdjTousQuarts, chargerPonctualiteCollaborateursAQualifier,
     qualifierEtEnregistrerRisquesPilote,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

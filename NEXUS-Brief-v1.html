@@ -492,6 +492,23 @@
       rowsBrut, periodeAffichage, categoriesEnEcart: margePlusResultat ? margePlusResultat.categoriesEnEcart : [],
       agregationCaisseParQuart,
     });
+
+    // Domaine Équipe (Cadrage risques Phase 6, tâche #235, 18/08/2026) —
+    // volontairement une 2e écriture SÉPARÉE, fire-and-forget (jamais
+    // `await`, jamais mêlée à l'appel ci-dessus) : contrairement à
+    // Marge/Caisse, aucune section affichée CE tour-ci par Brief ne dépend
+    // de son résultat (la carte secteur Équipe lit `domaineEquipe`
+    // directement, pas les signaux persistés) — bloquer le rendu principal
+    // sur 2 requêtes supplémentaires (ponctualité par collaborateur,
+    // site-filtrée, distincte du `chargerDomaineEquipe` ci-dessus qui ne
+    // filtre pas par site) n'apporterait rien à l'utilisateur aujourd'hui,
+    // seulement demain à Cockpit/Rapport une fois le signal accumulé — même
+    // discipline que `qualifierRisquesCarburantEnArrierePlan` (Carburants
+    // Pilotage, Phase 5). Un échec ici (réseau, table absente) ne doit
+    // JAMAIS empêcher Brief de s'afficher.
+    NexusRisquesDonnees.chargerPonctualiteCollaborateursAQualifier(nexusClient, SITE_ACTUEL)
+      .then(ponctualiteCollaborateurs => NexusRisquesDonnees.qualifierEtEnregistrerRisquesPilote(nexusClient, SITE_ACTUEL, { ponctualiteCollaborateurs }))
+      .catch(e => console.error('Qualification risques Équipe (arrière-plan, sans impact sur Brief) :', e));
     // Tri par urgence d'abord, gravité ensuite (12/08/2026, cadrage §9 :
     // "Brief doit montrer en priorité l'urgence, tout en conservant la
     // gravité. Une exposition immédiate peut être plus importante

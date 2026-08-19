@@ -25,6 +25,8 @@
 <script src="nexus-inventaire-moteur.js"></script>
 <script src="nexus-inventaire-plan-donnees.js"></script>
 <script src="nexus-inventaire-manager-donnees.js"></script>
+<script src="nexus-risques-moteur.js"></script>
+<script src="nexus-risques-donnees.js"></script>
 <script src="nexus-pdf-moteur.js"></script>
 <style>
   :root{
@@ -2663,6 +2665,23 @@
 
     await chargerEtAfficherTout();
     afficherTipParametresInventaireSiUtile();
+
+    // Cadrage risques Phase 6 (tâche #235, 18/08/2026) — Inventaire devient
+    // un domaine NexusRisques, écrit en arrière-plan depuis l'écran manager
+    // qui charge déjà les alertes du site. Fire-and-forget (jamais `await`,
+    // jamais avant `chargerEtAfficherTout()` dans le flux) : un échec ici
+    // ne doit jamais empêcher le contrôle inventaire de s'afficher, même
+    // discipline que Carburants Pilotage (Phase 5) et Brief/Équipe
+    // ci-dessus (Phase 6).
+    (async () => {
+      try {
+        if (typeof NexusRisquesDonnees === 'undefined') return;
+        const alertesInventaire = await NexusRisquesDonnees.chargerAlertesInventaireAQualifier(nexusClient, siteId);
+        await NexusRisquesDonnees.qualifierEtEnregistrerRisquesPilote(nexusClient, siteId, { alertesInventaire });
+      } catch (e) {
+        console.error('Qualification risques Inventaire (arrière-plan, sans impact sur la page) :', e);
+      }
+    })();
   });
 
   // Bandeau quotidien Paramètres Inventaire (04/08/2026, demande de

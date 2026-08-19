@@ -115,9 +115,15 @@ const SEUIL_VIGILANCE = 3;
   const sCarburantInconnu = { domaine: 'carburant', cle_signal: 'carburant:autonomie:xyz' };
   assert('Sujet — carburant code inconnu => code brut (dégradation gracieuse)', NexusRisques.sujetSignal(sCarburantInconnu) === 'xyz');
 
-  const sDomaineFutur = { domaine: 'inventaire', cle_signal: 'inventaire:produit:Glaçons Crystal' };
-  assert('Label — domaine futur non mappé => domaine brut, jamais une erreur', NexusRisques.domaineLabelSignal(sDomaineFutur) === 'inventaire');
-  assert('Sujet — domaine futur non mappé => cle_signal brute', NexusRisques.sujetSignal(sDomaineFutur) === 'inventaire:produit:Glaçons Crystal');
+  // 'commerce' : domaine catalogué (nexus-secteurs-moteur.js) mais encore
+  // non branché à NexusRisques après la Phase 6 (18/08/2026, voir Data
+  // Dictionary v2.152 — reporté faute d'agrégat par catégorie déjà
+  // disponible) — remplace 'inventaire' comme exemple de "domaine futur non
+  // mappé" ici, puisque Inventaire a réellement rejoint LABEL_DOMAINE en
+  // Phase 6 et ne peut plus servir cet exemple.
+  const sDomaineFutur = { domaine: 'commerce', cle_signal: 'commerce:categorie:Boissons' };
+  assert('Label — domaine futur non mappé => domaine brut, jamais une erreur', NexusRisques.domaineLabelSignal(sDomaineFutur) === 'commerce');
+  assert('Sujet — domaine futur non mappé => cle_signal brute', NexusRisques.sujetSignal(sDomaineFutur) === 'commerce:categorie:Boissons');
 }
 
 // ------------------------------------------------------------
