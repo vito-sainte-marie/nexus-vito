@@ -148,6 +148,44 @@
   .ordre-cuve-row .btn-mini:disabled{opacity:0.3; cursor:not-allowed;}
 
   footer{margin-top:auto; padding:16px 20px 24px; font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:center; border-top:1px solid var(--hairline);}
+
+  /* ------------------------------------------------------------
+     Redesign "grands univers" (20/08/2026, demande de Frédéric : la page
+     était "très riche mais pas intuitive" — trop de cartes à plat, sans
+     hiérarchie). Résumé site/forfait sous le titre, navigation rapide par
+     puces, et 7 accordéons thématiques. Rien de ceci ne touche à la logique
+     existante : chaque carte garde son id, ses requêtes Supabase, son
+     comportement — seul l'emballage visuel change.
+     ------------------------------------------------------------ */
+
+  /* Résumé (Site / Forfait) sous le titre */
+  .psummary{display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-top:10px; font-family:var(--mono); font-size:11px; color:var(--text-mid);}
+  .psummary b{color:var(--text); font-weight:600;}
+  .psummary-sep{color:var(--text-dim);}
+
+  /* Navigation rapide par grands univers — puces horizontales défilables */
+  .pnav{display:flex; gap:8px; overflow-x:auto; padding:14px 20px 4px; -webkit-overflow-scrolling:touch; scrollbar-width:none;}
+  .pnav::-webkit-scrollbar{display:none;}
+  .pnav-chip{flex-shrink:0; display:flex; align-items:center; gap:6px; font-family:var(--sans); font-size:12.5px; font-weight:600; color:var(--text-mid); background:var(--panel); border:1px solid var(--hairline); border-radius:20px; padding:8px 14px; cursor:pointer; white-space:nowrap;}
+  .pnav-chip:active{background:var(--panel-raised);}
+  .pnav-chip.actif{color:var(--cyan); border-color:rgba(79,195,217,0.4); background:rgba(79,195,217,0.08);}
+
+  /* Accordéon "grand univers" — un bloc par thème, replié par défaut sauf
+     les deux premiers (Général, Équipe & horaires — recommandation reprise
+     telle quelle de la demande de Frédéric : "seuls 2 premiers blocs
+     ouverts par défaut"). */
+  .psec{margin-bottom:14px; break-inside:avoid;}
+  .psec-head{width:100%; display:flex; align-items:center; gap:12px; background:var(--panel); border:1px solid var(--hairline); border-radius:12px; padding:16px 18px; cursor:pointer; text-align:left; font-family:var(--sans); color:var(--text);}
+  .psec-head:active{background:var(--panel-raised);}
+  .psec-icon{font-size:20px; flex-shrink:0; width:26px; text-align:center;}
+  .psec-headtext{flex:1; min-width:0;}
+  .psec-title{font-size:15px; font-weight:700; display:block;}
+  .psec-obj{font-size:11.5px; color:var(--text-mid); margin-top:3px; display:block; line-height:1.4; font-weight:400;}
+  .psec-chevron{font-size:12px; color:var(--text-dim); flex-shrink:0; transition:transform .15s;}
+  .psec.open .psec-chevron{transform:rotate(180deg);}
+  .psec-body{display:none; padding:14px 2px 2px;}
+  .psec.open .psec-body{display:block;}
+  .psec-subgroup-label{font-family:var(--mono); font-size:10px; letter-spacing:0.08em; text-transform:uppercase; color:var(--cyan); margin:4px 0 8px; padding-left:2px;}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-auth.js"></script>
@@ -165,40 +203,84 @@
     <a href="NEXUS-App-v1.html" class="menu-btn">☰ Menu</a>
     <div class="eyebrow">NEXUS · Manager</div>
     <div class="title">Paramètres Station</div>
-    <div class="subtitle">Ces horaires servent au calcul des retards (Pointage) et à Nexus Planner</div>
+    <div class="subtitle">Tout ce qui fait fonctionner votre station, organisé par thème.</div>
+    <!-- Résumé (20/08/2026, redesign "grands univers" demandé par Frédéric)
+         — informatif uniquement, rempli par afficherForfait() plus bas
+         (même requête sites déjà en place, étendue à nom_entreprise pour
+         ne pas dupliquer d'appel réseau). -->
+    <div class="psummary" id="psummary">
+      <span class="psummary-item" id="psummarySite">Site : <b>…</b></span>
+      <span class="psummary-sep">·</span>
+      <span class="psummary-item" id="psummaryForfait">Forfait : <b>…</b></span>
+    </div>
   </div>
+
+  <!-- Navigation rapide par grands univers (20/08/2026) — chaque puce ouvre
+       et scrolle vers la section correspondante (voir initAccordeonParametres
+       plus bas). Purement du confort de navigation ; aucune donnée. -->
+  <div class="pnav" id="pnav">
+    <button type="button" class="pnav-chip" data-target="secGeneral">🏠 Général</button>
+    <button type="button" class="pnav-chip" data-target="secEquipe">👥 Équipe &amp; horaires</button>
+    <button type="button" class="pnav-chip" data-target="secAccueil">⭐ Accueil</button>
+    <button type="button" class="pnav-chip" data-target="secCarburants">⛽ Carburants</button>
+    <button type="button" class="pnav-chip" data-target="secProgression">🏅 Progression</button>
+    <button type="button" class="pnav-chip" data-target="secIntegrations">🔗 Intégrations</button>
+    <button type="button" class="pnav-chip" data-target="secAvance">⚙️ Avancé</button>
+  </div>
+
   <div class="divider"></div>
 
   <!-- desktop-grid (02/08/2026) : mise en colonnes en vue bureau (voir
        nexus-desktop.js) — purement additif, aucun effet en mobile. -->
   <div class="section desktop-grid">
-    <div class="card" id="cardForfait">
-      <div class="section-label">Forfait NEXUS</div>
-      <div id="forfaitActuel" class="forfait-actuel essential">Chargement…</div>
-      <div class="note" style="margin-top:0;">Ce choix n'est pas modifiable depuis cet écran — seul le créateur NEXUS peut attribuer ou changer le forfait d'un site, depuis l'administration multi-site.</div>
-    </div>
 
     <!-- ------------------------------------------------------------
-         Raccourcis configurables (10/08/2026, demande de Frédéric, vision
-         "Parcours du manager" : "faire de Vos raccourcis quelque chose de
-         configurable via Paramètres Station"). Choisit jusqu'à
-         NexusRaccourcisCatalogue.MAX_RACCOURCIS (4) outils parmi le
-         catalogue partagé — la même liste que NEXUS-App-v1.html affiche
-         sous "Vos raccourcis". Rien de sélectionné = l'app retombe sur sa
-         liste par défaut (Cockpit/Verify/Tempo/Produits), jamais un écran
-         vide (voir station_config.raccourcis, NULL par défaut).
+         Redesign "grands univers" (20/08/2026, demande de Frédéric : la
+         page était "très riche mais pas intuitive" — trop de cartes à plat,
+         sans hiérarchie). Architecture en 7 accordéons thématiques, chacun
+         avec une phrase d'objectif, repliés par défaut sauf les deux
+         premiers (Général, Équipe & horaires) — recommandation reprise
+         telle quelle de la demande de Frédéric. Chaque carte existante
+         (id, logique JS, requêtes Supabase) reste identique à l'octet près :
+         seul l'emballage visuel change (voir initAccordeonParametres,
+         plus bas dans le script). "Vos raccourcis" déplacé ici depuis le
+         tout début de la page vers la section "Accueil & affichage" : c'est
+         une personnalisation d'interface, pas un réglage d'exploitation.
          ------------------------------------------------------------ -->
-    <div class="card" id="cardRaccourcis">
-      <div class="section-label">Vos raccourcis</div>
-      <div class="note" style="margin-top:0;">Les outils affichés sous "Vos raccourcis" sur l'accueil NEXUS. Choisissez-en jusqu'à <span id="maxRaccourcisTexte">4</span> — sans choix, l'accueil garde sa sélection par défaut.</div>
-      <div class="raccourci-compteur" id="raccourcisCompteur">0 sélectionné</div>
-      <div id="listeRaccourcis"><div class="liste-vide">Chargement…</div></div>
-      <button class="btn btn-primary" id="sauvegarderRaccourcis" style="margin-top:14px;">Enregistrer mes raccourcis</button>
-      <button class="btn btn-secondary" id="reinitialiserRaccourcis">Revenir à la sélection par défaut</button>
-      <div class="saved-note" id="savedNoteRaccourcis">✓ Raccourcis enregistrés</div>
-    </div>
+    <section class="psec open" id="secGeneral">
+      <button type="button" class="psec-head">
+        <span class="psec-icon">🏠</span>
+        <span class="psec-headtext">
+          <span class="psec-title">Général</span>
+          <span class="psec-obj">La base administrative de votre station : identité et forfait.</span>
+        </span>
+        <span class="psec-chevron">▾</span>
+      </button>
+      <div class="psec-body">
+        <div class="card" id="cardIdentiteSite">
+          <div class="section-label">Site</div>
+          <div id="identiteSiteNom" class="note" style="margin:0; font-size:13px; color:var(--text);">Chargement…</div>
+        </div>
+        <div class="card" id="cardForfait">
+          <div class="section-label">Forfait NEXUS</div>
+          <div id="forfaitActuel" class="forfait-actuel essential">Chargement…</div>
+          <div class="note" style="margin-top:0;">Ce choix n'est pas modifiable depuis cet écran — seul le créateur NEXUS peut attribuer ou changer le forfait d'un site, depuis l'administration multi-site.</div>
+        </div>
+      </div>
+    </section>
 
-    <div class="card">
+    <section class="psec open" id="secEquipe">
+      <button type="button" class="psec-head">
+        <span class="psec-icon">👥</span>
+        <span class="psec-headtext">
+          <span class="psec-title">Équipe &amp; horaires</span>
+          <span class="psec-obj">Définit les heures de travail, le pointage et les règles de présence.</span>
+        </span>
+        <span class="psec-chevron">▾</span>
+      </button>
+      <div class="psec-body">
+        <div class="psec-subgroup-label">Horaires de service</div>
+        <div class="card">
       <div class="section-label">Quart 1 — Début de service attendu</div>
       <div class="row"><label>Dimanche à Mercredi</label><input type="time" id="q1_normal"></div>
       <div class="row"><label>Jeudi à Samedi</label><input type="time" id="q1_etendu"></div>
@@ -240,6 +322,8 @@
     <button class="btn btn-primary" id="sauvegarder">Enregistrer les horaires</button>
     <button class="btn btn-secondary" id="reinitialiser">Réinitialiser aux valeurs Vito Sainte-Marie Usine</button>
     <div class="saved-note" id="savedNote">✓ Horaires enregistrés — pris en compte au prochain pointage</div>
+
+        <div class="psec-subgroup-label" style="margin-top:20px;">Pointage</div>
 
     <!-- ------------------------------------------------------------
          Pointage des employés (16/08/2026, demande de Frédéric : "mets une
@@ -297,6 +381,54 @@
       </div>
       <div class="toggle-etat" id="managerPointageEtat">Chargement…</div>
     </div>
+      </div>
+    </section>
+
+    <section class="psec" id="secAccueil">
+      <button type="button" class="psec-head">
+        <span class="psec-icon">⭐</span>
+        <span class="psec-headtext">
+          <span class="psec-title">Accueil &amp; affichage</span>
+          <span class="psec-obj">Personnalise ce que voit le manager à l'accueil, sans toucher au fonctionnement métier.</span>
+        </span>
+        <span class="psec-chevron">▾</span>
+      </button>
+      <div class="psec-body">
+        <!-- ------------------------------------------------------------
+             Raccourcis configurables (10/08/2026, demande de Frédéric, vision
+             "Parcours du manager" : "faire de Vos raccourcis quelque chose de
+             configurable via Paramètres Station"). Choisit jusqu'à
+             NexusRaccourcisCatalogue.MAX_RACCOURCIS (4) outils parmi le
+             catalogue partagé — la même liste que NEXUS-App-v1.html affiche
+             sous "Vos raccourcis". Rien de sélectionné = l'app retombe sur sa
+             liste par défaut (Cockpit/Verify/Tempo/Produits), jamais un écran
+             vide (voir station_config.raccourcis, NULL par défaut). Déplacé
+             ici depuis le début de la page (redesign "grands univers" du
+             20/08/2026) : c'est une personnalisation d'interface, pas un
+             réglage d'exploitation — voir NEXUS-Data-Dictionary-v2.
+             ------------------------------------------------------------ -->
+        <div class="card" id="cardRaccourcis">
+          <div class="section-label">Vos raccourcis</div>
+          <div class="note" style="margin-top:0;">Les outils affichés sous "Vos raccourcis" sur l'accueil NEXUS. Choisissez-en jusqu'à <span id="maxRaccourcisTexte">4</span> — sans choix, l'accueil garde sa sélection par défaut.</div>
+          <div class="raccourci-compteur" id="raccourcisCompteur">0 sélectionné</div>
+          <div id="listeRaccourcis"><div class="liste-vide">Chargement…</div></div>
+          <button class="btn btn-primary" id="sauvegarderRaccourcis" style="margin-top:14px;">Enregistrer mes raccourcis</button>
+          <button class="btn btn-secondary" id="reinitialiserRaccourcis">Revenir à la sélection par défaut</button>
+          <div class="saved-note" id="savedNoteRaccourcis">✓ Raccourcis enregistrés</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="psec" id="secCarburants">
+      <button type="button" class="psec-head">
+        <span class="psec-icon">⛽</span>
+        <span class="psec-headtext">
+          <span class="psec-title">Carburants</span>
+          <span class="psec-obj">Configure les cuves, le jaugeage, les prix et la réception carburant.</span>
+        </span>
+        <span class="psec-chevron">▾</span>
+      </button>
+      <div class="psec-body">
 
     <!-- ------------------------------------------------------------
          Jaugeage carburant — pont Inventaire (19/08/2026, demande de
@@ -315,7 +447,7 @@
          "cela ajouterait du bruit inutile").
          ------------------------------------------------------------ -->
     <div class="card" id="cardJaugeageCarburantActif">
-      <div class="section-label">Jaugeage carburant — pont Inventaire</div>
+      <div class="section-label">Jaugeage d'ouverture par le pompiste du Quart 1</div>
       <div class="toggle-row">
         <div class="tr-text">
           <div class="tr-title">Le pompiste du Quart 1 saisit le jaugeage d'ouverture depuis Inventaire</div>
@@ -383,7 +515,7 @@
          seuls les accès rapides "accueil" reflètent ce réglage.
          ------------------------------------------------------------ -->
     <div class="card" id="cardReceptionCarburantRole">
-      <div class="section-label">Réception carburant — qui la fait</div>
+      <div class="section-label">Qui peut saisir une réception carburant ?</div>
       <div class="note">Détermine qui voit un accès rapide "Réceptionner une livraison" sur son accueil. Reste dans tous les cas trouvable via Explorer NEXUS et la recherche, pour le manager.</div>
       <div class="role-chip-row">
         <div class="role-chip" data-valeur="employe">Employé</div>
@@ -454,6 +586,78 @@
       <button class="btn btn-primary" id="sauvegarderContactReception">Enregistrer</button>
       <div class="saved-note" id="savedNoteContactReception">✓ Contact manager enregistré</div>
     </div>
+      </div>
+    </section>
+
+    <!-- ------------------------------------------------------------
+         Contrôles & progression (redesign "grands univers" 20/08/2026) —
+         déplacé ici depuis la toute fin de la page (juste avant le footer)
+         pour respecter l'ordre logique demandé par Frédéric. Carte
+         cardSeriesRecompenses inchangée à l'octet près (id, logique JS) ;
+         seuls le libellé et l'emballage visuel changent — voir
+         NEXUS-Data-Dictionary-v2 pour le détail du lot P8.
+         ------------------------------------------------------------ -->
+    <section class="psec" id="secProgression">
+      <button type="button" class="psec-head">
+        <span class="psec-icon">🏅</span>
+        <span class="psec-headtext">
+          <span class="psec-title">Contrôles &amp; progression</span>
+          <span class="psec-obj">Règles qui alimentent la motivation et les récompenses employé.</span>
+        </span>
+        <span class="psec-chevron">▾</span>
+      </button>
+      <div class="psec-body">
+
+    <div class="card" id="cardSeriesRecompenses">
+      <div class="section-label">Récompenses employé : séries, badges et points</div>
+      <div class="note">Ces paramètres alimentent la page <b style="color:var(--text);">Ma progression</b>, visible par les employés. Sans réglage enregistré ici, NEXUS utilise les valeurs par défaut du cadrage. Modifier un palier ne retire jamais un badge déjà obtenu.</div>
+
+      <div class="psec-subgroup-label">A. Progression Caisse</div>
+      <div class="toggle-row" style="margin-bottom:14px;">
+        <div class="tr-text">
+          <div class="tr-title">Série Caisse active</div>
+          <div class="tr-desc">Contrôles caisse (Boutique/Piste/FDJ) définitivement validés conformes, à la suite.</div>
+        </div>
+        <label class="toggle-switch">
+          <input type="checkbox" id="seriesCaisseActif">
+          <span class="toggle-track"></span>
+          <span class="toggle-thumb"></span>
+        </label>
+      </div>
+      <div id="seriesCaissePaliers"></div>
+
+      <div class="psec-subgroup-label" style="margin-top:20px;">B. Progression Inventaire</div>
+      <div class="toggle-row" style="margin-bottom:14px;">
+        <div class="tr-text">
+          <div class="tr-title">Série Inventaire active</div>
+          <div class="tr-desc">Inventaires validés sans correction de comptage confirmée, à la suite.</div>
+        </div>
+        <label class="toggle-switch">
+          <input type="checkbox" id="seriesInventaireActif">
+          <span class="toggle-track"></span>
+          <span class="toggle-thumb"></span>
+        </label>
+      </div>
+      <div class="row"><label>Délai de grâce avant qu'un inventaire compte (jours)</label><input type="number" min="0" step="1" id="seriesInventaireDelaiGrace" style="width:70px;"></div>
+      <div class="note" style="margin-top:0;">Tant qu'un quart clôturé n'a pas dépassé ce délai, il reste "en attente" — ni comptabilisé, ni perdu — le temps qu'une éventuelle correction manager arrive.</div>
+      <div id="seriesInventairePaliers"></div>
+
+      <button class="btn btn-primary" id="sauvegarderSeries" style="margin-top:14px;">Enregistrer</button>
+      <div class="saved-note" id="savedNoteSeries">✓ Réglages "Mes séries" enregistrés</div>
+    </div>
+      </div>
+    </section>
+
+    <section class="psec" id="secIntegrations">
+      <button type="button" class="psec-head">
+        <span class="psec-icon">🔗</span>
+        <span class="psec-headtext">
+          <span class="psec-title">Intégrations</span>
+          <span class="psec-obj">Ponts techniques vers vos outils externes.</span>
+        </span>
+        <span class="psec-chevron">▾</span>
+      </button>
+      <div class="psec-body">
 
     <!-- ------------------------------------------------------------
          Synchronisation Google Sheets (01/08/2026, demande de Frédéric) —
@@ -486,6 +690,19 @@
       <button class="btn btn-secondary" id="gsTester">Tester la connexion</button>
       <div class="gs-resultat" id="gsResultat"></div>
     </div>
+      </div>
+    </section>
+
+    <section class="psec" id="secAvance">
+      <button type="button" class="psec-head">
+        <span class="psec-icon">⚙️</span>
+        <span class="psec-headtext">
+          <span class="psec-title">Avancé</span>
+          <span class="psec-obj">Réglages moins fréquents, pour utilisateurs expérimentés.</span>
+        </span>
+        <span class="psec-chevron">▾</span>
+      </button>
+      <div class="psec-body">
 
     <div class="card" id="cardExceptionsMarge">
       <div class="section-label">Exceptions de marge (Scanner)</div>
@@ -496,65 +713,45 @@
       <div class="section-label" style="margin-top:18px;">Articles déjà exclus</div>
       <div id="listeExceptionsMarge"><div class="liste-vide">Chargement…</div></div>
     </div>
-
-    <!-- ------------------------------------------------------------
-         Mes séries — Paramètres manager (20/08/2026, P8 du plan
-         d'implémentation du cadrage NEXUS_Ma_Progression_Series_
-         Recompenses_Cadrage_Developpeur.pdf). progression_site_settings
-         (une ligne par site) : activer/désactiver chaque série, ajuster ses
-         3 paliers (seuil de série + points), et le délai de grâce
-         Inventaire. Sans ligne enregistrée, NEXUS utilise les valeurs par
-         défaut du cadrage (5/10/20, 25/50/100 points, 7 jours) — voir
-         NexusProgression.resoudreReglesProgressionSite, jamais un second
-         calcul ici (Article 11). La tolérance caisse n'est délibérément PAS
-         ici : elle reste SEUIL_ECART_CONFORME dans nexus-progression.js,
-         source unique utilisée par toute la page Mon évolution (voir le
-         commentaire de la migration progression_site_settings_series).
-         Modifier un palier ne retire jamais un badge déjà acquis à
-         l'ancien seuil (cadrage §12, §13 : "une modification de palier ne
-         doit pas réécrire silencieusement l'historique antérieur").
-         ------------------------------------------------------------ -->
-    <div class="card" id="cardSeriesRecompenses">
-      <div class="section-label">Mes séries — badges &amp; points (Ma progression)</div>
-      <div class="note">Paliers et points affichés aux employés dans "Mes séries" (Caisse et Inventaire). Sans réglage enregistré ici, NEXUS utilise les valeurs par défaut du cadrage. Modifier un palier ne retire jamais un badge déjà obtenu.</div>
-
-      <div class="toggle-row" style="margin-bottom:14px;">
-        <div class="tr-text">
-          <div class="tr-title">Série Caisse active</div>
-          <div class="tr-desc">Contrôles caisse (Boutique/Piste/FDJ) définitivement validés conformes, à la suite.</div>
-        </div>
-        <label class="toggle-switch">
-          <input type="checkbox" id="seriesCaisseActif">
-          <span class="toggle-track"></span>
-          <span class="toggle-thumb"></span>
-        </label>
       </div>
-      <div id="seriesCaissePaliers"></div>
+    </section>
 
-      <div class="toggle-row" style="margin:20px 0 14px;">
-        <div class="tr-text">
-          <div class="tr-title">Série Inventaire active</div>
-          <div class="tr-desc">Inventaires validés sans correction de comptage confirmée, à la suite.</div>
-        </div>
-        <label class="toggle-switch">
-          <input type="checkbox" id="seriesInventaireActif">
-          <span class="toggle-track"></span>
-          <span class="toggle-thumb"></span>
-        </label>
-      </div>
-      <div class="row"><label>Délai de grâce avant qu'un inventaire compte (jours)</label><input type="number" min="0" step="1" id="seriesInventaireDelaiGrace" style="width:70px;"></div>
-      <div class="note" style="margin-top:0;">Tant qu'un quart clôturé n'a pas dépassé ce délai, il reste "en attente" — ni comptabilisé, ni perdu — le temps qu'une éventuelle correction manager arrive.</div>
-      <div id="seriesInventairePaliers"></div>
-
-      <button class="btn btn-primary" id="sauvegarderSeries" style="margin-top:14px;">Enregistrer</button>
-      <div class="saved-note" id="savedNoteSeries">✓ Réglages "Mes séries" enregistrés</div>
-    </div>
   </div>
 
   <footer>NEXUS Paramètres v1 · Modifiable sans toucher au code — prêt pour un déploiement multi-station</footer>
 </div>
 
 <script>
+  // ------------------------------------------------------------
+  // Accordéon "grands univers" (20/08/2026, redesign demandé par Frédéric).
+  // Comportement pur DOM, indépendant de l'authentification — s'exécute
+  // immédiatement (le script est en fin de <body>, le DOM est déjà prêt),
+  // pas besoin d'attendre nexusRequireAuth().
+  // ------------------------------------------------------------
+  (function initAccordeonParametres() {
+    const sections = Array.from(document.querySelectorAll('.psec'));
+    function definirEtat(sec, ouvert) {
+      sec.classList.toggle('open', ouvert);
+      const chip = document.querySelector(`.pnav-chip[data-target="${sec.id}"]`);
+      if (chip) chip.classList.toggle('actif', ouvert);
+    }
+    sections.forEach(sec => {
+      const head = sec.querySelector('.psec-head');
+      if (head) head.addEventListener('click', () => definirEtat(sec, !sec.classList.contains('open')));
+      // Reflète l'état initial (classe "open" posée en HTML sur Général et
+      // Équipe & horaires) dans la puce de navigation correspondante.
+      if (sec.classList.contains('open')) definirEtat(sec, true);
+    });
+    document.querySelectorAll('.pnav-chip').forEach(chip => {
+      chip.addEventListener('click', () => {
+        const sec = document.getElementById(chip.dataset.target);
+        if (!sec) return;
+        definirEtat(sec, true);
+        sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+    });
+  })();
+
   nexusRequireAuth().then(async employee => {
     if (!employee) return; // nexus-auth.js gère déjà la redirection vers NEXUS-Login-v1.html
     if (employee.role !== 'manager' && employee.role !== 'gerant') {
@@ -612,12 +809,31 @@
   // La colonne sites.forfait reste la seule source de vérité, modifiable
   // uniquement par le créateur depuis NEXUS-Admin-Sites-v1.html.
   (async function afficherForfait() {
-    const { data, error } = await nexusClient.from('sites').select('forfait').eq('site_id', employee.site_id).maybeSingle();
+    // Étendu le 20/08/2026 (redesign "grands univers") pour peupler aussi
+    // le résumé Site/Forfait sous le titre et la carte "Site" du bloc
+    // Général — même requête `sites` qu'avant, un seul champ ajouté
+    // (nom_entreprise) pour ne jamais dupliquer d'appel réseau (Article 11).
+    const { data, error } = await nexusClient.from('sites').select('forfait, nom_entreprise').eq('site_id', employee.site_id).maybeSingle();
     const el = document.getElementById('forfaitActuel');
-    if (error) { console.error('Chargement forfait:', error); el.textContent = 'Forfait indisponible pour le moment.'; return; }
+    const elSummarySite = document.getElementById('psummarySite');
+    const elSummaryForfait = document.getElementById('psummaryForfait');
+    const elIdentiteSite = document.getElementById('identiteSiteNom');
+    if (error) {
+      console.error('Chargement forfait/site:', error);
+      el.textContent = 'Forfait indisponible pour le moment.';
+      if (elSummaryForfait) elSummaryForfait.innerHTML = 'Forfait : <b>indisponible</b>';
+      if (elSummarySite) elSummarySite.innerHTML = 'Site : <b>indisponible</b>';
+      if (elIdentiteSite) elIdentiteSite.textContent = 'Nom du site indisponible pour le moment.';
+      return;
+    }
     const forfait = (data && data.forfait) || 'essential';
     el.className = 'forfait-actuel ' + forfait;
     el.textContent = forfait === 'professional' ? '💎 Professional — toutes les fonctionnalités' : '● Essential — outils du quotidien';
+    const nomSite = (data && data.nom_entreprise) || employee.site_id;
+    const forfaitCourt = forfait === 'professional' ? 'Professional' : 'Essential';
+    if (elSummarySite) elSummarySite.innerHTML = `Site : <b>${nomSite}</b>`;
+    if (elSummaryForfait) elSummaryForfait.innerHTML = `Forfait : <b>${forfaitCourt}</b>`;
+    if (elIdentiteSite) elIdentiteSite.innerHTML = `<b style="color:var(--text); font-size:14px;">${nomSite}</b><div class="note" style="margin:6px 0 0;">Identifiant technique : ${employee.site_id}. Le nom se modifie uniquement depuis l'administration multi-site (créateur NEXUS).</div>`;
   })();
 
   // ------------------------------------------------------------
