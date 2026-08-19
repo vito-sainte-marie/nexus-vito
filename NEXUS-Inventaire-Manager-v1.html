@@ -1768,6 +1768,23 @@
     { value: 'autre', label: 'Autre', sens: 'sortant' },
   ];
 
+  // Correspondance vers les 9 valeurs réellement acceptées par la contrainte
+  // CHECK de inventaire_mouvements.type_mouvement (18/08/2026, même bug que
+  // celui corrigé côté employé — voir NEXUS-Inventaire-v1.html : transfert_recu,
+  // retour_recu, produit_abime, perime et retrait_interne n'y figurent PAS.
+  // Un mouvement rétroactif avec l'une de ces valeurs échouait silencieusement
+  // (alert() générique "Erreur — réessayez", jamais la vraie cause). Le
+  // sélecteur garde ses libellés détaillés ; seule la valeur écrite en base
+  // est ramenée à l'ensemble valide, la nuance est reportée dans le commentaire.
+  function typeMouvementValideEnBase(typeLocal) {
+    const CORRESPONDANCE_VERS_VALEUR_VALIDE = {
+      transfert_recu: 'transfert', retour_recu: 'reassort',
+      produit_abime: 'casse', perime: 'casse',
+      retrait_interne: 'retrait',
+    };
+    return CORRESPONDANCE_VERS_VALEUR_VALIDE[typeLocal] || typeLocal;
+  }
+
   async function chargerProduitsPourCorrection() {
     if (produitsPourCorrection.length) return produitsPourCorrection;
     produitsPourCorrection = await chargerTousProduitsActifsSite(siteId);
@@ -1912,10 +1929,18 @@
       const infoType = TYPES_MOUVEMENT_MANAGER.find(t => t.value === typeMouvEl.value);
       const qte = infoType.sens === 'sortant' ? -Math.abs(qteSaisie) : Math.abs(qteSaisie);
       if (btnConfirmer) { btnConfirmer.disabled = true; btnConfirmer.textContent = 'Enregistrement…'; }
+      // type_mouvement écrit en base = valeur ramenée à l'ensemble reconnu
+      // par le CHECK (typeMouvementValideEnBase, bug corrigé le 18/08/2026) —
+      // la nuance du libellé choisi est conservée dans la justification.
+      const typeValide = typeMouvementValideEnBase(typeMouvEl.value);
+      const nuancePerdue = typeValide !== typeMouvEl.value;
+      const justificationFinale = nuancePerdue
+        ? `${commentaire || ''}${commentaire ? ' ' : ''}[${infoType.label}]`.trim()
+        : (commentaire || null);
       const { error } = await nexusClient.from('inventaire_mouvements').insert({
         site: siteId, quart_id: correctionChargee.quart.id, produit_id: correctionForm.produitId,
-        type_mouvement: typeMouvEl.value, quantite: qte, employee_id: managerCourant.id,
-        justification: commentaire || null, reason_code: typeMouvEl.value, statut_validation: 'valide',
+        type_mouvement: typeValide, quantite: qte, employee_id: managerCourant.id,
+        justification: justificationFinale, reason_code: typeMouvEl.value, statut_validation: 'valide',
       });
       if (error) { console.error('Mouvement oublié:', error); alert('Erreur — réessayez.'); if (btnConfirmer) { btnConfirmer.disabled = false; btnConfirmer.textContent = 'Confirmer la correction'; } return; }
       await nexusClient.from('inventaire_corrections').insert({

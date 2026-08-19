@@ -2160,6 +2160,33 @@
     { value: 'autre', label: 'Autre', sens: 'sortant' },
   ];
 
+  // Correspondance vers les 9 valeurs réellement acceptées par la contrainte
+  // CHECK de inventaire_mouvements.type_mouvement (18/08/2026, bug découvert
+  // pendant le cadrage "Production journalière" en relisant ce fichier :
+  // transfert_recu, transfert_sortant, retour_recu, produit_abime, perime,
+  // retour_fournisseur, retrait_interne, consommation_interne,
+  // perte_identifiee et destruction ne figuraient PAS dans le CHECK réel —
+  // tout mouvement déclaré avec l'une de ces valeurs échouait en base sans
+  // que l'employé le sache : validerCloture() logue l'erreur en console
+  // (non bloquant pour ne jamais empêcher une clôture) mais ne l'affiche
+  // jamais, et la clôture continue comme si le mouvement avait été
+  // enregistré. Le sélecteur ci-dessus garde ses libellés détaillés pour
+  // l'employé ; seule la valeur réellement écrite en base est ramenée à
+  // l'ensemble valide (nexus-inventaire-moteur.js::TYPES_MOUVEMENT), et la
+  // nuance perdue est reportée dans la justification plutôt que silencieusement
+  // effacée.
+  function typeMouvementValideEnBase(typeLocal) {
+    const CORRESPONDANCE_VERS_VALEUR_VALIDE = {
+      transfert_recu: 'transfert', transfert_sortant: 'transfert',
+      retour_recu: 'reassort',
+      produit_abime: 'casse', perime: 'casse', destruction: 'casse',
+      retour_fournisseur: 'retour',
+      retrait_interne: 'retrait', consommation_interne: 'retrait',
+      perte_identifiee: 'autre',
+    };
+    return CORRESPONDANCE_VERS_VALEUR_VALIDE[typeLocal] || typeLocal;
+  }
+
   async function demarrerCloture() {
     document.getElementById('content').innerHTML = '<div class="loading">Chargement…</div>';
     // Même périmètre qu'à l'ouverture (17/08/2026, Sprint 1+2) : si l'employé
@@ -2456,11 +2483,20 @@
     const btn = document.getElementById('btnValiderCloture');
     btn.disabled = true; btn.innerHTML = 'Nous traitons vos informations<span class="btn-loading-dots"><i></i><i></i><i></i></span>';
 
-    // Mouvements déclarés
+    // Mouvements déclarés. type_mouvement écrit en base = valeur ramenée à
+    // l'ensemble reconnu par le CHECK (typeMouvementValideEnBase) -- voir le
+    // commentaire au-dessus de cette fonction, la nuance du libellé choisi
+    // par l'employé est conservée dans la justification si elle a changé.
     for (const m of mouvementsSaisie) {
+      const typeValide = typeMouvementValideEnBase(m.type_mouvement);
+      const nuancePerdue = typeValide !== m.type_mouvement;
+      const libelleOriginal = TYPES_MOUVEMENT.find(t => t.value === m.type_mouvement);
+      const justificationFinale = nuancePerdue
+        ? `${m.justification || ''}${m.justification ? ' ' : ''}[${libelleOriginal ? libelleOriginal.label : m.type_mouvement}]`.trim()
+        : (m.justification || null);
       const { error } = await nexusClient.from('inventaire_mouvements').insert({
         site: employeeCourant.site_id, quart_id: quartRow.id, produit_id: m.produit_id,
-        type_mouvement: m.type_mouvement, quantite: m.quantite, employee_id: employeeCourant.id, justification: m.justification || null,
+        type_mouvement: typeValide, quantite: m.quantite, employee_id: employeeCourant.id, justification: justificationFinale,
         reason_code: m.type_mouvement, zone_source_id: m.zone_source_id || null, zone_destination_id: m.zone_destination_id || null,
       });
       if (error) console.error('Mouvement:', error);

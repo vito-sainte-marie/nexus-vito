@@ -453,6 +453,167 @@
     };
   }
 
+  // ============================================================
+  // Production journalière (18/08/2026, cahier "Audit Inventaire -
+  // Production, mouvements & réceptions") — M2 : moteur de recommandation de
+  // préparation (§4). Déterministe, sans IA, sans dépendance réseau (ce
+  // moteur ne fait QUE calculer à partir de données déjà chargées).
+  // ============================================================
+
+  const LIBELLE_CONTEXTE_JOUR = {
+    special: 'Règle spéciale du jour', vacances: 'Vacances scolaires', ferie: 'Jour férié',
+    samedi: 'Samedi', dimanche: 'Dimanche', semaine: 'Jour de semaine',
+  };
+  function libelleContexteJour(contexte) { return LIBELLE_CONTEXTE_JOUR[contexte] || 'Jour de semaine'; }
+
+  // Jour calendaire pur (samedi/dimanche/semaine), sans tenir compte du
+  // calendrier vacances/férié du site (traité séparément, priorité au-dessus
+  // — §4.1 étapes 2-3). Lecture en UTC pour rester déterministe quel que
+  // soit le fuseau du navigateur (même logique que joursEntreDates).
+  function contexteCalendaireJour(dateISO) {
+    const jour = new Date(String(dateISO).slice(0, 10) + 'T12:00:00Z').getUTCDay();
+    if (jour === 6) return 'samedi';
+    if (jour === 0) return 'dimanche';
+    return 'semaine';
+  }
+
+  function valeurOuNull(v) { return (v === null || v === undefined) ? null : v; }
+
+  // Priorité §4.1 : 1. valeur spéciale explicite (produit+date) -> 2.
+  // vacances/férié configuré au niveau du site -> 3. week-end -> 4. jour de
+  // semaine. Le cahier mentionne une 5e priorité "valeur par défaut du
+  // produit" mais §12 ne configure qu'un seul champ hebdomadaire
+  // (valeur_semaine) : il n'existe pas de 6e nombre à inventer ici (Article
+  // 5) — la semaine EST la valeur par défaut. Si `regle` est absent ou que
+  // le champ visé n'est pas renseigné, quantiteConseillee reste null : "pas
+  // de recommandation configurée" doit rester distinct de "recommandation
+  // = 0".
+  function calculerRecommandationPreparation({ dateISO, regle, valeurSpeciale, jourCalendrierSite }) {
+    const regleId = regle ? regle.id : null;
+    if (valeurSpeciale) {
+      return { contexte: 'special', quantiteConseillee: valeurOuNull(valeurSpeciale.valeur), regleId };
+    }
+    if (jourCalendrierSite) {
+      const contexte = jourCalendrierSite.type === 'ferie' ? 'ferie' : 'vacances';
+      return { contexte, quantiteConseillee: regle ? valeurOuNull(regle.valeur_vacances) : null, regleId };
+    }
+    const jour = contexteCalendaireJour(dateISO);
+    if (jour === 'samedi') return { contexte: 'samedi', quantiteConseillee: regle ? valeurOuNull(regle.valeur_samedi) : null, regleId };
+    if (jour === 'dimanche') return { contexte: 'dimanche', quantiteConseillee: regle ? valeurOuNull(regle.valeur_dimanche) : null, regleId };
+    return { contexte: 'semaine', quantiteConseillee: regle ? valeurOuNull(regle.valeur_semaine) : null, regleId };
+  }
+
+  // Signal simple pour la lecture manager future (§13 "Reste final élevé
+  // plusieurs samedis -> Surproduction probable") : le reste dépasse-t-il le
+  // seuil de surveillance configuré par le manager (§12) ? null tant que
+  // l'un des deux nombres manque (jamais un jugement sur une donnée
+  // absente).
+  function resteDepasseSeuilSurveillance(restePhysique, seuil) {
+    if (restePhysique === null || restePhysique === undefined) return null;
+    if (seuil === null || seuil === undefined) return null;
+    return restePhysique > seuil;
+  }
+
+  // ============================================================
+  // Production journalière — M5 : calcul pâtisserie (§3.1). Ne confond
+  // jamais recommandation et fait (§3.2) : ces fonctions ne consomment QUE
+  // des quantités réelles (préparation confirmée, fournées, reste physique
+  // compté) -- jamais quantiteConseillee.
+  // ============================================================
+
+  function sommeMouvementsProduction(mouvements) {
+    return (mouvements || []).reduce((s, m) => s + (Number(m && m.quantite) || 0), 0);
+  }
+
+  // apportInitial : Q1 = préparation réellement mise au four
+  // (production_initiale.quantite) ; Q2 = reste transmis du Q1 -- déjà
+  // fourni par le mécanisme type_comptage='transmis' existant (Article 11,
+  // ce moteur ne le recalcule jamais, il le reçoit en entrée).
+  function disponibleQuartProduction({ apportInitial, fourneesQuart }) {
+    if (apportInitial === null || apportInitial === undefined) return null;
+    return apportInitial + sommeMouvementsProduction(fourneesQuart);
+  }
+
+  // Écoulement = disponible - reste physique compté. null tant que le reste
+  // physique n'est pas connu (Article 5 : jamais un faux écart avant
+  // clôture réelle du quart).
+  function ecoulementQuartProduction(disponible, restePhysique) {
+    if (disponible === null || disponible === undefined) return null;
+    if (restePhysique === null || restePhysique === undefined) return null;
+    return disponible - restePhysique;
+  }
+
+  // Synthèse journée complète (§3.1 "Journée", §10 "Lecture NEXUS") : pour
+  // la vue manager (chronologie produit + résumé production/écoulement).
+  function syntheseProductionJournee({ prepInitiale, fourneesQ1, resteFinQ1, fourneesQ2, resteFinal, retraitsTraces }) {
+    const disponibleQ1 = disponibleQuartProduction({ apportInitial: prepInitiale, fourneesQuart: fourneesQ1 });
+    const ecoulementQ1 = ecoulementQuartProduction(disponibleQ1, resteFinQ1);
+    const apportQ2 = (resteFinQ1 === undefined) ? null : resteFinQ1;
+    const disponibleQ2 = disponibleQuartProduction({ apportInitial: apportQ2, fourneesQuart: fourneesQ2 });
+    const ecoulementQ2 = ecoulementQuartProduction(disponibleQ2, resteFinal);
+    const productionTotale = (prepInitiale === null || prepInitiale === undefined) ? null
+      : prepInitiale + sommeMouvementsProduction(fourneesQ1) + sommeMouvementsProduction(fourneesQ2);
+    const retraits = Number(retraitsTraces) || 0;
+    const ecoulementJournee = (productionTotale === null || resteFinal === null || resteFinal === undefined)
+      ? null : productionTotale - resteFinal - retraits;
+    return {
+      disponibleQ1, ecoulementQ1, disponibleQ2, ecoulementQ2, productionTotale, ecoulementJournee,
+      nbFourneesSupplementaires: (fourneesQ1 || []).length + (fourneesQ2 || []).length,
+    };
+  }
+
+  // ============================================================
+  // Mouvements — M3/M8 : registre unique des types (§8, §8.1, §11.1). Avant
+  // ce lot, NEXUS-Inventaire-Manager-v1.html gardait sa propre liste
+  // (TYPES_MOUVEMENT_MANAGER) avec des valeurs absentes du CHECK réel de
+  // inventaire_mouvements.type_mouvement ('transfert_recu', 'retour_recu',
+  // 'produit_abime', 'perime', 'retrait_interne', 'retour_fournisseur') --
+  // tout mouvement rétroactif utilisant l'une d'elles aurait échoué en
+  // base (contrainte violée). Ce registre devient la SEULE source de vérité
+  // (Article 11), consommée par l'écran employé (+ Mouvement) ET l'écran
+  // manager (mouvement oublié) — plus jamais deux listes divergentes.
+  // ============================================================
+
+  const TYPES_MOUVEMENT = [
+    { value: 'livraison', label: 'Marchandise reçue', sens: 'entrant', impactStockGlobal: true },
+    { value: 'reassort', label: 'Réassort depuis la réserve', sens: 'entrant', impactStockGlobal: true },
+    { value: 'production_initiale', label: 'Préparation initiale', sens: 'entrant', impactStockGlobal: true },
+    { value: 'production_additionnelle', label: 'Nouvelle préparation', sens: 'entrant', impactStockGlobal: true },
+    { value: 'casse', label: 'Produit cassé / abîmé', sens: 'sortant', impactStockGlobal: true },
+    { value: 'retour', label: 'Retour fournisseur', sens: 'sortant', impactStockGlobal: true },
+    { value: 'retrait', label: 'Retrait interne', sens: 'sortant', impactStockGlobal: true },
+    { value: 'transfert', label: 'Déplacé dépôt / boutique', sens: 'neutre', impactStockGlobal: false },
+    { value: 'autre', label: 'Autre mouvement', sens: 'sortant', impactStockGlobal: true },
+  ];
+  const TYPE_MOUVEMENT_PAR_VALEUR = TYPES_MOUVEMENT.reduce((m, t) => { m[t.value] = t; return m; }, {});
+  function infoTypeMouvement(typeMouvement) { return TYPE_MOUVEMENT_PAR_VALEUR[typeMouvement] || null; }
+  function libelleTypeMouvement(typeMouvement) { const t = infoTypeMouvement(typeMouvement); return t ? t.label : 'Mouvement'; }
+  // §8.1 : "Le moteur doit distinguer impact_stock_global et
+  // impact_localisation." Défaut true (jamais 'transfert') si le type est
+  // inconnu -- plus prudent qu'un faux neutre sur un mouvement mal formé.
+  function mouvementImpacteStockGlobal(typeMouvement) {
+    const t = infoTypeMouvement(typeMouvement);
+    return t ? t.impactStockGlobal : true;
+  }
+
+  // §5 : actions proposées par le bouton "+ Ajouter un mouvement" selon le
+  // profil du produit -- jamais 'production_initiale' ici (créée par le
+  // parcours Q1 dédié, §3/§6, pas par ce bouton générique). Profil inconnu
+  // ou non configuré retombe sur le comportement 'continu' historique
+  // (Article 5 : jamais un bouton qui bloque faute de profil reconnu).
+  const ACTIONS_MOUVEMENT_PAR_PROFIL = {
+    production_journaliere: ['production_additionnelle', 'retrait', 'retour', 'casse'],
+    continu: ['livraison', 'casse', 'retour', 'transfert', 'reassort'],
+    cycle_journalier: ['livraison', 'casse', 'retour', 'transfert', 'reassort'],
+    presse: ['livraison', 'retour', 'casse'],
+    lot_glissant: ['livraison', 'retour', 'retrait'],
+    consommable: ['livraison', 'retrait'],
+  };
+  function actionsMouvementPourProfil(profil) {
+    const types = ACTIONS_MOUVEMENT_PAR_PROFIL[profil] || ACTIONS_MOUVEMENT_PAR_PROFIL.continu;
+    return types.map(v => infoTypeMouvement(v)).filter(Boolean);
+  }
+
   global.NexusInventaireMoteur = {
     FAMILLES_CONTROLE, DEFAUT_DELAI_MAX_JOURS_PAR_FAMILLE,
     libelleRaisonSelection, joursEntreDates, delaiMaxJours, produitEligibleQuart,
@@ -461,5 +622,11 @@
     qualiteRapprochementProduit, libelleQualiteRapprochement, couverturePhysique,
     reconciliationAlertesDemarque, syntheseQualiteRapprochements,
     dureeSessionAutomatiqueMinutes, syntheseComparaisonAdoption, moyenneSyntheseAdoption,
+    libelleContexteJour, contexteCalendaireJour, calculerRecommandationPreparation,
+    resteDepasseSeuilSurveillance,
+    sommeMouvementsProduction, disponibleQuartProduction, ecoulementQuartProduction,
+    syntheseProductionJournee,
+    TYPES_MOUVEMENT, infoTypeMouvement, libelleTypeMouvement, mouvementImpacteStockGlobal,
+    ACTIONS_MOUVEMENT_PAR_PROFIL, actionsMouvementPourProfil,
   };
 })(typeof window !== 'undefined' ? window : globalThis);
