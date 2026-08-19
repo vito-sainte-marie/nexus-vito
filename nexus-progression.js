@@ -1148,27 +1148,155 @@
     { code: 'caisse_x20', seuil: 20, label: 'Caisse Référence — Série 20', points: 100 },
   ];
 
-  // Paliers dont le record vient de franchir le seuil et qui ne sont pas
-  // encore enregistrés dans progression_badge_awards (codesDejaAcquis) —
-  // peut renvoyer plusieurs paliers d'un coup (ex. un rattrapage d'historique
-  // fait bondir le record de 3 à 12 : x5 ET x10 sont franchis en même temps).
-  // Idempotent par construction : un palier déjà dans codesDejaAcquis n'est
-  // jamais redonné, quel que soit le nombre d'appels (recalcul, refresh...).
-  function paliersFranchisSerieCaisse(record, codesDejaAcquis) {
+  // Paliers génériques (20/08/2026, extraits pour réutilisation par la
+  // Série Inventaire — comportement IDENTIQUE à la version Caisse d'origine,
+  // vérifié par régression sur test_progression_series_caisse_badges.js
+  // avant/après cette extraction) : dont le record vient de franchir le
+  // seuil et qui ne sont pas encore enregistrés dans progression_badge_awards
+  // (codesDejaAcquis) — peut renvoyer plusieurs paliers d'un coup (ex. un
+  // rattrapage d'historique fait bondir le record de 3 à 12 : x5 ET x10 sont
+  // franchis en même temps). Idempotent par construction : un palier déjà
+  // dans codesDejaAcquis n'est jamais redonné, quel que soit le nombre
+  // d'appels (recalcul, refresh...).
+  function paliersFranchis(catalogue, record, codesDejaAcquis) {
     const acquis = codesDejaAcquis || [];
-    return PALIERS_SERIE_CAISSE.filter(p => (record || 0) >= p.seuil && !acquis.includes(p.code));
+    return (catalogue || []).filter(p => (record || 0) >= p.seuil && !acquis.includes(p.code));
   }
 
   // Prochain palier non encore atteint, pour l'affichage "encore N pour
   // débloquer X" (cadrage §7.1) — se base sur le RECORD comme les badges
   // eux-mêmes (jamais la série en cours, qui peut redescendre à 0 sans que
   // ça change ce qu'il reste à faire pour le prochain vrai palier).
-  function prochainPalierSerieCaisse(record, codesDejaAcquis) {
+  function prochainPalier(catalogue, record, codesDejaAcquis) {
     const acquis = codesDejaAcquis || [];
-    const suivant = PALIERS_SERIE_CAISSE.find(p => (record || 0) < p.seuil || !acquis.includes(p.code));
+    const suivant = (catalogue || []).find(p => (record || 0) < p.seuil || !acquis.includes(p.code));
     if (!suivant) return null;
     return { ...suivant, manque: Math.max(0, suivant.seuil - (record || 0)) };
   }
+
+  // Wrappers Caisse (signature d'origine conservée à l'identique — aucun
+  // appelant existant, ni NEXUS-Progression-v1.html ni les tests, n'a besoin
+  // de changer).
+  function paliersFranchisSerieCaisse(record, codesDejaAcquis) {
+    return paliersFranchis(PALIERS_SERIE_CAISSE, record, codesDejaAcquis);
+  }
+  function prochainPalierSerieCaisse(record, codesDejaAcquis) {
+    return prochainPalier(PALIERS_SERIE_CAISSE, record, codesDejaAcquis);
+  }
+
+  // ------------------------------------------------------------
+  // 13) "Mes séries" — volet Inventaire (20/08/2026, suite du cadrage
+  //    Séries & récompenses, discutée avec Frédéric le 19/08/2026).
+  //
+  //    Différence structurelle avec la Caisse, actée avec Frédéric avant de
+  //    coder : Verify a un signal de validation manager EXPLICITE et
+  //    définitif (audits_caisse.valide_le). L'Inventaire n'a rien de tel —
+  //    un comptage employé est statut='valide' dès la saisie
+  //    (inventaire_comptages), et le manager n'intervient que de façon
+  //    RÉACTIVE et sans limite de délai via "Correction rétroactive"
+  //    (NEXUS-Inventaire-Manager-v1.html::appliquerCorrectionRetroactive,
+  //    Sprint 3 — fonctionne explicitement "même après clôture"). Il n'existe
+  //    donc aucun instant où NEXUS peut dire avec certitude absolue "plus
+  //    aucune correction ne viendra jamais". Décision de Frédéric (19/08) :
+  //    délai de grâce fixe de 7 jours après clôture du quart. Un badge déjà
+  //    acquis n'est ensuite jamais retiré même si une correction arrive plus
+  //    tard (cadrage §12) — seule la série COURANTE (pas l'historique des
+  //    badges) peut redescendre à un recalcul si une correction tardive
+  //    change la qualification d'un quart déjà compté.
+  //
+  //    Unité de "session" retenue : une ligne inventaire_quart_employes où
+  //    responsable_comptage=true (même principe que l'attribution solo de la
+  //    section 1 pour la Caisse — jamais un quart partagé compté comme
+  //    preuve individuelle pour quelqu'un qui n'était pas responsable).
+  // ------------------------------------------------------------
+
+  const DELAI_GRACE_SERIE_INVENTAIRE_JOURS = 7;
+
+  // Seuls ces deux types de correction manager sont considérés imputables à
+  // l'employé responsable du comptage (cadrage §4) : une vraie erreur de
+  // comptage, ou un mouvement oublié qui aurait dû être déclaré pendant le
+  // quart. 'stock_retenu' (ajustement possiblement légitime, pas
+  // nécessairement une faute) et 'corriger_preparation_q1' (Production
+  // journalière, hors périmètre comptage) ne cassent JAMAIS la série —
+  // cadrage : "Correction technique/parcours/import Decenium -> Ne casse pas
+  // la série". Ne jamais élargir cette liste sans une vraie preuve que le
+  // nouveau type est bien une faute confirmée de l'employé (Article 5).
+  const CORRECTION_TYPES_IMPUTABLES_INVENTAIRE = ['erreur_saisie', 'mouvement_oublie'];
+
+  // Qualifie chaque quart dont l'employé était responsable du comptage en
+  // SUCCESS / FAIL_CONFIRMED / PENDING (jamais NOT_COMPARABLE ici : à ce
+  // grain — un quart entier, pas un produit — NEXUS n'a pas de vraie
+  // troisième catégorie distincte de "pas encore sûr", donc PENDING couvre
+  // aussi bien "pas encore clôturé" que "clôturé mais encore dans le délai
+  // de grâce" plutôt que d'inventer une distinction sans signal réel).
+  //
+  // quartEmployeRows : lignes inventaire_quart_employes déjà filtrées site +
+  // employé, chargées avec select('*, inventaire_quarts(*)') pour disposer
+  // de date/quart/cloture_le/is_simulation sans requête séparée.
+  // correctionsRows : lignes inventaire_corrections déjà filtrées site,
+  // n'importe quelle période (une correction peut viser un quart ancien).
+  function qualifierQuartsInventaireEmploye(quartEmployeRows, correctionsRows, dateReferenceISO, delaiGraceJours) {
+    const delai = delaiGraceJours != null ? delaiGraceJours : DELAI_GRACE_SERIE_INVENTAIRE_JOURS;
+    const maintenant = dateReferenceISO ? new Date(dateReferenceISO).getTime() : Date.now();
+
+    // Une seule correction imputable sur le quart suffit à le disqualifier,
+    // peu importe le produit concerné (cadrage : la série porte sur "un
+    // inventaire", pas sur un produit isolé) — regroupées par (date|quart),
+    // jamais par produit_id.
+    const quartsAvecCorrectionImputable = new Set(
+      (correctionsRows || [])
+        .filter(c => CORRECTION_TYPES_IMPUTABLES_INVENTAIRE.includes(c.correction_type))
+        .map(c => `${c.operational_date}|${c.quart}`)
+    );
+
+    return (quartEmployeRows || [])
+      .filter(qe => qe.responsable_comptage === true && qe.inventaire_quarts && !qe.inventaire_quarts.is_simulation)
+      .map(qe => {
+        const q = qe.inventaire_quarts;
+        const cle = `${q.date}|${q.quart}`;
+        const disqualifie = quartsAvecCorrectionImputable.has(cle);
+        let outcome;
+        if (disqualifie) {
+          // Une correction imputable confirmée casse la série même si elle
+          // arrive après le délai de grâce (cadrage §12 : n'affecte que le
+          // recalcul de la série courante, jamais un badge déjà historisé).
+          outcome = 'FAIL_CONFIRMED';
+        } else if (!qe.a_valide_cloture || !q.cloture_le) {
+          outcome = 'PENDING'; // session pas encore terminée / preuve manquante
+        } else {
+          const joursDepuisCloture = (maintenant - new Date(q.cloture_le).getTime()) / 86400000;
+          outcome = joursDepuisCloture >= delai ? 'SUCCESS' : 'PENDING';
+        }
+        return { date: q.date, quart: q.quart, quartId: q.id, outcome };
+      });
+  }
+
+  // Série générique à partir d'une liste d'événements {date, quart, outcome}
+  // — même construction que serieValideeConforme/serieValideeConformeUnifiee
+  // (sections 10-11) mais réutilisable par n'importe quel domaine qualifié
+  // en SUCCESS/FAIL_CONFIRMED/PENDING/EXCLUDED : PENDING et EXCLUDED sont
+  // ignorés (ni comptés, ni interrupteurs), FAIL_CONFIRMED remet à 0, SUCCESS
+  // incrémente. Jamais un second algorithme de série divergent (Article 11).
+  function calculerSerieDepuisEvenements(evenements) {
+    const chrono = (evenements || [])
+      .filter(e => e.outcome === 'SUCCESS' || e.outcome === 'FAIL_CONFIRMED')
+      .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : (String(a.quart) < String(b.quart) ? -1 : 1)));
+    let record = 0, courante = 0, enCours = 0;
+    chrono.forEach(e => {
+      if (e.outcome === 'SUCCESS') { courante += 1; if (courante > record) record = courante; }
+      else { courante = 0; }
+    });
+    for (let i = chrono.length - 1; i >= 0; i--) {
+      if (chrono[i].outcome === 'SUCCESS') enCours += 1; else break;
+    }
+    return { enCours, record, total: chrono.length };
+  }
+
+  const PALIERS_SERIE_INVENTAIRE = [
+    { code: 'inventaire_x5', seuil: 5, label: 'Inventaire Maîtrisé — Série 5', points: 25 },
+    { code: 'inventaire_x10', seuil: 10, label: 'Inventaire Fiable — Série 10', points: 50 },
+    { code: 'inventaire_x20', seuil: 20, label: 'Inventaire Référence — Série 20', points: 100 },
+  ];
 
   global.NexusProgression = {
     SEUIL_ECART_CONFORME,
@@ -1196,5 +1324,9 @@
     serieValideeConformeUnifiee,
     // Mes séries — badges Série Caisse + points (19/08/2026)
     PALIERS_SERIE_CAISSE, paliersFranchisSerieCaisse, prochainPalierSerieCaisse,
+    // Mes séries — génériques + volet Inventaire (20/08/2026)
+    paliersFranchis, prochainPalier, calculerSerieDepuisEvenements,
+    DELAI_GRACE_SERIE_INVENTAIRE_JOURS, CORRECTION_TYPES_IMPUTABLES_INVENTAIRE,
+    qualifierQuartsInventaireEmploye, PALIERS_SERIE_INVENTAIRE,
   };
 })(window);
