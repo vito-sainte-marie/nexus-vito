@@ -99,6 +99,19 @@
   .badge-card.obtenu .badge-label{color:var(--text);}
   .badge-progress{font-family:var(--mono); font-size:9.5px; color:var(--text-dim); margin-top:5px;}
 
+  /* Mes séries — badges Série Caisse + points (19/08/2026) */
+  .serie-card{background:var(--panel); border:1px solid var(--hairline); border-radius:14px; padding:18px; margin-bottom:14px;}
+  .serie-row{display:flex; justify-content:space-between; align-items:baseline; margin-bottom:6px;}
+  .serie-nom{font-size:13.5px; font-weight:600;}
+  .serie-valeur{font-family:var(--mono); font-size:13px; color:var(--gold);}
+  .serie-sub{font-size:11.5px; color:var(--text-mid); margin-bottom:10px;}
+  .serie-bar-track{height:6px; background:var(--panel-raised); border-radius:3px; overflow:hidden; margin:4px 0 8px;}
+  .serie-bar-fill{height:100%; background:var(--gold); border-radius:3px;}
+  .serie-record{font-family:var(--mono); font-size:10.5px; color:var(--text-dim);}
+  .deblocage-card{background:rgba(212,175,55,0.1); border:1px solid rgba(212,175,55,0.4); border-radius:12px; padding:14px 16px; margin-bottom:14px; font-size:13px; line-height:1.55; color:var(--text);}
+  .deblocage-card b{color:var(--gold);}
+  .deblocage-pts{font-family:var(--mono); font-size:12px; color:var(--gold); margin-top:4px;}
+
   .comp-row{display:flex; align-items:center; justify-content:space-between; padding:9px 0; border-top:1px solid var(--hairline);}
   .comp-row:first-of-type{border-top:none;}
   .comp-nom{font-size:13px; font-weight:500;}
@@ -290,6 +303,8 @@
       { data: catalogueRows, error: e7 },
       { data: inventaireRows, error: e8 },
       { data: fdjShiftsRows, error: e9 },
+      { data: badgeAwardsRows, error: e10 },
+      { data: pointsLedgerRows, error: e11 },
     ] = await Promise.all([
       // id/valide_le/ecart_*_valide/commentaire_validation ajoutés le
       // 03/08/2026 pour "Mes Caisses" — distinguer un écart provisoire d'un
@@ -322,6 +337,11 @@
       // NexusProgression.construireServicesCaisseFdj.
       fetchAllRows(() => nexusClient.from('fdj_shifts').select('*, fdj_cash_controls(*)')
         .eq('site', siteId).eq('employee_id', cible.id).order('date', { ascending: false })),
+      // Mes séries — badges Série Caisse (19/08/2026) : badges déjà acquis et
+      // ledger de points de CET employé — jamais recalculés, uniquement lus
+      // (la seule écriture possible est un INSERT idempotent plus bas).
+      nexusClient.from('progression_badge_awards').select('*').eq('employee_id', cible.id),
+      nexusClient.from('progression_points_ledger').select('*').eq('employee_id', cible.id),
     ]);
     if (e1) console.error('Chargement audits_caisse (progression):', e1);
     if (e2) console.error('Chargement pointages (progression):', e2);
@@ -332,6 +352,8 @@
     if (e7) console.error('Chargement mission_catalog (progression):', e7);
     if (e8) console.error('Chargement inventaire_quarts (progression):', e8);
     if (e9) console.error('Chargement fdj_shifts (progression):', e9);
+    if (e10) console.error('Chargement progression_badge_awards:', e10);
+    if (e11) console.error('Chargement progression_points_ledger:', e11);
 
     const N = NexusProgression;
     const services = N.construireServicesCaisse(auditsRows || [], cible.id);
@@ -416,6 +438,48 @@
     const syntheseCombPrecedente = N.syntheseCombinee(lignesUnifiees, moisPrecedentRef);
     const tendanceComb = N.tendanceMoisCaisse(syntheseCombActuelle, syntheseCombPrecedente);
     const serieUnifiee = N.serieValideeConformeUnifiee(lignesUnifiees);
+
+    // ------------------------------------------------------------
+    // Mes séries — badges Série Caisse + points (19/08/2026, cadrage
+    // NEXUS_Ma_Progression_Series_Recompenses_Cadrage_Developpeur.pdf).
+    //
+    // Le badge se fonde sur le RECORD (meilleure série jamais atteinte,
+    // toutes activités confondues — serieUnifiee.record), jamais sur
+    // l'expérience ni un chiffre recalculé ailleurs (Article 11 : une seule
+    // vérité de série, déjà établie plus haut). Crédit idempotent : la
+    // contrainte unique (employee_id, badge_code) / (employee_id,
+    // source_type, source_id) empêche tout double crédit même en cas de
+    // double appel — jamais besoin d'un verrou applicatif. Déclenché
+    // UNIQUEMENT en vue employé (jamais quand un manager consulte la page
+    // d'un collègue), même règle que "Nouveau constat" plus haut.
+    // ------------------------------------------------------------
+    let badgesSerieObtenus = badgeAwardsRows || [];
+    let pointsSerieLedger = pointsLedgerRows || [];
+    let paliersVenantDEtreDebloques = [];
+    if (!vueManager) {
+      const codesDejaAcquis = badgesSerieObtenus.map(b => b.badge_code);
+      const nouveauxPaliers = N.paliersFranchisSerieCaisse(serieUnifiee.record, codesDejaAcquis);
+      for (const palier of nouveauxPaliers) {
+        const { data: awardCree, error: eAward } = await nexusClient.from('progression_badge_awards')
+          .insert({ employee_id: cible.id, site_id: siteId, domain: 'caisse', badge_code: palier.code, streak_value_at_award: serieUnifiee.record })
+          .select().maybeSingle();
+        // Code 23505 = contrainte unique déjà là (double exécution/course) —
+        // comportement normal et attendu, jamais une erreur à signaler.
+        if (eAward && eAward.code !== '23505') { console.error('Écriture progression_badge_awards:', eAward); continue; }
+        if (!awardCree) continue; // déjà acquis entre-temps (course perdue) — rien de plus à faire ici
+        const { data: creditCree, error: eCredit } = await nexusClient.from('progression_points_ledger')
+          .insert({ employee_id: cible.id, site_id: siteId, source_type: 'badge_caisse', source_id: palier.code, points: palier.points, reason: palier.label })
+          .select().maybeSingle();
+        if (eCredit && eCredit.code !== '23505') console.error('Écriture progression_points_ledger:', eCredit);
+        badgesSerieObtenus = badgesSerieObtenus.concat([awardCree]);
+        if (creditCree) pointsSerieLedger = pointsSerieLedger.concat([creditCree]);
+        paliersVenantDEtreDebloques.push(palier);
+      }
+    }
+    const codesAcquisFinal = badgesSerieObtenus.map(b => b.badge_code);
+    const prochainPalierVal = N.prochainPalierSerieCaisse(serieUnifiee.record, codesAcquisFinal);
+    const totalPointsSerie = pointsSerieLedger.reduce((s, l) => s + (l.points || 0), 0);
+
     const lignesBoutique = lignesUnifiees.filter(l => l.activite === 'boutique');
     const lignesPiste = lignesUnifiees.filter(l => l.activite === 'piste');
     const lignesFdj = lignesUnifiees.filter(l => l.activite === 'fdj');
@@ -677,6 +741,45 @@
       </div>
     `;
 
+    // ------------------------------------------------------------
+    // Rendu "Mes séries" (19/08/2026) — voir moteur ci-dessus. Vocabulaire
+    // cadrage §14 respecté : jamais "série perdue", jamais "comptage
+    // parfait" ; "record personnel" plutôt qu'un classement.
+    // ------------------------------------------------------------
+    const paliersHtml = N.PALIERS_SERIE_CAISSE.map(p => {
+      const obtenu = codesAcquisFinal.includes(p.code);
+      return `<div class="badge-card ${obtenu ? 'obtenu' : ''}">
+        <div class="badge-icone">🔥</div>
+        <div class="badge-label">${p.label}</div>
+        ${!obtenu ? `<div class="badge-progress">Encore ${Math.max(0, p.seuil - serieUnifiee.record)} pour débloquer</div>` : ''}
+      </div>`;
+    }).join('');
+
+    const serieCardHtml = `
+      <div class="section-label">Mes séries</div>
+      <div class="serie-card">
+        <div class="serie-row"><span class="serie-nom">🔥 Caisse — validations conformes d'affilée</span><span class="serie-valeur">${serieUnifiee.enCours}</span></div>
+        ${prochainPalierVal ? `
+          <div class="serie-sub">Encore ${prochainPalierVal.manque} pour débloquer « ${prochainPalierVal.label} »</div>
+          <div class="serie-bar-track"><div class="serie-bar-fill" style="width:${Math.min(100, Math.round(serieUnifiee.record / prochainPalierVal.seuil * 100))}%;"></div></div>
+        ` : `<div class="serie-sub">Tous les paliers Série Caisse sont débloqués — merci pour votre régularité.</div>`}
+        <div class="serie-record">Record personnel : ${serieUnifiee.record}${totalPointsSerie > 0 ? ` · ${totalPointsSerie} point${totalPointsSerie > 1 ? 's' : ''} de série` : ''}</div>
+        <div class="badges-grid" style="margin-top:14px;">${paliersHtml}</div>
+      </div>
+    `;
+
+    // Micro-récompense de déblocage (cadrage §7.2) — non bloquante, affichée
+    // une seule fois au moment réel du déblocage (paliersVenantDEtreDebloques
+    // n'est jamais rempli une deuxième fois pour le même badge, grâce à
+    // l'idempotence de l'INSERT ci-dessus).
+    const deblocageHtml = paliersVenantDEtreDebloques.length
+      ? paliersVenantDEtreDebloques.map(p => `
+        <div class="deblocage-card">🏅 Badge débloqué : <b>${p.label}</b><br>
+          Vous venez d'atteindre ce palier de régularité.
+          <div class="deblocage-pts">+${p.points} points</div>
+        </div>`).join('')
+      : '';
+
     const fortsHtml = forts.length
       ? `<ul class="fort-list">${forts.map(f => `<li class="fort-item"><span class="dot">🟢</span>${f}</li>`).join('')}</ul>`
       : `<div class="coach-sub">${vueManager ? 'NEXUS n\'a pas encore assez de recul pour dégager ses points forts.' : 'Je n\'ai pas encore assez de recul pour dégager vos points forts.'} ${vueManager ? 'Chaque service qu\'il enregistre affine l\'analyse.' : 'Chaque service que vous enregistrez affine mon analyse.'}</div>`;
@@ -700,6 +803,10 @@
         <div class="coach-text">${accueil}</div>
         <a class="apprentissage-link" href="NEXUS-Apprentissage-v1.html${vueManager ? '?employe=' + cible.id : ''}">${nouveauteEnAttente ? '<span class="nouveaute-dot"></span> ' : ''}Ce que NEXUS a appris sur ${vueManager ? cible.nom.split(' ')[0] : 'moi'} →</a>
       </div>
+
+      ${deblocageHtml}
+
+      ${serieCardHtml}
 
       <div class="section-label">${vueManager ? 'Ses points forts' : 'Vos points forts'}</div>
       <div class="coach-card">${fortsHtml}</div>

@@ -1120,6 +1120,56 @@
     return { enCours, record, total: resolues.length };
   }
 
+  // ------------------------------------------------------------
+  // 12) "Mes séries" — badges Série Caisse + points (19/08/2026, cadrage
+  //    NEXUS_Ma_Progression_Series_Recompenses_Cadrage_Developpeur.pdf).
+  //
+  //    Décision (verdict du 19/08/2026, discuté avec Frédéric avant de
+  //    coder) : PAS de nouvelle table d'événements/streaks — la série et le
+  //    record Caisse existent déjà en direct via serieValideeConformeUnifiee
+  //    (section 11, toutes activités Boutique/Piste/FDJ, uniquement les
+  //    contrôles définitivement validés — un écart provisoire ne casse ni
+  //    ne fait progresser rien). Les deux seules choses qui manquaient
+  //    réellement à NEXUS sont un badge acquis UNE SEULE FOIS (idempotence)
+  //    et un ledger de points auditable — persistés dans
+  //    progression_badge_awards / progression_points_ledger (colle Supabase
+  //    côté écran, jamais ici : ce fichier reste 100% pur, comme le reste
+  //    de nexus-progression.js).
+  //
+  //    Le badge se fonde sur le RECORD (meilleure série jamais atteinte),
+  //    jamais sur la série en cours : cadrage §5 exemple — "le badge reste
+  //    acquis" même si une série redémarre à 0 ensuite (jamais de retrait
+  //    silencieux, cadrage §12).
+  // ------------------------------------------------------------
+
+  const PALIERS_SERIE_CAISSE = [
+    { code: 'caisse_x5', seuil: 5, label: 'Caisse Maîtrisée — Série 5', points: 25 },
+    { code: 'caisse_x10', seuil: 10, label: 'Caisse Fiable — Série 10', points: 50 },
+    { code: 'caisse_x20', seuil: 20, label: 'Caisse Référence — Série 20', points: 100 },
+  ];
+
+  // Paliers dont le record vient de franchir le seuil et qui ne sont pas
+  // encore enregistrés dans progression_badge_awards (codesDejaAcquis) —
+  // peut renvoyer plusieurs paliers d'un coup (ex. un rattrapage d'historique
+  // fait bondir le record de 3 à 12 : x5 ET x10 sont franchis en même temps).
+  // Idempotent par construction : un palier déjà dans codesDejaAcquis n'est
+  // jamais redonné, quel que soit le nombre d'appels (recalcul, refresh...).
+  function paliersFranchisSerieCaisse(record, codesDejaAcquis) {
+    const acquis = codesDejaAcquis || [];
+    return PALIERS_SERIE_CAISSE.filter(p => (record || 0) >= p.seuil && !acquis.includes(p.code));
+  }
+
+  // Prochain palier non encore atteint, pour l'affichage "encore N pour
+  // débloquer X" (cadrage §7.1) — se base sur le RECORD comme les badges
+  // eux-mêmes (jamais la série en cours, qui peut redescendre à 0 sans que
+  // ça change ce qu'il reste à faire pour le prochain vrai palier).
+  function prochainPalierSerieCaisse(record, codesDejaAcquis) {
+    const acquis = codesDejaAcquis || [];
+    const suivant = PALIERS_SERIE_CAISSE.find(p => (record || 0) < p.seuil || !acquis.includes(p.code));
+    if (!suivant) return null;
+    return { ...suivant, manque: Math.max(0, suivant.seuil - (record || 0)) };
+  }
+
   global.NexusProgression = {
     SEUIL_ECART_CONFORME,
     construireServicesCaisse, estConforme, serviceEstPropre,
@@ -1144,5 +1194,7 @@
     construireServicesCaisseFdj, statutCaisseJourFdj, ligneActiviteFdj,
     construireHistoriqueUnifie, syntheseActivite, syntheseCombinee,
     serieValideeConformeUnifiee,
+    // Mes séries — badges Série Caisse + points (19/08/2026)
+    PALIERS_SERIE_CAISSE, paliersFranchisSerieCaisse, prochainPalierSerieCaisse,
   };
 })(window);
