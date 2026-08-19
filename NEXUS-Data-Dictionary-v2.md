@@ -1621,3 +1621,20 @@ RLS calquée exactement sur `apprentissage_snapshots` (seule table à écriture 
 **Vérification** : comptage `<div>`/`<section>`/`<button>` (194/194, 7/7, 33/33 — équilibré), aucun `id` dupliqué, les 7 `id` de section couverts exactement par les 7 `data-target` réels (le `${sec.id}` du gabarit JS écarté comme en v2.169), une seule section (`secGeneral`) avec `class="psec open"`. `node --check` propre sur le `<script>` unique de la page.
 
 **Reporté volontairement** (tâches créées, non commencées) : barre de sauvegarde globale sticky ("N modifications non enregistrées · Annuler · Enregistrer") et panneau de synthèse "état de santé de la configuration" en tête de page. Les deux sont de vrais chantiers de cadrage — pas de la présentation — et seront traités dans une prochaine session, dans l'esprit du cadrage P8 (progression_site_settings) : d'abord définir précisément le comportement et les règles, puis coder.
+
+## v2.171 — 20/08/2026 — NEXUS-Login-v1.html : correctif message d'erreur prénom (échec réseau vs prénom inconnu)
+
+**Contexte** : Frédéric signale qu'une employée (Angelique) échoue à se connecter de façon répétée, avec le message "Prénom non reconnu. Vérifiez l'orthographe ou contactez le manager." alors que son prénom est correctement orthographié.
+
+**Diagnostic** : vérifié directement contre la base Supabase live — le prénom "Angelique" correspond bien à la ligne existante (`.ilike("nom", prenom)` est insensible à la casse, confirmé par test SQL direct) ; le compte est actif, une connexion a bien réussi le matin même (11:00:46Z) ; aucune tentative récente d'Angelique n'apparaît dans `auth_logs` — ce qui exclut un rejet côté serveur et pointe vers un échec de la requête de lookup avant même d'atteindre Supabase (probable coupure/instabilité réseau mobile, cohérente avec le 4G/2 barres visible sur sa capture d'écran). Le bug réel : le code traitait `lookupError` (échec technique de la requête) et `!employee` (prénom réellement introuvable, requête réussie mais sans résultat) comme un seul et même cas, affichant systématiquement "Prénom non reconnu…" — un message trompeur en cas de simple problème de connexion.
+
+**Correctif** (`NEXUS-Login-v1.html`, fonction `tryLogin()`) :
+- Le lookup `employees_public` est maintenant entouré d'un `try/catch` et son `error` est distingué explicitement de l'absence de résultat :
+  - `lookupError` (requête a échoué, réseau/technique) → nouveau message : **"Connexion au serveur impossible. Vérifiez votre connexion et réessayez."**
+  - `!employee` sans erreur (requête réussie, aucun prénom correspondant) → message inchangé : **"Prénom non reconnu. Vérifiez l'orthographe ou contactez le manager."**
+- Le même `try/catch` et le même message réseau ont été ajoutés autour de `signInWithPassword`, pour la même raison (une coupure à cette étape affichait auparavant à tort "Code PIN incorrect.").
+- Aucun autre comportement touché : mêmes champs, mêmes `id`, même redirection finale, même vérification "déjà connecté" en tête de script.
+
+**Vérification** : `node --check` propre sur le `<script>` extrait ; comptage `<div>` équilibré (8/8) ; 5 occurrences de `errBox.textContent` (champ vide, erreur réseau lookup, prénom inconnu, erreur réseau auth, PIN incorrect) contre 3 dans l'original — cohérent avec les 2 nouvelles branches réseau ajoutées.
+
+**Hypothèse initiale erronée, corrigée en cours de session** : la première piste envisagée (sensibilité à la casse) s'est révélée fausse une fois le code source réel obtenu et testé — `.ilike()` est bien insensible à la casse. Cette piste a été explicitement abandonnée auprès de Frédéric avant le diagnostic définitif ci-dessus.

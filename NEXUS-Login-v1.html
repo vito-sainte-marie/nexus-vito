@@ -113,13 +113,26 @@
     btn.textContent = "Connexion...";
 
     // On retrouve le username (identifiant technique) à partir du prénom affiché
-    const { data: employee, error: lookupError } = await client
-      .from("employees_public")
-      .select("username")
-      .ilike("nom", prenom)
-      .maybeSingle();
+    let employee, lookupError;
+    try {
+      ({ data: employee, error: lookupError } = await client
+        .from("employees_public")
+        .select("username")
+        .ilike("nom", prenom)
+        .maybeSingle());
+    } catch (networkError) {
+      lookupError = networkError;
+    }
 
-    if (lookupError || !employee) {
+    if (lookupError) {
+      errBox.textContent = "Connexion au serveur impossible. Vérifiez votre connexion et réessayez.";
+      errBox.style.display = "block";
+      btn.disabled = false;
+      btn.textContent = "Se connecter";
+      return;
+    }
+
+    if (!employee) {
       errBox.textContent = "Prénom non reconnu. Vérifiez l'orthographe ou contactez le manager.";
       errBox.style.display = "block";
       btn.disabled = false;
@@ -127,10 +140,19 @@
       return;
     }
 
-    const { error: authError } = await client.auth.signInWithPassword({
-      email: `${employee.username}@vito-nexus.local`,
-      password: pin
-    });
+    let authError;
+    try {
+      ({ error: authError } = await client.auth.signInWithPassword({
+        email: `${employee.username}@vito-nexus.local`,
+        password: pin
+      }));
+    } catch (networkError) {
+      errBox.textContent = "Connexion au serveur impossible. Vérifiez votre connexion et réessayez.";
+      errBox.style.display = "block";
+      btn.disabled = false;
+      btn.textContent = "Se connecter";
+      return;
+    }
 
     if (authError) {
       errBox.textContent = "Code PIN incorrect.";
