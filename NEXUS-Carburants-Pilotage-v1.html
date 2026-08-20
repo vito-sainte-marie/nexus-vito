@@ -856,6 +856,20 @@
     return `${parseInt(d, 10)} ${MOIS[parseInt(m, 10) - 1]}`;
   }
 
+  // 20/08/2026, référence physique du jour (jaugeage d'ouverture ou
+  // post-livraison) : contrairement à formaterDateFrCourt ci-dessus (date
+  // seule, YYYY-MM-DD), cette fonction formate un timestamp complet
+  // (carburant_releves.created_at ou carburant_reception_visites.heure_fin)
+  // en "JJ/MM à HH:MM", heure de Paris.
+  function formaterDateHeureFr(iso) {
+    if (!iso) return '';
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return '';
+    const jour = d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', timeZone: 'Europe/Paris' });
+    const heure = d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Paris' });
+    return `${jour} à ${heure}`;
+  }
+
   async function chargerEtRendreRattrapage() {
     const zone = document.getElementById('rattrapageZone');
     const { jours } = await NexusCarburantDonnees.chargerJoursSansReleve(nexusClient, SITE_ID, todayISO());
@@ -906,6 +920,72 @@
       NexusCarburantDonnees.chargerStatutJaugeageJour(nexusClient, SITE_ID, todayISO()),
     ]);
     CUVES_CONFIG = config;
+
+    // Correctif (20/08/2026, demande de Frédéric : "les cartes du haut
+    // restent ancrées sur le relevé précédent alors que NEXUS connaît déjà
+    // la livraison") : "Situation aujourd'hui" doit basculer sur le
+    // jaugeage post-livraison dès qu'il est plus récent que le jaugeage
+    // d'ouverture du jour — jamais attendre demain matin quand NEXUS
+    // possède déjà une mesure physique plus fraîche. Réutilise DERNIERE_VISITE
+    // (même variable déjà chargée pour "Dernière livraison"/"Qualité des
+    // réceptions" — Article 11, jamais une deuxième requête pour la même
+    // visite) ; la charge ici si elle ne l'est pas encore (ce bloc peut
+    // s'exécuter avant chargerEtRendreQualiteReceptions selon l'ordre
+    // d'init).
+    if (global_NexusReceptionDonnees_disponible() && DERNIERE_VISITE === null) {
+      DERNIERE_VISITE = await NexusReceptionDonnees.chargerDerniereVisite(nexusClient, SITE_ID);
+    }
+    const M = NexusCarburantMoteur;
+    const refDuJour = M.referencePhysiqueDuJour(controle.releveDuJour, DERNIERE_VISITE, todayISO());
+    // La visite peut ne porter qu'une partie des carburants du site (ex.
+    // livraison GO+SP95 sans GNR) : `clesReception` retient uniquement les
+    // carburants réellement recalculés sur le jaugeage post-livraison. Les
+    // autres restent sur l'ouverture — jamais une étiquette "post-livraison"
+    // affichée sur une carte dont le chiffre n'a pas bougé (Article 5).
+    const clesReception = new Set();
+    if (refDuJour.source === 'reception' && controle.parCarburant) {
+      M.CLES_CARBURANT.forEach(cle => {
+        const stockPost = M.stockPhysiquePostLivraison(DERNIERE_VISITE, cle);
+        const r = controle.parCarburant[cle];
+        if (stockPost == null || !r) return;
+        // Même principe que "référence certifiée ce jour" (point zéro) déjà
+        // en place plus haut dans NexusCarburantDonnees.chargerControleJour :
+        // une mesure physique fraîche du jour devient sa propre référence —
+        // théorique = physique à l'instant de la mesure (écart 0, zéro jour
+        // écoulé depuis), jamais un théorique fantôme hérité du relevé
+        // d'ouverture d'avant la livraison. Le rapprochement BL/compartiments
+        // vs mesuré (Qualité des réceptions, badge "Rapprochement" séparé
+        // plus bas) reste distinct et ne bloque jamais cette mise à jour du
+        // stock physique — un GO "à vérifier" à la réception n'empêche pas
+        // le stock physique post-livraison d'être affiché (demande explicite
+        // de Frédéric : ne jamais conserver un stock ancien, ne jamais non
+        // plus présumer la livraison parfaite).
+        r.stockPhysiqueAffiche = stockPost;
+        r.theorique = stockPost;
+        r.ecart = 0;
+        r.ecartRatio = 0;
+        r.statut = 'Référence physique (réception)';
+        clesReception.add(cle);
+      });
+    }
+    if (controle.parCarburant) {
+      M.CLES_CARBURANT.forEach(cle => {
+        const r = controle.parCarburant[cle];
+        if (!r) return;
+        if (clesReception.has(cle)) {
+          r.referencePhysiqueSource = 'reception';
+          r.referencePhysiqueHeure = refDuJour.heure;
+        } else {
+          // Ce carburant n'a pas de mesure post-livraison sur la visite du
+          // jour (ex. GNR non livré) : sa carte reste sur l'ouverture, avec
+          // l'heure de l'ouverture réelle — jamais l'heure de la réception
+          // d'un autre carburant.
+          r.referencePhysiqueSource = controle.releveDuJour ? 'ouverture' : null;
+          r.referencePhysiqueHeure = controle.releveDuJour ? controle.releveDuJour.created_at : null;
+        }
+      });
+    }
+
     const autonomiesParCarburant = {};
     if (controle.parCarburant) {
       NexusCarburantMoteur.CLES_CARBURANT.forEach(cle => {
@@ -913,7 +993,7 @@
         autonomiesParCarburant[cle] = NexusCarburantMoteur.calculerAutonomieJours(stock, consoMoyenne[cle]);
       });
     }
-    return { ...controle, cuvesConfig: config, autonomiesParCarburant, derniersControles, statutJaugeageJour };
+    return { ...controle, cuvesConfig: config, autonomiesParCarburant, derniersControles, statutJaugeageJour, referencePhysiqueDuJour: refDuJour };
   }
 
   // ------------------------------------------------------------
@@ -1020,6 +1100,15 @@
       // calcul ni cacher le chiffre réel (Article 5), une note discrète
       // qualifie l'écart plutôt que de le renommer.
       const ecartNonFiabilise = ['Sous contrôle', 'À surveiller', 'À corriger'].includes(fiabilite.texte) && qualite.niveau === 'attente';
+      // 20/08/2026, demande de Frédéric : "Référence physique : jaugeage
+      // post-livraison · 20/08 à 11:32" / "Référence physique : jaugeage
+      // d'ouverture · 21/08 à 05:45" — contexte visible en un coup d'œil sur
+      // CHAQUE carte, jamais un remplacement silencieux du relevé
+      // d'ouverture (Article 5 : la source du chiffre doit toujours être
+      // explicite).
+      const refTxt = r.referencePhysiqueSource === 'reception' ? 'jaugeage post-livraison'
+        : (r.referencePhysiqueSource === 'ouverture' ? "jaugeage d'ouverture" : null);
+      const refHeureTxt = formaterDateHeureFr(r.referencePhysiqueHeure);
       return `
         <div class="carb-carte2 ${classeStatutCarte(r.statut)}" style="--carb-couleur:${couleurCarb}; cursor:pointer;" title="${detailCuves} — capacité ${capacite.toLocaleString('fr-FR')} L — voir le relevé de contrôle" data-releve-controle="${cle}">
           <div class="carb-carte2-titre">${COURT_CARBURANT[cle]}</div>
@@ -1031,6 +1120,7 @@
             <div class="carb-bar-remplissage" data-pct="${pctStock != null ? Math.round(pctStock * 100) : 0}" style="width:0%; background:${couleurCarb};"></div>
             ${pctTheo != null ? `<div class="carb-bar-marqueur" style="left:${Math.round(pctTheo * 100)}%;"></div>` : ''}
           </div>
+          ${refTxt ? `<div class="carb-ref-physique" style="font-size:10px; color:var(--text-dim); margin:-2px 0 4px;">Référence physique : ${refTxt}${refHeureTxt ? ` · ${refHeureTxt}` : ''}</div>` : ''}
           <div class="carb-stat-row"><span class="lbl">Physique</span><span class="val">${fmtL(r.stockPhysiqueAffiche)}</span></div>
           <div class="carb-stat-row"><span class="lbl">Théorique</span><span class="val">${fmtL(r.theorique)}</span></div>
           <div class="carb-stat-row"><span class="lbl">Écart</span><span class="val" style="color:${r.ecart != null && r.ecart < 0 ? 'var(--red)' : (r.ecart != null && r.ecart > 0 ? 'var(--green)' : 'var(--text)')};">${ecartTxt}${ecartNonFiabilise ? ' <span class="ecart-caveat" title="Chaîne de rapprochement non fiabilisée pour ce carburant — écart informatif, pas une perte confirmée.">ⓘ</span>' : ''}</span></div>
@@ -1056,7 +1146,17 @@
       ? `<div class="lien-historique-neutralise"><a href="#" id="lienHistoriqueNeutralise">Voir pourquoi l'historique précédent a été neutralisé</a></div><div class="historique-neutralise-detail" id="historiqueNeutraliseDetail" style="display:none;">${ctx.messageHistoriqueNeutralise}</div>`
       : '';
 
-    zone.innerHTML = `${bandeauReference}<div class="situation-grid">${cartes}</div>${lienNeutralisation}${ctx.dateDernierReleve ? `<div class="section-note">Écart calculé depuis le dernier relevé du ${ctx.dateDernierReleve.split('-').reverse().join('/')}. Autonomie estimée sur la consommation moyenne des 7 derniers jours avec données.</div>` : ''}`;
+    // 20/08/2026 : le libellé du bas doit nommer la vraie source du calcul.
+    // Avant une éventuelle livraison du jour, comportement inchangé (relevé
+    // du jour précédent). Après une livraison dont le jaugeage post-
+    // livraison est plus récent, le libellé le dit explicitement — jamais
+    // laisser croire que le calcul part encore du relevé de la veille alors
+    // qu'il repart du jaugeage post-livraison d'aujourd'hui.
+    const refJour = ctx.referencePhysiqueDuJour;
+    const libelleReference = (refJour && refJour.source === 'reception' && refJour.heure)
+      ? `Écart calculé depuis le jaugeage post-livraison du ${formaterDateHeureFr(refJour.heure)}.`
+      : (ctx.dateDernierReleve ? `Écart calculé depuis le dernier relevé du ${ctx.dateDernierReleve.split('-').reverse().join('/')}.` : '');
+    zone.innerHTML = `${bandeauReference}<div class="situation-grid">${cartes}</div>${lienNeutralisation}${libelleReference ? `<div class="section-note">${libelleReference} Autonomie estimée sur la consommation moyenne des 7 derniers jours avec données.</div>` : ''}`;
     legende.style.display = 'flex';
     const lienEl = document.getElementById('lienHistoriqueNeutralise');
     if (lienEl) {
@@ -1377,14 +1477,26 @@
     // donc remplacé par une formulation neutre sur le "quand".
     DERNIERE_LIVRAISON_AFFICHEE = { date: releve.date, estAujourdhui };
     const libelleSource = DERNIERE_LIVRAISON_SOURCE === 'terrain' ? 'réception terrain confirmée' : 'saisie manager';
+    // 20/08/2026, demande de Frédéric : "la zone 'Dernière livraison'
+    // devrait elle-même afficher le lien logique vers le nouveau relevé —
+    // Jaugeage post-livraison : effectué à 11:xx · Voir le contrôle de
+    // réception." Rend la chaîne lisible d'un bout à l'autre : livraison →
+    // jaugeage post-livraison → nouvelle situation physique (cartes
+    // "Situation aujourd'hui", voir chargerControleEtAutonomie).
+    const jaugeagePostLivraison = (DERNIERE_LIVRAISON_SOURCE === 'terrain' && DERNIERE_VISITE)
+      ? `<div class="section-note" style="margin:6px 0 0;">Jaugeage post-livraison effectué le ${formaterDateHeureFr(DERNIERE_VISITE.heure_fin)} — <a href="#" id="lienControleReception">voir le contrôle de réception</a></div>`
+      : '';
     zone.innerHTML = `
       <div class="livraison-carte">
         <div class="section-note" style="margin:0 0 4px;">${estAujourdhui ? `Livraison enregistrée aujourd'hui (${libelleSource})` : `Dernière livraison historique — relevé du ${releve.date.split('-').reverse().join('/')} (${libelleSource})`}</div>
         ${lignes}
         <div class="livraison-ligne livraison-total"><span>Total</span><span>${fmtL(total)}</span></div>
+        ${jaugeagePostLivraison}
         <div class="section-note" id="livraisonNoteTerrain" style="margin:6px 0 0;"></div>
       </div>`;
     if (sousTitreEl) sousTitreEl.textContent = `${fmtL(total)} — ${estAujourdhui ? "aujourd'hui" : releve.date.split('-').reverse().join('/')}`;
+    const lienControle = document.getElementById('lienControleReception');
+    if (lienControle) lienControle.addEventListener('click', (e) => { e.preventDefault(); ouvrirReleveReception(DERNIERE_VISITE); });
     rafraichirNoteTerrainLivraison();
   }
 
