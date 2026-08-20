@@ -140,6 +140,44 @@
     return { theorique, ecart, ecartRatio, statut: statutCarburant(ecartRatio) };
   }
 
+  // ------------------------------------------------------------
+  // RÉFÉRENCE PHYSIQUE DU JOUR — 20/08/2026, demande de Frédéric : "les
+  // cartes du haut doivent basculer automatiquement sur le dernier
+  // jaugeage physique certifié, y compris celui effectué à la fin d'une
+  // réception carburant. Attendre demain matin serait une perte de
+  // fiabilité, puisque NEXUS possède déjà une information physique plus
+  // récente." Compare l'heure du relevé du jour (jaugeage d'ouverture,
+  // carburant_releves.created_at) à l'heure de fin de la dernière visite
+  // de réception, SI elle a lieu aujourd'hui — et retient la plus récente
+  // des deux comme référence physique. Une visite encore 'en_cours' n'est
+  // jamais retenue (même garde que NexusReceptionDonnees.chargerDerniereVisite
+  // : une visite en_cours n'est pas encore un fait établi). Pure fonction :
+  // reçoit les objets déjà chargés par l'appelant, ne recalcule ni ne
+  // requête rien elle-même (Article 11).
+  function referencePhysiqueDuJour(releveDuJour, visiteDuJour, dateJour) {
+    const visiteValide = (visiteDuJour && visiteDuJour.date_visite === dateJour && visiteDuJour.statut !== 'en_cours') ? visiteDuJour : null;
+    if (!releveDuJour && !visiteValide) return { source: null, heure: null };
+    if (!visiteValide) return { source: 'ouverture', heure: (releveDuJour && releveDuJour.created_at) || null };
+    if (!releveDuJour || !releveDuJour.created_at) return { source: 'reception', heure: visiteValide.heure_fin || null };
+    return new Date(visiteValide.heure_fin) > new Date(releveDuJour.created_at)
+      ? { source: 'reception', heure: visiteValide.heure_fin }
+      : { source: 'ouverture', heure: releveDuJour.created_at };
+  }
+
+  // Stock physique mesuré à la fin d'une visite de réception, pour un
+  // carburant donné — somme du jaugeage_apres_l de toutes les cuves de ce
+  // carburant sur la visite (une visite peut porter plusieurs cuves pour
+  // un même carburant, ex. GO cuve1+cuve2 — même somme que
+  // stockReelGoTotal côté relevé classique, Article 11). Retourne null si
+  // une seule mesure manque — jamais une somme partielle présentée comme
+  // un total fiable (Article 5).
+  function stockPhysiquePostLivraison(visiteDuJour, carburant) {
+    const mesures = ((visiteDuJour && visiteDuJour.mesures) || []).filter(m => m.carburant === carburant);
+    if (!mesures.length) return null;
+    if (mesures.some(m => m.jaugeage_apres_l === null || m.jaugeage_apres_l === undefined)) return null;
+    return mesures.reduce((total, m) => total + Number(m.jaugeage_apres_l), 0);
+  }
+
   // ============================================================
   // Performance commerciale (11/08/2026) — Phase 1 de "NEXUS Carburants
   // Pilotage", à la demande de Frédéric (vision détaillée en 6 familles
@@ -961,6 +999,7 @@
     stockReelGoTotal, sommerVentesPeriode,
     calculerTheorique, calculerEcart, calculerEcartRatio, statutCarburant,
     calculerCarburant,
+    referencePhysiqueDuJour, stockPhysiquePostLivraison,
     calculerMixCarburant, calculerEvolutionVolume, identifierProduitMoteur,
     decomposerEvolution, identifierMoteurEvolution,
     statutGlobalControle, texteControleJour,
