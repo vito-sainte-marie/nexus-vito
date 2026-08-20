@@ -23,6 +23,7 @@
 <script src="nexus-forfait.js"></script>
 <script src="nexus-desktop.js"></script>
 <script src="nexus-fdj-moteur.js"></script>
+<script src="nexus-periodes.js"></script>
 <script src="nexus-pdf-moteur.js"></script>
 <style>
   :root{
@@ -317,7 +318,8 @@
   let releveQuart = null; // { shift, releves (array, version_num croissant), dernierPdf }
   let exportJournee = null; // { date, shifts: [{shift, releves}], dernierPdf }
   let historiqueEmploye = null; // { employeeId, moisISO ('YYYY-MM'), shifts, dernierPdf }
-  let vue = 'liste'; // 'liste' | 'edition' | 'reappro' | 'inventaire-ref' | 'reception' | 'stock-etat' | 'blocage' | 'apres-enregistrement' | 'rapprochement' | 'derogation' | 'releve' | 'export-journee' | 'historique-employe-liste' | 'historique-employe'
+  let caisseReelleSemaine = null; // F2 (20/08/2026) : { periode: {debut, fin, label}, shifts, totaux }
+  let vue = 'liste'; // 'liste' | 'edition' | 'reappro' | 'inventaire-ref' | 'reception' | 'stock-etat' | 'blocage' | 'apres-enregistrement' | 'rapprochement' | 'derogation' | 'releve' | 'export-journee' | 'historique-employe-liste' | 'historique-employe' | 'caisse-reelle-semaine'
 
   // État du formulaire d'édition en cours (nouveau OU existant).
   let edition = null;
@@ -702,6 +704,26 @@
     const { data, error } = await requete;
     if (error) { console.error('Chargement quarts FDJ:', error); return []; }
     return (data || []).map(s => ({ ...s, cash: extraireCash(s) }));
+  }
+  // F2 "Caisse réelle" (20/08/2026) — quarts d'une semaine calendaire
+  // (lundi→dimanche), même select que chargerShiftsAvecCaisse (Article 11 :
+  // même forme de requête, juste une autre borne de date).
+  async function chargerShiftsSemaine(dateDebut, dateFin) {
+    const { data, error } = await nexusClient.from('fdj_shifts').select('*, fdj_cash_controls(*)')
+      .eq('site', siteId).gte('date', dateDebut).lte('date', dateFin)
+      .order('date', { ascending: true }).order('quart', { ascending: true });
+    if (error) { console.error('Chargement quarts FDJ de la semaine:', error); return []; }
+    return (data || []).map(s => ({ ...s, cash: extraireCash(s) }));
+  }
+  // Totaux de la semaine — lus depuis view_fdj_weekly_summary plutôt que
+  // ré-agrégés côté client (Article 11) : la vue applique déjà la règle
+  // caisse_comptabilisable (corrigée le 20/08/2026, voir Data Dictionary
+  // v2.181) — aucune raison de dupliquer ce calcul ici.
+  async function chargerTotauxSemaine(semaineDebut) {
+    const { data, error } = await nexusClient.from('view_fdj_weekly_summary').select('*')
+      .eq('site', siteId).eq('semaine_debut', semaineDebut).maybeSingle();
+    if (error) { console.error('Chargement totaux semaine FDJ:', error); return null; }
+    return data;
   }
   async function chargerShiftAvecCaisseParId(id) {
     const { data, error } = await nexusClient.from('fdj_shifts').select('*, fdj_cash_controls(*)').eq('id', id).maybeSingle();
@@ -1926,6 +1948,15 @@
       </div>
       <button class="btn-nouveau" id="btnNouveauQuart">+ Nouveau quart FDJ</button>
 
+      <!-- F2 "Caisse réelle" (20/08/2026, cahier "NEXUS FDJ — Audit de
+           consolidation", §4/§16) : contrôle jour/semaine lundi→dimanche
+           avec drill-down jusqu'au quart, distinct du flux "Aujourd'hui"
+           ci-dessus (qui ne montre que le jour courant) et de l'historique
+           plat ci-dessous (qui ne montre pas la semaine comme unité de
+           contrôle). -->
+      <button class="btn-nouveau" id="btnCaisseReelle" style="color:var(--gold); border-color:rgba(212,175,55,0.4); background:rgba(212,175,55,0.06);">💰 Caisse réelle (semaine)</button>
+      <div class="champ-note">Contrôle lundi → dimanche, jour par jour, jusqu'au quart.</div>
+
       <div class="section-titre">Stock FDJ</div>
       <button class="btn-nouveau" id="btnEtatStock">📊 État du stock (Bureau / Caisse / Activés)</button>
       <div class="champ-note">Vue d'ensemble par jeu, dernière réception, retraits/blocages en cours.</div>
@@ -1968,6 +1999,7 @@
       });
     }
     document.getElementById('btnNouveauQuart').addEventListener('click', () => ouvrirEditionNouveau());
+    document.getElementById('btnCaisseReelle').addEventListener('click', () => ouvrirCaisseReelleSemaine());
     document.getElementById('btnReappro').addEventListener('click', () => ouvrirReappro());
     document.getElementById('btnInventaireRef').addEventListener('click', () => ouvrirInventaireRef());
     document.getElementById('btnReception').addEventListener('click', () => ouvrirReception());
@@ -3436,9 +3468,15 @@
     document.getElementById('titre').textContent = `Historique FDJ de ${nom}`;
     document.getElementById('sousTitre').textContent = libelleMoisAnnee(moisISO).replace(/^./, c => c.toUpperCase());
 
-    const quartsControles = shifts.filter(s => s.cash && s.cash.statut && s.cash.statut !== 'provisoire').length;
-    const quartsConformes = shifts.filter(s => s.cash && s.cash.statut === 'conforme').length;
-    const ecartTotal = shifts.reduce((sum, s) => sum + (s.cash && s.cash.ecart ? s.cash.ecart : 0), 0);
+    // 20/08/2026 (F2, même correctif que les vues SQL view_fdj_*_summary,
+    // "caisse_comptabilisable") : un quart encore statut='brouillon' peut
+    // porter une caisse déjà notée par le manager (statut <> 'provisoire')
+    // sans jamais avoir été transmis par l'employé — ne doit jamais compter
+    // dans les totaux de l'historique employé, même règle qu'ailleurs.
+    const shiftsComptabilisables = shifts.filter(s => s.statut === 'valide' && s.cash && s.cash.statut && s.cash.statut !== 'provisoire');
+    const quartsControles = shiftsComptabilisables.length;
+    const quartsConformes = shiftsComptabilisables.filter(s => s.cash.statut === 'conforme').length;
+    const ecartTotal = shiftsComptabilisables.reduce((sum, s) => sum + (s.cash.ecart || 0), 0);
 
     document.getElementById('content').innerHTML = `
       <button type="button" class="btn-retour-fleche" id="btnRetourHistoEmp">← Retour</button>
@@ -3459,7 +3497,12 @@
       <div class="section-titre">Quarts du mois</div>
       <div class="card" id="listeHistoEmp">
         ${shifts.length ? shifts.map((s, i) => {
-          const ecart = s.cash ? s.cash.ecart : null;
+          // Même règle de priorité que renderCarteQuartJour/renderHistoItem
+          // (F1) : le statut du QUART prime toujours sur le statut de la
+          // caisse pour l'étiquette — un brouillon reste "Brouillon" même
+          // si le manager a déjà noté une caisse dessus.
+          const estBrouillon = s.statut !== 'valide';
+          const ecart = (!estBrouillon && s.cash) ? s.cash.ecart : null;
           const classe = ecart === null ? '' : (ecart === 0 ? 'green' : (Math.abs(ecart) <= 1 ? 'amber' : 'red'));
           return `
             <div class="histo-item" data-histo-emp-idx="${i}" style="cursor:pointer;">
@@ -3467,7 +3510,7 @@
                 <div><div class="histo-date">${new Date(s.date + 'T00:00:00').toLocaleDateString('fr-FR')} <span style="color:var(--text-mid); font-weight:400;">· Quart ${s.quart}</span></div></div>
                 <div style="text-align:right;">
                   <div class="histo-ecart ${classe}">${ecart !== null ? `${ecart > 0 ? '+' : ''}${fmtEuro(ecart)}` : '—'}</div>
-                  <div style="margin-top:4px;"><span class="statut-badge ${s.cash ? s.cash.statut : s.statut}">${s.cash ? labelStatutCaisse(s.cash.statut) : (s.statut === 'valide' ? 'Validé' : 'Brouillon')}</span></div>
+                  <div style="margin-top:4px;"><span class="statut-badge ${estBrouillon ? 'brouillon' : (s.cash ? s.cash.statut : 'provisoire')}">${estBrouillon ? 'Brouillon' : (s.cash ? labelStatutCaisse(s.cash.statut) : 'Provisoire')}</span></div>
                 </div>
               </div>
             </div>
@@ -3480,6 +3523,134 @@
     document.getElementById('btnMoisSuiv').addEventListener('click', () => ouvrirHistoriqueEmployeMois(employeeId, decalerMois(moisISO, 1)));
     document.querySelectorAll('[data-histo-emp-idx]').forEach(el => {
       el.addEventListener('click', () => ouvrirReleveQuart(shifts[parseInt(el.dataset.histoEmpIdx, 10)]));
+    });
+  }
+
+  // ------------------------------------------------------------
+  // F2 "CAISSE RÉELLE" (semaine) — 20/08/2026, cahier "NEXUS FDJ — Audit de
+  // consolidation" §4/§16 : "Le manager doit pouvoir vérifier l'argent
+  // réellement compté sans reconstruire la semaine depuis les quarts."
+  // Drill-down Semaine → Quart → Relevé de clôture / Preuve en réutilisant
+  // ouvrirReleveQuart (déjà construit pour l'historique employé, Article
+  // 11 — jamais un deuxième écran de détail de quart).
+  // ------------------------------------------------------------
+  const JOURS_SEMAINE_FR = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
+  function ajouterJoursISO(dateStr, n) {
+    const d = new Date(dateStr + 'T00:00:00');
+    d.setDate(d.getDate() + n);
+    return dateISO(d);
+  }
+  function labelEtatJourCaisseReelle(etat) {
+    return etat === 'controle' ? 'Contrôlé' : (etat === 'a_terminer' ? 'À terminer' : 'À venir');
+  }
+  function classeEtatJourCaisseReelle(etat) {
+    return etat === 'controle' ? 'conforme' : (etat === 'a_terminer' ? 'a_controler' : 'provisoire');
+  }
+  // Texte d'une cellule Q1/Q2 — même vocabulaire que le reste de l'écran
+  // (statut-badge "brouillon"/"provisoire") plutôt qu'un nouveau lexique.
+  function celluleQuartCaisseReelleTexte(cellule) {
+    if (cellule.etat === 'absent') return '—';
+    if (cellule.etat === 'brouillon') return 'Brouillon';
+    if (cellule.etat === 'en_attente') return 'En attente';
+    return fmtEuro(cellule.montant);
+  }
+
+  async function ouvrirCaisseReelleSemaine(ancrageISO) {
+    document.getElementById('content').innerHTML = '<div class="loading">Chargement…</div>';
+    if (!employesSite.length) employesSite = await chargerEmployesSite();
+    const periode = NexusPeriodes.resoudrePeriodeCalendaire('semaine', ancrageISO || dateISO());
+    const [shifts, totaux] = await Promise.all([
+      chargerShiftsSemaine(periode.debut, periode.fin),
+      chargerTotauxSemaine(periode.debut),
+    ]);
+    caisseReelleSemaine = { periode, shifts, totaux };
+    vue = 'caisse-reelle-semaine';
+    renderCaisseReelleSemaine();
+  }
+
+  function renderCaisseReelleSemaine() {
+    const { periode, shifts, totaux } = caisseReelleSemaine;
+    const aujourdhui = dateISO();
+
+    document.getElementById('titre').textContent = 'Caisse réelle';
+    document.getElementById('sousTitre').textContent = periode.label;
+
+    // Une ligne par jour de la semaine — les quarts "attendus" sont Q1 et
+    // Q2 (mêmes deux quarts que partout ailleurs dans FDJ, voir
+    // horairesQuartsSite côté NEXUS-FDJ-v1.html). Un jour sans aucune
+    // ligne fdj_shifts (site fermé, ou jour futur) affiche '—' sur les
+    // deux quarts plutôt qu'une absence silencieuse.
+    const jours = [];
+    for (let i = 0; i < 7; i++) {
+      const dateJour = ajouterJoursISO(periode.debut, i);
+      const shiftsJour = shifts.filter(s => s.date === dateJour);
+      const q1 = shiftsJour.find(s => s.quart === '1') || null;
+      const q2 = shiftsJour.find(s => s.quart === '2') || null;
+      const etat = NexusFdjMoteur.etatJourCaisseReelle([q1, q2], dateJour, aujourdhui);
+      const total = NexusFdjMoteur.totalJourCaisseReelle([q1, q2]);
+      jours.push({ dateJour, nomJour: JOURS_SEMAINE_FR[i], q1, q2, etat, total });
+    }
+
+    // Définitive uniquement si la semaine est entièrement passée ET que
+    // chaque jour passé est "Contrôlé" — sinon provisoire (§4.1 du
+    // cahier). NEXUS n'a aujourd'hui aucune notion de quart "exclu"
+    // (fermeture exceptionnelle) : tant que cette fonctionnalité n'existe
+    // pas, un jour fermé sans quart reste "À terminer" plutôt que d'être
+    // faussement considéré comme définitif (Article 5).
+    const semainePassee = periode.fin < aujourdhui;
+    const tousJoursControles = jours.every(j => j.dateJour > aujourdhui || j.etat === 'controle');
+    const definitive = semainePassee && tousJoursControles;
+
+    const ecartTotal = totaux ? Number(totaux.ecart_total || 0) : 0;
+    const classeEcart = ecartTotal === 0 ? 'green' : (Math.abs(ecartTotal) <= 3 ? 'amber' : 'red');
+
+    document.getElementById('content').innerHTML = `
+      <button type="button" class="btn-retour-fleche" id="btnRetourCaisseReelle">← Retour</button>
+
+      <div class="card" style="margin-bottom:16px; display:flex; align-items:center; justify-content:space-between; padding:12px 16px;">
+        <button type="button" class="btn-ghost" id="btnSemainePrec" style="width:auto; margin:0; padding:8px 14px;">‹</button>
+        <div style="font-size:13px; font-weight:600; color:var(--text);">${periode.label}</div>
+        <button type="button" class="btn-ghost" id="btnSemaineSuiv" style="width:auto; margin:0; padding:8px 14px;">›</button>
+      </div>
+
+      <div class="card" style="margin-bottom:16px;">
+        <div class="stat-row"><div class="stat-label">Caisse réelle ${definitive ? 'définitive' : 'enregistrée à date'}</div><div class="stat-value">${totaux ? fmtEuro(totaux.caisse_reelle_totale) : '—'}</div></div>
+        <div class="stat-row"><div class="stat-label">Quarts contrôlés</div><div class="stat-value">${totaux ? totaux.nb_quarts_controles : 0} / ${totaux ? totaux.nb_quarts : 0}</div></div>
+        <div class="stat-row"><div class="stat-label">Quarts conformes</div><div class="stat-value">${totaux ? totaux.nb_quarts_conformes : 0} / ${(totaux && totaux.nb_quarts_controles) || 0}</div></div>
+        <div class="stat-row total"><div class="stat-label">Écart cumulé</div><div class="stat-value ${classeEcart}">${totaux ? `${ecartTotal > 0 ? '+' : ''}${fmtEuro(ecartTotal)}` : '—'}</div></div>
+        ${!definitive ? '<div class="section-note" style="margin-top:6px;">Semaine provisoire — non close ou pas encore entièrement contrôlée.</div>' : ''}
+      </div>
+
+      <div class="section-titre">Jour par jour</div>
+      <div class="card" id="listeCaisseReelleJours">
+        ${jours.map((j, i) => `
+          <div class="histo-item" style="cursor:default;">
+            <div class="histo-top">
+              <div>
+                <div class="histo-date">${j.nomJour} <span style="color:var(--text-mid); font-weight:400;">${j.dateJour.split('-').reverse().join('/')}</span></div>
+              </div>
+              <div style="text-align:right;">
+                <div class="histo-ecart">${j.total !== null ? fmtEuro(j.total) : (j.dateJour > aujourdhui ? '—' : 'Non consolidée')}</div>
+                <div style="margin-top:4px;"><span class="statut-badge ${classeEtatJourCaisseReelle(j.etat)}">${labelEtatJourCaisseReelle(j.etat)}</span></div>
+              </div>
+            </div>
+            <div class="histo-detail open" style="padding-top:0; display:flex; gap:8px;">
+              <button type="button" class="btn-modifier" style="margin-top:8px; flex:1;" data-jour-idx="${i}" data-quart="1" ${j.q1 ? '' : 'disabled'}>Q1 — ${celluleQuartCaisseReelleTexte(NexusFdjMoteur.quartCaisseReelleCellule(j.q1))}</button>
+              <button type="button" class="btn-modifier" style="margin-top:8px; flex:1;" data-jour-idx="${i}" data-quart="2" ${j.q2 ? '' : 'disabled'}>Q2 — ${celluleQuartCaisseReelleTexte(NexusFdjMoteur.quartCaisseReelleCellule(j.q2))}</button>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    `;
+    document.getElementById('btnRetourCaisseReelle').addEventListener('click', () => { vue = 'liste'; caisseReelleSemaine = null; renderAccueil(); });
+    document.getElementById('btnSemainePrec').addEventListener('click', () => ouvrirCaisseReelleSemaine(ajouterJoursISO(periode.debut, -7)));
+    document.getElementById('btnSemaineSuiv').addEventListener('click', () => ouvrirCaisseReelleSemaine(ajouterJoursISO(periode.debut, 7)));
+    document.querySelectorAll('[data-jour-idx]').forEach(el => {
+      el.addEventListener('click', () => {
+        const j = jours[parseInt(el.dataset.jourIdx, 10)];
+        const shift = el.dataset.quart === '1' ? j.q1 : j.q2;
+        if (shift) ouvrirReleveQuart(shift);
+      });
     });
   }
 

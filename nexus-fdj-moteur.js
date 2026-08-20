@@ -1037,6 +1037,54 @@
     return { total, categories, phrase };
   }
 
+  // ============================================================
+  // F2 "Caisse réelle" (20/08/2026, cahier "NEXUS FDJ — Audit de
+  // consolidation", §4) — vue manager jour/semaine. Même règle que partout
+  // ailleurs dans FDJ depuis F1 : le statut du QUART (fdj_shifts.statut)
+  // prime toujours sur le statut de la CAISSE (fdj_cash_controls.statut)
+  // — un quart encore 'brouillon' n'entre jamais dans un total, même si
+  // une caisse a déjà été notée dessus (voir aussi la vue SQL
+  // view_fdj_shift_facts.caisse_comptabilisable, même formule côté
+  // serveur, Article 11 — deux implémentations indépendantes de la MÊME
+  // règle, jamais un total qui recalcule différemment côté client).
+  // `shift` : { statut, cash: { statut, caisse_reelle, ... } | null } | null.
+  function caisseComptabilisableQuart(shift) {
+    return !!(shift && shift.statut === 'valide' && shift.cash && shift.cash.statut && shift.cash.statut !== 'provisoire');
+  }
+
+  // Ce qu'une cellule Q1/Q2 doit afficher pour un quart donné.
+  // `etat` : 'absent' (quart jamais ouvert) | 'brouillon' (ouvert, pas
+  // transmis) | 'en_attente' (transmis, caisse pas encore contrôlée par le
+  // manager) | 'comptabilise' (transmis + contrôlé, montant fiable).
+  function quartCaisseReelleCellule(shift) {
+    if (!shift) return { etat: 'absent', montant: null };
+    if (shift.statut !== 'valide') return { etat: 'brouillon', montant: null };
+    if (!caisseComptabilisableQuart(shift)) return { etat: 'en_attente', montant: null };
+    return { etat: 'comptabilise', montant: shift.cash.caisse_reelle };
+  }
+
+  // État d'une journée pour la vue semaine. `quarts` = tableau des shifts
+  // attendus ce jour (ex. [q1, q2], null pour un quart jamais ouvert).
+  // 'a_venir' si la date est dans le futur (rien à attendre) ; 'controle'
+  // si TOUS les quarts attendus sont comptabilisables ; 'a_terminer' sinon
+  // (au moins un quart manquant, brouillon, ou caisse pas encore
+  // contrôlée) — jamais un jour présenté "Contrôlé" sur la foi d'un seul
+  // quart quand deux sont attendus (Article 5, pas de fausse précision).
+  function etatJourCaisseReelle(quarts, dateStr, aujourdhuiStr) {
+    if (dateStr > aujourdhuiStr) return 'a_venir';
+    if ((quarts || []).length && quarts.every(caisseComptabilisableQuart)) return 'controle';
+    return 'a_terminer';
+  }
+
+  // Total "Caisse réelle du jour" : somme des quarts comptabilisables
+  // UNIQUEMENT si TOUS les quarts attendus le sont — sinon `null` (jamais
+  // une somme partielle présentée comme le total du jour, Article 5). Le
+  // mockup du cahier affiche alors "Non consolidée" plutôt qu'un chiffre.
+  function totalJourCaisseReelle(quarts) {
+    if (!(quarts || []).length || !quarts.every(caisseComptabilisableQuart)) return null;
+    return quarts.reduce((somme, q) => somme + Number(q.cash.caisse_reelle || 0), 0);
+  }
+
   global.NexusFdjMoteur = {
     calculerVentesJeu, ventesGrattageTotal, caisseGrattage, caisseAttendue, ecartCaisse, permissionsEcartCaisseEmploye,
     soldesCarnetsParJeu, soldeCarnetsJeu, soldesCarnetsAvecReference,
@@ -1053,5 +1101,6 @@
     statutRelevecloture, diffClotureFdj, caractereRelevecloture,
     propagationCorrectionStock,
     syntheseExceptionsManager,
+    caisseComptabilisableQuart, quartCaisseReelleCellule, etatJourCaisseReelle, totalJourCaisseReelle,
   };
 })(typeof window !== 'undefined' ? window : globalThis);
