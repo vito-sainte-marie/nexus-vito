@@ -18,6 +18,7 @@
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-auth.js"></script>
+<script src="nexus-header-nav.js"></script>
 <script src="nexus-desktop.js"></script>
 <script src="nexus-periodes.js"></script>
 <script src="nexus-carburant-moteur.js"></script>
@@ -709,6 +710,12 @@
   // (les deux se chargent en parallèle, Promise.all) — sans reformuler la
   // requête livraison elle-même (Article 11).
   let DERNIERE_LIVRAISON_AFFICHEE = null;
+  // Correctif (20/08/2026, réception terrain d'un pompiste invisible dans
+  // "Dernière livraison") : mémorise si la carte affichée ci-dessus vient
+  // de la saisie manager (carburant_releves) ou d'une visite de réception
+  // terrain — pour que rafraichirNoteTerrainLivraison() n'affiche jamais une
+  // note redondante quand la source terrain est déjà la carte principale.
+  let DERNIERE_LIVRAISON_SOURCE = 'manager';
 
   const TYPES = [
     { cle: 'semaine', label: 'Semaine' },
@@ -1297,11 +1304,36 @@
     const zone = document.getElementById('livraisonZone');
     const M = NexusCarburantMoteur;
     let releve = null, estAujourdhui = false;
+    DERNIERE_LIVRAISON_SOURCE = 'manager';
     if (CONTROLE_CTX && CONTROLE_CTX.releveDuJour && M.CLES_CARBURANT.some(cle => Number(CONTROLE_CTX.releveDuJour[`livraison_${cle}`]) > 0)) {
       releve = CONTROLE_CTX.releveDuJour;
       estAujourdhui = true;
     } else {
       releve = await NexusCarburantDonnees.chargerDerniereLivraison(nexusClient, SITE_ID);
+    }
+    // Correctif (20/08/2026, demande de Frédéric : la réception terrain de
+    // Dylan n'apparaissait pas ici) : "Dernière livraison" ne lisait que la
+    // saisie manager (carburant_releves.livraison_*), jamais alimentée par
+    // le parcours réception terrain (carburant_reception_visites). On
+    // compare maintenant avec la dernière visite terrain validée (statut !=
+    // en_cours) et on affiche la plus récente des deux — jamais un mélange
+    // des deux chiffres dans une même carte (Article 11 : deux sources,
+    // jamais fusionnées, seulement comparées par date).
+    if (global_NexusReceptionDonnees_disponible()) {
+      if (DERNIERE_VISITE === null) {
+        DERNIERE_VISITE = await NexusReceptionDonnees.chargerDerniereVisite(nexusClient, SITE_ID);
+      }
+      const visite = DERNIERE_VISITE;
+      if (visite && (!releve || visite.date_visite >= releve.date)) {
+        const parCarburant = {};
+        (visite.lignes || []).forEach(l => {
+          const vol = l.quantite_mesuree_l != null ? Number(l.quantite_mesuree_l) : Number(l.quantite_bl_l || 0);
+          parCarburant[l.carburant] = (parCarburant[l.carburant] || 0) + vol;
+        });
+        releve = { date: visite.date_visite, livraison_go: parCarburant.go || 0, livraison_sp95: parCarburant.sp95 || 0, livraison_gnr: parCarburant.gnr || 0 };
+        estAujourdhui = visite.date_visite === todayISO();
+        DERNIERE_LIVRAISON_SOURCE = 'terrain';
+      }
     }
     const sousTitreEl = document.getElementById('livraisonSousTitre');
     if (!releve) {
@@ -1344,9 +1376,10 @@
     // d'ouverture. "Livraison du jour" (qui affirmait un moment précis) est
     // donc remplacé par une formulation neutre sur le "quand".
     DERNIERE_LIVRAISON_AFFICHEE = { date: releve.date, estAujourdhui };
+    const libelleSource = DERNIERE_LIVRAISON_SOURCE === 'terrain' ? 'réception terrain confirmée' : 'saisie manager';
     zone.innerHTML = `
       <div class="livraison-carte">
-        <div class="section-note" style="margin:0 0 4px;">${estAujourdhui ? "Livraison enregistrée sur le relevé du jour (saisie manager)" : `Dernière livraison historique — relevé du ${releve.date.split('-').reverse().join('/')} (saisie manager)`}</div>
+        <div class="section-note" style="margin:0 0 4px;">${estAujourdhui ? `Livraison enregistrée aujourd'hui (${libelleSource})` : `Dernière livraison historique — relevé du ${releve.date.split('-').reverse().join('/')} (${libelleSource})`}</div>
         ${lignes}
         <div class="livraison-ligne livraison-total"><span>Total</span><span>${fmtL(total)}</span></div>
         <div class="section-note" id="livraisonNoteTerrain" style="margin:6px 0 0;"></div>
@@ -1369,6 +1402,10 @@
   function rafraichirNoteTerrainLivraison() {
     const el = document.getElementById('livraisonNoteTerrain');
     if (!el || !DERNIERE_LIVRAISON_AFFICHEE) return;
+    // Correctif (20/08/2026) : quand la carte principale vient déjà de la
+    // visite terrain (DERNIERE_LIVRAISON_SOURCE === 'terrain'), cette note
+    // ne redirait que ce que la carte affiche déjà — on la laisse vide.
+    if (DERNIERE_LIVRAISON_SOURCE === 'terrain') { el.textContent = ''; return; }
     if (DERNIERE_VISITE && DERNIERE_VISITE.date_visite === DERNIERE_LIVRAISON_AFFICHEE.date) {
       el.textContent = `Réception terrain validée le ${formaterDateFrCourt(DERNIERE_VISITE.date_visite)} — voir Qualité des réceptions ci-dessous.`;
     } else if (DERNIERE_LIVRAISON_AFFICHEE.estAujourdhui) {
