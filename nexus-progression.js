@@ -1007,7 +1007,20 @@
     const services = [];
     (rowsShiftsFdj || []).forEach(s => {
       const c = Array.isArray(s.fdj_cash_controls) ? (s.fdj_cash_controls[0] || null) : (s.fdj_cash_controls || null);
-      if (!c) return;
+      // 20/08/2026, cahier "FDJ - Audit de consolidation", FDJ-26 : "Coach
+      // et Ma progression n'utilisent jamais un brouillon ou un écart
+      // provisoire." Avant ce jour, un quart encore 'brouillon' n'avait
+      // jamais de ligne fdj_cash_controls (elle n'était écrite qu'à la
+      // validation finale) — `if (!c) return` suffisait donc à exclure les
+      // brouillons, par construction. Depuis que "Laisser en brouillon"
+      // (NEXUS-FDJ-v1.html) peut enregistrer un vrai rapprochement de
+      // caisse sans transmettre le quart, ce filtre ne suffit plus : un
+      // brouillon peut désormais avoir `c` non nul, avec le même statut
+      // 'provisoire' qu'une caisse réellement transmise et en attente de
+      // contrôle manager. Seul `s.statut === 'valide'` distingue encore les
+      // deux cas (déjà chargé, déjà utilisé plus bas pour `quartValide` —
+      // Article 11, on ne duplique pas un second signal).
+      if (!c || s.statut !== 'valide') return;
       services.push({
         id: s.id, date: s.date, quart: s.quart,
         quartValide: s.statut === 'valide',

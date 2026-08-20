@@ -36,11 +36,22 @@ const rowsFdj = [
   // — doit être gérée avec la même robustesse que côté Manager.
   { id: 's5', date: '2026-08-01', quart: '2', statut: 'valide',
     fdj_cash_controls: [{ statut: 'conforme', caisse_attendue: 200, caisse_reelle: 200, caisse_reelle_origine: 200, ecart: 0, ecart_origine: 0, motif_ecart: null, valide_le: '2026-08-02T08:00:00Z' }] },
+  // 20/08/2026, cahier "FDJ - Audit de consolidation", FDJ-26 : un quart
+  // "Laissé en brouillon" (NEXUS-FDJ-v1.html) peut désormais porter une
+  // vraie ligne fdj_cash_controls (statut 'provisoire', identique à une
+  // caisse transmise et pas encore contrôlée) SANS que le quart lui-même
+  // soit transmis (fdj_shifts.statut reste 'brouillon'). Ce quart ne doit
+  // produire AUCUN service — ni dans Ma Progression, ni dans ses cumuls —
+  // tant qu'il n'est pas réellement validé par l'employé.
+  { id: 's6', date: '2026-08-15', quart: '1', statut: 'brouillon',
+    fdj_cash_controls: { statut: 'provisoire', caisse_attendue: 180, caisse_reelle: 175, caisse_reelle_origine: 175, ecart: -5, ecart_origine: -5, motif_ecart: null, valide_le: null } },
 ];
 const servicesFdj = N.construireServicesCaisseFdj(rowsFdj);
-assert.strictEqual(servicesFdj.length, 4, 'Le quart sans caisse (s4) ne doit produire aucun service FDJ');
+assert.strictEqual(servicesFdj.length, 4, 'Le quart sans caisse (s4) et le brouillon avec caisse (s6) ne doivent produire aucun service FDJ');
 assert.ok(servicesFdj.every(s => s.id !== 's4'), 's4 absent des services FDJ');
+assert.ok(servicesFdj.every(s => s.id !== 's6'), 's6 (brouillon avec caisse réelle enregistrée) absent des services FDJ — FDJ-26');
 console.log('OK — construireServicesCaisseFdj ignore les quarts sans caisse et gère objet/tableau PostgREST.');
+console.log('OK — construireServicesCaisseFdj exclut un brouillon même quand sa caisse a déjà été enregistrée (FDJ-26).');
 
 // ------------------------------------------------------------
 // 2) statutCaisseJourFdj — vocabulaire à 3 niveaux, identique à Boutique/Piste.

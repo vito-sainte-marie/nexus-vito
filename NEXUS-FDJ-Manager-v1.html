@@ -19,6 +19,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
 <script src="nexus-auth.js"></script>
+<script src="nexus-header-nav.js"></script>
 <script src="nexus-forfait.js"></script>
 <script src="nexus-desktop.js"></script>
 <script src="nexus-fdj-moteur.js"></script>
@@ -1871,6 +1872,17 @@
     const quart1 = duJour.find(s => s.quart === '1');
     const quart2 = duJour.find(s => s.quart === '2');
 
+    // Brouillons FDJ (20/08/2026, cahier "FDJ - Audit de consolidation",
+    // §2.2, FDJ-03 : "Le manager voit les brouillons dans une zone 'À
+    // terminer / brouillons' avec date, quart et employé.") — réutilise
+    // `historique` déjà chargé ci-dessus (Article 11, jamais une deuxième
+    // requête pour la même liste), simplement scindé en deux : les quarts
+    // du jour (quart1/quart2, déjà affichés dans "Aujourd'hui" juste en
+    // dessous) sont exclus d'ici pour ne jamais doubler le même quart à
+    // deux endroits de l'écran.
+    const brouillons = historique.filter(s => s.statut !== 'valide' && s.date !== aujourdhui);
+    const historiqueTransmis = historique.filter(s => s.statut === 'valide');
+
     // FDJ Fiabilisation — Étape 3 : agrégation des signaux déjà chargés
     // ci-dessus, jamais une nouvelle détection (Article 11 — voir
     // NexusFdjMoteur.syntheseExceptionsManager).
@@ -1902,6 +1914,11 @@
 
       ${renderJournalChaineBloc(journalChaine)}
 
+      ${brouillons.length ? `
+        <div class="section-titre">📝 Brouillons FDJ à terminer (${brouillons.length})</div>
+        <div class="card" id="listeBrouillons" style="margin-bottom:16px;">${brouillons.map(renderBrouillonItem).join('')}</div>
+      ` : ''}
+
       <div class="section-titre">Aujourd'hui</div>
       <div class="quart-jour-grid">
         ${renderCarteQuartJour('1', quart1, historique, alertes)}
@@ -1921,7 +1938,7 @@
 
       <div class="section-titre">Historique</div>
       <div class="card" id="listeHistorique">
-        ${historique.length ? historique.map((s, i) => renderHistoItem(s, i, historique, alertes)).join('') : '<div class="empty">Aucun quart FDJ enregistré pour l’instant.</div>'}
+        ${historiqueTransmis.length ? historiqueTransmis.map((s, i) => renderHistoItem(s, i, historique, alertes)).join('') : '<div class="empty">Aucun quart FDJ transmis pour l’instant.</div>'}
       </div>
 
       <!-- Trace de contrôle FDJ (16/08/2026) — 3e niveau de consultation
@@ -1997,15 +2014,22 @@
     document.querySelectorAll('.histo-item').forEach((item, i) => {
       item.addEventListener('click', () => document.getElementById(`detail-${i}`).classList.toggle('open'));
     });
+    // 20/08/2026 : indexé sur `historiqueTransmis` (pas `historique`) depuis
+    // que l'Historique n'affiche plus que les quarts transmis — voir plus
+    // haut, les brouillons ont leur propre zone et leur propre indexation
+    // (data-idx-brouillon).
     document.querySelectorAll('#listeHistorique .btn-modifier[data-idx]').forEach(btn => {
-      btn.addEventListener('click', (e) => { e.stopPropagation(); ouvrirEditionExistant(historique[parseInt(btn.dataset.idx, 10)]); });
+      btn.addEventListener('click', (e) => { e.stopPropagation(); ouvrirEditionExistant(historiqueTransmis[parseInt(btn.dataset.idx, 10)]); });
     });
     // 16/08/2026 — Trace de contrôle FDJ : deux entrées supplémentaires
     // depuis chaque quart déplié de l'historique — "Historique FDJ →
     // sélectionner un quart → Générer le relevé de contrôle" et "Exporter
     // la journée complète" (demande explicite de Frédéric).
     document.querySelectorAll('#listeHistorique [data-releve-idx]').forEach(btn => {
-      btn.addEventListener('click', (e) => { e.stopPropagation(); ouvrirReleveQuart(historique[parseInt(btn.dataset.releveIdx, 10)]); });
+      btn.addEventListener('click', (e) => { e.stopPropagation(); ouvrirReleveQuart(historiqueTransmis[parseInt(btn.dataset.releveIdx, 10)]); });
+    });
+    document.querySelectorAll('#listeBrouillons .btn-modifier[data-idx-brouillon]').forEach(btn => {
+      btn.addEventListener('click', (e) => { e.stopPropagation(); ouvrirEditionExistant(brouillons[parseInt(btn.dataset.idxBrouillon, 10)]); });
     });
     document.querySelectorAll('#listeHistorique [data-export-jour]').forEach(btn => {
       btn.addEventListener('click', (e) => { e.stopPropagation(); ouvrirExportJournee(btn.dataset.exportJour); });
@@ -2177,11 +2201,20 @@
     const ecart = shift.cash ? shift.cash.ecart : null;
     const classe = ecart === null ? '' : (ecart === 0 ? 'green' : (Math.abs(ecart) <= 1 ? 'amber' : 'red'));
     const integrite = calculerIntegriteQuart(shift, ensemble, alertesActives);
+    // 20/08/2026, cahier "FDJ - Audit de consolidation", §2.2 : "Un
+    // brouillon doit toujours afficher clairement 'Brouillon - exclu des
+    // rapports'." Depuis que "Laisser en brouillon" peut enregistrer un
+    // vrai rapprochement de caisse (statut 'provisoire' identique à une
+    // caisse transmise), shift.cash peut désormais exister pour un quart
+    // encore 'brouillon' — le statut du QUART (jamais celui de la caisse)
+    // doit donc primer sur l'affichage de l'écart, pour ne jamais laisser
+    // croire qu'un brouillon est une donnée transmise.
+    const estBrouillon = shift.statut !== 'valide';
     return `
       <div class="quart-jour-card" id="carteQuart${quart}">
         <div class="quart-jour-label">Quart ${quart}</div>
         <div class="quart-jour-statut">${nomEmploye(shift.employee_id)}</div>
-        <div class="quart-jour-ecart ${classe ? `stat-value ${classe}` : ''}">${ecart !== null ? `${ecart > 0 ? '+' : ''}${fmtEuro(ecart)}` : shift.statut === 'valide' ? 'Validé' : 'Brouillon'}</div>
+        <div class="quart-jour-ecart ${!estBrouillon && classe ? `stat-value ${classe}` : ''}" style="${estBrouillon ? 'color:var(--text-dim);' : ''}">${estBrouillon ? 'Brouillon' : (ecart !== null ? `${ecart > 0 ? '+' : ''}${fmtEuro(ecart)}` : '—')}</div>
         ${integrite && integrite.integrite !== 'OK' ? `<div style="margin-top:5px;">${badgeIntegrite(integrite)}</div>` : ''}
       </div>
     `;
@@ -2191,6 +2224,9 @@
     const ecart = s.cash ? s.cash.ecart : null;
     const classe = ecart === null ? '' : (ecart === 0 ? 'green' : (Math.abs(ecart) <= 1 ? 'amber' : 'red'));
     const integrite = calculerIntegriteQuart(s, ensemble, alertesActives);
+    // Même règle que renderCarteQuartJour ci-dessus : le statut du quart
+    // prime toujours sur le statut de la caisse pour l'étiquette affichée.
+    const estBrouillon = s.statut !== 'valide';
     return `
       <div class="histo-item" data-idx="${i}">
         <div class="histo-top">
@@ -2199,8 +2235,8 @@
             <div class="histo-sub">${nomEmploye(s.employee_id)}</div>
           </div>
           <div style="text-align:right;">
-            <div class="histo-ecart ${classe}">${ecart !== null ? `${ecart > 0 ? '+' : ''}${fmtEuro(ecart)}` : '—'}</div>
-            <div style="margin-top:4px;"><span class="statut-badge ${s.cash ? s.cash.statut : s.statut}">${s.cash ? labelStatutCaisse(s.cash.statut) : (s.statut === 'valide' ? 'Validé' : 'Brouillon')}</span></div>
+            <div class="histo-ecart ${estBrouillon ? '' : classe}">${estBrouillon ? '—' : (ecart !== null ? `${ecart > 0 ? '+' : ''}${fmtEuro(ecart)}` : '—')}</div>
+            <div style="margin-top:4px;"><span class="statut-badge ${estBrouillon ? 'brouillon' : (s.cash ? s.cash.statut : 'provisoire')}">${estBrouillon ? 'Brouillon' : (s.cash ? labelStatutCaisse(s.cash.statut) : 'Provisoire')}</span></div>
             ${integrite && integrite.integrite !== 'OK' ? `<div style="margin-top:4px;">${badgeIntegrite(integrite)}</div>` : ''}
           </div>
         </div>
@@ -2222,6 +2258,32 @@
           <button type="button" class="btn-modifier" data-idx="${i}">✏️ Modifier ce quart</button>
           <button type="button" class="btn-modifier" data-releve-idx="${i}" style="margin-top:8px; background:rgba(79,195,217,0.1); border-color:rgba(79,195,217,0.35); color:var(--cyan);">📄 Relevé de clôture FDJ</button>
           <button type="button" class="btn-modifier" data-export-jour="${s.date}" style="margin-top:8px; background:none; border-style:dashed;">📄 Exporter la journée complète (Q1+Q2)</button>
+        </div>
+      </div>
+    `;
+  }
+
+  // Brouillons FDJ à terminer (20/08/2026, FDJ-03) — ligne compacte,
+  // volontairement plus légère que renderHistoItem (pas de dépliage détail :
+  // un brouillon n'est pas encore une donnée de contrôle, juste un repère
+  // "à terminer" pour le manager). `s.cash` peut exister (l'employé a
+  // enregistré des valeurs en brouillon) ou non (quart ouvert, rien saisi
+  // encore) — les deux cas sont légitimes, jamais présentés comme une
+  // anomalie.
+  function renderBrouillonItem(s, i) {
+    return `
+      <div class="histo-item">
+        <div class="histo-top">
+          <div>
+            <div class="histo-date">${new Date(s.date + 'T00:00:00').toLocaleDateString('fr-FR')} <span style="color:var(--text-mid); font-weight:400;">· Quart ${s.quart}</span></div>
+            <div class="histo-sub">${nomEmploye(s.employee_id)} — ${s.cash ? 'caisse déjà saisie, pas encore transmise' : 'ouvert, rien transmis'}</div>
+          </div>
+          <div style="text-align:right;">
+            <span class="statut-badge brouillon">Brouillon</span>
+          </div>
+        </div>
+        <div class="histo-detail open" style="padding-top:0;">
+          <button type="button" class="btn-modifier" data-idx-brouillon="${i}" style="margin-top:8px;">👁️ Ouvrir ce quart</button>
         </div>
       </div>
     `;
