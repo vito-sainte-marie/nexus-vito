@@ -1302,13 +1302,89 @@
   const RESULTATS_CONTROLE_FDJ = [
     { value: '', label: 'Non renseigné' },
     { value: 'conforme', label: 'Conforme' },
-    { value: 'avec_ecart', label: 'Avec écart' },
-    { value: 'a_revoir', label: 'À revoir' },
-    { value: 'non_comparable', label: 'Non comparable' },
+    { value: 'avec_ecart', label: 'Conforme avec écart justifié' },
+    { value: 'a_regulariser', label: 'Écart à régulariser' },
+    // Valeurs historiques : plus jamais proposées dans le formulaire
+    // (voir optionsVerdictControleFdj), conservées uniquement pour que
+    // labelResultatControle continue de savoir afficher un contrôle déjà
+    // enregistré avec l'une de ces anciennes valeurs (Article 5 : ne
+    // jamais faire disparaître ou mal afficher une donnée passée).
+    { value: 'a_revoir', label: 'À revoir (ancien libellé)' },
+    { value: 'non_comparable', label: 'Non comparable (ancien libellé)' },
   ];
   function labelResultatControle(v) {
     const r = RESULTATS_CONTROLE_FDJ.find(x => x.value === v);
     return r ? r.label : (v || 'Non renseigné');
+  }
+
+  // ------------------------------------------------------------
+  // VERDICT DU CONTRÔLE — cohérent avec l'écart, jamais librement
+  // contradictoire (21/08/2026, demande de Frédéric suite à un cas réel
+  // où "Conforme" avait été choisi alors que l'écart retenu était de
+  // +1,00 €). Le manager ne choisit plus un statut de caisse à part :
+  // il choisit un verdict, dont l'écart déjà calculé restreint les
+  // options possibles, et NEXUS dérive lui-même le statut de la caisse.
+  // ------------------------------------------------------------
+
+  // Options de verdict réellement proposables pour un écart donné —
+  // jamais "Conforme" si l'écart n'est pas exactement zéro, jamais les
+  // deux options "avec écart" si l'écart est nul (il n'y aurait rien à
+  // justifier ni à régulariser).
+  function optionsVerdictControleFdj(ecart) {
+    if (ecart === null || ecart === undefined || ecart === 0) {
+      return [{ value: 'conforme', label: 'Conforme' }];
+    }
+    return [
+      { value: 'avec_ecart', label: 'Conforme avec écart justifié' },
+      { value: 'a_regulariser', label: 'Écart à régulariser' },
+    ];
+  }
+
+  // Un verdict "conforme" n'a de sens que si l'écart est nul, et
+  // inversement — sert à savoir si un verdict déjà choisi doit être
+  // réinitialisé quand l'écart change (jamais laisser une combinaison
+  // incohérente affichée ni enregistrée).
+  function verdictCoherentAvecEcart(verdict, ecart) {
+    return optionsVerdictControleFdj(ecart).some(o => o.value === verdict);
+  }
+
+  // Statut de caisse dérivé du verdict — jamais saisi librement par le
+  // manager (voir migration fdj_cash_controls_verdict_a_regulariser,
+  // 21/08/2026). 'provisoire' par défaut si aucun verdict retenu.
+  function deriverStatutCaisseDepuisVerdict(verdict) {
+    if (verdict === 'conforme') return 'conforme';
+    if (verdict === 'avec_ecart') return 'valide_avec_ecart';
+    if (verdict === 'a_regulariser') return 'a_regulariser';
+    return 'provisoire';
+  }
+
+  // Le motif de l'écart (menu déroulant, pas seulement son commentaire
+  // libre) devient obligatoire dès que l'écart n'est pas nul — sans
+  // motif, "Conforme avec écart justifié" ne serait justifié par rien.
+  function motifEcartObligatoire(ecart) {
+    return !(ecart === null || ecart === undefined || ecart === 0);
+  }
+
+  // État du quart — badge de synthèse en lecture seule (jamais un champ
+  // saisi à la main) : où en est ce quart, tout compris. Distinct de
+  // "État de saisie" (fdj_shifts.statut, brouillon/valide) : un quart
+  // peut être "validé" (saisie terminée) sans que son contrôle de
+  // caisse soit encore tranché.
+  //   'non_controle' : saisie pas encore validée, OU validée mais sans
+  //     verdict retenu pour l'instant (contrôle manager encore à faire).
+  //   'controle'     : validé + verdict Conforme (écart nul).
+  //   'cloture'      : validé + verdict Conforme avec écart justifié —
+  //     l'écart existe mais est documenté, rien de plus à faire.
+  //   'a_regulariser': validé + verdict Écart à régulariser — une
+  //     action reste due, jamais confondu avec "clôturé".
+  function etatDuQuartFdj({ statutShift, verdictControle, ecart } = {}) {
+    if (statutShift !== 'valide') return { code: 'non_controle', label: 'Non contrôlé' };
+    if (!verdictCoherentAvecEcart(verdictControle, ecart) || !verdictControle) {
+      return { code: 'non_controle', label: 'Non contrôlé' };
+    }
+    if (verdictControle === 'conforme') return { code: 'controle', label: 'Contrôlé' };
+    if (verdictControle === 'avec_ecart') return { code: 'cloture', label: 'Clôturé' };
+    return { code: 'a_regulariser', label: 'À régulariser' };
   }
 
   global.NexusFdjMoteur = {
@@ -1331,6 +1407,7 @@
     progressionComptageQuart,
     FDJ_QUARTS_ATTENDUS_PAR_JOUR, jourFdjEstCloture, fenetreComparableFdj,
     RESULTATS_CONTROLE_FDJ, labelResultatControle,
+    optionsVerdictControleFdj, verdictCoherentAvecEcart, deriverStatutCaisseDepuisVerdict, motifEcartObligatoire, etatDuQuartFdj,
     causeAlerteContinuite, elementManquantAlerteContinuite, actionAlerteContinuite, detailAlerteContinuite,
     etatAlerteContinuite, labelEtatAlerteContinuite,
   };

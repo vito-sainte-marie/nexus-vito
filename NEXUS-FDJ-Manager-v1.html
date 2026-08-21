@@ -100,6 +100,16 @@
   .statut-badge.conforme{background:var(--green-dim); color:var(--green);}
   .statut-badge.brouillon{background:var(--panel-raised); color:var(--text-dim);}
   .statut-badge.valide{background:var(--green-dim); color:var(--green);}
+  /* 21/08/2026 — badges "Saisie / Verdict / Quart" en haut de l'écran de
+     contrôle : réutilise exactement le système de couleur par valeur déjà
+     en place ci-dessus, jamais une deuxième palette pour la même idée. */
+  .statut-badge.a_regulariser{background:var(--amber-dim); color:var(--amber);}
+  .statut-badge.non_controle{background:var(--panel-raised); color:var(--text-dim);}
+  .statut-badge.controle{background:var(--green-dim); color:var(--green);}
+  .statut-badge.cloture{background:rgba(79,195,217,0.12); color:var(--cyan);}
+  .badges-etat-quart{display:flex; gap:8px; margin-bottom:16px;}
+  .badge-etat-cell{flex:1; text-align:center; background:var(--panel); border:1px solid var(--hairline); border-radius:10px; padding:9px 4px;}
+  .badge-etat-cell .be-label{font-family:var(--mono); font-size:8.5px; letter-spacing:0.04em; text-transform:uppercase; color:var(--text-dim); margin-bottom:5px;}
 
   .btn-modifier{width:auto; padding:9px 14px; margin-top:10px; background:var(--panel-raised); color:var(--amber); border:1px solid rgba(245,166,35,0.35); border-radius:8px; font-family:var(--sans); font-size:12px; font-weight:600; cursor:pointer;}
   .btn-modifier:active{background:var(--hairline);}
@@ -377,6 +387,10 @@
     { value: 'regularise', label: 'Régularisé' },
     { value: 'valide_avec_ecart', label: 'Validé avec écart' },
     { value: 'conforme', label: 'Conforme' },
+    // 21/08/2026 : plus jamais choisie à la main (le champ "Statut du
+    // contrôle" a été supprimé — voir NexusFdjMoteur.deriverStatutCaisseDepuisVerdict),
+    // conservée ici uniquement pour que labelStatutCaisse sache l'afficher.
+    { value: 'a_regulariser', label: 'À régulariser' },
   ];
   // 16/08/2026, sécurisation structurelle point 1 : `fdj_releves_cloture.statut`
   // peut désormais valoir 'recalcule_automatiquement' (type_version=
@@ -472,7 +486,10 @@
     // de trace avant/après que le reste du formulaire — une correction du
     // résultat métier ou du commentaire doit rester visible dans
     // l'historique, comme tout le reste.
-    motifEcartTexte: 'Commentaire / justificatif', resultatControle: 'Résultat du contrôle',
+    // 21/08/2026, refonte statuts FDJ : "Résultat du contrôle" renommé
+    // "Verdict du contrôle" partout dans l'UI (demande de Frédéric) — la
+    // trace d'audit reste cohérente avec le libellé affiché à l'écran.
+    motifEcartTexte: 'Commentaire / justificatif', resultatControle: 'Verdict du contrôle',
   };
   function formatValeurAuditFdj(champ, valeur) {
     if (valeur === null || valeur === undefined || valeur === '') return '—';
@@ -4336,9 +4353,11 @@
     const ecart = ecartCaisseEdition();
     const classe = ecart === null ? '' : (ecart === 0 ? 'green' : (Math.abs(ecart) <= 1 ? 'amber' : 'red'));
     const groupes = grouperParPalier(jeux);
+    synchroniserVerdictAvecEcart(ecart);
 
     document.getElementById('content').innerHTML = `
       <button type="button" class="btn-retour-fleche" id="btnRetourFleche">← Retour</button>
+      <div id="badgesEtatQuart">${renderBadgesEtatQuart(ecart)}</div>
       <div class="champ-row">
         <div>
           <label class="champ-label">Date</label>
@@ -4397,17 +4416,7 @@
         <div class="stat-row total" id="ligneEcart"><div class="stat-label">Écart</div><div class="stat-value ${classe}">${ecart !== null ? `${ecart > 0 ? '+' : ''}${fmtEuro(ecart)}` : '—'}</div></div>
       </div>
 
-      <label class="champ-label">Statut du contrôle</label>
-      <select class="champ-select" id="champStatutCaisse" style="margin-bottom:12px;">
-        ${STATUTS_CAISSE.map(s => `<option value="${s.value}" ${s.value===edition.statutCaisse?'selected':''}>${s.label}</option>`).join('')}
-      </select>
-      <label class="champ-label">Pourquoi modifiez-vous cet écart ? (optionnel)</label>
-      <select class="champ-select" id="champMotifEcart" style="margin-bottom:${edition.motifEcart === 'autre' ? '4px' : '16px'};">
-        ${MOTIFS_ECART_FDJ.map(m => `<option value="${m.value}" ${m.value===edition.motifEcart?'selected':''}>${m.label}</option>`).join('')}
-      </select>
-      ${edition.motifEcart === 'autre' ? '<div class="champ-note" id="noteMotifTexteObligatoire" style="margin:0 0 8px;">« Autre motif » nécessite le commentaire ci-dessous.</div>' : ''}
-      <label class="champ-label">Commentaire / justificatif (si nécessaire)</label>
-      <textarea class="champ-input" id="champMotifTexte" rows="2" style="margin-bottom:16px; resize:vertical;" placeholder="Précisions utiles pour retrouver ce contrôle plus tard…">${edition.motifEcartTexte || ''}</textarea>
+      <div id="blocMotifEcart">${renderBlocMotifEcart(ecart)}</div>
 
       <div class="champ-sep"></div>
       <div class="section-titre">Synthèse avant validation</div>
@@ -4415,13 +4424,14 @@
         ${renderSyntheseAvantValidation(attendue, ecart, classe)}
       </div>
 
-      <label class="champ-label">Résultat du contrôle</label>
+      <label class="champ-label">Verdict du contrôle</label>
       <select class="champ-select" id="champResultatControle" style="margin-bottom:16px;">
-        ${NexusFdjMoteur.RESULTATS_CONTROLE_FDJ.map(r => `<option value="${r.value}" ${r.value===edition.resultatControle?'selected':''}>${r.label}</option>`).join('')}
+        <option value="" ${!edition.resultatControle ? 'selected' : ''}>— À choisir —</option>
+        ${NexusFdjMoteur.optionsVerdictControleFdj(ecart).map(r => `<option value="${r.value}" ${r.value===edition.resultatControle?'selected':''}>${r.label}</option>`).join('')}
       </select>
 
       <div class="champ-sep"></div>
-      <label class="champ-label">Statut du quart</label>
+      <label class="champ-label">État de saisie</label>
       <select class="champ-select" id="champStatutShift" style="margin-bottom:16px;">
         <option value="brouillon" ${edition.statutShift==='brouillon'?'selected':''}>Brouillon</option>
         <option value="valide" ${edition.statutShift==='valide'?'selected':''}>Validé</option>
@@ -4456,6 +4466,63 @@
     `;
   }
 
+  // 21/08/2026 : garde `edition.resultatControle`/`edition.statutCaisse`
+  // toujours cohérents avec l'écart courant — jamais un verdict qui
+  // contredit silencieusement l'écart affiché (le cas réel qui a motivé
+  // ce chantier : "Conforme" choisi alors que l'écart retenu était de
+  // +1,00 €). Écart nul -> verdict forcé à "Conforme" (seul choix
+  // possible, rien à décider) ; écart non nul et verdict actuel devenu
+  // incohérent (ex: était "Conforme" puis l'écart a changé) -> remis à
+  // vide, le manager doit choisir explicitement, NEXUS ne devine jamais
+  // à sa place lequel des deux verdicts s'applique.
+  function synchroniserVerdictAvecEcart(ecart) {
+    if (!NexusFdjMoteur.verdictCoherentAvecEcart(edition.resultatControle, ecart)) {
+      edition.resultatControle = (ecart === 0) ? 'conforme' : '';
+    }
+    edition.statutCaisse = NexusFdjMoteur.deriverStatutCaisseDepuisVerdict(edition.resultatControle);
+  }
+
+  // 21/08/2026, demande de Frédéric suite à un cas réel où "Conforme"
+  // et un écart de +1,00 € étaient affichés côte à côte sans que ce
+  // soit visiblement contradictoire : trois badges de synthèse en haut
+  // de l'écran, jamais un statut saisi librement. "Saisie" = état brut
+  // du quart (brouillon/validé, fdj_shifts.statut) ; "Verdict" = ce que
+  // le manager a tranché (ou "En attente" si rien n'est encore choisi) ;
+  // "Quart" = état dérivé en lecture seule (NexusFdjMoteur.etatDuQuartFdj),
+  // jamais saisi, recalculé à chaque frappe qui change l'écart.
+  function renderBadgesEtatQuart(ecart) {
+    const libelleSaisie = edition.statutShift === 'valide' ? 'Validé' : 'Brouillon';
+    const classeSaisie = edition.statutShift === 'valide' ? 'valide' : 'brouillon';
+    const libelleVerdict = edition.resultatControle ? NexusFdjMoteur.labelResultatControle(edition.resultatControle) : 'En attente';
+    const etatQuart = NexusFdjMoteur.etatDuQuartFdj({ statutShift: edition.statutShift, verdictControle: edition.resultatControle, ecart });
+    return `
+      <div class="badges-etat-quart">
+        <div class="badge-etat-cell"><div class="be-label">Saisie</div><span class="statut-badge ${classeSaisie}">${libelleSaisie}</span></div>
+        <div class="badge-etat-cell"><div class="be-label">Verdict</div><span class="statut-badge ${edition.resultatControle || 'provisoire'}">${libelleVerdict}</span></div>
+        <div class="badge-etat-cell"><div class="be-label">Quart</div><span class="statut-badge ${etatQuart.code}">${etatQuart.label}</span></div>
+      </div>
+    `;
+  }
+
+  // 21/08/2026 : le motif d'écart n'a de sens que s'il y a un écart —
+  // masqué entièrement quand l'écart est nul ("Motif = masqué" demandé
+  // par Frédéric), affiché et OBLIGATOIRE (le menu lui-même, pas
+  // seulement le commentaire libre) dès que l'écart n'est pas nul —
+  // sans motif choisi, un verdict "avec écart" ne serait justifié par
+  // rien de vérifiable.
+  function renderBlocMotifEcart(ecart) {
+    if (ecart === null || ecart === undefined || ecart === 0) return '';
+    return `
+      <label class="champ-label">Pourquoi cet écart ? *</label>
+      <select class="champ-select" id="champMotifEcart" style="margin-bottom:${edition.motifEcart === 'autre' ? '4px' : '16px'};">
+        ${MOTIFS_ECART_FDJ.map(m => `<option value="${m.value}" ${m.value===edition.motifEcart?'selected':''}>${m.label}</option>`).join('')}
+      </select>
+      ${edition.motifEcart === 'autre' ? '<div class="champ-note" id="noteMotifTexteObligatoire" style="margin:0 0 8px;">« Autre motif » nécessite le commentaire ci-dessous.</div>' : ''}
+      <label class="champ-label">Commentaire / justificatif${edition.motifEcart === 'autre' ? ' *' : ' (si nécessaire)'}</label>
+      <textarea class="champ-input" id="champMotifTexte" rows="2" style="margin-bottom:16px; resize:vertical;" placeholder="Précisions utiles pour retrouver ce contrôle plus tard…">${edition.motifEcartTexte || ''}</textarea>
+    `;
+  }
+
   // F4 (20/08/2026, cahier §3, étape 7) : "Synthèse avant validation" —
   // recap en lecture seule de l'écart retenu et du motif choisi, juste
   // avant le résultat métier et la validation finale. Fonction séparée
@@ -4474,6 +4541,7 @@
     const attendue = caisseAttendueEdition();
     const ecart = ecartCaisseEdition();
     const classe = ecart === null ? '' : (ecart === 0 ? 'green' : (Math.abs(ecart) <= 1 ? 'amber' : 'red'));
+    synchroniserVerdictAvecEcart(ecart);
     const resume = document.querySelector('.resume-card');
     if (resume) {
       resume.innerHTML = `
@@ -4485,6 +4553,31 @@
     }
     const synthese = document.getElementById('resumeCardSynthese');
     if (synthese) synthese.innerHTML = renderSyntheseAvantValidation(attendue, ecart, classe);
+
+    // 21/08/2026 — trois blocs supplémentaires dépendent de l'écart et
+    // doivent être régénérés en direct (pas seulement au prochain rendu
+    // complet) : le badge "Quart"/"Verdict" en haut de page, les options
+    // du verdict (Conforme n'est proposable que si l'écart est nul), et
+    // l'apparition/disparition du motif d'écart.
+    const badges = document.getElementById('badgesEtatQuart');
+    if (badges) badges.innerHTML = renderBadgesEtatQuart(ecart);
+
+    const selectVerdict = document.getElementById('champResultatControle');
+    if (selectVerdict) {
+      selectVerdict.innerHTML = `
+        <option value="" ${!edition.resultatControle ? 'selected' : ''}>— À choisir —</option>
+        ${NexusFdjMoteur.optionsVerdictControleFdj(ecart).map(r => `<option value="${r.value}" ${r.value===edition.resultatControle?'selected':''}>${r.label}</option>`).join('')}
+      `;
+    }
+
+    const blocMotif = document.getElementById('blocMotifEcart');
+    if (blocMotif) {
+      blocMotif.innerHTML = renderBlocMotifEcart(ecart);
+      const selMotif = document.getElementById('champMotifEcart');
+      if (selMotif) selMotif.addEventListener('change', e => { edition.motifEcart = e.target.value; renderEdition(); });
+      const txtMotif = document.getElementById('champMotifTexte');
+      if (txtMotif) txtMotif.addEventListener('input', e => edition.motifEcartTexte = e.target.value);
+    }
   }
 
   function wireEditionInputs() {
@@ -4499,15 +4592,21 @@
     document.getElementById('champDate').addEventListener('change', async e => { edition.date = e.target.value; await reprefillStockInitial(); renderEdition(); });
     document.getElementById('champQuart').addEventListener('change', async e => { edition.quart = e.target.value; await reprefillStockInitial(); renderEdition(); });
     document.getElementById('champEmploye').addEventListener('change', e => edition.employeeId = e.target.value);
-    document.getElementById('champStatutShift').addEventListener('change', e => edition.statutShift = e.target.value);
-    document.getElementById('champStatutCaisse').addEventListener('change', e => edition.statutCaisse = e.target.value);
+    // "État de saisie" (ex-"Statut du quart") conditionne "État du quart"
+    // (badge dérivé) — re-rendu complet pour rester cohérent partout.
+    document.getElementById('champStatutShift').addEventListener('change', e => { edition.statutShift = e.target.value; renderEdition(); });
     // F4 (20/08/2026) : re-rendu complet (comme date/quart ci-dessus) plutôt
     // qu'une simple mutation — le motif choisi conditionne à la fois la note
     // "commentaire obligatoire" et la ligne "Motif" de la synthèse, deux
     // endroits qu'une mutation silencieuse laisserait désynchronisés.
-    document.getElementById('champMotifEcart').addEventListener('change', e => { edition.motifEcart = e.target.value; renderEdition(); });
-    document.getElementById('champMotifTexte').addEventListener('input', e => edition.motifEcartTexte = e.target.value);
-    document.getElementById('champResultatControle').addEventListener('change', e => edition.resultatControle = e.target.value);
+    const selMotifInit = document.getElementById('champMotifEcart');
+    if (selMotifInit) selMotifInit.addEventListener('change', e => { edition.motifEcart = e.target.value; renderEdition(); });
+    const txtMotifInit = document.getElementById('champMotifTexte');
+    if (txtMotifInit) txtMotifInit.addEventListener('input', e => edition.motifEcartTexte = e.target.value);
+    // 21/08/2026 : le verdict n'est plus une simple mutation silencieuse —
+    // il détermine le statut de caisse dérivé (synchroniserVerdictAvecEcart)
+    // et le badge "Quart" en haut de page, d'où le re-rendu complet.
+    document.getElementById('champResultatControle').addEventListener('change', e => { edition.resultatControle = e.target.value; renderEdition(); });
 
     document.querySelectorAll('.jeu-input').forEach(input => {
       input.addEventListener('input', () => {
@@ -4569,13 +4668,36 @@
   // jamais bloquer l'enregistrement (traçabilité, pas contrôle d'accès).
   // ------------------------------------------------------------
   async function enregistrerEdition() {
+    // 21/08/2026, refonte statuts FDJ (demande de Frédéric) : ces
+    // validations empêchent d'enregistrer un état incohérent (verdict non
+    // choisi, verdict qui ne correspond plus à l'écart affiché, écart non
+    // justifié par un motif). Bloqué côté client avant tout appel réseau,
+    // comme le reste des validations de ce formulaire (ex. contrainte
+    // unique date/quart, gérée par la base plus bas).
+    const ecartValidation = ecartCaisseEdition();
+    if (!edition.resultatControle) {
+      alert('Choisissez un verdict du contrôle (Conforme / Conforme avec écart justifié / Écart à régulariser) avant d\'enregistrer.');
+      const selVerdict = document.getElementById('champResultatControle');
+      if (selVerdict) selVerdict.focus();
+      return;
+    }
+    if (!NexusFdjMoteur.verdictCoherentAvecEcart(edition.resultatControle, ecartValidation)) {
+      alert('Le verdict choisi ne correspond plus à l\'écart actuel (' + fmtEuro(ecartValidation) + ') — le formulaire vient de le recalculer, vérifiez-le avant d\'enregistrer.');
+      renderEdition();
+      return;
+    }
+    if (NexusFdjMoteur.motifEcartObligatoire(ecartValidation) && !edition.motifEcart) {
+      alert('Un écart non nul nécessite un motif — choisissez un motif dans la liste avant d\'enregistrer.');
+      const selMotif = document.getElementById('champMotifEcart');
+      if (selMotif) selMotif.focus();
+      return;
+    }
     // F4 (20/08/2026, cahier §3, tableau des motifs) : "Autre motif — Champ
-    // texte obligatoire". Bloqué côté client avant tout appel réseau, comme
-    // le reste des validations de ce formulaire (ex. contrainte unique
-    // date/quart, gérée par la base plus bas).
+    // texte obligatoire".
     if (edition.motifEcart === 'autre' && !(edition.motifEcartTexte || '').trim()) {
       alert('« Autre motif » nécessite un commentaire — précisez la raison de la modification dans le champ Commentaire / justificatif.');
-      document.getElementById('champMotifTexte').focus();
+      const txtMotif = document.getElementById('champMotifTexte');
+      if (txtMotif) txtMotif.focus();
       return;
     }
     const btn = document.getElementById('btnEnregistrer');
