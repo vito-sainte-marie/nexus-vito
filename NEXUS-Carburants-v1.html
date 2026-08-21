@@ -18,6 +18,7 @@
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-auth.js"></script>
+<script src="nexus-header-nav.js"></script>
 <script src="nexus-desktop.js"></script>
 <script src="nexus-carburant-moteur.js"></script>
 <style>
@@ -214,6 +215,20 @@
   // VENTES_DEPUIS, gardées pour construire le détail au clic sans requête
   // supplémentaire (même source, jamais une deuxième vérité).
   let LIGNES_PERIODE_VENTES = [];
+  // Chaîne temporelle (21/08/2026, correction du bug "ventes du jour" —
+  // faux écarts +1022L SP95/+912L GO du 21/08/2026 causés par une ancre
+  // prise en cours de journée après une livraison). HORAIRES = station_
+  // config.horaires du site (bornes larges des quarts, seule source réelle
+  // disponible pour situer un quart dans le temps — jamais un horaire
+  // inventé). FENETRE_ISOLABLE/QUARTS_CHEVAUCHANTS/FENETRE_DEBUT/FENETRE_FIN
+  // documentent pourquoi/comment VENTES_DEPUIS a été résolu, pour le bloc
+  // "Comment cet écart est calculé" et pour ne jamais qualifier un contrôle
+  // "À corriger" sur une fenêtre non isolable (voir enregistrerControleDate).
+  let HORAIRES = null;
+  let FENETRE_ISOLABLE = true;
+  let QUARTS_CHEVAUCHANTS = [];
+  let FENETRE_DEBUT = null;
+  let FENETRE_FIN = null;
   const CHAMP_LITRAGE = { go: 'litrage_gazole', sp95: 'litrage_sp95', gnr: 'litrage_gnr' };
 
   const CARBURANTS = [
@@ -309,6 +324,16 @@
     if (error) { console.error('Chargement relevé carburant du jour:', error); return null; }
     return data;
   }
+  // Horaires de quart du site (station_config.horaires) — seule source
+  // réelle des bornes de quart utilisée par la chaîne temporelle
+  // (21/08/2026). `null` si non configuré : la fenêtre sera alors toujours
+  // déclarée non isolable (jamais un horaire par défaut inventé, voir
+  // NexusCarburantMoteur.classerQuartFaceFenetre, cas 'inconnu').
+  async function chargerHoraires(siteId) {
+    const { data, error } = await nexusClient.from('station_config').select('horaires').eq('site', siteId).maybeSingle();
+    if (error) { console.error('Chargement horaires site (fenêtre ventes horodatée):', error); return null; }
+    return (data && data.horaires) || null;
+  }
   // Ventes déjà captées dans NEXUS Verify (litrage_gazole/sp95/gnr) entre le
   // dernier relevé (INCLUS) et la date cible (exclue) — jamais ressaisies ici.
   //
@@ -325,16 +350,32 @@
   // correction le 14/08 avait ensuite à tort INCLUS la date cible — comptait
   // des ventes non encore advenues au moment du jaugeage d'ouverture.
   // Corrigé ici en bornes [dernier relevé inclus, date cible exclue).
-  async function chargerVentesDepuisDernierReleve(siteId, depuisDateIncluse, jusquADateExclusive) {
+  // 21/08/2026, chaîne temporelle : quand `mesureAncre` (mesure_le du
+  // relevé ancre) est connu, la fenêtre de ventes utilise les INSTANTS
+  // réels — plus les dates civiles — et un quart qui chevauche l'ancre ou
+  // la mesure contrôlée (`mesureCible`) rend la fenêtre non isolable
+  // (jamais une ventilation devinée, voir NexusCarburantMoteur.
+  // resoudreVentesFenetre). Repli sur le comportement historique date-à-
+  // date si `mesureAncre` est absent (ancre point zéro anchrant une date
+  // ultérieure, ou résidu sans mesure_le) — portée volontairement limitée
+  // à l'ancre "relevé réel", voir Data Dictionary v2.205.
+  async function chargerVentesDepuisDernierReleve(siteId, depuisDateIncluse, jusquADateExclusive, mesureAncre, mesureCible, horaires) {
     LIGNES_PERIODE_VENTES = [];
-    if (!depuisDateIncluse) return { go: null, sp95: null, gnr: null };
+    const vide = { ventes: { go: null, sp95: null, gnr: null }, isolable: true, quartsChevauchants: [], fenetreDebut: null, fenetreFin: null };
+    if (!depuisDateIncluse) return vide;
     const { data, error } = await nexusClient.from('audits_caisse')
       .select('date,quart,litrage_gazole,litrage_sp95,litrage_gnr')
-      .eq('site', siteId).gte('date', depuisDateIncluse).lt('date', jusquADateExclusive)
+      .eq('site', siteId).gte('date', depuisDateIncluse).lte('date', jusquADateExclusive)
       .order('date', { ascending: true }).order('quart', { ascending: true });
-    if (error) { console.error('Chargement ventes carburant (audits_caisse):', error); return { go: null, sp95: null, gnr: null }; }
-    LIGNES_PERIODE_VENTES = data || [];
-    return NexusCarburantMoteur.sommerVentesPeriode(data);
+    if (error) { console.error('Chargement ventes carburant (audits_caisse):', error); return vide; }
+    LIGNES_PERIODE_VENTES = (data || []).filter(l => l.date < jusquADateExclusive); // détail affiché = ancienne convention, jamais le jour cible lui-même
+    if (!mesureAncre) {
+      return { ventes: NexusCarburantMoteur.sommerVentesPeriode(LIGNES_PERIODE_VENTES), isolable: true, quartsChevauchants: [], fenetreDebut: null, fenetreFin: null };
+    }
+    const fenetreDebut = new Date(mesureAncre);
+    const fenetreFin = mesureCible ? new Date(mesureCible) : new Date();
+    const resolu = NexusCarburantMoteur.resoudreVentesFenetre(data || [], horaires, fenetreDebut, fenetreFin);
+    return { ventes: resolu.ventes, isolable: resolu.isolable, quartsChevauchants: resolu.quartsChevauchants, fenetreDebut, fenetreFin };
   }
 
   // Détail quart par quart de la période "depuis le dernier relevé", pour le
@@ -622,6 +663,11 @@
         const q = NexusCarburantMoteur.qualiteChaineCarburant({
           referenceExiste, dernierReel, referenceCertifieeCeJour: ctx.referenceCertifieeCeJour,
           reelDuJour, ventes, mouvement, commentaire: commentaireActuel,
+          // Chaîne temporelle (21/08/2026) : `undefined` par défaut si
+          // l'appelant ne le fournit pas (repli identique à avant cette
+          // évolution) — seule une fenêtre EXPLICITEMENT non isolable
+          // dégrade la qualité, jamais par défaut.
+          fenetreIsolable: ctx.fenetreIsolable,
         });
         qualite = q.qualite;
         cause = q.cause;
@@ -635,6 +681,14 @@
         site: siteId, date, carburant: carb.cle,
         reference_date: referenceDate, reference_type: referenceType,
         theorique, physique: reelDuJour, ecart, ventes, livraison, mouvement, qualite, cause,
+        // Chaîne temporelle (21/08/2026) : rend le calcul auditable — ancre
+        // exacte utilisée et fenêtre de ventes réellement retenue. Null sur
+        // l'ancre point zéro (portée non étendue, voir Data Dictionary
+        // v2.205) ou si l'appelant ne les fournit pas (repli honnête plutôt
+        // qu'une donnée reconstituée).
+        reference_mesure_le: (!ctx.ancreEstPointZero && ctx.dernierReleve) ? ctx.dernierReleve.mesure_le || null : null,
+        fenetre_debut: ctx.fenetreDebut || null,
+        fenetre_fin: ctx.fenetreFin || null,
       };
       const dernier = await dernierControleCarburant(siteId, date, carb.cle);
 
@@ -683,6 +737,7 @@
       dernierReleve: DERNIER_RELEVE, pointZero: POINT_ZERO,
       historiqueNonFiable: HISTORIQUE_NON_FIABLE, ancreEstPointZero: ANCRE_EST_POINT_ZERO,
       referenceCertifieeCeJour: REFERENCE_CERTIFIEE_CE_JOUR, ventesDepuis: VENTES_DEPUIS,
+      fenetreIsolable: FENETRE_ISOLABLE, fenetreDebut: FENETRE_DEBUT, fenetreFin: FENETRE_FIN,
     });
     await majControleStatutReleve(SITE_ID, DATE_CIBLE, succes);
   }
@@ -721,11 +776,20 @@
       // rien de plus à reconstruire (Article 5).
       if (ancreEstPointZero && dateAncre > dateCorrigee) break;
 
-      const ventesDepuis = historiqueNonFiable
-        ? { go: null, sp95: null, gnr: null }
-        : (referenceCertifieeCeJour ? { go: 0, sp95: 0, gnr: 0 } : await chargerVentesDepuisDernierReleve(siteId, dateAncre, releve.date));
+      let ventesDepuis, fenetreIsolable = true, fenetreDebut = null, fenetreFin = null;
+      if (historiqueNonFiable) {
+        ventesDepuis = { go: null, sp95: null, gnr: null };
+      } else if (referenceCertifieeCeJour) {
+        ventesDepuis = { go: 0, sp95: 0, gnr: 0 };
+      } else {
+        const mesureAncre = !ancreEstPointZero && dernierReleve ? dernierReleve.mesure_le : null;
+        const resolu = await chargerVentesDepuisDernierReleve(siteId, dateAncre, releve.date, mesureAncre, releve.mesure_le, HORAIRES);
+        ventesDepuis = resolu.ventes;
+        fenetreIsolable = resolu.isolable; fenetreDebut = resolu.fenetreDebut; fenetreFin = resolu.fenetreFin;
+      }
 
       const succesDate = await enregistrerControleDate(siteId, releve.date, releve, {
+        fenetreIsolable, fenetreDebut, fenetreFin,
         dernierReleve, pointZero, historiqueNonFiable, ancreEstPointZero, referenceCertifieeCeJour, ventesDepuis,
       });
       await majControleStatutReleve(siteId, releve.date, succesDate);
@@ -774,6 +838,12 @@
       mouvement_gnr: valeurChamp('champ_gnr_mouvement') || 0,
       motif_mouvement: RELEVE_CIBLE && RELEVE_CIBLE.motif_mouvement ? RELEVE_CIBLE.motif_mouvement : null,
       commentaire: document.getElementById('champCommentaire').value.trim() || null,
+      // Chaîne temporelle (21/08/2026) : instant réel de cette saisie —
+      // aucun champ d'heure dédié sur ce parcours manager, donc meilleure
+      // approximation disponible (l'instant de l'enregistrement lui-même),
+      // honnêtement documentée comme telle (voir commentaire de la colonne
+      // en migration). Jamais plus précis que ce qui a réellement été saisi.
+      mesure_le: new Date().toISOString(),
     };
 
     const { versionNum, typeVersion } = NexusCarburantMoteur.prochaineVersionReleveCarburant(RELEVE_CIBLE);
@@ -839,6 +909,17 @@
       return;
     }
     RELEVE_CIBLE = data;
+    // Chaîne temporelle (21/08/2026) : RELEVE_CIBLE.mesure_le vient d'être
+    // fixé à l'instant réel de CETTE saisie (ci-dessus) — recalcule la
+    // fenêtre de ventes avec cette valeur exacte plutôt que l'approximation
+    // "maintenant" calculée au chargement de l'écran, pour que la preuve
+    // persistée (carburant_controles.fenetre_fin) reflète l'instant réel.
+    if (!HISTORIQUE_NON_FIABLE && !REFERENCE_CERTIFIEE_CE_JOUR) {
+      const mesureAncre = !ANCRE_EST_POINT_ZERO && DERNIER_RELEVE ? DERNIER_RELEVE.mesure_le : null;
+      const resolu = await chargerVentesDepuisDernierReleve(SITE_ID, DATE_ANCRE, DATE_CIBLE, mesureAncre, RELEVE_CIBLE.mesure_le, HORAIRES);
+      VENTES_DEPUIS = resolu.ventes;
+      FENETRE_ISOLABLE = resolu.isolable; FENETRE_DEBUT = resolu.fenetreDebut; FENETRE_FIN = resolu.fenetreFin; QUARTS_CHEVAUCHANTS = resolu.quartsChevauchants;
+    }
     await enregistrerControlesCarburant();
     // Sprint C3 : une CORRECTION (jamais une première saisie) peut changer
     // l'ancre ou les ventes prises en compte par tous les relevés déjà
@@ -888,11 +969,12 @@
       if (lienPilotageEl) lienPilotageEl.textContent = '← Retour à Carburants Pilotage';
     }
 
-    [RELEVE_CIBLE, DERNIER_RELEVE, PROCHAIN_RELEVE, POINT_ZERO] = await Promise.all([
+    [RELEVE_CIBLE, DERNIER_RELEVE, PROCHAIN_RELEVE, POINT_ZERO, HORAIRES] = await Promise.all([
       chargerReleveDuJour(SITE_ID, DATE_CIBLE),
       chargerDernierReleve(SITE_ID, DATE_CIBLE),
       EST_AUJOURDHUI ? Promise.resolve(null) : chargerProchainReleve(SITE_ID, DATE_CIBLE),
       chargerDernierPointZero(SITE_ID, DATE_CIBLE),
+      chargerHoraires(SITE_ID),
     ]);
 
     // Pont Jaugeage carburant (19/08/2026) — provenance affichée au manager
@@ -917,11 +999,18 @@
     DATE_ANCRE = ancre.dateAncre;
     REFERENCE_CERTIFIEE_CE_JOUR = ancre.referenceCertifieeCeJour;
 
-    VENTES_DEPUIS = HISTORIQUE_NON_FIABLE
-      ? { go: null, sp95: null, gnr: null }
-      : (REFERENCE_CERTIFIEE_CE_JOUR
-          ? { go: 0, sp95: 0, gnr: 0 }
-          : await chargerVentesDepuisDernierReleve(SITE_ID, DATE_ANCRE, DATE_CIBLE));
+    if (HISTORIQUE_NON_FIABLE) {
+      VENTES_DEPUIS = { go: null, sp95: null, gnr: null };
+      FENETRE_ISOLABLE = true; FENETRE_DEBUT = null; FENETRE_FIN = null; QUARTS_CHEVAUCHANTS = [];
+    } else if (REFERENCE_CERTIFIEE_CE_JOUR) {
+      VENTES_DEPUIS = { go: 0, sp95: 0, gnr: 0 };
+      FENETRE_ISOLABLE = true; FENETRE_DEBUT = null; FENETRE_FIN = null; QUARTS_CHEVAUCHANTS = [];
+    } else {
+      const mesureAncre = !ANCRE_EST_POINT_ZERO && DERNIER_RELEVE ? DERNIER_RELEVE.mesure_le : null;
+      const resolu = await chargerVentesDepuisDernierReleve(SITE_ID, DATE_ANCRE, DATE_CIBLE, mesureAncre, RELEVE_CIBLE ? RELEVE_CIBLE.mesure_le : null, HORAIRES);
+      VENTES_DEPUIS = resolu.ventes;
+      FENETRE_ISOLABLE = resolu.isolable; FENETRE_DEBUT = resolu.fenetreDebut; FENETRE_FIN = resolu.fenetreFin; QUARTS_CHEVAUCHANTS = resolu.quartsChevauchants;
+    }
 
     render();
   });

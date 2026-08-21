@@ -103,13 +103,16 @@
   // qu'un plancher, pas une ancre permanente.
   async function chargerControleJour(client, siteId, date) {
     const M = global.NexusCarburantMoteur;
-    const [{ data: releveDuJour, error: e1 }, { data: dernierReleve, error: e2 }, pointZero] = await Promise.all([
+    const [{ data: releveDuJour, error: e1 }, { data: dernierReleve, error: e2 }, pointZero, { data: stationConfig, error: e5 }] = await Promise.all([
       client.from('carburant_releves').select('*').eq('site', siteId).eq('date', date).maybeSingle(),
       client.from('carburant_releves').select('*').eq('site', siteId).lt('date', date).order('date', { ascending: false }).limit(1).maybeSingle(),
       chargerDernierPointZero(client, siteId, date),
+      client.from('station_config').select('horaires').eq('site', siteId).maybeSingle(),
     ]);
     if (e1) console.error('Chargement relevé carburant du jour (contrôle):', e1);
     if (e2) console.error('Chargement dernier relevé carburant (contrôle):', e2);
+    if (e5) console.error('Chargement horaires site (fenêtre ventes horodatée):', e5);
+    const horaires = (stationConfig && stationConfig.horaires) || null;
 
     if (!releveDuJour && !dernierReleve && !pointZero) {
       return { parCarburant: null, aucunReleve: true };
@@ -149,16 +152,53 @@
     // (comptait des ventes non encore advenues au moment de l'ouverture) —
     // corrigé ici en bornes [ancre incluse, date cible exclue).
     let ventesDepuis = { go: null, sp95: null, gnr: null };
+    // Chaîne temporelle (21/08/2026, correction du bug "ventes du jour" —
+    // voir l'en-tête de nexus-carburant-moteur.js) : quand l'ancre est un
+    // relevé réel (jamais un point zéro, volontairement laissé sur son
+    // fonctionnement date-à-date existant, exceptionnel et déjà couvert par
+    // sa propre règle du 14/08/2026 — Frédéric : "Point zéro ≠ dernière
+    // référence physique"), la fenêtre de ventes utilise les INSTANTS réels
+    // (mesure_le) et non plus les dates civiles. `fenetreIsolable` (par
+    // défaut true, jamais false pour l'ancre point zéro) signale si un
+    // quart chevauche l'une des deux bornes — dans ce cas ventesDepuis reste
+    // à null pour les 3 carburants (jamais une ventilation devinée), ce que
+    // calculerCarburant traduit déjà honnêtement en "Données insuffisantes"
+    // sans code supplémentaire ici (Article 11).
+    let fenetreIsolable = true;
+    let fenetreDebut = null, fenetreFin = null, quartsChevauchants = [];
     if (referenceCertifieeCeJour) {
       // Zéro jour écoulé depuis la certification : zéro vente, explicite —
       // jamais une requête sur une plage vide qui redonnerait `null` et
       // ferait retomber le statut sur "Données insuffisantes".
       ventesDepuis = { go: 0, sp95: 0, gnr: 0 };
-    } else if (dateAncre) {
+    } else if (ancreEstPointZero) {
+      // Point zéro anchrant une date ultérieure : fonctionnement date-à-date
+      // historique, volontairement inchangé (portée limitée au relevé réel,
+      // voir Data Dictionary v2.205).
       const { data: lignesVentes, error: e3 } = await client.from('audits_caisse')
         .select('litrage_gazole,litrage_sp95,litrage_gnr')
         .eq('site', siteId).gte('date', dateAncre).lt('date', date);
       if (e3) console.error('Chargement ventes depuis dernier relevé (contrôle):', e3);
+      ventesDepuis = M.sommerVentesPeriode(lignesVentes || []);
+    } else if (dateAncre && dernierReleve && dernierReleve.mesure_le) {
+      fenetreDebut = new Date(dernierReleve.mesure_le);
+      fenetreFin = releveDuJour && releveDuJour.mesure_le ? new Date(releveDuJour.mesure_le) : new Date();
+      const { data: lignesQuarts, error: e3 } = await client.from('audits_caisse')
+        .select('date,quart,litrage_gazole,litrage_sp95,litrage_gnr')
+        .eq('site', siteId).gte('date', dateAncre).lte('date', date);
+      if (e3) console.error('Chargement ventes (fenêtre horodatée, contrôle):', e3);
+      const resolu = M.resoudreVentesFenetre(lignesQuarts || [], horaires, fenetreDebut, fenetreFin);
+      ventesDepuis = resolu.ventes;
+      fenetreIsolable = resolu.isolable;
+      quartsChevauchants = resolu.quartsChevauchants;
+    } else if (dateAncre) {
+      // Repli honnête : ancre réelle mais sans mesure_le connu (ne devrait
+      // plus arriver après le backfill du 21/08/2026, mais jamais une
+      // exception si un cas résiduel existait) — comportement historique.
+      const { data: lignesVentes, error: e3 } = await client.from('audits_caisse')
+        .select('litrage_gazole,litrage_sp95,litrage_gnr')
+        .eq('site', siteId).gte('date', dateAncre).lt('date', date);
+      if (e3) console.error('Chargement ventes depuis dernier relevé (contrôle, repli sans mesure_le):', e3);
       ventesDepuis = M.sommerVentesPeriode(lignesVentes || []);
     }
 
@@ -256,6 +296,12 @@
       // relevé X — stock théorique actuel Y") — déjà chargés ci-dessus,
       // simplement remontés plutôt que ré-interrogés une seconde fois.
       releveDuJour: releveDuJour || null, dernierReleve: dernierReleve || null,
+      // Chaîne temporelle (21/08/2026) : fenêtre réellement retenue pour le
+      // calcul, et pourquoi elle n'a pas pu être isolée le cas échéant —
+      // alimente le bloc "Comment cet écart est calculé" (preuve auditable,
+      // demande de Frédéric) sans que l'écran ait à recalculer quoi que ce
+      // soit lui-même.
+      fenetreIsolable, fenetreDebut, fenetreFin, quartsChevauchants,
     };
   }
 

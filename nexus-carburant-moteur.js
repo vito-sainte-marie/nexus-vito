@@ -699,11 +699,21 @@
   // non fabriquées ici plutôt que de prétendre les détecter (Article 5,
   // "vérité avant certitude"). Reste ouvert pour un sprint ultérieur si
   // Frédéric confirme le besoin.
-  function qualiteChaineCarburant({ referenceExiste, dernierReel, referenceCertifieeCeJour, reelDuJour, ventes, mouvement, commentaire }) {
+  function qualiteChaineCarburant({ referenceExiste, dernierReel, referenceCertifieeCeJour, reelDuJour, ventes, mouvement, commentaire, fenetreIsolable }) {
     if (referenceCertifieeCeJour) return { qualite: 'fiable', cause: null };
     if (!referenceExiste) return { qualite: 'non_comparable', cause: 'reference_absente' };
     if (dernierReel == null) return { qualite: 'non_comparable', cause: 'reference_incomplete' };
     if (reelDuJour == null) return { qualite: 'non_comparable', cause: 'mesure_finale_absente' };
+    // Chaîne temporelle (21/08/2026) : un quart de ventes qui chevauche
+    // l'ancre ou la mesure contrôlée ne peut pas être proprement inclus/exclu
+    // avec la granularité actuelle (litrage agrégé par quart, pas de
+    // ventilation interne) — provisoire, jamais un écart calculé sur une
+    // ventilation devinée (Article 5). Vérifié AVANT ventes==null : une
+    // fenêtre non isolable a délibérément ventes=null en amont (voir
+    // resoudreVentesFenetre), mais la cause à afficher doit rester la
+    // vraie raison (chevauchement), pas "ventes indisponibles" qui
+    // laisserait croire à une simple absence de saisie.
+    if (fenetreIsolable === false) return { qualite: 'provisoire', cause: 'fenetre_ventes_non_isolable' };
     if (ventes == null) return { qualite: 'non_comparable', cause: 'ventes_indisponibles' };
     if (mouvement && !commentaire) return { qualite: 'provisoire', cause: 'mouvement_exceptionnel_sans_motif' };
     return { qualite: 'fiable', cause: null };
@@ -716,9 +726,131 @@
     ventes_indisponibles: 'Ventes depuis le dernier relevé non disponibles — aucun quart avec litrage capté sur cette période.',
     mouvement_exceptionnel_sans_motif: 'Mouvement exceptionnel saisi sans motif documenté (champ Commentaire) — écart affiché avec prudence.',
     anterieur_au_point_zero: 'Période antérieure au point zéro certifié — aucun théorique qualifié sur cette période (Article 5).',
+    fenetre_ventes_non_isolable: 'La dernière mesure a été prise en cours de journée (livraison ou contrôle intermédiaire) et un quart de vente chevauche cet instant — les litres vendus avant/après ne peuvent pas être isolés avec la précision actuelle des ventes (agrégées par quart). Écart non calculé tant qu\'un jaugeage pris en dehors de ce quart n\'est pas disponible.',
   };
   function libelleCauseQualiteChaine(cause) {
     return LIBELLE_CAUSE_QUALITE_CHAINE[cause] || null;
+  }
+
+  // ============================================================
+  // CHAÎNE TEMPORELLE (21/08/2026, demande de Frédéric — faux écarts +1022L
+  // SP95 / +912L GO du 21/08) : "Toute mesure physique de carburant possède
+  // un horodatage, et NEXUS ne peut lui appliquer que les ventes et
+  // mouvements survenus APRÈS cet horodatage." Règle absolue : Théorique(t1)
+  // = Physique(t0) + livraisons(t0,t1) + mouvements(t0,t1) − ventes(t0,t1),
+  // où t0/t1 sont des INSTANTS réels (mesure_le), jamais des dates civiles.
+  //
+  // NEXUS ne connaît les ventes qu'au grain du QUART (litrage agrégé par
+  // audits_caisse.quart, aucun horodatage vente par vente) : un quart qui
+  // chevauche t0 ou t1 ne peut pas être scindé sans inventer une
+  // ventilation interne — dans ce cas la fenêtre est déclarée NON ISOLABLE
+  // (voir qualiteChaineCarburant ci-dessus, cause 'fenetre_ventes_non_
+  // isolable'), jamais un chiffre approché présenté comme précis.
+  // ============================================================
+
+  // Convertit une date civile + heure locale "Europe/Paris" (station_config.
+  // horaires, ex. "05:45") en instant UTC réel. Sans dépendance externe
+  // (aucune lib de fuseaux dans NEXUS) : résout le décalage réel via
+  // l'API Intl du runtime, en 2 passes pour rester correct même si la
+  // première estimation tombe de l'autre côté d'un changement d'heure
+  // (CET/CEST). Hors périmètre assumé : l'instant exact de la bascule
+  // elle-même (~2h, deux fois par an, en dehors des horaires d'ouverture
+  // d'une station) — non géré, jamais silencieusement approximé comme
+  // fiable au-delà de cette limite documentée.
+  function instantParisVersUTC(dateISO, heureHHMM) {
+    if (!dateISO || !heureHHMM) return null;
+    const [h, mnt] = heureHHMM.split(':').map(Number);
+    const [an, mo, jo] = dateISO.split('-').map(Number);
+    if ([h, mnt, an, mo, jo].some(Number.isNaN)) return null;
+    const dtf = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Europe/Paris', hour12: false,
+      year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit',
+    });
+    const lireCommeUTC = (ms) => {
+      const parts = dtf.formatToParts(new Date(ms)).reduce((acc, p) => { acc[p.type] = p.value; return acc; }, {});
+      const heure24 = parts.hour === '24' ? '00' : parts.hour;
+      return Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day), Number(heure24), Number(parts.minute), Number(parts.second));
+    };
+    const cible = Date.UTC(an, mo - 1, jo, h, mnt, 0);
+    let offset = lireCommeUTC(cible) - cible;
+    let instant = cible - offset;
+    offset = lireCommeUTC(instant) - instant; // 2e passe : réévalue au voisinage de l'instant réel, pas de la première estimation.
+    return new Date(cible - offset);
+  }
+
+  // Bornes LARGES (horaire étendu, jamais l'horaire normal) d'un quart pour
+  // une date donnée — toujours la fourchette la plus prudente : mieux vaut
+  // déclarer "chevauche" un quart qui ne chevauchait finalement pas vraiment
+  // que l'inverse (Article 5, jamais une fausse certitude d'isolation).
+  // `horaires` = station_config.horaires. `quartCle` = 'quart1' | 'quart2'.
+  // Retourne null si ce quart n'est pas configuré pour ce site (jamais une
+  // bascule silencieuse sur un horaire par défaut inventé).
+  function fenetreQuartLarge(horaires, quartCle, dateISO) {
+    const q = horaires && horaires[quartCle];
+    if (!q) return null;
+    const debut = q.etendu || q.normal;
+    const fin = q.fin_etendu || q.fin_normal;
+    if (!debut || !fin) return null;
+    const bDebut = instantParisVersUTC(dateISO, debut);
+    const bFin = instantParisVersUTC(dateISO, fin);
+    if (!bDebut || !bFin) return null;
+    return { debut: bDebut, fin: bFin };
+  }
+
+  // Position d'un quart (ses bornes larges) par rapport à une fenêtre de
+  // calcul [t0, t1] (Date, t0 exclu car déjà reflété dans l'ancre physique,
+  // t1 inclus car c'est l'instant de la mesure contrôlée) :
+  //  'avant'     quart entièrement terminé à ou avant t0 -> déjà dans l'ancre, exclu proprement.
+  //  'apres'     quart débute à ou après t1 -> pas encore survenu, exclu (comptera dans la fenêtre suivante).
+  //  'dans'      quart entièrement compris dans [t0, t1] -> inclus.
+  //  'chevauche' le quart déborde d'un côté ou de l'autre -> non isolable.
+  //  'inconnu'   horaires non configurés pour ce quart -> traité comme un chevauchement (jamais une fausse certitude).
+  function classerQuartFaceFenetre(fenetreQuart, t0, t1) {
+    if (!fenetreQuart) return 'inconnu';
+    const { debut, fin } = fenetreQuart;
+    if (fin.getTime() <= t0.getTime()) return 'avant';
+    if (debut.getTime() >= t1.getTime()) return 'apres';
+    if (debut.getTime() >= t0.getTime() && fin.getTime() <= t1.getTime()) return 'dans';
+    return 'chevauche';
+  }
+
+  // Résout les ventes RÉELLEMENT isolables sur la fenêtre [t0, t1], quart
+  // par quart — jamais une somme sur des dates civiles (voir l'en-tête de
+  // cette section). `lignesQuarts` = [{date, quart, litrage_gazole,
+  // litrage_sp95, litrage_gnr}] (déjà chargées par l'appelant sur une plage
+  // large englobant t0/t1, Article 11 — cette fonction ne requête rien).
+  // `horaires` = station_config.horaires du site. Dès qu'UN SEUL quart
+  // chevauche ou a des horaires inconnus, la fenêtre entière est déclarée
+  // non isolable (ventes=null sur les 3 carburants) : une seule ventilation
+  // impossible à isoler suffit à rendre le calcul non fiable, jamais un
+  // résultat partiel présenté comme complet.
+  function resoudreVentesFenetre(lignesQuarts, horaires, t0, t1) {
+    const champs = { go: 'litrage_gazole', sp95: 'litrage_sp95', gnr: 'litrage_gnr' };
+    const somme = { go: 0, sp95: 0, gnr: 0 };
+    const trouve = { go: false, sp95: false, gnr: false };
+    const quartsChevauchants = [];
+    const quartsInclus = [];
+    (lignesQuarts || []).forEach(ligne => {
+      const quartCle = ligne.quart === '2' ? 'quart2' : 'quart1';
+      const fenetreQuart = fenetreQuartLarge(horaires, quartCle, ligne.date);
+      const position = classerQuartFaceFenetre(fenetreQuart, t0, t1);
+      if (position === 'chevauche' || position === 'inconnu') {
+        quartsChevauchants.push({ date: ligne.date, quart: ligne.quart, raison: position === 'inconnu' ? 'horaires_non_configures' : 'chevauche_ancre_ou_mesure' });
+        return;
+      }
+      if (position !== 'dans') return; // avant/après -> hors fenêtre, exclu proprement, jamais compté.
+      quartsInclus.push({ date: ligne.date, quart: ligne.quart });
+      Object.entries(champs).forEach(([cle, champ]) => {
+        if (ligne[champ] != null) { somme[cle] += Number(ligne[champ]); trouve[cle] = true; }
+      });
+    });
+    if (quartsChevauchants.length) {
+      return { ventes: { go: null, sp95: null, gnr: null }, isolable: false, quartsChevauchants, quartsInclus };
+    }
+    return {
+      ventes: { go: trouve.go ? somme.go : null, sp95: trouve.sp95 ? somme.sp95 : null, gnr: trouve.gnr ? somme.gnr : null },
+      isolable: true, quartsChevauchants: [], quartsInclus,
+    };
   }
 
   // Sprint C6 "Pilotage" (17/08/2026, audit §10 : "Situation aujourd'hui —
@@ -1058,6 +1190,7 @@
     construireMessagesPilotage,
     prochaineVersionReleveCarburant, diffReleveCarburant, patchReleveDepuisReceptionMesures,
     qualiteChaineCarburant, libelleCauseQualiteChaine, resoudreAncreCarburant,
+    instantParisVersUTC, fenetreQuartLarge, classerQuartFaceFenetre, resoudreVentesFenetre,
     libelleQualiteControle,
     SEUIL_HISTORIQUE_CHAINE_SUFFISANT, statistiquesFiabiliteChaine, libelleFiabiliteChaine,
     calculerCmpApresLivraison, calculerCmpProgressif, libelleCmp,

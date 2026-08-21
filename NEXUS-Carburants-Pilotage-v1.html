@@ -823,6 +823,18 @@
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   }
   function fmtL(v) { return v == null ? '—' : `${Math.round(v).toLocaleString('fr-FR')} L`; }
+  // Chaîne temporelle (21/08/2026) : instant précis (jour + heure, fuseau
+  // Europe/Paris explicite comme partout ailleurs dans NEXUS) pour le bloc
+  // "Comment cet écart est calculé" — jamais une simple date qui masquerait
+  // qu'une mesure a été prise en cours de journée.
+  function fmtInstant(iso) {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return '—';
+    const jour = d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Europe/Paris' });
+    const heure = d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Paris' });
+    return `${jour} à ${heure}`;
+  }
   // Correctif recette UI/UX (17/08/2026, CAR-UX-06) : `provisoire=true`
   // (période en cours et/ou couverture de quarts incomplète — voir
   // chargerEtRendrePeriode) désactive la force visuelle habituelle
@@ -1694,6 +1706,8 @@
             <span class="controle-badge" style="background:${couleur.f}; color:${couleur.c};">${qualite.texte}</span>
           </div>
           <div class="controle-ligne"><span>Référence de départ</span><span>${refTxt}</span></div>
+          ${ctrl.reference_mesure_le ? `<div class="controle-ligne"><span>Mesure de référence</span><span>${fmtInstant(ctrl.reference_mesure_le)}</span></div>` : ''}
+          ${ctrl.fenetre_debut && ctrl.fenetre_fin ? `<div class="controle-ligne"><span>Fenêtre de ventes retenue</span><span>${fmtInstant(ctrl.fenetre_debut)} → ${fmtInstant(ctrl.fenetre_fin)}</span></div>` : ''}
           <div class="controle-ligne"><span>Ventes prises en compte</span><span>${ctrl.ventes != null ? fmtL(ctrl.ventes) : '—'}</span></div>
           <div class="controle-ligne"><span>Livraison</span><span>${fmtL(ctrl.livraison)}</span></div>
           <div class="controle-ligne"><span>Mouvement exceptionnel</span><span>${fmtL(ctrl.mouvement)}</span></div>
@@ -1790,6 +1804,8 @@
       const qualite = M.libelleQualiteControle(ctrl.qualite);
       const causeTxt = M.libelleCauseQualiteChaine(ctrl.cause);
       c.ligneCle('Référence de départ', ctrl.reference_date ? `${formaterDateFrCourt(ctrl.reference_date)} (${LIBELLE_REFERENCE_TYPE[ctrl.reference_type] || ctrl.reference_type || '—'})` : '—');
+      if (ctrl.reference_mesure_le) c.ligneCle('Mesure de référence', fmtInstant(ctrl.reference_mesure_le));
+      if (ctrl.fenetre_debut && ctrl.fenetre_fin) c.ligneCle('Fenêtre de ventes retenue', `${fmtInstant(ctrl.fenetre_debut)} → ${fmtInstant(ctrl.fenetre_fin)}`);
       c.ligneCle('Ventes prises en compte', ctrl.ventes != null ? fmtL(ctrl.ventes) : '—');
       c.ligneCle('Livraison', fmtL(ctrl.livraison));
       c.ligneCle('Mouvement exceptionnel', fmtL(ctrl.mouvement));
