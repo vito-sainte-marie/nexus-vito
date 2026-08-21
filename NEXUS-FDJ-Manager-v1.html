@@ -364,6 +364,10 @@
   }
   function fmtEuro(n) { return (n === null || n === undefined || n === '' || isNaN(n)) ? '—' : `${Number(n).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`; }
   function fmtNum(n) { return (n === null || n === undefined) ? '—' : Number(n).toLocaleString('fr-FR', { maximumFractionDigits: 2 }); }
+  // "Lun." / "Jeu." — jour de semaine abrégé avec majuscule initiale
+  // (20/08/2026, mini-carte Caisse réelle). `toLocaleDateString` renvoie
+  // le jour en minuscule ("lun."), jamais capitalisé nativement en fr-FR.
+  function capitaliserJour(d) { const s = d.toLocaleDateString('fr-FR', { weekday: 'short' }); return s.charAt(0).toUpperCase() + s.slice(1); }
 
   const STATUTS_CAISSE = [
     { value: 'provisoire', label: 'Provisoire' },
@@ -2039,6 +2043,16 @@
     ]);
     const quart1 = duJour.find(s => s.quart === '1');
     const quart2 = duJour.find(s => s.quart === '2');
+    // Retour de Frédéric (20/08/2026) sur bug réel constaté en direct :
+    // "Passer exceptionnellement au Quart 2" restait affiché alors que le
+    // Quart 2 existait déjà et était contrôlé — `renderVerrouJour` ne
+    // vérifiait jamais si le quart cible existait, il se contentait de
+    // rendre le verrou tel quel. "Ce bouton ne devrait apparaître que si
+    // [...] Q2 n'existe pas encore [...] Une fois Q2 créé, il disparaît."
+    // Filtré ICI (avant le rendu) plutôt que dans `renderVerrouJour` —
+    // cette fonction reste un rendu pur par ligne, la condition d'usage
+    // vit au même endroit que `quart1`/`quart2`, déjà connus ici.
+    const verrousActionnables = verrousJour.filter(v => !(v.quart === '1' ? quart2 : quart1));
     // Comptages des quarts du jour (cartes Q1/Q2 redessinées, §4/§5) —
     // chargé seulement pour les shifts qui existent réellement aujourd'hui.
     const idsQuartsDuJour = [quart1, quart2].filter(Boolean).map(s => s.id);
@@ -2075,13 +2089,32 @@
     // (Article 11, jamais un deuxième mécanisme pour la même action).
     const anomaliesContinuiteActives = journalChaine.filter(a => !a.resolue_le).length;
     const totalATraiter = relevesEnErreur.length + exceptions.total + anomaliesContinuiteActives + soldesNegatifs.length + alertes.length + brouillons.length;
+    // Retour de Frédéric (20/08/2026) : "10 éléments à vérifier" tout en
+    // rouge est anxiogène et abstrait — "si les 10 éléments ne sont pas
+    // tous bloquants, ne mets pas tout en rouge. Rouge = véritable
+    // anomalie exigeant une action. Orange = contrôle ou rapprochement."
+    // Répartition par SÉVÉRITÉ, pas par catégorie fine (les 5 catégories de
+    // `exceptions` restent mélangées côté "à vérifier" — les distinguer
+    // une à une aurait demandé de dupliquer une logique de gravité que
+    // NEXUS ne trace nulle part par catégorie, une fausse précision que
+    // l'Article 5 interdit) :
+    //   🔴 rouge = relevés en erreur (échec technique), soldes négatifs
+    //      (anomalie de stock réelle), continuité active (chaîne rompue) —
+    //      des faits, pas des jugements à vérifier.
+    //   🟠 orange = exceptions (corrections/carnets/écarts/replays — à
+    //      vérifier, pas forcément faux), alertes stock (à confirmer),
+    //      brouillons (à terminer, pas une erreur).
+    // totalRouge + totalOrange === totalATraiter, toujours (même six
+    // compteurs, seulement regroupés différemment).
+    const totalRouge = relevesEnErreur.length + soldesNegatifs.length + anomaliesContinuiteActives;
+    const totalOrange = exceptions.total + alertes.length + brouillons.length;
     document.getElementById('content').innerHTML = `
       <div class="section-titre">À traiter aujourd'hui</div>
       <div class="champ-note" style="margin:-6px 0 10px;">Les éléments qui nécessitent une vérification ou une décision.</div>
       ${totalATraiter ? `
         <div class="card" style="margin-bottom:16px;">
-          <button type="button" id="btnATraiterToggle" style="width:100%; text-align:left; background:none; border:none; padding:10px 14px; color:var(--red); font:inherit; font-weight:600; cursor:pointer;">
-            🔴 ${totalATraiter} élément${totalATraiter > 1 ? 's' : ''} à vérifier — Voir le détail ▾
+          <button type="button" id="btnATraiterToggle" style="width:100%; text-align:left; background:none; border:none; padding:10px 14px; color:${totalRouge ? 'var(--red)' : 'var(--amber)'}; font:inherit; font-weight:600; cursor:pointer;">
+            ${totalRouge && totalOrange ? `🔴 ${totalRouge} anomalie${totalRouge > 1 ? 's' : ''} · 🟠 ${totalOrange} à vérifier` : totalRouge ? `🔴 ${totalRouge} anomalie${totalRouge > 1 ? 's' : ''}` : `🟠 ${totalOrange} à vérifier`} — Voir le détail ▾
           </button>
           <div id="blocATraiterDetail" style="display:none; border-top:1px solid var(--border);">
             ${renderRelevesEnErreurBloc(relevesEnErreur)}
@@ -2093,9 +2126,9 @@
         </div>
       ` : `<div class="card" style="margin-bottom:16px; padding:16px; text-align:center; color:var(--green); font-weight:600;">✅ Rien à traiter pour le moment</div>`}
 
-      ${verrousJour.length ? `
-        <div class="section-titre">🔒 Accès aux quarts — aujourd'hui (${verrousJour.length})</div>
-        <div class="card" id="listeVerrous" style="margin-bottom:16px;">${verrousJour.map(renderVerrouJour).join('')}</div>
+      ${verrousActionnables.length ? `
+        <div class="section-titre">🔒 Accès aux quarts — aujourd'hui (${verrousActionnables.length})</div>
+        <div class="card" id="listeVerrous" style="margin-bottom:16px;">${verrousActionnables.map(renderVerrouJour).join('')}</div>
       ` : ''}
 
       <div class="section-titre">Quarts du jour</div>
@@ -2104,7 +2137,19 @@
         ${renderCarteQuartJour('1', quart1, historique, alertes, countsQuartsDuJour[quart1 ? quart1.id : ''] || [])}
         ${renderCarteQuartJour('2', quart2, historique, alertes, countsQuartsDuJour[quart2 ? quart2.id : ''] || [])}
       </div>
-      <button class="btn-nouveau" id="btnNouveauQuart">+ Nouveau quart FDJ</button>
+      ${(!quart1 || !quart2) ? `<button class="btn-nouveau" id="btnNouveauQuart">+ Nouveau quart FDJ</button>` : `
+        <!-- Retour de Frédéric (20/08/2026) : "pourquoi proposer + Nouveau
+             quart FDJ" quand Q1 ET Q2 existent déjà — masqué dans ce cas
+             plutôt que de laisser un bouton qui échouerait de toute façon
+             (contrainte UNIQUE site/date/quart). Un vrai "quart
+             exceptionnel" (Q3) demanderait d'élargir la contrainte CHECK
+             fdj_shifts_quart_check (aujourd'hui limitée à 1/2) ET
+             d'auditer chaque endroit qui suppose 2 quarts/jour
+             (FDJ_QUARTS_ATTENDUS_PAR_JOUR, continuité, caisse réelle F2,
+             comparabilité F3, rapports) — hors périmètre de ce lot, voir
+             Data Dictionary. -->
+        <div class="champ-note" style="text-align:center; margin:4px 0 16px;">Quart 1 et Quart 2 sont déjà créés pour aujourd'hui.</div>
+      `}
 
       <!-- F2 "Caisse réelle" (20/08/2026, cahier "NEXUS FDJ — Audit de
            consolidation", §4/§16) : contrôle jour/semaine lundi→dimanche
@@ -2117,7 +2162,8 @@
           <div><div style="font-size:12.5px; font-weight:700; color:var(--text);">Caisse réelle — semaine</div><div class="stock-tuile-sous" style="margin-top:2px;">${periodeSemaineCourante.label} · lundi → dimanche, jusqu'au détail de chaque quart</div></div>
         </div>
         <div style="margin-top:8px; font-family:var(--mono); font-size:18px; font-weight:700; color:var(--gold);">${totauxSemaineCourante ? fmtEuro(totauxSemaineCourante.caisse_reelle_totale) : '0,00 €'} enregistrés</div>
-        <div class="stock-tuile-sous">${totauxSemaineCourante ? totauxSemaineCourante.nb_quarts_valides : 0} quart${(totauxSemaineCourante && totauxSemaineCourante.nb_quarts_valides > 1) ? 's' : ''} finalisé${(totauxSemaineCourante && totauxSemaineCourante.nb_quarts_valides > 1) ? 's' : ''}${totauxSemaineCourante && (totauxSemaineCourante.nb_quarts - totauxSemaineCourante.nb_quarts_valides) > 0 ? ` · ${totauxSemaineCourante.nb_quarts - totauxSemaineCourante.nb_quarts_valides} brouillon${(totauxSemaineCourante.nb_quarts - totauxSemaineCourante.nb_quarts_valides) > 1 ? 's' : ''}` : ''}</div>
+        <div class="stock-tuile-sous">${capitaliserJour(new Date(periodeSemaineCourante.debut + 'T00:00:00'))} → ${capitaliserJour(new Date(aujourdhui + 'T00:00:00'))} : ${totauxSemaineCourante ? totauxSemaineCourante.nb_quarts_valides : 0}/${totauxSemaineCourante ? totauxSemaineCourante.nb_quarts : 0} quart${(totauxSemaineCourante && totauxSemaineCourante.nb_quarts_valides > 1) ? 's' : ''} finalisé${(totauxSemaineCourante && totauxSemaineCourante.nb_quarts_valides > 1) ? 's' : ''}${totauxSemaineCourante && (totauxSemaineCourante.nb_quarts - totauxSemaineCourante.nb_quarts_valides) > 0 ? ` · ${totauxSemaineCourante.nb_quarts - totauxSemaineCourante.nb_quarts_valides} brouillon${(totauxSemaineCourante.nb_quarts - totauxSemaineCourante.nb_quarts_valides) > 1 ? 's' : ''}` : ''}</div>
+        <div class="stock-tuile-sous" style="color:var(--gold); margin-top:4px;">Voir lundi → dimanche →</div>
       </div>
 
       <div class="section-titre">Stock &amp; mouvements</div>
@@ -2135,13 +2181,13 @@
         </button>
         <button type="button" class="stock-tuile" id="btnReappro" style="border-color:rgba(212,175,55,0.4); background:rgba(212,175,55,0.06);">
           <div class="stock-tuile-icone">🔁</div>
-          <div class="stock-tuile-titre">Bureau → Caisse</div>
-          <div class="stock-tuile-sous">Confier des carnets à la caissière — toujours non activés.</div>
+          <div class="stock-tuile-titre">Approvisionner la caisse</div>
+          <div class="stock-tuile-sous">Bureau → Caisse · carnets non activés</div>
         </button>
         <button type="button" class="stock-tuile" id="btnRetraitCaisse" style="border-color:rgba(212,175,55,0.4); background:rgba(212,175,55,0.06);">
           <div class="stock-tuile-icone">↩️</div>
-          <div class="stock-tuile-titre">Caisse → Bureau</div>
-          <div class="stock-tuile-sous">Retirer des jeux de la caisse — un déplacement, pas une annulation de vente.</div>
+          <div class="stock-tuile-titre">Retirer de la caisse</div>
+          <div class="stock-tuile-sous">Caisse → Bureau · stock total station inchangé</div>
         </button>
         <button type="button" class="stock-tuile" id="btnInventaireRef">
           <div class="stock-tuile-icone">📋</div>
@@ -2218,7 +2264,8 @@
         ouvrirDepuisParametresUrl(date, quart);
       });
     });
-    document.getElementById('btnNouveauQuart').addEventListener('click', () => ouvrirEditionNouveau());
+    const btnNouveauQuart = document.getElementById('btnNouveauQuart');
+    if (btnNouveauQuart) btnNouveauQuart.addEventListener('click', () => ouvrirEditionNouveau());
     document.getElementById('btnCaisseReelle').addEventListener('click', () => ouvrirCaisseReelleSemaine());
     document.getElementById('btnReappro').addEventListener('click', () => ouvrirReappro());
     document.getElementById('btnRetraitCaisse').addEventListener('click', () => ouvrirRetraitCaisse());
@@ -2501,11 +2548,20 @@
 
   // Bouton d'action de la carte — un seul verbe, jamais un jargon
   // technique ("déroger", "rapprocher"…), cf. cahier §7 même esprit.
+  // Retour de Frédéric (20/08/2026) : "Reprendre le brouillon / Terminer
+  // le stock final / Contrôler le quart / Voir le relevé Q1" — plus
+  // précis que "Reprendre le Quart X"/"Voir le Quart X", et distingue
+  // enfin le cas "stock de début fait, stock final pas encore" (jusqu'ici
+  // même libellé générique que tout autre brouillon) — `prog` était déjà
+  // passé à cette fonction mais jamais lu.
   function libelleActionCarteQuartJour(quart, shift, prog) {
     if (!shift) return `Démarrer Q${quart}`;
-    if (shift.statut !== 'valide') return `Reprendre le Quart ${quart}`;
+    if (shift.statut !== 'valide') {
+      if (prog.stockDebut.etat === 'termine' && prog.stockFin.etat !== 'termine') return 'Terminer le stock final';
+      return 'Reprendre le brouillon';
+    }
     if (shift.cash && shift.cash.statut === 'provisoire') return 'Contrôler le quart';
-    return `Voir le Quart ${quart}`;
+    return `Voir le relevé Q${quart}`;
   }
   function actionCarteQuartJour(quart, shift) {
     if (!shift) { ouvrirEditionNouveau(dateISO(), quart); return; }
