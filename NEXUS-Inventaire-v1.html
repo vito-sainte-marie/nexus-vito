@@ -18,6 +18,7 @@
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-auth.js"></script>
+<script src="nexus-header-nav.js"></script>
 <script src="nexus-desktop.js"></script>
 <script src="nexus-inventaire-moteur.js"></script>
 <script src="nexus-inventaire-plan-donnees.js"></script>
@@ -874,7 +875,7 @@
     // suivre le sens physique du parcours en boutique déjà enregistré en
     // base (colonne ordre_affichage, renseignée lors du seed initial).
     const { data, error } = await nexusClient
-      .from('inventaire_zone_produit').select('*, inventaire_categories(nom, ordre_affichage, jours_rotation), inventaire_zones!inner(code)')
+      .from('inventaire_zone_produit').select('*, inventaire_categories(nom, ordre_affichage, jours_rotation, regle_active, quarts_comptage, profil), inventaire_zones!inner(code)')
       .eq('inventaire_zones.code', zone).eq('actif', true)
       .order('sensible', { ascending: false })
       .order('ordre_affichage', { ascending: true });
@@ -903,13 +904,22 @@
         .select('produit_id, quarts_comptage, profil').eq('site', site).in('produit_id', liste.map(p => p.id));
       if (e2) { console.error('Chargement quarts de comptage par produit:', e2); }
       else {
-        const quartsParProduit = {};
-        regles.forEach(r => {
-          quartsParProduit[r.produit_id] = r.quarts_comptage;
-          if (r.profil) profilParProduit[r.produit_id] = r.profil;
-        });
+        // 20/08/2026 (Sprint "Catégorie porte les règles") : quarts_comptage/
+        // profil ne viennent plus seulement de la ligne produit — si le
+        // produit n'a pas de ligne propre, on retombe sur la règle de sa
+        // catégorie (déjà chargée ci-dessus dans le même select, Article 11)
+        // SI ELLE EST ACTIVE (regle_active), via la même cascade que le
+        // reste de NEXUS (NexusInventaireMoteur.regleEffectiveProduit) —
+        // jamais une deuxième logique de résolution réécrite ici à la main.
+        const reglesParProduit = {};
+        regles.forEach(r => { reglesParProduit[r.produit_id] = r; });
+        const M = typeof NexusInventaireMoteur !== 'undefined' ? NexusInventaireMoteur : null;
         liste = liste.filter(p => {
-          const quarts = quartsParProduit[p.id];
+          const cat = p.inventaire_categories;
+          const regleCategorie = (cat && cat.regle_active) ? cat : null;
+          const regle = M ? M.regleEffectiveProduit(reglesParProduit[p.id], regleCategorie) : reglesParProduit[p.id];
+          if (regle && regle.profil) profilParProduit[p.id] = regle.profil;
+          const quarts = regle && regle.quarts_comptage;
           return !quarts || quarts.includes(quartActuel);
         });
       }

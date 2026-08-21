@@ -43,20 +43,36 @@
   // Ingrédients nécessaires au moteur de sélection (nexus-inventaire-moteur.js
   // ::construirePlanComptage) — chaque requête lit une source déjà existante,
   // jamais une nouvelle vérité parallèle (Article 11).
+  //
+  // 20/08/2026 (Sprint "Catégorie porte les règles") : reglesParProduit
+  // n'est plus la lecture brute de inventaire_regles_produit — c'est
+  // désormais la règle EFFECTIVE de chaque produit (sa propre ligne si elle
+  // existe, sinon celle de sa catégorie si `regle_active`, voir
+  // NexusInventaireMoteur.construireReglesEffectivesParProduit). Le moteur
+  // de sélection (construirePlanComptage) ne change pas : il continue de
+  // recevoir un simple objet par produit, sans savoir d'où il vient.
   async function chargerIngredientsSelection(client, site, dateISO) {
-    const [{ data: produits, error: e1 }, { data: regles, error: e2 }, { data: derniers, error: e3 }, { data: alertes, error: e4 }] = await Promise.all([
-      client.from('inventaire_zone_produit').select('id, actif').eq('site', site).eq('actif', true),
+    const [{ data: produits, error: e1 }, { data: regles, error: e2 }, { data: derniers, error: e3 }, { data: alertes, error: e4 }, { data: reglesCategorie, error: e5 }] = await Promise.all([
+      client.from('inventaire_zone_produit').select('id, actif, categorie_id').eq('site', site).eq('actif', true),
       client.from('inventaire_regles_produit').select('produit_id, frequence_controle, delai_max_jours_sans_controle, quarts_comptage').eq('site', site),
       client.from('view_inventaire_dernier_controle_produit').select('produit_id, dernier_controle_le').eq('site', site),
       client.from('inventaire_alertes').select('produit_id').eq('site', site).gte('cree_le', isoMoinsJours(dateISO, FENETRE_ANOMALIE_RECENTE_JOURS)),
+      client.from('inventaire_categories').select('id, regle_active, frequence_controle, delai_max_jours_sans_controle, quarts_comptage').eq('site', site),
     ]);
     if (e1) console.error('Chargement produits (sélection plan):', e1);
     if (e2) console.error('Chargement règles produit (sélection plan):', e2);
     if (e3) console.error('Chargement derniers contrôles (sélection plan):', e3);
     if (e4) console.error('Chargement alertes récentes (sélection plan):', e4);
+    if (e5) console.error('Chargement règles catégorie (sélection plan):', e5);
 
-    const reglesParProduit = {};
-    (regles || []).forEach(r => { reglesParProduit[r.produit_id] = r; });
+    const reglesParProduitId = {};
+    (regles || []).forEach(r => { reglesParProduitId[r.produit_id] = r; });
+    const reglesParCategorieId = {};
+    (reglesCategorie || []).forEach(r => { reglesParCategorieId[r.id] = r; });
+    const M = global.NexusInventaireMoteur;
+    const reglesParProduit = M
+      ? M.construireReglesEffectivesParProduit(produits || [], reglesParProduitId, reglesParCategorieId)
+      : reglesParProduitId; // filet de sécurité si le moteur n'est pas chargé — comportement historique (règle produit brute uniquement)
     const dernierControleParProduit = {};
     (derniers || []).forEach(d => { dernierControleParProduit[d.produit_id] = d.dernier_controle_le; });
     const produitsAvecAnomalieRecente = Array.from(new Set((alertes || []).map(a => a.produit_id).filter(Boolean)));

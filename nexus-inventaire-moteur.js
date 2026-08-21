@@ -84,6 +84,51 @@
     return quarts.includes(quart);
   }
 
+  // ============================================================
+  // Sprint "Catégorie porte les règles" (20/08/2026, demande de Frédéric —
+  // "règle de catégorie par défaut + exceptions produit" : le manager règle
+  // une catégorie une fois, chaque produit hérite, seuls les produits qui
+  // dérogent portent leur propre ligne). Cascade à 3 niveaux :
+  //   1. inventaire_regles_produit (ligne du produit) — si elle existe,
+  //      prime TOUJOURS, quoi que porte sa catégorie (c'est l'exception).
+  //   2. inventaire_categories (ligne de la catégorie du produit) — ne
+  //      s'applique QUE si son interrupteur explicite `regle_active` est
+  //      vrai (jamais déduit de la simple présence d'une valeur — voir
+  //      migration inventaire_categories_regles_heritees).
+  //   3. Sinon `regle` reste null — comportement historique inchangé :
+  //      chaque fonction du moteur retombe déjà sur ses propres défauts
+  //      internes (DEFAUT_DELAI_MAX_JOURS_PAR_FAMILLE, produitEligibleQuart
+  //      qui traite l'absence de quarts_comptage comme "tous les quarts",
+  //      etc.). Aucune de ces fonctions n'est modifiée par ce sprint — elles
+  //      continuent de recevoir un simple objet `regle` par produit sans
+  //      jamais savoir s'il vient du produit ou de sa catégorie
+  //      (Article 11 : le moteur de sélection reste générique).
+  // ============================================================
+  function regleEffectiveProduit(regleProduit, regleCategorie) {
+    if (regleProduit) return Object.assign({}, regleProduit, { origineRegle: 'produit' });
+    if (regleCategorie && regleCategorie.regle_active) return Object.assign({}, regleCategorie, { origineRegle: 'categorie' });
+    return null;
+  }
+
+  // Version "toute la liste" de regleEffectiveProduit, pour construire en
+  // une passe la map produit_id -> règle effective que consomment déjà
+  // construirePlanComptage (reglesParProduit) et les écrans employé/manager.
+  // `produits` doit porter `id` et `categorie_id` ; `reglesParProduitId` et
+  // `reglesParCategorieId` sont des maps déjà indexées (par produit_id /
+  // categorie_id respectivement) — jamais reconstruites différemment à deux
+  // endroits (Article 11).
+  function construireReglesEffectivesParProduit(produits, reglesParProduitId, reglesParCategorieId) {
+    const reglesProduit = reglesParProduitId || {};
+    const reglesCategorie = reglesParCategorieId || {};
+    const resultat = {};
+    (produits || []).forEach(p => {
+      const regleCategorie = p.categorie_id ? reglesCategorie[p.categorie_id] : null;
+      const regle = regleEffectiveProduit(reglesProduit[p.id], regleCategorie);
+      if (regle) resultat[p.id] = regle;
+    });
+    return resultat;
+  }
+
   // Hash déterministe simple (djb2) d'une chaîne — sert uniquement à graine
   // un PRNG, jamais de la cryptographie. Toujours le même résultat pour la
   // même chaîne, sur n'importe quelle machine (critère de recette INV2-04 :
@@ -706,6 +751,7 @@
   global.NexusInventaireMoteur = {
     FAMILLES_CONTROLE, DEFAUT_DELAI_MAX_JOURS_PAR_FAMILLE,
     libelleRaisonSelection, joursEntreDates, delaiMaxJours, produitEligibleQuart,
+    regleEffectiveProduit, construireReglesEffectivesParProduit,
     hashDeterministe, prngDeterministe, tirerSurprisesDeterministe,
     construirePlanComptage, libelleTotalProduit,
     qualiteRapprochementProduit, libelleQualiteRapprochement, couverturePhysique,
