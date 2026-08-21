@@ -292,7 +292,16 @@
   let derniereReference = null; // dernière "Inventaire de référence" validée (point zéro physique) — voir chargerDerniereReference
   let exceptionCarnetEnCours = null; // game_id en attente d'un motif (voir demarrerExceptionCarnet)
   let motifExceptionChoisi = null;
-  // 'accueil' | 'ouverture' | 'carnet' | 'carnet-exception' | 'grattage' | 'tirages' | 'caisse' | 'resume'
+  // Réconciliation appro ↔ activation à la clôture (20/08/2026, demande de
+  // Frédéric : "une quantité saisie en appro doit toujours être rattachée à
+  // une activation existante ou provoquer la création d'une activation
+  // manquante") — voir chargerActivationsQuart, calculerAnomaliesApproActivation,
+  // verifierReconciliationApproActivation, creerActivationImplicite.
+  let activationsCarnetQuart = {}; // game_id -> carnets activés PENDANT ce quart (distinct de soldesCarnets, site-wide/tout historique)
+  let queueExceptionCloture = [];  // [{gameId, manque}] jeux sans stock non-activé suffisant pour couvrir l'appro saisi — voir demarrerExceptionsCloture
+  let indexExceptionCloture = 0;
+  let motifExceptionClotureChoisi = null;
+  // 'accueil' | 'ouverture' | 'carnet' | 'carnet-exception' | 'grattage' | 'cloture-exception' | 'tirages' | 'caisse' | 'resume'
   //
   // 09/08/2026 (demande de Frédéric) — le quart FDJ employé se scinde
   // maintenant en deux moments distincts, comme NEXUS Inventaire :
@@ -523,6 +532,20 @@
     const { data, error } = await nexusClient.from('fdj_stock_movements').select('type_mouvement, quantite, game_id, location_source_id, location_destination_id, created_at').eq('site', siteId);
     if (error) { console.error('Chargement mouvements stock FDJ:', error); return []; }
     return data || [];
+  }
+
+  // Carnets activés PENDANT ce quart précis, par jeu — 20/08/2026, demande
+  // de Frédéric (réconciliation appro ↔ activation). Distinct de
+  // chargerMouvementsStock (site-wide, tout l'historique, sert à calculer
+  // soldesCarnets) : ici on ne compte que les lignes fdj_stock_movements
+  // type_mouvement='activation' rattachées à shift_id=CE quart, pour
+  // comparer au nombre de carnets impliqué par l'appro saisi à la clôture.
+  async function chargerActivationsQuart(shiftId) {
+    const { data, error } = await nexusClient.from('fdj_stock_movements').select('game_id, quantite').eq('shift_id', shiftId).eq('type_mouvement', 'activation');
+    if (error) { console.error('Chargement activations du quart FDJ:', error); return {}; }
+    const totaux = {};
+    (data || []).forEach(m => { totaux[m.game_id] = (totaux[m.game_id] || 0) + (Number(m.quantite) || 0); });
+    return totaux;
   }
 
   // Dernière "Inventaire de référence" validée (09/08/2026, demande de
@@ -1253,6 +1276,167 @@
     });
   }
 
+  // ------------------------------------------------------------
+  // RÉCONCILIATION APPRO ↔ ACTIVATION — 20/08/2026, demande de Frédéric :
+  // "une quantité saisie en appro doit toujours être rattachée à une
+  // activation existante ou provoquer la création d'une activation
+  // manquante". Contrairement à l'exception carnet ci-dessus (déclenchée en
+  // DIRECT quand on active un carnet sans stock confié), cette réconciliation
+  // se déclenche à la CLÔTURE (Grattage → Tirages) en comparant, jeu par
+  // jeu, l'appro (tickets) saisi par l'employé aux activations réellement
+  // enregistrées PENDANT ce quart (activationsCarnetQuart) via la fonction
+  // pure NexusFdjMoteur.reconciliationApproActivation. Article 5 : si le
+  // conditionnement (tickets_par_carnet) est inconnu pour un jeu, NEXUS
+  // n'invente jamais d'activation — l'état 'conditionnement_inconnu' est
+  // filtré et ignoré silencieusement.
+  // ------------------------------------------------------------
+  function calculerAnomaliesApproActivation() {
+    return jeux
+      .map(j => {
+        const appro = (countsSaisie[j.id] && countsSaisie[j.id].appro) || 0;
+        const activesQuart = activationsCarnetQuart[j.id] || 0;
+        const reconciliation = NexusFdjMoteur.reconciliationApproActivation(appro, activesQuart, j.tickets_par_carnet);
+        return { jeu: j, reconciliation };
+      })
+      .filter(r => r.reconciliation.etat !== 'aucun_ecart' && r.reconciliation.etat !== 'conditionnement_inconnu');
+  }
+
+  // Activation implicite déduite de l'appro (20/08/2026). À la différence
+  // d'executerActivationCarnetInterne (activation EN DIRECT pendant le
+  // quart, qui ajoute ses tickets à l'appro via incrementerApproAutomatique),
+  // ici l'appro est déjà celui saisi par l'employé à la clôture —
+  // l'incrémenter une seconde fois créerait exactement le double comptage
+  // que cette fonctionnalité doit éviter, donc cette fonction n'y touche
+  // jamais. methode_identification='implicite_appro' (migration du
+  // 20/08/2026) distingue ces lignes des activations en direct dans le
+  // Journal et pour tout futur rapprochement. Trace systématique dans
+  // fdj_audit_log ("avec trace dans le Journal", demande de Frédéric).
+  async function creerActivationImplicite(gameId, quantiteCarnets, motifException) {
+    const caisse = emplacementParType('caisse');
+    const idempotencyKey = genererIdempotencyKey();
+    const { error } = await nexusClient.from('fdj_stock_movements').insert({
+      site: siteId, game_id: gameId, shift_id: shiftRow.id, type_mouvement: 'activation', quantite: quantiteCarnets,
+      location_source_id: caisse ? caisse.id : null, location_destination_id: caisse ? caisse.id : null,
+      methode_identification: 'implicite_appro', booklet_id: null, employee_id: employeeCourant.id,
+      idempotency_key: idempotencyKey,
+      justification: `Activation déduite automatiquement de l'appro saisi à la clôture (${shiftRow.date} · Quart ${shiftRow.quart}) — aucune activation correspondante enregistrée pendant le quart.${motifException ? ` Anomalie signalée : ${MOTIFS_EXCEPTION_CARNET.find(m => m.value === motifException)?.label || motifException}.` : ''}`,
+    });
+    if (error && error.code === '23505') return; // rejeu réseau idempotent — même lecture que les autres écritures FDJ (voir executerActivationCarnetInterne)
+    if (error) { console.error('Activation implicite depuis appro FDJ:', error); alert("Erreur d'enregistrement d'une activation détectée automatiquement à partir de l'appro. Réessayez."); return; }
+
+    if (motifException) {
+      // Même type d'alerte que l'exception carnet en direct
+      // (activation_sans_carnet_confie) — un seul panneau manager pour les
+      // deux origines, Article 11.
+      const { error: eAlerte } = await nexusClient.from('fdj_alertes').insert({
+        site: siteId, type: 'activation_sans_carnet_confie', shift_id: shiftRow.id, shift_precedent_id: null,
+        game_id: gameId, valeur_quart_precedent: null, valeur_saisie: 0,
+        employee_id: employeeCourant.id, motif: motifException,
+      });
+      if (eAlerte) console.error('Enregistrement alerte activation implicite sans stock FDJ:', eAlerte); // non bloquant
+    }
+
+    await nexusClient.from('fdj_audit_log').insert({
+      site: siteId, shift_id: shiftRow.id, entite_type: 'fdj_stock_movement', entite_id: null,
+      action: 'fdj_activation_implicite_appro', acteur_id: employeeCourant.id, motif: motifException || null,
+      nouvelle_valeur: { game_id: gameId, quantite_carnets: quantiteCarnets, methode_identification: 'implicite_appro' },
+    });
+  }
+
+  // Écran séquentiel (un jeu à la fois) pour les activations implicites SANS
+  // stock non-activé suffisant en caisse — 20/08/2026, demande de Frédéric :
+  // "Aucun carnet non activé n'est actuellement enregistré en caisse. D'où
+  // provient ce carnet ?" Réutilise le motif-grid et la liste
+  // MOTIFS_EXCEPTION_CARNET déjà utilisés par renderExceptionCarnet
+  // (Article 11 : même liste de motifs pour les deux origines d'exception,
+  // au lieu d'en dupliquer une seconde quasi identique).
+  function demarrerExceptionsCloture(queue) {
+    queueExceptionCloture = queue;
+    indexExceptionCloture = 0;
+    motifExceptionClotureChoisi = null;
+    phase = 'cloture-exception';
+    renderExceptionCloture();
+  }
+
+  function renderExceptionCloture() {
+    const item = queueExceptionCloture[indexExceptionCloture];
+    if (!item) { phase = 'tirages'; renderTirages(); return; }
+    const jeu = jeux.find(j => j.id === item.gameId);
+    document.getElementById('titre').textContent = 'Aucun carnet non activé en caisse';
+    document.getElementById('sousTitre').textContent = `${indexExceptionCloture + 1} / ${queueExceptionCloture.length}`;
+    document.getElementById('content').innerHTML = `
+      <div class="etat-banner" style="border-color:var(--amber); color:var(--amber);">⚠️ Aucun carnet non activé n'est actuellement enregistré en caisse pour ${jeu ? jeu.nom : ''}, mais l'appro saisi correspond à ${item.manque} carnet${item.manque > 1 ? 's' : ''} de plus que ce que NEXUS a retrouvé. D'où provient ${item.manque > 1 ? 'ces carnets' : 'ce carnet'} ?</div>
+      <div class="motif-grid" id="grilleMotifsCloture">
+        ${MOTIFS_EXCEPTION_CARNET.map(m => `
+          <div class="motif-item" data-motif="${m.value}">
+            <div class="pastille"></div>
+            <div>${m.label}</div>
+          </div>
+        `).join('')}
+      </div>
+      <button class="btn-primary" id="btnContinuerExceptionCloture" disabled>Confirmer</button>
+    `;
+    document.querySelectorAll('#grilleMotifsCloture .motif-item').forEach(el => {
+      el.addEventListener('click', () => {
+        motifExceptionClotureChoisi = el.dataset.motif;
+        document.querySelectorAll('#grilleMotifsCloture .motif-item').forEach(x => x.classList.toggle('selectionne', x.dataset.motif === motifExceptionClotureChoisi));
+        document.getElementById('btnContinuerExceptionCloture').disabled = false;
+      });
+    });
+    document.getElementById('btnContinuerExceptionCloture').addEventListener('click', async () => {
+      const btn = document.getElementById('btnContinuerExceptionCloture');
+      btn.disabled = true; btn.textContent = 'Enregistrement…';
+      await creerActivationImplicite(item.gameId, item.manque, motifExceptionClotureChoisi);
+      indexExceptionCloture++;
+      motifExceptionClotureChoisi = null;
+      renderExceptionCloture();
+    });
+  }
+
+  // Point d'entrée appelé par btnSuiteGrattage — retourne 'continuer' (rien
+  // à faire ou déjà traité), 'annule' (l'employé a choisi "Corriger l'appro",
+  // reste sur Grattage) ou 'exception' (redirigé vers
+  // demarrerExceptionsCloture, qui ramènera lui-même à Tirages une fois la
+  // queue vidée). Même philosophie que le contrôle "stock final manquant"
+  // juste au-dessus dans btnSuiteGrattage : un seul confirm() combiné pour
+  // tous les jeux concernés, jamais une popup par jeu.
+  async function verifierReconciliationApproActivation() {
+    const anomalies = calculerAnomaliesApproActivation();
+    const nonCouverts = anomalies.filter(a => a.reconciliation.etat === 'appro_non_couvert');
+    const enExces = anomalies.filter(a => a.reconciliation.etat === 'appro_en_exces');
+    const nonMultiples = anomalies.filter(a => a.reconciliation.etat === 'appro_non_multiple');
+
+    if (enExces.length || nonMultiples.length) {
+      const lignes = [];
+      nonMultiples.forEach(a => lignes.push(`• ${a.jeu.nom} : l'appro saisi (${a.reconciliation.appro} tickets) ne correspond pas au conditionnement d'un carnet complet (${a.jeu.tickets_par_carnet} tickets/carnet). Vérifiez la quantité.`));
+      enExces.forEach(a => lignes.push(`• ${a.jeu.nom} : ${a.reconciliation.carnetsActives} carnet(s) activé(s) ce quart pour seulement ${a.reconciliation.appro} tickets d'appro saisis — écart à vérifier.`));
+      alert(`À vérifier avant de continuer :\n${lignes.join('\n')}`);
+    }
+
+    if (!nonCouverts.length) return 'continuer';
+
+    const lignes = nonCouverts.map(a => `• ${a.jeu.nom} : ${a.reconciliation.appro} tickets en appro = ${a.reconciliation.carnetsImpliques} carnet${a.reconciliation.carnetsImpliques > 1 ? 's' : ''} non retrouvé(s) en activation.`);
+    const message = `Activation non enregistrée détectée pour ${nonCouverts.length} jeu${nonCouverts.length > 1 ? 'x' : ''} :\n${lignes.join('\n')}\n\nNEXUS n'a trouvé aucune activation correspondante pendant ce quart.\n\nConfirmer l'activation de ${nonCouverts.length > 1 ? 'ces carnets' : 'ce carnet'} ?`;
+    if (!confirm(message)) return 'annule';
+
+    const enAttenteExceptions = [];
+    for (const a of nonCouverts) {
+      const solde = soldesCarnets[a.jeu.id] || { nonActives: 0 };
+      const manque = a.reconciliation.carnetsImpliques;
+      const disponible = Math.max(solde.nonActives, 0);
+      const couvert = Math.min(manque, disponible);
+      const nonCouvert = manque - couvert;
+      if (couvert > 0) {
+        await creerActivationImplicite(a.jeu.id, couvert, null);
+        solde.nonActives = disponible - couvert;
+        soldesCarnets[a.jeu.id] = solde;
+      }
+      if (nonCouvert > 0) enAttenteExceptions.push({ gameId: a.jeu.id, manque: nonCouvert });
+    }
+    if (enAttenteExceptions.length) { demarrerExceptionsCloture(enAttenteExceptions); return 'exception'; }
+    return 'continuer';
+  }
+
   // V1 sans scanner ni numéro de carnet saisi → methode_identification =
   // 'quantite', booklet_id reste null (aucun carnet précis identifié).
   // L'activation se fait "sur place" en caisse : source et destination
@@ -1370,8 +1554,24 @@
   async function demarrerCloture() {
     document.getElementById('content').innerHTML = '<div class="loading">Chargement des jeux…</div>';
     if (!jeux.length) jeux = await chargerJeux();
+    if (!emplacements.length) emplacements = await chargerEmplacements();
     const { data: existants } = await nexusClient.from('fdj_shift_counts').select('*').eq('shift_id', shiftRow.id);
     (existants || []).forEach(c => { countsSaisie[c.game_id] = { stock_initial: c.stock_initial, appro: c.appro, stock_final: c.stock_final }; });
+    // Réconciliation appro ↔ activation (20/08/2026) : besoin des activations
+    // DE CE QUART (activationsCarnetQuart) et du solde non-activé COURANT
+    // (soldesCarnets, même calcul que "Activer un carnet") pour distinguer,
+    // à btnSuiteGrattage, une activation manquante couverte par du stock
+    // confié en caisse d'une activation manquante sans aucun stock (voir
+    // verifierReconciliationApproActivation / demarrerExceptionsCloture).
+    const [mouvementsCloture, referenceCloture, activationsQuart] = await Promise.all([
+      chargerMouvementsStock(), chargerDerniereReference(), chargerActivationsQuart(shiftRow.id),
+    ]);
+    derniereReference = referenceCloture;
+    activationsCarnetQuart = activationsQuart;
+    const caisseCloture = emplacementParType('caisse');
+    const bureauCloture = emplacementParType('bureau');
+    const bloqueCloture = emplacementParType('bloque');
+    soldesCarnets = NexusFdjMoteur.soldesCarnetsAvecReference(mouvementsCloture, { caisse: caisseCloture ? caisseCloture.id : null, bureau: bureauCloture ? bureauCloture.id : null, bloque: bloqueCloture ? bloqueCloture.id : null }, derniereReference);
     // Reprise d'un brouillon déjà enregistré côté serveur (20/08/2026,
     // cahier "FDJ - Audit de consolidation", FDJ-02 : "L'employé qui revient
     // sur le même quart retrouve ses valeurs"). Avant ce jour, seuls les
@@ -1462,7 +1662,7 @@
       <button class="btn-ghost" id="btnRetourAccueil1">Retour</button>
     `;
     wireJeuInputs();
-    document.getElementById('btnSuiteGrattage').addEventListener('click', () => {
+    document.getElementById('btnSuiteGrattage').addEventListener('click', async () => {
       // Case vide ≠ zéro deviné (09/08/2026, demande de Frédéric) : un stock
       // final laissé vide peut aussi bien vouloir dire "je n'ai pas encore
       // compté ce jeu" que "il n'en reste plus, j'ai oublié de taper 0" —
@@ -1478,6 +1678,15 @@
         manquants.forEach(j => { countsSaisie[j.id].stock_final = 0; });
         sauvegarderDraft();
       }
+      // Réconciliation appro ↔ activation (20/08/2026, demande de Frédéric)
+      // — même logique "un seul prompt combiné" que ci-dessus, voir
+      // verifierReconciliationApproActivation.
+      const btnSuite = document.getElementById('btnSuiteGrattage');
+      btnSuite.disabled = true;
+      const resultat = await verifierReconciliationApproActivation();
+      if (btnSuite) btnSuite.disabled = false;
+      if (resultat === 'annule') return; // reste sur Grattage, l'employé corrige l'appro
+      if (resultat === 'exception') return; // demarrerExceptionsCloture a déjà changé d'écran
       phase = 'tirages'; renderTirages();
     });
     document.getElementById('btnRetourAccueil1').addEventListener('click', () => { phase = 'accueil'; renderAccueil(); });

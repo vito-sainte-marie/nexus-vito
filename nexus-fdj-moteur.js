@@ -548,6 +548,61 @@
   }
 
   // ------------------------------------------------------------
+  // RÉCONCILIATION APPRO ↔ ACTIVATION, EN QUANTITÉ — 20/08/2026, demande
+  // de Frédéric : "une quantité saisie en appro doit toujours être
+  // rattachée à une activation existante ou provoquer la création d'une
+  // activation manquante [...] il ne doit pas faire activation +100 puis
+  // appro manuel +100, sinon tu comptes 200 tickets alors qu'un seul
+  // carnet est entré en jeu."
+  //
+  // Distincte de `lignesApproNonTracees` ci-dessus, qui répond à une
+  // question différente ("existe-t-il AU MOINS UNE activation pour ce
+  // quart+jeu ?", présence seule) : cette fonction compare la QUANTITÉ.
+  // Elle détecte donc aussi le cas que `lignesApproNonTracees` ne peut
+  // pas voir — un appro EN EXCÈS alors qu'une activation existe déjà
+  // (double comptage), pas seulement une activation totalement absente.
+  //
+  // `appro` : tickets saisis pour ce (shift, jeu). `carnetsActives` :
+  // somme des `quantite` des mouvements type_mouvement='activation' pour
+  // CE shift_id ET ce game_id (déjà filtrés par l'appelant — Article 11,
+  // cette fonction ne sait pas interroger Supabase). `ticketsParCarnet` :
+  // jeu.tickets_par_carnet, ou null si inconnu.
+  //
+  // Retourne { etat, appro, carnetsActives, ticketsActives, ecartTickets,
+  // carnetsImpliques }. `etat` :
+  //   'aucun_ecart'            — rien à faire, appro = 0 ou déjà couvert.
+  //   'conditionnement_inconnu' — jeu sans tickets_par_carnet : "il ne
+  //      faut surtout pas inventer une activation" (Frédéric) — jamais de
+  //      confirmation proposée dans ce cas, l'appro reste tel quel.
+  //   'appro_non_multiple'     — l'appro ne correspond à aucun nombre
+  //      entier de carnets ("Appro = 130" avec des carnets de 100) —
+  //      avertissement seul, aucune activation ne peut être déduite d'un
+  //      reste.
+  //   'appro_non_couvert'      — l'appro implique plus de carnets que
+  //      d'activations enregistrées : cas central du retour de Frédéric,
+  //      propose la création de `carnetsImpliques` activation(s)
+  //      manquante(s), SOUS CONFIRMATION EXPLICITE (jamais silencieux).
+  //   'appro_en_exces'         — l'inverse : plus d'activations que ce
+  //      que l'appro justifie (le double-comptage à éviter) — signalé,
+  //      jamais corrigé seul (NEXUS ne sait pas laquelle des deux saisies
+  //      est en trop).
+  function reconciliationApproActivation(appro, carnetsActives, ticketsParCarnet) {
+    const approNum = Number(appro) || 0;
+    const activesNum = Number(carnetsActives) || 0;
+    if (approNum <= 0) return { etat: 'aucun_ecart', appro: approNum, carnetsActives: activesNum, ticketsActives: null, ecartTickets: 0, carnetsImpliques: 0 };
+    if (!ticketsParCarnet) return { etat: 'conditionnement_inconnu', appro: approNum, carnetsActives: activesNum, ticketsActives: null, ecartTickets: null, carnetsImpliques: null };
+    const ticketsParCarnetNum = Number(ticketsParCarnet);
+    const ticketsActives = activesNum * ticketsParCarnetNum;
+    if (approNum % ticketsParCarnetNum !== 0) {
+      return { etat: 'appro_non_multiple', appro: approNum, carnetsActives: activesNum, ticketsActives, ecartTickets: approNum - ticketsActives, carnetsImpliques: null };
+    }
+    const carnetsAppro = approNum / ticketsParCarnetNum;
+    if (carnetsAppro === activesNum) return { etat: 'aucun_ecart', appro: approNum, carnetsActives: activesNum, ticketsActives, ecartTickets: 0, carnetsImpliques: 0 };
+    if (carnetsAppro > activesNum) return { etat: 'appro_non_couvert', appro: approNum, carnetsActives: activesNum, ticketsActives, ecartTickets: approNum - ticketsActives, carnetsImpliques: carnetsAppro - activesNum };
+    return { etat: 'appro_en_exces', appro: approNum, carnetsActives: activesNum, ticketsActives, ecartTickets: approNum - ticketsActives, carnetsImpliques: activesNum - carnetsAppro };
+  }
+
+  // ------------------------------------------------------------
   // ROTATION / AUTONOMIE / TICKETS RESTANTS — 14/08/2026, demande de
   // Frédéric ("État du stock FDJ, refonte lecture managériale") : retrouver
   // le visuel opérationnel qu'il avait sur papier (stock caisse, rotation,
@@ -1262,7 +1317,7 @@
     calculerCandidatsFdj,
     quartPrecedentAttendu, quartSuivant, chaineContinuite,
     chaineInterrompueDynamique, ecartsContinuiteStock, ecartsContinuiteAAppliquer,
-    approNonTraceParJeu, lignesApproNonTracees,
+    approNonTraceParJeu, lignesApproNonTracees, reconciliationApproActivation,
     minutesDepuisMinuit, quartDansFenetreAcces, evaluerAccesQuart,
     etatIntegriteFdj,
     FDJ_ROTATION_FENETRE_JOURS_DEFAUT, FDJ_SEUIL_AUTONOMIE_VIGILANCE_JOURS,
