@@ -265,6 +265,30 @@
     return data || [];
   }
 
+  // Signaux "État de confiance" (audit "NEXUS Inventaire Produit — Chaîne
+  // de données", 21/08/2026, §7.1/§8.1) : deux booléens site-larges,
+  // jamais un recalcul — un simple comptage de ce qui a déjà été persisté
+  // par le flux d'import/rapprochement Decenium existant (Sprint 5/7,
+  // comparerVentesQuart). "Démarré" = au moins une ligne importée un jour ;
+  // "fiable" = au moins un produit déjà réellement rapproché avec succès.
+  // Volontairement SANS fenêtre de date : la maturité de la chaîne est une
+  // propriété du site dans le temps, pas de la période consultée à
+  // l'écran — sinon changer de période ferait "régresser" un site mature.
+  // Le calcul du niveau lui-même reste dans
+  // nexus-inventaire-moteur.js::evaluerMaturiteInventaire.
+  async function chargerSignauxMaturiteInventaire(client, site) {
+    const [{ count: nbImports, error: e1 }, { data: rapprochements, error: e2 }] = await Promise.all([
+      client.from('inventaire_ventes_import').select('id', { count: 'exact', head: true }).eq('site', site),
+      client.from('inventaire_rapprochements').select('statut_validation').eq('site', site).eq('statut_validation', 'fiable').limit(1),
+    ]);
+    if (e1) console.error('Chargement imports Decenium (état de confiance):', e1);
+    if (e2) console.error('Chargement rapprochements fiables (état de confiance):', e2);
+    return {
+      deceniumImporte: (nbImports || 0) > 0,
+      rapprochementFiable: !!(rapprochements && rapprochements.length > 0),
+    };
+  }
+
   global.NexusInventaireManagerDonnees = {
     quartDuMoment, chargerQuart, chargerAlertesOuvertesQuart, chargerComptagesQuart,
     chargerProduitsSensibles, chargerTousProduitsActifsSite, chargerHorairesStation,
@@ -274,5 +298,6 @@
     chargerHistoriqueEcartsRecents, chargerCatalogueProduitsPourVentes,
     chargerCategoriesProduitsParId, chargerComptageActuel, chargerImpactCorrection,
     chargerRapprochementsQuart, chargerSeuilsEcartCategorie,
+    chargerSignauxMaturiteInventaire,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

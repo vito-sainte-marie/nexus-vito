@@ -868,6 +868,46 @@
     return { minutesEstimees, nbQuartsHistorique: exploitables.length, secParProduitMoyen: Math.round(secParProduitMoyen * 10) / 10 };
   }
 
+  // Bloc "État de confiance" (audit développeur "NEXUS Inventaire Produit —
+  // Chaîne de données", 21/08/2026, §7.1 "Bloc 1" + §8.1 "Cycle de maturité
+  // visible") : un badge honnête de maturité de la chaîne de contrôle
+  // Inventaire, jamais un indicateur de fiabilité fabriqué. Chaque niveau ne
+  // peut être atteint que si le niveau précédent est réellement observé
+  // dans des données déjà chargées ailleurs sur cet écran (Article 11 —
+  // aucune nouvelle source de vérité : couverturePhysique ci-dessus,
+  // Sprint 5 ; import/rapprochement Decenium persistés, Sprint 5/7).
+  // SEUIL_COUVERTURE_BASE_PHYSIQUE=80 : choix pragmatique assumé pour
+  // distinguer "on commence à compter" de "la base terrain est
+  // suffisamment large pour être comparée à une théorie" — ce n'est pas un
+  // calcul scientifique (Article 5), documenté comme tel.
+  const SEUIL_COUVERTURE_BASE_PHYSIQUE_MATURITE = 80;
+  const LIBELLE_MATURITE_INVENTAIRE = {
+    initialisation: 'Initialisation',
+    observation_terrain: 'Observation terrain',
+    base_physique_en_construction: 'Base physique en construction',
+    rapprochement_provisoire: 'Rapprochement provisoire',
+    controle_fiable: 'Contrôle fiable',
+  };
+  function evaluerMaturiteInventaire(ctx) {
+    const catalogueConfigure = !!(ctx && ctx.catalogueConfigure);
+    const couverturePourcentage = ctx && Number.isFinite(ctx.couverturePourcentage) ? ctx.couverturePourcentage : null;
+    const deceniumImporte = !!(ctx && ctx.deceniumImporte);
+    const rapprochementFiable = !!(ctx && ctx.rapprochementFiable);
+    let niveau;
+    if (!catalogueConfigure || couverturePourcentage == null || couverturePourcentage === 0) {
+      niveau = 'initialisation';
+    } else if (couverturePourcentage < SEUIL_COUVERTURE_BASE_PHYSIQUE_MATURITE) {
+      niveau = 'observation_terrain';
+    } else if (!deceniumImporte) {
+      niveau = 'base_physique_en_construction';
+    } else if (!rapprochementFiable) {
+      niveau = 'rapprochement_provisoire';
+    } else {
+      niveau = 'controle_fiable';
+    }
+    return { niveau, libelle: LIBELLE_MATURITE_INVENTAIRE[niveau] };
+  }
+
   global.NexusInventaireMoteur = {
     FAMILLES_CONTROLE, DEFAUT_DELAI_MAX_JOURS_PAR_FAMILLE,
     libelleRaisonSelection, joursEntreDates, delaiMaxJours, produitEligibleQuart,
@@ -885,5 +925,6 @@
     TYPES_MOUVEMENT, infoTypeMouvement, libelleTypeMouvement, mouvementImpacteStockGlobal,
     ACTIONS_MOUVEMENT_PAR_PROFIL, actionsMouvementPourProfil,
     evaluerConfigurationInventaire, identifierCategoriesAOptimiser, estimerTempsProchainInventaire,
+    evaluerMaturiteInventaire,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

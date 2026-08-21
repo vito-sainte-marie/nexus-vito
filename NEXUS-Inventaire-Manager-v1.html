@@ -687,6 +687,10 @@
     return NexusInventaireManagerDonnees.chargerRapprochementsQuart(nexusClient, quartId);
   }
 
+  async function chargerSignauxMaturiteInventaire(site) {
+    return NexusInventaireManagerDonnees.chargerSignauxMaturiteInventaire(nexusClient, site);
+  }
+
   async function chargerAlertesOuvertesPeriode(site, debut, fin) {
     return NexusInventaireManagerDonnees.chargerAlertesOuvertesPeriode(nexusClient, site, debut, fin);
   }
@@ -2271,9 +2275,25 @@
   // recalculé à chaque fois par generate_inventory_review, jamais une
   // valeur figée : si un manager rouvre une clôture ou change une décision
   // après coup, la synthèse suivante reflète l'état réel des données.
-  function renderEtatPeriodeCard(review, bornes) {
+  // Vérité des données (audit 21/08/2026, §1/§8 — I01/I02/I03) : un "0" ne
+  // doit apparaître que si NEXUS a réellement calculé un écart nul, jamais
+  // par défaut faute de donnée. Deux gardes, toutes deux dérivées de
+  // données déjà chargées (Article 11, aucun second calcul) :
+  //  - aucunComptageExploitable (review.totalCounts === 0) : aucun
+  //    comptage terrain enregistré sur la période -> écarts/décisions non
+  //    calculables, pas "à zéro".
+  //  - demarqueEstimable (maturiteInventaire.niveau === 'controle_fiable') :
+  //    la "démarque potentielle" mélange par construction (RPC
+  //    generate_inventory_review) tous les types d'alertes, pas seulement
+  //    celles réellement rapprochées à Decenium — tant qu'aucun
+  //    rapprochement "fiable" n'a jamais été persisté sur ce site
+  //    (inventaire_rapprochements), afficher un montant serait une fausse
+  //    précision économique.
+  function renderEtatPeriodeCard(review, bornes, maturiteInventaire) {
     const debutFmt = new Date(bornes.debut + 'T00:00:00').toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' });
     const finFmt = new Date(bornes.fin + 'T00:00:00').toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' });
+    const aucunComptageExploitable = review.totalCounts === 0;
+    const demarqueEstimable = maturiteInventaire && maturiteInventaire.niveau === 'controle_fiable';
     return `
       <div class="synthese-card">
         <div class="synthese-titre">État de la période</div>
@@ -2281,10 +2301,14 @@
         <div class="synthese-ligne"><span>Comptages enregistrés</span><span class="synthese-valeur">${review.totalCounts}</span></div>
         <div class="synthese-ligne"><span>Catégories terminées</span><span class="synthese-valeur ${review.completedCategories ? 'green' : ''}">${review.completedCategories}</span></div>
         <div class="synthese-ligne"><span>Comptages manquants</span><span class="synthese-valeur ${review.missingCounts ? 'amber' : 'green'}">${review.missingCounts}</span></div>
+        ${aucunComptageExploitable ? `
+        <div class="synthese-ligne"><span>Écarts</span><span class="synthese-valeur">Non calculables — aucun inventaire exploitable</span></div>
+        ` : `
         <div class="synthese-ligne"><span>Écarts détectés</span><span class="synthese-valeur ${review.totalDiscrepancies ? 'amber' : 'green'}">${review.totalDiscrepancies}</span></div>
         <div class="synthese-ligne"><span>Écarts encore ouverts</span><span class="synthese-valeur ${review.openDiscrepancies ? 'amber' : 'green'}">${review.openDiscrepancies}</span></div>
         <div class="synthese-ligne"><span>Décisions prises</span><span class="synthese-valeur">${review.resolvedDiscrepancies}</span></div>
-        <div class="synthese-ligne"><span>Démarque potentielle estimée</span><span class="synthese-valeur ${review.estimatedValue ? 'amber' : ''}">${fmtEuros(review.estimatedValue)}</span></div>
+        `}
+        <div class="synthese-ligne"><span>Démarque potentielle estimée</span><span class="synthese-valeur ${demarqueEstimable && review.estimatedValue ? 'amber' : ''}">${demarqueEstimable ? fmtEuros(review.estimatedValue) : 'Non estimable — Decenium non rapproché'}</span></div>
       </div>
     `;
   }
@@ -2292,7 +2316,12 @@
   // "À terminer" en vue période : catégories qui ont encore des écarts
   // ouverts ou n'ont pas atteint leur nombre de comptages attendu sur la
   // période — pas une liste produit par produit (déjà disponible au jour).
-  function renderCategoriesPeriode(categorySummary) {
+  // "L'absence de données n'est pas une preuve de stabilité" (audit
+  // 21/08/2026, §8) : si aucun comptage terrain n'existe sur la période,
+  // "aucune catégorie instable" serait une conclusion non gagnée — NEXUS ne
+  // sait simplement pas.
+  function renderCategoriesPeriode(categorySummary, aucunComptageExploitable) {
+    if (aucunComptageExploitable) return '<div class="empty">Analyse de stabilité indisponible — aucun comptage exploitable sur cette période.</div>';
     const concernees = (categorySummary || []).filter(c => c.discrepancies > 0 || c.openAlerts > 0);
     if (concernees.length === 0) return '<div class="empty">Aucune catégorie instable sur cette période.</div>';
     return `<div class="card">${concernees.map(c => `
@@ -2448,6 +2477,33 @@
   // 18/08/2026), chargée une fois par affichage manager comme les autres
   // synthèses de cet écran — jamais un second calcul ici, uniquement du
   // rendu.
+  // Bloc 1 — État de confiance (audit 21/08/2026, §7.1) : le tout premier
+  // élément affiché sur cet écran, avant même la couverture physique.
+  // Simple rendu du niveau déjà calculé par
+  // NexusInventaireMoteur.evaluerMaturiteInventaire — jamais un second
+  // calcul ici (Article 11).
+  const CLASSE_MATURITE = {
+    initialisation: '', observation_terrain: '', base_physique_en_construction: 'amber',
+    rapprochement_provisoire: 'amber', controle_fiable: 'green',
+  };
+  const TEXTE_MATURITE = {
+    initialisation: "Catalogue configuré, aucun comptage terrain exploitable pour l'instant. NEXUS ne calcule encore ni écart fiable ni démarque.",
+    observation_terrain: 'Les premiers comptages terrain arrivent — la couverture physique est encore trop faible pour un contrôle fiable.',
+    base_physique_en_construction: "Base terrain suffisante, mais le rapprochement Decenium n'a pas encore démarré.",
+    rapprochement_provisoire: 'Rapprochement Decenium démarré, mais pas encore assez de lignes validées "fiable" pour un contrôle complet.',
+    controle_fiable: 'Chaîne complète : terrain, mouvements et rapprochement Decenium sont exploitables.',
+  };
+  function renderEtatConfiance(maturite) {
+    if (!maturite) return '';
+    return `
+      <div class="synthese-card" style="margin-bottom:10px;">
+        <div class="synthese-titre">État de confiance</div>
+        <div class="synthese-ligne"><span>Maturité de la chaîne</span><span class="synthese-valeur ${CLASSE_MATURITE[maturite.niveau] || ''}">${maturite.libelle}</span></div>
+        <div class="param-note" style="padding-top:6px;">${TEXTE_MATURITE[maturite.niveau] || ''}</div>
+      </div>
+    `;
+  }
+
   function renderCouverturePhysique(c7, c14, c30) {
     if (!c7 || !c14 || !c30) return '';
     const ligne = (label, c) => `
@@ -2484,7 +2540,7 @@
 
   function renderTout(ctx) {
     dernierCtx = ctx;
-    const { alertesOuvertes, sensiblesNonComptesDetail, employesSite, modesAveugleActifs, jaugeageActif, synthese, etat, produitsSensiblesTotal, decisionsQuart, review, bornes, alertesPeriode, decisionsPeriode, couverture7, couverture14, couverture30, qualiteRapprochement } = ctx;
+    const { alertesOuvertes, sensiblesNonComptesDetail, employesSite, modesAveugleActifs, jaugeageActif, synthese, etat, produitsSensiblesTotal, decisionsQuart, review, bornes, alertesPeriode, decisionsPeriode, couverture7, couverture14, couverture30, qualiteRapprochement, maturiteInventaire } = ctx;
     const modesMap = Object.fromEntries(modesAveugleActifs.map(m => [m.employee_id, m]));
 
     // Vue par exception (02/08/2026, section 4 du cahier des charges) :
@@ -2517,6 +2573,7 @@
       : (alertesPeriode || []);
 
     document.getElementById('content').innerHTML = `
+      ${renderEtatConfiance(maturiteInventaire)}
       ${renderSelecteurPeriode()}
       ${renderCouverturePhysique(couverture7, couverture14, couverture30)}
       ${periodeSelectionnee === 'jour' ? `
@@ -2584,16 +2641,20 @@
 
       ${quartRow && decisionsQuart ? renderResumeDecisionsQuart(decisionsQuart) : (quartRow ? '<div class="section-titre">Décisions du quart</div><div class="empty">Aucune décision enregistrée pour ce quart.</div>' : '')}
       ` : `
-      ${review ? renderEtatPeriodeCard(review, bornes) : '<div class="loading">Calcul de la synthèse…</div>'}
+      ${review ? renderEtatPeriodeCard(review, bornes, maturiteInventaire) : '<div class="loading">Calcul de la synthèse…</div>'}
 
       <div class="section-titre">À terminer</div>
-      ${review ? renderCategoriesPeriode(review.categorySummary) : ''}
+      ${review ? renderCategoriesPeriode(review.categorySummary, review.totalCounts === 0) : ''}
 
       <div class="section-titre-action-row">
         <div class="section-titre">À contrôler</div>
         <button class="btn-inline-lien" id="btnToggleException">${filtreExceptionActif ? 'Afficher tous les écarts' : 'Uniquement les exceptions'}</button>
       </div>
-      ${alertesPeriodeAffichees.length === 0 ? '<div class="empty">Aucun écart ouvert sur cette période.</div>' : alertesPeriodeAffichees.map(a => renderAlerteCard(a)).join('')}
+      ${alertesPeriodeAffichees.length === 0
+        ? (review && review.totalCounts === 0
+          ? '<div class="empty">Aucune exception calculable pour le moment — aucun inventaire exploitable sur cette période.</div>'
+          : '<div class="empty">Aucun écart ouvert sur cette période.</div>')
+        : alertesPeriodeAffichees.map(a => renderAlerteCard(a)).join('')}
 
       ${renderResumeDecisionsQuart(decisionsPeriode || [], 'Décisions de la période')}
       ${review ? renderProduitsRecurrents(review.repeatedProducts) : ''}
@@ -2881,11 +2942,21 @@
     // du jour réellement affiché (dateSelectionnee), pas sur "aujourd'hui" :
     // consulter la couverture d'une date passée reste honnête vis-à-vis de
     // ce qui était réellement observé à ce moment-là.
-    const [couverture7, couverture14, couverture30] = await Promise.all([
+    const [couverture7, couverture14, couverture30, signauxMaturite] = await Promise.all([
       NexusInventairePlanDonnees.chargerCouverturePhysique(nexusClient, siteId, dateSelectionnee, 7),
       NexusInventairePlanDonnees.chargerCouverturePhysique(nexusClient, siteId, dateSelectionnee, 14),
       NexusInventairePlanDonnees.chargerCouverturePhysique(nexusClient, siteId, dateSelectionnee, 30),
+      chargerSignauxMaturiteInventaire(siteId),
     ]);
+    // Bloc "État de confiance" (audit 21/08/2026, §7.1) : synthèse honnête
+    // de maturité, calculée uniquement à partir de données déjà chargées
+    // ci-dessus — jamais un second calcul (Article 11).
+    const maturiteInventaire = NexusInventaireMoteur.evaluerMaturiteInventaire({
+      catalogueConfigure: !!(couverture7 && couverture7.total > 0),
+      couverturePourcentage: couverture7 ? couverture7.pourcentage : null,
+      deceniumImporte: signauxMaturite ? signauxMaturite.deceniumImporte : false,
+      rapprochementFiable: signauxMaturite ? signauxMaturite.rapprochementFiable : false,
+    });
 
     // Qualité du rapprochement (18/08/2026, Sprint 7, cahier §11 bloc
     // manager "Qualité : Fiable / provisoire / non comparable") — lecture
@@ -2900,7 +2971,7 @@
     renderTout({
       alertesOuvertes, sensiblesNonComptesDetail, employesSite, modesAveugleActifs, jaugeageActif, synthese,
       etat, produitsSensiblesTotal: produitsSensibles.length, decisionsQuart, review, bornes, alertesPeriode, decisionsPeriode,
-      importDeceniumFait, couverture7, couverture14, couverture30, qualiteRapprochement,
+      importDeceniumFait, couverture7, couverture14, couverture30, qualiteRapprochement, maturiteInventaire,
     });
     if (periodeSelectionnee === 'jour') await genererRemarquesConseiller(alertesOuvertes, sensiblesNonComptesDetail, modesAveugleActifs, synthese);
   }
