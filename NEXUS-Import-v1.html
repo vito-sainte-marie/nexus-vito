@@ -46,7 +46,8 @@ a{color:inherit; text-decoration:none;}
   content:''; position:absolute; left:-6px; top:16px; width:12px; height:12px; background:var(--panel);
   border-left:1px solid rgba(79,195,217,0.25); border-bottom:1px solid rgba(79,195,217,0.25); transform:rotate(45deg);
 }
-.conseiller-label{font-family:var(--mono); font-size:9.5px; letter-spacing:0.06em; text-transform:uppercase; color:var(--cyan); margin-bottom:4px;}
+.conseiller-label{font-family:var(--mono); font-size:9.5px; letter-spacing:0.06em; text-transform:uppercase; color:var(--cyan); margin-bottom:4px; display:flex; justify-content:space-between; gap:8px;}
+.conseiller-label a{color:var(--cyan); text-decoration:underline;}
 .conseiller-text{font-size:12.5px; line-height:1.55; color:var(--text);}
 .icon-btn{width:38px; height:38px; border-radius:10px; background:var(--panel); border:1px solid var(--hairline); display:flex; align-items:center; justify-content:center; font-size:16px; color:var(--text-mid); flex-shrink:0; cursor:pointer;}
 .topbar-title h1{font-size:19px; font-weight:600;}
@@ -58,6 +59,13 @@ a{color:inherit; text-decoration:none;}
   display:flex; align-items:center; gap:10px; margin:24px 0 12px;
 }
 .section-label::after{content:''; flex:1; height:1px; background:var(--hairline);}
+.groupe-label{font-family:var(--mono); font-size:9.5px; letter-spacing:0.08em; text-transform:uppercase; color:var(--text-dim); margin:14px 0 6px;}
+
+/* ---------- stepper ---------- */
+.stepper{display:flex; gap:6px; padding:0 20px 18px;}
+.step-chip{flex:1; text-align:center; font-family:var(--mono); font-size:9px; letter-spacing:0.04em; text-transform:uppercase; color:var(--text-dim); padding:8px 3px; border-radius:8px; background:var(--panel); border:1px solid var(--hairline);}
+.step-chip.active{color:#06181C; background:var(--cyan); border-color:var(--cyan); font-weight:700;}
+.step-chip.done{color:var(--green); border-color:rgba(52,211,153,0.35); background:var(--green-dim);}
 
 /* ---------- dropzone ---------- */
 .dropzone{
@@ -87,6 +95,7 @@ input[type=file]{display:none;}
 .map-item .dot{width:8px; height:8px; border-radius:50%; flex-shrink:0;}
 .map-item.ok .dot{background:var(--green);}
 .map-item.missing .dot{background:var(--amber);}
+.map-item.memoire .dot{background:var(--cyan);}
 .map-item .mlabel{font-size:12px; font-weight:600;}
 .map-item .msrc{font-family:var(--mono); font-size:9.5px; color:var(--text-dim); margin-top:1px;}
 
@@ -98,6 +107,25 @@ input[type=file]{display:none;}
 .sum-card.alert .sval{color:var(--amber);}
 .sum-card.ok .sval{color:var(--green);}
 .sum-card.cyan .sval{color:var(--cyan);}
+.sum-card.rouge .sval{color:var(--red);}
+
+/* ---------- qualité / doublons / impact ---------- */
+.quality-badge{display:inline-flex; align-items:center; gap:6px; padding:5px 12px; border-radius:999px; font-family:var(--mono); font-size:11px; font-weight:700;}
+.quality-badge.vert{background:var(--green-dim); color:var(--green);}
+.quality-badge.ambre{background:var(--amber-dim); color:var(--amber);}
+.quality-badge.rouge{background:var(--red-dim); color:var(--red);}
+.quality-badge.cyan{background:var(--cyan-dim); color:var(--cyan);}
+.quality-badge.gris{background:var(--panel-raised); color:var(--text-mid);}
+
+.causes-list{margin-top:12px; display:flex; flex-direction:column; gap:6px;}
+.cause-item{font-size:11.5px; color:var(--text-mid); padding:9px 12px; background:var(--panel); border-radius:8px; border:1px solid var(--hairline);}
+
+.alias-row{display:flex; gap:8px; align-items:center; padding:9px 12px; background:var(--panel); border-radius:8px; border:1px solid var(--hairline); font-size:11.5px; margin-bottom:6px;}
+.alias-row .adesig{flex:1; word-break:break-word;}
+.alias-row .abtn{font-family:var(--mono); font-size:9.5px; text-transform:uppercase; color:var(--cyan); cursor:pointer; white-space:nowrap; flex-shrink:0;}
+
+.impact-list{display:flex; flex-wrap:wrap; gap:6px;}
+.impact-chip{font-family:var(--mono); font-size:10px; padding:5px 10px; border-radius:999px; background:var(--cyan-dim); color:var(--cyan);}
 
 /* ---------- preview table ---------- */
 .table-wrap{overflow-x:auto; margin:0 20px; border:1px solid var(--hairline); border-radius:12px;}
@@ -127,7 +155,10 @@ tbody tr:hover{background:var(--panel);}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-auth.js"></script>
+<script src="nexus-header-nav.js"></script>
 <script src="nexus-desktop.js"></script>
+<script src="nexus-import-moteur.js"></script>
+<script src="nexus-import-donnees.js"></script>
 </head>
 <body>
 <div class="app">
@@ -135,76 +166,165 @@ tbody tr:hover{background:var(--panel);}
   <div class="topbar">
     <a class="icon-btn" href="NEXUS-App-v1.html">←</a>
     <div class="topbar-title">
-      <h1>Import de données</h1>
-      <p>Ventes, stock ou catalogue — fichier Excel / CSV</p>
+      <h1>Ajouter des données à NEXUS</h1>
+      <p id="sousTitreImport">Ventes, stock ou catalogue — fichier Excel / CSV</p>
     </div>
+  </div>
+
+  <div class="stepper">
+    <div class="step-chip" id="stepChipIntention">1 · Type</div>
+    <div class="step-chip" id="stepChipSource">2 · Source</div>
+    <div class="step-chip" id="stepChipVerification">3 · Vérification</div>
+    <div class="step-chip" id="stepChipPublication">4 · Publication</div>
   </div>
 
   <div class="conseiller-mini">
     <img class="conseiller-avatar" src="assets/nexus-avatar.png" alt="Conseiller NEXUS">
     <div class="conseiller-bubble">
-      <div class="conseiller-label">Conseiller NEXUS</div>
-      <div class="conseiller-text" id="conseillerImportMsg">Envoyez-moi vos chiffres, je m'occupe du reste. Précisez bien la période couverte — c'est ce qui me permet de mesurer une vraie évolution plutôt qu'une simple photo.</div>
+      <div class="conseiller-label"><span>Conseiller NEXUS — Import</span><a id="lienHistorique" href="#">Imports précédents</a></div>
+      <div class="conseiller-text" id="conseillerImportMsg">Envoyez-moi vos chiffres, je m'occupe du reste.</div>
     </div>
   </div>
 
-  <div class="section">
-    <div class="section-label">Type d'import</div>
+  <!-- ============================================================
+       ÉTAPE 1 — Intention (section 4 de l'audit : hiérarchie à 2
+       niveaux, DONNÉES MÉTIER vs ACTIONS COMMERCIALES).
+  ============================================================ -->
+  <div class="section" id="etapeIntention">
+    <div class="groupe-label">Données métier</div>
     <div class="btn-row" style="gap:8px; flex-wrap:wrap;">
-      <div class="btn btn-primary" id="typeVentes" style="cursor:pointer;">Ventes / Catalogue</div>
-      <div class="btn btn-ghost" id="typeStock" style="cursor:pointer;">Stock instantané</div>
-      <div class="btn btn-ghost" id="typeCampagne" style="cursor:pointer;">Campagne NEXUS</div>
+      <div class="btn btn-primary" id="typeVentes" style="cursor:pointer;">Ventes / catalogue</div>
+      <div class="btn btn-ghost" id="typeStock" style="cursor:pointer;">Stock théorique</div>
       <div class="btn btn-ghost" id="typePanier" style="cursor:pointer;">Panier moyen</div>
     </div>
-    <div style="font-family:var(--mono); font-size:10px; color:var(--text-dim); margin-top:8px; line-height:1.5;" id="typeExplication">CA, marge, évolution — un fichier par période de vente.</div>
-  </div>
-
-  <div class="section">
-    <div class="dropzone" id="dropzone">
-      <div class="dz-icon"><img src="assets/icons/icon-import.png" alt=""></div>
-      <div class="dz-title">Déposez votre fichier ici</div>
-      <div class="dz-sub">ou cliquez pour parcourir vos fichiers</div>
-      <div class="dz-formats">.XLSX · .XLS · .CSV</div>
+    <div class="groupe-label">Actions commerciales</div>
+    <div class="btn-row" style="gap:8px; flex-wrap:wrap;">
+      <div class="btn btn-ghost" id="typeCampagne" style="cursor:pointer;">Campagne NEXUS</div>
     </div>
-    <input type="file" id="fileInput" accept=".xlsx,.xls,.csv">
+    <div style="font-family:var(--mono); font-size:10px; color:var(--text-dim); margin-top:10px; line-height:1.5;" id="typeExplication">CA, marge, évolution — un fichier par période de vente.</div>
+    <div class="btn-row" style="margin-top:18px;">
+      <div class="btn btn-primary" id="btnVersEtape2">Continuer →</div>
+    </div>
   </div>
 
-  <div id="fileArea" style="display:none;">
-    <div class="section" style="margin-top:14px;">
-      <div class="file-chip">
-        <div class="fi">📄</div>
-        <div style="flex:1; min-width:0;">
-          <div class="fname" id="fname">—</div>
-          <div class="fmeta" id="fmeta">—</div>
+  <!-- ============================================================
+       ÉTAPE 2 — Source (dépôt fichier + période/date/campagne).
+       Google Sheets / API / OCR viendront plus tard sur ce même écran
+       (section 14 de l'audit) — un seul choix pour l'instant : Fichier.
+  ============================================================ -->
+  <div id="etapeSource" style="display:none;">
+    <div class="section">
+      <div class="dropzone" id="dropzone">
+        <div class="dz-icon"><img src="assets/icons/icon-import.png" alt=""></div>
+        <div class="dz-title">Déposez votre fichier</div>
+        <div class="dz-sub">ou cliquez pour parcourir vos fichiers</div>
+        <div class="dz-formats">.XLSX · .XLS · .CSV</div>
+      </div>
+      <input type="file" id="fileInput" accept=".xlsx,.xls,.csv">
+    </div>
+
+    <div id="fileArea" style="display:none;">
+      <div class="section" style="margin-top:14px;">
+        <div class="file-chip">
+          <div class="fi">📄</div>
+          <div style="flex:1; min-width:0;">
+            <div class="fname" id="fname">—</div>
+            <div class="fmeta" id="fmeta">—</div>
+          </div>
+          <div class="remove" id="removeFile">✕</div>
         </div>
-        <div class="remove" id="removeFile">✕</div>
+      </div>
+
+      <div class="section" id="periodeVentesSection">
+        <div class="section-label">Période couverte par ce fichier</div>
+        <div class="btn-row">
+          <div style="flex:1;">
+            <label style="font-family:var(--mono); font-size:10px; color:var(--text-mid); text-transform:uppercase; letter-spacing:0.04em;">Début</label>
+            <input type="date" id="periodeDebut" style="width:100%; margin-top:6px; background:var(--panel); border:1px solid var(--hairline); border-radius:10px; padding:11px 12px; color:var(--text); font-family:var(--sans); font-size:13.5px;">
+          </div>
+          <div style="flex:1;">
+            <label style="font-family:var(--mono); font-size:10px; color:var(--text-mid); text-transform:uppercase; letter-spacing:0.04em;">Fin</label>
+            <input type="date" id="periodeFin" style="width:100%; margin-top:6px; background:var(--panel); border:1px solid var(--hairline); border-radius:10px; padding:11px 12px; color:var(--text); font-family:var(--sans); font-size:13.5px;">
+          </div>
+        </div>
+        <div style="font-family:var(--mono); font-size:10px; color:var(--text-dim); margin-top:8px; line-height:1.5;">Sert à calculer l'évolution automatiquement en comparant avec la période précédente déjà importée.</div>
+      </div>
+
+      <div class="section" id="periodeStockSection" style="display:none;">
+        <div class="section-label">Date du relevé</div>
+        <label style="font-family:var(--mono); font-size:10px; color:var(--text-mid); text-transform:uppercase; letter-spacing:0.04em;">Date</label>
+        <input type="date" id="dateReleve" style="width:100%; margin-top:6px; background:var(--panel); border:1px solid var(--hairline); border-radius:10px; padding:11px 12px; color:var(--text); font-family:var(--sans); font-size:13.5px;">
+        <div style="font-family:var(--mono); font-size:10px; color:var(--text-dim); margin-top:8px; line-height:1.5;">L'heure du dépôt est capturée automatiquement.</div>
+      </div>
+
+      <div class="section" id="periodeCampagneSection" style="display:none;">
+        <div class="section-label">Promotion concernée</div>
+        <label style="font-family:var(--mono); font-size:10px; color:var(--text-mid); text-transform:uppercase; letter-spacing:0.04em;">Quelle promotion ?</label>
+        <select id="campagneSelect" style="width:100%; margin-top:6px; background:var(--panel); border:1px solid var(--hairline); border-radius:10px; padding:11px 12px; color:var(--text); font-family:var(--sans); font-size:13.5px;">
+          <option value="">— Choisir —</option>
+        </select>
+        <div style="margin-top:14px;" id="campagnePhaseWrap">
+          <label style="font-family:var(--mono); font-size:10px; color:var(--text-mid); text-transform:uppercase; letter-spacing:0.04em;">Ce fichier couvre…</label>
+          <div class="btn-row" style="margin-top:6px;">
+            <div class="btn btn-ghost" id="phaseAvant" style="cursor:pointer;">Avant la promo</div>
+            <div class="btn btn-ghost" id="phasePendant" style="cursor:pointer;">Pendant la promo</div>
+          </div>
+        </div>
+        <div id="campagnePeriodeInfo" style="display:none; margin-top:12px; padding:12px 14px; background:var(--panel); border:1px solid var(--hairline); border-radius:10px; font-size:12.5px; color:var(--text-mid); line-height:1.6;"></div>
+        <div id="campagneChevauchement" style="display:none; margin-top:8px; padding:10px 12px; background:var(--amber-dim); color:var(--amber); border-radius:8px; font-size:11.5px; line-height:1.5;"></div>
+        <div id="campagneVide" style="display:none; margin-top:10px; font-size:12px; color:var(--text-dim); line-height:1.5;">Aucune promotion déclarée pour l'instant. Créez-en une dans Campagne NEXUS avant d'importer ses ventes.</div>
+      </div>
+
+      <div class="section" style="margin-top:8px;">
+        <div class="btn-row">
+          <div class="btn btn-ghost" id="btnRetourEtape1">← Type</div>
+          <div class="btn btn-primary" id="btnVerifier">Vérifier le fichier</div>
+        </div>
+        <div id="sourceMsg" style="font-family:var(--mono); font-size:11px; text-align:center; margin-top:10px;"></div>
       </div>
     </div>
+    <div class="privacy-note">Le fichier est analysé entièrement dans votre navigateur — il n'est envoyé à NEXUS qu'à l'étape de vérification.</div>
+  </div>
 
-    <div class="section" id="mappingSection">
-      <div class="section-label">Colonnes détectées</div>
+  <!-- ============================================================
+       ÉTAPE 3 — Vérification (section 8 de l'audit). C'est l'écran
+       manquant le plus important : jamais un "Import réussi" direct.
+  ============================================================ -->
+  <div id="etapeVerification" style="display:none;">
+
+    <div class="section">
+      <div class="section-label">Reconnaissance</div>
+      <div id="verifBadge" style="margin-bottom:12px;"></div>
       <div class="mapping-grid" id="mappingGrid"></div>
     </div>
 
-    <div class="section" id="resumeSection">
-      <div class="section-label">Résumé</div>
-      <div class="summary-grid">
-        <div class="sum-card ok"><div class="slabel">Lignes lues</div><div class="sval" id="statRows">—</div></div>
-        <div class="sum-card cyan"><div class="slabel">Catégories</div><div class="sval" id="statCats">—</div></div>
-        <div class="sum-card ok"><div class="slabel">CA estimé</div><div class="sval" id="statCA">—</div></div>
-        <div class="sum-card alert"><div class="slabel">Anomalies</div><div class="sval" id="statAnom">—</div></div>
-      </div>
+    <div class="section" id="verifLignesSection">
+      <div class="section-label">Lignes</div>
+      <div class="summary-grid" id="verifLignesGrid"></div>
     </div>
 
-    <!-- Panier moyen (25/07/2026) — format Decenium fixe (Date Transaction,
-         Nb, PM HT, PM TTC), rien à mapper : pas de section colonnes ni de
-         résumé générique, juste un contrôle simple avant l'envoi. -->
-    <div class="section" id="panierInfoSection" style="display:none;">
-      <div class="section-label">Jours détectés</div>
-      <div id="panierResume" style="font-size:12.5px; color:var(--text-mid); line-height:1.6;">—</div>
+    <div class="section" id="verifReferencesSection" style="display:none;">
+      <div class="section-label">Références sans code-barres non aliasées</div>
+      <div id="verifReferencesListe"></div>
+      <div style="font-family:var(--mono); font-size:10px; color:var(--text-dim); margin-top:6px; line-height:1.5;">Ajouter un alias les relie définitivement à une désignation canonique, sans jamais deviner à votre place.</div>
+    </div>
+
+    <div class="section" id="verifCausesSection" style="display:none;">
+      <div class="section-label">Qualité</div>
+      <div class="causes-list" id="verifCausesListe"></div>
+    </div>
+
+    <div class="section" id="verifJoursManquantsSection" style="display:none;">
+      <div class="section-label">Jours manquants</div>
+      <div id="verifJoursManquants" style="font-size:12px; color:var(--amber); line-height:1.6;"></div>
     </div>
 
     <div class="section">
+      <div class="section-label">Impact</div>
+      <div class="impact-list" id="verifImpact"></div>
+    </div>
+
+    <div class="section" id="verifApercuLabel">
       <div class="section-label">Aperçu (15 premières lignes)</div>
     </div>
     <div class="table-wrap">
@@ -215,972 +335,705 @@ tbody tr:hover{background:var(--panel);}
       <div class="table-more" id="moreRows"></div>
     </div>
 
-    <div class="section" id="periodeVentesSection">
-      <div class="section-label">Période couverte par ce fichier</div>
+    <div class="section" style="margin-top:14px;">
       <div class="btn-row">
-        <div style="flex:1;">
-          <label style="font-family:var(--mono); font-size:10px; color:var(--text-mid); text-transform:uppercase; letter-spacing:0.04em;">Début</label>
-          <input type="date" id="periodeDebut" style="width:100%; margin-top:6px; background:var(--panel); border:1px solid var(--hairline); border-radius:10px; padding:11px 12px; color:var(--text); font-family:var(--sans); font-size:13.5px;">
-        </div>
-        <div style="flex:1;">
-          <label style="font-family:var(--mono); font-size:10px; color:var(--text-mid); text-transform:uppercase; letter-spacing:0.04em;">Fin</label>
-          <input type="date" id="periodeFin" style="width:100%; margin-top:6px; background:var(--panel); border:1px solid var(--hairline); border-radius:10px; padding:11px 12px; color:var(--text); font-family:var(--sans); font-size:13.5px;">
-        </div>
+        <div class="btn btn-ghost" id="btnAnnulerVerif">Annuler</div>
+        <div class="btn btn-primary" id="btnPublier">Publier dans NEXUS</div>
       </div>
-      <div style="font-family:var(--mono); font-size:10px; color:var(--text-dim); margin-top:8px; line-height:1.5;">Sert à calculer l'évolution automatiquement en comparant avec la période précédente déjà importée.</div>
+      <div id="verifMsg" style="font-family:var(--mono); font-size:11px; text-align:center; margin-top:10px;"></div>
     </div>
+  </div>
 
-    <div class="section" id="periodeStockSection" style="display:none;">
-      <div class="section-label">Date du relevé</div>
-      <label style="font-family:var(--mono); font-size:10px; color:var(--text-mid); text-transform:uppercase; letter-spacing:0.04em;">Date</label>
-      <input type="date" id="dateReleve" style="width:100%; margin-top:6px; background:var(--panel); border:1px solid var(--hairline); border-radius:10px; padding:11px 12px; color:var(--text); font-family:var(--sans); font-size:13.5px;">
-      <div style="font-family:var(--mono); font-size:10px; color:var(--text-dim); margin-top:8px; line-height:1.5;">L'heure du dépôt est capturée automatiquement — c'est cette photo datée qui permettra à Scanner Stock de repérer les mouvements suspects.</div>
+  <!-- ============================================================
+       ÉTAPE 4 — Publication.
+  ============================================================ -->
+  <div id="etapePublication" style="display:none;">
+    <div class="section" style="text-align:center; padding-top:20px;">
+      <div id="publicationIcone" style="font-size:40px; margin-bottom:14px;">✓</div>
+      <div id="publicationTitre" style="font-size:17px; font-weight:700; margin-bottom:8px;">Données publiées dans NEXUS</div>
+      <div id="publicationDetail" style="font-size:13px; color:var(--text-mid); line-height:1.6;">—</div>
     </div>
-
-    <!-- Import Campagne NEXUS (25/07/2026) : au lieu de faire saisir des
-         dates à la main, le manager choisit juste une promotion déjà
-         déclarée et une phase (avant/pendant) — NEXUS calcule lui-même
-         la période exacte à partir des dates de la promotion. Voir
-         nexus-campagnes.js pour ce que cette donnée débloquera. -->
-    <div class="section" id="periodeCampagneSection" style="display:none;">
-      <div class="section-label">Promotion concernée</div>
-      <label style="font-family:var(--mono); font-size:10px; color:var(--text-mid); text-transform:uppercase; letter-spacing:0.04em;">Quelle promotion ?</label>
-      <select id="campagneSelect" style="width:100%; margin-top:6px; background:var(--panel); border:1px solid var(--hairline); border-radius:10px; padding:11px 12px; color:var(--text); font-family:var(--sans); font-size:13.5px;">
-        <option value="">— Choisir —</option>
-      </select>
-
-      <div style="margin-top:14px;" id="campagnePhaseWrap">
-        <label style="font-family:var(--mono); font-size:10px; color:var(--text-mid); text-transform:uppercase; letter-spacing:0.04em;">Ce fichier couvre…</label>
-        <div class="btn-row" style="margin-top:6px;">
-          <div class="btn btn-ghost" id="phaseAvant" style="cursor:pointer;">Avant la promo</div>
-          <div class="btn btn-ghost" id="phasePendant" style="cursor:pointer;">Pendant la promo</div>
-        </div>
-      </div>
-
-      <div id="campagnePeriodeInfo" style="display:none; margin-top:12px; padding:12px 14px; background:var(--panel); border:1px solid var(--hairline); border-radius:10px; font-size:12.5px; color:var(--text-mid); line-height:1.6;"></div>
-      <div id="campagneChevauchement" style="display:none; margin-top:8px; padding:10px 12px; background:var(--amber-dim); color:var(--amber); border-radius:8px; font-size:11.5px; line-height:1.5;"></div>
-      <div id="campagneVide" style="display:none; margin-top:10px; font-size:12px; color:var(--text-dim); line-height:1.5;">Aucune promotion déclarée pour l'instant. Créez-en une dans Campagne NEXUS avant d'importer ses ventes.</div>
-    </div>
-
-    <div class="section" style="margin-top:8px;">
+    <div class="section" style="margin-top:22px;">
       <div class="btn-row">
-        <div class="btn btn-ghost" id="downloadClean">Télécharger le résumé (.xlsx)</div>
-        <div class="btn btn-primary" id="sendPilot">Envoyer à NEXUS Pilot →</div>
+        <div class="btn btn-primary" id="btnNouvelImport">Nouvel import</div>
       </div>
-      <div id="sendMsg" style="font-family:var(--mono); font-size:11px; text-align:center; margin-top:10px;"></div>
     </div>
+  </div>
 
-    <div class="privacy-note">Le fichier est traité entièrement dans votre navigateur — rien n'est envoyé à un serveur à ce stade.</div>
+  <!-- Historique des imports précédents -->
+  <div id="etapeHistorique" style="display:none;">
+    <div class="section">
+      <div class="section-label">Imports précédents</div>
+      <div id="historiqueListe"></div>
+      <div class="btn-row" style="margin-top:14px;">
+        <div class="btn btn-ghost" id="btnFermerHistorique">Fermer</div>
+      </div>
+    </div>
   </div>
 
 </div>
 
 <script>
 nexusRequireAuth().then(async employee => {
-  if (!employee) return; // nexus-auth.js gère déjà la redirection vers NEXUS-Login-v1.html
+  if (!employee) return;
   if (employee.role !== 'manager' && employee.role !== 'gerant') {
     document.body.innerHTML = '<div style="padding:60px 20px; text-align:center; color:var(--text-dim); font-family:sans-serif;">Cet écran est réservé aux managers.</div>';
     return;
   }
 
-  let countVentes = 0, countStock = 0, dernierReleve = null, dernierePeriodeFinVentes = null;
+  const M = NexusImportMoteur;
+  const D = NexusImportDonnees;
+  const site = employee.site_id;
+
+  // ------------------------------------------------------------
+  // État global du parcours
+  // ------------------------------------------------------------
+  let etape = 'intention';
+  let typeImportActuel = 'ventes_catalogue';
+  let currentRows = [];
+  let currentHeaders = [];
+  let currentMapping = {};
+  let currentMappingAuto = {};
+  let currentPanierLignes = [];
+  let currentPanierIgnorees = [];
+  let currentFile = null;
+  let currentBatch = null;
+  let currentResultats = [];
+  let currentQualityReport = null;
+  let aliasesActuels = [];
+  let mappingMemoireActuelle = [];
+  let campagnesDisponibles = [];
+  let importsCampagnes = [];
+  let campagneChoisieId = '';
+  let phaseChoisie = '';
+
+  // ------------------------------------------------------------
+  // Stepper
+  // ------------------------------------------------------------
+  const stepChips = {
+    intention: document.getElementById('stepChipIntention'),
+    source: document.getElementById('stepChipSource'),
+    verification: document.getElementById('stepChipVerification'),
+    publication: document.getElementById('stepChipPublication'),
+  };
+  const etapesEls = {
+    intention: document.getElementById('etapeIntention'),
+    source: document.getElementById('etapeSource'),
+    verification: document.getElementById('etapeVerification'),
+    publication: document.getElementById('etapePublication'),
+    historique: document.getElementById('etapeHistorique'),
+  };
+  const ORDRE_ETAPES = ['intention', 'source', 'verification', 'publication'];
+  function afficherEtape(nom) {
+    etape = nom;
+    Object.keys(etapesEls).forEach(k => { etapesEls[k].style.display = (k === nom) ? 'block' : 'none'; });
+    const idxActuel = ORDRE_ETAPES.indexOf(nom);
+    ORDRE_ETAPES.forEach((e, i) => {
+      const chip = stepChips[e];
+      chip.className = 'step-chip' + (e === nom ? ' active' : (i < idxActuel ? ' done' : ''));
+    });
+  }
+
+  // ------------------------------------------------------------
+  // Conseiller NEXUS — messages d'ouverture par intention
+  // ------------------------------------------------------------
+  let countVentes = 0, countStock = 0, dernierReleve = null, dernierePeriodeFinVentes = null, countPanier = 0, dernierJourPanier = null;
   try {
     const resVentes = await nexusClient.from('products').select('id', { count: 'exact', head: true });
     countVentes = resVentes.count || 0;
   } catch (err) { console.error('Comptage products:', err); }
-  // Repère anti-doublon Ventes/Catalogue (demande de Frédéric, 08/2026) :
-  // affiche jusqu'où va la dernière période déjà importée, discrètement
-  // dans le message du conseiller, dès le clic sur "Ventes / Catalogue" —
-  // avant même de choisir un fichier. Même logique que le repère déjà en
-  // place pour Stock instantané et Panier moyen ci-dessous.
   try {
     const resDernierePeriode = await nexusClient.from('products').select('periode_fin')
-      .eq('site', employee.site_id).order('periode_fin', { ascending: false }).limit(1);
+      .eq('site', site).order('periode_fin', { ascending: false }).limit(1);
     dernierePeriodeFinVentes = resDernierePeriode.data && resDernierePeriode.data[0] ? resDernierePeriode.data[0].periode_fin : null;
   } catch (err) { console.error('Dernière période ventes:', err); }
   try {
     const resStock = await nexusClient.from('stock_releves').select('releve_le', { count: 'exact' }).order('releve_le', { ascending: false }).limit(1);
     countStock = resStock.count || 0;
     dernierReleve = resStock.data;
-  } catch (err) { console.error('Comptage stock_releves (table pas encore créée ?):', err); }
-
-  // Campagne NEXUS (25/07/2026) — liste des promotions déclarées et de
-  // leurs imports déjà faits, pour proposer un menu plutôt que des
-  // dates à saisir à la main (voir calculerPeriodeCampagne ci-dessous).
-  let campagnesDisponibles = [];
-  let importsCampagnes = [];
+  } catch (err) { console.error('Comptage stock_releves:', err); }
   try {
-    const resCampagnes = await nexusClient.from('campagnes_nexus')
-      .select('id, nom, date_debut, date_fin, type')
-      .eq('site', employee.site_id)
-      .order('date_debut', { ascending: false });
+    const resCampagnes = await nexusClient.from('campagnes_nexus').select('id, nom, date_debut, date_fin, type').eq('site', site).order('date_debut', { ascending: false });
     campagnesDisponibles = resCampagnes.data || [];
-    const resImports = await nexusClient.from('campagnes_nexus_imports')
-      .select('campagne_id, phase, periode_debut, periode_fin')
-      .eq('site', employee.site_id);
+    const resImports = await nexusClient.from('campagnes_nexus_imports').select('campagne_id, phase, periode_debut, periode_fin').eq('site', site);
     importsCampagnes = resImports.data || [];
-  } catch (err) { console.error('Chargement campagnes_nexus (table pas encore créée ?):', err); }
-
-  let countPanier = 0, dernierJourPanier = null;
+  } catch (err) { console.error('Chargement campagnes_nexus:', err); }
   try {
-    const resPanier = await nexusClient.from('panier_moyen_quotidien')
-      .select('date', { count: 'exact' }).eq('site', employee.site_id)
-      .order('date', { ascending: false }).limit(1);
+    const resPanier = await nexusClient.from('panier_moyen_quotidien').select('date', { count: 'exact' }).eq('site', site).order('date', { ascending: false }).limit(1);
     countPanier = resPanier.count || 0;
     dernierJourPanier = resPanier.data && resPanier.data[0] ? resPanier.data[0].date : null;
-  } catch (err) { console.error('Comptage panier_moyen_quotidien (table pas encore créée ?):', err); }
+  } catch (err) { console.error('Comptage panier_moyen_quotidien:', err); }
 
   const dernierePeriodeFinVentesDate = dernierePeriodeFinVentes ? new Date(dernierePeriodeFinVentes + 'T12:00:00').toLocaleDateString('fr-FR') : null;
-  const msgVentes = countVentes > 0
-    ? `${employee.nom}, vous avez déjà ${countVentes.toLocaleString('fr-FR')} référence(s) importée(s)${dernierePeriodeFinVentesDate ? `, la dernière période couverte va jusqu'au ${dernierePeriodeFinVentesDate}` : ''}. Pour éviter les doublons, faites démarrer ce nouveau fichier après cette date — je pourrai comparer les deux périodes automatiquement.`
-    : `${employee.nom}, c'est votre premier import — bienvenue. Une fois envoyé, je commence à calculer les vrais chiffres de vos rayons, plus aucune estimation.`;
-
   const dernierReleveDate = dernierReleve && dernierReleve[0] ? new Date(dernierReleve[0].releve_le).toLocaleDateString('fr-FR') : null;
-  const msgStock = countStock > 0
-    ? `${employee.nom}, j'ai déjà ${countStock.toLocaleString('fr-FR')} référence(s) de stock en mémoire, le dernier relevé date du ${dernierReleveDate}. Ce nouveau relevé va me permettre de comparer et de repérer d'éventuels mouvements suspects.`
-    : `${employee.nom}, aucun relevé de stock encore importé — c'est le tout premier. Une fois envoyé, je pourrai commencer à surveiller la cohérence de votre stock dans le temps.`;
-
-  const msgCampagne = campagnesDisponibles.length > 0
-    ? `${employee.nom}, choisissez une promotion et une phase (avant/pendant) — je calcule moi-même la période exacte, vous n'avez que le fichier à déposer.`
-    : `${employee.nom}, aucune promotion déclarée pour l'instant. Créez-en une dans Campagne NEXUS avant de venir importer ses ventes ici.`;
-
-  const msgPanier = countPanier > 0
-    ? `${employee.nom}, j'ai déjà ${countPanier.toLocaleString('fr-FR')} jour(s) de panier moyen en mémoire, le dernier date du ${dernierJourPanier ? new Date(dernierJourPanier + 'T12:00:00').toLocaleDateString('fr-FR') : '—'}. Réimportez régulièrement pour garder l'historique à jour — un jour déjà connu sera simplement mis à jour.`
-    : `${employee.nom}, c'est le premier import de panier moyen. Une fois envoyé, je pourrai mesurer le vrai panier moyen boutique autour de vos promotions.`;
-
-  const MESSAGES_CONSEILLER_IMPORT = { ventes: msgVentes, stock: msgStock, campagne: msgCampagne, panier: msgPanier };
+  const MESSAGES_CONSEILLER_IMPORT = {
+    ventes_catalogue: countVentes > 0
+      ? `${employee.nom}, ${countVentes.toLocaleString('fr-FR')} référence(s) déjà importée(s)${dernierePeriodeFinVentesDate ? `, dernière période jusqu'au ${dernierePeriodeFinVentesDate}` : ''}. ${M.construireMessageConseiller({ situation: 'a_jour', dernierePeriodeFin: dernierePeriodeFinVentesDate })}`
+      : `${employee.nom}, c'est votre premier import — bienvenue.`,
+    stock_theorique: countStock > 0
+      ? `${employee.nom}, ${countStock.toLocaleString('fr-FR')} référence(s) de stock en mémoire, dernier relevé le ${dernierReleveDate}.`
+      : `${employee.nom}, aucun relevé de stock encore importé — c'est le tout premier.`,
+    campagne: campagnesDisponibles.length > 0
+      ? `${employee.nom}, choisissez une promotion et une phase — je calcule la période exacte.`
+      : `${employee.nom}, aucune promotion déclarée pour l'instant. Créez-en une dans Campagne NEXUS.`,
+    panier_moyen: countPanier > 0
+      ? `${employee.nom}, ${countPanier.toLocaleString('fr-FR')} jour(s) de panier moyen en mémoire, dernier le ${dernierJourPanier ? new Date(dernierJourPanier + 'T12:00:00').toLocaleDateString('fr-FR') : '—'}.`
+      : `${employee.nom}, c'est le premier import de panier moyen.`,
+  };
   const msgEl = document.getElementById('conseillerImportMsg');
-  if (msgEl) msgEl.textContent = MESSAGES_CONSEILLER_IMPORT.ventes;
+  msgEl.textContent = MESSAGES_CONSEILLER_IMPORT.ventes_catalogue;
 
-const dropzone = document.getElementById('dropzone');
-const fileInput = document.getElementById('fileInput');
-const fileArea = document.getElementById('fileArea');
-const fname = document.getElementById('fname');
-const fmeta = document.getElementById('fmeta');
-const removeFile = document.getElementById('removeFile');
-const mappingGrid = document.getElementById('mappingGrid');
-const statRows = document.getElementById('statRows');
-const statCats = document.getElementById('statCats');
-const statCA = document.getElementById('statCA');
-const statAnom = document.getElementById('statAnom');
-const previewHead = document.getElementById('previewHead');
-const previewBody = document.getElementById('previewBody');
-const moreRows = document.getElementById('moreRows');
-const downloadClean = document.getElementById('downloadClean');
-const sendPilot = document.getElementById('sendPilot');
+  document.getElementById('lienHistorique').addEventListener('click', async (e) => {
+    e.preventDefault();
+    const historique = await D.chargerHistoriqueImports(nexusClient, site, 20);
+    document.getElementById('historiqueListe').innerHTML = historique.length
+      ? historique.map(h => `<div class="alias-row"><div class="adesig"><b>${h.intention}</b> — ${h.fichier_nom || '—'} · ${h.statut}${h.periode_debut ? ` · ${h.periode_debut}→${h.periode_fin}` : ''}${h.date_releve ? ` · ${h.date_releve}` : ''}</div></div>`).join('')
+      : '<div class="empty-note">Aucun import pour l\'instant.</div>';
+    Object.keys(etapesEls).forEach(k => { etapesEls[k].style.display = (k === 'historique') ? 'block' : 'none'; });
+  });
+  document.getElementById('btnFermerHistorique').addEventListener('click', () => afficherEtape(etape));
 
-let currentRows = [];
-let currentMapping = {};
-let currentHeaders = [];
-let cleanedSummary = [];
-let currentPanierLignes = [];
-let typeImportActuel = 'ventes';
-const panierResume = document.getElementById('panierResume');
+  // ------------------------------------------------------------
+  // ÉTAPE 1 — Intention
+  // ------------------------------------------------------------
+  const btnTypeVentes = document.getElementById('typeVentes');
+  const btnTypeStock = document.getElementById('typeStock');
+  const btnTypeCampagne = document.getElementById('typeCampagne');
+  const btnTypePanier = document.getElementById('typePanier');
+  const periodeVentesSection = document.getElementById('periodeVentesSection');
+  const periodeStockSection = document.getElementById('periodeStockSection');
+  const periodeCampagneSection = document.getElementById('periodeCampagneSection');
+  const typeExplication = document.getElementById('typeExplication');
+  const sousTitreImport = document.getElementById('sousTitreImport');
 
-const btnTypeVentes = document.getElementById('typeVentes');
-const btnTypeStock = document.getElementById('typeStock');
-const btnTypeCampagne = document.getElementById('typeCampagne');
-const btnTypePanier = document.getElementById('typePanier');
-const periodeVentesSection = document.getElementById('periodeVentesSection');
-const periodeStockSection = document.getElementById('periodeStockSection');
-const periodeCampagneSection = document.getElementById('periodeCampagneSection');
-const mappingSection = document.getElementById('mappingSection');
-const resumeSection = document.getElementById('resumeSection');
-const panierInfoSection = document.getElementById('panierInfoSection');
-const typeExplication = document.getElementById('typeExplication');
+  const EXPLICATIONS_TYPE = {
+    ventes_catalogue: "CA, marge, évolution — un fichier par période de vente.",
+    stock_theorique: "Quantités théoriques par référence, à un instant précis — sert à préparer Scanner Stock.",
+    campagne: "Les ventes d'un produit en promotion, avant et pendant — NEXUS calcule les dates.",
+    panier_moyen: "Export Decenium (Compta > Panier Moyen) — nombre de tickets et panier moyen, un jour par ligne.",
+  };
+  const SOUS_TITRES = {
+    ventes_catalogue: 'Ventes / catalogue — fichier Excel / CSV',
+    stock_theorique: 'Stock théorique instantané — fichier Excel / CSV',
+    campagne: 'Campagne NEXUS — fichier Excel / CSV',
+    panier_moyen: 'Panier moyen — export Decenium',
+  };
 
-const EXPLICATIONS_TYPE = {
-  ventes: "CA, marge, évolution — un fichier par période de vente.",
-  stock: "Quantités théoriques par référence, à un instant précis — sert à préparer Scanner Stock.",
-  campagne: "Les ventes d'un produit en promotion, avant et pendant — NEXUS calcule les dates, vous choisissez juste la promotion.",
-  panier: "Export Decenium (Compta > Panier Moyen) — nombre de tickets et panier moyen boutique, un jour par ligne.",
-};
-
-function choisirTypeImport(type) {
-  typeImportActuel = type;
-  btnTypeVentes.className = type === 'ventes' ? 'btn btn-primary' : 'btn btn-ghost';
-  btnTypeStock.className = type === 'stock' ? 'btn btn-primary' : 'btn btn-ghost';
-  btnTypeCampagne.className = type === 'campagne' ? 'btn btn-primary' : 'btn btn-ghost';
-  btnTypePanier.className = type === 'panier' ? 'btn btn-primary' : 'btn btn-ghost';
-  periodeVentesSection.style.display = type === 'ventes' ? 'block' : 'none';
-  periodeStockSection.style.display = type === 'stock' ? 'block' : 'none';
-  periodeCampagneSection.style.display = type === 'campagne' ? 'block' : 'none';
-  // Le format Panier moyen est fixe (Decenium) : pas de mapping de
-  // colonnes à montrer, pas de résumé générique par catégorie.
-  mappingSection.style.display = type === 'panier' ? 'none' : 'block';
-  resumeSection.style.display = type === 'panier' ? 'none' : 'block';
-  panierInfoSection.style.display = type === 'panier' ? 'block' : 'none';
-  typeExplication.textContent = EXPLICATIONS_TYPE[type];
-
-  const msgEl = document.getElementById('conseillerImportMsg');
-  if (msgEl && typeof MESSAGES_CONSEILLER_IMPORT !== 'undefined') {
+  function choisirTypeImport(type) {
+    typeImportActuel = type;
+    btnTypeVentes.className = type === 'ventes_catalogue' ? 'btn btn-primary' : 'btn btn-ghost';
+    btnTypeStock.className = type === 'stock_theorique' ? 'btn btn-primary' : 'btn btn-ghost';
+    btnTypeCampagne.className = type === 'campagne' ? 'btn btn-primary' : 'btn btn-ghost';
+    btnTypePanier.className = type === 'panier_moyen' ? 'btn btn-primary' : 'btn btn-ghost';
+    typeExplication.textContent = EXPLICATIONS_TYPE[type];
+    sousTitreImport.textContent = SOUS_TITRES[type];
     msgEl.textContent = MESSAGES_CONSEILLER_IMPORT[type];
+    if (type === 'campagne') initialiserSectionCampagne();
   }
-  if (type === 'campagne') initialiserSectionCampagne();
-}
-btnTypeVentes.addEventListener('click', () => choisirTypeImport('ventes'));
-btnTypeStock.addEventListener('click', () => choisirTypeImport('stock'));
-btnTypeCampagne.addEventListener('click', () => choisirTypeImport('campagne'));
-btnTypePanier.addEventListener('click', () => choisirTypeImport('panier'));
+  btnTypeVentes.addEventListener('click', () => choisirTypeImport('ventes_catalogue'));
+  btnTypeStock.addEventListener('click', () => choisirTypeImport('stock_theorique'));
+  btnTypeCampagne.addEventListener('click', () => choisirTypeImport('campagne'));
+  btnTypePanier.addEventListener('click', () => choisirTypeImport('panier_moyen'));
 
-// ------------------------------------------------------------
-// Import Campagne NEXUS (25/07/2026) — le manager choisit une
-// promotion déjà déclarée et une phase (avant/pendant) ; NEXUS calcule
-// lui-même la période exacte à partir des dates de la promotion,
-// aucune saisie de date à la main. "Avant" = même durée que la promo,
-// immédiatement avant son début — la fenêtre de comparaison la plus
-// simple à expliquer à un manager qui découvre NEXUS.
-// ------------------------------------------------------------
-let campagneChoisieId = '';
-let phaseChoisie = '';
-
-function dateLocaleImport(dateStr) { return new Date(dateStr + 'T12:00:00'); }
-function ajouterJours(dateStr, n) {
-  const d = dateLocaleImport(dateStr);
-  d.setDate(d.getDate() + n);
-  return d.toISOString().slice(0, 10);
-}
-function joursEntre(debut, fin) {
-  return Math.round((dateLocaleImport(fin) - dateLocaleImport(debut)) / 86400000) + 1;
-}
-function fmtDateFr(dateStr) {
-  return dateLocaleImport(dateStr).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
-}
-
-function statutImportsCampagne(campagneId) {
-  const avant = importsCampagnes.some(i => i.campagne_id === campagneId && i.phase === 'avant');
-  const pendant = importsCampagnes.some(i => i.campagne_id === campagneId && i.phase === 'pendant');
-  if (avant && pendant) return ' — avant ✓, pendant ✓';
-  if (avant) return ' — avant ✓, pendant manquant';
-  if (pendant) return ' — avant manquant, pendant ✓';
-  return ' — aucun import encore';
-}
-
-function initialiserSectionCampagne() {
-  const select = document.getElementById('campagneSelect');
-  const vide = document.getElementById('campagneVide');
-  if (!campagnesDisponibles.length) {
-    select.style.display = 'none';
-    document.getElementById('campagnePhaseWrap').style.display = 'none';
-    vide.style.display = 'block';
-    return;
-  }
-  select.style.display = 'block';
-  document.getElementById('campagnePhaseWrap').style.display = 'block';
-  vide.style.display = 'none';
-  select.innerHTML = '<option value="">— Choisir —</option>' + campagnesDisponibles.map(c =>
-    `<option value="${c.id}">${c.nom} (${fmtDateFr(c.date_debut)} → ${fmtDateFr(c.date_fin)})${statutImportsCampagne(c.id)}</option>`
-  ).join('');
-}
-
-function calculerPeriodeCampagne(campagne, phase) {
-  if (phase === 'pendant') return { debut: campagne.date_debut, fin: campagne.date_fin };
-  const duree = joursEntre(campagne.date_debut, campagne.date_fin);
-  const fin = ajouterJours(campagne.date_debut, -1);
-  const debut = ajouterJours(fin, -(duree - 1));
-  return { debut, fin };
-}
-
-function chevauchement(debut1, fin1, debut2, fin2) {
-  return debut1 <= fin2 && debut2 <= fin1;
-}
-
-function rafraichirPeriodeCampagne() {
-  const info = document.getElementById('campagnePeriodeInfo');
-  const warn = document.getElementById('campagneChevauchement');
-  if (!campagneChoisieId || !phaseChoisie) {
-    info.style.display = 'none';
-    warn.style.display = 'none';
-    return;
-  }
-  const campagne = campagnesDisponibles.find(c => c.id === campagneChoisieId);
-  if (!campagne) return;
-  const { debut, fin } = calculerPeriodeCampagne(campagne, phaseChoisie);
-  const label = phaseChoisie === 'pendant' ? 'les dates exactes de la promotion' : 'la même durée que la promotion, juste avant son début';
-  info.innerHTML = `Période calculée pour <b style="color:var(--text);">${campagne.nom}</b> (${phaseChoisie === 'pendant' ? 'pendant' : 'avant'}) : <b style="color:var(--cyan);">${fmtDateFr(debut)} → ${fmtDateFr(fin)}</b><br>${label}.`;
-  info.style.display = 'block';
-
-  // Avertit si cette fenêtre calculée chevauche une AUTRE promotion
-  // déclarée — le résultat serait faussé par deux effets mélangés.
-  const autresChevauchantes = campagnesDisponibles.filter(c => c.id !== campagneChoisieId && chevauchement(debut, fin, c.date_debut, c.date_fin));
-  if (autresChevauchantes.length) {
-    warn.textContent = `Attention : cette période chevauche une autre promotion déclarée (${autresChevauchantes.map(c => c.nom).join(', ')}) — la mesure sera moins fiable, les deux effets se mélangeront.`;
-    warn.style.display = 'block';
-  } else {
-    warn.style.display = 'none';
-  }
-}
-
-document.getElementById('campagneSelect').addEventListener('change', e => {
-  campagneChoisieId = e.target.value;
-  rafraichirPeriodeCampagne();
-});
-document.getElementById('phaseAvant').addEventListener('click', function () {
-  phaseChoisie = 'avant';
-  this.className = 'btn btn-primary';
-  document.getElementById('phasePendant').className = 'btn btn-ghost';
-  rafraichirPeriodeCampagne();
-});
-document.getElementById('phasePendant').addEventListener('click', function () {
-  phaseChoisie = 'pendant';
-  this.className = 'btn btn-primary';
-  document.getElementById('phaseAvant').className = 'btn btn-ghost';
-  rafraichirPeriodeCampagne();
-});
-
-// Champs attendus par NEXUS Pilot, avec synonymes possibles pour l'auto-mapping
-const FIELD_DEFS = [
-  {key:'categorie', label:'Catégorie', synonyms:['categ','categorie','famille','rayon']},
-  {key:'article', label:'Article', synonyms:['lib article','libelle','designation','produit','article']},
-  {key:'quantite', label:'Quantité', synonyms:['qte','quantite','qty','stock actuel']},
-  {key:'prix_achat', label:"Prix d'achat", synonyms:['pma','pa ht','prix achat','cout','cost']},
-  {key:'prix_vente', label:'Prix de vente HT', synonyms:['pu ht','pv ht','prix vente','prix','pvht']},
-  {key:'tva', label:'TVA', synonyms:['tva','vat']},
-  {key:'code_barres', label:'Code-barres', synonyms:['code barres','ean','codebarre']},
-];
-
-// Insensible aux accents : "Catégorie"/"Libellé" (export valorisation stock)
-// ne matchaient pas 'categ'/'libelle' auparavant, puisque norm() ne faisait
-// que mettre en minuscules sans retirer les accents (trouve le 15/07/2026).
-function norm(s){
-  return (s||'').toString()
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase().trim();
-}
-
-function detectMapping(headers){
-  const mapping = {};
-  FIELD_DEFS.forEach(f=>{
-    const found = headers.find(h => f.synonyms.some(s => norm(h).includes(s)));
-    mapping[f.key] = found || null;
+  document.getElementById('btnVersEtape2').addEventListener('click', async () => {
+    periodeVentesSection.style.display = (typeImportActuel === 'ventes_catalogue') ? 'block' : 'none';
+    periodeStockSection.style.display = (typeImportActuel === 'stock_theorique') ? 'block' : 'none';
+    periodeCampagneSection.style.display = (typeImportActuel === 'campagne') ? 'block' : 'none';
+    aliasesActuels = await D.chargerAliasProduits(nexusClient, site, typeImportActuel);
+    mappingMemoireActuelle = await D.chargerMappingMemoire(nexusClient, site, typeImportActuel);
+    afficherEtape('source');
   });
-  return mapping;
-}
+  document.getElementById('btnRetourEtape1').addEventListener('click', () => afficherEtape('intention'));
 
-function toNumber(v){
-  if (typeof v === 'number') return v;
-  if (v == null) return NaN;
-  let s = String(v).replace(/\s|\u00a0|\u202f/g,'').replace(',', '.');
-  const n = parseFloat(s);
-  return isNaN(n) ? NaN : n;
-}
+  // ------------------------------------------------------------
+  // Campagne — sélection promotion/phase (logique de calcul inchangée)
+  // ------------------------------------------------------------
+  function dateLocaleImport(dateStr) { return new Date(dateStr + 'T12:00:00'); }
+  function ajouterJours(dateStr, n) { const d = dateLocaleImport(dateStr); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); }
+  function joursEntre(debut, fin) { return Math.round((dateLocaleImport(fin) - dateLocaleImport(debut)) / 86400000) + 1; }
+  function fmtDateFr(dateStr) { return dateLocaleImport(dateStr).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' }); }
 
-// Correction automatique de categorisation — trouvee le 15/07/2026 : Decenium
-// range parfois des produits CBD sous la categorie generique "Tabac", ce qui
-// noie leur marge (non reglementee, ~50%) avec celle du vrai tabac a rouler
-// (reglementee, ~14%) et fausse la lecture par categorie dans Scanner NEXUS.
-// Regle : si le nom de l'article contient "CBD", la categorie devient "CBD"
-// quel que soit ce que dit l'export d'origine.
-function corrigerCategorie(categorieBrute, article) {
-  if (/cbd/i.test(article || '')) return 'CBD';
-  return categorieBrute;
-}
-
-function renderMapping(mapping){
-  mappingGrid.innerHTML = '';
-  FIELD_DEFS.forEach(f=>{
-    const found = mapping[f.key];
-    const div = document.createElement('div');
-    div.className = 'map-item ' + (found ? 'ok' : 'missing');
-    div.innerHTML = `<span class="dot"></span><div><div class="mlabel">${f.label}</div><div class="msrc">${found ? '"'+found+'"' : 'non détecté'}</div></div>`;
-    mappingGrid.appendChild(div);
-  });
-}
-
-function renderPreview(headers, rows){
-  previewHead.innerHTML = headers.map(h=>`<th>${h}</th>`).join('');
-  const slice = rows.slice(0,15);
-  previewBody.innerHTML = slice.map(r =>
-    '<tr>' + headers.map(h => `<td>${r[h] ?? ''}</td>`).join('') + '</tr>'
-  ).join('');
-  moreRows.textContent = rows.length > 15 ? `+ ${rows.length - 15} autres lignes` : `${rows.length} ligne(s) au total`;
-}
-
-function computeSummary(mapping, rows){
-  const catKey = mapping['categorie'], qKey = mapping['quantite'], pvKey = mapping['prix_vente'], artKey = mapping['article'];
-  const cats = new Set();
-  let ca = 0, anomalies = 0;
-  const catTotals = {};
-  rows.forEach(r=>{
-    const categorieCorrigee = catKey && r[catKey] ? corrigerCategorie(r[catKey], artKey ? r[artKey] : '') : null;
-    if (categorieCorrigee) cats.add(categorieCorrigee);
-    const q = qKey ? toNumber(r[qKey]) : NaN;
-    const pv = pvKey ? toNumber(r[pvKey]) : NaN;
-    const lineCA = (!isNaN(q) && !isNaN(pv)) ? q*pv : 0;
-    ca += lineCA;
-    if ((pvKey && (isNaN(pv) || pv<=0)) || (qKey && (isNaN(q) || q<0))) anomalies++;
-    if (categorieCorrigee){
-      catTotals[categorieCorrigee] = (catTotals[categorieCorrigee]||0) + lineCA;
-    }
-  });
-  cleanedSummary = Object.entries(catTotals).map(([Categorie, CA_estime])=>({Categorie, CA_estime: Math.round(CA_estime*100)/100}))
-    .sort((a,b)=>b.CA_estime-a.CA_estime);
-
-  statRows.textContent = rows.length;
-  statCats.textContent = cats.size || '—';
-  statCA.textContent = ca ? Math.round(ca).toLocaleString('fr-FR') + ' €' : '—';
-  statAnom.textContent = anomalies;
-}
-
-// Certains exports Decenium sont en realite des pages HTML deguisees en
-// .xls (deja vu avec valorisation-stock--2.xls). Dans ce cas, XLSX.js tente
-// de deviner les types de cellules depuis du texte et peut confondre une
-// virgule decimale francaise ("7,00") avec un separateur de milliers
-// anglo-saxon, ce qui transformait 7 en 700 (trouve le 15/07/2026). On
-// parse alors le HTML nous-memes, en gardant chaque cellule en texte brut
-// — c'est ensuite toNumber() (qui gere deja la virgule francaise) qui fait
-// la conversion, jamais XLSX.js.
-function parserTableHTML(html) {
-  const doc = new DOMParser().parseFromString(html, 'text/html');
-  const table = doc.querySelector('table');
-  if (!table) return [];
-  const trs = Array.from(table.querySelectorAll('tr')).filter(tr => tr.querySelectorAll('td,th').length > 0);
-  if (trs.length === 0) return [];
-  const headers = Array.from(trs[0].querySelectorAll('th,td')).map(td => td.textContent.trim());
-  return trs.slice(1).map(tr => {
-    const cells = Array.from(tr.querySelectorAll('td,th')).map(td => td.textContent.trim());
-    const obj = {};
-    headers.forEach((h,i) => { obj[h] = cells[i] !== undefined ? cells[i] : ''; });
-    return obj;
-  }).filter(r => Object.values(r).some(v => v !== ''));
-}
-
-function handleFile(file){
-  if (typeImportActuel === 'panier') { handlePanierFile(file); return; }
-  const reader = new FileReader();
-  reader.onload = function(e){
-    const data = new Uint8Array(e.target.result);
-    const debut = new TextDecoder('utf-8').decode(data.slice(0, 512)).toLowerCase();
-    let rows;
-    if (debut.includes('<html') || debut.includes('<table')) {
-      rows = parserTableHTML(new TextDecoder('utf-8').decode(data));
-    } else {
-      const wb = XLSX.read(data, {type:'array'});
-      const sheet = wb.Sheets[wb.SheetNames[0]];
-      rows = XLSX.utils.sheet_to_json(sheet, {defval:''});
-    }
-    if (!rows.length){ alert("Le fichier semble vide ou illisible."); return; }
-    const headers = Object.keys(rows[0]);
-    currentRows = rows; currentHeaders = headers;
-
-    fname.textContent = file.name;
-    fmeta.textContent = `${(file.size/1024).toFixed(0)} Ko · ${rows.length} lignes · ${headers.length} colonnes`;
-
-    const mapping = detectMapping(headers);
-    currentMapping = mapping;
-    renderMapping(mapping);
-    renderPreview(headers, rows);
-    computeSummary(mapping, rows);
-
-    dropzone.style.display = 'none';
-    fileArea.style.display = 'block';
-  };
-  reader.readAsArrayBuffer(file);
-}
-
-// ------------------------------------------------------------
-// Panier moyen (25/07/2026) — format Decenium fixe, en-tête pas
-// forcément en première ligne (l'export laisse souvent des lignes
-// vides avant "Date Transaction"). On cherche la ligne d'en-tête où
-// qu'elle soit plutôt que de supposer qu'elle est en ligne 1, puis on
-// convertit chaque ligne suivante en {date, nb_tickets, panier_moyen_ht,
-// panier_moyen_ttc} — jamais de ligne acceptée si sa date ne se
-// parse pas franchement (mieux vaut l'ignorer et le dire que deviner).
-// ------------------------------------------------------------
-function parserDateTransactionDecenium(brut) {
-  const s = String(brut || '').replace(/ /g, ' ').trim();
-  const parts = s.split(' - ');
-  const datePart = (parts.length > 1 ? parts[parts.length - 1] : s).trim();
-  const m = datePart.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-  if (!m) return null;
-  const [, d, mo, y] = m;
-  return `${y}-${mo.padStart(2, '0')}-${d.padStart(2, '0')}`;
-}
-
-function extraireLignesPanier(matrix) {
-  let headerIdx = -1, colDate = -1, colNb = -1, colHt = -1, colTtc = -1;
-  for (let i = 0; i < matrix.length; i++) {
-    const row = matrix[i] || [];
-    const idx = row.findIndex(c => norm(c).includes('date transaction'));
-    if (idx !== -1) {
-      headerIdx = i; colDate = idx;
-      colNb = row.findIndex(c => norm(c) === 'nb');
-      colHt = row.findIndex(c => norm(c).includes('pm ht'));
-      colTtc = row.findIndex(c => norm(c).includes('pm ttc'));
-      break;
-    }
+  function statutImportsCampagne(campagneId) {
+    const avant = importsCampagnes.some(i => i.campagne_id === campagneId && i.phase === 'avant');
+    const pendant = importsCampagnes.some(i => i.campagne_id === campagneId && i.phase === 'pendant');
+    if (avant && pendant) return ' — avant ✓, pendant ✓';
+    if (avant) return ' — avant ✓, pendant manquant';
+    if (pendant) return ' — avant manquant, pendant ✓';
+    return ' — aucun import encore';
   }
-  if (headerIdx === -1 || colNb === -1 || colHt === -1 || colTtc === -1) {
-    return { erreur: "En-têtes non reconnus dans ce fichier — attendu : Date Transaction, Nb, PM HT, PM TTC (export Decenium, menu Compta > Panier Moyen)." };
-  }
-  const lignes = [];
-  const ignorees = [];
-  for (let i = headerIdx + 1; i < matrix.length; i++) {
-    const row = matrix[i] || [];
-    if (!row.length || row.every(c => String(c).trim() === '')) continue;
-    const date = parserDateTransactionDecenium(row[colDate]);
-    const nb = toNumber(row[colNb]);
-    if (!date || isNaN(nb)) { ignorees.push(row[colDate]); continue; }
-    const ht = toNumber(row[colHt]);
-    const ttc = toNumber(row[colTtc]);
-    lignes.push({ date, nb_tickets: Math.round(nb), panier_moyen_ht: isNaN(ht) ? null : ht, panier_moyen_ttc: isNaN(ttc) ? null : ttc });
-  }
-  return { lignes, ignorees };
-}
-
-function handlePanierFile(file) {
-  const reader = new FileReader();
-  reader.onload = function (e) {
-    const data = new Uint8Array(e.target.result);
-    const debutTxt = new TextDecoder('utf-8').decode(data.slice(0, 512)).toLowerCase();
-    let matrix;
-    if (debutTxt.includes('<html') || debutTxt.includes('<table')) {
-      const doc = new DOMParser().parseFromString(new TextDecoder('utf-8').decode(data), 'text/html');
-      const table = doc.querySelector('table');
-      const trs = table ? Array.from(table.querySelectorAll('tr')).filter(tr => tr.querySelectorAll('td,th').length > 0) : [];
-      matrix = trs.map(tr => Array.from(tr.querySelectorAll('td,th')).map(td => td.textContent.trim()));
-    } else {
-      const wb = XLSX.read(data, { type: 'array' });
-      const sheet = wb.Sheets[wb.SheetNames[0]];
-      matrix = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+  function initialiserSectionCampagne() {
+    const select = document.getElementById('campagneSelect');
+    const vide = document.getElementById('campagneVide');
+    if (!campagnesDisponibles.length) {
+      select.style.display = 'none';
+      document.getElementById('campagnePhaseWrap').style.display = 'none';
+      vide.style.display = 'block';
+      return;
     }
-
-    const { lignes, ignorees, erreur } = extraireLignesPanier(matrix);
-    if (erreur) { alert(erreur); return; }
-    if (!lignes.length) { alert("Aucune ligne de date valide trouvée dans ce fichier."); return; }
-
-    currentPanierLignes = lignes;
-    fname.textContent = file.name;
-    fmeta.textContent = `${(file.size / 1024).toFixed(0)} Ko · ${lignes.length} jour(s) détecté(s)${ignorees.length ? ` · ${ignorees.length} ligne(s) ignorée(s)` : ''}`;
-
-    previewHead.innerHTML = ['Date', 'Nb tickets', 'Panier moyen HT', 'Panier moyen TTC'].map(h => `<th>${h}</th>`).join('');
-    previewBody.innerHTML = lignes.slice(0, 15).map(l =>
-      `<tr><td>${fmtDateFr(l.date)}</td><td>${l.nb_tickets}</td><td>${l.panier_moyen_ht != null ? l.panier_moyen_ht.toFixed(2) + ' €' : '—'}</td><td>${l.panier_moyen_ttc != null ? l.panier_moyen_ttc.toFixed(2) + ' €' : '—'}</td></tr>`
+    select.style.display = 'block';
+    document.getElementById('campagnePhaseWrap').style.display = 'block';
+    vide.style.display = 'none';
+    select.innerHTML = '<option value="">— Choisir —</option>' + campagnesDisponibles.map(c =>
+      `<option value="${c.id}">${c.nom} (${fmtDateFr(c.date_debut)} → ${fmtDateFr(c.date_fin)})${statutImportsCampagne(c.id)}</option>`
     ).join('');
-    moreRows.textContent = lignes.length > 15 ? `+ ${lignes.length - 15} autres lignes` : `${lignes.length} ligne(s) au total`;
+  }
+  function calculerPeriodeCampagne(campagne, phase) {
+    if (phase === 'pendant') return { debut: campagne.date_debut, fin: campagne.date_fin };
+    const duree = joursEntre(campagne.date_debut, campagne.date_fin);
+    const fin = ajouterJours(campagne.date_debut, -1);
+    const debut = ajouterJours(fin, -(duree - 1));
+    return { debut, fin };
+  }
+  function rafraichirPeriodeCampagne() {
+    const info = document.getElementById('campagnePeriodeInfo');
+    const warn = document.getElementById('campagneChevauchement');
+    if (!campagneChoisieId || !phaseChoisie) { info.style.display = 'none'; warn.style.display = 'none'; return; }
+    const campagne = campagnesDisponibles.find(c => c.id === campagneChoisieId);
+    if (!campagne) return;
+    const { debut, fin } = calculerPeriodeCampagne(campagne, phaseChoisie);
+    const label = phaseChoisie === 'pendant' ? 'les dates exactes de la promotion' : 'la même durée que la promotion, juste avant son début';
+    info.innerHTML = `Période calculée pour <b style="color:var(--text);">${campagne.nom}</b> (${phaseChoisie === 'pendant' ? 'pendant' : 'avant'}) : <b style="color:var(--cyan);">${fmtDateFr(debut)} → ${fmtDateFr(fin)}</b><br>${label}.`;
+    info.style.display = 'block';
+    const autresChevauchantes = M.detecterChevauchement(debut, fin, campagnesDisponibles.filter(c => c.id !== campagneChoisieId).map(c => ({ debut: c.date_debut, fin: c.date_fin, nom: c.nom })));
+    if (autresChevauchantes.length) {
+      warn.textContent = `Attention : cette période chevauche une autre promotion déclarée (${autresChevauchantes.map(c => c.nom).join(', ')}).`;
+      warn.style.display = 'block';
+    } else { warn.style.display = 'none'; }
+  }
+  document.getElementById('campagneSelect').addEventListener('change', e => { campagneChoisieId = e.target.value; rafraichirPeriodeCampagne(); });
+  document.getElementById('phaseAvant').addEventListener('click', function () { phaseChoisie = 'avant'; this.className = 'btn btn-primary'; document.getElementById('phasePendant').className = 'btn btn-ghost'; rafraichirPeriodeCampagne(); });
+  document.getElementById('phasePendant').addEventListener('click', function () { phaseChoisie = 'pendant'; this.className = 'btn btn-primary'; document.getElementById('phaseAvant').className = 'btn btn-ghost'; rafraichirPeriodeCampagne(); });
 
-    const dates = lignes.map(l => l.date).sort();
-    const moyNb = Math.round(lignes.reduce((s, l) => s + l.nb_tickets, 0) / lignes.length);
-    const avecTtc = lignes.filter(l => l.panier_moyen_ttc != null);
-    const moyPanier = avecTtc.length ? avecTtc.reduce((s, l) => s + l.panier_moyen_ttc, 0) / avecTtc.length : null;
-    panierResume.innerHTML = `<b style="color:var(--text);">${lignes.length} jour(s)</b> détecté(s), du ${fmtDateFr(dates[0])} au ${fmtDateFr(dates[dates.length - 1])}.<br>Moyenne sur la période : ${moyNb} tickets/jour${moyPanier != null ? `, panier moyen ${moyPanier.toFixed(2)} € TTC` : ''} (boutique uniquement).${ignorees.length ? `<br><span style="color:var(--amber);">${ignorees.length} ligne(s) non reconnue(s), ignorée(s) plutôt que devinées.</span>` : ''}`;
+  // ------------------------------------------------------------
+  // ÉTAPE 2 — Source : parsing fichier (inchangé, éprouvé)
+  // ------------------------------------------------------------
+  const dropzone = document.getElementById('dropzone');
+  const fileInput = document.getElementById('fileInput');
+  const fileArea = document.getElementById('fileArea');
+  const fname = document.getElementById('fname');
+  const fmeta = document.getElementById('fmeta');
+  const removeFile = document.getElementById('removeFile');
 
-    dropzone.style.display = 'none';
-    fileArea.style.display = 'block';
-  };
-  reader.readAsArrayBuffer(file);
-}
+  function norm(s) { return M.norm(s); }
 
-dropzone.addEventListener('click', ()=> fileInput.click());
-fileInput.addEventListener('change', e=>{ if (e.target.files[0]) handleFile(e.target.files[0]); });
-
-['dragenter','dragover'].forEach(evt=>{
-  dropzone.addEventListener(evt, e=>{ e.preventDefault(); dropzone.classList.add('drag'); });
-});
-['dragleave','drop'].forEach(evt=>{
-  dropzone.addEventListener(evt, e=>{ e.preventDefault(); dropzone.classList.remove('drag'); });
-});
-dropzone.addEventListener('drop', e=>{
-  const file = e.dataTransfer.files[0];
-  if (file) handleFile(file);
-});
-
-removeFile.addEventListener('click', ()=>{
-  currentRows = []; currentHeaders = []; cleanedSummary = []; currentPanierLignes = [];
-  fileInput.value = '';
-  fileArea.style.display = 'none';
-  dropzone.style.display = 'block';
-});
-
-downloadClean.addEventListener('click', ()=>{
-  if (!cleanedSummary.length){ alert("Aucune donnée catégorisée à exporter — vérifiez la colonne Catégorie."); return; }
-  const ws = XLSX.utils.json_to_sheet(cleanedSummary);
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Résumé catégories');
-  XLSX.writeFile(wb, 'nexus-resume-import.xlsx');
-});
-
-sendPilot.addEventListener('click', async ()=>{
-  const msg = document.getElementById('sendMsg');
-
-  if (typeImportActuel === 'panier') {
-    if (!currentPanierLignes.length) {
-      msg.textContent = "Aucune donnée à envoyer.";
-      msg.style.color = 'var(--red)';
-      return;
-    }
-    await envoyerPanierMoyen(msg);
-    return;
+  function parserTableHTML(html) {
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const table = doc.querySelector('table');
+    if (!table) return [];
+    const trs = Array.from(table.querySelectorAll('tr')).filter(tr => tr.querySelectorAll('td,th').length > 0);
+    if (trs.length === 0) return [];
+    const headers = Array.from(trs[0].querySelectorAll('th,td')).map(td => td.textContent.trim());
+    return trs.slice(1).map(tr => {
+      const cells = Array.from(tr.querySelectorAll('td,th')).map(td => td.textContent.trim());
+      const obj = {};
+      headers.forEach((h, i) => { obj[h] = cells[i] !== undefined ? cells[i] : ''; });
+      return obj;
+    }).filter(r => Object.values(r).some(v => v !== ''));
   }
 
-  if (!currentRows.length) {
-    msg.textContent = "Aucune donnée à envoyer.";
-    msg.style.color = 'var(--red)';
-    return;
-  }
+  function handleFile(file) {
+    currentFile = file;
+    if (typeImportActuel === 'panier_moyen') { handlePanierFile(file); return; }
+    const reader = new FileReader();
+    reader.onload = function (e) {
+      const data = new Uint8Array(e.target.result);
+      const debut = new TextDecoder('utf-8').decode(data.slice(0, 512)).toLowerCase();
+      let rows;
+      if (debut.includes('<html') || debut.includes('<table')) {
+        rows = parserTableHTML(new TextDecoder('utf-8').decode(data));
+      } else {
+        const wb = XLSX.read(data, { type: 'array' });
+        const sheet = wb.Sheets[wb.SheetNames[0]];
+        rows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+      }
+      if (!rows.length) { alert("Le fichier semble vide ou illisible."); return; }
+      const headers = Object.keys(rows[0]);
+      currentRows = rows; currentHeaders = headers;
 
-  if (typeImportActuel === 'stock') {
-    await envoyerStockInstantane(msg);
-  } else if (typeImportActuel === 'campagne') {
-    await envoyerCampagneProduits(msg);
-  } else {
-    await envoyerVentes(msg);
-  }
-});
+      fname.textContent = file.name;
+      fmeta.textContent = `${(file.size / 1024).toFixed(0)} Ko · ${rows.length} lignes · ${headers.length} colonnes`;
 
-async function envoyerVentes(msg) {
-  const debut = document.getElementById('periodeDebut').value;
-  const fin = document.getElementById('periodeFin').value;
+      const fieldDefs = M.fieldDefsPourIntention(typeImportActuel);
+      const { mapping, auto } = M.detectMapping(headers, fieldDefs, mappingMemoireActuelle);
+      currentMapping = mapping; currentMappingAuto = auto;
 
-  if (!debut || !fin) {
-    msg.textContent = "Indiquez la période (début et fin) avant d'envoyer.";
-    msg.style.color = 'var(--red)';
-    return;
-  }
-
-  const { categorie: catKey, article: artKey, quantite: qKey, prix_achat: paKey, prix_vente: pvKey, tva: tvaKey, code_barres: cbKey } = currentMapping;
-
-  if (!catKey || !artKey) {
-    msg.textContent = "Catégorie et Article doivent être détectés pour pouvoir importer.";
-    msg.style.color = 'var(--red)';
-    return;
-  }
-
-  // Sans ces trois colonnes, le CA et la marge tombent silencieusement a 0
-  // pour toutes les lignes — c'est exactement ce qui est arrive avec T2 le
-  // 15/07/2026 (en-tetes "PA HT"/"PV HT" non reconnus a l'epoque). On bloque
-  // desormais plutot que de laisser un import "reussi" avec des zeros partout.
-  if (!qKey || !paKey || !pvKey) {
-    const manquants = [!qKey && 'Quantité', !paKey && "Prix d'achat", !pvKey && 'Prix de vente HT'].filter(Boolean).join(', ');
-    msg.textContent = `Colonne(s) non détectée(s) : ${manquants}. Sans elles, le CA et la marge seraient à 0 pour toutes les lignes — vérifiez les en-têtes du fichier.`;
-    msg.style.color = 'var(--red)';
-    return;
-  }
-
-  // Verifie qu'on ne va pas dupliquer une periode deja importee — envoyerParLots
-  // ne fait qu'ajouter, jamais remplacer. Sans ce controle, reimporter la meme
-  // periode double silencieusement le CA et la marge partout dans l'app
-  // (trouve le 15/07/2026, apres un reimport de T1 et T2).
-  const { count: nbExistant, error: erreurVerif } = await nexusClient
-    .from('products')
-    .select('id', { count: 'exact', head: true })
-    .eq('site', employee.site_id)
-    .eq('periode_debut', debut)
-    .eq('periode_fin', fin);
-
-  if (erreurVerif) { console.error('Vérification période existante:', erreurVerif); }
-
-  if (nbExistant && nbExistant > 0) {
-    const remplacer = confirm(`${nbExistant} ligne(s) existent déjà pour cette période (${debut} → ${fin}). Les remplacer par ce nouvel import ? (Annuler = ne rien envoyer, pour éviter un doublon)`);
-    if (!remplacer) {
-      msg.textContent = "Import annulé — rien n'a été envoyé.";
-      msg.style.color = 'var(--text-mid)';
-      return;
-    }
-    sendPilot.textContent = 'Suppression des anciennes lignes…';
-    sendPilot.style.pointerEvents = 'none';
-    const { error: erreurSuppr } = await nexusClient
-      .from('products').delete()
-      .eq('site', employee.site_id).eq('periode_debut', debut).eq('periode_fin', fin);
-    if (erreurSuppr) {
-      console.error('Suppression avant remplacement:', erreurSuppr);
-      msg.textContent = "Erreur lors du remplacement — rien n'a été modifié, réessayez.";
-      msg.style.color = 'var(--red)';
-      sendPilot.textContent = 'Envoyer';
-      sendPilot.style.pointerEvents = 'auto';
-      return;
-    }
-  }
-
-  sendPilot.textContent = 'Envoi en cours…';
-  sendPilot.style.pointerEvents = 'none';
-
-  const lignes = currentRows.map(r => {
-    const q = qKey ? toNumber(r[qKey]) : NaN;
-    const pa = paKey ? toNumber(r[paKey]) : NaN;
-    const pv = pvKey ? toNumber(r[pvKey]) : NaN;
-    const ca = (!isNaN(q) && !isNaN(pv)) ? q * pv : 0;
-    const marge = (!isNaN(q) && !isNaN(pa) && !isNaN(pv)) ? q * (pv - pa) : 0;
-    const articleNom = String(r[artKey] || '');
-    return {
-      site: employee.site_id,
-      periode_debut: debut,
-      periode_fin: fin,
-      categorie: corrigerCategorie(String(r[catKey] || 'Non classé'), articleNom),
-      article: articleNom,
-      code_barres: cbKey ? String(r[cbKey] || '').replace(/[\s\u00a0\u202f]+/g, '').trim() || null : null,
-      quantite: isNaN(q) ? null : q,
-      prix_achat: isNaN(pa) ? null : pa,
-      prix_vente: isNaN(pv) ? null : pv,
-      tva: tvaKey ? toNumber(r[tvaKey]) : null,
-      ca: Math.round(ca * 100) / 100,
-      marge: Math.round(marge * 100) / 100,
-      imported_by: employee.id,
+      dropzone.style.display = 'none';
+      fileArea.style.display = 'block';
     };
-  }).filter(l => l.article);
-
-  // Garde-fou : si le mapping de colonnes rate silencieusement (ex: la
-  // colonne Article detectee est vide pour ce fichier precis), lignes finit
-  // vide et l'ancien comportement affichait quand meme "✓ 0 reference(s)
-  // importee(s)" — un succes en apparence, alors que rien n'a ete envoye.
-  // Trouve le 15/07/2026 apres un import T2 disparu sans message d'erreur visible.
-  if (lignes.length === 0) {
-    msg.textContent = "Aucune ligne valide à envoyer — vérifiez que la colonne \"Article\" (mapping ci-dessus) contient bien des valeurs dans ce fichier.";
-    msg.style.color = 'var(--red)';
-    sendPilot.textContent = 'Envoyer à NEXUS Pilot →';
-    sendPilot.style.pointerEvents = 'auto';
-    return;
+    reader.readAsArrayBuffer(file);
   }
 
-  const envoyees = await envoyerParLots('products', lignes, msg);
-  if (envoyees === null) return;
-
-  msg.textContent = `✓ ${envoyees} référence(s) importée(s) pour la période ${debut} → ${fin}.`;
-  msg.style.color = 'var(--green)';
-  sendPilot.textContent = 'Envoyer à NEXUS Pilot →';
-  sendPilot.style.pointerEvents = 'auto';
-}
-
-// ------------------------------------------------------------
-// Envoi Campagne NEXUS — même logique que envoyerVentes (mêmes
-// colonnes obligatoires, même table products), mais la période
-// vient du calcul automatique (calculerPeriodeCampagne) et chaque
-// envoi laisse une trace dans campagnes_nexus_imports pour que
-// NEXUS Campagne sache quelle promotion a déjà ses deux imports.
-// ------------------------------------------------------------
-async function envoyerCampagneProduits(msg) {
-  if (!campagneChoisieId) {
-    msg.textContent = "Choisissez d'abord une promotion.";
-    msg.style.color = 'var(--red)';
-    return;
+  // Panier moyen — parsing Decenium (inchangé, éprouvé)
+  function parserDateTransactionDecenium(brut) {
+    const s = String(brut || '').replace(/ /g, ' ').trim();
+    const parts = s.split(' - ');
+    const datePart = (parts.length > 1 ? parts[parts.length - 1] : s).trim();
+    const m = datePart.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (!m) return null;
+    const [, d, mo, y] = m;
+    return `${y}-${mo.padStart(2, '0')}-${d.padStart(2, '0')}`;
   }
-  if (!phaseChoisie) {
-    msg.textContent = "Indiquez si ce fichier couvre la période avant ou pendant la promotion.";
-    msg.style.color = 'var(--red)';
-    return;
-  }
-  const campagne = campagnesDisponibles.find(c => c.id === campagneChoisieId);
-  if (!campagne) {
-    msg.textContent = "Promotion introuvable — rechargez la page.";
-    msg.style.color = 'var(--red)';
-    return;
-  }
-
-  const { categorie: catKey, article: artKey, quantite: qKey, prix_achat: paKey, prix_vente: pvKey, tva: tvaKey, code_barres: cbKey } = currentMapping;
-  if (!catKey || !artKey) {
-    msg.textContent = "Catégorie et Article doivent être détectés pour pouvoir importer.";
-    msg.style.color = 'var(--red)';
-    return;
-  }
-  if (!qKey || !paKey || !pvKey) {
-    const manquants = [!qKey && 'Quantité', !paKey && "Prix d'achat", !pvKey && 'Prix de vente HT'].filter(Boolean).join(', ');
-    msg.textContent = `Colonne(s) non détectée(s) : ${manquants}. Sans elles, le CA et la marge seraient à 0 pour toutes les lignes — vérifiez les en-têtes du fichier.`;
-    msg.style.color = 'var(--red)';
-    return;
-  }
-
-  const { debut, fin } = calculerPeriodeCampagne(campagne, phaseChoisie);
-  const site = employee.site_id;
-
-  // Un import précédent existe déjà pour cette promotion + cette
-  // phase ? On le remplace proprement (anciennes lignes products +
-  // ancien lien supprimés) plutôt que d'accumuler des doublons.
-  const importExistant = importsCampagnes.find(i => i.campagne_id === campagneChoisieId && i.phase === phaseChoisie);
-  if (importExistant) {
-    const remplacer = confirm(`Un import "${phaseChoisie}" existe déjà pour "${campagne.nom}" (${importExistant.periode_debut} → ${importExistant.periode_fin}). Le remplacer par ce nouveau fichier ?`);
-    if (!remplacer) {
-      msg.textContent = "Import annulé — rien n'a été envoyé.";
-      msg.style.color = 'var(--text-mid)';
-      return;
+  function extraireLignesPanier(matrix) {
+    let headerIdx = -1, colDate = -1, colNb = -1, colHt = -1, colTtc = -1;
+    for (let i = 0; i < matrix.length; i++) {
+      const row = matrix[i] || [];
+      const idx = row.findIndex(c => norm(c).includes('date transaction'));
+      if (idx !== -1) {
+        headerIdx = i; colDate = idx;
+        colNb = row.findIndex(c => norm(c) === 'nb');
+        colHt = row.findIndex(c => norm(c).includes('pm ht'));
+        colTtc = row.findIndex(c => norm(c).includes('pm ttc'));
+        break;
+      }
     }
-    sendPilot.textContent = 'Suppression de l\'ancien import…';
-    sendPilot.style.pointerEvents = 'none';
-    const { error: erreurSupprProduits } = await nexusClient.from('products').delete()
-      .eq('site', site).eq('periode_debut', importExistant.periode_debut).eq('periode_fin', importExistant.periode_fin);
-    const { error: erreurSupprLien } = await nexusClient.from('campagnes_nexus_imports').delete()
-      .eq('campagne_id', campagneChoisieId).eq('phase', phaseChoisie);
-    if (erreurSupprProduits || erreurSupprLien) {
-      console.error('Remplacement import campagne:', erreurSupprProduits || erreurSupprLien);
-      msg.textContent = "Erreur lors du remplacement — rien n'a été modifié, réessayez.";
-      msg.style.color = 'var(--red)';
-      sendPilot.textContent = 'Envoyer à NEXUS Pilot →';
-      sendPilot.style.pointerEvents = 'auto';
-      return;
+    if (headerIdx === -1 || colNb === -1 || colHt === -1 || colTtc === -1) {
+      return { erreur: "En-têtes non reconnus — attendu : Date Transaction, Nb, PM HT, PM TTC (export Decenium, Compta > Panier Moyen)." };
     }
+    const lignes = [];
+    const ignorees = [];
+    for (let i = headerIdx + 1; i < matrix.length; i++) {
+      const row = matrix[i] || [];
+      if (!row.length || row.every(c => String(c).trim() === '')) continue;
+      const date = parserDateTransactionDecenium(row[colDate]);
+      const nb = M.toNumber(row[colNb]);
+      if (!date || isNaN(nb)) { ignorees.push(row[colDate]); continue; }
+      const ht = M.toNumber(row[colHt]);
+      const ttc = M.toNumber(row[colTtc]);
+      lignes.push({ date, nb_tickets: Math.round(nb), panier_moyen_ht: isNaN(ht) ? null : ht, panier_moyen_ttc: isNaN(ttc) ? null : ttc });
+    }
+    return { lignes, ignorees };
   }
-
-  sendPilot.textContent = 'Envoi en cours…';
-  sendPilot.style.pointerEvents = 'none';
-
-  const lignes = currentRows.map(r => {
-    const q = qKey ? toNumber(r[qKey]) : NaN;
-    const pa = paKey ? toNumber(r[paKey]) : NaN;
-    const pv = pvKey ? toNumber(r[pvKey]) : NaN;
-    const ca = (!isNaN(q) && !isNaN(pv)) ? q * pv : 0;
-    const marge = (!isNaN(q) && !isNaN(pa) && !isNaN(pv)) ? q * (pv - pa) : 0;
-    const articleNom = String(r[artKey] || '');
-    return {
-      site, periode_debut: debut, periode_fin: fin,
-      categorie: corrigerCategorie(String(r[catKey] || 'Non classé'), articleNom),
-      article: articleNom,
-      code_barres: cbKey ? String(r[cbKey] || '').replace(/[\s  ]+/g, '').trim() || null : null,
-      quantite: isNaN(q) ? null : q,
-      prix_achat: isNaN(pa) ? null : pa,
-      prix_vente: isNaN(pv) ? null : pv,
-      tva: tvaKey ? toNumber(r[tvaKey]) : null,
-      ca: Math.round(ca * 100) / 100,
-      marge: Math.round(marge * 100) / 100,
-      imported_by: employee.id,
+  function handlePanierFile(file) {
+    const reader = new FileReader();
+    reader.onload = function (e) {
+      const data = new Uint8Array(e.target.result);
+      const debutTxt = new TextDecoder('utf-8').decode(data.slice(0, 512)).toLowerCase();
+      let matrix;
+      if (debutTxt.includes('<html') || debutTxt.includes('<table')) {
+        const doc = new DOMParser().parseFromString(new TextDecoder('utf-8').decode(data), 'text/html');
+        const table = doc.querySelector('table');
+        const trs = table ? Array.from(table.querySelectorAll('tr')).filter(tr => tr.querySelectorAll('td,th').length > 0) : [];
+        matrix = trs.map(tr => Array.from(tr.querySelectorAll('td,th')).map(td => td.textContent.trim()));
+      } else {
+        const wb = XLSX.read(data, { type: 'array' });
+        const sheet = wb.Sheets[wb.SheetNames[0]];
+        matrix = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+      }
+      const { lignes, ignorees, erreur } = extraireLignesPanier(matrix);
+      if (erreur) { alert(erreur); return; }
+      if (!lignes.length) { alert("Aucune ligne de date valide trouvée dans ce fichier."); return; }
+      currentPanierLignes = lignes;
+      currentPanierIgnorees = ignorees;
+      fname.textContent = file.name;
+      fmeta.textContent = `${(file.size / 1024).toFixed(0)} Ko · ${lignes.length} jour(s) détecté(s)${ignorees.length ? ` · ${ignorees.length} ligne(s) ignorée(s)` : ''}`;
+      dropzone.style.display = 'none';
+      fileArea.style.display = 'block';
     };
-  }).filter(l => l.article);
-
-  if (lignes.length === 0) {
-    msg.textContent = "Aucune ligne valide à envoyer — vérifiez que la colonne \"Article\" (mapping ci-dessus) contient bien des valeurs dans ce fichier.";
-    msg.style.color = 'var(--red)';
-    sendPilot.textContent = 'Envoyer à NEXUS Pilot →';
-    sendPilot.style.pointerEvents = 'auto';
-    return;
+    reader.readAsArrayBuffer(file);
   }
 
-  const envoyees = await envoyerParLots('products', lignes, msg);
-  if (envoyees === null) return;
-
-  const { error: erreurLien } = await nexusClient.from('campagnes_nexus_imports').insert({
-    site, campagne_id: campagneChoisieId, phase: phaseChoisie,
-    periode_debut: debut, periode_fin: fin, importe_par: employee.id,
+  dropzone.addEventListener('click', () => fileInput.click());
+  fileInput.addEventListener('change', e => { if (e.target.files[0]) handleFile(e.target.files[0]); });
+  ['dragenter', 'dragover'].forEach(evt => { dropzone.addEventListener(evt, e => { e.preventDefault(); dropzone.classList.add('drag'); }); });
+  ['dragleave', 'drop'].forEach(evt => { dropzone.addEventListener(evt, e => { e.preventDefault(); dropzone.classList.remove('drag'); }); });
+  dropzone.addEventListener('drop', e => { const file = e.dataTransfer.files[0]; if (file) handleFile(file); });
+  removeFile.addEventListener('click', () => {
+    currentRows = []; currentHeaders = []; currentPanierLignes = []; currentPanierIgnorees = []; currentFile = null;
+    fileInput.value = '';
+    fileArea.style.display = 'none';
+    dropzone.style.display = 'block';
   });
-  if (erreurLien) {
-    console.error('Lien campagnes_nexus_imports:', erreurLien);
-    msg.textContent = `✓ ${envoyees} référence(s) importée(s), mais le lien avec la promotion n'a pas pu être enregistré — réessayez cet import.`;
-    msg.style.color = 'var(--amber)';
-  } else {
-    importsCampagnes = importsCampagnes.filter(i => !(i.campagne_id === campagneChoisieId && i.phase === phaseChoisie));
-    importsCampagnes.push({ campagne_id: campagneChoisieId, phase: phaseChoisie, periode_debut: debut, periode_fin: fin });
-    initialiserSectionCampagne();
-    document.getElementById('campagneSelect').value = campagneChoisieId;
-    msg.textContent = `✓ ${envoyees} référence(s) importée(s) pour "${campagne.nom}" (${phaseChoisie}, ${debut} → ${fin}).`;
-    msg.style.color = 'var(--green)';
+
+  // ------------------------------------------------------------
+  // "Vérifier le fichier" — construit le batch, classe les lignes,
+  // calcule le rapport qualité, écrit le staging (jamais les tables
+  // canoniques à ce stade).
+  // ------------------------------------------------------------
+  document.getElementById('btnVerifier').addEventListener('click', async () => {
+    const sourceMsg = document.getElementById('sourceMsg');
+    sourceMsg.textContent = '';
+    try {
+      if (typeImportActuel === 'panier_moyen') {
+        if (!currentPanierLignes.length) { sourceMsg.textContent = 'Déposez un fichier avant de continuer.'; sourceMsg.style.color = 'var(--red)'; return; }
+        await verifierPanier();
+      } else if (typeImportActuel === 'stock_theorique') {
+        if (!currentRows.length) { sourceMsg.textContent = 'Déposez un fichier avant de continuer.'; sourceMsg.style.color = 'var(--red)'; return; }
+        await verifierStock();
+      } else if (typeImportActuel === 'campagne') {
+        if (!currentRows.length) { sourceMsg.textContent = 'Déposez un fichier avant de continuer.'; sourceMsg.style.color = 'var(--red)'; return; }
+        await verifierVentesOuCampagne('campagne');
+      } else {
+        if (!currentRows.length) { sourceMsg.textContent = 'Déposez un fichier avant de continuer.'; sourceMsg.style.color = 'var(--red)'; return; }
+        await verifierVentesOuCampagne('ventes_catalogue');
+      }
+    } catch (err) {
+      console.error('Vérification:', err);
+      sourceMsg.textContent = "Erreur pendant l'analyse — réessayez.";
+      sourceMsg.style.color = 'var(--red)';
+    }
+  });
+
+  async function creerBatchEtStaging(champsBatch, rowsPourStaging) {
+    const hash = currentFile ? await D.calculerHashFichier(await currentFile.arrayBuffer()) : null;
+    const dejaPublie = await D.verifierFichierDejaPublie(nexusClient, site, champsBatch.intention, hash);
+    currentBatch = await D.creerBatch(nexusClient, Object.assign({
+      site, fichierNom: currentFile ? currentFile.name : null,
+      fichierTailleOctets: currentFile ? currentFile.size : null,
+      fichierHash: hash, auteurId: employee.id,
+    }, champsBatch));
+    if (!currentBatch) throw new Error('Impossible de créer le batch.');
+    await D.journaliser(nexusClient, { batchId: currentBatch.id, site, action: 'depot_fichier', employeId: employee.id, details: { fichier: currentFile ? currentFile.name : null } });
+    await D.enregistrerLignesBrutes(nexusClient, currentBatch.id, rowsPourStaging);
+    return dejaPublie;
   }
-  sendPilot.textContent = 'Envoyer à NEXUS Pilot →';
-  sendPilot.style.pointerEvents = 'auto';
-}
 
-// ------------------------------------------------------------
-// Panier moyen — un upsert(site, date) par jour : contrairement à
-// products (un import = une période entière remplacée), ici chaque
-// jour est sa propre unité et un réimport met juste à jour la ligne
-// existante, sans confirmation de remplacement nécessaire.
-// ------------------------------------------------------------
-async function envoyerPanierMoyen(msg) {
-  sendPilot.textContent = 'Envoi en cours…';
-  sendPilot.style.pointerEvents = 'none';
+  function extraireValeur(r, colonne) { return colonne ? r[colonne] : undefined; }
 
-  const site = employee.site_id;
-  const lignes = currentPanierLignes.map(l => ({
-    site, date: l.date, nb_tickets: l.nb_tickets,
-    panier_moyen_ht: l.panier_moyen_ht, panier_moyen_ttc: l.panier_moyen_ttc,
-    importe_par: employee.id,
-  }));
+  async function verifierVentesOuCampagne(intention) {
+    let periodeDebut, periodeFin, campagneId = null, phase = null;
+    if (intention === 'campagne') {
+      if (!campagneChoisieId || !phaseChoisie) { document.getElementById('sourceMsg').textContent = 'Choisissez une promotion et une phase.'; document.getElementById('sourceMsg').style.color = 'var(--red)'; return; }
+      const campagne = campagnesDisponibles.find(c => c.id === campagneChoisieId);
+      const p = calculerPeriodeCampagne(campagne, phaseChoisie);
+      periodeDebut = p.debut; periodeFin = p.fin; campagneId = campagneChoisieId; phase = phaseChoisie;
+    } else {
+      periodeDebut = document.getElementById('periodeDebut').value;
+      periodeFin = document.getElementById('periodeFin').value;
+      if (!periodeDebut || !periodeFin) { document.getElementById('sourceMsg').textContent = 'Indiquez la période avant de continuer.'; document.getElementById('sourceMsg').style.color = 'var(--red)'; return; }
+    }
 
-  const TAILLE_LOT = 500;
-  let envoyees = 0;
-  for (let i = 0; i < lignes.length; i += TAILLE_LOT) {
-    const lot = lignes.slice(i, i + TAILLE_LOT);
-    const { error } = await nexusClient.from('panier_moyen_quotidien').upsert(lot, { onConflict: 'site,date' });
-    if (error) {
-      console.error('Import panier_moyen_quotidien:', error);
-      msg.textContent = `Erreur après ${envoyees} jour(s) envoyé(s) — réessayez.`;
-      msg.style.color = 'var(--red)';
-      sendPilot.textContent = 'Envoyer à NEXUS Pilot →';
-      sendPilot.style.pointerEvents = 'auto';
+    const { categorie: catKey, article: artKey, quantite: qKey, prix_achat: paKey, prix_vente: pvKey, tva: tvaKey, code_barres: cbKey } = currentMapping;
+    if (!catKey || !artKey) { document.getElementById('sourceMsg').textContent = 'Catégorie et Article doivent être détectés.'; document.getElementById('sourceMsg').style.color = 'var(--red)'; return; }
+    if (!qKey || !paKey || !pvKey) {
+      const manquants = [!qKey && 'Quantité', !paKey && "Prix d'achat", !pvKey && 'Prix de vente HT'].filter(Boolean).join(', ');
+      document.getElementById('sourceMsg').textContent = `Colonne(s) non détectée(s) : ${manquants}.`;
+      document.getElementById('sourceMsg').style.color = 'var(--red)';
       return;
     }
-    envoyees += lot.length;
+
+    const lignesPourClassification = currentRows.map(r => {
+      const articleBrut = String(extraireValeur(r, artKey) || '');
+      if (!articleBrut) return { invalide: true, raisonInvalide: 'Article manquant.', valeurs: null };
+      const q = M.toNumber(extraireValeur(r, qKey));
+      const pa = M.toNumber(extraireValeur(r, paKey));
+      const pv = M.toNumber(extraireValeur(r, pvKey));
+      const alias = M.resoudreAlias(articleBrut, aliasesActuels);
+      const article = alias || articleBrut;
+      const categorie = M.corrigerCategorie(String(extraireValeur(r, catKey) || 'Non classé'), article);
+      const codeBarres = cbKey ? String(extraireValeur(r, cbKey) || '').replace(/[\s  ]+/g, '').trim() || null : null;
+      const ca = (!isNaN(q) && !isNaN(pv)) ? q * pv : 0;
+      const marge = (!isNaN(q) && !isNaN(pa) && !isNaN(pv)) ? q * (pv - pa) : 0;
+      return {
+        valeurs: {
+          periodeDebut, periodeFin, categorie, article, code_barres: codeBarres,
+          quantite: isNaN(q) ? null : q, prix_achat: isNaN(pa) ? null : pa, prix_vente: isNaN(pv) ? null : pv,
+          tva: tvaKey ? M.toNumber(extraireValeur(r, tvaKey)) : null,
+          ca: Math.round(ca * 100) / 100, marge: Math.round(marge * 100) / 100,
+        },
+      };
+    });
+
+    const connuesParCle = await D.chargerConnuesPourVentes(nexusClient, M, site, periodeDebut, periodeFin);
+    const resultats = M.classifierLignesImport({ intention, lignes: lignesPourClassification, connuesParCle });
+    const referencesInconnues = calculerReferencesInconnues(resultats);
+
+    const periodesExistantes = await D.chargerPeriodesExistantesVentes(nexusClient, site);
+    const chevauchement = M.detecterChevauchement(periodeDebut, periodeFin, periodesExistantes.filter(p => !(p.debut === periodeDebut && p.fin === periodeFin)));
+
+    const rapport = M.construireQualityReport({ lignesTotal: resultats.length, resultats, referencesInconnues, joursManquants: [] });
+
+    await creerBatchEtStaging({ intention, periodeDebut, periodeFin, campagneId, phase }, currentRows);
+    await D.enregistrerMapping(nexusClient, currentBatch.id, site, intention, currentMapping, currentMappingAuto, employee.id);
+    await D.enregistrerResultats(nexusClient, currentBatch.id, resultats);
+    await D.enregistrerQualityReport(nexusClient, currentBatch.id, rapport);
+    await D.marquerBatchStatut(nexusClient, currentBatch.id, 'review_required', { analyse_le: new Date().toISOString() });
+
+    currentResultats = resultats;
+    currentQualityReport = rapport;
+    renderVerification({ rapport, resultats, mapping: currentMapping, auto: currentMappingAuto, fieldDefs: M.FIELD_DEFS_VENTES, intention, chevauchement, previewHeaders: currentHeaders, previewRows: currentRows });
+    afficherEtape('verification');
   }
 
-  msg.textContent = `✓ ${envoyees} jour(s) importé(s) ou mis à jour (panier moyen boutique).`;
-  msg.style.color = 'var(--green)';
-  sendPilot.textContent = 'Envoyer à NEXUS Pilot →';
-  sendPilot.style.pointerEvents = 'auto';
-}
+  async function verifierStock() {
+    const dateReleve = document.getElementById('dateReleve').value;
+    if (!dateReleve) { document.getElementById('sourceMsg').textContent = 'Indiquez la date du relevé.'; document.getElementById('sourceMsg').style.color = 'var(--red)'; return; }
+    const { categorie: catKey, article: artKey, quantite_theorique: qKey, code_barres: cbKey } = currentMapping;
+    if (!artKey || !qKey) { document.getElementById('sourceMsg').textContent = 'Article et Quantité doivent être détectés.'; document.getElementById('sourceMsg').style.color = 'var(--red)'; return; }
 
-async function envoyerStockInstantane(msg) {
-  const dateReleve = document.getElementById('dateReleve').value;
+    const lignesPourClassification = currentRows.map(r => {
+      const articleBrut = String(extraireValeur(r, artKey) || '');
+      if (!articleBrut) return { invalide: true, raisonInvalide: 'Article manquant.', valeurs: null };
+      const q = M.toNumber(extraireValeur(r, qKey));
+      const alias = M.resoudreAlias(articleBrut, aliasesActuels);
+      const article = alias || articleBrut;
+      const categorie = catKey ? M.corrigerCategorie(String(extraireValeur(r, catKey) || 'Non classé'), article) : null;
+      const codeBarres = cbKey ? String(extraireValeur(r, cbKey) || '').replace(/[\s  ]+/g, '').trim() || null : null;
+      return { valeurs: { dateReleve, categorie, article, code_barres: codeBarres, quantite_theorique: isNaN(q) ? 0 : q } };
+    });
 
-  if (!dateReleve) {
-    msg.textContent = "Indiquez la date du relevé avant d'envoyer.";
-    msg.style.color = 'var(--red)';
-    return;
+    const connuesParCle = await D.chargerConnuesPourStock(nexusClient, M, site, dateReleve);
+    const resultats = M.classifierLignesImport({ intention: 'stock_theorique', lignes: lignesPourClassification, connuesParCle });
+    const referencesInconnues = calculerReferencesInconnues(resultats);
+    const rapport = M.construireQualityReport({ lignesTotal: resultats.length, resultats, referencesInconnues, joursManquants: [] });
+
+    await creerBatchEtStaging({ intention: 'stock_theorique', dateReleve }, currentRows);
+    await D.enregistrerMapping(nexusClient, currentBatch.id, site, 'stock_theorique', currentMapping, currentMappingAuto, employee.id);
+    await D.enregistrerResultats(nexusClient, currentBatch.id, resultats);
+    await D.enregistrerQualityReport(nexusClient, currentBatch.id, rapport);
+    await D.marquerBatchStatut(nexusClient, currentBatch.id, 'review_required', { analyse_le: new Date().toISOString() });
+
+    currentResultats = resultats;
+    currentQualityReport = rapport;
+    renderVerification({ rapport, resultats, mapping: currentMapping, auto: currentMappingAuto, fieldDefs: M.FIELD_DEFS_STOCK, intention: 'stock_theorique', chevauchement: [], previewHeaders: currentHeaders, previewRows: currentRows });
+    afficherEtape('verification');
   }
 
-  const { categorie: catKey, article: artKey, quantite: qKey, code_barres: cbKey } = currentMapping;
+  async function verifierPanier() {
+    const lignesPourClassification = currentPanierLignes.map(l => ({ valeurs: l }))
+      .concat(currentPanierIgnorees.map(brut => ({ invalide: true, raisonInvalide: 'Date ou valeur non reconnue.', valeurs: { date_brut: brut } })));
+    const dates = currentPanierLignes.map(l => l.date);
+    const connuesParCle = await D.chargerConnuesPourPanier(nexusClient, M, site, dates);
+    const resultats = M.classifierLignesImport({ intention: 'panier_moyen', lignes: lignesPourClassification, connuesParCle });
+    const datesTriees = [...dates].sort();
+    const joursManquants = datesTriees.length ? M.detecterJoursManquants(dates, datesTriees[0], datesTriees[datesTriees.length - 1]) : [];
+    const rapport = M.construireQualityReport({ lignesTotal: resultats.length, resultats, referencesInconnues: [], joursManquants });
 
-  if (!artKey || !qKey) {
-    msg.textContent = "Article et Quantité doivent être détectés pour pouvoir importer un stock.";
-    msg.style.color = 'var(--red)';
-    return;
+    await creerBatchEtStaging({ intention: 'panier_moyen' }, currentPanierLignes);
+    await D.enregistrerResultats(nexusClient, currentBatch.id, resultats);
+    await D.enregistrerQualityReport(nexusClient, currentBatch.id, rapport);
+    await D.marquerBatchStatut(nexusClient, currentBatch.id, 'review_required', { analyse_le: new Date().toISOString() });
+
+    currentResultats = resultats;
+    currentQualityReport = rapport;
+    renderVerification({ rapport, resultats, mapping: null, auto: null, fieldDefs: [], intention: 'panier_moyen', chevauchement: [], previewHeaders: ['Date', 'Nb tickets', 'Panier moyen HT', 'Panier moyen TTC'], previewRows: currentPanierLignes.map(l => ({ Date: fmtDateFr(l.date), 'Nb tickets': l.nb_tickets, 'Panier moyen HT': l.panier_moyen_ht, 'Panier moyen TTC': l.panier_moyen_ttc })) });
+    afficherEtape('verification');
   }
 
-  sendPilot.textContent = 'Envoi en cours…';
-  sendPilot.style.pointerEvents = 'none';
-
-  // Date choisie par le manager + heure exacte du dépôt, capturée automatiquement —
-  // c'est cette photo précisément datée qui permettra à Scanner Stock de comparer
-  // les relevés entre eux plus tard.
-  const maintenant = new Date();
-  const heureActuelle = maintenant.toTimeString().slice(0, 8);
-  const releveLe = new Date(`${dateReleve}T${heureActuelle}`).toISOString();
-
-  const lignes = currentRows.map(r => {
-    const q = toNumber(r[qKey]);
-    const articleNom = String(r[artKey] || '');
-    return {
-      site: employee.site_id,
-      releve_le: releveLe,
-      categorie: catKey ? corrigerCategorie(String(r[catKey] || 'Non classé'), articleNom) : null,
-      article: articleNom,
-      code_barres: cbKey ? String(r[cbKey] || '').replace(/[\s\u00a0\u202f]+/g, '').trim() || null : null,
-      quantite_theorique: isNaN(q) ? 0 : q,
-      importe_par: employee.id,
-    };
-  }).filter(l => l.article);
-
-  if (lignes.length === 0) {
-    msg.textContent = "Aucune ligne valide à envoyer — vérifiez que la colonne \"Article\" (mapping ci-dessus) contient bien des valeurs dans ce fichier.";
-    msg.style.color = 'var(--red)';
-    sendPilot.textContent = 'Envoyer à NEXUS Pilot →';
-    sendPilot.style.pointerEvents = 'auto';
-    return;
+  function calculerReferencesInconnues(resultats) {
+    const vues = new Set();
+    const liste = [];
+    resultats.forEach(r => {
+      if (!r.valeurs || r.statut === 'rejetee') return;
+      const article = r.valeurs.article;
+      const codeBarres = r.valeurs.code_barres;
+      if (codeBarres || !article) return;
+      const cle = M.normaliserArticleImport(article);
+      const aliasConnu = aliasesActuels.some(a => a.designation_brute_normalisee === cle);
+      if (aliasConnu) return;
+      if (vues.has(cle)) return;
+      vues.add(cle);
+      liste.push({ designation: article });
+    });
+    return liste;
   }
 
-  const envoyees = await envoyerParLots('stock_releves', lignes, msg);
-  if (envoyees === null) return;
+  // ------------------------------------------------------------
+  // Rendu de l'écran Vérification
+  // ------------------------------------------------------------
+  function renderVerification({ rapport, resultats, mapping, auto, fieldDefs, intention, chevauchement, previewHeaders, previewRows }) {
+    const badgeCouleur = { publication_conseillee: 'vert', publication_deconseillee: 'ambre', bloque: 'rouge' }[rapport.decision_recommandee];
+    const badgeTexte = { publication_conseillee: 'Fichier cohérent', publication_deconseillee: 'Publication déconseillée', bloque: "Impossible d'identifier ce fichier — publication refusée" }[rapport.decision_recommandee];
+    document.getElementById('verifBadge').innerHTML = `<span class="quality-badge ${badgeCouleur}">${badgeTexte} — score ${rapport.score_qualite}/100</span>`;
 
-  msg.textContent = `✓ ${envoyees} référence(s) de stock enregistrées — relevé du ${dateReleve} à ${heureActuelle.slice(0,5)}.`;
-  msg.style.color = 'var(--green)';
-  sendPilot.textContent = 'Envoyer à NEXUS Pilot →';
-  sendPilot.style.pointerEvents = 'auto';
-}
-
-async function envoyerParLots(table, lignes, msg) {
-  const TAILLE_LOT = 500;
-  let envoyees = 0;
-  for (let i = 0; i < lignes.length; i += TAILLE_LOT) {
-    const lot = lignes.slice(i, i + TAILLE_LOT);
-    const { error } = await nexusClient.from(table).insert(lot);
-    if (error) {
-      console.error(`Import ${table}:`, error);
-      msg.textContent = `Erreur après ${envoyees} ligne(s) envoyée(s) — réessayez.`;
-      msg.style.color = 'var(--red)';
-      sendPilot.textContent = 'Envoyer à NEXUS Pilot →';
-      sendPilot.style.pointerEvents = 'auto';
-      return null;
+    const mappingGrid = document.getElementById('mappingGrid');
+    if (mapping) {
+      mappingGrid.innerHTML = fieldDefs.map(f => {
+        const found = mapping[f.key];
+        const estMemoire = found && mappingMemoireActuelle.some(m => m.champ_canonique === f.key && m.colonne_source === found) && !(auto && auto[f.key] === false);
+        const classe = found ? (estMemoire ? 'memoire' : 'ok') : 'missing';
+        return `<div class="map-item ${classe}"><span class="dot"></span><div><div class="mlabel">${f.label}</div><div class="msrc">${found ? '"' + found + '"' : 'non détecté'}</div></div></div>`;
+      }).join('');
+    } else {
+      mappingGrid.innerHTML = '<div class="empty-note">Format Decenium fixe — aucun mapping nécessaire.</div>';
     }
-    envoyees += lot.length;
-  }
-  return envoyees;
-}
 
+    document.getElementById('verifLignesGrid').innerHTML = `
+      <div class="sum-card ok"><div class="slabel">Nouvelles</div><div class="sval">${rapport.lignes_nouvelles}</div></div>
+      <div class="sum-card cyan"><div class="slabel">Déjà connues</div><div class="sval">${rapport.lignes_connues}</div></div>
+      <div class="sum-card alert"><div class="slabel">Modifiées</div><div class="sval">${rapport.lignes_modifiees}</div></div>
+      <div class="sum-card alert"><div class="slabel">Doublons fichier</div><div class="sval">${rapport.lignes_doublons_fichier}</div></div>
+      <div class="sum-card rouge"><div class="slabel">Rejetées</div><div class="sval">${rapport.lignes_rejetees}</div></div>
+      <div class="sum-card"><div class="slabel">Total</div><div class="sval">${rapport.lignes_total}</div></div>
+    `;
+
+    const refSection = document.getElementById('verifReferencesSection');
+    if (rapport.references_inconnues.length) {
+      refSection.style.display = 'block';
+      document.getElementById('verifReferencesListe').innerHTML = rapport.references_inconnues.map(r =>
+        `<div class="alias-row"><div class="adesig">${r.designation}</div><div class="abtn" data-designation="${r.designation.replace(/"/g, '&quot;')}">+ Alias</div></div>`
+      ).join('');
+      document.querySelectorAll('#verifReferencesListe .abtn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const brute = btn.getAttribute('data-designation');
+          const canonique = prompt(`Désignation canonique pour "${brute}" :`, brute);
+          if (!canonique) return;
+          const ok = await D.creerAliasProduit(nexusClient, M, { site, intention, designationBrute: brute, designationCanonique: canonique, creePar: employee.id });
+          if (ok) { btn.textContent = '✓ enregistré'; }
+        });
+      });
+    } else { refSection.style.display = 'none'; }
+
+    const causesSection = document.getElementById('verifCausesSection');
+    const causesTotales = rapport.causes.concat(chevauchement && chevauchement.length ? [{ code: 'chevauchement', libelle: `${chevauchement.length} période(s) déjà importée(s) chevauchent cette période`, nb: chevauchement.length }] : []);
+    if (causesTotales.length) {
+      causesSection.style.display = 'block';
+      document.getElementById('verifCausesListe').innerHTML = causesTotales.map(c => `<div class="cause-item">${c.libelle}</div>`).join('');
+    } else { causesSection.style.display = 'none'; }
+
+    const joursSection = document.getElementById('verifJoursManquantsSection');
+    if (rapport.jours_manquants.length) {
+      joursSection.style.display = 'block';
+      document.getElementById('verifJoursManquants').textContent = rapport.jours_manquants.map(fmtDateFr).join(', ');
+    } else { joursSection.style.display = 'none'; }
+
+    document.getElementById('verifImpact').innerHTML = M.impactPourIntention(intention).map(m => `<span class="impact-chip">${m}</span>`).join('');
+
+    document.getElementById('previewHead').innerHTML = previewHeaders.map(h => `<th>${h}</th>`).join('');
+    const slice = previewRows.slice(0, 15);
+    document.getElementById('previewBody').innerHTML = slice.map(r => '<tr>' + previewHeaders.map(h => `<td>${r[h] ?? ''}</td>`).join('') + '</tr>').join('');
+    document.getElementById('moreRows').textContent = previewRows.length > 15 ? `+ ${previewRows.length - 15} autres lignes` : `${previewRows.length} ligne(s) au total`;
+
+    const btnPublier = document.getElementById('btnPublier');
+    btnPublier.disabled = (rapport.decision_recommandee === 'bloque');
+    btnPublier.textContent = M.VOCABULAIRE_IMPORT.boutonPublier;
+    document.getElementById('verifMsg').textContent = '';
+  }
+
+  document.getElementById('btnAnnulerVerif').addEventListener('click', async () => {
+    if (currentBatch) await D.annulerBatch(nexusClient, currentBatch.id, 'Annulé par le manager avant publication.', employee.id, site);
+    currentBatch = null;
+    afficherEtape('source');
+  });
+
+  document.getElementById('btnPublier').addEventListener('click', async () => {
+    const verifMsg = document.getElementById('verifMsg');
+    const btnPublier = document.getElementById('btnPublier');
+    if (!currentBatch) return;
+    btnPublier.disabled = true;
+    btnPublier.textContent = 'Publication en cours…';
+    const { lignesPubliees, erreur } = await D.publierBatch(nexusClient, currentBatch.id, currentBatch.intention);
+    if (erreur) {
+      verifMsg.textContent = erreur;
+      verifMsg.style.color = 'var(--red)';
+      btnPublier.disabled = false;
+      btnPublier.textContent = M.VOCABULAIRE_IMPORT.boutonPublier;
+      return;
+    }
+    document.getElementById('publicationIcone').textContent = '✓';
+    document.getElementById('publicationTitre').textContent = M.VOCABULAIRE_IMPORT.succesPublication;
+    document.getElementById('publicationDetail').innerHTML = M.construireMessageConseiller({ situation: 'pret', nbNouvellesLignes: lignesPubliees, nbMoteurs: M.impactPourIntention(currentBatch.intention).length });
+    afficherEtape('publication');
+  });
+
+  document.getElementById('btnNouvelImport').addEventListener('click', () => {
+    currentRows = []; currentHeaders = []; currentPanierLignes = []; currentPanierIgnorees = []; currentFile = null; currentBatch = null;
+    fileInput.value = '';
+    fileArea.style.display = 'none';
+    dropzone.style.display = 'block';
+    afficherEtape('intention');
+  });
+
+  afficherEtape('intention');
 });
 </script>
 </body>
