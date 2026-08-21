@@ -517,6 +517,86 @@
     return { ok: true, dejaAJour: false, releve: data };
   }
 
+  // ============================================================
+  // PONT RÉCEPTION → CARBURANTS (21/08/2026, constat de Frédéric : une
+  // livraison bien enregistrée dans la réception carburant ne se voyait
+  // jamais dans le "stock" de Carburants Pilotage, faute de pont entre les
+  // deux modules — contrairement au pont Jaugeage Inventaire → Carburants
+  // ci-dessus, qui ne couvre que le jaugeage d'ouverture du pompiste, pas
+  // une livraison. Même chemin d'écriture que ce pont (Article 11) :
+  // versionnement via M.prochaineVersionReleveCarburant/diffReleveCarburant,
+  // seule la traduction mesures->colonnes change (M.patchReleveDepuis
+  // ReceptionMesures). Appelée par NEXUS-Carburant-Reception-v1.html juste
+  // après qu'une visite de réception a été marquée 'terminee'/'terminee_
+  // avec_derogation' (voir NexusReceptionDonnees.soumettreVisiteComplete).
+  // ============================================================
+
+  // Écrit le stock réel + la livraison mesurés par UNE visite de réception
+  // carburant. `visiteId` est OBLIGATOIRE et sert de clé d'idempotence
+  // stricte (une même visite ne doit jamais être appliquée deux fois : son
+  // litrage de livraison est additif, un double-appel le compterait deux
+  // fois — voir le contrôle explicite ci-dessous, distinct du diff par
+  // valeur qui ne suffit pas ici). `mesures`/`cuvesGo` : voir
+  // M.patchReleveDepuisReceptionMesures. Ne fixe jamais mouvement_*/motif_
+  // mouvement/commentaire (repris du relevé du jour s'il existe) : une
+  // livraison n'est jamais un mouvement exceptionnel.
+  async function enregistrerReleveDepuisReceptionLivraison(client, siteId, { date, employeeId, visiteId, mesures, cuvesGo }) {
+    const M = global.NexusCarburantMoteur;
+    if (!M) { console.error('NexusCarburantMoteur non chargé — pont réception carburant impossible.'); return { ok: false, error: new Error('moteur carburant absent') }; }
+    if (!visiteId) { console.error('Pont réception carburant : visiteId requis pour l’idempotence.'); return { ok: false, error: new Error('visiteId manquant') }; }
+
+    // Idempotence stricte par visite — voir l'en-tête ci-dessus : le diff par
+    // valeur (plus bas) ne protège pas contre un double comptage de
+    // livraison_*, qui est additif.
+    const { data: dejaApplique, error: eCheck } = await client.from('carburant_releve_versions')
+      .select('id').eq('visite_reception_id', visiteId).limit(1).maybeSingle();
+    if (eCheck) { console.error('Pont réception carburant — vérification idempotence:', eCheck); return { ok: false, error: eCheck }; }
+    if (dejaApplique) return { ok: true, dejaAJour: true };
+
+    const precedent = await chargerReleveDuJour(client, siteId, date);
+    const patch = M.patchReleveDepuisReceptionMesures(mesures, cuvesGo);
+    const { versionNum, typeVersion } = M.prochaineVersionReleveCarburant(precedent);
+
+    const nouveauSnapshot = {
+      stock_reel_go_cuve1: patch.stockReel.go_cuve1 != null ? patch.stockReel.go_cuve1 : (precedent ? precedent.stock_reel_go_cuve1 : null),
+      stock_reel_go_cuve2: patch.stockReel.go_cuve2 != null ? patch.stockReel.go_cuve2 : (precedent ? precedent.stock_reel_go_cuve2 : null),
+      stock_reel_sp95: patch.stockReel.sp95 != null ? patch.stockReel.sp95 : (precedent ? precedent.stock_reel_sp95 : null),
+      stock_reel_gnr: patch.stockReel.gnr != null ? patch.stockReel.gnr : (precedent ? precedent.stock_reel_gnr : null),
+      livraison_go: (precedent ? Number(precedent.livraison_go) || 0 : 0) + (patch.livraison.go || 0),
+      livraison_sp95: (precedent ? Number(precedent.livraison_sp95) || 0 : 0) + (patch.livraison.sp95 || 0),
+      livraison_gnr: (precedent ? Number(precedent.livraison_gnr) || 0 : 0) + (patch.livraison.gnr || 0),
+      mouvement_go: precedent ? precedent.mouvement_go : 0,
+      mouvement_sp95: precedent ? precedent.mouvement_sp95 : 0,
+      mouvement_gnr: precedent ? precedent.mouvement_gnr : 0,
+      motif_mouvement: precedent ? precedent.motif_mouvement : null,
+      commentaire: precedent ? precedent.commentaire : null,
+    };
+
+    const diff = M.diffReleveCarburant(precedent, nouveauSnapshot);
+
+    const { error: eVersion } = await client.from('carburant_releve_versions').insert({
+      site: siteId, date, version_num: versionNum, type_version: typeVersion,
+      ...nouveauSnapshot,
+      motif_correction: typeVersion === 'correction_manager' ? 'Livraison carburant réceptionnée (pont Réception → Carburants)' : null,
+      diff_vs_precedent: diff, auteur: employeeId, origine: 'reception_livraison',
+      visite_reception_id: visiteId,
+    });
+    if (eVersion && eVersion.code !== '23505') {
+      console.error('Preuve pont réception carburant (carburant_releve_versions):', eVersion);
+      return { ok: false, error: eVersion };
+    }
+
+    const ligne = {
+      site: siteId, date, version_num: versionNum, ...nouveauSnapshot,
+      saisi_par: employeeId, origine: 'reception_livraison',
+    };
+    const { data, error } = await client.from('carburant_releves')
+      .upsert(ligne, { onConflict: 'site,date' }).select().maybeSingle();
+    if (error) { console.error('Écriture pont réception carburant (carburant_releves):', error); return { ok: false, error }; }
+
+    return { ok: true, dejaAJour: false, releve: data };
+  }
+
   // Déclare le jaugeage du jour impossible (équipement inaccessible, panne
   // Veeder-Root, etc.) — n'écrit JAMAIS de valeur dans carburant_releves
   // (Article 5, jamais une fausse précision) : seul le statut du jour est
@@ -914,6 +994,7 @@
     chargerHistoriquePointsZero, chargerHistoriqueReleves,
     chargerReleveDuJour, chargerStatutJaugeageJour,
     enregistrerJaugeageOuverturePompiste, enregistrerJaugeageImpossible,
+    enregistrerReleveDepuisReceptionLivraison,
     chargerDerniersControles, chargerVersionsControleCarburant,
     chargerHistoriqueControlesCarburant,
     chargerLivraisonsCouteesCarburant, chargerPrixCarburantsCourant, enregistrerCoutAchatLigne,

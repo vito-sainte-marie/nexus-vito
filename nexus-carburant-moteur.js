@@ -626,6 +626,54 @@
   }
 
   // ============================================================
+  // PONT RÉCEPTION → CARBURANTS (21/08/2026, constat de Frédéric : "la
+  // livraison a été bien enregistrée mais elle ne se voit pas dans le
+  // stock"). Cause réelle : carburant_reception_mesures capture le vrai
+  // jaugeage avant/après livraison (visite de réception carburant), mais
+  // rien ne l'injectait dans carburant_releves — la seule table lue par
+  // Carburants Pilotage pour le "stock". Même discipline que le pont
+  // Jaugeage Inventaire → Carburants (19/08/2026) : cette fonction ne fait
+  // QUE traduire des mesures déjà saisies en un patch de colonnes, la
+  // VERSION (prochaineVersionReleveCarburant/diffReleveCarburant, ci-dessus)
+  // reste la même pour toute écriture dans carburant_releves, jamais une
+  // deuxième logique de versionnement.
+  //
+  // `mesures` = lignes carburant_reception_mesures d'UNE visite terminée :
+  // [{cuve_id, carburant, jaugeage_apres_l, delta_mesure_l}]. `cuvesGo` =
+  // station_config.cuves_carburants.go.cuves, DANS L'ORDRE physique du site
+  // (index 0 -> stock_reel_go_cuve1, index 1 -> stock_reel_go_cuve2) — même
+  // convention que l'écran manager NEXUS-Carburants-v1.html, qui n'expose
+  // que ces deux emplacements fixes quel que soit l'id réel de la cuve
+  // (Article 11 : pas une deuxième convention de mapping cuve→colonne).
+  // N'écrit QUE les carburants réellement mesurés dans cette visite (un
+  // carburant absent de `mesures` ressort à `undefined`, jamais un stock ou
+  // une livraison de 0 fabriqués) — à l'appelant de compléter avec le
+  // relevé précédent, exactement comme pour le pont pompiste.
+  // `livraison` est un delta (le litrage mesuré au jaugeage pour CETTE
+  // visite) : l'appelant doit l'ADDITIONNER à la livraison déjà posée le
+  // même jour plutôt que l'écraser (une deuxième livraison le même jour ne
+  // doit jamais faire disparaître la première, audit Carburants §6).
+  function patchReleveDepuisReceptionMesures(mesures, cuvesGo) {
+    const patch = { stockReel: {}, livraison: {} };
+    const ordreGo = (Array.isArray(cuvesGo) ? cuvesGo : []).map(c => c.id);
+    (mesures || []).forEach(m => {
+      if (!m || m.jaugeage_apres_l == null || m.carburant == null) return;
+      const stockMesure = Number(m.jaugeage_apres_l);
+      const delta = Number(m.delta_mesure_l) || 0;
+      if (m.carburant === 'sp95' || m.carburant === 'gnr') {
+        patch.stockReel[m.carburant] = stockMesure;
+        patch.livraison[m.carburant] = (patch.livraison[m.carburant] || 0) + delta;
+      } else if (m.carburant === 'go') {
+        const idx = ordreGo.indexOf(m.cuve_id);
+        const slot = idx === 1 ? 'go_cuve2' : 'go_cuve1'; // repli sur cuve1 si l'ordre est inconnu/absent — jamais perdre la mesure
+        patch.stockReel[slot] = stockMesure;
+        patch.livraison.go = (patch.livraison.go || 0) + delta;
+      }
+    });
+    return patch;
+  }
+
+  // ============================================================
   // QUALITÉ DE CHAÎNE — Sprint C2 (17/08/2026, audit Carburants §6 "Etats
   // et qualité : éviter les faux écarts") : "NEXUS ne doit jamais afficher
   // une perte ou un gain comme réel tant que la comparabilité de la chaine
@@ -1008,7 +1056,7 @@
     calculerAutonomieJours, statutAutonomie, pourcentageRemplissage, capaciteTotale,
     motifTheoriqueIndisponible, fiabiliteControle, libelleRapprochementLivraison, phraseDecisionMoteur,
     construireMessagesPilotage,
-    prochaineVersionReleveCarburant, diffReleveCarburant,
+    prochaineVersionReleveCarburant, diffReleveCarburant, patchReleveDepuisReceptionMesures,
     qualiteChaineCarburant, libelleCauseQualiteChaine, resoudreAncreCarburant,
     libelleQualiteControle,
     SEUIL_HISTORIQUE_CHAINE_SUFFISANT, statistiquesFiabiliteChaine, libelleFiabiliteChaine,

@@ -18,9 +18,12 @@
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-auth.js"></script>
+<script src="nexus-header-nav.js"></script>
 <script src="nexus-desktop.js"></script>
 <script src="nexus-reception-moteur.js"></script>
 <script src="nexus-reception-donnees.js"></script>
+<script src="nexus-carburant-moteur.js"></script>
+<script src="nexus-carburant-donnees.js"></script>
 <style>
   :root{
     --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
@@ -1278,6 +1281,26 @@
       return;
     }
     derniereVisite = data;
+
+    // Pont Réception → Carburants (21/08/2026) : la livraison vient d'être
+    // enregistrée (preuve durable dans carburant_reception_*), on pousse
+    // maintenant son jaugeage après-livraison dans carburant_releves pour
+    // que le "stock" de Carburants Pilotage la reflète sans ressaisie
+    // manuelle. Best-effort, non bloquant pour l'employé (Article 5, même
+    // discipline que le statut de jaugeage pompiste) : si cette écriture
+    // échoue, la mesure réelle reste en sécurité dans carburant_reception_
+    // mesures — seul l'affichage du stock reste en retard, rattrapable.
+    if (typeof NexusCarburantDonnees !== 'undefined' && data && data.id) {
+      NexusCarburantDonnees.enregistrerReleveDepuisReceptionLivraison(nexusClient, siteId, {
+        date: ligneVisite.date_visite,
+        employeeId: employeeCourant.id,
+        visiteId: data.id,
+        mesures: mesuresFinales,
+        cuvesGo: (config && config.cuvesCarburants && config.cuvesCarburants.go && config.cuvesCarburants.go.cuves) || [],
+      }).then(r => { if (!r.ok) console.error('Pont réception carburant → stock (non bloquant):', r.error); })
+        .catch(e => console.error('Pont réception carburant → stock (non bloquant):', e));
+    }
+
     allerEtape('succes');
   }
 
