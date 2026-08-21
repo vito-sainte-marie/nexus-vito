@@ -1174,6 +1174,88 @@
     };
   }
 
+  // ------------------------------------------------------------
+  // F5 (20/08/2026, cahier §8 "Continuité FDJ : rendre l'alerte explicable
+  // et résoluble", critères FDJ-17/18/19) : le moteur savait déjà calculer
+  // dynamiquement SI la chaîne est rompue et POURQUOI (chaineInterrompueDynamique,
+  // motif 'quart_manquant'/'quart_incomplet', ajouté le 16/08/2026) — ce qui
+  // manquait, c'est la traduction de ce code en les 3 informations concrètes
+  // que le cahier demande d'afficher : Cause / Élément manquant / Action.
+  // Fonctions pures, à partir du même `motif` déjà produit ailleurs — jamais
+  // une deuxième détection de rupture (Article 11).
+  // ------------------------------------------------------------
+  function causeAlerteContinuite(motif) {
+    if (motif === 'quart_manquant') return 'Relevé de clôture manquant — aucun quart trouvé au créneau attendu';
+    if (motif === 'quart_incomplet') return 'Quart précédent encore en brouillon — comptage final non exploitable';
+    return null; // chaîne saine, ou motif inconnu — jamais un texte inventé (Article 5)
+  }
+  function elementManquantAlerteContinuite(motif) {
+    if (motif === 'quart_manquant') return 'Relevé de clôture du quart précédent';
+    if (motif === 'quart_incomplet') return 'Validation du quart précédent (statut encore Brouillon)';
+    return null;
+  }
+  function actionAlerteContinuite(motif) {
+    if (motif === 'quart_manquant') return 'Créer ou compléter le quart manquant';
+    if (motif === 'quart_incomplet') return 'Ouvrir et valider le quart précédent';
+    return null;
+  }
+  // Combine chaineInterrompueDynamique + les 3 traductions ci-dessus en un
+  // seul appel pour les écrans — même detail que reconcilierAlertesChaine
+  // utilise déjà pour agir, cette fois pour AFFICHER (Article 11 : une
+  // seule fonction qui sait ce qu'un motif signifie, pas une par écran).
+  function detailAlerteContinuite(quartActuel, ensemble) {
+    const etat = chaineInterrompueDynamique(quartActuel, ensemble);
+    return {
+      ...etat,
+      cause: causeAlerteContinuite(etat.motif),
+      elementManquant: elementManquantAlerteContinuite(etat.motif),
+      action: actionAlerteContinuite(etat.motif),
+    };
+  }
+  // État affiché de l'alerte elle-même (cahier §8.1) — dérivé des colonnes
+  // déjà en base (`resolue_le`/`resolue_automatiquement`, posées par
+  // reconcilierAlertesChaine, aucune migration nécessaire). NEXUS ne
+  // distingue aujourd'hui aucune action manager de résolution manuelle
+  // distincte du recalcul automatique (aucun écran ne pose
+  // resolue_automatiquement=false + resolue_le), et ne retient pas non plus
+  // un 4e état "ancien incident, non actif" au sens du cahier — seulement
+  // 'active'/'resolue_automatiquement' sont donc des états réellement
+  // atteignables par le code actuel ; 'resolue_manager' est prévu pour
+  // rester correct SI une telle action est ajoutée un jour, mais n'est
+  // jamais produit aujourd'hui (voir Data Dictionary, limite assumée).
+  function etatAlerteContinuite(alerte) {
+    if (!alerte || !alerte.resolue_le) return 'active';
+    return alerte.resolue_automatiquement ? 'resolue_automatiquement' : 'resolue_manager';
+  }
+  const LABELS_ETAT_ALERTE_CONTINUITE = {
+    active: 'À résoudre', resolue_automatiquement: 'Résolue automatiquement', resolue_manager: 'Résolue manuellement',
+  };
+  function labelEtatAlerteContinuite(etat) { return LABELS_ETAT_ALERTE_CONTINUITE[etat] || etat; }
+
+  // ------------------------------------------------------------
+  // F4 (20/08/2026, cahier §3, FDJ-08) : "Résultat métier du contrôle" —
+  // distinct de tout statut administratif (fdj_shifts.statut) et du
+  // "Statut du contrôle" opérationnel existant (fdj_cash_controls.statut,
+  // 7 valeurs historiques STATUTS_CAISSE côté écran) : ni l'un ni l'autre
+  // ne portait le jugement explicite demandé par le cahier ("Ne pas
+  // utiliser « Validé » comme unique statut métier"). Colonne dédiée
+  // `fdj_cash_controls.resultat_controle`, additive (migration
+  // fdj_cash_controls_resultat_controle) — constante ici plutôt que
+  // dupliquée dans chaque écran qui l'affichera (Manager aujourd'hui,
+  // Analyse/PDF potentiellement demain, F7).
+  // ------------------------------------------------------------
+  const RESULTATS_CONTROLE_FDJ = [
+    { value: '', label: 'Non renseigné' },
+    { value: 'conforme', label: 'Conforme' },
+    { value: 'avec_ecart', label: 'Avec écart' },
+    { value: 'a_revoir', label: 'À revoir' },
+    { value: 'non_comparable', label: 'Non comparable' },
+  ];
+  function labelResultatControle(v) {
+    const r = RESULTATS_CONTROLE_FDJ.find(x => x.value === v);
+    return r ? r.label : (v || 'Non renseigné');
+  }
+
   global.NexusFdjMoteur = {
     calculerVentesJeu, ventesGrattageTotal, caisseGrattage, caisseAttendue, ecartCaisse, permissionsEcartCaisseEmploye,
     soldesCarnetsParJeu, soldeCarnetsJeu, soldesCarnetsAvecReference,
@@ -1193,5 +1275,8 @@
     caisseComptabilisableQuart, quartCaisseReelleCellule, etatJourCaisseReelle, totalJourCaisseReelle,
     progressionComptageQuart,
     FDJ_QUARTS_ATTENDUS_PAR_JOUR, jourFdjEstCloture, fenetreComparableFdj,
+    RESULTATS_CONTROLE_FDJ, labelResultatControle,
+    causeAlerteContinuite, elementManquantAlerteContinuite, actionAlerteContinuite, detailAlerteContinuite,
+    etatAlerteContinuite, labelEtatAlerteContinuite,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

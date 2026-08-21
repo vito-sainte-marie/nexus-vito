@@ -20,6 +20,7 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
 <script src="nexus-auth.js"></script>
+<script src="nexus-header-nav.js"></script>
 <script src="nexus-forfait.js"></script>
 <script src="nexus-desktop.js"></script>
 <script src="nexus-fdj-moteur.js"></script>
@@ -336,11 +337,28 @@
     ]);
     const dansPeriode = (d) => d >= dateISO(periodeResolue.debut) && d <= dateISO(periodeResolue.fin);
     const dansComparaison = (d) => d >= dateISO(periodeResolue.compDebut) && d <= dateISO(periodeResolue.compFin);
+    const dailyActuel = daily.filter(l => dansPeriode(l.date));
+    const dailyComp = daily.filter(l => dansComparaison(l.date));
+
+    // F3 (20/08/2026, cahier §5) : "comparer uniquement des fenêtres
+    // homologues et clôturées" — fenêtre séparée, réservée au calcul
+    // d'ÉVOLUTION. `daily.actuel` reste INTACT (non filtré) pour tout ce
+    // qui affiche la période en cours telle qu'elle est réellement (CA du
+    // jour, meilleur/pire jour, quarts contrôlés...) — seule l'évolution
+    // vs comparaison doit ignorer un jour non clôturé, jamais l'écran
+    // opérationnel dans son ensemble (§5 : "reste visible... mais ne
+    // participe ni à l'évolution ni à la courbe comparative").
+    const dureeJours = Math.round((periodeResolue.fin - periodeResolue.debut) / 86400000) + 1;
+    const fenetreComparable = NexusFdjMoteur.fenetreComparableFdj(
+      dailyActuel, dailyComp, dateISO(periodeResolue.debut), dateISO(periodeResolue.compDebut), dureeJours
+    );
+
     return {
-      daily: { actuel: daily.filter(l => dansPeriode(l.date)), comp: daily.filter(l => dansComparaison(l.date)) },
+      daily: { actuel: dailyActuel, comp: dailyComp },
       gameDaily: { actuel: gameDaily.filter(l => dansPeriode(l.date)), comp: gameDaily.filter(l => dansComparaison(l.date)) },
       employeeDaily: { actuel: employeeDaily.filter(l => dansPeriode(l.date)), comp: employeeDaily.filter(l => dansComparaison(l.date)) },
       discrepancyDaily: { actuel: discrepancyDaily.filter(l => dansPeriode(l.date)), comp: discrepancyDaily.filter(l => dansComparaison(l.date)) },
+      fenetreComparable,
     };
   }
 
@@ -606,9 +624,12 @@
   async function candidatsFdjPeriode() {
     const d = await chargerDonneesPeriode();
     const actuel = sommerChamps(d.daily.actuel, CHAMPS_SUMMARY);
-    const comp = sommerChamps(d.daily.comp, CHAMPS_SUMMARY);
-    const compDisponible = comp.nb_quarts_controles > 0;
-    const evolCa = compDisponible ? evolution(actuel.ca_grattage, comp.ca_grattage) : null;
+    // F3 : évolution calculée UNIQUEMENT sur les jours clôturés et
+    // homologues des deux périodes (jamais actuel/comp bruts, qui
+    // incluraient un jour en cours) — voir chargerDonneesPeriode.
+    const actuelComparable = sommerChamps(d.fenetreComparable.dailyActuelComparable, CHAMPS_SUMMARY);
+    const compComparable = sommerChamps(d.fenetreComparable.dailyCompComparable, CHAMPS_SUMMARY);
+    const evolCa = d.fenetreComparable.nbComparables > 0 ? evolution(actuelComparable.ca_grattage, compComparable.ca_grattage) : null;
     const gameCa = {};
     d.gameDaily.actuel.forEach(l => { if (l.ca) gameCa[l.game_id] = (gameCa[l.game_id] || 0) + Number(l.ca); });
     let jeuMoteurId = null, caJeuMoteur = 0;
@@ -625,9 +646,15 @@
   async function renderEnsemble(zone) {
     const d = await chargerDonneesPeriode();
     const actuel = sommerChamps(d.daily.actuel, CHAMPS_SUMMARY);
-    const comp = sommerChamps(d.daily.comp, CHAMPS_SUMMARY);
-    const compDisponible = comp.nb_quarts_controles > 0;
-    const evolCa = compDisponible ? evolution(actuel.ca_grattage, comp.ca_grattage) : null;
+    // F3 (20/08/2026, cahier §5) : "comparer uniquement des fenêtres
+    // homologues et clôturées" — jamais la période en cours (incomplète)
+    // contre une période de référence complète (source des évolutions
+    // "-60 %"/"-78,6 %" citées dans l'audit). Le CA affiché plus bas reste
+    // celui de `actuel` (non filtré) — seule l'évolution change de base.
+    const fc = d.fenetreComparable;
+    const actuelComparable = sommerChamps(fc.dailyActuelComparable, CHAMPS_SUMMARY);
+    const compComparable = sommerChamps(fc.dailyCompComparable, CHAMPS_SUMMARY);
+    const evolCa = fc.nbComparables > 0 ? evolution(actuelComparable.ca_grattage, compComparable.ca_grattage) : null;
     const tauxConformite = actuel.nb_quarts_controles > 0 ? actuel.nb_quarts_conformes / actuel.nb_quarts_controles : null;
 
     // Part grattage / tirages — uniquement si les deux flux existent dans
@@ -646,8 +673,13 @@
     let palierMoteur = null, caPalierMoteur = 0;
     Object.entries(palierCa).forEach(([p, ca]) => { if (ca > caPalierMoteur) { caPalierMoteur = ca; palierMoteur = p; } });
 
-    // Jour le plus vendeur / le plus faible DANS la période sélectionnée.
-    const joursTries = [...d.daily.actuel].filter(l => l.ca_grattage !== null).sort((a, b) => Number(b.ca_grattage) - Number(a.ca_grattage));
+    // Jour le plus vendeur / le plus faible DANS la période sélectionnée —
+    // F3 (cahier §7) : "Le meilleur/pire jour de semaine doit être calculé
+    // uniquement sur les occurrences clôturées et comparables." Sans ce
+    // filtre, un jour en cours (encore incomplet) pouvait apparaître comme
+    // "jour le plus faible" simplement parce qu'il n'est pas terminé —
+    // jamais un vrai signal de performance.
+    const joursTries = [...d.daily.actuel].filter(l => l.ca_grattage !== null && NexusFdjMoteur.jourFdjEstCloture(l)).sort((a, b) => Number(b.ca_grattage) - Number(a.ca_grattage));
     const meilleurJour = joursTries[0], pireJour = joursTries[joursTries.length - 1];
 
     // Décisions suggérées — moteur partagé (candidatsFdjPeriode), 1 à 3
@@ -662,10 +694,29 @@
       ? `${actuel.nb_quarts_conformes} / ${actuel.nb_quarts_controles} — ${fmtPct(tauxConformite)}`
       : '—';
 
+    // F3 (cahier §5.1) : libellé UX explicite, jamais un pourcentage sans
+    // dire sur quelle base il est construit. "Évolution à jours clôturés
+    // comparables : X/Y. [Jour] exclu de la comparaison (non clôturé)."
+    let noteComparaison = '';
+    if (!fc.toutesComparables) {
+      if (fc.nbComparables === 0) {
+        noteComparaison = 'Aucun jour clôturé comparable sur cette période — évolution indisponible.';
+      } else {
+        const libelleJour = (iso) => { const s = new Date(iso + 'T00:00:00').toLocaleDateString('fr-FR', { weekday: 'long' }); return s.charAt(0).toUpperCase() + s.slice(1); };
+        const exclusActuel = fc.jours.filter(j => j.raisonExclusion === 'jour_non_cloture');
+        const exclusRef = fc.jours.filter(j => j.raisonExclusion === 'reference_non_cloturee');
+        const parties = [];
+        if (exclusActuel.length) parties.push(`${exclusActuel.map(j => libelleJour(j.dateActuel)).join(', ')} exclu${exclusActuel.length > 1 ? 's' : ''} de la comparaison (non clôturé${exclusActuel.length > 1 ? 's' : ''}).`);
+        if (exclusRef.length) parties.push(`${exclusRef.length} jour${exclusRef.length > 1 ? 's' : ''} de référence indisponible${exclusRef.length > 1 ? 's' : ''}.`);
+        noteComparaison = `Évolution à jours clôturés comparables : ${fc.couverture}. ${parties.join(' ')}`;
+      }
+    }
+
     zone.innerHTML = `
       <div class="resume-card">
         <div class="stat-row total"><div class="stat-label">CA FDJ (${periodeResolue.label.toLowerCase()})</div><div class="stat-value cyan">${fmtEuro(actuel.ca_grattage + (actuel.caisse_tirages || 0))}</div></div>
         <div class="stat-row"><div class="stat-label">Évolution</div><div class="stat-value ${classeEvolution(evolCa)}">${fmtEvolution(evolCa)}</div></div>
+        ${noteComparaison ? `<div class="stat-sub">${noteComparaison}</div>` : ''}
         ${partGrattageDispo ? `
         <div class="stat-row"><div class="stat-label">Part grattage / tirages</div><div class="stat-value">${fmtPct(totalFlux ? actuel.ca_grattage / totalFlux : null)} / ${fmtPct(totalFlux ? actuel.caisse_tirages / totalFlux : null)}</div></div>` : ''}
         <div class="stat-row"><div class="stat-label">Quarts conformes</div><div class="stat-value ${tauxConformite === null ? '' : (tauxConformite >= 0.9 ? 'green' : (tauxConformite >= 0.7 ? 'amber' : 'red'))}">${texteConformite}</div></div>
@@ -752,10 +803,19 @@
       </div>
     `;
     const labels = d.daily.actuel.slice().sort((a, b) => a.date.localeCompare(b.date)).map(l => new Date(l.date + 'T00:00:00').toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }));
-    const valeurs = d.daily.actuel.slice().sort((a, b) => a.date.localeCompare(b.date)).map(l => l.ca_grattage !== null ? Number(l.ca_grattage) : 0);
+    // F6 (20/08/2026, cahier §7) : "Un jour en cours n'est jamais représenté
+    // comme 0 si l'absence vient d'une clôture non terminée." Avant ce lot,
+    // un jour sans donnée (ca_grattage null — typiquement la journée en
+    // cours) était converti en 0 puis tracé sur la courbe : visuellement
+    // indiscernable d'un vrai jour à 0 €, la courbe semblait "tomber" en fin
+    // de période — exactement le bug cité par l'audit. `null` reste `null`
+    // (jamais fabriqué) ; `spanGaps: false` (défaut de Chart.js, explicité
+    // ici) fait que la ligne s'interrompt sur ce point plutôt que d'être
+    // reliée comme si de rien n'était.
+    const valeurs = d.daily.actuel.slice().sort((a, b) => a.date.localeCompare(b.date)).map(l => l.ca_grattage !== null ? Number(l.ca_grattage) : null);
     chartsActifs.ca = new Chart(document.getElementById('chartCa'), {
       type: 'line',
-      data: { labels, datasets: [{ data: valeurs, borderColor: '#4FC3D9', backgroundColor: 'rgba(79,195,217,0.12)', fill: true, tension: 0.25, pointRadius: 3 }] },
+      data: { labels, datasets: [{ data: valeurs, borderColor: '#4FC3D9', backgroundColor: 'rgba(79,195,217,0.12)', fill: true, tension: 0.25, pointRadius: 3, spanGaps: false }] },
       options: { ...optionsGraphiqueBase(), plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => `${fmtEuro(ctx.parsed.y)}` } } } },
     });
   }
@@ -908,10 +968,23 @@
       </div>
       <div class="champ-note">Le quart n'est jamais utilisé pour juger automatiquement une personne — l'employé, l'horaire, le trafic et le jour peuvent varier.</div>
     `;
+    // F6 (20/08/2026, cahier §7) : un jour de semaine sans occurrence sur les
+    // 8 dernières semaines (`moyenne: null`) n'a JAMAIS existé dans les
+    // données — `s.moyenne || 0` le traçait pourtant comme une barre à 0 €,
+    // indiscernable d'un jour réellement ouvert mais improductif. `null`
+    // reste `null` (Chart.js ne trace aucune barre pour ce point) et sa
+    // couleur devient grise plutôt que "meilleur/pire", qui n'a de sens que
+    // pour un jour ayant au moins une occurrence réelle.
     chartsActifs.jours = new Chart(document.getElementById('chartJours'), {
       type: 'bar',
-      data: { labels: statsJours.map(s => s.nom.slice(0, 3)), datasets: [{ data: statsJours.map(s => s.moyenne || 0), backgroundColor: statsJours.map(s => s === meilleur ? '#34D399' : (s === pire ? '#F0575A' : '#4FC3D9')) }] },
-      options: { ...optionsGraphiqueBase(), plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => fmtEuro(ctx.parsed.y) } } } },
+      data: {
+        labels: statsJours.map(s => s.nom.slice(0, 3)),
+        datasets: [{
+          data: statsJours.map(s => s.moyenne),
+          backgroundColor: statsJours.map(s => s.moyenne === null ? 'rgba(255,255,255,0.08)' : (s === meilleur ? '#34D399' : (s === pire ? '#F0575A' : '#4FC3D9'))),
+        }],
+      },
+      options: { ...optionsGraphiqueBase(), plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ctx.parsed.y === null ? 'Aucune occurrence sur 8 semaines' : fmtEuro(ctx.parsed.y) } } } },
     });
   }
 
@@ -1055,7 +1128,10 @@
 
     const tendance = await chargerTendanceLongue();
     const labelsTendance = tendance.slice().sort((a, b) => a.date.localeCompare(b.date)).map(l => new Date(l.date + 'T00:00:00').toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }));
-    const valeursTendance = tendance.slice().sort((a, b) => a.date.localeCompare(b.date)).map(l => l.ecart_total !== null ? Number(l.ecart_total) : 0);
+    // F6 (20/08/2026, cahier §7) — même correctif que les courbes CA : un
+    // jour sans contrôle (ecart_total null) n'est pas un jour "0 € d'écart",
+    // c'est un jour sans donnée. null reste null, jamais fabriqué en 0.
+    const valeursTendance = tendance.slice().sort((a, b) => a.date.localeCompare(b.date)).map(l => l.ecart_total !== null ? Number(l.ecart_total) : null);
 
     zone.innerHTML = `
       <div class="resume-card">
@@ -1081,7 +1157,7 @@
     `;
     chartsActifs.ecarts = new Chart(document.getElementById('chartEcarts'), {
       type: 'line',
-      data: { labels: labelsTendance, datasets: [{ data: valeursTendance, borderColor: '#F5A623', backgroundColor: 'rgba(245,166,35,0.12)', fill: true, tension: 0.2, pointRadius: 2 }] },
+      data: { labels: labelsTendance, datasets: [{ data: valeursTendance, borderColor: '#F5A623', backgroundColor: 'rgba(245,166,35,0.12)', fill: true, tension: 0.2, pointRadius: 2, spanGaps: false }] },
       options: { ...optionsGraphiqueBase(), plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => fmtEuro(ctx.parsed.y) } } } },
     });
   }
@@ -1415,7 +1491,12 @@
       if (joursTries.length > 1) { const p = joursTries[joursTries.length - 1]; pireUnite = { label: new Date(p.date + 'T00:00:00').toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' }), ca: Number(p.ca_grattage) }; }
       const lignesTriees = d.daily.actuel.slice().sort((a, b) => a.date.localeCompare(b.date));
       labelsCa = lignesTriees.map(l => new Date(l.date + 'T00:00:00').toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }));
-      valeursCa = lignesTriees.map(l => l.ca_grattage !== null ? Number(l.ca_grattage) : 0);
+      // F6 (20/08/2026, cahier §7) — même correctif que la courbe CA de Vue
+      // d'ensemble (renderVueEnsemble) : null reste null, jamais un 0
+      // fabriqué pour la journée en cours. Alimente aussi bien l'écran
+      // (chartsActifs.rapport) que l'image PNG baked dans le PDF
+      // (genererImageGraphiqueCa, même tableau `valeursCa`).
+      valeursCa = lignesTriees.map(l => l.ca_grattage !== null ? Number(l.ca_grattage) : null);
     }
 
     // Top vendeurs — même agrégation que l'onglet Équipe (même seuil minimum de quarts pour le CA moyen).
@@ -1490,7 +1571,7 @@
       canvas.width = 1200; canvas.height = 260;
       new Chart(canvas, {
         type: 'line',
-        data: { labels, datasets: [{ data: valeurs, borderColor: '#0a6b78', backgroundColor: 'rgba(10,107,120,0.15)', fill: true, tension: 0.25, pointRadius: 3, borderWidth: 2 }] },
+        data: { labels, datasets: [{ data: valeurs, borderColor: '#0a6b78', backgroundColor: 'rgba(10,107,120,0.15)', fill: true, tension: 0.25, pointRadius: 3, borderWidth: 2, spanGaps: false }] },
         options: {
           responsive: false,
           animation: {

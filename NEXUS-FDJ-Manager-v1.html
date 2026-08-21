@@ -387,14 +387,23 @@
     if (v === 'recalcule_automatiquement') return 'Recalculé automatiquement';
     return labelStatutCaisse(v);
   }
+  // F4 (20/08/2026, cahier §3) : liste alignée sur les motifs proposés par
+  // l'audit — ajout de 'remboursement' ("libellé volontairement général",
+  // donc sans "client" — critère FDJ-07) et 'correction_verification'
+  // ("cas de rapprochement après contrôle"), absents de la liste
+  // précédente. 'autre' passe de "Autre raison" à "Autre motif" (cahier
+  // §3, tableau) et devient le seul motif à exiger le commentaire libre
+  // (voir motifEcartTexteObligatoire côté écran).
   const MOTIFS_ECART_FDJ = [
     { value: '', label: 'Choisir un motif…' },
+    { value: 'remboursement', label: 'Remboursement' },
     { value: 'erreur_saisie', label: 'Erreur de saisie' },
     { value: 'erreur_comptage', label: 'Erreur de comptage' },
     { value: 'carnet_non_declare', label: 'Carnet non déclaré' },
     { value: 'mouvement_oublie', label: 'Réapprovisionnement non enregistré' },
     { value: 'erreur_rapport', label: 'Erreur sur le rapport FDJ' },
-    { value: 'autre', label: 'Autre raison' },
+    { value: 'correction_verification', label: 'Correction après vérification' },
+    { value: 'autre', label: 'Autre motif' },
     { value: 'non_explique', label: 'Je ne sais pas' },
   ];
   // Motifs de l'exception tracée côté employé (NEXUS-FDJ-v1.html,
@@ -455,6 +464,11 @@
     date: 'Date', quart: 'Quart', employeeId: 'Employé assigné',
     lotsPayes: 'Lots payés', caisseTirages: 'Caisse tirages', regularisations: 'Régularisations',
     caisseReelle: 'Caisse réelle', statutCaisse: 'Statut de la caisse', motifEcart: 'Motif', ecart: 'Écart',
+    // F4 (20/08/2026) : les deux nouveaux champs suivent la même discipline
+    // de trace avant/après que le reste du formulaire — une correction du
+    // résultat métier ou du commentaire doit rester visible dans
+    // l'historique, comme tout le reste.
+    motifEcartTexte: 'Commentaire / justificatif', resultatControle: 'Résultat du contrôle',
   };
   function formatValeurAuditFdj(champ, valeur) {
     if (valeur === null || valeur === undefined || valeur === '') return '—';
@@ -463,6 +477,7 @@
     if (champ === 'quart') return `Quart ${valeur}`;
     if (champ === 'statutCaisse') return labelStatutCaisse(valeur);
     if (champ === 'motifEcart') return labelMotifEcart(valeur);
+    if (champ === 'resultatControle') return NexusFdjMoteur.labelResultatControle(valeur);
     if (['lotsPayes', 'caisseTirages', 'regularisations', 'caisseReelle', 'ecart'].includes(champ)) return fmtEuro(valeur);
     return String(valeur);
   }
@@ -1036,10 +1051,30 @@
   // L'état actuel se déduit du journal lui-même (déjà chargé, aucune
   // requête supplémentaire) : si au moins un événement n'a pas encore de
   // resolue_le, la chaîne est actuellement rompue quelque part.
-  function renderJournalChaineBloc(journalChaine) {
+  // F5 (20/08/2026, cahier §8) : `ensemble` (tous les quarts déjà chargés
+  // par renderAccueil, voir `historique`) permet de recalculer la cause
+  // RÉELLE et actuelle de chaque alerte encore active — jamais un texte
+  // figé au moment de la détection, qui pourrait être obsolète si la
+  // situation a changé depuis (même philosophie que chaineInterrompueDynamique
+  // et reconcilierAlertesChaine, 16/08/2026).
+  function renderJournalChaineBloc(journalChaine, ensemble) {
     if (!journalChaine.length) return '';
-    const rompue = journalChaine.some(a => !a.resolue_le);
-    const etatLigne = rompue ? '🔴 Chaîne interrompue — un ou plusieurs quarts manquants' : '✅ Chaîne continue';
+    const actives = journalChaine.filter(a => !a.resolue_le && a.quartActuel);
+    // Cahier §8, "Bandeau actuel à remplacer" : plus de texte générique
+    // "Chaîne interrompue - un ou plusieurs quarts manquants" — le bandeau
+    // nomme désormais la date, le quart et la cause réelle du problème le
+    // plus récent, et pointe directement dessus.
+    let etatLigne;
+    if (!actives.length) {
+      etatLigne = '✅ Chaîne continue';
+    } else {
+      const plusRecente = actives[0];
+      const detail = NexusFdjMoteur.detailAlerteContinuite(plusRecente.quartActuel, ensemble);
+      const causeCourte = detail.cause || 'cause à vérifier';
+      etatLigne = `<button type="button" class="btn-lien-continuite" data-ouvrir-continuite="${plusRecente.quartActuel.date}|${plusRecente.quartActuel.quart}" style="background:none; border:none; padding:0; text-align:left; color:var(--red); font:inherit; cursor:pointer;">
+        🔴 ${actives.length} quart${actives.length > 1 ? 's' : ''} à vérifier — ${new Date(plusRecente.quartActuel.date + 'T00:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}, Quart ${plusRecente.quartActuel.quart} — ${causeCourte}. Voir le problème →
+      </button>`;
+    }
     return `
       <div class="section-titre">Continuité FDJ</div>
       <div class="card" style="margin-bottom:16px;">
@@ -1048,27 +1083,36 @@
           Voir l'historique des interruptions — ${journalChaine.length} événement${journalChaine.length > 1 ? 's' : ''} ▾
         </button>
         <div id="journalChaineHistorique" style="display:none; border-top:1px solid var(--border);">
-          ${journalChaine.map(renderJournalChaineItem).join('')}
+          ${journalChaine.map(a => renderJournalChaineItem(a, ensemble)).join('')}
         </div>
       </div>
     `;
   }
-  function renderJournalChaineItem(a) {
+  function renderJournalChaineItem(a, ensemble) {
     const dt = new Date(a.created_at);
     const detection = `${dt.toLocaleDateString('fr-FR')} · ${dt.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`;
-    const nbManquants = (a.quarts_manquants || []).length;
+    const etat = NexusFdjMoteur.etatAlerteContinuite(a);
+    const encoreActive = etat === 'active';
+    // Cause/élément manquant/action recalculés MAINTENANT, pas ceux du
+    // moment de la détection — si la situation a déjà été corrigée mais que
+    // `resolue_le` n'a pas encore été posé (fenêtre entre la correction et
+    // le prochain passage de reconcilierAlertesChaine), on l'affiche
+    // honnêtement plutôt que de répéter un diagnostic obsolète.
+    const detail = a.quartActuel ? NexusFdjMoteur.detailAlerteContinuite(a.quartActuel, ensemble) : { cause: null, elementManquant: null, action: null };
     let ligneResolution;
     if (a.resolue_le) {
       const dr = new Date(a.resolue_le);
-      ligneResolution = `🟢 ${dr.toLocaleDateString('fr-FR')} · ${dr.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })} — Chaîne rétablie automatiquement`;
+      ligneResolution = `🟢 ${dr.toLocaleDateString('fr-FR')} · ${dr.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })} — ${NexusFdjMoteur.labelEtatAlerteContinuite(etat)}`;
     } else {
-      ligneResolution = `<span style="color:var(--text-dim);">Toujours active</span>`;
+      ligneResolution = `<span style="color:var(--text-dim);">${NexusFdjMoteur.labelEtatAlerteContinuite(etat)}</span>`;
     }
     return `
       <div class="jeu-row" style="padding:10px 14px;">
         <div class="histo-sub">
-          🔴 ${detection} — Chaîne interrompue détectée : ${libelleQuart(a.quartActuel)}${nbManquants ? ` (${nbManquants} quart${nbManquants > 1 ? 's' : ''} manquant${nbManquants > 1 ? 's' : ''})` : ''}<br>
+          ${encoreActive ? '🔴' : '🟢'} ${detection} — Date concernée : ${a.quartActuel ? libelleQuart(a.quartActuel) : '—'}<br>
+          ${encoreActive && detail.cause ? `Cause : ${detail.cause}<br>Élément manquant : ${detail.elementManquant}<br>Action : ${detail.action}<br>` : ''}
           ${ligneResolution}
+          ${encoreActive && a.quartActuel ? ` · <button type="button" class="btn-lien-continuite" data-ouvrir-continuite="${a.quartActuel.date}|${a.quartActuel.quart}" style="background:none; border:none; padding:0; color:var(--gold); font:inherit; cursor:pointer; text-decoration:underline;">Voir le quart concerné</button>` : ''}
         </div>
       </div>
     `;
@@ -1165,18 +1209,24 @@
   // conservé pour que le câblage d'événements existant (data-corriger,
   // data-voir-journal-exception, etc.) continue de fonctionner sans
   // modification.
-  function renderBoiteExceptions(exceptions, journalChaine) {
+  function renderBoiteExceptions(exceptions, journalChaine, ensemble) {
     const anomaliesContinuite = (journalChaine || []).filter(a => !a.resolue_le);
     if (!exceptions.total && !anomaliesContinuite.length) return '';
     const items = (categorie) => (categorie.items || []).map(item => renderExceptionItem(categorie.cle, item)).join('');
     return `
       <div id="boiteExceptionsDetail">
-        ${anomaliesContinuite.map(a => `
+        ${anomaliesContinuite.map(a => {
+          // F5 (20/08/2026, cahier §8) : même cause dynamique que le bandeau
+          // de la section Continuité FDJ plus bas — jamais un texte générique
+          // "problème de continuité" ici et un diagnostic précis là-bas.
+          const detail = a.quartActuel ? NexusFdjMoteur.detailAlerteContinuite(a.quartActuel, ensemble) : { cause: null };
+          return `
           <div class="jeu-row" style="padding:10px 14px;">
-            <div class="jeu-nom-ligne"><div class="jeu-nom">🔴 Problème de continuité — ${libelleQuart(a.quartActuel)}${(a.quarts_manquants || []).length ? ` (${(a.quarts_manquants || []).length} quart${(a.quarts_manquants || []).length > 1 ? 's' : ''} manquant${(a.quarts_manquants || []).length > 1 ? 's' : ''})` : ''}</div></div>
+            <div class="jeu-nom-ligne"><div class="jeu-nom">🔴 ${libelleQuart(a.quartActuel)}${detail.cause ? ` — ${detail.cause}` : ' — problème de continuité'}</div></div>
             <button type="button" class="btn-modifier" data-voir-journal-exception style="margin-top:0;">Vérifier</button>
           </div>
-        `).join('')}
+        `;
+        }).join('')}
         ${exceptions.categories.filter(c => c.count).map(c => `
           <div class="jeu-row" style="padding:8px 14px; background:rgba(255,255,255,0.02);"><div class="histo-sub" style="font-weight:600;">${c.count} ${c.libelle}</div></div>
           ${items(c)}
@@ -2011,7 +2061,7 @@
       ${totalATraiter ? `
         <div class="card" style="margin-bottom:16px;">
           ${renderRelevesEnErreurBloc(relevesEnErreur)}
-          ${renderBoiteExceptions(exceptions, journalChaine)}
+          ${renderBoiteExceptions(exceptions, journalChaine, historique)}
           ${soldesNegatifs.length ? `<div id="listeSoldesNegatifs">${soldesNegatifs.map(renderSoldeNegatif).join('')}</div>` : ''}
           ${alertes.length ? `<div id="listeAlertes">${alertes.map(renderAlerte).join('')}</div>` : ''}
           ${brouillons.length ? `<div id="listeBrouillons">${brouillons.map(renderBrouillonItem).join('')}</div>` : ''}
@@ -2075,7 +2125,7 @@
         </button>
       </div>
 
-      ${renderJournalChaineBloc(journalChaine)}
+      ${renderJournalChaineBloc(journalChaine, historique)}
 
       <div class="section-titre">Historique des quarts</div>
       <div class="fdj-stock-filtres" id="filtresHistorique">
@@ -2117,6 +2167,17 @@
         btnJournalToggle.textContent = btnJournalToggle.textContent.replace(ouvert ? '▴' : '▾', ouvert ? '▾' : '▴');
       });
     }
+    // F5 (20/08/2026, cahier §8, "Tout bandeau ... doit être cliquable")
+    // — délégation unique pour les deux emplacements du lien (bandeau +
+    // items du journal), ouvre directement le quart concerné (même
+    // entrée que les liens de rattrapage existants, voir
+    // ouvrirDepuisParametresUrl, 13/08/2026 — Article 11).
+    document.querySelectorAll('[data-ouvrir-continuite]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const [date, quart] = btn.dataset.ouvrirContinuite.split('|');
+        ouvrirDepuisParametresUrl(date, quart);
+      });
+    });
     document.getElementById('btnNouveauQuart').addEventListener('click', () => ouvrirEditionNouveau());
     document.getElementById('btnCaisseReelle').addEventListener('click', () => ouvrirCaisseReelleSemaine());
     document.getElementById('btnReappro').addEventListener('click', () => ouvrirReappro());
@@ -4043,7 +4104,7 @@
     edition = {
       shiftId: null, date: dateOverride || dateISO(), quart: quartOverride || '1', employeeId: employesSite[0] ? employesSite[0].id : null,
       statutShift: 'brouillon', counts: {}, stockInitialAuto: {}, lotsPayes: null, caisseTirages: null, regularisations: 0,
-      caisseReelle: null, motifEcart: '', statutCaisse: 'provisoire', avant: null, estNouveau: true, historiqueAudit: [],
+      caisseReelle: null, motifEcart: '', motifEcartTexte: '', resultatControle: '', statutCaisse: 'provisoire', avant: null, estNouveau: true, historiqueAudit: [],
       caisseReelleOrigine: null, ecartOrigine: null,
     };
     jeux.forEach(j => { edition.counts[j.id] = { stock_initial: null, appro: 0, stock_final: null }; });
@@ -4094,6 +4155,12 @@
       regularisations: cash ? cash.regularisations : 0,
       caisseReelle: cash ? cash.caisse_reelle : null,
       motifEcart: cash ? (cash.motif_ecart || '') : '',
+      // F4 (20/08/2026, cahier §3, étape 6) : commentaire/justificatif libre,
+      // distinct du code de motif — et résultat métier du contrôle (étape 8,
+      // FDJ-08), colonne dédiée `resultat_controle` (migration du 20/08/2026),
+      // jamais confondue avec statutCaisse/statutShift ci-dessous.
+      motifEcartTexte: cash ? (cash.motif_ecart_texte || '') : '',
+      resultatControle: cash ? (cash.resultat_controle || '') : '',
       statutCaisse: cash ? cash.statut : 'provisoire',
       // 16/08/2026 : constat d'origine (voir NEXUS-FDJ-v1.html::validerQuart)
       // — jamais réinjecté dans l'upsert ci-dessous (enregistrerEdition),
@@ -4110,7 +4177,7 @@
     // signifier pouvoir effacer la vérité précédente" — motifEcart est
     // désormais inclus dans l'instantané (il manquait), sinon un
     // changement de motif seul ne laissait aucune trace.
-    edition.avant = JSON.parse(JSON.stringify({ date: edition.date, quart: edition.quart, counts: countsMap, lotsPayes: edition.lotsPayes, caisseTirages: edition.caisseTirages, regularisations: edition.regularisations, caisseReelle: edition.caisseReelle, statutCaisse: edition.statutCaisse, motifEcart: edition.motifEcart, employeeId: edition.employeeId }));
+    edition.avant = JSON.parse(JSON.stringify({ date: edition.date, quart: edition.quart, counts: countsMap, lotsPayes: edition.lotsPayes, caisseTirages: edition.caisseTirages, regularisations: edition.regularisations, caisseReelle: edition.caisseReelle, statutCaisse: edition.statutCaisse, motifEcart: edition.motifEcart, motifEcartTexte: edition.motifEcartTexte, resultatControle: edition.resultatControle, employeeId: edition.employeeId }));
     // Préremplissage des seules cases encore vides (09/08/2026, demande de
     // Frédéric) : "j'ai l'historique du quart 1, si je modifie le quart 2,
     // mets automatiquement le stock de fin du quart 1 au stock de départ
@@ -4191,13 +4258,8 @@
       </div>
       ${!edition.estNouveau ? '<div class="champ-note">Changer la date ou le quart déplace ce même enregistrement — impossible si un autre quart FDJ existe déjà à cette date/quart.</div>' : ''}
       <label class="champ-label">Employé assigné</label>
-      <select class="champ-select" id="champEmploye" style="margin-bottom:12px;">
+      <select class="champ-select" id="champEmploye" style="margin-bottom:16px;">
         ${employesSite.map(e => `<option value="${e.id}" ${e.id===edition.employeeId?'selected':''}>${e.nom}</option>`).join('')}
-      </select>
-      <label class="champ-label">Statut du quart</label>
-      <select class="champ-select" id="champStatutShift" style="margin-bottom:16px;">
-        <option value="brouillon" ${edition.statutShift==='brouillon'?'selected':''}>Brouillon</option>
-        <option value="valide" ${edition.statutShift==='valide'?'selected':''}>Validé</option>
       </select>
 
       <div class="champ-sep"></div>
@@ -4243,14 +4305,35 @@
       <select class="champ-select" id="champStatutCaisse" style="margin-bottom:12px;">
         ${STATUTS_CAISSE.map(s => `<option value="${s.value}" ${s.value===edition.statutCaisse?'selected':''}>${s.label}</option>`).join('')}
       </select>
-      <label class="champ-label">Motif de l'écart (optionnel)</label>
-      <select class="champ-select" id="champMotifEcart" style="margin-bottom:16px;">
+      <label class="champ-label">Pourquoi modifiez-vous cet écart ? (optionnel)</label>
+      <select class="champ-select" id="champMotifEcart" style="margin-bottom:${edition.motifEcart === 'autre' ? '4px' : '16px'};">
         ${MOTIFS_ECART_FDJ.map(m => `<option value="${m.value}" ${m.value===edition.motifEcart?'selected':''}>${m.label}</option>`).join('')}
+      </select>
+      ${edition.motifEcart === 'autre' ? '<div class="champ-note" id="noteMotifTexteObligatoire" style="margin:0 0 8px;">« Autre motif » nécessite le commentaire ci-dessous.</div>' : ''}
+      <label class="champ-label">Commentaire / justificatif (si nécessaire)</label>
+      <textarea class="champ-input" id="champMotifTexte" rows="2" style="margin-bottom:16px; resize:vertical;" placeholder="Précisions utiles pour retrouver ce contrôle plus tard…">${edition.motifEcartTexte || ''}</textarea>
+
+      <div class="champ-sep"></div>
+      <div class="section-titre">Synthèse avant validation</div>
+      <div class="resume-card" id="resumeCardSynthese" style="margin-bottom:16px;">
+        ${renderSyntheseAvantValidation(attendue, ecart, classe)}
+      </div>
+
+      <label class="champ-label">Résultat du contrôle</label>
+      <select class="champ-select" id="champResultatControle" style="margin-bottom:16px;">
+        ${NexusFdjMoteur.RESULTATS_CONTROLE_FDJ.map(r => `<option value="${r.value}" ${r.value===edition.resultatControle?'selected':''}>${r.label}</option>`).join('')}
+      </select>
+
+      <div class="champ-sep"></div>
+      <label class="champ-label">Statut du quart</label>
+      <select class="champ-select" id="champStatutShift" style="margin-bottom:16px;">
+        <option value="brouillon" ${edition.statutShift==='brouillon'?'selected':''}>Brouillon</option>
+        <option value="valide" ${edition.statutShift==='valide'?'selected':''}>Validé</option>
       </select>
 
       ${renderHistoriqueAuditFdj()}
 
-      <button class="btn-primary" id="btnEnregistrer">Enregistrer</button>
+      <button class="btn-primary" id="btnEnregistrer">${edition.estNouveau ? 'Enregistrer' : 'Valider le contrôle du quart'}</button>
       <button class="btn-ghost" id="btnAnnuler">Annuler</button>
     `;
 
@@ -4277,18 +4360,35 @@
     `;
   }
 
+  // F4 (20/08/2026, cahier §3, étape 7) : "Synthèse avant validation" —
+  // recap en lecture seule de l'écart retenu et du motif choisi, juste
+  // avant le résultat métier et la validation finale. Fonction séparée
+  // (plutôt qu'inline) car appelée à la fois par renderEdition (premier
+  // rendu) et majResume (frappe live dans les champs qui influent sur
+  // l'écart) — une seule formule d'affichage, jamais deux qui divergent.
+  function renderSyntheseAvantValidation(attendue, ecart, classe) {
+    return `
+      <div class="stat-row"><div class="stat-label">Caisse attendue</div><div class="stat-value">${fmtEuro(attendue)}</div></div>
+      <div class="stat-row total"><div class="stat-label">Écart retenu</div><div class="stat-value ${classe}">${ecart !== null ? `${ecart > 0 ? '+' : ''}${fmtEuro(ecart)}` : '—'}</div></div>
+      <div class="stat-row"><div class="stat-label">Motif</div><div class="stat-value" style="font-size:11.5px; font-weight:400;">${edition.motifEcart ? labelMotifEcart(edition.motifEcart) : '—'}</div></div>
+    `;
+  }
+
   function majResume() {
     const attendue = caisseAttendueEdition();
     const ecart = ecartCaisseEdition();
     const classe = ecart === null ? '' : (ecart === 0 ? 'green' : (Math.abs(ecart) <= 1 ? 'amber' : 'red'));
     const resume = document.querySelector('.resume-card');
-    if (!resume) return;
-    resume.innerHTML = `
-      <div class="stat-row"><div class="stat-label">Ventes grattage</div><div class="stat-value">${fmtEuro(ventesGrattageTotalEdition())}</div></div>
-      <div class="stat-row"><div class="stat-label">Caisse grattage</div><div class="stat-value">${fmtEuro(caisseGrattageEdition())}</div></div>
-      <div class="stat-row total"><div class="stat-label">Caisse attendue</div><div class="stat-value cyan">${fmtEuro(attendue)}</div></div>
-      <div class="stat-row total" id="ligneEcart"><div class="stat-label">Écart</div><div class="stat-value ${classe}">${ecart !== null ? `${ecart > 0 ? '+' : ''}${fmtEuro(ecart)}` : '—'}</div></div>
-    `;
+    if (resume) {
+      resume.innerHTML = `
+        <div class="stat-row"><div class="stat-label">Ventes grattage</div><div class="stat-value">${fmtEuro(ventesGrattageTotalEdition())}</div></div>
+        <div class="stat-row"><div class="stat-label">Caisse grattage</div><div class="stat-value">${fmtEuro(caisseGrattageEdition())}</div></div>
+        <div class="stat-row total"><div class="stat-label">Caisse attendue</div><div class="stat-value cyan">${fmtEuro(attendue)}</div></div>
+        <div class="stat-row total" id="ligneEcart"><div class="stat-label">Écart</div><div class="stat-value ${classe}">${ecart !== null ? `${ecart > 0 ? '+' : ''}${fmtEuro(ecart)}` : '—'}</div></div>
+      `;
+    }
+    const synthese = document.getElementById('resumeCardSynthese');
+    if (synthese) synthese.innerHTML = renderSyntheseAvantValidation(attendue, ecart, classe);
   }
 
   function wireEditionInputs() {
@@ -4305,7 +4405,13 @@
     document.getElementById('champEmploye').addEventListener('change', e => edition.employeeId = e.target.value);
     document.getElementById('champStatutShift').addEventListener('change', e => edition.statutShift = e.target.value);
     document.getElementById('champStatutCaisse').addEventListener('change', e => edition.statutCaisse = e.target.value);
-    document.getElementById('champMotifEcart').addEventListener('change', e => edition.motifEcart = e.target.value);
+    // F4 (20/08/2026) : re-rendu complet (comme date/quart ci-dessus) plutôt
+    // qu'une simple mutation — le motif choisi conditionne à la fois la note
+    // "commentaire obligatoire" et la ligne "Motif" de la synthèse, deux
+    // endroits qu'une mutation silencieuse laisserait désynchronisés.
+    document.getElementById('champMotifEcart').addEventListener('change', e => { edition.motifEcart = e.target.value; renderEdition(); });
+    document.getElementById('champMotifTexte').addEventListener('input', e => edition.motifEcartTexte = e.target.value);
+    document.getElementById('champResultatControle').addEventListener('change', e => edition.resultatControle = e.target.value);
 
     document.querySelectorAll('.jeu-input').forEach(input => {
       input.addEventListener('input', () => {
@@ -4367,6 +4473,15 @@
   // jamais bloquer l'enregistrement (traçabilité, pas contrôle d'accès).
   // ------------------------------------------------------------
   async function enregistrerEdition() {
+    // F4 (20/08/2026, cahier §3, tableau des motifs) : "Autre motif — Champ
+    // texte obligatoire". Bloqué côté client avant tout appel réseau, comme
+    // le reste des validations de ce formulaire (ex. contrainte unique
+    // date/quart, gérée par la base plus bas).
+    if (edition.motifEcart === 'autre' && !(edition.motifEcartTexte || '').trim()) {
+      alert('« Autre motif » nécessite un commentaire — précisez la raison de la modification dans le champ Commentaire / justificatif.');
+      document.getElementById('champMotifTexte').focus();
+      return;
+    }
     const btn = document.getElementById('btnEnregistrer');
     btn.disabled = true;
     btn.innerHTML = 'Enregistrement<span class="btn-loading-dots"><i></i><i></i><i></i></span>';
@@ -4442,7 +4557,8 @@
       ventes_grattage_valeur: ventesGrattageTotalEdition(), lots_payes_grattage: edition.lotsPayes,
       caisse_grattage: caisseGrattageEdition(), caisse_tirages: edition.caisseTirages,
       regularisations: edition.regularisations || 0, caisse_attendue: caisseAttendueEdition(), caisse_reelle: edition.caisseReelle,
-      ecart, motif_ecart: edition.motifEcart || null, statut: edition.statutCaisse,
+      ecart, motif_ecart: edition.motifEcart || null, motif_ecart_texte: edition.motifEcartTexte || null,
+      resultat_controle: edition.resultatControle || null, statut: edition.statutCaisse,
       valide_par: managerCourant.id, valide_le: new Date().toISOString(), updated_at: new Date().toISOString(),
     }, { onConflict: 'shift_id' });
     if (eCash) { console.error('Enregistrement caisse FDJ (manager):', eCash); btn.disabled = false; btn.textContent = 'Enregistrer'; alert('Erreur sur la caisse. Réessayez.'); return; }
@@ -4456,7 +4572,7 @@
       site: siteId, shift_id: shift.id, entite_type: 'fdj_shift', entite_id: shift.id,
       action: edition.estNouveau ? 'creation_manager' : 'correction_manager', acteur_id: managerCourant.id,
       motif: edition.motifEcart || null,
-      ancienne_valeur: edition.avant, nouvelle_valeur: { date: edition.date, quart: edition.quart, counts: edition.counts, lotsPayes: edition.lotsPayes, caisseTirages: edition.caisseTirages, regularisations: edition.regularisations, caisseReelle: edition.caisseReelle, statutCaisse: edition.statutCaisse, motifEcart: edition.motifEcart, employeeId: edition.employeeId, ecart },
+      ancienne_valeur: edition.avant, nouvelle_valeur: { date: edition.date, quart: edition.quart, counts: edition.counts, lotsPayes: edition.lotsPayes, caisseTirages: edition.caisseTirages, regularisations: edition.regularisations, caisseReelle: edition.caisseReelle, statutCaisse: edition.statutCaisse, motifEcart: edition.motifEcart, motifEcartTexte: edition.motifEcartTexte, resultatControle: edition.resultatControle, employeeId: edition.employeeId, ecart },
     });
 
     // 6) Relevé de clôture FDJ / Trace de contrôle FDJ — version
