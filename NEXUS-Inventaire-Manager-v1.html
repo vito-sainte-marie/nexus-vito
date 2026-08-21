@@ -1383,6 +1383,11 @@
       const produits = await chargerCatalogueProduitsPourVentes(siteId);
       const lignesRapprochees = rapprocherLignesVentes(lignesBrutes, produits);
 
+      // Contrôle qualité (audit 21/08/2026, Phase 2, §5 étape 5) : purement
+      // informatif, calculé sur les lignes déjà rapprochées — jamais un
+      // second passage sur le fichier brut (Article 11).
+      const controleQualite = NexusInventaireMoteur.controleQualiteImportVentes(lignesRapprochees);
+
       // Ré-import idempotent : on remplace les lignes de ce quart plutôt que
       // de les accumuler à chaque nouvel essai.
       await nexusClient.from('inventaire_ventes_import').delete().eq('quart_id', quartRow.id);
@@ -1517,9 +1522,12 @@
       const resumeHtml = `
         <div class="synthese-ligne"><span>Références reconnues</span><span class="synthese-valeur green">${produitIds.length}</span></div>
         <div class="synthese-ligne"><span>Références non reconnues</span><span class="synthese-valeur ${nbNonIdentifiees ? 'amber' : 'green'}">${nbNonIdentifiees}</span></div>
+        ${controleQualite.referencesInconnues.length ? `<div class="categorie-manquante-liste" style="margin:-4px 0 8px;">${controleQualite.referencesInconnues.slice(0, 8).map(r => r.designation).join(' · ')}${controleQualite.referencesInconnues.length > 8 ? '…' : ''} — ajouter un alias pour les rapprocher.</div>` : ''}
         <div class="synthese-ligne"><span>Écarts détectés</span><span class="synthese-valeur ${nbEcarts ? 'amber' : 'green'}">${nbEcarts}</span></div>
         <div class="synthese-ligne"><span>Valeur estimée</span><span class="synthese-valeur ${valeurEstimee ? 'amber' : 'green'}">${fmtNum(valeurEstimee)} €</span></div>
         ${nbSansComptage ? `<div class="synthese-ligne"><span>${NexusInventaireMoteur.libelleQualiteRapprochement('non_comparable')} (${nbSansComptage})</span><span class="synthese-valeur amber">Comptage manquant</span></div>` : ''}
+        ${controleQualite.doublons.length ? `<div class="synthese-ligne"><span>Doublons détectés dans le fichier</span><span class="synthese-valeur amber">${controleQualite.doublons.length}</span></div><div class="categorie-manquante-liste" style="margin:-4px 0 8px;">${controleQualite.doublons.slice(0, 8).map(d => `${d.reference} (×${d.occurrences})`).join(' · ')}</div>` : ''}
+        ${controleQualite.quantitesNegatives.length ? `<div class="synthese-ligne"><span>Quantités négatives inhabituelles</span><span class="synthese-valeur amber">${controleQualite.quantitesNegatives.length}</span></div><div class="categorie-manquante-liste" style="margin:-4px 0 8px;">${controleQualite.quantitesNegatives.slice(0, 8).map(q => `${q.reference} (${q.quantite})`).join(' · ')}</div>` : ''}
         <div class="synthese-cloture ${rapprochementComplet ? 'possible' : 'impossible'}">${rapprochementComplet ? 'Rapprochement terminé' : 'Rapprochement incomplet'}</div>
         ${nbEcarts ? '<div style="margin-top:8px; font-size:11.5px; color:var(--text-mid);">Voir la section À contrôler ci-dessous.</div>' : ''}
       `;

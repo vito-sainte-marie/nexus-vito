@@ -908,6 +908,60 @@
     return { niveau, libelle: LIBELLE_MATURITE_INVENTAIRE[niveau] };
   }
 
+  // Contrôle qualité de l'import Decenium (audit "NEXUS Inventaire Produit
+  // — Chaîne de données", 21/08/2026, §5 étape 5 "Contrôle qualité :
+  // doublon, trou de période, référence inconnue, quantité négative
+  // inhabituelle" — Phase 2). Purement informatif, jamais bloquant : NEXUS
+  // signale, le manager décide (même philosophie que le reste de l'écran
+  // Contrôle Inventaire). "Trou de période" n'est pas couvert ici — un
+  // import est rattaché à un seul quart, pas à une plage de dates
+  // (principe du pont, cité par Frédéric le 08/08/2026 : le mapping/import
+  // actuel est un pont temporaire vers Decenium, pas un système de gestion
+  // — pas de nouvelle notion de "période d'import" tant que l'API réelle
+  // n'existe pas).
+  function controleQualiteImportVentes(lignesRapprochees) {
+    const lignes = lignesRapprochees || [];
+
+    // Doublons : une même référence (code-barres si connu, sinon
+    // désignation brute) apparaît sur plusieurs lignes du même fichier —
+    // jamais fusionnées automatiquement (une fusion silencieuse cacherait
+    // l'anomalie d'export plutôt que de la signaler).
+    const groupesParCle = new Map();
+    lignes.forEach(l => {
+      const cle = l.code_barres_brut || l.designation_brute || null;
+      if (!cle) return;
+      if (!groupesParCle.has(cle)) groupesParCle.set(cle, []);
+      groupesParCle.get(cle).push(l);
+    });
+    const doublons = [];
+    groupesParCle.forEach(groupe => {
+      if (groupe.length > 1) {
+        doublons.push({ reference: groupe[0].designation_matchee || groupe[0].designation_brute, occurrences: groupe.length });
+      }
+    });
+
+    // Quantités négatives : peut être un retour légitime — jamais rejetée,
+    // seulement signalée pour vérification humaine (I09/§5 de l'audit).
+    const quantitesNegatives = lignes
+      .filter(l => Number(l.quantite_vendue) < 0)
+      .map(l => ({ reference: l.designation_matchee || l.designation_brute, quantite: l.quantite_vendue }));
+
+    // Références inconnues : liste exploitable (pas seulement un compteur)
+    // — ce que le manager doit pouvoir corriger via un alias, jamais un
+    // rapprochement deviné à sa place (I09 : "pas de mapping inventé").
+    const vues = new Set();
+    const referencesInconnues = [];
+    lignes.forEach(l => {
+      if (l.produit_id) return;
+      const cle = l.designation_brute || '(sans désignation)';
+      if (vues.has(cle)) return;
+      vues.add(cle);
+      referencesInconnues.push({ designation: cle });
+    });
+
+    return { doublons, quantitesNegatives, referencesInconnues };
+  }
+
   global.NexusInventaireMoteur = {
     FAMILLES_CONTROLE, DEFAUT_DELAI_MAX_JOURS_PAR_FAMILLE,
     libelleRaisonSelection, joursEntreDates, delaiMaxJours, produitEligibleQuart,
@@ -925,6 +979,6 @@
     TYPES_MOUVEMENT, infoTypeMouvement, libelleTypeMouvement, mouvementImpacteStockGlobal,
     ACTIONS_MOUVEMENT_PAR_PROFIL, actionsMouvementPourProfil,
     evaluerConfigurationInventaire, identifierCategoriesAOptimiser, estimerTempsProchainInventaire,
-    evaluerMaturiteInventaire,
+    evaluerMaturiteInventaire, controleQualiteImportVentes,
   };
 })(typeof window !== 'undefined' ? window : globalThis);
