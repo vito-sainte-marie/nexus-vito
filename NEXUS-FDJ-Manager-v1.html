@@ -1024,6 +1024,25 @@
     return data.map(a => ({ ...a, quartActuel: shiftsMap[a.shift_id], quartPrecedent: a.shift_precedent_id ? shiftsMap[a.shift_precedent_id] : null }));
   }
 
+  // F5 (20/08/2026, bug réel signalé par Frédéric — quart du 13/08 encore
+  // affiché "à traiter" alors que le quart manquant existe et est validé
+  // depuis) : `reconcilierAlertesChaine` ne recevait jusqu'ici que
+  // `chargerAlertesNonVues()`, filtrée sur `vue=false` — une alerte
+  // 'chaine_interrompue' que le manager a un jour marquée "vue" (accusé de
+  // lecture, PAS une résolution) sortait alors pour toujours de la
+  // reconciliation automatique, même si la cause avait depuis disparu.
+  // "À traiter aujourd'hui" continue pourtant de l'afficher, car
+  // `chargerJournalChaine` (source de ce bloc) ne filtre lui-même que sur
+  // `resolue_le`, jamais sur `vue` — d'où le blocage permanent observé.
+  // Chargeur dédié, indépendant de `vue`, pour que la reconciliation
+  // automatique voie TOUJOURS toutes les ruptures encore ouvertes.
+  async function chargerAlertesChaineOuvertes() {
+    const { data, error } = await nexusClient.from('fdj_alertes').select('id, type, shift_id')
+      .eq('site', siteId).eq('type', 'chaine_interrompue').is('resolue_le', null);
+    if (error) { console.error('Chargement alertes chaîne ouvertes FDJ:', error); return []; }
+    return data || [];
+  }
+
   // Journal — continuité FDJ (16/08/2026, demande de Frédéric : "Aucun
   // historique ne doit être supprimé. Le Journal peut conserver : 17:22 —
   // Chaîne interrompue détectée... puis 17:35 — Q1 complété — chaîne
@@ -2012,7 +2031,8 @@
     // "chaîne interrompue" encore actives contre l'état réel. Si l'une
     // d'elles vient d'être résolue ou remplacée, on relit les alertes pour
     // ne jamais afficher une donnée qu'on vient de réécrire sous les yeux.
-    const mutationsAlertes = await reconcilierAlertesChaine(alertesInitiales, historique);
+    const alertesChaineOuvertes = await chargerAlertesChaineOuvertes();
+    const mutationsAlertes = await reconcilierAlertesChaine(alertesChaineOuvertes, historique);
     const [alertes, journalChaine] = await Promise.all([
       mutationsAlertes ? chargerAlertesNonVues() : Promise.resolve(alertesInitiales),
       chargerJournalChaine(),
