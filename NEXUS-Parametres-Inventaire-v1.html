@@ -283,6 +283,12 @@
     if (n === null || n === undefined || isNaN(n)) return '—';
     return Number(n).toLocaleString('fr-FR', { maximumFractionDigits: 2 });
   }
+  function fmtDateFr(iso) {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return '—';
+    return d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  }
 
   // ==============================================================
   // ONGLET 1 — PRODUITS DE L'INVENTAIRE
@@ -700,6 +706,14 @@
   let profilProduitOuvert = null;
   let profilEnEdition = null;
   let rechercheReglesTexte = '';
+  // Sprint 3 (20/08/2026, demande de Frédéric — "Paramétrage hérité : Bières
+  // / Créer une exception") : ouvrir une ligne produit affiche d'abord une
+  // carte d'ORIGINE (d'où vient la règle appliquée : catégorie, défaut, ou
+  // exception propre), pas directement le formulaire complet.
+  // profilFormulaireActif=true fait basculer vers renderFormulaireProfil
+  // (formulaire existant, inchangé) — seulement quand le manager clique
+  // explicitement "Créer une exception" / "Modifier cette exception".
+  let profilFormulaireActif = false;
   // Sprint "Catégorie porte les règles" (20/08/2026, demande de Frédéric —
   // "règle de catégorie par défaut + exceptions produit") : mêmes variables
   // d'édition que profilProduitOuvert/profilEnEdition ci-dessus, mais pour
@@ -764,38 +778,31 @@
     presse: { remise_a_zero_matin: true, duree_max_vente_jours: 1, retour_fournisseur_autorise: true, quarts_comptage: null, reapprovisionnable: false },
     sdd: { remise_a_zero_matin: false, duree_max_vente_jours: 3, retour_fournisseur_autorise: true, quarts_comptage: null, reapprovisionnable: true },
   };
-  function ouvrirEditionProfil(produitId) {
-    if (profilProduitOuvert === produitId) { profilProduitOuvert = null; profilEnEdition = null; render(); return; }
-    profilProduitOuvert = produitId;
-    const existant = reglesProduitMap[produitId];
-    // Compté en deux lieux (05/08/2026, demande de Frédéric) : ce n'est pas
-    // une règle de cadence (inventaire_regles_produit) mais une propriété du
-    // produit lui-même (inventaire_zone_produit.comptage_deux_lieux), au même
-    // titre que "sensible" — on la lit donc depuis produitsInventaire, pas
-    // depuis reglesProduitMap.
+  // Sprint 3 (20/08/2026) : construit l'objet d'édition du formulaire à
+  // partir de N'IMPORTE QUELLE source de règle (la ligne propre du produit,
+  // la règle effective héritée de sa catégorie, ou rien du tout = valeurs
+  // par défaut) — une seule fonction de construction, jamais une deuxième
+  // copie de cette liste de champs (Article 11 : avant ce sprint, cette
+  // logique n'existait qu'inline dans ouvrirEditionProfil).
+  function construireProfilEnEdition(produitId, source) {
     const produit = produitsInventaire.find(p => p.id === produitId);
     const doubleLieuActuel = !!(produit && produit.comptage_deux_lieux);
-    profilEnEdition = existant ? {
+    return source ? {
       produit_id: produitId,
-      production_journaliere: existant.profil === 'production_journaliere',
-      remise_a_zero_matin: existant.profil === 'cycle_journalier',
-      duree_max_vente_jours: existant.duree_max_vente_jours || null,
-      retour_fournisseur_autorise: existant.action_echeance === 'retour_fournisseur_obligatoire',
-      quarts_comptage: existant.quarts_comptage || null,
-      reapprovisionnable: existant.reapprovisionnable !== false,
-      seuil_minimal: existant.seuil_minimal || null,
-      validation_manager_requise: !!existant.validation_manager_requise,
-      comptage_masque: !!existant.comptage_masque,
-      controle_aleatoire: !!existant.controle_aleatoire,
-      photo_obligatoire: !!existant.photo_obligatoire,
+      production_journaliere: source.profil === 'production_journaliere',
+      remise_a_zero_matin: source.profil === 'cycle_journalier',
+      duree_max_vente_jours: source.duree_max_vente_jours || null,
+      retour_fournisseur_autorise: source.action_echeance === 'retour_fournisseur_obligatoire',
+      quarts_comptage: source.quarts_comptage || null,
+      reapprovisionnable: source.reapprovisionnable !== false,
+      seuil_minimal: source.seuil_minimal || null,
+      validation_manager_requise: !!source.validation_manager_requise,
+      comptage_masque: !!source.comptage_masque,
+      controle_aleatoire: !!source.controle_aleatoire,
+      photo_obligatoire: !!source.photo_obligatoire,
       comptage_deux_lieux: doubleLieuActuel,
-      // Plan de comptage tournant (19/08/2026) : criticité du produit pour
-      // le moteur de sélection (nexus-inventaire-moteur.js::construirePlanComptage).
-      // 'standard' si jamais réglé — même repli que delaiMaxJours() côté
-      // moteur, jamais une valeur différente ici qui désynchroniserait
-      // l'affichage du calcul réel.
-      frequence_controle: existant.frequence_controle || 'standard',
-      delai_max_jours_sans_controle: existant.delai_max_jours_sans_controle != null ? existant.delai_max_jours_sans_controle : null,
+      frequence_controle: source.frequence_controle || 'standard',
+      delai_max_jours_sans_controle: source.delai_max_jours_sans_controle != null ? source.delai_max_jours_sans_controle : null,
     } : {
       produit_id: produitId, production_journaliere: false, remise_a_zero_matin: false, duree_max_vente_jours: null, retour_fournisseur_autorise: false,
       quarts_comptage: null, reapprovisionnable: true, seuil_minimal: null,
@@ -803,8 +810,72 @@
       comptage_deux_lieux: doubleLieuActuel,
       frequence_controle: 'standard', delai_max_jours_sans_controle: null,
     };
+  }
+
+  // Ouvre/ferme la FICHE produit (carte d'origine — Sprint 3). Remplace
+  // l'ancien comportement d'ouvrirEditionProfil, qui sautait directement au
+  // formulaire complet : le manager voit d'abord d'où vient la règle
+  // appliquée, avant de choisir de la modifier.
+  function toggleFicheProduit(produitId) {
+    if (profilProduitOuvert === produitId) { profilProduitOuvert = null; profilEnEdition = null; profilFormulaireActif = false; render(); return; }
+    profilProduitOuvert = produitId;
+    profilEnEdition = null;
+    profilFormulaireActif = false;
     render();
   }
+
+  // Bascule vers le formulaire complet (renderFormulaireProfil, inchangé).
+  // `prefillDepuisCategorie` : quand le manager clique "Créer une exception"
+  // sur un produit qui héritait jusque-là d'une catégorie active, le
+  // formulaire démarre pré-rempli avec les valeurs héritées (point de
+  // départ cohérent) plutôt que vide — il ajuste ensuite ce qui doit
+  // vraiment différer, au lieu de tout retaper.
+  function ouvrirFormulaireProfil(produitId, prefillDepuisCategorie) {
+    profilProduitOuvert = produitId;
+    const existant = reglesProduitMap[produitId];
+    let source = existant || null;
+    if (!source && prefillDepuisCategorie) {
+      const produit = produitsInventaire.find(p => p.id === produitId);
+      const cat = produit && produit.categorie_id ? categoriesSite.find(c => c.id === produit.categorie_id) : null;
+      if (cat && cat.regle_active) source = cat;
+    }
+    profilEnEdition = construireProfilEnEdition(produitId, source);
+    profilFormulaireActif = true;
+    render();
+  }
+
+  // "Revenir à la règle de la catégorie" — supprime l'exception propre du
+  // produit (sa ligne inventaire_regles_produit). Le produit retombe
+  // immédiatement sur la cascade Sprint 1 (catégorie active, ou défaut) —
+  // aucune autre écriture nécessaire, la résolution est déjà dynamique.
+  async function revenirReglecategorie(produitId) {
+    const produit = produitsInventaire.find(p => p.id === produitId);
+    const cat = produit && produit.categorie_id ? categoriesSite.find(c => c.id === produit.categorie_id) : null;
+    const destination = (cat && cat.regle_active) ? `la règle de la catégorie « ${cat.nom} »` : 'au comportement par défaut (stock continu)';
+    if (!confirm(`Ce produit reviendra à ${destination}. Son exception actuelle sera supprimée. Continuer ?`)) return;
+    const existant = reglesProduitMap[produitId];
+    if (!existant) { profilFormulaireActif = false; render(); return; }
+    const { error } = await nexusClient.from('inventaire_regles_produit').delete().eq('id', existant.id);
+    if (error) { console.error('Suppression exception produit:', error); alert('Erreur — réessayez.'); return; }
+    await nexusClient.from('inventaire_audit_log').insert({
+      site: siteId, entite_type: 'inventaire_regles_produit', entite_id: existant.id,
+      action: 'suppression_exception_produit', ancienne_valeur: existant, acteur_id: managerCourant.id,
+    });
+    delete reglesProduitMap[produitId];
+    profilEnEdition = null;
+    profilFormulaireActif = false;
+    render();
+  }
+
+  // "Modifier pour toute la catégorie" (bouton de la carte d'origine,
+  // Sprint 3) — ferme la fiche produit et ouvre le formulaire de catégorie
+  // (ouvrirEditionRegleCategorie, Sprint 2), sans dupliquer sa logique.
+  function irVersReglageCategorie(categorieId) {
+    profilProduitOuvert = null; profilEnEdition = null; profilFormulaireActif = false;
+    if (categorieReglesOuverte === categorieId) { render(); return; }
+    ouvrirEditionRegleCategorie(categorieId);
+  }
+
   function appliquerPreregleProfil(nomPreregle) {
     const preset = PREREGLAGES_REGLE[nomPreregle];
     if (!preset || !profilEnEdition) return;
@@ -847,6 +918,11 @@
       // jamais un 0 fabriqué ici (Article 5).
       frequence_controle: p.frequence_controle || 'standard',
       delai_max_jours_sans_controle: (p.delai_max_jours_sans_controle !== '' && p.delai_max_jours_sans_controle != null) ? p.delai_max_jours_sans_controle : null,
+      // Sprint 3 (20/08/2026) : horodatage explicite, jamais un trigger
+      // caché — c'est ce que la fiche produit affiche mot pour mot
+      // ("Dernière modification : ..."), donc l'écriture doit être ici,
+      // visible, plutôt que déléguée à un mécanisme invisible côté base.
+      updated_at: new Date().toISOString(),
     };
     const { data, error } = await nexusClient.from('inventaire_regles_produit').upsert(payload, { onConflict: 'site,produit_id' }).select().single();
     if (error) { console.error('Enregistrement règle produit:', error); alert('Erreur — réessayez.'); if (btn) { btn.disabled = false; btn.textContent = 'Enregistrer ces réglages'; } return; }
@@ -878,7 +954,11 @@
       produitsProduction = produitsProduction.filter(pp => pp.id !== p.produit_id);
     }
 
-    profilProduitOuvert = null; profilEnEdition = null;
+    // Sprint 3 : retour à la carte d'origine (fiche laissée ouverte) plutôt
+    // que tout refermer — confirme visuellement ce qui vient d'être
+    // enregistré (désormais "⚠ Exception active", Dernière modification à
+    // l'instant).
+    profilEnEdition = null; profilFormulaireActif = false;
     render();
   }
   function renderFormulaireProfil() {
@@ -994,6 +1074,51 @@
     if (regle.seuil_minimal) parties.push(`Seuil ${regle.seuil_minimal}`);
     return parties.length ? parties.join(' · ') : 'Stock continu (par défaut)';
   }
+  // ------------------------------------------------------------
+  // FICHE PRODUIT — carte d'origine (Sprint 3, 20/08/2026, demande de
+  // Frédéric : "Paramétrage hérité : Bières / Dernière modification :
+  // 20/08/2026 / [Modifier pour toute la catégorie] [Créer une
+  // exception]"). S'affiche à l'ouverture d'une ligne produit, AVANT le
+  // formulaire complet — le manager voit d'abord d'où vient la règle
+  // appliquée, choisit ensuite explicitement de la personnaliser ou d'aller
+  // régler toute la catégorie.
+  // ------------------------------------------------------------
+  function renderCarteHeritageProduit(p, regle, categorieRegle) {
+    const catActive = categorieRegle && categorieRegle.regle_active;
+    if (regle) {
+      // Exception propre au produit.
+      return `
+        <div style="margin-top:10px; padding-top:10px; border-top:1px solid var(--hairline);">
+          <div style="font-size:12.5px; color:var(--amber); font-weight:600;">⚠ Exception active pour ce produit</div>
+          <div class="categorie-count" style="margin-top:2px;">${libelleReglesProduit(regle)}</div>
+          <div class="categorie-count" style="margin-top:2px;">Dernière modification : ${fmtDateFr(regle.updated_at)}</div>
+          <button class="btn-primary" style="margin-top:10px;" data-modifier-exception="${p.id}">Modifier cette exception</button>
+          <button class="btn-ghost" data-revenir-categorie="${p.id}">Revenir à ${catActive ? `la règle de « ${categorieRegle.nom} »` : 'la règle par défaut'}</button>
+        </div>
+      `;
+    }
+    if (catActive) {
+      // Hérite d'une règle de catégorie active.
+      return `
+        <div style="margin-top:10px; padding-top:10px; border-top:1px solid var(--hairline);">
+          <div style="font-size:12.5px; color:var(--cyan); font-weight:600;">Paramétrage hérité : ${categorieRegle.nom}</div>
+          <div class="categorie-count" style="margin-top:2px;">${libelleReglesProduit(categorieRegle)}</div>
+          <div class="categorie-count" style="margin-top:2px;">Dernière modification : ${fmtDateFr(categorieRegle.updated_at)}</div>
+          <button class="btn-primary" style="margin-top:10px;" data-modifier-categorie="${categorieRegle.id}">Modifier pour toute la catégorie</button>
+          <button class="btn-ghost" data-creer-exception="${p.id}">Créer une exception pour ce produit</button>
+        </div>
+      `;
+    }
+    // Ni exception, ni règle de catégorie active : comportement par défaut.
+    return `
+      <div style="margin-top:10px; padding-top:10px; border-top:1px solid var(--hairline);">
+        <div class="categorie-count">${categorieRegle ? `Aucune règle commune pour « ${categorieRegle.nom} »` : 'Aucune catégorie'} — ce produit suit le comportement par défaut (stock continu).</div>
+        ${categorieRegle ? `<button class="btn-ghost" data-modifier-categorie="${categorieRegle.id}">Définir une règle pour toute la catégorie</button>` : ''}
+        <button class="btn-primary" style="margin-top:10px;" data-creer-exception="${p.id}">Créer une exception pour ce produit</button>
+      </div>
+    `;
+  }
+
   function renderLigneProfilProduit(p) {
     const regle = reglesProduitMap[p.id];
     // 20/08/2026 (Sprint "Catégorie porte les règles") : le libellé affiché
@@ -1022,7 +1147,8 @@
         </div>
         <div class="categorie-etat ${personnalise ? 'en-cours' : 'a-faire'}">${ouvert ? '▾' : '▸'}</div>
       </div>
-      ${ouvert && profilEnEdition ? renderFormulaireProfil() : ''}
+      ${ouvert && profilFormulaireActif && profilEnEdition ? renderFormulaireProfil() : ''}
+      ${ouvert && !profilFormulaireActif ? renderCarteHeritageProduit(p, regle, categorieRegle) : ''}
     `;
   }
 
@@ -1115,6 +1241,7 @@
       photo_obligatoire: !!e.photo_obligatoire,
       frequence_controle: e.frequence_controle || 'standard',
       delai_max_jours_sans_controle: (e.delai_max_jours_sans_controle !== '' && e.delai_max_jours_sans_controle != null) ? e.delai_max_jours_sans_controle : null,
+      updated_at: new Date().toISOString(), // Sprint 3 — voir enregistrerProfilProduit, même discipline
     };
     const { data, error } = await nexusClient.from('inventaire_categories').update(payload).eq('id', e.categorie_id).select().single();
     if (error) { console.error('Enregistrement règle catégorie:', error); alert('Erreur — réessayez.'); if (btn) { btn.disabled = false; btn.textContent = 'Enregistrer pour toute la catégorie'; } return; }
@@ -1953,7 +2080,15 @@
         if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
       });
     }
-    document.querySelectorAll('[data-profil-produit]').forEach(el => el.addEventListener('click', () => ouvrirEditionProfil(el.dataset.profilProduit)));
+    document.querySelectorAll('[data-profil-produit]').forEach(el => el.addEventListener('click', () => toggleFicheProduit(el.dataset.profilProduit)));
+    // Sprint 3 — actions de la carte d'origine (renderCarteHeritageProduit).
+    // Chaque bouton porte son propre data-attribut plutôt qu'un seul
+    // générique : le sens de chacun (créer/modifier/revenir/aller à la
+    // catégorie) est trop différent pour partager un seul handler.
+    document.querySelectorAll('[data-creer-exception]').forEach(el => el.addEventListener('click', (ev) => { ev.stopPropagation(); ouvrirFormulaireProfil(el.dataset.creerException, true); }));
+    document.querySelectorAll('[data-modifier-exception]').forEach(el => el.addEventListener('click', (ev) => { ev.stopPropagation(); ouvrirFormulaireProfil(el.dataset.modifierException, false); }));
+    document.querySelectorAll('[data-revenir-categorie]').forEach(el => el.addEventListener('click', (ev) => { ev.stopPropagation(); revenirReglecategorie(el.dataset.revenirCategorie); }));
+    document.querySelectorAll('[data-modifier-categorie]').forEach(el => el.addEventListener('click', (ev) => { ev.stopPropagation(); irVersReglageCategorie(el.dataset.modifierCategorie); }));
     document.querySelectorAll('[data-preset]').forEach(el => el.addEventListener('click', () => appliquerPreregleProfil(el.dataset.preset)));
     const regleProductionJournaliereEl = document.getElementById('regleProductionJournaliere');
     if (regleProductionJournaliereEl) regleProductionJournaliereEl.addEventListener('change', (e) => { profilEnEdition.production_journaliere = e.target.checked; render(); });
@@ -1991,7 +2126,12 @@
     const btnEnregistrerProfil = document.getElementById('btnEnregistrerProfil');
     if (btnEnregistrerProfil) btnEnregistrerProfil.addEventListener('click', enregistrerProfilProduit);
     const btnAnnulerProfil = document.getElementById('btnAnnulerProfil');
-    if (btnAnnulerProfil) btnAnnulerProfil.addEventListener('click', () => { profilProduitOuvert = null; profilEnEdition = null; render(); });
+    if (btnAnnulerProfil) btnAnnulerProfil.addEventListener('click', () => {
+      // Sprint 3 : "Annuler" revient à la carte d'origine (la fiche reste
+      // ouverte), plutôt que de tout refermer — cohérent avec le nouveau
+      // point d'entrée en deux temps (origine -> formulaire).
+      profilEnEdition = null; profilFormulaireActif = false; render();
+    });
 
     // --- Règles par catégorie (20/08/2026, Sprint 2) — même schéma de
     // wiring que le formulaire produit ci-dessus, sur categorieRegleEnEdition. ---
