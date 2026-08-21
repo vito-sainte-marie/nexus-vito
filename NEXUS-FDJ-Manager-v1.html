@@ -2080,11 +2080,16 @@
       <div class="champ-note" style="margin:-6px 0 10px;">Les éléments qui nécessitent une vérification ou une décision.</div>
       ${totalATraiter ? `
         <div class="card" style="margin-bottom:16px;">
-          ${renderRelevesEnErreurBloc(relevesEnErreur)}
-          ${renderBoiteExceptions(exceptions, journalChaine, historique)}
-          ${soldesNegatifs.length ? `<div id="listeSoldesNegatifs">${soldesNegatifs.map(renderSoldeNegatif).join('')}</div>` : ''}
-          ${alertes.length ? `<div id="listeAlertes">${alertes.map(renderAlerte).join('')}</div>` : ''}
-          ${brouillons.length ? `<div id="listeBrouillons">${brouillons.map(renderBrouillonItem).join('')}</div>` : ''}
+          <button type="button" id="btnATraiterToggle" style="width:100%; text-align:left; background:none; border:none; padding:10px 14px; color:var(--red); font:inherit; font-weight:600; cursor:pointer;">
+            🔴 ${totalATraiter} élément${totalATraiter > 1 ? 's' : ''} à vérifier — Voir le détail ▾
+          </button>
+          <div id="blocATraiterDetail" style="display:none; border-top:1px solid var(--border);">
+            ${renderRelevesEnErreurBloc(relevesEnErreur)}
+            ${renderBoiteExceptions(exceptions, journalChaine, historique)}
+            ${soldesNegatifs.length ? `<div id="listeSoldesNegatifs">${soldesNegatifs.map(renderSoldeNegatif).join('')}</div>` : ''}
+            ${alertes.length ? `<div id="listeAlertes">${alertes.map(renderAlerte).join('')}</div>` : ''}
+            ${brouillons.length ? `<div id="listeBrouillons">${brouillons.map(renderBrouillonItem).join('')}</div>` : ''}
+          </div>
         </div>
       ` : `<div class="card" style="margin-bottom:16px; padding:16px; text-align:center; color:var(--green); font-weight:600;">✅ Rien à traiter pour le moment</div>`}
 
@@ -2175,6 +2180,21 @@
       <a href="NEXUS-FDJ-Parametres-v1.html" class="section-titre" style="display:block; text-decoration:none; margin-top:18px;">⚙️ Paramètres FDJ →</a>
     `;
 
+    // "À traiter aujourd'hui" replié par défaut (20/08/2026, demande de
+    // Frédéric) — même logique que le Journal Continuité ci-dessous : le
+    // manager voit d'abord juste le compte ("N éléments à vérifier"),
+    // jamais la liste entière imposée d'entrée ; le détail ne s'ouvre que
+    // sur demande explicite. Même mécanique ▾/▴ + display, pour rester
+    // cohérent avec le seul autre toggle déjà en place sur cet écran.
+    const btnATraiterToggle = document.getElementById('btnATraiterToggle');
+    if (btnATraiterToggle) {
+      btnATraiterToggle.addEventListener('click', () => {
+        const bloc = document.getElementById('blocATraiterDetail');
+        const ouvert = bloc.style.display !== 'none';
+        bloc.style.display = ouvert ? 'none' : '';
+        btnATraiterToggle.textContent = btnATraiterToggle.textContent.replace(ouvert ? '▴' : '▾', ouvert ? '▾' : '▴');
+      });
+    }
     // Journal continuité replié par défaut (16/08/2026) — le manager sait
     // en un coup d'œil si la chaîne est saine ; l'historique complet ne
     // s'ouvre que sur demande explicite.
