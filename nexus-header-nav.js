@@ -64,12 +64,28 @@
     var style = document.createElement('style');
     style.id = 'nexus-retour-css';
     style.textContent =
-      '.nexus-retour-btn{display:flex; align-items:center; gap:6px; font-family:\'IBM Plex Mono\',monospace; ' +
+      // display:inline-flex (pas flex) : le bouton doit rester de la
+      // largeur de son contenu ("‹ Précédent"), pas s'étirer sur toute la
+      // largeur du header une fois sorti du positionnement absolu ci-dessous.
+      '.nexus-retour-btn{display:inline-flex; align-items:center; gap:6px; font-family:\'IBM Plex Mono\',monospace; ' +
       'font-size:10.5px; font-weight:600; letter-spacing:0.03em; text-transform:uppercase; color:#8A96A5; ' +
       'background:rgba(138,150,165,0.10); border:1px solid rgba(138,150,165,0.28); border-radius:20px; ' +
       'padding:7px 12px; text-decoration:none; white-space:nowrap; z-index:5; cursor:pointer;}' +
       '.nexus-retour-btn:active{background:rgba(138,150,165,0.22);}' +
-      '.nexus-retour-btn--absolu{position:absolute; top:18px; left:18px;}' +
+      // 21/08/2026 (retour de Frédéric — "PRÉCÉDENT est confondu avec
+      // NEXUS PARAMÈTRES INVENTAIRE") : `position:absolute; top:18px;
+      // left:18px` chevauchait l'eyebrow (".eyebrow", lui-même en flux
+      // normal au tout début du header) sur tous les écrans à header
+      // "bloc" — le miroir du bouton Menu (à droite, où rien d'autre ne
+      // démarre au même endroit) ne fonctionnait pas à gauche, où
+      // l'eyebrow démarre exactement là. Remplacé par un positionnement en
+      // flux normal (premier enfant du header, comme avant), qui pousse
+      // naturellement l'eyebrow/titre/sous-titre en dessous au lieu de se
+      // superposer — plus besoin de deviner une valeur de padding qui
+      // marcherait sur tous les headers du site (paddings différents d'un
+      // écran à l'autre). Toujours inséré en premier enfant du header
+      // (voir injecterDans ci-dessous), donc toujours au-dessus du reste.
+      '.nexus-retour-btn--absolu{display:inline-flex; margin:0 0 10px;}' +
       '.nexus-retour-btn--absolu-bas{position:absolute; top:58px; left:18px;}' +
       '.nexus-retour-btn--flex{flex-shrink:0;}' +
       'body.nexus-desktop .nexus-retour-btn{display:none !important;}';
