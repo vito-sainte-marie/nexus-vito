@@ -1085,6 +1085,95 @@
     return quarts.reduce((somme, q) => somme + Number(q.cash.caisse_reelle || 0), 0);
   }
 
+  // ============================================================
+  // F3 "Comparabilité" (20/08/2026, cahier "NEXUS FDJ — Audit de
+  // consolidation", §5) — "Le moteur doit comparer uniquement des fenêtres
+  // homologues et clôturées." Exemple du cahier : si jeudi est en cours,
+  // comparer lundi+mardi+mercredi de cette semaine à lundi+mardi+mercredi
+  // de la semaine précédente — jamais une semaine partielle contre une
+  // semaine complète (source des évolutions "-60 %"/"-78,6 %" citées dans
+  // l'audit). La journée en cours reste visible dans l'écran opérationnel
+  // (§5 : "reste visible... mais ne participe ni à l'évolution ni à la
+  // courbe comparative") — cette fonction ne filtre QUE ce qui alimente
+  // une évolution, jamais les totaux bruts affichés par ailleurs.
+  // ------------------------------------------------------------
+  // Même hypothèse que F2 (etatJourCaisseReelle/totalJourCaisseReelle) :
+  // 2 quarts attendus par jour (Q1+Q2, voir horairesQuartsSite). `ligneJour`
+  // vient de view_fdj_daily_summary (nb_quarts_controles déjà corrigé par
+  // le correctif caisse_comptabilisable, v2.181 — inclut donc déjà "quart
+  // encore brouillon" dans son exclusion, pas la peine de revérifier ici).
+  const FDJ_QUARTS_ATTENDUS_PAR_JOUR = 2;
+  function jourFdjEstCloture(ligneJour) {
+    return !!(ligneJour && Number(ligneJour.nb_quarts_controles) >= FDJ_QUARTS_ATTENDUS_PAR_JOUR);
+  }
+
+  function ajouterJoursIso(dateStr, n) {
+    const d = new Date(dateStr + 'T00:00:00');
+    d.setDate(d.getDate() + n);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
+
+  // `dailyActuel`/`dailyComp` : lignes view_fdj_daily_summary de la période
+  // actuelle et de la période de comparaison (déjà filtrées par borne de
+  // date par l'appelant). `debutActuelIso`/`debutCompIso` : premier jour de
+  // chaque période (ISO). `dureeJours` : longueur des deux fenêtres (déjà
+  // égales par construction, voir resoudrePeriode côté écran). Aligne les
+  // deux fenêtres jour par jour (offset 0 = premier jour de chacune) et ne
+  // garde une paire que si les DEUX jours sont clôturés — un jour manquant
+  // ou non clôturé, des deux côtés, exclut la paire entière plutôt que de
+  // fabriquer un point de comparaison partiel (Article 5).
+  function fenetreComparableFdj(dailyActuel, dailyComp, debutActuelIso, debutCompIso, dureeJours) {
+    const parDateActuel = {}; (dailyActuel || []).forEach(l => { parDateActuel[l.date] = l; });
+    const parDateComp = {}; (dailyComp || []).forEach(l => { parDateComp[l.date] = l; });
+    const jours = [];
+    for (let i = 0; i < dureeJours; i++) {
+      const dateActuel = ajouterJoursIso(debutActuelIso, i);
+      const dateComp = ajouterJoursIso(debutCompIso, i);
+      const ligneActuel = parDateActuel[dateActuel] || null;
+      const ligneComp = parDateComp[dateComp] || null;
+      const clotureActuel = jourFdjEstCloture(ligneActuel);
+      const clotureComp = jourFdjEstCloture(ligneComp);
+      let raisonExclusion = null;
+      if (!clotureActuel) raisonExclusion = 'jour_non_cloture';
+      else if (!clotureComp) raisonExclusion = 'reference_non_cloturee';
+      jours.push({ dateActuel, dateComp, comparable: !raisonExclusion, raisonExclusion, ligneActuel, ligneComp });
+    }
+    const comparables = jours.filter(j => j.comparable);
+    return {
+      jours,
+      dailyActuelComparable: comparables.map(j => j.ligneActuel),
+      dailyCompComparable: comparables.map(j => j.ligneComp),
+      nbComparables: comparables.length,
+      nbAttendus: dureeJours,
+      couverture: `${comparables.length}/${dureeJours}`,
+      toutesComparables: comparables.length === dureeJours,
+    };
+  }
+
+  // Progression du comptage d'un quart pour les cartes "Quarts du jour"
+  // (20/08/2026, cahier UX §4/§5) : "L'objectif est que tu puisses voir une
+  // anomalie sans ouvrir le quart." `counts` = lignes fdj_shift_counts du
+  // quart (peut être vide), `totalJeux` = nombre de jeux actifs du site.
+  // Retourne { stockDebut: {comptes, total, etat}, stockFin: {...} } avec
+  // etat ∈ 'non_commence' | 'partiel' | 'termine'. Volontairement PAS de
+  // distinction 'corrigé'/'validé' au niveau du comptage — NEXUS ne trace
+  // aucun flag "ce comptage a été corrigé/validé" par jeu, seulement un
+  // statut global de caisse (voir plus loin) : jamais une fausse précision
+  // par jeu que la donnée ne permet pas (Article 5).
+  function progressionComptageQuart(counts, totalJeux) {
+    const etatDe = (comptes, total) => {
+      if (!total || comptes <= 0) return 'non_commence';
+      if (comptes >= total) return 'termine';
+      return 'partiel';
+    };
+    const debutComptes = (counts || []).filter(c => c.stock_initial !== null && c.stock_initial !== undefined).length;
+    const finComptes = (counts || []).filter(c => c.stock_final !== null && c.stock_final !== undefined).length;
+    return {
+      stockDebut: { comptes: debutComptes, total: totalJeux, etat: etatDe(debutComptes, totalJeux) },
+      stockFin: { comptes: finComptes, total: totalJeux, etat: etatDe(finComptes, totalJeux) },
+    };
+  }
+
   global.NexusFdjMoteur = {
     calculerVentesJeu, ventesGrattageTotal, caisseGrattage, caisseAttendue, ecartCaisse, permissionsEcartCaisseEmploye,
     soldesCarnetsParJeu, soldeCarnetsJeu, soldesCarnetsAvecReference,
@@ -1102,5 +1191,7 @@
     propagationCorrectionStock,
     syntheseExceptionsManager,
     caisseComptabilisableQuart, quartCaisseReelleCellule, etatJourCaisseReelle, totalJourCaisseReelle,
+    progressionComptageQuart,
+    FDJ_QUARTS_ATTENDUS_PAR_JOUR, jourFdjEstCloture, fenetreComparableFdj,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

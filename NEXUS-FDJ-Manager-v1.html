@@ -61,11 +61,27 @@
   .section-titre:first-child{margin-top:0;}
 
   .quart-jour-grid{display:flex; gap:10px; margin-bottom:6px;}
+  /* Stock & mouvements — 5 tuiles (20/08/2026, cahier UX "Nouvelle
+     organisation Contrôle FDJ" §16) : remplace la liste de gros boutons +
+     notes empilés par une grille compacte, même esprit que quart-jour-grid
+     ci-dessus mais en grid 2 colonnes (5 tuiles ne se répartissent pas
+     proprement en flex). */
+  .stock-tuiles-grid{display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:16px;}
+  .stock-tuile{background:var(--panel); border:1.5px solid var(--hairline); border-radius:12px; padding:12px; cursor:pointer; text-align:left;}
+  .stock-tuile:active{background:var(--panel-raised);}
+  .stock-tuile-icone{font-size:18px; margin-bottom:4px;}
+  .stock-tuile-titre{font-size:12.5px; font-weight:700; color:var(--text);}
+  .stock-tuile-sous{font-size:10.5px; color:var(--text-mid); margin-top:2px; line-height:1.35;}
   .quart-jour-card{flex:1; background:var(--panel); border:1.5px solid var(--hairline); border-radius:14px; padding:14px; cursor:pointer;}
   .quart-jour-card:active{background:var(--panel-raised);}
   .quart-jour-label{font-family:var(--mono); font-size:10px; color:var(--text-dim); text-transform:uppercase; margin-bottom:6px;}
   .quart-jour-statut{font-size:12.5px; font-weight:600;}
   .quart-jour-ecart{font-family:var(--mono); font-size:15px; font-weight:700; margin-top:4px;}
+  /* Cartes Q1/Q2 redessinées (20/08/2026, cahier UX §4/§5/§6). */
+  .carte-quart-ligne{display:flex; justify-content:space-between; align-items:baseline; gap:6px; font-size:11px; margin-top:6px; color:var(--text-mid);}
+  .carte-quart-ligne span:last-child{color:var(--text); font-weight:600; text-align:right;}
+  .carte-quart-etape{font-size:10.5px; color:var(--text-dim); margin-top:8px; font-style:italic;}
+  .carte-quart-action{width:100%; margin-top:10px;}
 
   .card{background:var(--panel); border:1px solid var(--hairline); border-radius:12px; margin-bottom:10px; overflow:hidden;}
   .histo-item{padding:14px; cursor:pointer;}
@@ -319,7 +335,9 @@
   let exportJournee = null; // { date, shifts: [{shift, releves}], dernierPdf }
   let historiqueEmploye = null; // { employeeId, moisISO ('YYYY-MM'), shifts, dernierPdf }
   let caisseReelleSemaine = null; // F2 (20/08/2026) : { periode: {debut, fin, label}, shifts, totaux }
-  let vue = 'liste'; // 'liste' | 'edition' | 'reappro' | 'inventaire-ref' | 'reception' | 'stock-etat' | 'blocage' | 'apres-enregistrement' | 'rapprochement' | 'derogation' | 'releve' | 'export-journee' | 'historique-employe-liste' | 'historique-employe' | 'caisse-reelle-semaine'
+  let retraitCaisse = null; // (20/08/2026) : { soldes, quantites: {gameId: qty}, motif }
+  let filtreHistorique = { periode: '7j', debut: null, fin: null }; // (20/08/2026) : 'aujourdhui' | '7j' | '30j' | 'dates'
+  let vue = 'liste'; // 'liste' | 'edition' | 'reappro' | 'inventaire-ref' | 'reception' | 'stock-etat' | 'blocage' | 'apres-enregistrement' | 'rapprochement' | 'derogation' | 'releve' | 'export-journee' | 'historique-employe-liste' | 'historique-employe' | 'caisse-reelle-semaine' | 'retrait-caisse' | 'retrait-caisse-confirmation'
 
   // État du formulaire d'édition en cours (nouveau OU existant).
   let edition = null;
@@ -409,6 +427,13 @@
     { value: 'lots_payes_ou_tirages_errones', label: 'Lots payés / caisse tirages mal recopiés' },
     { value: 'grattage_erronee', label: 'Comptage grattage à revoir' },
     { value: 'autre', label: 'Autre' },
+  ];
+  // Historique des quarts — filtres de période (20/08/2026, cahier UX §18).
+  const FILTRES_HISTORIQUE = [
+    { cle: 'aujourdhui', label: "Aujourd'hui" },
+    { cle: '7j', label: '7 jours' },
+    { cle: '30j', label: '30 jours' },
+    { cle: 'dates', label: 'Dates' },
   ];
   function labelStatutCaisse(v) { const s = STATUTS_CAISSE.find(x => x.value === v); return s ? s.label : v; }
   function labelMotifEcart(v) { const m = MOTIFS_ECART_FDJ.find(x => x.value === v); return m ? m.label : v; }
@@ -646,19 +671,15 @@
   // jamais disparaître silencieusement : le nombre de quarts à régulariser
   // reste visible même repliée, seul le détail se déplie sur demande
   // (même discipline que le Journal — continuité FDJ, ci-dessous).
+  // 20/08/2026, cahier UX "Nouvelle organisation Contrôle FDJ" §3 : ce
+  // panneau n'a plus son propre titre/carte/toggle séparés — il devient un
+  // sous-ensemble de lignes du bloc unifié "À traiter aujourd'hui" (voir
+  // renderATraiterAujourdhui). L'id `listeRelevesEnErreur` est conservé
+  // pour que le câblage d'événements existant continue de fonctionner sans
+  // changement (Article 11 — jamais un deuxième mécanisme de wiring).
   function renderRelevesEnErreurBloc(relevesEnErreur) {
     if (!relevesEnErreur.length) return '';
-    return `
-      <div class="section-titre">🔴 Relevés de clôture à régulariser (${relevesEnErreur.length})</div>
-      <div class="card" id="listeRelevesEnErreur" style="margin-bottom:16px; border:1px solid rgba(211,71,71,0.4); background:rgba(211,71,71,0.06);">
-        <button type="button" id="btnRelevesEnErreurToggle" style="width:100%; text-align:left; background:none; border:none; padding:10px 14px; color:var(--red); cursor:pointer; font:inherit; font-weight:600;">
-          Voir le détail — ${relevesEnErreur.length} quart${relevesEnErreur.length > 1 ? 's' : ''} concerné${relevesEnErreur.length > 1 ? 's' : ''} ▾
-        </button>
-        <div id="relevesEnErreurListe" style="display:none; border-top:1px solid rgba(211,71,71,0.4);">
-          ${relevesEnErreur.map(renderReleveEnErreur).join('')}
-        </div>
-      </div>
-    `;
+    return `<div id="listeRelevesEnErreur">${relevesEnErreur.map(renderReleveEnErreur).join('')}</div>`;
   }
   function renderReleveEnErreur(s) {
     const statutTexte = s.releve_cloture_statut === 'erreur' ? 'Échec d’écriture' : 'En attente d’écriture';
@@ -705,6 +726,41 @@
     if (error) { console.error('Chargement quarts FDJ:', error); return []; }
     return (data || []).map(s => ({ ...s, cash: extraireCash(s) }));
   }
+  // Historique des quarts — filtres de période (20/08/2026, cahier UX
+  // "Nouvelle organisation Contrôle FDJ" §F/§18 : "Aujourd'hui | 7 jours |
+  // 30 jours | Dates"). Requête dédiée plutôt que de réutiliser
+  // `chargerShiftsAvecCaisse(null)` (limit 30, alimente aussi la détection
+  // des brouillons/exceptions à l'échelle du site — changer sa fenêtre de
+  // date aurait rétréci CETTE détection en même temps que l'affichage
+  // Historique, deux besoins différents). Seuls les quarts transmis
+  // ('valide') apparaissent ici, comme avant ce correctif.
+  async function chargerHistoriquePeriode(dateDebut, dateFin) {
+    const { data, error } = await nexusClient.from('fdj_shifts').select('*, fdj_cash_controls(*)')
+      .eq('site', siteId).eq('statut', 'valide').gte('date', dateDebut).lte('date', dateFin)
+      .order('date', { ascending: false }).order('quart', { ascending: false });
+    if (error) { console.error('Chargement historique FDJ (période):', error); return []; }
+    return (data || []).map(s => ({ ...s, cash: extraireCash(s) }));
+  }
+  function bornesFiltreHistorique(filtre, aujourdhui) {
+    if (filtre.periode === 'aujourdhui') return { debut: aujourdhui, fin: aujourdhui };
+    if (filtre.periode === '30j') return { debut: ajouterJoursISO(aujourdhui, -29), fin: aujourdhui };
+    if (filtre.periode === 'dates') return { debut: filtre.debut || aujourdhui, fin: filtre.fin || aujourdhui };
+    return { debut: ajouterJoursISO(aujourdhui, -6), fin: aujourdhui }; // '7j', défaut
+  }
+
+  // Cartes "Quarts du jour" (20/08/2026, cahier UX §4/§5) — comptages des
+  // quarts du jour, pour afficher "28/28 jeux comptés" sans avoir à ouvrir
+  // le quart. `shiftIds` : jusqu'à 2 ids (Q1/Q2) ; vide si un quart n'existe
+  // pas encore (renderCarteQuartJour gère déjà le cas shift=null).
+  async function chargerCountsQuartsDuJour(shiftIds) {
+    if (!shiftIds.length) return {};
+    const { data, error } = await nexusClient.from('fdj_shift_counts').select('shift_id, game_id, stock_initial, stock_final').in('shift_id', shiftIds);
+    if (error) { console.error('Chargement comptages quarts du jour FDJ:', error); return {}; }
+    const parShift = {};
+    (data || []).forEach(c => { (parShift[c.shift_id] = parShift[c.shift_id] || []).push(c); });
+    return parShift;
+  }
+
   // F2 "Caisse réelle" (20/08/2026) — quarts d'une semaine calendaire
   // (lundi→dimanche), même select que chargerShiftsAvecCaisse (Article 11 :
   // même forme de requête, juste une autre borne de date).
@@ -985,9 +1041,9 @@
     const rompue = journalChaine.some(a => !a.resolue_le);
     const etatLigne = rompue ? '🔴 Chaîne interrompue — un ou plusieurs quarts manquants' : '✅ Chaîne continue';
     return `
-      <div class="section-titre">🕒 Journal — continuité FDJ</div>
+      <div class="section-titre">Continuité FDJ</div>
       <div class="card" style="margin-bottom:16px;">
-        <div class="jeu-row" style="padding:10px 14px;"><div class="histo-sub">État actuel : ${etatLigne}</div></div>
+        <div class="jeu-row" style="padding:10px 14px;"><div class="histo-sub">${etatLigne}</div></div>
         <button type="button" id="btnJournalChaineToggle" style="width:100%; text-align:left; background:none; border:none; border-top:1px solid var(--border); padding:10px 14px; color:var(--gold); cursor:pointer; font:inherit;">
           Voir l'historique des interruptions — ${journalChaine.length} événement${journalChaine.length > 1 ? 's' : ''} ▾
         </button>
@@ -1099,22 +1155,32 @@
     return true;
   }
 
-  function renderBoiteExceptions(exceptions) {
-    if (!exceptions.total) return '';
+  // 20/08/2026, cahier UX §3 : même traitement que renderRelevesEnErreurBloc
+  // ci-dessus — plus de titre/carte/toggle séparés, ce panneau devient un
+  // sous-ensemble du bloc unifié "À traiter aujourd'hui". Les anomalies de
+  // continuité ACTIVES (jamais résolues) sont désormais résumées ici en une
+  // ligne par anomalie ("🔴 1 problème de continuité", cahier §3) — le
+  // journal complet, résolu inclus, reste dans la section E "Continuité FDJ"
+  // (renderJournalChaineBloc, inchangé). `id="boiteExceptionsDetail"` est
+  // conservé pour que le câblage d'événements existant (data-corriger,
+  // data-voir-journal-exception, etc.) continue de fonctionner sans
+  // modification.
+  function renderBoiteExceptions(exceptions, journalChaine) {
+    const anomaliesContinuite = (journalChaine || []).filter(a => !a.resolue_le);
+    if (!exceptions.total && !anomaliesContinuite.length) return '';
     const items = (categorie) => (categorie.items || []).map(item => renderExceptionItem(categorie.cle, item)).join('');
     return `
-      <div class="section-titre">📋 Boîte d'exceptions (${exceptions.total})</div>
-      <div class="card" style="margin-bottom:16px;">
-        <div class="jeu-row" style="padding:10px 14px;"><div class="histo-sub">${exceptions.phrase}</div></div>
-        <button type="button" id="btnBoiteExceptionsToggle" style="width:100%; text-align:left; background:none; border:none; border-top:1px solid var(--border); padding:10px 14px; color:var(--gold); cursor:pointer; font:inherit;">
-          Voir le détail ▾
-        </button>
-        <div id="boiteExceptionsDetail" style="display:none; border-top:1px solid var(--border);">
-          ${exceptions.categories.filter(c => c.count).map(c => `
-            <div class="jeu-row" style="padding:8px 14px; background:rgba(255,255,255,0.02);"><div class="histo-sub" style="font-weight:600;">${c.count} ${c.libelle}</div></div>
-            ${items(c)}
-          `).join('')}
-        </div>
+      <div id="boiteExceptionsDetail">
+        ${anomaliesContinuite.map(a => `
+          <div class="jeu-row" style="padding:10px 14px;">
+            <div class="jeu-nom-ligne"><div class="jeu-nom">🔴 Problème de continuité — ${libelleQuart(a.quartActuel)}${(a.quarts_manquants || []).length ? ` (${(a.quarts_manquants || []).length} quart${(a.quarts_manquants || []).length > 1 ? 's' : ''} manquant${(a.quarts_manquants || []).length > 1 ? 's' : ''})` : ''}</div></div>
+            <button type="button" class="btn-modifier" data-voir-journal-exception style="margin-top:0;">Vérifier</button>
+          </div>
+        `).join('')}
+        ${exceptions.categories.filter(c => c.count).map(c => `
+          <div class="jeu-row" style="padding:8px 14px; background:rgba(255,255,255,0.02);"><div class="histo-sub" style="font-weight:600;">${c.count} ${c.libelle}</div></div>
+          ${items(c)}
+        `).join('')}
       </div>
     `;
   }
@@ -1643,7 +1709,7 @@
           ${origine} · ${new Date(v.locked_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
         </div>
         <div style="display:flex; gap:8px;">
-          <button type="button" class="btn-modifier" data-deroger="${v.id}" data-autre-quart="${autreQuart}" style="margin-top:0; flex:1;">Déroger vers Quart ${autreQuart}</button>
+          <button type="button" class="btn-modifier" data-deroger="${v.id}" data-autre-quart="${autreQuart}" style="margin-top:0; flex:1;">Passer exceptionnellement au Quart ${autreQuart}</button>
         </div>
       </div>
     `;
@@ -1668,20 +1734,23 @@
   }
 
   function renderDerogationQuart() {
-    document.getElementById('titre').textContent = 'Dérogation — changement de quart';
-    document.getElementById('sousTitre').textContent = "Toute exception au verrou d'un employé doit être tracée avec un motif.";
+    // 20/08/2026, cahier UX "Nouvelle organisation Contrôle FDJ" §7 :
+    // "Déroger" jugé trop technique — reformulé en langage manager, même
+    // logique et même traçabilité qu'avant (rien ne change côté écriture).
+    document.getElementById('titre').textContent = `Passer au Quart ${derogation.autreQuart}`;
+    document.getElementById('sousTitre').textContent = `Avant la clôture complète du Quart ${derogation.quartActuel}.`;
     document.getElementById('content').innerHTML = `
       <button type="button" class="btn-retour-fleche" id="btnRetourDerogation">← Retour</button>
       <div class="etat-banner" style="text-align:left;">
         <b style="color:var(--text);">${nomEmploye(derogation.employeeId)}</b> est actuellement verrouillé sur le
         <b style="color:var(--text);">Quart ${derogation.quartActuel}</b> pour aujourd'hui.<br>
-        Cette dérogation le fera passer sur le <b style="color:var(--cyan);">Quart ${derogation.autreQuart}</b> — le Quart ${derogation.quartActuel} lui redeviendra inaccessible sans une nouvelle dérogation.
+        Ce passage le fera basculer sur le <b style="color:var(--cyan);">Quart ${derogation.autreQuart}</b> — le Quart ${derogation.quartActuel} restera à terminer et lui redeviendra inaccessible sans un nouveau passage exceptionnel.
       </div>
-      <label class="champ-label">Motif de la dérogation</label>
+      <label class="champ-label">Motif</label>
       <select class="champ-select" id="champMotifDerogation" style="margin-bottom:16px;">
         ${MOTIFS_DEROGATION_QUART.map(m => `<option value="${m.value}" ${m.value === derogation.motif ? 'selected' : ''}>${m.label}</option>`).join('')}
       </select>
-      <button class="btn-primary" id="btnConfirmerDerogation">Confirmer la dérogation</button>
+      <button class="btn-primary" id="btnConfirmerDerogation">Confirmer le passage</button>
       <button class="btn-ghost" id="btnAnnulerDerogation">Annuler</button>
     `;
     document.getElementById('btnRetourDerogation').addEventListener('click', () => { vue = 'liste'; derogation = null; renderAccueil(); });
@@ -1875,9 +1944,16 @@
 
     if (!jeux.length) jeux = await chargerJeux();
     const aujourdhui = dateISO();
-    const [duJour, historique, alertesInitiales, soldesNegatifs, verrousJour, relevesEnErreur, quartsARevoir, carnetsARapprocher, ecartsRecalculesAValider, replaysRequis] = await Promise.all([
+    // F2/§8 (20/08/2026) : mini résumé "Caisse réelle" sur l'accueil —
+    // même chargeur que l'écran semaine complet (chargerTotauxSemaine, lit
+    // view_fdj_weekly_summary), jamais une deuxième agrégation pour le même
+    // chiffre (Article 11).
+    const periodeSemaineCourante = NexusPeriodes.resoudrePeriodeCalendaire('semaine', aujourdhui);
+    const bornesHistorique = bornesFiltreHistorique(filtreHistorique, aujourdhui);
+    const [duJour, historique, alertesInitiales, soldesNegatifs, verrousJour, relevesEnErreur, quartsARevoir, carnetsARapprocher, ecartsRecalculesAValider, replaysRequis, totauxSemaineCourante, historiqueAffiche] = await Promise.all([
       chargerShiftsAvecCaisse(aujourdhui), chargerShiftsAvecCaisse(null), chargerAlertesNonVues(), calculerSoldesNegatifs(), chargerVerrousJour(), chargerShiftsReleveEnErreur(),
-      chargerQuartsARevoir(), chargerCarnetsARapprocher(), chargerEcartsRecalculesAValider(), chargerReplaysRequis(),
+      chargerQuartsARevoir(), chargerCarnetsARapprocher(), chargerEcartsRecalculesAValider(), chargerReplaysRequis(), chargerTotauxSemaine(periodeSemaineCourante.debut),
+      chargerHistoriquePeriode(bornesHistorique.debut, bornesHistorique.fin),
     ]);
     // Recalcul dynamique de la chaîne (16/08/2026, demande de Frédéric) : à
     // CHAQUE affichage de cet accueil — donc après toute création,
@@ -1893,6 +1969,10 @@
     ]);
     const quart1 = duJour.find(s => s.quart === '1');
     const quart2 = duJour.find(s => s.quart === '2');
+    // Comptages des quarts du jour (cartes Q1/Q2 redessinées, §4/§5) —
+    // chargé seulement pour les shifts qui existent réellement aujourd'hui.
+    const idsQuartsDuJour = [quart1, quart2].filter(Boolean).map(s => s.id);
+    const countsQuartsDuJour = await chargerCountsQuartsDuJour(idsQuartsDuJour);
 
     // Brouillons FDJ (20/08/2026, cahier "FDJ - Audit de consolidation",
     // §2.2, FDJ-03 : "Le manager voit les brouillons dans une zone 'À
@@ -1903,7 +1983,6 @@
     // dessous) sont exclus d'ici pour ne jamais doubler le même quart à
     // deux endroits de l'écran.
     const brouillons = historique.filter(s => s.statut !== 'valide' && s.date !== aujourdhui);
-    const historiqueTransmis = historique.filter(s => s.statut === 'valide');
 
     // FDJ Fiabilisation — Étape 3 : agrégation des signaux déjà chargés
     // ci-dessus, jamais une nouvelle détection (Article 11 — voir
@@ -1914,37 +1993,41 @@
       carnetsARapprocher, ecartsRecalcules: ecartsRecalculesAValider, replaysRequis,
     });
 
+    // 20/08/2026, cahier UX "Nouvelle organisation Contrôle FDJ" §2/§3 :
+    // bloc unique "À traiter aujourd'hui" en tête de page — regroupe tout
+    // ce qui nécessite une vérification/décision (relevés en erreur,
+    // exceptions, continuité active, soldes négatifs, alertes stock,
+    // brouillons), plutôt que 5-6 sections séparées dispersées sur l'écran.
+    // Chaque sous-bloc garde EXACTEMENT ses fonctions de détection/rendu et
+    // ses ids (listeRelevesEnErreur, boiteExceptionsDetail, listeSoldesNegatifs,
+    // listeAlertes, listeBrouillons) — le câblage d'événements plus bas
+    // dans cette fonction continue de fonctionner sans changement
+    // (Article 11, jamais un deuxième mécanisme pour la même action).
+    const anomaliesContinuiteActives = journalChaine.filter(a => !a.resolue_le).length;
+    const totalATraiter = relevesEnErreur.length + exceptions.total + anomaliesContinuiteActives + soldesNegatifs.length + alertes.length + brouillons.length;
     document.getElementById('content').innerHTML = `
-      ${renderRelevesEnErreurBloc(relevesEnErreur)}
-
-      ${renderBoiteExceptions(exceptions)}
-
-      ${soldesNegatifs.length ? `
-        <div class="section-titre">🔴 Mouvements FDJ à vérifier (${soldesNegatifs.length})</div>
-        <div class="card" id="listeSoldesNegatifs" style="margin-bottom:16px;">${soldesNegatifs.map(renderSoldeNegatif).join('')}</div>
-      ` : ''}
-
-      ${alertes.length ? `
-        <div class="section-titre">⚠️ Alertes stock (${alertes.length})</div>
-        <div class="card" id="listeAlertes">${alertes.map(renderAlerte).join('')}</div>
-      ` : ''}
+      <div class="section-titre">À traiter aujourd'hui</div>
+      <div class="champ-note" style="margin:-6px 0 10px;">Les éléments qui nécessitent une vérification ou une décision.</div>
+      ${totalATraiter ? `
+        <div class="card" style="margin-bottom:16px;">
+          ${renderRelevesEnErreurBloc(relevesEnErreur)}
+          ${renderBoiteExceptions(exceptions, journalChaine)}
+          ${soldesNegatifs.length ? `<div id="listeSoldesNegatifs">${soldesNegatifs.map(renderSoldeNegatif).join('')}</div>` : ''}
+          ${alertes.length ? `<div id="listeAlertes">${alertes.map(renderAlerte).join('')}</div>` : ''}
+          ${brouillons.length ? `<div id="listeBrouillons">${brouillons.map(renderBrouillonItem).join('')}</div>` : ''}
+        </div>
+      ` : `<div class="card" style="margin-bottom:16px; padding:16px; text-align:center; color:var(--green); font-weight:600;">✅ Rien à traiter pour le moment</div>`}
 
       ${verrousJour.length ? `
         <div class="section-titre">🔒 Accès aux quarts — aujourd'hui (${verrousJour.length})</div>
         <div class="card" id="listeVerrous" style="margin-bottom:16px;">${verrousJour.map(renderVerrouJour).join('')}</div>
       ` : ''}
 
-      ${renderJournalChaineBloc(journalChaine)}
-
-      ${brouillons.length ? `
-        <div class="section-titre">📝 Brouillons FDJ à terminer (${brouillons.length})</div>
-        <div class="card" id="listeBrouillons" style="margin-bottom:16px;">${brouillons.map(renderBrouillonItem).join('')}</div>
-      ` : ''}
-
-      <div class="section-titre">Aujourd'hui</div>
+      <div class="section-titre">Quarts du jour</div>
+      <div class="champ-note" style="margin:-6px 0 10px;">Suivez immédiatement l'avancement des comptages et des caisses.</div>
       <div class="quart-jour-grid">
-        ${renderCarteQuartJour('1', quart1, historique, alertes)}
-        ${renderCarteQuartJour('2', quart2, historique, alertes)}
+        ${renderCarteQuartJour('1', quart1, historique, alertes, countsQuartsDuJour[quart1 ? quart1.id : ''] || [])}
+        ${renderCarteQuartJour('2', quart2, historique, alertes, countsQuartsDuJour[quart2 ? quart2.id : ''] || [])}
       </div>
       <button class="btn-nouveau" id="btnNouveauQuart">+ Nouveau quart FDJ</button>
 
@@ -1954,22 +2037,58 @@
            ci-dessus (qui ne montre que le jour courant) et de l'historique
            plat ci-dessous (qui ne montre pas la semaine comme unité de
            contrôle). -->
-      <button class="btn-nouveau" id="btnCaisseReelle" style="color:var(--gold); border-color:rgba(212,175,55,0.4); background:rgba(212,175,55,0.06);">💰 Caisse réelle (semaine)</button>
-      <div class="champ-note">Contrôle lundi → dimanche, jour par jour, jusqu'au quart.</div>
+      <div class="card" id="btnCaisseReelle" style="margin-bottom:16px; padding:12px 16px; cursor:pointer; border-color:rgba(212,175,55,0.4); background:rgba(212,175,55,0.06);">
+        <div class="stat-row" style="border:none; padding:0;">
+          <div><div style="font-size:12.5px; font-weight:700; color:var(--text);">Caisse réelle — semaine</div><div class="stock-tuile-sous" style="margin-top:2px;">${periodeSemaineCourante.label} · lundi → dimanche, jusqu'au détail de chaque quart</div></div>
+        </div>
+        <div style="margin-top:8px; font-family:var(--mono); font-size:18px; font-weight:700; color:var(--gold);">${totauxSemaineCourante ? fmtEuro(totauxSemaineCourante.caisse_reelle_totale) : '0,00 €'} enregistrés</div>
+        <div class="stock-tuile-sous">${totauxSemaineCourante ? totauxSemaineCourante.nb_quarts_valides : 0} quart${(totauxSemaineCourante && totauxSemaineCourante.nb_quarts_valides > 1) ? 's' : ''} finalisé${(totauxSemaineCourante && totauxSemaineCourante.nb_quarts_valides > 1) ? 's' : ''}${totauxSemaineCourante && (totauxSemaineCourante.nb_quarts - totauxSemaineCourante.nb_quarts_valides) > 0 ? ` · ${totauxSemaineCourante.nb_quarts - totauxSemaineCourante.nb_quarts_valides} brouillon${(totauxSemaineCourante.nb_quarts - totauxSemaineCourante.nb_quarts_valides) > 1 ? 's' : ''}` : ''}</div>
+      </div>
 
-      <div class="section-titre">Stock FDJ</div>
-      <button class="btn-nouveau" id="btnEtatStock">📊 État du stock (Bureau / Caisse / Activés)</button>
-      <div class="champ-note">Vue d'ensemble par jeu, dernière réception, retraits/blocages en cours.</div>
-      <button class="btn-nouveau" id="btnReception">📦 Réceptionner une livraison FDJ</button>
-      <div class="champ-note">Transporteur → Bureau. N'active rien, n'alimente jamais l'appro tickets.</div>
-      <button class="btn-nouveau" id="btnReappro" style="color:var(--gold); border-color:rgba(212,175,55,0.4); background:rgba(212,175,55,0.06);">🔁 Réapprovisionner la caisse</button>
-      <div class="champ-note">Bureau → Caisse : les carnets confiés restent non activés, aucun impact sur l'appro tant que la caissière ne les active pas.</div>
-      <button class="btn-nouveau" id="btnInventaireRef">📋 Contrôle physique du stock (inventaire de référence)</button>
-      <div class="champ-note">Compare le stock théorique NEXUS au comptage physique réel. Un contrôle validé devient le nouveau point zéro — seuls les mouvements qui suivent modifient le stock ensuite.</div>
+      <div class="section-titre">Stock &amp; mouvements</div>
+      <div class="champ-note" style="margin:-6px 0 10px;">Gérez les carnets entre le bureau, la caisse et les différents états FDJ.</div>
+      <div class="stock-tuiles-grid">
+        <button type="button" class="stock-tuile" id="btnEtatStock">
+          <div class="stock-tuile-icone">📊</div>
+          <div class="stock-tuile-titre">État du stock</div>
+          <div class="stock-tuile-sous">Bureau · Caisse · Activés · Bloqués</div>
+        </button>
+        <button type="button" class="stock-tuile" id="btnReception">
+          <div class="stock-tuile-icone">📦</div>
+          <div class="stock-tuile-titre">Réception FDJ</div>
+          <div class="stock-tuile-sous">Transporteur → Bureau. Aucune activation, aucun appro tickets.</div>
+        </button>
+        <button type="button" class="stock-tuile" id="btnReappro" style="border-color:rgba(212,175,55,0.4); background:rgba(212,175,55,0.06);">
+          <div class="stock-tuile-icone">🔁</div>
+          <div class="stock-tuile-titre">Bureau → Caisse</div>
+          <div class="stock-tuile-sous">Confier des carnets à la caissière — toujours non activés.</div>
+        </button>
+        <button type="button" class="stock-tuile" id="btnRetraitCaisse" style="border-color:rgba(212,175,55,0.4); background:rgba(212,175,55,0.06);">
+          <div class="stock-tuile-icone">↩️</div>
+          <div class="stock-tuile-titre">Caisse → Bureau</div>
+          <div class="stock-tuile-sous">Retirer des jeux de la caisse — un déplacement, pas une annulation de vente.</div>
+        </button>
+        <button type="button" class="stock-tuile" id="btnInventaireRef">
+          <div class="stock-tuile-icone">📋</div>
+          <div class="stock-tuile-titre">Contrôle physique</div>
+          <div class="stock-tuile-sous">Comparer NEXUS au stock réellement présent — devient le nouveau point zéro.</div>
+        </button>
+      </div>
 
-      <div class="section-titre">Historique</div>
+      ${renderJournalChaineBloc(journalChaine)}
+
+      <div class="section-titre">Historique des quarts</div>
+      <div class="fdj-stock-filtres" id="filtresHistorique">
+        ${FILTRES_HISTORIQUE.map(f => `<button type="button" class="fdj-stock-filtre${filtreHistorique.periode === f.cle ? ' active' : ''}" data-filtre-histo="${f.cle}">${f.label}</button>`).join('')}
+      </div>
+      ${filtreHistorique.periode === 'dates' ? `
+        <div style="display:flex; gap:8px; margin-bottom:14px;">
+          <input type="date" class="champ-select" id="champHistoDateDebut" value="${filtreHistorique.debut || bornesHistorique.debut}" style="flex:1;">
+          <input type="date" class="champ-select" id="champHistoDateFin" value="${filtreHistorique.fin || bornesHistorique.fin}" style="flex:1;">
+        </div>
+      ` : ''}
       <div class="card" id="listeHistorique">
-        ${historiqueTransmis.length ? historiqueTransmis.map((s, i) => renderHistoItem(s, i, historique, alertes)).join('') : '<div class="empty">Aucun quart FDJ transmis pour l’instant.</div>'}
+        ${historiqueAffiche.length ? historiqueAffiche.map((s, i) => renderHistoItem(s, i, historique, alertes)).join('') : '<div class="empty">Aucun quart FDJ transmis sur cette période.</div>'}
       </div>
 
       <!-- Trace de contrôle FDJ (16/08/2026) — 3e niveau de consultation
@@ -2001,6 +2120,7 @@
     document.getElementById('btnNouveauQuart').addEventListener('click', () => ouvrirEditionNouveau());
     document.getElementById('btnCaisseReelle').addEventListener('click', () => ouvrirCaisseReelleSemaine());
     document.getElementById('btnReappro').addEventListener('click', () => ouvrirReappro());
+    document.getElementById('btnRetraitCaisse').addEventListener('click', () => ouvrirRetraitCaisse());
     document.getElementById('btnInventaireRef').addEventListener('click', () => ouvrirInventaireRef());
     document.getElementById('btnReception').addEventListener('click', () => ouvrirReception());
     document.getElementById('btnEtatStock').addEventListener('click', () => ouvrirStockEtat());
@@ -2040,29 +2160,52 @@
         });
       });
     }
-    if (quart1) document.getElementById(`carteQuart1`).addEventListener('click', () => ouvrirEditionExistant(quart1));
-    if (quart2) document.getElementById(`carteQuart2`).addEventListener('click', () => ouvrirEditionExistant(quart2));
+    // Cartes Q1/Q2 (20/08/2026, cahier UX §4) : toute la carte est
+    // cliquable (ouvre le quart), plus un bouton d'action explicite dans
+    // la carte pour l'affordance ("Ouvrir"/"Démarrer"/"Contrôler" — voir
+    // actionCarteQuartJour). Un quart pas encore commencé démarre un
+    // nouveau quart pré-rempli sur ce numéro plutôt que de rester inerte.
+    if (document.getElementById('carteQuart1')) document.getElementById('carteQuart1').addEventListener('click', () => actionCarteQuartJour('1', quart1));
+    if (document.getElementById('carteQuart2')) document.getElementById('carteQuart2').addEventListener('click', () => actionCarteQuartJour('2', quart2));
+    document.querySelectorAll('[data-action-quart]').forEach(btn => {
+      btn.addEventListener('click', (e) => { e.stopPropagation(); actionCarteQuartJour(btn.dataset.actionQuart, btn.dataset.actionQuart === '1' ? quart1 : quart2); });
+    });
 
     document.querySelectorAll('.histo-item').forEach((item, i) => {
       item.addEventListener('click', () => document.getElementById(`detail-${i}`).classList.toggle('open'));
     });
-    // 20/08/2026 : indexé sur `historiqueTransmis` (pas `historique`) depuis
-    // que l'Historique n'affiche plus que les quarts transmis — voir plus
-    // haut, les brouillons ont leur propre zone et leur propre indexation
+    // 20/08/2026 : indexé sur `historiqueAffiche` (résultat du filtre de
+    // période actif, pas `historique` qui reste la fenêtre large utilisée
+    // pour la détection des brouillons/exceptions) — voir plus haut, les
+    // brouillons ont leur propre zone et leur propre indexation
     // (data-idx-brouillon).
     document.querySelectorAll('#listeHistorique .btn-modifier[data-idx]').forEach(btn => {
-      btn.addEventListener('click', (e) => { e.stopPropagation(); ouvrirEditionExistant(historiqueTransmis[parseInt(btn.dataset.idx, 10)]); });
+      btn.addEventListener('click', (e) => { e.stopPropagation(); ouvrirEditionExistant(historiqueAffiche[parseInt(btn.dataset.idx, 10)]); });
     });
     // 16/08/2026 — Trace de contrôle FDJ : deux entrées supplémentaires
     // depuis chaque quart déplié de l'historique — "Historique FDJ →
     // sélectionner un quart → Générer le relevé de contrôle" et "Exporter
     // la journée complète" (demande explicite de Frédéric).
     document.querySelectorAll('#listeHistorique [data-releve-idx]').forEach(btn => {
-      btn.addEventListener('click', (e) => { e.stopPropagation(); ouvrirReleveQuart(historiqueTransmis[parseInt(btn.dataset.releveIdx, 10)]); });
+      btn.addEventListener('click', (e) => { e.stopPropagation(); ouvrirReleveQuart(historiqueAffiche[parseInt(btn.dataset.releveIdx, 10)]); });
     });
     document.querySelectorAll('#listeBrouillons .btn-modifier[data-idx-brouillon]').forEach(btn => {
       btn.addEventListener('click', (e) => { e.stopPropagation(); ouvrirEditionExistant(brouillons[parseInt(btn.dataset.idxBrouillon, 10)]); });
     });
+    // Filtres de période Historique (20/08/2026, cahier UX §18).
+    document.querySelectorAll('#filtresHistorique [data-filtre-histo]').forEach(btn => {
+      btn.addEventListener('click', () => { filtreHistorique = { ...filtreHistorique, periode: btn.dataset.filtreHisto }; renderAccueil(); });
+    });
+    const champHistoDateDebut = document.getElementById('champHistoDateDebut');
+    const champHistoDateFin = document.getElementById('champHistoDateFin');
+    if (champHistoDateDebut && champHistoDateFin) {
+      const majDates = () => {
+        filtreHistorique = { ...filtreHistorique, debut: champHistoDateDebut.value, fin: champHistoDateFin.value };
+        renderAccueil();
+      };
+      champHistoDateDebut.addEventListener('change', majDates);
+      champHistoDateFin.addEventListener('change', majDates);
+    }
     document.querySelectorAll('#listeHistorique [data-export-jour]').forEach(btn => {
       btn.addEventListener('click', (e) => { e.stopPropagation(); ouvrirExportJournee(btn.dataset.exportJour); });
     });
@@ -2228,8 +2371,61 @@
     return `<span class="badge-integrite stat-value amber" style="font-size:9px; font-family:var(--mono); letter-spacing:0.03em;">🟠 Chaîne partielle</span>`;
   }
 
-  function renderCarteQuartJour(quart, shift, ensemble, alertesActives) {
-    if (!shift) return `<div class="quart-jour-card" id="carteQuart${quart}"><div class="quart-jour-label">Quart ${quart}</div><div class="quart-jour-statut" style="color:var(--text-dim);">Non compté</div></div>`;
+  // 20/08/2026, cahier UX "Nouvelle organisation Contrôle FDJ" §5 — icône
+  // + texte d'un état de comptage. Pas d'état "corrigé"/"validé" distinct
+  // par jeu (voir NexusFdjMoteur.progressionComptageQuart) : seuls
+  // non_commence/partiel/termine sont honnêtement supportés par les
+  // données réellement suivies.
+  function iconeEtatComptage(prog) {
+    if (prog.etat === 'termine') return '🟢';
+    if (prog.etat === 'partiel') return '🟠';
+    return '⚪';
+  }
+  function texteEtatComptage(prog) {
+    if (prog.etat === 'non_commence') return 'À faire';
+    if (prog.etat === 'partiel') return `${prog.comptes} / ${prog.total} comptés — ${prog.total - prog.comptes} restant${(prog.total - prog.comptes) > 1 ? 's' : ''}`;
+    return `${prog.comptes} / ${prog.total} comptés`;
+  }
+
+  // Étape courante d'un quart, en une phrase — "L'objectif est que tu
+  // puisses voir une anomalie sans ouvrir le quart" (cahier §5).
+  function etapeActuelleQuart(shift, prog) {
+    if (prog.stockDebut.etat !== 'termine') return 'Comptage du stock de début à terminer';
+    if (prog.stockFin.etat !== 'termine') return 'Clôture du stock à effectuer';
+    if (!shift.cash) return 'Caisse à saisir';
+    if (shift.statut !== 'valide') return 'Caisse saisie — quart à transmettre';
+    if (shift.cash.statut === 'provisoire') return 'Contrôle manager à faire';
+    return 'Quart contrôlé';
+  }
+
+  // Bouton d'action de la carte — un seul verbe, jamais un jargon
+  // technique ("déroger", "rapprocher"…), cf. cahier §7 même esprit.
+  function libelleActionCarteQuartJour(quart, shift, prog) {
+    if (!shift) return `Démarrer Q${quart}`;
+    if (shift.statut !== 'valide') return `Reprendre le Quart ${quart}`;
+    if (shift.cash && shift.cash.statut === 'provisoire') return 'Contrôler le quart';
+    return `Voir le Quart ${quart}`;
+  }
+  function actionCarteQuartJour(quart, shift) {
+    if (!shift) { ouvrirEditionNouveau(dateISO(), quart); return; }
+    if (shift.statut !== 'valide' || (shift.cash && shift.cash.statut === 'provisoire')) { ouvrirEditionExistant(shift); return; }
+    ouvrirReleveQuart(shift);
+  }
+
+  function renderCarteQuartJour(quart, shift, ensemble, alertesActives, counts) {
+    if (!shift) {
+      return `
+        <div class="quart-jour-card" id="carteQuart${quart}">
+          <div class="quart-jour-label">Quart ${quart}</div>
+          <div class="quart-jour-statut" style="color:var(--text-dim);">Aucun employé</div>
+          <div class="carte-quart-ligne"><span>Stock début</span><span>—</span></div>
+          <div class="carte-quart-ligne"><span>Stock final</span><span>—</span></div>
+          <div class="carte-quart-ligne"><span>Caisse</span><span>—</span></div>
+          <div class="carte-quart-etape">Quart non commencé</div>
+          <button type="button" class="btn-modifier carte-quart-action" data-action-quart="${quart}">Démarrer Q${quart}</button>
+        </div>
+      `;
+    }
     const ecart = shift.cash ? shift.cash.ecart : null;
     const classe = ecart === null ? '' : (ecart === 0 ? 'green' : (Math.abs(ecart) <= 1 ? 'amber' : 'red'));
     const integrite = calculerIntegriteQuart(shift, ensemble, alertesActives);
@@ -2242,12 +2438,19 @@
     // doit donc primer sur l'affichage de l'écart, pour ne jamais laisser
     // croire qu'un brouillon est une donnée transmise.
     const estBrouillon = shift.statut !== 'valide';
+    const total = jeux.length;
+    const prog = NexusFdjMoteur.progressionComptageQuart(counts || [], total);
+    const libelleCaisse = estBrouillon ? 'Brouillon' : (shift.cash ? labelStatutCaisse(shift.cash.statut) : '—');
     return `
       <div class="quart-jour-card" id="carteQuart${quart}">
         <div class="quart-jour-label">Quart ${quart}</div>
         <div class="quart-jour-statut">${nomEmploye(shift.employee_id)}</div>
-        <div class="quart-jour-ecart ${!estBrouillon && classe ? `stat-value ${classe}` : ''}" style="${estBrouillon ? 'color:var(--text-dim);' : ''}">${estBrouillon ? 'Brouillon' : (ecart !== null ? `${ecart > 0 ? '+' : ''}${fmtEuro(ecart)}` : '—')}</div>
-        ${integrite && integrite.integrite !== 'OK' ? `<div style="margin-top:5px;">${badgeIntegrite(integrite)}</div>` : ''}
+        ${integrite && integrite.integrite !== 'OK' ? `<div style="margin:4px 0;">${badgeIntegrite(integrite)}</div>` : ''}
+        <div class="carte-quart-ligne"><span>${iconeEtatComptage(prog.stockDebut)} Stock début</span><span>${texteEtatComptage(prog.stockDebut)}</span></div>
+        <div class="carte-quart-ligne"><span>${iconeEtatComptage(prog.stockFin)} Stock final</span><span>${texteEtatComptage(prog.stockFin)}</span></div>
+        <div class="carte-quart-ligne"><span>📝 Caisse</span><span class="${!estBrouillon && classe ? classe : ''}">${libelleCaisse}${!estBrouillon && ecart !== null ? ` · ${ecart > 0 ? '+' : ''}${fmtEuro(ecart)}` : ''}</span></div>
+        <div class="carte-quart-etape">${etapeActuelleQuart(shift, prog)}</div>
+        <button type="button" class="btn-modifier carte-quart-action" data-action-quart="${quart}">${libelleActionCarteQuartJour(quart, shift, prog)}</button>
       </div>
     `;
   }
@@ -2436,6 +2639,179 @@
     const { error } = await nexusClient.from('fdj_stock_movements').insert(lignes);
     if (error) { console.error('Réapprovisionnement caisse FDJ:', error); btn.disabled = false; btn.textContent = 'Confirmer le réapprovisionnement'; alert("Erreur d'enregistrement. Réessayez."); return; }
     vue = 'liste'; reappro = null;
+    renderAccueil();
+  }
+
+  // ------------------------------------------------------------
+  // RETIRER DES JEUX DE LA CAISSE — 20/08/2026, cahier UX "Nouvelle
+  // organisation Contrôle FDJ" §9-14 : Caisse → Bureau, l'exact inverse de
+  // Réapprovisionner ci-dessus (même moteur, même table, sens contraire —
+  // Article 11, jamais un deuxième mécanisme de transfert). "Ce n'est pas
+  // une annulation de vente, ni une désactivation automatique. C'est avant
+  // tout un mouvement d'emplacement."
+  //
+  // Limite honnête (Article 5) : le cahier distingue 4 états par carnet
+  // (non activé / activé non commencé / ouvert-en cours / bloqué), mais
+  // NEXUS ne suit AUCUN carnet individuellement — `fdj_booklets` existe
+  // dans le schéma (booklet_id, activation_status, current_location_id)
+  // mais n'est alimenté par aucun écran, ni ici ni côté employé (vérifié :
+  // 0 ligne en base, aucune référence dans le code au 20/08/2026). Seuls
+  // des AGRÉGATS par jeu sont connus (NexusFdjMoteur.soldesCarnetsAvecReference
+  // : confiés/activés/non-activés), et "activés" est un compteur cumulatif
+  // qui ne redescend jamais — impossible de savoir combien de carnets
+  // activés sont encore physiquement en caisse. Plutôt que d'inventer un
+  // état par carnet que NEXUS ne peut pas garantir, ce formulaire reste au
+  // grain agrégat déjà fiable : le solde "non activés en caisse" (sûr, un
+  // retrait dans cette limite est un simple déplacement) et un
+  // avertissement + motif obligatoire dès qu'on demande plus que ce solde
+  // connu (le manager peut avoir vérifié physiquement — NEXUS l'avertit
+  // sans jamais bloquer, "pouvoir total" comme le reste de cet écran).
+  // ------------------------------------------------------------
+  const MOTIFS_RETRAIT_CAISSE = [
+    { value: '', label: 'Choisir un motif…' },
+    { value: 'surstock', label: 'Surstock en caisse' },
+    { value: 'fin_rotation', label: 'Fin de rotation' },
+    { value: 'retrait_temporaire', label: 'Retrait temporaire' },
+    { value: 'organisation_stock', label: 'Organisation du stock' },
+    { value: 'changement_caisse', label: 'Changement de caisse' },
+    { value: 'rappel_fdj', label: 'Jeu à retourner / rappel FDJ' },
+    { value: 'autre', label: 'Autre' },
+  ];
+  function labelMotifRetraitCaisse(v) { const m = MOTIFS_RETRAIT_CAISSE.find(x => x.value === v); return m ? m.label : (v || '—'); }
+
+  async function ouvrirRetraitCaisse() {
+    document.getElementById('content').innerHTML = '<div class="loading">Chargement…</div>';
+    if (!jeux.length) jeux = await chargerJeux();
+    const { soldes } = await soldesActuels();
+    retraitCaisse = { soldes, quantites: {}, motif: '' };
+    vue = 'retrait-caisse';
+    renderRetraitCaisse();
+  }
+
+  function depasseStockConnuRetrait() {
+    return Object.entries(retraitCaisse.quantites).some(([gameId, qte]) => {
+      const solde = retraitCaisse.soldes[gameId] || { nonActives: 0 };
+      return qte > Math.max(0, solde.nonActives);
+    });
+  }
+
+  function renderRetraitCaisse() {
+    document.getElementById('titre').textContent = 'Retirer des jeux de la caisse';
+    document.getElementById('sousTitre').textContent = "Caisse → Bureau. Reprendre physiquement des carnets confiés à la caisse — un déplacement d'emplacement, jamais une annulation de vente ni une désactivation.";
+    const groupes = grouperParPalier(jeux);
+    const motifRequis = depasseStockConnuRetrait();
+    document.getElementById('content').innerHTML = `
+      <button type="button" class="btn-retour-fleche" id="btnRetourRetraitCaisse">← Retour</button>
+      ${groupes.map(g => `
+        <div class="palier-block">
+          <div class="palier-head">${fmtNum(g.prix)} €</div>
+          <div class="card">${g.items.map(j => renderJeuRetraitCaisse(j)).join('')}</div>
+        </div>
+      `).join('')}
+      ${motifRequis ? `
+        <label class="champ-label">Motif du retrait <span style="color:var(--red);">*</span> — au moins un jeu dépasse le stock non activé connu</label>
+      ` : `<label class="champ-label">Motif du retrait (optionnel pour de simples carnets non activés)</label>`}
+      <select class="champ-select" id="champMotifRetraitCaisse" style="margin-bottom:16px;">
+        ${MOTIFS_RETRAIT_CAISSE.map(m => `<option value="${m.value}" ${m.value === retraitCaisse.motif ? 'selected' : ''}>${m.label}</option>`).join('')}
+      </select>
+      <button class="btn-primary" id="btnVerifierRetraitCaisse">Vérifier le retrait</button>
+      <button class="btn-ghost" id="btnAnnulerRetraitCaisse">Annuler</button>
+    `;
+    document.getElementById('btnRetourRetraitCaisse').addEventListener('click', () => { vue = 'liste'; retraitCaisse = null; renderAccueil(); });
+    document.getElementById('btnAnnulerRetraitCaisse').addEventListener('click', () => { vue = 'liste'; retraitCaisse = null; renderAccueil(); });
+    document.querySelectorAll('[data-moins-retrait]').forEach(btn => btn.addEventListener('click', () => ajusterQuantiteRetraitCaisse(btn.dataset.moinsRetrait, -1)));
+    document.querySelectorAll('[data-plus-retrait]').forEach(btn => btn.addEventListener('click', () => ajusterQuantiteRetraitCaisse(btn.dataset.plusRetrait, 1)));
+    document.querySelectorAll('[data-raccourci-retrait]').forEach(btn => btn.addEventListener('click', () => ajusterQuantiteRetraitCaisse(btn.dataset.raccourciRetrait, parseInt(btn.dataset.inc, 10))));
+    document.getElementById('champMotifRetraitCaisse').addEventListener('change', e => { retraitCaisse.motif = e.target.value; });
+    document.getElementById('btnVerifierRetraitCaisse').addEventListener('click', () => {
+      const total = Object.values(retraitCaisse.quantites).reduce((s, q) => s + q, 0);
+      if (!total) { alert('Indiquez au moins un jeu avec une quantité à retirer.'); return; }
+      if (depasseStockConnuRetrait() && !retraitCaisse.motif) { alert('Un motif est obligatoire : au moins un jeu dépasse le stock non activé connu en caisse.'); return; }
+      vue = 'retrait-caisse-confirmation';
+      renderRetraitCaisseConfirmation();
+    });
+  }
+
+  function renderJeuRetraitCaisse(jeu) {
+    const solde = (retraitCaisse.soldes[jeu.id]) || { confies: 0, actives: 0, nonActives: 0 };
+    const qte = retraitCaisse.quantites[jeu.id] || 0;
+    const nonActivesConnus = Math.max(0, solde.nonActives);
+    const depasse = qte > nonActivesConnus;
+    return `
+      <div class="jeu-row">
+        <div class="jeu-nom-ligne">
+          <div class="jeu-nom">${jeu.nom}</div>
+          <div class="jeu-ventes ${solde.nonActives <= 0 ? 'anomalie' : 'calc'}">${nonActivesConnus} non activé${Math.abs(nonActivesConnus) > 1 ? 's' : ''} en caisse</div>
+        </div>
+        <div class="jeu-input-label" style="text-align:center;">Carnets à retirer</div>
+        <div class="stepper-qte">
+          <button type="button" class="btn-stepper" data-moins-retrait="${jeu.id}">−</button>
+          <div class="stepper-valeur" id="qte-retrait-${jeu.id}">${qte}</div>
+          <button type="button" class="btn-stepper" data-plus-retrait="${jeu.id}">+</button>
+        </div>
+        <div class="raccourcis-qte">
+          <button type="button" class="btn-raccourci" data-raccourci-retrait="${jeu.id}" data-inc="1">+1 carnet</button>
+          <button type="button" class="btn-raccourci" data-raccourci-retrait="${jeu.id}" data-inc="2">+2 carnets</button>
+        </div>
+        <div id="alerte-retrait-${jeu.id}">${depasse ? `<div class="champ-note" style="color:var(--amber); margin-top:6px;">⚠️ Ce carnet est peut-être déjà activé — NEXUS ne suit pas l'état individuel des carnets au-delà du stock non activé connu. Vérifiez physiquement.</div>` : ''}</div>
+      </div>
+    `;
+  }
+
+  function ajusterQuantiteRetraitCaisse(gameId, delta) {
+    const actuel = retraitCaisse.quantites[gameId] || 0;
+    const nouveau = Math.max(0, actuel + delta);
+    retraitCaisse.quantites[gameId] = nouveau;
+    // Re-rendu complet (plutôt qu'un patch DOM ciblé comme ajusterQuantiteReappro) :
+    // ce formulaire doit aussi mettre à jour le libellé/obligation du motif
+    // global dès qu'un jeu franchit son seuil connu, pas seulement l'alerte
+    // locale du jeu modifié.
+    renderRetraitCaisse();
+  }
+
+  function renderRetraitCaisseConfirmation() {
+    document.getElementById('titre').textContent = 'Confirmer le retrait';
+    document.getElementById('sousTitre').textContent = 'Caisse → Bureau. Aucun impact sur les ventes.';
+    const lignes = Object.entries(retraitCaisse.quantites).filter(([, q]) => q > 0);
+    const total = lignes.reduce((s, [, q]) => s + q, 0);
+    document.getElementById('content').innerHTML = `
+      <button type="button" class="btn-retour-fleche" id="btnRetourRetraitConfirmation">← Retour</button>
+      <div class="card" style="margin-bottom:16px;">
+        <div class="stat-row total"><div class="stat-label">Retrait vers le bureau</div><div class="stat-value">${total} carnet${total > 1 ? 's' : ''}</div></div>
+        ${lignes.map(([gameId, q]) => {
+          const jeu = jeux.find(j => j.id === gameId);
+          return `<div class="stat-row"><div class="stat-label">${jeu ? jeu.nom : gameId}</div><div class="stat-value">×${q}</div></div>`;
+        }).join('')}
+        ${retraitCaisse.motif ? `<div class="stat-row"><div class="stat-label">Motif</div><div class="stat-value" style="font-size:11.5px; font-weight:400;">${labelMotifRetraitCaisse(retraitCaisse.motif)}</div></div>` : ''}
+        <div class="section-note" style="margin-top:8px;">Le stock caisse baisse de ${total}, le stock bureau augmente de ${total}. Le stock total station ne change pas.</div>
+      </div>
+      <button class="btn-primary" id="btnConfirmerRetraitCaisse">Confirmer le retrait</button>
+      <button class="btn-ghost" id="btnAnnulerRetraitConfirmation">Annuler</button>
+    `;
+    document.getElementById('btnRetourRetraitConfirmation').addEventListener('click', () => { vue = 'retrait-caisse'; renderRetraitCaisse(); });
+    document.getElementById('btnAnnulerRetraitConfirmation').addEventListener('click', () => { vue = 'liste'; retraitCaisse = null; renderAccueil(); });
+    document.getElementById('btnConfirmerRetraitCaisse').addEventListener('click', enregistrerRetraitCaisse);
+  }
+
+  async function enregistrerRetraitCaisse() {
+    const btn = document.getElementById('btnConfirmerRetraitCaisse');
+    const bureau = emplacementParType('bureau');
+    const caisse = emplacementParType('caisse');
+    const justification = `Retrait caisse → bureau (manager)${retraitCaisse.motif ? ` — ${labelMotifRetraitCaisse(retraitCaisse.motif)}` : ''}.`;
+    const lignes = Object.entries(retraitCaisse.quantites)
+      .filter(([, qte]) => qte > 0)
+      .map(([gameId, qte]) => ({
+        site: siteId, game_id: gameId, type_mouvement: 'retour', quantite: qte,
+        location_source_id: caisse ? caisse.id : null, location_destination_id: bureau ? bureau.id : null,
+        methode_identification: 'quantite', booklet_id: null, employee_id: managerCourant.id,
+        justification,
+      }));
+    if (!lignes.length) { alert('Indiquez au moins un jeu avec une quantité à retirer.'); return; }
+    btn.disabled = true;
+    btn.innerHTML = 'Enregistrement<span class="btn-loading-dots"><i></i><i></i><i></i></span>';
+    const { error } = await nexusClient.from('fdj_stock_movements').insert(lignes);
+    if (error) { console.error('Retrait caisse FDJ:', error); btn.disabled = false; btn.textContent = 'Confirmer le retrait'; alert("Erreur d'enregistrement. Réessayez."); return; }
+    vue = 'liste'; retraitCaisse = null;
     renderAccueil();
   }
 
