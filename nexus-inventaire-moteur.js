@@ -814,6 +814,60 @@
     return { problemes, verdict };
   }
 
+  // Retour de Frédéric (21/08/2026) sur l'écran d'accueil : "0 catégorie
+  // avec règle commune / 52 exceptions... donne l'impression que la
+  // configuration est très fragmentée. Je ferais remonter une
+  // recommandation NEXUS." Détecte les catégories qui ont plusieurs
+  // produits réglés INDIVIDUELLEMENT (une ligne inventaire_regles_produit
+  // propre) alors qu'aucune règle commune n'est activée pour la catégorie
+  // — exactement le scénario que l'inhéritage Site → Catégorie → Produit
+  // (Sprint 1-2) a été construit pour éviter, mais que rien ne signalait au
+  // manager jusqu'ici. `seuilExceptions` est un choix pragmatique assumé,
+  // pas un calcul scientifique (Article 5) : en dessous, une poignée
+  // d'exceptions ponctuelles est normale et ne mérite pas d'alerte.
+  function identifierCategoriesAOptimiser(categories, produits, reglesProduitMap, seuilExceptions) {
+    const seuil = Number.isFinite(seuilExceptions) ? seuilExceptions : 3;
+    const regles = reglesProduitMap || {};
+    const actifs = (produits || []).filter(p => p.actif);
+    const resultat = [];
+    (categories || []).forEach(c => {
+      if (c.regle_active) return; // déjà consolidée, rien à suggérer
+      const produitsCategorie = actifs.filter(p => p.categorie_id === c.id);
+      const exceptions = produitsCategorie.filter(p => !!regles[p.id]).length;
+      if (exceptions >= seuil) resultat.push({ categorieId: c.id, nom: c.nom, exceptions, total: produitsCategorie.length });
+    });
+    return resultat.sort((a, b) => b.exceptions - a.exceptions);
+  }
+
+  // Retour de Frédéric (21/08/2026) : "Prochain inventaire : 24 produits ·
+  // ~7 min... c'est ce qui permettra au manager de voir immédiatement
+  // l'impact réel de sa configuration sur les employés." Estimation RÉELLE
+  // à partir de l'historique effectif des quarts déjà clôturés sur ce site
+  // (jamais un chiffre inventé) : `historiqueQuarts` doit être une liste de
+  // { ouvertLe, clotureLe, nbProduitsComptes } déjà préparée côté appelant
+  // (lecture pure ici, Article 11). Hypothèse assumée et documentée : le
+  // temps évolue linéairement avec le nombre de produits (secondes/produit
+  // constantes) — une approximation, pas une mesure directe du prochain
+  // quart, mais bien réelle et vérifiable, pas une estimation de façade.
+  // Retourne `null` si l'historique est trop mince (< 3 quarts exploitables)
+  // : mieux vaut ne rien afficher qu'un chiffre non fiable (Article 5).
+  const HISTORIQUE_MINIMAL_ESTIMATION_TEMPS = 3;
+  function estimerTempsProchainInventaire(historiqueQuarts, nbProduitsEstimes) {
+    if (!Number.isFinite(nbProduitsEstimes) || nbProduitsEstimes <= 0) return null;
+    const exploitables = (historiqueQuarts || [])
+      .map(q => {
+        const duree = dureeSessionAutomatiqueMinutes(q.ouvertLe, q.clotureLe);
+        const nb = q.nbProduitsComptes;
+        if (duree == null || !Number.isFinite(nb) || nb <= 0) return null;
+        return (duree * 60) / nb; // secondes par produit, ce quart-ci
+      })
+      .filter(x => x != null);
+    if (exploitables.length < HISTORIQUE_MINIMAL_ESTIMATION_TEMPS) return null;
+    const secParProduitMoyen = exploitables.reduce((s, x) => s + x, 0) / exploitables.length;
+    const minutesEstimees = Math.round(((secParProduitMoyen * nbProduitsEstimes) / 60) * 10) / 10;
+    return { minutesEstimees, nbQuartsHistorique: exploitables.length, secParProduitMoyen: Math.round(secParProduitMoyen * 10) / 10 };
+  }
+
   global.NexusInventaireMoteur = {
     FAMILLES_CONTROLE, DEFAUT_DELAI_MAX_JOURS_PAR_FAMILLE,
     libelleRaisonSelection, joursEntreDates, delaiMaxJours, produitEligibleQuart,
@@ -830,6 +884,6 @@
     analyserPreparationVsConseil, analyserEcoulementVsPreparation, analyserJourneeProduction, syntheseAnalysePeriode,
     TYPES_MOUVEMENT, infoTypeMouvement, libelleTypeMouvement, mouvementImpacteStockGlobal,
     ACTIONS_MOUVEMENT_PAR_PROFIL, actionsMouvementPourProfil,
-    evaluerConfigurationInventaire,
+    evaluerConfigurationInventaire, identifierCategoriesAOptimiser, estimerTempsProchainInventaire,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

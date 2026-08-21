@@ -197,5 +197,11 @@
     SOCLE_PAR_DEFAUT, SURPRISES_PAR_DEFAUT,
     chargerPlanExistant, chargerOuGenererPlan, marquerItemPlanCompte,
     chargerCouverturePhysique,
+    // Exportées le 21/08/2026 pour l'aperçu "Prochain inventaire estimé" de
+    // l'écran Paramètres (Accueil) — mêmes requêtes que la génération réelle
+    // d'un plan (Article 11 : jamais une deuxième version de cette
+    // sélection), simplement appelées en LECTURE SEULE pour prévisualiser
+    // sans jamais persister de plan ni consommer une surprise.
+    chargerIngredientsSelection, chargerSurprisesRecentes,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

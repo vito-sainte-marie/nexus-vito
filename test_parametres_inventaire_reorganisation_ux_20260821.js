@@ -62,6 +62,10 @@ const html = fs.readFileSync(path.join(PROJET, 'NEXUS-Parametres-Inventaire-v1.h
 const scriptMatches = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m => m[1]);
 const script = scriptMatches.reduce((a, b) => (b.length > a.length ? b : a), '');
 assert.ok(script.includes('renderOngletAccueil'), 'Réorganisation UX non présente (renderOngletAccueil introuvable)');
+// Le seuil ci-dessous est reproduit en dur dans PARTIE 4 (extraireConst ne
+// sait extraire que des tableaux) — cette assertion garde les deux copies
+// synchronisées si la valeur change un jour dans le fichier réel.
+assert.ok(script.includes('const SEUIL_EXCEPTIONS_A_OPTIMISER = 3;'), 'SEUIL_EXCEPTIONS_A_OPTIMISER a changé de valeur — mettre à jour la copie codée en dur en PARTIE 4');
 
 // ------------------------------------------------------------
 // PARTIE 1 — NexusInventaireMoteur.evaluerConfigurationInventaire (pur)
@@ -233,7 +237,18 @@ assert.ok(script.includes('renderOngletAccueil'), 'Réorganisation UX non prése
     'let reglesProduitMap = {};',
     'let produitsProduction = [];',
     'let reglesProductionMap = {};',
+    // Ajoutés le 21/08/2026 (retour de Frédéric sur l'accueil) : suggestion
+    // NEXUS + aperçu "Prochain inventaire", tous deux lus par
+    // renderOngletAccueil — état par défaut "rien encore chargé".
+    'let apercuProchainInventaireNb = null;',
+    'let historiqueDureeQuarts = [];',
+    extraireFonction(script, 'produitsCategorie'),
     extraireConst(script, 'CARTES_ACCUEIL'),
+    // extraireConst suppose un tableau (recherche de '[') — inadapté à une
+    // constante numérique simple, donc reproduite ici telle quelle plutôt
+    // qu'extraite (valeur vérifiée identique au fichier réel : voir
+    // assertion dédiée plus bas dans cette partie).
+    'const SEUIL_EXCEPTIONS_A_OPTIMISER = 3;',
     extraireFonction(script, 'renderOngletAccueil'),
     `globalThis.__test = {
       setEnv: (env) => {
@@ -242,6 +257,8 @@ assert.ok(script.includes('renderOngletAccueil'), 'Réorganisation UX non prése
         reglesProduitMap = env.reglesProduitMap || {};
         produitsProduction = env.produitsProduction || [];
         reglesProductionMap = env.reglesProductionMap || {};
+        apercuProchainInventaireNb = env.apercuProchainInventaireNb !== undefined ? env.apercuProchainInventaireNb : null;
+        historiqueDureeQuarts = env.historiqueDureeQuarts || [];
       },
       renderOngletAccueil,
     };`,
@@ -251,32 +268,56 @@ assert.ok(script.includes('renderOngletAccueil'), 'Réorganisation UX non prése
   vm.runInNewContext(src, ctx);
   const T = ctx.__test;
 
-  testSync('renderOngletAccueil : compte les produits actifs, catégories à règle active et exceptions réellement chargés', () => {
+  testSync('renderOngletAccueil : compte les produits actifs et les catégories réellement CONFIGURÉES (avec produits, plus seulement regle_active)', () => {
     T.setEnv({
       produitsInventaire: [
         { id: 'p1', actif: true, categorie_id: 'c1' },
         { id: 'p2', actif: true, categorie_id: 'c1' },
         { id: 'p3', actif: false, categorie_id: 'c1' },
       ],
-      categoriesSite: [{ id: 'c1', regle_active: true }, { id: 'c2', regle_active: false }],
-      reglesProduitMap: { p2: { profil: 'presse' } },
-    });
-    const html = T.renderOngletAccueil();
-    assert.ok(html.includes('>2<'), 'produits suivis = actifs uniquement (2, pas 3)');
-    assert.ok(html.includes('Exceptions produit'));
-  });
-
-  testSync('renderOngletAccueil : verdict "Exploitable" si aucun problème "a_corriger"', () => {
-    T.setEnv({
-      produitsInventaire: [{ id: 'p1', actif: true, categorie_id: 'c1', zone_id: 'z1' }],
-      categoriesSite: [{ id: 'c1', regle_active: false }],
+      categoriesSite: [{ id: 'c1', regle_active: false }, { id: 'c2', regle_active: false }],
       reglesProduitMap: {},
     });
     const html = T.renderOngletAccueil();
-    assert.ok(html.includes('Exploitable'));
+    assert.ok(html.includes('>2<'), 'produits suivis = actifs uniquement (2, pas 3)');
+    assert.ok(html.includes('Catégories configurées'), 'nouveau libellé (21/08/2026) — plus "avec règle commune"');
+    // c1 a 2 produits actifs -> configurée ; c2 n'a aucun produit -> pas
+    // configurée, même si aucune des deux n'a regle_active (c'était
+    // l'ancien critère, remplacé).
   });
 
-  testSync('renderOngletAccueil : verdict "à corriger" si des produits actifs manquent de catégorie/emplacement', () => {
+  testSync('renderOngletAccueil : peu d\'exceptions (< seuil) -> pas de suggestion NEXUS, verdict "Opérationnelle" simple', () => {
+    T.setEnv({
+      produitsInventaire: [
+        { id: 'p1', actif: true, categorie_id: 'c1', zone_id: 'z1' },
+        { id: 'p2', actif: true, categorie_id: 'c1', zone_id: 'z1' },
+      ],
+      categoriesSite: [{ id: 'c1', regle_active: false }],
+      reglesProduitMap: { p1: { profil: 'presse' } }, // 1 exception < seuil (3)
+    });
+    const html = T.renderOngletAccueil();
+    assert.ok(html.includes('✓ Opérationnelle') && !html.includes('à optimiser'));
+    assert.ok(!html.includes('Suggestion NEXUS'));
+  });
+
+  testSync('renderOngletAccueil : catégorie avec >= 3 exceptions et sans règle commune -> Suggestion NEXUS + "à optimiser"', () => {
+    T.setEnv({
+      produitsInventaire: [
+        { id: 'p1', actif: true, categorie_id: 'c1', zone_id: 'z1' },
+        { id: 'p2', actif: true, categorie_id: 'c1', zone_id: 'z1' },
+        { id: 'p3', actif: true, categorie_id: 'c1', zone_id: 'z1' },
+      ],
+      categoriesSite: [{ id: 'c1', nom: 'Bières', regle_active: false }],
+      reglesProduitMap: { p1: {}, p2: {}, p3: {} }, // 3 exceptions >= seuil
+    });
+    const html = T.renderOngletAccueil();
+    assert.ok(html.includes('Suggestion NEXUS'));
+    assert.ok(html.includes('Bières'));
+    assert.ok(html.includes('à optimiser'));
+    assert.ok(html.includes('data-carte-accueil="regles"'), 'bouton de la suggestion doit renvoyer vers Règles');
+  });
+
+  testSync('renderOngletAccueil : verdict "à corriger" (problème réel) prime sur "à optimiser" (simple suggestion)', () => {
     T.setEnv({
       produitsInventaire: [{ id: 'p1', actif: true, categorie_id: null, zone_id: null }],
       categoriesSite: [],
@@ -284,15 +325,43 @@ assert.ok(script.includes('renderOngletAccueil'), 'Réorganisation UX non prése
     });
     const html = T.renderOngletAccueil();
     assert.ok(html.includes('à corriger'));
+    assert.ok(!html.includes('Opérationnelle'), 'un vrai problème ne doit jamais être maquillé en "opérationnelle"');
   });
 
-  testSync('renderOngletAccueil : expose une carte de navigation par question métier (Produits/Fréquence/Parcours/Règles/Production/Avancé)', () => {
+  testSync('renderOngletAccueil : aperçu "Prochain inventaire" absent tant que non chargé (jamais un 0 fabriqué)', () => {
+    T.setEnv({ produitsInventaire: [], categoriesSite: [], reglesProduitMap: {}, apercuProchainInventaireNb: null });
+    const html = T.renderOngletAccueil();
+    assert.ok(!html.includes('Prochain inventaire'));
+  });
+
+  testSync('renderOngletAccueil : aperçu "Prochain inventaire" affiché une fois chargé, avec ou sans estimation de temps', () => {
+    T.setEnv({ produitsInventaire: [], categoriesSite: [], reglesProduitMap: {}, apercuProchainInventaireNb: 24, historiqueDureeQuarts: [] });
+    const htmlSansHistorique = T.renderOngletAccueil();
+    assert.ok(htmlSansHistorique.includes('24 produits'));
+    assert.ok(!htmlSansHistorique.includes('min'), 'pas assez d\'historique -> pas de minutage inventé');
+
+    T.setEnv({
+      produitsInventaire: [], categoriesSite: [], reglesProduitMap: {}, apercuProchainInventaireNb: 24,
+      historiqueDureeQuarts: [
+        { ouvertLe: '2026-08-01T08:00:00Z', clotureLe: '2026-08-01T08:10:00Z', nbProduitsComptes: 20 },
+        { ouvertLe: '2026-08-02T08:00:00Z', clotureLe: '2026-08-02T08:10:00Z', nbProduitsComptes: 20 },
+        { ouvertLe: '2026-08-03T08:00:00Z', clotureLe: '2026-08-03T08:10:00Z', nbProduitsComptes: 20 },
+      ],
+    });
+    const htmlAvecHistorique = T.renderOngletAccueil();
+    assert.ok(htmlAvecHistorique.includes('24 produits') && htmlAvecHistorique.includes('min'));
+  });
+
+  testSync('renderOngletAccueil : carte compacte Réglages avancés (Alertes/Traçabilité/Tester la configuration) + 5 cartes de navigation', () => {
     T.setEnv({ produitsInventaire: [], categoriesSite: [], reglesProduitMap: {} });
     const html = T.renderOngletAccueil();
-    ['produits', 'frequence', 'parcours', 'regles', 'production', 'avance'].forEach(v => {
+    ['produits', 'frequence', 'parcours', 'regles', 'production'].forEach(v => {
       assert.ok(html.includes(`data-carte-accueil="${v}"`), `carte manquante pour ${v}`);
     });
-    assert.ok(html.includes('Tester ma configuration'));
+    assert.ok(html.includes('data-carte-accueil-avance="alertes"'));
+    assert.ok(html.includes('data-carte-accueil-avance="tracabilite"'));
+    assert.ok(html.includes('data-carte-accueil="simulation"'));
+    assert.ok(html.includes('Tester la configuration'));
   });
 })();
 
@@ -390,5 +459,116 @@ assert.ok(script.includes('renderOngletAccueil'), 'Réorganisation UX non prése
     T.setEnv({ parametresInventaire: { niveauSurveillance: 'personnalise', quantityAlertThreshold: 3, valueAlertThreshold: 50, closureDelayMinutes: 60, reviewFrequency: 'daily', immediateAlertCategoryIds: [] } });
     const html = T.renderOngletAlertes();
     assert.ok(html.includes('paramSeuilQte') && html.includes('paramSeuilValeur') && html.includes('paramDelaiCloture'));
+  });
+})();
+
+// ------------------------------------------------------------
+// PARTIE 7 — Retours de Frédéric sur l'accueil (21/08/2026) : moteur pur
+// pour la suggestion NEXUS (identifierCategoriesAOptimiser) et l'estimation
+// de temps du prochain inventaire (estimerTempsProchainInventaire).
+// ------------------------------------------------------------
+(function partie7() {
+  const ctx = {};
+  vm.runInNewContext(moteurSrc + '\nglobalThis.__moteur = NexusInventaireMoteur;', ctx);
+  const M = ctx.__moteur;
+  assert.ok(typeof M.identifierCategoriesAOptimiser === 'function');
+  assert.ok(typeof M.estimerTempsProchainInventaire === 'function');
+
+  testSync('identifierCategoriesAOptimiser : catégorie sans règle commune et sous le seuil -> aucune suggestion', () => {
+    const categories = [{ id: 'c1', nom: 'Bières', regle_active: false }];
+    const produits = [
+      { id: 'p1', actif: true, categorie_id: 'c1' },
+      { id: 'p2', actif: true, categorie_id: 'c1' },
+    ];
+    const regles = { p1: {} }; // 1 exception, seuil par défaut 3
+    assert.strictEqual(M.identifierCategoriesAOptimiser(categories, produits, regles).length, 0);
+  });
+
+  testSync('identifierCategoriesAOptimiser : catégorie sans règle commune et AU-DESSUS du seuil -> suggérée, triée par nb d\'exceptions décroissant', () => {
+    const categories = [
+      { id: 'c1', nom: 'Bières', regle_active: false },
+      { id: 'c2', nom: 'Cigarettes', regle_active: false },
+    ];
+    const produits = [
+      { id: 'p1', actif: true, categorie_id: 'c1' }, { id: 'p2', actif: true, categorie_id: 'c1' }, { id: 'p3', actif: true, categorie_id: 'c1' },
+      { id: 'p4', actif: true, categorie_id: 'c2' }, { id: 'p5', actif: true, categorie_id: 'c2' }, { id: 'p6', actif: true, categorie_id: 'c2' }, { id: 'p7', actif: true, categorie_id: 'c2' },
+    ];
+    const regles = { p1: {}, p2: {}, p3: {}, p4: {}, p5: {}, p6: {}, p7: {} };
+    const r = M.identifierCategoriesAOptimiser(categories, produits, regles, 3);
+    assert.strictEqual(r.length, 2);
+    assert.strictEqual(r[0].nom, 'Cigarettes', 'la catégorie avec le plus d\'exceptions (4) doit venir en premier');
+    assert.strictEqual(r[0].exceptions, 4);
+    assert.strictEqual(r[1].exceptions, 3);
+  });
+
+  testSync('identifierCategoriesAOptimiser : catégorie déjà avec règle commune active -> jamais suggérée, même avec beaucoup d\'exceptions', () => {
+    const categories = [{ id: 'c1', nom: 'Bières', regle_active: true }];
+    const produits = [{ id: 'p1', actif: true, categorie_id: 'c1' }, { id: 'p2', actif: true, categorie_id: 'c1' }, { id: 'p3', actif: true, categorie_id: 'c1' }];
+    const regles = { p1: {}, p2: {}, p3: {} };
+    assert.strictEqual(M.identifierCategoriesAOptimiser(categories, produits, regles, 3).length, 0);
+  });
+
+  testSync('identifierCategoriesAOptimiser : produits inactifs ignorés dans le comptage', () => {
+    const categories = [{ id: 'c1', nom: 'Bières', regle_active: false }];
+    const produits = [
+      { id: 'p1', actif: true, categorie_id: 'c1' },
+      { id: 'p2', actif: false, categorie_id: 'c1' },
+      { id: 'p3', actif: false, categorie_id: 'c1' },
+    ];
+    const regles = { p1: {}, p2: {}, p3: {} }; // 3 lignes d'exception, mais seul p1 est actif
+    assert.strictEqual(M.identifierCategoriesAOptimiser(categories, produits, regles, 3).length, 0);
+  });
+
+  testSync('estimerTempsProchainInventaire : moins de 3 quarts exploitables -> null (jamais un chiffre peu fiable)', () => {
+    const historique = [
+      { ouvertLe: '2026-08-01T08:00:00Z', clotureLe: '2026-08-01T08:10:00Z', nbProduitsComptes: 20 },
+      { ouvertLe: '2026-08-02T08:00:00Z', clotureLe: '2026-08-02T08:10:00Z', nbProduitsComptes: 20 },
+    ];
+    assert.strictEqual(M.estimerTempsProchainInventaire(historique, 24), null);
+  });
+
+  testSync('estimerTempsProchainInventaire : quarts sans clôture ou sans produits comptés exclus du calcul (pas juste ignorés silencieusement dans le compte final)', () => {
+    const historique = [
+      { ouvertLe: '2026-08-01T08:00:00Z', clotureLe: '2026-08-01T08:10:00Z', nbProduitsComptes: 20 },
+      { ouvertLe: '2026-08-02T08:00:00Z', clotureLe: null, nbProduitsComptes: 20 }, // pas clôturé -> exclu
+      { ouvertLe: '2026-08-03T08:00:00Z', clotureLe: '2026-08-03T08:10:00Z', nbProduitsComptes: 0 }, // rien compté -> exclu
+    ];
+    assert.strictEqual(M.estimerTempsProchainInventaire(historique, 24), null, 'seulement 1 quart réellement exploitable sur 3, sous le minimum de 3');
+  });
+
+  testSync('estimerTempsProchainInventaire : historique suffisant -> estimation proportionnelle au nombre de produits', () => {
+    // 3 quarts identiques : 10 min pour 20 produits -> 30 sec/produit.
+    const historique = [
+      { ouvertLe: '2026-08-01T08:00:00Z', clotureLe: '2026-08-01T08:10:00Z', nbProduitsComptes: 20 },
+      { ouvertLe: '2026-08-02T08:00:00Z', clotureLe: '2026-08-02T08:10:00Z', nbProduitsComptes: 20 },
+      { ouvertLe: '2026-08-03T08:00:00Z', clotureLe: '2026-08-03T08:10:00Z', nbProduitsComptes: 20 },
+    ];
+    const r = M.estimerTempsProchainInventaire(historique, 24);
+    assert.ok(r);
+    assert.strictEqual(r.nbQuartsHistorique, 3);
+    assert.strictEqual(r.minutesEstimees, 12, '30 sec/produit x 24 produits = 720 sec = 12 min');
+  });
+
+  testSync('estimerTempsProchainInventaire : nbProduitsEstimes invalide (0, négatif, absent) -> null', () => {
+    const historique = [
+      { ouvertLe: '2026-08-01T08:00:00Z', clotureLe: '2026-08-01T08:10:00Z', nbProduitsComptes: 20 },
+      { ouvertLe: '2026-08-02T08:00:00Z', clotureLe: '2026-08-02T08:10:00Z', nbProduitsComptes: 20 },
+      { ouvertLe: '2026-08-03T08:00:00Z', clotureLe: '2026-08-03T08:10:00Z', nbProduitsComptes: 20 },
+    ];
+    assert.strictEqual(M.estimerTempsProchainInventaire(historique, 0), null);
+    assert.strictEqual(M.estimerTempsProchainInventaire(historique, null), null);
+  });
+})();
+
+// ------------------------------------------------------------
+// PARTIE 8 — ONGLETS_BARRE : la barre visible ne garde que Accueil + Avancé
+// (retour de Frédéric : "je le réduirais à Accueil + éventuellement Avancé").
+// ------------------------------------------------------------
+(function partie8() {
+  const barreSrc = extraireConst(script, 'ONGLETS_BARRE');
+  const ctx = {};
+  vm.runInNewContext(`${barreSrc}\nglobalThis.__barre = ONGLETS_BARRE;`, ctx);
+  testSync('ONGLETS_BARRE : ne contient que accueil et avance', () => {
+    assert.strictEqual(JSON.stringify(ctx.__barre), JSON.stringify(['accueil', 'avance']));
   });
 })();

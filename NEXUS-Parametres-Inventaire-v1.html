@@ -22,6 +22,7 @@
 <script src="nexus-forfait.js"></script>
 <script src="nexus-desktop.js"></script>
 <script src="nexus-inventaire-moteur.js"></script>
+<script src="nexus-inventaire-plan-donnees.js"></script>
 <script src="nexus-inventaire-production-donnees.js"></script>
 <style>
   :root{
@@ -2196,25 +2197,64 @@
     { onglet: 'parcours', icone: '📍', titre: 'Parcours', sous: 'Organiser le déplacement terrain' },
     { onglet: 'regles', icone: '⚙️', titre: 'Règles', sous: 'Définir comment compter par catégorie' },
     { onglet: 'production', icone: '🥐', titre: 'Production', sous: 'Gérer les produits préparés et mouvements' },
-    { onglet: 'avance', icone: '🧩', titre: 'Réglages avancés', sous: 'Alertes, traçabilité et options rares' },
   ];
+  // Seuil d'exceptions à partir duquel une catégorie est signalée comme "à
+  // optimiser" (21/08/2026, retour de Frédéric) — voir le commentaire de
+  // NexusInventaireMoteur.identifierCategoriesAOptimiser pour la justification.
+  const SEUIL_EXCEPTIONS_A_OPTIMISER = 3;
+  // Aperçu "Prochain inventaire" (21/08/2026) — chargés après coup (pas dans
+  // le Promise.all principal, voir bootstrap) pour ne jamais courir avec le
+  // chargement de parametresInventaire dont ils dépendent (socle/surprises
+  // personnalisés). null = pas encore calculé ou échec de calcul — la ligne
+  // correspondante reste alors absente de l'accueil (Article 5 : jamais un
+  // "0 produit"/"0 min" qui laisserait croire à un résultat réel).
+  let apercuProchainInventaireNb = null;
+  let historiqueDureeQuarts = [];
   function renderOngletAccueil() {
     const M = typeof NexusInventaireMoteur !== 'undefined' ? NexusInventaireMoteur : null;
     const actifs = produitsInventaire.filter(p => p.actif);
-    const nbCategories = categoriesSite.filter(c => c.regle_active).length;
+    const nbCategoriesConfigurees = categoriesSite.filter(c => produitsCategorie(c.id).length > 0).length;
     const nbExceptions = actifs.filter(p => !!reglesProduitMap[p.id]).length;
     const verdict = M ? M.evaluerConfigurationInventaire({ produits: produitsInventaire, categories: categoriesSite, produitsProduction, reglesProductionMap }) : null;
     const nbACorriger = verdict ? verdict.problemes.filter(p => p.gravite === 'a_corriger').length : 0;
+    const categoriesAOptimiser = M ? M.identifierCategoriesAOptimiser(categoriesSite, produitsInventaire, reglesProduitMap, SEUIL_EXCEPTIONS_A_OPTIMISER) : [];
+    const totalExceptionsAOptimiser = categoriesAOptimiser.reduce((s, c) => s + c.exceptions, 0);
+    const estimation = (M && apercuProchainInventaireNb != null) ? M.estimerTempsProchainInventaire(historiqueDureeQuarts, apercuProchainInventaireNb) : null;
+
+    let etatLabel, etatClasse;
+    if (nbACorriger > 0) { etatLabel = `⚠ ${nbACorriger} à corriger`; etatClasse = 'amber'; }
+    else if (categoriesAOptimiser.length > 0) { etatLabel = '✓ Opérationnelle · à optimiser'; etatClasse = 'amber'; }
+    else { etatLabel = '✓ Opérationnelle'; etatClasse = 'green'; }
+
     return `
       <div class="question-titre">Configurer mon inventaire</div>
       <div class="ventes-desc" style="margin:6px 2px 16px;">NEXUS vous aide à définir quoi compter, quand, où et comment.</div>
 
-      <div class="card" style="margin-bottom:18px; padding:4px 14px;">
+      <div class="card" style="margin-bottom:14px; padding:4px 14px;">
         <div class="stat-row"><span class="stat-label">Produits suivis</span><span class="stat-value">${actifs.length}</span></div>
-        <div class="stat-row"><span class="stat-label">Catégories avec règle commune</span><span class="stat-value">${nbCategories}</span></div>
-        <div class="stat-row"><span class="stat-label">Exceptions produit</span><span class="stat-value">${nbExceptions}</span></div>
-        <div class="stat-row"><span class="stat-label">Configuration</span><span class="stat-value ${nbACorriger === 0 ? 'green' : 'amber'}">${nbACorriger === 0 ? '✓ Exploitable' : `⚠ ${nbACorriger} à corriger`}</span></div>
+        <div class="stat-row"><span class="stat-label">Catégories configurées</span><span class="stat-value">${nbCategoriesConfigurees}</span></div>
+        <div class="stat-row"><span class="stat-label">Exceptions${categoriesAOptimiser.length > 0 ? ' à simplifier' : ''}</span><span class="stat-value">${nbExceptions}</span></div>
+        ${apercuProchainInventaireNb != null ? `<div class="stat-row"><span class="stat-label">Prochain inventaire (aperçu Matin)</span><span class="stat-value">${apercuProchainInventaireNb} produit${apercuProchainInventaireNb > 1 ? 's' : ''}${estimation ? ' · ~' + estimation.minutesEstimees + ' min' : ''}</span></div>` : ''}
+        <div class="stat-row"><span class="stat-label">Configuration</span><span class="stat-value ${etatClasse}">${etatLabel}</span></div>
       </div>
+
+      <div class="card" style="margin-bottom:14px; padding:12px 14px;">
+        <div style="font-family:var(--mono); font-size:10.5px; text-transform:uppercase; letter-spacing:0.05em; color:var(--text-mid); margin-bottom:8px;">🧩 Réglages avancés</div>
+        <div style="display:flex; gap:16px; flex-wrap:wrap;">
+          <a href="#" data-carte-accueil-avance="alertes" style="font-size:12.5px; color:var(--cyan); text-decoration:none; font-weight:600;">🚨 Alertes</a>
+          <a href="#" data-carte-accueil-avance="tracabilite" style="font-size:12.5px; color:var(--cyan); text-decoration:none; font-weight:600;">🔄 Traçabilité</a>
+          <a href="#" data-carte-accueil="simulation" style="font-size:12.5px; color:var(--cyan); text-decoration:none; font-weight:600;">🧪 Tester la configuration</a>
+        </div>
+      </div>
+
+      ${categoriesAOptimiser.length > 0 ? `
+      <div class="card" style="margin-bottom:14px; padding:14px; border-color:rgba(245,166,35,0.3);">
+        <div style="font-family:var(--mono); font-size:11px; font-weight:700; color:var(--amber); text-transform:uppercase; letter-spacing:0.05em; margin-bottom:8px;">💡 Suggestion NEXUS</div>
+        <div class="ventes-desc" style="margin-bottom:8px;">${totalExceptionsAOptimiser} produit${totalExceptionsAOptimiser > 1 ? 's' : ''} ont des règles individuelles dans ${categoriesAOptimiser.length} catégorie${categoriesAOptimiser.length > 1 ? 's' : ''} sans règle commune : ${categoriesAOptimiser.slice(0, 3).map(c => `${c.nom} (${c.exceptions})`).join(', ')}${categoriesAOptimiser.length > 3 ? '…' : ''}.</div>
+        <div class="ventes-desc" style="margin-bottom:10px;">Créer une règle commune par catégorie pourrait réduire fortement le paramétrage à maintenir.</div>
+        <button class="btn-ghost" style="margin:0;" data-carte-accueil="regles">Configurer les règles →</button>
+      </div>
+      ` : ''}
 
       ${CARTES_ACCUEIL.map(c => `
         <div class="card" style="margin-bottom:10px; padding:14px; cursor:pointer; display:flex; align-items:center; gap:12px;" data-carte-accueil="${c.onglet}">
@@ -2226,8 +2266,6 @@
           <div style="color:var(--text-dim);">→</div>
         </div>
       `).join('')}
-
-      <button class="btn-primary" data-carte-accueil="simulation" style="margin-top:6px;">🧪 Tester ma configuration</button>
     `;
   }
 
@@ -2241,6 +2279,15 @@
     { value: 'simulation', label: '🧪 Tester ma config.' },
     { value: 'avance', label: '🧩 Réglages avancés' },
   ];
+  // Retour de Frédéric (21/08/2026) : "le bandeau d'onglets du haut est
+  // encore scrollable horizontalement... je le réduirais à Accueil +
+  // éventuellement Avancé." ONGLETS (ci-dessus) reste la liste COMPLÈTE —
+  // utilisée par render()/wire() pour le dispatch et par les tests pour
+  // vérifier la taxonomie — mais seule cette sous-liste s'affiche dans la
+  // barre : les 5 autres onglets ne sont plus atteignables QUE depuis les
+  // cartes de l'accueil et les liens "← Accueil"/"Réglages avancés", jamais
+  // en scrollant une rangée de pastilles.
+  const ONGLETS_BARRE = ['accueil', 'avance'];
 
   async function ouvrirOngletSimulationSiBesoin() {
     if (!sectionSimulationChargee) {
@@ -2251,7 +2298,8 @@
   }
 
   function renderOnglets() {
-    document.getElementById('ongletRow').innerHTML = ONGLETS.map(o => `<div class="onglet ${ongletActif === o.value ? 'active' : ''}" data-onglet="${o.value}">${o.label}</div>`).join('');
+    const visibles = ONGLETS.filter(o => ONGLETS_BARRE.includes(o.value));
+    document.getElementById('ongletRow').innerHTML = visibles.map(o => `<div class="onglet ${ongletActif === o.value ? 'active' : ''}" data-onglet="${o.value}">${o.label}</div>`).join('');
     document.querySelectorAll('[data-onglet]').forEach(el => el.addEventListener('click', async () => {
       ongletActif = el.dataset.onglet;
       if (ongletActif === 'simulation') await ouvrirOngletSimulationSiBesoin();
@@ -2275,9 +2323,19 @@
 
   function wire() {
     // --- Accueil / navigation générale (21/08/2026, réorganisation UX) ---
-    document.querySelectorAll('[data-carte-accueil]').forEach(el => el.addEventListener('click', async () => {
+    document.querySelectorAll('[data-carte-accueil]').forEach(el => el.addEventListener('click', async (ev) => {
+      if (el.tagName === 'A') ev.preventDefault();
       ongletActif = el.dataset.carteAccueil;
       if (ongletActif === 'simulation') await ouvrirOngletSimulationSiBesoin();
+      render();
+    }));
+    // Liens directs vers une section précise de "Réglages avancés" depuis la
+    // carte compacte de l'accueil (21/08/2026, retour de Frédéric — carte
+    // "Alertes · Traçabilité · Tester la configuration").
+    document.querySelectorAll('[data-carte-accueil-avance]').forEach(el => el.addEventListener('click', (ev) => {
+      ev.preventDefault();
+      ongletActif = 'avance';
+      avanceSectionOuverte = el.dataset.carteAccueilAvance;
       render();
     }));
     document.querySelectorAll('[data-retour-accueil]').forEach(el => el.addEventListener('click', (ev) => {
@@ -2593,6 +2651,65 @@
     });
   }
 
+  // ==============================================================
+  // Aperçu "Prochain inventaire" (21/08/2026, retour de Frédéric sur
+  // l'accueil — "c'est ce qui permettra au manager de voir immédiatement
+  // l'impact réel de sa configuration"). Réutilise EXACTEMENT le moteur de
+  // sélection réel (NexusInventaireMoteur.construirePlanComptage) via les
+  // mêmes chargeurs que la génération d'un vrai plan
+  // (NexusInventairePlanDonnees, Article 11) — jamais une deuxième version
+  // approximative de cet algorithme. Lecture seule : aucun plan n'est
+  // persisté, aucune surprise n'est "consommée". Estimé pour le quart Matin
+  // uniquement (le plus structurant, vocabulaire déjà utilisé ailleurs dans
+  // NEXUS) — affiché comme tel, jamais présenté comme "le" prochain quart
+  // sans précision.
+  // ==============================================================
+  async function chargerApercuProchainInventaire(site) {
+    if (typeof NexusInventairePlanDonnees === 'undefined' || typeof NexusInventaireMoteur === 'undefined') return null;
+    try {
+      const date = dateISO();
+      const [ingredients, surprisesRecentes] = await Promise.all([
+        NexusInventairePlanDonnees.chargerIngredientsSelection(nexusClient, site, date),
+        NexusInventairePlanDonnees.chargerSurprisesRecentes(nexusClient, site, date),
+      ]);
+      const socle = parametresInventaire.planSocleCible || NexusInventairePlanDonnees.SOCLE_PAR_DEFAUT;
+      const surprises = parametresInventaire.planSurprisesCible || NexusInventairePlanDonnees.SURPRISES_PAR_DEFAUT;
+      const resultat = NexusInventaireMoteur.construirePlanComptage({
+        produits: ingredients.produits, reglesParProduit: ingredients.reglesParProduit,
+        dernierControleParProduit: ingredients.dernierControleParProduit,
+        produitsAvecAnomalieRecente: ingredients.produitsAvecAnomalieRecente,
+        quart: 'matin', dateISO: date, socleCible: socle, surprisesCible: surprises,
+        seed: `${site}|${date}|apercu-accueil`, surprisesRecentesParProduit: surprisesRecentes,
+      });
+      return resultat.items.length;
+    } catch (e) {
+      console.error('Aperçu prochain inventaire:', e);
+      return null;
+    }
+  }
+
+  // Historique réel des quarts déjà clôturés (pas de simulation) — matière
+  // première de NexusInventaireMoteur.estimerTempsProchainInventaire. Le
+  // nombre de produits réellement comptés vient de inventaire_comptages
+  // (ce qui a VRAIMENT été fait), pas de la taille du plan généré (ce qui
+  // était prévu) — plus honnête si l'employé n'a pas tout compté.
+  async function chargerHistoriqueDureeQuarts(site) {
+    const { data: quarts, error } = await nexusClient.from('inventaire_quarts')
+      .select('id, ouvert_le, cloture_le')
+      .eq('site', site).eq('statut', 'cloture')
+      .or('is_simulation.is.null,is_simulation.eq.false')
+      .order('cloture_le', { ascending: false }).limit(20);
+    if (error) { console.error('Historique durée quarts:', error); return []; }
+    const ids = (quarts || []).map(q => q.id);
+    if (!ids.length) return [];
+    const { data: comptages, error: e2 } = await nexusClient.from('inventaire_comptages')
+      .select('quart_id, produit_id').in('quart_id', ids).eq('type_comptage', 'ouverture');
+    if (e2) { console.error('Comptages historique quarts:', e2); return []; }
+    const parQuart = {};
+    (comptages || []).forEach(c => { (parQuart[c.quart_id] = parQuart[c.quart_id] || new Set()).add(c.produit_id); });
+    return quarts.map(q => ({ ouvertLe: q.ouvert_le, clotureLe: q.cloture_le, nbProduitsComptes: parQuart[q.id] ? parQuart[q.id].size : 0 }));
+  }
+
   // ------------------------------------------------------------
   // INITIALISATION
   // ------------------------------------------------------------
@@ -2614,6 +2731,21 @@
       chargerSeuilsEcartCategorie(siteId),
     ]);
     render();
+
+    // Aperçu "Prochain inventaire" (21/08/2026) — chargé APRÈS le render()
+    // initial, jamais dans le même Promise.all : dépend de
+    // parametresInventaire déjà résolu (socle/surprises personnalisés), une
+    // course avec son propre chargement donnerait un aperçu construit sur
+    // les valeurs par défaut au lieu des vraies valeurs du site. L'accueil
+    // s'affiche donc d'abord sans cette ligne, puis se complète (même motif
+    // que sectionSimulationChargee).
+    const [nbApercu, historique] = await Promise.all([
+      chargerApercuProchainInventaire(siteId),
+      chargerHistoriqueDureeQuarts(siteId),
+    ]);
+    apercuProchainInventaireNb = nbApercu;
+    historiqueDureeQuarts = historique;
+    if (ongletActif === 'accueil') render();
   });
 </script>
 </body>
