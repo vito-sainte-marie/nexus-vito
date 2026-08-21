@@ -117,6 +117,7 @@ const moteurSrc = fs.readFileSync(MOTEUR_PATH, 'utf8');
     'let categoriesSite = [];',
     'let categorieReglesOuverte = null;',
     'let categorieRegleEnEdition = null;',
+    'let seuilsEcartParCategorie = {};', // Sprint 5 (20/08/2026) — référencé par renderCarteCategorieRegle
     extraireFonction('produitsCategorie'),
     extraireFonction('compterExceptionsCategorie'),
     extraireFonction('libelleReglesProduit'),
@@ -131,6 +132,7 @@ const moteurSrc = fs.readFileSync(MOTEUR_PATH, 'utf8');
         categoriesSite = env.categoriesSite || [];
         categorieReglesOuverte = env.categorieReglesOuverte || null;
         categorieRegleEnEdition = env.categorieRegleEnEdition || null;
+        seuilsEcartParCategorie = env.seuilsEcartParCategorie || {};
       },
       renderCarteCategorieRegle, renderBlocReglesCategories,
     };`,

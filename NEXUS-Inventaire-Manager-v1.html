@@ -20,6 +20,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
 <script src="nexus-auth.js"></script>
+<script src="nexus-header-nav.js"></script>
 <script src="nexus-forfait.js"></script>
 <script src="nexus-desktop.js"></script>
 <script src="nexus-inventaire-moteur.js"></script>
@@ -465,6 +466,12 @@
   };
   let parametresInventaire = { ...DEFAULTS_PARAMETRES_INVENTAIRE };
   let categoriesSite = [];
+  // Sprint 5 (20/08/2026) : categorie_id -> { quantite_alerte, valeur_alerte }
+  // — voir NexusInventaireManagerDonnees.chargerSeuilsEcartCategorie /
+  // NexusInventaireMoteur.seuilEcartEffectif. Clé absente = pas de
+  // dérogation réglée pour cette catégorie, on retombe sur le défaut du
+  // site (parametresInventaire.quantityAlertThreshold/.valueAlertThreshold).
+  let seuilsEcartParCategorie = {};
 
   // Sélecteur de période (02/08/2026, évolution "Supervision configurable
   // des inventaires") : 'jour' reproduit exactement le comportement
@@ -666,6 +673,10 @@
 
   async function chargerCategoriesSite(site) {
     return NexusInventaireManagerDonnees.chargerCategoriesSite(nexusClient, site);
+  }
+
+  async function chargerSeuilsEcartCategorie(site) {
+    return NexusInventaireManagerDonnees.chargerSeuilsEcartCategorie(nexusClient, site);
   }
 
   async function chargerDecisionsQuart(quartId) {
@@ -2482,12 +2493,23 @@
     // catégorie classée "alerte immédiate" — activée par défaut si le
     // manager a choisi ce rythme de supervision, mais reste un filtre
     // manuel qu'il peut basculer à tout moment.
+    // Sprint 5 (20/08/2026, demande de Frédéric — "seuils d'écart" par
+    // catégorie) : les deux seuils (quantité, valeur) passent désormais par
+    // NexusInventaireMoteur.seuilEcartEffectif — une catégorie peut être
+    // réglée plus stricte (ex. Cigarettes : seuil quantité=0, tout écart
+    // remonte) ou plus tolérante (ex. Boissons chaudes en vrac) que le
+    // défaut du site, via seuilsEcartParCategorie (inventaire_seuils,
+    // chargé au bootstrap). Catégorie non réglée = comportement historique
+    // inchangé (retombe sur le seuil du site).
     function depasseSeuilException(a) {
       const ecartAbs = (a.valeur_constatee != null && a.valeur_attendue != null) ? Math.abs(a.valeur_constatee - a.valeur_attendue) : null;
-      const depasseQte = ecartAbs != null && ecartAbs > (parametresInventaire.quantityAlertThreshold ?? 1);
-      const depasseValeur = parametresInventaire.valueAlertThreshold != null && a.valeur_estimee != null && a.valeur_estimee > parametresInventaire.valueAlertThreshold;
-      const categorieSensible = a.inventaire_zone_produit && a.inventaire_zone_produit.categorie_id
-        && (parametresInventaire.immediateAlertCategoryIds || []).includes(a.inventaire_zone_produit.categorie_id);
+      const categorieId = a.inventaire_zone_produit && a.inventaire_zone_produit.categorie_id;
+      const M = typeof NexusInventaireMoteur !== 'undefined' ? NexusInventaireMoteur : null;
+      const seuilQte = M ? M.seuilEcartEffectif('quantite_alerte', categorieId, seuilsEcartParCategorie, parametresInventaire.quantityAlertThreshold ?? 1) : (parametresInventaire.quantityAlertThreshold ?? 1);
+      const seuilValeur = M ? M.seuilEcartEffectif('valeur_alerte', categorieId, seuilsEcartParCategorie, parametresInventaire.valueAlertThreshold) : parametresInventaire.valueAlertThreshold;
+      const depasseQte = ecartAbs != null && ecartAbs > seuilQte;
+      const depasseValeur = seuilValeur != null && a.valeur_estimee != null && a.valeur_estimee > seuilValeur;
+      const categorieSensible = categorieId && (parametresInventaire.immediateAlertCategoryIds || []).includes(categorieId);
       return depasseQte || depasseValeur || categorieSensible || a.gravite === 'critique';
     }
     const alertesPeriodeAffichees = periodeSelectionnee !== 'jour' && filtreExceptionActif
@@ -2784,7 +2806,7 @@
 
     quartRow = await chargerQuart(siteId, dateSelectionnee, quartSelectionne);
 
-    const [produitsSensibles, produitsActifsSite, employesSite, modesAveugleActifs, jaugeageActif, horaires, parametresChargés, categories] = await Promise.all([
+    const [produitsSensibles, produitsActifsSite, employesSite, modesAveugleActifs, jaugeageActif, horaires, parametresChargés, categories, seuilsEcart] = await Promise.all([
       chargerProduitsSensibles(siteId),
       chargerTousProduitsActifsSite(siteId),
       chargerEmployesSite(siteId),
@@ -2793,9 +2815,11 @@
       chargerHorairesStation(siteId),
       chargerParametresInventaire(siteId),
       chargerCategoriesSite(siteId),
+      chargerSeuilsEcartCategorie(siteId),
     ]);
     parametresInventaire = parametresChargés;
     categoriesSite = categories;
+    seuilsEcartParCategorie = seuilsEcart;
     SEUIL_DEMARQUE = parametresInventaire.quantityAlertThreshold || DEFAULTS_PARAMETRES_INVENTAIRE.quantityAlertThreshold;
     if (!filtreExceptionInitialise) {
       filtreExceptionActif = parametresInventaire.reviewFrequency === 'exception_only';

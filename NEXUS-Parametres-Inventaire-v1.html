@@ -330,6 +330,19 @@
     if (error) { console.error('Chargement catégories:', error); return []; }
     return data || [];
   }
+
+  // Sprint 5 (20/08/2026) — voir NexusInventaireMoteur.seuilEcartEffectif.
+  // Vocabulaire de `cle` fixé ici pour la première fois (table en base
+  // depuis longtemps mais jamais lue nulle part) : 'quantite_alerte' /
+  // 'valeur_alerte', miroir exact des 2 seuils déjà existants au niveau
+  // site (parametresInventaire.quantityAlertThreshold/.valueAlertThreshold).
+  async function chargerSeuilsEcartCategorie(site) {
+    const { data, error } = await nexusClient.from('inventaire_seuils').select('categorie_id, cle, valeur').eq('site', site).not('categorie_id', 'is', null);
+    if (error) { console.error('Chargement seuils écart catégorie:', error); return {}; }
+    const map = {};
+    (data || []).forEach(r => { if (!map[r.categorie_id]) map[r.categorie_id] = {}; map[r.categorie_id][r.cle] = Number(r.valeur); });
+    return map;
+  }
   async function chargerEmployesSite(site) {
     const { data, error } = await nexusClient.from('employees').select('id, nom, role').eq('site_id', site).eq('actif', true).order('nom');
     if (error) { console.error('Chargement employés:', error); return []; }
@@ -721,6 +734,13 @@
   // ajoutées par la migration inventaire_categories_regles_heritees).
   let categorieReglesOuverte = null;   // id de la catégorie dont le formulaire est déplié
   let categorieRegleEnEdition = null;  // même forme que profilEnEdition, plus regle_active — jamais comptage_deux_lieux (propriété du produit, pas une règle héritable)
+  // Sprint 5 (20/08/2026, demande de Frédéric — "seuils d'écart" par
+  // catégorie) : categorie_id -> { quantite_alerte, valeur_alerte }. Table
+  // inventaire_seuils, indépendante de regle_active (un seuil d'écart peut
+  // être réglé même si la catégorie n'a pas de règle de comptage commune —
+  // ce sont deux préoccupations différentes : "comment compter" vs "à
+  // partir de quand s'inquiéter d'un écart").
+  let seuilsEcartParCategorie = {};
 
   // ==============================================================
   // ONGLET PRODUCTION — quantités recommandées, calendrier, valeurs
@@ -1198,6 +1218,10 @@
       photo_obligatoire: !!(cat && cat.photo_obligatoire),
       frequence_controle: (cat && cat.frequence_controle) || 'standard',
       delai_max_jours_sans_controle: (cat && cat.delai_max_jours_sans_controle != null) ? cat.delai_max_jours_sans_controle : null,
+      // Sprint 5 (20/08/2026) — dérogations de seuil d'écart, indépendantes
+      // de regle_active (voir commentaire sur seuilsEcartParCategorie).
+      seuil_ecart_quantite: (seuilsEcartParCategorie[categorieId] && seuilsEcartParCategorie[categorieId].quantite_alerte != null) ? seuilsEcartParCategorie[categorieId].quantite_alerte : null,
+      seuil_ecart_valeur: (seuilsEcartParCategorie[categorieId] && seuilsEcartParCategorie[categorieId].valeur_alerte != null) ? seuilsEcartParCategorie[categorieId].valeur_alerte : null,
     };
     render();
   }
@@ -1252,6 +1276,30 @@
     const idx = categoriesSite.findIndex(c => c.id === e.categorie_id);
     if (idx !== -1) categoriesSite[idx] = data;
 
+    // Sprint 5 (20/08/2026) — réconciliation des seuils d'écart dans
+    // inventaire_seuils, indépendante de regle_active ci-dessus : upsert si
+    // une valeur est réglée, suppression de la ligne si le champ est vidé.
+    // S'appuie sur la contrainte unique (site, categorie_id, cle) posée par
+    // la migration inventaire_seuils_unique_site_categorie_cle.
+    const seuilsAReconcilier = [
+      { cle: 'quantite_alerte', valeur: (e.seuil_ecart_quantite !== '' && e.seuil_ecart_quantite != null) ? e.seuil_ecart_quantite : null },
+      { cle: 'valeur_alerte', valeur: (e.seuil_ecart_valeur !== '' && e.seuil_ecart_valeur != null) ? e.seuil_ecart_valeur : null },
+    ];
+    for (const s of seuilsAReconcilier) {
+      if (s.valeur != null) {
+        const { error: errSeuil } = await nexusClient.from('inventaire_seuils')
+          .upsert({ site: siteId, categorie_id: e.categorie_id, cle: s.cle, valeur: s.valeur }, { onConflict: 'site,categorie_id,cle' });
+        if (errSeuil) console.error('Enregistrement seuil écart catégorie:', errSeuil);
+      } else {
+        const { error: errSeuil } = await nexusClient.from('inventaire_seuils')
+          .delete().eq('site', siteId).eq('categorie_id', e.categorie_id).eq('cle', s.cle);
+        if (errSeuil) console.error('Suppression seuil écart catégorie:', errSeuil);
+      }
+    }
+    if (!seuilsEcartParCategorie[e.categorie_id]) seuilsEcartParCategorie[e.categorie_id] = {};
+    seuilsEcartParCategorie[e.categorie_id].quantite_alerte = seuilsAReconcilier[0].valeur;
+    seuilsEcartParCategorie[e.categorie_id].valeur_alerte = seuilsAReconcilier[1].valeur;
+
     categorieReglesOuverte = null; categorieRegleEnEdition = null;
     render();
   }
@@ -1284,6 +1332,7 @@
         </div>
         <div class="categorie-count" style="margin-top:2px;">${libelleReglesCategorie(cat)}</div>
         ${exceptions > 0 ? `<div class="categorie-count" style="margin-top:2px;">${exceptions} produit${exceptions > 1 ? 's' : ''} en exception (non concerné${exceptions > 1 ? 's' : ''} par cette règle)</div>` : ''}
+        ${seuilsEcartParCategorie[cat.id] && (seuilsEcartParCategorie[cat.id].quantite_alerte != null || seuilsEcartParCategorie[cat.id].valeur_alerte != null) ? `<div class="categorie-count" style="margin-top:2px;">⚠️ Seuil d'écart dérogé (${[seuilsEcartParCategorie[cat.id].quantite_alerte != null ? seuilsEcartParCategorie[cat.id].quantite_alerte + ' qté' : null, seuilsEcartParCategorie[cat.id].valeur_alerte != null ? seuilsEcartParCategorie[cat.id].valeur_alerte + ' €' : null].filter(Boolean).join(' / ')})</div>` : ''}
         ${ouvert && categorieRegleEnEdition ? renderFormulaireRegleCategorie() : ''}
       </div>
     `;
@@ -1382,6 +1431,16 @@
           <span>Photo obligatoire au comptage</span>
         </label>
         <div class="note" style="margin:8px 0;">L'emplacement de comptage (dépôt/boutique) reste réglé produit par produit — ce n'est pas une règle de catégorie (onglet 📦 Produits).</div>
+
+        <div class="note" style="margin:12px 0 4px; font-weight:600; color:var(--text);">Seuils d'écart (indépendants de la règle de comptage ci-dessus — à partir de quand alerter le manager)</div>
+        <div class="regle-champ-row">
+          <span>⚠️ Seuil d'écart — quantité</span>
+          <input type="number" min="0" step="1" class="mouv-qte" id="catRegleSeuilEcartQte" placeholder="Défaut site (${parametresInventaire.quantityAlertThreshold ?? 1})" value="${e.seuil_ecart_quantite != null ? e.seuil_ecart_quantite : ''}" style="width:74px; flex:none;">
+        </div>
+        <div class="regle-champ-row">
+          <span>💶 Seuil d'écart — valeur (€)</span>
+          <input type="number" min="0" step="0.01" class="mouv-qte" id="catRegleSeuilEcartValeur" placeholder="${parametresInventaire.valueAlertThreshold != null ? 'Défaut site (' + parametresInventaire.valueAlertThreshold + ')' : 'Aucun défaut site'}" value="${e.seuil_ecart_valeur != null ? e.seuil_ecart_valeur : ''}" style="width:74px; flex:none;">
+        </div>
 
         <button class="btn-primary" id="btnEnregistrerRegleCategorie" style="margin-top:0;">Enregistrer pour toute la catégorie</button>
         <button class="btn-text" id="btnAnnulerRegleCategorie">Annuler</button>
@@ -2169,6 +2228,17 @@
     });
     const catProfilPhotoObligatoireEl = document.getElementById('catProfilPhotoObligatoire');
     if (catProfilPhotoObligatoireEl) catProfilPhotoObligatoireEl.addEventListener('change', (e) => { categorieRegleEnEdition.photo_obligatoire = e.target.checked; });
+    // Sprint 5 (20/08/2026) — seuils d'écart, voir enregistrerRegleCategorie.
+    const catRegleSeuilEcartQteEl = document.getElementById('catRegleSeuilEcartQte');
+    if (catRegleSeuilEcartQteEl) catRegleSeuilEcartQteEl.addEventListener('change', (e) => {
+      const v = parseFloat(e.target.value);
+      categorieRegleEnEdition.seuil_ecart_quantite = (e.target.value === '' || isNaN(v) || v < 0) ? null : v;
+    });
+    const catRegleSeuilEcartValeurEl = document.getElementById('catRegleSeuilEcartValeur');
+    if (catRegleSeuilEcartValeurEl) catRegleSeuilEcartValeurEl.addEventListener('change', (e) => {
+      const v = parseFloat(e.target.value);
+      categorieRegleEnEdition.seuil_ecart_valeur = (e.target.value === '' || isNaN(v) || v < 0) ? null : v;
+    });
     const btnEnregistrerRegleCategorie = document.getElementById('btnEnregistrerRegleCategorie');
     if (btnEnregistrerRegleCategorie) btnEnregistrerRegleCategorie.addEventListener('click', enregistrerRegleCategorie);
     const btnAnnulerRegleCategorie = document.getElementById('btnAnnulerRegleCategorie');
@@ -2280,10 +2350,11 @@
     if (!(await NexusForfait.nexusRequireProfessional('NEXUS-Parametres-Inventaire-v1.html', siteId))) return;
     document.getElementById('titre').textContent = 'Paramètres Inventaire';
 
-    [produitsInventaire, zonesSite, categoriesSite, employesSite, parametresInventaire, reglesProduitMap, modesAveugleActifs, jaugeageActif, produitsProduction, reglesProductionMap, calendrierSite, valeursSpecialesProduction] = await Promise.all([
+    [produitsInventaire, zonesSite, categoriesSite, employesSite, parametresInventaire, reglesProduitMap, modesAveugleActifs, jaugeageActif, produitsProduction, reglesProductionMap, calendrierSite, valeursSpecialesProduction, seuilsEcartParCategorie] = await Promise.all([
       chargerProduitsInventaire(siteId), chargerZonesSite(siteId), chargerCategoriesSite(siteId), chargerEmployesSite(siteId),
       chargerParametresInventaire(siteId), chargerReglesProduit(siteId), chargerModesAveugleActifs(siteId), chargerModeJaugeageActif(siteId),
       chargerProduitsProduction(siteId), chargerReglesProduction(siteId), chargerCalendrierSite(siteId), chargerValeursSpecialesProduction(siteId),
+      chargerSeuilsEcartCategorie(siteId),
     ]);
     render();
   });

@@ -129,6 +129,25 @@
     return resultat;
   }
 
+  // ============================================================
+  // Sprint 5 "Seuils d'écart par catégorie" (20/08/2026, demande de
+  // Frédéric — "éventuellement seuils d'écart" dans sa liste de réglages
+  // par catégorie). Cascade à 2 niveaux, plus simple que
+  // regleEffectiveProduit ci-dessus car inventaire_seuils n'a pas de
+  // niveau "exception produit" — seulement catégorie ou défaut du site :
+  //   1. inventaire_seuils de la catégorie du produit, SI la clé y est
+  //      réglée (une catégorie peut régler quantite_alerte sans régler
+  //      valeur_alerte, et inversement — résolution par clé, pas par ligne
+  //      entière).
+  //   2. Sinon le défaut du site (station_config.parametres_inventaire.
+  //      quantityAlertThreshold / .valueAlertThreshold, déjà existant).
+  // ============================================================
+  function seuilEcartEffectif(cle, categorieId, seuilsParCategorie, defautSite) {
+    const parCategorie = categorieId && seuilsParCategorie ? seuilsParCategorie[categorieId] : null;
+    const overrideCategorie = parCategorie && parCategorie[cle] != null ? parCategorie[cle] : null;
+    return overrideCategorie != null ? overrideCategorie : defautSite;
+  }
+
   // Hash déterministe simple (djb2) d'une chaîne — sert uniquement à graine
   // un PRNG, jamais de la cryptographie. Toujours le même résultat pour la
   // même chaîne, sur n'importe quelle machine (critère de recette INV2-04 :
@@ -751,7 +770,7 @@
   global.NexusInventaireMoteur = {
     FAMILLES_CONTROLE, DEFAUT_DELAI_MAX_JOURS_PAR_FAMILLE,
     libelleRaisonSelection, joursEntreDates, delaiMaxJours, produitEligibleQuart,
-    regleEffectiveProduit, construireReglesEffectivesParProduit,
+    regleEffectiveProduit, construireReglesEffectivesParProduit, seuilEcartEffectif,
     hashDeterministe, prngDeterministe, tirerSurprisesDeterministe,
     construirePlanComptage, libelleTotalProduit,
     qualiteRapprochementProduit, libelleQualiteRapprochement, couverturePhysique,

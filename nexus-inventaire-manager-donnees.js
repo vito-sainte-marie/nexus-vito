@@ -126,6 +126,30 @@
     return data || [];
   }
 
+  // Seuils d'écart par catégorie (20/08/2026, Sprint 5 "Seuils d'écart par
+  // catégorie", demande de Frédéric — "éventuellement seuils d'écart" dans
+  // sa liste de réglages par catégorie). `inventaire_seuils` existait déjà
+  // en base (categorie_id, cle, valeur) mais n'était lue nulle part —
+  // vocabulaire de `cle` fixé ici pour la première fois : 'quantite_alerte'
+  // (miroir de station_config.parametres_inventaire.quantityAlertThreshold)
+  // et 'valeur_alerte' (miroir de .valueAlertThreshold), les deux seuls
+  // seuils déjà consommés par la vue par exception du manager
+  // (depasseSeuilException) — aucun autre seuil inventé sans consommateur
+  // réel (Article 5). Retourne une map categorie_id -> { quantite_alerte,
+  // valeur_alerte } (clés absentes si non réglées pour cette catégorie —
+  // jamais un 0 fabriqué).
+  async function chargerSeuilsEcartCategorie(client, site) {
+    const { data, error } = await client.from('inventaire_seuils').select('categorie_id, cle, valeur')
+      .eq('site', site).not('categorie_id', 'is', null);
+    if (error) { console.error('Chargement seuils écart catégorie:', error); return {}; }
+    const map = {};
+    (data || []).forEach(r => {
+      if (!map[r.categorie_id]) map[r.categorie_id] = {};
+      map[r.categorie_id][r.cle] = Number(r.valeur);
+    });
+    return map;
+  }
+
   async function chargerDecisionsQuart(client, quartId) {
     const { data, error } = await client.from('inventaire_alertes')
       .select('*, inventaire_zone_produit(designation)').eq('quart_id', quartId).eq('statut', 'resolue')
@@ -249,6 +273,6 @@
     chargerEmployesSite, chargerModesAveugleActifs, chargerModeJaugeageActif,
     chargerHistoriqueEcartsRecents, chargerCatalogueProduitsPourVentes,
     chargerCategoriesProduitsParId, chargerComptageActuel, chargerImpactCorrection,
-    chargerRapprochementsQuart,
+    chargerRapprochementsQuart, chargerSeuilsEcartCategorie,
   };
 })(typeof window !== 'undefined' ? window : globalThis);
