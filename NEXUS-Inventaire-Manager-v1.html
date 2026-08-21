@@ -2501,8 +2501,37 @@
     rapprochement_provisoire: 'Rapprochement Decenium démarré, mais pas encore assez de lignes validées "fiable" pour un contrôle complet.',
     controle_fiable: 'Chaîne complète : terrain, mouvements et rapprochement Decenium sont exploitables.',
   };
-  function renderEtatConfiance(maturite) {
+  // Juste après un cutover (21/08/2026, demande explicite de Frédéric) :
+  // l'écran doit dire clairement "phase terrain démarrée, historique de
+  // test clôturé, couverture et rapprochement encore à construire" — pas
+  // simplement réutiliser le texte générique "initialisation" qui ne
+  // mentionne pas le cutover. Ne s'affiche QUE si un cutover existe
+  // réellement pour ce site (Article 5 : jamais prétendre un cutover qui
+  // n'a pas eu lieu) ET que le niveau réel est encore 'initialisation' —
+  // dès que la couverture terrain redémarre, l'état générique reprend la
+  // main normalement (progression naturelle vers les niveaux suivants).
+  function renderEtatConfianceCutover(cutover) {
+    const dateFmt = cutover.date_heure
+      ? new Date(cutover.date_heure).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
+      : null;
+    return `
+      <div class="synthese-card" style="margin-bottom:10px;">
+        <div class="synthese-titre">État de confiance</div>
+        <div class="synthese-ligne"><span>Phase</span><span class="synthese-valeur">Phase terrain démarrée</span></div>
+        <div class="param-note" style="padding-top:2px; padding-bottom:8px; line-height:1.7;">
+          ✓ Configuration opérationnelle<br>
+          ✓ Historique de test clôturé${dateFmt ? ` (${dateFmt})` : ''}<br>
+          ○ Couverture physique à construire<br>
+          ○ Rapprochement Decenium à établir
+        </div>
+        <div class="param-note" style="padding-top:0;">Aucun écart réel calculé pour le moment.</div>
+      </div>
+    `;
+  }
+
+  function renderEtatConfiance(maturite, cutover) {
     if (!maturite) return '';
+    if (maturite.niveau === 'initialisation' && cutover) return renderEtatConfianceCutover(cutover);
     return `
       <div class="synthese-card" style="margin-bottom:10px;">
         <div class="synthese-titre">État de confiance</div>
@@ -2548,7 +2577,7 @@
 
   function renderTout(ctx) {
     dernierCtx = ctx;
-    const { alertesOuvertes, sensiblesNonComptesDetail, employesSite, modesAveugleActifs, jaugeageActif, synthese, etat, produitsSensiblesTotal, decisionsQuart, review, bornes, alertesPeriode, decisionsPeriode, couverture7, couverture14, couverture30, qualiteRapprochement, maturiteInventaire } = ctx;
+    const { alertesOuvertes, sensiblesNonComptesDetail, employesSite, modesAveugleActifs, jaugeageActif, synthese, etat, produitsSensiblesTotal, decisionsQuart, review, bornes, alertesPeriode, decisionsPeriode, couverture7, couverture14, couverture30, qualiteRapprochement, maturiteInventaire, cutoverInventaire } = ctx;
     const modesMap = Object.fromEntries(modesAveugleActifs.map(m => [m.employee_id, m]));
 
     // Vue par exception (02/08/2026, section 4 du cahier des charges) :
@@ -2581,7 +2610,7 @@
       : (alertesPeriode || []);
 
     document.getElementById('content').innerHTML = `
-      ${renderEtatConfiance(maturiteInventaire)}
+      ${renderEtatConfiance(maturiteInventaire, cutoverInventaire)}
       ${renderSelecteurPeriode()}
       ${renderCouverturePhysique(couverture7, couverture14, couverture30)}
       ${periodeSelectionnee === 'jour' ? `
@@ -2950,11 +2979,12 @@
     // du jour réellement affiché (dateSelectionnee), pas sur "aujourd'hui" :
     // consulter la couverture d'une date passée reste honnête vis-à-vis de
     // ce qui était réellement observé à ce moment-là.
-    const [couverture7, couverture14, couverture30, signauxMaturite] = await Promise.all([
+    const [couverture7, couverture14, couverture30, signauxMaturite, cutoverInventaire] = await Promise.all([
       NexusInventairePlanDonnees.chargerCouverturePhysique(nexusClient, siteId, dateSelectionnee, 7),
       NexusInventairePlanDonnees.chargerCouverturePhysique(nexusClient, siteId, dateSelectionnee, 14),
       NexusInventairePlanDonnees.chargerCouverturePhysique(nexusClient, siteId, dateSelectionnee, 30),
       chargerSignauxMaturiteInventaire(siteId),
+      NexusInventairePlanDonnees.chargerDernierPointReference(nexusClient, siteId, 'PRODUCTION_START'),
     ]);
     // Bloc "État de confiance" (audit 21/08/2026, §7.1) : synthèse honnête
     // de maturité, calculée uniquement à partir de données déjà chargées
@@ -2979,7 +3009,7 @@
     renderTout({
       alertesOuvertes, sensiblesNonComptesDetail, employesSite, modesAveugleActifs, jaugeageActif, synthese,
       etat, produitsSensiblesTotal: produitsSensibles.length, decisionsQuart, review, bornes, alertesPeriode, decisionsPeriode,
-      importDeceniumFait, couverture7, couverture14, couverture30, qualiteRapprochement, maturiteInventaire,
+      importDeceniumFait, couverture7, couverture14, couverture30, qualiteRapprochement, maturiteInventaire, cutoverInventaire,
     });
     if (periodeSelectionnee === 'jour') await genererRemarquesConseiller(alertesOuvertes, sensiblesNonComptesDetail, modesAveugleActifs, synthese);
   }

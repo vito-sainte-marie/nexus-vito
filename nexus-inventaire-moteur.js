@@ -214,8 +214,20 @@
   // typiquement `${site}|${dateISO}|${quart}`), surprisesRecentesParProduit
   // (Set/array de produit_id tirés en surprise récemment).
   // ------------------------------------------------------------
+  // File de recontrôle priorisée et plafonnée (21/08/2026, demande de
+  // Frédéric après constat réel : sur le site pilote, 96 produits sur 112
+  // avaient une anomalie ouverte dans les 7 derniers jours, faisant
+  // exploser l'aperçu "Prochain inventaire" à 98 produits — "une
+  // accumulation d'anomalies non critiques ne doit jamais rendre le
+  // prochain inventaire interminable"). Choix pragmatique assumé, pas un
+  // calcul scientifique (Article 5) : les anomalies critiques restent
+  // toujours incluses, sans plafond — seules les non critiques sont
+  // réparties dans le temps.
+  const PLAFOND_ANOMALIES_NON_CRITIQUES_PAR_QUART_DEFAUT = 8;
+
   function construirePlanComptage({
     produits, reglesParProduit, dernierControleParProduit, produitsAvecAnomalieRecente,
+    anomaliesDetailParProduit, plafondAnomaliesNonCritiques,
     quart, dateISO, socleCible, surprisesCible, seed, surprisesRecentesParProduit,
   }) {
     const regles = reglesParProduit || {};
@@ -254,13 +266,45 @@
     // (cahier §5.2 étape 3, "OU confiance faible"), jamais un simple sous-cas
     // de coverage_gap — un produit récemment en écart doit être recontrôlé
     // même s'il vient d'être compté et n'est donc pas encore "en retard" par
-    // le seul délai. Toujours inclus, jamais plafonné.
-    analyse.filter(a => a.famille !== 'critique' && a.anomalieRecente).forEach(a => ajouter(a, 'anomalie_recente'));
+    // le seul délai.
+    if (anomaliesDetailParProduit) {
+      // Comportement enrichi (21/08/2026) : la gravité de l'ANOMALIE elle-même
+      // (pas la famille du produit) détermine si elle est plafonnée. Une
+      // anomalie critique reste toujours incluse, illimité — seules les non
+      // critiques sont triées (ancienneté d'abord, puis répétition) et
+      // plafonnées par quart ; celles qui dépassent le plafond ne sont pas
+      // perdues, simplement reportées : elles restent "ouvertes" en base et
+      // seront reconsidérées au prochain appel tant qu'un recontrôle fiable
+      // ne les résout pas.
+      const detail = anomaliesDetailParProduit;
+      const candidats = analyse.filter(a => a.famille !== 'critique' && detail[a.produit.id]);
+      candidats
+        .filter(a => detail[a.produit.id].graviteMax === 'critique')
+        .forEach(a => ajouter(a, 'anomalie_recente'));
+      const plafond = Number.isFinite(plafondAnomaliesNonCritiques)
+        ? plafondAnomaliesNonCritiques : PLAFOND_ANOMALIES_NON_CRITIQUES_PAR_QUART_DEFAUT;
+      candidats
+        .filter(a => detail[a.produit.id].graviteMax !== 'critique')
+        .map(a => {
+          const d = detail[a.produit.id];
+          const anciennete = d.plusAncienneCreeLe ? joursEntreDates(d.plusAncienneCreeLe, dateISO) : 0;
+          return { a, anciennete: anciennete == null ? 0 : anciennete, occurrences: d.occurrences || 1 };
+        })
+        .sort((x, y) => (y.anciennete - x.anciennete) || (y.occurrences - x.occurrences))
+        .slice(0, Math.max(0, plafond))
+        .forEach(({ a }) => ajouter(a, 'anomalie_recente'));
+    } else {
+      // Comportement historique inchangé (aucun détail enrichi fourni) :
+      // toutes les anomalies récentes incluses, illimité.
+      analyse.filter(a => a.famille !== 'critique' && a.anomalieRecente).forEach(a => ajouter(a, 'anomalie_recente'));
+    }
 
-    // 2-7. Non-critiques en retard restants (délai dépassé, sans anomalie
-    // récente déjà traitée ci-dessus) — jamais plafonnés (étape 7).
+    // 2-7. Non-critiques en retard restants (délai dépassé, pas déjà inclus
+    // ci-dessus, qu'ils aient ou non une anomalie associée — une anomalie
+    // reportée par le plafond reste éligible ici si elle est également en
+    // retard au sens du délai) — jamais plafonnés (étape 7).
     analyse
-      .filter(a => a.famille !== 'critique' && a.enRetard && !a.anomalieRecente)
+      .filter(a => a.famille !== 'critique' && a.enRetard && !dejaInclus.has(a.produit.id))
       .sort((a, b) => b.joursDepuis - a.joursDepuis)
       .forEach(a => ajouter(a, 'coverage_gap'));
 
@@ -292,6 +336,46 @@
         surprise: items.filter(i => i.raison_selection === 'surprise').length,
       },
     };
+  }
+
+  // Agrège les alertes ouvertes brutes par produit — gravité maximale
+  // observée, date de la plus ancienne occurrence, nombre d'occurrences —
+  // pour alimenter la file de recontrôle priorisée ci-dessus. Alertes déjà
+  // résolues : à exclure AVANT l'appel (jamais recalculé ici, ce n'est
+  // qu'une agrégation de ce qui est fourni, Article 11).
+  function agregerAnomaliesParProduit(alertes) {
+    const resultat = {};
+    (alertes || []).forEach(a => {
+      if (!a || !a.produit_id) return;
+      const cur = resultat[a.produit_id] || { graviteMax: null, plusAncienneCreeLe: null, occurrences: 0 };
+      cur.occurrences++;
+      if (a.gravite === 'critique') cur.graviteMax = 'critique';
+      else if (!cur.graviteMax) cur.graviteMax = a.gravite || 'attention';
+      if (a.cree_le && (!cur.plusAncienneCreeLe || a.cree_le < cur.plusAncienneCreeLe)) cur.plusAncienneCreeLe = a.cree_le;
+      resultat[a.produit_id] = cur;
+    });
+    return resultat;
+  }
+
+  // Point de référence "PRODUCTION_START" (21/08/2026, demande de Frédéric
+  // suite à l'audit "Chaîne de données") : un contrôle physique antérieur
+  // au cutover ne doit plus alimenter les indicateurs opérationnels
+  // (couverture, sélection du prochain inventaire) — traité comme "jamais
+  // contrôlé" plutôt qu'effacé (Article 5, rien n'est supprimé, seulement
+  // exclu du calcul courant). Le cutover ne fabrique jamais un stock de
+  // référence — uniquement un filtre temporel sur des données déjà réelles.
+  function appliquerCutoverControles(dernierControleParProduit, cutoverDateHeureISO) {
+    const source = dernierControleParProduit || {};
+    if (!cutoverDateHeureISO) return source;
+    const seuil = new Date(cutoverDateHeureISO).getTime();
+    if (!Number.isFinite(seuil)) return source;
+    const resultat = {};
+    Object.keys(source).forEach(produitId => {
+      const dernier = source[produitId];
+      const t = dernier ? new Date(dernier).getTime() : NaN;
+      if (Number.isFinite(t) && t >= seuil) resultat[produitId] = dernier;
+    });
+    return resultat;
   }
 
   // ============================================================
@@ -980,5 +1064,6 @@
     ACTIONS_MOUVEMENT_PAR_PROFIL, actionsMouvementPourProfil,
     evaluerConfigurationInventaire, identifierCategoriesAOptimiser, estimerTempsProchainInventaire,
     evaluerMaturiteInventaire, controleQualiteImportVentes,
+    agregerAnomaliesParProduit, appliquerCutoverControles,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

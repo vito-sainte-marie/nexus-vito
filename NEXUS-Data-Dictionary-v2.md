@@ -2294,3 +2294,56 @@ Le "Rapprochement Decenium : non démarré" observé en Phase 1 (v2.201, `invent
 **Fichiers modifiés** : `nexus-inventaire-moteur.js` (`controleQualiteImportVentes`, exportée) ; `NEXUS-Inventaire-Manager-v1.html` (appel dans `comparerVentesQuart`, résumé HTML étendu).
 
 **Vérification** : `node --check` OK sur les 2 fichiers. Nouveau fichier `test_inventaire_audit_qualite_import_p2_20260821.js` (11/11) : fichier vide, doublon par code-barres, doublon par désignation (sans code-barres), ligne sans clé exploitable ignorée, quantité négative signalée avec sa valeur exacte, quantité nulle/positive jamais signalée, référence inconnue listée nommément et une seule fois même répétée, référence rapprochée jamais dans la liste, libellé de repli explicite si ni désignation ni code-barres. Suite complète Inventaire (10 fichiers) rejouée sans régression. **Non vérifié en conditions réelles** : aucun fichier Decenium réel contenant un doublon ou une quantité négative n'a été testé manuellement sur le pilote — seulement des cas construits à la main ; la vraie validation viendra du premier import réel que Frédéric relancera (qui, au passage, écrira enfin les premières lignes `inventaire_rapprochements`).
+
+---
+
+## v2.203 — Cutover production Inventaire : point de mise en production explicite + file de recontrôle plafonnée (21/08/2026)
+
+**Contexte** : suite à l'audit "vérité d'affichage" (v2.201) et "qualité d'import" (v2.202), Frédéric a signalé que l'aperçu "Prochain inventaire (Matin)" affichait 98 produits sur 112, contredisant l'objectif de faire compter moins les employés. Investigation sur données réelles Supabase (jamais supposées) : la couverture physique de 100% était authentique (vue `view_inventaire_dernier_controle_produit` = vrais comptages uniquement, vérifiée via `pg_get_functiondef`). La vraie cause : 96 à 112 produits portaient une alerte `ecart_ouverture`/`anomalie_repetee` **ouverte**, la règle `anomalie_recente` du moteur les incluant sans plafond, par conception. Élargissement de la requête à l'historique complet (pas seulement la fenêtre glissante de 7 jours, dont la volatilité — 155 puis 101 lignes en quelques minutes — a été identifiée et écartée comme cadre de mesure) : **1113 alertes ouvertes au total**, toutes créées entre le 02/08 et le 20/08/2026 (927 `ecart_ouverture`, 161 `anomalie_repetee`, 25 `cloture_en_retard`) — intégralement issues de la période de tests/dev, aucune donnée live.
+
+**Décision de Frédéric (confirmée explicitement, portée totale = 1113, pas un sous-ensemble)** : ne pas fabriquer de correctif cosmétique, mais (1) clôturer proprement tout l'héritage de test sans supprimer aucune donnée, (2) créer un point de mise en production explicite (`PRODUCTION_START`) filtrant désormais ce qui alimente le moteur opérationnel, en défense en profondeur contre une régression future qui referait remonter les anciennes données, (3) sans jamais fabriquer de certitude physique au moment du cutover (pas de stock zéro ni de stock de référence — la vérité physique démarre avec les premiers vrais comptages), et (4) faire évoluer la règle de recontrôle : les anomalies critiques restent obligatoires et illimitées, les non-critiques sont désormais plafonnées par quart et distribuées par ancienneté/répétition, sans jamais disparaître définitivement (repli naturel sur `coverage_gap` si réellement en retard).
+
+**1. Nouvelle table `inventaire_points_reference`** (migration `inventaire_points_reference_production_start`) :
+```sql
+create table inventaire_points_reference (
+  id uuid primary key default gen_random_uuid(),
+  site text not null,
+  type text not null default 'PRODUCTION_START',
+  date_heure timestamptz not null default now(),
+  motif text,
+  auteur_id uuid,
+  cree_le timestamptz not null default now()
+);
+```
+RLS : SELECT ouvert au site (`site = current_employee_site_id()`), écriture réservée à `manager`/`gerant` — pattern identique à `inventaire_categories`/`inventaire_alertes`/`inventaire_plans_comptage` (vérifié via `pg_policies` avant réplication, Article 11). `get_advisors` (sécurité) : aucun nouvel avertissement.
+
+**2. Cutover réel exécuté sur `vito-sainte-marie`** (une seule transaction SQL, CTE chaînées) :
+- 1 enregistrement `PRODUCTION_START` inséré, motif : « Fin de la phase de test — démarrage officiel du pilote Inventaire. Action scriptée exécutée à la demande explicite de Frédéric Bragance le 21/08/2026 (audit "NEXUS Inventaire Produit — Chaîne de données"). »
+- 1113 lignes `inventaire_alertes` passées de `statut = 'ouverte'` à `'resolue'`, avec `resolution = 'Initialisation production — clôture de la période de tests antérieure au point de mise en production Inventaire.'`, `resolue_le = now()`. **Aucune ligne supprimée** — type d'origine, dates, historique technique intégralement conservés et consultables.
+- 1113 lignes ajoutées à `inventaire_audit_log` (action `resolution_alerte_cutover`), chacune portant `metadata.production_cutover_id` (l'id du `PRODUCTION_START` créé) et `metadata.type_alerte_origine`, permettant de retrouver l'opération globale et de distinguer, pour chaque alerte, sa nature d'origine.
+- Vérifié après coup : `alertes_ouvertes_restantes = 0`, `alertes_resolues_cutover = 1113`, `lignes_audit_log = 1113`.
+- `auteur_id` volontairement laissé `NULL` : 4 employés manager/gérant identifiés sur le site, mais aucune attribution nominale n'a été faite sans confirmation explicite d'identité — l'origine de l'action reste documentée en texte (`motif`/`metadata`), pas usurpée.
+
+**3. Moteur (`nexus-inventaire-moteur.js`)** :
+- `appliquerCutoverControles(dernierControleParProduit, cutoverDateHeureISO)` : retire (sans jamais mettre `null`) toute entrée de contrôle antérieure au cutover — un produit dont le dernier contrôle réel date d'avant le cutover est traité comme "jamais contrôlé", pas comme "contrôlé à une date fausse". Sans cutover fourni, renvoie les données inchangées (rétrocompatible).
+- `agregerAnomaliesParProduit(alertes)` : agrège des lignes d'alertes brutes `{produit_id, gravite, cree_le}` en `{produit_id: {graviteMax, plusAncienneCreeLe, occurrences}}` — l'ancienneté réelle est la date la plus ancienne, pas la plus récente.
+- `construirePlanComptage` étendu (nouveaux paramètres optionnels `anomaliesDetailParProduit`, `plafondAnomaliesNonCritiques`, comportement historique inchangé si absents — Article 11) : les anomalies critiques restent incluses sans plafond ; les non-critiques sont triées par ancienneté puis occurrences et plafonnées (`PLAFOND_ANOMALIES_NON_CRITIQUES_PAR_QUART_DEFAUT = 8`, choix pragmatique documenté, pas une valeur mesurée) ; celles reportées par le plafond restent éligibles via la règle `coverage_gap` si le produit est réellement en retard de contrôle (le filtre est passé de `!a.anomalieRecente` à `!dejaInclus.has(a.produit.id)`) — une anomalie non critique ne disparaît donc jamais de force, elle est seulement différée intelligemment.
+
+**4. Chargeurs (`nexus-inventaire-plan-donnees.js`, `nexus-inventaire-manager-donnees.js`)** :
+- `chargerDernierPointReference(client, site, type)` (nouveau) : dernier point de référence du type donné pour le site, `null` si absent.
+- `chargerIngredientsSelection` : charge désormais le cutover, calcule un seuil unique `seuilAnomalie = max(seuil fenêtre 7 jours, date du cutover)` (un seul `.gte()`, pour ne pas dépendre d'un comportement non documenté de doubles filtres postgrest-js sur la même colonne) ; **bug réel corrigé au passage** : le filtre `.in('statut', ['ouverte','en_cours'])` était absent de la requête d'alertes — des alertes déjà résolues pouvaient donc forcer un recontrôle jusqu'à 7 jours après leur résolution. Construit `anomaliesDetailParProduit` via `agregerAnomaliesParProduit`, applique `appliquerCutoverControles` au dernier contrôle par produit.
+- `chargerCouverturePhysique` : charge le cutover en parallèle et l'applique avant calcul de couverture.
+- `chargerSignauxMaturiteInventaire` : filtre désormais les imports Decenium et rapprochements fiables avec `.gte('importe_le', cutover.date_heure)` quand un cutover existe — empêche un ancien import de test de faire croire à tort que "Decenium est rapproché".
+
+**5. Écran Contrôle Inventaire (manager)** : nouvelle fonction `renderEtatConfianceCutover(cutover)`, affichée quand `maturite.niveau === 'initialisation'` **et** qu'un cutover existe (sinon le texte générique historique reste inchangé — progression naturelle une fois la maturité dépassée) :
+> Phase terrain démarrée — ✓ Configuration opérationnelle · ✓ Historique de test clôturé (date) · ○ Couverture physique à construire · ○ Rapprochement Decenium à établir · Aucun écart réel calculé pour le moment.
+
+Correspond exactement à la formulation demandée par Frédéric — aucune certitude physique fabriquée, seulement l'état réel post-cutover.
+
+**6. Écran Accueil (`NEXUS-Parametres-Inventaire-v1.html`)** : `chargerApercuProchainInventaire` transmet désormais `anomaliesDetailParProduit` à `construirePlanComptage` — c'est ce qui, combiné au cutover (1113 alertes historiques résolues) et au plafond, corrige la cause racine des "98 produits" : la charge future ne pourra plus jamais exploser silencieusement, et repart d'une base réellement vide.
+
+**Fichiers modifiés** : `nexus-inventaire-moteur.js`, `nexus-inventaire-plan-donnees.js`, `nexus-inventaire-manager-donnees.js`, `NEXUS-Inventaire-Manager-v1.html`, `NEXUS-Parametres-Inventaire-v1.html`.
+
+**Vérification** : `node --check` OK sur tous les fichiers modifiés à chaque étape. Nouveau fichier `test_inventaire_cutover_production_20260821.js` (20/20) : `appliquerCutoverControles` (bornes inclusive/exclusive, absence de cutover, mélange avant/après, entrée vide) ; `agregerAnomaliesParProduit` (gravité max, ancienneté = date la plus ancienne, ligne sans produit_id ignorée, liste vide) ; `construirePlanComptage` (comportement historique inchangé sans le nouveau paramètre, critique jamais plafonnée, non-critique plafonnée et triée par ancienneté puis répétition, anomalie reportée récupérée via `coverage_gap` si réellement en retard, plafond par défaut = 8) ; `renderEtatConfiance`/`renderEtatConfianceCutover` (texte générique sans cutover, checklist avec cutover, reprise du texte générique au-delà du niveau initialisation, absence de rendu si maturité absente). Suite complète Inventaire rejouée (13 fichiers, dont ce nouveau fichier) : **aucune régression**.
+
+**Non vérifié en conditions réelles** : aucun comptage ni aucune alerte n'a encore été créé sur le pilote depuis le cutover — la boucle complète post-`PRODUCTION_START` (nouvelle alerte réelle → apparition dans le plan plafonné → recontrôle → disparition de la file) n'a été validée que par des cas construits à la main dans les tests, pas par un cycle réel sur `vito-sainte-marie`. C'est le prochain jalon naturel : observer le premier vrai quart post-cutover.

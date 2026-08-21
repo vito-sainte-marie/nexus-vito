@@ -51,12 +51,42 @@
   // NexusInventaireMoteur.construireReglesEffectivesParProduit). Le moteur
   // de sélection (construirePlanComptage) ne change pas : il continue de
   // recevoir un simple objet par produit, sans savoir d'où il vient.
+  // Dernier point de référence Inventaire (21/08/2026, cutover production —
+  // demande de Frédéric) : simple lecture de inventaire_points_reference,
+  // le plus récent du type demandé pour ce site. `null` si aucun cutover
+  // n'a encore eu lieu sur ce site (comportement historique intégral dans
+  // ce cas — rien ne filtre les données, exactement comme avant ce lot).
+  async function chargerDernierPointReference(client, site, type) {
+    const { data, error } = await client.from('inventaire_points_reference')
+      .select('id, site, type, date_heure, motif')
+      .eq('site', site).eq('type', type || 'PRODUCTION_START')
+      .order('date_heure', { ascending: false }).limit(1).maybeSingle();
+    if (error) { console.error('Chargement point de référence Inventaire:', error); return null; }
+    return data;
+  }
+
   async function chargerIngredientsSelection(client, site, dateISO) {
+    const cutover = await chargerDernierPointReference(client, site, 'PRODUCTION_START');
+    // Anomalies récentes (21/08/2026, cutover) : deux garde-fous indépendants
+    // contre la remontée d'anciennes données de test — (1) seules les
+    // alertes encore ACTIVES comptent (le filtre statut manquait jusqu'ici,
+    // bug réel trouvé en creusant le cutover : une alerte résolue continuait
+    // de forcer un recomptage jusqu'à 7 jours après sa résolution) ; (2) si
+    // un cutover existe, on ignore aussi tout ce qui est antérieur, même
+    // actif — défense en profondeur explicitement demandée par Frédéric
+    // contre un futur changement de code qui referait remonter l'historique
+    // de test par erreur. Les deux bornes (fenêtre 7 jours, cutover) sont
+    // combinées en un seul seuil (le plus récent des deux), jamais deux
+    // filtres empilés sur la même colonne.
+    const seuilFenetre = isoMoinsJours(dateISO, FENETRE_ANOMALIE_RECENTE_JOURS);
+    const seuilAnomalie = (cutover && cutover.date_heure && cutover.date_heure > seuilFenetre)
+      ? cutover.date_heure : seuilFenetre;
     const [{ data: produits, error: e1 }, { data: regles, error: e2 }, { data: derniers, error: e3 }, { data: alertes, error: e4 }, { data: reglesCategorie, error: e5 }] = await Promise.all([
       client.from('inventaire_zone_produit').select('id, actif, categorie_id').eq('site', site).eq('actif', true),
       client.from('inventaire_regles_produit').select('produit_id, frequence_controle, delai_max_jours_sans_controle, quarts_comptage').eq('site', site),
       client.from('view_inventaire_dernier_controle_produit').select('produit_id, dernier_controle_le').eq('site', site),
-      client.from('inventaire_alertes').select('produit_id').eq('site', site).gte('cree_le', isoMoinsJours(dateISO, FENETRE_ANOMALIE_RECENTE_JOURS)),
+      client.from('inventaire_alertes').select('produit_id, gravite, cree_le')
+        .eq('site', site).in('statut', ['ouverte', 'en_cours']).gte('cree_le', seuilAnomalie),
       client.from('inventaire_categories').select('id, regle_active, frequence_controle, delai_max_jours_sans_controle, quarts_comptage').eq('site', site),
     ]);
     if (e1) console.error('Chargement produits (sélection plan):', e1);
@@ -73,11 +103,18 @@
     const reglesParProduit = M
       ? M.construireReglesEffectivesParProduit(produits || [], reglesParProduitId, reglesParCategorieId)
       : reglesParProduitId; // filet de sécurité si le moteur n'est pas chargé — comportement historique (règle produit brute uniquement)
-    const dernierControleParProduit = {};
-    (derniers || []).forEach(d => { dernierControleParProduit[d.produit_id] = d.dernier_controle_le; });
+    const dernierControleBrut = {};
+    (derniers || []).forEach(d => { dernierControleBrut[d.produit_id] = d.dernier_controle_le; });
+    const dernierControleParProduit = M && cutover
+      ? M.appliquerCutoverControles(dernierControleBrut, cutover.date_heure)
+      : dernierControleBrut;
     const produitsAvecAnomalieRecente = Array.from(new Set((alertes || []).map(a => a.produit_id).filter(Boolean)));
+    const anomaliesDetailParProduit = M ? M.agregerAnomaliesParProduit(alertes || []) : {};
 
-    return { produits: produits || [], reglesParProduit, dernierControleParProduit, produitsAvecAnomalieRecente };
+    return {
+      produits: produits || [], reglesParProduit, dernierControleParProduit,
+      produitsAvecAnomalieRecente, anomaliesDetailParProduit, cutover,
+    };
   }
 
   // Produits déjà tirés en surprise récemment (cahier §5.2 étape 6 : éviter
@@ -120,6 +157,7 @@
       reglesParProduit: ingredients.reglesParProduit,
       dernierControleParProduit: ingredients.dernierControleParProduit,
       produitsAvecAnomalieRecente: ingredients.produitsAvecAnomalieRecente,
+      anomaliesDetailParProduit: ingredients.anomaliesDetailParProduit,
       quart, dateISO, socleCible, surprisesCible,
       seed: `${site}|${dateISO}|${quart}`,
       surprisesRecentesParProduit,
@@ -177,17 +215,26 @@
   // dernier contrôle par produit (Article 11). Le calcul lui-même reste
   // dans nexus-inventaire-moteur.js::couverturePhysique — ce chargeur ne
   // fait que réunir les ingrédients.
+  // 21/08/2026 (cutover production) : applique le même garde-fou que
+  // chargerIngredientsSelection — un contrôle antérieur au dernier
+  // PRODUCTION_START du site ne compte plus comme une couverture réelle,
+  // sinon la couverture resterait artificiellement "à 100%" grâce à des
+  // comptages de test qui n'ont plus vocation à représenter le terrain.
   async function chargerCouverturePhysique(client, site, dateISO, fenetreJours) {
     const M = global.NexusInventaireMoteur;
     if (!M) { console.error('NexusInventaireMoteur non chargé — impossible de calculer la couverture.'); return null; }
-    const [{ data: produitsActifs, error: e1 }, { data: derniers, error: e2 }] = await Promise.all([
+    const [{ data: produitsActifs, error: e1 }, { data: derniers, error: e2 }, cutover] = await Promise.all([
       client.from('inventaire_zone_produit').select('id').eq('site', site).eq('actif', true),
       client.from('view_inventaire_dernier_controle_produit').select('produit_id, dernier_controle_le').eq('site', site),
+      chargerDernierPointReference(client, site, 'PRODUCTION_START'),
     ]);
     if (e1) console.error('Chargement produits actifs (couverture):', e1);
     if (e2) console.error('Chargement derniers contrôles (couverture):', e2);
-    const dernierControleParProduit = {};
-    (derniers || []).forEach(d => { dernierControleParProduit[d.produit_id] = d.dernier_controle_le; });
+    const dernierControleBrut = {};
+    (derniers || []).forEach(d => { dernierControleBrut[d.produit_id] = d.dernier_controle_le; });
+    const dernierControleParProduit = cutover
+      ? M.appliquerCutoverControles(dernierControleBrut, cutover.date_heure)
+      : dernierControleBrut;
     return M.couverturePhysique({
       produitsActifs: produitsActifs || [], dernierControleParProduit, dateISO, fenetreJours,
     });
@@ -196,7 +243,7 @@
   global.NexusInventairePlanDonnees = {
     SOCLE_PAR_DEFAUT, SURPRISES_PAR_DEFAUT,
     chargerPlanExistant, chargerOuGenererPlan, marquerItemPlanCompte,
-    chargerCouverturePhysique,
+    chargerCouverturePhysique, chargerDernierPointReference,
     // Exportées le 21/08/2026 pour l'aperçu "Prochain inventaire estimé" de
     // l'écran Paramètres (Accueil) — mêmes requêtes que la génération réelle
     // d'un plan (Article 11 : jamais une deuxième version de cette

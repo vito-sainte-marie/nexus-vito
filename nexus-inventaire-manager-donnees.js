@@ -276,10 +276,27 @@
   // l'écran — sinon changer de période ferait "régresser" un site mature.
   // Le calcul du niveau lui-même reste dans
   // nexus-inventaire-moteur.js::evaluerMaturiteInventaire.
+  // 21/08/2026 (cutover production, défense en profondeur demandée par
+  // Frédéric) : un import/rapprochement Decenium antérieur au dernier
+  // PRODUCTION_START du site ne doit plus faire croire que "Decenium est
+  // rapproché" — sinon un ancien fichier de test importé pendant le pilote
+  // ferait afficher "Base physique en construction" ou mieux dès le
+  // lendemain du cutover, avant même le premier vrai import en production.
+  // Réutilise NexusInventairePlanDonnees.chargerDernierPointReference (déjà
+  // chargé sur cet écran, Article 11 — jamais une deuxième lecture divergente
+  // de inventaire_points_reference).
   async function chargerSignauxMaturiteInventaire(client, site) {
+    const PD = global.NexusInventairePlanDonnees;
+    const cutover = PD ? await PD.chargerDernierPointReference(client, site, 'PRODUCTION_START') : null;
+    let requeteImports = client.from('inventaire_ventes_import').select('id', { count: 'exact', head: true }).eq('site', site);
+    let requeteRapprochements = client.from('inventaire_rapprochements').select('statut_validation, importe_le').eq('site', site).eq('statut_validation', 'fiable');
+    if (cutover && cutover.date_heure) {
+      requeteImports = requeteImports.gte('importe_le', cutover.date_heure);
+      requeteRapprochements = requeteRapprochements.gte('importe_le', cutover.date_heure);
+    }
     const [{ count: nbImports, error: e1 }, { data: rapprochements, error: e2 }] = await Promise.all([
-      client.from('inventaire_ventes_import').select('id', { count: 'exact', head: true }).eq('site', site),
-      client.from('inventaire_rapprochements').select('statut_validation').eq('site', site).eq('statut_validation', 'fiable').limit(1),
+      requeteImports,
+      requeteRapprochements.limit(1),
     ]);
     if (e1) console.error('Chargement imports Decenium (état de confiance):', e1);
     if (e2) console.error('Chargement rapprochements fiables (état de confiance):', e2);
