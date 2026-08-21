@@ -330,6 +330,17 @@
   // fois par (site, date, quart), jamais recalculé au rechargement.
   let planQuartActif = null;
   let produitsPlanIds = new Set();       // produit_id sélectionnés par NEXUS pour ce quart — vérité physique aveugle
+  // Sprint 4 (20/08/2026, demande de Frédéric — "le périmètre d'un quart
+  // d'inventaire doit être figé dès l'ouverture [...] même si le manager
+  // modifie ensuite les paramètres de catégorie") : produit_id -> règle
+  // EFFECTIVE telle qu'elle était au moment de la génération du plan
+  // (inventaire_plan_items.regle_snapshot), utilisée à la place d'une
+  // relecture live pour tout produit déjà retenu dans le plan — voir
+  // chargerProduitsZone. La clé existe (même si sa valeur est null =
+  // "aucune règle à l'époque") pour tout produit d'un plan généré après le
+  // 20/08/2026 ; absente pour un plan plus ancien encore ouvert au moment
+  // du déploiement (transition ponctuelle, se résorbe au quart suivant).
+  let regleSnapshotParProduit = {};
   let planItemIdParProduit = {};         // produit_id -> inventaire_plan_items.id (pour marquerItemPlanCompte)
   let comptagesSaisie = {};      // produit_id -> { compte, justification }
   let mouvementsSaisie = [];     // { produit_id, type_mouvement, quantite, justification }
@@ -885,8 +896,17 @@
     // ne contient pas le jour ISO actuel n'est simplement pas demandée
     // aujourd'hui. jours_rotation NULL = tous les jours = comportement
     // historique inchangé pour toutes les catégories non configurées.
+    //
+    // Sprint 4 (20/08/2026) : un produit déjà retenu dans le plan figé du
+    // quart en cours (produitsPlanIds) n'est JAMAIS reconsidéré par ce
+    // filtre, même si jours_rotation change entre-temps — le périmètre du
+    // quart, une fois ouvert, ne doit plus varier (demande de Frédéric :
+    // "le quart déjà commencé ne change pas"). Sans cette exemption, un
+    // produit déjà planifié pouvait silencieusement disparaître de l'écran
+    // en cours de quart.
     const jourIso = new Date().getDay() === 0 ? 7 : new Date().getDay();
     let liste = (data || []).filter(p => {
+      if (produitsPlanIds.has(p.id)) return true;
       const jours = p.inventaire_categories ? p.inventaire_categories.jours_rotation : null;
       return !jours || jours.includes(jourIso);
     });
@@ -915,6 +935,20 @@
         regles.forEach(r => { reglesParProduit[r.produit_id] = r; });
         const M = typeof NexusInventaireMoteur !== 'undefined' ? NexusInventaireMoteur : null;
         liste = liste.filter(p => {
+          // Sprint 4 (20/08/2026) : un produit déjà retenu dans le plan
+          // figé garde la règle qu'il avait à la génération du plan
+          // (regleSnapshotParProduit) — jamais recalculée en cours de
+          // quart, et jamais reconsidéré/exclu par ce filtre (même
+          // principe que le filtre jours_rotation ci-dessus). La clé
+          // existe pour tout plan généré depuis le 20/08/2026 (voir
+          // chargerEtAppliquerPlanQuart) ; pour un plan plus ancien encore
+          // ouvert, on retombe sur la règle live le temps de ce seul quart
+          // de transition.
+          if (produitsPlanIds.has(p.id) && p.id in regleSnapshotParProduit) {
+            const regleFigee = regleSnapshotParProduit[p.id];
+            if (regleFigee && regleFigee.profil) profilParProduit[p.id] = regleFigee.profil;
+            return true;
+          }
           const cat = p.inventaire_categories;
           const regleCategorie = (cat && cat.regle_active) ? cat : null;
           const regle = M ? M.regleEffectiveProduit(reglesParProduit[p.id], regleCategorie) : reglesParProduit[p.id];
@@ -1059,7 +1093,7 @@
     // dans des tests Node/vm sans DOM ni `window` global (voir test_inventaire_*),
     // une référence nue lèverait un ReferenceError avant même le if.
     const P = typeof NexusInventairePlanDonnees !== 'undefined' ? NexusInventairePlanDonnees : null;
-    if (!P) { console.error('NexusInventairePlanDonnees non chargé — plan de comptage indisponible.'); planQuartActif = null; produitsPlanIds = new Set(); planItemIdParProduit = {}; return; }
+    if (!P) { console.error('NexusInventairePlanDonnees non chargé — plan de comptage indisponible.'); planQuartActif = null; produitsPlanIds = new Set(); planItemIdParProduit = {}; regleSnapshotParProduit = {}; return; }
     const site = employeeCourant.site_id;
     // Options lues à chaque appel plutôt que mises en cache (19/08/2026) :
     // n'a d'effet réel que si aucun plan n'existe encore pour (site, date,
@@ -1071,7 +1105,16 @@
     const items = (planQuartActif && planQuartActif.items) || [];
     produitsPlanIds = new Set(items.map(it => it.produit_id));
     planItemIdParProduit = {};
-    items.forEach(it => { planItemIdParProduit[it.produit_id] = it.id; });
+    regleSnapshotParProduit = {};
+    items.forEach(it => {
+      planItemIdParProduit[it.produit_id] = it.id;
+      // Sprint 4 : 'regle_snapshot' in it (pas juste !== undefined) — un
+      // plan généré avant le 20/08/2026 n'a pas du tout cette colonne dans
+      // sa ligne d'origine si Supabase omettait les colonnes NULL (ce n'est
+      // pas le cas ici, mais on distingue explicitement plutôt que de
+      // supposer), donc on vérifie la présence de la clé elle-même.
+      if ('regle_snapshot' in it) regleSnapshotParProduit[it.produit_id] = it.regle_snapshot;
+    });
   }
 
   // Restreint un catalogue au périmètre choisi par NEXUS pour ce quart. Si

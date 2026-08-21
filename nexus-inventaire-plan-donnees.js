@@ -139,8 +139,18 @@
     }
 
     if (resultat.items.length) {
+      // Sprint 4 (20/08/2026) : regle_snapshot fige la règle EFFECTIVE de
+      // chaque produit (ingredients.reglesParProduit, déjà résolue via la
+      // cascade Site → Catégorie → Produit du Sprint 1) au moment précis de
+      // la génération — jamais recalculée après coup, même si la catégorie
+      // change en cours de quart. null = comportement par défaut (aucune
+      // règle applicable à cet instant), une valeur réelle et significative,
+      // pas une absence de donnée.
       const { error: errItems } = await client.from('inventaire_plan_items').insert(
-        resultat.items.map(it => ({ plan_id: planCree.id, site, produit_id: it.produit_id, raison_selection: it.raison_selection, obligatoire: it.obligatoire, ordre: it.ordre }))
+        resultat.items.map(it => ({
+          plan_id: planCree.id, site, produit_id: it.produit_id, raison_selection: it.raison_selection, obligatoire: it.obligatoire, ordre: it.ordre,
+          regle_snapshot: ingredients.reglesParProduit[it.produit_id] || null,
+        }))
       );
       if (errItems) console.error('Insertion items plan comptage:', errItems);
     }
