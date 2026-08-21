@@ -160,6 +160,7 @@ function extraireFonction(nomFonction) {
     'let reglesProductionMap = {};',
     'let productionRegleOuverte = null;',
     'let productionRegleEnEdition = null;',
+    'let productionAvanceOuvert = false;', // Réorganisation UX (21/08/2026) — repliés par défaut
     extraireFonction('libelleTypeCalendrier'),
     extraireFonction('renderBlocCalendrier'),
     extraireFonction('renderBlocValeursSpeciales'),
@@ -175,6 +176,7 @@ function extraireFonction(nomFonction) {
         valeursSpecialesProduction = env.valeursSpecialesProduction || [];
         produitsProduction = env.produitsProduction || [];
         reglesProductionMap = env.reglesProductionMap || {};
+        productionAvanceOuvert = env.productionAvanceOuvert || false;
       },
       renderBlocCalendrier, renderBlocValeursSpeciales, renderOngletProduction,
     };`,
@@ -229,15 +231,33 @@ function extraireFonction(nomFonction) {
     assert.ok(html.includes('Aucun produit en suivi de production journalière'));
     assert.ok(html.includes('Règles'), 'Doit orienter le manager vers l\'onglet où activer le suivi');
   });
-  testSync('renderOngletProduction : produits présents -> liste des quantités + calendrier + valeurs spéciales, tous rendus', () => {
+  testSync('renderOngletProduction : produits présents -> liste des quantités rendue, calendrier/valeurs repliés par défaut', () => {
+    // Réorganisation UX (21/08/2026, demande de Frédéric — "rends le
+    // pliable et dépliable... ce que le manager ne va pas manipuler tout
+    // le temps") : le calendrier et les valeurs spéciales ne s'affichent
+    // plus tant que le manager n'a pas explicitement déplié le bloc.
     T.setEnv({
       produitsProduction: [{ id: 'p1', designation: 'Baguette' }],
       reglesProductionMap: { p1: { valeur_semaine: 40 } },
       calendrierSite: [{ id: 'c1', date: '2026-12-24', type: 'ferie', libelle: null }],
       valeursSpecialesProduction: [],
+      productionAvanceOuvert: false,
     });
     const html = T.renderOngletProduction();
     assert.ok(html.includes('Baguette') && html.includes('Semaine 40'));
+    assert.ok(html.includes('Calendrier') && html.includes('valeurs spéciales'), 'le libellé du bloc replié doit rester visible');
+    assert.ok(!html.includes('Calendrier vacances'), 'contenu du calendrier non rendu tant que le bloc est replié');
+    assert.ok(!html.includes('2026-12-24'), 'la date ne doit pas fuiter hors du bloc replié');
+  });
+  testSync('renderOngletProduction : bloc "Calendrier & valeurs spéciales" déplié -> calendrier et valeurs spéciales rendus', () => {
+    T.setEnv({
+      produitsProduction: [{ id: 'p1', designation: 'Baguette' }],
+      reglesProductionMap: { p1: { valeur_semaine: 40 } },
+      calendrierSite: [{ id: 'c1', date: '2026-12-24', type: 'ferie', libelle: null }],
+      valeursSpecialesProduction: [],
+      productionAvanceOuvert: true,
+    });
+    const html = T.renderOngletProduction();
     assert.ok(html.includes('Calendrier vacances'));
     assert.ok(html.includes('Valeurs spéciales'));
     assert.ok(html.includes('2026-12-24'));

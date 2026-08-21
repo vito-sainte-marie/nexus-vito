@@ -68,6 +68,11 @@
   .onglet{flex:0 0 auto; padding:9px 13px; border-radius:20px; font-family:var(--mono); font-size:10.5px; font-weight:600; letter-spacing:0.02em; color:var(--text-dim); background:var(--panel-raised); border:1px solid var(--hairline); cursor:pointer; white-space:nowrap;}
   .onglet.active{color:var(--cyan); border-color:rgba(79,195,217,0.4); background:rgba(79,195,217,0.1);}
 
+  /* Réorganisation UX (21/08/2026) : lien de retour vers l'écran d'accueil,
+     présent en haut de chaque onglet secondaire — remplace le besoin de
+     comprendre que la barre d'onglets défile horizontalement. */
+  .retour-accueil{display:inline-block; font-family:var(--mono); font-size:11px; font-weight:600; color:var(--cyan); text-decoration:none; margin-bottom:12px;}
+
   .section-titre{font-family:var(--mono); font-size:11px; text-transform:uppercase; letter-spacing:0.05em; color:var(--text-mid); margin:20px 0 10px;}
   .section-titre:first-child{margin-top:0;}
   .question-titre{font-family:var(--sans); font-size:18px; font-weight:700; line-height:1.3; color:var(--text); margin:4px 0 14px;}
@@ -210,7 +215,7 @@
     <a href="NEXUS-Inventaire-Manager-v1.html" class="menu-btn">☰ Menu</a>
     <div class="eyebrow">NEXUS · Paramètres Inventaire</div>
     <div class="title" id="titre">Chargement…</div>
-    <div class="sub">Produits suivis, parcours de comptage, règles, alertes, traçabilité et simulation — tout ce qui se configure, jamais ce qui se traite au quotidien.</div>
+    <div class="sub">Quoi compter, quand, où et comment — tout ce qui se configure une fois, jamais ce qui se traite au quotidien.</div>
   </div>
   <div class="divider"></div>
   <div class="onglet-row" id="ongletRow"></div>
@@ -232,7 +237,16 @@
   // ------------------------------------------------------------
   let managerCourant = null;
   let siteId = null; // jamais 'vito-sainte-marie' par defaut (de-Vito-isation, 11/08/2026) - toujours ecrase par employee.site_id apres nexusRequireAuth()
-  let ongletActif = 'produits';
+  // Réorganisation UX (21/08/2026, cahier développeur de Frédéric —
+  // "le manager ne paramètre pas une succession de champs techniques ; il
+  // répond à quelques questions métier simples") : 'accueil' devient l'écran
+  // de démarrage, avec des cartes verticales vers chaque question métier
+  // plutôt que la barre d'onglets horizontale comme point d'entrée.
+  let ongletActif = 'accueil';
+  // Onglet "Réglages avancés" (fusion Alertes + Traçabilité, 21/08/2026) :
+  // aucune section ouverte par défaut — le manager ne doit voir ces réglages
+  // rares qu's'il choisit explicitement de les dérouler.
+  let avanceSectionOuverte = null;
 
   // Données partagées entre onglets
   let produitsInventaire = [];   // tous les produits (actifs et inactifs), pour l'onglet Produits
@@ -258,6 +272,16 @@
     // donnees.js::SOCLE_PAR_DEFAUT/SURPRISES_PAR_DEFAUT) ; jamais un 0
     // silencieux qui viderait le plan (Article 5).
     planSocleCible: null, planSurprisesCible: null,
+    // Niveau de surveillance (21/08/2026, cahier UX de Frédéric — "trop
+    // technique pour un réglage courant") : 'standard' masque les seuils
+    // détaillés (valeurs par défaut ci-dessus, déjà actives) ; 'renforce'
+    // applique un préréglage documenté (seuils quantité/valeur divisés par
+    // 2, délai de clôture ramené au palier immédiatement inférieur) sans
+    // écraser les valeurs personnalisées existantes si le manager repasse
+    // ensuite en 'personnalise' ; 'personnalise' affiche exactement les
+    // champs détaillés d'aujourd'hui, comportement inchangé. Champ purement
+    // additif dans le même JSON station_config.parametres_inventaire.
+    niveauSurveillance: 'standard',
   };
   let parametresInventaire = { ...DEFAULTS_PARAMETRES_INVENTAIRE };
 
@@ -591,6 +615,7 @@
     const liste = filtre ? produitsInventaire.filter(p => p.designation.toLowerCase().includes(filtre)) : produitsInventaire;
     const actifs = liste.filter(p => p.actif).length;
     return `
+      <a href="#" class="retour-accueil" data-retour-accueil>← Accueil</a>
       <div class="question-titre">Quels produits souhaitez-vous compter ?</div>
       <div class="section-titre-action-row" style="margin-top:2px;">
         <div class="section-titre">${actifs} actif${actifs > 1 ? 's' : ''} sur ${produitsInventaire.length} au total</div>
@@ -652,21 +677,8 @@
 
   function renderOngletParcours() {
     return `
-      <div class="question-titre">Dans quel ordre souhaitez-vous les compter ?</div>
-
-      <div class="section-titre" style="margin-top:14px;">🎲 Plan de comptage tournant NEXUS</div>
-      <div class="note">Chaque quart, NEXUS sélectionne automatiquement un nombre réduit de produits à compter (au lieu de tout le catalogue) : les références critiques ou en retard de contrôle en priorité, complétées jusqu'au socle ci-dessous, plus un tirage de "surprises" pour éviter la routine — comptage physique à l'aveugle, jamais un chiffre reconstitué. Laissez vide pour garder les valeurs NEXUS par défaut (20 produits socle, 4 surprises).</div>
-      <div class="card" style="margin-bottom:16px; display:flex; gap:16px; flex-wrap:wrap;">
-        <div>
-          <div class="parcours-sub" style="margin-bottom:4px;">Socle de produits par quart</div>
-          <input type="number" min="0" class="mouv-qte" id="inputPlanSocleCible" placeholder="20 (par défaut)" value="${parametresInventaire.planSocleCible != null ? parametresInventaire.planSocleCible : ''}" style="width:120px;">
-        </div>
-        <div>
-          <div class="parcours-sub" style="margin-bottom:4px;">Surprises tirées au sort par quart</div>
-          <input type="number" min="0" class="mouv-qte" id="inputPlanSurprisesCible" placeholder="4 (par défaut)" value="${parametresInventaire.planSurprisesCible != null ? parametresInventaire.planSurprisesCible : ''}" style="width:120px;">
-        </div>
-      </div>
-      <div class="note" style="margin-top:-8px;">Un changement ici ne s'applique qu'aux prochains plans générés (le plan du jour, une fois créé, n'est jamais recalculé en cours de route). La criticité de chaque produit (qui détermine son délai maximum sans contrôle) se règle produit par produit dans l'onglet ⚙️ Règles.</div>
+      <a href="#" class="retour-accueil" data-retour-accueil>← Accueil</a>
+      <div class="question-titre">Où et dans quel ordre souhaitez-vous les compter ?</div>
 
       <div class="section-titre" style="margin-top:14px;">Sens de comptage</div>
       <div class="note">Ordre des zones lors du parcours de comptage terrain.</div>
@@ -676,7 +688,7 @@
       </div>
 
       <div class="section-titre">Ordre des zones</div>
-      <div class="card" style="margin-bottom:16px;">
+      <div class="card">
         ${zonesSite.map((z, i) => `
           <div class="parcours-item">
             <div><div class="parcours-nom">${z.nom}</div><div class="parcours-sub">${z.code === 'piste' ? 'compté par les pompistes' : z.code === 'boutique' ? 'compté par le caissier/la caissière' : z.code}</div></div>
@@ -687,9 +699,42 @@
           </div>
         `).join('')}
       </div>
+      <div class="note" style="margin-top:10px;">L'ordre des catégories et les jours de comptage (inventaire tournant) se règlent désormais dans l'onglet 🗓️ Fréquence — le Parcours ne concerne que le déplacement terrain.</div>
+    `;
+  }
 
-      <div class="section-titre">Ordre des catégories &amp; inventaires tournants</div>
-      <div class="note">Le même ordre sert au parcours d'ouverture et de clôture — pas de distinction pour l'instant. Décochez un jour pour qu'une catégorie ne soit pas demandée à l'employé ce jour-là (inventaire tournant) ; tous les jours cochés = comptée chaque jour, comme aujourd'hui.</div>
+  // ==============================================================
+  // ONGLET FRÉQUENCE — "Quand faut-il les compter ?" (21/08/2026,
+  // réorganisation UX du cahier développeur de Frédéric : "Les jours de
+  // comptage et la logique de plan tournant doivent sortir du Parcours. Ils
+  // répondent à une question distincte : quand cette catégorie doit-elle
+  // être contrôlée ?"). Pur déplacement de bloc — même state
+  // (parametresInventaire.planSocleCible/planSurprisesCible, jours_rotation
+  // sur inventaire_categories), mêmes fonctions (changerSensComptage n'est
+  // PAS ici, elle reste dans Parcours ; toggleJourRotation/deplacerCategorie
+  // restent inchangées, Article 11 — aucune logique dupliquée).
+  // ==============================================================
+  function renderOngletFrequence() {
+    return `
+      <a href="#" class="retour-accueil" data-retour-accueil>← Accueil</a>
+      <div class="question-titre">Quand faut-il compter chaque famille de produits ?</div>
+
+      <div class="section-titre" style="margin-top:14px;">🎲 Plan de comptage tournant NEXUS</div>
+      <div class="note">Chaque quart, NEXUS sélectionne automatiquement un nombre réduit de produits à compter (au lieu de tout le catalogue) : les références critiques ou en retard de contrôle en priorité, complétées jusqu'au nombre cible ci-dessous, plus un tirage de contrôles surprise pour éviter la routine — comptage physique à l'aveugle, jamais un chiffre reconstitué. Laissez vide pour garder les valeurs NEXUS par défaut (20 produits, 4 contrôles surprise).</div>
+      <div class="card" style="margin-bottom:16px; display:flex; gap:16px; flex-wrap:wrap;">
+        <div>
+          <div class="parcours-sub" style="margin-bottom:4px;">Nombre cible de produits par quart</div>
+          <input type="number" min="0" class="mouv-qte" id="inputPlanSocleCible" placeholder="20 (par défaut)" value="${parametresInventaire.planSocleCible != null ? parametresInventaire.planSocleCible : ''}" style="width:120px;">
+        </div>
+        <div>
+          <div class="parcours-sub" style="margin-bottom:4px;">Contrôles surprise supplémentaires</div>
+          <input type="number" min="0" class="mouv-qte" id="inputPlanSurprisesCible" placeholder="4 (par défaut)" value="${parametresInventaire.planSurprisesCible != null ? parametresInventaire.planSurprisesCible : ''}" style="width:120px;">
+        </div>
+      </div>
+      <div class="note" style="margin-top:-8px;">Un changement ici ne s'applique qu'aux prochains plans générés (le plan du jour, une fois créé, n'est jamais recalculé en cours de route). La criticité de chaque produit (qui détermine son délai maximum sans contrôle) et le quart de comptage (matin/soir) se règlent produit par produit ou par catégorie dans l'onglet ⚙️ Règles.</div>
+
+      <div class="section-titre">Ordre des catégories &amp; jours de comptage</div>
+      <div class="note">Décochez un jour pour qu'une catégorie ne soit pas demandée à l'employé ce jour-là (inventaire tournant) ; tous les jours cochés = comptée chaque jour, comme aujourd'hui. Le même ordre sert au parcours d'ouverture et de clôture — pas de distinction pour l'instant.</div>
       <div class="card">
         ${categoriesSite.map((c, i) => {
           const jours = c.jours_rotation || [1, 2, 3, 4, 5, 6, 7];
@@ -761,6 +806,11 @@
   let productionRegleEnEdition = null;
   let calendrierForm = { date: '', type: 'vacances', libelle: '' };
   let valeurSpecialeForm = { produitId: '', date: '', valeur: '', libelle: '' };
+  // Repliés par défaut (21/08/2026, réorganisation UX — "ce que le manager
+  // ne va pas manipuler tout le temps") : le calendrier des jours spéciaux
+  // et les valeurs spéciales par produit se modifient quelques fois par an,
+  // contrairement aux quantités conseillées par produit qui restent visibles.
+  let productionAvanceOuvert = false;
 
   async function chargerReglesProduit(site) {
     const { data, error } = await nexusClient.from('inventaire_regles_produit').select('*').eq('site', site);
@@ -1468,8 +1518,10 @@
       return acc;
     }, {});
     return `
+      <a href="#" class="retour-accueil" data-retour-accueil>← Accueil</a>
+      <div class="question-titre">Comment souhaitez-vous les compter ?</div>
       ${renderBlocReglesCategories()}
-      <div class="question-titre">Exceptions produit</div>
+      <div class="section-titre" style="margin-top:20px;">Exceptions produit</div>
       <div class="ventes-desc" style="margin:6px 2px 12px;">Modifiez uniquement les produits qui ne suivent pas la règle de leur catégorie. Par défaut, un produit hérite de sa catégorie (ou garde son stock d'un quart à l'autre si sa catégorie n'a pas de règle commune).</div>
       <input type="text" class="champ-recherche" id="rechercheRegles" placeholder="🔍 Rechercher un produit suivi…" value="${rechercheReglesTexte}" style="margin-bottom:12px;">
       ${actifs.length === 0 ? '<div class="empty">Aucun produit ne correspond.</div>' : Object.entries(groupes).map(([cat, items]) => `
@@ -1731,6 +1783,7 @@
 
   function renderOngletProduction() {
     return `
+      <a href="#" class="retour-accueil" data-retour-accueil>← Accueil</a>
       <div class="question-titre">Combien préparer, et quand ?</div>
       <div class="ventes-desc" style="margin:6px 2px 12px;">Ces quantités conseillées ne sont proposées à l'employé qu'au Quart 1 (matin) — le Quart 2 hérite automatiquement du reste. Priorité de calcul : valeur spéciale du jour → calendrier vacances/fériés → samedi/dimanche → semaine.</div>
       ${produitsProduction.length === 0 ? `
@@ -1739,8 +1792,16 @@
         <div class="section-titre" style="margin-top:0;">Quantités conseillées par produit</div>
         <div class="card" style="margin-bottom:6px;">${produitsProduction.map(p => renderLigneRegleProduction(p)).join('')}</div>
       `}
-      ${renderBlocCalendrier()}
-      ${renderBlocValeursSpeciales()}
+      <div class="card" style="margin-top:10px; padding:0; overflow:hidden;">
+        <div class="categorie-row" data-toggle-production-avance>
+          <div>
+            <div class="categorie-nom">📅 Calendrier &amp; valeurs spéciales</div>
+            <div class="categorie-count">Jours fériés, vacances, événements ponctuels — modifiés rarement</div>
+          </div>
+          <div class="categorie-etat a-faire">${productionAvanceOuvert ? '▾' : '▸'}</div>
+        </div>
+        ${productionAvanceOuvert ? `<div style="padding:0 14px 14px;">${renderBlocCalendrier()}${renderBlocValeursSpeciales()}</div>` : ''}
+      </div>
     `;
   }
 
@@ -1801,17 +1862,61 @@
   function renderToggleJaugeage(actif) {
     return `<div class="employe-toggle-row"><div><div style="font-size:13px;">Jaugeage carburant</div><div class="employe-role" style="text-transform:none;">Grisé et non requis par défaut, sur les deux quarts</div></div><div class="toggle-switch ${actif ? 'on' : ''}" data-mode="jaugeage" data-actif="${actif ? '1' : '0'}"><div class="toggle-knob"></div></div></div>`;
   }
+  // Niveau de surveillance (21/08/2026, cahier UX de Frédéric — "L'écran
+  // actuel présente directement fréquence, seuil quantité... C'est trop
+  // technique pour un réglage courant"). Les 3 seuils "durs" ci-dessous sont
+  // documentés ici même plutôt que laissés à deviner : Standard = valeurs
+  // NEXUS historiques (celles de DEFAULTS_PARAMETRES_INVENTAIRE, inchangées
+  // depuis toujours) ; Renforcé = préréglage concret et assumé (seuils
+  // quantité/valeur divisés par 2, délai de clôture ramené au palier le
+  // plus bas) — jamais une intention vague. 'Personnalisé' n'applique
+  // aucune valeur : il déplie simplement le formulaire détaillé existant,
+  // comportement strictement identique à avant ce lot.
+  const PALIERS_DELAI_CLOTURE = [15, 30, 45, 60, 90, 120];
+  const PRESET_RENFORCE = { quantityAlertThreshold: 0.5, valueAlertThreshold: 10, closureDelayMinutes: 15 };
+  async function appliquerNiveauSurveillance(niveau) {
+    if (niveau === parametresInventaire.niveauSurveillance) return;
+    if (niveau === 'personnalise') {
+      // Non destructif : ne touche à aucune valeur, révèle juste le détail.
+      parametresInventaire.niveauSurveillance = 'personnalise';
+      render();
+      return;
+    }
+    const cible = niveau === 'renforce'
+      ? { ...PRESET_RENFORCE, niveauSurveillance: 'renforce' }
+      : { quantityAlertThreshold: DEFAULTS_PARAMETRES_INVENTAIRE.quantityAlertThreshold, valueAlertThreshold: DEFAULTS_PARAMETRES_INVENTAIRE.valueAlertThreshold, closureDelayMinutes: DEFAULTS_PARAMETRES_INVENTAIRE.closureDelayMinutes, niveauSurveillance: 'standard' };
+    const libelle = niveau === 'renforce' ? 'Renforcé' : 'Standard NEXUS';
+    if (!confirm(`Passer en niveau « ${libelle} » applique : seuil quantité ${cible.quantityAlertThreshold}, seuil valeur ${cible.valueAlertThreshold != null ? cible.valueAlertThreshold + ' €' : 'non défini'}, délai de clôture ${cible.closureDelayMinutes} min. Vos réglages personnalisés actuels seront remplacés par ce préréglage. Continuer ?`)) {
+      render(); // annulé : remet le <select> sur la valeur réelle actuelle, pas celle juste choisie par le navigateur
+      return;
+    }
+    await sauvegarderParametresInventaire(cible);
+    render();
+  }
   function renderOngletAlertes() {
     const p = parametresInventaire;
     const optionsFrequence = Object.entries(LABELS_FREQUENCE).map(([val, label]) => `<option value="${val}" ${p.reviewFrequency === val ? 'selected' : ''}>${label}</option>`).join('');
+    const niveau = p.niveauSurveillance || 'standard';
     return `
       <div class="question-titre">À partir de quand voulez-vous être alerté ?</div>
-      <div class="section-titre" style="margin-top:14px;">Seuils d'alerte</div>
+
+      <div class="section-titre" style="margin-top:14px;">Niveau de surveillance</div>
+      <div class="card" style="margin-bottom:10px; padding:10px 14px;">
+        <select class="mouv-select" id="selNiveauSurveillance" style="width:100%;">
+          <option value="standard" ${niveau === 'standard' ? 'selected' : ''}>Standard NEXUS (recommandé)</option>
+          <option value="renforce" ${niveau === 'renforce' ? 'selected' : ''}>Renforcé — seuils plus sensibles</option>
+          <option value="personnalise" ${niveau === 'personnalise' ? 'selected' : ''}>Personnalisé — je règle chaque valeur</option>
+        </select>
+        <div class="note" style="margin:8px 0 0;">${niveau === 'personnalise' ? 'Les valeurs détaillées ci-dessous sont modifiables librement.' : niveau === 'renforce' ? `Seuils préréglés : quantité ${p.quantityAlertThreshold}, valeur ${p.valueAlertThreshold != null ? p.valueAlertThreshold + ' €' : '—'}, clôture ${p.closureDelayMinutes} min.` : `Seuils NEXUS par défaut : quantité ${p.quantityAlertThreshold}, valeur ${p.valueAlertThreshold != null ? p.valueAlertThreshold + ' €' : 'non défini'}, clôture ${p.closureDelayMinutes} min.`}</div>
+      </div>
+
+      ${niveau === 'personnalise' ? `
+      <div class="section-titre">Seuils d'alerte</div>
       <div class="card" style="margin-bottom:10px;">
         <div class="param-ligne"><label for="paramFrequence">Fréquence de supervision</label><select class="param-input" id="paramFrequence">${optionsFrequence}</select></div>
         <div class="param-ligne"><label for="paramSeuilQte">Seuil d'écart en quantité</label><input type="number" min="0" step="0.5" class="param-input" id="paramSeuilQte" value="${p.quantityAlertThreshold}"></div>
         <div class="param-ligne"><label for="paramSeuilValeur">Seuil d'écart en valeur (€)</label><input type="number" min="0" step="1" class="param-input" id="paramSeuilValeur" placeholder="Non défini" value="${p.valueAlertThreshold != null ? p.valueAlertThreshold : ''}"></div>
-        <div class="param-ligne"><label for="paramDelaiCloture">Délai maximal de clôture</label><select class="param-input" id="paramDelaiCloture">${[15, 30, 45, 60, 90, 120].map(m => `<option value="${m}" ${p.closureDelayMinutes === m ? 'selected' : ''}>${m} min</option>`).join('')}</select></div>
+        <div class="param-ligne"><label for="paramDelaiCloture">Délai maximal de clôture</label><select class="param-input" id="paramDelaiCloture">${PALIERS_DELAI_CLOTURE.map(m => `<option value="${m}" ${p.closureDelayMinutes === m ? 'selected' : ''}>${m} min</option>`).join('')}</select></div>
         <div class="param-ligne"><label for="paramSeuilDemarque">Seuil de démarque (%)</label><input type="number" min="0" step="0.5" class="param-input" id="paramSeuilDemarque" placeholder="Non défini" value="${p.seuilDemarquePct != null ? p.seuilDemarquePct : ''}"></div>
         <div class="param-ligne"><label for="paramSeuilCasse">Seuil de casse (unités/mois)</label><input type="number" min="0" step="1" class="param-input" id="paramSeuilCasse" placeholder="Non défini" value="${p.seuilCasseUnites != null ? p.seuilCasseUnites : ''}"></div>
         <div class="param-ligne"><label for="paramSeuilPeremption">Alerte péremption (jours avant)</label><input type="number" min="0" step="1" class="param-input" id="paramSeuilPeremption" value="${p.seuilPeremptionJours != null ? p.seuilPeremptionJours : 2}"></div>
@@ -1820,6 +1925,7 @@
         <span class="param-enregistre" id="paramEnregistre">✓ Enregistré</span>
       </div>
       <div class="param-note">Le seuil de démarque et le seuil de casse ne sont pas encore utilisés par un moteur de calcul dédié — ils sont enregistrés ici pour préparer les futures alertes automatiques, sans encore rien déclencher tout seuls (seuls les seuils de quantité/valeur/péremption sont déjà actifs).</div>
+      ` : ''}
 
       <div class="section-titre">Catégories nécessitant une alerte immédiate</div>
       <div class="card" style="margin-bottom:16px;">
@@ -1859,6 +1965,10 @@
   // ONGLET 6 — SIMULATION (relocalisé depuis NEXUS-Inventaire-Manager-v1.html)
   // ==============================================================
   let sectionSimulationChargee = false;
+  // Pliée par défaut (21/08/2026, réorganisation UX) : la comparaison papier
+  // reste disponible en phase pilote mais n'est plus le cœur de l'écran —
+  // "Tester ma configuration" ouvre d'abord sur le verdict de cohérence.
+  let comparaisonPapierOuverte = false;
   let simulationForm = { date: '', quart: 'matin', employeId: '', phase: 'ouverture' };
   let simulationQuart = null;
   let simulationSaisie = {};
@@ -1972,11 +2082,43 @@
       </div>
     `;
   }
+  // "Tester ma configuration" (21/08/2026) — verdict de cohérence RÉEL,
+  // calculé par NexusInventaireMoteur.evaluerConfigurationInventaire sur les
+  // données déjà chargées (Article 11 : rien recalculé ici, uniquement du
+  // rendu). Ce n'est PAS une simulation complète d'un Q1/Q2 en base (ça
+  // resterait un chantier séparé) — honnêteté du champ couvert plutôt que
+  // de faire croire à une vérification plus large qu'elle ne l'est.
+  function renderVerdictConfiguration() {
+    const M = typeof NexusInventaireMoteur !== 'undefined' ? NexusInventaireMoteur : null;
+    if (!M) return '';
+    const { problemes, verdict } = M.evaluerConfigurationInventaire({ produits: produitsInventaire, categories: categoriesSite, produitsProduction, reglesProductionMap });
+    const ok = verdict === 'exploitable';
+    return `
+      <div class="card" style="margin-bottom:16px; padding:14px; border-color:${ok ? 'rgba(52,211,153,0.35)' : 'rgba(245,166,35,0.35)'};">
+        <div style="font-size:15px; font-weight:700; color:${ok ? 'var(--green)' : 'var(--amber)'}; margin-bottom:6px;">${ok ? '✓ Configuration exploitable' : '⚠ À corriger'}</div>
+        <div class="note" style="margin-bottom:${problemes.length ? '10px' : '0'};">Vérifications automatiques sur les produits, catégories et règles de production déjà enregistrés — pas encore une simulation complète d'un quart en base.</div>
+        ${problemes.map(p => `<div class="stat-row"><span class="stat-label" style="color:${p.gravite === 'a_corriger' ? 'var(--amber)' : 'var(--text-mid)'};">${p.gravite === 'a_corriger' ? '⚠️' : 'ℹ️'} ${p.message}</span></div>`).join('')}
+      </div>
+    `;
+  }
   function renderOngletSimulation() {
     const optionsEmployes = employesSite.map(e => `<option value="${e.id}" ${e.id === simulationForm.employeId ? 'selected' : ''}>${e.nom}</option>`).join('');
     return `
-      <div class="question-titre">Comment se compare NEXUS à la feuille papier ?</div>
-      <div class="card" style="margin-bottom:10px; padding:14px; margin-top:14px;">
+      <a href="#" class="retour-accueil" data-retour-accueil>← Accueil</a>
+      <div class="question-titre">Ma configuration est-elle prête à passer en production ?</div>
+      <div class="ventes-desc" style="margin:6px 2px 14px;">NEXUS vérifie ici les incohérences de configuration avant déploiement — sans modifier aucun stock réel.</div>
+
+      ${renderVerdictConfiguration()}
+
+      <div class="categorie-row" data-toggle-comparaison-papier style="background:var(--panel); border:1px solid var(--hairline); border-radius:12px; margin-bottom:${comparaisonPapierOuverte ? '0' : '16px'};">
+        <div>
+          <div class="categorie-nom">📊 Comparaison avec la feuille papier</div>
+          <div class="categorie-count">Optionnel — utile en phase pilote, pas la référence à long terme</div>
+        </div>
+        <div class="categorie-etat a-faire">${comparaisonPapierOuverte ? '▾' : '▸'}</div>
+      </div>
+      ${comparaisonPapierOuverte ? `
+      <div class="card" style="margin-bottom:10px; padding:14px; border-radius:0 0 12px 12px; border-top:none;">
         <div class="ventes-desc" style="margin-bottom:4px; color:var(--amber); font-weight:600;">Mode Simulation — cet inventaire sert à tester NEXUS. La feuille papier reste la référence officielle.</div>
         <div class="ventes-desc" style="margin-bottom:12px;">Saisissez après coup ce qu'un employé a compté sur la feuille papier. Rien ici ne modifie les stocks officiels ni ne génère d'évaluation employé.</div>
         <div class="quart-select-row">
@@ -1996,31 +2138,123 @@
         <div class="section-titre" style="margin-top:18px;">Tableau de validation de la simulation</div>
         <div id="simulationStatsZone">${statsSimulation ? renderStatsSimulation() : '<div class="loading">Chargement…</div>'}</div>
       </div>
+      ` : ''}
     `;
   }
 
   // ==============================================================
   // NAVIGATION PAR ONGLETS + RENDU GÉNÉRAL
   // ==============================================================
+  // ==============================================================
+  // ONGLET RÉGLAGES AVANCÉS (21/08/2026, réorganisation UX) — fusionne
+  // Alertes + Traçabilité, chacune pliée par défaut (avanceSectionOuverte).
+  // Article 11 : aucune des deux fonctions de rendu d'origine
+  // (renderOngletAlertes/renderOngletTracabilite) n'est dupliquée, juste
+  // encapsulée dans un accordéon commun.
+  // ==============================================================
+  function renderOngletAvance() {
+    const sections = [
+      { id: 'alertes', label: '🚨 Alertes', sousTitre: 'Seuils d\'écart, catégories sensibles, comptage à l\'aveugle', rendu: renderOngletAlertes },
+      { id: 'tracabilite', label: '🔄 Traçabilité', sousTitre: 'Lots, retours fournisseurs, échéances', rendu: renderOngletTracabilite },
+    ];
+    return `
+      <a href="#" class="retour-accueil" data-retour-accueil>← Accueil</a>
+      <div class="question-titre">Quels réglages rares dois-je personnaliser ?</div>
+      <div class="ventes-desc" style="margin:6px 2px 14px;">Ces réglages se consultent rarement — repliés par défaut.</div>
+      ${sections.map(s => {
+        const ouvert = avanceSectionOuverte === s.id;
+        return `
+        <div class="card" style="margin-bottom:10px; padding:0; overflow:hidden;">
+          <div class="categorie-row" data-toggle-avance="${s.id}">
+            <div>
+              <div class="categorie-nom">${s.label}</div>
+              <div class="categorie-count">${s.sousTitre}</div>
+            </div>
+            <div class="categorie-etat a-faire">${ouvert ? '▾' : '▸'}</div>
+          </div>
+          ${ouvert ? `<div style="padding:0 14px 14px;">${s.rendu()}</div>` : ''}
+        </div>
+      `; }).join('')}
+    `;
+  }
+
+  // ==============================================================
+  // ÉCRAN D'ACCUEIL "Configurer mon inventaire" (21/08/2026, cahier UX de
+  // Frédéric : "Afficher immédiatement un état de configuration
+  // synthétique... Le but est de montrer au manager qu'il configure un
+  // système cohérent, pas une accumulation de formulaires."). Remplace la
+  // barre d'onglets horizontale comme point d'entrée principal — cartes
+  // verticales, pas de défilement à deviner (INV-UX-01/02). Les stats sont
+  // calculées ici sur les données déjà chargées, jamais un nombre inventé
+  // (Article 5) ; le détail du calcul du verdict vit dans
+  // NexusInventaireMoteur.evaluerConfigurationInventaire (Article 11, même
+  // fonction que l'onglet "Tester ma configuration").
+  // ==============================================================
+  const CARTES_ACCUEIL = [
+    { onglet: 'produits', icone: '📦', titre: 'Produits', sous: 'Choisir ce que la station veut suivre' },
+    { onglet: 'frequence', icone: '🗓️', titre: 'Fréquence', sous: 'Décider quand chaque famille doit être comptée' },
+    { onglet: 'parcours', icone: '📍', titre: 'Parcours', sous: 'Organiser le déplacement terrain' },
+    { onglet: 'regles', icone: '⚙️', titre: 'Règles', sous: 'Définir comment compter par catégorie' },
+    { onglet: 'production', icone: '🥐', titre: 'Production', sous: 'Gérer les produits préparés et mouvements' },
+    { onglet: 'avance', icone: '🧩', titre: 'Réglages avancés', sous: 'Alertes, traçabilité et options rares' },
+  ];
+  function renderOngletAccueil() {
+    const M = typeof NexusInventaireMoteur !== 'undefined' ? NexusInventaireMoteur : null;
+    const actifs = produitsInventaire.filter(p => p.actif);
+    const nbCategories = categoriesSite.filter(c => c.regle_active).length;
+    const nbExceptions = actifs.filter(p => !!reglesProduitMap[p.id]).length;
+    const verdict = M ? M.evaluerConfigurationInventaire({ produits: produitsInventaire, categories: categoriesSite, produitsProduction, reglesProductionMap }) : null;
+    const nbACorriger = verdict ? verdict.problemes.filter(p => p.gravite === 'a_corriger').length : 0;
+    return `
+      <div class="question-titre">Configurer mon inventaire</div>
+      <div class="ventes-desc" style="margin:6px 2px 16px;">NEXUS vous aide à définir quoi compter, quand, où et comment.</div>
+
+      <div class="card" style="margin-bottom:18px; padding:4px 14px;">
+        <div class="stat-row"><span class="stat-label">Produits suivis</span><span class="stat-value">${actifs.length}</span></div>
+        <div class="stat-row"><span class="stat-label">Catégories avec règle commune</span><span class="stat-value">${nbCategories}</span></div>
+        <div class="stat-row"><span class="stat-label">Exceptions produit</span><span class="stat-value">${nbExceptions}</span></div>
+        <div class="stat-row"><span class="stat-label">Configuration</span><span class="stat-value ${nbACorriger === 0 ? 'green' : 'amber'}">${nbACorriger === 0 ? '✓ Exploitable' : `⚠ ${nbACorriger} à corriger`}</span></div>
+      </div>
+
+      ${CARTES_ACCUEIL.map(c => `
+        <div class="card" style="margin-bottom:10px; padding:14px; cursor:pointer; display:flex; align-items:center; gap:12px;" data-carte-accueil="${c.onglet}">
+          <div style="font-size:22px;">${c.icone}</div>
+          <div style="flex:1;">
+            <div style="font-size:14px; font-weight:600;">${c.titre}</div>
+            <div class="categorie-count" style="margin-top:2px;">${c.sous}</div>
+          </div>
+          <div style="color:var(--text-dim);">→</div>
+        </div>
+      `).join('')}
+
+      <button class="btn-primary" data-carte-accueil="simulation" style="margin-top:6px;">🧪 Tester ma configuration</button>
+    `;
+  }
+
   const ONGLETS = [
+    { value: 'accueil', label: '🏠 Accueil' },
     { value: 'produits', label: '📦 Produits' },
-    { value: 'parcours', label: '📋 Parcours' },
+    { value: 'frequence', label: '🗓️ Fréquence' },
+    { value: 'parcours', label: '📍 Parcours' },
     { value: 'regles', label: '⚙️ Règles' },
     { value: 'production', label: '🥐 Production' },
-    { value: 'alertes', label: '🚨 Alertes' },
-    { value: 'tracabilite', label: '🔄 Traçabilité' },
-    { value: 'simulation', label: '📊 Simulation' },
+    { value: 'simulation', label: '🧪 Tester ma config.' },
+    { value: 'avance', label: '🧩 Réglages avancés' },
   ];
+
+  async function ouvrirOngletSimulationSiBesoin() {
+    if (!sectionSimulationChargee) {
+      sectionSimulationChargee = true;
+      if (!simulationForm.date) simulationForm.date = dateISO();
+      statsSimulation = await chargerStatsSimulation();
+    }
+  }
 
   function renderOnglets() {
     document.getElementById('ongletRow').innerHTML = ONGLETS.map(o => `<div class="onglet ${ongletActif === o.value ? 'active' : ''}" data-onglet="${o.value}">${o.label}</div>`).join('');
     document.querySelectorAll('[data-onglet]').forEach(el => el.addEventListener('click', async () => {
       ongletActif = el.dataset.onglet;
-      if (ongletActif === 'simulation' && !sectionSimulationChargee) {
-        sectionSimulationChargee = true;
-        if (!simulationForm.date) simulationForm.date = dateISO();
-        statsSimulation = await chargerStatsSimulation();
-      }
+      if (ongletActif === 'simulation') await ouvrirOngletSimulationSiBesoin();
       render();
     }));
   }
@@ -2028,17 +2262,40 @@
   function render() {
     renderOnglets();
     const content = document.getElementById('content');
-    if (ongletActif === 'produits') content.innerHTML = renderOngletProduits();
+    if (ongletActif === 'accueil') content.innerHTML = renderOngletAccueil();
+    else if (ongletActif === 'produits') content.innerHTML = renderOngletProduits();
+    else if (ongletActif === 'frequence') content.innerHTML = renderOngletFrequence();
     else if (ongletActif === 'parcours') content.innerHTML = renderOngletParcours();
     else if (ongletActif === 'regles') content.innerHTML = renderOngletRegles();
     else if (ongletActif === 'production') content.innerHTML = renderOngletProduction();
-    else if (ongletActif === 'alertes') content.innerHTML = renderOngletAlertes();
-    else if (ongletActif === 'tracabilite') content.innerHTML = renderOngletTracabilite();
     else if (ongletActif === 'simulation') content.innerHTML = renderOngletSimulation();
+    else if (ongletActif === 'avance') content.innerHTML = renderOngletAvance();
     wire();
   }
 
   function wire() {
+    // --- Accueil / navigation générale (21/08/2026, réorganisation UX) ---
+    document.querySelectorAll('[data-carte-accueil]').forEach(el => el.addEventListener('click', async () => {
+      ongletActif = el.dataset.carteAccueil;
+      if (ongletActif === 'simulation') await ouvrirOngletSimulationSiBesoin();
+      render();
+    }));
+    document.querySelectorAll('[data-retour-accueil]').forEach(el => el.addEventListener('click', (ev) => {
+      ev.preventDefault();
+      ongletActif = 'accueil';
+      render();
+    }));
+    document.querySelectorAll('[data-toggle-avance]').forEach(el => el.addEventListener('click', () => {
+      avanceSectionOuverte = avanceSectionOuverte === el.dataset.toggleAvance ? null : el.dataset.toggleAvance;
+      render();
+    }));
+    const toggleComparaisonPapier = document.querySelector('[data-toggle-comparaison-papier]');
+    if (toggleComparaisonPapier) toggleComparaisonPapier.addEventListener('click', () => { comparaisonPapierOuverte = !comparaisonPapierOuverte; render(); });
+    const toggleProductionAvance = document.querySelector('[data-toggle-production-avance]');
+    if (toggleProductionAvance) toggleProductionAvance.addEventListener('click', () => { productionAvanceOuvert = !productionAvanceOuvert; render(); });
+    const selNiveauSurveillance = document.getElementById('selNiveauSurveillance');
+    if (selNiveauSurveillance) selNiveauSurveillance.addEventListener('change', () => appliquerNiveauSurveillance(selNiveauSurveillance.value));
+
     // --- Produits ---
     const btnToggleAjout = document.getElementById('btnToggleAjoutProduit');
     if (btnToggleAjout) btnToggleAjout.addEventListener('click', () => {

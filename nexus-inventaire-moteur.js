@@ -767,6 +767,53 @@
     return types.map(v => infoTypeMouvement(v)).filter(Boolean);
   }
 
+  // "Tester ma configuration" (21/08/2026, cahier UX de Frédéric —
+  // "Vérifier les produits sans emplacement ou sans règle... Afficher un
+  // verdict : Configuration exploitable / À corriger"). Vérifications
+  // RÉELLES sur les données déjà chargées côté écran Paramètres — pas une
+  // simulation complète d'un Q1/Q2 en base (ça resterait à construire
+  // séparément si le besoin se confirme), mais des contrôles de cohérence
+  // concrets et vérifiables, jamais un verdict de façade (Article 5).
+  function evaluerConfigurationInventaire(ctx) {
+    const produits = (ctx && ctx.produits) || [];
+    const categories = (ctx && ctx.categories) || [];
+    const produitsProduction = (ctx && ctx.produitsProduction) || [];
+    const reglesProductionMap = (ctx && ctx.reglesProductionMap) || {};
+    const actifs = produits.filter(p => p.actif);
+    const problemes = [];
+
+    const sansCategorie = actifs.filter(p => !p.categorie_id);
+    if (sansCategorie.length) problemes.push({
+      code: 'produits_sans_categorie', gravite: 'a_corriger', nb: sansCategorie.length,
+      message: `${sansCategorie.length} produit${sansCategorie.length > 1 ? 's' : ''} actif${sansCategorie.length > 1 ? 's' : ''} sans catégorie — n'hérite${sansCategorie.length > 1 ? 'nt' : ''} jamais d'une règle commune.`,
+    });
+
+    const sansEmplacement = actifs.filter(p => !p.zone_id);
+    if (sansEmplacement.length) problemes.push({
+      code: 'produits_sans_emplacement', gravite: 'a_corriger', nb: sansEmplacement.length,
+      message: `${sansEmplacement.length} produit${sansEmplacement.length > 1 ? 's' : ''} actif${sansEmplacement.length > 1 ? 's' : ''} sans emplacement de comptage (dépôt/boutique) — l'employé ne saura pas où le${sansEmplacement.length > 1 ? 's' : ''} compter.`,
+    });
+
+    const idsCategoriesUtilisees = new Set(actifs.map(p => p.categorie_id).filter(Boolean));
+    const categoriesOrphelines = categories.filter(c => !idsCategoriesUtilisees.has(c.id));
+    if (categoriesOrphelines.length) problemes.push({
+      code: 'categories_orphelines', gravite: 'info', nb: categoriesOrphelines.length,
+      message: `${categoriesOrphelines.length} catégorie${categoriesOrphelines.length > 1 ? 's' : ''} configurée${categoriesOrphelines.length > 1 ? 's' : ''} sans aucun produit actif rattaché.`,
+    });
+
+    const productionSansQuantites = produitsProduction.filter(p => {
+      const r = reglesProductionMap[p.id];
+      return !r || (r.valeur_semaine == null && r.valeur_samedi == null && r.valeur_dimanche == null && r.valeur_vacances == null);
+    });
+    if (productionSansQuantites.length) problemes.push({
+      code: 'production_sans_quantites', gravite: 'a_corriger', nb: productionSansQuantites.length,
+      message: `${productionSansQuantites.length} produit${productionSansQuantites.length > 1 ? 's' : ''} en production journalière sans aucune quantité conseillée renseignée — l'employé n'aura aucune recommandation au Quart 1.`,
+    });
+
+    const verdict = problemes.some(p => p.gravite === 'a_corriger') ? 'a_corriger' : 'exploitable';
+    return { problemes, verdict };
+  }
+
   global.NexusInventaireMoteur = {
     FAMILLES_CONTROLE, DEFAUT_DELAI_MAX_JOURS_PAR_FAMILLE,
     libelleRaisonSelection, joursEntreDates, delaiMaxJours, produitEligibleQuart,
@@ -783,5 +830,6 @@
     analyserPreparationVsConseil, analyserEcoulementVsPreparation, analyserJourneeProduction, syntheseAnalysePeriode,
     TYPES_MOUVEMENT, infoTypeMouvement, libelleTypeMouvement, mouvementImpacteStockGlobal,
     ACTIONS_MOUVEMENT_PAR_PROFIL, actionsMouvementPourProfil,
+    evaluerConfigurationInventaire,
   };
 })(typeof window !== 'undefined' ? window : globalThis);
