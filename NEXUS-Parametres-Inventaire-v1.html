@@ -18,6 +18,7 @@
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-auth.js"></script>
+<script src="nexus-header-nav.js"></script>
 <script src="nexus-forfait.js"></script>
 <script src="nexus-desktop.js"></script>
 <script src="nexus-inventaire-moteur.js"></script>
@@ -699,6 +700,13 @@
   let profilProduitOuvert = null;
   let profilEnEdition = null;
   let rechercheReglesTexte = '';
+  // Sprint "Catégorie porte les règles" (20/08/2026, demande de Frédéric —
+  // "règle de catégorie par défaut + exceptions produit") : mêmes variables
+  // d'édition que profilProduitOuvert/profilEnEdition ci-dessus, mais pour
+  // la règle de la CATÉGORIE elle-même (inventaire_categories, colonnes
+  // ajoutées par la migration inventaire_categories_regles_heritees).
+  let categorieReglesOuverte = null;   // id de la catégorie dont le formulaire est déplié
+  let categorieRegleEnEdition = null;  // même forme que profilEnEdition, plus regle_active — jamais comptage_deux_lieux (propriété du produit, pas une règle héritable)
 
   // ==============================================================
   // ONGLET PRODUCTION — quantités recommandées, calendrier, valeurs
@@ -988,7 +996,19 @@
   }
   function renderLigneProfilProduit(p) {
     const regle = reglesProduitMap[p.id];
-    let libelle = libelleReglesProduit(regle);
+    // 20/08/2026 (Sprint "Catégorie porte les règles") : le libellé affiché
+    // doit refléter la règle EFFECTIVE (produit, sinon catégorie héritée),
+    // sinon un produit sans ligne propre continuerait d'afficher "Stock
+    // continu (par défaut)" alors qu'il hérite en réalité d'une règle de
+    // catégorie active — même cascade que partout ailleurs dans NEXUS
+    // (NexusInventaireMoteur.regleEffectiveProduit, jamais réécrite ici).
+    // "personnalise" (pastille verte de la ligne) reste basé sur la ligne
+    // PROPRE du produit uniquement — c'est elle qui distingue une exception
+    // d'un simple héritage.
+    const categorieRegle = p.categorie_id ? categoriesSite.find(c => c.id === p.categorie_id) : null;
+    const regleEffective = NexusInventaireMoteur.regleEffectiveProduit(regle, (categorieRegle && categorieRegle.regle_active) ? categorieRegle : null);
+    let libelle = libelleReglesProduit(regleEffective);
+    if (regleEffective && regleEffective.origineRegle === 'categorie' && categorieRegle) libelle += ` (hérité de ${categorieRegle.nom})`;
     if (p.comptage_deux_lieux) {
       libelle = libelle === 'Stock continu (par défaut)' ? 'Compté en 2 lieux (dépôt + boutique)' : libelle + ' · Compté en 2 lieux (dépôt + boutique)';
     }
@@ -1005,6 +1025,253 @@
       ${ouvert && profilEnEdition ? renderFormulaireProfil() : ''}
     `;
   }
+
+  // ==============================================================
+  // RÈGLES PAR CATÉGORIE (20/08/2026, Sprint 2 — demande de Frédéric :
+  // "règle de catégorie par défaut + exceptions produit", écran "Règles par
+  // catégorie" de sa proposition). S'appuie entièrement sur le Sprint 1
+  // (migration inventaire_categories_regles_heritees, cascade
+  // NexusInventaireMoteur.regleEffectiveProduit) : cet écran ne fait
+  // qu'ÉDITER les colonnes de règle déjà ajoutées à inventaire_categories —
+  // aucune nouvelle table, aucune nouvelle logique de résolution. Le
+  // formulaire réutilise EXACTEMENT les mêmes champs que
+  // renderFormulaireProfil (Article 11 : une seule vision de "qu'est-ce
+  // qu'une règle d'inventaire", que ce soit au niveau produit ou catégorie)
+  // — seul comptage_deux_lieux en est absent : c'est une propriété physique
+  // du produit (inventaire_zone_produit), jamais une règle héritable de
+  // catégorie (voir Data Dictionary v2.193).
+  // ==============================================================
+
+  // Nb de produits actifs de la catégorie qui ont leur PROPRE ligne
+  // inventaire_regles_produit — ce sont les exceptions : une modification
+  // de la règle de catégorie ne les touche jamais (cascade Sprint 1).
+  function produitsCategorie(categorieId) {
+    return produitsInventaire.filter(p => p.actif && p.categorie_id === categorieId);
+  }
+  function compterExceptionsCategorie(categorieId) {
+    return produitsCategorie(categorieId).filter(p => !!reglesProduitMap[p.id]).length;
+  }
+
+  function ouvrirEditionRegleCategorie(categorieId) {
+    if (categorieReglesOuverte === categorieId) { categorieReglesOuverte = null; categorieRegleEnEdition = null; render(); return; }
+    categorieReglesOuverte = categorieId;
+    const cat = categoriesSite.find(c => c.id === categorieId);
+    categorieRegleEnEdition = {
+      categorie_id: categorieId,
+      regle_active: !!(cat && cat.regle_active),
+      production_journaliere: cat ? cat.profil === 'production_journaliere' : false,
+      remise_a_zero_matin: cat ? cat.profil === 'cycle_journalier' : false,
+      duree_max_vente_jours: (cat && cat.duree_max_vente_jours) || null,
+      retour_fournisseur_autorise: !!(cat && cat.action_echeance === 'retour_fournisseur_obligatoire'),
+      quarts_comptage: (cat && cat.quarts_comptage) || null,
+      reapprovisionnable: cat ? cat.reapprovisionnable !== false : true,
+      seuil_minimal: (cat && cat.seuil_minimal) || null,
+      validation_manager_requise: !!(cat && cat.validation_manager_requise),
+      comptage_masque: !!(cat && cat.comptage_masque),
+      controle_aleatoire: !!(cat && cat.controle_aleatoire),
+      photo_obligatoire: !!(cat && cat.photo_obligatoire),
+      frequence_controle: (cat && cat.frequence_controle) || 'standard',
+      delai_max_jours_sans_controle: (cat && cat.delai_max_jours_sans_controle != null) ? cat.delai_max_jours_sans_controle : null,
+    };
+    render();
+  }
+
+  // Annonce d'impact avant validation (demande explicite de Frédéric :
+  // "quand le manager modifie la catégorie, NEXUS doit annoncer l'impact
+  // avant validation — ça évite les mauvaises surprises"). Un seul
+  // confirm() combiné, même philosophie que le reste de NEXUS (jamais une
+  // popup par produit).
+  async function enregistrerRegleCategorie() {
+    const e = categorieRegleEnEdition;
+    const cat = categoriesSite.find(c => c.id === e.categorie_id);
+    const total = produitsCategorie(e.categorie_id).length;
+    const exceptions = compterExceptionsCategorie(e.categorie_id);
+    const impactes = total - exceptions;
+    const messageImpact = e.regle_active
+      ? `Cette modification sera appliquée à ${impactes} produit${impactes > 1 ? 's' : ''} de la catégorie « ${cat ? cat.nom : ''} ».${exceptions > 0 ? `\n${exceptions} produit${exceptions > 1 ? 's' : ''} possède${exceptions > 1 ? 'nt' : ''} déjà une exception et ne ${exceptions > 1 ? 'seront' : 'sera'} pas modifié${exceptions > 1 ? 's' : ''}.` : ''}\n\nConfirmer ?`
+      : `Désactiver la règle commune de « ${cat ? cat.nom : ''} » : les ${impactes} produit${impactes > 1 ? 's' : ''} qui en héritaient repassent au comportement par défaut (stock continu).${exceptions > 0 ? ` ${exceptions} produit${exceptions > 1 ? 's' : ''} en exception ne ${exceptions > 1 ? 'sont' : 'est'} pas concerné${exceptions > 1 ? 's' : ''}.` : ''}\n\nConfirmer ?`;
+    if (!confirm(messageImpact)) return;
+
+    const btn = document.getElementById('btnEnregistrerRegleCategorie');
+    if (btn) { btn.disabled = true; btn.textContent = 'Enregistrement…'; }
+    const profilDerive = calculerProfilDepuisReglage(e);
+    const dureeActive = !e.production_journaliere && !!e.duree_max_vente_jours;
+    const remiseAZeroActive = !e.production_journaliere && e.remise_a_zero_matin;
+    const seuilActif = !e.production_journaliere && e.seuil_minimal;
+    const payload = {
+      regle_active: !!e.regle_active,
+      profil: profilDerive,
+      cycle_frequence: remiseAZeroActive ? 'quotidien' : null,
+      report_veille_autorise: !remiseAZeroActive,
+      duree_max_vente_jours: dureeActive ? e.duree_max_vente_jours : null,
+      action_echeance: dureeActive ? (e.retour_fournisseur_autorise ? 'retour_fournisseur_obligatoire' : 'alerte_manager') : null,
+      mode_agregation_ventes: 'aucun',
+      quarts_comptage: e.quarts_comptage || null,
+      reapprovisionnable: e.reapprovisionnable !== false,
+      validation_manager_requise: !!e.validation_manager_requise,
+      comptage_masque: !!e.comptage_masque,
+      seuil_minimal: seuilActif ? e.seuil_minimal : null,
+      controle_aleatoire: !!e.controle_aleatoire,
+      photo_obligatoire: !!e.photo_obligatoire,
+      frequence_controle: e.frequence_controle || 'standard',
+      delai_max_jours_sans_controle: (e.delai_max_jours_sans_controle !== '' && e.delai_max_jours_sans_controle != null) ? e.delai_max_jours_sans_controle : null,
+    };
+    const { data, error } = await nexusClient.from('inventaire_categories').update(payload).eq('id', e.categorie_id).select().single();
+    if (error) { console.error('Enregistrement règle catégorie:', error); alert('Erreur — réessayez.'); if (btn) { btn.disabled = false; btn.textContent = 'Enregistrer pour toute la catégorie'; } return; }
+    await nexusClient.from('inventaire_audit_log').insert({
+      site: siteId, entite_type: 'inventaire_categories', entite_id: e.categorie_id,
+      action: 'configuration_regle_categorie', nouvelle_valeur: payload, acteur_id: managerCourant.id,
+    });
+    const idx = categoriesSite.findIndex(c => c.id === e.categorie_id);
+    if (idx !== -1) categoriesSite[idx] = data;
+
+    categorieReglesOuverte = null; categorieRegleEnEdition = null;
+    render();
+  }
+
+  // Résumé en langage clair — même logique que libelleReglesProduit, sur les
+  // colonnes de la catégorie plutôt que celles du produit (Article 11 :
+  // libelleReglesProduit accepte déjà n'importe quel objet "règle", peu
+  // importe sa provenance, donc pas de deuxième fonction de libellé).
+  function libelleReglesCategorie(cat) {
+    if (!cat || !cat.regle_active) return 'Pas de règle commune — chaque produit reste indépendant';
+    return libelleReglesProduit(cat);
+  }
+
+  function renderCarteCategorieRegle(cat) {
+    const total = produitsCategorie(cat.id).length;
+    if (!total) return ''; // catégorie sans produit actif : rien à régler ici
+    const exceptions = compterExceptionsCategorie(cat.id);
+    const ouvert = categorieReglesOuverte === cat.id;
+    return `
+      <div class="card" style="margin-bottom:10px; padding:12px 14px;">
+        <div class="categorie-row" data-categorie-regle="${cat.id}" style="padding:0;">
+          <div>
+            <div class="categorie-nom" style="font-size:13.5px; font-weight:600;">${cat.nom}</div>
+            <div class="categorie-count">${total} produit${total > 1 ? 's' : ''}</div>
+          </div>
+          <div class="categorie-etat ${cat.regle_active ? 'en-cours' : 'a-faire'}">${ouvert ? '▾' : '▸'}</div>
+        </div>
+        <div style="margin-top:8px; font-size:12.5px; color:${cat.regle_active ? 'var(--green)' : 'var(--text-dim)'};">
+          ${cat.regle_active ? '☑ Règle commune activée' : '☐ Règle commune désactivée'}
+        </div>
+        <div class="categorie-count" style="margin-top:2px;">${libelleReglesCategorie(cat)}</div>
+        ${exceptions > 0 ? `<div class="categorie-count" style="margin-top:2px;">${exceptions} produit${exceptions > 1 ? 's' : ''} en exception (non concerné${exceptions > 1 ? 's' : ''} par cette règle)</div>` : ''}
+        ${ouvert && categorieRegleEnEdition ? renderFormulaireRegleCategorie() : ''}
+      </div>
+    `;
+  }
+
+  // Formulaire — mêmes champs que renderFormulaireProfil (voir commentaire
+  // en tête de bloc), ids préfixés catRegle*/catProfil* pour ne jamais
+  // entrer en collision avec le formulaire produit si les deux venaient à
+  // exister dans le DOM en même temps.
+  function renderFormulaireRegleCategorie() {
+    const e = categorieRegleEnEdition;
+    const dureeActive = e.duree_max_vente_jours != null && e.duree_max_vente_jours !== '';
+    const comptageValeur = !e.quarts_comptage ? 'deux' : (e.quarts_comptage.includes('matin') ? 'matin' : 'soir');
+    return `
+      <div style="margin-top:10px; padding-top:10px; border-top:1px solid var(--hairline);">
+        <label class="regle-check-row">
+          <input type="checkbox" id="catRegleActive" ${e.regle_active ? 'checked' : ''}>
+          <span><b>Règle commune pour la catégorie</b> — appliquée par défaut à tous les produits sans exception propre</span>
+        </label>
+        <div class="note" style="margin:0 0 10px;">${e.regle_active ? 'Les réglages ci-dessous s\'appliquent à tous les produits de cette catégorie qui n\'ont pas leur propre exception.' : 'Case décochée : les réglages ci-dessous restent enregistrés mais ne s\'appliquent à aucun produit — comportement par défaut inchangé.'}</div>
+
+        <label class="regle-check-row">
+          <input type="checkbox" id="catRegleProductionJournaliere" ${e.production_journaliere ? 'checked' : ''}>
+          <span>🥐 Suivi de production journalière (préparation recommandée le matin, viennoiserie type)</span>
+        </label>
+        ${e.production_journaliere ? `
+          <div class="note" style="margin:0 0 10px;">Les produits qui héritent de cette catégorie apparaissent dans l'onglet <b>🥐 Production</b>. Incompatible avec "Remis à zéro"/"Durée de vente"/"Seuil d'alerte" ci-dessous — masqués tant que cette case est cochée.</div>
+        ` : ''}
+
+        ${!e.production_journaliere ? `
+        <label class="regle-check-row">
+          <input type="checkbox" id="catRegleRemiseAZero" ${e.remise_a_zero_matin ? 'checked' : ''}>
+          <span>🔄 Stock remis à zéro chaque matin</span>
+        </label>
+
+        <div class="regle-champ-row">
+          <span>📅 Durée maximale de vente (jours)</span>
+          <input type="number" min="1" class="mouv-qte" id="catRegleDureeMax" placeholder="Illimitée" value="${e.duree_max_vente_jours || ''}" style="width:74px; flex:none;">
+        </div>
+        ` : ''}
+
+        ${!e.production_journaliere && dureeActive ? `
+          <label class="regle-check-row">
+            <input type="checkbox" id="catRegleRetourFournisseur" ${e.retour_fournisseur_autorise ? 'checked' : ''}>
+            <span>↩️ Retour fournisseur autorisé à l'échéance</span>
+          </label>
+        ` : ''}
+
+        <div class="regle-champ-row" style="flex-direction:column; align-items:stretch;">
+          <span style="margin-bottom:6px;">🕒 Comptage</span>
+          <select class="mouv-select" id="catRegleComptage">
+            <option value="deux" ${comptageValeur === 'deux' ? 'selected' : ''}>Matin et soir</option>
+            <option value="matin" ${comptageValeur === 'matin' ? 'selected' : ''}>Matin seulement</option>
+            <option value="soir" ${comptageValeur === 'soir' ? 'selected' : ''}>Soir seulement</option>
+          </select>
+        </div>
+
+        <label class="regle-check-row">
+          <input type="checkbox" id="catRegleReapprovisionnable" ${e.reapprovisionnable !== false ? 'checked' : ''}>
+          <span>📦 Produits réapprovisionnables en cours de quart</span>
+        </label>
+
+        ${!e.production_journaliere ? `
+        <div class="regle-champ-row">
+          <span>⚠️ Seuil d'alerte (quantité)</span>
+          <input type="number" min="0" class="mouv-qte" id="catRegleSeuilAlerte" placeholder="Aucun" value="${e.seuil_minimal || ''}" style="width:74px; flex:none;">
+        </div>
+        ` : ''}
+
+        <label class="regle-check-row">
+          <input type="checkbox" id="catProfilValidationManager" ${e.validation_manager_requise ? 'checked' : ''}>
+          <span>Validation manager requise avant de compter ces produits</span>
+        </label>
+        <label class="regle-check-row">
+          <input type="checkbox" id="catProfilComptageMasque" ${e.comptage_masque ? 'checked' : ''}>
+          <span>Comptage à l'aveugle (valeur transmise cachée)</span>
+        </label>
+        <div class="regle-champ-row">
+          <span>🎲 Criticité (plan de comptage tournant)</span>
+          <select id="catRegleFrequenceControle" class="mouv-select" style="width:auto;">
+            <option value="critique" ${e.frequence_controle === 'critique' ? 'selected' : ''}>Critique — compté chaque quart</option>
+            <option value="standard" ${e.frequence_controle === 'standard' || !e.frequence_controle ? 'selected' : ''}>Standard — délai 7 jours</option>
+            <option value="faible_rotation" ${e.frequence_controle === 'faible_rotation' ? 'selected' : ''}>Faible rotation — délai 21 jours</option>
+          </select>
+        </div>
+        <div class="regle-champ-row">
+          <span>Délai max sans contrôle (jours, override)</span>
+          <input type="number" min="0" class="mouv-qte" id="catRegleDelaiMaxJours" placeholder="Défaut de la criticité" value="${e.delai_max_jours_sans_controle != null ? e.delai_max_jours_sans_controle : ''}" style="width:74px; flex:none;">
+        </div>
+        <label class="regle-check-row">
+          <input type="checkbox" id="catProfilControleAleatoire" ${e.controle_aleatoire ? 'checked' : ''}>
+          <span>Contrôle aléatoire (peut être tiré au sort par le Conseiller NEXUS)</span>
+        </label>
+        <label class="regle-check-row">
+          <input type="checkbox" id="catProfilPhotoObligatoire" ${e.photo_obligatoire ? 'checked' : ''}>
+          <span>Photo obligatoire au comptage</span>
+        </label>
+        <div class="note" style="margin:8px 0;">L'emplacement de comptage (dépôt/boutique) reste réglé produit par produit — ce n'est pas une règle de catégorie (onglet 📦 Produits).</div>
+
+        <button class="btn-primary" id="btnEnregistrerRegleCategorie" style="margin-top:0;">Enregistrer pour toute la catégorie</button>
+        <button class="btn-text" id="btnAnnulerRegleCategorie">Annuler</button>
+      </div>
+    `;
+  }
+
+  function renderBlocReglesCategories() {
+    const categoriesAvecProduits = categoriesSite.filter(c => produitsCategorie(c.id).length > 0);
+    if (!categoriesAvecProduits.length) return '';
+    return `
+      <div class="question-titre">Règles par catégorie</div>
+      <div class="ventes-desc" style="margin:6px 2px 12px;">Définissez une fois comment compter les produits d'une même famille — chaque produit sans exception propre hérite automatiquement de la règle de sa catégorie.</div>
+      ${categoriesAvecProduits.map(renderCarteCategorieRegle).join('')}
+    `;
+  }
+
   function renderOngletRegles() {
     if (!produitsInventaire.length) return '<div class="loading">Chargement des produits…</div>';
     const filtre = rechercheReglesTexte.trim().toLowerCase();
@@ -1015,8 +1282,9 @@
       return acc;
     }, {});
     return `
-      <div class="question-titre">Comment chaque produit doit-il être géré ?</div>
-      <div class="ventes-desc" style="margin:6px 2px 12px;">Par défaut, un produit garde son stock d'un quart à l'autre — aucun réglage nécessaire. Configurez uniquement les produits avec un fonctionnement particulier : viennoiserie/pain (stock remis à zéro chaque matin), pâtes et biscuits SDD (durée de vente limitée), presse (vendue le jour même), ou tout produit ayant besoin d'un seuil d'alerte.</div>
+      ${renderBlocReglesCategories()}
+      <div class="question-titre">Exceptions produit</div>
+      <div class="ventes-desc" style="margin:6px 2px 12px;">Modifiez uniquement les produits qui ne suivent pas la règle de leur catégorie. Par défaut, un produit hérite de sa catégorie (ou garde son stock d'un quart à l'autre si sa catégorie n'a pas de règle commune).</div>
       <input type="text" class="champ-recherche" id="rechercheRegles" placeholder="🔍 Rechercher un produit suivi…" value="${rechercheReglesTexte}" style="margin-bottom:12px;">
       ${actifs.length === 0 ? '<div class="empty">Aucun produit ne correspond.</div>' : Object.entries(groupes).map(([cat, items]) => `
         <div class="cat-block">
@@ -1724,6 +1992,47 @@
     if (btnEnregistrerProfil) btnEnregistrerProfil.addEventListener('click', enregistrerProfilProduit);
     const btnAnnulerProfil = document.getElementById('btnAnnulerProfil');
     if (btnAnnulerProfil) btnAnnulerProfil.addEventListener('click', () => { profilProduitOuvert = null; profilEnEdition = null; render(); });
+
+    // --- Règles par catégorie (20/08/2026, Sprint 2) — même schéma de
+    // wiring que le formulaire produit ci-dessus, sur categorieRegleEnEdition. ---
+    document.querySelectorAll('[data-categorie-regle]').forEach(el => el.addEventListener('click', () => ouvrirEditionRegleCategorie(el.dataset.categorieRegle)));
+    const catRegleActiveEl = document.getElementById('catRegleActive');
+    if (catRegleActiveEl) catRegleActiveEl.addEventListener('change', (e) => { categorieRegleEnEdition.regle_active = e.target.checked; render(); });
+    const catRegleProductionJournaliereEl = document.getElementById('catRegleProductionJournaliere');
+    if (catRegleProductionJournaliereEl) catRegleProductionJournaliereEl.addEventListener('change', (e) => { categorieRegleEnEdition.production_journaliere = e.target.checked; render(); });
+    const catRegleRemiseAZeroEl = document.getElementById('catRegleRemiseAZero');
+    if (catRegleRemiseAZeroEl) catRegleRemiseAZeroEl.addEventListener('change', (e) => { categorieRegleEnEdition.remise_a_zero_matin = e.target.checked; });
+    const catRegleDureeMaxEl = document.getElementById('catRegleDureeMax');
+    if (catRegleDureeMaxEl) catRegleDureeMaxEl.addEventListener('change', (e) => { categorieRegleEnEdition.duree_max_vente_jours = e.target.value ? parseInt(e.target.value) : null; render(); });
+    const catRegleRetourFournisseurEl = document.getElementById('catRegleRetourFournisseur');
+    if (catRegleRetourFournisseurEl) catRegleRetourFournisseurEl.addEventListener('change', (e) => { categorieRegleEnEdition.retour_fournisseur_autorise = e.target.checked; });
+    const catRegleComptageEl = document.getElementById('catRegleComptage');
+    if (catRegleComptageEl) catRegleComptageEl.addEventListener('change', (e) => {
+      categorieRegleEnEdition.quarts_comptage = e.target.value === 'deux' ? null : [e.target.value];
+    });
+    const catRegleReapprovisionnableEl = document.getElementById('catRegleReapprovisionnable');
+    if (catRegleReapprovisionnableEl) catRegleReapprovisionnableEl.addEventListener('change', (e) => { categorieRegleEnEdition.reapprovisionnable = e.target.checked; });
+    const catRegleSeuilAlerteEl = document.getElementById('catRegleSeuilAlerte');
+    if (catRegleSeuilAlerteEl) catRegleSeuilAlerteEl.addEventListener('change', (e) => { categorieRegleEnEdition.seuil_minimal = e.target.value ? parseFloat(e.target.value) : null; });
+    const catProfilValidationManagerEl = document.getElementById('catProfilValidationManager');
+    if (catProfilValidationManagerEl) catProfilValidationManagerEl.addEventListener('change', (e) => { categorieRegleEnEdition.validation_manager_requise = e.target.checked; });
+    const catProfilComptageMasqueEl = document.getElementById('catProfilComptageMasque');
+    if (catProfilComptageMasqueEl) catProfilComptageMasqueEl.addEventListener('change', (e) => { categorieRegleEnEdition.comptage_masque = e.target.checked; });
+    const catProfilControleAleatoireEl = document.getElementById('catProfilControleAleatoire');
+    if (catProfilControleAleatoireEl) catProfilControleAleatoireEl.addEventListener('change', (e) => { categorieRegleEnEdition.controle_aleatoire = e.target.checked; });
+    const catRegleFrequenceControleEl = document.getElementById('catRegleFrequenceControle');
+    if (catRegleFrequenceControleEl) catRegleFrequenceControleEl.addEventListener('change', (e) => { categorieRegleEnEdition.frequence_controle = e.target.value; });
+    const catRegleDelaiMaxJoursEl = document.getElementById('catRegleDelaiMaxJours');
+    if (catRegleDelaiMaxJoursEl) catRegleDelaiMaxJoursEl.addEventListener('change', (e) => {
+      const v = parseInt(e.target.value, 10);
+      categorieRegleEnEdition.delai_max_jours_sans_controle = (e.target.value === '' || isNaN(v) || v < 0) ? null : v;
+    });
+    const catProfilPhotoObligatoireEl = document.getElementById('catProfilPhotoObligatoire');
+    if (catProfilPhotoObligatoireEl) catProfilPhotoObligatoireEl.addEventListener('change', (e) => { categorieRegleEnEdition.photo_obligatoire = e.target.checked; });
+    const btnEnregistrerRegleCategorie = document.getElementById('btnEnregistrerRegleCategorie');
+    if (btnEnregistrerRegleCategorie) btnEnregistrerRegleCategorie.addEventListener('click', enregistrerRegleCategorie);
+    const btnAnnulerRegleCategorie = document.getElementById('btnAnnulerRegleCategorie');
+    if (btnAnnulerRegleCategorie) btnAnnulerRegleCategorie.addEventListener('click', () => { categorieReglesOuverte = null; categorieRegleEnEdition = null; render(); });
 
     // --- Production (19/08/2026, tâche #518) ---
     document.querySelectorAll('[data-regle-production]').forEach(el => el.addEventListener('click', () => ouvrirEditionRegleProduction(el.dataset.regleProduction)));
