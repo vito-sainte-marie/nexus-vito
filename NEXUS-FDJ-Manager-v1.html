@@ -3762,52 +3762,86 @@
     });
   }
 
-  // Composition PDF du relevé d'un quart — même moteur générique
-  // (nexus-pdf-moteur.js, ConstructeurRapport multi-page, Article 11)
-  // utilisé par tous les rapports NEXUS. Reproduit fidèlement ce que
-  // renderReleveQuart affiche à l'écran : dernière version en synthèse,
-  // historique complet des versions en dessous — "le dossier de preuve du
-  // quart FDJ" (demande de Frédéric, 16/08/2026), jamais une photo de
-  // l'écran mais une composition dédiée.
+  // Composition PDF du relevé d'un quart — 21/08/2026, demande de
+  // Frédéric : "en A4 paysage, une seule feuille à l'impression".
+  // Reconstruit sur ConstructeurRapportUnePage (déjà utilisé en
+  // production par Inventaire/FDJ Analyse/Verify pour leurs synthèses
+  // "toujours 1 page", nexus-pdf-moteur.js — Article 11, un seul
+  // mécanisme "1 page", jamais un second réécrit ici) plutôt que
+  // ConstructeurRapport (pagination libre, utilisé jusqu'ici) : un
+  // relevé à N versions ne peut pas garantir 1 page avec un historique
+  // de diff illimité comme avant. Chaque bloc reçoit ici un budget de
+  // hauteur FIXE ; l'historique des versions est plafonné avec un
+  // renvoi explicite ("+N autres — voir dans l'app") plutôt que de
+  // déborder sur une 2e page ou tronquer silencieusement (Article 5).
+  // Écart assumé et documenté (Data Dictionary) : le détail ligne à
+  // ligne des diffs entre versions (visible à l'écran, renderReleveQuart)
+  // n'apparaît plus dans ce PDF — seul un résumé par version (auteur,
+  // date, motif) y figure ; le diff complet reste consultable dans l'app.
   async function construireReleveClotureQuartPdf(shift, releves) {
     const dernier = releves[releves.length - 1];
-    const premier = releves[0];
     const jeuxListe = jeuxDuSnapshot(dernier);
     const dateLabel = new Date(shift.date + 'T00:00:00').toLocaleDateString('fr-FR');
-    const { COULEUR } = NexusPdfMoteur;
-
-    const c = await NexusPdfMoteur.creerRapport({
-      titre: `NEXUS FDJ — Relevé de clôture — ${shift.date} Quart ${shift.quart}`,
-      sujet: 'Relevé de clôture FDJ — Trace de contrôle',
-      entete: { app: 'NEXUS FDJ · RELEVÉ DE CLÔTURE', sousTitre: `${dateLabel} · Quart ${shift.quart}` },
-    });
-
-    c.titre('Relevé de clôture FDJ');
-    c.sousTitre(`${dateLabel} · Quart ${shift.quart} · ${nomEmploye(shift.employee_id)}`);
-    c.sousTitre(`Identifiant du relevé : ${shift.id}`, { taille: 8.5, couleur: COULEUR.texteDim });
-
-    if (dernier.caractere === 'provisoire') {
-      c.bandeau('Relevé PROVISOIRE — continuité de chaîne à régulariser au moment de ce constat. Les chiffres pourront être recalculés automatiquement (nouvelle version) lorsque le quart manquant sera complété — celui-ci restera conservé.', { couleur: COULEUR.ambre });
-    }
-
+    const { COULEUR, MARGE_1P, ZONES_1P, MM } = NexusPdfMoteur;
+    const ecart = dernier.ecart;
+    const dateCourte = iso => iso ? new Date(iso).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—';
+    const premier = releves[0];
     const heureValidation = premier && premier.signature && premier.signature.date_heure
       ? new Date(premier.signature.date_heure).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
       : '—';
-    c.sectionTitre('IDENTIFICATION');
-    c.ligneCle('Heure de validation (employé)', heureValidation);
-    c.ligneCle('Caractère', libelleCaractereReleve(dernier.caractere), { couleurValeur: dernier.caractere === 'provisoire' ? COULEUR.ambre : COULEUR.vert });
-    c.ligneCle('Statut', labelStatutRelevecloture(dernier.statut));
 
-    c.sectionTitre('STOCK PAR JEU');
-    c.tableau(
-      [
-        { label: 'Jeu', cle: 'nom', largeur: 0.34 },
-        { label: 'Initial', cle: 'initial', largeur: 0.16, align: 'droite' },
-        { label: 'Appro', cle: 'appro', largeur: 0.14, align: 'droite' },
-        { label: 'Final', cle: 'final', largeur: 0.16, align: 'droite' },
-        { label: 'Ventes', cle: 'ventes', largeur: 0.20, align: 'droite' },
+    const p = await NexusPdfMoteur.creerRapportUnePage({
+      titre: `NEXUS FDJ — Relevé de clôture — ${shift.date} Quart ${shift.quart}`,
+      sujet: 'Relevé de clôture FDJ — Trace de contrôle',
+      orientation: 'paysage',
+    });
+
+    const zEntete = p.allouerZone(ZONES_1P.entete);
+    p.entete(zEntete, {
+      app: 'NEXUS FDJ · RELEVÉ DE CLÔTURE',
+      ligne1: `${dateLabel} · Quart ${shift.quart} · ${nomEmploye(shift.employee_id)}`,
+      ligne2: `Identifiant ${shift.id} · Validé le ${heureValidation}`,
+    });
+
+    // Zone allouée seulement si nécessaire — un relevé définitif (cas
+    // normal) rend directement cette hauteur au corps du relevé plutôt
+    // que de laisser un blanc inutile.
+    if (dernier.caractere === 'provisoire') {
+      const zNote = p.allouerZone(MM * 7);
+      p.paragraphe(zNote, {
+        texte: 'Relevé PROVISOIRE — continuité de chaîne à régulariser au moment de ce constat. Recalcul automatique dès que le quart manquant sera complété.',
+        taille: 7.8, interligne: 9.5, couleur: COULEUR.ambre,
+      });
+    }
+
+    const zKpi = p.allouerZone(ZONES_1P.kpi);
+    p.ligneKpi(zKpi, [
+      { label: 'STATUT', valeur: labelStatutRelevecloture(dernier.statut) },
+      { label: 'CARACTÈRE', valeur: libelleCaractereReleve(dernier.caractere), couleurValeur: dernier.caractere === 'provisoire' ? COULEUR.ambre : COULEUR.vert },
+      { label: 'CAISSE ATTENDUE', valeur: fmtEuro(dernier.caisse_attendue), couleurValeur: COULEUR.cyan },
+      { label: 'CAISSE RÉELLE', valeur: fmtEuro(dernier.caisse_reelle) },
+      { label: 'ÉCART', valeur: ecart !== null && ecart !== undefined ? `${ecart > 0 ? '+' : ''}${fmtEuro(ecart)}` : '—', couleurValeur: ecart === null || ecart === undefined ? COULEUR.texte : (ecart === 0 ? COULEUR.vert : COULEUR.ambre) },
+    ]);
+
+    // Le corps prend TOUT l'espace vertical restant jusqu'au pied de page
+    // (calculé, jamais une hauteur devinée) — garantit que la page ne
+    // déborde jamais, que le bandeau provisoire ait été affiché ou non.
+    const hauteurPied = ZONES_1P.piedDePage;
+    const hauteurCorps = Math.max(0, (p.y - MARGE_1P) - hauteurPied);
+    const zCorps = p.allouerZone(hauteurCorps);
+    const { gauche, droite } = p.diviserColonnes(zCorps, { gouttiere: 16, ratioGauche: 0.52 });
+    const [zStock, zSynthese] = p.diviserLignes(gauche, [gauche.hauteur * 0.55, gauche.hauteur * 0.45]);
+
+    p.tableauCompact(zStock, {
+      titre: 'STOCK PAR JEU',
+      colonnes: [
+        { label: 'Jeu', cle: 'nom', largeur: 0.32 },
+        { label: 'Initial', cle: 'initial', largeur: 0.17, align: 'droite' },
+        { label: 'Appro', cle: 'appro', largeur: 0.16, align: 'droite' },
+        { label: 'Final', cle: 'final', largeur: 0.17, align: 'droite' },
+        { label: 'Ventes', cle: 'ventes', largeur: 0.18, align: 'droite' },
       ],
-      jeuxListe.map(j => {
+      lignes: jeuxListe.map(j => {
         const v = (dernier.ventes_par_jeu || {})[j.id] || {};
         return {
           nom: j.nom,
@@ -3817,42 +3851,45 @@
           ventes: v.valeur !== undefined && v.valeur !== null ? fmtEuro(v.valeur) : '—',
         };
       }),
-    );
-
-    c.sectionTitre('SYNTHÈSE CAISSE');
-    c.ligneCle('Ventes grattage', fmtEuro(dernier.ventes_grattage_valeur));
-    c.ligneCle('Lots payés', fmtEuro(dernier.lots_payes_grattage));
-    c.ligneCle('Caisse tirages', fmtEuro(dernier.caisse_tirages));
-    c.ligneCle('Régularisations', fmtEuro(dernier.regularisations));
-    c.ligneCle('Caisse attendue', fmtEuro(dernier.caisse_attendue), { couleurValeur: COULEUR.cyan });
-    c.ligneCle('Caisse réelle', fmtEuro(dernier.caisse_reelle));
-    const ecart = dernier.ecart;
-    c.ligneCle('Écart', ecart !== null && ecart !== undefined ? `${ecart > 0 ? '+' : ''}${fmtEuro(ecart)}` : '—', { couleurValeur: ecart === null || ecart === undefined ? COULEUR.texte : (ecart === 0 ? COULEUR.vert : COULEUR.ambre) });
-    libelleAnomalieChaine(dernier.anomalie_chaine).forEach(l => c.ligneCle(l.label, l.valeur));
-
-    c.sectionTitre(`HISTORIQUE DES VERSIONS (${releves.length})`);
-    releves.forEach((r, i) => {
-      const auteur = r.signature && r.signature.nom ? r.signature.nom : (r.cree_par ? nomEmploye(r.cree_par) : '—');
-      const dateVersion = r.cree_le ? new Date(r.cree_le).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
-      c.paragraphe(`Version ${r.version_num} — ${libelleTypeVersionReleve(r.type_version)} — ${dateVersion} — ${auteur}`, { taille: 9.5, couleur: COULEUR.texte });
-      if (r.motif_regularisation) c.paragraphe(r.motif_regularisation, { taille: 8.5, couleur: COULEUR.texteDim });
-      if (i > 0 && r.diff_vs_precedent) {
-        Object.keys(LABELS_DIFF_RELEVE).forEach(champ => {
-          const v = r.diff_vs_precedent[champ];
-          if (v === undefined) return;
-          if (champ.endsWith('_par_jeu')) {
-            Object.entries(v).forEach(([gameId, chg]) => {
-              c.paragraphe(`  · ${LABELS_DIFF_RELEVE[champ]} — ${nomJeu(gameId)} : ${formatValeurDiffReleve(champ, chg.avant)} → ${formatValeurDiffReleve(champ, chg.apres)}`, { taille: 8.5, couleur: COULEUR.texteDim });
-            });
-          } else {
-            c.paragraphe(`  · ${LABELS_DIFF_RELEVE[champ] || champ} : ${formatValeurDiffReleve(champ, v.avant)} → ${formatValeurDiffReleve(champ, v.apres)}`, { taille: 8.5, couleur: COULEUR.texteDim });
-          }
-        });
-      }
+      max: 10,
+      texteRenvoi: 'voir le détail dans l\'app',
     });
 
-    c.piedDePageToutesPages('NEXUS FDJ · Relevé de clôture — trace de contrôle, jamais un jugement automatique.');
-    const bytes = await NexusPdfMoteur.finaliser(c);
+    const lignesSynthese = [
+      { poste: 'Ventes grattage', montant: fmtEuro(dernier.ventes_grattage_valeur) },
+      { poste: 'Lots payés', montant: fmtEuro(dernier.lots_payes_grattage) },
+      { poste: 'Caisse tirages', montant: fmtEuro(dernier.caisse_tirages) },
+      { poste: 'Régularisations', montant: fmtEuro(dernier.regularisations) },
+      { poste: 'Caisse attendue', montant: fmtEuro(dernier.caisse_attendue) },
+      { poste: 'Caisse réelle', montant: fmtEuro(dernier.caisse_reelle) },
+      { poste: 'Écart', montant: ecart !== null && ecart !== undefined ? `${ecart > 0 ? '+' : ''}${fmtEuro(ecart)}` : '—' },
+      ...libelleAnomalieChaine(dernier.anomalie_chaine).map(l => ({ poste: l.label, montant: l.valeur })),
+    ];
+    p.tableauCompact(zSynthese, {
+      titre: 'SYNTHÈSE CAISSE',
+      colonnes: [
+        { label: 'Poste', cle: 'poste', largeur: 0.62 },
+        { label: 'Montant', cle: 'montant', largeur: 0.38, align: 'droite' },
+      ],
+      lignes: lignesSynthese,
+      max: 12,
+    });
+
+    p.listePoints(droite, {
+      titre: `HISTORIQUE DES VERSIONS (${releves.length})`,
+      points: releves.slice().reverse().map(r => {
+        const auteur = r.signature && r.signature.nom ? r.signature.nom : (r.cree_par ? nomEmploye(r.cree_par) : '—');
+        const base = `V${r.version_num} — ${libelleTypeVersionReleve(r.type_version)} — ${dateCourte(r.cree_le)} — ${auteur}`;
+        return r.motif_regularisation ? `${base} — ${r.motif_regularisation}` : base;
+      }),
+      max: 10,
+      texteRenvoi: 'voir l\'historique complet dans l\'app',
+    });
+
+    const zPied = p.allouerZone(hauteurPied);
+    p.piedDePage(zPied, 'NEXUS FDJ · Relevé de clôture — trace de contrôle, jamais un jugement automatique.', dateLabel);
+
+    const bytes = await NexusPdfMoteur.finaliser(p);
     const nomFichier = `NEXUS-FDJ-Releve-${shift.date}-Q${shift.quart}.pdf`;
     return {
       bytes, nomFichier,

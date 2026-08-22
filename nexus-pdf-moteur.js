@@ -480,14 +480,31 @@
   };
 
   class ConstructeurRapportUnePage {
-    constructor(doc, police, policeGrasse) {
+    // 21/08/2026, demande de Frédéric ("relevé de clôture FDJ en A4
+    // paysage, une seule page à l'impression") — voir gap documenté le
+    // 20/08/2026 (Data Dictionary v2.188) : l'orientation était figée en
+    // constante de MODULE (A4.largeur/A4.hauteur), ce qui aurait forcé à
+    // toucher le rendu des 3 AUTRES modules déjà en production sur ce
+    // constructeur (Inventaire, FDJ Analyse, Verify) pour livrer une
+    // demande scopée à un seul rapport. Au lieu de ça : `orientation`
+    // devient un paramètre D'INSTANCE, jamais lu depuis la constante de
+    // module — `portrait` par défaut (comportement strictement identique
+    // à avant pour tout appelant existant, aucun argument à changer),
+    // `paysage` explicite pour inverser largeur/hauteur de la page. Les
+    // méthodes de dessin de cette classe ne lisent déjà QUE `zone.x`/
+    // `zone.largeur`/`zone.yHaut`/`zone.yBas` (jamais A4 directement) —
+    // seuls les 2 usages ci-dessous devaient donc changer.
+    constructor(doc, police, policeGrasse, { orientation = 'portrait' } = {}) {
       this.doc = doc;
       this.police = police;
       this.policeGrasse = policeGrasse;
-      this.page = doc.addPage([A4.largeur, A4.hauteur]);
+      this.orientation = orientation;
+      this.pageLargeur = orientation === 'paysage' ? A4.hauteur : A4.largeur;
+      this.pageHauteur = orientation === 'paysage' ? A4.largeur : A4.hauteur;
+      this.page = doc.addPage([this.pageLargeur, this.pageHauteur]);
       this.x = MARGE_1P;
-      this.largeur = LARGEUR_UTILE_1P;
-      this.y = A4.hauteur - MARGE_1P;
+      this.largeur = this.pageLargeur - MARGE_1P * 2;
+      this.y = this.pageHauteur - MARGE_1P;
     }
 
     _assainir(texte) {
@@ -818,8 +835,8 @@
     }
   }
 
-  /** Crée un document PDF A4 + polices standard embarquées et un ConstructeurRapportUnePage prêt à l'emploi — voir ConstructeurRapportUnePage pour la philosophie "toujours 1 page". */
-  async function creerRapportUnePage({ titre, auteur = 'NEXUS OS', sujet } = {}) {
+  /** Crée un document PDF A4 + polices standard embarquées et un ConstructeurRapportUnePage prêt à l'emploi — voir ConstructeurRapportUnePage pour la philosophie "toujours 1 page". `orientation` : 'portrait' (défaut, comportement inchangé) ou 'paysage'. */
+  async function creerRapportUnePage({ titre, auteur = 'NEXUS OS', sujet, orientation = 'portrait' } = {}) {
     const doc = await PDFDocument.create();
     if (titre) doc.setTitle(titre);
     doc.setAuthor(auteur);
@@ -828,7 +845,7 @@
     doc.setProducer('NEXUS PDF Moteur (pdf-lib)');
     const police = await doc.embedFont(StandardFonts.Helvetica);
     const policeGrasse = await doc.embedFont(StandardFonts.HelveticaBold);
-    return new ConstructeurRapportUnePage(doc, police, policeGrasse);
+    return new ConstructeurRapportUnePage(doc, police, policeGrasse, { orientation });
   }
 
   /**
