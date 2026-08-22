@@ -304,6 +304,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-auth.js"></script>
+<script src="nexus-header-nav.js"></script>
 <script src="nexus-forfait.js"></script>
 <script src="nexus-desktop.js"></script>
 <script src="nexus-periodes.js"></script>
@@ -370,6 +371,12 @@
     'À surveiller': 'var(--amber)', 'En repli': 'var(--red)', 'À corriger': 'var(--red)',
     'Données insuffisantes': 'var(--text-dim)',
     'Référence certifiée': 'var(--green)',
+    // 'À actualiser' (22/08/2026, fallback temporel carburant, v2.214/
+    // v2.215) : même couleur neutre que "Données insuffisantes" — un état
+    // périmé n'est ni une alerte ni un signal positif, c'est une absence de
+    // preuve fraîche (même discipline que qualiteChaineCarburant côté
+    // Pilotage, jamais confondu avec un vrai problème opérationnel).
+    'À actualiser': 'var(--text-dim)',
   };
   // Seuils Boussole — désormais définis une seule fois dans
   // nexus-boussole-moteur.js (Article 11) et simplement relus ici.
@@ -474,7 +481,14 @@
       NexusBriefDonnees.chargerAlertesInventaireOuvertes(nexusClient, SITE_ACTUEL),
       NexusBriefDonnees.chargerControlesVerifyRestants(nexusClient, SITE_ACTUEL),
       NexusBriefDonnees.chargerMissionsRestantes(nexusClient, SITE_ACTUEL),
-      NexusBriefDonnees.chargerCarburantsBrief(nexusClient, SITE_ACTUEL),
+      // chargerCarburantsBriefAvecFallback (22/08/2026, fallback temporel
+      // "dernier état fiable" — voir NEXUS-Data-Dictionary-v2.md v2.214/
+      // v2.215) : remplace l'appel direct à chargerCarburantsBrief() par une
+      // version qui, si aujourd'hui n'est pas encore complet (jaugeage/
+      // ventes pas encore captés), affiche le dernier jour fiable plutôt
+      // qu'un score dégradé artificiellement par une donnée simplement pas
+      // encore fraîche.
+      NexusBriefDonnees.chargerCarburantsBriefAvecFallback(nexusClient, SITE_ACTUEL, new Date().toISOString().slice(0, 10)),
       NexusRisquesDonnees.chargerAgregationCaisseTousQuarts(nexusClient, SITE_ACTUEL, 30),
     ]);
     const candidatsFdj = candidatsFdjObj.candidats;
@@ -1004,6 +1018,19 @@
       // croire à une pénalité.
       const ligneActivite = a.activite != null ? `<div class="decision-field"><div class="decision-field-label">Activité</div><div class="decision-field-text">${a.activite}/100</div></div>` : '';
       const ligneMaitrise = a.maitrise != null ? `<div class="decision-field"><div class="decision-field-label">Maîtrise</div><div class="decision-field-text">${a.maitrise}/100</div></div>` : '';
+      // Fallback temporel "dernier état fiable" (22/08/2026, v2.214/v2.215) :
+      // badge de fraîcheur + bloc "Aujourd'hui — en cours" séparé, posés
+      // uniquement quand `fraicheur.mode !== 'jour'` — jamais mélangés au
+      // score lui-même (règle de Frédéric : jamais silencieusement J-1 et J
+      // dans le même chiffre). Générique sur tous les secteurs (seul
+      // Carburants les alimente aujourd'hui, voir nexus-secteurs-moteur.js).
+      const badgeFraicheurTxt = a.fraicheur ? NexusCarburantMoteur.libelleBadgeFraicheur(a.fraicheur) : null;
+      const badgeFraicheur = badgeFraicheurTxt
+        ? `<span class="badge" style="margin-left:6px; color:${a.fraicheur.mode === 'perime' ? 'var(--amber)' : 'var(--text-dim)'}; border-color:currentColor;">${badgeFraicheurTxt}</span>`
+        : '';
+      const blocEnCours = (a.enCours && a.enCours.length)
+        ? `<div class="decision-field"><div class="decision-field-label">Aujourd'hui — en cours</div><div class="decision-field-text">${a.enCours.join(' ')}</div></div>`
+        : '';
       return `
         <div class="axe-block" id="axe-${i}">
           <div class="axe-row" onclick="document.getElementById('axe-${i}').classList.toggle('open')">
@@ -1013,10 +1040,11 @@
             <span class="axe-chev">›</span>
           </div>
           <div class="axe-detail">
-            <div class="decision-field"><div class="decision-field-label">État <span class="badge ${typeInfo.cls}" style="margin-left:6px;">${typeInfo.label}</span></div><div class="decision-field-text">${a.statut}${a.valeur != null ? ` — ${a.valeur}/100` : ''}</div></div>
+            <div class="decision-field"><div class="decision-field-label">État <span class="badge ${typeInfo.cls}" style="margin-left:6px;">${typeInfo.label}</span>${badgeFraicheur}</div><div class="decision-field-text">${a.statut}${a.valeur != null ? ` — ${a.valeur}/100` : ''}</div></div>
             ${ligneActivite}
             ${ligneMaitrise}
             <div class="decision-field"><div class="decision-field-label">Cause principale</div><div class="decision-field-text">${a.detail}</div></div>
+            ${blocEnCours}
             <div class="decision-field"><div class="decision-field-label">Décision liée</div><div class="decision-field-text">${decisionLiee ? decisionLiee.decision : "Aucune décision prioritaire liée à ce secteur aujourd'hui."}</div></div>
             <a href="${a.cible}" class="decision-lien">→ Ouvrir ${NOM_ECRAN[a.cible] || a.cible}</a>
           </div>

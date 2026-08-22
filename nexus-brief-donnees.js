@@ -143,12 +143,22 @@
   // résumé condensé pour la carte autonome de Brief, PAS intégré au
   // classement cross-moteurs. Réutilise TEL QUEL nexus-carburant-moteur.js
   // / nexus-carburant-donnees.js — jamais un recalcul local (Article 11).
-  async function chargerCarburantsBrief(client, siteId) {
-    const aujourdhui = new Date().toISOString().slice(0, 10);
+  // `dateReference` (22/08/2026, ajouté pour le fallback temporel "dernier
+  // état fiable" — voir chargerCarburantsBriefAvecFallback ci-dessous et
+  // NEXUS-Data-Dictionary-v2.md v2.214/v2.215) : optionnel, défaut =
+  // aujourd'hui (comportement strictement inchangé pour tous les appelants
+  // existants qui ne passent pas ce 3e argument). Permet de rejouer TOUT le
+  // calcul (contrôle du jour + volumes 7 jours + effet prix) ancré sur une
+  // date PASSÉE, avec les mêmes fonctions que pour "aujourd'hui" — jamais
+  // une deuxième formule pour "le score d'un jour" (Article 11).
+  async function chargerCarburantsBrief(client, siteId, dateReference) {
+    const aujourdhui = dateReference || new Date().toISOString().slice(0, 10);
     // 7 derniers jours glissants vs les 7 jours précédents — PAS la semaine
     // calendaire, même convention que chargerCandidatsFdj() ci-dessous :
-    // toujours comparer des fenêtres de durée égale.
-    const finActuelle = new Date(); finActuelle.setHours(23, 59, 59, 999);
+    // toujours comparer des fenêtres de durée égale. Ancré sur `aujourdhui`
+    // (et non plus directement sur `new Date()`) pour que ce calcul reste
+    // correct quand `dateReference` désigne un jour antérieur.
+    const finActuelle = new Date(`${aujourdhui}T23:59:59.999`);
     const debutActuelle = new Date(finActuelle); debutActuelle.setDate(debutActuelle.getDate() - 6);
     const finPrecedente = new Date(debutActuelle); finPrecedente.setDate(finPrecedente.getDate() - 1);
     const debutPrecedente = new Date(finPrecedente); debutPrecedente.setDate(debutPrecedente.getDate() - 6);
@@ -188,6 +198,64 @@
     const effetPrixResume = M.resumerEffetPrixCarburants(effetsParCarburant);
 
     return { controle, volumeSemaine: mix ? mix.total : null, evolution, produitMoteur, effetPrixResume };
+  }
+
+  // ============================================================
+  // FALLBACK TEMPOREL "DERNIER ÉTAT FIABLE" (22/08/2026, demande de
+  // Frédéric — voir NEXUS-Data-Dictionary-v2.md v2.214/v2.215). Capture du
+  // 21/08 au soir : "🔴 Carburants — 0/100 · À corriger" alors que Q2
+  // n'était pas encore remonté et le jaugeage d'ouverture du lendemain pas
+  // encore saisi — une absence de donnée FRAÎCHE traitée comme un vrai
+  // écart constaté. Principe : NEXUS ne recalcule le score courant que sur
+  // une journée complète ; tant que ce n'est pas le cas, il affiche le
+  // dernier score fiable (recalculé avec les MÊMES fonctions, à une date
+  // antérieure — jamais une valeur figée à la main) avec sa fraîcheur
+  // explicite, et garde les données du jour en cours dans un bloc séparé.
+  //
+  // N'appelle strictement que des fonctions déjà partagées (Article 11) :
+  // chargerCarburantsBrief() (ci-dessus, désormais paramétrable par date),
+  // NexusCarburantDonnees.chargerHistoriqueReleves() (section Historique de
+  // Carburants Pilotage) et NexusCarburantDonnees.chargerVentesPeriode()
+  // (couverture par quart, déjà utilisée ailleurs).
+  // ============================================================
+  async function chargerCarburantsBriefAvecFallback(client, siteId, dateAujourdhui) {
+    const M = global.NexusCarburantMoteur;
+    const D = global.NexusCarburantDonnees;
+    const aujourdhui = dateAujourdhui || new Date().toISOString().slice(0, 10);
+    const carburantsJour = await chargerCarburantsBrief(client, siteId, aujourdhui);
+    const completAujourdhui = M.jourCarburantEstComplet(carburantsJour.controle.parCarburant, carburantsJour.controle.aucunReleve);
+    if (completAujourdhui) {
+      return { ...carburantsJour, fraicheur: { mode: 'jour' } };
+    }
+
+    // Bloc "Aujourd'hui — en cours" : ce qui est déjà connu de la journée en
+    // construction — jamais une donnée fabriquée pour combler le silence
+    // (Article 5). Coût : une requête légère déjà utilisée ailleurs pour la
+    // couverture par quart (nbQuartsAvecLitrage/nbQuartsTotal).
+    const ventesJour = await D.chargerVentesPeriode(client, siteId, aujourdhui, aujourdhui);
+    const enCours = M.construireBlocEnCours({
+      nbQuartsAvecLitrage: ventesJour.nbQuartsAvecLitrage, nbQuartsTotal: ventesJour.nbQuartsTotal,
+      releveDuJourExiste: !!carburantsJour.controle.releveDuJour,
+    });
+
+    // Historique jusqu'à J-1 inclus, jamais J lui-même (dateFin = veille) —
+    // même chargeur que la section Historique de Carburants Pilotage
+    // (Article 11), aucune nouvelle requête dédiée à ce fallback.
+    const historique = await D.chargerHistoriqueReleves(client, siteId, 14, global.NexusPeriodes.ajouterJours(aujourdhui, -1));
+    const fallback = M.trouverJourFiableAnterieur(historique, aujourdhui);
+    const fraicheur = M.fraicheurCarburant({ completAujourdhui: false, fallback });
+
+    if (fraicheur.mode === 'fallback') {
+      // Rejoue TOUT le calcul (contrôle + volumes + effet prix) à la date
+      // du dernier jour fiable — jamais une valeur recopiée à la main.
+      const carburantsFallback = await chargerCarburantsBrief(client, siteId, fraicheur.dateReference);
+      return { ...carburantsFallback, fraicheur, enCours };
+    }
+    // 'perime' ou 'jour_incomplet_sans_repli' : rien de fiable à figer —
+    // reste honnête sur les données du jour telles quelles, avec le
+    // contexte de fraîcheur pour que l'écran explique pourquoi plutôt que
+    // de le taire.
+    return { ...carburantsJour, fraicheur, enCours };
   }
 
   async function chargerCandidatsFdj(client, siteId) {
@@ -363,7 +431,7 @@
     estProduitAppel, chargerProducts,
     chargerMargePlus, chargerMessagesAdvisor, calculerStatutOperations, chargerConstatTempo,
     chargerCandidatsCaisse, chargerCandidatsStock, chargerCandidatsRappels,
-    chargerDerniereReferenceFdj, chargerCarburantsBrief, chargerCandidatsFdj,
+    chargerDerniereReferenceFdj, chargerCarburantsBrief, chargerCarburantsBriefAvecFallback, chargerCandidatsFdj,
     chargerSeuilsCoachEquipeFdj, chargerCandidatsCoachEquipe,
     chargerDomaineEquipe, chargerAlertesInventaireOuvertes, chargerControlesVerifyRestants, chargerMissionsRestantes,
     chargerJournalDecisions,

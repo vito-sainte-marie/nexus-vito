@@ -1174,6 +1174,116 @@
     return `Saisie manuelle${ligne.cout_saisi_par ? ` (${ligne.cout_saisi_par})` : ''}`;
   }
 
+  // ============================================================
+  // FALLBACK TEMPOREL "DERNIER ÉTAT FIABLE" (22/08/2026, demande de
+  // Frédéric — voir NEXUS-Data-Dictionary-v2.md v2.214) : capture du
+  // 21/08 au soir, "🔴 Carburants — 0/100 · À corriger" alors que le
+  // recul venait pour moitié d'un vrai recul de volume et pour l'autre
+  // moitié d'une absence de donnée FRAÎCHE (Q2 pas remonté, jaugeage
+  // d'ouverture du lendemain pas encore saisi) traitée avec la même
+  // pénalité maximale qu'un écart réellement constaté. Principe posé par
+  // Frédéric : "distinguer le dernier état complet et fiable de ce qui
+  // est en train de se construire aujourd'hui" — ne jamais mélanger
+  // silencieusement J-1 et J dans un même score, toujours annoncer
+  // explicitement lequel des deux est affiché.
+  //
+  // Fonctions pures uniquement : la recherche du jour de repli se fait
+  // sur un historique DÉJÀ chargé par l'appelant (chargerHistoriqueReleves,
+  // Article 11 — jamais une deuxième requête/formule pour "quel jour est
+  // fiable"). Le VRAI recalcul du score du jour de repli réutilise
+  // chargerCarburantsBrief() à cette date antérieure (voir
+  // nexus-brief-donnees.js, chargerCarburantsBriefAvecFallback) — jamais
+  // une valeur figée à la main, toujours recalculée avec les mêmes
+  // fonctions que pour "aujourd'hui", simplement à une autre date.
+  // ============================================================
+
+  // Borne haute proposée par Frédéric ("36 ou 48h") — au-delà, un état
+  // gelé ne doit plus être présenté comme le reflet de la situation
+  // courante (Article 5) : l'écran doit basculer en "à actualiser"
+  // plutôt que d'afficher un score de plus en plus périmé comme s'il
+  // était frais.
+  const SEUIL_FALLBACK_HEURES_PEREMPTION = 48;
+
+  // Un jour est "complet" pour Carburants si son contrôle physique a
+  // produit un résultat interprétable (peu importe qu'il soit bon ou
+  // mauvais — Sous contrôle/À surveiller/À corriger/Référence certifiée
+  // comptent tous comme complets) : seul "Données insuffisantes" — jour
+  // sans relevé, ou relevé présent mais écart non calculable — signale
+  // une journée encore EN CONSTRUCTION, jamais un vrai résultat mesuré.
+  function jourCarburantEstComplet(parCarburant, aucunReleve) {
+    if (aucunReleve || !parCarburant) return false;
+    return statutGlobalControle(parCarburant) !== 'Données insuffisantes';
+  }
+
+  // Cherche le premier jour complet en remontant un historique déjà trié
+  // du plus récent au plus ancien (forme exacte de chargerHistoriqueReleves),
+  // EXCLUANT toujours aujourd'hui (à l'appelant de ne transmettre que le
+  // passé — voir chargerCarburantsBriefAvecFallback, dateFin = J-1).
+  // `dateAujourdhui` ne sert qu'à calculer joursEcoules, jamais à filtrer
+  // l'historique lui-même (déjà borné par l'appelant).
+  function trouverJourFiableAnterieur(historiquePasse, dateAujourdhui) {
+    const trouve = (historiquePasse || []).find(j => jourCarburantEstComplet(j.parCarburant, false));
+    if (!trouve) return { trouve: false };
+    const joursEcoules = Math.round((new Date(`${dateAujourdhui}T00:00:00`) - new Date(`${trouve.date}T00:00:00`)) / 86400000);
+    return { trouve: true, date: trouve.date, joursEcoules };
+  }
+
+  // Décide le mode de fraîcheur à afficher pour Carburants aujourd'hui —
+  // 'jour' (aujourd'hui est complet, rien à faire), 'fallback' (un jour
+  // antérieur fiable existe et n'est pas encore périmé, le score de CE
+  // jour doit être figé et affiché à sa place), 'perime' (le seul jour
+  // fiable trouvé dépasse le seuil de péremption — le score ne doit plus
+  // être présenté comme courant) ou 'jour_incomplet_sans_repli' (aucun
+  // jour fiable trouvé du tout dans la fenêtre balayée — reste honnête sur
+  // le calcul du jour tel quel plutôt que d'inventer un repli qui n'existe
+  // pas, Article 5).
+  function fraicheurCarburant({ completAujourdhui, fallback }) {
+    if (completAujourdhui) return { mode: 'jour' };
+    if (!fallback || !fallback.trouve) return { mode: 'jour_incomplet_sans_repli' };
+    const heuresEcoulees = fallback.joursEcoules * 24;
+    if (heuresEcoulees > SEUIL_FALLBACK_HEURES_PEREMPTION) {
+      return { mode: 'perime', dateReference: fallback.date, joursEcoules: fallback.joursEcoules };
+    }
+    return { mode: 'fallback', dateReference: fallback.date, joursEcoules: fallback.joursEcoules };
+  }
+
+  // Badge affiché à côté du secteur — jamais le même libellé que le mode
+  // 'jour' normal (aucun badge nécessaire dans ce cas, l'écran n'affiche
+  // rien de spécial). Un jour d'écart s'affiche "J-1" (formulation directe
+  // demandée par Frédéric) ; au-delà, la date complète plutôt qu'un
+  // décompte de jours moins lisible.
+  function libelleBadgeFraicheur(fraicheur) {
+    if (!fraicheur || fraicheur.mode === 'jour') return null;
+    const dateTxt = (fraicheur.dateReference || '').split('-').reverse().join('/');
+    if (fraicheur.mode === 'fallback') {
+      return fraicheur.joursEcoules === 1 ? 'Dernier état fiable J-1' : `Dernier état fiable — données complètes arrêtées au ${dateTxt}`;
+    }
+    if (fraicheur.mode === 'perime') {
+      return `À actualiser — dernier état fiable trop ancien (${dateTxt})`;
+    }
+    return "Aujourd'hui incomplet — aucun état antérieur fiable disponible";
+  }
+
+  // Bloc "Aujourd'hui — en cours" : ce qui est déjà connu de la journée en
+  // construction, à afficher SÉPARÉMENT du score figé — jamais fondu dedans
+  // (règle absolue de Frédéric : "ne jamais mélanger silencieusement J-1 et
+  // J dans un même score"). Phrasé au grain réellement disponible
+  // (nbQuartsAvecLitrage/nbQuartsTotal, déjà remonté par
+  // chargerVentesPeriode) plutôt que de nommer des quarts précis que NEXUS
+  // ne peut pas identifier un par un ici (Article 5 — jamais une fausse
+  // précision).
+  function construireBlocEnCours({ nbQuartsAvecLitrage, nbQuartsTotal, releveDuJourExiste }) {
+    const lignes = [];
+    if (nbQuartsTotal) {
+      lignes.push(`Ventes du jour : ${nbQuartsAvecLitrage || 0}/${nbQuartsTotal} quart${nbQuartsTotal > 1 ? 's' : ''} avec litrage renseigné.`);
+    } else {
+      lignes.push("Aucun quart clôturé pour l'instant aujourd'hui.");
+    }
+    lignes.push(releveDuJourExiste ? 'Jaugeage du jour déjà saisi.' : 'Jaugeage du jour en attente.');
+    lignes.push('Aucun nouvel écart physique calculé pour l\'instant.');
+    return lignes;
+  }
+
   global.NexusCarburantMoteur = {
     SEUIL_ECART_PCT_SURVEILLER, SEUIL_ECART_PCT_CORRIGER, CLES_CARBURANT, NOM_CARBURANT_COURT,
     stockReelGoTotal, sommerVentesPeriode,
@@ -1196,5 +1306,7 @@
     calculerCmpApresLivraison, calculerCmpProgressif, libelleCmp,
     calculerEffetPrixStockHerite, libelleEffetPrixStockHerite, resumerEffetPrixCarburants,
     MOTIFS_OVERRIDE_PRIX_ACHAT, resoudreTarifActifParmi, libelleTarifActif, libelleSourcePrixLigne,
+    SEUIL_FALLBACK_HEURES_PEREMPTION, jourCarburantEstComplet, trouverJourFiableAnterieur,
+    fraicheurCarburant, libelleBadgeFraicheur, construireBlocEnCours,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

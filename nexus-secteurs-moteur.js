@@ -151,8 +151,34 @@
   // ≈ -25) + jaugeage non fait (Maîtrise = -10) => 50-25-10 = 15/100,
   // "À corriger" — plus aucune contradiction possible entre `statut`
   // (dérivé du même score) et `valeur`.
+  // `carburants.fraicheur` (22/08/2026, fallback temporel "dernier état
+  // fiable" — voir NEXUS-Data-Dictionary-v2.md v2.214/v2.215) : posé par
+  // NexusBriefDonnees.chargerCarburantsBriefAvecFallback(), jamais recalculé
+  // ici (Article 11). Absent (undefined) pour tout appelant qui continuerait
+  // à utiliser chargerCarburantsBrief() seul — traité alors comme le mode
+  // normal 'jour', comportement strictement inchangé (non-régression totale
+  // pour un éventuel appelant qui ne serait pas encore migré).
+  //
+  // Cas 'perime' à part : le seul jour fiable trouvé dépasse le seuil de
+  // péremption (Frédéric, "36 ou 48h") — le score ne doit plus être présenté
+  // comme un état courant (Article 5), NEXUS bascule sur un statut dédié
+  // "À actualiser" plutôt que de continuer à afficher un chiffre de plus en
+  // plus périmé. `confiance: 'INSUFFISANT'` exclut volontairement ce
+  // secteur de l'Indice Boussole (même invariant que secteurVide) : un état
+  // trop vieux pour être montré comme courant ne doit pas non plus peser
+  // dans la moyenne globale.
   function construireSecteurCarburants(entree, carburants) {
     if (!carburants) return secteurVide(entree, "Aucune donnée carburant chargée pour l'instant.");
+    const fraicheur = carburants.fraicheur || { mode: 'jour' };
+    if (fraicheur.mode === 'perime') {
+      const dateTxt = (fraicheur.dateReference || '').split('-').reverse().join('/');
+      return {
+        ...entree, type: 'reel', confiance: 'INSUFFISANT', statut: 'À actualiser', valeur: null,
+        detail: `Dernier contrôle fiable trop ancien (${dateTxt}, ${fraicheur.joursEcoules} jour${fraicheur.joursEcoules > 1 ? 's' : ''}) pour être présenté comme un état courant — NEXUS attend une nouvelle donnée complète avant de recalculer.`,
+        moteurs: [], changement: null, force: null, frein: null, risques: [], coherence: null,
+        activite: null, maitrise: null, couverture: 'perimee', fraicheur, enCours: carburants.enCours || null,
+      };
+    }
     const B = boussole();
     const M = carburantMoteur();
     const { aucunReleve, parCarburant } = carburants.controle;
@@ -195,6 +221,7 @@
       statut, valeur, detail, moteurs: [], changement, force, frein, risques: [], coherence: null,
       activite: B.scoreDimension(contribPerformance), maitrise: B.scoreDimension(contribMaitrise),
       couverture: (evolution != null && !aucunReleve) ? 'complete' : 'partielle',
+      fraicheur, enCours: fraicheur.mode !== 'jour' ? (carburants.enCours || null) : null,
     };
   }
 
@@ -586,13 +613,17 @@
     if (commerce && marge && commerce.statut === 'En progression' && marge.statut === 'À surveiller') {
       return "La croissance est réelle mais insuffisamment transformée en marge — les écarts de marge actifs méritent d'être vérifiés avant que la croissance ne s'installe sur une base moins rentable.";
     }
-    if (carburants && commerce && !['Sous contrôle', 'Données insuffisantes'].includes(carburants.statut) && STATUTS_POSITIFS.includes(commerce.statut)) {
+    // 'À actualiser' (22/08/2026, fallback temporel carburant) exclu au même
+    // titre que 'Données insuffisantes' : un état périmé n'est pas un signal
+    // à surveiller, c'est une absence de preuve fraîche — ne doit jamais
+    // déclencher la phrase "le signal à surveiller vient du carburant".
+    if (carburants && commerce && !['Sous contrôle', 'Données insuffisantes', 'À actualiser'].includes(carburants.statut) && STATUTS_POSITIFS.includes(commerce.statut)) {
       return "Le signal à surveiller vient du carburant, pas du commerce boutique — la fréquentation et les ventes en magasin restent le point stable de la période.";
     }
     if (operations && ['À surveiller', 'À corriger'].includes(operations.statut) && operations.risques.length) {
       return "L'exploitation reste globalement stable, mais la récurrence des écarts opérationnels fragilise la fiabilité des données remontées — une correction de procédure limiterait ce bruit.";
     }
-    if (secteurs.every(s => STATUTS_POSITIFS.includes(s.statut) || s.statut === 'Données insuffisantes')) {
+    if (secteurs.every(s => STATUTS_POSITIFS.includes(s.statut) || s.statut === 'Données insuffisantes' || s.statut === 'À actualiser')) {
       return "Aucun signal croisé ne se distingue aujourd'hui — l'exploitation évolue normalement sur l'ensemble des secteurs mesurés.";
     }
     return "Les signaux ne permettent pas encore de dégager une lecture croisée fiable entre secteurs — historique insuffisant pour relier une cause à une conséquence avec confiance.";
