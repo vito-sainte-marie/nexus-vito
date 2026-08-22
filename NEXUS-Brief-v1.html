@@ -295,7 +295,7 @@
   <div id="briefRoot">
     <div class="plans-loading">
       <img class="plans-loading-logo" src="nexus-avatar.png" alt="">
-      <div class="plans-loading-text" id="briefLoadingMsg">NEXUS analyse votre activité<span class="loading-dots"><span>.</span><span>.</span><span>.</span></span></div>
+      <div class="plans-loading-text" id="briefLoadingMsg">NEXUS interroge votre activité<span class="loading-dots"><span>.</span><span>.</span><span>.</span></span></div>
       <div class="brief-loading-checklist" id="briefLoadingChecklist"></div>
     </div>
   </div>
@@ -399,6 +399,11 @@
   let SITE_SECTEURS_CONFIG = { type_commerce: null, secteurs: null };
   let STATION_CONFIG = { manager_prenom: '', manager_role: '', station_nom: 'Ma station', logo_url: '' };
   let BRIEF = null;
+  // Poignée de l'écran de chargement dynamique (22/08/2026) — { tickSecteur,
+  // demarrerSequenceFinale } une fois le site résolu, null avant (ou si
+  // l'écran a déjà été remplacé). construireBrief() appelle tickSecteur()
+  // au fil des résolutions réelles, jamais avant.
+  let ANIMATION_CHARGEMENT = null;
 
   // ------------------------------------------------------------
   // Chargeurs de données — extraits le 11/08/2026 vers nexus-brief-donnees.js
@@ -456,6 +461,13 @@
     }
 
     const rowsBrut = await NexusBriefDonnees.chargerProducts(nexusClient, SITE_ACTUEL);
+    // Coche "Ventes analysées" (secteur commerce) dès que sa seule et unique
+    // source (rowsBrut) est arrivée — pas de Promise.all à attendre ici, ce
+    // chargeur est résolu avant le reste (22/08/2026, écran de chargement
+    // dynamique). `tickSecteur` est lui-même un no-op si 'commerce' n'est
+    // pas actif pour ce site (Article 5 — jamais une coche métier qui n'a
+    // pas de sens ici).
+    if (ANIMATION_CHARGEMENT) ANIMATION_CHARGEMENT.tickSecteur('commerce');
     const { periodeAffichage, paire, rowsPaireActuelle, rowsPairePrecedente } = NexusPeriodes.analyserPeriodes(rowsBrut);
     const facteurs = NexusIndice.calculerFacteurs(rowsBrut);
     const periodeLabel = periodeAffichage
@@ -464,22 +476,46 @@
     const candidatsProduitsBrut = NexusConseiller.calculerCandidatsProduits(rowsBrut);
     const produitsStrategiques = paire ? NexusConseiller.analyserProduitsStrategiques(rowsPaireActuelle, rowsPairePrecedente) : null;
 
+    // Coches "réellement interrogées" (22/08/2026, écran de chargement
+    // dynamique) : Opérations et FDJ agrègent chacun PLUSIEURS chargeurs
+    // (Article 11 — même agrégation que le contrat secteur, jamais un
+    // deuxième découpage) ; la coche n'apparaît qu'une fois TOUTES les
+    // parties de ce secteur résolues, jamais au premier chargeur arrivé —
+    // le libellé affiché ("Contrôles consolidés") promet une consolidation
+    // complète, la coche doit rester fidèle à ce qu'elle affirme (Article 5).
+    function surResolutionSecteur(id, nbParties) {
+      let restantes = nbParties;
+      return (valeur) => {
+        restantes -= 1;
+        if (restantes <= 0 && ANIMATION_CHARGEMENT) ANIMATION_CHARGEMENT.tickSecteur(id);
+        return valeur;
+      };
+    }
+    const onMargeResolue = surResolutionSecteur('marge', 1);
+    // Opérations : Tempo + Signal(advisor) + Caisse + Stock + Rappels +
+    // alertes Inventaire + contrôles Verify restants — les 7 chargeurs déjà
+    // agrégés dans construireSecteurOperations() (nexus-secteurs-moteur.js).
+    const onOperationsResolue = surResolutionSecteur('operations', 7);
+    const onFdjResolue = surResolutionSecteur('fdj', 2); // candidats FDJ + Coach FDJ
+    const onEquipeResolue = surResolutionSecteur('equipe', 1);
+    const onCarburantsResolue = surResolutionSecteur('carburants', 1);
+
     // Chargeurs (nexus-brief-donnees.js, refactoring pages monolithiques,
     // 11/08/2026) — chacun appelé directement avec (nexusClient, SITE_ACTUEL,
     // ...) plutôt que via un alias local, ce fichier ne gardant plus que
     // l'orchestration et l'affichage (Data Dictionary v2.40).
     const [margePlusResultat, constatTempo, messagesAdvisor, candidatsCaisseObj, candidatsStock, candidatsRappels, candidatsFdjObj, candidatsCoach, domaineEquipe, alertesInvOuvertes, controlesVerifyRestants, missionsRestantes, carburants, agregationCaisseParQuart] = await Promise.all([
-      NexusBriefDonnees.chargerMargePlus(nexusClient, SITE_ACTUEL, rowsBrut),
-      NexusBriefDonnees.chargerConstatTempo(nexusClient, SITE_ACTUEL),
-      NexusBriefDonnees.chargerMessagesAdvisor(nexusClient, SITE_ACTUEL),
-      NexusBriefDonnees.chargerCandidatsCaisse(nexusClient, SITE_ACTUEL),
-      NexusBriefDonnees.chargerCandidatsStock(nexusClient, SITE_ACTUEL),
-      NexusBriefDonnees.chargerCandidatsRappels(nexusClient, SITE_ACTUEL),
-      NexusBriefDonnees.chargerCandidatsFdj(nexusClient, SITE_ACTUEL),
-      NexusBriefDonnees.chargerCandidatsCoachEquipe(nexusClient, SITE_ACTUEL),
-      NexusBriefDonnees.chargerDomaineEquipe(nexusClient),
-      NexusBriefDonnees.chargerAlertesInventaireOuvertes(nexusClient, SITE_ACTUEL),
-      NexusBriefDonnees.chargerControlesVerifyRestants(nexusClient, SITE_ACTUEL),
+      NexusBriefDonnees.chargerMargePlus(nexusClient, SITE_ACTUEL, rowsBrut).then(onMargeResolue),
+      NexusBriefDonnees.chargerConstatTempo(nexusClient, SITE_ACTUEL).then(onOperationsResolue),
+      NexusBriefDonnees.chargerMessagesAdvisor(nexusClient, SITE_ACTUEL).then(onOperationsResolue),
+      NexusBriefDonnees.chargerCandidatsCaisse(nexusClient, SITE_ACTUEL).then(onOperationsResolue),
+      NexusBriefDonnees.chargerCandidatsStock(nexusClient, SITE_ACTUEL).then(onOperationsResolue),
+      NexusBriefDonnees.chargerCandidatsRappels(nexusClient, SITE_ACTUEL).then(onOperationsResolue),
+      NexusBriefDonnees.chargerCandidatsFdj(nexusClient, SITE_ACTUEL).then(onFdjResolue),
+      NexusBriefDonnees.chargerCandidatsCoachEquipe(nexusClient, SITE_ACTUEL).then(onFdjResolue),
+      NexusBriefDonnees.chargerDomaineEquipe(nexusClient).then(onEquipeResolue),
+      NexusBriefDonnees.chargerAlertesInventaireOuvertes(nexusClient, SITE_ACTUEL).then(onOperationsResolue),
+      NexusBriefDonnees.chargerControlesVerifyRestants(nexusClient, SITE_ACTUEL).then(onOperationsResolue),
       NexusBriefDonnees.chargerMissionsRestantes(nexusClient, SITE_ACTUEL),
       // chargerCarburantsBriefAvecFallback (22/08/2026, fallback temporel
       // "dernier état fiable" — voir NEXUS-Data-Dictionary-v2.md v2.214/
@@ -488,9 +524,12 @@
       // ventes pas encore captés), affiche le dernier jour fiable plutôt
       // qu'un score dégradé artificiellement par une donnée simplement pas
       // encore fraîche.
-      NexusBriefDonnees.chargerCarburantsBriefAvecFallback(nexusClient, SITE_ACTUEL, new Date().toISOString().slice(0, 10)),
+      NexusBriefDonnees.chargerCarburantsBriefAvecFallback(nexusClient, SITE_ACTUEL, new Date().toISOString().slice(0, 10)).then(onCarburantsResolue),
       NexusRisquesDonnees.chargerAgregationCaisseTousQuarts(nexusClient, SITE_ACTUEL, 30),
     ]);
+    // Fin de l'interrogation réelle des moteurs — bascule sur la séquence de
+    // pacing pour la phase de synthèse elle-même (voir demarrerAnimationChargement).
+    if (ANIMATION_CHARGEMENT) ANIMATION_CHARGEMENT.demarrerSequenceFinale();
     const candidatsFdj = candidatsFdjObj.candidats;
     const fdjResume = candidatsFdjObj.resume;
 
@@ -1630,21 +1669,39 @@
     return true;
   }
 
-  // Animation "pendant que NEXUS réfléchit" (13/08/2026, demande de
-  // Frédéric — même esprit que le connecteur de données de
-  // NEXUS-Verify-v1.html) : un minutage fixe, pas un flux d'état réel par
-  // secteur (la vraie synthèse peut aller plus vite ou plus lentement
-  // selon le réseau/Supabase — le premier `root.innerHTML = ...` de
-  // renderBrief() coupe cette animation à tout moment, à n'importe quelle
-  // étape, sans que ça ait besoin d'être « propre »). Les jalons du
-  // milieu restent au niveau secteur (Commerce/Marge/FDJ/Contrôles),
-  // jamais les 9 moteurs techniques du registre — ce niveau de détail
-  // reste réservé à la mention de fiabilité affichée une fois la vraie
-  // synthèse prête (voir construireMentionFiabilite()/#briefFooter).
-  function demarrerAnimationChargement() {
+  // Écran de chargement DYNAMIQUE (22/08/2026, demande de Frédéric —
+  // "Brief doit interroger la station, pas réciter une liste de modules
+  // codée en dur"). AVANT ce lot, un minutage fixe à 4 jalons hardcodés
+  // ("Commerce analysé"/"Marge analysée"/"FDJ analysée"/"Contrôles
+  // consolidés") s'affichait identique quel que soit le site — un futur
+  // site boulangerie/pharmacie aurait vu "FDJ analysée" et "Carburants"
+  // alors qu'aucun des deux n'existe dans son métier. Corrigé en 2 temps :
+  //   1. La LISTE des coches vient désormais de `secteurs`, le tableau
+  //      `.secteurs` de NexusSecteursCatalogue.secteursActifsSite() pour
+  //      CE site — déjà 100 % générique (Article 11, aucun deuxième
+  //      catalogue métier ici, aucun id de secteur écrit en dur dans cette
+  //      fonction). Un site sans Carburants ni FDJ ne verra tout
+  //      simplement jamais ces libellés apparaître.
+  //   2. Chaque coche n'apparaît plus à un instant arbitraire du minutage,
+  //      mais quand SA PROPRE donnée arrive réellement — `tickSecteur(id)`
+  //      est appelé par construireBrief() au fil des résolutions du
+  //      Promise.all (voir plus bas), jamais avant que la donnée soit
+  //      effectivement là. Un secteur non actif pour ce site (id absent de
+  //      `secteurs`) ne produit jamais de coche, même si `tickSecteur` est
+  //      appelé par erreur (garde défensive).
+  // Seule la séquence finale ("Croisement des signaux"/"Hiérarchisation des
+  // priorités"/"Préparation du Brief") reste une pacing UI au sens classique
+  // du terme : elle correspond au calcul de synthèse lui-même (JS pur,
+  // exécuté juste après que toutes les données sont arrivées), un travail
+  // réel mais dont la durée exacte n'est pas mesurée — même discipline
+  // assumée que les autres pacing UI du projet (jamais présentée comme une
+  // progression mesurée, Article 5). Le premier `root.innerHTML = ...` de
+  // renderBrief() remplace cet écran entièrement, à tout moment, sans que
+  // la séquence ait besoin d'aller à son terme.
+  function demarrerAnimationChargement(secteurs) {
     const msgEl = document.getElementById('briefLoadingMsg');
     const checklistEl = document.getElementById('briefLoadingChecklist');
-    if (!msgEl || !checklistEl) return; // écran déjà remplacé (chargement très rapide)
+    if (!msgEl || !checklistEl) return null; // écran déjà remplacé (chargement très rapide)
 
     function changerMessage(texte) {
       const el = document.getElementById('briefLoadingMsg');
@@ -1666,14 +1723,29 @@
       el.appendChild(div);
     }
 
-    const JALONS = [
-      { t: 700, action: () => ajouterItem('Commerce analysé') },
-      { t: 1050, action: () => ajouterItem('Marge analysée') },
-      { t: 1400, action: () => ajouterItem('FDJ analysée') },
-      { t: 1750, action: () => ajouterItem('Contrôles consolidés') },
-      { t: 2350, action: () => changerMessage('NEXUS hiérarchise vos priorités') },
-    ];
-    JALONS.forEach(j => setTimeout(j.action, j.t));
+    const dejaCoche = new Set();
+    // Jamais deux coches pour le même secteur (un secteur peut dépendre de
+    // plusieurs chargeurs — voir les appels dans construireBrief() — le
+    // premier chargeur arrivé à faire ticker son secteur "gagne", les
+    // suivants sont des no-op silencieux). Un id absent de `secteurs`
+    // (secteur non actif sur ce site) ne produit jamais de coche, même si
+    // `tickSecteur` est appelé — filet de sécurité, jamais un libellé
+    // métier qui n'a pas de sens pour ce site.
+    function tickSecteur(id) {
+      if (dejaCoche.has(id)) return;
+      dejaCoche.add(id);
+      const secteur = (secteurs || []).find(s => s.id === id);
+      if (!secteur) return;
+      ajouterItem(secteur.libelleChecklist || `${secteur.label} analysé`);
+    }
+
+    function demarrerSequenceFinale() {
+      changerMessage('Croisement des signaux');
+      setTimeout(() => changerMessage('Hiérarchisation des priorités'), 500);
+      setTimeout(() => changerMessage('Préparation du Brief'), 1000);
+    }
+
+    return { tickSecteur, demarrerSequenceFinale };
   }
 
   nexusRequireAuth().then(async employee => {
@@ -1682,7 +1754,6 @@
       document.body.innerHTML = '<div class="locked">Brief NEXUS est réservé aux managers et gérants.</div>';
       return;
     }
-    demarrerAnimationChargement();
     employeeCourantId = employee.id;
     SITE_ACTUEL = employee.site_id;
     if (!(await NexusForfait.nexusRequireBriefNexus(SITE_ACTUEL))) return;
@@ -1692,6 +1763,13 @@
     if (siteActuel && siteActuel.nom_entreprise) STATION_CONFIG.station_nom = siteActuel.nom_entreprise;
     if (siteActuel && siteActuel.logo_url) STATION_CONFIG.logo_url = siteActuel.logo_url;
     if (siteActuel) SITE_SECTEURS_CONFIG = { type_commerce: siteActuel.type_commerce, secteurs: siteActuel.secteurs };
+    // Démarrage de l'écran de chargement APRÈS avoir résolu le site
+    // (22/08/2026) — jamais avant, sinon la checklist ne pourrait pas
+    // connaître les secteurs réellement actifs pour CE site. Repli sur un
+    // tableau vide (aucune coche, juste le message générique) si la
+    // configuration métier n'est pas encore reconnue — `construireBrief()`
+    // affichera de toute façon l'écran "configuration incomplète" dans ce cas.
+    ANIMATION_CHARGEMENT = demarrerAnimationChargement(NexusSecteursCatalogue.secteursActifsSite(SITE_SECTEURS_CONFIG).secteurs);
     const header = document.getElementById('nexus-header');
     header.innerHTML = `
       <div class="logo-frame"><img class="logo" src="${STATION_CONFIG.logo_url}" alt="${STATION_CONFIG.station_nom}" onerror="this.style.display='none'"></div>

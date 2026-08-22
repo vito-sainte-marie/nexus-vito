@@ -32,13 +32,22 @@
 // ------------------------------------------------------------
 
 (function (global) {
+  // `libelleChecklist` (22/08/2026, demande de Frédéric — "Brief doit
+  // interroger la station, pas réciter une liste de modules codée en dur")
+  // : phrase affichée pendant l'écran de chargement de Brief NEXUS pendant
+  // que ce secteur est réellement interrogé (voir demarrerAnimationChargement
+  // dans NEXUS-Brief-v1.html). Optionnel — un secteur ajouté demain sans
+  // entrée dédiée ici obtient automatiquement un repli générique
+  // (`${label} analysé`), jamais un écran cassé ou halte sur un id inconnu :
+  // c'est ce filet qui permet à un futur métier (boulangerie, pharmacie...)
+  // d'apparaître à l'écran de chargement sans toucher à Brief lui-même.
   const SECTEURS_CATALOGUE = {
-    carburants: { id: 'carburants', label: 'Carburants', icone: '⛽', cible: 'NEXUS-Carburants-Pilotage-v1.html' },
-    commerce:   { id: 'commerce',   label: 'Commerce',   icone: '🛒', cible: 'NEXUS-Produits-v1.html' },
-    marge:      { id: 'marge',      label: 'Marge',      icone: '💰', cible: 'NEXUS-Scanner-v1.html' },
-    fdj:        { id: 'fdj',        label: 'FDJ',        icone: '🎟️', cible: 'NEXUS-FDJ-Analyse-v1.html' },
-    operations: { id: 'operations', label: 'Opérations', icone: '⚙️', cible: 'NEXUS-Verify-v1.html' },
-    equipe:     { id: 'equipe',     label: 'Équipe',     icone: '👥', cible: 'NEXUS-Resultats-Equipe-v1.html' },
+    carburants: { id: 'carburants', label: 'Carburants', icone: '⛽', cible: 'NEXUS-Carburants-Pilotage-v1.html', libelleChecklist: 'Carburants analysés' },
+    commerce:   { id: 'commerce',   label: 'Commerce',   icone: '🛒', cible: 'NEXUS-Produits-v1.html', libelleChecklist: 'Ventes analysées' },
+    marge:      { id: 'marge',      label: 'Marge',      icone: '💰', cible: 'NEXUS-Scanner-v1.html', libelleChecklist: 'Marge analysée' },
+    fdj:        { id: 'fdj',        label: 'FDJ',        icone: '🎟️', cible: 'NEXUS-FDJ-Analyse-v1.html', libelleChecklist: 'FDJ analysée' },
+    operations: { id: 'operations', label: 'Opérations', icone: '⚙️', cible: 'NEXUS-Verify-v1.html', libelleChecklist: 'Contrôles consolidés' },
+    equipe:     { id: 'equipe',     label: 'Équipe',     icone: '👥', cible: 'NEXUS-Resultats-Equipe-v1.html', libelleChecklist: 'Équipe analysée' },
   };
 
   // Presets par métier (audit, section 5). Seul 'station-service' a des
