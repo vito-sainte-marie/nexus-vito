@@ -356,7 +356,7 @@
     typePanier: 'Panier moyen',
     conseillerLabel: 'Conseiller NEXUS — Import',
     boutonVerifier: 'Vérifier le fichier',
-    boutonPublier: 'Publier dans NEXUS',
+    boutonPublier: 'Publier dans NEXUS →',
     succesPublication: 'Données publiées dans NEXUS',
     erreurAvantPublication: 'À corriger avant publication',
   };

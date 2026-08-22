@@ -42,11 +42,15 @@
 //   est inséré comme premier élément du flux flex (jamais en absolute, qui
 //   chevaucherait le logo/le titre déjà présents dans ces headers).
 // Certains écrans (Comptes Clients, Boîte de réception, Paramètres Comptes
-// Clients, Documentation, Import) ont déjà un bouton `.back-btn`/`.icon-btn`
-// en position:absolute top-left faisant un rôle voisin (menu, écran
-// parent) — décision du 20/08/2026 : on les laisse tels quels et on
-// ajoute le vrai retour à côté, légèrement plus bas pour ne jamais les
-// superposer.
+// Clients, Documentation) ont déjà un bouton `.back-btn`/`.icon-btn` en
+// position:absolute top-left faisant un rôle voisin (menu, écran parent) —
+// décision du 20/08/2026 : on les laisse tels quels et on ajoute le vrai
+// retour à côté, légèrement plus bas pour ne jamais les superposer.
+// Import en faisait partie jusqu'au 21/08/2026 : son bouton `.icon-btn`
+// (lien fixe vers l'accueil) créait un DOUBLE bouton retour visuellement
+// redondant avec le "‹ Précédent" injecté ici (signalé par Frédéric,
+// capture à l'appui) — retiré du HTML d'Import, qui ne garde donc plus
+// que ce bouton partagé.
 (function () {
   'use strict';
 

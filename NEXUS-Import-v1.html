@@ -49,7 +49,6 @@ a{color:inherit; text-decoration:none;}
 .conseiller-label{font-family:var(--mono); font-size:9.5px; letter-spacing:0.06em; text-transform:uppercase; color:var(--cyan); margin-bottom:4px; display:flex; justify-content:space-between; gap:8px;}
 .conseiller-label a{color:var(--cyan); text-decoration:underline;}
 .conseiller-text{font-size:12.5px; line-height:1.55; color:var(--text);}
-.icon-btn{width:38px; height:38px; border-radius:10px; background:var(--panel); border:1px solid var(--hairline); display:flex; align-items:center; justify-content:center; font-size:16px; color:var(--text-mid); flex-shrink:0; cursor:pointer;}
 .topbar-title h1{font-size:19px; font-weight:600;}
 .topbar-title p{font-family:var(--mono); font-size:11px; color:var(--text-mid); margin-top:2px;}
 
@@ -59,7 +58,6 @@ a{color:inherit; text-decoration:none;}
   display:flex; align-items:center; gap:10px; margin:24px 0 12px;
 }
 .section-label::after{content:''; flex:1; height:1px; background:var(--hairline);}
-.groupe-label{font-family:var(--mono); font-size:9.5px; letter-spacing:0.08em; text-transform:uppercase; color:var(--text-dim); margin:14px 0 6px;}
 
 /* ---------- stepper ---------- */
 .stepper{display:flex; gap:6px; padding:0 20px 18px;}
@@ -149,7 +147,6 @@ tbody tr:hover{background:var(--panel);}
 .btn-ghost{background:var(--panel); color:var(--text); border:1px solid var(--hairline);}
 .btn-row{display:flex; gap:10px; margin:0 20px;}
 .btn-row .btn{flex:1;}
-.btn-icon{width:26px; height:26px; object-fit:contain; flex-shrink:0;}
 /* 21/08/2026, demande de Frédéric : sur les cartes de type d'import
    (icônes néon cyan sur fond transparent), un fond plein cyan (.btn-primary)
    rendait l'icône illisible — même couleur que son propre fond. Remplacé
@@ -158,6 +155,34 @@ tbody tr:hover{background:var(--panel);}
    ailleurs sur cet écran) — l'icône garde son contraste, la sélection reste
    aussi visible via le halo. */
 .btn-type-selected{background:var(--cyan-dim); border-color:var(--cyan); box-shadow:0 0 0 1px var(--cyan), 0 0 14px rgba(79,195,217,0.55);}
+
+/* 21/08/2026, refonte étape 1 (demande de Frédéric) : les 4 choix passent
+   d'une grille de petits boutons compacts à une liste verticale de vraies
+   "cartes métier" (icône + titre + description courte), toutes au même
+   composant — plus de distinction visuelle "Données métier"/"Actions
+   commerciales" (classification interne sans valeur pour l'utilisateur à
+   cet instant, retirée du markup). */
+.type-cards{display:flex; flex-direction:column; gap:8px;}
+.type-card{display:flex; align-items:center; gap:14px; padding:14px 16px; border-radius:12px; cursor:pointer; background:var(--panel); border:1px solid var(--hairline);}
+.type-card-icon{width:40px; height:40px; object-fit:contain; flex-shrink:0;}
+.type-card-body{flex:1; min-width:0;}
+.type-card-title{font-family:var(--mono); font-size:12.5px; font-weight:600; letter-spacing:0.03em; text-transform:uppercase; color:var(--text);}
+.type-card-desc{font-size:12px; color:var(--text-mid); margin-top:3px; line-height:1.4;}
+/* "icône renforcée" à la sélection (demande de Frédéric) : même technique
+   de glow que l'avatar du Conseiller (.conseiller-avatar), pour rester
+   cohérent avec le seul autre endroit de cet écran qui applique un halo à
+   une icône (Article 11 — même mécanisme visuel, pas un second réinventé). */
+.type-card.btn-type-selected .type-card-icon{filter:drop-shadow(0 0 6px rgba(79,195,217,0.6));}
+.type-card.btn-type-selected .type-card-title{color:var(--cyan);}
+
+/* Carte contextuelle dynamique — "Vous allez importer : X" (demande de
+   Frédéric, "l'amélioration la plus importante") : même famille visuelle
+   que .conseiller-bubble (fond panel, bordure cyan discrète) pour rester
+   dans le même langage visuel "NEXUS vous parle", sans dupliquer son CSS. */
+.carte-type-selectionne{margin-top:14px; padding:14px 16px; background:var(--panel); border:1px solid rgba(79,195,217,0.25); border-radius:12px;}
+.carte-type-titre{font-family:var(--mono); font-size:10.5px; letter-spacing:0.05em; text-transform:uppercase; color:var(--cyan); margin-bottom:6px;}
+.carte-type-corps{font-size:12.5px; line-height:1.55; color:var(--text);}
+.carte-type-contexte{font-family:var(--mono); font-size:10.5px; color:var(--text-dim); margin-top:8px;}
 
 .empty-note{font-size:12px; color:var(--text-dim); text-align:center; padding:20px;}
 .privacy-note{font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:center; line-height:1.6; padding:18px 20px 4px;}
@@ -172,11 +197,15 @@ tbody tr:hover{background:var(--panel);}
 <body>
 <div class="app">
 
+  <!-- 21/08/2026, demande de Frédéric ("un seul bouton retour, pas deux") :
+       l'ancien lien fixe vers l'accueil a été retiré. Le seul bouton retour
+       de cet écran est désormais celui injecté par nexus-header-nav.js
+       ("‹ Précédent", vrai retour navigateur, mécanisme partagé par tout
+       NEXUS — Article 11, une seule vérité pour "revenir en arrière"). -->
   <div class="topbar">
-    <a class="icon-btn" href="NEXUS-App-v1.html">←</a>
     <div class="topbar-title">
       <h1>Ajouter des données à NEXUS</h1>
-      <p id="sousTitreImport">Ventes, stock ou catalogue — fichier Excel / CSV</p>
+      <p id="sousTitreImport">Choisissez ce que vous souhaitez apporter à NEXUS.</p>
     </div>
   </div>
 
@@ -190,29 +219,59 @@ tbody tr:hover{background:var(--panel);}
   <div class="conseiller-mini">
     <img class="conseiller-avatar" src="assets/nexus-avatar.png" alt="Conseiller NEXUS">
     <div class="conseiller-bubble">
-      <div class="conseiller-label"><span>Conseiller NEXUS — Import</span><a id="lienHistorique" href="#">Imports précédents</a></div>
+      <div class="conseiller-label"><span>Conseiller NEXUS</span><a id="lienHistorique" href="#">Voir les imports précédents →</a></div>
       <div class="conseiller-text" id="conseillerImportMsg">Envoyez-moi vos chiffres, je m'occupe du reste.</div>
     </div>
   </div>
 
   <!-- ============================================================
-       ÉTAPE 1 — Intention (section 4 de l'audit : hiérarchie à 2
-       niveaux, DONNÉES MÉTIER vs ACTIONS COMMERCIALES).
+       ÉTAPE 1 — Intention. 21/08/2026, refonte demandée par Frédéric :
+       "L'utilisateur choisit une intention, pas une architecture interne
+       NEXUS" — la séparation "Données métier"/"Actions commerciales" a
+       été retirée (classification interne sans valeur pour le manager à
+       cet instant), remplacée par une liste unique de 4 cartes avec
+       icône + description courte. Une carte contextuelle apparaît sous
+       la liste une fois un type choisi (voir construireContenuCarteType).
   ============================================================ -->
   <div class="section" id="etapeIntention">
-    <div class="groupe-label">Données métier</div>
-    <div class="btn-row" style="gap:8px; flex-wrap:wrap;">
-      <div class="btn btn-ghost btn-type-selected" id="typeVentes" style="cursor:pointer;"><img class="btn-icon" src="assets/icons/ventes_catalogue.png" alt="">Ventes / catalogue</div>
-      <div class="btn btn-ghost" id="typeStock" style="cursor:pointer;"><img class="btn-icon" src="assets/icons/stock_theorique.png" alt="">Stock théorique</div>
-      <div class="btn btn-ghost" id="typePanier" style="cursor:pointer;"><img class="btn-icon" src="assets/icons/panier_moyen.png" alt="">Panier moyen</div>
+    <div class="section-label">Que souhaitez-vous ajouter ?</div>
+    <div class="type-cards">
+      <div class="type-card btn-type-selected" id="typeVentes" style="cursor:pointer;">
+        <img class="type-card-icon" src="assets/icons/ventes_catalogue.png" alt="">
+        <div class="type-card-body">
+          <div class="type-card-title">Ventes / catalogue</div>
+          <div class="type-card-desc">Produits, ventes, CA, marge et historique commercial.</div>
+        </div>
+      </div>
+      <div class="type-card" id="typeStock" style="cursor:pointer;">
+        <img class="type-card-icon" src="assets/icons/stock_theorique.png" alt="">
+        <div class="type-card-body">
+          <div class="type-card-title">Stock théorique</div>
+          <div class="type-card-desc">Stock calculé issu de votre logiciel de gestion.</div>
+        </div>
+      </div>
+      <div class="type-card" id="typePanier" style="cursor:pointer;">
+        <img class="type-card-icon" src="assets/icons/panier_moyen.png" alt="">
+        <div class="type-card-body">
+          <div class="type-card-title">Panier moyen</div>
+          <div class="type-card-desc">Montant moyen dépensé par transaction.</div>
+        </div>
+      </div>
+      <div class="type-card" id="typeCampagne" style="cursor:pointer;">
+        <img class="type-card-icon" src="assets/icons/campagne_nexus.png" alt="">
+        <div class="type-card-body">
+          <div class="type-card-title">Campagne NEXUS</div>
+          <div class="type-card-desc">Résultats d'une opération ou campagne commerciale.</div>
+        </div>
+      </div>
     </div>
-    <div class="groupe-label">Actions commerciales</div>
-    <div class="btn-row" style="gap:8px; flex-wrap:wrap;">
-      <div class="btn btn-ghost" id="typeCampagne" style="cursor:pointer;"><img class="btn-icon" src="assets/icons/campagne_nexus.png" alt="">Campagne NEXUS</div>
+    <div class="carte-type-selectionne" id="carteTypeSelectionne">
+      <div class="carte-type-titre" id="carteTypeTitre">Vous allez importer : Ventes / catalogue</div>
+      <div class="carte-type-corps" id="carteTypeCorps"></div>
+      <div class="carte-type-contexte" id="carteTypeContexte"></div>
     </div>
-    <div style="font-family:var(--mono); font-size:10px; color:var(--text-dim); margin-top:10px; line-height:1.5;" id="typeExplication">CA, marge, évolution — un fichier par période de vente.</div>
     <div class="btn-row" style="margin-top:18px;">
-      <div class="btn btn-primary" id="btnVersEtape2">Continuer →</div>
+      <div class="btn btn-primary" id="btnVersEtape2">Continuer vers la source →</div>
     </div>
   </div>
 
@@ -287,7 +346,7 @@ tbody tr:hover{background:var(--panel);}
       <div class="section" style="margin-top:8px;">
         <div class="btn-row">
           <div class="btn btn-ghost" id="btnRetourEtape1">← Type</div>
-          <div class="btn btn-primary" id="btnVerifier">Vérifier le fichier</div>
+          <div class="btn btn-primary" id="btnVerifier">Analyser le fichier →</div>
         </div>
         <div id="sourceMsg" style="font-family:var(--mono); font-size:11px; text-align:center; margin-top:10px;"></div>
       </div>
@@ -347,7 +406,7 @@ tbody tr:hover{background:var(--panel);}
     <div class="section" style="margin-top:14px;">
       <div class="btn-row">
         <div class="btn btn-ghost" id="btnAnnulerVerif">Annuler</div>
-        <div class="btn btn-primary" id="btnPublier">Publier dans NEXUS</div>
+        <div class="btn btn-primary" id="btnPublier">Publier dans NEXUS →</div>
       </div>
       <div id="verifMsg" style="font-family:var(--mono); font-size:11px; text-align:center; margin-top:10px;"></div>
     </div>
@@ -475,19 +534,35 @@ nexusRequireAuth().then(async employee => {
 
   const dernierePeriodeFinVentesDate = dernierePeriodeFinVentes ? new Date(dernierePeriodeFinVentes + 'T12:00:00').toLocaleDateString('fr-FR') : null;
   const dernierReleveDate = dernierReleve && dernierReleve[0] ? new Date(dernierReleve[0].releve_le).toLocaleDateString('fr-FR') : null;
+  const dernierJourPanierDate = dernierJourPanier ? new Date(dernierJourPanier + 'T12:00:00').toLocaleDateString('fr-FR') : null;
+
+  // 21/08/2026, demande de Frédéric ("le Conseiller doit répondre à trois
+  // questions : que sait déjà NEXUS ? Que dois-je faire maintenant ? /
+  // Puis-je voir la preuve ?") : messages compactés, sans salutation ni
+  // répétition de la même date deux fois (avant ce lot, le cas ventes
+  // affichait "dernière période jusqu'au 06/08/2026. Dernière période
+  // couverte : 06/08/2026." — la même information deux fois). La question
+  // "voir la preuve" est déjà couverte par le lien "Voir les imports
+  // précédents →" juste au-dessus, pas répétée ici.
+  function lendemainFr(dateIso) {
+    if (!dateIso) return null;
+    const d = new Date(dateIso + 'T12:00:00');
+    d.setDate(d.getDate() + 1);
+    return d.toLocaleDateString('fr-FR');
+  }
   const MESSAGES_CONSEILLER_IMPORT = {
     ventes_catalogue: countVentes > 0
-      ? `${employee.nom}, ${countVentes.toLocaleString('fr-FR')} référence(s) déjà importée(s)${dernierePeriodeFinVentesDate ? `, dernière période jusqu'au ${dernierePeriodeFinVentesDate}` : ''}. ${M.construireMessageConseiller({ situation: 'a_jour', dernierePeriodeFin: dernierePeriodeFinVentesDate })}`
-      : `${employee.nom}, c'est votre premier import — bienvenue.`,
+      ? `Dernière période importée : jusqu'au ${dernierePeriodeFinVentesDate}. Pour éviter les doublons, le prochain fichier devrait commencer le ${lendemainFr(dernierePeriodeFinVentes)}.`
+      : `C'est votre premier import de ventes — bienvenue.`,
     stock_theorique: countStock > 0
-      ? `${employee.nom}, ${countStock.toLocaleString('fr-FR')} référence(s) de stock en mémoire, dernier relevé le ${dernierReleveDate}.`
-      : `${employee.nom}, aucun relevé de stock encore importé — c'est le tout premier.`,
+      ? `Dernier relevé de stock : le ${dernierReleveDate}. Ce nouveau fichier remplacera l'état théorique connu de NEXUS.`
+      : `Aucun relevé de stock encore importé — ce sera le premier.`,
     campagne: campagnesDisponibles.length > 0
-      ? `${employee.nom}, choisissez une promotion et une phase — je calcule la période exacte.`
-      : `${employee.nom}, aucune promotion déclarée pour l'instant. Créez-en une dans Campagne NEXUS.`,
+      ? `${campagnesDisponibles.length} campagne(s) disponible(s). Choisissez une promotion et une phase — NEXUS calcule la période exacte.`
+      : `Aucune promotion déclarée pour l'instant — créez-en une dans Campagne NEXUS.`,
     panier_moyen: countPanier > 0
-      ? `${employee.nom}, ${countPanier.toLocaleString('fr-FR')} jour(s) de panier moyen en mémoire, dernier le ${dernierJourPanier ? new Date(dernierJourPanier + 'T12:00:00').toLocaleDateString('fr-FR') : '—'}.`
-      : `${employee.nom}, c'est le premier import de panier moyen.`,
+      ? `Panier moyen à jour jusqu'au ${dernierJourPanierDate}. Pour éviter les doublons, le prochain fichier devrait commencer le ${lendemainFr(dernierJourPanier)}.`
+      : `C'est le premier import de panier moyen.`,
   };
   const msgEl = document.getElementById('conseillerImportMsg');
   msgEl.textContent = MESSAGES_CONSEILLER_IMPORT.ventes_catalogue;
@@ -512,30 +587,57 @@ nexusRequireAuth().then(async employee => {
   const periodeVentesSection = document.getElementById('periodeVentesSection');
   const periodeStockSection = document.getElementById('periodeStockSection');
   const periodeCampagneSection = document.getElementById('periodeCampagneSection');
-  const typeExplication = document.getElementById('typeExplication');
-  const sousTitreImport = document.getElementById('sousTitreImport');
 
-  const EXPLICATIONS_TYPE = {
-    ventes_catalogue: "CA, marge, évolution — un fichier par période de vente.",
-    stock_theorique: "Quantités théoriques par référence, à un instant précis — sert à préparer Scanner Stock.",
-    campagne: "Les ventes d'un produit en promotion, avant et pendant — NEXUS calcule les dates.",
-    panier_moyen: "Export Decenium (Compta > Panier Moyen) — nombre de tickets et panier moyen, un jour par ligne.",
+  const LIBELLES_TYPE_IMPORT = {
+    ventes_catalogue: 'Ventes / catalogue',
+    stock_theorique: 'Stock théorique',
+    panier_moyen: 'Panier moyen',
+    campagne: 'Campagne NEXUS',
   };
-  const SOUS_TITRES = {
-    ventes_catalogue: 'Ventes / catalogue — fichier Excel / CSV',
-    stock_theorique: 'Stock théorique instantané — fichier Excel / CSV',
-    campagne: 'Campagne NEXUS — fichier Excel / CSV',
-    panier_moyen: 'Panier moyen — export Decenium',
-  };
+
+  // 21/08/2026, demande de Frédéric ("ajouter une carte contextuelle après
+  // sélection — l'amélioration la plus importante") : fonction pure
+  // (aucun accès DOM/réseau ici, comme construireMessageConseiller dans
+  // nexus-import-moteur.js) construisant le contenu de la carte "Vous
+  // allez importer : X" à partir de données déjà chargées. Extraite pour
+  // rester testable indépendamment du rendu.
+  function construireContenuCarteType(type, ctx) {
+    ctx = ctx || {};
+    const titre = `Vous allez importer : ${LIBELLES_TYPE_IMPORT[type] || type}`;
+    let corps = '', contexte = '';
+    if (type === 'ventes_catalogue') {
+      corps = "NEXUS recherchera notamment les références produits, quantités vendues, chiffre d'affaires, prix et marge disponibles dans le fichier.";
+      contexte = ctx.dernierePeriodeFinVentesDate ? `Dernière période connue : ${ctx.dernierePeriodeFinVentesDate}` : "Aucun historique de ventes — ce sera la première période.";
+    } else if (type === 'stock_theorique') {
+      corps = "NEXUS utilisera ce fichier comme état calculé issu de votre système de gestion — il ne sera jamais confondu avec un comptage physique terrain.";
+      contexte = ctx.dernierReleveDate ? `Dernier relevé connu : ${ctx.dernierReleveDate}` : "Aucun relevé encore importé — ce sera le premier.";
+    } else if (type === 'panier_moyen') {
+      corps = "NEXUS recherchera le nombre de tickets et le panier moyen HT/TTC, un jour par ligne (export Decenium).";
+      contexte = ctx.dernierJourPanierDate ? `Dernier jour connu : ${ctx.dernierJourPanierDate}` : "Aucun historique de panier moyen — ce sera le premier.";
+    } else if (type === 'campagne') {
+      corps = "NEXUS isolera les ventes de la promotion choisie pour comparer l'avant et le pendant de l'opération.";
+      contexte = (ctx.nbCampagnesDisponibles || 0) > 0 ? `${ctx.nbCampagnesDisponibles} campagne(s) disponible(s).` : "Aucune promotion déclarée pour l'instant.";
+    }
+    return { titre, corps, contexte };
+  }
+
+  const carteTypeTitreEl = document.getElementById('carteTypeTitre');
+  const carteTypeCorpsEl = document.getElementById('carteTypeCorps');
+  const carteTypeContexteEl = document.getElementById('carteTypeContexte');
 
   function choisirTypeImport(type) {
     typeImportActuel = type;
-    btnTypeVentes.className = type === 'ventes_catalogue' ? 'btn btn-ghost btn-type-selected' : 'btn btn-ghost';
-    btnTypeStock.className = type === 'stock_theorique' ? 'btn btn-ghost btn-type-selected' : 'btn btn-ghost';
-    btnTypeCampagne.className = type === 'campagne' ? 'btn btn-ghost btn-type-selected' : 'btn btn-ghost';
-    btnTypePanier.className = type === 'panier_moyen' ? 'btn btn-ghost btn-type-selected' : 'btn btn-ghost';
-    typeExplication.textContent = EXPLICATIONS_TYPE[type];
-    sousTitreImport.textContent = SOUS_TITRES[type];
+    btnTypeVentes.className = type === 'ventes_catalogue' ? 'type-card btn-type-selected' : 'type-card';
+    btnTypeStock.className = type === 'stock_theorique' ? 'type-card btn-type-selected' : 'type-card';
+    btnTypeCampagne.className = type === 'campagne' ? 'type-card btn-type-selected' : 'type-card';
+    btnTypePanier.className = type === 'panier_moyen' ? 'type-card btn-type-selected' : 'type-card';
+    const contenu = construireContenuCarteType(type, {
+      dernierePeriodeFinVentesDate, dernierReleveDate, dernierJourPanierDate,
+      nbCampagnesDisponibles: campagnesDisponibles.length,
+    });
+    carteTypeTitreEl.textContent = contenu.titre;
+    carteTypeCorpsEl.textContent = contenu.corps;
+    carteTypeContexteEl.textContent = contenu.contexte;
     msgEl.textContent = MESSAGES_CONSEILLER_IMPORT[type];
     if (type === 'campagne') initialiserSectionCampagne();
   }
@@ -543,6 +645,11 @@ nexusRequireAuth().then(async employee => {
   btnTypeStock.addEventListener('click', () => choisirTypeImport('stock_theorique'));
   btnTypeCampagne.addEventListener('click', () => choisirTypeImport('campagne'));
   btnTypePanier.addEventListener('click', () => choisirTypeImport('panier_moyen'));
+  // Initialise la carte contextuelle dès l'ouverture (sélection par défaut :
+  // Ventes / catalogue) — sans cet appel, la carte resterait vide tant que
+  // l'utilisateur n'a cliqué aucun type, alors que "Ventes / catalogue" est
+  // déjà visuellement sélectionné dans le markup initial.
+  choisirTypeImport('ventes_catalogue');
 
   document.getElementById('btnVersEtape2').addEventListener('click', async () => {
     periodeVentesSection.style.display = (typeImportActuel === 'ventes_catalogue') ? 'block' : 'none';
