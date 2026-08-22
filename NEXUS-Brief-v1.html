@@ -368,6 +368,12 @@
   const MOTEUR_SOURCE = NexusMoteursRegistre.MOTEUR_SOURCE;
   const COULEUR_STATUT_DOMAINE = {
     'En progression': 'var(--green)', 'Sous contrôle': 'var(--green)', 'Stable': 'var(--text-mid)',
+    // 'À confirmer'/'À relancer' (22/08/2026, refonte statut métier) :
+    // remplacent l'ancien statut unique 'À surveiller', qui reste ci-dessous
+    // pour un éventuel appelant non migré (non-régression). 'En repli' reste
+    // aussi pour la même raison — Commerce ne le produit plus (voir
+    // nexus-secteurs-moteur.js, construireSecteurCommerce).
+    'À confirmer': 'var(--amber)', 'À relancer': 'var(--amber)',
     'À surveiller': 'var(--amber)', 'En repli': 'var(--red)', 'À corriger': 'var(--red)',
     'Données insuffisantes': 'var(--text-dim)',
     'Référence certifiée': 'var(--green)',
@@ -1045,7 +1051,9 @@
       ? `${nbComplets} complet${nbComplets > 1 ? 's' : ''} · ${nbPartiels} partiel${nbPartiels > 1 ? 's' : ''}`
       : `${nbComplets} complet${nbComplets > 1 ? 's' : ''}`;
     const rows = brief.axes.map((a, i) => {
-      const c = couleurAxe(a.valeur);
+      // couleurAxe(a.statut) (22/08/2026, refonte statut métier) : plus
+      // couleurAxe(a.valeur) — voir nexus-boussole-moteur.js.
+      const c = couleurAxe(a.statut);
       const decisionLiee = (a.moteurs || []).length ? brief.decisions.find(d => a.moteurs.includes(d.moteur)) : null;
       const typeInfo = a.confiance === 'RÉEL' ? { label: 'RÉEL', cls: 'badge-real' } : { label: 'DONNÉES INSUFFISANTES', cls: 'badge-derived' };
       // Détail Activité/Maîtrise (13/08/2026) : remplace le champ "État"

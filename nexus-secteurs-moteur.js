@@ -207,7 +207,16 @@
       contribMaitrise = null; // ni relevé ni contrôle explicite : rien à évaluer aujourd'hui.
     }
     const valeur = B.assemblerScoreSecteur(contribPerformance, contribMaitrise);
-    const statut = B.statutDepuisScore(valeur);
+    // Statut MÉTIER (22/08/2026) : dérivé séparément de chaque contribution
+    // via B.statutMetier() — plus de B.statutDepuisScore(valeur). Un
+    // jaugeage non fait ou un écart confirmé (Maîtrise mauvaise/mitigée)
+    // donne "À corriger"/"À confirmer" quels que soient les volumes ; des
+    // volumes en repli SANS problème de contrôle donne "À relancer", jamais
+    // "À corriger" (même principe que FDJ ci-dessous).
+    const statut = B.statutMetier({
+      perfBucket: B.performanceBucket(contribPerformance, B.BUDGET_DIMENSION),
+      maitriseBucket: B.maitriseBucket(contribMaitrise, B.BUDGET_DIMENSION),
+    });
     const detail = M.texteControleJour(parCarburant, aucunReleve);
     let changement = null;
     if (evolution != null && Math.abs(evolution) >= 0.05) {
@@ -215,7 +224,7 @@
       changement = `Les volumes carburant ${evolution >= 0 ? 'progressent' : 'reculent'} de ${Math.abs(evolution * 100).toFixed(1)} % sur 7 jours${moteurTxt}.`;
     }
     const force = (evolution != null && evolution >= 0.05) ? { titre: 'Volumes carburant en hausse', detail: changement, cible: entree.cible } : null;
-    const frein = (statut === 'À corriger' || statut === 'À surveiller') ? { titre: 'Écart carburant à traiter', detail, cible: entree.cible } : null;
+    const frein = (statut === 'À corriger' || statut === 'À confirmer' || statut === 'À relancer') ? { titre: 'Écart carburant à traiter', detail, cible: entree.cible } : null;
     return {
       ...entree, type: 'reel', confiance: 'RÉEL',
       statut, valeur, detail, moteurs: [], changement, force, frein, risques: [], coherence: null,
@@ -238,8 +247,18 @@
   // `evolutionReelle`.
   function construireSecteurCommerce(entree, facteurs) {
     const B = boussole();
-    const statut = B.statutCommerce(facteurs);
     const valeur = B.scoreDepuisEvolution(facteurs ? facteurs.evolutionReelle : null);
+    // Statut MÉTIER (22/08/2026) : Commerce n'a pas de dimension Maîtrise
+    // modélisée (voir commentaire ci-dessus) — même vocabulaire que les
+    // autres secteurs malgré tout (Article 11 : un radar ne doit pas mélanger
+    // deux glossaires de statuts). Un repli de CA n'est jamais un problème de
+    // contrôle : "En repli" devient "À relancer", cohérent avec la même
+    // décision prise pour FDJ ci-dessous (une baisse d'activité appelle une
+    // relance, pas une correction).
+    const statut = B.statutMetier({
+      perfBucket: B.performanceBucket(valeur != null ? valeur - 50 : null, B.BUDGET_DIMENSION_UNIQUE),
+      maitriseBucket: 'inconnue',
+    });
     const detail = facteurs && facteurs.evolutionReelle != null
       ? `Évolution du CA : ${facteurs.evolutionReelle >= 0 ? '+' : ''}${(facteurs.evolutionReelle * 100).toFixed(1)} % vs période précédente comparable.`
       : "Pas encore de paire de périodes comparables.";
@@ -247,7 +266,7 @@
     if (facteurs && facteurs.evolutionReelle != null && Math.abs(facteurs.evolutionReelle) >= 0.05) {
       changement = `Le chiffre d'affaires commerce ${facteurs.evolutionReelle >= 0 ? 'progresse' : 'recule'} de ${Math.abs(facteurs.evolutionReelle * 100).toFixed(1)} % vs la période précédente comparable.`;
     }
-    const frein = statut === 'En repli' ? { titre: 'Activité commerciale en repli', detail, cible: entree.cible } : null;
+    const frein = statut === 'À relancer' ? { titre: 'Activité commerciale en repli', detail, cible: entree.cible } : null;
     return {
       ...entree, type: 'reel', confiance: facteurs && facteurs.evolutionReelle != null ? 'RÉEL' : 'INSUFFISANT',
       statut, valeur, detail, moteurs: ['produits'], changement, force: null, frein, risques: [], coherence: null,
@@ -315,12 +334,28 @@
     const contribPerformance = B.clampContribution((margeReelle - 0.25) * 100);
     const contribMaitrise = B.contributionMaitriseEcarts(nbEcarts);
     const valeur = B.assemblerScoreSecteur(contribPerformance, contribMaitrise);
-    const statut = B.statutDepuisScore(valeur);
-    const detail = `Marge réelle : ${(margeReelle * 100).toFixed(1)} %${nbEcarts ? ` · ${nbEcarts} écart${nbEcarts > 1 ? 's' : ''} de marge actif${nbEcarts > 1 ? 's' : ''}` : ''}.`;
+    // Statut MÉTIER (22/08/2026) : plus de B.statutDepuisScore(valeur).
+    const statut = B.statutMetier({
+      perfBucket: B.performanceBucket(contribPerformance, B.BUDGET_DIMENSION),
+      maitriseBucket: B.maitriseBucket(contribMaitrise, B.BUDGET_DIMENSION),
+    });
+    // Cause principale (22/08/2026, retour de Frédéric : "la cause doit être
+    // les écarts confirmés par rapport aux références, et non le taux de
+    // marge absolu sans référentiel") : AVANT ce correctif, `detail`
+    // commençait par le pourcentage brut ("Marge réelle : X %"), sans jamais
+    // dire par rapport à QUOI — un dirigeant ne peut pas juger "8 %" sans
+    // connaître la référence. Désormais la référence (25 %, la même valeur
+    // que celle déjà utilisée par le calcul de `contribPerformance` ci-dessus
+    // — Article 11, jamais un 2e chiffre) est TOUJOURS explicite, et les
+    // écarts confirmés (Maîtrise) passent en tête de phrase dès qu'il y en a
+    // — c'est la cause, le taux de marge n'est plus que le contexte.
+    const detail = nbEcarts
+      ? `${nbEcarts} écart${nbEcarts > 1 ? 's' : ''} de marge confirmé${nbEcarts > 1 ? 's' : ''} vs référence (marge réelle ${(margeReelle * 100).toFixed(1)} % pour une référence de 25 %).`
+      : `Marge réelle ${(margeReelle * 100).toFixed(1)} % vs référence de 25 % — aucun écart confirmé sur la période.`;
     const changement = nbEcarts > 0 ? `${nbEcarts} écart${nbEcarts > 1 ? 's' : ''} de marge actif${nbEcarts > 1 ? 's' : ''} détecté${nbEcarts > 1 ? 's' : ''} sur la période.` : null;
     const risques = phrasesRisqueMarge || [];
     const syntheseFrein = construireSyntheseFreinMarge(nbEcarts, signauxRisqueMargeQualifies);
-    const frein = (statut !== 'Sous contrôle' || risques.length)
+    const frein = (!['Sous contrôle', 'En progression'].includes(statut) || risques.length)
       ? { titre: 'Écarts de marge actifs', detail: syntheseFrein || detail, cible: entree.cible }
       : null;
     return {
@@ -349,14 +384,24 @@
     const contribPerformance = boussole().clampContribution(evolutionCa != null ? evolutionCa * 250 : null);
     const contribMaitrise = boussole().contributionMaitriseEcarts(nbEcarts);
     const valeur = boussole().assemblerScoreSecteur(contribPerformance, contribMaitrise);
-    const statut = boussole().statutDepuisScore(valeur);
+    // Statut MÉTIER (22/08/2026, demande explicite de Frédéric : "FDJ ne
+    // doit pas être automatiquement 'à corriger' uniquement parce que le CA
+    // recule : une baisse d'activité relève plutôt de 'à relancer'. 'À
+    // corriger' doit être réservé à un problème de maîtrise confirmé.")
+    // B.statutMetier() applique exactement cette règle : seuls des écarts de
+    // caisse confirmés (Maîtrise mauvaise) donnent "À corriger" ; un CA en
+    // recul sans écart de caisse donne "À relancer".
+    const statut = boussole().statutMetier({
+      perfBucket: boussole().performanceBucket(contribPerformance, boussole().BUDGET_DIMENSION),
+      maitriseBucket: boussole().maitriseBucket(contribMaitrise, boussole().BUDGET_DIMENSION),
+    });
     const detail = `CA FDJ : ${Math.round(caGrattage).toLocaleString('fr-FR')} € sur 7 jours${evolutionCa != null ? ` (${evolutionCa >= 0 ? '+' : ''}${(evolutionCa * 100).toFixed(1)} % vs 7 jours précédents)` : ''}${jeuMoteur ? ` · Jeu moteur : ${jeuMoteur.nom}` : ''}.`;
     let changement = null;
     if (evolutionCa != null && Math.abs(evolutionCa) >= SEUIL_FDJ_EVOLUTION) {
       changement = `Le CA FDJ ${evolutionCa >= 0 ? 'progresse' : 'recule'} de ${Math.abs(evolutionCa * 100).toFixed(1)} % sur 7 jours.`;
     }
     const force = (evolutionCa != null && evolutionCa >= SEUIL_FDJ_EVOLUTION) ? { titre: 'CA FDJ en forte progression', detail: changement, cible: entree.cible } : null;
-    const frein = statut !== 'Sous contrôle'
+    const frein = !['Sous contrôle', 'En progression'].includes(statut)
       ? { titre: nbEcarts > 0 ? `${nbEcarts} écart${nbEcarts > 1 ? 's' : ''} de caisse FDJ non nul${nbEcarts > 1 ? 's' : ''}` : 'CA FDJ en recul', detail, cible: entree.cible }
       : null;
     return {
@@ -392,7 +437,11 @@
     const scoreEcart = B.scoreOperations(constatTempo.detailOperations, constatTempo.totalJours);
     const contribMaitrise = B.clampContributionPleine(scoreEcart != null ? scoreEcart - 50 : null);
     const valeur = B.assemblerScoreSecteur(null, contribMaitrise);
-    const statut = B.statutDepuisScore(valeur);
+    // Statut MÉTIER (22/08/2026) : Opérations n'a pas d'axe Performance
+    // (perfBucket toujours 'inconnue') — seul l'écart de caisse (Maîtrise)
+    // qualifie l'action attendue : "À corriger" (écart confirmé important),
+    // "À confirmer" (écart mineur) ou "Sous contrôle".
+    const statut = B.statutMetier({ perfBucket: 'inconnue', maitriseBucket: B.maitriseBucket(contribMaitrise, B.BUDGET_DIMENSION_UNIQUE) });
     const detail = `Écart de caisse moyen : ${Math.round(constatTempo.detailOperations)} €/jour${controlesVerifyRestants ? ` · ${controlesVerifyRestants} contrôle${controlesVerifyRestants > 1 ? 's' : ''} caisse en attente aujourd'hui` : ''}.`;
     // Risques (Annexe A) : distincts du statut lui-même — Opérations est le
     // secteur transversal qui agrège caisse/inventaire/stock, exactement
@@ -471,22 +520,32 @@
     if (!mesureSuffisante) return secteurVide(entree, "Pas encore assez de pointages enregistrés.");
     const contribMaitrise = B.clampContributionPleine(domaineEquipe.equipeScore - 50);
     const valeur = B.assemblerScoreSecteur(null, contribMaitrise);
-    const statut = B.statutDepuisScore(valeur);
+    // Statut MÉTIER (22/08/2026) : Équipe, comme Opérations, n'a pas d'axe
+    // Performance distinct — seule la Maîtrise (fiabilité/ponctualité)
+    // qualifie l'action attendue.
+    const statut = B.statutMetier({ perfBucket: 'inconnue', maitriseBucket: B.maitriseBucket(contribMaitrise, B.BUDGET_DIMENSION_UNIQUE) });
     const totalAnomalies = domaineEquipe.totalAnomalies || 0;
     const collaborateursConcernes = domaineEquipe.collaborateursConcernes || 0;
     const portee = classifierPorteeEquipe(collaborateursConcernes, domaineEquipe.employesASurveiller || 0);
-    // Taille de l'échantillon affichée comme CONTEXTE ("sur N pointages"),
-    // jamais comme conclusion (l'ancienne phrase EST la conclusion visible
-    // en tête — "Ponctualité mesurée sur..." — corrigé ici : la conclusion
-    // porte maintenant sur le phénomène observé, pas sur le volume de
-    // données). "Contre N sur la période précédente" (exemple du cadrage)
-    // n'est PAS reproduit : `chargerDomaineEquipe()` ne connaît aujourd'hui
-    // aucune fenêtre de période pour les pointages (portée existante,
-    // documentée depuis avant ce lot) — l'ajouter inventerait une
-    // comparaison que NEXUS ne peut pas encore prouver (Article 5).
+    // Ratio + comparaison historique (22/08/2026, retour de Frédéric : "le
+    // score doit exposer le ratio et la comparaison historique") —
+    // `chargerDomaineEquipe()` calcule désormais ce taux sur une fenêtre
+    // glissante 7 jours vs 7 jours précédents (même convention que
+    // Carburants/FDJ ci-dessus). Historique insuffisant (site trop récent,
+    // ou aucun pointage sur la période précédente) -> comparaison omise
+    // plutôt qu'inventée (Article 5).
+    const tauxTxt = domaineEquipe.tauxAnomalies != null ? `${Math.round(domaineEquipe.tauxAnomalies * 100)} %` : null;
+    const tauxPrecTxt = domaineEquipe.tauxAnomaliesPeriodePrecedente != null ? `${Math.round(domaineEquipe.tauxAnomaliesPeriodePrecedente * 100)} %` : null;
+    let comparaison = '';
+    if (tauxTxt && tauxPrecTxt != null) {
+      const sens = domaineEquipe.tauxAnomalies > domaineEquipe.tauxAnomaliesPeriodePrecedente ? 'en hausse' : (domaineEquipe.tauxAnomalies < domaineEquipe.tauxAnomaliesPeriodePrecedente ? 'en baisse' : 'stable');
+      comparaison = ` Taux d'anomalies ${tauxTxt}, ${sens} vs ${tauxPrecTxt} sur les 7 jours précédents.`;
+    } else if (tauxTxt) {
+      comparaison = ` Taux d'anomalies ${tauxTxt} (historique insuffisant pour comparer à la période précédente).`;
+    }
     const detail = totalAnomalies > 0
-      ? `Équipe — fiabilité à renforcer : ${totalAnomalies} anomalie${totalAnomalies > 1 ? 's' : ''} de ponctualité sur ${domaineEquipe.totalPointages} pointages. Le phénomène concerne ${collaborateursConcernes} collaborateur${collaborateursConcernes > 1 ? 's' : ''} et ${libellePorteeEquipe(portee)}.`
-      : `Ponctualité sous contrôle sur ${domaineEquipe.totalPointages} pointages.`;
+      ? `Équipe — fiabilité à renforcer : ${totalAnomalies} anomalie${totalAnomalies > 1 ? 's' : ''} de ponctualité sur ${domaineEquipe.totalPointages} pointages sur 7 jours.${comparaison} Le phénomène concerne ${collaborateursConcernes} collaborateur${collaborateursConcernes > 1 ? 's' : ''} et ${libellePorteeEquipe(portee)}.`
+      : `Ponctualité sous contrôle sur ${domaineEquipe.totalPointages} pointages sur 7 jours.${comparaison}`;
     const force = statut === 'Sous contrôle' ? { titre: "Ponctualité de l'équipe sous contrôle", detail, cible: entree.cible } : null;
     // Titre du frein reflète désormais la portée réelle (12/08/2026) —
     // jamais "à surveiller" générique quand NEXUS peut dire précisément si
@@ -495,7 +554,7 @@
     const freinTitre = portee === 'collectif' ? "Fiabilité d'équipe à surveiller (plusieurs collaborateurs)"
       : (portee === 'recurrence_individuelle' || portee === 'incident_individuel') ? "Fiabilité à surveiller (un seul collaborateur)"
       : "Fiabilité d'équipe à surveiller";
-    const frein = (statut === 'À surveiller' || statut === 'À corriger') ? { titre: freinTitre, detail, cible: entree.cible } : null;
+    const frein = (statut === 'À confirmer' || statut === 'À corriger') ? { titre: freinTitre, detail, cible: entree.cible } : null;
     return {
       ...entree, type: 'reel', confiance: 'RÉEL',
       statut, valeur, detail, moteurs: [], changement: null, force, frein, risques: [], coherence: null,
@@ -535,8 +594,18 @@
   // Blocs A/C/D/E/F de la structure Brief V3 (audit, section 4).
   // ------------------------------------------------------------
 
+  // Vocabulaire mis à jour (22/08/2026, refonte statut métier) : 'Stable' et
+  // 'En repli' ne sont plus produits par aucun constructeur (Commerce migré
+  // vers statutMetier ci-dessus) — conservés en toute fin de liste, sans
+  // effet, uniquement en cas d'appelant externe non encore migré (non-
+  // régression). STATUTS_ATTENTION regroupe les deux nouveaux statuts
+  // intermédiaires ('À confirmer'/'À relancer'), qui remplacent l'ancien
+  // 'À surveiller' unique — les deux restent "à regarder" pour le verdict de
+  // direction et le tri des freins, sans confondre leurs natures distinctes
+  // au niveau du statut lui-même.
   const STATUTS_POSITIFS = ['Sous contrôle', 'En progression', 'Stable'];
   const STATUTS_DEGRADES = ['À corriger', 'En repli'];
+  const STATUTS_ATTENTION = ['À confirmer', 'À relancer', 'À surveiller'];
 
   // Priorité de direction (13/08/2026, correctif direct — retour d'usage
   // de Frédéric sur l'écran Brief live, "rupture de niveau") : AVANT ce
@@ -568,7 +637,7 @@
   // cassent rien (simplement ignoré), non-régression totale.
   function construireVerdictDirection(secteurs) {
     const enDifficulte = secteurs.filter(s => STATUTS_DEGRADES.includes(s.statut));
-    const aSurveiller = secteurs.filter(s => s.statut === 'À surveiller');
+    const aSurveiller = secteurs.filter(s => STATUTS_ATTENTION.includes(s.statut));
     const sousControle = secteurs.filter(s => STATUTS_POSITIFS.includes(s.statut));
     let phrase1;
     if (!enDifficulte.length && !aSurveiller.length) {
@@ -595,7 +664,7 @@
   // les secteurs en difficulté avant ceux simplement "à surveiller".
   function construireFreins(secteurs) {
     const tries = [...secteurs].sort((a, b) => {
-      const rang = s => STATUTS_DEGRADES.includes(s.statut) ? 0 : (s.statut === 'À surveiller' ? 1 : 2);
+      const rang = s => STATUTS_DEGRADES.includes(s.statut) ? 0 : (STATUTS_ATTENTION.includes(s.statut) ? 1 : 2);
       return rang(a) - rang(b);
     });
     return tries.map(s => s.frein).filter(Boolean).slice(0, 3);
@@ -610,7 +679,7 @@
     secteurs.forEach(s => { parId[s.id] = s; });
     const { commerce, marge, carburants, operations } = parId;
 
-    if (commerce && marge && commerce.statut === 'En progression' && marge.statut === 'À surveiller') {
+    if (commerce && marge && commerce.statut === 'En progression' && marge.statut === 'À confirmer') {
       return "La croissance est réelle mais insuffisamment transformée en marge — les écarts de marge actifs méritent d'être vérifiés avant que la croissance ne s'installe sur une base moins rentable.";
     }
     // 'À actualiser' (22/08/2026, fallback temporel carburant) exclu au même
@@ -620,7 +689,7 @@
     if (carburants && commerce && !['Sous contrôle', 'Données insuffisantes', 'À actualiser'].includes(carburants.statut) && STATUTS_POSITIFS.includes(commerce.statut)) {
       return "Le signal à surveiller vient du carburant, pas du commerce boutique — la fréquentation et les ventes en magasin restent le point stable de la période.";
     }
-    if (operations && ['À surveiller', 'À corriger'].includes(operations.statut) && operations.risques.length) {
+    if (operations && ['À confirmer', 'À corriger'].includes(operations.statut) && operations.risques.length) {
       return "L'exploitation reste globalement stable, mais la récurrence des écarts opérationnels fragilise la fiabilité des données remontées — une correction de procédure limiterait ce bruit.";
     }
     if (secteurs.every(s => STATUTS_POSITIFS.includes(s.statut) || s.statut === 'Données insuffisantes' || s.statut === 'À actualiser')) {

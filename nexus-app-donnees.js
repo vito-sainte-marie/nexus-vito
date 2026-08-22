@@ -83,10 +83,17 @@
     let equipeScore = null;
     let nbRetards = 0;
     let employesASurveiller = null;
+    let tauxAnomalies = null;
+    // Barème corrigé (22/08/2026, même correctif que chargerDomaineEquipe()
+    // dans nexus-brief-donnees.js — voir le commentaire détaillé là-bas,
+    // Article 11 : un même bug ne doit jamais être corrigé à un seul
+    // endroit) : `100 - totalRetard` sommait des minutes de retard sans
+    // rapport avec l'échelle 0-100 ; remplacé par le TAUX d'anomalies
+    // (nbRetards / totalPointages), même pente ×200 que Brief.
     if (pointagesRetard) {
       nbRetards = pointagesRetard.length;
-      const totalRetard = pointagesRetard.reduce((s, p) => s + (p.retard_min || 0), 0);
-      equipeScore = Math.round(Math.max(0, 100 - totalRetard));
+      tauxAnomalies = totalPointages ? nbRetards / totalPointages : (nbRetards > 0 ? 1 : null);
+      equipeScore = tauxAnomalies == null ? null : Math.round(Math.max(0, 100 - tauxAnomalies * 200));
       const retardsParEmploye = {};
       pointagesRetard.forEach(p => {
         if (!p.employee_id) return;
@@ -94,7 +101,7 @@
       });
       employesASurveiller = Object.values(retardsParEmploye).filter(n => n >= 3).length;
     }
-    return { devScore, equipeScore, nbRetards, employesASurveiller, totalPointages: totalPointages != null ? totalPointages : null };
+    return { devScore, equipeScore, nbRetards, employesASurveiller, tauxAnomalies, totalPointages: totalPointages != null ? totalPointages : null };
   }
 
   // Axe Carburants pour "Votre entreprise aujourd'hui" — réutilise TEL QUEL

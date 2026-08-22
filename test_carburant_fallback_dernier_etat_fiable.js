@@ -145,7 +145,16 @@ function ok(label) { n++; console.log('OK —', label); }
   };
   const secteurFallback = S.construireSecteurs([entree], { carburants: carburantsFallback })[0];
   assert.strictEqual(secteurFallback.confiance, 'RÉEL', 'Un état figé mais fiable reste confiance RÉEL — il compte dans l\'Indice Boussole');
-  assert.strictEqual(secteurFallback.statut, 'Sous contrôle', 'Le statut affiché est celui du jour de repli, jamais "À corriger" fabriqué par des données du jour incomplètes');
+  // Statut mis à jour (22/08/2026, refonte statut métier v2.218) : sous
+  // l'ancien statutDepuisScore(valeur), un score >= 70 donnait uniformément
+  // "Sous contrôle". Depuis v2.218, le statut dérive séparément de chaque
+  // contribution (B.statutMetier) : Performance légèrement positive
+  // (evolution=0.04) + Maîtrise bonne (contrôle "Sous contrôle" du jour de
+  // repli) -> "En progression", plus précis que "Sous contrôle" pour dire
+  // au manager que la tendance est favorable, pas seulement neutre. Toujours
+  // "jamais À corriger fabriqué par des données du jour incomplètes", ce qui
+  // reste le vrai invariant testé ici.
+  assert.strictEqual(secteurFallback.statut, 'En progression', 'Le statut affiché reflète l\'état figé du jour de repli (Performance+Maîtrise), jamais "À corriger" fabriqué par des données du jour incomplètes');
   assert.ok(secteurFallback.valeur >= 70, 'Score du jour de repli correctement recalculé (>= 70, seuil "Sous contrôle")');
   assert.strictEqual(secteurFallback.frein, null, 'Sous contrôle -> aucun frein affiché (plus de faux "Écart carburant à traiter")');
   assert.deepStrictEqual(secteurFallback.fraicheur, { mode: 'fallback', dateReference: '2026-08-21', joursEcoules: 1 });

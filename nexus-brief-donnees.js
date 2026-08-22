@@ -246,10 +246,25 @@
     const fraicheur = M.fraicheurCarburant({ completAujourdhui: false, fallback });
 
     if (fraicheur.mode === 'fallback') {
-      // Rejoue TOUT le calcul (contrôle + volumes + effet prix) à la date
-      // du dernier jour fiable — jamais une valeur recopiée à la main.
+      // Rejoue TOUT le calcul à la date du dernier jour fiable — jamais une
+      // valeur recopiée à la main (Article 11) — mais NE FIGE QUE LA
+      // MAÎTRISE (22/08/2026, retour de Frédéric : "Carburants doit
+      // réellement exploiter le dernier état fiable J-1 pour la composante
+      // Maîtrise tant que la journée actuelle est incomplète"). Avant ce
+      // correctif, tout l'objet `carburants` (y compris `evolution`, qui
+      // alimente la Performance dans construireSecteurCarburants) était
+      // remplacé par celui du jour fiable — la Performance affichée
+      // redevenait donc, elle aussi, celle de J-1, alors que les ventes
+      // d'aujourd'hui (déjà connues pour les quarts remontés) sont une
+      // information réelle qui ne doit pas être mise de côté. Seul
+      // `controle` (parCarburant/aucunReleve/releveDuJour — la seule donnée
+      // que consomme la Maîtrise) vient du jour fiable ; `evolution`,
+      // `produitMoteur`, `volumeSemaine` et `effetPrixResume` (tout ce qui
+      // nourrit la Performance et les textes "changement"/"force") restent
+      // ceux d'AUJOURD'HUI, jamais mélangés silencieusement avec J-1 dans le
+      // même score (exigence explicite de Frédéric, v2.214).
       const carburantsFallback = await chargerCarburantsBrief(client, siteId, fraicheur.dateReference);
-      return { ...carburantsFallback, fraicheur, enCours };
+      return { ...carburantsJour, controle: carburantsFallback.controle, fraicheur, enCours };
     }
     // 'perime' ou 'jour_incomplet_sans_repli' : rien de fiable à figer —
     // reste honnête sur les données du jour telles quelles, avec le
@@ -364,36 +379,89 @@
   // requête par site (aucun changement de comportement introduit par ce
   // refactoring — signalé ici pour que ça ne passe pas inaperçu à la
   // prochaine lecture, Article 5).
-  async function chargerDomaineEquipe(client) {
-    const [{ data: pointagesRetard, error: e2 }, { count: totalPointages, error: e3 }] = await Promise.all([
-      client.from('pointages').select('employee_id, retard_min').eq('type', 'arrivee').gt('retard_min', 0),
-      client.from('pointages').select('id', { count: 'exact', head: true }).eq('type', 'arrivee'),
+  // Barème corrigé (22/08/2026, retour de Frédéric : "vérifier le barème
+  // produisant 0/100 avec 20 anomalies sur 58 pointages. Le score doit
+  // exposer le ratio et la comparaison historique.") — AVANT ce correctif,
+  // `equipeScore = 100 - totalRetard` pénalisait la SOMME des minutes de
+  // retard cumulées sur TOUS les pointages jamais enregistrés (aucune
+  // fenêtre de date), une échelle qui n'a aucun rapport avec 0-100 : une
+  // équipe de plusieurs collaborateurs avec des retards ordinaires (quelques
+  // minutes chacun) dépasse très vite 100 minutes cumulées et tombe à 0,
+  // quel que soit le nombre de pointages total — exactement le cas rapporté
+  // ("20 anomalies sur 58 pointages" = 34 % d'anomalies, un taux élevé mais
+  // pas une équipe totalement défaillante, et pourtant 0/100).
+  //
+  // Nouveau barème : le TAUX d'anomalies (anomalies / pointages), pas leur
+  // somme de minutes — une équipe avec plus de pointages n'est plus punie
+  // pour avoir plus d'occasions d'être en retard. Pente ×200 (seuil "équipe
+  // en échec total" placé à 50 % d'anomalies) : pondération PROVISOIRE, même
+  // discipline que tout le reste de ce fichier ("premier jet à ajuster avec
+  // l'usage réel").
+  //
+  // Comparaison historique : ajoute une fenêtre glissante 7 jours vs 7 jours
+  // précédents (même convention que chargerCarburantsBrief/chargerCandidatsFdj
+  // ci-dessus — Article 11, jamais une 2e logique de fenêtre inventée), alors
+  // que cette fonction ne connaissait auparavant AUCUNE notion de période
+  // (portée documentée depuis la création de cette fonction). Le total
+  // "toutes dates confondues" affiché par `employesASurveiller` (≥3 retards)
+  // reste, lui, sur l'historique complet — mesurer une récurrence
+  // individuelle sur seulement 7 jours produirait trop peu de signal pour
+  // être fiable (Article 5 : ne pas couper une fenêtre uniquement pour
+  // "faire comme les autres secteurs" si ça dégrade la mesure elle-même).
+  //
+  // Reste inchangé, documenté depuis toujours : cette fonction ne filtre
+  // par aucun site (voir commentaire en tête de fichier).
+  async function chargerDomaineEquipe(client, dateReference) {
+    const aujourdhui = dateReference ? new Date(`${dateReference}T23:59:59.999`) : new Date();
+    const iso = d => d.toISOString().slice(0, 10);
+    const finActuelle = iso(aujourdhui);
+    const debutActuelle = new Date(aujourdhui); debutActuelle.setDate(debutActuelle.getDate() - 6);
+    const finPrecedente = new Date(debutActuelle); finPrecedente.setDate(finPrecedente.getDate() - 1);
+    const debutPrecedente = new Date(finPrecedente); debutPrecedente.setDate(debutPrecedente.getDate() - 6);
+
+    const [
+      { data: pointagesRetard, error: e2 },
+      { count: totalPointages, error: e3 },
+      { count: totalPointagesPrec, error: e4 },
+      { count: totalAnomaliesPrec, error: e5 },
+      { data: pointagesRetardTous, error: e6 },
+    ] = await Promise.all([
+      client.from('pointages').select('employee_id, retard_min').eq('type', 'arrivee').gt('retard_min', 0).gte('date', debutActuelle.toISOString().slice(0, 10)).lte('date', finActuelle),
+      client.from('pointages').select('id', { count: 'exact', head: true }).eq('type', 'arrivee').gte('date', debutActuelle.toISOString().slice(0, 10)).lte('date', finActuelle),
+      client.from('pointages').select('id', { count: 'exact', head: true }).eq('type', 'arrivee').gte('date', iso(debutPrecedente)).lte('date', iso(finPrecedente)),
+      client.from('pointages').select('id', { count: 'exact', head: true }).eq('type', 'arrivee').gt('retard_min', 0).gte('date', iso(debutPrecedente)).lte('date', iso(finPrecedente)),
+      // Portée (collectif/individuel) et `employesASurveiller` restent
+      // mesurés sur l'historique complet, sans fenêtre — voir commentaire
+      // ci-dessus.
+      client.from('pointages').select('employee_id').eq('type', 'arrivee').gt('retard_min', 0),
     ]);
     if (e2) console.error('Chargement pointages (Brief):', e2);
     if (e3) console.error('Chargement total pointages (Brief):', e3);
-    let equipeScore = null, employesASurveiller = null;
-    // totalAnomalies/collaborateursConcernes (12/08/2026, cadrage §11, lot
-    // P1.4 "Lecture Équipe") : `pointagesRetard` contenait déjà
-    // `employee_id` par ligne — la granularité nécessaire pour distinguer
-    // incident individuel / récurrence individuelle / problème collectif
-    // existait donc depuis la première version de cette fonction, jamais
-    // exploitée au-delà du seul comptage `employesASurveiller` (nb de
-    // collaborateurs à ≥3 retards). Aucune nouvelle requête : ce lot ne
-    // fait qu'exposer 2 agrégats calculés à partir des mêmes lignes déjà
-    // chargées.
+    if (e4) console.error('Chargement total pointages période précédente (Brief):', e4);
+    if (e5) console.error('Chargement anomalies période précédente (Brief):', e5);
+    if (e6) console.error('Chargement pointages retard historique complet (Brief):', e6);
+
+    let equipeScore = null, employesASurveiller = null, tauxAnomalies = null;
     let totalAnomalies = 0, collaborateursConcernes = 0;
     if (pointagesRetard) {
-      const totalRetard = pointagesRetard.reduce((s, p) => s + (p.retard_min || 0), 0);
-      equipeScore = Math.round(Math.max(0, 100 - totalRetard));
-      const retardsParEmploye = {};
-      pointagesRetard.forEach(p => { if (p.employee_id) retardsParEmploye[p.employee_id] = (retardsParEmploye[p.employee_id] || 0) + 1; });
-      employesASurveiller = Object.values(retardsParEmploye).filter(n => n >= 3).length;
       totalAnomalies = pointagesRetard.length;
+      tauxAnomalies = totalPointages ? totalAnomalies / totalPointages : (totalAnomalies > 0 ? 1 : null);
+      equipeScore = tauxAnomalies == null ? null : Math.round(Math.max(0, 100 - tauxAnomalies * 200));
+    }
+    if (pointagesRetardTous) {
+      const retardsParEmploye = {};
+      pointagesRetardTous.forEach(p => { if (p.employee_id) retardsParEmploye[p.employee_id] = (retardsParEmploye[p.employee_id] || 0) + 1; });
+      employesASurveiller = Object.values(retardsParEmploye).filter(n => n >= 3).length;
       collaborateursConcernes = Object.keys(retardsParEmploye).length;
     }
+    const tauxAnomaliesPeriodePrecedente = totalPointagesPrec ? (totalAnomaliesPrec || 0) / totalPointagesPrec : null;
+
     return {
       equipeScore, employesASurveiller, totalPointages: totalPointages != null ? totalPointages : null,
-      totalAnomalies, collaborateursConcernes,
+      totalAnomalies, collaborateursConcernes, tauxAnomalies,
+      totalPointagesPeriodePrecedente: totalPointagesPrec != null ? totalPointagesPrec : null,
+      totalAnomaliesPeriodePrecedente: totalAnomaliesPrec != null ? totalAnomaliesPrec : null,
+      tauxAnomaliesPeriodePrecedente,
     };
   }
 
