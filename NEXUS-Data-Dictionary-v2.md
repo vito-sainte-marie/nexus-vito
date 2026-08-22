@@ -2555,3 +2555,17 @@ Correspond exactement à la formulation demandée par Frédéric — aucune cert
 **Vérification** : `identify` confirme les 4 PNG en 160×160 avec canal alpha (`TrueColorAlpha`), alpha min=0 (transparent) / max=255 (opaque) sur les 4 fichiers. `node --check` OK sur le script extrait de l'écran. Suite complète du projet rejouée (87 fichiers de test) : **aucune régression** (changement purement visuel, aucune fonction JS touchée).
 
 **Non vérifié en conditions réelles** : l'aperçu a été composé par script (Pillow) sur la couleur `--bg` exacte de l'app, pas un rendu réel dans le navigateur — à confirmer par Frédéric à l'ouverture de l'écran.
+
+## v2.211 — Import : carte de type sélectionnée en contour lumineux, plus en fond plein (21/08/2026)
+
+**Signalé par Frédéric**, capture à l'appui (écran réel sur mobile) : la carte sélectionnée ("Ventes / catalogue") passait en fond cyan plein (`.btn-primary`) — exactement la couleur du trait néon de l'icône, qui devenait donc quasi invisible dessus ("on ne voit pas bien l'icône"). Demande : contour plus lumineux à la sélection, pas un fond bleu cyan.
+
+**Cause** : `choisirTypeImport` (`NEXUS-Import-v1.html`) basculait les 4 cartes de type entre `.btn-primary` (fond cyan plein) et `.btn-ghost` (fond sombre) — la même classe `.btn-primary` que les vrais boutons d'action de l'écran ("Continuer →", "Vérifier le fichier", "Publier dans NEXUS", "Nouvel import"). Une carte de sélection et un bouton d'action n'ont pourtant pas le même besoin visuel : le premier doit rester lisible avec une icône dessus, le second est un aplat volontairement plein pour attirer l'œil vers l'action à faire.
+
+**Corrigé** : nouvelle classe `.btn-type-selected` (fond `--cyan-dim`, un bleu-cyan très sombre déjà défini dans la palette de l'écran ; bordure `--cyan` ; `box-shadow` en double halo pour un contour net + un glow diffus autour). Appliquée en PLUS de `.btn-ghost` (jamais `.btn-primary`) sur les 4 cartes de type uniquement — `choisirTypeImport` et le markup initial (`typeVentes`, sélectionné par défaut) mis à jour. `.btn-primary` lui-même n'a pas été touché : les vrais boutons d'action de cet écran gardent leur aplat cyan plein, comportement strictement inchangé (vérifié : ce sont les seuls autres usages de cette classe dans le fichier). Le fond sombre sous l'icône reste cohérent avec le fond transparent de l'icône (v2.210) : le trait néon garde tout son contraste, sélectionné ou non.
+
+**Fichiers modifiés** : `NEXUS-Import-v1.html` (nouvelle règle `.btn-type-selected`, markup des 4 cartes + `choisirTypeImport`).
+
+**Vérification** : `node --check` OK sur le script extrait de l'écran. Suite complète du projet rejouée (87 fichiers de test) : **aucune régression** (changement CSS/markup ciblé sur les 4 cartes de type, `.btn-primary` et ses autres usages sur cet écran inchangés).
+
+**Non vérifié en conditions réelles** : rendu non recontrôlé sur un vrai écran de téléphone dans cette session (la capture de Frédéric a servi de référence pour comprendre le problème, pas la correction elle-même) — à confirmer à la prochaine ouverture.

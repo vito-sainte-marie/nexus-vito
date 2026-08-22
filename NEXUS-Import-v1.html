@@ -150,6 +150,14 @@ tbody tr:hover{background:var(--panel);}
 .btn-row{display:flex; gap:10px; margin:0 20px;}
 .btn-row .btn{flex:1;}
 .btn-icon{width:26px; height:26px; object-fit:contain; flex-shrink:0;}
+/* 21/08/2026, demande de Frédéric : sur les cartes de type d'import
+   (icônes néon cyan sur fond transparent), un fond plein cyan (.btn-primary)
+   rendait l'icône illisible — même couleur que son propre fond. Remplacé
+   pour CES 4 cartes uniquement par un contour lumineux sur fond sombre
+   (jamais .btn-primary, qui reste inchangé pour "Continuer"/"Publier"/etc.
+   ailleurs sur cet écran) — l'icône garde son contraste, la sélection reste
+   aussi visible via le halo. */
+.btn-type-selected{background:var(--cyan-dim); border-color:var(--cyan); box-shadow:0 0 0 1px var(--cyan), 0 0 14px rgba(79,195,217,0.55);}
 
 .empty-note{font-size:12px; color:var(--text-dim); text-align:center; padding:20px;}
 .privacy-note{font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:center; line-height:1.6; padding:18px 20px 4px;}
@@ -194,7 +202,7 @@ tbody tr:hover{background:var(--panel);}
   <div class="section" id="etapeIntention">
     <div class="groupe-label">Données métier</div>
     <div class="btn-row" style="gap:8px; flex-wrap:wrap;">
-      <div class="btn btn-primary" id="typeVentes" style="cursor:pointer;"><img class="btn-icon" src="assets/icons/ventes_catalogue.png" alt="">Ventes / catalogue</div>
+      <div class="btn btn-ghost btn-type-selected" id="typeVentes" style="cursor:pointer;"><img class="btn-icon" src="assets/icons/ventes_catalogue.png" alt="">Ventes / catalogue</div>
       <div class="btn btn-ghost" id="typeStock" style="cursor:pointer;"><img class="btn-icon" src="assets/icons/stock_theorique.png" alt="">Stock théorique</div>
       <div class="btn btn-ghost" id="typePanier" style="cursor:pointer;"><img class="btn-icon" src="assets/icons/panier_moyen.png" alt="">Panier moyen</div>
     </div>
@@ -522,10 +530,10 @@ nexusRequireAuth().then(async employee => {
 
   function choisirTypeImport(type) {
     typeImportActuel = type;
-    btnTypeVentes.className = type === 'ventes_catalogue' ? 'btn btn-primary' : 'btn btn-ghost';
-    btnTypeStock.className = type === 'stock_theorique' ? 'btn btn-primary' : 'btn btn-ghost';
-    btnTypeCampagne.className = type === 'campagne' ? 'btn btn-primary' : 'btn btn-ghost';
-    btnTypePanier.className = type === 'panier_moyen' ? 'btn btn-primary' : 'btn btn-ghost';
+    btnTypeVentes.className = type === 'ventes_catalogue' ? 'btn btn-ghost btn-type-selected' : 'btn btn-ghost';
+    btnTypeStock.className = type === 'stock_theorique' ? 'btn btn-ghost btn-type-selected' : 'btn btn-ghost';
+    btnTypeCampagne.className = type === 'campagne' ? 'btn btn-ghost btn-type-selected' : 'btn btn-ghost';
+    btnTypePanier.className = type === 'panier_moyen' ? 'btn btn-ghost btn-type-selected' : 'btn btn-ghost';
     typeExplication.textContent = EXPLICATIONS_TYPE[type];
     sousTitreImport.textContent = SOUS_TITRES[type];
     msgEl.textContent = MESSAGES_CONSEILLER_IMPORT[type];
