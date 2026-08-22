@@ -149,6 +149,7 @@ tbody tr:hover{background:var(--panel);}
 .btn-ghost{background:var(--panel); color:var(--text); border:1px solid var(--hairline);}
 .btn-row{display:flex; gap:10px; margin:0 20px;}
 .btn-row .btn{flex:1;}
+.btn-icon{width:20px; height:20px; object-fit:contain; flex-shrink:0;}
 
 .empty-note{font-size:12px; color:var(--text-dim); text-align:center; padding:20px;}
 .privacy-note{font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:center; line-height:1.6; padding:18px 20px 4px;}
@@ -193,13 +194,13 @@ tbody tr:hover{background:var(--panel);}
   <div class="section" id="etapeIntention">
     <div class="groupe-label">Données métier</div>
     <div class="btn-row" style="gap:8px; flex-wrap:wrap;">
-      <div class="btn btn-primary" id="typeVentes" style="cursor:pointer;">Ventes / catalogue</div>
-      <div class="btn btn-ghost" id="typeStock" style="cursor:pointer;">Stock théorique</div>
-      <div class="btn btn-ghost" id="typePanier" style="cursor:pointer;">Panier moyen</div>
+      <div class="btn btn-primary" id="typeVentes" style="cursor:pointer;"><img class="btn-icon" src="assets/icons/ventes_catalogue.png" alt="">Ventes / catalogue</div>
+      <div class="btn btn-ghost" id="typeStock" style="cursor:pointer;"><img class="btn-icon" src="assets/icons/stock_theorique.png" alt="">Stock théorique</div>
+      <div class="btn btn-ghost" id="typePanier" style="cursor:pointer;"><img class="btn-icon" src="assets/icons/panier_moyen.png" alt="">Panier moyen</div>
     </div>
     <div class="groupe-label">Actions commerciales</div>
     <div class="btn-row" style="gap:8px; flex-wrap:wrap;">
-      <div class="btn btn-ghost" id="typeCampagne" style="cursor:pointer;">Campagne NEXUS</div>
+      <div class="btn btn-ghost" id="typeCampagne" style="cursor:pointer;"><img class="btn-icon" src="assets/icons/campagne_nexus.png" alt="">Campagne NEXUS</div>
     </div>
     <div style="font-family:var(--mono); font-size:10px; color:var(--text-dim); margin-top:10px; line-height:1.5;" id="typeExplication">CA, marge, évolution — un fichier par période de vente.</div>
     <div class="btn-row" style="margin-top:18px;">
