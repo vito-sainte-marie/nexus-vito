@@ -2539,3 +2539,19 @@ Correspond exactement à la formulation demandée par Frédéric — aucune cert
 **Vérification** : `node --check` OK sur le script extrait de l'écran. `file` confirme les 4 PNG à 128×128, RGB valide. Suite complète du projet rejouée (87 fichiers de test, dont `test_import_pipeline_20260821.js`) : **aucune régression** — changement purement visuel (markup + CSS), aucune fonction JS touchée, `choisirTypeImport` ne fait que changer `className` sur ces mêmes éléments (jamais `innerHTML`), les icônes survivent donc à chaque changement de sélection.
 
 **Non vérifié en conditions réelles** : rendu visuel non contrôlé dans un vrai navigateur dans cette session (icônes au fond noir sur le thème sombre de NEXUS, `--bg:#0B0F14`/`--panel:#141B22` — proches du noir des icônes mais pas identiques ; à l'échelle 20px l'écart ne devrait pas se voir, mais seul un contrôle visuel réel par Frédéric le confirmera).
+
+## v2.210 — Import : icônes en fond transparent, légèrement agrandies (21/08/2026)
+
+**Demande de Frédéric** : "mets le fond transparent pour les icones legerement plus grand."
+
+**Constat** : les 4 icônes intégrées en v2.209 étaient des PNG opaques (fond noir plein, `Type: TrueColor`, sans canal alpha) — visibles comme un petit carré noir dans le bouton plutôt que de se fondre dans le thème sombre de NEXUS.
+
+**Fait** : régénérées depuis les images sources originales (haute résolution, 1254×1254) plutôt que retravaillées depuis les PNG déjà réduits en v2.209, pour repartir de la meilleure qualité disponible. Transparence obtenue par **alpha = luminosité** (canal max R/G/B de chaque pixel devient sa valeur alpha) : le noir de fond devient totalement transparent, le trait néon (bleu clair, canal fort) reste opaque, et le halo du glow garde un dégradé naturel — technique standard pour convertir un visuel "néon sur fond noir" en icône transparente sans re-dessiner le trait à la main. Recadrées ensuite sur leur bbox réel (suppression de la marge transparente devenue inutile autour du carré arrondi) puis redimensionnées à 160×160 (contre 128×128 en v2.209 — plus de marge retina, utile puisque l'affichage grandit). Aperçu généré et inspecté (composite sur fond `#0B0F14`, la couleur `--bg` réelle de l'app) avant livraison : les 4 icônes se fondent proprement, sans carré visible.
+
+**Icônes légèrement agrandies dans l'écran** : `.btn-icon` passe de 20px à 26px (`NEXUS-Import-v1.html`), seule valeur touchée — la mise en page (`display:flex; gap:8px` déjà sur `.btn`) absorbe le changement de taille sans autre ajustement.
+
+**Fichiers modifiés** : `assets/icons/ventes_catalogue.png`, `assets/icons/stock_theorique.png`, `assets/icons/panier_moyen.png`, `assets/icons/campagne_nexus.png` (remplacés, désormais `TrueColorAlpha`), `NEXUS-Import-v1.html` (`.btn-icon` 20px→26px).
+
+**Vérification** : `identify` confirme les 4 PNG en 160×160 avec canal alpha (`TrueColorAlpha`), alpha min=0 (transparent) / max=255 (opaque) sur les 4 fichiers. `node --check` OK sur le script extrait de l'écran. Suite complète du projet rejouée (87 fichiers de test) : **aucune régression** (changement purement visuel, aucune fonction JS touchée).
+
+**Non vérifié en conditions réelles** : l'aperçu a été composé par script (Pillow) sur la couleur `--bg` exacte de l'app, pas un rendu réel dans le navigateur — à confirmer par Frédéric à l'ouverture de l'écran.
