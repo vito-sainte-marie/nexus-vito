@@ -332,5 +332,13 @@
   global.NexusPeriodes = {
     joursEntre, paireValide, analyserPeriodes, evolutionAgregee,
     resoudrePeriodeCalendaire, resoudrePeriodesReference, regrouperParMoisCalendaire,
+    // ajouterJours (22/08/2026, correction du crash "ajouterJours is not a
+    // function" bloquant tout Brief NEXUS) : utilisée en interne ici depuis
+    // le début, jamais exposée publiquement — nexus-brief-donnees.js
+    // (chargerCarburantsBriefAvecFallback, v2.215) l'appelle depuis
+    // l'extérieur du module pour calculer J-1, ce qui exigeait qu'elle soit
+    // exportée. Réutilise la même fonction qu'en interne (Article 11,
+    // jamais une deuxième implémentation d'un simple "date + n jours").
+    ajouterJours,
   };
 })(window);
