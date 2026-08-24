@@ -1,0 +1,644 @@
+// NEXUS — Moteur Commande Carburant (24/08/2026)
+//
+// Origine : cahier fonctionnel/technique complet transmis par Frédéric
+// ("NEXUS — Moteur Commande Carburant"), 38 sections. Décisions de portée
+// actées avec Frédéric avant tout code (AskUserQuestion) :
+//   - Construction complète dès ce lot (§37 "Phase 3"), pas de phase
+//     d'observation silencieuse préalable.
+//   - §17-19 (optimisation tarifaire mensuelle) explicitement REPORTÉE à un
+//     lot séparé — ce moteur ne compare jamais un prix futur à un prix
+//     actuel, il n'en a même pas connaissance en entrée.
+//   - GNR posé dès maintenant comme un 3ᵉ carburant à part entière du
+//     moteur (même logique que SP95/GO), mais désactivé
+//     (station_config.cuves_carburants.gnr.actif = false, migration
+//     carburant_commande_schema_v1) — pompe indisponible. Le jour où elle
+//     redevient active, aucune modification de CE fichier n'est nécessaire.
+//
+// Fichier PUR (Article 11 : un moteur ne touche jamais Supabase/le DOM) —
+// toutes les fonctions reçoivent des données déjà chargées par l'appelant
+// (nexus-carburant-commande-donnees.js) et ne font que calculer. Réutilise
+// directement NexusCarburantMoteur (nexus-carburant-moteur.js, doit être
+// chargé AVANT ce fichier) pour tout ce qui existe déjà : autonomie
+// (calculerAutonomieJours/statutAutonomie), capacité/remplissage
+// (pourcentageRemplissage/capaciteTotale), fuseau horaire
+// (instantLocalVersUTC) — jamais une deuxième version de ces calculs ici.
+//
+// Principe cadre (§1/§38 du cahier) : NEXUS ne réagit pas à un stock
+// devenu faible — il identifie À L'AVANCE le meilleur moment pour
+// commander, en tenant compte du stock réel, des ventes attendues, des
+// jours de livraison, de la réserve de sécurité, des capacités
+// disponibles et des commandes déjà engagées. Le moteur recommande, le
+// manager décide (§1, §31-33 côté écran — pas dans ce fichier).
+//
+// Article 5 rappelé explicitement pour ce lot : chaque seuil marqué
+// "provisoire" ci-dessous est une estimation raisonnable documentée, pas
+// une valeur validée par plusieurs semaines de recul réel (le moteur
+// n'existait pas avant ce jour) — à recalibrer avec Frédéric une fois
+// l'historique de décisions réelles disponible (§35, mesure de
+// performance future).
+// ------------------------------------------------------------
+
+(function (global) {
+  'use strict';
+
+  // ============================================================
+  // A. CALENDRIER — jours de livraison, cutoff, jours fériés (§4 du cahier)
+  // ============================================================
+
+  function ajouterJoursISO(dateISO, n) {
+    const d = new Date(`${dateISO}T12:00:00Z`); // midi UTC : jamais de bascule de jour par arrondi de fuseau
+    d.setUTCDate(d.getUTCDate() + n);
+    return d.toISOString().slice(0, 10);
+  }
+
+  // Liste des dates [debutISOInclus, finISOExclu) — jamais plus de 400
+  // jours d'un coup (filet de sécurité, évite une boucle quasi infinie sur
+  // une paire de dates inversée par erreur d'appelant).
+  function joursEntre(debutISOInclus, finISOExclu) {
+    const dates = [];
+    let cursor = debutISOInclus;
+    let garde = 0;
+    while (cursor < finISOExclu && garde < 400) {
+      dates.push(cursor);
+      cursor = ajouterJoursISO(cursor, 1);
+      garde++;
+    }
+    return dates;
+  }
+
+  // 1=lundi ... 7=dimanche (convention ISO déjà utilisée ailleurs dans
+  // NEXUS, ex. inventaire_categories.jours_rotation).
+  function jourSemaineIso(dateISO) {
+    const dow = new Date(`${dateISO}T12:00:00Z`).getUTCDay();
+    return dow === 0 ? 7 : dow;
+  }
+
+  // `config` = station_config.carburant_commande_config ({ jours_livraison_iso,
+  // cutoff_heure, ... }). `joursFeriesISO` = dates (YYYY-MM-DD) déjà lues
+  // dans inventaire_calendrier_site (table générique de jours fériés/
+  // vacances du site, réutilisée telle quelle — Article 11, jamais une
+  // deuxième table de jours fériés créée pour ce lot).
+  function estJourLivraisonPossible(dateISO, config, joursFeriesISO) {
+    if (!config || !config.jours_livraison_iso) return false;
+    if (!config.jours_livraison_iso.includes(jourSemaineIso(dateISO))) return false;
+    if ((joursFeriesISO || []).includes(dateISO)) return false;
+    return true;
+  }
+
+  // Premier jour de livraison possible STRICTEMENT après `dateDepartISO` —
+  // jamais le jour même (le camion n'arrive jamais le jour de la commande,
+  // §4 : "commande avant 11h -> livraison le PROCHAIN jour de livraison
+  // disponible"). Borné à 21 jours de recherche : au-delà, la config est
+  // probablement incohérente (aucun jour de livraison autorisé) — retourne
+  // null plutôt qu'une boucle qui tournerait longtemps pour rien.
+  function prochainJourLivraisonPossible(dateDepartISO, config, joursFeriesISO) {
+    let cursor = dateDepartISO;
+    for (let i = 0; i < 21; i++) {
+      cursor = ajouterJoursISO(cursor, 1);
+      if (estJourLivraisonPossible(cursor, config, joursFeriesISO)) return cursor;
+    }
+    return null;
+  }
+
+  // Fenêtre de livraison si une commande est passée à `dateCommandeISO`
+  // `heureCommandeHHMM` (§4, exemple vendredi §13) : avant le cutoff, la
+  // recherche part du jour de commande lui-même ; après le cutoff, la
+  // commande est traitée comme si elle avait été passée le lendemain (un
+  // jour de délai supplémentaire), modélisation explicite en l'absence de
+  // règle plus précise dans le cahier pour ce cas.
+  function calculerFenetreLivraison({ dateCommandeISO, heureCommandeHHMM, config, joursFeriesISO }) {
+    if (!config) return { avantCutoff: null, dateEffective: null, livraisonISO: null };
+    const avantCutoff = (heureCommandeHHMM || '00:00') < (config.cutoff_heure || '11:00');
+    const dateEffective = avantCutoff ? dateCommandeISO : ajouterJoursISO(dateCommandeISO, 1);
+    const livraisonISO = prochainJourLivraisonPossible(dateEffective, config, joursFeriesISO);
+    return { avantCutoff, dateEffective, livraisonISO };
+  }
+
+  // ============================================================
+  // B. PRÉVISION PONDÉRÉE DE CONSOMMATION (§8 du cahier)
+  // ============================================================
+
+  // Sous ce nombre de points same-jour-de-semaine, la prévision reste
+  // "à confirmer" plutôt que "fiable" (provisoire — §28/§29).
+  const SEUIL_POINTS_JOUR_SEMAINE_FIABLE = 3;
+
+  // `historiqueParJour` = [{ date: 'YYYY-MM-DD', ventes: { go, sp95, gnr } }],
+  // déjà chargé et agrégé par l'appelant (une ligne par jour, litrage
+  // sommé — même granularité que sommerVentesPeriode côté moteur
+  // Carburants existant). Moyenne des N dernières occurrences du MÊME jour
+  // de semaine que `dateCibleISO`, strictement antérieures à cette date,
+  // pondérées linéairement décroissant (la plus récente pèse le plus) —
+  // priorité 1 du cahier §8 ("il vaut mieux regarder les derniers samedis
+  // comparables que la moyenne lundi->dimanche").
+  function moyennePondereeMemeJourSemaine(historiqueParJour, carburant, dateCibleISO, maxOccurrences) {
+    const max = maxOccurrences || 8;
+    const jourCible = jourSemaineIso(dateCibleISO);
+    const candidats = (historiqueParJour || [])
+      .filter(j => j && j.date < dateCibleISO && j.ventes && j.ventes[carburant] != null && jourSemaineIso(j.date) === jourCible)
+      .sort((a, b) => (a.date < b.date ? 1 : -1))
+      .slice(0, max);
+    if (!candidats.length) return { moyenne: null, nbPoints: 0 };
+    let sommePonderee = 0, sommePoids = 0;
+    candidats.forEach((j, i) => {
+      const poids = candidats.length - i;
+      sommePonderee += j.ventes[carburant] * poids;
+      sommePoids += poids;
+    });
+    return { moyenne: sommePonderee / sommePoids, nbPoints: candidats.length };
+  }
+
+  // Moyenne simple des N derniers jours AVEC donnée (jamais diluée par des
+  // jours sans litrage — même discipline que chargerConsommationJournaliereMoyenne
+  // déjà existant dans nexus-carburant-donnees.js) — priorité 2 du cahier
+  // §8 ("comportement récent").
+  function moyenneRecente(historiqueParJour, carburant, dateCibleISO, joursFenetre) {
+    const fenetre = joursFenetre || 7;
+    const candidats = (historiqueParJour || [])
+      .filter(j => j && j.date < dateCibleISO && j.ventes && j.ventes[carburant] != null)
+      .sort((a, b) => (a.date < b.date ? 1 : -1))
+      .slice(0, fenetre);
+    if (!candidats.length) return { moyenne: null, nbPoints: 0 };
+    const somme = candidats.reduce((s, j) => s + j.ventes[carburant], 0);
+    return { moyenne: somme / candidats.length, nbPoints: candidats.length };
+  }
+
+  // Moyenne des jours fériés historiques connus (priorité 4 du cahier §8) —
+  // `joursFeriesHistoriquesISO` : toutes les dates fériées passées connues
+  // (pas seulement à venir). Retourne null si aucun jour férié passé n'a de
+  // litrage capté — cas normal pour un site jeune (Article 5, jamais une
+  // estimation inventée faute de mieux).
+  function moyenneJoursFeries(historiqueParJour, carburant, joursFeriesHistoriquesISO) {
+    const set = new Set(joursFeriesHistoriquesISO || []);
+    const candidats = (historiqueParJour || []).filter(j => j && set.has(j.date) && j.ventes && j.ventes[carburant] != null);
+    if (!candidats.length) return { moyenne: null, nbPoints: 0 };
+    const somme = candidats.reduce((s, j) => s + j.ventes[carburant], 0);
+    return { moyenne: somme / candidats.length, nbPoints: candidats.length };
+  }
+
+  // Prévision d'UN jour, combinant les priorités disponibles. Un jour férié
+  // avec au moins un point d'historique férié utilise CETTE moyenne en
+  // priorité (jamais mélangée au calcul jour-de-semaine normal — un férié
+  // n'est structurellement pas comparable à un mardi ordinaire), confiance
+  // plafonnée à 'a_confirmer' (peu de points en pratique). Sinon, combine
+  // jour-de-semaine (poids dominant, priorité 1) et tendance récente
+  // (priorité 2) ; si un seul des deux existe, il est utilisé seul ; si
+  // aucun, la prévision est 'non_calculable' — jamais un chiffre à partir
+  // de rien (Article 5).
+  function prevoirConsommationJour({ historiqueParJour, carburant, dateCibleISO, estJourFerie, joursFeriesHistoriquesISO }) {
+    if (estJourFerie) {
+      const ferie = moyenneJoursFeries(historiqueParJour, carburant, joursFeriesHistoriquesISO);
+      if (ferie.moyenne != null) {
+        return { prevision: ferie.moyenne, methode: 'moyenne_jours_feries', confiance: 'a_confirmer', detail: { ferie } };
+      }
+      // Aucun historique férié -> repli sur le calcul normal ci-dessous,
+      // mais jamais présenté comme 'fiable' (un jour férié reste
+      // structurellement différent d'un jour ordinaire).
+    }
+    const memeJour = moyennePondereeMemeJourSemaine(historiqueParJour, carburant, dateCibleISO);
+    const recent = moyenneRecente(historiqueParJour, carburant, dateCibleISO);
+    if (memeJour.moyenne == null && recent.moyenne == null) {
+      return { prevision: null, methode: 'aucune_donnee', confiance: 'non_calculable' };
+    }
+    if (memeJour.moyenne == null) {
+      return { prevision: recent.moyenne, methode: 'moyenne_recente_seule', confiance: estJourFerie ? 'a_confirmer' : 'a_confirmer' };
+    }
+    if (recent.moyenne == null) {
+      const confiance = memeJour.nbPoints >= SEUIL_POINTS_JOUR_SEMAINE_FIABLE && !estJourFerie ? 'fiable' : 'a_confirmer';
+      return { prevision: memeJour.moyenne, methode: 'meme_jour_semaine_seul', confiance };
+    }
+    // Blend : le jour comparable domine (65%, priorité 1 du cahier), la
+    // tendance récente vient corriger (35%, priorité 2) — pondération
+    // provisoire, à recalibrer avec Frédéric une fois plusieurs semaines de
+    // prévisions comparées aux ventes réelles disponibles (§35).
+    const prevision = memeJour.moyenne * 0.65 + recent.moyenne * 0.35;
+    const confiance = memeJour.nbPoints >= SEUIL_POINTS_JOUR_SEMAINE_FIABLE && !estJourFerie ? 'fiable' : 'a_confirmer';
+    return { prevision, methode: 'combinee', confiance, detail: { memeJour, recent } };
+  }
+
+  // Somme des prévisions jour par jour sur une fenêtre de dates (typiquement
+  // "aujourd'hui jusqu'à la livraison exclue", §9). Strictement honnête :
+  // si UN SEUL jour de la fenêtre est non calculable, la fenêtre entière
+  // l'est aussi (jamais une somme partielle présentée comme complète,
+  // même discipline que resoudreVentesFenetre côté moteur Carburants
+  // existant). La confiance retenue est la PIRE des jours de la fenêtre.
+  function prevoirConsommationFenetre({ historiqueParJour, carburant, datesCiblesISO, joursFeriesISO, joursFeriesHistoriquesISO }) {
+    const dates = datesCiblesISO || [];
+    if (!dates.length) return { total: 0, confiance: 'fiable' };
+    const ordreConfiance = { fiable: 0, a_confirmer: 1, non_calculable: 2 };
+    let total = 0, confiance = 'fiable';
+    for (let i = 0; i < dates.length; i++) {
+      const dateISO = dates[i];
+      const estFerie = (joursFeriesISO || []).includes(dateISO);
+      const p = prevoirConsommationJour({
+        historiqueParJour, carburant, dateCibleISO: dateISO,
+        estJourFerie: estFerie, joursFeriesHistoriquesISO: joursFeriesHistoriquesISO || joursFeriesISO,
+      });
+      if (p.prevision == null) return { total: null, confiance: 'non_calculable' };
+      total += p.prevision;
+      if (ordreConfiance[p.confiance] > ordreConfiance[confiance]) confiance = p.confiance;
+    }
+    return { total, confiance };
+  }
+
+  // ============================================================
+  // C. STOCK PRÉVISIONNEL À LA LIVRAISON (§9-10 du cahier)
+  // ============================================================
+
+  function stockPrevuLivraison({ dernierStockFiable, livraisonsIntermediaires, ventesPrevuesJusquaLivraison }) {
+    if (dernierStockFiable == null || ventesPrevuesJusquaLivraison == null) return null;
+    return dernierStockFiable + (livraisonsIntermediaires || 0) - ventesPrevuesJusquaLivraison;
+  }
+
+  // Jamais négative (une capacité disponible ne peut pas être "en dette" à
+  // l'affichage — un stock prévu déjà au-delà de la limite signale plutôt
+  // une incohérence à faire remonter, pas une capacité négative).
+  function capaciteDisponibleLivraison(limiteRemplissage, stockPrevuLivraisonL) {
+    if (limiteRemplissage == null || stockPrevuLivraisonL == null) return null;
+    return Math.max(0, limiteRemplissage - stockPrevuLivraisonL);
+  }
+
+  // Intègre une commande déjà en cours (§10, exemple exact du cahier :
+  // "SP95 physique 12 600 L, commande déjà passée 15 000 L, livraison
+  // prévue demain -> stock estimé avant réception 10 900 L, après réception
+  // 25 900 L"). `commandeEnCours` = { volumeL, livraisonPrevueLe } ou null.
+  function integrerCommandeEnCours({ stockActuelL, commandeEnCours, ventesPrevuesJusquaReception }) {
+    if (!commandeEnCours) return null;
+    const stockAvantReception = (stockActuelL != null && ventesPrevuesJusquaReception != null)
+      ? stockActuelL - ventesPrevuesJusquaReception : null;
+    const stockApresReception = stockAvantReception != null ? stockAvantReception + commandeEnCours.volumeL : null;
+    return {
+      volumeL: commandeEnCours.volumeL, livraisonPrevueLe: commandeEnCours.livraisonPrevueLe,
+      stockAvantReception, stockApresReception,
+    };
+  }
+
+  // ============================================================
+  // D. STOCK DE SÉCURITÉ, SCÉNARIOS, 4 ÉTATS, COÛT DE L'ATTENTE
+  //    (§7, 11-13, 21 du cahier)
+  // ============================================================
+
+  function stockSecuriteLitres(consommationMoyenneJour, stockSecuriteJours) {
+    if (consommationMoyenneJour == null || stockSecuriteJours == null) return null;
+    return consommationMoyenneJour * stockSecuriteJours;
+  }
+
+  // Évalue UN scénario de commande (§12 : scénario A/B/C du cahier — cette
+  // fonction calcule un seul scénario, l'appelant la rejoue avec des
+  // dates/heures différentes pour comparer). Retourne la fenêtre de
+  // livraison, le stock prévu à la livraison, la marge au-dessus de la
+  // réserve de sécurité (en L et en jours) et la confiance de la prévision
+  // sous-jacente — jamais un chiffre affiché sans sa confiance associée.
+  //
+  // `ancreStockISO` (optionnel, défaut = dateCommandeISO) : date du dernier
+  // stock physique FIABLE connu (`stockActuelL`), distincte de
+  // `dateCommandeISO` quand on évalue un scénario "attendre" — la
+  // consommation entre AUJOURD'HUI et la livraison compte en entier, même
+  // si la commande elle-même n'est simulée que plus tard (§13 : le stock
+  // continue de baisser qu'on commande aujourd'hui ou dans 3 jours, seule
+  // la date de LIVRAISON change selon quand on déclenche la commande).
+  function evaluerScenarioCommande({
+    dateCommandeISO, heureCommandeHHMM, config, joursFeriesISO,
+    stockActuelL, consommationMoyenneJour, historiqueParJour, carburant,
+    commandesEnCoursVolumeL, ancreStockISO,
+  }) {
+    const fenetre = calculerFenetreLivraison({ dateCommandeISO, heureCommandeHHMM, config, joursFeriesISO });
+    if (!fenetre.livraisonISO) return null;
+    const dates = joursEntre(ancreStockISO || dateCommandeISO, fenetre.livraisonISO);
+    const ventesPrevues = prevoirConsommationFenetre({ historiqueParJour, carburant, datesCiblesISO: dates, joursFeriesISO });
+    const stockPrevu = stockPrevuLivraison({
+      dernierStockFiable: stockActuelL,
+      livraisonsIntermediaires: commandesEnCoursVolumeL || 0,
+      ventesPrevuesJusquaLivraison: ventesPrevues.total,
+    });
+    const securiteL = stockSecuriteLitres(consommationMoyenneJour, config ? config.stock_securite_jours : null);
+    const margeL = (stockPrevu != null && securiteL != null) ? stockPrevu - securiteL : null;
+    const margeJours = (margeL != null && consommationMoyenneJour) ? margeL / consommationMoyenneJour : null;
+    return {
+      ...fenetre, dates, ventesPrevuesL: ventesPrevues.total, confiance: ventesPrevues.confiance,
+      stockPrevuLivraisonL: stockPrevu, securiteL, margeL, margeJours,
+    };
+  }
+
+  // Marge (en jours) au-delà de laquelle un carburant a une vraie marge de
+  // manœuvre, pas seulement "pas de souci immédiat" (provisoire — §35).
+  const SEUIL_MARGE_JOURS_CONFORTABLE = 5;
+
+  // Les 4 états NEXUS (§11) : compare le scénario "commander maintenant" et
+  // le scénario "attendre le prochain créneau" (typiquement demain) —
+  // exactement la logique de l'exemple vendredi (§13) : l'autonomie brute
+  // seule ne suffit pas, ce qui compte est ce qui se passe si on attend.
+  function determinerEtatCommande({ scenarioMaintenant, scenarioAttente }) {
+    if (!scenarioMaintenant) return { etat: 'non_calculable' };
+    if (scenarioMaintenant.margeJours != null && scenarioMaintenant.margeJours < 0) {
+      return { etat: 'securite', scenarioMaintenant, scenarioAttente };
+    }
+    if (scenarioAttente && scenarioAttente.margeJours != null && scenarioAttente.margeJours < 0) {
+      return { etat: 'moment_ideal', scenarioMaintenant, scenarioAttente };
+    }
+    if (scenarioMaintenant.margeJours != null && scenarioMaintenant.margeJours < SEUIL_MARGE_JOURS_CONFORTABLE) {
+      return { etat: 'a_anticiper', scenarioMaintenant, scenarioAttente };
+    }
+    if (scenarioMaintenant.margeJours == null) return { etat: 'non_calculable', scenarioMaintenant, scenarioAttente };
+    return { etat: 'confortable', scenarioMaintenant, scenarioAttente };
+  }
+
+  // evaluerAttenteCommande() (§21, fonction explicitement demandée par le
+  // cahier) — compare "maintenant" vs "attendre" du seul point de vue
+  // sécurité (l'angle tarifaire, §17-19, est explicitement hors périmètre
+  // de ce lot). Utilisable directement par le simulateur manuel (§30).
+  function evaluerAttenteCommande({ scenarioMaintenant, scenarioAttente }) {
+    if (!scenarioMaintenant) return { recommandation: 'non_calculable' };
+    if (scenarioAttente && scenarioAttente.margeJours != null && scenarioAttente.margeJours < 0) {
+      return {
+        recommandation: 'commander_maintenant',
+        motif: `Attendre ferait passer la réserve de sécurité sous le seuil (marge estimée : ${arrondi1(scenarioAttente.margeJours)} j).`,
+        scenarioMaintenant, scenarioAttente,
+      };
+    }
+    return {
+      recommandation: 'attendre_possible',
+      motif: scenarioAttente && scenarioAttente.margeJours != null
+        ? `Attendre reste compatible avec la réserve de sécurité (marge estimée : ${arrondi1(scenarioAttente.margeJours)} j).`
+        : 'Attendre reste possible (donnée de marge insuffisante pour un chiffre précis).',
+      scenarioMaintenant, scenarioAttente,
+    };
+  }
+
+  function arrondi1(n) { return n == null ? null : Math.round(n * 10) / 10; }
+
+  // ============================================================
+  // E. MINIMUM CAMION, COMPARTIMENTS, OPTIMISATION MULTI-CARBURANT
+  //    (§6, 14-16 du cahier)
+  // ============================================================
+
+  // Arrondit un besoin théorique au millier de litres (§6, exemple exact :
+  // "besoin 13 200 L -> commande potentielle 13 000 L ou 14 000 L") —
+  // inférieur par défaut (évite l'immobilisation inutile de trésorerie),
+  // supérieur si l'appelant signale explicitement que l'inférieur ne
+  // maintiendrait pas la sécurité (`margeSecuriteOk === false`).
+  function arrondirVolumeCommande(volumeTheorique, { margeSecuriteOk, pasArrondi } = {}) {
+    if (volumeTheorique == null) return null;
+    const pas = pasArrondi || 1000;
+    const inferieur = Math.floor(volumeTheorique / pas) * pas;
+    const superieur = inferieur + pas;
+    if (margeSecuriteOk === false) return superieur;
+    return inferieur > 0 ? inferieur : superieur;
+  }
+
+  function verifierMinimumCamion(volumeTotalL, minimumCamionL) {
+    if (volumeTotalL == null || minimumCamionL == null) return { valide: null, manqueL: null };
+    return { valide: volumeTotalL >= minimumCamionL, manqueL: Math.max(0, minimumCamionL - volumeTotalL) };
+  }
+
+  // Un carburant n'est avancé pour compléter le camion que si son propre
+  // besoin arrive sous ce nombre de jours (§15 : ne jamais remplir un
+  // camion en avançant un carburant confortable pendant encore 8 jours) —
+  // provisoire, à recalibrer avec Frédéric (§35).
+  const SEUIL_ANTICIPATION_MAX_JOURS = 3;
+
+  // Cœur du §14-16 : construit la commande multi-carburant optimale, ou
+  // recommande d'attendre. `parCarburant` = { sp95: {etat, besoinTheoriqueL,
+  // joursAvantBesoin}, go: {...}, gnr: {...} } — carburants INACTIFS déjà
+  // exclus par l'appelant (jamais un besoin GNR pris en compte tant que
+  // cuves_carburants.gnr.actif = false). `capacitesDisponiblesL` = capacité
+  // encore disponible à la livraison par carburant (pour compléter en
+  // dernier recours sur un carburant déjà urgent, §16, plutôt que d'inventer
+  // un besoin sur un carburant confortable sans rapport).
+  function optimiserCommandeMultiCarburant({ parCarburant, minimumCamionL, capacitesDisponiblesL }) {
+    const cles = Object.keys(parCarburant || {});
+    const urgents = cles.filter(c => parCarburant[c] && (parCarburant[c].etat === 'securite' || parCarburant[c].etat === 'moment_ideal'));
+
+    if (!urgents.length) {
+      return {
+        decision: 'attendre',
+        motif: "Aucun carburant n'est dans sa fenêtre de commande aujourd'hui — avancer un achat maintenant immobiliserait du stock sans nécessité (§15).",
+        volumesRetenus: {}, total: 0,
+      };
+    }
+
+    const volumesRetenus = {};
+    urgents.forEach(c => { volumesRetenus[c] = parCarburant[c].besoinTheoriqueL || 0; });
+    let total = urgents.reduce((s, c) => s + volumesRetenus[c], 0);
+
+    if (total >= minimumCamionL) {
+      return { decision: 'commander', optimise: false, carburantsAnticipes: [], volumesRetenus, total, motif: null };
+    }
+
+    const candidats = cles
+      .filter(c => !urgents.includes(c) && parCarburant[c] && parCarburant[c].etat === 'a_anticiper'
+        && parCarburant[c].joursAvantBesoin != null && parCarburant[c].joursAvantBesoin <= SEUIL_ANTICIPATION_MAX_JOURS)
+      .sort((a, b) => parCarburant[a].joursAvantBesoin - parCarburant[b].joursAvantBesoin);
+
+    const carburantsAnticipes = [];
+    candidats.forEach(c => {
+      if (total >= minimumCamionL) return;
+      const v = parCarburant[c].besoinTheoriqueL || 0;
+      if (v <= 0) return;
+      volumesRetenus[c] = v;
+      total += v;
+      carburantsAnticipes.push(c);
+    });
+
+    if (total >= minimumCamionL) {
+      return {
+        decision: 'commander', optimise: carburantsAnticipes.length > 0, carburantsAnticipes, volumesRetenus, total,
+        motif: carburantsAnticipes.length
+          ? `Complète le camion avec ${carburantsAnticipes.join(', ')}, dont le besoin approche (sous ${SEUIL_ANTICIPATION_MAX_JOURS} j).`
+          : null,
+      };
+    }
+
+    // Toujours sous le minimum : la sécurité prime (§20) — on rapproche le(s)
+    // carburant(s) déjà urgent(s) de leur capacité disponible plutôt que de
+    // forcer un carburant confortable sans rapport avec le besoin réel.
+    const manque = minimumCamionL - total;
+    if (urgents.length === 1 && capacitesDisponiblesL && capacitesDisponiblesL[urgents[0]] != null) {
+      const c = urgents[0];
+      const capaciteRestante = Math.max(0, capacitesDisponiblesL[c] - volumesRetenus[c]);
+      const ajout = Math.min(manque, capaciteRestante);
+      volumesRetenus[c] += ajout;
+      total += ajout;
+    }
+
+    if (total >= minimumCamionL) {
+      return {
+        decision: 'commander', optimise: true, carburantsAnticipes, volumesRetenus, total,
+        motif: 'Volume complété sur le(s) carburant(s) déjà urgent(s), au plus près de la limite de remplissage, pour atteindre le minimum de commande.',
+      };
+    }
+
+    return {
+      decision: 'insuffisant_meme_optimise', carburantsAnticipes, volumesRetenus, total,
+      manqueL: minimumCamionL - total,
+      motif: `Même optimisé, le besoin (${Math.round(total).toLocaleString('fr-FR')} L) reste sous le minimum de commande (${Math.round(minimumCamionL).toLocaleString('fr-FR')} L) — capacités disponibles insuffisantes, à vérifier manuellement.`,
+    };
+  }
+
+  // ============================================================
+  // F. QUALITÉ DES DONNÉES (§28-29 du cahier)
+  // ============================================================
+
+  // 3 niveaux du cahier §28. `stockFiable` : le dernier stock physique
+  // utilisé comme ancre est-il lui-même fiable (voir NexusCarburantMoteur.
+  // qualiteChaineCarburant, réutilisé par l'appelant, Article 11 — jamais
+  // un 2ᵉ calcul de fiabilité de la chaîne physique ici).
+  function qualiteDonneesCommande({ stockFiable, previsionConfiance }) {
+    if (!stockFiable) return 'non_calculable';
+    if (previsionConfiance === 'non_calculable') return 'non_calculable';
+    if (previsionConfiance === 'a_confirmer') return 'a_confirmer';
+    return 'fiable';
+  }
+
+  // ============================================================
+  // G. ÉVALUATION COMPLÈTE D'UN CARBURANT, PUIS DE TOUS LES CARBURANTS
+  //    (§27, l'objet de sortie du moteur)
+  // ============================================================
+
+  // Recherche bornée (14 jours, horizon de planification raisonnable pour
+  // ce cahier — au-delà, "confortable" suffit comme réponse, jamais un
+  // calcul de précision inutile sur un horizon lointain) du premier jour où
+  // ce carburant entrerait lui-même dans sa fenêtre de commande (moment
+  // idéal ou sécurité) — alimente l'optimisation multi-carburant (§14-16)
+  // et le message "à anticiper" (§11, "SP95 — commande probablement
+  // nécessaire demain avant 11h").
+  function joursAvantBesoinCarburant(args) {
+    for (let j = 1; j <= 14; j++) {
+      const dISO = ajouterJoursISO(args.maintenantISO, j);
+      const prochainCreneau = prochainJourLivraisonPossible(dISO, args.config, args.joursFeriesISO);
+      // `ancreStockISO` reste TOUJOURS args.maintenantISO ici : le seul stock
+      // physique fiable connu est celui d'aujourd'hui — on simule "et si on
+      // décidait de commander dans j jours", pas "et si on avait un nouveau
+      // relevé dans j jours" (qu'on n'a évidemment pas encore).
+      const sc = evaluerScenarioCommande({ ...args, dateCommandeISO: dISO, heureCommandeHHMM: '00:00', ancreStockISO: args.maintenantISO });
+      const scAttente = prochainCreneau
+        ? evaluerScenarioCommande({ ...args, dateCommandeISO: prochainCreneau, heureCommandeHHMM: '00:00', ancreStockISO: args.maintenantISO })
+        : null;
+      const e = determinerEtatCommande({ scenarioMaintenant: sc, scenarioAttente: scAttente });
+      if (e.etat === 'moment_ideal' || e.etat === 'securite') return j;
+    }
+    return null;
+  }
+
+  // Évaluation complète d'UN carburant — l'entrée que l'écran/le chargeur
+  // consomment directement pour construire la carte "Prochaine commande"
+  // (§22) et alimenter l'optimisation multi-carburant.
+  function evaluerCarburant({
+    carburant, maintenantISO, heureMaintenantHHMM, config, joursFeriesISO,
+    stockActuelL, limiteRemplissageL, consommationMoyenneJour, historiqueParJour,
+    commandeEnCoursVolumeL, stockFiable,
+  }) {
+    const args = { config, joursFeriesISO, stockActuelL, consommationMoyenneJour, historiqueParJour, carburant, commandesEnCoursVolumeL: commandeEnCoursVolumeL, maintenantISO };
+    const scenarioMaintenant = evaluerScenarioCommande({ ...args, dateCommandeISO: maintenantISO, heureCommandeHHMM: heureMaintenantHHMM });
+    // "Attendre" = rater le cutoff d'aujourd'hui et agir au PROCHAIN créneau
+    // valide (le prochain jour de livraison autorisé, jamais simplement
+    // "demain" — un samedi/dimanche/férié ne change rien à la fenêtre par
+    // rapport à aujourd'hui, exactement l'exemple vendredi du cahier §13 :
+    // attendre jusqu'à samedi ne change rien, la vraie perte vient de rater
+    // le cutoff du jour ouvré lui-même).
+    const prochainCreneauISO = prochainJourLivraisonPossible(maintenantISO, config, joursFeriesISO);
+    const scenarioAttente = prochainCreneauISO
+      ? evaluerScenarioCommande({ ...args, dateCommandeISO: prochainCreneauISO, heureCommandeHHMM: '00:00', ancreStockISO: maintenantISO })
+      : null;
+    const etatInfo = determinerEtatCommande({ scenarioMaintenant, scenarioAttente });
+    const attente = evaluerAttenteCommande({ scenarioMaintenant, scenarioAttente });
+
+    let besoinTheoriqueL = null;
+    if (scenarioMaintenant && limiteRemplissageL != null && scenarioMaintenant.stockPrevuLivraisonL != null) {
+      besoinTheoriqueL = capaciteDisponibleLivraison(limiteRemplissageL, scenarioMaintenant.stockPrevuLivraisonL);
+    }
+
+    const joursAvantBesoin = (etatInfo.etat === 'moment_ideal' || etatInfo.etat === 'securite')
+      ? 0
+      : joursAvantBesoinCarburant(args);
+
+    const previsionConfiance = scenarioMaintenant ? scenarioMaintenant.confiance : 'non_calculable';
+
+    return {
+      carburant, etat: etatInfo.etat, scenarioMaintenant, scenarioAttente, attente,
+      besoinTheoriqueL, joursAvantBesoin,
+      confiance: qualiteDonneesCommande({ stockFiable, previsionConfiance }),
+    };
+  }
+
+  // Pire état parmi tous les carburants actifs (jamais une moyenne — un
+  // seul carburant en sécurité doit dominer l'affichage, même règle que
+  // statutGlobalControle dans le moteur Carburants existant, Article 11).
+  const ORDRE_ETAT_GLOBAL = ['securite', 'moment_ideal', 'a_anticiper', 'confortable', 'non_calculable'];
+  function determinerEtatGlobal(parCarburant) {
+    const etats = Object.values(parCarburant || {}).map(e => e.etat);
+    return ORDRE_ETAT_GLOBAL.find(e => etats.includes(e)) || 'non_calculable';
+  }
+
+  // Construit l'objet complet §27 : évaluation par carburant + décision
+  // multi-carburant + volumes arrondis finaux. `evaluationsParCarburant` =
+  // { sp95: evaluerCarburant(...), go: ..., gnr: ... si actif } — construit
+  // par l'appelant (la boucle sur les carburants actifs appartient à la
+  // couche données, ce moteur reste pur et ne sait rien de la config des
+  // cuves du site).
+  function construireEvaluationGlobale({ evaluationsParCarburant, config, capacitesDisponiblesL }) {
+    const pourOptimisation = {};
+    Object.entries(evaluationsParCarburant || {}).forEach(([c, ev]) => {
+      pourOptimisation[c] = { etat: ev.etat, besoinTheoriqueL: ev.besoinTheoriqueL, joursAvantBesoin: ev.joursAvantBesoin };
+    });
+
+    const optim = optimiserCommandeMultiCarburant({
+      parCarburant: pourOptimisation,
+      minimumCamionL: config ? config.minimum_camion_litres : null,
+      capacitesDisponiblesL,
+    });
+
+    let commandeRecommandee = null;
+    if (optim.decision === 'commander') {
+      const volumesArrondis = {};
+      let totalArrondi = 0;
+      Object.entries(optim.volumesRetenus).forEach(([c, v]) => {
+        const ev = evaluationsParCarburant[c];
+        const margeSecuriteOk = ev && ev.scenarioMaintenant && ev.scenarioMaintenant.margeJours != null
+          ? ev.scenarioMaintenant.margeJours >= 0 : null;
+        const arrondi = arrondirVolumeCommande(v, { margeSecuriteOk });
+        volumesArrondis[c] = arrondi;
+        totalArrondi += arrondi || 0;
+      });
+      // Filet de sécurité : si l'arrondi (toujours au multiple de 1000
+      // inférieur par défaut) repasse sous le minimum camion, on remonte le
+      // plus gros volume d'un cran plutôt que de proposer une commande
+      // finalement invalide.
+      const pasArrondi = 1000;
+      if (config && totalArrondi < config.minimum_camion_litres) {
+        const tri = Object.entries(volumesArrondis).sort((a, b) => b[1] - a[1]);
+        if (tri.length) {
+          volumesArrondis[tri[0][0]] += pasArrondi;
+          totalArrondi += pasArrondi;
+        }
+      }
+      commandeRecommandee = { volumes: volumesArrondis, total: totalArrondi };
+    }
+
+    return {
+      parCarburant: evaluationsParCarburant, optimisation: optim, commandeRecommandee,
+      etatGlobal: determinerEtatGlobal(evaluationsParCarburant),
+    };
+  }
+
+  global.NexusCarburantCommandeMoteur = {
+    // Calendrier
+    ajouterJoursISO, joursEntre, jourSemaineIso, estJourLivraisonPossible,
+    prochainJourLivraisonPossible, calculerFenetreLivraison,
+    // Prévision
+    SEUIL_POINTS_JOUR_SEMAINE_FIABLE,
+    moyennePondereeMemeJourSemaine, moyenneRecente, moyenneJoursFeries,
+    prevoirConsommationJour, prevoirConsommationFenetre,
+    // Stock prévisionnel
+    stockPrevuLivraison, capaciteDisponibleLivraison, integrerCommandeEnCours,
+    // États / fenêtre idéale / attente
+    stockSecuriteLitres, SEUIL_MARGE_JOURS_CONFORTABLE,
+    evaluerScenarioCommande, determinerEtatCommande, evaluerAttenteCommande,
+    // Camion / multi-carburant
+    arrondirVolumeCommande, verifierMinimumCamion, SEUIL_ANTICIPATION_MAX_JOURS,
+    optimiserCommandeMultiCarburant,
+    // Qualité des données
+    qualiteDonneesCommande,
+    // Évaluation complète
+    evaluerCarburant, determinerEtatGlobal, construireEvaluationGlobale,
+  };
+})(typeof window !== 'undefined' ? window : globalThis);
