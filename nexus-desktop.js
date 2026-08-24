@@ -504,6 +504,29 @@ function nexusInstallerTooltipsSidebar() {
   if (scrollEl) scrollEl.addEventListener('scroll', masquer, { passive: true });
 }
 
+// Repli si une icône PNG du menu ne charge pas (24/08/2026 — constat de
+// Frédéric : plusieurs icônes du menu bureau manquantes dans
+// assets/icons/, ex. icon-home.png, icon-journal-nexus.png,
+// icon-capital.png, icon-scanner.png, icon-radar.png, icon-produits.png,
+// icon-scanner-stock.png, icon-nexus-verify.png, icon-missions.png,
+// icon-assignations.png, icon-planner.png, icon-evaluation.png,
+// icon-resultats-equipe.png, icon-import.png, icon-rappels.png — gap
+// préexistant du pack d'icônes, pas causé par le renommage v2.235).
+// N'invente PAS une icône de remplacement dans le pack visuel NEXUS (ce
+// serait fabriquer une fausse précision, Article 5) : remplace juste
+// l'image cassée par une puce neutre, pour que le menu reste propre en
+// attendant que les fichiers manquants soient fournis.
+function nexusInstallerReplisIconesSidebar() {
+  document.querySelectorAll('.nexus-sidebar-link img').forEach(img => {
+    img.addEventListener('error', () => {
+      const puce = document.createElement('span');
+      puce.style.fontSize = '15px';
+      puce.textContent = '•';
+      img.replaceWith(puce);
+    }, { once: true });
+  });
+}
+
 function nexusInitVueBureau() {
   const style = document.createElement('style');
   style.textContent = NEXUS_DESKTOP_CSS;
@@ -517,6 +540,7 @@ function nexusInitVueBureau() {
     document.body.insertBefore(sidebar, document.body.firstChild);
     nexusInstallerCurseurSidebar();
     nexusInstallerTooltipsSidebar();
+    nexusInstallerReplisIconesSidebar();
     nexusVerifierAlertesFdj();
   } else {
     const bouton = document.createElement('button');
