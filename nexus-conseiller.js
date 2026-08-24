@@ -480,6 +480,14 @@
       impactAttendu: c.impactAttendu, preuve: c.impact, limites,
       cible: `NEXUS-Produits-v1.html?article=${encodeURIComponent(c.article)}`,
       validable: true,
+      // libelleActionSecondaire (22/08/2026, audit "Cockpit Améliorations
+      // Développeur" §4, chantier "Boutons d'action précis") : `cible`
+      // existait déjà (avec l'article précisé en query param) mais n'était
+      // jamais affiché pour les candidats validables — seul le bouton
+      // Valider apparaissait, sans moyen d'aller inspecter le produit
+      // avant de valider. Réutilise `cible` tel quel, aucun nouveau champ
+      // de navigation.
+      libelleActionSecondaire: 'Voir le produit',
       ca_reference: c.ca_reference, periode_reference_debut: c.periode_reference_debut, periode_reference_fin: c.periode_reference_fin,
     };
   }
@@ -500,6 +508,10 @@
       preuve: c.impact, limites: c.analyse || null,
       cible: 'NEXUS-Scanner-v1.html',
       validable: true,
+      // libelleActionSecondaire (22/08/2026, v2.226) — libellé repris tel
+      // quel du tableau de l'audit ("Prix/marge → Vérifier le produit →
+      // Ouvrir Scanner NEXUS"), `cible` déjà présent et déjà correct.
+      libelleActionSecondaire: 'Ouvrir Scanner NEXUS',
       ca_reference: c.ca_reference, periode_reference_debut: c.periode_reference_debut, periode_reference_fin: c.periode_reference_fin,
     };
   }
@@ -527,6 +539,9 @@
       impactAttendu: c.impactAttendu,
       preuve: null, limites: c.limites || null,
       cible: 'NEXUS-Tempo-v1.html', validable: false,
+      // libelleAction (22/08/2026, v2.226) — remplace le lien générique
+      // "→ Aller vérifier dans Tempo" par un libellé propre au signal.
+      libelleAction: "Voir l'analyse Tempo",
     };
   }
 
@@ -536,6 +551,10 @@
   // écrire dedans depuis ici créerait une mémoire parallèle incohérente.
   // `domaine` sert uniquement à choisir une destination plausible.
   const CIBLE_PAR_DOMAINE_ADVISOR = { caisse: 'NEXUS-Verify-v1.html', qualite: 'NEXUS-Missions-v1.html' };
+  // libelleAction (22/08/2026, v2.226) — même logique de destination que
+  // CIBLE_PAR_DOMAINE_ADVISOR (par domaine), pour ne jamais dire "Contrôler
+  // ce point" sur un signal qui renvoie en réalité vers une mission qualité.
+  const LIBELLE_ACTION_PAR_DOMAINE_ADVISOR = { caisse: 'Contrôler ce point', qualite: 'Voir la mission' };
   function normaliserAdvisor(message) {
     const domaine = message.domaine || '';
     return {
@@ -549,6 +568,7 @@
       limites: null,
       cible: CIBLE_PAR_DOMAINE_ADVISOR[domaine] || 'NEXUS-Cockpit-v2.html',
       validable: false,
+      libelleAction: LIBELLE_ACTION_PAR_DOMAINE_ADVISOR[domaine] || 'Voir le détail',
     };
   }
 
@@ -592,6 +612,13 @@
       limites: "Attribution par quart (employé seul sur le quart) — ne remplace pas une vérification directe avec la personne.",
       cible: 'NEXUS-Verify-v1.html',
       validable: false,
+      // libelleAction (22/08/2026, v2.226, audit §4 — libellé repris tel
+      // quel : "Écart caisse employé → Contrôler cet écart"). Pas de
+      // libelleActionSecondaire "Voir les preuves" : `preuve` est déjà
+      // affiché directement dans la carte une fois dépliée — un second
+      // bouton pointant vers la même information déjà visible serait un
+      // faux-semblant (Article 5), pas une vraie action supplémentaire.
+      libelleAction: 'Contrôler cet écart',
       auditId: c.audit_id,
     };
   }
@@ -619,6 +646,9 @@
       limites: "Écart de mouvement de stock non expliqué par les ventes connues, pas une démarque confirmée — NEXUS n'a aujourd'hui aucun comptage physique en base pour l'affirmer.",
       cible: 'NEXUS-Scanner-Stock-v1.html',
       validable: false,
+      // libelleAction (22/08/2026, v2.226, audit §4 — "Comptage ciblé
+      // stock → Lancer ce comptage").
+      libelleAction: 'Lancer ce comptage',
     };
   }
 
@@ -678,6 +708,12 @@
       impactAttendu: c.impactAttendu, preuve: c.preuve, limites: c.limites || null,
       cible: c.cible || 'NEXUS-FDJ-Analyse-v1.html',
       validable: false,
+      // libelleAction (22/08/2026, v2.226) — l'audit suggère "Ouvrir le
+      // quart FDJ", mais `cible` ne pointe aujourd'hui jamais vers un
+      // quart précis (toujours l'écran d'analyse global) : reprendre ce
+      // libellé serait une fausse précision (Article 5). "Voir l'analyse
+      // FDJ" reste exact sur ce que le lien ouvre réellement.
+      libelleAction: "Voir l'analyse FDJ",
       confiance: c.confiance || null,
     };
   }
@@ -701,6 +737,9 @@
       impactAttendu: c.impactAttendu, preuve: c.preuve, limites: c.limites || null,
       cible: c.cible || 'NEXUS-FDJ-Analyse-v1.html',
       validable: false,
+      // libelleAction (22/08/2026, v2.226) — même raisonnement que fdj :
+      // `cible` pointe vers l'écran d'analyse, pas vers un employé précis.
+      libelleAction: "Voir le coaching équipe",
       confiance: c.confiance || null,
     };
   }

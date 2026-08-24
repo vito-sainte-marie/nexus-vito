@@ -342,6 +342,7 @@
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-auth.js"></script>
+<script src="nexus-header-nav.js"></script>
 <script src="nexus-desktop.js"></script>
 <script src="nexus-vocabulaire.js"></script>
 <script src="nexus-periodes.js"></script>
@@ -937,10 +938,10 @@
             ${p.impactAttendu ? `<div class="plan-impact">📊 Impact attendu — <b>${p.impactAttendu}</b></div>` : ''}
             ${p.preuve ? `<div class="rappel-date">${p.preuve}</div>` : ''}
             ${p.validable
-              ? `<button class="plan-valider" data-id="${p.candidate_id}">✓ Valider cette recommandation</button>`
+              ? `<button class="plan-valider" data-id="${p.candidate_id}">✓ Valider cette recommandation</button>${p.libelleActionSecondaire && p.cible ? `<a href="${p.cible}" class="plan-lien">→ ${p.libelleActionSecondaire}</a>` : ''}`
               : p.moteur === 'rappel'
                 ? `<button class="plan-rappel-fait" data-rappel-id="${p.rappelId}">✓ Marquer comme fait</button>`
-                : `<a href="${p.cible}" class="plan-lien">→ Aller vérifier dans ${(MOTEUR_LABEL[p.moteur] || p.cible)}</a>`}
+                : `<a href="${p.cible}" class="plan-lien">→ ${p.libelleAction || `Aller vérifier dans ${(MOTEUR_LABEL[p.moteur] || p.cible)}`}</a>`}
             ${p.moteur === 'caisse' && p.auditId ? `
             <label class="caisse-justifie-row">
               <input type="checkbox" class="caisse-justifie-checkbox" data-audit-id="${p.auditId}">
