@@ -148,8 +148,37 @@ function ligne(date, nbQuartsControles, nbEcarts) { return { date, nb_quarts_con
   const fallbackFdj = F.trouverDernierJourFdjFiable([ligne('2026-08-21', 2, 0)], '2026-08-22');
   const fraicheur = C.fraicheurCarburant({ completAujourdhui: false, fallback: fallbackFdj });
   assert.strictEqual(fraicheur.mode, 'fallback');
-  assert.strictEqual(C.libelleBadgeFraicheur(fraicheur), 'Dernier état fiable J-1');
+  // Vocabulaire recalibré (23/08/2026, audit "Anti-dégradation temporelle",
+  // v2.220) : "Dernier état fiable J-1" -> "Mis à jour hier" (tableau 3.1).
+  assert.strictEqual(C.libelleBadgeFraicheur(fraicheur), 'Mis à jour hier');
   ok('fraicheurCarburant/libelleBadgeFraicheur (déjà génériques) fonctionnent tels quels avec un fallback FDJ, sans duplication');
 }
 
-console.log(`\n${n}/${n} tests passés — fallback FDJ (v2.219).`);
+// ------------------------------------------------------------
+// 6) signalCritiqueFdjAujourdhui — un écart de caisse déjà constaté
+//    aujourd'hui (même sur un seul quart, jour non clôturé) prime toujours
+//    sur le fallback (audit §3.2, règle de précédence #5).
+// ------------------------------------------------------------
+{
+  assert.strictEqual(F.signalCritiqueFdjAujourdhui(null), false, 'Aucune ligne du jour -> pas de signal critique possible');
+  assert.strictEqual(F.signalCritiqueFdjAujourdhui(ligne('2026-08-22', 1, 0)), false, 'Quart clôturé sans écart -> pas de signal critique');
+  assert.strictEqual(F.signalCritiqueFdjAujourdhui(ligne('2026-08-22', 1, 2)), true, 'Écart déjà constaté sur le quart remonté -> signal critique, même jour non clôturé');
+  ok('signalCritiqueFdjAujourdhui détecte un écart déjà confirmé aujourd\'hui');
+
+  // Intégration bout en bout : un écart déjà constaté aujourd'hui (jour non
+  // clôturé) ne doit JAMAIS être masqué par le fallback — nbEcarts reste
+  // la somme VIVANTE (qui inclut cet écart réel), fraicheur reste 'jour'.
+  const e = entree('fdj', 'FDJ');
+  // Reproduit le calcul que ferait chargerCandidatsFdj : jour non clôturé
+  // (1 seul quart) mais déjà 4 écarts constatés sur ce quart (bucket
+  // "mauvaise" confirmée, >= 3 écarts) -> signal critique -> pas de
+  // fallback, nbEcarts live = 4.
+  const resultat = S.construireSecteurs([e], {
+    fdjResume: { nbQuartsControles: 10, caGrattage: 4000, evolutionCa: 0.05, jeuMoteur: null, nbEcarts: 4, fraicheur: { mode: 'jour' }, enCours: null },
+  })[0];
+  assert.strictEqual(resultat.fraicheur.mode, 'jour', 'Signal critique aujourd\'hui -> reste en mode "jour", jamais un fallback masquant');
+  assert.strictEqual(resultat.statut, 'À corriger', 'L\'écart réel remonte normalement, sans être adouci par un ancien score plus favorable');
+  ok('Signal critique FDJ confirmé aujourd\'hui : jamais masqué par le fallback (bout en bout via construireSecteurs)');
+}
+
+console.log(`\n${n}/${n} tests passés — fallback FDJ (v2.219/v2.220).`);

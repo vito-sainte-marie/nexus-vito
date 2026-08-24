@@ -1280,6 +1280,20 @@
     return lignes;
   }
 
+  // Signal critique confirmé (23/08/2026, audit "Anti-dégradation
+  // temporelle", section 3.2/règle de précédence #5) : *"une rupture FDJ
+  // confirmée [...] doit remplacer immédiatement le fallback, même si le
+  // cycle global du jour n'est pas encore complet."* Un écart de caisse
+  // DÉJÀ constaté aujourd'hui (sur un quart déjà remonté, même si le jour
+  // entier n'est pas encore clôturé) est un fait réel, pas une incertitude
+  // — il ne doit jamais être masqué derrière un score figé plus ancien et
+  // plus favorable. Distinct de `jourFdjEstCloture` : un jour peut être
+  // incomplet (Q2 pas encore fait) tout en portant déjà, sur Q1, un écart
+  // réel et non nul.
+  function signalCritiqueFdjAujourdhui(ligneAujourdhui) {
+    return !!(ligneAujourdhui && Number(ligneAujourdhui.nb_ecarts_non_nuls) > 0);
+  }
+
   // Progression du comptage d'un quart pour les cartes "Quarts du jour"
   // (20/08/2026, cahier UX §4/§5) : "L'objectif est que tu puisses voir une
   // anomalie sans ouvrir le quart." `counts` = lignes fdj_shift_counts du
@@ -1482,6 +1496,7 @@
     progressionComptageQuart,
     FDJ_QUARTS_ATTENDUS_PAR_JOUR, jourFdjEstCloture, fenetreComparableFdj,
     trouverDernierJourFdjFiable, sommerEcartsFenetreFdj, construireBlocEnCoursFdj,
+    signalCritiqueFdjAujourdhui,
     RESULTATS_CONTROLE_FDJ, labelResultatControle,
     optionsVerdictControleFdj, verdictCoherentAvecEcart, deriverStatutCaisseDepuisVerdict, motifEcartObligatoire, etatDuQuartFdj,
     causeAlerteContinuite, elementManquantAlerteContinuite, actionAlerteContinuite, detailAlerteContinuite,

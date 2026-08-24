@@ -1197,12 +1197,20 @@
   // fonctions que pour "aujourd'hui", simplement à une autre date.
   // ============================================================
 
-  // Borne haute proposée par Frédéric ("36 ou 48h") — au-delà, un état
-  // gelé ne doit plus être présenté comme le reflet de la situation
-  // courante (Article 5) : l'écran doit basculer en "à actualiser"
-  // plutôt que d'afficher un score de plus en plus périmé comme s'il
-  // était frais.
-  const SEUIL_FALLBACK_HEURES_PEREMPTION = 48;
+  // Borne haute (23/08/2026, recalibrée — "NEXUS_Audit_Brief_Cockpit_
+  // Anti_Degradation_Verify_FDJ.pdf", section 3.1/13) : remplace la borne
+  // initiale de Frédéric ("36 ou 48h", v2.214) par la politique NEXUS
+  // formalisée par l'audit — un dernier état fiable reste présentable
+  // jusqu'à J-3 inclus (avec fraîcheur explicite à chaque palier), et
+  // devient "à actualiser" à partir de J-4 : *"Le dernier etat fiable est
+  // conserve au maximum jusqu'a J-3... A partir de J-4, NEXUS affiche 'A
+  // actualiser' et ne presente plus l'ancien score comme courant."*
+  // Exprimée en JOURS plutôt qu'en heures (l'audit raisonne explicitement
+  // en J-1/J-2/J-3/J-4, jamais en heures) — au-delà, un état gelé ne doit
+  // plus être présenté comme le reflet de la situation courante (Article
+  // 5) : l'écran doit basculer en "à actualiser" plutôt que d'afficher un
+  // score de plus en plus périmé comme s'il était frais.
+  const SEUIL_FALLBACK_JOURS_PEREMPTION = 3;
 
   // Un jour est "complet" pour Carburants si son contrôle physique a
   // produit un résultat interprétable (peu importe qu'il soit bon ou
@@ -1240,8 +1248,7 @@
   function fraicheurCarburant({ completAujourdhui, fallback }) {
     if (completAujourdhui) return { mode: 'jour' };
     if (!fallback || !fallback.trouve) return { mode: 'jour_incomplet_sans_repli' };
-    const heuresEcoulees = fallback.joursEcoules * 24;
-    if (heuresEcoulees > SEUIL_FALLBACK_HEURES_PEREMPTION) {
+    if (fallback.joursEcoules > SEUIL_FALLBACK_JOURS_PEREMPTION) {
       return { mode: 'perime', dateReference: fallback.date, joursEcoules: fallback.joursEcoules };
     }
     return { mode: 'fallback', dateReference: fallback.date, joursEcoules: fallback.joursEcoules };
@@ -1249,14 +1256,22 @@
 
   // Badge affiché à côté du secteur — jamais le même libellé que le mode
   // 'jour' normal (aucun badge nécessaire dans ce cas, l'écran n'affiche
-  // rien de spécial). Un jour d'écart s'affiche "J-1" (formulation directe
-  // demandée par Frédéric) ; au-delà, la date complète plutôt qu'un
-  // décompte de jours moins lisible.
+  // rien de spécial). Vocabulaire aligné (23/08/2026) sur le tableau 3.1 de
+  // l'audit : "Mis à jour hier" (J-1), "Mis à jour il y a N j" (J-2/J-3) —
+  // remplace l'ancien libellé unique "Dernier état fiable J-1" qui ne
+  // distinguait pas les paliers J-2/J-3 introduits par la recalibration
+  // ci-dessus.
   function libelleBadgeFraicheur(fraicheur) {
     if (!fraicheur || fraicheur.mode === 'jour') return null;
     const dateTxt = (fraicheur.dateReference || '').split('-').reverse().join('/');
     if (fraicheur.mode === 'fallback') {
-      return fraicheur.joursEcoules === 1 ? 'Dernier état fiable J-1' : `Dernier état fiable — données complètes arrêtées au ${dateTxt}`;
+      if (fraicheur.joursEcoules === 1) return 'Mis à jour hier';
+      if (fraicheur.joursEcoules <= SEUIL_FALLBACK_JOURS_PEREMPTION) return `Mis à jour il y a ${fraicheur.joursEcoules} j`;
+      // Filet de sécurité seulement : avec le seuil ci-dessus, le mode
+      // 'fallback' n'est plus jamais atteint au-delà de J-3 (bascule en
+      // 'perime') — ne devrait jamais s'exécuter, gardé par honnêteté
+      // plutôt que de supposer que joursEcoules restera toujours borné.
+      return `Dernier état fiable — données complètes arrêtées au ${dateTxt}`;
     }
     if (fraicheur.mode === 'perime') {
       return `À actualiser — dernier état fiable trop ancien (${dateTxt})`;
@@ -1284,6 +1299,27 @@
     return lignes;
   }
 
+  // Signal critique confirmé (23/08/2026, audit "Anti-dégradation
+  // temporelle", section 3.2/règle de précédence #5) : *"La conservation
+  // J-1 à J-3 n'est permise que si aucun signal nouveau contradictoire ou
+  // critique n'est apparu depuis le dernier état fiable. [...] un écart
+  // carburant physiquement mesuré doit remplacer immédiatement le
+  // fallback, même si le cycle global du jour n'est pas encore complet."*
+  //
+  // Distinct de `jourCarburantEstComplet` : une journée peut être
+  // INCOMPLÈTE (litrage du jour pas fini, jaugeage de clôture pas fait) et
+  // pourtant déjà porter un écart RÉEL et CONFIRMÉ sur un relevé déjà
+  // saisi — un manque de fraîcheur n'est jamais la même chose qu'une
+  // anomalie prouvée. Réutilise `statutGlobalControle` (Article 11, aucun
+  // 2ᵉ calcul) : "À corriger" signifie déjà, par la définition existante de
+  // cette fonction, un écart mesuré au-delà du seuil de tolérance — c'est
+  // très exactement la définition d'un "signal critique confirmé" pour
+  // Carburants, jamais une 2ᵉ notion inventée pour ce lot.
+  function signalCritiqueCarburantAujourdhui({ aucunReleve, parCarburant } = {}) {
+    if (aucunReleve || !parCarburant) return false;
+    return statutGlobalControle(parCarburant) === 'À corriger';
+  }
+
   global.NexusCarburantMoteur = {
     SEUIL_ECART_PCT_SURVEILLER, SEUIL_ECART_PCT_CORRIGER, CLES_CARBURANT, NOM_CARBURANT_COURT,
     stockReelGoTotal, sommerVentesPeriode,
@@ -1306,7 +1342,8 @@
     calculerCmpApresLivraison, calculerCmpProgressif, libelleCmp,
     calculerEffetPrixStockHerite, libelleEffetPrixStockHerite, resumerEffetPrixCarburants,
     MOTIFS_OVERRIDE_PRIX_ACHAT, resoudreTarifActifParmi, libelleTarifActif, libelleSourcePrixLigne,
-    SEUIL_FALLBACK_HEURES_PEREMPTION, jourCarburantEstComplet, trouverJourFiableAnterieur,
+    SEUIL_FALLBACK_JOURS_PEREMPTION, jourCarburantEstComplet, trouverJourFiableAnterieur,
+    signalCritiqueCarburantAujourdhui,
     fraicheurCarburant, libelleBadgeFraicheur, construireBlocEnCours,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

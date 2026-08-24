@@ -61,25 +61,30 @@ function ok(label) { n++; console.log('OK —', label); }
 
 // ------------------------------------------------------------
 // 3) fraicheurCarburant — décide 'jour' / 'fallback' / 'perime' /
-//    'jour_incomplet_sans_repli', avec le seuil de péremption de Frédéric.
+//    'jour_incomplet_sans_repli'. Seuil recalibré (23/08/2026, audit
+//    "Anti-dégradation temporelle" §3.1/13) : 48h (v2.214/Frédéric) ->
+//    politique NEXUS formalisée "dernier état fiable conservé jusqu'à J-3
+//    inclus, 'à actualiser' à partir de J-4".
 // ------------------------------------------------------------
 (() => {
   assert.deepStrictEqual(M.fraicheurCarburant({ completAujourdhui: true, fallback: null }), { mode: 'jour' }, 'Aujourd\'hui complet -> mode jour, jamais de repli inutile');
   ok('fraicheurCarburant : aujourd\'hui complet -> mode "jour"');
 
   const f1 = M.fraicheurCarburant({ completAujourdhui: false, fallback: { trouve: true, date: '2026-08-21', joursEcoules: 1 } });
-  assert.deepStrictEqual(f1, { mode: 'fallback', dateReference: '2026-08-21', joursEcoules: 1 }, '1 jour écoulé (24h) < 48h -> fallback affichable');
-  ok('fraicheurCarburant : J-1 (24h) < seuil de péremption -> mode "fallback"');
+  assert.deepStrictEqual(f1, { mode: 'fallback', dateReference: '2026-08-21', joursEcoules: 1 }, 'J-1 -> fallback affichable');
+  ok('fraicheurCarburant : J-1 -> mode "fallback"');
 
-  const f2 = M.fraicheurCarburant({ completAujourdhui: false, fallback: { trouve: true, date: '2026-08-19', joursEcoules: 3 } });
-  assert.deepStrictEqual(f2, { mode: 'perime', dateReference: '2026-08-19', joursEcoules: 3 }, '3 jours (72h) > 48h -> périmé');
-  ok('fraicheurCarburant : 3 jours (72h) > seuil de péremption (48h, borne haute de Frédéric) -> mode "perime"');
+  const f2 = M.fraicheurCarburant({ completAujourdhui: false, fallback: { trouve: true, date: '2026-08-20', joursEcoules: 2 } });
+  assert.strictEqual(f2.mode, 'fallback', 'J-2 -> toujours conservé (audit : "Surveillance de fraîcheur", pas encore périmé)');
+  ok('fraicheurCarburant : J-2 -> mode "fallback"');
 
-  // Borne exacte : 48h pile ne doit PAS être périmée ("au-delà de ce
-  // seuil" -> strictement supérieur, jamais une borne ambiguë).
-  const f3 = M.fraicheurCarburant({ completAujourdhui: false, fallback: { trouve: true, date: '2026-08-20', joursEcoules: 2 } });
-  assert.strictEqual(f3.mode, 'fallback', '48h pile (2 jours) reste dans la fenêtre -> pas encore périmé');
-  ok('fraicheurCarburant : la borne de péremption (48h) est exclusive, pas inclusive');
+  const f3 = M.fraicheurCarburant({ completAujourdhui: false, fallback: { trouve: true, date: '2026-08-19', joursEcoules: 3 } });
+  assert.strictEqual(f3.mode, 'fallback', 'J-3 -> "dernière journée de conservation" (audit tableau 3.1) : encore un fallback, pas périmé');
+  ok('fraicheurCarburant : J-3 -> mode "fallback" (dernière journée de conservation, audit)');
+
+  const f4 = M.fraicheurCarburant({ completAujourdhui: false, fallback: { trouve: true, date: '2026-08-18', joursEcoules: 4 } });
+  assert.deepStrictEqual(f4, { mode: 'perime', dateReference: '2026-08-18', joursEcoules: 4 }, 'J-4 -> périmé, "score non courant" (audit §3.1/13)');
+  ok('fraicheurCarburant : J-4 -> mode "perime" (au-delà de la borne J-3 de l\'audit)');
 
   assert.deepStrictEqual(M.fraicheurCarburant({ completAujourdhui: false, fallback: { trouve: false } }), { mode: 'jour_incomplet_sans_repli' }, 'Aucun repli trouvé -> reste honnête, jamais un repli fabriqué');
   ok('fraicheurCarburant : aucun jour fiable trouvé -> mode "jour_incomplet_sans_repli"');
@@ -87,15 +92,29 @@ function ok(label) { n++; console.log('OK —', label); }
 
 // ------------------------------------------------------------
 // 4) libelleBadgeFraicheur — jamais de badge en mode normal, un texte
-//    explicite et distinct dans les 3 autres cas.
+//    distinct par palier de fraîcheur. Vocabulaire aligné (23/08/2026) sur
+//    le tableau 3.1 de l'audit : "Mis à jour hier" / "Mis à jour il y a N j".
 // ------------------------------------------------------------
 (() => {
   assert.strictEqual(M.libelleBadgeFraicheur({ mode: 'jour' }), null, 'Mode jour -> aucun badge (rien à signaler)');
   assert.strictEqual(M.libelleBadgeFraicheur(null), null, 'Fraîcheur absente -> aucun badge (non-régression pour un appelant non migré)');
-  assert.strictEqual(M.libelleBadgeFraicheur({ mode: 'fallback', dateReference: '2026-08-21', joursEcoules: 1 }), 'Dernier état fiable J-1', 'Exactement la formulation demandée par Frédéric pour J-1');
-  assert.strictEqual(M.libelleBadgeFraicheur({ mode: 'fallback', dateReference: '2026-08-19', joursEcoules: 3 }), 'Dernier état fiable — données complètes arrêtées au 19/08/2026');
+  assert.strictEqual(M.libelleBadgeFraicheur({ mode: 'fallback', dateReference: '2026-08-21', joursEcoules: 1 }), 'Mis à jour hier', 'J-1 : formulation exacte de l\'audit (tableau 3.1)');
+  assert.strictEqual(M.libelleBadgeFraicheur({ mode: 'fallback', dateReference: '2026-08-20', joursEcoules: 2 }), 'Mis à jour il y a 2 j', 'J-2 : formulation exacte de l\'audit');
+  assert.strictEqual(M.libelleBadgeFraicheur({ mode: 'fallback', dateReference: '2026-08-19', joursEcoules: 3 }), 'Mis à jour il y a 3 j', 'J-3 : formulation exacte de l\'audit, dernière journée de conservation');
   assert.ok(M.libelleBadgeFraicheur({ mode: 'perime', dateReference: '2026-08-18', joursEcoules: 4 }).startsWith('À actualiser'), 'Mode périmé -> badge "À actualiser" explicite');
-  ok('libelleBadgeFraicheur produit un texte distinct et honnête pour chaque mode');
+  ok('libelleBadgeFraicheur produit un texte distinct par palier (J-1/J-2/J-3), aligné sur l\'audit');
+})();
+
+// ------------------------------------------------------------
+// 4bis) signalCritiqueCarburantAujourdhui — un écart déjà mesuré aujourd'hui
+//    doit toujours primer sur un fallback plus ancien (audit §3.2, règle de
+//    précédence #5).
+// ------------------------------------------------------------
+(() => {
+  assert.strictEqual(M.signalCritiqueCarburantAujourdhui({ aucunReleve: true, parCarburant: null }), false, 'Aucun relevé -> aucun signal critique possible aujourd\'hui');
+  assert.strictEqual(M.signalCritiqueCarburantAujourdhui({ aucunReleve: false, parCarburant: { go: { statut: 'Sous contrôle' } } }), false, 'Relevé conforme -> pas de signal critique');
+  assert.strictEqual(M.signalCritiqueCarburantAujourdhui({ aucunReleve: false, parCarburant: { go: { statut: 'À corriger' }, sp95: { statut: 'Sous contrôle' } } }), true, 'Écart confirmé sur au moins un carburant -> signal critique');
+  ok('signalCritiqueCarburantAujourdhui détecte un écart déjà confirmé aujourd\'hui, même journée incomplète');
 })();
 
 // ------------------------------------------------------------

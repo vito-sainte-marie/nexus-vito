@@ -227,6 +227,16 @@
     if (completAujourdhui) {
       return { ...carburantsJour, fraicheur: { mode: 'jour' } };
     }
+    // Signal critique confirmé (23/08/2026, audit "Anti-dégradation
+    // temporelle", §3.2/règle de précédence #5) : "un écart carburant
+    // physiquement mesuré doit remplacer immédiatement le fallback, même
+    // si le cycle global du jour n'est pas encore complet." Un relevé du
+    // jour déjà saisi montrant un écart confirmé (statutGlobalControle
+    // "À corriger") ne doit jamais être masqué derrière un état plus
+    // ancien et plus favorable — priorité immédiate, jamais un fallback.
+    if (M.signalCritiqueCarburantAujourdhui(carburantsJour.controle)) {
+      return { ...carburantsJour, fraicheur: { mode: 'jour' } };
+    }
 
     // Bloc "Aujourd'hui — en cours" : ce qui est déjà connu de la journée en
     // construction — jamais une donnée fabriquée pour combler le silence
@@ -318,7 +328,16 @@
     let nbEcartsMaitrise = actuel.nb_ecarts_non_nuls;
     let fraicheurFdj = { mode: 'jour' };
     let enCoursFdj = null;
-    if (!completAujourdhui) {
+    // Signal critique confirmé (23/08/2026, audit "Anti-dégradation
+    // temporelle", §3.2/règle de précédence #5) : "une rupture FDJ
+    // confirmée doit remplacer immédiatement le fallback, même si le cycle
+    // global du jour n'est pas encore complet." Un écart de caisse DÉJÀ
+    // constaté aujourd'hui (sur un quart déjà remonté) reste en mode 'jour'
+    // — jamais masqué derrière une fenêtre gelée plus ancienne et plus
+    // favorable — `nbEcartsMaitrise` garde alors sa valeur par défaut
+    // (la somme VIVANTE `actuel.nb_ecarts_non_nuls`, qui inclut déjà cet
+    // écart réel).
+    if (!completAujourdhui && !FM.signalCritiqueFdjAujourdhui(ligneAujourdhui)) {
       const fallback = FM.trouverDernierJourFdjFiable(dailyRows, aujourdhuiIso);
       // fraicheurCarburant() (nexus-carburant-moteur.js) est déjà 100 %
       // générique (aucun champ propre au carburant dans sa signature) —
