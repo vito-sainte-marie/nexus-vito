@@ -340,6 +340,64 @@
     return { liste, nbExclus: (produitsEnBaisse || []).length - liste.length };
   }
 
+  // Réduire le bruit des grandes listes (24/08/2026, v2.228, audit "Cockpit
+  // Améliorations Développeur" §8) : "Le message « 307 produits en baisse »
+  // est psychologiquement trop alarmant s'il mélange des baisses normales
+  // et des baisses réellement problématiques... afficher par exemple :
+  // 18 baisses significatives / 5 à vérifier / 2 nécessitent une action."
+  // Répartition construite EXCLUSIVEMENT à partir de seuils/états déjà
+  // définis ailleurs dans ce fichier (Article 5 — jamais un seuil inventé
+  // pour l'occasion) :
+  //   - "nécessite une action"  : l'article est déjà une carte d'action
+  //     visible dans Plan d'exploitation (même détection que
+  //     filtrerBaisseDejaEnAction ci-dessus, réutilisée ici).
+  //   - "significative"         : évolution ≤ SEUIL_BAISSE (-30 %, le même
+  //     seuil qui déclenche R2-BAISSE dans calculerCandidatsProduits) mais
+  //     pas encore une carte visible (pourrait le devenir à une prochaine
+  //     rotation de fusionnerEtSelectionner).
+  //   - "à vérifier"            : toute autre baisse (< -30 %... 0 %),
+  //     réelle mais pas encore assez marquée pour déclencher une alerte.
+  function repartirBaisseParSeverite(produitsEnBaisse, actionsVisibles) {
+    const articlesEnAction = new Set(
+      (actionsVisibles || []).filter(p => p && p.moteur === 'produits' && p.article).map(p => p.article)
+    );
+    let necessitentAction = 0, significatives = 0, aVerifier = 0;
+    (produitsEnBaisse || []).forEach(p => {
+      if (articlesEnAction.has(p.article)) necessitentAction++;
+      else if (p.evolution <= SEUIL_BAISSE) significatives++;
+      else aVerifier++;
+    });
+    return { necessitentAction, significatives, aVerifier };
+  }
+
+  // Replier "Regard du Conseiller" derrière son badge (24/08/2026, v2.228,
+  // audit §9) : "Le badge « 832 analysés · 9 retenus » est excellent et
+  // doit devenir le point d'entrée de la section." L'audit propose aussi
+  // une ligne de répartition avant ouverture ("3 opportunités · 4
+  // anomalies à surveiller · 2 phénomènes saisonniers") — ce lot reprend
+  // l'ESPRIT (une répartition par catégorie, visible sans ouvrir) avec le
+  // VOCABULAIRE réel de NEXUS (les 5 groupes déjà calculés par
+  // analyserProduitsStrategiques, jamais les 3 catégories génériques de
+  // l'audit qui ne correspondent à aucun champ réellement mesuré ici —
+  // même discipline qu'en v2.224/v2.227 : ne jamais forcer un vocabulaire
+  // d'audit sur une donnée qu'il ne décrit pas fidèlement). Ne montre que
+  // les groupes non vides (c'est précisément ce qui réduit le bruit).
+  const LABELS_GROUPES_STRATEGIQUES = [
+    { cle: 'tarifaire', singulier: 'alerte tarifaire', pluriel: 'alertes tarifaires' },
+    { cle: 'progressionVolume', singulier: 'progression', pluriel: 'progressions' },
+    { cle: 'regressionVolume', singulier: 'régression', pluriel: 'régressions' },
+    { cle: 'regressionSaisonniere', singulier: 'saisonnière', pluriel: 'saisonnières' },
+    { cle: 'margeEnProgression', singulier: 'marge en progression', pluriel: 'marges en progression' },
+  ];
+  function resumerGroupesStrategiques(ps) {
+    if (!ps || !ps.disponible) return null;
+    const groupes = LABELS_GROUPES_STRATEGIQUES
+      .map(g => ({ n: (ps[g.cle] || []).length, label: g.singulier, labelPluriel: g.pluriel }))
+      .filter(g => g.n > 0);
+    if (!groupes.length) return null;
+    return groupes.map(g => `${g.n} ${g.n > 1 ? g.labelPluriel : g.label}`).join(' · ');
+  }
+
   // ------------------------------------------------------------
   // 1bis) Analyse multi-indicateurs des produits stratégiques (28/07/2026,
   // demande de Frédéric) : "je pense que NEXUS devrait suivre plusieurs
@@ -892,7 +950,7 @@
     normaliserProduit, normaliserMarge, normaliserTempo, normaliserAdvisor,
     normaliserCaissePersonne, normaliserStockRayon, normaliserRappel,
     normaliserFdj, normaliserCoach,
-    filtrerBaisseDejaEnAction,
+    filtrerBaisseDejaEnAction, repartirBaisseParSeverite, resumerGroupesStrategiques,
     fusionnerEtSelectionner, genererGraineJour,
   };
 })(window);

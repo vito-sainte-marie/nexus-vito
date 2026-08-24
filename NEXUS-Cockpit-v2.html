@@ -1224,19 +1224,29 @@
       const el = document.getElementById('baisseSection');
       if (!el) return;
       if (!PRODUITS_EN_BAISSE.length) { el.innerHTML = ''; return; }
-      const nb = PRODUITS_EN_BAISSE.length; // total réel, jamais filtré (Article 5) — le titre "N produits en baisse" reste exact
+      const nb = PRODUITS_EN_BAISSE.length; // total réel, jamais filtré (Article 5) — le titre reste exact
       // Déduplication signal → action (22/08/2026, v2.227, audit §6) :
       // un article déjà visible comme carte d'action pleine taille dans
       // "Plan d'exploitation" (dernierAffichage) n'est pas répété dans le
       // détail de cette carte — mais il compte toujours dans `nb` ci-dessus.
-      const { liste: baisseNonActionnee, nbExclus } = NexusConseiller.filtrerBaisseDejaEnAction(PRODUITS_EN_BAISSE, dernierAffichage);
+      const { liste: baisseNonActionnee } = NexusConseiller.filtrerBaisseDejaEnAction(PRODUITS_EN_BAISSE, dernierAffichage);
       const pires = baisseNonActionnee.slice(0, 5);
       const reste = baisseNonActionnee.length - pires.length;
+      // Réduire le bruit des grandes listes (24/08/2026, v2.228, audit
+      // §8) : le teaser ne dit plus juste "N produits en baisse" (trop
+      // alarmant sur un gros chiffre qui mélange tout) mais répartit par
+      // sévérité, avec un phrasé qui annonce que NEXUS a déjà fait le tri.
+      const severite = NexusConseiller.repartirBaisseParSeverite(PRODUITS_EN_BAISSE, dernierAffichage);
+      const partsSeverite = [
+        severite.significatives > 0 ? `${severite.significatives} significative${severite.significatives>1?'s':''}` : null,
+        severite.aVerifier > 0 ? `${severite.aVerifier} à vérifier` : null,
+        severite.necessitentAction > 0 ? `${severite.necessitentAction} déjà en action` : null,
+      ].filter(Boolean).join(' · ');
       el.innerHTML = `
         <div class="plan-card etat-surveiller" id="carteBaisse">
           <div class="plan-head" onclick="document.getElementById('carteBaisse').classList.toggle('open')">
             <span class="plan-etat">📉 EN BAISSE</span>
-            <span class="plan-action-teaser">${nb} produit${nb>1?'s':''} en baisse sur la période</span>
+            <span class="plan-action-teaser">${nb} référence${nb>1?'s':''} vend${nb>1?'ent':''} moins sur la période${partsSeverite ? ' — ' + partsSeverite : ''}</span>
             <span class="plan-chevron">›</span>
           </div>
           <div class="plan-body">
@@ -1244,7 +1254,6 @@
               <span class="story-label">Détail</span>
               ${pires.length ? pires.map(p => `${p.article} (${p.categorie}) — ${(p.evolution*100).toFixed(1)} %`).join('<br>') : 'Tous déjà dans votre Plan d\'exploitation ci-dessus.'}
               ${reste > 0 ? `<br><span style="color:var(--text-dim);">+ ${reste} autre${reste>1?'s':''} — voir Produits pour le détail complet.</span>` : ''}
-              ${nbExclus > 0 ? `<br><span style="color:var(--text-dim);">${nbExclus} référence${nbExclus>1?'s':''} déjà dans votre Plan d'exploitation, non répétée${nbExclus>1?'s':''} ici.</span>` : ''}
             </div>
           </div>
         </div>`;
@@ -1367,7 +1376,22 @@
           <div style="padding:16px; text-align:center; color:var(--text-dim); font-size:12.5px;">NEXUS a analysé ${ps.totalAnalyses} produit${ps.totalAnalyses > 1 ? 's' : ''} comparables sur la période — aucun ne nécessite votre attention aujourd'hui.</div>`;
         return;
       }
-      el.innerHTML = `<div class="section-title">Regard du Conseiller <span class="badge badge-real">${badgeSelectivite}</span></div>${corps}`;
+      // Replier "Regard du Conseiller" derrière son badge (24/08/2026,
+      // v2.228, audit §9 : "Le badge « 832 analysés · 9 retenus » est
+      // excellent et doit devenir le point d'entrée de la section... Les
+      // cartes détaillées ne s'affichent qu'après ouverture.") Même
+      // mécanique .plan-card/.open déjà utilisée pour "carteBaisse" —
+      // aucun nouveau composant, aucune nouvelle classe CSS.
+      const repartitionTexte = NexusConseiller.resumerGroupesStrategiques(ps);
+      el.innerHTML = `
+        <div class="plan-card" id="carteConseiller">
+          <div class="plan-head" onclick="document.getElementById('carteConseiller').classList.toggle('open')">
+            <span class="plan-etat">🔎 CONSEILLER</span>
+            <span class="plan-action-teaser">Regard du Conseiller — ${badgeSelectivite}${repartitionTexte ? ' — ' + repartitionTexte : ''}</span>
+            <span class="plan-chevron">›</span>
+          </div>
+          <div class="plan-body">${corps}</div>
+        </div>`;
     }
     // ------------------------------------------------------------
     // Nouvelles — regroupe Succès, Bouclage, Risques et Produits en baisse
