@@ -49,5 +49,66 @@
     return { total, parStatut, tauxConforme, ecartCumule, pireEcart, topEcarts, composantePlusTouchee, audits };
   }
 
-  global.NexusVerifyMoteur = { classifierEcart, GRAVITE_ORDRE, STATUT_LABEL, agregerAudits };
+  /**
+   * statutValidationQuart(a) — v2.234, demande de Frédéric ("Amélioration
+   * UX — NEXUS Verify / Historique") : statut global discret par quart,
+   * synthétisant les validations Piste et Boutique SANS jamais mélanger ce
+   * statut avec le résultat individuel d'une caisse (Conforme/À surveiller
+   * viennent de classifierEcart, restent inchangés).
+   *
+   * "Caisses attendues" n'est JAMAIS codé en dur à 2 : c'est le nombre de
+   * composantes (piste, boutique) qui ont réellement un écart calculé sur
+   * cette ligne (ecart_piste/ecart_boutique non nuls). En pratique le
+   * formulaire "Nouvel audit" écrit toujours les deux ensemble, donc c'est 2
+   * aujourd'hui — mais le calcul reste correct si une ligne historique n'en
+   * a jamais eu qu'une (legacy pré-boutique, saisie corrigée à la main...).
+   *
+   * Depuis le split de validation (migration
+   * split_validation_piste_boutique_audits_caisse), chaque composante a sa
+   * propre paire (valide_le_X = dernier évènement, premiere_validation_le_X
+   * = tout premier évènement, immuable). Si les deux diffèrent pour au moins
+   * une composante validée, la ligne a été corrigée après coup ("Validé
+   * puis ajusté") — jamais deviné, seulement lu depuis ces deux colonnes
+   * réelles.
+   *
+   * Retourne { etat, caissesAttendues, caissesValidees, dernierInstant,
+   * dernierAuteurId, slots } où etat ∈ 'valide' | 'ajuste' | 'partiel' |
+   * 'en_attente'. `slots` porte le détail par composante (type, valideLe,
+   * premiereValidationLe, validePar) pour l'écran de détail au clic.
+   */
+  function statutValidationQuart(a) {
+    if (!a) return null;
+    const slots = [];
+    if (a.ecart_piste != null) {
+      slots.push({ type: 'piste', valideLe: a.valide_le_piste || null, premiereValidationLe: a.premiere_validation_le_piste || null, validePar: a.valide_par_piste || null });
+    }
+    if (a.ecart_boutique != null) {
+      slots.push({ type: 'boutique', valideLe: a.valide_le_boutique || null, premiereValidationLe: a.premiere_validation_le_boutique || null, validePar: a.valide_par_boutique || null });
+    }
+    const caissesAttendues = slots.length;
+    const validees = slots.filter(s => !!s.valideLe);
+    const caissesValidees = validees.length;
+    const aUnAjustement = validees.some(s => s.premiereValidationLe && s.valideLe && new Date(s.premiereValidationLe).getTime() !== new Date(s.valideLe).getTime());
+
+    let dernierEvenement = null;
+    validees.forEach(s => {
+      if (!dernierEvenement || new Date(s.valideLe) > new Date(dernierEvenement.valideLe)) dernierEvenement = s;
+    });
+
+    let etat;
+    if (caissesAttendues === 0 || caissesValidees === 0) etat = 'en_attente';
+    else if (caissesValidees < caissesAttendues) etat = 'partiel';
+    else etat = aUnAjustement ? 'ajuste' : 'valide';
+
+    return {
+      etat,
+      caissesAttendues,
+      caissesValidees,
+      dernierInstant: dernierEvenement ? dernierEvenement.valideLe : null,
+      dernierAuteurId: dernierEvenement ? dernierEvenement.validePar : null,
+      slots,
+    };
+  }
+
+  global.NexusVerifyMoteur = { classifierEcart, GRAVITE_ORDRE, STATUT_LABEL, agregerAudits, statutValidationQuart };
 })(typeof window !== 'undefined' ? window : globalThis);

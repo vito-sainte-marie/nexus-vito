@@ -245,6 +245,16 @@
   .histo-top{display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;}
   .histo-date{font-family:var(--mono); font-size:12px; color:var(--text); margin-bottom:8px;}
   .histo-quart{font-family:var(--mono); font-size:10px; color:var(--text-dim);}
+  /* Statut global de validation par quart (24/08/2026, demande de
+     Frédéric) — délibérément discret : petit texte sous la ligne
+     date+Quart, jamais un badge imposant. Ne remplace ni ne mélange le
+     résultat individuel Conforme/À surveiller de chaque caisse
+     (histo-ecart-top), qui reste inchangé juste en dessous. */
+  .histo-quart-statut{font-family:var(--mono); font-size:10.5px; font-weight:600; margin-bottom:8px; display:flex; align-items:center; gap:5px;}
+  .histo-quart-statut-valide{color:var(--green);}
+  .histo-quart-statut-partiel{color:var(--amber);}
+  .histo-quart-statut-attente{color:var(--text-dim); font-weight:500;}
+  .histo-quart-detail-synthese{font-family:var(--mono); font-size:10.5px; color:var(--text-dim); margin-bottom:10px; padding-bottom:10px; border-bottom:1px solid var(--hairline);}
   .histo-ecart{font-family:var(--mono); font-size:13px; font-weight:700;}
   .histo-ecarts{display:flex; gap:10px; margin-bottom:4px;}
   .histo-ecart-item{flex:1; background:var(--panel); border:1px solid var(--hairline); border-radius:8px; padding:8px 10px;}
@@ -310,6 +320,7 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
 <script src="nexus-auth.js"></script>
+<script src="nexus-header-nav.js"></script>
 <script src="nexus-desktop.js"></script>
 <script src="nexus-pdf-moteur.js"></script>
 <script src="nexus-verify-moteur.js"></script>
@@ -627,6 +638,11 @@
 <script>
   let SITE_ACTUEL = null; // jamais 'vito-sainte-marie' par defaut (de-Vito-isation, 11/08/2026) - toujours ecrase par employee.site_id apres nexusRequireAuth()
   let EMPLOYEE_ID = null;
+  // Fuseau horaire paramétrable de la station (v2.232, station_config.fuseau_horaire)
+  // — même mécanisme que Carburants Pilotage, réutilisé ici pour formater
+  // l'heure de validation dans le badge de statut par quart (24/08/2026).
+  // Martinique par défaut tant que station_config n'a pas répondu.
+  let FUSEAU_STATION = 'America/Martinique';
 
   // Classification d'écart extraite le 11/08/2026 dans nexus-verify-moteur.js
   // (module partagé, Article 11) — pour que le nouveau chapitre "Opérations"
@@ -661,6 +677,16 @@
     if (abs <= 2) return `${nom} : conforme.`;
     const sens = ecart > 0 ? 'excédent' : 'manque';
     return `${nom} : écart de ${abs.toFixed(2)} € (${sens}) — à vérifier avant clôture.`;
+  }
+
+  // Heure de validation dans le fuseau réel de la station (jamais l'heure de
+  // l'appareil qui consulte l'historique — même principe que le correctif
+  // fuseau horaire de Carburants Pilotage, v2.232).
+  function fmtHeureFuseau(iso) {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return '—';
+    return d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: FUSEAU_STATION });
   }
 
   // ------------------------------------------------------------
@@ -985,6 +1011,13 @@
     EMPLOYES_SITE = await chargerEmployesSite();
     renderMenuEmployes('piste');
     renderMenuEmployes('boutique');
+
+    // Fuseau horaire de la station (v2.232) — pour l'heure affichée dans le
+    // badge de statut de validation par quart (Historique). Non bloquant :
+    // FUSEAU_STATION garde son défaut Martinique en cas d'erreur.
+    nexusClient.from('station_config').select('fuseau_horaire').eq('site', SITE_ACTUEL).maybeSingle()
+      .then(({ data }) => { if (data && data.fuseau_horaire) FUSEAU_STATION = data.fuseau_horaire; })
+      .catch(() => {});
 
     // ------------------------------------------------------------
     // Import classeur recettes (.xlsx) — évite de ressaisir les drops et les
@@ -2422,6 +2455,7 @@
         return `
         <div class="histo-item" data-idx="${i}" data-date="${a.date}" data-quart="${a.quart}">
           <div class="histo-date">${new Date(a.date + 'T00:00:00').toLocaleDateString('fr-FR')} <span class="histo-quart">· Quart ${a.quart}</span></div>
+          ${renderBadgeStatutQuart(a, i)}
           <div class="histo-ecarts">
             <div class="histo-ecart-item">
               <div class="histo-ecart-top">
@@ -2482,49 +2516,104 @@
     }
 
     // ------------------------------------------------------------
+    // Statut global de validation par quart (24/08/2026, demande de
+    // Frédéric — "Amélioration UX Verify/Historique") — synthèse Piste +
+    // Boutique, jamais mélangée avec le résultat individuel Conforme/À
+    // surveiller d'une caisse (voir NexusVerifyMoteur.statutValidationQuart,
+    // seule source de ce calcul — Article 11).
+    // ------------------------------------------------------------
+    function libelleCaisses(n) { return n === 1 ? 'caisse validée' : 'caisses validées'; }
+
+    function nomAuteurValidation(id) {
+      if (!id) return 'validation rétroactive (migration)';
+      if (id === EMPLOYEE_ID) return 'vous';
+      return (EMPLOYES_SITE.find(e => e.id === id) || {}).nom || 'un manager';
+    }
+
+    function renderBadgeStatutQuart(a, i) {
+      const stV = NexusVerifyMoteur.statutValidationQuart(a);
+      if (!stV || stV.caissesAttendues === 0) return '';
+      if (stV.etat === 'valide') {
+        return `<div class="histo-quart-statut histo-quart-statut-valide" data-idx="${i}">✓ ${stV.caissesValidees}/${stV.caissesAttendues} ${libelleCaisses(stV.caissesValidees)} · clôturé à ${fmtHeureFuseau(stV.dernierInstant)}</div>`;
+      }
+      if (stV.etat === 'ajuste') {
+        return `<div class="histo-quart-statut histo-quart-statut-valide" data-idx="${i}">✓ Validé · ajusté à ${fmtHeureFuseau(stV.dernierInstant)}</div>`;
+      }
+      if (stV.etat === 'partiel') {
+        return `<div class="histo-quart-statut histo-quart-statut-partiel" data-idx="${i}">◷ ${stV.caissesValidees}/${stV.caissesAttendues} ${libelleCaisses(stV.caissesValidees)} · validation en attente</div>`;
+      }
+      return `<div class="histo-quart-statut histo-quart-statut-attente" data-idx="${i}">◷ Validation en attente</div>`;
+    }
+
+    // Petite synthèse en tête du détail dépliable (clic sur la ligne ou sur
+    // le badge, même panneau — "Ligne Historique cliquable entière", tuile
+    // #24) : nombre de caisses attendues/validées, heure et auteur de la
+    // DERNIÈRE validation ou correction. Ne remplace jamais le détail par
+    // caisse juste en dessous (renderBlocValidationCaisse).
+    function renderSyntheseStatutQuart(a) {
+      const stV = NexusVerifyMoteur.statutValidationQuart(a);
+      if (!stV || stV.caissesAttendues === 0) return '';
+      if (stV.caissesValidees === 0) {
+        return `<div class="histo-quart-detail-synthese">Aucune caisse validée pour l'instant sur ${stV.caissesAttendues} attendue(s).</div>`;
+      }
+      const auteur = nomAuteurValidation(stV.dernierAuteurId);
+      const mot = stV.etat === 'ajuste' ? 'Dernière correction' : 'Dernière validation';
+      return `<div class="histo-quart-detail-synthese">${stV.caissesValidees}/${stV.caissesAttendues} caisse(s) validée(s) · ${mot} : ${fmtHeureFuseau(stV.dernierInstant)} — ${auteur}.</div>`;
+    }
+
+    // ------------------------------------------------------------
     // Validation "Mes Caisses" (03/08/2026, demande de Frédéric) — un
     // contrôle enregistré dans Verify reste PROVISOIRE côté employé
-    // (NEXUS-Progression-v1.html) tant qu'un manager ne l'a pas validé ici.
-    // La validation fige deux montants distincts (ecart_piste_valide /
-    // ecart_boutique_valide) qui ne remplacent jamais ecart_piste/
-    // ecart_boutique (conservés tels quels comme trace du contrôle
-    // d'origine) — c'est cette séparation qui permet à l'employé de ne
-    // jamais confondre provisoire et définitif.
+    // (NEXUS-Progression-v1.html) tant qu'un manager ne l'a pas validé.
+    // Depuis le 24/08/2026 (v2.234), Piste et Boutique se valident chacune
+    // indépendamment (deux actions distinctes) au lieu d'un unique clic
+    // couvrant les deux — voir migration
+    // split_validation_piste_boutique_audits_caisse. Les anciennes colonnes
+    // atomiques (valide_le/valide_par/commentaire_validation/ecart_*_valide)
+    // restent synchronisées UNIQUEMENT quand les deux composantes sont
+    // validées : nexus-progression.js ("Mes Caisses") continue de gater
+    // provisoire/définitif dessus sans aucun changement de comportement
+    // (Article 11 — ne jamais casser un consommateur existant non demandé
+    // ici).
     function renderBlocValidation(a, i) {
-      if (a.valide_le) {
-        const validePar = !a.valide_par
-          ? 'validation rétroactive (migration)'
-          : (a.valide_par === EMPLOYEE_ID ? 'vous' : (EMPLOYES_SITE.find(e => e.id === a.valide_par) || {}).nom || 'un manager');
+      return `${renderSyntheseStatutQuart(a)}${renderBlocValidationCaisse(a, i, 'piste')}${renderBlocValidationCaisse(a, i, 'boutique')}`;
+    }
+
+    function renderBlocValidationCaisse(a, i, type) {
+      if (a[`ecart_${type}`] == null) return ''; // caisse non attendue sur ce quart (legacy) — rien à valider
+      const label = type === 'piste' ? 'Piste' : 'Boutique';
+      const valideLe = a[`valide_le_${type}`];
+      const premiereValidationLe = a[`premiere_validation_le_${type}`];
+      if (valideLe) {
+        const ajuste = premiereValidationLe && new Date(premiereValidationLe).getTime() !== new Date(valideLe).getTime();
         return `
           <div class="validation-ligne">
-            <span class="validation-badge-ok">✅ Validé</span> le ${new Date(a.valide_le).toLocaleDateString('fr-FR')} — ${validePar}.
-            ${a.commentaire_validation ? `<br><i>${a.commentaire_validation}</i>` : ''}
-            <br><button type="button" class="btn-valider-audit" data-idx="${i}">Corriger la validation</button>
+            <span class="validation-badge-ok">✅ ${label}${ajuste ? ' ajustée' : ' validée'}</span> le ${new Date(valideLe).toLocaleDateString('fr-FR')} — ${nomAuteurValidation(a[`valide_par_${type}`])}.
+            ${a[`commentaire_validation_${type}`] ? `<br><i>${a[`commentaire_validation_${type}`]}</i>` : ''}
+            <br><button type="button" class="btn-valider-audit" data-idx="${i}" data-type="${type}">Corriger la validation ${label}</button>
           </div>
-          ${renderFormValidation(a, i)}
+          ${renderFormValidationCaisse(a, i, type)}
         `;
       }
       return `
         <div class="validation-ligne">
-          <span style="color:var(--amber); font-weight:600;">⏳ En attente de validation</span> — invisible comme définitif dans « Mes Caisses » tant que non validé.
-          <br><button type="button" class="btn-valider-audit" data-idx="${i}">✅ Valider cette caisse</button>
+          <span style="color:var(--amber); font-weight:600;">⏳ ${label} en attente de validation</span> — invisible comme définitif dans « Mes Caisses » tant que non validée.
+          <br><button type="button" class="btn-valider-audit" data-idx="${i}" data-type="${type}">✅ Valider ${label}</button>
         </div>
-        ${renderFormValidation(a, i)}
+        ${renderFormValidationCaisse(a, i, type)}
       `;
     }
 
-    function renderFormValidation(a, i) {
-      const ecartPisteDefaut = a.ecart_piste_valide != null ? a.ecart_piste_valide : a.ecart_piste;
-      const ecartBoutiqueDefaut = a.ecart_boutique_valide != null ? a.ecart_boutique_valide : a.ecart_boutique;
+    function renderFormValidationCaisse(a, i, type) {
+      const label = type === 'piste' ? 'Piste' : 'Boutique';
+      const ecartDefaut = a[`ecart_${type}_valide`] != null ? a[`ecart_${type}_valide`] : a[`ecart_${type}`];
       return `
-        <div class="validation-form" id="validationForm-${i}">
-          <label>Écart piste définitif (€)</label>
-          <input type="text" inputmode="decimal" id="valPiste-${i}" value="${String(ecartPisteDefaut).replace('.', ',')}">
-          <label>Écart boutique définitif (€)</label>
-          <input type="text" inputmode="decimal" id="valBoutique-${i}" value="${String(ecartBoutiqueDefaut).replace('.', ',')}">
+        <div class="validation-form" id="validationForm-${i}-${type}">
+          <label>Écart ${label.toLowerCase()} définitif (€)</label>
+          <input type="text" inputmode="decimal" id="val-${type}-${i}" value="${String(ecartDefaut).replace('.', ',')}">
           <label>Commentaire de validation (optionnel)</label>
-          <textarea id="valCommentaire-${i}" placeholder="Ex : écart expliqué par un rendu de monnaie erroné, corrigé avec l'employé.">${a.commentaire_validation && a.valide_par ? a.commentaire_validation : ''}</textarea>
-          <button type="button" class="btn btn-primary" style="margin-top:10px;" data-idx="${i}" id="btnConfirmerValidation-${i}">Confirmer la validation</button>
+          <textarea id="valCommentaire-${type}-${i}" placeholder="Ex : écart expliqué par un rendu de monnaie erroné, corrigé avec l'employé.">${a[`commentaire_validation_${type}`] || ''}</textarea>
+          <button type="button" class="btn btn-primary" style="margin-top:10px;" data-idx="${i}" data-type="${type}" id="btnConfirmerValidation-${type}-${i}">Confirmer la validation ${label}</button>
         </div>
       `;
     }
@@ -2533,34 +2622,57 @@
       document.querySelectorAll('.btn-valider-audit').forEach(btn => {
         btn.addEventListener('click', (e) => {
           e.stopPropagation();
-          const idx = btn.dataset.idx;
-          document.getElementById(`validationForm-${idx}`).classList.toggle('open');
+          const idx = btn.dataset.idx; const type = btn.dataset.type;
+          document.getElementById(`validationForm-${idx}-${type}`).classList.toggle('open');
         });
       });
       document.querySelectorAll('[id^="btnConfirmerValidation-"]').forEach(btn => {
         btn.addEventListener('click', async (e) => {
           e.stopPropagation();
           const idx = parseInt(btn.dataset.idx, 10);
+          const type = btn.dataset.type;
+          const label = type === 'piste' ? 'Piste' : 'Boutique';
           const a = data[idx];
-          const ecartPisteValide = numFR(document.getElementById(`valPiste-${idx}`).value);
-          const ecartBoutiqueValide = numFR(document.getElementById(`valBoutique-${idx}`).value);
-          if (Number.isNaN(ecartPisteValide) || Number.isNaN(ecartBoutiqueValide)) {
-            alert('Montants invalides — vérifiez les deux champs d\'écart.');
+          const ecartValide = numFR(document.getElementById(`val-${type}-${idx}`).value);
+          if (Number.isNaN(ecartValide)) {
+            alert('Montant invalide — vérifiez le champ d\'écart.');
             return;
           }
-          const commentaireValidation = document.getElementById(`valCommentaire-${idx}`).value.trim() || null;
+          const commentaireValidation = document.getElementById(`valCommentaire-${type}-${idx}`).value.trim() || null;
           btn.disabled = true; btn.textContent = 'Validation…';
-          const { error } = await nexusClient.from('audits_caisse').update({
-            valide_le: new Date().toISOString(),
-            valide_par: EMPLOYEE_ID,
-            ecart_piste_valide: ecartPisteValide,
-            ecart_boutique_valide: ecartBoutiqueValide,
-            commentaire_validation: commentaireValidation,
-          }).eq('id', a.id);
+
+          const maintenant = new Date().toISOString();
+          const dejaValidee = !!a[`valide_le_${type}`];
+          const patch = {
+            [`valide_le_${type}`]: maintenant,
+            [`premiere_validation_le_${type}`]: dejaValidee ? a[`premiere_validation_le_${type}`] : maintenant,
+            [`valide_par_${type}`]: EMPLOYEE_ID,
+            [`commentaire_validation_${type}`]: commentaireValidation,
+            [`ecart_${type}_valide`]: ecartValide,
+          };
+
+          // Synchronise les anciennes colonnes atomiques UNIQUEMENT quand
+          // l'autre composante est elle aussi validée (ou n'existe pas sur ce
+          // quart) — voir commentaire au-dessus de renderBlocValidation.
+          const autreType = type === 'piste' ? 'boutique' : 'piste';
+          const autreExiste = a[`ecart_${autreType}`] != null;
+          const autreValidee = !!a[`valide_le_${autreType}`];
+          if (!autreExiste || autreValidee) {
+            patch.valide_le = maintenant;
+            patch.valide_par = EMPLOYEE_ID;
+            patch.commentaire_validation = [
+              type === 'piste' ? commentaireValidation : (a.commentaire_validation_piste || null),
+              type === 'boutique' ? commentaireValidation : (a.commentaire_validation_boutique || null),
+            ].filter(Boolean).join(' | ') || null;
+            patch.ecart_piste_valide = type === 'piste' ? ecartValide : (a.ecart_piste_valide != null ? a.ecart_piste_valide : a.ecart_piste);
+            patch.ecart_boutique_valide = type === 'boutique' ? ecartValide : (a.ecart_boutique_valide != null ? a.ecart_boutique_valide : a.ecart_boutique);
+          }
+
+          const { error } = await nexusClient.from('audits_caisse').update(patch).eq('id', a.id);
           if (error) {
-            console.error('Validation audit caisse:', error);
+            console.error('Validation audit caisse (par composante):', error);
             alert('Erreur lors de la validation — réessayez.');
-            btn.disabled = false; btn.textContent = 'Confirmer la validation';
+            btn.disabled = false; btn.textContent = `Confirmer la validation ${label}`;
             return;
           }
           await afficherHistorique();
