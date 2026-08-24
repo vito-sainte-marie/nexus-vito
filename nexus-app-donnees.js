@@ -104,16 +104,41 @@
     return { devScore, equipeScore, nbRetards, employesASurveiller, tauxAnomalies, totalPointages: totalPointages != null ? totalPointages : null };
   }
 
-  // Axe Carburants pour "Votre entreprise aujourd'hui" — réutilise TEL QUEL
-  // le même calcul que Carburants Pilotage/Brief (NexusCarburantDonnees.
-  // chargerControleJour + NexusCarburantMoteur.statutGlobalControle/
-  // texteControleJour) — jamais une troisième formule (Article 11).
+  // Axe Carburants pour "Votre entreprise aujourd'hui".
+  //
+  // Correctif "règle anti-divergence" (23/08/2026, audit "Anti-dégradation
+  // temporelle" §7 — v2.224) : le commentaire ci-dessus affirmait depuis
+  // l'origine réutiliser "TEL QUEL" le même calcul que Brief, mais c'est
+  // devenu FAUX en silence à partir de la v2.214 (fallback temporel
+  // "dernier état fiable") : Brief est passé par `chargerCarburantsBriefAvecFallback`
+  // (qui fige la Maîtrise sur le dernier jour fiable tant qu'aujourd'hui
+  // est incomplet) alors que cette fonction continuait d'appeler
+  // `chargerControleJour` directement sur AUJOURD'HUI SEUL — sans jamais
+  // être mise à jour en même temps. Résultat concret exactement décrit par
+  // l'audit (§7, "règle anti-divergence") : si Brief affichait Carburants
+  // en mode "fallback" (badge "Mis à jour hier", score du dernier jour
+  // fiable), "Votre entreprise aujourd'hui" (NEXUS-App-v1.html) pouvait
+  // afficher un statut DIFFÉRENT pour le même secteur, au même instant,
+  // simplement parce qu'aujourd'hui n'était pas encore complet — la
+  // dégradation artificielle que tout ce chantier cherche à éliminer,
+  // réapparue par une deuxième porte non mise à jour.
+  //
+  // Corrigé en délégant à `NexusBriefDonnees.chargerCarburantsBriefAvecFallback`
+  // (Article 11 — une seule vérité, cette fois vraiment tenue à jour) :
+  // `parCarburant`/`aucunReleve` viennent désormais du même `controle`
+  // fallback-aware que Brief, donc `statutGlobalControle`/`texteControleJour`
+  // (strictement inchangées) produisent nécessairement le même résultat
+  // que Brief au même instant. `fraicheur` est retournée en plus (champ
+  // additif, non consommé par `renderEntrepriseAujourdhui` aujourd'hui,
+  // disponible si un badge de fraîcheur devait être ajouté à cette carte
+  // plus tard).
   async function chargerStatutCarburantsHome(client, siteId) {
     const aujourdhui = new Date().toISOString().slice(0, 10);
-    const { parCarburant, aucunReleve } = await global.NexusCarburantDonnees.chargerControleJour(client, siteId, aujourdhui);
+    const carburants = await global.NexusBriefDonnees.chargerCarburantsBriefAvecFallback(client, siteId, aujourdhui);
+    const { parCarburant, aucunReleve } = carburants.controle;
     const statut = global.NexusCarburantMoteur.statutGlobalControle(aucunReleve ? null : parCarburant);
     const detail = global.NexusCarburantMoteur.texteControleJour(parCarburant, aucunReleve);
-    return { statut, detail, parCarburant, aucunReleve };
+    return { statut, detail, parCarburant, aucunReleve, fraicheur: carburants.fraicheur };
   }
 
   // Axe FDJ pour "Votre entreprise aujourd'hui" — réutilise le même signal

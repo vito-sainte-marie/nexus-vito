@@ -813,7 +813,8 @@
   <div class="section-label">Que cherchez-vous à faire ?</div>
   <div class="recherche-nexus">
     <div class="recherche-nexus-champ">
-      <span class="recherche-nexus-loupe">🔍</span>
+      <!-- Icône pack NEXUS (20/08/2026, uniformisation) : icon-recherche-24.png -->
+      <span class="recherche-nexus-loupe"><img src="assets/icons/icon-recherche-24.png" alt="" style="width:15px; height:15px; vertical-align:-2px; display:inline-block;"></span>
       <input type="text" id="rechercheNexusInput" placeholder="contrôler une caisse, comprendre ma marge, voir mes stocks…" autocomplete="off">
     </div>
     <div class="recherche-nexus-resultats" id="rechercheNexusResultats"></div>
@@ -919,10 +920,12 @@
         <div class="nav-arrow">›</div>
       </a>
       <!-- Comptes Clients (07/08/2026, cahier des charges de Frédéric) :
-           centre de pilotage des clients en compte — pas d'icône dédiée
-           fournie, emoji en attendant comme Contrôle inventaire (🧭). -->
+           centre de pilotage des clients en compte — pas d'icône dédiée dans
+           le pack NEXUS. Harmonisé le 20/08/2026 sur 👥 (au lieu de 🧾),
+           pour correspondre à la sidebar nexus-desktop.js — un seul emoji
+           pour un seul écran, même sans icône PNG dédiée. -->
       <a class="nav-item" data-role="manager" data-forfait="professional" href="NEXUS-Comptes-Clients-v1.html">
-        <div class="nav-icon" style="display:flex; align-items:center; justify-content:center; font-size:20px;">🧾</div>
+        <div class="nav-icon" style="display:flex; align-items:center; justify-content:center; font-size:20px;">👥</div>
         <div class="nav-body">
           <div class="nav-title">Comptes Clients <span class="nav-badge badge-premium">Professional</span></div>
           <div class="nav-desc">Facturation, justificatifs et relation clients sous contrôle</div>
@@ -1010,8 +1013,9 @@
            logique qu'Inventaire, Carburants Pilotage, etc.), pas une
            liste filtrée par tâche assignée. Seule la mini-carte accueil
            employé ci-dessus est conditionnée par ce réglage. -->
+      <!-- Icône pack NEXUS (20/08/2026, uniformisation) : icon-reception-carburant-24.png -->
       <a class="nav-item" data-role="manager" href="NEXUS-Carburant-Reception-v1.html">
-        <div class="nav-icon" style="display:flex; align-items:center; justify-content:center; font-size:20px;">🚚</div>
+        <div class="nav-icon"><img src="assets/icons/icon-reception-carburant-24.png" alt="Réception carburant"></div>
         <div class="nav-body">
           <div class="nav-title">Réception carburant</div>
           <div class="nav-desc">Livraison, jaugeage avant/après et calcul NEXUS</div>
@@ -1032,8 +1036,11 @@
       </a>
       <!-- Inventaire (02/08/2026, demande de Frédéric) : registre numérique
            des comptages de quart — icône dédiée fournie le 02/08/2026. -->
+      <!-- Icône pack NEXUS (20/08/2026, uniformisation) : icon-inventaire-24.png
+           remplace l'ancienne icon-inventaire.png — même icône réutilisée
+           sur Contrôle inventaire juste en dessous (même domaine). -->
       <a class="nav-item" data-role="manager" href="NEXUS-Inventaire-v1.html">
-        <div class="nav-icon"><img src="assets/icons/icon-inventaire.png" alt="Inventaire"></div>
+        <div class="nav-icon"><img src="assets/icons/icon-inventaire-24.png" alt="Inventaire"></div>
         <div class="nav-body">
           <div class="nav-title">Inventaire</div>
           <div class="nav-desc">Comptages d'ouverture et de clôture de quart</div>
@@ -1046,7 +1053,7 @@
            pour une page qui contient aussi le suivi du quart, les produits
            non comptés, les décisions, les réglages et l'historique. -->
       <a class="nav-item" data-role="manager" data-forfait="professional" href="NEXUS-Inventaire-Manager-v1.html">
-        <div class="nav-icon" style="display:flex; align-items:center; justify-content:center; font-size:20px;">🧭</div>
+        <div class="nav-icon"><img src="assets/icons/icon-inventaire-24.png" alt="Contrôle inventaire"></div>
         <div class="nav-body">
           <div class="nav-title">Contrôle inventaire <span class="nav-badge badge-premium">Professional</span></div>
           <div class="nav-desc">Écarts, comptages manquants et décisions du jour</div>
@@ -1057,8 +1064,10 @@
            NEXUS_FDJ_Audit_Complet_Developpeur.pdf et du fichier réel
            "CAISSE JOURNIALIERE FDJ 2026.xlsx") : grattage + tirages +
            caisse FDJ, comptage de quart avec écart toujours calculé. -->
+      <!-- Icône pack NEXUS (20/08/2026, uniformisation) : icon-fdj-24.png,
+           réutilisée sur Contrôle FDJ juste en dessous (même domaine). -->
       <a class="nav-item" data-role="manager" data-forfait="professional" href="NEXUS-FDJ-v1.html">
-        <div class="nav-icon" style="display:flex; align-items:center; justify-content:center; font-size:20px;">🎟️</div>
+        <div class="nav-icon"><img src="assets/icons/icon-fdj-24.png" alt="FDJ"></div>
         <div class="nav-body">
           <div class="nav-title">FDJ <span class="nav-badge badge-premium">Professional</span></div>
           <div class="nav-desc">Grattage, tirages et caisse FDJ — écart toujours calculé</div>
@@ -1070,7 +1079,7 @@
            dans Verify") : Aujourd'hui, historique, et correction directe
            de n'importe quel quart FDJ. -->
       <a class="nav-item" data-role="manager" data-forfait="professional" href="NEXUS-FDJ-Manager-v1.html">
-        <div class="nav-icon" style="display:flex; align-items:center; justify-content:center; font-size:20px;">🎯</div>
+        <div class="nav-icon"><img src="assets/icons/icon-fdj-24.png" alt="Contrôle FDJ"></div>
         <div class="nav-body">
           <div class="nav-title">Contrôle FDJ <span class="nav-badge badge-premium">Professional</span></div>
           <div class="nav-desc">Historique, écarts et correction de n'importe quel quart</div>
@@ -1097,8 +1106,10 @@
            l'audit "Coach x FDJ Pilotage") : un conseil maximum par jour,
            par employé — data-role="all" car chaque employé ne voit que son
            propre conseil (§21 de l'audit), pas un outil manager. -->
+      <!-- Icône pack NEXUS (20/08/2026, uniformisation) : avatar_coach —
+           sens littéral "Coach". -->
       <a class="nav-item" data-role="all" data-forfait="professional" href="NEXUS-Coach-FDJ-v1.html">
-        <div class="nav-icon" style="display:flex; align-items:center; justify-content:center; font-size:20px;">🎓</div>
+        <div class="nav-icon"><img src="assets/icons/icon-avatar-coach-24.png" alt="Coach FDJ"></div>
         <div class="nav-body">
           <div class="nav-title">Coach FDJ <span class="nav-badge badge-premium">Professional</span></div>
           <div class="nav-desc">Votre conseil du jour, en une phrase</div>
@@ -1174,7 +1185,7 @@
         <div class="nav-arrow">›</div>
       </a>
       <a class="nav-item" data-role="manager" href="NEXUS-Parametres-Station-v1.html">
-        <div class="nav-icon">⚙️</div>
+        <div class="nav-icon"><img src="assets/icons/icon-parametres-24.png" alt="Paramètres"></div>
         <div class="nav-body">
           <div class="nav-title">Paramètres</div>
           <div class="nav-desc">Horaires de service, prix carburants</div>
@@ -1186,7 +1197,7 @@
            rejoint maintenant le tiroir "Explorer NEXUS" comme les autres
            pages de paramètres. -->
       <a class="nav-item" data-role="manager" data-forfait="professional" href="NEXUS-Parametres-Inventaire-v1.html">
-        <div class="nav-icon">⚙️</div>
+        <div class="nav-icon"><img src="assets/icons/icon-parametres-24.png" alt="Paramètres Inventaire"></div>
         <div class="nav-body">
           <div class="nav-title">Paramètres Inventaire</div>
           <div class="nav-desc">Produits comptés, parcours, règles, alertes et traçabilité</div>
@@ -1197,7 +1208,7 @@
            site", étape 3) : rejoint le tiroir "Explorer NEXUS" comme
            Paramètres Inventaire. -->
       <a class="nav-item" data-role="manager" data-forfait="professional" href="NEXUS-FDJ-Parametres-v1.html">
-        <div class="nav-icon">⚙️</div>
+        <div class="nav-icon"><img src="assets/icons/icon-parametres-24.png" alt="Paramètres FDJ"></div>
         <div class="nav-body">
           <div class="nav-title">Paramètres FDJ</div>
           <div class="nav-desc">Organisation, catalogue des jeux et emplacements</div>
@@ -1225,8 +1236,9 @@
   <div class="groupe-wrap" data-groupe="aide">
     <div class="section-label" data-role="manager" style="display:none;">Aide</div>
     <nav data-role="manager" data-group="aide" style="display:none;">
+      <!-- Icône pack NEXUS (20/08/2026, uniformisation) : icon-aide-24.png -->
       <a class="nav-item" data-role="manager" href="NEXUS-Documentation-v1.html">
-        <div class="nav-icon">❓</div>
+        <div class="nav-icon"><img src="assets/icons/icon-aide-24.png" alt="Comprendre NEXUS"></div>
         <div class="nav-body">
           <div class="nav-title">Comprendre NEXUS</div>
           <div class="nav-desc">Quel moteur utiliser selon ce que vous voulez faire</div>
@@ -1279,6 +1291,13 @@
 <script src="nexus-carburant-donnees.js"></script>
 <script src="nexus-conseiller.js"></script>
 <script src="nexus-conseiller-donnees.js"></script>
+<!-- nexus-brief-donnees.js (23/08/2026, v2.224, correctif "règle anti-
+     divergence") : nécessaire pour que chargerStatutCarburantsHome
+     (nexus-app-donnees.js) délègue à chargerCarburantsBriefAvecFallback,
+     exactement la même fonction que Brief — jamais une deuxième formule
+     Carburants qui ignorerait le fallback temporel. Aucune autre fonction
+     de ce fichier n'est appelée depuis cet écran. -->
+<script src="nexus-brief-donnees.js"></script>
 <script src="nexus-app-donnees.js"></script>
 <script src="nexus-forfait.js"></script>
 <script src="nexus-raccourcis-catalogue.js"></script>
@@ -1836,6 +1855,16 @@
     return (data && data.reception_carburant_role) || 'employe';
   }
 
+  // station_config.jaugeage_carburant_actif (pont Inventaire → Carburants,
+  // livré le 19/08/2026) — même champ que celui lu par
+  // NEXUS-Inventaire-v1.html::chargerJaugeageCarburantActif(), pas un
+  // second calcul (Article 11).
+  async function chargerJaugeageCarburantActifSite(siteId) {
+    const { data, error } = await nexusClient.from('station_config').select('jaugeage_carburant_actif').eq('site', siteId).maybeSingle();
+    if (error) { console.error('Chargement jaugeage_carburant_actif:', error); return false; }
+    return !!(data && data.jaugeage_carburant_actif);
+  }
+
   // ============================================================
   // Refonte accueil employé "Apple-like" (20/08/2026, demande de Frédéric,
   // pack d'icônes fourni le même jour) — remplace l'ancienne mini-carte
@@ -1886,6 +1915,31 @@
     return maintenant < limite;
   }
 
+  // Matrice de capacités par rôle (cadrage "Accueil employé dynamique par
+  // rôle", 20/08/2026, demande de Frédéric — un pompiste voyant "vérifiez
+  // le contrôle FDJ" casse l'adhésion). Défauts métier de base issus du
+  // §3 du cadrage ; combinés ensuite avec les réglages du site déjà
+  // existants (forfait Professional pour FDJ, station_config.reception_
+  // carburant_role pour Réception) — cette matrice ne remplace aucun
+  // réglage existant, elle ajoute la dimension "rôle" qui manquait.
+  // Valeurs de rôle exactement celles de shifts.role / mission_catalog.
+  // role_required : pompiste, caissiere, renfort, manager, polyvalent
+  // (gerant n'est jamais un rôle du jour, seulement role_required de
+  // mission_catalog — non concerné ici).
+  const CAPACITES_ROLE_DEFAUT = {
+    fdj: { pompiste: false, caissiere: true, renfort: false, manager: true, polyvalent: true },
+    reception: { pompiste: true, caissiere: false, renfort: false, manager: true, polyvalent: false },
+  };
+  function roleADroitModule(module, roleDuJour) {
+    const table = CAPACITES_ROLE_DEFAUT[module];
+    if (!table) return true; // module non régi par cette matrice
+    if (roleDuJour in table) return table[roleDuJour];
+    // Rôle du jour absent/inconnu (ex. consultation externe sans shift) :
+    // ne jamais masquer par prudence plutôt qu'inventer un refus (Article 5).
+    return true;
+  }
+  const LIBELLE_ROLE_JOUR = { pompiste: 'Pompiste', caissiere: 'Caissière', renfort: 'Renfort', manager: 'Manager', polyvalent: 'Polyvalent' };
+
   // Missions obligatoires du rôle du jour, encore dans leur fenêtre —
   // "faite" = présence dans mission_completions du jour (validée ou en
   // attente, même règle que Missions::calculerPotentielJour). Renvoie
@@ -1902,13 +1956,17 @@
     return { total: obligatoires.length, faites, pointsAujourdhui };
   }
 
-  // Contrôles de quart réels (Inventaire + FDJ) — un contrôle ne compte
-  // que s'il est réellement proposé à l'employé aujourd'hui (rôle,
-  // forfait) : jamais un contrôle "à faire" fantôme.
-  function calculerControlesQuartJour(inventaireApplicable, inventaireFait, fdjApplicable, fdjFait) {
+  // Contrôles de quart réels (Inventaire + FDJ + Jaugeage d'ouverture) — un
+  // contrôle ne compte que s'il est réellement proposé à l'employé
+  // aujourd'hui (rôle, forfait, site) : jamais un contrôle "à faire"
+  // fantôme. Jaugeage ajouté le 20/08/2026 (cadrage rôle) : un pompiste au
+  // Q1 avec le pont activé voit son jaugeage compté ici, au même titre
+  // qu'Inventaire/FDJ le sont pour les autres rôles.
+  function calculerControlesQuartJour(inventaireApplicable, inventaireFait, fdjApplicable, fdjFait, jaugeageApplicable, jaugeageFait) {
     const items = [];
     if (inventaireApplicable) items.push(!!inventaireFait);
     if (fdjApplicable) items.push(!!fdjFait);
+    if (jaugeageApplicable) items.push(!!jaugeageFait);
     if (items.length === 0) return { applicable: false, total: 0, faits: 0 };
     return { applicable: true, total: items.length, faits: items.filter(Boolean).length };
   }
@@ -1955,12 +2013,28 @@
     return Math.round((ratios.reduce((s, r) => s + r, 0) / ratios.length) * 100);
   }
 
-  // Prochaine action unique — priorité réelle : pointage (le plus
-  // contraint dans le temps) → contrôle de quart non fait (Inventaire
-  // avant FDJ, ordre d'ouverture habituel) → mission obligatoire restante
-  // → sinon un constat neutre honnête ("tout est à jour"), jamais un
-  // texte générique sans lien réel derrière.
+  // Prochaine action unique — priorité réelle, alignée sur le cadrage
+  // "Accueil employé dynamique par rôle" (20/08/2026) : P-1 pointer
+  // l'arrivée (rien d'autre n'est faisable avant) → P0 jaugeage
+  // d'ouverture si dû (sécurité, pompiste Q1 uniquement) → pointage
+  // suivant (pause/départ, échéance immédiate) → contrôle de quart non
+  // fait (Inventaire avant FDJ, ordre d'ouverture habituel, chacun déjà
+  // filtré par rôle via ctx) → mission obligatoire restante → sinon un
+  // constat neutre honnête ("tout est à jour"), jamais un texte générique
+  // sans lien réel derrière. Coach et Prochaine action partagent cette
+  // même priorité (voir determinerPhraseCoach) — une seule vérité.
   function determinerProchaineActionEmploye(ctx) {
+    if (ctx.pointageActif && ctx.prochainPointage === 'arrivee') {
+      return {
+        couleur: POINTAGE_MINI_COULEURS.arrivee,
+        titre: POINTAGE_MINI_TEXTES.arrivee,
+        lienTexte: POINTAGE_MINI_LIBELLES.arrivee,
+        lien: 'NEXUS-Pointage-v1.html',
+      };
+    }
+    if (ctx.jaugeageApplicable && !ctx.jaugeageFait) {
+      return { couleur: 'inventaire', titre: 'Le jaugeage d’ouverture de la piste n’a pas encore été fait.', lienTexte: 'Faire le jaugeage →', lien: 'NEXUS-Inventaire-v1.html' };
+    }
     if (ctx.pointageActif && ctx.prochainPointage) {
       return {
         couleur: POINTAGE_MINI_COULEURS[ctx.prochainPointage],
@@ -1988,12 +2062,15 @@
   }
 
   // Une seule phrase de recommandation du Coach (jamais 3 priorités fixes
-  // comme avant la refonte) — dérivée des mêmes signaux réels que la
-  // barre de progression, jamais un texte générique. Distincte de la
-  // carte "Prochaine action" : celle-ci porte le pointage, la phrase du
-  // Coach porte le travail du quart (contrôles + missions).
+  // comme avant la refonte) — dérivée des MÊMES signaux réels que la
+  // barre de progression et la Prochaine action, jamais un texte
+  // générique, jamais un module hors rôle (20/08/2026, correctif "un
+  // pompiste voit vérifiez le contrôle FDJ" — cadrage rôle). Distincte de
+  // la carte "Prochaine action" : celle-ci porte le pointage/jaugeage, la
+  // phrase du Coach porte le travail du quart (contrôles + missions).
   function determinerPhraseCoach(ctx) {
     const items = [];
+    if (ctx.jaugeageApplicable && !ctx.jaugeageFait) items.push('le jaugeage d’ouverture');
     if (ctx.inventaireApplicable && !ctx.inventaireFait) items.push('l’inventaire');
     if (ctx.fdjApplicable && !ctx.fdjFait) items.push('le contrôle FDJ');
     if (ctx.missionsInfo && ctx.missionsInfo.total > ctx.missionsInfo.faites) items.push('vos missions');
@@ -2092,12 +2169,20 @@
   // inventaireMini/fdjMini/receptionCarburantMini dispersés). Toutes les
   // lectures Supabase partent en parallèle (Promise.all) : la page reste
   // aussi rapide qu'avant malgré le calcul plus riche.
-  async function initAccueilEmploye(employee, roleDuJour, pointageActifSite) {
+  async function initAccueilEmploye(employee, roleDuJour, pointageActifSite, quartDuJour) {
     document.getElementById('conseillerEmployeWrap').style.display = '';
 
     const d = new Date();
     const todayISO = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     const maintenant = new Date();
+
+    // Jaugeage d'ouverture (cadrage rôle, 20/08/2026) : uniquement
+    // interrogé pour un pompiste au quart matin — proxy rôle+quart plutôt
+    // que la résolution par zone utilisée dans NEXUS-Inventaire-v1.html
+    // (zoneActive, propre au parcours de saisie de cet écran-là) : un
+    // pompiste travaille par construction la piste, donc déjà couvert par
+    // ce proxy plus simple ; documenté comme simplification assumée.
+    const jaugeagePertinentRole = roleDuJour === 'pompiste' && quartDuJour === 'matin';
 
     const [
       { data: pointagesJour, error: eP },
@@ -2108,6 +2193,8 @@
       { data: quartEmployeRows, error: eI },
       { data: fdjShiftsRows, error: eF },
       { data: snap, error: eSnap },
+      jaugeageActifSite,
+      statutJaugeageJour,
     ] = await Promise.all([
       pointageActifSite
         ? nexusClient.from('pointages').select('type').eq('employee_id', employee.id).eq('site', employee.site_id).eq('date', todayISO)
@@ -2123,6 +2210,8 @@
         : nexusClient.from('inventaire_quart_employes').select('responsable_comptage, inventaire_quarts(date, cloture_le, is_simulation)').eq('employee_id', employee.id),
       nexusClient.from('fdj_shifts').select('statut').eq('employee_id', employee.id).eq('site', employee.site_id).eq('date', todayISO),
       nexusClient.from('apprentissage_snapshots').select('nouveaute_en_attente').eq('employee_id', employee.id).maybeSingle(),
+      jaugeagePertinentRole ? chargerJaugeageCarburantActifSite(employee.site_id) : Promise.resolve(false),
+      jaugeagePertinentRole ? NexusCarburantDonnees.chargerStatutJaugeageJour(nexusClient, employee.site_id, todayISO) : Promise.resolve(null),
     ]);
     if (eP) console.error('Chargement pointages (accueil employé):', eP);
     if (eC) console.error('Chargement mission_catalog (accueil employé):', eC);
@@ -2139,16 +2228,24 @@
       !!r.inventaire_quarts.cloture_le
     );
 
-    // FDJ applicable seulement si le forfait Professional l'autorise
-    // (erreur réseau = forfait null = non applicable, même prudence que
-    // l'ancienne mini-carte fdjMini).
-    const fdjApplicable = forfait !== null && NexusForfait.estProfessional(forfait);
+    // FDJ applicable seulement si (a) le rôle du jour y a droit — un
+    // pompiste ou un renfort n'y touchent jamais par défaut (matrice de
+    // rôle, correctif 20/08/2026) — ET (b) le forfait Professional
+    // l'autorise (erreur réseau = forfait null = non applicable, même
+    // prudence que l'ancienne mini-carte fdjMini).
+    const fdjApplicable = roleADroitModule('fdj', roleDuJour) && forfait !== null && NexusForfait.estProfessional(forfait);
     const fdjFait = (fdjShiftsRows || []).some(s => s.statut === 'valide');
 
-    const receptionApplicable = receptionRole === 'employe' || receptionRole === 'les_deux';
+    // Réception carburant : même logique — le rôle du jour doit y avoir
+    // droit (pompiste/manager par défaut, jamais caissière/renfort par
+    // défaut) ET le réglage du site doit l'autoriser côté employé.
+    const receptionApplicable = roleADroitModule('reception', roleDuJour) && (receptionRole === 'employe' || receptionRole === 'les_deux');
+
+    const jaugeageApplicable = jaugeagePertinentRole && !!jaugeageActifSite;
+    const jaugeageFait = !!(statutJaugeageJour && (statutJaugeageJour.statut === 'fait' || statutJaugeageJour.statut === 'impossible'));
 
     const missionsInfo = calculerMissionsObligatoiresJour(catalogueRows, completionsRows, roleDuJour, maintenant);
-    const controlesInfo = calculerControlesQuartJour(inventaireApplicable, inventaireFait, fdjApplicable, fdjFait);
+    const controlesInfo = calculerControlesQuartJour(inventaireApplicable, inventaireFait, fdjApplicable, fdjFait, jaugeageApplicable, jaugeageFait);
     const prochainPointage = pointageActifSite ? calculerProchainPointage(pointagesJour) : null;
     const arriveeFaite = (pointagesJour || []).some(p => p.type === 'arrivee');
     const departFait = (pointagesJour || []).some(p => p.type === 'depart');
@@ -2157,6 +2254,7 @@
       pointageActif: pointageActifSite, prochainPointage, arriveeFaite, departFait,
       missionsInfo, controlesInfo,
       inventaireApplicable, inventaireFait, fdjApplicable, fdjFait, receptionApplicable,
+      jaugeageApplicable, jaugeageFait,
     };
 
     renderProgressionService(calculerEtapesProgressionService(ctx));
@@ -2167,11 +2265,15 @@
     const nbActions = (prochainPointage ? 1 : 0)
       + Math.max(0, missionsInfo.total - missionsInfo.faites)
       + Math.max(0, controlesInfo.total - controlesInfo.faits);
+    // "Rôle du jour" affiché de façon discrète (cadrage UX §14) — préfixe
+    // la ligne de statut déjà existante plutôt que d'ajouter un bloc.
     const statutEl = document.getElementById('conseillerEmployeStatut');
     if (statutEl) {
-      statutEl.textContent = nbActions === 0
+      const libelleRole = LIBELLE_ROLE_JOUR[roleDuJour] || null;
+      const phraseService = nbActions === 0
         ? ((departFait || !pointageActifSite) ? 'Votre service est à jour' : 'Votre service est en cours')
         : `Votre service est en cours · ${nbActions} action${nbActions > 1 ? 's' : ''} à terminer`;
+      statutEl.textContent = libelleRole ? `${libelleRole} · ${phraseService}` : phraseService;
     }
 
     const pointsEl = document.getElementById('maProgressionPoints');
@@ -2527,11 +2629,17 @@
     // initRechercheNexus). Distinct de employee.role (le rôle fixe de la
     // personne) : c'est bien le rôle du quart en cours qui doit primer ici.
     let roleDuJour = null;
+    // quartDuJour (20/08/2026, cadrage "Accueil employé dynamique par rôle")
+    // : relu depuis shifts.quart (déjà persisté à la prise de poste), pas
+    // recalculé ici — un 4e calcul de quart existe déjà entre Prise de
+    // Poste/Inventaire/FDJ (12:40 vs 13:00 selon l'écran, incohérence
+    // connue et non résolue), inutile d'en ajouter un 5e (Article 11).
+    let quartDuJour = null;
     const aujourdISO = new Date().toISOString().slice(0, 10);
     if (!employee.consultation_externe) {
       const { data: shiftsAujourdhui, error: erreurShift } = await nexusClient
         .from('shifts')
-        .select('id, role')
+        .select('id, role, quart')
         .eq('employee_id', employee.id)
         .gte('heure_debut', aujourdISO + 'T00:00:00')
         .lte('heure_debut', aujourdISO + 'T23:59:59')
@@ -2542,7 +2650,10 @@
         window.location.href = 'NEXUS-Prise-De-Poste-v1.html';
         return;
       }
-      if (!erreurShift && shiftsAujourdhui && shiftsAujourdhui[0]) roleDuJour = shiftsAujourdhui[0].role;
+      if (!erreurShift && shiftsAujourdhui && shiftsAujourdhui[0]) {
+        roleDuJour = shiftsAujourdhui[0].role;
+        quartDuJour = shiftsAujourdhui[0].quart;
+      }
     }
 
     document.getElementById('sessionInfo').innerHTML =
@@ -2614,7 +2725,7 @@
       // regroupe désormais tout ce qui était dispersé ici (pointage,
       // inventaire, FDJ, réception carburant, notification Progression) :
       // voir initAccueilEmploye() et son détail plus haut dans le script.
-      await initAccueilEmploye(employee, roleDuJour, pointageActif);
+      await initAccueilEmploye(employee, roleDuJour, pointageActif, quartDuJour);
     }
 
     if (employee.est_createur) {
