@@ -300,6 +300,40 @@
     const comp = sommer(compRows);
     const evolCa = comp.nb_quarts_controles > 0 && comp.ca_grattage > 0 ? (actuel.ca_grattage - comp.ca_grattage) / comp.ca_grattage : null;
 
+    // Fallback temporel "dernier état fiable" — extension à FDJ (22/08/2026,
+    // demande de Frédéric, mécanisme déjà appliqué à Carburants v2.215/218).
+    // Ne gèle QUE la Maîtrise (`nbEcarts`) : tant qu'aujourd'hui n'est pas
+    // clôturé (`jourFdjEstCloture`, réutilisée telle quelle — déjà utilisée
+    // ailleurs dans nexus-fdj-moteur.js pour la même notion de "jour
+    // complet"), `nbEcarts` est recalculé sur la fenêtre de 7 jours se
+    // terminant au dernier jour réellement clôturé plutôt que sur la
+    // fenêtre du jour, qui inclurait un jour partiel. `caGrattage`/
+    // `evolutionCa`/`jeuMoteur` (Performance) restent TOUJOURS ceux
+    // d'aujourd'hui — jamais mélangés silencieusement avec un jour antérieur
+    // dans le même score (même règle absolue que Carburants, v2.214).
+    const FM = global.NexusFdjMoteur;
+    const aujourdhuiIso = iso(finActuelle);
+    const ligneAujourdhui = (dailyRows || []).find(r => r.date === aujourdhuiIso) || null;
+    const completAujourdhui = FM.jourFdjEstCloture(ligneAujourdhui);
+    let nbEcartsMaitrise = actuel.nb_ecarts_non_nuls;
+    let fraicheurFdj = { mode: 'jour' };
+    let enCoursFdj = null;
+    if (!completAujourdhui) {
+      const fallback = FM.trouverDernierJourFdjFiable(dailyRows, aujourdhuiIso);
+      // fraicheurCarburant() (nexus-carburant-moteur.js) est déjà 100 %
+      // générique (aucun champ propre au carburant dans sa signature) —
+      // réutilisée telle quelle plutôt que dupliquée (Article 11). Voir le
+      // commentaire "FALLBACK TEMPOREL" de nexus-fdj-moteur.js.
+      fraicheurFdj = global.NexusCarburantMoteur.fraicheurCarburant({ completAujourdhui: false, fallback });
+      enCoursFdj = FM.construireBlocEnCoursFdj({
+        nbQuartsControlesJour: ligneAujourdhui ? ligneAujourdhui.nb_quarts_controles : 0,
+        nbEcartsJour: ligneAujourdhui ? ligneAujourdhui.nb_ecarts_non_nuls : 0,
+      });
+      if (fraicheurFdj.mode === 'fallback') {
+        nbEcartsMaitrise = FM.sommerEcartsFenetreFdj(dailyRows, fraicheurFdj.dateReference);
+      }
+    }
+
     const gameCa = {};
     (gameDailyRows || []).forEach(l => { if (l.ca) gameCa[l.game_id] = (gameCa[l.game_id] || 0) + Number(l.ca); });
     let jeuMoteur = null, caMax = 0;
@@ -325,7 +359,14 @@
       candidats: candidatsBrut.map(global.NexusConseiller.normaliserFdj),
       resume: {
         caGrattage: actuel.ca_grattage, evolutionCa: evolCa, jeuMoteur,
-        nbEcarts: actuel.nb_ecarts_non_nuls, nbQuartsControles: actuel.nb_quarts_controles,
+        // `nbEcarts` : nbEcartsMaitrise (gelé sur le dernier jour fiable si
+        // aujourd'hui n'est pas clôturé, sinon identique à l'ancien calcul
+        // — non-régression totale en mode 'jour'). `nbQuartsControles` reste
+        // la fenêtre VIVANTE (sert uniquement de seuil "assez de données",
+        // pas une mesure de Maîtrise — ne doit pas être gelé, Article 5 :
+        // ne pas figer ce qui n'a pas besoin de l'être).
+        nbEcarts: nbEcartsMaitrise, nbQuartsControles: actuel.nb_quarts_controles,
+        fraicheur: fraicheurFdj, enCours: enCoursFdj,
       },
     };
   }

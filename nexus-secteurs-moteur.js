@@ -378,8 +378,23 @@
   // des écarts de caisse, ou des deux ?") : les deux causes sont maintenant
   // deux nombres visibles séparément (`activite`/`maitrise`) plutôt qu'une
   // seule valeur agrégée à décoder.
+  // `resume.fraicheur`/`resume.enCours` (22/08/2026, extension du fallback
+  // temporel à FDJ — voir nexus-fdj-moteur.js et chargerCandidatsFdj) :
+  // posés par le chargeur, jamais recalculés ici (Article 11), même
+  // structure que `carburants.fraicheur` dans construireSecteurCarburants
+  // ci-dessus. Absent -> mode `'jour'` par défaut, non-régression totale.
   function construireSecteurFdj(entree, resume) {
     if (!resume || !resume.nbQuartsControles) return secteurVide(entree, "Pas encore assez de quarts FDJ contrôlés sur 7 jours.");
+    const fraicheur = resume.fraicheur || { mode: 'jour' };
+    if (fraicheur.mode === 'perime') {
+      const dateTxt = (fraicheur.dateReference || '').split('-').reverse().join('/');
+      return {
+        ...entree, type: 'reel', confiance: 'INSUFFISANT', statut: 'À actualiser', valeur: null,
+        detail: `Dernier jour FDJ clôturé fiable trop ancien (${dateTxt}, ${fraicheur.joursEcoules} jour${fraicheur.joursEcoules > 1 ? 's' : ''}) pour être présenté comme un état courant — NEXUS attend une nouvelle clôture avant de recalculer la Maîtrise.`,
+        moteurs: ['fdj', 'coach'], changement: null, force: null, frein: null, risques: [], coherence: null,
+        activite: null, maitrise: null, couverture: 'perimee', fraicheur, enCours: resume.enCours || null,
+      };
+    }
     const { caGrattage, evolutionCa, jeuMoteur, nbEcarts } = resume;
     const contribPerformance = boussole().clampContribution(evolutionCa != null ? evolutionCa * 250 : null);
     const contribMaitrise = boussole().contributionMaitriseEcarts(nbEcarts);
@@ -409,6 +424,7 @@
       statut, valeur, detail, moteurs: ['fdj', 'coach'], changement, force, frein, risques: [], coherence: null,
       activite: boussole().scoreDimension(contribPerformance), maitrise: boussole().scoreDimension(contribMaitrise),
       couverture: evolutionCa != null ? 'complete' : 'partielle',
+      fraicheur, enCours: fraicheur.mode !== 'jour' ? (resume.enCours || null) : null,
     };
   }
 

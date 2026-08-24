@@ -1205,6 +1205,81 @@
     };
   }
 
+  // ============================================================
+  // FALLBACK TEMPOREL "DERNIER ÉTAT FIABLE" — extension à FDJ (22/08/2026,
+  // demande de Frédéric : "j'ai appliqué ça à Carburants, applique la même
+  // règle à FDJ" — v2.214 avait déjà anticipé cette extension : "ce
+  // mécanisme devrait ensuite devenir générique... Carburants, FDJ,
+  // Inventaire ou Verify").
+  //
+  // Différence structurelle avec Carburants, assumée et documentée : la
+  // Maîtrise Carburants est un contrôle PONCTUEL du jour (jaugeage physique
+  // fait ou non aujourd'hui) ; la Maîtrise FDJ (`nbEcarts`) est déjà, par
+  // construction, une SOMME sur une fenêtre glissante de 7 jours
+  // (`chargerCandidatsFdj`, Article 11 — jamais un 2e calcul). Il n'existe
+  // donc pas de "valeur du jour" isolée à figer : ce qu'on gèle, c'est la
+  // FENÊTRE de 7 jours elle-même, en la faisant se terminer au dernier jour
+  // FDJ réellement clôturé plutôt qu'à aujourd'hui tant qu'aujourd'hui n'est
+  // pas clôturé (`jourFdjEstCloture`, déjà utilisée par `fenetreComparableFdj`
+  // ci-dessus pour un autre écran — même notion de "jour complet", jamais
+  // une 2e définition). La Performance (`caGrattage`/`evolutionCa`), elle,
+  // reste TOUJOURS calculée sur la fenêtre vivante se terminant aujourd'hui
+  // — le CA de grattage déjà encaissé aujourd'hui est une donnée réelle,
+  // jamais mise de côté (même principe que Carburants : Performance jamais
+  // gelée par une Maîtrise incomplète).
+  //
+  // Décision de fraîcheur : réutilise TELLE QUELLE
+  // `NexusCarburantMoteur.fraicheurCarburant({completAujourdhui, fallback})`
+  // (Article 11) — sa signature est déjà 100 % générique (aucun champ propre
+  // au carburant), c'est de fait déjà le mécanisme partagé annoncé par la
+  // v2.214, simplement pas encore renommé/déplacé. À déplacer vers un
+  // fichier neutre (ex. nexus-fraicheur-moteur.js) si un 3e secteur
+  // (Inventaire/Verify) en a besoin un jour — prématuré pour 2 consommateurs.
+  // ------------------------------------------------------------
+
+  // Dernier jour FDJ clôturé strictement AVANT `dateAujourdhui`, en
+  // parcourant les lignes déjà chargées par chargerCandidatsFdj (aucune
+  // nouvelle requête, Article 11 — la fenêtre déjà récupérée par Brief pour
+  // le calcul comp/actuel couvre largement assez de jours en arrière).
+  function trouverDernierJourFdjFiable(dailyRows, dateAujourdhui) {
+    const parDate = {};
+    (dailyRows || []).forEach(l => { if (l && l.date && l.date < dateAujourdhui) parDate[l.date] = l; });
+    const dates = Object.keys(parDate).sort().reverse();
+    for (const date of dates) {
+      if (jourFdjEstCloture(parDate[date])) {
+        const joursEcoules = Math.round((new Date(dateAujourdhui + 'T00:00:00') - new Date(date + 'T00:00:00')) / 86400000);
+        return { trouve: true, date, joursEcoules };
+      }
+    }
+    return { trouve: false };
+  }
+
+  // Ré-agrège `nb_ecarts_non_nuls` sur les 7 jours calendaires se terminant
+  // à `dateFin` (le dernier jour fiable trouvé ci-dessus) — même fenêtre de
+  // 7 jours que `chargerCandidatsFdj`, simplement décalée pour ne jamais
+  // inclure un jour non clôturé dans la Maîtrise. Aucune nouvelle requête :
+  // relit les lignes déjà chargées.
+  function sommerEcartsFenetreFdj(dailyRows, dateFin) {
+    const debut = ajouterJoursIso(dateFin, -6);
+    return (dailyRows || [])
+      .filter(l => l && l.date && l.date >= debut && l.date <= dateFin)
+      .reduce((s, l) => s + (l.nb_ecarts_non_nuls != null ? Number(l.nb_ecarts_non_nuls) : 0), 0);
+  }
+
+  // Bloc "Aujourd'hui — en cours" pour FDJ (même principe que
+  // construireBlocEnCours de nexus-carburant-moteur.js, jamais fondu dans le
+  // score figé) : décrit ce qui est déjà connu du jour en construction, au
+  // grain réellement disponible (nb_quarts_controles/nb_ecarts_non_nuls de
+  // la ligne du jour, déjà remontée par view_fdj_daily_summary).
+  function construireBlocEnCoursFdj({ nbQuartsControlesJour, nbEcartsJour }) {
+    if (!nbQuartsControlesJour) return ["Aucun quart FDJ clôturé pour l'instant aujourd'hui."];
+    const lignes = [`${nbQuartsControlesJour}/${FDJ_QUARTS_ATTENDUS_PAR_JOUR} quarts FDJ clôturés aujourd'hui.`];
+    lignes.push((nbEcartsJour || 0) > 0
+      ? `${nbEcartsJour} écart${nbEcartsJour > 1 ? 's' : ''} de caisse déjà constaté${nbEcartsJour > 1 ? 's' : ''} aujourd'hui.`
+      : "Aucun écart de caisse constaté pour l'instant aujourd'hui.");
+    return lignes;
+  }
+
   // Progression du comptage d'un quart pour les cartes "Quarts du jour"
   // (20/08/2026, cahier UX §4/§5) : "L'objectif est que tu puisses voir une
   // anomalie sans ouvrir le quart." `counts` = lignes fdj_shift_counts du
@@ -1406,6 +1481,7 @@
     caisseComptabilisableQuart, quartCaisseReelleCellule, etatJourCaisseReelle, totalJourCaisseReelle,
     progressionComptageQuart,
     FDJ_QUARTS_ATTENDUS_PAR_JOUR, jourFdjEstCloture, fenetreComparableFdj,
+    trouverDernierJourFdjFiable, sommerEcartsFenetreFdj, construireBlocEnCoursFdj,
     RESULTATS_CONTROLE_FDJ, labelResultatControle,
     optionsVerdictControleFdj, verdictCoherentAvecEcart, deriverStatutCaisseDepuisVerdict, motifEcartObligatoire, etatDuQuartFdj,
     causeAlerteContinuite, elementManquantAlerteContinuite, actionAlerteContinuite, detailAlerteContinuite,
