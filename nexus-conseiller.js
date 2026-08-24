@@ -65,12 +65,33 @@
   // recoAgir restent utilisés (fondus dans "pourquoi" par les
   // normaliseurs), mais decisionAgir en est la reformulation directe à
   // l'impératif, sans "je recommande de/d'".
+  // Langage adapté au niveau de preuve (24/08/2026, v2.230, audit "Cockpit
+  // Améliorations Développeur" §7 : "Certaines recommandations commerciales
+  // sont trop affirmatives lorsque NEXUS ne possède pas le stock ou le
+  // facing réel." R4-RENFORT-A (recoAgir/decisionAgir) et R3-HAUSSE
+  // (recoHausse/decisionHausse) sont TOUJOURS des signaux inférés depuis
+  // les ventes (contribution au CA du rayon, progression entre deux
+  // périodes) — NEXUS n'a, pour ces deux règles, aucune mesure directe du
+  // facing/stock/support/production/comptoir/présentoir réel. Toute
+  // formulation qui ASSERTE l'action physique elle-même ("Renforcez",
+  // "Sécurisez", "Augmentez", "Garantissez", "Améliorez") est donc trop
+  // affirmative au sens de l'audit — remplacée par une formulation de
+  // VÉRIFICATION, exactement le mouvement demandé par le tableau §7
+  // ("Renforcez le facing" → "Vérifiez le facing et la disponibilité" ;
+  // "Sécurisez le réassort" → "Vérifiez le stock - la demande accélère").
+  // R2-BAISSE (recoBaisse/decisionBaisse) commençait déjà par "Vérifiez"
+  // dans les 6 rayons — aucun changement nécessaire là, c'est déjà le
+  // registre que l'audit demande. `recoAgir`/`recoHausse`/`recoBaisse`
+  // sont aussi lus directement par NEXUS-Produits-v1.html (Article 11,
+  // correctif du 08/08/2026 : une seule source pour "que recommande NEXUS
+  // ici") — ce lot les corrige donc pour les deux écrans à la fois, sans
+  // modification séparée nécessaire dans NEXUS-Produits-v1.html.
   const LANGAGE_ACTION = {
     facing: {
       analyseAgir: "Une référence à ce niveau de contribution mérite un facing à la hauteur de son poids réel.",
-      recoAgir: a => `Je recommande de vérifier et renforcer le facing de ${a}.`,
+      recoAgir: a => `Je recommande de vérifier le facing et la disponibilité de ${a}.`,
       consAgir: m => `Un sous-dimensionnement de facing sur cette référence représente un risque estimé à ${m} €.`,
-      recoHausse: a => `Il serait utile de renforcer le facing de ${a} avant le prochain réapprovisionnement.`,
+      recoHausse: a => `Vérifiez le facing de ${a} — la demande accélère.`,
       recoBaisse: a => `Vérifiez la présence en rayon de ${a} avant toute décision.`,
       verdictAgir: a => `${a} est sous-exposé.`,
       verdictHausse: a => `${a} est en forte progression.`,
@@ -78,15 +99,15 @@
       impactAgir: "Disponibilité renforcée et potentiel de ventes accru.",
       impactHausse: "Dynamique commerciale prolongée sans rupture.",
       impactBaisse: "Cause de la baisse identifiée avant qu'elle ne s'aggrave.",
-      decisionAgir: a => `Renforcez le facing de ${a} dès le prochain réassort.`,
-      decisionHausse: a => `Renforcez le facing de ${a} avant le prochain réapprovisionnement.`,
+      decisionAgir: a => `Vérifiez le facing et la disponibilité de ${a}.`,
+      decisionHausse: a => `Vérifiez le facing de ${a} — la demande accélère.`,
       decisionBaisse: a => `Vérifiez la présence en rayon de ${a}.`,
     },
     stock: {
       analyseAgir: "Une référence à ce niveau de contribution ne doit jamais être en rupture en dépôt — elle n'est pas exposée en rayon comme les autres.",
       recoAgir: a => `Je recommande de vérifier le stock disponible en dépôt/cage pour ${a}.`,
       consAgir: m => `Une rupture de stock sur cette référence représente un risque estimé à ${m} €.`,
-      recoHausse: a => `Sécurisez davantage de stock de ${a} avant le prochain réapprovisionnement.`,
+      recoHausse: a => `Vérifiez le stock de ${a} — la demande accélère.`,
       recoBaisse: a => `Vérifiez le stock en dépôt/cage de ${a} avant toute décision.`,
       verdictAgir: a => `${a} est à risque de rupture de stock.`,
       verdictHausse: a => `${a} est en forte progression.`,
@@ -95,14 +116,14 @@
       impactHausse: "Approvisionnement sécurisé pour prolonger la dynamique.",
       impactBaisse: "Cause de la baisse identifiée avant qu'elle ne s'aggrave.",
       decisionAgir: a => `Vérifiez le stock disponible en dépôt/cage pour ${a}.`,
-      decisionHausse: a => `Sécurisez davantage de stock de ${a} avant le prochain réapprovisionnement.`,
+      decisionHausse: a => `Vérifiez le stock de ${a} — la demande accélère.`,
       decisionBaisse: a => `Vérifiez le stock en dépôt/cage de ${a}.`,
     },
     support: {
       analyseAgir: "Une référence à ce niveau de contribution dépend surtout de la disponibilité du support et de son activation en caisse, pas d'un emplacement en rayon.",
       recoAgir: a => `Je recommande de vérifier le stock de cartes et la bonne activation en caisse pour ${a}.`,
       consAgir: m => `Une indisponibilité de ce support représente un risque estimé à ${m} €.`,
-      recoHausse: a => `Prévoyez davantage de support et d'activation pour ${a} avant le prochain réapprovisionnement.`,
+      recoHausse: a => `Vérifiez le stock de cartes et l'activation en caisse pour ${a} — la demande accélère.`,
       recoBaisse: a => `Vérifiez la disponibilité du support et son activation en caisse pour ${a} avant toute décision.`,
       verdictAgir: a => `${a} dépend d'un support fragile.`,
       verdictHausse: a => `${a} est en forte progression.`,
@@ -111,14 +132,14 @@
       impactHausse: "Support et activation prolongés pour ne pas casser la dynamique.",
       impactBaisse: "Cause de la baisse identifiée avant qu'elle ne s'aggrave.",
       decisionAgir: a => `Vérifiez le stock de cartes et la bonne activation en caisse pour ${a}.`,
-      decisionHausse: a => `Prévoyez davantage de support et d'activation pour ${a} avant le prochain réapprovisionnement.`,
+      decisionHausse: a => `Vérifiez le stock de cartes et l'activation en caisse pour ${a} — la demande accélère.`,
       decisionBaisse: a => `Vérifiez la disponibilité du support et son activation en caisse pour ${a}.`,
     },
     production: {
       analyseAgir: "Une référence à ce niveau de contribution dépend surtout de la quantité produite ou commandée chaque jour — c'est un produit frais, pas un facing.",
-      recoAgir: a => `Je recommande d'ajuster la quantité commandée ou produite de ${a} au niveau réel de la demande.`,
+      recoAgir: a => `Je recommande de vérifier si la quantité commandée ou produite de ${a} correspond au niveau réel de la demande.`,
       consAgir: m => `Une quantité insuffisante sur cette référence fraîche représente un risque estimé à ${m} €.`,
-      recoHausse: a => `Augmentez la quantité commandée ou produite de ${a} avant le prochain réapprovisionnement.`,
+      recoHausse: a => `Vérifiez la quantité commandée ou produite de ${a} — la demande accélère.`,
       recoBaisse: a => `Vérifiez si la quantité produite ou commandée de ${a} a été réduite avant toute décision.`,
       verdictAgir: a => `${a} est sous-approvisionné.`,
       verdictHausse: a => `${a} est en forte progression.`,
@@ -126,15 +147,15 @@
       impactAgir: "Quantité ajustée à la demande réelle, moins de perte ou de rupture.",
       impactHausse: "Production maintenue au niveau de la demande réelle.",
       impactBaisse: "Cause de la baisse identifiée avant qu'elle ne s'aggrave.",
-      decisionAgir: a => `Ajustez la quantité commandée ou produite de ${a} au niveau réel de la demande.`,
-      decisionHausse: a => `Augmentez la quantité commandée ou produite de ${a} avant le prochain réapprovisionnement.`,
+      decisionAgir: a => `Vérifiez si la quantité commandée ou produite de ${a} correspond au niveau réel de la demande.`,
+      decisionHausse: a => `Vérifiez la quantité commandée ou produite de ${a} — la demande accélère.`,
       decisionBaisse: a => `Vérifiez si la quantité produite ou commandée de ${a} a été réduite.`,
     },
     comptoir: {
       analyseAgir: "Une référence à ce niveau de contribution doit rester visible et disponible au comptoir en priorité.",
       recoAgir: a => `Je recommande de vérifier la disponibilité au comptoir de ${a}.`,
       consAgir: m => `Une rupture au comptoir sur cette référence représente un risque estimé à ${m} €.`,
-      recoHausse: a => `Garantissez la disponibilité au comptoir de ${a} avant le prochain réapprovisionnement.`,
+      recoHausse: a => `Vérifiez la disponibilité au comptoir de ${a} — la demande accélère.`,
       recoBaisse: a => `Vérifiez la disponibilité au comptoir de ${a} avant toute décision.`,
       verdictAgir: a => `${a} est sous-exposé au comptoir.`,
       verdictHausse: a => `${a} est en forte progression.`,
@@ -143,14 +164,14 @@
       impactHausse: "Dynamique commerciale prolongée sans rupture.",
       impactBaisse: "Cause de la baisse identifiée avant qu'elle ne s'aggrave.",
       decisionAgir: a => `Vérifiez la disponibilité au comptoir de ${a}.`,
-      decisionHausse: a => `Garantissez la disponibilité au comptoir de ${a} avant le prochain réapprovisionnement.`,
+      decisionHausse: a => `Vérifiez la disponibilité au comptoir de ${a} — la demande accélère.`,
       decisionBaisse: a => `Vérifiez la disponibilité au comptoir de ${a}.`,
     },
     presentoir: {
       analyseAgir: "Une référence à ce niveau de contribution mérite une bonne visibilité sur le présentoir.",
       recoAgir: a => `Je recommande de vérifier l'emplacement de ${a} sur le présentoir.`,
       consAgir: m => `Un mauvais emplacement sur cette référence représente un risque estimé à ${m} €.`,
-      recoHausse: a => `Améliorez l'emplacement de ${a} sur le présentoir avant le prochain réapprovisionnement.`,
+      recoHausse: a => `Vérifiez l'emplacement de ${a} sur le présentoir — la demande accélère.`,
       recoBaisse: a => `Vérifiez l'emplacement de ${a} sur le présentoir avant toute décision.`,
       verdictAgir: a => `${a} est mal mis en avant.`,
       verdictHausse: a => `${a} est en forte progression.`,
@@ -159,7 +180,7 @@
       impactHausse: "Dynamique commerciale prolongée sans rupture.",
       impactBaisse: "Cause de la baisse identifiée avant qu'elle ne s'aggrave.",
       decisionAgir: a => `Vérifiez et améliorez l'emplacement de ${a} sur le présentoir.`,
-      decisionHausse: a => `Améliorez l'emplacement de ${a} sur le présentoir avant le prochain réapprovisionnement.`,
+      decisionHausse: a => `Vérifiez l'emplacement de ${a} sur le présentoir — la demande accélère.`,
       decisionBaisse: a => `Vérifiez l'emplacement de ${a} sur le présentoir.`,
     },
   };
@@ -269,6 +290,19 @@
             categorie: p.categorie,
             contribution: null, evolution,
             ca_reference: p.ca, periode_reference_debut: paire.actuelle.debut, periode_reference_fin: paire.actuelle.fin,
+            // motCleSaisonnier (24/08/2026, v2.230, audit §7.1 : "La carte
+            // Gobelet Carnaval est un bon modèle... Ce raisonnement doit
+            // devenir une règle moteur.") Jusqu'à ce lot, la détection
+            // saisonnière (detecterMotCleSaisonnier, 28/07/2026) n'existait
+            // QUE dans analyserProduitsStrategiques ("Regard du
+            // Conseiller") — un article comme "Gobelet Carnaval" pouvait
+            // donc devenir une carte d'action R2-BAISSE au ton pressant
+            // ("Aujourd'hui - Vérifier...") dans Plan d'exploitation, alors
+            // que la même baisse était traitée avec prudence ailleurs sur
+            // le même écran. Exposé ici pour que normaliserProduit()
+            // applique la même prudence partout (Article 11 — une seule
+            // règle de lecture saisonnière, pas une par écran).
+            motCleSaisonnier: detecterMotCleSaisonnier(p.article),
           });
         }
       });
@@ -570,6 +604,18 @@
       decision = lang.decisionBaisse(c.article);
       limites = `${c.analyse} ${c.consequence} ${LIMITE_PERIODE_UNIQUE}`;
       urgence = 'Aujourd\'hui';
+      // Saisonnalité (24/08/2026, v2.230, audit §7.1) — même phrasé
+      // conditionnel que "carteSaisonniere" (NEXUS-Cockpit-v2.html, Regard
+      // du Conseiller), réutilisé ici pour que le Plan d'exploitation
+      // applique la même prudence, pas seulement l'analyse secondaire.
+      // Urgence ramenée à "Cette semaine" : une baisse qui pourrait n'être
+      // qu'une fin de campagne normale ne mérite pas le même empressement
+      // qu'une vraie régression (Article 5 — aucune dramatisation sur une
+      // donnée que NEXUS ne peut pas vérifier).
+      if (c.motCleSaisonnier) {
+        limites += ` 📅 Produit à consonance saisonnière ou événementielle (« ${c.motCleSaisonnier} »). Si cette période est déjà terminée, il ne s'agit probablement pas d'une vraie régression, mais d'une fin de campagne normale.`;
+        urgence = 'Cette semaine';
+      }
     } else {
       decision = lang.decisionAgir(c.article);
       urgence = 'Maintenant';
