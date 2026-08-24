@@ -1675,9 +1675,13 @@
     if (error) { console.error('Marquer rappel fait (Brief):', error); return false; }
     return true;
   }
+  // commentaire_le (24/08/2026, v2.231, audit "Cockpit Améliorations
+  // Développeur" §12) — horodatage dédié, absent jusqu'ici (voir le même
+  // correctif et son commentaire complet dans NEXUS-Cockpit-v2.html),
+  // pour que cette action apparaisse dans le Journal NEXUS ("Aujourd'hui").
   async function marquerCaisseJustifiee(auditId) {
     const trace = `Justifié depuis Brief NEXUS par ${STATION_CONFIG.manager_prenom || 'un dirigeant'} le ${new Date().toLocaleDateString('fr-FR')}.`;
-    const { error } = await nexusClient.from('audits_caisse').update({ commentaire: trace }).eq('id', auditId);
+    const { error } = await nexusClient.from('audits_caisse').update({ commentaire: trace, commentaire_le: new Date().toISOString() }).eq('id', auditId);
     if (error) { console.error('Justification écart caisse (Brief):', error); return false; }
     return true;
   }

@@ -18,6 +18,7 @@
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-auth.js"></script>
+<script src="nexus-header-nav.js"></script>
 <script src="nexus-desktop.js"></script>
 <script src="nexus-forfait.js"></script>
 <style>
@@ -79,6 +80,7 @@
   .tl-dot.dot-mission{border-color:var(--green);}
   .tl-dot.dot-pointage{border-color:var(--cyan);}
   .tl-dot.dot-retard{border-color:var(--red);}
+  .tl-dot.dot-signal{border-color:var(--amber);}
   .tl-heure{font-family:var(--mono); font-size:10px; color:var(--text-dim);}
   .tl-texte{font-size:13px; color:var(--text); margin-top:2px; line-height:1.4;}
   .tl-texte b{color:var(--text);}
@@ -161,6 +163,40 @@
     return data || [];
   }
 
+  // Signaux traités (24/08/2026, v2.231, audit "Cockpit Améliorations
+  // Développeur" §12 — "NEXUS trace l'action et la preuve éventuelle...
+  // Cycle de vie explicite et auditable"). Deux actions "Marquer comme
+  // traité" du Cockpit/Brief n'apparaissaient jusqu'ici dans AUCUN
+  // historique visible : la case "Justifié" sur un écart de caisse
+  // (écrivait un commentaire texte, mais sans horodatage dédié avant
+  // v2.231 — voir la migration `ajouter_commentaire_le_audits_caisse`) et
+  // "Marquer comme fait" sur un rappel (rappels.fait_le existait déjà,
+  // simplement jamais lu par ce Journal). Bornes de journée construites
+  // sur le même patron que les autres requêtes horodatées du projet
+  // (`${AUJOURD_ISO}T00:00:00`, ex. NEXUS-App-v1.html/NEXUS-Inventaire-v1.html)
+  // — `commentaire_le`/`fait_le` sont des timestamptz, `.eq('date', ...)`
+  // ne s'applique pas ici comme pour les colonnes `date` pures.
+  async function chargerCaisseJustifieeDuJour() {
+    const demainISO = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+    const { data, error } = await nexusClient.from('audits_caisse')
+      .select('id, date, quart, ecart_total, commentaire, commentaire_le')
+      .eq('site', SITE_ACTUEL)
+      .gte('commentaire_le', `${AUJOURD_ISO}T00:00:00`)
+      .lt('commentaire_le', `${demainISO}T00:00:00`);
+    if (error) { console.error('Chargement caisse justifiée:', error); return []; }
+    return data || [];
+  }
+  async function chargerRappelsFaitsDuJour() {
+    const demainISO = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+    const { data, error } = await nexusClient.from('rappels')
+      .select('id, texte, fait_le')
+      .eq('site', SITE_ACTUEL).eq('fait', true)
+      .gte('fait_le', `${AUJOURD_ISO}T00:00:00`)
+      .lt('fait_le', `${demainISO}T00:00:00`);
+    if (error) { console.error('Chargement rappels faits:', error); return []; }
+    return data || [];
+  }
+
   // Échappement minimal (28/07/2026) — anomalie_signalee est un texte libre
   // saisi par l'employé (pas un titre de catalogue contrôlé comme ailleurs
   // dans cette page) : on l'échappe avant de l'insérer dans le HTML du
@@ -170,7 +206,7 @@
   }
 
   const LABEL_POINTAGE = { arrivee: 'Arrivée', pause_debut: 'Début de pause', pause_fin: 'Reprise', depart: 'Départ' };
-  const FILTRES = ['Tout', '🥇 Décisions', '✓ Missions', '⏱ Pointages'];
+  const FILTRES = ['Tout', '🥇 Décisions', '✓ Missions', '⏱ Pointages', '📋 Signaux traités'];
   let filtreActif = 'Tout';
   let EVENEMENTS = [];
   let SITE_ACTUEL = null; // jamais 'vito-sainte-marie' par defaut (de-Vito-isation, 11/08/2026) - toujours ecrase par employee.site_id apres nexusRequireAuth()
@@ -178,7 +214,7 @@
   // Construit une timeline unique, triee par heure decroissante — le Journal
   // ne regroupe pas par categorie et ne resume pas : il liste les faits dans
   // l'ordre ou ils sont arrives, chacun avec son heure exacte, sans commentaire.
-  function construireEvenements(decisions, missions, pointages, equipe) {
+  function construireEvenements(decisions, missions, pointages, equipe, caisseJustifiee, rappelsFaits) {
     const evts = [];
 
     decisions.forEach(d => {
@@ -226,6 +262,34 @@
       });
     });
 
+    // Signaux traités (24/08/2026, v2.231, audit "Cockpit Améliorations
+    // Développeur" §12) — la case "Justifié" (caisse) et "Marquer comme
+    // fait" (rappel) sont des actions humaines journalisées, pas des
+    // résolutions de risque métier (l'audit est explicite : « ne doit pas
+    // fermer artificiellement un risque métier »). Elles apparaissent donc
+    // ici comme un simple fait daté, au même titre qu'une décision ou un
+    // pointage — sans prétendre que le sujet est "Résolu".
+    (caisseJustifiee || []).forEach(c => {
+      const heure = c.commentaire_le ? new Date(c.commentaire_le).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '';
+      evts.push({
+        heure, type: 'signal', dot: 'dot-signal',
+        texte: `Écart de caisse justifié — <b>${c.date || ''}${c.quart ? ' · ' + c.quart : ''}</b>`,
+        meta: c.commentaire ? echapperHtml(c.commentaire) : '',
+        valeur: (c.ecart_total != null) ? `${c.ecart_total > 0 ? '+' : ''}${Math.round(c.ecart_total).toLocaleString('fr-FR')}€` : '',
+        valClasse: 'val-gold',
+      });
+    });
+
+    (rappelsFaits || []).forEach(r => {
+      const heure = r.fait_le ? new Date(r.fait_le).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '';
+      evts.push({
+        heure, type: 'signal', dot: 'dot-signal',
+        texte: `Rappel marqué comme fait — <b>${echapperHtml(r.texte || '')}</b>`,
+        meta: '',
+        valeur: '', valClasse: 'val-green',
+      });
+    });
+
     evts.sort((a,b) => (b.heure||'').localeCompare(a.heure||''));
     return evts;
   }
@@ -265,7 +329,7 @@
     renderTimeline();
   }
 
-  const TYPE_PAR_FILTRE = { '🥇 Décisions': 'decision', '✓ Missions': 'mission', '⏱ Pointages': 'pointage' };
+  const TYPE_PAR_FILTRE = { '🥇 Décisions': 'decision', '✓ Missions': 'mission', '⏱ Pointages': 'pointage', '📋 Signaux traités': 'signal' };
 
   function renderTimeline() {
     const el = document.getElementById('timeline');
@@ -294,8 +358,8 @@
     }
     SITE_ACTUEL = employee.site_id;
     if (!(await NexusForfait.nexusRequireProfessional('NEXUS-Journal-v1.html', SITE_ACTUEL))) return;
-    const [equipe, missions, pointages, decisions] = await Promise.all([chargerEquipe(), chargerMissionsDuJour(), chargerPointagesDuJour(), chargerDecisionsDuJour()]);
-    EVENEMENTS = construireEvenements(decisions, missions, pointages, equipe);
+    const [equipe, missions, pointages, decisions, caisseJustifiee, rappelsFaits] = await Promise.all([chargerEquipe(), chargerMissionsDuJour(), chargerPointagesDuJour(), chargerDecisionsDuJour(), chargerCaisseJustifieeDuJour(), chargerRappelsFaitsDuJour()]);
+    EVENEMENTS = construireEvenements(decisions, missions, pointages, equipe, caisseJustifiee, rappelsFaits);
     renderRoot(decisions, missions, pointages);
   });
 </script>

@@ -1471,9 +1471,19 @@
     // de qui a justifié et quand — jamais un simple drapeau silencieux —
     // plutôt que d'ajouter une colonne dédiée en plus d'un mécanisme qui
     // existe déjà.
+    //
+    // commentaire_le (24/08/2026, v2.231, audit "Cockpit Améliorations
+    // Développeur" §12 — "NEXUS trace l'action... cycle de vie explicite
+    // et auditable") : le texte de trace ci-dessus existait déjà, mais
+    // aucun horodatage dédié ne permettait de savoir QUAND l'action a eu
+    // lieu (valide_le appartient à un autre mécanisme, la validation
+    // d'audit depuis Verify) — impossible donc de faire apparaître cette
+    // action dans le Journal NEXUS ("Aujourd'hui"). Nouvelle colonne
+    // (migration `ajouter_commentaire_le_audits_caisse`), lue par
+    // NEXUS-Journal-v1.html.
     async function marquerCaisseJustifiee(auditId) {
       const trace = `Justifié depuis le Cockpit par ${STATION_CONFIG.manager_prenom || 'un manager'} le ${new Date().toLocaleDateString('fr-FR')}.`;
-      const { error } = await nexusClient.from('audits_caisse').update({ commentaire: trace }).eq('id', auditId);
+      const { error } = await nexusClient.from('audits_caisse').update({ commentaire: trace, commentaire_le: new Date().toISOString() }).eq('id', auditId);
       if (error) { console.error('Justification écart caisse:', error); return false; }
       return true;
     }
