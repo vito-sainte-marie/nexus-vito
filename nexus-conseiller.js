@@ -713,7 +713,18 @@
       impactAttendu: "Écart clarifié avant qu'il ne se reproduise ou ne s'accumule.",
       preuve: `Audit de caisse du ${jour} · quart ${c.quart}${cote ? ' · ' + cote : ''}.`,
       limites: "Attribution par quart (employé seul sur le quart) — ne remplace pas une vérification directe avec la personne.",
-      cible: 'NEXUS-Verify-v1.html',
+      // cible (24/08/2026, v2.229, audit §4.1 — "précharger le contexte...
+      // « Contrôler cet écart » ouvre directement le contrôle Verify
+      // ciblé.") Réutilise TEL QUEL le deep-link déjà construit le
+      // 13/08/2026 dans NEXUS-Verify-v1.html pour un autre appelant
+      // (Carburants) — `?ouvrir_date=YYYY-MM-DD&ouvrir_quart=...` bascule
+      // sur Historique, ouvre et surligne la ligne exacte (Article 11,
+      // aucun deuxième mécanisme de deep-link inventé). `c.date`/`c.quart`
+      // viennent de v_caisse_ecart_a_traiter, elle-même construite sur
+      // audits_caisse — exactement la même colonne que celle utilisée pour
+      // `data-quart`/`data-date` côté Verify, vérifié contre la définition
+      // SQL de la vue avant ce lot : aucune conversion de format requise.
+      cible: `NEXUS-Verify-v1.html?ouvrir_date=${encodeURIComponent(c.date)}&ouvrir_quart=${encodeURIComponent(c.quart)}`,
       validable: false,
       // libelleAction (22/08/2026, v2.226, audit §4 — libellé repris tel
       // quel : "Écart caisse employé → Contrôler cet écart"). Pas de
@@ -752,7 +763,15 @@
         : "Confirme ou écarte un écart de stock avant qu'il ne s'aggrave.",
       preuve: `${Math.round(c.risqueEur).toLocaleString('fr-FR')} € de risque estimé (Scanner Stock) sur ${c.nbAVerifier} référence${c.nbAVerifier > 1 ? 's' : ''}.`,
       limites: "Écart de mouvement de stock non expliqué par les ventes connues, pas une démarque confirmée — NEXUS n'a aujourd'hui aucun comptage physique en base pour l'affirmer.",
-      cible: 'NEXUS-Scanner-Stock-v1.html',
+      // cible (24/08/2026, v2.229, audit §4.1 — "« Lancer ce comptage »
+      // ouvre le module Inventaire/Scanner Stock avec les références
+      // concernées déjà sélectionnées.") NEXUS-Scanner-Stock-v1.html n'a
+      // aucun deep-link existant à réutiliser (contrairement à Verify) —
+      // nouveau paramètre `?categorie=` géré directement sur cette page :
+      // ouvre et surligne le groupe du rayon concerné (même geste que le
+      // deep-link Verify — ouvrir/surligner/scroller, jamais une saisie
+      // automatique de comptage à la place du manager).
+      cible: `NEXUS-Scanner-Stock-v1.html?categorie=${encodeURIComponent(c.categorie)}`,
       validable: false,
       // libelleAction (22/08/2026, v2.226, audit §4 — "Comptage ciblé
       // stock → Lancer ce comptage").

@@ -18,6 +18,7 @@
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-auth.js"></script>
+<script src="nexus-header-nav.js"></script>
 <script src="nexus-desktop.js"></script>
 <script src="nexus-stock.js"></script>
 <style>
@@ -611,7 +612,30 @@
     employeeCourant = employee;
     SITE_ACTUEL = employee.site_id;
     ANALYSE = await chargerAnalyse();
+
+    // Deep-link depuis le Cockpit (24/08/2026, v2.229, audit "Cockpit
+    // Améliorations Développeur" §4.1 — "« Lancer ce comptage » ouvre le
+    // module Inventaire/Scanner Stock avec les références concernées déjà
+    // sélectionnées") — ?categorie=<nom exact> ouvre et surligne
+    // directement le groupe du rayon concerné, au lieu de laisser le
+    // manager le rechercher dans la liste. Même geste que le deep-link
+    // déjà existant dans NEXUS-Verify-v1.html (13/08/2026, ?ouvrir_date/
+    // ?ouvrir_quart) : ouvrir + surligner + scroller, jamais une saisie
+    // automatique du comptage à la place du manager. Retombe
+    // silencieusement sur l'état normal si la catégorie n'existe pas/plus
+    // (ex: lien copié après un réétiquetage de rayon).
+    let categorieCibleDepuisLien = null;
+    try { categorieCibleDepuisLien = new URLSearchParams(window.location.search).get('categorie'); } catch (e) {}
+    if (categorieCibleDepuisLien) categoriesStockOuvertes.add(categorieCibleDepuisLien);
     renderRoot();
+    if (categorieCibleDepuisLien) {
+      const groupe = document.querySelector(`.categorie-groupe[data-cat="${CSS.escape(categorieCibleDepuisLien)}"]`);
+      if (groupe) {
+        groupe.style.outline = '2px solid var(--amber)';
+        groupe.style.borderRadius = '12px';
+        groupe.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
 
     if (ANALYSE.length > 0) {
       const total = ANALYSE.length;

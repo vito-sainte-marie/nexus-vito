@@ -93,12 +93,18 @@ function ok(label) { n++; console.log('OK —', label); }
     statut: 'critique', quart: 'Q1', employee_nom: 'Dylan',
   });
   assert.strictEqual(caisse.libelleAction, 'Contrôler cet écart');
-  assert.strictEqual(caisse.cible, 'NEXUS-Verify-v1.html');
+  // cible précise désormais date+quart (préchargement de contexte,
+  // v2.229, audit §4.1) — voir test_conseiller_precharge_contexte_v2229.js
+  // pour la couverture dédiée de cette évolution ; ce test-ci ne vérifie
+  // plus que le préfixe (non-régression du libellé, pas de l'URL).
+  assert.ok(caisse.cible.startsWith('NEXUS-Verify-v1.html?'));
   ok('normaliserCaissePersonne — libelleAction = "Contrôler cet écart" (libellé exact du tableau de l\'audit)');
 
   const stock = C.normaliserStockRayon({ categorie: 'Boissons énergétiques', nbAVerifier: 3, nbASurveiller: 1, nbReferences: 10, risqueEur: 200 });
   assert.strictEqual(stock.libelleAction, 'Lancer ce comptage');
-  assert.strictEqual(stock.cible, 'NEXUS-Scanner-Stock-v1.html');
+  // cible précise désormais la catégorie (préchargement de contexte,
+  // v2.229) — voir test_conseiller_precharge_contexte_v2229.js.
+  assert.ok(stock.cible.startsWith('NEXUS-Scanner-Stock-v1.html?'));
   ok('normaliserStockRayon — libelleAction = "Lancer ce comptage" (libellé exact du tableau de l\'audit)');
 
   const fdj = C.normaliserFdj({ id: 'FDJ-1', type: 'ecart', niveau: 'critique', titre: 'T', decision: 'D', constat: 'C', impactAttendu: 'IA', preuve: 'P' });
