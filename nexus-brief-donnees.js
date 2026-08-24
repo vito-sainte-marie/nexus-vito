@@ -218,13 +218,108 @@
   // Carburants Pilotage) et NexusCarburantDonnees.chargerVentesPeriode()
   // (couverture par quart, déjà utilisée ailleurs).
   // ============================================================
+  // ------------------------------------------------------------
+  // Traçabilité minimale du fallback (23/08/2026, audit "Anti-dégradation
+  // temporelle" §9.2/§10, v2.222) — exception documentée à la règle "aucun
+  // calcul métier ici" de l'en-tête de ce fichier, même précédent déjà
+  // posé dans nexus-risques-donnees.js pour `enregistrerObservation` :
+  // écrire un journal n'est pas un calcul métier (la décision vient déjà
+  // toute faite de `NexusCarburantMoteur.resoudreEntreeJournalFraicheur`,
+  // moteur pur), c'est une orchestration lire-l'existant / upsert,
+  // destinée à être appelée identiquement quel que soit l'appelant.
+  //
+  // Une ligne par (site_id, secteur_id) — jamais dupliquée — sur le modèle
+  // de `nexus_risk_signals` : on veut savoir OÙ EN EST chaque secteur
+  // maintenant et DEPUIS QUAND, pas combien de fois le calcul a tourné.
+  async function chargerJournalFraicheurExistant(client, siteId, secteurId) {
+    const { data, error } = await client.from('journal_fraicheur_secteurs')
+      .select('*').eq('site_id', siteId).eq('secteur_id', secteurId).maybeSingle();
+    if (error) { console.error('Chargement journal fraîcheur secteur:', error); return null; }
+    return data;
+  }
+
+  // `entree` = sortie de `NexusCarburantMoteur.resoudreEntreeJournalFraicheur`
+  // ({fallbackUsed, fallbackMode, fallbackSourceVersion, fallbackAgeDays,
+  // signalCritique}). Appel best-effort : toute erreur est journalée en
+  // console et absorbée ici, jamais remontée à l'appelant — un incident
+  // d'écriture sur ce journal ne doit jamais faire échouer ni ralentir le
+  // Brief (Article 5 appliqué à l'infrastructure elle-même : une trace
+  // manquante reste préférable à un Brief cassé).
+  async function enregistrerFraicheurSecteur(client, siteId, secteurId, entree) {
+    try {
+      const maintenant = new Date().toISOString();
+      const existant = await chargerJournalFraicheurExistant(client, siteId, secteurId);
+
+      if (!existant) {
+        const ligne = {
+          site_id: siteId, secteur_id: secteurId,
+          fallback_used: entree.fallbackUsed, fallback_mode: entree.fallbackMode,
+          fallback_source_version: entree.fallbackSourceVersion, fallback_age_days: entree.fallbackAgeDays,
+          signal_critique: entree.signalCritique,
+          premiere_detection_le: maintenant, derniere_detection_le: maintenant,
+          historique_transitions: [{ date: maintenant, fallback_used: entree.fallbackUsed, fallback_mode: entree.fallbackMode }],
+          replaced_at: null,
+        };
+        const { data, error } = await client.from('journal_fraicheur_secteurs').insert(ligne).select().maybeSingle();
+        if (error) {
+          // Conflit probable (unique site_id/secteur_id) : un autre appel
+          // concurrent vient de créer la ligne — relire plutôt qu'échouer,
+          // même précédent que nexus-risques-donnees.js.
+          const relu = await chargerJournalFraicheurExistant(client, siteId, secteurId);
+          if (!relu) { console.error('Enregistrement journal fraîcheur (insert):', error); return null; }
+          return relu;
+        }
+        return data;
+      }
+
+      const inchange = existant.fallback_used === entree.fallbackUsed
+        && existant.fallback_mode === entree.fallbackMode
+        && existant.fallback_source_version === entree.fallbackSourceVersion;
+
+      // replaced_at : posé au moment précis où un fallback en cours
+      // (fallback_used = true) est remplacé par un état à nouveau courant
+      // (fallback_used repasse à false) — exactement le champ demandé par
+      // l'audit §9.2 ("À l'arrivée de nouvelles données fiables ->
+      // recalcul automatique ... replaced_at").
+      const vientDEtreRemplace = existant.fallback_used && !entree.fallbackUsed;
+
+      const patch = {
+        fallback_used: entree.fallbackUsed, fallback_mode: entree.fallbackMode,
+        fallback_source_version: entree.fallbackSourceVersion, fallback_age_days: entree.fallbackAgeDays,
+        signal_critique: entree.signalCritique,
+        derniere_detection_le: maintenant,
+        replaced_at: vientDEtreRemplace ? maintenant : existant.replaced_at,
+        // Jamais de ligne d'historique pour un simple "toujours pareil" —
+        // seule une transition réelle (mode ou source différents) mérite
+        // une entrée.
+        historique_transitions: inchange ? existant.historique_transitions
+          : [...(existant.historique_transitions || []), { date: maintenant, fallback_used: entree.fallbackUsed, fallback_mode: entree.fallbackMode }],
+        updated_at: maintenant,
+      };
+      const { data, error } = await client.from('journal_fraicheur_secteurs').update(patch).eq('id', existant.id).select().maybeSingle();
+      if (error) { console.error('Enregistrement journal fraîcheur (update):', error); return existant; }
+      return data;
+    } catch (e) {
+      console.error('Enregistrement journal fraîcheur (exception, best-effort):', e);
+      return null;
+    }
+  }
+
   async function chargerCarburantsBriefAvecFallback(client, siteId, dateAujourdhui) {
     const M = global.NexusCarburantMoteur;
     const D = global.NexusCarburantDonnees;
     const aujourdhui = dateAujourdhui || new Date().toISOString().slice(0, 10);
     const carburantsJour = await chargerCarburantsBrief(client, siteId, aujourdhui);
+    // Écriture best-effort du journal de traçabilité (v2.222) — jamais
+    // attendue (pas de `await`), jamais bloquante : un incident d'écriture
+    // ne doit avoir aucun effet sur ce que Brief affiche.
+    const journaliserCarburants = (fraicheur, signalCritique) => {
+      enregistrerFraicheurSecteur(client, siteId, 'carburants', M.resoudreEntreeJournalFraicheur({ fraicheur, signalCritique }))
+        .catch(e => console.error('Journal fraîcheur Carburants (best-effort):', e));
+    };
     const completAujourdhui = M.jourCarburantEstComplet(carburantsJour.controle.parCarburant, carburantsJour.controle.aucunReleve);
     if (completAujourdhui) {
+      journaliserCarburants({ mode: 'jour' }, false);
       return { ...carburantsJour, fraicheur: { mode: 'jour' } };
     }
     // Signal critique confirmé (23/08/2026, audit "Anti-dégradation
@@ -235,6 +330,7 @@
     // "À corriger") ne doit jamais être masqué derrière un état plus
     // ancien et plus favorable — priorité immédiate, jamais un fallback.
     if (M.signalCritiqueCarburantAujourdhui(carburantsJour.controle)) {
+      journaliserCarburants({ mode: 'jour' }, true);
       return { ...carburantsJour, fraicheur: { mode: 'jour' } };
     }
 
@@ -274,8 +370,10 @@
       // ceux d'AUJOURD'HUI, jamais mélangés silencieusement avec J-1 dans le
       // même score (exigence explicite de Frédéric, v2.214).
       const carburantsFallback = await chargerCarburantsBrief(client, siteId, fraicheur.dateReference);
+      journaliserCarburants(fraicheur, false);
       return { ...carburantsJour, controle: carburantsFallback.controle, fraicheur, enCours };
     }
+    journaliserCarburants(fraicheur, false);
     // 'perime' ou 'jour_incomplet_sans_repli' : rien de fiable à figer —
     // reste honnête sur les données du jour telles quelles, avec le
     // contexte de fraîcheur pour que l'écran explique pourquoi plutôt que
@@ -328,6 +426,7 @@
     let nbEcartsMaitrise = actuel.nb_ecarts_non_nuls;
     let fraicheurFdj = { mode: 'jour' };
     let enCoursFdj = null;
+    let signalCritiqueFdj = false;
     // Signal critique confirmé (23/08/2026, audit "Anti-dégradation
     // temporelle", §3.2/règle de précédence #5) : "une rupture FDJ
     // confirmée doit remplacer immédiatement le fallback, même si le cycle
@@ -351,7 +450,14 @@
       if (fraicheurFdj.mode === 'fallback') {
         nbEcartsMaitrise = FM.sommerEcartsFenetreFdj(dailyRows, fraicheurFdj.dateReference);
       }
+    } else if (!completAujourdhui) {
+      signalCritiqueFdj = true;
     }
+    // Écriture best-effort du journal de traçabilité (v2.222) — même
+    // principe que pour Carburants ci-dessus : jamais attendue, jamais
+    // bloquante pour l'affichage du Brief.
+    enregistrerFraicheurSecteur(client, siteId, 'fdj', global.NexusCarburantMoteur.resoudreEntreeJournalFraicheur({ fraicheur: fraicheurFdj, signalCritique: signalCritiqueFdj }))
+      .catch(e => console.error('Journal fraîcheur FDJ (best-effort):', e));
 
     const gameCa = {};
     (gameDailyRows || []).forEach(l => { if (l.ca) gameCa[l.game_id] = (gameCa[l.game_id] || 0) + Number(l.ca); });
@@ -560,6 +666,7 @@
     chargerMargePlus, chargerMessagesAdvisor, calculerStatutOperations, chargerConstatTempo,
     chargerCandidatsCaisse, chargerCandidatsStock, chargerCandidatsRappels,
     chargerDerniereReferenceFdj, chargerCarburantsBrief, chargerCarburantsBriefAvecFallback, chargerCandidatsFdj,
+    chargerJournalFraicheurExistant, enregistrerFraicheurSecteur,
     chargerSeuilsCoachEquipeFdj, chargerCandidatsCoachEquipe,
     chargerDomaineEquipe, chargerAlertesInventaireOuvertes, chargerControlesVerifyRestants, chargerMissionsRestantes,
     chargerJournalDecisions,

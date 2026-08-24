@@ -1320,6 +1320,33 @@
     return statutGlobalControle(parCarburant) === 'À corriger';
   }
 
+  // ------------------------------------------------------------
+  // Traçabilité minimale du fallback (23/08/2026, audit "Anti-dégradation
+  // temporelle" §9.2/§10) : l'audit demande de journaliser fallback_used,
+  // fallback_source_version, fallback_age_days et replaced_at à chaque
+  // calcul de fraîcheur, pour que la décision reste explicable et
+  // reconstructible a posteriori — aujourd'hui cette information n'existe
+  // qu'en mémoire le temps du calcul (limite documentée dans
+  // NEXUS-Data-Dictionary-v2.md depuis v2.219/v2.220).
+  //
+  // Cette fonction ne fait AUCUN accès Supabase (Article 11 — un moteur
+  // reste pur) : elle traduit seulement un objet `fraicheur` déjà calculé
+  // par `fraicheurCarburant` (réutilisée telle quelle par FDJ, voir plus
+  // haut) en la forme minimale à journaliser. Le "quoi en faire" (upsert,
+  // historique des transitions, pose de `replaced_at`) appartient à la
+  // couche données (`nexus-brief-donnees.js`, fonction
+  // `enregistrerFraicheurSecteur`), jamais ici.
+  function resoudreEntreeJournalFraicheur({ fraicheur, signalCritique } = {}) {
+    const f = fraicheur || { mode: 'jour' };
+    return {
+      fallbackUsed: f.mode === 'fallback' || f.mode === 'perime',
+      fallbackMode: f.mode,
+      fallbackSourceVersion: f.dateReference || null,
+      fallbackAgeDays: (typeof f.joursEcoules === 'number') ? f.joursEcoules : null,
+      signalCritique: !!signalCritique,
+    };
+  }
+
   global.NexusCarburantMoteur = {
     SEUIL_ECART_PCT_SURVEILLER, SEUIL_ECART_PCT_CORRIGER, CLES_CARBURANT, NOM_CARBURANT_COURT,
     stockReelGoTotal, sommerVentesPeriode,
@@ -1345,5 +1372,6 @@
     SEUIL_FALLBACK_JOURS_PEREMPTION, jourCarburantEstComplet, trouverJourFiableAnterieur,
     signalCritiqueCarburantAujourdhui,
     fraicheurCarburant, libelleBadgeFraicheur, construireBlocEnCours,
+    resoudreEntreeJournalFraicheur,
   };
 })(typeof window !== 'undefined' ? window : globalThis);
