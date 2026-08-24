@@ -679,6 +679,11 @@
       nbCritiquesCaisse, alertesInvOuvertes, risqueStockTotal,
       domaineEquipe, seuilMinPointages: SEUIL_MIN_POINTAGES_EQUIPE,
       phrasesRisqueMarge, phrasesRisqueCaisse, signauxRisqueMargeQualifies,
+      // siteId (23/08/2026, v2.223, contrat commun de sortie des moteurs,
+      // audit §4) : transmis pour que `secteur.contrat.site_id` soit
+      // renseigné — champ purement additif, aucun écran existant ne le lit
+      // encore.
+      siteId: SITE_ACTUEL,
     });
     // AXES : alias historique conservé pour renderBoussole()/le PDF, qui
     // lisent `a.nom` (convention Brief) là où le contrat secteur partagé

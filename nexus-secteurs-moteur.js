@@ -617,6 +617,101 @@
     equipe: (entree, d) => construireSecteurEquipe(entree, { domaineEquipe: d.domaineEquipe, seuilMinPointages: d.seuilMinPointages }),
   };
 
+  // ------------------------------------------------------------
+  // Contrat commun de sortie des moteurs (23/08/2026, audit "Anti-
+  // dégradation temporelle" §4/9, v2.223) — Frédéric a choisi ce chantier
+  // après le recalibrage Carburants/FDJ (v2.220), l'extension Verify
+  // (v2.221) et la traçabilité minimale (v2.222). L'audit demande que
+  // "chaque moteur expose un contrat commun" pour que Brief/Cockpit/toute
+  // future vue dirigeant puissent "brancher demain un moteur de
+  // boulangerie, pharmacie ou restauration sans coder en dur les domaines".
+  //
+  // Périmètre choisi pour ce lot : cette fonction est une NORMALISATION
+  // pure, posée ici (le "Registre de secteurs" — exactement la couche que
+  // l'audit désigne responsable de "Normaliser score, statut, fraîcheur,
+  // qualité", §2, tableau) — elle NE remplace ni ne modifie aucun des 6
+  // constructeurs de secteur existants (Carburants, Commerce, Marge, FDJ,
+  // Opérations, Équipe), qui continuent à produire exactement le même objet
+  // qu'avant (non-régression totale, tous les champs déjà consommés par
+  // Brief/Cockpit/PDF restent inchangés). `contrat` est un champ ADDITIF
+  // posé sur chaque résultat par `construireSecteurs()` ci-dessous — les
+  // appelants qui l'ignorent ne voient aucune différence.
+  //
+  // Pourquoi ne pas aller plus loin dans ce lot (refactorer les 6
+  // constructeurs pour qu'ils appellent une seule fonction de décision
+  // `resoudreEtatSecteur`, comme le suggère le §9.1 de l'audit) : seuls
+  // Carburants et FDJ ont aujourd'hui un vrai mécanisme de fallback/
+  // fraîcheur (`fraicheur.mode`) ; Opérations (v2.221) a une notion de
+  // fraîcheur différente (pas de mode 'perime', une moyenne glissante) ;
+  // Commerce/Marge/Équipe n'ont aucune notion de fraîcheur du tout.
+  // Unifier ces 6 comportements déjà corrects et testés séparément sous une
+  // seule fonction de décision aurait été un risque de régression sans
+  // bénéfice utilisateur immédiat, pour un lot dont le but est de rendre le
+  // contrat DISPONIBLE, pas de réécrire ce qui fonctionne déjà (même
+  // doctrine "prématuré à 2 consommateurs" que v2.219/v2.220/v2.222,
+  // simplement étendue : la normalisation du CONTRAT DE SORTIE est utile
+  // dès aujourd'hui à tout consommateur externe, contrairement à une
+  // fusion interne des moteurs de décision).
+  //
+  // `secteur` = un résultat déjà construit par l'un des 6 constructeurs
+  // ci-dessus (jamais un second calcul, Article 11 — cette fonction ne lit
+  // que des champs déjà présents sur l'objet). `siteId` est transmis par
+  // l'appelant de `construireSecteurs` (Brief connaît déjà SITE_ACTUEL).
+  function construireContratCommun(secteur, siteId) {
+    const s = secteur || {};
+    // Seuls Carburants et FDJ posent `fraicheur` aujourd'hui (v2.215/2.219)
+    // — son absence (Commerce/Marge/Équipe/Opérations) signifie "aucun
+    // mécanisme de fallback pour ce secteur", jamais une erreur : traité
+    // comme le mode 'jour' (état toujours courant).
+    const f = s.fraicheur || { mode: 'jour' };
+    const fallbackUsed = f.mode === 'fallback' || f.mode === 'perime';
+    const freshnessDays = (typeof f.joursEcoules === 'number') ? f.joursEcoules : 0;
+    let fallbackReason = null;
+    if (f.mode === 'fallback') fallbackReason = 'Dernier état fiable conservé — cycle du jour incomplet.';
+    else if (f.mode === 'perime') fallbackReason = 'Dernier état fiable trop ancien (> J-3) — à actualiser.';
+    else if (f.mode === 'jour_incomplet_sans_repli') fallbackReason = 'Cycle du jour incomplet, aucun état antérieur fiable disponible.';
+
+    return {
+      moteur_id: s.id || null,
+      site_id: siteId || null,
+      applicable: true, actif: true, // construireSecteurs() ne reçoit déjà que les secteurs actifs du site (secteursActifsSite)
+      etat_fiable: {
+        score: (typeof s.valeur === 'number') ? s.valeur : null,
+        statut: s.statut || null,
+        // `calcule_le` : date de la donnée réellement utilisée pour le
+        // score (le jour fiable en cas de fallback, sinon aujourd'hui) —
+        // jamais une date fabriquée quand elle n'est pas connue (Article 5).
+        calcule_le: f.dateReference || null,
+        source_version: f.dateReference || null,
+      },
+      donnees_courantes: {
+        // 'en_cours' seulement quand le secteur expose explicitement un
+        // bloc "Aujourd'hui — en cours" (Carburants/FDJ en mode fallback) —
+        // jamais déduit indirectement d'un autre champ.
+        statut_cycle: s.enCours ? 'en_cours' : (fallbackUsed ? 'incomplet' : 'complet'),
+        // Pas de pourcentage de complétude inventé : NEXUS ne mesure pas
+        // aujourd'hui "combien reste-t-il à saisir" en proportion pour tous
+        // les secteurs — seulement si le cycle est complet, en cours, ou
+        // incomplet sans détail chiffré fiable.
+        completude: null,
+        derniere_maj: f.dateReference || null,
+      },
+      qualite: {
+        fiable: s.confiance === 'RÉEL',
+        causes: s.confiance === 'RÉEL' ? [] : [s.detail || 'Données insuffisantes pour ce secteur.'],
+      },
+      // Non alimentés par ce lot (audit §4, champs aspirationnels pour de
+      // futurs moteurs type boulangerie/pharmacie) — jamais un signal, une
+      // décision ou une preuve fabriqués pour remplir le contrat (Article
+      // 5) : ces tableaux restent vides tant qu'aucune source réelle
+      // n'existe pour les alimenter.
+      signaux: [], decisions: [], preuves: [],
+      freshness_days: freshnessDays,
+      fallback_used: fallbackUsed,
+      fallback_reason: fallbackReason,
+    };
+  }
+
   // secteursActifs : le champ `.secteurs` du résultat de
   // NexusSecteursCatalogue.secteursActifsSite() (depuis le 11/08/2026 cette
   // fonction retourne { secteurs, statut, typeCommerce } — c'est à
@@ -625,11 +720,15 @@
   // (autres métiers, section 5 de l'audit) est ignoré plutôt que de faire
   // planter le rendu : mieux vaut un secteur absent qu'un secteur affiché
   // sans données.
+  //
+  // `donnees.siteId` (23/08/2026, v2.223, optionnel) : si fourni, transmis
+  // tel quel dans `contrat.site_id` de chaque secteur — jamais requis
+  // (non-régression totale pour tout appelant qui ne le fournit pas encore).
   function construireSecteurs(secteursActifs, donnees) {
     return secteursActifs.map(entree => {
       const constructeur = CONSTRUCTEURS_SECTEUR[entree.id];
       return constructeur ? constructeur(entree, donnees) : null;
-    }).filter(Boolean);
+    }).filter(Boolean).map(resultat => ({ ...resultat, contrat: construireContratCommun(resultat, donnees && donnees.siteId) }));
   }
 
   // ------------------------------------------------------------
@@ -745,7 +844,7 @@
     PROPORTION_IMPACT_STRATEGIQUE_CA, PLANCHER_IMPACT_STRATEGIQUE_EUR, PLAFOND_IMPACT_STRATEGIQUE_EUR,
     calculerSeuilImpactAdaptatif,
     estDecisionStrategique,
-    construireSecteurs,
+    construireSecteurs, construireContratCommun,
     construireVerdictDirection, construirePrioriteDirection, construireCeQuiAChange, construireFreins, construireLectureDirecteur,
     construireSyntheseFreinMarge, classifierPorteeEquipe, libellePorteeEquipe,
   };
