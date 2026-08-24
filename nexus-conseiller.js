@@ -315,6 +315,31 @@
     return { meilleurSucces, produitsEnBaisse };
   }
 
+  // Déduplication signal → action (22/08/2026, v2.227, audit "Cockpit
+  // Améliorations Développeur" §6 : "Le même sujet apparaît parfois dans
+  // « Signaux de risque » puis à nouveau dans « Plan d'exploitation »...
+  // Un signal a un seul destin visible principal... S'il devient une
+  // action, il ne doit plus occuper une seconde carte pleine taille
+  // ailleurs.") Duplication réelle vérifiée dans le code avant ce lot (pas
+  // une simple lecture de l'audit) : tout article R2-BAISSE (évolution
+  // ≤ -30 %, `calculerCandidatsProduits`) satisfait mécaniquement le seuil
+  // plus large "évolution < 0" de `produitsEnBaisse` ci-dessus — un
+  // article déjà affiché comme carte d'action pleine taille dans "Plan
+  // d'exploitation" pouvait donc réapparaître dans le détail de la carte
+  // "📉 EN BAISSE" (Cockpit), sans lien entre les deux. Ne retire QUE les
+  // articles réellement visibles à l'écran comme action MAINTENANT
+  // (`actionsVisibles`, les cartes réellement affichées — pas toute la
+  // file d'attente PLANS_ACTION, qui contiendrait des articles pas encore
+  // montrés) — cohérent avec "Plan d'exploitation - 5 actions maximum" de
+  // l'audit (§3/§15).
+  function filtrerBaisseDejaEnAction(produitsEnBaisse, actionsVisibles) {
+    const articlesEnAction = new Set(
+      (actionsVisibles || []).filter(p => p && p.moteur === 'produits' && p.article).map(p => p.article)
+    );
+    const liste = (produitsEnBaisse || []).filter(p => !articlesEnAction.has(p.article));
+    return { liste, nbExclus: (produitsEnBaisse || []).length - liste.length };
+  }
+
   // ------------------------------------------------------------
   // 1bis) Analyse multi-indicateurs des produits stratégiques (28/07/2026,
   // demande de Frédéric) : "je pense que NEXUS devrait suivre plusieurs
@@ -460,17 +485,36 @@
   // périodes — la limite réelle de la méthode est de ne pas encore avoir
   // plusieurs périodes consécutives pour confirmer une tendance.
   const LIMITE_PERIODE_UNIQUE = "Comparaison sur une seule période d'import — pas encore une tendance confirmée sur plusieurs périodes.";
+  // urgence/nature (22/08/2026, v2.227, audit "Cockpit Améliorations
+  // Développeur" §5 — "Unifier la grammaire des priorités") : les libellés
+  // actuels ("🔥 À AGIR", "🔴 CRITIQUE", "📦 À COMPTER"...) mélangent
+  // urgence et type d'action dans un seul texte. Ce lot sépare les deux
+  // dimensions demandées par l'audit — urgence (Maintenant/Aujourd'hui/
+  // Cette semaine) et nature (verbe d'action) — SANS toucher `etat`, qui
+  // reste la clé de couleur du bord de carte (`ETAT_CLASS`, Cockpit) :
+  // aucun risque de régression visuelle, seul le texte du badge change.
+  // NATURE_PAR_TYPE_RAYON réutilise `typeActionPourCategorie` déjà
+  // existant (Article 11 — même classification, jamais une deuxième).
+  const NATURE_PAR_TYPE_RAYON = {
+    facing: 'Réassortir', presentoir: 'Réassortir',
+    stock: 'Vérifier', support: 'Vérifier', comptoir: 'Vérifier',
+    production: 'Commander',
+  };
   function normaliserProduit(c) {
-    const lang = LANGAGE_ACTION[typeActionPourCategorie(c.categorie)];
-    let decision, limites = null;
+    const typeRayon = typeActionPourCategorie(c.categorie);
+    const lang = LANGAGE_ACTION[typeRayon];
+    let decision, limites = null, urgence;
     if (c.rule_id === 'R3-HAUSSE') {
       decision = lang.decisionHausse(c.article);
       limites = LIMITE_PERIODE_UNIQUE;
+      urgence = 'Cette semaine';
     } else if (c.rule_id === 'R2-BAISSE') {
       decision = lang.decisionBaisse(c.article);
       limites = `${c.analyse} ${c.consequence} ${LIMITE_PERIODE_UNIQUE}`;
+      urgence = 'Aujourd\'hui';
     } else {
       decision = lang.decisionAgir(c.article);
+      urgence = 'Maintenant';
     }
     return {
       candidate_id: c.candidate_id, ruleId: c.rule_id, rang: RANG_PRODUIT[c.etat] != null ? RANG_PRODUIT[c.etat] : 2,
@@ -480,6 +524,7 @@
       impactAttendu: c.impactAttendu, preuve: c.impact, limites,
       cible: `NEXUS-Produits-v1.html?article=${encodeURIComponent(c.article)}`,
       validable: true,
+      urgence, nature: NATURE_PAR_TYPE_RAYON[typeRayon] || 'Vérifier',
       // libelleActionSecondaire (22/08/2026, audit "Cockpit Améliorations
       // Développeur" §4, chantier "Boutons d'action précis") : `cible`
       // existait déjà (avec l'article précisé en query param) mais n'était
@@ -619,6 +664,11 @@
       // bouton pointant vers la même information déjà visible serait un
       // faux-semblant (Article 5), pas une vraie action supplémentaire.
       libelleAction: 'Contrôler cet écart',
+      // urgence/nature (22/08/2026, v2.227, audit §5) — "MAINTENANT -
+      // Contrôler : Écart de caisse de 36,65 € non justifié" est
+      // littéralement l'exemple donné par l'audit lui-même.
+      urgence: c.statut === 'critique' ? 'Maintenant' : 'Aujourd\'hui',
+      nature: 'Contrôler',
       auditId: c.audit_id,
     };
   }
@@ -649,6 +699,10 @@
       // libelleAction (22/08/2026, v2.226, audit §4 — "Comptage ciblé
       // stock → Lancer ce comptage").
       libelleAction: 'Lancer ce comptage',
+      // urgence/nature (22/08/2026, v2.227, audit §5) — "AUJOURD'HUI -
+      // Compter : 1 référence du rayon Produits Capillaires présente un
+      // écart inexpliqué" est littéralement l'exemple donné par l'audit.
+      urgence: 'Aujourd\'hui', nature: 'Compter',
     };
   }
 
@@ -678,6 +732,14 @@
       pourquoi: dateTexte ? `Rappel ajouté manuellement, échéance le ${dateTexte}.` : 'Rappel ajouté manuellement, sans échéance.',
       impactAttendu: null, preuve: null, limites: null,
       cible: null, validable: false,
+      // urgence/nature (22/08/2026, v2.227, audit §5) — nature "Traiter"
+      // choisie plutôt qu'un verbe métier inventé : un rappel est un texte
+      // libre écrit par le manager (`r.texte`), NEXUS ne connaît pas sa
+      // vraie nature (contrôler/compter/commander/...) — "Traiter" reste
+      // honnête sur ce que NEXUS sait réellement (Article 5), et reprend
+      // le vocabulaire déjà utilisé par le bouton "Marquer comme fait"
+      // (proche de "Marquer comme traité", §4 de l'audit).
+      urgence: enRetard ? 'Maintenant' : 'Cette semaine', nature: 'Traiter',
       rappelId: r.id,
     };
   }
@@ -830,6 +892,7 @@
     normaliserProduit, normaliserMarge, normaliserTempo, normaliserAdvisor,
     normaliserCaissePersonne, normaliserStockRayon, normaliserRappel,
     normaliserFdj, normaliserCoach,
+    filtrerBaisseDejaEnAction,
     fusionnerEtSelectionner, genererGraineJour,
   };
 })(window);

@@ -926,7 +926,7 @@
       el.innerHTML = aAfficher.map((p, i) => `
         <div class="plan-card ${ETAT_CLASS[p.etat]||''}" id="plan-${i}">
           <div class="plan-head" onclick="document.getElementById('plan-${i}').classList.toggle('open')">
-            <span class="plan-etat">${p.etat}</span>
+            <span class="plan-etat">${p.urgence && p.nature ? `${p.urgence.toUpperCase()} · ${p.nature}` : p.etat}</span>
             <span class="plan-action-teaser">${p.decision}</span>
             <span class="plan-chevron">›</span>
           </div>
@@ -1224,9 +1224,14 @@
       const el = document.getElementById('baisseSection');
       if (!el) return;
       if (!PRODUITS_EN_BAISSE.length) { el.innerHTML = ''; return; }
-      const nb = PRODUITS_EN_BAISSE.length;
-      const pires = PRODUITS_EN_BAISSE.slice(0, 5);
-      const reste = nb - pires.length;
+      const nb = PRODUITS_EN_BAISSE.length; // total réel, jamais filtré (Article 5) — le titre "N produits en baisse" reste exact
+      // Déduplication signal → action (22/08/2026, v2.227, audit §6) :
+      // un article déjà visible comme carte d'action pleine taille dans
+      // "Plan d'exploitation" (dernierAffichage) n'est pas répété dans le
+      // détail de cette carte — mais il compte toujours dans `nb` ci-dessus.
+      const { liste: baisseNonActionnee, nbExclus } = NexusConseiller.filtrerBaisseDejaEnAction(PRODUITS_EN_BAISSE, dernierAffichage);
+      const pires = baisseNonActionnee.slice(0, 5);
+      const reste = baisseNonActionnee.length - pires.length;
       el.innerHTML = `
         <div class="plan-card etat-surveiller" id="carteBaisse">
           <div class="plan-head" onclick="document.getElementById('carteBaisse').classList.toggle('open')">
@@ -1237,8 +1242,9 @@
           <div class="plan-body">
             <div class="plan-story">
               <span class="story-label">Détail</span>
-              ${pires.map(p => `${p.article} (${p.categorie}) — ${(p.evolution*100).toFixed(1)} %`).join('<br>')}
+              ${pires.length ? pires.map(p => `${p.article} (${p.categorie}) — ${(p.evolution*100).toFixed(1)} %`).join('<br>') : 'Tous déjà dans votre Plan d\'exploitation ci-dessus.'}
               ${reste > 0 ? `<br><span style="color:var(--text-dim);">+ ${reste} autre${reste>1?'s':''} — voir Produits pour le détail complet.</span>` : ''}
+              ${nbExclus > 0 ? `<br><span style="color:var(--text-dim);">${nbExclus} référence${nbExclus>1?'s':''} déjà dans votre Plan d'exploitation, non répétée${nbExclus>1?'s':''} ici.</span>` : ''}
             </div>
           </div>
         </div>`;
