@@ -1476,6 +1476,148 @@
     return { code: 'a_regulariser', label: 'À régulariser' };
   }
 
+  // ------------------------------------------------------------
+  // TRAÇABILITÉ DES MOUVEMENTS + RÉCONCILIATION PHYSIQUE — 24/08/2026,
+  // demande de Frédéric : "Ajoute au module Stock FDJ une chaîne de
+  // traçabilité complète des mouvements et une fonction de réconciliation
+  // physique [...] pour comprendre en moins d'une minute ce qui s'est
+  // passé depuis ton dernier inventaire, même si certaines opérations
+  // n'ont pas été saisies correctement."
+  //
+  // Constat avant d'écrire une ligne de code (Article 11) : la chaîne de
+  // mouvements demandée EXISTE déjà — fdj_stock_movements (audit §14,
+  // "boîte noire des mouvements de stock FDJ", type_mouvement parmi
+  // reception/transfert/activation/retour/blocage/correction) et le point
+  // de référence demandé existe déjà lui aussi — fdj_stock_references +
+  // fdj_stock_reference_lignes (09/08/2026, "Inventaire de référence FDJ",
+  // validerInventaireRef côté écran), qui enregistre déjà avant
+  // (stock_theorique_*_avant) et après (bureau_reel/caisse_reel), auteur
+  // (controle_par), date, et ne touche JAMAIS fdj_stock_movements (aucun
+  // mouvement rétroactif inventé) — exactement la règle demandée. Ce qui
+  // manquait réellement, ajouté ici : motif et référence précédente
+  // explicite (colonnes ajoutées par la migration
+  // ajouter_motif_et_reference_precedente_fdj_stock_references), et une
+  // vue chronologique UNIFIÉE des deux (l'écran "Historique des
+  // mouvements" n'existait pas encore).
+  // ------------------------------------------------------------
+
+  // Libellés humains des type_mouvement de fdj_stock_movements — seule
+  // source (Article 11), pour que l'écran Historique et tout futur
+  // consommateur affichent toujours le même mot pour le même fait.
+  const LABEL_TYPE_MOUVEMENT = {
+    reception: 'Réception',
+    transfert: 'Transfert Bureau → Caisse',
+    activation: 'Activation',
+    retour: 'Retour vers le Bureau',
+    blocage: 'Retrait / blocage',
+    correction: 'Correction manuelle',
+  };
+
+  // Écarts d'une réconciliation (lignes de fdj_stock_reference_lignes) —
+  // avant = stock_theorique_*_avant (ce que NEXUS calculait), après =
+  // bureau_reel/caisse_reel (ce que le manager a physiquement compté).
+  // `aUnEcart` conditionne si un motif doit être exigé côté écran : un
+  // recomptage qui confirme exactement le théorique n'a rien à motiver,
+  // un écart réel doit toujours porter une explication (même provisoire,
+  // "à vérifier") plutôt que de disparaître silencieusement dans la
+  // nouvelle référence.
+  function ecartsReferenceLignes(lignes) {
+    const parJeu = {};
+    let aUnEcart = false;
+    (lignes || []).forEach(l => {
+      const theoBureau = Number(l.stock_theorique_bureau_avant) || 0;
+      const theoCaisse = Number(l.stock_theorique_caisse_avant) || 0;
+      const ecartBureau = (Number(l.bureau_reel) || 0) - theoBureau;
+      const ecartCaisse = (Number(l.caisse_reel) || 0) - theoCaisse;
+      if (ecartBureau !== 0 || ecartCaisse !== 0) aUnEcart = true;
+      parJeu[l.game_id] = { ecartBureau, ecartCaisse, theoBureau, theoCaisse, bureauReel: Number(l.bureau_reel) || 0, caisseReel: Number(l.caisse_reel) || 0 };
+    });
+    return { parJeu, aUnEcart };
+  }
+
+  // Trajet lisible d'un mouvement — jamais un simple "source_id →
+  // destination_id" technique. `locations` : { [id]: { type, nom } } —
+  // uniquement les emplacements réels du site (fdj_locations), jamais un
+  // libellé fixe : un site qui renomme "Caisse" en "Comptoir" voit ce
+  // nouveau nom partout, y compris ici (même discipline que
+  // emplacementParType côté écran).
+  function trajetMouvement(m, locations) {
+    const nom = (id) => (id && locations && locations[id]) ? locations[id].nom : null;
+    if (m.type_mouvement === 'reception') return `Fournisseur → ${nom(m.location_destination_id) || 'Bureau'}`;
+    if (m.type_mouvement === 'activation') return `Activé en ${nom(m.location_source_id) || nom(m.location_destination_id) || 'caisse'}`;
+    if (m.type_mouvement === 'correction') return `Correction — ${nom(m.location_destination_id) || nom(m.location_source_id) || '—'}`;
+    const src = nom(m.location_source_id), dst = nom(m.location_destination_id);
+    if (src && dst) return `${src} → ${dst}`;
+    if (dst) return `→ ${dst}`;
+    if (src) return `${src} → —`;
+    return '—';
+  }
+
+  // Une ligne d'historique "mouvement" — normalisée pour l'écran. `ctx` =
+  // { jeuxParId: {[id]:{nom}}, locationsParId: {[id]:{nom,type}},
+  // employesParId: {[id]:{nom}} } — construits une seule fois côté écran
+  // à partir des tableaux déjà chargés (chargerJeux/chargerEmplacements/
+  // chargerEmployesSite, Article 11 — jamais une nouvelle requête ici,
+  // fonction pure).
+  function ligneHistoriqueMouvement(m, ctx) {
+    const jeu = ctx.jeuxParId[m.game_id];
+    const employe = m.employee_id ? ctx.employesParId[m.employee_id] : null;
+    return {
+      categorie: 'mouvement',
+      instant: m.created_at,
+      jeuNom: jeu ? jeu.nom : 'Jeu inconnu',
+      typeMouvement: m.type_mouvement,
+      typeLabel: LABEL_TYPE_MOUVEMENT[m.type_mouvement] || m.type_mouvement,
+      quantite: Number(m.quantite) || 0,
+      trajet: trajetMouvement(m, ctx.locationsParId),
+      auteurNom: employe ? employe.nom : (m.employee_id ? 'Employé' : 'Manager'),
+      justification: m.justification || null,
+      shiftId: m.shift_id || null,
+    };
+  }
+
+  // Une entrée d'historique "réconciliation" — un point de référence posé
+  // (fdj_stock_references) avec le détail par jeu de ses lignes. `refs` :
+  // [{id, date, type, controle_par, motif, created_at, reference_precedente_id}].
+  // `lignesParReference` : { [reference_id]: [fdj_stock_reference_lignes] }
+  // — chargées séparément par l'appelant (une seule requête pour toutes
+  // les lignes de toutes les références, jamais une requête par
+  // référence). `ctx` : même forme que ligneHistoriqueMouvement, plus
+  // jeuxParId utilisé pour nommer chaque ligne d'écart dans le détail.
+  function ligneHistoriqueReconciliation(ref, lignes, ctx) {
+    const { parJeu, aUnEcart } = ecartsReferenceLignes(lignes);
+    const ecarts = Object.entries(parJeu)
+      .filter(([, e]) => e.ecartBureau !== 0 || e.ecartCaisse !== 0)
+      .map(([gameId, e]) => ({ jeuNom: (ctx.jeuxParId[gameId] || {}).nom || 'Jeu inconnu', ...e }));
+    const employe = ref.controle_par ? ctx.employesParId[ref.controle_par] : null;
+    return {
+      categorie: 'reconciliation',
+      instant: ref.created_at,
+      type: ref.type,
+      auteurNom: employe ? employe.nom : '—',
+      motif: ref.motif || null,
+      aUnEcart,
+      nbJeuxControles: lignes.length,
+      nbEcarts: ecarts.length,
+      ecarts,
+      referencePrecedenteId: ref.reference_precedente_id || null,
+    };
+  }
+
+  // Timeline unifiée, triée du plus récent au plus ancien — c'est LA
+  // fonction consommée par l'écran "Historique des mouvements" (jamais
+  // deux listes séparées à recroiser mentalement par le manager).
+  // `references` : lignes fdj_stock_references. `lignesParReference` :
+  // voir ligneHistoriqueReconciliation. Fonction pure : aucun accès
+  // Supabase, tout est fourni par l'appelant.
+  function construireHistoriqueFdj(mouvements, references, lignesParReference, ctx) {
+    const evts = [];
+    (mouvements || []).forEach(m => evts.push(ligneHistoriqueMouvement(m, ctx)));
+    (references || []).forEach(ref => evts.push(ligneHistoriqueReconciliation(ref, (lignesParReference || {})[ref.id] || [], ctx)));
+    evts.sort((a, b) => new Date(b.instant || 0) - new Date(a.instant || 0));
+    return evts;
+  }
+
   global.NexusFdjMoteur = {
     calculerVentesJeu, ventesGrattageTotal, caisseGrattage, caisseAttendue, ecartCaisse, permissionsEcartCaisseEmploye,
     soldesCarnetsParJeu, soldeCarnetsJeu, soldesCarnetsAvecReference,
@@ -1501,5 +1643,7 @@
     optionsVerdictControleFdj, verdictCoherentAvecEcart, deriverStatutCaisseDepuisVerdict, motifEcartObligatoire, etatDuQuartFdj,
     causeAlerteContinuite, elementManquantAlerteContinuite, actionAlerteContinuite, detailAlerteContinuite,
     etatAlerteContinuite, labelEtatAlerteContinuite,
+    LABEL_TYPE_MOUVEMENT, ecartsReferenceLignes, trajetMouvement,
+    ligneHistoriqueMouvement, ligneHistoriqueReconciliation, construireHistoriqueFdj,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

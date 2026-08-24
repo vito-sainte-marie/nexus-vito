@@ -883,7 +883,7 @@
               <div class="jeu-ventes calc">${fmtEuro(l.ca)}</div>
             </div>
             <div class="histo-sub">${fmtNum(l.tickets)} tickets · part CA ${fmtPct(l.partCa)} · évolution ${fmtEvolution(l.evolution)}</div>
-            <div class="histo-sub">${l.activations} activation${l.activations > 1 ? 's' : ''} · Bureau ${fmtNum(l.bureau)} · Caisse non activée ${fmtNum(l.caisseNonActivee)}</div>
+            <div class="histo-sub">${l.activations} activation${l.activations > 1 ? 's' : ''} · Bureau ${fmtNum(l.bureau)} · Carnets non activés en caisse ${fmtNum(l.caisseNonActivee)}</div>
           </div>
         `).join('')}
       </div>
@@ -1077,7 +1077,7 @@
         <div class="stat-row"><div class="stat-label">Jeux en vigilance</div><div class="stat-value ${enVigilance.length ? 'amber' : 'green'}">${enVigilance.length}</div></div>
       </div>
       <div class="chart-wrap">
-        <div class="chart-titre">Stock par jeu (bureau + caisse non activée)</div>
+        <div class="chart-titre">Stock par jeu (réserve bureau + carnets non activés en caisse)</div>
         <div class="chart-question">Quels jeux nécessitent une action stock ?</div>
         <div class="chart-canvas-wrap"><canvas id="chartStock"></canvas></div>
       </div>
@@ -1092,7 +1092,7 @@
             return `
               <div class="jeu-row">
                 <div class="jeu-nom-ligne"><div class="jeu-nom">${j.nom}</div><div class="jeu-ventes ${etat.classe}">${etat.texte}</div></div>
-                <div class="histo-sub">Bureau ${fmtNum(s.bureau)} · Caisse non activée ${fmtNum(s.nonActives)} · Activés ${fmtNum(s.actives)}</div>
+                <div class="histo-sub">Bureau ${fmtNum(s.bureau)} · Carnets non activés en caisse ${fmtNum(s.nonActives)} · Activés ${fmtNum(s.actives)}</div>
                 <div class="histo-sub">${derniere ? `Dernière réception il y a ${anciennete} jour${anciennete > 1 ? 's' : ''}` : 'Aucune réception enregistrée'}</div>
               </div>
             `;

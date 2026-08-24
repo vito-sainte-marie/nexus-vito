@@ -328,6 +328,7 @@
   let inventaireRef = null; // état de saisie de l'écran "Inventaire de référence FDJ" (contrôle physique)
   let reception = null; // état de saisie de l'écran "Réceptionner une livraison FDJ"
   let stockEtat = null; // état affiché de l'écran "État du stock FDJ"
+  let historiqueMouvements = null; // état affiché de l'écran "Historique des mouvements" (v2.233)
   let stockEtatFiltre = 'tous'; // 13/08/2026 (v2) : 'tous' | 'rapprocher' | 'vigilance' | 'ok'
   let stockEtatPaliersReplies = new Set(); // paliers de prix repliés par l'utilisateur (clés = String(prix))
   let blocage = null; // état de saisie du formulaire "Signaler un retrait / blocage"
@@ -347,7 +348,7 @@
   let caisseReelleSemaine = null; // F2 (20/08/2026) : { periode: {debut, fin, label}, shifts, totaux }
   let retraitCaisse = null; // (20/08/2026) : { soldes, quantites: {gameId: qty}, motif }
   let filtreHistorique = { periode: '7j', debut: null, fin: null }; // (20/08/2026) : 'aujourdhui' | '7j' | '30j' | 'dates'
-  let vue = 'liste'; // 'liste' | 'edition' | 'reappro' | 'inventaire-ref' | 'reception' | 'stock-etat' | 'blocage' | 'apres-enregistrement' | 'rapprochement' | 'derogation' | 'releve' | 'export-journee' | 'historique-employe-liste' | 'historique-employe' | 'caisse-reelle-semaine' | 'retrait-caisse' | 'retrait-caisse-confirmation'
+  let vue = 'liste'; // 'liste' | 'edition' | 'reappro' | 'inventaire-ref' | 'reception' | 'stock-etat' | 'blocage' | 'apres-enregistrement' | 'rapprochement' | 'derogation' | 'releve' | 'export-journee' | 'historique-employe-liste' | 'historique-employe' | 'caisse-reelle-semaine' | 'retrait-caisse' | 'retrait-caisse-confirmation' | 'historique-mouvements'
 
   // État du formulaire d'édition en cours (nouveau OU existant).
   let edition = null;
@@ -581,7 +582,12 @@
   async function chargerMouvementsStock() {
     // shift_id ajouté (13/08/2026) : nécessaire à NexusFdjMoteur.approNonTraceParJeu()
     // pour savoir quel mouvement 'activation' couvre quel quart précis.
-    const { data, error } = await nexusClient.from('fdj_stock_movements').select('type_mouvement, quantite, game_id, location_source_id, location_destination_id, created_at, shift_id').eq('site', siteId);
+    // employee_id + justification ajoutés (24/08/2026, v2.233, écran
+    // "Historique des mouvements") : déjà des colonnes natives de
+    // fdj_stock_movements, simplement jamais lues jusqu'ici — sélection
+    // élargie une seule fois, réutilisée par tous les appelants existants
+    // (Article 11, aucun second chargement dédié).
+    const { data, error } = await nexusClient.from('fdj_stock_movements').select('type_mouvement, quantite, game_id, location_source_id, location_destination_id, created_at, shift_id, employee_id, justification').eq('site', siteId);
     if (error) { console.error('Chargement mouvements stock FDJ:', error); return []; }
     return data || [];
   }
@@ -614,6 +620,116 @@
       soldes: NexusFdjMoteur.soldesCarnetsAvecReference(mouvements, { caisse: caisse ? caisse.id : null, bureau: bureau ? bureau.id : null, bloque: bloque ? bloque.id : null }, reference),
       reference, mouvements,
     };
+  }
+
+  // ------------------------------------------------------------
+  // HISTORIQUE DES MOUVEMENTS — 24/08/2026, v2.233, demande de Frédéric :
+  // "un écran Historique des mouvements permettant de savoir précisément
+  // qui a effectué quoi, quand, sur quel jeu et avec quel impact
+  // Bureau/Caisse/activation [...] revenir lundi après trois jours
+  // d'absence, ouvrir NEXUS et comprendre en moins d'une minute ce qui
+  // s'est passé." Charge TOUT l'historique brut (mouvements +
+  // réconciliations) et le fait fusionner par NexusFdjMoteur.
+  // construireHistoriqueFdj — jamais un recalcul local qui dupliquerait
+  // cette logique (Article 11).
+  // ------------------------------------------------------------
+  async function chargerToutesReferencesEtLignes() {
+    const { data: refs, error: e1 } = await nexusClient.from('fdj_stock_references').select('*').eq('site', siteId).order('created_at', { ascending: false });
+    if (e1) { console.error('Chargement références stock FDJ:', e1); return { references: [], lignesParReference: {} }; }
+    const ids = (refs || []).map(r => r.id);
+    if (!ids.length) return { references: [], lignesParReference: {} };
+    const { data: lignes, error: e2 } = await nexusClient.from('fdj_stock_reference_lignes').select('reference_id, game_id, bureau_reel, caisse_reel, stock_theorique_bureau_avant, stock_theorique_caisse_avant').in('reference_id', ids);
+    if (e2) { console.error('Chargement lignes références stock FDJ:', e2); return { references: refs, lignesParReference: {} }; }
+    const lignesParReference = {};
+    (lignes || []).forEach(l => { (lignesParReference[l.reference_id] = lignesParReference[l.reference_id] || []).push(l); });
+    return { references: refs || [], lignesParReference };
+  }
+
+  async function ouvrirHistoriqueMouvements() {
+    document.getElementById('content').innerHTML = '<div class="loading">Chargement…</div>';
+    const { mouvements } = await soldesActuels();
+    if (!jeux.length) jeux = await chargerJeux();
+    if (!employesSite.length) employesSite = await chargerEmployesSite();
+    if (!emplacements.length) emplacements = await chargerEmplacements();
+    const { references, lignesParReference } = await chargerToutesReferencesEtLignes();
+
+    const jeuxParId = {}; jeux.forEach(j => { jeuxParId[j.id] = j; });
+    const locationsParId = {}; emplacements.forEach(l => { locationsParId[l.id] = l; });
+    const employesParId = {}; employesSite.forEach(e => { employesParId[e.id] = e; });
+
+    historiqueMouvements = {
+      timeline: NexusFdjMoteur.construireHistoriqueFdj(mouvements, references, lignesParReference, { jeuxParId, locationsParId, employesParId }),
+      filtre: 'tous',
+    };
+    vue = 'historique-mouvements';
+    renderHistoriqueMouvements();
+  }
+
+  const FDJ_HISTORIQUE_FILTRES = [
+    { cle: 'tous', label: 'Tous' },
+    { cle: 'reconciliation', label: '📐 Réconciliations' },
+    { cle: 'reception', label: '📦 Réceptions' },
+    { cle: 'transfert', label: '🔁 Transferts' },
+    { cle: 'activation', label: '✓ Activations' },
+    { cle: 'retour', label: '↩️ Retours' },
+    { cle: 'blocage', label: '🚫 Retraits/blocages' },
+  ];
+
+  function fmtDateHeureFdj(iso) {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return '—';
+    return `${d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })} à ${d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`;
+  }
+
+  function renderLigneHistoriqueMouvement(e) {
+    return `
+      <div class="jeu-row">
+        <div class="jeu-nom-ligne">
+          <div class="jeu-nom">${e.typeLabel} — ${e.jeuNom}</div>
+          <div class="histo-sub">${e.trajet} · ${e.quantite} carnet${Math.abs(e.quantite) > 1 ? 's' : ''}</div>
+        </div>
+        <div class="histo-sub" style="margin-top:2px;">${e.auteurNom} · ${fmtDateHeureFdj(e.instant)}${e.justification ? ` · « ${e.justification} »` : ''}</div>
+      </div>
+    `;
+  }
+
+  function renderLigneHistoriqueReconciliation(e) {
+    const badge = e.aUnEcart ? `⚠️ ${e.nbEcarts} écart${e.nbEcarts > 1 ? 's' : ''} sur ${e.nbJeuxControles} jeu${e.nbJeuxControles > 1 ? 'x' : ''} contrôlé${e.nbJeuxControles > 1 ? 's' : ''}` : `✓ Conforme — ${e.nbJeuxControles} jeu${e.nbJeuxControles > 1 ? 'x' : ''} contrôlé${e.nbJeuxControles > 1 ? 's' : ''}`;
+    const typeTexte = e.type === 'initialisation' ? 'Réconciliation — initialisation du stock FDJ' : 'Réconciliation du stock';
+    return `
+      <div class="jeu-row" style="border-left:3px solid var(--gold); padding-left:11px;">
+        <div class="jeu-nom-ligne">
+          <div class="jeu-nom">📐 ${typeTexte}</div>
+          <div class="histo-sub ${e.aUnEcart ? 'anomalie' : ''}">${badge}</div>
+        </div>
+        <div class="histo-sub" style="margin-top:2px;">${e.auteurNom} · ${fmtDateHeureFdj(e.instant)}</div>
+        ${e.motif ? `<div class="histo-sub" style="margin-top:4px;">Motif : « ${e.motif} »</div>` : ''}
+        ${e.ecarts.length ? `<div class="histo-sub" style="margin-top:6px;">${e.ecarts.map(ec => `${ec.jeuNom} : Bureau ${ec.theoBureau}→${ec.bureauReel} (${ec.ecartBureau > 0 ? '+' : ''}${ec.ecartBureau}), Caisse ${ec.theoCaisse}→${ec.caisseReel} (${ec.ecartCaisse > 0 ? '+' : ''}${ec.ecartCaisse})`).join('<br>')}</div>` : ''}
+      </div>
+    `;
+  }
+
+  function renderHistoriqueMouvements() {
+    document.getElementById('titre').textContent = 'Historique des mouvements';
+    document.getElementById('sousTitre').textContent = 'Qui a fait quoi, quand, sur quel jeu — tout l\'historique, réconciliations comprises, jamais raccourci.';
+    const filtre = historiqueMouvements.filtre;
+    const evts = historiqueMouvements.timeline.filter(e => {
+      if (filtre === 'tous') return true;
+      if (filtre === 'reconciliation') return e.categorie === 'reconciliation';
+      return e.categorie === 'mouvement' && e.typeMouvement === filtre;
+    });
+    document.getElementById('content').innerHTML = `
+      <button type="button" class="btn-retour-fleche" id="btnRetourHistoriqueMouvements">← Retour</button>
+      <div class="fdj-stock-filtres">
+        ${FDJ_HISTORIQUE_FILTRES.map(f => `<button type="button" class="fdj-stock-filtre${filtre === f.cle ? ' active' : ''}" data-filtre-mvt="${f.cle}">${f.label}</button>`).join('')}
+      </div>
+      <div class="card">
+        ${evts.length ? evts.map(e => e.categorie === 'reconciliation' ? renderLigneHistoriqueReconciliation(e) : renderLigneHistoriqueMouvement(e)).join('') : '<div class="empty">Aucun événement dans ce filtre.</div>'}
+      </div>
+    `;
+    document.getElementById('btnRetourHistoriqueMouvements').addEventListener('click', () => { vue = 'liste'; historiqueMouvements = null; renderAccueil(); });
+    document.querySelectorAll('[data-filtre-mvt]').forEach(btn => btn.addEventListener('click', () => { historiqueMouvements.filtre = btn.dataset.filtreMvt; renderHistoriqueMouvements(); }));
   }
 
   // 13/08/2026 — appro (fdj_shift_counts, compteur TICKETS) saisie sur
@@ -2211,6 +2327,11 @@
           <div class="stock-tuile-titre">Contrôle physique</div>
           <div class="stock-tuile-sous">Comparer NEXUS au stock réellement présent — devient le nouveau point zéro.</div>
         </button>
+        <button type="button" class="stock-tuile" id="btnHistoriqueMouvements">
+          <div class="stock-tuile-icone">📜</div>
+          <div class="stock-tuile-titre">Historique des mouvements</div>
+          <div class="stock-tuile-sous">Qui a fait quoi, quand, sur quel jeu — réceptions, transferts, activations, retraits, réconciliations.</div>
+        </button>
       </div>
 
       ${renderJournalChaineBloc(journalChaine, historique)}
@@ -2289,6 +2410,7 @@
     document.getElementById('btnInventaireRef').addEventListener('click', () => ouvrirInventaireRef());
     document.getElementById('btnReception').addEventListener('click', () => ouvrirReception());
     document.getElementById('btnEtatStock').addEventListener('click', () => ouvrirStockEtat());
+    document.getElementById('btnHistoriqueMouvements').addEventListener('click', () => ouvrirHistoriqueMouvements());
     document.getElementById('btnHistoriqueEmploye').addEventListener('click', () => ouvrirHistoriqueEmployeListe());
     // 16/08/2026, sécurisation structurelle point 4 : bouton "Réessayer"
     // du panneau "Relevés de clôture à régulariser" — désactivé pendant
@@ -3009,7 +3131,7 @@
       const s = soldes[j.id] || { bureau: 0, confies: 0 };
       saisie[j.id] = { bureau: s.bureau, caisse: s.confies };
     });
-    inventaireRef = { derniereReference: reference, soldesTheoriques: soldes, saisie };
+    inventaireRef = { derniereReference: reference, soldesTheoriques: soldes, saisie, motif: '' };
     vue = 'inventaire-ref';
     renderInventaireRef();
   }
@@ -3024,7 +3146,7 @@
 
   function renderInventaireRef() {
     document.getElementById('titre').textContent = 'Inventaire de référence FDJ';
-    document.getElementById('sousTitre').textContent = 'Comptage physique réel — Bureau et Caisse non activé. Valider ce contrôle devient le nouveau point zéro du stock.';
+    document.getElementById('sousTitre').textContent = 'Comptage physique réel — réserve bureau et carnets non activés en caisse. Valider ce contrôle devient le nouveau point zéro du stock.';
     const ref = inventaireRef.derniereReference;
     const groupes = grouperParPalier(jeux);
     let totalTheoBureau = 0, totalTheoCaisse = 0, totalReelBureau = 0, totalReelCaisse = 0;
@@ -3036,7 +3158,7 @@
     });
     document.getElementById('content').innerHTML = `
       <button type="button" class="btn-retour-fleche" id="btnRetourInventaireRef">← Retour</button>
-      ${ref ? `<div class="champ-note" style="margin-top:-4px;">Dernier point zéro : ${new Date(ref.date + 'T00:00:00').toLocaleDateString('fr-FR')} (${ref.type === 'initialisation' ? 'initialisation' : 'recomptage'}).</div>` : `<div class="champ-note" style="margin-top:-4px;">Aucun contrôle physique enregistré pour l'instant — le stock théorique part de zéro.</div>`}
+      ${ref ? `<div class="champ-note" style="margin-top:-4px;">Dernier point zéro : ${new Date(ref.date + 'T00:00:00').toLocaleDateString('fr-FR')} (${ref.type === 'initialisation' ? 'initialisation' : ref.type === 'reconciliation' ? 'réconciliation — écart constaté' : 'recomptage'}).</div>` : `<div class="champ-note" style="margin-top:-4px;">Aucun contrôle physique enregistré pour l'instant — le stock théorique part de zéro.</div>`}
       <div class="resume-card">
         <div class="stat-row"><div class="stat-label">Théorique (Bureau + Caisse)</div><div class="stat-value">${fmtNum(totalTheoBureau)} + ${fmtNum(totalTheoCaisse)} = ${fmtNum(totalTheoBureau + totalTheoCaisse)}</div></div>
         <div class="stat-row total"><div class="stat-label">Comptage réel (Bureau + Caisse)</div><div class="stat-value cyan">${fmtNum(totalReelBureau)} + ${fmtNum(totalReelCaisse)} = ${fmtNum(totalReelBureau + totalReelCaisse)}</div></div>
@@ -3047,12 +3169,15 @@
           <div class="card">${g.items.map(j => renderJeuInventaireRef(j)).join('')}</div>
         </div>
       `).join('')}
+      <label class="champ-label">Motif du contrôle — obligatoire si un écart est détecté ci-dessus (optionnel si le comptage confirme exactement le théorique)</label>
+      <textarea class="champ-input" id="champMotifInventaireRef" rows="2" placeholder="Ex. Carnet retrouvé mal rangé, erreur de comptage précédente, vol suspecté à signaler…" style="margin-bottom:16px;">${inventaireRef.motif || ''}</textarea>
       <button class="btn-primary" id="btnValiderInventaireRef">Valider ce contrôle</button>
       <button class="btn-ghost" id="btnAnnulerInventaireRef">Annuler</button>
     `;
     document.getElementById('btnRetourInventaireRef').addEventListener('click', () => { vue = 'liste'; inventaireRef = null; renderAccueil(); });
     document.getElementById('btnAnnulerInventaireRef').addEventListener('click', () => { vue = 'liste'; inventaireRef = null; renderAccueil(); });
     wireInventaireRefInputs();
+    document.getElementById('champMotifInventaireRef').addEventListener('input', e => { inventaireRef.motif = e.target.value; });
     document.getElementById('btnValiderInventaireRef').addEventListener('click', validerInventaireRef);
   }
 
@@ -3127,32 +3252,59 @@
     });
   }
 
+  // Réconciliation physique (24/08/2026, v2.233, demande de Frédéric —
+  // "chaîne de traçabilité complète des mouvements et une fonction de
+  // réconciliation physique") : cette fonction EST déjà la réconciliation
+  // demandée (existait depuis le 09/08/2026 sous le nom "Inventaire de
+  // référence") — elle enregistre avant (stock_theorique_*_avant)/après
+  // (bureau_reel/caisse_reel), écarts (calculés, jamais saisis), auteur
+  // (controle_par) et date, et ne touche JAMAIS fdj_stock_movements
+  // (aucun mouvement rétroactif inventé pour expliquer un écart). Ce qui
+  // manquait et qui est ajouté ici : `motif` (obligatoire dès qu'un écart
+  // réel est détecté — jamais un écart qui disparaît silencieusement dans
+  // la nouvelle référence sans explication), `reference_precedente_id`
+  // (pointeur explicite, jamais déduit du tri par date), et un `type`
+  // qui distingue vraiment une réconciliation avec écart ('reconciliation')
+  // d'un recomptage de routine qui confirme le théorique ('recomptage')
+  // ou de la toute première référence jamais posée sur ce site
+  // ('initialisation') — les trois valeurs existaient déjà en base
+  // (colonne `type`), mais le code n'écrivait jusqu'ici que 'recomptage'
+  // dans tous les cas.
   async function validerInventaireRef() {
-    const btn = document.getElementById('btnValiderInventaireRef');
-    btn.disabled = true;
-    btn.innerHTML = 'Enregistrement<span class="btn-loading-dots"><i></i><i></i><i></i></span>';
-
-    const { data: ref, error: eRef } = await nexusClient.from('fdj_stock_references').insert({
-      site: siteId, date: dateISO(), controle_par: managerCourant.id, type: 'recomptage', statut: 'valide',
-    }).select().single();
-    if (eRef) { console.error('Création inventaire de référence FDJ:', eRef); btn.disabled = false; btn.textContent = 'Valider ce contrôle'; alert("Erreur d'enregistrement. Réessayez."); return; }
-
-    const lignes = jeux.map(j => {
+    const lignesBrutes = jeux.map(j => {
       const theo = inventaireRef.soldesTheoriques[j.id] || { bureau: 0, confies: 0 };
       const s = inventaireRef.saisie[j.id];
       return {
-        site: siteId, reference_id: ref.id, game_id: j.id,
+        site: siteId, game_id: j.id,
         bureau_reel: s.bureau || 0, caisse_reel: s.caisse || 0,
         stock_theorique_bureau_avant: theo.bureau, stock_theorique_caisse_avant: theo.confies,
       };
     });
+    const { aUnEcart } = NexusFdjMoteur.ecartsReferenceLignes(lignesBrutes);
+    const motif = (inventaireRef.motif || '').trim();
+    if (aUnEcart && !motif) { alert('Un motif est obligatoire : au moins un jeu présente un écart entre le théorique et le comptage réel.'); return; }
+
+    const btn = document.getElementById('btnValiderInventaireRef');
+    btn.disabled = true;
+    btn.innerHTML = 'Enregistrement<span class="btn-loading-dots"><i></i><i></i><i></i></span>';
+
+    const referencePrecedenteId = inventaireRef.derniereReference ? inventaireRef.derniereReference.id : null;
+    const type = !referencePrecedenteId ? 'initialisation' : (aUnEcart ? 'reconciliation' : 'recomptage');
+
+    const { data: ref, error: eRef } = await nexusClient.from('fdj_stock_references').insert({
+      site: siteId, date: dateISO(), controle_par: managerCourant.id, type, statut: 'valide',
+      motif: motif || null, reference_precedente_id: referencePrecedenteId,
+    }).select().single();
+    if (eRef) { console.error('Création inventaire de référence FDJ:', eRef); btn.disabled = false; btn.textContent = 'Valider ce contrôle'; alert("Erreur d'enregistrement. Réessayez."); return; }
+
+    const lignes = lignesBrutes.map(l => ({ ...l, reference_id: ref.id }));
     const { error: eLignes } = await nexusClient.from('fdj_stock_reference_lignes').insert(lignes);
     if (eLignes) { console.error('Enregistrement lignes inventaire de référence FDJ:', eLignes); btn.disabled = false; btn.textContent = 'Valider ce contrôle'; alert("Erreur d'enregistrement des lignes. Réessayez."); return; }
 
     await nexusClient.from('fdj_audit_log').insert({
       site: siteId, shift_id: null, entite_type: 'fdj_stock_reference', entite_id: ref.id,
       action: 'inventaire_reference_valide', acteur_id: managerCourant.id,
-      nouvelle_valeur: { date: ref.date, lignes: lignes.map(l => ({ game_id: l.game_id, bureau_reel: l.bureau_reel, caisse_reel: l.caisse_reel, ecart_bureau: l.bureau_reel - (l.stock_theorique_bureau_avant || 0), ecart_caisse: l.caisse_reel - (l.stock_theorique_caisse_avant || 0) })) },
+      nouvelle_valeur: { date: ref.date, type, motif: motif || null, reference_precedente_id: referencePrecedenteId, lignes: lignes.map(l => ({ game_id: l.game_id, bureau_reel: l.bureau_reel, caisse_reel: l.caisse_reel, ecart_bureau: l.bureau_reel - (l.stock_theorique_bureau_avant || 0), ecart_caisse: l.caisse_reel - (l.stock_theorique_caisse_avant || 0) })) },
     });
 
     vue = 'liste'; inventaireRef = null;
@@ -3341,7 +3493,7 @@
 
   function renderStockEtat() {
     document.getElementById('titre').textContent = 'État du stock FDJ';
-    document.getElementById('sousTitre').textContent = 'Réserve bureau, caisse non activée et carnet en cours — jamais codé en dur.';
+    document.getElementById('sousTitre').textContent = 'Visualisez où se trouvent vos carnets FDJ et leur état.';
     const ref = stockEtat.reference;
     const bloques = jeux.map(j => ({ jeu: j, solde: stockEtat.soldes[j.id] || {} })).filter(x => (x.solde.bloques || 0) > 0);
 
@@ -3401,7 +3553,7 @@
             <div class="fdj-stock-palier-phrase">${NexusFdjMoteur.phraseFamillePalier(items)}</div>
             <div class="fdj-stock-head">
               <div class="fdj-stock-head-nom">Jeu</div>
-              <div class="fdj-stock-head-metrics"><span>Réserve</span><span>Caisse</span><span>En cours</span></div>
+              <div class="fdj-stock-head-metrics"><span>Bureau</span><span>Caisse</span><span>En cours</span></div>
               <div class="fdj-stock-head-statut"></div>
             </div>
             ${g.items.map(j => renderJeuStockEtat(j, etats[j.id])).join('')}
@@ -3471,7 +3623,7 @@
       : (solde.actives > 0 ? `${fmtNum(solde.actives)} activé${solde.actives > 1 ? 's' : ''} depuis le point zéro` : 'Aucun');
     const mesures = !etat.rapprochement ? `
       <div class="fdj-stock-mesure-row"><span>Réserve bureau</span><b>${fmtNum(solde.bureau)} carnet${solde.bureau > 1 ? 's' : ''}</b></div>
-      <div class="fdj-stock-mesure-row"><span>Caisse non activés</span><b>${fmtNum(solde.nonActives)} carnet${solde.nonActives > 1 ? 's' : ''}</b></div>
+      <div class="fdj-stock-mesure-row"><span>Carnets non activés en caisse</span><b>${fmtNum(solde.nonActives)} carnet${solde.nonActives > 1 ? 's' : ''}</b></div>
       <div class="fdj-stock-mesure-row"><span>Carnet en cours</span><b>${carnetEnCoursTexte}</b></div>
       <div class="fdj-stock-mesure-row"><span>Tickets restants</span><b>${ticketsRestants !== null ? `${fmtNum(ticketsRestants)} / ${jeu.tickets_par_carnet}` : 'Non calculable'}</b></div>
       <div class="fdj-stock-mesure-row"><span>Rotation moyenne</span><b>${rotation > 0 ? `${fmtNum(Math.round(rotation * 100) / 100)} carnet/jour` : 'Aucune activation récente'}</b></div>
