@@ -748,24 +748,43 @@
   // isolable'), jamais un chiffre approché présenté comme précis.
   // ============================================================
 
-  // Convertit une date civile + heure locale "Europe/Paris" (station_config.
-  // horaires, ex. "05:45") en instant UTC réel. Sans dépendance externe
-  // (aucune lib de fuseaux dans NEXUS) : résout le décalage réel via
-  // l'API Intl du runtime, en 2 passes pour rester correct même si la
-  // première estimation tombe de l'autre côté d'un changement d'heure
-  // (CET/CEST). Hors périmètre assumé : l'instant exact de la bascule
-  // elle-même (~2h, deux fois par an, en dehors des horaires d'ouverture
-  // d'une station) — non géré, jamais silencieusement approximé comme
-  // fiable au-delà de cette limite documentée.
-  function instantParisVersUTC(dateISO, heureHHMM) {
-    if (!dateISO || !heureHHMM) return null;
+  // Convertit une date civile + heure locale du fuseau DE LA STATION
+  // (station_config.fuseau_horaire, ex. "America/Martinique" ; heure ex.
+  // "05:45" issue de station_config.horaires) en instant UTC réel. Sans
+  // dépendance externe (aucune lib de fuseaux dans NEXUS) : résout le
+  // décalage réel via l'API Intl du runtime, en 2 passes pour rester
+  // correct même si la première estimation tombe de l'autre côté d'un
+  // changement d'heure. Hors périmètre assumé : l'instant exact d'une
+  // éventuelle bascule DST elle-même (~2h, deux fois par an, en dehors des
+  // horaires d'ouverture d'une station) — non géré, jamais silencieusement
+  // approximé comme fiable au-delà de cette limite documentée.
+  //
+  // Renommée `instantLocalVersUTC` le 24/08/2026 (v2.232, anomalie
+  // signalée par Frédéric : heures carburant fausses en Martinique) —
+  // s'appelait `instantParisVersUTC` avec 'Europe/Paris' codé en dur,
+  // alors que NEXUS ne tourne qu'en Martinique (UTC-4, jamais d'heure
+  // d'été) : un décalage fixe de plusieurs heures sur TOUTES les fenêtres
+  // de quart carburant. `fuseau` est désormais un paramètre obligatoire
+  // (aucun défaut silencieux ici) — c'est à l'appelant (couche données) de
+  // le lire depuis station_config.fuseau_horaire, seule source (Article
+  // 11), avec son propre repli explicite si la colonne est absente.
+  function instantLocalVersUTC(dateISO, heureHHMM, fuseau) {
+    if (!dateISO || !heureHHMM || !fuseau) return null;
     const [h, mnt] = heureHHMM.split(':').map(Number);
     const [an, mo, jo] = dateISO.split('-').map(Number);
     if ([h, mnt, an, mo, jo].some(Number.isNaN)) return null;
-    const dtf = new Intl.DateTimeFormat('en-US', {
-      timeZone: 'Europe/Paris', hour12: false,
-      year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit',
-    });
+    let dtf;
+    try {
+      dtf = new Intl.DateTimeFormat('en-US', {
+        timeZone: fuseau, hour12: false,
+        year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit',
+      });
+    } catch (e) {
+      // Fuseau IANA invalide (ex. donnée corrompue en base) -> null, comme
+      // toute autre entrée invalide de cette fonction, jamais une
+      // exception qui remonterait jusqu'à l'écran.
+      return null;
+    }
     const lireCommeUTC = (ms) => {
       const parts = dtf.formatToParts(new Date(ms)).reduce((acc, p) => { acc[p.type] = p.value; return acc; }, {});
       const heure24 = parts.hour === '24' ? '00' : parts.hour;
@@ -785,14 +804,14 @@
   // `horaires` = station_config.horaires. `quartCle` = 'quart1' | 'quart2'.
   // Retourne null si ce quart n'est pas configuré pour ce site (jamais une
   // bascule silencieuse sur un horaire par défaut inventé).
-  function fenetreQuartLarge(horaires, quartCle, dateISO) {
+  function fenetreQuartLarge(horaires, quartCle, dateISO, fuseau) {
     const q = horaires && horaires[quartCle];
     if (!q) return null;
     const debut = q.etendu || q.normal;
     const fin = q.fin_etendu || q.fin_normal;
     if (!debut || !fin) return null;
-    const bDebut = instantParisVersUTC(dateISO, debut);
-    const bFin = instantParisVersUTC(dateISO, fin);
+    const bDebut = instantLocalVersUTC(dateISO, debut, fuseau);
+    const bFin = instantLocalVersUTC(dateISO, fin, fuseau);
     if (!bDebut || !bFin) return null;
     return { debut: bDebut, fin: bFin };
   }
@@ -824,7 +843,7 @@
   // non isolable (ventes=null sur les 3 carburants) : une seule ventilation
   // impossible à isoler suffit à rendre le calcul non fiable, jamais un
   // résultat partiel présenté comme complet.
-  function resoudreVentesFenetre(lignesQuarts, horaires, t0, t1) {
+  function resoudreVentesFenetre(lignesQuarts, horaires, t0, t1, fuseau) {
     const champs = { go: 'litrage_gazole', sp95: 'litrage_sp95', gnr: 'litrage_gnr' };
     const somme = { go: 0, sp95: 0, gnr: 0 };
     const trouve = { go: false, sp95: false, gnr: false };
@@ -832,7 +851,7 @@
     const quartsInclus = [];
     (lignesQuarts || []).forEach(ligne => {
       const quartCle = ligne.quart === '2' ? 'quart2' : 'quart1';
-      const fenetreQuart = fenetreQuartLarge(horaires, quartCle, ligne.date);
+      const fenetreQuart = fenetreQuartLarge(horaires, quartCle, ligne.date, fuseau);
       const position = classerQuartFaceFenetre(fenetreQuart, t0, t1);
       if (position === 'chevauche' || position === 'inconnu') {
         quartsChevauchants.push({ date: ligne.date, quart: ligne.quart, raison: position === 'inconnu' ? 'horaires_non_configures' : 'chevauche_ancre_ou_mesure' });
@@ -1363,7 +1382,7 @@
     construireMessagesPilotage,
     prochaineVersionReleveCarburant, diffReleveCarburant, patchReleveDepuisReceptionMesures,
     qualiteChaineCarburant, libelleCauseQualiteChaine, resoudreAncreCarburant,
-    instantParisVersUTC, fenetreQuartLarge, classerQuartFaceFenetre, resoudreVentesFenetre,
+    instantLocalVersUTC, fenetreQuartLarge, classerQuartFaceFenetre, resoudreVentesFenetre,
     libelleQualiteControle,
     SEUIL_HISTORIQUE_CHAINE_SUFFISANT, statistiquesFiabiliteChaine, libelleFiabiliteChaine,
     calculerCmpApresLivraison, calculerCmpProgressif, libelleCmp,

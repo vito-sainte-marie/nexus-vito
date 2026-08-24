@@ -694,6 +694,13 @@
 
   let SITE_ID = null; // jamais 'vito-sainte-marie' par defaut (de-Vito-isation, 11/08/2026) - toujours ecrase par employee.site_id apres nexusRequireAuth()
   let MANAGER_COURANT = null; // 14/08/2026, ajouté pour le point zéro : controle_par sur carburant_stock_references
+  // Fuseau de la station (24/08/2026, v2.232, anomalie signalée par
+  // Frédéric : heures carburant fausses en Martinique) — chargé depuis
+  // station_config.fuseau_horaire à l'initialisation, avant tout rendu.
+  // 'America/Martinique' n'est qu'un repli si la ligne station_config
+  // n'existe pas encore pour ce site (jamais 'Europe/Paris' — voir
+  // nexus-carburant-donnees.js pour le même repli côté chargement moteur).
+  let FUSEAU_STATION = 'America/Martinique';
   let TYPE_PERIODE = 'semaine';
   // Contexte "aujourd'hui" (indépendant de la période sélectionnée),
   // chargé une seule fois à l'initialisation et réutilisé par le bloc
@@ -824,15 +831,15 @@
   }
   function fmtL(v) { return v == null ? '—' : `${Math.round(v).toLocaleString('fr-FR')} L`; }
   // Chaîne temporelle (21/08/2026) : instant précis (jour + heure, fuseau
-  // Europe/Paris explicite comme partout ailleurs dans NEXUS) pour le bloc
-  // "Comment cet écart est calculé" — jamais une simple date qui masquerait
-  // qu'une mesure a été prise en cours de journée.
+  // de la station — FUSEAU_STATION, chargé à l'initialisation, v2.232)
+  // pour le bloc "Comment cet écart est calculé" — jamais une simple date
+  // qui masquerait qu'une mesure a été prise en cours de journée.
   function fmtInstant(iso) {
     if (!iso) return '—';
     const d = new Date(iso);
     if (Number.isNaN(d.getTime())) return '—';
-    const jour = d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Europe/Paris' });
-    const heure = d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Paris' });
+    const jour = d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: FUSEAU_STATION });
+    const heure = d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: FUSEAU_STATION });
     return `${jour} à ${heure}`;
   }
   // Correctif recette UI/UX (17/08/2026, CAR-UX-06) : `provisoire=true`
@@ -872,13 +879,14 @@
   // post-livraison) : contrairement à formaterDateFrCourt ci-dessus (date
   // seule, YYYY-MM-DD), cette fonction formate un timestamp complet
   // (carburant_releves.created_at ou carburant_reception_visites.heure_fin)
-  // en "JJ/MM à HH:MM", heure de Paris.
+  // en "JJ/MM à HH:MM", heure de la station (FUSEAU_STATION, v2.232 —
+  // corrigé, était 'Europe/Paris' codé en dur).
   function formaterDateHeureFr(iso) {
     if (!iso) return '';
     const d = new Date(iso);
     if (Number.isNaN(d.getTime())) return '';
-    const jour = d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', timeZone: 'Europe/Paris' });
-    const heure = d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Paris' });
+    const jour = d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', timeZone: FUSEAU_STATION });
+    const heure = d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: FUSEAU_STATION });
     return `${jour} à ${heure}`;
   }
 
@@ -3024,6 +3032,16 @@
     }
     SITE_ID = employee.site_id;
     MANAGER_COURANT = employee;
+
+    // Fuseau de la station (v2.232) — chargé avant tout rendu, car
+    // fmtInstant/formaterDateHeureFr (utilisées par le reste de l'écran)
+    // en dépendent. Requête minimale, dédiée : station_config.horaires
+    // n'est pas utile ici (déjà géré par nexus-carburant-donnees.js).
+    {
+      const { data: stationConfig, error: eFuseau } = await nexusClient.from('station_config').select('fuseau_horaire').eq('site', SITE_ID).maybeSingle();
+      if (eFuseau) console.error('Chargement fuseau_horaire station:', eFuseau);
+      if (stationConfig && stationConfig.fuseau_horaire) FUSEAU_STATION = stationConfig.fuseau_horaire;
+    }
 
     initAccordions();
     const btnQualite = document.getElementById('btnQualiteReceptions');

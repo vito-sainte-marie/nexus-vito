@@ -107,12 +107,21 @@
       client.from('carburant_releves').select('*').eq('site', siteId).eq('date', date).maybeSingle(),
       client.from('carburant_releves').select('*').eq('site', siteId).lt('date', date).order('date', { ascending: false }).limit(1).maybeSingle(),
       chargerDernierPointZero(client, siteId, date),
-      client.from('station_config').select('horaires').eq('site', siteId).maybeSingle(),
+      client.from('station_config').select('horaires,fuseau_horaire').eq('site', siteId).maybeSingle(),
     ]);
     if (e1) console.error('Chargement relevé carburant du jour (contrôle):', e1);
     if (e2) console.error('Chargement dernier relevé carburant (contrôle):', e2);
     if (e5) console.error('Chargement horaires site (fenêtre ventes horodatée):', e5);
     const horaires = (stationConfig && stationConfig.horaires) || null;
+    // Fuseau de la station (24/08/2026, v2.232, anomalie signalée par
+    // Frédéric : heures carburant fausses en Martinique) — station_config.
+    // fuseau_horaire est NOT NULL avec un défaut 'America/Martinique' en
+    // base, mais si le site n'a encore AUCUNE ligne station_config
+    // (`stationConfig` null, cas déjà géré ailleurs sur `horaires`), on
+    // retombe explicitement sur la seule station réelle connue de NEXUS
+    // aujourd'hui plutôt que sur 'Europe/Paris' — jamais un fuseau
+    // métropolitain par défaut pour une station ultramarine.
+    const fuseau = (stationConfig && stationConfig.fuseau_horaire) || 'America/Martinique';
 
     if (!releveDuJour && !dernierReleve && !pointZero) {
       return { parCarburant: null, aucunReleve: true };
@@ -187,7 +196,7 @@
         .select('date,quart,litrage_gazole,litrage_sp95,litrage_gnr')
         .eq('site', siteId).gte('date', dateAncre).lte('date', date);
       if (e3) console.error('Chargement ventes (fenêtre horodatée, contrôle):', e3);
-      const resolu = M.resoudreVentesFenetre(lignesQuarts || [], horaires, fenetreDebut, fenetreFin);
+      const resolu = M.resoudreVentesFenetre(lignesQuarts || [], horaires, fenetreDebut, fenetreFin, fuseau);
       ventesDepuis = resolu.ventes;
       fenetreIsolable = resolu.isolable;
       quartsChevauchants = resolu.quartsChevauchants;
