@@ -743,7 +743,7 @@
     document.getElementById('titre').textContent = 'Signaler une erreur';
     document.getElementById('sousTitre').textContent = '';
     document.getElementById('content').innerHTML = `
-      <div class="etat-banner">Ce quart est déjà transmis, vous ne pouvez plus le modifier vous-même. Indiquez ce qui doit être revu — le manager sera prévenu et corrigera depuis Contrôle FDJ.</div>
+      <div class="etat-banner">Ce quart est déjà transmis, vous ne pouvez plus le modifier vous-même. Indiquez ce qui doit être revu — le manager sera prévenu et corrigera depuis FDJ Opérations.</div>
       <div class="motif-grid" id="grilleMotifsCorrection">
         ${MOTIFS_CORRECTION_CAISSE.map(m => `
           <div class="motif-item" data-motif="${m.value}">
@@ -833,7 +833,7 @@
     }
 
     document.getElementById('content').innerHTML = `
-      ${estManager ? '<a href="NEXUS-FDJ-Manager-v1.html" class="etat-banner" style="display:block; color:var(--cyan); text-decoration:none; margin-bottom:14px;">Vous êtes manager ? Aller à Contrôle FDJ →</a>' : ''}
+      ${estManager ? '<a href="NEXUS-FDJ-Manager-v1.html" class="etat-banner" style="display:block; color:var(--cyan); text-decoration:none; margin-bottom:14px;">Vous êtes manager ? Aller à FDJ Opérations →</a>' : ''}
       ${renderQuartVisuel()}
       <div class="choix-grid">
         <div class="choix-card ${ouvertureFaite ? 'disabled' : ''}" id="carteOuverture">

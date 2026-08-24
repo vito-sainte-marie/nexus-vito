@@ -133,7 +133,7 @@
   </div>
   <div class="divider"></div>
 
-  <a href="NEXUS-Carburants-Pilotage-v1.html" id="lienPilotage" style="display:block; margin:14px 20px 0; padding:11px 14px; border-radius:12px; background:rgba(79,195,217,0.08); border:1px solid rgba(79,195,217,0.25); color:var(--cyan); text-decoration:none; font-family:var(--mono); font-size:11.5px; font-weight:600; text-align:center;">📈 Voir Carburants Pilotage (volumes, mix, tendances)</a>
+  <a href="NEXUS-Carburants-Pilotage-v1.html" id="lienPilotage" style="display:block; margin:14px 20px 0; padding:11px 14px; border-radius:12px; background:rgba(79,195,217,0.08); border:1px solid rgba(79,195,217,0.25); color:var(--cyan); text-decoration:none; font-family:var(--mono); font-size:11.5px; font-weight:600; text-align:center;">📈 Voir Carburants Performance (volumes, mix, tendances)</a>
 
   <div class="section" id="content">
     <div class="loading">Chargement…</div>
@@ -966,7 +966,7 @@
       eyebrowEl.style.color = 'var(--amber)';
       titreEl.textContent = 'Rattrapage du jaugeage';
       document.getElementById('horodateurDiscret').textContent = `Jour choisi — ${formaterDateFr(DATE_CIBLE)}`;
-      if (lienPilotageEl) lienPilotageEl.textContent = '← Retour à Carburants Pilotage';
+      if (lienPilotageEl) lienPilotageEl.textContent = '← Retour à Carburants Performance';
     }
 
     [RELEVE_CIBLE, DERNIER_RELEVE, PROCHAIN_RELEVE, POINT_ZERO, HORAIRES] = await Promise.all([

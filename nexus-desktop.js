@@ -38,11 +38,22 @@ function nexusBasculerVueBureau() {
 // Professional/Preview de App-v1 ne sont volontairement pas repris ici pour
 // ce pilote : la barre latérale montre la navigation, pas l'habillage
 // commercial des forfaits — à revoir ensemble si on généralise.
+// Descriptions au survol (24/08/2026, demande de Frédéric — "un
+// micro-tooltip très court, une phrase maximum, répond instantanément à
+// 'à quoi sert-il ?'") : `desc` sur chaque item ci-dessous, consommé par le
+// tooltip générique installé par nexusInstallerTooltipsSidebar(). Objectif
+// explicite : un nouveau manager doit comprendre la navigation sans
+// formation lourde, particulièrement à l'approche du 2e site pilote. Les
+// phrases fournies par Frédéric sont reprises littéralement ; celles qu'il
+// n'a pas couvertes (Rapport NEXUS, Comptes Clients, Boîte de réception,
+// Paramètres Comptes Clients, Comprendre NEXUS, Imports, Paramètres,
+// Paramètres Inventaire, Paramètres FDJ, Rappels, FDJ, Accueil) suivent le
+// même registre (une phrase, verbe d'action, jamais un titre).
 const NEXUS_SIDEBAR_GROUPES = [
   {
     nom: 'Piloter',
     items: [
-      { label: 'Brief NEXUS', href: 'NEXUS-Brief-v1.html', icon: 'assets/icons/icon-brief-nexus.png' },
+      { label: 'Brief NEXUS', href: 'NEXUS-Brief-v1.html', icon: 'assets/icons/icon-brief-nexus.png', desc: 'Synthèse des priorités et décisions du moment.' },
       // Rapport NEXUS (10/08/2026, cadrage développeur de Frédéric) : rejoint
       // Piloter juste après Brief NEXUS — Brief est l'instantané "aujourd'hui"
       // (toujours 1 page), Rapport compare une période calendaire choisie
@@ -50,64 +61,80 @@ const NEXUS_SIDEBAR_GROUPES = [
       // automatiquement. V1 : Chapitres 1 (Synthèse dirigeant) + 2 (Santé de
       // l'entreprise) seulement — les 10 autres chapitres du cadrage restent
       // à construire.
-      { label: 'Rapport NEXUS', href: 'NEXUS-Rapport-v1.html', icon: null, emoji: '📑' },
-      { label: 'Cockpit', href: 'NEXUS-Cockpit-v2.html', icon: 'assets/icons/icon-home.png' },
-      { label: 'Journal', href: 'NEXUS-Journal-v1.html', icon: 'assets/icons/icon-journal-nexus.png' },
-      { label: 'Capital NEXUS', href: 'NEXUS-Capital-v1.html', icon: 'assets/icons/icon-capital.png' },
-      { label: 'Scanner NEXUS', href: 'NEXUS-Scanner-v1.html', icon: 'assets/icons/icon-scanner.png' },
-      { label: 'Radar du Manager', href: 'NEXUS-Radar-Manager-v1.html', icon: 'assets/icons/icon-radar.png' },
+      { label: 'Rapport NEXUS', href: 'NEXUS-Rapport-v1.html', icon: null, emoji: '📑', desc: 'Compare une période choisie à une référence pour l’entreprise.' },
+      { label: 'Cockpit', href: 'NEXUS-Cockpit-v2.html', icon: 'assets/icons/icon-home.png', desc: 'Votre plan d’action opérationnel du jour.' },
+      { label: 'Journal', href: 'NEXUS-Journal-v1.html', icon: 'assets/icons/icon-journal-nexus.png', desc: 'Historique des faits, actions et événements NEXUS.' },
+      { label: 'Capital NEXUS', href: 'NEXUS-Capital-v1.html', icon: 'assets/icons/icon-capital.png', desc: 'Valeur économique générée ou sécurisée par vos décisions.' },
+      { label: 'Scanner NEXUS', href: 'NEXUS-Scanner-v1.html', icon: 'assets/icons/icon-scanner.png', desc: 'Détecte les anomalies, écarts et opportunités commerciales.' },
+      { label: 'Radar du Manager', href: 'NEXUS-Radar-Manager-v1.html', icon: 'assets/icons/icon-radar.png', desc: 'Vue rapide des zones qui nécessitent votre attention.' },
     ],
   },
   {
     nom: 'Performer',
     items: [
-      { label: 'Produits', href: 'NEXUS-Produits-v1.html', icon: 'assets/icons/icon-produits.png' },
-      { label: 'Tempo', href: 'NEXUS-Tempo-v1.html', icon: 'assets/icons/icon-nexus-tempo.png' },
-      { label: 'Campagnes', href: 'NEXUS-Campagne-v1.html', icon: 'assets/icons/icon-campagne-nexus.png' },
-      { label: 'Scanner Stock', href: 'NEXUS-Scanner-Stock-v1.html', icon: 'assets/icons/icon-scanner-stock.png' },
+      { label: 'Produits', href: 'NEXUS-Produits-v1.html', icon: 'assets/icons/icon-produits.png', desc: 'Analyse les ventes, rotations et performances produits.' },
+      { label: 'Tempo', href: 'NEXUS-Tempo-v1.html', icon: 'assets/icons/icon-nexus-tempo.png', desc: 'Repère les jours et périodes à renforcer.' },
+      { label: 'Campagnes', href: 'NEXUS-Campagne-v1.html', icon: 'assets/icons/icon-campagne-nexus.png', desc: 'Suit la performance de vos actions commerciales.' },
+      { label: 'Scanner Stock', href: 'NEXUS-Scanner-Stock-v1.html', icon: 'assets/icons/icon-scanner-stock.png', desc: 'Repère les écarts et références à recompter.' },
     ],
   },
   {
     nom: 'Exécuter',
     items: [
-      { label: 'Verify', href: 'NEXUS-Verify-v1.html', icon: 'assets/icons/icon-nexus-verify.png' },
+      { label: 'Verify', href: 'NEXUS-Verify-v1.html', icon: 'assets/icons/icon-nexus-verify.png', desc: 'Contrôle les caisses et rapproche les moyens de paiement.' },
       // Carburants (10/08/2026, demande de Frédéric) : rejoint Exécuter,
       // juste à côté de Verify — le litrage vendu qu'il consomme vient de
       // là (litrage_gazole/sp95/gnr), jamais ressaisi.
-      { label: 'Carburants', href: 'NEXUS-Carburants-v1.html', icon: null, emoji: '⛽' },
+      { label: 'Carburants', href: 'NEXUS-Carburants-v1.html', icon: null, emoji: '⛽', desc: 'Saisie et suivi des jaugeages carburant.' },
       // Réception carburant (14/08/2026, audit "Réceptions, deltas et
       // effet économique du stock", P1) : parcours employé dédié à la
       // réception d'une livraison (jaugeage avant/après, BL, calcul NEXUS)
-      // — juste à côté de Carburants, comme FDJ/Contrôle FDJ.
-      { label: 'Réception carburant', href: 'NEXUS-Carburant-Reception-v1.html', icon: null, emoji: '🚚' },
-      // Carburants Pilotage (11/08/2026, Phase 1 de la montée en puissance
-      // demandée par Frédéric) : la couche dirigeant, juste après le Relevé
-      // du jour — même position relative que FDJ Pilotage après Contrôle FDJ.
-      { label: 'Carburants Pilotage', href: 'NEXUS-Carburants-Pilotage-v1.html', icon: null, emoji: '📈' },
-      { label: 'Inventaire', href: 'NEXUS-Inventaire-v1.html', icon: 'assets/icons/icon-inventaire.png' },
-      { label: 'Contrôle inventaire', href: 'NEXUS-Inventaire-Manager-v1.html', icon: null, emoji: '🧭' },
+      // — juste à côté de Carburants, comme FDJ/FDJ Opérations.
+      // Icône pack NEXUS (20/08/2026, uniformisation) : icon-reception-carburant-24.png
+      { label: 'Réception carburant', href: 'NEXUS-Carburant-Reception-v1.html', icon: 'assets/icons/icon-reception-carburant-24.png', desc: 'Contrôle les livraisons et les volumes réellement reçus.' },
+      // Carburants Performance (11/08/2026, Phase 1 de la montée en
+      // puissance demandée par Frédéric ; renommé "Performance" le
+      // 24/08/2026 pour se distinguer nettement de Carburants) : la couche
+      // dirigeant, juste après le Relevé du jour — même position relative
+      // que FDJ Performance après FDJ Opérations.
+      { label: 'Carburants Performance', href: 'NEXUS-Carburants-Pilotage-v1.html', icon: null, emoji: '📈', desc: 'Analyse volumes, autonomie, écarts et tendances carburant.' },
+      // Icône pack NEXUS (20/08/2026, uniformisation) : icon-inventaire-24.png
+      // remplace l'ancienne icon-inventaire.png — même icône réutilisée sur
+      // Contrôle inventaire juste en dessous (même domaine, cf. Article 11).
+      { label: 'Inventaire', href: 'NEXUS-Inventaire-v1.html', icon: 'assets/icons/icon-inventaire-24.png', desc: 'Guide les comptages terrain de l’équipe.' },
+      { label: 'Contrôle inventaire', href: 'NEXUS-Inventaire-Manager-v1.html', icon: 'assets/icons/icon-inventaire-24.png', desc: 'Analyse les écarts, anomalies et comptages à traiter.' },
       // NEXUS FDJ (09/08/2026, demande de Frédéric) : rejoint Exécuter,
       // juste à côté d'Inventaire — même logique de comptage de quart.
-      { label: 'FDJ', href: 'NEXUS-FDJ-v1.html', icon: null, emoji: '🎟️' },
-      { label: 'Contrôle FDJ', href: 'NEXUS-FDJ-Manager-v1.html', icon: null, emoji: '🎯' },
-      // NEXUS FDJ - Analyse (09/08/2026, Phase C de l'audit "Moteur de
-      // clairvoyance manager") : moteur de statistiques/tendances/décisions,
-      // juste après Contrôle FDJ.
-      { label: 'FDJ Pilotage', href: 'NEXUS-FDJ-Analyse-v1.html', icon: null, emoji: '📊' },
+      // Icône pack NEXUS (20/08/2026, uniformisation) : icon-fdj-24.png,
+      // réutilisée sur FDJ Opérations et FDJ Performance (même domaine).
+      { label: 'FDJ', href: 'NEXUS-FDJ-v1.html', icon: 'assets/icons/icon-fdj-24.png', desc: 'Grattage, tirages et caisse FDJ du quart.' },
+      // Contrôle FDJ → FDJ Opérations (24/08/2026, demande de Frédéric) :
+      // "Contrôle FDJ" et "FDJ Pilotage" trop proches lexicalement pour des
+      // fonctions très différentes — Opérations (registre quarts/caisse/
+      // stock/mouvements) vs Performance (analyse/décision), vocabulaire
+      // figé par Frédéric.
+      { label: 'FDJ Opérations', href: 'NEXUS-FDJ-Manager-v1.html', icon: 'assets/icons/icon-fdj-24.png', desc: 'Gère quarts, caisse, carnets et mouvements FDJ.' },
+      // FDJ Pilotage → FDJ Performance (24/08/2026, même demande) : NEXUS
+      // FDJ - Analyse (09/08/2026, Phase C de l'audit "Moteur de
+      // clairvoyance manager") : moteur de statistiques/tendances/
+      // décisions, juste après FDJ Opérations.
+      { label: 'FDJ Performance', href: 'NEXUS-FDJ-Analyse-v1.html', icon: null, emoji: '📊', desc: 'Analyse ventes, jeux, écarts et tendances FDJ.' },
       // NEXUS Coach x FDJ Pilotage (09/08/2026, étape "écran employé" de
       // l'audit "Coach x FDJ Pilotage") : micro-coaching quotidien par
-      // employé, juste après FDJ Pilotage.
-      { label: 'Coach FDJ', href: 'NEXUS-Coach-FDJ-v1.html', icon: null, emoji: '🎓' },
-      { label: 'Missions', href: 'NEXUS-Missions-v1.html', icon: 'assets/icons/icon-missions.png' },
-      { label: 'Assignations', href: 'NEXUS-Assignations-v1.html', icon: 'assets/icons/icon-assignations.png' },
-      { label: 'Planning', href: 'NEXUS-Planning-v1.html', icon: 'assets/icons/icon-planner.png' },
+      // employé, juste après FDJ Performance.
+      // Icône pack NEXUS (20/08/2026, uniformisation) : avatar_coach — sens
+      // littéral "Coach".
+      { label: 'Coach FDJ', href: 'NEXUS-Coach-FDJ-v1.html', icon: 'assets/icons/icon-avatar-coach-24.png', desc: 'Donne à l’employé une priorité FDJ claire et contextualisée.' },
+      { label: 'Missions', href: 'NEXUS-Missions-v1.html', icon: 'assets/icons/icon-missions.png', desc: 'Crée et suit les tâches opérationnelles.' },
+      { label: 'Assignations', href: 'NEXUS-Assignations-v1.html', icon: 'assets/icons/icon-assignations.png', desc: 'Répartit les actions entre les membres de l’équipe.' },
+      { label: 'Planning', href: 'NEXUS-Planning-v1.html', icon: 'assets/icons/icon-planner.png', desc: 'Organise la présence et les horaires de l’équipe.' },
     ],
   },
   {
     nom: 'Équipe',
     items: [
-      { label: 'Évaluations', href: 'NEXUS-Evaluation-Employe-v1.html', icon: 'assets/icons/icon-evaluation.png' },
-      { label: 'Résultats', href: 'NEXUS-Resultats-Equipe-v1.html', icon: 'assets/icons/icon-resultats-equipe.png' },
+      { label: 'Évaluations', href: 'NEXUS-Evaluation-Employe-v1.html', icon: 'assets/icons/icon-evaluation.png', desc: 'Évalue la réalisation et la qualité du travail.' },
+      { label: 'Résultats', href: 'NEXUS-Resultats-Equipe-v1.html', icon: 'assets/icons/icon-resultats-equipe.png', desc: 'Suit la progression et les performances de l’équipe.' },
     ],
   },
   {
@@ -116,9 +143,12 @@ const NEXUS_SIDEBAR_GROUPES = [
     // rejoignent la vue bureau et le menu latéral, comme NEXUS Verify.
     nom: 'Comptes Clients',
     items: [
-      { label: 'Comptes Clients', href: 'NEXUS-Comptes-Clients-v1.html', icon: null, emoji: '👥' },
-      { label: 'Boîte de réception', href: 'NEXUS-Boite-Reception-v1.html', icon: null, emoji: '📥' },
-      { label: 'Paramètres Comptes Clients', href: 'NEXUS-Parametres-Comptes-Clients-v1.html', icon: null, emoji: '⚙️' },
+      // 👥 harmonisé avec le tiroir Explorer NEXUS (qui utilisait 🧾) le
+      // 20/08/2026 — pas d'icône dédiée dans le pack NEXUS pour ce domaine.
+      { label: 'Comptes Clients', href: 'NEXUS-Comptes-Clients-v1.html', icon: null, emoji: '👥', desc: 'Gère les comptes clients à crédit et leurs mouvements.' },
+      { label: 'Boîte de réception', href: 'NEXUS-Boite-Reception-v1.html', icon: null, emoji: '📥', desc: 'Centralise les demandes des comptes clients.' },
+      // Icône pack NEXUS (20/08/2026, uniformisation) : icon-parametres-24.png.
+      { label: 'Paramètres Comptes Clients', href: 'NEXUS-Parametres-Comptes-Clients-v1.html', icon: 'assets/icons/icon-parametres-24.png', desc: 'Configure les règles et plafonds des comptes clients.' },
     ],
   },
   {
@@ -128,24 +158,37 @@ const NEXUS_SIDEBAR_GROUPES = [
     // propre recherche par mots-clés.
     nom: 'Aide',
     items: [
-      { label: 'Comprendre NEXUS', href: 'NEXUS-Documentation-v1.html', icon: null, emoji: '❓' },
+      // Icône pack NEXUS (20/08/2026, uniformisation) : icon-aide-24.png.
+      { label: 'Comprendre NEXUS', href: 'NEXUS-Documentation-v1.html', icon: 'assets/icons/icon-aide-24.png', desc: 'Explique à quoi sert chaque écran NEXUS.' },
     ],
   },
   {
     nom: 'Administrer',
     items: [
-      { label: 'Imports', href: 'NEXUS-Import-v1.html', icon: 'assets/icons/icon-import.png' },
-      { label: 'Paramètres', href: 'NEXUS-Parametres-Station-v1.html', icon: null, emoji: '⚙️' },
+      { label: 'Imports', href: 'NEXUS-Import-v1.html', icon: 'assets/icons/icon-import.png', desc: 'Importe vos données externes dans NEXUS.' },
+      // Icône pack NEXUS (20/08/2026, uniformisation) : icon-parametres-24.png,
+      // même icône sur les 4 écrans "Paramètres…" (Station, Comptes Clients,
+      // Inventaire, FDJ) — un seul concept visuel pour un seul concept métier.
+      { label: 'Paramètres', href: 'NEXUS-Parametres-Station-v1.html', icon: 'assets/icons/icon-parametres-24.png', desc: 'Configure les réglages généraux de la station.' },
       // Ajouté 07/08/2026, demande de Frédéric — rejoint aussi le tiroir
       // "Explorer NEXUS" (NEXUS-App-v1.html, groupe Administrer) le même jour.
-      { label: 'Paramètres Inventaire', href: 'NEXUS-Parametres-Inventaire-v1.html', icon: null, emoji: '⚙️' },
+      { label: 'Paramètres Inventaire', href: 'NEXUS-Parametres-Inventaire-v1.html', icon: 'assets/icons/icon-parametres-24.png', desc: 'Configure les règles et seuils de l’inventaire.' },
       // Paramètres FDJ (10/08/2026, audit "Paramétrage autonome & multi-
       // site", étape 3) : rejoint Paramètres Inventaire, même logique.
-      { label: 'Paramètres FDJ', href: 'NEXUS-FDJ-Parametres-v1.html', icon: null, emoji: '⚙️' },
-      { label: 'Rappels', href: 'NEXUS-Parametres-Rappels-v1.html', icon: 'assets/icons/icon-rappels.png' },
+      { label: 'Paramètres FDJ', href: 'NEXUS-FDJ-Parametres-v1.html', icon: 'assets/icons/icon-parametres-24.png', desc: 'Configure les seuils et réglages du module FDJ.' },
+      { label: 'Rappels', href: 'NEXUS-Parametres-Rappels-v1.html', icon: 'assets/icons/icon-rappels.png', desc: 'Gère les rappels officiels FDJ à traiter.' },
     ],
   },
 ];
+
+// Échappement minimal pour les attributs data-* — les libellés/descriptions
+// ci-dessus sont tous des constantes internes (jamais une saisie
+// utilisateur), donc ce n'est pas une protection XSS à proprement parler,
+// juste de quoi ne pas casser le HTML si une description contient un
+// guillemet double un jour.
+function nexusEchapperAttribut(s) {
+  return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+}
 
 function nexusConstruireSidebarHTML() {
   const pageActuelle = window.location.pathname.split('/').pop();
@@ -155,7 +198,7 @@ function nexusConstruireSidebarHTML() {
   const groupesHTML = NEXUS_SIDEBAR_GROUPES.map(g => `
     <div class="nexus-sidebar-group">${g.nom}</div>
     ${g.items.map(item => `
-      <a class="nexus-sidebar-link${item.href === pageActuelle ? ' active' : ''}" href="${item.href}">
+      <a class="nexus-sidebar-link${item.href === pageActuelle ? ' active' : ''}" href="${item.href}"${item.desc ? ` data-tooltip="${nexusEchapperAttribut(item.label)}" data-tooltip-desc="${nexusEchapperAttribut(item.desc)}"` : ''}>
         ${lienIcone(item)}
         <span>${item.label}</span>
       </a>
@@ -284,6 +327,24 @@ const NEXUS_DESKTOP_CSS = `
     70%{box-shadow:0 0 0 6px rgba(240,87,90,0);}
     100%{box-shadow:0 0 0 0 rgba(240,87,90,0);}
   }
+
+  /* Micro-tooltip au survol du menu (24/08/2026, demande de Frédéric) —
+     "répond instantanément à 'à quoi sert-il ?'", volontairement discret :
+     pas de gros titre, pas de bouton, une phrase maximum + une ligne
+     secondaire "Cliquez pour ouvrir". Apparition retardée (voir le
+     setTimeout de nexusInstallerTooltipsSidebar), disparition immédiate
+     (pas de transition sur la sortie — seule l'entrée est adoucie). */
+  .nexus-tooltip{
+    position:fixed; z-index:200; width:240px; background:#141B22;
+    border:1px solid rgba(79,195,217,0.25); border-radius:10px; padding:10px 12px;
+    box-shadow:0 8px 24px rgba(0,0,0,0.45); font-family:'IBM Plex Sans',sans-serif;
+    pointer-events:none; opacity:0; transform:translateY(2px);
+    transition:opacity 0.12s ease, transform 0.12s ease;
+  }
+  .nexus-tooltip.show{opacity:1; transform:translateY(0);}
+  .nexus-tooltip-title{font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:700; color:#EDF1F5; margin-bottom:4px;}
+  .nexus-tooltip-desc{font-size:12px; line-height:1.4; color:#B7C0CA;}
+  .nexus-tooltip-cta{font-family:'IBM Plex Mono',monospace; font-size:9.5px; color:#4FC3D9; margin-top:6px; letter-spacing:0.02em;}
 `;
 
 // Alerte NEXUS FDJ (09/08/2026, demande de Frédéric) : "envoie au manager
@@ -381,6 +442,68 @@ function nexusInstallerCurseurSidebar() {
   track.addEventListener('pointerdown', (e) => { if (e.target !== thumb) deplacerVers(e.clientY, thumb.offsetHeight / 2); });
 }
 
+// Micro-tooltip au survol du menu (24/08/2026, demande de Frédéric) — un
+// seul élément tooltip partagé, repositionné à chaque survol plutôt que
+// d'en dupliquer un par lien (plus léger, et un seul endroit à ajuster si
+// le style change demain). Délai d'apparition 300-400ms (ici 350ms, au
+// milieu de la fourchette demandée) ; disparition immédiate dès que la
+// souris quitte le lien, sans attendre — c'est cette dissymétrie qui rend
+// le tooltip "discret" plutôt qu'intrusif.
+function nexusInstallerTooltipsSidebar() {
+  const liens = document.querySelectorAll('.nexus-sidebar-link[data-tooltip]');
+  if (!liens.length) return;
+
+  const tooltip = document.createElement('div');
+  tooltip.className = 'nexus-tooltip';
+  tooltip.innerHTML = `
+    <div class="nexus-tooltip-title"></div>
+    <div class="nexus-tooltip-desc"></div>
+    <div class="nexus-tooltip-cta">Cliquez pour ouvrir</div>
+  `;
+  document.body.appendChild(tooltip);
+  const titreEl = tooltip.querySelector('.nexus-tooltip-title');
+  const descEl = tooltip.querySelector('.nexus-tooltip-desc');
+
+  let minuteur = null;
+  function masquer() {
+    if (minuteur) { clearTimeout(minuteur); minuteur = null; }
+    tooltip.classList.remove('show');
+  }
+  function positionner(lien) {
+    const r = lien.getBoundingClientRect();
+    const marge = 10;
+    let left = r.right + marge;
+    // Rabat à gauche si jamais 240px ne tiennent pas à droite — la vue
+    // bureau n'existe qu'à partir de 900px de large donc ça ne devrait
+    // jamais arriver en pratique, garde-fou seulement.
+    if (left + 240 > window.innerWidth) left = Math.max(8, r.left - 240 - marge);
+    let top = r.top + (r.height / 2) - 10;
+    top = Math.max(8, Math.min(top, window.innerHeight - 90));
+    tooltip.style.left = `${left}px`;
+    tooltip.style.top = `${top}px`;
+  }
+
+  liens.forEach(lien => {
+    lien.addEventListener('mouseenter', () => {
+      minuteur = setTimeout(() => {
+        titreEl.textContent = lien.dataset.tooltip;
+        descEl.textContent = lien.dataset.tooltipDesc;
+        positionner(lien);
+        tooltip.classList.add('show');
+      }, 350);
+    });
+    lien.addEventListener('mouseleave', masquer);
+    lien.addEventListener('click', masquer);
+  });
+
+  // Un tooltip resté affiché pendant un défilement du menu ne suivrait pas
+  // la souris et se retrouverait mal placé — plus honnête de le masquer
+  // tout de suite que d'essayer de le repositionner en continu pour une
+  // info aussi secondaire.
+  const scrollEl = document.querySelector('.nexus-sidebar-scroll');
+  if (scrollEl) scrollEl.addEventListener('scroll', masquer, { passive: true });
+}
+
 function nexusInitVueBureau() {
   const style = document.createElement('style');
   style.textContent = NEXUS_DESKTOP_CSS;
@@ -393,6 +516,7 @@ function nexusInitVueBureau() {
     sidebar.innerHTML = nexusConstruireSidebarHTML();
     document.body.insertBefore(sidebar, document.body.firstChild);
     nexusInstallerCurseurSidebar();
+    nexusInstallerTooltipsSidebar();
     nexusVerifierAlertesFdj();
   } else {
     const bouton = document.createElement('button');

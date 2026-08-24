@@ -1029,7 +1029,7 @@
       <a class="nav-item" data-role="manager" href="NEXUS-Carburants-Pilotage-v1.html">
         <div class="nav-icon" style="display:flex; align-items:center; justify-content:center; font-size:20px;">📈</div>
         <div class="nav-body">
-          <div class="nav-title">Carburants Pilotage</div>
+          <div class="nav-title">Carburants Performance</div>
           <div class="nav-desc">Volumes, mix et moteurs de performance</div>
         </div>
         <div class="nav-arrow">›</div>
@@ -1079,9 +1079,9 @@
            dans Verify") : Aujourd'hui, historique, et correction directe
            de n'importe quel quart FDJ. -->
       <a class="nav-item" data-role="manager" data-forfait="professional" href="NEXUS-FDJ-Manager-v1.html">
-        <div class="nav-icon"><img src="assets/icons/icon-fdj-24.png" alt="Contrôle FDJ"></div>
+        <div class="nav-icon"><img src="assets/icons/icon-fdj-24.png" alt="FDJ Opérations"></div>
         <div class="nav-body">
-          <div class="nav-title">Contrôle FDJ <span class="nav-badge badge-premium">Professional</span></div>
+          <div class="nav-title">FDJ Opérations <span class="nav-badge badge-premium">Professional</span></div>
           <div class="nav-desc">Historique, écarts et correction de n'importe quel quart</div>
         </div>
         <div class="nav-arrow">›</div>
@@ -1097,7 +1097,7 @@
       <a class="nav-item" data-role="manager" data-forfait="professional" href="NEXUS-FDJ-Analyse-v1.html">
         <div class="nav-icon" style="display:flex; align-items:center; justify-content:center; font-size:20px;">📊</div>
         <div class="nav-body">
-          <div class="nav-title">FDJ Pilotage <span class="nav-badge badge-premium">Professional</span></div>
+          <div class="nav-title">FDJ Performance <span class="nav-badge badge-premium">Professional</span></div>
           <div class="nav-desc">Tendances, jeux, équipe, stock et écarts — ce qui mérite l'attention</div>
         </div>
         <div class="nav-arrow">›</div>
@@ -1488,7 +1488,7 @@
         cle: 'carburants', nom: 'Carburants',
         statut: statutCarburants.statut,
         detail: statutCarburants.detail,
-        lien: 'NEXUS-Carburants-Pilotage-v1.html', libelleLien: 'Voir Carburants Pilotage →',
+        lien: 'NEXUS-Carburants-Pilotage-v1.html', libelleLien: 'Voir Carburants Performance →',
       },
       {
         cle: 'commerce', nom: 'Commerce',
@@ -1506,7 +1506,7 @@
         cle: 'fdj', nom: 'FDJ',
         statut: statutFdjVal,
         detail: alertesFdjNonVues == null ? "Pas encore de compteur d'alertes FDJ disponible." : (alertesFdjNonVues > 0 ? `${alertesFdjNonVues} alerte${alertesFdjNonVues > 1 ? 's' : ''} non vue${alertesFdjNonVues > 1 ? 's' : ''} à traiter.` : 'Aucune alerte FDJ non vue.'),
-        lien: 'NEXUS-FDJ-Analyse-v1.html', libelleLien: 'Voir FDJ Pilotage →',
+        lien: 'NEXUS-FDJ-Analyse-v1.html', libelleLien: 'Voir FDJ Performance →',
       },
       {
         cle: 'operations', nom: 'Opérations',
@@ -2401,8 +2401,8 @@
     // trouvable par recherche pour l'employé qui compte lui-même son quart
     // FDJ, pas seulement pour le manager qui le consulte).
     { label: 'FDJ', desc: 'Grattage, tirages et caisse FDJ — écart toujours calculé', href: 'NEXUS-FDJ-v1.html', role: 'all', forfait: 'professional' },
-    { label: 'Contrôle FDJ', desc: "Historique, écarts et correction de n'importe quel quart", href: 'NEXUS-FDJ-Manager-v1.html', role: 'manager', forfait: 'professional' },
-    { label: 'FDJ Pilotage', desc: "Tendances, jeux, équipe, stock et écarts — ce qui mérite l'attention", href: 'NEXUS-FDJ-Analyse-v1.html', role: 'manager', forfait: 'professional' },
+    { label: 'FDJ Opérations', desc: "Historique, écarts et correction de n'importe quel quart", href: 'NEXUS-FDJ-Manager-v1.html', role: 'manager', forfait: 'professional' },
+    { label: 'FDJ Performance', desc: "Tendances, jeux, équipe, stock et écarts — ce qui mérite l'attention", href: 'NEXUS-FDJ-Analyse-v1.html', role: 'manager', forfait: 'professional' },
     { label: 'Coach FDJ', desc: 'Votre conseil du jour, en une phrase', href: 'NEXUS-Coach-FDJ-v1.html', role: 'all', forfait: 'professional' },
     // Traçabilité (04/08/2026, demande de Frédéric) : volontairement absente
     // du tiroir de menu principal — page consultée seulement pour les
@@ -2431,7 +2431,7 @@
     { label: 'Scanner Stock', desc: 'Où vous perdez de l\'argent, quoi recompter', href: 'NEXUS-Scanner-Stock-v1.html', role: 'manager' },
     { label: 'Verify', desc: 'Contrôle caisse et écarts', href: 'NEXUS-Verify-v1.html', role: 'manager' },
     { label: 'Carburants', desc: 'Jaugeage à l\'ouverture, théorique et écart calculés', href: 'NEXUS-Carburants-v1.html', role: 'manager' },
-    { label: 'Carburants Pilotage', desc: 'Volumes, mix et moteurs de performance sur une période choisie', href: 'NEXUS-Carburants-Pilotage-v1.html', role: 'manager' },
+    { label: 'Carburants Performance', desc: 'Volumes, mix et moteurs de performance sur une période choisie', href: 'NEXUS-Carburants-Pilotage-v1.html', role: 'manager' },
     // Réception carburant (14/08/2026, audit "Réceptions, deltas et effet
     // économique du stock", P1) : role 'all' — comme Inventaire, c'est un
     // outil du quotidien pour l'employé qui réceptionne une livraison, pas

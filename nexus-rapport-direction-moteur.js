@@ -356,7 +356,7 @@
       couvertureIncertaine,
       nbQuartsControles: fdjDetail.nbQuartsControles, nbQuartsTotal: fdjDetail.nbQuartsTotal,
       lectureNexus: (fdjDetail.jeuMoteur
-        ? `L'activité FDJ ${fdjDetail.evolution == null ? 'est mesurée' : fdjDetail.evolution >= 0 ? 'progresse' : 'recule'} sur la période, portée par ${fdjDetail.jeuMoteur.nom}. Voir FDJ Pilotage pour le détail par jeu et par quart.`
+        ? `L'activité FDJ ${fdjDetail.evolution == null ? 'est mesurée' : fdjDetail.evolution >= 0 ? 'progresse' : 'recule'} sur la période, portée par ${fdjDetail.jeuMoteur.nom}. Voir FDJ Performance pour le détail par jeu et par quart.`
         : "Détail insuffisant pour une lecture croisée sur cette période.") + phraseCouverture,
     };
   }

@@ -13,7 +13,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="NEXUS">
 <meta name="theme-color" content="#0B0F14">
-<title>NEXUS — FDJ · Contrôle</title>
+<title>NEXUS — FDJ · Opérations</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -2144,7 +2144,7 @@
   // ACCUEIL MANAGER — Aujourd'hui + Historique
   // ------------------------------------------------------------
   async function renderAccueil() {
-    document.getElementById('titre').textContent = 'Contrôle FDJ';
+    document.getElementById('titre').textContent = 'FDJ Opérations';
     document.getElementById('sousTitre').textContent = '';
     document.getElementById('content').innerHTML = '<div class="loading">Chargement…</div>';
 
@@ -5200,8 +5200,8 @@
         <div class="apres-enreg-icone">✅</div>
         <div class="apres-enreg-titre">Quart FDJ enregistré.</div>
         <div class="apres-enreg-sous">Où voulez-vous aller maintenant ?</div>
-        <button class="btn-primary" id="btnApresAccueil">← Retour à l'accueil Contrôle FDJ</button>
-        <button class="btn-ghost" id="btnApresPilotage">Aller à FDJ Pilotage →</button>
+        <button class="btn-primary" id="btnApresAccueil">← Retour à l'accueil FDJ Opérations</button>
+        <button class="btn-ghost" id="btnApresPilotage">Aller à FDJ Performance →</button>
       </div>
     `;
     document.getElementById('btnApresAccueil').addEventListener('click', () => { vue = 'liste'; renderAccueil(); });

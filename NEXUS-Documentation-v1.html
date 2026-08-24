@@ -179,6 +179,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-auth.js"></script>
+<script src="nexus-header-nav.js"></script>
 <script src="nexus-desktop.js"></script>
 <script>
   // ============================================================
@@ -426,7 +427,7 @@
       donneesSources: "Comptage direct de l'employé (stock initial/appro/stock final par jeu) + deux valeurs reprises des rapports FDJ imprimés (lots payés, caisse tirages).",
     },
     {
-      id: 'controle-fdj', groupe: 'executer', icone: '🎯', nom: 'Contrôle FDJ', href: 'NEXUS-FDJ-Manager-v1.html',
+      id: 'controle-fdj', groupe: 'executer', icone: '🎯', nom: 'FDJ Opérations', href: 'NEXUS-FDJ-Manager-v1.html',
       role: 'Manager', forfait: 'professional', intentions: ['controler-caisses', 'maitriser-stocks'],
       aQuoiCaSert: "La vue manager sur FDJ — Aujourd'hui, historique complet, et le pouvoir de corriger n'importe quel quart (grattage, tirages, caisse, employé assigné, statut), comme dans Verify.",
       quandUtiliser: "Chaque jour pour suivre les écarts, ou dès qu'une correction est nécessaire sur un quart déjà validé.",

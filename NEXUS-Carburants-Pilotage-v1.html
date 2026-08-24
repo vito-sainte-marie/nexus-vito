@@ -13,7 +13,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="NEXUS">
 <meta name="theme-color" content="#0B0F14">
-<title>NEXUS — Carburants Pilotage</title>
+<title>NEXUS — Carburants Performance</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -461,8 +461,8 @@
 <div class="phone">
   <div class="header">
     <a href="NEXUS-App-v1.html" class="menu-btn">☰ Menu</a>
-    <div class="eyebrow">NEXUS · CARBURANTS · PILOTAGE</div>
-    <div class="title">Carburants Pilotage</div>
+    <div class="eyebrow">NEXUS · CARBURANTS · PERFORMANCE</div>
+    <div class="title">Carburants Performance</div>
     <div class="sub" id="sousTitre">Chargement…</div>
   </div>
   <div class="divider"></div>
@@ -660,7 +660,7 @@
     </div>
   </div>
 
-  <footer>NEXUS Carburants Pilotage v1 (refonte 13/08/2026, habillage accordéon 14/08/2026) · Vito Sainte-Marie Usine</footer>
+  <footer>NEXUS Carburants Performance v1 (refonte 13/08/2026, habillage accordéon 14/08/2026, renommage Performance 24/08/2026) · Vito Sainte-Marie Usine</footer>
 </div>
 
 <script>
@@ -1758,7 +1758,7 @@
       refs.dernierPdf = await construireFn();
       afficherActionsPdfPretCarburant(zoneEl, refs, construireFn);
     } catch (e) {
-      console.error('NEXUS Carburants Pilotage — génération PDF :', e);
+      console.error('NEXUS Carburants Performance — génération PDF :', e);
       zoneEl.innerHTML = `
         <div class="controle-statut-rapport statut-erreur">Erreur lors de la génération — réessayez.</div>
         <button type="button" class="controle-modal-btn secondaire" id="btnReessayerPdfCarburant">Réessayer</button>

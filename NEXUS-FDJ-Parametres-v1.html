@@ -18,6 +18,7 @@
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-auth.js"></script>
+<script src="nexus-header-nav.js"></script>
 <script src="nexus-forfait.js"></script>
 <script src="nexus-desktop.js"></script>
 <style>
@@ -226,7 +227,7 @@
       <div class="card" style="margin-bottom:4px;">
         <div class="param-ligne"><label>Quarts minimum pour un CA moyen fiable</label><input type="number" min="1" step="1" class="param-input" id="paramSeuilMinQuarts" value="${p.seuil_min_quarts_moyenne}"></div>
       </div>
-      <div class="param-note">En dessous de ce nombre de quarts contrôlés sur la période choisie, FDJ Pilotage affiche « trop peu de quarts » plutôt qu'une moyenne par quart peu fiable (onglet Équipe et Top vendeurs du rapport).</div>
+      <div class="param-note">En dessous de ce nombre de quarts contrôlés sur la période choisie, FDJ Performance affiche « trop peu de quarts » plutôt qu'une moyenne par quart peu fiable (onglet Équipe et Top vendeurs du rapport).</div>
 
       <div class="section-titre">Contrôle de caisse</div>
       <div class="card" style="margin-bottom:4px;">
@@ -234,7 +235,7 @@
         <div class="param-ligne"><label>Seuil « écart significatif » (€)</label><input type="number" min="0" step="0.5" class="param-input" id="paramSeuilRouge" value="${p.seuil_caisse_rouge}"></div>
         <div class="param-ligne"><label>Validation manager obligatoire</label><div class="toggle-switch ${p.validation_manager_obligatoire ? 'on' : ''}" data-toggle="validation_manager_obligatoire" data-actif="${p.validation_manager_obligatoire ? '1' : '0'}"><div class="toggle-knob"></div></div></div>
       </div>
-      <div class="param-note">Ces seuils sont enregistrés pour préparer un statut de caisse automatique (« à contrôler » entre les deux bornes) — aujourd'hui, le manager choisit encore lui-même le statut de chaque quart dans Contrôle FDJ, aucun calcul ne s'appuie encore sur ces valeurs.</div>
+      <div class="param-note">Ces seuils sont enregistrés pour préparer un statut de caisse automatique (« à contrôler » entre les deux bornes) — aujourd'hui, le manager choisit encore lui-même le statut de chaque quart dans FDJ Opérations, aucun calcul ne s'appuie encore sur ces valeurs.</div>
 
       <div class="section-titre">Coach FDJ</div>
       <div class="card">
@@ -244,7 +245,7 @@
         <div class="param-ligne"><label>Seuil progrès (occurrences de base)</label><input type="number" min="1" step="1" class="param-input" id="paramCoachProgresBase" value="${p.coach_seuil_progres_base}"></div>
         <div class="param-ligne"><label>Seuil progrès (baisse minimum, 0 à 1)</label><input type="number" min="0" max="1" step="0.05" class="param-input" id="paramCoachProgresBaisse" value="${p.coach_seuil_progres_baisse}"></div>
       </div>
-      <div class="param-note">Les 4 seuils sont déjà utilisés par la synthèse « Coaching équipe » (FDJ Pilotage et Brief NEXUS). « Coach actif » n'est en revanche pas encore lu par un écran — Coach FDJ reste toujours actif aujourd'hui, ce réglage prépare la suite.</div>
+      <div class="param-note">Les 4 seuils sont déjà utilisés par la synthèse « Coaching équipe » (FDJ Performance et Brief NEXUS). « Coach actif » n'est en revanche pas encore lu par un écran — Coach FDJ reste toujours actif aujourd'hui, ce réglage prépare la suite.</div>
     `;
   }
 

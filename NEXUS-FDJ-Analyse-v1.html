@@ -13,7 +13,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="NEXUS">
 <meta name="theme-color" content="#0B0F14">
-<title>NEXUS — FDJ · Pilotage</title>
+<title>NEXUS — FDJ · Performance</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -191,7 +191,7 @@
 <div class="phone">
   <div class="header">
     <a href="NEXUS-App-v1.html" class="menu-btn">☰ Menu</a>
-    <div class="eyebrow">NEXUS · FDJ · Pilotage</div>
+    <div class="eyebrow">NEXUS · FDJ · Performance</div>
     <div class="title" id="titre">Chargement…</div>
     <div class="sub" id="sousTitre"></div>
   </div>
@@ -516,7 +516,7 @@
   }
 
   async function renderPage() {
-    document.getElementById('titre').textContent = 'FDJ · Pilotage';
+    document.getElementById('titre').textContent = 'FDJ · Performance';
     document.getElementById('sousTitre').textContent = "Ce qui mérite l'attention aujourd'hui — jamais un mur de graphiques.";
     document.getElementById('content').innerHTML = `
       <div class="periode-bar">
@@ -606,7 +606,7 @@
       else if (ongletActuel === 'conseiller') await renderConseiller(zone);
       else if (ongletActuel === 'rapports') await renderRapports(zone);
     } catch (e) {
-      console.error('Erreur de rendu onglet FDJ Pilotage:', e);
+      console.error('Erreur de rendu onglet FDJ Performance:', e);
       zone.innerHTML = '<div class="loading">Erreur de chargement. Réessayez.</div>';
     }
   }
@@ -1660,7 +1660,7 @@
 
     const c = await NexusPdfMoteur.creerRapportUnePage({
       titre: `NEXUS FDJ — Rapport ${donnees.periodeLabel}`,
-      sujet: 'Rapport FDJ Pilotage',
+      sujet: 'Rapport FDJ Performance',
     });
 
     // --- En-tête compact ---
@@ -1736,7 +1736,7 @@
     c.tableauCompact(colsVentes.gauche, {
       titre: 'TOP JEUX',
       max: 5,
-      texteRenvoi: 'voir FDJ Pilotage',
+      texteRenvoi: 'voir FDJ Performance',
       colonnes: [{ label: 'Jeu', cle: 'nom', largeur: 0.68 }, { label: 'CA', cle: 'ca', largeur: 0.32, align: 'droite' }],
       lignes: donnees.topJeux.map(l => ({ nom: l.jeu.nom, ca: fmtEuro(l.ca) })),
     });
@@ -1764,7 +1764,7 @@
       ruptures: donnees.enRupture,
       nbSurveillance: donnees.enVigilance.length,
       prioritaires: jeuxPrioritaires,
-      texteRenvoi: donnees.enVigilance.length ? 'Liste complète dans FDJ Pilotage.' : '',
+      texteRenvoi: donnees.enVigilance.length ? 'Liste complète dans FDJ Performance.' : '',
     });
 
     // --- Conseil NEXUS + Décisions recommandées (zone partagée) ---
@@ -1796,7 +1796,7 @@
     return {
       bytes, nomFichier,
       titre: `NEXUS FDJ — Rapport ${donnees.periodeLabel}`,
-      texte: `Rapport FDJ Pilotage — ${donnees.site}`,
+      texte: `Rapport FDJ Performance — ${donnees.site}`,
     };
   }
 
@@ -1896,7 +1896,7 @@
       <div id="zoneActionsRapport">
         <button class="btn-rapport-pdf" id="btnGenererRapport" type="button">Générer mon rapport</button>
       </div>
-      <div class="champ-note">Une seule page A4 : l'essentiel à retenir, l'évolution des ventes, le top jeux et la répartition par palier, l'équipe, le stock, un conseil NEXUS et jusqu'à 3 décisions recommandées. Le détail complet reste consultable dans FDJ Pilotage. Changez de période au-dessus pour un rapport hebdomadaire, mensuel ou annuel.</div>
+      <div class="champ-note">Une seule page A4 : l'essentiel à retenir, l'évolution des ventes, le top jeux et la répartition par palier, l'équipe, le stock, un conseil NEXUS et jusqu'à 3 décisions recommandées. Le détail complet reste consultable dans FDJ Performance. Changez de période au-dessus pour un rapport hebdomadaire, mensuel ou annuel.</div>
     `;
 
     document.getElementById('btnGenererRapport').addEventListener('click', lancerGenerationRapport);

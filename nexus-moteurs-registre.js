@@ -95,7 +95,7 @@
     caisse: 'un audit de caisse réel (Verify)',
     stock: 'les relevés de stock (Scanner Stock)',
     rappel: 'un rappel ajouté manuellement',
-    fdj: 'le stock et les comptages de quart FDJ réels (FDJ Pilotage)',
+    fdj: 'le stock et les comptages de quart FDJ réels (FDJ Performance)',
     coach: 'les recommandations Coach FDJ déjà générées pour chaque employé (Coach FDJ)',
   };
 
