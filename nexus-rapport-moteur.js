@@ -168,11 +168,25 @@
     if (e.fdj) {
       if (e.fdj.disponible) {
         const evol = e.fdj.evolution;
+        // Couverture quarts finalisés (23/08/2026, audit "Anti-dégradation
+        // temporelle" §6, v2.225) — même convention que Carburants
+        // (couvertureIncertaine ci-dessus) : le CA FDJ n'a jamais inclus de
+        // quart en brouillon (déjà filtré côté SQL, view_fdj_daily_summary),
+        // mais rien ne le disait au manager. Ajouté UNIQUEMENT quand la
+        // période contient réellement des quarts non inclus (jamais un
+        // "10/10 quarts finalisés" qui n'apporterait rien) — Article 5,
+        // ne pas fabriquer une inquiétude là où tout est déjà complet.
+        const quartsNonInclus = (e.fdj.nbQuartsTotal != null && e.fdj.nbQuartsControles != null)
+          ? Math.max(0, e.fdj.nbQuartsTotal - e.fdj.nbQuartsControles) : 0;
+        const couvertureIncomplete = quartsNonInclus > 0;
+        const suffixeCouverture = couvertureIncomplete
+          ? ` — ${e.fdj.nbQuartsControles}/${e.fdj.nbQuartsTotal} quarts finalisés, ${quartsNonInclus} non inclus (en attente de validation)`
+          : '';
         axes.push({
           nom: 'FDJ', icone: '🎟️',
           statut: evol == null ? 'Données insuffisantes' : directionTexte(evol),
-          detail: `CA FDJ : ${formaterEuros(e.fdj.caActuel)}${evol != null ? ` (${evol >= 0 ? '+' : ''}${(evol * 100).toFixed(1)} %)` : ''}${e.fdj.jeuMoteur ? ` · Jeu moteur : ${e.fdj.jeuMoteur.nom}` : ''}.`,
-          confiance: 'reel',
+          detail: `CA FDJ : ${formaterEuros(e.fdj.caActuel)}${evol != null ? ` (${evol >= 0 ? '+' : ''}${(evol * 100).toFixed(1)} %)` : ''}${e.fdj.jeuMoteur ? ` · Jeu moteur : ${e.fdj.jeuMoteur.nom}` : ''}${suffixeCouverture}.`,
+          confiance: couvertureIncomplete ? 'derive' : 'reel',
         });
       } else {
         axesNonCouverts.push({ nom: 'FDJ', icone: '🎟️', raison: e.fdj.raison || "Aucun quart FDJ contrôlé sur cette période." });

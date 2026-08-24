@@ -19,6 +19,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
 <script src="nexus-auth.js"></script>
+<script src="nexus-header-nav.js"></script>
 <script src="nexus-desktop.js"></script>
 <script src="nexus-periodes.js"></script>
 <script src="nexus-carburant-moteur.js"></script>
@@ -246,9 +247,24 @@
   // FDJ : mêmes vues que Brief NEXUS (view_fdj_daily_summary/
   // view_fdj_game_daily), simplement filtrées sur la période choisie par
   // le manager au lieu d'une fenêtre glissante fixe de 7 jours.
+  //
+  // Couverture quarts finalisés (23/08/2026, audit "Anti-dégradation
+  // temporelle" §6, v2.225 — "rapport hebdomadaire FDJ") : `nb_quarts`
+  // (vue `view_fdj_daily_summary`) compte TOUS les quarts FDJ enregistrés
+  // sur la période, alors que `nb_quarts_controles`/`ca_grattage` sont déjà
+  // filtrés côté SQL sur `caisse_comptabilisable` (shift validé ET caisse
+  // non provisoire — vérifié dans la définition de la vue) : le CA affiché
+  // n'a donc JAMAIS inclus de quart en brouillon (l'audit était déjà
+  // respecté sur le fond). Ce qui manquait, c'est la TRANSPARENCE demandée
+  // par l'audit ("Le Brief peut signaler la couverture, ex. 8/10 quarts
+  // finalisés, sans pénaliser le score") : `nbQuartsControles` était
+  // calculé puis jeté sans jamais être montré au manager. Les deux
+  // compteurs sont désormais retournés — Article 5, jamais un total
+  // "définitif" présenté sans dire combien de quarts y contribuent
+  // réellement.
   async function chargerFdjPeriode(client, site, periode) {
     const [{ data: dailyRows, error: e1 }, { data: gameDailyRows, error: e2 }, { data: jeuxData, error: e3 }] = await Promise.all([
-      client.from('view_fdj_daily_summary').select('ca_grattage, nb_quarts_controles').eq('site', site).gte('date', periode.debut).lte('date', periode.fin),
+      client.from('view_fdj_daily_summary').select('ca_grattage, nb_quarts_controles, nb_quarts').eq('site', site).gte('date', periode.debut).lte('date', periode.fin),
       client.from('view_fdj_game_daily').select('game_id, ca').eq('site', site).gte('date', periode.debut).lte('date', periode.fin),
       client.from('fdj_games').select('id, nom').eq('site', site).eq('actif', true),
     ]);
@@ -256,6 +272,7 @@
     const rows = dailyRows || [];
     const nbQuartsControles = rows.reduce((s, r) => s + (r.nb_quarts_controles || 0), 0);
     if (!nbQuartsControles) return { disponible: false, raison: `Aucun quart FDJ contrôlé sur la période ${periode.debut} → ${periode.fin}.` };
+    const nbQuartsTotal = rows.reduce((s, r) => s + (r.nb_quarts || 0), 0);
     const caActuel = rows.reduce((s, r) => s + (r.ca_grattage || 0), 0);
     const gameCa = {};
     (gameDailyRows || []).forEach(l => { if (l.ca) gameCa[l.game_id] = (gameCa[l.game_id] || 0) + Number(l.ca); });
@@ -263,7 +280,7 @@
       .sort((a, b) => b[1] - a[1]).slice(0, 5)
       .map(([gid, ca]) => { const j = (jeuxData || []).find(j => j.id === gid); return { id: gid, nom: j ? j.nom : gid, ca }; });
     const jeuMoteur = jeuxTop5[0] || null;
-    return { disponible: true, caActuel, jeuMoteur, jeuxTop5 };
+    return { disponible: true, caActuel, jeuMoteur, jeuxTop5, nbQuartsControles, nbQuartsTotal };
   }
 
   async function chargerEtRendre(bornesLibres) {
@@ -307,7 +324,8 @@
       : { disponible: false, raison: carbActuel.raison };
     const fdjChapitre = fdjActuel.disponible
       ? { disponible: true, caActuel: fdjActuel.caActuel, jeuMoteur: fdjActuel.jeuMoteur,
-          evolution: (fdjRef.disponible && fdjRef.caActuel > 0) ? (fdjActuel.caActuel - fdjRef.caActuel) / fdjRef.caActuel : null }
+          evolution: (fdjRef.disponible && fdjRef.caActuel > 0) ? (fdjActuel.caActuel - fdjRef.caActuel) / fdjRef.caActuel : null,
+          nbQuartsControles: fdjActuel.nbQuartsControles, nbQuartsTotal: fdjActuel.nbQuartsTotal }
       : { disponible: false, raison: fdjActuel.raison };
     CHAPITRE2 = NexusRapportMoteur.construireChapitreSante(CHAPITRE1, { carburants: carburantsChapitre, fdj: fdjChapitre });
 
@@ -373,7 +391,8 @@
       };
     }
     const fdjDetail = fdjChapitre.disponible
-      ? { disponible: true, caActuel: fdjChapitre.caActuel, evolution: fdjChapitre.evolution, jeuMoteur: fdjChapitre.jeuMoteur, jeuxTop5: fdjActuel.jeuxTop5 }
+      ? { disponible: true, caActuel: fdjChapitre.caActuel, evolution: fdjChapitre.evolution, jeuMoteur: fdjChapitre.jeuMoteur, jeuxTop5: fdjActuel.jeuxTop5,
+          nbQuartsControles: fdjChapitre.nbQuartsControles, nbQuartsTotal: fdjChapitre.nbQuartsTotal }
       : { disponible: false, raison: fdjChapitre.raison };
 
     // Granularité stratégique (même filtre que Brief NEXUS, appliqué ici

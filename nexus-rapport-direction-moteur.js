@@ -333,13 +333,31 @@
     if (!fdjDetail || !fdjDetail.disponible) {
       return { disponible: false, raison: (fdjDetail && fdjDetail.raison) || 'Aucun quart FDJ contrôlé sur cette période.' };
     }
+    // Couverture quarts finalisés (23/08/2026, audit "Anti-dégradation
+    // temporelle" §6, v2.225 — "rapport hebdomadaire FDJ") : "Le rapport
+    // hebdomadaire ne doit inclure dans les totaux définitifs que les
+    // quarts finalisés. Les quarts en brouillon ou non validés doivent être
+    // visibles comme 'non inclus — en attente de validation'." Le total
+    // (`caActuel`) était déjà correct (filtré côté SQL, jamais un quart en
+    // brouillon inclus) — ce qui manquait, c'est cette phrase de
+    // transparence sur la couverture, ajoutée UNIQUEMENT quand la période
+    // contient réellement des quarts exclus (Article 5 — ne rien signaler
+    // quand tout est déjà complet).
+    const quartsNonInclus = (fdjDetail.nbQuartsTotal != null && fdjDetail.nbQuartsControles != null)
+      ? Math.max(0, fdjDetail.nbQuartsTotal - fdjDetail.nbQuartsControles) : 0;
+    const couvertureIncertaine = quartsNonInclus > 0;
+    const phraseCouverture = couvertureIncertaine
+      ? ` ${fdjDetail.nbQuartsControles}/${fdjDetail.nbQuartsTotal} quart${fdjDetail.nbQuartsTotal > 1 ? 's' : ''} finalisé${fdjDetail.nbQuartsControles > 1 ? 's' : ''} sur la période — ${quartsNonInclus} quart${quartsNonInclus > 1 ? 's' : ''} non inclus dans ce total (en attente de validation manager).`
+      : '';
     return {
       disponible: true, caActuel: fdjDetail.caActuel, evolution: fdjDetail.evolution,
       jeuxTop: fdjDetail.jeuxTop5 || (fdjDetail.jeuMoteur ? [fdjDetail.jeuMoteur] : []),
       mixPalierDisponible: false,
-      lectureNexus: fdjDetail.jeuMoteur
+      couvertureIncertaine,
+      nbQuartsControles: fdjDetail.nbQuartsControles, nbQuartsTotal: fdjDetail.nbQuartsTotal,
+      lectureNexus: (fdjDetail.jeuMoteur
         ? `L'activité FDJ ${fdjDetail.evolution == null ? 'est mesurée' : fdjDetail.evolution >= 0 ? 'progresse' : 'recule'} sur la période, portée par ${fdjDetail.jeuMoteur.nom}. Voir FDJ Pilotage pour le détail par jeu et par quart.`
-        : "Détail insuffisant pour une lecture croisée sur cette période.",
+        : "Détail insuffisant pour une lecture croisée sur cette période.") + phraseCouverture,
     };
   }
 
