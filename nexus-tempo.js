@@ -1293,7 +1293,6 @@
   // ------------------------------------------------------------
   function calculerConstatTempo(auditsCaisseRows, productsRows, estProduitAppelFn) {
     const joursAgreges = agregerParJour(auditsCaisseRows || []);
-    const totalJours = joursAgreges.length;
     const joursExploitables = filtrerJoursClos(joursAgreges);
     const periodesProduitsAppel = calculerPeriodesProduitsAppel(productsRows || [], estProduitAppelFn);
     const joursValorises = attribuerValorisationBoutique(joursExploitables, periodesProduitsAppel);
@@ -1308,11 +1307,44 @@
     const jourPlusRentable = (jourPlusRentableBrut && jourPlusRentableBrut.nbOccValorisation > 0) ? jourPlusRentableBrut : null;
     const jourProgression = (jourProgressionBrut && jourProgressionBrut.confianceTendance) ? jourProgressionBrut : null;
 
+    // Correctif (23/08/2026, audit "Anti-dégradation temporelle" §5
+    // Verify — voir NEXUS-Data-Dictionary-v2.md v2.221) : `detailOperations`/
+    // `totalJours` (Maîtrise du secteur Opérations, nexus-secteurs-moteur.js)
+    // étaient calculés sur `joursAgreges` (les jours ENREGISTRÉS bruts, qui
+    // incluent aujourd'hui dès qu'UN SEUL quart est saisi) — en contradiction
+    // directe avec la règle posée juste au-dessus dans ce même fichier dès
+    // le 25/07/2026 : *"Toute la mémoire temporelle (maturité, confiance
+    // globale, décision, saisonnier, découvertes) doit être calculée à
+    // partir des jours EXPLOITABLES, jamais des jours enregistrés bruts."*
+    // `totalJours`/`detailOperations` avaient été ajoutés dans un lot
+    // ultérieur sans reprendre cette règle déjà établie. Un jour en cours
+    // (ex. Q1 saisi, Q2 pas encore fait) pesait donc dans la moyenne d'écart
+    // de caisse exactement comme une journée complète — la dégradation
+    // artificielle décrite par l'audit ("le secteur Operations ne doit pas
+    // chuter uniquement parce que la journée n'est pas terminée"). Corrigé
+    // en réutilisant `joursExploitables` (déjà calculé ci-dessus, Article 11
+    // — aucune 2e définition de "jour exploitable").
+    const totalJours = joursExploitables.length;
     const detailOperations = totalJours > 0
-      ? joursAgreges.reduce((s, j) => s + Math.abs(j.ecartPiste) + Math.abs(j.ecartBoutique), 0) / totalJours
+      ? joursExploitables.reduce((s, j) => s + Math.abs(j.ecartPiste) + Math.abs(j.ecartBoutique), 0) / totalJours
       : null;
 
-    return { jourARenforcer: jourARenforcerRetenu, jourMoteur, jourPlusRentable, jourProgression, totalJours, detailOperations };
+    // Fraîcheur Opérations (23/08/2026, même audit, §5/§12 — exemple UX
+    // cible : "Dernier etat fiable : hier / Aujourd'hui : 2 controles en
+    // attente / 1 brouillon"). Distinct du fallback Carburants/FDJ (aucun
+    // score figé sur UN jour précis ici — Opérations mesure déjà une
+    // moyenne glissante sur tout l'historique exploitable, qui se met à
+    // jour d'elle-même dès qu'un nouveau jour devient exploitable) : ce
+    // qu'il faut exposer, c'est simplement LA DATE du dernier jour déjà
+    // inclus dans cette moyenne, et si aujourd'hui porte déjà un contrôle
+    // (même partiel) qui n'y est pas encore intégré.
+    const dernierJourExploitableLe = joursExploitables.length ? joursExploitables[joursExploitables.length - 1].date : null;
+    const aujourdhuiAUnControle = joursAgreges.some(j => j.date === aujourdHuiISO());
+
+    return {
+      jourARenforcer: jourARenforcerRetenu, jourMoteur, jourPlusRentable, jourProgression, totalJours, detailOperations,
+      dernierJourExploitableLe, aujourdhuiAUnControle,
+    };
   }
 
   // Candidat Tempo enrichi pour le Conseiller (27/07/2026, demande de

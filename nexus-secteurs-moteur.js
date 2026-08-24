@@ -458,7 +458,33 @@
     // qualifie l'action attendue : "À corriger" (écart confirmé important),
     // "À confirmer" (écart mineur) ou "Sous contrôle".
     const statut = B.statutMetier({ perfBucket: 'inconnue', maitriseBucket: B.maitriseBucket(contribMaitrise, B.BUDGET_DIMENSION_UNIQUE) });
-    const detail = `Écart de caisse moyen : ${Math.round(constatTempo.detailOperations)} €/jour${controlesVerifyRestants ? ` · ${controlesVerifyRestants} contrôle${controlesVerifyRestants > 1 ? 's' : ''} caisse en attente aujourd'hui` : ''}.`;
+    // Fraîcheur Opérations (23/08/2026, audit "Anti-dégradation temporelle"
+    // §5 Verify — voir nexus-tempo.js, calculerConstatTempo) : contrairement
+    // à Carburants/FDJ (un score figé sur UN jour précis, avec un mode
+    // 'fallback'/'perime' binaire), Opérations mesure une moyenne glissante
+    // sur tout l'historique EXPLOITABLE (qui exclut aujourd'hui par
+    // construction, voir le correctif ci-dessus) — il n'y a donc pas de
+    // "score du jour" à figer, seulement une date à afficher honnêtement :
+    // celle du dernier jour réellement intégré à cette moyenne. Jamais un
+    // mode 'perime'/'À actualiser' ici : une moyenne glissante ne devient
+    // pas "trop vieille" du jour au lendemain comme un relevé carburant
+    // ponctuel — si Verify n'est plus utilisé du tout, `totalJours` finit
+    // par retomber à 0 et le secteur repasse par le gardefou
+    // `secteurVide` ci-dessus, un signal déjà honnête en soi.
+    let dernierControleTxt = null;
+    if (constatTempo.dernierJourExploitableLe) {
+      // Diff calculée en jours calendaires UTC, exactement comme
+      // aujourdHuiISO() dans nexus-tempo.js (`new Date().toISOString()`) —
+      // jamais une comparaison en heure locale, qui déciderait "aujourd'hui"
+      // différemment de tout le reste de la chaîne temporelle selon le
+      // fuseau horaire de la machine (Article 11 — une seule définition de
+      // "aujourd'hui" dans tout NEXUS).
+      const [ay, am, ad] = constatTempo.dernierJourExploitableLe.split('-').map(Number);
+      const [hy, hm, hd] = new Date().toISOString().slice(0, 10).split('-').map(Number);
+      const joursEcoules = Math.round((Date.UTC(hy, hm - 1, hd) - Date.UTC(ay, am - 1, ad)) / 86400000);
+      dernierControleTxt = joursEcoules <= 1 ? 'dernier contrôle intégré : hier' : `dernier contrôle intégré il y a ${joursEcoules} jours`;
+    }
+    const detail = `Écart de caisse moyen : ${Math.round(constatTempo.detailOperations)} €/jour${dernierControleTxt ? ` (${dernierControleTxt})` : ''}${controlesVerifyRestants ? ` · ${controlesVerifyRestants} contrôle${controlesVerifyRestants > 1 ? 's' : ''} caisse en attente aujourd'hui` : ''}.`;
     // Risques (Annexe A) : distincts du statut lui-même — Opérations est le
     // secteur transversal qui agrège caisse/inventaire/stock, exactement
     // comme demandé par l'audit ("Opérations est transversal... sans
