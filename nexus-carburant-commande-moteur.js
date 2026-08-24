@@ -351,7 +351,11 @@
     if (scenarioAttente && scenarioAttente.margeJours != null && scenarioAttente.margeJours < 0) {
       return {
         recommandation: 'commander_maintenant',
-        motif: `Attendre ferait passer la réserve de sécurité sous le seuil (marge estimée : ${arrondi1(scenarioAttente.margeJours)} j).`,
+        // Formulation orientée décision (25/08/2026, retour de Frédéric :
+        // "plus orienté décision") — même information (marge estimée si le
+        // manager attend), reformulée autour de l'action à prendre plutôt
+        // que de la conséquence à éviter.
+        motif: `Commander maintenant évite de passer sous la réserve de sécurité avant le prochain créneau de livraison (marge estimée si vous attendez : ${arrondi1(scenarioAttente.margeJours)} j).`,
         scenarioMaintenant, scenarioAttente,
       };
     }
@@ -595,20 +599,43 @@
         const ev = evaluationsParCarburant[c];
         const margeSecuriteOk = ev && ev.scenarioMaintenant && ev.scenarioMaintenant.margeJours != null
           ? ev.scenarioMaintenant.margeJours >= 0 : null;
-        const arrondi = arrondirVolumeCommande(v, { margeSecuriteOk });
+        let arrondi = arrondirVolumeCommande(v, { margeSecuriteOk });
+        // P0 (25/08/2026, retour de Frédéric — cas réel vito-sainte-marie :
+        // SP95 stock prévu 5 591 L, limite de remplissage 28 761 L, capacité
+        // disponible 23 170 L, mais recommandation affichée 24 000 L,
+        // dépassant la capacité physique de 830 L). arrondirVolumeCommande
+        // arrondit AU-DESSUS quand la marge de sécurité est insuffisante
+        // (margeSecuriteOk === false) sans jamais savoir ce que la cuve peut
+        // physiquement recevoir — l'arrondi de sécurité ne doit cependant
+        // jamais dépasser la capacité disponible à la livraison. Priorité
+        // explicite du cahier : "sécurité > capacité physique > réserve 3
+        // jours [...]" — la capacité physique reste un plafond dur, même si
+        // cela signifie rester en-dessous de l'arrondi "sécurité".
+        if (capacitesDisponiblesL && capacitesDisponiblesL[c] != null) {
+          const plafond = Math.floor(capacitesDisponiblesL[c]);
+          if (arrondi > plafond) arrondi = plafond;
+        }
         volumesArrondis[c] = arrondi;
         totalArrondi += arrondi || 0;
       });
       // Filet de sécurité : si l'arrondi (toujours au multiple de 1000
       // inférieur par défaut) repasse sous le minimum camion, on remonte le
-      // plus gros volume d'un cran plutôt que de proposer une commande
-      // finalement invalide.
+      // plus gros volume d'un cran — mais JAMAIS au-delà de sa propre
+      // capacité disponible (même plafond dur que ci-dessus). Si aucun
+      // carburant retenu n'a plus de marge de capacité, la commande reste
+      // honnêtement sous le minimum camion plutôt que de proposer un volume
+      // matériellement impossible à recevoir (Article 5).
       const pasArrondi = 1000;
       if (config && totalArrondi < config.minimum_camion_litres) {
         const tri = Object.entries(volumesArrondis).sort((a, b) => b[1] - a[1]);
-        if (tri.length) {
-          volumesArrondis[tri[0][0]] += pasArrondi;
-          totalArrondi += pasArrondi;
+        for (const [cle] of tri) {
+          const plafondCle = (capacitesDisponiblesL && capacitesDisponiblesL[cle] != null)
+            ? Math.floor(capacitesDisponiblesL[cle]) : Infinity;
+          if (volumesArrondis[cle] + pasArrondi <= plafondCle) {
+            volumesArrondis[cle] += pasArrondi;
+            totalArrondi += pasArrondi;
+            break;
+          }
         }
       }
       commandeRecommandee = { volumes: volumesArrondis, total: totalArrondi };
@@ -682,6 +709,105 @@
     };
   }
 
+  // ============================================================
+  // I. CONTEXTE HISTORIQUE DE PLAUSIBILITÉ (25/08/2026, retour de Frédéric,
+  //    cahier "NEXUS Carburants / moteur de recommandation" — "historique de
+  //    commandes réel comme référence de plausibilité"). Jamais une règle
+  //    rigide : ce contexte ne bloque et ne force aucune décision du moteur
+  //    (§ explicite du cahier), c'est un simple repère pour juger si une
+  //    recommandation est cohérente avec ce qui s'est réellement passé sur
+  //    ce site — affiché, jamais appliqué en coupe-circuit. Noms de champs
+  //    en français, alignés sur le reste du fichier (Article 11) — mapping
+  //    vers le vocabulaire du cahier documenté ci-dessous :
+  //      average_order_volume        -> volumeMoyenL
+  //      median_order_volume         -> volumeMedianL
+  //      typical_sp_volume           -> volumeSpTypiqueL
+  //      typical_go_volume           -> volumeGoTypiqueL
+  //      average_days_between_orders -> intervalleMoyenJours
+  //      projected_days_until_next_order -> joursAvantProchaineCommandeEstimee
+  //      deviation_from_historical_pattern -> ecartAuPattern
+  // ============================================================
+
+  function median(valeurs) {
+    if (!valeurs || !valeurs.length) return null;
+    const tri = [...valeurs].sort((a, b) => a - b);
+    const milieu = Math.floor(tri.length / 2);
+    return tri.length % 2 === 0 ? (tri[milieu - 1] + tri[milieu]) / 2 : tri[milieu];
+  }
+
+  function moyenneListe(valeurs) {
+    if (!valeurs || !valeurs.length) return null;
+    return valeurs.reduce((a, b) => a + b, 0) / valeurs.length;
+  }
+
+  // historique : lignes brutes carburant_commandes (quel que soit `source`
+  // — Article 11, jamais un second calcul selon l'origine des lignes ; le
+  // filtrage éventuel par source/statut est la responsabilité du chargeur,
+  // pas du moteur). volumeProposeL : volume total de la recommandation
+  // actuelle, optionnel — si fourni, calcule l'écart au pattern.
+  function construireContextePlausibilite(historique, volumeProposeL, maintenant) {
+    const commandes = (historique || [])
+      .filter(c => c && c.volume_total_l != null && c.proposee_le)
+      .map(c => ({
+        timestamp: new Date(c.proposee_le).getTime(),
+        volumeTotal: Number(c.volume_total_l),
+        sp95: c.carburants && c.carburants.sp95 && c.carburants.sp95.volumeL != null ? Number(c.carburants.sp95.volumeL) : null,
+        go: c.carburants && c.carburants.go && c.carburants.go.volumeL != null ? Number(c.carburants.go.volumeL) : null,
+      }))
+      .filter(c => !isNaN(c.timestamp) && !isNaN(c.volumeTotal))
+      .sort((a, b) => a.timestamp - b.timestamp);
+
+    if (commandes.length === 0) {
+      return {
+        nombreCommandes: 0, volumeMoyenL: null, volumeMedianL: null,
+        volumeSpTypiqueL: null, volumeGoTypiqueL: null,
+        intervalleMoyenJours: null, joursDepuisDerniereCommande: null,
+        joursAvantProchaineCommandeEstimee: null, ecartAuPattern: null,
+      };
+    }
+
+    const volumes = commandes.map(c => c.volumeTotal);
+    const volumesSp = commandes.map(c => c.sp95).filter(v => v != null);
+    const volumesGo = commandes.map(c => c.go).filter(v => v != null);
+
+    const intervallesJours = [];
+    for (let i = 1; i < commandes.length; i++) {
+      intervallesJours.push((commandes[i].timestamp - commandes[i - 1].timestamp) / 86400000);
+    }
+
+    const volumeMoyenL = moyenneListe(volumes);
+    const volumeMedianL = median(volumes);
+    const intervalleMoyenJours = intervallesJours.length ? moyenneListe(intervallesJours) : null;
+    const derniere = commandes[commandes.length - 1];
+    const nowTs = maintenant ? new Date(maintenant).getTime() : Date.now();
+    const joursDepuisDerniereCommande = (nowTs - derniere.timestamp) / 86400000;
+    const joursAvantProchaineCommandeEstimee = intervalleMoyenJours != null
+      ? intervalleMoyenJours - joursDepuisDerniereCommande : null;
+
+    // Écart au pattern habituel — seuils indicatifs (±15%/±30% autour de la
+    // médiane), un repère de lecture NEXUS, jamais une règle métier validée
+    // par Frédéric contrairement aux autres seuils de ce fichier.
+    let ecartAuPattern = null;
+    if (volumeProposeL != null && volumeMedianL) {
+      const ecartPct = (volumeProposeL - volumeMedianL) / volumeMedianL;
+      let niveau = 'dans_la_norme';
+      if (Math.abs(ecartPct) > 0.3) niveau = 'inhabituel';
+      else if (Math.abs(ecartPct) > 0.15) niveau = 'a_surveiller';
+      ecartAuPattern = { ecartPct, niveau };
+    }
+
+    return {
+      nombreCommandes: commandes.length,
+      volumeMoyenL, volumeMedianL,
+      volumeSpTypiqueL: moyenneListe(volumesSp),
+      volumeGoTypiqueL: moyenneListe(volumesGo),
+      intervalleMoyenJours,
+      joursDepuisDerniereCommande,
+      joursAvantProchaineCommandeEstimee,
+      ecartAuPattern,
+    };
+  }
+
   global.NexusCarburantCommandeMoteur = {
     // Calendrier
     ajouterJoursISO, joursEntre, jourSemaineIso, estJourLivraisonPossible,
@@ -704,5 +830,7 @@
     evaluerCarburant, determinerEtatGlobal, construireEvaluationGlobale,
     // Notification Cockpit/Brief
     calculerCandidatCommande,
+    // Contexte historique de plausibilité
+    construireContextePlausibilite,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -1550,6 +1550,48 @@
     const pourquoiTxt = [motifPrincipal, motifOptim].filter(Boolean).join(' ')
       || (ctx.optimisation && ctx.optimisation.motif ? ctx.optimisation.motif : 'Recommandation calculée à partir du stock actuel, de la consommation prévue et du calendrier de livraison.');
 
+    // Décision lisible en une seconde (25/08/2026, retour de Frédéric) —
+    // cutoff et date de livraison en toutes lettres, jamais seulement
+    // déductibles du détail par carburant plus bas.
+    const cutoffTxt = ctx.config && ctx.config.cutoff_heure ? `Commander avant ${ctx.config.cutoff_heure}` : null;
+    const livraisonPrevueTxt = evRef && evRef.scenarioMaintenant && evRef.scenarioMaintenant.livraisonISO
+      ? `Livraison prévue : ${formaterDateFrCourt(evRef.scenarioMaintenant.livraisonISO)}` : null;
+    const metaTxt = [cutoffTxt, livraisonPrevueTxt].filter(Boolean).join(' · ');
+
+    // Badge d'état qualifié (25/08/2026, retour de Frédéric : "Sécurité —
+    // commande urgente" ne doit jamais s'afficher sans nuance si les données
+    // sous-jacentes sont encore provisoires) — le calcul (etatGlobal, rouge/
+    // orange/bleu/vert) reste inchangé, jamais assoupli (Article 5 : le
+    // chiffre réel n'est jamais caché) ; seul le LIBELLÉ ajoute "à confirmer"
+    // quand la confiance du carburant de référence n'est pas "fiable".
+    const badgeLibelle = evRef && evRef.confiance && evRef.confiance !== 'fiable' ? `${st.libelle} — à confirmer` : st.libelle;
+
+    // Fiabilité de la recommandation (25/08/2026, retour de Frédéric, §28-29
+    // du cahier) — jamais une conclusion affirmative sans que sa base de
+    // calcul soit elle-même qualifiée.
+    const FIABILITE_TEXTE = {
+      fiable: { libelle: 'Élevée', raison: 'stock fiable · ventes complètes' },
+      a_confirmer: { libelle: 'Moyenne', raison: 'ventes prévues encore incertaines (historique insuffisant ou jour atypique)' },
+      non_calculable: { libelle: 'Faible', raison: 'stock physique non fiable ou prévision non calculable' },
+    };
+    const fiab = (evRef && FIABILITE_TEXTE[evRef.confiance]) || FIABILITE_TEXTE.non_calculable;
+    const commandeEnCoursTxt = evRef && evRef.commandeEnCours ? ' · commande déjà en cours intégrée' : '';
+    const fiabiliteTxt = `Fiabilité : ${fiab.libelle} — ${fiab.raison}${commandeEnCoursTxt}.`;
+
+    // Explication multi-produit (25/08/2026, retour de Frédéric : "NEXUS
+    // devrait au moins indiquer pourquoi il n'ajoute pas de GO") — jamais un
+    // silence sur un carburant actif absent de la recommandation.
+    function raisonNonInclusCarburant(ev) {
+      if (!ev) return 'non évalué.';
+      if (ev.etat === 'confortable') return 'aucune quantité ajoutée — autonomie suffisante après livraison.';
+      if (ev.etat === 'a_anticiper') {
+        const j = ev.joursAvantBesoin;
+        return `aucune quantité ajoutée — échéance encore à ${j != null ? `${j} j` : 'quelques jours'}, l'ajouter maintenant immobiliserait du stock sans nécessité.`;
+      }
+      if (ev.etat === 'non_calculable') return 'non évalué — données insuffisantes pour ce carburant.';
+      return "non ajouté par l'optimisation du camion.";
+    }
+
     const lignesCarburant = Object.keys(ctx.parCarburant || {}).map(cle => {
       const ev = ctx.parCarburant[cle];
       const stEv = ETAT_COMMANDE_STYLE[ev.etat] || ETAT_COMMANDE_STYLE.non_calculable;
@@ -1557,11 +1599,13 @@
       const prevuL = ev.scenarioMaintenant ? ev.scenarioMaintenant.stockPrevuLivraisonL : null;
       const livraisonTxt = ev.scenarioMaintenant && ev.scenarioMaintenant.livraisonISO ? formaterDateFrCourt(ev.scenarioMaintenant.livraisonISO) : '—';
       const recoL = ctx.commandeRecommandee && ctx.commandeRecommandee.volumes[cle] != null ? ctx.commandeRecommandee.volumes[cle] : null;
+      const raisonAbsence = (ctx.commandeRecommandee && recoL == null) ? raisonNonInclusCarburant(ev) : null;
       return `
         <div class="commande-ligne-carburant">
           <span class="commande-ligne-nom"><span style="color:${stEv.c};">${stEv.icone}</span>${COURT_CARBURANT[cle] || cle}</span>
           <span class="commande-ligne-detail">Stock ${fmtL(stockPhysique)} · prévu au ${livraisonTxt} ${fmtL(prevuL)}${recoL != null ? ` · recommandé ${fmtL(recoL)}` : ''}</span>
-        </div>`;
+        </div>
+        ${raisonAbsence ? `<div class="section-note" style="margin:0 0 4px; padding:0; font-size:10.5px;">${COURT_CARBURANT[cle] || cle} : ${raisonAbsence}</div>` : ''}`;
     }).join('');
 
     const totalHTML = ctx.commandeRecommandee
@@ -1578,11 +1622,13 @@
       <div class="commande-carte" style="border-color:${st.c};">
         <div class="commande-carte-tete">
           <span class="commande-carte-titre">🚚 Prochaine commande</span>
-          <span class="commande-carte-badge" style="background:${st.f}; color:${st.c};">${st.libelle}</span>
+          <span class="commande-carte-badge" style="background:${st.f}; color:${st.c};">${badgeLibelle}</span>
         </div>
+        ${metaTxt ? `<div class="commande-ligne-detail" style="margin:-2px 0 8px;">${metaTxt}</div>` : ''}
         <div class="commande-pourquoi">${pourquoiTxt}</div>
         ${lignesCarburant}
         ${totalHTML}
+        <div class="section-note" style="margin:8px 0 0; padding:0;">${fiabiliteTxt}</div>
         ${boutonHTML}
       </div>`;
 
@@ -1601,11 +1647,20 @@
   // l'ouverture de la fiche, qui reste une simple prévisualisation tant
   // qu'aucune décision n'est prise.
   // ------------------------------------------------------------
-  function ouvrirFicheCommande(ctx) {
+  async function ouvrirFicheCommande(ctx) {
     if (!ctx || !ctx.commandeRecommandee) return;
     const overlay = document.getElementById('controleOverlay');
     overlay.style.display = 'flex';
-    renderFicheCommande(ctx);
+    // Contexte historique de plausibilité (25/08/2026, retour de Frédéric) —
+    // repère indicatif seulement, jamais une règle bloquante ; chargé en
+    // meilleur effort, la fiche s'affiche même si cet appel échoue.
+    let contextePlausibilite = null;
+    if (global_NexusCommandeCarburantDonnees_disponible() && NexusCarburantCommandeDonnees.chargerContextePlausibiliteCarburant) {
+      try {
+        contextePlausibilite = await NexusCarburantCommandeDonnees.chargerContextePlausibiliteCarburant(nexusClient, SITE_ID, ctx.commandeRecommandee.total);
+      } catch (e) { console.error('Contexte historique commande carburant:', e); }
+    }
+    renderFicheCommande(ctx, contextePlausibilite);
   }
 
   function construirePourquoiFiche(ctx, cleRef) {
@@ -1616,7 +1671,21 @@
       || 'Recommandation calculée à partir du stock actuel, de la consommation prévue et du calendrier de livraison.';
   }
 
-  function renderFicheCommande(ctx) {
+  // Repère historique de plausibilité (25/08/2026, retour de Frédéric) —
+  // texte discret, jamais une contrainte ; niveau 'inhabituel'/'a_surveiller'
+  // signalé sans jamais bloquer la validation (le manager décide toujours).
+  function texteContextePlausibilite(contexte) {
+    if (!contexte || !contexte.nombreCommandes) return null;
+    const moy = fmtL(contexte.volumeMoyenL);
+    const med = fmtL(contexte.volumeMedianL);
+    const intervalle = contexte.intervalleMoyenJours != null ? `${contexte.intervalleMoyenJours.toFixed(1)} j` : '—';
+    let ecartTxt = '';
+    if (contexte.ecartAuPattern && contexte.ecartAuPattern.niveau === 'inhabituel') ecartTxt = ' · volume inhabituel par rapport à l\'historique (à vérifier, pas à bloquer)';
+    else if (contexte.ecartAuPattern && contexte.ecartAuPattern.niveau === 'a_surveiller') ecartTxt = ' · légèrement au-dessus/en dessous des commandes habituelles';
+    return `Repère historique (${contexte.nombreCommandes} commandes) : volume moyen ${moy}, médian ${med} · intervalle moyen ${intervalle}${ecartTxt}.`;
+  }
+
+  function renderFicheCommande(ctx, contextePlausibilite) {
     const modal = document.getElementById('controleModal');
     const clesRecommandees = Object.keys(ctx.commandeRecommandee.volumes);
     const cleRef = clesRecommandees[0];
@@ -1627,6 +1696,7 @@
         <span>${NOM_CARBURANT[cle] || cle}</span>
         <span><input type="number" step="1000" min="0" class="commande-fiche-input" data-carburant="${cle}" value="${ctx.commandeRecommandee.volumes[cle]}" style="width:92px; text-align:right; background:var(--panel-raised); border:1px solid var(--hairline); border-radius:6px; color:var(--text); font-family:var(--mono); padding:5px 7px; font-size:12px;"> L</span>
       </div>`).join('');
+    const texteContexte = texteContextePlausibilite(contextePlausibilite);
     modal.innerHTML = `
       <button type="button" class="controle-modal-fermer" id="btnFermerFicheCommande">✕</button>
       <div class="controle-modal-titre">Proposition NEXUS — Commande carburant</div>
@@ -1635,6 +1705,7 @@
       ${lignesVolumes}
       <div class="controle-ligne" style="font-weight:700;"><span>Total</span><span id="ficheCommandeTotal">${fmtL(ctx.commandeRecommandee.total)}</span></div>
       <div class="commande-pourquoi" style="margin-top:12px;">${construirePourquoiFiche(ctx, cleRef)}</div>
+      ${texteContexte ? `<div class="section-note" style="margin-top:8px; padding:0; font-size:10.5px;">${texteContexte}</div>` : ''}
       <div id="ficheCommandeMotifZone" style="display:none; margin-top:12px;">
         <div class="controle-section-titre">Motif du report</div>
         <select id="ficheMotifCategorie" style="width:100%; padding:9px; border-radius:8px; background:var(--panel-raised); border:1px solid var(--hairline); color:var(--text); font-size:12px; margin-bottom:8px;">

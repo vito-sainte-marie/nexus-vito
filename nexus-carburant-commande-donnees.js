@@ -301,11 +301,29 @@
     return data || [];
   }
 
+  // Contexte historique de plausibilité (25/08/2026, retour de Frédéric,
+  // §"historique de commandes réel comme référence de plausibilité") —
+  // réutilise chargerHistoriqueCommandes() telle quelle (Article 11, jamais
+  // une deuxième lecture) puis délègue tout le calcul au moteur pur
+  // (NexusCarburantCommandeMoteur.construireContextePlausibilite). Fenêtre
+  // large (100) car le site pilote n'a que 18 commandes sur mai-août — pas
+  // de risque de payload excessif pour ce volume, à revoir si le nombre de
+  // sites/commandes grandit significativement.
+  async function chargerContextePlausibiliteCarburant(client, siteId, volumeProposeL) {
+    const M = global.NexusCarburantCommandeMoteur;
+    const historique = await chargerHistoriqueCommandes(client, siteId, 100);
+    if (!M || !historique.length) {
+      return { nombreCommandes: 0, volumeMoyenL: null, volumeMedianL: null, volumeSpTypiqueL: null, volumeGoTypiqueL: null, intervalleMoyenJours: null, joursDepuisDerniereCommande: null, joursAvantProchaineCommandeEstimee: null, ecartAuPattern: null };
+    }
+    return M.construireContextePlausibilite(historique, volumeProposeL);
+  }
+
   global.NexusCarburantCommandeDonnees = {
     chargerConfigEtCuves, chargerJoursFeries, chargerHistoriqueVentesParJour,
     chargerCommandeEnCoursParCarburant, chargerStockEtFiabiliteParCarburant,
     evaluerCommandeCarburantSite,
     creerPropositionCommande, validerCommande, reporterCommande,
     enregistrerCommandeHorsNexus, rapprocherCommandeReception, chargerHistoriqueCommandes,
+    chargerContextePlausibiliteCarburant,
   };
 })(typeof window !== 'undefined' ? window : globalThis);
