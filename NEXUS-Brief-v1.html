@@ -317,6 +317,11 @@
 <script src="nexus-boussole-moteur.js"></script>
 <script src="nexus-carburant-moteur.js"></script>
 <script src="nexus-carburant-donnees.js"></script>
+<!-- Moteur Commande Carburant (24/08/2026, §24-25 du cahier) — notification
+     Brief (chargerCandidatCommandeCarburant, nexus-brief-donnees.js),
+     réutilise l'évaluation déjà calculée, aucun second calcul (Article 11). -->
+<script src="nexus-carburant-commande-moteur.js"></script>
+<script src="nexus-carburant-commande-donnees.js"></script>
 <script src="nexus-secteurs-catalogue.js"></script>
 <script src="nexus-moteurs-registre.js"></script>
 <script src="nexus-secteurs-moteur.js"></script>
@@ -504,13 +509,17 @@
     const onOperationsResolue = surResolutionSecteur('operations', 7);
     const onFdjResolue = surResolutionSecteur('fdj', 2); // candidats FDJ + Coach FDJ
     const onEquipeResolue = surResolutionSecteur('equipe', 1);
-    const onCarburantsResolue = surResolutionSecteur('carburants', 1);
+    // Commande Carburant (24/08/2026, cahier §24-25) ajoute un 2e chargeur
+    // sous le même secteur 'carburants' (même tick d'animation, jamais un
+    // nouvel identifiant de secteur pour un simple signal supplémentaire
+    // du même domaine — voir chargerCandidatCommandeCarburant ci-dessous).
+    const onCarburantsResolue = surResolutionSecteur('carburants', 2);
 
     // Chargeurs (nexus-brief-donnees.js, refactoring pages monolithiques,
     // 11/08/2026) — chacun appelé directement avec (nexusClient, SITE_ACTUEL,
     // ...) plutôt que via un alias local, ce fichier ne gardant plus que
     // l'orchestration et l'affichage (Data Dictionary v2.40).
-    const [margePlusResultat, constatTempo, messagesAdvisor, candidatsCaisseObj, candidatsStock, candidatsRappels, candidatsFdjObj, candidatsCoach, domaineEquipe, alertesInvOuvertes, controlesVerifyRestants, missionsRestantes, carburants, agregationCaisseParQuart] = await Promise.all([
+    const [margePlusResultat, constatTempo, messagesAdvisor, candidatsCaisseObj, candidatsStock, candidatsRappels, candidatsFdjObj, candidatsCoach, domaineEquipe, alertesInvOuvertes, controlesVerifyRestants, missionsRestantes, carburants, agregationCaisseParQuart, candidatsCommandeCarburant] = await Promise.all([
       NexusBriefDonnees.chargerMargePlus(nexusClient, SITE_ACTUEL, rowsBrut).then(onMargeResolue),
       NexusBriefDonnees.chargerConstatTempo(nexusClient, SITE_ACTUEL).then(onOperationsResolue),
       NexusBriefDonnees.chargerMessagesAdvisor(nexusClient, SITE_ACTUEL).then(onOperationsResolue),
@@ -532,6 +541,13 @@
       // encore fraîche.
       NexusBriefDonnees.chargerCarburantsBriefAvecFallback(nexusClient, SITE_ACTUEL, new Date().toISOString().slice(0, 10)).then(onCarburantsResolue),
       NexusRisquesDonnees.chargerAgregationCaisseTousQuarts(nexusClient, SITE_ACTUEL, 30),
+      // Notification Commande Carburant (24/08/2026, cahier §24-25) —
+      // réutilise l'évaluation déjà construite par NexusCarburantCommandeDonnees
+      // (Article 11, voir chargerCandidatCommandeCarburant) ; jamais plus
+      // d'1 candidat retourné (plafond "2 notifications max" du cahier
+      // trivialement respecté, ce moteur ne contribuant jamais qu'à lui
+      // seul dans le tri fusionné ci-dessous).
+      NexusBriefDonnees.chargerCandidatCommandeCarburant(nexusClient, SITE_ACTUEL).then(onCarburantsResolue),
     ]);
     // Fin de l'interrogation réelle des moteurs — bascule sur la séquence de
     // pacing pour la phase de synthèse elle-même (voir demarrerAnimationChargement).
@@ -852,6 +868,7 @@
       tempo: candidatTempoListe.length > 0, advisor: candidatsAdvisorListe.length > 0,
       caisse: candidatsCaisseNormalisesDedupliques.length > 0, stock: candidatsStock.length > 0,
       rappel: candidatsRappels.length > 0, fdj: candidatsFdj.length > 0, coach: candidatsCoach.length > 0,
+      commande_carburant: candidatsCommandeCarburant.length > 0,
     };
     // Signaux "axes" pour le registre de moteurs — un booléen par secteur du
     // contrat commun (`confiance === 'RÉEL'`), pour les moteurs sans
@@ -871,7 +888,7 @@
     const texteAgregationMoteurs = NexusMoteursRegistre.construireTexteAgregation(moteursContributeursListe);
 
     const fusion = NexusConseiller.fusionnerEtSelectionner(
-      [candidatsProduitsNormalises, candidatMargeListe, candidatTempoListe, candidatsAdvisorListe, candidatsCaisseNormalisesDedupliques, candidatsStock, candidatsRappels, candidatsFdj, candidatsCoach],
+      [candidatsProduitsNormalises, candidatMargeListe, candidatTempoListe, candidatsAdvisorListe, candidatsCaisseNormalisesDedupliques, candidatsStock, candidatsRappels, candidatsFdj, candidatsCoach, candidatsCommandeCarburant],
       { site: SITE_ACTUEL, n: 6 }
     );
     const decisions = fusion.slice(0, 3);

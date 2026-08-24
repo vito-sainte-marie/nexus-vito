@@ -76,6 +76,12 @@
     { id: 'caisse', nomPublic: 'Caisse', decisionKey: 'caisse', secteurLie: 'operations' },
     { id: 'stock', nomPublic: 'Stock', decisionKey: 'stock', secteurLie: 'operations' },
     { id: 'rappel', nomPublic: 'Rappel', decisionKey: 'rappel', secteurLie: 'operations' },
+    // Commande Carburant (24/08/2026, cahier §24-25) — notification
+    // distincte du secteur 'carburants' (Performance/Maîtrise, contrat
+    // commun) : `decisionKey` propre car ce moteur produit un candidat de
+    // décision (au plus 1, voir NexusCarburantCommandeMoteur.
+    // calculerCandidatCommande), pas une dimension de score du secteur.
+    { id: 'commande_carburant', nomPublic: 'Commande carburant', decisionKey: 'commande_carburant', secteurLie: 'carburants' },
     // Moteurs sans candidat de décision propre — contribution détectée via
     // le secteur du contrat commun (`confiance === 'RÉEL'`).
     { id: 'operations', nomPublic: 'Contrôles', decisionKey: null, secteurLie: 'operations' },
@@ -97,6 +103,7 @@
     rappel: 'un rappel ajouté manuellement',
     fdj: 'le stock et les comptages de quart FDJ réels (FDJ Performance)',
     coach: 'les recommandations Coach FDJ déjà générées pour chaque employé (Coach FDJ)',
+    commande_carburant: 'le moteur de commande carburant (stock, consommation prévue, calendrier de livraison)',
   };
 
   function moteurParId(id) { return MOTEURS_CATALOGUE.find(m => m.id === id) || null; }

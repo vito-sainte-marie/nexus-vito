@@ -538,6 +538,21 @@
     return candidatsBrut.map(global.NexusConseiller.normaliserCoach);
   }
 
+  // Notification Commande Carburant (24/08/2026, cahier §24-25) — réutilise
+  // TELLE QUELLE l'évaluation déjà construite par NexusCarburantCommandeDonnees.
+  // evaluerCommandeCarburantSite() (Article 11, même chaîne que la carte
+  // "Prochaine commande" de Carburants Performance, jamais un second calcul
+  // du stock/de la fenêtre de commande ici). Retourne un tableau de 0 ou 1
+  // élément — jamais plus, `calculerCandidatCommande` ne produit qu'un seul
+  // candidat par appel (voir son commentaire).
+  async function chargerCandidatCommandeCarburant(client, siteId) {
+    if (typeof global.NexusCarburantCommandeDonnees === 'undefined' || typeof global.NexusCarburantCommandeMoteur === 'undefined') return [];
+    const evaluation = await global.NexusCarburantCommandeDonnees.evaluerCommandeCarburantSite(client, siteId);
+    const candidat = global.NexusCarburantCommandeMoteur.calculerCandidatCommande(evaluation);
+    if (!candidat) return [];
+    return [global.NexusConseiller.normaliserCommandeCarburant(candidat)];
+  }
+
   // Domaine Équipe — repris de chargerDomainesRadarHome() dans App-v1
   // (ponctualité uniquement, comme partout ailleurs dans NEXUS).
   // N'ACCEPTE PAS siteId : comportement repris à l'identique de l'ancienne
@@ -667,7 +682,7 @@
     chargerCandidatsCaisse, chargerCandidatsStock, chargerCandidatsRappels,
     chargerDerniereReferenceFdj, chargerCarburantsBrief, chargerCarburantsBriefAvecFallback, chargerCandidatsFdj,
     chargerJournalFraicheurExistant, enregistrerFraicheurSecteur,
-    chargerSeuilsCoachEquipeFdj, chargerCandidatsCoachEquipe,
+    chargerSeuilsCoachEquipeFdj, chargerCandidatsCoachEquipe, chargerCandidatCommandeCarburant,
     chargerDomaineEquipe, chargerAlertesInventaireOuvertes, chargerControlesVerifyRestants, chargerMissionsRestantes,
     chargerJournalDecisions,
   };

@@ -620,6 +620,68 @@
     };
   }
 
+  // ============================================================
+  // H. NOTIFICATION COCKPIT/BRIEF (§24-25 du cahier) — au plus UNE
+  // notification par appel : `evaluation.etatGlobal` est un état unique
+  // (jamais deux à la fois), donc ce moteur ne contribue jamais plus d'un
+  // candidat au tri fusionné de Cockpit/Brief — satisfait trivialement le
+  // plafond "2 notifications maximum (anticipation + action)" du cahier.
+  // Aucun calcul ici (Article 11) : relit l'évaluation déjà construite par
+  // construireEvaluationGlobale() (chargée une seule fois par
+  // NexusCarburantCommandeDonnees.evaluerCommandeCarburantSite, réutilisée
+  // telle quelle par la carte "Prochaine commande" ET par cette
+  // notification — jamais un second calcul de statut).
+  // ============================================================
+  function fmtLCandidat(v) { return v == null ? '—' : `${Math.round(v).toLocaleString('fr-FR')} L`; }
+  const CONFIANCE_TEXTE = { fiable: 'Élevée', a_confirmer: 'Moyenne', non_calculable: 'Faible' };
+
+  function calculerCandidatCommande(evaluation) {
+    if (!evaluation || evaluation.ok === false) return null;
+    const etat = evaluation.etatGlobal;
+    if (etat !== 'securite' && etat !== 'moment_ideal' && etat !== 'a_anticiper') return null;
+
+    const NOM = (global.NexusCarburantMoteur && global.NexusCarburantMoteur.NOM_CARBURANT_COURT) || {};
+    const parCarburant = evaluation.parCarburant || {};
+    const clesRecommandees = evaluation.commandeRecommandee ? Object.keys(evaluation.commandeRecommandee.volumes) : [];
+    const clesAnticipees = Object.keys(parCarburant).filter(c => parCarburant[c].etat === 'a_anticiper');
+    const cles = clesRecommandees.length ? clesRecommandees : clesAnticipees;
+    const cleRef = cles[0] || Object.keys(parCarburant)[0];
+    const evRef = cleRef ? parCarburant[cleRef] : null;
+    if (!evRef) return null;
+
+    const noms = (cles.length ? cles : [cleRef]).map(c => NOM[c] || c).join(', ');
+    let decision, constat, impactAttendu, preuve;
+    if (evaluation.commandeRecommandee) {
+      decision = `Préparez la commande carburant : ${noms} — ${fmtLCandidat(evaluation.commandeRecommandee.total)} recommandé.`;
+      preuve = evRef.scenarioMaintenant && evRef.scenarioMaintenant.margeJours != null
+        ? `Marge estimée avant réserve de sécurité : ${Math.round(evRef.scenarioMaintenant.margeJours * 10) / 10} j.`
+        : null;
+    } else if (evaluation.optimisation && evaluation.optimisation.decision === 'insuffisant_meme_optimise') {
+      decision = `Vérifiez la commande carburant : ${noms} approche sa fenêtre de commande, mais le volume reste sous le minimum camion même optimisé.`;
+      preuve = evaluation.optimisation.motif || null;
+    } else {
+      decision = `Anticipez la commande carburant : ${noms} entrera dans sa fenêtre de commande dans ${evRef.joursAvantBesoin != null ? `${evRef.joursAvantBesoin} j` : 'quelques jours'}.`;
+      preuve = null;
+    }
+    constat = (evRef.attente && evRef.attente.motif) || 'Recommandation calculée à partir du stock actuel, de la consommation prévue et du calendrier de livraison.';
+    impactAttendu = "Livraison au bon moment — évite une rupture de stock carburant ou une commande précipitée sous le minimum camion.";
+
+    return {
+      id: `COMMANDE-CARBURANT-${evaluation.dateISO || ''}`,
+      type: etat === 'securite' ? 'critique' : (etat === 'moment_ideal' ? 'attention' : 'attention'),
+      niveau: etat === 'securite' ? 'critique' : 'attention',
+      // rang plus favorable (0) pour les 2 états réellement actionnables
+      // (moment_ideal/sécurité) que pour la simple anticipation (1) — même
+      // logique que RANG_FDJ (nexus-conseiller.js), jamais un rang inventé.
+      rangInterne: (etat === 'a_anticiper') ? 1 : 0,
+      titre: 'Commande carburant',
+      decision, constat, impactAttendu, preuve,
+      limites: "Recommandation calculée automatiquement par NEXUS — vérifiez la disponibilité fournisseur avant de valider la commande.",
+      cible: 'NEXUS-Carburants-Pilotage-v1.html',
+      confiance: CONFIANCE_TEXTE[evRef.confiance] || 'Moyenne',
+    };
+  }
+
   global.NexusCarburantCommandeMoteur = {
     // Calendrier
     ajouterJoursISO, joursEntre, jourSemaineIso, estJourLivraisonPossible,
@@ -640,5 +702,7 @@
     qualiteDonneesCommande,
     // Évaluation complète
     evaluerCarburant, determinerEtatGlobal, construireEvaluationGlobale,
+    // Notification Cockpit/Brief
+    calculerCandidatCommande,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

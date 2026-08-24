@@ -929,6 +929,32 @@
     };
   }
 
+  // Convertit un candidat NexusCarburantCommandeMoteur.calculerCandidatCommande()
+  // (Moteur Commande Carburant, 24/08/2026, cahier §24-25) — même schéma
+  // commun que fdj/coach ci-dessus, moteur distinct 'commande_carburant'.
+  // Non validable pour la même raison que fdj/coach : la résolution se
+  // constate directement dans Carburants Performance (la carte "Prochaine
+  // commande" change d'état une fois la commande validée), pas via
+  // journal_decisions. `c.rangInterne` (0 = actionnable maintenant,
+  // moment_ideal/sécurité ; 1 = simple anticipation) distingue les deux
+  // sans avoir besoin d'un niveau `positif` trompeur — rien de positif
+  // dans une échéance qui approche (voir commentaire de
+  // calculerCandidatCommande).
+  const ETAT_COMMANDE_CARBURANT = { critique: '🔴 CRITIQUE', attention: '🟡 À VÉRIFIER' };
+  function normaliserCommandeCarburant(c) {
+    return {
+      candidate_id: c.id, ruleId: 'COMMANDE-CARBURANT', rang: c.rangInterne != null ? c.rangInterne : 1,
+      moteur: 'commande_carburant',
+      etat: ETAT_COMMANDE_CARBURANT[c.niveau] || '📋 SIGNAL', impact_eur: 0, article: c.titre, categorie: 'Carburants',
+      decision: c.decision, pourquoi: c.constat,
+      impactAttendu: c.impactAttendu, preuve: c.preuve, limites: c.limites || null,
+      cible: c.cible || 'NEXUS-Carburants-Pilotage-v1.html',
+      validable: false,
+      libelleAction: 'Voir la commande carburant',
+      confiance: c.confiance || null,
+    };
+  }
+
   // Graine du jour : stable pour un même site à la même date (la rotation
   // ne bouge donc pas à chaque rechargement de page dans la même journée),
   // mais change chaque jour — c'est ce qui donne l'effet "vivant" demandé
@@ -1014,7 +1040,7 @@
     analyserProduitsStrategiques, analyserEvolutionsPaire,
     normaliserProduit, normaliserMarge, normaliserTempo, normaliserAdvisor,
     normaliserCaissePersonne, normaliserStockRayon, normaliserRappel,
-    normaliserFdj, normaliserCoach,
+    normaliserFdj, normaliserCoach, normaliserCommandeCarburant,
     filtrerBaisseDejaEnAction, repartirBaisseParSeverite, resumerGroupesStrategiques,
     fusionnerEtSelectionner, genererGraineJour,
   };

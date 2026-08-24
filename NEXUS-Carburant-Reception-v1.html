@@ -24,6 +24,12 @@
 <script src="nexus-reception-donnees.js"></script>
 <script src="nexus-carburant-moteur.js"></script>
 <script src="nexus-carburant-donnees.js"></script>
+<!-- Moteur Commande Carburant (24/08/2026, §34 du cahier) — uniquement pour
+     rapprocherCommandeReception()/chargerCommandeEnCoursParCarburant() une
+     fois la visite terminée (voir soumettreVisite() ci-dessous) ; le
+     moteur pur (nexus-carburant-commande-moteur.js) n'est pas nécessaire
+     ici, cet écran ne recalcule aucune recommandation. -->
+<script src="nexus-carburant-commande-donnees.js"></script>
 <style>
   :root{
     --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
@@ -1299,6 +1305,33 @@
         cuvesGo: (config && config.cuvesCarburants && config.cuvesCarburants.go && config.cuvesCarburants.go.cuves) || [],
       }).then(r => { if (!r.ok) console.error('Pont réception carburant → stock (non bloquant):', r.error); })
         .catch(e => console.error('Pont réception carburant → stock (non bloquant):', e));
+    }
+
+    // Rapprochement Commande Carburant (24/08/2026, §34 du cahier) —
+    // referme la chaîne recommandation -> commande -> livraison prévue ->
+    // réception : si une commande validée/modifiée était en attente pour
+    // un des carburants de cette visite, elle passe au statut 'livree' et
+    // pointe vers cette visite (Article 5, jamais une réécriture des
+    // volumes recommandés d'origine — visite_reception_id ne fait que
+    // relier les deux vérités). Best-effort, non bloquant pour l'employé,
+    // même discipline que le pont ci-dessus : si ce rapprochement échoue,
+    // la commande reste simplement 'validee' un peu plus longtemps,
+    // rattrapable manuellement, jamais une erreur affichée au chauffeur.
+    if (typeof NexusCarburantCommandeDonnees !== 'undefined' && data && data.id) {
+      NexusCarburantCommandeDonnees.chargerCommandeEnCoursParCarburant(nexusClient, siteId)
+        .then(async parCarburant => {
+          const carburantsLivres = carburantsPrevus();
+          const commandeIds = new Set();
+          carburantsLivres.forEach(carb => {
+            const cmd = parCarburant[carb];
+            if (cmd && cmd.commandeId) commandeIds.add(cmd.commandeId);
+          });
+          await Promise.all(Array.from(commandeIds).map(id =>
+            NexusCarburantCommandeDonnees.rapprocherCommandeReception(nexusClient, id, data.id, ligneVisite.date_visite)
+              .then(r => { if (!r.ok) console.error('Rapprochement commande/réception carburant (non bloquant):', r.error); })
+          ));
+        })
+        .catch(e => console.error('Rapprochement commande/réception carburant (non bloquant):', e));
     }
 
     allerEtape('succes');

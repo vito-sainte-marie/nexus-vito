@@ -23,6 +23,12 @@
 <script src="nexus-periodes.js"></script>
 <script src="nexus-carburant-moteur.js"></script>
 <script src="nexus-carburant-donnees.js"></script>
+<!-- Moteur Commande Carburant (24/08/2026) — après nexus-carburant-moteur.js/
+     nexus-carburant-donnees.js (nexus-carburant-commande-donnees.js réutilise
+     chargerCuvesConfig/chargerControleJour, Article 11), avant tout appel à
+     evaluerCommandeCarburantSite(). -->
+<script src="nexus-carburant-commande-moteur.js"></script>
+<script src="nexus-carburant-commande-donnees.js"></script>
 <!-- Cadrage risques Phase 5 (18/08/2026, tâche #234) — 1er écran Carburants
      à qualifier et enregistrer un signal NexusRisques (autonomie de stock).
      Inclus après nexus-carburant-moteur.js/nexus-carburant-donnees.js
@@ -179,6 +185,27 @@
   .message-carte.info{background:rgba(79,195,217,0.08); border:1px solid rgba(79,195,217,0.25);}
   .message-carte.positif{background:var(--green-dim); border:1px solid rgba(52,211,153,0.3);}
   .message-icone{font-size:14px; flex-shrink:0; line-height:1.4;}
+
+  /* Prochaine commande carburant (24/08/2026, cahier §22-23) — 3 paliers
+     visuels : bandeau discret (confortable), bandeau intermédiaire sans
+     bouton (à anticiper), carte dominante avec détail par carburant + CTA
+     (moment idéal / sécurité). Réutilise la palette --green/--cyan/--amber/
+     --red déjà en place (jauges, Lecture NEXUS) — jamais une nouvelle
+     palette pour ce seul bloc. */
+  .commande-bandeau{display:flex; gap:9px; align-items:center; padding:11px 14px; border-radius:12px; margin:0 20px 14px; font-size:12.5px; line-height:1.45;}
+  .commande-carte{border-radius:14px; margin:0 20px 14px; padding:14px 16px; border:1px solid var(--hairline); background:var(--panel);}
+  .commande-carte-tete{display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:9px;}
+  .commande-carte-titre{font-size:13.5px; font-weight:700;}
+  .commande-carte-badge{font-family:var(--mono); font-size:9.5px; font-weight:700; padding:3px 9px; border-radius:20px; white-space:nowrap;}
+  .commande-pourquoi{font-size:11.5px; color:var(--text-mid); line-height:1.55; margin-bottom:10px; padding:9px 11px; background:var(--panel-raised); border-radius:10px;}
+  .commande-ligne-carburant{display:flex; flex-wrap:wrap; justify-content:space-between; align-items:baseline; gap:4px 10px; padding:8px 0; border-top:1px solid var(--hairline); font-size:11.5px;}
+  .commande-ligne-carburant:first-of-type{border-top:none;}
+  .commande-ligne-nom{font-weight:700; display:flex; align-items:center; gap:6px;}
+  .commande-ligne-detail{color:var(--text-mid); font-family:var(--mono); font-size:10.5px;}
+  .commande-total{display:flex; justify-content:space-between; font-weight:700; padding-top:9px; margin-top:2px; border-top:1px solid var(--hairline); font-size:12.5px;}
+  .commande-cta-btn{width:100%; margin-top:12px; padding:11px 14px; border-radius:12px; border:none; font-family:var(--mono); font-size:11.5px; font-weight:700; letter-spacing:0.02em; cursor:pointer; text-align:center;}
+  .commande-cta-btn:disabled{opacity:0.6; cursor:default;}
+  .commande-cta-btn:active:not(:disabled){filter:brightness(0.92);}
 
   /* Dernière livraison */
   .livraison-carte{background:var(--panel); border:1px solid var(--hairline); border-radius:14px; padding:14px 16px; margin:0 20px 12px;}
@@ -490,6 +517,26 @@
        répéter. Voir renderLectureNexus() plus bas. -->
   <div id="lectureNexusZone"></div>
 
+  <!-- Prochaine commande carburant (Moteur Commande Carburant, 24/08/2026,
+       cahier §22-23) — TOUJOURS visible, jamais dans un accordéon replié :
+       discrète (bandeau vert) quand rien à faire, intermédiaire (bandeau
+       bleu, sans bouton) quand un carburant approche seulement sa fenêtre,
+       dominante (carte détaillée + bouton d'action) dès qu'un carburant
+       entre en moment idéal ou en sécurité. Voir renderCommandeCarburant(). -->
+  <div id="commandeCarburantZone"></div>
+
+  <!-- Simulateur de commande (24/08/2026, cahier §30 — remplace "l'ancien
+       calculateur" du cahier : aucun calculateur n'existait déjà dans NEXUS
+       pour ce besoin, construit directement dans le nouveau langage visuel
+       toggle+panel déjà utilisé par "Certifier un stock de référence"
+       ci-dessous, jamais un nouveau pattern d'interaction). Rejoue
+       evaluerCommandeCarburantSite() avec une date/heure hypothétique —
+       aucune écriture, une lecture supplémentaire seulement. -->
+  <div class="pointzero-toggle-wrap">
+    <button class="pointzero-toggle-btn" id="btnSimulateurCommandeToggle">🧪 Simuler une commande</button>
+  </div>
+  <div class="pointzero-panel" id="simulateurCommandePanel" style="display:none;"></div>
+
   <!-- Point zéro carburants (14/08/2026) — action exceptionnelle de
        manager, repliée par défaut : certifie un stock physique comme
        nouvelle référence de calcul, sans jamais modifier l'historique. -->
@@ -707,6 +754,10 @@
   // "Ce que NEXUS vous dit" en plus des signaux dépendants de la période.
   let CONTROLE_CTX = null;
   let CUVES_CONFIG = null;
+  // Moteur Commande Carburant (24/08/2026) — évaluation complète du site
+  // (§27 du cahier), chargée une seule fois par chargerEtRendreCommandeCarburant()
+  // et relue par renderCommandeCarburant() ; jamais recalculée côté écran.
+  let COMMANDE_CTX = null;
   // Sprint C6 (audit §10) : dernière visite de réception chargée, réutilisée
   // par "Ce que NEXUS vous dit" (événement dérogation) et par le lien "Voir
   // le relevé de réception" — jamais rechargée deux fois pour ces 2 usages.
@@ -1414,6 +1465,374 @@
         if (chevron) chevron.textContent = LECTURE_NEXUS_DETAIL_OUVERT ? '⌄' : '›';
       });
     }
+  }
+
+  // ------------------------------------------------------------
+  // 2bis) PROCHAINE COMMANDE CARBURANT (Moteur Commande Carburant,
+  // 24/08/2026, cahier §22-23) — aucun calcul ici (Article 11) : tout vient
+  // de NexusCarburantCommandeDonnees.evaluerCommandeCarburantSite(), qui
+  // réutilise déjà chargerCuvesConfig/chargerControleJour. Cette section ne
+  // fait qu'afficher l'évaluation renvoyée.
+  // ------------------------------------------------------------
+  function global_NexusCommandeCarburantDonnees_disponible() {
+    return typeof NexusCarburantCommandeDonnees !== 'undefined' && typeof NexusCarburantCommandeMoteur !== 'undefined';
+  }
+
+  const ETAT_COMMANDE_STYLE = {
+    confortable: { icone: '✓', libelle: 'Confortable', c: 'var(--green)', f: 'var(--green-dim)' },
+    a_anticiper: { icone: '◔', libelle: 'À anticiper', c: 'var(--cyan)', f: 'rgba(79,195,217,0.12)' },
+    moment_ideal: { icone: '●', libelle: 'Moment idéal pour commander', c: 'var(--amber)', f: 'var(--amber-dim)' },
+    securite: { icone: '▲', libelle: 'Sécurité — commande urgente', c: 'var(--red)', f: 'var(--red-dim)' },
+    non_calculable: { icone: '…', libelle: 'Non calculable', c: 'var(--text-dim)', f: 'var(--panel-raised)' },
+  };
+
+  async function chargerEtRendreCommandeCarburant() {
+    const zone = document.getElementById('commandeCarburantZone');
+    if (!zone) return;
+    if (!global_NexusCommandeCarburantDonnees_disponible()) { zone.innerHTML = ''; return; }
+    try {
+      COMMANDE_CTX = await NexusCarburantCommandeDonnees.evaluerCommandeCarburantSite(nexusClient, SITE_ID);
+    } catch (e) {
+      console.error('Évaluation Commande Carburant:', e);
+      COMMANDE_CTX = null;
+    }
+    renderCommandeCarburant(COMMANDE_CTX);
+  }
+
+  function renderCommandeCarburant(ctx) {
+    const zone = document.getElementById('commandeCarburantZone');
+    if (!zone) return;
+    // Article 5 : jamais de recommandation affichée si la config/les données
+    // de base manquent — un site sans configuration Commande Carburant ne
+    // doit ni planter ni afficher une fausse certitude.
+    if (!ctx || ctx.ok === false || ctx.etatGlobal === 'non_calculable') {
+      zone.innerHTML = `<div class="commande-bandeau" style="background:var(--panel); border:1px solid var(--hairline); color:var(--text-dim);"><span>${ETAT_COMMANDE_STYLE.non_calculable.icone}</span><span>Prochaine commande : données insuffisantes pour une recommandation aujourd'hui${ctx && ctx.motif ? ` (${ctx.motif})` : ''}.</span></div>`;
+      return;
+    }
+
+    // Palier 1 — confortable : bandeau discret, aucun détail, aucun bouton.
+    if (ctx.etatGlobal === 'confortable') {
+      const st = ETAT_COMMANDE_STYLE.confortable;
+      zone.innerHTML = `<div class="commande-bandeau" style="background:${st.f}; color:${st.c};"><span>🚚 ${st.icone}</span><span>Carburants : approvisionnement sous contrôle — aucune commande à préparer pour l'instant.</span></div>`;
+      return;
+    }
+
+    // Palier 2 — à anticiper : un carburant approche sa fenêtre, mais aucun
+    // camion à préparer aujourd'hui (§15 : jamais avancer un achat sans
+    // nécessité). Bandeau intermédiaire, sans bouton.
+    if (ctx.etatGlobal === 'a_anticiper') {
+      const st = ETAT_COMMANDE_STYLE.a_anticiper;
+      const carburantsProches = Object.values(ctx.parCarburant || {})
+        .filter(ev => ev.etat === 'a_anticiper')
+        .sort((a, b) => (a.joursAvantBesoin || 99) - (b.joursAvantBesoin || 99));
+      const detail = carburantsProches.map(ev => {
+        const j = ev.joursAvantBesoin;
+        return `${COURT_CARBURANT[ev.carburant] || ev.carburant} (${j != null ? `commande probable dans ${j} j` : 'échéance non déterminée'})`;
+      }).join(' · ');
+      zone.innerHTML = `<div class="commande-bandeau" style="background:${st.f}; color:var(--text);"><span>🚚 ${st.icone}</span><span>À anticiper — ${detail || 'un carburant approche sa fenêtre de commande'}.</span></div>`;
+      return;
+    }
+
+    // Palier 3 — moment idéal / sécurité : carte dominante, détail par
+    // carburant, "pourquoi" et bouton d'action (§23, "Préparer ma
+    // commande →").
+    const st = ETAT_COMMANDE_STYLE[ctx.etatGlobal] || ETAT_COMMANDE_STYLE.non_calculable;
+    const clesRecommandees = ctx.commandeRecommandee ? Object.keys(ctx.commandeRecommandee.volumes) : [];
+    // Repli (rare, §14-16 "insuffisant_meme_optimise") : pas de commande
+    // arrondie finale, mais l'optimisation a quand même identifié le(s)
+    // carburant(s) retenu(s) — plus pertinent que le premier carburant du
+    // site au hasard pour expliquer le "pourquoi".
+    const clesOptimRetenues = ctx.optimisation && ctx.optimisation.volumesRetenus ? Object.keys(ctx.optimisation.volumesRetenus) : [];
+    const cleRef = clesRecommandees[0] || clesOptimRetenues[0] || Object.keys(ctx.parCarburant || {})[0];
+    const evRef = cleRef ? ctx.parCarburant[cleRef] : null;
+    const motifPrincipal = evRef && evRef.attente && evRef.attente.motif ? evRef.attente.motif : null;
+    const motifOptim = ctx.optimisation && ctx.optimisation.motif ? ctx.optimisation.motif : null;
+    const pourquoiTxt = [motifPrincipal, motifOptim].filter(Boolean).join(' ')
+      || (ctx.optimisation && ctx.optimisation.motif ? ctx.optimisation.motif : 'Recommandation calculée à partir du stock actuel, de la consommation prévue et du calendrier de livraison.');
+
+    const lignesCarburant = Object.keys(ctx.parCarburant || {}).map(cle => {
+      const ev = ctx.parCarburant[cle];
+      const stEv = ETAT_COMMANDE_STYLE[ev.etat] || ETAT_COMMANDE_STYLE.non_calculable;
+      const stockPhysique = (CONTROLE_CTX && CONTROLE_CTX.parCarburant && CONTROLE_CTX.parCarburant[cle]) ? CONTROLE_CTX.parCarburant[cle].stockPhysiqueAffiche : null;
+      const prevuL = ev.scenarioMaintenant ? ev.scenarioMaintenant.stockPrevuLivraisonL : null;
+      const livraisonTxt = ev.scenarioMaintenant && ev.scenarioMaintenant.livraisonISO ? formaterDateFrCourt(ev.scenarioMaintenant.livraisonISO) : '—';
+      const recoL = ctx.commandeRecommandee && ctx.commandeRecommandee.volumes[cle] != null ? ctx.commandeRecommandee.volumes[cle] : null;
+      return `
+        <div class="commande-ligne-carburant">
+          <span class="commande-ligne-nom"><span style="color:${stEv.c};">${stEv.icone}</span>${COURT_CARBURANT[cle] || cle}</span>
+          <span class="commande-ligne-detail">Stock ${fmtL(stockPhysique)} · prévu au ${livraisonTxt} ${fmtL(prevuL)}${recoL != null ? ` · recommandé ${fmtL(recoL)}` : ''}</span>
+        </div>`;
+    }).join('');
+
+    const totalHTML = ctx.commandeRecommandee
+      ? `<div class="commande-total"><span>Total recommandé</span><span>${fmtL(ctx.commandeRecommandee.total)}</span></div>`
+      : (ctx.optimisation && ctx.optimisation.decision === 'insuffisant_meme_optimise'
+        ? `<div class="section-note" style="margin:6px 0 0; padding:0;">${ctx.optimisation.motif}</div>`
+        : '');
+
+    const boutonHTML = ctx.commandeRecommandee
+      ? `<button type="button" class="commande-cta-btn" id="btnPreparerCommande" style="background:${st.c}; color:var(--bg);">🚚 Préparer ma commande →</button>`
+      : '';
+
+    zone.innerHTML = `
+      <div class="commande-carte" style="border-color:${st.c};">
+        <div class="commande-carte-tete">
+          <span class="commande-carte-titre">🚚 Prochaine commande</span>
+          <span class="commande-carte-badge" style="background:${st.f}; color:${st.c};">${st.libelle}</span>
+        </div>
+        <div class="commande-pourquoi">${pourquoiTxt}</div>
+        ${lignesCarburant}
+        ${totalHTML}
+        ${boutonHTML}
+      </div>`;
+
+    const btn = document.getElementById('btnPreparerCommande');
+    if (btn) btn.addEventListener('click', () => ouvrirFicheCommande(ctx));
+  }
+
+  // ------------------------------------------------------------
+  // FICHE "Proposition NEXUS" (§31-33 du cahier) — "Préparer ma commande →"
+  // ouvre cette fiche plutôt que d'écrire directement : NEXUS propose, le
+  // manager décide (§1). Réutilise la modale bottom-sheet déjà posée pour
+  // "Relevé de contrôle"/"Relevé de réception" (#controleOverlay/
+  // #controleModal, Article 11 — jamais un second mécanisme de modale).
+  // La ligne carburant_commandes n'est créée qu'au moment où le manager
+  // choisit réellement une issue (Valider/Reporter/Hors NEXUS) — jamais à
+  // l'ouverture de la fiche, qui reste une simple prévisualisation tant
+  // qu'aucune décision n'est prise.
+  // ------------------------------------------------------------
+  function ouvrirFicheCommande(ctx) {
+    if (!ctx || !ctx.commandeRecommandee) return;
+    const overlay = document.getElementById('controleOverlay');
+    overlay.style.display = 'flex';
+    renderFicheCommande(ctx);
+  }
+
+  function construirePourquoiFiche(ctx, cleRef) {
+    const evRef = cleRef ? ctx.parCarburant[cleRef] : null;
+    const motifPrincipal = evRef && evRef.attente && evRef.attente.motif ? evRef.attente.motif : null;
+    const motifOptim = ctx.optimisation && ctx.optimisation.motif ? ctx.optimisation.motif : null;
+    return [motifPrincipal, motifOptim].filter(Boolean).join(' ')
+      || 'Recommandation calculée à partir du stock actuel, de la consommation prévue et du calendrier de livraison.';
+  }
+
+  function renderFicheCommande(ctx) {
+    const modal = document.getElementById('controleModal');
+    const clesRecommandees = Object.keys(ctx.commandeRecommandee.volumes);
+    const cleRef = clesRecommandees[0];
+    const evRef = cleRef ? ctx.parCarburant[cleRef] : null;
+    const livraisonTxt = evRef && evRef.scenarioMaintenant && evRef.scenarioMaintenant.livraisonISO ? formaterDateFrCourt(evRef.scenarioMaintenant.livraisonISO) : '—';
+    const lignesVolumes = clesRecommandees.map(cle => `
+      <div class="controle-ligne">
+        <span>${NOM_CARBURANT[cle] || cle}</span>
+        <span><input type="number" step="1000" min="0" class="commande-fiche-input" data-carburant="${cle}" value="${ctx.commandeRecommandee.volumes[cle]}" style="width:92px; text-align:right; background:var(--panel-raised); border:1px solid var(--hairline); border-radius:6px; color:var(--text); font-family:var(--mono); padding:5px 7px; font-size:12px;"> L</span>
+      </div>`).join('');
+    modal.innerHTML = `
+      <button type="button" class="controle-modal-fermer" id="btnFermerFicheCommande">✕</button>
+      <div class="controle-modal-titre">Proposition NEXUS — Commande carburant</div>
+      <div class="controle-modal-soustitre">Livraison prévue le ${livraisonTxt} — volumes modifiables avant validation</div>
+      <div class="controle-section-titre">Volumes</div>
+      ${lignesVolumes}
+      <div class="controle-ligne" style="font-weight:700;"><span>Total</span><span id="ficheCommandeTotal">${fmtL(ctx.commandeRecommandee.total)}</span></div>
+      <div class="commande-pourquoi" style="margin-top:12px;">${construirePourquoiFiche(ctx, cleRef)}</div>
+      <div id="ficheCommandeMotifZone" style="display:none; margin-top:12px;">
+        <div class="controle-section-titre">Motif du report</div>
+        <select id="ficheMotifCategorie" style="width:100%; padding:9px; border-radius:8px; background:var(--panel-raised); border:1px solid var(--hairline); color:var(--text); font-size:12px; margin-bottom:8px;">
+          <option value="commande_hors_nexus">Commande déjà passée hors NEXUS</option>
+          <option value="fournisseur_indisponible">Fournisseur indisponible</option>
+          <option value="decision_tresorerie">Décision de trésorerie</option>
+          <option value="volume_a_modifier">Volume à modifier</option>
+          <option value="autre">Autre</option>
+        </select>
+        <textarea id="ficheMotifTexte" placeholder="Précision (optionnel)" style="width:100%; min-height:50px; padding:9px; border-radius:8px; background:var(--panel-raised); border:1px solid var(--hairline); color:var(--text); font-size:12px; font-family:var(--sans);"></textarea>
+      </div>
+      <div class="controle-modal-actions">
+        <button type="button" class="controle-modal-btn" id="btnValiderFicheCommande">Valider la commande</button>
+        <button type="button" class="controle-modal-btn secondaire" id="btnReporterFicheCommande">Reporter</button>
+      </div>
+      <div style="text-align:center; margin-top:10px;"><a href="#" id="lienFicheHorsNexus" style="font-size:11px; color:var(--text-dim);">Commande déjà passée par un autre canal ? Enregistrer sans validation NEXUS.</a></div>
+      <div class="controle-statut-rapport" id="ficheCommandeStatut"></div>`;
+
+    document.getElementById('btnFermerFicheCommande').addEventListener('click', fermerControleModal);
+    modal.querySelectorAll('.commande-fiche-input').forEach(inp => inp.addEventListener('input', recalculerTotalFiche));
+    document.getElementById('btnValiderFicheCommande').addEventListener('click', () => validerFicheCommande(ctx));
+    document.getElementById('btnReporterFicheCommande').addEventListener('click', () => confirmerReportFicheCommande(ctx));
+    document.getElementById('lienFicheHorsNexus').addEventListener('click', (e) => { e.preventDefault(); enregistrerFicheHorsNexus(ctx); });
+  }
+
+  function recalculerTotalFiche() {
+    const modal = document.getElementById('controleModal');
+    let total = 0;
+    modal.querySelectorAll('.commande-fiche-input').forEach(inp => { total += Number(inp.value) || 0; });
+    const totalEl = document.getElementById('ficheCommandeTotal');
+    if (totalEl) totalEl.textContent = fmtL(total);
+  }
+
+  function lireVolumesFiche() {
+    const modal = document.getElementById('controleModal');
+    const volumes = {};
+    let total = 0;
+    modal.querySelectorAll('.commande-fiche-input').forEach(inp => {
+      const v = Number(inp.value) || 0;
+      volumes[inp.dataset.carburant] = v;
+      total += v;
+    });
+    return { volumes, total };
+  }
+
+  function afficherStatutFiche(texte, niveau) {
+    const el = document.getElementById('ficheCommandeStatut');
+    if (!el) return;
+    el.textContent = texte;
+    el.className = `controle-statut-rapport ${niveau === 'ok' ? 'statut-pret' : (niveau === 'erreur' ? 'statut-erreur' : '')}`;
+  }
+
+  // Crée la ligne carburant_commandes (statut 'proposee') au moment où le
+  // manager prend une première décision réelle dans la fiche — jamais à
+  // l'ouverture (voir commentaire de ouvrirFicheCommande ci-dessus).
+  async function creerPropositionDepuisFiche(ctx, volumes, total) {
+    const clesRetenues = Object.keys(volumes);
+    const ordreConfiance = { fiable: 0, a_confirmer: 1, non_calculable: 2 };
+    let pireConfiance = 'fiable';
+    clesRetenues.forEach(cle => {
+      const c = ctx.parCarburant[cle] ? ctx.parCarburant[cle].confiance : 'non_calculable';
+      if (ordreConfiance[c] > ordreConfiance[pireConfiance]) pireConfiance = c;
+    });
+    const cleRef = clesRetenues[0];
+    const evRef = cleRef ? ctx.parCarburant[cleRef] : null;
+    const livraisonPrevueLe = evRef && evRef.scenarioMaintenant ? evRef.scenarioMaintenant.livraisonISO : null;
+    return NexusCarburantCommandeDonnees.creerPropositionCommande(nexusClient, SITE_ID, {
+      volumes, total, confidence: pireConfiance, raison: construirePourquoiFiche(ctx, cleRef),
+      livraisonPrevueLe, createdBy: MANAGER_COURANT ? MANAGER_COURANT.id : null,
+    });
+  }
+
+  // "Valider la commande" (§31) — le manager confirme qu'il commande
+  // réellement ce volume (déjà modifiable dans les champs ci-dessus) auprès
+  // du fournisseur. Crée la proposition puis la valide dans la foulée : un
+  // seul geste manager pour une seule décision réelle.
+  async function validerFicheCommande(ctx) {
+    const { volumes, total } = lireVolumesFiche();
+    if (total <= 0) { afficherStatutFiche('Volume total invalide.', 'erreur'); return; }
+    const btn = document.getElementById('btnValiderFicheCommande');
+    if (btn) { btn.disabled = true; btn.textContent = 'Enregistrement…'; }
+    const creation = await creerPropositionDepuisFiche(ctx, volumes, total);
+    if (!creation || !creation.ok) {
+      afficherStatutFiche("Échec de l'enregistrement — réessayez.", 'erreur');
+      if (btn) { btn.disabled = false; btn.textContent = 'Valider la commande'; }
+      return;
+    }
+    const validation = await NexusCarburantCommandeDonnees.validerCommande(nexusClient, creation.commande.id, {
+      validePar: MANAGER_COURANT ? MANAGER_COURANT.id : null, volumes, total,
+    });
+    if (!validation || !validation.ok) {
+      afficherStatutFiche('Proposition enregistrée mais la validation a échoué — à confirmer manuellement.', 'erreur');
+      if (btn) { btn.disabled = false; btn.textContent = 'Réessayer la validation'; }
+      return;
+    }
+    const livraisonPrevueLe = validation.commande.livraison_prevue_le;
+    afficherStatutFiche(`✓ Commande validée — ${fmtL(total)}${livraisonPrevueLe ? `, livraison prévue le ${formaterDateFrCourt(livraisonPrevueLe)}` : ''}.`, 'ok');
+    if (btn) btn.textContent = '✓ Validée';
+    setTimeout(fermerControleModal, 1800);
+    chargerEtRendreCommandeCarburant();
+  }
+
+  // "Reporter" (§32) — motif obligatoire et catégorisé, jamais un simple
+  // "fermer l'alerte" (1er clic révèle le motif, 2e clic confirme — même
+  // logique de friction volontaire que le reste de l'écran, ex. Point zéro).
+  async function confirmerReportFicheCommande(ctx) {
+    const zone = document.getElementById('ficheCommandeMotifZone');
+    const btn = document.getElementById('btnReporterFicheCommande');
+    if (zone.style.display !== 'block') { zone.style.display = 'block'; if (btn) btn.textContent = 'Confirmer le report'; return; }
+    const { volumes, total } = lireVolumesFiche();
+    if (total <= 0) { afficherStatutFiche('Volume total invalide.', 'erreur'); return; }
+    const motifCategorie = document.getElementById('ficheMotifCategorie').value;
+    const motif = document.getElementById('ficheMotifTexte').value.trim();
+    if (btn) { btn.disabled = true; btn.textContent = 'Enregistrement…'; }
+    const creation = await creerPropositionDepuisFiche(ctx, volumes, total);
+    if (!creation || !creation.ok) {
+      afficherStatutFiche("Échec de l'enregistrement — réessayez.", 'erreur');
+      if (btn) { btn.disabled = false; btn.textContent = 'Confirmer le report'; }
+      return;
+    }
+    const report = await NexusCarburantCommandeDonnees.reporterCommande(nexusClient, creation.commande.id, { motifCategorie, motif: motif || null });
+    if (!report || !report.ok) {
+      afficherStatutFiche("Proposition enregistrée mais le report a échoué — à confirmer manuellement.", 'erreur');
+      if (btn) { btn.disabled = false; btn.textContent = 'Confirmer le report'; }
+      return;
+    }
+    afficherStatutFiche('✓ Commande reportée.', 'ok');
+    if (btn) btn.textContent = '✓ Reportée';
+    setTimeout(fermerControleModal, 1800);
+    chargerEtRendreCommandeCarburant();
+  }
+
+  // "Commande déjà passée par un autre canal" (§33) — évite qu'une
+  // recommandation persistante et incorrecte continue de s'afficher alors
+  // qu'une commande a bien été passée ailleurs (téléphone, autre outil).
+  async function enregistrerFicheHorsNexus(ctx) {
+    const { volumes, total } = lireVolumesFiche();
+    if (total <= 0) { afficherStatutFiche('Volume total invalide.', 'erreur'); return; }
+    const resultat = await NexusCarburantCommandeDonnees.enregistrerCommandeHorsNexus(nexusClient, SITE_ID, {
+      volumes, total, createdBy: MANAGER_COURANT ? MANAGER_COURANT.id : null,
+    });
+    if (resultat && resultat.ok) {
+      afficherStatutFiche(`✓ Commande hors NEXUS enregistrée — ${fmtL(total)}.`, 'ok');
+      setTimeout(fermerControleModal, 1800);
+      chargerEtRendreCommandeCarburant();
+    } else {
+      afficherStatutFiche("Échec de l'enregistrement — réessayez.", 'erreur');
+    }
+  }
+
+  // ------------------------------------------------------------
+  // SIMULATEUR DE COMMANDE (§30 du cahier) — rejoue
+  // evaluerCommandeCarburantSite() avec une date/heure hypothétique, aucune
+  // écriture (Article 11 : même fonction que la carte réelle, jamais une
+  // deuxième logique de calcul dupliquée pour le simulateur).
+  // ------------------------------------------------------------
+  function renderSimulateurCommandePanel() {
+    const panel = document.getElementById('simulateurCommandePanel');
+    if (!panel) return;
+    panel.innerHTML = `
+      <div class="pointzero-titre">🧪 Simuler une commande</div>
+      <div class="pointzero-texte">Rejoue la recommandation NEXUS pour une date et une heure hypothétiques, sans rien enregistrer — pour comparer avec la recommandation du jour.</div>
+      <div class="pointzero-champ-label">Date de commande simulée</div>
+      <input type="date" id="simDate" style="width:100%; padding:9px 11px; border-radius:10px; background:var(--panel-raised); border:1px solid var(--hairline); color:var(--text); font-family:var(--mono); margin-bottom:10px;" value="${todayISO()}">
+      <div class="pointzero-champ-label">Heure</div>
+      <input type="time" id="simHeure" style="width:100%; padding:9px 11px; border-radius:10px; background:var(--panel-raised); border:1px solid var(--hairline); color:var(--text); font-family:var(--mono); margin-bottom:10px;" value="${(COMMANDE_CTX && COMMANDE_CTX.heureMaintenantHHMM) || '08:00'}">
+      <button type="button" class="controle-modal-btn" id="btnComparerSimulateur">Comparer avec la recommandation NEXUS</button>
+      <div id="simulateurResultat" style="margin-top:12px;"></div>`;
+    document.getElementById('btnComparerSimulateur').addEventListener('click', lancerSimulationCommande);
+  }
+
+  async function lancerSimulationCommande() {
+    const zone = document.getElementById('simulateurResultat');
+    const dateVal = document.getElementById('simDate').value;
+    const heureVal = document.getElementById('simHeure').value;
+    if (!dateVal || !heureVal) { zone.innerHTML = '<div class="controle-vide">Choisissez une date et une heure.</div>'; return; }
+    zone.innerHTML = '<div class="loading">Calcul…</div>';
+    let simulation = null;
+    try {
+      simulation = await NexusCarburantCommandeDonnees.evaluerCommandeCarburantSite(nexusClient, SITE_ID, { dateISO: dateVal, heureHHMM: heureVal });
+    } catch (e) {
+      console.error('Simulation Commande Carburant:', e);
+    }
+    if (!simulation || simulation.ok === false) {
+      zone.innerHTML = `<div class="controle-vide">${simulation && simulation.motif ? simulation.motif : 'Simulation impossible — données insuffisantes.'}</div>`;
+      return;
+    }
+    const stSim = ETAT_COMMANDE_STYLE[simulation.etatGlobal] || ETAT_COMMANDE_STYLE.non_calculable;
+    const stReel = COMMANDE_CTX ? (ETAT_COMMANDE_STYLE[COMMANDE_CTX.etatGlobal] || ETAT_COMMANDE_STYLE.non_calculable) : null;
+    const lignes = Object.keys(simulation.parCarburant || {}).map(cle => {
+      const simVol = simulation.commandeRecommandee && simulation.commandeRecommandee.volumes[cle] != null ? fmtL(simulation.commandeRecommandee.volumes[cle]) : '—';
+      const reelVol = COMMANDE_CTX && COMMANDE_CTX.commandeRecommandee && COMMANDE_CTX.commandeRecommandee.volumes[cle] != null ? fmtL(COMMANDE_CTX.commandeRecommandee.volumes[cle]) : '—';
+      return `<div class="controle-ligne"><span>${COURT_CARBURANT[cle] || cle}</span><span class="commande-ligne-detail">simulé ${simVol} · recommandation du jour ${reelVol}</span></div>`;
+    }).join('');
+    zone.innerHTML = `
+      <span class="commande-carte-badge" style="background:${stSim.f}; color:${stSim.c}; display:inline-block; margin-bottom:8px;">Simulation : ${stSim.libelle}</span>
+      ${lignes}
+      ${stReel ? `<div class="section-note" style="margin-top:8px; padding:0;">Recommandation réelle du jour : ${stReel.libelle}.</div>` : ''}`;
   }
 
   // ------------------------------------------------------------
@@ -2429,6 +2848,7 @@
   // additif). Le panneau reste replié par défaut.
   // ------------------------------------------------------------
   let POINTZERO_PANEL_OUVERT = false;
+  let SIMULATEUR_COMMANDE_OUVERT = false;
   let POINTZERO_EN_COURS = false;
 
   function renderPointZeroPanel() {
@@ -3069,6 +3489,14 @@
       else { panel.style.display = 'none'; }
     });
 
+    // Simulateur de commande (§30) — même pattern toggle+panel que Point zéro.
+    document.getElementById('btnSimulateurCommandeToggle').addEventListener('click', () => {
+      SIMULATEUR_COMMANDE_OUVERT = !SIMULATEUR_COMMANDE_OUVERT;
+      const panel = document.getElementById('simulateurCommandePanel');
+      if (SIMULATEUR_COMMANDE_OUVERT) { renderSimulateurCommandePanel(); panel.style.display = 'block'; }
+      else { panel.style.display = 'none'; }
+    });
+
     // "Gérer les tarifs carburants" — lien statique de #bodyEconomie,
     // en dehors de #economieZone donc jamais recréé par renderEconomie() ;
     // wiré une seule fois ici, comme btnPointZeroToggle ci-dessus.
@@ -3098,6 +3526,13 @@
     renderSituation(CONTROLE_CTX);
     renderStatutReleveDuJour(CONTROLE_CTX);
     renderLectureNexus();
+
+    // Prochaine commande carburant (24/08/2026) — fire-and-forget comme
+    // qualifierRisquesCarburantEnArrierePlan() ci-dessous : cette carte doit
+    // rester visible immédiatement, mais son évaluation (historique de
+    // ventes sur 180 jours, jours fériés, commandes en cours) ne doit pas
+    // retarder le reste de l'écran ni les autres blocs toujours visibles.
+    chargerEtRendreCommandeCarburant();
 
     // Cadrage risques Phase 5 (tâche #234) — fire-and-forget, volontairement
     // pas de `await` : voir le commentaire de la fonction pour le pourquoi.
