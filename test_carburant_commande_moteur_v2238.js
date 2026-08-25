@@ -426,4 +426,98 @@ function historiqueConstant(carburant, valeurParJour, debutISO, finISOExclu) {
   ok("audit §15 — calcul rejoué deux fois : même résultat, aucune dérive");
 }
 
+// ------------------------------------------------------------
+// 15) (25/08/2026, retour de Frédéric — "Correction à apporter au moteur
+//    'Prochaine commande'") Scénario vendredi -> lundi sur données réelles :
+//    confirme que joursEntre + prevoirConsommationFenetre couvrent bien
+//    vendredi (après l'ancre) + samedi + dimanche, sans trou ni
+//    double-comptage, une fois l'ancre corrigée (task #189, côté données —
+//    voir chargerStockEtFiabiliteParCarburant). Documente aussi
+//    EXPLICITEMENT une limite connue du modèle : `joursEntre` a une borne
+//    supérieure EXCLUSIVE (le jour de livraison lui-même n'entre jamais
+//    dans la fenêtre de ventes prévues), donc les ventes du LUNDI (jour de
+//    livraison) ne sont, à ce stade, jamais soustraites — le modèle
+//    suppose que le camion arrive avant l'ouverture des ventes de ce
+//    jour-là. C'est une simplification à granularité JOUR (le schéma
+//    n'a pas d'heure de livraison prévisionnelle en base,
+//    `carburant_commandes.livraison_prevue_le` est une DATE), pas un bug :
+//    elle est documentée ici honnêtement plutôt que silencieusement
+//    corrigée ou ignorée (Article 5).
+// ------------------------------------------------------------
+{
+  // Historique synthétique : une valeur distincte et stable par jour de
+  // semaine (vendredi=1000, samedi=2000, dimanche=3000, lundi=4000, autres
+  // jours=1500), sur assez de semaines pour que la prévision "même jour de
+  // semaine" soit jugée 'fiable' — permet de vérifier une SOMME exacte,
+  // jamais une simple plage approximative.
+  const VALEUR_PAR_JOUR_SEMAINE = { 1: 4000, 2: 1500, 3: 1500, 4: 1500, 5: 1000, 6: 2000, 7: 3000 };
+  const historiqueVarie = [];
+  {
+    let cursor = '2026-06-01';
+    while (cursor < '2026-08-21') {
+      const dow = M.jourSemaineIso(cursor);
+      historiqueVarie.push({ date: cursor, ventes: { sp95: VALEUR_PAR_JOUR_SEMAINE[dow] } });
+      cursor = M.ajouterJoursISO(cursor, 1);
+    }
+  }
+
+  // a) Calendrier : vendredi 2026-08-21 avant cutoff -> livraison lundi
+  //    2026-08-24 (déjà couvert bloc 1, reconfirmé ici comme prémisse du
+  //    scénario complet).
+  const fenetreVendredi = M.calculerFenetreLivraison({ dateCommandeISO: '2026-08-21', heureCommandeHHMM: '09:30', config: CONFIG, joursFeriesISO: [] });
+  assert.strictEqual(fenetreVendredi.livraisonISO, '2026-08-24', 'prémisse du scénario : vendredi avant cutoff -> livraison lundi');
+
+  // b) joursEntre('2026-08-21' [vendredi, ancre], '2026-08-24' [lundi,
+  //    livraison]) -> exactement [vendredi, samedi, dimanche], jamais de
+  //    trou (aucun jour sauté) ni de doublon, et lundi (borne exclusive)
+  //    n'y figure jamais.
+  // Array.from() : objet créé dans la sandbox vm (autre "realm" JS que ce
+  // test) — même précaution que le bloc 7 ci-dessus, jamais un problème du
+  // moteur lui-même.
+  const dates = M.joursEntre('2026-08-21', fenetreVendredi.livraisonISO);
+  assert.deepStrictEqual(Array.from(dates), ['2026-08-21', '2026-08-22', '2026-08-23'], 'vendredi+samedi+dimanche exactement, sans trou ni doublon');
+  assert.ok(!dates.includes('2026-08-24'), 'connu et documenté : le jour de livraison (lundi) lui-même n\'est jamais inclus dans la fenêtre de ventes prévues (borne exclusive, granularité jour)');
+
+  // c) La fenêtre ne fait ni trou ni double-comptage : sa somme est
+  //    EXACTEMENT égale à la somme des 3 prévisions journalières prises
+  //    individuellement — comparaison structurelle, jamais un chiffre
+  //    absolu figé, car prevoirConsommationJour mélange la moyenne
+  //    "même jour de semaine" (65%) et une tendance récente (35%, §8-§35),
+  //    donc la prévision de chaque jour n'est pas exactement la valeur
+  //    synthétique injectée (1000/2000/3000) mais s'en approche.
+  const previsionsIndividuelles = dates.map(d => M.prevoirConsommationJour({ historiqueParJour: historiqueVarie, carburant: 'sp95', dateCibleISO: d }));
+  assert.ok(previsionsIndividuelles.every(p => p.confiance === 'fiable'), 'assez de semaines d\'historique pour une prévision fiable jour par jour, condition du test');
+  const sommeAttendue = previsionsIndividuelles.reduce((s, p) => s + p.prevision, 0);
+  assert.ok(Math.abs(sommeAttendue - 6000) < 1000, `la somme des 3 jours (${sommeAttendue}) doit rester proche des valeurs synthétiques injectées (vendredi 1000 + samedi 2000 + dimanche 3000 = 6000), écart dû au blend jour-de-semaine/tendance récente (§8)`);
+
+  const ventesPrevues = M.prevoirConsommationFenetre({ historiqueParJour: historiqueVarie, carburant: 'sp95', datesCiblesISO: dates, joursFeriesISO: [] });
+  assert.strictEqual(ventesPrevues.total, sommeAttendue, 'prevoirConsommationFenetre = somme exacte des 3 jours individuels, ni trou ni double-comptage');
+  assert.strictEqual(ventesPrevues.confiance, 'fiable');
+
+  // d) Confirme que la prévision du lundi lui-même (proche de 4000, valeur
+  //    très différente des 3 autres jours pour que l'écart soit sans
+  //    ambiguïté) n'est PAS mélangée dans ventesPrevues.total — vérifie
+  //    noir sur blanc la limite documentée en b).
+  const previsionLundi = M.prevoirConsommationJour({ historiqueParJour: historiqueVarie, carburant: 'sp95', dateCibleISO: '2026-08-24' });
+  assert.ok(Math.abs(previsionLundi.prevision - 4000) < 1000, `prévision lundi (${previsionLundi.prevision}) proche de 4000`);
+  assert.notStrictEqual(ventesPrevues.total, sommeAttendue + previsionLundi.prevision, 'les ventes du lundi (jour de livraison) ne sont jamais ajoutées à la fenêtre, conformément à la limite documentée');
+
+  // e) Bout en bout via evaluerScenarioCommande (la fonction réellement
+  //    utilisée par le moteur, pas seulement les primitives isolées) :
+  //    stock ancre 20000 L vendredi -> stock prévu à la livraison lundi =
+  //    20000 - (ventes ven+sam+dim), exactement la même valeur que la
+  //    fenêtre calculée en c), jamais une valeur recalculée différemment.
+  const scenario = M.evaluerScenarioCommande({
+    dateCommandeISO: '2026-08-21', heureCommandeHHMM: '09:30', config: CONFIG, joursFeriesISO: [],
+    stockActuelL: 20000, consommationMoyenneJour: 1500, historiqueParJour: historiqueVarie, carburant: 'sp95',
+    commandesEnCoursVolumeL: 0, ancreStockISO: '2026-08-21',
+  });
+  assert.strictEqual(scenario.livraisonISO, '2026-08-24');
+  assert.deepStrictEqual(Array.from(scenario.dates), ['2026-08-21', '2026-08-22', '2026-08-23']);
+  assert.strictEqual(scenario.ventesPrevuesL, sommeAttendue, 'evaluerScenarioCommande retrouve exactement la même somme que le calcul direct de la fenêtre (c), aucune divergence entre les deux chemins');
+  assert.strictEqual(scenario.stockPrevuLivraisonL, 20000 - sommeAttendue, 'stock prévu lundi = 20000 (ancre vendredi) - ventes ven+sam+dim, intégration bout-en-bout correcte');
+
+  ok('vendredi -> lundi (§190, retour Frédéric) — joursEntre+prevoirConsommationFenetre couvrent vendredi/samedi/dimanche sans trou ni doublon ; limite connue et documentée : les ventes du lundi (jour de livraison) lui-même ne sont pas encore soustraites (granularité jour, pas d\'heure de livraison en base)');
+}
+
 console.log(`\n${n}/${n} tests passés — Moteur Commande Carburant (v2.238).`);

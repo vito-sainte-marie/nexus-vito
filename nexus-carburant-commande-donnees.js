@@ -54,14 +54,20 @@
   // comme "réglages non configurés", pas comme une valeur par défaut
   // inventée ici).
   async function chargerConfigEtCuves(client, siteId) {
+    // `horaires` ajouté (25/08/2026, retour de Frédéric) — nécessaire pour
+    // résoudre les fenêtres de quarts lors du calcul du "stock estimé
+    // maintenant" (chargerStockEtFiabiliteParCarburant ci-dessous) ; même
+    // ligne station_config déjà lue ici, jamais une deuxième requête pour
+    // une seule colonne supplémentaire (Article 11).
     const { data, error } = await client.from('station_config')
-      .select('carburant_commande_config, cuves_carburants, fuseau_horaire')
+      .select('carburant_commande_config, cuves_carburants, fuseau_horaire, horaires')
       .eq('site', siteId).maybeSingle();
-    if (error) { console.error('Chargement config Commande Carburant:', error); return { config: null, cuves: null, fuseau: 'America/Martinique' }; }
+    if (error) { console.error('Chargement config Commande Carburant:', error); return { config: null, cuves: null, fuseau: 'America/Martinique', horaires: null }; }
     return {
       config: (data && data.carburant_commande_config) || null,
       cuves: (data && data.cuves_carburants) || null,
       fuseau: (data && data.fuseau_horaire) || 'America/Martinique',
+      horaires: (data && data.horaires) || null,
     };
   }
 
@@ -133,22 +139,101 @@
     return parCarburant;
   }
 
-  // Stock physique actuel + fiabilité, par carburant actif — réutilise
-  // intégralement NexusCarburantDonnees.chargerControleJour (Article 11,
-  // même chaîne de calcul que Carburants Pilotage, jamais une deuxième
-  // lecture du stock physique). `stockFiable` : tout statut autre que
-  // 'Données insuffisantes' est considéré comme un stock physique
-  // exploitable — même distinction que le reste de Carburants Pilotage.
-  async function chargerStockEtFiabiliteParCarburant(client, siteId, dateISO) {
+  // Stock "estimé maintenant" par carburant actif (25/08/2026, retour de
+  // Frédéric — cahier "Correction à apporter au moteur Prochaine
+  // commande") : "Le jaugeage saisi le matin correspond au stock physique
+  // d'ouverture avant les ventes de la journée. Il ne doit donc jamais être
+  // considéré comme le stock disponible 'maintenant'." Confirmé exact :
+  // avant ce correctif, cette fonction renvoyait `stockPhysiqueAffiche`
+  // (le jaugeage brut, `reelDuJour`) tel quel comme `stockActuelL`, sans
+  // jamais déduire les ventes déjà captées depuis ce jaugeage — l'ancre de
+  // TOUTE la projection (stockPrevuLivraison) était donc systématiquement
+  // en avance sur la réalité d'un montant égal aux ventes du jour déjà
+  // réalisées au moment de l'évaluation.
+  //
+  // Formule appliquée désormais : stock estimé maintenant = jaugeage
+  // d'ouverture − ventes réellement captées depuis ce jaugeage jusqu'à
+  // maintenant. Réutilise NexusCarburantDonnees.chargerControleJour
+  // (Article 11, même lecture que Carburants Pilotage, jamais une deuxième
+  // lecture du stock physique) puis calcule la fenêtre "jaugeage -> maintenant"
+  // manquante, selon 2 cas :
+  //   A) jaugeage déjà saisi aujourd'hui -> il faut les ventes depuis SON
+  //      instant précis (mesure_le) jusqu'à maintenant — fenêtre que
+  //      chargerControleJour ne calcule PAS pour son propre usage (son
+  //      ventesDepuis sert au rapprochement réel/théorique entre deux
+  //      jaugeages consécutifs, s'arrête à la mesure du jour) — recalculée
+  //      ici via la primitive bas niveau
+  //      NexusCarburantMoteur.resoudreVentesFenetre, le même mécanisme déjà
+  //      utilisé pour l'écart de rapprochement, réutilisé à un niveau plus
+  //      bas plutôt que dupliqué (Article 11).
+  //   B) aucun jaugeage aujourd'hui -> chargerControleJour a DÉJÀ étendu sa
+  //      propre fenêtre jusqu'à maintenant dans ce cas précis (sa
+  //      `fenetreFin` vaut `new Date()` quand `releveDuJour` est absent) :
+  //      son `ventesDepuis` est directement réutilisable, rien à
+  //      recalculer.
+  // Limite connue, héritée de chargerControleJour et non traitée ici :
+  // quand l'ancre est un point zéro, la fenêtre reste calculée date-à-date
+  // et ne s'étend pas jusqu'à "maintenant" (portée volontairement
+  // inchangée depuis v2.205, cas rare limité au jour même d'une nouvelle
+  // certification) — documenté au Data Dictionary plutôt que silencieusement
+  // approximé.
+  //
+  // `stockFiable` : un statut de chaîne physique exploitable NE SUFFIT PLUS
+  // seul (comme avant) — le stock estimé maintenant doit aussi avoir pu
+  // être calculé (ventes résolues sans chevauchement de quart) ; sinon,
+  // jamais un repli silencieux sur le jaugeage brut (ce serait recommettre
+  // exactement l'erreur signalée).
+  // `maintenant` (optionnel, Date ou ISO) : instant "now" utilisé pour la
+  // borne haute de la fenêtre de ventes captées depuis le jaugeage —
+  // injectable pour les tests (jamais `new Date()` en dur dans la logique,
+  // même précédent que `construireContextePlausibilite`), défaut = instant
+  // réel en production.
+  async function chargerStockEtFiabiliteParCarburant(client, siteId, dateISO, horaires, fuseau, maintenant) {
     const NCD = global.NexusCarburantDonnees;
-    if (!NCD) { console.error('NexusCarburantDonnees non chargé — impossible de lire le stock physique.'); return { parCarburant: {}, aucunReleve: true }; }
+    const M = global.NexusCarburantMoteur;
+    if (!NCD || !M) { console.error('NexusCarburantDonnees/NexusCarburantMoteur non chargés — impossible de lire le stock physique.'); return { parCarburant: {}, aucunReleve: true }; }
     const controle = await NCD.chargerControleJour(client, siteId, dateISO);
     if (controle.aucunReleve || !controle.parCarburant) return { parCarburant: {}, aucunReleve: true };
+
     const resultat = {};
+
+    if (controle.releveDuJour && controle.releveDuJour.mesure_le) {
+      // Cas A — jaugeage saisi aujourd'hui.
+      const { data: lignesQuartsJour, error } = await client.from('audits_caisse')
+        .select('date,quart,litrage_gazole,litrage_sp95,litrage_gnr')
+        .eq('site', siteId).eq('date', dateISO);
+      if (error) console.error('Chargement quarts du jour (stock estimé maintenant):', error);
+      const t0 = new Date(controle.releveDuJour.mesure_le);
+      const t1 = maintenant ? new Date(maintenant) : new Date();
+      const resolu = M.resoudreVentesFenetre(lignesQuartsJour || [], horaires, t0, t1, fuseau);
+      Object.entries(controle.parCarburant).forEach(([cle, r]) => {
+        const ventes = resolu.ventes[cle];
+        const jaugeageL = r.reelDuJour != null ? Number(r.reelDuJour) : null;
+        const stockEstimeL = (jaugeageL != null && ventes != null) ? jaugeageL - ventes : null;
+        resultat[cle] = {
+          stockActuelL: stockEstimeL,
+          jaugeageOuvertureL: jaugeageL,
+          jaugeageOuvertureLe: controle.releveDuJour.mesure_le,
+          ventesDepuisJaugeageL: ventes,
+          stockFiable: r.statut !== 'Données insuffisantes' && stockEstimeL != null,
+        };
+      });
+      return { parCarburant: resultat, aucunReleve: false };
+    }
+
+    // Cas B — aucun jaugeage aujourd'hui : ventesDepuis de
+    // chargerControleJour va déjà jusqu'à "maintenant" (voir commentaire
+    // ci-dessus).
     Object.entries(controle.parCarburant).forEach(([cle, r]) => {
+      const jaugeageL = r.dernierReel != null ? Number(r.dernierReel) : null;
+      const ventes = r.ventesDepuis;
+      const stockEstimeL = (jaugeageL != null && ventes != null) ? jaugeageL - ventes : null;
       resultat[cle] = {
-        stockActuelL: r.stockPhysiqueAffiche != null ? Number(r.stockPhysiqueAffiche) : null,
-        stockFiable: r.statut !== 'Données insuffisantes' && r.stockPhysiqueAffiche != null,
+        stockActuelL: stockEstimeL,
+        jaugeageOuvertureL: jaugeageL,
+        jaugeageOuvertureLe: controle.dernierReleve ? controle.dernierReleve.mesure_le : null,
+        ventesDepuisJaugeageL: ventes,
+        stockFiable: r.statut !== 'Données insuffisantes' && stockEstimeL != null,
       };
     });
     return { parCarburant: resultat, aucunReleve: false };
@@ -165,7 +250,7 @@
     if (!M) { console.error('NexusCarburantCommandeMoteur non chargé — évaluation Commande Carburant impossible.'); return null; }
 
     const dateISO = (options && options.dateISO) || dateISOAujourdhui();
-    const { config, cuves, fuseau } = await chargerConfigEtCuves(client, siteId);
+    const { config, cuves, fuseau, horaires } = await chargerConfigEtCuves(client, siteId);
     if (!config || !cuves) {
       return { ok: false, motif: "Configuration Commande Carburant absente pour ce site (station_config.carburant_commande_config / cuves_carburants).", etatGlobal: 'non_calculable' };
     }
@@ -179,7 +264,7 @@
     const [historiqueParJour, joursFeriesISO, stockInfo, commandesEnCours] = await Promise.all([
       chargerHistoriqueVentesParJour(client, siteId, dateISO),
       chargerJoursFeries(client, siteId),
-      chargerStockEtFiabiliteParCarburant(client, siteId, dateISO),
+      chargerStockEtFiabiliteParCarburant(client, siteId, dateISO, horaires, fuseau, options && options.maintenant),
       chargerCommandeEnCoursParCarburant(client, siteId),
     ]);
 
@@ -198,7 +283,23 @@
         historiqueParJour, commandeEnCoursVolumeL: commandeEnCours ? commandeEnCours.volumeL : 0,
         stockFiable: stock.stockFiable,
       });
-      evaluationsParCarburant[carburant] = { ...evaluation, limiteRemplissageL, commandeEnCours, consommationMoyenneJour };
+      evaluationsParCarburant[carburant] = {
+        ...evaluation, limiteRemplissageL, commandeEnCours, consommationMoyenneJour,
+        // Jaugeage d'ouverture horodaté + ventes captées depuis (25/08/2026,
+        // retour de Frédéric, "affichage minimal obligatoire") — transmis
+        // tel quel pour l'écran, jamais recalculé une seconde fois côté HTML
+        // (Article 11).
+        jaugeageOuvertureL: stock.jaugeageOuvertureL, jaugeageOuvertureLe: stock.jaugeageOuvertureLe,
+        ventesDepuisJaugeageL: stock.ventesDepuisJaugeageL,
+        // "Stock estimé maintenant" (terminologie exacte de Frédéric) — même
+        // valeur que `stockActuelL` passé à evaluerCarburant() ci-dessus,
+        // simplement exposée sous son propre nom pour l'écran plutôt que de
+        // forcer NEXUS-Carburants-Pilotage-v1.html à aller la rechercher dans
+        // scenarioMaintenant (qui ne la porte pas — elle est un INPUT du
+        // scénario, pas un de ses résultats).
+        stockEstimeMaintenantL: stock.stockActuelL,
+        stockFiable: stock.stockFiable,
+      };
       capacitesDisponiblesL[carburant] = evaluation.scenarioMaintenant
         ? M.capaciteDisponibleLivraison(limiteRemplissageL, evaluation.scenarioMaintenant.stockPrevuLivraisonL)
         : null;

@@ -926,6 +926,19 @@
     return `${parseInt(d, 10)} ${MOIS[parseInt(m, 10) - 1]}`;
   }
 
+  // 25/08/2026, retour de Frédéric ("Correction à apporter au moteur
+  // 'Prochaine commande'") : "À commander mardi 25 août avant 11h" / "Livraison
+  // prévue mercredi 26 août" plutôt qu'une date seule, jamais ambiguë sur QUEL
+  // jour. Calcul du jour de semaine à midi UTC (même technique que
+  // jourSemaineIso() côté moteur, nexus-carburant-commande-moteur.js) pour ne
+  // jamais basculer de jour par arrondi de fuseau sur une date sans heure.
+  const JOURS_SEMAINE_FR = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
+  function formaterDateFrAvecJour(iso) {
+    if (!iso) return '';
+    const dow = new Date(`${iso}T12:00:00Z`).getUTCDay();
+    return `${JOURS_SEMAINE_FR[dow]} ${formaterDateFrCourt(iso)}`;
+  }
+
   // 20/08/2026, référence physique du jour (jaugeage d'ouverture ou
   // post-livraison) : contrairement à formaterDateFrCourt ci-dessus (date
   // seule, YYYY-MM-DD), cette fonction formate un timestamp complet
@@ -1551,12 +1564,20 @@
       || (ctx.optimisation && ctx.optimisation.motif ? ctx.optimisation.motif : 'Recommandation calculée à partir du stock actuel, de la consommation prévue et du calendrier de livraison.');
 
     // Décision lisible en une seconde (25/08/2026, retour de Frédéric) —
-    // cutoff et date de livraison en toutes lettres, jamais seulement
-    // déductibles du détail par carburant plus bas.
-    const cutoffTxt = ctx.config && ctx.config.cutoff_heure ? `Commander avant ${ctx.config.cutoff_heure}` : null;
+    // date limite de commande et date de livraison affichées SÉPARÉMENT,
+    // chacune avec son jour de semaine en toutes lettres ("À commander mardi
+    // 25 août avant 11h" / "Livraison prévue mercredi 26 août"), jamais
+    // regroupées sur une seule ligne ambiguë ("Commander avant 11h ·
+    // livraison prévue 26 août" ne dit pas QUEL jour commander). La date
+    // limite = `dateEffective` du scénario (jour de commande considéré par le
+    // moteur : aujourd'hui si avant cutoff, demain sinon — §4), jamais
+    // recalculée séparément ici (Article 11).
+    const dateLimiteTxt = evRef && evRef.scenarioMaintenant && evRef.scenarioMaintenant.dateEffective && ctx.config && ctx.config.cutoff_heure
+      ? `À commander ${formaterDateFrAvecJour(evRef.scenarioMaintenant.dateEffective)} avant ${ctx.config.cutoff_heure}` : null;
     const livraisonPrevueTxt = evRef && evRef.scenarioMaintenant && evRef.scenarioMaintenant.livraisonISO
-      ? `Livraison prévue : ${formaterDateFrCourt(evRef.scenarioMaintenant.livraisonISO)}` : null;
-    const metaTxt = [cutoffTxt, livraisonPrevueTxt].filter(Boolean).join(' · ');
+      ? `Livraison prévue ${formaterDateFrAvecJour(evRef.scenarioMaintenant.livraisonISO)}` : null;
+    const metaHTML = [dateLimiteTxt, livraisonPrevueTxt].filter(Boolean)
+      .map(t => `<div class="commande-ligne-detail" style="margin:0 0 2px;">${t}</div>`).join('');
 
     // Badge d'état qualifié (25/08/2026, retour de Frédéric : "Sécurité —
     // commande urgente" ne doit jamais s'afficher sans nuance si les données
@@ -1595,7 +1616,7 @@
     const lignesCarburant = Object.keys(ctx.parCarburant || {}).map(cle => {
       const ev = ctx.parCarburant[cle];
       const stEv = ETAT_COMMANDE_STYLE[ev.etat] || ETAT_COMMANDE_STYLE.non_calculable;
-      const stockPhysique = (CONTROLE_CTX && CONTROLE_CTX.parCarburant && CONTROLE_CTX.parCarburant[cle]) ? CONTROLE_CTX.parCarburant[cle].stockPhysiqueAffiche : null;
+      const ventesPrevuesL = ev.scenarioMaintenant ? ev.scenarioMaintenant.ventesPrevuesL : null;
       const prevuL = ev.scenarioMaintenant ? ev.scenarioMaintenant.stockPrevuLivraisonL : null;
       const livraisonTxt = ev.scenarioMaintenant && ev.scenarioMaintenant.livraisonISO ? formaterDateFrCourt(ev.scenarioMaintenant.livraisonISO) : '—';
       const recoL = ctx.commandeRecommandee && ctx.commandeRecommandee.volumes[cle] != null ? ctx.commandeRecommandee.volumes[cle] : null;
@@ -1607,10 +1628,30 @@
       // ce même jour). Affichée uniquement quand une recommandation existe
       // pour ce carburant — sinon la ligne reste courte comme avant.
       const capaciteTxt = (recoL != null && ev.capaciteDisponibleL != null) ? ` · capacité dispo. ${fmtL(ev.capaciteDisponibleL)}` : '';
+
+      // Jaugeage d'ouverture horodaté + stock estimé maintenant (25/08/2026,
+      // retour de Frédéric, "affichage minimal obligatoire") — DEUX valeurs
+      // distinctes, jamais confondues (task #189/#191) : le jaugeage brut du
+      // matin n'est PAS le stock disponible maintenant, il faut lui déduire
+      // les ventes déjà captées depuis. `stockFiable === false` (quart
+      // chevauchant le jaugeage) affiche honnêtement "non calculable" plutôt
+      // qu'un chiffre fabriqué (Article 5).
+      const jaugeageTxt = ev.jaugeageOuvertureL != null
+        ? `Jaugeage ${ev.jaugeageOuvertureLe ? formaterDateHeureFr(ev.jaugeageOuvertureLe) : ''} ${fmtL(ev.jaugeageOuvertureL)}` : null;
+      const stockMaintenantTxt = ev.stockFiable === false
+        ? 'stock maintenant non calculable (quart en cours au jaugeage)'
+        : (ev.stockEstimeMaintenantL != null ? `stock maintenant ${fmtL(ev.stockEstimeMaintenantL)}` : null);
+      const ligneJaugeage = [jaugeageTxt, stockMaintenantTxt].filter(Boolean).join(' · ');
+
+      const ligneProjection = `Ventes prévues d'ici livraison ${fmtL(ventesPrevuesL)} · prévu avant livraison (${livraisonTxt}) ${fmtL(prevuL)}${recoL != null ? ` · recommandé ${fmtL(recoL)}` : ''}${capaciteTxt}`;
+
       return `
         <div class="commande-ligne-carburant">
           <span class="commande-ligne-nom"><span style="color:${stEv.c};">${stEv.icone}</span>${COURT_CARBURANT[cle] || cle}</span>
-          <span class="commande-ligne-detail">Stock ${fmtL(stockPhysique)} · prévu au ${livraisonTxt} ${fmtL(prevuL)}${recoL != null ? ` · recommandé ${fmtL(recoL)}` : ''}${capaciteTxt}</span>
+          <span class="commande-ligne-detail">
+            ${ligneJaugeage ? `<div>${ligneJaugeage}</div>` : ''}
+            <div>${ligneProjection}</div>
+          </span>
         </div>
         ${raisonAbsence ? `<div class="section-note" style="margin:0 0 4px; padding:0; font-size:10.5px;">${COURT_CARBURANT[cle] || cle} : ${raisonAbsence}</div>` : ''}`;
     }).join('');
@@ -1631,7 +1672,7 @@
           <span class="commande-carte-titre">🚚 Prochaine commande</span>
           <span class="commande-carte-badge" style="background:${st.f}; color:${st.c};">${badgeLibelle}</span>
         </div>
-        ${metaTxt ? `<div class="commande-ligne-detail" style="margin:-2px 0 8px;">${metaTxt}</div>` : ''}
+        ${metaHTML ? `<div style="margin:-2px 0 8px;">${metaHTML}</div>` : ''}
         <div class="commande-pourquoi">${pourquoiTxt}</div>
         ${lignesCarburant}
         ${totalHTML}
@@ -1697,7 +1738,7 @@
     const clesRecommandees = Object.keys(ctx.commandeRecommandee.volumes);
     const cleRef = clesRecommandees[0];
     const evRef = cleRef ? ctx.parCarburant[cleRef] : null;
-    const livraisonTxt = evRef && evRef.scenarioMaintenant && evRef.scenarioMaintenant.livraisonISO ? formaterDateFrCourt(evRef.scenarioMaintenant.livraisonISO) : '—';
+    const livraisonTxt = evRef && evRef.scenarioMaintenant && evRef.scenarioMaintenant.livraisonISO ? formaterDateFrAvecJour(evRef.scenarioMaintenant.livraisonISO) : '—';
     const lignesVolumes = clesRecommandees.map(cle => `
       <div class="controle-ligne">
         <span>${NOM_CARBURANT[cle] || cle}</span>
