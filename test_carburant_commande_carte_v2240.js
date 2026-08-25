@@ -158,9 +158,14 @@ function ok(label) { n++; console.log('OK —', label); }
 
 // ------------------------------------------------------------
 // 2) Sécurité (rouge) mais données encore provisoires (confiance
-//    'a_confirmer') — badge qualifié "— à confirmer" (retour Frédéric,
-//    point 1 : le rouge ne doit jamais s'afficher sans nuance si la base de
-//    calcul est provisoire), fiabilité "Moyenne".
+//    'a_confirmer') — bascule vers le badge ORANGE dédié "🟠 Commande
+//    probable — à confirmer" (retour Frédéric du 25/08/2026 : le rouge
+//    "Sécurité — commande urgente" reste trop alarmiste tant que la
+//    fiabilité affichée est faible ; le rouge ne doit apparaître que
+//    lorsque le risque est confirmé par des données fiables). Le calcul
+//    lui-même (etatGlobal='securite') reste inchangé, jamais assoupli
+//    (Article 5) — seul l'AFFICHAGE (couleur + libellé du badge, couleur de
+//    bordure/bouton) bascule. Fiabilité "Moyenne".
 // ------------------------------------------------------------
 {
   const { zone, render } = nouveauContexteDom();
@@ -184,11 +189,13 @@ function ok(label) { n++; console.log('OK —', label); }
   };
   render(evaluation);
   const out = zone.innerHTML;
-  assert.ok(out.includes('Sécurité — commande urgente — à confirmer'), 'badge qualifié attendu : ' + out);
+  assert.ok(out.includes('🟠 Commande probable — à confirmer'), 'badge orange dédié attendu (jamais un simple suffixe sur le rouge) : ' + out);
+  assert.ok(!out.includes('Sécurité — commande urgente'), 'le libellé rouge alarmiste ne doit plus apparaître quand la confiance n\'est pas fiable : ' + out);
+  assert.ok(out.includes('border-color:var(--amber)'), 'bordure de carte également basculée en orange (couleur ET libellé, jamais un correctif partiel) : ' + out);
   assert.ok(out.includes('Fiabilité : Moyenne'), 'fiabilité Moyenne attendue : ' + out);
   assert.ok(out.includes('ventes prévues encore incertaines'), 'raison de fiabilité Moyenne attendue : ' + out);
   assert.ok(out.includes('stock maintenant non calculable (quart en cours au jaugeage)'), 'stock maintenant non calculable affiché honnêtement, jamais un chiffre fabriqué (Article 5) : ' + out);
-  ok('securite + confiance a_confirmer -> badge qualifié "à confirmer", fiabilité Moyenne, stock maintenant honnêtement non calculable si chevauchement (le calcul rouge/etatGlobal reste inchangé)');
+  ok('securite + confiance a_confirmer -> badge orange dédié "🟠 Commande probable — à confirmer" (couleur + libellé), fiabilité Moyenne, stock maintenant honnêtement non calculable si chevauchement (le calcul rouge/etatGlobal reste inchangé)');
 }
 
 // ------------------------------------------------------------

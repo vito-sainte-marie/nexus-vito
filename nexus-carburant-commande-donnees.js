@@ -314,8 +314,17 @@
         : null;
     });
 
-    const global_ = M.construireEvaluationGlobale({ evaluationsParCarburant, config, capacitesDisponiblesL });
-    return { ok: true, dateISO, heureMaintenantHHMM, fuseau, cuves, config, ...global_ };
+    // Philosophie de volume à deux modes (25/08/2026, retour de Frédéric) —
+    // hors fin de mois, NEXUS cherche à compléter le camion vers 36 000 L ;
+    // en fin de mois (5 derniers jours calendaires, provisoire), il revient
+    // au comportement historique de minimisation du stock résiduel. Calculé
+    // ici (donnees), jamais côté écran, pour rester la source unique
+    // (Article 11) — l'écran lit `modeFinDeMois`/`viserCamionComplet` sur le
+    // retour sans le redéterminer.
+    const modeFinDeMois = M.estFinDeMois(dateISO);
+    const viserCamionComplet = !modeFinDeMois;
+    const global_ = M.construireEvaluationGlobale({ evaluationsParCarburant, config, capacitesDisponiblesL, viserCamionComplet });
+    return { ok: true, dateISO, heureMaintenantHHMM, fuseau, cuves, config, modeFinDeMois, ...global_ };
   }
 
   // ============================================================

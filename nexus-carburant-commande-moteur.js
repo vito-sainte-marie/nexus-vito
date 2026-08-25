@@ -100,6 +100,30 @@
     return null;
   }
 
+  // Fenêtre "fin de mois" (25/08/2026, retour de Frédéric : "Mode normal du
+  // mois" vs "Mode fin de mois") — les JOURS_FIN_MOIS derniers jours
+  // calendaires du mois, quelle que soit sa longueur (28/29/30/31 j).
+  // Valeur provisoire (Frédéric a choisi cette option plutôt qu'un champ
+  // configurable par site, 25/08/2026) — à recalibrer si un site a un cycle
+  // fournisseur différent. Calculée en LOCAL, jamais en UTC (une date-only
+  // ISO comme 'YYYY-MM-DD' n'a pas de fuseau propre — traitée comme un
+  // calendrier civil, cohérent avec `ajouterJoursISO`/`jourSemaineIso`
+  // ci-dessus, qui utilisent déjà midi UTC pour ne jamais basculer de jour).
+  const JOURS_FIN_MOIS = 5;
+  function nombreJoursDansLeMois(dateISO) {
+    const [an, mo] = dateISO.split('-').map(Number);
+    // Jour 0 du mois SUIVANT = dernier jour du mois courant (astuce classique,
+    // fiable même pour février/années bissextiles — Date gère déjà ça).
+    return new Date(Date.UTC(an, mo, 0)).getUTCDate();
+  }
+  function estFinDeMois(dateISO, joursFinMois) {
+    if (!dateISO) return false;
+    const jours = joursFinMois || JOURS_FIN_MOIS;
+    const jourDuMois = Number(dateISO.split('-')[2]);
+    const dernierJour = nombreJoursDansLeMois(dateISO);
+    return jourDuMois > dernierJour - jours;
+  }
+
   // Fenêtre de livraison si une commande est passée à `dateCommandeISO`
   // `heureCommandeHHMM` (§4, exemple vendredi §13) : avant le cutoff, la
   // recherche part du jour de commande lui-même ; après le cutoff, la
@@ -408,15 +432,41 @@
   // camion (10 000 L).
   const MAXIMUM_CAMION_LITRES = 36000;
 
+  // Plafond d'autonomie après réception pour la phase de complétion "camion
+  // complet" (voir plus bas) — un carburant n'est jamais complété au point
+  // que son stock après livraison dépasserait ce nombre de jours de vente
+  // (25/08/2026, retour de Frédéric : "sans surcharger inutilement un
+  // carburant" — le garde-fou explicite qui rend "viser 36 000 L" compatible
+  // avec "pas nécessairement 36 000 L à tout prix"). Provisoire, à
+  // recalibrer avec Frédéric une fois plusieurs semaines de recommandations
+  // "camion complet" observées (même esprit que SEUIL_ANTICIPATION_MAX_JOURS
+  // ci-dessus, jamais présenté comme une règle métier définitive).
+  const SEUIL_AUTONOMIE_MAX_JOURS_COMPLETION = 20;
+
   // Cœur du §14-16 : construit la commande multi-carburant optimale, ou
   // recommande d'attendre. `parCarburant` = { sp95: {etat, besoinMinimumSecuriteL,
-  // joursAvantBesoin}, go: {...}, gnr: {...} } — carburants INACTIFS déjà
-  // exclus par l'appelant (jamais un besoin GNR pris en compte tant que
-  // cuves_carburants.gnr.actif = false). `capacitesDisponiblesL` = capacité
-  // encore disponible à la livraison par carburant (pour compléter en
-  // dernier recours sur un carburant déjà urgent, §16, plutôt que d'inventer
-  // un besoin sur un carburant confortable sans rapport).
-  function optimiserCommandeMultiCarburant({ parCarburant, minimumCamionL, capacitesDisponiblesL }) {
+  // joursAvantBesoin, consommationMoyenneJour, stockPrevuLivraisonL}, go: {...},
+  // gnr: {...} } — carburants INACTIFS déjà exclus par l'appelant (jamais un
+  // besoin GNR pris en compte tant que cuves_carburants.gnr.actif = false).
+  // `capacitesDisponiblesL` = capacité encore disponible à la livraison par
+  // carburant (pour compléter en dernier recours sur un carburant déjà
+  // urgent, §16, plutôt que d'inventer un besoin sur un carburant confortable
+  // sans rapport).
+  //
+  // `viserCamionComplet` (25/08/2026, retour de Frédéric — "philosophie de
+  // volume", deux modes) : booléen OPTIONNEL, PAR DÉFAUT absent/falsy =
+  // comportement HISTORIQUE strictement inchangé (s'arrête dès le minimum
+  // camion atteint, jamais plus) — rétrocompatible avec tous les appels
+  // existants (Article 11, même précédent que le paramètre `fenetreIsolable`
+  // de `qualiteChaineCarburant`, v2.205). Quand `true` ("mode normal du
+  // mois", hors fin de mois — voir `estFinDeMois` ci-dessus), une phase
+  // supplémentaire cherche ensuite à approcher `maximumCamionL` en
+  // complétant avec TOUS les carburants actifs éligibles (pas seulement ceux
+  // "à anticiper sous 3 jours", restriction qui ne s'applique qu'à l'atteinte
+  // du MINIMUM ci-dessus), au prorata de leur consommation moyenne, jamais
+  // au-delà de leur capacité disponible ni du plafond de surstock
+  // (`SEUIL_AUTONOMIE_MAX_JOURS_COMPLETION`).
+  function optimiserCommandeMultiCarburant({ parCarburant, minimumCamionL, maximumCamionL, capacitesDisponiblesL, viserCamionComplet }) {
     const cles = Object.keys(parCarburant || {});
     const urgents = cles.filter(c => parCarburant[c] && (parCarburant[c].etat === 'securite' || parCarburant[c].etat === 'moment_ideal'));
 
@@ -431,59 +481,129 @@
     const volumesRetenus = {};
     urgents.forEach(c => { volumesRetenus[c] = parCarburant[c].besoinMinimumSecuriteL || 0; });
     let total = urgents.reduce((s, c) => s + volumesRetenus[c], 0);
+    let carburantsAnticipes = [];
+    let optimise = false;
+    let motif = null;
 
     if (total >= minimumCamionL) {
-      return { decision: 'commander', optimise: false, carburantsAnticipes: [], volumesRetenus, total, motif: null };
-    }
+      // Rien à faire ici : déjà au-dessus du minimum via les seuls urgents.
+    } else {
+      const candidats = cles
+        .filter(c => !urgents.includes(c) && parCarburant[c] && parCarburant[c].etat === 'a_anticiper'
+          && parCarburant[c].joursAvantBesoin != null && parCarburant[c].joursAvantBesoin <= SEUIL_ANTICIPATION_MAX_JOURS)
+        .sort((a, b) => parCarburant[a].joursAvantBesoin - parCarburant[b].joursAvantBesoin);
 
-    const candidats = cles
-      .filter(c => !urgents.includes(c) && parCarburant[c] && parCarburant[c].etat === 'a_anticiper'
-        && parCarburant[c].joursAvantBesoin != null && parCarburant[c].joursAvantBesoin <= SEUIL_ANTICIPATION_MAX_JOURS)
-      .sort((a, b) => parCarburant[a].joursAvantBesoin - parCarburant[b].joursAvantBesoin);
+      candidats.forEach(c => {
+        if (total >= minimumCamionL) return;
+        const v = parCarburant[c].besoinMinimumSecuriteL || 0;
+        if (v <= 0) return;
+        volumesRetenus[c] = v;
+        total += v;
+        carburantsAnticipes.push(c);
+      });
 
-    const carburantsAnticipes = [];
-    candidats.forEach(c => {
-      if (total >= minimumCamionL) return;
-      const v = parCarburant[c].besoinMinimumSecuriteL || 0;
-      if (v <= 0) return;
-      volumesRetenus[c] = v;
-      total += v;
-      carburantsAnticipes.push(c);
-    });
-
-    if (total >= minimumCamionL) {
-      return {
-        decision: 'commander', optimise: carburantsAnticipes.length > 0, carburantsAnticipes, volumesRetenus, total,
-        motif: carburantsAnticipes.length
+      if (total >= minimumCamionL) {
+        optimise = carburantsAnticipes.length > 0;
+        motif = carburantsAnticipes.length
           ? `Complète le camion avec ${carburantsAnticipes.join(', ')}, dont le besoin approche (sous ${SEUIL_ANTICIPATION_MAX_JOURS} j).`
-          : null,
-      };
+          : null;
+      } else {
+        // Toujours sous le minimum : la sécurité prime (§20) — on rapproche
+        // le(s) carburant(s) déjà urgent(s) de leur capacité disponible
+        // plutôt que de forcer un carburant confortable sans rapport avec le
+        // besoin réel.
+        const manque = minimumCamionL - total;
+        if (urgents.length === 1 && capacitesDisponiblesL && capacitesDisponiblesL[urgents[0]] != null) {
+          const c = urgents[0];
+          const capaciteRestante = Math.max(0, capacitesDisponiblesL[c] - volumesRetenus[c]);
+          const ajout = Math.min(manque, capaciteRestante);
+          volumesRetenus[c] += ajout;
+          total += ajout;
+        }
+        if (total >= minimumCamionL) {
+          optimise = true;
+          motif = 'Volume complété sur le(s) carburant(s) déjà urgent(s), au plus près de la limite de remplissage, pour atteindre le minimum de commande.';
+        } else {
+          return {
+            decision: 'insuffisant_meme_optimise', carburantsAnticipes, volumesRetenus, total,
+            manqueL: minimumCamionL - total,
+            motif: `Même optimisé, le besoin (${Math.round(total).toLocaleString('fr-FR')} L) reste sous le minimum de commande (${Math.round(minimumCamionL).toLocaleString('fr-FR')} L) — capacités disponibles insuffisantes, à vérifier manuellement.`,
+          };
+        }
+      }
     }
 
-    // Toujours sous le minimum : la sécurité prime (§20) — on rapproche le(s)
-    // carburant(s) déjà urgent(s) de leur capacité disponible plutôt que de
-    // forcer un carburant confortable sans rapport avec le besoin réel.
-    const manque = minimumCamionL - total;
-    if (urgents.length === 1 && capacitesDisponiblesL && capacitesDisponiblesL[urgents[0]] != null) {
-      const c = urgents[0];
-      const capaciteRestante = Math.max(0, capacitesDisponiblesL[c] - volumesRetenus[c]);
-      const ajout = Math.min(manque, capaciteRestante);
-      volumesRetenus[c] += ajout;
-      total += ajout;
+    // Phase "camion complet" (mode normal uniquement, opt-in) — cf.
+    // commentaire de la fonction ci-dessus.
+    let carburantsCompletes = [];
+    if (viserCamionComplet) {
+      const complement = completerVersCamionPlein({ parCarburant, volumesRetenus, total, cles, maximumCamionL, capacitesDisponiblesL });
+      total = complement.total;
+      carburantsCompletes = complement.carburantsCompletes;
+      if (carburantsCompletes.length) {
+        optimise = true;
+        motif = `Camion complété vers ${Math.round(total).toLocaleString('fr-FR')} L (${carburantsCompletes.join(', ')}), au prorata de la consommation, sans dépasser la capacité disponible ni un stock immobilisé disproportionné.`;
+      }
     }
 
-    if (total >= minimumCamionL) {
-      return {
-        decision: 'commander', optimise: true, carburantsAnticipes, volumesRetenus, total,
-        motif: 'Volume complété sur le(s) carburant(s) déjà urgent(s), au plus près de la limite de remplissage, pour atteindre le minimum de commande.',
-      };
+    return { decision: 'commander', optimise, carburantsAnticipes, carburantsCompletes, volumesRetenus, total, motif };
+  }
+
+  // Phase de complétion "camion complet" (25/08/2026, retour de Frédéric) —
+  // répartit l'écart entre `total` déjà retenu et `maximumCamionL` (ou la
+  // somme des capacités disponibles si elle est plus petite) au PRORATA de
+  // la consommation moyenne de chaque carburant actif éligible — pas
+  // seulement le(s) carburant(s) déjà urgent(s), c'est tout l'intérêt de ce
+  // mode par rapport à la phase minimum-camion ci-dessus (§14-16). Boucle
+  // bornée (jamais plus de `cles.length` tours, garde-fou à 100) car un
+  // carburant peut atteindre son plafond (capacité OU surstock) avant les
+  // autres, auquel cas l'écart restant est redistribué aux carburants
+  // encore éligibles au tour suivant — même discipline de boucle bornée que
+  // la recomposition du plafond camion existante (construireEvaluationGlobale).
+  function completerVersCamionPlein({ parCarburant, volumesRetenus, total, cles, maximumCamionL, capacitesDisponiblesL }) {
+    const maxCamion = maximumCamionL || MAXIMUM_CAMION_LITRES;
+    const capaciteTotaleDisponible = cles.reduce((s, c) => s + ((capacitesDisponiblesL && capacitesDisponiblesL[c] != null) ? capacitesDisponiblesL[c] : 0), 0);
+    const cible = Math.min(maxCamion, capaciteTotaleDisponible);
+    const besoinInitial = { ...volumesRetenus };
+
+    // Volume ADDITIONNEL maximal qu'un carburant peut encore recevoir sans
+    // dépasser sa capacité disponible NI le plafond de surstock (autonomie
+    // après réception). Un carburant sans consommation moyenne connue n'est
+    // borné que par la capacité (jamais bloqué sur une donnée manquante,
+    // Article 5 — mais jamais non plus le premier servi si sa consommation
+    // est inconnue : le tri par consommation le place naturellement en
+    // dernier via un poids nul dans la répartition proportionnelle).
+    function plafondAdditionnelL(c) {
+      const ev = parCarburant[c] || {};
+      const capaciteRestante = Math.max(0, ((capacitesDisponiblesL && capacitesDisponiblesL[c] != null) ? capacitesDisponiblesL[c] : 0) - (volumesRetenus[c] || 0));
+      if (!ev.consommationMoyenneJour || ev.stockPrevuLivraisonL == null) return capaciteRestante;
+      const stockMaxAutorise = ev.consommationMoyenneJour * SEUIL_AUTONOMIE_MAX_JOURS_COMPLETION;
+      const margeAutonomie = Math.max(0, stockMaxAutorise - (ev.stockPrevuLivraisonL + (volumesRetenus[c] || 0)));
+      return Math.min(capaciteRestante, margeAutonomie);
     }
 
-    return {
-      decision: 'insuffisant_meme_optimise', carburantsAnticipes, volumesRetenus, total,
-      manqueL: minimumCamionL - total,
-      motif: `Même optimisé, le besoin (${Math.round(total).toLocaleString('fr-FR')} L) reste sous le minimum de commande (${Math.round(minimumCamionL).toLocaleString('fr-FR')} L) — capacités disponibles insuffisantes, à vérifier manuellement.`,
-    };
+    let restant = cible - total;
+    let tour = cles.filter(c => plafondAdditionnelL(c) > 0);
+    let garde = 0;
+    while (restant > 0.01 && tour.length && garde < 100) {
+      garde++;
+      const sommeConso = tour.reduce((s, c) => s + (parCarburant[c].consommationMoyenneJour || 0), 0);
+      let ajouteCeTour = 0;
+      tour.forEach(c => {
+        const poids = sommeConso > 0 ? (parCarburant[c].consommationMoyenneJour || 0) / sommeConso : 1 / tour.length;
+        const part = Math.min(restant * poids, plafondAdditionnelL(c));
+        if (part <= 0) return;
+        volumesRetenus[c] = (volumesRetenus[c] || 0) + part;
+        ajouteCeTour += part;
+      });
+      if (ajouteCeTour <= 0) break; // plus aucun carburant ne peut recevoir -> sortir, jamais une boucle infinie.
+      total += ajouteCeTour;
+      restant -= ajouteCeTour;
+      tour = tour.filter(c => plafondAdditionnelL(c) > 0.01);
+    }
+
+    const carburantsCompletes = cles.filter(c => (volumesRetenus[c] || 0) > (besoinInitial[c] || 0) + 0.01);
+    return { total, carburantsCompletes };
   }
 
   // ============================================================
@@ -612,16 +732,30 @@
   // par l'appelant (la boucle sur les carburants actifs appartient à la
   // couche données, ce moteur reste pur et ne sait rien de la config des
   // cuves du site).
-  function construireEvaluationGlobale({ evaluationsParCarburant, config, capacitesDisponiblesL }) {
+  // `viserCamionComplet` (25/08/2026, retour de Frédéric) : transmis tel
+  // quel à `optimiserCommandeMultiCarburant` — calculé par l'appelant
+  // (couche données, via `estFinDeMois`), ce moteur reste pur et ne connaît
+  // pas la date du jour par lui-même (Article 11, même discipline que
+  // `maintenantISO` déjà injecté partout ailleurs dans ce fichier).
+  function construireEvaluationGlobale({ evaluationsParCarburant, config, capacitesDisponiblesL, viserCamionComplet }) {
     const pourOptimisation = {};
     Object.entries(evaluationsParCarburant || {}).forEach(([c, ev]) => {
-      pourOptimisation[c] = { etat: ev.etat, besoinMinimumSecuriteL: ev.besoinMinimumSecuriteL, joursAvantBesoin: ev.joursAvantBesoin };
+      pourOptimisation[c] = {
+        etat: ev.etat, besoinMinimumSecuriteL: ev.besoinMinimumSecuriteL, joursAvantBesoin: ev.joursAvantBesoin,
+        // Nécessaires à la phase "camion complet" (complétion au prorata de
+        // la consommation, plafond de surstock) — déjà calculés ailleurs,
+        // jamais un second calcul (Article 11).
+        consommationMoyenneJour: ev.consommationMoyenneJour,
+        stockPrevuLivraisonL: ev.scenarioMaintenant ? ev.scenarioMaintenant.stockPrevuLivraisonL : null,
+      };
     });
 
     const optim = optimiserCommandeMultiCarburant({
       parCarburant: pourOptimisation,
       minimumCamionL: config ? config.minimum_camion_litres : null,
+      maximumCamionL: (config && config.maximum_camion_litres) || MAXIMUM_CAMION_LITRES,
       capacitesDisponiblesL,
+      viserCamionComplet,
     });
 
     let commandeRecommandee = null;
@@ -700,6 +834,10 @@
     return {
       parCarburant: evaluationsParCarburant, optimisation: optim, commandeRecommandee,
       etatGlobal: determinerEtatGlobal(evaluationsParCarburant),
+      // Exposé pour l'écran (25/08/2026, retour de Frédéric) — permet de
+      // reformuler "pourquoi un carburant n'est pas inclus" selon le mode
+      // réellement appliqué, jamais un texte qui suppose le mauvais mode.
+      viserCamionComplet: !!viserCamionComplet,
     };
   }
 
@@ -868,6 +1006,7 @@
     // Calendrier
     ajouterJoursISO, joursEntre, jourSemaineIso, estJourLivraisonPossible,
     prochainJourLivraisonPossible, calculerFenetreLivraison,
+    JOURS_FIN_MOIS, estFinDeMois,
     // Prévision
     SEUIL_POINTS_JOUR_SEMAINE_FIABLE,
     moyennePondereeMemeJourSemaine, moyenneRecente, moyenneJoursFeries,
@@ -879,7 +1018,7 @@
     evaluerScenarioCommande, determinerEtatCommande, evaluerAttenteCommande,
     // Camion / multi-carburant
     arrondirVolumeCommande, verifierMinimumCamion, SEUIL_ANTICIPATION_MAX_JOURS,
-    MAXIMUM_CAMION_LITRES, optimiserCommandeMultiCarburant,
+    MAXIMUM_CAMION_LITRES, SEUIL_AUTONOMIE_MAX_JOURS_COMPLETION, optimiserCommandeMultiCarburant,
     // Qualité des données
     qualiteDonneesCommande,
     // Évaluation complète

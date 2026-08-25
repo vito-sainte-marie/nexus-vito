@@ -1496,6 +1496,14 @@
     a_anticiper: { icone: '◔', libelle: 'À anticiper', c: 'var(--cyan)', f: 'rgba(79,195,217,0.12)' },
     moment_ideal: { icone: '●', libelle: 'Moment idéal pour commander', c: 'var(--amber)', f: 'var(--amber-dim)' },
     securite: { icone: '▲', libelle: 'Sécurité — commande urgente', c: 'var(--red)', f: 'var(--red-dim)' },
+    // Downgrade d'affichage (25/08/2026, retour de Frédéric) — le rouge
+    // alarmiste "Sécurité — commande urgente" ne doit apparaître que
+    // lorsque le risque est confirmé par des données fiables ; tant que la
+    // confiance du carburant de référence n'est pas "fiable", l'écran
+    // bascule sur ce badge ORANGE dédié (couleur ET libellé, jamais un
+    // simple suffixe accolé au rouge). Le calcul de etatGlobal lui-même
+    // reste totalement inchangé (Article 5) — voir badgeLibelle plus bas.
+    securite_probable: { icone: '●', libelle: '🟠 Commande probable — à confirmer', c: 'var(--amber)', f: 'var(--amber-dim)' },
     non_calculable: { icone: '…', libelle: 'Non calculable', c: 'var(--text-dim)', f: 'var(--panel-raised)' },
   };
 
@@ -1583,9 +1591,17 @@
     // commande urgente" ne doit jamais s'afficher sans nuance si les données
     // sous-jacentes sont encore provisoires) — le calcul (etatGlobal, rouge/
     // orange/bleu/vert) reste inchangé, jamais assoupli (Article 5 : le
-    // chiffre réel n'est jamais caché) ; seul le LIBELLÉ ajoute "à confirmer"
-    // quand la confiance du carburant de référence n'est pas "fiable".
-    const badgeLibelle = evRef && evRef.confiance && evRef.confiance !== 'fiable' ? `${st.libelle} — à confirmer` : st.libelle;
+    // chiffre réel n'est jamais caché) ; seul l'AFFICHAGE change. Pour l'état
+    // 'securite' avec confiance faible, bascule complète vers le badge
+    // orange dédié (couleur + libellé) plutôt qu'un rouge nuancé par un
+    // simple suffixe — c'est ce cas précis que Frédéric a signalé comme trop
+    // alarmiste. Pour les autres états (ex. moment_ideal), le suffixe
+    // "— à confirmer" reste suffisant.
+    const estSecuriteAConfirmer = ctx.etatGlobal === 'securite' && evRef && evRef.confiance && evRef.confiance !== 'fiable';
+    const stAffiche = estSecuriteAConfirmer ? ETAT_COMMANDE_STYLE.securite_probable : st;
+    const badgeLibelle = estSecuriteAConfirmer
+      ? stAffiche.libelle
+      : (evRef && evRef.confiance && evRef.confiance !== 'fiable' ? `${st.libelle} — à confirmer` : st.libelle);
 
     // Fiabilité de la recommandation (25/08/2026, retour de Frédéric, §28-29
     // du cahier) — jamais une conclusion affirmative sans que sa base de
@@ -1602,12 +1618,25 @@
     // Explication multi-produit (25/08/2026, retour de Frédéric : "NEXUS
     // devrait au moins indiquer pourquoi il n'ajoute pas de GO") — jamais un
     // silence sur un carburant actif absent de la recommandation.
+    // Reformulation selon le mode (25/08/2026, retour de Frédéric) — l'ancien
+    // libellé "l'ajouter maintenant immobiliserait du stock sans nécessité"
+    // reflétait une logique de minimisation du stock, contradictoire avec la
+    // politique terrain de "camion complet" hors fin de mois. En mode camion
+    // complet (viserCamionComplet, cf. construireEvaluationGlobale), NEXUS a
+    // bien évalué le carburant pour compléter le camion mais ne l'a pas
+    // retenu (hors seuils d'anticipation/autonomie) — le message doit le
+    // dire, jamais laisser croire à un silence. En mode fin de mois, l'ancien
+    // libellé de minimisation reste exact et inchangé.
     function raisonNonInclusCarburant(ev) {
       if (!ev) return 'non évalué.';
       if (ev.etat === 'confortable') return 'aucune quantité ajoutée — autonomie suffisante après livraison.';
       if (ev.etat === 'a_anticiper') {
         const j = ev.joursAvantBesoin;
-        return `aucune quantité ajoutée — échéance encore à ${j != null ? `${j} j` : 'quelques jours'}, l'ajouter maintenant immobiliserait du stock sans nécessité.`;
+        const echeanceTxt = j != null ? `${j} j` : 'quelques jours';
+        if (ctx.viserCamionComplet) {
+          return `pas indispensable pour la sécurité immédiate (échéance encore à ${echeanceTxt}). NEXUS évalue néanmoins s'il est pertinent de l'ajouter pour optimiser le remplissage du camion et retarder la prochaine commande — non retenu cette fois.`;
+        }
+        return `aucune quantité ajoutée — échéance encore à ${echeanceTxt}, l'ajouter maintenant immobiliserait du stock sans nécessité (fin de mois : stock résiduel minimisé).`;
       }
       if (ev.etat === 'non_calculable') return 'non évalué — données insuffisantes pour ce carburant.';
       return "non ajouté par l'optimisation du camion.";
@@ -1663,14 +1692,14 @@
         : '');
 
     const boutonHTML = ctx.commandeRecommandee
-      ? `<button type="button" class="commande-cta-btn" id="btnPreparerCommande" style="background:${st.c}; color:var(--bg);">🚚 Préparer ma commande →</button>`
+      ? `<button type="button" class="commande-cta-btn" id="btnPreparerCommande" style="background:${stAffiche.c}; color:var(--bg);">🚚 Préparer ma commande →</button>`
       : '';
 
     zone.innerHTML = `
-      <div class="commande-carte" style="border-color:${st.c};">
+      <div class="commande-carte" style="border-color:${stAffiche.c};">
         <div class="commande-carte-tete">
           <span class="commande-carte-titre">🚚 Prochaine commande</span>
-          <span class="commande-carte-badge" style="background:${st.f}; color:${st.c};">${badgeLibelle}</span>
+          <span class="commande-carte-badge" style="background:${stAffiche.f}; color:${stAffiche.c};">${badgeLibelle}</span>
         </div>
         ${metaHTML ? `<div style="margin:-2px 0 8px;">${metaHTML}</div>` : ''}
         <div class="commande-pourquoi">${pourquoiTxt}</div>
