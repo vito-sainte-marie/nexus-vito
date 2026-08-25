@@ -194,6 +194,49 @@ testSync('calculerTheorique/calculerEcart : ventes=null (fenêtre non isolable) 
   assert.strictEqual(M.calculerEcart(21607, null), null);
 });
 
+testSync('instantFenetreReleve (25/08/2026, retour de Frédéric : "le jaugeage du matin est toujours celui de l\'ouverture, même si un employé oublie de le saisir à temps") — cas RÉEL 24/08 : jaugeage saisi à 8h09 Martinique (mesure_le), doit retomber sur minuit local, jamais sur 8h09', () => {
+  const releveOuverture = { date: '2026-08-24', mesure_le: '2026-08-24T12:09:34.765Z', origine: 'manager' };
+  const t = M.instantFenetreReleve(releveOuverture, FUSEAU_VITO);
+  assert.strictEqual(t.toISOString(), '2026-08-24T04:00:00.000Z', 'minuit local Martinique (UTC-4) du 24/08, jamais 12:09 UTC (heure de SAISIE, pas de mesure)');
+  // terrain_pompiste : même traitement que manager, aucun des deux n'est un
+  // relevé lié à une livraison.
+  const releveTerrain = { date: '2026-08-22', mesure_le: '2026-08-22T11:24:42.013Z', origine: 'terrain_pompiste' };
+  assert.strictEqual(M.instantFenetreReleve(releveTerrain, FUSEAU_VITO).toISOString(), '2026-08-22T04:00:00.000Z');
+  // Un relevé lié à une livraison garde son instant RÉEL (mesure_le) — le
+  // cas exact qui a motivé la chaîne temporelle horodatée de v2.205.
+  const releveLivraison = { date: '2026-08-20', mesure_le: '2026-08-20T15:01:16.151Z', origine: 'reception_livraison' };
+  assert.strictEqual(M.instantFenetreReleve(releveLivraison, FUSEAU_VITO).toISOString(), '2026-08-20T15:01:16.151Z', 'un relevé post-livraison représente un instant réel précis, pas une ouverture de journée -- mesure_le reste l\'ancre');
+  assert.strictEqual(M.instantFenetreReleve(null, FUSEAU_VITO), null);
+});
+
+testSync('resoudreVentesFenetre — cas RÉEL 23/08->24/08 (vito-sainte-marie) : AVANT le correctif, le quart 1 du 24/08 chevauchait à tort mesure_le (12h09, saisi en pleine fenêtre du quart 1) ; APRÈS, en ancrant sur minuit local, le quart 1 déjà clos est correctement inclus dans la somme, jamais signalé chevauchant', () => {
+  const lignesQuarts = [
+    { date: '2026-08-23', quart: '1', litrage_gazole: 889.59, litrage_sp95: 1566.98, litrage_gnr: 0 },
+    { date: '2026-08-23', quart: '2', litrage_gazole: 790.69, litrage_sp95: 1209.64, litrage_gnr: 0 },
+    { date: '2026-08-24', quart: '1', litrage_gazole: 1640.49, litrage_sp95: 1692.63, litrage_gnr: 0 },
+  ];
+  const releve23 = { date: '2026-08-23', mesure_le: '2026-08-23T11:28:55.704Z', origine: 'manager' };
+  const releve24 = { date: '2026-08-24', mesure_le: '2026-08-24T12:09:34.765Z', origine: 'manager' };
+  // Preuve du bug AVANT correctif : mesure_le brut du 24/08 (12:09 UTC)
+  // tombe en pleine fenêtre étendue du quart 1 (09:45-17:45 UTC) -> chevauche.
+  const avant = M.resoudreVentesFenetre(lignesQuarts, HORAIRES_VITO, new Date(releve23.mesure_le), new Date(releve24.mesure_le), FUSEAU_VITO);
+  assert.strictEqual(avant.isolable, false, 'AVANT correctif : mesure_le du 24/08 (12:09, saisie tardive) chevauchait à tort le quart 1 du 24/08');
+
+  // APRÈS correctif : bornes construites via instantFenetreReleve (minuit
+  // local de chaque jaugeage d'ouverture) -> le quart 1 du 24/08 (déjà clos)
+  // est ENTIÈREMENT dans la fenêtre [minuit 23/08, minuit 24/08 exclu du
+  // suivant... en réalité ici la fenêtre s'arrête à minuit du 24/08, donc le
+  // quart 1 du 24/08 lui-même n'est PAS dans cette fenêtre précise (il
+  // appartient à la fenêtre SUIVANTE, celle de "maintenant" côté Commande
+  // Carburant) -- ce test vérifie seulement que le quart 1 du 23/08 et du
+  // quart 2 du 23/08 sont désormais isolables sans chevauchement à tort.
+  const t0 = M.instantFenetreReleve(releve23, FUSEAU_VITO);
+  const t1 = M.instantFenetreReleve(releve24, FUSEAU_VITO);
+  const apres = M.resoudreVentesFenetre(lignesQuarts, HORAIRES_VITO, t0, t1, FUSEAU_VITO);
+  assert.strictEqual(apres.isolable, true, 'plus aucun chevauchement à tort une fois ancré sur minuit local plutôt que sur l\'heure de saisie');
+  assert.deepStrictEqual(apres.ventes, { go: 889.59 + 790.69, sp95: 1566.98 + 1209.64, gnr: 0 }, 'exactement les 2 quarts du 23/08 (le 23 est le jour de l\'ancre, entièrement inclus) ; le quart 1 du 24/08 appartient à la fenêtre suivante, jamais compté ici (bornes [minuit 23, minuit 24[)');
+});
+
 console.log('\n--- PARTIE 1 (nexus-carburant-moteur.js) terminée ---\n');
 
 // ------------------------------------------------------------
@@ -203,12 +246,20 @@ console.log('\n--- PARTIE 1 (nexus-carburant-moteur.js) terminée ---\n');
 // ------------------------------------------------------------
 (async function main() {
   const dernierReleve = {
-    date: '2026-08-20', version_num: 2, mesure_le: '2026-08-20T15:01:16.151Z',
+    // origine réelle vérifiée en base (25/08/2026) : ce relevé du 20/08 est
+    // bien lié à la livraison (jaugeage post-livraison à 15h01) — son
+    // `mesure_le` reste donc l'ancre exacte via `instantFenetreReleve`,
+    // exactement le cas qui a motivé la chaîne temporelle horodatée.
+    date: '2026-08-20', version_num: 2, mesure_le: '2026-08-20T15:01:16.151Z', origine: 'reception_livraison',
     stock_reel_go_cuve1: 14851, stock_reel_go_cuve2: 9539, stock_reel_sp95: 23556, stock_reel_gnr: 4371,
     livraison_go: 14938, livraison_sp95: 21007, livraison_gnr: 0, mouvement_go: 0, mouvement_sp95: 0, mouvement_gnr: 0,
   };
   const releveDuJour = {
-    date: '2026-08-21', version_num: 1, mesure_le: '2026-08-21T19:32:09.608971Z',
+    // origine réelle vérifiée en base : jaugeage matinal ordinaire (manager)
+    // -> `instantFenetreReleve` retombe sur minuit local du 21/08, jamais
+    // sur `mesure_le` (19h32, saisi tardivement) — voir Data Dictionary
+    // v2.244.
+    date: '2026-08-21', version_num: 1, mesure_le: '2026-08-21T19:32:09.608971Z', origine: 'manager',
     stock_reel_go_cuve1: 14017, stock_reel_go_cuve2: 8867, stock_reel_sp95: 21607, stock_reel_gnr: 4370,
     livraison_go: 0, livraison_sp95: 0, livraison_gnr: 0, mouvement_go: 0, mouvement_sp95: 0, mouvement_gnr: 0,
     commentaire: null,

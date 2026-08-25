@@ -62,7 +62,7 @@ function ok(label) { n++; console.log('OK —', label); }
     sandbox.NexusCarburantDonnees = {
       chargerControleJour: async () => ({
         aucunReleve: false,
-        releveDuJour: { mesure_le: '2026-08-25T05:30:00.000Z' }, // jaugeage pris avant l'ouverture du quart1 (06:00 UTC)
+        releveDuJour: { date: '2026-08-25', mesure_le: '2026-08-25T05:30:00.000Z', origine: 'manager' }, // jaugeage d'ouverture, pris avant le quart1 (06:00 UTC)
         dernierReleve: null,
         parCarburant: {
           sp95: { reelDuJour: 12000, dernierReel: 11000, statut: 'Sous contrôle' },
@@ -89,9 +89,14 @@ function ok(label) { n++; console.log('OK —', label); }
   }
 
   // ------------------------------------------------------------
-  // 2) Cas A, honnêteté — jaugeage pris EN COURS d'un quart (chevauchement) :
+  // 2) Cas A, honnêteté — un jaugeage LIÉ À UNE LIVRAISON (`origine:
+  //    'reception_livraison'`) pris en cours de quart reste chevauchant :
   //    jamais un stock "maintenant" fabriqué sur une ventilation impossible
-  //    à isoler (Article 5).
+  //    à isoler (Article 5). C'est le SEUL cas qui garde ce comportement
+  //    depuis le correctif du 25/08/2026 (retour de Frédéric) — un jaugeage
+  //    d'ouverture normal (origine 'manager'/'terrain_pompiste', voir test
+  //    2b ci-dessous) ne chevauche plus jamais, quelle que soit l'heure à
+  //    laquelle il a été SAISI dans NEXUS.
   // ------------------------------------------------------------
   {
     const sandbox = { console, window: undefined };
@@ -101,7 +106,7 @@ function ok(label) { n++; console.log('OK —', label); }
     sandbox.NexusCarburantDonnees = {
       chargerControleJour: async () => ({
         aucunReleve: false,
-        releveDuJour: { mesure_le: '2026-08-25T07:00:00.000Z' }, // EN PLEIN quart1 (06:00-14:00)
+        releveDuJour: { date: '2026-08-25', mesure_le: '2026-08-25T07:00:00.000Z', origine: 'reception_livraison' }, // jaugeage post-livraison, EN PLEIN quart1 (06:00-14:00)
         dernierReleve: null,
         parCarburant: { sp95: { reelDuJour: 12000, dernierReel: 11000, statut: 'Sous contrôle' } },
       }),
@@ -114,9 +119,45 @@ function ok(label) { n++; console.log('OK —', label); }
     ]);
     const r = await Donnees.chargerStockEtFiabiliteParCarburant(client, 'vito-sainte-marie', '2026-08-25', HORAIRES, FUSEAU, '2026-08-25T15:00:00.000Z');
 
-    assert.strictEqual(r.parCarburant.sp95.stockActuelL, null, 'jamais un stock "maintenant" fabriqué sur un quart chevauchant le jaugeage');
+    assert.strictEqual(r.parCarburant.sp95.stockActuelL, null, 'jamais un stock "maintenant" fabriqué sur un quart chevauchant l\'instant réel d\'un jaugeage post-livraison');
     assert.strictEqual(r.parCarburant.sp95.stockFiable, false, 'non fiable plutôt qu\'un repli silencieux sur le jaugeage brut');
-    ok('Cas A, honnêteté — quart chevauchant le jaugeage -> stock maintenant non calculable, jamais un chiffre fabriqué');
+    ok('Cas A, honnêteté (relevé post-livraison) — quart chevauchant l\'instant réel de mesure -> stock maintenant non calculable, jamais un chiffre fabriqué');
+  }
+
+  // ------------------------------------------------------------
+  // 2b) Cas A (25/08/2026, retour de Frédéric : "le jaugeage que je mets le
+  //    matin est TOUJOURS celui de l'ouverture, même lorsqu'un employé
+  //    oublie de le saisir dans NEXUS au bon moment") — un jaugeage
+  //    D'OUVERTURE normal (origine 'manager', PAS lié à une livraison) saisi
+  //    en pleine fenêtre du quart 1 (exactement le cas réel de
+  //    vito-sainte-marie le 24/08/2026, mesure_le pris à 8h09 alors que le
+  //    quart 1 court jusqu'à 12h45/13h45) ne doit PLUS être traité comme un
+  //    chevauchement -- le quart 1, une fois clos, est normalement soustrait.
+  // ------------------------------------------------------------
+  {
+    const sandbox = { console, window: undefined };
+    vm.createContext(sandbox);
+    sandbox.window = sandbox;
+    charger(sandbox, 'nexus-carburant-moteur.js');
+    sandbox.NexusCarburantDonnees = {
+      chargerControleJour: async () => ({
+        aucunReleve: false,
+        releveDuJour: { date: '2026-08-25', mesure_le: '2026-08-25T07:00:00.000Z', origine: 'manager' }, // saisi EN PLEIN quart1 (06:00-14:00), mais c'est un jaugeage d'ouverture normal
+        dernierReleve: null,
+        parCarburant: { sp95: { reelDuJour: 12000, dernierReel: 11000, statut: 'Sous contrôle' } },
+      }),
+    };
+    charger(sandbox, 'nexus-carburant-commande-donnees.js');
+    const Donnees = sandbox.NexusCarburantCommandeDonnees;
+
+    const client = creerClientAuditsCaisse([
+      { date: '2026-08-25', quart: '1', litrage_sp95: 800, litrage_gazole: 500, litrage_gnr: null },
+    ]);
+    const r = await Donnees.chargerStockEtFiabiliteParCarburant(client, 'vito-sainte-marie', '2026-08-25', HORAIRES, FUSEAU, '2026-08-25T15:00:00.000Z');
+
+    assert.strictEqual(r.parCarburant.sp95.stockActuelL, 11200, 'jaugeage d\'ouverture saisi en cours de quart 1 -> le quart clos (800 L) est quand même normalement soustrait, jamais "non calculable" à tort');
+    assert.strictEqual(r.parCarburant.sp95.stockFiable, true);
+    ok('Cas A (jaugeage d\'ouverture saisi en cours de quart 1, cas réel 24/08) — plus jamais un faux chevauchement, le quart clos est normalement soustrait');
   }
 
   // ------------------------------------------------------------

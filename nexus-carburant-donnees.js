@@ -190,8 +190,15 @@
       if (e3) console.error('Chargement ventes depuis dernier relevé (contrôle):', e3);
       ventesDepuis = M.sommerVentesPeriode(lignesVentes || []);
     } else if (dateAncre && dernierReleve && dernierReleve.mesure_le) {
-      fenetreDebut = new Date(dernierReleve.mesure_le);
-      fenetreFin = releveDuJour && releveDuJour.mesure_le ? new Date(releveDuJour.mesure_le) : new Date();
+      // 25/08/2026 (retour de Frédéric) : les bornes de fenêtre ne sont plus
+      // systématiquement `mesure_le` brut, mais `M.instantFenetreReleve` —
+      // qui retombe sur minuit local de la date du relevé pour un jaugeage
+      // d'ouverture normal (origine != 'reception_livraison'), et sur
+      // `mesure_le` réel uniquement pour un relevé lié à une livraison. Voir
+      // le commentaire de `instantFenetreReleve` (nexus-carburant-moteur.js)
+      // pour le raisonnement complet et le cas réel qui l'a motivé.
+      fenetreDebut = M.instantFenetreReleve(dernierReleve, fuseau);
+      fenetreFin = releveDuJour ? M.instantFenetreReleve(releveDuJour, fuseau) : new Date();
       const { data: lignesQuarts, error: e3 } = await client.from('audits_caisse')
         .select('date,quart,litrage_gazole,litrage_sp95,litrage_gnr')
         .eq('site', siteId).gte('date', dateAncre).lte('date', date);

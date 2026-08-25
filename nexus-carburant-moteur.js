@@ -797,6 +797,39 @@
     return new Date(cible - offset);
   }
 
+  // Instant à utiliser comme borne de fenêtre pour UN relevé donné
+  // (25/08/2026, retour de Frédéric : "le jaugeage que je mets le matin est
+  // TOUJOURS celui de l'ouverture, même lorsqu'un employé oublie de le
+  // saisir dans NEXUS au bon moment"). `mesure_le` capture l'instant
+  // d'ENREGISTREMENT dans NEXUS (`new Date().toISOString()` au moment de la
+  // saisie sur l'écran manager, limite documentée depuis v2.205, faute de
+  // champ de saisie d'heure dédié) — PAS forcément l'instant physique réel
+  // de la mesure. Vérifié sur données réelles (vito-sainte-marie, 23-24/08) :
+  // les relevés du matin y sont systématiquement saisis en pleine fenêtre du
+  // quart 1 (8h-12h), ce qui déclenchait à tort un "chevauchement" alors que
+  // le jaugeage représentait bien le stock à l'ouverture.
+  //
+  // Distinction retenue, réutilisant le seul signal déjà présent en base
+  // (`carburant_releves.origine`, Article 11 — jamais un nouveau champ) :
+  //   - `origine !== 'reception_livraison'` (donc 'manager'/'terrain_pompiste',
+  //     l'écrasante majorité des relevés) : un jaugeage d'ouverture, PAR
+  //     CONVENTION toujours antérieur à tous les quarts de sa propre date —
+  //     l'instant retenu est minuit local de `releve.date`, jamais
+  //     `mesure_le`. Ceci restaure exactement la convention formalisée par
+  //     Frédéric le 14/08/2026 (voir l'en-tête de ce fichier) pour ce cas.
+  //   - `origine === 'reception_livraison'` : un relevé lié à une livraison
+  //     représente un instant réel précis (ex. jaugeage post-livraison à
+  //     15h01, le cas exact qui a motivé la chaîne temporelle horodatée de
+  //     v2.205) — `mesure_le` reste l'ancre exacte, jamais remplacé par
+  //     minuit, car LÀ le moment précis compte vraiment.
+  function instantFenetreReleve(releve, fuseau) {
+    if (!releve) return null;
+    if (releve.origine === 'reception_livraison') {
+      return releve.mesure_le ? new Date(releve.mesure_le) : null;
+    }
+    return instantLocalVersUTC(releve.date, '00:00', fuseau);
+  }
+
   // Bornes LARGES (horaire étendu, jamais l'horaire normal) d'un quart pour
   // une date donnée — toujours la fourchette la plus prudente : mieux vaut
   // déclarer "chevauche" un quart qui ne chevauchait finalement pas vraiment
@@ -1382,7 +1415,7 @@
     construireMessagesPilotage,
     prochaineVersionReleveCarburant, diffReleveCarburant, patchReleveDepuisReceptionMesures,
     qualiteChaineCarburant, libelleCauseQualiteChaine, resoudreAncreCarburant,
-    instantLocalVersUTC, fenetreQuartLarge, classerQuartFaceFenetre, resoudreVentesFenetre,
+    instantLocalVersUTC, instantFenetreReleve, fenetreQuartLarge, classerQuartFaceFenetre, resoudreVentesFenetre,
     libelleQualiteControle,
     SEUIL_HISTORIQUE_CHAINE_SUFFISANT, statistiquesFiabiliteChaine, libelleFiabiliteChaine,
     calculerCmpApresLivraison, calculerCmpProgressif, libelleCmp,

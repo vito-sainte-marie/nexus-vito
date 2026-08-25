@@ -157,15 +157,24 @@
   // (Article 11, même lecture que Carburants Pilotage, jamais une deuxième
   // lecture du stock physique) puis calcule la fenêtre "jaugeage -> maintenant"
   // manquante, selon 2 cas :
-  //   A) jaugeage déjà saisi aujourd'hui -> il faut les ventes depuis SON
-  //      instant précis (mesure_le) jusqu'à maintenant — fenêtre que
-  //      chargerControleJour ne calcule PAS pour son propre usage (son
+  //   A) jaugeage déjà saisi aujourd'hui -> il faut les ventes depuis
+  //      l'instant représenté par ce jaugeage jusqu'à maintenant — fenêtre
+  //      que chargerControleJour ne calcule PAS pour son propre usage (son
   //      ventesDepuis sert au rapprochement réel/théorique entre deux
   //      jaugeages consécutifs, s'arrête à la mesure du jour) — recalculée
   //      ici via la primitive bas niveau
   //      NexusCarburantMoteur.resoudreVentesFenetre, le même mécanisme déjà
   //      utilisé pour l'écart de rapprochement, réutilisé à un niveau plus
-  //      bas plutôt que dupliqué (Article 11).
+  //      bas plutôt que dupliqué (Article 11). Borne basse = `M.instantFenetreReleve`
+  //      (25/08/2026, retour de Frédéric), PAS `mesure_le` brut : un
+  //      jaugeage d'ouverture normal (origine != 'reception_livraison')
+  //      représente TOUJOURS le stock à l'ouverture de sa journée, même
+  //      saisi tardivement dans NEXUS par un employé — comparer son heure de
+  //      SAISIE aux horaires de quart produisait un faux "chevauchement" dès
+  //      qu'un jaugeage matinal était entré en cours de quart 1 (le cas
+  //      normal sur vito-sainte-marie, vérifié sur données réelles 23 et
+  //      24/08). Seul un relevé lié à une livraison (`reception_livraison`)
+  //      garde son `mesure_le` réel comme ancre précise.
   //   B) aucun jaugeage aujourd'hui -> chargerControleJour a DÉJÀ étendu sa
   //      propre fenêtre jusqu'à maintenant dans ce cas précis (sa
   //      `fenetreFin` vaut `new Date()` quand `releveDuJour` est absent) :
@@ -203,7 +212,7 @@
         .select('date,quart,litrage_gazole,litrage_sp95,litrage_gnr')
         .eq('site', siteId).eq('date', dateISO);
       if (error) console.error('Chargement quarts du jour (stock estimé maintenant):', error);
-      const t0 = new Date(controle.releveDuJour.mesure_le);
+      const t0 = M.instantFenetreReleve(controle.releveDuJour, fuseau);
       const t1 = maintenant ? new Date(maintenant) : new Date();
       const resolu = M.resoudreVentesFenetre(lignesQuartsJour || [], horaires, t0, t1, fuseau);
       Object.entries(controle.parCarburant).forEach(([cle, r]) => {
