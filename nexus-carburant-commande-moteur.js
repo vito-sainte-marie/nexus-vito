@@ -400,8 +400,16 @@
   // provisoire, à recalibrer avec Frédéric (§35).
   const SEUIL_ANTICIPATION_MAX_JOURS = 3;
 
+  // Capacité maximale du camion de référence (§3 du cahier développeur,
+  // 25/08/2026) — repli si `config.maximum_camion_litres` n'est pas encore
+  // renseigné en base (migration `carburant_commande_config_maximum_camion`,
+  // même valeur pour le site pilote). "Aucune recommandation ne peut
+  // dépasser 36 000 L au total" — un plafond dur, distinct du minimum
+  // camion (10 000 L).
+  const MAXIMUM_CAMION_LITRES = 36000;
+
   // Cœur du §14-16 : construit la commande multi-carburant optimale, ou
-  // recommande d'attendre. `parCarburant` = { sp95: {etat, besoinTheoriqueL,
+  // recommande d'attendre. `parCarburant` = { sp95: {etat, besoinMinimumSecuriteL,
   // joursAvantBesoin}, go: {...}, gnr: {...} } — carburants INACTIFS déjà
   // exclus par l'appelant (jamais un besoin GNR pris en compte tant que
   // cuves_carburants.gnr.actif = false). `capacitesDisponiblesL` = capacité
@@ -421,7 +429,7 @@
     }
 
     const volumesRetenus = {};
-    urgents.forEach(c => { volumesRetenus[c] = parCarburant[c].besoinTheoriqueL || 0; });
+    urgents.forEach(c => { volumesRetenus[c] = parCarburant[c].besoinMinimumSecuriteL || 0; });
     let total = urgents.reduce((s, c) => s + volumesRetenus[c], 0);
 
     if (total >= minimumCamionL) {
@@ -436,7 +444,7 @@
     const carburantsAnticipes = [];
     candidats.forEach(c => {
       if (total >= minimumCamionL) return;
-      const v = parCarburant[c].besoinTheoriqueL || 0;
+      const v = parCarburant[c].besoinMinimumSecuriteL || 0;
       if (v <= 0) return;
       volumesRetenus[c] = v;
       total += v;
@@ -546,9 +554,34 @@
     const etatInfo = determinerEtatCommande({ scenarioMaintenant, scenarioAttente });
     const attente = evaluerAttenteCommande({ scenarioMaintenant, scenarioAttente });
 
-    let besoinTheoriqueL = null;
+    // Besoin minimum de sécurité (§5 du cahier développeur "NEXUS — Règles
+    // du moteur de commande carburant", 25/08/2026) : max(0, réserve cible -
+    // stock prévu à la livraison) — JAMAIS la capacité disponible de la
+    // cuve. Corrige une confusion identifiée par l'audit développeur : ce
+    // champ (alors nommé besoinTheoriqueL) valait auparavant
+    // capaciteDisponibleLivraison(...), transformant directement "capacité
+    // restante" en "volume à commander" — exactement la "Règle absolue"
+    // interdite en page 2 du cahier ("Le moteur ne doit jamais transformer
+    // directement « capacité restante dans la cuve » en « volume à
+    // commander ». Il doit d'abord calculer le besoin de sécurité, la
+    // capacité disponible, les scénarios de livraison, puis choisir une
+    // quantité optimale entre ces bornes."). C'est ce bug précis qui
+    // produisait une recommandation automatiquement égale à la capacité
+    // disponible (ex. 23 170 L pour SP95 sur vito-sainte-marie, cas cité
+    // nommément par l'audit comme exemple à ne jamais reproduire) au lieu du
+    // besoin réel de sécurité, généralement bien inférieur.
+    let besoinMinimumSecuriteL = null;
+    if (scenarioMaintenant && scenarioMaintenant.securiteL != null && scenarioMaintenant.stockPrevuLivraisonL != null) {
+      besoinMinimumSecuriteL = Math.max(0, scenarioMaintenant.securiteL - scenarioMaintenant.stockPrevuLivraisonL);
+    }
+    // Capacité disponible à la livraison — plafond dur DISTINCT du besoin
+    // (§11 de l'audit : "la carte doit distinguer « capacité disponible » et
+    // « volume conseillé »"), exposée ici pour que l'écran l'affiche sans la
+    // recalculer (Article 11 — même formule que celle utilisée par le
+    // chargeur pour capacitesDisponiblesL, jamais un second calcul divergent).
+    let capaciteDisponibleL = null;
     if (scenarioMaintenant && limiteRemplissageL != null && scenarioMaintenant.stockPrevuLivraisonL != null) {
-      besoinTheoriqueL = capaciteDisponibleLivraison(limiteRemplissageL, scenarioMaintenant.stockPrevuLivraisonL);
+      capaciteDisponibleL = capaciteDisponibleLivraison(limiteRemplissageL, scenarioMaintenant.stockPrevuLivraisonL);
     }
 
     const joursAvantBesoin = (etatInfo.etat === 'moment_ideal' || etatInfo.etat === 'securite')
@@ -559,7 +592,7 @@
 
     return {
       carburant, etat: etatInfo.etat, scenarioMaintenant, scenarioAttente, attente,
-      besoinTheoriqueL, joursAvantBesoin,
+      besoinMinimumSecuriteL, capaciteDisponibleL, joursAvantBesoin,
       confiance: qualiteDonneesCommande({ stockFiable, previsionConfiance }),
     };
   }
@@ -582,7 +615,7 @@
   function construireEvaluationGlobale({ evaluationsParCarburant, config, capacitesDisponiblesL }) {
     const pourOptimisation = {};
     Object.entries(evaluationsParCarburant || {}).forEach(([c, ev]) => {
-      pourOptimisation[c] = { etat: ev.etat, besoinTheoriqueL: ev.besoinTheoriqueL, joursAvantBesoin: ev.joursAvantBesoin };
+      pourOptimisation[c] = { etat: ev.etat, besoinMinimumSecuriteL: ev.besoinMinimumSecuriteL, joursAvantBesoin: ev.joursAvantBesoin };
     });
 
     const optim = optimiserCommandeMultiCarburant({
@@ -636,6 +669,29 @@
             totalArrondi += pasArrondi;
             break;
           }
+        }
+      }
+      // Plafond camion (§3/§15-16 du cahier développeur : "Camion recommandé
+      // 38 000 L -> Refus : maximum 36 000 L. Recomposition obligatoire.") —
+      // aucune recommandation ne peut dépasser la capacité maximale du
+      // camion, quelle que soit la somme des besoins de sécurité individuels
+      // (deux carburants peuvent chacun être en déficit sans que leur somme
+      // tienne dans un seul camion). Recompose en réduisant par pas de
+      // 1000 L le volume le plus élevé jusqu'à repasser sous le plafond —
+      // jamais un simple refus silencieux (le manager doit voir un volume
+      // réellement livrable, quitte à ce qu'il soit incomplet).
+      const maximumCamionL = (config && config.maximum_camion_litres) || MAXIMUM_CAMION_LITRES;
+      if (totalArrondi > maximumCamionL) {
+        let exces = totalArrondi - maximumCamionL;
+        while (exces > 0) {
+          const candidats = Object.entries(volumesArrondis).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
+          if (!candidats.length) break;
+          const [cle] = candidats[0];
+          const retrait = Math.min(pasArrondi, volumesArrondis[cle], exces);
+          if (retrait <= 0) break;
+          volumesArrondis[cle] -= retrait;
+          totalArrondi -= retrait;
+          exces -= retrait;
         }
       }
       commandeRecommandee = { volumes: volumesArrondis, total: totalArrondi };
@@ -823,7 +879,7 @@
     evaluerScenarioCommande, determinerEtatCommande, evaluerAttenteCommande,
     // Camion / multi-carburant
     arrondirVolumeCommande, verifierMinimumCamion, SEUIL_ANTICIPATION_MAX_JOURS,
-    optimiserCommandeMultiCarburant,
+    MAXIMUM_CAMION_LITRES, optimiserCommandeMultiCarburant,
     // Qualité des données
     qualiteDonneesCommande,
     // Évaluation complète

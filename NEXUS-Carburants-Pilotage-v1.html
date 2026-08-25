@@ -1600,10 +1600,17 @@
       const livraisonTxt = ev.scenarioMaintenant && ev.scenarioMaintenant.livraisonISO ? formaterDateFrCourt(ev.scenarioMaintenant.livraisonISO) : '—';
       const recoL = ctx.commandeRecommandee && ctx.commandeRecommandee.volumes[cle] != null ? ctx.commandeRecommandee.volumes[cle] : null;
       const raisonAbsence = (ctx.commandeRecommandee && recoL == null) ? raisonNonInclusCarburant(ev) : null;
+      // Capacité disponible affichée séparément du volume conseillé
+      // (25/08/2026, audit développeur §11 : "la carte doit distinguer
+      // « capacité disponible » et « volume conseillé »" — jamais laisser
+      // penser que la capacité EST la recommandation, cause du P0 corrigé
+      // ce même jour). Affichée uniquement quand une recommandation existe
+      // pour ce carburant — sinon la ligne reste courte comme avant.
+      const capaciteTxt = (recoL != null && ev.capaciteDisponibleL != null) ? ` · capacité dispo. ${fmtL(ev.capaciteDisponibleL)}` : '';
       return `
         <div class="commande-ligne-carburant">
           <span class="commande-ligne-nom"><span style="color:${stEv.c};">${stEv.icone}</span>${COURT_CARBURANT[cle] || cle}</span>
-          <span class="commande-ligne-detail">Stock ${fmtL(stockPhysique)} · prévu au ${livraisonTxt} ${fmtL(prevuL)}${recoL != null ? ` · recommandé ${fmtL(recoL)}` : ''}</span>
+          <span class="commande-ligne-detail">Stock ${fmtL(stockPhysique)} · prévu au ${livraisonTxt} ${fmtL(prevuL)}${recoL != null ? ` · recommandé ${fmtL(recoL)}` : ''}${capaciteTxt}</span>
         </div>
         ${raisonAbsence ? `<div class="section-note" style="margin:0 0 4px; padding:0; font-size:10.5px;">${COURT_CARBURANT[cle] || cle} : ${raisonAbsence}</div>` : ''}`;
     }).join('');

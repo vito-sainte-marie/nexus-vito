@@ -29,6 +29,7 @@ const CONFIG = {
   cutoff_heure: '11:00',
   jours_livraison_iso: [1, 2, 3, 4, 5],
   minimum_camion_litres: 10000,
+  maximum_camion_litres: 36000,
   compartiments_disponibles_litres: [2000, 5000, 7000],
   stock_securite_jours: 3,
 };
@@ -178,8 +179,8 @@ function historiqueConstant(carburant, valeurParJour, debutISO, finISOExclu) {
 {
   const optim = M.optimiserCommandeMultiCarburant({
     parCarburant: {
-      sp95: { etat: 'moment_ideal', besoinTheoriqueL: 7000, joursAvantBesoin: 0 },
-      go: { etat: 'a_anticiper', besoinTheoriqueL: 5000, joursAvantBesoin: 2 },
+      sp95: { etat: 'moment_ideal', besoinMinimumSecuriteL: 7000, joursAvantBesoin: 0 },
+      go: { etat: 'a_anticiper', besoinMinimumSecuriteL: 5000, joursAvantBesoin: 2 },
     },
     minimumCamionL: 10000,
     capacitesDisponiblesL: { sp95: 28761, go: 28553 },
@@ -201,8 +202,8 @@ function historiqueConstant(carburant, valeurParJour, debutISO, finISOExclu) {
 {
   const optim = M.optimiserCommandeMultiCarburant({
     parCarburant: {
-      sp95: { etat: 'moment_ideal', besoinTheoriqueL: 7000, joursAvantBesoin: 0 },
-      go: { etat: 'confortable', besoinTheoriqueL: 3000, joursAvantBesoin: 8 },
+      sp95: { etat: 'moment_ideal', besoinMinimumSecuriteL: 7000, joursAvantBesoin: 0 },
+      go: { etat: 'confortable', besoinMinimumSecuriteL: 3000, joursAvantBesoin: 8 },
     },
     minimumCamionL: 10000,
     capacitesDisponiblesL: { sp95: 28761, go: 28553 },
@@ -219,8 +220,8 @@ function historiqueConstant(carburant, valeurParJour, debutISO, finISOExclu) {
 {
   const optim = M.optimiserCommandeMultiCarburant({
     parCarburant: {
-      sp95: { etat: 'confortable', besoinTheoriqueL: 4000, joursAvantBesoin: 10 },
-      go: { etat: 'a_anticiper', besoinTheoriqueL: 3000, joursAvantBesoin: 6 },
+      sp95: { etat: 'confortable', besoinMinimumSecuriteL: 4000, joursAvantBesoin: 10 },
+      go: { etat: 'a_anticiper', besoinMinimumSecuriteL: 3000, joursAvantBesoin: 6 },
     },
     minimumCamionL: 10000,
     capacitesDisponiblesL: { sp95: 28761, go: 28553 },
@@ -279,6 +280,150 @@ function historiqueConstant(carburant, valeurParJour, debutISO, finISOExclu) {
     assert.ok(global.commandeRecommandee.total >= CONFIG.minimum_camion_litres, 'une commande recommandée doit toujours respecter le minimum camion');
   }
   ok('construireEvaluationGlobale — assemble l\'objet complet §27, état global = pire état (jamais une moyenne)');
+}
+
+// ------------------------------------------------------------
+// 13) P0 (25/08/2026, retour de Frédéric) — l'arrondi "sécurité" ne doit
+//    JAMAIS dépasser la capacité physique disponible à la livraison. Cas
+//    réel reproduit tel quel (vito-sainte-marie, SP95) : besoin théorique
+//    23 170 L, arrondi supérieur naturel 24 000 L (margeSecuriteOk=false),
+//    mais la capacité disponible n'est QUE de 23 170 L -- la commande
+//    recommandée ne doit jamais dépasser ce plafond physique, même au prix
+//    de rester sous l'arrondi "sécurité" (priorité du cahier : "sécurité >
+//    capacité physique > réserve 3 jours [...]").
+// ------------------------------------------------------------
+{
+  const global1 = M.construireEvaluationGlobale({
+    evaluationsParCarburant: {
+      sp95: { etat: 'securite', besoinMinimumSecuriteL: 23170, joursAvantBesoin: 0, scenarioMaintenant: { margeJours: -1.3 } },
+    },
+    config: CONFIG,
+    capacitesDisponiblesL: { sp95: 23170 },
+  });
+  assert.strictEqual(global1.optimisation.decision, 'commander');
+  assert.ok(global1.commandeRecommandee.volumes.sp95 <= 23170,
+    `le volume recommandé (${global1.commandeRecommandee.volumes.sp95} L) ne doit jamais dépasser la capacité disponible (23170 L)`);
+  assert.strictEqual(global1.commandeRecommandee.volumes.sp95, 23170, 'plafonné exactement à la capacité disponible, pas arrondi au-delà');
+
+  // Filet de sécurité (complément pour atteindre le minimum camion) : ne
+  // doit pas non plus pousser un carburant au-delà de sa propre capacité.
+  // Besoins bruts sp95=7500/go=2900 (total brut 10400, >= minimum -> optim
+  // décide "commander"), mais l'ARRONDI (toujours au millier inférieur ici)
+  // fait retomber le total à 9000 (sp95 7000 + go 2000), sous le minimum
+  // camion. sp95 est déjà à son plafond de capacité (7000) -- le complément
+  // doit aller sur go (qui a encore de la marge jusqu'à 6000), jamais
+  // dépasser 7000 sur sp95.
+  const global2 = M.construireEvaluationGlobale({
+    evaluationsParCarburant: {
+      sp95: { etat: 'moment_ideal', besoinMinimumSecuriteL: 7500, joursAvantBesoin: 0, scenarioMaintenant: { margeJours: 0.5 } },
+      go: { etat: 'a_anticiper', besoinMinimumSecuriteL: 2900, joursAvantBesoin: 1, scenarioMaintenant: { margeJours: 4 } },
+    },
+    config: CONFIG, // minimum_camion_litres: 10000
+    capacitesDisponiblesL: { sp95: 7000, go: 6000 },
+  });
+  assert.strictEqual(global2.optimisation.decision, 'commander');
+  assert.strictEqual(global2.commandeRecommandee.volumes.sp95, 7000, 'sp95 (saturé) ne doit jamais être bumpé au-delà de sa capacité disponible');
+  assert.strictEqual(global2.commandeRecommandee.volumes.go, 3000, 'le complément du filet de sécurité doit aller sur go, qui a encore de la marge');
+  assert.strictEqual(global2.commandeRecommandee.total, 10000, 'le filet de sécurité doit atteindre le minimum camion en utilisant la marge disponible sur go');
+
+  // Cas extrême : le besoin brut (10 500 L) atteint le minimum camion et
+  // l'optimisation décide "commander", mais l'arrondi/plafonnement à la
+  // capacité disponible (9 500 L, plus petite que le besoin brut) fait
+  // retomber le total sous le minimum camion, SANS aucune marge restante
+  // pour un filet de sécurité -- la commande reste honnêtement sous le
+  // minimum plutôt que de fabriquer un volume physiquement impossible
+  // (Article 5).
+  const global3 = M.construireEvaluationGlobale({
+    evaluationsParCarburant: {
+      sp95: { etat: 'moment_ideal', besoinMinimumSecuriteL: 10500, joursAvantBesoin: 0, scenarioMaintenant: { margeJours: 0.5 } },
+    },
+    config: CONFIG,
+    capacitesDisponiblesL: { sp95: 9500 },
+  });
+  assert.strictEqual(global3.optimisation.decision, 'commander');
+  assert.strictEqual(global3.commandeRecommandee.volumes.sp95, 9500, 'jamais au-delà de la capacité disponible, même si le total reste sous le minimum camion');
+  assert.ok(global3.commandeRecommandee.total < CONFIG.minimum_camion_litres, 'reste honnêtement sous le minimum camion plutôt que de dépasser la capacité physique');
+  ok('P0 — arrondi et filet de sécurité minimum camion jamais au-delà de la capacité physique disponible à la livraison');
+}
+
+// ------------------------------------------------------------
+// 14) Audit développeur (25/08/2026, "NEXUS — Règles du moteur de commande
+//    carburant", cahier transmis par Frédéric) — tests explicites du §15
+//    "Tests de non-régression indispensables" et du §16 "Critères GO/NO-GO".
+//    §15/§16 "Données du jour partielles", "Commande déjà passée" et
+//    "Camion recommandé 8 000 L" sont déjà couverts respectivement par les
+//    tests §28-29 (qualité des données, bloc 10), l'intégration
+//    commandeEnCoursVolumeL (bloc 4) et le cas insuffisant_meme_optimise
+//    (global3 du bloc 13, 9500 L < minimum 10000 L) — non dupliqués ici.
+// ------------------------------------------------------------
+{
+  // a) "Capacité SP disponible 23 170 L — Le volume conseillé ne peut pas
+  //    dépasser cette capacité et n'est pas automatiquement égal à
+  //    23 170 L." Root cause corrigée ce même jour : evaluerCarburant()
+  //    confondait besoinTheoriqueL et capaciteDisponibleLivraison(...),
+  //    violant la "Règle absolue" du cahier (page 2). Reproduit le cas réel
+  //    vito-sainte-marie avec des chiffres réels (conso. moyenne SP95
+  //    observée mi-août ~3100 L/j, réserve 3 j ~9300 L, stock prévu à la
+  //    livraison 5591 L -> besoin minimum de sécurité réel 3709 L, PAS
+  //    23170 L).
+  const besoinMinimumSecuriteL = Math.max(0, 9300 - 5591); // 3709 L
+  const auditA = M.construireEvaluationGlobale({
+    evaluationsParCarburant: {
+      sp95: { etat: 'securite', besoinMinimumSecuriteL, joursAvantBesoin: 0, scenarioMaintenant: { margeJours: -1.3 } },
+    },
+    config: CONFIG,
+    capacitesDisponiblesL: { sp95: 23170 },
+  });
+  assert.strictEqual(auditA.optimisation.decision, 'commander');
+  const volumeConseilleA = auditA.commandeRecommandee.volumes.sp95;
+  assert.ok(volumeConseilleA <= 23170, `jamais au-delà de la capacité disponible : ${volumeConseilleA} L`);
+  assert.notStrictEqual(volumeConseilleA, 23170, "le volume conseillé n'est pas automatiquement égal à la capacité disponible (23170 L)");
+  assert.ok(volumeConseilleA < 15000, `le volume conseillé doit rester proche du besoin réel de sécurité, pas de la capacité : ${volumeConseilleA} L`);
+  ok('audit §11/§16 — capacité SP disponible 23 170 L : le volume conseillé (' + volumeConseilleA + ' L) reste distinct de la capacité, jamais automatiquement égal');
+
+  // b) "Besoin SP 13 200 L — Le moteur compare 13 000 et 14 000 L selon
+  //    sécurité et cycle suivant."
+  assert.strictEqual(M.arrondirVolumeCommande(13200, { margeSecuriteOk: true }), 13000, 'arrondi inférieur quand la sécurité est déjà assurée');
+  assert.strictEqual(M.arrondirVolumeCommande(13200, { margeSecuriteOk: false }), 14000, 'arrondi supérieur quand la sécurité ne serait pas assurée sinon');
+  ok('audit §15 — besoin SP 13 200 L : comparaison 13 000 L / 14 000 L selon la marge de sécurité');
+
+  // c) "Camion recommandé 38 000 L — Refus : maximum 36 000 L.
+  //    Recomposition obligatoire." Deux carburants urgents dont la somme
+  //    des besoins arrondis (21000 + 17000 = 38000 L) dépasse le plafond
+  //    camion — le moteur ne doit ni refuser silencieusement ni dépasser
+  //    36 000 L : il recompose en réduisant le plus gros volume par pas de
+  //    1000 L.
+  const auditC = M.construireEvaluationGlobale({
+    evaluationsParCarburant: {
+      sp95: { etat: 'securite', besoinMinimumSecuriteL: 21000, joursAvantBesoin: 0, scenarioMaintenant: { margeJours: -1 } },
+      go: { etat: 'securite', besoinMinimumSecuriteL: 17000, joursAvantBesoin: 0, scenarioMaintenant: { margeJours: -1 } },
+    },
+    config: CONFIG,
+    capacitesDisponiblesL: { sp95: 25000, go: 25000 },
+  });
+  assert.strictEqual(auditC.optimisation.decision, 'commander');
+  assert.ok(auditC.commandeRecommandee.total <= 36000, `jamais au-delà du plafond camion : ${auditC.commandeRecommandee.total} L`);
+  assert.strictEqual(auditC.commandeRecommandee.total, 36000, 'recomposition jusqu\'au plafond exact, pas un simple refus');
+  assert.ok(auditC.commandeRecommandee.volumes.sp95 < 21000, 'le volume initialement le plus élevé (sp95) est celui réduit par la recomposition');
+  ok('audit §3/§15/§16 — camion recommandé 38 000 L -> recomposé à 36 000 L, jamais refusé silencieusement ni dépassé');
+
+  // d) "Calcul rejoué deux fois — Même résultat, aucun doublon de commande
+  //    ou d'alerte." Le moteur est pur (Article 11) : deux appels avec un
+  //    input identique (mais des objets distincts, jamais la même
+  //    référence) doivent produire un résultat strictement identique.
+  const inputRejoue = {
+    evaluationsParCarburant: {
+      sp95: { etat: 'moment_ideal', besoinMinimumSecuriteL: 7000, joursAvantBesoin: 0, scenarioMaintenant: { margeJours: 0.5 } },
+      go: { etat: 'confortable', besoinMinimumSecuriteL: 0, joursAvantBesoin: 8, scenarioMaintenant: { margeJours: 6 } },
+    },
+    config: CONFIG,
+    capacitesDisponiblesL: { sp95: 15000, go: 15000 },
+  };
+  const rejoue1 = M.construireEvaluationGlobale(JSON.parse(JSON.stringify(inputRejoue)));
+  const rejoue2 = M.construireEvaluationGlobale(JSON.parse(JSON.stringify(inputRejoue)));
+  assert.deepStrictEqual(rejoue1, rejoue2, 'un calcul rejoué à l\'identique doit produire exactement le même résultat');
+  assert.strictEqual(rejoue1.commandeRecommandee.total, rejoue2.commandeRecommandee.total);
+  ok("audit §15 — calcul rejoué deux fois : même résultat, aucune dérive");
 }
 
 console.log(`\n${n}/${n} tests passés — Moteur Commande Carburant (v2.238).`);
