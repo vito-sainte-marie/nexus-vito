@@ -2148,6 +2148,24 @@
     document.getElementById('sousTitre').textContent = '';
     document.getElementById('content').innerHTML = '<div class="loading">Chargement…</div>';
 
+    // 27/08/2026 (retour de Frédéric "toujours bugs", après les deux P0
+    // Carburants du même jour) : cette fonction enchaîne ~20 chargeurs et
+    // calculs sans aucune protection — la moindre exception JS runtime dans
+    // n'importe lequel d'entre eux (accès à une propriété d'un null/undefined,
+    // même famille que le crash Carburants `t1.getTime()`) rejette
+    // silencieusement toute la chaîne : `content.innerHTML` n'est alors
+    // JAMAIS réécrit après "Chargement…", qui reste affiché indéfiniment,
+    // sans qu'aucune erreur visible n'apparaisse ailleurs qu'en warning
+    // console (facilement masqué par un filtre DevTools actif). Le
+    // try/catch englobant ci-dessous ne change AUCUN comportement du calcul
+    // normal (jamais exécuté sauf en cas d'exception) — il transforme
+    // seulement un blocage silencieux en message honnête et diagnostiquable
+    // à l'écran (Article 5 : jamais un plantage muet), à l'identique du
+    // pattern déjà utilisé ailleurs dans NEXUS (ex. NEXUS-Admin-API-v1.html,
+    // `init()`). Indentation intérieure volontairement inchangée pour
+    // limiter le diff sur une fonction de ~500 lignes déjà existante.
+    try {
+
     if (!jeux.length) jeux = await chargerJeux();
     const aujourdhui = dateISO();
     // F2/§8 (20/08/2026) : mini résumé "Caisse réelle" sur l'accueil —
@@ -2621,6 +2639,15 @@
           renderAccueil();
         });
       });
+    }
+
+    } catch (e) {
+      // Jamais un blocage muet sur "Chargement…" (voir commentaire en tête
+      // de fonction) : message honnête à l'écran, avec le détail technique
+      // réel, sans avoir besoin d'ouvrir la console — et toujours loggé en
+      // plus, pour le diagnostic complet si besoin.
+      console.error('FDJ Opérations — renderAccueil (chargement) :', e);
+      document.getElementById('content').innerHTML = `<div class="loading">Erreur de chargement de FDJ Opérations : ${e && e.message ? e.message : e}<br><span style="opacity:.6;">Merci de faire une capture d'écran de ce message et de la transmettre.</span></div>`;
     }
   }
 
