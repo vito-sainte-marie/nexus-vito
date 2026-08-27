@@ -348,8 +348,31 @@
     // même chargeur que la section Historique de Carburants Pilotage
     // (Article 11), aucune nouvelle requête dédiée à ce fallback.
     const historique = await D.chargerHistoriqueReleves(client, siteId, 14, global.NexusPeriodes.ajouterJours(aujourdhui, -1));
-    const fallback = M.trouverJourFiableAnterieur(historique, aujourdhui);
-    const fraicheur = M.fraicheurCarburant({ completAujourdhui: false, fallback });
+
+    // Vérifie que le jour de repli proposé est RÉELLEMENT complet une fois
+    // rejoué avec la précision horodatée (chargerControleJour), pas
+    // seulement selon l'approximation par bornes de date civile de
+    // chargerHistoriqueReleves (27/08/2026, correctif P0 bis, retour de
+    // Frédéric "toujours anomalie" après le correctif crash v2.247) : le
+    // 26/08 (relevé de réception sans mesure_le) était jugé "complet" par
+    // l'historique approximatif mais reste "Données insuffisantes" une fois
+    // rejoué en horodaté — sans cette vérification, Brief figeait son repli
+    // sur ce jour cassé (Carburants restait gris) au lieu du 25/08,
+    // réellement valide. Une seule vérité sur "jour complet" (Article 11) :
+    // le même prédicat `jourCarburantEstComplet` que pour aujourd'hui,
+    // appliqué au résultat RÉEL du rejeu — jamais à sa version approximative.
+    const datesExclues = [];
+    let fallback = M.trouverJourFiableAnterieur(historique, aujourdhui);
+    let fraicheur = M.fraicheurCarburant({ completAujourdhui: false, fallback });
+    let carburantsFallback = null;
+    while (fraicheur.mode === 'fallback') {
+      carburantsFallback = await chargerCarburantsBrief(client, siteId, fraicheur.dateReference);
+      if (M.jourCarburantEstComplet(carburantsFallback.controle.parCarburant, carburantsFallback.controle.aucunReleve)) break;
+      datesExclues.push(fraicheur.dateReference);
+      carburantsFallback = null;
+      fallback = M.trouverJourFiableAnterieur(historique, aujourdhui, datesExclues);
+      fraicheur = M.fraicheurCarburant({ completAujourdhui: false, fallback });
+    }
 
     if (fraicheur.mode === 'fallback') {
       // Rejoue TOUT le calcul à la date du dernier jour fiable — jamais une
@@ -369,7 +392,6 @@
       // nourrit la Performance et les textes "changement"/"force") restent
       // ceux d'AUJOURD'HUI, jamais mélangés silencieusement avec J-1 dans le
       // même score (exigence explicite de Frédéric, v2.214).
-      const carburantsFallback = await chargerCarburantsBrief(client, siteId, fraicheur.dateReference);
       journaliserCarburants(fraicheur, false);
       return { ...carburantsJour, controle: carburantsFallback.controle, fraicheur, enCours };
     }

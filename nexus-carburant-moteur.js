@@ -1335,8 +1335,20 @@
   // passé — voir chargerCarburantsBriefAvecFallback, dateFin = J-1).
   // `dateAujourdhui` ne sert qu'à calculer joursEcoules, jamais à filtrer
   // l'historique lui-même (déjà borné par l'appelant).
-  function trouverJourFiableAnterieur(historiquePasse, dateAujourdhui) {
-    const trouve = (historiquePasse || []).find(j => jourCarburantEstComplet(j.parCarburant, false));
+  //
+  // `datesExclues` (27/08/2026, correctif P0 bis, retour de Frédéric
+  // "toujours anomalie" après le correctif crash v2.247) : cette fonction
+  // ne juge la complétude d'un jour QUE via chargerHistoriqueReleves — un
+  // calcul approximatif par bornes de date civile, qui ignore `mesure_le`.
+  // Un relevé de réception sans instant capturé (v2.247) peut donc être
+  // jugé "complet" ICI alors que le calcul réel horodaté
+  // (chargerControleJour, rejoué par l'appelant) le juge "Données
+  // insuffisantes". `datesExclues` permet à l'appelant d'écarter un
+  // candidat déjà invalidé par ce rejeu réel et de redemander le suivant,
+  // sans dupliquer la logique de recherche (Article 11).
+  function trouverJourFiableAnterieur(historiquePasse, dateAujourdhui, datesExclues) {
+    const exclues = new Set(datesExclues || []);
+    const trouve = (historiquePasse || []).find(j => jourCarburantEstComplet(j.parCarburant, false) && !exclues.has(j.date));
     if (!trouve) return { trouve: false };
     const joursEcoules = Math.round((new Date(`${dateAujourdhui}T00:00:00`) - new Date(`${trouve.date}T00:00:00`)) / 86400000);
     return { trouve: true, date: trouve.date, joursEcoules };
