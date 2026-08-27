@@ -905,6 +905,41 @@
     };
   }
 
+  // Quarts "en cours ou pas encore clôturés" (25/08/2026, retour de Frédéric :
+  // "nexus doit faire une estimation des ventes en fonction de son
+  // historique" plutôt que de bloquer tout calcul de stock estimé maintenant
+  // tant qu'un quart n'est pas clôturé). DISTINCT du chevauchement réel de
+  // v2.205 (`resoudreVentesFenetre` ci-dessus, `quartsChevauchants`) : là-bas,
+  // une ligne audits_caisse EXISTE déjà mais ses bornes débordent
+  // l'ancre/la mesure — ventilation réellement ambiguë, jamais résolue par
+  // une estimation (Article 5, précision réelle impossible). Ici, il n'y a
+  // ENCORE AUCUNE ligne pour ce quart (le manager ne l'a pas clôturé) —
+  // NEXUS peut légitimement estimer sa part avec l'historique du même
+  // créneau plutôt que d'afficher un blocage total.
+  // `lignesQuartsJour` = lignes audits_caisse du seul jour `dateISO` (déjà
+  // filtrées par l'appelant — Article 11, jamais une deuxième lecture).
+  // Retourne les quarts de CE jour dont la fenêtre large touche [t0,t1] mais
+  // qui n'ont encore aucune ligne, avec la fraction de leur durée déjà
+  // écoulée à l'instant `t1` (pour prorater l'estimation — un quart tout
+  // juste ouvert ne doit pas se voir attribuer sa moyenne complète).
+  function quartsAEstimerDansFenetre(lignesQuartsJour, horaires, dateISO, t0, t1, fuseau) {
+    const presents = new Set((lignesQuartsJour || []).map(l => String(l.quart)));
+    const quarts = [{ cle: 'quart1', num: '1' }, { cle: 'quart2', num: '2' }];
+    const resultat = [];
+    quarts.forEach(({ cle, num }) => {
+      if (presents.has(num)) return; // déjà clôturé -> jamais recouvert ici, voir resoudreVentesFenetre.
+      const fenetreQuart = fenetreQuartLarge(horaires, cle, dateISO, fuseau);
+      if (!fenetreQuart) return; // horaires non configurés -> aucune estimation possible, reste non calculable.
+      const position = classerQuartFaceFenetre(fenetreQuart, t0, t1);
+      if (position === 'avant' || position === 'apres') return; // hors fenêtre, rien à estimer.
+      const dureeMs = fenetreQuart.fin.getTime() - fenetreQuart.debut.getTime();
+      const ecouleMs = Math.min(t1.getTime(), fenetreQuart.fin.getTime()) - fenetreQuart.debut.getTime();
+      const fraction = dureeMs > 0 ? Math.max(0, Math.min(1, ecouleMs / dureeMs)) : 0;
+      resultat.push({ quartCle: cle, quart: num, fraction });
+    });
+    return resultat;
+  }
+
   // Sprint C6 "Pilotage" (17/08/2026, audit §10 : "Situation aujourd'hui —
   // Badge de qualité par carburant : référence fiable, contrôle provisoire,
   // non comparable"). Traduit une `qualite` de carburant_controles (posée
@@ -1416,6 +1451,7 @@
     prochaineVersionReleveCarburant, diffReleveCarburant, patchReleveDepuisReceptionMesures,
     qualiteChaineCarburant, libelleCauseQualiteChaine, resoudreAncreCarburant,
     instantLocalVersUTC, instantFenetreReleve, fenetreQuartLarge, classerQuartFaceFenetre, resoudreVentesFenetre,
+    quartsAEstimerDansFenetre,
     libelleQualiteControle,
     SEUIL_HISTORIQUE_CHAINE_SUFFISANT, statistiquesFiabiliteChaine, libelleFiabiliteChaine,
     calculerCmpApresLivraison, calculerCmpProgressif, libelleCmp,

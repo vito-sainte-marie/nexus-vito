@@ -114,6 +114,35 @@
     return Object.keys(parDate).sort().map(date => ({ date, ventes: parDate[date] }));
   }
 
+  // Historique de ventes d'UN SEUL créneau de quart ('1' ou '2'), même forme
+  // que chargerHistoriqueVentesParJour ci-dessus ([{date, ventes:{go,sp95,
+  // gnr}}]) — réutilise directement M.moyenneRecente/moyennePondereeMemeJourSemaine
+  // (Article 11, jamais un second calcul de moyenne) pour estimer la
+  // contribution d'un quart pas encore clôturé (25/08/2026, retour de
+  // Frédéric : "nexus doit faire une estimation des ventes en fonction de
+  // son historique"). `joursHistorique` = 90 par défaut (suffisant pour la
+  // moyenne récente sur 14 jours utilisée ci-dessous, sans alourdir la
+  // requête comme les 180 jours de l'historique journalier complet).
+  async function chargerHistoriqueVentesParQuart(client, siteId, quartNum, dateFinExclusiveISO, joursHistorique) {
+    const fenetre = joursHistorique || 90;
+    const fin = new Date(`${dateFinExclusiveISO}T00:00:00`);
+    const debut = new Date(fin);
+    debut.setDate(debut.getDate() - fenetre);
+    const debutISO = `${debut.getFullYear()}-${String(debut.getMonth() + 1).padStart(2, '0')}-${String(debut.getDate()).padStart(2, '0')}`;
+    const { data, error } = await client.from('audits_caisse')
+      .select('date,litrage_gazole,litrage_sp95,litrage_gnr')
+      .eq('site', siteId).eq('quart', quartNum).gte('date', debutISO).lt('date', dateFinExclusiveISO);
+    if (error) { console.error('Chargement historique ventes par quart (Commande Carburant):', error); return []; }
+    return (data || []).map(l => ({
+      date: l.date,
+      ventes: {
+        go: l.litrage_gazole != null ? Number(l.litrage_gazole) : null,
+        sp95: l.litrage_sp95 != null ? Number(l.litrage_sp95) : null,
+        gnr: l.litrage_gnr != null ? Number(l.litrage_gnr) : null,
+      },
+    })).sort((a, b) => (a.date < b.date ? -1 : 1));
+  }
+
   // Dernière commande NEXUS non encore livrée pour un carburant donné
   // (statut 'validee' ou 'modifiee', pas 'hors_nexus'/'annulee'/'livree') —
   // §10 du cahier : une commande déjà en cours doit être intégrée, jamais
@@ -200,6 +229,11 @@
   async function chargerStockEtFiabiliteParCarburant(client, siteId, dateISO, horaires, fuseau, maintenant) {
     const NCD = global.NexusCarburantDonnees;
     const M = global.NexusCarburantMoteur;
+    // MC (Commande Carburant, distinct du moteur générique M ci-dessus) —
+    // uniquement pour réutiliser M.moyenneRecente (25/08/2026, estimation
+    // historique d'un quart en cours) plutôt que dupliquer un second calcul
+    // de moyenne (Article 11).
+    const MC = global.NexusCarburantCommandeMoteur;
     if (!NCD || !M) { console.error('NexusCarburantDonnees/NexusCarburantMoteur non chargés — impossible de lire le stock physique.'); return { parCarburant: {}, aucunReleve: true }; }
     const controle = await NCD.chargerControleJour(client, siteId, dateISO);
     if (controle.aucunReleve || !controle.parCarburant) return { parCarburant: {}, aucunReleve: true };
@@ -215,8 +249,46 @@
       const t0 = M.instantFenetreReleve(controle.releveDuJour, fuseau);
       const t1 = maintenant ? new Date(maintenant) : new Date();
       const resolu = M.resoudreVentesFenetre(lignesQuartsJour || [], horaires, t0, t1, fuseau);
+
+      // Estimation historique des quarts encore ouverts (25/08/2026, retour
+      // de Frédéric : "nexus doit faire une estimation des ventes en
+      // fonction de son historique" — jamais bloquer tout calcul tant qu'un
+      // quart n'est pas clôturé). Distinct du chevauchement réel v2.205
+      // (`resolu.isolable === false`) : là, une ligne EXISTE déjà mais est
+      // ambiguë, jamais une estimation (Article 5, précision impossible).
+      // Ici, aucune ligne n'existe encore pour le quart en cours — NEXUS
+      // estime sa part avec la moyenne récente du même créneau, prorata du
+      // temps déjà écoulé, plutôt que d'afficher un blocage total. Le
+      // résultat reste marqué `estimeParHistorique` pour que l'écran
+      // affiche honnêtement "estimation" et non une mesure certaine.
+      let estimeParHistorique = false;
+      const estimationsL = { go: 0, sp95: 0, gnr: 0 };
+      if (resolu.isolable !== false) {
+        const quartsAEstimer = M.quartsAEstimerDansFenetre(lignesQuartsJour || [], horaires, dateISO, t0, t1, fuseau);
+        for (const q of quartsAEstimer) {
+          if (q.fraction <= 0) continue;
+          const historiqueQuart = await chargerHistoriqueVentesParQuart(client, siteId, q.quart, dateISO);
+          ['go', 'sp95', 'gnr'].forEach(carb => {
+            const moy = MC ? MC.moyenneRecente(historiqueQuart, carb, dateISO, 14).moyenne : null;
+            if (moy != null) {
+              estimationsL[carb] += moy * q.fraction;
+              estimeParHistorique = true;
+            }
+          });
+        }
+      }
+
       Object.entries(controle.parCarburant).forEach(([cle, r]) => {
-        const ventes = resolu.ventes[cle];
+        const venteReelle = resolu.ventes[cle];
+        const estimee = estimationsL[cle] || 0;
+        // `ventes` combine la part réellement close (venteReelle, jamais
+        // altérée) et l'estimation du quart encore ouvert — mais seulement
+        // si une estimation existe ou qu'une vente réelle a été trouvée ;
+        // si ni l'un ni l'autre (aucune donnée du tout, même pas
+        // d'historique pour estimer), `ventes` reste honnêtement `null`
+        // plutôt que de fabriquer un zéro (Article 5).
+        const ventes = venteReelle != null ? venteReelle + estimee
+          : (estimeParHistorique ? estimee : null);
         const jaugeageL = r.reelDuJour != null ? Number(r.reelDuJour) : null;
         const stockEstimeL = (jaugeageL != null && ventes != null) ? jaugeageL - ventes : null;
         resultat[cle] = {
@@ -224,6 +296,8 @@
           jaugeageOuvertureL: jaugeageL,
           jaugeageOuvertureLe: controle.releveDuJour.mesure_le,
           ventesDepuisJaugeageL: ventes,
+          ventesEstimeesInclusesL: estimeParHistorique ? estimee : 0,
+          stockEstimeParHistorique: estimeParHistorique && stockEstimeL != null,
           stockFiable: r.statut !== 'Données insuffisantes' && stockEstimeL != null,
         };
       });
@@ -300,6 +374,12 @@
         // (Article 11).
         jaugeageOuvertureL: stock.jaugeageOuvertureL, jaugeageOuvertureLe: stock.jaugeageOuvertureLe,
         ventesDepuisJaugeageL: stock.ventesDepuisJaugeageL,
+        // Estimation historique du quart en cours (25/08/2026, retour de
+        // Frédéric) — exposée pour que l'écran affiche honnêtement
+        // "estimation, quart en cours" plutôt que de présenter une valeur
+        // estimée comme une mesure certaine (Article 5).
+        stockEstimeParHistorique: !!stock.stockEstimeParHistorique,
+        ventesEstimeesInclusesL: stock.ventesEstimeesInclusesL || 0,
         // "Stock estimé maintenant" (terminologie exacte de Frédéric) — même
         // valeur que `stockActuelL` passé à evaluerCarburant() ci-dessus,
         // simplement exposée sous son propre nom pour l'écran plutôt que de

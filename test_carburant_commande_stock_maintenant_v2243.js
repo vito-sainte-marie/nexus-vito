@@ -39,6 +39,16 @@ function creerClientAuditsCaisse(lignes) {
       return {
         select() { return this; },
         eq() { return this; },
+        // gte/lt (25/08/2026, v2.246) : chargerHistoriqueVentesParQuart
+        // (estimation historique d'un quart pas encore clôturé) requête
+        // aussi audits_caisse avec un filtre de plage de dates — même mock
+        // générique réutilisé, jamais un second mock dupliqué (Article 11).
+        // Renvoie volontairement les mêmes lignes que le jour courant : leur
+        // date n'étant jamais strictement antérieure à `dateISO`, elles sont
+        // filtrées par moyenneRecente() elle-même (aucune estimation
+        // fabriquée en l'absence de vrai historique antérieur).
+        gte() { return this; },
+        lt() { return this; },
         then(resolve) { return Promise.resolve({ data: lignes, error: null }).then(resolve); },
       };
     },

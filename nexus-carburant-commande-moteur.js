@@ -760,6 +760,13 @@
 
     let commandeRecommandee = null;
     if (optim.decision === 'commander') {
+      // Compartiments camion en m³ complets (25/08/2026, retour de Frédéric :
+      // "les compartiments du camion sont en m3 complet et non au litre") —
+      // TOUT volume final recommandé doit être un multiple de 1000 L, y
+      // compris quand il est plafonné par la capacité physique disponible.
+      // Déclaré avant son premier usage (avant, seulement défini plus bas,
+      // dupliqué implicitement par le Math.floor() nu du plafond ci-dessous).
+      const pasArrondi = 1000;
       const volumesArrondis = {};
       let totalArrondi = 0;
       Object.entries(optim.volumesRetenus).forEach(([c, v]) => {
@@ -778,8 +785,21 @@
         // explicite du cahier : "sécurité > capacité physique > réserve 3
         // jours [...]" — la capacité physique reste un plafond dur, même si
         // cela signifie rester en-dessous de l'arrondi "sécurité".
+        //
+        // Correctif (25/08/2026, retour de Frédéric sur v2.245 : "sa
+        // recommandation doit être par exemple 24000 ou 23000 et non
+        // 23470") — le plafond de capacité physique (ex. 23 170 L restants
+        // en cuve) n'est PAS lui-même un multiple de 1000 L ; l'ancien
+        // Math.floor(capacitesDisponiblesL[c]) ne faisait que supprimer les
+        // décimales, laissant passer un plafond comme 23 170 tel quel. Un
+        // camion ne livre que des compartiments pleins (unités de 1000 L,
+        // "m³ complet") : le plafond physique doit donc lui-même être
+        // arrondi AU MULTIPLE DE 1000 INFÉRIEUR avant de brider `arrondi` —
+        // rester en dessous de la capacité réelle est toujours sûr (jamais
+        // l'inverse), cohérent avec la priorité "sécurité > capacité
+        // physique" déjà actée ci-dessus.
         if (capacitesDisponiblesL && capacitesDisponiblesL[c] != null) {
-          const plafond = Math.floor(capacitesDisponiblesL[c]);
+          const plafond = Math.floor(capacitesDisponiblesL[c] / pasArrondi) * pasArrondi;
           if (arrondi > plafond) arrondi = plafond;
         }
         volumesArrondis[c] = arrondi;
@@ -788,16 +808,16 @@
       // Filet de sécurité : si l'arrondi (toujours au multiple de 1000
       // inférieur par défaut) repasse sous le minimum camion, on remonte le
       // plus gros volume d'un cran — mais JAMAIS au-delà de sa propre
-      // capacité disponible (même plafond dur que ci-dessus). Si aucun
-      // carburant retenu n'a plus de marge de capacité, la commande reste
-      // honnêtement sous le minimum camion plutôt que de proposer un volume
+      // capacité disponible (même plafond dur que ci-dessus, désormais lui
+      // aussi arrondi au multiple de 1000 inférieur). Si aucun carburant
+      // retenu n'a plus de marge de capacité, la commande reste honnêtement
+      // sous le minimum camion plutôt que de proposer un volume
       // matériellement impossible à recevoir (Article 5).
-      const pasArrondi = 1000;
       if (config && totalArrondi < config.minimum_camion_litres) {
         const tri = Object.entries(volumesArrondis).sort((a, b) => b[1] - a[1]);
         for (const [cle] of tri) {
           const plafondCle = (capacitesDisponiblesL && capacitesDisponiblesL[cle] != null)
-            ? Math.floor(capacitesDisponiblesL[cle]) : Infinity;
+            ? Math.floor(capacitesDisponiblesL[cle] / pasArrondi) * pasArrondi : Infinity;
           if (volumesArrondis[cle] + pasArrondi <= plafondCle) {
             volumesArrondis[cle] += pasArrondi;
             totalArrondi += pasArrondi;

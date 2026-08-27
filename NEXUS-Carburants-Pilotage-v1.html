@@ -1667,9 +1667,19 @@
       // qu'un chiffre fabriqué (Article 5).
       const jaugeageTxt = ev.jaugeageOuvertureL != null
         ? `Jaugeage ${ev.jaugeageOuvertureLe ? formaterDateHeureFr(ev.jaugeageOuvertureLe) : ''} ${fmtL(ev.jaugeageOuvertureL)}` : null;
+      // Estimation historique d'un quart en cours (25/08/2026, retour de
+      // Frédéric : "nexus doit faire une estimation des ventes en fonction
+      // de son historique") — quand le stock maintenant inclut une part
+      // estimée (quart pas encore clôturé), l'écran le dit explicitement
+      // ("estimation, quart en cours") plutôt que de présenter une valeur
+      // partiellement estimée comme une mesure certaine (Article 5). Reste
+      // distinct du cas "non calculable" (chevauchement réel, v2.205) qui
+      // n'affiche toujours aucun chiffre.
       const stockMaintenantTxt = ev.stockFiable === false
         ? 'stock maintenant non calculable (quart en cours au jaugeage)'
-        : (ev.stockEstimeMaintenantL != null ? `stock maintenant ${fmtL(ev.stockEstimeMaintenantL)}` : null);
+        : (ev.stockEstimeMaintenantL != null
+          ? `stock maintenant ${fmtL(ev.stockEstimeMaintenantL)}${ev.stockEstimeParHistorique ? ' (estimation, quart en cours)' : ''}`
+          : null);
       const ligneJaugeage = [jaugeageTxt, stockMaintenantTxt].filter(Boolean).join(' · ');
 
       const ligneProjection = `Ventes prévues d'ici livraison ${fmtL(ventesPrevuesL)} · prévu avant livraison (${livraisonTxt}) ${fmtL(prevuL)}${recoL != null ? ` · recommandé ${fmtL(recoL)}` : ''}${capaciteTxt}`;

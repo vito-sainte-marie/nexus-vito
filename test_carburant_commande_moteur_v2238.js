@@ -291,6 +291,14 @@ function historiqueConstant(carburant, valeurParJour, debutISO, finISOExclu) {
 //    recommandée ne doit jamais dépasser ce plafond physique, même au prix
 //    de rester sous l'arrondi "sécurité" (priorité du cahier : "sécurité >
 //    capacité physique > réserve 3 jours [...]").
+//    Complété le 25/08/2026 (v2.246, second retour de Frédéric sur ce même
+//    cas) : "les compartiments du camion sont en m3 complet et non au
+//    litre" -- un plafond de capacité comme 23 170 L n'est lui-même PAS un
+//    multiple de 1000 ; le camion ne peut physiquement livrer que des
+//    compartiments pleins. Le plafond est donc désormais arrondi au
+//    multiple de 1000 INFÉRIEUR (23 000, jamais 23 170) avant de brider le
+//    volume -- toujours sûr (reste sous la capacité réelle), jamais un
+//    volume à la fois "dans la capacité" mais physiquement infaisable.
 // ------------------------------------------------------------
 {
   const global1 = M.construireEvaluationGlobale({
@@ -303,7 +311,8 @@ function historiqueConstant(carburant, valeurParJour, debutISO, finISOExclu) {
   assert.strictEqual(global1.optimisation.decision, 'commander');
   assert.ok(global1.commandeRecommandee.volumes.sp95 <= 23170,
     `le volume recommandé (${global1.commandeRecommandee.volumes.sp95} L) ne doit jamais dépasser la capacité disponible (23170 L)`);
-  assert.strictEqual(global1.commandeRecommandee.volumes.sp95, 23170, 'plafonné exactement à la capacité disponible, pas arrondi au-delà');
+  assert.strictEqual(global1.commandeRecommandee.volumes.sp95, 23000, 'plafonné au multiple de 1000 inférieur à la capacité disponible (compartiments m³ complets), jamais 23 170 L');
+  assert.strictEqual(global1.commandeRecommandee.volumes.sp95 % 1000, 0, 'le volume final est toujours un multiple de 1000 L, jamais une valeur fractionnaire comme 23 470 L');
 
   // Filet de sécurité (complément pour atteindre le minimum camion) : ne
   // doit pas non plus pousser un carburant au-delà de sa propre capacité.
@@ -341,9 +350,9 @@ function historiqueConstant(carburant, valeurParJour, debutISO, finISOExclu) {
     capacitesDisponiblesL: { sp95: 9500 },
   });
   assert.strictEqual(global3.optimisation.decision, 'commander');
-  assert.strictEqual(global3.commandeRecommandee.volumes.sp95, 9500, 'jamais au-delà de la capacité disponible, même si le total reste sous le minimum camion');
+  assert.strictEqual(global3.commandeRecommandee.volumes.sp95, 9000, 'jamais au-delà de la capacité disponible ET toujours un multiple de 1000 L (compartiments m³ complets) — 9 500 L n\'est physiquement pas livrable');
   assert.ok(global3.commandeRecommandee.total < CONFIG.minimum_camion_litres, 'reste honnêtement sous le minimum camion plutôt que de dépasser la capacité physique');
-  ok('P0 — arrondi et filet de sécurité minimum camion jamais au-delà de la capacité physique disponible à la livraison');
+  ok('P0 — arrondi et filet de sécurité minimum camion jamais au-delà de la capacité physique disponible à la livraison, toujours un multiple de 1000 L (compartiments m³ complets)');
 }
 
 // ------------------------------------------------------------
