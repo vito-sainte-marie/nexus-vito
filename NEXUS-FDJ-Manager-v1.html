@@ -801,8 +801,18 @@
   // ensuite, l'ack ne correspond plus au solde constaté et la ligne
   // réapparaît d'elle-même — jamais un silence permanent sur un problème
   // qui continue d'évoluer, seulement sur la situation déjà vue et validée.
-  async function calculerSoldesNegatifs() {
-    const { soldes } = await soldesActuels();
+  // `precalcule` (27/08/2026, retour de Frédéric "ça met du temps à
+  // charger" sur FDJ Opérations — diagnostic réseau réel via Chrome DevTools
+  // MCP) : optionnel, résultat déjà résolu de `soldesActuels()` à réutiliser
+  // au lieu d'en relancer un — voir `renderAccueil` ci-dessous, qui appelle
+  // `soldesActuels()` UNE SEULE FOIS et le partage avec `chargerCarnetsARapprocher`
+  // (même besoin exact, jusqu'ici deux requêtes réseau identiques en double
+  // à chaque chargement de l'accueil : fdj_stock_movements et
+  // fdj_stock_references/fdj_stock_reference_lignes chacune appelée deux
+  // fois). Aucun autre appelant de cette fonction n'existe dans ce fichier —
+  // rétrocompatible si un jour un appel sans argument est ajouté ailleurs.
+  async function calculerSoldesNegatifs(precalcule) {
+    const { soldes } = precalcule || await soldesActuels();
     const negatifs = jeux
       .filter(j => (soldes[j.id] || {}).nonActives < 0)
       .map(j => ({ jeu: j, solde: soldes[j.id] }));
@@ -1302,8 +1312,11 @@
   // léger : pas de rotation/autonomie/tickets restants ici, inutiles pour
   // ce seul comptage (Article 11 : même fonction moteur, appelée avec
   // moins de contexte que ouvrirStockEtat qui en a besoin pour autre chose).
-  async function chargerCarnetsARapprocher() {
-    const [{ mouvements, reference }, shiftCountsStock] = await Promise.all([soldesActuels(), chargerShiftCountsStock()]);
+  // `precalcule` : même mécanisme de partage que `calculerSoldesNegatifs`
+  // ci-dessus (voir son commentaire) — évite un second appel à
+  // `soldesActuels()` en double avec celui de la même passe de `renderAccueil`.
+  async function chargerCarnetsARapprocher(precalcule) {
+    const [{ mouvements, reference }, shiftCountsStock] = await Promise.all([precalcule ? Promise.resolve(precalcule) : soldesActuels(), chargerShiftCountsStock()]);
     const referenceCreeLe = reference ? reference.creeLe : null;
     const total = NexusFdjMoteur.approNonTraceParJeu(shiftCountsStock, mouvements, referenceCreeLe);
     return Object.keys(total).filter(gameId => total[gameId] > 0).map(gameId => ({ game_id: gameId, approNonTrace: total[gameId] }));
@@ -2174,9 +2187,20 @@
     // chiffre (Article 11).
     const periodeSemaineCourante = NexusPeriodes.resoudrePeriodeCalendaire('semaine', aujourdhui);
     const bornesHistorique = bornesFiltreHistorique(filtreHistorique, aujourdhui);
+    // 27/08/2026 (retour de Frédéric "ça met du temps à charger" sur FDJ
+    // Opérations, diagnostiqué en direct via Chrome DevTools MCP — trace
+    // réseau réelle : ~30 requêtes Supabase par chargement, dont
+    // fdj_stock_movements / fdj_stock_references / fdj_stock_reference_lignes
+    // EN DOUBLE) : `calculerSoldesNegatifs` et `chargerCarnetsARapprocher`
+    // appelaient chacune `soldesActuels()` indépendamment alors qu'elles
+    // tournent ici dans le MÊME Promise.all — deux allers-retours réseau
+    // identiques à chaque chargement, pour rien. `soldesActuelsPartage` est
+    // désormais lancé UNE SEULE FOIS et partagé aux deux (Article 11, une
+    // seule vérité — et un seul appel réseau pour la produire).
+    const soldesActuelsPartage = soldesActuels();
     const [duJour, historique, alertesInitiales, soldesNegatifs, verrousJour, relevesEnErreur, quartsARevoir, carnetsARapprocher, ecartsRecalculesAValider, replaysRequis, totauxSemaineCourante, historiqueAffiche] = await Promise.all([
-      chargerShiftsAvecCaisse(aujourdhui), chargerShiftsAvecCaisse(null), chargerAlertesNonVues(), calculerSoldesNegatifs(), chargerVerrousJour(), chargerShiftsReleveEnErreur(),
-      chargerQuartsARevoir(), chargerCarnetsARapprocher(), chargerEcartsRecalculesAValider(), chargerReplaysRequis(), chargerTotauxSemaine(periodeSemaineCourante.debut),
+      chargerShiftsAvecCaisse(aujourdhui), chargerShiftsAvecCaisse(null), chargerAlertesNonVues(), soldesActuelsPartage.then(calculerSoldesNegatifs), chargerVerrousJour(), chargerShiftsReleveEnErreur(),
+      chargerQuartsARevoir(), soldesActuelsPartage.then(chargerCarnetsARapprocher), chargerEcartsRecalculesAValider(), chargerReplaysRequis(), chargerTotauxSemaine(periodeSemaineCourante.debut),
       chargerHistoriquePeriode(bornesHistorique.debut, bornesHistorique.fin),
     ]);
     // Recalcul dynamique de la chaîne (16/08/2026, demande de Frédéric) : à
