@@ -574,6 +574,42 @@
   function emplacementParType(type) {
     return emplacements.find(e => e.type === type) || null;
   }
+
+  // Même génération qu'employé (NEXUS-FDJ-v1.html) — Article 11, jamais une
+  // deuxième façon de fabriquer une clé d'idempotence.
+  function genererIdempotencyKey() {
+    return (crypto && crypto.randomUUID) ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  }
+
+  // Écrit le mouvement de stock d'une synchronisation Appro <-> Activation
+  // décidée par `NexusFdjMoteur.decisionSynchronisationApproActivation` (voir
+  // son en-tête, 27/08/2026, demande de Frédéric) — jamais appelée sans
+  // confirmation explicite du manager au préalable (voir enregistrerEdition).
+  // `quantite` positive = création d'une activation reconstituée
+  // ('proposer_synchronisation') ; négative = annulation d'une activation
+  // reconstituée existante ('proposer_annulation', jamais une suppression de
+  // la ligne d'origine — un mouvement 'correction' compensatoire est ajouté,
+  // l'historique reste entier et rejouable, même philosophie que les autres
+  // ledgers append-only du projet, ex. fdj_releves_cloture).
+  async function creerActivationReconstitueeCorrectionManager(gameId, shift, quantite, justification) {
+    const caisse = emplacementParType('caisse');
+    const idempotencyKey = genererIdempotencyKey();
+    const { error } = await nexusClient.from('fdj_stock_movements').insert({
+      site: siteId, game_id: gameId, shift_id: shift.id, type_mouvement: quantite >= 0 ? 'activation' : 'correction', quantite,
+      location_source_id: caisse ? caisse.id : null, location_destination_id: caisse ? caisse.id : null,
+      methode_identification: 'reconstituee_correction_manager', booklet_id: null, employee_id: managerCourant.id,
+      idempotency_key: idempotencyKey, justification,
+    });
+    if (error && error.code === '23505') return true; // rejeu réseau idempotent
+    if (error) { console.error('Synchronisation Appro/Activation (correction manager):', error); alert('Erreur d\'enregistrement de la synchronisation Appro/Activation. Réessayez.'); return false; }
+    await nexusClient.from('fdj_audit_log').insert({
+      site: siteId, shift_id: shift.id, entite_type: 'fdj_stock_movement', entite_id: null,
+      action: quantite >= 0 ? 'fdj_activation_reconstituee_correction_manager' : 'fdj_activation_reconstituee_annulee_correction_manager',
+      acteur_id: managerCourant.id, motif: null,
+      nouvelle_valeur: { game_id: gameId, quantite, methode_identification: 'reconstituee_correction_manager' },
+    });
+    return true;
+  }
   // Solde confiés/activés/non-activés (09/08/2026, précision de Frédéric :
   // un transfert Bureau → Caisse n'est jamais une activation) — calculé via
   // NexusFdjMoteur.soldesCarnetsParJeu, jamais dupliqué avec l'écran
@@ -4998,6 +5034,75 @@
     if (lignes.length) {
       const { error } = await nexusClient.from('fdj_shift_counts').upsert(lignes, { onConflict: 'shift_id,game_id' });
       if (error) { console.error('Enregistrement comptages FDJ (manager):', error); btn.disabled = false; btn.textContent = 'Enregistrer'; alert('Erreur sur le grattage. Réessayez.'); return; }
+    }
+
+    // 2bis) SYNCHRONISATION CONTRÔLÉE APPRO <-> ACTIVATION (27/08/2026,
+    // demande explicite de Frédéric). Jusqu'ici, une correction manager de
+    // l'Appro d'un quart passé (`enregistrerEdition`) ne touchait QUE
+    // `fdj_shift_counts` — jamais `fdj_stock_movements` (v2.67, portée MVP
+    // volontairement limitée à "détecter et signaler, jamais reconstruire").
+    // Frédéric formalise maintenant la règle explicite : "Appro est la
+    // donnée de vente du quart. Activation est le mouvement de stock. Les
+    // deux restent conceptuellement distincts, mais NEXUS doit les
+    // rapprocher automatiquement et proposer une correction explicite
+    // lorsqu'ils se contredisent." Jamais automatique : chaque
+    // synchronisation ou annulation reste sous confirmation explicite du
+    // manager, jamais un écrasement silencieux (même discipline que le
+    // pouvoir total de cet écran — "pouvoir corriger ne doit pas signifier
+    // pouvoir effacer la vérité précédente").
+    //
+    // Ne concerne QUE les jeux dont l'Appro a réellement changé dans cette
+    // édition (`edition.avant.counts` — déjà chargé, jamais une deuxième
+    // lecture pour comparer) et dont le conditionnement (tickets_par_carnet)
+    // est connu (sinon `reconciliationApproActivation` répond
+    // 'conditionnement_inconnu', jamais une activation devinée).
+    const jeuxAvecApproModifie = jeux.filter(j => {
+      const s = edition.counts[j.id];
+      if (!s || !j.tickets_par_carnet) return false;
+      const approAvant = (edition.avant && edition.avant.counts && edition.avant.counts[j.id]) ? (edition.avant.counts[j.id].appro || 0) : 0;
+      return (s.appro || 0) !== approAvant;
+    });
+    if (jeuxAvecApproModifie.length) {
+      // Une seule requête pour tous les jeux concernés de ce quart (Article
+      // 11 — jamais une requête par jeu) : mouvements 'activation'/
+      // 'correction' déjà posés sur CE quart précis, qui alimentent le total
+      // `carnetsActives` attendu par `reconciliationApproActivation` ainsi
+      // que la distinction d'origine faite par
+      // `decisionSynchronisationApproActivation`.
+      const { data: mouvementsQuart, error: eMouv } = await nexusClient.from('fdj_stock_movements')
+        .select('game_id, quantite, methode_identification').eq('shift_id', shift.id).eq('site', siteId)
+        .in('type_mouvement', ['activation', 'correction']);
+      if (eMouv) console.error('Chargement mouvements activation du quart (synchronisation Appro/Activation manager):', eMouv);
+      const mouvementsParJeu = {};
+      (mouvementsQuart || []).forEach(m => { (mouvementsParJeu[m.game_id] = mouvementsParJeu[m.game_id] || []).push(m); });
+
+      for (const j of jeuxAvecApproModifie) {
+        const mvts = mouvementsParJeu[j.id] || [];
+        const activesQuart = mvts.reduce((somme, m) => somme + Number(m.quantite || 0), 0);
+        const approApres = edition.counts[j.id].appro || 0;
+        const reconciliation = NexusFdjMoteur.reconciliationApproActivation(approApres, activesQuart, j.tickets_par_carnet);
+        const decision = NexusFdjMoteur.decisionSynchronisationApproActivation(reconciliation, mvts);
+        const referenceQuart = `${new Date(edition.date + 'T00:00:00').toLocaleDateString('fr-FR')} — Quart ${edition.quart}`;
+
+        if (decision.action === 'proposer_synchronisation') {
+          const pluriel = decision.carnets > 1;
+          const message = `NEXUS a détecté qu'${pluriel ? 'des carnets semblent' : 'un carnet semble'} avoir été activé${pluriel ? 's' : ''} pendant ce quart.\n\n${j.nom} : ${reconciliation.appro} tickets d'appro = ${decision.carnets} carnet${pluriel ? 's' : ''} non retrouvé${pluriel ? 's' : ''} en activation.\n\nSouhaitez-vous mettre à jour le stock FDJ en conséquence ?`;
+          if (confirm(`${message}\n\n[OK] Oui, synchroniser\n[Annuler] Non, conserver uniquement la correction du quart`)) {
+            await creerActivationReconstitueeCorrectionManager(j.id, shift, decision.carnets,
+              `Activation reconstituée suite à la correction du quart du ${referenceQuart} par ${managerCourant.nom} — appro corrigé à ${approApres} tickets pour ${j.nom}, aucune activation correspondante trouvée.`);
+          }
+        } else if (decision.action === 'proposer_annulation') {
+          const pluriel = decision.carnetsReconstitues > 1;
+          const message = `Cette correction remet en cause une activation reconstituée précédemment pour ${j.nom} (${decision.carnetsReconstitues} carnet${pluriel ? 's' : ''}).\n\nSouhaitez-vous l'annuler ?`;
+          if (confirm(`${message}\n\n[OK] Oui, annuler l'activation reconstituée\n[Annuler] Non, conserver telle quelle (à vérifier plus tard)`)) {
+            await creerActivationReconstitueeCorrectionManager(j.id, shift, -decision.carnetsReconstitues,
+              `Annulation d'une activation reconstituée suite à la correction du quart du ${referenceQuart} par ${managerCourant.nom} — appro recorrigé à ${approApres} tickets pour ${j.nom}, ne justifie plus l'activation reconstituée précédente.`);
+          }
+        }
+        // 'signaler_ecart_direct' et 'aucune' : jamais d'action proposée ici
+        // — le premier reste visible via le badge existant "⚠️ À rapprocher"
+        // (approNonTraceParJeu), le second n'a simplement rien à signaler.
+      }
     }
 
     // 3) Rapports.

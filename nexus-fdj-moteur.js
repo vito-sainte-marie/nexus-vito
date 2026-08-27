@@ -603,6 +603,75 @@
   }
 
   // ------------------------------------------------------------
+  // SYNCHRONISATION CONTRÔLÉE APPRO <-> ACTIVATION, côté correction MANAGER
+  // a posteriori (27/08/2026, demande explicite de Frédéric, suite à sa
+  // question sur `NEXUS-FDJ-Manager-v1.html`, écran "Modifier ce quart FDJ").
+  //
+  // Distinct de `reconciliationApproActivation` + `creerActivationImplicite`
+  // (20/08/2026, `NEXUS-FDJ-v1.html`) qui ne couvrent que la clôture EN
+  // DIRECT par l'employé, pendant le quart lui-même. Ici, le manager modifie
+  // un quart déjà passé — v2.67 avait volontairement laissé ce cas de côté
+  // ("détecter et signaler, jamais reconstruire ou deviner", chantier séparé
+  // explicitement noté). Frédéric formalise maintenant la règle : "Appro est
+  // la donnée de vente du quart. Activation est le mouvement de stock. Les
+  // deux restent conceptuellement distincts, mais NEXUS doit les rapprocher
+  // automatiquement et proposer une correction explicite lorsqu'ils se
+  // contredisent." — jamais automatique, toujours sous confirmation
+  // explicite du manager (même philosophie que le confirm() employé), et
+  // jamais un écrasement silencieux d'une activation directement observée.
+  //
+  // Réutilise TEL QUEL `reconciliationApproActivation` (Article 11, aucune
+  // deuxième fonction de comparaison quantité-à-quantité) — cette fonction
+  // ajoute seulement la décision d'action et la distinction d'origine
+  // (reconstituée par correction manager vs activation réellement observée),
+  // que `reconciliationApproActivation` seule ne peut pas trancher puisqu'elle
+  // ne reçoit qu'un total agrégé de carnets actifs, jamais le détail des
+  // mouvements sous-jacents.
+  //
+  // `mouvementsQuart` : mouvements 'activation'/'correction' du quart+jeu
+  // concerné (déjà chargés par l'appelant, Article 11 — jamais une requête
+  // en plus ici, fonction pure). `methode_identification` de chaque
+  // mouvement permet de savoir si l'excédent (cas 'appro_en_exces') provient
+  // d'une activation RECONSTITUÉE par une précédente correction manager
+  // (qu'on peut légitimement proposer d'annuler) ou d'une activation
+  // réellement observée en direct par un employé ('quantite'/'scan'/
+  // 'saisie_manuelle'/'implicite_appro' — jamais remise en cause
+  // automatiquement, seulement signalée comme avant, voir
+  // verifierReconciliationApproActivation côté employé).
+  //
+  // Retourne toujours un objet { action, ... } :
+  //   - 'proposer_synchronisation' (etat 'appro_non_couvert') : `carnets`
+  //     manquants à proposer de créer.
+  //   - 'proposer_annulation' (etat 'appro_en_exces', excédent au moins
+  //     partiellement couvert par une activation reconstituée) :
+  //     `carnetsReconstitues` = quantité annulable (plafonnée à l'écart réel
+  //     — jamais plus que ce que l'écart justifie, même si la reconstitution
+  //     initiale était plus grande).
+  //   - 'signaler_ecart_direct' (etat 'appro_en_exces' mais excédent
+  //     entièrement porté par une activation directement observée) : jamais
+  //     d'action automatique proposée, seulement un signalement (même
+  //     comportement que l'existant côté employé).
+  //   - 'aucune' (aucun_ecart, conditionnement_inconnu, appro_non_multiple —
+  //     ce dernier reste un signalement passif, jamais une action, la
+  //     quantité elle-même étant douteuse).
+  function decisionSynchronisationApproActivation(reconciliation, mouvementsQuart) {
+    if (!reconciliation) return { action: 'aucune' };
+    if (reconciliation.etat === 'appro_non_couvert') {
+      return { action: 'proposer_synchronisation', carnets: reconciliation.carnetsImpliques };
+    }
+    if (reconciliation.etat === 'appro_en_exces') {
+      const reconstitue = (mouvementsQuart || [])
+        .filter(m => m.methode_identification === 'reconstituee_correction_manager')
+        .reduce((somme, m) => somme + Number(m.quantite || 0), 0);
+      if (reconstitue > 0) {
+        return { action: 'proposer_annulation', carnetsReconstitues: Math.min(reconstitue, reconciliation.carnetsImpliques) };
+      }
+      return { action: 'signaler_ecart_direct' };
+    }
+    return { action: 'aucune' };
+  }
+
+  // ------------------------------------------------------------
   // ROTATION / AUTONOMIE / TICKETS RESTANTS — 14/08/2026, demande de
   // Frédéric ("État du stock FDJ, refonte lecture managériale") : retrouver
   // le visuel opérationnel qu'il avait sur papier (stock caisse, rotation,
@@ -1624,7 +1693,7 @@
     calculerCandidatsFdj,
     quartPrecedentAttendu, quartSuivant, chaineContinuite,
     chaineInterrompueDynamique, ecartsContinuiteStock, ecartsContinuiteAAppliquer,
-    approNonTraceParJeu, lignesApproNonTracees, reconciliationApproActivation,
+    approNonTraceParJeu, lignesApproNonTracees, reconciliationApproActivation, decisionSynchronisationApproActivation,
     minutesDepuisMinuit, quartDansFenetreAcces, evaluerAccesQuart,
     etatIntegriteFdj,
     FDJ_ROTATION_FENETRE_JOURS_DEFAUT, FDJ_SEUIL_AUTONOMIE_VIGILANCE_JOURS,
