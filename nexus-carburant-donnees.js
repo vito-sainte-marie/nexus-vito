@@ -618,6 +618,20 @@
     const precedent = await chargerReleveDuJour(client, siteId, date);
     const patch = M.patchReleveDepuisReceptionMesures(mesures, cuvesGo);
     const { versionNum, typeVersion } = M.prochaineVersionReleveCarburant(precedent);
+    // `mesure_le` (27/08/2026, P0 — retour de Frédéric, crash réel sur
+    // vito-sainte-marie) : ce pont (task #63) a été écrit AVANT le mécanisme
+    // `mesure_le`/`instantFenetreReleve` (v2.205/v2.244), et n'a jamais été
+    // mis à jour pour le renseigner — chaque réception via ce pont
+    // enregistrait donc systématiquement `mesure_le: null`, alors que c'est
+    // PRÉCISÉMENT le cas (`origine: 'reception_livraison'`) pour lequel
+    // `instantFenetreReleve` a besoin d'un instant réel (un jaugeage
+    // post-livraison n'est pas une ouverture de journée, v2.205). Résultat
+    // réel constaté : `resoudreVentesFenetre` recevait un `t1` null et
+    // plantait (`t1.getTime()`), remontant jusqu'au Brief NEXUS. Même
+    // convention que l'écran manager (`NEXUS-Carburants-v1.html`,
+    // `mesure_le: new Date().toISOString()` au moment de l'enregistrement) —
+    // Article 11, jamais une deuxième convention de capture d'instant.
+    const mesureLe = new Date().toISOString();
 
     const nouveauSnapshot = {
       stock_reel_go_cuve1: patch.stockReel.go_cuve1 != null ? patch.stockReel.go_cuve1 : (precedent ? precedent.stock_reel_go_cuve1 : null),
@@ -641,7 +655,7 @@
       ...nouveauSnapshot,
       motif_correction: typeVersion === 'correction_manager' ? 'Livraison carburant réceptionnée (pont Réception → Carburants)' : null,
       diff_vs_precedent: diff, auteur: employeeId, origine: 'reception_livraison',
-      visite_reception_id: visiteId,
+      visite_reception_id: visiteId, mesure_le: mesureLe,
     });
     if (eVersion && eVersion.code !== '23505') {
       console.error('Preuve pont réception carburant (carburant_releve_versions):', eVersion);
@@ -650,7 +664,7 @@
 
     const ligne = {
       site: siteId, date, version_num: versionNum, ...nouveauSnapshot,
-      saisi_par: employeeId, origine: 'reception_livraison',
+      saisi_par: employeeId, origine: 'reception_livraison', mesure_le: mesureLe,
     };
     const { data, error } = await client.from('carburant_releves')
       .upsert(ligne, { onConflict: 'site,date' }).select().maybeSingle();

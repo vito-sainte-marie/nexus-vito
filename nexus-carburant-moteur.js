@@ -857,8 +857,19 @@
   //  'dans'      quart entièrement compris dans [t0, t1] -> inclus.
   //  'chevauche' le quart déborde d'un côté ou de l'autre -> non isolable.
   //  'inconnu'   horaires non configurés pour ce quart -> traité comme un chevauchement (jamais une fausse certitude).
+  //  'instant_non_disponible' (27/08/2026, P0 — retour de Frédéric, crash
+  //  réel sur vito-sainte-marie) : `t0` ou `t1` lui-même est absent (ex. un
+  //  relevé `reception_livraison` sans `mesure_le` enregistré — anomalie de
+  //  saisie réelle constatée le 26/08 — fait retourner `null` par
+  //  `instantFenetreReleve`). AVANT ce correctif, cette fonction supposait
+  //  toujours `t0`/`t1` valides et plantait sur `.getTime()` d'un `null` —
+  //  remonté jusqu'au Brief NEXUS (écran d'accueil bloqué). Traité comme un
+  //  chevauchement par l'appelant (jamais une fausse certitude, Article 5),
+  //  mais jamais une exception (Article 5 également : un plantage n'est
+  //  jamais préférable à une donnée honnêtement non calculable).
   function classerQuartFaceFenetre(fenetreQuart, t0, t1) {
     if (!fenetreQuart) return 'inconnu';
+    if (!t0 || !t1) return 'instant_non_disponible';
     const { debut, fin } = fenetreQuart;
     if (fin.getTime() <= t0.getTime()) return 'avant';
     if (debut.getTime() >= t1.getTime()) return 'apres';
@@ -886,8 +897,10 @@
       const quartCle = ligne.quart === '2' ? 'quart2' : 'quart1';
       const fenetreQuart = fenetreQuartLarge(horaires, quartCle, ligne.date, fuseau);
       const position = classerQuartFaceFenetre(fenetreQuart, t0, t1);
-      if (position === 'chevauche' || position === 'inconnu') {
-        quartsChevauchants.push({ date: ligne.date, quart: ligne.quart, raison: position === 'inconnu' ? 'horaires_non_configures' : 'chevauche_ancre_ou_mesure' });
+      if (position === 'chevauche' || position === 'inconnu' || position === 'instant_non_disponible') {
+        const raison = position === 'inconnu' ? 'horaires_non_configures'
+          : (position === 'instant_non_disponible' ? 'instant_ancre_ou_mesure_non_calculable' : 'chevauche_ancre_ou_mesure');
+        quartsChevauchants.push({ date: ligne.date, quart: ligne.quart, raison });
         return;
       }
       if (position !== 'dans') return; // avant/après -> hors fenêtre, exclu proprement, jamais compté.
@@ -931,7 +944,13 @@
       const fenetreQuart = fenetreQuartLarge(horaires, cle, dateISO, fuseau);
       if (!fenetreQuart) return; // horaires non configurés -> aucune estimation possible, reste non calculable.
       const position = classerQuartFaceFenetre(fenetreQuart, t0, t1);
-      if (position === 'avant' || position === 'apres') return; // hors fenêtre, rien à estimer.
+      // 'avant'/'apres' -> hors fenêtre, rien à estimer. 'inconnu'/
+      // 'instant_non_disponible' (27/08/2026, P0) -> t0/t1 lui-même
+      // absent (ex. reception_livraison sans mesure_le) : jamais tenter
+      // `.getTime()` sur un instant manquant (Article 5, jamais un
+      // plantage), reste honnêtement non estimé plutôt qu'un chiffre
+      // fabriqué sur une durée impossible à calculer.
+      if (position === 'avant' || position === 'apres' || position === 'inconnu' || position === 'instant_non_disponible') return;
       const dureeMs = fenetreQuart.fin.getTime() - fenetreQuart.debut.getTime();
       const ecouleMs = Math.min(t1.getTime(), fenetreQuart.fin.getTime()) - fenetreQuart.debut.getTime();
       const fraction = dureeMs > 0 ? Math.max(0, Math.min(1, ecouleMs / dureeMs)) : 0;
