@@ -106,15 +106,18 @@ function prochePied(a, b, tol) { return Math.abs(a - b) < (tol || 0.5); }
 }
 
 // ------------------------------------------------------------
-// 3) completerVersCamionPlein (via viserCamionComplet:true) — cas
-//    entièrement calculé à la main : un seul carburant urgent (sp95, 11 000 L),
-//    complété par les deux carburants au prorata de leur consommation
-//    jusqu'au plafond de 36 000 L, aucun des deux plafonds individuels
-//    (capacité 28 761/28 553 L, autonomie 20 j) n'étant contraignant ici.
-//    Ratio de consommation sp95:go = 3200:2800 = 8:7, restant à répartir
-//    25 000 L -> sp95 +13 333,33 L / go +11 666,67 L, total exactement
-//    36 000 L (l'exemple même donné par Frédéric : "SP95 18 000 + GO 18 000
-//    = 36 000 L").
+// 3) completerVersCamionPlein (via viserCamionComplet:true) — RÉVISÉ le
+//    27/08/2026 (nouvelle règle de construction séquentielle de Frédéric,
+//    §2-3 : "Étape A - carburant prioritaire, Étape B - deuxième carburant")
+//    — remplace l'ancienne répartition au PRORATA (v2.245) par une
+//    construction SÉQUENTIELLE par priorité : le carburant prioritaire du
+//    cycle (plus forte consommation journalière prévisionnelle — ici sp95,
+//    3200 > go 2800) reçoit en premier tout ce qu'il peut raisonnablement
+//    recevoir (borné par sa capacité disponible, 28 761 L, ici plus
+//    contraignante que le plafond d'autonomie 20 j) ; le reste du camion
+//    (36 000 - 28 761 = 7 239 L) va ensuite entièrement au go. Cas
+//    entièrement calculé à la main, aucun des deux plafonds n'étant
+//    contraignant pour le go.
 // ------------------------------------------------------------
 {
   const optim = M.optimiserCommandeMultiCarburant({
@@ -131,15 +134,16 @@ function prochePied(a, b, tol) { return Math.abs(a - b) < (tol || 0.5); }
   assert.strictEqual(optim.decision, 'commander');
   assert.ok(prochePied(optim.total, 36000, 0.5), `total attendu ~36 000 L (proche du maximum camion), obtenu ${optim.total}`);
   assert.deepStrictEqual(Array.from(optim.carburantsCompletes).sort(), ['go', 'sp95'], 'les DEUX carburants sont complétés, pas seulement le carburant urgent');
-  assert.ok(prochePied(optim.volumesRetenus.sp95, 24333.33, 1), `sp95 attendu ~24 333,3 L, obtenu ${optim.volumesRetenus.sp95}`);
-  assert.ok(prochePied(optim.volumesRetenus.go, 11666.67, 1), `go attendu ~11 666,7 L, obtenu ${optim.volumesRetenus.go}`);
-  // Répartition au prorata de la consommation (8:7), jamais un partage égal.
-  const ratioObtenu = (optim.volumesRetenus.sp95 - 11000) / (optim.volumesRetenus.go - 0);
-  assert.ok(prochePied(ratioObtenu, 3200 / 2800, 0.01), `répartition du complément proportionnelle à la consommation (8:7), ratio obtenu ${ratioObtenu}`);
+  // Étape A — sp95 (carburant prioritaire, plus forte consommation) rempli
+  // en premier jusqu'à sa propre capacité disponible (28 761 L), jamais un
+  // partage proportionnel avec go.
+  assert.strictEqual(optim.volumesRetenus.sp95, 28761, `sp95 (prioritaire) attendu exactement 28 761 L (son plafond de capacité), obtenu ${optim.volumesRetenus.sp95}`);
+  // Étape B — go complète le reste du camion jusqu'à 36 000 L (7 239 L).
+  assert.strictEqual(optim.volumesRetenus.go, 7239, `go (complément) attendu exactement 7 239 L (36 000 - 28 761), obtenu ${optim.volumesRetenus.go}`);
   assert.ok(/Camion complété/.test(optim.motif), 'motif explicite de la complétion camion : ' + optim.motif);
   assert.strictEqual(optim.optimise, true);
 
-  ok('completerVersCamionPlein — complète les DEUX carburants au prorata de leur consommation jusqu\'à ~36 000 L (exemple exact donné par Frédéric)');
+  ok('completerVersCamionPlein — construction SÉQUENTIELLE par priorité (Étape A sp95 jusqu\'à son plafond, Étape B go complète le reste) — remplace le prorata v2.245, nouvelle règle de Frédéric du 27/08/2026');
 }
 
 // ------------------------------------------------------------

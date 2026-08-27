@@ -146,14 +146,48 @@
   // "à confirmer" plutôt que "fiable" (provisoire — §28/§29).
   const SEUIL_POINTS_JOUR_SEMAINE_FIABLE = 3;
 
+  // Exclusion des journées manifestement atypiques (27/08/2026, nouvelle
+  // règle de Frédéric §5 : "exclusion des journées manifestement
+  // atypiques") — jamais une exclusion arbitraire : une valeur n'est
+  // écartée que si elle s'écarte fortement (moins de 40% ou plus de 250% de
+  // la médiane du groupe comparé) de ce que les autres jours comparables
+  // montrent. Seuils provisoires (même discipline que les autres constantes
+  // "à recalibrer" de ce fichier, Article 5). Appliquée UNIQUEMENT à partir
+  // de 3 points disponibles — en dessous, exclure quoi que ce soit
+  // reviendrait à choisir arbitrairement quelle valeur croire ; avec moins
+  // de 3 points, toutes les valeurs sont conservées telles quelles.
+  function exclureJoursAtypiques(valeurs) {
+    if (!valeurs || valeurs.length < 3) return valeurs || [];
+    const med = median(valeurs);
+    if (!med) return valeurs;
+    const retenues = valeurs.filter(v => v >= med * 0.4 && v <= med * 2.5);
+    return retenues.length ? retenues : valeurs; // jamais une liste vide par excès de filtrage
+  }
+
+  // Moyenne "haute" prudente (27/08/2026, nouvelle règle de Frédéric §5 —
+  // méthode choisie avec Frédéric : moyenne des 2 valeurs les plus hautes
+  // parmi les jours comparables retenus) — jamais une moyenne symétrique
+  // qui sous-estimerait une tendance à la hausse (ex. cahier de Frédéric :
+  // mardis SP 2850/3100/3250/3300/3450 -> retient (3300+3450)/2 = 3375,
+  // pas la moyenne plate ~3190). Avec un seul point retenu, c'est ce point
+  // qui sert de prévision ; avec zéro point, null (Article 5, jamais un
+  // chiffre inventé).
+  function moyenneHauteDeuxMeilleures(valeurs) {
+    if (!valeurs || !valeurs.length) return null;
+    const top = [...valeurs].sort((a, b) => b - a).slice(0, 2);
+    return top.reduce((s, v) => s + v, 0) / top.length;
+  }
+
   // `historiqueParJour` = [{ date: 'YYYY-MM-DD', ventes: { go, sp95, gnr } }],
   // déjà chargé et agrégé par l'appelant (une ligne par jour, litrage
   // sommé — même granularité que sommerVentesPeriode côté moteur
-  // Carburants existant). Moyenne des N dernières occurrences du MÊME jour
-  // de semaine que `dateCibleISO`, strictement antérieures à cette date,
-  // pondérées linéairement décroissant (la plus récente pèse le plus) —
-  // priorité 1 du cahier §8 ("il vaut mieux regarder les derniers samedis
-  // comparables que la moyenne lundi->dimanche").
+  // Carburants existant). Prévision "prudente" du MÊME jour de semaine que
+  // `dateCibleISO`, strictement antérieure à cette date, sur les N dernières
+  // occurrences (priorité aux semaines récentes, §5), après exclusion des
+  // journées atypiques, en retenant la moyenne des 2 meilleures plutôt
+  // qu'une moyenne plate — priorité 1 du cahier §8/§5 ("il vaut mieux
+  // regarder les derniers samedis comparables que la moyenne lundi->
+  // dimanche", et ne jamais sous-estimer par prudence excessive).
   function moyennePondereeMemeJourSemaine(historiqueParJour, carburant, dateCibleISO, maxOccurrences) {
     const max = maxOccurrences || 8;
     const jourCible = jourSemaineIso(dateCibleISO);
@@ -162,13 +196,9 @@
       .sort((a, b) => (a.date < b.date ? 1 : -1))
       .slice(0, max);
     if (!candidats.length) return { moyenne: null, nbPoints: 0 };
-    let sommePonderee = 0, sommePoids = 0;
-    candidats.forEach((j, i) => {
-      const poids = candidats.length - i;
-      sommePonderee += j.ventes[carburant] * poids;
-      sommePoids += poids;
-    });
-    return { moyenne: sommePonderee / sommePoids, nbPoints: candidats.length };
+    const valeurs = candidats.map(j => j.ventes[carburant]);
+    const retenues = exclureJoursAtypiques(valeurs);
+    return { moyenne: moyenneHauteDeuxMeilleures(retenues), nbPoints: candidats.length };
   }
 
   // Moyenne simple des N derniers jours AVEC donnée (jamais diluée par des
@@ -199,15 +229,20 @@
     return { moyenne: somme / candidats.length, nbPoints: candidats.length };
   }
 
-  // Prévision d'UN jour, combinant les priorités disponibles. Un jour férié
-  // avec au moins un point d'historique férié utilise CETTE moyenne en
-  // priorité (jamais mélangée au calcul jour-de-semaine normal — un férié
-  // n'est structurellement pas comparable à un mardi ordinaire), confiance
-  // plafonnée à 'a_confirmer' (peu de points en pratique). Sinon, combine
-  // jour-de-semaine (poids dominant, priorité 1) et tendance récente
-  // (priorité 2) ; si un seul des deux existe, il est utilisé seul ; si
-  // aucun, la prévision est 'non_calculable' — jamais un chiffre à partir
-  // de rien (Article 5).
+  // Prévision d'UN jour. Un jour férié avec au moins un point d'historique
+  // férié utilise CETTE moyenne en priorité (jamais mélangée au calcul
+  // jour-de-semaine normal — un férié n'est structurellement pas comparable
+  // à un mardi ordinaire), confiance plafonnée à 'a_confirmer' (peu de
+  // points en pratique). Sinon (27/08/2026, nouvelle règle de Frédéric §5 —
+  // remplace l'ancien blend 65%/35% avec une tendance récente TOUS JOURS
+  // CONFONDUS) : le jour-de-semaine comparable est utilisé SEUL dès qu'il
+  // existe, jamais dilué par "la moyenne de tous les jours" (citation
+  // explicite de Frédéric : "NEXUS ne prend pas la moyenne globale de tous
+  // les jours. Il regarde les mardis comparables.") — la tendance récente
+  // générale (`moyenneRecente`) ne sert plus que de DERNIER REPLI, quand
+  // aucun historique du même jour de semaine n'existe encore pour ce
+  // carburant (site jeune) ; si aucun des deux n'existe, la prévision est
+  // 'non_calculable' — jamais un chiffre à partir de rien (Article 5).
   function prevoirConsommationJour({ historiqueParJour, carburant, dateCibleISO, estJourFerie, joursFeriesHistoriquesISO }) {
     if (estJourFerie) {
       const ferie = moyenneJoursFeries(historiqueParJour, carburant, joursFeriesHistoriquesISO);
@@ -219,24 +254,15 @@
       // structurellement différent d'un jour ordinaire).
     }
     const memeJour = moyennePondereeMemeJourSemaine(historiqueParJour, carburant, dateCibleISO);
+    if (memeJour.moyenne != null) {
+      const confiance = memeJour.nbPoints >= SEUIL_POINTS_JOUR_SEMAINE_FIABLE && !estJourFerie ? 'fiable' : 'a_confirmer';
+      return { prevision: memeJour.moyenne, methode: 'meme_jour_semaine_prudent', confiance, detail: { memeJour } };
+    }
     const recent = moyenneRecente(historiqueParJour, carburant, dateCibleISO);
-    if (memeJour.moyenne == null && recent.moyenne == null) {
+    if (recent.moyenne == null) {
       return { prevision: null, methode: 'aucune_donnee', confiance: 'non_calculable' };
     }
-    if (memeJour.moyenne == null) {
-      return { prevision: recent.moyenne, methode: 'moyenne_recente_seule', confiance: estJourFerie ? 'a_confirmer' : 'a_confirmer' };
-    }
-    if (recent.moyenne == null) {
-      const confiance = memeJour.nbPoints >= SEUIL_POINTS_JOUR_SEMAINE_FIABLE && !estJourFerie ? 'fiable' : 'a_confirmer';
-      return { prevision: memeJour.moyenne, methode: 'meme_jour_semaine_seul', confiance };
-    }
-    // Blend : le jour comparable domine (65%, priorité 1 du cahier), la
-    // tendance récente vient corriger (35%, priorité 2) — pondération
-    // provisoire, à recalibrer avec Frédéric une fois plusieurs semaines de
-    // prévisions comparées aux ventes réelles disponibles (§35).
-    const prevision = memeJour.moyenne * 0.65 + recent.moyenne * 0.35;
-    const confiance = memeJour.nbPoints >= SEUIL_POINTS_JOUR_SEMAINE_FIABLE && !estJourFerie ? 'fiable' : 'a_confirmer';
-    return { prevision, methode: 'combinee', confiance, detail: { memeJour, recent } };
+    return { prevision: recent.moyenne, methode: 'moyenne_recente_seule', confiance: 'a_confirmer' };
   }
 
   // Somme des prévisions jour par jour sur une fenêtre de dates (typiquement
@@ -306,6 +332,32 @@
     return consommationMoyenneJour * stockSecuriteJours;
   }
 
+  // Réserve cible DYNAMIQUE (27/08/2026, nouvelle règle de Frédéric) —
+  // remplace la réserve FIXE de 3 jours (`config.stock_securite_jours`,
+  // toujours acceptée en repli explicite pour un site qui n'aurait pas
+  // encore les nouvelles clés de config) par une cible qui dépend de la
+  // position dans le mois, réutilisant `estFinDeMois` ci-dessus (Article 11
+  // — jamais un second calcul de "fin de mois") : ~2 jours de vente après
+  // livraison en cours de mois (souplesse, camions bien chargés), ~1 jour
+  // seulement en fin de mois (éviter de basculer du stock sur le mois
+  // suivant plutôt que de l'écouler). Valeurs provisoires (même discipline
+  // que les autres constantes "à recalibrer" de ce fichier, Article 5) —
+  // configurables par site via `carburant_commande_config.stock_securite_
+  // jours_normal`/`..._fin_mois` si Frédéric souhaite un jour ajuster sans
+  // toucher au code (même pattern que minimum/maximum_camion_litres).
+  const RESERVE_CIBLE_JOURS_NORMAL = 2;
+  const RESERVE_CIBLE_JOURS_FIN_MOIS = 1;
+  function reserveCibleJours(dateISO, config) {
+    const normal = (config && config.stock_securite_jours_normal != null) ? config.stock_securite_jours_normal : RESERVE_CIBLE_JOURS_NORMAL;
+    const finMois = (config && config.stock_securite_jours_fin_mois != null) ? config.stock_securite_jours_fin_mois : RESERVE_CIBLE_JOURS_FIN_MOIS;
+    // Repli ultime sur l'ancienne clé fixe si ni les nouvelles clés ni les
+    // constantes provisoires ne s'appliquent (ne devrait jamais arriver en
+    // pratique, gardé par honnêteté — Article 5, jamais un null silencieux
+    // là où une valeur explicite existe déjà en base).
+    if (normal == null && finMois == null) return config ? config.stock_securite_jours : null;
+    return estFinDeMois(dateISO) ? finMois : normal;
+  }
+
   // Évalue UN scénario de commande (§12 : scénario A/B/C du cahier — cette
   // fonction calcule un seul scénario, l'appelant la rejoue avec des
   // dates/heures différentes pour comparer). Retourne la fenêtre de
@@ -334,7 +386,7 @@
       livraisonsIntermediaires: commandesEnCoursVolumeL || 0,
       ventesPrevuesJusquaLivraison: ventesPrevues.total,
     });
-    const securiteL = stockSecuriteLitres(consommationMoyenneJour, config ? config.stock_securite_jours : null);
+    const securiteL = stockSecuriteLitres(consommationMoyenneJour, reserveCibleJours(dateCommandeISO, config));
     const margeL = (stockPrevu != null && securiteL != null) ? stockPrevu - securiteL : null;
     const margeJours = (margeL != null && consommationMoyenneJour) ? margeL / consommationMoyenneJour : null;
     return {
@@ -416,6 +468,22 @@
   function verifierMinimumCamion(volumeTotalL, minimumCamionL) {
     if (volumeTotalL == null || minimumCamionL == null) return { valide: null, manqueL: null };
     return { valide: volumeTotalL >= minimumCamionL, manqueL: Math.max(0, minimumCamionL - volumeTotalL) };
+  }
+
+  // Carburant PRIORITAIRE du cycle (27/08/2026, nouvelle règle de
+  // Frédéric §2) — jamais codé en dur (SP95 aujourd'hui, mais purement
+  // conjoncturel, "demain si le GO dépasse durablement le SP, la logique
+  // s'inverse automatiquement") : classe TOUS les carburants transmis par
+  // consommation journalière prévisionnelle DÉCROISSANTE. Le premier de la
+  // liste est le "carburant prioritaire du cycle" ; l'ordre complet sert
+  // ensuite à la construction séquentielle du camion (§3, étape A
+  // prioritaire puis étape B complément) plutôt qu'une répartition au
+  // prorata. Un carburant sans consommation moyenne connue (0/null) est
+  // naturellement classé en dernier — jamais une priorité inventée faute de
+  // donnée (Article 5).
+  function ordrePrioriteCarburants(parCarburant) {
+    return Object.keys(parCarburant || {})
+      .sort((a, b) => (parCarburant[b].consommationMoyenneJour || 0) - (parCarburant[a].consommationMoyenneJour || 0));
   }
 
   // Un carburant n'est avancé pour compléter le camion que si son propre
@@ -549,17 +617,23 @@
     return { decision: 'commander', optimise, carburantsAnticipes, carburantsCompletes, volumesRetenus, total, motif };
   }
 
-  // Phase de complétion "camion complet" (25/08/2026, retour de Frédéric) —
-  // répartit l'écart entre `total` déjà retenu et `maximumCamionL` (ou la
-  // somme des capacités disponibles si elle est plus petite) au PRORATA de
-  // la consommation moyenne de chaque carburant actif éligible — pas
-  // seulement le(s) carburant(s) déjà urgent(s), c'est tout l'intérêt de ce
-  // mode par rapport à la phase minimum-camion ci-dessus (§14-16). Boucle
-  // bornée (jamais plus de `cles.length` tours, garde-fou à 100) car un
-  // carburant peut atteindre son plafond (capacité OU surstock) avant les
-  // autres, auquel cas l'écart restant est redistribué aux carburants
-  // encore éligibles au tour suivant — même discipline de boucle bornée que
-  // la recomposition du plafond camion existante (construireEvaluationGlobale).
+  // Phase de complétion "camion complet" (25/08/2026, retour de Frédéric ;
+  // révisée le 27/08/2026 — nouvelle règle de construction séquentielle par
+  // priorité, §3) — comble l'écart entre `total` déjà retenu et
+  // `maximumCamionL` (ou la somme des capacités disponibles si elle est
+  // plus petite) en DEUX ÉTAPES séquentielles, jamais au prorata :
+  //   Étape A — le carburant PRIORITAIRE du cycle (`ordrePrioriteCarburants`,
+  //   plus forte consommation journalière prévisionnelle, §2) reçoit en
+  //   premier tout ce qu'il peut raisonnablement recevoir (borné par sa
+  //   capacité disponible ET son plafond de surstock/autonomie après
+  //   réception, `plafondAdditionnelL` inchangée).
+  //   Étape B — le(s) carburant(s) suivant(s), dans le même ordre de
+  //   priorité, complètent avec ce qu'il reste jusqu'au plafond du camion,
+  //   sans jamais dépasser leur propre capacité réelle.
+  // Reproduit fidèlement la méthode manuelle de Frédéric ("30000 - stock SP
+  // du matin, puis compléter avec le GO"), en substituant le stock du matin
+  // par le stock PROJETÉ à la livraison (déjà `ev.stockPrevuLivraisonL`,
+  // Article 11 — aucun second calcul de projection ici).
   function completerVersCamionPlein({ parCarburant, volumesRetenus, total, cles, maximumCamionL, capacitesDisponiblesL }) {
     const maxCamion = maximumCamionL || MAXIMUM_CAMION_LITRES;
     const capaciteTotaleDisponible = cles.reduce((s, c) => s + ((capacitesDisponiblesL && capacitesDisponiblesL[c] != null) ? capacitesDisponiblesL[c] : 0), 0);
@@ -570,9 +644,9 @@
     // dépasser sa capacité disponible NI le plafond de surstock (autonomie
     // après réception). Un carburant sans consommation moyenne connue n'est
     // borné que par la capacité (jamais bloqué sur une donnée manquante,
-    // Article 5 — mais jamais non plus le premier servi si sa consommation
-    // est inconnue : le tri par consommation le place naturellement en
-    // dernier via un poids nul dans la répartition proportionnelle).
+    // Article 5 — mais jamais non plus servi en priorité si sa consommation
+    // est inconnue : `ordrePrioriteCarburants` le classe naturellement en
+    // dernier).
     function plafondAdditionnelL(c) {
       const ev = parCarburant[c] || {};
       const capaciteRestante = Math.max(0, ((capacitesDisponiblesL && capacitesDisponiblesL[c] != null) ? capacitesDisponiblesL[c] : 0) - (volumesRetenus[c] || 0));
@@ -583,24 +657,15 @@
     }
 
     let restant = cible - total;
-    let tour = cles.filter(c => plafondAdditionnelL(c) > 0);
-    let garde = 0;
-    while (restant > 0.01 && tour.length && garde < 100) {
-      garde++;
-      const sommeConso = tour.reduce((s, c) => s + (parCarburant[c].consommationMoyenneJour || 0), 0);
-      let ajouteCeTour = 0;
-      tour.forEach(c => {
-        const poids = sommeConso > 0 ? (parCarburant[c].consommationMoyenneJour || 0) / sommeConso : 1 / tour.length;
-        const part = Math.min(restant * poids, plafondAdditionnelL(c));
-        if (part <= 0) return;
-        volumesRetenus[c] = (volumesRetenus[c] || 0) + part;
-        ajouteCeTour += part;
-      });
-      if (ajouteCeTour <= 0) break; // plus aucun carburant ne peut recevoir -> sortir, jamais une boucle infinie.
-      total += ajouteCeTour;
-      restant -= ajouteCeTour;
-      tour = tour.filter(c => plafondAdditionnelL(c) > 0.01);
-    }
+    const ordre = ordrePrioriteCarburants(parCarburant).filter(c => cles.includes(c));
+    ordre.forEach(c => {
+      if (restant <= 0.01) return;
+      const ajout = Math.min(restant, plafondAdditionnelL(c));
+      if (ajout <= 0) return;
+      volumesRetenus[c] = (volumesRetenus[c] || 0) + ajout;
+      total += ajout;
+      restant -= ajout;
+    });
 
     const carburantsCompletes = cles.filter(c => (volumesRetenus[c] || 0) > (besoinInitial[c] || 0) + 0.01);
     return { total, carburantsCompletes };
@@ -1029,16 +1094,19 @@
     JOURS_FIN_MOIS, estFinDeMois,
     // Prévision
     SEUIL_POINTS_JOUR_SEMAINE_FIABLE,
+    exclureJoursAtypiques, moyenneHauteDeuxMeilleures,
     moyennePondereeMemeJourSemaine, moyenneRecente, moyenneJoursFeries,
     prevoirConsommationJour, prevoirConsommationFenetre,
     // Stock prévisionnel
     stockPrevuLivraison, capaciteDisponibleLivraison, integrerCommandeEnCours,
     // États / fenêtre idéale / attente
     stockSecuriteLitres, SEUIL_MARGE_JOURS_CONFORTABLE,
+    RESERVE_CIBLE_JOURS_NORMAL, RESERVE_CIBLE_JOURS_FIN_MOIS, reserveCibleJours,
     evaluerScenarioCommande, determinerEtatCommande, evaluerAttenteCommande,
     // Camion / multi-carburant
     arrondirVolumeCommande, verifierMinimumCamion, SEUIL_ANTICIPATION_MAX_JOURS,
     MAXIMUM_CAMION_LITRES, SEUIL_AUTONOMIE_MAX_JOURS_COMPLETION, optimiserCommandeMultiCarburant,
+    ordrePrioriteCarburants,
     // Qualité des données
     qualiteDonneesCommande,
     // Évaluation complète

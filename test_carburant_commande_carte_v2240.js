@@ -139,7 +139,10 @@ function ok(label) { n++; console.log('OK —', label); }
   assert.ok(out.includes('Fiabilité : Élevée'), 'fiabilité Élevée attendue : ' + out);
   assert.ok(out.includes('stock fiable'), 'raison de fiabilité attendue : ' + out);
   assert.ok(!out.includes('à confirmer'), 'aucune qualification "à confirmer" quand confiance=fiable : ' + out);
-  assert.ok(out.includes('Moment idéal pour commander'), 'libellé de badge non altéré (Article 5) : ' + out);
+  // Libellé mis à jour le 27/08/2026 (nouvelle règle de Frédéric §9-10) —
+  // remplace l'ancien "Moment idéal pour commander" ; le CALCUL de l'état
+  // (moment_ideal) reste inchangé, seul l'habillage texte change.
+  assert.ok(out.includes('Commander aujourd\'hui'), 'libellé de badge à jour (27/08/2026, nouveau vocabulaire à 4 états) : ' + out);
   // GO confortable, absent de la recommandation -> raison explicite.
   assert.ok(out.includes('GO'), 'ligne GO attendue : ' + out);
   assert.ok(out.includes('autonomie suffisante'), 'raison "autonomie suffisante" pour GO confortable non inclus : ' + out);
@@ -189,13 +192,17 @@ function ok(label) { n++; console.log('OK —', label); }
   };
   render(evaluation);
   const out = zone.innerHTML;
-  assert.ok(out.includes('🟠 Commande probable — à confirmer'), 'badge orange dédié attendu (jamais un simple suffixe sur le rouge) : ' + out);
-  assert.ok(!out.includes('Sécurité — commande urgente'), 'le libellé rouge alarmiste ne doit plus apparaître quand la confiance n\'est pas fiable : ' + out);
+  // Libellé mis à jour le 27/08/2026 (nouvelle règle de Frédéric §9-10) —
+  // "Risque de rupture probable — à confirmer" remplace l'ancien "🟠
+  // Commande probable — à confirmer" ; le comportement de downgrade
+  // (orange tant que la confiance n'est pas fiable) reste inchangé.
+  assert.ok(out.includes('Risque de rupture probable — à confirmer'), 'badge orange dédié attendu (jamais un simple suffixe sur le rouge) : ' + out);
+  assert.ok(!out.includes('>Risque de rupture<'), 'le libellé rouge alarmiste ne doit plus apparaître quand la confiance n\'est pas fiable : ' + out);
   assert.ok(out.includes('border-color:var(--amber)'), 'bordure de carte également basculée en orange (couleur ET libellé, jamais un correctif partiel) : ' + out);
   assert.ok(out.includes('Fiabilité : Moyenne'), 'fiabilité Moyenne attendue : ' + out);
   assert.ok(out.includes('ventes prévues encore incertaines'), 'raison de fiabilité Moyenne attendue : ' + out);
   assert.ok(out.includes('stock maintenant non calculable (quart en cours au jaugeage)'), 'stock maintenant non calculable affiché honnêtement, jamais un chiffre fabriqué (Article 5) : ' + out);
-  ok('securite + confiance a_confirmer -> badge orange dédié "🟠 Commande probable — à confirmer" (couleur + libellé), fiabilité Moyenne, stock maintenant honnêtement non calculable si chevauchement (le calcul rouge/etatGlobal reste inchangé)');
+  ok('securite + confiance a_confirmer -> badge orange dédié "Risque de rupture probable — à confirmer" (couleur + libellé), fiabilité Moyenne, stock maintenant honnêtement non calculable si chevauchement (le calcul rouge/etatGlobal reste inchangé)');
 }
 
 // ------------------------------------------------------------

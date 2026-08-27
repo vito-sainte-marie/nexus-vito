@@ -48,6 +48,12 @@
     --amber:#F5A623; --amber-dim:#3A2E14;
     --red:#F0575A; --red-dim:#3A1D1F;
     --cyan:#4FC3D9; --gold:#D4AF37;
+    /* 27/08/2026, nouvelle règle de Frédéric — 4 états d'alerte
+       🟢/🟡/🟠/🔴 distincts (carte "Prochaine commande" uniquement, voir
+       ETAT_COMMANDE_STYLE ci-dessous) : --amber sert déjà à l'orange
+       ("Commander aujourd'hui"), il fallait un jaune propre pour
+       "À surveiller", jamais confondu avec l'ancien cyan. */
+    --yellow:#E8C547; --yellow-dim:#3A3316;
     --mono:'IBM Plex Mono',monospace; --sans:'IBM Plex Sans',sans-serif;
     /* Icône pompe à essence (14/08/2026, fournie par Frédéric) — encodée en
        base64 pour rester un fichier HTML autonome (aucun asset séparé à
@@ -1491,19 +1497,32 @@
     return typeof NexusCarburantCommandeDonnees !== 'undefined' && typeof NexusCarburantCommandeMoteur !== 'undefined';
   }
 
+  // Vocabulaire à 4 états (27/08/2026, nouvelle règle de Frédéric §9-10 —
+  // "surtout, il faut supprimer les alertes permanentes") — remplace les
+  // anciens libellés ("Confortable"/"À anticiper"/"Moment idéal pour
+  // commander"/"Sécurité — commande urgente") par les 4 états demandés,
+  // avec leur formulation exacte : 🟢 Rien à faire / 🟡 À surveiller /
+  // 🟠 Commander aujourd'hui / 🔴 Risque de rupture. Le CALCUL des 4 états
+  // (confortable/a_anticiper/moment_ideal/securite, nexus-carburant-commande-
+  // moteur.js) reste totalement inchangé (Article 5) — seul l'HABILLAGE
+  // texte/couleur change ici, périmètre limité à cette carte "Prochaine
+  // commande carburant" pour ce lot (décision actée avec Frédéric,
+  // AskUserQuestion 27/08/2026) : le contrôle physique/autonomie carburant
+  // (bloc voisin, même écran) et le Brief gardent leur vocabulaire actuel.
   const ETAT_COMMANDE_STYLE = {
-    confortable: { icone: '✓', libelle: 'Confortable', c: 'var(--green)', f: 'var(--green-dim)' },
-    a_anticiper: { icone: '◔', libelle: 'À anticiper', c: 'var(--cyan)', f: 'rgba(79,195,217,0.12)' },
-    moment_ideal: { icone: '●', libelle: 'Moment idéal pour commander', c: 'var(--amber)', f: 'var(--amber-dim)' },
-    securite: { icone: '▲', libelle: 'Sécurité — commande urgente', c: 'var(--red)', f: 'var(--red-dim)' },
-    // Downgrade d'affichage (25/08/2026, retour de Frédéric) — le rouge
-    // alarmiste "Sécurité — commande urgente" ne doit apparaître que
-    // lorsque le risque est confirmé par des données fiables ; tant que la
-    // confiance du carburant de référence n'est pas "fiable", l'écran
-    // bascule sur ce badge ORANGE dédié (couleur ET libellé, jamais un
-    // simple suffixe accolé au rouge). Le calcul de etatGlobal lui-même
-    // reste totalement inchangé (Article 5) — voir badgeLibelle plus bas.
-    securite_probable: { icone: '●', libelle: '🟠 Commande probable — à confirmer', c: 'var(--amber)', f: 'var(--amber-dim)' },
+    confortable: { icone: '🟢', libelle: 'Rien à faire', c: 'var(--green)', f: 'var(--green-dim)' },
+    a_anticiper: { icone: '🟡', libelle: 'À surveiller', c: 'var(--yellow)', f: 'var(--yellow-dim)' },
+    moment_ideal: { icone: '🟠', libelle: 'Commander aujourd\'hui', c: 'var(--amber)', f: 'var(--amber-dim)' },
+    securite: { icone: '🔴', libelle: 'Risque de rupture', c: 'var(--red)', f: 'var(--red-dim)' },
+    // Downgrade d'affichage (25/08/2026, retour de Frédéric — conservé tel
+    // quel avec le nouveau vocabulaire) — le rouge alarmiste "Risque de
+    // rupture" ne doit apparaître que lorsque le risque est confirmé par
+    // des données fiables ; tant que la confiance du carburant de référence
+    // n'est pas "fiable", l'écran bascule sur ce badge ORANGE dédié
+    // (couleur ET libellé, jamais un simple suffixe accolé au rouge). Le
+    // calcul de etatGlobal lui-même reste totalement inchangé (Article 5)
+    // — voir badgeLibelle plus bas.
+    securite_probable: { icone: '🟠', libelle: 'Risque de rupture probable — à confirmer', c: 'var(--amber)', f: 'var(--amber-dim)' },
     non_calculable: { icone: '…', libelle: 'Non calculable', c: 'var(--text-dim)', f: 'var(--panel-raised)' },
   };
 
