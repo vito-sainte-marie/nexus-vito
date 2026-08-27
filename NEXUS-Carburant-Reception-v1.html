@@ -765,9 +765,18 @@
       if (c.carburant && !c.cuve_destination_id) champsManquants.push('cuve de destination');
       return `compartiment ${c.numero} (${champsManquants.join(', ')})`;
     });
+    // 27/08/2026, retour de Frédéric ("j'ai eu le cas où le compartiment 3
+    // était vide, en revanche le 4 et le 5 oui") — la possibilité de sauter
+    // 1 ou plusieurs compartiments EXISTAIT DÉJÀ (bouton "Marquer ce
+    // compartiment comme vide", 15/08/2026, aucune limite de nombre ni de
+    // position), mais ce message ne le mentionnait jamais : un employé qui
+    // laisse un compartiment non chargé sans le savoir bloqué comprend
+    // seulement qu'il manque une saisie, jamais qu'il peut le déclarer vide
+    // à la place. Article 11 — jamais un second mécanisme créé pour ce
+    // besoin, seulement rendre l'existant visible au moment où il sert.
     return `
       <div class="compartiments-incomplet">
-        <b>Encore incomplet :</b> ${details.join(' · ')}. Touchez chaque compartiment listé pour compléter l'assignation — "Continuer" ne s'active qu'une fois tous les compartiments complets.
+        <b>Encore incomplet :</b> ${details.join(' · ')}. Touchez chaque compartiment listé pour compléter l'assignation, ou marquez-le "vide" si le camion ne l'a pas chargé pour cette livraison — "Continuer" ne s'active qu'une fois tous les compartiments complets ou déclarés vides.
       </div>
     `;
   }
