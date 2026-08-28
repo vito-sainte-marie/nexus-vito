@@ -613,6 +613,24 @@
     return { cle, ...REGIME_GESTION[cle] };
   }
 
+  // Correctif 28/08/2026 (retour de Frédéric, capture d'écran réelle du
+  // 31/08/2026) : "Livraison prévue (nouveau mois) lundi 31 août" est FAUX —
+  // le 31 août est encore en août. Le suffixe "(nouveau mois)" avait été
+  // câblé sur `enRegimeTransition` (le régime de gestion), qui décrit
+  // pourquoi NEXUS anticipe, jamais sur quel mois calendaire tombe
+  // RÉELLEMENT la livraison — deux réalités différentes que Frédéric a
+  // explicitement demandé de ne plus confondre : "le badge APPROCHE FIN DE
+  // MOIS reste indépendant : il décrit le contexte de décision, pas la date
+  // comptable de la livraison." Comparaison de mois par simple préfixe
+  // "YYYY-MM" (dates déjà de la forme YYYY-MM-DD partout dans ce moteur,
+  // Article 11 — même convention que `estFinDeMois`/`joursEntre` : jamais un
+  // objet Date pour une comparaison calendaire, pour ne jamais introduire un
+  // décalage de fuseau sur une date sans heure).
+  function livraisonChangeDeMois(dateCommandeISO, livraisonISO) {
+    if (!dateCommandeISO || !livraisonISO) return false;
+    return dateCommandeISO.slice(0, 7) !== livraisonISO.slice(0, 7);
+  }
+
   // Marge (en jours) au-delà de laquelle un carburant a une vraie marge de
   // manœuvre, pas seulement "pas de souci immédiat" (provisoire — §35).
   const SEUIL_MARGE_JOURS_CONFORTABLE = 5;
@@ -1535,7 +1553,7 @@
     estPontDeMois, MARGE_OPERATIONNELLE_FRACTION_PONT_MOIS,
     evaluerScenarioCommande, determinerEtatCommande, evaluerAttenteCommande,
     // Régime de gestion (badge) + couverture par quart
-    REGIME_GESTION, determinerRegimeGestion, estimerCouvertureParQuart,
+    REGIME_GESTION, determinerRegimeGestion, livraisonChangeDeMois, estimerCouvertureParQuart,
     // Camion / multi-carburant
     arrondirVolumeCommande, verifierMinimumCamion, SEUIL_ANTICIPATION_MAX_JOURS,
     MAXIMUM_CAMION_LITRES, SEUIL_AUTONOMIE_MAX_JOURS_COMPLETION, optimiserCommandeMultiCarburant,

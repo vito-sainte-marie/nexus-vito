@@ -1808,17 +1808,29 @@
     const regimeCarte = (typeof NexusCarburantCommandeMoteur !== 'undefined' && NexusCarburantCommandeMoteur.determinerRegimeGestion)
       ? NexusCarburantCommandeMoteur.determinerRegimeGestion({ modeFinDeMois: !!ctx.modeFinDeMois, scenarioMaintenant: evRef ? evRef.scenarioMaintenant : null })
       : null;
-    // Libellés des dates — relabellisés en "commande de transition"/
-    // "nouveau mois" quand le régime l'exige (pont de mois ou approche de
-    // fin de mois, mockup exact de Frédéric du 28/08/2026 : "dates de
-    // livraison transition/nouveau mois"), sinon vocabulaire générique
-    // inchangé. Mêmes champs sources (`dateEffective`/`livraisonISO` du
-    // scénario), aucun second calcul de date (Article 11).
+    // Libellés des dates — relabellisés en "commande de transition" quand le
+    // régime l'exige (pont de mois ou approche de fin de mois, mockup exact
+    // de Frédéric du 28/08/2026), sinon vocabulaire générique inchangé.
+    // Mêmes champs sources (`dateEffective`/`livraisonISO` du scénario),
+    // aucun second calcul de date (Article 11).
     const enRegimeTransition = regimeCarte && (regimeCarte.cle === 'PONT_DE_FIN_DE_MOIS' || regimeCarte.cle === 'APPROCHE_FIN_DE_MOIS');
     const dateLimiteTxt = evRef && evRef.scenarioMaintenant && evRef.scenarioMaintenant.dateEffective && ctx.config && ctx.config.cutoff_heure
       ? `${enRegimeTransition ? 'Commande de transition' : 'À commander'} ${formaterDateFrAvecJour(evRef.scenarioMaintenant.dateEffective)} avant ${ctx.config.cutoff_heure}` : null;
+    // CORRECTIF 28/08/2026 (retour de Frédéric, capture d'écran réelle du
+    // 31/08/2026 encore en août — "erreur de logique métier") : "(nouveau
+    // mois)" était câblé sur `enRegimeTransition` (le RÉGIME de gestion, qui
+    // explique pourquoi NEXUS anticipe), jamais sur le mois calendaire réel
+    // de la livraison — deux réalités différentes. "Le badge APPROCHE FIN DE
+    // MOIS reste indépendant : il décrit le contexte de décision, pas la
+    // date comptable de la livraison." Désormais dérivé d'une vraie
+    // comparaison de mois (`NexusCarburantCommandeMoteur.livraisonChangeDeMois`,
+    // moteur pur, Article 11) entre la date de commande et la date de
+    // livraison — jamais du régime.
+    const livraisonNouveauMois = (typeof NexusCarburantCommandeMoteur !== 'undefined' && NexusCarburantCommandeMoteur.livraisonChangeDeMois && evRef && evRef.scenarioMaintenant)
+      ? NexusCarburantCommandeMoteur.livraisonChangeDeMois(evRef.scenarioMaintenant.dateEffective, evRef.scenarioMaintenant.livraisonISO)
+      : false;
     const livraisonPrevueTxt = evRef && evRef.scenarioMaintenant && evRef.scenarioMaintenant.livraisonISO
-      ? `Livraison prévue${enRegimeTransition ? ' (nouveau mois)' : ''} ${formaterDateFrAvecJour(evRef.scenarioMaintenant.livraisonISO)}` : null;
+      ? `Livraison prévue${livraisonNouveauMois ? ' (nouveau mois)' : ''} ${formaterDateFrAvecJour(evRef.scenarioMaintenant.livraisonISO)}` : null;
     const metaHTML = [dateLimiteTxt, livraisonPrevueTxt].filter(Boolean)
       .map(t => `<div class="commande-ligne-detail" style="margin:0 0 2px;">${t}</div>`).join('');
 
@@ -2075,6 +2087,22 @@
       ? `<span class="badge-regime" style="margin-left:6px;" title="${regimeCarte.objectif}">${regimeCarte.libelle}</span>` : '';
     const objectifHTML = enRegimeTransition && regimeCarte
       ? `<div class="commande-objectif">${regimeCarte.objectif}</div>` : '';
+    // 28/08/2026, retour de Frédéric (capture d'écran réelle, badge "à
+    // confirmer" affiché sans aucune explication visible à l'écran) :
+    // "NEXUS devrait expliquer exactement quel niveau de confiance il
+    // accorde à sa recommandation et surtout ce qui manque pour passer de
+    // 'à confirmer' à 'confirmée' [...] notamment avec le lien vers Verify
+    // [...] lorsque le quart précédent n'est pas totalement contrôlé."
+    // Cette explication existe déjà (bloc fiabilité par carburant, v2.260 —
+    // raisons précises + action, lien "Ouvrir Verify →" quand la cause est
+    // une anomalie de jaugeage confirmée) mais restait repliée derrière
+    // "Voir les calculs", invisible sans un clic — exactement le trou
+    // signalé. Le détail s'ouvre désormais automatiquement dès qu'au moins
+    // un carburant n'est pas en confiance "fiable" — jamais replié quand il
+    // y a quelque chose à expliquer. Aucun contenu nouveau (Article 11) :
+    // même bloc déjà construit plus haut par lignesCarburant/
+    // construireBlocFiabilite, seule sa visibilité par défaut change.
+    const detailsAutoOuverts = Object.values(ctx.parCarburant || {}).some(ev => ev && ev.confiance && ev.confiance !== 'fiable');
     zone.innerHTML = `
       <div class="commande-carte" style="border-color:${stAffiche.c};">
         <div class="commande-carte-tete">
@@ -2089,7 +2117,7 @@
         ${avisVerifyHTML}
         <div class="commande-pourquoi">${pourquoiTxt}</div>
         ${boutonHTML}
-        <div class="commande-plan-card" id="commandeDetailCard">
+        <div class="commande-plan-card${detailsAutoOuverts ? ' open' : ''}" id="commandeDetailCard">
           <div class="commande-plan-head" onclick="document.getElementById('commandeDetailCard').classList.toggle('open')">
             <span>Voir les calculs</span><span class="commande-plan-chevron">›</span>
           </div>
