@@ -387,7 +387,22 @@
           ecartPhysiqueTheoriqueL: r.ecart != null ? Number(r.ecart) : null,
         };
       });
-      return { parCarburant: resultat, aucunReleve: false };
+      // Source de l'ancre, exposée UNE fois (28/08/2026, point 4 — retour de
+      // Frédéric : "Afficher explicitement la source utilisée pour le calcul
+      // de commande [...] expliquer pourquoi" un relevé plus récent aurait
+      // été écarté). Cas A : le jaugeage du jour lui-même sert d'ancre — même
+      // décision pour les 3 carburants, donc un seul objet, jamais dupliqué
+      // par carburant (Article 11).
+      return {
+        parCarburant: resultat, aucunReleve: false,
+        sourceAncre: {
+          utiliseAujourdhui: true,
+          dateISO: controle.releveDuJour.date,
+          mesureLe: controle.releveDuJour.mesure_le,
+          origine: controle.releveDuJour.origine || null,
+          motif: null,
+        },
+      };
     }
 
     // Cas B — aucun jaugeage aujourd'hui : ventesDepuis de
@@ -417,7 +432,24 @@
         ecartPhysiqueTheoriqueL: r.ecart != null ? Number(r.ecart) : null,
       };
     });
-    return { parCarburant: resultat, aucunReleve: false };
+    // Source de l'ancre — Cas B : aucun relevé pour `dateISO`, l'ancre est le
+    // dernier relevé réel antérieur (`controle.dernierReleve`, déjà chargé
+    // par chargerControleJour, Article 11). Le motif reste honnête et
+    // explicite (28/08/2026, point 4) plutôt que de laisser deviner
+    // pourquoi une date différente d'aujourd'hui apparaît sur l'écran.
+    return {
+      parCarburant: resultat, aucunReleve: false,
+      sourceAncre: controle.dernierReleve ? {
+        utiliseAujourdhui: false,
+        dateISO: controle.dernierReleve.date,
+        mesureLe: controle.dernierReleve.mesure_le,
+        origine: controle.dernierReleve.origine || null,
+        motif: `Aucun jaugeage saisi le ${dateISO} — dernier relevé fiable connu utilisé (${controle.dernierReleve.date}).`,
+      } : {
+        utiliseAujourdhui: false, dateISO: null, mesureLe: null, origine: null,
+        motif: `Aucun jaugeage saisi le ${dateISO} et aucun relevé antérieur connu.`,
+      },
+    };
   }
 
   // ============================================================
@@ -656,9 +688,32 @@
     // déjà calculées par detailQualiteDonneesCommande dans chaque
     // évaluation par carburant ; Verify n'y figure jamais tant qu'aucune
     // donnée Verify n'est réellement consommée par ce moteur).
-    const causesAConfirmer = M.resumerCausesConfirmationCommande(evaluationsParCarburant);
+    // 28/08/2026, v2.264, point 2 — retour de Frédéric : "une anomalie ne
+    // doit bloquer la recommandation que si elle peut réellement modifier la
+    // décision". Filtre aux seuls carburants réellement retenus dans
+    // `commandeRecommandee.volumes` quand une commande a pu être établie —
+    // un carburant non évalué (ex. GNR) mais absent de la commande (ex. GO
+    // seul recommandé) ne doit plus faire dire "commande à confirmer" à
+    // cause de LUI. Quand aucune commande n'a pu être établie du tout
+    // (`commandeRecommandee` null), aucun filtre : tous les carburants
+    // non fiables comptent, car ils expliquent précisément cette absence.
+    const carburantsInclusCommande = global_.commandeRecommandee ? Object.keys(global_.commandeRecommandee.volumes) : null;
+    const causesAConfirmer = M.resumerCausesConfirmationCommande(evaluationsParCarburant, carburantsInclusCommande);
+    // Point 1 — trois états mutuellement exclusifs (jamais "CALCUL SUSPENDU"
+    // en même temps qu'une "Commande recommandée" affichée), calculés UNE
+    // fois ici et relayés à l'écran (Article 11, aucun second calcul).
+    const etatConfirmation = M.etatConfirmationCommande({ commandeRecommandee: global_.commandeRecommandee, causesAConfirmer });
 
-    return { ok: true, dateISO, heureMaintenantHHMM, fuseau, cuves, config, modeFinDeMois, avisVerifyJour, causesAConfirmer, ...global_ };
+    return {
+      ok: true, dateISO, heureMaintenantHHMM, fuseau, cuves, config, modeFinDeMois, avisVerifyJour, causesAConfirmer,
+      etatConfirmationCommande: etatConfirmation,
+      // 28/08/2026, point 4 — source de l'ancre utilisée pour TOUT le
+      // calcul de commande (même décision pour les 3 carburants, un seul
+      // objet — Article 11). Déjà calculée par chargerStockEtFiabiliteParCarburant
+      // ci-dessus (stockInfo.sourceAncre), simplement relayée ici.
+      sourceAncreCommande: stockInfo.sourceAncre || null,
+      ...global_,
+    };
   }
 
   // ============================================================

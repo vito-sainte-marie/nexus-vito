@@ -131,11 +131,20 @@ function creerClientMock(reponses) {
     assert.strictEqual(insertVersion.payload.stock_reel_go_cuve1, 12000);
     assert.strictEqual(insertVersion.payload.stock_reel_go_cuve2, null, 'Cuve non saisie et aucun précédent -> null, jamais une fausse précision (Article 5)');
     assert.strictEqual(insertVersion.payload.livraison_go, 0, 'Le pompiste ne déclare jamais de livraison -> reprise à 0 par défaut');
+    // 28/08/2026, P0 (retour de Frédéric, jaugeage 28/08 05:52 invisible au
+    // moteur de commande, qui restait ancré sur le 27/08 10:10) : cette
+    // fonction n'a jamais renseigné `mesure_le`, contrairement à l'écran
+    // manager et au pont Réception — chargerStockEtFiabiliteParCarburant en
+    // dépend pour reconnaître "un jaugeage a été saisi aujourd'hui" (Cas A).
+    assert.ok(insertVersion.payload.mesure_le, 'mesure_le doit être renseigné sur la preuve (carburant_releve_versions), sinon le moteur de commande ignore ce jaugeage');
+    assert.ok(!Number.isNaN(new Date(insertVersion.payload.mesure_le).getTime()), 'mesure_le doit être un instant ISO valide');
 
     const upsertReleve = client.appels.find(a => a.table === 'carburant_releves' && a.type === 'upsert');
     assert.ok(upsertReleve, 'Doit écrire ensuite la vue courante carburant_releves');
     assert.strictEqual(upsertReleve.payload.origine, 'terrain_pompiste');
     assert.strictEqual(upsertReleve.payload.saisi_par, 'emp1');
+    assert.ok(upsertReleve.payload.mesure_le, 'mesure_le doit aussi être renseigné sur la vue courante (carburant_releves), sinon le relevé du jour reste invisible au moteur de commande (Cas A de chargerStockEtFiabiliteParCarburant)');
+    assert.strictEqual(upsertReleve.payload.mesure_le, insertVersion.payload.mesure_le, 'Même instant de capture sur les deux écritures (preuve et vue courante), jamais deux horodatages différents pour un seul événement de saisie');
 
     const upsertStatut = client.appels.find(a => a.table === 'carburant_jaugeage_statuts_jour' && a.type === 'upsert');
     assert.ok(upsertStatut, 'Doit marquer le statut du jour "fait"');
@@ -181,9 +190,11 @@ function creerClientMock(reponses) {
     assert.strictEqual(insertVersion.payload.origine, 'terrain_pompiste', 'origine reste honnête : c\'est bien le pompiste qui a écrit cette version, quel que soit le type_version');
     assert.ok(insertVersion.payload.motif_correction.includes('pont Inventaire'), 'Le motif doit rester honnête sur ce qui s\'est réellement passé (pas un champ que le pompiste devrait remplir)');
     assert.strictEqual(insertVersion.payload.livraison_go, 500, 'Livraison déjà saisie par le manager -> reprise telle quelle, jamais écrasée par le pompiste');
+    assert.ok(insertVersion.payload.mesure_le, 'mesure_le doit être renseigné même sur une correction (P0 28/08/2026)');
 
     const upsertReleve = client.appels.find(a => a.table === 'carburant_releves' && a.type === 'upsert');
     assert.strictEqual(upsertReleve.payload.origine, 'terrain_pompiste', 'origine du relevé courant reflète la version retenue la plus récente (mirroir, pas figé à la première saisie)');
+    assert.ok(upsertReleve.payload.mesure_le, 'mesure_le doit être renseigné sur la vue courante même sur une correction (P0 28/08/2026)');
   });
 
   // --- enregistrerJaugeageOuverturePompiste — saisie partielle -----------

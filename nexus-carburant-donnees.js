@@ -586,6 +586,25 @@
 
     const precedent = await chargerReleveDuJour(client, siteId, date);
     const { versionNum, typeVersion } = M.prochaineVersionReleveCarburant(precedent);
+    // `mesure_le` (28/08/2026, P0 — retour de Frédéric, "pourquoi le moteur
+    // de commande semble encore travailler depuis le jaugeage du 27 août à
+    // 10:10 alors que Dylan a saisi celui du 28 août à 05:52") : cette
+    // fonction (saisie terrain/pompiste) n'a jamais été mise à jour pour
+    // renseigner `mesure_le` lors de l'introduction de ce mécanisme
+    // (v2.205/v2.244) — exactement le même oubli, sur un chemin d'écriture
+    // différent, que celui déjà corrigé en P0 le 27/08/2026 sur le pont
+    // Réception (voir enregistrerReceptionCarburant ci-dessous). Conséquence
+    // réelle vérifiée sur vito-sainte-marie : `chargerStockEtFiabiliteParCarburant`
+    // exige `releveDuJour.mesure_le` pour reconnaître "un jaugeage a été saisi
+    // aujourd'hui" (Cas A) — sans lui, le moteur de commande retombait
+    // silencieusement sur "aucun jaugeage aujourd'hui" (Cas B) et ancrait la
+    // recommandation sur le DERNIER relevé possédant un `mesure_le`, ici le
+    // relevé MANAGER de la veille (27/08 10:10) au lieu du relevé terrain du
+    // jour même (28/08 05:52), pourtant bien présent en base et déjà affiché
+    // sur "Situation aujourd'hui" (qui ne dépend pas de `mesure_le`). Même
+    // convention que l'écran manager et le pont Réception (Article 11,
+    // jamais une deuxième convention de capture d'instant).
+    const mesureLe = new Date().toISOString();
 
     const nouveauSnapshot = {
       stock_reel_go_cuve1: valeurs.go_cuve1 != null ? Number(valeurs.go_cuve1) : (precedent ? precedent.stock_reel_go_cuve1 : null),
@@ -615,7 +634,7 @@
       // honnête sur ce qui s'est réellement passé plutôt que de bloquer le
       // pompiste avec un champ de motif qu'il ne devrait jamais voir.
       motif_correction: typeVersion === 'correction_manager' ? 'Jaugeage terrain (pont Inventaire, pompiste Quart 1)' : null,
-      diff_vs_precedent: diff, auteur: employeeId, origine: 'terrain_pompiste',
+      diff_vs_precedent: diff, auteur: employeeId, origine: 'terrain_pompiste', mesure_le: mesureLe,
     });
     if (eVersion && eVersion.code !== '23505') {
       console.error('Preuve jaugeage pompiste (carburant_releve_versions):', eVersion);
@@ -624,7 +643,7 @@
 
     const ligne = {
       site: siteId, date, version_num: versionNum, ...nouveauSnapshot,
-      saisi_par: employeeId, origine: 'terrain_pompiste',
+      saisi_par: employeeId, origine: 'terrain_pompiste', mesure_le: mesureLe,
     };
     const { data, error } = await client.from('carburant_releves')
       .upsert(ligne, { onConflict: 'site,date' }).select().maybeSingle();

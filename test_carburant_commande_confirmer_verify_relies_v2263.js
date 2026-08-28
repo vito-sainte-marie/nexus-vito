@@ -208,8 +208,13 @@ function construireRender() {
   render(evaluation);
   const out = zone.innerHTML;
 
-  // 1) Bloc "Commande : À CONFIRMER" — jamais un état sans sortie.
-  assert.ok(out.includes('Commande : À CONFIRMER'), 'titre du bloc "à confirmer" attendu : ' + out);
+  // 1) Bloc "Commande : PROPOSITION À CONFIRMER" — jamais un état sans
+  // sortie. Libellé v2.264 (point 1, retour de Frédéric — 3 états
+  // mutuellement exclusifs) : une commande réelle existe ici (GO+SP95 tous
+  // deux dans commandeRecommandee.volumes), donc l'état est
+  // "proposition_a_confirmer", jamais "calcul_impossible"/"CALCUL SUSPENDU"
+  // qui laisserait croire qu'aucune commande n'a pu être établie.
+  assert.ok(out.includes('Commande : PROPOSITION À CONFIRMER'), 'titre du bloc "à confirmer" attendu (v2.264 : jamais "calcul suspendu" quand une commande réelle existe) : ' + out);
   assert.ok(out.includes('2 éléments à résoudre'), 'compte exact des éléments à résoudre attendu : ' + out);
   // Note : le séparateur de milliers réel de toLocaleString('fr-FR') est
   // U+202F (espace fine insécable), jamais un espace ASCII ordinaire.
@@ -226,7 +231,7 @@ function construireRender() {
   // le bloc "à confirmer" (principe explicite de Frédéric : Verify n'a
   // aujourd'hui aucun impact démontré sur le calcul carburant, donc jamais
   // une cause de "à confirmer").
-  const debutConfirmer = out.indexOf('Commande : À CONFIRMER');
+  const debutConfirmer = out.indexOf('Commande : PROPOSITION À CONFIRMER');
   const finConfirmer = out.indexOf('</div>\n        ', debutConfirmer + 200); // fin approximative du bloc (avant objectifHTML)
   const blocConfirmer = out.slice(debutConfirmer, out.indexOf('Verify :', debutConfirmer));
   assert.ok(!blocConfirmer.includes('Verify'), 'le bloc "à confirmer" ne doit jamais mentionner Verify (mécanismes reliés fonctionnellement, jamais fusionnés) : ' + blocConfirmer);
@@ -262,7 +267,7 @@ function construireRender() {
   };
   render(evaluation);
   const out = zone.innerHTML;
-  assert.ok(!out.includes('Commande : À CONFIRMER') && !out.includes('Commande : CALCUL SUSPENDU'), 'aucun bloc "à confirmer" quand tous les carburants sont fiables, même si Verify a un contrôle en attente : ' + out);
+  assert.ok(!out.includes('Commande : PROPOSITION À CONFIRMER') && !out.includes('Commande : CALCUL IMPOSSIBLE'), 'aucun bloc "à confirmer" quand tous les carburants sont fiables, même si Verify a un contrôle en attente : ' + out);
   assert.ok(out.includes('Verify : 1 contrôle en attente') && out.includes('Quart 1 du 27 août'), 'le bandeau Verify reste affiché indépendamment de la fiabilité carburant : ' + out);
   ok('renderCommandeCarburant — Verify seul en attente (carburant fiable) : aucune dépendance artificielle créée, "à confirmer" absent, bandeau Verify présent et indépendant');
 }

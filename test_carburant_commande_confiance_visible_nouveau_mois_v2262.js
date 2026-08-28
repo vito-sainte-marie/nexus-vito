@@ -166,6 +166,13 @@ function construireRender() {
     },
     optimisation: { decision: 'commander', motif: null, volumesRetenus: { go: 3000 } },
     commandeRecommandee: { volumes: { go: 3000 }, total: 3000 },
+    // 28/08/2026, v2.264, point 3 (retour de Frédéric) : le lien "Ouvrir
+    // Verify" ne s'affiche désormais QUE lorsqu'un contrôle Verify identifié
+    // est réellement pertinent (`avisVerifyJour` non vide) — ce test vérifie
+    // justement ce lien, donc un avis réel doit être présent dans la
+    // fixture, sinon la nouvelle règle (correcte) le remplacerait par
+    // "Qualifier l'écart" et ce test testerait le mauvais scénario.
+    avisVerifyJour: [{ date: '2026-08-27', quart: 1, statut: { etat: 'aucun' } }],
   };
   render(evaluation);
   const out = zone.innerHTML;

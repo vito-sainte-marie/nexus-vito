@@ -837,6 +837,13 @@
   // devinée ni construite dynamiquement.
   const URL_INSITE360_DASHBOARD = 'https://myfms.insite360.gilbarco.com/myFMS/InSite360-Dashboard/NewDashboard.jsp#/886755/886755/tankDetail';
 
+  // Libellé lisible de l'origine d'un relevé (28/08/2026, point 4 — retour
+  // de Frédéric : "afficher explicitement la source utilisée pour le calcul
+  // de commande"). Repli honnête sur la valeur brute si une origine future
+  // inconnue apparaissait, jamais une exception (Article 5).
+  const LIBELLE_ORIGINE_JAUGEAGE = { terrain_pompiste: 'saisie terrain', manager: 'saisie manager', reception_livraison: 'réception livraison' };
+  function libelleOrigineJaugeage(origine) { return LIBELLE_ORIGINE_JAUGEAGE[origine] || (origine || 'origine inconnue'); }
+
   const NOM_CARBURANT = { go: 'Gasoil (GO)', sp95: 'Sans plomb (SP95)', gnr: 'Gasoil non routier (GNR)' };
   const COURT_CARBURANT = { go: 'GO', sp95: 'SP95', gnr: 'GNR' };
   const COULEUR_CARBURANT = { go: 'var(--cyan)', sp95: 'var(--gold)', gnr: 'var(--amber)' };
@@ -1702,9 +1709,30 @@
       ? NexusCarburantCommandeMoteur.actionsResolutionFiabilite(detailConfiance) : [];
     const raisonsHTML = actions.length
       ? `<ul class="fiabilite-raisons">${actions.map(a => {
-          const lienVerify = (a.cible === 'verify_jour' && ctxCommande && ctxCommande.dateISO)
-            ? ` · <a href="NEXUS-Verify-v1.html?ouvrir_date=${encodeURIComponent(ctxCommande.dateISO)}" class="ventes-detail-lien">${a.cta}</a>`
-            : (a.cta ? ` · ${a.cta}` : '');
+          // 28/08/2026, v2.264, point 3 — retour de Frédéric : "« Ouvrir
+          // Verify » ne doit apparaître que lorsqu'un contrôle Verify
+          // identifié est réellement pertinent. Sinon proposer une action
+          // Carburants « Qualifier l'écart »." Un contrôle Verify n'est
+          // "identifié" que s'il existe réellement un avis en attente
+          // (`ctxCommande.avisVerifyJour`, déjà chargé — Article 11, aucune
+          // 2ᵉ requête) : sans lui, proposer le lien inventerait un contrôle
+          // qui n'est peut-être même pas en cause, ou pire, qui n'existe
+          // pas. `avisVerifyJour[0]` = l'entrée la plus récente (déjà triée,
+          // v2.263) — même pratique que le bandeau Verify ci-dessus.
+          let lienVerify;
+          if (a.cible === 'verify_jour') {
+            const avis = ctxCommande && ctxCommande.avisVerifyJour && ctxCommande.avisVerifyJour.length ? ctxCommande.avisVerifyJour[0] : null;
+            if (avis) {
+              const url = (avis.date && avis.quart)
+                ? `NEXUS-Verify-v1.html?ouvrir_date=${encodeURIComponent(avis.date)}&ouvrir_quart=${encodeURIComponent(avis.quart)}`
+                : (ctxCommande && ctxCommande.dateISO ? `NEXUS-Verify-v1.html?ouvrir_date=${encodeURIComponent(ctxCommande.dateISO)}` : null);
+              lienVerify = url ? ` · <a href="${url}" class="ventes-detail-lien">${a.cta}</a>` : ' · Qualifier l\'écart';
+            } else {
+              lienVerify = ' · Qualifier l\'écart';
+            }
+          } else {
+            lienVerify = a.cta ? ` · ${a.cta}` : '';
+          }
           return `<li>${a.libelle} — ${a.action}${lienVerify}</li>`;
         }).join('')}</ul>`
       : `<div class="commande-ligne-detail" style="margin-top:4px;">${(detailConfiance && detailConfiance.raison) || 'Donnée insuffisante pour préciser la raison.'}</div>`;
@@ -2035,6 +2063,22 @@
     // pourquoi les deux peuvent coexister légitimement.
     const noteDistinctionHTML = `<div class="section-note" style="margin:0 0 8px; padding:0; font-size:10px;">Distinct de l'autonomie physique affichée dans « Situation aujourd'hui » ci-dessus : ce calcul intègre la réserve de sécurité et le délai jusqu'au prochain créneau de livraison.</div>`;
 
+    // Source de l'ancre (28/08/2026, point 4 — retour de Frédéric : "Afficher
+    // explicitement la source utilisée pour le calcul de commande. Si le
+    // relevé du 28/08 05:52 est rejeté au profit du 27/08 10:10, expliquer
+    // pourquoi." Cas réel identifié : la saisie terrain ne renseignait pas
+    // `mesure_le`, invisible pour le moteur (P0 corrigé le même jour) — même
+    // après ce correctif, ce bloc reste utile chaque fois qu'aucun jaugeage
+    // n'a encore été saisi aujourd'hui (repli honnête sur le dernier connu).
+    // `ctx.sourceAncreCommande` = sortie de chargerStockEtFiabiliteParCarburant
+    // (Article 11, aucun second calcul ici, uniquement de la mise en forme).
+    const srcAncre = ctx.sourceAncreCommande;
+    const sourceAncreHTML = srcAncre
+      ? (srcAncre.utiliseAujourdhui
+          ? `<div class="section-note" style="margin:0 0 8px; padding:0; font-size:10px;">Ancré sur le jaugeage du ${srcAncre.mesureLe ? formaterDateHeureFr(srcAncre.mesureLe) : formaterDateFrCourt(srcAncre.dateISO)} (${libelleOrigineJaugeage(srcAncre.origine)}).</div>`
+          : `<div class="section-note" style="margin:0 0 8px; padding:8px 10px; background:var(--amber-dim); border-radius:8px; color:var(--amber); font-size:10.5px;">⚠️ Aucun jaugeage saisi aujourd'hui (${formaterDateFrCourt(ctx.dateISO)}) — ancré sur le dernier relevé fiable connu : ${srcAncre.dateISO ? `${srcAncre.mesureLe ? formaterDateHeureFr(srcAncre.mesureLe) : formaterDateFrCourt(srcAncre.dateISO)} (${libelleOrigineJaugeage(srcAncre.origine)})` : 'aucun relevé antérieur connu'}.</div>`)
+      : '';
+
     // Ancre de la recommandation (28/08/2026, refonte qualitative §2, retour
     // explicite de Frédéric) — clarification À L'ÉCRAN, AUCUN changement de
     // calcul : la recommandation part du dernier jaugeage fiable (v2.255,
@@ -2082,34 +2126,54 @@
       : '';
 
     // "À confirmer" avec sortie explicite (28/08/2026, retour de Frédéric —
-    // v2.263) : *"'à confirmer' ne doit jamais être un état sans sortie [...]
-    // Commande : À CONFIRMER / 2 éléments à résoudre / → Écart GO de −1 195 L
-    // à qualifier"*. `ctx.causesAConfirmer` = sortie de
+    // v2.263, précisé v2.264) : *"'à confirmer' ne doit jamais être un état
+    // sans sortie [...] Commande : À CONFIRMER / 2 éléments à résoudre / →
+    // Écart GO de −1 195 L à qualifier"*. `ctx.causesAConfirmer` = sortie de
     // NexusCarburantCommandeMoteur.resumerCausesConfirmationCommande (Article
-    // 11, déjà calculée par evaluerCommandeCarburantSite, aucune 2ᵉ
-    // agrégation ici) — une entrée par carburant non fiable, portant sa cause
-    // la plus sévère (et l'écart chiffré réel quand la cause est une anomalie
-    // de jaugeage et que l'écart est connu, jamais une valeur inventée).
-    // Bloc TOTALEMENT séparé du bloc Verify ci-dessus : ce moteur ne lit que
-    // detailConfiance (facteurs internes carburant) — tant qu'aucune donnée
-    // Verify n'est réellement consommée par ce moteur, Verify n'apparaît
-    // jamais parmi ces causes. Le niveau affiché (À CONFIRMER / CALCUL
-    // SUSPENDU) réutilise NIVEAU_FIABILITE_BADGE (Article 11, une seule
-    // source de vérité pour ces libellés), jamais un texte inventé ici.
+    // 11, déjà calculée par evaluerCommandeCarburantSite, filtrée aux seuls
+    // carburants réellement inclus dans la commande — point 2, v2.264 — donc
+    // aucune 2ᵉ agrégation ni filtrage ici) — une entrée par carburant non
+    // fiable ET retenu dans la décision, portant sa cause la plus sévère (et
+    // l'écart chiffré réel quand la cause est une anomalie de jaugeage et que
+    // l'écart est connu, jamais une valeur inventée). Bloc TOTALEMENT séparé
+    // du bloc Verify ci-dessus : ce moteur ne lit que detailConfiance
+    // (facteurs internes carburant) — tant qu'aucune donnée Verify n'est
+    // réellement consommée par ce moteur, Verify n'apparaît jamais parmi ces
+    // causes.
+    // Trois états mutuellement exclusifs (28/08/2026, v2.264, point 1 —
+    // retour de Frédéric : "Ne jamais afficher simultanément « CALCUL
+    // SUSPENDU » et « Commande recommandée »") : `ctx.etatConfirmationCommande`
+    // (déjà calculé par NexusCarburantCommandeMoteur.etatConfirmationCommande,
+    // Article 11) vaut 'confirmee' (bloc masqué, cas géré par la garde
+    // `causesAConfirmer.length` ci-dessous), 'proposition_a_confirmer' (une
+    // commande réelle existe malgré les réserves — jamais "calcul suspendu"
+    // dans ce cas) ou 'calcul_impossible' (aucune commande n'a pu être
+    // établie). Repli sur l'ancienne heuristique par niveau si le champ
+    // venait à manquer (robustesse Article 5, jamais une exception).
     const causesAConfirmer = ctx.causesAConfirmer || [];
-    const niveauPireConfirmation = causesAConfirmer.some(c => c.niveau === 'non_calculable') ? 'non_calculable' : 'a_confirmer';
-    const badgeNiveauPire = NIVEAU_FIABILITE_BADGE[niveauPireConfirmation] || NIVEAU_FIABILITE_BADGE.a_confirmer;
-    const couleurConfirmation = niveauPireConfirmation === 'non_calculable' ? 'var(--red)' : 'var(--amber)';
-    const fondConfirmation = niveauPireConfirmation === 'non_calculable' ? 'var(--red-dim)' : 'var(--amber-dim)';
+    const etatConfirmation = ctx.etatConfirmationCommande
+      || (causesAConfirmer.some(c => c.niveau === 'non_calculable') ? 'calcul_impossible' : 'proposition_a_confirmer');
+    const LIBELLE_ETAT_CONFIRMATION = {
+      confirmee: { libelle: 'Confirmée', couleur: 'var(--green)', fond: 'var(--green-dim)' },
+      proposition_a_confirmer: { libelle: 'Proposition à confirmer', couleur: 'var(--amber)', fond: 'var(--amber-dim)' },
+      calcul_impossible: { libelle: 'Calcul impossible', couleur: 'var(--red)', fond: 'var(--red-dim)' },
+    };
+    const infoEtatConfirmation = LIBELLE_ETAT_CONFIRMATION[etatConfirmation] || LIBELLE_ETAT_CONFIRMATION.proposition_a_confirmer;
     const causesAConfirmerHTML = causesAConfirmer.length
-      ? `<div class="section-note" style="margin:6px 0 0; padding:8px 10px; background:${fondConfirmation}; border-radius:8px; font-size:11px;">
-          <div style="font-weight:700; font-family:var(--mono); font-size:10.5px; color:${couleurConfirmation};">Commande : ${badgeNiveauPire.libelle.toUpperCase()}</div>
+      ? `<div class="section-note" style="margin:6px 0 0; padding:8px 10px; background:${infoEtatConfirmation.fond}; border-radius:8px; font-size:11px;">
+          <div style="font-weight:700; font-family:var(--mono); font-size:10.5px; color:${infoEtatConfirmation.couleur};">Commande : ${infoEtatConfirmation.libelle.toUpperCase()}</div>
           <div style="margin:2px 0 5px; color:var(--text-mid);">${causesAConfirmer.length} élément${causesAConfirmer.length > 1 ? 's' : ''} à résoudre</div>
           ${causesAConfirmer.map(c => {
+            // 28/08/2026, v2.264, point 7 — "dire exactement ce qu'il faut
+            // faire pour obtenir la confirmation" : l'écart chiffré reste le
+            // titre de la ligne quand il est connu, mais l'action concrète
+            // (`c.action`, désormais relayée par resumerCausesConfirmationCommande)
+            // est toujours ajoutée — jamais une cause affichée sans dire quoi
+            // faire pour la résoudre.
             const ecartTxt = fmtEcartSigneTxt(c.ecartL);
             const texte = ecartTxt
-              ? `Écart ${COURT_CARBURANT[c.carburant] || c.carburant} de ${ecartTxt} à qualifier`
-              : `${COURT_CARBURANT[c.carburant] || c.carburant} : ${c.libelle}`;
+              ? `Écart ${COURT_CARBURANT[c.carburant] || c.carburant} de ${ecartTxt} à qualifier${c.action ? ` — ${c.action}` : ''}`
+              : `${COURT_CARBURANT[c.carburant] || c.carburant} : ${c.libelle}${c.action ? ` — ${c.action}` : ''}`;
             return `<div style="margin-top:2px; color:var(--text);">→ ${texte}</div>`;
           }).join('')}
         </div>`
@@ -2172,6 +2236,7 @@
         ${metaHTML ? `<div style="margin:-2px 0 8px;">${metaHTML}</div>` : ''}
         ${noteDistinctionHTML}
         ${noteAncreHTML}
+        ${sourceAncreHTML}
         ${verifyBlocHTML}
         <div class="commande-pourquoi">${pourquoiTxt}</div>
         ${boutonHTML}

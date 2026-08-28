@@ -1081,9 +1081,26 @@
   // jamais une valeur inventée). Le formatage (signe, séparateur de
   // milliers, nom d'affichage du carburant) reste entièrement à la charge
   // de l'écran — ce moteur ne renvoie que des données structurées.
-  function resumerCausesConfirmationCommande(parCarburantDetails) {
+  // `carburantsInclus` (28/08/2026, v2.264, point 2 — retour de Frédéric :
+  // "Une anomalie ne doit bloquer la recommandation que si elle peut
+  // réellement modifier la décision. Le GNR non évalué ne doit pas
+  // nécessairement bloquer une commande GO.") — filtre optionnel : quand
+  // fourni (tableau des clés carburant réellement retenues dans la
+  // commande, `Object.keys(commandeRecommandee.volumes)`), un carburant NON
+  // inclus dans la décision (ex. GNR non évalué alors que seul GO est
+  // commandé) n'apparaît plus dans le résumé — sa donnée insuffisante reste
+  // vraie et visible ailleurs (badge par carburant, "Voir les calculs"),
+  // mais elle ne doit plus faire dire à la carte "la commande n'est pas
+  // confirmable" alors que la commande réelle (GO) n'a, elle, aucun
+  // problème. Quand `carburantsInclus` est omis/`null` (aucune commande
+  // n'a pu être établie du tout), TOUS les carburants non fiables comptent
+  // — c'est précisément ce qui explique l'absence de recommandation
+  // (comportement historique, inchangé).
+  function resumerCausesConfirmationCommande(parCarburantDetails, carburantsInclus) {
     if (!parCarburantDetails) return [];
+    const filtrerParInclusion = Array.isArray(carburantsInclus);
     return Object.keys(parCarburantDetails)
+      .filter(carburant => !filtrerParInclusion || carburantsInclus.includes(carburant))
       .map(carburant => {
         const info = parCarburantDetails[carburant];
         const detail = info && info.detailConfiance;
@@ -1094,11 +1111,40 @@
         const ecartConnu = causePrincipale === 'anomalie_majeure' && info.ecartPhysiqueTheoriqueL != null;
         return {
           carburant, cause: causePrincipale, niveau: detail.niveau,
-          libelle: action.libelle, cta: action.cta, cible: action.cible,
+          // `action` (28/08/2026, v2.264, point 7 — retour de Frédéric :
+          // "Chaque statut « à confirmer » doit dire exactement ce qu'il
+          // faut faire pour obtenir la confirmation.") — jusqu'ici cette
+          // fonction exposait `libelle` (le PROBLÈME) mais jamais l'action
+          // concrète pour le résoudre, alors qu'ACTIONS_FIABILITE la porte
+          // déjà pour toutes les causes (Article 11, aucune nouvelle
+          // donnée : simple oubli de relais, corrigé ici).
+          libelle: action.libelle, action: action.action, cta: action.cta, cible: action.cible,
           ecartL: ecartConnu ? info.ecartPhysiqueTheoriqueL : null,
         };
       })
       .filter(Boolean);
+  }
+
+  // Trois états de confirmation de la commande, mutuellement exclusifs
+  // (28/08/2026, v2.264, point 1 — retour de Frédéric : "Ne jamais afficher
+  // simultanément « CALCUL SUSPENDU » et « Commande recommandée ». Créer
+  // trois états : Confirmée / Proposition à confirmer / Calcul impossible.")
+  // — 'confirmee' : aucune cause à résoudre parmi les carburants retenus.
+  // 'proposition_a_confirmer' : une commande réelle existe (au moins un
+  // volume > 0 dans `commandeRecommandee.volumes`) MAIS au moins un
+  // carburant qu'elle inclut a une cause à résoudre — la proposition
+  // s'affiche quand même, jamais masquée, avec ses réserves explicites.
+  // 'calcul_impossible' : aucune commande n'a pu être établie ET des causes
+  // documentées expliquent pourquoi — jamais les deux affichages
+  // contradictoires en même temps. Pure, aucune dépendance Verify (Article
+  // 5/11 : ne fait que lire commandeRecommandee/causesAConfirmer déjà
+  // calculés ailleurs).
+  function etatConfirmationCommande({ commandeRecommandee, causesAConfirmer }) {
+    const causes = causesAConfirmer || [];
+    if (!causes.length) return 'confirmee';
+    const aUneCommandeReelle = !!(commandeRecommandee && commandeRecommandee.volumes
+      && Object.values(commandeRecommandee.volumes).some(v => v > 0));
+    return aUneCommandeReelle ? 'proposition_a_confirmer' : 'calcul_impossible';
   }
 
   // ============================================================
@@ -1594,6 +1640,7 @@
     ordrePrioriteCarburants,
     // Qualité des données
     qualiteDonneesCommande, detailQualiteDonneesCommande, actionsResolutionFiabilite, resumerCausesConfirmationCommande,
+    etatConfirmationCommande,
     SEUIL_JAUGEAGE_FRAIS_JOURS, jaugeageEstFrais, livraisonEnCoursCoherente,
     // Évaluation complète
     evaluerCarburant, determinerEtatGlobal, construireEvaluationGlobale,
