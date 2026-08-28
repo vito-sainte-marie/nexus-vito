@@ -291,6 +291,86 @@
   }
 
   // ============================================================
+  // COUVERTURE ESTIMÉE PAR QUART (28/08/2026, retour de Frédéric sur
+  // v2.259 — "je supprimerais presque complètement le langage décimal
+  // (4,3 j) de la vue principale [...] GO — Couverture estimée : mardi
+  // Q2 [...] NEXUS projette les ventes jour par jour puis détermine le
+  // dernier quart entièrement couvert. C'est beaucoup plus métier.").
+  //
+  // Réutilise `prevoirConsommationJour` TEL QUEL (Article 11, aucun
+  // second calcul de prévision) — la seule différence est qu'on lui donne
+  // un historique PAR QUART (`chargerHistoriqueVentesParQuart`, déjà
+  // chargé depuis v2.246 pour l'estimation d'un quart en cours) au lieu
+  // d'un historique par jour agrégé, une fois pour Q1 et une fois pour
+  // Q2. La valeur décimale (jours) n'est jamais supprimée : elle reste
+  // calculée séparément par `calculerAutonomieJours`
+  // (nexus-carburant-moteur.js) pour "Voir les calculs" — cette fonction
+  // ne fait qu'ajouter une lecture complémentaire, plus lisible pour la
+  // vue principale.
+  //
+  // `quartDepart` ('Q1' ou 'Q2', obligatoire) : le premier quart encore à
+  // venir à `dateDebutISO` — jamais Q1 par défaut si le quart 1 du jour
+  // est déjà clôturé (l'appelant le détermine à partir de l'heure
+  // courante et des horaires du site, même logique que
+  // `quartsAEstimerDansFenetre`, Article 11).
+  //
+  // Honnêteté (Article 5) : dès que la prévision d'un quart est
+  // `non_calculable` (aucune donnée), la projection s'arrête et renvoie
+  // le DERNIER quart réellement couvert jusque-là — jamais une couverture
+  // fabriquée au-delà de ce que les données permettent réellement de
+  // projeter. `confiance` porte la PIRE confiance rencontrée sur les
+  // quarts effectivement utilisés dans le calcul.
+  const MAX_JOURS_RECHERCHE_COUVERTURE_QUART = 21; // même horizon que prochainJourLivraisonPossible
+  function estimerCouvertureParQuart({ stockDisponibleL, dateDebutISO, quartDepart, historiqueQuart1, historiqueQuart2, carburant, joursFeriesISO }) {
+    if (stockDisponibleL == null || !dateDebutISO || !quartDepart) {
+      return { dateISO: null, quart: null, epuise: false, auDela: false, confiance: 'non_calculable' };
+    }
+    if (stockDisponibleL <= 0) {
+      return { dateISO: dateDebutISO, quart: null, epuise: true, auDela: false, confiance: 'fiable' };
+    }
+    const HIST_PAR_QUART = { Q1: historiqueQuart1, Q2: historiqueQuart2 };
+    const ordreConfiance = { fiable: 0, a_confirmer: 1, non_calculable: 2 };
+    let stockRestant = stockDisponibleL;
+    let dernierCouvert = null;
+    let pireConfiance = 'fiable';
+
+    for (let j = 0; j < MAX_JOURS_RECHERCHE_COUVERTURE_QUART; j++) {
+      const dateISO = ajouterJoursISO(dateDebutISO, j);
+      const estFerie = (joursFeriesISO || []).includes(dateISO);
+      const quartsDuJour = (j === 0 && quartDepart === 'Q2') ? ['Q2'] : ['Q1', 'Q2'];
+      for (let k = 0; k < quartsDuJour.length; k++) {
+        const quart = quartsDuJour[k];
+        const p = prevoirConsommationJour({
+          historiqueParJour: HIST_PAR_QUART[quart], carburant, dateCibleISO: dateISO,
+          estJourFerie: estFerie, joursFeriesHistoriquesISO: joursFeriesISO,
+        });
+        if (p.prevision == null) {
+          return {
+            dateISO: dernierCouvert ? dernierCouvert.dateISO : null,
+            quart: dernierCouvert ? dernierCouvert.quart : null,
+            epuise: false, auDela: false,
+            confiance: dernierCouvert ? pireConfiance : 'non_calculable',
+          };
+        }
+        if (ordreConfiance[p.confiance] > ordreConfiance[pireConfiance]) pireConfiance = p.confiance;
+        stockRestant -= p.prevision;
+        if (stockRestant < 0) {
+          return {
+            dateISO: dernierCouvert ? dernierCouvert.dateISO : dateDebutISO,
+            quart: dernierCouvert ? dernierCouvert.quart : null,
+            epuise: !dernierCouvert, auDela: false, confiance: pireConfiance,
+          };
+        }
+        dernierCouvert = { dateISO, quart };
+      }
+    }
+    // Stock couvre au-delà de l'horizon de recherche (21 j) — dernier point
+    // connu renvoyé avec `auDela: true`, jamais un horizon plus lointain
+    // inventé (Article 5).
+    return { dateISO: dernierCouvert.dateISO, quart: dernierCouvert.quart, epuise: false, auDela: true, confiance: pireConfiance };
+  }
+
+  // ============================================================
   // C. STOCK PRÉVISIONNEL À LA LIVRAISON (§9-10 du cahier)
   // ============================================================
 
@@ -470,6 +550,67 @@
       pontDeMois, previsionJourLivraisonL, margeOperationnelleL,
       stockPrevuDebutJourLivraisonL: stockPrevuDebutJourLivraison,
     };
+  }
+
+  // ============================================================
+  // RÉGIME DE GESTION (28/08/2026, retour de Frédéric sur v2.259 —
+  // "un badge dynamique indiquant immédiatement dans quel régime de
+  // gestion NEXUS se trouve [...] le badge doit expliquer pourquoi les
+  // règles de commande du moment sont différentes"). Volontairement
+  // limité à 4 états (Frédéric : "il faut éviter d'en créer dix") :
+  //   - PONT_DE_FIN_DE_MOIS : la livraison de référence franchit le mois
+  //     (estPontDeMois) — marge opérationnelle au lieu d'une réserve de
+  //     plusieurs jours (v2.258). TOUJOURS prioritaire sur les 3 autres,
+  //     même si un week-end/férié s'y superpose (choix explicite de
+  //     Frédéric, 28/08/2026 : "pont de fin de mois toujours prioritaire"
+  //     — le régime le plus englobant l'emporte, jamais un badge qui
+  //     changerait plusieurs fois dans la même semaine).
+  //   - APPROCHE_FIN_DE_MOIS : dans la fenêtre des derniers jours du mois
+  //     (modeFinDeMois, estFinDeMois) mais la livraison de référence reste
+  //     dans le mois courant — pas encore le pont, mais déjà le climat
+  //     "ne pas sur-stocker avant la bascule".
+  //   - WEEKEND_FERIE_A_COUVRIR : hors fin de mois, mais au moins un jour
+  //     non livrable (week-end ou férié) s'intercale avant le prochain
+  //     créneau — détecté simplement via la longueur de la fenêtre
+  //     `dateEffective -> livraisonISO` (> 1 jour = au moins un jour
+  //     sauté), jamais une deuxième détection de jour férié/week-end
+  //     dupliquée (Article 11, `estJourLivraisonPossible` fait déjà ce
+  //     travail en amont dans `prochainJourLivraisonPossible`).
+  //   - MODE_NORMAL : aucun des trois régimes ci-dessus.
+  // ============================================================
+  const REGIME_GESTION = {
+    PONT_DE_FIN_DE_MOIS: {
+      libelle: 'PONT DE FIN DE MOIS',
+      objectif: "Objectif : couvrir jusqu'au premier créneau exploitable du nouveau mois avec le minimum de stock.",
+    },
+    APPROCHE_FIN_DE_MOIS: {
+      libelle: 'APPROCHE FIN DE MOIS',
+      objectif: "Objectif : anticiper la transition de fin de mois, sans sécuriser un stock excédentaire avant l'heure.",
+    },
+    WEEKEND_FERIE_A_COUVRIR: {
+      libelle: 'WEEK-END / FÉRIÉ À COUVRIR',
+      objectif: 'Objectif : couvrir la période sans livraison jusqu\'au prochain créneau exploitable.',
+    },
+    MODE_NORMAL: {
+      libelle: 'MODE NORMAL',
+      objectif: 'Objectif : maintenir la couverture courante sans sur-stocker.',
+    },
+  };
+
+  function determinerRegimeGestion({ modeFinDeMois, scenarioMaintenant }) {
+    const pontDeMois = !!(scenarioMaintenant && scenarioMaintenant.pontDeMois);
+    let cle;
+    if (pontDeMois) {
+      cle = 'PONT_DE_FIN_DE_MOIS';
+    } else if (modeFinDeMois) {
+      cle = 'APPROCHE_FIN_DE_MOIS';
+    } else if (scenarioMaintenant && scenarioMaintenant.dateEffective && scenarioMaintenant.livraisonISO
+      && joursEntre(scenarioMaintenant.dateEffective, scenarioMaintenant.livraisonISO).length > 1) {
+      cle = 'WEEKEND_FERIE_A_COUVRIR';
+    } else {
+      cle = 'MODE_NORMAL';
+    }
+    return { cle, ...REGIME_GESTION[cle] };
   }
 
   // Marge (en jours) au-delà de laquelle un carburant a une vraie marge de
@@ -842,19 +983,28 @@
       livraisons_coherentes: livraisonsCoherentes !== false,
       aucune_anomalie_majeure: anomalieMajeure !== true,
     };
+    // 28/08/2026, retour de Frédéric (refonte qualitative v2.260) —
+    // "'À confirmer' doit TOUJOURS être accompagné de la ou des raisons
+    // précises [...] jamais affiché seul". `raison` (prose, inchangé pour
+    // ne casser aucun appelant existant) reste la version lisible ;
+    // `causes` (nouveau, additif) est la version MACHINE de la même
+    // information — une clé stable par signal négatif réellement en
+    // cause, consommée par `actionsResolutionFiabilite` ci-dessous pour
+    // garantir qu'une action concrète existe TOUJOURS pour chaque cause
+    // affichée (jamais une raison sans action correspondante).
     if (!facteurs.stock_fiable) {
-      return { niveau: 'non_calculable', facteurs, raison: 'Stock de référence non fiable ou indisponible.' };
+      return { niveau: 'non_calculable', facteurs, causes: ['stock_fiable'], raison: 'Stock de référence non fiable ou indisponible.' };
     }
     if (!facteurs.historique_fiable) {
-      return { niveau: 'non_calculable', facteurs, raison: 'Historique de ventes insuffisant pour établir une prévision.' };
+      return { niveau: 'non_calculable', facteurs, causes: ['historique_fiable'], raison: 'Historique de ventes insuffisant pour établir une prévision.' };
     }
     if (previsionConfiance === 'a_confirmer') {
-      return { niveau: 'a_confirmer', facteurs, raison: 'Prévision de ventes encore incertaine (historique insuffisant ou jour atypique).' };
+      return { niveau: 'a_confirmer', facteurs, causes: ['prevision_incertaine'], raison: 'Prévision de ventes encore incertaine (historique insuffisant ou jour atypique).' };
     }
     // Jaugeage incohérent (écart physique/théorique confirmé, statut 'À
     // corriger') : seul suffisant, voir le commentaire ci-dessus (§23).
     if (!facteurs.aucune_anomalie_majeure) {
-      return { niveau: 'a_confirmer', facteurs, raison: 'Une anomalie majeure détectée sur ce carburant (écart physique/théorique au-delà du seuil de tolérance) — jaugeage à vérifier avant de suivre cette recommandation.' };
+      return { niveau: 'a_confirmer', facteurs, causes: ['anomalie_majeure'], raison: 'Une anomalie majeure détectée sur ce carburant (écart physique/théorique au-delà du seuil de tolérance) — jaugeage à vérifier avant de suivre cette recommandation.' };
     }
     const CLES_SECONDAIRES = ['jaugeage_frais', 'couverture_ventes', 'point_zero_fiable', 'livraisons_coherentes'];
     const negatifs = CLES_SECONDAIRES.filter(cle => !facteurs[cle]);
@@ -863,9 +1013,40 @@
         jaugeage_frais: 'jaugeage ancien', couverture_ventes: 'ventes non couvertes en totalité',
         point_zero_fiable: 'aucun point zéro fiable établi', livraisons_coherentes: 'livraison en cours incohérente (retard non résolu)',
       };
-      return { niveau: 'a_confirmer', facteurs, raison: `Plusieurs signaux à vérifier : ${negatifs.map(c => LIBELLE[c]).join(', ')}.` };
+      return { niveau: 'a_confirmer', facteurs, causes: negatifs.slice(), raison: `Plusieurs signaux à vérifier : ${negatifs.map(c => LIBELLE[c]).join(', ')}.` };
     }
-    return { niveau: 'fiable', facteurs, raison: null };
+    return { niveau: 'fiable', facteurs, causes: [], raison: null };
+  }
+
+  // Actions de résolution (28/08/2026, retour de Frédéric — refonte
+  // qualitative v2.260 : "'À confirmer' doit toujours être accompagné [...]
+  // de l'action ou des actions permettant de la résoudre [...] Vérifier
+  // les écarts / Ouvrir Verify →"). Traduit `detail.causes` (ci-dessus) en
+  // une liste d'actions concrètes — une par cause réellement en jeu,
+  // jamais une action générique qui ne dirait rien de précis (Article 5).
+  // Seule 'anomalie_majeure' porte une cible d'écran connue avec
+  // certitude aujourd'hui (Verify, le jour où l'écart a été détecté) —
+  // reprise du même deep-link `?ouvrir_date=` déjà utilisé ailleurs dans
+  // NEXUS (NEXUS-Carburants-v1.html, nexus-conseiller.js — Article 11,
+  // aucun 2ᵉ mécanisme de lien inventé) ; l'URL elle-même est construite
+  // côté écran (ce moteur pur ne connaît aucune URL), cette fonction ne
+  // fournit que `cible: 'verify_jour'` comme indication au gabarit HTML.
+  // Les autres causes n'ont pas d'écran cible désigné par Frédéric à ce
+  // jour : leur action reste une instruction textuelle, jamais un lien
+  // fabriqué vers un écran non confirmé.
+  const ACTIONS_FIABILITE = {
+    stock_fiable: { libelle: 'Stock de référence non fiable ou indisponible', action: 'Vérifier le dernier relevé de jaugeage', cta: null, cible: null },
+    historique_fiable: { libelle: 'Historique de ventes insuffisant', action: "Laisser NEXUS accumuler quelques jours de ventes supplémentaires", cta: null, cible: null },
+    prevision_incertaine: { libelle: 'Prévision de ventes encore incertaine', action: "Vérifier qu'aucun jour atypique récent ne fausse la moyenne", cta: null, cible: null },
+    anomalie_majeure: { libelle: 'Anomalie détectée (écart physique/théorique au-delà du seuil de tolérance)', action: 'Vérifier les écarts', cta: 'Ouvrir Verify →', cible: 'verify_jour' },
+    jaugeage_frais: { libelle: 'Jaugeage ancien (plus d\'un jour)', action: 'Prendre un relevé de jaugeage à jour', cta: null, cible: null },
+    couverture_ventes: { libelle: 'Ventes non couvertes en totalité', action: 'Vérifier que le quart en cours a bien été clôturé dans Verify', cta: null, cible: null },
+    point_zero_fiable: { libelle: 'Aucun point zéro fiable établi', action: 'Certifier un point zéro pour ce carburant', cta: 'Certifier le point zéro', cible: 'point_zero_panel' },
+    livraisons_coherentes: { libelle: 'Livraison en cours incohérente (retard non résolu)', action: 'Rapprocher la livraison en retard', cta: null, cible: null },
+  };
+  function actionsResolutionFiabilite(detail) {
+    if (!detail || !detail.causes || !detail.causes.length) return [];
+    return detail.causes.map(cle => ACTIONS_FIABILITE[cle]).filter(Boolean);
   }
 
   // ============================================================
@@ -1353,12 +1534,14 @@
     RESERVE_CIBLE_JOURS_NORMAL, RESERVE_CIBLE_JOURS_FIN_MOIS, reserveCibleJours,
     estPontDeMois, MARGE_OPERATIONNELLE_FRACTION_PONT_MOIS,
     evaluerScenarioCommande, determinerEtatCommande, evaluerAttenteCommande,
+    // Régime de gestion (badge) + couverture par quart
+    REGIME_GESTION, determinerRegimeGestion, estimerCouvertureParQuart,
     // Camion / multi-carburant
     arrondirVolumeCommande, verifierMinimumCamion, SEUIL_ANTICIPATION_MAX_JOURS,
     MAXIMUM_CAMION_LITRES, SEUIL_AUTONOMIE_MAX_JOURS_COMPLETION, optimiserCommandeMultiCarburant,
     ordrePrioriteCarburants,
     // Qualité des données
-    qualiteDonneesCommande, detailQualiteDonneesCommande,
+    qualiteDonneesCommande, detailQualiteDonneesCommande, actionsResolutionFiabilite,
     SEUIL_JAUGEAGE_FRAIS_JOURS, jaugeageEstFrais, livraisonEnCoursCoherente,
     // Évaluation complète
     evaluerCarburant, determinerEtatGlobal, construireEvaluationGlobale,

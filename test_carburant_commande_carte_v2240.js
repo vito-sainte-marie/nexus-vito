@@ -72,6 +72,20 @@ const src = [
   // pour les assertions de ce test (cutoff/livraison/fiabilité/explication),
   // laissé null comme le ferait un écran juste après changement de site.
   'let CONTROLE_CTX = null;',
+  // formaterCouvertureEstimeeTexte / construireBlocFiabilite (28/08/2026,
+  // refonte qualitative v2.260, points 2 et 4/6) : renderCommandeCarburant()
+  // en dépend désormais pour la ligne "Couverture estimée : ..." et le bloc
+  // fiabilité par carburant (🟢/🟠/🔴 + raisons/actions). extraireConst
+  // pour NIVEAU_FIABILITE_BADGE, référencée en variable libre par
+  // construireBlocFiabilite (Article 11, aucune copie manuelle des
+  // libellés/emoji). NexusCarburantCommandeMoteur n'est volontairement PAS
+  // simulé ici : construireBlocFiabilite se replie honnêtement sur
+  // detailConfiance.raison quand ce moteur est absent (comme un écran
+  // chargé avant nexus-carburant-commande-moteur.js), exactement le
+  // comportement à vérifier.
+  extraire('formaterCouvertureEstimeeTexte'),
+  extraireConst('NIVEAU_FIABILITE_BADGE'),
+  extraire('construireBlocFiabilite'),
   extraire('renderCommandeCarburant'),
   // ouvrirFicheCommande n'est référencée que dans la closure du listener de
   // clic (jamais appelée pendant le rendu lui-même) : inutile de l'extraire
@@ -122,6 +136,12 @@ function ok(label) { n++; console.log('OK —', label); }
         capaciteDisponibleL: 11761,
         scenarioMaintenant: { dateEffective: '2026-08-25', livraisonISO: '2026-08-26', margeJours: 0.5, ventesPrevuesL: 6448, stockPrevuLivraisonL: 5591 },
         attente: { motif: 'Commander maintenant évite de passer sous la réserve de sécurité avant le prochain créneau de livraison.' },
+        // 28/08/2026 (refonte qualitative v2.260, point 4/6) — forme réelle
+        // exposée par evaluerCarburant()/detailQualiteDonneesCommande sur
+        // chaque évaluation (jamais fabriquée ici à la main pour le test,
+        // Article 5 : même champ que celui réellement branché en
+        // production).
+        detailConfiance: { niveau: 'fiable', causes: ['stock_fiable'], raison: 'stock fiable' },
       },
       go: { carburant: 'go', etat: 'confortable', confiance: 'fiable', scenarioMaintenant: { dateEffective: '2026-08-25', livraisonISO: '2026-08-26' } },
     },
@@ -136,8 +156,13 @@ function ok(label) { n++; console.log('OK —', label); }
   // août", jamais une ligne unique ambiguë).
   assert.ok(out.includes('À commander mardi 25 août avant 11:00'), 'date limite de commande avec jour attendue : ' + out);
   assert.ok(out.includes('Livraison prévue mercredi 26 août'), 'date de livraison avec jour attendue : ' + out);
-  assert.ok(out.includes('Fiabilité : Élevée'), 'fiabilité Élevée attendue : ' + out);
-  assert.ok(out.includes('stock fiable'), 'raison de fiabilité attendue : ' + out);
+  // 28/08/2026 (refonte qualitative v2.260, point 4/6) — l'ancien bloc
+  // fiabilité unique "Fiabilité : Élevée" est remplacé par un badge PAR
+  // CARBURANT "🟢 Confirmée" (jamais de raisons/actions affichées pour ce
+  // niveau — "À confirmer"/"Calcul suspendu" seuls doivent en montrer,
+  // citation exacte de Frédéric).
+  assert.ok(out.includes('🟢 Confirmée'), 'badge fiabilité "🟢 Confirmée" attendu : ' + out);
+  assert.ok(!out.includes('fiabilite-raisons'), 'niveau fiable -> aucun bloc de raisons/actions affiché : ' + out);
   assert.ok(!out.includes('à confirmer'), 'aucune qualification "à confirmer" quand confiance=fiable : ' + out);
   // Libellé mis à jour le 27/08/2026 (nouvelle règle de Frédéric §9-10) —
   // remplace l'ancien "Moment idéal pour commander" ; le CALCUL de l'état
@@ -190,6 +215,12 @@ function ok(label) { n++; console.log('OK —', label); }
         stockEstimeMaintenantL: null, stockFiable: false,
         scenarioMaintenant: { dateEffective: '2026-08-25', livraisonISO: '2026-08-26', margeJours: -1.3 },
         attente: { motif: 'x' },
+        // 28/08/2026 (refonte qualitative v2.260, point 4/6) — même forme
+        // réelle que detailQualiteDonneesCommande ; NexusCarburantCommandeMoteur
+        // n'étant pas chargé dans ce sandbox de test, construireBlocFiabilite
+        // se replie honnêtement sur `raison` (Article 5, jamais un plantage ni
+        // une action fabriquée sans le moteur pur pour la produire).
+        detailConfiance: { niveau: 'a_confirmer', causes: ['prevision_incertaine'], raison: 'ventes prévues encore incertaines' },
       },
     },
     optimisation: { decision: 'commander', motif: null, volumesRetenus: { sp95: 23170 } },
@@ -204,8 +235,11 @@ function ok(label) { n++; console.log('OK —', label); }
   assert.ok(out.includes('Risque de rupture probable — à confirmer'), 'badge orange dédié attendu (jamais un simple suffixe sur le rouge) : ' + out);
   assert.ok(!out.includes('>Risque de rupture<'), 'le libellé rouge alarmiste ne doit plus apparaître quand la confiance n\'est pas fiable : ' + out);
   assert.ok(out.includes('border-color:var(--amber)'), 'bordure de carte également basculée en orange (couleur ET libellé, jamais un correctif partiel) : ' + out);
-  assert.ok(out.includes('Fiabilité : Moyenne'), 'fiabilité Moyenne attendue : ' + out);
-  assert.ok(out.includes('ventes prévues encore incertaines'), 'raison de fiabilité Moyenne attendue : ' + out);
+  // 28/08/2026 (refonte qualitative v2.260) — badge "🟠 À confirmer" + raison
+  // précise TOUJOURS visible (citation exacte de Frédéric : "à confirmer" ne
+  // s'affiche jamais seul).
+  assert.ok(out.includes('🟠 À confirmer'), 'badge fiabilité "🟠 À confirmer" attendu : ' + out);
+  assert.ok(out.includes('ventes prévues encore incertaines'), 'raison de fiabilité à confirmer attendue : ' + out);
   assert.ok(out.includes('stock maintenant non calculable (quart en cours au jaugeage)'), 'stock maintenant non calculable affiché honnêtement, jamais un chiffre fabriqué (Article 5) : ' + out);
   ok('securite + confiance a_confirmer -> badge orange dédié "Risque de rupture probable — à confirmer" (couleur + libellé), fiabilité Moyenne, stock maintenant honnêtement non calculable si chevauchement (le calcul rouge/etatGlobal reste inchangé)');
 }

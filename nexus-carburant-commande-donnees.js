@@ -143,6 +143,38 @@
     })).sort((a, b) => (a.date < b.date ? -1 : 1));
   }
 
+  // Avis Verify informatif (28/08/2026, retour de Frédéric — refonte
+  // qualitative v2.260) : "je ne veux pas de dépendance artificielle entre
+  // NEXUS Verify et NEXUS Carburants [...] si une caisse n'est pas encore
+  // validée, cela ne doit PAS automatiquement rendre la fiabilité carburant
+  // 'à confirmer' [...] à moins que cela bloque réellement NEXUS pour
+  // connaître ou certifier les litres utilisés." Task #240 (audit de ce
+  // même lot) a confirmé que `litrage_gazole/sp95/gnr` sont écrits par
+  // l'employé À LA CLÔTURE du quart dans Verify, INDÉPENDAMMENT de toute
+  // validation manager ultérieure (`valide_le_piste`/`valide_le_boutique`)
+  // — donc la fiabilité carburant (`detailQualiteDonneesCommande`, point 15)
+  // n'a JAMAIS dépendu de cette validation, et continue à ne jamais en
+  // dépendre ici (Article 5 : aucun couplage artificiel introduit).
+  //
+  // Cette fonction ne fait qu'exposer un badge PUREMENT INFORMATIF côté
+  // écran : "⚠️ Contrôle caisse Qn en attente" quand un quart d'aujourd'hui
+  // n'est pas encore (totalement) validé par le manager — jamais fusionné
+  // dans le calcul de confiance (Article 11 : réutilise
+  // NexusVerifyMoteur.statutValidationQuart, déjà défini et testé pour
+  // NEXUS Verify/Historique, v2.234 — aucun 2ᵉ calcul de statut de
+  // validation écrit ici).
+  async function chargerAvisVerifyJour(client, siteId, dateISO) {
+    const V = global.NexusVerifyMoteur;
+    if (!V || !V.statutValidationQuart) return [];
+    const { data, error } = await client.from('audits_caisse')
+      .select('quart, ecart_piste, ecart_boutique, valide_le_piste, valide_le_boutique, premiere_validation_le_piste, premiere_validation_le_boutique, valide_par_piste, valide_par_boutique')
+      .eq('site', siteId).eq('date', dateISO);
+    if (error) { console.error('Chargement avis Verify du jour (Commande Carburant):', error); return []; }
+    return (data || [])
+      .map(a => ({ quart: a.quart, statut: V.statutValidationQuart(a) }))
+      .filter(x => x.statut && (x.statut.etat === 'en_attente' || x.statut.etat === 'partiel'));
+  }
+
   // Dernière commande NEXUS non encore livrée pour un carburant donné
   // (statut 'validee' ou 'modifiee', pas 'hors_nexus'/'annulee'/'livree') —
   // §10 du cahier : une commande déjà en cours doit être intégrée, jamais
@@ -449,11 +481,24 @@
       return { ok: false, motif: 'Aucun carburant actif configuré pour ce site.', etatGlobal: 'non_calculable' };
     }
 
-    const [historiqueParJour, joursFeriesISO, stockInfo, commandesEnCours] = await Promise.all([
+    const [historiqueParJour, joursFeriesISO, stockInfo, commandesEnCours, historiqueQuart1, historiqueQuart2, avisVerifyJour] = await Promise.all([
       chargerHistoriqueVentesParJour(client, siteId, dateISO),
       chargerJoursFeries(client, siteId),
       chargerStockEtFiabiliteParCarburant(client, siteId, dateISO, horaires, fuseau, options && options.maintenant),
       chargerCommandeEnCoursParCarburant(client, siteId),
+      // Couverture estimée par quart (28/08/2026, retour de Frédéric sur
+      // v2.259 — "Couverture estimée : mardi Q2" plutôt qu'un nombre de
+      // jours décimal) : chargerHistoriqueVentesParQuart() existe déjà
+      // depuis v2.246 (estimation d'un quart en cours), réutilisée telle
+      // quelle (Article 11) — une seule requête par quart pour LES 3
+      // carburants (la table retourne déjà les 3 colonnes de litrage par
+      // ligne), jamais une requête par carburant.
+      chargerHistoriqueVentesParQuart(client, siteId, '1', dateISO),
+      chargerHistoriqueVentesParQuart(client, siteId, '2', dateISO),
+      // Avis Verify informatif (28/08/2026, point 245) — chargé en
+      // parallèle, jamais transmis à M.evaluerCarburant/detailQualiteDonneesCommande
+      // (aucune dépendance artificielle Verify -> confiance carburant).
+      chargerAvisVerifyJour(client, siteId, dateISO),
     ]);
 
     const evaluationsParCarburant = {};
@@ -505,6 +550,19 @@
         // scénario, pas un de ses résultats).
         stockEstimeMaintenantL: stock.stockActuelL,
         stockFiable: stock.stockFiable,
+        // 28/08/2026, retour de Frédéric — "Couverture estimée : mardi Q2"
+        // remplace le langage décimal ("4,3 j") dans la vue principale. Même
+        // ancre que la recommandation (`stockAncreCommandeL`, jaugeage du
+        // matin — Article 11, jamais une 2ᵉ référence de stock concurrente),
+        // toujours projetée depuis Q1 de la date du jour (jamais un saut à
+        // Q2 selon l'heure actuelle, pour rester mathématiquement cohérent
+        // avec l'ancre unique de la carte). `historiqueQuart1`/
+        // `historiqueQuart2` déjà chargés ci-dessus (Article 11, aucune
+        // requête supplémentaire).
+        couvertureEstimeeParQuart: M.estimerCouvertureParQuart({
+          stockDisponibleL: stock.stockAncreCommandeL, dateDebutISO: dateISO, quartDepart: 'Q1',
+          historiqueQuart1, historiqueQuart2, carburant, joursFeriesISO,
+        }),
       };
       capacitesDisponiblesL[carburant] = evaluation.scenarioMaintenant
         ? M.capaciteDisponibleLivraison(limiteRemplissageL, evaluation.scenarioMaintenant.stockPrevuLivraisonL)
@@ -561,7 +619,7 @@
       }).catch(e => console.error('Journal recommandation carburant (arrière-plan) :', e));
     });
 
-    return { ok: true, dateISO, heureMaintenantHHMM, fuseau, cuves, config, modeFinDeMois, ...global_ };
+    return { ok: true, dateISO, heureMaintenantHHMM, fuseau, cuves, config, modeFinDeMois, avisVerifyJour, ...global_ };
   }
 
   // ============================================================

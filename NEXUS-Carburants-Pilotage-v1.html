@@ -28,6 +28,12 @@
      chargerCuvesConfig/chargerControleJour, Article 11), avant tout appel à
      evaluerCommandeCarburantSite(). -->
 <script src="nexus-carburant-commande-moteur.js"></script>
+<!-- 28/08/2026, point 245 — nexus-carburant-commande-donnees.js réutilise
+     NexusVerifyMoteur.statutValidationQuart (v2.234, déjà défini pour NEXUS
+     Verify/Historique, Article 11) pour le badge Verify PUREMENT
+     INFORMATIF (jamais fusionné dans la fiabilité carburant) : doit donc
+     être chargé avant nexus-carburant-commande-donnees.js. -->
+<script src="nexus-verify-moteur.js"></script>
 <script src="nexus-carburant-commande-donnees.js"></script>
 <!-- Cadrage risques Phase 5 (18/08/2026, tâche #234) — 1er écran Carburants
      à qualifier et enregistrer un signal NexusRisques (autonomie de stock).
@@ -222,6 +228,23 @@
   .commande-plan-head{display:flex; align-items:center; justify-content:space-between; gap:8px; padding:8px 0; cursor:pointer; font-size:11px; color:var(--text-dim); border-top:1px solid var(--hairline); margin-top:4px;}
   .commande-plan-chevron{transition:transform 0.15s;}
   .commande-plan-card.open .commande-plan-chevron{transform:rotate(90deg);}
+  /* Fiabilité à 3 niveaux (28/08/2026, retour de Frédéric — refonte
+     qualitative v2.260) : 🟢 Confirmée / 🟠 À confirmer / 🔴 Calcul
+     suspendu. "À confirmer"/"Calcul suspendu" ne s'affichent JAMAIS seuls
+     — toujours accompagnés de la ou des raisons précises et de l'action
+     pour les résoudre (liste ci-dessous), jamais un badge nu. */
+  .fiabilite-bloc{margin-top:8px;}
+  .fiabilite-badge{display:inline-block; font-family:var(--mono); font-size:10.5px; font-weight:700; padding:2px 9px; border-radius:20px; background:var(--panel-raised); border:1px solid var(--hairline);}
+  .fiabilite-raisons{list-style:none; margin:6px 0 0; padding:0; display:flex; flex-direction:column; gap:4px;}
+  .fiabilite-raisons li{font-size:10.5px; color:var(--text-mid); line-height:1.5;}
+  .ventes-detail-lien{color:var(--amber); text-decoration:none; font-weight:600; font-size:10.5px;}
+  .ventes-detail-lien:hover{text-decoration:underline;}
+  /* Badge de régime de gestion (28/08/2026, point 1 v2.260) — 4 états
+     volontairement neutres visuellement (informatif, pas un niveau
+     d'alerte comme ETAT_COMMANDE_STYLE) : cyan sobre, jamais confondu avec
+     les couleurs rouge/orange/vert du badge d'état de la carte commande. */
+  .badge-regime{display:inline-flex; align-items:center; gap:5px; font-family:var(--mono); font-size:9.5px; font-weight:700; padding:3px 10px; border-radius:20px; background:var(--panel-raised); border:1px solid var(--cyan); color:var(--cyan); white-space:nowrap; cursor:help;}
+  .commande-objectif{font-size:11px; color:var(--text-mid); font-style:italic; margin:2px 0 10px;}
   .commande-plan-body{display:none;}
   .commande-plan-card.open .commande-plan-body{display:block;}
 
@@ -518,7 +541,13 @@
   <div id="rattrapageZone"></div>
 
   <!-- 1) Situation aujourd'hui — jauges par carburant -->
-  <div class="section-titre" style="margin-top:0;">Situation aujourd'hui</div>
+  <!-- 28/08/2026, retour de Frédéric (refonte qualitative v2.260, point 1) :
+       "un badge dynamique indiquant immédiatement dans quel régime de
+       gestion NEXUS se trouve [...] à côté de 'Situation aujourd'hui'".
+       Rempli par construireBadgeRegime() (Article 11 — réutilise
+       NexusCarburantCommandeMoteur.determinerRegimeGestion, moteur pur déjà
+       défini/testé), jamais un second calcul de régime ici. -->
+  <div class="section-titre" style="margin-top:0; display:flex; align-items:center; gap:8px; flex-wrap:wrap;">Situation aujourd'hui<span id="badgeRegimeGestion"></span></div>
   <div id="situationZone"><div class="loading">Chargement…</div></div>
   <div class="jauge-legende" id="jaugeLegende" style="display:none;"><span class="jauge-legende-trait"></span> Trait cyan = stock théorique attendu</div>
 
@@ -956,16 +985,34 @@
   // n'est pas encore disponible ou que ce carburant est `non_calculable`
   // côté moteur de commande — jamais un verdict inventé faute de donnée
   // (Article 5), l'appelant affiche alors un message d'attente neutre.
+  // 28/08/2026, retour de Frédéric (refonte qualitative v2.260, point 7) :
+  // "Couvre le prochain créneau de livraison (31 août)" et "Couverture
+  // estimée" sont deux informations DIFFÉRENTES — la première dépend du
+  // calendrier fournisseur (quand le camion peut arriver), la seconde de
+  // l'autonomie réelle du stock (jusqu'à quand il tient). Ce texte
+  // rebascule sur la seconde (`ev.couvertureEstimeeParQuart`, point 2,
+  // projection jour par jour/quart par quart — Article 11, réutilise le
+  // champ déjà calculé par evaluerCommandeCarburantSite, aucun second
+  // calcul ici). `couvre`/`icone` restent dérivés de `etat` EXACTEMENT
+  // comme avant (aucun changement de la logique de code couleur) : seul le
+  // texte affiché change de nature.
+  // Formate `ev.couvertureEstimeeParQuart` (point 2, moteur pur) en texte
+  // court réutilisable partout où la couverture doit s'afficher (badge
+  // diagnosticCouvertureCarburant ci-dessous, détail par carburant de la
+  // carte commande) — Article 11, une seule mise en forme.
+  function formaterCouvertureEstimeeTexte(cq) {
+    if (!cq || cq.confiance === 'non_calculable') return 'donnée insuffisante';
+    if (cq.epuise) return 'stock déjà épuisé';
+    if (cq.auDela) return 'au-delà de 21 jours';
+    if (cq.dateISO && cq.quart) return `${formaterDateFrAvecJour(cq.dateISO)} ${cq.quart}`;
+    return 'donnée insuffisante';
+  }
+
   function diagnosticCouvertureCarburant(cle) {
     const evCommande = (typeof COMMANDE_CTX !== 'undefined' && COMMANDE_CTX && COMMANDE_CTX.ok && COMMANDE_CTX.parCarburant) ? COMMANDE_CTX.parCarburant[cle] : null;
     if (!evCommande || evCommande.etat === 'non_calculable') return null;
-    const livraisonTxt = evCommande.scenarioMaintenant && evCommande.scenarioMaintenant.livraisonISO ? formaterDateFrCourt(evCommande.scenarioMaintenant.livraisonISO) : null;
     const couvre = evCommande.etat !== 'securite';
-    return {
-      couvre,
-      icone: couvre ? '🟢' : '🔴',
-      texte: `${couvre ? 'Couvre' : 'Ne couvre pas'} le prochain créneau de livraison${livraisonTxt ? ` (${livraisonTxt})` : ''}`,
-    };
+    return { couvre, icone: couvre ? '🟢' : '🔴', texte: `Couverture estimée : ${formaterCouvertureEstimeeTexte(evCommande.couvertureEstimeeParQuart)}` };
   }
 
   // 25/08/2026, retour de Frédéric ("Correction à apporter au moteur
@@ -1589,6 +1636,11 @@
       COMMANDE_CTX = null;
     }
     renderCommandeCarburant(COMMANDE_CTX);
+    // 28/08/2026, point 1 — badge de régime à côté du titre "Situation
+    // aujourd'hui" (Article 11 : même helper construireBadgeRegime que la
+    // carte commande ci-dessus, aucun second calcul).
+    const badgeRegimeEl = document.getElementById('badgeRegimeGestion');
+    if (badgeRegimeEl) badgeRegimeEl.innerHTML = construireBadgeRegime(COMMANDE_CTX);
     // 27/08/2026, point 3 — "Situation aujourd'hui" et "Lecture NEXUS"
     // affichent désormais un diagnostic de couverture qui dépend de
     // COMMANDE_CTX (diagnosticCouvertureCarburant()). Ce contexte se
@@ -1601,6 +1653,79 @@
       renderSituation(CONTROLE_CTX);
       renderLectureNexus();
     }
+  }
+
+  // Fiabilité à 3 niveaux (28/08/2026, retour de Frédéric — refonte
+  // qualitative v2.260) : 🟢 Confirmée / 🟠 À confirmer / 🔴 Calcul
+  // suspendu. `detailConfiance` = sortie de
+  // NexusCarburantCommandeMoteur.detailQualiteDonneesCommande (6 facteurs,
+  // point 15), déjà calculée par evaluerCarburant() et exposée sur chaque
+  // évaluation (`ev.detailConfiance`) — Article 11, aucune 2ᵉ évaluation de
+  // la fiabilité ici, cette fonction ne fait QUE mettre en forme. "À
+  // confirmer"/"Calcul suspendu" ne s'affichent JAMAIS sans la ou les
+  // raisons précises ET l'action pour les résoudre (citation exacte de
+  // Frédéric) — `NexusCarburantCommandeMoteur.actionsResolutionFiabilite`
+  // garantit qu'au moins une action existe dès que le niveau n'est pas
+  // 'fiable' (repli sur `detailConfiance.raison` si jamais aucune cause
+  // machine n'était encore fournie par un appelant, robustesse Article 5).
+  const NIVEAU_FIABILITE_BADGE = {
+    fiable: { emoji: '🟢', libelle: 'Confirmée' },
+    a_confirmer: { emoji: '🟠', libelle: 'À confirmer' },
+    non_calculable: { emoji: '🔴', libelle: 'Calcul suspendu' },
+  };
+  function construireBlocFiabilite(detailConfiance, ctxCommande) {
+    const niveau = (detailConfiance && detailConfiance.niveau) || 'non_calculable';
+    const badge = NIVEAU_FIABILITE_BADGE[niveau] || NIVEAU_FIABILITE_BADGE.non_calculable;
+    const badgeHTML = `<span class="fiabilite-badge">${badge.emoji} ${badge.libelle}</span>`;
+    if (niveau === 'fiable') return `<div class="fiabilite-bloc">${badgeHTML}</div>`;
+    const actions = (typeof NexusCarburantCommandeMoteur !== 'undefined' && NexusCarburantCommandeMoteur.actionsResolutionFiabilite)
+      ? NexusCarburantCommandeMoteur.actionsResolutionFiabilite(detailConfiance) : [];
+    const raisonsHTML = actions.length
+      ? `<ul class="fiabilite-raisons">${actions.map(a => {
+          const lienVerify = (a.cible === 'verify_jour' && ctxCommande && ctxCommande.dateISO)
+            ? ` · <a href="NEXUS-Verify-v1.html?ouvrir_date=${encodeURIComponent(ctxCommande.dateISO)}" class="ventes-detail-lien">${a.cta}</a>`
+            : (a.cta ? ` · ${a.cta}` : '');
+          return `<li>${a.libelle} — ${a.action}${lienVerify}</li>`;
+        }).join('')}</ul>`
+      : `<div class="commande-ligne-detail" style="margin-top:4px;">${(detailConfiance && detailConfiance.raison) || 'Donnée insuffisante pour préciser la raison.'}</div>`;
+    return `<div class="fiabilite-bloc">${badgeHTML}${raisonsHTML}</div>`;
+  }
+
+  // Carburant de référence pour un contexte de commande (28/08/2026) —
+  // même heuristique que celle déjà utilisée par renderCommandeCarburant/
+  // ouvrirFicheCommande/renderFicheCommande (recommandé en premier, sinon
+  // retenu par l'optimisation, sinon le premier carburant actif) : extraite
+  // ici en fonction partagée pour que le badge de régime (utilisable AVANT
+  // même que la carte commande ne soit rendue, voir "Situation
+  // aujourd'hui") s'appuie sur exactement le même choix, jamais un second
+  // critère de sélection (Article 11).
+  function carburantReferencePourCommande(ctx) {
+    if (!ctx || !ctx.parCarburant) return null;
+    const clesRecommandees = ctx.commandeRecommandee ? Object.keys(ctx.commandeRecommandee.volumes) : [];
+    const clesOptimRetenues = ctx.optimisation && ctx.optimisation.volumesRetenus ? Object.keys(ctx.optimisation.volumesRetenus) : [];
+    const cleRef = clesRecommandees[0] || clesOptimRetenues[0] || Object.keys(ctx.parCarburant)[0];
+    return cleRef ? ctx.parCarburant[cleRef] : null;
+  }
+
+  // Badge de régime de gestion (28/08/2026, retour de Frédéric — refonte
+  // qualitative v2.260, point 1) : "un badge dynamique indiquant
+  // immédiatement dans quel régime de gestion NEXUS se trouve [...] le
+  // badge doit expliquer pourquoi les règles de commande du moment sont
+  // différentes [...] avec une phrase 'Objectif : ...'". Réutilise
+  // NexusCarburantCommandeMoteur.determinerRegimeGestion (moteur pur,
+  // Article 11) — cette fonction ne fait que le mettre en forme. Le
+  // libellé complet ("Objectif : ...") est porté en `title` (tooltip natif
+  // du navigateur) pour rester compact dans l'en-tête, jamais tronqué à
+  // l'écran.
+  function construireBadgeRegime(ctx) {
+    if (typeof NexusCarburantCommandeMoteur === 'undefined' || !NexusCarburantCommandeMoteur.determinerRegimeGestion) return '';
+    if (!ctx || ctx.ok === false) return '';
+    const evRef = carburantReferencePourCommande(ctx);
+    const regime = NexusCarburantCommandeMoteur.determinerRegimeGestion({
+      modeFinDeMois: !!ctx.modeFinDeMois,
+      scenarioMaintenant: evRef ? evRef.scenarioMaintenant : null,
+    });
+    return `<span class="badge-regime" title="${regime.objectif}">${regime.libelle}</span>`;
   }
 
   function renderCommandeCarburant(ctx) {
@@ -1663,10 +1788,23 @@
     // limite = `dateEffective` du scénario (jour de commande considéré par le
     // moteur : aujourd'hui si avant cutoff, demain sinon — §4), jamais
     // recalculée séparément ici (Article 11).
+    // Régime de gestion de CETTE carte (28/08/2026, point 1/6 — mockup
+    // "Commande de transition") — même helper que le badge affiché à côté
+    // de "Situation aujourd'hui" (Article 11, un seul calcul de régime).
+    const regimeCarte = (typeof NexusCarburantCommandeMoteur !== 'undefined' && NexusCarburantCommandeMoteur.determinerRegimeGestion)
+      ? NexusCarburantCommandeMoteur.determinerRegimeGestion({ modeFinDeMois: !!ctx.modeFinDeMois, scenarioMaintenant: evRef ? evRef.scenarioMaintenant : null })
+      : null;
+    // Libellés des dates — relabellisés en "commande de transition"/
+    // "nouveau mois" quand le régime l'exige (pont de mois ou approche de
+    // fin de mois, mockup exact de Frédéric du 28/08/2026 : "dates de
+    // livraison transition/nouveau mois"), sinon vocabulaire générique
+    // inchangé. Mêmes champs sources (`dateEffective`/`livraisonISO` du
+    // scénario), aucun second calcul de date (Article 11).
+    const enRegimeTransition = regimeCarte && (regimeCarte.cle === 'PONT_DE_FIN_DE_MOIS' || regimeCarte.cle === 'APPROCHE_FIN_DE_MOIS');
     const dateLimiteTxt = evRef && evRef.scenarioMaintenant && evRef.scenarioMaintenant.dateEffective && ctx.config && ctx.config.cutoff_heure
-      ? `À commander ${formaterDateFrAvecJour(evRef.scenarioMaintenant.dateEffective)} avant ${ctx.config.cutoff_heure}` : null;
+      ? `${enRegimeTransition ? 'Commande de transition' : 'À commander'} ${formaterDateFrAvecJour(evRef.scenarioMaintenant.dateEffective)} avant ${ctx.config.cutoff_heure}` : null;
     const livraisonPrevueTxt = evRef && evRef.scenarioMaintenant && evRef.scenarioMaintenant.livraisonISO
-      ? `Livraison prévue ${formaterDateFrAvecJour(evRef.scenarioMaintenant.livraisonISO)}` : null;
+      ? `Livraison prévue${enRegimeTransition ? ' (nouveau mois)' : ''} ${formaterDateFrAvecJour(evRef.scenarioMaintenant.livraisonISO)}` : null;
     const metaHTML = [dateLimiteTxt, livraisonPrevueTxt].filter(Boolean)
       .map(t => `<div class="commande-ligne-detail" style="margin:0 0 2px;">${t}</div>`).join('');
 
@@ -1686,17 +1824,27 @@
       ? stAffiche.libelle
       : (evRef && evRef.confiance && evRef.confiance !== 'fiable' ? `${st.libelle} — à confirmer` : st.libelle);
 
-    // Fiabilité de la recommandation (25/08/2026, retour de Frédéric, §28-29
-    // du cahier) — jamais une conclusion affirmative sans que sa base de
-    // calcul soit elle-même qualifiée.
-    const FIABILITE_TEXTE = {
-      fiable: { libelle: 'Élevée', raison: 'stock fiable · ventes complètes' },
-      a_confirmer: { libelle: 'Moyenne', raison: 'ventes prévues encore incertaines (historique insuffisant ou jour atypique)' },
-      non_calculable: { libelle: 'Faible', raison: 'stock physique non fiable ou prévision non calculable' },
-    };
-    const fiab = (evRef && FIABILITE_TEXTE[evRef.confiance]) || FIABILITE_TEXTE.non_calculable;
-    const commandeEnCoursTxt = evRef && evRef.commandeEnCours ? ' · commande déjà en cours intégrée' : '';
-    const fiabiliteTxt = `Fiabilité : ${fiab.libelle} — ${fiab.raison}${commandeEnCoursTxt}.`;
+    // Fiabilité de la recommandation (28/08/2026, retour de Frédéric —
+    // refonte qualitative v2.260) : "🟢 Confirmée / 🟠 À confirmer / 🔴
+    // Calcul suspendu [...] 'À confirmer' doit toujours être accompagné de
+    // la ou des raisons précises [...] ainsi que de l'action ou des actions
+    // permettant de la résoudre". Affichée désormais PAR CARBURANT
+    // directement dans `lignesCarburant` ci-dessus (point 6, mockup
+    // "Commande de transition" — un bloc fiabilité par carburant, pas un
+    // seul résumé global qui masquerait quel carburant précisément pose
+    // question) — `fiabiliteTxt` ne porte donc plus que les notes globales
+    // qui s'appliquent à la commande dans son ensemble, jamais un doublon
+    // du détail déjà affiché par carburant (Article 11).
+    const commandeEnCoursTxt = evRef && evRef.commandeEnCours ? 'Commande déjà en cours intégrée.' : '';
+    // Minimum de livraison (28/08/2026, point 3/6) — paramètre
+    // station/fournisseur réel (corrigé globalement 10 000 -> 3 000 L le
+    // 28/08/2026), affiché une seule fois pour la commande entière (c'est
+    // une contrainte par LIVRAISON, pas par carburant — Article 5, jamais
+    // un seuil per-carburant fabriqué qui n'existe pas dans le moteur).
+    const minimumLivraisonTxt = ctx.config && ctx.config.minimum_camion_litres != null
+      ? `Minimum de livraison par commande : ${fmtL(ctx.config.minimum_camion_litres)}.` : '';
+    const fiabiliteTxt = [commandeEnCoursTxt, minimumLivraisonTxt].filter(Boolean)
+      .map(t => `<div class="commande-ligne-detail" style="margin-top:2px;">${t}</div>`).join('');
 
     // Explication multi-produit (25/08/2026, retour de Frédéric : "NEXUS
     // devrait au moins indiquer pourquoi il n'ajoute pas de GO") — jamais un
@@ -1801,15 +1949,31 @@
         // son message, d'où l'écart apparent 10 560-11 516 ≠ 1 734).
         : `Ventes prévues depuis le jaugeage jusqu'à livraison ${fmtL(ventesPrevuesL)} · prévu avant livraison (${livraisonTxt}) ${fmtL(prevuL)}${securiteTxt}${recoL != null ? ` · recommandé ${fmtL(recoL)}` : ''}${capaciteTxt}`;
 
+      // Couverture estimée par quart (28/08/2026, point 2/6/7) — même
+      // formatage que diagnosticCouvertureCarburant (Article 11), affichée
+      // ici pour CE carburant précisément (le badge "Situation aujourd'hui"
+      // ne montre qu'un résumé global).
+      const couvertureTxt = !donneesInsuffisantes
+        ? `Couverture estimée : ${formaterCouvertureEstimeeTexte(ev.couvertureEstimeeParQuart)}`
+        : null;
+
+      // Fiabilité PAR CARBURANT (28/08/2026, point 6 — mockup "Commande de
+      // transition" : bloc fiabilité avec raisons+CTA à côté de chaque
+      // carburant, pas seulement une fois pour la carte entière). Réutilise
+      // construireBlocFiabilite tel quel (Article 11).
+      const fiabiliteCarburantHTML = construireBlocFiabilite(ev.detailConfiance, ctx);
+
       return `
         <div class="commande-ligne-carburant">
           <span class="commande-ligne-nom"><span style="color:${stEv.c};">${stEv.icone}</span>${COURT_CARBURANT[cle] || cle}</span>
           <span class="commande-ligne-detail">
             ${ligneJaugeage ? `<div>${ligneJaugeage}</div>` : ''}
+            ${couvertureTxt ? `<div>${couvertureTxt}</div>` : ''}
             <div>${ligneProjection}</div>
           </span>
         </div>
-        ${raisonAbsence ? `<div class="section-note" style="margin:0 0 4px; padding:0; font-size:10.5px;">${COURT_CARBURANT[cle] || cle} : ${raisonAbsence}</div>` : ''}`;
+        ${raisonAbsence ? `<div class="section-note" style="margin:0 0 4px; padding:0; font-size:10.5px;">${COURT_CARBURANT[cle] || cle} : ${raisonAbsence}</div>` : ''}
+        ${fiabiliteCarburantHTML}`;
     }).join('');
 
     const totalHTML = ctx.commandeRecommandee
@@ -1851,6 +2015,23 @@
     // explicite à l'écran pour le manager).
     const noteAncreHTML = `<div class="section-note" style="margin:0 0 8px; padding:0; font-size:10px;">Cette recommandation part du dernier jaugeage fiable, jamais du « stock maintenant » affiché dans le détail ci-dessous (qui a déjà déduit les ventes du jour) — les deux valeurs coexistent volontairement, pour ne jamais compter une vente deux fois.</div>`;
 
+    // Avis Verify informatif (28/08/2026, retour de Frédéric — refonte
+    // qualitative v2.260, principe architectural explicite) : "je ne veux
+    // pas de dépendance artificielle entre NEXUS Verify et NEXUS
+    // Carburants [...] tant que ce n'est pas le cas [ne bloque pas la
+    // certification des litres], affichez-le comme un signal informatif
+    // séparé (par exemple ⚠️ Contrôle caisse en attente), jamais fusionné
+    // dans le calcul de confiance." `ctx.avisVerifyJour` (déjà calculé par
+    // NexusCarburantCommandeDonnees, Article 11 — réutilise
+    // NexusVerifyMoteur.statutValidationQuart) ne touche JAMAIS
+    // fiabiliteTxt/detailConfiance ci-dessus — bandeau totalement
+    // indépendant, volontairement au-dessus de "Voir les calculs" plutôt
+    // qu'à l'intérieur, pour ne jamais laisser croire qu'il fait partie du
+    // calcul de fiabilité de la recommandation.
+    const avisVerifyHTML = (ctx.avisVerifyJour && ctx.avisVerifyJour.length)
+      ? `<div class="section-note" style="margin:0 0 8px; padding:8px 10px; background:var(--amber-dim); border-radius:8px; color:var(--amber); font-size:10.5px;">${ctx.avisVerifyJour.map(a => `⚠️ Contrôle caisse Q${a.quart} en attente${a.statut && a.statut.etat === 'partiel' ? ' (partiellement validée)' : ''} — n'affecte pas la fiabilité de cette recommandation.`).join('<br>')}</div>`
+      : '';
+
     // Hiérarchie décision → justification → calculs (27/08/2026, retour de
     // Frédéric, §6 : "aujourd'hui l'écran ressemble à un rapport
     // analytique... NEXUS doit se comporter comme un directeur
@@ -1870,16 +2051,28 @@
     // reste inchangé : seul le titre distingue le régime, cohérent avec la
     // note d'ancrage déjà affichée juste en dessous.
     const titreCarte = ctx.modeFinDeMois ? '🚚 Commande de transition — fin de mois' : '🚚 Prochaine commande';
+    // Badge de régime + objectif (28/08/2026, point 1/6 — mockup "Commande
+    // de transition" : badge en premier champ, puis la phrase "Objectif :
+    // ..."). Réservé au régime transition (pont/approche fin de mois) DANS
+    // LA CARTE elle-même, pour ne pas alourdir la carte "Prochaine
+    // commande" normale d'un badge redondant avec celui déjà affiché à
+    // côté de "Situation aujourd'hui" (point 1, portée générale).
+    const badgeRegimeCarteHTML = enRegimeTransition && regimeCarte
+      ? `<span class="badge-regime" style="margin-left:6px;" title="${regimeCarte.objectif}">${regimeCarte.libelle}</span>` : '';
+    const objectifHTML = enRegimeTransition && regimeCarte
+      ? `<div class="commande-objectif">${regimeCarte.objectif}</div>` : '';
     zone.innerHTML = `
       <div class="commande-carte" style="border-color:${stAffiche.c};">
         <div class="commande-carte-tete">
-          <span class="commande-carte-titre">${titreCarte}</span>
+          <span class="commande-carte-titre">${titreCarte}${badgeRegimeCarteHTML}</span>
           <span class="commande-carte-badge" style="background:${stAffiche.f}; color:${stAffiche.c};">${badgeLibelle}</span>
         </div>
+        ${objectifHTML}
         ${recoTxt ? `<div class="commande-reco-principale" style="color:${stAffiche.c};">Commande recommandée : ${recoTxt}</div>` : ''}
         ${metaHTML ? `<div style="margin:-2px 0 8px;">${metaHTML}</div>` : ''}
         ${noteDistinctionHTML}
         ${noteAncreHTML}
+        ${avisVerifyHTML}
         <div class="commande-pourquoi">${pourquoiTxt}</div>
         ${boutonHTML}
         <div class="commande-plan-card" id="commandeDetailCard">

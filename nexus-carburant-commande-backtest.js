@@ -46,7 +46,10 @@
     const cfg = Object.assign({
       limiteRemplissageSpL: 28761,
       limiteRemplissageGoL: 28553,
-      minimumCamionLitres: 10000,
+      // 28/08/2026, correction globale (v2.260, retour de Frédéric) — le
+      // vrai minimum de livraison station/fournisseur est 3 000 L, jamais
+      // 10 000 L (placeholder jamais confirmé par un fournisseur réel).
+      minimumCamionLitres: 3000,
       cutoffHeure: '11:00',
     }, config || {});
 
