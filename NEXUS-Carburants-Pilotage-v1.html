@@ -212,6 +212,18 @@
   .commande-cta-btn{width:100%; margin-top:12px; padding:11px 14px; border-radius:12px; border:none; font-family:var(--mono); font-size:11.5px; font-weight:700; letter-spacing:0.02em; cursor:pointer; text-align:center;}
   .commande-cta-btn:disabled{opacity:0.6; cursor:default;}
   .commande-cta-btn:active:not(:disabled){filter:brightness(0.92);}
+  /* Hiérarchie décision/justification/données (27/08/2026, retour de
+     Frédéric — audit de l'écran Prochaine commande) : la quantité
+     recommandée doit sauter aux yeux avant tout calcul. */
+  .commande-reco-principale{font-size:15px; font-weight:700; margin:2px 0 10px;}
+  /* Détails/calculs repliés par défaut — même mécanique .plan-card/.open
+     que Cockpit (NEXUS-Cockpit-v2.html, "carteConseiller"/"plan-${i}"),
+     Article 11 : jamais un second mécanisme de pli/dépli. */
+  .commande-plan-head{display:flex; align-items:center; justify-content:space-between; gap:8px; padding:8px 0; cursor:pointer; font-size:11px; color:var(--text-dim); border-top:1px solid var(--hairline); margin-top:4px;}
+  .commande-plan-chevron{transition:transform 0.15s;}
+  .commande-plan-card.open .commande-plan-chevron{transform:rotate(90deg);}
+  .commande-plan-body{display:none;}
+  .commande-plan-card.open .commande-plan-body{display:block;}
 
   /* Dernière livraison */
   .livraison-carte{background:var(--panel); border:1px solid var(--hairline); border-radius:14px; padding:14px 16px; margin:0 20px 12px;}
@@ -1652,10 +1664,15 @@
       if (ev.etat === 'a_anticiper') {
         const j = ev.joursAvantBesoin;
         const echeanceTxt = j != null ? `${j} j` : 'quelques jours';
+        // Reformulation raccourcie (27/08/2026, retour de Frédéric : "je
+        // raccourcirais") — même information, même distinction camion
+        // complet/fin de mois (Article 5, calcul et branches inchangés),
+        // juste moins de mots. Le stock projeté chiffré reste sur la ligne
+        // juste au-dessus (ligneProjection), jamais dupliqué ici.
         if (ctx.viserCamionComplet) {
-          return `pas indispensable pour la sécurité immédiate (échéance encore à ${echeanceTxt}). NEXUS évalue néanmoins s'il est pertinent de l'ajouter pour optimiser le remplissage du camion et retarder la prochaine commande — non retenu cette fois.`;
+          return `échéance encore à ${echeanceTxt} — pas indispensable pour la sécurité immédiate, non retenu pour compléter le camion cette fois.`;
         }
-        return `aucune quantité ajoutée — échéance encore à ${echeanceTxt}, l'ajouter maintenant immobiliserait du stock sans nécessité (fin de mois : stock résiduel minimisé).`;
+        return `stock suffisant jusqu'au prochain cycle (échéance ${echeanceTxt}) — l'ajouter maintenant immobiliserait inutilement du stock (fin de mois : stock résiduel minimisé).`;
       }
       if (ev.etat === 'non_calculable') return 'non évalué — données insuffisantes pour ce carburant.';
       return "non ajouté par l'optimisation du camion.";
@@ -1701,7 +1718,36 @@
           : null);
       const ligneJaugeage = [jaugeageTxt, stockMaintenantTxt].filter(Boolean).join(' · ');
 
-      const ligneProjection = `Ventes prévues d'ici livraison ${fmtL(ventesPrevuesL)} · prévu avant livraison (${livraisonTxt}) ${fmtL(prevuL)}${recoL != null ? ` · recommandé ${fmtL(recoL)}` : ''}${capaciteTxt}`;
+      // Réserve de sécurité / marge après livraison (27/08/2026, retour de
+      // Frédéric : "il manque une variable stratégique : le stock de
+      // sécurité") — le moteur la calcule déjà (evaluerScenarioCommande,
+      // nexus-carburant-commande-moteur.js : securiteL/margeL/margeJours),
+      // elle pilote même directement les 4 états rouge/orange/vert. Le seul
+      // manque réel était de ne jamais l'exposer en chiffre brut à l'écran
+      // (Article 11 — jamais un second calcul ici, uniquement de
+      // l'affichage).
+      const sc = ev.scenarioMaintenant;
+      const securiteTxt = (sc && sc.securiteL != null)
+        ? ` · réserve de sécurité visée ${fmtL(sc.securiteL)} · marge après livraison ${fmtL(sc.margeL)}${sc.margeJours != null ? ` (${sc.margeJours.toFixed(1)} j)` : ''}`
+        : '';
+
+      // Un carburant non évalué (ex. GNR sans historique fiable) ne doit
+      // JAMAIS afficher un chiffre de prévision, même "0 L" — un 0 littéral
+      // ici est indiscernable d'une vraie prévision nulle pour un manager,
+      // alors que la ligne "GNR : non évalué" juste en dessous dit
+      // explicitement que NEXUS ne sait pas (27/08/2026, retour de Frédéric :
+      // "il faut absolument distinguer 0 = valeur connue égale à zéro de
+      // N/D = donnée indisponible" — bug réel, pas une nuance de style).
+      const donneesInsuffisantes = ev.etat === 'non_calculable';
+      const ligneProjection = donneesInsuffisantes
+        ? 'Prévision de consommation non disponible — données insuffisantes pour ce carburant.'
+        // Ancre explicite (27/08/2026, retour de Frédéric : les nombres
+        // "ne racontent pas la même chronologie") — "ventes prévues" part
+        // du jaugeage du matin, PAS de "stock maintenant" (v2.255,
+        // stockAncreCommandeL) : le dire évite de soustraire à tort
+        // stockEstimeMaintenantL de ce total (ce que Frédéric a fait dans
+        // son message, d'où l'écart apparent 10 560-11 516 ≠ 1 734).
+        : `Ventes prévues depuis le jaugeage jusqu'à livraison ${fmtL(ventesPrevuesL)} · prévu avant livraison (${livraisonTxt}) ${fmtL(prevuL)}${securiteTxt}${recoL != null ? ` · recommandé ${fmtL(recoL)}` : ''}${capaciteTxt}`;
 
       return `
         <div class="commande-ligne-carburant">
@@ -1715,7 +1761,7 @@
     }).join('');
 
     const totalHTML = ctx.commandeRecommandee
-      ? `<div class="commande-total"><span>Total recommandé</span><span>${fmtL(ctx.commandeRecommandee.total)}</span></div>`
+      ? `<div class="commande-total"><span>Total</span><span>${fmtL(ctx.commandeRecommandee.total)}</span></div>`
       : (ctx.optimisation && ctx.optimisation.decision === 'insuffisant_meme_optimise'
         ? `<div class="section-note" style="margin:6px 0 0; padding:0;">${ctx.optimisation.motif}</div>`
         : '');
@@ -1724,18 +1770,52 @@
       ? `<button type="button" class="commande-cta-btn" id="btnPreparerCommande" style="background:${stAffiche.c}; color:var(--bg);">🚚 Préparer ma commande →</button>`
       : '';
 
+    // Résumé niveau 1 "Commande recommandée : X L de Y" (27/08/2026, retour
+    // de Frédéric : "un manager n'a pas besoin de refaire mentalement la
+    // ventilation") — remplace la lecture implicite de "Total" + des lignes
+    // par carburant par une phrase directe, carburants à volume nul exclus.
+    const recoTxt = ctx.commandeRecommandee
+      ? Object.entries(ctx.commandeRecommandee.volumes).filter(([, v]) => v > 0)
+        .map(([c, v]) => `${fmtL(v)} de ${COURT_CARBURANT[c] || c}`).join(' + ')
+      : null;
+
+    // Distingue explicitement ce calcul (marge après réserve de sécurité +
+    // délai fournisseur) de l'autonomie physique affichée plus haut dans
+    // "Situation aujourd'hui" (stock ÷ consommation moyenne, sans réserve ni
+    // délai) — 27/08/2026, retour de Frédéric : "NEXUS ne devrait jamais
+    // dire simultanément sous contrôle et risque de rupture" sans expliquer
+    // pourquoi les deux peuvent coexister légitimement.
+    const noteDistinctionHTML = `<div class="section-note" style="margin:0 0 8px; padding:0; font-size:10px;">Distinct de l'autonomie physique affichée dans « Situation aujourd'hui » ci-dessus : ce calcul intègre la réserve de sécurité et le délai jusqu'au prochain créneau de livraison.</div>`;
+
+    // Hiérarchie décision → justification → calculs (27/08/2026, retour de
+    // Frédéric, §6 : "aujourd'hui l'écran ressemble à un rapport
+    // analytique... NEXUS doit se comporter comme un directeur
+    // d'exploitation") : quantité + échéances d'abord, "pourquoi" ensuite,
+    // le détail par carburant/total/fiabilité replié derrière "Voir les
+    // calculs" (mécanique .open déjà utilisée dans NEXUS-Cockpit-v2.html
+    // pour "carteConseiller"/les plans d'action, Article 11 — jamais un
+    // second mécanisme de pli/dépli).
     zone.innerHTML = `
       <div class="commande-carte" style="border-color:${stAffiche.c};">
         <div class="commande-carte-tete">
           <span class="commande-carte-titre">🚚 Prochaine commande</span>
           <span class="commande-carte-badge" style="background:${stAffiche.f}; color:${stAffiche.c};">${badgeLibelle}</span>
         </div>
+        ${recoTxt ? `<div class="commande-reco-principale" style="color:${stAffiche.c};">Commande recommandée : ${recoTxt}</div>` : ''}
         ${metaHTML ? `<div style="margin:-2px 0 8px;">${metaHTML}</div>` : ''}
+        ${noteDistinctionHTML}
         <div class="commande-pourquoi">${pourquoiTxt}</div>
-        ${lignesCarburant}
-        ${totalHTML}
-        <div class="section-note" style="margin:8px 0 0; padding:0;">${fiabiliteTxt}</div>
         ${boutonHTML}
+        <div class="commande-plan-card" id="commandeDetailCard">
+          <div class="commande-plan-head" onclick="document.getElementById('commandeDetailCard').classList.toggle('open')">
+            <span>Voir les calculs</span><span class="commande-plan-chevron">›</span>
+          </div>
+          <div class="commande-plan-body">
+            ${lignesCarburant}
+            ${totalHTML}
+            <div class="section-note" style="margin:8px 0 0; padding:0;">${fiabiliteTxt}</div>
+          </div>
+        </div>
       </div>`;
 
     const btn = document.getElementById('btnPreparerCommande');

@@ -152,7 +152,12 @@ function ok(label) { n++; console.log('OK —', label); }
   assert.ok(out.includes('Jaugeage'), 'ligne jaugeage attendue : ' + out);
   assert.ok(out.includes(fmtL(12048)), 'jaugeage d\'ouverture affiché : ' + out);
   assert.ok(out.includes(`stock maintenant ${fmtL(11200)}`), 'stock estimé maintenant affiché, distinct du jaugeage brut : ' + out);
-  assert.ok(out.includes(`Ventes prévues d'ici livraison ${fmtL(6448)}`), 'ventes prévues jusqu\'à livraison affichées : ' + out);
+  // Libellé précisé le 27/08/2026 (retour de Frédéric — audit écran
+  // Prochaine commande, point 1 : "les nombres ne racontent pas la même
+  // chronologie") : "depuis le jaugeage" rend explicite que ces ventes
+  // partent du jaugeage brut, jamais du "stock maintenant" affiché juste
+  // au-dessus — le calcul lui-même reste inchangé (v2.255).
+  assert.ok(out.includes(`Ventes prévues depuis le jaugeage jusqu'à livraison ${fmtL(6448)}`), 'ventes prévues jusqu\'à livraison (ancre jaugeage explicite) affichées : ' + out);
   assert.ok(out.includes('prévu avant livraison'), 'stock prévu avant livraison affiché : ' + out);
   assert.ok(out.includes(fmtL(5591)), 'stock prévu avant livraison (valeur) affiché : ' + out);
   assert.ok(out.includes(`capacité dispo. ${fmtL(11761)}`), 'capacité disponible à la livraison affichée séparément du volume recommandé : ' + out);
@@ -231,8 +236,66 @@ function ok(label) { n++; console.log('OK —', label); }
   };
   render(evaluation);
   const out = zone.innerHTML;
-  assert.ok(out.includes('échéance encore à 3 j'), 'raison "à anticiper" avec délai attendue : ' + out);
+  // Reformulation raccourcie (27/08/2026, retour de Frédéric — audit écran
+  // Prochaine commande, point 3) : même information (délai avant échéance),
+  // texte plus court.
+  assert.ok(out.includes('échéance 3 j'), 'raison "à anticiper" avec délai attendue : ' + out);
   ok('go a_anticiper (3 j) non inclus -> raison explicite avec échéance, pas de silence');
+}
+
+// ------------------------------------------------------------
+// 4) Lisibilité écran (27/08/2026, retour de Frédéric — audit complet de la
+//    carte) : (a) un carburant non_calculable (ex. GNR sans historique
+//    fiable) n'affiche JAMAIS un chiffre de prévision, même "0 L" — bug
+//    réel signalé par Frédéric, un 0 littéral étant indiscernable d'une
+//    vraie prévision nulle ; (b) securiteL/margeL/margeJours (déjà calculés
+//    par le moteur, jamais un second calcul ici) sont exposés en chiffres
+//    bruts ; (c) résumé niveau 1 "Commande recommandée : X L de Y" présent,
+//    carburant à volume nul exclu.
+// ------------------------------------------------------------
+{
+  const { zone, render, fmtL } = nouveauContexteDom();
+  const evaluation = {
+    ok: true, etatGlobal: 'securite',
+    config: { cutoff_heure: '11:00' },
+    parCarburant: {
+      go: {
+        carburant: 'go', etat: 'securite', confiance: 'fiable', joursAvantBesoin: 0,
+        jaugeageOuvertureL: 13250, jaugeageOuvertureLe: '2026-08-27T10:15:00.000Z',
+        stockEstimeMaintenantL: 10560, stockFiable: true,
+        scenarioMaintenant: { dateEffective: '2026-08-28', livraisonISO: '2026-08-31', margeJours: -0.3, ventesPrevuesL: 11516, stockPrevuLivraisonL: 1734, securiteL: 2050, margeL: -316 },
+        attente: { motif: 'x' },
+      },
+      sp95: {
+        // Confortable : NE DOIT PAS apparaître dans le résumé "Commande
+        // recommandée" (volume 0, filtré) mais reste expliqué en détail.
+        carburant: 'sp95', etat: 'confortable', confiance: 'fiable',
+        scenarioMaintenant: { dateEffective: '2026-08-28', livraisonISO: '2026-08-31' },
+      },
+      gnr: {
+        // Historique GNR toujours à 0 (site sans vraie donnée) -> le moteur
+        // calcule un total de ventes prévues littéralement 0, mais l'état
+        // reste 'non_calculable' (stock non fiable). Reproduit le cas
+        // signalé par Frédéric ("Ventes prévues d'ici livraison 0 L" à côté
+        // de "GNR : non évalué").
+        carburant: 'gnr', etat: 'non_calculable', confiance: 'non_calculable',
+        scenarioMaintenant: { dateEffective: '2026-08-28', livraisonISO: '2026-08-31', ventesPrevuesL: 0, stockPrevuLivraisonL: null },
+      },
+    },
+    optimisation: { decision: 'commander', motif: null, volumesRetenus: { go: 11000, sp95: 0 } },
+    commandeRecommandee: { volumes: { go: 11000, sp95: 0 }, total: 11000 },
+  };
+  render(evaluation);
+  const out = zone.innerHTML;
+  assert.ok(out.includes(`Commande recommandée : ${fmtL(11000)} de GO`), 'résumé niveau 1, SP95 (0 L) exclu : ' + out);
+  assert.ok(!out.includes(`${fmtL(11000)} de GO + `), 'jamais un carburant à volume nul dans le résumé : ' + out);
+  assert.ok(out.includes('réserve de sécurité visée'), 'réserve de sécurité exposée en chiffre : ' + out);
+  assert.ok(out.includes('marge après livraison') && out.includes(fmtL(-316)) && out.includes('-0.3 j'), 'marge après livraison (L et j) exposée : ' + out);
+  assert.ok(out.includes('non évalué'), 'GNR toujours signalé non évalué : ' + out);
+  assert.ok(out.includes('Prévision de consommation non disponible'), 'GNR : aucun chiffre de prévision affiché malgré ventesPrevuesL=0 en interne : ' + out);
+  assert.ok(!/GNR[\s\S]{0,400}?Ventes prévues[\s\S]{0,20}?0 L/.test(out), 'GNR ne doit jamais afficher un "0 L" littéral pour une donnée en réalité indisponible : ' + out);
+  assert.ok(out.includes('Distinct de l\'autonomie physique'), 'note de distinction autonomie physique / marge de sécurité présente : ' + out);
+  ok('écran lisibilité (audit Frédéric 27/08) — GNR non_calculable sans "0 L" fabriqué, sécurité/marge exposées, résumé niveau 1 filtré, note de distinction autonomie/sécurité');
 }
 
 console.log(`\n${n}/${n} tests passés.`);
