@@ -320,6 +320,14 @@
           // matin est saisi, conformément à la règle 2.
           stockAncreCommandeL: jaugeageL,
           stockAncreCommandeFiable: r.statut !== 'Données insuffisantes' && jaugeageL != null,
+          // 27/08/2026, point 15 (fiabilité à 6 facteurs) — signaux
+          // supplémentaires transmis tels quels au moteur, jamais recalculés
+          // une 2ᵉ fois (Article 11) : `pointZeroExiste` réutilise le
+          // point zéro déjà chargé par NexusCarburantDonnees.chargerControleJour
+          // (v2.2xx), `anomalieMajeure` réutilise le statut d'écart déjà
+          // qualifié par le même appel (r.statut === 'À corriger').
+          pointZeroExiste: !!controle.pointZero,
+          anomalieMajeure: r.statut === 'À corriger',
         };
       });
       return { parCarburant: resultat, aucunReleve: false };
@@ -345,9 +353,78 @@
         stockFiable: fiable,
         stockAncreCommandeL: stockEstimeL,
         stockAncreCommandeFiable: fiable,
+        // 27/08/2026, point 15 — mêmes signaux qu'au Cas A ci-dessus.
+        pointZeroExiste: !!controle.pointZero,
+        anomalieMajeure: r.statut === 'À corriger',
       };
     });
     return { parCarburant: resultat, aucunReleve: false };
+  }
+
+  // ============================================================
+  // JOURNAL HORODATÉ DES RECOMMANDATIONS (27/08/2026, refonte qualitative,
+  // point 20) — même discipline que enregistrerFraicheurSecteur
+  // (nexus-brief-donnees.js, v2.222) : écrire un journal n'est pas un
+  // calcul métier (la décision vient déjà toute faite de
+  // NexusCarburantCommandeMoteur.resoudreEntreeJournalRecommandation,
+  // moteur pur), c'est une orchestration lire-l'existant / upsert. Une
+  // ligne par (site_id, carburant) — jamais dupliquée, jamais réécrite
+  // en place : `historique` ne fait que grandir (Article 5 — chaîne
+  // d'audit immuable, même principe que les points zéro).
+  // ============================================================
+  async function chargerJournalRecommandationExistant(client, siteId, carburant) {
+    const { data, error } = await client.from('carburant_recommandation_journal')
+      .select('*').eq('site_id', siteId).eq('carburant', carburant).maybeSingle();
+    if (error) { console.error('Chargement journal recommandation carburant:', error); return null; }
+    return data;
+  }
+
+  // Appel best-effort (jamais attendu par l'appelant, jamais bloquant) :
+  // un incident d'écriture sur ce journal ne doit jamais empêcher
+  // l'évaluation Commande Carburant de fonctionner — seulement priver
+  // l'historique d'une ligne pour ce tour-ci (tracé en console).
+  async function enregistrerRecommandationCarburant(client, siteId, carburant, { recommandationL, etat, ventesPrevuesL, stockAncreCommandeL }) {
+    const M = global.NexusCarburantCommandeMoteur;
+    try {
+      const existant = await chargerJournalRecommandationExistant(client, siteId, carburant);
+      const resolu = M.resoudreEntreeJournalRecommandation({ existant, recommandationL, etat, ventesPrevuesL, stockAncreCommandeL });
+      if (resolu.inchange) return existant;
+
+      if (resolu.estNouveau) {
+        const ligne = {
+          site_id: siteId, carburant, recommandation_l: recommandationL, etat,
+          ventes_prevues_l: (typeof ventesPrevuesL === 'number') ? ventesPrevuesL : null,
+          stock_ancre_l: (typeof stockAncreCommandeL === 'number') ? stockAncreCommandeL : null,
+          premiere_detection_le: resolu.snapshot.date, derniere_maj_le: resolu.snapshot.date,
+          historique: [resolu.snapshot],
+        };
+        const { data, error } = await client.from('carburant_recommandation_journal').insert(ligne).select().maybeSingle();
+        if (error) {
+          // Conflit probable (unique site_id/carburant) : un autre appel
+          // concurrent vient de créer la ligne — relire plutôt qu'échouer,
+          // même précédent que journal_fraicheur_secteurs.
+          const relu = await chargerJournalRecommandationExistant(client, siteId, carburant);
+          if (!relu) { console.error('Enregistrement journal recommandation (insert):', error); return null; }
+          return relu;
+        }
+        return data;
+      }
+
+      const patch = {
+        recommandation_l: recommandationL, etat,
+        ventes_prevues_l: (typeof ventesPrevuesL === 'number') ? ventesPrevuesL : null,
+        stock_ancre_l: (typeof stockAncreCommandeL === 'number') ? stockAncreCommandeL : null,
+        derniere_maj_le: resolu.snapshot.date,
+        historique: [...(existant.historique || []), resolu.snapshot],
+        updated_at: resolu.snapshot.date,
+      };
+      const { data, error } = await client.from('carburant_recommandation_journal').update(patch).eq('id', existant.id).select().maybeSingle();
+      if (error) { console.error('Enregistrement journal recommandation (update):', error); return existant; }
+      return data;
+    } catch (e) {
+      console.error('Enregistrement journal recommandation (exception, best-effort):', e);
+      return null;
+    }
   }
 
   // ============================================================
@@ -398,6 +475,13 @@
         stockActuelL: stock.stockAncreCommandeL, limiteRemplissageL, consommationMoyenneJour,
         historiqueParJour, commandeEnCoursVolumeL: commandeEnCours ? commandeEnCours.volumeL : 0,
         stockFiable: stock.stockAncreCommandeFiable,
+        // 27/08/2026, point 15 — signaux bruts pour la fiabilité à 6
+        // facteurs (Article 11 : tous déjà chargés/calculés ci-dessus,
+        // jamais une requête ou un calcul supplémentaire pour ce seul
+        // usage).
+        jaugeageOuvertureLe: stock.jaugeageOuvertureLe, ventesDepuisJaugeageL: stock.ventesDepuisJaugeageL,
+        pointZeroExiste: stock.pointZeroExiste, anomalieMajeure: stock.anomalieMajeure,
+        commandeEnCoursLivraisonPrevueLe: commandeEnCours ? commandeEnCours.livraisonPrevueLe : null,
       });
       evaluationsParCarburant[carburant] = {
         ...evaluation, limiteRemplissageL, commandeEnCours, consommationMoyenneJour,
@@ -456,6 +540,27 @@
     const modeFinDeMois = M.estFinDeMois(dateReferenceFinDeMois);
     const viserCamionComplet = !modeFinDeMois;
     const global_ = M.construireEvaluationGlobale({ evaluationsParCarburant, config, capacitesDisponiblesL, viserCamionComplet });
+
+    // Journal horodaté des recommandations (point 20) — best-effort, JAMAIS
+    // attendu (pas de `await` sur la boucle elle-même) : une trace de
+    // journal manquante reste préférable à un écran Carburants ralenti ou
+    // cassé par un incident d'écriture (même précédent que la
+    // traçabilité fraîcheur des secteurs, v2.222). Seuls les carburants
+    // `non_calculable` sont exclus (Article 5/point 16 — jamais journaliser
+    // une recommandation de "0 L" fictive quand NEXUS ne sait tout
+    // simplement pas).
+    carburantsActifs.forEach(carburant => {
+      const ev = evaluationsParCarburant[carburant];
+      if (!ev || ev.etat === 'non_calculable') return;
+      const recommandationL = (global_.commandeRecommandee && global_.commandeRecommandee.volumes[carburant] != null)
+        ? global_.commandeRecommandee.volumes[carburant] : 0;
+      enregistrerRecommandationCarburant(client, siteId, carburant, {
+        recommandationL, etat: ev.etat,
+        ventesPrevuesL: ev.scenarioMaintenant ? ev.scenarioMaintenant.ventesPrevuesL : null,
+        stockAncreCommandeL: stockInfo.parCarburant[carburant] ? stockInfo.parCarburant[carburant].stockAncreCommandeL : null,
+      }).catch(e => console.error('Journal recommandation carburant (arrière-plan) :', e));
+    });
+
     return { ok: true, dateISO, heureMaintenantHHMM, fuseau, cuves, config, modeFinDeMois, ...global_ };
   }
 
@@ -528,6 +633,25 @@
     return { ok: true, commande: data };
   }
 
+  // 27/08/2026, refonte qualitative Carburants (point 22, demande de
+  // Frédéric) — cycle de vie enrichi de 2 étapes réelles (voir migration
+  // carburant_commandes_ajout_statuts_confirmee_reception_controlee) :
+  //
+  // Confirmation fournisseur (§entre "validee" et "livree") — le manager a
+  // obtenu un accusé du fournisseur (appel, e-mail, portail) que la
+  // commande validée sera bien honorée. Jamais automatique : seul un
+  // manager peut savoir qu'il a reçu cette confirmation (Article 5, aucune
+  // donnée Supabase ne permet de le déduire).
+  async function confirmerCommandeFournisseur(client, commandeId, { confirmePar, referenceFournisseur }) {
+    const patch = {
+      statut: 'confirmee_fournisseur', confirmee_fournisseur_par: confirmePar || null,
+      confirmee_fournisseur_le: new Date().toISOString(), reference_fournisseur: referenceFournisseur || null,
+    };
+    const { data, error } = await client.from('carburant_commandes').update(patch).eq('id', commandeId).select().maybeSingle();
+    if (error) { console.error('Confirmation fournisseur commande carburant:', error); return { ok: false, error }; }
+    return { ok: true, commande: data };
+  }
+
   // Rapprochement réception (§34) — appelé par NEXUS-Carburant-Reception-v1.html
   // une fois une visite terminée, pour relier la commande à sa livraison
   // réelle (chaîne recommandation -> commande -> livraison prévue ->
@@ -540,6 +664,25 @@
       .update({ statut: 'livree', visite_reception_id: visiteId, livree_le: dateLivraison || new Date().toISOString().slice(0, 10) })
       .eq('id', commandeId).select().maybeSingle();
     if (error) { console.error('Rapprochement commande/réception carburant:', error); return { ok: false, error }; }
+    return { ok: true, commande: data };
+  }
+
+  // 27/08/2026, point 22 — étape "Réception contrôlée", distincte de la
+  // simple réception physique (statut 'livree' ci-dessus, posé dès le
+  // rapprochement). Réutilise le verdict DÉJÀ produit par le parcours
+  // qualité de réception existant (NexusReceptionMoteur.libelleStatutReception,
+  // lu par "Qualité des réceptions" sur cet écran, Article 11 — jamais un
+  // second contrôle qualité inventé ici) : l'appelant transmet le verdict
+  // qu'il a déjà sous les yeux, cette fonction ne fait qu'écrire la
+  // transition sur la commande. `verdict` ∈ {conforme, ecart_mineur, anomalie}.
+  async function controlerReceptionCommande(client, commandeId, { controlePar, verdict, note }) {
+    const patch = {
+      statut: 'reception_controlee', reception_controlee_par: controlePar || null,
+      reception_controlee_le: new Date().toISOString(), reception_controle_verdict: verdict || null,
+    };
+    if (note) patch.reception_controle_note = note;
+    const { data, error } = await client.from('carburant_commandes').update(patch).eq('id', commandeId).select().maybeSingle();
+    if (error) { console.error('Contrôle réception commande carburant:', error); return { ok: false, error }; }
     return { ok: true, commande: data };
   }
 
@@ -573,7 +716,9 @@
     chargerConfigEtCuves, chargerJoursFeries, chargerHistoriqueVentesParJour,
     chargerCommandeEnCoursParCarburant, chargerStockEtFiabiliteParCarburant,
     evaluerCommandeCarburantSite,
+    chargerJournalRecommandationExistant, enregistrerRecommandationCarburant,
     creerPropositionCommande, validerCommande, reporterCommande,
+    confirmerCommandeFournisseur, controlerReceptionCommande,
     enregistrerCommandeHorsNexus, rapprocherCommandeReception, chargerHistoriqueCommandes,
     chargerContextePlausibiliteCarburant,
   };

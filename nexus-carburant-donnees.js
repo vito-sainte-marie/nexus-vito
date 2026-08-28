@@ -61,8 +61,25 @@
   // intermédiaire remplacerait silencieusement la référence de calcul et
   // masquerait l'écart qu'il est censé révéler.
   async function chargerDernierPointZero(client, siteId, dateLimite) {
+    // CORRECTIF 28/08/2026 (§19, "statut actif/remplacé") : le filtre par
+    // `statut` a été délibérément RETIRÉ ici, et ce n'est PAS un oubli.
+    // Cette fonction sert aussi à la reconstruction POINT-DANS-LE-TEMPS
+    // (chargerControleJour appelle chargerDernierPointZero(..., date) pour
+    // une date PASSÉE quelconque, et chargerHistoriqueReleves fait
+    // l'équivalent pour toute une fenêtre) : elle doit retrouver la
+    // référence en vigueur À CETTE DATE-LÀ, même si une certification plus
+    // récente l'a depuis fait passer en 'remplace'. Filtrer sur
+    // `statut = 'actif'` casserait silencieusement tout recalcul historique
+    // antérieur à la dernière certification (Article 5 — jamais un calcul
+    // silencieusement faux). Le cycle actif/remplacé écrit par
+    // certifierPointZero reste réel et interrogeable (ex. pour un futur
+    // badge "référence en vigueur" dans l'historique), simplement pas ICI :
+    // `type = 'initialisation'` + tri par date reste la SEULE condition de
+    // sélection de l'ancre, exactement comme avant que 'valide' (valeur
+    // alors uniforme sur toutes les lignes, donc déjà sans effet filtrant
+    // réel) ne soit remplacé par ce cycle à deux états.
     let requete = client.from('carburant_stock_references')
-      .select('*').eq('site', siteId).eq('statut', 'valide').eq('type', 'initialisation');
+      .select('*').eq('site', siteId).eq('type', 'initialisation');
     if (dateLimite) requete = requete.lte('date', dateLimite);
     const { data: ref, error: e1 } = await requete
       .order('date', { ascending: false }).order('created_at', { ascending: false })
@@ -431,11 +448,56 @@
   // chargerControleJour ci-dessus). `valeurs` : { go: {stockReel, theoriqueAvant},
   // sp95: {...}, gnr: {...} } — theoriqueAvant est optionnel, pure
   // traçabilité, jamais réutilisé dans un calcul.
-  async function certifierPointZero(client, siteId, { date, heure, source, controlePar, type, note, valeurs }) {
+  //
+  // CORRECTIF 28/08/2026 (refonte qualitative §19, "le point zéro doit
+  // porter date/heure/utilisateur/source/volumes/motif/statut
+  // actif-remplacé/justification, les corrections ne doivent jamais
+  // supprimer les précédentes") :
+  //   - `motifCategorie` obligatoire — même convention que reporterCommande
+  //     (obligatoire côté écran, cette fonction persiste ce qui lui est
+  //     donné ; ici on refuse quand même l'insertion si absent, car
+  //     `motif` est la seule trace de "pourquoi cette nouvelle référence",
+  //     contrairement à un report de commande qui a déjà `statut` pour le
+  //     contexte).
+  //   - `note` devient la justification libre complémentaire (colonne
+  //     existante, inchangée, toujours optionnelle) — jamais fusionnée avec
+  //     `motif` : un champ catégorisé (recherche/filtre fiable) et un champ
+  //     texte libre (contexte) répondent à deux besoins différents.
+  //   - Chaîne d'audit immuable : si une référence 'actif' existe déjà pour
+  //     ce site (chargerDernierPointZero, réutilisé — Article 11, jamais
+  //     une deuxième requête équivalente), elle est repassée à 'remplace'
+  //     PAR UN UPDATE (jamais supprimée) avant l'insertion de la nouvelle
+  //     ligne 'actif', qui référence l'ancienne via `reference_precedente_id`.
+  async function certifierPointZero(client, siteId, { date, heure, source, controlePar, type, motifCategorie, note, valeurs }) {
+    if (!motifCategorie) {
+      return { ok: false, error: 'motif_requis', message: 'Le motif de cette certification est obligatoire.' };
+    }
+    // Réutilise la même requête que l'ancre de calcul (Article 11) : seule
+    // une référence 'initialisation' active peut être "remplacée" au sens
+    // de la chaîne d'audit — un simple 'recomptage' ne clôt jamais la
+    // référence en vigueur (voir le commentaire de chargerDernierPointZero).
+    const ancienneRef = (type || 'initialisation') === 'initialisation'
+      ? await chargerDernierPointZero(client, siteId)
+      : null;
+
+    if (ancienneRef) {
+      const { error: eRemplace } = await client.from('carburant_stock_references')
+        .update({ statut: 'remplace' }).eq('id', ancienneRef.id);
+      if (eRemplace) { console.error('Passage ancien point zéro en "remplace":', eRemplace); return { ok: false, error: eRemplace }; }
+    }
+
+    // Un 'recomptage' n'est jamais l'ancre de calcul (voir plus haut) : la
+    // contrainte SQL n'autorisant que 'actif'/'remplace', on le stocke en
+    // 'remplace' — à lire ici comme "n'est pas la référence active", pas
+    // comme "vient de remplacer quelque chose" (son reference_precedente_id
+    // reste null, il ne rejoint jamais la chaîne d'audit des initialisations).
+    const statutInsertion = (type || 'initialisation') === 'initialisation' ? 'actif' : 'remplace';
     const { data: ref, error: e1 } = await client.from('carburant_stock_references').insert({
       site: siteId, date, heure: heure || null, source: source || 'terrain',
       controle_par: controlePar || null, type: type || 'initialisation',
-      statut: 'valide', note: note || null,
+      statut: statutInsertion,
+      motif: motifCategorie, note: note || null,
+      reference_precedente_id: ancienneRef ? ancienneRef.id : null,
     }).select().single();
     if (e1) { console.error('Certification point zéro carburants:', e1); return { ok: false, error: e1 }; }
 
@@ -721,8 +783,13 @@
     // 'recomptage' n'est jamais rejoué comme référence de calcul dans
     // l'historique, il reste un journal de contrôle, pas une nouvelle
     // frontière.
+    // CORRECTIF 28/08/2026 (§19) : même raison que chargerDernierPointZero
+    // ci-dessus — pas de filtre `statut` ici, cette liste alimente
+    // pointZeroApplicable(date) pour CHAQUE jour de la fenêtre, y compris
+    // des dates antérieures à la dernière certification (qui a fait passer
+    // les précédentes en 'remplace' sans les invalider historiquement).
     const { data: pointsZeroAsc, error: e2 } = await client.from('carburant_stock_references')
-      .select('*').eq('site', siteId).eq('statut', 'valide').eq('type', 'initialisation').lte('date', fin)
+      .select('*').eq('site', siteId).eq('type', 'initialisation').lte('date', fin)
       .order('date', { ascending: true });
     if (e2) console.error('Chargement points zéro (historique relevés):', e2);
     let lignesParPointZero = {};

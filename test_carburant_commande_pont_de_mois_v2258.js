@@ -135,4 +135,51 @@ const HISTORIQUE_GO = [
   ok('hors pont de mois (livraison qui reste dans le mois courant) — formule historique de réserve (jours × consommation moyenne) strictement inchangée');
 }
 
+// ------------------------------------------------------------
+// 4) (28/08/2026, §23 — scénario explicite de Frédéric parmi les 10 tests
+//    obligatoires de la refonte qualitative) : "1er samedi -> livraison
+//    lundi", le pont de mois doit couvrir samedi + dimanche + lundi ENTIER,
+//    jamais un calcul qui suppose à tort un seul jour d'écart entre la
+//    commande et la livraison. Calendrier réel : le 1er août 2026 tombe un
+//    samedi -> une commande passée vendredi 31 juillet (avant cutoff) ne
+//    trouve son prochain jour de livraison (lun-ven) que le lundi 3 août,
+//    soit DEUX jours non livrables (samedi 1er, dimanche 2) entre la
+//    commande et la livraison — jamais un seul, contrairement au scénario
+//    §1 ci-dessus (lundi -> mardi, un seul jour d'écart).
+// ------------------------------------------------------------
+{
+  // Historique day-of-week dédié (vendredi/samedi/dimanche/lundi), 3
+  // occurrences identiques chacune -> prévision "fiable" sans exclusion
+  // (§5/v2.253), valeurs choisies distinctes pour détecter sans ambiguïté
+  // tout jour compté deux fois, oublié, ou confondu avec un autre.
+  const HISTORIQUE_JUILLET = [
+    { date: '2026-07-03', ventes: { go: 3500 } }, // vendredi
+    { date: '2026-07-10', ventes: { go: 3500 } }, // vendredi
+    { date: '2026-07-17', ventes: { go: 3500 } }, // vendredi
+    { date: '2026-07-04', ventes: { go: 5000 } }, // samedi
+    { date: '2026-07-11', ventes: { go: 5000 } }, // samedi
+    { date: '2026-07-18', ventes: { go: 5000 } }, // samedi
+    { date: '2026-07-05', ventes: { go: 4500 } }, // dimanche
+    { date: '2026-07-12', ventes: { go: 4500 } }, // dimanche
+    { date: '2026-07-19', ventes: { go: 4500 } }, // dimanche
+    { date: '2026-07-06', ventes: { go: 3000 } }, // lundi
+    { date: '2026-07-13', ventes: { go: 3000 } }, // lundi
+    { date: '2026-07-20', ventes: { go: 3000 } }, // lundi
+  ];
+  const sc = M.evaluerScenarioCommande({
+    dateCommandeISO: '2026-07-31', heureCommandeHHMM: '09:00', config: CONFIG, joursFeriesISO: [],
+    stockActuelL: 20000, consommationMoyenneJour: 4000, historiqueParJour: HISTORIQUE_JUILLET, carburant: 'go',
+    commandesEnCoursVolumeL: 0,
+  });
+  assert.strictEqual(sc.livraisonISO, '2026-08-03', 'prémisse : vendredi 31/07 avant cutoff -> 1er (samedi) et 2 (dimanche) non livrables -> lundi 3 août');
+  assert.strictEqual(sc.pontDeMois, true, 'juillet -> août : franchissement de mois');
+  assert.strictEqual(sc.ventesPrevuesL, 3500 + 5000 + 4500, 'ventes prévues jusqu\'au DÉBUT du jour de livraison = vendredi + samedi + dimanche (3 jours), jamais un seul jour compté pour tout le week-end');
+  assert.strictEqual(sc.previsionJourLivraisonL, 3000, 'prévision du jour de livraison (lundi) day-of-week fiable, distincte des 3 jours précédents');
+  assert.strictEqual(sc.margeOperationnelleL, 750, 'marge opérationnelle = 25 % de la prévision du lundi (3 000 L) = 750 L');
+  assert.strictEqual(sc.stockPrevuDebutJourLivraisonL, 20000 - (3500 + 5000 + 4500), 'stock projeté au début du lundi = stock actuel moins EXACTEMENT les 3 jours vendredi/samedi/dimanche');
+  assert.strictEqual(sc.stockPrevuLivraisonL, 20000 - (3500 + 5000 + 4500) - 3000, 'stock projeté à la fin du lundi = stock début lundi moins la prévision du lundi lui-même');
+  assert.strictEqual(sc.securiteL, 750, 'en pont de mois, la sécurité reste la marge opérationnelle, quelle que soit la durée du pont (1 ou plusieurs jours)');
+  ok('1er samedi -> livraison lundi (§23) — le pont de mois couvre vendredi+samedi+dimanche+lundi entier, sans confondre ni sauter un jour du week-end');
+}
+
 console.log(`\n${n}/${n} tests passés.`);

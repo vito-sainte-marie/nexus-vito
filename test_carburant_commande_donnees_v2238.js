@@ -220,5 +220,34 @@ const CUVES_VITO = {
     assert.strictEqual(updateAppel.payload.visite_reception_id, 'visite-42');
   });
 
+  // ------------------------------------------------------------
+  // 7) 27/08/2026, point 22 (refonte qualitative) — 2 étapes réelles
+  //    manquantes du cycle de vie : "commande confirmée fournisseur" (entre
+  //    validee et livree) et "réception contrôlée" (après livree). Colonnes
+  //    et valeurs CHECK ajoutées par la migration
+  //    carburant_commandes_ajout_statuts_confirmee_reception_controlee.
+  // ------------------------------------------------------------
+  await testAsync('confirmerCommandeFournisseur : statut confirmee_fournisseur, référence + horodatage tracés', async () => {
+    const client = creerClientMock({ carburant_commandes: [{ data: { id: 'cmd1', statut: 'confirmee_fournisseur' }, error: null }] });
+    const r = await Donnees.confirmerCommandeFournisseur(client, 'cmd1', { confirmePar: 'emp1', referenceFournisseur: 'BL-2026-0827' });
+    assert.strictEqual(r.ok, true);
+    const updateAppel = client.appels.find(a => a.type === 'update');
+    assert.strictEqual(updateAppel.payload.statut, 'confirmee_fournisseur');
+    assert.strictEqual(updateAppel.payload.confirmee_fournisseur_par, 'emp1');
+    assert.strictEqual(updateAppel.payload.reference_fournisseur, 'BL-2026-0827');
+    assert.ok(updateAppel.payload.confirmee_fournisseur_le, 'horodatage obligatoire, jamais silencieux');
+  });
+
+  await testAsync('controlerReceptionCommande : statut reception_controlee, verdict + note tracés, distinct de "livree"', async () => {
+    const client = creerClientMock({ carburant_commandes: [{ data: { id: 'cmd1', statut: 'reception_controlee' }, error: null }] });
+    const r = await Donnees.controlerReceptionCommande(client, 'cmd1', { controlePar: 'emp2', verdict: 'conforme', note: 'RAS, compartiments conformes au BL' });
+    assert.strictEqual(r.ok, true);
+    const updateAppel = client.appels.find(a => a.type === 'update');
+    assert.strictEqual(updateAppel.payload.statut, 'reception_controlee', 'statut distinct de "livree" — la réception physique et son contrôle sont deux faits différents (point 22)');
+    assert.strictEqual(updateAppel.payload.reception_controle_verdict, 'conforme');
+    assert.strictEqual(updateAppel.payload.reception_controle_note, 'RAS, compartiments conformes au BL');
+    assert.ok(updateAppel.payload.reception_controlee_le, 'horodatage obligatoire, jamais silencieux');
+  });
+
   console.log('\nTests Moteur Commande Carburant (colle Supabase) — v2.238 terminés.');
 })();

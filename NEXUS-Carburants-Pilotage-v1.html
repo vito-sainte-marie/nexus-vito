@@ -944,6 +944,30 @@
     return `${parseInt(d, 10)} ${MOIS[parseInt(m, 10) - 1]}`;
   }
 
+  // 27/08/2026, refonte qualitative demandée par Frédéric (point 3 —
+  // "Ne plus associer automatiquement « 5,2 jours = sous contrôle ». Le
+  // diagnostic doit être basé sur la capacité à atteindre le prochain
+  // créneau réel de livraison.") — fonction UNIQUE (Article 11 : les deux
+  // écrans qui affichaient un statut d'autonomie par seuil de jours fixe,
+  // "Situation aujourd'hui" et le tableau détaillé "Stock & autonomie",
+  // appellent désormais ce même helper plutôt que de dupliquer la lecture
+  // de COMMANDE_CTX chacun de leur côté). Retourne `null` tant que
+  // COMMANDE_CTX (chargé en parallèle par chargerEtRendreCommandeCarburant)
+  // n'est pas encore disponible ou que ce carburant est `non_calculable`
+  // côté moteur de commande — jamais un verdict inventé faute de donnée
+  // (Article 5), l'appelant affiche alors un message d'attente neutre.
+  function diagnosticCouvertureCarburant(cle) {
+    const evCommande = (typeof COMMANDE_CTX !== 'undefined' && COMMANDE_CTX && COMMANDE_CTX.ok && COMMANDE_CTX.parCarburant) ? COMMANDE_CTX.parCarburant[cle] : null;
+    if (!evCommande || evCommande.etat === 'non_calculable') return null;
+    const livraisonTxt = evCommande.scenarioMaintenant && evCommande.scenarioMaintenant.livraisonISO ? formaterDateFrCourt(evCommande.scenarioMaintenant.livraisonISO) : null;
+    const couvre = evCommande.etat !== 'securite';
+    return {
+      couvre,
+      icone: couvre ? '🟢' : '🔴',
+      texte: `${couvre ? 'Couvre' : 'Ne couvre pas'} le prochain créneau de livraison${livraisonTxt ? ` (${livraisonTxt})` : ''}`,
+    };
+  }
+
   // 25/08/2026, retour de Frédéric ("Correction à apporter au moteur
   // 'Prochaine commande'") : "À commander mardi 25 août avant 11h" / "Livraison
   // prévue mercredi 26 août" plutôt qu'une date seule, jamais ambiguë sur QUEL
@@ -1145,7 +1169,17 @@
       const pctStock = M.pourcentageRemplissage(r.stockPhysiqueAffiche, capacite);
       const pctTheo = M.pourcentageRemplissage(r.theorique, capacite);
       const autonomie = ctx.autonomiesParCarburant[cle];
-      const statutAuto = M.statutAutonomie(autonomie);
+      // 27/08/2026, refonte qualitative demandée par Frédéric (point 3) :
+      // "Ne plus associer automatiquement « 5,2 jours = sous contrôle ».
+      // L'autonomie est une donnée, pas une décision." — voir
+      // diagnosticCouvertureCarburant() (Article 11, fonction partagée).
+      // COMMANDE_CTX se charge en parallèle (Promise.all à l'init) et peut
+      // ne pas encore être disponible au premier rendu : dans ce cas la
+      // fonction renvoie `null` et seul le chiffre d'autonomie s'affiche.
+      // `chargerEtRendreCommandeCarburant()` réappelle `renderSituation()`
+      // dès que COMMANDE_CTX est prêt pour compléter ce diagnostic sans
+      // rechargement de page.
+      const diagCouverture = diagnosticCouvertureCarburant(cle);
       const ecartTxt = r.ecart != null ? `${r.ecart >= 0 ? '+' : ''}${Math.round(r.ecart).toLocaleString('fr-FR')} L` : '—';
       const detailCuves = cfg.cuves.length > 1 ? cfg.cuves.map(cv => cv.label).join(' + ') : cfg.cuves[0].label;
       // 14/08/2026, retour de Frédéric : "Fiabilité du contrôle" remplace le
@@ -1226,7 +1260,8 @@
           <div class="carb-stat-row"><span class="lbl">Physique</span><span class="val">${fmtL(r.stockPhysiqueAffiche)}</span></div>
           <div class="carb-stat-row"><span class="lbl">Théorique</span><span class="val">${fmtL(r.theorique)}</span></div>
           <div class="carb-stat-row"><span class="lbl">Écart</span><span class="val" style="color:${r.ecart != null && r.ecart < 0 ? 'var(--red)' : (r.ecart != null && r.ecart > 0 ? 'var(--green)' : 'var(--text)')};">${ecartTxt}${ecartNonFiabilise ? ' <span class="ecart-caveat" title="Chaîne de rapprochement non fiabilisée pour ce carburant — écart informatif, pas une perte confirmée.">ⓘ</span>' : ''}</span></div>
-          <div class="carb-autonomie-bloc"><span class="lbl">Autonomie</span><span class="val">${autonomie != null ? `${autonomie.toFixed(1)} j — ${statutAuto}` : '—'}</span></div>
+          <div class="carb-autonomie-bloc"><span class="lbl">Autonomie</span><span class="val">${autonomie != null ? `${autonomie.toFixed(1)} j` : '—'}</span></div>
+          ${autonomie != null ? `<div class="carb-fiab-row"><span>${diagCouverture ? diagCouverture.texte : 'Couverture du prochain créneau : calcul en cours…'}</span>${diagCouverture ? `<span class="carb-fiab-badge" style="background:${diagCouverture.couvre ? 'var(--green-dim)' : 'var(--red-dim)'}; color:${diagCouverture.couvre ? 'var(--green)' : 'var(--red)'};">${diagCouverture.icone}</span>` : ''}</div>` : ''}
           <div class="carb-fiab-row" ${statutCourt.titre ? `title="${statutCourt.titre}"` : ''}><span style="color:${couleurFiab.c};">Situation stock : ${statutCourt.texte}</span><span class="carb-fiab-badge" style="background:${couleurFiab.f}; color:${couleurFiab.c};">${ICONE_NIVEAU[fiabilite.niveau] || '?'}</span></div>
           <div class="carb-fiab-row"><span style="color:${couleurQualite.c};">Rapprochement : ${qualite.texte}</span><span class="carb-fiab-badge" style="background:${couleurQualite.f}; color:${couleurQualite.c};">${ICONE_NIVEAU[qualite.niveau] || '?'}</span></div>
         </div>`;
@@ -1429,15 +1464,20 @@
     const M = NexusCarburantMoteur;
     const cles = M.CLES_CARBURANT.filter(cle => CUVES_CONFIG[cle] && CUVES_CONFIG[cle].actif && CONTROLE_CTX.autonomiesParCarburant[cle] != null);
     if (!cles.length) return { niveau: 'attente', texte: 'Autonomie : donnée insuffisante.' };
-    const NIVEAU_PAR_STATUT = { 'À corriger': 'alerte', 'À surveiller': 'attention', 'Sous contrôle': 'ok', 'Confortable': 'ok' };
-    let pireCle = null, pireJours = Infinity, pireStatut = null;
-    cles.forEach(cle => {
-      const j = CONTROLE_CTX.autonomiesParCarburant[cle];
-      if (j < pireJours) { pireJours = j; pireCle = cle; pireStatut = M.statutAutonomie(j); }
-    });
-    const tousConfortables = cles.every(cle => M.statutAutonomie(CONTROLE_CTX.autonomiesParCarburant[cle]) === 'Confortable');
-    if (tousConfortables) return { niveau: 'ok', texte: 'Autonomie confortable sur tous les carburants.' };
-    return { niveau: NIVEAU_PAR_STATUT[pireStatut] || 'attente', texte: `${COURT_CARBURANT[pireCle]} : autonomie ${pireJours.toFixed(1)} jours, ${pireStatut.toLowerCase()}.` };
+    // 27/08/2026, point 3 de la refonte qualitative de Frédéric — même
+    // règle qu'ailleurs sur l'écran (Article 11, diagnosticCouvertureCarburant()
+    // partagé) : "Ne plus associer automatiquement « X jours = sous
+    // contrôle »." Le résumé exécutif ne classe plus par seuil de jours
+    // fixe, mais par couverture réelle du prochain créneau de livraison.
+    const diags = cles.map(cle => ({ cle, jours: CONTROLE_CTX.autonomiesParCarburant[cle], diag: diagnosticCouvertureCarburant(cle) }));
+    const nonCouverts = diags.filter(d => d.diag && !d.diag.couvre);
+    if (nonCouverts.length) {
+      nonCouverts.sort((a, b) => a.jours - b.jours);
+      const pire = nonCouverts[0];
+      return { niveau: 'alerte', texte: `${COURT_CARBURANT[pire.cle]} : ${pire.jours.toFixed(1)} j — ${pire.diag.texte.charAt(0).toLowerCase()}${pire.diag.texte.slice(1)}.` };
+    }
+    if (diags.every(d => !d.diag)) return { niveau: 'attente', texte: 'Autonomie : couverture du prochain créneau en cours de calcul.' };
+    return { niveau: 'ok', texte: 'Tous les carburants couvrent le prochain créneau de livraison.' };
   }
 
   function ligneLectureCommerce() {
@@ -1549,6 +1589,18 @@
       COMMANDE_CTX = null;
     }
     renderCommandeCarburant(COMMANDE_CTX);
+    // 27/08/2026, point 3 — "Situation aujourd'hui" et "Lecture NEXUS"
+    // affichent désormais un diagnostic de couverture qui dépend de
+    // COMMANDE_CTX (diagnosticCouvertureCarburant()). Ce contexte se
+    // charge en parallèle du contrôle physique (Promise.all à l'init) et
+    // arrive donc généralement APRÈS le premier rendu de ces deux blocs —
+    // on les réaffiche ici, une fois COMMANDE_CTX prêt, pour compléter le
+    // diagnostic sans rechargement de page (re-rendu idempotent, aucun
+    // second calcul : mêmes fonctions, mêmes données déjà en mémoire).
+    if (typeof CONTROLE_CTX !== 'undefined' && CONTROLE_CTX && !CONTROLE_CTX.aucunReleve) {
+      renderSituation(CONTROLE_CTX);
+      renderLectureNexus();
+    }
   }
 
   function renderCommandeCarburant(ctx) {
@@ -1787,6 +1839,18 @@
     // pourquoi les deux peuvent coexister légitimement.
     const noteDistinctionHTML = `<div class="section-note" style="margin:0 0 8px; padding:0; font-size:10px;">Distinct de l'autonomie physique affichée dans « Situation aujourd'hui » ci-dessus : ce calcul intègre la réserve de sécurité et le délai jusqu'au prochain créneau de livraison.</div>`;
 
+    // Ancre de la recommandation (28/08/2026, refonte qualitative §2, retour
+    // explicite de Frédéric) — clarification À L'ÉCRAN, AUCUN changement de
+    // calcul : la recommandation part du dernier jaugeage fiable (v2.255,
+    // stockAncreCommandeL), jamais du « stock maintenant » affiché dans le
+    // détail par carburant ci-dessous (qui a déjà déduit les ventes captées
+    // depuis ce jaugeage). Les deux valeurs coexistent volontairement — les
+    // soustraire l'une de l'autre reviendrait à compter certaines ventes
+    // deux fois (voir la ligne "Ventes prévues depuis le jaugeage..." plus
+    // bas, où ce choix était déjà expliqué en commentaire mais jamais rendu
+    // explicite à l'écran pour le manager).
+    const noteAncreHTML = `<div class="section-note" style="margin:0 0 8px; padding:0; font-size:10px;">Cette recommandation part du dernier jaugeage fiable, jamais du « stock maintenant » affiché dans le détail ci-dessous (qui a déjà déduit les ventes du jour) — les deux valeurs coexistent volontairement, pour ne jamais compter une vente deux fois.</div>`;
+
     // Hiérarchie décision → justification → calculs (27/08/2026, retour de
     // Frédéric, §6 : "aujourd'hui l'écran ressemble à un rapport
     // analytique... NEXUS doit se comporter comme un directeur
@@ -1795,15 +1859,27 @@
     // calculs" (mécanique .open déjà utilisée dans NEXUS-Cockpit-v2.html
     // pour "carteConseiller"/les plans d'action, Article 11 — jamais un
     // second mécanisme de pli/dépli).
+    // Titre qualifié en mode fin de mois (28/08/2026, §13 de la refonte
+    // qualitative — "Commande de transition — fin de mois") : ctx.modeFinDeMois
+    // est déjà calculé par NexusCarburantCommandeDonnees.evaluerCommandeCarburantSite
+    // (Article 11, aucun second calcul ici) — un régime différent (marge
+    // opérationnelle plutôt que réserve de plusieurs jours, voir pont de
+    // mois v2.258) mérite un titre différent, jamais la même étiquette
+    // générique "Prochaine commande" qui laisserait croire à une commande
+    // normale. Le contenu de la carte (badge/reco/méta/pourquoi/détail)
+    // reste inchangé : seul le titre distingue le régime, cohérent avec la
+    // note d'ancrage déjà affichée juste en dessous.
+    const titreCarte = ctx.modeFinDeMois ? '🚚 Commande de transition — fin de mois' : '🚚 Prochaine commande';
     zone.innerHTML = `
       <div class="commande-carte" style="border-color:${stAffiche.c};">
         <div class="commande-carte-tete">
-          <span class="commande-carte-titre">🚚 Prochaine commande</span>
+          <span class="commande-carte-titre">${titreCarte}</span>
           <span class="commande-carte-badge" style="background:${stAffiche.f}; color:${stAffiche.c};">${badgeLibelle}</span>
         </div>
         ${recoTxt ? `<div class="commande-reco-principale" style="color:${stAffiche.c};">Commande recommandée : ${recoTxt}</div>` : ''}
         ${metaHTML ? `<div style="margin:-2px 0 8px;">${metaHTML}</div>` : ''}
         ${noteDistinctionHTML}
+        ${noteAncreHTML}
         <div class="commande-pourquoi">${pourquoiTxt}</div>
         ${boutonHTML}
         <div class="commande-plan-card" id="commandeDetailCard">
@@ -1877,16 +1953,35 @@
     const cleRef = clesRecommandees[0];
     const evRef = cleRef ? ctx.parCarburant[cleRef] : null;
     const livraisonTxt = evRef && evRef.scenarioMaintenant && evRef.scenarioMaintenant.livraisonISO ? formaterDateFrAvecJour(evRef.scenarioMaintenant.livraisonISO) : '—';
-    const lignesVolumes = clesRecommandees.map(cle => `
+    // CORRECTIF 28/08/2026 (§21, "la fiche 'Préparer ma commande' doit
+    // inclure stock projeté à réception + capacité disponible + justification,
+    // jamais confondue avec la livraison réelle") : `stockPrevuLivraisonL` et
+    // `capaciteDisponibleL` sont déjà calculés par le moteur pour chaque
+    // carburant (evaluerCarburant, Article 11 — jamais un second calcul ici,
+    // simplement affichés). "Date de la commande" est ajoutée explicitement
+    // à côté de la date de livraison pour qu'aucun manager ne confonde les
+    // deux (le §2/§4 de la refonte insiste sur une seule référence
+    // temporelle, jamais ambiguë).
+    const dateCommandeTxt = formaterDateFrAvecJour(todayISO());
+    const lignesVolumes = clesRecommandees.map(cle => {
+      const ev = ctx.parCarburant[cle];
+      const sc = ev && ev.scenarioMaintenant;
+      const stockProjeteTxt = sc && sc.stockPrevuLivraisonL != null ? fmtL(sc.stockPrevuLivraisonL) : 'non calculable';
+      const capaDispoTxt = ev && ev.capaciteDisponibleL != null ? fmtL(ev.capaciteDisponibleL) : 'non calculable';
+      return `
       <div class="controle-ligne">
         <span>${NOM_CARBURANT[cle] || cle}</span>
         <span><input type="number" step="1000" min="0" class="commande-fiche-input" data-carburant="${cle}" value="${ctx.commandeRecommandee.volumes[cle]}" style="width:92px; text-align:right; background:var(--panel-raised); border:1px solid var(--hairline); border-radius:6px; color:var(--text); font-family:var(--mono); padding:5px 7px; font-size:12px;"> L</span>
-      </div>`).join('');
+      </div>
+      <div class="commande-fiche-detail" style="font-size:10.5px; color:var(--text-dim); margin:-2px 0 10px;">
+        Stock projeté à réception (avant cette commande) : ${stockProjeteTxt} · Capacité disponible à la livraison : ${capaDispoTxt}
+      </div>`;
+    }).join('');
     const texteContexte = texteContextePlausibilite(contextePlausibilite);
     modal.innerHTML = `
       <button type="button" class="controle-modal-fermer" id="btnFermerFicheCommande">✕</button>
       <div class="controle-modal-titre">Proposition NEXUS — Commande carburant</div>
-      <div class="controle-modal-soustitre">Livraison prévue le ${livraisonTxt} — volumes modifiables avant validation</div>
+      <div class="controle-modal-soustitre">Commande passée le ${dateCommandeTxt} — livraison prévue le ${livraisonTxt} — volumes modifiables avant validation</div>
       <div class="controle-section-titre">Volumes</div>
       ${lignesVolumes}
       <div class="controle-ligne" style="font-weight:700;"><span>Total</span><span id="ficheCommandeTotal">${fmtL(ctx.commandeRecommandee.total)}</span></div>
@@ -3020,7 +3115,11 @@
           releveDuJourExiste: !!CONTROLE_CTX.releveDuJour, ventes: r.ventesDepuis,
         });
         const couleur = NIVEAU_COULEUR[fiabilite.niveau] || NIVEAU_COULEUR.attente;
-        const statutAuto = M.statutAutonomie(autonomie);
+        // 27/08/2026, point 3 — même helper que "Situation aujourd'hui"
+        // (Article 11 : un seul endroit décide "couvre/ne couvre pas",
+        // jamais un second calcul par seuil de jours fixe recopié ici).
+        const diagCouv = diagnosticCouvertureCarburant(cle);
+        const autonomieTxt = autonomie != null ? `${autonomie.toFixed(1)} j${diagCouv ? ` — ${diagCouv.icone} ${diagCouv.texte}` : ''}` : '—';
         const ecartTxt = r.ecart != null ? `${r.ecart >= 0 ? '+' : ''}${Math.round(r.ecart).toLocaleString('fr-FR')} L` : '—';
         const ecartCouleur = r.ecart != null && r.ecart < 0 ? 'var(--red)' : (r.ecart != null && r.ecart > 0 ? 'var(--green)' : 'var(--text-mid)');
         return {
@@ -3030,7 +3129,7 @@
             <td>${fmtL(r.stockPhysiqueAffiche)}</td>
             <td>${fmtL(r.theorique)}</td>
             <td style="color:${ecartCouleur};">${ecartTxt}</td>
-            <td>${autonomie != null ? `${autonomie.toFixed(1)} j — ${statutAuto}` : '—'}</td>
+            <td>${autonomieTxt}</td>
             <td><span style="color:${couleur.c};">●</span> ${fiabilite.texte}</td>
           </tr>`,
           carte: `
@@ -3039,7 +3138,7 @@
             <div class="carb-stat-row"><span class="lbl">Physique</span><span class="val">${fmtL(r.stockPhysiqueAffiche)}</span></div>
             <div class="carb-stat-row"><span class="lbl">Théorique</span><span class="val">${fmtL(r.theorique)}</span></div>
             <div class="carb-stat-row"><span class="lbl">Écart</span><span class="val" style="color:${ecartCouleur};">${ecartTxt}</span></div>
-            <div class="carb-autonomie-bloc"><span class="lbl">Autonomie</span><span class="val">${autonomie != null ? `${autonomie.toFixed(1)} j — ${statutAuto}` : '—'}</span></div>
+            <div class="carb-autonomie-bloc"><span class="lbl">Autonomie</span><span class="val">${autonomieTxt}</span></div>
             <div class="carb-fiab-row"><span style="color:${couleur.c};">Situation : ${fiabilite.texte}</span></div>
           </div>`,
         };
@@ -3161,7 +3260,15 @@
       <div class="pointzero-fuel-row"><span class="pointzero-fuel-label">GO</span><input type="text" inputmode="decimal" class="pointzero-input" id="pz_go" placeholder="0" value="${valeurActuelle('go')}"></div>
       <div class="pointzero-fuel-row"><span class="pointzero-fuel-label">SP95</span><input type="text" inputmode="decimal" class="pointzero-input" id="pz_sp95" placeholder="0" value="${valeurActuelle('sp95')}"></div>
       <div class="pointzero-fuel-row"><span class="pointzero-fuel-label">GNR</span><input type="text" inputmode="decimal" class="pointzero-input" id="pz_gnr" placeholder="0" value="${valeurActuelle('gnr')}"></div>
-      <div class="pointzero-champ-label">Note (optionnel)</div>
+      <div class="pointzero-champ-label">Motif de cette certification (obligatoire)</div>
+      <select class="pointzero-select" id="pz_motif">
+        <option value="">— Choisir un motif —</option>
+        <option value="controle_physique">Contrôle physique de vérification</option>
+        <option value="ecart_constate">Écart constaté entre stock théorique et réel</option>
+        <option value="changement_materiel">Changement de matériel (jauge, sonde, cuve)</option>
+        <option value="autre">Autre (préciser en note)</option>
+      </select>
+      <div class="pointzero-champ-label">Note / justification (optionnel)</div>
       <textarea class="pointzero-textarea" id="pz_note" rows="2" placeholder="Contexte, référence du relevé Insite360…"></textarea>
       <button class="pointzero-btn" id="btnPointZeroValider">Certifier ce point zéro</button>
       <div class="pointzero-confirmation" id="pointZeroConfirmation"></div>
@@ -3183,6 +3290,11 @@
     const gnr = numFRPointZero(document.getElementById('pz_gnr').value);
     if (!date) { alert('Choisissez une date.'); return; }
     if (go == null || sp95 == null || gnr == null) { alert('Renseignez un stock réel pour les 3 carburants.'); return; }
+    // CORRECTIF 28/08/2026 (§19, "motif obligatoire") : bloqué côté écran,
+    // même convention que reporterCommande (§32) — jamais une certification
+    // sans trace du "pourquoi".
+    const motifCategorie = document.getElementById('pz_motif').value;
+    if (!motifCategorie) { alert('Choisissez un motif pour cette certification.'); return; }
 
     POINTZERO_EN_COURS = true;
     const btn = document.getElementById('btnPointZeroValider');
@@ -3202,6 +3314,7 @@
       source: document.getElementById('pz_source').value,
       controlePar: MANAGER_COURANT.id,
       type,
+      motifCategorie,
       note: document.getElementById('pz_note').value.trim() || null,
       valeurs: {
         go: { stockReel: go, theoriqueAvant: theoriqueAvant('go') },
@@ -3214,7 +3327,7 @@
     if (!resultat.ok) {
       btn.disabled = false;
       btn.textContent = 'Certifier ce point zéro';
-      alert('Erreur de certification — réessayez.');
+      alert(resultat.message || 'Erreur de certification — réessayez.');
       return;
     }
 

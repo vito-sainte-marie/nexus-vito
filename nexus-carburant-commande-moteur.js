@@ -752,15 +752,120 @@
   // F. QUALITÉ DES DONNÉES (§28-29 du cahier)
   // ============================================================
 
+  // 27/08/2026, point 15 — "fraîcheur du jaugeage", l'un des 6 facteurs
+  // demandés par Frédéric. Comparaison en JOURS CALENDAIRES (pas en
+  // heures) : `jaugeageOuvertureLe` est un horodatage réel UTC (colonne
+  // `mesure_le`), tandis que `maintenantISO` circule dans tout ce fichier
+  // comme une date locale du site — les mélanger pour un calcul en heures
+  // exigerait de connaître le fuseau ici, que ce moteur pur ne reçoit pas
+  // (Article 11, le fuseau reste un problème de la couche données ailleurs
+  // dans ce projet). Précision volontairement grossière (jour près) plutôt
+  // qu'un calcul silencieusement faux de quelques heures (Article 5).
+  const SEUIL_JAUGEAGE_FRAIS_JOURS = 1;
+  function jaugeageEstFrais(jaugeageOuvertureLe, maintenantISO) {
+    if (!jaugeageOuvertureLe || !maintenantISO) return null;
+    const dateJaugeage = String(jaugeageOuvertureLe).slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateJaugeage)) return null;
+    if (dateJaugeage > maintenantISO) return null; // horloge incohérente -> inconnu, jamais fabriqué
+    return joursEntre(dateJaugeage, maintenantISO).length <= SEUIL_JAUGEAGE_FRAIS_JOURS;
+  }
+
+  // "Cohérence des livraisons" (point 15) — une commande en cours dont la
+  // livraison prévue est déjà dépassée sans avoir été rapprochée (jamais
+  // marquée 'livree') est un signal réel d'incohérence à vérifier, pas une
+  // simple donnée manquante.
+  function livraisonEnCoursCoherente(livraisonPrevueLe, maintenantISO) {
+    if (!livraisonPrevueLe || !maintenantISO) return true; // pas de commande en cours -> rien d'incohérent à signaler
+    const dateLivraison = String(livraisonPrevueLe).slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateLivraison)) return true;
+    return dateLivraison >= maintenantISO;
+  }
+
   // 3 niveaux du cahier §28. `stockFiable` : le dernier stock physique
   // utilisé comme ancre est-il lui-même fiable (voir NexusCarburantMoteur.
   // qualiteChaineCarburant, réutilisé par l'appelant, Article 11 — jamais
   // un 2ᵉ calcul de fiabilité de la chaîne physique ici).
-  function qualiteDonneesCommande({ stockFiable, previsionConfiance }) {
-    if (!stockFiable) return 'non_calculable';
-    if (previsionConfiance === 'non_calculable') return 'non_calculable';
-    if (previsionConfiance === 'a_confirmer') return 'a_confirmer';
-    return 'fiable';
+  //
+  // 27/08/2026, refonte qualitative (point 15, demande de Frédéric) :
+  // "Chaque recommandation doit avoir un niveau de confiance [...] La
+  // fiabilité dépend de : fraîcheur du jaugeage, couverture des ventes,
+  // qualité de l'historique, cohérence des livraisons, présence d'un point
+  // zéro fiable, absence d'anomalie majeure." Le niveau à 3 valeurs
+  // (fiable/a_confirmer/non_calculable) reste EXACTEMENT le même — c'est
+  // lui qui alimente déjà toute la page (badges "Fiabilité : Élevée/
+  // Moyenne/Faible", texte "à confirmer", etc.) et le faire varier
+  // reviendrait à casser un vocabulaire déjà validé par Frédéric (§28-29).
+  // Ce qui change, c'est le NOMBRE de signaux considérés pour y arriver :
+  // 2 auparavant (stockFiable, previsionConfiance), 6 désormais.
+  //
+  // Portée assumée (à documenter, pas une "fausse précision", Article 5) :
+  // - Les 2 signaux historiques (stock_fiable, historique_fiable) restent
+  //   seuls capables de produire `non_calculable` — inchangé, c'est la
+  //   même barre bloquante qu'avant.
+  // - previsionConfiance==='a_confirmer' reste seul suffisant pour
+  //   déclasser en `a_confirmer` — inchangé.
+  // - `anomalieMajeure` (jaugeage incohérent — écart physique/théorique
+  //   confirmé au-delà du seuil de tolérance, statut carburant 'À corriger')
+  //   déclasse SEUL en `a_confirmer` (28/08/2026, §23 — scénario explicite
+  //   de Frédéric : "jaugeage incohérent -> confiance dégradée/suspension").
+  //   Ce n'est PAS un signal cosmétique comme les 4 ci-dessous : c'est un
+  //   écart RÉELLEMENT MESURÉ et confirmé, pas une simple absence de
+  //   fraîcheur ou de point zéro — il mérite une dégradation immédiate,
+  //   jamais noyé dans une règle "il en faut 2".
+  // - Les 4 AUTRES signaux secondaires (jaugeage_frais, couverture_ventes,
+  //   point_zero_fiable, livraisons_coherentes) ne déclassent JAMAIS
+  //   `fiable` en `a_confirmer` seuls : il en faut AU MOINS 2 négatifs
+  //   simultanés. Sans ce seuil, un site qui n'a simplement jamais eu
+  //   besoin de point zéro (chaîne saine depuis toujours) verrait CHAQUE
+  //   recommandation déclassée pour un motif purement cosmétique — un vrai
+  //   risque d'alarme disproportionnée que Frédéric n'a pas demandé (il
+  //   demande une fiabilité plus JUSTE, pas plus anxiogène).
+  //
+  // `detailQualiteDonneesCommande` porte le détail complet (6 facteurs +
+  // raison) pour un futur "Voir le détail de la fiabilité" ; cette
+  // fonction-ci ne change pas de signature ni de type de retour (toujours
+  // une chaîne), pour ne casser aucun appelant existant.
+  function qualiteDonneesCommande(args) {
+    return detailQualiteDonneesCommande(args).niveau;
+  }
+
+  function detailQualiteDonneesCommande({
+    stockFiable, previsionConfiance,
+    jaugeageFrais, couvertureVentesComplete, pointZeroFiable, livraisonsCoherentes, anomalieMajeure,
+  } = {}) {
+    const facteurs = {
+      stock_fiable: !!stockFiable,
+      historique_fiable: previsionConfiance !== 'non_calculable',
+      jaugeage_frais: jaugeageFrais !== false,
+      couverture_ventes: couvertureVentesComplete !== false,
+      point_zero_fiable: pointZeroFiable !== false,
+      livraisons_coherentes: livraisonsCoherentes !== false,
+      aucune_anomalie_majeure: anomalieMajeure !== true,
+    };
+    if (!facteurs.stock_fiable) {
+      return { niveau: 'non_calculable', facteurs, raison: 'Stock de référence non fiable ou indisponible.' };
+    }
+    if (!facteurs.historique_fiable) {
+      return { niveau: 'non_calculable', facteurs, raison: 'Historique de ventes insuffisant pour établir une prévision.' };
+    }
+    if (previsionConfiance === 'a_confirmer') {
+      return { niveau: 'a_confirmer', facteurs, raison: 'Prévision de ventes encore incertaine (historique insuffisant ou jour atypique).' };
+    }
+    // Jaugeage incohérent (écart physique/théorique confirmé, statut 'À
+    // corriger') : seul suffisant, voir le commentaire ci-dessus (§23).
+    if (!facteurs.aucune_anomalie_majeure) {
+      return { niveau: 'a_confirmer', facteurs, raison: 'Une anomalie majeure détectée sur ce carburant (écart physique/théorique au-delà du seuil de tolérance) — jaugeage à vérifier avant de suivre cette recommandation.' };
+    }
+    const CLES_SECONDAIRES = ['jaugeage_frais', 'couverture_ventes', 'point_zero_fiable', 'livraisons_coherentes'];
+    const negatifs = CLES_SECONDAIRES.filter(cle => !facteurs[cle]);
+    if (negatifs.length >= 2) {
+      const LIBELLE = {
+        jaugeage_frais: 'jaugeage ancien', couverture_ventes: 'ventes non couvertes en totalité',
+        point_zero_fiable: 'aucun point zéro fiable établi', livraisons_coherentes: 'livraison en cours incohérente (retard non résolu)',
+      };
+      return { niveau: 'a_confirmer', facteurs, raison: `Plusieurs signaux à vérifier : ${negatifs.map(c => LIBELLE[c]).join(', ')}.` };
+    }
+    return { niveau: 'fiable', facteurs, raison: null };
   }
 
   // ============================================================
@@ -800,6 +905,13 @@
     carburant, maintenantISO, heureMaintenantHHMM, config, joursFeriesISO,
     stockActuelL, limiteRemplissageL, consommationMoyenneJour, historiqueParJour,
     commandeEnCoursVolumeL, stockFiable,
+    // 27/08/2026, point 15 — signaux bruts optionnels pour la fiabilité à 6
+    // facteurs (voir detailQualiteDonneesCommande) : chacun reste `null`/
+    // `undefined` par défaut si l'appelant ne les fournit pas encore, ce
+    // qui NE PÉNALISE JAMAIS la fiabilité (Article 5 — l'absence
+    // d'information n'est pas une anomalie constatée).
+    jaugeageOuvertureLe, ventesDepuisJaugeageL, pointZeroExiste,
+    commandeEnCoursLivraisonPrevueLe, anomalieMajeure,
   }) {
     const args = { config, joursFeriesISO, stockActuelL, consommationMoyenneJour, historiqueParJour, carburant, commandesEnCoursVolumeL: commandeEnCoursVolumeL, maintenantISO };
     const scenarioMaintenant = evaluerScenarioCommande({ ...args, dateCommandeISO: maintenantISO, heureCommandeHHMM: heureMaintenantHHMM });
@@ -852,10 +964,26 @@
 
     const previsionConfiance = scenarioMaintenant ? scenarioMaintenant.confiance : 'non_calculable';
 
+    // 27/08/2026, point 15 — les 4 signaux secondaires dérivés des valeurs
+    // brutes reçues ci-dessus (Article 11 : chaque calcul de dérivation
+    // vit dans SA propre fonction pure déjà réutilisable ailleurs, jamais
+    // recopié ici).
+    const jaugeageFrais = jaugeageEstFrais(jaugeageOuvertureLe, maintenantISO);
+    const couvertureVentesComplete = (ventesDepuisJaugeageL === undefined) ? undefined : ventesDepuisJaugeageL != null;
+    const livraisonsCoherentes = livraisonEnCoursCoherente(commandeEnCoursLivraisonPrevueLe, maintenantISO);
+    const detailQualite = detailQualiteDonneesCommande({
+      stockFiable, previsionConfiance, jaugeageFrais, couvertureVentesComplete,
+      pointZeroFiable: pointZeroExiste, livraisonsCoherentes, anomalieMajeure,
+    });
+
     return {
       carburant, etat: etatInfo.etat, scenarioMaintenant, scenarioAttente, attente,
       besoinMinimumSecuriteL, capaciteDisponibleL, joursAvantBesoin,
-      confiance: qualiteDonneesCommande({ stockFiable, previsionConfiance }),
+      confiance: detailQualite.niveau,
+      // Détail des 6 facteurs (point 15) — exposé pour un futur "Voir le
+      // détail de la fiabilité" côté écran, jamais recalculé une 2ᵉ fois
+      // si l'écran en a besoin plus tard (Article 11).
+      detailConfiance: detailQualite,
     };
   }
 
@@ -1001,6 +1129,50 @@
       // réellement appliqué, jamais un texte qui suppose le mauvais mode.
       viserCamionComplet: !!viserCamionComplet,
     };
+  }
+
+  // ============================================================
+  // G bis. JOURNAL HORODATÉ DES RECOMMANDATIONS (27/08/2026, refonte
+  // qualitative demandée par Frédéric, point 20) : "quand une
+  // recommandation change, conserver : ancienne recommandation, nouvelle
+  // recommandation, timestamp, raison principale du recalcul." Fonction
+  // PURE (Article 11, même discipline que resoudreEntreeJournalFraicheur
+  // de nexus-carburant-moteur.js — pas d'accès Supabase ici) : décide
+  // seulement SI la nouvelle valeur mérite une ligne d'historique, et
+  // formule un motif basé sur des signaux déjà connus, jamais une cause
+  // inventée (Article 5). Écrire en base appartient à la couche données
+  // (nexus-carburant-commande-donnees.js, fonction
+  // enregistrerRecommandationCarburant).
+  // ============================================================
+  function resoudreEntreeJournalRecommandation({ existant, recommandationL, etat, ventesPrevuesL, stockAncreCommandeL }) {
+    const maintenant = new Date().toISOString();
+    const snapshot = {
+      date: maintenant, recommandation_l: recommandationL, etat,
+      ventes_prevues_l: (typeof ventesPrevuesL === 'number') ? ventesPrevuesL : null,
+      stock_ancre_l: (typeof stockAncreCommandeL === 'number') ? stockAncreCommandeL : null,
+      motif: null,
+    };
+    if (!existant || !existant.historique || !existant.historique.length) {
+      return { estNouveau: !existant, inchange: false, snapshot };
+    }
+    const dernier = existant.historique[existant.historique.length - 1];
+    const inchange = dernier.recommandation_l === recommandationL && dernier.etat === etat;
+    if (inchange) return { estNouveau: false, inchange: true, snapshot: null };
+
+    // Motif = le signal observable qui explique le mieux l'écart entre les
+    // deux dernières évaluations connues (jamais une cause non vérifiable) :
+    // priorité aux ventes prévues révisées, puis au stock de référence
+    // (jaugeage) mis à jour, sinon un motif générique de recalcul.
+    let motif = 'Recalcul automatique (nouvelle évaluation du jour).';
+    if (dernier.ventes_prevues_l != null && snapshot.ventes_prevues_l != null && dernier.ventes_prevues_l !== snapshot.ventes_prevues_l) {
+      motif = snapshot.ventes_prevues_l < dernier.ventes_prevues_l
+        ? `Ventes prévues révisées à la baisse (${Math.round(dernier.ventes_prevues_l).toLocaleString('fr-FR')} L → ${Math.round(snapshot.ventes_prevues_l).toLocaleString('fr-FR')} L).`
+        : `Ventes prévues révisées à la hausse (${Math.round(dernier.ventes_prevues_l).toLocaleString('fr-FR')} L → ${Math.round(snapshot.ventes_prevues_l).toLocaleString('fr-FR')} L).`;
+    } else if (dernier.stock_ancre_l != null && snapshot.stock_ancre_l != null && dernier.stock_ancre_l !== snapshot.stock_ancre_l) {
+      motif = `Stock de référence mis à jour (${Math.round(dernier.stock_ancre_l).toLocaleString('fr-FR')} L → ${Math.round(snapshot.stock_ancre_l).toLocaleString('fr-FR')} L).`;
+    }
+    snapshot.motif = motif;
+    return { estNouveau: false, inchange: false, snapshot };
   }
 
   // ============================================================
@@ -1186,9 +1358,12 @@
     MAXIMUM_CAMION_LITRES, SEUIL_AUTONOMIE_MAX_JOURS_COMPLETION, optimiserCommandeMultiCarburant,
     ordrePrioriteCarburants,
     // Qualité des données
-    qualiteDonneesCommande,
+    qualiteDonneesCommande, detailQualiteDonneesCommande,
+    SEUIL_JAUGEAGE_FRAIS_JOURS, jaugeageEstFrais, livraisonEnCoursCoherente,
     // Évaluation complète
     evaluerCarburant, determinerEtatGlobal, construireEvaluationGlobale,
+    // Journal horodaté des recommandations
+    resoudreEntreeJournalRecommandation,
     // Notification Cockpit/Brief
     calculerCandidatCommande,
     // Contexte historique de plausibilité
