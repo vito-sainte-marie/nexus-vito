@@ -146,7 +146,13 @@ function construireRenderReceptionModal(modal) {
   // "Non comparable" a été remplacé par "Comparaison partielle" dans la
   // grammaire NEXUS figée (QUALITÉ DE LA DONNÉE).
   assert.ok(out.includes('Comparaison partielle'), 'Badge "Comparaison partielle" (SP95) absent');
-  assert.ok(out.includes('Aucun contrôle posé pour cette date'), 'GNR sans contrôle -> message explicite attendu, jamais un bloc vide silencieux');
+  // 28/08/2026 (retour de Frédéric, v2.261) — renderReleveControleModal
+  // qualifie désormais l'absence de contrôle via M.diagnosticAbsenceControle
+  // (releveDuJourPourModal non fourni ici -> aucun paramètre -> cas
+  // "aucun_jaugeage", texte précis "Aucun jaugeage saisi pour cette date.",
+  // voir test_carburant_diagnostic_absence_controle_v2261.js pour les 2
+  // autres cas (en attente de validation terrain / écriture échouée).
+  assert.ok(out.includes('Aucun jaugeage saisi pour cette date.'), 'GNR sans contrôle ni relevé -> message explicite attendu, jamais un bloc vide silencieux');
   assert.ok(out.includes('point zéro certifié'), 'Référence de départ GO doit citer son type (point zéro certifié)');
   assert.ok(out.includes('-20 L') || out.includes('−20 L'), 'Écart GO (-20 L) doit être affiché');
   // Cause qualité affichée pour SP95 (non_comparable/ventes_indisponibles) via

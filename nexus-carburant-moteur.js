@@ -995,6 +995,53 @@
     return LIBELLE_QUALITE_CONTROLE[qualite] || { texte: 'Non calculé', niveau: 'attente' };
   }
 
+  // Diagnostic d'absence de contrôle posé (28/08/2026, retour de Frédéric —
+  // "Relevé de contrôle" affichait le MÊME texte générique "Aucun contrôle
+  // posé... jaugeage pas encore saisi, ou écriture de contrôle en
+  // attente/échouée" pour 3 situations très différentes, ce qui laissait
+  // croire à une panne alors qu'un pompiste avait simplement déjà saisi le
+  // jaugeage (déjà visible dans "Situation aujourd'hui", calculée en direct
+  // depuis carburant_releves) sans qu'un manager n'ait encore validé sa
+  // saisie — seul l'écran manager NEXUS-Carburants-v1.html écrit la preuve
+  // dans carburant_controles (bouton "Enregistrer"), jamais le formulaire
+  // terrain (`enregistrerJaugeageOuverturePompiste`, Sprint C-terrain).
+  // `releve` = ligne brute carburant_releves du jour (ou null), déjà chargée
+  // par chargerControleJour/chargerReleveDuJour (Article 11, aucune 2ᵉ
+  // requête ici — fonction pure, ne fait que qualifier ce qui est donné).
+  // Distingue 3 cas honnêtement, jamais un texte unique qui confond une
+  // absence normale avec une vraie panne :
+  // - aucun jaugeage saisi du tout pour cette date (niveau neutre,
+  //   'attente') ;
+  // - jaugeage terrain saisi, en attente de validation manager (niveau
+  //   'attention', amber — une action est requise, mais ce n'est pas une
+  //   panne) ;
+  // - écriture de la preuve réellement en échec, `carburant_releves.
+  //   controle_statut='erreur'` (niveau 'alerte', rouge — panne réelle).
+  function diagnosticAbsenceControle(releve) {
+    if (!releve) {
+      return { cas: 'aucun_jaugeage', niveau: 'attente', texte: 'Aucun jaugeage saisi pour cette date.' };
+    }
+    if (releve.controle_statut === 'erreur') {
+      return {
+        cas: 'ecriture_echouee', niveau: 'alerte',
+        texte: "Le jaugeage a été saisi mais l'écriture de la preuve de contrôle a échoué — recommencez l'enregistrement depuis l'écran Carburants (manager).",
+      };
+    }
+    if (releve.origine === 'terrain_pompiste') {
+      return {
+        cas: 'en_attente_validation', niveau: 'attention',
+        texte: "Jaugeage saisi par le terrain — en attente de validation par un manager. Ouvrez l'écran Carburants et enregistrez pour poser la preuve de contrôle.",
+      };
+    }
+    // Cas résiduel honnête (Article 5) : un relevé existe, ni en échec ni
+    // d'origine terrain non validée, mais aucun contrôle n'a pourtant été
+    // posé (ex. controle_statut resté au défaut 'en_attente' sans raison
+    // identifiée) — pas de fausse certitude, on garde l'ancien texte
+    // générique plutôt que de choisir arbitrairement l'un des 2 cas
+    // ci-dessus.
+    return { cas: 'aucun_jaugeage', niveau: 'attente', texte: 'Aucun contrôle posé pour cette date — jaugeage pas encore saisi, ou écriture de contrôle en attente/échouée.' };
+  }
+
   // Sprint C7 "Analyse" (17/08/2026, audit roadmap : "Signature delta
   // livraison / statistiques", critère de sortie "Historique suffisant et
   // fiable"). Agrège la qualité des N derniers contrôles DÉJÀ posés
@@ -1483,7 +1530,7 @@
     qualiteChaineCarburant, libelleCauseQualiteChaine, resoudreAncreCarburant,
     instantLocalVersUTC, instantFenetreReleve, fenetreQuartLarge, classerQuartFaceFenetre, resoudreVentesFenetre,
     quartsAEstimerDansFenetre,
-    libelleQualiteControle,
+    libelleQualiteControle, diagnosticAbsenceControle,
     SEUIL_HISTORIQUE_CHAINE_SUFFISANT, statistiquesFiabiliteChaine, libelleFiabiliteChaine,
     calculerCmpApresLivraison, calculerCmpProgressif, libelleCmp,
     calculerEffetPrixStockHerite, libelleEffetPrixStockHerite, resumerEffetPrixCarburants,

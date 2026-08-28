@@ -99,6 +99,7 @@
      fait du tout. */
   .relever-statut{display:block; margin:-8px 20px 14px; text-align:center; font-family:var(--mono); font-size:10px; color:var(--text-dim);}
   .relever-statut.a-completer{color:var(--amber);}
+  .relever-statut.a-valider{color:var(--amber);}
   .relever-statut.non-saisi{color:var(--text-dim);}
   .relever-statut.saisi{color:var(--green);}
   .relever-statut.non-realise{color:var(--red);}
@@ -1404,6 +1405,19 @@
       el.className = 'relever-statut a-completer';
       return;
     }
+    // 28/08/2026, retour de Frédéric — un jaugeage saisi par le terrain
+    // (`origine === 'terrain_pompiste'`) n'a encore posé aucune preuve de
+    // contrôle (voir M.diagnosticAbsenceControle, même moteur pur) tant
+    // qu'un manager ne l'a pas ouvert et enregistré sur l'écran Relevé —
+    // jusque-là "Saisi à HH:MM" en vert laissait croire, à tort, que le
+    // relevé était déjà complet ET validé (Article 5, ne jamais confondre
+    // les deux). Signal visible ICI, sans avoir à ouvrir "Relevé de
+    // contrôle" pour le découvrir.
+    if (ctx.releveDuJour.origine === 'terrain_pompiste') {
+      el.textContent = heureTxt ? `Saisi à ${heureTxt} — à valider` : 'Saisi — à valider';
+      el.className = 'relever-statut a-valider';
+      return;
+    }
     el.textContent = heureTxt ? `Saisi à ${heureTxt}` : 'Saisi';
     el.className = 'relever-statut saisi';
   }
@@ -2626,18 +2640,27 @@
     const controles = (date === todayISO() && CONTROLE_CTX && CONTROLE_CTX.derniersControles)
       ? CONTROLE_CTX.derniersControles
       : await NexusCarburantDonnees.chargerDerniersControles(nexusClient, SITE_ID, date);
+    // 28/08/2026, retour de Frédéric — pour qualifier honnêtement une
+    // absence de contrôle (M.diagnosticAbsenceControle ci-dessous), le
+    // modal a besoin de la ligne brute carburant_releves du jour (origine/
+    // controle_statut), déjà chargée dans CONTROLE_CTX.releveDuJour pour
+    // "aujourd'hui" (Article 11, aucune 2ᵉ requête) — pour une date passée,
+    // chargée à la demande via la même fonction que le pont Inventaire.
+    const releveDuJourPourModal = (date === todayISO() && CONTROLE_CTX)
+      ? CONTROLE_CTX.releveDuJour
+      : await NexusCarburantDonnees.chargerReleveDuJour(nexusClient, SITE_ID, date);
     const versionsParCarburant = {};
     await Promise.all(cles.map(async cle => {
       versionsParCarburant[cle] = await NexusCarburantDonnees.chargerVersionsControleCarburant(nexusClient, SITE_ID, cle, date);
     }));
-    renderReleveControleModal(date, controles, versionsParCarburant, cles, focusCarburant);
+    renderReleveControleModal(date, controles, versionsParCarburant, cles, focusCarburant, releveDuJourPourModal);
   }
 
   function fermerControleModal() {
     document.getElementById('controleOverlay').style.display = 'none';
   }
 
-  function renderReleveControleModal(date, controles, versionsParCarburant, cles, focusCarburant) {
+  function renderReleveControleModal(date, controles, versionsParCarburant, cles, focusCarburant, releveDuJourPourModal) {
     const M = NexusCarburantMoteur;
     const modal = document.getElementById('controleModal');
     const dateTxt = formaterDateFrCourt(date);
@@ -2649,10 +2672,17 @@
       const causeTxt = ctrl ? M.libelleCauseQualiteChaine(ctrl.cause) : null;
       const versions = versionsParCarburant[cle] || [];
       if (!ctrl) {
+        // 28/08/2026, retour de Frédéric — jamais le même texte générique
+        // pour "jaugeage jamais saisi", "saisi par le terrain, en attente de
+        // validation manager" et "écriture de la preuve en échec" : trois
+        // réalités différentes, désormais distinguées par
+        // M.diagnosticAbsenceControle (Article 11, moteur pur déjà écrit).
+        const diag = M.diagnosticAbsenceControle(releveDuJourPourModal);
+        const couleurDiag = NIVEAU_COULEUR[diag.niveau] || NIVEAU_COULEUR.attente;
         return `
           <div class="controle-carburant-bloc">
-            <div class="controle-carburant-titre"><span>${NOM_CARBURANT[cle]}</span></div>
-            <div class="controle-vide" style="margin:0;">Aucun contrôle posé pour cette date — jaugeage pas encore saisi, ou écriture de contrôle en attente/échouée.</div>
+            <div class="controle-carburant-titre"><span>${NOM_CARBURANT[cle]}</span>${diag.cas !== 'aucun_jaugeage' ? `<span class="controle-badge" style="background:${couleurDiag.f}; color:${couleurDiag.c};">${diag.cas === 'en_attente_validation' ? 'À valider' : 'Échec'}</span>` : ''}</div>
+            <div class="controle-vide" style="margin:0;">${diag.texte}</div>
           </div>`;
       }
       const refTxt = ctrl.reference_date
