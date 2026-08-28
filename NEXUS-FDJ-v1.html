@@ -313,22 +313,43 @@
   //   l'ouverture) — seuls appro et stock final restent saisissables.
   // Entre les deux, "Déclarer un carnet ouvert" peut être utilisé à tout
   // moment du quart, sans dépendre d'aucune des deux phases.
-  // 16/08/2026, demande de Frédéric — règle de permission sur l'écart de
+  // 28/08/2026, demande de Frédéric — RENVERSE la décision du 16/08/2026
+  // ci-dessous (barrée), qui rendait l'écart visible en permanence.
+  // Constat de Frédéric : "si l'employé voit son écart avant d'avoir figé
+  // sa déclaration, il peut rechercher la valeur attendue, modifier ses
+  // quantités jusqu'à obtenir un résultat satisfaisant, puis valider —
+  // NEXUS enregistrerait alors une caisse apparemment parfaite sans
+  // connaître la première déclaration." Nouvelle règle : l'employé saisit
+  // son réel SANS jamais voir la valeur attendue ni l'écart (seules des
+  // erreurs de saisie pures — champ manquant, quantité impossible — sont
+  // signalées). Il clôture ("CLÔTURER MA CAISSE"), ce qui fige un "Point de
+  // clôture" immuable (employé, caisse, date/heure, stock déclaré, montants
+  // déclarés, résultat calculé) — voir finaliserQuart(), qui pose la
+  // version 1, insert-only, dans fdj_releves_cloture. SEULEMENT APRÈS cette
+  // clôture, NEXUS révèle le résultat (voir renderConfirmationCloture,
+  // "Point de clôture"). Ancien historique conservé ci-dessous pour
+  // traçabilité de la décision (Article 5 — jamais un renversement
+  // silencieux) :
+  //
+  // ~~16/08/2026, demande de Frédéric — règle de permission sur l'écart de
   // caisse FDJ, remplace la décision du 09/08 ci-dessus (qui masquait
   // l'écart à l'employé) : "Voir : oui. Corriger avant validation : oui,
   // avec traçabilité. Modifier après validation : non. Régulariser après
   // validation : manager uniquement, sans effacer le constat d'origine."
   // Concrètement : l'employé voit désormais toujours son écart (en direct
   // pendant la saisie, puis sur l'accueil, avant ET après la validation
-  // manager). Tant que SON quart n'est pas encore transmis ("validé"), il
-  // corrige librement — c'est déjà le cas nativement puisque rien n'est en
-  // base avant la transmission. Une fois transmis, il ne modifie plus rien
-  // directement : il peut seulement "demander une correction" (voir
-  // demarrerDemandeCorrection), une alerte tracée qui prévient le manager
-  // — seul habilité à régulariser, sans jamais effacer ce constat initial
-  // (voir caisse_reelle_origine/ecart_origine, posées une seule fois ici et
-  // plus jamais réécrites, y compris par une régularisation manager).
-  // Voir NexusFdjMoteur.permissionsEcartCaisseEmploye (source unique).
+  // manager).~~
+  //
+  // Ce qui reste inchangé des deux décisions : tant que SON quart n'est pas
+  // encore transmis ("clôturé"), il corrige librement ses champs (rien
+  // n'est en base avant la transmission). Une fois transmis, il ne modifie
+  // plus rien directement : il peut seulement "demander une correction"
+  // (voir demarrerDemandeCorrection), une alerte tracée qui prévient le
+  // manager — seul habilité à régulariser, sans jamais effacer ce constat
+  // initial (voir caisse_reelle_origine/ecart_origine, posées une seule
+  // fois ici et plus jamais réécrites, y compris par une régularisation
+  // manager). Voir NexusFdjMoteur.permissionsEcartCaisseEmploye (source
+  // unique) — `voir` reflète désormais "clôture effectuée", pas "toujours".
   let phase = 'accueil';
   let demandeCorrectionMotifChoisi = null; // voir demarrerDemandeCorrection
 
@@ -402,6 +423,66 @@
     const base = `${sens.charAt(0).toUpperCase()}${sens.slice(1)} de ${fmtEuro(Math.abs(ecart))} par rapport à la caisse attendue.`;
     if (!statut || statut === 'provisoire') return `${base} En attente de vérification par le manager.`;
     return base;
+  }
+
+  // ------------------------------------------------------------
+  // "POINT DE CLÔTURE" — 28/08/2026, demande de Frédéric : le résultat
+  // (attendu, déclaré, écart) n'est révélé qu'APRÈS la clôture, jamais
+  // avant (voir commentaire d'en-tête du fichier). Un seul rendu pour les
+  // deux endroits qui le montrent (Article 11) : juste après la clôture
+  // (renderConfirmationCloture, données encore en mémoire) et en revenant
+  // plus tard sur l'accueil (renderAccueil, données rechargées depuis
+  // fdj_cash_controls) — chacun construit le même objet normalisé
+  // { heureLabel, attendue, reelle, ecart, ventesGrattage, lotsPayes,
+  // caisseTirages, regularisations } avant d'appeler pointDeClotureHTML.
+  // Un seul exemplaire du panneau "Comprendre mon écart" à la fois dans le
+  // DOM (les deux écrans ne coexistent jamais) — id statique, pas de clé.
+  // ------------------------------------------------------------
+  function pointDeClotureHTML(d, opts) {
+    const o = opts || {};
+    const ecart = d.ecart;
+    const conforme = ecart === 0;
+    const classe = ecart === null || ecart === undefined ? '' : (conforme ? 'green' : (Math.abs(ecart) <= 1 ? 'amber' : 'red'));
+    const ecartTxt = ecart === null || ecart === undefined ? '—' : `${ecart > 0 ? '+' : ''}${fmtEuro(ecart)}`;
+    const badge = ecart === null || ecart === undefined ? '' : (conforme ? '✅ Conforme' : '⚠️ Écart détecté');
+    return `
+      <div class="resume-card">
+        <div class="stat-row"><div class="stat-label">Caisse clôturée à</div><div class="stat-value">${d.heureLabel || '—'}</div></div>
+        ${badge ? `<div class="stat-row"><div class="stat-label">Résultat FDJ</div><div class="stat-value ${classe}">${badge}</div></div>` : ''}
+        <div class="stat-row"><div class="stat-label">Attendu</div><div class="stat-value cyan">${fmtEuro(d.attendue)}</div></div>
+        <div class="stat-row"><div class="stat-label">Déclaré</div><div class="stat-value">${fmtEuro(d.reelle)}</div></div>
+        <div class="stat-row" style="margin-bottom:0;"><div class="stat-label">Écart</div><div class="stat-value ${classe}">${ecartTxt}</div></div>
+      </div>
+      <div id="detailEcartCaisse" style="display:none;">${detailEcartCaisseHTML(d)}</div>
+      <button type="button" class="btn-ghost" id="btnComprendreEcart">Comprendre mon écart</button>
+      ${!conforme && !o.masquerCorrection ? `<button type="button" class="btn-ghost" id="btnDemanderCorrectionPDC">Demander une correction</button>` : ''}
+    `;
+  }
+  function detailEcartCaisseHTML(d) {
+    return `
+      <div class="resume-card">
+        <div class="stat-row"><div class="stat-label">Ventes grattage (calculées)</div><div class="stat-value">${fmtEuro(d.ventesGrattage)}</div></div>
+        <div class="stat-row"><div class="stat-label">Lots payés</div><div class="stat-value">${fmtEuro(d.lotsPayes)}</div></div>
+        <div class="stat-row"><div class="stat-label">Caisse tirages</div><div class="stat-value">${fmtEuro(d.caisseTirages)}</div></div>
+        <div class="stat-row" style="margin-bottom:0;"><div class="stat-label">Régularisations</div><div class="stat-value">${fmtEuro(d.regularisations)}</div></div>
+      </div>
+    `;
+  }
+  // Câblage commun (bouton "Comprendre mon écart" + éventuel "Demander une
+  // correction") — appelé après insertion du HTML par les deux écrans.
+  function wirePointDeCloture() {
+    const btnComprendre = document.getElementById('btnComprendreEcart');
+    if (btnComprendre) {
+      btnComprendre.addEventListener('click', () => {
+        const detail = document.getElementById('detailEcartCaisse');
+        if (!detail) return;
+        const ouvert = detail.style.display !== 'none';
+        detail.style.display = ouvert ? 'none' : 'block';
+        btnComprendre.textContent = ouvert ? 'Comprendre mon écart' : 'Masquer le détail';
+      });
+    }
+    const btnCorrection = document.getElementById('btnDemanderCorrectionPDC');
+    if (btnCorrection) btnCorrection.addEventListener('click', demarrerDemandeCorrection);
   }
 
   // Paramétrage FDJ du site (10/08/2026, audit "Paramétrage autonome &
@@ -822,12 +903,21 @@
     // — voir renderCarteEcart, seul générateur de cette carte (accueil,
     // résumé avant transmission et aperçu en direct la consomment tous les
     // trois, Article 11).
+    // 28/08/2026, demande de Frédéric : même "Point de clôture" qu'à la
+    // sortie de renderConfirmationCloture (Article 11) — un employé qui
+    // revient plus tard sur l'accueil doit voir exactement la même chose,
+    // reconstruite ici depuis fdj_cash_controls (heure = valide_le).
     let blocCaisse = '';
     let demandeCorrectionEnCours = null;
     if (clotureFaite) {
       const cash = await chargerCashControlDuQuart(shiftRow.id);
       if (cash) {
-        blocCaisse = renderCarteEcart(cash.ecart, cash.statut, { label: `Caisse FDJ · Quart ${shiftRow.quart}` });
+        const heureLabel = cash.valide_le ? new Date(cash.valide_le).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '—';
+        blocCaisse = pointDeClotureHTML({
+          heureLabel, attendue: cash.caisse_attendue, reelle: cash.caisse_reelle, ecart: cash.ecart,
+          ventesGrattage: cash.ventes_grattage_valeur, lotsPayes: cash.lots_payes_grattage,
+          caisseTirages: cash.caisse_tirages, regularisations: cash.regularisations,
+        }, { masquerCorrection: true }); // le bouton de correction existe déjà plus bas, avec son état "déjà envoyée"
         demandeCorrectionEnCours = await chargerDemandeCorrectionEnCours(shiftRow.id);
       }
     }
@@ -872,6 +962,7 @@
     if (!ouvertureFaite) document.getElementById('carteOuverture').addEventListener('click', demarrerOuverture);
     document.getElementById('carteCarnet').addEventListener('click', demarrerCarnet);
     if (ouvertureFaite && !clotureFaite) document.getElementById('carteCloture').addEventListener('click', demarrerCloture);
+    if (clotureFaite) wirePointDeCloture(); // bouton "Comprendre mon écart" du bloc pointDeClotureHTML ci-dessus
     const btnDemanderCorrection = document.getElementById('btnDemanderCorrection');
     if (btnDemanderCorrection) btnDemanderCorrection.addEventListener('click', demarrerDemandeCorrection);
   }
@@ -1801,11 +1892,13 @@
 
   // ------------------------------------------------------------
   // PHASE 3 — CAISSE (attendue calculée en interne, réelle comptée par
-  // l'employé). 16/08/2026, demande de Frédéric ("Voir : oui") : l'écart
-  // s'affiche désormais en direct dès que la caisse réelle est saisie —
-  // remplace la décision du 09/08 qui le masquait jusqu'à la validation
-  // manager. NEXUS calcule et enregistre l'écart de la même façon dans les
-  // deux cas, seul l'affichage change.
+  // l'employé). 28/08/2026, demande de Frédéric ("l'employé ne doit jamais
+  // pouvoir rechercher la valeur attendue") : ni la caisse attendue ni
+  // l'écart ne sont affichés ici — seulement une confirmation que la
+  // saisie est complète. NEXUS calcule et enregistre l'écart exactement de
+  // la même façon en coulisses ; seul l'affichage disparaît avant clôture.
+  // Remplace la décision du 16/08/2026 qui l'affichait en direct (voir
+  // commentaire d'en-tête du fichier).
   // ------------------------------------------------------------
   function renderCaisse() {
     document.getElementById('titre').textContent = 'Caisse FDJ';
@@ -1818,7 +1911,7 @@
       <div class="champ-label">Caisse réelle comptée</div>
       <input type="number" inputmode="decimal" class="champ-input" id="champCaisseReelle" value="${caisseReelle ?? ''}" placeholder="0,00">
 
-      <div id="carteEcartCaisse">${renderCarteEcart(caisseReelle === null ? null : ecartCaisse(), null, { label: 'Aperçu — Caisse FDJ' })}</div>
+      <div class="champ-note">Le résultat (attendu, déclaré, écart) vous sera présenté juste après la clôture de votre caisse — pas avant.</div>
 
       <button class="btn-primary" id="btnSuiteCaisse" ${caisseReelle === null ? 'disabled' : ''}>Continuer — Résumé</button>
       <button class="btn-ghost" id="btnRetourTirages">Retour</button>
@@ -1826,29 +1919,30 @@
     document.getElementById('champRegul').addEventListener('input', e => {
       regularisations = e.target.value === '' ? 0 : Number(e.target.value);
       sauvegarderDraft();
-      document.getElementById('carteEcartCaisse').innerHTML = renderCarteEcart(caisseReelle === null ? null : ecartCaisse(), null, { label: 'Aperçu — Caisse FDJ' });
     });
     document.getElementById('champCaisseReelle').addEventListener('input', e => {
       caisseReelle = e.target.value === '' ? null : Number(e.target.value);
       sauvegarderDraft();
       document.getElementById('btnSuiteCaisse').disabled = (caisseReelle === null);
-      document.getElementById('carteEcartCaisse').innerHTML = renderCarteEcart(caisseReelle === null ? null : ecartCaisse(), null, { label: 'Aperçu — Caisse FDJ' });
     });
     document.getElementById('btnSuiteCaisse').addEventListener('click', () => { phase = 'resume'; renderResume(); });
     document.getElementById('btnRetourTirages').addEventListener('click', () => { phase = 'tirages'; renderTirages(); });
   }
 
   // ------------------------------------------------------------
-  // PHASE 4 — RÉSUMÉ + VALIDATION. 16/08/2026 : même carte "écart de
-  // caisse" (voir renderCarteEcart) que l'accueil et l'aperçu en direct —
-  // dernière chance de vérifier/corriger avant transmission, puisqu'après
-  // ce bouton l'employé ne pourra plus modifier directement (voir
-  // demarrerDemandeCorrection).
+  // PHASE 4 — RÉSUMÉ + CLÔTURE. 28/08/2026, demande de Frédéric : ni la
+  // carte "écart de caisse" ni "Caisse attendue" ne sont montrées ici —
+  // les deux permettraient à l'employé de déduire l'écart (Attendu −
+  // Déclaré) avant même de clôturer, exactement ce que la nouvelle règle
+  // interdit. Seuls les éléments que l'employé a lui-même saisis sont
+  // récapitulés — dernière chance de les vérifier/corriger avant clôture,
+  // puisqu'après ce bouton l'employé ne pourra plus les modifier
+  // directement (voir demarrerDemandeCorrection). Remplace la décision du
+  // 16/08/2026 (voir commentaire d'en-tête du fichier).
   // ------------------------------------------------------------
   function renderResume() {
     document.getElementById('titre').textContent = 'Résumé de votre saisie';
     document.getElementById('sousTitre').textContent = '';
-    const ecart = ecartCaisse();
     document.getElementById('content').innerHTML = `
       ${renderStepper('Résumé')}
       <div class="resume-card">
@@ -1856,12 +1950,10 @@
         <div class="stat-row"><div class="stat-label">Lots payés</div><div class="stat-value">${fmtEuro(reportJournalier.lots_payes_grattage)}</div></div>
         <div class="stat-row"><div class="stat-label">Caisse tirages</div><div class="stat-value">${fmtEuro(reportTempsReel.caisse_tirages)}</div></div>
         <div class="stat-row"><div class="stat-label">Régularisations</div><div class="stat-value">${fmtEuro(regularisations)}</div></div>
-        <div class="stat-row"><div class="stat-label">Caisse réelle comptée</div><div class="stat-value">${fmtEuro(caisseReelle)}</div></div>
-        <div class="stat-row" style="margin-bottom:0;"><div class="stat-label">Caisse attendue</div><div class="stat-value cyan">${fmtEuro(caisseAttendue())}</div></div>
+        <div class="stat-row" style="margin-bottom:0;"><div class="stat-label">Caisse réelle comptée</div><div class="stat-value">${fmtEuro(caisseReelle)}</div></div>
       </div>
-      ${renderCarteEcart(ecart, null, { label: 'Aperçu — Caisse FDJ' })}
-      <div class="champ-note">En validant, vous confirmez que les informations saisies correspondent à votre contrôle de fin de quart. Après validation, elles ne pourront plus être modifiées par vous — seulement demander une correction au manager.</div>
-      <button class="btn-primary" id="btnValider">Valider définitivement mon quart</button>
+      <div class="champ-note">En clôturant, vous confirmez que ces informations correspondent à votre contrôle de fin de quart. Cette déclaration sera figée — vous ne pourrez plus la modifier vous-même, seulement demander une correction au manager. Le résultat (attendu, déclaré, écart) vous sera présenté juste après.</div>
+      <button class="btn-primary" id="btnValider">CLÔTURER MA CAISSE</button>
       <button class="btn-ghost" id="btnRetourCaisse">Retour</button>
     `;
     document.getElementById('btnValider').addEventListener('click', orchestrerSortieCaisse);
@@ -1871,34 +1963,27 @@
   // Modale de sortie de caisse (16/08/2026, demande de Frédéric — remplace
   // le confirm() natif du navigateur, "beaucoup plus pédagogique et
   // beaucoup moins brutal qu'une boîte système"). Étendue le 20/08/2026
-  // (cahier "FDJ - Audit de consolidation", §2, Nouveauté P0) : avant cette
-  // extension, la seule issue possible était "Valider mon quart" ou
-  // "Retourner au contrôle" — aucune façon d'enregistrer une saisie déjà
-  // faite sans la transmettre définitivement. Une caisse commencée mais pas
-  // finie n'avait donc aucune existence côté serveur (seulement un
-  // brouillon local, propre à cet appareil/navigateur — voir plus haut) :
-  // rien à retrouver sur un autre poste, rien de visible pour le manager
-  // dans l'intervalle. Retourne désormais une chaîne : 'valider' | 'brouillon'
-  // | null (fermeture/annulation) — même bottom-sheet, une option de plus.
-  const messageConfirmationCloture = "En validant, vous confirmez les informations saisies pour ce quart. Vous pourrez consulter ce relevé, mais vous ne pourrez plus le modifier.";
-  function demanderConfirmationCloture(ecart) {
+  // (cahier "FDJ - Audit de consolidation", §2, Nouveauté P0) : brouillon vs
+  // clôture définitive. 28/08/2026, demande de Frédéric : ne révèle plus
+  // l'écart ("Écart constaté" et l'avertissement ambre retirés) — la
+  // clôture doit rester une déclaration à l'aveugle, jamais une occasion de
+  // rechercher/ajuster vers le bon résultat avant de valider. Retourne une
+  // chaîne : 'valider' | 'brouillon' | null (fermeture/annulation).
+  const messageConfirmationCloture = "Cette action fige définitivement votre déclaration (stock, montants, caisse réelle) — vous ne pourrez plus la modifier vous-même. Le résultat (attendu, déclaré, écart) vous sera présenté juste après.";
+  function demanderConfirmationCloture() {
     return new Promise(resolve => {
-      const classeEcart = ecart === null || ecart === undefined || ecart === 0 ? 'green' : 'amber';
-      const ecartTxt = ecart === null || ecart === undefined ? '—' : `${ecart > 0 ? '+' : ''}${fmtEuro(ecart)}`;
       const overlay = document.createElement('div');
       overlay.className = 'cloture-overlay';
       overlay.innerHTML = `
         <div class="cloture-modal">
           <div class="cloture-titre">Vous avez terminé la saisie de cette caisse. Que souhaitez-vous faire ?</div>
-          <div class="cloture-ecart-ligne"><span>Écart constaté</span><span class="cloture-ecart-valeur ${classeEcart}">${ecartTxt}</span></div>
-          ${ecart !== null && ecart !== undefined && ecart !== 0 ? `<div class="cloture-avertissement">🟠 Un écart de ${ecartTxt} sera enregistré dans votre relevé.</div>` : ''}
           <div class="cloture-texte">${messageConfirmationCloture}</div>
           <div class="cloture-actions">
-            <button type="button" class="btn-primary" id="btnClotureValider">Valider cette caisse</button>
+            <button type="button" class="btn-primary" id="btnClotureValider">Clôturer ma caisse</button>
             <button type="button" class="btn-ghost" id="btnClotureBrouillon">Laisser en brouillon</button>
             <button type="button" class="btn-ghost" id="btnClotureRetour">Retourner au contrôle</button>
           </div>
-          <div class="champ-note" style="margin-top:8px;">Un brouillon reste enregistré et modifiable — il n'entre ni dans les rapports ni dans les statistiques tant qu'il n'est pas validé. Vous pourrez le reprendre plus tard, depuis n'importe quel poste.</div>
+          <div class="champ-note" style="margin-top:8px;">Un brouillon reste enregistré et modifiable — il n'entre ni dans les rapports ni dans les statistiques tant qu'il n'est pas clôturé. Vous pourrez le reprendre plus tard, depuis n'importe quel poste.</div>
         </div>
       `;
       document.body.appendChild(overlay);
@@ -1919,7 +2004,7 @@
   // validerQuart() (FDJ-04 : un double clic ne doit produire qu'une seule
   // soumission, jamais deux écritures concurrentes).
   async function orchestrerSortieCaisse() {
-    const choix = await demanderConfirmationCloture(ecartCaisse());
+    const choix = await demanderConfirmationCloture();
     if (choix !== 'valider' && choix !== 'brouillon') return; // fermeture/annulation : reste sur l'écran, rien n'est écrit
 
     const btn = document.getElementById('btnValider');
@@ -1927,7 +2012,7 @@
     btn.innerHTML = 'Enregistrement<span class="btn-loading-dots"><i></i><i></i><i></i></span>';
 
     const ecrit = await enregistrerCaisseQuart();
-    if (!ecrit) { btn.disabled = false; btn.textContent = 'Valider définitivement mon quart'; return; } // message d'erreur déjà affiché par enregistrerCaisseQuart()
+    if (!ecrit) { btn.disabled = false; btn.textContent = 'CLÔTURER MA CAISSE'; return; } // message d'erreur déjà affiché par enregistrerCaisseQuart()
 
     if (choix === 'valider') await finaliserQuart();
     else await confirmerBrouillonQuart();
@@ -2119,15 +2204,28 @@
     renderConfirmationCloture();
   }
 
+  // 28/08/2026, demande de Frédéric : c'est ICI, juste après la clôture,
+  // que le "Point de clôture" est révélé pour la première fois — jamais
+  // avant (voir pointDeClotureHTML). Les valeurs viennent encore de la
+  // saisie en mémoire (même session), donc pas de rechargement réseau
+  // nécessaire pour les afficher.
   function renderConfirmationCloture() {
-    document.getElementById('titre').textContent = 'Quart FDJ transmis';
+    const donnees = {
+      heureLabel: heureLocale(),
+      attendue: caisseAttendue(), reelle: caisseReelle, ecart: ecartCaisse(),
+      ventesGrattage: ventesGrattageTotal(), lotsPayes: reportJournalier.lots_payes_grattage,
+      caisseTirages: reportTempsReel.caisse_tirages, regularisations,
+    };
+    document.getElementById('titre').textContent = 'Caisse clôturée';
     document.getElementById('sousTitre').textContent = '';
     document.getElementById('content').innerHTML = `
       <div class="checkmark">✓</div>
       <div class="final-greet">Merci ${employeeCourant.nom} !</div>
-      <div class="final-sub">⏳ En attente de validation par le manager.</div>
+      ${pointDeClotureHTML(donnees)}
+      <div class="final-sub">⏳ En attente de contrôle par le manager.</div>
       <button class="btn-primary" id="btnRetourAccueilFinal">Retour à l'accueil</button>
     `;
+    wirePointDeCloture();
     document.getElementById('btnRetourAccueilFinal').addEventListener('click', () => { phase = 'accueil'; renderAccueil(); });
   }
 

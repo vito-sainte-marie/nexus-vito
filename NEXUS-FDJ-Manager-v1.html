@@ -4622,9 +4622,21 @@
   // FORMULAIRE D'ÉDITION — tout sur un seul écran (pouvoir total du
   // manager, pas d'assistant pas-à-pas comme côté employé).
   // ------------------------------------------------------------
+  // 28/08/2026, demande de Frédéric : vocabulaire à trois niveaux —
+  // EMPLOYÉ "Clôturer ma caisse" (déclaration initiale, irréversible),
+  // MANAGER "Contrôler la clôture" (consulte écart/corrections/
+  // justificatifs, analyse les anomalies), NEXUS "Certifier le contrôle"
+  // (rapproche données employé + rapports FDJ + stocks, établit le résultat
+  // définitif — l'acte que déclenche ce même bouton d'enregistrement).
+  // "Personne ne valide sa propre caisse." Ne s'applique qu'à un quart déjà
+  // clôturé par l'employé (!edition.estNouveau) — la création directe d'un
+  // quart par le manager (pouvoir total, aucune clôture employé à
+  // contrôler) reste "Nouveau quart FDJ" / "Enregistrer", un cas distinct.
   function renderEdition() {
-    document.getElementById('titre').textContent = edition.estNouveau ? 'Nouveau quart FDJ' : 'Modifier ce quart FDJ';
-    document.getElementById('sousTitre').textContent = 'Tout est modifiable — grattage, tirages, caisse, employé assigné, statut.';
+    document.getElementById('titre').textContent = edition.estNouveau ? 'Nouveau quart FDJ' : 'Contrôler la clôture';
+    document.getElementById('sousTitre').textContent = edition.estNouveau
+      ? 'Tout est modifiable — grattage, tirages, caisse, employé assigné, statut.'
+      : 'Consultez l\'écart, les corrections et les justificatifs, puis certifiez le résultat du contrôle.';
     const attendue = caisseAttendueEdition();
     const ecart = ecartCaisseEdition();
     const classe = ecart === null ? '' : (ecart === 0 ? 'green' : (Math.abs(ecart) <= 1 ? 'amber' : 'red'));
@@ -4715,7 +4727,7 @@
 
       ${renderHistoriqueAuditFdj()}
 
-      <button class="btn-primary" id="btnEnregistrer">${edition.estNouveau ? 'Enregistrer' : 'Valider le contrôle du quart'}</button>
+      <button class="btn-primary" id="btnEnregistrer">${edition.estNouveau ? 'Enregistrer' : 'Certifier le contrôle'}</button>
       <button class="btn-ghost" id="btnAnnuler">Annuler</button>
     `;
 
@@ -4979,6 +4991,11 @@
     const btn = document.getElementById('btnEnregistrer');
     btn.disabled = true;
     btn.innerHTML = 'Enregistrement<span class="btn-loading-dots"><i></i><i></i><i></i></span>';
+    // 28/08/2026 : libellé de repli après erreur — dépend du même
+    // edition.estNouveau que le rendu initial du bouton (Article 11, une
+    // seule règle de libellé, jamais un "Enregistrer" générique qui
+    // contredirait le titre "Contrôler la clôture").
+    const libelleBouton = edition.estNouveau ? 'Enregistrer' : 'Certifier le contrôle';
 
     // 1) Résoudre le quart (existant ou nouveau). Date et quart sont inclus
     // dans le même UPDATE ... WHERE id= (09/08/2026, demande de Frédéric) :
@@ -4994,7 +5011,7 @@
         .eq('id', edition.shiftId).select().single();
       if (error) {
         console.error('Mise à jour quart FDJ:', error);
-        btn.disabled = false; btn.textContent = 'Enregistrer';
+        btn.disabled = false; btn.textContent = libelleBouton;
         if (error.code === '23505') alert(`Un quart FDJ existe déjà pour le ${new Date(edition.date + 'T00:00:00').toLocaleDateString('fr-FR')} — Quart ${edition.quart}. Modifiez ce quart-là directement plutôt que de déplacer celui-ci, ou choisissez une autre date/quart.`);
         else alert('Erreur de mise à jour du quart. Réessayez.');
         return;
@@ -5006,13 +5023,13 @@
         const { data, error } = await nexusClient.from('fdj_shifts')
           .update({ employee_id: edition.employeeId, statut: edition.statutShift })
           .eq('id', existant.id).select().single();
-        if (error) { console.error('Mise à jour quart FDJ existant:', error); btn.disabled = false; btn.textContent = 'Enregistrer'; return; }
+        if (error) { console.error('Mise à jour quart FDJ existant:', error); btn.disabled = false; btn.textContent = libelleBouton; return; }
         shift = data;
       } else {
         const { data, error } = await nexusClient.from('fdj_shifts')
           .insert({ site: siteId, date: edition.date, quart: edition.quart, employee_id: edition.employeeId, statut: edition.statutShift, ouvert_le: new Date().toISOString() })
           .select().single();
-        if (error) { console.error('Création quart FDJ:', error); btn.disabled = false; btn.textContent = 'Enregistrer'; alert('Erreur de création du quart. Réessayez.'); return; }
+        if (error) { console.error('Création quart FDJ:', error); btn.disabled = false; btn.textContent = libelleBouton; alert('Erreur de création du quart. Réessayez.'); return; }
         shift = data;
       }
     }
@@ -5033,7 +5050,7 @@
     });
     if (lignes.length) {
       const { error } = await nexusClient.from('fdj_shift_counts').upsert(lignes, { onConflict: 'shift_id,game_id' });
-      if (error) { console.error('Enregistrement comptages FDJ (manager):', error); btn.disabled = false; btn.textContent = 'Enregistrer'; alert('Erreur sur le grattage. Réessayez.'); return; }
+      if (error) { console.error('Enregistrement comptages FDJ (manager):', error); btn.disabled = false; btn.textContent = libelleBouton; alert('Erreur sur le grattage. Réessayez.'); return; }
     }
 
     // 2bis) SYNCHRONISATION CONTRÔLÉE APPRO <-> ACTIVATION (27/08/2026,
@@ -5110,7 +5127,7 @@
       { site: siteId, shift_id: shift.id, type_rapport: 'journalier', lots_payes_grattage: edition.lotsPayes, saisi_par: managerCourant.id },
       { site: siteId, shift_id: shift.id, type_rapport: 'temps_reel', caisse_tirages: edition.caisseTirages, saisi_par: managerCourant.id },
     ], { onConflict: 'shift_id,type_rapport' });
-    if (eRep) { console.error('Enregistrement rapports FDJ (manager):', eRep); btn.disabled = false; btn.textContent = 'Enregistrer'; alert('Erreur sur les tirages. Réessayez.'); return; }
+    if (eRep) { console.error('Enregistrement rapports FDJ (manager):', eRep); btn.disabled = false; btn.textContent = libelleBouton; alert('Erreur sur les tirages. Réessayez.'); return; }
 
     // 4) Rapprochement caisse — le manager choisit lui-même le statut
     // (pouvoir total), valide_par/valide_le posés dès qu'il enregistre ici.
@@ -5124,7 +5141,7 @@
       resultat_controle: edition.resultatControle || null, statut: edition.statutCaisse,
       valide_par: managerCourant.id, valide_le: new Date().toISOString(), updated_at: new Date().toISOString(),
     }, { onConflict: 'shift_id' });
-    if (eCash) { console.error('Enregistrement caisse FDJ (manager):', eCash); btn.disabled = false; btn.textContent = 'Enregistrer'; alert('Erreur sur la caisse. Réessayez.'); return; }
+    if (eCash) { console.error('Enregistrement caisse FDJ (manager):', eCash); btn.disabled = false; btn.textContent = libelleBouton; alert('Erreur sur la caisse. Réessayez.'); return; }
 
     // 5) Trace d'audit — avant/après, jamais un écrasement silencieux même
     // en pouvoir total. 09/08/2026, demande de Frédéric : "pouvoir corriger

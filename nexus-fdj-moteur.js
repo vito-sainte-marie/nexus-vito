@@ -59,21 +59,28 @@
   }
 
   // ------------------------------------------------------------
-  // RÈGLE DE PERMISSION — ÉCART DE CAISSE FDJ (16/08/2026, demande de
-  // Frédéric) : "Voir : oui. Corriger avant validation : oui, avec
-  // traçabilité. Modifier après validation : non. Régulariser après
-  // validation : manager uniquement, sans effacer le constat d'origine."
-  // "Validation" = le quart lui-même validé (transmis) par l'employé
-  // (fdj_shifts.statut === 'valide'), pas la validation manager de la
-  // caisse — une fois transmis, l'employé ne touche plus rien directement,
-  // il ne peut plus que demander une correction (voir
-  // NEXUS-FDJ-v1.html::soumettreDemandeCorrection, alerte tracée type
-  // 'correction_caisse_demandee'). Source unique consommée par les deux
-  // écrans (Article 11) plutôt que deux implémentations du même bout de
-  // phrase.
+  // RÈGLE DE PERMISSION — ÉCART DE CAISSE FDJ.
+  //
+  // 28/08/2026, demande de Frédéric — RENVERSE explicitement la règle du
+  // 16/08/2026 ("Voir : oui" en permanence). Constat terrain de Frédéric :
+  // si l'employé voit l'écart AVANT d'avoir figé sa déclaration, il peut
+  // chercher la valeur attendue, retoucher ses quantités jusqu'à obtenir un
+  // résultat satisfaisant, puis clôturer — NEXUS enregistrerait alors une
+  // caisse apparemment parfaite sans connaître la première déclaration
+  // réelle. Nouvelle règle : "Voir : seulement après clôture. Avant
+  // clôture : uniquement des erreurs de saisie pures (champ manquant,
+  // quantité impossible), jamais la valeur attendue ni l'écart."
+  // "Clôture" = le quart lui-même clôturé (transmis) par l'employé
+  // (fdj_shifts.statut === 'valide') — l'action "CLÔTURER MA CAISSE", pas
+  // la validation manager de la caisse. Une fois clôturé, l'employé ne
+  // touche plus rien directement, il ne peut plus que demander une
+  // correction (voir NEXUS-FDJ-v1.html::soumettreDemandeCorrection, alerte
+  // tracée type 'correction_caisse_demandee'). Source unique consommée par
+  // les deux écrans (Article 11) plutôt que deux implémentations du même
+  // bout de phrase.
   function permissionsEcartCaisseEmploye(shift) {
     const valide = !!(shift && shift.statut === 'valide');
-    return { voir: true, corrigerDirectement: !valide, demanderCorrection: valide };
+    return { voir: valide, corrigerDirectement: !valide, demanderCorrection: valide };
   }
 
   // ------------------------------------------------------------
