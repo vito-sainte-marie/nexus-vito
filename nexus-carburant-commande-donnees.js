@@ -430,11 +430,30 @@
     // Philosophie de volume à deux modes (25/08/2026, retour de Frédéric) —
     // hors fin de mois, NEXUS cherche à compléter le camion vers 36 000 L ;
     // en fin de mois (5 derniers jours calendaires, provisoire), il revient
-    // au comportement historique de minimisation du stock résiduel. Calculé
-    // ici (donnees), jamais côté écran, pour rester la source unique
-    // (Article 11) — l'écran lit `modeFinDeMois`/`viserCamionComplet` sur le
-    // retour sans le redéterminer.
-    const modeFinDeMois = M.estFinDeMois(dateISO);
+    // au comportement historique de minimisation du stock résiduel.
+    //
+    // Correctif (27/08/2026, retour de Frédéric — logique explicite du
+    // passage de mois) : ce "fin de mois" doit se lire sur la date de
+    // LIVRAISON, jamais sur la date de commande. Exemple donné par
+    // Frédéric : commande passée le dernier jour ouvré du mois (fin de
+    // mois), mais livraison le mardi 1er du mois suivant (week-end/jour
+    // férié entre les deux) — ce stock arrive déjà sur le mois suivant, un
+    // camion plein de 36 000 L est alors voulu, pas une minimisation.
+    // Avant ce correctif, `estFinDeMois(dateISO)` (date de commande)
+    // bloquait à tort le camion complet dans exactement ce cas. La réserve
+    // de sécurité (`reserveCibleJours`, dans evaluerScenarioCommande)
+    // n'est PAS concernée par ce correctif : elle reste calculée sur la
+    // date de commande, ce qui donne bien 1 jour de réserve (le tampon que
+    // Frédéric veut précisément pour ce mardi de livraison), inchangé.
+    const fenetreCommandeAujourdhui = M.calculerFenetreLivraison({
+      dateCommandeISO: dateISO, heureCommandeHHMM: heureMaintenantHHMM, config, joursFeriesISO,
+    });
+    // Repli sur la date de commande si aucune fenêtre de livraison n'est
+    // calculable (config incohérente/aucun jour de livraison autorisé,
+    // §4) — jamais un plantage, comportement historique conservé dans ce
+    // cas limite (Article 5, pas de deuxième hypothèse fabriquée).
+    const dateReferenceFinDeMois = fenetreCommandeAujourdhui.livraisonISO || dateISO;
+    const modeFinDeMois = M.estFinDeMois(dateReferenceFinDeMois);
     const viserCamionComplet = !modeFinDeMois;
     const global_ = M.construireEvaluationGlobale({ evaluationsParCarburant, config, capacitesDisponiblesL, viserCamionComplet });
     return { ok: true, dateISO, heureMaintenantHHMM, fuseau, cuves, config, modeFinDeMois, ...global_ };
