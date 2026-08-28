@@ -358,6 +358,42 @@
     return estFinDeMois(dateISO) ? finMois : normal;
   }
 
+  // "Pont de mois" (27/08/2026, spécification détaillée de Frédéric) — une
+  // commande dont la LIVRAISON franchit la frontière du mois (mois de
+  // `livraisonISO` ≠ mois de `dateCommandeISO`) n'est plus une commande
+  // "fin de mois" classique : Frédéric explique qu'il ne veut alors PAS
+  // sécuriser plusieurs jours de réserve par principe, mais uniquement le
+  // strict nécessaire pour "franchir le changement de mois sans rupture" —
+  // citation exacte : "à la dernière livraison possible du mois, conserver
+  // uniquement le volume nécessaire pour tenir jusqu'à la fin de la
+  // première journée où une livraison du mois suivant peut effectivement
+  // être reçue [...] c'est le mot fin de journée qui est essentiel, NEXUS
+  // ne doit jamais raisonner comme si le camion arrivait à 8h du matin."
+  // Détecté simplement en comparant le mois calendaire des deux dates
+  // (jamais une redite d'estFinDeMois — Article 11 : une commande peut très
+  // bien être fin de mois sans franchir le mois, si la livraison reste
+  // dans les jours restants du mois courant, cf. v2.257).
+  function estPontDeMois(dateCommandeISO, livraisonISO) {
+    if (!dateCommandeISO || !livraisonISO) return false;
+    return dateCommandeISO.slice(0, 7) !== livraisonISO.slice(0, 7);
+  }
+
+  // Marge opérationnelle en pont de mois — Frédéric est explicite : pas un
+  // jour entier de réserve ("pas 3, 4 ou 5 jours de stock"), mais "quelques
+  // heures de ventes". Valeur provisoire (même discipline que les autres
+  // constantes "à recalibrer" de ce fichier, Article 5) calibrée sur
+  // l'exemple chiffré qu'il donne lui-même : GO prévu à 4 000 L/j, marge
+  // souhaitée 1 000 L, soit 25 % de la prévision du jour de livraison —
+  // jamais un pourcentage inventé sans point de départ réel. Configurable
+  // par site via `carburant_commande_config.marge_operationnelle_fraction_
+  // pont_mois` (même pattern que stock_securite_jours_normal/_fin_mois) si
+  // Frédéric souhaite un jour l'ajuster sans toucher au code.
+  const MARGE_OPERATIONNELLE_FRACTION_PONT_MOIS = 0.25;
+  function margeOperationnelleFraction(config) {
+    return (config && config.marge_operationnelle_fraction_pont_mois != null)
+      ? config.marge_operationnelle_fraction_pont_mois : MARGE_OPERATIONNELLE_FRACTION_PONT_MOIS;
+  }
+
   // Évalue UN scénario de commande (§12 : scénario A/B/C du cahier — cette
   // fonction calcule un seul scénario, l'appelant la rejoue avec des
   // dates/heures différentes pour comparer). Retourne la fenêtre de
@@ -372,6 +408,18 @@
   // si la commande elle-même n'est simulée que plus tard (§13 : le stock
   // continue de baisser qu'on commande aujourd'hui ou dans 3 jours, seule
   // la date de LIVRAISON change selon quand on déclenche la commande).
+  //
+  // Pont de mois (voir `estPontDeMois` ci-dessus) : quand la livraison
+  // franchit le mois, la référence de sécurité change de nature — au lieu
+  // de "stock prévu au DÉBUT du jour de livraison" comparé à N jours de
+  // réserve, NEXUS compare "stock prévu à la FIN du jour de livraison"
+  // (la prévision du jour de livraison lui-même, day-of-week fiable via
+  // `prevoirConsommationJour`, jamais une deuxième moyenne inventée —
+  // Article 11) à une simple marge opérationnelle. `stockPrevuLivraisonL`
+  // porte alors cette nouvelle référence (fin de journée) — c'est ce même
+  // champ qui pilote déjà `besoinMinimumSecuriteL`/`capaciteDisponibleL`
+  // dans `evaluerCarburant` ci-dessous, aucun second champ à brancher
+  // ailleurs (Article 11).
   function evaluerScenarioCommande({
     dateCommandeISO, heureCommandeHHMM, config, joursFeriesISO,
     stockActuelL, consommationMoyenneJour, historiqueParJour, carburant,
@@ -381,17 +429,46 @@
     if (!fenetre.livraisonISO) return null;
     const dates = joursEntre(ancreStockISO || dateCommandeISO, fenetre.livraisonISO);
     const ventesPrevues = prevoirConsommationFenetre({ historiqueParJour, carburant, datesCiblesISO: dates, joursFeriesISO });
-    const stockPrevu = stockPrevuLivraison({
+    const stockPrevuDebutJourLivraison = stockPrevuLivraison({
       dernierStockFiable: stockActuelL,
       livraisonsIntermediaires: commandesEnCoursVolumeL || 0,
       ventesPrevuesJusquaLivraison: ventesPrevues.total,
     });
-    const securiteL = stockSecuriteLitres(consommationMoyenneJour, reserveCibleJours(dateCommandeISO, config));
+
+    const pontDeMois = estPontDeMois(dateCommandeISO, fenetre.livraisonISO);
+    let stockPrevu = stockPrevuDebutJourLivraison;
+    let securiteL;
+    let previsionJourLivraisonL = null;
+    let margeOperationnelleL = null;
+    if (pontDeMois) {
+      const estFerieLivraison = (joursFeriesISO || []).includes(fenetre.livraisonISO);
+      const previsionJour = prevoirConsommationJour({
+        historiqueParJour, carburant, dateCibleISO: fenetre.livraisonISO,
+        estJourFerie: estFerieLivraison, joursFeriesHistoriquesISO: joursFeriesISO,
+      });
+      // Repli sur la moyenne récente si le jour de livraison lui-même n'a
+      // pas encore de prévision fiable (site jeune) — jamais un blocage
+      // total, mais jamais non plus une valeur day-of-week fabriquée
+      // (Article 5) : `previsionJour.prevision` reste `null` si vraiment
+      // aucune donnée n'existe, et la marge devient alors `null` en aval.
+      previsionJourLivraisonL = previsionJour.prevision != null ? previsionJour.prevision : consommationMoyenneJour;
+      margeOperationnelleL = previsionJourLivraisonL != null ? previsionJourLivraisonL * margeOperationnelleFraction(config) : null;
+      stockPrevu = (stockPrevuDebutJourLivraison != null && previsionJourLivraisonL != null)
+        ? stockPrevuDebutJourLivraison - previsionJourLivraisonL : stockPrevuDebutJourLivraison;
+      securiteL = margeOperationnelleL;
+    } else {
+      securiteL = stockSecuriteLitres(consommationMoyenneJour, reserveCibleJours(dateCommandeISO, config));
+    }
     const margeL = (stockPrevu != null && securiteL != null) ? stockPrevu - securiteL : null;
     const margeJours = (margeL != null && consommationMoyenneJour) ? margeL / consommationMoyenneJour : null;
     return {
       ...fenetre, dates, ventesPrevuesL: ventesPrevues.total, confiance: ventesPrevues.confiance,
       stockPrevuLivraisonL: stockPrevu, securiteL, margeL, margeJours,
+      // Exposés pour l'écran/les tests — transparence sur le mode utilisé
+      // (Article 5, jamais un mode caché qui changerait silencieusement le
+      // sens de stockPrevuLivraisonL/securiteL).
+      pontDeMois, previsionJourLivraisonL, margeOperationnelleL,
+      stockPrevuDebutJourLivraisonL: stockPrevuDebutJourLivraison,
     };
   }
 
@@ -1102,6 +1179,7 @@
     // États / fenêtre idéale / attente
     stockSecuriteLitres, SEUIL_MARGE_JOURS_CONFORTABLE,
     RESERVE_CIBLE_JOURS_NORMAL, RESERVE_CIBLE_JOURS_FIN_MOIS, reserveCibleJours,
+    estPontDeMois, MARGE_OPERATIONNELLE_FRACTION_PONT_MOIS,
     evaluerScenarioCommande, determinerEtatCommande, evaluerAttenteCommande,
     // Camion / multi-carburant
     arrondirVolumeCommande, verifierMinimumCamion, SEUIL_ANTICIPATION_MAX_JOURS,
