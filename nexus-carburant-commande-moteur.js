@@ -1067,6 +1067,40 @@
     return detail.causes.map(cle => ACTIONS_FIABILITE[cle]).filter(Boolean);
   }
 
+  // Résumé des causes "à confirmer", agrégé TOUS carburants confondus
+  // (28/08/2026, retour de Frédéric — v2.263) : *"'à confirmer' ne doit
+  // jamais être un état sans sortie [...] le manager doit voir
+  // immédiatement N éléments à résoudre"*. Une entrée par carburant non
+  // fiable, portant sa cause la plus sévère (`detail.causes[0]` — même
+  // priorité déjà décidée par `detailQualiteDonneesCommande`, Article 11,
+  // aucune 2ᵉ hiérarchie inventée ici). Quand la cause est une anomalie de
+  // jaugeage ET que l'écart physique/théorique réel est connu, l'entrée
+  // porte ce chiffre exact (`ecartL`) — jamais un texte vague qui
+  // masquerait l'ampleur du problème ; sinon `ecartL` reste `null` et
+  // l'écran retombe sur le libellé générique de la cause (Article 5,
+  // jamais une valeur inventée). Le formatage (signe, séparateur de
+  // milliers, nom d'affichage du carburant) reste entièrement à la charge
+  // de l'écran — ce moteur ne renvoie que des données structurées.
+  function resumerCausesConfirmationCommande(parCarburantDetails) {
+    if (!parCarburantDetails) return [];
+    return Object.keys(parCarburantDetails)
+      .map(carburant => {
+        const info = parCarburantDetails[carburant];
+        const detail = info && info.detailConfiance;
+        if (!detail || detail.niveau === 'fiable' || !detail.causes || !detail.causes.length) return null;
+        const causePrincipale = detail.causes[0];
+        const action = ACTIONS_FIABILITE[causePrincipale];
+        if (!action) return null;
+        const ecartConnu = causePrincipale === 'anomalie_majeure' && info.ecartPhysiqueTheoriqueL != null;
+        return {
+          carburant, cause: causePrincipale, niveau: detail.niveau,
+          libelle: action.libelle, cta: action.cta, cible: action.cible,
+          ecartL: ecartConnu ? info.ecartPhysiqueTheoriqueL : null,
+        };
+      })
+      .filter(Boolean);
+  }
+
   // ============================================================
   // G. ÉVALUATION COMPLÈTE D'UN CARBURANT, PUIS DE TOUS LES CARBURANTS
   //    (§27, l'objet de sortie du moteur)
@@ -1559,7 +1593,7 @@
     MAXIMUM_CAMION_LITRES, SEUIL_AUTONOMIE_MAX_JOURS_COMPLETION, optimiserCommandeMultiCarburant,
     ordrePrioriteCarburants,
     // Qualité des données
-    qualiteDonneesCommande, detailQualiteDonneesCommande, actionsResolutionFiabilite,
+    qualiteDonneesCommande, detailQualiteDonneesCommande, actionsResolutionFiabilite, resumerCausesConfirmationCommande,
     SEUIL_JAUGEAGE_FRAIS_JOURS, jaugeageEstFrais, livraisonEnCoursCoherente,
     // Évaluation complète
     evaluerCarburant, determinerEtatGlobal, construireEvaluationGlobale,

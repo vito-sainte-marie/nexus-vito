@@ -163,16 +163,33 @@
   // NexusVerifyMoteur.statutValidationQuart, déjà défini et testé pour
   // NEXUS Verify/Historique, v2.234 — aucun 2ᵉ calcul de statut de
   // validation écrit ici).
+  // 28/08/2026, retour de Frédéric (v2.263) — élargi de "aujourd'hui
+  // seulement" à une fenêtre de `SEUIL_FALLBACK_JOURS_PEREMPTION` jours
+  // (3 j, `nexus-carburant-moteur.js` — même seuil déjà utilisé ailleurs
+  // dans NEXUS pour "au-delà, une donnée n'est plus assez fraîche pour
+  // être présentée comme le reflet de la situation courante", Article 11 :
+  // aucun nouveau seuil arbitraire inventé pour ce lot). Chaque entrée
+  // porte désormais sa PROPRE date (`date`) — nécessaire pour que l'écran
+  // puisse dire précisément "Quart 2 du 27 août", jamais un avis anonyme,
+  // et pour construire le lien Verify vers CE quart précis, jamais
+  // seulement la page d'accueil de Verify.
   async function chargerAvisVerifyJour(client, siteId, dateISO) {
     const V = global.NexusVerifyMoteur;
-    if (!V || !V.statutValidationQuart) return [];
+    const MC = global.NexusCarburantCommandeMoteur;
+    const M = global.NexusCarburantMoteur;
+    if (!V || !V.statutValidationQuart || !MC) return [];
+    const joursFenetre = (M && M.SEUIL_FALLBACK_JOURS_PEREMPTION) || 3;
+    const dateDebut = MC.ajouterJoursISO(dateISO, -(joursFenetre - 1));
     const { data, error } = await client.from('audits_caisse')
-      .select('quart, ecart_piste, ecart_boutique, valide_le_piste, valide_le_boutique, premiere_validation_le_piste, premiere_validation_le_boutique, valide_par_piste, valide_par_boutique')
-      .eq('site', siteId).eq('date', dateISO);
-    if (error) { console.error('Chargement avis Verify du jour (Commande Carburant):', error); return []; }
+      .select('date, quart, ecart_piste, ecart_boutique, valide_le_piste, valide_le_boutique, premiere_validation_le_piste, premiere_validation_le_boutique, valide_par_piste, valide_par_boutique')
+      .eq('site', siteId).gte('date', dateDebut).lte('date', dateISO);
+    if (error) { console.error('Chargement avis Verify (Commande Carburant):', error); return []; }
     return (data || [])
-      .map(a => ({ quart: a.quart, statut: V.statutValidationQuart(a) }))
-      .filter(x => x.statut && (x.statut.etat === 'en_attente' || x.statut.etat === 'partiel'));
+      .map(a => ({ date: a.date, quart: a.quart, statut: V.statutValidationQuart(a) }))
+      .filter(x => x.statut && (x.statut.etat === 'en_attente' || x.statut.etat === 'partiel'))
+      // Plus récent en premier (le quart d'aujourd'hui, s'il existe, avant
+      // celui d'hier) — ordre de lecture le plus utile pour le manager.
+      .sort((a, b) => (a.date === b.date ? b.quart - a.quart : (a.date < b.date ? 1 : -1)));
   }
 
   // Dernière commande NEXUS non encore livrée pour un carburant donné
@@ -360,6 +377,14 @@
           // qualifié par le même appel (r.statut === 'À corriger').
           pointZeroExiste: !!controle.pointZero,
           anomalieMajeure: r.statut === 'À corriger',
+          // 28/08/2026, retour de Frédéric (v2.263) — "à confirmer" doit
+          // pouvoir afficher l'écart CHIFFRÉ réel ("Écart GO de -1 195 L à
+          // qualifier"), jamais un texte générique quand le chiffre existe
+          // déjà. `r.ecart` est calculé par NexusCarburantDonnees.
+          // chargerControleJour (même source que "Situation aujourd'hui"),
+          // simplement jamais transmis plus loin jusqu'ici (Article 11,
+          // aucun second calcul d'écart).
+          ecartPhysiqueTheoriqueL: r.ecart != null ? Number(r.ecart) : null,
         };
       });
       return { parCarburant: resultat, aucunReleve: false };
@@ -388,6 +413,8 @@
         // 27/08/2026, point 15 — mêmes signaux qu'au Cas A ci-dessus.
         pointZeroExiste: !!controle.pointZero,
         anomalieMajeure: r.statut === 'À corriger',
+        // 28/08/2026, v2.263 — même champ que le Cas A ci-dessus.
+        ecartPhysiqueTheoriqueL: r.ecart != null ? Number(r.ecart) : null,
       };
     });
     return { parCarburant: resultat, aucunReleve: false };
@@ -550,6 +577,11 @@
         // scénario, pas un de ses résultats).
         stockEstimeMaintenantL: stock.stockActuelL,
         stockFiable: stock.stockFiable,
+        // 28/08/2026, v2.263 — écart physique/théorique chiffré, transmis
+        // tel quel pour que le résumé "N éléments à résoudre" (voir plus
+        // bas) puisse afficher "Écart GO de -1 195 L à qualifier" plutôt
+        // qu'un texte générique quand le chiffre est déjà connu.
+        ecartPhysiqueTheoriqueL: stock.ecartPhysiqueTheoriqueL != null ? stock.ecartPhysiqueTheoriqueL : null,
         // 28/08/2026, retour de Frédéric — "Couverture estimée : mardi Q2"
         // remplace le langage décimal ("4,3 j") dans la vue principale. Même
         // ancre que la recommandation (`stockAncreCommandeL`, jaugeage du
@@ -619,7 +651,14 @@
       }).catch(e => console.error('Journal recommandation carburant (arrière-plan) :', e));
     });
 
-    return { ok: true, dateISO, heureMaintenantHHMM, fuseau, cuves, config, modeFinDeMois, avisVerifyJour, ...global_ };
+    // 28/08/2026, v2.263 — causes précises et résolubles bloquant la
+    // confirmation de la commande (Article 11 : réutilise les `causes`
+    // déjà calculées par detailQualiteDonneesCommande dans chaque
+    // évaluation par carburant ; Verify n'y figure jamais tant qu'aucune
+    // donnée Verify n'est réellement consommée par ce moteur).
+    const causesAConfirmer = M.resumerCausesConfirmationCommande(evaluationsParCarburant);
+
+    return { ok: true, dateISO, heureMaintenantHHMM, fuseau, cuves, config, modeFinDeMois, avisVerifyJour, causesAConfirmer, ...global_ };
   }
 
   // ============================================================

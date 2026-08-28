@@ -929,6 +929,12 @@
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   }
   function fmtL(v) { return v == null ? '—' : `${Math.round(v).toLocaleString('fr-FR')} L`; }
+  // Écart signé (28/08/2026, v2.263) — même convention que la ligne "Écart
+  // (réel − théorique)" du contrôle manager (NEXUS-Carburants-v1.html,
+  // Article 11 : même signe explicite, même arrondi, même séparateur de
+  // milliers) ; ce chiffre remonte maintenant jusqu'à cet écran via
+  // `ecartPhysiqueTheoriqueL` (v2.263).
+  function fmtEcartSigneTxt(v) { return v == null ? null : `${v >= 0 ? '+' : ''}${Math.round(v).toLocaleString('fr-FR')} L`; }
   // Chaîne temporelle (21/08/2026) : instant précis (jour + heure, fuseau
   // de la station — FUSEAU_STATION, chargé à l'initialisation, v2.232)
   // pour le bloc "Comment cet écart est calculé" — jamais une simple date
@@ -2042,20 +2048,71 @@
     const noteAncreHTML = `<div class="section-note" style="margin:0 0 8px; padding:0; font-size:10px;">Cette recommandation part du dernier jaugeage fiable, jamais du « stock maintenant » affiché dans le détail ci-dessous (qui a déjà déduit les ventes du jour) — les deux valeurs coexistent volontairement, pour ne jamais compter une vente deux fois.</div>`;
 
     // Avis Verify informatif (28/08/2026, retour de Frédéric — refonte
-    // qualitative v2.260, principe architectural explicite) : "je ne veux
-    // pas de dépendance artificielle entre NEXUS Verify et NEXUS
-    // Carburants [...] tant que ce n'est pas le cas [ne bloque pas la
-    // certification des litres], affichez-le comme un signal informatif
-    // séparé (par exemple ⚠️ Contrôle caisse en attente), jamais fusionné
-    // dans le calcul de confiance." `ctx.avisVerifyJour` (déjà calculé par
-    // NexusCarburantCommandeDonnees, Article 11 — réutilise
-    // NexusVerifyMoteur.statutValidationQuart) ne touche JAMAIS
-    // fiabiliteTxt/detailConfiance ci-dessus — bandeau totalement
+    // qualitative v2.260, principe architectural explicite, précisé v2.263) :
+    // "je ne veux pas de dépendance artificielle entre NEXUS Verify et NEXUS
+    // Carburants [...] Carburants décide de la fiabilité carburant. Verify
+    // signale l'état du contrôle opérationnel. NEXUS peut croiser les deux,
+    // mais ne doit jamais créer artificiellement une dépendance entre eux."
+    // `ctx.avisVerifyJour` (déjà calculé par NexusCarburantCommandeDonnees,
+    // Article 11 — réutilise NexusVerifyMoteur.statutValidationQuart, fenêtre
+    // élargie à SEUIL_FALLBACK_JOURS_PEREMPTION jours en v2.263, chaque
+    // entrée porte désormais `date`) ne touche JAMAIS fiabiliteTxt/
+    // detailConfiance/causesAConfirmerHTML ci-dessous — bandeau totalement
     // indépendant, volontairement au-dessus de "Voir les calculs" plutôt
     // qu'à l'intérieur, pour ne jamais laisser croire qu'il fait partie du
-    // calcul de fiabilité de la recommandation.
-    const avisVerifyHTML = (ctx.avisVerifyJour && ctx.avisVerifyJour.length)
-      ? `<div class="section-note" style="margin:0 0 8px; padding:8px 10px; background:var(--amber-dim); border-radius:8px; color:var(--amber); font-size:10.5px;">${ctx.avisVerifyJour.map(a => `⚠️ Contrôle caisse Q${a.quart} en attente${a.statut && a.statut.etat === 'partiel' ? ' (partiellement validée)' : ''} — n'affecte pas la fiabilité de cette recommandation.`).join('<br>')}</div>`
+    // calcul de fiabilité de la recommandation. v2.263 : "NEXUS doit préciser
+    // exactement lequel [quart], par exemple Quart 2 du 27/08 non contrôlé
+    // [...] le bouton doit ouvrir directement le contrôle concerné dans
+    // Verify" — chaque ligne porte désormais sa propre date+quart et son
+    // propre lien profond (`ouvrir_date`+`ouvrir_quart`, pattern déjà réel et
+    // consommé par NEXUS-Verify-v1.html, Article 11), jamais un lien générique
+    // vers la page d'accueil de Verify.
+    const verifyBlocHTML = (ctx.avisVerifyJour && ctx.avisVerifyJour.length)
+      ? `<div class="section-note" style="margin:0 0 8px; padding:8px 10px; background:var(--amber-dim); border-radius:8px; color:var(--amber); font-size:10.5px;">
+          <div style="font-weight:700; font-family:var(--mono);">Verify : ${ctx.avisVerifyJour.length} contrôle${ctx.avisVerifyJour.length > 1 ? 's' : ''} en attente</div>
+          ${ctx.avisVerifyJour.map(a => {
+            const dateTxt = a.date ? formaterDateFrCourt(a.date) : 'date inconnue';
+            const partielTxt = a.statut && a.statut.etat === 'partiel' ? ' (partiellement validé)' : '';
+            const lien = (a.date && a.quart)
+              ? `NEXUS-Verify-v1.html?ouvrir_date=${encodeURIComponent(a.date)}&ouvrir_quart=${encodeURIComponent(a.quart)}`
+              : 'NEXUS-Verify-v1.html';
+            return `<div style="margin-top:3px;">→ Quart ${a.quart} du ${dateTxt}${partielTxt} — <a href="${lien}" class="ventes-detail-lien">Ouvrir Verify →</a></div>`;
+          }).join('')}
+        </div>`
+      : '';
+
+    // "À confirmer" avec sortie explicite (28/08/2026, retour de Frédéric —
+    // v2.263) : *"'à confirmer' ne doit jamais être un état sans sortie [...]
+    // Commande : À CONFIRMER / 2 éléments à résoudre / → Écart GO de −1 195 L
+    // à qualifier"*. `ctx.causesAConfirmer` = sortie de
+    // NexusCarburantCommandeMoteur.resumerCausesConfirmationCommande (Article
+    // 11, déjà calculée par evaluerCommandeCarburantSite, aucune 2ᵉ
+    // agrégation ici) — une entrée par carburant non fiable, portant sa cause
+    // la plus sévère (et l'écart chiffré réel quand la cause est une anomalie
+    // de jaugeage et que l'écart est connu, jamais une valeur inventée).
+    // Bloc TOTALEMENT séparé du bloc Verify ci-dessus : ce moteur ne lit que
+    // detailConfiance (facteurs internes carburant) — tant qu'aucune donnée
+    // Verify n'est réellement consommée par ce moteur, Verify n'apparaît
+    // jamais parmi ces causes. Le niveau affiché (À CONFIRMER / CALCUL
+    // SUSPENDU) réutilise NIVEAU_FIABILITE_BADGE (Article 11, une seule
+    // source de vérité pour ces libellés), jamais un texte inventé ici.
+    const causesAConfirmer = ctx.causesAConfirmer || [];
+    const niveauPireConfirmation = causesAConfirmer.some(c => c.niveau === 'non_calculable') ? 'non_calculable' : 'a_confirmer';
+    const badgeNiveauPire = NIVEAU_FIABILITE_BADGE[niveauPireConfirmation] || NIVEAU_FIABILITE_BADGE.a_confirmer;
+    const couleurConfirmation = niveauPireConfirmation === 'non_calculable' ? 'var(--red)' : 'var(--amber)';
+    const fondConfirmation = niveauPireConfirmation === 'non_calculable' ? 'var(--red-dim)' : 'var(--amber-dim)';
+    const causesAConfirmerHTML = causesAConfirmer.length
+      ? `<div class="section-note" style="margin:6px 0 0; padding:8px 10px; background:${fondConfirmation}; border-radius:8px; font-size:11px;">
+          <div style="font-weight:700; font-family:var(--mono); font-size:10.5px; color:${couleurConfirmation};">Commande : ${badgeNiveauPire.libelle.toUpperCase()}</div>
+          <div style="margin:2px 0 5px; color:var(--text-mid);">${causesAConfirmer.length} élément${causesAConfirmer.length > 1 ? 's' : ''} à résoudre</div>
+          ${causesAConfirmer.map(c => {
+            const ecartTxt = fmtEcartSigneTxt(c.ecartL);
+            const texte = ecartTxt
+              ? `Écart ${COURT_CARBURANT[c.carburant] || c.carburant} de ${ecartTxt} à qualifier`
+              : `${COURT_CARBURANT[c.carburant] || c.carburant} : ${c.libelle}`;
+            return `<div style="margin-top:2px; color:var(--text);">→ ${texte}</div>`;
+          }).join('')}
+        </div>`
       : '';
 
     // Hiérarchie décision → justification → calculs (27/08/2026, retour de
@@ -2109,12 +2166,13 @@
           <span class="commande-carte-titre">${titreCarte}${badgeRegimeCarteHTML}</span>
           <span class="commande-carte-badge" style="background:${stAffiche.f}; color:${stAffiche.c};">${badgeLibelle}</span>
         </div>
+        ${causesAConfirmerHTML}
         ${objectifHTML}
         ${recoTxt ? `<div class="commande-reco-principale" style="color:${stAffiche.c};">Commande recommandée : ${recoTxt}</div>` : ''}
         ${metaHTML ? `<div style="margin:-2px 0 8px;">${metaHTML}</div>` : ''}
         ${noteDistinctionHTML}
         ${noteAncreHTML}
-        ${avisVerifyHTML}
+        ${verifyBlocHTML}
         <div class="commande-pourquoi">${pourquoiTxt}</div>
         ${boutonHTML}
         <div class="commande-plan-card${detailsAutoOuverts ? ' open' : ''}" id="commandeDetailCard">
