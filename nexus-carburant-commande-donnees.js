@@ -385,6 +385,14 @@
           // simplement jamais transmis plus loin jusqu'ici (Article 11,
           // aucun second calcul d'écart).
           ecartPhysiqueTheoriqueL: r.ecart != null ? Number(r.ecart) : null,
+          // 28/08/2026, nouvelle demande de Frédéric (diagnostic contextuel
+          // de l'écart) — `statut` (Sous contrôle/À surveiller/À corriger/
+          // Données insuffisantes) est l'UNIQUE juge de "y a-t-il un écart
+          // significatif" pour NexusCarburantMoteur.diagnostiquerEcartCarburant
+          // ci-dessous ; jusqu'ici seul le booléen dérivé `anomalieMajeure`
+          // était transmis, jamais le statut brut lui-même (Article 11,
+          // même source, simplement pas encore relayée).
+          statut: r.statut || null,
         };
       });
       // Source de l'ancre, exposée UNE fois (28/08/2026, point 4 — retour de
@@ -430,6 +438,9 @@
         anomalieMajeure: r.statut === 'À corriger',
         // 28/08/2026, v2.263 — même champ que le Cas A ci-dessus.
         ecartPhysiqueTheoriqueL: r.ecart != null ? Number(r.ecart) : null,
+        // 28/08/2026 — même champ que le Cas A ci-dessus (diagnostic
+        // contextuel de l'écart).
+        statut: r.statut || null,
       };
     });
     // Source de l'ancre — Cas B : aucun relevé pour `dateISO`, l'ancre est le
@@ -526,6 +537,12 @@
 
   async function evaluerCommandeCarburantSite(client, siteId, options) {
     const M = global.NexusCarburantCommandeMoteur;
+    // MB (moteur de BASE, distinct de M ci-dessus) — uniquement pour
+    // réutiliser NexusCarburantMoteur.diagnostiquerEcartCarburant (28/08/2026,
+    // nouvelle demande de Frédéric), déjà écrit dans le moteur partagé par
+    // Situation aujourd'hui ET Prochaine commande (Article 11 : un seul
+    // diagnostic d'écart, jamais deux calculs divergents selon l'écran).
+    const MB = global.NexusCarburantMoteur;
     if (!M) { console.error('NexusCarburantCommandeMoteur non chargé — évaluation Commande Carburant impossible.'); return null; }
 
     const dateISO = (options && options.dateISO) || dateISOAujourdhui();
@@ -559,6 +576,29 @@
       // (aucune dépendance artificielle Verify -> confiance carburant).
       chargerAvisVerifyJour(client, siteId, dateISO),
     ]);
+
+    // Diagnostic contextuel de l'écart (28/08/2026, nouvelle demande de
+    // Frédéric) — deux entrées calculées UNE fois, communes aux 3
+    // carburants (le relevé qui sert d'ancre au calcul de commande couvre
+    // toujours les 3 carburants à la fois, jamais un par carburant, même
+    // convention que `sourceAncre` ci-dessus) :
+    //   - `releveValide` : le relevé ancre a-t-il déjà été validé par un
+    //     manager ? Même règle que diagnosticAbsenceControle/le badge
+    //     "à valider" de la Pilotage (`origine !== 'terrain_pompiste'`).
+    //     `true` par défaut quand aucune ancre n'est identifiée (rien à
+    //     valider dans ce cas, ne doit jamais bloquer artificiellement).
+    //   - `verifyManquantsJusquAncre` : sous-ensemble d'`avisVerifyJour`
+    //     (déjà chargé ci-dessus, Article 11) dont la date est antérieure
+    //     ou égale à la date du relevé ancre — "jusqu'à la date/au quart du
+    //     relevé", jamais toute la fenêtre de péremption si l'ancre est plus
+    //     récente que certains avis (cas normal : l'ancre EST aujourd'hui,
+    //     donc généralement égal à `avisVerifyJour` en entier, mais reste
+    //     honnête si l'ancre retombe sur un jour antérieur, Cas B).
+    const dateAncre = stockInfo.sourceAncre ? stockInfo.sourceAncre.dateISO : null;
+    const releveValide = stockInfo.sourceAncre ? (stockInfo.sourceAncre.origine !== 'terrain_pompiste') : true;
+    const verifyManquantsJusquAncre = dateAncre
+      ? (avisVerifyJour || []).filter(a => a.date <= dateAncre)
+      : (avisVerifyJour || []);
 
     const evaluationsParCarburant = {};
     const capacitesDisponiblesL = {};
@@ -614,6 +654,19 @@
         // bas) puisse afficher "Écart GO de -1 195 L à qualifier" plutôt
         // qu'un texte générique quand le chiffre est déjà connu.
         ecartPhysiqueTheoriqueL: stock.ecartPhysiqueTheoriqueL != null ? stock.ecartPhysiqueTheoriqueL : null,
+        // 28/08/2026, nouvelle demande de Frédéric — diagnostic contextuel
+        // de l'écart (Article 11 : NexusCarburantMoteur.diagnostiquerEcartCarburant,
+        // le même moteur partagé aussi consulté par Situation aujourd'hui
+        // via COMMANDE_CTX, jamais un second calcul de diagnostic). `MB`
+        // peut manquer si nexus-carburant-moteur.js n'est pas chargé —
+        // robustesse Article 5, jamais un plantage pour un enrichissement
+        // secondaire.
+        diagnosticEcart: MB && MB.diagnostiquerEcartCarburant
+          ? MB.diagnostiquerEcartCarburant({
+              statut: stock.statut, ecartL: stock.ecartPhysiqueTheoriqueL,
+              releveValide, verifyManquants: verifyManquantsJusquAncre,
+            })
+          : null,
         // 28/08/2026, retour de Frédéric — "Couverture estimée : mardi Q2"
         // remplace le langage décimal ("4,3 j") dans la vue principale. Même
         // ancre que la recommandation (`stockAncreCommandeL`, jaugeage du

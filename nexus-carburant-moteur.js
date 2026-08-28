@@ -1042,6 +1042,57 @@
     return { cas: 'aucun_jaugeage', niveau: 'attente', texte: 'Aucun contrôle posé pour cette date — jaugeage pas encore saisi, ou écriture de contrôle en attente/échouée.' };
   }
 
+  // Diagnostic contextuel d'un écart physique/théorique (28/08/2026, retour
+  // de Frédéric — nouvelle demande : "avant de conclure à une anomalie de
+  // litrage, NEXUS doit d'abord vérifier si tous les contrôles de caisse
+  // Verify nécessaires jusqu'à la date/au quart du relevé sont terminés
+  // [...] l'ordre à respecter : Relevé saisi -> Relevé validé ? -> Verify
+  // complet jusqu'au relevé ? -> Recalcul du théorique -> Écart toujours
+  // présent ? -> Investigation carburant. NEXUS ne doit donc jamais envoyer
+  // automatiquement vers Verify simplement parce qu'il existe un écart."
+  // Fonction pure : ne calcule AUCUN écart ni statut elle-même — `statut`
+  // (sortie de statutCarburant, seule source de vérité pour "y a-t-il un
+  // écart significatif", Article 11) et `ecartL` (calculerEcart) restent
+  // entièrement calculés en amont. Cette fonction ne fait que QUALIFIER un
+  // écart déjà constaté 'À corriger', jamais un second seuil inventé ici.
+  // `releveValide` : le relevé qui sert d'ancre à ce calcul a-t-il déjà été
+  // validé par un manager (même convention que diagnosticAbsenceControle
+  // ci-dessus : `origine !== 'terrain_pompiste'`) — si non, un écart
+  // apparent peut n'être qu'une saisie terrain pas encore contrôlée, jamais
+  // une anomalie confirmée (point 1, priorité avant même Verify — l'ordre
+  // exact demandé : validé ? AVANT Verify complet ?).
+  // `verifyManquants` : sous-ensemble de la sortie de
+  // NexusCarburantCommandeDonnees.chargerAvisVerifyJour (Article 11, aucun
+  // second calcul de statut de validation Verify ici) dont la date est
+  // antérieure ou égale à la date du relevé ancre — les quarts dont la
+  // maîtrise des litres vendus (donc du théorique) n'est pas encore
+  // confirmée par un manager.
+  // "Recalcul du théorique" et "Écart toujours présent ?" (étapes 4 et 5 de
+  // l'ordre demandé) n'ont besoin d'aucun code dédié : `statut`/`ecartL`
+  // sont déjà recalculés à chaque chargement de l'écran depuis les données
+  // réelles courantes (aucun cache) — dès qu'un contrôle Verify est complété
+  // ou qu'un relevé est validé/corrigé, le prochain chargement reflète
+  // automatiquement le nouvel état, sans intervention supplémentaire.
+  function diagnostiquerEcartCarburant({ statut, ecartL, releveValide, verifyManquants } = {}) {
+    const ecart = ecartL != null ? Number(ecartL) : null;
+    if (statut == null || statut === 'Données insuffisantes') {
+      return { cas: 'donnees_insuffisantes', niveau: 'attente', ecartL: ecart };
+    }
+    if (statut === 'Sous contrôle' || statut === 'À surveiller') {
+      return { cas: 'ecart_acceptable', niveau: 'ok', ecartL: ecart };
+    }
+    // statut === 'À corriger' à partir d'ici : écart significatif constaté
+    // — reste à déterminer si NEXUS peut déjà le qualifier d'anomalie.
+    if (releveValide === false) {
+      return { cas: 'releve_non_valide', niveau: 'attention', ecartL: ecart };
+    }
+    const manquants = Array.isArray(verifyManquants) ? verifyManquants : [];
+    if (manquants.length) {
+      return { cas: 'verify_incomplet', niveau: 'attention', ecartL: ecart, verifyManquants: manquants };
+    }
+    return { cas: 'anomalie_a_investiguer', niveau: 'alerte', ecartL: ecart };
+  }
+
   // Sprint C7 "Analyse" (17/08/2026, audit roadmap : "Signature delta
   // livraison / statistiques", critère de sortie "Historique suffisant et
   // fiable"). Agrège la qualité des N derniers contrôles DÉJÀ posés
@@ -1530,7 +1581,7 @@
     qualiteChaineCarburant, libelleCauseQualiteChaine, resoudreAncreCarburant,
     instantLocalVersUTC, instantFenetreReleve, fenetreQuartLarge, classerQuartFaceFenetre, resoudreVentesFenetre,
     quartsAEstimerDansFenetre,
-    libelleQualiteControle, diagnosticAbsenceControle,
+    libelleQualiteControle, diagnosticAbsenceControle, diagnostiquerEcartCarburant,
     SEUIL_HISTORIQUE_CHAINE_SUFFISANT, statistiquesFiabiliteChaine, libelleFiabiliteChaine,
     calculerCmpApresLivraison, calculerCmpProgressif, libelleCmp,
     calculerEffetPrixStockHerite, libelleEffetPrixStockHerite, resumerEffetPrixCarburants,

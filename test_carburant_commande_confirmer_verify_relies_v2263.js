@@ -145,6 +145,11 @@ const src = [
   extraire(script, 'formaterCouvertureEstimeeTexte'),
   extraireConst(script, 'NIVEAU_FIABILITE_BADGE'),
   extraire(script, 'construireBlocFiabilite'),
+  // 28/08/2026, v2.265 — renderCommandeCarburant appelle désormais ces 2
+  // fonctions (diagnostic d'écart contextuel) : doivent être extraites ici
+  // aussi, sinon ReferenceError dès qu'une cause 'anomalie_majeure' existe.
+  extraire(script, 'construireLigneCauseAConfirmer'),
+  extraire(script, 'construireLienActionDiagnostic'),
   extraire(script, 'renderCommandeCarburant'),
   'globalThis.__test = { renderCommandeCarburant, fmtL };',
 ].join('\n\n');

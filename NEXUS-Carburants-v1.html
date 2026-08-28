@@ -556,9 +556,26 @@
     // pré-remplis (RELEVE_CIBLE vient de la même table carburant_releves,
     // quelle que soit son origine) ; seule cette bannière est nouvelle,
     // pour que la provenance reste visible avant toute correction.
-    const banniereProvenance = (RELEVE_CIBLE && RELEVE_CIBLE.origine === 'terrain_pompiste')
-      ? `<div class="ventes-banner" style="margin-bottom:12px;">⛽ Jaugeage d'ouverture saisi à ${new Date(RELEVE_CIBLE.created_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}${SAISI_PAR_NOM ? ` par ${SAISI_PAR_NOM}` : ''} — Source : terrain. Vous pouvez contrôler, corriger ou compléter ci-dessous.</div>`
+    // 28/08/2026, retour de Frédéric ("je ne sais pas où effectuer cette
+    // validation [...] le bouton « Aller au relevé du jour » doit donc
+    // permettre la saisie ET la validation [...] Ouvrir → Corriger →
+    // Valider") : un relevé d'origine terrain n'a jusqu'ici aucune action
+    // EXPLICITE pour dire "je confirme ces valeurs telles quelles" — la
+    // seule voie était le bouton "Mettre à jour le relevé", qui EXIGE un
+    // motif de correction et bloque avec une alerte ("Aucune valeur
+    // modifiée — rien à enregistrer.") si le manager n'a justement rien à
+    // corriger. Un bouton "Valider ce relevé" dédié, visible UNIQUEMENT sur
+    // un relevé terrain non encore validé, couvre ce cas sans toucher au
+    // comportement historique de "Mettre à jour" (scénario C09 de l'audit,
+    // inchangé : une correction sans changement de valeur reste bloquée
+    // avec la même alerte qu'avant, sur un relevé DÉJÀ validé).
+    const boutonValiderHTML = (RELEVE_CIBLE && RELEVE_CIBLE.origine === 'terrain_pompiste')
+      ? `<button class="btn-enregistrer" id="btnValiderTelQuel" style="margin-top:10px; background:var(--green); color:#0B0F14;">✓ Valider ce relevé tel quel</button>
+         <div class="section-note" style="margin-top:6px;">Les valeurs ci-dessus sont correctes ? Validez directement — aucun motif requis. Une valeur à modifier avant validation ? Corrigez-la ci-dessus puis utilisez "${libelleBouton}" ci-dessous (motif requis).</div>`
       : '';
+    const banniereProvenance = (RELEVE_CIBLE && RELEVE_CIBLE.origine === 'terrain_pompiste')
+      ? `<div class="ventes-banner" style="margin-bottom:12px;">⛽ Jaugeage d'ouverture saisi à ${new Date(RELEVE_CIBLE.created_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}${SAISI_PAR_NOM ? ` par ${SAISI_PAR_NOM}` : ''} — Source : terrain · <strong>statut : à valider</strong>. Vous pouvez valider tel quel, contrôler, corriger ou compléter ci-dessous.</div>`
+      : (RELEVE_CIBLE ? `<div class="ventes-banner vide" style="margin-bottom:12px;">Statut : validé (origine ${RELEVE_CIBLE.origine === 'reception_livraison' ? 'réception livraison' : 'manager'}).</div>` : '');
 
     content.innerHTML = `
       ${banniereRattrapage}
@@ -572,11 +589,14 @@
         <textarea class="champ-motif" id="champMotifCorrection" rows="2" placeholder="Pourquoi ce relevé est corrigé — la valeur initialement saisie reste conservée et consultable."></textarea>
       ` : ''}
       <button class="btn-enregistrer" id="btnEnregistrer" style="margin-top:16px;">${libelleBouton}</button>
+      ${boutonValiderHTML}
       <div class="confirmation" id="confirmation">✓ Relevé${EST_AUJOURDHUI ? '' : ` du ${dateTxt}`} enregistré.</div>
     `;
 
     document.querySelectorAll('#content input').forEach(el => el.addEventListener('input', recalculerTout));
     document.getElementById('btnEnregistrer').addEventListener('click', enregistrerReleve);
+    const btnValider = document.getElementById('btnValiderTelQuel');
+    if (btnValider) btnValider.addEventListener('click', validerReleveTelQuel);
     // 13/08/2026 : clic sur la bannière "ventes non disponibles" — ouvre/
     // ferme le détail quart par quart, rempli à la première ouverture.
     document.querySelectorAll('.ventes-banner-clic').forEach(banniere => {
@@ -937,6 +957,97 @@
     const conf = document.getElementById('confirmation');
     conf.classList.add('visible');
     setTimeout(() => conf.classList.remove('visible'), 3000);
+  }
+
+  // Valider un relevé terrain SANS changement de valeur (28/08/2026, retour
+  // de Frédéric, point 1 — "valider clairement le relevé du jour [...] je
+  // ne sais pas où effectuer cette validation"). Distincte d'enregistrerReleve
+  // ci-dessus : contrairement à une correction, ne modifie AUCUNE valeur ni
+  // `mesure_le` — l'instant réel de la mesure physique reste celui de la
+  // saisie terrain d'origine, jamais réécrit par l'instant du clic
+  // "Valider" (Article 5 : ne jamais fabriquer une précision qui n'existe
+  // pas). Seule `origine` passe de 'terrain_pompiste' à 'manager', posant
+  // une nouvelle version de preuve. `type_version: 'correction_manager'`
+  // (seule des 2 valeurs du CHECK constraint carburant_releve_versions_
+  // type_version_check qui autorise une deuxième version — vérifié sur le
+  // schéma réel Supabase le 28/08/2026) avec un motif système honnête,
+  // jamais un motif vide (la contrainte carburant_releve_versions_motif_
+  // correction_check exige motif_correction non nul dès que type_version
+  // != 'saisie_initiale'). Réutilise EXACTEMENT le même mécanisme de preuve
+  // append-only qu'enregistrerReleve (Article 11 — pose d'abord
+  // carburant_releve_versions, puis upsert carburant_releves, jamais
+  // l'inverse). Comme rien ne change physiquement (même valeurs, même
+  // mesure_le), aucun recalcul de ventes/ancre ni reconstruction des jours
+  // suivants n'est nécessaire ici — ce sont uniquement des dérivés de la
+  // valeur/l'instant du jaugeage, tous deux inchangés.
+  async function validerReleveTelQuel() {
+    if (ENREGISTREMENT_EN_COURS || !RELEVE_CIBLE || RELEVE_CIBLE.origine !== 'terrain_pompiste') return;
+    ENREGISTREMENT_EN_COURS = true;
+    const btn = document.getElementById('btnValiderTelQuel');
+    if (btn) { btn.disabled = true; btn.textContent = 'Validation…'; }
+
+    const MOTIF_VALIDATION = 'Validation du relevé terrain — valeurs confirmées sans modification.';
+    const snapshotInchange = {
+      stock_reel_go_cuve1: RELEVE_CIBLE.stock_reel_go_cuve1,
+      stock_reel_go_cuve2: RELEVE_CIBLE.stock_reel_go_cuve2,
+      stock_reel_sp95: RELEVE_CIBLE.stock_reel_sp95,
+      stock_reel_gnr: RELEVE_CIBLE.stock_reel_gnr,
+      livraison_go: RELEVE_CIBLE.livraison_go || 0,
+      livraison_sp95: RELEVE_CIBLE.livraison_sp95 || 0,
+      livraison_gnr: RELEVE_CIBLE.livraison_gnr || 0,
+      mouvement_go: RELEVE_CIBLE.mouvement_go || 0,
+      mouvement_sp95: RELEVE_CIBLE.mouvement_sp95 || 0,
+      mouvement_gnr: RELEVE_CIBLE.mouvement_gnr || 0,
+      motif_mouvement: RELEVE_CIBLE.motif_mouvement || null,
+      commentaire: RELEVE_CIBLE.commentaire || null,
+      mesure_le: RELEVE_CIBLE.mesure_le,
+    };
+
+    const { versionNum } = NexusCarburantMoteur.prochaineVersionReleveCarburant(RELEVE_CIBLE);
+
+    const { error: eVersion } = await nexusClient.from('carburant_releve_versions').insert({
+      site: SITE_ID, date: DATE_CIBLE, version_num: versionNum, type_version: 'correction_manager',
+      ...snapshotInchange,
+      motif_correction: MOTIF_VALIDATION,
+      diff_vs_precedent: null,
+      auteur: MANAGER_COURANT.id,
+      origine: 'manager',
+    });
+    if (eVersion && eVersion.code !== '23505') {
+      console.error('Validation relevé carburant (carburant_releve_versions):', eVersion);
+      ENREGISTREMENT_EN_COURS = false;
+      if (btn) { btn.disabled = false; btn.textContent = '✓ Valider ce relevé tel quel'; }
+      alert("Erreur de validation — la preuve de version n'a pas pu être créée, rien n'a été modifié. Réessayez.");
+      return;
+    }
+
+    const ligne = {
+      site: SITE_ID, date: DATE_CIBLE, version_num: versionNum,
+      ...snapshotInchange,
+      saisi_par: MANAGER_COURANT.id,
+      origine: 'manager',
+    };
+    const { data, error } = await nexusClient.from('carburant_releves')
+      .upsert(ligne, { onConflict: 'site,date' }).select().maybeSingle();
+    if (error) {
+      ENREGISTREMENT_EN_COURS = false;
+      console.error('Validation relevé carburant (vue courante):', error);
+      if (btn) { btn.disabled = false; btn.textContent = '✓ Valider ce relevé tel quel'; }
+      alert("La preuve de cette validation a bien été enregistrée, mais la mise à jour du relevé affiché a échoué — réessayez, l'historique reste intact.");
+      return;
+    }
+    RELEVE_CIBLE = data;
+    ENREGISTREMENT_EN_COURS = false;
+    const conf = document.getElementById('confirmation');
+    if (conf) {
+      conf.textContent = '✓ Relevé validé.';
+      conf.classList.add('visible');
+      setTimeout(() => conf.classList.remove('visible'), 3000);
+    }
+    // Le relevé n'est plus 'terrain_pompiste' — redessine l'écran pour faire
+    // disparaître le bouton "Valider ce relevé" et la bannière "à valider"
+    // (Article 5 : jamais laisser un statut obsolète affiché à l'écran).
+    render();
   }
 
   // ------------------------------------------------------------

@@ -1067,6 +1067,35 @@
     return detail.causes.map(cle => ACTIONS_FIABILITE[cle]).filter(Boolean);
   }
 
+  // Actions CONTEXTUELLES au diagnostic d'écart (28/08/2026, nouvelle
+  // demande de Frédéric) — remplacent le texte statique et unique
+  // d'ACTIONS_FIABILITE.anomalie_majeure ("Vérifier les écarts / Ouvrir
+  // Verify →") par une action qui dépend de l'étape RÉELLE où le diagnostic
+  // s'arrête (NexusCarburantMoteur.diagnostiquerEcartCarburant, Article 11 —
+  // aucun second diagnostic recalculé ici, seulement traduit en libellés).
+  // Point 4 : "NEXUS ne doit jamais envoyer automatiquement vers Verify
+  // simplement parce qu'il existe un écart" — Verify n'apparaît donc QUE
+  // pour le cas 'verify_incomplet', jamais pour 'releve_non_valide' (qui
+  // renvoie valider le relevé) ni pour 'anomalie_a_investiguer' (qui renvoie
+  // analyser les mouvements, un écran distinct de Verify).
+  const ACTIONS_DIAGNOSTIC_ECART = {
+    releve_non_valide: {
+      libelle: 'Relevé non encore validé par un manager',
+      action: 'Valider ou corriger le relevé de jaugeage',
+      cta: 'Valider le relevé →', cible: 'releve_jour',
+    },
+    verify_incomplet: {
+      libelle: 'Analyse incomplète — contrôle(s) de caisse manquant(s)',
+      action: 'Compléter le(s) contrôle(s) Verify manquant(s) avant de qualifier cet écart',
+      cta: 'Ouvrir Verify →', cible: 'verify_jour',
+    },
+    anomalie_a_investiguer: {
+      libelle: 'Anomalie de litrage à investiguer (contrôles de caisse complets, écart persistant)',
+      action: 'Analyser les mouvements carburant (jaugeages, livraisons, ventes, corrections, points zéro)',
+      cta: 'Analyser les mouvements →', cible: 'historique_mouvements',
+    },
+  };
+
   // Résumé des causes "à confirmer", agrégé TOUS carburants confondus
   // (28/08/2026, retour de Frédéric — v2.263) : *"'à confirmer' ne doit
   // jamais être un état sans sortie [...] le manager doit voir
@@ -1106,7 +1135,19 @@
         const detail = info && info.detailConfiance;
         if (!detail || detail.niveau === 'fiable' || !detail.causes || !detail.causes.length) return null;
         const causePrincipale = detail.causes[0];
-        const action = ACTIONS_FIABILITE[causePrincipale];
+        // 28/08/2026, nouvelle demande de Frédéric — quand la cause est
+        // 'anomalie_majeure', l'action affichée ne doit plus être le texte
+        // statique "Ouvrir Verify" (ACTIONS_FIABILITE) mais celle qui
+        // correspond à l'étape RÉELLE où le diagnostic d'écart s'arrête
+        // (`info.diagnosticEcart`, déjà calculé par
+        // NexusCarburantCommandeDonnees.evaluerCommandeCarburantSite,
+        // Article 11 — aucun second diagnostic ici). Repli sur
+        // ACTIONS_FIABILITE si `diagnosticEcart` manque (robustesse
+        // Article 5, ex. anciens appelants/tests qui ne le fournissent pas
+        // encore) — jamais une exception.
+        const diagEcart = causePrincipale === 'anomalie_majeure' ? info.diagnosticEcart : null;
+        const actionDiag = diagEcart ? ACTIONS_DIAGNOSTIC_ECART[diagEcart.cas] : null;
+        const action = actionDiag || ACTIONS_FIABILITE[causePrincipale];
         if (!action) return null;
         const ecartConnu = causePrincipale === 'anomalie_majeure' && info.ecartPhysiqueTheoriqueL != null;
         return {
@@ -1120,6 +1161,10 @@
           // donnée : simple oubli de relais, corrigé ici).
           libelle: action.libelle, action: action.action, cta: action.cta, cible: action.cible,
           ecartL: ecartConnu ? info.ecartPhysiqueTheoriqueL : null,
+          // Diagnostic complet transmis pour que l'écran puisse détailler
+          // (point 5 — "Verify : Quart 2 du 27/08 manquant") sans avoir à
+          // le redemander/recalculer (Article 11).
+          diagnosticEcart: diagEcart || null,
         };
       })
       .filter(Boolean);

@@ -931,6 +931,38 @@
     });
   }
 
+  // "Analyser les mouvements carburant →" (28/08/2026, nouvelle demande de
+  // Frédéric, point 2 — "Ce lien doit ouvrir directement l'historique
+  // pertinent : jaugeages, livraisons, ventes/litrages, corrections,
+  // points zéro") : réutilise l'accordéon "Historique" déjà existant
+  // (Sprint C6, 14/08/2026 — points zéro certifiés + relevés 30 derniers
+  // jours + réceptions, déjà tout ce que Frédéric énumère) plutôt que de
+  // construire un second écran qui dupliquerait cette même donnée (Article
+  // 11). Ouvre l'accordéon, y défile, puis — si une date est fournie —
+  // surligne la ligne du relevé correspondant dans le tableau (déjà posé
+  // avec `data-date`, Sprint C6/CAR-UX-17). Le tableau se charge en
+  // parallèle à l'initialisation (`chargerEtRendreHistorique`, appelée une
+  // fois) : un court délai laisse sa ligne exister avant de la chercher,
+  // sans jamais bloquer l'ouverture de l'accordéon lui-même si elle n'est
+  // pas encore prête (Article 5 — aucune fausse certitude, on retente une
+  // fois plutôt que d'échouer silencieusement).
+  function ouvrirHistoriqueEtCentrer(dateISO) {
+    ACCORDIONS.historique = true;
+    appliquerEtatAccordion('historique');
+    const carte = document.querySelector('[data-accordion="historique"]');
+    if (carte) carte.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (!dateISO) return;
+    const tenterSurlignage = () => {
+      const ligne = document.querySelector(`.historique-releve-row[data-date="${dateISO}"]`);
+      if (!ligne) return false;
+      ligne.style.outline = '2px solid var(--amber)';
+      ligne.style.background = 'rgba(245,166,35,0.10)';
+      ligne.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return true;
+    };
+    if (!tenterSurlignage()) setTimeout(tenterSurlignage, 500);
+  }
+
   function todayISO() {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -1020,6 +1052,59 @@
     if (cq.auDela) return 'au-delà de 21 jours';
     if (cq.dateISO && cq.quart) return `${formaterDateFrAvecJour(cq.dateISO)} ${cq.quart}`;
     return 'donnée insuffisante';
+  }
+
+  // Diagnostic contextuel de l'écart (28/08/2026, nouvelle demande de
+  // Frédéric, points 2/3/4) — même principe de réutilisation que
+  // diagnosticCouvertureCarburant ci-dessus : "Situation aujourd'hui" ne
+  // recalcule RIEN, elle relit `diagnosticEcart` déjà posé par
+  // NexusCarburantCommandeDonnees.evaluerCommandeCarburantSite sur
+  // COMMANDE_CTX.parCarburant[cle] (Article 11 — un seul diagnostic pour
+  // toute la page, jamais un second calcul ici). `null` tant que
+  // COMMANDE_CTX n'est pas encore chargé — l'appelant affiche alors un
+  // message d'attente neutre, jamais un verdict inventé (Article 5).
+  function diagnosticEcartAffichage(cle) {
+    const evCommande = (typeof COMMANDE_CTX !== 'undefined' && COMMANDE_CTX && COMMANDE_CTX.ok && COMMANDE_CTX.parCarburant) ? COMMANDE_CTX.parCarburant[cle] : null;
+    return evCommande ? (evCommande.diagnosticEcart || null) : null;
+  }
+
+  // Point 3 (28/08/2026, retour de Frédéric — "Transformer le ⓘ de la
+  // ligne « Écart » en véritable point d'entrée du diagnostic [...] au
+  // clic, NEXUS doit expliquer l'état du diagnostic et proposer la
+  // prochaine action utile") : traduit `diagnosticEcartAffichage(cle)` en
+  // texte + lien, un cas par branche demandée. Jamais un second diagnostic
+  // — uniquement une mise en forme du même objet déjà utilisé par la carte
+  // "Prochaine commande" (causesAConfirmerHTML, Article 11).
+  function construireTexteDiagnosticEcart(cle) {
+    const diag = diagnosticEcartAffichage(cle);
+    const nom = COURT_CARBURANT[cle] || cle;
+    if (!diag) return 'Diagnostic en cours de chargement — réessayez dans un instant.';
+    if (diag.cas === 'donnees_insuffisantes') return `${nom} : données insuffisantes pour qualifier cet écart pour le moment.`;
+    if (diag.cas === 'ecart_acceptable') return `${nom} : écart dans la tolérance normale — données suffisantes, aucune anomalie à signaler.`;
+    if (diag.cas === 'releve_non_valide') {
+      return `${nom} : le relevé de jaugeage n'est pas encore validé par un manager — impossible de qualifier cet écart avant validation. <a href="NEXUS-Carburants-v1.html" class="ventes-detail-lien">Valider le relevé →</a>`;
+    }
+    if (diag.cas === 'verify_incomplet') {
+      const manquants = (diag.verifyManquants || []).map(a => `Quart ${a.quart} du ${a.date ? formaterDateFrCourt(a.date) : '?'}`).join(', ');
+      const premier = (diag.verifyManquants || [])[0];
+      const hrefVerify = (premier && premier.date && premier.quart)
+        ? `NEXUS-Verify-v1.html?ouvrir_date=${encodeURIComponent(premier.date)}&ouvrir_quart=${encodeURIComponent(premier.quart)}`
+        : 'NEXUS-Verify-v1.html';
+      return `${nom} : analyse incomplète — ${manquants || 'un contrôle de caisse'} non contrôlé avant de pouvoir qualifier cet écart. <a href="${hrefVerify}" class="ventes-detail-lien">Ouvrir Verify →</a>`;
+    }
+    if (diag.cas === 'anomalie_a_investiguer') {
+      return `${nom} : contrôles de caisse complets, écart toujours inexpliqué — anomalie de litrage à investiguer. <a href="#" class="ventes-detail-lien" data-ouvrir-historique="${(COMMANDE_CTX && COMMANDE_CTX.dateISO) || ''}">Analyser les mouvements →</a>`;
+    }
+    return 'Diagnostic indisponible.';
+  }
+
+  function toggleDiagnosticEcart(cle) {
+    const panel = document.getElementById(`ecartInfo_${cle}`);
+    if (!panel) return;
+    const visible = panel.style.display !== 'none';
+    if (visible) { panel.style.display = 'none'; return; }
+    panel.innerHTML = construireTexteDiagnosticEcart(cle);
+    panel.style.display = 'block';
   }
 
   function diagnosticCouvertureCarburant(cle) {
@@ -1320,7 +1405,8 @@
           ${refTxt ? `<div class="carb-ref-physique" style="font-size:10px; color:var(--text-dim); margin:-2px 0 4px;">Référence physique : ${refTxt}${refHeureTxt ? ` · ${refHeureTxt}` : ''}</div>` : ''}
           <div class="carb-stat-row"><span class="lbl">Physique</span><span class="val">${fmtL(r.stockPhysiqueAffiche)}</span></div>
           <div class="carb-stat-row"><span class="lbl">Théorique</span><span class="val">${fmtL(r.theorique)}</span></div>
-          <div class="carb-stat-row"><span class="lbl">Écart</span><span class="val" style="color:${r.ecart != null && r.ecart < 0 ? 'var(--red)' : (r.ecart != null && r.ecart > 0 ? 'var(--green)' : 'var(--text)')};">${ecartTxt}${ecartNonFiabilise ? ' <span class="ecart-caveat" title="Chaîne de rapprochement non fiabilisée pour ce carburant — écart informatif, pas une perte confirmée.">ⓘ</span>' : ''}</span></div>
+          <div class="carb-stat-row"><span class="lbl">Écart</span><span class="val" style="color:${r.ecart != null && r.ecart < 0 ? 'var(--red)' : (r.ecart != null && r.ecart > 0 ? 'var(--green)' : 'var(--text)')};">${ecartTxt}${r.ecart != null ? ` <span class="ecart-caveat" data-ecart-diag="${cle}" role="button" tabindex="0" title="${ecartNonFiabilise ? "Chaîne de rapprochement non fiabilisée pour ce carburant — écart informatif, pas une perte confirmée. Cliquer pour le diagnostic complet." : 'Cliquer pour voir le diagnostic de cet écart'}">ⓘ</span>` : ''}</span></div>
+          <div class="carb-ecart-diagnostic" id="ecartInfo_${cle}" style="display:none; font-size:10px; line-height:1.4; color:var(--text-mid); margin:-2px 0 6px; padding:6px 8px; background:var(--panel-raised); border-radius:8px;"></div>
           <div class="carb-autonomie-bloc"><span class="lbl">Autonomie</span><span class="val">${autonomie != null ? `${autonomie.toFixed(1)} j` : '—'}</span></div>
           ${autonomie != null ? `<div class="carb-fiab-row"><span>${diagCouverture ? diagCouverture.texte : 'Couverture du prochain créneau : calcul en cours…'}</span>${diagCouverture ? `<span class="carb-fiab-badge" style="background:${diagCouverture.couvre ? 'var(--green-dim)' : 'var(--red-dim)'}; color:${diagCouverture.couvre ? 'var(--green)' : 'var(--red)'};">${diagCouverture.icone}</span>` : ''}</div>` : ''}
           <div class="carb-fiab-row" ${statutCourt.titre ? `title="${statutCourt.titre}"` : ''}><span style="color:${couleurFiab.c};">Situation stock : ${statutCourt.texte}</span><span class="carb-fiab-badge" style="background:${couleurFiab.f}; color:${couleurFiab.c};">${ICONE_NIVEAU[fiabilite.niveau] || '?'}</span></div>
@@ -1368,6 +1454,17 @@
     // jour, focalisé sur son carburant.
     zone.querySelectorAll('[data-releve-controle]').forEach(carte => {
       carte.addEventListener('click', () => ouvrirReleveControle(todayISO(), carte.dataset.releveControle));
+    });
+    // Point 3 (28/08/2026, retour de Frédéric) — le ⓘ de la ligne Écart
+    // devient un point d'entrée du diagnostic : `e.stopPropagation()`
+    // empêche le clic de remonter jusqu'à la carte entière (qui ouvre par
+    // ailleurs le relevé de contrôle, ci-dessus — deux actions distinctes,
+    // jamais fusionnées, même précédent que le badge "Preuve" de
+    // l'Historique).
+    zone.querySelectorAll('[data-ecart-diag]').forEach(el => {
+      const ouvrir = (e) => { e.stopPropagation(); toggleDiagnosticEcart(el.dataset.ecartDiag); };
+      el.addEventListener('click', ouvrir);
+      el.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ouvrir(e); } });
     });
     // Anime le remplissage après le premier paint (transition CSS déjà
     // posée sur height, mais partir de 0% puis appliquer la vraie valeur
@@ -1776,6 +1873,84 @@
     return `<span class="badge-regime" title="${regime.objectif}">${regime.libelle}</span>`;
   }
 
+  // Point 5 (28/08/2026, retour de Frédéric — "Je ne veux pas que ces
+  // informations soient uniquement cachées dans « Voir les calculs ». Le
+  // manager doit comprendre immédiatement pourquoi NEXUS bloque et ce
+  // qu'il doit faire [...] Écart −1 195 L 🟠 / Analyse : données
+  // incomplètes / Verify : Quart 2 du 27/08 manquant / Compléter Verify →")
+  // : quand une cause porte un diagnostic d'écart (`c.diagnosticEcart`,
+  // uniquement la cause 'anomalie_majeure' — Article 11, calculé une seule
+  // fois par NexusCarburantCommandeDonnees, aucun second diagnostic ici),
+  // affiche le format multi-lignes détaillé demandé. Toute autre cause
+  // (stock_fiable/historique_fiable/prevision_incertaine/jaugeage_frais/
+  // couverture_ventes/point_zero_fiable/livraisons_coherentes) retombe sur
+  // l'ancienne ligne simple, strictement inchangée (v2.264, point 7) — ce
+  // diagnostic ne concerne QUE l'écart physique/théorique.
+  function construireLigneCauseAConfirmer(c, ctx) {
+    const ecartTxt = fmtEcartSigneTxt(c.ecartL);
+    const diag = c.diagnosticEcart;
+    if (!diag) {
+      const texte = ecartTxt
+        ? `Écart ${COURT_CARBURANT[c.carburant] || c.carburant} de ${ecartTxt} à qualifier${c.action ? ` — ${c.action}` : ''}`
+        : `${COURT_CARBURANT[c.carburant] || c.carburant} : ${c.libelle}${c.action ? ` — ${c.action}` : ''}`;
+      return `<div style="margin-top:2px; color:var(--text);">→ ${texte}</div>`;
+    }
+    const EMOJI_DIAGNOSTIC = { releve_non_valide: '🟠', verify_incomplet: '🟠', anomalie_a_investiguer: '🔴' };
+    const emoji = EMOJI_DIAGNOSTIC[diag.cas] || '🟠';
+    const titre = `Écart ${COURT_CARBURANT[c.carburant] || c.carburant}${ecartTxt ? ` ${ecartTxt}` : ''} ${emoji}`;
+    const lignesDetail = [];
+    if (diag.cas === 'releve_non_valide') {
+      lignesDetail.push('Analyse : relevé non encore validé');
+    } else if (diag.cas === 'verify_incomplet') {
+      lignesDetail.push('Analyse : données incomplètes');
+      (diag.verifyManquants || []).forEach(a => {
+        const dateTxt = a.date ? formaterDateFrCourt(a.date) : 'date inconnue';
+        lignesDetail.push(`Verify : Quart ${a.quart} du ${dateTxt} non contrôlé`);
+      });
+    } else if (diag.cas === 'anomalie_a_investiguer') {
+      lignesDetail.push('Verify : contrôles complets ✓');
+      lignesDetail.push('Écart toujours inexpliqué');
+    }
+    const lien = construireLienActionDiagnostic(c, diag, ctx);
+    return `<div style="margin-top:6px; padding-top:6px; border-top:1px solid rgba(255,255,255,0.06);">
+        <div style="color:var(--text); font-weight:600;">→ ${titre}</div>
+        ${lignesDetail.map(l => `<div style="margin-top:2px; color:var(--text-mid); padding-left:12px;">${l}</div>`).join('')}
+        ${lien ? `<div style="margin-top:3px; padding-left:12px;">${lien}</div>` : ''}
+      </div>`;
+  }
+
+  // Traduit `c.cible` (posé par NexusCarburantCommandeMoteur.ACTIONS_DIAGNOSTIC_ECART,
+  // Article 11 — les URLs elles-mêmes restent construites ici, le moteur
+  // pur ne connaît aucune URL) en lien concret. 'verify_jour' pointe sur le
+  // PREMIER contrôle manquant (`diag.verifyManquants[0]`, même pattern de
+  // deep-link `ouvrir_date`/`ouvrir_quart` que le bandeau Verify de
+  // v2.263) ; 'releve_jour' pointe sur l'écran manager, à la date de
+  // l'ancre si elle diffère d'aujourd'hui (rattrapage) ; 'historique_mouvements'
+  // délègue à `ouvrirHistoriqueEtCentrer` (accordéon "Historique" déjà
+  // existant, Article 11 — jamais un second écran).
+  function construireLienActionDiagnostic(c, diag, ctx) {
+    if (!c.cta) return null;
+    if (c.cible === 'verify_jour') {
+      const premier = (diag.verifyManquants || [])[0];
+      const href = (premier && premier.date && premier.quart)
+        ? `NEXUS-Verify-v1.html?ouvrir_date=${encodeURIComponent(premier.date)}&ouvrir_quart=${encodeURIComponent(premier.quart)}`
+        : 'NEXUS-Verify-v1.html';
+      return `<a href="${href}" class="ventes-detail-lien">${c.cta}</a>`;
+    }
+    if (c.cible === 'releve_jour') {
+      const dateAncre = ctx && ctx.sourceAncreCommande ? ctx.sourceAncreCommande.dateISO : null;
+      const href = (dateAncre && dateAncre !== todayISO())
+        ? `NEXUS-Carburants-v1.html?date=${encodeURIComponent(dateAncre)}`
+        : 'NEXUS-Carburants-v1.html';
+      return `<a href="${href}" class="ventes-detail-lien">${c.cta}</a>`;
+    }
+    if (c.cible === 'historique_mouvements') {
+      const dateAncre = ctx && ctx.sourceAncreCommande ? ctx.sourceAncreCommande.dateISO : (ctx && ctx.dateISO) || '';
+      return `<a href="#" class="ventes-detail-lien" data-ouvrir-historique="${dateAncre}">${c.cta}</a>`;
+    }
+    return null;
+  }
+
   function renderCommandeCarburant(ctx) {
     const zone = document.getElementById('commandeCarburantZone');
     if (!zone) return;
@@ -2163,19 +2338,7 @@
       ? `<div class="section-note" style="margin:6px 0 0; padding:8px 10px; background:${infoEtatConfirmation.fond}; border-radius:8px; font-size:11px;">
           <div style="font-weight:700; font-family:var(--mono); font-size:10.5px; color:${infoEtatConfirmation.couleur};">Commande : ${infoEtatConfirmation.libelle.toUpperCase()}</div>
           <div style="margin:2px 0 5px; color:var(--text-mid);">${causesAConfirmer.length} élément${causesAConfirmer.length > 1 ? 's' : ''} à résoudre</div>
-          ${causesAConfirmer.map(c => {
-            // 28/08/2026, v2.264, point 7 — "dire exactement ce qu'il faut
-            // faire pour obtenir la confirmation" : l'écart chiffré reste le
-            // titre de la ligne quand il est connu, mais l'action concrète
-            // (`c.action`, désormais relayée par resumerCausesConfirmationCommande)
-            // est toujours ajoutée — jamais une cause affichée sans dire quoi
-            // faire pour la résoudre.
-            const ecartTxt = fmtEcartSigneTxt(c.ecartL);
-            const texte = ecartTxt
-              ? `Écart ${COURT_CARBURANT[c.carburant] || c.carburant} de ${ecartTxt} à qualifier${c.action ? ` — ${c.action}` : ''}`
-              : `${COURT_CARBURANT[c.carburant] || c.carburant} : ${c.libelle}${c.action ? ` — ${c.action}` : ''}`;
-            return `<div style="margin-top:2px; color:var(--text);">→ ${texte}</div>`;
-          }).join('')}
+          ${causesAConfirmer.map(c => construireLigneCauseAConfirmer(c, ctx)).join('')}
         </div>`
       : '';
 
@@ -4210,6 +4373,25 @@
     initAccordions();
     const btnQualite = document.getElementById('btnQualiteReceptions');
     if (btnQualite) btnQualite.addEventListener('click', toggleSousAccordionQualite);
+
+    // 28/08/2026, nouvelle demande de Frédéric (points 3+5, "Analyser les
+    // mouvements carburant →") — un seul écouteur délégué sur `document`
+    // (Article 11, même principe qu'un unique gestionnaire d'accordéons)
+    // couvre indifféremment les liens injectés dans le bloc "à confirmer"
+    // (causesAConfirmerHTML) ET dans le panneau de diagnostic du ⓘ Écart
+    // (construireTexteDiagnosticEcart), qui n'existent pas encore au
+    // chargement de la page — un écouteur posé sur chaque élément au
+    // moment de son rendu serait perdu à chaque nouveau rendu de la carte
+    // "Prochaine commande" (toutes les 60 s, voir l'intervalle de
+    // rafraîchissement plus bas). Ouvre l'accordéon "Historique" déjà
+    // existant (jaugeages/livraisons/points zéro, Sprint C6) plutôt qu'un
+    // second écran dupliqué.
+    document.addEventListener('click', (e) => {
+      const el = e.target.closest('[data-ouvrir-historique]');
+      if (!el) return;
+      e.preventDefault();
+      ouvrirHistoriqueEtCentrer(el.dataset.ouvrirHistorique || null);
+    });
 
     // Correctif (17/08/2026, retour de Frédéric : "j'ai un popup qui
     // s'ouvre mais je n'arrive pas à le fermer") — la modale "Relevé de
