@@ -413,17 +413,31 @@
   // précédente. 'autre' passe de "Autre raison" à "Autre motif" (cahier
   // §3, tableau) et devient le seul motif à exiger le commentaire libre
   // (voir motifEcartTexteObligatoire côté écran).
+  // 28/08/2026, demande de Frédéric : ce dictionnaire reste le SEUL point
+  // de résolution des libellés (labelMotifEcart), y compris pour d'anciens
+  // enregistrements portant des valeurs qui ne sont plus proposées dans le
+  // menu déroulant (Article 5 — jamais faire disparaître ou mal afficher
+  // une donnée passée). Le menu réellement proposé à la saisie est
+  // désormais scindé en deux (voir renderBlocMotifEcart) : un menu réduit
+  // pour un écart corrigé à 0 (NexusFdjMoteur.motifsEcartCorrigeDisponibles)
+  // et un auto-motif 'non_explique' pour un écart qui subsiste — 'autre',
+  // 'carnet_non_declare', 'mouvement_oublie' et 'correction_verification'
+  // ne sont plus proposés à la saisie ('correction_verification' encore
+  // moins que les autres : "ce n'est pas une cause, c'est le résultat du
+  // processus de vérification", Frédéric) mais restent ici pour l'affichage
+  // de l'historique.
   const MOTIFS_ECART_FDJ = [
     { value: '', label: 'Choisir un motif…' },
     { value: 'remboursement', label: 'Remboursement' },
     { value: 'erreur_saisie', label: 'Erreur de saisie' },
     { value: 'erreur_comptage', label: 'Erreur de comptage' },
+    { value: 'erreur_montant_caisse', label: 'Erreur sur le montant de caisse' },
     { value: 'carnet_non_declare', label: 'Carnet non déclaré' },
     { value: 'mouvement_oublie', label: 'Réapprovisionnement non enregistré' },
     { value: 'erreur_rapport', label: 'Erreur sur le rapport FDJ' },
-    { value: 'correction_verification', label: 'Correction après vérification' },
+    { value: 'correction_verification', label: 'Correction après vérification (ancien libellé)' },
     { value: 'autre', label: 'Autre motif' },
-    { value: 'non_explique', label: 'Je ne sais pas' },
+    { value: 'non_explique', label: 'Origine non identifiée' },
   ];
   // Motifs de l'exception tracée côté employé (NEXUS-FDJ-v1.html,
   // activerCarnet/renderExceptionCarnet) — dupliqués ici uniquement pour
@@ -4642,6 +4656,7 @@
     const classe = ecart === null ? '' : (ecart === 0 ? 'green' : (Math.abs(ecart) <= 1 ? 'amber' : 'red'));
     const groupes = grouperParPalier(jeux);
     synchroniserVerdictAvecEcart(ecart);
+    synchroniserMotifEcartAvecVerification(ecart, edition.ecartOrigine);
 
     document.getElementById('content').innerHTML = `
       <button type="button" class="btn-retour-fleche" id="btnRetourFleche">← Retour</button>
@@ -4704,7 +4719,7 @@
         <div class="stat-row total" id="ligneEcart"><div class="stat-label">Écart</div><div class="stat-value ${classe}">${ecart !== null ? `${ecart > 0 ? '+' : ''}${fmtEuro(ecart)}` : '—'}</div></div>
       </div>
 
-      <div id="blocMotifEcart">${renderBlocMotifEcart(ecart)}</div>
+      <div id="blocMotifEcart">${renderBlocMotifEcart(ecart, edition.ecartOrigine)}</div>
 
       <div class="champ-sep"></div>
       <div class="section-titre">Synthèse avant validation</div>
@@ -4792,23 +4807,75 @@
     `;
   }
 
-  // 21/08/2026 : le motif d'écart n'a de sens que s'il y a un écart —
-  // masqué entièrement quand l'écart est nul ("Motif = masqué" demandé
-  // par Frédéric), affiché et OBLIGATOIRE (le menu lui-même, pas
-  // seulement le commentaire libre) dès que l'écart n'est pas nul —
-  // sans motif choisi, un verdict "avec écart" ne serait justifié par
-  // rien de vérifiable.
-  function renderBlocMotifEcart(ecart) {
-    if (ecart === null || ecart === undefined || ecart === 0) return '';
+  // ------------------------------------------------------------
+  // "POURQUOI CET ÉCART ?" — 28/08/2026, demande de Frédéric : restructuré
+  // selon le RÉSULTAT de la vérification (voir NexusFdjMoteur.
+  // situationVerificationEcart, source unique de cette décision — Article
+  // 11), plutôt qu'un menu plat de 9 motifs affiché dans tous les cas.
+  // 21/08/2026 (règle conservée) : masqué entièrement quand il n'y a rien
+  // à expliquer.
+  // ------------------------------------------------------------
+  function renderBlocMotifEcart(ecart, ecartOrigine) {
+    const situation = NexusFdjMoteur.situationVerificationEcart(ecart, ecartOrigine);
+    if (situation === 'aucun_ecart') return '';
+    if (situation === 'corrige_a_zero') return renderBlocMotifCorrige(ecartOrigine);
+    return renderBlocMotifRestant(ecart);
+  }
+
+  // Branche CORRIGÉ À 0 — l'écart initialement déclaré par l'employé a
+  // disparu après vérification manager : une vraie cause est exigée,
+  // choisie dans le menu réduit (jamais "Correction après vérification",
+  // "ce n'est pas une cause, c'est le résultat du processus de
+  // vérification").
+  function renderBlocMotifCorrige(ecartOrigine) {
+    const options = NexusFdjMoteur.motifsEcartCorrigeDisponibles(ecartOrigine);
     return `
+      <div class="etat-banner" style="color:var(--text-mid);">
+        Écart initial de <b style="color:var(--text);">${ecartOrigine > 0 ? '+' : ''}${fmtEuro(ecartOrigine)}</b> — vérifié et ramené à 0,00 €. Quelle est la cause réelle ?
+      </div>
       <label class="champ-label">Pourquoi cet écart ? *</label>
       <select class="champ-select" id="champMotifEcart" style="margin-bottom:${edition.motifEcart === 'autre' ? '4px' : '16px'};">
-        ${MOTIFS_ECART_FDJ.map(m => `<option value="${m.value}" ${m.value===edition.motifEcart?'selected':''}>${m.label}</option>`).join('')}
+        ${options.map(m => `<option value="${m.value}" ${m.value===edition.motifEcart?'selected':''}>${m.label}</option>`).join('')}
       </select>
       ${edition.motifEcart === 'autre' ? '<div class="champ-note" id="noteMotifTexteObligatoire" style="margin:0 0 8px;">« Autre motif » nécessite le commentaire ci-dessous.</div>' : ''}
       <label class="champ-label">Commentaire / justificatif${edition.motifEcart === 'autre' ? ' *' : ' (si nécessaire)'}</label>
       <textarea class="champ-input" id="champMotifTexte" rows="2" style="margin-bottom:16px; resize:vertical;" placeholder="Précisions utiles pour retrouver ce contrôle plus tard…">${edition.motifEcartTexte || ''}</textarea>
     `;
+  }
+
+  // Branche RESTANT — l'écart persiste malgré la vérification : NEXUS ne
+  // force jamais une fausse explication ("inutile de forcer le manager à
+  // choisir une fausse explication"), motif automatique "Origine non
+  // identifiée" (posé par synchroniserMotifEcartAvecVerification), aucun
+  // menu déroulant.
+  function renderBlocMotifRestant(ecart) {
+    const badge = ecart > 0 ? '🟢 Excédent non expliqué' : '🔴 Manque non expliqué';
+    return `
+      <div class="etat-banner" style="color:var(--text-mid);">
+        ${badge} : <b style="color:var(--text);">${ecart > 0 ? '+' : ''}${fmtEuro(ecart)}</b><br>
+        Origine : Non identifiée — aucune cause vérifiée ne l'explique.
+      </div>
+      <label class="champ-label">Commentaire / justificatif (si nécessaire)</label>
+      <textarea class="champ-input" id="champMotifTexte" rows="2" style="margin-bottom:16px; resize:vertical;" placeholder="Précisions utiles pour retrouver ce contrôle plus tard…">${edition.motifEcartTexte || ''}</textarea>
+    `;
+  }
+
+  // Garde edition.motifEcart cohérent avec la situation de vérification —
+  // jamais un motif "corrigé à 0" qui traînerait alors que l'écart est
+  // redevenu non nul, jamais un choix manuel exigé quand l'écart persiste
+  // (auto "Origine non identifiée"). Même principe que
+  // synchroniserVerdictAvecEcart ci-dessus — appelée aux mêmes endroits.
+  function synchroniserMotifEcartAvecVerification(ecart, ecartOrigine) {
+    const situation = NexusFdjMoteur.situationVerificationEcart(ecart, ecartOrigine);
+    if (situation === 'restant') {
+      edition.motifEcart = 'non_explique';
+    } else if (situation === 'corrige_a_zero') {
+      const disponibles = NexusFdjMoteur.motifsEcartCorrigeDisponibles(ecartOrigine).map(m => m.value);
+      if (!disponibles.includes(edition.motifEcart)) edition.motifEcart = '';
+    } else {
+      edition.motifEcart = '';
+      edition.motifEcartTexte = '';
+    }
   }
 
   // F4 (20/08/2026, cahier §3, étape 7) : "Synthèse avant validation" —
@@ -4817,7 +4884,32 @@
   // (plutôt qu'inline) car appelée à la fois par renderEdition (premier
   // rendu) et majResume (frappe live dans les champs qui influent sur
   // l'écart) — une seule formule d'affichage, jamais deux qui divergent.
+  // 28/08/2026, demande de Frédéric : recap enrichi selon la situation de
+  // vérification (voir renderBlocMotifEcart) — reprend exactement le
+  // format demandé ("Écart initial / Correction / Écart final / Motif /
+  // ✅ Contrôle régularisé" ou "Écart final / Origine : Non identifiée").
+  // Comportement historique conservé (Caisse attendue / Écart retenu /
+  // Motif) quand il n'y a rien à régulariser.
   function renderSyntheseAvantValidation(attendue, ecart, classe) {
+    const situation = NexusFdjMoteur.situationVerificationEcart(ecart, edition.ecartOrigine);
+    if (situation === 'corrige_a_zero') {
+      const correction = 0 - edition.ecartOrigine;
+      return `
+        <div class="stat-row"><div class="stat-label">Caisse attendue</div><div class="stat-value">${fmtEuro(attendue)}</div></div>
+        <div class="stat-row"><div class="stat-label">Écart initial</div><div class="stat-value amber">${edition.ecartOrigine > 0 ? '+' : ''}${fmtEuro(edition.ecartOrigine)}</div></div>
+        <div class="stat-row"><div class="stat-label">Correction</div><div class="stat-value">${correction > 0 ? '+' : ''}${fmtEuro(correction)}</div></div>
+        <div class="stat-row"><div class="stat-label">Écart final</div><div class="stat-value green">0,00 €</div></div>
+        <div class="stat-row"><div class="stat-label">Motif</div><div class="stat-value" style="font-size:11.5px; font-weight:400;">${edition.motifEcart ? labelMotifEcart(edition.motifEcart) : '—'}</div></div>
+        <div class="stat-row" style="margin-bottom:0;"><div class="stat-value" style="color:var(--green); font-weight:600;">✅ Contrôle régularisé</div></div>
+      `;
+    }
+    if (situation === 'restant') {
+      return `
+        <div class="stat-row"><div class="stat-label">Caisse attendue</div><div class="stat-value">${fmtEuro(attendue)}</div></div>
+        <div class="stat-row total"><div class="stat-label">Écart final</div><div class="stat-value ${classe}">${ecart > 0 ? '+' : ''}${fmtEuro(ecart)}</div></div>
+        <div class="stat-row" style="margin-bottom:0;"><div class="stat-label">Origine</div><div class="stat-value" style="font-size:11.5px; font-weight:400;">Non identifiée</div></div>
+      `;
+    }
     return `
       <div class="stat-row"><div class="stat-label">Caisse attendue</div><div class="stat-value">${fmtEuro(attendue)}</div></div>
       <div class="stat-row total"><div class="stat-label">Écart retenu</div><div class="stat-value ${classe}">${ecart !== null ? `${ecart > 0 ? '+' : ''}${fmtEuro(ecart)}` : '—'}</div></div>
@@ -4830,6 +4922,7 @@
     const ecart = ecartCaisseEdition();
     const classe = ecart === null ? '' : (ecart === 0 ? 'green' : (Math.abs(ecart) <= 1 ? 'amber' : 'red'));
     synchroniserVerdictAvecEcart(ecart);
+    synchroniserMotifEcartAvecVerification(ecart, edition.ecartOrigine);
     const resume = document.querySelector('.resume-card');
     if (resume) {
       resume.innerHTML = `
@@ -4860,7 +4953,7 @@
 
     const blocMotif = document.getElementById('blocMotifEcart');
     if (blocMotif) {
-      blocMotif.innerHTML = renderBlocMotifEcart(ecart);
+      blocMotif.innerHTML = renderBlocMotifEcart(ecart, edition.ecartOrigine);
       const selMotif = document.getElementById('champMotifEcart');
       if (selMotif) selMotif.addEventListener('change', e => { edition.motifEcart = e.target.value; renderEdition(); });
       const txtMotif = document.getElementById('champMotifTexte');
@@ -4974,8 +5067,8 @@
       renderEdition();
       return;
     }
-    if (NexusFdjMoteur.motifEcartObligatoire(ecartValidation) && !edition.motifEcart) {
-      alert('Un écart non nul nécessite un motif — choisissez un motif dans la liste avant d\'enregistrer.');
+    if (NexusFdjMoteur.motifEcartObligatoire(ecartValidation, edition.ecartOrigine) && !edition.motifEcart) {
+      alert('Un motif est nécessaire — choisissez la cause réelle de l\'écart avant d\'enregistrer.');
       const selMotif = document.getElementById('champMotifEcart');
       if (selMotif) selMotif.focus();
       return;

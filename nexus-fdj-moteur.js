@@ -1523,11 +1523,71 @@
     return 'provisoire';
   }
 
+  // ------------------------------------------------------------
+  // "POURQUOI CET ÉCART ?" — 28/08/2026, demande de Frédéric : restructuré
+  // selon le RÉSULTAT de la vérification manager, plutôt qu'un menu plat
+  // de 9 motifs proposé dans tous les cas. Trois situations, strictement
+  // distinguées :
+  //   - AUCUN_ECART : rien à expliquer (jamais eu d'écart, ou l'écart
+  //     final est nul et il n'y avait pas d'écart initial déclaré par
+  //     l'employé à corriger) — comportement historique, bloc masqué.
+  //   - CORRIGÉ_A_ZERO : l'écart initialement déclaré par l'employé
+  //     (`ecartOrigine`, immuable — voir NEXUS-FDJ-v1.html::
+  //     enregistrerCaisseQuart, `caisse_reelle_origine`/`ecart_origine`)
+  //     a disparu après vérification manager (les champs corrigés
+  //     recalculent l'écart à 0 en direct sur cet écran) — une cause
+  //     réelle est exigée, choisie dans un menu volontairement réduit
+  //     (voir motifsEcartCorrigeDisponibles). Jamais "Correction après
+  //     vérification" comme motif : "ce n'est pas une cause, c'est le
+  //     résultat du processus de vérification" (Frédéric).
+  //   - RESTANT : l'écart persiste malgré la vérification — NEXUS ne
+  //     force jamais une fausse explication ; motif automatique
+  //     "Origine non identifiée" (valeur `non_explique`, déjà existante,
+  //     Article 11), jamais un choix manuel forcé parmi une liste.
+  // Détecté automatiquement en comparant l'écart ORIGINAL (immuable) à
+  // l'écart FINAL recalculé en direct sur l'écran manager — jamais une
+  // question posée en plus ("avez-vous corrigé l'écart ?") qui pourrait
+  // se désynchroniser de ce que le manager a réellement modifié.
+  // ------------------------------------------------------------
+  function situationVerificationEcart(ecartFinal, ecartInitial) {
+    if (ecartFinal === null || ecartFinal === undefined) return 'aucun_ecart';
+    if (ecartFinal === 0) {
+      if (ecartInitial === null || ecartInitial === undefined || ecartInitial === 0) return 'aucun_ecart';
+      return 'corrige_a_zero';
+    }
+    return 'restant';
+  }
+
+  // Menu réduit, uniquement pour la branche CORRIGÉ_A_ZERO (cahier de
+  // Frédéric, tableau simplifié) — "Remboursement" n'a de sens que si
+  // l'écart initial était un MANQUE (négatif : la caisse employé avait
+  // moins que prévu, expliqué a posteriori par un remboursement client non
+  // enregistré au moment du contrôle) ; jamais proposé pour un excédent.
+  const MOTIFS_ECART_CORRIGE_FDJ = [
+    { value: '', label: 'Choisir un motif…' },
+    { value: 'erreur_comptage', label: 'Erreur de comptage' },
+    { value: 'erreur_saisie', label: 'Erreur de saisie' },
+    { value: 'erreur_montant_caisse', label: 'Erreur sur le montant de caisse' },
+    { value: 'erreur_rapport', label: 'Erreur sur le rapport FDJ' },
+  ];
+  function motifsEcartCorrigeDisponibles(ecartInitial) {
+    const liste = MOTIFS_ECART_CORRIGE_FDJ.slice();
+    if (typeof ecartInitial === 'number' && ecartInitial < 0) liste.push({ value: 'remboursement', label: 'Remboursement' });
+    return liste;
+  }
+
   // Le motif de l'écart (menu déroulant, pas seulement son commentaire
-  // libre) devient obligatoire dès que l'écart n'est pas nul — sans
-  // motif, "Conforme avec écart justifié" ne serait justifié par rien.
-  function motifEcartObligatoire(ecart) {
-    return !(ecart === null || ecart === undefined || ecart === 0);
+  // libre) devient obligatoire dès qu'il y a quelque chose à documenter —
+  // soit une vraie cause choisie (corrigé à 0), soit l'auto-motif "Origine
+  // non identifiée" déjà posé par l'écran (restant) — jamais quand il n'y
+  // a rien à expliquer. Signature étendue avec `ecartInitial` en 2ᵉ
+  // paramètre, optionnel : un appel à un seul argument garde exactement le
+  // comportement historique (ecartInitial absent -> jamais "corrigé à 0",
+  // seulement "restant" si l'écart est non nul — rétrocompatible avec tout
+  // appelant qui ne connaît pas l'écart d'origine, voir
+  // test_fdj_statut_derive_ecart_verdict.js).
+  function motifEcartObligatoire(ecartFinal, ecartInitial) {
+    return situationVerificationEcart(ecartFinal, ecartInitial) !== 'aucun_ecart';
   }
 
   // État du quart — badge de synthèse en lecture seule (jamais un champ
@@ -1717,6 +1777,7 @@
     signalCritiqueFdjAujourdhui,
     RESULTATS_CONTROLE_FDJ, labelResultatControle,
     optionsVerdictControleFdj, verdictCoherentAvecEcart, deriverStatutCaisseDepuisVerdict, motifEcartObligatoire, etatDuQuartFdj,
+    situationVerificationEcart, MOTIFS_ECART_CORRIGE_FDJ, motifsEcartCorrigeDisponibles,
     causeAlerteContinuite, elementManquantAlerteContinuite, actionAlerteContinuite, detailAlerteContinuite,
     etatAlerteContinuite, labelEtatAlerteContinuite,
     LABEL_TYPE_MOUVEMENT, ecartsReferenceLignes, trajetMouvement,
