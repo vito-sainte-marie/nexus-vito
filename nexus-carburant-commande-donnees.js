@@ -299,6 +299,27 @@
           ventesEstimeesInclusesL: estimeParHistorique ? estimee : 0,
           stockEstimeParHistorique: estimeParHistorique && stockEstimeL != null,
           stockFiable: r.statut !== 'Données insuffisantes' && stockEstimeL != null,
+          // Ancre de la RECOMMANDATION (27/08/2026, règles 1+2 de Frédéric :
+          // "le jaugeage du matin est l'unique point physique de départ de
+          // la recommandation" / "elle ne doit jamais attendre la clôture
+          // du Quart 1") — DISTINCTE de `stockActuelL` ci-dessus. `stockActuelL`
+          // ("stock estimé maintenant") reste utile pour l'AFFICHAGE
+          // (monitoring en temps réel), mais l'utiliser comme ancre de
+          // projection multi-jours revenait à soustraire deux fois la même
+          // consommation du jour : une fois via les ventes RÉELLEMENT
+          // captées depuis ce matin (`ventes` ci-dessus), une seconde fois
+          // via la prévision d'UNE JOURNÉE COMPLÈTE pour aujourd'hui dans la
+          // fenêtre de ventes prévues (`prevoirConsommationFenetre` inclut
+          // toujours la date du jour). Vérifié sur données réelles
+          // vito-sainte-marie 27/08 : GO stock prévu avant livraison passait
+          // de -740 L (ancre stock maintenant, double compte) à +1 734 L
+          // (ancre jaugeage), soit 2 474 L d'écart — non négligeable.
+          // L'ancre jaugeage ne dépend JAMAIS de la clôture du Quart 1 (ni
+          // de l'estimation d'un quart encore ouvert) : elle reste
+          // disponible et stable toute la journée dès que le jaugeage du
+          // matin est saisi, conformément à la règle 2.
+          stockAncreCommandeL: jaugeageL,
+          stockAncreCommandeFiable: r.statut !== 'Données insuffisantes' && jaugeageL != null,
         };
       });
       return { parCarburant: resultat, aucunReleve: false };
@@ -306,17 +327,24 @@
 
     // Cas B — aucun jaugeage aujourd'hui : ventesDepuis de
     // chargerControleJour va déjà jusqu'à "maintenant" (voir commentaire
-    // ci-dessus).
+    // ci-dessus). Pas de "jaugeage du matin" disponible pour CE jour — la
+    // règle 1 de Frédéric ne s'applique qu'à un jaugeage réellement pris ce
+    // matin (Article 5, jamais un jaugeage fabriqué faute de mieux) : ce cas
+    // garde donc l'ancre "dernier stock fiable connu" comme avant,
+    // documenté en portée non traitée (v2.255).
     Object.entries(controle.parCarburant).forEach(([cle, r]) => {
       const jaugeageL = r.dernierReel != null ? Number(r.dernierReel) : null;
       const ventes = r.ventesDepuis;
       const stockEstimeL = (jaugeageL != null && ventes != null) ? jaugeageL - ventes : null;
+      const fiable = r.statut !== 'Données insuffisantes' && stockEstimeL != null;
       resultat[cle] = {
         stockActuelL: stockEstimeL,
         jaugeageOuvertureL: jaugeageL,
         jaugeageOuvertureLe: controle.dernierReleve ? controle.dernierReleve.mesure_le : null,
         ventesDepuisJaugeageL: ventes,
-        stockFiable: r.statut !== 'Données insuffisantes' && stockEstimeL != null,
+        stockFiable: fiable,
+        stockAncreCommandeL: stockEstimeL,
+        stockAncreCommandeFiable: fiable,
       };
     });
     return { parCarburant: resultat, aucunReleve: false };
@@ -356,15 +384,20 @@
     carburantsActifs.forEach(carburant => {
       const cuvesCarburant = cuves[carburant].cuves || [];
       const limiteRemplissageL = cuvesCarburant.reduce((s, c) => s + (Number(c.limite_remplissage) || 0), 0);
-      const stock = stockInfo.parCarburant[carburant] || { stockActuelL: null, stockFiable: false };
+      const stock = stockInfo.parCarburant[carburant] || { stockActuelL: null, stockFiable: false, stockAncreCommandeL: null, stockAncreCommandeFiable: false };
       const consommationMoyenneJour = M.moyenneRecente(historiqueParJour, carburant, dateISO, 14).moyenne;
       const commandeEnCours = commandesEnCours[carburant] || null;
 
+      // 27/08/2026, règles 1+2 de Frédéric — la RECOMMANDATION s'ancre sur
+      // `stockAncreCommandeL` (jaugeage du matin, jamais net des ventes déjà
+      // captées aujourd'hui), PAS sur `stock.stockActuelL` ("stock estimé
+      // maintenant", réservé à l'affichage temps réel ci-dessous). Voir le
+      // commentaire détaillé dans chargerStockEtFiabiliteParCarburant.
       const evaluation = M.evaluerCarburant({
         carburant, maintenantISO: dateISO, heureMaintenantHHMM, config, joursFeriesISO,
-        stockActuelL: stock.stockActuelL, limiteRemplissageL, consommationMoyenneJour,
+        stockActuelL: stock.stockAncreCommandeL, limiteRemplissageL, consommationMoyenneJour,
         historiqueParJour, commandeEnCoursVolumeL: commandeEnCours ? commandeEnCours.volumeL : 0,
-        stockFiable: stock.stockFiable,
+        stockFiable: stock.stockAncreCommandeFiable,
       });
       evaluationsParCarburant[carburant] = {
         ...evaluation, limiteRemplissageL, commandeEnCours, consommationMoyenneJour,
