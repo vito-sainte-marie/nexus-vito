@@ -267,6 +267,18 @@
   .histo-ecart-top{display:flex; align-items:center; justify-content:space-between; margin-bottom:4px;}
   .histo-ecart-caisse{font-family:var(--mono); font-size:9.5px; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.04em;}
   .histo-ecart-emp{font-family:var(--mono); font-size:9.5px; color:var(--text-dim); margin-bottom:5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .histo-ecart-corrige{font-family:var(--mono); font-size:9.5px; color:var(--text-dim); margin-top:3px;}
+  .histo-versions{margin-top:14px; padding-top:12px; border-top:1px dashed var(--hairline);}
+  .histo-versions-titre{font-family:var(--mono); font-size:10px; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.04em; margin-bottom:8px;}
+  .histo-versions-vide{font-size:12px; color:var(--text-dim);}
+  .btn-annuler-derniere{display:block; width:100%; padding:8px 12px; margin-bottom:10px; background:var(--panel-raised); color:var(--cyan); border:1px solid rgba(79,195,217,0.35); border-radius:8px; font-family:var(--sans); font-size:12px; font-weight:600; cursor:pointer;}
+  .histo-version-item{padding:8px 0; border-top:1px solid var(--hairline);}
+  .histo-version-item:first-of-type{border-top:none;}
+  .histo-version-top{display:flex; align-items:center; justify-content:space-between;}
+  .histo-version-action{font-size:12px; font-weight:600; color:var(--text);}
+  .histo-version-instant{font-family:var(--mono); font-size:10.5px; color:var(--text-dim);}
+  .histo-version-auteur{font-size:11px; color:var(--text-mid); margin-top:2px;}
+  .btn-restaurer-version{margin-top:6px; padding:6px 10px; background:transparent; color:var(--amber); border:1px solid rgba(245,166,35,0.3); border-radius:6px; font-family:var(--sans); font-size:11px; font-weight:600; cursor:pointer;}
   .histo-detail{display:none; margin-top:10px; font-size:11.5px; color:var(--text-mid); line-height:1.6;}
   .histo-detail.open{display:block;}
   .empty{text-align:center; padding:24px; color:var(--text-dim); font-size:12.5px;}
@@ -975,6 +987,117 @@
       if (!ids || !ids.length) return '—';
       const noms = ids.map(id => { const e = EMPLOYES_SITE.find(x => x.id === id); return e ? e.nom : null; }).filter(Boolean);
       return noms.length ? noms.join(', ') : '—';
+    }
+
+    // ------------------------------------------------------------
+    // VERSIONING / RESTAURATION — v2.272, retour de Frédéric "CORRECTIF
+    // VERIFY — Sécurisation Date/Quart et restauration" (points 5/6/7/10).
+    // Un snapshot COMPLET de la ligne `audits_caisse` est posé dans
+    // `audits_caisse_versions` juste AVANT chaque écriture qui la modifie
+    // (modification via "Calculer et enregistrer", validation Piste/
+    // Boutique, restauration elle-même) — jamais après, jamais partiel.
+    // `auditRow` doit déjà être la ligne complète existante AVANT le
+    // changement (lue une seule fois par l'appelant, jamais une deuxième
+    // requête ici — Article 11).
+    //
+    // Non-bloquant par choix assumé : un échec de snapshot est journalisé en
+    // console mais n'empêche jamais l'enregistrement réel de l'audit — un
+    // manager ne doit jamais se retrouver bloqué pour valider sa caisse à
+    // cause d'un filet de sécurité qui, lui, aurait un problème. Limite
+    // documentée dans le Data Dictionary plutôt que cachée.
+    // ------------------------------------------------------------
+    const VERSIONS_CHARGEES = new Set();
+
+    async function snapshotAuditAvantEcriture(auditRow, action, motif) {
+      if (!auditRow || !auditRow.id) return;
+      try {
+        const { data: derniereVersion } = await nexusClient.from('audits_caisse_versions')
+          .select('id').eq('audit_id', auditRow.id).order('created_at', { ascending: false }).limit(1).maybeSingle();
+        const { error } = await nexusClient.from('audits_caisse_versions').insert({
+          site: auditRow.site, audit_id: auditRow.id,
+          version_precedente_id: derniereVersion ? derniereVersion.id : null,
+          action, valeurs: auditRow, acteur_id: EMPLOYEE_ID, motif: motif || null,
+        });
+        if (error) console.error('Snapshot audit (versioning):', error);
+        VERSIONS_CHARGEES.delete(auditRow.id);
+      } catch (e) {
+        console.error('Snapshot audit (versioning):', e);
+      }
+    }
+
+    // Charge et affiche la timeline des versions d'un audit — paresseux
+    // (seulement au premier dépli de l'audit dans l'Historique), jamais une
+    // requête pour chacune des lignes de l'historique dès le chargement de
+    // la page (Article 11 / perf, même principe que les autres écrans
+    // NEXUS).
+    async function chargerEtRenderVersions(a, i) {
+      const zone = document.getElementById(`versions-${i}`);
+      if (!zone || VERSIONS_CHARGEES.has(a.id)) return;
+      const { data, error } = await nexusClient.from('audits_caisse_versions')
+        .select('*').eq('audit_id', a.id).order('created_at', { ascending: false });
+      if (error) { console.error('Chargement historique des modifications:', error); zone.innerHTML = `<div class="histo-versions-vide">Erreur de chargement de l'historique des modifications.</div>`; return; }
+      VERSIONS_CHARGEES.add(a.id);
+      if (!data || data.length === 0) { zone.innerHTML = ''; return; }
+
+      const ctx = { employesParId: Object.fromEntries(EMPLOYES_SITE.map(e => [e.id, e])) };
+      const timeline = NexusVerifyMoteur.construireTimelineVersions(data, ctx);
+      const derniere = timeline[0];
+
+      zone.innerHTML = `
+        <div class="histo-versions-titre">Historique des modifications</div>
+        <button type="button" class="btn-annuler-derniere" data-idx="${i}">↩️ Annuler la dernière modification</button>
+        ${timeline.map(v => `
+          <div class="histo-version-item">
+            <div class="histo-version-top">
+              <span class="histo-version-action">${v.libelleAction}</span>
+              <span class="histo-version-instant">${new Date(v.instant).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+            </div>
+            <div class="histo-version-auteur">${v.auteurNom}${v.motif ? ` — ${v.motif}` : ''}</div>
+            <button type="button" class="btn-restaurer-version" data-version-id="${v.id}" data-idx="${i}">Restaurer cet état →</button>
+          </div>
+        `).join('')}
+      `;
+
+      zone.querySelector('.btn-annuler-derniere').addEventListener('click', (e) => {
+        e.stopPropagation();
+        restaurerVersion(a.id, derniere.valeurs, 'Annulation de la dernière modification', i);
+      });
+      zone.querySelectorAll('.btn-restaurer-version').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const v = timeline.find(t => t.id === btn.dataset.versionId);
+          if (v) restaurerVersion(a.id, v.valeurs, '', i);
+        });
+      });
+    }
+
+    // Restauration (§6/§7/§10) — capture d'abord l'état COURANT (avant de
+    // l'écraser) comme une nouvelle version 'restauration', motivée par le
+    // motif saisi, puis applique l'ancien état. Rien n'est jamais supprimé
+    // de l'historique : la chaîne s'allonge, elle ne recule jamais.
+    async function restaurerVersion(auditId, valeursSnapshot, motifDefaut, i) {
+      const motif = prompt('Motif de la restauration (obligatoire) :', motifDefaut || '');
+      if (motif === null) return;
+      if (!motif.trim()) { alert('Un motif est requis pour restaurer une version précédente.'); return; }
+
+      const { data: courant, error: eCourant } = await nexusClient.from('audits_caisse').select('*').eq('id', auditId).single();
+      if (eCourant || !courant) {
+        console.error('Restauration audit — lecture état courant:', eCourant);
+        alert('Impossible de lire l\'état actuel de cet audit — restauration annulée.');
+        return;
+      }
+
+      await snapshotAuditAvantEcriture(courant, 'restauration', motif.trim());
+
+      const patch = NexusVerifyMoteur.construirePatchRestauration(valeursSnapshot);
+      const { error: eMaj } = await nexusClient.from('audits_caisse').update(patch).eq('id', auditId);
+      if (eMaj) {
+        console.error('Restauration audit — écriture:', eMaj);
+        alert('Erreur lors de la restauration — réessayez.');
+        return;
+      }
+      VERSIONS_CHARGEES.delete(auditId);
+      await afficherHistorique();
     }
 
     function majLabelEmployes(caisse) {
@@ -2360,11 +2483,18 @@
       // préserve son écart d'origine si elle en a déjà un ; sinon (première
       // écriture réelle de ce quart) l'écart tout juste calculé DEVIENT
       // l'origine.
+      // v2.272 — select('*') plutôt que les 2 seules colonnes d'origine :
+      // la ligne complète sert maintenant aussi de snapshot "avant
+      // modification" (retour de Frédéric, points 5/6/7/10), pas de
+      // deuxième requête pour ça (Article 11).
       const { data: auditExistant } = await nexusClient.from('audits_caisse')
-        .select('ecart_piste_origine, ecart_boutique_origine')
+        .select('*')
         .eq('site', SITE_ACTUEL).eq('date', date).eq('quart', quart).maybeSingle();
       const ecart_piste_origine = (auditExistant && auditExistant.ecart_piste_origine != null) ? auditExistant.ecart_piste_origine : ecart_piste;
       const ecart_boutique_origine = (auditExistant && auditExistant.ecart_boutique_origine != null) ? auditExistant.ecart_boutique_origine : ecart_boutique;
+      if (auditExistant) {
+        await snapshotAuditAvantEcriture(auditExistant, 'modification', null);
+      }
 
       const { error } = await nexusClient.from('audits_caisse').upsert({
         site: SITE_ACTUEL, date, quart,
@@ -2476,9 +2606,30 @@
       if (error) { console.error('Chargement historique audits:', error); el.innerHTML = `<div class="empty">Erreur de chargement.</div>`; return; }
       if (!data || data.length === 0) { el.innerHTML = `<div class="empty">Aucun audit enregistré pour l'instant.</div>`; return; }
 
+      // v2.271 (29/08/2026, retour de Frédéric — Q1 28/08 semblait montrer
+      // que sa validation Piste à 0,87 € n'avait "pas pris", toujours
+      // affichée +2 148,56 €/CRITIQUE) : cet historique affichait TOUJOURS
+      // l'écart brut initial (ecart_piste/ecart_boutique), jamais la valeur
+      // validée par le manager (ecart_piste_valide/ecart_boutique_valide)
+      // une fois la caisse validée — alors que la donnée corrigée était
+      // bien enregistrée (vérifié directement en base, rien n'a jamais été
+      // perdu). Même définition de "l'écart qui compte" que
+      // nexus-ecarts-donnees.js/normaliserAuditsVerify (Article 11, une
+      // seule vérité) : la valeur validée prévaut sur le brut tant qu'elle
+      // existe. Quand une correction a eu lieu, le brut initial reste
+      // visible à côté (jamais masqué, cf. principe "cycle de vie complet"
+      // déjà appliqué dans Analyse des écarts).
+      const ecartEffectif = (a, type) => {
+        const v = a[`ecart_${type}_valide`];
+        return v != null ? Number(v) : Number(a[`ecart_${type}`]);
+      };
       el.innerHTML = data.map((a, i) => {
-        const stP = classifierEcart(Math.abs(a.ecart_piste));
-        const stB = classifierEcart(Math.abs(a.ecart_boutique));
+        const ecP = ecartEffectif(a, 'piste');
+        const ecB = ecartEffectif(a, 'boutique');
+        const stP = classifierEcart(Math.abs(ecP));
+        const stB = classifierEcart(Math.abs(ecB));
+        const corrigePiste = a.ecart_piste_valide != null && Number(a.ecart_piste_valide) !== Number(a.ecart_piste);
+        const corrigeBoutique = a.ecart_boutique_valide != null && Number(a.ecart_boutique_valide) !== Number(a.ecart_boutique);
         return `
         <div class="histo-item" data-idx="${i}" data-date="${a.date}" data-quart="${a.quart}">
           <div class="histo-date">${new Date(a.date + 'T00:00:00').toLocaleDateString('fr-FR')} <span class="histo-quart">· Quart ${a.quart}</span></div>
@@ -2490,7 +2641,8 @@
                 <span class="statut-badge statut-${stP}">${STATUT_LABEL[stP]}</span>
               </div>
               <div class="histo-ecart-emp">${nomsEmployes(a.employes_piste)}</div>
-              <div class="histo-ecart" style="color:${Math.abs(a.ecart_piste)<=2?'var(--green)':'var(--red)'};">${a.ecart_piste>=0?'+':''}${Number(a.ecart_piste).toFixed(2)} €</div>
+              <div class="histo-ecart" style="color:${Math.abs(ecP)<=2?'var(--green)':'var(--red)'};">${ecP>=0?'+':''}${ecP.toFixed(2)} €</div>
+              ${corrigePiste ? `<div class="histo-ecart-corrige">Constat initial : ${a.ecart_piste>=0?'+':''}${Number(a.ecart_piste).toFixed(2)} €</div>` : ''}
             </div>
             <div class="histo-ecart-item">
               <div class="histo-ecart-top">
@@ -2498,7 +2650,8 @@
                 <span class="statut-badge statut-${stB}">${STATUT_LABEL[stB]}</span>
               </div>
               <div class="histo-ecart-emp">${nomsEmployes(a.employes_boutique)}</div>
-              <div class="histo-ecart" style="color:${Math.abs(a.ecart_boutique)<=2?'var(--green)':'var(--red)'};">${a.ecart_boutique>=0?'+':''}${Number(a.ecart_boutique).toFixed(2)} €</div>
+              <div class="histo-ecart" style="color:${Math.abs(ecB)<=2?'var(--green)':'var(--red)'};">${ecB>=0?'+':''}${ecB.toFixed(2)} €</div>
+              ${corrigeBoutique ? `<div class="histo-ecart-corrige">Constat initial : ${a.ecart_boutique>=0?'+':''}${Number(a.ecart_boutique).toFixed(2)} €</div>` : ''}
             </div>
           </div>
           <div class="histo-detail" id="detail-${i}">
@@ -2512,13 +2665,18 @@
             <br>
             <button type="button" class="btn-modifier-audit" data-idx="${i}" style="width:auto; padding:9px 14px; margin-top:10px; background:var(--panel-raised); color:var(--amber); border:1px solid rgba(245,166,35,0.35); border-radius:8px; font-family:var(--sans); font-size:12px; font-weight:600; cursor:pointer;">✏️ Modifier cet audit</button>
             ${renderBlocValidation(a, i)}
+            <div class="histo-versions" id="versions-${i}"></div>
           </div>
         </div>`;
       }).join('');
 
       el.querySelectorAll('.histo-item').forEach(item => {
         item.addEventListener('click', () => {
-          document.getElementById(`detail-${item.dataset.idx}`).classList.toggle('open');
+          const idx = item.dataset.idx;
+          document.getElementById(`detail-${idx}`).classList.toggle('open');
+          // v2.272 — chargement paresseux de l'historique des modifications
+          // au premier dépli, jamais au chargement de toute la liste.
+          chargerEtRenderVersions(data[idx], idx);
         });
       });
 
@@ -2787,6 +2945,12 @@
             patch.ecart_piste_valide = type === 'piste' ? ecartValide : (a.ecart_piste_valide != null ? a.ecart_piste_valide : a.ecart_piste);
             patch.ecart_boutique_valide = type === 'boutique' ? ecartValide : (a.ecart_boutique_valide != null ? a.ecart_boutique_valide : a.ecart_boutique);
           }
+
+          // v2.272 — snapshot de l'état AVANT validation (retour de
+          // Frédéric, points 5/10) : `a` est déjà la ligne complète (chargée
+          // par afficherHistorique via select('*')), aucune requête
+          // supplémentaire nécessaire ici.
+          await snapshotAuditAvantEcriture(a, type === 'piste' ? 'validation_piste' : 'validation_boutique', null);
 
           const { error } = await nexusClient.from('audits_caisse').update(patch).eq('id', a.id);
           if (error) {

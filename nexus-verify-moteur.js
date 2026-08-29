@@ -138,8 +138,84 @@
     return m ? m.label : (v || '—');
   }
 
+  // ------------------------------------------------------------
+  // VERSIONING / RESTAURATION — v2.272 (29/08/2026, retour de Frédéric
+  // "CORRECTIF VERIFY — Sécurisation Date/Quart et restauration", points
+  // 5/6/7/10). Même principe de chaîne "jamais supprimer, toujours une
+  // nouvelle version" déjà appliqué à `fdj_stock_references`
+  // (reference_precedente_id, v2.233) — pas un deuxième mécanisme, la même
+  // idée transposée à `audits_caisse` (Article 11).
+  //
+  // Une ligne `audits_caisse_versions` porte un snapshot COMPLET de la
+  // ligne `audits_caisse` telle qu'elle était juste AVANT une écriture
+  // (modification via "Calculer et enregistrer", validation Piste/Boutique,
+  // ou restauration). Jamais une sélection de champs devinée : Article 5,
+  // mieux vaut tout capturer que d'oublier un champ qui compterait plus
+  // tard.
+  // ------------------------------------------------------------
+  const LIBELLE_ACTION_VERSION = {
+    modification: 'Modification',
+    validation_piste: 'Validation Piste',
+    validation_boutique: 'Validation Boutique',
+    restauration: 'Restauration',
+  };
+  function libelleActionVersion(action) {
+    return LIBELLE_ACTION_VERSION[action] || (action || '—');
+  }
+
+  /**
+   * construireLigneVersion(version, ctx) — fonction pure de présentation
+   * d'une ligne `audits_caisse_versions`. `ctx.employesParId` : map id →
+   * {nom}, chargée séparément par l'appelant (une seule requête pour tous
+   * les employés, jamais une requête par version — même principe que
+   * ligneHistoriqueReconciliation dans nexus-fdj-moteur.js).
+   */
+  function construireLigneVersion(version, ctx) {
+    const employe = version.acteur_id ? (ctx && ctx.employesParId ? ctx.employesParId[version.acteur_id] : null) : null;
+    return {
+      id: version.id,
+      instant: version.created_at,
+      action: version.action,
+      libelleAction: libelleActionVersion(version.action),
+      auteurNom: employe ? employe.nom : '—',
+      motif: version.motif || null,
+      versionPrecedenteId: version.version_precedente_id || null,
+      valeurs: version.valeurs,
+    };
+  }
+
+  /**
+   * construireTimelineVersions(versions, ctx) — triée du plus récent au
+   * plus ancien, jamais l'inverse (même convention que la timeline FDJ).
+   */
+  function construireTimelineVersions(versions, ctx) {
+    return [...(versions || [])]
+      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+      .map(v => construireLigneVersion(v, ctx));
+  }
+
+  // Champs identité JAMAIS restaurés depuis un ancien snapshot — restaurer
+  // un ancien constat de caisse ne doit jamais déplacer la ligne vers une
+  // autre date/quart/site, ni fabriquer un nouvel id. Tout le reste (écarts,
+  // drops, ventes, validations, litrage...) est restauré tel quel.
+  const CHAMPS_IDENTITE_AUDIT = ['id', 'site', 'date', 'quart', 'created_at'];
+
+  /**
+   * construirePatchRestauration(valeursSnapshot) — fonction pure : à partir
+   * d'un snapshot complet stocké dans `audits_caisse_versions.valeurs`,
+   * construit le patch à appliquer à `audits_caisse` pour restaurer cet
+   * état — sans jamais toucher aux champs d'identité de la ligne.
+   */
+  function construirePatchRestauration(valeursSnapshot) {
+    const patch = { ...(valeursSnapshot || {}) };
+    CHAMPS_IDENTITE_AUDIT.forEach(c => { delete patch[c]; });
+    return patch;
+  }
+
   global.NexusVerifyMoteur = {
     classifierEcart, GRAVITE_ORDRE, STATUT_LABEL, agregerAudits, statutValidationQuart,
     MOTIFS_ECART_CORRIGE_VERIFY, motifsEcartCorrigeDisponiblesVerify, labelMotifEcartVerify,
+    libelleActionVersion, construireLigneVersion, construireTimelineVersions, construirePatchRestauration,
+    CHAMPS_IDENTITE_AUDIT,
   };
 })(typeof window !== 'undefined' ? window : globalThis);
