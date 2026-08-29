@@ -1306,6 +1306,35 @@
     };
   }
 
+  // ============================================================
+  // INVENTAIRE V2 — Sprint 3 "Expérience employé" (29/08/2026, Frédéric a
+  // confirmé "sprint 3"). Doctrine : deux jauges strictement distinctes —
+  // une jauge de MISSION (ce périmètre précis est-il fini ?) et une jauge
+  // COLLECTIVE (l'inventaire du quart est-il fini, tous rôles confondus ?)
+  // — et Couverture (100% = toutes les observations faites) ne doit JAMAIS
+  // être confondue avec Fiabilité/conformité (l'écart, traité ailleurs par
+  // nexus-ecarts-moteur.js, Article 11 : jamais un second calcul d'écart
+  // ici). Cette fonction est volontairement générique : la MÊME fonction
+  // sert à calculer la jauge d'une mission (périmètre = produit_ids de la
+  // mission) et la jauge collective (périmètre = tous les produit_id du
+  // plan du quart) — jamais deux implémentations séparées pour la même
+  // question "combien sur combien ?" (Article 11).
+  // ============================================================
+
+  // `produitIds` : le périmètre à mesurer (mission ou quart entier).
+  // `produitsComptesSet` : Set des produit_id déjà comptés (la source de
+  // cette information — session en cours ou statut persisté — est décidée
+  // par l'appelant, cette fonction reste pure et ne préjuge jamais d'où
+  // vient l'information de comptage). Périmètre vide -> 100% (rien à faire
+  // n'est jamais présenté comme "à faire").
+  function jaugePerimetre(produitIds, produitsComptesSet) {
+    const liste = produitIds || [];
+    const comptes = produitsComptesSet instanceof Set ? produitsComptesSet : new Set(produitsComptesSet || []);
+    const total = liste.length;
+    const faits = liste.filter(id => comptes.has(id)).length;
+    return { total, faits, pct: total > 0 ? Math.round((faits / total) * 100) : 100 };
+  }
+
   global.NexusInventaireMoteur = {
     FAMILLES_CONTROLE, DEFAUT_DELAI_MAX_JOURS_PAR_FAMILLE,
     libelleRaisonSelection, joursEntreDates, delaiMaxJours, produitEligibleQuart,
@@ -1329,5 +1358,6 @@
     regleApplicableContexte, resoudreAffectationRegleMission, resoudreMissionRulesApplicables,
     CATEGORIES_DEFAUT_NEXUS, ROLES_DEFAUT_NEXUS, MISSION_RULES_DEFAUT_NEXUS,
     perimetreProduitsMission, selectionnerPerimetreMission, genererMissionsPourContexte, couvertureMissions,
+    jaugePerimetre,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

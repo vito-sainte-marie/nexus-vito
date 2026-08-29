@@ -158,8 +158,10 @@ function ok(label) { n++; console.log('OK —', label); }
 
 // ------------------------------------------------------------
 // 6) genererOuChargerMissions — jamais recalculé si déjà généré ; génère
-//    en combinant les 3 sources (mission_rules/présence/ingrédients) sinon ;
-//    repli sur relecture en cas de course (insertion en échec).
+//    en combinant les sources réelles (mission_rules/présence/plan) sinon ;
+//    repli sur relecture en cas de course (insertion en échec). Mocks mis à
+//    jour le 29/08/2026 (Sprint 3) pour la correction "périmètre = plan,
+//    jamais le catalogue actif brut".
 // ------------------------------------------------------------
 function mockMissionsClient({ existantesInitiales, echecInsertion }) {
   let etat = existantesInitiales.slice();
@@ -196,8 +198,12 @@ function mockMissionsClient({ existantesInitiales, echecInsertion }) {
 
 {
   // Cas 2 : rien n'existe -> génération complète, en s'appuyant sur les
-  // chargeurs Sprint 1 (mission_rules/présence) et sur
-  // chargerIngredientsSelection (Article 11, réutilisé tel quel).
+  // chargeurs Sprint 1 (mission_rules/présence) et sur le PLAN déjà généré
+  // (Sprint 3, correction du 29/08/2026 : le périmètre d'une mission est un
+  // sous-ensemble du plan — chargerOuGenererPlan — jamais un recalcul
+  // indépendant sur le catalogue actif brut). `dernierControleParProduit`
+  // reste lu via chargerIngredientsSelection (Article 11, seule fonction
+  // qui sait déjà le calculer).
   global.NexusInventaireMissionRulesDonnees = {
     chargerMissionRules: async () => ([
       { id: 'r1', actif: true, moment_code: 'debut', quart: null, role_code: 'pompiste', categorie_ids: ['catGaz'], zone_ids: null, mode_selection: 'complet', ordre_affichage: 10 },
@@ -205,6 +211,9 @@ function mockMissionsClient({ existantesInitiales, echecInsertion }) {
     chargerRolesPresentsQuart: async () => (['pompiste']),
   };
   global.NexusInventairePlanDonnees = {
+    chargerOuGenererPlan: async () => ({
+      items: [{ produit_id: 'gaz1', inventaire_zone_produit: { categorie_id: 'catGaz', zone_id: null } }],
+    }),
     chargerIngredientsSelection: async () => ({
       produits: [{ id: 'gaz1', categorie_id: 'catGaz', zone_id: null }],
       dernierControleParProduit: {},
@@ -233,6 +242,9 @@ function mockMissionsClient({ existantesInitiales, echecInsertion }) {
     chargerRolesPresentsQuart: async () => (['pompiste']),
   };
   global.NexusInventairePlanDonnees = {
+    chargerOuGenererPlan: async () => ({
+      items: [{ produit_id: 'gaz1', inventaire_zone_produit: { categorie_id: 'catGaz', zone_id: null } }],
+    }),
     chargerIngredientsSelection: async () => ({
       produits: [{ id: 'gaz1', categorie_id: 'catGaz', zone_id: null }],
       dernierControleParProduit: {},

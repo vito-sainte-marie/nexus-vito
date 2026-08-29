@@ -22,6 +22,8 @@
 <script src="nexus-desktop.js"></script>
 <script src="nexus-inventaire-moteur.js"></script>
 <script src="nexus-inventaire-plan-donnees.js"></script>
+<script src="nexus-inventaire-mission-rules-donnees.js"></script>
+<script src="nexus-inventaire-missions-donnees.js"></script>
 <script src="nexus-tempo.js"></script>
 <script src="nexus-inventaire-production-donnees.js"></script>
 <script src="nexus-carburant-moteur.js"></script>
@@ -330,6 +332,16 @@
   // fois par (site, date, quart), jamais recalculé au rechargement.
   let planQuartActif = null;
   let produitsPlanIds = new Set();       // produit_id sélectionnés par NEXUS pour ce quart — vérité physique aveugle
+  // Inventaire V2 Sprint 3 "Expérience employé" (29/08/2026, doctrine
+  // "NEXUS Inventaire V2" — Frédéric a confirmé "sprint 3") : missions
+  // AFFECTÉES au rôle du jour de cet employé pour ce quart
+  // (nexus-inventaire-missions-donnees.js::chargerMissionsPourRole).
+  // Panneau informatif additif sur l'accueil (renderBlocMesMissions) —
+  // n'affecte en rien le parcours de saisie existant (catégories/carrousel,
+  // inchangés). Jamais de stock théorique, de raison de sélection, ni de
+  // vocabulaire "anomalie" affiché à l'employé (doctrine) : seulement le
+  // nom de la mission, son moment, et sa jauge (X sur Y).
+  let missionsDuJour = [];
   // Sprint 4 (20/08/2026, demande de Frédéric — "le périmètre d'un quart
   // d'inventaire doit être figé dès l'ouverture [...] même si le manager
   // modifie ensuite les paramètres de catégorie") : produit_id -> règle
@@ -1117,6 +1129,66 @@
     });
   }
 
+  // Inventaire V2 Sprint 3 (29/08/2026) — missions affectées au rôle du
+  // jour de cet employé, pour ce quart. Ne génère jamais elle-même les
+  // missions à partir de rien : chargerMissionsPourRole appelle en
+  // interne genererOuChargerMissions, qui s'appuie sur le plan déjà
+  // chargé par chargerEtAppliquerPlanQuart (Article 11 — un seul besoin de
+  // comptage, jamais recalculé indépendamment). Un échec réseau ou un
+  // moteur non chargé ne bloque jamais l'employé : missionsDuJour reste
+  // simplement vide, le parcours de saisie existant (catégories/carrousel)
+  // continue de fonctionner à l'identique (même garde-fou que
+  // chargerEtAppliquerPlanQuart ci-dessus).
+  async function chargerMissionsDuJour() {
+    const D = typeof NexusInventaireMissionsDonnees !== 'undefined' ? NexusInventaireMissionsDonnees : null;
+    if (!D || !roleDuJour) { missionsDuJour = []; return; }
+    try {
+      missionsDuJour = await D.chargerMissionsPourRole(nexusClient, employeeCourant.site_id, dateISO(), quartActuel, roleDuJour);
+    } catch (e) {
+      console.error('Chargement missions du jour:', e);
+      missionsDuJour = [];
+    }
+  }
+
+  // Jauge de mission (doctrine : jamais confondue avec la jauge collective
+  // du quart entier, ni avec une fiabilité/conformité — uniquement "combien
+  // sur combien" pour CE périmètre précis). Le statut "déjà compté" vient
+  // du plan déjà persisté (planQuartActif.items[].statut === 'fait') —
+  // jamais une deuxième vérité : c'est exactement ce que
+  // NexusInventaireManagerDonnees utilise ailleurs pour la couverture
+  // physique (Article 11).
+  function comptesFaitsDuPlan() {
+    const items = (planQuartActif && planQuartActif.items) || [];
+    return new Set(items.filter(it => it.statut === 'fait').map(it => it.produit_id));
+  }
+
+  function renderBlocMesMissions() {
+    if (!missionsDuJour.length) return '';
+    const M = typeof NexusInventaireMoteur !== 'undefined' ? NexusInventaireMoteur : null;
+    if (!M) return '';
+    const comptes = comptesFaitsDuPlan();
+    const blocs = missionsDuJour.map(m => {
+      const jauge = M.jaugePerimetre(m.produit_ids || [], comptes);
+      const libelleMoment = M.libelleMoment(m.moment_code);
+      return `
+        <div class="progression-bloc" style="margin-top:10px; margin-bottom:0;">
+          <div class="progression-haut">
+            <span><b>${m.nom}</b></span>
+            <span class="progression-temps">${libelleMoment}</span>
+          </div>
+          <div class="progression-barre"><div class="progression-remplie" style="width:${jauge.pct}%"></div></div>
+          <div class="progression-globale">${jauge.faits} sur ${jauge.total}</div>
+        </div>
+      `;
+    }).join('');
+    return `
+      <div class="etat-banner">
+        <div style="font-weight:600; margin-bottom:2px;">🎯 Mes missions aujourd'hui</div>
+        ${blocs}
+      </div>
+    `;
+  }
+
   // Restreint un catalogue au périmètre choisi par NEXUS pour ce quart. Si
   // le plan n'a pas pu être chargé (échec réseau, moteur absent) on retombe
   // sur le catalogue complet plutôt que de bloquer l'inventaire — même
@@ -1253,6 +1325,7 @@
     document.getElementById('content').innerHTML = `
       ${renderQuartVisuel()}
       ${zonesAutorisees.length > 1 ? `<div class="etat-banner">Zone suivie actuellement : <b>${zoneActive === 'piste' ? 'Piste' : 'Boutique'}</b>. <span id="lienChangerZone" style="color:var(--cyan); cursor:pointer;">Changer</span></div>` : ''}
+      ${renderBlocMesMissions()}
       ${renderBlocJaugeageCarburant()}
       <div class="choix-grid">
         <div class="choix-card ${clotureFaite ? 'disabled' : ''}" id="carteOuverture">
@@ -1989,6 +2062,12 @@
     quartRow = await obtenirOuCreerQuart();
     if (!quartRow) { document.getElementById('content').innerHTML = '<div class="loading">Impossible de charger ce quart. Réessayez.</div>'; return; }
     quartEmployeRow = await obtenirOuCreerQuartEmploye();
+
+    // Inventaire V2 Sprint 3 (29/08/2026) — le plan et les missions sont
+    // scopés par quart : un changement de quart (matin↔soir) doit les
+    // recharger, sinon "Mes missions" resterait figé sur l'ancien quart.
+    await chargerEtAppliquerPlanQuart();
+    await chargerMissionsDuJour();
 
     if (quartEmployeRow && quartEmployeRow.zone_id) {
       const codeConnu = Object.keys(zonesMap).find(code => zonesMap[code] === quartEmployeRow.zone_id);
@@ -3642,6 +3721,12 @@
     quartRow = await obtenirOuCreerQuart();
     if (!quartRow) { document.getElementById('content').innerHTML = '<div class="loading">Impossible de charger l\'inventaire du quart. Réessayez.</div>'; return; }
     quartEmployeRow = await obtenirOuCreerQuartEmploye();
+
+    // Inventaire V2 Sprint 3 (29/08/2026) — le plan et les missions sont
+    // scopés par quart : un changement de quart (matin↔soir) doit les
+    // recharger, sinon "Mes missions" resterait figé sur l'ancien quart.
+    await chargerEtAppliquerPlanQuart();
+    await chargerMissionsDuJour();
 
     if (quartEmployeRow && quartEmployeRow.zone_id) {
       const codeConnu = Object.keys(zonesMap).find(code => zonesMap[code] === quartEmployeRow.zone_id);

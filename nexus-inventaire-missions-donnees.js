@@ -13,9 +13,15 @@
 //
 // Portée explicite de ce sprint (Frédéric, ordre de développement) :
 // "Paramètres → Génération des missions → Expérience employé → Deux
-// jauges → Répartition par rôles." Ce fichier couvre UNIQUEMENT la
-// génération — aucun écran ne l'appelle encore (Sprint 3 = expérience
-// employé, qui consommera chargerMissionsPourRole).
+// jauges → Répartition par rôles."
+//
+// 29/08/2026, Sprint 3 "Expérience employé" — correction déterminante avant
+// de brancher NEXUS-Inventaire-v1.html : genererOuChargerMissions source
+// désormais son périmètre depuis le PLAN déjà généré
+// (NexusInventairePlanDonnees.chargerOuGenererPlan), jamais depuis le
+// catalogue actif brut (voir commentaire détaillé sur la fonction). C'est
+// ce fichier que consomme désormais l'écran employé, via
+// chargerMissionsPourRole (rôle du jour + quart courant).
 
 (function (global) {
   'use strict';
@@ -49,15 +55,37 @@
       return [];
     }
 
-    const [missionRules, rolesPresents, ingredients] = await Promise.all([
+    const [missionRules, rolesPresents, plan, ingredients] = await Promise.all([
       MR.chargerMissionRules(client, site),
       MR.chargerRolesPresentsQuart(client, site, dateISO, quart),
+      PD.chargerOuGenererPlan(client, site, dateISO, quart),
       PD.chargerIngredientsSelection(client, site, dateISO),
     ]);
 
+    // Correction déterminante (29/08/2026, avant Sprint 3) : le périmètre
+    // d'une mission doit TOUJOURS être un sous-ensemble du besoin déjà
+    // décidé par NEXUS pour ce quart — le plan de comptage
+    // (construirePlanComptage, socle+surprises, fréquence/anomalies déjà
+    // arbitrées) — jamais un recalcul indépendant sur tout le catalogue
+    // actif d'une catégorie. C'est exactement l'articulation de la
+    // doctrine de Frédéric : "CONTRÔLES NEXUS" (le plan) décide le besoin,
+    // "RÉPARTITION" (les missions) ne fait que le découper par rôle.
+    // Sprint 2 (v2.289) filtrait à tort sur `chargerIngredientsSelection`
+    // (tout le catalogue actif) — deux missions auraient pu réclamer des
+    // produits que le plan n'avait même pas sélectionnés aujourd'hui.
+    // `inventaire_zone_produit` est déjà joint sur chaque item du plan
+    // (nexus-inventaire-plan-donnees.js::chargerPlanExistant) — jamais une
+    // deuxième lecture du catalogue ici (Article 11).
+    const itemsPlan = (plan && plan.items) || [];
+    const produitsDuPlan = itemsPlan.map(it => ({
+      id: it.produit_id,
+      categorie_id: it.inventaire_zone_produit ? it.inventaire_zone_produit.categorie_id : null,
+      zone_id: it.inventaire_zone_produit ? it.inventaire_zone_produit.zone_id : null,
+    }));
+
     const missionsCalculees = M.genererMissionsPourContexte({
       missionRules, rolesPresents, quart,
-      produitsActifs: ingredients.produits,
+      produitsActifs: produitsDuPlan,
       dernierControleParProduit: ingredients.dernierControleParProduit,
       seed: `${site}|${dateISO}|${quart}`,
     });
