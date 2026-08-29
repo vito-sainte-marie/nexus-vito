@@ -272,8 +272,19 @@
   @media (max-width:480px){
     .row2-quart-concerne{grid-template-columns:minmax(0,1fr) 135px;}
     .row2-quart-concerne > div{min-width:0;}
+    /* v2.284 (retour de Frédéric — diagnostic transmis) : ne plus toucher
+       aux proportions Date/Quart (58/42 puis 135px fixe déjà en place,
+       jamais remis en cause ici). Le résidu visible à la jonction est un
+       débordement du CONTRÔLE natif input[type=date] lui-même : quel que
+       soit ce qu'on impose à sa colonne de grille, Safari iOS peut encore
+       dessiner le champ un peu plus large que sa boîte déclarée. Plutôt
+       que de continuer à deviner la bonne largeur/hauteur pour empêcher
+       Safari de vouloir déborder, on l'empêche physiquement de déborder :
+       overflow:hidden sur le conteneur de Date coupe tout pixel qui
+       dépasserait sa colonne, sans jamais pouvoir empiéter sur Quart. */
+    .row2-quart-concerne > div:first-child{overflow:hidden;}
     .row2-quart-concerne input, .row2-quart-concerne select{width:100%; min-width:0; max-width:100%;}
-    #v_date{font-size:14px; padding-left:9px; padding-right:6px;}
+    #v_date{-webkit-appearance:none; appearance:none; box-sizing:border-box; font-size:14px; padding-left:9px; padding-right:6px;}
     #v_quart{font-size:14px; padding-left:10px; padding-right:28px;}
     /* v2.283 (retour de Frédéric — capture resserrée sur la jonction :
        un arrondi de coin visiblement décalé, exactement à la jonction des

@@ -4192,3 +4192,17 @@ Les 9 sous-lots suivants ont été implémentés, chacun avec sa propre vérific
 **Fichiers modifiés** : `NEXUS-Verify-v1.html` uniquement (ajout de `height:44px` sur `#v_date, #v_quart` dans la media query mobile).
 
 **Tests** : correctif purement visuel (CSS), vérifié par lecture directe du code. Suite complète du dépôt rejouée avant livraison : **135 tests, 0 échec**. Syntaxe vérifiée (`node --check`).
+
+## v2.284 — Confinement du débordement natif de Date (`overflow:hidden`) (29/08/2026, retour de Frédéric)
+
+**Origine** : Frédéric a transmis un second avis technique après le v2.283, avec un diagnostic différent : plutôt que d'ajuster encore les proportions ou la hauteur, empêcher physiquement le contrôle natif `input[type=date]` de déborder de sa colonne de grille.
+
+**Vérification préalable (Article 5)** : avant d'appliquer quoi que ce soit, recherche de tout résidu des anciens essais (l'avis mettait en garde contre des règles empilées, ex. l'ancien `grid-template-columns:110px 1fr` du v2.280) — confirmé qu'aucune règle obsolète ne subsiste : `110px` n'apparaît plus que dans un commentaire explicatif (v2.280, marqué ÉCHEC) et dans une règle CSS totalement différente et sans rapport (`.ligne-item select`, un tout autre écran). Une seule règle `@media (max-width:480px)` gouverne `.row2-quart-concerne`/`#v_date`/`#v_quart`, pas de duplication.
+
+**Cause identifiée par l'avis, jugée plausible et complémentaire au v2.283** : quelle que soit la largeur/hauteur imposée à la COLONNE de grille, Safari iOS peut continuer à dessiner le CONTRÔLE `input[type=date]` lui-même légèrement plus large que cette colonne (comportement interne non capturé par `min-width:0`, qui ne contraint que le modèle de boîte CSS standard, pas le rendu propre du composant natif). Plutôt que de continuer à deviner la bonne contrainte pour empêcher ce débordement, le contenir physiquement.
+
+**Correctif** : `overflow:hidden` sur le `<div>` conteneur du champ Date (premier enfant de `.row2-quart-concerne`) — tout pixel du contrôle natif qui dépasserait sa colonne est désormais coupé net, incapable d'empiéter visuellement sur Quart, quel que soit le comportement de rendu interne de Safari. Ajout de `-webkit-appearance:none; appearance:none; box-sizing:border-box;` sur `#v_date` (jusque-là seul `#v_quart`/les `<select>` en bénéficiaient) pour retirer l'habillage natif restant du champ Date et le faire respecter strictement la boîte CSS déclarée. Le `height:44px` du v2.283 est conservé (axe différent, aucun conflit).
+
+**Fichiers modifiés** : `NEXUS-Verify-v1.html` uniquement (`overflow:hidden` sur le conteneur Date + `appearance:none`/`box-sizing` sur `#v_date`).
+
+**Tests** : correctif purement visuel (CSS), vérifié par lecture directe du code + recherche explicite de résidus des versions précédentes (aucun trouvé). Suite complète du dépôt rejouée avant livraison : **135 tests, 0 échec**. Syntaxe vérifiée (`node --check`).
