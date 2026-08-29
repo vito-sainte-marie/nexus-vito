@@ -4136,3 +4136,17 @@ Les 9 sous-lots suivants ont été implémentés, chacun avec sa propre vérific
 **Fichiers modifiés** : `NEXUS-Verify-v1.html` uniquement (1 classe ajoutée sur la ligne "Quart concerné" + 1 règle CSS avec media query).
 
 **Tests** : correctif purement visuel (CSS/HTML), vérifié par lecture directe du code — la deuxième utilisation de `.row2` ("Rapport PDF → Période") a été relue explicitement pour confirmer qu'elle n'a qu'un seul champ et n'est donc affectée par aucun des deux scénarios (ni le changement scopé, ni une éventuelle modification de `.row2` elle-même, qui n'a pas eu lieu). Suite complète du dépôt rejouée avant livraison : **135 tests, 0 échec**. Syntaxe vérifiée (`node --check` sur le script extrait et sur `nexus-verify-moteur.js`).
+
+## v2.280 — Correction du v2.279 : ratio proportionnel remplacé par une largeur fixe (29/08/2026, retour de Frédéric — "toujours pas resolu")
+
+**Origine** : capture d'écran envoyée après le v2.279 montrant "29 août 2026" toujours affiché en entier, sans gain visible pour Quart 1.
+
+**Cause probable** : le v2.279 utilisait un ratio proportionnel (`grid-template-columns:2fr 3fr`, soit 40 %/60 % de la largeur de la ligne). Les iPhone couverts par NEXUS vont de 375 à 430px de large environ — sur les modèles les plus larges de cette fourchette, 40 % de la ligne "Quart concerné" représente encore une largeur suffisante pour que Safari affiche "29 août 2026" en entier sans bascule vers le format compact ; un ratio proportionnel n'offre donc aucune garantie de franchir le seuil de bascule, qui est une largeur ABSOLUE (en pixels), pas relative.
+
+**Correctif** : remplacement du ratio par une largeur fixe et resserrée pour la colonne Date — `grid-template-columns:110px 1fr` (au lieu de `2fr 3fr`) — sous la même media query `max-width:480px`. Quart occupe tout l'espace restant (`1fr`), quel que soit le modèle d'iPhone. Une largeur fixe est déterministe, contrairement à un ratio qui varie avec la largeur totale de l'écran.
+
+**Limite assumée (Article 5)** : la valeur 110px est une estimation raisonnable, pas une valeur vérifiée sur un vrai Safari iOS (impossible depuis cet environnement, qui n'a pas de rendu de navigateur mobile) — si Safari a besoin d'un seuil différent pour basculer, un nouvel ajustement pourra être nécessaire. Frédéric confirmera sur son appareil.
+
+**Fichiers modifiés** : `NEXUS-Verify-v1.html` uniquement (1 valeur de la règle `@media (max-width:480px){ .row2-quart-concerne{...} }` changée).
+
+**Tests** : correctif purement visuel (CSS), vérifié par lecture directe du code. Suite complète du dépôt rejouée avant livraison : **135 tests, 0 échec**. Syntaxe vérifiée (`node --check`).

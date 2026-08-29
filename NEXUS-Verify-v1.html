@@ -242,7 +242,18 @@
      Vue bureau déjà correcte selon Frédéric -> intentionnellement
      inchangée au-delà de 480px. */
   @media (max-width:480px){
-    .row2-quart-concerne{grid-template-columns:2fr 3fr;}
+    /* v2.280 (retour de Frédéric — "toujours pas resolu" après le v2.279 en
+       2fr/3fr) : un ratio proportionnel (fr) dépend de la largeur totale de
+       la ligne, qui varie déjà pas mal d'un iPhone à l'autre (375 à 430px
+       de large selon le modèle) — sur les écrans les plus larges de cette
+       fourchette, 40% de la ligne peut encore représenter largement assez
+       de place pour que Safari affiche "29 août 2026" en entier, donc rien
+       ne change à l'œil. On fixe donc Date à une largeur EN DUR (110px, un
+       seuil resserré : jamais assez pour "29 août 2026", entrouvre la
+       bascule native vers "29/08/2026"), et Quart prend tout le reste
+       (1fr) — déterministe quel que soit le modèle d'iPhone, plutôt que
+       proportionnel. */
+    .row2-quart-concerne{grid-template-columns:110px 1fr;}
   }
   label.f{font-size:11.5px; color:var(--text-mid); display:block; margin-bottom:5px;}
   select, input[type=text], input[type=number], input[type=date], textarea{
