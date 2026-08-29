@@ -45,10 +45,13 @@ const ROLES = { 'fred-id': 'manager' };
 // 2) normaliserAuditsVerify — un caissier normal n'est jamais signalé.
 // ------------------------------------------------------------
 {
+  // v2.285 (P0) — employes_piste: ['dylan-id'] rend Dylan réellement
+  // attribué à la caisse Piste (employee_id 'dylan-id' ici n'est que
+  // l'auteur/manager de l'audit, sans rapport avec l'attribution).
   const audits = [
     { id: 'a1', date: '2026-08-20', quart: '1', employee_id: 'dylan-id',
       ecart_piste: -12, ecart_piste_origine: -12, ecart_piste_valide: null, valide_le_piste: '2026-08-20T18:00:00Z', valide_par_piste: 'mgr', cause_code_piste: 'erreur_saisie',
-      ecart_boutique: null },
+      ecart_boutique: null, employes_piste: ['dylan-id'], employes_boutique: [] },
   ];
   const lignes = D.normaliserAuditsVerify(audits, { 'dylan-id': 'Dylan' }, { 'dylan-id': 'caissier' });
   assert.strictEqual(lignes[0].activiteInhabituelle, false, 'un caissier n\'est jamais signalé comme inhabituel');

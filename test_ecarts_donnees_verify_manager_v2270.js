@@ -22,10 +22,15 @@ function ok(label) { n++; console.log('OK —', label); }
 // JAMAIS signalé comme activité inhabituelle, quel que soit l'écart.
 // ------------------------------------------------------------
 {
+  // v2.285 (P0) — employes_piste: ['fred-id'] rend explicite que Fred est
+  // bien l'employé RÉELLEMENT affecté à la caisse Piste ce quart-là (un
+  // manager qui couvre exceptionnellement, cas légitime), pas seulement
+  // l'auteur de l'audit — sans quoi ce test validerait encore le bug P0
+  // (attribution via employee_id) plutôt que le comportement voulu.
   const audits = [
     { id: 'a1', date: '2026-08-28', quart: '1', employee_id: 'fred-id',
       ecart_piste: 2148.56, ecart_piste_origine: 2148.56, ecart_piste_valide: 0.87, valide_le_piste: '2026-08-28T19:53:23Z', valide_par_piste: 'fred-id', cause_code_piste: null,
-      ecart_boutique: null },
+      ecart_boutique: null, employes_piste: ['fred-id'], employes_boutique: [] },
   ];
   const lignes = D.normaliserAuditsVerify(audits, { 'fred-id': 'Fred' }, { 'fred-id': 'manager' });
   assert.strictEqual(lignes.length, 1);

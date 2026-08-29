@@ -21,15 +21,27 @@ const EMPLOYES = { 'emp-1': 'Angélique', 'emp-2': 'Marc' };
 
 // ------------------------------------------------------------
 // 1) normaliserAuditsVerify — 5 situations réelles sur un même audit
+//
+// v2.285 (P0, 29/08/2026) — fixtures mises à jour : l'attribution vient
+// désormais de employes_piste/employes_boutique (l'employé réellement
+// affecté à CETTE caisse), jamais de employee_id (l'auteur/manager qui a
+// saisi l'audit — ici volontairement DIFFÉRENT de l'employé de caisse sur
+// a1, pour prouver que le fix ne les confond plus). Voir
+// test_ecarts_attribution_caisse_v2285.js pour le scénario réel complet
+// (17/08/2026 Quart 2, Ruddy/loane/Audrey).
 // ------------------------------------------------------------
 {
   const audits = [
     // Q1 : piste jamais eu d'écart (0/0) -> exclue. Boutique : écart
     // +12,00€ initial, corrigé à 0, validé, cause connue -> RÉGULARISÉ.
+    // employee_id (emp-1, l'auteur/manager) est VOLONTAIREMENT différent
+    // de employes_boutique (emp-2) pour prouver que l'attribution suit
+    // bien la caisse, jamais l'auteur de l'audit.
     {
       id: 'a1', date: '2026-08-20', quart: '1', employee_id: 'emp-1',
       ecart_piste: 0, ecart_piste_origine: null, ecart_piste_valide: null, valide_le_piste: null, cause_code_piste: null,
       ecart_boutique: 12, ecart_boutique_origine: 12, ecart_boutique_valide: 0, valide_le_boutique: '2026-08-20T18:00:00Z', valide_par_boutique: 'mgr-1', cause_code_boutique: 'erreur_saisie',
+      employes_piste: [], employes_boutique: ['emp-2'],
     },
     // Q2 : piste écart -9,00€ jamais validé -> À VÉRIFIER. Boutique
     // inexistante sur ce quart (colonne null) -> exclue.
@@ -37,6 +49,7 @@ const EMPLOYES = { 'emp-1': 'Angélique', 'emp-2': 'Marc' };
       id: 'a2', date: '2026-08-21', quart: '2', employee_id: 'emp-2',
       ecart_piste: -9, ecart_piste_origine: -9, ecart_piste_valide: null, valide_le_piste: null, cause_code_piste: null,
       ecart_boutique: null, ecart_boutique_origine: null, ecart_boutique_valide: null, valide_le_boutique: null, cause_code_boutique: null,
+      employes_piste: ['emp-2'], employes_boutique: [],
     },
     // Q1 (jour suivant) : piste écart +6,00€ validé TEL QUEL (persiste),
     // cause auto 'non_explique' -> CLÔTURÉ NON EXPLIQUÉ.
@@ -44,13 +57,17 @@ const EMPLOYES = { 'emp-1': 'Angélique', 'emp-2': 'Marc' };
       id: 'a3', date: '2026-08-22', quart: '1', employee_id: 'emp-1',
       ecart_piste: 6, ecart_piste_origine: 6, ecart_piste_valide: 6, valide_le_piste: '2026-08-22T18:00:00Z', valide_par_piste: 'mgr-1', cause_code_piste: 'non_explique',
       ecart_boutique: null,
+      employes_piste: ['emp-1'], employes_boutique: [],
     },
     // Q2 (jour suivant) : boutique écart -5,00€ validé TEL QUEL mais avec
-    // une vraie cause connue -> CLÔTURÉ EXPLIQUÉ.
+    // une vraie cause connue -> CLÔTURÉ EXPLIQUÉ. Aucun employé affecté à
+    // la boutique ce quart-là (employes_boutique vide) -> pas de nom
+    // fabriqué, même si employee_id (l'auteur) est renseigné ailleurs.
     {
       id: 'a4', date: '2026-08-22', quart: '2', employee_id: null,
       ecart_piste: null,
       ecart_boutique: -5, ecart_boutique_origine: -5, ecart_boutique_valide: -5, valide_le_boutique: '2026-08-22T20:00:00Z', valide_par_boutique: 'mgr-2', cause_code_boutique: 'erreur_montant_caisse',
+      employes_piste: [], employes_boutique: [],
     },
   ];
 
@@ -62,7 +79,8 @@ const EMPLOYES = { 'emp-1': 'Angélique', 'emp-2': 'Marc' };
   assert.strictEqual(l1.statut, 'regularise');
   assert.strictEqual(l1.ecartInitial, 12);
   assert.strictEqual(l1.ecartFinal, 0);
-  assert.strictEqual(l1.employeeNom, 'Angélique', 'nom employé résolu via la map employees');
+  assert.strictEqual(l1.employeeNom, 'Marc', 'nom résolu via employes_boutique (emp-2), PAS via employee_id (emp-1, l\'auteur/manager) — P0 v2.285');
+  assert.notStrictEqual(l1.employeeNom, 'Angélique', 'ne doit jamais attribuer l\'écart à l\'auteur de l\'audit');
   assert.strictEqual(l1.deepLink, 'NEXUS-Verify-v1.html?ouvrir_date=2026-08-20&ouvrir_quart=1', 'deep-link exact vers ce quart précis');
 
   const l2 = lignes.find(l => l.id === 'verify-a2-piste');
@@ -74,12 +92,12 @@ const EMPLOYES = { 'emp-1': 'Angélique', 'emp-2': 'Marc' };
 
   const l4 = lignes.find(l => l.id === 'verify-a4-boutique');
   assert.strictEqual(l4.statut, 'cloture_explique', 'écart persistant validé avec une vraie cause -> clôturé expliqué');
-  assert.strictEqual(l4.employeeNom, null, 'pas d\'employé sur cette ligne -> null, jamais un nom fabriqué');
+  assert.strictEqual(l4.employeeNom, null, 'employes_boutique vide -> null, jamais un nom fabriqué (même si employee_id existait)');
 
   assert.ok(!lignes.some(l => l.id === 'verify-a1-piste'), 'piste a1 (0/0, aucun écart) correctement exclue');
   assert.ok(!lignes.some(l => l.id === 'verify-a2-boutique'), 'boutique a2 (composante inexistante) correctement exclue');
 
-  ok('normaliserAuditsVerify — 5 situations réelles (aucun écart exclu, à vérifier, régularisé, clôturé expliqué/non expliqué) correctement dérivées depuis les vraies colonnes audits_caisse');
+  ok('normaliserAuditsVerify — 5 situations réelles (aucun écart exclu, à vérifier, régularisé, clôturé expliqué/non expliqué) correctement dérivées depuis les vraies colonnes audits_caisse, attribution par caisse (v2.285)');
 }
 
 // ------------------------------------------------------------

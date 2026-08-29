@@ -264,11 +264,47 @@
     return !!role && ROLES_CAISSE_INHABITUELLE.includes(role);
   }
 
+  // ------------------------------------------------------------
+  // ATTRIBUTION CAISSE (VERIFY) — v2.285 (29/08/2026, P0 signalé par
+  // Frédéric : "Composition — Audrey" montrait un écart Piste de Ruddy).
+  // Chaque écart Piste/Boutique doit être attribué à la personne RÉELLEMENT
+  // affectée à CETTE caisse sur CE quart (audits_caisse.employes_piste /
+  // .employes_boutique — des tableaux d'ids, posés par
+  // employesSelectionnes.piste/.boutique dans NEXUS-Verify-v1.html), jamais
+  // au manager qui a saisi/validé l'audit (audits_caisse.employee_id — un
+  // champ totalement différent : l'auteur de la ligne, pas un employé de
+  // caisse ; confirmé sur données réelles, 17/08/2026 Quart 2 : employee_id
+  // = Audrey, mais employes_piste = [Ruddy], employes_boutique = [loane]).
+  // Un audit peut avoir 0 (composante non traitée), 1 (cas normal) ou
+  // plusieurs personnes (relève en cours de quart) sur une même caisse : on
+  // n'attribue JAMAIS arbitrairement à l'une d'elles quand il y en a
+  // plusieurs — mieux vaut un écart non rattaché à un employé (exclu
+  // proprement de "Par employé", agregerEcartsParEmploye ignore déjà
+  // employeeId=null ci-dessus) qu'une fausse précision sur qui est
+  // responsable (Article 5). Le nom reste affiché à titre informatif dans
+  // ce cas (`employeeNom` renseigné même si `employeeId` est null), pour ne
+  // pas rendre la ligne totalement muette dans "Analyse des écarts".
+  // ------------------------------------------------------------
+  function resoudreEmployeCaisseVerify(idsCaisse, nomParEmploye, roleParEmploye) {
+    const ids = Array.isArray(idsCaisse) ? idsCaisse.filter(Boolean) : [];
+    if (ids.length !== 1) {
+      const noms = ids.map(id => (nomParEmploye || {})[id]).filter(Boolean);
+      return { employeeId: null, employeeNom: noms.length ? noms.join(', ') : null, employeeRole: null };
+    }
+    const id = ids[0];
+    return {
+      employeeId: id,
+      employeeNom: (nomParEmploye || {})[id] || null,
+      employeeRole: (roleParEmploye || {})[id] || null,
+    };
+  }
+
   global.NexusEcartsMoteur = {
     arrondiCentimes,
     situationVerificationEcart, motifEcartObligatoire, ajouterRemboursementSiManque, libelleEcartRestant,
     STATUTS_ECART, labelStatutEcart, deriverStatutEcart,
     calculerMontantRetenuLigne, calculerKpisEcarts, agregerEcartsParEmploye,
     ROLES_CAISSE_INHABITUELLE, roleCaisseInhabituelle,
+    resoudreEmployeCaisseVerify,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

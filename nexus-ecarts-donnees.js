@@ -131,15 +131,20 @@
         const causeConnue = !!causeCode && causeCode !== 'non_explique';
         const statut = M.deriverStatutEcart({ ecartInitial, ecartFinal, cloture, causeConnue });
         if (!statut) return;
+        // v2.285 (P0) — l'employé attribué à CETTE ligne est celui de LA
+        // CAISSE concernée (employes_piste/employes_boutique), jamais
+        // a.employee_id (l'auteur/manager de l'audit — voir le commentaire
+        // détaillé de resoudreEmployeCaisseVerify dans nexus-ecarts-moteur.js).
+        const attribCaisse = M.resoudreEmployeCaisseVerify(a[`employes_${type}`], nomParEmploye, roleParEmploye);
         lignes.push(finaliserLigne({
           id: `verify-${a.id}-${type}`,
           sourceModule: 'verify',
           sourceControlId: a.id,
           date: a.date,
           quart: a.quart,
-          employeeId: a.employee_id || null,
-          employeeNom: a.employee_id ? (nomParEmploye[a.employee_id] || null) : null,
-          employeeRole: a.employee_id ? ((roleParEmploye || {})[a.employee_id] || null) : null,
+          employeeId: attribCaisse.employeeId,
+          employeeNom: attribCaisse.employeeNom,
+          employeeRole: attribCaisse.employeeRole,
           activite: type,
           ecartInitial, ecartFinal,
           causeCode,
