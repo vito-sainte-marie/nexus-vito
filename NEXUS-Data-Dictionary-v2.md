@@ -4122,3 +4122,17 @@ Les 9 sous-lots suivants ont été implémentés, chacun avec sa propre vérific
 **Fichiers modifiés** : `NEXUS-Verify-v1.html` uniquement (2 règles CSS ajustées).
 
 **Tests** : correctifs purement visuels (CSS), vérifiés par lecture directe du code. Suite complète du dépôt rejouée avant livraison : **135 fichiers `test_*.js`, 0 échec**. Syntaxe vérifiée (`node --check`).
+
+## v2.279 — Rééquilibrage mobile Date/Quart : format compact + place pour le sélecteur (29/08/2026, retour de Frédéric)
+
+**Origine** : "les onglets dans nexus data sont desormais bon" (v2.278 confirmé) mais "le quart 1 a toujours un decalage" en vue mobile. Frédéric propose lui-même le mécanisme : "au lieu de 29 aout 2026 ce sera pas mieux 29/08/2026 ça reduirait le champ sur mobile et laisserait la place pour quart 1 car sur vue bureau c'est ok mais en version mobile ce n'est pas correct."
+
+**Cause** : `input[type=date]` est un composant natif du navigateur — son texte affiché ("29 août 2026" en toutes lettres vs "29/08/2026" compact) n'est pas pilotable par CSS ou par un format JS ; Safari iOS choisit lui-même la forme la plus longue tant que la largeur allouée au champ le permet, et ne bascule sur la forme compacte que si le champ devient trop étroit pour l'afficher en entier. Dans la ligne "Quart concerné", Date et Quart se partageaient `.row2` à parts strictement égales (`1fr 1fr`), donc Date gardait assez de place pour le format long, ne laissant à Quart qu'une largeur trop juste — d'où le décalage visuel résiduel malgré les correctifs d'apparence du `<select>` en v2.277/v2.278 (ce n'était pas un problème d'habillage du select, mais de largeur de colonne).
+
+**Correctif** : la ligne "Quart concerné" reçoit une classe additionnelle scopée, `row2-quart-concerne`, en plus de `.row2` (Article 11 — `.row2` reste inchangée, elle est aussi utilisée par "Rapport PDF → Période", une ligne à un seul champ sans rapport avec ce problème, non touchée). Une règle `@media (max-width:480px){ .row2-quart-concerne{grid-template-columns:2fr 3fr;} }` rétrécit Date (40 %) et élargit Quart (60 %) uniquement sous 480px de large — Frédéric a explicitement noté que la vue bureau est déjà correcte, donc volontairement inchangée au-delà de ce seuil. En rétrécissant Date sur mobile, on déclenche le format compact natif de Safari, ce qui répond aussi à la demande initiale (afficher "29/08/2026").
+
+**Limite assumée (Article 5)** : le rendu exact du format compact par Safari iOS (à quel seuil de largeur précis il bascule) ne peut pas être vérifié depuis cet environnement (pas de rendu de navigateur mobile disponible ici) — comme pour les v2.277/v2.278, la confirmation visuelle finale reste à faire par Frédéric sur son appareil.
+
+**Fichiers modifiés** : `NEXUS-Verify-v1.html` uniquement (1 classe ajoutée sur la ligne "Quart concerné" + 1 règle CSS avec media query).
+
+**Tests** : correctif purement visuel (CSS/HTML), vérifié par lecture directe du code — la deuxième utilisation de `.row2` ("Rapport PDF → Période") a été relue explicitement pour confirmer qu'elle n'a qu'un seul champ et n'est donc affectée par aucun des deux scénarios (ni le changement scopé, ni une éventuelle modification de `.row2` elle-même, qui n'a pas eu lieu). Suite complète du dépôt rejouée avant livraison : **135 tests, 0 échec**. Syntaxe vérifiée (`node --check` sur le script extrait et sur `nexus-verify-moteur.js`).

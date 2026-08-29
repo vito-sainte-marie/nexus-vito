@@ -232,6 +232,18 @@
   .card-collapsible.open .card-body{display:block;}
 
   .row2{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+  /* v2.279 (retour de Frédéric — vue mobile) — ".row2" reste 50/50 partout
+     (utilisée aussi par "Rapport PDF" → Période, sans rapport avec Date/
+     Quart : on ne la touche pas globalement, Article 11 mais sans casser
+     un autre usage). Seule la ligne "Quart concerné" reçoit cette classe
+     en plus, et UNIQUEMENT en dessous de 480px (mobile) : Date rétrécit
+     (déclenche le format compact natif Safari "29/08/2026" au lieu de
+     "29 août 2026", cf. commentaire HTML), Quart gagne la place libérée.
+     Vue bureau déjà correcte selon Frédéric -> intentionnellement
+     inchangée au-delà de 480px. */
+  @media (max-width:480px){
+    .row2-quart-concerne{grid-template-columns:2fr 3fr;}
+  }
   label.f{font-size:11.5px; color:var(--text-mid); display:block; margin-bottom:5px;}
   select, input[type=text], input[type=number], input[type=date], textarea{
     width:100%; background:var(--panel-raised); border:1px solid var(--hairline); border-radius:8px;
@@ -439,7 +451,16 @@
     <div class="verify-grid">
     <div class="card">
       <div class="section-label">Quart concerné</div>
-      <div class="row2">
+      <!-- v2.279 (retour de Frédéric, vue mobile) — Date/Quart ne sont plus
+           un partage 50/50 : sur Safari iOS, un input[type=date] affiche
+           le mois en toutes lettres ("29 août 2026") tant qu'il a la place,
+           et bascule automatiquement sur le format compact ("29/08/2026")
+           dès que sa largeur devient trop juste — comportement natif du
+           champ, non stylable directement. En rétrécissant sa colonne on
+           déclenche ce format compact, ce qui libère de la place pour
+           Quart (qui en avait besoin — cf. v2.276/277/278). Sans effet sur
+           la vue bureau, déjà correcte (verify-grid y prend le relais). -->
+      <div class="row2 row2-quart-concerne">
         <div><label class="f">Date</label><input type="date" id="v_date"></div>
         <div><label class="f">Quart</label>
           <!-- v2.276 (retour de Frédéric) — remplace la saisie libre par un
