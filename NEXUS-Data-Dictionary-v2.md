@@ -4178,3 +4178,17 @@ Les 9 sous-lots suivants ont été implémentés, chacun avec sa propre vérific
 **Fichiers modifiés** : `NEXUS-Verify-v1.html` uniquement (`grid-template-columns` + `font-size` de la règle mobile `.row2-quart-concerne`/`#v_date`/`#v_quart`).
 
 **Tests** : correctif purement visuel (CSS), vérifié par lecture directe du code — recherche explicite des autres `<select id="...">` du fichier (`v_rapport_periode`, `v_import_sheets_feuille`, `v_import_feuille`) pour confirmer qu'ils dépendent bien de la règle globale avant de refuser de la scoper. Suite complète du dépôt rejouée avant livraison : **135 tests, 0 échec**. Syntaxe vérifiée (`node --check`).
+
+## v2.283 — Hauteur explicite Date/Quart mobile : plancher natif Safari (29/08/2026)
+
+**Origine** : Frédéric a envoyé une capture resserrée sur la seule jonction Date/Quart (à sa demande, pour lever toute ambiguïté après les précédentes captures zoomées/décalées) : un arrondi de coin apparaît visiblement décalé pile à la jonction des deux champs — pas un chevauchement franc comme au v2.280, mais un défaut d'alignement fin.
+
+**Cause probable** : `<input type=date>` et `<select>` sont deux contrôles NATIFS distincts. Même avec un `font-size` et un `padding` strictement identiques (déjà le cas depuis le v2.281/282), Safari iOS peut imposer à chacun un plancher de hauteur interne qui lui est propre — le calendrier intégré pour l'un, la zone de la flèche pour l'autre — sans que le CSS n'ait prise dessus tant qu'aucune hauteur n'est fixée explicitement. Un écart d'1-2px entre les deux suffit à faire "flotter" le coin arrondi de l'un légèrement au-dessus ou en dessous de celui de l'autre à leur jonction, ce qui ressemble à un chevauchement même quand la répartition horizontale (v2.281, `min-width:0`) est correcte et non remise en cause ici.
+
+**Correctif** : `height:44px` fixée explicitement sur `#v_date` ET `#v_quart` (media query mobile uniquement) — une hauteur en dur prime sur le plancher natif de chaque contrôle, `box-sizing:border-box` (posé en tête de fichier) garantissant que le padding reste inclus dans ces 44px plutôt que de s'y ajouter.
+
+**Limite assumée (Article 5)** : 4e ajustement consécutif sur cette même jonction (v2.279 à v2.283) sans pouvoir vérifier moi-même le rendu Safari iOS réel — je ne peux que raisonner à partir des captures transmises et des mécanismes CSS/natifs connus. Si ce correctif ne suffit pas non plus, il faudra probablement une capture d'écran de l'inspecteur Safari (Réglages → Safari → Avancé → Web Inspector, relié à un Mac) pour voir les dimensions calculées réelles des deux éléments, plutôt que de continuer à deviner par capture d'écran interposée.
+
+**Fichiers modifiés** : `NEXUS-Verify-v1.html` uniquement (ajout de `height:44px` sur `#v_date, #v_quart` dans la media query mobile).
+
+**Tests** : correctif purement visuel (CSS), vérifié par lecture directe du code. Suite complète du dépôt rejouée avant livraison : **135 tests, 0 échec**. Syntaxe vérifiée (`node --check`).

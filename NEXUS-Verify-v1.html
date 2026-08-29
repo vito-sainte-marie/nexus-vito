@@ -275,6 +275,21 @@
     .row2-quart-concerne input, .row2-quart-concerne select{width:100%; min-width:0; max-width:100%;}
     #v_date{font-size:14px; padding-left:9px; padding-right:6px;}
     #v_quart{font-size:14px; padding-left:10px; padding-right:28px;}
+    /* v2.283 (retour de Frédéric — capture resserrée sur la jonction :
+       un arrondi de coin visiblement décalé, exactement à la jonction des
+       deux champs) : un <input type=date> et un <select> sont deux
+       contrôles NATIFS distincts — même padding/font-size déclarés, Safari
+       iOS peut leur imposer chacun un plancher de hauteur interne qui lui
+       est propre (calendrier pour l'un, flèche pour l'autre), sans que le
+       CSS n'ait de prise dessus. Un écart de 1-2px entre les deux suffit à
+       faire "flotter" un des deux coins arrondis au-dessus/en dessous de
+       l'autre à leur jonction, ce qui ressemble visuellement à un
+       chevauchement même quand grid-template-columns + min-width:0 sont
+       corrects (v2.281 — jamais remis en cause ici). Correctif : une
+       hauteur EN DUR identique sur les deux champs, qui prime sur le
+       plancher natif de chacun (box-sizing:border-box, posé en tête de
+       fichier, inclut bien le padding dans ces 44px). */
+    #v_date, #v_quart{height:44px;}
   }
   label.f{font-size:11.5px; color:var(--text-mid); display:block; margin-bottom:5px;}
   select, input[type=text], input[type=number], input[type=date], textarea{
