@@ -259,12 +259,22 @@
      58%/42% (Date légèrement plus large, elle porte plus de texte que
      "Quart 1"/"Quart 2"), les deux champs restent pleinement lisibles et
      ne peuvent plus se chevaucher, quel que soit le modèle d'iPhone. */
+  /* v2.282 (confirmé réglé par Frédéric — plus de chevauchement — mais
+     avis technique transmis par Frédéric pour fiabiliser encore la
+     répartition) : Quart n'affiche jamais que "Quart 1" ou "Quart 2", un
+     contenu de longueur fixe qui n'a aucune raison de suivre un ratio
+     proportionnel (fr) — une largeur EN DUR pour Quart (135px, mesurée
+     large) est plus prévisible qu'un pourcentage sur les tout petits
+     écrans (ex: iPhone SE 1ère génération, 320px de large). Date reste en
+     `minmax(0,1fr)` (prend tout le reste, jamais moins que 0 grâce à
+     min-width:0 ci-dessous — c'est ce qui empêchait le chevauchement,
+     inchangé depuis le v2.281). */
   @media (max-width:480px){
-    .row2-quart-concerne{grid-template-columns:minmax(0,1.15fr) minmax(0,0.85fr);}
+    .row2-quart-concerne{grid-template-columns:minmax(0,1fr) 135px;}
     .row2-quart-concerne > div{min-width:0;}
     .row2-quart-concerne input, .row2-quart-concerne select{width:100%; min-width:0; max-width:100%;}
-    #v_date{font-size:15px; padding-left:9px; padding-right:6px;}
-    #v_quart{font-size:15px; padding-left:10px; padding-right:28px;}
+    #v_date{font-size:14px; padding-left:9px; padding-right:6px;}
+    #v_quart{font-size:14px; padding-left:10px; padding-right:28px;}
   }
   label.f{font-size:11.5px; color:var(--text-mid); display:block; margin-bottom:5px;}
   select, input[type=text], input[type=number], input[type=date], textarea{

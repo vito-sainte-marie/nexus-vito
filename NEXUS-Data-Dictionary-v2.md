@@ -4164,3 +4164,17 @@ Les 9 sous-lots suivants ont été implémentés, chacun avec sa propre vérific
 **Fichiers modifiés** : `NEXUS-Verify-v1.html` uniquement (règle `@media (max-width:480px)` de `.row2-quart-concerne` réécrite).
 
 **Tests** : correctif purement visuel (CSS), vérifié par lecture directe du code. Suite complète du dépôt rejouée avant livraison : **135 tests, 0 échec**. Syntaxe vérifiée (`node --check`).
+
+## v2.282 — Robustification volontaire de la répartition Date/Quart (29/08/2026)
+
+**Origine** : la capture envoyée par Frédéric après le v2.281 montre le problème RÉSOLU — "29 août 2026" et "Quart 1" côte à côte, sans chevauchement. En parallèle, Frédéric a transmis un avis technique externe (consulté de son côté) proposant d'aller plus loin sur cette même zone.
+
+**Décision sur les 2 propositions de cet avis** :
+
+1. *Largeur fixe pour Quart plutôt qu'un ratio proportionnel (fr)* — retenue. Quart n'affiche jamais que "Quart 1" ou "Quart 2" (contenu de longueur fixe), donc une largeur en dur (135px) est effectivement plus prévisible qu'un pourcentage de la ligne sur les très petits écrans (ex : iPhone SE 1ère génération, 320px de large) qu'un ratio proportionnel. `grid-template-columns` passe de `minmax(0,1.15fr) minmax(0,0.85fr)` à `minmax(0,1fr) 135px` ; `font-size` des deux champs ramené à 14px (marge supplémentaire). Amélioration de robustesse, pas une correction de bug (le v2.281 fonctionnait déjà).
+
+2. *Limiter `appearance:none` + chevron custom à `#v_quart` seul plutôt qu'à la règle `select{...}` globale* — **rejetée, avec preuve à l'appui**. Cette règle globale n'a jamais été un correctif propre à Quart : elle normalise TOUS les `<select>` de NEXUS-Verify-v1.html depuis le v2.277 (retour de Frédéric sur l'alignement visuel), notamment `#v_rapport_periode` (onglet Rapport PDF → Période), `#v_import_sheets_feuille` (sélecteur de feuille Google Sheets — visible sur la capture même de Frédéric, "AOUT 2026") et `#v_import_feuille` (import ponctuel). La scoper à `#v_quart` seul aurait fait régresser ces 3 autres sélecteurs vers leur habillage natif Safari non harmonisé — l'exact problème que le v2.277/v2.278 avaient réglé, et que Frédéric avait confirmé ("les onglets dans nexus data sont desormais bon"). Article 11 (une seule mécanique, réutilisée, jamais dupliquée par champ) : la règle reste globale, intentionnellement.
+
+**Fichiers modifiés** : `NEXUS-Verify-v1.html` uniquement (`grid-template-columns` + `font-size` de la règle mobile `.row2-quart-concerne`/`#v_date`/`#v_quart`).
+
+**Tests** : correctif purement visuel (CSS), vérifié par lecture directe du code — recherche explicite des autres `<select id="...">` du fichier (`v_rapport_periode`, `v_import_sheets_feuille`, `v_import_feuille`) pour confirmer qu'ils dépendent bien de la règle globale avant de refuser de la scoper. Suite complète du dépôt rejouée avant livraison : **135 tests, 0 échec**. Syntaxe vérifiée (`node --check`).
