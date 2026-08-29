@@ -236,24 +236,35 @@
      (utilisée aussi par "Rapport PDF" → Période, sans rapport avec Date/
      Quart : on ne la touche pas globalement, Article 11 mais sans casser
      un autre usage). Seule la ligne "Quart concerné" reçoit cette classe
-     en plus, et UNIQUEMENT en dessous de 480px (mobile) : Date rétrécit
-     (déclenche le format compact natif Safari "29/08/2026" au lieu de
-     "29 août 2026", cf. commentaire HTML), Quart gagne la place libérée.
-     Vue bureau déjà correcte selon Frédéric -> intentionnellement
-     inchangée au-delà de 480px. */
+     en plus, et UNIQUEMENT en dessous de 480px (mobile). Vue bureau déjà
+     correcte selon Frédéric -> intentionnellement inchangée au-delà de
+     480px.
+     v2.280 : tentative avec Date fixée à 110px en dur — ÉCHEC (capture
+     Frédéric à l'appui) : un <input type=date> Safari iOS a une largeur
+     de contenu minimale (min-content) posée par son propre rendu interne
+     du texte + l'icône calendrier, qui ne descend PAS sous cette largeur
+     même si sa colonne de grille est plus étroite (comportement par
+     défaut d'un enfant de grille : min-width:auto -> jamais plus petit
+     que son propre contenu). Résultat : la colonne rétrécissait sur le
+     papier, mais le champ Date, lui, débordait quand même sur Quart —
+     exactement le chevauchement visible sur la capture. Comprimer la
+     colonne ne "compressait" donc jamais réellement le champ, et l'idée
+     de forcer par ce biais le format compact natif "29/08/2026" est
+     abandonnée : Safari ne semble pas reformater le texte affiché en
+     fonction de la largeur CSS de la colonne, seulement de son propre
+     rendu interne.
+     v2.281 (correctif) : `minmax(0, ...)` + `min-width:0` explicite sur
+     les enfants directs lève cette contrainte de min-content — c'est la
+     cause du chevauchement, pas la répartition en elle-même. Répartition
+     58%/42% (Date légèrement plus large, elle porte plus de texte que
+     "Quart 1"/"Quart 2"), les deux champs restent pleinement lisibles et
+     ne peuvent plus se chevaucher, quel que soit le modèle d'iPhone. */
   @media (max-width:480px){
-    /* v2.280 (retour de Frédéric — "toujours pas resolu" après le v2.279 en
-       2fr/3fr) : un ratio proportionnel (fr) dépend de la largeur totale de
-       la ligne, qui varie déjà pas mal d'un iPhone à l'autre (375 à 430px
-       de large selon le modèle) — sur les écrans les plus larges de cette
-       fourchette, 40% de la ligne peut encore représenter largement assez
-       de place pour que Safari affiche "29 août 2026" en entier, donc rien
-       ne change à l'œil. On fixe donc Date à une largeur EN DUR (110px, un
-       seuil resserré : jamais assez pour "29 août 2026", entrouvre la
-       bascule native vers "29/08/2026"), et Quart prend tout le reste
-       (1fr) — déterministe quel que soit le modèle d'iPhone, plutôt que
-       proportionnel. */
-    .row2-quart-concerne{grid-template-columns:110px 1fr;}
+    .row2-quart-concerne{grid-template-columns:minmax(0,1.15fr) minmax(0,0.85fr);}
+    .row2-quart-concerne > div{min-width:0;}
+    .row2-quart-concerne input, .row2-quart-concerne select{width:100%; min-width:0; max-width:100%;}
+    #v_date{font-size:15px; padding-left:9px; padding-right:6px;}
+    #v_quart{font-size:15px; padding-left:10px; padding-right:28px;}
   }
   label.f{font-size:11.5px; color:var(--text-mid); display:block; margin-bottom:5px;}
   select, input[type=text], input[type=number], input[type=date], textarea{

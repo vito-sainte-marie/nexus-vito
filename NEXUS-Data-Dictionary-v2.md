@@ -4150,3 +4150,17 @@ Les 9 sous-lots suivants ont été implémentés, chacun avec sa propre vérific
 **Fichiers modifiés** : `NEXUS-Verify-v1.html` uniquement (1 valeur de la règle `@media (max-width:480px){ .row2-quart-concerne{...} }` changée).
 
 **Tests** : correctif purement visuel (CSS), vérifié par lecture directe du code. Suite complète du dépôt rejouée avant livraison : **135 tests, 0 échec**. Syntaxe vérifiée (`node --check`).
+
+## v2.281 — Correction du v2.280 : chevauchement Date/Quart (min-content non contraint) (29/08/2026, retour de Frédéric)
+
+**Origine** : nouvelle capture après le v2.280 (Date fixée à 110px) — le champ Date n'a PAS rétréci, il chevauche désormais visiblement le champ Quart ("Quart 1" partiellement masqué derrière "202...").
+
+**Cause réelle (diagnostic confirmé)** : un `<input type=date>` Safari iOS a une largeur de contenu minimale (min-content) posée par son propre rendu interne (texte + icône calendrier), et un enfant de grille CSS a par défaut `min-width:auto` — c'est-à-dire qu'il ne descend JAMAIS en dessous de la largeur de son propre contenu, quelle que soit la largeur de la colonne qui le contient. En fixant la colonne à `110px`, le v2.280 rétrécissait la CASE de la grille sur le papier, mais pas le CHAMP lui-même, qui a continué à réclamer sa largeur de contenu réelle (~180-200px) et a donc débordé par-dessus la colonne voisine (Quart) — exactement le chevauchement visible sur la capture. Ce même mécanisme explique aussi pourquoi le v2.279 (ratio 40/60) ne changeait rien de visible : le débordement était simplement moins flagrant avec une colonne moins étroite.
+
+**Correctif** : `min-width:0` explicite sur les colonnes de grille et sur les champs eux-mêmes (`.row2-quart-concerne > div{min-width:0;}` + `input, select{min-width:0; max-width:100%;}`), qui lève cette contrainte de min-content et force réellement Date et Quart à respecter la largeur de leur colonne. Répartition ajustée à `minmax(0,1.15fr) minmax(0,0.85fr)` (~58 %/42 %, Date légèrement plus large car elle porte plus de texte), avec une réduction de `font-size` (15px) et des paddings resserrés sur les deux champs pour que le texte reste confortablement lisible dans l'espace disponible.
+
+**Abandon assumé (Article 5)** : l'objectif initial de forcer le format compact natif "29/08/2026" (au lieu de "29 août 2026") en réduisant la largeur CSS du champ est abandonné — les 3 tentatives (v2.279/280/281) montrent que Safari iOS ne semble pas reformater ce texte en fonction de la largeur de la colonne, seulement de son propre rendu interne, qu'on ne peut pas piloter depuis le CSS de la page. Le correctif v2.281 résout uniquement le problème réel signalé au départ : le chevauchement/décalage visuel entre Date et Quart. Si Frédéric souhaite toujours l'affichage compact, cela nécessiterait un champ Date "maison" (pas un `<input type=date>` natif) avec son propre calendrier — un changement de nature différente, à cadrer séparément si voulu.
+
+**Fichiers modifiés** : `NEXUS-Verify-v1.html` uniquement (règle `@media (max-width:480px)` de `.row2-quart-concerne` réécrite).
+
+**Tests** : correctif purement visuel (CSS), vérifié par lecture directe du code. Suite complète du dépôt rejouée avant livraison : **135 tests, 0 échec**. Syntaxe vérifiée (`node --check`).
