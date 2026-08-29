@@ -79,11 +79,29 @@
   // arrondis, statut posé) — évite de dupliquer 3 fois (activité
   // inhabituelle, montant retenu, place réservée PAYE) entre Verify et FDJ
   // (Article 11).
+  //
+  // v2.270 — CORRECTIF (données réelles, 28/08/2026) : "activité
+  // inhabituelle" (§5/§6 du retour de Frédéric) ne s'applique QU'à FDJ, pas
+  // à Verify. NEXUS Verify est structurellement réservé aux managers/gérants
+  // (cf. le contrôle de rôle explicite à l'ouverture de NEXUS-Verify-v1.html
+  // : "réservé aux managers et gérants") — un manager qui réalise un audit
+  // de caisse Piste/Boutique y fait donc son travail normal, jamais une
+  // activité inhabituelle. En production, 100% des 83 audits_caisse de
+  // vito-sainte-marie sont rattachés à un employé de rôle 'manager' : sans
+  // ce correctif, le "Contrôle de cohérence" (§12) et la vue "Par employé"
+  // signalaient FAUSSEMENT chaque audit routinier de Frédéric comme une
+  // anomalie à qualifier — un faux signal permanent, potentiellement la
+  // cause de la confusion "je n'arrive plus à ouvrir NEXUS" si l'écran
+  // semblait noyé sous des alertes. Sur FDJ en revanche (caisse normalement
+  // tenue par des non-managers), un manager/gérant qui apparaît reste
+  // effectivement un signal légitime (aucun manager/gérant présent dans les
+  // fdj_shifts réels de vito-sainte-marie à ce jour — règle non encore
+  // observée en production, mais correcte par construction).
   function finaliserLigne(ligne) {
     const M = global.NexusEcartsMoteur;
     ligne.impactPaye = null;
     ligne.montantRetenu = M.calculerMontantRetenuLigne(ligne);
-    ligne.activiteInhabituelle = M.roleCaisseInhabituelle(ligne.employeeRole);
+    ligne.activiteInhabituelle = ligne.sourceModule === 'fdj' && M.roleCaisseInhabituelle(ligne.employeeRole);
     return ligne;
   }
 

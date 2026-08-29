@@ -415,17 +415,33 @@
     el.textContent = `${n} filtre${n > 1 ? 's' : ''} actif${n > 1 ? 's' : ''}`;
   }
 
+  // v2.270 — P0 : même défaut architectural que le "P0 ter" déjà rencontré
+  // et corrigé sur FDJ Opérations (v2.249, cf. Data Dictionary) : cette
+  // fonction est appelée depuis une chaîne async sans protection (au premier
+  // chargement ET à chaque changement de filtre / clôture de panneau). Une
+  // exception non attrapée ici rejette silencieusement toute la promesse
+  // englobante et laisse "Chargement…" affiché indéfiniment, sans jamais
+  // remonter d'erreur visible. Un seul mécanisme de protection (Article 11),
+  // sur la fonction réellement partagée par tous les appelants — jamais un
+  // try/catch dupliqué à chaque site d'appel.
   function rafraichirEcran() {
-    const f = litFiltresDepuisFormulaire();
-    ecritFiltresDansUrl(f);
-    majBadgeFiltresActifs(f);
+    try {
+      const f = litFiltresDepuisFormulaire();
+      ecritFiltresDansUrl(f);
+      majBadgeFiltresActifs(f);
 
-    const lignes = NexusEcartsDonnees.appliquerFiltresEcarts(TOUTES_LES_LIGNES, f);
-    renderKpis(lignes);
-    renderListeAVerifier(lignes);
-    renderParEmploye(lignes);
-    renderControleCoherence(); // toujours sur TOUTES_LES_LIGNES, jamais filtré (§12)
-    return lignes;
+      const lignes = NexusEcartsDonnees.appliquerFiltresEcarts(TOUTES_LES_LIGNES, f);
+      renderKpis(lignes);
+      renderListeAVerifier(lignes);
+      renderParEmploye(lignes);
+      renderControleCoherence(); // toujours sur TOUTES_LES_LIGNES, jamais filtré (§12)
+      return lignes;
+    } catch (e) {
+      console.error('Affichage Analyse des écarts:', e);
+      const zone = document.getElementById('listeAVerifier');
+      if (zone) zone.innerHTML = `<div class="card"><div class="liste-vide">Erreur d'affichage : ${(e && e.message) || e}</div></div>`;
+      return [];
+    }
   }
 
   function renderKpis(lignes) {
@@ -700,31 +716,56 @@
     });
   }
 
+  // v2.270 — P0 : même principe qu'au-dessus (Article 11, un seul
+  // mécanisme) appliqué à la chaîne d'initialisation elle-même. Sans ce
+  // try/catch et ce .catch() final, une exception dans branchierFiltres(),
+  // brancherPanneau(), brancherKpisCliquables(), la requête employees, ou un
+  // rejet de nexusRequireAuth() lui-même, laissait l'écran figé sur
+  // "Chargement…" sans le moindre message — exactement le symptôme rapporté
+  // par Frédéric ("je n'arrive plus à ouvrir NEXUS").
   nexusRequireAuth().then(async (employee) => {
     if (!employee) return;
-    SITE_ACTUEL = employee.site_id;
-    EMPLOYEE_ID_COURANT = employee.id;
+    try {
+      SITE_ACTUEL = employee.site_id;
+      EMPLOYEE_ID_COURANT = employee.id;
 
-    branchierFiltres();
-    brancherPanneau();
-    brancherKpisCliquables();
+      branchierFiltres();
+      brancherPanneau();
+      brancherKpisCliquables();
 
-    const { data: employes } = await nexusClient.from('employees').select('id, nom').eq('site_id', SITE_ACTUEL).eq('actif', true).order('nom');
-    EMPLOYES_SITE = employes || [];
-    const selEmp = document.getElementById('fEmploye');
-    EMPLOYES_SITE.forEach(e => {
-      const opt = document.createElement('option');
-      opt.value = e.id; opt.textContent = e.nom;
-      selEmp.appendChild(opt);
-    });
+      const { data: employes } = await nexusClient.from('employees').select('id, nom').eq('site_id', SITE_ACTUEL).eq('actif', true).order('nom');
+      EMPLOYES_SITE = employes || [];
+      const selEmp = document.getElementById('fEmploye');
+      EMPLOYES_SITE.forEach(e => {
+        const opt = document.createElement('option');
+        opt.value = e.id; opt.textContent = e.nom;
+        selEmp.appendChild(opt);
+      });
 
-    const filtresUrl = litFiltresDepuisUrl();
-    appliqueFiltresAuFormulaire(filtresUrl);
-    if (Object.values(filtresUrl).some(Boolean)) {
-      document.getElementById('filtresCorps').classList.add('ouvert');
+      const filtresUrl = litFiltresDepuisUrl();
+      appliqueFiltresAuFormulaire(filtresUrl);
+      if (Object.values(filtresUrl).some(Boolean)) {
+        document.getElementById('filtresCorps').classList.add('ouvert');
+      }
+
+      await rechargerEtRafraichir();
+    } catch (e) {
+      console.error('Initialisation Analyse des écarts:', e);
+      const phone = document.querySelector('.phone');
+      if (phone) phone.innerHTML = `<div style="padding:24px; font-family:var(--sans); color:var(--text);">
+        <div style="font-size:15px; font-weight:700; margin-bottom:10px;">NEXUS n'a pas pu ouvrir cette page</div>
+        <div style="font-family:var(--mono); font-size:12px; color:var(--text-mid); line-height:1.6; word-break:break-word;">${(e && e.message) || e}</div>
+        <a href="NEXUS-App-v1.html" style="display:inline-block; margin-top:18px; color:var(--cyan); font-size:13px;">← Retour à l'accueil</a>
+      </div>`;
     }
-
-    await rechargerEtRafraichir();
+  }).catch((e) => {
+    console.error('Authentification Analyse des écarts:', e);
+    const phone = document.querySelector('.phone');
+    if (phone) phone.innerHTML = `<div style="padding:24px; font-family:var(--sans); color:var(--text);">
+      <div style="font-size:15px; font-weight:700; margin-bottom:10px;">NEXUS n'a pas pu vérifier votre session</div>
+      <div style="font-family:var(--mono); font-size:12px; color:var(--text-mid); line-height:1.6; word-break:break-word;">${(e && e.message) || e}</div>
+      <a href="NEXUS-App-v1.html" style="display:inline-block; margin-top:18px; color:var(--cyan); font-size:13px;">← Retour à l'accueil</a>
+    </div>`;
   });
 </script>
 </body>

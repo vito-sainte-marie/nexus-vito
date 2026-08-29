@@ -5541,6 +5541,21 @@
     } else {
       renderAccueil();
     }
+  }).catch((e) => {
+    // v2.270 — P0 : renderAccueil() est déjà protégé par son propre
+    // try/catch (v2.249), mais tout ce qui se passe AVANT elle dans cette
+    // chaîne (nexusRequireProfessional, chargerJeux/chargerEmployesSite/
+    // chargerEmplacements, ouvrirDepuisParametresUrl) ne l'était pas — une
+    // exception là rejetait silencieusement toute la promesse, écran figé
+    // sur "Chargement…" sans jamais d'erreur visible (Frédéric : "je
+    // n'arrive plus à ouvrir NEXUS").
+    console.error('Initialisation FDJ Opérations:', e);
+    const content = document.getElementById('content') || document.body;
+    content.innerHTML = `<div class="loading" style="text-align:left; padding:20px;">
+      <div style="font-weight:700; margin-bottom:10px;">NEXUS n'a pas pu ouvrir cette page</div>
+      <div style="font-family:monospace; font-size:12px; opacity:0.75; word-break:break-word;">${(e && e.message) || e}</div>
+      <a href="NEXUS-App-v1.html" style="display:inline-block; margin-top:16px;">← Retour à l'accueil</a>
+    </div>`;
   });
 </script>
 </body>

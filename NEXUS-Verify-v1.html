@@ -2977,6 +2977,23 @@
       box.innerHTML = `<div class="resume-box" style="border-color:rgba(245,166,35,0.35);"><div class="resume-line" style="color:var(--amber); margin-bottom:0;">✏️ Modification de l'audit du ${new Date(a.date + 'T00:00:00').toLocaleDateString('fr-FR')} — Quart ${a.quart}. Corrigez le ou les champs concernés puis « Calculer et enregistrer » — ça remplace cette entrée, ça n'en crée pas une nouvelle.</div></div>`;
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
+  }).catch((e) => {
+    // v2.270 — P0 : même défaut architectural que le "P0 ter" déjà rencontré
+    // et corrigé sur FDJ Opérations (v2.249, cf. Data Dictionary) — une
+    // exception n'importe où dans la longue chaîne d'initialisation
+    // ci-dessus (non protégée par try/catch, ~2000 lignes) rejetait
+    // silencieusement toute la promesse : l'écran restait figé sur
+    // "Chargement…" sans jamais afficher d'erreur. Ce filet ne remplace pas
+    // un diagnostic ciblé de la cause exacte, mais rend le blocage
+    // immédiatement diagnostiquable au lieu de muet (Frédéric : "je n'arrive
+    // plus à ouvrir NEXUS").
+    console.error('Initialisation NEXUS Verify:', e);
+    const app = document.getElementById('app');
+    if (app) app.innerHTML = `<div class="locked" style="text-align:left; padding:20px;">
+      <div style="font-weight:700; margin-bottom:10px;">NEXUS n'a pas pu ouvrir cette page</div>
+      <div style="font-family:monospace; font-size:12px; opacity:0.75; word-break:break-word;">${(e && e.message) || e}</div>
+      <a href="NEXUS-App-v1.html" style="display:inline-block; margin-top:16px;">← Retour à l'accueil</a>
+    </div>`;
   });
 </script>
 </body>
