@@ -4106,3 +4106,19 @@ Les 9 sous-lots suivants ont été implémentés, chacun avec sa propre vérific
 **Fichiers modifiés** : `NEXUS-Verify-v1.html` uniquement (2 règles CSS ajustées, aucun changement de comportement/logique).
 
 **Tests** : correctifs purement visuels (CSS), vérifiés par lecture directe du code — aucune fonction pure concernée. Suite complète du dépôt rejouée avant livraison : **135 fichiers `test_*.js`, 0 échec**. Syntaxe vérifiée (`node --check`).
+
+## v2.278 — Correctifs visuels : chevron du select trop gros + onglets réellement unifiés (29/08/2026, retour de Frédéric — "c'est pire" après v2.277)
+
+**Origine** : la capture d'écran envoyée après le v2.277 montre un chevron de `<select>` bien plus gros et sombre que prévu, et l'onglet "Écarts" toujours pas clairement aligné avec les autres.
+
+**Cause 1 (chevron)** : la règle `select{...background-image:url(...svg...); background-position:...}` du v2.277 ne fixait jamais `background-size`. Sans cette propriété, un navigateur peut afficher l'image de fond à une taille bien plus grande que les `width`/`height` déclarés dans le SVG lui-même (surtout un SVG sans `viewBox`) — d'où le triangle plein et disproportionné visible à l'écran au lieu d'un petit chevron discret.
+
+**Correctif 1** : ajout explicite de `background-size:9px 5px;` sur la règle `select{...}`, et ajout d'un `viewBox='0 0 10 6'` sur le SVG inline (robustesse supplémentaire, indépendante du moteur de rendu utilisé pour décoder le data URI).
+
+**Cause 2 (onglet Écarts)** : le v2.277 corrigeait `align-items` uniquement sur `a.tab` (le lien "Écarts"), en laissant les 3 `<div class="tab">` en flux bloc normal — deux modèles de boîte différents (flex vs bloc) pour des éléments censés être visuellement identiques, ce qui laissait la porte ouverte à des écarts de rendu selon la police/le navigateur, même si le padding-top nominal était le même sur le papier.
+
+**Correctif 2** : `display:flex; align-items:flex-start; justify-content:center;` déplacé sur `.tab` elle-même (la classe commune aux 4 onglets) plutôt que sur `a.tab` seul — les 3 `<div>` ET le `<a>` partagent désormais EXACTEMENT le même modèle de boîte, éliminant toute possibilité de divergence entre eux, quel que soit le nombre de lignes de texte ("Nouvel Audit" reste sur 2 lignes, centré horizontalement par `text-align:center` + `justify-content:center` combinés).
+
+**Fichiers modifiés** : `NEXUS-Verify-v1.html` uniquement (2 règles CSS ajustées).
+
+**Tests** : correctifs purement visuels (CSS), vérifiés par lecture directe du code. Suite complète du dépôt rejouée avant livraison : **135 fichiers `test_*.js`, 0 échec**. Syntaxe vérifiée (`node --check`).

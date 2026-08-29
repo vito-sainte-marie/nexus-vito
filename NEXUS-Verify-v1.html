@@ -48,14 +48,23 @@
   .divider{height:1px; background:var(--hairline); margin:0 20px;}
 
   .tabs{display:flex; gap:8px; padding:14px 20px 0;}
-  .tab{flex:1; text-align:center; padding:10px; border-radius:8px; font-family:var(--mono); font-size:11px; letter-spacing:0.04em; text-transform:uppercase; color:var(--text-dim); background:var(--panel-raised); border:1px solid var(--hairline); cursor:pointer;}
+  /* v2.278 (retour de Frédéric — "Écarts" restait décalé après le premier
+     essai) : `.tab` pilote désormais elle-même le centrage horizontal en
+     flex (`display:flex; align-items:flex-start; justify-content:center`)
+     pour les 4 onglets, plutôt que de laisser le <div> en flux bloc normal
+     (texte collé au padding-top) et le <a> en flex à part — même modèle de
+     boîte pour les 4, donc plus aucune divergence possible entre eux,
+     peu importe le nombre de lignes de texte. `text-align:center` reste
+     inoffensif ici (il ne s'applique qu'à du texte enveloppant plusieurs
+     lignes, ex: "Nouvel Audit"). */
+  .tab{flex:1; display:flex; align-items:flex-start; justify-content:center; text-align:center; padding:10px; border-radius:8px; font-family:var(--mono); font-size:11px; letter-spacing:0.04em; text-transform:uppercase; color:var(--text-dim); background:var(--panel-raised); border:1px solid var(--hairline); cursor:pointer;}
   .tab.active{color:var(--cyan); border-color:rgba(79,195,217,0.4); background:rgba(79,195,217,0.08);}
   /* 28/08/2026, v2.268-C3 — "Analyse des écarts" est une VRAIE navigation
      (sous-page séparée, cadrage §1 : "sous-page rattachée à Verify, pas un
      nouveau module"), pas un panneau interne comme les 3 onglets
      historiques ci-dessus. Même habillage visuel (.tab), mais un <a> réel
      plutôt qu'un <div> + JS, pour rester un simple lien standard. */
-  a.tab{text-decoration:none; display:flex; align-items:flex-start; justify-content:center;}
+  a.tab{text-decoration:none;}
 
   .section{padding:16px 20px;}
   .card{background:var(--panel); border:1px solid var(--hairline); border-radius:12px; padding:18px; margin-bottom:14px;}
@@ -236,7 +245,11 @@
      côté (ex: "Quart concerné"). On retire cet habillage natif et on
      dessine nous-mêmes un chevron, pour que tout <select> du fichier
      s'aligne exactement comme un input[type=date]/text. */
-  select{-webkit-appearance:none; appearance:none; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0L5 6L10 0Z' fill='%2357626F'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 12px center; padding-right:32px;}
+  select{
+    -webkit-appearance:none; appearance:none;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M0 0L5 6L10 0Z' fill='%2357626F'/%3E%3C/svg%3E");
+    background-repeat:no-repeat; background-position:right 12px center; background-size:9px 5px; padding-right:32px;
+  }
 
   .btn{
     font-family:var(--sans); font-size:14px; font-weight:600; border:none; border-radius:8px;
