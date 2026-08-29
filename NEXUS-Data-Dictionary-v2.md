@@ -4088,3 +4088,21 @@ Les 9 sous-lots suivants ont été implémentés, chacun avec sa propre vérific
 **Fichiers modifiés** : `nexus-verify-moteur.js` (`estReportDateRisque` nouvelle fonction pure, `verdictCoherenceImportSheets` mise à jour pour l'utiliser, export ajouté), `NEXUS-Verify-v1.html` (champ `v_quart` converti en `<select>`, listener `change` ajouté, calcul de `distanceDepuisDateLiterale` dans `importerDepuisLignes`, appel à `verdictCoherenceImportSheets` mis à jour).
 
 **Tests** : `test_verify_import_sheets_coherence_v2274.js` mis à jour et complété (9 cas désormais — ajout des cas distance=1/pas de risque, distance>1/risque, distance inconnue/repli prudent, et `estReportDateRisque` testée isolément). Suite complète du dépôt rejouée avant livraison : **135 fichiers `test_*.js`, 0 échec, aucune régression**. Syntaxe vérifiée (`node --check`) sur `nexus-verify-moteur.js` et sur le script extrait de `NEXUS-Verify-v1.html`.
+
+## v2.277 — Alignement visuel : onglet "Écarts" + champs `<select>` (29/08/2026, retour de Frédéric sur capture d'écran)
+
+**Origine 1** : l'onglet "Écarts" (dans le bandeau Nouvel audit / Historique / Rapport / Écarts) apparaissait vertical­ement centré dans sa case, alors que les 3 autres onglets ont leur texte aligné en haut.
+
+**Cause 1** : "Écarts" est un vrai lien `<a class="tab" href="NEXUS-Analyse-Ecarts-v1.html">` (navigation réelle vers une sous-page, cf. v2.268-C3) plutôt qu'un `<div class="tab">` piloté en JS comme les 3 autres. Sa règle CSS dédiée `a.tab{...}` posait `display:flex; align-items:center;` pour le centrage horizontal — mais `align-items:center` centre aussi verticalement, alors que `.tabs{display:flex}` étire tous les onglets à la même hauteur (celle du plus grand, "Nouvel Audit" qui passe sur 2 lignes). Résultat : le texte "Écarts" flottait au milieu de cette hauteur étirée, alors que les `<div class="tab">` (sans flex) restent naturellement en haut par simple `padding`.
+
+**Correctif 1** : `align-items:center` → `align-items:flex-start` sur `a.tab` — le texte "Écarts" démarre désormais en haut, aligné avec les 3 autres onglets.
+
+**Origine 2** : dans "Quart concerné", le champ Quart (converti en `<select>` au v2.276) apparaissait décalé verticalement par rapport au champ Date juste à côté, malgré un CSS de padding strictement identique entre les deux.
+
+**Cause 2** : un `<select>` HTML garde par défaut son propre habillage natif du navigateur (particulièrement visible sur Safari iOS), qui lui donne une hauteur et un positionnement de texte différents d'un `input[type=date]`/`text`, même à `padding` égal en CSS — le padding ne suffit pas à neutraliser le rendu natif du contrôle.
+
+**Correctif 2** : nouvelle règle CSS `select{-webkit-appearance:none; appearance:none; background-image:url(...chevron SVG...); background-position:right 12px center; padding-right:32px;}`, qui retire l'habillage natif de TOUS les `<select>` du fichier (pas seulement Quart — Article 11, un seul correctif plutôt qu'un cas par cas) et dessine un chevron simple à la place, cohérent avec le reste de l'interface. Chaque `<select>` s'aligne désormais exactement comme les champs texte/date voisins.
+
+**Fichiers modifiés** : `NEXUS-Verify-v1.html` uniquement (2 règles CSS ajustées, aucun changement de comportement/logique).
+
+**Tests** : correctifs purement visuels (CSS), vérifiés par lecture directe du code — aucune fonction pure concernée. Suite complète du dépôt rejouée avant livraison : **135 fichiers `test_*.js`, 0 échec**. Syntaxe vérifiée (`node --check`).

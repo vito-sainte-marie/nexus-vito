@@ -55,7 +55,7 @@
      nouveau module"), pas un panneau interne comme les 3 onglets
      historiques ci-dessus. Même habillage visuel (.tab), mais un <a> réel
      plutôt qu'un <div> + JS, pour rester un simple lien standard. */
-  a.tab{text-decoration:none; display:flex; align-items:center; justify-content:center;}
+  a.tab{text-decoration:none; display:flex; align-items:flex-start; justify-content:center;}
 
   .section{padding:16px 20px;}
   .card{background:var(--panel); border:1px solid var(--hairline); border-radius:12px; padding:18px; margin-bottom:14px;}
@@ -229,6 +229,14 @@
     padding:11px 12px; color:var(--text); font-family:var(--mono); font-size:16px; margin-bottom:10px;
   }
   input[type=text]:not([inputmode]), textarea{font-family:var(--sans);}
+  /* v2.277 (retour de Frédéric) — un <select> natif garde par défaut son
+     propre habillage (Safari iOS notamment lui donne une hauteur/un
+     alignement de texte qui lui sont propres, même à padding identique),
+     ce qui le décalait visuellement par rapport au champ Date juste à
+     côté (ex: "Quart concerné"). On retire cet habillage natif et on
+     dessine nous-mêmes un chevron, pour que tout <select> du fichier
+     s'aligne exactement comme un input[type=date]/text. */
+  select{-webkit-appearance:none; appearance:none; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0L5 6L10 0Z' fill='%2357626F'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 12px center; padding-right:32px;}
 
   .btn{
     font-family:var(--sans); font-size:14px; font-weight:600; border:none; border-radius:8px;
