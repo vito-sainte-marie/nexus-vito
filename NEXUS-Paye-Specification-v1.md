@@ -1,0 +1,125 @@
+# NEXUS Paye — Spécification de cadrage v1
+
+**Statut de ce document : cadrage, rien n'est construit.** Il documente une cible d'architecture pour un futur chantier, à l'image de `Audit_NEXUS_Analyse_des_Ecarts_Verify_FDJ_PAYE.pdf` qui avait déjà anticipé une partie de ce besoin (§13). Aucune ligne de code de ce document n'est encore livrée. Il sert de référence pour cadrer les lots futurs quand le module PAYE sera réellement construit.
+
+Origine : demande de Frédéric le 29/08/2026, après la correction du P0 v2.285 (attribution des écarts Verify), posant la question « les employés voient-ils exactement les mêmes écarts que le manager ? » et proposant, si ce n'est pas le cas, une architecture "une seule vérité, plusieurs vues" avec `discrepancy_id`, statut `CONTESTÉ`, verrou PAYE et contrôle de cohérence automatique.
+
+---
+
+## 1. Constat vérifié (audit code du 29/08/2026)
+
+Avant d'écrire une seule ligne de cadrage, vérification demandée par l'Article 5 : **non, à ce jour, Progression employé et Analyse des écarts manager ne consultent PAS le même calcul.** Ce n'est pas une hypothèse, c'est un fait de code :
+
+- **Analyse des écarts** (`NEXUS-Analyse-Ecarts-v1.html`) est alimentée par `nexus-ecarts-donnees.js`, qui délègue toute la logique métier à `nexus-ecarts-moteur.js` : `deriverStatutEcart` (machine à 4 états — À vérifier / Régularisé / Clôturé expliqué / Clôturé non expliqué, basée sur la clôture ET la cause connue), `calculerMontantRetenuLigne` (distingue l'écart constaté du montant réellement retenu), `resoudreEmployeCaisseVerify` (attribution par caisse réelle, corrigée en v2.285).
+- **Progression** (`nexus-progression.js`, écran employé) a sa **propre logique indépendante**, jamais reliée à `nexus-ecarts-moteur.js` (vérifié : aucune référence à `NexusEcartsMoteur`, `deriverStatutEcart`, `cause_code`, ni `calculerMontantRetenuLigne` dans ce fichier). Elle applique :
+  - un seuil de conformité fixe, `SEUIL_ECART_CONFORME = 2 €`, sur la valeur brute `ecart_piste`/`ecart_boutique` — sans jamais regarder si un manager a expliqué la cause (`cause_code_piste`/`cause_code_boutique`) ou régularisé le montant ;
+  - donc aucune notion de "Régularisé" / "Clôturé expliqué" au sens d'Analyse des écarts — juste "conforme" ou "non conforme" ;
+  - aucun calcul de `montantRetenu` — Progression ne sait pas dire "l'écart initial était de -36,65 €, mais le montant réellement retenu est 0 €".
+
+**Point rassurant, vérifié aussi** : sur l'attribution en elle-même, Progression ne reproduisait PAS le bug P0 — elle a toujours lu `employes_piste`/`employes_boutique` (jamais `employee_id`) pour décider si un écart est "attribuable" à l'employé (et seulement s'il était seul sur le poste — `soloPiste`/`soloBoutique`, une règle plus prudente qu'Analyse des écarts sur le cas 2+ employés). Le cas concret de Ruddy (17/08 Q2 Piste) était donc déjà correctement rattaché à lui dans sa propre Progression avant même le correctif v2.285 — le bug ne touchait que la vue manager.
+
+**Ce qui reste réellement en risque** : le STATUT et le MONTANT peuvent diverger. Exemple concret avec les vraies règles actuelles : si un manager régularise l'écart de Ruddy après enquête (cause trouvée, correction à 0 €, `montantRetenu = 0`), Analyse des écarts affichera "Régularisé, 0 € retenu" — mais Progression, qui ne lit jamais `cause_code_piste` ni ne recalcule `montantRetenu`, continuera de comparer la valeur brute au seuil de 2 € et pourra continuer d'afficher l'écart comme "non conforme" dans la liste `ecartsAttribuables`, selon que la colonne `ecart_piste` elle-même a ou non été mise à jour lors de la régularisation. Ce mécanisme n'a pas été audité colonne par colonne dans ce passage (hors scope de cette vérification) — mais le principe est confirmé : ce sont deux moteurs de calcul séparés, donc rien ne garantit qu'ils convergent dans tous les cas, aujourd'hui ni demain à mesure que l'un des deux évolue sans l'autre.
+
+**Conclusion** : la proposition de Frédéric est fondée sur un vrai risque architectural vérifié, pas une crainte théorique. La suite de ce document cadre la cible pour l'éliminer.
+
+---
+
+## 2. Principe directeur : une seule vérité, plusieurs vues
+
+Aucun écran ne doit recalculer indépendamment "y a-t-il un écart, de quel statut, quel montant". Un seul endroit calcule, tous les écrans lisent le même résultat.
+
+Bonne nouvelle architecturale : NEXUS a déjà pris à moitié cette décision. Depuis le v2.268-A3 (Article 11, "une seule vérité"), `nexus-ecarts-moteur.js` existe précisément pour être ce moteur central, partagé par construction — `nexus-fdj-moteur.js` lui délègue déjà sa propre logique d'écarts caisse FDJ. Il ne manque qu'un seul consommateur à brancher dessus : **Progression**. Ce n'est pas une nouvelle mécanique à inventer, c'est étendre l'usage de celle qui existe déjà à l'écran qui y échappe encore.
+
+Cela confirme aussi que la recommandation d'origine de Frédéric ("Verify/FDJ créent l'événement → registre central → alimente Progression / Analyse des écarts / PAYE") est déjà réalisée aux 2/3 : Verify/FDJ sont la source, `nexus-ecarts-moteur.js` + `nexus-ecarts-donnees.js` sont le registre de calcul central (calculé à la volée, jamais dupliqué en base — décision Article 11 déjà actée et qui reste valable ici, voir §3). Il manque le branchement de Progression et, pour PAYE, un consommateur qui n'existe pas encore.
+
+---
+
+## 3. Le "registre central" n'a pas besoin d'être une nouvelle table
+
+Point de vigilance Article 11 avant de se lancer : la proposition de Frédéric parle d'un `discrepancy_id` unique par écart, ce qui évoque une table dédiée. Ce n'est probablement pas nécessaire pour l'identité de l'écart lui-même :
+
+- Un écart est déjà identifiable de façon stable et unique aujourd'hui : `id` retourné par `nexus-ecarts-donnees.js` est construit comme `verify-{audit.id}-{piste|boutique}` ou `fdj-{control.id}` — c'est déjà, de fait, un `discrepancy_id` stable. Il suffit de le formaliser comme tel dans le cadrage plutôt que d'en fabriquer un nouveau.
+- Dupliquer l'écart lui-même dans une nouvelle table reproduirait exactement l'erreur que le v2.268-A3 avait délibérément évitée (cadrage §13 du PDF d'audit proposait une table à double écriture — refusée à l'époque au nom de l'Article 11, décision documentée dans l'en-tête de `nexus-ecarts-donnees.js`). Le calcul EN DIRECT reste la bonne approche : corriger la source (Verify/FDJ) continue de corriger instantanément toutes les vues, sans script de rattrapage — c'est exactement ce qui a permis au correctif v2.285 de s'appliquer à tout l'historique sans migration.
+
+Ce qui, en revanche, NÉCESSITE bien un état persistant nouveau — parce que ce n'est pas dérivable des tables source — c'est la **contestation** (§5) : une action de l'employé, avec un contenu (motif), un instant, un traitement manager. Pour cela, pas besoin non plus de table dédiée : `nexus_ecarts_qualifications` est déjà, par construction, une table générique clé sur `(source_module, source_control_id, activite, type_qualification)`, utilisée aujourd'hui pour un seul type (`activite_inhabituelle`, v2.269). Elle est faite pour accueillir un second type, `contestation`, sans rien dupliquer (Article 11).
+
+---
+
+## 4. Cible : consommateurs du moteur unique
+
+```
+Verify (audits_caisse) ──┐
+                          ├──> nexus-ecarts-moteur.js + nexus-ecarts-donnees.js
+FDJ (fdj_shifts+controls)┘         (calcul EN DIRECT, single source, existant)
+                                          │
+                    ┌─────────────────────┼─────────────────────┐
+                    ▼                     ▼                     ▼
+          Analyse des écarts        Progression            NEXUS Paye
+          (vue manager,             (vue employé,          (futur — ne
+           déjà branchée,            filtrée sur            consomme QUE
+           v2.268-C1)                 son employeeId,        montantRetenu +
+                                       PAS ENCORE              statut final,
+                                       branchée — refonte      jamais un
+                                       nécessaire)             écart CONTESTÉ)
+```
+
+### 4.1 Analyse des écarts (déjà conforme)
+Aucun changement requis par cette spécification — c'est déjà le modèle cible.
+
+### 4.2 Progression (refonte nécessaire, hors scope de ce document)
+`nexus-progression.js` devrait, pour chaque service caisse d'un employé, résoudre l'écart via le MÊME résultat que `nexus-ecarts-donnees.js` (même `id`, même `statut`, même `ecartFinal`/`montantRetenu`) plutôt que recalculer `estConforme(ecart_piste brut)`. Concrètement, à termes : Progression appellerait `chargerEcartsConsolides` (ou une variante filtrée côté employé) et ferait son filtrage/mise en forme narrative (coaching, tendances, séries) SUR le résultat déjà qualifié par le moteur, au lieu de relire `audits_caisse` en direct avec ses propres règles. Le vocabulaire "Écarts de caisse constatés" plutôt que "faute"/"pénalité" (déjà dans l'esprit du fichier — voir son en-tête, "jamais une accusation") est cohérent avec la proposition de Frédéric et n'implique aucun changement de philosophie, seulement de plomberie.
+
+Ce point n'est PAS traité dans ce document au-delà du cadrage : c'est un chantier de refonte à part entière (au minimum : ré-écrire `construireServicesCaisse`/`ecartsAttribuables`/`serviceEstPropre` pour consommer le moteur central, vérifier l'impact sur toutes les métriques qui en dérivent — séries, tendances, axes de progression — et rejouer les tests existants de Progression qui encodent aujourd'hui l'ancien comportement).
+
+### 4.3 NEXUS Paye (n'existe pas encore)
+Quand ce module sera construit, il ne devra JAMAIS recalculer un écart : il consomme uniquement `montantRetenu` (jamais `ecartInitial` — règle déjà actée depuis le v2.269, "Écart de caisse ≠ dette employé ≠ retenue sur paie") et le `statut` final d'un écart déjà clos. Le champ `impactPaye`, posé à `null` depuis le v2.269 comme réservation explicite, est le point d'entrée déjà prévu pour ce branchement futur.
+
+---
+
+## 5. Extension du cycle de statut : CONTESTÉ
+
+Statuts actuels (`nexus-ecarts-moteur.js`, `STATUTS_ECART`) : `a_verifier` → `regularise` | `cloture_non_explique` | `cloture_explique`.
+
+Extension proposée (à construire, pas construite) :
+
+```
+a_verifier → regularise
+           → cloture_explique
+           → cloture_non_explique → contesté → en_reexamen → regularise (si erreur confirmée)
+                                                             → confirme  (si écart maintenu)
+```
+
+`contesté` et `en_reexamen` ne remplacent jamais `cloture_non_explique` : ils s'ajoutent par-dessus une ligne déjà close, comme une qualification (même mécanisme que `activite_inhabituelle`, table `nexus_ecarts_qualifications`, nouveau `type_qualification = 'contestation'`). L'écart initial n'est jamais modifié ni supprimé — seule une qualification vient s'y superposer, exactement comme le fait déjà `qualification` sur les lignes retournées par `chargerEcartsConsolides` aujourd'hui pour `activite_inhabituelle`.
+
+Champs à prévoir pour une contestation (réutilisation de la table générique existante, colonnes déjà présentes ou à ajouter en additif — jamais en remplacement) :
+- `motif` (texte libre de l'employé — colonne déjà existante sur `nexus_ecarts_qualifications`) ;
+- `qualifie_par` (l'employé qui conteste — déjà existant) / `qualifie_le` (déjà existant) ;
+- des colonnes additives à envisager le moment venu : un statut de traitement de la contestation elle-même (ouverte / résolue) et la décision du manager (motif de résolution, lien vers la ligne éventuellement corrigée) — non actées ici, à cadrer précisément lors de l'implémentation réelle plutôt que deviné par avance.
+
+---
+
+## 6. Verrou PAYE
+
+Règle à faire respecter par le futur module (pas de code aujourd'hui, PAYE n'existe pas) : un écart dont la qualification `contestation` est ouverte (pas encore résolue) ne peut jamais être transmis en `montantRetenu` définitif à PAYE. PAYE afficherait un état explicite ("écart en cours de réexamen, non intégré") plutôt que d'ignorer silencieusement la contestation ou de intégrer un montant qui pourrait changer.
+
+## 7. Contrôle de cohérence automatique
+
+Proposition retenue comme test de non-régression à écrire dès que Progression sera branchée sur le moteur central (§4.2) : pour un employé et une période donnés, la somme des `montantRetenu` que Progression affiche doit être strictement égale à la somme des `montantRetenu` filtrés sur le même `employeeId`/période dans `appliquerFiltresEcarts` (déjà existant côté Analyse des écarts). Une divergence ne devrait plus jamais être possible une fois les deux écrans branchés sur le même moteur — ce test sert de garde-fou contre une régression future (ex. si Progression réintroduit un jour un calcul local par erreur).
+
+## 8. Ce qui ne doit jamais arriver
+
+- Supprimer ou réécrire un `ecartInitial`/`ecart_*_origine` déjà capturé (règle déjà en vigueur depuis le v2.268-B1, réaffirmée ici pour la contestation : contester ou régulariser ajoute une qualification/une correction, ne réécrit jamais l'historique).
+- Un deuxième moteur de statut/montant, où qu'il soit (Progression aujourd'hui, tout futur écran demain) — Article 11.
+- Une transmission PAYE sur un écart encore contesté.
+- Une attribution single "au pif" quand 2+ employés partagent une caisse — règle déjà actée (v2.285 pour Analyse des écarts, et de longue date pour Progression via `soloPiste`/`soloBoutique`) et à conserver telle quelle dans toute extension future.
+
+---
+
+## 9. Prochaines étapes suggérées (non engagées, à confirmer par Frédéric)
+
+1. Refondre `nexus-progression.js` pour consommer `nexus-ecarts-moteur.js`/`nexus-ecarts-donnees.js` au lieu de recalculer indépendamment (§4.2) — le seul chantier qui corrige réellement le risque de divergence aujourd'hui, indépendamment de tout le reste.
+2. Étendre `nexus_ecarts_qualifications` avec `type_qualification = 'contestation'` + écran employé "Signaler un écart" dans Progression, et son pendant manager dans Analyse des écarts (§5).
+3. Écrire le contrôle de cohérence automatique (§7) comme test de non-régression, une fois (1) fait.
+4. NEXUS Paye lui-même (§4.3, §6) : à cadrer en détail seulement quand ce module sera mis au calendrier — ce document pose les règles qu'il devra respecter dès sa conception, pas son plan d'implémentation.
+
+Chacun de ces points est un lot à part entière, à traiter et tester séparément (même discipline que tous les correctifs précédents de cet historique) — pas un chantier unique.
