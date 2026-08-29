@@ -1021,6 +1021,15 @@
     let EMPLOYES_SITE = [];
     const employesSelectionnes = { piste: new Set(), boutique: new Set() };
     const CLE_CAISSE = { piste: 'Piste', boutique: 'Boutique' };
+    // v2.273 (§1, retour de Frédéric — contexte quart persistant). Déclarée
+    // ici (tôt dans le script) et non près de majContexteSticky() plus bas
+    // : majContexteSticky() est appelée juste après le chargement des
+    // employés, bien avant d'atteindre la ligne où ce `let` vivait
+    // auparavant — contrairement à une fonction, un `let` n'est jamais
+    // hoisté de façon utilisable, donc cet appel précoce levait
+    // "Cannot access 'CONTEXTE_EN_MODIFICATION' before initialization" et
+    // empêchait Verify de s'ouvrir (P0 corrigé le 29/08/2026).
+    let CONTEXTE_EN_MODIFICATION = false;
 
     async function chargerEmployesSite() {
       const { data, error } = await nexusClient.from('employees')
@@ -1958,7 +1967,12 @@
     // — jamais besoin de remonter en haut du formulaire pour vérifier
     // qu'on modifie bien le bon quart, surtout lors d'une correction
     // (CONTEXTE_EN_MODIFICATION -> bandeau ambré + étiquette "Modification").
-    let CONTEXTE_EN_MODIFICATION = false;
+    // Déclarée plus haut (voir près de EMPLOYES_SITE) — P0 corrigé le
+    // 29/08/2026 : un `let` n'est jamais hoisté comme une fonction, la
+    // déclarer ici la rendait inaccessible (TDZ) au tout premier appel de
+    // majContexteSticky() juste après le chargement des employés, ce qui
+    // empêchait NEXUS Verify de s'ouvrir ("Cannot access
+    // 'CONTEXTE_EN_MODIFICATION' before initialization").
     function majContexteSticky() {
       const el = document.getElementById('contexteSticky');
       if (!el) return;
