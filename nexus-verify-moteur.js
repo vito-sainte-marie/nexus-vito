@@ -212,10 +212,45 @@
     return patch;
   }
 
+  // ------------------------------------------------------------
+  // v2.274 (retour de Frédéric §2/§3 — "avant une synchronisation Google
+  // Sheets, vérifier la cohérence date + quart + personnel entre les
+  // données importées et l'audit ouvert. En cas d'incohérence, bloquer
+  // l'application automatique et proposer directement 'Ouvrir le bon
+  // quart'.") — fonction pure : ne connaît ni le DOM ni Supabase. Reçoit
+  // des chaînes DÉJÀ normalisées (comparaison insensible à la
+  // casse/accents faite par l'appelant, même convention que
+  // trouverOuCreerEmploye côté écran) et renvoie un verdict exploitable
+  // tel quel. Ne bloque QUE s'il y a effectivement quelque chose à
+  // comparer — un audit tout juste commencé (aucun employé encore
+  // sélectionné) n'a rien de "différent" à signaler, ce n'est pas une
+  // incohérence (Article 5 : jamais une fausse alerte).
+  // ------------------------------------------------------------
+  function verdictCoherenceImportSheets(ctx) {
+    const c = ctx || {};
+    const alertes = [];
+    if (c.dateLiteraleSurLaLigne === false) {
+      alertes.push({
+        code: 'date_reportee',
+        message: "La date de cette ligne n'était pas écrite explicitement dans le classeur (reportée depuis une ligne précédente) — le quart importé pourrait appartenir à un autre jour que celui affiché.",
+      });
+    }
+    (c.personnel || []).forEach(p => {
+      if (p && p.attendu && p.importe && p.attendu !== p.importe) {
+        alertes.push({
+          code: 'personnel_different',
+          caisse: p.caisse,
+          message: `Caisse ${p.caisseLabel || p.caisse} : ${p.attenduLabel || p.attendu} déjà enregistré sur ce quart, mais le classeur propose ${p.importeLabel || p.importe} — vérifie qu'il s'agit bien du même quart avant d'appliquer.`,
+        });
+      }
+    });
+    return { bloquer: alertes.length > 0, alertes };
+  }
+
   global.NexusVerifyMoteur = {
     classifierEcart, GRAVITE_ORDRE, STATUT_LABEL, agregerAudits, statutValidationQuart,
     MOTIFS_ECART_CORRIGE_VERIFY, motifsEcartCorrigeDisponiblesVerify, labelMotifEcartVerify,
     libelleActionVersion, construireLigneVersion, construireTimelineVersions, construirePatchRestauration,
-    CHAMPS_IDENTITE_AUDIT,
+    CHAMPS_IDENTITE_AUDIT, verdictCoherenceImportSheets,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

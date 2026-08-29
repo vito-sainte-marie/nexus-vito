@@ -182,6 +182,20 @@
   .dc-check-pct{font-family:var(--mono); font-size:12px; color:var(--cyan); font-weight:600; padding:8px 0 2px; border-top:1px solid var(--hairline); margin-top:4px;}
   @keyframes dcCheckIn{ to{ opacity:1; transform:translateY(0); } }
 
+  /* Aperçu avant application d'une synchronisation (v2.274, §2/§3/§4) */
+  .dc-preview{margin-top:12px; background:var(--panel-raised); border:1px solid var(--hairline); border-radius:10px; padding:12px 14px;}
+  .dc-preview.alerte{border-color:rgba(240,87,90,0.4);}
+  .dc-preview-titre{font-family:var(--mono); font-size:10.5px; text-transform:uppercase; letter-spacing:0.04em; color:var(--text-dim); margin-bottom:10px;}
+  .dc-preview-alerte-item{font-family:var(--sans); font-size:11.5px; color:var(--red); background:var(--red-dim); border-radius:8px; padding:8px 10px; margin-bottom:8px; line-height:1.5;}
+  .dc-preview-champ{display:flex; justify-content:space-between; gap:10px; font-family:var(--sans); font-size:12px; color:var(--text-mid); padding:5px 0; border-bottom:1px solid var(--hairline);}
+  .dc-preview-champ:last-of-type{border-bottom:none;}
+  .dc-preview-champ b{color:var(--text); font-weight:600;}
+  .dc-preview-vide{font-family:var(--sans); font-size:12px; color:var(--text-dim); padding:4px 0;}
+  .dc-preview-actions{display:flex; gap:8px; margin-top:12px; flex-wrap:wrap;}
+  .dc-preview-btn{flex:1; min-width:100px; padding:10px 12px; border-radius:8px; font-family:var(--sans); font-size:12px; font-weight:700; cursor:pointer; border:1px solid var(--hairline); background:var(--panel); color:var(--text-mid);}
+  .dc-preview-btn-appliquer{background:var(--green); color:#052e1c; border:none;}
+  .dc-preview-btn-ouvrir{background:var(--amber); color:#1a1200; border:none;}
+
   .emp-dropdown{position:relative; margin-bottom:10px;}
   .emp-dropdown-toggle{width:100%; text-align:left; background:var(--panel-raised); border:1px solid var(--hairline); border-radius:8px; padding:11px 12px; color:var(--text); font-family:var(--sans); font-size:13px; cursor:pointer; display:flex; justify-content:space-between; align-items:center; gap:8px;}
   .emp-dropdown-toggle span:first-child{overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
@@ -461,6 +475,12 @@
         <select id="v_import_feuille"></select>
         <button type="button" class="btn-add" id="v_import_go">Importer cette ligne</button>
       </div>
+
+      <!-- Aperçu avant application (v2.274, retour de Frédéric §2/§3/§4) —
+           rien n'est écrit dans le formulaire tant que ce panneau n'a pas
+           été explicitement confirmé. Contenu posé par
+           afficherPreviewImportSheets(). -->
+      <div id="v_import_preview" class="dc-preview" style="display:none;"></div>
 
       <div class="dc-result">
         <div id="v_import_checklist" class="dc-checklist"></div>
@@ -1462,6 +1482,98 @@
       // laisser la saisie manuelle habituelle.
       const preRemplir = (id, key) => { if (cols[key] !== undefined) setValFR(id, num(g(key))); };
 
+      // v2.274 (retour de Frédéric §2/§3/§4 : "vérifier la cohérence date +
+      // quart + personnel... en cas d'incohérence, bloquer l'application
+      // automatique et proposer 'Ouvrir le bon quart'... une synchronisation
+      // doit d'abord afficher une prévisualisation des changements avant
+      // application.") — tout ce qui suit jusqu'au retour du panneau
+      // d'aperçu (afficherPreviewImportSheets) ne fait QUE lire (jamais
+      // écrire) : aucun champ du formulaire n'est
+      // touché tant que le manager n'a pas explicitement cliqué "Appliquer"
+      // sur le panneau d'aperçu. Couvre à la fois le flux Google Sheets et
+      // le flux fichier Excel — les deux passent par cette même fonction
+      // (Article 11, une seule vérité), donc les deux bénéficient de la
+      // même protection sans code dupliqué.
+      const commentairePeek = g('commentaires');
+      const pompisteNomPeek = g('pompiste');
+      const caissierNomPeek = g('caissier');
+
+      const previewChamps = [];
+      const ajouterPreviewMontant = (label, key) => {
+        if (cols[key] === undefined) return;
+        const v = num(g(key));
+        if (v !== 0) previewChamps.push({ label, valeur: `${v.toFixed(2)} €` });
+      };
+      ajouterPreviewMontant('Piste — CB', 'pisteCb');
+      ajouterPreviewMontant('Piste — Billets', 'pisteBillets');
+      ajouterPreviewMontant('Piste — Pièces', 'pistePieces');
+      ajouterPreviewMontant('Piste — Vitocarte', 'pisteVitocarte');
+      ajouterPreviewMontant('Boutique — CB', 'boutiqueCb');
+      if (cols.chqDej !== undefined || cols.smcr !== undefined) {
+        const vChq = num(g('chqDej')) + num(g('smcr'));
+        if (vChq !== 0) previewChamps.push({ label: 'Boutique — Chèque/SMCR', valeur: `${vChq.toFixed(2)} €` });
+      }
+      ajouterPreviewMontant('Boutique — Pièces', 'boutiquePieces');
+      ajouterPreviewMontant('Boutique — Billets', 'boutiqueBillets');
+      if (commentairePeek) previewChamps.push({ label: 'Commentaire', valeur: commentairePeek });
+      if (pompisteNomPeek) previewChamps.push({ label: 'Employé Piste', valeur: pompisteNomPeek });
+      if (caissierNomPeek) previewChamps.push({ label: 'Employé Boutique', valeur: caissierNomPeek });
+
+      // Cohérence personnel (§2) : compare le nom importé à ce qui est
+      // DÉJÀ sélectionné sur cette caisse au moment du clic — jamais à un
+      // référentiel théorique. Si rien n'est encore sélectionné (audit tout
+      // juste commencé), il n'y a rien à comparer : ce n'est pas une
+      // incohérence (Article 5 — jamais une fausse alerte).
+      const resolutionAttenduPourCaisse = (caisse, nomImporteBrut) => {
+        if (!nomImporteBrut) return null;
+        const nomsAvant = [...employesSelectionnes[caisse]].map(id => (EMPLOYES_SITE.find(e => e.id === id) || {}).nom).filter(Boolean);
+        if (nomsAvant.length === 0) return null;
+        const importeNorm = normaliserTexte(nomImporteBrut);
+        const dejaPresent = nomsAvant.some(n => normaliserTexte(n) === importeNorm);
+        return {
+          attendu: dejaPresent ? importeNorm : normaliserTexte(nomsAvant.join('|')),
+          attenduLabel: nomsAvant.join(', '),
+          importe: importeNorm,
+          importeLabel: nomImporteBrut,
+        };
+      };
+      const personnel = [];
+      const pRes = resolutionAttenduPourCaisse('piste', pompisteNomPeek);
+      if (pRes) personnel.push({ caisse: 'piste', caisseLabel: 'Piste', ...pRes });
+      const bRes = resolutionAttenduPourCaisse('boutique', caissierNomPeek);
+      if (bRes) personnel.push({ caisse: 'boutique', caisseLabel: 'Boutique', ...bRes });
+
+      const verdictCoherence = NexusVerifyMoteur.verdictCoherenceImportSheets({ dateLiteraleSurLaLigne, personnel });
+
+      const decisionPreview = await afficherPreviewImportSheets({
+        verdict: verdictCoherence, previewChamps, dateStr, quartStr, dateResolueTexte,
+      });
+
+      if (decisionPreview === 'annuler') {
+        statutEl.style.display = 'block';
+        statutEl.textContent = 'Synchronisation annulée — aucune donnée appliquée.';
+        return;
+      }
+      if (decisionPreview === 'ouvrir_bon_quart') {
+        // §3 : on corrige le contexte plutôt que d'appliquer une ligne
+        // suspecte — dernierDateVue est ancrée en UTC (voir memeJourUTC),
+        // on reconstruit donc la valeur ISO à partir de ses composantes
+        // UTC pour ne pas réintroduire le bug de fuseau horaire déjà
+        // corrigé le 01/08/2026.
+        const champDate = document.getElementById('v_date');
+        if (champDate && dernierDateVue) {
+          champDate.value = `${dernierDateVue.getUTCFullYear()}-${pad2(dernierDateVue.getUTCMonth() + 1)}-${pad2(dernierDateVue.getUTCDate())}`;
+          champDate.dispatchEvent(new Event('change'));
+          majContexteSticky();
+        }
+        statutEl.style.display = 'block';
+        statutEl.textContent = `Date corrigée sur ${dateResolueTexte} — vérifie le quart puis relance la synchronisation.`;
+        return;
+      }
+      // decisionPreview === 'appliquer' : le manager a vu l'aperçu (et les
+      // éventuelles alertes) et confirme explicitement — on applique
+      // maintenant, exactement comme avant ce lot.
+
       preRemplir('v_drop_piste_cb', 'pisteCb');
       preRemplir('v_drop_piste_billets', 'pisteBillets');
       preRemplir('v_drop_piste_pieces', 'pistePieces');
@@ -1610,6 +1722,45 @@
         statutEl.style.display = 'none';
         statutEl.textContent = '';
       }
+    }
+
+    // v2.274 (§4, retour de Frédéric : "une synchronisation doit d'abord
+    // afficher une prévisualisation des changements avant application.") —
+    // rend le panneau #v_import_preview et attend le choix du manager.
+    // Retourne une Promise résolue par 'appliquer' | 'annuler' |
+    // 'ouvrir_bon_quart'. Filet de sécurité : si le panneau n'existe pas
+    // dans le DOM pour une raison quelconque, on résout directement sur
+    // 'appliquer' plutôt que de bloquer silencieusement toute
+    // synchronisation.
+    function afficherPreviewImportSheets({ verdict, previewChamps, dateStr, quartStr, dateResolueTexte }) {
+      return new Promise((resolve) => {
+        const el = document.getElementById('v_import_preview');
+        if (!el) { resolve('appliquer'); return; }
+        const bloquer = !!(verdict && verdict.bloquer);
+        el.classList.toggle('alerte', bloquer);
+        const alertesHtml = ((verdict && verdict.alertes) || []).map(a => `<div class="dc-preview-alerte-item">⚠ ${a.message}</div>`).join('');
+        const champsHtml = previewChamps.length
+          ? previewChamps.map(c => `<div class="dc-preview-champ"><span>${c.label}</span><b>${c.valeur}</b></div>`).join('')
+          : `<div class="dc-preview-vide">Aucun champ exploitable détecté sur cette ligne.</div>`;
+        const offrirOuvrirBonQuart = bloquer && ((verdict && verdict.alertes) || []).some(a => a.code === 'date_reportee');
+        const dateAffichee = dateStr ? new Date(dateStr + 'T00:00:00').toLocaleDateString('fr-FR') : '?';
+        el.innerHTML = `
+          <div class="dc-preview-titre">Aperçu avant application — ${dateAffichee} · Quart ${quartStr}</div>
+          ${alertesHtml}
+          ${champsHtml}
+          <div class="dc-preview-actions">
+            <button type="button" class="dc-preview-btn" id="v_preview_annuler">Annuler</button>
+            ${offrirOuvrirBonQuart ? `<button type="button" class="dc-preview-btn dc-preview-btn-ouvrir" id="v_preview_ouvrir_bon_quart">Ouvrir le bon quart (${dateResolueTexte}) →</button>` : ''}
+            <button type="button" class="dc-preview-btn dc-preview-btn-appliquer" id="v_preview_appliquer">${bloquer ? 'Appliquer quand même' : 'Appliquer'}</button>
+          </div>`;
+        el.style.display = 'block';
+        el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        const terminer = (decision) => { el.style.display = 'none'; el.innerHTML = ''; el.classList.remove('alerte'); resolve(decision); };
+        document.getElementById('v_preview_annuler').addEventListener('click', () => terminer('annuler'));
+        document.getElementById('v_preview_appliquer').addEventListener('click', () => terminer('appliquer'));
+        const btnOuvrir = document.getElementById('v_preview_ouvrir_bon_quart');
+        if (btnOuvrir) btnOuvrir.addEventListener('click', () => terminer('ouvrir_bon_quart'));
+      });
     }
 
     document.getElementById('v_import_go').addEventListener('click', async () => {
