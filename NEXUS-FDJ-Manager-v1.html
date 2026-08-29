@@ -22,6 +22,10 @@
 <script src="nexus-header-nav.js"></script>
 <script src="nexus-forfait.js"></script>
 <script src="nexus-desktop.js"></script>
+<!-- v2.268 : source canonique de situationVerificationEcart/motifEcartObligatoire,
+     chargée AVANT nexus-fdj-moteur.js qui délègue désormais dessus (Article 11). -->
+<script src="nexus-ecarts-moteur.js"></script>
+<script src="nexus-ecarts-donnees.js"></script>
 <script src="nexus-fdj-moteur.js"></script>
 <script src="nexus-periodes.js"></script>
 <script src="nexus-pdf-moteur.js"></script>
@@ -2253,6 +2257,22 @@
       chargerQuartsARevoir(), soldesActuelsPartage.then(chargerCarnetsARapprocher), chargerEcartsRecalculesAValider(), chargerReplaysRequis(), chargerTotauxSemaine(periodeSemaineCourante.debut),
       chargerHistoriquePeriode(bornesHistorique.debut, bornesHistorique.fin),
     ]);
+
+    // "Écarts FDJ" — résumé (28/08/2026, v2.268-C3, cadrage "Analyse des
+    // écarts" de Frédéric, §1 : "résumé + lien" depuis FDJ, jamais un ajout
+    // au menu principal). Réutilise EXACTEMENT `historique` déjà chargé
+    // ci-dessus (Article 11, jamais un second appel réseau pour ce seul
+    // résumé) via le normaliseur canonique de nexus-ecarts-donnees.js —
+    // même calcul que la page dédiée NEXUS-Analyse-Ecarts-v1.html, jamais
+    // une deuxième implémentation. Limite assumée : `historique` est
+    // plafonné aux 30 derniers quarts du site (comme le reste de cet
+    // écran) — ce résumé donne un ordre de grandeur récent, l'analyse
+    // complète et non plafonnée vit sur la page dédiée.
+    let resumeEcartsFdj = null;
+    if (window.NexusEcartsDonnees && window.NexusEcartsMoteur) {
+      const lignesEcartsFdj = NexusEcartsDonnees.normaliserControlesFdj(historique, {});
+      resumeEcartsFdj = NexusEcartsMoteur.calculerKpisEcarts(lignesEcartsFdj);
+    }
     // Recalcul dynamique de la chaîne (16/08/2026, demande de Frédéric) : à
     // CHAQUE affichage de cet accueil — donc après toute création,
     // validation, régularisation ou modification d'un quart, puisque
@@ -2390,6 +2410,24 @@
         <div class="stock-tuile-sous">${capitaliserJour(new Date(periodeSemaineCourante.debut + 'T00:00:00'))} → ${capitaliserJour(new Date(aujourdhui + 'T00:00:00'))} : ${totauxSemaineCourante ? totauxSemaineCourante.nb_quarts_valides : 0}/${totauxSemaineCourante ? totauxSemaineCourante.nb_quarts : 0} quart${(totauxSemaineCourante && totauxSemaineCourante.nb_quarts_valides > 1) ? 's' : ''} finalisé${(totauxSemaineCourante && totauxSemaineCourante.nb_quarts_valides > 1) ? 's' : ''}${totauxSemaineCourante && (totauxSemaineCourante.nb_quarts - totauxSemaineCourante.nb_quarts_valides) > 0 ? ` · ${totauxSemaineCourante.nb_quarts - totauxSemaineCourante.nb_quarts_valides} brouillon${(totauxSemaineCourante.nb_quarts - totauxSemaineCourante.nb_quarts_valides) > 1 ? 's' : ''}` : ''}</div>
         <div class="stock-tuile-sous" style="color:var(--gold); margin-top:4px;">Voir lundi → dimanche →</div>
       </div>
+
+      <!-- "Écarts FDJ" — résumé + lien (28/08/2026, v2.268-C3, cadrage
+           "Analyse des écarts" de Frédéric). Volontairement discret : un
+           résumé factuel, jamais un jugement ("faute"/"dette" — vocabulaire
+           explicitement à éviter). Absent du menu principal (§4 du
+           cadrage) : ce lien est le seul point d'entrée depuis FDJ. -->
+      ${resumeEcartsFdj ? `
+      <a class="card" href="NEXUS-Analyse-Ecarts-v1.html?activite=fdj" style="display:block; margin-bottom:16px; padding:12px 16px; text-decoration:none; color:inherit;">
+        <div class="stat-row" style="border:none; padding:0;">
+          <div style="font-size:12.5px; font-weight:700; color:var(--text);">Écarts FDJ</div>
+        </div>
+        <div style="margin-top:6px; display:flex; gap:14px; font-family:var(--mono); font-size:11.5px; color:var(--text-mid);">
+          <span>Solde net : <b style="color:${resumeEcartsFdj.soldeNet > 0 ? 'var(--green)' : (resumeEcartsFdj.soldeNet < 0 ? 'var(--red)' : 'var(--text)')};">${fmtEuro(resumeEcartsFdj.soldeNet)}</b></span>
+          <span>${resumeEcartsFdj.aInvestiguer} à investiguer</span>
+        </div>
+        <div class="stock-tuile-sous" style="color:var(--cyan); margin-top:6px;">Voir l'analyse complète →</div>
+      </a>
+      ` : ''}
 
       <div class="section-titre">Stock &amp; mouvements</div>
       <div class="champ-note" style="margin:-6px 0 10px;">Gérez les carnets entre le bureau, la caisse et les différents états FDJ.</div>

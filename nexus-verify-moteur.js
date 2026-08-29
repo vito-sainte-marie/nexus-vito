@@ -110,5 +110,36 @@
     };
   }
 
-  global.NexusVerifyMoteur = { classifierEcart, GRAVITE_ORDRE, STATUT_LABEL, agregerAudits, statutValidationQuart };
+  // ------------------------------------------------------------
+  // "POURQUOI CET ÉCART ?" — v2.268, cadrage "Analyse des écarts" de
+  // Frédéric : même structure que FDJ (nexus-fdj-moteur.js, v2.267 —
+  // NexusEcartsMoteur.situationVerificationEcart en est la version
+  // canonique désormais), mais un vocabulaire de causes propre à Verify
+  // (piste/boutique), jamais les libellés FDJ ("rapport FDJ" n'a aucun
+  // sens ici). "Vente ou article non enregistré" reprend l'exemple exact
+  // du cadrage (§8) : l'écart positif qui révèle une vente oubliée.
+  // ------------------------------------------------------------
+  const MOTIFS_ECART_CORRIGE_VERIFY = [
+    { value: 'erreur_comptage', label: 'Erreur de comptage' },
+    { value: 'erreur_saisie', label: 'Erreur de saisie' },
+    { value: 'erreur_montant_caisse', label: 'Erreur sur le montant caisse' },
+    { value: 'vente_non_enregistree', label: 'Vente ou article non enregistré' },
+  ];
+  function motifsEcartCorrigeDisponiblesVerify(ecartInitial) {
+    const base = [{ value: '', label: 'Choisir un motif…' }, ...MOTIFS_ECART_CORRIGE_VERIFY];
+    return global.NexusEcartsMoteur
+      ? global.NexusEcartsMoteur.ajouterRemboursementSiManque(base, ecartInitial)
+      : (typeof ecartInitial === 'number' && ecartInitial < 0 ? [...base, { value: 'remboursement', label: 'Remboursement' }] : base);
+  }
+  function labelMotifEcartVerify(v) {
+    if (v === 'remboursement') return 'Remboursement';
+    if (v === 'non_explique') return 'Origine non identifiée';
+    const m = MOTIFS_ECART_CORRIGE_VERIFY.find(x => x.value === v);
+    return m ? m.label : (v || '—');
+  }
+
+  global.NexusVerifyMoteur = {
+    classifierEcart, GRAVITE_ORDRE, STATUT_LABEL, agregerAudits, statutValidationQuart,
+    MOTIFS_ECART_CORRIGE_VERIFY, motifsEcartCorrigeDisponiblesVerify, labelMotifEcartVerify,
+  };
 })(typeof window !== 'undefined' ? window : globalThis);

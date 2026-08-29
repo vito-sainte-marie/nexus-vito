@@ -1548,8 +1548,17 @@
   // l'écart FINAL recalculé en direct sur l'écran manager — jamais une
   // question posée en plus ("avez-vous corrigé l'écart ?") qui pourrait
   // se désynchroniser de ce que le manager a réellement modifié.
+  //
+  // PROVENANCE v2.268 : cette règle a été extraite dans nexus-ecarts-
+  // moteur.js (fichier transversal, cadrage "Analyse des écarts" de
+  // Frédéric — Verify a besoin exactement de la même règle) et devient la
+  // version canonique — celle-ci délègue désormais dessus quand ce fichier
+  // est chargé (Article 11, une seule vérité), avec un repli identique en
+  // ligne si jamais un écran FDJ plus ancien ne le charge pas encore
+  // (jamais un plantage pour un manque de <script> tag).
   // ------------------------------------------------------------
   function situationVerificationEcart(ecartFinal, ecartInitial) {
+    if (global.NexusEcartsMoteur) return global.NexusEcartsMoteur.situationVerificationEcart(ecartFinal, ecartInitial);
     if (ecartFinal === null || ecartFinal === undefined) return 'aucun_ecart';
     if (ecartFinal === 0) {
       if (ecartInitial === null || ecartInitial === undefined || ecartInitial === 0) return 'aucun_ecart';
@@ -1587,6 +1596,7 @@
   // appelant qui ne connaît pas l'écart d'origine, voir
   // test_fdj_statut_derive_ecart_verdict.js).
   function motifEcartObligatoire(ecartFinal, ecartInitial) {
+    if (global.NexusEcartsMoteur) return global.NexusEcartsMoteur.motifEcartObligatoire(ecartFinal, ecartInitial);
     return situationVerificationEcart(ecartFinal, ecartInitial) !== 'aucun_ecart';
   }
 

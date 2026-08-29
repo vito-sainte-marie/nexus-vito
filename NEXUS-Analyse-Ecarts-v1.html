@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<link rel="icon" type="image/x-icon" href="favicon.ico">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+<link rel="manifest" href="site.webmanifest">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="NEXUS">
+<meta name="theme-color" content="#0B0F14">
+<title>NEXUS — Analyse des écarts</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
+    --text:#EDF1F5; --text-mid:#8A96A5; --text-dim:#57626F;
+    --green:#34D399; --green-dim:#153629; --cyan:#4FC3D9;
+    --amber:#F5A623; --amber-dim:#3A2E14; --red:#F0546B; --red-dim:#3A1620;
+    --mono:'IBM Plex Mono',monospace; --sans:'IBM Plex Sans',sans-serif;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{background:var(--bg); font-family:var(--sans); color:var(--text);}
+  body{display:flex; justify-content:center; min-height:100vh;}
+  .phone{width:100%; max-width:460px; min-height:100vh; display:flex; flex-direction:column; border-left:1px solid var(--hairline); border-right:1px solid var(--hairline); padding-top:env(safe-area-inset-top); padding-bottom:env(safe-area-inset-bottom);}
+
+  .header{padding:20px 20px 14px; position:relative;}
+  .menu-btn{
+    position:absolute; top:18px; right:18px; display:flex; align-items:center; gap:6px;
+    font-family:var(--mono); font-size:10.5px; font-weight:600; letter-spacing:0.03em; text-transform:uppercase;
+    color:var(--cyan); background:rgba(79,195,217,0.1); border:1px solid rgba(79,195,217,0.3);
+    border-radius:20px; padding:7px 12px; text-decoration:none; white-space:nowrap; z-index:5;
+  }
+  .menu-btn:active{background:rgba(79,195,217,0.2);}
+
+  .eyebrow{font-family:var(--mono); font-size:11px; letter-spacing:0.12em; text-transform:uppercase; color:var(--cyan);}
+  .title{font-size:20px; font-weight:600; margin-top:4px;}
+  .subtitle{font-family:var(--mono); font-size:11px; color:var(--text-dim); margin-top:4px; line-height:1.5;}
+  .divider{height:1px; background:var(--hairline); margin:0 20px;}
+  .section{padding:16px 20px;}
+  .card{background:var(--panel); border:1px solid var(--hairline); border-radius:12px; padding:16px; margin-bottom:14px;}
+  .section-label{font-family:var(--mono); font-size:10.5px; letter-spacing:0.08em; text-transform:uppercase; color:var(--text-dim); margin-bottom:12px; display:flex; align-items:center; gap:8px;}
+  .section-label::after{content:''; flex:1; height:1px; background:var(--hairline);}
+
+  /* Filtres (§12 du cadrage) — accordéon replié par défaut pour ne pas
+     saturer l'écran mobile ; état ouvert/fermé purement visuel, les
+     filtres restent actifs même repliés. */
+  .filtres-toggle{display:flex; align-items:center; justify-content:space-between; cursor:pointer; padding:2px 0;}
+  .filtres-toggle .ft-label{font-size:13px; font-weight:600;}
+  .filtres-toggle .ft-compte{font-family:var(--mono); font-size:10.5px; color:var(--cyan); background:rgba(79,195,217,0.1); border-radius:10px; padding:2px 8px;}
+  .filtres-corps{display:none; margin-top:14px;}
+  .filtres-corps.ouvert{display:block;}
+  .filtre-row{display:flex; gap:8px; margin-bottom:10px;}
+  .filtre-row > div{flex:1; min-width:0;}
+  .filtre-row label{display:block; font-family:var(--mono); font-size:10px; color:var(--text-dim); margin-bottom:4px; text-transform:uppercase; letter-spacing:0.05em;}
+  .filtre-row select, .filtre-row input[type=date]{
+    width:100%; background:var(--panel-raised); border:1px solid var(--hairline); border-radius:6px;
+    padding:9px 8px; color:var(--text); font-family:var(--sans); font-size:12.5px;
+  }
+  .btn-reinit{font-family:var(--mono); font-size:10.5px; color:var(--text-mid); background:none; border:1px solid var(--hairline); border-radius:6px; padding:7px 12px; cursor:pointer; width:100%; margin-top:2px;}
+
+  /* Cartes KPI (§5) — jamais afficher uniquement le solde net : les 4
+     lectures (positifs/négatifs/à investiguer/volume) sont côte à côte. */
+  .kpi-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+  .kpi-card{background:var(--panel-raised); border:1px solid var(--hairline); border-radius:10px; padding:12px;}
+  .kpi-card.large{grid-column:1 / -1;}
+  .kpi-label{font-family:var(--mono); font-size:9.5px; letter-spacing:0.05em; text-transform:uppercase; color:var(--text-dim); margin-bottom:6px;}
+  .kpi-valeur{font-family:var(--mono); font-size:20px; font-weight:700;}
+  .kpi-sous{font-size:10.5px; color:var(--text-mid); margin-top:3px;}
+  .kpi-valeur.pos{color:var(--green);}
+  .kpi-valeur.neg{color:var(--red);}
+  .kpi-valeur.amber{color:var(--amber);}
+
+  .statut-badge{display:inline-block; font-family:var(--mono); font-size:9.5px; font-weight:700; letter-spacing:0.03em; padding:3px 8px; border-radius:10px; text-transform:uppercase; white-space:nowrap;}
+  .statut-badge.a_verifier{background:var(--amber-dim); color:var(--amber);}
+  .statut-badge.regularise{background:var(--green-dim); color:var(--green);}
+  .statut-badge.cloture_explique{background:var(--green-dim); color:var(--green);}
+  .statut-badge.cloture_non_explique{background:var(--panel-raised); color:var(--text-mid); border:1px solid var(--hairline);}
+
+  .ecart-item{display:block; text-decoration:none; color:inherit; padding:11px 10px; background:var(--panel-raised); border-radius:8px; margin-bottom:8px; border:1px solid var(--hairline);}
+  .ecart-item:active{background:var(--panel);}
+  .ei-top{display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:5px;}
+  .ei-source{font-family:var(--mono); font-size:10px; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.04em;}
+  .ei-montant{font-family:var(--mono); font-size:15px; font-weight:700;}
+  .ei-montant.pos{color:var(--green);}
+  .ei-montant.neg{color:var(--red);}
+  .ei-bottom{display:flex; align-items:center; justify-content:space-between; gap:8px;}
+  .ei-meta{font-size:11.5px; color:var(--text-mid);}
+  .ei-fleche{color:var(--cyan); font-family:var(--mono); font-size:12px;}
+  .liste-vide{font-size:12px; color:var(--text-dim); font-style:italic; padding:10px 2px;}
+
+  .emp-row{display:flex; align-items:center; gap:10px; padding:10px; background:var(--panel-raised); border-radius:8px; margin-bottom:8px;}
+  .emp-nom{flex:1; min-width:0; font-size:12.5px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .emp-stats{font-family:var(--mono); font-size:10.5px; color:var(--text-mid); text-align:right; line-height:1.5;}
+  .emp-solde{font-weight:700;}
+  .emp-solde.pos{color:var(--green);} .emp-solde.neg{color:var(--red);}
+
+  .chargement{text-align:center; padding:30px 0; color:var(--text-dim); font-family:var(--mono); font-size:11.5px;}
+  footer{margin-top:auto; padding:16px 20px 24px; font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:center; border-top:1px solid var(--hairline);}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="nexus-auth.js"></script>
+<script src="nexus-header-nav.js"></script>
+<script src="nexus-desktop.js"></script>
+<script src="nexus-ecarts-moteur.js"></script>
+<script src="nexus-ecarts-donnees.js"></script>
+</head>
+<body>
+<div class="phone">
+  <div class="header">
+    <a href="NEXUS-App-v1.html" class="menu-btn">☰ Menu</a>
+    <div class="eyebrow">NEXUS · Manager</div>
+    <div class="title">Analyse des écarts</div>
+    <div class="subtitle">Verify (piste/boutique) et FDJ, consolidés — un écart n'est ni une faute, ni une dette : juste un constat à vérifier, régulariser ou expliquer.</div>
+  </div>
+  <div class="divider"></div>
+
+  <div class="section">
+
+    <!-- FILTRES (§12) -->
+    <div class="card">
+      <div class="filtres-toggle" id="filtresToggle">
+        <div class="ft-label">🔎 Filtres</div>
+        <div class="ft-compte" id="filtresCompte">actifs : 0</div>
+      </div>
+      <div class="filtres-corps" id="filtresCorps">
+        <div class="filtre-row">
+          <div>
+            <label>Depuis</label>
+            <input type="date" id="fDateDebut">
+          </div>
+          <div>
+            <label>Jusqu'à</label>
+            <input type="date" id="fDateFin">
+          </div>
+        </div>
+        <div class="filtre-row">
+          <div>
+            <label>Quart</label>
+            <select id="fQuart">
+              <option value="">Tous</option>
+              <option value="1">Quart 1</option>
+              <option value="2">Quart 2</option>
+            </select>
+          </div>
+          <div>
+            <label>Activité</label>
+            <select id="fActivite">
+              <option value="">Toutes</option>
+              <option value="piste">Piste</option>
+              <option value="boutique">Boutique</option>
+              <option value="fdj">FDJ</option>
+            </select>
+          </div>
+        </div>
+        <div class="filtre-row">
+          <div>
+            <label>Employé</label>
+            <select id="fEmploye"><option value="">Tous</option></select>
+          </div>
+          <div>
+            <label>Signe</label>
+            <select id="fSigne">
+              <option value="">Les deux</option>
+              <option value="positif">Excédent (+)</option>
+              <option value="negatif">Manque (−)</option>
+            </select>
+          </div>
+        </div>
+        <div class="filtre-row">
+          <div>
+            <label>Statut</label>
+            <select id="fStatut">
+              <option value="">Tous</option>
+              <option value="a_verifier">À vérifier</option>
+              <option value="regularise">Régularisé</option>
+              <option value="cloture_explique">Clôturé — expliqué</option>
+              <option value="cloture_non_explique">Clôturé — non expliqué</option>
+            </select>
+          </div>
+        </div>
+        <button type="button" class="btn-reinit" id="btnReinitFiltres">Réinitialiser les filtres</button>
+      </div>
+    </div>
+
+    <!-- KPI (§5) -->
+    <div class="section-label">Vue d'ensemble</div>
+    <div class="card">
+      <div class="kpi-grid" id="kpiGrid">
+        <div class="kpi-card large">
+          <div class="kpi-label">Solde net</div>
+          <div class="kpi-valeur" id="kpiSoldeNet">…</div>
+          <div class="kpi-sous">Somme signée — ne remplace jamais les 2 lectures ci-dessous.</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Excédents</div>
+          <div class="kpi-valeur pos" id="kpiPositifs">…</div>
+          <div class="kpi-sous" id="kpiPositifsNb">—</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Manques</div>
+          <div class="kpi-valeur neg" id="kpiNegatifs">…</div>
+          <div class="kpi-sous" id="kpiNegatifsNb">—</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">À investiguer</div>
+          <div class="kpi-valeur amber" id="kpiAInvestiguer">…</div>
+          <div class="kpi-sous">écarts non clôturés</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Volume d'écarts</div>
+          <div class="kpi-valeur" id="kpiVolume">…</div>
+          <div class="kpi-sous">somme des valeurs absolues</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- À VÉRIFIER (§6) -->
+    <div class="section-label">À vérifier</div>
+    <div id="listeAVerifier"><div class="chargement">Chargement…</div></div>
+
+    <!-- VUE PAR EMPLOYÉ (§11) -->
+    <div class="section-label" style="margin-top:6px;">Par employé</div>
+    <div class="card">
+      <div id="listeParEmploye"><div class="chargement">Chargement…</div></div>
+    </div>
+
+  </div>
+
+  <footer>NEXUS · Analyse des écarts — v2.268</footer>
+</div>
+
+<script>
+  let SITE_ACTUEL = null; // jamais 'vito-sainte-marie' par défaut (de-Vito-isation)
+  let TOUTES_LES_LIGNES = [];
+  let EMPLOYES_SITE = [];
+
+  function numFR(v) { if (v == null) return NaN; return parseFloat(String(v).trim().replace(',', '.')); }
+  function fmtEuro(v) {
+    if (v === null || v === undefined || Number.isNaN(v)) return '—';
+    return `${v >= 0 ? '+' : ''}${v.toFixed(2).replace('.', ',')} €`;
+  }
+  function fmtEuroAbs(v) {
+    if (v === null || v === undefined || Number.isNaN(v)) return '—';
+    return `${v.toFixed(2).replace('.', ',')} €`;
+  }
+  function fmtDateCourt(iso) {
+    if (!iso) return '—';
+    const [y, m, d] = iso.split('-');
+    return `${d}/${m}`;
+  }
+  function labelActivite(a) {
+    if (a === 'piste') return 'Verify · Piste';
+    if (a === 'boutique') return 'Verify · Boutique';
+    if (a === 'fdj') return 'FDJ';
+    return a;
+  }
+  function labelStatut(s) { return (window.NexusEcartsMoteur && NexusEcartsMoteur.labelStatutEcart(s)) || s; }
+
+  // ------------------------------------------------------------
+  // FILTRES — lus/écrits dans l'URL (§12 : "combinable via URL params"),
+  // pour que FDJ/Verify puissent pré-appliquer un filtre (ex. Activité=FDJ)
+  // en pointant simplement vers cette page avec les bons paramètres.
+  // ------------------------------------------------------------
+  function litFiltresDepuisUrl() {
+    const p = new URLSearchParams(window.location.search);
+    return {
+      dateDebut: p.get('date_debut') || '',
+      dateFin: p.get('date_fin') || '',
+      quart: p.get('quart') || '',
+      activite: p.get('activite') || '',
+      employeeId: p.get('employe') || '',
+      signe: p.get('signe') || '',
+      statut: p.get('statut') || '',
+    };
+  }
+  function ecritFiltresDansUrl(f) {
+    const p = new URLSearchParams();
+    if (f.dateDebut) p.set('date_debut', f.dateDebut);
+    if (f.dateFin) p.set('date_fin', f.dateFin);
+    if (f.quart) p.set('quart', f.quart);
+    if (f.activite) p.set('activite', f.activite);
+    if (f.employeeId) p.set('employe', f.employeeId);
+    if (f.signe) p.set('signe', f.signe);
+    if (f.statut) p.set('statut', f.statut);
+    const q = p.toString();
+    window.history.replaceState(null, '', q ? `?${q}` : window.location.pathname);
+  }
+  function litFiltresDepuisFormulaire() {
+    return {
+      dateDebut: document.getElementById('fDateDebut').value || '',
+      dateFin: document.getElementById('fDateFin').value || '',
+      quart: document.getElementById('fQuart').value || '',
+      activite: document.getElementById('fActivite').value || '',
+      employeeId: document.getElementById('fEmploye').value || '',
+      signe: document.getElementById('fSigne').value || '',
+      statut: document.getElementById('fStatut').value || '',
+    };
+  }
+  function appliqueFiltresAuFormulaire(f) {
+    document.getElementById('fDateDebut').value = f.dateDebut || '';
+    document.getElementById('fDateFin').value = f.dateFin || '';
+    document.getElementById('fQuart').value = f.quart || '';
+    document.getElementById('fActivite').value = f.activite || '';
+    document.getElementById('fEmploye').value = f.employeeId || '';
+    document.getElementById('fSigne').value = f.signe || '';
+    document.getElementById('fStatut').value = f.statut || '';
+  }
+
+  function rafraichirEcran() {
+    const f = litFiltresDepuisFormulaire();
+    ecritFiltresDansUrl(f);
+    document.getElementById('filtresCompte').textContent = `actifs : ${Object.values(f).filter(Boolean).length}`;
+
+    const lignes = NexusEcartsDonnees.appliquerFiltresEcarts(TOUTES_LES_LIGNES, f);
+    renderKpis(lignes);
+    renderListeAVerifier(lignes);
+    renderParEmploye(lignes);
+  }
+
+  function renderKpis(lignes) {
+    const k = NexusEcartsMoteur.calculerKpisEcarts(lignes);
+    const soldeEl = document.getElementById('kpiSoldeNet');
+    soldeEl.textContent = fmtEuro(k.soldeNet);
+    soldeEl.className = 'kpi-valeur ' + (k.soldeNet > 0 ? 'pos' : (k.soldeNet < 0 ? 'neg' : ''));
+    document.getElementById('kpiPositifs').textContent = fmtEuroAbs(k.positifs.total);
+    document.getElementById('kpiPositifsNb').textContent = `${k.positifs.nb} écart${k.positifs.nb > 1 ? 's' : ''}`;
+    document.getElementById('kpiNegatifs').textContent = fmtEuroAbs(Math.abs(k.negatifs.total));
+    document.getElementById('kpiNegatifsNb').textContent = `${k.negatifs.nb} écart${k.negatifs.nb > 1 ? 's' : ''}`;
+    document.getElementById('kpiAInvestiguer').textContent = String(k.aInvestiguer);
+    document.getElementById('kpiVolume').textContent = fmtEuroAbs(k.volume);
+  }
+
+  // "À vérifier" — clic ouvre EXACTEMENT le contrôle source (§6 : jamais
+  // une page générique), retour navigateur préserve les filtres puisque
+  // l'URL de cette page les porte déjà (voir ecritFiltresDansUrl).
+  function renderListeAVerifier(lignes) {
+    const zone = document.getElementById('listeAVerifier');
+    const aVerifier = lignes.filter(l => l.statut === 'a_verifier').sort((a, b) => (a.date < b.date ? 1 : -1));
+    if (aVerifier.length === 0) {
+      zone.innerHTML = '<div class="card"><div class="liste-vide">Aucun écart à vérifier avec ces filtres.</div></div>';
+      return;
+    }
+    zone.innerHTML = aVerifier.map(l => `
+      <a class="ecart-item" href="${l.deepLink}">
+        <div class="ei-top">
+          <div class="ei-source">${labelActivite(l.activite)}</div>
+          <div class="ei-montant ${l.ecartFinal >= 0 ? 'pos' : 'neg'}">${fmtEuro(l.ecartFinal)}</div>
+        </div>
+        <div class="ei-bottom">
+          <div class="ei-meta">${fmtDateCourt(l.date)} · Quart ${l.quart}${l.employeeNom ? ' · ' + l.employeeNom : ''}</div>
+          <div class="ei-fleche">Ouvrir →</div>
+        </div>
+      </a>
+    `).join('');
+  }
+
+  // Vue par employé (§11) — distingue explicitement écarts INITIAUX
+  // détectés des écarts FINAUX retenus (jamais confondus, cf. cadrage).
+  function renderParEmploye(lignes) {
+    const zone = document.getElementById('listeParEmploye');
+    const agg = NexusEcartsMoteur.agregerEcartsParEmploye(lignes).sort((a, b) => Math.abs(b.soldeFinal) - Math.abs(a.soldeFinal));
+    if (agg.length === 0) {
+      zone.innerHTML = '<div class="liste-vide">Aucun écart avec employé identifié pour ces filtres.</div>';
+      return;
+    }
+    zone.innerHTML = agg.map(a => `
+      <div class="emp-row">
+        <div class="emp-nom">${a.employeeNom || 'Employé inconnu'}</div>
+        <div class="emp-stats">
+          ${a.ecartsInitiaux} détecté${a.ecartsInitiaux > 1 ? 's' : ''} · ${a.regularises} régularisé${a.regularises > 1 ? 's' : ''}<br>
+          Solde retenu : <span class="emp-solde ${a.soldeFinal > 0 ? 'pos' : (a.soldeFinal < 0 ? 'neg' : '')}">${fmtEuro(a.soldeFinal)}</span>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  function branchierFiltres() {
+    document.getElementById('filtresToggle').addEventListener('click', () => {
+      document.getElementById('filtresCorps').classList.toggle('ouvert');
+    });
+    ['fDateDebut', 'fDateFin', 'fQuart', 'fActivite', 'fEmploye', 'fSigne', 'fStatut'].forEach(id => {
+      document.getElementById(id).addEventListener('change', rafraichirEcran);
+    });
+    document.getElementById('btnReinitFiltres').addEventListener('click', () => {
+      appliqueFiltresAuFormulaire({});
+      rafraichirEcran();
+    });
+  }
+
+  nexusRequireAuth().then(async (employee) => {
+    if (!employee) return;
+    SITE_ACTUEL = employee.site_id;
+
+    branchierFiltres();
+
+    const { data: employes } = await nexusClient.from('employees').select('id, nom').eq('site_id', SITE_ACTUEL).eq('actif', true).order('nom');
+    EMPLOYES_SITE = employes || [];
+    const selEmp = document.getElementById('fEmploye');
+    EMPLOYES_SITE.forEach(e => {
+      const opt = document.createElement('option');
+      opt.value = e.id; opt.textContent = e.nom;
+      selEmp.appendChild(opt);
+    });
+
+    const filtresUrl = litFiltresDepuisUrl();
+    appliqueFiltresAuFormulaire(filtresUrl);
+    if (Object.values(filtresUrl).some(Boolean)) {
+      document.getElementById('filtresCorps').classList.add('ouvert');
+    }
+
+    try {
+      TOUTES_LES_LIGNES = await NexusEcartsDonnees.chargerEcartsConsolides(nexusClient, SITE_ACTUEL, {});
+    } catch (e) {
+      console.error('Chargement Analyse des écarts:', e);
+      document.getElementById('listeAVerifier').innerHTML = '<div class="card"><div class="liste-vide">Erreur de chargement — réessayez.</div></div>';
+      TOUTES_LES_LIGNES = [];
+    }
+
+    rafraichirEcran();
+  });
+</script>
+</body>
+</html>

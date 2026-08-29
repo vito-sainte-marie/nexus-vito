@@ -50,6 +50,12 @@
   .tabs{display:flex; gap:8px; padding:14px 20px 0;}
   .tab{flex:1; text-align:center; padding:10px; border-radius:8px; font-family:var(--mono); font-size:11px; letter-spacing:0.04em; text-transform:uppercase; color:var(--text-dim); background:var(--panel-raised); border:1px solid var(--hairline); cursor:pointer;}
   .tab.active{color:var(--cyan); border-color:rgba(79,195,217,0.4); background:rgba(79,195,217,0.08);}
+  /* 28/08/2026, v2.268-C3 — "Analyse des écarts" est une VRAIE navigation
+     (sous-page séparée, cadrage §1 : "sous-page rattachée à Verify, pas un
+     nouveau module"), pas un panneau interne comme les 3 onglets
+     historiques ci-dessus. Même habillage visuel (.tab), mais un <a> réel
+     plutôt qu'un <div> + JS, pour rester un simple lien standard. */
+  a.tab{text-decoration:none; display:flex; align-items:center; justify-content:center;}
 
   .section{padding:16px 20px;}
   .card{background:var(--panel); border:1px solid var(--hairline); border-radius:12px; padding:18px; margin-bottom:14px;}
@@ -323,6 +329,9 @@
 <script src="nexus-header-nav.js"></script>
 <script src="nexus-desktop.js"></script>
 <script src="nexus-pdf-moteur.js"></script>
+<!-- v2.268 : logique transversale de cycle de vie d'un écart (cadrage
+     "Analyse des écarts") — chargée avant nexus-verify-moteur.js. -->
+<script src="nexus-ecarts-moteur.js"></script>
 <script src="nexus-verify-moteur.js"></script>
 </head>
 <body>
@@ -344,6 +353,7 @@
     <div class="tab active" id="tabNouveau">Nouvel audit</div>
     <div class="tab" id="tabHistorique">Historique</div>
     <div class="tab" id="tabRapport">Rapport</div>
+    <a class="tab" href="NEXUS-Analyse-Ecarts-v1.html">Écarts</a>
   </div>
 
   <div class="section" id="vueNouveau">
@@ -2340,6 +2350,22 @@
       const box = document.getElementById('resultatAudit');
       btn.disabled = true; btn.textContent = 'Enregistrement…';
 
+      // 28/08/2026, v2.268 (cadrage "Analyse des écarts" de Frédéric) :
+      // "Ne jamais écraser initial_gap après création : il constitue la
+      // preuve du constat initial." Cet upsert (onConflict site,date,quart)
+      // peut être rejoué plusieurs fois avant validation manager (l'employé
+      // corrige une saisie et resoumet) — sans cette relecture, ecart_piste/
+      // ecart_boutique fraîchement recalculés écraseraient silencieusement
+      // le tout premier constat. On relit donc la ligne existante et on
+      // préserve son écart d'origine si elle en a déjà un ; sinon (première
+      // écriture réelle de ce quart) l'écart tout juste calculé DEVIENT
+      // l'origine.
+      const { data: auditExistant } = await nexusClient.from('audits_caisse')
+        .select('ecart_piste_origine, ecart_boutique_origine')
+        .eq('site', SITE_ACTUEL).eq('date', date).eq('quart', quart).maybeSingle();
+      const ecart_piste_origine = (auditExistant && auditExistant.ecart_piste_origine != null) ? auditExistant.ecart_piste_origine : ecart_piste;
+      const ecart_boutique_origine = (auditExistant && auditExistant.ecart_boutique_origine != null) ? auditExistant.ecart_boutique_origine : ecart_boutique;
+
       const { error } = await nexusClient.from('audits_caisse').upsert({
         site: SITE_ACTUEL, date, quart,
         vente_piste, vente_boutique, piste_regle_a_la_caisse: transfert,
@@ -2370,6 +2396,7 @@
         paiement_vacataire_piste: vacataire_piste, paiement_vacataire_boutique: vacataire_boutique,
         remise_cuve, remise_cuve_detail,
         ecart_piste, ecart_boutique, ecart_total,
+        ecart_piste_origine, ecart_boutique_origine,
         employes_piste: [...employesSelectionnes.piste], employes_boutique: [...employesSelectionnes.boutique],
         statut, commentaire, employee_id: EMPLOYEE_ID,
       }, { onConflict: 'site,date,quart' });
@@ -2604,13 +2631,73 @@
       `;
     }
 
+    // "POURQUOI CET ÉCART ?" — v2.268, même règle que FDJ (v2.267,
+    // désormais canonique dans NexusEcartsMoteur) : compare l'écart
+    // définitif que le manager s'apprête à valider à l'écart ORIGINE
+    // immuable (ecart_{type}_origine, posé une seule fois à la création de
+    // l'audit — voir le patch du bouton "Calculer"). Trois situations :
+    //   - 'aucun_ecart' : rien à afficher.
+    //   - 'corrige_a_zero' : l'écart initial a disparu → vraie cause exigée
+    //     (menu Verify propre, jamais le vocabulaire FDJ).
+    //   - 'restant' : l'écart persiste → jamais de choix forcé, bandeau
+    //     factuel "Excédent/Manque non expliqué" (cause_code posé à
+    //     'non_explique' automatiquement à l'enregistrement).
+    // Limite assumée (Article 5) : les audits créés AVANT cette migration
+    // n'ont pas d'ecart_{type}_origine connu (colonne inexistante à
+    // l'époque) — on ne le fabrique pas rétroactivement à partir de
+    // l'écart déjà stocké, qui a pu être écrasé par le bug corrigé en
+    // v2.268 (voir Data Dictionary). Pour ces lignes historiques,
+    // situationVerificationEcart traite ecartOrigine=null normalement
+    // (donc jamais 'corrige_a_zero' tant qu'aucun nouvel audit n'a repris
+    // ce quart).
+    function blocMotifValidationHtml(type, i, ecartValide, ecartOrigine) {
+      if (!window.NexusEcartsMoteur || !window.NexusVerifyMoteur) return '';
+      if (Number.isNaN(ecartValide)) return '';
+      const situation = NexusEcartsMoteur.situationVerificationEcart(ecartValide, ecartOrigine);
+      if (situation === 'aucun_ecart') return '';
+      if (situation === 'corrige_a_zero') {
+        const options = NexusVerifyMoteur.motifsEcartCorrigeDisponiblesVerify(ecartOrigine);
+        const optsHtml = options.map(o => `<option value="${o.value}">${o.label}</option>`).join('');
+        const origineTxt = `${ecartOrigine >= 0 ? '+' : ''}${ecartOrigine.toFixed(2).replace('.', ',')} €`;
+        return `
+          <div class="motif-ecart-bloc" style="margin:10px 0; padding:10px; border-radius:8px; background:rgba(46,125,50,0.08);">
+            <div style="font-size:13px; color:var(--green); margin-bottom:6px;">✅ Écart initial (${origineTxt}) corrigé après vérification — quelle est la cause ?</div>
+            <label>Pourquoi cet écart ?</label>
+            <select id="causeCode-${type}-${i}">${optsHtml}</select>
+          </div>
+        `;
+      }
+      const lib = NexusEcartsMoteur.libelleEcartRestant(ecartValide);
+      return `
+        <div class="motif-ecart-bloc" style="margin:10px 0; padding:10px; border-radius:8px; background:rgba(0,0,0,0.04);">
+          <div style="font-size:13px;">${lib.emoji} ${lib.texte} — origine non identifiée</div>
+        </div>
+      `;
+    }
+
+    // Recalcule le bloc motif en direct pendant que le manager modifie le
+    // champ "Écart définitif" — même principe que majResume() côté FDJ
+    // (v2.267). L'écart origine est lu depuis data-origine, posé une seule
+    // fois au rendu initial (jamais recalculé : c'est la valeur immuable).
+    function majBlocMotifValidation(type, i) {
+      const input = document.getElementById(`val-${type}-${i}`);
+      const zone = document.getElementById(`motifValidation-${type}-${i}`);
+      if (!input || !zone) return;
+      const origineAttr = input.dataset.origine;
+      const ecartOrigine = origineAttr === '' ? null : Number(origineAttr);
+      const ecartValide = numFR(input.value);
+      zone.innerHTML = blocMotifValidationHtml(type, i, ecartValide, ecartOrigine);
+    }
+
     function renderFormValidationCaisse(a, i, type) {
       const label = type === 'piste' ? 'Piste' : 'Boutique';
       const ecartDefaut = a[`ecart_${type}_valide`] != null ? a[`ecart_${type}_valide`] : a[`ecart_${type}`];
+      const ecartOrigine = a[`ecart_${type}_origine`] != null ? Number(a[`ecart_${type}_origine`]) : null;
       return `
         <div class="validation-form" id="validationForm-${i}-${type}">
           <label>Écart ${label.toLowerCase()} définitif (€)</label>
-          <input type="text" inputmode="decimal" id="val-${type}-${i}" value="${String(ecartDefaut).replace('.', ',')}">
+          <input type="text" inputmode="decimal" id="val-${type}-${i}" data-origine="${ecartOrigine === null ? '' : ecartOrigine}" value="${String(ecartDefaut).replace('.', ',')}">
+          <div id="motifValidation-${type}-${i}">${blocMotifValidationHtml(type, i, Number(ecartDefaut), ecartOrigine)}</div>
           <label>Commentaire de validation (optionnel)</label>
           <textarea id="valCommentaire-${type}-${i}" placeholder="Ex : écart expliqué par un rendu de monnaie erroné, corrigé avec l'employé.">${a[`commentaire_validation_${type}`] || ''}</textarea>
           <button type="button" class="btn btn-primary" style="margin-top:10px;" data-idx="${i}" data-type="${type}" id="btnConfirmerValidation-${type}-${i}">Confirmer la validation ${label}</button>
@@ -2626,6 +2713,15 @@
           document.getElementById(`validationForm-${idx}-${type}`).classList.toggle('open');
         });
       });
+      // Recalcule le bloc "Pourquoi cet écart ?" en direct dès que le
+      // manager modifie l'écart définitif (v2.268).
+      document.querySelectorAll('[id^="val-"]').forEach(input => {
+        input.addEventListener('input', () => {
+          const type = input.id.startsWith('val-piste-') ? 'piste' : 'boutique';
+          const i = input.id.replace(`val-${type}-`, '');
+          majBlocMotifValidation(type, i);
+        });
+      });
       document.querySelectorAll('[id^="btnConfirmerValidation-"]').forEach(btn => {
         btn.addEventListener('click', async (e) => {
           e.stopPropagation();
@@ -2633,11 +2729,34 @@
           const type = btn.dataset.type;
           const label = type === 'piste' ? 'Piste' : 'Boutique';
           const a = data[idx];
-          const ecartValide = numFR(document.getElementById(`val-${type}-${idx}`).value);
+          const inputEcart = document.getElementById(`val-${type}-${idx}`);
+          const ecartValide = numFR(inputEcart.value);
           if (Number.isNaN(ecartValide)) {
             alert('Montant invalide — vérifiez le champ d\'écart.');
             return;
           }
+
+          // "Pourquoi cet écart ?" (v2.268) — motif obligatoire dès que
+          // NexusEcartsMoteur considère qu'il y a quelque chose à
+          // documenter ; 'non_explique' posé automatiquement pour un
+          // écart restant (jamais un choix forcé, voir cadrage §9/§14).
+          const origineAttr = inputEcart.dataset.origine;
+          const ecartOrigine = origineAttr === '' ? null : Number(origineAttr);
+          let causeCode = null;
+          if (window.NexusEcartsMoteur && NexusEcartsMoteur.motifEcartObligatoire(ecartValide, ecartOrigine)) {
+            const situation = NexusEcartsMoteur.situationVerificationEcart(ecartValide, ecartOrigine);
+            if (situation === 'corrige_a_zero') {
+              const selectCause = document.getElementById(`causeCode-${type}-${idx}`);
+              causeCode = selectCause ? selectCause.value : '';
+              if (!causeCode) {
+                alert('Merci d\'indiquer la cause de la correction avant de valider.');
+                return;
+              }
+            } else {
+              causeCode = 'non_explique';
+            }
+          }
+
           const commentaireValidation = document.getElementById(`valCommentaire-${type}-${idx}`).value.trim() || null;
           btn.disabled = true; btn.textContent = 'Validation…';
 
@@ -2649,6 +2768,7 @@
             [`valide_par_${type}`]: EMPLOYEE_ID,
             [`commentaire_validation_${type}`]: commentaireValidation,
             [`ecart_${type}_valide`]: ecartValide,
+            [`cause_code_${type}`]: causeCode,
           };
 
           // Synchronise les anciennes colonnes atomiques UNIQUEMENT quand
