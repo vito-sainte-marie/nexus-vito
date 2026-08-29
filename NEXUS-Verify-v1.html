@@ -59,6 +59,15 @@
 
   .section{padding:16px 20px;}
   .card{background:var(--panel); border:1px solid var(--hairline); border-radius:12px; padding:18px; margin-bottom:14px;}
+  .contexte-sticky{position:sticky; top:0; z-index:20; display:none; align-items:center; justify-content:space-between; gap:8px; background:var(--panel-raised); border:1px solid var(--hairline); border-radius:10px; padding:9px 14px; margin-bottom:14px; font-family:var(--mono); font-size:12.5px; font-weight:600; color:var(--text); box-shadow:0 2px 8px rgba(0,0,0,0.25);}
+  .contexte-sticky.show{display:flex;}
+  .contexte-sticky.modif{border-color:rgba(245,166,35,0.4); color:var(--amber);}
+  .contexte-sticky-tag{font-size:10px; text-transform:uppercase; letter-spacing:0.04em; color:var(--amber); background:var(--amber-dim); border-radius:6px; padding:2px 7px;}
+  .reprendre-quart-banner{display:none; align-items:center; justify-content:space-between; gap:10px; background:rgba(245,166,35,0.08); border:1px solid rgba(245,166,35,0.35); border-radius:10px; padding:11px 14px; margin-bottom:14px;}
+  .reprendre-quart-banner.show{display:flex;}
+  .reprendre-quart-texte{font-family:var(--sans); font-size:12.5px; color:var(--amber); font-weight:700;}
+  .reprendre-quart-sous{font-family:var(--sans); font-size:11px; color:var(--text-dim); font-weight:400; margin-top:2px;}
+  .btn-reprendre-quart{flex:0 0 auto; padding:9px 14px; background:var(--amber); color:#1a1200; border:none; border-radius:8px; font-family:var(--sans); font-size:12px; font-weight:700; cursor:pointer;}
   /* Différenciation visuelle piste/boutique (02/08/2026, demande de
      Frédéric) — doré pour la caisse piste, cyan pour la caisse boutique,
      pour repérer les deux cartes de drops en un coup d'œil. */
@@ -281,6 +290,11 @@
   .btn-restaurer-version{margin-top:6px; padding:6px 10px; background:transparent; color:var(--amber); border:1px solid rgba(245,166,35,0.3); border-radius:6px; font-family:var(--sans); font-size:11px; font-weight:600; cursor:pointer;}
   .histo-detail{display:none; margin-top:10px; font-size:11.5px; color:var(--text-mid); line-height:1.6;}
   .histo-detail.open{display:block;}
+  .histo-section-label{font-family:var(--mono); font-size:10.5px; letter-spacing:0.08em; text-transform:uppercase; color:var(--text-dim); margin:18px 0 10px; display:flex; align-items:center; gap:8px;}
+  .histo-section-label::after{content:''; flex:1; height:1px; background:var(--hairline);}
+  .histo-section-label:first-child{margin-top:0;}
+  .histo-section-a-terminer{color:var(--amber);}
+  .histo-section-a-terminer::after{background:rgba(245,166,35,0.3);}
   .empty{text-align:center; padding:24px; color:var(--text-dim); font-size:12.5px;}
 
   /* Validation "Mes Caisses" côté manager (03/08/2026) */
@@ -369,6 +383,18 @@
   </div>
 
   <div class="section" id="vueNouveau">
+    <!-- Contexte quart persistant (v2.273, retour de Frédéric §1 : "rendre
+         le contexte DATE + QUART extrêmement visible et persistant pendant
+         toute modification") — reste visible en scrollant tout le
+         formulaire, jamais besoin de remonter en haut pour vérifier qu'on
+         modifie bien le bon quart. Contenu posé par majContexteSticky(). -->
+    <div class="contexte-sticky" id="contexteSticky"></div>
+    <!-- "Reprendre Q2" (v2.273, retour de Frédéric §9 : "Lorsqu'un audit Q2
+         est en attente, proposer directement 'Reprendre Q2', plutôt que
+         laisser le manager retrouver manuellement le bon audit.") — posé
+         par chargerReprendreQuart(), vide/masqué tant qu'aucun quart n'est
+         en attente de validation. -->
+    <div class="reprendre-quart-banner" id="reprendreQuartBanner"></div>
     <!-- verify-grid (02/08/2026, pilote vue bureau) : wrapper purement
          additif — aucun effet en mobile (une <div> sans style propre), sert
          uniquement de conteneur pour la mise en colonnes CSS quand
@@ -1144,6 +1170,8 @@
     EMPLOYES_SITE = await chargerEmployesSite();
     renderMenuEmployes('piste');
     renderMenuEmployes('boutique');
+    majContexteSticky(); // v2.273 (§1) — affiche le contexte dès l'arrivée sur "Nouvel audit"
+    chargerReprendreQuart(); // v2.273 (§9) — "Reprendre Q2" : propose le dernier quart non clôturé sans que le manager ait à le retrouver dans l'historique
 
     // Fuseau horaire de la station (v2.232) — pour l'heure affichée dans le
     // badge de statut de validation par quart (Historique). Non bloquant :
@@ -1774,6 +1802,70 @@
     // prefillFormPourModification() à partir du prix archivé sur l'audit,
     // remis à null pour toute nouvelle saisie.
     let PRIX_CARBURANT_FIGE_AUDIT = null;
+    // v2.273 — Contexte quart persistant (§1, retour de Frédéric). Bandeau
+    // collant en haut de "Nouvel audit" (voir #contexteSticky dans le HTML)
+    // — jamais besoin de remonter en haut du formulaire pour vérifier
+    // qu'on modifie bien le bon quart, surtout lors d'une correction
+    // (CONTEXTE_EN_MODIFICATION -> bandeau ambré + étiquette "Modification").
+    let CONTEXTE_EN_MODIFICATION = false;
+    function majContexteSticky() {
+      const el = document.getElementById('contexteSticky');
+      if (!el) return;
+      const dateVal = document.getElementById('v_date').value;
+      const quartVal = document.getElementById('v_quart').value;
+      if (!dateVal) { el.classList.remove('show'); return; }
+      const dateTxt = new Date(dateVal + 'T00:00:00').toLocaleDateString('fr-FR', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' });
+      el.classList.add('show');
+      el.classList.toggle('modif', CONTEXTE_EN_MODIFICATION);
+      el.innerHTML = `<span>📅 ${dateTxt} · Quart ${quartVal || '?'}</span>${CONTEXTE_EN_MODIFICATION ? `<span class="contexte-sticky-tag">Modification</span>` : ''}`;
+    }
+    ['v_date', 'v_quart'].forEach(id => {
+      const champ = document.getElementById(id);
+      if (champ) champ.addEventListener('input', majContexteSticky);
+    });
+
+    // v2.273 (§9, retour de Frédéric : "Lorsqu'un audit Q2 est en attente,
+    // proposer directement 'Reprendre Q2', plutôt que laisser le manager
+    // retrouver manuellement le bon audit.") — cherche le quart non
+    // clôturé le plus récent (même définition "à terminer" que §8, via
+    // NexusVerifyMoteur.statutValidationQuart, Article 11) et propose de le
+    // reprendre directement depuis "Nouvel audit", sans passer par
+    // l'Historique. Réutilise prefillFormPourModification() telle quelle
+    // (même fonction que le bouton "✏️ Modifier cet audit" de l'Historique)
+    // — aucune nouvelle logique de pré-remplissage.
+    // Non bloquant : une erreur réseau masque simplement le bandeau, elle
+    // ne doit jamais empêcher l'ouverture de "Nouvel audit".
+    async function chargerReprendreQuart() {
+      const el = document.getElementById('reprendreQuartBanner');
+      if (!el) return;
+      try {
+        const { data, error } = await nexusClient.from('audits_caisse').select('*')
+          .eq('site', SITE_ACTUEL)
+          .order('date', { ascending: false }).order('quart', { ascending: false })
+          .limit(10);
+        if (error || !data) { el.classList.remove('show'); return; }
+        const enAttente = data.find(a => {
+          const stV = NexusVerifyMoteur.statutValidationQuart(a);
+          return stV && stV.caissesAttendues > 0 && (stV.etat === 'en_attente' || stV.etat === 'partiel');
+        });
+        if (!enAttente) { el.classList.remove('show'); el.innerHTML = ''; return; }
+        const dateTxt = new Date(enAttente.date + 'T00:00:00').toLocaleDateString('fr-FR');
+        el.innerHTML = `
+          <div>
+            <div class="reprendre-quart-texte">◷ Quart ${enAttente.quart} du ${dateTxt} en attente de validation</div>
+            <div class="reprendre-quart-sous">Reprends-le directement plutôt que de le retrouver dans l'historique.</div>
+          </div>
+          <button type="button" class="btn-reprendre-quart" id="btnReprendreQuart">Reprendre →</button>`;
+        el.classList.add('show');
+        document.getElementById('btnReprendreQuart').addEventListener('click', () => {
+          prefillFormPourModification(enAttente);
+        });
+      } catch (e) {
+        console.error('chargerReprendreQuart:', e);
+        el.classList.remove('show');
+      }
+    }
+
     // Flag de réinitialisation (13/08/2026, demande de Frédéric) — posé à
     // true juste après un enregistrement réussi. Consommé par le prochain
     // clic sur l'onglet "Nouvel audit" (et lui seul) pour vider tout le
@@ -2223,8 +2315,10 @@
     // (voir déclaration plus haut), jamais automatiquement à chaque clic sur
     // l'onglet.
     function reinitialiserFormulaireNouveau() {
+      CONTEXTE_EN_MODIFICATION = false; // v2.273 (§1) — repart sur un contexte "nouvelle saisie", jamais un reliquat de correction
       document.getElementById('v_date').valueAsDate = new Date();
       document.getElementById('v_quart').value = '1';
+      majContexteSticky();
 
       [
         'v_litrage_go', 'v_litrage_sp', 'v_litrage_gnr', 'v_montant_piste', 'v_vente_boutique', 'v_transfert',
@@ -2623,7 +2717,18 @@
         const v = a[`ecart_${type}_valide`];
         return v != null ? Number(v) : Number(a[`ecart_${type}`]);
       };
-      el.innerHTML = data.map((a, i) => {
+      // v2.273 (§8, retour de Frédéric — "Depuis Verify, mettre en avant
+      // 'Contrôles à terminer' avant l'historique des audits clôturés") :
+      // même carte pour chaque audit, mais partitionnée en deux groupes
+      // selon NexusVerifyMoteur.statutValidationQuart (seule source de cet
+      // état — Article 11, déjà utilisée par renderBadgeStatutQuart) au
+      // lieu d'une seule liste plate où un contrôle en attente se noie
+      // parmi des dizaines d'audits déjà clôturés. L'index i de chaque
+      // carte reste l'index dans `data` (jamais recalculé) : tous les
+      // handlers (`data[idx]`, `detail-${i}`, `versions-${i}`) continuent
+      // de fonctionner sans changement, peu importe la section où la carte
+      // atterrit.
+      const construireCarteHistorique = (a, i) => {
         const ecP = ecartEffectif(a, 'piste');
         const ecB = ecartEffectif(a, 'boutique');
         const stP = classifierEcart(Math.abs(ecP));
@@ -2668,7 +2773,26 @@
             <div class="histo-versions" id="versions-${i}"></div>
           </div>
         </div>`;
-      }).join('');
+      };
+
+      const idxATerminer = [];
+      const idxClotures = [];
+      data.forEach((a, i) => {
+        const stV = NexusVerifyMoteur.statutValidationQuart(a);
+        const enAttente = stV && stV.caissesAttendues > 0 && (stV.etat === 'en_attente' || stV.etat === 'partiel');
+        (enAttente ? idxATerminer : idxClotures).push(i);
+      });
+
+      const sectionATerminer = idxATerminer.length
+        ? `<div class="histo-section-label histo-section-a-terminer">🔧 Contrôles à terminer (${idxATerminer.length})</div>` +
+          idxATerminer.map(i => construireCarteHistorique(data[i], i)).join('')
+        : '';
+      const sectionClotures = idxClotures.length
+        ? (idxATerminer.length ? `<div class="histo-section-label">Historique clôturé</div>` : '') +
+          idxClotures.map(i => construireCarteHistorique(data[i], i)).join('')
+        : '';
+
+      el.innerHTML = sectionATerminer + sectionClotures;
 
       el.querySelectorAll('.histo-item').forEach(item => {
         item.addEventListener('click', () => {
@@ -2971,8 +3095,12 @@
       // déclencherait le reset s'il restait posé depuis un enregistrement
       // précédent, et effacerait la correction qu'on vient de préparer.
       AUDIT_VIENT_DETRE_ENREGISTRE = false;
+      // v2.273 (§1) — bandeau de contexte ambré tant que cette correction
+      // est en cours, remis à plat par reinitialiserFormulaireNouveau().
+      CONTEXTE_EN_MODIFICATION = true;
       document.getElementById('v_date').value = a.date;
       document.getElementById('v_quart').value = a.quart;
+      majContexteSticky();
       setValFR('v_vente_boutique', a.vente_boutique);
       setValFR('v_transfert', a.piste_regle_a_la_caisse);
 
