@@ -32,6 +32,16 @@
 //
 // Inclure dans une page : <script src="nexus-progression.js"></script>
 // (même mécanisme que nexus-auth.js, nexus-marge.js, nexus-tempo.js)
+//
+// v2.286 (29/08/2026, demande de Frédéric) : la classification "conforme /
+// écart" d'un contrôle VALIDÉ (statutCaisseJour, statutActivite — sections
+// 10-11) délègue désormais à nexus-ecarts-moteur.js (deriverStatutEcart),
+// la même mécanique déjà utilisée par "Analyse des écarts" manager
+// (nexus-ecarts-donnees.js), au lieu d'un second calcul local par seuil.
+// Voir le commentaire détaillé au-dessus de statutEcartActiviteVerify.
+// DOIT donc être chargé dans cet ordre :
+//   <script src="nexus-ecarts-moteur.js"></script>
+//   <script src="nexus-progression.js"></script>
 // ============================================================
 
 (function (global) {
@@ -48,6 +58,23 @@
   const SEUIL_MIN_ASSIGNATIONS = 3;
   const SEUIL_MIN_ECARTS_TENDANCE = 2; // par fenêtre, pour comparer deux périodes
 
+  // v2.286 (29/08/2026) — même arrondi centimes que nexus-ecarts-moteur.js
+  // (arrondiCentimes), réutilisé plutôt que dupliqué (Article 11). Sans ce
+  // passage, un montant lu brut depuis Supabase (ex. -36.649999999999636,
+  // dérive flottante) resterait différent au bit près du montant affiché
+  // côté manager (qui, lui, applique arrondiCentimes dans
+  // nexus-ecarts-donnees.js) — les deux valeurs s'affichent identiquement
+  // une fois formatées en euros (toFixed(2)), mais Frédéric a explicitement
+  // demandé une égalité stricte entre les deux vues, pas seulement une
+  // égalité visuelle. Repli défensif si le moteur n'est pas chargé (même
+  // logique que statutEcartActiviteVerify plus bas) : arrondi local
+  // identique, jamais une exception.
+  function arrondi(v) {
+    if (v === null || v === undefined || Number.isNaN(v)) return v;
+    const M = global.NexusEcartsMoteur;
+    return M ? M.arrondiCentimes(v) : Math.round(Number(v) * 100) / 100;
+  }
+
   // ------------------------------------------------------------
   // 1) Services caisse — reconstruction par employé
   // ------------------------------------------------------------
@@ -57,6 +84,11 @@
   // depuis "Mes Caisses" le 03/08/2026 : id, valide_le, ecart_piste_valide,
   // ecart_boutique_valide, commentaire_validation — champs additifs, ne
   // changent rien au comportement pour les appelants qui ne les lisent pas).
+  // v2.286 (29/08/2026) : ecart_piste_origine/ecart_boutique_origine (capture
+  // immuable du tout premier constat, v2.268-B1) et cause_code_piste/
+  // cause_code_boutique (motif structuré, v2.267) ajoutés — additifs eux
+  // aussi, nécessaires à statutEcartActiviteVerify pour déléguer au moteur
+  // central au lieu de recalculer un seuil local (voir plus bas).
   function construireServicesCaisse(rowsAudits, employeeId) {
     const services = [];
     (rowsAudits || []).forEach(a => {
@@ -72,15 +104,20 @@
         surPiste, surBoutique,
         soloPiste: surPiste && listePiste.length === 1,
         soloBoutique: surBoutique && listeBoutique.length === 1,
-        ecartPiste: surPiste ? Number(a.ecart_piste) : null,
-        ecartBoutique: surBoutique ? Number(a.ecart_boutique) : null,
+        ecartPiste: surPiste ? arrondi(Number(a.ecart_piste)) : null,
+        ecartBoutique: surBoutique ? arrondi(Number(a.ecart_boutique)) : null,
         // Mes Caisses (03/08/2026) : valideLe null => contrôle provisoire.
         // Les montants *_valide ne sont significatifs qu'une fois validés —
         // jamais lus tant que valideLe est null (voir statutCaisseJour).
         valideLe: a.valide_le || null,
-        ecartPisteValide: (surPiste && a.ecart_piste_valide != null) ? Number(a.ecart_piste_valide) : null,
-        ecartBoutiqueValide: (surBoutique && a.ecart_boutique_valide != null) ? Number(a.ecart_boutique_valide) : null,
+        ecartPisteValide: (surPiste && a.ecart_piste_valide != null) ? arrondi(Number(a.ecart_piste_valide)) : null,
+        ecartBoutiqueValide: (surBoutique && a.ecart_boutique_valide != null) ? arrondi(Number(a.ecart_boutique_valide)) : null,
         commentaireValidation: a.commentaire_validation || null,
+        // v2.286 — nécessaires à deriverStatutEcart (nexus-ecarts-moteur.js).
+        ecartPisteOrigine: (surPiste && a.ecart_piste_origine != null) ? arrondi(Number(a.ecart_piste_origine)) : null,
+        ecartBoutiqueOrigine: (surBoutique && a.ecart_boutique_origine != null) ? arrondi(Number(a.ecart_boutique_origine)) : null,
+        causeCodePiste: surPiste ? (a.cause_code_piste || null) : null,
+        causeCodeBoutique: surBoutique ? (a.cause_code_boutique || null) : null,
       });
     });
     // Plus récent d'abord — plus pratique pour les séries et le compteur
@@ -728,13 +765,17 @@
   // qui reste la synthèse "compétence" utilisée par Niveau NEXUS — jamais
   // fusionnées, ce sont deux questions différentes ("suis-je fiable en
   // général ?" vs "où en est CE contrôle précis ?").
+  // v2.286 — délègue à statutActivite (définie section 11, hissée
+  // conceptuellement ici : les déclarations de fonction sont hissées en JS,
+  // aucun souci d'ordre d'exécution) poste par poste, plutôt que de relire
+  // ecartPisteValide/ecartBoutiqueValide contre un seuil local — Article 11,
+  // une seule mécanique de classification pour tout le fichier.
   function statutCaisseJour(service) {
     if (!service) return null;
     if (!service.valideLe) return 'provisoire';
-    const ecartPisteSolo = service.soloPiste ? service.ecartPisteValide : null;
-    const ecartBoutiqueSolo = service.soloBoutique ? service.ecartBoutiqueValide : null;
-    const enEcart = (ecartPisteSolo != null && !estConforme(ecartPisteSolo))
-      || (ecartBoutiqueSolo != null && !estConforme(ecartBoutiqueSolo));
+    const statutPiste = service.soloPiste ? statutActivite(service, 'piste') : null;
+    const statutBoutique = service.soloBoutique ? statutActivite(service, 'boutique') : null;
+    const enEcart = statutPiste === 'validee_ecart' || statutBoutique === 'validee_ecart';
     return enEcart ? 'validee_ecart' : 'validee_conforme';
   }
 
@@ -961,13 +1002,57 @@
   // quart, et inversement (nécessaire pour la demande explicite de
   // Frédéric : "une ligne d'historique = une activité = un statut = un
   // montant").
+  // ------------------------------------------------------------
+  // PONT VERS LE MOTEUR CENTRAL DES ÉCARTS — v2.286 (29/08/2026, demande de
+  // Frédéric après le P0 v2.285 : "les employés et le manager doivent voir
+  // le même événement, pas deux calculs indépendants"). Vérifié avant ce lot
+  // (Article 5) : statutActivite comparait le montant validé à un seuil FIXE
+  // de 2€ (SEUIL_ECART_CONFORME) pour décider "conforme"/"écart", sans
+  // jamais regarder si un manager avait réellement corrigé l'écart à zéro ou
+  // seulement expliqué sa cause — une divergence réelle avec
+  // nexus-ecarts-moteur.js (deriverStatutEcart, déjà utilisé par "Analyse
+  // des écarts" manager via nexus-ecarts-donnees.js), qui ne régularise
+  // JAMAIS un écart par simple tolérance en euros : seul un montant corrigé
+  // à zéro pile compte comme réglé. C'est aussi la règle déjà en vigueur
+  // côté Verify depuis le v2.267 (motifEcartObligatoire : un motif est exigé
+  // dès qu'un écart non nul existe, quel que soit son montant) — l'ancien
+  // seuil de 2€ ici était simplement resté figé à l'état d'avant cette
+  // règle. Résultat concret avant correction : un écart de -1,50 € clôturé
+  // par le manager (donc bien réel et éventuellement retenu contre le solde
+  // opérationnel) pouvait s'afficher "Validée conforme" côté employé — exact
+  // scénario que Frédéric voulait éliminer.
+  //
+  // SEUIL_ECART_CONFORME reste utilisé AILLEURS dans ce fichier (sections
+  // 1-9 : compétence "Caisse" du Niveau NEXUS, coaching, points forts,
+  // tendances) — un périmètre de coaching motivationnel volontairement
+  // distinct de la question posée ici ("que retient officiellement le
+  // manager sur CE contrôle validé ?"). Les deux questions restent
+  // séparées, comme le rappelait déjà le commentaire historique de
+  // statutCaisseJour ("suis-je fiable en général ?" vs "où en est CE
+  // contrôle précis ?") — ce lot ne change QUE la seconde.
+  //
+  // Repli défensif si nexus-ecarts-moteur.js n'est pas chargé (ne devrait
+  // jamais arriver en production — voir l'en-tête du fichier — mais jamais
+  // un écran cassé pour un oubli d'ordre de <script>, Article 5) : on
+  // retombe sur l'ancien comportement par seuil, identique à avant v2.286.
+  function statutEcartActiviteVerify(ecartInitial, ecartFinal, causeCode) {
+    const M = global.NexusEcartsMoteur;
+    if (!M) return (ecartFinal == null || estConforme(ecartFinal)) ? 'validee_conforme' : 'validee_ecart';
+    const causeConnue = !!causeCode && causeCode !== 'non_explique';
+    const statutMoteur = M.deriverStatutEcart({ ecartInitial, ecartFinal, cloture: true, causeConnue });
+    if (statutMoteur === null || statutMoteur === M.STATUTS_ECART.REGULARISE) return 'validee_conforme';
+    return 'validee_ecart'; // cloture_explique OU cloture_non_explique : un écart retenu, expliqué ou non.
+  }
+
   function statutActivite(service, activite) {
     if (!service) return null;
     if (!service.valideLe) return 'provisoire';
     const solo = activite === 'piste' ? service.soloPiste : service.soloBoutique;
-    const ecartValide = solo ? (activite === 'piste' ? service.ecartPisteValide : service.ecartBoutiqueValide) : null;
-    if (ecartValide == null) return 'validee_conforme';
-    return estConforme(ecartValide) ? 'validee_conforme' : 'validee_ecart';
+    if (!solo) return 'validee_conforme';
+    const ecartInitial = activite === 'piste' ? service.ecartPisteOrigine : service.ecartBoutiqueOrigine;
+    const ecartFinal = activite === 'piste' ? service.ecartPisteValide : service.ecartBoutiqueValide;
+    const causeCode = activite === 'piste' ? service.causeCodePiste : service.causeCodeBoutique;
+    return statutEcartActiviteVerify(ecartInitial, ecartFinal, causeCode);
   }
 
   // Une ligne d'historique pour UNE activité tenue (piste et/ou boutique) —
@@ -1371,7 +1456,10 @@
     pointFiabiliteEligible, bonusRegulariteCaisse,
     CAUSES_POSSIBLES_CAISSE, messageCoachCaisseJour,
     // Ma Progression multi-activité (16/08/2026)
-    statutActivite, ligneActiviteCaisse,
+    // v2.286 : statutEcartActiviteVerify exportée pour test direct (pont
+    // vers nexus-ecarts-moteur.js) — statutActivite/statutCaisseJour ci-
+    // dessus en dépendent désormais.
+    statutEcartActiviteVerify, statutActivite, ligneActiviteCaisse,
     construireServicesCaisseFdj, statutCaisseJourFdj, ligneActiviteFdj,
     construireHistoriqueUnifie, syntheseActivite, syntheseCombinee,
     serieValideeConformeUnifiee,

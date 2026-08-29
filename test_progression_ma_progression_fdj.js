@@ -69,11 +69,27 @@ console.log('OK — statutCaisseJourFdj ramène les 7 statuts manager FDJ au mê
 //    jamais deux activités mélangées dans une même ligne. Un même service
 //    Verify où l'employé tient piste ET boutique produit 2 lignes.
 // ------------------------------------------------------------
+// v2.286 (29/08/2026) — statutActivite délègue désormais à
+// NexusEcartsMoteur.deriverStatutEcart (même moteur qu'"Analyse des
+// écarts" manager) au lieu d'un seuil local de 2€. Fixtures mises à jour en
+// conséquence : ecart_piste_origine/cause_code_piste ajoutés, jamais
+// devinés (Article 5) — a1/piste devient un cas RÉGULARISÉ (corrigé à zéro
+// pile par le manager, cause connue) plutôt qu'un simple "petit montant
+// sous le seuil", ce qui n'existe plus comme notion depuis que Verify exige
+// un motif dès qu'un écart non nul existe (v2.267, motifEcartObligatoire).
 const rowsAudits = [
   // Poste piste ET boutique tenus en solo le même quart : 2 lignes attendues.
+  // Piste : écart initial de 0,50€ réellement CORRIGÉ à zéro par le manager
+  // (erreur de saisie retrouvée) -> régularisé -> validee_conforme, montant
+  // final 0 (plus 0,50€ : une fois régularisé, il n'y a plus rien à
+  // afficher comme montant, exactement comme le verrait un manager dans
+  // "Analyse des écarts").
   { id: 'a1', date: '2026-08-04', quart: '1', ecart_piste: 0.5, ecart_boutique: -3,
     employes_piste: ['emp1'], employes_boutique: ['emp1'],
-    valide_le: '2026-08-05T10:00:00Z', ecart_piste_valide: 0.5, ecart_boutique_valide: -3, commentaire_validation: null },
+    valide_le: '2026-08-05T10:00:00Z',
+    ecart_piste_origine: 0.5, ecart_piste_valide: 0, cause_code_piste: 'erreur_saisie',
+    ecart_boutique_origine: -3, ecart_boutique_valide: -3, cause_code_boutique: null,
+    commentaire_validation: null },
   // Poste boutique partagé (2 employés) : pas de montant attribuable, mais
   // la ligne doit quand même apparaître (transparence).
   { id: 'a2', date: '2026-08-06', quart: '2', ecart_piste: null, ecart_boutique: -10,
@@ -87,11 +103,12 @@ const lignesA1 = lignes.filter(l => l.date === '2026-08-04' && l.activite !== 'f
 assert.strictEqual(lignesA1.length, 2, 'a1 doit produire 2 lignes (piste + boutique), jamais une ligne combinée');
 const lignePisteA1 = lignesA1.find(l => l.activite === 'piste');
 const ligneBoutiqueA1 = lignesA1.find(l => l.activite === 'boutique');
-assert.strictEqual(lignePisteA1.statut, 'validee_conforme', 'écart piste 0,50€ solo -> conforme (seuil 2€)');
-assert.strictEqual(lignePisteA1.montant, 0.5);
-assert.strictEqual(ligneBoutiqueA1.statut, 'validee_ecart', 'écart boutique -3€ solo -> validee_ecart');
+assert.strictEqual(lignePisteA1.statut, 'validee_conforme', 'écart piste corrigé à zéro pile par le manager (régularisé) -> conforme');
+assert.strictEqual(lignePisteA1.montant, 0, 'une fois régularisé, le montant affiché est le montant FINAL (0), jamais le montant initial (0,50€)');
+assert.strictEqual(ligneBoutiqueA1.statut, 'validee_ecart', 'écart boutique -3€ solo, non corrigé -> validee_ecart');
 assert.strictEqual(ligneBoutiqueA1.montant, -3);
 console.log('OK — un même quart Verify avec piste ET boutique produit 2 lignes indépendantes, chacune avec son propre statut/montant.');
+console.log('OK — statutActivite (v2.286) régularise sur correction à zéro pile, jamais sur une simple tolérance en euros.');
 
 const ligneA2 = lignes.find(l => l.date === '2026-08-06');
 assert.strictEqual(ligneA2.activite, 'boutique');

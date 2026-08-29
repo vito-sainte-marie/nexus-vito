@@ -20,6 +20,10 @@
 <script src="nexus-auth.js"></script>
 <script src="nexus-header-nav.js"></script>
 <script src="nexus-desktop.js"></script>
+<!-- v2.286 : nexus-progression.js délègue désormais à
+     NexusEcartsMoteur.deriverStatutEcart (statutCaisseJour/statutActivite)
+     — doit être chargé AVANT nexus-progression.js. -->
+<script src="nexus-ecarts-moteur.js"></script>
 <script src="nexus-progression.js"></script>
 <style>
   :root{
@@ -313,8 +317,12 @@
       // id/valide_le/ecart_*_valide/commentaire_validation ajoutés le
       // 03/08/2026 pour "Mes Caisses" — distinguer un écart provisoire d'un
       // écart validé par un manager (voir nexus-progression.js, section 10).
+      // ecart_*_origine/cause_code_* ajoutés le 29/08/2026 (v2.286) :
+      // nécessaires à NexusProgression.statutActivite/statutCaisseJour pour
+      // déléguer à NexusEcartsMoteur.deriverStatutEcart (même calcul que
+      // "Analyse des écarts" manager) au lieu d'un seuil local.
       fetchAllRows(() => nexusClient.from('audits_caisse')
-        .select('id, date, quart, ecart_piste, ecart_boutique, employes_piste, employes_boutique, valide_le, ecart_piste_valide, ecart_boutique_valide, commentaire_validation')
+        .select('id, date, quart, ecart_piste, ecart_boutique, employes_piste, employes_boutique, valide_le, ecart_piste_valide, ecart_boutique_valide, commentaire_validation, ecart_piste_origine, ecart_boutique_origine, cause_code_piste, cause_code_boutique')
         .eq('site', siteId).order('date', { ascending: false })),
       // date ajoutée (27/07/2026) pour calculer la série de ponctualité
       // (NexusProgression.calculerSeriePonctualite) — un simple total ne
