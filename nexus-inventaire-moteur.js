@@ -1046,6 +1046,157 @@
     return { doublons, quantitesNegatives, referencesInconnues };
   }
 
+  // ============================================================
+  // INVENTAIRE V2 — Sprint 1 "Configuration multi-site" (29/08/2026,
+  // doctrine complète transmise par Frédéric — "NEXUS Inventaire V2").
+  // Objectif du sprint, verbatim : "sortir définitivement les règles
+  // métier du code" — aucune règle Sainte-Marie n'est codée ici, seulement
+  // des fonctions PURES qui savent résoudre une configuration déjà chargée
+  // (inventaire_mission_rules, table créée par ce sprint) contre un
+  // contexte (quart, moment, rôles réellement présents). Le générateur de
+  // missions complet (construireMissionsInventaire, qui combinera ceci avec
+  // construirePlanComptage) est explicitement HORS SCOPE de ce sprint —
+  // prévu au Sprint 2 du plan de Frédéric (§46).
+  //
+  // Vocabulaire NEXUS Core (doctrine §5/§37) : le "moment" d'un quart.
+  // Générique par construction — jamais un horaire de station particulière.
+  // ============================================================
+  const MOMENTS_QUART = [
+    { cle: 'debut', label: 'Début de quart' },
+    { cle: 'pendant', label: 'Pendant le quart' },
+    { cle: 'fin', label: 'Fin de quart (transmission)' },
+  ];
+  function libelleMoment(momentCode) {
+    const m = MOMENTS_QUART.find(x => x.cle === momentCode);
+    return m ? m.label : momentCode;
+  }
+
+  const STRATEGIES_REPLI = [
+    { cle: 'reporter_quart_suivant', label: 'Reporter au quart suivant' },
+    { cle: 'reduire_perimetre', label: 'Réduire le périmètre de la mission' },
+    { cle: 'reporter_prochain_jour_disponible', label: 'Reporter au prochain jour avec ce rôle' },
+    { cle: 'aucune', label: 'Aucune (mission simplement non affectée)' },
+  ];
+  function libelleStrategieRepli(strategieCode) {
+    const s = STRATEGIES_REPLI.find(x => x.cle === strategieCode);
+    return s ? s.label : (strategieCode || 'Aucune stratégie configurée');
+  }
+
+  // Une inventaire_mission_rules s'applique-t-elle à ce (quart, moment) ?
+  // `regle.quart` null = les deux quarts (doctrine : "Piste ... début et fin
+  // Q1 ; début et fin Q2" — une seule règle couvre les deux quarts quand la
+  // mission ne dépend pas du quart, exactement le cas Piste/Renfort).
+  function regleApplicableContexte(regle, quart, moment) {
+    if (!regle || regle.actif === false) return false;
+    if (regle.moment_code !== moment) return false;
+    if (regle.quart != null && regle.quart !== quart) return false;
+    return true;
+  }
+
+  // Résout l'affectation d'UNE règle contre les rôles RÉELLEMENT présents ce
+  // quart (doctrine §9, "règle de repli en cas d'absence") :
+  //   - rôle principal présent -> affectée telle quelle ;
+  //   - rôle principal absent, rôle de repli configuré ET présent ->
+  //     affectée au rôle de repli, `viaRepli: true` (jamais silencieux : le
+  //     champ existe précisément pour que Sprint 2/l'écran puisse le
+  //     signaler) ;
+  //   - rôle principal absent, aucun repli exploitable -> `non_affectee`,
+  //     accompagnée de la stratégie CONFIGURÉE (jamais exécutée ici — ce
+  //     sprint ne fait que la RESTITUER, conformément à son périmètre).
+  // `rolesPresents` : Set ou array de role_code (ex. valeurs employees.role
+  // réellement en poste ce quart, typiquement issues de
+  // inventaire_quart_employes — jamais recalculées différemment ici,
+  // Article 11 : ce moteur reçoit la présence, il ne la déduit pas).
+  function resoudreAffectationRegleMission(regle, rolesPresents) {
+    const presents = rolesPresents instanceof Set ? rolesPresents : new Set(rolesPresents || []);
+    if (!regle) return null;
+    if (presents.has(regle.role_code)) {
+      return { regle, statut: 'affectee', roleAffecte: regle.role_code, viaRepli: false };
+    }
+    if (regle.role_repli && presents.has(regle.role_repli)) {
+      return { regle, statut: 'affectee', roleAffecte: regle.role_repli, viaRepli: true };
+    }
+    return {
+      regle, statut: 'non_affectee', roleAffecte: null, viaRepli: false,
+      strategieAppliquee: regle.strategie_repli || 'aucune',
+    };
+  }
+
+  // Résout TOUTES les mission_rules applicables à un contexte (site déjà
+  // filtré en amont par le chargeur — Article 11, jamais un second filtre
+  // de site ici). Retourne une ligne de résolution par règle applicable,
+  // triée par ordre_affichage — jamais un tri différent de celui que verra
+  // le manager dans Paramètres.
+  function resoudreMissionRulesApplicables({ missionRules, quart, moment, rolesPresents }) {
+    return (missionRules || [])
+      .filter(r => regleApplicableContexte(r, quart, moment))
+      .sort((a, b) => (a.ordre_affichage || 0) - (b.ordre_affichage || 0))
+      .map(r => resoudreAffectationRegleMission(r, rolesPresents));
+  }
+
+  // ------------------------------------------------------------
+  // Configuration par défaut NEXUS (doctrine §2/§39) — template générique
+  // installé pour un NOUVEAU site, AUCUNE référence à Vito/Sainte-Marie.
+  // Les catégories par défaut sont désignées par leur NOM (pas un uuid,
+  // qui n'existe pas encore pour un site qui n'a pas été créé) — c'est au
+  // chargeur d'installation (nexus-inventaire-mission-rules-donnees.js) de
+  // créer d'abord les catégories, puis de résoudre ces noms en uuid avant
+  // d'insérer les mission_rules. Cette fonction reste pure : elle ne fait
+  // AUCUN accès réseau, elle décrit seulement la configuration à poser.
+  // ------------------------------------------------------------
+  const CATEGORIES_DEFAUT_NEXUS = [
+    { nom: 'Produits sensibles', ordre_affichage: 10 },
+    { nom: 'Tabac', ordre_affichage: 20 },
+    { nom: 'Presse', ordre_affichage: 30 },
+    { nom: 'Produits frais', ordre_affichage: 40 },
+    { nom: 'Boissons', ordre_affichage: 50 },
+    { nom: 'Lubrifiants', ordre_affichage: 60 },
+    { nom: 'Gaz', ordre_affichage: 70 },
+    { nom: 'Produits froids / glace', ordre_affichage: 80 },
+    { nom: 'Autres produits boutique', ordre_affichage: 90 },
+  ];
+
+  // Rôles par défaut — LIBELLÉS génériques uniquement (doctrine §2). Le code
+  // de rôle réel reste celui déjà en vigueur dans `employees.role`
+  // (pompiste/caissier/renfort/manager/gerant/vacataire) : jamais un second
+  // référentiel de rôles créé pour Inventaire (Article 11). Ce tableau sert
+  // seulement à afficher un nom lisible ("Caisse" plutôt que "caissier")
+  // dans les écrans génériques de configuration.
+  const ROLES_DEFAUT_NEXUS = [
+    { code: 'caissier', label: 'Caisse' },
+    { code: 'pompiste', label: 'Piste' },
+    { code: 'renfort', label: 'Renfort' },
+    { code: 'manager', label: 'Manager' },
+  ];
+
+  // Mission_rules génériques, par NOM de catégorie (résolu à l'installation
+  // — voir en-tête ci-dessus). Volontairement minimal et prudent (doctrine
+  // §46 Sprint 1 : "aucune évolution complexe du rapprochement à ce
+  // stade") : deux missions de bon sens (tabac à l'ouverture, périssables à
+  // la transmission), pas une doctrine complète Sainte-Marie généralisée à
+  // tort à tous les sites.
+  const MISSION_RULES_DEFAUT_NEXUS = [
+    {
+      nom: 'Caisse · Début de quart',
+      role_code: 'caissier', moment_code: 'debut', quart: null,
+      categorie_noms: ['Tabac', 'Produits sensibles'],
+      mode_selection: 'complet', priorite: 'sensible', ordre_affichage: 10,
+    },
+    {
+      nom: 'Caisse · Fin de quart (transmission)',
+      role_code: 'caissier', moment_code: 'fin', quart: null,
+      categorie_noms: ['Presse', 'Produits frais'],
+      mode_selection: 'complet', priorite: 'normale', ordre_affichage: 20,
+    },
+    {
+      nom: 'Renfort · Pendant le quart',
+      role_code: 'renfort', role_repli: null, moment_code: 'pendant', quart: null,
+      categorie_noms: ['Boissons', 'Lubrifiants'],
+      mode_selection: 'complet', priorite: 'normale',
+      strategie_repli: 'reporter_quart_suivant', ordre_affichage: 30,
+    },
+  ];
+
   global.NexusInventaireMoteur = {
     FAMILLES_CONTROLE, DEFAUT_DELAI_MAX_JOURS_PAR_FAMILLE,
     libelleRaisonSelection, joursEntreDates, delaiMaxJours, produitEligibleQuart,
@@ -1065,5 +1216,8 @@
     evaluerConfigurationInventaire, identifierCategoriesAOptimiser, estimerTempsProchainInventaire,
     evaluerMaturiteInventaire, controleQualiteImportVentes,
     agregerAnomaliesParProduit, appliquerCutoverControles,
+    MOMENTS_QUART, libelleMoment, STRATEGIES_REPLI, libelleStrategieRepli,
+    regleApplicableContexte, resoudreAffectationRegleMission, resoudreMissionRulesApplicables,
+    CATEGORIES_DEFAUT_NEXUS, ROLES_DEFAUT_NEXUS, MISSION_RULES_DEFAUT_NEXUS,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

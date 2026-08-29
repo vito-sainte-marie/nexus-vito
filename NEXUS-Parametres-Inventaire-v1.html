@@ -24,6 +24,7 @@
 <script src="nexus-inventaire-moteur.js"></script>
 <script src="nexus-inventaire-plan-donnees.js"></script>
 <script src="nexus-inventaire-production-donnees.js"></script>
+<script src="nexus-inventaire-mission-rules-donnees.js"></script>
 <style>
   :root{
     --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
@@ -254,6 +255,23 @@
   let zonesSite = [];
   let categoriesSite = [];       // actives uniquement, pour les sélecteurs
   let employesSite = [];
+  // Inventaire V2 Sprint 1 "Configuration multi-site" (29/08/2026, doctrine
+  // "NEXUS Inventaire V2" de Frédéric) — configuration durable "qui compte
+  // quoi, quand, avec quel repli" (table inventaire_mission_rules). Portée
+  // volontairement minimale ici (lecture/édition de base) : le générateur
+  // de missions qui CONSOMME ces règles (site+date+quart+employé) est
+  // explicitement Sprint 2, pas ce lot.
+  let missionRules = [];
+  let missionRuleNouveauOuvert = false;
+  const MISSION_RULE_NOUVEAU_DEFAUT = {
+    nom: '', role_code: 'caissier', role_repli: '', quart: '', moment_code: 'debut',
+    categorie_ids: [], mode_selection: 'complet', nombre_references: '',
+    strategie_repli: 'aucune', priorite: 'normale',
+  };
+  let missionRuleNouveauForm = { ...MISSION_RULE_NOUVEAU_DEFAUT };
+  // Rôles réels de NEXUS (Article 11 — même vocabulaire que employees.role,
+  // jamais un second référentiel de rôles créé pour Inventaire).
+  const ROLES_EMPLOYE_CONNUS = ['pompiste', 'caissier', 'renfort', 'manager', 'gerant', 'vacataire'];
 
   const JOURS_SEMAINE = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
   const LABELS_FREQUENCE = { daily: 'Tous les jours', weekly: 'Une fois par semaine', monthly: 'Une fois par mois', exception_only: 'Uniquement par exception' };
@@ -354,6 +372,17 @@
     const { data, error } = await nexusClient.from('inventaire_categories').select('*').eq('site', site).eq('actif', true).order('ordre_affichage');
     if (error) { console.error('Chargement catégories:', error); return []; }
     return data || [];
+  }
+
+  // Inventaire V2 Sprint 1 (29/08/2026) — délègue entièrement à
+  // nexus-inventaire-mission-rules-donnees.js (Article 11 : ce fichier ne
+  // refait jamais une requête que le chargeur partagé sait déjà faire).
+  async function chargerMissionRulesEcran(site) {
+    if (typeof NexusInventaireMissionRulesDonnees === 'undefined') {
+      console.error('NexusInventaireMissionRulesDonnees non chargé — missions de contrôle indisponibles.');
+      return [];
+    }
+    return await NexusInventaireMissionRulesDonnees.chargerMissionRules(nexusClient, site);
   }
 
   // Sprint 5 (20/08/2026) — voir NexusInventaireMoteur.seuilEcartEffectif.
@@ -1535,6 +1564,135 @@
   }
 
   // ==============================================================
+  // ONGLET MISSIONS DE CONTRÔLE — Inventaire V2 Sprint 1 "Configuration
+  // multi-site" (29/08/2026, doctrine "NEXUS Inventaire V2" de Frédéric).
+  // "Qui compte quoi, quand, avec quel repli" — configuration durable, table
+  // inventaire_mission_rules. Portée explicitement scopée par Frédéric pour
+  // ce sprint : "lecture/édition minimale", jamais l'aperçu avant
+  // activation ni le générateur de missions (Sprint 2). Toute la logique de
+  // RÉSOLUTION (une règle s'applique-t-elle, quel rôle est affecté) vit
+  // dans NexusInventaireMoteur (Article 11) — cet onglet ne fait qu'afficher
+  // la configuration et écrire les changements via
+  // nexus-inventaire-mission-rules-donnees.js.
+  // ==============================================================
+  function libelleRoleAffichage(roleCode) {
+    const LABELS = { pompiste: 'Piste', caissier: 'Caisse', renfort: 'Renfort', manager: 'Manager', gerant: 'Gérant', vacataire: 'Vacataire' };
+    return LABELS[roleCode] || roleCode;
+  }
+  function libelleQuartAffichage(quart) {
+    if (!quart) return 'Les deux quarts';
+    return quart === 'matin' ? 'Matin (Q1)' : quart === 'soir' ? 'Soir (Q2)' : quart;
+  }
+  function nomsCategories(ids) {
+    if (!ids || !ids.length) return 'Toutes catégories';
+    const map = {}; categoriesSite.forEach(c => { map[c.id] = c.nom; });
+    return ids.map(id => map[id] || '(catégorie supprimée)').join(', ');
+  }
+
+  function renderCarteMissionRule(r) {
+    const M = typeof NexusInventaireMoteur !== 'undefined' ? NexusInventaireMoteur : null;
+    const libelleMomentAff = M ? M.libelleMoment(r.moment_code) : r.moment_code;
+    return `
+      <div class="card" style="margin-bottom:10px; padding:12px 14px; ${r.actif ? '' : 'opacity:0.55;'}">
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
+          <div style="font-size:13.5px; font-weight:600;">${r.nom}</div>
+          <div class="toggle-switch ${r.actif ? 'on' : ''}" data-mission-toggle="${r.id}" data-actif="${r.actif ? '1' : '0'}"><div class="toggle-knob"></div></div>
+        </div>
+        <div class="categorie-count" style="margin-top:6px;">
+          👤 ${libelleRoleAffichage(r.role_code)}${r.role_repli ? ` (repli : ${libelleRoleAffichage(r.role_repli)})` : ''}
+          &nbsp;·&nbsp; 🕐 ${libelleQuartAffichage(r.quart)} — ${libelleMomentAff}
+          &nbsp;·&nbsp; ${r.priorite === 'sensible' ? '⚠️ Sensible' : 'Normale'}
+        </div>
+        <div class="categorie-count" style="margin-top:2px;">📦 ${nomsCategories(r.categorie_ids)}</div>
+        <div class="categorie-count" style="margin-top:2px;">
+          Mode : ${r.mode_selection === 'tournant' ? `Rotation (${r.nombre_references || '?'} référence(s))` : r.mode_selection === 'cible' ? 'Ciblé' : 'Complet'}
+          ${r.strategie_repli ? ` · Si absent : ${ (M ? M.libelleStrategieRepli(r.strategie_repli) : r.strategie_repli).toLowerCase() }` : ''}
+        </div>
+      </div>
+    `;
+  }
+
+  function renderFormulaireNouvelleMission() {
+    const f = missionRuleNouveauForm;
+    const M = typeof NexusInventaireMoteur !== 'undefined' ? NexusInventaireMoteur : null;
+    const moments = M ? M.MOMENTS_QUART : [{ cle: 'debut', label: 'Début de quart' }, { cle: 'pendant', label: 'Pendant le quart' }, { cle: 'fin', label: 'Fin de quart (transmission)' }];
+    const strategies = M ? M.STRATEGIES_REPLI : [];
+    return `
+      <div class="card" style="margin:0 0 10px; padding:12px 14px;">
+        <div class="param-ligne"><label>Nom de la mission</label><input type="text" class="param-input" id="missionNouveauNom" placeholder="ex. Caisse · Début de quart" value="${f.nom}"></div>
+        <div class="param-ligne"><label>Rôle affecté</label><select class="param-input" id="missionNouveauRole">${ROLES_EMPLOYE_CONNUS.map(r => `<option value="${r}" ${f.role_code === r ? 'selected' : ''}>${libelleRoleAffichage(r)}</option>`).join('')}</select></div>
+        <div class="param-ligne"><label>Rôle de repli (si absent)</label><select class="param-input" id="missionNouveauRoleRepli"><option value="">Aucun</option>${ROLES_EMPLOYE_CONNUS.map(r => `<option value="${r}" ${f.role_repli === r ? 'selected' : ''}>${libelleRoleAffichage(r)}</option>`).join('')}</select></div>
+        <div class="param-ligne"><label>Quart concerné</label><select class="param-input" id="missionNouveauQuart"><option value="" ${f.quart === '' ? 'selected' : ''}>Les deux quarts</option><option value="matin" ${f.quart === 'matin' ? 'selected' : ''}>Matin (Q1)</option><option value="soir" ${f.quart === 'soir' ? 'selected' : ''}>Soir (Q2)</option></select></div>
+        <div class="param-ligne"><label>Moment du quart</label><select class="param-input" id="missionNouveauMoment">${moments.map(m => `<option value="${m.cle}" ${f.moment_code === m.cle ? 'selected' : ''}>${m.label}</option>`).join('')}</select></div>
+        <div class="param-ligne"><label>Mode de sélection</label><select class="param-input" id="missionNouveauMode"><option value="complet" ${f.mode_selection === 'complet' ? 'selected' : ''}>Complet (tout le périmètre)</option><option value="tournant" ${f.mode_selection === 'tournant' ? 'selected' : ''}>Rotation (N références tournantes)</option><option value="cible" ${f.mode_selection === 'cible' ? 'selected' : ''}>Ciblé</option></select></div>
+        ${f.mode_selection === 'tournant' ? `<div class="param-ligne"><label>Nombre de références</label><input type="number" min="1" step="1" class="param-input" id="missionNouveauNbRef" value="${f.nombre_references}"></div>` : ''}
+        <div class="param-ligne"><label>Priorité</label><select class="param-input" id="missionNouveauPriorite"><option value="normale" ${f.priorite === 'normale' ? 'selected' : ''}>Normale</option><option value="sensible" ${f.priorite === 'sensible' ? 'selected' : ''}>Sensible</option></select></div>
+        <div class="param-ligne"><label>Stratégie de repli (si le rôle est absent et sans rôle de repli)</label><select class="param-input" id="missionNouveauStrategie">${strategies.map(s => `<option value="${s.cle}" ${f.strategie_repli === s.cle ? 'selected' : ''}>${s.label}</option>`).join('')}</select></div>
+        <div class="section-titre" style="margin-top:10px;">Catégories concernées</div>
+        <div class="param-checklist">
+          ${categoriesSite.length === 0 ? '<div class="empty">Aucune catégorie active.</div>' : categoriesSite.map(c => {
+            const actif = (f.categorie_ids || []).includes(c.id);
+            return `<label class="param-check-item ${actif ? 'actif' : ''}"><input type="checkbox" class="mission-cat-check" data-cat="${c.id}" ${actif ? 'checked' : ''}>${c.nom}</label>`;
+          }).join('')}
+        </div>
+        <div style="margin-top:12px; display:flex; gap:10px;">
+          <button class="btn-ghost" id="btnEnregistrerMission" ${!f.nom.trim() ? 'disabled' : ''}>Créer la mission</button>
+          <button class="btn-ghost" id="btnAnnulerMission" style="opacity:0.7;">Annuler</button>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderOngletMissions() {
+    const actives = missionRules.filter(r => r.actif);
+    const inactives = missionRules.filter(r => !r.actif);
+    return `
+      <a href="#" class="retour-accueil" data-retour-accueil>← Accueil</a>
+      <div class="question-titre">Qui compte quoi, et quand ?</div>
+      <div class="ventes-desc" style="margin:6px 2px 16px;">Chaque mission affecte un rôle (jamais une personne nommée) à un périmètre de catégories, à un moment précis du quart. NEXUS s'appuiera sur ces règles pour générer les missions du jour (à venir) — cet écran ne fait que définir la configuration.</div>
+
+      ${missionRuleNouveauOuvert ? renderFormulaireNouvelleMission() : `<button class="btn-ghost" id="btnOuvrirNouvelleMission" style="margin-bottom:14px;">+ Nouvelle mission</button>`}
+
+      <div class="section-titre">Missions actives (${actives.length})</div>
+      ${actives.length === 0 ? '<div class="empty">Aucune mission configurée.</div>' : actives.map(renderCarteMissionRule).join('')}
+
+      ${inactives.length > 0 ? `
+      <div class="section-titre" style="margin-top:18px;">Missions désactivées (${inactives.length})</div>
+      ${inactives.map(renderCarteMissionRule).join('')}
+      ` : ''}
+    `;
+  }
+
+  async function creerNouvelleMission() {
+    const f = missionRuleNouveauForm;
+    if (!f.nom.trim()) return;
+    const btn = document.getElementById('btnEnregistrerMission');
+    if (btn) { btn.disabled = true; btn.textContent = 'Création…'; }
+    const ordreMax = missionRules.reduce((max, r) => Math.max(max, r.ordre_affichage || 0), 0);
+    const payload = {
+      nom: f.nom.trim(), actif: true, role_code: f.role_code, role_repli: f.role_repli || null,
+      quart: f.quart || null, moment_code: f.moment_code, categorie_ids: f.categorie_ids,
+      mode_selection: f.mode_selection, nombre_references: f.mode_selection === 'tournant' ? (parseInt(f.nombre_references, 10) || null) : null,
+      strategie_repli: f.strategie_repli || null, priorite: f.priorite, ordre_affichage: ordreMax + 10,
+    };
+    const cree = await NexusInventaireMissionRulesDonnees.creerMissionRule(nexusClient, siteId, payload);
+    if (btn) { btn.disabled = false; btn.textContent = 'Créer la mission'; }
+    if (!cree) { alert('Erreur — réessayez.'); return; }
+    missionRules = [...missionRules, cree].sort((a, b) => (a.ordre_affichage || 0) - (b.ordre_affichage || 0));
+    missionRuleNouveauOuvert = false;
+    missionRuleNouveauForm = { ...MISSION_RULE_NOUVEAU_DEFAUT };
+    render();
+  }
+
+  async function basculerActiveMission(id, actifActuel) {
+    const fn = actifActuel ? NexusInventaireMissionRulesDonnees.desactiverMissionRule : NexusInventaireMissionRulesDonnees.reactiverMissionRule;
+    const maj = await fn(nexusClient, id);
+    if (!maj) { alert('Erreur — réessayez.'); return; }
+    missionRules = missionRules.map(r => r.id === id ? maj : r);
+    render();
+  }
+
+  // ==============================================================
   // ONGLET PRODUCTION — quantités recommandées, calendrier, valeurs
   // spéciales (19/08/2026, tâche #518). Trois blocs indépendants sur les 3
   // tables de configuration lues par le moteur de recommandation (M2,
@@ -2197,6 +2355,7 @@
     { onglet: 'parcours', icone: '📍', titre: 'Parcours', sous: 'Organiser le déplacement terrain' },
     { onglet: 'regles', icone: '⚙️', titre: 'Règles', sous: 'Définir comment compter par catégorie' },
     { onglet: 'production', icone: '🥐', titre: 'Production', sous: 'Gérer les produits préparés et mouvements' },
+    { onglet: 'missions', icone: '🎯', titre: 'Missions de contrôle', sous: 'Qui compte quoi, à quel moment du quart' },
   ];
   // Seuil d'exceptions à partir duquel une catégorie est signalée comme "à
   // optimiser" (21/08/2026, retour de Frédéric) — voir le commentaire de
@@ -2276,6 +2435,7 @@
     { value: 'parcours', label: '📍 Parcours' },
     { value: 'regles', label: '⚙️ Règles' },
     { value: 'production', label: '🥐 Production' },
+    { value: 'missions', label: '🎯 Missions de contrôle' },
     { value: 'simulation', label: '🧪 Tester ma config.' },
     { value: 'avance', label: '🧩 Réglages avancés' },
   ];
@@ -2316,6 +2476,7 @@
     else if (ongletActif === 'parcours') content.innerHTML = renderOngletParcours();
     else if (ongletActif === 'regles') content.innerHTML = renderOngletRegles();
     else if (ongletActif === 'production') content.innerHTML = renderOngletProduction();
+    else if (ongletActif === 'missions') content.innerHTML = renderOngletMissions();
     else if (ongletActif === 'simulation') content.innerHTML = renderOngletSimulation();
     else if (ongletActif === 'avance') content.innerHTML = renderOngletAvance();
     wire();
@@ -2627,7 +2788,39 @@
       if (el.dataset.mode === 'jaugeage') await toggleJaugeage(!actif);
       else if (el.dataset.mode === 'alertes-immediates') { await sauvegarderParametresInventaire({ immediateAlertsEnabled: !actif }); render(); }
       else if (el.dataset.mode === 'rappel-retour') { await sauvegarderParametresInventaire({ rappelRetourFournisseurActif: !actif }); render(); }
+      else if (el.dataset.missionToggle) await basculerActiveMission(el.dataset.missionToggle, actif);
       else if (el.dataset.employe) await toggleModeAveugle(el.dataset.employe, !actif);
+    }));
+
+    // --- Missions de contrôle (Inventaire V2 Sprint 1, 29/08/2026) ---
+    const btnOuvrirNouvelleMission = document.getElementById('btnOuvrirNouvelleMission');
+    if (btnOuvrirNouvelleMission) btnOuvrirNouvelleMission.addEventListener('click', () => { missionRuleNouveauOuvert = true; render(); });
+    const btnAnnulerMission = document.getElementById('btnAnnulerMission');
+    if (btnAnnulerMission) btnAnnulerMission.addEventListener('click', () => { missionRuleNouveauOuvert = false; missionRuleNouveauForm = { ...MISSION_RULE_NOUVEAU_DEFAUT }; render(); });
+    const btnEnregistrerMission = document.getElementById('btnEnregistrerMission');
+    if (btnEnregistrerMission) btnEnregistrerMission.addEventListener('click', creerNouvelleMission);
+    const inputMissionNom = document.getElementById('missionNouveauNom');
+    if (inputMissionNom) inputMissionNom.addEventListener('input', () => { missionRuleNouveauForm.nom = inputMissionNom.value; const b = document.getElementById('btnEnregistrerMission'); if (b) b.disabled = !inputMissionNom.value.trim(); });
+    const selMissionRole = document.getElementById('missionNouveauRole');
+    if (selMissionRole) selMissionRole.addEventListener('change', () => { missionRuleNouveauForm.role_code = selMissionRole.value; });
+    const selMissionRoleRepli = document.getElementById('missionNouveauRoleRepli');
+    if (selMissionRoleRepli) selMissionRoleRepli.addEventListener('change', () => { missionRuleNouveauForm.role_repli = selMissionRoleRepli.value; });
+    const selMissionQuart = document.getElementById('missionNouveauQuart');
+    if (selMissionQuart) selMissionQuart.addEventListener('change', () => { missionRuleNouveauForm.quart = selMissionQuart.value; });
+    const selMissionMoment = document.getElementById('missionNouveauMoment');
+    if (selMissionMoment) selMissionMoment.addEventListener('change', () => { missionRuleNouveauForm.moment_code = selMissionMoment.value; });
+    const selMissionMode = document.getElementById('missionNouveauMode');
+    if (selMissionMode) selMissionMode.addEventListener('change', () => { missionRuleNouveauForm.mode_selection = selMissionMode.value; render(); });
+    const inputMissionNbRef = document.getElementById('missionNouveauNbRef');
+    if (inputMissionNbRef) inputMissionNbRef.addEventListener('input', () => { missionRuleNouveauForm.nombre_references = inputMissionNbRef.value; });
+    const selMissionPriorite = document.getElementById('missionNouveauPriorite');
+    if (selMissionPriorite) selMissionPriorite.addEventListener('change', () => { missionRuleNouveauForm.priorite = selMissionPriorite.value; });
+    const selMissionStrategie = document.getElementById('missionNouveauStrategie');
+    if (selMissionStrategie) selMissionStrategie.addEventListener('change', () => { missionRuleNouveauForm.strategie_repli = selMissionStrategie.value; });
+    document.querySelectorAll('.mission-cat-check').forEach(el => el.addEventListener('change', () => {
+      const actuels = new Set(missionRuleNouveauForm.categorie_ids || []);
+      if (el.checked) actuels.add(el.dataset.cat); else actuels.delete(el.dataset.cat);
+      missionRuleNouveauForm.categorie_ids = Array.from(actuels);
     }));
 
     // --- Simulation ---
@@ -2725,11 +2918,11 @@
     if (!(await NexusForfait.nexusRequireProfessional('NEXUS-Parametres-Inventaire-v1.html', siteId))) return;
     document.getElementById('titre').textContent = 'Paramètres Inventaire';
 
-    [produitsInventaire, zonesSite, categoriesSite, employesSite, parametresInventaire, reglesProduitMap, modesAveugleActifs, jaugeageActif, produitsProduction, reglesProductionMap, calendrierSite, valeursSpecialesProduction, seuilsEcartParCategorie] = await Promise.all([
+    [produitsInventaire, zonesSite, categoriesSite, employesSite, parametresInventaire, reglesProduitMap, modesAveugleActifs, jaugeageActif, produitsProduction, reglesProductionMap, calendrierSite, valeursSpecialesProduction, seuilsEcartParCategorie, missionRules] = await Promise.all([
       chargerProduitsInventaire(siteId), chargerZonesSite(siteId), chargerCategoriesSite(siteId), chargerEmployesSite(siteId),
       chargerParametresInventaire(siteId), chargerReglesProduit(siteId), chargerModesAveugleActifs(siteId), chargerModeJaugeageActif(siteId),
       chargerProduitsProduction(siteId), chargerReglesProduction(siteId), chargerCalendrierSite(siteId), chargerValeursSpecialesProduction(siteId),
-      chargerSeuilsEcartCategorie(siteId),
+      chargerSeuilsEcartCategorie(siteId), chargerMissionRulesEcran(siteId),
     ]);
     render();
 
