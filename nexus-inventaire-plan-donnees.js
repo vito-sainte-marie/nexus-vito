@@ -82,7 +82,14 @@
     const seuilAnomalie = (cutover && cutover.date_heure && cutover.date_heure > seuilFenetre)
       ? cutover.date_heure : seuilFenetre;
     const [{ data: produits, error: e1 }, { data: regles, error: e2 }, { data: derniers, error: e3 }, { data: alertes, error: e4 }, { data: reglesCategorie, error: e5 }] = await Promise.all([
-      client.from('inventaire_zone_produit').select('id, actif, categorie_id').eq('site', site).eq('actif', true),
+      // zone_id ajouté le 29/08/2026 (Inventaire V2 Sprint 2, générateur de
+      // missions) — additif, purement lu en plus par les nouveaux
+      // consommateurs (nexus-inventaire-missions-donnees.js) qui filtrent le
+      // périmètre d'une mission par zone en plus de la catégorie ; les
+      // consommateurs existants (sélection socle/surprises) l'ignorent
+      // simplement (Article 11 : une seule requête produits pour toute la
+      // sélection Inventaire, jamais une deuxième lecture parallèle).
+      client.from('inventaire_zone_produit').select('id, actif, categorie_id, zone_id').eq('site', site).eq('actif', true),
       client.from('inventaire_regles_produit').select('produit_id, frequence_controle, delai_max_jours_sans_controle, quarts_comptage').eq('site', site),
       client.from('view_inventaire_dernier_controle_produit').select('produit_id, dernier_controle_le').eq('site', site),
       client.from('inventaire_alertes').select('produit_id, gravite, cree_le')

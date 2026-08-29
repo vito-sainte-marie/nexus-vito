@@ -1197,6 +1197,115 @@
     },
   ];
 
+  // ============================================================
+  // INVENTAIRE V2 — Sprint 2 "Génération des missions" (29/08/2026, suite de
+  // la doctrine "NEXUS Inventaire V2" — Frédéric a confirmé "ok sprint 2").
+  // Ordre de développement demandé explicitement par Frédéric (§ clôture de
+  // sa doctrine) : "Paramètres → Génération des missions → Expérience
+  // employé → Deux jauges → Répartition par rôles." Ce sprint construit
+  // UNIQUEMENT le générateur (résoudre le contexte réel du quart en
+  // missions concrètes, avec leur périmètre produit) — la nouvelle
+  // expérience employé qui les CONSOMME à l'écran reste Sprint 3.
+  //
+  // Toujours des fonctions PURES (aucun accès réseau, Article 11) : elles
+  // reçoivent des ingrédients déjà chargés par la couche données
+  // (nexus-inventaire-missions-donnees.js, qui réutilise chargerMissionRules
+  // /chargerRolesPresentsQuart du Sprint 1 et chargerIngredientsSelection de
+  // nexus-inventaire-plan-donnees.js — jamais une deuxième requête produits
+  // parallèle, Article 11).
+  // ============================================================
+
+  // Filtre le catalogue actif par le périmètre catégorie/zone d'UNE
+  // mission_rule. `categorie_ids`/`zone_ids` vides ou absents = pas de
+  // restriction sur cette dimension (doctrine : une mission peut couvrir
+  // "toutes les catégories" d'une zone, ou une catégorie dans toutes les
+  // zones).
+  function perimetreProduitsMission(missionRule, produitsActifs) {
+    const categorieIds = (missionRule.categorie_ids && missionRule.categorie_ids.length) ? new Set(missionRule.categorie_ids) : null;
+    const zoneIds = (missionRule.zone_ids && missionRule.zone_ids.length) ? new Set(missionRule.zone_ids) : null;
+    return (produitsActifs || []).filter(p => {
+      if (categorieIds && !categorieIds.has(p.categorie_id)) return false;
+      if (zoneIds && !zoneIds.has(p.zone_id)) return false;
+      return true;
+    });
+  }
+
+  // Applique le mode_selection de la mission_rule au périmètre déjà filtré :
+  //   - 'complet' : tout le périmètre, sans réduction.
+  //   - 'tournant' : les `nombre_references` produits les moins récemment
+  //     contrôlés d'abord (jamais contrôlé = priorité absolue), tie-break
+  //     déterministe (hashDeterministe) pour ne jamais dépendre de l'ordre
+  //     brut du catalogue — reproductible pour un même (site, date, quart,
+  //     mission), jamais un tirage aléatoire différent à chaque génération.
+  //   - 'cible' : traité comme 'complet' dans ce sprint — **limitation
+  //     assumée (Article 5)** : aucune règle réelle (Sainte-Marie ou
+  //     gabarit par défaut) n'utilise ce mode aujourd'hui ; sa sémantique
+  //     propre (cibler QUOI, exactement ?) n'a pas été spécifiée par la
+  //     doctrine et reste à clarifier avec Frédéric avant implémentation
+  //     réelle — jamais une fausse précision inventée ici.
+  //   - valeur inconnue : repli sûr sur le périmètre complet, jamais un
+  //     tableau vide silencieux qui ferait disparaître une mission entière.
+  function selectionnerPerimetreMission(missionRule, produitsActifs, dernierControleParProduit, seed) {
+    const candidats = perimetreProduitsMission(missionRule, produitsActifs);
+    const mode = missionRule.mode_selection || 'complet';
+    if (mode !== 'tournant') return candidats.map(p => p.id);
+    const n = (missionRule.nombre_references && missionRule.nombre_references > 0) ? missionRule.nombre_references : candidats.length;
+    const carte = dernierControleParProduit || {};
+    const trie = candidats.slice().sort((a, b) => {
+      const da = carte[a.id] || null;
+      const db = carte[b.id] || null;
+      if (da !== db) {
+        if (!da) return -1;
+        if (!db) return 1;
+        return da < db ? -1 : 1;
+      }
+      return hashDeterministe(`${seed}|${a.id}`) - hashDeterministe(`${seed}|${b.id}`);
+    });
+    return trie.slice(0, n).map(p => p.id);
+  }
+
+  // Le générateur complet : pour CHAQUE moment du quart, résout les
+  // mission_rules applicables contre les rôles réellement présents
+  // (Sprint 1 ::resoudreMissionRulesApplicables), puis calcule le périmètre
+  // produit de chaque mission AFFECTÉE. Une mission NON affectée est
+  // conservée dans le résultat (statut 'non_affectee', périmètre vide) —
+  // jamais silencieusement supprimée : c'est la "dette de couverture" de la
+  // doctrine, une information que le manager doit pouvoir voir, pas un
+  // trou invisible dans le contrôle du site.
+  function genererMissionsPourContexte({ missionRules, rolesPresents, quart, produitsActifs, dernierControleParProduit, seed }) {
+    const missions = [];
+    MOMENTS_QUART.forEach(m => {
+      const resolues = resoudreMissionRulesApplicables({ missionRules, quart, moment: m.cle, rolesPresents });
+      resolues.forEach(res => {
+        const produitIds = res.statut === 'affectee'
+          ? selectionnerPerimetreMission(res.regle, produitsActifs, dernierControleParProduit, `${seed}|${res.regle.id}`)
+          : [];
+        missions.push({
+          missionRuleId: res.regle.id, nom: res.regle.nom, momentCode: m.cle,
+          statut: res.statut, roleAffecte: res.roleAffecte, viaRepli: res.viaRepli,
+          strategieAppliquee: res.strategieAppliquee || null, produitIds,
+        });
+      });
+    });
+    return missions;
+  }
+
+  // Synthèse de couverture (doctrine : distinguer strictement Couverture —
+  // "toutes les missions ont-elles un rôle pour les faire ?" — de
+  // Fiabilité/conformité — traitée ailleurs, jamais mélangée ici). Une
+  // mission non affectée n'est PAS une anomalie de comptage, c'est un trou
+  // d'ORGANISATION (personne présent pour la faire) — vocabulaire
+  // volontairement différent (Article 5 : ne jamais faire porter à
+  // l'employé une faute d'organisation).
+  function couvertureMissions(missions) {
+    const total = (missions || []).length;
+    const affectees = (missions || []).filter(m => m.statut === 'affectee').length;
+    return {
+      total, affectees, nonAffectees: total - affectees,
+      tauxCouverture: total > 0 ? affectees / total : null,
+    };
+  }
+
   global.NexusInventaireMoteur = {
     FAMILLES_CONTROLE, DEFAUT_DELAI_MAX_JOURS_PAR_FAMILLE,
     libelleRaisonSelection, joursEntreDates, delaiMaxJours, produitEligibleQuart,
@@ -1219,5 +1328,6 @@
     MOMENTS_QUART, libelleMoment, STRATEGIES_REPLI, libelleStrategieRepli,
     regleApplicableContexte, resoudreAffectationRegleMission, resoudreMissionRulesApplicables,
     CATEGORIES_DEFAUT_NEXUS, ROLES_DEFAUT_NEXUS, MISSION_RULES_DEFAUT_NEXUS,
+    perimetreProduitsMission, selectionnerPerimetreMission, genererMissionsPourContexte, couvertureMissions,
   };
 })(typeof window !== 'undefined' ? window : globalThis);
