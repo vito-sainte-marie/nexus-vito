@@ -420,7 +420,16 @@
       <div class="section-label">Quart concerné</div>
       <div class="row2">
         <div><label class="f">Date</label><input type="date" id="v_date"></div>
-        <div><label class="f">Quart</label><input type="text" id="v_quart" value="1"></div>
+        <div><label class="f">Quart</label>
+          <!-- v2.276 (retour de Frédéric) — remplace la saisie libre par un
+               sélecteur, même logique que le champ Date juste à côté : on
+               choisit 1 ou 2, on ne tape plus (donc plus de "01", " 2" ou
+               toute autre valeur qui ne correspondrait à aucun audit). -->
+          <select id="v_quart">
+            <option value="1">Quart 1</option>
+            <option value="2">Quart 2</option>
+          </select>
+        </div>
       </div>
     </div>
 
@@ -1441,6 +1450,7 @@
       // que soit le fuseau horaire de l'appareil qui exécute cet import.
       const dateCible = new Date(dateStr + 'T00:00:00Z');
       let dernierDateVue = null;
+      let dernierDateVueIdx = -1;
       let ligneTrouvee = null;
       // dateLiteraleSurLaLigne : true si la date de CETTE ligne précise vient
       // d'une vraie cellule Date (fiable), false si elle est seulement
@@ -1451,18 +1461,28 @@
       // structure des cellules fusionnées diffère peut-être des mois
       // archivés déjà validés).
       let dateLiteraleSurLaLigne = false;
+      // distanceDepuisDateLiterale (v2.276) : nombre de lignes entre la
+      // dernière date explicite rencontrée et la ligne trouvée. Sert
+      // uniquement à distinguer, plus bas, le cas normal (Quart 2 juste en
+      // dessous de Quart 1, cellule Date fusionnée — distance 1, aucun
+      // risque réel) du vrai risque de décalage que ce signal a été conçu
+      // pour attraper (report sur plusieurs lignes, cf. commentaire
+      // ci-dessus) — voir retour de Frédéric du 29/08/2026, test réel sur
+      // 28/08 Quart 2.
+      let distanceDepuisDateLiterale = null;
       let ligneTrouveeIdx = -1;
       for (let i = headerIdx + 1; i < lignes.length; i++) {
         const ligne = lignes[i];
         if (!ligne) continue;
         const dVal = cols.date !== undefined ? ligne[cols.date] : null;
         const estDateLiterale = dVal instanceof Date;
-        if (estDateLiterale) dernierDateVue = dVal;
+        if (estDateLiterale) { dernierDateVue = dVal; dernierDateVueIdx = i; }
         const qVal = cols.quart !== undefined ? ligne[cols.quart] : null;
         if (dernierDateVue && memeJourUTC(dernierDateVue, dateCible) && qVal != null && String(qVal).trim() === quartStr) {
           ligneTrouvee = ligne;
           ligneTrouveeIdx = i;
           dateLiteraleSurLaLigne = estDateLiterale;
+          distanceDepuisDateLiterale = dernierDateVueIdx >= 0 ? (i - dernierDateVueIdx) : null;
           break;
         }
       }
@@ -1552,7 +1572,14 @@
       const bRes = resolutionAttenduPourCaisse('boutique', caissierNomPeek);
       if (bRes) personnel.push({ caisse: 'boutique', caisseLabel: 'Boutique', ...bRes });
 
-      const verdictCoherence = NexusVerifyMoteur.verdictCoherenceImportSheets({ dateLiteraleSurLaLigne, personnel });
+      // v2.276 (retour de Frédéric, test réel 28/08 Quart 2) — on transmet
+      // les faits bruts déjà mesurés (dateLiteraleSurLaLigne,
+      // distanceDepuisDateLiterale) ; c'est la fonction pure
+      // (estReportDateRisque, dans nexus-verify-moteur.js) qui tranche si
+      // c'est un vrai risque ou le cas normal Quart 1/Quart 2 partageant la
+      // même date — jamais décidé ici, pour rester une seule vérité
+      // testée (Article 11).
+      const verdictCoherence = NexusVerifyMoteur.verdictCoherenceImportSheets({ dateLiteraleSurLaLigne, distanceDepuisDateLiterale, personnel });
 
       const decisionPreview = await afficherPreviewImportSheets({
         verdict: verdictCoherence, previewChamps, dateStr, quartStr, dateResolueTexte,
@@ -1986,7 +2013,13 @@
     }
     ['v_date', 'v_quart'].forEach(id => {
       const champ = document.getElementById(id);
-      if (champ) champ.addEventListener('input', majContexteSticky);
+      if (!champ) return;
+      // v2.276 — 'change' en plus de 'input' depuis que Quart est un
+      // <select> (l'ajout de 'input' seul suffisait pour l'ancien champ
+      // texte, mais 'change' est le seul événement garanti sur tous les
+      // navigateurs mobiles pour un <select>).
+      champ.addEventListener('input', majContexteSticky);
+      champ.addEventListener('change', majContexteSticky);
     });
 
     // v2.273 (§9, retour de Frédéric : "Lorsqu'un audit Q2 est en attente,

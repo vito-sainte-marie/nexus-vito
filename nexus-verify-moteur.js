@@ -225,14 +225,37 @@
   // comparer — un audit tout juste commencé (aucun employé encore
   // sélectionné) n'a rien de "différent" à signaler, ce n'est pas une
   // incohérence (Article 5 : jamais une fausse alerte).
+  //
+  // v2.276 (retour de Frédéric, 29/08/2026 — test réel sur 28/08 Quart 2) :
+  // le déclencheur de l'alerte de date n'est plus le simple booléen
+  // `dateLiteraleSurLaLigne` brut, mais `estReportRisque(...)` ci-dessous,
+  // qui prend aussi en compte `distanceDepuisDateLiterale` (nombre de
+  // lignes entre la dernière date explicite vue dans le classeur et la
+  // ligne trouvée). Motif : la plupart des classeurs de Frédéric partagent
+  // une seule cellule Date fusionnée entre le Quart 1 et le Quart 2 d'un
+  // même jour — la ligne du Quart 2 n'a donc JAMAIS sa propre date
+  // explicite (distance = 1, la ligne juste au-dessus), sans que ce soit
+  // un risque réel : NEXUS a déjà lu une date explicite pour ce jour juste
+  // avant. Le vrai risque déjà vécu par Frédéric (01/06 demandé, données
+  // du 02/06 utilisées, le 01/08/2026) venait d'un report sur PLUSIEURS
+  // lignes (jour/quart manquant dans le classeur, distance > 1) — c'est ce
+  // cas-là, et seulement celui-là, qui doit bloquer désormais. La règle
+  // reste ici (une seule vérité, Article 11) plutôt que dupliquée/décidée
+  // côté écran : l'appelant transmet les faits bruts déjà mesurés, jamais
+  // un verdict pré-mâché.
   // ------------------------------------------------------------
+  function estReportDateRisque(dateLiteraleSurLaLigne, distanceDepuisDateLiterale) {
+    if (dateLiteraleSurLaLigne !== false) return false;
+    return distanceDepuisDateLiterale == null || distanceDepuisDateLiterale > 1;
+  }
+
   function verdictCoherenceImportSheets(ctx) {
     const c = ctx || {};
     const alertes = [];
-    if (c.dateLiteraleSurLaLigne === false) {
+    if (estReportDateRisque(c.dateLiteraleSurLaLigne, c.distanceDepuisDateLiterale)) {
       alertes.push({
         code: 'date_reportee',
-        message: "La date de cette ligne n'était pas écrite explicitement dans le classeur (reportée depuis une ligne précédente) — le quart importé pourrait appartenir à un autre jour que celui affiché.",
+        message: "La date de cette ligne est reportée depuis plusieurs lignes plus haut dans le classeur (pas de date explicite à proximité) — le quart importé pourrait appartenir à un autre jour que celui affiché.",
       });
     }
     (c.personnel || []).forEach(p => {
@@ -251,6 +274,6 @@
     classifierEcart, GRAVITE_ORDRE, STATUT_LABEL, agregerAudits, statutValidationQuart,
     MOTIFS_ECART_CORRIGE_VERIFY, motifsEcartCorrigeDisponiblesVerify, labelMotifEcartVerify,
     libelleActionVersion, construireLigneVersion, construireTimelineVersions, construirePatchRestauration,
-    CHAMPS_IDENTITE_AUDIT, verdictCoherenceImportSheets,
+    CHAMPS_IDENTITE_AUDIT, verdictCoherenceImportSheets, estReportDateRisque,
   };
 })(typeof window !== 'undefined' ? window : globalThis);
