@@ -20,7 +20,7 @@
   :root{
     --bg:#0B0F14; --panel:#141B22; --panel-raised:#1A222C; --hairline:#242E38;
     --text:#EDF1F5; --text-mid:#8A96A5; --text-dim:#57626F;
-    --green:#34D399; --green-dim:#153629; --cyan:#4FC3D9;
+    --green:#34D399; --green-dim:#153629; --cyan:#4FC3D9; --cyan-dim:#123138;
     --amber:#F5A623; --amber-dim:#3A2E14; --red:#F0546B; --red-dim:#3A1620;
     --mono:'IBM Plex Mono',monospace; --sans:'IBM Plex Sans',sans-serif;
   }
@@ -47,9 +47,7 @@
   .section-label{font-family:var(--mono); font-size:10.5px; letter-spacing:0.08em; text-transform:uppercase; color:var(--text-dim); margin-bottom:12px; display:flex; align-items:center; gap:8px;}
   .section-label::after{content:''; flex:1; height:1px; background:var(--hairline);}
 
-  /* Filtres (§12 du cadrage) — accordéon replié par défaut pour ne pas
-     saturer l'écran mobile ; état ouvert/fermé purement visuel, les
-     filtres restent actifs même repliés. */
+  /* Filtres (§12) — accordéon replié par défaut. */
   .filtres-toggle{display:flex; align-items:center; justify-content:space-between; cursor:pointer; padding:2px 0;}
   .filtres-toggle .ft-label{font-size:13px; font-weight:600;}
   .filtres-toggle .ft-compte{font-family:var(--mono); font-size:10.5px; color:var(--cyan); background:rgba(79,195,217,0.1); border-radius:10px; padding:2px 8px;}
@@ -64,17 +62,22 @@
   }
   .btn-reinit{font-family:var(--mono); font-size:10.5px; color:var(--text-mid); background:none; border:1px solid var(--hairline); border-radius:6px; padding:7px 12px; cursor:pointer; width:100%; margin-top:2px;}
 
-  /* Cartes KPI (§5) — jamais afficher uniquement le solde net : les 4
-     lectures (positifs/négatifs/à investiguer/volume) sont côte à côte. */
+  /* Cartes KPI (§5) — cliquables (v2.269, §1). Les écarts POSITIFS
+     s'affichent en CYAN, jamais en vert (v2.269, §2 : "un excédent n'est
+     pas une bonne nouvelle" — le vert est réservé aux états Conforme /
+     Régularisé / Résolu, jamais à un simple signe). */
   .kpi-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
-  .kpi-card{background:var(--panel-raised); border:1px solid var(--hairline); border-radius:10px; padding:12px;}
+  .kpi-card{background:var(--panel-raised); border:1px solid var(--hairline); border-radius:10px; padding:12px; cursor:pointer;}
+  .kpi-card:active{background:var(--panel);}
   .kpi-card.large{grid-column:1 / -1;}
-  .kpi-label{font-family:var(--mono); font-size:9.5px; letter-spacing:0.05em; text-transform:uppercase; color:var(--text-dim); margin-bottom:6px;}
+  .kpi-label{font-family:var(--mono); font-size:9.5px; letter-spacing:0.05em; text-transform:uppercase; color:var(--text-dim); margin-bottom:6px; display:flex; justify-content:space-between;}
+  .kpi-label .kpi-fleche{color:var(--cyan);}
   .kpi-valeur{font-family:var(--mono); font-size:20px; font-weight:700;}
   .kpi-sous{font-size:10.5px; color:var(--text-mid); margin-top:3px;}
-  .kpi-valeur.pos{color:var(--green);}
+  .kpi-valeur.pos{color:var(--cyan);}
   .kpi-valeur.neg{color:var(--red);}
   .kpi-valeur.amber{color:var(--amber);}
+  .kpi-card.montant-retenu{border-color:rgba(240,84,107,0.3);}
 
   .statut-badge{display:inline-block; font-family:var(--mono); font-size:9.5px; font-weight:700; letter-spacing:0.03em; padding:3px 8px; border-radius:10px; text-transform:uppercase; white-space:nowrap;}
   .statut-badge.a_verifier{background:var(--amber-dim); color:var(--amber);}
@@ -87,21 +90,70 @@
   .ei-top{display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:5px;}
   .ei-source{font-family:var(--mono); font-size:10px; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.04em;}
   .ei-montant{font-family:var(--mono); font-size:15px; font-weight:700;}
-  .ei-montant.pos{color:var(--green);}
+  .ei-montant.pos{color:var(--cyan);}
   .ei-montant.neg{color:var(--red);}
   .ei-bottom{display:flex; align-items:center; justify-content:space-between; gap:8px;}
   .ei-meta{font-size:11.5px; color:var(--text-mid);}
-  .ei-fleche{color:var(--cyan); font-family:var(--mono); font-size:12px;}
+  .ei-fleche{color:var(--cyan); font-family:var(--mono); font-size:12px; white-space:nowrap;}
   .liste-vide{font-size:12px; color:var(--text-dim); font-style:italic; padding:10px 2px;}
 
-  .emp-row{display:flex; align-items:center; gap:10px; padding:10px; background:var(--panel-raised); border-radius:8px; margin-bottom:8px;}
-  .emp-nom{flex:1; min-width:0; font-size:12.5px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
-  .emp-stats{font-family:var(--mono); font-size:10.5px; color:var(--text-mid); text-align:right; line-height:1.5;}
-  .emp-solde{font-weight:700;}
-  .emp-solde.pos{color:var(--green);} .emp-solde.neg{color:var(--red);}
+  /* Contrôle de cohérence (§12) — signal toujours visible, jamais caché
+     derrière un filtre. NEXUS ne conclut jamais à une erreur : il signale
+     et demande une qualification (§6). */
+  .coherence-item{display:flex; align-items:center; gap:10px; padding:11px 10px; background:var(--amber-dim); border:1px solid rgba(245,166,35,0.35); border-radius:8px; margin-bottom:8px; cursor:pointer;}
+  .coherence-icone{font-size:16px; flex-shrink:0;}
+  .coherence-texte{flex:1; min-width:0; font-size:12px; color:var(--text); line-height:1.4;}
+  .coherence-texte b{color:var(--amber);}
+  .coherence-fleche{font-family:var(--mono); font-size:11px; color:var(--amber); white-space:nowrap;}
+
+  /* Vue par employé (§9, §11) — refonte complète. */
+  .emp-card{background:var(--panel-raised); border:1px solid var(--hairline); border-radius:10px; padding:12px 14px; margin-bottom:10px;}
+  .emp-head{display:flex; align-items:baseline; gap:8px; margin-bottom:8px;}
+  .emp-nom{font-size:13px; font-weight:700;}
+  .emp-role{font-family:var(--mono); font-size:9.5px; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.04em;}
+  .emp-bandeau-inhabituel{display:flex; gap:8px; align-items:flex-start; background:var(--amber-dim); border:1px solid rgba(245,166,35,0.35); border-radius:8px; padding:9px 10px; margin-bottom:10px; font-size:11.5px; line-height:1.5;}
+  .emp-detail-grid{display:grid; grid-template-columns:1fr 1fr; gap:8px 12px; font-size:11.5px; margin-bottom:10px;}
+  .emp-detail-grid .edg-label{color:var(--text-mid); font-family:var(--mono); font-size:9.5px; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:2px;}
+  .emp-detail-grid .edg-valeur{font-family:var(--mono); font-weight:700; font-size:13px;}
+  .edg-valeur.pos{color:var(--cyan);} .edg-valeur.neg{color:var(--red);}
+  .btn-comprendre{width:100%; background:none; border:1px solid var(--hairline); color:var(--cyan); font-family:var(--mono); font-size:11px; padding:9px; border-radius:6px; cursor:pointer;}
 
   .chargement{text-align:center; padding:30px 0; color:var(--text-dim); font-family:var(--mono); font-size:11.5px;}
   footer{margin-top:auto; padding:16px 20px 24px; font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:center; border-top:1px solid var(--hairline);}
+
+  /* Panneau "Composition du montant" (§1, §4) — bottom-sheet réutilisable
+     pour toute décomposition (KPI cliqué, montant employé cliqué). */
+  .panneau-overlay{display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:30;}
+  .panneau-overlay.ouvert{display:block;}
+  .panneau-detail{display:none; position:fixed; left:50%; transform:translateX(-50%); bottom:0; width:100%; max-width:460px; max-height:85vh; background:var(--panel); border-top-left-radius:16px; border-top-right-radius:16px; border:1px solid var(--hairline); z-index:31; overflow-y:auto; padding-bottom:env(safe-area-inset-bottom);}
+  .panneau-detail.ouvert{display:block;}
+  .pd-header{position:sticky; top:0; background:var(--panel); display:flex; align-items:center; justify-content:space-between; padding:16px 18px 12px; border-bottom:1px solid var(--hairline);}
+  .pd-titre{font-size:14px; font-weight:700;}
+  .pd-fermer{background:var(--panel-raised); border:1px solid var(--hairline); color:var(--text-mid); width:28px; height:28px; border-radius:50%; cursor:pointer; font-size:13px; flex-shrink:0;}
+  .pd-corps{padding:14px 18px 24px;}
+
+  .pd-ligne{padding:11px 10px; background:var(--panel-raised); border-radius:8px; margin-bottom:8px; border:1px solid var(--hairline);}
+  .pd-ligne-top{display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:4px;}
+  .pd-ligne-montant{font-family:var(--mono); font-weight:700; font-size:14px;}
+  .pd-ligne-montant.pos{color:var(--cyan);} .pd-ligne-montant.neg{color:var(--red);}
+  .pd-ligne-meta{font-size:11px; color:var(--text-mid);}
+  .pd-ligne-cycle{font-size:11px; color:var(--text-mid); margin-top:5px; padding-top:5px; border-top:1px dashed var(--hairline); line-height:1.5;}
+  .pd-ligne-lien{display:inline-block; margin-top:7px; font-family:var(--mono); font-size:11px; color:var(--cyan); text-decoration:none;}
+  .pd-total-row{display:flex; justify-content:space-between; padding-top:10px; margin-top:4px; border-top:1px solid var(--hairline); font-weight:700; font-size:13px;}
+
+  .pd-breakdown-row{display:flex; justify-content:space-between; align-items:baseline; padding:10px 0; border-bottom:1px solid var(--hairline); font-size:13px;}
+  .pd-breakdown-row:last-child{border-bottom:none; margin-top:4px; padding-top:14px; font-weight:700; font-size:14px;}
+  .pd-breakdown-row b.pos{color:var(--cyan);} .pd-breakdown-row b.neg{color:var(--red);}
+  .pd-note{font-size:11px; color:var(--text-mid); line-height:1.5; margin-top:10px; padding-top:10px; border-top:1px dashed var(--hairline);}
+
+  /* Qualification "activité inhabituelle" (§6) — mini-formulaire inline,
+     jamais une conclusion automatique. */
+  .qualif-bloc{margin-top:8px; padding-top:8px; border-top:1px dashed rgba(245,166,35,0.35);}
+  .qualif-question{font-size:11.5px; color:var(--amber); margin-bottom:6px;}
+  .qualif-bloc select, .qualif-bloc textarea{width:100%; background:var(--panel); border:1px solid var(--hairline); border-radius:6px; padding:8px; color:var(--text); font-family:var(--sans); font-size:12px; margin-bottom:6px;}
+  .qualif-bloc textarea{resize:vertical; min-height:40px;}
+  .btn-qualifier{width:100%; background:var(--amber); color:#2b1c02; border:none; border-radius:6px; padding:9px; font-weight:700; font-size:12px; cursor:pointer;}
+  .qualif-deja{font-size:11px; color:var(--green); margin-top:8px; padding-top:8px; border-top:1px dashed var(--hairline);}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nexus-auth.js"></script>
@@ -126,7 +178,7 @@
     <div class="card">
       <div class="filtres-toggle" id="filtresToggle">
         <div class="ft-label">🔎 Filtres</div>
-        <div class="ft-compte" id="filtresCompte">actifs : 0</div>
+        <div class="ft-compte" id="filtresCompte" style="display:none;"></div>
       </div>
       <div class="filtres-corps" id="filtresCorps">
         <div class="filtre-row">
@@ -188,32 +240,40 @@
       </div>
     </div>
 
-    <!-- KPI (§5) -->
+    <!-- CONTRÔLE DE COHÉRENCE (§12) — toujours visible, jamais filtré. -->
+    <div id="zoneCoherence"></div>
+
+    <!-- KPI (§5, cliquables §1) -->
     <div class="section-label">Vue d'ensemble</div>
     <div class="card">
       <div class="kpi-grid" id="kpiGrid">
-        <div class="kpi-card large">
-          <div class="kpi-label">Solde net</div>
+        <div class="kpi-card large" id="kpiCardSolde">
+          <div class="kpi-label"><span>Solde opérationnel</span><span class="kpi-fleche">Détail →</span></div>
           <div class="kpi-valeur" id="kpiSoldeNet">…</div>
-          <div class="kpi-sous">Somme signée — ne remplace jamais les 2 lectures ci-dessous.</div>
+          <div class="kpi-sous">Somme signée — ne remplace jamais les lectures ci-dessous.</div>
         </div>
-        <div class="kpi-card">
-          <div class="kpi-label">Excédents</div>
+        <div class="kpi-card large montant-retenu" id="kpiCardRetenu">
+          <div class="kpi-label"><span>Montant retenu</span><span class="kpi-fleche">Détail →</span></div>
+          <div class="kpi-valeur" id="kpiMontantRetenu">…</div>
+          <div class="kpi-sous">Un excédent n'est jamais un crédit automatique — seul un manque retenu compte ici.</div>
+        </div>
+        <div class="kpi-card" id="kpiCardPositifs">
+          <div class="kpi-label"><span>Excédents</span><span class="kpi-fleche">→</span></div>
           <div class="kpi-valeur pos" id="kpiPositifs">…</div>
           <div class="kpi-sous" id="kpiPositifsNb">—</div>
         </div>
-        <div class="kpi-card">
-          <div class="kpi-label">Manques</div>
+        <div class="kpi-card" id="kpiCardNegatifs">
+          <div class="kpi-label"><span>Manques</span><span class="kpi-fleche">→</span></div>
           <div class="kpi-valeur neg" id="kpiNegatifs">…</div>
           <div class="kpi-sous" id="kpiNegatifsNb">—</div>
         </div>
-        <div class="kpi-card">
-          <div class="kpi-label">À investiguer</div>
+        <div class="kpi-card" id="kpiCardInvestiguer">
+          <div class="kpi-label"><span>À investiguer</span><span class="kpi-fleche">→</span></div>
           <div class="kpi-valeur amber" id="kpiAInvestiguer">…</div>
           <div class="kpi-sous">écarts non clôturés</div>
         </div>
-        <div class="kpi-card">
-          <div class="kpi-label">Volume d'écarts</div>
+        <div class="kpi-card" id="kpiCardVolume">
+          <div class="kpi-label"><span>Volume d'écarts</span><span class="kpi-fleche">→</span></div>
           <div class="kpi-valeur" id="kpiVolume">…</div>
           <div class="kpi-sous">somme des valeurs absolues</div>
         </div>
@@ -221,26 +281,50 @@
     </div>
 
     <!-- À VÉRIFIER (§6) -->
-    <div class="section-label">À vérifier</div>
+    <div class="section-label" id="ancreAVerifier">À vérifier</div>
     <div id="listeAVerifier"><div class="chargement">Chargement…</div></div>
 
-    <!-- VUE PAR EMPLOYÉ (§11) -->
+    <!-- VUE PAR EMPLOYÉ (§9, §11) -->
     <div class="section-label" style="margin-top:6px;">Par employé</div>
-    <div class="card">
-      <div id="listeParEmploye"><div class="chargement">Chargement…</div></div>
-    </div>
+    <div id="listeParEmploye"><div class="chargement">Chargement…</div></div>
 
   </div>
 
-  <footer>NEXUS · Analyse des écarts — v2.268</footer>
+  <footer>NEXUS · Analyse des écarts — v2.269</footer>
+</div>
+
+<!-- Panneau "Composition du montant" (§1, §4) -->
+<div class="panneau-overlay" id="panneauOverlay"></div>
+<div class="panneau-detail" id="panneauDetail">
+  <div class="pd-header">
+    <div class="pd-titre" id="pdTitre">—</div>
+    <button type="button" class="pd-fermer" id="pdFermer">✕</button>
+  </div>
+  <div class="pd-corps" id="pdCorps"></div>
 </div>
 
 <script>
   let SITE_ACTUEL = null; // jamais 'vito-sainte-marie' par défaut (de-Vito-isation)
+  let EMPLOYEE_ID_COURANT = null;
   let TOUTES_LES_LIGNES = [];
   let EMPLOYES_SITE = [];
 
-  function numFR(v) { if (v == null) return NaN; return parseFloat(String(v).trim().replace(',', '.')); }
+  const LABEL_ROLE = { manager: 'Manager', gerant: 'Gérant', caissier: 'Caissier', vacataire: 'Vacataire', renfort: 'Renfort', pompiste: 'Pompiste' };
+  function labelRole(role) { return LABEL_ROLE[role] || (role || ''); }
+
+  const MOTIFS_QUALIFICATION_INHABITUELLE = [
+    { value: '', label: 'Choisir un motif…' },
+    { value: 'remplacement_absent', label: "Remplacement d'un absent" },
+    { value: 'modification_planning', label: 'Modification de planning' },
+    { value: 'intervention_ponctuelle', label: 'Intervention ponctuelle' },
+    { value: 'erreur_attribution', label: "Erreur d'attribution" },
+    { value: 'autre', label: 'Autre' },
+  ];
+  function labelMotifQualification(v) {
+    const m = MOTIFS_QUALIFICATION_INHABITUELLE.find(x => x.value === v);
+    return m ? m.label : (v || '—');
+  }
+
   function fmtEuro(v) {
     if (v === null || v === undefined || Number.isNaN(v)) return '—';
     return `${v >= 0 ? '+' : ''}${v.toFixed(2).replace('.', ',')} €`;
@@ -262,10 +346,18 @@
   }
   function labelStatut(s) { return (window.NexusEcartsMoteur && NexusEcartsMoteur.labelStatutEcart(s)) || s; }
 
+  // Actions contextuelles (§3) — remplace le générique "Ouvrir →" par ce
+  // que le manager va réellement faire. Limité aux distinctions que NEXUS
+  // peut réellement établir aujourd'hui (Article 5, jamais une fausse
+  // nuance) : "Comprendre →" quand la situation est d'abord une activité
+  // inhabituelle à qualifier, "Vérifier →" pour le cas standard.
+  function labelActionAVerifier(l) {
+    if (l.activiteInhabituelle && !l.qualification) return 'Comprendre →';
+    return 'Vérifier →';
+  }
+
   // ------------------------------------------------------------
-  // FILTRES — lus/écrits dans l'URL (§12 : "combinable via URL params"),
-  // pour que FDJ/Verify puissent pré-appliquer un filtre (ex. Activité=FDJ)
-  // en pointant simplement vers cette page avec les bons paramètres.
+  // FILTRES — lus/écrits dans l'URL (§12).
   // ------------------------------------------------------------
   function litFiltresDepuisUrl() {
     const p = new URLSearchParams(window.location.search);
@@ -312,22 +404,38 @@
     document.getElementById('fStatut').value = f.statut || '';
   }
 
+  // v2.269, §10-B : "actifs : 0" prêtait à confusion avec les KPI
+  // (observé à tort comme si "0" concernait les écarts). Le badge est
+  // maintenant masqué à zéro, et explicite ("2 filtres actifs") sinon.
+  function majBadgeFiltresActifs(f) {
+    const n = Object.values(f).filter(Boolean).length;
+    const el = document.getElementById('filtresCompte');
+    if (n === 0) { el.style.display = 'none'; el.textContent = ''; return; }
+    el.style.display = 'inline-block';
+    el.textContent = `${n} filtre${n > 1 ? 's' : ''} actif${n > 1 ? 's' : ''}`;
+  }
+
   function rafraichirEcran() {
     const f = litFiltresDepuisFormulaire();
     ecritFiltresDansUrl(f);
-    document.getElementById('filtresCompte').textContent = `actifs : ${Object.values(f).filter(Boolean).length}`;
+    majBadgeFiltresActifs(f);
 
     const lignes = NexusEcartsDonnees.appliquerFiltresEcarts(TOUTES_LES_LIGNES, f);
     renderKpis(lignes);
     renderListeAVerifier(lignes);
     renderParEmploye(lignes);
+    renderControleCoherence(); // toujours sur TOUTES_LES_LIGNES, jamais filtré (§12)
+    return lignes;
   }
 
   function renderKpis(lignes) {
     const k = NexusEcartsMoteur.calculerKpisEcarts(lignes);
     const soldeEl = document.getElementById('kpiSoldeNet');
-    soldeEl.textContent = fmtEuro(k.soldeNet);
-    soldeEl.className = 'kpi-valeur ' + (k.soldeNet > 0 ? 'pos' : (k.soldeNet < 0 ? 'neg' : ''));
+    soldeEl.textContent = fmtEuro(k.soldeOperationnel);
+    soldeEl.className = 'kpi-valeur ' + (k.soldeOperationnel > 0 ? 'pos' : (k.soldeOperationnel < 0 ? 'neg' : ''));
+    const retenuEl = document.getElementById('kpiMontantRetenu');
+    retenuEl.textContent = fmtEuro(k.montantRetenu);
+    retenuEl.className = 'kpi-valeur ' + (k.montantRetenu < 0 ? 'neg' : '');
     document.getElementById('kpiPositifs').textContent = fmtEuroAbs(k.positifs.total);
     document.getElementById('kpiPositifsNb').textContent = `${k.positifs.nb} écart${k.positifs.nb > 1 ? 's' : ''}`;
     document.getElementById('kpiNegatifs').textContent = fmtEuroAbs(Math.abs(k.negatifs.total));
@@ -336,9 +444,9 @@
     document.getElementById('kpiVolume').textContent = fmtEuroAbs(k.volume);
   }
 
-  // "À vérifier" — clic ouvre EXACTEMENT le contrôle source (§6 : jamais
-  // une page générique), retour navigateur préserve les filtres puisque
-  // l'URL de cette page les porte déjà (voir ecritFiltresDansUrl).
+  // "À vérifier" (§6) — v2.269 : action contextuelle plutôt que "Ouvrir →"
+  // générique (§3), et un écart réellement nul (statut dérivé correctement
+  // grâce à l'arrondi centimes v2.269) n'apparaît plus jamais ici.
   function renderListeAVerifier(lignes) {
     const zone = document.getElementById('listeAVerifier');
     const aVerifier = lignes.filter(l => l.statut === 'a_verifier').sort((a, b) => (a.date < b.date ? 1 : -1));
@@ -349,35 +457,234 @@
     zone.innerHTML = aVerifier.map(l => `
       <a class="ecart-item" href="${l.deepLink}">
         <div class="ei-top">
-          <div class="ei-source">${labelActivite(l.activite)}</div>
+          <div class="ei-source">${labelActivite(l.activite)}${l.activiteInhabituelle ? ' · ⚠️' : ''}</div>
           <div class="ei-montant ${l.ecartFinal >= 0 ? 'pos' : 'neg'}">${fmtEuro(l.ecartFinal)}</div>
         </div>
         <div class="ei-bottom">
           <div class="ei-meta">${fmtDateCourt(l.date)} · Quart ${l.quart}${l.employeeNom ? ' · ' + l.employeeNom : ''}</div>
-          <div class="ei-fleche">Ouvrir →</div>
+          <div class="ei-fleche">${labelActionAVerifier(l)}</div>
         </div>
       </a>
     `).join('');
   }
 
-  // Vue par employé (§11) — distingue explicitement écarts INITIAUX
-  // détectés des écarts FINAUX retenus (jamais confondus, cf. cadrage).
+  // ------------------------------------------------------------
+  // CONTRÔLE DE COHÉRENCE (§12) — toujours calculé sur TOUTES_LES_LIGNES,
+  // jamais sur la vue filtrée : un signal ne doit jamais pouvoir
+  // disparaître simplement parce qu'un filtre est actif. Un seul type de
+  // contrôle réellement disponible aujourd'hui avec des données réelles
+  // (Article 5, jamais une fausse nuance) : activité caisse inhabituelle
+  // (rôle manager/gérant) non encore qualifiée par le manager (§6).
+  // ------------------------------------------------------------
+  function renderControleCoherence() {
+    const zone = document.getElementById('zoneCoherence');
+    const parEmploye = {};
+    TOUTES_LES_LIGNES.forEach(l => {
+      if (!l.activiteInhabituelle || l.qualification || !l.employeeId) return;
+      if (!parEmploye[l.employeeId]) parEmploye[l.employeeId] = { employeeId: l.employeeId, employeeNom: l.employeeNom, employeeRole: l.employeeRole, n: 0 };
+      parEmploye[l.employeeId].n++;
+    });
+    const items = Object.values(parEmploye);
+    if (items.length === 0) { zone.innerHTML = ''; return; }
+    zone.innerHTML = `
+      <div class="section-label">Contrôle de cohérence</div>
+      ${items.map(it => `
+        <div class="coherence-item" data-employee="${it.employeeId}">
+          <div class="coherence-icone">⚠️</div>
+          <div class="coherence-texte">Activité inhabituelle détectée — <b>${it.employeeNom || 'employé inconnu'}</b> (${labelRole(it.employeeRole)}) apparaît sur ${it.n} contrôle${it.n > 1 ? 's' : ''} de caisse alors qu'aucune prise de caisse attendue n'est identifiée.</div>
+          <div class="coherence-fleche">Comprendre →</div>
+        </div>
+      `).join('')}
+    `;
+    zone.querySelectorAll('.coherence-item').forEach(el => {
+      el.addEventListener('click', () => ouvrirCompositionEmploye(el.dataset.employee, true));
+    });
+  }
+
+  // Vue par employé (§9, §11) — refonte complète : excédents/manques
+  // CONSTATÉS jamais compensés, montant RETENU distinct, managers/gérants
+  // jamais exclus (§5), bandeau d'activité inhabituelle si nécessaire.
   function renderParEmploye(lignes) {
     const zone = document.getElementById('listeParEmploye');
-    const agg = NexusEcartsMoteur.agregerEcartsParEmploye(lignes).sort((a, b) => Math.abs(b.soldeFinal) - Math.abs(a.soldeFinal));
+    const agg = NexusEcartsMoteur.agregerEcartsParEmploye(lignes)
+      .sort((a, b) => (Math.abs(b.excedentsConstates) + Math.abs(b.manquesConstates)) - (Math.abs(a.excedentsConstates) + Math.abs(a.manquesConstates)));
     if (agg.length === 0) {
-      zone.innerHTML = '<div class="liste-vide">Aucun écart avec employé identifié pour ces filtres.</div>';
+      zone.innerHTML = '<div class="card"><div class="liste-vide">Aucun écart avec employé identifié pour ces filtres.</div></div>';
       return;
     }
-    zone.innerHTML = agg.map(a => `
-      <div class="emp-row">
-        <div class="emp-nom">${a.employeeNom || 'Employé inconnu'}</div>
-        <div class="emp-stats">
-          ${a.ecartsInitiaux} détecté${a.ecartsInitiaux > 1 ? 's' : ''} · ${a.regularises} régularisé${a.regularises > 1 ? 's' : ''}<br>
-          Solde retenu : <span class="emp-solde ${a.soldeFinal > 0 ? 'pos' : (a.soldeFinal < 0 ? 'neg' : '')}">${fmtEuro(a.soldeFinal)}</span>
+    zone.innerHTML = agg.map(a => {
+      const inhabituel = window.NexusEcartsMoteur && NexusEcartsMoteur.roleCaisseInhabituelle(a.employeeRole);
+      const montantAExpliquer = Math.abs(a.excedentsConstates) >= Math.abs(a.manquesConstates) ? a.excedentsConstates : a.manquesConstates;
+      return `
+      <div class="emp-card">
+        <div class="emp-head"><span class="emp-nom">${a.employeeNom || 'Employé inconnu'}</span><span class="emp-role">${labelRole(a.employeeRole)}</span></div>
+        ${inhabituel ? `<div class="emp-bandeau-inhabituel">⚠️ Rôle habituellement sans activité de caisse — voir « Contrôle de cohérence » ci-dessus si non encore qualifié.</div>` : ''}
+        <div class="emp-detail-grid">
+          <div><div class="edg-label">Excédents constatés</div><div class="edg-valeur pos">${fmtEuro(a.excedentsConstates)}</div></div>
+          <div><div class="edg-label">Manques constatés</div><div class="edg-valeur neg">${fmtEuro(a.manquesConstates)}</div></div>
+          <div><div class="edg-label">Régularisés</div><div class="edg-valeur">${a.regularises}</div></div>
+          <div><div class="edg-label">Montant retenu</div><div class="edg-valeur ${a.montantRetenu < 0 ? 'neg' : ''}">${fmtEuro(a.montantRetenu)}</div></div>
         </div>
+        <button type="button" class="btn-comprendre" data-employee="${a.employeeId}">Comprendre ${fmtEuro(montantAExpliquer)} →</button>
       </div>
-    `).join('');
+    `; }).join('');
+    zone.querySelectorAll('.btn-comprendre').forEach(btn => {
+      btn.addEventListener('click', () => ouvrirCompositionEmploye(btn.dataset.employee, false));
+    });
+  }
+
+  // ------------------------------------------------------------
+  // PANNEAU "COMPOSITION DU MONTANT" (§1, §4) — bottom-sheet réutilisable.
+  // ------------------------------------------------------------
+  function ouvrirPanneau(titre, htmlCorps) {
+    document.getElementById('pdTitre').textContent = titre;
+    document.getElementById('pdCorps').innerHTML = htmlCorps;
+    document.getElementById('panneauOverlay').classList.add('ouvert');
+    document.getElementById('panneauDetail').classList.add('ouvert');
+    document.getElementById('panneauDetail').scrollTop = 0;
+  }
+  function fermerPanneau() {
+    document.getElementById('panneauOverlay').classList.remove('ouvert');
+    document.getElementById('panneauDetail').classList.remove('ouvert');
+  }
+
+  // Ligne de composition (§4, §11) — montre le cycle de vie complet
+  // (écart initial → écart final) dès qu'une correction a eu lieu, jamais
+  // seulement le montant final isolé. Si la ligne est une activité
+  // inhabituelle non qualifiée, propose le mini-formulaire de
+  // qualification directement ici (§6) — l'action se fait toujours à la
+  // source, jamais dans un écran séparé.
+  function renderLigneComposition(l) {
+    const cycle = (l.ecartInitial != null && l.ecartInitial !== l.ecartFinal)
+      ? `Écart initial ${fmtEuro(l.ecartInitial)} → Écart final ${fmtEuro(l.ecartFinal)} · <span class="statut-badge ${l.statut}">${labelStatut(l.statut)}</span>`
+      : `<span class="statut-badge ${l.statut}">${labelStatut(l.statut)}</span>`;
+    const qualifBloc = (l.activiteInhabituelle && !l.qualification) ? `
+      <div class="qualif-bloc" data-qualif-pour="${l.id}">
+        <div class="qualif-question">⚠️ Activité inhabituelle — pourquoi ${l.employeeNom || 'cet employé'} apparaît-il sur ce quart ?</div>
+        <select class="qualif-motif">${MOTIFS_QUALIFICATION_INHABITUELLE.map(m => `<option value="${m.value}">${m.label}</option>`).join('')}</select>
+        <textarea class="qualif-note" placeholder="Note (optionnel)"></textarea>
+        <button type="button" class="btn-qualifier" data-source-module="${l.sourceModule}" data-source-control-id="${l.sourceControlId}" data-activite="${l.activite}">Qualifier cette situation</button>
+      </div>
+    ` : (l.activiteInhabituelle && l.qualification ? `<div class="qualif-deja">✓ Qualifié : ${labelMotifQualification(l.qualification.motif)}${l.qualification.note ? ' — ' + l.qualification.note : ''}</div>` : '');
+    return `
+      <div class="pd-ligne">
+        <div class="pd-ligne-top">
+          <div class="pd-ligne-montant ${l.ecartFinal >= 0 ? 'pos' : 'neg'}">${fmtEuro(l.ecartFinal)}</div>
+          <div class="pd-ligne-meta">${fmtDateCourt(l.date)} · Quart ${l.quart} · ${labelActivite(l.activite)}</div>
+        </div>
+        <div class="pd-ligne-cycle">${cycle}</div>
+        <a class="pd-ligne-lien" href="${l.deepLink}">Voir le contrôle source →</a>
+        ${qualifBloc}
+      </div>
+    `;
+  }
+
+  function brancherQualification(conteneur) {
+    conteneur.querySelectorAll('.btn-qualifier').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const bloc = btn.closest('.qualif-bloc');
+        const motif = bloc.querySelector('.qualif-motif').value;
+        if (!motif) { alert('Merci de choisir un motif.'); return; }
+        const note = bloc.querySelector('.qualif-note').value.trim();
+        btn.disabled = true; btn.textContent = 'Enregistrement…';
+        try {
+          await NexusEcartsDonnees.enregistrerQualificationActiviteInhabituelle(nexusClient, {
+            site: SITE_ACTUEL, sourceModule: btn.dataset.sourceModule, sourceControlId: btn.dataset.sourceControlId,
+            activite: btn.dataset.activite, motif, note, qualifiePar: EMPLOYEE_ID_COURANT,
+          });
+          await rechargerEtRafraichir();
+        } catch (e) {
+          console.error('Qualification activité inhabituelle:', e);
+          alert('Erreur lors de l\'enregistrement — réessayez.');
+          btn.disabled = false; btn.textContent = 'Qualifier cette situation';
+        }
+      });
+    });
+  }
+
+  function ouvrirCompositionListe(titre, lignes, { totalLabel } = {}) {
+    const triees = [...lignes].sort((a, b) => Math.abs(b.ecartFinal) - Math.abs(a.ecartFinal));
+    if (triees.length === 0) {
+      ouvrirPanneau(titre, '<div class="liste-vide">Aucune ligne pour cette composition.</div>');
+      return;
+    }
+    const k = NexusEcartsMoteur.calculerKpisEcarts(triees);
+    const total = totalLabel === 'volume' ? k.volume : (k.positifs.total + k.negatifs.total);
+    const html = triees.map(renderLigneComposition).join('') + `
+      <div class="pd-total-row"><span>Total</span><span>${totalLabel === 'volume' ? fmtEuroAbs(total) : fmtEuro(total)}</span></div>
+    `;
+    ouvrirPanneau(titre, html);
+    brancherQualification(document.getElementById('pdCorps'));
+  }
+
+  function ouvrirDecompositionSolde(lignes) {
+    const k = NexusEcartsMoteur.calculerKpisEcarts(lignes);
+    const html = `
+      <div class="pd-breakdown-row"><span>Excédents</span><b class="pos">${fmtEuroAbs(k.positifs.total)}</b></div>
+      <div class="pd-breakdown-row"><span>Manques</span><b class="neg">${fmtEuroAbs(Math.abs(k.negatifs.total))}</b></div>
+      <div class="pd-breakdown-row"><span>Solde opérationnel</span><b class="${k.soldeOperationnel > 0 ? 'pos' : (k.soldeOperationnel < 0 ? 'neg' : '')}">${fmtEuro(k.soldeOperationnel)}</b></div>
+      <div class="pd-note">Le solde opérationnel additionne excédents et manques — il sert à l'analyse, jamais au traitement retenu. Un excédent restant n'est jamais transformé en crédit : voir « Montant retenu » (${fmtEuro(k.montantRetenu)}).</div>
+    `;
+    ouvrirPanneau('Solde opérationnel — composition', html);
+  }
+
+  function ouvrirCompositionEmploye(employeeId, scopeInhabituelSeulement) {
+    let lignes = TOUTES_LES_LIGNES.filter(l => l.employeeId === employeeId);
+    if (scopeInhabituelSeulement) lignes = lignes.filter(l => l.activiteInhabituelle && !l.qualification);
+    const nom = (lignes[0] && lignes[0].employeeNom) || 'Employé';
+    ouvrirCompositionListe(`Composition — ${nom}`, lignes);
+  }
+
+  function brancherPanneau() {
+    document.getElementById('pdFermer').addEventListener('click', fermerPanneau);
+    document.getElementById('panneauOverlay').addEventListener('click', fermerPanneau);
+  }
+
+  // KPI cliquables (§1) — chaque carte applique son filtre naturel puis
+  // affiche la composition (ou, pour le solde, une décomposition).
+  function brancherKpisCliquables() {
+    document.getElementById('kpiCardPositifs').addEventListener('click', () => {
+      document.getElementById('fSigne').value = 'positif';
+      const lignes = rafraichirEcran();
+      ouvrirCompositionListe('Excédents — composition', lignes.filter(l => l.ecartFinal > 0));
+    });
+    document.getElementById('kpiCardNegatifs').addEventListener('click', () => {
+      document.getElementById('fSigne').value = 'negatif';
+      const lignes = rafraichirEcran();
+      ouvrirCompositionListe('Manques — composition', lignes.filter(l => l.ecartFinal < 0));
+    });
+    document.getElementById('kpiCardInvestiguer').addEventListener('click', () => {
+      document.getElementById('fStatut').value = 'a_verifier';
+      rafraichirEcran();
+      document.getElementById('ancreAVerifier').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+    document.getElementById('kpiCardVolume').addEventListener('click', () => {
+      const f = litFiltresDepuisFormulaire();
+      const lignes = NexusEcartsDonnees.appliquerFiltresEcarts(TOUTES_LES_LIGNES, f);
+      ouvrirCompositionListe('Volume d\'écarts — composition', lignes, { totalLabel: 'volume' });
+    });
+    document.getElementById('kpiCardSolde').addEventListener('click', () => {
+      const f = litFiltresDepuisFormulaire();
+      const lignes = NexusEcartsDonnees.appliquerFiltresEcarts(TOUTES_LES_LIGNES, f);
+      ouvrirDecompositionSolde(lignes);
+    });
+    document.getElementById('kpiCardRetenu').addEventListener('click', () => {
+      const f = litFiltresDepuisFormulaire();
+      const lignes = NexusEcartsDonnees.appliquerFiltresEcarts(TOUTES_LES_LIGNES, f);
+      ouvrirCompositionListe('Montant retenu — composition', lignes.filter(l => l.montantRetenu < 0));
+    });
+  }
+
+  async function rechargerEtRafraichir() {
+    try {
+      TOUTES_LES_LIGNES = await NexusEcartsDonnees.chargerEcartsConsolides(nexusClient, SITE_ACTUEL, {});
+    } catch (e) {
+      console.error('Chargement Analyse des écarts:', e);
+      document.getElementById('listeAVerifier').innerHTML = '<div class="card"><div class="liste-vide">Erreur de chargement — réessayez.</div></div>';
+      TOUTES_LES_LIGNES = [];
+    }
+    fermerPanneau();
+    rafraichirEcran();
   }
 
   function branchierFiltres() {
@@ -396,8 +703,11 @@
   nexusRequireAuth().then(async (employee) => {
     if (!employee) return;
     SITE_ACTUEL = employee.site_id;
+    EMPLOYEE_ID_COURANT = employee.id;
 
     branchierFiltres();
+    brancherPanneau();
+    brancherKpisCliquables();
 
     const { data: employes } = await nexusClient.from('employees').select('id, nom').eq('site_id', SITE_ACTUEL).eq('actif', true).order('nom');
     EMPLOYES_SITE = employes || [];
@@ -414,15 +724,7 @@
       document.getElementById('filtresCorps').classList.add('ouvert');
     }
 
-    try {
-      TOUTES_LES_LIGNES = await NexusEcartsDonnees.chargerEcartsConsolides(nexusClient, SITE_ACTUEL, {});
-    } catch (e) {
-      console.error('Chargement Analyse des écarts:', e);
-      document.getElementById('listeAVerifier').innerHTML = '<div class="card"><div class="liste-vide">Erreur de chargement — réessayez.</div></div>';
-      TOUTES_LES_LIGNES = [];
-    }
-
-    rafraichirEcran();
+    await rechargerEtRafraichir();
   });
 </script>
 </body>

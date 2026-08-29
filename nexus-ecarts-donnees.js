@@ -13,15 +13,22 @@
 //
 // Ligne consolidée retournée par carburant... pardon, par écart :
 //   { id, sourceModule ('verify'|'fdj'), sourceControlId, date, quart,
-//     employeeId, employeeNom, activite ('piste'|'boutique'|'fdj'),
-//     ecartInitial, ecartFinal, causeCode, statut, resolvedAt, resolvedBy,
-//     deepLink }
-// — mêmes noms que §13 du cadrage (adaptés camelCase JS), à l'exception de
-// `payroll_impact`/`payroll_amount` : explicitement HORS SCOPE de ce lot
-// (P0), NEXUS Paye n'existe pas encore (voir Data Dictionary v2.268,
-// limite assumée plutôt que fabriquée).
+//     employeeId, employeeNom, employeeRole, activite ('piste'|'boutique'|'fdj'),
+//     ecartInitial, ecartFinal, causeCode, statut, montantRetenu, impactPaye,
+//     activiteInhabituelle, qualification, resolvedAt, resolvedBy, deepLink }
+// — mêmes noms que §13 du cadrage (adaptés camelCase JS).
 //
-// Dépend de nexus-ecarts-moteur.js (deriverStatutEcart) — DOIT être chargé
+// v2.269 (28/08/2026, retour de Frédéric après test réel du P0) : §8 du
+// retour demande de "prévoir" (pas construire) 3 niveaux distincts dans la
+// donnée — écart initial (constaté), écart final/montantRetenu (traitement
+// retenu), impact PAYE (qualification future explicite). `impactPaye` est
+// donc posé ici en toutes lettres à `null` (jamais déduit du signe/montant
+// d'un écart — règle absolue du cadrage, "Écart de caisse ≠ dette employé
+// ≠ retenue sur paie") : c'est une place réservée pour NEXUS Paye (P2),
+// aucun code ne le calcule ni ne l'affiche dans ce lot.
+//
+// Dépend de nexus-ecarts-moteur.js (deriverStatutEcart, arrondiCentimes,
+// calculerMontantRetenuLigne, roleCaisseInhabituelle) — DOIT être chargé
 // avant ce fichier :
 //   <script src="nexus-ecarts-moteur.js"></script>
 //   <script src="nexus-ecarts-donnees.js"></script>
@@ -29,31 +36,55 @@
 
 (function (global) {
   // ------------------------------------------------------------
-  // chargerEcartsConsolides(client, siteId, filtres) — lit les 3 tables
+  // chargerEcartsConsolides(client, siteId, filtres) — lit les tables
   // réelles, normalise chaque composante en ligne d'écart, ne retient QUE
   // les lignes où deriverStatutEcart a produit un statut réel (jamais les
-  // quarts/audits sans aucun écart à consolider), puis applique les
+  // quarts/audits sans aucun écart à consolider), rattache les
+  // qualifications manuelles déjà posées (v2.269), puis applique les
   // filtres demandés (§12 du cadrage).
   // ------------------------------------------------------------
   async function chargerEcartsConsolides(client, siteId, filtres) {
-    const [empRes, auditsRes, shiftsRes] = await Promise.all([
-      client.from('employees').select('id, nom').eq('site_id', siteId),
+    const [empRes, auditsRes, shiftsRes, qualifsRes] = await Promise.all([
+      client.from('employees').select('id, nom, role').eq('site_id', siteId),
       client.from('audits_caisse').select('*').eq('site', siteId),
       client.from('fdj_shifts').select('*, fdj_cash_controls(*)').eq('site', siteId),
+      client.from('nexus_ecarts_qualifications').select('*').eq('site', siteId),
     ]);
     if (empRes.error) throw empRes.error;
     if (auditsRes.error) throw auditsRes.error;
     if (shiftsRes.error) throw shiftsRes.error;
+    if (qualifsRes.error) throw qualifsRes.error;
 
     const nomParEmploye = {};
-    (empRes.data || []).forEach(e => { nomParEmploye[e.id] = e.nom; });
+    const roleParEmploye = {};
+    (empRes.data || []).forEach(e => { nomParEmploye[e.id] = e.nom; roleParEmploye[e.id] = e.role || null; });
+
+    const qualifParCle = {};
+    (qualifsRes.data || []).forEach(q => {
+      qualifParCle[`${q.source_module}-${q.source_control_id}-${q.activite}-${q.type_qualification}`] = q;
+    });
 
     const lignes = [
-      ...normaliserAuditsVerify(auditsRes.data || [], nomParEmploye),
-      ...normaliserControlesFdj(shiftsRes.data || [], nomParEmploye),
+      ...normaliserAuditsVerify(auditsRes.data || [], nomParEmploye, roleParEmploye),
+      ...normaliserControlesFdj(shiftsRes.data || [], nomParEmploye, roleParEmploye),
     ];
+    lignes.forEach(l => {
+      l.qualification = qualifParCle[`${l.sourceModule}-${l.sourceControlId}-${l.activite}-activite_inhabituelle`] || null;
+    });
 
     return appliquerFiltresEcarts(lignes, filtres);
+  }
+
+  // Ajoute les champs dérivés communs à toute ligne DÉJÀ normalisée (écarts
+  // arrondis, statut posé) — évite de dupliquer 3 fois (activité
+  // inhabituelle, montant retenu, place réservée PAYE) entre Verify et FDJ
+  // (Article 11).
+  function finaliserLigne(ligne) {
+    const M = global.NexusEcartsMoteur;
+    ligne.impactPaye = null;
+    ligne.montantRetenu = M.calculerMontantRetenuLigne(ligne);
+    ligne.activiteInhabituelle = M.roleCaisseInhabituelle(ligne.employeeRole);
+    return ligne;
   }
 
   // ------------------------------------------------------------
@@ -63,21 +94,26 @@
   // que non validé — c'est le même "écart définitif par défaut" que
   // renderFormValidationCaisse affiche à l'écran (Article 11).
   // ------------------------------------------------------------
-  function normaliserAuditsVerify(audits, nomParEmploye) {
-    if (!global.NexusEcartsMoteur) return [];
+  function normaliserAuditsVerify(audits, nomParEmploye, roleParEmploye) {
+    const M = global.NexusEcartsMoteur;
+    if (!M) return [];
     const lignes = [];
     audits.forEach(a => {
       ['piste', 'boutique'].forEach(type => {
         const ecartBrut = a[`ecart_${type}`];
         if (ecartBrut === null || ecartBrut === undefined) return; // composante inexistante sur ce quart
-        const ecartFinal = a[`ecart_${type}_valide`] != null ? Number(a[`ecart_${type}_valide`]) : Number(ecartBrut);
-        const ecartInitial = a[`ecart_${type}_origine`] != null ? Number(a[`ecart_${type}_origine`]) : null;
+        // v2.269 — arrondi aux centimes DÈS la normalisation (jamais un
+        // flottant du type 0.0000000001 qui échapperait au test `=== 0`
+        // de situationVerificationEcart, cause réelle d'un "+0,00 €"
+        // observé à tort dans "À vérifier").
+        const ecartFinal = M.arrondiCentimes(a[`ecart_${type}_valide`] != null ? Number(a[`ecart_${type}_valide`]) : Number(ecartBrut));
+        const ecartInitial = a[`ecart_${type}_origine`] != null ? M.arrondiCentimes(Number(a[`ecart_${type}_origine`])) : null;
         const cloture = !!a[`valide_le_${type}`];
         const causeCode = a[`cause_code_${type}`] || null;
         const causeConnue = !!causeCode && causeCode !== 'non_explique';
-        const statut = global.NexusEcartsMoteur.deriverStatutEcart({ ecartInitial, ecartFinal, cloture, causeConnue });
+        const statut = M.deriverStatutEcart({ ecartInitial, ecartFinal, cloture, causeConnue });
         if (!statut) return;
-        lignes.push({
+        lignes.push(finaliserLigne({
           id: `verify-${a.id}-${type}`,
           sourceModule: 'verify',
           sourceControlId: a.id,
@@ -85,6 +121,7 @@
           quart: a.quart,
           employeeId: a.employee_id || null,
           employeeNom: a.employee_id ? (nomParEmploye[a.employee_id] || null) : null,
+          employeeRole: a.employee_id ? ((roleParEmploye || {})[a.employee_id] || null) : null,
           activite: type,
           ecartInitial, ecartFinal,
           causeCode,
@@ -92,7 +129,7 @@
           resolvedAt: a[`valide_le_${type}`] || null,
           resolvedBy: a[`valide_par_${type}`] || null,
           deepLink: `NEXUS-Verify-v1.html?ouvrir_date=${a.date}&ouvrir_quart=${a.quart}`,
-        });
+        }));
       });
     });
     return lignes;
@@ -104,21 +141,22 @@
   // `resultat_controle` non vide = quart clôturé (verdict manager posé,
   // v2.266) ; `motif_ecart` porte le cause_code structuré (v2.267).
   // ------------------------------------------------------------
-  function normaliserControlesFdj(shifts, nomParEmploye) {
-    if (!global.NexusEcartsMoteur) return [];
+  function normaliserControlesFdj(shifts, nomParEmploye, roleParEmploye) {
+    const M = global.NexusEcartsMoteur;
+    if (!M) return [];
     const lignes = [];
     shifts.forEach(s => {
       const cash = s.fdj_cash_controls;
       if (!cash) return;
-      const ecartFinal = cash.ecart != null ? Number(cash.ecart) : null;
+      const ecartFinal = cash.ecart != null ? M.arrondiCentimes(Number(cash.ecart)) : null;
       if (ecartFinal === null) return;
-      const ecartInitial = cash.ecart_origine != null ? Number(cash.ecart_origine) : null;
+      const ecartInitial = cash.ecart_origine != null ? M.arrondiCentimes(Number(cash.ecart_origine)) : null;
       const cloture = !!cash.resultat_controle;
       const causeCode = cash.motif_ecart || null;
       const causeConnue = !!causeCode && causeCode !== 'non_explique';
-      const statut = global.NexusEcartsMoteur.deriverStatutEcart({ ecartInitial, ecartFinal, cloture, causeConnue });
+      const statut = M.deriverStatutEcart({ ecartInitial, ecartFinal, cloture, causeConnue });
       if (!statut) return;
-      lignes.push({
+      lignes.push(finaliserLigne({
         id: `fdj-${cash.id}`,
         sourceModule: 'fdj',
         sourceControlId: cash.id,
@@ -126,6 +164,7 @@
         quart: s.quart,
         employeeId: s.employee_id || null,
         employeeNom: s.employee_id ? (nomParEmploye[s.employee_id] || null) : null,
+        employeeRole: s.employee_id ? ((roleParEmploye || {})[s.employee_id] || null) : null,
         activite: 'fdj',
         ecartInitial, ecartFinal,
         causeCode,
@@ -133,9 +172,28 @@
         resolvedAt: cash.valide_le || null,
         resolvedBy: cash.valide_par || null,
         deepLink: `NEXUS-FDJ-Manager-v1.html?date=${s.date}&quart=${s.quart}`,
-      });
+      }));
     });
     return lignes;
+  }
+
+  // ------------------------------------------------------------
+  // QUALIFICATIONS — v2.269 (28/08/2026, §6 du retour de Frédéric).
+  // `nexus_ecarts_qualifications` : table générique, un seul type écrit
+  // aujourd'hui ('activite_inhabituelle'), pensée pour que d'autres
+  // contrôles de cohérence futurs (§12) puissent la réutiliser sans
+  // nouvelle migration. `enregistrerQualification` upsert sur la clé
+  // unique (source_module, source_control_id, activite, type) — qualifier
+  // à nouveau une même situation REMPLACE la qualification précédente,
+  // jamais un doublon.
+  // ------------------------------------------------------------
+  async function enregistrerQualificationActiviteInhabituelle(client, { site, sourceModule, sourceControlId, activite, motif, note, qualifiePar }) {
+    const { error } = await client.from('nexus_ecarts_qualifications').upsert({
+      site, source_module: sourceModule, source_control_id: sourceControlId, activite,
+      type_qualification: 'activite_inhabituelle',
+      motif, note: note || null, qualifie_par: qualifiePar || null, qualifie_le: new Date().toISOString(),
+    }, { onConflict: 'source_module,source_control_id,activite,type_qualification' });
+    if (error) throw error;
   }
 
   // ------------------------------------------------------------
@@ -165,6 +223,7 @@
   global.NexusEcartsDonnees = {
     chargerEcartsConsolides,
     appliquerFiltresEcarts,
+    enregistrerQualificationActiviteInhabituelle,
     // Exposées séparément pour les tests (fonctions pures, aucun accès
     // réseau) — évite d'avoir à mocker Supabase pour vérifier la
     // normalisation elle-même (Article 11 : une seule implémentation

@@ -25,6 +25,28 @@
 
 (function (global) {
   // ------------------------------------------------------------
+  // ARRONDI CENTIMES — v2.269 (28/08/2026, retour de Frédéric après test
+  // réel du P0 : "Volume d'écarts" affichait 271,96 € au lieu de 271,95 €
+  // pour +190,05 € et -81,90 €). Cause réelle : sommer des flottants JS
+  // (0.1 + 0.2 !== 0.3) puis arrondir UNE SEULE FOIS à la fin laisse
+  // s'accumuler la dérive binaire sur une liste de plusieurs lignes. Le
+  // correctif structurel n'est pas d'arrondir plus tard mais de ne JAMAIS
+  // sommer des flottants : chaque montant est converti en centimes entiers
+  // (`Math.round(v*100)`) AVANT toute addition, la somme reste un entier
+  // exact du début à la fin, et n'est reconvertie en euros qu'à la toute
+  // dernière étape (division par 100). `arrondiCentimes` applique la même
+  // règle à un montant isolé (ex. à la normalisation des lignes dans
+  // nexus-ecarts-donnees.js), pour qu'un `ecartFinal` de contrôle ne soit
+  // jamais un flottant du type 0.0000000001 qui échapperait à un test
+  // `=== 0` (autre bug réel constaté : un "+0,00 €" apparaissant à tort
+  // dans "À vérifier").
+  // ------------------------------------------------------------
+  function arrondiCentimes(v) {
+    if (v === null || v === undefined || Number.isNaN(v)) return v;
+    return Math.round(Number(v) * 100) / 100;
+  }
+
+  // ------------------------------------------------------------
   // SITUATION DE VÉRIFICATION — identique à la règle FDJ v2.267, désormais
   // canonique ici. Trois situations :
   //   - 'aucun_ecart' : rien à expliquer (écart final nul et pas d'écart
@@ -115,37 +137,80 @@
   }
 
   // ------------------------------------------------------------
+  // MONTANT RETENU — v2.269 (28/08/2026, retour de Frédéric, §7 : "règle
+  // métier fondamentale", séparation stricte entre l'ANALYSE opérationnelle
+  // (tous les écarts, positifs et négatifs, jamais compensés entre eux) et
+  // le TRAITEMENT retenu (ce que NEXUS retient réellement à l'issue de la
+  // vérification) :
+  //   - écart non encore résolu (statut 'à vérifier') : rien n'est encore
+  //     retenu — 0, en attente.
+  //   - excédent qui persiste (positif, régularisé ou non) : jamais
+  //     transformé automatiquement en crédit — retenu = 0. Trouver de
+  //     l'argent en trop n'est jamais "gagné" par NEXUS de son propre chef.
+  //   - manque qui persiste (négatif, expliqué ou non) : retenu = le
+  //     montant négatif lui-même — un manque reste un manque réel, que sa
+  //     cause soit connue ou non.
+  //   - écart corrigé à zéro (régularisé) : retenu = 0.
+  // Citation exacte du cadrage : "+35 € d'excédents, -13 € de manques non
+  // expliqués ne donnent JAMAIS +22 € retenus" — le solde opérationnel
+  // (+22 €) et le montant retenu (-13 €) sont deux nombres distincts,
+  // jamais compensés l'un dans l'autre.
+  // ------------------------------------------------------------
+  function calculerMontantRetenuLigne(ligne) {
+    if (!ligne || ligne.statut === STATUTS_ECART.A_VERIFIER || !ligne.statut) return 0;
+    const f = ligne.ecartFinal;
+    if (f === null || f === undefined || f >= 0) return 0;
+    return f;
+  }
+
+  // ------------------------------------------------------------
   // AGRÉGATS — §15 du cadrage. Toujours calculés sur ecartFinal (jamais
   // ecartInitial) pour la "situation retenue", mais le NOMBRE d'écarts
   // détectés (§16) reste disponible séparément côté appelant via
-  // ecartInitial ≠ 0 sur la liste brute — ce moteur ne recalcule que les 5
-  // cartes KPI de la vue d'ensemble (§5), pas les statistiques de
-  // détection.
+  // ecartInitial ≠ 0 sur la liste brute.
+  //
+  // v2.269 : accumulation en CENTIMES ENTIERS (voir arrondiCentimes
+  // ci-dessus) — plus aucune dérive flottante possible sur le volume ou le
+  // solde, quel que soit le nombre de lignes. Ajoute `soldeOperationnel`
+  // (même valeur que `soldeNet`, conservé pour rétrocompatibilité — nom
+  // clarifié à la demande de Frédéric, "Solde opérationnel" plutôt que
+  // "Solde retenu" qui prêtait à confusion avec le nouveau `montantRetenu`)
+  // et `montantRetenu` (voir calculerMontantRetenuLigne).
   // ------------------------------------------------------------
   function calculerKpisEcarts(liste) {
     const l = Array.isArray(liste) ? liste : [];
-    let totalPositif = 0, nbPositif = 0, totalNegatif = 0, nbNegatif = 0, aInvestiguer = 0, volume = 0;
+    let cPositifs = 0, nbPositif = 0, cNegatifs = 0, nbNegatif = 0, aInvestiguer = 0, cVolume = 0, cRetenu = 0;
     l.forEach(e => {
       const f = e && e.ecartFinal;
       if (f === null || f === undefined || f === 0) return;
-      volume += Math.abs(f);
-      if (f > 0) { totalPositif += f; nbPositif++; }
-      else { totalNegatif += f; nbNegatif++; }
+      const cf = Math.round(f * 100);
+      cVolume += Math.abs(cf);
+      if (cf > 0) { cPositifs += cf; nbPositif++; }
+      else { cNegatifs += cf; nbNegatif++; }
       if (e.statut === STATUTS_ECART.A_VERIFIER) aInvestiguer++;
+      cRetenu += Math.round(calculerMontantRetenuLigne(e) * 100);
     });
+    const soldeOperationnel = (cPositifs + cNegatifs) / 100;
     return {
-      soldeNet: Math.round((totalPositif + totalNegatif) * 100) / 100,
-      positifs: { total: Math.round(totalPositif * 100) / 100, nb: nbPositif },
-      negatifs: { total: Math.round(totalNegatif * 100) / 100, nb: nbNegatif },
+      soldeNet: soldeOperationnel, // conservé (rétrocompatibilité, ancien nom)
+      soldeOperationnel,
+      montantRetenu: cRetenu / 100,
+      positifs: { total: cPositifs / 100, nb: nbPositif },
+      negatifs: { total: cNegatifs / 100, nb: nbNegatif },
       aInvestiguer,
-      volume: Math.round(volume * 100) / 100,
+      volume: cVolume / 100,
     };
   }
 
-  // Vue par employé (§11) — distingue explicitement écarts INITIAUX
-  // détectés (ecartInitial ≠ 0) des écarts FINAUX réellement retenus
-  // (ecartFinal ≠ 0), pour ne jamais présenter "10 écarts initiaux dont 9
-  // régularisés" comme "10 erreurs de caisse" (citation exacte du cadrage).
+  // Vue par employé (§11, refonte §9) — distingue explicitement écarts
+  // INITIAUX détectés (ecartInitial ≠ 0) des écarts FINAUX réellement
+  // retenus (ecartFinal ≠ 0), pour ne jamais présenter "10 écarts initiaux
+  // dont 9 régularisés" comme "10 erreurs de caisse" (citation exacte du
+  // cadrage). v2.269 : sépare aussi explicitement excédents/manques
+  // CONSTATÉS (jamais compensés — §7) du montant RETENU (voir
+  // calculerMontantRetenuLigne), et transmet `employeeRole` (fourni par
+  // l'appelant, une seule ligne suffit puisqu'un employé garde le même
+  // rôle sur toute la période) pour la détection d'activité inhabituelle.
   function agregerEcartsParEmploye(liste) {
     const l = Array.isArray(liste) ? liste : [];
     const parEmploye = {};
@@ -153,22 +218,57 @@
       if (!e || !e.employeeId) return;
       if (!parEmploye[e.employeeId]) {
         parEmploye[e.employeeId] = {
-          employeeId: e.employeeId, employeeNom: e.employeeNom || null,
-          controles: 0, ecartsInitiaux: 0, regularises: 0, ecartsFinaux: 0, soldeFinal: 0,
+          employeeId: e.employeeId, employeeNom: e.employeeNom || null, employeeRole: e.employeeRole || null,
+          controles: 0, ecartsInitiaux: 0, regularises: 0, ecartsFinaux: 0,
+          cExcedents: 0, cManques: 0, cSoldeOperationnel: 0, cMontantRetenu: 0,
         };
       }
       const agg = parEmploye[e.employeeId];
       agg.controles++;
+      if (!agg.employeeRole && e.employeeRole) agg.employeeRole = e.employeeRole;
       if (e.ecartInitial) agg.ecartsInitiaux++;
       if (e.statut === STATUTS_ECART.REGULARISE) agg.regularises++;
-      if (e.ecartFinal) { agg.ecartsFinaux++; agg.soldeFinal += e.ecartFinal; }
+      if (e.ecartFinal) {
+        agg.ecartsFinaux++;
+        const cf = Math.round(e.ecartFinal * 100);
+        agg.cSoldeOperationnel += cf;
+        if (cf > 0) agg.cExcedents += cf; else agg.cManques += cf;
+      }
+      agg.cMontantRetenu += Math.round(calculerMontantRetenuLigne(e) * 100);
     });
-    return Object.values(parEmploye).map(a => ({ ...a, soldeFinal: Math.round(a.soldeFinal * 100) / 100 }));
+    return Object.values(parEmploye).map(a => ({
+      employeeId: a.employeeId, employeeNom: a.employeeNom, employeeRole: a.employeeRole,
+      controles: a.controles, ecartsInitiaux: a.ecartsInitiaux, regularises: a.regularises, ecartsFinaux: a.ecartsFinaux,
+      excedentsConstates: a.cExcedents / 100,
+      manquesConstates: a.cManques / 100,
+      soldeOperationnel: a.cSoldeOperationnel / 100,
+      soldeFinal: a.cSoldeOperationnel / 100, // conservé (rétrocompatibilité, ancien nom)
+      montantRetenu: a.cMontantRetenu / 100,
+    }));
+  }
+
+  // ------------------------------------------------------------
+  // ACTIVITÉ INHABITUELLE — v2.269 (28/08/2026, §5/§6 du retour de
+  // Frédéric). NEXUS n'exclut JAMAIS un manager des analyses ("rôle =
+  // Manager ne signifie pas aucune activité caisse autorisée" — un
+  // remplacement exceptionnel d'un absent est légitime), mais un manager
+  // ou gérant associé à une activité caisse réelle EST une situation
+  // suffisamment rare pour mériter un signalement — jamais une conclusion
+  // d'erreur automatique (aucune donnée de planning n'existe dans NEXUS
+  // aujourd'hui pour confirmer ou infirmer un remplacement légitime,
+  // Article 5 : ce signal reste un simple constat de rôle, à qualifier
+  // par le manager lui-même, jamais une accusation).
+  // ------------------------------------------------------------
+  const ROLES_CAISSE_INHABITUELLE = ['manager', 'gerant'];
+  function roleCaisseInhabituelle(role) {
+    return !!role && ROLES_CAISSE_INHABITUELLE.includes(role);
   }
 
   global.NexusEcartsMoteur = {
+    arrondiCentimes,
     situationVerificationEcart, motifEcartObligatoire, ajouterRemboursementSiManque, libelleEcartRestant,
     STATUTS_ECART, labelStatutEcart, deriverStatutEcart,
-    calculerKpisEcarts, agregerEcartsParEmploye,
+    calculerMontantRetenuLigne, calculerKpisEcarts, agregerEcartsParEmploye,
+    ROLES_CAISSE_INHABITUELLE, roleCaisseInhabituelle,
   };
 })(typeof window !== 'undefined' ? window : globalThis);
