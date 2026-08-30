@@ -8,6 +8,18 @@ const NEXUS_SUPABASE_ANON_KEY = "sb_publishable_7dV43gZxDYg6MOa6xzmdDQ_m8Mean5p"
 
 const nexusClient = supabase.createClient(NEXUS_SUPABASE_URL, NEXUS_SUPABASE_ANON_KEY);
 
+// Inventaire V2 — extension strictement locale à la page Inventaire.
+// Elle est chargée dynamiquement pour éviter de modifier le gros fichier HTML
+// monolithique uniquement pour le mode de test manager.
+(function chargerExtensionInventaireV2() {
+  const page = window.location.pathname.split('/').pop();
+  if (page !== 'NEXUS-Inventaire-v1.html') return;
+  const script = document.createElement('script');
+  script.src = 'nexus-inventaire-mode-test.js';
+  script.defer = true;
+  document.head.appendChild(script);
+})();
+
 async function nexusRequireAuth() {
   const { data: { session } } = await nexusClient.auth.getSession();
   if (!session) {
@@ -40,9 +52,9 @@ async function nexusRequireAuth() {
     }
   }
 
-  // Conserver le rôle réel avant toute simulation. Cette propriété est
-  // uniquement en mémoire navigateur et n'est jamais écrite dans employees,
-  // shifts ou inventaire_quart_employes.
+  // Conserver explicitement le rôle RH authentifié. Le mode test Inventaire
+  // ne remplace JAMAIS employee.role : ainsi shifts, pointage et
+  // inventaire_quart_employes continuent de voir le manager réel.
   employee.role_reel = employee.role;
 
   if (await nexusPriseDePosteManquante(employee)) {
@@ -58,13 +70,8 @@ async function nexusRequireAuth() {
   }
 
   // Inventaire V2 — mode test terrain manager (30/08/2026).
-  // Besoin pilote : le manager doit pouvoir éprouver les parcours Caissier,
-  // Pompiste et Renfort tant que l'équipe conserve la feuille papier.
-  // Le rôle simulé est accepté UNIQUEMENT sur la page Inventaire et
-  // UNIQUEMENT si le rôle réel authentifié est manager/gérant. Il ne modifie
-  // aucune donnée RH : on expose simplement un rôle opérationnel temporaire
-  // au code de la page. Le paramètre disparaît dès que l'on quitte la page.
-  // Exemple : NEXUS-Inventaire-v1.html?test_role=caissier
+  // Le rôle simulé est une information de session UI seulement. Il n'est
+  // jamais copié dans employee.role ni dans une table Supabase.
   const pageActuelleAuth = window.location.pathname.split('/').pop();
   if (pageActuelleAuth === 'NEXUS-Inventaire-v1.html' && (employee.role_reel === 'manager' || employee.role_reel === 'gerant')) {
     const roleTestDemande = new URLSearchParams(window.location.search).get('test_role');
@@ -73,14 +80,8 @@ async function nexusRequireAuth() {
       pompiste: 'pompiste', renfort: 'renfort'
     };
     const roleTest = roleTestDemande ? aliases[String(roleTestDemande).toLowerCase()] : null;
-    if (roleTest) {
-      employee.role_test_inventaire = roleTest;
-      employee.role = roleTest;
-      employee.mode_test_inventaire = true;
-    } else {
-      employee.role_test_inventaire = null;
-      employee.mode_test_inventaire = false;
-    }
+    employee.role_test_inventaire = roleTest || null;
+    employee.mode_test_inventaire = !!roleTest;
   }
 
   return employee;
