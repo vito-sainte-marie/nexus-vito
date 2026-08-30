@@ -71,6 +71,11 @@ const nexusClient = supabase.createClient(NEXUS_SUPABASE_URL, NEXUS_SUPABASE_ANO
     scriptManagerPremium.src = 'nexus-inventaire-manager-premium-v2.js';
     scriptManagerPremium.defer = true;
     document.head.appendChild(scriptManagerPremium);
+
+    const scriptManagerFullwidth = document.createElement('script');
+    scriptManagerFullwidth.src = 'nexus-inventaire-manager-fullwidth-v2.js';
+    scriptManagerFullwidth.defer = true;
+    document.head.appendChild(scriptManagerFullwidth);
   }
 })();
 
