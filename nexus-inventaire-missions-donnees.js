@@ -194,10 +194,108 @@
     });
   }
 
+  // ------------------------------------------------------------
+  // CONVERGENCE MANAGER V2 — vérité opérationnelle = missions applicables.
+  // ------------------------------------------------------------
+  // L'écran Manager historique construit sa synthèse à partir du catalogue
+  // actif complet. Il reçoit cependant le quart sélectionné dans
+  // construireSynthese(..., quart, ...). On prépare donc le périmètre V2
+  // au moment où ce quart est chargé, puis on filtre la synthèse de manière
+  // synchrone. Aucun HTML monolithique n'est réécrit ici.
+  const cachePerimetresManager = new Map();
+  const DATE_BASCULE_V2 = '2026-08-29';
+
+  function clePerimetreManager(site, dateISO, quart) {
+    return `${site}|${dateISO}|${quart}`;
+  }
+
+  function phaseDepuisQuart(quartRow) {
+    return (quartRow && (quartRow.statut === 'ouvert' || quartRow.statut === 'cloture')) ? 'fin' : 'debut';
+  }
+
+  function idsPourMoment(missions, moment) {
+    const ids = new Set();
+    (missions || [])
+      .filter(m => m.statut === 'affectee' && m.moment_code === moment)
+      .forEach(m => (m.produit_ids || []).forEach(id => ids.add(id)));
+    return ids;
+  }
+
+  async function preparerPerimetreManager(client, site, dateISO, quart) {
+    if (!site || !dateISO || !quart) return;
+    const cle = clePerimetreManager(site, dateISO, quart);
+    // Historique antérieur à la bascule : on ne réinterprète pas les vieux
+    // quarts avec des missions qui n'existaient pas encore.
+    if (dateISO < DATE_BASCULE_V2) {
+      cachePerimetresManager.set(cle, { historique: true, missions: [] });
+      return;
+    }
+    const missions = await chargerMissionsExistantes(client, site, dateISO, quart);
+    cachePerimetresManager.set(cle, {
+      historique: false,
+      missions,
+      debut: idsPourMoment(missions, 'debut'),
+      pendant: idsPourMoment(missions, 'pendant'),
+      fin: idsPourMoment(missions, 'fin'),
+    });
+  }
+
+  function installerConvergenceManager() {
+    if (!global.location || !/NEXUS-Inventaire-Manager-v1\.html$/i.test(global.location.pathname)) return;
+    const MD = global.NexusInventaireManagerDonnees;
+    if (!MD || typeof MD.chargerQuart !== 'function') return;
+
+    // Précharge les missions AVANT que chargerEtAfficherTout ne construise
+    // la synthèse. Le wrapper local chargerQuart(...) de la page continue à
+    // fonctionner sans modification : il appelle cette propriété à chaque
+    // rafraîchissement date/quart.
+    const chargerQuartOriginal = MD.chargerQuart;
+    MD.chargerQuart = async function (client, site, dateISO, quart) {
+      const ligne = await chargerQuartOriginal(client, site, dateISO, quart);
+      try { await preparerPerimetreManager(client, site, dateISO, quart); }
+      catch (e) { console.error('Préparation périmètre Missions V2 manager:', e); }
+      return ligne;
+    };
+
+    const syntheseOriginale = global.construireSynthese;
+    if (typeof syntheseOriginale !== 'function') return;
+
+    global.construireSynthese = function (produitsActifs, comptages, jaugeageActif, quartRow, alertesOuvertes) {
+      // Sans quart, l'écran historique conserve son comportement neutre.
+      if (!quartRow || !quartRow.site || !quartRow.date || !quartRow.quart) {
+        return syntheseOriginale(produitsActifs, comptages, jaugeageActif, quartRow, alertesOuvertes);
+      }
+      const cle = clePerimetreManager(quartRow.site, quartRow.date, quartRow.quart);
+      const perimetre = cachePerimetresManager.get(cle);
+      if (!perimetre || perimetre.historique) {
+        return syntheseOriginale(produitsActifs, comptages, jaugeageActif, quartRow, alertesOuvertes);
+      }
+
+      const moment = phaseDepuisQuart(quartRow);
+      const ids = perimetre[moment] || new Set();
+      // Doctrine V2 : zéro mission applicable ne signifie JAMAIS « tout le
+      // catalogue est obligatoire ». On passe une liste vide, ce qui donne
+      // une synthèse neutre 0/0 et clotureImpossible=false, au lieu de 0/112.
+      const filtres = (produitsActifs || []).filter(p => ids.has(p.id));
+      const resultat = syntheseOriginale(filtres, comptages, false, quartRow, alertesOuvertes);
+      resultat.sourcePerimetre = 'missions_v2';
+      resultat.momentMission = moment;
+      resultat.missionsApplicables = (perimetre.missions || []).filter(m => m.statut === 'affectee' && m.moment_code === moment).length;
+      resultat.missionsPendant = (perimetre.missions || []).filter(m => m.statut === 'affectee' && m.moment_code === 'pendant').length;
+      return resultat;
+    };
+  }
+
   global.NexusInventaireMissionsDonnees = {
     chargerMissionsExistantes, reevaluerMissionsNonAffectees,
     genererOuChargerMissions, chargerMissionsPourRole,
     chargerRapprochementsPourMissions,
     roleTestManagerDepuisURL, genererProjectionTestManager,
+    preparerPerimetreManager,
   };
+
+  // Les fonctions globales de la page Manager sont déclarées plus tard dans
+  // son script inline ; l'installation doit donc attendre le chargement
+  // complet du document. Sur les autres pages, cette garde ne fait rien.
+  if (global.addEventListener) global.addEventListener('load', installerConvergenceManager, { once: true });
 })(typeof window !== 'undefined' ? window : globalThis);
