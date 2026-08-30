@@ -1,172 +1,271 @@
-// NEXUS Inventaire V2 — Stock par emplacement dans Paramètres > Règles
-// Le manager configure simplement les lieux physiques d'une catégorie.
-// Les quantités réelles restent issues des comptages et des transferts internes.
+// NEXUS Inventaire V2 — Emplacements intégrés à la page Paramètres > Règles
+// UX premium : les lieux sont présentés au niveau de la catégorie, les listes
+// de produits deviennent repliables et les mentions répétitives sont supprimées.
 (function () {
   'use strict';
   if (!/NEXUS-Parametres-Inventaire-v1\.html$/i.test(location.pathname)) return;
 
   const css = document.createElement('style');
   css.textContent = `
-    #nexusStockLocalise{margin:14px 0 18px;padding:15px 16px;border:1px solid rgba(79,195,217,.24);border-radius:14px;background:rgba(15,23,42,.50)}
-    #nexusStockLocalise .nsl-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
-    #nexusStockLocalise h3{margin:0 0 4px;font-size:14px;color:#edf1f5}
-    #nexusStockLocalise p{margin:0;color:#8290a3;font-size:11.5px;line-height:1.45}
-    .nsl-grid{display:grid;grid-template-columns:minmax(180px,1fr) minmax(260px,2fr);gap:12px;margin-top:13px;align-items:start}
-    .nsl-select{width:100%;padding:10px 11px;border-radius:9px;border:1px solid rgba(148,163,184,.24);background:#111923;color:#e2e8f0;font:inherit;font-size:12px}
-    .nsl-switch{display:flex;align-items:center;gap:8px;margin:2px 0 10px;font-size:12px;color:#dbe5ef;cursor:pointer}
-    .nsl-lieux{display:flex;flex-wrap:wrap;gap:7px}.nsl-lieu{display:flex;align-items:center;gap:6px;padding:7px 9px;border:1px solid rgba(148,163,184,.18);border-radius:9px;background:rgba(148,163,184,.05);font-size:11.5px;color:#cbd5e1;cursor:pointer}
-    .nsl-lieu.on{border-color:rgba(79,195,217,.48);background:rgba(79,195,217,.10);color:#d8fbff}
-    .nsl-resume{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:10px;min-height:24px}.nsl-chip{padding:4px 8px;border-radius:999px;background:rgba(79,195,217,.10);border:1px solid rgba(79,195,217,.24);font-size:10.5px;color:#cffafe}
-    .nsl-status{margin-left:auto;font-size:10.5px;color:#7f8da3}.nsl-status.ok{color:#34d399}.nsl-status.err{color:#f5a623}
-    .nsl-hidden{display:none!important}.nsl-help{margin-top:9px!important;color:#9eacbd!important}
-    @media(max-width:760px){.nsl-grid{grid-template-columns:1fr}.nsl-head{flex-direction:column}}
+    /* La page Règles doit rester lisible : une catégorie = une unité visuelle. */
+    #nexusStockLocalise{display:none!important}
+
+    .nexus-cat-location-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px;padding-top:8px;border-top:1px solid rgba(148,163,184,.12)}
+    .nexus-cat-location-label{font-size:10.5px;color:#718096;min-width:72px}
+    .nexus-location-pills{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+    .nexus-location-pill{display:inline-flex;align-items:center;gap:5px;min-height:24px;padding:4px 8px;border-radius:999px;border:1px solid rgba(79,195,217,.22);background:rgba(79,195,217,.08);font-size:10.5px;color:#c9f7ff;white-space:nowrap}
+    .nexus-location-sep{font-size:10px;color:#52606f}
+    .nexus-location-empty{font-size:10.5px;color:#64748b}
+    .nexus-location-config{margin-left:auto;border:0;background:transparent;color:#4fc3d9;font:600 10.5px 'IBM Plex Mono',monospace;cursor:pointer;padding:4px 0}
+
+    .nexus-location-editor{display:none;margin-top:10px;padding:11px 12px;border:1px solid rgba(79,195,217,.18);border-radius:10px;background:rgba(79,195,217,.045)}
+    .nexus-location-editor.open{display:block}
+    .nexus-location-editor-title{font-size:11px;font-weight:600;color:#dfe8f1;margin-bottom:7px}
+    .nexus-location-options{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+    .nexus-location-option{display:flex;align-items:center;gap:6px;padding:6px 9px;border:1px solid rgba(148,163,184,.18);border-radius:8px;background:rgba(148,163,184,.04);font-size:11px;color:#aeb9c7;cursor:pointer}
+    .nexus-location-option.on{border-color:rgba(79,195,217,.46);background:rgba(79,195,217,.10);color:#ddfbff}
+    .nexus-location-option input{accent-color:#4fc3d9}
+    .nexus-location-note{margin-top:7px;font-size:10.5px;line-height:1.4;color:#718096}
+    .nexus-location-status{margin-left:auto;font-size:10px;color:#718096}
+    .nexus-location-status.ok{color:#34d399}.nexus-location-status.err{color:#f5a623}
+
+    /* Produits : transformer chaque groupe de catégorie en accordéon compact. */
+    .cat-block.nexus-product-accordion{margin-bottom:10px!important;border:1px solid rgba(148,163,184,.16);border-radius:12px;overflow:hidden;background:rgba(20,27,34,.72)}
+    .cat-block.nexus-product-accordion>.cat-head{padding:11px 12px!important;margin:0!important;cursor:pointer;background:rgba(255,255,255,.012)}
+    .cat-block.nexus-product-accordion>.cat-head:hover{background:rgba(79,195,217,.035)}
+    .nexus-cat-head-main{display:flex;align-items:center;gap:8px;min-width:0;flex:1}
+    .nexus-cat-head-meta{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-left:auto}
+    .nexus-cat-head-locations{display:flex;align-items:center;gap:5px;white-space:nowrap}
+    .nexus-cat-head-chevron{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:999px;background:rgba(148,163,184,.07);color:#7b8796;font-size:11px;transition:transform .18s ease}
+    .cat-block.nexus-product-accordion.nexus-open>.cat-head .nexus-cat-head-chevron{transform:rotate(90deg);color:#4fc3d9;background:rgba(79,195,217,.10)}
+    .cat-block.nexus-product-accordion:not(.nexus-open)>.card,
+    .cat-block.nexus-product-accordion:not(.nexus-open)>:not(.cat-head){display:none!important}
+    .cat-block.nexus-product-accordion.nexus-open>.card{display:block}
+
+    /* Les lieux ne doivent pas être répétés sur chacune des références. */
+    .categorie-count.nexus-duplicate-location{display:none!important}
+
+    @media(min-width:980px){
+      .nexus-cat-location-row{flex-wrap:nowrap}
+      .nexus-location-pills{min-width:220px}
+    }
+    @media(max-width:760px){
+      .nexus-location-config{margin-left:0}
+      .nexus-cat-head-meta{width:100%;margin-left:0}
+    }
   `;
   document.head.appendChild(css);
 
   let site = null;
   let categories = [];
   let zones = [];
-  let categorieId = null;
   let mappings = [];
   let enSauvegarde = false;
+  const accordionsOuverts = new Set();
 
-  async function chargerContexte(){
+  const normaliser = (s) => (s || '').trim().toLocaleLowerCase('fr-FR');
+
+  async function chargerContexte() {
     const employee = await nexusRequireAuth();
     if (!employee) return false;
     site = employee.site_id;
-    const [catsRes,zonesRes,mapRes] = await Promise.all([
-      nexusClient.from('inventaire_categories').select('id,nom,actif').eq('site',site).eq('actif',true).order('nom'),
-      nexusClient.from('inventaire_zones').select('id,code,nom,ordre_affichage').eq('site',site).order('ordre_affichage'),
-      nexusClient.from('inventaire_categories_zones_stock').select('id,categorie_id,zone_id,ordre,actif').eq('site',site).eq('actif',true).order('ordre')
+    const [catsRes, zonesRes, mapRes] = await Promise.all([
+      nexusClient.from('inventaire_categories').select('id,nom,actif').eq('site', site).eq('actif', true).order('nom'),
+      nexusClient.from('inventaire_zones').select('id,code,nom,ordre_affichage').eq('site', site).order('ordre_affichage'),
+      nexusClient.from('inventaire_categories_zones_stock').select('id,categorie_id,zone_id,ordre,actif').eq('site', site).eq('actif', true).order('ordre')
     ]);
     if (catsRes.error || zonesRes.error || mapRes.error) {
-      console.error('Stock par emplacement : chargement impossible', catsRes.error || zonesRes.error || mapRes.error);
+      console.error('Emplacements inventaire : chargement impossible', catsRes.error || zonesRes.error || mapRes.error);
       return false;
     }
     categories = catsRes.data || [];
     zones = zonesRes.data || [];
     mappings = mapRes.data || [];
-    const configuree = categories.find(c => mappings.filter(m=>m.categorie_id===c.id).length >= 2);
-    const cigarettes = categories.find(c => c.nom.toLowerCase()==='cigarettes');
-    categorieId = (configuree || cigarettes || categories[0] || {}).id || null;
-    return !!categorieId;
-  }
-
-  function trouverAncrage(){
-    const titres=[...document.querySelectorAll('h1,h2,h3,h4')];
-    return titres.find(el => /Règles par catégorie/i.test((el.textContent||'').trim())) ||
-           titres.find(el => /Comment souhaitez-vous les compter/i.test((el.textContent||'').trim()));
-  }
-
-  function mappingActif(catId){ return mappings.filter(m=>m.categorie_id===catId && m.actif); }
-
-  function construire(){
-    if (document.getElementById('nexusStockLocalise')) return true;
-    const ancre = trouverAncrage();
-    if (!ancre || !categories.length || !zones.length) return false;
-    const bloc=document.createElement('section'); bloc.id='nexusStockLocalise';
-    bloc.innerHTML=`
-      <div class="nsl-head">
-        <div><h3>📍 Stock par emplacement</h3><p>Indiquez simplement où le stock d'une catégorie peut se trouver. NEXUS additionne automatiquement les lieux.</p></div>
-        <span id="nslStatus" class="nsl-status"></span>
-      </div>
-      <div class="nsl-grid">
-        <div>
-          <select id="nslCategorie" class="nsl-select" aria-label="Catégorie"></select>
-        </div>
-        <div>
-          <label class="nsl-switch"><input id="nslActif" type="checkbox"> Stock présent à plusieurs endroits</label>
-          <div id="nslLieux" class="nsl-lieux"></div>
-          <div id="nslResume" class="nsl-resume"></div>
-          <p class="nsl-help">Exemple : <strong>Cigarettes · Bureau + Boutique</strong>. Aucun stock n'est à saisir ici : les quantités viennent des comptages physiques.</p>
-        </div>
-      </div>`;
-    ancre.insertAdjacentElement('afterend',bloc);
-
-    const select=bloc.querySelector('#nslCategorie');
-    select.innerHTML=categories.map(c=>`<option value="${c.id}">${c.nom}</option>`).join('');
-    select.value=categorieId;
-    select.addEventListener('change',()=>{ categorieId=select.value; rendreEtat(); });
-    bloc.querySelector('#nslActif').addEventListener('change',async e=>{
-      if(e.target.checked && mappingActif(categorieId).length<2){
-        const bureau=zones.find(z=>z.code==='bureau'), boutique=zones.find(z=>z.code==='boutique');
-        const defaults=[bureau,boutique].filter(Boolean).slice(0,2);
-        if(defaults.length<2) defaults.splice(0,defaults.length,...zones.slice(0,2));
-        await sauvegarderZones(defaults.map(z=>z.id));
-      } else if(!e.target.checked){
-        await sauvegarderZones([]);
-      }
-    });
-    rendreEtat();
     return true;
   }
 
-  function rendreEtat(){
-    const bloc=document.getElementById('nexusStockLocalise'); if(!bloc) return;
-    const actifs=mappingActif(categorieId);
-    const ids=new Set(actifs.map(m=>m.zone_id));
-    const on=actifs.length>=2;
-    bloc.querySelector('#nslActif').checked=on;
-    const lieux=bloc.querySelector('#nslLieux');
-    lieux.classList.toggle('nsl-hidden',!on);
-    lieux.innerHTML=zones.map(z=>`<label class="nsl-lieu ${ids.has(z.id)?'on':''}"><input type="checkbox" data-nsl-zone="${z.id}" ${ids.has(z.id)?'checked':''}> ${z.nom}</label>`).join('');
-    lieux.querySelectorAll('[data-nsl-zone]').forEach(input=>input.addEventListener('change',async()=>{
-      const choisis=[...lieux.querySelectorAll('[data-nsl-zone]:checked')].map(x=>x.dataset.nslZone);
-      if(choisis.length<2){
-        input.checked=true;
-        statut('Choisissez au moins 2 lieux.', 'err');
-        return;
-      }
-      await sauvegarderZones(choisis);
-    }));
-    const selection=zones.filter(z=>ids.has(z.id));
-    bloc.querySelector('#nslResume').innerHTML=on
-      ? `<span class="nsl-chip">${categories.find(c=>c.id===categorieId)?.nom||''}</span><span style="color:#64748b">→</span>${selection.map(z=>`<span class="nsl-chip">${z.nom}</span>`).join('<span style="color:#64748b">+</span>')}`
-      : '<span style="font-size:10.5px;color:#64748b">Stock suivi dans un seul emplacement</span>';
+  function categorieParNom(nom) {
+    const n = normaliser(nom).replace(/\s*\([^)]*\)\s*$/, '');
+    return categories.find(c => normaliser(c.nom) === n) || null;
   }
 
-  function statut(message,type=''){
-    const el=document.getElementById('nslStatus'); if(!el) return;
-    el.textContent=message; el.className='nsl-status '+type;
-    if(message) setTimeout(()=>{ if(el.textContent===message) el.textContent=''; },2200);
+  function zonesCategorie(catId) {
+    const ids = mappings.filter(m => m.categorie_id === catId && m.actif).map(m => m.zone_id);
+    return zones.filter(z => ids.includes(z.id));
   }
 
-  async function sauvegarderZones(zoneIds){
-    if(enSauvegarde || !categorieId) return;
-    enSauvegarde=true; statut('Enregistrement…');
-    try{
-      const existants=mappings.filter(m=>m.categorie_id===categorieId);
-      if(existants.length){
-        const {error}=await nexusClient.from('inventaire_categories_zones_stock').delete().eq('site',site).eq('categorie_id',categorieId);
-        if(error) throw error;
-      }
-      if(zoneIds.length>=2){
-        const lignes=zoneIds.map((zone_id,i)=>({site,categorie_id:categorieId,zone_id,ordre:(i+1)*10,actif:true}));
-        const {error}=await nexusClient.from('inventaire_categories_zones_stock').insert(lignes);
-        if(error) throw error;
-      }
-      const multi=zoneIds.length>=2;
-      const {error:updateError}=await nexusClient.from('inventaire_zone_produit').update({comptage_deux_lieux:multi}).eq('site',site).eq('categorie_id',categorieId).eq('actif',true);
-      if(updateError) throw updateError;
-      const {data,error:reloadError}=await nexusClient.from('inventaire_categories_zones_stock').select('id,categorie_id,zone_id,ordre,actif').eq('site',site).eq('actif',true).order('ordre');
-      if(reloadError) throw reloadError;
-      mappings=data||[];
-      rendreEtat(); statut('Enregistré', 'ok');
-    } catch(err){
-      console.error('Stock par emplacement : enregistrement impossible',err);
-      statut('Enregistrement impossible', 'err');
-    } finally { enSauvegarde=false; }
+  function htmlPills(lieux) {
+    if (!lieux.length) return '<span class="nexus-location-empty">Emplacement standard</span>';
+    return lieux.map((z, i) => `${i ? '<span class="nexus-location-sep">+</span>' : ''}<span class="nexus-location-pill">📍 ${z.nom}</span>`).join('');
   }
 
-  async function init(){
-    try{
-      if(!await chargerContexte()) return;
-      let essais=0;
-      const timer=setInterval(()=>{
-        essais++;
-        if(construire() || essais>80) clearInterval(timer);
-      },150);
-    } catch(err){ console.error('Stock par emplacement : initialisation',err); }
+  function statut(editor, message, type = '') {
+    const el = editor && editor.querySelector('.nexus-location-status');
+    if (!el) return;
+    el.textContent = message;
+    el.className = `nexus-location-status ${type}`;
+    if (message) setTimeout(() => { if (el.textContent === message) el.textContent = ''; }, 2200);
   }
-  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',init,{once:true}); else init();
+
+  async function sauvegarderZones(categorieId, zoneIds, editor) {
+    if (enSauvegarde || !categorieId) return;
+    if (zoneIds.length === 1) {
+      statut(editor, 'Choisissez 0 ou au moins 2 lieux.', 'err');
+      return;
+    }
+    enSauvegarde = true;
+    statut(editor, 'Enregistrement…');
+    try {
+      const { error: delError } = await nexusClient.from('inventaire_categories_zones_stock')
+        .delete().eq('site', site).eq('categorie_id', categorieId);
+      if (delError) throw delError;
+
+      if (zoneIds.length >= 2) {
+        const lignes = zoneIds.map((zone_id, i) => ({ site, categorie_id: categorieId, zone_id, ordre: (i + 1) * 10, actif: true }));
+        const { error: insError } = await nexusClient.from('inventaire_categories_zones_stock').insert(lignes);
+        if (insError) throw insError;
+      }
+
+      const { error: updateError } = await nexusClient.from('inventaire_zone_produit')
+        .update({ comptage_deux_lieux: zoneIds.length >= 2 })
+        .eq('site', site).eq('categorie_id', categorieId).eq('actif', true);
+      if (updateError) throw updateError;
+
+      const { data, error: reloadError } = await nexusClient.from('inventaire_categories_zones_stock')
+        .select('id,categorie_id,zone_id,ordre,actif').eq('site', site).eq('actif', true).order('ordre');
+      if (reloadError) throw reloadError;
+      mappings = data || [];
+      statut(editor, 'Enregistré', 'ok');
+      appliquerUX();
+    } catch (err) {
+      console.error('Emplacements inventaire : enregistrement impossible', err);
+      statut(editor, 'Enregistrement impossible', 'err');
+    } finally {
+      enSauvegarde = false;
+    }
+  }
+
+  function injecterEmplacementsDansCartesCategories() {
+    document.querySelectorAll('[data-categorie-regle]').forEach(row => {
+      const catId = row.dataset.categorieRegle;
+      const cat = categories.find(c => c.id === catId);
+      if (!cat) return;
+      const card = row.closest('.card');
+      if (!card) return;
+
+      const ancien = card.querySelector(`.nexus-cat-location-row[data-cat-id="${catId}"]`);
+      if (ancien) ancien.remove();
+      const ancienEditor = card.querySelector(`.nexus-location-editor[data-cat-id="${catId}"]`);
+      if (ancienEditor) ancienEditor.remove();
+
+      const lieux = zonesCategorie(catId);
+      const line = document.createElement('div');
+      line.className = 'nexus-cat-location-row';
+      line.dataset.catId = catId;
+      line.innerHTML = `
+        <span class="nexus-cat-location-label">Stock</span>
+        <span class="nexus-location-pills">${htmlPills(lieux)}</span>
+        <button type="button" class="nexus-location-config" data-edit-locations="${catId}">${lieux.length >= 2 ? 'Modifier les lieux' : 'Configurer les lieux'}</button>`;
+      card.appendChild(line);
+
+      const editor = document.createElement('div');
+      editor.className = 'nexus-location-editor';
+      editor.dataset.catId = catId;
+      const ids = new Set(lieux.map(z => z.id));
+      editor.innerHTML = `
+        <div style="display:flex;align-items:center;gap:8px">
+          <div class="nexus-location-editor-title">Où peut se trouver le stock de « ${cat.nom} » ?</div>
+          <span class="nexus-location-status"></span>
+        </div>
+        <div class="nexus-location-options">
+          ${zones.map(z => `<label class="nexus-location-option ${ids.has(z.id) ? 'on' : ''}"><input type="checkbox" data-zone-id="${z.id}" ${ids.has(z.id) ? 'checked' : ''}> ${z.nom}</label>`).join('')}
+        </div>
+        <div class="nexus-location-note">Choisissez plusieurs lieux uniquement si la catégorie est réellement répartie physiquement. NEXUS additionnera les comptages ; un transfert interne ne modifiera pas le stock global.</div>`;
+      card.appendChild(editor);
+
+      line.querySelector('[data-edit-locations]').addEventListener('click', ev => {
+        ev.preventDefault(); ev.stopPropagation();
+        editor.classList.toggle('open');
+      });
+      editor.querySelectorAll('[data-zone-id]').forEach(input => input.addEventListener('change', async ev => {
+        ev.stopPropagation();
+        const choisis = [...editor.querySelectorAll('[data-zone-id]:checked')].map(x => x.dataset.zoneId);
+        if (choisis.length === 1) {
+          input.checked = !input.checked;
+          statut(editor, 'Choisissez 0 ou au moins 2 lieux.', 'err');
+          return;
+        }
+        editor.querySelectorAll('.nexus-location-option').forEach(label => {
+          label.classList.toggle('on', !!label.querySelector('input')?.checked);
+        });
+        await sauvegarderZones(catId, choisis, editor);
+      }));
+    });
+  }
+
+  function masquerMentionsLieuxRepetees() {
+    document.querySelectorAll('.categorie-count').forEach(el => {
+      if (/📍\s*(Dépôt|Depot|Bureau|Boutique)/i.test(el.textContent || '')) el.classList.add('nexus-duplicate-location');
+    });
+  }
+
+  function transformerGroupesProduitsEnAccordeons() {
+    document.querySelectorAll('.cat-block').forEach((bloc, index) => {
+      const head = bloc.querySelector(':scope > .cat-head');
+      if (!head) return;
+      bloc.classList.add('nexus-product-accordion');
+      const nomEl = head.querySelector('.cat-nom') || head.firstElementChild;
+      const nom = (nomEl && nomEl.textContent || '').trim();
+      const cat = categorieParNom(nom);
+      const key = cat ? cat.id : `index-${index}`;
+      bloc.dataset.nexusAccordionKey = key;
+
+      if (!head.querySelector('.nexus-cat-head-chevron')) {
+        const meta = document.createElement('div');
+        meta.className = 'nexus-cat-head-meta';
+        const lieux = cat ? zonesCategorie(cat.id) : [];
+        meta.innerHTML = `
+          ${lieux.length >= 2 ? `<span class="nexus-cat-head-locations">${htmlPills(lieux)}</span>` : ''}
+          <span class="nexus-cat-head-chevron">›</span>`;
+        head.appendChild(meta);
+      }
+
+      if (accordionsOuverts.has(key)) bloc.classList.add('nexus-open');
+      head.onclick = (ev) => {
+        if (ev.target.closest('button,input,a,select')) return;
+        ev.preventDefault();
+        const ouvrir = !bloc.classList.contains('nexus-open');
+        bloc.classList.toggle('nexus-open', ouvrir);
+        if (ouvrir) accordionsOuverts.add(key); else accordionsOuverts.delete(key);
+      };
+    });
+  }
+
+  function appliquerUX() {
+    // Le module historique autonome ne doit plus apparaître : l'information
+    // est maintenant placée exactement là où le manager règle la catégorie.
+    const standalone = document.getElementById('nexusStockLocalise');
+    if (standalone) standalone.remove();
+    injecterEmplacementsDansCartesCategories();
+    transformerGroupesProduitsEnAccordeons();
+    masquerMentionsLieuxRepetees();
+  }
+
+  async function init() {
+    try {
+      if (!await chargerContexte()) return;
+      let raf = null;
+      const observer = new MutationObserver(() => {
+        if (raf) cancelAnimationFrame(raf);
+        raf = requestAnimationFrame(appliquerUX);
+      });
+      observer.observe(document.body, { childList: true, subtree: true });
+      appliquerUX();
+    } catch (err) {
+      console.error('Emplacements inventaire : initialisation', err);
+    }
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true });
+  else init();
 })();
