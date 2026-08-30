@@ -133,6 +133,30 @@
   .ventes-resume b{color:var(--text);}
   .ventes-resume .amber{color:var(--amber); font-weight:700;}
 
+  /* Photo Decenium — Snapshot Étape 2 (30/08/2026) : le fichier Stock actuel
+     est un second import FACULTATIF au-dessus du fichier Ventes déjà en
+     place — comportement historique intégralement préservé si le manager
+     ne fournit que les Ventes (aucun Snapshot créé, snapshot_id reste null
+     comme depuis l'Étape 1). Réutilise exactement les classes .ventes-*
+     ci-dessus pour rester visuellement cohérent (Article 11 — même carte,
+     pas un second composant). */
+  .snapshot-stock-row{margin-top:10px; padding-top:10px; border-top:1px dashed var(--hairline);}
+  .snapshot-heure-row{display:flex; gap:10px; margin-top:8px;}
+  .snapshot-heure-champ{flex:1;}
+  .snapshot-heure-champ label{display:block; font-size:10.5px; color:var(--text-dim); margin-bottom:4px;}
+  .snapshot-heure-champ input[type="datetime-local"]{
+    width:100%; font-family:var(--sans); font-size:12px; color:var(--text); background:var(--panel-raised);
+    border:1px solid var(--hairline); border-radius:8px; padding:7px 9px; box-sizing:border-box;
+  }
+  .snapshot-badge{margin-top:12px; padding:10px 12px; border-radius:8px; font-size:11.5px; line-height:1.6; background:var(--panel-raised); color:var(--text-mid);}
+  .snapshot-badge b{color:var(--text);}
+  .snapshot-badge.haute{border:1px solid rgba(84,196,120,0.35);}
+  .snapshot-badge.moyenne{border:1px solid rgba(245,166,35,0.35);}
+  .snapshot-badge.faible, .snapshot-badge.insuffisante{border:1px solid rgba(240,87,90,0.4);}
+  .snapshot-avertissement{margin-top:10px; padding:12px; border-radius:8px; background:var(--amber-dim); color:var(--amber); font-size:12px; line-height:1.6;}
+  .snapshot-avertissement b{color:var(--amber);}
+  .btn-snapshot-poursuivre{margin-top:8px; font-family:var(--sans); font-size:11.5px; font-weight:700; padding:8px 12px; border-radius:8px; border:1px solid rgba(245,166,35,0.5); background:transparent; color:var(--amber); cursor:pointer;}
+
   /* Statistiques mini */
   /* Section repliable (02/08/2026, demande de Frédéric — replier le mode
      aveugle par défaut, pour ne pas surcharger l'écran d'une longue liste
@@ -428,6 +452,14 @@
   let categoriesOuvertes = new Set(); // "À terminer" — catégories dépliées (02/08/2026)
   let rouvertureFormOuvert = false; // "Rouvrir la clôture" — formulaire de motif déplié (02/08/2026)
   let dernierCtx = null;
+
+  // Photo Decenium — Snapshot Étape 2 (30/08/2026) : état de la
+  // confirmation "Poursuivre quand même" quand le délai entre les deux
+  // exports dépasse le seuil configuré — jamais posé automatiquement
+  // (doctrine §7 de Frédéric), réinitialisé à chaque nouveau choix de
+  // fichier pour ne jamais réutiliser une confirmation obsolète.
+  let snapshotConfirmerMalgreDelai = false;
+  let snapshotAvertissementEnCours = null;
 
   // Correction rétroactive (04/08/2026, audit fonctionnel §25-28) : le
   // manager choisit un produit/date/quart, voit la valeur initiale (jamais
@@ -1264,6 +1296,115 @@
         designation_matchee: produit ? produit.designation : null,
       };
     });
+  }
+
+  // ------------------------------------------------------------
+  // Photo Decenium — Snapshot Étape 2 "UX" (30/08/2026). Rapproche les
+  // lignes de l'export STOCK ACTUEL avec le même catalogue et la même
+  // logique de rapprochement que rapprocherLignesVentes ci-dessus (Article
+  // 11 — même produits, même besoin de code-barres/alias, donc même
+  // stratégie de correspondance ; seule la colonne quantité change de
+  // sens : une quantité EN STOCK, jamais une quantité vendue).
+  //
+  // Prudence assumée (Article 5) : l'en-tête exact de la colonne quantité
+  // dans un export Decenium "Stock actuel" n'a pas encore été vérifié sur
+  // un vrai fichier (contrairement à QTE/PA HT/PV HT pour les Ventes,
+  // validés le 02/08/2026 sur 0208quart1.xlsx) — plusieurs variantes
+  // plausibles sont acceptées ci-dessous ; à corriger dès le premier
+  // export réel si l'en-tête diffère.
+  function rapprocherLignesStock(lignesFichier, produits) {
+    const parCodeBarres = new Map();
+    const parDesignationExacte = new Map();
+    produits.forEach(p => {
+      const cb = normaliserCodeBarresVentes(p.code_barres);
+      if (cb) parCodeBarres.set(cb, p);
+      parDesignationExacte.set(p.designation.trim().toLowerCase(), p);
+    });
+
+    return lignesFichier.map(ligne => {
+      const designationBrute = ligne['lib article'] || ligne['Lib Article'] || ligne['LIB ARTICLE'] || '';
+      const codeBarresBrut = ligne['Code Barres'] || ligne['code barres'] || ligne['CODE BARRES'] || null;
+      const quantite = Number(
+        ligne['Stock'] ?? ligne['STOCK'] ?? ligne['stock'] ??
+        ligne['Qte Stock'] ?? ligne['QTE STOCK'] ?? ligne['Qté Stock'] ??
+        ligne['Stock Actuel'] ?? ligne['STOCK ACTUEL'] ?? 0
+      );
+
+      let produit = null;
+      const cb = normaliserCodeBarresVentes(codeBarresBrut);
+      if (cb && parCodeBarres.has(cb)) {
+        produit = parCodeBarres.get(cb);
+      } else {
+        const cle = normaliserTexteVentes(designationBrute);
+        const nomCible = ALIAS_VENTES_SANS_CODE_BARRES[cle];
+        if (nomCible) produit = parDesignationExacte.get(nomCible.trim().toLowerCase()) || null;
+      }
+
+      return {
+        designation_brute: String(designationBrute || '').trim(),
+        code_barres_brut: codeBarresBrut ? String(codeBarresBrut).replace(/[\s ]/g, '') : null,
+        quantite_stock: isNaN(quantite) ? 0 : quantite,
+        prix_achat_ht: Number(ligne['PA HT']) || null,
+        produit_id: produit ? produit.id : null,
+        designation_matchee: produit ? produit.designation : null,
+      };
+    });
+  }
+
+  // Détermine l'horodatage effectif d'un export : la valeur déclarée par le
+  // manager si elle est renseignée (source la plus fiable dont NEXUS
+  // dispose réellement — aucune métadonnée de fichier Excel n'est encore
+  // exploitée, Article 5, voir commentaire ci-dessus), sinon l'instant de
+  // l'import lui-même — jamais une heure devinée à partir du fichier.
+  function resoudreHorodatageExport(valeurDeclaree, instantImport) {
+    if (valeurDeclaree) return { at: new Date(valeurDeclaree).toISOString(), source: 'manager_declared' };
+    return { at: instantImport, source: 'import_time_estimated' };
+  }
+
+  // Orchestration Photo Decenium (Snapshot Étape 2) : qualifie et — sauf
+  // délai dépassé non confirmé — crée le nouveau Snapshot du site, y
+  // rattache les lignes de Stock actuel rapprochées, et retire l'ancien
+  // Snapshot actif (jamais supprimé, seulement remplace — Article 5).
+  // Ne touche à AUCUNE table de résultat (inventaire_rapprochements) :
+  // c'est comparerVentesQuart, appelée juste après par l'appelant, qui lit
+  // ce nouveau Snapshot actif (déjà branché depuis l'Étape 1).
+  async function construirePhotoDecenium(fichierStock, { salesHeureDeclaree, stockHeureDeclaree, confirmerMalgreDelai }) {
+    const instantImport = new Date().toISOString();
+    const sales = resoudreHorodatageExport(salesHeureDeclaree, instantImport);
+    const stock = resoudreHorodatageExport(stockHeureDeclaree, instantImport);
+
+    const seuil = (parametresInventaire && parametresInventaire.snapshotMaxDelayMinutes != null)
+      ? parametresInventaire.snapshotMaxDelayMinutes : DEFAULTS_PARAMETRES_INVENTAIRE.snapshotMaxDelayMinutes;
+
+    const qualification = NexusInventaireSnapshotMoteur.qualifierSnapshotDecenium({
+      salesExportAt: sales.at, stockExportAt: stock.at,
+      salesExportTimeSource: sales.source, stockExportTimeSource: stock.source,
+      seuilMaxDelaiMinutes: seuil, manager_a_choisi_poursuivre: !!confirmerMalgreDelai,
+    });
+
+    if (qualification.delai_depasse && !confirmerMalgreDelai) {
+      return { creee: false, besoinConfirmation: true, qualification };
+    }
+
+    const produits = await chargerCatalogueProduitsPourVentes(siteId);
+    const lignesStockBrutes = await parserFichierVentesDecenium(fichierStock); // parseur générique XLSX (Article 11)
+    const lignesStockRapprochees = rapprocherLignesStock(lignesStockBrutes, produits);
+
+    const nouveauSnapshot = await NexusInventaireSnapshotDonnees.creerSnapshot(nexusClient, siteId, {
+      salesFilename: null, salesExportAt: sales.at, salesExportTimeSource: sales.source,
+      stockFilename: fichierStock.name, stockExportAt: stock.at, stockExportTimeSource: stock.source,
+      exportOrder: qualification.export_order, deltaSeconds: qualification.delta_seconds,
+      snapshotReferenceAt: qualification.snapshot_reference_at,
+      confidenceLevel: qualification.confidence_level, validatedWithReserve: qualification.validated_with_reserve,
+      createdBy: managerCourant.id,
+    });
+    if (!nouveauSnapshot) return { creee: false, besoinConfirmation: false, qualification, erreur: true };
+
+    await NexusInventaireSnapshotDonnees.remplacerAnciensSnapshotsActifs(nexusClient, siteId, nouveauSnapshot.id);
+    await NexusInventaireSnapshotDonnees.creerLignesSnapshot(nexusClient, nouveauSnapshot.id, siteId,
+      lignesStockRapprochees.map(l => ({ ...l, importe_par: managerCourant.id })));
+
+    return { creee: true, besoinConfirmation: false, qualification, snapshot: nouveauSnapshot };
   }
 
   // Écoulement physique constaté sur le quart pour un produit : stock
@@ -2728,6 +2869,40 @@
     `;
   }
 
+  // Photo Decenium — Snapshot Étape 2 (30/08/2026) : badge purement
+  // informatif sur le Snapshot actuellement actif du site. Affiche la
+  // confiance (catégorielle, jamais un score inventé — Article 5) et le
+  // décalage réel entre les deux exports, via les libellés du moteur
+  // (Article 11 — aucune mise en forme dupliquée ici).
+  function renderSnapshotBadge(snapshotActif) {
+    const M = NexusInventaireSnapshotMoteur;
+    if (!snapshotActif) {
+      return `<div class="snapshot-badge">Aucune Photo Decenium pour ce site — importez aussi le fichier <b>Stock actuel</b> ci-dessous pour en créer une.</div>`;
+    }
+    const dateRef = new Date(snapshotActif.snapshot_reference_at).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+    return `
+      <div class="snapshot-badge ${snapshotActif.confidence_level}">
+        <b>Photo Decenium active</b> — référence ${dateRef} · confiance <b>${M.libelleConfianceSnapshot(snapshotActif.confidence_level)}</b> · décalage ${M.libelleDelta(snapshotActif.delta_seconds)}
+        ${snapshotActif.validated_with_reserve ? ' · validée avec réserve par le manager' : ''}
+      </div>
+    `;
+  }
+
+  // Avertissement pré-création (délai entre les deux exports dépassé) —
+  // jamais une confirmation automatique (doctrine §7 de Frédéric) : le
+  // manager doit explicitement cliquer "Poursuivre quand même" pour que
+  // NEXUS crée le Snapshot malgré la réserve.
+  function renderSnapshotAvertissement(qualification) {
+    if (!qualification) return '';
+    const M = NexusInventaireSnapshotMoteur;
+    return `
+      <div class="snapshot-avertissement">
+        Le délai entre les deux exports est de <b>${M.libelleDelta(qualification.delta_seconds)}</b>, au-delà du seuil configuré. La Photo Decenium serait créée avec une confiance <b>${M.libelleConfianceSnapshot('faible')}</b>.
+        <br><button class="btn-snapshot-poursuivre" id="btnSnapshotPoursuivre">Poursuivre quand même</button>
+      </div>
+    `;
+  }
+
   function renderTout(ctx) {
     dernierCtx = ctx;
     const { alertesOuvertes, sensiblesNonComptesDetail, employesSite, modesAveugleActifs, jaugeageActif, synthese, etat, produitsSensiblesTotal, decisionsQuart, review, bornes, alertesPeriode, decisionsPeriode, couverture7, couverture14, couverture30, qualiteRapprochement, maturiteInventaire, cutoverInventaire, missionsAvecRapprochement } = ctx;
@@ -2794,9 +2969,9 @@
       </div>
 
       ${quartRow ? `
-        <div class="section-titre">Comparaison Decenium</div>
+        <div class="section-titre">Photo Decenium</div>
         <div class="ventes-card">
-          <div class="ventes-desc">Importez l'export Excel des ventes de <b>ce quart</b> (à la connexion du caissier suivant) — NEXUS rapproche les quantités vendues avec les stocks de début, les réassorts et les stocks de fin, et signale les écarts.</div>
+          <div class="ventes-desc">Importez l'export Excel des ventes de <b>ce quart</b> (à la connexion du caissier suivant) — NEXUS rapproche les quantités vendues avec les stocks de début, les réassorts et les stocks de fin, et signale les écarts. Ajoutez aussi l'export <b>Stock actuel</b> du site (facultatif) pour créer une Photo Decenium — une référence temporelle du site utilisée par les prochaines étapes de reconstruction.</div>
           <div class="ventes-file-row">
             <label class="ventes-file-label" id="ventesFileLabel" for="ventesFileInput">
               <svg class="ventes-file-icon" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -2810,13 +2985,46 @@
                 <path d="M20 2v6h6z" fill="#8CE0B4" opacity="0.65"/>
                 <path d="M11.6 13.5h2.7l1.9 3.1 1.9-3.1h2.7l-3.2 5 3.3 5.2h-2.8l-2-3.3-2 3.3h-2.7l3.3-5.2z" fill="#fff"/>
               </svg>
-              <span class="ventes-file-text" id="ventesFileText">Choisir le fichier Excel…</span>
+              <span class="ventes-file-text" id="ventesFileText">Choisir le fichier Ventes…</span>
             </label>
             <input type="file" id="ventesFileInput" accept=".xlsx,.xls" style="display:none;">
             <button class="btn-comparer" id="btnComparerVentes" disabled>Importer les ventes Decenium</button>
           </div>
+
+          <div class="snapshot-stock-row">
+            <div class="ventes-file-row">
+              <label class="ventes-file-label" id="snapshotStockFileLabel" for="snapshotStockFileInput">
+                <svg class="ventes-file-icon" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                  <defs>
+                    <linearGradient id="snapshotExcelGrad" x1="6" y1="2" x2="26" y2="32" gradientUnits="userSpaceOnUse">
+                      <stop offset="0" stop-color="#21A366"/>
+                      <stop offset="1" stop-color="#0F7A3E"/>
+                    </linearGradient>
+                  </defs>
+                  <path d="M8 2h12l6 6v20a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z" fill="url(#snapshotExcelGrad)"/>
+                  <path d="M20 2v6h6z" fill="#8CE0B4" opacity="0.65"/>
+                  <path d="M11.6 13.5h2.7l1.9 3.1 1.9-3.1h2.7l-3.2 5 3.3 5.2h-2.8l-2-3.3-2 3.3h-2.7l3.3-5.2z" fill="#fff"/>
+                </svg>
+                <span class="ventes-file-text" id="snapshotStockFileText">Choisir le fichier Stock actuel… (facultatif)</span>
+              </label>
+              <input type="file" id="snapshotStockFileInput" accept=".xlsx,.xls" style="display:none;">
+            </div>
+            <div class="snapshot-heure-row">
+              <div class="snapshot-heure-champ">
+                <label for="snapshotVentesHeureInput">Heure réelle export Ventes (si connue)</label>
+                <input type="datetime-local" id="snapshotVentesHeureInput">
+              </div>
+              <div class="snapshot-heure-champ">
+                <label for="snapshotStockHeureInput">Heure réelle export Stock (si connue)</label>
+                <input type="datetime-local" id="snapshotStockHeureInput">
+              </div>
+            </div>
+            <div id="snapshotAvertissement"></div>
+          </div>
+
           <div id="ventesResume"></div>
           <div id="ventesJourneeResume"></div>
+          ${renderSnapshotBadge(ctx.snapshotActif)}
         </div>
 
         <div class="section-titre" id="sectionATerminer">À terminer</div>
@@ -2921,14 +3129,59 @@
           label.classList.add('choisi');
           btnComparerVentes.disabled = false;
         } else {
-          texte.textContent = 'Choisir le fichier Excel…';
+          texte.textContent = 'Choisir le fichier Ventes…';
           label.classList.remove('choisi');
           btnComparerVentes.disabled = true;
         }
       });
+      // Photo Decenium — Snapshot Étape 2 (30/08/2026) : sélectionner un
+      // nouveau fichier Stock invalide toute confirmation "Poursuivre quand
+      // même" déjà donnée pour un couple de fichiers précédent (jamais
+      // réutilisée pour un autre import — doctrine §7).
+      const snapshotStockFileInput = document.getElementById('snapshotStockFileInput');
+      if (snapshotStockFileInput) snapshotStockFileInput.addEventListener('change', () => {
+        const fichier = snapshotStockFileInput.files[0];
+        const label = document.getElementById('snapshotStockFileLabel');
+        const texte = document.getElementById('snapshotStockFileText');
+        snapshotConfirmerMalgreDelai = false;
+        snapshotAvertissementEnCours = null;
+        const avertEl = document.getElementById('snapshotAvertissement');
+        if (avertEl) avertEl.innerHTML = '';
+        if (fichier) { texte.textContent = fichier.name; label.classList.add('choisi'); }
+        else { texte.textContent = 'Choisir le fichier Stock actuel… (facultatif)'; label.classList.remove('choisi'); }
+      });
+
       btnComparerVentes.addEventListener('click', async () => {
         const fichier = ventesFileInput.files[0];
         if (!fichier || !quartRow) return;
+        const fichierStock = snapshotStockFileInput ? snapshotStockFileInput.files[0] : null;
+
+        // Photo Decenium créée AVANT le rapprochement du quart (Étape 2) —
+        // uniquement si un fichier Stock actuel a été fourni ; sinon
+        // comportement historique intégralement préservé (aucun Snapshot
+        // touché, snapshot_id restera null comme depuis l'Étape 1).
+        if (fichierStock) {
+          const salesHeureDeclaree = document.getElementById('snapshotVentesHeureInput').value || null;
+          const stockHeureDeclaree = document.getElementById('snapshotStockHeureInput').value || null;
+          const resultat = await construirePhotoDecenium(fichierStock, {
+            salesHeureDeclaree, stockHeureDeclaree, confirmerMalgreDelai: snapshotConfirmerMalgreDelai,
+          });
+          if (resultat.besoinConfirmation) {
+            snapshotAvertissementEnCours = resultat.qualification;
+            const avertEl = document.getElementById('snapshotAvertissement');
+            if (avertEl) {
+              avertEl.innerHTML = renderSnapshotAvertissement(resultat.qualification);
+              const btnPoursuivre = document.getElementById('btnSnapshotPoursuivre');
+              if (btnPoursuivre) btnPoursuivre.addEventListener('click', () => {
+                snapshotConfirmerMalgreDelai = true;
+                btnComparerVentes.click();
+              });
+            }
+            return; // on attend la confirmation explicite avant de créer quoi que ce soit
+          }
+          snapshotConfirmerMalgreDelai = false; // consommée, ne doit pas survivre à ce clic
+        }
+
         btnComparerVentes.disabled = true;
         btnComparerVentes.textContent = 'Import en cours…';
         await comparerVentesQuart(fichier);
@@ -3190,11 +3443,19 @@
       }
     }
 
+    // Photo Decenium — Snapshot actif du site (30/08/2026, Étape 2) : lu à
+    // chaque affichage pour montrer au manager la source qui sert (ou
+    // servira) au rapprochement du quart — jamais un second calcul, juste
+    // la lecture du Snapshot déjà créé (Étape 1). null si aucun Snapshot
+    // n'a encore été créé pour ce site — comportement historique inchangé.
+    const snapshotActif = global.NexusInventaireSnapshotDonnees
+      ? await NexusInventaireSnapshotDonnees.chargerDernierSnapshotActif(nexusClient, siteId) : null;
+
     renderTout({
       alertesOuvertes, sensiblesNonComptesDetail, employesSite, modesAveugleActifs, jaugeageActif, synthese,
       etat, produitsSensiblesTotal: produitsSensibles.length, decisionsQuart, review, bornes, alertesPeriode, decisionsPeriode,
       importDeceniumFait, couverture7, couverture14, couverture30, qualiteRapprochement, maturiteInventaire, cutoverInventaire,
-      missionsAvecRapprochement,
+      missionsAvecRapprochement, snapshotActif,
     });
     if (periodeSelectionnee === 'jour') await genererRemarquesConseiller(alertesOuvertes, sensiblesNonComptesDetail, modesAveugleActifs, synthese);
   }

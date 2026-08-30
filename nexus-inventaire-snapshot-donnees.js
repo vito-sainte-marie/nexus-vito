@@ -80,8 +80,50 @@
     if (error) console.error('Remplacement anciens Snapshots Decenium:', error);
   }
 
+  // ------------------------------------------------------------
+  // Étape 2 "UX Photo Decenium" (30/08/2026) — lignes de STOCK ACTUEL
+  // rattachées à un Snapshot (table inventaire_decenium_snapshot_lignes,
+  // additive, RLS identique aux autres tables Snapshot). Une ligne par
+  // produit rapproché depuis l'export Stock actuel — jamais fusionnée avec
+  // inventaire_ventes_import (Article 11 : ce n'est pas la même source, ni
+  // la même sémantique — quantité en stock, pas quantité vendue).
+  // ------------------------------------------------------------
+
+  // `lignes` déjà rapprochées côté appelant (produit_id résolu ou null,
+  // jamais deviné ici) — insertion en lot, une seule fois par création de
+  // Snapshot (Article 5 : jamais une suppression d'un ancien snapshot, ses
+  // lignes restent consultables pour l'historique).
+  async function creerLignesSnapshot(client, snapshotId, site, lignes) {
+    if (!lignes || !lignes.length) return true;
+    const { error } = await client.from('inventaire_decenium_snapshot_lignes').insert(
+      lignes.map(l => ({
+        snapshot_id: snapshotId, site,
+        produit_id: l.produit_id || null,
+        designation_brute: l.designation_brute,
+        code_barres_brut: l.code_barres_brut || null,
+        quantite_stock: l.quantite_stock,
+        prix_achat_ht: l.prix_achat_ht != null ? l.prix_achat_ht : null,
+        importe_par: l.importe_par || null,
+      }))
+    );
+    if (error) { console.error('Insertion lignes Snapshot Decenium (stock actuel):', error); return false; }
+    return true;
+  }
+
+  // Fourni par anticipation de l'Étape 3 (reconstruction temporelle T1→T0,
+  // qui doit relire le stock actuel produit par produit d'un Snapshot
+  // donné) — même précédent que chargerHistoriqueSnapshots à l'Étape 1,
+  // pas encore consommé par un écran dans ce lot.
+  async function chargerLignesSnapshot(client, snapshotId) {
+    const { data, error } = await client.from('inventaire_decenium_snapshot_lignes')
+      .select('*').eq('snapshot_id', snapshotId);
+    if (error) { console.error('Chargement lignes Snapshot Decenium:', error); return []; }
+    return data || [];
+  }
+
   global.NexusInventaireSnapshotDonnees = {
     creerSnapshot, chargerDernierSnapshotActif, chargerSnapshotParId,
     chargerHistoriqueSnapshots, remplacerAnciensSnapshotsActifs,
+    creerLignesSnapshot, chargerLignesSnapshot,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

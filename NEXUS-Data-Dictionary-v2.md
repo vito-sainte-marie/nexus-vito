@@ -4655,3 +4655,54 @@ Nouveau fichier `test_inventaire_snapshot_decenium_etape1.js` (24 tests) : moteu
 - **Champ de réglage du seuil dans `NEXUS-Parametres-Inventaire-v1.html`** non ajouté (seule la valeur par défaut existe côté manager).
 - **Reconstruction temporelle T1→T0, détection des trous et rétroactivité** restent les Étapes 3, 4 et 5, non commencées.
 - `remplacerAnciensSnapshotsActifs`/`chargerHistoriqueSnapshots` sont écrits mais non encore appelés depuis aucun écran (fournis par anticipation, Article 11, pour éviter une requête équivalente à écrire deux fois).
+
+## v2.297 — Snapshot Decenium, Étape 2 « UX Photo Decenium » (30/08/2026)
+
+**Origine** : Frédéric — "oui" à la question de poursuivre après l'Étape 1, sur la base de son plan en 5 étapes verrouillé le 30/08/2026. Cette étape réalise concrètement ce que Étape 1 ne faisait que préparer : la création réelle d'une Photo Decenium (Ventes + Stock actuel) depuis l'écran Contrôle Inventaire, avec son propre seuil configurable de délai.
+
+### A. Migration Supabase (`inventaire_decenium_snapshot_lignes_etape2`)
+
+Nouvelle table `inventaire_decenium_snapshot_lignes` — Article 11 : distincte d'`inventaire_ventes_import` (source Ventes, existante) et d'`inventaire_rapprochements` (résultat de calcul) car elle porte une sémantique différente (quantité EN STOCK à l'instant T1, pas une quantité vendue) et sera relue telle quelle par l'Étape 3 (reconstruction temporelle). Colonnes : `snapshot_id` (FK vers `inventaire_decenium_snapshots`), `site`, `produit_id` (nullable — jamais deviné si non rapproché), `designation_brute`, `code_barres_brut`, `quantite_stock`, `prix_achat_ht`, `importe_par`, `importe_le`. RLS posée correctement dès la création cette fois (leçon de l'auto-correction de l'Étape 1) : `select_inventaire_decenium_snapshot_lignes` / `ecriture_inventaire_decenium_snapshot_lignes`, exactement le pattern manager/gerant+site vérifié — confirmé via `pg_policy` immédiatement après application.
+
+### B. Rapprochement du fichier Stock actuel (`NEXUS-Inventaire-Manager-v1.html`)
+
+`rapprocherLignesStock(lignesFichier, produits)` — même stratégie de correspondance que `rapprocherLignesVentes` (code-barres d'abord, alias `ALIAS_VENTES_SANS_CODE_BARRES` ensuite, Article 11 : aucune nouvelle logique de matching dupliquée), mais lit une quantité EN STOCK plutôt qu'une quantité vendue. `parserFichierVentesDecenium` (le parseur XLSX générique, malgré son nom) est réutilisé tel quel pour le fichier Stock — aucune deuxième fonction de lecture de fichier créée.
+
+**Prudence assumée (Article 5)** : l'en-tête exact de la colonne quantité d'un export Decenium "Stock actuel" n'a pas encore été vérifié sur un vrai fichier (contrairement à `QTE`/`PA HT`/`PV HT` pour les Ventes, validés le 02/08/2026 sur un export réel). Plusieurs variantes plausibles sont acceptées (`Stock`, `STOCK`, `Qte Stock`, `Qté Stock`, `Stock Actuel`...) — **à corriger dès le premier export réel si l'en-tête diffère**, signalé explicitement à Frédéric plutôt que présenté comme validé.
+
+### C. Orchestration (`construirePhotoDecenium`)
+
+Nouvelle fonction dans `NEXUS-Inventaire-Manager-v1.html` :
+1. Résout l'horodatage effectif de chaque export via `resoudreHorodatageExport` : l'heure déclarée par le manager si renseignée (`manager_declared`), sinon l'instant de l'import lui-même (`import_time_estimated`) — jamais un horodatage "inconnu" au sens du moteur, puisque NEXUS connaît toujours au moins l'heure d'import (nuance par rapport à l'Étape 1, qui traitait aussi le cas d'un horodatage totalement absent).
+2. Qualifie via `NexusInventaireSnapshotMoteur.qualifierSnapshotDecenium`, avec le seuil lu dans `parametresInventaire.snapshotMaxDelayMinutes` (repli sur `DEFAULTS_PARAMETRES_INVENTAIRE.snapshotMaxDelayMinutes` si absent).
+3. Si le délai est dépassé et que le manager n'a pas encore cliqué "Poursuivre quand même" : **aucune écriture n'a lieu**, la fonction retourne `besoinConfirmation: true` — l'écran affiche l'avertissement (`renderSnapshotAvertissement`) et attend un clic explicite (doctrine §7 de Frédéric, jamais posé automatiquement).
+4. Sinon : crée le Snapshot (`creerSnapshot`), le déclare actif en remplaçant l'ancien (`remplacerAnciensSnapshotsActifs` — jamais une suppression, Article 5), puis persiste les lignes de Stock rapprochées (`creerLignesSnapshot`).
+
+Appelée depuis le clic sur "Importer les ventes Decenium" **uniquement si un fichier Stock actuel a été choisi** — sinon comportement historique intégralement préservé (aucun Snapshot touché, `snapshot_id` reste `null` sur les rapprochements comme depuis l'Étape 1). `comparerVentesQuart` (inchangée, Article 11) s'exécute ensuite dans tous les cas et récupère automatiquement le Snapshot actif déjà branché depuis l'Étape 1.
+
+**Limite connue, transmise honnêtement (Article 5)** : si le manager ne déclare qu'une seule des deux heures réelles (par exemple l'heure de l'export Ventes mais pas celle du Stock), le délai calculé peut inclure le temps écoulé entre la génération du fichier non déclaré et son import dans NEXUS — pas seulement l'écart réel entre les deux exports Decenium. Un avertissement "délai dépassé" peut donc apparaître alors que les deux fichiers ont en réalité été générés proches l'un de l'autre. Pour un résultat fiable, le manager doit déclarer les deux heures, ou aucune des deux.
+
+### D. Écran (`NEXUS-Inventaire-Manager-v1.html`)
+
+- Section renommée **"Comparaison Decenium" → "Photo Decenium"** (recommandation de Frédéric, conservée dans Contrôle Inventaire — pas de nouvel écran).
+- Deuxième champ fichier (facultatif) "Stock actuel", deux champs `datetime-local` facultatifs pour les heures réelles d'export, un avertissement inline avec bouton "Poursuivre quand même" si le délai est dépassé.
+- `renderSnapshotBadge(snapshotActif)` : badge purement informatif (confiance catégorielle + décalage lisible, via les libellés du moteur — Article 11, aucune mise en forme dupliquée), affiché sous la carte à chaque affichage, y compris "Aucune Photo Decenium pour ce site" si rien n'a encore été créé.
+
+### E. Paramètres (`NEXUS-Parametres-Inventaire-v1.html`)
+
+Champ "Délai maximal entre les 2 exports (Ventes/Stock)" ajouté dans une nouvelle carte "Photo Decenium", **visible quel que soit le niveau de surveillance choisi** (ce seuil ne concerne pas les alertes d'écart) — répond explicitement à la demande de Frédéric lors du verrouillage de l'architecture ("Le seuil doit être configurable dans les paramètres Inventaire de la station"), restée non traitée à l'Étape 1. `DEFAULTS_PARAMETRES_INVENTAIRE.snapshotMaxDelayMinutes = 5` ajouté pour cohérence avec le fichier manager (aucune source unique partagée entre les écrans HTML autonomes de ce produit — dupliquée à l'identique, comme le reste de `DEFAULTS_PARAMETRES_INVENTAIRE`). Par cohérence avec le style de rendu déjà en place dans ce fichier (repli par une valeur littérale plutôt qu'une référence à `DEFAULTS_PARAMETRES_INVENTAIRE` à l'intérieur des fonctions de rendu extraites), la valeur par défaut affichée dans le champ et le repli du listener utilisent la valeur littérale `5`.
+
+### Tests et régression
+
+Nouveau fichier `test_inventaire_snapshot_decenium_etape2.js` (23 tests) : `rapprocherLignesStock` (code-barres, alias, variantes d'en-tête, référence non reconnue, quantité absente), `resoudreHorodatageExport` (déclarée vs estimée), vérifications de source de `construirePhotoDecenium` (garde délai AVANT toute écriture, ordre créer→remplacer→lignes, lecture du seuil configuré avec repli), le renommage de section, le caractère facultatif du fichier Stock, la réinitialisation de la confirmation "Poursuivre quand même" à chaque nouveau fichier, le rendu de `renderSnapshotBadge`/`renderSnapshotAvertissement`, la couche données `creerLignesSnapshot` (insertion, liste vide, erreur Supabase), et les deux ajouts côté `NEXUS-Parametres-Inventaire-v1.html`.
+
+**Un test préexistant a été cassé puis corrigé pendant ce lot** (catch Article 5, avant livraison) : `test_parametres_inventaire_reorganisation_ux_20260821.js` extrait `renderOngletAlertes` dans un sandbox isolé qui ne déclare pas `DEFAULTS_PARAMETRES_INVENTAIRE` — ma première version du champ seuil lisait cette constante à l'intérieur de cette fonction de rendu, cassant les 3 assertions de ce test par `ReferenceError`. Corrigé en alignant le champ sur le style déjà en place dans ce fichier (repli littéral `5`, jamais une référence à `DEFAULTS_PARAMETRES_INVENTAIRE` dans une fonction de rendu) — cohérent avec `seuilPeremptionJours` juste au-dessus, qui utilise déjà ce même style.
+
+**Régression complète rejouée avant livraison : 147 fichiers de test, 0 échec** (146 fichiers pré-existants + le nouveau).
+
+### Ce que ce lot NE couvre PAS encore (transparence, à discuter avec Frédéric)
+
+- **Aucune métadonnée de fichier Excel exploitée** (`file_metadata` reste un statut théorique) — seules `manager_declared` et `import_time_estimated` sont réellement produites par cet écran.
+- **`chargerLignesSnapshot`** (couche données) est écrite mais non encore appelée par aucun écran — fournie par anticipation de l'Étape 3 (reconstruction temporelle), même précédent que les fonctions anticipées de l'Étape 1.
+- **Aucun écran ne relit l'historique des Snapshots remplacés** (`chargerHistoriqueSnapshots`, déjà écrite à l'Étape 1) — seul le Snapshot actif est visible.
+- **Reconstruction temporelle T1→T0, détection des trous et rétroactivité** restent les Étapes 3, 4 et 5, non commencées.

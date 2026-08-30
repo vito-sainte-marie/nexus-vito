@@ -284,6 +284,15 @@
     // — aucune migration nécessaire pour ceux-là.
     seuilDemarquePct: null, seuilCasseUnites: null, seuilPeremptionJours: 2, rappelRetourFournisseurActif: true,
     sensComptage: 'piste_boutique',
+    // Snapshot Decenium (30/08/2026, Étape 1 puis champ Étape 2) — seuil
+    // configurable de délai entre les deux exports (Ventes/Stock actuel)
+    // au-delà duquel NEXUS avertit le manager avant d'utiliser la Photo
+    // Decenium (doctrine §5 de Frédéric : jamais un seuil codé en dur).
+    // Même valeur par défaut que NEXUS-Inventaire-Manager-v1.html (Article
+    // 11 — aucune source unique partagée entre les écrans HTML autonomes de
+    // ce produit, donc dupliquée ici à l'identique, comme le reste de
+    // DEFAULTS_PARAMETRES_INVENTAIRE).
+    snapshotMaxDelayMinutes: 5,
     // Plan de comptage tournant NEXUS (19/08/2026, demande de Frédéric —
     // "compter moins mais compter juste", contrôlable par le manager sans
     // développeur). null = NEXUS applique ses valeurs par défaut (20
@@ -2086,6 +2095,16 @@
       <div class="param-note">Le seuil de démarque et le seuil de casse ne sont pas encore utilisés par un moteur de calcul dédié — ils sont enregistrés ici pour préparer les futures alertes automatiques, sans encore rien déclencher tout seuls (seuls les seuils de quantité/valeur/péremption sont déjà actifs).</div>
       ` : ''}
 
+      <!-- Photo Decenium (30/08/2026, Snapshot Étape 2) : visible quel que
+           soit le niveau de surveillance choisi ci-dessus — ce seuil ne
+           concerne pas les alertes d'écart, mais la fiabilité temporelle
+           de la Photo Decenium elle-même (Contrôle inventaire). -->
+      <div class="section-titre">Photo Decenium</div>
+      <div class="card" style="margin-bottom:16px;">
+        <div class="param-ligne"><label for="paramSeuilDelaiSnapshot">Délai maximal entre les 2 exports (Ventes/Stock)</label><input type="number" min="1" step="1" class="param-input" id="paramSeuilDelaiSnapshot" value="${p.snapshotMaxDelayMinutes != null ? p.snapshotMaxDelayMinutes : 5}"> min</div>
+        <div class="note" style="margin-top:6px;">Au-delà de ce délai, NEXUS avertit le manager avant de créer la Photo Decenium (Contrôle inventaire) et lui demande de confirmer s'il souhaite poursuivre malgré la réserve.</div>
+      </div>
+
       <div class="section-titre">Catégories nécessitant une alerte immédiate</div>
       <div class="card" style="margin-bottom:16px;">
         ${categoriesSite.length === 0 ? '<div class="empty">Aucune catégorie active.</div>' : `
@@ -2777,6 +2796,8 @@
     if (inputSeuilCasse) inputSeuilCasse.addEventListener('change', () => { const v = parseFloat(inputSeuilCasse.value); enregistrerParametre('seuilCasseUnites', inputSeuilCasse.value === '' || isNaN(v) ? null : v); });
     const inputSeuilPeremption = document.getElementById('paramSeuilPeremption');
     if (inputSeuilPeremption) inputSeuilPeremption.addEventListener('change', () => { const v = parseInt(inputSeuilPeremption.value); enregistrerParametre('seuilPeremptionJours', isNaN(v) ? 2 : v); });
+    const inputSeuilDelaiSnapshot = document.getElementById('paramSeuilDelaiSnapshot');
+    if (inputSeuilDelaiSnapshot) inputSeuilDelaiSnapshot.addEventListener('change', () => { const v = parseInt(inputSeuilDelaiSnapshot.value); enregistrerParametre('snapshotMaxDelayMinutes', isNaN(v) || v < 1 ? 5 : v); });
     document.querySelectorAll('.param-cat-check').forEach(el => el.addEventListener('change', () => {
       const actuels = new Set(parametresInventaire.immediateAlertCategoryIds || []);
       if (el.checked) actuels.add(el.dataset.cat); else actuels.delete(el.dataset.cat);
