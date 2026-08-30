@@ -4889,3 +4889,37 @@ Nouveau fichier `test_inventaire_rotation_intelligente_etape1.js` (7 scénarios)
 ### Ce que ce lot NE couvre PAS
 
 - Aucune donnée réelle Supabase branchée, aucun écran modifié — strictement le moteur pur, conformément à la demande explicite de Frédéric de tester et non-régresser cette étape avant de toucher données/UI (Étapes 2 et 3 à venir).
+
+## v2.302 — P0 : ReferenceError "global" bloquait Contrôle inventaire sur Safari (30/08/2026)
+
+**Origine** : remontée directe de Frédéric avec capture d'écran Safari — `NEXUS-Inventaire-Manager-v1.html` restait bloqué sur "Chargement…" avec `Unhandled Promise Rejection: ReferenceError: Can't find variable: global`.
+
+### Diagnostic (Article 5 — vérifié sur le code réel avant toute correction)
+
+Grep confirmé sur le fichier réel : exactement 2 occurrences, lignes 1657 et 3451, toutes deux introduites par le Snapshot Decenium Étape 2 (v2.297, 30/08/2026) :
+```js
+const snapshotActif = global.NexusInventaireSnapshotDonnees
+  ? await NexusInventaireSnapshotDonnees.chargerDernierSnapshotActif(nexusClient, siteId) : null;
+```
+`global` est une convention Node.js — inexistante dans un navigateur (Safari la fait échouer immédiatement au premier accès ; Chrome peut parfois masquer ce type d'erreur selon le contexte d'exécution, ce qui explique qu'elle soit passée inaperçue). L'erreur n'étant pas rattrapée (pas de `try/catch` autour de l'appel async), toute la fonction englobante s'arrêtait, laissant l'écran bloqué sur "Chargement…" sans autre message.
+
+Vérifié à cette occasion (demande explicite de Frédéric — "vérifier tout le chantier Snapshot pour s'assurer qu'aucun autre `global.*` n'a été introduit directement dans les fichiers HTML") : `grep -ln 'global\.[A-Za-z]' *.html` sur l'ensemble des fichiers HTML du projet ne retourne plus aucun résultat après correction — ces 2 occurrences étaient les seules. Les usages de `global` en paramètre interne de l'IIFE des fichiers moteur (`(function(global) {...})(typeof window !== 'undefined' ? window : globalThis)`) restent, eux, corrects et inchangés — ce pattern ne pose problème que lorsque `global` est utilisé directement dans le scope d'un fichier HTML, jamais comme nom de paramètre interne d'une fonction.
+
+### Correctif
+
+Les 2 occurrences remplacées par une garde browser-safe, conforme à la suggestion de Frédéric :
+```js
+const snapshotActif = typeof NexusInventaireSnapshotDonnees !== 'undefined'
+  ? await NexusInventaireSnapshotDonnees.chargerDernierSnapshotActif(nexusClient, siteId) : null;
+```
+Comportement fonctionnel strictement identique (même branche ternaire, même repli `null`) — seul le test d'existence de la variable change, désormais compatible avec tous les navigateurs (Safari inclus).
+
+### Tests et régression
+
+Le test existant `test_inventaire_snapshot_decenium_etape1.js` (introduit à l'Étape 2, v2.297) contenait une assertion qui codifiait littéralement l'ancien bug comme comportement attendu (`assert.ok(bloc.includes('global.NexusInventaireSnapshotDonnees'), ...)`) — corrigée pour vérifier au contraire la présence du pattern `typeof NexusInventaireSnapshotDonnees !== 'undefined'` ET l'absence de toute référence à `global.` dans ce bloc, afin qu'une régression future vers le pattern Node soit détectée automatiquement.
+
+**Régression complète rejouée avant livraison : 150 fichiers de test, 0 échec.**
+
+### Ce que ce lot NE couvre PAS
+
+- N'a touché à aucune autre logique du Snapshot Decenium (moteur, données, autres écrans) — strictement les 2 lignes fautives et le test qui les validait à tort.

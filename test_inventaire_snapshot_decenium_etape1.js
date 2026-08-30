@@ -279,7 +279,13 @@ testSync('NEXUS-Inventaire-Manager-v1.html — le chargement est protégé si Ne
   const i = src.indexOf('const snapshotActif');
   assert.ok(i > -1, 'déclaration snapshotActif introuvable');
   const bloc = src.slice(i, i + 250);
-  assert.ok(bloc.includes('global.NexusInventaireSnapshotDonnees'), 'garde défensive (global.NexusInventaireSnapshotDonnees) introuvable: ' + bloc);
+  // Correctif 30/08/2026 (P0 Safari, v2.302) : `global` n'existe pas dans un
+  // navigateur (convention Node uniquement) — provoquait un
+  // "ReferenceError: Can't find variable: global" bloquant tout le
+  // chargement de l'écran sur Safari. La garde défensive doit être
+  // browser-safe : `typeof X !== 'undefined'`, jamais `global.X`.
+  assert.ok(bloc.includes("typeof NexusInventaireSnapshotDonnees !== 'undefined'"), "garde défensive browser-safe (typeof NexusInventaireSnapshotDonnees !== 'undefined') introuvable: " + bloc);
+  assert.ok(!bloc.includes('global.'), "aucune référence à `global` ne doit subsister ici — inexistant dans un navigateur (Safari notamment), P0 v2.302: " + bloc);
   assert.ok(bloc.includes('? await NexusInventaireSnapshotDonnees.chargerDernierSnapshotActif'), 'branche ternaire introuvable: ' + bloc);
   assert.ok(bloc.includes(': null'), 'repli null introuvable: ' + bloc);
 });

@@ -1654,7 +1654,7 @@
       // référence est nouvelle). null tant que l'Étape 2 (import du Stock
       // actuel) n'a pas encore créé de Snapshot — comportement historique
       // préservé à l'identique dans ce cas.
-      const snapshotActif = global.NexusInventaireSnapshotDonnees
+      const snapshotActif = typeof NexusInventaireSnapshotDonnees !== 'undefined'
         ? await NexusInventaireSnapshotDonnees.chargerDernierSnapshotActif(nexusClient, siteId) : null;
 
       let nbEcarts = 0, nbSansComptage = 0, valeurEstimee = 0;
@@ -3448,7 +3448,7 @@
     // servira) au rapprochement du quart — jamais un second calcul, juste
     // la lecture du Snapshot déjà créé (Étape 1). null si aucun Snapshot
     // n'a encore été créé pour ce site — comportement historique inchangé.
-    const snapshotActif = global.NexusInventaireSnapshotDonnees
+    const snapshotActif = typeof NexusInventaireSnapshotDonnees !== 'undefined'
       ? await NexusInventaireSnapshotDonnees.chargerDernierSnapshotActif(nexusClient, siteId) : null;
 
     renderTout({
