@@ -281,6 +281,128 @@
     return { produit_id: produitId, stock_theorique, qualite, motif: null };
   }
 
+  // ==============================================================
+  // Étape 4 "complétude temporelle" (30/08/2026) — la reconstruction de
+  // l'Étape 3 sait déjà EXCLURE un quart chevauchant ou non clôturé
+  // (classerQuartDansFenetre) et compter combien ont été exclus
+  // (quartsExclusCount -> qualité 'partielle'). Ce que l'Étape 3 ne dit pas
+  // : OÙ, dans le temps, se situent les zones sans aucune couverture — un
+  // manager ne peut pas juger si un trou de 20 minutes ou de 2 jours a été
+  // ignoré. Cette étape calcule exactement ces plages ("trous").
+  //
+  // Vérification Article 11 avant d'écrire ce code : nexus-fdj-moteur.js
+  // possède déjà un mécanisme de "continuité de chaîne de quarts"
+  // (chaineContinuite / chaineInterrompueDynamique). Examiné et jugé NON
+  // réutilisable tel quel : il répond à une question différente (un
+  // calendrier FDJ à exactement 2 quarts fixes par jour, comparé quart par
+  // quart) alors qu'ici il s'agit de mesurer une COUVERTURE TEMPORELLE
+  // continue sur une fenêtre (T0,T1] arbitraire, à partir des intervalles
+  // réels [ouvert_le, cloture_le] des quarts Inventaire (dont le nombre par
+  // jour n'est pas fixe). Les deux mécanismes restent donc distincts,
+  // chacun répondant à sa propre question — pas une duplication de la même
+  // vérité.
+  // ==============================================================
+
+  // Libellé "2 j 3 h" / "1 h 12 min" / "45 s" — même esprit que libelleDelta
+  // mais pour des durées potentiellement longues (plusieurs jours).
+  function libelleDureeTrou(secondes) {
+    if (secondes == null || !Number.isFinite(secondes)) return 'Durée inconnue';
+    const abs = Math.abs(Math.round(secondes));
+    const jours = Math.floor(abs / 86400);
+    const heures = Math.floor((abs % 86400) / 3600);
+    const minutes = Math.floor((abs % 3600) / 60);
+    const secs = abs % 60;
+    if (jours > 0) return `${jours} j ${heures} h`;
+    if (heures > 0) return `${heures} h ${minutes} min`;
+    if (minutes > 0) return `${minutes} min ${secs} s`;
+    return `${secs} s`;
+  }
+
+  // Fusionne une liste d'intervalles {debut,fin} (timestamps ms) qui se
+  // chevauchent ou se touchent — utilitaire pur, isolé pour rester testable
+  // indépendamment (Article 11 : pas de logique de fusion dupliquée
+  // ailleurs dans ce fichier).
+  function fusionnerIntervallesCouverts(intervalles) {
+    const valides = (intervalles || [])
+      .filter(i => i && Number.isFinite(i.debut) && Number.isFinite(i.fin) && i.fin > i.debut)
+      .sort((a, b) => a.debut - b.debut);
+    const fusionnes = [];
+    valides.forEach(i => {
+      const dernier = fusionnes[fusionnes.length - 1];
+      if (dernier && i.debut <= dernier.fin) {
+        dernier.fin = Math.max(dernier.fin, i.fin);
+      } else {
+        fusionnes.push({ debut: i.debut, fin: i.fin });
+      }
+    });
+    return fusionnes;
+  }
+
+  // Cœur de l'Étape 4 — pure. Reçoit les quarts BRUTS (pas encore filtrés)
+  // et refait elle-même l'appel à classerQuartDansFenetre (Article 11 :
+  // même règle d'inclusion que l'Étape 3, jamais une deuxième version de
+  // cette décision) pour ne retenir que les intervalles réellement
+  // couverts, puis calcule ce qui reste non couvert dans (T0,T1].
+  //
+  // `quarts` : [{ id, ouvertLe, clotureLe }]. Retourne { qualification:
+  // 'complete' | 'incomplete' | 'impossible', trous: [{debut, fin,
+  // dureeSecondes}] (ISO, triés), dureeCouverteSecondes, dureeFenetreSecondes }.
+  // 'impossible' réutilise exactement le même motif que qualifierReconstructionT0T1
+  // (T0/T1 invalides) — jamais une deuxième garde d'entrée écrite en double.
+  function detecterTrousTemporels(quarts, instantT0, instantT1) {
+    const garde = qualifierReconstructionT0T1(instantT0, instantT1);
+    if (!garde.possible) {
+      return {
+        qualification: 'impossible', motif: garde.motif, trous: [],
+        dureeCouverteSecondes: 0, dureeFenetreSecondes: 0,
+      };
+    }
+    const t0 = new Date(instantT0).getTime();
+    const t1 = new Date(instantT1).getTime();
+    const dureeFenetreSecondes = Math.round((t1 - t0) / 1000);
+
+    const intervallesCouverts = (quarts || [])
+      .filter(q => classerQuartDansFenetre({ ouvertLe: q.ouvertLe, clotureLe: q.clotureLe }, instantT0, instantT1).utilisable)
+      .map(q => ({ debut: new Date(q.ouvertLe).getTime(), fin: new Date(q.clotureLe).getTime() }));
+
+    const fusionnes = fusionnerIntervallesCouverts(intervallesCouverts);
+
+    // Un quart n'est utilisable (classerQuartDansFenetre) que s'il ouvre
+    // STRICTEMENT après T0 — borne intentionnellement ouverte, verrouillée
+    // dès l'Étape 3 pour ne jamais présumer qu'un quart commençant pile à
+    // T0 n'a rien chevauché avant. Conséquence mécanique assumée ici :
+    // même une couverture parfaite laisse un écart infime (souvent
+    // inférieur à la seconde) entre T0 et l'ouverture du premier quart
+    // utilisable. Un "trou" de 0 s affiché à un manager serait un artefact
+    // de précision, pas un vrai signal (Article 5) — seuls les écarts d'au
+    // moins 1 seconde arrondie sont retenus comme de vrais trous.
+    const SEUIL_TROU_SIGNIFICATIF_SECONDES = 1;
+    const trous = [];
+    let curseur = t0;
+    fusionnes.forEach(intervalle => {
+      if (intervalle.debut > curseur) {
+        const dureeSecondes = Math.round((intervalle.debut - curseur) / 1000);
+        if (dureeSecondes >= SEUIL_TROU_SIGNIFICATIF_SECONDES) {
+          trous.push({ debut: new Date(curseur).toISOString(), fin: new Date(intervalle.debut).toISOString(), dureeSecondes });
+        }
+      }
+      curseur = Math.max(curseur, intervalle.fin);
+    });
+    if (curseur < t1) {
+      const dureeSecondes = Math.round((t1 - curseur) / 1000);
+      if (dureeSecondes >= SEUIL_TROU_SIGNIFICATIF_SECONDES) {
+        trous.push({ debut: new Date(curseur).toISOString(), fin: new Date(t1).toISOString(), dureeSecondes });
+      }
+    }
+
+    const dureeCouverteSecondes = fusionnes.reduce((somme, i) => somme + Math.round((i.fin - i.debut) / 1000), 0);
+
+    return {
+      qualification: trous.length > 0 ? 'incomplete' : 'complete',
+      motif: null, trous, dureeCouverteSecondes, dureeFenetreSecondes,
+    };
+  }
+
   global.NexusInventaireSnapshotMoteur = {
     SEUIL_DEFAUT_DELAI_MAX_MINUTES, NIVEAUX_CONFIANCE_SNAPSHOT,
     libelleConfianceSnapshot, libelleSourceHorodatage, libelleDelta,
@@ -288,5 +410,6 @@
     qualifierReconstructionT0T1, classerQuartDansFenetre,
     agregerVentesParProduit, agregerMouvementsParProduit, agregerCorrectionsParProduit,
     reconstituerStockTheorique,
+    libelleDureeTrou, fusionnerIntervallesCouverts, detecterTrousTemporels,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -243,11 +243,57 @@
     return { qualification, resultats, quartsExclus, correctionsIgnorees };
   }
 
+  // ------------------------------------------------------------
+  // Étape 4 "complétude temporelle" (30/08/2026) — détecte les plages sans
+  // AUCUNE couverture de quart utilisable dans une fenêtre, et les zones
+  // sans couverture entre deux Snapshots consécutifs d'un site. Ne charge
+  // rien de nouveau : réutilise chargerQuartsFenetre (Étape 3) et
+  // chargerHistoriqueSnapshots (Étape 1) telles quelles (Article 11).
+  // ------------------------------------------------------------
+
+  // Une seule fenêtre (T0,T1] donnée explicitement par l'appelant.
+  async function detecterTrousTemporelsSite(client, site, instantT0, instantT1) {
+    const Moteur = global.NexusInventaireSnapshotMoteur;
+    const quarts = await chargerQuartsFenetre(client, site, instantT0, instantT1);
+    return Moteur.detecterTrousTemporels(
+      quarts.map(q => ({ id: q.id, ouvertLe: q.ouvert_le, clotureLe: q.cloture_le })),
+      instantT0, instantT1
+    );
+  }
+
+  // Rejoue detecterTrousTemporelsSite sur CHAQUE paire de Snapshots
+  // consécutifs de l'historique du site — répond à la question "entre
+  // toutes les Photos Decenium prises jusqu'ici, où NEXUS a-t-il perdu la
+  // visibilité ?". `chargerHistoriqueSnapshots` renvoie du plus récent au
+  // plus ancien (ORDER BY snapshot_reference_at DESC, Étape 1) — retrié ici
+  // en ordre chronologique croissant pour comparer chaque Snapshot à son
+  // véritable prédécesseur. Moins de 2 Snapshots -> rien à comparer
+  // (premier Snapshot du site : ce n'est pas un trou, juste un début),
+  // jamais une erreur.
+  async function detecterTrousEntreSnapshots(client, site, limiteHistorique) {
+    const historique = await chargerHistoriqueSnapshots(client, site, limiteHistorique || 20);
+    const chronologique = [...historique].reverse();
+    if (chronologique.length < 2) return { paires: [] };
+    const paires = [];
+    for (let i = 1; i < chronologique.length; i++) {
+      const precedent = chronologique[i - 1];
+      const suivant = chronologique[i];
+      const resultat = await detecterTrousTemporelsSite(client, site, precedent.snapshot_reference_at, suivant.snapshot_reference_at);
+      paires.push({
+        snapshot_precedent_id: precedent.id, snapshot_suivant_id: suivant.id,
+        instant_t0: precedent.snapshot_reference_at, instant_t1: suivant.snapshot_reference_at,
+        ...resultat,
+      });
+    }
+    return { paires };
+  }
+
   global.NexusInventaireSnapshotDonnees = {
     creerSnapshot, chargerDernierSnapshotActif, chargerSnapshotParId,
     chargerHistoriqueSnapshots, remplacerAnciensSnapshotsActifs,
     creerLignesSnapshot, chargerLignesSnapshot,
     chargerQuartsFenetre, chargerVentesQuarts, chargerMouvementsFenetre,
     chargerCorrectionsFenetre, reconstituerStockTheoriqueSite,
+    detecterTrousTemporelsSite, detecterTrousEntreSnapshots,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

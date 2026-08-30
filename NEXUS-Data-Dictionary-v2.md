@@ -4771,3 +4771,45 @@ Nouveau fichier `test_inventaire_snapshot_decenium_etape3.js` (31 tests) : les 4
 - **Aucun appel réel** à `reconstituerStockTheoriqueSite` depuis un parcours utilisateur — reste à brancher aux Étapes 4 (détection des trous) et/ou 5 (rétroactivité).
 - **La qualité `'partielle'` est globale à la ligne de Snapshot**, pas par cause : si plusieurs quarts sont exclus, le résultat ne distingue pas lequel a le plus d'impact — les motifs détaillés existent (`quartsExclus`) mais leur restitution lisible à un manager reste à concevoir avec l'écran d'une étape future.
 - **Détection des trous temporels et rétroactivité** restent les Étapes 4 et 5, non commencées.
+
+## v2.299 — Snapshot Decenium, Étape 4 « complétude temporelle » (30/08/2026)
+
+**Origine** : Frédéric — "continue", sur la base du plan en 5 étapes verrouillé le 30/08/2026. Comme l'Étape 3, cette étape ne construit **aucun écran** : elle livre le moteur pur et la couche données répondant à une question que l'Étape 3 laissait ouverte — l'Étape 3 sait déjà EXCLURE un quart chevauchant ou non clôturé et compter combien ont été exclus (qualité `'partielle'`), mais ne dit pas OÙ, dans le temps, se situent les zones sans aucune couverture. Un manager ne peut pas juger si un trou de 20 minutes ou de 2 jours a été ignoré — cette étape calcule exactement ces plages ("trous").
+
+### A. Vérification Article 11 avant tout code
+
+Avant d'écrire quoi que ce soit, recherche d'un mécanisme existant équivalent : `nexus-fdj-moteur.js` possède déjà une "continuité de chaîne de quarts" (`chaineContinuite`, `chaineInterrompueDynamique`, `quartPrecedentAttendu`/`quartSuivant`). Examiné en détail et jugé **non réutilisable tel quel** : ce mécanisme répond à une question différente — un calendrier FDJ à exactement 2 quarts fixes par jour ('1' et '2'), comparé quart par quart pour détecter une rupture de chaîne discrète. Ici, il s'agit de mesurer une **couverture temporelle continue** sur une fenêtre `(T0,T1]` arbitraire, à partir des intervalles réels `[ouvert_le, cloture_le]` des quarts Inventaire, dont le nombre par jour n'est pas fixe. Les deux mécanismes restent donc distincts, chacun répondant à sa propre question — ce n'est pas une duplication de la même vérité, seulement un rapprochement conceptuel qui a été vérifié avant d'écrire une seule ligne.
+
+### B. Moteur pur (`nexus-inventaire-snapshot-moteur.js`)
+
+Nouvelles fonctions, ajoutées à l'export `NexusInventaireSnapshotMoteur` :
+
+- `libelleDureeTrou(secondes)` — libellé lisible ("2 j 3 h", "1 h 12 min", "45 s"), même esprit que `libelleDelta` (Étape 1) mais pour des durées potentiellement longues.
+- `fusionnerIntervallesCouverts(intervalles)` — utilitaire pur : fusionne une liste d'intervalles `{debut, fin}` (timestamps ms) qui se chevauchent ou se touchent.
+- `detecterTrousTemporels(quarts, instantT0, instantT1)` — cœur de l'étape. Reçoit les quarts BRUTS et rappelle elle-même `classerQuartDansFenetre` (Article 11 : exactement la même règle d'inclusion que l'Étape 3, jamais une deuxième version de cette décision) pour ne retenir que les intervalles réellement utilisables, les fusionne, puis calcule ce qui reste non couvert dans `(T0,T1]`. Retourne `{qualification: 'complete' | 'incomplete' | 'impossible', trous: [{debut, fin, dureeSecondes}], dureeCouverteSecondes, dureeFenetreSecondes}`. `'impossible'` réutilise exactement le motif de `qualifierReconstructionT0T1` (T0/T1 invalides) — jamais une deuxième garde d'entrée dupliquée.
+
+**Précision assumée (Article 5)** : `classerQuartDansFenetre` exige qu'un quart ouvre STRICTEMENT après T0 (borne ouverte, verrouillée dès l'Étape 3 pour ne jamais présumer qu'un quart démarrant pile à T0 n'a rien chevauché avant). Conséquence mécanique : même une couverture par ailleurs parfaite laisse un écart infime (souvent inférieur à la seconde, un artefact de la précision des horodatages) entre T0 et l'ouverture du premier quart utilisable. Afficher un "trou" de 0 seconde à un manager serait un faux signal, pas une vraie information — seuls les écarts arrondis à **au moins 1 seconde** sont retenus comme de vrais trous (`SEUIL_TROU_SIGNIFICATIF_SECONDES`).
+
+Un quart non clôturé (`clotureLe` absent) ou chevauchant T0/T1 est mécaniquement exclu de la couverture par `classerQuartDansFenetre` — il ne "comble" donc jamais un trou même s'il existe en base : c'est un effet de bord voulu (jamais présumer une couverture qu'on ne peut pas garantir).
+
+### C. Couche données (`nexus-inventaire-snapshot-donnees.js`)
+
+Aucun nouveau chargeur créé — réutilise exactement `chargerQuartsFenetre` (Étape 3) et `chargerHistoriqueSnapshots` (Étape 1), Article 11 :
+
+- `detecterTrousTemporelsSite(client, site, instantT0, instantT1)` — charge les quarts candidats de la fenêtre puis délègue au moteur.
+- `detecterTrousEntreSnapshots(client, site, limiteHistorique)` — rejoue `detecterTrousTemporelsSite` sur CHAQUE paire de Snapshots consécutifs de l'historique du site, répondant à la question "entre toutes les Photos Decenium prises jusqu'ici, où NEXUS a-t-il perdu la visibilité ?". `chargerHistoriqueSnapshots` renvoie du plus récent au plus ancien (Étape 1) — retrié ici en ordre chronologique croissant pour comparer chaque Snapshot à son véritable prédécesseur. Moins de 2 Snapshots dans l'historique -> `{paires: []}`, jamais une erreur (le tout premier Snapshot d'un site n'a rien à comparer, ce n'est pas un trou).
+
+### Tests et régression
+
+Nouveau fichier `test_inventaire_snapshot_decenium_etape4.js` (24 tests) : `libelleDureeTrou` (toutes les échelles), `fusionnerIntervallesCouverts` (chevauchement, contact exact, désordre en entrée, intervalles invalides), `detecterTrousTemporels` (T0≥T1, couverture parfaite, aucune couverture, trou en début/fin/milieu de fenêtre, quart non clôturé exclu, quart chevauchant T0 exclu, quarts qui se chevauchent entre eux), et les deux fonctions de la couche données sur un mock Supabase (orchestration simple, garde T0≥T1, historique à moins de 2 Snapshots, historique à 3 Snapshots -> 2 paires dans le bon ordre chronologique).
+
+**Un bug a été détecté et corrigé pendant l'écriture des tests, avant livraison (Article 5)** : la première version de `detecterTrousTemporels` remontait un "trou" pour tout écart positif entre T0 et l'ouverture du premier quart utilisable, y compris des écarts sub-seconde causés par la borne stricte `ouvert > T0` héritée de l'Étape 3 — un quart démarrant 1 ms après T0 générait un trou fantôme de 0 seconde affichée, en plus du vrai trou éventuel. Corrigé en ignorant tout écart arrondi à moins d'1 seconde (voir section B) — testé explicitement par le scénario "couverture parfaite -> `complete`, aucun trou".
+
+**Régression complète rejouée avant livraison : 149 fichiers de test, 0 échec** (148 fichiers pré-existants + le nouveau).
+
+### Ce que ce lot NE couvre PAS encore (transparence, à discuter avec Frédéric)
+
+- **Aucun écran** n'affiche les trous détectés — décision de scope assumée, même précédent que les Étapes 1 et 3.
+- **`detecterTrousEntreSnapshots` n'est appelée par aucun parcours utilisateur** — reste à brancher, probablement dans un futur écran de suivi de la fiabilité Inventaire (hors scope de ce plan en 5 étapes).
+- **Un trou n'est pas relié à un motif métier explicite par quart** (`quart_non_cloture` vs `chevauche_T0` vs absence totale) — le moteur sait pourquoi chaque quart a été exclu (`classerQuartDansFenetre`), mais `detecterTrousTemporels` ne remonte que la plage temporelle résultante, pas la cause par quart. Une future itération pourrait enrichir chaque trou avec les motifs des quarts exclus qui le bordent, si Frédéric le juge utile.
+- **Rétroactivité (requalification sans effacer l'historique)** reste l'Étape 5, non commencée.
