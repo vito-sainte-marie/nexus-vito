@@ -48,6 +48,12 @@ const nexusClient = supabase.createClient(NEXUS_SUPABASE_URL, NEXUS_SUPABASE_ANO
     scriptReglesFinition.defer = true;
     document.head.appendChild(scriptReglesFinition);
   }
+  if (page === 'NEXUS-FDJ-v1.html') {
+    const scriptCorrectionDepart = document.createElement('script');
+    scriptCorrectionDepart.src = 'nexus-fdj-correction-stock-depart.js';
+    scriptCorrectionDepart.defer = true;
+    document.head.appendChild(scriptCorrectionDepart);
+  }
 })();
 
 async function nexusRequireAuth() {
