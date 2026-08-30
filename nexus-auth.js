@@ -15,6 +15,11 @@ const nexusClient = supabase.createClient(NEXUS_SUPABASE_URL, NEXUS_SUPABASE_ANO
     scriptTest.src = 'nexus-inventaire-mode-test.js';
     scriptTest.defer = true;
     document.head.appendChild(scriptTest);
+
+    const scriptTransferts = document.createElement('script');
+    scriptTransferts.src = 'nexus-inventaire-transferts-internes.js';
+    scriptTransferts.defer = true;
+    document.head.appendChild(scriptTransferts);
   }
   if (['NEXUS-Inventaire-v1.html', 'NEXUS-Inventaire-Manager-v1.html', 'NEXUS-Parametres-Inventaire-v1.html'].includes(page)) {
     const scriptRotation = document.createElement('script');
