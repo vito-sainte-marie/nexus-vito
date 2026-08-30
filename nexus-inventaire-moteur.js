@@ -448,6 +448,32 @@
     };
   }
 
+  // ============================================================
+  // INVENTAIRE V2 — Sprint 5 "Rapprochement Decenium ↔ Missions" (29/08/2026,
+  // Frédéric a confirmé "continue" après le Scénario de référence
+  // Sainte-Marie). Vérification préalable (Article 5, requêtes SQL directes
+  // sur le schéma réel) : `inventaire_rapprochements` est déjà calculée par
+  // QUART (`quart_id`) et par PRODUIT — plus fin que ce que le premier jet
+  // du scénario de référence supposait ("le jour") — mais ne porte AUCUNE
+  // colonne mission_rule_id/moment_code/rôle/employé. Le gap réel n'est
+  // donc pas un calcul de qualité manquant (déjà fait, déjà persisté par
+  // `qualiteRapprochementProduit` à l'import) mais un LIEN manquant entre
+  // cette vérité déjà calculée et une Mission (site+rôle+employé+quart+
+  // moment+périmètre). Ce sprint ne recalcule RIEN (Article 11) : il
+  // découpe simplement les lignes déjà persistées selon le périmètre
+  // produit d'une mission, puis réutilise `syntheseQualiteRapprochements`
+  // (déjà existante) telle quelle pour les agréger.
+  // ============================================================
+
+  // Filtre les lignes de rapprochement déjà calculées (par le quart entier)
+  // sur le périmètre produit d'UNE mission — jamais un second calcul de
+  // qualiteRapprochementProduit, uniquement une sélection. Pure, aucun
+  // accès réseau.
+  function rapprochementsPourPerimetre(produitIds, rapprochements) {
+    const perimetre = new Set(produitIds || []);
+    return (rapprochements || []).filter(r => r && perimetre.has(r.produit_id));
+  }
+
   // Couverture physique 7/14/30 jours (cahier §11 "Couverture physique",
   // INV2-18) : proportion du catalogue actif réellement observé (comptage
   // physique, tout type confondu) dans la fenêtre. Un produit jamais
@@ -1414,5 +1440,6 @@
     CATEGORIES_DEFAUT_NEXUS, ROLES_DEFAUT_NEXUS, MISSION_RULES_DEFAUT_NEXUS,
     perimetreProduitsMission, selectionnerPerimetreMission, genererMissionsPourContexte, couvertureMissions,
     jaugePerimetre, repartirPerimetreParEmploye,
+    rapprochementsPourPerimetre,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

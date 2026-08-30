@@ -26,6 +26,7 @@
 <script src="nexus-inventaire-moteur.js"></script>
 <script src="nexus-inventaire-plan-donnees.js"></script>
 <script src="nexus-inventaire-manager-donnees.js"></script>
+<script src="nexus-inventaire-missions-donnees.js"></script>
 <script src="nexus-inventaire-production-donnees.js"></script>
 <script src="nexus-risques-moteur.js"></script>
 <script src="nexus-risques-donnees.js"></script>
@@ -2575,9 +2576,44 @@
     `;
   }
 
+  // Sprint 5 "Rapprochement Decenium ↔ Missions" (29/08/2026, doctrine
+  // "NEXUS Inventaire V2" — Frédéric a confirmé "continue" après le
+  // Scénario de référence Sainte-Marie). `renderQualiteRapprochement`
+  // (ci-dessus) montre déjà la qualité au niveau du QUART ENTIER — ce bloc
+  // la complète par mission (Piste/Caisse/Renfort...), jamais un second
+  // calcul (Article 11) : `missions` porte déjà, pour chacune, le champ
+  // `.rapprochement` calculé par `renderTout` à partir des MÊMES lignes
+  // `inventaire_rapprochements` que `qualiteRapprochement`
+  // (NexusInventaireMoteur.rapprochementsPourPerimetre puis
+  // syntheseQualiteRapprochements, déjà existante avant ce sprint). Une
+  // mission sans `.rapprochement` (aucune ligne importée sur SON périmètre
+  // précis) n'apparaît simplement pas — jamais un faux "0/0". Invisible
+  // dans son ensemble si aucune mission n'a de rapprochement à montrer.
+  function renderRapprochementParMission(missions) {
+    const avecRapprochement = (missions || []).filter(m => m.rapprochement);
+    if (!avecRapprochement.length) return '';
+    const M = typeof NexusInventaireMoteur !== 'undefined' ? NexusInventaireMoteur : null;
+    const lignes = avecRapprochement.map(m => {
+      const q = m.rapprochement;
+      const libelleMoment = M ? M.libelleMoment(m.moment_code) : m.moment_code;
+      return `
+        <div class="synthese-ligne">
+          <span>${m.nom} — ${libelleMoment} (${m.role_affecte})</span>
+          <span class="synthese-valeur ${q.toutFiable ? 'green' : (q.provisoire || q.nonComparable ? 'amber' : '')}">${q.fiable} / ${q.total} fiable${q.provisoire ? ` · ${q.provisoire} provisoire` : ''}${q.nonComparable ? ` · ${q.nonComparable} non comparable` : ''}</span>
+        </div>
+      `;
+    }).join('');
+    return `
+      <div class="synthese-card" style="margin-bottom:10px;">
+        <div class="synthese-titre">Qualité du rapprochement par mission</div>
+        ${lignes}
+      </div>
+    `;
+  }
+
   function renderTout(ctx) {
     dernierCtx = ctx;
-    const { alertesOuvertes, sensiblesNonComptesDetail, employesSite, modesAveugleActifs, jaugeageActif, synthese, etat, produitsSensiblesTotal, decisionsQuart, review, bornes, alertesPeriode, decisionsPeriode, couverture7, couverture14, couverture30, qualiteRapprochement, maturiteInventaire, cutoverInventaire } = ctx;
+    const { alertesOuvertes, sensiblesNonComptesDetail, employesSite, modesAveugleActifs, jaugeageActif, synthese, etat, produitsSensiblesTotal, decisionsQuart, review, bornes, alertesPeriode, decisionsPeriode, couverture7, couverture14, couverture30, qualiteRapprochement, maturiteInventaire, cutoverInventaire, missionsAvecRapprochement } = ctx;
     const modesMap = Object.fromEntries(modesAveugleActifs.map(m => [m.employee_id, m]));
 
     // Vue par exception (02/08/2026, section 4 du cahier des charges) :
@@ -2624,6 +2660,8 @@
       ${quartRow ? renderBriefInventaire(synthese, alertesOuvertes, decisionsQuart, ctx.importDeceniumFait) : ''}
 
       ${quartRow ? renderQualiteRapprochement(qualiteRapprochement) : ''}
+
+      ${quartRow ? renderRapprochementParMission(missionsAvecRapprochement) : ''}
 
       ${quartRow ? renderSyntheseQuart(synthese, etat) : ''}
 
@@ -3001,15 +3039,35 @@
     // des lignes inventaire_rapprochements du quart (Sprint 5), agrégées
     // par NexusInventaireMoteur.syntheseQualiteRapprochements.
     let qualiteRapprochement = null;
+    // Sprint 5 "Rapprochement Decenium ↔ Missions" (29/08/2026) : les MÊMES
+    // lignes `rapprochements` déjà lues pour la synthèse du quart entier
+    // sont réutilisées ici pour la synthèse PAR MISSION — jamais une
+    // deuxième lecture d'inventaire_rapprochements (Article 11). Les
+    // missions sont lues en LECTURE SEULE (chargerMissionsExistantes,
+    // jamais genererOuChargerMissions) : le manager ne doit jamais
+    // déclencher lui-même une génération de missions, qui reste un geste
+    // employé (Sprint 2/3).
+    let missionsAvecRapprochement = [];
     if (quartRow) {
       const rapprochements = await chargerRapprochementsQuart(quartRow.id);
       qualiteRapprochement = NexusInventaireMoteur.syntheseQualiteRapprochements(rapprochements);
+
+      if (rapprochements.length && typeof NexusInventaireMissionsDonnees !== 'undefined') {
+        const missionsDuQuart = await NexusInventaireMissionsDonnees.chargerMissionsExistantes(nexusClient, siteId, dateSelectionnee, quartSelectionne);
+        missionsAvecRapprochement = missionsDuQuart
+          .filter(m => m.statut === 'affectee')
+          .map(m => {
+            const lignesMission = NexusInventaireMoteur.rapprochementsPourPerimetre(m.produit_ids || [], rapprochements);
+            return lignesMission.length ? { ...m, rapprochement: NexusInventaireMoteur.syntheseQualiteRapprochements(lignesMission) } : m;
+          });
+      }
     }
 
     renderTout({
       alertesOuvertes, sensiblesNonComptesDetail, employesSite, modesAveugleActifs, jaugeageActif, synthese,
       etat, produitsSensiblesTotal: produitsSensibles.length, decisionsQuart, review, bornes, alertesPeriode, decisionsPeriode,
       importDeceniumFait, couverture7, couverture14, couverture30, qualiteRapprochement, maturiteInventaire, cutoverInventaire,
+      missionsAvecRapprochement,
     });
     if (periodeSelectionnee === 'jour') await genererRemarquesConseiller(alertesOuvertes, sensiblesNonComptesDetail, modesAveugleActifs, synthese);
   }

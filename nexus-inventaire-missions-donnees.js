@@ -125,7 +125,46 @@
     return toutes.filter(m => m.statut === 'affectee' && m.role_affecte === roleCode);
   }
 
+  // ------------------------------------------------------------
+  // Sprint 5 "Rapprochement Decenium ↔ Missions" (29/08/2026, Frédéric a
+  // confirmé "continue" après le Scénario de référence Sainte-Marie).
+  // `inventaire_rapprochements` est déjà calculée par quart_id+produit_id à
+  // l'import Decenium (NEXUS-Inventaire-Manager-v1.html) — jamais un second
+  // calcul ici (Article 11), uniquement une lecture + un découpage par
+  // périmètre de mission (NexusInventaireMoteur.rapprochementsPourPerimetre
+  // + syntheseQualiteRapprochements, déjà existante avant ce sprint).
+  // Usage manager exclusivement : la doctrine interdit à l'employé de voir
+  // toute notion de fiabilité/qualité de rapprochement (jamais confondue
+  // avec la Couverture qu'il voit, lui, dans "Mes missions").
+  // ------------------------------------------------------------
+  async function chargerRapprochementsPourMissions(client, site, dateISO, quart, missions) {
+    const M = global.NexusInventaireMoteur;
+    const liste = missions || [];
+    if (!M || !liste.length) return liste;
+
+    const { data: quartRow, error: e1 } = await client.from('inventaire_quarts')
+      .select('id').eq('site', site).eq('date', dateISO).eq('quart', quart).maybeSingle();
+    if (e1) { console.error('Chargement quart (rapprochement missions):', e1); return liste; }
+    if (!quartRow) return liste; // quart pas encore ouvert -> aucun rapprochement possible, pas une erreur (Article 5)
+
+    const { data: rapprochements, error: e2 } = await client.from('inventaire_rapprochements')
+      .select('produit_id, statut_validation, ecart').eq('quart_id', quartRow.id);
+    if (e2) { console.error('Chargement rapprochements (missions):', e2); return liste; }
+
+    // Aucun rapprochement importé pour ce quart -> missions rendues telles
+    // quelles, SANS champ `rapprochement` (jamais un faux "0 fiable, 0
+    // provisoire" qui laisserait croire à un calcul déjà fait, Article 5).
+    if (!rapprochements || !rapprochements.length) return liste;
+
+    return liste.map(m => {
+      const lignesMission = M.rapprochementsPourPerimetre(m.produit_ids || [], rapprochements);
+      if (!lignesMission.length) return m; // rien d'importé sur CE périmètre précis -> pas de champ ajouté
+      return { ...m, rapprochement: M.syntheseQualiteRapprochements(lignesMission) };
+    });
+  }
+
   global.NexusInventaireMissionsDonnees = {
     chargerMissionsExistantes, genererOuChargerMissions, chargerMissionsPourRole,
+    chargerRapprochementsPourMissions,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

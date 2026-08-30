@@ -94,10 +94,14 @@ Aucune des deux jauges ne mesure la fiabilité/conformité (traitée séparémen
 
 ## 9. Ce que ce scénario ne couvre pas encore (à cadrer avant le Sprint 5)
 
-Le rapprochement Decenium existant (`qualiteRapprochementProduit`, fonctionnel depuis les lots "Phase 1/Phase 2" antérieurs à la doctrine Inventaire V2) compare l'écoulement physique aux ventes Decenium **au niveau du jour**, pas au niveau du quart/moment d'une Mission précise. Autrement dit : aujourd'hui, rien ne relie explicitement un `Snapshot Decenium` à UNE mission (site+rôle+employé+quart+moment) au sens strict de la doctrine — c'est exactement le travail du Sprint 5, qualifié par Frédéric lui-même de "complexe", et volontairement non entamé dans ce document ni dans le code. Deux questions restent à trancher avec Frédéric avant de coder quoi que ce soit :
+*Mise à jour du 29/08/2026, après vérification directe du code (`NEXUS-Inventaire-Manager-v1.html`, import Decenium) — corrige une imprécision de la première version de ce document, qui affirmait à tort une granularité "jour" (Article 5 : une hypothèse non vérifiée ne doit jamais rester écrite comme un fait).*
 
-1. À quelle granularité temporelle Decenium peut-il réellement fournir des ventes (par quart ? par heure ? uniquement par jour) ?
-2. Quand un produit est réparti entre deux employés (Sprint 4), comment le rapprochement Decenium doit-il s'appliquer : par employé (chacun sa part) ou uniquement au niveau de la mission entière (les deux parts recomposées) ?
+Le rapprochement Decenium existant (table `inventaire_rapprochements`, alimentée à l'import par `NexusInventaireMoteur.qualiteRapprochementProduit`) est en réalité déjà calculé **au niveau du quart** (`quart_id`, un import Decenium est fait par quart, pas par jour) et **au niveau du produit** — plus fin que ce que la première version de ce document affirmait. En revanche, il n'existe aujourd'hui **aucun lien entre une ligne de rapprochement et une Mission** (site+rôle+employé+quart+moment) : `inventaire_rapprochements` ne porte ni `mission_rule_id`, ni `moment_code`, ni aucune référence à un rôle ou un employé — seulement `quart_id` et `produit_id`. C'est ce lien manquant qui reste le travail réel du Sprint 5.
+
+Les deux questions posées dans la première version de ce document sont maintenant tranchées, par vérification directe plutôt que par supposition :
+
+1. **Granularité temporelle** — résolue : Decenium est importé et rapproché par quart (déjà plus fin que "le jour"), jamais par moment (début/pendant/fin) à l'intérieur d'un quart. Le Sprint 5 ne peut donc pas distinguer, au sein d'un même quart, ce qui a été vendu "pendant" la mission de début vs celle de fin — seule la maille "quart entier" est disponible côté Decenium.
+2. **Répartition multi-employé (Sprint 4)** — résolue : le rapprochement est calculé sur l'écoulement physique agrégé du quart entier, produit par produit (`calculerEcoulementPhysiqueQuart`), **totalement indépendant de qui a compté quoi**. La répartition du Sprint 4 n'a donc aucune incidence sur le rapprochement : deux employés partageant un rôle contribuent chacun leur part au MÊME comptage physique agrégé, exactement comme un produit multi-emplacements reste composé de sous-comptages physiques (invariant déjà posé par la doctrine). Aucun rapprochement "par employé" n'est nécessaire ni pertinent.
 
 ## 10. Checklist de recette (pour le développeur)
 
@@ -109,3 +113,5 @@ Le rapprochement Decenium existant (`qualiteRapprochementProduit`, fonctionnel d
 - [ ] Écart sur catégorie sensible (Cigarettes) → remonte immédiatement au manager, quelle que soit sa taille.
 - [ ] Jauge de mission et jauge collective jamais confondues, jamais un pourcentage de fiabilité affiché à la place d'une couverture.
 - [ ] Aucun écran employé n'affiche jamais : stock théorique, comptage passé, raison de sélection, ou le mot "anomalie".
+- [ ] (Sprint 5) La qualité de rapprochement affichée pour une Mission est un simple regroupement des lignes `inventaire_rapprochements` déjà calculées — jamais un second calcul de `qualiteRapprochementProduit`.
+- [ ] (Sprint 5) Aucune tentative de rapprochement "par employé" — la répartition du Sprint 4 reste un usage exclusivement lecture/comptage, jamais une dimension du rapprochement Decenium.
