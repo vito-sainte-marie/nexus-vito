@@ -4,7 +4,7 @@
 // <script src="nexus-auth.js"></script>
 
 const NEXUS_SUPABASE_URL = "https://uzhjpqpctpvxytxpxoqz.supabase.co";
-const NEXUS_SUPABASE_ANON_KEY = "sb_publishable_7dV43gZxDYg6MOa6xzmdDQ_m8Mean5p";
+const NEXUS_SUPABASE_ANON_KEY = "sb_publishable_7dV43gZxDyG6MOa6xzmdDQ_m8Mean5p";
 
 const nexusClient = supabase.createClient(NEXUS_SUPABASE_URL, NEXUS_SUPABASE_ANON_KEY);
 
@@ -32,6 +32,11 @@ const nexusClient = supabase.createClient(NEXUS_SUPABASE_URL, NEXUS_SUPABASE_ANO
     scriptReglages.src = 'nexus-inventaire-reglages-specifiques.js';
     scriptReglages.defer = true;
     document.head.appendChild(scriptReglages);
+
+    const scriptStockLocalise = document.createElement('script');
+    scriptStockLocalise.src = 'nexus-inventaire-parametres-stock-localise.js';
+    scriptStockLocalise.defer = true;
+    document.head.appendChild(scriptStockLocalise);
   }
 })();
 
