@@ -22,6 +22,12 @@ const nexusClient = supabase.createClient(NEXUS_SUPABASE_URL, NEXUS_SUPABASE_ANO
     scriptRotation.defer = true;
     document.head.appendChild(scriptRotation);
   }
+  if (page === 'NEXUS-Parametres-Inventaire-v1.html') {
+    const scriptReglages = document.createElement('script');
+    scriptReglages.src = 'nexus-inventaire-reglages-specifiques.js';
+    scriptReglages.defer = true;
+    document.head.appendChild(scriptReglages);
+  }
 })();
 
 async function nexusRequireAuth() {
