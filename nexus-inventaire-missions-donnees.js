@@ -197,11 +197,6 @@
   // ------------------------------------------------------------
   // CONVERGENCE MANAGER V2 — vérité opérationnelle = missions applicables.
   // ------------------------------------------------------------
-  // L'écran Manager historique construit sa synthèse à partir du catalogue
-  // actif complet. Il reçoit cependant le quart sélectionné dans
-  // construireSynthese(..., quart, ...). On prépare donc le périmètre V2
-  // au moment où ce quart est chargé, puis on filtre la synthèse de manière
-  // synchrone. Aucun HTML monolithique n'est réécrit ici.
   const cachePerimetresManager = new Map();
   const DATE_BASCULE_V2 = '2026-08-29';
 
@@ -224,8 +219,6 @@
   async function preparerPerimetreManager(client, site, dateISO, quart) {
     if (!site || !dateISO || !quart) return;
     const cle = clePerimetreManager(site, dateISO, quart);
-    // Historique antérieur à la bascule : on ne réinterprète pas les vieux
-    // quarts avec des missions qui n'existaient pas encore.
     if (dateISO < DATE_BASCULE_V2) {
       cachePerimetresManager.set(cle, { historique: true, missions: [] });
       return;
@@ -245,10 +238,6 @@
     const MD = global.NexusInventaireManagerDonnees;
     if (!MD || typeof MD.chargerQuart !== 'function') return;
 
-    // Précharge les missions AVANT que chargerEtAfficherTout ne construise
-    // la synthèse. Le wrapper local chargerQuart(...) de la page continue à
-    // fonctionner sans modification : il appelle cette propriété à chaque
-    // rafraîchissement date/quart.
     const chargerQuartOriginal = MD.chargerQuart;
     MD.chargerQuart = async function (client, site, dateISO, quart) {
       const ligne = await chargerQuartOriginal(client, site, dateISO, quart);
@@ -261,7 +250,6 @@
     if (typeof syntheseOriginale !== 'function') return;
 
     global.construireSynthese = function (produitsActifs, comptages, jaugeageActif, quartRow, alertesOuvertes) {
-      // Sans quart, l'écran historique conserve son comportement neutre.
       if (!quartRow || !quartRow.site || !quartRow.date || !quartRow.quart) {
         return syntheseOriginale(produitsActifs, comptages, jaugeageActif, quartRow, alertesOuvertes);
       }
@@ -273,17 +261,104 @@
 
       const moment = phaseDepuisQuart(quartRow);
       const ids = perimetre[moment] || new Set();
-      // Doctrine V2 : zéro mission applicable ne signifie JAMAIS « tout le
-      // catalogue est obligatoire ». On passe une liste vide, ce qui donne
-      // une synthèse neutre 0/0 et clotureImpossible=false, au lieu de 0/112.
+      const missionsApplicables = (perimetre.missions || []).filter(m => m.statut === 'affectee' && m.moment_code === moment).length;
       const filtres = (produitsActifs || []).filter(p => ids.has(p.id));
       const resultat = syntheseOriginale(filtres, comptages, false, quartRow, alertesOuvertes);
       resultat.sourcePerimetre = 'missions_v2';
       resultat.momentMission = moment;
-      resultat.missionsApplicables = (perimetre.missions || []).filter(m => m.statut === 'affectee' && m.moment_code === moment).length;
+      resultat.missionsApplicables = missionsApplicables;
       resultat.missionsPendant = (perimetre.missions || []).filter(m => m.statut === 'affectee' && m.moment_code === 'pendant').length;
+      resultat.produitIdsApplicables = Array.from(ids);
+      // 0 mission / 0 produit n'est PAS un 100 % métier. C'est un état neutre
+      // « en attente de mission / d'affectation ». On le transporte dans la
+      // synthèse pour que tous les consommateurs UI partagent la même vérité.
+      resultat.perimetreVide = missionsApplicables === 0 || ids.size === 0;
+      if (resultat.perimetreVide) resultat.pourcentage = null;
       return resultat;
     };
+
+    // Progression : neutralise le faux « 100 % / clôture possible » lorsque
+    // le périmètre V2 est vide.
+    if (typeof global.renderSyntheseQuart === 'function') {
+      const renderSyntheseOriginal = global.renderSyntheseQuart;
+      global.renderSyntheseQuart = function (s, etat) {
+        if (!s || s.sourcePerimetre !== 'missions_v2' || !s.perimetreVide) return renderSyntheseOriginal(s, etat);
+        const moment = s.momentMission === 'fin' ? 'fin de quart' : 'début de quart';
+        return `
+          <div class="synthese-card">
+            <div class="synthese-titre">Progression</div>
+            <div class="synthese-ligne"><span>Périmètre opérationnel</span><span class="synthese-valeur">En attente</span></div>
+            <div style="font-size:12px;color:var(--text-mid);line-height:1.55;margin:8px 0 4px;">
+              Aucune mission de ${moment} n'est actuellement applicable ou affectée. NEXUS ne considère pas ce quart comme terminé et ne remplace pas ce périmètre vide par le catalogue complet.
+            </div>
+            <div class="synthese-cloture attente">En attente d'une mission applicable</div>
+          </div>`;
+      };
+    }
+
+    // Brief : même neutralité. Évite notamment 0/0 vert et « aucune anomalie
+    // à traiter » qui seraient interprétés comme un quart entièrement fait.
+    if (typeof global.renderBriefInventaire === 'function') {
+      const renderBriefOriginal = global.renderBriefInventaire;
+      global.renderBriefInventaire = function (s, alertes, decisions, importDeceniumFait) {
+        if (!s || s.sourcePerimetre !== 'missions_v2' || !s.perimetreVide) return renderBriefOriginal(s, alertes, decisions, importDeceniumFait);
+        return `
+          <div class="section-titre">Brief Inventaire</div>
+          <div class="synthese-card">
+            <div class="synthese-ligne"><span>Missions applicables</span><span class="synthese-valeur">0</span></div>
+            <div class="synthese-ligne"><span>État du contrôle</span><span class="synthese-valeur">En attente</span></div>
+            <div style="font-size:11.5px;color:var(--text-mid);line-height:1.5;margin:8px 0;">Aucune conclusion de conformité ou de complétude n'est tirée tant qu'aucune mission n'est applicable.</div>
+          </div>`;
+      };
+    }
+
+    // Empêche « produits sensibles manquants » et autres vues dérivées de
+    // réintroduire des références hors mission. Puis remplace le message
+    // « Tous les comptages requis ont été effectués » par un état neutre si
+    // le périmètre V2 est vide.
+    if (typeof global.renderTout === 'function') {
+      const renderToutOriginal = global.renderTout;
+      global.renderTout = function (ctx) {
+        if (ctx && ctx.synthese && ctx.synthese.sourcePerimetre === 'missions_v2') {
+          const ids = new Set(ctx.synthese.produitIdsApplicables || []);
+          ctx = { ...ctx };
+          ctx.sensiblesNonComptesDetail = (ctx.sensiblesNonComptesDetail || []).filter(x => x && x.produit && ids.has(x.produit.id));
+        }
+        const resultat = renderToutOriginal(ctx);
+        if (ctx && ctx.synthese && ctx.synthese.sourcePerimetre === 'missions_v2' && ctx.synthese.perimetreVide) {
+          const section = global.document && global.document.getElementById('sectionATerminer');
+          const suivant = section && section.nextElementSibling;
+          if (suivant && (suivant.classList.contains('empty') || suivant.classList.contains('card'))) {
+            const neutre = global.document.createElement('div');
+            neutre.className = 'empty';
+            neutre.textContent = 'Aucune mission applicable pour cette phase — rien n’est déclaré terminé et aucun produit hors mission n’est ajouté.';
+            suivant.replaceWith(neutre);
+          }
+        }
+        return resultat;
+      };
+    }
+
+    // Conseiller : en périmètre non vide, filtre les alertes produit et les
+    // sensibles au scope des missions. En périmètre vide, n'invente aucune
+    // priorité produit et affiche seulement l'état d'attente opérationnel.
+    if (typeof global.genererRemarquesConseiller === 'function') {
+      const conseillerOriginal = global.genererRemarquesConseiller;
+      global.genererRemarquesConseiller = async function (alertes, sensibles, modes, s) {
+        if (!s || s.sourcePerimetre !== 'missions_v2') return conseillerOriginal(alertes, sensibles, modes, s);
+        const ids = new Set(s.produitIdsApplicables || []);
+        const alertesFiltrees = (alertes || []).filter(a => !a.produit_id || ids.has(a.produit_id));
+        const sensiblesFiltres = (sensibles || []).filter(x => x && x.produit && ids.has(x.produit.id));
+        if (!s.perimetreVide) return conseillerOriginal(alertesFiltrees, sensiblesFiltres, modes, s);
+        const corps = global.document && global.document.getElementById('conseillerCorps');
+        if (!corps) return;
+        const moment = s.momentMission === 'fin' ? 'fin de quart' : 'début de quart';
+        const alertesQuart = alertesFiltrees.filter(a => !a.produit_id);
+        corps.innerHTML = `
+          <div class="conseiller-remarque">Aucune mission de <b>${moment}</b> n'est actuellement applicable ou affectée. NEXUS reste en attente et ne transforme pas l'absence de mission en validation du quart.</div>
+          ${alertesQuart.length ? `<div class="conseiller-remarque"><b>${alertesQuart.length} événement(s) de quart</b> restent néanmoins à traiter.</div>` : ''}`;
+      };
+    }
   }
 
   global.NexusInventaireMissionsDonnees = {
@@ -294,8 +369,5 @@
     preparerPerimetreManager,
   };
 
-  // Les fonctions globales de la page Manager sont déclarées plus tard dans
-  // son script inline ; l'installation doit donc attendre le chargement
-  // complet du document. Sur les autres pages, cette garde ne fait rien.
   if (global.addEventListener) global.addEventListener('load', installerConvergenceManager, { once: true });
 })(typeof window !== 'undefined' ? window : globalThis);
