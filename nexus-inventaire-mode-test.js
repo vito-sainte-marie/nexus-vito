@@ -1,13 +1,5 @@
 // NEXUS Inventaire V2 — mode test terrain manager.
 // Chargé uniquement par nexus-auth.js sur NEXUS-Inventaire-v1.html.
-//
-// Objectifs :
-// 1. permettre au manager/gérant de choisir Caissier, Pompiste ou Renfort ;
-// 2. ne jamais modifier le rôle RH, les shifts ou inventaire_quart_employes ;
-// 3. en mode test, faire du périmètre des Missions V2 la vérité de l'écran
-//    de comptage — jamais le catalogue/plan complet en repli silencieux ;
-// 4. si aucune mission n'est calculable, afficher un état neutre et bloquer
-//    le démarrage plutôt que de présenter 112 références par défaut.
 (function () {
   'use strict';
 
@@ -16,6 +8,11 @@
     { code: 'pompiste', label: 'Pompiste', icon: '⛽' },
     { code: 'renfort', label: 'Renfort', icon: '📦' },
   ];
+  // Le parcours historique conserve produitsZone entre ouverture et clôture.
+  // En V2 test, ce serait faux : une mission « début » et une mission « fin »
+  // peuvent avoir des périmètres différents. On garde donc le moment métier
+  // explicitement et on recharge produitsZone au changement de phase.
+  let momentMissionTest = 'debut';
 
   function estManagerReel() {
     if (typeof employeeCourant === 'undefined' || !employeeCourant) return false;
@@ -34,10 +31,12 @@
     return r ? r.label : code;
   }
 
-  function idsMissionsTest() {
+  function idsMissionsTest(moment) {
     if (!roleTestActif() || typeof missionsDuJour === 'undefined') return new Set();
     const ids = new Set();
-    (missionsDuJour || []).forEach(m => (m.produit_ids || []).forEach(id => ids.add(id)));
+    (missionsDuJour || [])
+      .filter(m => !moment || m.moment_code === moment)
+      .forEach(m => (m.produit_ids || []).forEach(id => ids.add(id)));
     return ids;
   }
 
@@ -51,8 +50,7 @@
   function styleBouton(actif) {
     return [
       'flex:1', 'min-width:92px', 'border-radius:10px', 'padding:10px 8px',
-      'font-family:var(--sans)', 'font-size:12px', 'font-weight:600',
-      'cursor:pointer',
+      'font-family:var(--sans)', 'font-size:12px', 'font-weight:600', 'cursor:pointer',
       actif
         ? 'border:1px solid var(--cyan);background:rgba(79,195,217,.14);color:var(--cyan)'
         : 'border:1px solid var(--hairline);background:var(--panel-raised);color:var(--text-mid)'
@@ -67,7 +65,6 @@
         ${r.icon} ${r.label}
       </button>
     `).join('');
-
     const statut = actif
       ? `<div style="font-size:12px;color:var(--text-mid);line-height:1.45;margin-top:8px;">
            Vous restez connecté comme <b style="color:var(--text);">manager</b>. NEXUS affiche uniquement le parcours terrain <b style="color:var(--cyan);">${libelleRole(actif)}</b>.
@@ -75,7 +72,6 @@
       : `<div style="font-size:12px;color:var(--text-mid);line-height:1.45;margin-top:8px;">
            Choisissez un rôle pour éprouver son parcours Inventaire V2 sans créer de fausse prise de poste.
          </div>`;
-
     return `
       <div id="nexusModeTestManager" class="etat-banner" style="border-color:rgba(79,195,217,.35);">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
@@ -84,8 +80,7 @@
         </div>
         ${statut}
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;">${boutons}</div>
-      </div>
-    `;
+      </div>`;
   }
 
   function brancherSelecteur() {
@@ -107,6 +102,8 @@
 
     const actif = roleTestActif();
     if (!actif) return;
+    // À l'accueil on vérifie l'existence d'au moins une mission du rôle. La
+    // garde spécifique début/fin est appliquée au clic sur chaque parcours.
     const ids = idsMissionsTest();
     if (!ids.size) {
       const selecteur = document.getElementById('nexusModeTestManager');
@@ -114,11 +111,22 @@
         <div class="etat-banner" style="border-color:var(--amber);">
           <b>Aucune mission V2 applicable pour ce test.</b><br>
           NEXUS ne bascule pas vers le catalogue complet. Vérifiez les règles de mission ou changez de rôle/quart.
-        </div>
-      `);
+        </div>`);
       const carte = document.getElementById('carteOuverture');
       if (carte) carte.classList.add('disabled');
     }
+  }
+
+  function signalerMissionMomentAbsente(moment) {
+    injecterSelecteur();
+    const selecteur = document.getElementById('nexusModeTestManager');
+    if (!selecteur) return;
+    const label = moment === 'fin' ? 'de fin de quart' : 'de début de quart';
+    selecteur.insertAdjacentHTML('afterend', `
+      <div class="etat-banner" style="border-color:var(--amber);">
+        <b>Aucune mission ${label} applicable.</b><br>
+        NEXUS ne remplace pas ce périmètre vide par le catalogue ou par une mission d'un autre moment.
+      </div>`);
   }
 
   function installerSurcharges() {
@@ -127,13 +135,6 @@
       return;
     }
 
-    // La page historique charge les missions avec roleDuJour puis répartit
-    // entre les employés réellement présents de ce rôle. En test manager,
-    // cette répartition n'a pas de sens : le manager est l'unique testeur et
-    // doit recevoir la projection complète du rôle simulé. On appelle donc
-    // directement le chargeur V2 avec le rôle RÉEL manager, ce qui permet au
-    // module missions de détecter test_role et de produire sa projection
-    // non persistante. Aucun collegue fictif n'est créé.
     const chargerMissionsOriginal = typeof chargerMissionsDuJour === 'function' ? chargerMissionsDuJour : null;
     if (chargerMissionsOriginal) {
       chargerMissionsDuJour = async function () {
@@ -152,62 +153,57 @@
       };
     }
 
-    // En mode test, la vérité opérationnelle = union dédupliquée des
-    // produit_ids des Missions V2 projetées pour le rôle testé.
+    // Vérité opérationnelle stricte : le filtre utilise le moment actif,
+    // jamais l'union début+pendant+fin. Une référence de début ne devient
+    // donc pas artificiellement obligatoire à la clôture et inversement.
     const restreindrePlanOriginal = restreindreAuPlanQuart;
     restreindreAuPlanQuart = function (liste) {
       const actif = roleTestActif();
       if (!actif) return restreindrePlanOriginal(liste);
-      const ids = idsMissionsTest();
+      const ids = idsMissionsTest(momentMissionTest);
       return (liste || []).filter(p => ids.has(p.id) || (p.inventaire_categories && p.inventaire_categories.nom === JAUGEAGE_NOM));
     };
 
-    // Le vieux plan du quart ne doit pas réapparaître visuellement comme
-    // jauge principale pendant le test. On affiche une jauge V2 sur l'union
-    // des missions testées ; les jauges mission par mission restent dessous.
     const couvertureOriginale = renderBlocCouvertureQuart;
     renderBlocCouvertureQuart = function () {
       const actif = roleTestActif();
       if (!actif) return couvertureOriginale();
-      const ids = idsMissionsTest();
+      const ids = idsMissionsTest(momentMissionTest);
       if (!ids.size || typeof NexusInventaireMoteur === 'undefined') return '';
       const jauge = NexusInventaireMoteur.jaugePerimetre(Array.from(ids), comptesFaitsDuPlan());
+      const phase = momentMissionTest === 'fin' ? 'Fin de quart' : 'Début de quart';
       return `
         <div class="etat-banner">
           <div class="progression-bloc" style="margin:0;">
-            <div class="progression-haut"><span><b>🧪 Périmètre test V2 · ${libelleRole(actif)}</b></span></div>
+            <div class="progression-haut"><span><b>🧪 Périmètre test V2 · ${libelleRole(actif)}</b></span><span>${phase}</span></div>
             <div class="progression-barre"><div class="progression-remplie" style="width:${jauge.pct}%"></div></div>
             <div class="progression-globale">${jauge.faits} sur ${jauge.total} références prévues</div>
           </div>
         </div>`;
     };
 
-    // Garde dure : zéro mission V2 ne doit jamais déclencher le catalogue
-    // complet par le chemin de démarrage historique.
     const demarrerOriginal = demarrerOuverture;
-    demarrerOuverture = function () {
-      if (roleTestActif() && !idsMissionsTest().size) {
-        injecterSelecteur();
-        return;
-      }
+    demarrerOuverture = async function () {
+      if (!roleTestActif()) return demarrerOriginal();
+      momentMissionTest = 'debut';
+      if (!idsMissionsTest('debut').size) { signalerMissionMomentAbsente('debut'); return; }
+      // Force le rechargement pour éviter de réutiliser un produitsZone issu
+      // d'une phase précédente ou d'un ancien plan technique.
+      produitsZone = [];
       return demarrerOriginal();
     };
 
-    // Même garde pour une clôture ouverte directement dans une session de
-    // test : jamais de retour au plan complet si la projection V2 est vide.
     if (typeof demarrerCloture === 'function') {
       const demarrerClotureOriginal = demarrerCloture;
-      demarrerCloture = function () {
-        if (roleTestActif() && !idsMissionsTest().size) {
-          injecterSelecteur();
-          return;
-        }
+      demarrerCloture = async function () {
+        if (!roleTestActif()) return demarrerClotureOriginal();
+        momentMissionTest = 'fin';
+        if (!idsMissionsTest('fin').size) { signalerMissionMomentAbsente('fin'); return; }
+        produitsZone = [];
         return demarrerClotureOriginal();
       };
     }
 
-    // Chaque retour à l'accueil réinjecte le sélecteur car renderAccueil
-    // remplace intégralement #content.
     const renderAccueilOriginal = renderAccueil;
     renderAccueil = async function () {
       const resultat = await renderAccueilOriginal();
@@ -219,19 +215,12 @@
   async function appliquerModeTestInitial() {
     if (!estManagerReel()) return;
     const actif = roleTestActif();
-    if (!actif) {
-      injecterSelecteur();
-      return;
-    }
+    if (!actif) { injecterSelecteur(); return; }
 
-    // Le rôle RH / roleDuJour restent manager. Seule la zone d'expérience
-    // terrain est forcée lorsque le rôle ne peut travailler que dans une zone.
     if (actif === 'caissier') {
-      zonesAutorisees = ['boutique'];
-      zoneActive = 'boutique';
+      zonesAutorisees = ['boutique']; zoneActive = 'boutique';
     } else if (actif === 'pompiste') {
-      zonesAutorisees = ['piste'];
-      zoneActive = 'piste';
+      zonesAutorisees = ['piste']; zoneActive = 'piste';
     } else {
       zonesAutorisees = ['piste', 'boutique'];
       if (!zoneActive || !zonesAutorisees.includes(zoneActive)) zoneActive = 'boutique';
@@ -242,12 +231,8 @@
   }
 
   function demarrerInstallation() {
-    try {
-      installerSurcharges();
-      appliquerModeTestInitial();
-    } catch (e) {
-      console.error('Initialisation mode test terrain Inventaire V2:', e);
-    }
+    try { installerSurcharges(); appliquerModeTestInitial(); }
+    catch (e) { console.error('Initialisation mode test terrain Inventaire V2:', e); }
   }
 
   if (document.readyState === 'complete') setTimeout(demarrerInstallation, 0);
