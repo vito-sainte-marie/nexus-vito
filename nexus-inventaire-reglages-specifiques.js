@@ -2,9 +2,10 @@
   'use strict';
   if (!global.location || !/NEXUS-Parametres-Inventaire-v1\.html$/i.test(global.location.pathname)) return;
 
-  // V2 : « exception » est remplacé dans l'UX par « réglage spécifique ».
-  // Une caractéristique physique (zone, dépôt+boutique, sensible...) n'est
-  // jamais un réglage spécifique et ne coupe jamais l'héritage catégorie.
+  // V2 : « exception » est remplacé uniquement dans les textes visibles de l'UX.
+  // IMPORTANT : ne jamais toucher au contenu des balises SCRIPT/STYLE/TEMPLATE
+  // ni aux attributs/data-* : des clés techniques comme `exception_only` doivent
+  // rester strictement inchangées.
   const remplacements = [
     [/Créer une exception pour ce produit/gi, 'Créer un réglage spécifique pour ce produit'],
     [/Modifier cette exception/gi, 'Modifier ce réglage spécifique'],
@@ -28,9 +29,27 @@
   const confirmOriginal = global.confirm.bind(global);
   global.confirm = function (message) { return confirmOriginal(traduire(message)); };
 
+  const BALISES_TECHNIQUES = new Set(['SCRIPT', 'STYLE', 'TEMPLATE', 'NOSCRIPT', 'CODE', 'PRE']);
+
+  function texteVisibleSeulement(node) {
+    if (!node || node.nodeType !== Node.TEXT_NODE) return false;
+    const parent = node.parentElement;
+    if (!parent) return false;
+    if (BALISES_TECHNIQUES.has(parent.tagName)) return false;
+    if (parent.closest('script,style,template,noscript,code,pre')) return false;
+    return true;
+  }
+
   function corrigerTexte(root) {
     if (!root) return;
-    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    // Ne jamais parcourir directement une racine technique ajoutée au DOM.
+    if (root.nodeType === Node.ELEMENT_NODE && BALISES_TECHNIQUES.has(root.tagName)) return;
+
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+      acceptNode(node) {
+        return texteVisibleSeulement(node) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
+      }
+    });
     const aModifier = [];
     while (walker.nextNode()) {
       const n = walker.currentNode;
@@ -53,13 +72,18 @@
 
   let enCours = false;
   function appliquer() {
-    if (enCours) return;
+    if (enCours || !document.body) return;
     enCours = true;
-    corrigerTexte(document.body);
-    ajouterNoteHeritage();
-    enCours = false;
+    try {
+      corrigerTexte(document.body);
+      ajouterNoteHeritage();
+    } finally {
+      enCours = false;
+    }
   }
 
+  // Observer uniquement les ajouts visuels. Les scripts sont explicitement exclus
+  // par corrigerTexte/texteVisibleSeulement, y compris pendant le parsing Safari.
   new MutationObserver(appliquer).observe(document.documentElement, { childList: true, subtree: true });
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', appliquer, { once: true });
   else appliquer();
