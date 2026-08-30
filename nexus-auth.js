@@ -42,6 +42,11 @@ const nexusClient = supabase.createClient(NEXUS_SUPABASE_URL, NEXUS_SUPABASE_ANO
     scriptReglesUx.src = 'nexus-inventaire-regles-ux-v2.js';
     scriptReglesUx.defer = true;
     document.head.appendChild(scriptReglesUx);
+
+    const scriptReglesFinition = document.createElement('script');
+    scriptReglesFinition.src = 'nexus-inventaire-regles-finition-v2.js';
+    scriptReglesFinition.defer = true;
+    document.head.appendChild(scriptReglesFinition);
   }
 })();
 
