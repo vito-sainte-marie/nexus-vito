@@ -54,21 +54,54 @@
     return modifierMissionRule(client, id, { actif: true });
   }
 
-  // Rôles RÉELLEMENT présents pour un (site, date, quart) — lu depuis
-  // inventaire_quart_employes, la table de présence qui existe déjà
-  // (Article 11 : jamais une nouvelle table de présence pour Inventaire).
-  // inventaire_quart_employes ne porte pas directement site/date/quart : on
-  // passe par inventaire_quarts.id (quart_id) comme le fait déjà le reste
-  // du produit pour cette relation.
-  async function chargerRolesPresentsQuart(client, site, dateISO, quart) {
+  // Employés RÉELLEMENT présents, groupés par rôle, pour un (site, date,
+  // quart) — lu depuis inventaire_quart_employes, la table de présence qui
+  // existe déjà (Article 11 : jamais une nouvelle table de présence pour
+  // Inventaire). inventaire_quart_employes ne porte pas directement
+  // site/date/quart : on passe par inventaire_quarts.id (quart_id) comme le
+  // fait déjà le reste du produit pour cette relation.
+  //
+  // Sprint 4 "Répartition par rôles" (29/08/2026, Frédéric a confirmé
+  // "sprint 4", dernier maillon de l'ordre de développement qu'il avait
+  // fixé en clôture de sa doctrine — cf. commentaire d'en-tête du Sprint 2
+  // dans nexus-inventaire-moteur.js). Jusqu'ici, chargerRolesPresentsQuart
+  // ne retenait que le NOM du rôle (dédupliqué) et jetait employee_id après
+  // lecture — un gap réel face à la définition même d'une Mission dans la
+  // doctrine (site+rôle+EMPLOYÉ+quart+moment+périmètre+sélection) : si deux
+  // employés partagent un même rôle sur le même quart, rien ne les
+  // distinguait, les deux auraient vu exactement le même périmètre de
+  // mission ("Mes missions" affiche la mission du RÔLE, jamais la part de
+  // CHACUN). Cette fonction conserve désormais employee_id — nécessaire au
+  // moteur pur `repartirPerimetreParEmploye` qui découpe le périmètre d'une
+  // mission entre les employés réellement présents sur ce rôle.
+  async function chargerEmployesPresentsParRole(client, site, dateISO, quart) {
     const { data: quartRow, error: e1 } = await client.from('inventaire_quarts')
       .select('id').eq('site', site).eq('date', dateISO).eq('quart', quart).maybeSingle();
-    if (e1) { console.error('Chargement quart (présence):', e1); return []; }
-    if (!quartRow) return []; // quart pas encore ouvert -> aucun rôle présent, pas une erreur (Article 5)
+    if (e1) { console.error('Chargement quart (présence):', e1); return {}; }
+    if (!quartRow) return {}; // quart pas encore ouvert -> personne présent, pas une erreur (Article 5)
     const { data: presences, error: e2 } = await client.from('inventaire_quart_employes')
       .select('role, employee_id').eq('quart_id', quartRow.id);
-    if (e2) { console.error('Chargement présences (rôles):', e2); return []; }
-    return Array.from(new Set((presences || []).map(p => p.role).filter(Boolean)));
+    if (e2) { console.error('Chargement présences (employés par rôle):', e2); return {}; }
+    const parRole = {};
+    (presences || []).forEach(p => {
+      if (!p || !p.role) return;
+      if (!parRole[p.role]) parRole[p.role] = [];
+      // employee_id peut être absent sur d'anciennes lignes de présence —
+      // le rôle reste malgré tout compté comme présent (comportement
+      // historique de chargerRolesPresentsQuart, inchangé), seule la liste
+      // d'employés à répartir en tient compte.
+      if (p.employee_id && !parRole[p.role].includes(p.employee_id)) parRole[p.role].push(p.employee_id);
+    });
+    return parRole;
+  }
+
+  // Rôles RÉELLEMENT présents pour un (site, date, quart) — dérivé de
+  // chargerEmployesPresentsParRole (Article 11, une seule lecture de
+  // présence, jamais une deuxième requête dupliquée). Signature et
+  // comportement strictement inchangés depuis le Sprint 1.
+  async function chargerRolesPresentsQuart(client, site, dateISO, quart) {
+    const parRole = await chargerEmployesPresentsParRole(client, site, dateISO, quart);
+    return Object.keys(parRole);
   }
 
   // ------------------------------------------------------------
@@ -158,6 +191,7 @@
   global.NexusInventaireMissionRulesDonnees = {
     chargerMissionRules, creerMissionRule, modifierMissionRule,
     desactiverMissionRule, reactiverMissionRule,
-    chargerRolesPresentsQuart, installerConfigurationDefautNexus,
+    chargerRolesPresentsQuart, chargerEmployesPresentsParRole,
+    installerConfigurationDefautNexus,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

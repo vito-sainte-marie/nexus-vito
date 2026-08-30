@@ -1139,11 +1139,42 @@
   // simplement vide, le parcours de saisie existant (catégories/carrousel)
   // continue de fonctionner à l'identique (même garde-fou que
   // chargerEtAppliquerPlanQuart ci-dessus).
+  // Sprint 4 "Répartition par rôles" (29/08/2026, Frédéric a confirmé
+  // "sprint 4") : une fois les missions du rôle chargées, on les découpe
+  // entre les employés qui partagent RÉELLEMENT ce rôle sur ce quart —
+  // sinon deux "Caisse" présents en même temps verraient chacun le
+  // périmètre ENTIER de la mission, sans savoir qui fait quoi (gap trouvé
+  // en relisant chargerRolesPresentsQuart, qui jetait employee_id après
+  // lecture). `repartirPerimetreParEmploye` (moteur pur) est déterministe
+  // et rétro-compatible à 100% : un seul employé sur le rôle -> périmètre
+  // inchangé, exactement le comportement déjà en production. Le résultat
+  // n'est JAMAIS réécrit en base (les missions restent le snapshot figé de
+  // la RÈGLE, Article 5/11) — seule la copie en mémoire affichée à CET
+  // employé est réduite à sa part.
   async function chargerMissionsDuJour() {
     const D = typeof NexusInventaireMissionsDonnees !== 'undefined' ? NexusInventaireMissionsDonnees : null;
+    const MR = typeof NexusInventaireMissionRulesDonnees !== 'undefined' ? NexusInventaireMissionRulesDonnees : null;
+    const M = typeof NexusInventaireMoteur !== 'undefined' ? NexusInventaireMoteur : null;
     if (!D || !roleDuJour) { missionsDuJour = []; return; }
     try {
-      missionsDuJour = await D.chargerMissionsPourRole(nexusClient, employeeCourant.site_id, dateISO(), quartActuel, roleDuJour);
+      const missions = await D.chargerMissionsPourRole(nexusClient, employeeCourant.site_id, dateISO(), quartActuel, roleDuJour);
+      if (M && MR) {
+        try {
+          const employesParRole = await MR.chargerEmployesPresentsParRole(nexusClient, employeeCourant.site_id, dateISO(), quartActuel);
+          const collegues = (employesParRole && employesParRole[roleDuJour]) || [];
+          missions.forEach(m => {
+            const seed = `${employeeCourant.site_id}|${dateISO()}|${quartActuel}|${m.mission_rule_id}|${m.moment_code}`;
+            m.produit_ids = M.repartirPerimetreParEmploye(m.produit_ids || [], collegues, employeeCourant.id, seed);
+          });
+        } catch (eRep) {
+          // Répartition impossible (réseau, moteur) -> chaque mission garde
+          // son périmètre COMPLET plutôt qu'un blocage : dégradation
+          // gracieuse déjà établie ailleurs dans NEXUS, jamais une mission
+          // vide par accident technique.
+          console.error('Répartition par employé (Sprint 4):', eRep);
+        }
+      }
+      missionsDuJour = missions;
     } catch (e) {
       console.error('Chargement missions du jour:', e);
       missionsDuJour = [];
@@ -1185,6 +1216,33 @@
       <div class="etat-banner">
         <div style="font-weight:600; margin-bottom:2px;">🎯 Mes missions aujourd'hui</div>
         ${blocs}
+      </div>
+    `;
+  }
+
+  // Jauge COLLECTIVE du quart (doctrine "Deux jauges", complétée au Sprint
+  // 4 — la jauge de mission existe depuis le Sprint 3, celle-ci manquait
+  // d'emplacement à l'écran). Périmètre = tout le plan du quart, tous
+  // rôles confondus (`produitsPlanIds`, déjà la vérité physique aveugle du
+  // quart — Article 11, aucun second calcul de périmètre). Même fonction
+  // `jaugePerimetre` que la jauge de mission (Article 11 — jamais deux
+  // implémentations). Invisible si le plan n'a pas encore de périmètre
+  // (jamais un faux "100% terminé" sur un quart qui n'a simplement pas
+  // encore chargé son plan).
+  function renderBlocCouvertureQuart() {
+    if (!produitsPlanIds.size) return '';
+    const M = typeof NexusInventaireMoteur !== 'undefined' ? NexusInventaireMoteur : null;
+    if (!M) return '';
+    const jauge = M.jaugePerimetre(Array.from(produitsPlanIds), comptesFaitsDuPlan());
+    return `
+      <div class="etat-banner">
+        <div class="progression-bloc" style="margin:0;">
+          <div class="progression-haut">
+            <span><b>📋 Couverture du quart</b></span>
+          </div>
+          <div class="progression-barre"><div class="progression-remplie" style="width:${jauge.pct}%"></div></div>
+          <div class="progression-globale">${jauge.faits} sur ${jauge.total}</div>
+        </div>
       </div>
     `;
   }
@@ -1325,6 +1383,7 @@
     document.getElementById('content').innerHTML = `
       ${renderQuartVisuel()}
       ${zonesAutorisees.length > 1 ? `<div class="etat-banner">Zone suivie actuellement : <b>${zoneActive === 'piste' ? 'Piste' : 'Boutique'}</b>. <span id="lienChangerZone" style="color:var(--cyan); cursor:pointer;">Changer</span></div>` : ''}
+      ${renderBlocCouvertureQuart()}
       ${renderBlocMesMissions()}
       ${renderBlocJaugeageCarburant()}
       <div class="choix-grid">

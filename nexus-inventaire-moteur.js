@@ -1335,6 +1335,61 @@
     return { total, faits, pct: total > 0 ? Math.round((faits / total) * 100) : 100 };
   }
 
+  // ============================================================
+  // INVENTAIRE V2 — Sprint 4 "Répartition par rôles" (29/08/2026, Frédéric
+  // a confirmé "sprint 4") — dernier maillon de l'ordre de développement
+  // qu'il avait lui-même fixé en clôture de sa doctrine : "Paramètres →
+  // Génération des missions → Expérience employé → Deux jauges →
+  // Répartition par rôles."
+  //
+  // Gap trouvé avant de coder (Article 5/11, auto-détecté) : une Mission
+  // est définie par la doctrine comme site+rôle+EMPLOYÉ+quart+moment+
+  // périmètre+sélection — mais jusqu'ici, chargerMissionsPourRole (Sprint
+  // 2) ne filtrait QUE par rôle : si deux employés partagent un même rôle
+  // sur le même quart (ex. deux "Caisse"), les deux voyaient exactement le
+  // même périmètre de mission dans "Mes missions" — aucune répartition,
+  // risque réel de double travail ou de trou si chacun pense que l'autre
+  // s'en charge. Contraire à la doctrine non négociable : "NEXUS décide qui
+  // compte quoi et quand."
+  // ============================================================
+
+  // Découpe le périmètre d'une mission entre les employés qui partagent
+  // réellement le même rôle présent sur ce quart — déterministe (même
+  // mécanisme de hash que le mode 'tournant', Article 11 : jamais un
+  // deuxième algorithme de répartition), reproductible à chaque
+  // rechargement (même employé -> toujours la même part), et rétro-
+  // compatible à 100% : un seul employé sur le rôle -> périmètre
+  // INCHANGÉ (c'est exactement la réalité de Sainte-Marie aujourd'hui,
+  // aucune régression sur le fonctionnement déjà en production).
+  //
+  // `produitIds` : le périmètre déjà figé de la mission (Sprint 2).
+  // `employeeIds` : TOUS les employés présents partageant ce rôle sur ce
+  // quart (y compris employeeIdCourant).
+  // `employeeIdCourant` : l'employé pour qui on calcule la part.
+  // `seed` : déterministe, typiquement `${site}|${dateISO}|${quart}|
+  // ${missionRuleId}|${momentCode}` — jamais aléatoire (INV2-04 : un
+  // rechargement ne doit jamais changer la répartition).
+  //
+  // Défense (Article 5, jamais un trou invisible) : liste d'employés vide,
+  // absente, ou ne contenant pas employeeIdCourant (incohérence de
+  // présence, ex. race condition) -> périmètre COMPLET restitué plutôt
+  // qu'un tableau vide qui laisserait l'employé sans aucune mission par
+  // accident de données.
+  function repartirPerimetreParEmploye(produitIds, employeeIds, employeeIdCourant, seed) {
+    const perimetre = produitIds || [];
+    const employes = Array.from(new Set((employeeIds || []).filter(Boolean)));
+    if (employes.length <= 1 || !employeeIdCourant || !employes.includes(employeeIdCourant)) {
+      return perimetre.slice();
+    }
+    // Ordre des employés déterministe (jamais l'ordre d'arrivée de la
+    // requête de présence) : tri lexicographique simple des identifiants.
+    const employesTries = employes.slice().sort();
+    // Ordre des produits déterministe (même tie-break que 'tournant').
+    const produitsTries = perimetre.slice().sort((a, b) => hashDeterministe(`${seed}|${a}`) - hashDeterministe(`${seed}|${b}`));
+    const indexCourant = employesTries.indexOf(employeeIdCourant);
+    return produitsTries.filter((_, i) => (i % employesTries.length) === indexCourant);
+  }
+
   global.NexusInventaireMoteur = {
     FAMILLES_CONTROLE, DEFAUT_DELAI_MAX_JOURS_PAR_FAMILLE,
     libelleRaisonSelection, joursEntreDates, delaiMaxJours, produitEligibleQuart,
@@ -1358,6 +1413,6 @@
     regleApplicableContexte, resoudreAffectationRegleMission, resoudreMissionRulesApplicables,
     CATEGORIES_DEFAUT_NEXUS, ROLES_DEFAUT_NEXUS, MISSION_RULES_DEFAUT_NEXUS,
     perimetreProduitsMission, selectionnerPerimetreMission, genererMissionsPourContexte, couvertureMissions,
-    jaugePerimetre,
+    jaugePerimetre, repartirPerimetreParEmploye,
   };
 })(typeof window !== 'undefined' ? window : globalThis);
