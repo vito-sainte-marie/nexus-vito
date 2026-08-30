@@ -196,3 +196,75 @@ const moteurSrc = fs.readFileSync(MOTEUR_PATH, 'utf8');
     assert.strictEqual(T.renderBlocReglesCategories(), '');
   });
 })();
+
+// ------------------------------------------------------------
+// PARTIE 3 — renderLigneProfilProduit (correctif 30/08/2026, remontée de
+// Frédéric) : un réglage d'emplacement (comptage_deux_lieux, propriété
+// PHYSIQUE du produit) ne doit JAMAIS faire apparaître un produit comme une
+// exception à la règle de catégorie — seule une ligne inventaire_regles_
+// produit RÉELLE et différente du défaut le peut. L'emplacement doit
+// s'afficher sur sa propre ligne (📍), jamais mélangé au libellé de règle.
+// ------------------------------------------------------------
+(function partie3() {
+  const src = [
+    moteurSrc,
+    'let produitsInventaire = [];',
+    'let reglesProduitMap = {};',
+    'let categoriesSite = [];',
+    'let profilProduitOuvert = null;', // aucune ligne ouverte dans ces tests -> renderFormulaireProfil/renderCarteHeritageProduit jamais appelées
+    'let profilFormulaireActif = false;',
+    'let profilEnEdition = null;',
+    extraireFonction('libelleReglesProduit'),
+    extraireFonction('renderLigneProfilProduit'),
+    `globalThis.__test = {
+      setEnv: (env) => {
+        produitsInventaire = env.produitsInventaire || [];
+        reglesProduitMap = env.reglesProduitMap || {};
+        categoriesSite = env.categoriesSite || [];
+      },
+      renderLigneProfilProduit,
+    };`,
+  ].join('\n\n');
+  const ctx = { globalThis: {}, console };
+  ctx.globalThis = ctx;
+  vm.runInNewContext(src, ctx);
+  const T = ctx.__test;
+
+  const catActive = { id: 'cat-lave-glace', nom: 'Lave-glace', regle_active: true, profil: 'cycle_journalier' };
+
+  testSync('renderLigneProfilProduit : emplacement deux lieux SANS exception propre -> jamais classé "en-cours" (pas une exception)', () => {
+    T.setEnv({
+      produitsInventaire: [], reglesProduitMap: {}, categoriesSite: [catActive],
+    });
+    const p = { id: 'adblue', designation: 'AD BLUE 10L', categorie_id: 'cat-lave-glace', comptage_deux_lieux: true };
+    const html = T.renderLigneProfilProduit(p);
+    assert.ok(!html.includes('categorie-etat en-cours'), 'Un simple réglage d\'emplacement ne doit jamais afficher le badge "en-cours" (exception)');
+    assert.ok(html.includes('categorie-etat a-faire'), 'Doit rester classé comme un héritage normal, pas une exception');
+  });
+
+  testSync('renderLigneProfilProduit : emplacement affiché sur sa propre ligne "📍 Dépôt + Boutique", séparée du libellé de règle', () => {
+    T.setEnv({ produitsInventaire: [], reglesProduitMap: {}, categoriesSite: [catActive] });
+    const p = { id: 'adblue', designation: 'AD BLUE 10L', categorie_id: 'cat-lave-glace', comptage_deux_lieux: true };
+    const html = T.renderLigneProfilProduit(p);
+    assert.ok(html.includes('📍 Dépôt + Boutique'), 'Ligne emplacement dédiée attendue');
+    assert.ok(!html.includes('Compté en 2 lieux'), 'Ancien libellé fusionné avec la règle ne doit plus apparaître');
+  });
+
+  testSync('renderLigneProfilProduit : produit sans comptage_deux_lieux -> aucune ligne emplacement', () => {
+    T.setEnv({ produitsInventaire: [], reglesProduitMap: {}, categoriesSite: [catActive] });
+    const p = { id: 'lg2', designation: 'Lave Glace Bleu 2L', categorie_id: 'cat-lave-glace', comptage_deux_lieux: false };
+    const html = T.renderLigneProfilProduit(p);
+    assert.ok(!html.includes('📍'), 'Pas d\'emplacement mixte -> pas de ligne 📍');
+  });
+
+  testSync('renderLigneProfilProduit : exception RÉELLE (ligne inventaire_regles_produit propre) -> reste classée "en-cours", avec ou sans emplacement', () => {
+    T.setEnv({
+      produitsInventaire: [], categoriesSite: [catActive],
+      reglesProduitMap: { adblue: { profil: 'lot_glissant', duree_max_vente_jours: 30 } },
+    });
+    const pAvecEmplacement = { id: 'adblue', designation: 'AD BLUE 10L', categorie_id: 'cat-lave-glace', comptage_deux_lieux: true };
+    const html = T.renderLigneProfilProduit(pAvecEmplacement);
+    assert.ok(html.includes('categorie-etat en-cours'), 'Une vraie exception de règle reste signalée, indépendamment de l\'emplacement');
+    assert.ok(html.includes('📍 Dépôt + Boutique'), 'Les deux informations coexistent sans se confondre');
+  });
+})();

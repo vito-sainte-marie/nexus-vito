@@ -1243,16 +1243,23 @@
     const regleEffective = NexusInventaireMoteur.regleEffectiveProduit(regle, (categorieRegle && categorieRegle.regle_active) ? categorieRegle : null);
     let libelle = libelleReglesProduit(regleEffective);
     if (regleEffective && regleEffective.origineRegle === 'categorie' && categorieRegle) libelle += ` (hérité de ${categorieRegle.nom})`;
-    if (p.comptage_deux_lieux) {
-      libelle = libelle === 'Stock continu (par défaut)' ? 'Compté en 2 lieux (dépôt + boutique)' : libelle + ' · Compté en 2 lieux (dépôt + boutique)';
-    }
+    // Correctif 30/08/2026 (remontée de Frédéric, Article 5 — l'écran ne
+    // doit jamais suggérer une exception qui n'existe pas) : le comptage en
+    // deux lieux (dépôt + boutique) est une propriété PHYSIQUE du produit
+    // (produits_inventaire.comptage_deux_lieux), jamais une règle héritable
+    // de catégorie (voir commentaire en tête de section "RÈGLES PAR
+    // CATÉGORIE" et Data Dictionary v2.193) — elle ne doit donc jamais
+    // teinter ni le libellé de la règle, ni l'indicateur d'exception
+    // ci-dessous. Affichée séparément, sur sa propre ligne (📍), qu'il y ait
+    // ou non une exception de règle par ailleurs.
     const ouvert = profilProduitOuvert === p.id;
-    const personnalise = (!!regle && libelleReglesProduit(regle) !== 'Stock continu (par défaut)') || !!p.comptage_deux_lieux;
+    const personnalise = !!regle && libelleReglesProduit(regle) !== 'Stock continu (par défaut)';
     return `
       <div class="categorie-row" data-profil-produit="${p.id}">
         <div>
           <div class="categorie-nom" style="font-size:13px;">${p.designation}</div>
           <div class="categorie-count">${libelle}</div>
+          ${p.comptage_deux_lieux ? `<div class="categorie-count" style="margin-top:1px;">📍 Dépôt + Boutique</div>` : ''}
         </div>
         <div class="categorie-etat ${personnalise ? 'en-cours' : 'a-faire'}">${ouvert ? '▾' : '▸'}</div>
       </div>

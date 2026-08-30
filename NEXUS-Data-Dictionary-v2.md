@@ -4813,3 +4813,34 @@ Nouveau fichier `test_inventaire_snapshot_decenium_etape4.js` (24 tests) : `libe
 - **`detecterTrousEntreSnapshots` n'est appelée par aucun parcours utilisateur** — reste à brancher, probablement dans un futur écran de suivi de la fiabilité Inventaire (hors scope de ce plan en 5 étapes).
 - **Un trou n'est pas relié à un motif métier explicite par quart** (`quart_non_cloture` vs `chevauche_T0` vs absence totale) — le moteur sait pourquoi chaque quart a été exclu (`classerQuartDansFenetre`), mais `detecterTrousTemporels` ne remonte que la plage temporelle résultante, pas la cause par quart. Une future itération pourrait enrichir chaque trou avec les motifs des quarts exclus qui le bordent, si Frédéric le juge utile.
 - **Rétroactivité (requalification sans effacer l'historique)** reste l'Étape 5, non commencée.
+
+## v2.300 — Correctif « emplacement ≠ exception » (Règles par catégorie, Inventaire V2) (30/08/2026)
+
+**Origine** : remontée directe de Frédéric — "un réglage d'emplacement produit ne devrait pas faire apparaître le produit comme une exception à la règle de catégorie […] actuellement le terme exception donne l'impression que la règle commune ne s'applique pas, alors que le produit semble simplement avoir deux emplacements physiques."
+
+### Diagnostic (Article 5 — vérifié sur le code réel avant toute correction)
+
+Dans `NEXUS-Parametres-Inventaire-v1.html`, `renderLigneProfilProduit` (onglet "Règles", section "Exceptions produit") calculait :
+```js
+const personnalise = (!!regle && libelleReglesProduit(regle) !== 'Stock continu (par défaut)') || !!p.comptage_deux_lieux;
+```
+Le `|| !!p.comptage_deux_lieux` faisait basculer le badge visuel du produit sur "en-cours" (le même indicateur qu'une vraie exception de règle) dès que le produit était compté en deux lieux (dépôt + boutique) — **même sans aucune ligne `inventaire_regles_produit` propre**, c'est-à-dire même quand le produit hérite intégralement de la règle de sa catégorie (fréquence, criticité, seuil). Le libellé de la ligne concaténait en plus le texte d'emplacement directement dans le libellé de règle ("Stock continu (par défaut) · Compté en 2 lieux (dépôt + boutique)"), renforçant la confusion visuelle.
+
+Vérifié à cette occasion (Article 11, avant de toucher au code) : `compterExceptionsCategorie` (comptage affiché sur la carte de catégorie, "X produit(s) en exception") et `identifierCategoriesAOptimiser` (nexus-inventaire-moteur.js) ne souffraient PAS de ce bug — les deux comptent exclusivement sur la présence d'une ligne réelle dans `reglesProduitMap` (donc `inventaire_regles_produit`), jamais sur `comptage_deux_lieux`. `renderCarteHeritageProduit` (la carte dépliée "Paramétrage hérité" / "⚠ Exception active") ne s'appuie pas non plus sur `comptage_deux_lieux`. Le bug était **entièrement confiné** à l'indicateur visuel et au libellé de la ligne repliée — jamais une corruption de données, uniquement une incohérence d'affichage.
+
+### Correctif
+
+- `personnalise` ne dépend plus que de l'existence d'une ligne `inventaire_regles_produit` PROPRE au produit et réellement différente du défaut — `comptage_deux_lieux` n'y intervient plus du tout.
+- `comptage_deux_lieux` (propriété physique du produit — voir doctrine déjà en tête de la section "RÈGLES PAR CATÉGORIE" et Data Dictionary v2.193) s'affiche désormais sur sa **propre ligne**, sous le libellé de règle : `📍 Dépôt + Boutique` (même emoji que la case à cocher du formulaire complet, Article 11 — pas un nouveau symbole inventé), qu'il y ait ou non une exception de règle par ailleurs.
+- Résultat conforme à la cible donnée par Frédéric : un produit compté en deux lieux mais sans règle propre affiche "Hérite de la règle catégorie" (badge normal, non-exception) + une ligne `📍 Dépôt + Boutique` distincte ; un produit avec une vraie exception de règle continue d'afficher le badge "en-cours", que l'emplacement soit renseigné ou non.
+
+### Tests et régression
+
+4 nouveaux tests ajoutés à `test_parametres_inventaire_regles_categorie_s2.js` (PARTIE 3, extraction directe de `renderLigneProfilProduit` depuis le fichier réel, même discipline que le reste du fichier) : emplacement seul -> jamais "en-cours" ; emplacement affiché sur sa ligne propre, plus jamais fusionné au libellé ; produit sans emplacement -> pas de ligne 📍 ; exception réelle -> reste "en-cours" indépendamment de l'emplacement, les deux informations coexistant sans se confondre.
+
+**Régression complète rejouée avant livraison : 149 fichiers de test, 0 échec** (145 fichiers pré-existants inchangés côté résultat + `test_parametres_inventaire_regles_categorie_s2.js` enrichi + les 4 fichiers Snapshot Decenium des lots précédents).
+
+### Ce que ce lot NE couvre PAS
+
+- N'a pas touché à `compterExceptionsCategorie` ni à `identifierCategoriesAOptimiser` : vérifiés sains, aucune correction nécessaire de ce côté.
+- N'a pas renommé le libellé de règle lui-même (reste "Stock continu (par défaut)", "Remis à zéro le matin (hérité de X)", etc.) — seule la classification "exception vs héritage" et l'affichage de l'emplacement ont été corrigés, périmètre strictement limité à l'incohérence remontée par Frédéric.
