@@ -145,6 +145,137 @@
     return data;
   }
 
+  // ------------------------------------------------------------
+  // ÉCRITURE EN LOT (30/08/2026, v2.305 — "ok attaque" de Frédéric, suite du
+  // P0 v2.304). `enregistrerObservation` ci-dessus fait 1 lecture + 1
+  // écriture PAR signal — correct mais coûteux dès qu'un cycle de
+  // qualification porte sur des dizaines de candidats (mesuré en
+  // production : jusqu'à 93 produits Inventaire en écart simultané sur
+  // vito-sainte-marie, soit jusqu'à ~186 requêtes HTTP pour un seul
+  // chargement de Contrôle Inventaire). `qualifierEtEnregistrerRisquesPilote`
+  // ci-dessous n'appelle plus `enregistrerObservation` en boucle : elle
+  // construit la liste des candidats, puis appelle UNE fois
+  // `enregistrerObservationsEnLot` (1 lecture groupée + 1 upsert groupé,
+  // au plus 2 requêtes quel que soit le nombre de candidats). Les 3
+  // fonctions ci-dessous sont génériques aux 6 domaines pilotes — jamais une
+  // variante par domaine (Article 11).
+  //
+  // `enregistrerObservation` reste exportée et inchangée : aucun appelant
+  // externe trouvé (grep projet), mais elle reste un point d'entrée valide
+  // pour un futur usage isolé (ex. une action manuelle hors cycle de
+  // qualification en lot) — retirer du code qui fonctionne sans certitude
+  // qu'il est mort violerait l'Article 5.
+  // ------------------------------------------------------------
+
+  // Lecture groupée : tous les signaux déjà connus du site parmi les
+  // `cleSignal` candidates, en une seule requête `.in(...)` plutôt qu'un
+  // `chargerSignalExistant` par candidat. Retourne une map cle_signal ->
+  // ligne existante (absent si jamais vu).
+  async function chargerSignauxExistantsParCles(client, siteId, clesSignal) {
+    const cles = (clesSignal || []).filter(Boolean);
+    if (!cles.length) return {};
+    const { data, error } = await client.from('nexus_risk_signals')
+      .select('*').eq('site_id', siteId).in('cle_signal', cles);
+    if (error) { console.error('Chargement signaux de risque (lot):', error); return {}; }
+    const map = {};
+    (data || []).forEach(row => { map[row.cle_signal] = row; });
+    return map;
+  }
+
+  // Fonction PURE (aucun accès réseau) : calcule la ligne complète à
+  // upserter pour un candidat, que le signal soit nouveau (`existant` =
+  // null, même construction que la branche insert de
+  // `enregistrerObservation`) ou déjà connu (`existant` fourni, même
+  // construction que sa branche update). Toujours le MÊME jeu de colonnes
+  // dans les deux cas — un upsert en lot envoie un seul INSERT SQL pour
+  // toutes les lignes ; des lignes aux colonnes hétérogènes casseraient
+  // silencieusement les colonnes absentes sur certaines lignes.
+  //
+  // Deux points vérifiés explicitement contre `enregistrerObservation`
+  // avant ce refactor (Article 5 — non-régression comportementale) :
+  //   - `premiere_detection_le` n'est JAMAIS réécrit sur un signal existant
+  //     (sinon "surveillé depuis N jours" redémarrerait à zéro à chaque
+  //     cycle) — repris tel quel de `existant.premiere_detection_le`.
+  //   - `secteur`/`domaine`/`type_signal` : l'ancien `.update()` ne les
+  //     touchait pas du tout (upsert PARTIEL implicite d'un update ciblé).
+  //     Un upsert en lot doit au contraire les envoyer explicitement à
+  //     chaque ligne — sans effet observable ici puisque chaque appelant
+  //     passe une valeur littérale déterministe par préfixe de `cleSignal`
+  //     (ex. toujours 'Opérations' pour `inventaire:produit:*`), donc
+  //     réécrire la même valeur est un no-op vérifié, jamais une divergence.
+  function construireLigneSignal(siteId, params, existant, maintenant) {
+    const { domaine, cleSignal, typeSignal, secteur, classification, actionRecommandee } = params;
+
+    if (!existant) {
+      return {
+        site_id: siteId, domaine, cle_signal: cleSignal, type_signal: typeSignal,
+        niveau: classification.niveau, niveau_confiance: classification.niveauConfiance,
+        secteur: secteur || null, preuve: classification.preuve || {},
+        impact_mesure_eur: classification.impactMesureEur,
+        impact_potentiel_eur: classification.impactPotentielEur,
+        action_recommandee: actionRecommandee || null,
+        recurrence_count: classification.recurrenceCount || 1,
+        premiere_detection_le: maintenant, derniere_detection_le: maintenant,
+        historique_transitions: [{ date: maintenant, ancien_niveau: null, nouveau_niveau: classification.niveau, motif: classification.motif }],
+        statut: 'surveille', resolu_le: null, resolu_note: null, updated_at: maintenant,
+      };
+    }
+
+    const transition = global.NexusRisques.determinerTransition(existant.niveau, classification.niveau);
+    const historique = transition.type === 'stable'
+      ? existant.historique_transitions
+      : [...(existant.historique_transitions || []), { date: maintenant, ancien_niveau: existant.niveau, nouveau_niveau: classification.niveau, motif: classification.motif }];
+
+    return {
+      site_id: siteId, domaine, cle_signal: cleSignal, type_signal: typeSignal,
+      niveau: classification.niveau, niveau_confiance: classification.niveauConfiance,
+      secteur: secteur || existant.secteur || null,
+      preuve: classification.preuve || {},
+      impact_mesure_eur: classification.impactMesureEur,
+      impact_potentiel_eur: classification.impactPotentielEur,
+      action_recommandee: actionRecommandee || existant.action_recommandee,
+      recurrence_count: classification.recurrenceCount || existant.recurrence_count,
+      premiere_detection_le: existant.premiere_detection_le,
+      derniere_detection_le: maintenant,
+      historique_transitions: historique,
+      // Un signal déjà résolu qui réapparaît est rouvert — jamais laissé
+      // "résolu" alors qu'il est de nouveau observé (même règle que
+      // `enregistrerObservation`).
+      statut: 'surveille',
+      resolu_le: existant.statut === 'resolu' ? null : existant.resolu_le,
+      resolu_note: existant.statut === 'resolu' ? null : existant.resolu_note,
+      updated_at: maintenant,
+    };
+  }
+
+  // Orchestration : 1 lecture groupée + 1 upsert groupé pour TOUS les
+  // candidats d'un cycle de qualification (les 6 domaines confondus).
+  // `candidats` = tableau de { domaine, cleSignal, typeSignal, secteur,
+  // classification, actionRecommandee } — mêmes champs que
+  // `enregistrerObservation`, un candidat `null`/`undefined` est ignoré
+  // (préserve le filtre "pas de donnée exploitable" déjà fait par chaque
+  // domaine avant construction du candidat). Court-circuite AVANT tout
+  // appel Supabase si la liste est vide (ex. site sans aucun écart ce
+  // jour-là) — jamais une requête pour rien.
+  //
+  // `onConflict: 'site_id,cle_signal'` correspond à la contrainte unique
+  // déjà en place sur `nexus_risk_signals` (v2.30x) — `id`/`created_at` sont
+  // volontairement ABSENTS de chaque ligne (jamais fixés ici) pour que
+  // PostgREST laisse la base gérer ces colonnes par défaut à l'insert, et
+  // les préserve telles quelles à la mise à jour.
+  async function enregistrerObservationsEnLot(client, siteId, candidats) {
+    const liste = (candidats || []).filter(Boolean);
+    if (!liste.length) return [];
+    const cles = liste.map(c => c.cleSignal);
+    const existants = await chargerSignauxExistantsParCles(client, siteId, cles);
+    const maintenant = new Date().toISOString();
+    const lignes = liste.map(c => construireLigneSignal(siteId, c, existants[c.cleSignal] || null, maintenant));
+    const { data, error } = await client.from('nexus_risk_signals')
+      .upsert(lignes, { onConflict: 'site_id,cle_signal' }).select();
+    if (error) { console.error('Enregistrement signaux de risque (lot):', error); return []; }
+    return data || [];
+  }
+
   // Résolution manuelle (manager) d'un signal — jamais une disparition
   // silencieuse. `note` explique l'action prise ou pourquoi le signal
   // n'est plus jugé pertinent.
@@ -288,33 +419,44 @@
     if (!global.NexusRisques) { console.error('NexusRisques non chargé — inclure nexus-risques-moteur.js avant nexus-risques-donnees.js.'); return []; }
     const R = global.NexusRisques;
 
-    const promessesCaisse = Object.keys(agregationCaisseParQuart || {}).map(quart => {
+    // 30/08/2026 (v2.305, "ok attaque") : chaque domaine ne fait plus
+    // qu'ajouter un CANDIDAT (objet en mémoire, pas de Promise ni d'appel
+    // Supabase) au tableau `candidats` — l'écriture réelle se fait une
+    // seule fois pour tous les domaines, plus bas, via
+    // `enregistrerObservationsEnLot`. Le filtre "pas de donnée exploitable"
+    // par domaine (ex. `!agg.total`) est INCHANGÉ : il décide juste de ne
+    // pas pousser de candidat plutôt que de retourner `Promise.resolve(null)`.
+    const candidats = [];
+
+    Object.keys(agregationCaisseParQuart || {}).forEach(quart => {
       const agg = agregationCaisseParQuart[quart];
-      if (!agg || !agg.total) return Promise.resolve(null);
+      if (!agg || !agg.total) return;
       const classif = R.qualifierEcartCaisse(agg);
-      return enregistrerObservation(client, siteId, {
+      candidats.push({
         domaine: 'caisse', cleSignal: `caisse:quart:${quart}`, typeSignal: 'ecart_caisse_recurrent',
         secteur: 'Opérations', classification: classif,
         actionRecommandee: `Vérifiez les procédures de comptage du quart ${quart} avec l'équipe concernée.`,
       });
     });
 
-    const promessesMarge = periodeAffichage ? (categoriesEnEcart || []).map(categorie => {
-      const rowsCategorie = (rowsBrut || []).filter(r => r.categorie === categorie && r.periode_debut === periodeAffichage.debut);
-      const caActuel = rowsCategorie.reduce((s, r) => s + (Number(r.ca) || 0), 0);
-      const margeActuelle = rowsCategorie.reduce((s, r) => s + (Number(r.marge) || 0), 0);
-      if (!(caActuel > 0)) return Promise.resolve(null);
-      const { margeHistorique, caHistoriqueMoyen } = R.assemblerHistoriqueMargeCategorie(rowsBrut, categorie, periodeAffichage.debut, 3);
-      const classif = R.qualifierMargeCategorie({
-        categorie, margePctActuelle: (margeActuelle / caActuel) * 100,
-        margeHistorique, caActuel, caHistoriqueMoyen,
+    if (periodeAffichage) {
+      (categoriesEnEcart || []).forEach(categorie => {
+        const rowsCategorie = (rowsBrut || []).filter(r => r.categorie === categorie && r.periode_debut === periodeAffichage.debut);
+        const caActuel = rowsCategorie.reduce((s, r) => s + (Number(r.ca) || 0), 0);
+        const margeActuelle = rowsCategorie.reduce((s, r) => s + (Number(r.marge) || 0), 0);
+        if (!(caActuel > 0)) return;
+        const { margeHistorique, caHistoriqueMoyen } = R.assemblerHistoriqueMargeCategorie(rowsBrut, categorie, periodeAffichage.debut, 3);
+        const classif = R.qualifierMargeCategorie({
+          categorie, margePctActuelle: (margeActuelle / caActuel) * 100,
+          margeHistorique, caActuel, caHistoriqueMoyen,
+        });
+        candidats.push({
+          domaine: 'marge', cleSignal: `marge:categorie:${categorie}`, typeSignal: 'ecart_marge_categorie',
+          secteur: 'Marge', classification: classif,
+          actionRecommandee: `Vérifiez le prix d'achat et les remises sur la catégorie ${categorie}.`,
+        });
       });
-      return enregistrerObservation(client, siteId, {
-        domaine: 'marge', cleSignal: `marge:categorie:${categorie}`, typeSignal: 'ecart_marge_categorie',
-        secteur: 'Marge', classification: classif,
-        actionRecommandee: `Vérifiez le prix d'achat et les remises sur la catégorie ${categorie}.`,
-      });
-    }) : [];
+    }
 
     // Domaine Carburants (Cadrage risques Phase 5, tâche #234, 18/08/2026) —
     // OPTIONNEL : un appelant qui ne passe pas `autonomiesCarburant` (Brief/
@@ -322,13 +464,13 @@
     // ce volet ignoré, jamais un balayage de secours — même discipline que
     // le volet Marge quand `categoriesEnEcart` est absent. Un carburant
     // sans donnée (`null` dans la map) n'est jamais qualifié à sa place.
-    const promessesCarburant = Object.keys(autonomiesCarburant || {}).map(carburant => {
+    Object.keys(autonomiesCarburant || {}).forEach(carburant => {
       const donnee = (autonomiesCarburant || {})[carburant];
-      if (!donnee) return Promise.resolve(null);
+      if (!donnee) return;
       const classif = R.qualifierAutonomieCarburant(donnee);
       const cleSignal = `carburant:autonomie:${carburant}`;
       const nomCarburant = R.sujetSignal({ domaine: 'carburant', cle_signal: cleSignal });
-      return enregistrerObservation(client, siteId, {
+      candidats.push({
         domaine: 'carburant', cleSignal, typeSignal: 'autonomie_stock_carburant',
         secteur: 'Carburants', classification: classif,
         actionRecommandee: `Anticipez le réapprovisionnement ${nomCarburant} — vérifiez le délai de livraison du fournisseur.`,
@@ -343,20 +485,23 @@
     // contrainte CHECK sur `nexus_risk_signals.domaine` n'incluait pas
     // 'inventaire' à son lancement (18/08/2026) — chaque écriture échouait
     // en 400 depuis cette date, silencieusement absorbée par le
-    // console.error d'enregistrerObservation. RAPPEL pour tout nouveau
-    // domaine ajouté ici à l'avenir : la liste des valeurs autorisées vit
-    // UNIQUEMENT dans la contrainte SQL `nexus_risk_signals_domaine_check`
-    // (Article 11 — jamais dupliquée en constante JS qui pourrait diverger
-    // de la même façon) ; toujours élargir cette contrainte AVANT
-    // d'introduire un nouveau `domaine:` littéral ici, et vérifier après
-    // coup par un insert réel (les tests JS de ce fichier utilisent un
-    // client Supabase mocké — ils ne peuvent pas attraper une violation de
-    // contrainte SQL, seule une vérification contre la base réelle le peut).
-    const promessesInventaire = Object.keys(alertesInventaire || {}).map(produitId => {
+    // console.error de l'écriture. RAPPEL pour tout nouveau domaine ajouté
+    // ici à l'avenir : la liste des valeurs autorisées vit UNIQUEMENT dans
+    // la contrainte SQL `nexus_risk_signals_domaine_check` (Article 11 —
+    // jamais dupliquée en constante JS qui pourrait diverger de la même
+    // façon) ; toujours élargir cette contrainte AVANT d'introduire un
+    // nouveau `domaine:` littéral ici, et vérifier après coup par un insert
+    // réel (les tests JS de ce fichier utilisent un client Supabase mocké —
+    // ils ne peuvent pas attraper une violation de contrainte SQL, seule
+    // une vérification contre la base réelle le peut). C'est ce domaine qui
+    // génère le plus gros volume de candidats (jusqu'à 93 produits distincts
+    // observés en production le 30/08/2026 sur vito-sainte-marie) — la
+    // raison directe du passage à l'écriture en lot ci-dessous.
+    Object.keys(alertesInventaire || {}).forEach(produitId => {
       const donnee = (alertesInventaire || {})[produitId];
-      if (!donnee) return Promise.resolve(null);
+      if (!donnee) return;
       const classif = R.qualifierAlerteInventaire(donnee);
-      return enregistrerObservation(client, siteId, {
+      candidats.push({
         domaine: 'inventaire', cleSignal: `inventaire:produit:${donnee.designation}`, typeSignal: 'alerte_inventaire_recurrente',
         secteur: 'Opérations', classification: classif,
         actionRecommandee: `Vérifiez la fiche produit et le mode de comptage de ${donnee.designation} — une alerte qui revient signale souvent une cause de fond (fiche dupliquée, emplacement ambigu, mode de comptage inadapté), pas juste un comptage isolé à corriger.`,
@@ -367,11 +512,11 @@
     // réutilise `qualifierEcartCaisse` tel quel (fonction générique, voir
     // commentaire de `chargerAgregationCaisseFdjTousQuarts`), jamais une 2e
     // classification d'écart de caisse.
-    const promessesFdj = Object.keys(agregationCaisseFdjParQuart || {}).map(quart => {
+    Object.keys(agregationCaisseFdjParQuart || {}).forEach(quart => {
       const agg = agregationCaisseFdjParQuart[quart];
-      if (!agg || !agg.total) return Promise.resolve(null);
+      if (!agg || !agg.total) return;
       const classif = R.qualifierEcartCaisse(agg);
-      return enregistrerObservation(client, siteId, {
+      candidats.push({
         domaine: 'fdj', cleSignal: `fdj:quart:${quart}`, typeSignal: 'ecart_caisse_fdj_recurrent',
         secteur: 'FDJ', classification: classif,
         actionRecommandee: `Vérifiez les procédures de comptage FDJ du quart ${quart} avec l'équipe concernée.`,
@@ -382,18 +527,18 @@
     // un signal par collaborateur AYANT AU MOINS UN RETARD sur la fenêtre —
     // jamais un signal agrégé au niveau site (voir le commentaire de
     // `qualifierPonctualiteCollaborateur` dans nexus-risques-moteur.js).
-    const promessesEquipe = Object.keys(ponctualiteCollaborateurs || {}).map(employeeId => {
+    Object.keys(ponctualiteCollaborateurs || {}).forEach(employeeId => {
       const donnee = (ponctualiteCollaborateurs || {})[employeeId];
-      if (!donnee || !donnee.nbRetards) return Promise.resolve(null);
+      if (!donnee || !donnee.nbRetards) return;
       const classif = R.qualifierPonctualiteCollaborateur(donnee);
-      return enregistrerObservation(client, siteId, {
+      candidats.push({
         domaine: 'equipe', cleSignal: `equipe:collaborateur:${donnee.nom}`, typeSignal: 'ponctualite_recurrente',
         secteur: 'Équipe', classification: classif,
         actionRecommandee: `Échangez avec ${donnee.nom} sur les retards constatés — un entretien individuel, pas une mesure collective, tant qu'aucun autre collaborateur n'est concerné de façon récurrente.`,
       });
     });
 
-    await Promise.all([...promessesCaisse, ...promessesMarge, ...promessesCarburant, ...promessesInventaire, ...promessesFdj, ...promessesEquipe]);
+    await enregistrerObservationsEnLot(client, siteId, candidats);
     return chargerSignauxSite(client, siteId, { statut: 'surveille' });
   }
 
@@ -571,6 +716,7 @@
 
   global.NexusRisquesDonnees = {
     chargerSignalExistant, chargerSignauxSite, enregistrerObservation, resoudreSignal,
+    chargerSignauxExistantsParCles, construireLigneSignal, enregistrerObservationsEnLot,
     chargerAgregationCaisseQuart, chargerAgregationCaisseTousQuarts,
     chargerPeriodesAnterieures, chargerMargeCategoriePeriode, chargerHistoriqueMargeCategorie,
     chargerAutonomiesCarburantAvecHistorique,

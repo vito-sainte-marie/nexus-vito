@@ -4991,3 +4991,41 @@ Aucun fichier de test JS ne peut valider une contrainte SQL (les mocks Supabase 
 - N'a pas retiré `'stock'` de la contrainte (aucune preuve qu'il soit totalement mort).
 - N'a pas batché les écritures `nexus_risk_signals` (point 1 ci-dessus) — scope à confirmer séparément, touche les 6 domaines pilotes.
 - N'a pas modifié le calcul de couverture physique (point 2) — vérifié sain, aucune correction nécessaire.
+
+## v2.305 — Batching écriture nexus_risk_signals, 6 domaines pilotes (30/08/2026)
+
+**Origine** : suite directe du point annexe 1 de la v2.304 (« rafale » de requêtes). Frédéric a confirmé **« ok attaque »** après la proposition faite dans le rapport précédent : « Le corriger (lecture groupée + upsert en lot) toucherait les 6 domaines à la fois — je préfère te le proposer comme lot dédié plutôt que de le glisser dans un correctif P0. »
+
+### Diagnostic — mécanisme visé (Article 5, vérifié par grep avant toute modification)
+
+`qualifierEtEnregistrerRisquesPilote` (`nexus-risques-donnees.js`) appelait `enregistrerObservation` une fois par candidat, pour chacun des 6 domaines pilotes (caisse, marge, carburant, inventaire, fdj, équipe) — soit 1 `SELECT` (lecture de l'état existant) + 1 `INSERT`/`UPDATE` par candidat. En production sur vito-sainte-marie : jusqu'à 93 produits Inventaire en alerte simultanée (chiffre déjà mesuré en v2.304), soit jusqu'à ~186 requêtes HTTP pour un seul chargement de Contrôle Inventaire. Grep confirmé : `enregistrerObservation` n'était appelée QUE depuis ces 6 points d'entrée internes à `qualifierEtEnregistrerRisquesPilote`, aucun appelant externe dans tout le projet.
+
+### Correctif (`nexus-risques-donnees.js`)
+
+Trois nouvelles fonctions génériques, partagées par les 6 domaines (Article 11 — aucune variante par domaine) :
+- **`chargerSignauxExistantsParCles(client, siteId, clesSignal)`** — remplace N appels à `chargerSignalExistant` par un seul `.select('*').eq('site_id', ...).in('cle_signal', clesSignal)`, retourne une map `cle_signal -> ligne`. Court-circuite (0 requête) si la liste de clés est vide.
+- **`construireLigneSignal(siteId, params, existant, maintenant)`** — fonction PURE (aucun accès réseau) qui recalcule la ligne complète à upserter, en réutilisant EXACTEMENT la logique déjà éprouvée d'`enregistrerObservation` (insert-shape si `existant` est `null`, update-shape sinon, y compris l'appel à `NexusRisques.determinerTransition` et l'ajout conditionnel à `historique_transitions`). Deux points de non-régression vérifiés explicitement par test avant livraison : `premiere_detection_le` n'est jamais réécrit sur un signal déjà connu (sinon « surveillé depuis N jours » redémarrerait à zéro à chaque cycle), et un signal `resolu` qui réapparaît est rouvert (`resolu_le`/`resolu_note` remis à `null`). `id`/`created_at` sont volontairement absents de chaque ligne pour laisser PostgREST/la base gérer ces colonnes par défaut à l'insert et les préserver à la mise à jour.
+- **`enregistrerObservationsEnLot(client, siteId, candidats)`** — orchestration : 1 lecture groupée (`chargerSignauxExistantsParCles`) + 1 `upsert(lignes, { onConflict: 'site_id,cle_signal' })`, pour TOUS les candidats des 6 domaines en une seule fois. Retourne `[]` sans aucune requête Supabase si `candidats` est vide.
+
+`qualifierEtEnregistrerRisquesPilote` réécrite : chaque domaine construit désormais un simple objet candidat en mémoire (au lieu d'une `Promise` d'écriture immédiate) ; le filtre « donnée non exploitable » déjà existant par domaine (ex. `!agg.total`, `!donnee`, `!donnee.nbRetards`) est strictement inchangé — il décide juste de ne pas pousser de candidat plutôt que de retourner `Promise.resolve(null)`. Une seule ligne finale : `await enregistrerObservationsEnLot(client, siteId, candidats)`.
+
+**Détail vérifié explicitement (non-régression comportementale, Article 5)** : l'ancien `.update()` ciblé ne touchait jamais `secteur`/`domaine`/`type_signal`. Un upsert en lot doit au contraire les envoyer à chaque ligne (structure homogène obligatoire pour un upsert multi-lignes) — sans effet observable puisque chaque appelant passe une valeur littérale déterministe par préfixe de `cleSignal` (ex. toujours `'Opérations'` pour `inventaire:produit:*`) : réécrire la même valeur est un no-op vérifié, documenté ici plutôt que découvert plus tard.
+
+`enregistrerObservation` (fonction historique, 1 signal à la fois) reste exportée et strictement inchangée — aucun appelant externe trouvé, mais retirer du code qui fonctionne sans certitude qu'il est mort violerait l'Article 5 ; elle reste disponible pour un futur usage isolé hors cycle de qualification en lot.
+
+### Tests et régression
+
+Nouveau fichier `test_risques_batching_nexus_risk_signals.js` (10 scénarios — première couverture de test pour l'orchestration d'écriture `nexus_risk_signals`, absente avant ce lot d'après audit des 3 fichiers de test Cadrage risques existants) :
+1. `chargerSignauxExistantsParCles` : court-circuit sur liste vide (0 requête), lecture groupée en 1 seule requête `.in(...)` filtrée par site.
+2. `construireLigneSignal` : insert-shape (nouveau signal, sans `id`/`created_at`), transition stable (historique et `premiere_detection_le` inchangés), escalade (historique complété, `premiere_detection_le` toujours préservé), signal résolu qui réapparaît (rouvert).
+3. `enregistrerObservationsEnLot` : liste vide → 0 requête ; 20 candidats simulant une mini-rafale (dont 1 signal déjà connu) → exactement 2 requêtes (1 lecture groupée + 1 upsert), ancienneté préservée.
+4. `qualifierEtEnregistrerRisquesPilote` de bout en bout, 6 domaines simultanés (caisse, marge, carburant, 15×inventaire, fdj, équipe = 20 candidats) : exactement 2 requêtes d'écriture au lieu de 20, chaque filtre « donnée non exploitable » par domaine toujours respecté (quart sans audit ignoré, carburant sans donnée ignoré, collaborateur sans retard ignoré) ; cas `periodeAffichage` absent → volet Marge intégralement ignoré, court-circuit total (0 requête) si aucun candidat au global.
+
+**Régression complète rejouée avant livraison : 152 fichiers de test, 0 échec** (151 fichiers pré-existants + le nouveau fichier de ce lot).
+
+### Ce que ce lot NE couvre PAS
+
+- N'a pas touché aux 6 fonctions de chargement des sources par domaine (`chargerAgregationCaisseTousQuarts`, `chargerAutonomiesCarburantAvecHistorique`, `chargerAlertesInventaireAQualifier`, etc.) — hors scope, ce lot ne change que l'ÉCRITURE des signaux, pas leur QUALIFICATION.
+- N'a pas supprimé `enregistrerObservation` (conservée, inutilisée en interne mais toujours exportée).
+- N'a pas modifié `resoudreSignal` (résolution manuelle manager, un signal à la fois, hors du cycle de qualification en lot — volume négligeable, jamais la source de la rafale).
+- N'a pas modifié le comportement métier observable pour l'utilisateur final (mêmes signaux, mêmes niveaux, même urgence affichée) — uniquement le nombre de requêtes réseau derrière l'écran.
