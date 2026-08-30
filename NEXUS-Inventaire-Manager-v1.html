@@ -2926,8 +2926,15 @@
       const ecartAbs = (a.valeur_constatee != null && a.valeur_attendue != null) ? Math.abs(a.valeur_constatee - a.valeur_attendue) : null;
       const categorieId = a.inventaire_zone_produit && a.inventaire_zone_produit.categorie_id;
       const M = typeof NexusInventaireMoteur !== 'undefined' ? NexusInventaireMoteur : null;
-      const seuilQte = M ? M.seuilEcartEffectif('quantite_alerte', categorieId, seuilsEcartParCategorie, parametresInventaire.quantityAlertThreshold ?? 1) : (parametresInventaire.quantityAlertThreshold ?? 1);
-      const seuilValeur = M ? M.seuilEcartEffectif('valeur_alerte', categorieId, seuilsEcartParCategorie, parametresInventaire.valueAlertThreshold) : parametresInventaire.valueAlertThreshold;
+      // 30/08/2026 (chantier convergence Inventaire V2) : seuilEcartEffectif
+      // prend désormais un seul objet contexte (produit→catégorie→site) au
+      // lieu de 4 paramètres positionnels. Cet écran n'a pas encore de
+      // dérogation produit à charger (aucune UI ne la règle ici) : on passe
+      // categorieId/seuilsParCategorie/defautSite et on omet produitId, ce
+      // qui retombe naturellement sur le niveau catégorie puis site —
+      // comportement strictement identique à avant pour cet écran.
+      const seuilQte = M ? M.seuilEcartEffectif('quantite_alerte', { categorieId, seuilsParCategorie: seuilsEcartParCategorie, defautSite: parametresInventaire.quantityAlertThreshold ?? 1 }) : (parametresInventaire.quantityAlertThreshold ?? 1);
+      const seuilValeur = M ? M.seuilEcartEffectif('valeur_alerte', { categorieId, seuilsParCategorie: seuilsEcartParCategorie, defautSite: parametresInventaire.valueAlertThreshold }) : parametresInventaire.valueAlertThreshold;
       const depasseQte = ecartAbs != null && ecartAbs > seuilQte;
       const depasseValeur = seuilValeur != null && a.valeur_estimee != null && a.valeur_estimee > seuilValeur;
       const categorieSensible = categorieId && (parametresInventaire.immediateAlertCategoryIds || []).includes(categorieId);

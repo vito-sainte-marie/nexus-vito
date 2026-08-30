@@ -354,6 +354,20 @@
   // du déploiement (transition ponctuelle, se résorbe au quart suivant).
   let regleSnapshotParProduit = {};
   let planItemIdParProduit = {};         // produit_id -> inventaire_plan_items.id (pour marquerItemPlanCompte)
+  // 30/08/2026 (chantier convergence Inventaire V2, branchement du seuil
+  // d'écart) : dérogations de seuil d'écart (inventaire_seuils), chargées
+  // une fois au bootstrap via NexusInventairePlanDonnees.chargerSeuilsEcart
+  // (source unique, Article 11 — même loader que Paramètres/Manager).
+  // { parCategorie, parProduit }, chacun id -> { quantite_alerte, ... }.
+  // Utilisées par NexusInventaireMoteur.ecartQuantiteSignificatif pour
+  // décider si un écart entre dans le cycle d'observation — jamais pour
+  // décider si le champ justification/motif s'affiche (ça reste
+  // saisie.ecartNonNul, la tolérance flottante 0,001, rôle inchangé).
+  let seuilsEcart = { parCategorie: {}, parProduit: {} };
+  // Défauts du site pour les 2 seuils (quantityAlertThreshold/
+  // valueAlertThreshold), extraits par chargerReglagesPlanComptage — seul
+  // point de vérité pour ces 2 champs sur cet écran (Article 11).
+  let seuilsSiteDefaut = { quantite_alerte: 1, valeur_alerte: null };
   let comptagesSaisie = {};      // produit_id -> { compte, justification }
   let mouvementsSaisie = [];     // { produit_id, type_mouvement, quantite, justification }
   let zonesMap = {};             // code ('piste'/'boutique') -> id (inventaire_zones)
@@ -1082,6 +1096,14 @@
   // réglages Inventaire (Article 11, aucune nouvelle table). Valeur absente
   // ou non numérique => undefined => chargerOuGenererPlan retombe sur ses
   // propres constantes par défaut (jamais un 0 ou une valeur inventée ici).
+  // 30/08/2026 (chantier convergence Inventaire V2, branchement du seuil
+  // d'écart) : cette même lecture de parametres_inventaire sert désormais
+  // aussi à extraire les 2 seuils par défaut du site (quantityAlertThreshold
+  // /valueAlertThreshold) — déjà lus ailleurs (Paramètres, Manager) mais
+  // jamais ici (Article 11 : une seule requête, pas une deuxième lecture de
+  // station_config pour ces 2 champs). Défaut 1/null si absent, identique
+  // au défaut déjà en vigueur dans DEFAULTS_PARAMETRES_INVENTAIRE (Manager/
+  // Paramètres) — jamais un 0 fabriqué qui bloquerait tout écart.
   async function chargerReglagesPlanComptage() {
     const site = employeeCourant.site_id;
     const { data, error } = await nexusClient
@@ -1090,7 +1112,9 @@
     const p = (data && data.parametres_inventaire) || {};
     const socleCible = Number.isFinite(p.planSocleCible) ? p.planSocleCible : undefined;
     const surprisesCible = Number.isFinite(p.planSurprisesCible) ? p.planSurprisesCible : undefined;
-    return { socleCible, surprisesCible };
+    const quantityAlertThreshold = Number.isFinite(p.quantityAlertThreshold) ? p.quantityAlertThreshold : 1;
+    const valueAlertThreshold = Number.isFinite(p.valueAlertThreshold) ? p.valueAlertThreshold : null;
+    return { socleCible, surprisesCible, quantityAlertThreshold, valueAlertThreshold };
   }
 
   // Plan de comptage tournant (17/08/2026, Sprint 2 — cahier Inventaire 2.0
@@ -1113,6 +1137,18 @@
     // premier (INV2-04) — mais reste sans risque de coût inutile, un seul
     // SELECT léger sur station_config.
     const options = await chargerReglagesPlanComptage();
+    seuilsSiteDefaut = { quantite_alerte: options.quantityAlertThreshold, valeur_alerte: options.valueAlertThreshold };
+    // 30/08/2026 (branchement du seuil d'écart) : chargé ici (même fonction
+    // bootstrap, même module déjà utilisé pour le plan) plutôt qu'à un
+    // nouvel endroit séparé — si ce chargement échoue, seuilsEcart reste à
+    // son défaut {parCategorie:{}, parProduit:{}} (déclaré plus haut) et
+    // ecartQuantiteSignificatif retombe alors sur le seul défaut du site
+    // (options.quantityAlertThreshold), jamais un blocage de la saisie.
+    try {
+      seuilsEcart = await P.chargerSeuilsEcart(nexusClient, site);
+    } catch (e) {
+      console.error('Chargement seuils écart:', e);
+    }
     planQuartActif = await P.chargerOuGenererPlan(nexusClient, site, dateISO(), quartActuel, options);
     const items = (planQuartActif && planQuartActif.items) || [];
     produitsPlanIds = new Set(items.map(it => it.produit_id));
@@ -3069,7 +3105,28 @@
         } else if (motifLibelle) {
           resolution = `Motif déclaré par l'employé : ${motifLibelle}.`;
         }
-        ecartPourCycle = { valeur_attendue: valeurTransmise, valeur_constatee: saisie.compte, gravite: Math.abs(ecartVal) > 2 ? 'critique' : 'attention' };
+        // 30/08/2026 (branchement du seuil d'écart, demande explicite de
+        // Frédéric — "écart brut calculé -> seuil effectif catégorie/
+        // produit/site -> si seuil dépassé : entrée dans le cycle
+        // d'observation -> sinon : aucun événement métier") : avant ce
+        // correctif, `saisie.ecartNonNul` (tolérance flottante 0,001, ligne
+        // ~2589/2758/2870/3430) était le SEUL filtre — un écart de 0,01
+        // unité sur un produit dont le seuil réglé est "2" entrait quand
+        // même dans le cycle d'observation, ce qui n'a plus de sens avec
+        // Inventaire V2. `saisie.ecartNonNul` garde son rôle actuel
+        // (affichage du champ justification/motif à la saisie) — seule la
+        // décision d'ENTRER DANS LE CYCLE change ici. Le seuil ne fait
+        // qu'orienter vers le cycle d'observation, jamais alerter le
+        // manager directement (ça reste qualifierObservationEcart, qui
+        // escalade seulement après plusieurs observations consécutives).
+        const contexteSeuil = {
+          categorieId: p.categorie_id, produitId: p.id,
+          seuilsParCategorie: seuilsEcart.parCategorie, seuilsParProduit: seuilsEcart.parProduit,
+          defautSite: seuilsSiteDefaut.quantite_alerte,
+        };
+        if (NexusInventaireMoteur.ecartQuantiteSignificatif(ecartVal, contexteSeuil)) {
+          ecartPourCycle = { valeur_attendue: valeurTransmise, valeur_constatee: saisie.compte, gravite: Math.abs(ecartVal) > 2 ? 'critique' : 'attention' };
+        }
       }
 
       // Décision du cycle (moteur pur, jamais recalculée ici) : créer une

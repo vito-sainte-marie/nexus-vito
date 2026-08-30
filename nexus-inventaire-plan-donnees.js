@@ -254,6 +254,39 @@
     });
   }
 
+  // 30/08/2026 (chantier convergence Inventaire V2, branchement du seuil
+  // d'écart) : loader UNIQUE des seuils inventaire_seuils, partagé par les
+  // trois écrans qui en ont besoin (Paramètres, Manager, Employé) — les
+  // trois chargent déjà ce fichier via <script>, contrairement à
+  // nexus-inventaire-manager-donnees.js qui n'est chargé que par le Manager.
+  // Avant ce lot, deux implémentations quasi identiques coexistaient
+  // (nexus-inventaire-manager-donnees.js::chargerSeuilsEcartCategorie et une
+  // copie inline dans NEXUS-Parametres-Inventaire-v1.html) — violation
+  // Article 11, corrigée ici : les deux délèguent désormais à cette
+  // fonction (voir leurs fichiers respectifs) et n'en gardent que
+  // l'extraction de la forme qu'elles exposaient déjà à leurs appelants.
+  // Retourne { parCategorie, parProduit }, chacun étant une map
+  // id -> { [cle]: valeur } — parProduit est nouveau (migration
+  // inventaire_seuils_produit, colonne produit_id exclusive de
+  // categorie_id sur une même ligne).
+  async function chargerSeuilsEcart(client, site) {
+    const { data, error } = await client.from('inventaire_seuils')
+      .select('categorie_id, produit_id, cle, valeur').eq('site', site);
+    if (error) { console.error('Chargement seuils écart:', error); return { parCategorie: {}, parProduit: {} }; }
+    const parCategorie = {};
+    const parProduit = {};
+    (data || []).forEach(r => {
+      if (r.produit_id) {
+        if (!parProduit[r.produit_id]) parProduit[r.produit_id] = {};
+        parProduit[r.produit_id][r.cle] = Number(r.valeur);
+      } else if (r.categorie_id) {
+        if (!parCategorie[r.categorie_id]) parCategorie[r.categorie_id] = {};
+        parCategorie[r.categorie_id][r.cle] = Number(r.valeur);
+      }
+    });
+    return { parCategorie, parProduit };
+  }
+
   global.NexusInventairePlanDonnees = {
     SOCLE_PAR_DEFAUT, SURPRISES_PAR_DEFAUT,
     chargerPlanExistant, chargerOuGenererPlan, marquerItemPlanCompte,
@@ -264,5 +297,6 @@
     // sélection), simplement appelées en LECTURE SEULE pour prévisualiser
     // sans jamais persister de plan ni consommer une surprise.
     chargerIngredientsSelection, chargerSurprisesRecentes,
+    chargerSeuilsEcart,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

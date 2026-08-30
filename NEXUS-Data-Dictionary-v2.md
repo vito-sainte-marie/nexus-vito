@@ -5029,3 +5029,72 @@ Nouveau fichier `test_risques_batching_nexus_risk_signals.js` (10 scénarios —
 - N'a pas supprimé `enregistrerObservation` (conservée, inutilisée en interne mais toujours exportée).
 - N'a pas modifié `resoudreSignal` (résolution manuelle manager, un signal à la fois, hors du cycle de qualification en lot — volume négligeable, jamais la source de la rafale).
 - N'a pas modifié le comportement métier observable pour l'utilisateur final (mêmes signaux, mêmes niveaux, même urgence affichée) — uniquement le nombre de requêtes réseau derrière l'écran.
+
+## v2.306 — Convergence Inventaire V2 : clôture/Progression tranchés + branchement du seuil d'écart (30/08/2026)
+
+**Origine** : chantier « Convergence & nettoyage Inventaire V2 » (audité en amont dans `NEXUS-Audit-Convergence-Inventaire-V2.md`). Frédéric a demandé de trancher deux points ouverts avant de coder (Priorité 1 : clôture, Priorité 2 : Progression), puis d'attaquer le branchement du seuil d'écart, dans cet ordre explicite : « clôture + Progression → seuil d'écart → réglages fantômes ».
+
+### Correction à l'audit précédent (Article 5 — jamais une inexactitude laissée sans correction)
+
+`NEXUS-Audit-Convergence-Inventaire-V2.md` affirmait que `seuilEcartEffectif` (Sprint 5) n'était « jamais appelée hors de son propre fichier et de son test ». C'est inexact : elle est bien appelée par `depasseSeuilException` dans `NEXUS-Inventaire-Manager-v1.html`. La nuance qui avait échappé à l'audit : cet appel sert uniquement à un **filtre d'affichage manager** (« vue par exception » de la revue périodique — quelles alertes déjà créées afficher), jamais à décider si un écart doit CRÉER une alerte au moment de la saisie. C'est précisément ce deuxième point qui restait un vrai trou, comblé par ce lot (voir section Priorité 3 ci-dessous).
+
+### Priorité 1 — Logique de blocage de clôture (tracée, verdict rendu)
+
+Chaîne tracée intégralement : `demarrerCloture → renderCloture → validerCloture → produitsRequis → produitsZone → restreindreAuPlanQuart → chargerProduitsZone` (`NEXUS-Inventaire-v1.html`).
+
+**Constat** : il n'existe **aucun blocage dur** de la clôture aujourd'hui. `validerCloture()` laisse toujours la clôture se terminer ; elle affiche seulement un `confirm()` d'avertissement et, si plus de 50 % des produits « requis » manquent, journalise en plus une alerte manager critique (`inventaire_alertes`, `type_alerte:'cloture_incomplete'`).
+
+**Le vrai problème** : la source de « requis » (utilisée pour les barres de progression, les compteurs du carrousel, ET l'avertissement de clôture) est le **périmètre du plan V1** pour la zone (`produitsPlanIds`, filtré par jour), jamais le périmètre V2 spécifiquement affecté à cet employé (`missionsDuJour`, qui intègre pourtant la répartition par employé du Sprint 4 quand un rôle est partagé). `missionsDuJour` reste purement informatif (jauge « Mes missions aujourd'hui »), sans effet sur aucune obligation.
+
+**Conséquence concrète** : le scénario de non-régression n°11 de Frédéric (« clôture avec toutes missions terminées mais plan interne non totalement couvert ») est bien un vrai écart — un employé qui termine intégralement SA part de mission (cas d'un rôle partagé) peut encore voir/déclencher un avertissement d'incomplétude et une alerte manager calculés sur le périmètre ENTIER de la zone, incluant potentiellement la part non terminée d'un collègue.
+
+**Règle cible retenue, pas encore codée (scope explicitement hors de ce lot — Frédéric a validé l'ordre clôture/Progression = diagnostic d'abord, seuil ensuite)** : faire porter l'avertissement de clôture sur le périmètre combiné de `missionsDuJour` (toutes les missions du quart, tous employés du rôle confondus) avec repli sur le comportement actuel (périmètre du plan) si aucune mission V2 n'est trouvée pour ce quart — jamais une régression silencieuse vers « rien n'est requis ».
+
+### Priorité 2 — Les 26 mentions « inventaire » dans Progression (qualifiées)
+
+Les 26 occurrences se répartissent en exactement deux mécanismes indépendants, tous deux confirmés **propres** (aucune dépendance à un ancien calcul ou une ancienne structure V1) :
+- Une lecture booléenne simple `inventaire_quarts.statut === 'cloture'`, utilisée pour le score de fiabilité caisse.
+- Le mécanisme autonome « Série Inventaire » (badges/points de régularité — `nexus-progression.js::qualifierQuartsInventaireEmploye`/`calculerSerieDepuisEvenements`), qui s'appuie sur `inventaire_quart_employes`/`inventaire_corrections`.
+
+Aucun des deux ne dépend de `inventaire_plans_comptage`, `inventaire_mission_rules`, `inventaire_missions`, `inventaire_regles_produit`, `inventaire_categories` ni `inventaire_seuils`. `inventaire_corrections` est confirmée toujours activement écrite par `NEXUS-Inventaire-Manager-v1.html` — un mécanisme légitimement distinct du cycle d'observation `inventaire_alertes`, pas une structure morte. **Verdict : Progression n'a besoin d'aucune modification pour cette convergence.**
+
+### Priorité 3 — Branchement du seuil d'écart dans le cycle d'observation
+
+**Règle cible demandée, implémentée telle quelle** : écart brut calculé → seuil effectif (produit → catégorie → site) → si le seuil est dépassé, l'écart entre dans le cycle d'observation (`qualifierObservationEcart`) → sinon, aucun événement métier. La tolérance technique `0,001` sert uniquement à absorber l'imprécision flottante, jamais à décider si un écart métier mérite d'être suivi. Le seuil ne déclenche jamais directement une alerte manager : il ne fait que déterminer l'entrée dans le cycle détecté → sous observation → second contrôle → manager si persistance.
+
+**Diagnostic avant correctif** : trois seuils coexistaient sans coordination — `saisie.ecartNonNul` (`Math.abs(ecart) > 0.001`, dans `NEXUS-Inventaire-v1.html`) était le SEUL filtre décidant de l'entrée dans le cycle, sans jamais consulter aucun seuil configurable ; un seuil de gravité codé en dur (`Math.abs(ecartVal) > 2 ? 'critique' : 'attention'`) restait indépendant ; et le seuil configurable (`seuilEcartEffectif`) n'était branché que dans le filtre d'affichage manager `depasseSeuilException` (voir correction d'audit ci-dessus). Le troisième point (gravité codée en dur) est signalé mais **volontairement hors scope de ce lot** — il ne détermine que le libellé de gravité affiché au manager sur un écart déjà entré dans le cycle, pas l'entrée elle-même ; à traiter séparément si besoin.
+
+**Schéma (migration `inventaire_seuils_produit`, déjà appliquée à `uzhjpqpctpvxytxpxoqz`)** : ajout d'une colonne `produit_id uuid references inventaire_zone_produit(id)` à `inventaire_seuils`, avec `CHECK (categorie_id is null or produit_id is null)` (scoping exclusif — une ligne dérogé soit une catégorie, soit un produit, jamais les deux) et `UNIQUE (site, produit_id, cle)` (symétrique à la contrainte catégorie existante). Aucune UI ne permet encore de régler une dérogation produit — le niveau existe dans le schéma et le moteur par anticipation, comme le niveau catégorie avant que le Sprint 5 lui donne une UI.
+
+**Moteur (`nexus-inventaire-moteur.js`)** :
+- `seuilEcartEffectif(cle, contexte)` : signature changée d'un appel positionnel `(cle, categorieId, seuilsParCategorie, defautSite)` vers un objet unique `{categorieId, produitId, seuilsParCategorie, seuilsParProduit, defautSite}` — changement délibéré et documenté dans le code (un 5e paramètre positionnel devenait illisible à l'appel). Cascade étendue à 3 niveaux : dérogation produit (si réglée) → dérogation catégorie (si réglée) → défaut du site.
+- Nouvelle constante nommée `TOLERANCE_ARRONDI_FLOTTANT = 0.001`, qui remplace la valeur magique dispersée — exportée.
+- Nouvelle fonction pure `ecartQuantiteSignificatif(ecartBrut, contexteSeuil)` : sous la tolérance flottante → jamais significatif ; sinon, comparé au seuil effectif (`quantite_alerte`) ; si aucun seuil n'est configuré nulle part (ni produit, ni catégorie, ni site) → **fail-safe à significatif** (jamais un écart avalé silencieusement par absence de configuration — Article 5).
+
+**Consommateur existant migré (`NEXUS-Inventaire-Manager-v1.html::depasseSeuilException`)** : adapté au nouvel appel objet, comportement strictement inchangé pour cet écran (il n'a pas encore de dérogation produit à fournir — `produitId`/`seuilsParProduit` simplement omis, la cascade retombe naturellement sur catégorie puis site).
+
+**Nouveau consommateur — le vrai branchement (`NEXUS-Inventaire-v1.html`)** :
+- `chargerReglagesPlanComptage()` étendue pour extraire aussi `quantityAlertThreshold`/`valueAlertThreshold` de `station_config.parametres_inventaire` (même requête déjà existante — Article 11, pas une deuxième lecture).
+- Nouveaux états `seuilsEcart` (`{parCategorie, parProduit}`) et `seuilsSiteDefaut`, chargés/alimentés dans `chargerEtAppliquerPlanQuart()` (déjà le point de bootstrap du plan de comptage).
+- Dans la boucle de validation d'ouverture, le bloc qui peuplait `ecartPourCycle` dès que `saisie.ecartNonNul` était vrai le peuple désormais seulement si `NexusInventaireMoteur.ecartQuantiteSignificatif(ecartVal, {categorieId: p.categorie_id, produitId: p.id, seuilsParCategorie, seuilsParProduit, defautSite})` retourne vrai. `saisie.ecartNonNul` (tolérance flottante brute) garde exactement son rôle actuel et inchangé : décider si le champ justification/motif s'affiche à la saisie — jamais mélangé avec la décision d'entrée dans le cycle.
+
+**Nettoyage Article 11 (doublon supprimé)** : `nexus-inventaire-manager-donnees.js::chargerSeuilsEcartCategorie` faisait sa propre requête sur `inventaire_seuils`, en doublon strict d'une copie inline dans `NEXUS-Parametres-Inventaire-v1.html`. Les deux délèguent désormais à une nouvelle fonction unique, **`NexusInventairePlanDonnees.chargerSeuilsEcart(client, site)`** (ajoutée à `nexus-inventaire-plan-donnees.js`, choisi car déjà chargé par les 3 écrans concernés — Paramètres, Manager, Employé), qui retourne `{parCategorie, parProduit}` en une seule requête `select('categorie_id, produit_id, cle, valeur')`. Les deux anciennes fonctions extraient `.parCategorie` pour préserver à l'identique la forme historiquement exposée à leurs appelants.
+
+**Relabeling UI (`NEXUS-Parametres-Inventaire-v1.html`)** — le libellé « à partir de quand alerter le manager » était devenu trompeur avec Inventaire V2 (le seuil ne déclenche jamais une alerte manager directement) :
+- Onglet Règles par catégorie : « Seuils d'écart (indépendants de la règle de comptage ci-dessus — à partir de quand un écart entre dans le cycle d'observation NEXUS) ».
+- Onglet Réglages avancés (niveau personnalisé) : « À partir de quand un écart doit-il entrer dans le cycle d'observation ? » et section « Seuils d'entrée dans le cycle d'observation ».
+
+### Tests et régression
+
+- `test_inventaire_seuils_ecart_categorie_s5.js` mis à jour : Partie 1 réécrite pour la nouvelle signature objet + 3 nouveaux cas de cascade produit (prime sur catégorie/site, absence retombe sur catégorie, clé non réglée au niveau produit retombe sur catégorie) + 6 nouveaux cas `ecartQuantiteSignificatif` (tolérance, sous le seuil, au-dessus, négatif en valeur absolue, fail-safe sans seuil, dérogation produit plus stricte). Partie 2 mise à jour pour la délégation (`chargerSeuilsEcartCategorie` + le nouveau loader partagé, avec split `parCategorie`/`parProduit`). Parties 3 et 4 (consommateur Manager, UI Paramètres) confirmées inchangées et toujours vertes sans modification — preuve que la migration de signature n'a rien cassé en aval.
+- Nouveau fichier `test_inventaire_seuil_ecart_branchement_v2306.js` (9 scénarios) : comportement du gate au point d'appel réel (écart sous seuil site → pas de cycle, catégorie sensible à seuil 0 → le moindre écart compte, fail-safe sans configuration) + assertions de câblage sur le texte source réel de `NEXUS-Inventaire-v1.html` (états déclarés, extraction des 2 seuils dans `chargerReglagesPlanComptage`, chargement du loader partagé dans `chargerEtAppliquerPlanQuart`, `ecartPourCycle` conditionné par `ecartQuantiteSignificatif` et non plus affecté inconditionnellement, `ecartNonNul` toujours utilisé pour l'affichage du champ justification indépendamment du nouveau gate).
+
+**Régression complète rejouée avant livraison : 153 fichiers de test, 0 échec** (152 fichiers pré-existants + le nouveau fichier de ce lot).
+
+### Ce que ce lot NE couvre PAS
+
+- N'a pas implémenté la règle cible de clôture (Priorité 1) — diagnostic et règle cible tranchés, codage explicitement différé (Frédéric a validé l'ordre clôture/Progression **avant** de coder = clarifier, pas encore corriger).
+- N'a pas touché à Progression (Priorité 2, confirmée propre — aucune modification nécessaire).
+- N'a pas coordonné le troisième seuil (gravité `> 2` codée en dur, `NEXUS-Inventaire-v1.html`) avec le seuil configurable — reste indépendant, affecte uniquement le libellé de gravité affiché, pas l'entrée dans le cycle.
+- N'a pas construit d'UI pour régler une dérogation produit (`seuilsParProduit`) — le niveau existe dans le schéma et le moteur, en anticipation, sans écran pour le renseigner à ce jour.
+- N'a pas traité les 5 réglages fantômes (`controle_aleatoire`, `validation_manager_requise`, `comptage_masque`, `photo_obligatoire`, `reapprovisionnable`) — explicitement le lot suivant, une fois celui-ci confirmé par Frédéric.

@@ -142,16 +142,20 @@
   // réel (Article 5). Retourne une map categorie_id -> { quantite_alerte,
   // valeur_alerte } (clés absentes si non réglées pour cette catégorie —
   // jamais un 0 fabriqué).
+  //
+  // 30/08/2026 (chantier convergence Inventaire V2, Article 11) : cette
+  // fonction faisait sa propre requête, en doublon strict d'une copie
+  // inline dans NEXUS-Parametres-Inventaire-v1.html. Les deux délèguent
+  // désormais à NexusInventairePlanDonnees.chargerSeuilsEcart (source
+  // unique, fichier déjà chargé par les trois écrans concernés) et
+  // n'extraient que .parCategorie pour préserver exactement la forme que
+  // cette fonction a toujours exposée à ses appelants (depasseSeuilException
+  // notamment) — aucun changement de comportement pour eux.
   async function chargerSeuilsEcartCategorie(client, site) {
-    const { data, error } = await client.from('inventaire_seuils').select('categorie_id, cle, valeur')
-      .eq('site', site).not('categorie_id', 'is', null);
-    if (error) { console.error('Chargement seuils écart catégorie:', error); return {}; }
-    const map = {};
-    (data || []).forEach(r => {
-      if (!map[r.categorie_id]) map[r.categorie_id] = {};
-      map[r.categorie_id][r.cle] = Number(r.valeur);
-    });
-    return map;
+    const P = global.NexusInventairePlanDonnees;
+    if (!P) { console.error('NexusInventairePlanDonnees non chargé — impossible de charger les seuils écart.'); return {}; }
+    const { parCategorie } = await P.chargerSeuilsEcart(client, site);
+    return parCategorie;
   }
 
   async function chargerDecisionsQuart(client, quartId) {

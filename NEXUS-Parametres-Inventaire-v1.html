@@ -399,12 +399,16 @@
   // depuis longtemps mais jamais lue nulle part) : 'quantite_alerte' /
   // 'valeur_alerte', miroir exact des 2 seuils déjà existants au niveau
   // site (parametresInventaire.quantityAlertThreshold/.valueAlertThreshold).
+  // 30/08/2026 (chantier convergence Inventaire V2, Article 11) : cette
+  // fonction faisait sa propre requête, en doublon strict de celle de
+  // nexus-inventaire-manager-donnees.js. Les deux délèguent désormais à
+  // NexusInventairePlanDonnees.chargerSeuilsEcart (source unique) — voir ce
+  // fichier pour le détail. On extrait .parCategorie pour préserver la
+  // forme historiquement exposée à cet écran ; .parProduit n'a pas encore
+  // de consommateur ici (aucune UI de dérogation produit à ce jour).
   async function chargerSeuilsEcartCategorie(site) {
-    const { data, error } = await nexusClient.from('inventaire_seuils').select('categorie_id, cle, valeur').eq('site', site).not('categorie_id', 'is', null);
-    if (error) { console.error('Chargement seuils écart catégorie:', error); return {}; }
-    const map = {};
-    (data || []).forEach(r => { if (!map[r.categorie_id]) map[r.categorie_id] = {}; map[r.categorie_id][r.cle] = Number(r.valeur); });
-    return map;
+    const { parCategorie } = await NexusInventairePlanDonnees.chargerSeuilsEcart(nexusClient, site);
+    return parCategorie;
   }
   async function chargerEmployesSite(site) {
     const { data, error } = await nexusClient.from('employees').select('id, nom, role').eq('site_id', site).eq('actif', true).order('nom');
@@ -1528,7 +1532,12 @@
         </label>
         <div class="note" style="margin:8px 0;">L'emplacement de comptage (dépôt/boutique) reste réglé produit par produit — ce n'est pas une règle de catégorie (onglet 📦 Produits).</div>
 
-        <div class="note" style="margin:12px 0 4px; font-weight:600; color:var(--text);">Seuils d'écart (indépendants de la règle de comptage ci-dessus — à partir de quand alerter le manager)</div>
+        <!-- 30/08/2026 (chantier convergence Inventaire V2, demande de Frédéric — "le libellé actuel « seuil d'écart — à partir de quand
+             alerter le manager » est devenu trompeur avec Inventaire V2") : ce seuil ne déclenche jamais directement une alerte manager.
+             Il détermine à partir de quand un écart devient significatif pour NEXUS et entre dans le cycle d'observation (détecté ->
+             sous observation -> second contrôle -> manager seulement si l'écart persiste) — voir NexusInventaireMoteur.ecartQuantiteSignificatif
+             et qualifierObservationEcart. -->
+        <div class="note" style="margin:12px 0 4px; font-weight:600; color:var(--text);">Seuils d'écart (indépendants de la règle de comptage ci-dessus — à partir de quand un écart entre dans le cycle d'observation NEXUS)</div>
         <div class="regle-champ-row">
           <span>⚠️ Seuil d'écart — quantité</span>
           <input type="number" min="0" step="1" class="mouv-qte" id="catRegleSeuilEcartQte" placeholder="Défaut site (${parametresInventaire.quantityAlertThreshold ?? 1})" value="${e.seuil_ecart_quantite != null ? e.seuil_ecart_quantite : ''}" style="width:74px; flex:none;">
@@ -2073,7 +2082,10 @@
     const optionsFrequence = Object.entries(LABELS_FREQUENCE).map(([val, label]) => `<option value="${val}" ${p.reviewFrequency === val ? 'selected' : ''}>${label}</option>`).join('');
     const niveau = p.niveauSurveillance || 'standard';
     return `
-      <div class="question-titre">À partir de quand voulez-vous être alerté ?</div>
+      <!-- 30/08/2026 (chantier convergence Inventaire V2) : reformulé — ce réglage ne fixe pas un déclenchement d'alerte manager
+           direct, mais le seuil à partir duquel un écart entre dans le cycle d'observation NEXUS (détecté -> sous observation ->
+           second contrôle -> manager si persistance). Voir la note de l'onglet Règles par catégorie pour le même principe. -->
+      <div class="question-titre">À partir de quand un écart doit-il entrer dans le cycle d'observation ?</div>
 
       <div class="section-titre" style="margin-top:14px;">Niveau de surveillance</div>
       <div class="card" style="margin-bottom:10px; padding:10px 14px;">
@@ -2086,7 +2098,7 @@
       </div>
 
       ${niveau === 'personnalise' ? `
-      <div class="section-titre">Seuils d'alerte</div>
+      <div class="section-titre">Seuils d'entrée dans le cycle d'observation</div>
       <div class="card" style="margin-bottom:10px;">
         <div class="param-ligne"><label for="paramFrequence">Fréquence de supervision</label><select class="param-input" id="paramFrequence">${optionsFrequence}</select></div>
         <div class="param-ligne"><label for="paramSeuilQte">Seuil d'écart en quantité</label><input type="number" min="0" step="0.5" class="param-input" id="paramSeuilQte" value="${p.quantityAlertThreshold}"></div>

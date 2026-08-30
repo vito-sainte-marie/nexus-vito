@@ -17,6 +17,21 @@
 // fonctions à effet de bord (ouvrirEditionRegleCategorie, enregistrerRegleCategorie,
 // chargerSeuilsEcartCategorie côté écran Paramètres qui interroge Supabase
 // directement) restent hors périmètre — même frontière que S2/S3.
+//
+// MISE À JOUR 30/08/2026 (chantier convergence Inventaire V2, branchement du
+// seuil d'écart) : seuilEcartEffectif est passé d'une signature positionnelle
+// (cle, categorieId, seuilsParCategorie, defautSite) à un objet contexte
+// unique {categorieId, produitId, seuilsParCategorie, seuilsParProduit,
+// defautSite}, avec un niveau produit ajouté (cascade produit -> catégorie ->
+// site). Partie 1 réécrite pour la nouvelle signature + le niveau produit.
+// Partie 2 mise à jour : chargerSeuilsEcartCategorie délègue désormais à
+// NexusInventairePlanDonnees.chargerSeuilsEcart (Article 11, voir ce
+// fichier) — le mock Supabase et les assertions changent en conséquence,
+// mais le contrat exposé à cette fonction (retourne une map categorie_id ->
+// {cle: valeur}) reste identique. Partie 3 (depasseSeuilException) et
+// Partie 4 (UI Paramètres) ne changent pas : leur comportement observable
+// est resté strictement identique après la migration de signature (voir
+// nexus-inventaire-moteur.js et NEXUS-Inventaire-Manager-v1.html).
 
 const fs = require('fs');
 const path = require('path');
@@ -58,6 +73,10 @@ function extraireFonction(script, nomFonction) {
 
 const moteurSrc = fs.readFileSync(path.join(PROJET, 'nexus-inventaire-moteur.js'), 'utf8');
 const donneesSrc = fs.readFileSync(path.join(PROJET, 'nexus-inventaire-manager-donnees.js'), 'utf8');
+// 30/08/2026 : chargerSeuilsEcartCategorie (Manager) délègue désormais à
+// NexusInventairePlanDonnees.chargerSeuilsEcart — les deux fichiers doivent
+// tourner dans le même contexte vm pour que la délégation résolve.
+const planDonneesSrc = fs.readFileSync(path.join(PROJET, 'nexus-inventaire-plan-donnees.js'), 'utf8');
 
 const htmlManager = fs.readFileSync(path.join(PROJET, 'NEXUS-Inventaire-Manager-v1.html'), 'utf8');
 const scriptManager = [...htmlManager.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m => m[1]).reduce((a, b) => (b.length > a.length ? b : a), '');
@@ -75,25 +94,79 @@ assert.ok(scriptParametres.includes('seuil_ecart_quantite'), 'Champs de seuil Sp
   vm.runInNewContext(moteurSrc + '\nglobalThis.__moteur = NexusInventaireMoteur;', ctx);
   const M = ctx.__moteur;
   assert.ok(typeof M.seuilEcartEffectif === 'function', 'seuilEcartEffectif doit être exportée');
+  assert.ok(typeof M.ecartQuantiteSignificatif === 'function', 'ecartQuantiteSignificatif doit être exportée');
+  assert.strictEqual(M.TOLERANCE_ARRONDI_FLOTTANT, 0.001, 'TOLERANCE_ARRONDI_FLOTTANT doit être exportée à 0.001');
 
-  testSync('seuilEcartEffectif : pas de dérogation catégorie -> retombe sur le défaut site', () => {
-    assert.strictEqual(M.seuilEcartEffectif('quantite_alerte', 'cat-bieres', {}, 1), 1);
-    assert.strictEqual(M.seuilEcartEffectif('quantite_alerte', 'cat-bieres', { 'cat-cigarettes': { quantite_alerte: 5 } }, 1), 1);
+  testSync('seuilEcartEffectif : pas de dérogation -> retombe sur le défaut site', () => {
+    assert.strictEqual(M.seuilEcartEffectif('quantite_alerte', { categorieId: 'cat-bieres', seuilsParCategorie: {}, defautSite: 1 }), 1);
+    assert.strictEqual(M.seuilEcartEffectif('quantite_alerte', { categorieId: 'cat-bieres', seuilsParCategorie: { 'cat-cigarettes': { quantite_alerte: 5 } }, defautSite: 1 }), 1);
   });
 
   testSync('seuilEcartEffectif : dérogation catégorie présente -> prime sur le défaut site', () => {
-    const seuils = { 'cat-bieres': { quantite_alerte: 5, valeur_alerte: 20 } };
-    assert.strictEqual(M.seuilEcartEffectif('quantite_alerte', 'cat-bieres', seuils, 1), 5);
-    assert.strictEqual(M.seuilEcartEffectif('valeur_alerte', 'cat-bieres', seuils, null), 20);
+    const seuilsParCategorie = { 'cat-bieres': { quantite_alerte: 5, valeur_alerte: 20 } };
+    assert.strictEqual(M.seuilEcartEffectif('quantite_alerte', { categorieId: 'cat-bieres', seuilsParCategorie, defautSite: 1 }), 5);
+    assert.strictEqual(M.seuilEcartEffectif('valeur_alerte', { categorieId: 'cat-bieres', seuilsParCategorie, defautSite: null }), 20);
   });
 
   testSync('seuilEcartEffectif : dérogation à 0 est une vraie valeur (pas confondue avec "absente")', () => {
-    const seuils = { 'cat-bieres': { quantite_alerte: 0 } };
-    assert.strictEqual(M.seuilEcartEffectif('quantite_alerte', 'cat-bieres', seuils, 1), 0);
+    const seuilsParCategorie = { 'cat-bieres': { quantite_alerte: 0 } };
+    assert.strictEqual(M.seuilEcartEffectif('quantite_alerte', { categorieId: 'cat-bieres', seuilsParCategorie, defautSite: 1 }), 0);
   });
 
   testSync('seuilEcartEffectif : categorieId absent (produit sans catégorie) -> défaut site', () => {
-    assert.strictEqual(M.seuilEcartEffectif('quantite_alerte', null, { 'cat-bieres': { quantite_alerte: 5 } }, 1), 1);
+    assert.strictEqual(M.seuilEcartEffectif('quantite_alerte', { categorieId: null, seuilsParCategorie: { 'cat-bieres': { quantite_alerte: 5 } }, defautSite: 1 }), 1);
+  });
+
+  // 30/08/2026 — niveau produit ajouté à la cascade (migration
+  // inventaire_seuils_produit) : produit > catégorie > site.
+  testSync('seuilEcartEffectif : dérogation produit présente -> prime sur la catégorie ET le défaut site', () => {
+    const seuilsParCategorie = { 'cat-bieres': { quantite_alerte: 5 } };
+    const seuilsParProduit = { 'prod-heineken': { quantite_alerte: 0.5 } };
+    assert.strictEqual(M.seuilEcartEffectif('quantite_alerte', { categorieId: 'cat-bieres', produitId: 'prod-heineken', seuilsParCategorie, seuilsParProduit, defautSite: 1 }), 0.5);
+  });
+
+  testSync('seuilEcartEffectif : produit réglé mais pas sur cette clé -> retombe sur la catégorie', () => {
+    const seuilsParCategorie = { 'cat-bieres': { quantite_alerte: 5, valeur_alerte: 20 } };
+    const seuilsParProduit = { 'prod-heineken': { quantite_alerte: 0.5 } };
+    assert.strictEqual(M.seuilEcartEffectif('valeur_alerte', { categorieId: 'cat-bieres', produitId: 'prod-heineken', seuilsParCategorie, seuilsParProduit, defautSite: null }), 20);
+  });
+
+  testSync('seuilEcartEffectif : produitId absent des dérogations -> retombe sur la catégorie', () => {
+    const seuilsParCategorie = { 'cat-bieres': { quantite_alerte: 5 } };
+    const seuilsParProduit = { 'prod-autre': { quantite_alerte: 0.5 } };
+    assert.strictEqual(M.seuilEcartEffectif('quantite_alerte', { categorieId: 'cat-bieres', produitId: 'prod-heineken', seuilsParCategorie, seuilsParProduit, defautSite: 1 }), 5);
+  });
+
+  // ------------------------------------------------------------
+  // ecartQuantiteSignificatif — règle explicite demandée par Frédéric :
+  // écart brut -> seuil effectif -> dépassé ou pas. La tolérance 0,001 ne
+  // sert QUE pour l'imprécision flottante, jamais pour une vraie décision
+  // métier.
+  // ------------------------------------------------------------
+  testSync('ecartQuantiteSignificatif : écart en dessous de la tolérance flottante -> jamais significatif, quel que soit le seuil', () => {
+    assert.strictEqual(M.ecartQuantiteSignificatif(0.0005, { defautSite: 0 }), false);
+    assert.strictEqual(M.ecartQuantiteSignificatif(-0.0009, { defautSite: 0 }), false);
+  });
+
+  testSync('ecartQuantiteSignificatif : écart réel mais sous le seuil effectif -> pas encore significatif', () => {
+    assert.strictEqual(M.ecartQuantiteSignificatif(1, { categorieId: 'cat-bieres', seuilsParCategorie: { 'cat-bieres': { quantite_alerte: 2 } } }), false);
+  });
+
+  testSync('ecartQuantiteSignificatif : écart au-dessus du seuil effectif -> significatif, entre dans le cycle', () => {
+    assert.strictEqual(M.ecartQuantiteSignificatif(3, { categorieId: 'cat-bieres', seuilsParCategorie: { 'cat-bieres': { quantite_alerte: 2 } } }), true);
+  });
+
+  testSync('ecartQuantiteSignificatif : négatif traité en valeur absolue', () => {
+    assert.strictEqual(M.ecartQuantiteSignificatif(-3, { categorieId: 'cat-bieres', seuilsParCategorie: { 'cat-bieres': { quantite_alerte: 2 } } }), true);
+  });
+
+  testSync('ecartQuantiteSignificatif : aucun seuil configuré nulle part -> fail-safe à significatif (jamais un écart avalé silencieusement)', () => {
+    assert.strictEqual(M.ecartQuantiteSignificatif(0.5, {}), true);
+  });
+
+  testSync('ecartQuantiteSignificatif : dérogation produit plus stricte que la catégorie -> le produit prime, écart désormais significatif', () => {
+    const contexte = { categorieId: 'cat-bieres', produitId: 'prod-heineken', seuilsParCategorie: { 'cat-bieres': { quantite_alerte: 5 } }, seuilsParProduit: { 'prod-heineken': { quantite_alerte: 0 } } };
+    assert.strictEqual(M.ecartQuantiteSignificatif(0.5, contexte), true);
   });
 })();
 
@@ -102,10 +175,16 @@ assert.ok(scriptParametres.includes('seuil_ecart_quantite'), 'Champs de seuil Sp
 // de la map { categorie_id: { cle: valeur } } depuis les lignes Supabase.
 // ------------------------------------------------------------
 (async function partie2() {
+  // 30/08/2026 : chargerSeuilsEcartCategorie ne fait plus sa propre requête —
+  // elle délègue à NexusInventairePlanDonnees.chargerSeuilsEcart puis
+  // n'extrait que .parCategorie (Article 11, un seul loader pour les 3
+  // écrans). Les deux fichiers doivent donc tourner dans le même contexte.
   const ctx = { console };
-  vm.runInNewContext(donneesSrc + '\nglobalThis.__donnees = NexusInventaireManagerDonnees;', ctx);
+  vm.runInNewContext(planDonneesSrc + '\n' + donneesSrc + '\nglobalThis.__donnees = NexusInventaireManagerDonnees; globalThis.__plandonnees = NexusInventairePlanDonnees;', ctx);
   const D = ctx.__donnees;
+  const P = ctx.__plandonnees;
   assert.ok(typeof D.chargerSeuilsEcartCategorie === 'function', 'chargerSeuilsEcartCategorie doit être exportée');
+  assert.ok(typeof P.chargerSeuilsEcart === 'function', 'chargerSeuilsEcart (loader partagé) doit être exportée');
 
   function mockClient(rows, err) {
     const chain = {
@@ -121,11 +200,11 @@ assert.ok(scriptParametres.includes('seuil_ecart_quantite'), 'Champs de seuil Sp
   // et le restaure — s'ils tournaient en parallèle (sans await), le stub
   // pourrait avaler le message d'erreur d'un AUTRE test en échec pendant
   // que console.error est remplacé, masquant un FAIL réel.
-  await testAsync('chargerSeuilsEcartCategorie : regroupe les lignes par categorie_id puis par cle', async () => {
+  await testAsync('chargerSeuilsEcartCategorie : regroupe les lignes par categorie_id puis par cle (via le loader partagé)', async () => {
     const client = mockClient([
-      { categorie_id: 'cat-bieres', cle: 'quantite_alerte', valeur: '5' },
-      { categorie_id: 'cat-bieres', cle: 'valeur_alerte', valeur: '20.5' },
-      { categorie_id: 'cat-cigarettes', cle: 'quantite_alerte', valeur: '2' },
+      { categorie_id: 'cat-bieres', produit_id: null, cle: 'quantite_alerte', valeur: '5' },
+      { categorie_id: 'cat-bieres', produit_id: null, cle: 'valeur_alerte', valeur: '20.5' },
+      { categorie_id: 'cat-cigarettes', produit_id: null, cle: 'quantite_alerte', valeur: '2' },
     ]);
     const map = await D.chargerSeuilsEcartCategorie(client, 'site-1');
     // Objets construits dans le contexte vm : deepStrictEqual les rejette à
@@ -150,6 +229,30 @@ assert.ok(scriptParametres.includes('seuil_ecart_quantite'), 'Champs de seuil Sp
     const map = await D.chargerSeuilsEcartCategorie(client, 'site-1');
     console.error = errAvant;
     assert.strictEqual(JSON.stringify(map), '{}');
+  });
+
+  // Le loader partagé lui-même : vérifie qu'il sépare bien parCategorie et
+  // parProduit selon la colonne renseignée (exclusive, migration
+  // inventaire_seuils_produit) — c'est le contrat que Manager/Paramètres/
+  // Employé consomment tous les 3 désormais.
+  await testAsync('chargerSeuilsEcart (loader partagé) : sépare parCategorie et parProduit selon la ligne', async () => {
+    const client = mockClient([
+      { categorie_id: 'cat-bieres', produit_id: null, cle: 'quantite_alerte', valeur: '5' },
+      { categorie_id: null, produit_id: 'prod-heineken', cle: 'quantite_alerte', valeur: '0.5' },
+    ]);
+    const { parCategorie, parProduit } = await P.chargerSeuilsEcart(client, 'site-1');
+    assert.strictEqual(JSON.stringify(parCategorie), JSON.stringify({ 'cat-bieres': { quantite_alerte: 5 } }));
+    assert.strictEqual(JSON.stringify(parProduit), JSON.stringify({ 'prod-heineken': { quantite_alerte: 0.5 } }));
+  });
+
+  await testAsync('chargerSeuilsEcart (loader partagé) : erreur Supabase -> les deux maps vides, pas d\'exception', async () => {
+    const client = mockClient(null, { message: 'boom' });
+    const errAvant = console.error;
+    console.error = () => {};
+    const { parCategorie, parProduit } = await P.chargerSeuilsEcart(client, 'site-1');
+    console.error = errAvant;
+    assert.strictEqual(JSON.stringify(parCategorie), '{}');
+    assert.strictEqual(JSON.stringify(parProduit), '{}');
   });
 })();
 

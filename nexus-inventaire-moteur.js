@@ -130,22 +130,72 @@
   }
 
   // ============================================================
-  // Sprint 5 "Seuils d'écart par catégorie" (20/08/2026, demande de
-  // Frédéric — "éventuellement seuils d'écart" dans sa liste de réglages
-  // par catégorie). Cascade à 2 niveaux, plus simple que
-  // regleEffectiveProduit ci-dessus car inventaire_seuils n'a pas de
-  // niveau "exception produit" — seulement catégorie ou défaut du site :
-  //   1. inventaire_seuils de la catégorie du produit, SI la clé y est
-  //      réglée (une catégorie peut régler quantite_alerte sans régler
-  //      valeur_alerte, et inversement — résolution par clé, pas par ligne
-  //      entière).
-  //   2. Sinon le défaut du site (station_config.parametres_inventaire.
-  //      quantityAlertThreshold / .valueAlertThreshold, déjà existant).
-  // ============================================================
-  function seuilEcartEffectif(cle, categorieId, seuilsParCategorie, defautSite) {
+  // Sprint 5 "Seuils d'écart par catégorie" (20/08/2026), étendu le
+  // 30/08/2026 (chantier convergence Inventaire V2 — Frédéric : "écart brut
+  // calculé -> seuil effectif catégorie/produit/site") avec un niveau
+  // PRODUIT (migration inventaire_seuils_produit, colonne produit_id
+  // ajoutée à inventaire_seuils, exclusive de categorie_id sur une même
+  // ligne). Cascade à 3 niveaux, résolution par clé (pas par ligne entière —
+  // une catégorie/un produit peut régler quantite_alerte sans régler
+  // valeur_alerte, et inversement) :
+  //   1. Dérogation produit (inventaire_seuils.produit_id), si la clé y est
+  //      réglée — la plus spécifique, prime toujours.
+  //   2. Sinon dérogation de la catégorie du produit (inventaire_seuils.
+  //      categorie_id), si la clé y est réglée.
+  //   3. Sinon le défaut du site (station_config.parametres_inventaire.
+  //      quantityAlertThreshold / .valueAlertThreshold).
+  // Aucune UI ne permet encore de régler une dérogation produit à ce jour
+  // (seule la catégorie l'est, Sprint 5) — ce niveau existe dans le moteur
+  // et le schéma par anticipation, prêt à être branché à un écran sans
+  // nouvelle migration ni nouveau moteur le jour où Frédéric le demandera.
+  // `contexte` = { categorieId, produitId, seuilsParCategorie, seuilsParProduit, defautSite }.
+  // Signature objet (jamais positionnelle) : 3 niveaux à passer rendaient un
+  // 5e paramètre positionnel illisible à l'appel — chaque appelant doit
+  // désormais nommer explicitement ce qu'il fournit, l'absence d'un niveau
+  // (ex. produitId non connu) devient un simple champ omis plutôt qu'un
+  // undefined positionnel muet.
+  function seuilEcartEffectif(cle, contexte) {
+    const { categorieId, produitId, seuilsParCategorie, seuilsParProduit, defautSite } = contexte || {};
+    const parProduit = produitId && seuilsParProduit ? seuilsParProduit[produitId] : null;
+    if (parProduit && parProduit[cle] != null) return parProduit[cle];
     const parCategorie = categorieId && seuilsParCategorie ? seuilsParCategorie[categorieId] : null;
-    const overrideCategorie = parCategorie && parCategorie[cle] != null ? parCategorie[cle] : null;
-    return overrideCategorie != null ? overrideCategorie : defautSite;
+    if (parCategorie && parCategorie[cle] != null) return parCategorie[cle];
+    return defautSite != null ? defautSite : null;
+  }
+
+  // Tolérance d'arrondi flottant — PAS un seuil métier, uniquement
+  // l'imprécision binaire de l'arithmétique flottante (ex. 12 -
+  // 11.9999999998 ne doit jamais être lu comme un écart réel). Volontairement
+  // bien plus petite que n'importe quel seuil métier configurable : un
+  // manager qui réglerait un seuil métier à 0 (« tout écart compte »)
+  // continue de voir le bruit flottant ignoré — jamais confondu avec sa
+  // décision métier (30/08/2026, demande explicite de Frédéric : "la
+  // tolérance technique 0,001 doit uniquement servir à gérer les
+  // imprécisions numériques, jamais à décider si un écart métier mérite
+  // d'être suivi").
+  const TOLERANCE_ARRONDI_FLOTTANT = 0.001;
+
+  // Règle explicite demandée par Frédéric (30/08/2026) : écart brut calculé
+  // -> seuil effectif (produit/catégorie/site) -> si dépassé, l'écart entre
+  // dans le cycle d'observation (qualifierObservationEcart) ; sinon, aucun
+  // événement métier. Le franchissement de ce seuil ne déclenche PAS
+  // directement une alerte manager : il détermine seulement si NEXUS
+  // commence à SUIVRE cet écart. C'est qualifierObservationEcart qui gère
+  // ensuite la progression réelle (détecté -> sous_observation ->
+  // 2e contrôle -> controle_manager_requis si persistance) — Article 11,
+  // une seule fonction décide de la progression, celle-ci ne décide que du
+  // point d'entrée.
+  //
+  // Filet de sécurité (Article 5) : si aucun seuil n'est configurable nulle
+  // part (site/catégorie/produit — `seuilEcartEffectif` retourne alors
+  // `null`), jamais un silence total qui éteindrait le cycle faute de
+  // configuration : tout écart au-delà du bruit flottant reste suivi,
+  // comportement historique inchangé.
+  function ecartQuantiteSignificatif(ecartBrut, contexteSeuil) {
+    if (Math.abs(ecartBrut) <= TOLERANCE_ARRONDI_FLOTTANT) return false;
+    const seuil = seuilEcartEffectif('quantite_alerte', contexteSeuil);
+    if (seuil == null) return true;
+    return Math.abs(ecartBrut) > seuil;
   }
 
   // Hash déterministe simple (djb2) d'une chaîne — sert uniquement à graine
@@ -1664,5 +1714,6 @@
     rapprochementsPourPerimetre,
     SEUIL_OBSERVATIONS_AVANT_CONTROLE_MANAGER,
     qualifierObservationEcart, certifierAlerte, regulariserAlerte,
+    TOLERANCE_ARRONDI_FLOTTANT, ecartQuantiteSignificatif,
   };
 })(typeof window !== 'undefined' ? window : globalThis);
