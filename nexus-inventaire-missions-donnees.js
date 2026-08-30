@@ -9,7 +9,7 @@
   // Mode test terrain manager : le manager/gérant reste identifié comme tel
   // dans employees/shifts/inventaire_quart_employes. Le paramètre URL ne
   // sert qu'à fournir un rôle OPÉRATIONNEL virtuel au moteur de missions.
-  // Aucune présence fictive n'est écrite en base.
+  // Aucune présence fictive ni affectation de mission de test n'est écrite.
   function roleTestManagerDepuisURL(roleCode, MR) {
     const roleReel = normaliserRole(MR, roleCode);
     if (roleReel !== 'manager' && roleReel !== 'gerant') return null;
@@ -36,23 +36,19 @@
     }));
   }
 
-  async function chargerContexteGeneration(client, site, dateISO, quart, rolesVirtuels) {
+  async function chargerContexteGeneration(client, site, dateISO, quart) {
     const M = global.NexusInventaireMoteur;
     const MR = global.NexusInventaireMissionRulesDonnees;
     const PD = global.NexusInventairePlanDonnees;
     if (!M || !MR || !PD) return null;
-    const [missionRules, rolesPresentsReels, plan, ingredients, surprisesRecentesParProduit] = await Promise.all([
+    const [missionRules, rolesPresents, plan, ingredients, surprisesRecentesParProduit] = await Promise.all([
       MR.chargerMissionRules(client, site),
       MR.chargerRolesPresentsQuart(client, site, dateISO, quart),
       PD.chargerOuGenererPlan(client, site, dateISO, quart),
       PD.chargerIngredientsSelection(client, site, dateISO),
       typeof PD.chargerSurprisesRecentes === 'function' ? PD.chargerSurprisesRecentes(client, site, dateISO) : Promise.resolve([]),
     ]);
-    const rolesPresents = Array.from(new Set([
-      ...(rolesPresentsReels || []).map(r => normaliserRole(MR, r)).filter(Boolean),
-      ...((rolesVirtuels || []).map(r => normaliserRole(MR, r)).filter(Boolean)),
-    ]));
-    return { M, MR, missionRules, rolesPresents, rolesPresentsReels, plan, ingredients, surprisesRecentesParProduit };
+    return { M, MR, missionRules, rolesPresents, plan, ingredients, surprisesRecentesParProduit };
   }
 
   function contexteSelection(ctx, site, dateISO, quart) {
@@ -65,10 +61,10 @@
     };
   }
 
-  async function reevaluerMissionsNonAffectees(client, site, dateISO, quart, existantes, rolesVirtuels) {
+  async function reevaluerMissionsNonAffectees(client, site, dateISO, quart, existantes) {
     const aReevaluer = (existantes || []).filter(m => m.statut === 'non_affectee');
     if (!aReevaluer.length) return existantes || [];
-    const ctx = await chargerContexteGeneration(client, site, dateISO, quart, rolesVirtuels);
+    const ctx = await chargerContexteGeneration(client, site, dateISO, quart);
     if (!ctx) return existantes || [];
     const regleParId = {};
     ctx.missionRules.forEach(r => { regleParId[r.id] = r; });
@@ -97,10 +93,10 @@
     return modifie ? chargerMissionsExistantes(client, site, dateISO, quart) : (existantes || []);
   }
 
-  async function genererOuChargerMissions(client, site, dateISO, quart, rolesVirtuels) {
+  async function genererOuChargerMissions(client, site, dateISO, quart) {
     const existantes = await chargerMissionsExistantes(client, site, dateISO, quart);
-    if (existantes.length) return reevaluerMissionsNonAffectees(client, site, dateISO, quart, existantes, rolesVirtuels);
-    const ctx = await chargerContexteGeneration(client, site, dateISO, quart, rolesVirtuels);
+    if (existantes.length) return reevaluerMissionsNonAffectees(client, site, dateISO, quart, existantes);
+    const ctx = await chargerContexteGeneration(client, site, dateISO, quart);
     if (!ctx) { console.error('Dépendances manquantes — génération des missions impossible.'); return []; }
     const produitsDuPlan = produitsDepuisPlan(ctx.plan);
     const missionsCalculees = ctx.M.genererMissionsPourContexte({
@@ -124,18 +120,58 @@
     );
     if (errInsert) {
       const relues = await chargerMissionsExistantes(client, site, dateISO, quart);
-      if (relues.length) return reevaluerMissionsNonAffectees(client, site, dateISO, quart, relues, rolesVirtuels);
+      if (relues.length) return reevaluerMissionsNonAffectees(client, site, dateISO, quart, relues);
       console.error('Génération missions Inventaire:', errInsert);
       return [];
     }
     return chargerMissionsExistantes(client, site, dateISO, quart);
   }
 
+  // Projection purement temporaire : calcule ce que recevrait le rôle testé
+  // si ce rôle était présent, sans modifier inventaire_missions ni
+  // inventaire_quart_employes. Ainsi les essais du manager ne peuvent pas
+  // créer de fausse obligation opérationnelle pour un futur quart réel.
+  async function genererProjectionTestManager(client, site, dateISO, quart, roleTest) {
+    const ctx = await chargerContexteGeneration(client, site, dateISO, quart);
+    if (!ctx) return [];
+    const rolesProjection = Array.from(new Set([...(ctx.rolesPresents || []), roleTest]));
+    const produitsDuPlan = produitsDepuisPlan(ctx.plan);
+    const calculees = ctx.M.genererMissionsPourContexte({
+      missionRules: ctx.missionRules,
+      rolesPresents: rolesProjection,
+      quart,
+      produitsActifs: produitsDuPlan,
+      dernierControleParProduit: ctx.ingredients.dernierControleParProduit,
+      seed: `${site}|${dateISO}|${quart}|test|${roleTest}`,
+      dateISO,
+      reglesParProduit: ctx.ingredients.reglesParProduit,
+      produitsAvecAnomalieRecente: ctx.ingredients.produitsAvecAnomalieRecente,
+      anomaliesDetailParProduit: ctx.ingredients.anomaliesDetailParProduit,
+      surprisesRecentesParProduit: ctx.surprisesRecentesParProduit,
+    });
+    return calculees
+      .filter(m => m.statut === 'affectee' && normaliserRole(ctx.MR, m.roleAffecte) === roleTest)
+      .map(m => ({
+        id: `test:${m.missionRuleId}:${m.momentCode}`,
+        site, date: dateISO, quart,
+        moment_code: m.momentCode,
+        mission_rule_id: m.missionRuleId,
+        nom: m.nom,
+        role_affecte: m.roleAffecte,
+        via_repli: m.viaRepli,
+        statut: m.statut,
+        strategie_appliquee: 'test_manager_non_persistant',
+        produit_ids: m.produitIds || [],
+        mode_test_manager: true,
+      }));
+  }
+
   async function chargerMissionsPourRole(client, site, dateISO, quart, roleCode) {
     const MR = global.NexusInventaireMissionRulesDonnees;
     const roleTest = roleTestManagerDepuisURL(roleCode, MR);
-    const roleCanonique = roleTest || normaliserRole(MR, roleCode);
-    const toutes = await genererOuChargerMissions(client, site, dateISO, quart, roleTest ? [roleTest] : []);
+    if (roleTest) return genererProjectionTestManager(client, site, dateISO, quart, roleTest);
+    const toutes = await genererOuChargerMissions(client, site, dateISO, quart);
+    const roleCanonique = normaliserRole(MR, roleCode);
     return toutes.filter(m => m.statut === 'affectee' && normaliserRole(MR, m.role_affecte) === roleCanonique);
   }
 
@@ -162,6 +198,6 @@
     chargerMissionsExistantes, reevaluerMissionsNonAffectees,
     genererOuChargerMissions, chargerMissionsPourRole,
     chargerRapprochementsPourMissions,
-    roleTestManagerDepuisURL,
+    roleTestManagerDepuisURL, genererProjectionTestManager,
   };
 })(typeof window !== 'undefined' ? window : globalThis);
