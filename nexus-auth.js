@@ -25,17 +25,6 @@ async function nexusRequireAuth() {
     return null;
   }
 
-  // Garde ajoutée le 11/08/2026 (audit "philosophie/architecture", section
-  // "dé-Vito-iser le cœur") : jusqu'ici, chaque page retombait séparément
-  // sur `employee.site_id` dès que site_id était
-  // absent — un repli SILENCIEUX vers le site pilote, répété dans ~44
-  // fichiers. Ce n'est pas un filet de sécurité : un compte mal configuré
-  // (site_id NULL) verrait et modifierait alors les données de Vito
-  // Sainte-Marie sans le savoir, ce qui est pire qu'un blocage franc.
-  // nexusRequireAuth() est le seul point d'entrée de toutes les pages
-  // authentifiées : garantir ICI que site_id est toujours renseigné permet
-  // à tout le reste de l'application de lire `employee.site_id` directement,
-  // sans jamais avoir besoin (ni le droit) de deviner un site par défaut.
   if (!employee.site_id) {
     console.error('nexusRequireAuth: employé sans site_id — configuration de compte incomplète. Refus de continuer avec un site déduit arbitrairement.');
     await nexusClient.auth.signOut();
@@ -51,16 +40,11 @@ async function nexusRequireAuth() {
     }
   }
 
-  // Ordre imposé après connexion (28/07/2026, demande de Frédéric, puis
-  // inversion le même jour une fois le problème identifié : le pointage
-  // arrivée calcule un retard par rapport au quart actif dans `shifts` —
-  // si le pointage passait avant la prise de poste, ce quart n'existerait
-  // pas encore et le retard ne pourrait jamais être calculé). L'ordre
-  // définitif est donc : 1) Prise de poste (crée le quart), 2) Pointage
-  // arrivée (compare l'heure réelle au quart qui vient d'être créé).
-  // Les deux pages-portes s'excluent mutuellement dans les fonctions
-  // ci-dessous pour ne jamais se bloquer elles-mêmes ni se renvoyer l'une
-  // vers l'autre en cours de route.
+  // Conserver le rôle réel avant toute simulation. Cette propriété est
+  // uniquement en mémoire navigateur et n'est jamais écrite dans employees,
+  // shifts ou inventaire_quart_employes.
+  employee.role_reel = employee.role;
+
   if (await nexusPriseDePosteManquante(employee)) {
     const pageActuelle = (window.location.pathname.split('/').pop() || 'NEXUS-App-v1.html') + window.location.search;
     window.location.href = `NEXUS-Prise-De-Poste-v1.html?retour=${encodeURIComponent(pageActuelle)}`;
@@ -73,74 +57,78 @@ async function nexusRequireAuth() {
     return null;
   }
 
+  // Inventaire V2 — mode test terrain manager (30/08/2026).
+  // Besoin pilote : le manager doit pouvoir éprouver les parcours Caissier,
+  // Pompiste et Renfort tant que l'équipe conserve la feuille papier.
+  // Le rôle simulé est accepté UNIQUEMENT sur la page Inventaire et
+  // UNIQUEMENT si le rôle réel authentifié est manager/gérant. Il ne modifie
+  // aucune donnée RH : on expose simplement un rôle opérationnel temporaire
+  // au code de la page. Le paramètre disparaît dès que l'on quitte la page.
+  // Exemple : NEXUS-Inventaire-v1.html?test_role=caissier
+  const pageActuelleAuth = window.location.pathname.split('/').pop();
+  if (pageActuelleAuth === 'NEXUS-Inventaire-v1.html' && (employee.role_reel === 'manager' || employee.role_reel === 'gerant')) {
+    const roleTestDemande = new URLSearchParams(window.location.search).get('test_role');
+    const aliases = {
+      caissier: 'caissier', caissiere: 'caissier', 'caissière': 'caissier',
+      pompiste: 'pompiste', renfort: 'renfort'
+    };
+    const roleTest = roleTestDemande ? aliases[String(roleTestDemande).toLowerCase()] : null;
+    if (roleTest) {
+      employee.role_test_inventaire = roleTest;
+      employee.role = roleTest;
+      employee.mode_test_inventaire = true;
+    } else {
+      employee.role_test_inventaire = null;
+      employee.mode_test_inventaire = false;
+    }
+  }
+
   return employee;
 }
 
-// Pages-portes de la séquence obligatoire — ni l'une ni l'autre ne doit
-// jamais se rediriger elle-même, ni rediriger vers l'autre pendant qu'on
-// y est encore (sinon on serait renvoyé de Prise de poste vers Pointage
-// avant même d'avoir fini de choisir son rôle, par exemple).
 const NEXUS_PAGES_SEQUENCE_OBLIGATOIRE = ['NEXUS-Pointage-v1.html', 'NEXUS-Prise-De-Poste-v1.html'];
 
 async function nexusPointageArriveeManquant(employee) {
   const pageActuelle = window.location.pathname.split('/').pop();
   if (NEXUS_PAGES_SEQUENCE_OBLIGATOIRE.includes(pageActuelle)) return false;
-  if (employee.consultation_externe) return false; // créateur en simple consultation d'un autre site
+  if (employee.consultation_externe) return false;
 
-  // site_id est garanti non-nul ici : nexusRequireAuth() refuse toute
-  // session dont l'employé n'a pas de site_id (voir plus haut).
   const siteId = employee.site_id;
   const estNiveauManager = employee.role === 'manager' || employee.role === 'gerant';
 
   const { data: config } = await nexusClient
     .from('station_config').select('pointage_actif, manager_pointage_requis').eq('site', siteId).maybeSingle();
 
-  // Pointage des employés (16/08/2026, demande de Frédéric) — interrupteur
-  // maître par site, station_config.pointage_actif, DÉFAUT TRUE (préserve
-  // le comportement historique). Si désactivé, PERSONNE n'est jamais
-  // bloqué en attente d'un pointage d'arrivée — ni employé ni manager —
-  // sans quoi un site l'ayant désactivé enfermerait ses employés dans une
-  // redirection permanente vers une page Pointage devenue inutile.
-  // Distinct de manager_pointage_requis ci-dessous, qui ne dispense QUE le
-  // manager quand Pointage reste actif pour les employés.
   if (config && config.pointage_actif === false) return false;
 
   if (estNiveauManager) {
-    if (!config || !config.manager_pointage_requis) return false; // pas requis pour ce poste
+    if (!config || !config.manager_pointage_requis) return false;
   }
 
   const d = new Date();
   const todayISO = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   const { data: arrivee, error } = await nexusClient
     .from('pointages').select('id').eq('employee_id', employee.id).eq('date', todayISO).eq('type', 'arrivee').maybeSingle();
-  if (error) { console.error('Vérification pointage arrivée:', error); return false; } // en cas d'erreur réseau, on ne bloque pas l'accès
+  if (error) { console.error('Vérification pointage arrivée:', error); return false; }
   return !arrivee;
 }
 
 async function nexusPriseDePosteManquante(employee) {
   const pageActuelle = window.location.pathname.split('/').pop();
   if (NEXUS_PAGES_SEQUENCE_OBLIGATOIRE.includes(pageActuelle)) return false;
-  if (employee.consultation_externe) return false; // créateur en simple consultation d'un autre site
+  if (employee.consultation_externe) return false;
 
   const estNiveauManager = employee.role === 'manager' || employee.role === 'gerant';
-  if (estNiveauManager) return false; // uniquement pour les employés, jamais pour manager/gérant
+  if (estNiveauManager) return false;
 
   const d = new Date();
   const debutJourISO = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}T00:00:00`;
   const { data: shiftDuJour, error } = await nexusClient
     .from('shifts').select('id').eq('employee_id', employee.id).gte('heure_debut', debutJourISO).limit(1).maybeSingle();
-  if (error) { console.error('Vérification prise de poste:', error); return false; } // en cas d'erreur réseau, on ne bloque pas l'accès
+  if (error) { console.error('Vérification prise de poste:', error); return false; }
   return !shiftDuJour;
 }
 
-// Déconnexion (à appeler depuis un bouton "Se déconnecter")
-// MISE À JOUR 26/07/2026 (demande de Frédéric) : redirige vers la page de
-// présentation (index.html) plutôt que vers l'écran de connexion — une
-// déconnexion volontaire n'a pas besoin de renvoyer directement au
-// formulaire de login. Les redirections de sécurité dans nexusRequireAuth()
-// ci-dessus (pas de session / session orpheline) restent volontairement
-// inchangées : ce sont des cas différents, où revenir droit au login reste
-// le bon réflexe.
 async function nexusLogout() {
   await nexusClient.auth.signOut();
   window.location.href = "index.html";
