@@ -2,6 +2,24 @@
 (function (global) {
   'use strict';
 
+  function normaliserRole(MR, role) {
+    return MR && typeof MR.normaliserRoleCode === 'function' ? MR.normaliserRoleCode(role) : role;
+  }
+
+  // Mode test terrain manager : le manager/gérant reste identifié comme tel
+  // dans employees/shifts/inventaire_quart_employes. Le paramètre URL ne
+  // sert qu'à fournir un rôle OPÉRATIONNEL virtuel au moteur de missions.
+  // Aucune présence fictive n'est écrite en base.
+  function roleTestManagerDepuisURL(roleCode, MR) {
+    const roleReel = normaliserRole(MR, roleCode);
+    if (roleReel !== 'manager' && roleReel !== 'gerant') return null;
+    if (!global.location || typeof global.URLSearchParams === 'undefined') return null;
+    const brut = new global.URLSearchParams(global.location.search || '').get('test_role');
+    if (!brut) return null;
+    const demande = normaliserRole(MR, brut);
+    return ['caissier', 'pompiste', 'renfort'].includes(demande) ? demande : null;
+  }
+
   async function chargerMissionsExistantes(client, site, dateISO, quart) {
     const { data, error } = await client.from('inventaire_missions')
       .select('*').eq('site', site).eq('date', dateISO).eq('quart', quart)
@@ -18,19 +36,23 @@
     }));
   }
 
-  async function chargerContexteGeneration(client, site, dateISO, quart) {
+  async function chargerContexteGeneration(client, site, dateISO, quart, rolesVirtuels) {
     const M = global.NexusInventaireMoteur;
     const MR = global.NexusInventaireMissionRulesDonnees;
     const PD = global.NexusInventairePlanDonnees;
     if (!M || !MR || !PD) return null;
-    const [missionRules, rolesPresents, plan, ingredients, surprisesRecentesParProduit] = await Promise.all([
+    const [missionRules, rolesPresentsReels, plan, ingredients, surprisesRecentesParProduit] = await Promise.all([
       MR.chargerMissionRules(client, site),
       MR.chargerRolesPresentsQuart(client, site, dateISO, quart),
       PD.chargerOuGenererPlan(client, site, dateISO, quart),
       PD.chargerIngredientsSelection(client, site, dateISO),
       typeof PD.chargerSurprisesRecentes === 'function' ? PD.chargerSurprisesRecentes(client, site, dateISO) : Promise.resolve([]),
     ]);
-    return { M, MR, missionRules, rolesPresents, plan, ingredients, surprisesRecentesParProduit };
+    const rolesPresents = Array.from(new Set([
+      ...(rolesPresentsReels || []).map(r => normaliserRole(MR, r)).filter(Boolean),
+      ...((rolesVirtuels || []).map(r => normaliserRole(MR, r)).filter(Boolean)),
+    ]));
+    return { M, MR, missionRules, rolesPresents, rolesPresentsReels, plan, ingredients, surprisesRecentesParProduit };
   }
 
   function contexteSelection(ctx, site, dateISO, quart) {
@@ -43,10 +65,10 @@
     };
   }
 
-  async function reevaluerMissionsNonAffectees(client, site, dateISO, quart, existantes) {
+  async function reevaluerMissionsNonAffectees(client, site, dateISO, quart, existantes, rolesVirtuels) {
     const aReevaluer = (existantes || []).filter(m => m.statut === 'non_affectee');
     if (!aReevaluer.length) return existantes || [];
-    const ctx = await chargerContexteGeneration(client, site, dateISO, quart);
+    const ctx = await chargerContexteGeneration(client, site, dateISO, quart, rolesVirtuels);
     if (!ctx) return existantes || [];
     const regleParId = {};
     ctx.missionRules.forEach(r => { regleParId[r.id] = r; });
@@ -75,10 +97,10 @@
     return modifie ? chargerMissionsExistantes(client, site, dateISO, quart) : (existantes || []);
   }
 
-  async function genererOuChargerMissions(client, site, dateISO, quart) {
+  async function genererOuChargerMissions(client, site, dateISO, quart, rolesVirtuels) {
     const existantes = await chargerMissionsExistantes(client, site, dateISO, quart);
-    if (existantes.length) return reevaluerMissionsNonAffectees(client, site, dateISO, quart, existantes);
-    const ctx = await chargerContexteGeneration(client, site, dateISO, quart);
+    if (existantes.length) return reevaluerMissionsNonAffectees(client, site, dateISO, quart, existantes, rolesVirtuels);
+    const ctx = await chargerContexteGeneration(client, site, dateISO, quart, rolesVirtuels);
     if (!ctx) { console.error('Dépendances manquantes — génération des missions impossible.'); return []; }
     const produitsDuPlan = produitsDepuisPlan(ctx.plan);
     const missionsCalculees = ctx.M.genererMissionsPourContexte({
@@ -102,7 +124,7 @@
     );
     if (errInsert) {
       const relues = await chargerMissionsExistantes(client, site, dateISO, quart);
-      if (relues.length) return reevaluerMissionsNonAffectees(client, site, dateISO, quart, relues);
+      if (relues.length) return reevaluerMissionsNonAffectees(client, site, dateISO, quart, relues, rolesVirtuels);
       console.error('Génération missions Inventaire:', errInsert);
       return [];
     }
@@ -110,10 +132,11 @@
   }
 
   async function chargerMissionsPourRole(client, site, dateISO, quart, roleCode) {
-    const toutes = await genererOuChargerMissions(client, site, dateISO, quart);
     const MR = global.NexusInventaireMissionRulesDonnees;
-    const roleCanonique = MR && typeof MR.normaliserRoleCode === 'function' ? MR.normaliserRoleCode(roleCode) : roleCode;
-    return toutes.filter(m => m.statut === 'affectee' && m.role_affecte === roleCanonique);
+    const roleTest = roleTestManagerDepuisURL(roleCode, MR);
+    const roleCanonique = roleTest || normaliserRole(MR, roleCode);
+    const toutes = await genererOuChargerMissions(client, site, dateISO, quart, roleTest ? [roleTest] : []);
+    return toutes.filter(m => m.statut === 'affectee' && normaliserRole(MR, m.role_affecte) === roleCanonique);
   }
 
   async function chargerRapprochementsPourMissions(client, site, dateISO, quart, missions) {
@@ -139,5 +162,6 @@
     chargerMissionsExistantes, reevaluerMissionsNonAffectees,
     genererOuChargerMissions, chargerMissionsPourRole,
     chargerRapprochementsPourMissions,
+    roleTestManagerDepuisURL,
   };
 })(typeof window !== 'undefined' ? window : globalThis);
