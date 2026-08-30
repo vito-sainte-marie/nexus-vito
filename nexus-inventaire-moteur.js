@@ -369,7 +369,24 @@
 
     // 5-6. Surprises : tirées parmi les produits éligibles NON déjà dans le
     // plan, déterministe (seed), en évitant les surprises trop récentes.
-    const poolSurprises = eligibles.map(p => p.id).filter(id => !dejaInclus.has(id));
+    //
+    // 30/08/2026 (chantier "réglages fantômes", demande de Frédéric —
+    // "soit on le branche réellement à un moteur, soit on le retire") :
+    // `controle_aleatoire` (inventaire_regles_produit/inventaire_categories,
+    // libellé "Contrôle aléatoire — peut être tiré au sort par le Conseiller
+    // NEXUS") était enregistré depuis le Sprint 5 sans jamais être lu nulle
+    // part — le tirage piochait dans TOUS les éligibles, sans distinction.
+    // Branchement a minima, sans risque de régression : si au moins un
+    // produit éligible a explicitement `controle_aleatoire: true` (opt-in),
+    // le tirage se restreint à ce sous-ensemble ; SINON (aucun opt-in nulle
+    // part sur ce site — l'état de tous les sites avant ce lot) le pool
+    // reste le comportement historique intégral (tous les éligibles). Un
+    // site qui n'a jamais touché ce réglage ne voit donc AUCUN changement de
+    // comportement — seul un site qui coche explicitement des produits voit
+    // le tirage se concentrer dessus.
+    const eligiblesAleatoires = eligibles.filter(p => regles[p.id] && regles[p.id].controle_aleatoire === true);
+    const poolBase = eligiblesAleatoires.length ? eligiblesAleatoires : eligibles;
+    const poolSurprises = poolBase.map(p => p.id).filter(id => !dejaInclus.has(id));
     const surprisesTirees = tirerSurprisesDeterministe(poolSurprises, surprisesN, seed, surprisesRecentesParProduit);
     surprisesTirees.forEach(id => {
       const a = analyse.find(x => x.produit.id === id);
@@ -922,9 +939,25 @@
     lot_glissant: ['livraison', 'retour', 'retrait'],
     consommable: ['livraison', 'retrait'],
   };
-  function actionsMouvementPourProfil(profil) {
+  // 30/08/2026 (chantier "réglages fantômes") : `reapprovisionnable`
+  // (inventaire_regles_produit/inventaire_categories, libellé "Produit
+  // réapprovisionnable en cours de quart") était enregistré depuis le
+  // départ sans jamais restreindre quoi que ce soit — un produit marqué
+  // "non réapprovisionnable" (ex. un article en fin de vie, jamais
+  // recommandé) pouvait quand même recevoir une "Marchandise reçue" ou un
+  // "Réassort depuis la réserve" comme n'importe quel autre. Deuxième
+  // paramètre optionnel, jamais positionnel-muet : `false` explicite retire
+  // 'livraison'/'reassort' (les 2 seuls types "entrant" qui réapprovisionnent
+  // physiquement le stock) ; toute autre valeur (true, undefined — le
+  // défaut de la colonne et l'état de 100% des lignes existantes à ce jour)
+  // laisse la liste inchangée. Aucune régression possible : aucun appelant
+  // historique ne passait ce 2e paramètre.
+  function actionsMouvementPourProfil(profil, reapprovisionnable) {
     const types = ACTIONS_MOUVEMENT_PAR_PROFIL[profil] || ACTIONS_MOUVEMENT_PAR_PROFIL.continu;
-    return types.map(v => infoTypeMouvement(v)).filter(Boolean);
+    const typesAutorises = reapprovisionnable === false
+      ? types.filter(v => v !== 'livraison' && v !== 'reassort')
+      : types;
+    return typesAutorises.map(v => infoTypeMouvement(v)).filter(Boolean);
   }
 
   // "Tester ma configuration" (21/08/2026, cahier UX de Frédéric —

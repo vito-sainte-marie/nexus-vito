@@ -1135,14 +1135,6 @@
         </div>
         ` : ''}
 
-        <label class="regle-check-row">
-          <input type="checkbox" id="profilValidationManager" ${e.validation_manager_requise ? 'checked' : ''}>
-          <span>Validation manager requise avant de compter ce produit</span>
-        </label>
-        <label class="regle-check-row">
-          <input type="checkbox" id="profilComptageMasque" ${e.comptage_masque ? 'checked' : ''}>
-          <span>Comptage à l'aveugle (valeur transmise cachée)</span>
-        </label>
         <div class="regle-champ-row">
           <span>🎲 Criticité (plan de comptage tournant)</span>
           <select id="regleFrequenceControle" class="mouv-select" style="width:auto;">
@@ -1161,14 +1153,17 @@
           <span>Contrôle aléatoire (peut être tiré au sort par le Conseiller NEXUS)</span>
         </label>
         <label class="regle-check-row">
-          <input type="checkbox" id="profilPhotoObligatoire" ${e.photo_obligatoire ? 'checked' : ''}>
-          <span>Photo obligatoire au comptage</span>
-        </label>
-        <label class="regle-check-row">
           <input type="checkbox" id="profilDoubleLieu" ${e.comptage_deux_lieux ? 'checked' : ''}>
           <span>📍 Compté en deux lieux (dépôt + boutique) — l'employé saisit les deux, NEXUS additionne</span>
         </label>
-        <div class="note" style="margin:0 0 8px;">« Réapprovisionnable », contrôle aléatoire et photo obligatoire sont enregistrés mais n'ajoutent pas encore de restriction réelle sur l'écran de comptage employé.</div>
+        <!-- 30/08/2026 (chantier "réglages fantômes") : "Validation manager requise avant de compter", "Comptage à l'aveugle" et
+             "Photo obligatoire" retirés de cet écran (Frédéric : "soit on le branche réellement à un moteur, soit on le retire").
+             Aucun consommateur trouvé nulle part dans le code, jamais réglés sur aucun produit en base, et aucun mécanisme cible
+             réaliste : le comptage à l'aveugle est de toute façon déjà le comportement par défaut de tout produit du plan V2
+             (voir estMasquePourProduit, Sprint 1 INV2-01) et la photo obligatoire nécessiterait une fonctionnalité de capture
+             photo qui n'existe pas dans l'app (à ne pas confondre avec "Photo Decenium", un instantané de données, pas une
+             image). Les valeurs historiques restent en base (colonnes conservées), simplement plus modifiables ici. -->
+        <div class="note" style="margin:0 0 8px;">« Réapprovisionnable » restreint désormais les mouvements "Marchandise reçue"/"Réassort" proposés à ce produit. « Contrôle aléatoire » restreint le tirage des surprises du plan de comptage aux produits cochés (si aucun ne l'est sur le site, le tirage reste inchangé, sur tous les éligibles).</div>
 
         <button class="btn-primary" id="btnEnregistrerProfil" style="margin-top:0;">Enregistrer ces réglages</button>
         <button class="btn-text" id="btnAnnulerProfil">Annuler</button>
@@ -1502,14 +1497,6 @@
         </div>
         ` : ''}
 
-        <label class="regle-check-row">
-          <input type="checkbox" id="catProfilValidationManager" ${e.validation_manager_requise ? 'checked' : ''}>
-          <span>Validation manager requise avant de compter ces produits</span>
-        </label>
-        <label class="regle-check-row">
-          <input type="checkbox" id="catProfilComptageMasque" ${e.comptage_masque ? 'checked' : ''}>
-          <span>Comptage à l'aveugle (valeur transmise cachée)</span>
-        </label>
         <div class="regle-champ-row">
           <span>🎲 Criticité (plan de comptage tournant)</span>
           <select id="catRegleFrequenceControle" class="mouv-select" style="width:auto;">
@@ -1526,10 +1513,10 @@
           <input type="checkbox" id="catProfilControleAleatoire" ${e.controle_aleatoire ? 'checked' : ''}>
           <span>Contrôle aléatoire (peut être tiré au sort par le Conseiller NEXUS)</span>
         </label>
-        <label class="regle-check-row">
-          <input type="checkbox" id="catProfilPhotoObligatoire" ${e.photo_obligatoire ? 'checked' : ''}>
-          <span>Photo obligatoire au comptage</span>
-        </label>
+        <!-- 30/08/2026 (chantier "réglages fantômes") : "Validation manager requise avant de compter", "Comptage à l'aveugle" et
+             "Photo obligatoire" retirés — voir la note équivalente dans le formulaire produit pour la justification complète
+             (Article 5/11 : aucun consommateur, aucune ligne réglée sur un vrai produit, comptage à l'aveugle déjà couvert par
+             défaut sur tout le plan V2). -->
         <div class="note" style="margin:8px 0;">L'emplacement de comptage (dépôt/boutique) reste réglé produit par produit — ce n'est pas une règle de catégorie (onglet 📦 Produits).</div>
 
         <!-- 30/08/2026 (chantier convergence Inventaire V2, demande de Frédéric — "le libellé actuel « seuil d'écart — à partir de quand
@@ -2679,10 +2666,9 @@
     if (regleReapprovisionnableEl) regleReapprovisionnableEl.addEventListener('change', (e) => { profilEnEdition.reapprovisionnable = e.target.checked; });
     const regleSeuilAlerteEl = document.getElementById('regleSeuilAlerte');
     if (regleSeuilAlerteEl) regleSeuilAlerteEl.addEventListener('change', (e) => { profilEnEdition.seuil_minimal = e.target.value ? parseFloat(e.target.value) : null; });
-    const profilValidationManagerEl = document.getElementById('profilValidationManager');
-    if (profilValidationManagerEl) profilValidationManagerEl.addEventListener('change', (e) => { profilEnEdition.validation_manager_requise = e.target.checked; });
-    const profilComptageMasqueEl = document.getElementById('profilComptageMasque');
-    if (profilComptageMasqueEl) profilComptageMasqueEl.addEventListener('change', (e) => { profilEnEdition.comptage_masque = e.target.checked; });
+    // 30/08/2026 (chantier "réglages fantômes") : profilValidationManager/
+    // profilComptageMasque/profilPhotoObligatoire retirés — voir la note
+    // dans renderFormulaireEditionProfil pour la justification complète.
     const profilControleAleatoireEl = document.getElementById('profilControleAleatoire');
     if (profilControleAleatoireEl) profilControleAleatoireEl.addEventListener('change', (e) => { profilEnEdition.controle_aleatoire = e.target.checked; });
     const regleFrequenceControleEl = document.getElementById('regleFrequenceControle');
@@ -2692,8 +2678,6 @@
       const v = parseInt(e.target.value, 10);
       profilEnEdition.delai_max_jours_sans_controle = (e.target.value === '' || isNaN(v) || v < 0) ? null : v;
     });
-    const profilPhotoObligatoireEl = document.getElementById('profilPhotoObligatoire');
-    if (profilPhotoObligatoireEl) profilPhotoObligatoireEl.addEventListener('change', (e) => { profilEnEdition.photo_obligatoire = e.target.checked; });
     const profilDoubleLieuEl = document.getElementById('profilDoubleLieu');
     if (profilDoubleLieuEl) profilDoubleLieuEl.addEventListener('change', (e) => { profilEnEdition.comptage_deux_lieux = e.target.checked; });
     const btnEnregistrerProfil = document.getElementById('btnEnregistrerProfil');
@@ -2727,10 +2711,9 @@
     if (catRegleReapprovisionnableEl) catRegleReapprovisionnableEl.addEventListener('change', (e) => { categorieRegleEnEdition.reapprovisionnable = e.target.checked; });
     const catRegleSeuilAlerteEl = document.getElementById('catRegleSeuilAlerte');
     if (catRegleSeuilAlerteEl) catRegleSeuilAlerteEl.addEventListener('change', (e) => { categorieRegleEnEdition.seuil_minimal = e.target.value ? parseFloat(e.target.value) : null; });
-    const catProfilValidationManagerEl = document.getElementById('catProfilValidationManager');
-    if (catProfilValidationManagerEl) catProfilValidationManagerEl.addEventListener('change', (e) => { categorieRegleEnEdition.validation_manager_requise = e.target.checked; });
-    const catProfilComptageMasqueEl = document.getElementById('catProfilComptageMasque');
-    if (catProfilComptageMasqueEl) catProfilComptageMasqueEl.addEventListener('change', (e) => { categorieRegleEnEdition.comptage_masque = e.target.checked; });
+    // 30/08/2026 (chantier "réglages fantômes") : catProfilValidationManager/
+    // catProfilComptageMasque/catProfilPhotoObligatoire retirés — voir la
+    // note dans renderFormulaireRegleCategorie.
     const catProfilControleAleatoireEl = document.getElementById('catProfilControleAleatoire');
     if (catProfilControleAleatoireEl) catProfilControleAleatoireEl.addEventListener('change', (e) => { categorieRegleEnEdition.controle_aleatoire = e.target.checked; });
     const catRegleFrequenceControleEl = document.getElementById('catRegleFrequenceControle');
@@ -2740,8 +2723,6 @@
       const v = parseInt(e.target.value, 10);
       categorieRegleEnEdition.delai_max_jours_sans_controle = (e.target.value === '' || isNaN(v) || v < 0) ? null : v;
     });
-    const catProfilPhotoObligatoireEl = document.getElementById('catProfilPhotoObligatoire');
-    if (catProfilPhotoObligatoireEl) catProfilPhotoObligatoireEl.addEventListener('change', (e) => { categorieRegleEnEdition.photo_obligatoire = e.target.checked; });
     // Sprint 5 (20/08/2026) — seuils d'écart, voir enregistrerRegleCategorie.
     const catRegleSeuilEcartQteEl = document.getElementById('catRegleSeuilEcartQte');
     if (catRegleSeuilEcartQteEl) catRegleSeuilEcartQteEl.addEventListener('change', (e) => {

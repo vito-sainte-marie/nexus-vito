@@ -5098,3 +5098,63 @@ Aucun des deux ne dépend de `inventaire_plans_comptage`, `inventaire_mission_ru
 - N'a pas coordonné le troisième seuil (gravité `> 2` codée en dur, `NEXUS-Inventaire-v1.html`) avec le seuil configurable — reste indépendant, affecte uniquement le libellé de gravité affiché, pas l'entrée dans le cycle.
 - N'a pas construit d'UI pour régler une dérogation produit (`seuilsParProduit`) — le niveau existe dans le schéma et le moteur, en anticipation, sans écran pour le renseigner à ce jour.
 - N'a pas traité les 5 réglages fantômes (`controle_aleatoire`, `validation_manager_requise`, `comptage_masque`, `photo_obligatoire`, `reapprovisionnable`) — explicitement le lot suivant, une fois celui-ci confirmé par Frédéric.
+
+## v2.307 — Réglages fantômes : chaque champ branché à un moteur, ou retiré de l'UI (30/08/2026)
+
+**Origine** : dernier volet de l'ordre fixé par Frédéric pour la Convergence Inventaire V2 (« clôture + Progression → seuil d'écart → réglages fantômes », v2.306). Demande verbatim, approuvée par « vas y » : « Ensuite, dans un second lot, on traitera les 5 réglages aujourd'hui enregistrés mais non consommés : `controle_aleatoire`, `validation_manager_requise`, `comptage_masque`, `photo_obligatoire`, `reapprovisionnable`. Pour chacun, soit on le branche réellement à un moteur, soit on le retire de l'UI. Je ne veux plus de réglage visible qui donne l'impression d'agir alors qu'il ne produit aucun effet. »
+
+### Audit préalable (Article 5 — décision sur données réelles, jamais par supposition)
+
+Les 5 champs sont de vraies colonnes booléennes sur `inventaire_regles_produit` et `inventaire_categories` (pas du JSON), avec des défauts réels en base (`comptage_masque=false, controle_aleatoire=false, photo_obligatoire=false, reapprovisionnable=true, validation_manager_requise=false` côté produit ; `null` côté catégorie). Vérifié par `execute_sql` sur le projet Supabase `uzhjpqpctpvxytxpxoqz` :
+
+- `inventaire_regles_produit` (61 lignes) : **100 % à la valeur par défaut sur les 5 champs** — aucune configuration produit réelle n'a jamais été faite sur aucun site.
+- `inventaire_categories` (23 lignes) : `controle_aleatoire=true` sur 3 catégories (choix délibéré, différenciation réelle) ; `comptage_masque=true` sur 10 des 11 catégories signalées (quasi-universel — signature d'une valeur de seed historique reproduite partout, pas d'une vraie décision par catégorie) ; `validation_manager_requise` et `photo_obligatoire` jamais à `true`, nulle part.
+
+Recherche de code consommateur (grep sur tout le dépôt) : zéro lecture de ces 5 champs en dehors de leur propre construction/sauvegarde dans l'écran Paramètres — confirmé pour chacun des 5.
+
+### Décisions, par champ
+
+**1. `controle_aleatoire` → BRANCHÉ.** Cible naturelle identifiée : le tirage des « surprises » dans `construirePlanComptage` (`nexus-inventaire-moteur.js`), qui piochait jusqu'ici dans la totalité des produits éligibles sans distinction. Cohérent avec le libellé existant à l'écran (« Contrôle aléatoire — peut être tiré au sort par le Conseiller NEXUS ») et avec le fait que 3 catégories l'avaient déjà réglé à `true` en pensant qu'il produisait un effet.
+
+**2. `reapprovisionnable` → BRANCHÉ.** Cible naturelle identifiée : `actionsMouvementPourProfil` (`nexus-inventaire-moteur.js`), le registre unique qui détermine les types de mouvement proposés au bouton « + Ajouter un mouvement » et au parcours Réception rapide. Cohérent avec le libellé existant (« Produit réapprovisionnable en cours de quart »).
+
+**3. `validation_manager_requise` → RETIRÉ de l'UI.** Aucune cible réaliste identifiée : il n'existe aucun écran ni mécanisme de validation manager au moment du comptage produit — en construire un pour ce seul champ, jamais utilisé en 61 lignes de données réelles, dépasserait largement le mandat (« brancher ou retirer », pas « construire un nouveau sous-système »).
+
+**4. `comptage_masque` → RETIRÉ de l'UI, pour cause de redondance architecturale, pas de simple absence de branchement.** Deux mécanismes existent déjà et couvrent intégralement ce que ce champ prétendait régler :
+   - `estMasquePourProduit()` (`NEXUS-Inventaire-v1.html`, Sprint 1/INV2-01) masque déjà, sans condition, TOUT produit appartenant au plan de comptage du jour (`produitsPlanIds`) — c'est-à-dire tous les produits que ce champ pourrait viser.
+   - `inventaire_modes_controle` / « Mode de comptage à l'aveugle » (mécanisme séparé, vivant, configurable par le manager, scopé site/employé/catégorie/produit) offre déjà un contrôle fin et actif, distinct et non touché par ce lot.
+   
+   Le fait que `comptage_masque=true` sur 10/11 catégories signalées, sans jamais avoir eu d'effet, est cohérent avec une valeur de seed copiée en pensant activer quelque chose qui l'était déjà par construction ailleurs.
+
+**5. `photo_obligatoire` → RETIRÉ de l'UI.** Aucune fonctionnalité de capture photo n'existe nulle part dans l'application. Vérifié explicitement que « Photo Decenium »/« Snapshot Decenium » (`nexus-inventaire-snapshot-moteur.js`, `nexus-inventaire-snapshot-donnees.js`) est une métaphore de rapprochement de données à un instant T (Ventes + Stock + mouvements), jamais une image capturée par appareil — zéro recoupement avec ce champ.
+
+### Implémentation
+
+**`nexus-inventaire-moteur.js`** :
+- `construirePlanComptage` : le pool source du tirage des surprises se restreint désormais aux produits dont la règle effective porte `controle_aleatoire === true`, **uniquement si au moins un produit éligible l'a réglé ainsi** ; sinon (aucun opt-in nulle part sur le site — l'état de tous les sites avant ce lot), le pool reste le comportement historique intégral. Un site qui n'a jamais touché ce réglage ne voit donc **aucun changement de comportement**.
+- `actionsMouvementPourProfil(profil, reapprovisionnable)` : nouveau 2e paramètre optionnel, jamais positionnel-muet. `reapprovisionnable === false` explicite retire `'livraison'`/`'reassort'` (les 2 seuls types « entrant » qui réapprovisionnent physiquement le stock) de la liste retournée ; toute autre valeur (`true`, `undefined` — le défaut de la colonne et l'état de 100 % des lignes existantes) laisse la liste inchangée. Export déjà en place, aucun changement de la liste d'export nécessaire.
+
+**`NEXUS-Inventaire-v1.html`** :
+- `chargerProduitsZone` : ajout de `reapprovisionnable` à la jointure `inventaire_categories(...)` déjà existante — même requête, pas une deuxième lecture (Article 11).
+- Nouvel état `reapprovisionnableParProduit` (map produit_id → booléen) et nouvelle fonction `chargerReapprovisionnableParProduit(produits)` : délègue entièrement à `NexusInventaireMoteur.construireReglesEffectivesParProduit` pour la cascade produit > catégorie active (Article 11 — pas de deuxième cascade réécrite à la main) ; un produit sans règle propre ni catégorie active retombe sur le défaut réel de la colonne (`true`), jamais un `false` fabriqué par absence de donnée.
+- `demarrerAjoutMouvementRapide()` charge la map ; `repeuplerTypes()` la transmet en 2e argument à `M.actionsMouvementPourProfil`.
+- `demarrerReceptionRapide()` charge la map et exclut du catalogue de réception rapide les produits explicitement `reapprovisionnable === false`, en plus du filtre `production_journaliere` déjà existant.
+
+**`NEXUS-Parametres-Inventaire-v1.html`** :
+- Les 3 checkboxes sans consommateur (`profilValidationManager`/`profilComptageMasque`/`profilPhotoObligatoire` au niveau produit, `catProfilValidationManager`/`catProfilComptageMasque`/`catProfilPhotoObligatoire` au niveau catégorie) et leurs 6 écouteurs d'événement associés sont retirés des deux formulaires de règle (produit et catégorie).
+- Les 2 champs branchés (`regleReapprovisionnable`/`profilControleAleatoire` et leurs équivalents catégorie) restent affichés, avec une note mise à jour décrivant leur effet réel et désormais vérifiable.
+- **Préservation délibérée, non un oubli** : `construireProfilEnEdition`, son équivalent catégorie, la construction du payload de sauvegarde et la fonction de duplication de produit continuent tous de faire transiter `validation_manager_requise`/`comptage_masque`/`photo_obligatoire` telles qu'elles existent déjà en base — retirer le contrôle d'édition ne doit jamais effacer, altérer ou réinitialiser une valeur existante (Article 5). Seule la possibilité de les modifier depuis l'écran disparaît ; la donnée elle-même, la colonne, et le passage de valeur en écriture restent intacts.
+- Grep de vérification finale sur tout le fichier (`aveugle|Validation manager|Photo obligatoire|Contrôle aléatoire`) : aucune autre référence utilisateur obsolète trouvée. Le mécanisme séparé `inventaire_modes_controle` (« Mode de comptage à l'aveugle », onglet Alertes) reste explicitement non touché — distinct de `comptage_masque`, jamais confondu avec lui.
+
+### Tests et régression
+
+Nouveau fichier `test_inventaire_reglages_fantomes_v2307.js` (18 scénarios) : comportement moteur pur (`actionsMouvementPourProfil` avec/sans le 2e argument, profil inconnu, profil `production_journaliere` sans effet visible car il n'a de toute façon jamais `livraison`/`reassort` ; `construirePlanComptage` avec pool complet en l'absence d'opt-in, pool restreint dès qu'un opt-in existe, opt-in porté par la catégorie via la règle effective) + assertions de câblage sur le texte source réel des 3 fichiers modifiés (états déclarés, extension du `select` Supabase, délégation à `construireReglesEffectivesParProduit`, points d'appel `demarrerAjoutMouvementRapide`/`repeuplerTypes`/`demarrerReceptionRapide`, disparition effective des 6 identifiants retirés en HTML et en JS, présence maintenue des 4 identifiants conservés, persistance du pass-through des 3 champs retirés dans la construction/sauvegarde, non-altération du mécanisme séparé `inventaire_modes_controle`).
+
+**Régression complète rejouée avant livraison : 154 fichiers de test, 0 échec** (153 fichiers pré-existants, incluant ceux de v2.306 + le nouveau fichier de ce lot).
+
+### Ce que ce lot NE couvre PAS
+
+- N'a pas construit d'écran de validation manager au comptage (aurait été nécessaire pour brancher `validation_manager_requise` plutôt que le retirer — jugé hors mandat, qui était « brancher OU retirer », pas construire un nouveau sous-système pour un champ à 0 % d'usage réel).
+- N'a pas touché à `estMasquePourProduit` ni à `inventaire_modes_controle` — les deux mécanismes qui rendaient `comptage_masque` redondant restent inchangés et pleinement fonctionnels.
+- N'a pas supprimé les colonnes `validation_manager_requise`/`comptage_masque`/`photo_obligatoire` en base, ni le pass-through applicatif qui les fait transiter — seul le contrôle d'édition à l'écran a été retiré (retrait UI, pas migration de suppression de colonne).
+- N'a pas construit d'UI pour régler `reapprovisionnable`/`controle_aleatoire` à un niveau autre que produit/catégorie (pas de niveau site global demandé).

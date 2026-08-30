@@ -386,6 +386,12 @@
   // demarrerAjoutMouvementRapide) — distinct de produitsZone pour ne
   // jamais interférer avec l'état ouverture/clôture en cours.
   let mouvementRapideProduits = [];
+  // 30/08/2026 (chantier "réglages fantômes") : produit_id -> booléen
+  // reapprovisionnable, pour le même catalogue complet que
+  // mouvementRapideProduits/receptionLignes (jamais produitsZone — le
+  // périmètre du plan tournant n'a rien à voir avec "peut recevoir un
+  // mouvement d'appro"). Voir chargerReapprovisionnableParProduit.
+  let reapprovisionnableParProduit = {};
   // Position de navigation courante (17/08/2026, Sprint 4 "UX Flash" —
   // cahier Inventaire 2.0, INV2-16 "après interruption, l'employé reprend au
   // bon produit") : { categorieNom, carrouselIndex } | null. Persistée dans
@@ -911,8 +917,13 @@
     // produits était donc livré au hasard par Postgres plutôt que de
     // suivre le sens physique du parcours en boutique déjà enregistré en
     // base (colonne ordre_affichage, renseignée lors du seed initial).
+    // reapprovisionnable ajouté à la jointure catégorie (30/08/2026,
+    // chantier "réglages fantômes") : nécessaire pour le branchement
+    // d'actionsMouvementPourProfil (voir demarrerAjoutMouvementRapide /
+    // demarrerReceptionRapide) — même select, jamais une deuxième requête
+    // (Article 11).
     const { data, error } = await nexusClient
-      .from('inventaire_zone_produit').select('*, inventaire_categories(nom, ordre_affichage, jours_rotation, regle_active, quarts_comptage, profil), inventaire_zones!inner(code)')
+      .from('inventaire_zone_produit').select('*, inventaire_categories(nom, ordre_affichage, jours_rotation, regle_active, quarts_comptage, profil, reapprovisionnable), inventaire_zones!inner(code)')
       .eq('inventaire_zones.code', zone).eq('actif', true)
       .order('sensible', { ascending: false })
       .order('ordre_affichage', { ascending: true });
@@ -1680,6 +1691,39 @@
     });
   }
 
+  // 30/08/2026 (chantier "réglages fantômes", demande de Frédéric —
+  // "soit on le branche réellement à un moteur, soit on le retire") :
+  // `reapprovisionnable` (inventaire_regles_produit/inventaire_categories,
+  // libellé "Produit réapprovisionnable en cours de quart") était enregistré
+  // depuis toujours sans jamais restreindre quoi que ce soit. Construit la
+  // map produit_id -> booléen pour un catalogue donné (mouvementRapideProduits,
+  // jamais produitsZone) via le MÊME moteur de résolution produit>catégorie
+  // que partout ailleurs (NexusInventaireMoteur.construireReglesEffectivesParProduit,
+  // Article 11 — aucune deuxième cascade réécrite ici à la main). Un produit
+  // sans règle propre ET sans catégorie active retombe sur le défaut réel de
+  // la colonne (true) — jamais un false fabriqué par absence de donnée.
+  async function chargerReapprovisionnableParProduit(produits) {
+    const carte = {};
+    const M = typeof NexusInventaireMoteur !== 'undefined' ? NexusInventaireMoteur : null;
+    if (!M || !produits || !produits.length) return carte;
+    const site = employeeCourant.site_id;
+    const { data: regles, error } = await nexusClient.from('inventaire_regles_produit')
+      .select('produit_id, reapprovisionnable').eq('site', site).in('produit_id', produits.map(p => p.id));
+    if (error) console.error('Chargement reapprovisionnable par produit:', error);
+    const reglesParProduitId = {};
+    (regles || []).forEach(r => { reglesParProduitId[r.produit_id] = r; });
+    const reglesParCategorieId = {};
+    produits.forEach(p => {
+      if (p.categorie_id && p.inventaire_categories) reglesParCategorieId[p.categorie_id] = p.inventaire_categories;
+    });
+    const effectives = M.construireReglesEffectivesParProduit(produits, reglesParProduitId, reglesParCategorieId);
+    produits.forEach(p => {
+      const r = effectives[p.id];
+      carte[p.id] = !r || r.reapprovisionnable !== false;
+    });
+    return carte;
+  }
+
   // ------------------------------------------------------------
   // "+ AJOUTER UN MOUVEMENT" PENDANT LE QUART (18/08/2026, M3 — cahier
   // "Audit Inventaire - Production, mouvements & réceptions" §5, MOV-04).
@@ -1704,6 +1748,7 @@
     // aveugle — deux mécanismes différents (Article 11 : ne pas confondre
     // "quoi compter aujourd'hui" et "quoi peut recevoir un mouvement").
     mouvementRapideProduits = await chargerProduitsZone(zoneActive);
+    reapprovisionnableParProduit = await chargerReapprovisionnableParProduit(mouvementRapideProduits);
     renderAjoutMouvementRapide();
   }
 
@@ -1729,7 +1774,12 @@
     function repeuplerTypes() {
       const produitId = document.getElementById('mrProduit').value;
       const profil = profilParProduit[produitId] || null;
-      const actions = (M && M.actionsMouvementPourProfil) ? M.actionsMouvementPourProfil(profil || 'continu') : [];
+      // reapprovisionnableParProduit[id] === false uniquement si une règle
+      // effective l'a explicitement réglé ainsi (voir
+      // chargerReapprovisionnableParProduit) — undefined/true laisse la
+      // liste intacte, comportement historique.
+      const reapprovisionnable = reapprovisionnableParProduit[produitId];
+      const actions = (M && M.actionsMouvementPourProfil) ? M.actionsMouvementPourProfil(profil || 'continu', reapprovisionnable) : [];
       const select = document.getElementById('mrType');
       select.innerHTML = actions.map(a => `<option value="${a.value}">${a.label}</option>`).join('');
     }
@@ -1786,7 +1836,13 @@
   async function demarrerReceptionRapide() {
     document.getElementById('content').innerHTML = '<div class="loading">Chargement des produits…</div>';
     const catalogueComplet = await chargerProduitsZone(zoneActive);
-    mouvementRapideProduits = catalogueComplet.filter(p => profilParProduit[p.id] !== 'production_journaliere');
+    // 30/08/2026 (chantier "réglages fantômes") : un produit marqué
+    // explicitement "non réapprovisionnable" ne peut logiquement jamais
+    // recevoir de "Marchandise reçue" — même principe d'exclusion que
+    // production_journaliere ci-dessus (déjà établi le 18/08/2026), jamais
+    // une deuxième liste de règles d'exclusion réécrite ailleurs.
+    reapprovisionnableParProduit = await chargerReapprovisionnableParProduit(catalogueComplet);
+    mouvementRapideProduits = catalogueComplet.filter(p => profilParProduit[p.id] !== 'production_journaliere' && reapprovisionnableParProduit[p.id] !== false);
     receptionLignes = [];
     renderReceptionRapide();
   }
