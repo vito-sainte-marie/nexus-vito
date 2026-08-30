@@ -127,6 +127,31 @@
       return;
     }
 
+    // La page historique charge les missions avec roleDuJour puis répartit
+    // entre les employés réellement présents de ce rôle. En test manager,
+    // cette répartition n'a pas de sens : le manager est l'unique testeur et
+    // doit recevoir la projection complète du rôle simulé. On appelle donc
+    // directement le chargeur V2 avec le rôle RÉEL manager, ce qui permet au
+    // module missions de détecter test_role et de produire sa projection
+    // non persistante. Aucun collegue fictif n'est créé.
+    const chargerMissionsOriginal = typeof chargerMissionsDuJour === 'function' ? chargerMissionsDuJour : null;
+    if (chargerMissionsOriginal) {
+      chargerMissionsDuJour = async function () {
+        if (!roleTestActif()) return chargerMissionsOriginal();
+        const D = typeof NexusInventaireMissionsDonnees !== 'undefined' ? NexusInventaireMissionsDonnees : null;
+        if (!D) { missionsDuJour = []; return; }
+        try {
+          const roleReel = employeeCourant.role_reel || employeeCourant.role;
+          missionsDuJour = await D.chargerMissionsPourRole(
+            nexusClient, employeeCourant.site_id, dateISO(), quartActuel, roleReel
+          );
+        } catch (e) {
+          console.error('Projection missions manager test:', e);
+          missionsDuJour = [];
+        }
+      };
+    }
+
     // En mode test, la vérité opérationnelle = union dédupliquée des
     // produit_ids des Missions V2 projetées pour le rôle testé.
     const restreindrePlanOriginal = restreindreAuPlanQuart;
@@ -168,6 +193,19 @@
       return demarrerOriginal();
     };
 
+    // Même garde pour une clôture ouverte directement dans une session de
+    // test : jamais de retour au plan complet si la projection V2 est vide.
+    if (typeof demarrerCloture === 'function') {
+      const demarrerClotureOriginal = demarrerCloture;
+      demarrerCloture = function () {
+        if (roleTestActif() && !idsMissionsTest().size) {
+          injecterSelecteur();
+          return;
+        }
+        return demarrerClotureOriginal();
+      };
+    }
+
     // Chaque retour à l'accueil réinjecte le sélecteur car renderAccueil
     // remplace intégralement #content.
     const renderAccueilOriginal = renderAccueil;
@@ -199,9 +237,6 @@
       if (!zoneActive || !zonesAutorisees.includes(zoneActive)) zoneActive = 'boutique';
     }
 
-    // chargerMissionsDuJour reçoit toujours le rôle réel manager ; le module
-    // missions détecte test_role dans l'URL et renvoie une projection pure,
-    // sans INSERT/UPDATE de présence ou mission.
     if (typeof chargerMissionsDuJour === 'function') await chargerMissionsDuJour();
     if (typeof renderAccueil === 'function') await renderAccueil();
   }
