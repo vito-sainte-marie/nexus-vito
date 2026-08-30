@@ -8,16 +8,20 @@ const NEXUS_SUPABASE_ANON_KEY = "sb_publishable_7dV43gZxDYg6MOa6xzmdDQ_m8Mean5p"
 
 const nexusClient = supabase.createClient(NEXUS_SUPABASE_URL, NEXUS_SUPABASE_ANON_KEY);
 
-// Inventaire V2 — extension strictement locale à la page Inventaire.
-// Elle est chargée dynamiquement pour éviter de modifier le gros fichier HTML
-// monolithique uniquement pour le mode de test manager.
-(function chargerExtensionInventaireV2() {
+(function chargerExtensionsInventaireV2() {
   const page = window.location.pathname.split('/').pop();
-  if (page !== 'NEXUS-Inventaire-v1.html') return;
-  const script = document.createElement('script');
-  script.src = 'nexus-inventaire-mode-test.js';
-  script.defer = true;
-  document.head.appendChild(script);
+  if (page === 'NEXUS-Inventaire-v1.html') {
+    const scriptTest = document.createElement('script');
+    scriptTest.src = 'nexus-inventaire-mode-test.js';
+    scriptTest.defer = true;
+    document.head.appendChild(scriptTest);
+  }
+  if (['NEXUS-Inventaire-v1.html', 'NEXUS-Inventaire-Manager-v1.html', 'NEXUS-Parametres-Inventaire-v1.html'].includes(page)) {
+    const scriptRotation = document.createElement('script');
+    scriptRotation.src = 'nexus-inventaire-rotation-intelligente.js';
+    scriptRotation.defer = true;
+    document.head.appendChild(scriptRotation);
+  }
 })();
 
 async function nexusRequireAuth() {
@@ -52,9 +56,6 @@ async function nexusRequireAuth() {
     }
   }
 
-  // Conserver explicitement le rôle RH authentifié. Le mode test Inventaire
-  // ne remplace JAMAIS employee.role : ainsi shifts, pointage et
-  // inventaire_quart_employes continuent de voir le manager réel.
   employee.role_reel = employee.role;
 
   if (await nexusPriseDePosteManquante(employee)) {
@@ -69,9 +70,6 @@ async function nexusRequireAuth() {
     return null;
   }
 
-  // Inventaire V2 — mode test terrain manager (30/08/2026).
-  // Le rôle simulé est une information de session UI seulement. Il n'est
-  // jamais copié dans employee.role ni dans une table Supabase.
   const pageActuelleAuth = window.location.pathname.split('/').pop();
   if (pageActuelleAuth === 'NEXUS-Inventaire-v1.html' && (employee.role_reel === 'manager' || employee.role_reel === 'gerant')) {
     const roleTestDemande = new URLSearchParams(window.location.search).get('test_role');
