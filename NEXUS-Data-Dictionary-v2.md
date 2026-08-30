@@ -4512,6 +4512,66 @@ Avant de continuer après le Sprint 5, vérification explicite avec Frédéric :
 
 **Non livré dans ce lot** : aucune Couverture (missions) n'a été ajoutée à Opérations — délibérément, car Opérations mesure une moyenne glissante multi-jours alors que la Couverture (Sprints 3/4) est une notion par quart ; l'agréger proprement sur une période demanderait une nouvelle fonction moteur (`couvertureMissions` appliquée sur plusieurs quarts), une vraie extension plutôt qu'un enrichissement "sans risque" — à proposer séparément si Frédéric le souhaite. Aucune vue manager de la répartition par mission n'a été ajoutée au Cockpit station (reste propre à `NEXUS-Inventaire-Manager-v1.html`, Sprint 5).
 
+## v2.295 — Cycle « NEXUS observe avant de conclure » (30/08/2026)
+
+**Origine** : Frédéric, point 14 de son audit du 30/08/2026 — "le développeur a énormément avancé sur QUI → QUOI → QUAND [...] mais notre V2 complète ajoute OBSERVER → RECONTRÔLER → CERTIFIER → RÉGULARISER [...] c'est maintenant le prochain gros chantier fonctionnel". Autorisation explicite : "ok passe au cycle".
+
+**Doctrine visée** : premier écart → Sous observation → contrôle aveugle suivant → deuxième observation → disparition = imprécision de comptage / persistance = Contrôle manager requis → certification manager (séparation erreur de comptage / écart stock) → traitement → vérification de la régularisation.
+
+### Exploration préalable (Article 5/11, avant toute ligne de code)
+
+Vérification directe sur Supabase (jamais une hypothèse) : le mécanisme réel et déjà en production n'est PAS le rapprochement Decenium (`demarque_ventes`, 0 ligne réelle à ce jour) mais **`inventaire_alertes` de type `ecart_ouverture`** (categorie_anomalie `'saisie'`), créé à chaque écart entre le stock transmis et le comptage d'ouverture de l'employé — **432 alertes ouvertes, 997 résolues en production réelle**. Ce mécanisme insérait jusqu'ici une ligne à chaque écart, immédiatement visible du manager avec les décisions habituelles (`DECISIONS` : Valider/Recomptage/Explication/Erreur de saisie/Démarque), sans aucune notion de première observation vs persistance confirmée — exactement le manque que Frédéric a identifié. Découverte annexe : `categorie_anomalie` et `confiance` existaient déjà en base mais n'étaient utilisés nulle part dans le code (colonnes provisionnées sans consommateur) ; `anomalie_repetee` (250 lignes) est une donnée legacy orpheline, plus alimentée par aucun code ni trigger actuel — non réutilisée, aucune hypothèse construite dessus.
+
+### A. Migration Supabase (`inventaire_cycle_observation_alertes`)
+
+Sur `inventaire_alertes` (Article 11 — réutilise la table existante, jamais une nouvelle table) :
+- `observations_consecutives integer NOT NULL DEFAULT 1` — combien de comptages consécutifs ont reconfirmé cet écart.
+- `nature_confirmee text NULL` (CHECK `erreur_comptage`/`ecart_stock_reel`) — la décision de certification, jamais confondue avec `categorie_anomalie` qui qualifie la SOURCE de l'anomalie (saisie/continuite/mouvement/rapprochement), pas son verdict final.
+- `regularisation_requise boolean NOT NULL DEFAULT false`, `regularisation_verifiee_le timestamptz NULL` — ferment la boucle sans dupliquer `inventaire_mouvements`/`inventaire_corrections` (Article 11).
+- CHECK sur `statut` élargi : `'sous_observation'` et `'controle_manager_requis'` ajoutés AUX 5 valeurs déjà autorisées (`ouverte`/`en_cours`/`resolue`/`ignoree`/`archivee`, jamais retirées). Les 432 alertes réelles déjà ouvertes restent en `'ouverte'` — aucune migration rétroactive de données réelles (Article 5 : leur historique d'observations n'est pas reconstituable avec certitude), seules les alertes créées après ce lot utilisent le cycle.
+
+### B. Moteur pur (`nexus-inventaire-moteur.js`)
+
+- `SEUIL_OBSERVATIONS_AVANT_CONTROLE_MANAGER = 2` (choix pragmatique assumé, Article 5, même logique que `PLAFOND_ANOMALIES_NON_CRITIQUES_PAR_QUART_DEFAUT`).
+- `qualifierObservationEcart({ alerteExistante, ecart })` — décide `creer` (Sous observation), `mettre_a_jour` (reconfirmation, escalade à `controle_manager_requis` au seuil, jamais de désescalade automatique), `resoudre_imprecision` (écart disparu → résolution automatique, `nature_confirmee: 'erreur_comptage'` posée automatiquement) ou `aucune_action`.
+- `certifierAlerte(nature)` — ne décide JAMAIS la nature elle-même (jugement humain), seulement ses conséquences structurelles : `ecart_stock_reel` ⇒ régularisation requise, alerte reste ouverte ; `erreur_comptage` ⇒ se referme directement.
+- `regulariserAlerte(dateISO)` — pose le pointeur de vérification (`dateISO` fourni par l'appelant, jamais un `new Date()` interne — pureté et déterminisme, même convention que le reste du fichier).
+
+### C. Branchement employé (`NEXUS-Inventaire-v1.html::validerOuverture`)
+
+Avant la boucle de comptage, une seule requête batch (Article 11) charge les alertes `ecart_ouverture` déjà `sous_observation`/`controle_manager_requis` pour tous les produits de la zone, **sans filtrer par quart_id** — le cycle est volontairement transversal aux quarts, c'est justement le contrôle du quart SUIVANT qui doit confirmer ou infirmer un écart, jamais le même quart qui se recompte lui-même. Pour chaque produit compté, `qualifierObservationEcart` est appelé qu'il y ait ou non un écart cette fois (avant ce lot, seul le cas "écart présent" écrivait quoi que ce soit — la disparition ne produisait aucun événement, rendant la détection d'imprécision impossible sans ce branchement explicite). L'employé ne voit strictement rien de ce mécanisme — contrôle aveugle garanti, doctrine "l'employé observe. NEXUS organise."
+
+### D. Filtres statut (catch Article 5, fait avant livraison)
+
+Toute requête qui filtrait déjà sur `statut IN ('ouverte', ...)` doit désormais inclure les 2 nouveaux statuts, sous peine de casser silencieusement le cycle ou de fausser un comptage :
+- `nexus-inventaire-plan-donnees.js` (sélection du plan de comptage) — SANS cet ajout, une alerte Sous observation ne redéclencherait jamais le contrôle aveugle suivant : le cycle resterait bloqué à sa première étape en silence.
+- `nexus-inventaire-manager-donnees.js::chargerAlertesOuvertesQuart` et `::chargerAlertesOuvertesPeriode` — sinon une alerte du cycle deviendrait invisible du manager.
+- `nexus-brief-donnees.js::chargerAlertesInventaireOuvertes`/`chargerAlertesInventaireCritiquesOuvertes` (Cockpit, v2.293) — **décision volontaire et documentée** : `controle_manager_requis` est inclus (alerte réellement actionnable) mais `sous_observation` est délibérément EXCLU. C'est le sens même de ce statut (doctrine, point 16 de l'audit) : un premier écart mis en observation ne doit pas remonter comme une alerte à traiter au Cockpit, seule sa confirmation doit le faire.
+
+### E. Écran manager (`NEXUS-Inventaire-Manager-v1.html`)
+
+`renderBlocCycleObservation(a)` (nouvelle fonction, appelée uniquement pour `type_alerte === 'ecart_ouverture'`) :
+- `sous_observation` → note purement informative ("Aucune action requise pour l'instant"), **aucun bouton de décision proposé** (ni Résoudre avec NEXUS, ni DECISIONS classiques) — cohérent avec la doctrine, un manager n'a rien à faire tant que la persistance n'est pas confirmée.
+- `controle_manager_requis` sans `nature_confirmee` → 2 boutons de certification ("Erreur de comptage" / "Écart de stock réel"), décisions classiques masquées tant que la certification n'a pas eu lieu.
+- `nature_confirmee === 'ecart_stock_reel'` sans régularisation vérifiée → bouton "Confirmer la régularisation faite" (renvoie vers la section "Correction rétroactive" déjà existante pour le geste réel, Article 11 — aucune nouvelle mécanique de correction créée).
+- Toute alerte hors cycle (`ouverte`, autres `type_alerte`) → comportement strictement inchangé (DECISIONS + Résoudre avec NEXUS, exactement comme avant ce lot).
+
+Fonctions ajoutées : `certifierAlerte(alerteId, nature)` et `regulariserAlerte(alerteId)`, toutes deux avec écriture `inventaire_audit_log` (même convention que `resoudreAlerteSansRecharger`).
+
+### Tests et régression
+
+Nouveau fichier `test_inventaire_cycle_observation_v2295.js` (20 tests) : moteur pur (les 3 fonctions, tous les embranchements incluant l'escalade, la non-désescalade et la disparition post-escalade), vérification par extraction de source que les 4 filtres statut ont bien été mis à jour (plan, manager quart/période, Cockpit — avec assertion explicite que `sous_observation` est absent du filtre Cockpit), vérification que `validerOuverture` appelle bien le moteur, et rendu de `renderBlocCycleObservation` dans ses 4 branches (extraction + sandbox `vm`, même convention que les tests précédents de ce dépôt).
+
+**Régression complète rejouée avant livraison : 145 fichiers de test, 0 échec** (144 fichiers pré-existants + le nouveau, aucune régression sur le mécanisme historique `ecart_ouverture` pour tout appelant qui ne passerait pas par le cycle).
+
+### Ce que ce lot NE couvre PAS encore (transparence, à discuter avec Frédéric)
+
+- **Le Snapshot Decenium temporel** (point 15 de son audit) reste un chantier séparé (tâche P2 déjà identifiée) — ce lot ne touche pas `inventaire_rapprochements`.
+- **Dé-Vito-tisation totale** (>50 tables restantes) reste hors scope, déjà signalé séparément (v2.294).
+- **Aucune UI n'a été ajoutée pour visualiser le compteur `observations_consecutives`** au fil du temps (ex. historique des reconfirmations) — seul l'état courant est exploité.
+- Le seuil de 2 observations avant `controle_manager_requis` est un choix pragmatique assumé (Article 5), pas une valeur négociée avec Frédéric — à ajuster s'il le souhaite après le test terrain.
+- Le cycle ne s'applique qu'aux alertes `ecart_ouverture` (le mécanisme réel en production) — la démarque Decenium (`demarque_ventes`, déjà quart-scopée et jamais utilisée en réel) n'a pas été retouchée.
+
 ## v2.294 — Dé-Vito-tisation des deux tables Inventaire V2 + texte obsolète Paramètres (30/08/2026)
 
 **Origine** : audit direct de Frédéric sur Supabase (points 10 et 13 de son retour du 30/08/2026), fait indépendamment de tout code — il a constaté que `inventaire_mission_rules` et `inventaire_missions` portaient encore `site DEFAULT 'vito-sainte-marie'`, contradictoire avec la doctrine multi-site : "si demain une insertion oublie accidentellement le site, Supabase attribuera silencieusement vito-sainte-marie... exactement le genre de résidu qui peut créer un bug multi-site très difficile à détecter."

@@ -1416,6 +1416,128 @@
     return produitsTries.filter((_, i) => (i % employesTries.length) === indexCourant);
   }
 
+  // ============================================================
+  // INVENTAIRE V2 — Cycle "NEXUS observe avant de conclure" (30/08/2026,
+  // Frédéric : "ok passe au cycle", point 14 de son audit du 30/08/2026).
+  // Doctrine : premier écart -> Sous observation -> contrôle aveugle
+  // suivant -> deuxième observation -> disparition = imprécision de
+  // comptage / persistance = Contrôle manager requis -> certification
+  // manager (erreur de comptage / écart de stock réel) -> traitement ->
+  // vérification de la régularisation.
+  //
+  // Article 11 (une seule vérité) : réutilise inventaire_alertes telle
+  // quelle — le mécanisme réel déjà en production (type_alerte=
+  // 'ecart_ouverture', categorie_anomalie='saisie', vérifié le 30/08/2026
+  // par requête directe : 432 alertes ouvertes, 997 résolues). Ce moteur
+  // ne fait QUE décider la transition d'état d'UNE alerte face à UNE
+  // nouvelle observation — jamais un second calcul de l'écart lui-même
+  // (constaté - attendu reste calculé exactement comme avant, côté écran
+  // employé, ce moteur ne reçoit que le résultat).
+  // ============================================================
+
+  // Nombre de comptages consécutifs confirmant le même écart avant de
+  // solliciter le manager — choix pragmatique assumé (Article 5, même
+  // logique que PLAFOND_ANOMALIES_NON_CRITIQUES_PAR_QUART_DEFAUT plus
+  // haut) : une seule observation peut être une imprécision de comptage,
+  // deux observations indépendantes qui se confirment ne le sont
+  // structurellement plus.
+  const SEUIL_OBSERVATIONS_AVANT_CONTROLE_MANAGER = 2;
+
+  // Décide quoi faire de l'alerte d'UN produit face à une nouvelle
+  // observation (un nouveau comptage vient d'avoir lieu, aveugle —
+  // l'employé ne voit jamais alerteExistante ni son statut, cf. doctrine
+  // "l'employé observe. NEXUS organise. NEXUS rapproche.").
+  //
+  // `alerteExistante` : la ligne inventaire_alertes actuellement ouverte
+  // pour ce produit (statut 'sous_observation' ou 'controle_manager_requis'
+  // — précondition : l'appelant ne passe ici que des alertes déjà
+  // filtrées sur ces deux statuts, exactement comme reconciliationAlertes
+  // Demarque exige déjà des alertes pré-filtrées "ouvertes"), ou null/
+  // undefined si aucune.
+  // `ecart` : { valeur_attendue, valeur_constatee, gravite } si le
+  // nouveau comptage montre toujours un écart au-dessus du seuil déjà
+  // utilisé côté écran, ou null si le nouveau comptage ne montre PLUS
+  // d'écart.
+  //
+  // Retourne { action, ... }, action parmi :
+  //  - 'creer' : aucune alerte existante, nouvel écart -> Sous observation.
+  //  - 'mettre_a_jour' : alerte existante reconfirmée -> incrémente
+  //    observations_consecutives, escalade en controle_manager_requis au
+  //    seuil (jamais avant, et jamais de désescalade automatique une fois
+  //    escaladée — seule une certification manager referme ce niveau).
+  //  - 'resoudre_imprecision' : alerte existante mais l'écart a disparu au
+  //    contrôle suivant -> résolution automatique, jamais un faux écart
+  //    maintenu (Article 5) ; nature_confirmee='erreur_comptage' posée
+  //    automatiquement puisque NEXUS a lui-même constaté la disparition,
+  //    aucune ambiguïté humaine à trancher.
+  //  - 'aucune_action' : ni écart ni alerte existante -> rien à écrire.
+  function qualifierObservationEcart({ alerteExistante, ecart }) {
+    if (!ecart) {
+      if (alerteExistante) {
+        return {
+          action: 'resoudre_imprecision',
+          statut: 'resolue',
+          nature_confirmee: 'erreur_comptage',
+          resolution: 'Écart disparu au contrôle suivant — imprécision de comptage (résolution automatique NEXUS).',
+        };
+      }
+      return { action: 'aucune_action' };
+    }
+
+    if (!alerteExistante) {
+      return {
+        action: 'creer',
+        statut: 'sous_observation',
+        observations_consecutives: 1,
+        valeur_attendue: ecart.valeur_attendue,
+        valeur_constatee: ecart.valeur_constatee,
+        gravite: ecart.gravite,
+      };
+    }
+
+    const observations = (alerteExistante.observations_consecutives || 1) + 1;
+    const statut = alerteExistante.statut === 'controle_manager_requis'
+      ? 'controle_manager_requis'
+      : (observations >= SEUIL_OBSERVATIONS_AVANT_CONTROLE_MANAGER ? 'controle_manager_requis' : 'sous_observation');
+
+    return {
+      action: 'mettre_a_jour',
+      statut, observations_consecutives: observations,
+      valeur_attendue: ecart.valeur_attendue,
+      valeur_constatee: ecart.valeur_constatee,
+      gravite: ecart.gravite,
+    };
+  }
+
+  // Certification manager (doctrine : "séparation erreur de comptage /
+  // écart stock") — pure, ne décide JAMAIS elle-même la nature (c'est un
+  // jugement humain sur le terrain une fois la persistance confirmée,
+  // jamais une déduction automatique), seulement les conséquences
+  // structurelles du choix déjà fait par le manager : un écart de stock
+  // réel exige une régularisation à vérifier avant fermeture, une erreur
+  // de comptage confirmée par un manager n'en exige aucune (l'alerte peut
+  // être résolue directement).
+  function certifierAlerte(nature) {
+    if (nature !== 'erreur_comptage' && nature !== 'ecart_stock_reel') return null;
+    return {
+      nature_confirmee: nature,
+      regularisation_requise: nature === 'ecart_stock_reel',
+      statutApresCertification: nature === 'ecart_stock_reel' ? 'controle_manager_requis' : 'resolue',
+    };
+  }
+
+  // Vérification de la régularisation (dernier maillon du cycle) — pose
+  // seulement la preuve qu'une action corrective a bien eu lieu, sans
+  // dupliquer le mouvement lui-même (Article 11 : inventaire_mouvements /
+  // inventaire_corrections existent déjà et restent l'unique source de
+  // vérité sur LA correction ; ceci n'est qu'un pointeur de traçabilité
+  // qui permet enfin de résoudre l'alerte). `dateISO` fourni par
+  // l'appelant (jamais un `new Date()` interne au moteur — pureté et
+  // déterminisme, même convention que le reste de ce fichier).
+  function regulariserAlerte(dateISO) {
+    return { regularisation_verifiee_le: dateISO, statut: 'resolue' };
+  }
+
   global.NexusInventaireMoteur = {
     FAMILLES_CONTROLE, DEFAUT_DELAI_MAX_JOURS_PAR_FAMILLE,
     libelleRaisonSelection, joursEntreDates, delaiMaxJours, produitEligibleQuart,
@@ -1441,5 +1563,7 @@
     perimetreProduitsMission, selectionnerPerimetreMission, genererMissionsPourContexte, couvertureMissions,
     jaugePerimetre, repartirPerimetreParEmploye,
     rapprochementsPourPerimetre,
+    SEUIL_OBSERVATIONS_AVANT_CONTROLE_MANAGER,
+    qualifierObservationEcart, certifierAlerte, regulariserAlerte,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

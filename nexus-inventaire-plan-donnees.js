@@ -92,8 +92,15 @@
       client.from('inventaire_zone_produit').select('id, actif, categorie_id, zone_id').eq('site', site).eq('actif', true),
       client.from('inventaire_regles_produit').select('produit_id, frequence_controle, delai_max_jours_sans_controle, quarts_comptage').eq('site', site),
       client.from('view_inventaire_dernier_controle_produit').select('produit_id, dernier_controle_le').eq('site', site),
+      // 'sous_observation'/'controle_manager_requis' ajoutés le 30/08/2026
+      // (cycle "NEXUS observe avant de conclure") — SANS cet ajout, une
+      // alerte fraîchement créée en Sous observation ne redéclencherait
+      // jamais le contrôle aveugle du quart suivant qui doit la confirmer
+      // ou l'infirmer : le cycle entier resterait bloqué à sa première
+      // étape en silence (Article 5, catch fait avant livraison — jamais
+      // après un signalement).
       client.from('inventaire_alertes').select('produit_id, gravite, cree_le')
-        .eq('site', site).in('statut', ['ouverte', 'en_cours']).gte('cree_le', seuilAnomalie),
+        .eq('site', site).in('statut', ['ouverte', 'en_cours', 'sous_observation', 'controle_manager_requis']).gte('cree_le', seuilAnomalie),
       client.from('inventaire_categories').select('id, regle_active, frequence_controle, delai_max_jours_sans_controle, quarts_comptage').eq('site', site),
     ]);
     if (e1) console.error('Chargement produits (sélection plan):', e1);

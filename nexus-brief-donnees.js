@@ -668,8 +668,18 @@
     };
   }
 
+  // 'controle_manager_requis' ajouté le 30/08/2026 (cycle "NEXUS observe
+  // avant de conclure") — ces alertes ont franchi le seuil de persistance
+  // et exigent réellement une action manager, donc comptent ici comme
+  // 'ouverte'. 'sous_observation' est délibérément EXCLU : c'est
+  // précisément le sens de ce statut (doctrine, point 16 de l'audit de
+  // Frédéric) — un premier écart mis en observation ne doit PAS remonter
+  // comme une alerte à traiter au Cockpit, seule sa confirmation
+  // (persistance) le doit. Compter 'sous_observation' ici rendrait le
+  // signal Cockpit plus bruyant, exactement l'inverse de l'objectif du
+  // cycle.
   async function chargerAlertesInventaireOuvertes(client, siteId) {
-    const { count, error } = await client.from('inventaire_alertes').select('id', { count: 'exact', head: true }).eq('site', siteId).eq('statut', 'ouverte');
+    const { count, error } = await client.from('inventaire_alertes').select('id', { count: 'exact', head: true }).eq('site', siteId).in('statut', ['ouverte', 'controle_manager_requis']);
     if (error) { console.error('Chargement alertes inventaire (Brief):', error); return null; }
     return count;
   }
@@ -687,7 +697,7 @@
   // appelant existant n'est modifié, `alertesInvOuvertes` garde exactement
   // son comportement d'avant.
   async function chargerAlertesInventaireCritiquesOuvertes(client, siteId) {
-    const { count, error } = await client.from('inventaire_alertes').select('id', { count: 'exact', head: true }).eq('site', siteId).eq('statut', 'ouverte').eq('gravite', 'critique');
+    const { count, error } = await client.from('inventaire_alertes').select('id', { count: 'exact', head: true }).eq('site', siteId).in('statut', ['ouverte', 'controle_manager_requis']).eq('gravite', 'critique');
     if (error) { console.error('Chargement alertes inventaire critiques (Brief):', error); return null; }
     return count;
   }

@@ -68,10 +68,14 @@
     return data;
   }
 
+  // 'sous_observation'/'controle_manager_requis' ajoutés le 30/08/2026
+  // (cycle "NEXUS observe avant de conclure") — sans cet ajout, une alerte
+  // du cycle deviendrait invisible du manager sur l'écran du quart où elle
+  // a été détectée (Article 5, même catch que côté sélection du plan).
   async function chargerAlertesOuvertesQuart(client, site, quartId) {
     const { data, error } = await client.from('inventaire_alertes')
       .select('*, inventaire_zone_produit(designation)')
-      .eq('site', site).eq('quart_id', quartId).eq('statut', 'ouverte')
+      .eq('site', site).eq('quart_id', quartId).in('statut', ['ouverte', 'sous_observation', 'controle_manager_requis'])
       .order('cree_le', { ascending: false });
     if (error) { console.error('Chargement alertes ouvertes:', error); return []; }
     return data || [];
@@ -158,10 +162,13 @@
     return data || [];
   }
 
+  // 'sous_observation'/'controle_manager_requis' ajoutés le 30/08/2026
+  // (cycle "NEXUS observe avant de conclure") — mêmes raisons que
+  // chargerAlertesOuvertesQuart ci-dessus, appliquées à la vue période.
   async function chargerAlertesOuvertesPeriode(client, site, debut, fin) {
     const { data, error } = await client.from('inventaire_alertes')
       .select('*, inventaire_zone_produit(designation, categorie_id)')
-      .eq('site', site).in('statut', ['ouverte', 'en_cours'])
+      .eq('site', site).in('statut', ['ouverte', 'en_cours', 'sous_observation', 'controle_manager_requis'])
       .gte('cree_le', `${debut}T00:00:00`).lte('cree_le', `${fin}T23:59:59`)
       .order('cree_le', { ascending: false });
     if (error) { console.error('Chargement alertes ouvertes (période):', error); return []; }

@@ -3003,6 +3003,27 @@
     // construction — même valeur -> même clé -> ON CONFLICT DO NOTHING,
     // jamais un doublon) pour rattraper tout produit dont la synchro
     // immédiate aurait échoué ou n'aurait pas encore abouti.
+    // Cycle "NEXUS observe avant de conclure" (30/08/2026, demande de
+    // Frédéric — "ok passe au cycle", point 14 de son audit) : avant cette
+    // évolution, chaque écart d'ouverture créait systématiquement une
+    // NOUVELLE ligne 'ecart_ouverture', immédiatement visible du manager,
+    // qu'il s'agisse d'un premier écart ou de la Nème fois que ce produit
+    // dérive. Chargées ici en une seule requête (Article 11 : jamais une
+    // requête par produit dans la boucle) — les alertes déjà "sous
+    // observation" ou "en contrôle manager requis" pour CE site et CES
+    // produits, quel que soit le quart où elles ont été détectées la
+    // première fois (le cycle est volontairement transversal aux quarts :
+    // c'est justement le contrôle du quart SUIVANT qui doit confirmer ou
+    // infirmer un écart, jamais le même quart qui se recompte lui-même).
+    const idsZone = produitsZone.map(p => p.id);
+    const { data: alertesCycleExistantes, error: eAlertesCycle } = await nexusClient
+      .from('inventaire_alertes').select('id, produit_id, statut, observations_consecutives')
+      .eq('site', employeeCourant.site_id).eq('type_alerte', 'ecart_ouverture')
+      .in('statut', ['sous_observation', 'controle_manager_requis']).in('produit_id', idsZone);
+    if (eAlertesCycle) console.error('Chargement alertes cycle (ouverture):', eAlertesCycle);
+    const alertesCycleParProduit = {};
+    (alertesCycleExistantes || []).forEach(a => { alertesCycleParProduit[a.produit_id] = a; });
+
     let nbComptes = 0, nbEcarts = 0;
     for (const p of produitsZone) {
       const saisie = comptagesSaisie[p.id];
@@ -3022,6 +3043,9 @@
 
       const transmis = dernierStock[p.id];
       const valeurTransmise = transmis ? transmis.quantite : 0;
+      const alerteExistante = alertesCycleParProduit[p.id] || null;
+      let ecartPourCycle = null;
+      let resolution = null;
 
       if (saisie.ecartNonNul) {
         nbEcarts++;
@@ -3036,7 +3060,6 @@
         // prime sur le commentaire libre quand elle est renseignée, jamais
         // les deux mélangés dans la même phrase.
         const motifLibelle = libelleMotifEcart(saisie.motifEcart);
-        let resolution = null;
         if (livraisonDeclaree) {
           resolution = `Réassort de ${fmtNum(livraisonDeclaree.quantite)} déclaré comme livraison par l'employé à l'ouverture.`;
         } else if (motifLibelle && saisie.motifEcart !== 'autre' && saisie.motifEcart !== 'ne_sais_pas') {
@@ -3046,12 +3069,37 @@
         } else if (motifLibelle) {
           resolution = `Motif déclaré par l'employé : ${motifLibelle}.`;
         }
+        ecartPourCycle = { valeur_attendue: valeurTransmise, valeur_constatee: saisie.compte, gravite: Math.abs(ecartVal) > 2 ? 'critique' : 'attention' };
+      }
+
+      // Décision du cycle (moteur pur, jamais recalculée ici) : créer une
+      // alerte "Sous observation", la reconfirmer (avec escalade au 2e
+      // comptage consécutif) ou la résoudre automatiquement comme
+      // imprécision de comptage si l'écart a disparu. L'employé ne voit
+      // JAMAIS ce mécanisme (contrôle aveugle, doctrine "l'employé
+      // observe. NEXUS organise.") — aucune UI ne dépend de `decision` ici.
+      const decision = NexusInventaireMoteur.qualifierObservationEcart({ alerteExistante, ecart: ecartPourCycle });
+      if (decision.action === 'creer') {
         await nexusClient.from('inventaire_alertes').insert({
           site: employeeCourant.site_id, quart_id: quartRow.id, produit_id: p.id,
-          type_alerte: 'ecart_ouverture', gravite: Math.abs(ecartVal) > 2 ? 'critique' : 'attention',
-          valeur_attendue: valeurTransmise, valeur_constatee: saisie.compte,
+          type_alerte: 'ecart_ouverture', gravite: decision.gravite,
+          valeur_attendue: decision.valeur_attendue, valeur_constatee: decision.valeur_constatee,
           resolution, categorie_anomalie: 'saisie',
+          statut: decision.statut, observations_consecutives: decision.observations_consecutives,
         });
+      } else if (decision.action === 'mettre_a_jour') {
+        const { error: eMajCycle } = await nexusClient.from('inventaire_alertes').update({
+          statut: decision.statut, observations_consecutives: decision.observations_consecutives,
+          valeur_attendue: decision.valeur_attendue, valeur_constatee: decision.valeur_constatee,
+          gravite: decision.gravite, resolution,
+        }).eq('id', alerteExistante.id);
+        if (eMajCycle) console.error('Mise à jour cycle observation (persistance):', eMajCycle);
+      } else if (decision.action === 'resoudre_imprecision') {
+        const { error: eResCycle } = await nexusClient.from('inventaire_alertes').update({
+          statut: decision.statut, nature_confirmee: decision.nature_confirmee,
+          resolution: decision.resolution, resolue_le: new Date().toISOString(),
+        }).eq('id', alerteExistante.id);
+        if (eResCycle) console.error('Résolution automatique cycle observation (imprécision):', eResCycle);
       }
     }
 

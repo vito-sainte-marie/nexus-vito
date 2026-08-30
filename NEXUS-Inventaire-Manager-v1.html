@@ -954,6 +954,58 @@
     await chargerEtAfficherTout();
   }
 
+  // Cycle "NEXUS observe avant de conclure" (30/08/2026) — certification
+  // manager (doctrine : "séparation erreur de comptage / écart stock").
+  // Le moteur (NexusInventaireMoteur.certifierAlerte, Article 11 : jamais
+  // un second calcul de la conséquence ici) décide seulement CE QUI en
+  // découle structurellement (régularisation requise ou non) ; le choix de
+  // la nature reste entièrement humain.
+  async function certifierAlerte(alerteId, nature) {
+    const consequence = NexusInventaireMoteur.certifierAlerte(nature);
+    if (!consequence) return;
+    const champs = { nature_confirmee: consequence.nature_confirmee, regularisation_requise: consequence.regularisation_requise };
+    if (!consequence.regularisation_requise) {
+      // Erreur de comptage confirmée par un manager (pas seulement
+      // constatée automatiquement par NEXUS) : rien à régulariser, se
+      // referme directement, comme une décision classique.
+      champs.statut = 'resolue';
+      champs.resolution = 'Certifié par le manager comme erreur de comptage — aucun écart de stock réel.';
+      champs.commentaire_manager = 'Certification : erreur de comptage.';
+      champs.assignee_a = managerCourant.id;
+      champs.resolue_le = new Date().toISOString();
+    }
+    const { error } = await nexusClient.from('inventaire_alertes').update(champs).eq('id', alerteId);
+    if (error) { console.error('Certification alerte (cycle observation):', error); alert('Erreur — réessayez.'); return; }
+    await nexusClient.from('inventaire_audit_log').insert({
+      site: siteId, quart_id: quartRow ? quartRow.id : null, entite_type: 'inventaire_alertes', entite_id: alerteId,
+      action: 'certification_cycle_observation', nouvelle_valeur: { nature_confirmee: nature },
+      acteur_id: managerCourant.id, motif: null,
+    });
+    await chargerEtAfficherTout();
+  }
+
+  // Vérification de la régularisation (dernier maillon du cycle) — ferme
+  // l'alerte une fois que le manager confirme qu'une action corrective
+  // réelle a été faite (via la section "Correction rétroactive" déjà
+  // existante, ou un mouvement de stock déjà existant — Article 11 :
+  // aucune nouvelle mécanique de correction créée ici, seulement le
+  // pointeur de vérification que le moteur calcule).
+  async function regulariserAlerte(alerteId) {
+    const champs = NexusInventaireMoteur.regulariserAlerte(new Date().toISOString());
+    champs.resolution = 'Écart de stock réel régularisé et vérifié par le manager.';
+    champs.commentaire_manager = 'Régularisation confirmée.';
+    champs.assignee_a = managerCourant.id;
+    champs.resolue_le = new Date().toISOString();
+    const { error } = await nexusClient.from('inventaire_alertes').update(champs).eq('id', alerteId);
+    if (error) { console.error('Vérification régularisation (cycle observation):', error); alert('Erreur — réessayez.'); return; }
+    await nexusClient.from('inventaire_audit_log').insert({
+      site: siteId, quart_id: quartRow ? quartRow.id : null, entite_type: 'inventaire_alertes', entite_id: alerteId,
+      action: 'regularisation_verifiee_cycle_observation', nouvelle_valeur: { regularisation_verifiee_le: champs.regularisation_verifiee_le },
+      acteur_id: managerCourant.id, motif: null,
+    });
+    await chargerEtAfficherTout();
+  }
+
   // "Résoudre avec NEXUS" (04/08/2026, audit §22) : le manager choisit
   // l'hypothèse la plus probable sans reconstruire l'historique à la main.
   // Les 5 premières options écrivent un vrai mouvement structuré (même
@@ -1700,6 +1752,44 @@
     cloture_en_retard: 'Inventaire non clôturé après le délai prévu',
     anomalie_repetee: 'Anomalie répétée sur le même produit',
   };
+  // Cycle "NEXUS observe avant de conclure" (30/08/2026, Frédéric — "ok
+  // passe au cycle") : seules les alertes 'ecart_ouverture' passent
+  // désormais par ce cycle (voir NEXUS-Inventaire-v1.html::validerOuverture
+  // et NexusInventaireMoteur.qualifierObservationEcart, Article 11 — jamais
+  // un second calcul ici). Une alerte 'sous_observation' est volontairement
+  // sans aucune action proposée : le manager n'a rien à faire tant que
+  // NEXUS n'a pas confirmé la persistance au contrôle suivant. Une alerte
+  // 'controle_manager_requis' sans nature_confirmee attend une
+  // CERTIFICATION (erreur de comptage / écart de stock réel) avant même de
+  // proposer les décisions habituelles — une fois certifiée écart de stock
+  // réel, elle attend la vérification de la régularisation avant de
+  // pouvoir se refermer.
+  function renderBlocCycleObservation(a) {
+    if (a.type_alerte !== 'ecart_ouverture') return null;
+    if (a.statut === 'sous_observation') {
+      return `<div class="alerte-note">🔎 Sous observation — NEXUS confirmera ou non cet écart au prochain contrôle. Aucune action requise pour l'instant.</div>`;
+    }
+    if (a.statut !== 'controle_manager_requis') return null;
+    if (!a.nature_confirmee) {
+      return `
+        <div class="alerte-note">⚠️ Écart confirmé à ${a.observations_consecutives || 2} contrôles consécutifs — persistance réelle, pas une imprécision. Certifier la nature de l'écart :</div>
+        <div class="decision-row">
+          <button class="btn-decision" data-id="${a.id}" data-certifier="erreur_comptage">Erreur de comptage</button>
+          <button class="btn-decision" data-id="${a.id}" data-certifier="ecart_stock_reel">Écart de stock réel</button>
+        </div>
+      `;
+    }
+    if (a.nature_confirmee === 'ecart_stock_reel' && !a.regularisation_verifiee_le) {
+      return `
+        <div class="alerte-note">📦 Écart de stock réel certifié — régularisez le stock (voir « Correction rétroactive » ci-dessous si besoin), puis confirmez :</div>
+        <div class="decision-row">
+          <button class="btn-decision" data-id="${a.id}" data-regulariser="1">Confirmer la régularisation faite</button>
+        </div>
+      `;
+    }
+    return null;
+  }
+
   function renderAlerteCard(a) {
     const estDemarque = a.type_alerte === 'demarque_ventes';
     const estClotureIncomplete = a.type_alerte === 'cloture_incomplete';
@@ -1708,6 +1798,11 @@
     const libelleType = LIBELLES_TYPE_ALERTE[a.type_alerte] || a.type_alerte;
     const labelAttendu = estDemarque ? 'Vendu (Decenium)' : (estClotureIncomplete ? 'Produits requis' : 'Transmis');
     const labelConstate = estDemarque ? 'Écoulement physique' : (estClotureIncomplete ? 'Produits comptés' : 'Compté');
+    const blocCycle = renderBlocCycleObservation(a);
+    // Sous observation : purement informatif, jamais de décision proposée
+    // (cf. doctrine — un premier écart mis en observation n'est pas encore
+    // une décision à prendre).
+    const cacherDecisionsHabituelles = a.statut === 'sous_observation' || (a.statut === 'controle_manager_requis' && !a.nature_confirmee) || (a.nature_confirmee === 'ecart_stock_reel' && !a.regularisation_verifiee_le);
     return `
       <div class="alerte-card" data-id="${a.id}">
         <div class="alerte-top">
@@ -1723,6 +1818,8 @@
           ${ecart !== null ? `<span>Écart : <b>${ecart > 0 ? '+' : ''}${fmtNum(ecart)}</b></span>` : ''}
         </div>
         ${a.resolution ? `<div class="alerte-note">Note : « ${a.resolution} »</div>` : ''}
+        ${blocCycle || ''}
+        ${cacherDecisionsHabituelles ? '' : `
         ${!estDemarque && !estClotureIncomplete ? `
         <button type="button" class="btn-inline-lien btn-resoudre-toggle" data-id="${a.id}" style="margin:8px 0 4px;">
           🤖 Résoudre avec NEXUS ${resoudreNexusOuvertes.has(a.id) ? '▾' : '▸'}
@@ -1737,6 +1834,7 @@
         <div class="decision-row">
           ${DECISIONS.map(d => `<button class="btn-decision ${d.cls}" data-id="${a.id}" data-decision="${d.value}">${d.label}</button>`).join('')}
         </div>
+        `}
       </div>
     `;
   }
@@ -2823,6 +2921,16 @@
       const commentaireLibre = commentaireEl ? commentaireEl.value.trim() : '';
       document.querySelectorAll(`.alerte-card[data-id="${btn.dataset.id}"] .btn-decision`).forEach(b => b.disabled = true);
       await resoudreAlerte(btn.dataset.id, decision, commentaireLibre);
+    }));
+    // Cycle "NEXUS observe avant de conclure" (30/08/2026) — certification
+    // et vérification de la régularisation.
+    document.querySelectorAll('[data-certifier]').forEach(btn => btn.addEventListener('click', async () => {
+      document.querySelectorAll(`.alerte-card[data-id="${btn.dataset.id}"] .btn-decision`).forEach(b => b.disabled = true);
+      await certifierAlerte(btn.dataset.id, btn.dataset.certifier);
+    }));
+    document.querySelectorAll('[data-regulariser]').forEach(btn => btn.addEventListener('click', async () => {
+      document.querySelectorAll(`.alerte-card[data-id="${btn.dataset.id}"] .btn-decision`).forEach(b => b.disabled = true);
+      await regulariserAlerte(btn.dataset.id);
     }));
     // "Résoudre avec NEXUS" — lookup combiné jour/période, les deux vues ne
     // sont jamais affichées en même temps donc jamais de collision d'id.
