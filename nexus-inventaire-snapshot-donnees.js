@@ -121,9 +121,133 @@
     return data || [];
   }
 
+  // ------------------------------------------------------------
+  // Étape 3 "reconstruction temporelle" (30/08/2026) — charge tout ce dont
+  // NexusInventaireSnapshotMoteur a besoin pour reconstituer le stock
+  // théorique à T0 à partir d'un Snapshot à T1 (voir doctrine et formule
+  // verrouillées en tête de nexus-inventaire-snapshot-moteur.js). Cette
+  // couche ne CALCULE rien elle-même (Article 11) — elle charge, le moteur
+  // qualifie et agrège.
+  // ------------------------------------------------------------
+
+  // Quarts candidats pour la fenêtre (T0,T1] : tout quart encore ouvert
+  // (cloture_le null) ouvert avant T1 (sera exclu par le moteur avec le
+  // motif 'quart_non_cloture', jamais silencieusement ignoré ici), ou tout
+  // quart clôturé dont la clôture tombe à T0 ou après — le moteur tranche
+  // ensuite lui-même s'il est entièrement contenu dans (T0,T1] ou non
+  // (classerQuartDansFenetre). Jamais un filtre plus étroit qui masquerait
+  // un quart chevauchant à l'appelant (Article 5).
+  async function chargerQuartsFenetre(client, site, instantT0, instantT1) {
+    const { data, error } = await client.from('inventaire_quarts')
+      .select('id, site, date, quart, ouvert_le, cloture_le')
+      .eq('site', site)
+      .lte('ouvert_le', instantT1)
+      .or(`cloture_le.is.null,cloture_le.gte.${instantT0}`)
+      .order('ouvert_le', { ascending: true });
+    if (error) { console.error('Chargement quarts fenêtre reconstruction:', error); return []; }
+    return data || [];
+  }
+
+  // Lignes de ventes des quarts jugés utilisables par le moteur
+  // (classerQuartDansFenetre) — jamais rechargé pour tous les quarts de la
+  // fenêtre (Article 5 : un quart chevauchant n'apporte aucune vente
+  // exploitable, inutile de la charger).
+  async function chargerVentesQuarts(client, quartIds) {
+    if (!quartIds || !quartIds.length) return [];
+    const { data, error } = await client.from('inventaire_ventes_import')
+      .select('quart_id, produit_id, quantite_vendue').in('quart_id', quartIds);
+    if (error) { console.error('Chargement ventes des quarts (reconstruction):', error); return []; }
+    return data || [];
+  }
+
+  // `inventaire_mouvements.cree_le` est un vrai horodatage précis (vérifié
+  // dans le schéma réel avant ce lot) — fenêtre exclusive à gauche,
+  // inclusive à droite : (T0,T1], jamais T0 lui-même (déjà "dans" le stock
+  // théorique qu'on cherche à reconstituer).
+  async function chargerMouvementsFenetre(client, site, instantT0, instantT1) {
+    const { data, error } = await client.from('inventaire_mouvements')
+      .select('produit_id, quantite, cree_le')
+      .eq('site', site).gt('cree_le', instantT0).lte('cree_le', instantT1);
+    if (error) { console.error('Chargement mouvements fenêtre reconstruction:', error); return []; }
+    return data || [];
+  }
+
+  // `inventaire_corrections.created_at` est le vrai horodatage de saisie
+  // (jamais `operational_date`/`quart`, choisis librement par le manager et
+  // décorrélés de l'instant réel — voir doctrine en tête du moteur).
+  async function chargerCorrectionsFenetre(client, site, instantT0, instantT1) {
+    const { data, error } = await client.from('inventaire_corrections')
+      .select('produit_id, old_value, new_value, created_at')
+      .eq('site', site).gt('created_at', instantT0).lte('created_at', instantT1);
+    if (error) { console.error('Chargement corrections fenêtre reconstruction:', error); return []; }
+    return data || [];
+  }
+
+  // Orchestration — assemble les chargements ci-dessus et les fonctions
+  // pures du moteur (Étape 3) pour produire, ligne de Snapshot par ligne de
+  // Snapshot, le stock théorique à `instantT0`. Ne recalcule jamais elle-
+  // même une agrégation ou une qualification (Article 11 : tout le calcul
+  // vit dans NexusInventaireSnapshotMoteur, testable indépendamment).
+  //
+  // Cas particulier assumé (Article 5, pas une fabrication de précision) :
+  // une ligne de Snapshot dont `produit_id` n'a pas pu être résolu au
+  // rapprochement (Étape 2) ne peut pas être reliée aux ventes/mouvements/
+  // corrections (elles aussi indexées par produit_id) — on ne fabrique
+  // JAMAIS un résultat en supposant zéro mouvement pour ce produit :
+  // qualité 'impossible', motif 'produit_non_resolu', explicite.
+  async function reconstituerStockTheoriqueSite(client, site, snapshot, instantT0) {
+    const Moteur = global.NexusInventaireSnapshotMoteur;
+    const instantT1 = snapshot ? snapshot.snapshot_reference_at : null;
+    const qualification = Moteur.qualifierReconstructionT0T1(instantT0, instantT1);
+    if (!qualification.possible) {
+      return { qualification, resultats: [], quartsExclus: [], correctionsIgnorees: [] };
+    }
+
+    const quarts = await chargerQuartsFenetre(client, site, instantT0, instantT1);
+    const quartsInclus = [];
+    const quartsExclus = [];
+    quarts.forEach(q => {
+      const c = Moteur.classerQuartDansFenetre({ ouvertLe: q.ouvert_le, clotureLe: q.cloture_le }, instantT0, instantT1);
+      if (c.utilisable) quartsInclus.push(q.id);
+      else quartsExclus.push({ quart_id: q.id, date: q.date, quart: q.quart, motif: c.motif });
+    });
+
+    const [ventesLignes, mouvements, corrections, lignesSnapshot] = await Promise.all([
+      chargerVentesQuarts(client, quartsInclus),
+      chargerMouvementsFenetre(client, site, instantT0, instantT1),
+      chargerCorrectionsFenetre(client, site, instantT0, instantT1),
+      chargerLignesSnapshot(client, snapshot.id),
+    ]);
+
+    const ventesParProduit = Moteur.agregerVentesParProduit(ventesLignes);
+    const mouvementsParProduit = Moteur.agregerMouvementsParProduit(mouvements);
+    const { parProduit: correctionsParProduit, ignorees: correctionsIgnorees } = Moteur.agregerCorrectionsParProduit(corrections);
+
+    const resultats = lignesSnapshot.map(ligne => {
+      if (!ligne.produit_id) {
+        return {
+          produit_id: null, designation_brute: ligne.designation_brute,
+          stock_theorique: null, qualite: 'impossible', motif: 'produit_non_resolu',
+        };
+      }
+      return Moteur.reconstituerStockTheorique({
+        produitId: ligne.produit_id,
+        quantiteSnapshotT1: ligne.quantite_stock,
+        sommeVentesFenetre: ventesParProduit[ligne.produit_id] || 0,
+        sommeMouvementsFenetre: mouvementsParProduit[ligne.produit_id] || 0,
+        sommeCorrectionsFenetre: correctionsParProduit[ligne.produit_id] || 0,
+        quartsExclusCount: quartsExclus.length,
+      });
+    });
+
+    return { qualification, resultats, quartsExclus, correctionsIgnorees };
+  }
+
   global.NexusInventaireSnapshotDonnees = {
     creerSnapshot, chargerDernierSnapshotActif, chargerSnapshotParId,
     chargerHistoriqueSnapshots, remplacerAnciensSnapshotsActifs,
     creerLignesSnapshot, chargerLignesSnapshot,
+    chargerQuartsFenetre, chargerVentesQuarts, chargerMouvementsFenetre,
+    chargerCorrectionsFenetre, reconstituerStockTheoriqueSite,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

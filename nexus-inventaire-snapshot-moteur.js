@@ -162,9 +162,131 @@
     return deltaSecondes < 0 ? `${texte} (stock avant ventes)` : texte;
   }
 
+  // ==============================================================
+  // Étape 3 "reconstruction temporelle" (30/08/2026) — calcule le stock
+  // théorique à un instant T0 (antérieur au Snapshot) à partir du Snapshot
+  // à T1 (Stock actuel réellement compté) et de tout ce qui a bougé entre
+  // les deux. Formule verrouillée avec Frédéric :
+  //
+  //   Stock théorique à T0 = Stock Snapshot à T1
+  //                          + ventes(T0,T1]
+  //                          - mouvements signés(T0,T1]
+  //                          - corrections signées(T0,T1]
+  //
+  // (aller de T1 vers le passé revient à défaire ce qui s'est produit
+  // depuis : on RAJOUTE ce qui a été vendu — puisque ça a fait baisser le
+  // stock entre T0 et T1 — et on RETIRE les mouvements/corrections qui ont
+  // fait monter ou baisser le stock pour d'autres raisons que la vente).
+  //
+  // Prudence assumée après vérification du schéma réel (Article 5) :
+  //  - `inventaire_ventes_import` n'a qu'un horodatage par IMPORT (donc
+  //    par quart), jamais par ligne de vente — les ventes ne peuvent donc
+  //    être attribuées à la fenêtre (T0,T1] qu'au niveau du QUART entier,
+  //    jamais à la minute près. Un quart n'est utilisable que si tout son
+  //    intervalle réel [ouvert_le, cloture_le] est contenu dans (T0,T1] ;
+  //    sinon il est exclu et signalé (jamais un partage arbitraire de ses
+  //    ventes entre deux fenêtres).
+  //  - `inventaire_mouvements.cree_le` et `inventaire_corrections.
+  //    created_at` sont de vrais horodatages précis (vérifiés dans le
+  //    code réel avant ce lot) — utilisables directement pour la fenêtre.
+  //  - `inventaire_mouvements.quantite` est DÉJÀ signée à la saisie
+  //    (positif = entrant, négatif = sortant) — jamais redérivée depuis
+  //    `type_mouvement`, qui peut être ambigu (ex: 'transfert' couvre
+  //    recu ET sortant).
+  // ==============================================================
+
+  // Garde d'entrée : une reconstruction n'a de sens que si T0 est
+  // strictement antérieur à T1 (l'instant de référence du Snapshot).
+  // Jamais une tentative "à l'envers" ou sur un instant égal.
+  function qualifierReconstructionT0T1(instantT0, instantT1) {
+    if (!instantT0 || !instantT1) return { possible: false, motif: 'horodatage_manquant' };
+    const t0 = new Date(instantT0).getTime();
+    const t1 = new Date(instantT1).getTime();
+    if (!Number.isFinite(t0) || !Number.isFinite(t1)) return { possible: false, motif: 'horodatage_invalide' };
+    if (t0 >= t1) return { possible: false, motif: 'T0_posterieur_ou_egal_T1' };
+    return { possible: true, motif: null };
+  }
+
+  // Classe un quart vis-à-vis de la fenêtre (T0,T1] — ses ventes ne sont
+  // utilisables que si son intervalle réel y est ENTIÈREMENT contenu.
+  // Retourne toujours un motif explicite si exclu, jamais un simple
+  // booléen muet (traçabilité pour l'écran / les tests).
+  function classerQuartDansFenetre({ ouvertLe, clotureLe }, instantT0, instantT1) {
+    if (!clotureLe) return { utilisable: false, motif: 'quart_non_cloture' };
+    const ouvert = ouvertLe ? new Date(ouvertLe).getTime() : null;
+    const cloture = new Date(clotureLe).getTime();
+    const t0 = new Date(instantT0).getTime();
+    const t1 = new Date(instantT1).getTime();
+    if (!Number.isFinite(cloture)) return { utilisable: false, motif: 'horodatage_invalide' };
+    if (cloture > t1) return { utilisable: false, motif: 'hors_fenetre_apres_T1' };
+    if (ouvert == null || !Number.isFinite(ouvert)) return { utilisable: false, motif: 'ouverture_inconnue' };
+    if (ouvert <= t0) return { utilisable: false, motif: 'chevauche_T0' };
+    return { utilisable: true, motif: null };
+  }
+
+  // Agrégations simples par produit — volontairement triviales et isolées
+  // ici (Article 11 : ne rappelle aucun moteur d'un autre domaine pour un
+  // simple total) pour rester testables indépendamment de la couche
+  // données qui les alimente.
+  function agregerVentesParProduit(lignesVentes) {
+    const parProduit = {};
+    (lignesVentes || []).forEach(l => {
+      if (!l.produit_id) return;
+      parProduit[l.produit_id] = (parProduit[l.produit_id] || 0) + Number(l.quantite_vendue || 0);
+    });
+    return parProduit;
+  }
+
+  function agregerMouvementsParProduit(mouvements) {
+    const parProduit = {};
+    (mouvements || []).forEach(m => {
+      if (!m.produit_id) return;
+      parProduit[m.produit_id] = (parProduit[m.produit_id] || 0) + Number(m.quantite || 0);
+    });
+    return parProduit;
+  }
+
+  // Une correction n'est intégrable que si elle porte à la fois
+  // old_value/new_value (le delta signé est alors new_value - old_value) —
+  // sinon (ex: type 'mouvement_oublie') elle est explicitement IGNORÉE et
+  // listée, jamais silencieusement perdue (Article 5).
+  function agregerCorrectionsParProduit(corrections) {
+    const parProduit = {};
+    const ignorees = [];
+    (corrections || []).forEach(c => {
+      if (c.old_value == null || c.new_value == null) { ignorees.push(c); return; }
+      if (!c.produit_id) { ignorees.push(c); return; }
+      parProduit[c.produit_id] = (parProduit[c.produit_id] || 0) + (Number(c.new_value) - Number(c.old_value));
+    });
+    return { parProduit, ignorees };
+  }
+
+  // Cœur de l'Étape 3 — pure, ne touche à aucune base. `quartsExclusCount`
+  // permet de qualifier honnêtement le résultat : 'fiable' si aucune donnée
+  // n'a dû être exclue de la fenêtre, 'partielle' sinon (le stock théorique
+  // reste la meilleure estimation possible, mais peut sous/sur-estimer
+  // faute d'avoir pu inclure un quart chevauchant ou une correction
+  // incomplète — jamais présenté comme équivalent à 'fiable').
+  function reconstituerStockTheorique({
+    produitId, quantiteSnapshotT1, sommeVentesFenetre, sommeMouvementsFenetre, sommeCorrectionsFenetre, quartsExclusCount,
+  }) {
+    if (quantiteSnapshotT1 == null) {
+      return { produit_id: produitId, stock_theorique: null, qualite: 'impossible', motif: 'produit_absent_du_snapshot' };
+    }
+    const stock_theorique = quantiteSnapshotT1
+      + (sommeVentesFenetre || 0)
+      - (sommeMouvementsFenetre || 0)
+      - (sommeCorrectionsFenetre || 0);
+    const qualite = (quartsExclusCount || 0) > 0 ? 'partielle' : 'fiable';
+    return { produit_id: produitId, stock_theorique, qualite, motif: null };
+  }
+
   global.NexusInventaireSnapshotMoteur = {
     SEUIL_DEFAUT_DELAI_MAX_MINUTES, NIVEAUX_CONFIANCE_SNAPSHOT,
     libelleConfianceSnapshot, libelleSourceHorodatage, libelleDelta,
     ordreExportDecenium, deltaSecondesSnapshot, qualifierSnapshotDecenium,
+    qualifierReconstructionT0T1, classerQuartDansFenetre,
+    agregerVentesParProduit, agregerMouvementsParProduit, agregerCorrectionsParProduit,
+    reconstituerStockTheorique,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

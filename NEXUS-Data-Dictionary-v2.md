@@ -4706,3 +4706,68 @@ Nouveau fichier `test_inventaire_snapshot_decenium_etape2.js` (23 tests) : `rapp
 - **`chargerLignesSnapshot`** (couche données) est écrite mais non encore appelée par aucun écran — fournie par anticipation de l'Étape 3 (reconstruction temporelle), même précédent que les fonctions anticipées de l'Étape 1.
 - **Aucun écran ne relit l'historique des Snapshots remplacés** (`chargerHistoriqueSnapshots`, déjà écrite à l'Étape 1) — seul le Snapshot actif est visible.
 - **Reconstruction temporelle T1→T0, détection des trous et rétroactivité** restent les Étapes 3, 4 et 5, non commencées.
+
+## v2.298 — Snapshot Decenium, Étape 3 « reconstruction temporelle T1→T0 » (30/08/2026)
+
+**Origine** : Frédéric — "etape 3", sur la base du plan en 5 étapes verrouillé le 30/08/2026. Cette étape ne construit **aucun écran** (décision de scope assumée, même précédent que l'Étape 1) : elle livre uniquement le moteur pur et la couche données permettant, à partir d'un Snapshot Decenium (Ventes+Stock à l'instant T1), de recalculer le stock théorique à un instant T0 antérieur — brique nécessaire aux Étapes 4 (détection des trous) et 5 (rétroactivité), testable et vérifiable indépendamment d'elles (doctrine de Frédéric : "chaque couche doit pouvoir être testée avant la suivante").
+
+### A. Recherche préalable (Article 5 — jamais une précision inventée)
+
+Avant tout code, vérification directe du schéma réel Supabase (`information_schema.columns`, projet `uzhjpqpctpvxytxpxoqz`) et du code existant :
+
+- **`inventaire_ventes_import`** n'a qu'un horodatage par **import** (`importe_le`), rattaché à un `quart_id` — aucun horodatage par ligne de vente. Conséquence directe sur la conception : les ventes ne peuvent être attribuées à une fenêtre temporelle qu'au niveau du **quart entier**, jamais à la minute près.
+- **`inventaire_quarts.ouvert_le`/`cloture_le`** sont de vrais horodatages précis par quart (`ouvert_le` toujours renseigné dès l'ouverture, `cloture_le` seulement pour un quart réellement clôturé — vérifié sur données réelles vito-sainte-marie : 14 quarts "ouvert" et 23 "ouverture_en_cours" n'ont que `ouvert_le`, seulement 2 quarts sont réellement "cloture" avec les deux horodatages).
+- **`inventaire_mouvements.cree_le`** et **`inventaire_corrections.created_at`** sont de vrais horodatages précis, exploitables directement pour une fenêtre `(T0,T1]`.
+- **`inventaire_mouvements.quantite`** est déjà **signée à la saisie** (positif = entrant, négatif = sortant) — jamais redérivée depuis `type_mouvement`, qui peut être ambigu (`'transfert'` couvre aussi bien un mouvement reçu qu'un mouvement sortant selon le sens réel de la saisie).
+- **`inventaire_corrections.operational_date`/`quart`** sont choisis librement par le manager et décorrélés de l'instant réel de saisie — `created_at` est la seule donnée fiable pour situer une correction dans le temps.
+- Aucun mécanisme existant ne charge "les quarts d'un site sur une plage de dates" — nouveau, ajouté dans ce lot (Article 11 : vérifié qu'aucun équivalent n'existait avant d'écrire `chargerQuartsFenetre`).
+
+### B. Formule verrouillée avec Frédéric
+
+```
+Stock théorique à T0 = Stock Snapshot à T1
+                       + ventes(T0,T1]
+                       - mouvements signés(T0,T1]
+                       - corrections signées(T0,T1]
+```
+
+(remonter de T1 vers T0 revient à défaire ce qui s'est produit entre les deux : on rajoute ce qui a été vendu, puisque la vente a fait baisser le stock entre T0 et T1, et on retire les mouvements/corrections qui ont fait varier le stock pour d'autres raisons que la vente).
+
+**Règle d'inclusion d'un quart, assumée par prudence (Article 5)** : un quart n'apporte ses ventes à la fenêtre que si son intervalle réel `[ouvert_le, cloture_le]` y est **entièrement contenu** — jamais un partage arbitraire des ventes d'un quart chevauchant entre deux fenêtres. Un quart chevauchant, non clôturé, ou dont l'ouverture est inconnue est explicitement exclu avec un motif tracé (`quart_non_cloture`, `hors_fenetre_apres_T1`, `ouverture_inconnue`, `chevauche_T0`), jamais silencieusement ignoré.
+
+**Règle d'inclusion d'une correction** : intégrable seulement si elle porte à la fois `old_value` et `new_value` (delta signé = `new_value - old_value`) — sinon explicitement listée dans `correctionsIgnorees`, jamais perdue silencieusement ni comptée comme zéro par erreur.
+
+**Qualité du résultat** : `'fiable'` si aucun quart n'a dû être exclu de la fenêtre, `'partielle'` sinon (le stock théorique reste la meilleure estimation possible mais peut sous/sur-estimer faute d'avoir pu inclure un quart chevauchant — jamais présenté comme équivalent à `'fiable'`), `'impossible'` si le produit est absent des lignes du Snapshot ou si T0 ≥ T1.
+
+### C. Moteur pur (`nexus-inventaire-snapshot-moteur.js`)
+
+Nouvelles fonctions, toutes pures (aucun accès réseau, aucun ID métier deviné), ajoutées à l'export `NexusInventaireSnapshotMoteur` :
+
+- `qualifierReconstructionT0T1(instantT0, instantT1)` — garde d'entrée : refuse un horodatage manquant/invalide ou `T0 >= T1`.
+- `classerQuartDansFenetre({ouvertLe, clotureLe}, instantT0, instantT1)` — décide si un quart est utilisable, avec motif explicite si exclu.
+- `agregerVentesParProduit(lignesVentes)`, `agregerMouvementsParProduit(mouvements)` — sommes simples par `produit_id`, ignorent silencieusement une ligne sans `produit_id` (rien à agréger sans clé produit).
+- `agregerCorrectionsParProduit(corrections)` — retourne `{parProduit, ignorees}` : sépare explicitement ce qui est intégrable de ce qui ne l'est pas.
+- `reconstituerStockTheorique({produitId, quantiteSnapshotT1, sommeVentesFenetre, sommeMouvementsFenetre, sommeCorrectionsFenetre, quartsExclusCount})` — cœur de la formule, qualifie `'fiable'`/`'partielle'`/`'impossible'`.
+
+### D. Couche données (`nexus-inventaire-snapshot-donnees.js`)
+
+- `chargerQuartsFenetre(client, site, instantT0, instantT1)` — charge les quarts candidats (encore ouverts et ouverts avant T1, ou clôturés à T0 ou après) ; c'est le moteur (`classerQuartDansFenetre`), jamais cette fonction, qui tranche l'inclusion finale.
+- `chargerVentesQuarts(client, quartIds)` — ne charge que les ventes des quarts déjà jugés utilisables par le moteur (aucun appel réseau si la liste est vide — jamais une requête pour rien).
+- `chargerMouvementsFenetre(client, site, instantT0, instantT1)` — fenêtre `(T0,T1]` sur `cree_le`.
+- `chargerCorrectionsFenetre(client, site, instantT0, instantT1)` — fenêtre `(T0,T1]` sur `created_at` (jamais `operational_date`/`quart`).
+- `reconstituerStockTheoriqueSite(client, site, snapshot, instantT0)` — orchestration : qualifie la fenêtre, classe les quarts, charge ventes/mouvements/corrections/lignes de Snapshot en parallèle, puis appelle le moteur ligne de Snapshot par ligne de Snapshot. Ne recalcule jamais elle-même une agrégation (Article 11 : tout le calcul vit dans le moteur, testé indépendamment).
+
+**Cas particulier assumé dans l'orchestration, pas dans le moteur (Article 5)** : une ligne de Snapshot dont `produit_id` n'a pas pu être résolu au rapprochement (Étape 2) ne peut être reliée à aucune vente/mouvement/correction (tous indexés par `produit_id`) — plutôt que d'appeler le moteur avec des sommes fabriquées à zéro (ce qui produirait un faux résultat `'fiable'`), l'orchestration renvoie directement `{qualite: 'impossible', motif: 'produit_non_resolu'}` pour cette ligne.
+
+### Tests et régression
+
+Nouveau fichier `test_inventaire_snapshot_decenium_etape3.js` (31 tests) : les 4 fonctions de qualification/classification du moteur (tous les motifs d'exclusion, y compris la borne ouverte à gauche sur T0), les 3 agrégations (sommes, cas ignorés, listes vides), `reconstituerStockTheorique` (impossible/fiable/partielle/sommes absentes), les 4 chargeurs (formation de la requête, erreur Supabase absorbée, pas d'appel réseau si liste d'ids vide) et l'orchestration complète `reconstituerStockTheoriqueSite` sur un mock Supabase (cas T0≥T1, cas nominal avec un quart chevauchant exclu, cas sans exclusion, ligne sans produit résolu, correction incomplète reportée).
+
+**Régression complète rejouée avant livraison : 148 fichiers de test, 0 échec** (147 fichiers pré-existants + le nouveau).
+
+### Ce que ce lot NE couvre PAS encore (transparence, à discuter avec Frédéric)
+
+- **Aucun écran** n'expose la reconstruction temporelle — décision de scope assumée dès le départ de l'étape, même précédent que l'Étape 1 (moteur + données testables avant toute UI).
+- **Aucun appel réel** à `reconstituerStockTheoriqueSite` depuis un parcours utilisateur — reste à brancher aux Étapes 4 (détection des trous) et/ou 5 (rétroactivité).
+- **La qualité `'partielle'` est globale à la ligne de Snapshot**, pas par cause : si plusieurs quarts sont exclus, le résultat ne distingue pas lequel a le plus d'impact — les motifs détaillés existent (`quartsExclus`) mais leur restitution lisible à un manager reste à concevoir avec l'écran d'une étape future.
+- **Détection des trous temporels et rétroactivité** restent les Étapes 4 et 5, non commencées.
