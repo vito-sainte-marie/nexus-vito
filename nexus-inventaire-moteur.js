@@ -1263,6 +1263,13 @@
   //     déterministe (hashDeterministe) pour ne jamais dépendre de l'ordre
   //     brut du catalogue — reproductible pour un même (site, date, quart,
   //     mission), jamais un tirage aléatoire différent à chaque génération.
+  //   - 'intelligent' (30/08/2026, demande de Frédéric — "rotation
+  //     intelligente à couverture garantie", corrige le constat que le
+  //     bouton "Contrôle aléatoire" était un pur tirage au sort sans
+  //     garantie de couverture) : voir selectionnerPerimetreIntelligent
+  //     ci-dessous — délègue entièrement à construirePlanComptage, jamais
+  //     une deuxième logique de sélection écrite en parallèle (Article 11,
+  //     exigence explicite de Frédéric lors du verrouillage de ce lot).
   //   - 'cible' : traité comme 'complet' dans ce sprint — **limitation
   //     assumée (Article 5)** : aucune règle réelle (Sainte-Marie ou
   //     gabarit par défaut) n'utilise ce mode aujourd'hui ; sa sémantique
@@ -1271,9 +1278,19 @@
   //     réelle — jamais une fausse précision inventée ici.
   //   - valeur inconnue : repli sûr sur le périmètre complet, jamais un
   //     tableau vide silencieux qui ferait disparaître une mission entière.
-  function selectionnerPerimetreMission(missionRule, produitsActifs, dernierControleParProduit, seed) {
+  //
+  // `contexte` (5ᵉ paramètre, optionnel — ajouté pour 'intelligent', ignoré
+  // par 'complet'/'tournant' : n'importe quel appelant existant continue de
+  // fonctionner sans le fournir) : { quart, dateISO, reglesParProduit,
+  // produitsAvecAnomalieRecente, anomaliesDetailParProduit,
+  // plafondAnomaliesNonCritiques, surprisesRecentesParProduit } — voir
+  // selectionnerPerimetreIntelligent pour le détail de chaque champ.
+  function selectionnerPerimetreMission(missionRule, produitsActifs, dernierControleParProduit, seed, contexte) {
     const candidats = perimetreProduitsMission(missionRule, produitsActifs);
     const mode = missionRule.mode_selection || 'complet';
+    if (mode === 'intelligent') {
+      return selectionnerPerimetreIntelligent(missionRule, candidats, dernierControleParProduit, seed, contexte);
+    }
     if (mode !== 'tournant') return candidats.map(p => p.id);
     const n = (missionRule.nombre_references && missionRule.nombre_references > 0) ? missionRule.nombre_references : candidats.length;
     const carte = dernierControleParProduit || {};
@@ -1290,6 +1307,74 @@
     return trie.slice(0, n).map(p => p.id);
   }
 
+  // ------------------------------------------------------------
+  // selectionnerPerimetreIntelligent (30/08/2026) — mode "Rotation
+  // intelligente NEXUS". Vérifié et validé explicitement par Frédéric avant
+  // écriture : ne développe AUCUNE logique parallèle, délègue entièrement à
+  // construirePlanComptage (Sprint "Plan tournant", 17-21/08), qui porte
+  // déjà les 5 niveaux de priorité voulus, dans cet ordre :
+  //   1. Échéance dépassée / délai max atteint (jamais plafonné)
+  //   2. Anomalie critique / second contrôle nécessaire (jamais plafonné)
+  //   3. Anomalie récente non critique (plafonnée par quart)
+  //   4. Références les moins récemment contrôlées, jusqu'au quota cible
+  //   5. Surprise(s) déterministe(s)
+  //
+  // Garde-fous explicitement demandés par Frédéric (30/08/2026), déjà
+  // satisfaits PAR CONSTRUCTION par construirePlanComptage, jamais
+  // réimplémentés ici en double :
+  //   A. « Garantie dure de couverture » : le quota (nombre_references)
+  //      n'est un plafond QUE sur l'étape 4 (quota_tournant) — les étapes
+  //      1-3 (échéance/anomalies) ne sont jamais écrêtées, une mission peut
+  //      donc légitimement dépasser son quota si plus de références sont
+  //      dues que la cible ne le prévoyait.
+  //   B. « Pas de double sélection » : `construirePlanComptage` tient un
+  //      seul Set `dejaInclus` partagé par toutes ses étapes internes, y
+  //      compris le tirage des surprises (poolSurprises exclut déjà
+  //      dejaInclus) — une référence choisie en échéance/anomalie ne peut
+  //      donc jamais être retirée une seconde fois en surprise.
+  //
+  // Conséquence assumée et à confirmer avec Frédéric au moment des
+  // paramètres (Étape 3 de ce lot, pas cette étape moteur) : les surprises
+  // s'AJOUTENT par-dessus le quota de couverture (nombre_references), elles
+  // ne sont jamais décomptées dessus — une mission réglée à 6 références +
+  // 1 surprise affichera donc jusqu'à 7 références quand aucune obligation
+  // ne déborde déjà le quota, exactement le comportement déjà existant et
+  // testé de construirePlanComptage (Article 5 : jamais une réinterprétation
+  // silencieuse de la brique réutilisée). Si Frédéric préfère un total
+  // strictement plafonné, ce sera un réglage (`nombre_references` réduit
+  // d'autant), pas un changement de cette fonction.
+  //
+  // `candidats` : déjà filtré par perimetreProduitsMission (catégorie/zone
+  // de la mission) — cette fonction n'ajoute aucun filtre supplémentaire.
+  // `contexte.reglesParProduit` : idéalement construireReglesEffectivesParProduit
+  // (cascade Produit -> Catégorie déjà existante, Article 11 — jamais un
+  // nouveau champ "délai max" dupliqué sur la mission_rule elle-même, le
+  // délai vient TOUJOURS de la règle catégorie/produit déjà réglable dans
+  // "Règles par catégorie").
+  function selectionnerPerimetreIntelligent(missionRule, candidats, dernierControleParProduit, seed, contexte) {
+    const ctx = contexte || {};
+    const socleCible = (missionRule.nombre_references && missionRule.nombre_references > 0)
+      ? missionRule.nombre_references : candidats.length;
+    const surprisesCible = missionRule.inclure_surprise
+      ? ((missionRule.nombre_surprises && missionRule.nombre_surprises > 0) ? missionRule.nombre_surprises : 1)
+      : 0;
+    const resultat = construirePlanComptage({
+      produits: candidats,
+      reglesParProduit: ctx.reglesParProduit || {},
+      dernierControleParProduit: dernierControleParProduit || {},
+      produitsAvecAnomalieRecente: ctx.produitsAvecAnomalieRecente,
+      anomaliesDetailParProduit: ctx.anomaliesDetailParProduit,
+      plafondAnomaliesNonCritiques: ctx.plafondAnomaliesNonCritiques,
+      quart: ctx.quart != null ? ctx.quart : null,
+      dateISO: ctx.dateISO || new Date().toISOString().slice(0, 10),
+      socleCible, surprisesCible, seed,
+      surprisesRecentesParProduit: ctx.surprisesRecentesParProduit,
+    });
+    // Ordre déjà correct (priorité décroissante) dans resultat.items — jamais
+    // retrié une deuxième fois (Article 11 : une seule vérité sur l'ordre).
+    return resultat.items.map(it => it.produit_id);
+  }
+
   // Le générateur complet : pour CHAQUE moment du quart, résout les
   // mission_rules applicables contre les rôles réellement présents
   // (Sprint 1 ::resoudreMissionRulesApplicables), puis calcule le périmètre
@@ -1298,13 +1383,26 @@
   // jamais silencieusement supprimée : c'est la "dette de couverture" de la
   // doctrine, une information que le manager doit pouvoir voir, pas un
   // trou invisible dans le contrôle du site.
-  function genererMissionsPourContexte({ missionRules, rolesPresents, quart, produitsActifs, dernierControleParProduit, seed }) {
+  // Ingrédients supplémentaires (30/08/2026, mode 'intelligent') tous
+  // OPTIONNELS et sans effet sur 'complet'/'tournant' — un appelant
+  // existant qui ne les fournit pas continue de fonctionner à l'identique
+  // (non-régression). Seront réellement alimentés depuis Supabase à
+  // l'Étape 2 "données" de ce lot ; cette étape "moteur" les accepte déjà
+  // pour rester testable de bout en bout sans dépendre de l'étape suivante.
+  function genererMissionsPourContexte({
+    missionRules, rolesPresents, quart, produitsActifs, dernierControleParProduit, seed,
+    dateISO, reglesParProduit, produitsAvecAnomalieRecente, anomaliesDetailParProduit,
+    plafondAnomaliesNonCritiques, surprisesRecentesParProduit,
+  }) {
     const missions = [];
     MOMENTS_QUART.forEach(m => {
       const resolues = resoudreMissionRulesApplicables({ missionRules, quart, moment: m.cle, rolesPresents });
       resolues.forEach(res => {
         const produitIds = res.statut === 'affectee'
-          ? selectionnerPerimetreMission(res.regle, produitsActifs, dernierControleParProduit, `${seed}|${res.regle.id}`)
+          ? selectionnerPerimetreMission(res.regle, produitsActifs, dernierControleParProduit, `${seed}|${res.regle.id}`, {
+              quart, dateISO, reglesParProduit, produitsAvecAnomalieRecente, anomaliesDetailParProduit,
+              plafondAnomaliesNonCritiques, surprisesRecentesParProduit,
+            })
           : [];
         missions.push({
           missionRuleId: res.regle.id, nom: res.regle.nom, momentCode: m.cle,
@@ -1560,7 +1658,8 @@
     MOMENTS_QUART, libelleMoment, STRATEGIES_REPLI, libelleStrategieRepli,
     regleApplicableContexte, resoudreAffectationRegleMission, resoudreMissionRulesApplicables,
     CATEGORIES_DEFAUT_NEXUS, ROLES_DEFAUT_NEXUS, MISSION_RULES_DEFAUT_NEXUS,
-    perimetreProduitsMission, selectionnerPerimetreMission, genererMissionsPourContexte, couvertureMissions,
+    perimetreProduitsMission, selectionnerPerimetreMission, selectionnerPerimetreIntelligent,
+    genererMissionsPourContexte, couvertureMissions,
     jaugePerimetre, repartirPerimetreParEmploye,
     rapprochementsPourPerimetre,
     SEUIL_OBSERVATIONS_AVANT_CONTROLE_MANAGER,

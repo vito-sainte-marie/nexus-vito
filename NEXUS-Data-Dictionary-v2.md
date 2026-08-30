@@ -4844,3 +4844,48 @@ Vérifié à cette occasion (Article 11, avant de toucher au code) : `compterExc
 
 - N'a pas touché à `compterExceptionsCategorie` ni à `identifierCategoriesAOptimiser` : vérifiés sains, aucune correction nécessaire de ce côté.
 - N'a pas renommé le libellé de règle lui-même (reste "Stock continu (par défaut)", "Remis à zéro le matin (hérité de X)", etc.) — seule la classification "exception vs héritage" et l'affichage de l'emplacement ont été corrigés, périmètre strictement limité à l'incohérence remontée par Frédéric.
+
+## v2.301 — Rotation intelligente missions, Étape 1 « moteur » (30/08/2026)
+
+**Origine** : demande de Frédéric d'évoluer la case "☑ Contrôle aléatoire" (mode `tournant` inerte de `selectionnerPerimetreMission`, Inventaire V2 Sprint 2) en une vraie "rotation intelligente à couverture garantie". Frédéric a fourni un exemple chiffré (16 huiles, missions Renfort à 6 références), un ordre de priorité en 5 niveaux, et a explicitement validé le découpage en 3 étapes — **moteur d'abord, testé et non régressé, puis données, puis UI** — avant tout branchement Supabase/écran. Ce lot couvre UNIQUEMENT l'étape 1 "moteur".
+
+### Point essentiel validé par Frédéric — convergence, pas nouvelle logique (Article 11)
+
+Recherche préalable (avant tout code) : `nexus-inventaire-moteur.js` porte déjà, depuis le Sprint 2 "Plan tournant" (17-21/08/2026), la fonction `construirePlanComptage` qui implémente EXACTEMENT les 5 niveaux de priorité demandés par Frédéric — 1) critiques dus (jamais plafonnés), 2) anomalie critique (jamais plafonnée), 3) anomalie récente non critique (plafonnée par quart via `PLAFOND_ANOMALIES_NON_CRITIQUES_PAR_QUART_DEFAUT`), 4) quota tournant (les moins récemment contrôlés, jusqu'au socle cible), 5) surprises déterministes (`tirerSurprisesDeterministe`, seed reproductible). Cette brique était déjà éprouvée et testée mais **architecturalement déconnectée** de `selectionnerPerimetreMission` (le générateur de missions plus récent d'Inventaire V2 Sprint 2, 29/08/2026), dont le mode `'tournant'` ne faisait qu'un tri "moins récemment contrôlé + tie-break hash", sans aucune notion d'échéance ni d'anomalie. Frédéric a validé explicitement que le nouveau mode ne devait développer aucune logique parallèle et devait déléguer entièrement à `construirePlanComptage`.
+
+### Changements (`nexus-inventaire-moteur.js`)
+
+- `selectionnerPerimetreMission(missionRule, produitsActifs, dernierControleParProduit, seed, contexte)` : nouveau 5ᵉ paramètre optionnel `contexte`, et nouvelle branche `mode === 'intelligent'` qui délègue à `selectionnerPerimetreIntelligent` — placée AVANT les branches `'tournant'`/`'complet'` existantes, qui restent totalement inchangées (non-régression garantie pour tout appelant qui ne fournit pas `contexte`).
+- Nouvelle fonction `selectionnerPerimetreIntelligent(missionRule, candidats, dernierControleParProduit, seed, contexte)` : calcule `socleCible` depuis `missionRule.nombre_references` (défaut : tout le périmètre) et `surprisesCible` depuis `missionRule.inclure_surprise`/`nombre_surprises` (défaut 1 si activé), puis appelle `construirePlanComptage` avec ces valeurs plus le contexte (règles effectives, anomalies, quart, date, seed). Retourne `resultat.items.map(it => it.produit_id)` — aucun retri, aucun filtre supplémentaire : l'ordre de priorité de `construirePlanComptage` est la seule vérité.
+- `genererMissionsPourContexte` : accepte désormais des paramètres optionnels supplémentaires (`dateISO`, `reglesParProduit`, `produitsAvecAnomalieRecente`, `anomaliesDetailParProduit`, `plafondAnomaliesNonCritiques`, `surprisesRecentesParProduit`) et les transmet en `contexte` à `selectionnerPerimetreMission`. Tous optionnels et sans effet quand absents ou quand `mode_selection` reste `'complet'`/`'tournant'` — un appelant existant continue de fonctionner à l'identique.
+- Nouveaux paramètres de mission_rule consommés (pas encore éditables à l'écran — Étape 3 de ce lot) : `mode_selection = 'intelligent'`, `inclure_surprise`, `nombre_surprises`. **Aucun nouveau champ "délai max"** n'a été ajouté à mission_rule, conformément à la demande explicite de Frédéric — le délai maximum continue de venir exclusivement de `inventaire_regles_produit`/`inventaire_categories` (`delai_max_jours_sans_controle`, `frequence_controle`), déjà réglables dans "Règles par catégorie".
+
+### Garde-fous explicitement demandés par Frédéric — satisfaits PAR CONSTRUCTION, non réimplémentés
+
+- **A. Garantie dure de couverture** : dans `construirePlanComptage`, le socle (`nombre_references`) n'est un plafond QUE sur l'étape 4 (`quota_tournant`) — les étapes 1 à 3 (échéance dépassée, anomalie critique, anomalie non critique jusqu'à son propre plafond dédié) ne sont jamais écrêtées par le socle. Une mission peut donc légitimement dépasser son quota si plus de références sont dues que la cible ne le prévoyait (ex. quota 6, 7 références en retard -> les 7 sont incluses). Vérifié par test (scénario 2c ci-dessous).
+- **B. Pas de double sélection** : `construirePlanComptage` tient un unique `Set dejaInclus` partagé par toutes ses étapes, y compris le pool de tirage des surprises (`poolSurprises` exclut déjà `dejaInclus`) — une référence choisie en échéance/anomalie ne peut donc jamais être retirée une seconde fois en surprise ; le périmètre final ne contient jamais de doublon. Vérifié par test (scénario 2d ci-dessous, 8 graines différentes).
+
+### Point à confirmer avec Frédéric (transparence, Article 5 — pas résolu dans ce lot)
+
+Le design existant et réutilisé de `construirePlanComptage` fait des surprises un AJOUT par-dessus le quota de couverture, jamais un prélèvement dessus : une mission réglée à "6 références + 1 surprise" peut donc afficher jusqu'à 7 références en régime stable (quand aucune obligation d'échéance/anomalie ne déborde déjà le quota) — ce qui diffère légèrement du "4+1+1=6 total" illustratif de l'exemple initial de Frédéric. Comportement existant et déjà testé conservé tel quel (pas de réinterprétation silencieuse d'une brique réutilisée) ; documenté en commentaire dans le code et ici pour arbitrage explicite au moment des paramètres (Étape 3), pas cette étape moteur. Si Frédéric préfère un total strictement plafonné, ce sera un réglage (`nombre_references` réduit d'autant), pas un changement de cette fonction.
+
+### Hors scope de cette étape (confirmé par Frédéric)
+
+- Volume variable de mission ("à terme, mieux que 6 huiles tous les jours") : explicitement hors scope pour l'instant.
+- Architecture data double-emplacement (dépôt+boutique) : vérifiée déjà saine (une seule ligne de comptage écrit `quantite_depot`+`quantite_boutique` ensemble, un seul `marquerItemPlanCompte` après consolidation) — non touchée, confirmé par Frédéric.
+- Découpage en deux écrans séquentiels (UX dépôt puis boutique) : idée déférée à une amélioration UX future distincte, hors de ce lot.
+- Brancher données Supabase réelles et écran Paramètres (mode "Rotation intelligente NEXUS", `nombre_references`, `inclure_surprise`) : Étapes 2 et 3 de ce lot, pas encore commencées.
+
+### Tests et régression
+
+Nouveau fichier `test_inventaire_rotation_intelligente_etape1.js` (7 scénarios) :
+1. Dispatch — `selectionnerPerimetreMission` avec `mode_selection='intelligent'` produit exactement le même résultat que l'appel direct à `selectionnerPerimetreIntelligent` (un seul chemin de calcul) ; `'complet'` reste inchangé.
+2. `selectionnerPerimetreIntelligent` isolément : (a) échéance dépassée toujours incluse avant le quota tournant ; (b) anomalie critique priorisée même sans échéance dépassée ; (c) **Garde-fou A** — quota=6 mais 7 références en retard -> les 7 incluses ; (d) **Garde-fou B** — sur 8 graines différentes, jamais de doublon et une référence en échéance n'est jamais re-tirée en surprise.
+3. Critère de recette explicite de Frédéric : simulation sur 20 jours, 16 huiles, quota 6, aucune anomalie — aucune huile jamais oubliée, rotation équilibrée (pas de monopolisation par une poignée de références), et une référence qui dépasse artificiellement son délai (huile7, délai standard 7j) passe devant le hasard même avec un quota de 1.
+4. `genererMissionsPourContexte` — non-régression : les nouveaux paramètres de contexte optionnels n'ont aucun effet sur `'complet'` quand fournis ou absents (même mécanisme de passage de contexte que `'tournant'`).
+
+**Régression complète rejouée avant livraison : 150 fichiers de test, 0 échec** (149 fichiers pré-existants inchangés côté résultat + le nouveau fichier de ce lot).
+
+### Ce que ce lot NE couvre PAS
+
+- Aucune donnée réelle Supabase branchée, aucun écran modifié — strictement le moteur pur, conformément à la demande explicite de Frédéric de tester et non-régresser cette étape avant de toucher données/UI (Étapes 2 et 3 à venir).
