@@ -55,11 +55,26 @@
       return [];
     }
 
-    const [missionRules, rolesPresents, plan, ingredients] = await Promise.all([
+    const [missionRules, rolesPresents, plan, ingredients, surprisesRecentesParProduit] = await Promise.all([
       MR.chargerMissionRules(client, site),
       MR.chargerRolesPresentsQuart(client, site, dateISO, quart),
       PD.chargerOuGenererPlan(client, site, dateISO, quart),
       PD.chargerIngredientsSelection(client, site, dateISO),
+      // 30/08/2026 (Rotation intelligente, Étape 2 "données") : seul le mode
+      // 'intelligent' consomme ces ingrédients (via le contexte transmis à
+      // genererMissionsPourContexte ci-dessous) — 'complet'/'tournant' les
+      // ignorent, exactement comme le moteur pur le prévoit déjà (contexte
+      // optionnel). `chargerSurprisesRecentes` est la MÊME fonction déjà
+      // utilisée par chargerOuGenererPlan pour le plan tournant (Article 11 :
+      // une seule notion de "surprise récente", partagée entre le plan
+      // journalier et les missions — jamais un second compteur parallèle).
+      // Filet de sécurité (typeof) si un appelant/mock plus ancien fournit un
+      // NexusInventairePlanDonnees sans cette fonction : traité comme "aucune
+      // surprise récente connue", jamais une exception qui casserait toute la
+      // génération des missions pour une info secondaire (Article 5).
+      typeof PD.chargerSurprisesRecentes === 'function'
+        ? PD.chargerSurprisesRecentes(client, site, dateISO)
+        : Promise.resolve([]),
     ]);
 
     // Correction déterminante (29/08/2026, avant Sprint 3) : le périmètre
@@ -88,6 +103,15 @@
       produitsActifs: produitsDuPlan,
       dernierControleParProduit: ingredients.dernierControleParProduit,
       seed: `${site}|${dateISO}|${quart}`,
+      // Ingrédients supplémentaires (30/08/2026, mode 'intelligent') — tous
+      // déjà chargés ci-dessus pour le plan tournant, jamais une deuxième
+      // lecture parallèle (Article 11). Sans effet sur les mission_rules en
+      // mode 'complet'/'tournant' (le moteur pur les ignore silencieusement).
+      dateISO,
+      reglesParProduit: ingredients.reglesParProduit,
+      produitsAvecAnomalieRecente: ingredients.produitsAvecAnomalieRecente,
+      anomaliesDetailParProduit: ingredients.anomaliesDetailParProduit,
+      surprisesRecentesParProduit,
     });
 
     if (!missionsCalculees.length) return [];

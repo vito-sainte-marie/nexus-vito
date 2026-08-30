@@ -4923,3 +4923,37 @@ Le test existant `test_inventaire_snapshot_decenium_etape1.js` (introduit à l'�
 ### Ce que ce lot NE couvre PAS
 
 - N'a touché à aucune autre logique du Snapshot Decenium (moteur, données, autres écrans) — strictement les 2 lignes fautives et le test qui les validait à tort.
+
+## v2.303 — Rotation intelligente missions, Étape 2 « données » (30/08/2026)
+
+**Origine** : suite directe de l'Étape 1 « moteur » (v2.301). Frédéric a demandé le découpage moteur → données → UI, chaque étape testée et non régressée avant la suivante ; ce lot branche le mode `intelligent` sur les données Supabase réelles.
+
+### Migration Supabase (`inventaire_mission_rules_rotation_intelligente`)
+
+Vérifié sur le schéma réel avant toute modification (Article 5) : `mode_selection` et `nombre_references` existaient déjà sur `inventaire_mission_rules`, mais la contrainte `CHECK` sur `mode_selection` n'autorisait que `'complet' | 'tournant' | 'cible'` — une tentative de régler une mission_rule sur `'intelligent'` depuis l'écran Paramètres (Étape 3, à venir) aurait donc échoué au niveau base de données malgré un moteur pur déjà prêt. Corrigé :
+- Contrainte élargie à `'complet' | 'tournant' | 'cible' | 'intelligent'`.
+- Colonnes ajoutées : `inclure_surprise boolean not null default false`, `nombre_surprises integer` (nullable, défaut 1 appliqué côté moteur si `inclure_surprise=true` et valeur absente — voir `selectionnerPerimetreIntelligent`, v2.301).
+- **Aucun champ délai max ajouté** — conforme à la demande explicite de Frédéric, le délai continue de venir exclusivement de `inventaire_regles_produit`/`inventaire_categories`.
+- Migration appliquée sur le projet Supabase réel (`vito-sainte-marie's Project`), vérifiée par relecture du schéma après application.
+
+### Changements (`nexus-inventaire-missions-donnees.js`)
+
+`genererOuChargerMissions` chargeait déjà `chargerIngredientsSelection` (pour `dernierControleParProduit`) et `chargerOuGenererPlan` (pour le périmètre du plan) — Article 11, ce lot ne fait qu'étendre ce qui était déjà lu, jamais une deuxième requête parallèle :
+- `ingredients.reglesParProduit`, `ingredients.produitsAvecAnomalieRecente`, `ingredients.anomaliesDetailParProduit` (déjà calculés par `chargerIngredientsSelection`, jusqu'ici seulement partiellement consommés) sont désormais transmis à `genererMissionsPourContexte`.
+- `PD.chargerSurprisesRecentes(client, site, dateISO)` — **la même fonction déjà utilisée par `chargerOuGenererPlan`** pour le plan tournant journalier — est appelée en parallèle et son résultat transmis en `surprisesRecentesParProduit`. Une seule notion de « surprise récente », partagée entre le plan et les missions ; jamais un second compteur.
+- Tous ces champs sont optionnels côté moteur (v2.301) et ignorés par les mission_rules en mode `'complet'`/`'tournant'` — non-régression garantie par construction, vérifiée par test.
+- **Filet de sécurité ajouté** : l'appel à `chargerSurprisesRecentes` est gardé par un `typeof ... === 'function'`, avec repli sur `Promise.resolve([])` si absent. Ce filet a été nécessaire dès la première exécution de la régression : le mock `NexusInventairePlanDonnees` du test pré-existant `test_inventaire_missions_sprint2.js` (Sprint 2, 29/08/2026) ne définissait pas cette fonction et une exception non gérée y a été détectée immédiatement (`TypeError: PD.chargerSurprisesRecentes is not a function`) — corrigé avant livraison, jamais un risque de casser la génération de TOUTES les missions du quart pour un ingrédient secondaire (Article 5).
+
+### Tests et régression
+
+Nouveau fichier `test_inventaire_rotation_intelligente_etape2.js` (3 scénarios) :
+1. `genererOuChargerMissions` avec une mission_rule en mode `'intelligent'` : les ingrédients réels (règles, dernier contrôle) sont bien threadés jusqu'au moteur — le périmètre résultant reflète une échéance dépassée (huileA, contrôlée il y a 30 jours) plutôt qu'un simple tri « moins récemment contrôlé » qui aurait pu donner le même résultat par coïncidence.
+2. Filet de sécurité : `NexusInventairePlanDonnees` sans `chargerSurprisesRecentes` (mock ancien) → aucune exception, génération de la mission non bloquée.
+3. Non-régression : une mission_rule en mode `'complet'` produit exactement le même résultat qu'avant ce lot, avec ou sans les nouveaux ingrédients fournis par le mock.
+
+**Régression complète rejouée avant livraison : 151 fichiers de test, 0 échec** (150 fichiers pré-existants, y compris `test_inventaire_missions_sprint2.js` où le filet de sécurité ci-dessus a été validé + le nouveau fichier de ce lot).
+
+### Ce que ce lot NE couvre PAS
+
+- Aucun écran modifié — l'écran Paramètres (Sprint 1 "Missions de contrôle") ne propose pas encore `mode_selection='intelligent'`/`inclure_surprise`/`nombre_surprises` dans son formulaire ; c'est l'Étape 3 de ce lot.
+- Le template `MISSION_RULES_DEFAUT_NEXUS` (installation d'un nouveau site) n'a pas été modifié — aucune mission par défaut n'utilise le mode `'intelligent'` pour l'instant, conformément au caractère opt-in de cette fonctionnalité (le manager l'active volontairement depuis Paramètres, pas une valeur imposée par défaut).
