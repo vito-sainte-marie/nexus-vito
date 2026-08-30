@@ -24,6 +24,8 @@
 <script src="nexus-forfait.js"></script>
 <script src="nexus-desktop.js"></script>
 <script src="nexus-inventaire-moteur.js"></script>
+<script src="nexus-inventaire-snapshot-moteur.js"></script>
+<script src="nexus-inventaire-snapshot-donnees.js"></script>
 <script src="nexus-inventaire-plan-donnees.js"></script>
 <script src="nexus-inventaire-manager-donnees.js"></script>
 <script src="nexus-inventaire-missions-donnees.js"></script>
@@ -464,6 +466,12 @@
     reviewFrequency: 'daily', weeklyReviewDay: 1, monthlyReviewDay: 1, reviewTime: '20:00',
     quantityAlertThreshold: 1, valueAlertThreshold: null, immediateAlertCategoryIds: [],
     closureDelayMinutes: 30, immediateAlertsEnabled: true,
+    // Snapshot Decenium (30/08/2026, Étape 1 "fondation") — seuil
+    // configurable de délai entre les deux exports (Ventes/Stock actuel)
+    // au-delà duquel NEXUS avertit le manager avant d'utiliser la Photo
+    // (doctrine §5 de Frédéric : jamais un seuil codé en dur). Valeur par
+    // défaut assumée (Article 5), ajustable après observation terrain.
+    snapshotMaxDelayMinutes: 5,
   };
   let parametresInventaire = { ...DEFAULTS_PARAMETRES_INVENTAIRE };
   let categoriesSite = [];
@@ -1498,6 +1506,16 @@
       // doit préserver l'historique).
       await nexusClient.from('inventaire_rapprochements').delete().eq('quart_id', quartRow.id);
 
+      // Snapshot Decenium — Étape 1 "fondation" (30/08/2026) : si une Photo
+      // Decenium (Ventes+Stock actuel) est déjà active pour ce site, on
+      // trace laquelle a servi à ce rapprochement (Article 11 : le calcul
+      // du rapprochement lui-même reste strictement inchangé — seule cette
+      // référence est nouvelle). null tant que l'Étape 2 (import du Stock
+      // actuel) n'a pas encore créé de Snapshot — comportement historique
+      // préservé à l'identique dans ce cas.
+      const snapshotActif = global.NexusInventaireSnapshotDonnees
+        ? await NexusInventaireSnapshotDonnees.chargerDernierSnapshotActif(nexusClient, siteId) : null;
+
       let nbEcarts = 0, nbSansComptage = 0, valeurEstimee = 0;
       const ecartsAuDessusSeuil = [];
       const nouveauxRapprochements = [];
@@ -1517,6 +1535,7 @@
           ecart: ecoulement !== null ? ecoulement - venteDecenium : null,
           source_import: 'decenium', importe_le: new Date().toISOString(),
           statut_validation: qualite,
+          snapshot_id: snapshotActif ? snapshotActif.id : null,
         });
         if (ecoulement === null) { nbSansComptage++; continue; }
         const ecart = ecoulement - venteDecenium;

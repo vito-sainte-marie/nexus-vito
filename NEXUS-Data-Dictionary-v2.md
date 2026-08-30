@@ -4596,3 +4596,62 @@ alter table public.inventaire_missions alter column site drop default;
 **Investigation boissons chaudes / deux lieux (point 12 de Frédéric)** : requête sur `inventaire_zone_produit` jointe à `inventaire_categories` (catégorie "Boissons chaudes / Bières", Sainte-Marie) : 15/20 références en `comptage_deux_lieux = true` (toutes les Bières + Coca Cola 50CL), 5/20 en `false` (Caresse 1L, Compteur machine à café Lavazza, Eau de Coco 50CL, Fruitybon Canne 50CL, Jus Fruitybon 50CL). Constat factuel transmis à Frédéric ci-dessous — aucune correction appliquée, car seul le terrain peut confirmer si ces 5 références sont réellement vendues uniquement depuis la boutique (pas de lacune) ou si elles existent aussi en dépôt (lacune de paramétrage à corriger).
 
 **Fichiers modifiés** : `NEXUS-Parametres-Inventaire-v1.html` (texte). **Migration Supabase** : `inventaire_v2_devitoisation_site_defaults` (déjà appliquée en production). **Tests** : suite complète rejouée après migration + modification texte — **144 fichiers de test, 0 échec** (schéma/texte n'affectent aucun test existant, migration purement additive côté contrainte).
+
+## v2.296 — Snapshot Decenium, Étape 1 « fondation » (30/08/2026)
+
+**Origine** : spécification complète de Frédéric (33 sections, "NEXUS INVENTAIRE V2 — SNAPSHOT DECENIUM"), suivie de sa validation explicite : "Oui, pars sur cette architecture." Trois principes verrouillés par Frédéric avant tout code :
+1. Le Snapshot est indépendant du quart — appartient au SITE, pas à un quart (« 1 Snapshot → N rapprochements → N quarts possibles », jamais l'inverse). `quart_id_source` est facultatif (contexte de création uniquement), jamais une clé métier.
+2. `snapshot_reference_at = stock_export_at` toujours — le stock actuel EST la photographie Decenium à l'instant T1.
+3. `inventaire_rapprochements` (résultat de calcul existant, Article 11) est préservé intégralement, seulement enrichi d'un `snapshot_id` nullable — aucune logique de calcul retouchée.
+
+Séparation stricte imposée par Frédéric et respectée dans ce lot : **Snapshot = source temporelle** (fiabilité de la donnée uniquement) / **Rapprochement = résultat calculé** / **Observation-alerte = interprétation métier** (cycle v2.295). Aucun statut métier ("sous observation", etc.) n'apparaît sur la table Snapshot.
+
+Livraison volontairement scindée en 5 étapes testables indépendamment (consigne explicite de Frédéric : "chaque couche doit pouvoir être testée avant la suivante", "il ne faut donc pas essayer de livrer les 15 critères en un seul bloc monolithique"). Ce lot ne couvre QUE l'Étape 1.
+
+### A. Migration Supabase (`inventaire_decenium_snapshots_fondation` + `inventaire_decenium_snapshots_rls_correction`)
+
+Nouvelle table `inventaire_decenium_snapshots` (Article 11 : ceci n'est PAS une duplication de `import_batches` — vérifié au préalable que ce système générique sert le catalogue/marge/BI via l'intention `'stock_theorique'`/`'ventes_catalogue'` et est quasi inutilisé en réel, à distinguer de l'import Ventes ad-hoc de "Comparaison Decenium" qui n'a jamais importé le Stock — les deux systèmes existants sont légitimement différents, et aucun des deux ne couvre le besoin d'une Photo Decenium combinée) :
+- `site text NOT NULL` (jamais de DEFAULT — leçon de v2.294 appliquée dès la conception).
+- `sales_filename/sales_export_at/sales_export_time_source/sales_imported_at` et l'équivalent `stock_*` — les deux exports composant la Photo.
+- `snapshot_reference_at timestamptz NOT NULL` = `stock_export_at` toujours (principe verrouillé n°2).
+- `export_order text NOT NULL DEFAULT 'unknown'`, `delta_seconds integer NULL` — l'ordre réel participe à la qualification, jamais un simple champ informatif.
+- `confidence_level text NOT NULL` (`haute`/`moyenne`/`faible`/`insuffisante` — catégoriel, jamais un faux score numérique, Article 5), `validated_with_reserve boolean NOT NULL DEFAULT false`.
+- `status text NOT NULL DEFAULT 'actif'` (cycle de vie du Snapshot lui-même — `actif`/`remplace` — à ne pas confondre avec `confidence_level` ; jamais un statut métier d'alerte).
+- `quart_id_source uuid NULL` (contexte de création facultatif, principe verrouillé n°1), `created_by uuid NULL`, `created_at timestamptz NOT NULL DEFAULT now()`.
+- `inventaire_rapprochements.snapshot_id uuid NULL REFERENCES inventaire_decenium_snapshots(id)` — colonne additive, aucune contrainte NOT NULL (les rapprochements créés avant ce lot restent valides avec `snapshot_id = null`).
+- Index `idx_inventaire_decenium_snapshots_site_reference` (site, snapshot_reference_at).
+
+**Auto-correction RLS avant toute livraison (Article 5)** : la première version de la migration posait une politique RLS placeholder (`using(true) with check(true)`) — repérée et corrigée immédiatement, avant tout retour utilisateur, par une seconde migration alignant la table sur le pattern réel vérifié via `pg_policy`/`pg_get_expr` sur `inventaire_rapprochements` : `current_employee_role() = ANY(['manager','gerant']) AND site = current_employee_site_id()`, appliqué en SELECT et en écriture (`select_inventaire_decenium_snapshots` / `ecriture_inventaire_decenium_snapshots`).
+
+### B. Moteur pur (`nexus-inventaire-snapshot-moteur.js`, nouveau fichier)
+
+Nouveau fichier plutôt qu'un ajout à `nexus-inventaire-moteur.js` (1569 lignes) — même logique de scission qu'entre `nexus-fdj-moteur.js` et `nexus-ecarts-moteur.js` (v2.268) quand un concern devient suffisamment autonome pour mériter son propre fichier :
+- `ordreExportDecenium(salesExportAt, stockExportAt)` → `'sales_then_stock'`/`'stock_then_sales'`/`'unknown'` (jamais déduit si un horodatage manque).
+- `deltaSecondesSnapshot(...)` → écart en secondes, peut être négatif, `null` si non calculable.
+- `qualifierSnapshotDecenium({ salesExportAt, stockExportAt, salesExportTimeSource, stockExportTimeSource, seuilMaxDelaiMinutes, manager_a_choisi_poursuivre })` — cœur de l'étape, pure (aucun accès réseau, aucun `new Date()` interne). Règles de confiance : sources estimées (`import_time_estimated`) plafonnent à `moyenne` ; ordre inversé plafonne à `moyenne` (cumul des deux réserves → `faible`) ; délai au-delà du seuil → toujours `faible`, avec `validated_with_reserve` posé uniquement si le manager a explicitement choisi de poursuivre (jamais automatique) ; horodatage manquant → `faible`, jamais un score inventé.
+- `libelleDelta`/`libelleConfianceSnapshot`/`libelleSourceHorodatage` — aucun chiffre brut ou valeur technique affichée telle quelle à l'écran (réservé à l'Étape 2 UX).
+- Seuil : `SEUIL_DEFAUT_DELAI_MAX_MINUTES = 5` comme filet de sécurité uniquement — **toujours transmis explicitement par l'appelant**, jamais lu en dur dans le moteur, conformément à la demande de Frédéric ("le seuil doit être configurable dans les paramètres Inventaire de la station").
+
+### C. Couche données (`nexus-inventaire-snapshot-donnees.js`, nouveau fichier)
+
+`creerSnapshot`, `chargerDernierSnapshotActif` (site + `status='actif'`, jamais filtré par quart — cohérent avec le principe verrouillé n°1), `chargerSnapshotParId`, `chargerHistoriqueSnapshots` (fourni par anticipation de l'Étape 5, non consommé dans ce lot), `remplacerAnciensSnapshotsActifs` (passe l'ancien Snapshot en `status='remplace'`, jamais une suppression — Article 5, l'historique reste consultable). Noms de colonnes vérifiés directement contre `information_schema.columns` après migration (pas une supposition).
+
+### D. Branchement réel (`NEXUS-Inventaire-Manager-v1.html::comparerVentesQuart`)
+
+Avant la boucle de construction des rapprochements, chargement du Snapshot actif du site (`NexusInventaireSnapshotDonnees.chargerDernierSnapshotActif`, gardé par `global.NexusInventaireSnapshotDonnees ?` pour ne jamais planter si le script venait à manquer). Chaque rapprochement inséré porte désormais `snapshot_id: snapshotActif ? snapshotActif.id : null` — comportement historique strictement préservé si aucun Snapshot n'existe encore pour le site (`null`, comme avant ce lot).
+
+**Seuil configurable** : `snapshotMaxDelayMinutes: 5` ajouté à `DEFAULTS_PARAMETRES_INVENTAIRE` (`NEXUS-Inventaire-Manager-v1.html`) — valeur par défaut assumée (Article 5), destinée à devenir réglable depuis `NEXUS-Parametres-Inventaire-v1.html` (champ UI non encore ajouté dans ce lot, le seuil n'est pour l'instant consommé nulle part côté import réel — la création effective de Snapshots, avec import Ventes+Stock combiné et l'écran "Photo Decenium", est l'objet de l'Étape 2).
+
+### Tests et régression
+
+Nouveau fichier `test_inventaire_snapshot_decenium_etape1.js` (24 tests) : moteur pur (ordre/delta/qualification dans toutes ses branches de confiance, y compris délai dépassé avec/sans décision manager, sources estimées, ordre inversé, horodatage manquant, seuil par défaut), couche données via mock du client Supabase (insert/select/update avec les noms de colonnes réels, gestion d'erreur sans exception), vérification par extraction de source du branchement réel dans `comparerVentesQuart` (chargement + attachement `snapshot_id` + garde défensive), de l'ordre de chargement des `<script>`, et de la présence de `snapshotMaxDelayMinutes` dans les valeurs par défaut.
+
+**Régression complète rejouée avant livraison : 146 fichiers de test, 0 échec** (145 fichiers pré-existants + le nouveau).
+
+### Ce que ce lot NE couvre PAS encore (transparence, à discuter avec Frédéric)
+
+- **Aucune création réelle de Snapshot** : ni écran d'import Ventes+Stock combiné, ni écran "Photo Decenium" (Étape 2 — emplacement prévu dans Contrôle Inventaire, renommage "Comparaison Decenium" → "Photo Decenium" à traiter à ce moment).
+- **Aucun avertissement manager si le délai entre les deux exports dépasse le seuil** — le moteur sait le détecter (`delai_depasse`) mais rien ne l'affiche ni ne demande confirmation ("Poursuivre quand même") : ce sera le premier usage réel du seuil configurable, prévu avec l'écran d'import de l'Étape 2.
+- **Champ de réglage du seuil dans `NEXUS-Parametres-Inventaire-v1.html`** non ajouté (seule la valeur par défaut existe côté manager).
+- **Reconstruction temporelle T1→T0, détection des trous et rétroactivité** restent les Étapes 3, 4 et 5, non commencées.
+- `remplacerAnciensSnapshotsActifs`/`chargerHistoriqueSnapshots` sont écrits mais non encore appelés depuis aucun écran (fournis par anticipation, Article 11, pour éviter une requête équivalente à écrire deux fois).
