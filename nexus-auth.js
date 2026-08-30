@@ -66,6 +66,12 @@ const nexusClient = supabase.createClient(NEXUS_SUPABASE_URL, NEXUS_SUPABASE_ANO
     scriptFdjManagerStabilite.defer = true;
     document.head.appendChild(scriptFdjManagerStabilite);
   }
+  if (page === 'NEXUS-Inventaire-Manager-v1.html') {
+    const scriptManagerPremium = document.createElement('script');
+    scriptManagerPremium.src = 'nexus-inventaire-manager-premium-v2.js';
+    scriptManagerPremium.defer = true;
+    document.head.appendChild(scriptManagerPremium);
+  }
 })();
 
 async function nexusRequireAuth() {
