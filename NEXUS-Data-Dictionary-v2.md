@@ -4957,3 +4957,37 @@ Nouveau fichier `test_inventaire_rotation_intelligente_etape2.js` (3 scénarios)
 
 - Aucun écran modifié — l'écran Paramètres (Sprint 1 "Missions de contrôle") ne propose pas encore `mode_selection='intelligent'`/`inclure_surprise`/`nombre_surprises` dans son formulaire ; c'est l'Étape 3 de ce lot.
 - Le template `MISSION_RULES_DEFAUT_NEXUS` (installation d'un nouveau site) n'a pas été modifié — aucune mission par défaut n'utilise le mode `'intelligent'` pour l'instant, conformément au caractère opt-in de cette fonctionnalité (le manager l'active volontairement depuis Paramètres, pas une valeur imposée par défaut).
+
+## v2.304 — P0 : 400 Supabase sur nexus_risk_signals (domaine « inventaire » non autorisé) (30/08/2026)
+
+**Origine** : remontée directe de Frédéric — capture Safari, console affichant une rafale de `Failed to load resource: the server responded with a status of 400` sur `rest/v1/nexus_risk_signals?...`, en marge de la vérification du correctif `global` (v2.302). Deux points annexes soulevés dans le même message, traités ci-dessous également.
+
+### Diagnostic (Article 5 — vérifié sur le schéma Supabase réel, pas une supposition)
+
+`nexus-risques-donnees.js` (Cadrage risques Phase 6 "Inventaire", tâche #235, 18/08/2026) écrit systématiquement `domaine: 'inventaire'` pour qualifier une alerte Inventaire récurrente (`qualifierEtEnregistrerRisquesPilote` → `enregistrerObservation` → insert/update sur `nexus_risk_signals`). Lecture directe de la contrainte réelle en base :
+```sql
+CHECK ((domaine = ANY (ARRAY['marge','caisse','stock','carburant','fdj','equipe','conformite'])))
+```
+`'inventaire'` n'y figure pas — et ne l'a jamais été depuis le lancement de ce pilote (grep confirmé : moteur, données ET le test d'origine `test_risques_phase6_inventaire_fdj_equipe.js` utilisent tous cohéremment `'inventaire'`, jamais `'stock'`). La contrainte, elle, n'a simplement jamais été alignée. Résultat : **chaque écriture d'un signal de risque Inventaire échoue en 400 depuis le 18/08/2026**, de façon totalement silencieuse — `enregistrerObservation` ne fait qu'un `console.error` sur l'échec, jamais remonté à l'écran (conçu à l'origine pour ne jamais bloquer l'affichage sur un problème d'un domaine annexe, mais qui a ici masqué une vraie régression pendant 12 jours). Confirmé la cause exacte, pas une supposition : reproduction réelle en base (insert test avec `domaine='inventaire'` → 400 avant correctif) puis vérification post-correctif (même insert → succès, ligne supprimée aussitôt après vérification).
+
+### Correctif
+
+Migration `nexus_risk_signals_domaine_inventaire` : contrainte élargie à `'marge','caisse','stock','carburant','fdj','equipe','conformite','inventaire'`. `'stock'` conservé bien qu'inutilisé par aucun code trouvé (Article 5 : on élargit, on ne retire jamais une valeur historique sans certitude qu'aucune ligne n'en dépend).
+
+Commentaire ajouté dans `nexus-risques-donnees.js` au-dessus de `promessesInventaire` : rappel explicite que la liste des domaines autorisés vit uniquement dans la contrainte SQL (jamais dupliquée en constante JS, Article 11 — c'est exactement cette duplication implicite, contrainte figée pendant qu'un nouveau domaine était ajouté côté code, qui a causé ce P0), et que les tests JS de ce fichier (client Supabase mocké) ne peuvent structurellement pas attraper une violation de contrainte SQL — seule une vérification contre la base réelle le peut.
+
+### Points annexes soulevés par Frédéric — investigués, pas de code changé
+
+1. **« Rafale » de requêtes** : confirmée réelle, pas une impression. `qualifierEtEnregistrerRisquesPilote` appelle `enregistrerObservation` une fois par produit_id en alerte (`Object.keys(alertesInventaire)`), et chaque appel fait 1 lecture (`chargerSignalExistant`) + 1 écriture (insert ou update) sur `nexus_risk_signals`. Vérifié en base : **93 produits distincts** ont une alerte ouverte/en_cours sur les 30 derniers jours sur vito-sainte-marie — soit jusqu'à ~186 requêtes HTTP par affichage de Contrôle Inventaire. Ce N+1 n'est pas propre à Inventaire : c'est le même mécanisme `enregistrerObservation`, réutilisé à l'identique par les 6 domaines pilotes (caisse, marge, carburant, inventaire, fdj, équipe) depuis l'origine du Cadrage risques (Article 11 — une seule fonction d'orchestration partagée). Le corriger proprement (lecture groupée + upsert en lot) toucherait donc les 6 domaines à la fois, pas seulement Inventaire — **volontairement non traité dans ce correctif P0** (scope différent, mérite son propre lot testé sur les 6 domaines) ; proposé comme prochain chantier séparé, en attente de confirmation de Frédéric.
+2. **Couverture 7/14/30 jours identique (6/112)** : vérifié sur les données réelles, ce n'est **pas un bug**. Le cutover `PRODUCTION_START` de vito-sainte-marie date du 21/08/2026 16:56 (9 jours avant ce diagnostic) ; exactement 6 produits ont un contrôle physique post-cutover en base, tous datés du 27-28/08/2026 (2-3 jours avant ce diagnostic) — aucun ne se situe dans un écart qui différencierait les fenêtres 7/14/30 jours. Le calcul (`couverturePhysique`, inchangé) est honnête : le site est en tout tout début de pilote terrain, exactement ce que le badge "Observation terrain" affiché sur la même capture annonce déjà. Aucune correction nécessaire ; réponse transmise à Frédéric pour clore ce point.
+3. **Champs "Heure réelle export" du bloc Photo Decenium** : remarque UX notée, explicitement différée par Frédéric lui-même ("on affinera cela après stabilisation technique") — pas d'action dans ce lot.
+
+### Tests et régression
+
+Aucun fichier de test JS ne peut valider une contrainte SQL (les mocks Supabase ne connaissent pas les CHECK) — vérification faite exclusivement par insertion réelle en base (voir Diagnostic ci-dessus). **Régression complète rejouée : 151 fichiers de test, 0 échec** (aucun test cassé par le commentaire ajouté, migration invisible côté JS).
+
+### Ce que ce lot NE couvre PAS
+
+- N'a pas retiré `'stock'` de la contrainte (aucune preuve qu'il soit totalement mort).
+- N'a pas batché les écritures `nexus_risk_signals` (point 1 ci-dessus) — scope à confirmer séparément, touche les 6 domaines pilotes.
+- N'a pas modifié le calcul de couverture physique (point 2) — vérifié sain, aucune correction nécessaire.

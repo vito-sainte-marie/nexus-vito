@@ -338,6 +338,20 @@
     // Domaine Inventaire (Cadrage risques Phase 6, tâche #235, 18/08/2026)
     // — OPTIONNEL, même discipline que Marge/Carburants ci-dessus : un
     // appelant qui ne passe pas `alertesInventaire` voit ce volet ignoré.
+    //
+    // P0 corrigé le 30/08/2026 (v2.304, remontée Frédéric — Safari) : la
+    // contrainte CHECK sur `nexus_risk_signals.domaine` n'incluait pas
+    // 'inventaire' à son lancement (18/08/2026) — chaque écriture échouait
+    // en 400 depuis cette date, silencieusement absorbée par le
+    // console.error d'enregistrerObservation. RAPPEL pour tout nouveau
+    // domaine ajouté ici à l'avenir : la liste des valeurs autorisées vit
+    // UNIQUEMENT dans la contrainte SQL `nexus_risk_signals_domaine_check`
+    // (Article 11 — jamais dupliquée en constante JS qui pourrait diverger
+    // de la même façon) ; toujours élargir cette contrainte AVANT
+    // d'introduire un nouveau `domaine:` littéral ici, et vérifier après
+    // coup par un insert réel (les tests JS de ce fichier utilisent un
+    // client Supabase mocké — ils ne peuvent pas attraper une violation de
+    // contrainte SQL, seule une vérification contre la base réelle le peut).
     const promessesInventaire = Object.keys(alertesInventaire || {}).map(produitId => {
       const donnee = (alertesInventaire || {})[produitId];
       if (!donnee) return Promise.resolve(null);
