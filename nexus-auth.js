@@ -37,6 +37,11 @@ const nexusClient = supabase.createClient(NEXUS_SUPABASE_URL, NEXUS_SUPABASE_ANO
     scriptStockLocalise.src = 'nexus-inventaire-parametres-stock-localise.js';
     scriptStockLocalise.defer = true;
     document.head.appendChild(scriptStockLocalise);
+
+    const scriptReglesUx = document.createElement('script');
+    scriptReglesUx.src = 'nexus-inventaire-regles-ux-v2.js';
+    scriptReglesUx.defer = true;
+    document.head.appendChild(scriptReglesUx);
   }
 })();
 
