@@ -21,6 +21,12 @@ const nexusClient = supabase.createClient(NEXUS_SUPABASE_URL, NEXUS_SUPABASE_ANO
     scriptTransferts.defer = true;
     document.head.appendChild(scriptTransferts);
   }
+  if (['NEXUS-Inventaire-v1.html', 'NEXUS-Inventaire-Manager-v1.html'].includes(page)) {
+    const scriptStockEntry = document.createElement('script');
+    scriptStockEntry.src = 'nexus-inventaire-stock-localise-entry.js';
+    scriptStockEntry.defer = true;
+    document.head.appendChild(scriptStockEntry);
+  }
   if (['NEXUS-Inventaire-v1.html', 'NEXUS-Inventaire-Manager-v1.html', 'NEXUS-Parametres-Inventaire-v1.html'].includes(page)) {
     const scriptRotation = document.createElement('script');
     scriptRotation.src = 'nexus-inventaire-rotation-intelligente.js';
