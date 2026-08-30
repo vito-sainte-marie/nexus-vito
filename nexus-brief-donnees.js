@@ -674,6 +674,24 @@
     return count;
   }
 
+  // Sprint "Cockpit — enrichir Opérations" (29/08/2026, doctrine "NEXUS
+  // Inventaire V2" — Frédéric a choisi explicitement de garder Inventaire
+  // fondu dans le secteur transversal Opérations, jamais un secteur à part
+  // entière, cf. décision architecturale antérieure de l'audit du 12/08/2026
+  // dans nexus-secteurs-moteur.js). `chargerAlertesInventaireOuvertes`
+  // (ci-dessus, inchangée) ne distingue pas la gravité — cette fonction
+  // ajoute UNIQUEMENT le sous-compte des alertes critiques, même requête,
+  // même table, un seul filtre `gravite` en plus (Article 11 : jamais une
+  // deuxième lecture différente d'inventaire_alertes, même mécanisme exact
+  // que nbCritiquesCaisse pour la caisse). Nouvelle valeur additive : aucun
+  // appelant existant n'est modifié, `alertesInvOuvertes` garde exactement
+  // son comportement d'avant.
+  async function chargerAlertesInventaireCritiquesOuvertes(client, siteId) {
+    const { count, error } = await client.from('inventaire_alertes').select('id', { count: 'exact', head: true }).eq('site', siteId).eq('statut', 'ouverte').eq('gravite', 'critique');
+    if (error) { console.error('Chargement alertes inventaire critiques (Brief):', error); return null; }
+    return count;
+  }
+
   async function chargerControlesVerifyRestants(client, siteId) {
     return global.NexusConseillerDonnees.chargerControlesVerifyRestants(client, siteId);
   }
@@ -705,7 +723,7 @@
     chargerDerniereReferenceFdj, chargerCarburantsBrief, chargerCarburantsBriefAvecFallback, chargerCandidatsFdj,
     chargerJournalFraicheurExistant, enregistrerFraicheurSecteur,
     chargerSeuilsCoachEquipeFdj, chargerCandidatsCoachEquipe, chargerCandidatCommandeCarburant,
-    chargerDomaineEquipe, chargerAlertesInventaireOuvertes, chargerControlesVerifyRestants, chargerMissionsRestantes,
+    chargerDomaineEquipe, chargerAlertesInventaireOuvertes, chargerAlertesInventaireCritiquesOuvertes, chargerControlesVerifyRestants, chargerMissionsRestantes,
     chargerJournalDecisions,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

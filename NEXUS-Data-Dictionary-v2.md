@@ -4481,3 +4481,33 @@ Une seule nouvelle fonction, minimale par conception (Article 11 — la fonction
 **Tests** : suite complète du dépôt rejouée avant livraison : **143 fichiers de test, 0 échec**. Syntaxe vérifiée (`node --check` sur `nexus-inventaire-moteur.js`, `nexus-inventaire-missions-donnees.js`, et sur le script extrait de `NEXUS-Inventaire-Manager-v1.html`).
 
 **Non livré dans ce lot (Sprint 6 du plan de Frédéric)** : le cockpit manager et la Progression fiabilité/qualité/écarts restent le dernier chantier du plan à 6 sprints. Aucune UI de résolution/action n'a été ajoutée à partir de la nouvelle vue par mission (elle est en lecture seule, un manager qui veut agir sur un écart utilise toujours le mécanisme existant au niveau produit) — à évaluer avec Frédéric si une action groupée "par mission" apporterait une valeur réelle.
+
+## Point de cadrage — "Sprint 6" n'existait pas dans les mots de Frédéric (29/08/2026)
+
+Avant de continuer après le Sprint 5, vérification explicite avec Frédéric : le "Sprint 6 (cockpit & progression)" qui apparaissait dans les notes de suivi internes était une étiquette de travail auto-générée en tout début d'engagement sur ce chantier, jamais une demande formulée par Frédéric avec ce contenu précis. Sa propre liste de wireframes (§3 de sa doctrine, transmise avant le Sprint 4) n'en comptait que 4 : accueil mission employé, comptage d'une référence, progression à deux jauges, cockpit manager — les trois premiers sont couverts par les Sprints 1-4 ; le quatrième ("cockpit manager") était déjà largement couvert par l'écran `NEXUS-Inventaire-Manager-v1.html` existant, complété par la vue par mission du Sprint 5. Plutôt que d'inventer un nouveau périmètre "Sprint 6" non vérifié (répétant l'erreur du "cycles d'observation" du Sprint 4), la question a été posée directement à Frédéric : il a choisi d'intégrer Inventaire au Cockpit multi-secteurs de la station (`NEXUS-Cockpit-v2.html`/`NEXUS-Brief-v1.html`), où Inventaire n'apparaissait jusqu'ici que noyé dans un compteur brut d'alertes du secteur "Opérations".
+
+**Découverte déterminante avant de coder (Article 5/11)** : `nexus-secteurs-moteur.js` documente une décision architecturale ANTÉRIEURE et EXPLICITE (audit du 12/08/2026) : *"Opérations est le secteur transversal qui agrège caisse/inventaire/stock, exactement comme demandé par l'audit... sans dupliquer les moteurs détaillés."* Créer un secteur Inventaire autonome (comme Carburants/FDJ/Équipe/Marge) serait allé à l'encontre de cette décision déjà actée, et aurait changé le nombre de secteurs moyennés dans l'Indice Boussole — un impact plus large que ce qu'impliquait la formulation initiale de la question posée à Frédéric. Ce conflit a été signalé explicitement avant d'écrire une ligne de code ; Frédéric a choisi l'option sans risque : enrichir Opérations avec les vrais signaux Inventaire plutôt que de créer un secteur à part.
+
+## v2.293 — Cockpit "enrichir Opérations" avec les alertes Inventaire critiques (29/08/2026)
+
+**Origine** : suite du point de cadrage ci-dessus. Décision de Frédéric confirmée : garder Inventaire fondu dans le secteur Opérations (aucun changement de l'architecture Cockpit à 5 secteurs), mais remplacer le compteur brut d'alertes ouvertes (`alertesInvOuvertes`, qui existait déjà) par une information plus utile — distinguer les alertes CRITIQUES du total, exactement comme cela existe déjà pour la caisse (`nbCritiquesCaisse`).
+
+**Portée volontairement minimale (Article 5, "sans risque" demandé explicitement par Frédéric)** : ce lot ne touche NI au score (`valeur`) NI au statut métier (`statut`) du secteur Opérations — ceux-ci restent calculés exclusivement à partir de l'écart de caisse moyen (`scoreOperations`), inchangé depuis le 22/08/2026 ("Opérations : principalement Maîtrise", précision déjà actée de Frédéric). Les alertes inventaire restent, comme avant, uniquement une PHRASE DE RISQUE (`risques[]`/`frein`), jamais un facteur de score — vérifié explicitement par test (le statut et la valeur du secteur sont strictement identiques avec 0 ou 20 alertes critiques inventaire).
+
+### A. Couche données (`nexus-brief-donnees.js`)
+
+- `chargerAlertesInventaireCritiquesOuvertes(client, siteId)` (nouvelle) — même requête exacte que `chargerAlertesInventaireOuvertes` (inchangée), un seul filtre `.eq('gravite', 'critique')` ajouté. Aucune deuxième table, aucun nouveau concept (Article 11).
+
+### B. Moteur pur (`nexus-secteurs-moteur.js`)
+
+- `construireSecteurOperations` accepte un nouveau paramètre optionnel `alertesInvCritiquesOuvertes`. Quand il est fourni et positif, la phrase de risque existante ("N alertes inventaire ouvertes.") devient "N alertes inventaire ouvertes dont M critiques." — sinon (paramètre absent, comme pour tout appelant/test non mis à jour, ou égal à 0), la phrase reste RIGOUREUSEMENT identique à avant ce lot. Zéro régression vérifiée explicitement par test sur le comportement historique.
+
+### C. Écran (`NEXUS-Brief-v1.html`)
+
+- Nouvel appel `NexusBriefDonnees.chargerAlertesInventaireCritiquesOuvertes` ajouté au `Promise.all` existant (même écran de chargement 100% dynamique déjà en place, aucun compteur codé en dur à ajuster), et transmis à `construireSecteurs` aux côtés de `alertesInvOuvertes`.
+
+**Fichiers modifiés** : `nexus-brief-donnees.js`, `nexus-secteurs-moteur.js`, `NEXUS-Brief-v1.html`. **Fichier de test créé** : `test_secteurs_operations_inventaire_critique.js` (6 tests : non-régression sans le nouveau champ, non-régression à 0 critique, phrase enrichie avec critiques, accord singulier/pluriel, aucune alerte du tout, et la garantie Article 5 que statut/valeur ne dépendent jamais des alertes inventaire).
+
+**Tests** : suite complète du dépôt rejouée avant livraison : **144 fichiers de test, 0 échec** (y compris `test_verify_operations_jours_exploitables_v2221.js`, qui n'a pas été modifié et qui n'appelle jamais le nouveau champ — confirme la non-régression en conditions réelles, pas seulement en théorie). Syntaxe vérifiée (`node --check` sur `nexus-brief-donnees.js`, `nexus-secteurs-moteur.js`, et sur le script extrait de `NEXUS-Brief-v1.html`).
+
+**Non livré dans ce lot** : aucune Couverture (missions) n'a été ajoutée à Opérations — délibérément, car Opérations mesure une moyenne glissante multi-jours alors que la Couverture (Sprints 3/4) est une notion par quart ; l'agréger proprement sur une période demanderait une nouvelle fonction moteur (`couvertureMissions` appliquée sur plusieurs quarts), une vraie extension plutôt qu'un enrichissement "sans risque" — à proposer séparément si Frédéric le souhaite. Aucune vue manager de la répartition par mission n'a été ajoutée au Cockpit station (reste propre à `NEXUS-Inventaire-Manager-v1.html`, Sprint 5).

@@ -447,7 +447,7 @@
   // Performance reste neutre (null) — pas une absence de donnée, un choix
   // de modélisation assumé (`couverture` reste 'complete' pour ce secteur,
   // un axe non modélisé n'est pas un axe manquant).
-  function construireSecteurOperations(entree, { constatTempo, controlesVerifyRestants, nbCritiquesCaisse, alertesInvOuvertes, risqueStockTotal, phrasesRisqueCaisse }) {
+  function construireSecteurOperations(entree, { constatTempo, controlesVerifyRestants, nbCritiquesCaisse, alertesInvOuvertes, alertesInvCritiquesOuvertes, risqueStockTotal, phrasesRisqueCaisse }) {
     const B = boussole();
     if (!constatTempo.totalJours) return secteurVide(entree, "Pas encore assez d'audits de caisse enregistrés.");
     const scoreEcart = B.scoreOperations(constatTempo.detailOperations, constatTempo.totalJours);
@@ -491,7 +491,21 @@
     // dupliquer les moteurs détaillés").
     const risques = [];
     if (nbCritiquesCaisse) risques.push(`${nbCritiquesCaisse} écart${nbCritiquesCaisse > 1 ? 's' : ''} de caisse critique${nbCritiquesCaisse > 1 ? 's' : ''}.`);
-    if (alertesInvOuvertes) risques.push(`${alertesInvOuvertes} alerte${alertesInvOuvertes > 1 ? 's' : ''} inventaire ouverte${alertesInvOuvertes > 1 ? 's' : ''}.`);
+    // Sprint "Cockpit — enrichir Opérations" (29/08/2026) : distingue les
+    // alertes inventaire CRITIQUES (catégorie sensible ou gravité critique,
+    // cf. NEXUS-Inventaire-Manager-v1.html::depasseSeuilException) du total
+    // — jamais un second calcul de gravité (Article 11, même colonne
+    // `gravite` déjà posée à l'écriture de l'alerte), uniquement un
+    // deuxième comptage optionnel. `alertesInvCritiquesOuvertes` absent
+    // (appelant non mis à jour, ou test existant) -> comportement
+    // RIGOUREUSEMENT identique à avant (une seule phrase, total brut).
+    if (alertesInvOuvertes) {
+      const critiques = alertesInvCritiquesOuvertes;
+      const phraseCritiques = (critiques != null && critiques > 0)
+        ? ` dont ${critiques} critique${critiques > 1 ? 's' : ''}`
+        : '';
+      risques.push(`${alertesInvOuvertes} alerte${alertesInvOuvertes > 1 ? 's' : ''} inventaire ouverte${alertesInvOuvertes > 1 ? 's' : ''}${phraseCritiques}.`);
+    }
     if (risqueStockTotal > 0) risques.push(`${Math.round(risqueStockTotal).toLocaleString('fr-FR')} € de risque stock estimé.`);
     (phrasesRisqueCaisse || []).forEach(p => risques.push(p));
     const frein = (statut !== 'Sous contrôle' || risques.length)
@@ -611,7 +625,7 @@
     fdj: (entree, d) => construireSecteurFdj(entree, d.fdjResume),
     operations: (entree, d) => construireSecteurOperations(entree, {
       constatTempo: d.constatTempo, controlesVerifyRestants: d.controlesVerifyRestants,
-      nbCritiquesCaisse: d.nbCritiquesCaisse, alertesInvOuvertes: d.alertesInvOuvertes, risqueStockTotal: d.risqueStockTotal,
+      nbCritiquesCaisse: d.nbCritiquesCaisse, alertesInvOuvertes: d.alertesInvOuvertes, alertesInvCritiquesOuvertes: d.alertesInvCritiquesOuvertes, risqueStockTotal: d.risqueStockTotal,
       phrasesRisqueCaisse: d.phrasesRisqueCaisse,
     }),
     equipe: (entree, d) => construireSecteurEquipe(entree, { domaineEquipe: d.domaineEquipe, seuilMinPointages: d.seuilMinPointages }),

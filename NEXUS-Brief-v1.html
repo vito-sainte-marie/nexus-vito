@@ -519,7 +519,7 @@
     // 11/08/2026) — chacun appelé directement avec (nexusClient, SITE_ACTUEL,
     // ...) plutôt que via un alias local, ce fichier ne gardant plus que
     // l'orchestration et l'affichage (Data Dictionary v2.40).
-    const [margePlusResultat, constatTempo, messagesAdvisor, candidatsCaisseObj, candidatsStock, candidatsRappels, candidatsFdjObj, candidatsCoach, domaineEquipe, alertesInvOuvertes, controlesVerifyRestants, missionsRestantes, carburants, agregationCaisseParQuart, candidatsCommandeCarburant] = await Promise.all([
+    const [margePlusResultat, constatTempo, messagesAdvisor, candidatsCaisseObj, candidatsStock, candidatsRappels, candidatsFdjObj, candidatsCoach, domaineEquipe, alertesInvOuvertes, alertesInvCritiquesOuvertes, controlesVerifyRestants, missionsRestantes, carburants, agregationCaisseParQuart, candidatsCommandeCarburant] = await Promise.all([
       NexusBriefDonnees.chargerMargePlus(nexusClient, SITE_ACTUEL, rowsBrut).then(onMargeResolue),
       NexusBriefDonnees.chargerConstatTempo(nexusClient, SITE_ACTUEL).then(onOperationsResolue),
       NexusBriefDonnees.chargerMessagesAdvisor(nexusClient, SITE_ACTUEL).then(onOperationsResolue),
@@ -530,6 +530,13 @@
       NexusBriefDonnees.chargerCandidatsCoachEquipe(nexusClient, SITE_ACTUEL).then(onFdjResolue),
       NexusBriefDonnees.chargerDomaineEquipe(nexusClient).then(onEquipeResolue),
       NexusBriefDonnees.chargerAlertesInventaireOuvertes(nexusClient, SITE_ACTUEL).then(onOperationsResolue),
+      // Sprint "Cockpit — enrichir Opérations" (29/08/2026, doctrine NEXUS
+      // Inventaire V2) : sous-compte des alertes inventaire CRITIQUES,
+      // additif à alertesInvOuvertes ci-dessus (jamais un remplacement,
+      // Article 11) — Frédéric a explicitement choisi de garder Inventaire
+      // fondu dans Opérations plutôt qu'un secteur à part (décision
+      // architecturale antérieure de l'audit du 12/08/2026, confirmée).
+      NexusBriefDonnees.chargerAlertesInventaireCritiquesOuvertes(nexusClient, SITE_ACTUEL).then(onOperationsResolue),
       NexusBriefDonnees.chargerControlesVerifyRestants(nexusClient, SITE_ACTUEL).then(onOperationsResolue),
       NexusBriefDonnees.chargerMissionsRestantes(nexusClient, SITE_ACTUEL),
       // chargerCarburantsBriefAvecFallback (22/08/2026, fallback temporel
@@ -692,7 +699,7 @@
     // plutôt que de rappeler secteursActifsSite() une seconde fois.
     const secteurs = NexusSecteursMoteur.construireSecteurs(secteursCheck.secteurs, {
       carburants, facteurs, margePlusResultat, fdjResume, constatTempo, controlesVerifyRestants,
-      nbCritiquesCaisse, alertesInvOuvertes, risqueStockTotal,
+      nbCritiquesCaisse, alertesInvOuvertes, alertesInvCritiquesOuvertes, risqueStockTotal,
       domaineEquipe, seuilMinPointages: SEUIL_MIN_POINTAGES_EQUIPE,
       phrasesRisqueMarge, phrasesRisqueCaisse, signauxRisqueMargeQualifies,
       // siteId (23/08/2026, v2.223, contrat commun de sortie des moteurs,
