@@ -1,10 +1,12 @@
 // NEXUS Stock Engine — source centrale de lecture du stock.
 // Principe : le stock réel et le stock théorique restent deux vérités distinctes.
 // Aucun moteur NEXUS ne doit les additionner ni écraser l'une avec l'autre.
-// V3 : le stock réel localisé intègre les transferts internes postérieurs au dernier relevé physique.
+// V4 : lecture prioritaire via RPC SECURITY DEFINER pour éviter les erreurs REST/RLS
+// observées sur les vues imbriquées. Les vues restent disponibles en repli.
 (function(){
   'use strict';
 
+  const RPC='nexus_stock_lire_etat';
   const VUE_V3='nexus_stock_etat_v3';
   const VUE_V2='nexus_stock_etat_v2';
   const VUE_V1='nexus_stock_etat';
@@ -22,11 +24,26 @@
     return q.order('designation',{ascending:true});
   }
 
+  function filtrerLocal(data,options={}){
+    let rows=data || [];
+    if(options.actifsSeulement !== false) rows=rows.filter(r=>r.actif===true);
+    if(options.produitId) rows=rows.filter(r=>String(r.produit_id)===String(options.produitId));
+    if(options.categorieId) rows=rows.filter(r=>String(r.categorie_id)===String(options.categorieId));
+    if(options.natureReference) rows=rows.filter(r=>r.stock_reference_nature===options.natureReference);
+    return rows;
+  }
+
   async function chargerEtat(site,options={}){
     assertClient();
     if(!site) throw new Error('NEXUS Stock Engine: site requis');
 
-    let {data,error}=await executerLecture(VUE_V3,site,options);
+    // Voie nominale : RPC serveur. Elle contourne les erreurs 500 rencontrées
+    // par PostgREST sur les vues imbriquées tout en conservant le filtrage site.
+    let {data,error}=await nexusClient.rpc(RPC,{p_site:site});
+    if(!error) return filtrerLocal(data,options).map(normaliserEtat);
+
+    console.warn('NEXUS Stock Engine — RPC indisponible, repli sur vues:',error);
+    ({data,error}=await executerLecture(VUE_V3,site,options));
     if(error){
       const fallbackV2=await executerLecture(VUE_V2,site,options);
       data=fallbackV2.data;
@@ -137,6 +154,21 @@
     return {titre:'Deux stocks, mais comparaison provisoire',detail:'Le réel et le théorique existent, mais leurs horodatages sont trop éloignés. NEXUS ne transforme pas l’écart brut en anomalie.',niveau:etat.stock_reference_confiance};
   }
 
+  // Compatibilité avec une ancienne couche Cockpit restée en cache dans
+  // certains navigateurs. Elle ne reconstruit aucun stock : elle fournit
+  // seulement un résumé neutre à partir des lignes déjà chargées.
+  function calculerAnalyseStock(releves=[],ventes=[],controles=[]){
+    const rows=Array.isArray(releves)?releves:[];
+    return {
+      total:rows.length,
+      avecStockReel:rows.filter(r=>(r.stock_reel_observe ?? r.stock_reel ?? null)!=null).length,
+      avecStockTheorique:rows.filter(r=>r.stock_theorique!=null).length,
+      comparables:rows.filter(r=>r.comparaison_fiable===true).length,
+      ventes:Array.isArray(ventes)?ventes.length:0,
+      controles:Array.isArray(controles)?controles.length:0
+    };
+  }
+
   window.NexusStock=Object.freeze({
     chargerEtat,
     chargerProduit,
@@ -144,6 +176,7 @@
     comparer,
     expliquer,
     normaliserEtat,
+    calculerAnalyseStock,
     doctrine:Object.freeze({
       reel:'inventaire physique observé et horodaté',
       theorique:'stock logiciel/importé, conservé séparément',
