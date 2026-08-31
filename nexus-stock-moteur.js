@@ -1,11 +1,12 @@
 // NEXUS Stock Engine — source centrale de lecture du stock.
 // Principe : le stock réel et le stock théorique restent deux vérités distinctes.
 // Aucun moteur NEXUS ne doit les additionner ni écraser l'une avec l'autre.
-// V5 : lecture unique par RPC. Les anciennes vues REST imbriquées provoquaient
-// des 500 et ne doivent plus être appelées depuis le navigateur.
+// V6 : lecture RPC unique + cache mémoire court partagé entre Cockpit/Conseiller/Radar.
 (function(){
   'use strict';
   const RPC='nexus_stock_lire_etat';
+  const CACHE_TTL_MS=15000;
+  const cache=new Map();
 
   function assertClient(){
     if(typeof nexusClient==='undefined') throw new Error('NEXUS Stock Engine: nexusClient indisponible');
@@ -20,18 +21,36 @@
     return rows;
   }
 
+  async function chargerBrut(site){
+    const now=Date.now();
+    const c=cache.get(site);
+    if(c?.data && (now-c.at)<CACHE_TTL_MS) return c.data;
+    if(c?.promise) return c.promise;
+
+    const promise=(async()=>{
+      const {data,error}=await nexusClient.rpc(RPC,{p_site:site});
+      if(error) throw new Error(`NEXUS Stock Engine — lecture centrale indisponible (${error.message||error.code||'RPC'})`);
+      const rows=(Array.isArray(data)?data:[]).map(normaliserEtat);
+      cache.set(site,{data:rows,at:Date.now(),promise:null});
+      return rows;
+    })();
+    cache.set(site,{data:c?.data||null,at:c?.at||0,promise});
+    try{return await promise;}catch(e){cache.delete(site);throw e;}
+  }
+
   async function chargerEtat(site,options={}){
     assertClient();
     if(!site) throw new Error('NEXUS Stock Engine: site requis');
-    const {data,error}=await nexusClient.rpc(RPC,{p_site:site});
-    if(error) throw new Error(`NEXUS Stock Engine — lecture centrale indisponible (${error.message||error.code||'RPC'})`);
-    return filtrerLocal(data,options).map(normaliserEtat);
+    const rows=await chargerBrut(site);
+    return filtrerLocal(rows,options);
   }
 
   async function chargerProduit(site,produitId){
     const rows=await chargerEtat(site,{produitId,actifsSeulement:false});
     return rows[0]||null;
   }
+
+  function invaliderCache(site){ if(site) cache.delete(site); else cache.clear(); }
 
   function normaliserEtat(etat){
     if(!etat) return etat;
@@ -75,14 +94,33 @@
     return {titre:'Deux stocks, mais comparaison provisoire',detail:'Le réel et le théorique existent, mais leurs horodatages sont trop éloignés. NEXUS ne transforme pas l’écart brut en anomalie.',niveau:etat.stock_reference_confiance};
   }
 
-  // Compatibilité temporaire avec les anciennes couches Cockpit.
+  // Compatibilité avec l'ancien Conseiller Cockpit : il attend un tableau par rayon.
+  // Aucun rayon n'est remonté tant que l'écart réel/théorique n'est pas fiable.
   function calculerAnalyseStock(releves=[],ventes=[],controles=[]){
     const rows=Array.isArray(releves)?releves:[];
-    return {total:rows.length,avecStockReel:rows.filter(r=>(r.stock_reel_observe??r.stock_reel??null)!=null).length,avecStockTheorique:rows.filter(r=>r.stock_theorique!=null).length,comparables:rows.filter(r=>r.comparaison_fiable===true).length,ventes:Array.isArray(ventes)?ventes.length:0,controles:Array.isArray(controles)?controles.length:0};
-  }
-  function calculerRisqueParRayon(analyse){
-    return {niveau:'non_evalue',score:null,analyse:analyse||null,raison:'Le Stock Engine central fournit la connaissance du stock sans fabriquer un score de risque rayon.'};
+    return {
+      rows,
+      total:rows.length,
+      avecStockReel:rows.filter(r=>(r.stock_reel_observe??r.stock_reel??null)!=null).length,
+      avecStockTheorique:rows.filter(r=>r.stock_theorique!=null).length,
+      comparables:rows.filter(r=>r.comparaison_fiable===true).length,
+      ventes:Array.isArray(ventes)?ventes.length:0,
+      controles:Array.isArray(controles)?controles.length:0
+    };
   }
 
-  window.NexusStock=Object.freeze({chargerEtat,chargerProduit,stockPourUsage,comparer,expliquer,normaliserEtat,calculerAnalyseStock,calculerRisqueParRayon,doctrine:Object.freeze({reel:'inventaire physique observé et horodaté',theorique:'stock logiciel/importé, conservé séparément',reference:'priorité au réel lorsqu’il existe, sans écraser le théorique',transfert:'un transfert interne déplace le réel entre lieux ; il ne crée ni ne détruit du stock global',ecart:'un écart ne devient décisionnel que si réel et théorique sont temporellement comparables',import:'un nouvel import actualise le théorique uniquement ; il ne remplace jamais le réel'})});
+  function calculerRisqueParRayon(analyse){
+    const rows=Array.isArray(analyse)?analyse:Array.isArray(analyse?.rows)?analyse.rows:[];
+    const groupes=new Map();
+    for(const r of rows){
+      if(r.comparaison_fiable!==true || r.ecart_reference==null || Math.abs(Number(r.ecart_reference))<=0.001) continue;
+      const categorie=r.categorie||'Sans catégorie';
+      if(!groupes.has(categorie)) groupes.set(categorie,{categorie,nbAVerifier:0,risqueEur:0});
+      const g=groupes.get(categorie);
+      g.nbAVerifier++;
+    }
+    return [...groupes.values()].sort((a,b)=>b.nbAVerifier-a.nbAVerifier || a.categorie.localeCompare(b.categorie,'fr'));
+  }
+
+  window.NexusStock=Object.freeze({chargerEtat,chargerProduit,invaliderCache,stockPourUsage,comparer,expliquer,normaliserEtat,calculerAnalyseStock,calculerRisqueParRayon,doctrine:Object.freeze({reel:'inventaire physique observé et horodaté',theorique:'stock logiciel/importé, conservé séparément',reference:'priorité au réel lorsqu’il existe, sans écraser le théorique',transfert:'un transfert interne déplace le réel entre lieux ; il ne crée ni ne détruit du stock global',ecart:'un écart ne devient décisionnel que si réel et théorique sont temporellement comparables',import:'un nouvel import actualise le théorique uniquement ; il ne remplace jamais le réel'})});
 })();
