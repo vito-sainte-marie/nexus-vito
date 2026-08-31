@@ -153,7 +153,7 @@
   var page = (window.location.pathname.split('/').pop() || '').toLowerCase();
   if (page.indexOf('nexus-carburant') !== 0) return;
 
-  ['nexus-carburants-p0-fixes.js', 'nexus-carburants-p0-performance.js'].forEach(function (src, index) {
+  ['nexus-carburants-p0-fixes.js', 'nexus-carburants-p0-performance.js', 'nexus-carburants-p0-ui.js'].forEach(function (src, index) {
     var attr = 'nexus-carburants-p0-' + index;
     if (document.querySelector('script[data-' + attr + ']')) return;
     var script = document.createElement('script');
