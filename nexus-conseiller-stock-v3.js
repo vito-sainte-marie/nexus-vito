@@ -27,9 +27,9 @@
         produit_id:etat.produit_id,
         ruleId:'R-STOCK-REEL-RUPTURE', rang:1, moteur:'stock',
         etat:'📦 RUPTURE OBSERVÉE', impact_eur:0, article, categorie,
-        decision:`Vérifiez immédiatement le réassort de ${article}.`,
+        decision:`Vérifiez immédiatement la disponibilité de ${article}.`,
         pourquoi:`Le dernier stock physique observé est de ${Number(ref.quantite)}. NEXUS s'appuie ici sur un comptage réel${ref.transfertsInternesIntegres ? ' intégrant les transferts internes postérieurs' : ''}.`,
-        impact:'Éviter qu’une rupture physique connue interrompe les ventes.',
+        impact:'Éviter qu’une indisponibilité physique connue interrompe les ventes.',
         confiance:'A', stock_source:'reel', stock_date:ref.date || null, validable:false
       };
     }
@@ -40,9 +40,9 @@
         produit_id:etat.produit_id,
         ruleId:'R-STOCK-THEORIQUE-VERIFIER', rang:2, moteur:'stock',
         etat:'📦 À VÉRIFIER', impact_eur:0, article, categorie,
-        decision:`Contrôlez physiquement ${article} avant de décider d’un réassort.`,
+        decision:`Contrôlez physiquement ${article} avant toute décision.`,
         pourquoi:`Le stock logiciel est de ${Number(ref.quantite)}, mais aucun stock physique exploitable n’est disponible. NEXUS ne présente pas cette valeur comme une rupture réelle.`,
-        impact:'Confirmer la situation avant toute commande ou correction.',
+        impact:'Confirmer la situation sans créer de double gestion avec le logiciel de stock.',
         confiance:'C', stock_source:'theorique', stock_date:ref.date || null, validable:false
       };
     }
@@ -65,12 +65,23 @@
   async function chargerCandidats(site){
     if(!site) return [];
     const etats=await window.NexusStock.chargerEtat(site);
-    let candidats=etats.map(candidatDepuisEtat).filter(Boolean);
 
-    // Le moteur de couverture enrichit le signal avec la vitesse de vente.
-    // Pour un même produit, sa recommandation de réassort remplace les
-    // signaux génériques rupture/théorique, mais ne masque jamais un écart
-    // réel/théorique comparable qui répond à une autre question métier.
+    // La couverture / commande du stock GLOBAL est une capacité optionnelle.
+    // Quand elle est désactivée pour un site équipé d'un logiciel de gestion,
+    // le Conseiller ne remonte pas de signaux de commande/rupture globale.
+    // Les écarts réel ↔ théorique restent utiles pour le contrôle et sont conservés.
+    let reapproGlobalActif=false;
+    if(window.NexusReappro && window.NexusReappro.chargerConfig){
+      try{ reapproGlobalActif=(await window.NexusReappro.chargerConfig(site)).actif===true; }
+      catch(err){ console.warn('Conseiller Stock — configuration réappro global indisponible:',err); }
+    }
+
+    let candidats=etats.map(candidatDepuisEtat).filter(Boolean);
+    if(!reapproGlobalActif){
+      candidats=candidats.filter(c=>c.ruleId==='R-STOCK-ECART-COMPARABLE');
+      return candidats;
+    }
+
     if(window.NexusReappro){
       try{
         const analyse=await window.NexusReappro.analyserSite(site);
