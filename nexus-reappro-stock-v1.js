@@ -27,6 +27,24 @@
     return out;
   }
 
+  async function chargerConfig(site){
+    const defaults={actif:true,seuilCritiqueJours:2,seuilCourtJours:5,ageMaxHeures:72};
+    const {data,error}=await nexusClient.from('nexus_stock_reappro_config')
+      .select('actif,seuil_critique_jours,seuil_court_jours,age_max_stock_heures')
+      .eq('site',site).maybeSingle();
+    if(error){
+      console.warn('NEXUS Réassort — configuration indisponible, valeurs par défaut utilisées:',error);
+      return defaults;
+    }
+    if(!data) return defaults;
+    return {
+      actif:data.actif!==false,
+      seuilCritiqueJours:Number(data.seuil_critique_jours ?? 2),
+      seuilCourtJours:Number(data.seuil_court_jours ?? 5),
+      ageMaxHeures:Number(data.age_max_stock_heures ?? 72)
+    };
+  }
+
   async function dernierePeriode(site){
     const {data,error}=await nexusClient.from('products')
       .select('periode_debut,periode_fin')
@@ -90,7 +108,10 @@
     let action='Aucune décision de réassort automatique.';
     let rang=4;
 
-    if(ref.nature==='theorique'){
+    if(options.actif===false){
+      statut='moteur_desactive';
+      action='Moteur de réassort désactivé dans les paramètres du site.';
+    } else if(ref.nature==='theorique'){
       statut='theorique_seul';
       action='Contrôler physiquement le stock avant de décider d’un réassort.';
       rang=3;
@@ -149,10 +170,11 @@
   async function analyserSite(site,options={}){
     if(!site) throw new Error('NEXUS Réassort: site requis');
     if(!window.NexusStock) throw new Error('NEXUS Réassort: Stock Engine indisponible');
-    const [etats,ventes]=await Promise.all([NexusStock.chargerEtat(site),chargerVentes(site)]);
+    const [etats,ventes,config]=await Promise.all([NexusStock.chargerEtat(site),chargerVentes(site),chargerConfig(site)]);
+    const regles={...config,...options};
     const idx=indexVentes(ventes.lignes);
-    const analyses=etats.map(etat=>analyserLigne(etat,quantiteVendue(etat,idx),ventes.jours,options));
-    return {site,periode:ventes.periode,jours:ventes.jours,analyses};
+    const analyses=etats.map(etat=>analyserLigne(etat,quantiteVendue(etat,idx),ventes.jours,regles));
+    return {site,periode:ventes.periode,jours:ventes.jours,config:regles,analyses};
   }
 
   function candidatsConseiller(resultat){
@@ -182,8 +204,8 @@
       }));
   }
 
-  // Aucune quantité de commande n'est inventée ici : le fournisseur, le
-  // délai d'approvisionnement et le conditionnement doivent être paramétrés
-  // avant que NEXUS puisse proposer une quantité d'achat fiable.
-  window.NexusReappro=Object.freeze({analyserSite,candidatsConseiller,chargerVentes,analyserLigne});
+  // Aucune quantité de commande n'est inventée ici : fournisseur, délai
+  // d'approvisionnement et conditionnement devront être paramétrés avant
+  // que NEXUS puisse proposer une quantité d'achat fiable.
+  window.NexusReappro=Object.freeze({analyserSite,candidatsConseiller,chargerVentes,chargerConfig,analyserLigne});
 })();
