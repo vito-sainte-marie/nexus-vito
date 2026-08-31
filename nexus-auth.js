@@ -70,12 +70,28 @@ const nexusClient = supabase.createClient(NEXUS_SUPABASE_URL, NEXUS_SUPABASE_ANO
     scriptTransfertStock.defer = true;
     document.head.appendChild(scriptTransfertStock);
   }
-  if (['NEXUS-Cockpit-v2.html', 'NEXUS-Scanner-v1.html'].includes(page)) {
+
+  const pagesStockMoteur = [
+    'NEXUS-App-v1.html',
+    'NEXUS-Cockpit-v2.html',
+    'NEXUS-Scanner-v1.html',
+    'NEXUS-Radar-Manager-v1.html',
+    'NEXUS-Centre-Intelligence-v1.html'
+  ];
+  if (pagesStockMoteur.includes(page)) {
     const scriptStockMoteur = document.createElement('script');
     scriptStockMoteur.src = 'nexus-stock-moteur.js';
     scriptStockMoteur.defer = true;
     document.head.appendChild(scriptStockMoteur);
   }
+
+  if (['NEXUS-App-v1.html', 'NEXUS-Cockpit-v2.html', 'NEXUS-Centre-Intelligence-v1.html'].includes(page)) {
+    const scriptConseillerStock = document.createElement('script');
+    scriptConseillerStock.src = 'nexus-conseiller-stock-v3.js';
+    scriptConseillerStock.defer = true;
+    document.head.appendChild(scriptConseillerStock);
+  }
+
   if (page === 'NEXUS-Cockpit-v2.html') {
     const scriptCockpitStock = document.createElement('script');
     scriptCockpitStock.src = 'nexus-cockpit-stock-v3.js';
@@ -88,6 +104,13 @@ const nexusClient = supabase.createClient(NEXUS_SUPABASE_URL, NEXUS_SUPABASE_ANO
     scriptScannerStock.defer = true;
     document.head.appendChild(scriptScannerStock);
   }
+  if (page === 'NEXUS-Radar-Manager-v1.html') {
+    const scriptRadarStock = document.createElement('script');
+    scriptRadarStock.src = 'nexus-radar-stock-v3.js';
+    scriptRadarStock.defer = true;
+    document.head.appendChild(scriptRadarStock);
+  }
+
   if (page === 'NEXUS-FDJ-v1.html') {
     const scriptCorrectionDepart = document.createElement('script');
     scriptCorrectionDepart.src = 'nexus-fdj-correction-stock-depart.js';
