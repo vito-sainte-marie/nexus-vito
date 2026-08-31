@@ -136,6 +136,67 @@ Cas réel unique dans l'historique actuel : 28/08/2026, Q1 et Q2 portent exactem
 - la donnée reste traçable et le manager arbitre ;
 - tant que la suspicion n'est pas levée, une prévision sensible à cette journée porte une qualité dégradée ou exclut ce point selon la règle de calcul retenue.
 
+## P0-13 — Couverture Performance basée sur les quarts attendus
+
+La couverture d'une période ne doit jamais utiliser comme dénominateur uniquement les lignes qui existent déjà dans `audits_caisse`.
+
+Cas réel du 31/08/2026 : août contient 61 lignes de quart enregistrées au moment du contrôle, toutes avec un litrage, alors que le Q2 du 31/08 n'existe pas encore. `61/61` ne signifie donc pas « période complète ».
+
+### Attendu
+
+- NEXUS détermine les quarts opérationnellement attendus pour chaque date du site ;
+- `nbQuartsTotal` devient un nombre attendu, distinct du nombre de lignes reçues ;
+- un quart absent est visible comme absent, jamais effacé du dénominateur ;
+- la couverture doit pouvoir distinguer `présent avec litrage`, `présent sans litrage`, `attendu mais absent` et, si nécessaire, `non attendu`.
+
+## P0-14 — Fin de période = clôture opérationnelle, pas simple égalité de date
+
+Une période qui se termine aujourd'hui n'est pas automatiquement terminée au début ou au milieu de sa dernière journée.
+
+Cas réel : le 31/08, `periode.fin === todayISO()` alors que Q2 n'est pas encore clôturé.
+
+### Attendu
+
+- la période reste `en cours` tant que les quarts opérationnellement attendus jusqu'au point de contrôle ne sont pas clôturés ;
+- la fin calendaire et la fin opérationnelle sont deux notions distinctes ;
+- aucune conclusion consolidée de mois n'est affichée avant la clôture opérationnelle du dernier quart attendu.
+
+## P0-15 — Une référence partielle n'est jamais acceptée comme mois comparable
+
+Une référence ne devient pas comparable simplement parce qu'elle contient au moins un quart avec litrage.
+
+Cas réel : juillet 2026 ne contient dans NEXUS que la période du 18 au 31 juillet, avec trois quarts sans litrage, alors que le code actuel peut choisir juillet comme « mois précédent » dès que `nbQuartsAvecLitrage > 0`.
+
+### Attendu
+
+- chaque référence candidate est qualifiée avant usage ;
+- une référence mensuelle partielle ne peut pas être présentée comme un mois complet comparable ;
+- NEXUS utilise soit une fenêtre réellement comparable, soit un repli qualifié, soit affiche « comparaison indisponible » ;
+- aucune hausse/recul mensuel ne doit être calculé entre un mois complet et quelques jours d'un autre mois sous l'étiquette « à jours comparables ».
+
+## P0-16 — Même coupure opérationnelle entre période actuelle et référence
+
+« À jours comparables » signifie même avancée opérationnelle, pas seulement même date civile.
+
+Cas réel : lundi 31/08, seul Q1 existe. Le lundi 24/08 possède Q1 + Q2. Comparer 31/08 Q1 à 24/08 Q1+Q2 crée artificiellement un recul d'environ 57 %.
+
+### Attendu
+
+- si la période actuelle est arrêtée après Q1, la référence est elle aussi arrêtée après Q1 ;
+- les quarts futurs du jour courant ne sont jamais comparés à des quarts déjà clôturés de la référence ;
+- à défaut d'une coupure opérationnelle fiable, la comparaison reste provisoire/non disponible.
+
+## P0-17 — Une tendance provisoire ne déclenche jamais une conclusion ferme
+
+Quand `tendanceProvisoire === true`, aucune couche de l'écran ne doit produire simultanément une alerte commerciale consolidée comme si la comparabilité était démontrée.
+
+### Attendu
+
+- `construireMessagesPilotage()` tient compte du statut provisoire transmis par l'écran ;
+- un mouvement supérieur à ±15 % sur une période non comparable reste présenté comme observation provisoire, jamais comme hausse/recul établi ;
+- le code couleur, la phrase « Lecture NEXUS », le bloc ventes et « Ce qui explique l'évolution » utilisent tous le même niveau de confiance ;
+- une cause commerciale n'est jamais inventée tant que la donnée n'est pas comparable.
+
 ## Critère de sortie P0
 
 Le lot est validable uniquement lorsque :
@@ -147,5 +208,7 @@ Le lot est validable uniquement lorsque :
 - P0-10 interdit toute complétion automatique d'un carburant à consommation nulle ;
 - P0-11 empêche les journées partielles d'être apprises comme journées complètes ;
 - P0-12 traite les doublons suspects comme exceptions à arbitrer, jamais comme corrections automatiques ;
+- P0-13 à P0-16 démontrent la comparabilité opérationnelle avant tout calcul de tendance ;
+- P0-17 empêche une conclusion ferme lorsqu'une comparaison reste provisoire ;
 - la branche ne contient que les modifications attendues ;
 - la PR reste brouillon jusqu'à validation explicite.
