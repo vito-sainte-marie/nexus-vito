@@ -69,6 +69,11 @@ const nexusClient = supabase.createClient(NEXUS_SUPABASE_URL, NEXUS_SUPABASE_ANO
     scriptTransfertStock.src = 'nexus-inventaire-stock-transfert-v2.js';
     scriptTransfertStock.defer = true;
     document.head.appendChild(scriptTransfertStock);
+
+    const scriptReassortBoutique = document.createElement('script');
+    scriptReassortBoutique.src = 'nexus-inventaire-reassort-boutique-v1.js';
+    scriptReassortBoutique.defer = true;
+    document.head.appendChild(scriptReassortBoutique);
   }
 
   const pagesStockMoteur = [
