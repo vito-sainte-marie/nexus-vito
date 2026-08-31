@@ -10,7 +10,7 @@ const nexusClient = supabase.createClient(NEXUS_SUPABASE_URL, NEXUS_SUPABASE_ANO
 
 (function chargerExtensionsInventaireV2() {
   const page = window.location.pathname.split('/').pop();
-  const STOCK_BUILD = '20260831-1038';
+  const STOCK_BUILD = '20260831-1045';
   const versionnerStock = src => `${src}?v=${STOCK_BUILD}`;
 
   if (page === 'NEXUS-Inventaire-v1.html') {
@@ -41,7 +41,7 @@ const nexusClient = supabase.createClient(NEXUS_SUPABASE_URL, NEXUS_SUPABASE_ANO
   if(page==='NEXUS-Radar-Manager-v1.html'){const s=document.createElement('script');s.src=versionnerStock('nexus-radar-stock-v3.js');s.defer=true;document.head.appendChild(s);}
   if(page==='NEXUS-FDJ-v1.html'){const s=document.createElement('script');s.src='nexus-fdj-correction-stock-depart.js';s.defer=true;document.head.appendChild(s);}
   if(page==='NEXUS-FDJ-Manager-v1.html'){const s=document.createElement('script');s.src='nexus-fdj-manager-stabilite.js';s.defer=true;document.head.appendChild(s);}
-  if(page==='NEXUS-Inventaire-Manager-v1.html') ['nexus-inventaire-manager-premium-v2.js','nexus-inventaire-manager-fullwidth-v2.js',versionnerStock('nexus-inventaire-manager-reassort-cigarettes-v1.js')].forEach(src=>{const s=document.createElement('script');s.src=src;s.defer=true;document.head.appendChild(s);});
+  if(page==='NEXUS-Inventaire-Manager-v1.html') ['nexus-inventaire-manager-premium-v2.js','nexus-inventaire-manager-fullwidth-v2.js',versionnerStock('nexus-inventaire-manager-reassort-cigarettes-v2.js')].forEach(src=>{const s=document.createElement('script');s.src=src;s.defer=true;document.head.appendChild(s);});
 })();
 
 async function nexusRequireAuth() {
