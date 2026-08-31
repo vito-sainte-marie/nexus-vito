@@ -10,7 +10,7 @@ const nexusClient = supabase.createClient(NEXUS_SUPABASE_URL, NEXUS_SUPABASE_ANO
 
 (function chargerExtensionsInventaireV2() {
   const page = window.location.pathname.split('/').pop();
-  const STOCK_BUILD = '20260831-1146';
+  const STOCK_BUILD = '20260831-1255';
   const versionnerStock = src => `${src}?v=${STOCK_BUILD}`;
 
   // Standard NEXUS : les moteurs conservent les durées décimales pour leurs
