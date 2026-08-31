@@ -1,31 +1,19 @@
 // NEXUS Stock Engine — source centrale de lecture du stock.
 // Principe : le stock réel et le stock théorique restent deux vérités distinctes.
 // Aucun moteur NEXUS ne doit les additionner ni écraser l'une avec l'autre.
-// V5 : lecture RPC JSON stable + compatibilité avec anciennes couches Cockpit.
+// V5 : lecture unique par RPC. Les anciennes vues REST imbriquées provoquaient
+// des 500 et ne doivent plus être appelées depuis le navigateur.
 (function(){
   'use strict';
-
   const RPC='nexus_stock_lire_etat';
-  const VUE_V3='nexus_stock_etat_v3';
-  const VUE_V2='nexus_stock_etat_v2';
-  const VUE_V1='nexus_stock_etat';
 
   function assertClient(){
-    if(typeof nexusClient === 'undefined') throw new Error('NEXUS Stock Engine: nexusClient indisponible');
-  }
-
-  async function executerLecture(vue,site,options={}){
-    let q=nexusClient.from(vue).select('*').eq('site',site);
-    if(options.actifsSeulement !== false) q=q.eq('actif',true);
-    if(options.produitId) q=q.eq('produit_id',options.produitId);
-    if(options.categorieId) q=q.eq('categorie_id',options.categorieId);
-    if(options.natureReference) q=q.eq('stock_reference_nature',options.natureReference);
-    return q.order('designation',{ascending:true});
+    if(typeof nexusClient==='undefined') throw new Error('NEXUS Stock Engine: nexusClient indisponible');
   }
 
   function filtrerLocal(data,options={}){
     let rows=Array.isArray(data)?data:[];
-    if(options.actifsSeulement !== false) rows=rows.filter(r=>r.actif===true);
+    if(options.actifsSeulement!==false) rows=rows.filter(r=>r.actif===true);
     if(options.produitId) rows=rows.filter(r=>String(r.produit_id)===String(options.produitId));
     if(options.categorieId) rows=rows.filter(r=>String(r.categorie_id)===String(options.categorieId));
     if(options.natureReference) rows=rows.filter(r=>r.stock_reference_nature===options.natureReference);
@@ -35,20 +23,9 @@
   async function chargerEtat(site,options={}){
     assertClient();
     if(!site) throw new Error('NEXUS Stock Engine: site requis');
-
-    let {data,error}=await nexusClient.rpc(RPC,{p_site:site});
-    if(!error){
-      // Le RPC renvoie désormais directement un tableau JSONB stable.
-      const rows=Array.isArray(data)?data:[];
-      return filtrerLocal(rows,options).map(normaliserEtat);
-    }
-
-    console.warn('NEXUS Stock Engine — RPC indisponible, repli sur vues:',error);
-    ({data,error}=await executerLecture(VUE_V3,site,options));
-    if(error){const r=await executerLecture(VUE_V2,site,options);data=r.data;error=r.error;}
-    if(error){const r=await executerLecture(VUE_V1,site,options);data=r.data;error=r.error;}
-    if(error) throw error;
-    return (data||[]).map(normaliserEtat);
+    const {data,error}=await nexusClient.rpc(RPC,{p_site:site});
+    if(error) throw new Error(`NEXUS Stock Engine — lecture centrale indisponible (${error.message||error.code||'RPC'})`);
+    return filtrerLocal(data,options).map(normaliserEtat);
   }
 
   async function chargerProduit(site,produitId){
@@ -60,14 +37,14 @@
     if(!etat) return etat;
     return {
       ...etat,
-      stock_reel_observe:etat.stock_reel_observe ?? etat.stock_reel ?? null,
-      stock_reel_observe_le:etat.stock_reel_observe_le ?? etat.stock_reel_le ?? null,
-      ecart_brut_non_aligne:etat.ecart_brut_non_aligne ?? etat.ecart_reel_theorique ?? null,
-      comparaison_fiable:etat.comparaison_fiable === true,
-      ecart_reference:Object.prototype.hasOwnProperty.call(etat,'ecart_reference') ? etat.ecart_reference : null,
-      stock_reference_le:etat.stock_reference_le ?? (etat.stock_reference_nature==='reel' ? etat.stock_reel_le : etat.stock_theorique_le) ?? null,
-      stock_reference_confiance:etat.stock_reference_confiance ?? (etat.stock_reference_nature==='reel'?'non_evaluee':etat.stock_reference_nature==='theorique'?'theorique':'insuffisante'),
-      stock_reference_statut:etat.stock_reference_statut ?? (etat.stock_reference_nature==='reel'?'observe':etat.stock_reference_nature==='theorique'?'theorique_seul':'indisponible'),
+      stock_reel_observe:etat.stock_reel_observe??etat.stock_reel??null,
+      stock_reel_observe_le:etat.stock_reel_observe_le??etat.stock_reel_le??null,
+      ecart_brut_non_aligne:etat.ecart_brut_non_aligne??etat.ecart_reel_theorique??null,
+      comparaison_fiable:etat.comparaison_fiable===true,
+      ecart_reference:Object.prototype.hasOwnProperty.call(etat,'ecart_reference')?etat.ecart_reference:null,
+      stock_reference_le:etat.stock_reference_le??(etat.stock_reference_nature==='reel'?etat.stock_reel_le:etat.stock_theorique_le)??null,
+      stock_reference_confiance:etat.stock_reference_confiance??(etat.stock_reference_nature==='reel'?'non_evaluee':etat.stock_reference_nature==='theorique'?'theorique':'insuffisante'),
+      stock_reference_statut:etat.stock_reference_statut??(etat.stock_reference_nature==='reel'?'observe':etat.stock_reference_nature==='theorique'?'theorique_seul':'indisponible'),
       transferts_internes_integres:etat.transferts_internes_integres===true
     };
   }
@@ -98,31 +75,14 @@
     return {titre:'Deux stocks, mais comparaison provisoire',detail:'Le réel et le théorique existent, mais leurs horodatages sont trop éloignés. NEXUS ne transforme pas l’écart brut en anomalie.',niveau:etat.stock_reference_confiance};
   }
 
+  // Compatibilité temporaire avec les anciennes couches Cockpit.
   function calculerAnalyseStock(releves=[],ventes=[],controles=[]){
     const rows=Array.isArray(releves)?releves:[];
     return {total:rows.length,avecStockReel:rows.filter(r=>(r.stock_reel_observe??r.stock_reel??null)!=null).length,avecStockTheorique:rows.filter(r=>r.stock_theorique!=null).length,comparables:rows.filter(r=>r.comparaison_fiable===true).length,ventes:Array.isArray(ventes)?ventes.length:0,controles:Array.isArray(controles)?controles.length:0};
   }
-
-  // Compatibilité historique Cockpit. Cette méthode reste volontairement
-  // neutre : elle ne crée aucun score de risque inventé. Elle agrège seulement
-  // des indicateurs déjà calculés par l'ancienne couche si elle les fournit.
   function calculerRisqueParRayon(analyse){
-    const a=analyse&&typeof analyse==='object'?analyse:{};
-    const lignes=Array.isArray(a.rayons)?a.rayons:[];
-    if(lignes.length) return lignes;
-    return [];
+    return {niveau:'non_evalue',score:null,analyse:analyse||null,raison:'Le Stock Engine central fournit la connaissance du stock sans fabriquer un score de risque rayon.'};
   }
 
-  window.NexusStock=Object.freeze({
-    chargerEtat,chargerProduit,stockPourUsage,comparer,expliquer,normaliserEtat,
-    calculerAnalyseStock,calculerRisqueParRayon,
-    doctrine:Object.freeze({
-      reel:'inventaire physique observé et horodaté',
-      theorique:'stock logiciel/importé, conservé séparément',
-      reference:'priorité au réel lorsqu’il existe, sans écraser le théorique',
-      transfert:'un transfert interne déplace le réel entre lieux ; il ne crée ni ne détruit du stock global',
-      ecart:'un écart ne devient décisionnel que si réel et théorique sont temporellement comparables',
-      import:'un nouvel import actualise le théorique uniquement ; il ne remplace jamais le réel'
-    })
-  });
+  window.NexusStock=Object.freeze({chargerEtat,chargerProduit,stockPourUsage,comparer,expliquer,normaliserEtat,calculerAnalyseStock,calculerRisqueParRayon,doctrine:Object.freeze({reel:'inventaire physique observé et horodaté',theorique:'stock logiciel/importé, conservé séparément',reference:'priorité au réel lorsqu’il existe, sans écraser le théorique',transfert:'un transfert interne déplace le réel entre lieux ; il ne crée ni ne détruit du stock global',ecart:'un écart ne devient décisionnel que si réel et théorique sont temporellement comparables',import:'un nouvel import actualise le théorique uniquement ; il ne remplace jamais le réel'})});
 })();
