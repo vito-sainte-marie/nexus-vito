@@ -1,10 +1,11 @@
 // NEXUS Stock Engine — source centrale de lecture du stock.
 // Principe : le stock réel et le stock théorique restent deux vérités distinctes.
 // Aucun moteur NEXUS ne doit les additionner ni écraser l'une avec l'autre.
-// V2 : un écart n'est exploitable que si les deux stocks sont alignés dans le temps.
+// V3 : le stock réel localisé intègre les transferts internes postérieurs au dernier relevé physique.
 (function(){
   'use strict';
 
+  const VUE_V3='nexus_stock_etat_v3';
   const VUE_V2='nexus_stock_etat_v2';
   const VUE_V1='nexus_stock_etat';
 
@@ -25,12 +26,16 @@
     assertClient();
     if(!site) throw new Error('NEXUS Stock Engine: site requis');
 
-    let {data,error}=await executerLecture(VUE_V2,site,options);
+    let {data,error}=await executerLecture(VUE_V3,site,options);
     if(error){
-      // Compatibilité transitoire : une ancienne base peut ne pas encore avoir la vue V2.
-      const fallback=await executerLecture(VUE_V1,site,options);
-      data=fallback.data;
-      error=fallback.error;
+      const fallbackV2=await executerLecture(VUE_V2,site,options);
+      data=fallbackV2.data;
+      error=fallbackV2.error;
+    }
+    if(error){
+      const fallbackV1=await executerLecture(VUE_V1,site,options);
+      data=fallbackV1.data;
+      error=fallbackV1.error;
     }
     if(error) throw error;
     return (data || []).map(normaliserEtat);
@@ -52,7 +57,8 @@
       ecart_reference:Object.prototype.hasOwnProperty.call(etat,'ecart_reference') ? etat.ecart_reference : null,
       stock_reference_le:etat.stock_reference_le ?? (etat.stock_reference_nature==='reel' ? etat.stock_reel_le : etat.stock_theorique_le) ?? null,
       stock_reference_confiance:etat.stock_reference_confiance ?? (etat.stock_reference_nature==='reel' ? 'non_evaluee' : etat.stock_reference_nature==='theorique' ? 'theorique' : 'insuffisante'),
-      stock_reference_statut:etat.stock_reference_statut ?? (etat.stock_reference_nature==='reel' ? 'observe' : etat.stock_reference_nature==='theorique' ? 'theorique_seul' : 'indisponible')
+      stock_reference_statut:etat.stock_reference_statut ?? (etat.stock_reference_nature==='reel' ? 'observe' : etat.stock_reference_nature==='theorique' ? 'theorique_seul' : 'indisponible'),
+      transferts_internes_integres:etat.transferts_internes_integres === true
     };
   }
 
@@ -66,7 +72,8 @@
         nature:etat.stock_reel_observe == null ? 'indisponible' : 'reel',
         source:etat.stock_reel_source,
         date:etat.stock_reel_observe_le,
-        confiance:etat.stock_reference_nature==='reel' ? etat.stock_reference_confiance : 'non_evaluee'
+        confiance:etat.stock_reference_nature==='reel' ? etat.stock_reference_confiance : 'non_evaluee',
+        transfertsInternesIntegres:etat.transferts_internes_integres
       };
     }
 
@@ -76,7 +83,8 @@
         nature:etat.stock_theorique == null ? 'indisponible' : 'theorique',
         source:etat.stock_theorique_source,
         date:etat.stock_theorique_le,
-        confiance:etat.stock_theorique == null ? 'insuffisante' : 'theorique'
+        confiance:etat.stock_theorique == null ? 'insuffisante' : 'theorique',
+        transfertsInternesIntegres:false
       };
     }
 
@@ -86,7 +94,8 @@
       source:etat.stock_reference_nature==='reel' ? etat.stock_reel_source : etat.stock_theorique_source,
       date:etat.stock_reference_le,
       confiance:etat.stock_reference_confiance,
-      statut:etat.stock_reference_statut
+      statut:etat.stock_reference_statut,
+      transfertsInternesIntegres:etat.stock_reference_nature==='reel' && etat.transferts_internes_integres
     };
   }
 
@@ -100,7 +109,6 @@
       reelLe:etat.stock_reel_observe_le,
       theorique:etat.stock_theorique,
       theoriqueLe:etat.stock_theorique_le,
-      // Seul ecart_reference est décisionnel. L'écart brut reste explicatif.
       ecart:etat.comparaison_fiable ? etat.ecart_reference : null,
       ecartBrut:etat.ecart_brut_non_aligne,
       comparable:deuxValeurs && etat.comparaison_fiable,
@@ -118,7 +126,7 @@
       return {titre:'Stock indisponible',detail:'Ni inventaire physique ni stock théorique rapproché.',niveau:'insuffisant'};
     }
     if(etat.stock_reference_nature==='reel' && etat.stock_theorique == null){
-      return {titre:'Stock réel disponible',detail:'Inventaire physique disponible. Aucun stock théorique n’est actuellement rapproché.',niveau:etat.stock_reference_confiance};
+      return {titre:'Stock réel disponible',detail:etat.transferts_internes_integres ? 'Inventaire physique disponible. Les transferts internes postérieurs sont intégrés sans modifier le total global.' : 'Inventaire physique disponible. Aucun stock théorique n’est actuellement rapproché.',niveau:etat.stock_reference_confiance};
     }
     if(etat.stock_reference_nature==='theorique'){
       return {titre:'Stock théorique uniquement',detail:'Aucun inventaire physique exploitable. NEXUS conserve la valeur importée comme théorie, sans la présenter comme stock réel.',niveau:'theorique'};
@@ -140,6 +148,7 @@
       reel:'inventaire physique observé et horodaté',
       theorique:'stock logiciel/importé, conservé séparément',
       reference:'priorité au réel lorsqu’il existe, sans écraser le théorique',
+      transfert:'un transfert interne déplace le réel entre lieux ; il ne crée ni ne détruit du stock global',
       ecart:'un écart ne devient décisionnel que si réel et théorique sont temporellement comparables',
       import:'un nouvel import actualise le théorique uniquement ; il ne remplace jamais le réel'
     })
