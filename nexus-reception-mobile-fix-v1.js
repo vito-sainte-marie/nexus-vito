@@ -8,15 +8,40 @@
   let cuvesParCarburant=null;
   let chargementCuves=null;
 
+  // Le choix cuve ne doit dépendre ni du statut "vide" des autres
+  // compartiments, ni de la présence de la classe visuelle .actif.
+  // Si un seul carburant est prévu dans la fiche, il est une source fiable
+  // même si un rerender temporaire a perdu la classe .actif.
   function lireCarburantActif(){
-    const chip=document.querySelector('#ficheCompartimentZone .carburant-chip.actif');
-    if(chip?.dataset?.carb) return String(chip.dataset.carb).toLowerCase();
-    const txt=(chip?.textContent||'').trim().toUpperCase();
-    if(txt==='GO') return 'go'; if(txt==='SP95') return 'sp95'; if(txt==='GNR') return 'gnr';
+    const zone=document.getElementById('ficheCompartimentZone');
+    if(!zone) return null;
+    const actif=zone.querySelector('.carburant-chip.actif[data-carb]');
+    if(actif?.dataset?.carb) return String(actif.dataset.carb).toLowerCase();
+    const chips=[...zone.querySelectorAll('.carburant-chip[data-carb]')];
+    if(chips.length===1) return String(chips[0].dataset.carb||'').toLowerCase()||null;
+    const select=document.getElementById('fCuveCompartiment');
+    const parent=select?.closest('.fiche-compartiment');
+    const texte=(parent?.textContent||'').toUpperCase();
+    if(texte.includes('SP95')) return 'sp95';
+    if(/\bGNR\b/.test(texte)) return 'gnr';
+    if(/\bGO\b/.test(texte)) return 'go';
+    return null;
+  }
+
+  function configLocaleCuves(){
+    try{
+      // config est la configuration déjà chargée par la page Réception.
+      // On l'utilise en priorité : aucune seconde requête n'est nécessaire.
+      if(typeof config!=='undefined'&&config?.cuvesCarburants){
+        return config.cuvesCarburants;
+      }
+    }catch(_){/* binding pas encore initialisé */}
     return null;
   }
 
   async function chargerCuves(){
+    const locale=configLocaleCuves();
+    if(locale){cuvesParCarburant=locale;return locale;}
     if(cuvesParCarburant) return cuvesParCarburant;
     if(chargementCuves) return chargementCuves;
     chargementCuves=(async()=>{
@@ -75,26 +100,35 @@
     select.style.display='none';
   }
 
-  function afficherErreurCuves(select){
-    if(!select||document.getElementById('nexusErreurCuves')) return;
-    const d=document.createElement('div');
-    d.id='nexusErreurCuves';
-    d.style.cssText='margin:-4px 0 14px;padding:10px 12px;border-radius:10px;border:1px solid rgba(240,87,90,.4);background:rgba(240,87,90,.08);color:var(--red);font-size:12px;line-height:1.45;';
-    d.textContent='Impossible de charger les cuves de ce carburant. Revenez à l’étape précédente puis réessayez.';
-    select.insertAdjacentElement('afterend',d);
+  function afficherErreurCuves(select,texte){
+    if(!select) return;
+    let d=document.getElementById('nexusErreurCuves');
+    if(!d){
+      d=document.createElement('div');
+      d.id='nexusErreurCuves';
+      d.style.cssText='margin:-4px 0 14px;padding:10px 12px;border-radius:10px;border:1px solid rgba(240,87,90,.4);background:rgba(240,87,90,.08);color:var(--red);font-size:12px;line-height:1.45;';
+      select.insertAdjacentElement('afterend',d);
+    }
+    d.textContent=texte||'Impossible de charger les cuves de ce carburant.';
   }
 
   async function reparerChoixCuve(){
     const select=document.getElementById('fCuveCompartiment');
     if(!select) return;
-    const carb=lireCarburantActif();
-    if(!carb) return;
     if(select.dataset.nexusPreparation==='1') return;
     select.dataset.nexusPreparation='1';
     try{
+      const carb=lireCarburantActif();
+      if(!carb){
+        afficherErreurCuves(select,'Carburant du compartiment non identifié — retouchez le bouton carburant.');
+        return;
+      }
       await chargerCuves();
       const cuves=optionsAttendues(carb);
-      if(!cuves.length){afficherErreurCuves(select);return;}
+      if(!cuves.length){
+        afficherErreurCuves(select,`Aucune cuve configurée pour ${carb.toUpperCase()}.`);
+        return;
+      }
       document.getElementById('nexusErreurCuves')?.remove();
       const signature=`${carb}|${cuves.map(c=>c.id).join(',')}`;
       if(select.dataset.nexusCuvesReady!==signature){
@@ -133,9 +167,16 @@
   function init(){
     corriger();
     let timer=null;
-    const obs=new MutationObserver(()=>{clearTimeout(timer);timer=setTimeout(corriger,30);});
+    const obs=new MutationObserver(()=>{clearTimeout(timer);timer=setTimeout(corriger,50);});
     obs.observe(document.body,{childList:true,subtree:true});
-    document.addEventListener('click',e=>{if(e.target?.closest?.('#btnToggleVideCompartiment,.carburant-chip,[data-compartiment]'))setTimeout(corriger,0);},true);
+    document.addEventListener('click',e=>{
+      if(e.target?.closest?.('#btnToggleVideCompartiment,.carburant-chip,[data-compartiment]')) setTimeout(corriger,0);
+    },true);
+    // Filet de sécurité : lors d'un retour/rerender de l'étape compartiments,
+    // le choix des cuves est réévalué sans dépendre des compartiments masqués.
+    setInterval(()=>{
+      if(document.getElementById('fCuveCompartiment')) reparerChoixCuve();
+    },800);
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
 })();
