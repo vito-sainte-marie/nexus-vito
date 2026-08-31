@@ -21,80 +21,71 @@
 
     if(ref.quantite == null) return null;
 
-    // Rupture observée physiquement : signal fort, directement actionnable.
     if(ref.nature==='reel' && Number(ref.quantite) <= 0){
       return {
         candidate_id:`STOCK-REEL-RUPTURE-${etat.produit_id}`,
-        ruleId:'R-STOCK-REEL-RUPTURE',
-        rang:1,
-        moteur:'stock',
-        etat:'📦 RUPTURE OBSERVÉE',
-        impact_eur:0,
-        article,
-        categorie,
+        produit_id:etat.produit_id,
+        ruleId:'R-STOCK-REEL-RUPTURE', rang:1, moteur:'stock',
+        etat:'📦 RUPTURE OBSERVÉE', impact_eur:0, article, categorie,
         decision:`Vérifiez immédiatement le réassort de ${article}.`,
         pourquoi:`Le dernier stock physique observé est de ${Number(ref.quantite)}. NEXUS s'appuie ici sur un comptage réel${ref.transfertsInternesIntegres ? ' intégrant les transferts internes postérieurs' : ''}.`,
         impact:'Éviter qu’une rupture physique connue interrompe les ventes.',
-        confiance:'A',
-        stock_source:'reel',
-        stock_date:ref.date || null,
-        validable:false
+        confiance:'A', stock_source:'reel', stock_date:ref.date || null, validable:false
       };
     }
 
-    // Stock théorique nul ou négatif : on demande une vérification terrain,
-    // jamais une affirmation de rupture réelle.
     if(ref.nature==='theorique' && Number(ref.quantite) <= 0){
       return {
         candidate_id:`STOCK-THEORIQUE-VERIFIER-${etat.produit_id}`,
-        ruleId:'R-STOCK-THEORIQUE-VERIFIER',
-        rang:2,
-        moteur:'stock',
-        etat:'📦 À VÉRIFIER',
-        impact_eur:0,
-        article,
-        categorie,
+        produit_id:etat.produit_id,
+        ruleId:'R-STOCK-THEORIQUE-VERIFIER', rang:2, moteur:'stock',
+        etat:'📦 À VÉRIFIER', impact_eur:0, article, categorie,
         decision:`Contrôlez physiquement ${article} avant de décider d’un réassort.`,
         pourquoi:`Le stock logiciel est de ${Number(ref.quantite)}, mais aucun stock physique exploitable n’est disponible. NEXUS ne présente pas cette valeur comme une rupture réelle.`,
         impact:'Confirmer la situation avant toute commande ou correction.',
-        confiance:'C',
-        stock_source:'theorique',
-        stock_date:ref.date || null,
-        validable:false
+        confiance:'C', stock_source:'theorique', stock_date:ref.date || null, validable:false
       };
     }
 
-    // Écart réel/théorique : uniquement si le Stock Engine confirme que les
-    // deux mesures sont temporellement comparables. Aucun seuil métier local
-    // n’est inventé ici : zéro écart = aucun candidat ; tout autre écart est
-    // présenté comme contrôle à comprendre, pas comme faute ni perte certaine.
     if(comparaison.comparable && Number(comparaison.ecart)!==0){
       return {
         candidate_id:`STOCK-ECART-COMPARABLE-${etat.produit_id}`,
-        ruleId:'R-STOCK-ECART-COMPARABLE',
-        rang:2,
-        moteur:'stock',
-        etat:'📦 ÉCART À EXPLIQUER',
-        impact_eur:0,
-        article,
-        categorie,
+        produit_id:etat.produit_id,
+        ruleId:'R-STOCK-ECART-COMPARABLE', rang:2, moteur:'stock',
+        etat:'📦 ÉCART À EXPLIQUER', impact_eur:0, article, categorie,
         decision:`Expliquez l’écart de stock de ${article} avant toute correction.`,
         pourquoi:`Stock physique ${comparaison.reel} · stock théorique ${comparaison.theorique} · écart ${comparaison.ecart}. Les deux mesures sont suffisamment proches dans le temps pour être comparées.`,
         impact:'Identifier la cause avant une régularisation et conserver une trace fiable.',
-        confiance:'B',
-        stock_source:'comparaison_fiable',
-        stock_date:ref.date || null,
-        validable:false
+        confiance:'B', stock_source:'comparaison_fiable', stock_date:ref.date || null, validable:false
       };
     }
-
     return null;
   }
 
   async function chargerCandidats(site){
     if(!site) return [];
     const etats=await window.NexusStock.chargerEtat(site);
-    return etats.map(candidatDepuisEtat).filter(Boolean);
+    let candidats=etats.map(candidatDepuisEtat).filter(Boolean);
+
+    // Le moteur de couverture enrichit le signal avec la vitesse de vente.
+    // Pour un même produit, sa recommandation de réassort remplace les
+    // signaux génériques rupture/théorique, mais ne masque jamais un écart
+    // réel/théorique comparable qui répond à une autre question métier.
+    if(window.NexusReappro){
+      try{
+        const analyse=await window.NexusReappro.analyserSite(site);
+        const reappro=window.NexusReappro.candidatsConseiller(analyse);
+        const produitsReappro=new Set(reappro.map(c=>String(c.produit_id || c.candidate_id.split('-').pop())));
+        candidats=candidats.filter(c=>{
+          if(c.ruleId==='R-STOCK-ECART-COMPARABLE') return true;
+          return !produitsReappro.has(String(c.produit_id));
+        });
+        candidats=candidats.concat(reappro);
+      }catch(err){
+        console.warn('Conseiller Stock — couverture indisponible, repli sur signaux stock simples:',err);
+      }
+    }
+    return candidats;
   }
 
   function resumer(etats){
@@ -108,9 +99,6 @@
 
   window.NexusConseillerStock=Object.freeze({chargerCandidats,candidatDepuisEtat,resumer});
 
-  // Rend le moteur accessible depuis le Conseiller partagé sans modifier
-  // sa logique de fusion existante. Les écrans peuvent désormais demander
-  // explicitement les candidats Stock Engine au même titre que Marge/Tempo.
   (async()=>{
     if(!(await attendreDependances())) return;
     if(window.NexusConseiller && !window.NexusConseiller.chargerCandidatsStock){
