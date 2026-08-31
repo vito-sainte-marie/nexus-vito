@@ -64,6 +64,11 @@ const nexusClient = supabase.createClient(NEXUS_SUPABASE_URL, NEXUS_SUPABASE_ANO
     scriptControleCible.src = 'nexus-inventaire-stock-controle-cible-v2.js';
     scriptControleCible.defer = true;
     document.head.appendChild(scriptControleCible);
+
+    const scriptTransfertStock = document.createElement('script');
+    scriptTransfertStock.src = 'nexus-inventaire-stock-transfert-v2.js';
+    scriptTransfertStock.defer = true;
+    document.head.appendChild(scriptTransfertStock);
   }
   if (page === 'NEXUS-FDJ-v1.html') {
     const scriptCorrectionDepart = document.createElement('script');
