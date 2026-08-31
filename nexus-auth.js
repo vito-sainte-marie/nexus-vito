@@ -54,6 +54,12 @@ const nexusClient = supabase.createClient(NEXUS_SUPABASE_URL, NEXUS_SUPABASE_ANO
     scriptReglesFinition.defer = true;
     document.head.appendChild(scriptReglesFinition);
   }
+  if (page === 'NEXUS-Stock-Localise-v1.html') {
+    const scriptStockLocaliseUx = document.createElement('script');
+    scriptStockLocaliseUx.src = 'nexus-inventaire-stock-localise-ux-v2.js';
+    scriptStockLocaliseUx.defer = true;
+    document.head.appendChild(scriptStockLocaliseUx);
+  }
   if (page === 'NEXUS-FDJ-v1.html') {
     const scriptCorrectionDepart = document.createElement('script');
     scriptCorrectionDepart.src = 'nexus-fdj-correction-stock-depart.js';
