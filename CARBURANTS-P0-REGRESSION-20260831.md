@@ -98,6 +98,44 @@ Une commande passée de `validee` à `confirmee_fournisseur` est toujours une co
 - la recommandation persistante que cette action cherche à neutraliser ne doit pas réapparaître ;
 - après rapprochement de la livraison, le volume cesse naturellement d'être considéré comme engagé.
 
+## P0-10 — Consommation nulle ne permet jamais de compléter le camion
+
+Un carburant avec une consommation journalière connue égale à `0` ne doit jamais être assimilé à un carburant dont l'historique est simplement absent.
+
+### Attendu
+
+- `consommationMoyenneJour === 0` interdit tout volume de complétion automatique vers un camion plein, sauf règle métier explicite distincte ;
+- une consommation `null` reste une donnée insuffisante, jamais une autorisation de remplir sans plafond ;
+- un carburant suspendu ou indisponible opérationnellement ne peut jamais être utilisé comme carburant de remplissage ;
+- le GNR de Sainte-Marie, actuellement à 0 L vendu dans l'historique disponible, ne doit pas apparaître dans une recommandation automatique de complétion.
+
+## P0-11 — Journée partielle jamais apprise comme journée complète
+
+Une journée ne peut alimenter une moyenne journalière, une comparaison même-jour-de-semaine ou une prévision comme journée complète que si la couverture attendue de ses quarts est démontrée.
+
+Cas réels à conserver comme tests :
+
+- 18/07/2026 : Q1 sans litrage, Q2 connu ;
+- 19/07/2026 : Q1 sans litrage, Q2 connu ;
+- 20/07/2026 : Q1 connu, Q2 sans litrage.
+
+### Attendu
+
+- ces journées sont qualifiées `partielles` ;
+- leur total partiel n'est jamais présenté ou appris comme total journalier comparable ;
+- le moteur peut les exclure d'une moyenne nécessitant des journées complètes, ou les utiliser uniquement avec une méthode explicitement adaptée au quart ;
+- l'absence d'un quart reste distincte d'une vraie journée commercialement faible.
+
+## P0-12 — Suspicion de duplication de quart à arbitrer
+
+Cas réel unique dans l'historique actuel : 28/08/2026, Q1 et Q2 portent exactement les mêmes litrages GO, SP95 et GNR.
+
+### Attendu
+
+- NEXUS signale une suspicion de duplication sans supprimer ni corriger automatiquement la donnée ;
+- la donnée reste traçable et le manager arbitre ;
+- tant que la suspicion n'est pas levée, une prévision sensible à cette journée porte une qualité dégradée ou exclut ce point selon la règle de calcul retenue.
+
 ## Critère de sortie P0
 
 Le lot est validable uniquement lorsque :
@@ -106,5 +144,8 @@ Le lot est validable uniquement lorsque :
 - P0-02 conserve le comportement historique des jaugeages d'ouverture ;
 - P0-03 à P0-05 sont couverts par la logique partagée, pas par un correctif d'écran ;
 - P0-08 et P0-09 empêchent toute double recommandation alors qu'une commande réelle est déjà engagée ;
+- P0-10 interdit toute complétion automatique d'un carburant à consommation nulle ;
+- P0-11 empêche les journées partielles d'être apprises comme journées complètes ;
+- P0-12 traite les doublons suspects comme exceptions à arbitrer, jamais comme corrections automatiques ;
 - la branche ne contient que les modifications attendues ;
 - la PR reste brouillon jusqu'à validation explicite.
