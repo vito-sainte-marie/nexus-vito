@@ -10,11 +10,9 @@ const nexusClient = supabase.createClient(NEXUS_SUPABASE_URL, NEXUS_SUPABASE_ANO
 
 (function chargerExtensionsInventaireV2() {
   const page = window.location.pathname.split('/').pop();
-  const STOCK_BUILD = '20260831-1301';
+  const STOCK_BUILD = '20260831-1314';
   const versionnerStock = src => `${src}?v=${STOCK_BUILD}`;
 
-  // Standard NEXUS : les moteurs conservent les durées décimales pour leurs
-  // calculs, les interfaces de pilotage peuvent les traduire en jour + quart.
   const pagesHorizon=['NEXUS-Inventaire-Manager-v1.html','NEXUS-Carburants-Pilotage-v1.html','NEXUS-App-v1.html','NEXUS-Cockpit-v2.html','NEXUS-Scanner-v1.html','NEXUS-Radar-Manager-v1.html','NEXUS-Centre-Intelligence-v1.html'];
   if(pagesHorizon.includes(page)){const s=document.createElement('script');s.src=versionnerStock('nexus-horizon-operationnel.js');s.defer=true;document.head.appendChild(s);}
 
