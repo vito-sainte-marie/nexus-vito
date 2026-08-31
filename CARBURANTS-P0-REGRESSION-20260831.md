@@ -78,6 +78,26 @@ Cas réel du 31/08 :
 
 NEXUS doit journaliser le fait comme anomalie à rapprocher/informative sans inventer sa cause. `cause_etablie` reste faux tant qu'une preuve ou un arbitrage manager ne l'établit pas.
 
+## P0-08 — Commande confirmée fournisseur reste engagée
+
+Une commande passée de `validee` à `confirmee_fournisseur` est toujours une commande en cours tant qu'elle n'est pas `livree`, `reception_controlee` ou `annulee`.
+
+### Attendu
+
+- son volume reste intégré dans `commandesEnCoursVolumeL` ;
+- NEXUS ne recommande jamais un deuxième camion comme si cette commande avait disparu ;
+- la confirmation fournisseur augmente la certitude de la commande, elle ne doit jamais la retirer du calcul.
+
+## P0-09 — Commande passée hors NEXUS reste engagée jusqu'à livraison
+
+`enregistrerCommandeHorsNexus()` existe précisément pour signaler qu'une commande réelle a déjà été passée par un autre canal. Tant que cette commande n'est pas livrée ou annulée, son volume doit être intégré au moteur comme une commande en cours.
+
+### Attendu
+
+- le statut `hors_nexus` ne fait pas disparaître la commande du calcul ;
+- la recommandation persistante que cette action cherche à neutraliser ne doit pas réapparaître ;
+- après rapprochement de la livraison, le volume cesse naturellement d'être considéré comme engagé.
+
 ## Critère de sortie P0
 
 Le lot est validable uniquement lorsque :
@@ -85,5 +105,6 @@ Le lot est validable uniquement lorsque :
 - le scénario P0-01 ne double-compte plus les ventes pré-ancre ;
 - P0-02 conserve le comportement historique des jaugeages d'ouverture ;
 - P0-03 à P0-05 sont couverts par la logique partagée, pas par un correctif d'écran ;
+- P0-08 et P0-09 empêchent toute double recommandation alors qu'une commande réelle est déjà engagée ;
 - la branche ne contient que les modifications attendues ;
 - la PR reste brouillon jusqu'à validation explicite.
