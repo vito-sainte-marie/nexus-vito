@@ -6,7 +6,7 @@
   if((location.pathname.split('/').pop()||'')!=='NEXUS-Stock-Localise-v1.html') return;
 
   const $=id=>document.getElementById(id);
-  const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
+  const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#039;'}[m]));
   let employee=null, site=null;
 
   function installerStyle(){
@@ -44,9 +44,7 @@
     for(const r of [zr,mr,pr,rr]) if(r.error) throw r.error;
     const zBy=Object.fromEntries((zr.data||[]).map(z=>[z.id,z]));
     const zones=(mr.data||[]).map(m=>zBy[m.zone_id]).filter(Boolean);
-    const produits=pr.data||[];
-    const regles=rr.data||[];
-    return {zones,produits,regles};
+    return {zones,produits:pr.data||[],regles:rr.data||[]};
   }
 
   async function stockZone(produitId,zoneId){
@@ -78,11 +76,20 @@
       if(src==null||dst==null) continue;
       const seuil=Number(r.seuil_destination), cible=Number(r.cible_destination);
       if(dst>seuil) continue;
-      const besoin=Math.max(0,cible-dst); const q=Math.min(besoin,Math.max(0,src));
-      if(q<=0) continue;
-      out.push({produit:p,regle:r,source:src,destination:dst,quantite:q});
+      const q=Math.min(Math.max(0,cible-dst),Math.max(0,src));
+      if(q>0) out.push({produit:p,regle:r,source:src,destination:dst,quantite:q});
     }
     return out;
+  }
+
+  async function sauvegarderRegleCategorie(catId,ancienne,payload){
+    if(ancienne){
+      const {error}=await nexusClient.from('inventaire_reassort_interne_regles').update(payload).eq('id',ancienne.id);
+      if(error) throw error;
+      return;
+    }
+    const {error}=await nexusClient.from('inventaire_reassort_interne_regles').insert(payload);
+    if(error) throw error;
   }
 
   function creerUI(){
@@ -90,7 +97,7 @@
     const actions=document.querySelector('.actions'), cat=$('categorie'); if(!actions||!cat) return false;
     installerStyle();
     const btn=document.createElement('button'); btn.type='button'; btn.id='nrbBtn'; btn.className='btn'; btn.textContent='↓ Réassort boutique';
-    const transfert=$('nexusStockTransferBtn'); actions.insertBefore(btn,transfert||$('btnAnnuler')||null);
+    actions.insertBefore(btn,$('nexusStockTransferBtn')||$('btnAnnuler')||null);
     const modal=document.createElement('div'); modal.id='nrbModal'; modal.innerHTML=`<div class="nrb-card">
       <div class="nrb-title">Réassort boutique</div>
       <div class="nrb-sub">NEXUS propose uniquement de déplacer du stock déjà présent entre deux emplacements. Le stock global reste inchangé et aucune commande fournisseur n'est créée.</div>
@@ -100,10 +107,10 @@
 
     async function ouvrir(){
       const catId=cat.value; if(!catId) return;
-      const data=await donneesCategorie(catId); const zones=data.zones;
+      const data=await donneesCategorie(catId), zones=data.zones;
       const catRule=data.regles.find(r=>r.categorie_id===catId)||null;
       const bureau=zones.find(z=>z.code==='bureau')||zones[0], boutique=zones.find(z=>z.code==='boutique')||zones[1];
-      const sourceId=catRule?.zone_source_id||bureau?.id||''; const destId=catRule?.zone_destination_id||boutique?.id||'';
+      const sourceId=catRule?.zone_source_id||bureau?.id||'', destId=catRule?.zone_destination_id||boutique?.id||'';
       $('nrbConfig').innerHTML=`<div style="font-size:11.5px;font-weight:700">Règle de la catégorie</div>
         <div class="nrb-grid"><div><div class="nrb-label">Réserve / source</div><select id="nrbSource" class="nrb-input">${zones.map(z=>`<option value="${z.id}" ${z.id===sourceId?'selected':''}>${esc(z.nom)}</option>`).join('')}</select></div>
         <div><div class="nrb-label">Boutique / destination</div><select id="nrbDest" class="nrb-input">${zones.map(z=>`<option value="${z.id}" ${z.id===destId?'selected':''}>${esc(z.nom)}</option>`).join('')}</select></div>
@@ -120,8 +127,7 @@
         if(!src||!dst||src===dst) return alert('Choisissez deux emplacements différents.');
         if(!Number.isFinite(seuil)||!Number.isFinite(cible)||seuil<0||cible<seuil) return alert('La cible doit être supérieure ou égale au seuil.');
         const payload={site,categorie_id:catId,produit_id:null,zone_source_id:src,zone_destination_id:dst,seuil_destination:seuil,cible_destination:cible,actif:true,updated_at:new Date().toISOString(),updated_by:employee.id};
-        const {error}=await nexusClient.from('inventaire_reassort_interne_regles').upsert(payload,{onConflict:'site,categorie_id,zone_source_id,zone_destination_id'});
-        if(error){console.error(error);alert('La règle n’a pas pu être enregistrée.');return;}
+        try{await sauvegarderRegleCategorie(catId,catRule,payload);}catch(error){console.error(error);alert('La règle n’a pas pu être enregistrée.');return;}
         modal.classList.remove('on'); await ouvrir();
       };
 
