@@ -4,10 +4,15 @@
   'use strict';
   if((location.pathname.split('/').pop()||'')!=='NEXUS-Stock-Localise-v1.html') return;
 
+  const facteursParProduit=new Map();
   const attendre=()=>new Promise(resolve=>{
     let n=0;const t=setInterval(()=>{n++;if(window.NexusConditionnement){clearInterval(t);resolve(true);}else if(n>80){clearInterval(t);resolve(false);}},75);
   });
-  const facteur=(designation,fallback=10)=>window.NexusConditionnement.facteurDepuisDesignation(designation,fallback)||fallback;
+  function facteurProduit(produitId,designation,fallback=10){
+    const db=Number(facteursParProduit.get(String(produitId))||0);
+    if(db>0) return db;
+    return window.NexusConditionnement.facteurDepuisDesignation(designation,fallback)||fallback;
+  }
 
   function designationLigne(row){return row?.querySelector('.product')?.textContent?.trim()||'';}
   function ajusterLignes(){
@@ -15,12 +20,10 @@
     document.querySelectorAll('.row[data-prod]').forEach(row=>{
       const cart=row.querySelector('.q-cart'),pack=row.querySelector('.q-pack');
       if(!cart||!pack||row.dataset.nexusConditionnementApplique==='1') return;
-      const nom=designationLigne(row),f=facteur(nom,fallback);
-      // Le rendu natif a décomposé avec le facteur global. On reconstruit la
-      // quantité de base puis on la redécompose avec le facteur du produit.
+      const nom=designationLigne(row),f=facteurProduit(row.dataset.prod,nom,fallback);
       const base=(Math.max(0,Number(cart.value)||0)*fallback)+Math.max(0,Number(pack.value)||0);
-      const d=window.NexusConditionnement.decomposer(base,nom,fallback);
-      cart.value=d.conditionnements;pack.value=d.unites;
+      const q=Math.max(0,Number(base)||0);
+      cart.value=Math.floor(q/f);pack.value=q%f;
       row.dataset.nexusConditionnementApplique='1';row.dataset.nexusFacteur=String(f);
       const labels=row.querySelectorAll('.miniLabel');
       labels.forEach(l=>{if(/cartouches/i.test(l.textContent||''))l.textContent=`Cartouches (${f}P)`;});
@@ -30,26 +33,25 @@
   function ajusterFacteurCible(){
     const prod=document.getElementById('nccProduit'),input=document.getElementById('nccFacteur');
     if(!prod||!input) return;
-    const nom=prod.options[prod.selectedIndex]?.textContent||''; const f=facteur(nom,10);
-    input.value=String(f);input.readOnly=true;input.title=`Conditionnement détecté dans la désignation : ${f}P`;
+    const nom=prod.options[prod.selectedIndex]?.textContent||''; const f=facteurProduit(prod.value,nom,10);
+    input.value=String(f);input.readOnly=true;input.title=`Conditionnement NEXUS : ${f} paquet(s) par cartouche`;
   }
 
   function ajusterFacteurTransfert(){
     const prod=document.getElementById('nstProduit'),unite=document.getElementById('nstUnite'),input=document.getElementById('nstFacteur');
     if(!prod||!unite||!input||unite.value!=='cartouche') return;
-    const nom=prod.options[prod.selectedIndex]?.textContent||''; const f=facteur(nom,10);
-    input.value=String(f);input.readOnly=true;input.title=`Conditionnement détecté dans la désignation : ${f}P`;
+    const nom=prod.options[prod.selectedIndex]?.textContent||''; const f=facteurProduit(prod.value,nom,10);
+    input.value=String(f);input.readOnly=true;input.title=`Conditionnement NEXUS : ${f} paquet(s) par cartouche`;
   }
 
   async function enregistrerReleveComplet(ev){
     const btn=ev.target.closest?.('#btnEnregistrer'); if(!btn) return;
     ev.preventDefault();ev.stopImmediatePropagation();
     const emp=await nexusRequireAuth(); if(!emp) return;
-    const catId=document.getElementById('categorie')?.value;
     const rows=[];
     for(const row of document.querySelectorAll('.row[data-prod]')){
       const produitId=row.dataset.prod; if(!produitId) continue;
-      const nom=designationLigne(row);const f=facteur(nom,Math.max(1,Number(document.getElementById('facteur')?.value)||10));
+      const nom=designationLigne(row);const f=facteurProduit(produitId,nom,Math.max(1,Number(document.getElementById('facteur')?.value)||10));
       const pairs=new Map();
       row.querySelectorAll('.q-cart[data-zone]').forEach(c=>pairs.set(c.dataset.zone,{c,u:row.querySelector(`.q-pack[data-zone="${c.dataset.zone}"]`)}));
       for(const [zoneId,x] of pairs){
@@ -69,10 +71,19 @@
     setTimeout(()=>location.reload(),350);
   }
 
+  async function chargerFacteurs(){
+    const emp=await nexusRequireAuth();if(!emp)return;
+    const {data,error}=await nexusClient.from('inventaire_zone_produit')
+      .select('id,facteur_conditionnement').eq('site',emp.site_id).eq('actif',true);
+    if(error){console.warn('Conditionnements NEXUS : facteurs DB indisponibles',error);return;}
+    for(const p of data||[]) if(Number(p.facteur_conditionnement)>0) facteursParProduit.set(String(p.id),Number(p.facteur_conditionnement));
+  }
+
   async function init(){
     if(!(await attendre())) return;
+    await chargerFacteurs();
     const factorWrap=document.getElementById('facteur')?.closest('.factor');
-    if(factorWrap){factorWrap.title='Valeur de secours uniquement. Les suffixes -10P, -8P, -5P… de chaque produit sont prioritaires.';}
+    if(factorWrap){factorWrap.innerHTML='<span>Conditionnement automatique</span><span style="opacity:.65">(-10P / -8P / -5P…)</span>';factorWrap.title='NEXUS lit le conditionnement depuis la désignation Decenium via le code-barres du produit.';}
 
     const mo=new MutationObserver(()=>{adjust();});
     function adjust(){ajusterLignes();ajusterFacteurCible();ajusterFacteurTransfert();}
