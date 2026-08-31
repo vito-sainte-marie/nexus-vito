@@ -39,6 +39,11 @@
     return groupe.cuves.filter(Boolean);
   }
 
+  // Le select est parfois créé avant que config.cuvesOrdonnees soit exploitable.
+  // On le répare depuis station_config. IMPORTANT : la page métier écoute
+  // l'événement change pour écrire cuve_destination_id dans le compartiment ;
+  // toute valeur injectée ici doit donc déclencher change, même si elle vient
+  // d'une restauration ou d'une sélection automatique.
   async function reparerSelectCuve(){
     if(correctionEnCours) return;
     const select=document.getElementById('fCuveCompartiment');
@@ -60,15 +65,32 @@
 
     correctionEnCours=true;
     try{
-      const valeurAvant=select.value;
+      const valeurAvant=String(select.value||'');
       select.innerHTML='<option value="">— Choisir —</option>'+cuves.map(c=>`<option value="${String(c.id).replace(/"/g,'&quot;')}">${c.label||c.id}</option>`).join('');
       select.disabled=false;
-      if(valeurAvant&&idsAttendus.includes(String(valeurAvant))) select.value=valeurAvant;
-      else if(cuves.length===1){
+      if(valeurAvant&&idsAttendus.includes(valeurAvant)){
+        select.value=valeurAvant;
+        select.dispatchEvent(new Event('change',{bubbles:true}));
+      } else if(cuves.length===1){
         select.value=String(cuves[0].id);
         select.dispatchEvent(new Event('change',{bubbles:true}));
       }
     }finally{correctionEnCours=false;}
+  }
+
+  // Filet de sécurité Safari : si un correctif tiers / le navigateur a
+  // remplacé les options du select après la pose de l'écouteur métier, on
+  // force un vrai événement change au choix utilisateur. Cela synchronise
+  // toujours l'affichage ET l'objet compartiment utilisé par tousAssignes.
+  function synchroniserChoixCuve(e){
+    const select=e.target&&e.target.closest?e.target.closest('#fCuveCompartiment'):null;
+    if(!select||select.dataset.nexusSynchroEnCours==='1') return;
+    select.dataset.nexusSynchroEnCours='1';
+    try{
+      select.dispatchEvent(new Event('change',{bubbles:true}));
+    }finally{
+      setTimeout(()=>{delete select.dataset.nexusSynchroEnCours;},0);
+    }
   }
 
   function compartimentsVides(){
@@ -98,9 +120,6 @@
       btn.style.borderColor='rgba(79,195,217,.35)';
       btn.style.color='var(--cyan)';
     });
-
-    // Aide courte : rassure l'utilisateur sur le fait que "Retour" n'est
-    // pas synonyme d'annulation. Ajoutée une seule fois sous le bouton actif.
     const actif=ids.map(id=>document.getElementById(id)).find(Boolean);
     if(actif && !document.getElementById('nexusRetourCorrectionNote')){
       const note=document.createElement('div');
@@ -124,6 +143,11 @@
     document.addEventListener('click',e=>{
       if(e.target&&e.target.closest&&e.target.closest('#btnToggleVideCompartiment,.carburant-chip')) setTimeout(corriger,0);
     },true);
+    // Safari iOS et desktop : input est émis lors d'un choix natif ; le
+    // listener métier historique reste sur change. On relaie donc input ->
+    // change pour éviter qu'une cuve visible à l'écran ne reste absente de
+    // l'état métier.
+    document.addEventListener('input',synchroniserChoixCuve,true);
   }
 
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',init,{once:true}); else init();
