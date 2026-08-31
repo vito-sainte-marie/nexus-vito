@@ -160,6 +160,7 @@
       .filter(a=>['rupture_reelle','couverture_critique','couverture_courte','theorique_seul','reel_trop_ancien'].includes(a.statut))
       .map(a=>({
         candidate_id:`REAPPRO-${a.statut}-${a.produit_id}`,
+        produit_id:a.produit_id,
         ruleId:`R-REAPPRO-${String(a.statut).toUpperCase()}`,
         rang:a.rang,
         moteur:'stock',
