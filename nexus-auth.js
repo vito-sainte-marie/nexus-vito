@@ -85,7 +85,13 @@ const nexusClient = supabase.createClient(NEXUS_SUPABASE_URL, NEXUS_SUPABASE_ANO
     document.head.appendChild(scriptStockMoteur);
   }
 
-  if (['NEXUS-App-v1.html', 'NEXUS-Cockpit-v2.html', 'NEXUS-Centre-Intelligence-v1.html'].includes(page)) {
+  const pagesDecisionStock = ['NEXUS-App-v1.html', 'NEXUS-Cockpit-v2.html', 'NEXUS-Centre-Intelligence-v1.html'];
+  if (pagesDecisionStock.includes(page)) {
+    const scriptReappro = document.createElement('script');
+    scriptReappro.src = 'nexus-reappro-stock-v1.js';
+    scriptReappro.defer = true;
+    document.head.appendChild(scriptReappro);
+
     const scriptConseillerStock = document.createElement('script');
     scriptConseillerStock.src = 'nexus-conseiller-stock-v3.js';
     scriptConseillerStock.defer = true;
