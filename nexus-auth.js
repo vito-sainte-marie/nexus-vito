@@ -70,16 +70,23 @@ const nexusClient = supabase.createClient(NEXUS_SUPABASE_URL, NEXUS_SUPABASE_ANO
     scriptTransfertStock.defer = true;
     document.head.appendChild(scriptTransfertStock);
   }
-  if (page === 'NEXUS-Cockpit-v2.html') {
+  if (['NEXUS-Cockpit-v2.html', 'NEXUS-Scanner-v1.html'].includes(page)) {
     const scriptStockMoteur = document.createElement('script');
     scriptStockMoteur.src = 'nexus-stock-moteur.js';
     scriptStockMoteur.defer = true;
     document.head.appendChild(scriptStockMoteur);
-
+  }
+  if (page === 'NEXUS-Cockpit-v2.html') {
     const scriptCockpitStock = document.createElement('script');
     scriptCockpitStock.src = 'nexus-cockpit-stock-v3.js';
     scriptCockpitStock.defer = true;
     document.head.appendChild(scriptCockpitStock);
+  }
+  if (page === 'NEXUS-Scanner-v1.html') {
+    const scriptScannerStock = document.createElement('script');
+    scriptScannerStock.src = 'nexus-scanner-stock-v3.js';
+    scriptScannerStock.defer = true;
+    document.head.appendChild(scriptScannerStock);
   }
   if (page === 'NEXUS-FDJ-v1.html') {
     const scriptCorrectionDepart = document.createElement('script');
