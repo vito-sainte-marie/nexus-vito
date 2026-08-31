@@ -110,19 +110,22 @@
       statut='pas_de_rotation';
       action='Pas de réassort suggéré sur la base de cette période de ventes.';
       rang=4;
-    } else if(cover(ture=0)) {
-    }
-
-    if(reel.quantite!=null && vitesse!=null && vitesse>0 && !(ageHeures!=null && ageHeures>ageMaxHeures)){
-      if(Number(reel.quantite)<=0){
-        statut='rupture_reelle'; action='Préparer le réassort immédiatement.'; rang=1;
-      } else if(couverture<=seuilCritique){
-        statut='couverture_critique'; action='Préparer le réassort.'; rang=1;
-      } else if(couverture<=seuilCourt){
-        statut='couverture_courte'; action='Surveiller et préparer le prochain réassort.'; rang=2;
-      } else {
-        statut='couverture_suffisante'; action='Aucun réassort urgent détecté.'; rang=4;
-      }
+    } else if(Number(reel.quantite)<=0){
+      statut='rupture_reelle';
+      action='Préparer le réassort immédiatement.';
+      rang=1;
+    } else if(couverture<=seuilCritique){
+      statut='couverture_critique';
+      action='Préparer le réassort.';
+      rang=1;
+    } else if(couverture<=seuilCourt){
+      statut='couverture_courte';
+      action='Surveiller et préparer le prochain réassort.';
+      rang=2;
+    } else {
+      statut='couverture_suffisante';
+      action='Aucun réassort urgent détecté.';
+      rang=4;
     }
 
     return {
@@ -143,11 +146,6 @@
     };
   }
 
-  // Correctif syntaxique volontairement séparé de la logique ci-dessus :
-  // cette fonction est la seule voie publique et garantit qu'aucune quantité
-  // de commande n'est inventée. NEXUS propose de préparer/surveiller ; le
-  // fournisseur, le délai et le conditionnement devront être paramétrés avant
-  // de suggérer une quantité d'achat.
   async function analyserSite(site,options={}){
     if(!site) throw new Error('NEXUS Réassort: site requis');
     if(!window.NexusStock) throw new Error('NEXUS Réassort: Stock Engine indisponible');
@@ -183,5 +181,8 @@
       }));
   }
 
-  window.NexusReappro=Object.freeze({analyserSite,candidatsConseiller,chargerVentes});
+  // Aucune quantité de commande n'est inventée ici : le fournisseur, le
+  // délai d'approvisionnement et le conditionnement doivent être paramétrés
+  // avant que NEXUS puisse proposer une quantité d'achat fiable.
+  window.NexusReappro=Object.freeze({analyserSite,candidatsConseiller,chargerVentes,analyserLigne});
 })();
