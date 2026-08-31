@@ -46,14 +46,14 @@
     return out;
   }
 
-  function construireSuggestion(ctx,engages){
+  function construireSuggestion(ctx,engages,joursFeriesISO){
     const M=window.NexusCarburantCommandeMoteur;
     if(!ctx||ctx.ok===false||!ctx.config||!M) return null;
     const fenetre=M.calculerFenetreLivraison({
       dateCommandeISO:ctx.dateISO,
       heureCommandeHHMM:ctx.heureMaintenantHHMM,
       config:ctx.config,
-      joursFeriesISO:[]
+      joursFeriesISO:joursFeriesISO||[]
     });
     const livraison=fenetre&&fenetre.livraisonISO;
     if(!livraison || livraison.slice(0,7)===ctx.dateISO.slice(0,7)) return null;
@@ -88,7 +88,7 @@
     }
     const total=Object.values(volumes).reduce((s,v)=>s+v,0);
     if(total<minimum) return null;
-    return {livraison,maximum,total,volumes,candidats,engages,deja,complet:total>=maximum};
+    return {dateISO:ctx.dateISO,livraison,maximum,total,volumes,candidats,engages,deja,complet:total>=maximum};
   }
 
   function styles(){
@@ -121,7 +121,7 @@
     if(!sug||document.getElementById('nexusDemarrageMois'))return;
     styles();
     const card=document.createElement('div');card.id='nexusDemarrageMois';card.className='ncdm';
-    const commandesDuJour=(sug.engages||[]).filter(c=>c.livraison_prevue_le===new Date().toISOString().slice(0,10));
+    const commandesDuJour=(sug.engages||[]).filter(c=>c.livraison_prevue_le===sug.dateISO);
     const livraisonJour=commandesDuJour.reduce((s,c)=>s+(Number(c.volume_total_l)||Object.values(c.carburants||{}).reduce((a,l)=>a+(Number(l&&l.volumeL)||0),0)),0);
     const fuels=Object.entries(sug.volumes).map(([c,v])=>`<div class="ncdm-fuel"><small>${NOM[c]||c.toUpperCase()}</small><b>${fmt(v)}</b><small>volume conseillé</small></div>`).join('');
     card.innerHTML=`<div class="ncdm-head"><div class="ncdm-icon">🚚</div><div><div class="ncdm-title">Démarrage du nouveau mois</div><div class="ncdm-sub">NEXUS regarde après la livraison de transition et prépare déjà le premier camion du mois suivant.</div></div><span class="ncdm-badge">${dateFr(sug.livraison)}</span></div>
@@ -136,13 +136,15 @@
     if(!window.NexusCarburantCommandeDonnees||!window.NexusCarburantCommandeMoteur)return;
     done=true;
     try{
-      const ctx=await window.NexusCarburantCommandeDonnees.evaluerCommandeCarburantSite(nexusClient,site);
+      const D=window.NexusCarburantCommandeDonnees;
+      const ctx=await D.evaluerCommandeCarburantSite(nexusClient,site);
       if(!ctx||ctx.ok===false)return;
+      const joursFeriesISO=D.chargerJoursFeries?await D.chargerJoursFeries(nexusClient,site):[];
       const M=window.NexusCarburantCommandeMoteur;
-      const fen=M.calculerFenetreLivraison({dateCommandeISO:ctx.dateISO,heureCommandeHHMM:ctx.heureMaintenantHHMM,config:ctx.config,joursFeriesISO:[]});
+      const fen=M.calculerFenetreLivraison({dateCommandeISO:ctx.dateISO,heureCommandeHHMM:ctx.heureMaintenantHHMM,config:ctx.config,joursFeriesISO});
       if(!fen||!fen.livraisonISO||fen.livraisonISO.slice(0,7)===ctx.dateISO.slice(0,7))return;
       const engages=await commandesEngagees(ctx.dateISO,fen.livraisonISO);
-      const sug=construireSuggestion(ctx,engages);
+      const sug=construireSuggestion(ctx,engages,joursFeriesISO);
       render(sug);
     }catch(e){done=false;console.error('NEXUS démarrage nouveau mois:',e);}
   }
