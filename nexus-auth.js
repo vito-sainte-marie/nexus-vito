@@ -10,7 +10,7 @@ const nexusClient = supabase.createClient(NEXUS_SUPABASE_URL, NEXUS_SUPABASE_ANO
 
 (function chargerExtensionsInventaireV2() {
   const page = window.location.pathname.split('/').pop();
-  const STOCK_BUILD = '20260831-0932';
+  const STOCK_BUILD = '20260831-0958';
   const versionnerStock = src => `${src}?v=${STOCK_BUILD}`;
 
   if (page === 'NEXUS-Inventaire-v1.html') {
