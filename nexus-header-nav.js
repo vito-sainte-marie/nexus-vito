@@ -171,3 +171,20 @@
     demarrer();
   }
 })();
+
+// Branche P0 Carburants uniquement : charge un correctif isolé sans toucher
+// aux gros moteurs. Le module se met lui-même en attente jusqu'à ce que les
+// objets NexusCarburant* soient disponibles. Cette section est destinée à
+// disparaître lors de l'intégration finale des correctifs dans leurs fichiers
+// métier respectifs.
+(function () {
+  'use strict';
+  var page = (window.location.pathname.split('/').pop() || '').toLowerCase();
+  if (page.indexOf('nexus-carburant') !== 0) return;
+  if (document.querySelector('script[data-nexus-carburants-p0]')) return;
+  var script = document.createElement('script');
+  script.src = 'nexus-carburants-p0-fixes.js';
+  script.async = false;
+  script.setAttribute('data-nexus-carburants-p0', '1');
+  document.head.appendChild(script);
+})();
