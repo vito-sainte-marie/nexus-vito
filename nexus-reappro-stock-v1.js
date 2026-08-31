@@ -1,6 +1,9 @@
 // NEXUS — moteur de couverture stock / réassort V1
 // Croise ventes récentes + Stock Engine central sans jamais confondre
 // stock réel, stock théorique et écart de rapprochement.
+// IMPORTANT : ce moteur concerne la couverture du stock GLOBAL. Il peut être
+// désactivé par site afin de rester silencieux lorsque le logiciel de gestion
+// (Decenium ou autre) porte déjà le réapprovisionnement fournisseur.
 (function(){
   'use strict';
 
@@ -28,21 +31,11 @@
   }
 
   async function chargerConfig(site){
-    const defaults={actif:true,seuilCritiqueJours:2,seuilCourtJours:5,ageMaxHeures:72};
     const {data,error}=await nexusClient.from('nexus_stock_reappro_config')
       .select('actif,seuil_critique_jours,seuil_court_jours,age_max_stock_heures')
       .eq('site',site).maybeSingle();
-    if(error){
-      console.warn('NEXUS Réassort — configuration indisponible, valeurs par défaut utilisées:',error);
-      return defaults;
-    }
-    if(!data) return defaults;
-    return {
-      actif:data.actif!==false,
-      seuilCritiqueJours:Number(data.seuil_critique_jours ?? 2),
-      seuilCourtJours:Number(data.seuil_court_jours ?? 5),
-      ageMaxHeures:Number(data.age_max_stock_heures ?? 72)
-    };
+    if(error) throw error;
+    return data || {actif:false,seuil_critique_jours:2,seuil_court_jours:5,age_max_stock_heures:72};
   }
 
   async function dernierePeriode(site){
@@ -108,89 +101,60 @@
     let action='Aucune décision de réassort automatique.';
     let rang=4;
 
-    if(options.actif===false){
-      statut='moteur_desactive';
-      action='Moteur de réassort désactivé dans les paramètres du site.';
-    } else if(ref.nature==='theorique'){
-      statut='theorique_seul';
-      action='Contrôler physiquement le stock avant de décider d’un réassort.';
-      rang=3;
+    if(ref.nature==='theorique'){
+      statut='theorique_seul'; action='Contrôler physiquement le stock avant de décider d’un réassort.'; rang=3;
     } else if(reel.quantite==null){
-      statut='stock_reel_absent';
-      action='Faire un comptage physique avant toute décision de réassort.';
-      rang=3;
+      statut='stock_reel_absent'; action='Faire un comptage physique avant toute décision de réassort.'; rang=3;
     } else if(ageHeures!=null && ageHeures>ageMaxHeures){
-      statut='reel_trop_ancien';
-      action='Actualiser le comptage physique avant de décider d’un réassort.';
-      rang=3;
+      statut='reel_trop_ancien'; action='Actualiser le comptage physique avant de décider d’un réassort.'; rang=3;
     } else if(vitesse==null){
-      statut='ventes_non_rapprochees';
-      action='Stock réel connu, mais ventes non rapprochées : pas de recommandation de commande.';
-      rang=4;
+      statut='ventes_non_rapprochees'; action='Stock réel connu, mais ventes non rapprochées : pas de recommandation de commande.'; rang=4;
     } else if(vitesse<=0){
-      statut='pas_de_rotation';
-      action='Pas de réassort suggéré sur la base de cette période de ventes.';
-      rang=4;
+      statut='pas_de_rotation'; action='Pas de réassort suggéré sur la base de cette période de ventes.'; rang=4;
     } else if(Number(reel.quantite)<=0){
-      statut='rupture_reelle';
-      action='Préparer le réassort immédiatement.';
-      rang=1;
+      statut='rupture_reelle'; action='Préparer le réassort immédiatement.'; rang=1;
     } else if(couverture<=seuilCritique){
-      statut='couverture_critique';
-      action='Préparer le réassort.';
-      rang=1;
+      statut='couverture_critique'; action='Préparer le réassort.'; rang=1;
     } else if(couverture<=seuilCourt){
-      statut='couverture_courte';
-      action='Surveiller et préparer le prochain réassort.';
-      rang=2;
+      statut='couverture_courte'; action='Surveiller et préparer le prochain réassort.'; rang=2;
     } else {
-      statut='couverture_suffisante';
-      action='Aucun réassort urgent détecté.';
-      rang=4;
+      statut='couverture_suffisante'; action='Aucun réassort urgent détecté.'; rang=4;
     }
 
     return {
-      produit_id:etat.produit_id,
-      article:etat.designation,
-      categorie:etat.categorie,
-      code_barres:etat.code_barres,
-      stock_reel:reel.quantite,
-      stock_reel_date:reel.date,
-      stock_reference_nature:ref.nature,
-      ventes_periode:vendu,
-      jours_periode:jours,
-      ventes_par_jour:vitesse,
-      couverture_jours:couverture,
-      age_stock_heures:ageHeures,
-      statut,action,rang,
-      rapprochement_ventes:vente ? vente.rapprochement : null
+      produit_id:etat.produit_id, article:etat.designation, categorie:etat.categorie,
+      code_barres:etat.code_barres, stock_reel:reel.quantite, stock_reel_date:reel.date,
+      stock_reference_nature:ref.nature, ventes_periode:vendu, jours_periode:jours,
+      ventes_par_jour:vitesse, couverture_jours:couverture, age_stock_heures:ageHeures,
+      statut,action,rang, rapprochement_ventes:vente ? vente.rapprochement : null
     };
   }
 
   async function analyserSite(site,options={}){
     if(!site) throw new Error('NEXUS Réassort: site requis');
     if(!window.NexusStock) throw new Error('NEXUS Réassort: Stock Engine indisponible');
-    const [etats,ventes,config]=await Promise.all([NexusStock.chargerEtat(site),chargerVentes(site),chargerConfig(site)]);
-    const regles={...config,...options};
+    const config=await chargerConfig(site);
+    if(config.actif !== true) return {site,actif:false,config,periode:null,jours:null,analyses:[]};
+    const [etats,ventes]=await Promise.all([NexusStock.chargerEtat(site),chargerVentes(site)]);
     const idx=indexVentes(ventes.lignes);
+    const regles={
+      seuilCritiqueJours:Number(options.seuilCritiqueJours ?? config.seuil_critique_jours ?? 2),
+      seuilCourtJours:Number(options.seuilCourtJours ?? config.seuil_court_jours ?? 5),
+      ageMaxHeures:Number(options.ageMaxHeures ?? config.age_max_stock_heures ?? 72)
+    };
     const analyses=etats.map(etat=>analyserLigne(etat,quantiteVendue(etat,idx),ventes.jours,regles));
-    return {site,periode:ventes.periode,jours:ventes.jours,config:regles,analyses};
+    return {site,actif:true,config,periode:ventes.periode,jours:ventes.jours,analyses};
   }
 
   function candidatsConseiller(resultat){
-    return (resultat && resultat.analyses || [])
+    if(!resultat || resultat.actif !== true) return [];
+    return (resultat.analyses || [])
       .filter(a=>['rupture_reelle','couverture_critique','couverture_courte','theorique_seul','reel_trop_ancien'].includes(a.statut))
       .map(a=>({
-        candidate_id:`REAPPRO-${a.statut}-${a.produit_id}`,
-        produit_id:a.produit_id,
-        ruleId:`R-REAPPRO-${String(a.statut).toUpperCase()}`,
-        rang:a.rang,
-        moteur:'stock',
+        candidate_id:`REAPPRO-${a.statut}-${a.produit_id}`, produit_id:a.produit_id,
+        ruleId:`R-REAPPRO-${String(a.statut).toUpperCase()}`, rang:a.rang, moteur:'stock',
         etat:a.statut==='rupture_reelle'?'📦 RUPTURE OBSERVÉE':a.statut==='couverture_critique'?'📦 COUVERTURE CRITIQUE':a.statut==='couverture_courte'?'📦 À SURVEILLER':'📦 DONNÉE À ACTUALISER',
-        impact_eur:0,
-        article:a.article,
-        categorie:a.categorie,
-        decision:a.action,
+        impact_eur:0, article:a.article, categorie:a.categorie, decision:a.action,
         pourquoi:a.couverture_jours!=null
           ? `Stock réel ${Number(a.stock_reel)} · ventes moyennes ${a.ventes_par_jour.toFixed(2)}/jour · couverture estimée ${a.couverture_jours.toFixed(1)} jour${a.couverture_jours>=2?'s':''}.`
           : a.statut==='theorique_seul'
@@ -198,14 +162,9 @@
             : 'La donnée physique disponible n’est pas assez récente pour décider d’un réassort.',
         impact:'Limiter le risque de rupture sans commander sur une donnée de stock incertaine.',
         confiance:a.statut==='rupture_reelle'||a.statut==='couverture_critique'||a.statut==='couverture_courte'?'B':'C',
-        validable:false,
-        couverture_jours:a.couverture_jours,
-        stock_source:a.stock_reference_nature
+        validable:false, couverture_jours:a.couverture_jours, stock_source:a.stock_reference_nature
       }));
   }
 
-  // Aucune quantité de commande n'est inventée ici : fournisseur, délai
-  // d'approvisionnement et conditionnement devront être paramétrés avant
-  // que NEXUS puisse proposer une quantité d'achat fiable.
-  window.NexusReappro=Object.freeze({analyserSite,candidatsConseiller,chargerVentes,chargerConfig,analyserLigne});
+  window.NexusReappro=Object.freeze({analyserSite,candidatsConseiller,chargerVentes,analyserLigne,chargerConfig});
 })();
